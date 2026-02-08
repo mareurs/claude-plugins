@@ -1,0 +1,57 @@
+# {{PROJECT_NAME}}
+
+{{PROJECT_DESCRIPTION}}
+
+## SDD Workflow
+
+This project follows Specification-Driven Development.
+
+### Full Lifecycle (Recommended)
+
+```bash
+/sdd-flow <feature>  # Full lifecycle: idea → spec → plan → TDD → review → PR
+```
+
+### Individual Commands
+
+```bash
+/specify <feature>   # Create specification
+/plan <feature>      # Create implementation plan (requires approval)
+/drift <feature>     # Check spec-vs-code alignment
+/review              # Validate before committing
+```
+
+## Constitution
+
+All development follows [`memory/constitution.md`](memory/constitution.md).
+
+## Quick Links
+
+- [Constitution](memory/constitution.md) - Governance principles
+- [Specs](memory/specs/) - Feature specifications
+- [Plans](memory/plans/) - Implementation plans
+
+## Getting Started
+
+{{GETTING_STARTED_INSTRUCTIONS}}
+
+## Project Structure
+
+```
+{{PROJECT_STRUCTURE}}
+```
+
+## Skills
+
+| Skill | Purpose |
+|-------|---------|
+| `/sdd-flow <feature>` | Full lifecycle orchestration (idea → PR) |
+
+## Commands
+
+| Command | Purpose |
+|---------|---------|
+| `/specify <feature>` | Create PRD |
+| `/plan <spec>` | Generate implementation plan |
+| `/drift <spec>` | Check spec-vs-code alignment |
+| `/review` | Constitutional compliance check |

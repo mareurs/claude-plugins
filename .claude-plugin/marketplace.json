@@ -1,0 +1,24 @@
+{
+  "name": "claude-plugins",
+  "owner": {
+    "name": "Marius"
+  },
+  "metadata": {
+    "description": "Claude Code plugins by Marius - SDD and more",
+    "version": "1.0.0"
+  },
+  "plugins": [
+    {
+      "name": "sdd",
+      "source": "./sdd",
+      "description": "Specification-Driven Development: governance, workflow commands, and enforcement hooks for Claude Code projects",
+      "version": "2.1.0",
+      "author": {
+        "name": "Marius"
+      },
+      "license": "MIT",
+      "keywords": ["sdd", "specification", "governance", "workflow", "tdd", "constitution"],
+      "category": "workflow"
+    }
+  ]
+}

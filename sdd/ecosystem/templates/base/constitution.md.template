@@ -1,0 +1,112 @@
+# {{PROJECT_NAME}} Constitutional Foundation
+
+**Version**: 1.0
+**Status**: Ratified
+**Date**: {{DATE}}
+
+This document defines the principles governing development for {{PROJECT_NAME}}.
+
+---
+
+## Preamble
+
+{{PROJECT_PREAMBLE}}
+
+---
+
+## Article I: Specification-First Development
+
+### Principle
+No code shall be written without a specification.
+
+### Mandates
+1. Every feature MUST have a spec at `memory/specs/<feature>.md`
+2. Specs include: problem, solution, acceptance criteria, out of scope
+3. Implementation MUST NOT exceed specification scope
+
+---
+
+## Article II: Human-in-the-Loop for Planning
+
+### Principle
+Implementation plans require human approval.
+
+### Mandates
+1. Plans live at `memory/plans/<spec>/plan.md`
+2. Plans MUST receive explicit human approval
+3. Implementation MUST follow approved plan
+
+---
+
+## Article III: Constitutional Review Before Commit
+
+### Principle
+All changes validated against constitution before commit.
+
+### Mandates
+1. Run `/review` before committing
+2. Resolve NO-GO issues before proceeding
+3. No exceptions
+
+---
+
+## Article IV: Documentation as Code
+
+### Principle
+Documentation updated alongside code.
+
+### Mandates
+1. Doc changes in same commit as code changes
+2. No orphan docs or undocumented code
+3. Stale docs are bugs
+
+---
+
+## Article V: Progressive Enhancement
+
+### Principle
+Start minimal, add complexity only when needed.
+
+### Mandates
+1. Simplest solution first
+2. No premature abstraction
+3. Delete unused code (don't comment out)
+
+---
+
+## Article VI: Clear Communication
+
+### Principle
+All artifacts communicate clearly.
+
+### Mandates
+1. Self-documenting names
+2. Rationale for non-obvious decisions
+3. Actionable error messages
+
+---
+
+## Project-Specific Articles
+
+{{CUSTOM_ARTICLES}}
+
+---
+
+## Constitutional Compliance Checklist
+
+- [ ] Article I: Spec exists and matches implementation
+- [ ] Article II: Plan approved before implementation
+- [ ] Article III: Review performed
+- [ ] Article IV: Documentation updated
+- [ ] Article V: No over-engineering
+- [ ] Article VI: Clear communication
+{{CUSTOM_CHECKLIST}}
+
+---
+
+## Amendment Process
+
+1. Written proposal with rationale
+2. Impact analysis
+3. Review period
+4. Documentation with version increment
