@@ -23,6 +23,6 @@ cat << EOF
 REQUIRED - Activate Serena NOW (before any other work):
 1. Call the Serena check_onboarding_performed tool to check if this project is known
 2. If onboarding was NOT performed, call the Serena onboarding tool and follow its instructions
-3. Call the Serena activate_project tool with project_name='${PROJECT_NAME}' -- this is MANDATORY, do NOT skip it
+3. Call the Serena activate_project tool with project='${CWD}' -- this is MANDATORY, do NOT skip it
 All three steps must complete before you use any Serena tools. Serena tools will be BLOCKED until activate_project is called.
 EOF

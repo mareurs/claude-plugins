@@ -33,7 +33,7 @@ cat << EOF
   "hookSpecificOutput": {
     "hookEventName": "PreToolUse",
     "permissionDecision": "deny",
-    "permissionDecisionReason": "BLOCKED: Call ${SERENA_PREFIX}activate_project with project_name '${PROJECT_NAME}' right now. Do NOT call any other Serena tool until this succeeds."
+    "permissionDecisionReason": "BLOCKED: Call ${SERENA_PREFIX}activate_project with project='${CWD}' right now. Do NOT call any other Serena tool until this succeeds."
   }
 }
 EOF
