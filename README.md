@@ -1,6 +1,20 @@
 # Claude Plugins
 
-A public marketplace of Claude Code plugins.
+An opinionated collection of Claude Code plugins, primarily developed for internal team use. Public so colleagues and collaborators can install directly.
+
+These plugins reflect specific workflows and tool choices -- they may not suit every setup. Feel free to fork and adapt.
+
+## Requirements
+
+- [Claude Code](https://claude.com/claude-code) CLI
+- [jq](https://jqlang.github.io/jq/) -- used by hook scripts for JSON parsing
+
+### Per-plugin requirements
+
+| Plugin | Additional Requirements |
+|--------|----------------------|
+| **sdd** | None (core workflow). [Serena MCP](https://github.com/oraios/serena) for `/drift` and `/document`. |
+| **tool-infra** | [Serena MCP](https://github.com/oraios/serena) and/or [IntelliJ MCP](https://github.com/niclas-timm/intellij-index-mcp) depending on which hooks you need. |
 
 ## Available Plugins
 
@@ -17,10 +31,11 @@ A public marketplace of Claude Code plugins.
 /plugin marketplace add mareurs/claude-plugins
 ```
 
-### Install a plugin
+### Install plugins
 
 ```
 /plugin install sdd@claude-plugins
+/plugin install tool-infra@claude-plugins
 ```
 
 ### Team setup
@@ -40,6 +55,8 @@ Add to your project's `.claude/settings.json` so all team members get the market
 }
 ```
 
+When team members trust the repository folder, Claude Code automatically installs the marketplace and any plugins listed in `enabledPlugins`.
+
 ## Plugins
 
 ### SDD (Specification-Driven Development)
@@ -53,6 +70,16 @@ A methodology where code follows specifications. Every feature starts with a cle
 **Hooks:** spec-guard, review-guard, subagent-inject, session-start
 
 See [sdd/README.md](./sdd/) for full documentation.
+
+### tool-infra
+
+Generic infrastructure hooks for MCP tool integrations. Zero configuration -- derives project context from `cwd`.
+
+**Hooks:**
+- **serena-activate-guard** -- Denies Serena tool calls until `activate_project()` is called. Prevents cryptic errors from unactivated projects.
+- **intellij-project-path** -- Auto-injects `project_path` into IntelliJ index calls. Prevents "project_path required" errors.
+
+See [tool-infra/README.md](./tool-infra/) for details.
 
 ## License
 
