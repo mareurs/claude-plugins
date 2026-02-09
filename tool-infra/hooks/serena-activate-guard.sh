@@ -24,12 +24,13 @@ esac
 [ -f "$MARKER" ] && exit 0
 
 # Not activated — deny with guidance
+# Lead with the critical action (activate_project) so Claude doesn't stop after check_onboarding
 cat << EOF
 {
   "hookSpecificOutput": {
     "hookEventName": "PreToolUse",
     "permissionDecision": "deny",
-    "permissionDecisionReason": "Serena not activated yet. You must first: 1) check_onboarding_performed() 2) If not onboarded, run onboarding() 3) activate_project('${PROJECT_NAME}'). This only needs to happen once per session."
+    "permissionDecisionReason": "BLOCKED: Serena project not activated. You MUST call activate_project('${PROJECT_NAME}') before using any Serena tools. If this is a new session, first call check_onboarding_performed() and if not onboarded run onboarding(), then call activate_project('${PROJECT_NAME}'). Do NOT retry the original tool call until activate_project has been called."
   }
 }
 EOF

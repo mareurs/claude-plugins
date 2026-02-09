@@ -12,9 +12,9 @@ if [ ! -f "${CWD}/.serena/project.yml" ]; then
 fi
 
 cat << EOF
-IMPORTANT - Serena Setup (do this before any other work):
-1. Call check_onboarding_performed() to see if Serena knows this project
+REQUIRED - Activate Serena NOW (before any other work):
+1. Call check_onboarding_performed()
 2. If onboarding was NOT performed, run onboarding() and follow its instructions
-3. Call activate_project('${PROJECT_NAME}') to activate the project for this session
-This ensures Serena has full project context for semantic code operations.
+3. Call activate_project('${PROJECT_NAME}') -- this step is MANDATORY, do NOT skip it
+All three steps must complete before you use any Serena tools. Serena tools will be BLOCKED until activate_project is called.
 EOF
