@@ -23,13 +23,13 @@
     {
       "name": "tool-infra",
       "source": "./tool-infra",
-      "description": "Infrastructure hooks for Serena and IntelliJ MCP tools: auto-activation guard and project path injection",
+      "description": "Infrastructure hooks for IntelliJ MCP tools: auto-injects project path into tool calls",
       "version": "1.0.0",
       "author": {
         "name": "Marius"
       },
       "license": "MIT",
-      "keywords": ["serena", "intellij", "hooks", "mcp", "infrastructure"],
+      "keywords": ["intellij", "hooks", "mcp", "infrastructure"],
       "category": "infrastructure"
     }
   ]

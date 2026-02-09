@@ -14,14 +14,14 @@ These plugins reflect specific workflows and tool choices -- they may not suit e
 | Plugin | Additional Requirements |
 |--------|----------------------|
 | **sdd** | None (core workflow). [Serena MCP](https://github.com/oraios/serena) for `/drift` and `/document`. |
-| **tool-infra** | [Serena MCP](https://github.com/oraios/serena) and/or [IntelliJ MCP](https://github.com/niclas-timm/intellij-index-mcp) depending on which hooks you need. |
+| **tool-infra** | [IntelliJ MCP](https://github.com/niclas-timm/intellij-index-mcp) |
 
 ## Available Plugins
 
 | Plugin | Version | Description |
 |--------|---------|-------------|
 | **[sdd](./sdd/)** | 2.1.0 | Specification-Driven Development: governance, workflow commands, and enforcement hooks |
-| **[tool-infra](./tool-infra/)** | 1.0.0 | Infrastructure hooks for Serena and IntelliJ MCP tools |
+| **[tool-infra](./tool-infra/)** | 1.0.0 | Infrastructure hooks for IntelliJ MCP tools |
 
 ## Installation
 
@@ -73,10 +73,9 @@ See [sdd/README.md](./sdd/) for full documentation.
 
 ### tool-infra
 
-Generic infrastructure hooks for MCP tool integrations. Zero configuration -- derives project context from `cwd`.
+Infrastructure hooks for IntelliJ MCP tools. Zero configuration -- derives project context from `cwd`.
 
 **Hooks:**
-- **serena-activate-guard** -- Denies Serena tool calls until `activate_project()` is called. Prevents cryptic errors from unactivated projects.
 - **intellij-project-path** -- Auto-injects `project_path` into IntelliJ index calls. Prevents "project_path required" errors.
 
 See [tool-infra/README.md](./tool-infra/) for details.
