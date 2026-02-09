@@ -4,9 +4,15 @@ Infrastructure hooks for Serena and IntelliJ MCP tools.
 
 ## What it does
 
-**serena-activate-guard** -- Ensures the Serena project is activated before any Serena tool call. Denies with activation instructions if not yet activated. Uses a temp marker file so the check is near-instant (~0.1ms) after first activation.
+### Serena hooks (two-layer approach)
 
-**intellij-project-path** -- Auto-injects `project_path` into IntelliJ index tool calls when missing, using `cwd` from the hook input. Prevents "project_path required" errors.
+**serena-session-start** (SessionStart) -- At conversation start, checks if `.serena/project.yml` exists and instructs Claude to: check onboarding, onboard if needed, then activate the project. This is the primary activation mechanism.
+
+**serena-activate-guard** (PreToolUse, safety net) -- Denies Serena tool calls if activation hasn't happened yet. Fallback in case Claude skips or hasn't completed the session start instructions. Includes the activation steps in the deny message so Claude can self-correct.
+
+### IntelliJ hook
+
+**intellij-project-path** (PreToolUse) -- Auto-injects `project_path` into IntelliJ index tool calls when missing, using `cwd` from the hook input. Prevents "project_path required" errors.
 
 ## Installation
 
@@ -17,18 +23,19 @@ Infrastructure hooks for Serena and IntelliJ MCP tools.
 
 ## How it works
 
-Both hooks trigger on `PreToolUse`:
+| Hook | Event | Matcher | Action |
+|------|-------|---------|--------|
+| serena-session-start | SessionStart | all | Instruct Claude to onboard + activate Serena |
+| serena-activate-guard | PreToolUse | `mcp__.*serena.*` | Deny with activation instructions if not yet activated |
+| intellij-project-path | PreToolUse | `mcp__intellij-index__.*` | Inject `project_path` from `cwd` |
 
-| Hook | Matcher | Action |
-|------|---------|--------|
-| serena-activate-guard | `mcp__.*serena.*` | Deny until `activate_project()` called |
-| intellij-project-path | `mcp__intellij-index__.*` | Inject `project_path` from `cwd` |
-
-The Serena guard derives the project name from `basename` of `cwd` -- no per-project configuration needed.
+The Serena hooks derive the project name from `basename` of `cwd` -- no per-project configuration needed. The session start hook only fires if `.serena/project.yml` exists in the project.
 
 ## Requirements
 
 - `jq` (for JSON parsing in hook scripts)
+- [Serena MCP](https://github.com/oraios/serena) for Serena hooks
+- [IntelliJ MCP](https://github.com/niclas-timm/intellij-index-mcp) for IntelliJ hook
 
 ## License
 

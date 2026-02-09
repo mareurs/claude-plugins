@@ -1,7 +1,7 @@
 #!/bin/bash
-# PreToolUse hook - ensure Serena project is activated before use
-# Uses a temp marker file as session flag (survives until reboot/tmp cleanup)
-# Generic: derives project name from cwd basename
+# PreToolUse hook - safety net ensuring Serena is activated before use
+# Primary activation happens via serena-session-start.sh at SessionStart
+# This is a fallback if Claude skips or hasn't completed activation yet
 
 INPUT=$(cat)
 TOOL_NAME=$(echo "$INPUT" | jq -r '.tool_name // empty')
@@ -20,7 +20,7 @@ case "$TOOL_NAME" in
     ;;
 esac
 
-# Fast path: already activated (stat syscall, ~0.1ms)
+# Fast path: already activated
 [ -f "$MARKER" ] && exit 0
 
 # Not activated — deny with guidance
@@ -29,7 +29,7 @@ cat << EOF
   "hookSpecificOutput": {
     "hookEventName": "PreToolUse",
     "permissionDecision": "deny",
-    "permissionDecisionReason": "Serena project not activated yet. Run: check_onboarding_performed() then activate_project('${PROJECT_NAME}'). This only needs to happen once per session."
+    "permissionDecisionReason": "Serena not activated yet. You must first: 1) check_onboarding_performed() 2) If not onboarded, run onboarding() 3) activate_project('${PROJECT_NAME}'). This only needs to happen once per session."
   }
 }
 EOF
