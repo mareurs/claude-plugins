@@ -24,18 +24,16 @@ esac
 [ -f "$MARKER" ] && exit 0
 
 # Derive the Serena tool prefix from the blocked tool name
-# e.g. mcp__serena__find_symbol -> mcp__serena__
-#      mcp__plugin_serena_serena__find_symbol -> mcp__plugin_serena_serena__
 SERENA_PREFIX=$(echo "$TOOL_NAME" | sed 's/\(.*serena[^_]*__\).*/\1/')
 
-# Not activated — deny with guidance
-# Include exact tool names so Claude knows what MCP tools to call
+# Not activated — single clear action, no multi-step instructions
+# If onboarding is needed, Serena's activate_project will say so
 cat << EOF
 {
   "hookSpecificOutput": {
     "hookEventName": "PreToolUse",
     "permissionDecision": "deny",
-    "permissionDecisionReason": "BLOCKED: Serena project not activated. You MUST call the Serena MCP tool ${SERENA_PREFIX}activate_project with project_name '${PROJECT_NAME}'. First call ${SERENA_PREFIX}check_onboarding_performed, and if not onboarded run ${SERENA_PREFIX}onboarding. Then call ${SERENA_PREFIX}activate_project. Do NOT retry your original tool call until activate_project succeeds."
+    "permissionDecisionReason": "BLOCKED: Call ${SERENA_PREFIX}activate_project with project_name '${PROJECT_NAME}' right now. Do NOT call any other Serena tool until this succeeds."
   }
 }
 EOF
