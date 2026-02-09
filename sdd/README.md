@@ -16,8 +16,8 @@ A methodology where **code follows specifications**, not the other way around. E
 ## Installation
 
 ```
-/plugin marketplace add mareurs/claude-plugins
-/plugin install sdd@claude-plugins
+/plugin marketplace add mareurs/sdd-misc-plugins
+/plugin install sdd@sdd-misc-plugins
 ```
 
 Then in your project:

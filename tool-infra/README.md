@@ -17,8 +17,8 @@ Infrastructure hooks for Serena and IntelliJ MCP tools.
 ## Installation
 
 ```
-/plugin marketplace add mareurs/claude-plugins
-/plugin install tool-infra@claude-plugins
+/plugin marketplace add mareurs/sdd-misc-plugins
+/plugin install tool-infra@sdd-misc-plugins
 ```
 
 ## How it works

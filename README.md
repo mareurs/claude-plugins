@@ -28,14 +28,14 @@ These plugins reflect specific workflows and tool choices -- they may not suit e
 ### Add the marketplace
 
 ```
-/plugin marketplace add mareurs/claude-plugins
+/plugin marketplace add mareurs/sdd-misc-plugins
 ```
 
 ### Install plugins
 
 ```
-/plugin install sdd@claude-plugins
-/plugin install tool-infra@claude-plugins
+/plugin install sdd@sdd-misc-plugins
+/plugin install tool-infra@sdd-misc-plugins
 ```
 
 ### Team setup
@@ -45,10 +45,10 @@ Add to your project's `.claude/settings.json` so all team members get the market
 ```json
 {
   "extraKnownMarketplaces": {
-    "claude-plugins": {
+    "sdd-misc-plugins": {
       "source": {
         "source": "github",
-        "repo": "mareurs/claude-plugins"
+        "repo": "mareurs/sdd-misc-plugins"
       }
     }
   }
