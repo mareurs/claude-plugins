@@ -7,6 +7,7 @@ A public marketplace of Claude Code plugins.
 | Plugin | Version | Description |
 |--------|---------|-------------|
 | **[sdd](./sdd/)** | 2.1.0 | Specification-Driven Development: governance, workflow commands, and enforcement hooks |
+| **[tool-infra](./tool-infra/)** | 1.0.0 | Infrastructure hooks for Serena and IntelliJ MCP tools |
 
 ## Installation
 

@@ -1,0 +1,24 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "mcp__.*serena.*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/serena-activate-guard.sh"
+          }
+        ]
+      },
+      {
+        "matcher": "mcp__intellij-index__.*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/intellij-project-path.sh"
+          }
+        ]
+      }
+    ]
+  }
+}
