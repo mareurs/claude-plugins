@@ -26,7 +26,7 @@ Intercepts Grep and Glob calls targeting source files and denies them with speci
 - Everything, if no semantic tools are available in the project
 
 ### mcp-param-fixer (PreToolUse)
-Auto-corrects common MCP parameter name mistakes before the call fails. Currently fixes:
+Denies MCP calls with wrong parameter names and tells Claude the correct name, so it retries correctly. Currently catches:
 
 | Tool | Wrong param | Corrected to |
 |------|------------|-------------|
