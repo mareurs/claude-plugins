@@ -4,6 +4,9 @@ Infrastructure hooks for projects with semantic code tools (Serena, IntelliJ MCP
 
 ## What it does
 
+### session-start (SessionStart)
+Prints a semantic tools reference card and instructs Claude to pre-load MCP tool schemas via ToolSearch. Prevents parameter name guessing errors.
+
 ### semantic-tool-router (PreToolUse)
 Blocks Grep/Glob on source files and redirects to semantic tools. Supports Kotlin, Java, TypeScript, Python, Go, Rust, C#, Ruby, Scala, Swift, C/C++. Allows broad directory scans (`**/*.kt`) but blocks specific class lookups (`**/TeacherService.kt`).
 
@@ -27,6 +30,7 @@ Auto-injects `project_path` into IntelliJ index tool calls when missing.
 
 | Hook | Event | Matcher | Action |
 |------|-------|---------|--------|
+| session-start | SessionStart | all | Tool reference card + schema pre-loading |
 | semantic-tool-router | PreToolUse | `Grep\|Glob` | Deny with semantic tool suggestions |
 | mcp-param-fixer | PreToolUse | `mcp__.*` | Auto-correct wrong parameter names |
 | explore-agent-guidance | SubagentStart | `Explore` | Inject semantic exploration workflow |
