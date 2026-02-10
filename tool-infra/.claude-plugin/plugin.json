@@ -1,7 +1,7 @@
 {
   "name": "tool-infra",
   "description": "Infrastructure hooks for semantic code tools: routes Grep/Glob to semantic tools, auto-corrects MCP param errors, injects exploration guidance into subagents, and auto-injects IntelliJ project paths",
-  "version": "2.1.0",
+  "version": "2.2.0",
   "author": {
     "name": "Marius"
   },
