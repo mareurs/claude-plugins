@@ -8,26 +8,42 @@ CWD=$(echo "$INPUT" | jq -r '.cwd // empty')
 source "$(dirname "$0")/detect-tools.sh"
 
 # If no semantic tools available, don't block anything
-if [ "$HAS_SERENA" = "false" ] && [ "$HAS_INTELLIJ" = "false" ]; then
+if [ "$HAS_SERENA" = "false" ] && [ "$HAS_INTELLIJ" = "false" ] && [ "$HAS_CONTEXT" = "false" ]; then
   exit 0
 fi
 
-# Build suggestion list based on available tools
+# Build suggestion messages based on available tools
 GREP_SUGGESTIONS=""
 GLOB_SUGGESTIONS=""
 
-if [ "$HAS_SERENA" = "true" ]; then
-  GREP_SUGGESTIONS="- find_symbol(name_path, include_body=true) to read specific symbols\n- get_symbols_overview(relative_path) for file structure\n- search_for_pattern(substring_pattern) for regex across codebase\n- find_referencing_symbols(name_path) for usage tracking"
-  GLOB_SUGGESTIONS="- find_symbol(name_path_pattern) to find classes/functions by name\n- find_file(file_mask) to find files by name\n- search_for_pattern(substring_pattern) for flexible search"
+if [ "$HAS_CONTEXT" = "true" ]; then
+  GREP_SUGGESTIONS="Semantic search (natural language):\n- search_code(query) — describe what you're looking for"
+  GLOB_SUGGESTIONS="Semantic search (natural language):\n- search_code(query) — describe what you're looking for"
 fi
 
-if [ "$HAS_INTELLIJ" = "true" ]; then
-  if [ -n "$GREP_SUGGESTIONS" ]; then
-    GREP_SUGGESTIONS="$GREP_SUGGESTIONS\n"
-    GLOB_SUGGESTIONS="$GLOB_SUGGESTIONS\n"
+if [ "$HAS_SERENA" = "true" ] || [ "$HAS_INTELLIJ" = "true" ]; then
+  LSP_GREP=""
+  LSP_GLOB=""
+
+  if [ "$HAS_SERENA" = "true" ]; then
+    LSP_GREP="- find_symbol(name_path, include_body=true) — read a specific symbol\n- search_for_pattern(substring_pattern) — regex/literal across source\n- find_referencing_symbols(name_path) — find all callers/usages"
+    LSP_GLOB="- find_symbol(name_path) — find classes/functions by name\n- find_file(file_mask) — find files by name"
   fi
-  GREP_SUGGESTIONS="${GREP_SUGGESTIONS}- ide_find_symbol to find classes/functions by name\n- ide_find_references for usage tracking\n- ide_file_structure for file outline"
-  GLOB_SUGGESTIONS="${GLOB_SUGGESTIONS}- ide_find_symbol to find classes/functions by name\n- ide_find_file to find files by name"
+
+  if [ "$HAS_INTELLIJ" = "true" ]; then
+    [ -n "$LSP_GREP" ] && LSP_GREP="$LSP_GREP\n"
+    [ -n "$LSP_GLOB" ] && LSP_GLOB="$LSP_GLOB\n"
+    LSP_GREP="${LSP_GREP}- ide_find_symbol(name) — find symbol by name\n- ide_find_references(name) — find all usages"
+    LSP_GLOB="${LSP_GLOB}- ide_find_symbol(name) — find symbol by name\n- ide_find_file(name) — find file by name"
+  fi
+
+  if [ -n "$GREP_SUGGESTIONS" ]; then
+    GREP_SUGGESTIONS="$GREP_SUGGESTIONS\nLSP/IDE tools (need a symbol name):\n$LSP_GREP"
+    GLOB_SUGGESTIONS="$GLOB_SUGGESTIONS\nLSP/IDE tools (need a symbol name):\n$LSP_GLOB"
+  else
+    GREP_SUGGESTIONS="LSP/IDE tools (need a symbol name):\n$LSP_GREP"
+    GLOB_SUGGESTIONS="LSP/IDE tools (need a symbol name):\n$LSP_GLOB"
+  fi
 fi
 
 # Supported source file extensions
@@ -58,7 +74,7 @@ case "$TOOL_NAME" in
   "hookSpecificOutput": {
     "hookEventName": "PreToolUse",
     "permissionDecision": "deny",
-    "permissionDecisionReason": "BLOCKED: Grep on source files. Use semantic tools instead:\n${GREP_SUGGESTIONS}"
+    "permissionDecisionReason": "BLOCKED: Grep on source files. Use these instead:\n${GREP_SUGGESTIONS}"
   }
 }
 EOF
@@ -90,7 +106,7 @@ EOF
   "hookSpecificOutput": {
     "hookEventName": "PreToolUse",
     "permissionDecision": "deny",
-    "permissionDecisionReason": "BLOCKED: Looking for a specific source file by name. Use semantic tools instead:\n${GLOB_SUGGESTIONS}"
+    "permissionDecisionReason": "BLOCKED: Looking for a specific source file by name. Use these instead:\n${GLOB_SUGGESTIONS}"
   }
 }
 EOF
