@@ -24,7 +24,7 @@
       "name": "tool-infra",
       "source": "./tool-infra",
       "description": "Infrastructure hooks for semantic code tools: routes Grep/Glob to semantic tools, fixes MCP params, injects exploration guidance",
-      "version": "2.0.0",
+      "version": "2.1.0",
       "author": {
         "name": "Marius"
       },

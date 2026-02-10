@@ -1,23 +1,47 @@
 # tool-infra
 
-Infrastructure hooks for projects with semantic code tools (Serena, IntelliJ MCP, etc.).
+Infrastructure hooks that make Claude use semantic code tools (Serena, IntelliJ MCP) instead of text search.
+
+## The Problem
+
+Claude defaults to Grep and Glob for code navigation. These work but miss the semantic understanding that tools like Serena and IntelliJ provide -- symbol relationships, type hierarchies, cross-references. This plugin intercepts text-search calls on source files and redirects Claude to the right semantic tool.
 
 ## What it does
 
 ### session-start (SessionStart)
-Prints a semantic tools reference card and instructs Claude to pre-load MCP tool schemas via ToolSearch. Prevents parameter name guessing errors.
+Prints a reference card of available semantic tools at conversation start. Pre-loads MCP tool schemas via ToolSearch to prevent parameter name guessing errors (e.g. Claude using `pattern` instead of `substring_pattern`).
+
+Only lists tools that are actually available in the project.
 
 ### semantic-tool-router (PreToolUse)
-Blocks Grep/Glob on source files and redirects to semantic tools. Supports Kotlin, Java, TypeScript, Python, Go, Rust, C#, Ruby, Scala, Swift, C/C++. Allows broad directory scans (`**/*.kt`) but blocks specific class lookups (`**/TeacherService.kt`).
+Intercepts Grep and Glob calls targeting source files and denies them with specific semantic tool suggestions.
+
+**Blocked** (with suggestions):
+- `Grep` on `.kt`, `.java`, `.ts`, `.py`, `.go`, `.rs`, `.cs`, `.rb`, `.scala`, `.swift`, `.cpp`, `.c` files
+- `Glob` looking for specific class files (e.g. `**/TeacherService.kt`)
+
+**Allowed**:
+- `Grep` on non-source files (`.md`, `.json`, `.yml`, `.toml`, etc.)
+- `Glob` with broad patterns (`**/*.kt`, `*Test.kt`)
+- Everything, if no semantic tools are available in the project
 
 ### mcp-param-fixer (PreToolUse)
-Auto-corrects common MCP parameter name mistakes (e.g. `pattern` -> `substring_pattern` for Serena's search_for_pattern). Safety net for when Claude guesses wrong param names.
+Auto-corrects common MCP parameter name mistakes before the call fails. Currently fixes:
+
+| Tool | Wrong param | Corrected to |
+|------|------------|-------------|
+| `search_for_pattern` | `pattern` | `substring_pattern` |
+| `edit_memory` | `old_string` | `needle` |
+| `edit_memory` | `new_string` | `repl` |
 
 ### explore-agent-guidance (SubagentStart)
-Injects a semantic tool workflow into Explore subagents: semantic discovery -> symbol drill-down -> cross-reference.
+Injects a semantic tool workflow into Explore subagents:
+1. Semantic discovery (search_code, search_for_pattern)
+2. Symbol drill-down (find_symbol)
+3. Cross-reference (find_referencing_symbols)
 
 ### intellij-project-path (PreToolUse)
-Auto-injects `project_path` into IntelliJ index tool calls when missing.
+Auto-injects `project_path` into IntelliJ index tool calls when missing, using `cwd` from the hook input. Prevents "project_path required" errors.
 
 ## Installation
 
@@ -26,19 +50,15 @@ Auto-injects `project_path` into IntelliJ index tool calls when missing.
 /plugin install tool-infra@sdd-misc-plugins
 ```
 
-## How it works
-
-| Hook | Event | Matcher | Action |
-|------|-------|---------|--------|
-| session-start | SessionStart | all | Tool reference card + schema pre-loading |
-| semantic-tool-router | PreToolUse | `Grep\|Glob` | Deny with semantic tool suggestions |
-| mcp-param-fixer | PreToolUse | `mcp__.*` | Auto-correct wrong parameter names |
-| explore-agent-guidance | SubagentStart | `Explore` | Inject semantic exploration workflow |
-| intellij-project-path | PreToolUse | `mcp__intellij-index__.*` | Inject `project_path` from `cwd` |
-
 ## Configuration
 
-Hooks auto-detect available MCP servers from `.mcp.json`. For servers defined globally (not per-project), create `.claude/tool-infra.json`:
+### Auto-detection (default)
+
+Hooks read `.mcp.json` in the project root to detect which MCP servers are available. No configuration needed if your MCP servers are defined per-project.
+
+### Override for global MCP servers
+
+If your MCP servers are defined globally (in `~/.claude/settings.json` or similar), auto-detection won't find them. Create `.claude/tool-infra.json` in the project root:
 
 ```json
 {
@@ -48,12 +68,32 @@ Hooks auto-detect available MCP servers from `.mcp.json`. For servers defined gl
 }
 ```
 
-Set a key to `true` to force-enable that tool (skips `.mcp.json` check). Omitted or `false` keys fall back to auto-detection.
+- `true` -- force-enable (skips `.mcp.json` check)
+- `false` or omitted -- fall back to auto-detection
+
+### Detection priority
+
+1. `.claude/tool-infra.json` overrides (checked first)
+2. `.mcp.json` auto-detection (fallback)
+
+## Hook Reference
+
+| Hook | Event | Matcher | Action |
+|------|-------|---------|--------|
+| session-start | SessionStart | all | Tool reference card + schema pre-loading |
+| semantic-tool-router | PreToolUse | `Grep\|Glob` | Deny with semantic tool suggestions |
+| mcp-param-fixer | PreToolUse | `mcp__.*` | Auto-correct wrong parameter names |
+| explore-agent-guidance | SubagentStart | `Explore` | Inject semantic exploration workflow |
+| intellij-project-path | PreToolUse | `mcp__intellij-index__.*` | Inject `project_path` from `cwd` |
 
 ## Requirements
 
 - `jq` (for JSON parsing in hook scripts)
-- Semantic code tools: [Serena MCP](https://github.com/oraios/serena) and/or [IntelliJ MCP](https://github.com/niclas-timm/intellij-index-mcp)
+- At least one semantic code tool:
+  - [Serena MCP](https://github.com/oraios/serena) -- symbolic code intelligence via LSP
+  - [IntelliJ MCP](https://github.com/niclas-timm/intellij-index-mcp) -- IDE-powered code intelligence
+
+Without any semantic tools, the routing hooks are no-ops (nothing is blocked).
 
 ## License
 
