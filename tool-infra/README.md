@@ -36,6 +36,20 @@ Auto-injects `project_path` into IntelliJ index tool calls when missing.
 | explore-agent-guidance | SubagentStart | `Explore` | Inject semantic exploration workflow |
 | intellij-project-path | PreToolUse | `mcp__intellij-index__.*` | Inject `project_path` from `cwd` |
 
+## Configuration
+
+Hooks auto-detect available MCP servers from `.mcp.json`. For servers defined globally (not per-project), create `.claude/tool-infra.json`:
+
+```json
+{
+  "serena": true,
+  "intellij": true,
+  "claude-context": false
+}
+```
+
+Set a key to `true` to force-enable that tool (skips `.mcp.json` check). Omitted or `false` keys fall back to auto-detection.
+
 ## Requirements
 
 - `jq` (for JSON parsing in hook scripts)
