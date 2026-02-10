@@ -23,13 +23,13 @@
     {
       "name": "tool-infra",
       "source": "./tool-infra",
-      "description": "Infrastructure hooks for IntelliJ MCP tools: auto-injects project path into tool calls",
-      "version": "1.0.0",
+      "description": "Infrastructure hooks for semantic code tools: routes Grep/Glob to semantic tools, fixes MCP params, injects exploration guidance",
+      "version": "2.0.0",
       "author": {
         "name": "Marius"
       },
       "license": "MIT",
-      "keywords": ["intellij", "hooks", "mcp", "infrastructure"],
+      "keywords": ["serena", "intellij", "hooks", "mcp", "semantic", "infrastructure"],
       "category": "infrastructure"
     }
   ]

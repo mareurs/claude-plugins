@@ -1,10 +1,20 @@
 # tool-infra
 
-Infrastructure hooks for IntelliJ MCP tools.
+Infrastructure hooks for projects with semantic code tools (Serena, IntelliJ MCP, etc.).
 
 ## What it does
 
-**intellij-project-path** (PreToolUse) -- Auto-injects `project_path` into IntelliJ index tool calls when missing, using `cwd` from the hook input. Prevents "project_path required" errors.
+### semantic-tool-router (PreToolUse)
+Blocks Grep/Glob on source files and redirects to semantic tools. Supports Kotlin, Java, TypeScript, Python, Go, Rust, C#, Ruby, Scala, Swift, C/C++. Allows broad directory scans (`**/*.kt`) but blocks specific class lookups (`**/TeacherService.kt`).
+
+### mcp-param-fixer (PreToolUse)
+Auto-corrects common MCP parameter name mistakes (e.g. `pattern` -> `substring_pattern` for Serena's search_for_pattern). Safety net for when Claude guesses wrong param names.
+
+### explore-agent-guidance (SubagentStart)
+Injects a semantic tool workflow into Explore subagents: semantic discovery -> symbol drill-down -> cross-reference.
+
+### intellij-project-path (PreToolUse)
+Auto-injects `project_path` into IntelliJ index tool calls when missing.
 
 ## Installation
 
@@ -17,12 +27,15 @@ Infrastructure hooks for IntelliJ MCP tools.
 
 | Hook | Event | Matcher | Action |
 |------|-------|---------|--------|
+| semantic-tool-router | PreToolUse | `Grep\|Glob` | Deny with semantic tool suggestions |
+| mcp-param-fixer | PreToolUse | `mcp__.*` | Auto-correct wrong parameter names |
+| explore-agent-guidance | SubagentStart | `Explore` | Inject semantic exploration workflow |
 | intellij-project-path | PreToolUse | `mcp__intellij-index__.*` | Inject `project_path` from `cwd` |
 
 ## Requirements
 
 - `jq` (for JSON parsing in hook scripts)
-- [IntelliJ MCP](https://github.com/niclas-timm/intellij-index-mcp)
+- Semantic code tools: [Serena MCP](https://github.com/oraios/serena) and/or [IntelliJ MCP](https://github.com/niclas-timm/intellij-index-mcp)
 
 ## License
 
