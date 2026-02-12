@@ -45,7 +45,18 @@ if [ "$HAS_CONTEXT" = "true" ] && { [ "$HAS_SERENA" = "true" ] || [ "$HAS_INTELL
 Two kinds of code tools — pick based on what you know:
 
 SEMANTIC SEARCH (claude-context) — use when you DON'T know the exact name.
-  search_code(query) finds code by MEANING, not text matching."
+  search_code(query) finds code by MEANING using embedded vectors, not text matching.
+
+  GOOD queries (describe behavior/intent):
+    search_code(\"how are API errors handled and returned to clients\")
+    search_code(\"database connection setup and pooling\")
+    search_code(\"authentication middleware and token validation\")
+    search_code(\"where are background jobs scheduled and processed\")
+
+  BAD queries (use symbol tools or Grep instead):
+    search_code(\"function checkPermission\")     → use find_symbol
+    search_code(\"class DatabasePool\")           → use find_symbol
+    search_code(\"import retry from\")            → use Grep for literal patterns"
 
   if [ "$HAS_SERENA" = "true" ] && [ "$HAS_INTELLIJ" = "true" ]; then
     MSG="$MSG
@@ -72,7 +83,18 @@ elif [ "$HAS_CONTEXT" = "true" ]; then
   MSG="$MSG
 
 SEMANTIC SEARCH (claude-context) — describe what you're looking for in plain language.
-  search_code(query) finds code by MEANING, not text matching."
+  search_code(query) finds code by MEANING using embedded vectors, not text matching.
+
+  GOOD queries (describe behavior/intent):
+    search_code(\"how are API errors handled and returned to clients\")
+    search_code(\"database connection setup and pooling\")
+    search_code(\"authentication middleware and token validation\")
+    search_code(\"where are background jobs scheduled and processed\")
+
+  BAD queries (use symbol tools or Grep instead):
+    search_code(\"function checkPermission\")     → use find_symbol
+    search_code(\"class DatabasePool\")           → use find_symbol
+    search_code(\"import retry from\")            → use Grep for literal patterns"
 
 elif [ "$HAS_SERENA" = "true" ] || [ "$HAS_INTELLIJ" = "true" ]; then
   if [ "$HAS_SERENA" = "true" ] && [ "$HAS_INTELLIJ" = "true" ]; then

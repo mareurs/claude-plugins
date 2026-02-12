@@ -20,7 +20,9 @@ fi
 STEPS=""
 
 if [ "$HAS_CONTEXT" = "true" ]; then
-  STEPS="1. DISCOVER: search_code(query) — describe what you're looking for in natural language"
+  STEPS="1. DISCOVER: search_code(query) — describe what you're looking for in natural language
+   Examples: \"how are permissions checked\", \"error handling patterns\", \"API rate limiting\"
+   Avoid exact names like \"class Foo\" — use find_symbol or Grep for those."
   if [ "$HAS_SERENA" = "true" ] || [ "$HAS_INTELLIJ" = "true" ]; then
     STEPS="$STEPS\n2. DRILL DOWN: find_symbol(name_path) — read specific symbols found in step 1"
     STEPS="$STEPS\n3. CROSS-REFERENCE: find_referencing_symbols(name_path) — find all callers/usages"
