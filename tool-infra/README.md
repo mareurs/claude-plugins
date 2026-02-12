@@ -13,6 +13,18 @@ Prints a reference card of available semantic tools at conversation start. Pre-l
 
 Only lists tools that are actually available in the project.
 
+### serena-auto-activate (SessionStart)
+Forces automatic Serena project activation at session start. Outputs mandatory instructions that require Claude to call `check_onboarding_performed()` and `activate_project()` before proceeding with user tasks.
+
+Creates session-specific marker at `~/.claude-sdd/tmp/serena-activation/$SESSION_ID` to track activation state.
+
+Only activates when Serena MCP server is detected in the project.
+
+### serena-activation-check (PreToolUse)
+Non-blocking safety net that reminds Claude to activate Serena if it was skipped at session start. Shows warning message but allows the tool call through.
+
+Updates activation marker to "activated" status when activation tools are called.
+
 ### semantic-tool-router (PreToolUse)
 Intercepts Grep and Glob calls targeting source files and denies them with specific semantic tool suggestions.
 
@@ -81,6 +93,8 @@ If your MCP servers are defined globally (in `~/.claude/settings.json` or simila
 | Hook | Event | Matcher | Action |
 |------|-------|---------|--------|
 | session-start | SessionStart | all | Tool reference card + schema pre-loading |
+| serena-auto-activate | SessionStart | all | Force Serena project activation |
+| serena-activation-check | PreToolUse | `mcp__serena__.*\|mcp__plugin_serena_serena__.*` | Remind if activation skipped |
 | semantic-tool-router | PreToolUse | `Grep\|Glob` | Deny with semantic tool suggestions |
 | mcp-param-fixer | PreToolUse | `mcp__.*` | Auto-correct wrong parameter names |
 | explore-agent-guidance | SubagentStart | `Explore` | Inject semantic exploration workflow |

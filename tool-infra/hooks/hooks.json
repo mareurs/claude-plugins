@@ -7,6 +7,10 @@
             "type": "command",
             "command": "${CLAUDE_PLUGIN_ROOT}/hooks/session-start.sh",
             "async": true
+          },
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/serena-auto-activate.sh"
           }
         ]
       }
@@ -29,6 +33,15 @@
           {
             "type": "command",
             "command": "${CLAUDE_PLUGIN_ROOT}/hooks/mcp-param-fixer.sh"
+          }
+        ]
+      },
+      {
+        "matcher": "mcp__serena__.*|mcp__plugin_serena_serena__.*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/serena-activation-check.sh"
           }
         ]
       },
