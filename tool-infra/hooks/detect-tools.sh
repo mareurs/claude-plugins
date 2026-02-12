@@ -23,7 +23,7 @@ fi
 
 # Auto-detect from .mcp.json for anything not already forced
 if [ -f "$MCP_JSON" ]; then
-  [ "$HAS_SERENA" = "false" ] && jq -e '.mcpServers.serena' "$MCP_JSON" >/dev/null 2>&1 && HAS_SERENA=true
-  [ "$HAS_INTELLIJ" = "false" ] && jq -e '.mcpServers["intellij-index"]' "$MCP_JSON" >/dev/null 2>&1 && HAS_INTELLIJ=true
-  [ "$HAS_CONTEXT" = "false" ] && jq -e '.mcpServers["claude-context-local"]' "$MCP_JSON" >/dev/null 2>&1 && HAS_CONTEXT=true
+  [ "$HAS_SERENA" = "false" ] && jq -e '.mcpServers.serena' "$MCP_JSON" >/dev/null 2>&1 && HAS_SERENA=true || true
+  [ "$HAS_INTELLIJ" = "false" ] && jq -e '.mcpServers["intellij-index"]' "$MCP_JSON" >/dev/null 2>&1 && HAS_INTELLIJ=true || true
+  [ "$HAS_CONTEXT" = "false" ] && jq -e '.mcpServers["claude-context-local"]' "$MCP_JSON" >/dev/null 2>&1 && HAS_CONTEXT=true || true
 fi
