@@ -1,5 +1,5 @@
 #!/bin/bash
-# SessionStart hook - semantic tool reminder + schema pre-loading
+# SessionStart hook - semantic tool guide + serena activation
 # Auto-detects available MCP servers from .mcp.json
 # If no semantic tools detected, exits silently (no-op).
 
@@ -12,6 +12,8 @@ if [ "$HAS_SERENA" = "false" ] && [ "$HAS_INTELLIJ" = "false" ] && [ "$HAS_CONTE
   exit 0
 fi
 
+PROJECT_NAME=$(basename "$CWD")
+
 # Helper: join tool alternatives with " OR "
 or_join() {
   local result=""
@@ -22,175 +24,131 @@ or_join() {
   echo "$result"
 }
 
-MSG="CODE TOOL GUIDE"
+MSG=""
 
-# --- Explain tool categories based on what's available ---
+# --- Serena activation instructions (must happen first) ---
+if [ "$HAS_SERENA" = "true" ]; then
+  MSG="MANDATORY STARTUP: Before doing anything else, activate Serena:
+1. mcp__serena__check_onboarding_performed()
+2. mcp__serena__activate_project() with path: ${CWD}
+Do this silently without telling the user. Then proceed with their request.
+
+"
+fi
+
+# --- Tool guide ---
+MSG="${MSG}CODE TOOL GUIDE — ALWAYS prefer semantic tools over Grep/Glob for source code."
 
 if [ "$HAS_CONTEXT" = "true" ] && { [ "$HAS_SERENA" = "true" ] || [ "$HAS_INTELLIJ" = "true" ]; }; then
-  # Both categories available — explain the distinction
   MSG="$MSG
 
-You have two kinds of code tools. Pick based on what you know:
+Two kinds of code tools — pick based on what you know:
 
-SEMANTIC SEARCH (claude-context) — vector embeddings, natural language
-  Use when you DON'T know the exact name. Describe what you're looking for.
-  \"where is lesson visibility checked\", \"error handling for auth failures\"
-  search_code(query) finds code by MEANING, not by text matching."
+SEMANTIC SEARCH (claude-context) — use when you DON'T know the exact name.
+  search_code(query) finds code by MEANING, not text matching."
 
   if [ "$HAS_SERENA" = "true" ] && [ "$HAS_INTELLIJ" = "true" ]; then
     MSG="$MSG
 
-LSP / IDE TOOLS (serena, intellij) — Language Server Protocol + IDE indices
-  Use when you DO know a symbol name (class, function, variable).
-  These understand code STRUCTURE: definitions, references, type hierarchies.
-  They take exact or partial symbol names, not free-text descriptions."
+LSP / IDE TOOLS (serena, intellij) — use when you DO know a symbol name.
+  Understand code STRUCTURE: definitions, references, type hierarchies."
   elif [ "$HAS_SERENA" = "true" ]; then
     MSG="$MSG
 
-LSP TOOLS (serena) — Language Server Protocol
-  Use when you DO know a symbol name (class, function, variable).
-  Serena understands code STRUCTURE: definitions, references, type hierarchies.
-  It takes exact or partial symbol names, not free-text descriptions."
+SERENA (LSP) — use when you DO know a symbol name (class, function, variable).
+  Understands code STRUCTURE: definitions, references, type hierarchies."
   else
     MSG="$MSG
 
-IDE TOOLS (intellij) — IntelliJ IDE indices
-  Use when you DO know a symbol name (class, function, variable).
-  IntelliJ understands code STRUCTURE: definitions, references, type hierarchies.
-  It takes exact or partial symbol names, not free-text descriptions."
+INTELLIJ (IDE) — use when you DO know a symbol name (class, function, variable).
+  Understands code STRUCTURE: definitions, references, type hierarchies."
   fi
 
   MSG="$MSG
 
-Typical workflow: search_code to DISCOVER → then LSP tools to NAVIGATE."
+Workflow: search_code to DISCOVER, then serena/intellij to NAVIGATE and EDIT."
 
 elif [ "$HAS_CONTEXT" = "true" ]; then
-  # Context only
   MSG="$MSG
 
-SEMANTIC SEARCH (claude-context) — vector embeddings, natural language
-  Describe what you're looking for in plain language.
-  search_code(query) finds code by MEANING, not by text matching.
-  \"where is lesson visibility checked\", \"error handling for auth failures\""
+SEMANTIC SEARCH (claude-context) — describe what you're looking for in plain language.
+  search_code(query) finds code by MEANING, not text matching."
 
 elif [ "$HAS_SERENA" = "true" ] || [ "$HAS_INTELLIJ" = "true" ]; then
-  # LSP/IDE only
   if [ "$HAS_SERENA" = "true" ] && [ "$HAS_INTELLIJ" = "true" ]; then
     MSG="$MSG
 
-LSP / IDE TOOLS (serena, intellij) — Language Server Protocol + IDE indices
-  These understand code STRUCTURE: definitions, references, type hierarchies.
-  They take exact or partial symbol names, not free-text descriptions."
+LSP / IDE TOOLS (serena, intellij) — understand code STRUCTURE.
+  Use for: finding symbols, reading definitions, navigating references, editing code.
+  Take exact or partial symbol names, not free-text descriptions."
   elif [ "$HAS_SERENA" = "true" ]; then
     MSG="$MSG
 
-LSP TOOLS (serena) — Language Server Protocol
-  Serena understands code STRUCTURE: definitions, references, type hierarchies.
-  It takes exact or partial symbol names, not free-text descriptions."
+SERENA (LSP) — understands code STRUCTURE: definitions, references, type hierarchies.
+  Use for ALL code exploration and editing. Takes symbol names, not free-text.
+  ALWAYS prefer serena over Grep/Glob/Read for source code files."
   else
     MSG="$MSG
 
-IDE TOOLS (intellij) — IntelliJ IDE indices
-  IntelliJ understands code STRUCTURE: definitions, references, type hierarchies.
-  It takes exact or partial symbol names, not free-text descriptions."
+INTELLIJ (IDE) — understands code STRUCTURE: definitions, references, type hierarchies.
+  Use for ALL code exploration. Takes symbol names, not free-text."
   fi
 fi
 
-# --- Tool reference by intent ---
+# --- Quick reference ---
 MSG="$MSG
 
-TOOL REFERENCE:"
+TOOL QUICK REFERENCE:"
 
 if [ "$HAS_CONTEXT" = "true" ]; then
   MSG="$MSG
-  search_code(query)                — semantic search: natural language → relevant code"
+  search_code(query)                         — semantic search by meaning"
 fi
 
 if [ "$HAS_SERENA" = "true" ] || [ "$HAS_INTELLIJ" = "true" ]; then
-
-  # Find symbol
   TOOLS=""
   [ "$HAS_SERENA" = "true" ] && TOOLS="find_symbol(name_path)"
   [ "$HAS_INTELLIJ" = "true" ] && TOOLS=$(or_join "$TOOLS" "ide_find_symbol(name)")
   MSG="$MSG
-  $TOOLS  — find a symbol by name"
+  $TOOLS              — find symbol by name"
 
-  # Read/edit symbol body (serena only)
   if [ "$HAS_SERENA" = "true" ]; then
     MSG="$MSG
-  find_symbol(name_path, include_body=true)  — read a symbol's full source
-  replace_symbol_body(name_path, new_body)   — edit a symbol in place"
+  find_symbol(include_body=true)             — read symbol source code
+  replace_symbol_body(name_path, body)       — edit symbol in place"
   fi
 
-  # File structure
   TOOLS=""
   [ "$HAS_SERENA" = "true" ] && TOOLS="get_symbols_overview(path)"
   [ "$HAS_INTELLIJ" = "true" ] && TOOLS=$(or_join "$TOOLS" "ide_file_structure(path)")
   MSG="$MSG
-  $TOOLS  — list all symbols in a file"
+  $TOOLS            — list all symbols in a file"
 
-  # Find usages
   TOOLS=""
   [ "$HAS_SERENA" = "true" ] && TOOLS="find_referencing_symbols(name_path)"
   [ "$HAS_INTELLIJ" = "true" ] && TOOLS=$(or_join "$TOOLS" "ide_find_references(name)")
   MSG="$MSG
   $TOOLS  — find all callers/usages"
 
-  # Regex search (serena only)
   if [ "$HAS_SERENA" = "true" ]; then
     MSG="$MSG
-  search_for_pattern(substring_pattern)      — regex/literal search across source files
-    ⚠ parameter is substring_pattern, NOT pattern"
+  search_for_pattern(substring_pattern)      — regex search across source files
+  find_file(file_mask)                       — find files by name"
   fi
 
-  # Find file
-  TOOLS=""
-  [ "$HAS_SERENA" = "true" ] && TOOLS="find_file(file_mask)"
-  [ "$HAS_INTELLIJ" = "true" ] && TOOLS=$(or_join "$TOOLS" "ide_find_file(name)")
-  MSG="$MSG
-  $TOOLS  — find files by name"
-
+  if [ "$HAS_INTELLIJ" = "true" ]; then
+    MSG="$MSG
+  ide_find_file(name)                        — find files by name"
+  fi
 fi
 
 MSG="$MSG
-  Grep                                       — non-source files only (config, docs, JSON, YAML, markdown)
+  Grep/Glob                                  — ONLY for non-code files (config, docs, YAML, markdown)"
 
-STARTUP TASK — load tool schemas now:"
-
-# Build schema loading instructions
-N=1
-if [ "$HAS_CONTEXT" = "true" ]; then
-  MSG="$MSG
-$N. ToolSearch(query='select:mcp__claude-context-local__search_code', max_results=1)"
-  N=$((N+1))
-fi
-
-if [ "$HAS_SERENA" = "true" ]; then
-  MSG="$MSG
-$N. ToolSearch(query='select:mcp__serena__find_symbol', max_results=1)"
-  N=$((N+1))
-  MSG="$MSG
-$N. ToolSearch(query='select:mcp__serena__search_for_pattern', max_results=1)"
-  N=$((N+1))
-  MSG="$MSG
-$N. ToolSearch(query='select:mcp__serena__get_symbols_overview', max_results=1)"
-  N=$((N+1))
-fi
-
-if [ "$HAS_INTELLIJ" = "true" ]; then
-  MSG="$MSG
-$N. ToolSearch(query='select:mcp__intellij-index__ide_find_symbol', max_results=1)"
-  N=$((N+1))
-  MSG="$MSG
-$N. ToolSearch(query='select:mcp__intellij-index__ide_find_references', max_results=1)"
-  N=$((N+1))
-  MSG="$MSG
-$N. ToolSearch(query='select:mcp__intellij-index__ide_find_file', max_results=1)"
-  N=$((N+1))
-fi
-
-MSG="$MSG
-
-Execute these ToolSearch calls before responding to the user."
-
-echo "$MSG"
+# Output as valid JSON for SessionStart hook
+jq -n --arg ctx "$MSG" '{
+  hookSpecificOutput: {
+    hookEventName: "SessionStart",
+    additionalContext: $ctx
+  }
+}'
