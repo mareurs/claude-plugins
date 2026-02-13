@@ -1,5 +1,5 @@
 #!/bin/bash
-# SessionStart hook - semantic tool guide + serena activation
+# SessionStart hook - semantic tool guide + serena path safety
 # Auto-detects available MCP servers from .mcp.json
 # If no semantic tools detected, exits silently (no-op).
 
@@ -26,12 +26,14 @@ or_join() {
 
 MSG=""
 
-# --- Serena activation instructions (must happen first) ---
+# --- Serena startup guidance ---
 if [ "$HAS_SERENA" = "true" ]; then
-  MSG="MANDATORY STARTUP: Before doing anything else, activate Serena:
-1. mcp__serena__check_onboarding_performed()
-2. mcp__serena__activate_project() with path: ${CWD}
-Do this silently without telling the user. Then proceed with their request.
+  MSG="SERENA SETUP: The project is already activated via MCP server config.
+Before your first symbol search, run list_dir(\".\", recursive=false) to learn the project layout.
+Serena paths are RELATIVE to the project root — verify directories exist before searching.
+
+If Serena returns \"No active project\", call activate_project with path: ${CWD}
+If Serena says \"onboarding not performed\", ignore it — the project works fine, it just means no memories have been saved yet.
 
 "
 fi
