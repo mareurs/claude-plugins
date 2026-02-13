@@ -1,7 +1,6 @@
 #!/bin/bash
 # PreToolUse hook - Auto-correct common MCP tool parameter name errors
-# Denies calls with wrong param names and tells Claude the correct name,
-# so Claude retries with the right parameter.
+# Silently renames wrong params so the call succeeds on the first attempt.
 
 INPUT=$(cat)
 TOOL_NAME=$(echo "$INPUT" | jq -r '.tool_name // empty')
@@ -16,6 +15,7 @@ CORRECTIONS=(
   "mcp__serena__search_for_pattern|pattern|substring_pattern"
   "mcp__serena__edit_memory|old_string|needle"
   "mcp__serena__edit_memory|new_string|repl"
+  "mcp__intellij-index__ide_find_references|query|file"
 )
 
 for correction in "${CORRECTIONS[@]}"; do
@@ -23,14 +23,8 @@ for correction in "${CORRECTIONS[@]}"; do
 
   if [ "$TOOL_NAME" = "$tool" ]; then
     if echo "$INPUT" | jq -e ".tool_input.$wrong" > /dev/null 2>&1; then
-      REASON="Wrong parameter name: '$wrong' should be '$correct'. Retry with the correct parameter name."
-      jq -n --arg reason "$REASON" '{
-        hookSpecificOutput: {
-          hookEventName: "PreToolUse",
-          permissionDecision: "deny",
-          permissionDecisionReason: $reason
-        }
-      }'
+      # Auto-correct: rename parameter and pass through
+      echo "$INPUT" | jq ".tool_input.$correct = .tool_input.$wrong | del(.tool_input.$wrong)"
       exit 0
     fi
   fi
