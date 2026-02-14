@@ -17,7 +17,7 @@ These plugins reflect specific workflows and tool choices -- they may not suit e
 | Plugin | Version | Description |
 |--------|---------|-------------|
 | **[sdd](./sdd/)** | 2.1.0 | Specification-Driven Development: governance, workflow commands, and enforcement hooks |
-| **[tool-infra](./tool-infra/)** | 2.2.0 | Semantic tool infrastructure: routes Claude to use Serena/IntelliJ instead of Grep/Glob |
+| **[tool-infra](./tool-infra/)** | 2.4.0 | Semantic tool infrastructure: routes Claude to use Serena/IntelliJ/claude-context instead of Grep/Glob |
 
 ## Requirements
 
@@ -29,7 +29,7 @@ These plugins reflect specific workflows and tool choices -- they may not suit e
 | Plugin | Additional Requirements |
 |--------|----------------------|
 | **sdd** | None (core workflow). [Serena MCP](https://github.com/oraios/serena) for `/drift` and `/document`. |
-| **tool-infra** | [Serena MCP](https://github.com/oraios/serena) and/or [IntelliJ MCP](https://github.com/niclas-timm/intellij-index-mcp). Auto-detects which are available. |
+| **tool-infra** | [Serena MCP](https://github.com/oraios/serena), [IntelliJ MCP](https://github.com/niclas-timm/intellij-index-mcp), and/or [claude-context](https://github.com/nicobailon/claude-context). Auto-detects which are available. |
 
 ## Plugins
 
@@ -47,12 +47,12 @@ See [sdd/README.md](./sdd/) for full documentation.
 
 ### tool-infra
 
-Makes Claude use semantic code tools (Serena, IntelliJ MCP) instead of falling back to text search. Auto-detects which tools are available from `.mcp.json`.
+Makes Claude use semantic code tools (Serena, IntelliJ MCP, claude-context) instead of falling back to text search. Auto-detects which tools are available from `.mcp.json` or `.claude/tool-infra.json`.
 
 **Hooks:**
-- **session-start** -- Prints available tools reference card + pre-loads MCP tool schemas
+- **session-start** -- Tool reference card, query examples for claude-context, structure discovery for Serena
 - **semantic-tool-router** -- Blocks Grep/Glob on source files, suggests semantic alternatives
-- **mcp-param-fixer** -- Auto-corrects wrong MCP parameter names (e.g. `pattern` -> `substring_pattern`)
+- **mcp-param-fixer** -- Auto-corrects wrong MCP parameter names in-place (e.g. `pattern` -> `substring_pattern`)
 - **explore-agent-guidance** -- Injects semantic tool workflow into Explore subagents
 - **intellij-project-path** -- Auto-injects `project_path` into IntelliJ index calls
 
