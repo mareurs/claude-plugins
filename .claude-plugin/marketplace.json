@@ -12,7 +12,6 @@
       "name": "sdd",
       "source": "./sdd",
       "description": "Specification-Driven Development: governance, workflow commands, and enforcement hooks for Claude Code projects",
-      "version": "2.1.0",
       "author": {
         "name": "Marius"
       },
@@ -24,7 +23,6 @@
       "name": "tool-infra",
       "source": "./tool-infra",
       "description": "Infrastructure hooks for semantic code tools: routes Grep/Glob to semantic tools, fixes MCP params, injects exploration guidance",
-      "version": "2.2.0",
       "author": {
         "name": "Marius"
       },
