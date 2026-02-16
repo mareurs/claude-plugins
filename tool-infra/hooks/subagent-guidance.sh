@@ -1,13 +1,17 @@
 #!/bin/bash
-# SubagentStart hook - inject semantic tool workflow into Explore agents
+# SubagentStart hook - inject semantic tool workflow into ALL subagents
 # Auto-detects available tools; no-op if none available.
+# Skips agent types that don't do code work (Bash, statusline-setup, etc.)
 
 INPUT=$(cat)
 AGENT_TYPE=$(echo "$INPUT" | jq -r '.agent_type // empty')
 
-if [ "$AGENT_TYPE" != "Explore" ]; then
-  exit 0
-fi
+# Skip agent types that don't need code exploration guidance
+case "$AGENT_TYPE" in
+  Bash|statusline-setup|claude-code-guide)
+    exit 0
+    ;;
+esac
 
 CWD=$(echo "$INPUT" | jq -r '.cwd // empty')
 source "$(dirname "$0")/detect-tools.sh"
@@ -21,7 +25,9 @@ STEP=1
 STEPS=""
 
 if [ "$HAS_CONTEXT" = "true" ]; then
-  STEPS="${STEP}. DISCOVER: search_code(query) — describe what you're looking for in natural language\n   Examples: \"how are permissions checked\", \"error handling patterns\", \"API rate limiting\"\n   Avoid exact names like \"class Foo\" — use find_symbol or Grep for those."
+  STEPS="${STEP}. DISCOVER: search_code(query) — describe what you're looking for in natural language
+   Examples: \"how are permissions checked\", \"error handling patterns\", \"API rate limiting\"
+   Avoid exact names like \"class Foo\" — use find_symbol or Grep for those."
   STEP=$((STEP + 1))
 fi
 
@@ -43,7 +49,7 @@ if [ "$HAS_SERENA" = "true" ] || [ "$HAS_INTELLIJ" = "true" ]; then
   fi
 fi
 
-CONTEXT="CODE EXPLORATION WORKFLOW:\\n\\n${STEPS}\\n\\nPrefer semantic/LSP tools over Grep/Glob/Read for source files. Use get_symbols_overview before reading. Grep is for non-source files only."
+CONTEXT="CODE EXPLORATION WORKFLOW:\n\n${STEPS}\n\nALWAYS prefer semantic/LSP tools over Grep/Glob/Read for source files.\nNEVER use Read to view entire source files — use get_symbols_overview first, then find_symbol(include_body=true) for specific symbols.\nIf you MUST read a full source file, use Read with explicit limit (e.g. limit: 2000).\nGrep/Glob are ONLY for non-code files (config, docs, YAML, markdown)."
 
 jq -n --arg ctx "$CONTEXT" '{
   hookSpecificOutput: {

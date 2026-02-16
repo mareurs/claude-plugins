@@ -52,11 +52,10 @@ Auto-corrects wrong MCP parameter names in-place so the call succeeds on the fir
 | `edit_memory` | `new_string` | `repl` |
 | `ide_find_references` | `query` | `file` |
 
-### explore-agent-guidance (SubagentStart)
-Injects a semantic tool workflow into Explore subagents:
-1. Semantic discovery (search_code) -- with inline query examples when claude-context is available
-2. Symbol drill-down (find_symbol)
-3. Cross-reference (find_referencing_symbols)
+### subagent-guidance (SubagentStart)
+Injects a semantic tool workflow into **all** code-working subagents (Explore, Plan, general-purpose, code-reviewer, etc.). Skips non-code agents (Bash, statusline-setup, claude-code-guide).
+
+Provides the same layered DISCOVER → STRUCTURE → READ → NAVIGATE workflow as session-start, plus explicit guidance to never use Read on entire source files. This is critical because PreToolUse hooks (like semantic-tool-router) do not fire inside subagents.
 
 ### intellij-project-path (PreToolUse)
 Auto-injects `project_path` into IntelliJ index tool calls when missing, using `cwd` from the hook input. Prevents "project_path required" errors.
@@ -100,9 +99,9 @@ If your MCP servers are defined globally (in `~/.claude/settings.json` or simila
 | Hook | Event | Matcher | Action |
 |------|-------|---------|--------|
 | session-start | SessionStart | all | Tool reference card + exploration workflow + memory references |
+| subagent-guidance | SubagentStart | all (skips Bash, statusline-setup, claude-code-guide) | Inject semantic exploration workflow into subagents |
 | semantic-tool-router | PreToolUse | `Grep\|Glob\|Read` | Deny with semantic tool suggestions (language-aware) |
 | mcp-param-fixer | PreToolUse | `mcp__.*` | Auto-correct wrong parameter names in-place |
-| explore-agent-guidance | SubagentStart | `Explore` | Inject semantic exploration workflow |
 | intellij-project-path | PreToolUse | `mcp__intellij-index__.*` | Inject `project_path` from `cwd` |
 
 ## Requirements

@@ -12,11 +12,10 @@
     ],
     "SubagentStart": [
       {
-        "matcher": "Explore",
         "hooks": [
           {
             "type": "command",
-            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/explore-agent-guidance.sh"
+            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/subagent-guidance.sh"
           }
         ]
       }
