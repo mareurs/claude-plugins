@@ -41,7 +41,7 @@
         ]
       },
       {
-        "matcher": "Grep|Glob",
+        "matcher": "Grep|Glob|Read",
         "hooks": [
           {
             "type": "command",

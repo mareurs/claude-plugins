@@ -1,6 +1,6 @@
 #!/bin/bash
-# SessionStart hook - semantic tool guide + serena path safety
-# Auto-detects available MCP servers from .mcp.json
+# SessionStart hook - semantic tool guide + exploration workflow
+# Auto-detects available MCP servers and Serena project languages.
 # If no semantic tools detected, exits silently (no-op).
 
 INPUT=$(cat)
@@ -11,8 +11,6 @@ source "$(dirname "$0")/detect-tools.sh"
 if [ "$HAS_SERENA" = "false" ] && [ "$HAS_INTELLIJ" = "false" ] && [ "$HAS_CONTEXT" = "false" ]; then
   exit 0
 fi
-
-PROJECT_NAME=$(basename "$CWD")
 
 # Helper: join tool alternatives with " OR "
 or_join() {
@@ -29,17 +27,25 @@ MSG=""
 # --- Serena startup guidance ---
 if [ "$HAS_SERENA" = "true" ]; then
   MSG="SERENA SETUP: The project is already activated via MCP server config.
-Before your first symbol search, run list_dir(\".\", recursive=false) to learn the project layout.
-Serena paths are RELATIVE to the project root — verify directories exist before searching.
+Serena paths are RELATIVE to the project root — verify directories exist before searching."
+
+  # Point to memories for project understanding instead of list_dir
+  if [ "$HAS_SERENA_MEMORIES" = "true" ]; then
+    MSG="$MSG
+Serena has project memories: ${SERENA_MEMORY_NAMES}— read relevant ones to understand the project."
+  fi
+
+  MSG="$MSG
+Use bash ls for directory browsing (faster, richer output than list_dir).
 
 If Serena returns \"No active project\", call activate_project with path: ${CWD}
-If Serena says \"onboarding not performed\", ignore it — the project works fine, it just means no memories have been saved yet.
+If Serena says \"onboarding not performed\", ignore it — the project works fine.
 
 "
 fi
 
 # --- Tool guide ---
-MSG="${MSG}CODE TOOL GUIDE — ALWAYS prefer semantic tools over Grep/Glob for source code."
+MSG="${MSG}CODE TOOL GUIDE — ALWAYS prefer semantic tools over Grep/Glob/Read for source code."
 
 if [ "$HAS_CONTEXT" = "true" ] && { [ "$HAS_SERENA" = "true" ] || [ "$HAS_INTELLIJ" = "true" ]; }; then
   MSG="$MSG
@@ -52,12 +58,9 @@ SEMANTIC SEARCH (claude-context) — use when you DON'T know the exact name.
   GOOD queries (describe behavior/intent):
     search_code(\"how are API errors handled and returned to clients\")
     search_code(\"database connection setup and pooling\")
-    search_code(\"authentication middleware and token validation\")
-    search_code(\"where are background jobs scheduled and processed\")
 
   BAD queries (use symbol tools or Grep instead):
     search_code(\"function checkPermission\")     → use find_symbol
-    search_code(\"class DatabasePool\")           → use find_symbol
     search_code(\"import retry from\")            → use Grep for literal patterns"
 
   if [ "$HAS_SERENA" = "true" ] && [ "$HAS_INTELLIJ" = "true" ]; then
@@ -90,12 +93,9 @@ SEMANTIC SEARCH (claude-context) — describe what you're looking for in plain l
   GOOD queries (describe behavior/intent):
     search_code(\"how are API errors handled and returned to clients\")
     search_code(\"database connection setup and pooling\")
-    search_code(\"authentication middleware and token validation\")
-    search_code(\"where are background jobs scheduled and processed\")
 
   BAD queries (use symbol tools or Grep instead):
     search_code(\"function checkPermission\")     → use find_symbol
-    search_code(\"class DatabasePool\")           → use find_symbol
     search_code(\"import retry from\")            → use Grep for literal patterns"
 
 elif [ "$HAS_SERENA" = "true" ] || [ "$HAS_INTELLIJ" = "true" ]; then
@@ -117,6 +117,47 @@ SERENA (LSP) — understands code STRUCTURE: definitions, references, type hiera
 INTELLIJ (IDE) — understands code STRUCTURE: definitions, references, type hierarchies.
   Use for ALL code exploration. Takes symbol names, not free-text."
   fi
+fi
+
+# --- Exploration workflow (for main agent, not just subagents) ---
+if [ "$HAS_SERENA" = "true" ] || [ "$HAS_INTELLIJ" = "true" ]; then
+  STEP=1
+  MSG="$MSG
+
+CODE EXPLORATION WORKFLOW:"
+
+  # Step 1: DISCOVER with claude-context when available
+  if [ "$HAS_CONTEXT" = "true" ]; then
+    MSG="$MSG
+  ${STEP}. DISCOVER: search_code(query) — find relevant code by describing what you're looking for"
+    STEP=$((STEP + 1))
+  fi
+
+  # Step 2: STRUCTURE
+  TOOLS=""
+  [ "$HAS_SERENA" = "true" ] && TOOLS="get_symbols_overview(path)"
+  [ "$HAS_INTELLIJ" = "true" ] && TOOLS=$(or_join "$TOOLS" "ide_file_structure(path)")
+  MSG="$MSG
+  ${STEP}. STRUCTURE: $TOOLS — see what's in a file BEFORE reading it"
+  STEP=$((STEP + 1))
+
+  # Step 3: READ
+  if [ "$HAS_SERENA" = "true" ]; then
+    MSG="$MSG
+  ${STEP}. READ: find_symbol(name, include_body=true) — read only the symbols you need"
+  elif [ "$HAS_INTELLIJ" = "true" ]; then
+    MSG="$MSG
+  ${STEP}. READ: ide_find_symbol(name) — read specific symbols"
+  fi
+  STEP=$((STEP + 1))
+
+  # Step 4: NAVIGATE
+  TOOLS=""
+  [ "$HAS_SERENA" = "true" ] && TOOLS="find_referencing_symbols(name)"
+  [ "$HAS_INTELLIJ" = "true" ] && TOOLS=$(or_join "$TOOLS" "ide_find_references(name)")
+  MSG="$MSG
+  ${STEP}. NAVIGATE: $TOOLS — trace callers/usages
+  NEVER use Read to view entire source files. Use get_symbols_overview first, then read specific symbols."
 fi
 
 # --- Quick reference ---
