@@ -22,7 +22,7 @@
     {
       "name": "tool-infra",
       "source": "./tool-infra",
-      "description": "Infrastructure hooks for semantic code tools: routes Grep/Glob to semantic tools, fixes MCP params, injects exploration guidance",
+      "description": "Infrastructure hooks for semantic code tools: routes Grep/Glob to semantic tools, dual-tool routing (Serena+IntelliJ), fixes MCP params, injects exploration guidance",
       "author": {
         "name": "Marius"
       },

@@ -17,7 +17,7 @@ These plugins reflect specific workflows and tool choices -- they may not suit e
 | Plugin | Version | Description |
 |--------|---------|-------------|
 | **[sdd](./sdd/)** | 2.1.0 | Specification-Driven Development: governance, workflow commands, and enforcement hooks |
-| **[tool-infra](./tool-infra/)** | 2.4.0 | Semantic tool infrastructure: routes Claude to use Serena/IntelliJ/claude-context instead of Grep/Glob |
+| **[tool-infra](./tool-infra/)** | 2.6.0 | Semantic tool infrastructure: routes Claude to use Serena/IntelliJ/claude-context instead of Grep/Glob, with dual-tool routing |
 
 ## Requirements
 
@@ -50,11 +50,12 @@ See [sdd/README.md](./sdd/) for full documentation.
 Makes Claude use semantic code tools (Serena, IntelliJ MCP, claude-context) instead of falling back to text search. Auto-detects which tools are available from `.mcp.json` or `.claude/tool-infra.json`.
 
 **Hooks:**
-- **session-start** -- Tool reference card, query examples for claude-context, structure discovery for Serena
-- **semantic-tool-router** -- Blocks Grep/Glob on source files, suggests semantic alternatives
+- **session-start** -- Tool reference card with dual-tool decision matrix when both Serena and IntelliJ available
+- **subagent-guidance** -- Injects semantic tool workflow into all code-working subagents
+- **semantic-tool-router** -- Blocks Grep/Glob/Read on source files, suggests semantic alternatives
 - **mcp-param-fixer** -- Auto-corrects wrong MCP parameter names in-place (e.g. `pattern` -> `substring_pattern`)
-- **explore-agent-guidance** -- Injects semantic tool workflow into Explore subagents
 - **intellij-project-path** -- Auto-injects `project_path` into IntelliJ index calls
+- **dual-tool-router** -- Blocks broken Serena calls when IntelliJ available, redirects with bridge pattern hints
 
 See [tool-infra/README.md](./tool-infra/) for details and configuration.
 
