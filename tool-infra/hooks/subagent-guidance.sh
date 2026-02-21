@@ -20,36 +20,61 @@ if [ "$HAS_SERENA" = "false" ] && [ "$HAS_INTELLIJ" = "false" ] && [ "$HAS_CONTE
   exit 0
 fi
 
-# Build workflow steps based on available tools
-STEP=1
-STEPS=""
+if [ "$DUAL_MODE" = "true" ]; then
+  # --- Compact dual-tool guidance for subagents ---
+  CONTEXT="DUAL-TOOL MODE — Serena + IntelliJ have different roles:
 
-if [ "$HAS_CONTEXT" = "true" ]; then
-  STEPS="${STEP}. DISCOVER: search_code(query) — describe what you're looking for in natural language
+SERENA (reading + editing):
+  get_symbols_overview(path) — file/directory structure
+  find_symbol(name_path, include_body=true) — read symbol source
+  replace_symbol_body(name_path, body) — edit symbol
+  search_for_pattern(substring_pattern) — regex search
+
+INTELLIJ (cross-file navigation + refactoring):
+  ide_find_references(file, line, col) — find all callers/usages
+  ide_type_hierarchy(fqName) — inheritance chain
+  ide_find_implementations(fqName) — interface implementations
+  ide_refactor_rename(file, line, col, newName) — rename across codebase
+
+BRIDGE: Serena find_symbol gives file+line -> pass to IntelliJ for references.
+
+NEVER use Read to view entire source files. Use get_symbols_overview first, then find_symbol(include_body=true).
+If you MUST read a full source file, use Read with explicit limit (e.g. limit: 2000).
+Grep/Glob are ONLY for non-code files (config, docs, YAML, markdown)."
+
+else
+  # --- Single-tool workflow (existing logic) ---
+  # Build workflow steps based on available tools
+  STEP=1
+  STEPS=""
+
+  if [ "$HAS_CONTEXT" = "true" ]; then
+    STEPS="${STEP}. DISCOVER: search_code(query) — describe what you're looking for in natural language
    Examples: \"how are permissions checked\", \"error handling patterns\", \"API rate limiting\"
    Avoid exact names like \"class Foo\" — use find_symbol or Grep for those."
-  STEP=$((STEP + 1))
-fi
-
-if [ "$HAS_SERENA" = "true" ] || [ "$HAS_INTELLIJ" = "true" ]; then
-  SEP=""
-  [ -n "$STEPS" ] && SEP="\n"
-  if [ "$HAS_SERENA" = "true" ]; then
-    STEPS="${STEPS}${SEP}${STEP}. STRUCTURE: get_symbols_overview(path) — see what's in a file BEFORE reading it"
     STEP=$((STEP + 1))
-    STEPS="$STEPS\n${STEP}. READ: find_symbol(name_path, include_body=true) — read specific symbols"
-    STEP=$((STEP + 1))
-    STEPS="$STEPS\n${STEP}. NAVIGATE: find_referencing_symbols(name_path) — find all callers/usages"
-  elif [ "$HAS_INTELLIJ" = "true" ]; then
-    STEPS="${STEPS}${SEP}${STEP}. STRUCTURE: ide_file_structure(path) — see what's in a file"
-    STEP=$((STEP + 1))
-    STEPS="$STEPS\n${STEP}. READ: ide_find_symbol(name) — find and read symbols"
-    STEP=$((STEP + 1))
-    STEPS="$STEPS\n${STEP}. NAVIGATE: ide_find_references(name) — find all callers/usages"
   fi
-fi
 
-CONTEXT="CODE EXPLORATION WORKFLOW:\n\n${STEPS}\n\nALWAYS prefer semantic/LSP tools over Grep/Glob/Read for source files.\nNEVER use Read to view entire source files — use get_symbols_overview first, then find_symbol(include_body=true) for specific symbols.\nIf you MUST read a full source file, use Read with explicit limit (e.g. limit: 2000).\nGrep/Glob are ONLY for non-code files (config, docs, YAML, markdown)."
+  if [ "$HAS_SERENA" = "true" ] || [ "$HAS_INTELLIJ" = "true" ]; then
+    SEP=""
+    [ -n "$STEPS" ] && SEP="\n"
+    if [ "$HAS_SERENA" = "true" ]; then
+      STEPS="${STEPS}${SEP}${STEP}. STRUCTURE: get_symbols_overview(path) — see what's in a file BEFORE reading it"
+      STEP=$((STEP + 1))
+      STEPS="$STEPS\n${STEP}. READ: find_symbol(name_path, include_body=true) — read specific symbols"
+      STEP=$((STEP + 1))
+      STEPS="$STEPS\n${STEP}. NAVIGATE: find_referencing_symbols(name_path) — find all callers/usages"
+    elif [ "$HAS_INTELLIJ" = "true" ]; then
+      STEPS="${STEPS}${SEP}${STEP}. STRUCTURE: ide_file_structure(path) — see what's in a file"
+      STEP=$((STEP + 1))
+      STEPS="$STEPS\n${STEP}. READ: ide_find_symbol(name) — find and read symbols"
+      STEP=$((STEP + 1))
+      STEPS="$STEPS\n${STEP}. NAVIGATE: ide_find_references(name) — find all callers/usages"
+    fi
+  fi
+
+  CONTEXT="CODE EXPLORATION WORKFLOW:\n\n${STEPS}\n\nALWAYS prefer semantic/LSP tools over Grep/Glob/Read for source files.\nNEVER use Read to view entire source files — use get_symbols_overview first, then find_symbol(include_body=true) for specific symbols.\nIf you MUST read a full source file, use Read with explicit limit (e.g. limit: 2000).\nGrep/Glob are ONLY for non-code files (config, docs, YAML, markdown)."
+fi
 
 jq -n --arg ctx "$CONTEXT" '{
   hookSpecificOutput: {
