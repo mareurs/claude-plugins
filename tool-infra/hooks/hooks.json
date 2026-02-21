@@ -40,6 +40,15 @@
         ]
       },
       {
+        "matcher": "mcp__serena__find_referencing_symbols|mcp__serena__rename_symbol",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/dual-tool-router.sh"
+          }
+        ]
+      },
+      {
         "matcher": "Grep|Glob|Read",
         "hooks": [
           {
