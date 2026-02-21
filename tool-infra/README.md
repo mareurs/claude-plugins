@@ -23,6 +23,8 @@ When **claude-context** is available, includes good/bad query examples:
 
 When **both Serena and IntelliJ** are available (dual-tool mode):
 - Shows task-aware decision matrix: Serena for reading/editing, IntelliJ for cross-file navigation
+- Annotates tool preferences based on measured performance (e.g. `get_symbols_overview` 3x cheaper than `ide_file_structure`, `find_symbol` gives full body vs `ide_find_definition` 4-line preview)
+- Lists **known issues** to steer away from broken tools (`ide_call_hierarchy` callers, `ide_search_text` pollution, language-specific Serena limitations)
 - Includes workflow patterns (Understand Before Editing, Find Usages Before Refactoring, Explore Unfamiliar Code)
 - Explains the bridge pattern: use Serena's `find_symbol` to get file+line, pass to IntelliJ's `ide_find_references`
 
@@ -60,25 +62,32 @@ Auto-corrects wrong MCP parameter names in-place so the call succeeds on the fir
 ### subagent-guidance (SubagentStart)
 Injects a semantic tool workflow into **all** code-working subagents (Explore, Plan, general-purpose, code-reviewer, etc.). Skips non-code agents (Bash, statusline-setup, claude-code-guide).
 
-Provides the same layered DISCOVER → STRUCTURE → READ → NAVIGATE workflow as session-start, plus explicit guidance to never use Read on entire source files. This is critical because PreToolUse hooks (like semantic-tool-router) do not fire inside subagents.
+**Plan agents** receive enriched guidance: full tool reference tables, workflow patterns (understand-edit, find-usages-refactor, explore-unfamiliar), and "PLAN AROUND THESE" known issues -- so implementation plans route to the right tools and avoid broken ones.
+
+Other subagents get a compact version with the same layered DISCOVER → STRUCTURE → READ → NAVIGATE workflow, plus explicit guidance to never use Read on entire source files. This is critical because PreToolUse hooks (like semantic-tool-router) do not fire inside subagents.
 
 ### intellij-project-path (PreToolUse)
 Auto-injects `project_path` into IntelliJ index tool calls when missing, using `cwd` from the hook input. Prevents "project_path required" errors.
 
 ### dual-tool-router (PreToolUse)
-Blocks known-broken Serena calls when IntelliJ is available (dual-tool mode). Redirects to working IntelliJ equivalents with bridge pattern hints.
+Language-aware blocking of known-broken Serena calls when IntelliJ is available (dual-tool mode). Redirects to working IntelliJ equivalents with bridge pattern hints.
 
-**Blocked** (when both Serena and IntelliJ are detected):
-- `find_referencing_symbols` → `ide_find_references` (Serena's always returns empty)
-- `rename_symbol` → `ide_refactor_rename` (Serena's breaks builds silently)
+**Auto-detection**: Reads project languages from `.serena/project.yml`. Serena cross-file references work for Python, TypeScript, Bash, Go, Rust, Ruby -- but are broken for Kotlin and Java (community LSP limitations). The router auto-enables/disables based on detected languages.
 
-**Opt-out**: Set capability flags in `.claude/tool-infra.json` for projects where Serena's LSP works correctly:
+**Blocked** (when language has broken Serena cross-file ops):
+- `find_referencing_symbols` → `ide_find_references` (returns empty for Kotlin/Java)
+- `rename_symbol` → `ide_refactor_rename` (may miss cross-file renames for Kotlin/Java)
+
+Deny messages explain the root cause and note that Serena single-file operations (`get_symbols_overview`, `find_symbol`, `replace_symbol_body`) still work fine for all languages.
+
+**Override**: Auto-detection can be overridden in `.claude/tool-infra.json`:
 ```json
 {
   "serena_references_works": true,
   "serena_rename_works": true
 }
 ```
+Set to `true`/`false` to force. Omit or set to `"auto"` for language-based auto-detection.
 
 ## Installation
 
@@ -109,25 +118,28 @@ If your MCP servers are defined globally (in `~/.claude/settings.json` or simila
 
 - `true` -- force-enable (skips `.mcp.json` check)
 - `false` or omitted -- fall back to auto-detection
-- `serena_references_works` -- Serena's `find_referencing_symbols` works for this project's language (default: `false` in dual mode)
-- `serena_rename_works` -- Serena's `rename_symbol` works cross-file for this project (default: `false` in dual mode)
+- `serena_references_works` -- override auto-detection for Serena's `find_referencing_symbols` (default: auto-detected from project languages)
+- `serena_rename_works` -- override auto-detection for Serena's `rename_symbol` (default: auto-detected from project languages)
 
 ### Detection priority
 
-1. `.claude/tool-infra.json` overrides (checked first)
-2. `.mcp.json` auto-detection (fallback)
-3. `.serena/project.yml` for language-aware extension filtering
+1. `.claude/tool-infra.json` overrides (checked first for tool presence)
+2. `.mcp.json` auto-detection (fallback for tool presence)
+3. `.serena/project.yml` for:
+   - Language-aware source file extension filtering (used by semantic-tool-router)
+   - Language-aware capability flags (used by dual-tool-router): Python/TypeScript/Bash → refs work, Kotlin/Java → refs broken
+4. `.claude/tool-infra.json` capability flag overrides (takes precedence over language auto-detection)
 
 ## Hook Reference
 
 | Hook | Event | Matcher | Action |
 |------|-------|---------|--------|
-| session-start | SessionStart | all | Tool reference card + exploration workflow + memory references |
-| subagent-guidance | SubagentStart | all (skips Bash, statusline-setup, claude-code-guide) | Inject semantic exploration workflow into subagents |
+| session-start | SessionStart | all | Tool reference card + known issues + exploration workflow + memory references |
+| subagent-guidance | SubagentStart | all (skips Bash, statusline-setup, claude-code-guide) | Compact workflow for subagents; enriched guidance with workflow patterns + known issues for Plan agents |
 | semantic-tool-router | PreToolUse | `Grep\|Glob\|Read` | Deny with semantic tool suggestions (language-aware) |
 | mcp-param-fixer | PreToolUse | `mcp__.*` | Auto-correct wrong parameter names in-place |
 | intellij-project-path | PreToolUse | `mcp__intellij-index__.*` | Inject `project_path` from `cwd` |
-| dual-tool-router | PreToolUse | `mcp__serena__find_referencing_symbols\|mcp__serena__rename_symbol` | Block broken Serena calls, redirect to IntelliJ (dual mode only) |
+| dual-tool-router | PreToolUse | `mcp__serena__find_referencing_symbols\|mcp__serena__rename_symbol` | Language-aware blocking of broken Serena calls, redirect to IntelliJ (dual mode only) |
 
 ## Requirements
 

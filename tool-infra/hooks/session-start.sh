@@ -49,32 +49,52 @@ if [ "$DUAL_MODE" = "true" ]; then
   # ── Dual-tool mode: task-aware guidance with clear role separation ──
   MSG="${MSG}DUAL-TOOL MODE (Serena + IntelliJ) — each tool has a specific role:
 
-SERENA — The Precise Scalpel (reading + editing):
-  get_symbols_overview(path)                — file/directory structure (compact, low-token)
-  find_symbol(name_path, include_body=true) — read specific symbol source
+SERENA — Reading + Editing (all languages, single-file ops always work):
+  get_symbols_overview(path)                — file/directory structure (3x cheaper than ide_file_structure)
+  find_symbol(name_path, include_body=true) — read symbol source (full body, not just 4-line preview)
   replace_symbol_body(name_path, body)      — edit symbol in place
   insert_after_symbol / insert_before_symbol — add new code
-  search_for_pattern(substring_pattern)     — regex search with directory scoping
+  search_for_pattern(substring_pattern)     — regex search (code files only, no .md/.memory pollution)
   find_file(file_mask)                      — find files by name
 
-INTELLIJ — The Cross-File Brain (navigation + refactoring):
-  ide_find_references(file, line, col)      — who calls this?
+INTELLIJ — Cross-File Navigation + Refactoring:
+  ide_find_references(file, line, col)      — who calls this? (preferred over ide_call_hierarchy callers)
   ide_type_hierarchy(fqName)                — inheritance chain
   ide_find_implementations(fqName)          — interface implementations
   ide_refactor_rename(file, line, col, name) — rename across codebase
   ide_refactor_safe_delete(file, line, col) — impact analysis before deletion
-  ide_find_symbol(name)                     — fuzzy/CamelCase symbol search"
+  ide_find_symbol(name)                     — fuzzy/CamelCase symbol search
+
+KNOWN ISSUES:
+  - ide_call_hierarchy callers: BROKEN (always empty) — use ide_find_references instead
+  - ide_search_text: returns .md and .serena/memories files — use search_for_pattern for code-only search
+  - ide_find_definition: returns 4-line preview only — use find_symbol(include_body=true) for full source
+  - Serena cross-file refs (find_referencing_symbols): works for Python/TypeScript, broken for Kotlin/Java"
 
   if [ "$HAS_CONTEXT" = "true" ]; then
     MSG="$MSG
 
-CLAUDE-CONTEXT — Semantic Search (when you DON'T know the exact name):
-  search_code(query) — describe what you're looking for in plain language"
+CLAUDE-CONTEXT — Broad Discovery (start here when you DON'T know where to look):
+  search_code(query)                        — find code by MEANING using embedded vectors
+  Good: search_code(\"how are API errors handled\"), search_code(\"database connection pooling\")
+  Bad: search_code(\"class Foo\") — use find_symbol for exact names, Grep for literal strings"
   fi
 
   MSG="$MSG
 
-WORKFLOW PATTERNS:
+WORKFLOW PATTERNS:"
+
+  if [ "$HAS_CONTEXT" = "true" ]; then
+    MSG="$MSG
+
+  Discover Then Drill Down (when you DON'T know where to look):
+    1. claude-context: search_code(\"describe what you need\") -> find relevant files
+    2. Serena: get_symbols_overview(file)                      -> understand structure
+    3. Serena: find_symbol(name, include_body)                 -> read specifics
+    4. IntelliJ: ide_find_references(file,line,col)            -> trace callers"
+  fi
+
+  MSG="$MSG
 
   Understand Before Editing:
     1. Serena: get_symbols_overview(file)          -> structure

@@ -21,7 +21,7 @@ case "$TOOL_NAME" in
   "hookSpecificOutput": {
     "hookEventName": "PreToolUse",
     "permissionDecision": "deny",
-    "permissionDecisionReason": "BLOCKED: find_referencing_symbols does not work when IntelliJ is available (returns empty). Use instead:\n- ide_find_references(file, line, col) — find all callers/usages\n\nBridge: Use find_symbol(name) first to get file+line, then pass to ide_find_references."
+    "permissionDecisionReason": "BLOCKED: find_referencing_symbols returns empty for this project's language (Kotlin/Java LSP cross-file references broken). Use instead:\n- ide_find_references(file, line, col) — find all callers/usages\n\nBridge: Use find_symbol(name) first to get file+line, then pass to ide_find_references.\nNote: Serena single-file operations (get_symbols_overview, find_symbol, replace_symbol_body) still work fine."
   }
 }
 EOF
@@ -36,7 +36,7 @@ EOF
   "hookSpecificOutput": {
     "hookEventName": "PreToolUse",
     "permissionDecision": "deny",
-    "permissionDecisionReason": "BLOCKED: rename_symbol breaks builds silently for cross-file renames when IntelliJ is available. Use instead:\n- ide_refactor_rename(file, line, col, newName) — semantic rename across entire codebase\n\nBridge: Use find_symbol(name) first to get file+line, then pass to ide_refactor_rename."
+    "permissionDecisionReason": "BLOCKED: rename_symbol may miss cross-file renames for this project's language (Kotlin/Java LSP limitation). Use instead:\n- ide_refactor_rename(file, line, col, newName) — semantic rename across entire codebase\n\nBridge: Use find_symbol(name) first to get file+line, then pass to ide_refactor_rename."
   }
 }
 EOF

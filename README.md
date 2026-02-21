@@ -17,7 +17,7 @@ These plugins reflect specific workflows and tool choices -- they may not suit e
 | Plugin | Version | Description |
 |--------|---------|-------------|
 | **[sdd](./sdd/)** | 2.1.0 | Specification-Driven Development: governance, workflow commands, and enforcement hooks |
-| **[tool-infra](./tool-infra/)** | 2.6.0 | Semantic tool infrastructure: routes Claude to use Serena/IntelliJ/claude-context instead of Grep/Glob, with dual-tool routing |
+| **[tool-infra](./tool-infra/)** | 2.7.0 | Semantic tool infrastructure: routes Claude to use Serena/IntelliJ/claude-context instead of Grep/Glob, with language-aware dual-tool routing |
 
 ## Requirements
 
@@ -47,15 +47,15 @@ See [sdd/README.md](./sdd/) for full documentation.
 
 ### tool-infra
 
-Makes Claude use semantic code tools (Serena, IntelliJ MCP, claude-context) instead of falling back to text search. Auto-detects which tools are available from `.mcp.json` or `.claude/tool-infra.json`.
+Makes Claude use semantic code tools (Serena, IntelliJ MCP, claude-context) instead of falling back to text search. Auto-detects tools from `.mcp.json` and languages from `.serena/project.yml` for language-aware routing.
 
 **Hooks:**
-- **session-start** -- Tool reference card with dual-tool decision matrix when both Serena and IntelliJ available
-- **subagent-guidance** -- Injects semantic tool workflow into all code-working subagents
+- **session-start** -- Tool reference card with known issues, dual-tool decision matrix, and workflow patterns
+- **subagent-guidance** -- Semantic tool workflow for all subagents; enriched guidance for Plan agents (workflow patterns, tool reference, known issues)
 - **semantic-tool-router** -- Blocks Grep/Glob/Read on source files, suggests semantic alternatives
 - **mcp-param-fixer** -- Auto-corrects wrong MCP parameter names in-place (e.g. `pattern` -> `substring_pattern`)
 - **intellij-project-path** -- Auto-injects `project_path` into IntelliJ index calls
-- **dual-tool-router** -- Blocks broken Serena calls when IntelliJ available, redirects with bridge pattern hints
+- **dual-tool-router** -- Language-aware blocking of broken Serena calls (Kotlin/Java), redirects to IntelliJ equivalents
 
 See [tool-infra/README.md](./tool-infra/) for details and configuration.
 

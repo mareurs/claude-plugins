@@ -82,12 +82,41 @@ if [ "$HAS_SERENA" = "true" ] && [ "$HAS_INTELLIJ" = "true" ]; then
 fi
 
 # --- Serena capability flags (only relevant in dual mode) ---
-# Default: assume broken (safe). Projects override in tool-infra.json.
+# Auto-detect from project languages, then allow manual override from tool-infra.json.
+# Languages with working LSP cross-file references: python, typescript, bash, go, rust, ruby
+# Languages with BROKEN LSP cross-file references: kotlin, java (community LSP limitations)
 SERENA_REFERENCES_WORKS=false
 SERENA_RENAME_WORKS=false
-if [ "$DUAL_MODE" = "true" ] && [ -f "$CONFIG" ]; then
-  [ "$(jq -r '.serena_references_works // false' "$CONFIG" 2>/dev/null)" = "true" ] && SERENA_REFERENCES_WORKS=true
-  [ "$(jq -r '.serena_rename_works // false' "$CONFIG" 2>/dev/null)" = "true" ] && SERENA_RENAME_WORKS=true
+if [ "$DUAL_MODE" = "true" ]; then
+  # Auto-detect: set true only if NO language has broken references
+  if [ -n "$LANGS" ]; then
+    _refs_ok=true
+    _rename_ok=true
+    for lang in $LANGS; do
+      case "$lang" in
+        python|python_jedi|typescript|typescript_vts|bash|go|rust|ruby|ruby_solargraph|scala|swift|csharp|csharp_omnisharp)
+          ;; # Working LSP references
+        kotlin|java)
+          _refs_ok=false
+          _rename_ok=false
+          ;; # Broken LSP cross-file references
+        *)
+          ;; # Unknown — don't penalize (user can override if needed)
+      esac
+    done
+    SERENA_REFERENCES_WORKS=$_refs_ok
+    SERENA_RENAME_WORKS=$_rename_ok
+  fi
+
+  # Manual override from tool-infra.json (takes precedence over auto-detection)
+  if [ -f "$CONFIG" ]; then
+    _ref_override=$(jq -r '.serena_references_works // "auto"' "$CONFIG" 2>/dev/null)
+    _rename_override=$(jq -r '.serena_rename_works // "auto"' "$CONFIG" 2>/dev/null)
+    [ "$_ref_override" = "true" ] && SERENA_REFERENCES_WORKS=true
+    [ "$_ref_override" = "false" ] && SERENA_REFERENCES_WORKS=false
+    [ "$_rename_override" = "true" ] && SERENA_RENAME_WORKS=true
+    [ "$_rename_override" = "false" ] && SERENA_RENAME_WORKS=false
+  fi
 fi
 
 # --- Serena memories detection ---
