@@ -45,10 +45,63 @@ If Serena says \"onboarding not performed\", ignore it — the project works fin
 fi
 
 # --- Tool guide ---
-MSG="${MSG}CODE TOOL GUIDE — ALWAYS prefer semantic tools over Grep/Glob/Read for source code."
+if [ "$DUAL_MODE" = "true" ]; then
+  # ── Dual-tool mode: task-aware guidance with clear role separation ──
+  MSG="${MSG}DUAL-TOOL MODE (Serena + IntelliJ) — each tool has a specific role:
 
-if [ "$HAS_CONTEXT" = "true" ] && { [ "$HAS_SERENA" = "true" ] || [ "$HAS_INTELLIJ" = "true" ]; }; then
+SERENA — The Precise Scalpel (reading + editing):
+  get_symbols_overview(path)                — file/directory structure (compact, low-token)
+  find_symbol(name_path, include_body=true) — read specific symbol source
+  replace_symbol_body(name_path, body)      — edit symbol in place
+  insert_after_symbol / insert_before_symbol — add new code
+  search_for_pattern(substring_pattern)     — regex search with directory scoping
+  find_file(file_mask)                      — find files by name
+
+INTELLIJ — The Cross-File Brain (navigation + refactoring):
+  ide_find_references(file, line, col)      — who calls this?
+  ide_type_hierarchy(fqName)                — inheritance chain
+  ide_find_implementations(fqName)          — interface implementations
+  ide_refactor_rename(file, line, col, name) — rename across codebase
+  ide_refactor_safe_delete(file, line, col) — impact analysis before deletion
+  ide_find_symbol(name)                     — fuzzy/CamelCase symbol search"
+
+  if [ "$HAS_CONTEXT" = "true" ]; then
+    MSG="$MSG
+
+CLAUDE-CONTEXT — Semantic Search (when you DON'T know the exact name):
+  search_code(query) — describe what you're looking for in plain language"
+  fi
+
   MSG="$MSG
+
+WORKFLOW PATTERNS:
+
+  Understand Before Editing:
+    1. Serena: get_symbols_overview(file)          -> structure
+    2. Serena: find_symbol(name, include_body)      -> read method
+    3. Serena: replace_symbol_body(name, new_body)  -> edit
+    4. IntelliJ: ide_find_references(file,line,col) -> verify nothing broke
+
+  Find Usages Before Refactoring:
+    1. Serena: find_symbol(name)                    -> get file + line
+    2. IntelliJ: ide_find_references(file,line,col) -> all usages
+    3. IntelliJ: ide_refactor_rename(...)            -> rename everywhere
+
+  Explore Unfamiliar Code:
+    1. Serena: get_symbols_overview(dir/)            -> directory overview
+    2. Serena: find_symbol(Class, depth=1)           -> class structure
+    3. IntelliJ: ide_type_hierarchy(fqName)          -> inheritance
+    4. IntelliJ: ide_find_implementations(fqName)    -> implementations
+
+BRIDGE PATTERN: Serena find_symbol gives you file+line -> pass to IntelliJ for references.
+Grep/Glob — ONLY for non-code files (config, docs, YAML, markdown)"
+
+else
+  # ── Single-tool mode: original OR-join logic ──
+  MSG="${MSG}CODE TOOL GUIDE — ALWAYS prefer semantic tools over Grep/Glob/Read for source code."
+
+  if [ "$HAS_CONTEXT" = "true" ] && { [ "$HAS_SERENA" = "true" ] || [ "$HAS_INTELLIJ" = "true" ]; }; then
+    MSG="$MSG
 
 Two kinds of code tools — pick based on what you know:
 
@@ -63,29 +116,29 @@ SEMANTIC SEARCH (claude-context) — use when you DON'T know the exact name.
     search_code(\"function checkPermission\")     → use find_symbol
     search_code(\"import retry from\")            → use Grep for literal patterns"
 
-  if [ "$HAS_SERENA" = "true" ] && [ "$HAS_INTELLIJ" = "true" ]; then
-    MSG="$MSG
+    if [ "$HAS_SERENA" = "true" ] && [ "$HAS_INTELLIJ" = "true" ]; then
+      MSG="$MSG
 
 LSP / IDE TOOLS (serena, intellij) — use when you DO know a symbol name.
   Understand code STRUCTURE: definitions, references, type hierarchies."
-  elif [ "$HAS_SERENA" = "true" ]; then
-    MSG="$MSG
+    elif [ "$HAS_SERENA" = "true" ]; then
+      MSG="$MSG
 
 SERENA (LSP) — use when you DO know a symbol name (class, function, variable).
   Understands code STRUCTURE: definitions, references, type hierarchies."
-  else
-    MSG="$MSG
+    else
+      MSG="$MSG
 
 INTELLIJ (IDE) — use when you DO know a symbol name (class, function, variable).
   Understands code STRUCTURE: definitions, references, type hierarchies."
-  fi
+    fi
 
-  MSG="$MSG
+    MSG="$MSG
 
 Workflow: search_code to DISCOVER, then serena/intellij to NAVIGATE and EDIT."
 
-elif [ "$HAS_CONTEXT" = "true" ]; then
-  MSG="$MSG
+  elif [ "$HAS_CONTEXT" = "true" ]; then
+    MSG="$MSG
 
 SEMANTIC SEARCH (claude-context) — describe what you're looking for in plain language.
   search_code(query) finds code by MEANING using embedded vectors, not text matching.
@@ -98,117 +151,118 @@ SEMANTIC SEARCH (claude-context) — describe what you're looking for in plain l
     search_code(\"function checkPermission\")     → use find_symbol
     search_code(\"import retry from\")            → use Grep for literal patterns"
 
-elif [ "$HAS_SERENA" = "true" ] || [ "$HAS_INTELLIJ" = "true" ]; then
-  if [ "$HAS_SERENA" = "true" ] && [ "$HAS_INTELLIJ" = "true" ]; then
-    MSG="$MSG
+  elif [ "$HAS_SERENA" = "true" ] || [ "$HAS_INTELLIJ" = "true" ]; then
+    if [ "$HAS_SERENA" = "true" ] && [ "$HAS_INTELLIJ" = "true" ]; then
+      MSG="$MSG
 
 LSP / IDE TOOLS (serena, intellij) — understand code STRUCTURE.
   Use for: finding symbols, reading definitions, navigating references, editing code.
   Take exact or partial symbol names, not free-text descriptions."
-  elif [ "$HAS_SERENA" = "true" ]; then
-    MSG="$MSG
+    elif [ "$HAS_SERENA" = "true" ]; then
+      MSG="$MSG
 
 SERENA (LSP) — understands code STRUCTURE: definitions, references, type hierarchies.
   Use for ALL code exploration and editing. Takes symbol names, not free-text.
   ALWAYS prefer serena over Grep/Glob/Read for source code files."
-  else
-    MSG="$MSG
+    else
+      MSG="$MSG
 
 INTELLIJ (IDE) — understands code STRUCTURE: definitions, references, type hierarchies.
   Use for ALL code exploration. Takes symbol names, not free-text."
+    fi
   fi
-fi
 
-# --- Exploration workflow (for main agent, not just subagents) ---
-if [ "$HAS_SERENA" = "true" ] || [ "$HAS_INTELLIJ" = "true" ]; then
-  STEP=1
-  MSG="$MSG
+  # --- Exploration workflow (for main agent, not just subagents) ---
+  if [ "$HAS_SERENA" = "true" ] || [ "$HAS_INTELLIJ" = "true" ]; then
+    STEP=1
+    MSG="$MSG
 
 CODE EXPLORATION WORKFLOW:"
 
-  # Step 1: DISCOVER with claude-context when available
-  if [ "$HAS_CONTEXT" = "true" ]; then
-    MSG="$MSG
+    # Step 1: DISCOVER with claude-context when available
+    if [ "$HAS_CONTEXT" = "true" ]; then
+      MSG="$MSG
   ${STEP}. DISCOVER: search_code(query) — find relevant code by describing what you're looking for"
-    STEP=$((STEP + 1))
-  fi
+      STEP=$((STEP + 1))
+    fi
 
-  # Step 2: STRUCTURE
-  TOOLS=""
-  [ "$HAS_SERENA" = "true" ] && TOOLS="get_symbols_overview(path)"
-  [ "$HAS_INTELLIJ" = "true" ] && TOOLS=$(or_join "$TOOLS" "ide_file_structure(path)")
-  MSG="$MSG
+    # Step 2: STRUCTURE
+    TOOLS=""
+    [ "$HAS_SERENA" = "true" ] && TOOLS="get_symbols_overview(path)"
+    [ "$HAS_INTELLIJ" = "true" ] && TOOLS=$(or_join "$TOOLS" "ide_file_structure(path)")
+    MSG="$MSG
   ${STEP}. STRUCTURE: $TOOLS — see what's in a file BEFORE reading it"
-  STEP=$((STEP + 1))
+    STEP=$((STEP + 1))
 
-  # Step 3: READ
-  if [ "$HAS_SERENA" = "true" ]; then
-    MSG="$MSG
+    # Step 3: READ
+    if [ "$HAS_SERENA" = "true" ]; then
+      MSG="$MSG
   ${STEP}. READ: find_symbol(name, include_body=true) — read only the symbols you need"
-  elif [ "$HAS_INTELLIJ" = "true" ]; then
-    MSG="$MSG
+    elif [ "$HAS_INTELLIJ" = "true" ]; then
+      MSG="$MSG
   ${STEP}. READ: ide_find_symbol(name) — read specific symbols"
-  fi
-  STEP=$((STEP + 1))
+    fi
+    STEP=$((STEP + 1))
 
-  # Step 4: NAVIGATE
-  TOOLS=""
-  [ "$HAS_SERENA" = "true" ] && TOOLS="find_referencing_symbols(name)"
-  [ "$HAS_INTELLIJ" = "true" ] && TOOLS=$(or_join "$TOOLS" "ide_find_references(name)")
-  MSG="$MSG
+    # Step 4: NAVIGATE
+    TOOLS=""
+    [ "$HAS_SERENA" = "true" ] && TOOLS="find_referencing_symbols(name)"
+    [ "$HAS_INTELLIJ" = "true" ] && TOOLS=$(or_join "$TOOLS" "ide_find_references(name)")
+    MSG="$MSG
   ${STEP}. NAVIGATE: $TOOLS — trace callers/usages
   NEVER use Read to view entire source files. Use get_symbols_overview first, then read specific symbols."
-fi
+  fi
 
-# --- Quick reference ---
-MSG="$MSG
+  # --- Quick reference ---
+  MSG="$MSG
 
 TOOL QUICK REFERENCE:"
 
-if [ "$HAS_CONTEXT" = "true" ]; then
-  MSG="$MSG
+  if [ "$HAS_CONTEXT" = "true" ]; then
+    MSG="$MSG
   search_code(query)                         — semantic search by meaning"
-fi
+  fi
 
-if [ "$HAS_SERENA" = "true" ] || [ "$HAS_INTELLIJ" = "true" ]; then
-  TOOLS=""
-  [ "$HAS_SERENA" = "true" ] && TOOLS="find_symbol(name_path)"
-  [ "$HAS_INTELLIJ" = "true" ] && TOOLS=$(or_join "$TOOLS" "ide_find_symbol(name)")
-  MSG="$MSG
+  if [ "$HAS_SERENA" = "true" ] || [ "$HAS_INTELLIJ" = "true" ]; then
+    TOOLS=""
+    [ "$HAS_SERENA" = "true" ] && TOOLS="find_symbol(name_path)"
+    [ "$HAS_INTELLIJ" = "true" ] && TOOLS=$(or_join "$TOOLS" "ide_find_symbol(name)")
+    MSG="$MSG
   $TOOLS              — find symbol by name"
 
-  if [ "$HAS_SERENA" = "true" ]; then
-    MSG="$MSG
+    if [ "$HAS_SERENA" = "true" ]; then
+      MSG="$MSG
   find_symbol(include_body=true)             — read symbol source code
   replace_symbol_body(name_path, body)       — edit symbol in place"
-  fi
+    fi
 
-  TOOLS=""
-  [ "$HAS_SERENA" = "true" ] && TOOLS="get_symbols_overview(path)"
-  [ "$HAS_INTELLIJ" = "true" ] && TOOLS=$(or_join "$TOOLS" "ide_file_structure(path)")
-  MSG="$MSG
+    TOOLS=""
+    [ "$HAS_SERENA" = "true" ] && TOOLS="get_symbols_overview(path)"
+    [ "$HAS_INTELLIJ" = "true" ] && TOOLS=$(or_join "$TOOLS" "ide_file_structure(path)")
+    MSG="$MSG
   $TOOLS            — list all symbols in a file"
 
-  TOOLS=""
-  [ "$HAS_SERENA" = "true" ] && TOOLS="find_referencing_symbols(name_path)"
-  [ "$HAS_INTELLIJ" = "true" ] && TOOLS=$(or_join "$TOOLS" "ide_find_references(name)")
-  MSG="$MSG
+    TOOLS=""
+    [ "$HAS_SERENA" = "true" ] && TOOLS="find_referencing_symbols(name_path)"
+    [ "$HAS_INTELLIJ" = "true" ] && TOOLS=$(or_join "$TOOLS" "ide_find_references(name)")
+    MSG="$MSG
   $TOOLS  — find all callers/usages"
 
-  if [ "$HAS_SERENA" = "true" ]; then
-    MSG="$MSG
+    if [ "$HAS_SERENA" = "true" ]; then
+      MSG="$MSG
   search_for_pattern(substring_pattern)      — regex search across source files
   find_file(file_mask)                       — find files by name"
-  fi
+    fi
 
-  if [ "$HAS_INTELLIJ" = "true" ]; then
-    MSG="$MSG
+    if [ "$HAS_INTELLIJ" = "true" ]; then
+      MSG="$MSG
   ide_find_file(name)                        — find files by name"
+    fi
   fi
-fi
 
-MSG="$MSG
+  MSG="$MSG
   Grep/Glob                                  — ONLY for non-code files (config, docs, YAML, markdown)"
+fi
 
 # Output as valid JSON for SessionStart hook
 jq -n --arg ctx "$MSG" '{
