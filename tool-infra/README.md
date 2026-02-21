@@ -21,6 +21,11 @@ When **claude-context** is available, includes good/bad query examples:
 - Good: `search_code("how are API errors handled and returned to clients")`
 - Bad: `search_code("class DatabasePool")` -- use find_symbol instead
 
+When **both Serena and IntelliJ** are available (dual-tool mode):
+- Shows task-aware decision matrix: Serena for reading/editing, IntelliJ for cross-file navigation
+- Includes workflow patterns (Understand Before Editing, Find Usages Before Refactoring, Explore Unfamiliar Code)
+- Explains the bridge pattern: use Serena's `find_symbol` to get file+line, pass to IntelliJ's `ide_find_references`
+
 Only lists tools that are actually available in the project.
 
 ### semantic-tool-router (PreToolUse)
@@ -60,6 +65,21 @@ Provides the same layered DISCOVER → STRUCTURE → READ → NAVIGATE workflow 
 ### intellij-project-path (PreToolUse)
 Auto-injects `project_path` into IntelliJ index tool calls when missing, using `cwd` from the hook input. Prevents "project_path required" errors.
 
+### dual-tool-router (PreToolUse)
+Blocks known-broken Serena calls when IntelliJ is available (dual-tool mode). Redirects to working IntelliJ equivalents with bridge pattern hints.
+
+**Blocked** (when both Serena and IntelliJ are detected):
+- `find_referencing_symbols` → `ide_find_references` (Serena's always returns empty)
+- `rename_symbol` → `ide_refactor_rename` (Serena's breaks builds silently)
+
+**Opt-out**: Set capability flags in `.claude/tool-infra.json` for projects where Serena's LSP works correctly:
+```json
+{
+  "serena_references_works": true,
+  "serena_rename_works": true
+}
+```
+
 ## Installation
 
 ```
@@ -81,12 +101,16 @@ If your MCP servers are defined globally (in `~/.claude/settings.json` or simila
 {
   "serena": true,
   "intellij": true,
-  "claude-context": true
+  "claude-context": true,
+  "serena_references_works": true,
+  "serena_rename_works": true
 }
 ```
 
 - `true` -- force-enable (skips `.mcp.json` check)
 - `false` or omitted -- fall back to auto-detection
+- `serena_references_works` -- Serena's `find_referencing_symbols` works for this project's language (default: `false` in dual mode)
+- `serena_rename_works` -- Serena's `rename_symbol` works cross-file for this project (default: `false` in dual mode)
 
 ### Detection priority
 
@@ -103,6 +127,7 @@ If your MCP servers are defined globally (in `~/.claude/settings.json` or simila
 | semantic-tool-router | PreToolUse | `Grep\|Glob\|Read` | Deny with semantic tool suggestions (language-aware) |
 | mcp-param-fixer | PreToolUse | `mcp__.*` | Auto-correct wrong parameter names in-place |
 | intellij-project-path | PreToolUse | `mcp__intellij-index__.*` | Inject `project_path` from `cwd` |
+| dual-tool-router | PreToolUse | `mcp__serena__find_referencing_symbols\|mcp__serena__rename_symbol` | Block broken Serena calls, redirect to IntelliJ (dual mode only) |
 
 ## Requirements
 
