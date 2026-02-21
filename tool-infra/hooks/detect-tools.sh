@@ -2,6 +2,8 @@
 # Shared detection logic - sourced by other hooks
 # Expects: CWD to be set before sourcing
 # Sets: HAS_SERENA, HAS_INTELLIJ, HAS_CONTEXT (true/false)
+#        DUAL_MODE (true when both Serena and IntelliJ available)
+#        SERENA_REFERENCES_WORKS, SERENA_RENAME_WORKS (capability flags, dual mode only)
 #        SOURCE_EXT_PATTERN (regex for source file extensions)
 #        HAS_SERENA_MEMORIES (true/false), SERENA_MEMORY_NAMES (space-separated)
 #
@@ -71,6 +73,21 @@ fi
 # Fallback: broad pattern when no Serena project config
 if [ -z "$SOURCE_EXT_PATTERN" ]; then
   SOURCE_EXT_PATTERN='\.(kt|kts|java|ts|tsx|js|jsx|py|go|rs|cs|rb|scala|swift|cpp|c|h|hpp)$'
+fi
+
+# --- Dual-tool mode detection ---
+DUAL_MODE=false
+if [ "$HAS_SERENA" = "true" ] && [ "$HAS_INTELLIJ" = "true" ]; then
+  DUAL_MODE=true
+fi
+
+# --- Serena capability flags (only relevant in dual mode) ---
+# Default: assume broken (safe). Projects override in tool-infra.json.
+SERENA_REFERENCES_WORKS=false
+SERENA_RENAME_WORKS=false
+if [ "$DUAL_MODE" = "true" ] && [ -f "$CONFIG" ]; then
+  [ "$(jq -r '.serena_references_works // false' "$CONFIG" 2>/dev/null)" = "true" ] && SERENA_REFERENCES_WORKS=true
+  [ "$(jq -r '.serena_rename_works // false' "$CONFIG" 2>/dev/null)" = "true" ] && SERENA_RENAME_WORKS=true
 fi
 
 # --- Serena memories detection ---
