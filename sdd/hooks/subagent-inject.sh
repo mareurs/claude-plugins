@@ -6,7 +6,7 @@ AGENT_TYPE="$(echo "$INPUT" | jq -r '.agent_type // empty')"
 
 # Skip agents that don't do code work
 case "$AGENT_TYPE" in
-  Bash|statusline-setup|claude-code-guide|episodic-memory*|episodic-memory:search-conversations|episodic-memory:remembering-conversations)
+  Bash|statusline-setup|claude-code-guide|episodic-memory*)
     exit 0
     ;;
 esac
@@ -56,7 +56,7 @@ Check: does implementation match acceptance criteria? Does it exceed scope?"
   Explore)
     SPEC_LIST=""
     if [[ -d "$PROJECT_DIR/memory/specs" ]]; then
-      SPEC_FILES="$(ls "$PROJECT_DIR/memory/specs/" 2>/dev/null || true)"
+      SPEC_FILES="$(ls "$PROJECT_DIR/memory/specs/"*.md 2>/dev/null || true)"
       if [[ -n "$SPEC_FILES" ]]; then
         SPEC_LIST="\nSpec files:\n"
         while IFS= read -r f; do
