@@ -21,7 +21,7 @@ case "$TOOL_NAME" in
   "hookSpecificOutput": {
     "hookEventName": "PreToolUse",
     "permissionDecision": "deny",
-    "permissionDecisionReason": "BLOCKED: find_referencing_symbols returns empty for this project's language (Kotlin/Java LSP cross-file references broken). Use instead:\n- ide_find_references(file, line, col) — find all callers/usages\n\nBridge: Use find_symbol(name) first to get file+line, then pass to ide_find_references.\nNote: Serena single-file operations (get_symbols_overview, find_symbol, replace_symbol_body) still work fine."
+    "permissionDecisionReason": "BLOCKED: find_referencing_symbols returns empty for Kotlin/Java (broken LSP cross-file refs). Use IntelliJ instead:\n1. ide_find_symbol(query=\"SymbolName\") — locate the symbol (get file + line + column)\n2. ide_find_references(file, line, column) — find all usages across the project\n\nNote: Serena single-file operations (get_symbols_overview, find_symbol, replace_symbol_body) still work fine."
   }
 }
 EOF
@@ -36,7 +36,7 @@ EOF
   "hookSpecificOutput": {
     "hookEventName": "PreToolUse",
     "permissionDecision": "deny",
-    "permissionDecisionReason": "BLOCKED: rename_symbol may miss cross-file renames for this project's language (Kotlin/Java LSP limitation). Use instead:\n- ide_refactor_rename(file, line, col, newName) — semantic rename across entire codebase\n\nBridge: Use find_symbol(name) first to get file+line, then pass to ide_refactor_rename."
+    "permissionDecisionReason": "BLOCKED: rename_symbol may miss cross-file renames for Kotlin/Java (LSP limitation). Use IntelliJ instead:\n1. ide_find_symbol(query=\"SymbolName\") — locate the symbol (get file + line + column)\n2. ide_refactor_rename(file, line, column, newName) — semantic rename across entire codebase"
   }
 }
 EOF
