@@ -57,10 +57,10 @@ This creates the constitution, directory structure, and configuration for your p
 
 | Hook | Trigger | Purpose |
 |------|---------|---------|
-| `session-start` | SessionStart | Show SDD status at conversation start |
+| `session-start` | SessionStart | Show SDD status at conversation start, including active spec filenames |
 | `spec-guard` | Write/Edit | Warn when changes don't reference a spec |
 | `review-guard` | Bash (git commit) | Require `/review` before commits |
-| `subagent-inject` | SubagentStart | Inject SDD rules into subagent contexts |
+| `subagent-inject` | SubagentStart | Inject SDD context into subagents by type: **Plan** (spec scope warning + constitution pointer + active specs/plans + human approval reminder), **general-purpose** (follow-plan reminder + spec/plan pointers + spec-guard note), **superpowers:code-reviewer** (review-against-spec reminder + spec pointer + scope check), **Explore** (spec list + tool routing + phases) |
 
 ## Constitution
 
