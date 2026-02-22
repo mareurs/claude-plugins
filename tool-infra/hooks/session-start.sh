@@ -69,7 +69,7 @@ KNOWN ISSUES:
   - ide_call_hierarchy callers: BROKEN (always empty) — use ide_find_references instead
   - ide_search_text: returns .md and .serena/memories files — use search_for_pattern for code-only search
   - ide_find_definition: returns 4-line preview only — use find_symbol(include_body=true) for full source
-  - Serena cross-file refs (find_referencing_symbols): works for Python/TypeScript, broken for Kotlin/Java"
+  - Serena cross-file refs (find_referencing_symbols): works for Python/TypeScript, broken for Kotlin/Java (use ide_find_symbol → ide_find_references if IntelliJ available)"
 
   if [ "$HAS_CONTEXT" = "true" ]; then
     MSG="$MSG

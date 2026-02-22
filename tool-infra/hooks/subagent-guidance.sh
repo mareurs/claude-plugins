@@ -57,7 +57,7 @@ KNOWN ISSUES (plan around these):
   - ide_call_hierarchy callers: BROKEN (always empty) — plan ide_find_references instead
   - ide_search_text: returns .md and .serena/memories files — plan search_for_pattern for code-only search
   - ide_find_definition: returns 4-line preview only — plan find_symbol(include_body=true) for full source
-  - Serena cross-file refs (find_referencing_symbols): works for Python/TypeScript, broken for Kotlin/Java
+  - Serena cross-file refs (find_referencing_symbols): works for Python/TypeScript, broken for Kotlin/Java (use ide_find_symbol + ide_find_references if IntelliJ available)
 
 WORKFLOW PATTERNS (use in plan steps):"
 
@@ -188,7 +188,7 @@ SERENA TOOL REFERENCE (for plan steps):
 
 PLAN AROUND THESE:
   - find_referencing_symbols: works for Python/TypeScript/Bash, broken for Kotlin/Java (returns empty)
-  - For Kotlin/Java cross-file refs: use search_for_pattern or Grep as fallback"
+  - For Kotlin/Java cross-file refs: ide_find_symbol(query) → ide_find_references(file, line, col) if IntelliJ available, else search_for_pattern"
     fi
 
     if [ "$HAS_INTELLIJ" = "true" ]; then
