@@ -26,7 +26,7 @@ When **both Serena and IntelliJ** are available (dual-tool mode):
 - Annotates tool preferences based on measured performance (e.g. `get_symbols_overview` 3x cheaper than `ide_file_structure`, `find_symbol` gives full body vs `ide_find_definition` 4-line preview)
 - Lists **known issues** to steer away from broken tools (`ide_call_hierarchy` callers, `ide_search_text` pollution, language-specific Serena limitations)
 - Includes workflow patterns (Understand Before Editing, Find Usages Before Refactoring, Explore Unfamiliar Code)
-- Explains the bridge pattern: use Serena's `find_symbol` to get file+line, pass to IntelliJ's `ide_find_references`
+- Explains the bridge pattern for Kotlin/Java: `ide_find_symbol(query)` → `ide_find_references(file, line, col)`
 
 Only lists tools that are actually available in the project.
 
@@ -75,10 +75,10 @@ Language-aware blocking of known-broken Serena calls when IntelliJ is available 
 **Auto-detection**: Reads project languages from `.serena/project.yml`. Serena cross-file references work for Python, TypeScript, Bash, Go, Rust, Ruby -- but are broken for Kotlin and Java (community LSP limitations). The router auto-enables/disables based on detected languages.
 
 **Blocked** (when language has broken Serena cross-file ops):
-- `find_referencing_symbols` → `ide_find_references` (returns empty for Kotlin/Java)
-- `rename_symbol` → `ide_refactor_rename` (may miss cross-file renames for Kotlin/Java)
+- `find_referencing_symbols` → bridge: `ide_find_symbol(query)` → `ide_find_references(file, line, col)`
+- `rename_symbol` → bridge: `ide_find_symbol(query)` → `ide_refactor_rename(file, line, col, newName)`
 
-Deny messages explain the root cause and note that Serena single-file operations (`get_symbols_overview`, `find_symbol`, `replace_symbol_body`) still work fine for all languages.
+Deny messages explain the root cause, show the two-step bridge, and note that Serena single-file operations (`get_symbols_overview`, `find_symbol`, `replace_symbol_body`) still work fine for all languages.
 
 **Override**: Auto-detection can be overridden in `.claude/tool-infra.json`:
 ```json
