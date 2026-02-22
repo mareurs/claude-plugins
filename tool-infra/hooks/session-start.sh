@@ -284,6 +284,23 @@ TOOL QUICK REFERENCE:"
   Grep/Glob                                  — ONLY for non-code files (config, docs, YAML, markdown)"
 fi
 
+# --- Agent type selection guidance ---
+MSG="$MSG
+
+AGENT TYPE SELECTION (when dispatching parallel tasks with the Task tool):
+| Task involves...                          | subagent_type       |
+|-------------------------------------------|---------------------|
+| implement, write code, add feature        | general-purpose     |
+| review, inspect, read code                | general-purpose     |
+| explore, investigate, understand          | general-purpose     |
+| debug, trace, reproduce                   | general-purpose     |
+| run tests, build, compile, lint, format   | Bash                |
+| git operations                            | Bash                |
+
+WHY: The SubagentStart hook skips Bash agents — they receive no tool guidance.
+Bash agents can only use the Bash tool, so they shell out with cat/grep instead
+of semantic tools, silently bypassing all tool-infra enforcement."
+
 # Output as valid JSON for SessionStart hook
 jq -n --arg ctx "$MSG" '{
   hookSpecificOutput: {
