@@ -39,7 +39,7 @@ A methodology where code follows specifications. Every feature starts with a cle
 
 **Commands:** `/specify`, `/plan`, `/review`, `/drift`, `/document`, `/bootstrap-docs`, `/sdd-init`
 
-**Skills:** `sdd-flow` (full lifecycle orchestration), `tool-routing` (semantic code navigation)
+**Skills:** `sdd-flow` (full lifecycle orchestration)
 
 **Hooks:** spec-guard, review-guard, subagent-inject, session-start
 

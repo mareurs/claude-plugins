@@ -51,7 +51,6 @@ This creates the constitution, directory structure, and configuration for your p
 | Skill | Purpose |
 |-------|---------|
 | `sdd-flow` | Full lifecycle orchestration (ideate -> specify -> plan -> implement -> review -> finalize) |
-| `tool-routing` | Routes to semantic tools (Serena) for code exploration |
 
 ### Hooks
 
