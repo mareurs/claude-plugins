@@ -284,6 +284,19 @@ TOOL QUICK REFERENCE:"
   Grep/Glob                                  — ONLY for non-code files (config, docs, YAML, markdown)"
 fi
 
+# --- Agent type selection guidance ---
+MSG="$MSG
+
+NEVER USE BASH AGENTS FOR CODE WORK.
+Bash agents only have the Bash tool — no Serena, claude-context, Grep, Glob,
+Read, Write, or Edit. The SubagentStart hook skips them entirely, so they
+receive no tool guidance. They shell out with cat/grep instead of semantic
+tools, silently bypassing all tool-infra enforcement.
+
+When dispatching tasks via the Task tool:
+- Tasks that read, write, review, explore, or debug code → any agent type EXCEPT Bash
+- Tasks that ONLY run commands (tests, builds, git) → Bash is fine"
+
 # Output as valid JSON for SessionStart hook
 jq -n --arg ctx "$MSG" '{
   hookSpecificOutput: {
