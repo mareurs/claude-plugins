@@ -50,14 +50,23 @@ Intercepts Grep, Glob, and Read calls targeting source files and denies them wit
 **Escape hatch**: To read an entire source file intentionally, set `limit` explicitly (e.g. `limit: 2000`).
 
 ### mcp-param-fixer (PreToolUse)
-Auto-corrects wrong MCP parameter names in-place so the call succeeds on the first attempt (no wasted retry turn). Currently catches:
+Auto-corrects wrong MCP parameter names and value types in-place so the call succeeds on the first attempt (no wasted retry turn). All applicable corrections are applied before output (supports multiple fixes per call).
+
+**Parameter name corrections:**
 
 | Tool | Wrong param | Corrected to |
 |------|------------|-------------|
 | `search_for_pattern` | `pattern` | `substring_pattern` |
+| `find_symbol` | `name_path` | `name_path_pattern` |
 | `edit_memory` | `old_string` | `needle` |
 | `edit_memory` | `new_string` | `repl` |
 | `ide_find_references` | `query` | `file` |
+
+**Value type coercions:**
+
+| Tool | Param | Fix |
+|------|-------|-----|
+| `find_symbol` | `include_body` | string `"true"`/`"false"` → boolean |
 
 ### subagent-guidance (SubagentStart)
 Injects a semantic tool workflow into **all** code-working subagents (Explore, Plan, general-purpose, code-reviewer, etc.). Skips non-code agents (Bash, statusline-setup, claude-code-guide).
