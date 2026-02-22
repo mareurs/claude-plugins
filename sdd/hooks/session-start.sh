@@ -23,8 +23,14 @@ if [[ -f "$CONFIG_FILE" ]]; then
   fi
 fi
 
+# Detect active specs — filenames only
+ACTIVE_SPECS="none — run /specify <feature> to start"
+if compgen -G "$PROJECT_DIR/memory/specs/*.md" > /dev/null 2>&1; then
+  ACTIVE_SPECS="$(ls "$PROJECT_DIR/memory/specs/"*.md 2>/dev/null | xargs -r basename -a | tr '\n' ' ' | xargs)"
+fi
+
 # Build additionalContext
-CONTEXT="SDD is active for this project.\nCommands: /specify, /plan, /review, /drift, /document\nConstitution: memory/constitution.md\nEnforcement: ${ENFORCEMENT}\nSpecs: memory/specs/ | Plans: memory/plans/\n\nRun /specify <feature> to start a new feature.\nRun /review before committing."
+CONTEXT="SDD is active for this project.\nCommands: /specify, /plan, /review, /drift, /document\nConstitution: memory/constitution.md\nEnforcement: ${ENFORCEMENT}\nActive specs: ${ACTIVE_SPECS}\nPlans: memory/plans/\n\nRun /specify <feature> to start a new feature.\nRun /review before committing."
 
 # Output JSON
 cat <<EOF
