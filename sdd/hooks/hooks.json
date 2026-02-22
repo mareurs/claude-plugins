@@ -34,7 +34,6 @@
     ],
     "SubagentStart": [
       {
-        "matcher": "Explore",
         "hooks": [
           {
             "type": "command",
