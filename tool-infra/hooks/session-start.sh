@@ -217,7 +217,7 @@ CODE EXPLORATION WORKFLOW:"
     # Step 3: READ
     if [ "$HAS_SERENA" = "true" ]; then
       MSG="$MSG
-  ${STEP}. READ: find_symbol(name, include_body=true) — read only the symbols you need"
+  ${STEP}. READ: find_symbol(name_path_pattern, include_body=true) — read only the symbols you need"
     elif [ "$HAS_INTELLIJ" = "true" ]; then
       MSG="$MSG
   ${STEP}. READ: ide_find_symbol(name) — read specific symbols"
@@ -245,14 +245,14 @@ TOOL QUICK REFERENCE:"
 
   if [ "$HAS_SERENA" = "true" ] || [ "$HAS_INTELLIJ" = "true" ]; then
     TOOLS=""
-    [ "$HAS_SERENA" = "true" ] && TOOLS="find_symbol(name_path)"
+    [ "$HAS_SERENA" = "true" ] && TOOLS="find_symbol(name_path_pattern)"
     [ "$HAS_INTELLIJ" = "true" ] && TOOLS=$(or_join "$TOOLS" "ide_find_symbol(name)")
     MSG="$MSG
   $TOOLS              — find symbol by name"
 
     if [ "$HAS_SERENA" = "true" ]; then
       MSG="$MSG
-  find_symbol(include_body=true)             — read symbol source code
+  find_symbol(name_path_pattern, include_body=true) — read symbol source code
   replace_symbol_body(name_path, body)       — edit symbol in place"
     fi
 

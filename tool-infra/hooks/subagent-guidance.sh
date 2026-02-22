@@ -92,7 +92,7 @@ WORKFLOW PATTERNS (use in plan steps):"
 
 BRIDGE PATTERN: Serena find_symbol gives file+line -> pass to IntelliJ for cross-file operations.
 Grep/Glob — ONLY for non-code files (config, docs, YAML, markdown).
-NEVER use Read to view entire source files. Use get_symbols_overview first, then find_symbol(include_body=true)."
+NEVER use Read to view entire source files. Use get_symbols_overview first, then find_symbol(name_path_pattern, include_body=true)."
 
   else
     # --- Compact dual-tool guidance for other subagents ---
@@ -100,7 +100,7 @@ NEVER use Read to view entire source files. Use get_symbols_overview first, then
 
 SERENA (reading + editing — single-file ops always work):
   get_symbols_overview(path) — file structure (prefer over ide_file_structure, 3x cheaper)
-  find_symbol(name_path, include_body=true) — read full symbol source
+  find_symbol(name_path_pattern, include_body=true) — read full symbol source
   replace_symbol_body(name_path, body) — edit symbol
   search_for_pattern(substring_pattern) — regex search (code-only, no .md pollution)
 
@@ -122,7 +122,7 @@ CLAUDE-CONTEXT (broad discovery — start here when you DON'T know where to look
 BRIDGE: Serena find_symbol gives file+line -> pass to IntelliJ for references.
 AVOID: ide_call_hierarchy callers (broken), ide_search_text (pollutes with .md files), ide_find_definition (4-line preview only).
 
-NEVER use Read to view entire source files. Use get_symbols_overview first, then find_symbol(include_body=true).
+NEVER use Read to view entire source files. Use get_symbols_overview first, then find_symbol(name_path_pattern, include_body=true).
 If you MUST read a full source file, use Read with explicit limit (e.g. limit: 2000).
 Grep/Glob are ONLY for non-code files (config, docs, YAML, markdown)."
   fi
@@ -146,7 +146,7 @@ else
     if [ "$HAS_SERENA" = "true" ]; then
       STEPS="${STEPS}${SEP}${STEP}. STRUCTURE: get_symbols_overview(path) — see what's in a file BEFORE reading it"
       STEP=$((STEP + 1))
-      STEPS="$STEPS\n${STEP}. READ: find_symbol(name_path, include_body=true) — read specific symbols"
+      STEPS="$STEPS\n${STEP}. READ: find_symbol(name_path_pattern, include_body=true) — read specific symbols"
       STEP=$((STEP + 1))
       STEPS="$STEPS\n${STEP}. NAVIGATE: find_referencing_symbols(name_path) — find all callers/usages"
     elif [ "$HAS_INTELLIJ" = "true" ]; then
@@ -178,8 +178,8 @@ CLAUDE-CONTEXT TOOL REFERENCE (for plan steps):
 
 SERENA TOOL REFERENCE (for plan steps):
   get_symbols_overview(path)                — file/directory structure overview
-  find_symbol(name_path, include_body=true) — read specific symbol source code
-  find_symbol(name_path, depth=1)           — list class members without reading bodies
+  find_symbol(name_path_pattern, include_body=true) — read specific symbol source code
+  find_symbol(name_path_pattern, depth=1)           — list class members without reading bodies
   replace_symbol_body(name_path, body)      — edit symbol in place
   insert_after_symbol / insert_before_symbol — add new code at symbol boundaries
   find_referencing_symbols(name_path)       — cross-file callers/usages
