@@ -16,7 +16,7 @@ These plugins reflect specific workflows and tool choices -- they may not suit e
 
 | Plugin | Version | Description |
 |--------|---------|-------------|
-| **[sdd](./sdd/)** | 2.1.0 | Specification-Driven Development: governance, workflow commands, and enforcement hooks |
+| **[sdd](./sdd/)** | 2.2.0 | Specification-Driven Development: governance, workflow commands, and enforcement hooks |
 | **[tool-infra](./tool-infra/)** | 2.7.0 | Semantic tool infrastructure: routes Claude to use Serena/IntelliJ/claude-context instead of Grep/Glob, with language-aware dual-tool routing |
 
 ## Requirements
