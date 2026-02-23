@@ -142,10 +142,17 @@ SEMANTIC SEARCH (claude-context) — use when you DON'T know the exact name.
 LSP / IDE TOOLS (serena, intellij) — use when you DO know a symbol name.
   Understand code STRUCTURE: definitions, references, type hierarchies."
     elif [ "$HAS_SERENA" = "true" ]; then
-      MSG="$MSG
+      if [ "$SERENA_JETBRAINS_BACKEND" = "true" ]; then
+        MSG="$MSG
+
+SERENA (JetBrains backend) — use when you DO know a symbol name. Full IDE-grade intelligence via bundled PSI.
+  Cross-file references and type hierarchy work for ALL languages including Kotlin and Java. No running IDE needed."
+      else
+        MSG="$MSG
 
 SERENA (LSP) — use when you DO know a symbol name (class, function, variable).
   Understands code STRUCTURE: definitions, references, type hierarchies."
+      fi
     else
       MSG="$MSG
 
@@ -179,11 +186,20 @@ LSP / IDE TOOLS (serena, intellij) — understand code STRUCTURE.
   Use for: finding symbols, reading definitions, navigating references, editing code.
   Take exact or partial symbol names, not free-text descriptions."
     elif [ "$HAS_SERENA" = "true" ]; then
-      MSG="$MSG
+      if [ "$SERENA_JETBRAINS_BACKEND" = "true" ]; then
+        MSG="$MSG
+
+SERENA (JetBrains backend) — full IDE-grade code intelligence via bundled PSI/IntelliJ platform.
+  No running IDE required. Cross-file references and type hierarchy work for ALL languages including Kotlin and Java.
+  Use for ALL code exploration and editing. Takes symbol names, not free-text.
+  ALWAYS prefer serena over Grep/Glob/Read for source code files."
+      else
+        MSG="$MSG
 
 SERENA (LSP) — understands code STRUCTURE: definitions, references, type hierarchies.
   Use for ALL code exploration and editing. Takes symbol names, not free-text.
   ALWAYS prefer serena over Grep/Glob/Read for source code files."
+      fi
     else
       MSG="$MSG
 
@@ -208,7 +224,7 @@ CODE EXPLORATION WORKFLOW:"
 
     # Step 2: STRUCTURE
     TOOLS=""
-    [ "$HAS_SERENA" = "true" ] && TOOLS="get_symbols_overview(path)"
+    [ "$HAS_SERENA" = "true" ] && TOOLS="${S_GET_OVERVIEW}(path)"
     [ "$HAS_INTELLIJ" = "true" ] && TOOLS=$(or_join "$TOOLS" "ide_file_structure(path)")
     MSG="$MSG
   ${STEP}. STRUCTURE: $TOOLS — see what's in a file BEFORE reading it"
@@ -217,7 +233,7 @@ CODE EXPLORATION WORKFLOW:"
     # Step 3: READ
     if [ "$HAS_SERENA" = "true" ]; then
       MSG="$MSG
-  ${STEP}. READ: find_symbol(name_path_pattern, include_body=true) — read only the symbols you need"
+  ${STEP}. READ: ${S_FIND_SYMBOL}(name_path_pattern, include_body=true) — read only the symbols you need"
     elif [ "$HAS_INTELLIJ" = "true" ]; then
       MSG="$MSG
   ${STEP}. READ: ide_find_symbol(name) — read specific symbols"
@@ -226,11 +242,11 @@ CODE EXPLORATION WORKFLOW:"
 
     # Step 4: NAVIGATE
     TOOLS=""
-    [ "$HAS_SERENA" = "true" ] && TOOLS="find_referencing_symbols(name)"
+    [ "$HAS_SERENA" = "true" ] && TOOLS="${S_FIND_REFS}(name)"
     [ "$HAS_INTELLIJ" = "true" ] && TOOLS=$(or_join "$TOOLS" "ide_find_references(name)")
     MSG="$MSG
   ${STEP}. NAVIGATE: $TOOLS — trace callers/usages
-  NEVER use Read to view entire source files. Use get_symbols_overview first, then read specific symbols."
+  NEVER use Read to view entire source files. Use ${S_GET_OVERVIEW} first, then read specific symbols."
   fi
 
   # --- Quick reference ---
@@ -245,25 +261,29 @@ TOOL QUICK REFERENCE:"
 
   if [ "$HAS_SERENA" = "true" ] || [ "$HAS_INTELLIJ" = "true" ]; then
     TOOLS=""
-    [ "$HAS_SERENA" = "true" ] && TOOLS="find_symbol(name_path_pattern)"
+    [ "$HAS_SERENA" = "true" ] && TOOLS="${S_FIND_SYMBOL}(name_path_pattern)"
     [ "$HAS_INTELLIJ" = "true" ] && TOOLS=$(or_join "$TOOLS" "ide_find_symbol(name)")
     MSG="$MSG
   $TOOLS              — find symbol by name"
 
     if [ "$HAS_SERENA" = "true" ]; then
       MSG="$MSG
-  find_symbol(name_path_pattern, include_body=true) — read symbol source code
+  ${S_FIND_SYMBOL}(name_path_pattern, include_body=true) — read symbol source code
   replace_symbol_body(name_path, body)       — edit symbol in place"
+      if [ "$SERENA_JETBRAINS_BACKEND" = "true" ]; then
+        MSG="$MSG
+  jet_brains_type_hierarchy(name_path, relative_path) — inheritance chain (supertypes/subtypes, Kotlin + Java + JDK)"
+      fi
     fi
 
     TOOLS=""
-    [ "$HAS_SERENA" = "true" ] && TOOLS="get_symbols_overview(path)"
+    [ "$HAS_SERENA" = "true" ] && TOOLS="${S_GET_OVERVIEW}(path)"
     [ "$HAS_INTELLIJ" = "true" ] && TOOLS=$(or_join "$TOOLS" "ide_file_structure(path)")
     MSG="$MSG
   $TOOLS            — list all symbols in a file"
 
     TOOLS=""
-    [ "$HAS_SERENA" = "true" ] && TOOLS="find_referencing_symbols(name_path)"
+    [ "$HAS_SERENA" = "true" ] && TOOLS="${S_FIND_REFS}(name_path)"
     [ "$HAS_INTELLIJ" = "true" ] && TOOLS=$(or_join "$TOOLS" "ide_find_references(name)")
     MSG="$MSG
   $TOOLS  — find all callers/usages"

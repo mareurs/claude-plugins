@@ -75,6 +75,29 @@ if [ -z "$SOURCE_EXT_PATTERN" ]; then
   SOURCE_EXT_PATTERN='\.(kt|kts|java|ts|tsx|js|jsx|py|go|rs|cs|rb|scala|swift|cpp|c|h|hpp)$'
 fi
 
+# --- JetBrains backend detection ---
+# Serena with language_backend: JetBrains bundles PSI/IntelliJ platform libraries.
+# This enables full cross-file references and type hierarchy for Kotlin/Java without a running IDE.
+SERENA_JETBRAINS_BACKEND=false
+if [ "$HAS_SERENA" = "true" ] && [ -f "$SERENA_PROJECT_YML" ]; then
+  _backend=$(grep "^language_backend:" "$SERENA_PROJECT_YML" 2>/dev/null | sed 's/^language_backend:[[:space:]]*//' | tr -d '"')
+  [ "$_backend" = "JetBrains" ] && SERENA_JETBRAINS_BACKEND=true
+fi
+
+# --- Serena tool name mapping ---
+# JetBrains backend replaces standard LSP tools with jet_brains_* prefixed versions.
+# Standard tools (find_symbol, find_referencing_symbols, get_symbols_overview) are REMOVED;
+# only their jet_brains_* counterparts exist in the tool registry.
+if [ "$SERENA_JETBRAINS_BACKEND" = "true" ]; then
+  S_FIND_SYMBOL="jet_brains_find_symbol"
+  S_FIND_REFS="jet_brains_find_referencing_symbols"
+  S_GET_OVERVIEW="jet_brains_get_symbols_overview"
+else
+  S_FIND_SYMBOL="find_symbol"
+  S_FIND_REFS="find_referencing_symbols"
+  S_GET_OVERVIEW="get_symbols_overview"
+fi
+
 # --- Dual-tool mode detection ---
 DUAL_MODE=false
 if [ "$HAS_SERENA" = "true" ] && [ "$HAS_INTELLIJ" = "true" ]; then
@@ -106,6 +129,12 @@ if [ "$DUAL_MODE" = "true" ]; then
     done
     SERENA_REFERENCES_WORKS=$_refs_ok
     SERENA_RENAME_WORKS=$_rename_ok
+  fi
+
+  # JetBrains backend override: PSI/IntelliJ platform bundled — cross-file refs work for all languages
+  if [ "$SERENA_JETBRAINS_BACKEND" = "true" ]; then
+    SERENA_REFERENCES_WORKS=true
+    SERENA_RENAME_WORKS=true
   fi
 
   # Manual override from tool-infra.json (takes precedence over auto-detection)

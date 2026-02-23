@@ -144,11 +144,11 @@ else
     SEP=""
     [ -n "$STEPS" ] && SEP="\n"
     if [ "$HAS_SERENA" = "true" ]; then
-      STEPS="${STEPS}${SEP}${STEP}. STRUCTURE: get_symbols_overview(path) — see what's in a file BEFORE reading it"
+      STEPS="${STEPS}${SEP}${STEP}. STRUCTURE: ${S_GET_OVERVIEW}(path) — see what's in a file BEFORE reading it"
       STEP=$((STEP + 1))
-      STEPS="$STEPS\n${STEP}. READ: find_symbol(name_path_pattern, include_body=true) — read specific symbols"
+      STEPS="$STEPS\n${STEP}. READ: ${S_FIND_SYMBOL}(name_path_pattern, include_body=true) — read specific symbols"
       STEP=$((STEP + 1))
-      STEPS="$STEPS\n${STEP}. NAVIGATE: find_referencing_symbols(name_path) — find all callers/usages"
+      STEPS="$STEPS\n${STEP}. NAVIGATE: ${S_FIND_REFS}(name_path) — find all callers/usages"
     elif [ "$HAS_INTELLIJ" = "true" ]; then
       STEPS="${STEPS}${SEP}${STEP}. STRUCTURE: ide_file_structure(path) — see what's in a file"
       STEP=$((STEP + 1))
@@ -158,7 +158,7 @@ else
     fi
   fi
 
-  CONTEXT="CODE EXPLORATION WORKFLOW:\n\n${STEPS}\n\nALWAYS prefer semantic/LSP tools over Grep/Glob/Read for source files.\nNEVER use Read to view entire source files — use get_symbols_overview first, then find_symbol(include_body=true) for specific symbols.\nIf you MUST read a full source file, use Read with explicit limit (e.g. limit: 2000).\nGrep/Glob are ONLY for non-code files (config, docs, YAML, markdown)."
+  CONTEXT="CODE EXPLORATION WORKFLOW:\n\n${STEPS}\n\nALWAYS prefer semantic/LSP tools over Grep/Glob/Read for source files.\nNEVER use Read to view entire source files — use ${S_GET_OVERVIEW} first, then ${S_FIND_SYMBOL}(include_body=true) for specific symbols.\nIf you MUST read a full source file, use Read with explicit limit (e.g. limit: 2000).\nGrep/Glob are ONLY for non-code files (config, docs, YAML, markdown)."
 
   # --- Plan agents get additional tool reference and known issues ---
   if [ "$AGENT_TYPE" = "Plan" ]; then
@@ -169,7 +169,7 @@ CLAUDE-CONTEXT TOOL REFERENCE (for plan steps):
   search_code(query)                        — find code by MEANING using embedded vectors
   Use as FIRST step when you don't know where to look. Describe behavior/intent, not exact names.
   Good: \"how are permissions checked\", \"error handling patterns\", \"API rate limiting\"
-  Bad: \"class Foo\" — use find_symbol for exact names, Grep for literal strings
+  Bad: \"class Foo\" — use ${S_FIND_SYMBOL} for exact names, Grep for literal strings
   Workflow: search_code to DISCOVER files -> then Serena/IntelliJ to NAVIGATE and EDIT"
     fi
 
@@ -177,18 +177,29 @@ CLAUDE-CONTEXT TOOL REFERENCE (for plan steps):
       CONTEXT="$CONTEXT
 
 SERENA TOOL REFERENCE (for plan steps):
-  get_symbols_overview(path)                — file/directory structure overview
-  find_symbol(name_path_pattern, include_body=true) — read specific symbol source code
-  find_symbol(name_path_pattern, depth=1)           — list class members without reading bodies
+  ${S_GET_OVERVIEW}(path)                   — file/directory structure overview
+  ${S_FIND_SYMBOL}(name_path_pattern, include_body=true) — read specific symbol source code
+  ${S_FIND_SYMBOL}(name_path_pattern, depth=1)           — list class members without reading bodies
   replace_symbol_body(name_path, body)      — edit symbol in place
   insert_after_symbol / insert_before_symbol — add new code at symbol boundaries
-  find_referencing_symbols(name_path)       — cross-file callers/usages
+  ${S_FIND_REFS}(name_path)                 — cross-file callers/usages
   search_for_pattern(substring_pattern)     — regex search with directory scoping
-  find_file(file_mask)                      — find files by name
+  find_file(file_mask)                      — find files by name"
+
+    if [ "$SERENA_JETBRAINS_BACKEND" = "true" ]; then
+      CONTEXT="$CONTEXT
+  jet_brains_type_hierarchy(name_path, relative_path) — inheritance chain (supertypes/subtypes, Kotlin + Java + JDK)
+
+PLAN AROUND THESE:
+  - ${S_FIND_REFS}: works for ALL languages including Kotlin/Java (JetBrains backend, full PSI analysis)
+  - jet_brains_type_hierarchy: use hierarchy_type=\"super\"/\"sub\"/\"both\", depth controls traversal levels"
+    else
+      CONTEXT="$CONTEXT
 
 PLAN AROUND THESE:
   - find_referencing_symbols: works for Python/TypeScript/Bash, broken for Kotlin/Java (returns empty)
   - For Kotlin/Java cross-file refs: ide_find_symbol(query) → ide_find_references(file, line, col) if IntelliJ available, else search_for_pattern"
+    fi
     fi
 
     if [ "$HAS_INTELLIJ" = "true" ]; then
@@ -206,7 +217,7 @@ INTELLIJ TOOL REFERENCE (for plan steps):
 PLAN AROUND THESE:
   - ide_call_hierarchy callers: BROKEN (always empty) — plan ide_find_references instead
   - ide_search_text: returns .md/.memory files too — plan search_for_pattern for code-only
-  - ide_find_definition: 4-line preview only — plan find_symbol(include_body=true) if available"
+  - ide_find_definition: 4-line preview only — plan ${S_FIND_SYMBOL}(include_body=true) if available"
     fi
   fi
 fi
