@@ -1,7 +1,7 @@
 #!/bin/bash
 # Shared detection logic — sourced by other hooks
 # Expects: CWD to be set before sourcing
-# Exports: HAS_CODE_EXPLORER, CE_SERVER_NAME, CE_PREFIX,
+# Sets: HAS_CODE_EXPLORER, CE_SERVER_NAME, CE_PREFIX,
 #          HAS_CE_ONBOARDING, HAS_CE_MEMORIES, CE_MEMORY_NAMES,
 #          SOURCE_EXT_PATTERN
 
@@ -50,11 +50,12 @@ HAS_CE_ONBOARDING=false
 HAS_CE_MEMORIES=false
 CE_MEMORY_NAMES=""
 if [ -d "$CE_MEMORIES_DIR" ]; then
-  MEMORY_FILES=$(ls "$CE_MEMORIES_DIR"/*.md 2>/dev/null)
-  if [ -n "$MEMORY_FILES" ]; then
+  while IFS= read -r mem_file; do
+    [ -f "$mem_file" ] || continue
+    name=$(basename "$mem_file" .md)
+    CE_MEMORY_NAMES="${CE_MEMORY_NAMES}${name} "
     HAS_CE_MEMORIES=true
-    CE_MEMORY_NAMES=$(basename -a $MEMORY_FILES | sed 's/\.md$//' | tr '\n' ' ')
-  fi
+  done < <(find "$CE_MEMORIES_DIR" -maxdepth 1 -name '*.md' 2>/dev/null)
 fi
 
 # --- Source extension pattern ---
