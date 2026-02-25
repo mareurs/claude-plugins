@@ -42,11 +42,15 @@ WHAT DO YOU KNOW?
   Need to find a file          → find_file(\"**/*.ext\")
   Need file history / blame    → git_log(file) or git_blame(file, start_line, end_line)
 
-PROGRESSIVE DISCLOSURE — always start compact, drill down:
-  BEFORE read_file              → get_symbols_overview(file) to see structure first
-  To read one symbol            → find_symbol(pattern, include_body=true)
-  read_file                     → ONLY with start_line + end_line (never whole file)
-  list_dir(recursive=true)      → avoid — use find_file(\"**/*.ext\") for discovery
+PROGRESSIVE DISCLOSURE — structure first, targeted reads only:
+  get_symbols_overview(file) ALWAYS before any read  — see structure + line numbers
+  find_symbol(name, include_body=true)               — read exactly one symbol
+  read_file(path, start_line, end_line)              — LAST RESORT, exact range only
+
+  WRONG: Read blocked → call read_file(path)         ← same mistake, different tool
+  RIGHT: Read blocked → get_symbols_overview(path) → find_symbol(name, include_body)
+
+  read_file without start_line+end_line = forbidden. Use find_symbol instead.
 
 EXPLORATION WORKFLOW:
   1. ORIENT:    onboarding() or read_memory(\"architecture\")

@@ -20,13 +20,14 @@ GLOB_MSG="BLOCKED: Use code-explorer for source file discovery:
 - find_file(\"**/*.ext\")                           — glob file discovery
 - find_symbol(pattern, relative_path)             — find symbol by name"
 
-READ_MSG="BLOCKED: Use code-explorer to read source files efficiently:
-- get_symbols_overview(file)                      — see all symbols first
-- find_symbol(pattern, include_body=true)         — read a specific symbol
-- list_functions(file)                            — quick function list (offline)
-- read_file(path, start_line, end_line)           — if you must read a section
+READ_MSG="BLOCKED: Do NOT substitute read_file — use structure discovery instead:
+  1. get_symbols_overview(file)                   — see all symbols + line numbers
+  2. find_symbol(pattern, include_body=true)       — read a specific symbol body
+  3. list_functions(file)                          — fast offline function list
 
-If you need the full file, use Read with an explicit limit (e.g. limit: 2000)."
+read_file via code-explorer is only for when you have exact start_line+end_line
+from a prior get_symbols_overview or find_symbol call.
+Calling read_file on a whole file is the same mistake as the blocked Read."
 
 case "$TOOL_NAME" in
   Grep)

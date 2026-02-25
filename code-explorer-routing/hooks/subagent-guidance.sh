@@ -76,9 +76,11 @@ WORKFLOW PATTERNS (embed these sequences in plan steps):
     3. find_symbol(name, include_body=true)   → read specifics
 
 PROGRESSIVE DISCLOSURE:
-  Always get_symbols_overview BEFORE read_file.
-  find_symbol(include_body=true) instead of read_file for symbols.
-  read_file only with explicit start_line + end_line.
+  get_symbols_overview ALWAYS before any file read — structure first.
+  find_symbol(include_body=true) to read one symbol — not read_file.
+  read_file only as LAST RESORT with explicit start_line + end_line.
+  ANTI-PATTERN: Read blocked → read_file(path) — same mistake, different tool.
+  CORRECT:       Read blocked → get_symbols_overview → find_symbol(include_body=true).
   Grep/Glob/Read only for non-code files (.md, .yaml, .json, .toml)."
 
 else
@@ -93,7 +95,9 @@ else
 
 EDIT: replace_symbol_body / insert_before_symbol / insert_after_symbol
 NEVER: Read/Grep/Glob for source code files.
-NEVER: read_file without explicit start_line + end_line."
+NEVER: read_file without explicit start_line + end_line.
+ANTI-PATTERN: Read blocked → call read_file(path) — same mistake, different tool.
+CORRECT:       Read blocked → get_symbols_overview → find_symbol(include_body=true)."
 fi
 
 jq -n --arg ctx "$CONTEXT" '{
