@@ -18,8 +18,7 @@ Injects code-explorer tool guidance into all Claude Code agents and subagents, a
 ## Installation
 
 ```
-/plugin marketplace add <marketplace-source>
-/plugin install code-explorer-routing@<marketplace-name>
+/plugin install code-explorer-routing@sdd-misc-plugins
 ```
 
 Or add to project `.claude/settings.json`:
@@ -27,7 +26,7 @@ Or add to project `.claude/settings.json`:
 ```json
 {
   "enabledPlugins": {
-    "code-explorer-routing@<marketplace-name>": true
+    "code-explorer-routing@sdd-misc-plugins": true
   }
 }
 ```
