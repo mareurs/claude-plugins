@@ -9,7 +9,7 @@ These plugins reflect specific workflows and tool choices -- they may not suit e
 ```
 /plugin marketplace add mareurs/sdd-misc-plugins
 /plugin install sdd@sdd-misc-plugins
-/plugin install tool-infra@sdd-misc-plugins
+/plugin install code-explorer-routing@sdd-misc-plugins
 ```
 
 ## Available Plugins
@@ -17,8 +17,8 @@ These plugins reflect specific workflows and tool choices -- they may not suit e
 | Plugin | Version | Description |
 |--------|---------|-------------|
 | **[sdd](./sdd/)** | 2.2.0 | Specification-Driven Development: governance, workflow commands, and enforcement hooks |
-| **[tool-infra](./tool-infra/)** | 2.7.1 | Semantic tool infrastructure: routes Claude to use Serena/IntelliJ/claude-context instead of Grep/Glob, with language-aware dual-tool routing |
-| **[code-explorer-routing](./code-explorer-routing/)** | 1.0.0 | Semantic tool routing for code-explorer MCP server: injects tool guidance into agents and redirects Grep/Glob/Read to symbol-aware equivalents |
+| **[tool-infra](./tool-infra/)** | 2.7.1 | **Deprecated -- superseded by code-explorer-routing.** Semantic tool infrastructure: routes Claude to use Serena/IntelliJ/claude-context instead of Grep/Glob, with language-aware dual-tool routing |
+| **[code-explorer-routing](./code-explorer-routing/)** | 0.1.0 | Semantic tool routing for [code-explorer](https://github.com/mareurs/code-explorer) MCP server: injects tool guidance into agents and redirects Grep/Glob/Read to symbol-aware equivalents. **Supersedes tool-infra.** |
 
 ## Requirements
 
@@ -47,7 +47,9 @@ A methodology where code follows specifications. Every feature starts with a cle
 
 See [sdd/README.md](./sdd/) for full documentation.
 
-### tool-infra
+### tool-infra (deprecated)
+
+> **Deprecated:** Superseded by [code-explorer-routing](#code-explorer-routing). tool-infra will be decommissioned in a future release. New projects should use code-explorer-routing with [code-explorer](https://github.com/mareurs/code-explorer).
 
 Makes Claude use semantic code tools (Serena, IntelliJ MCP, claude-context) instead of falling back to text search. Auto-detects tools from `.mcp.json` and languages from `.serena/project.yml` for language-aware routing.
 
@@ -63,7 +65,7 @@ See [tool-infra/README.md](./tool-infra/) for details and configuration.
 
 ### code-explorer-routing
 
-Makes Claude use [code-explorer](https://github.com/mareurs/code-explorer) MCP tools instead of falling back to Grep/Glob/Read for source file exploration. Auto-detects code-explorer from `.mcp.json`.
+Supersedes [tool-infra](#tool-infra-deprecated). Makes Claude use [code-explorer](https://github.com/mareurs/code-explorer) MCP tools instead of falling back to Grep/Glob/Read for source file exploration. Auto-detects code-explorer from `.mcp.json`.
 
 **Hooks:**
 - **session-start** -- Tool selection decision tree, progressive disclosure rules, and memory hints for the main agent
@@ -88,7 +90,7 @@ Add to your project's `.claude/settings.json` so all team members get the plugin
   },
   "enabledPlugins": {
     "sdd@sdd-misc-plugins": true,
-    "tool-infra@sdd-misc-plugins": true
+    "code-explorer-routing@sdd-misc-plugins": true
   }
 }
 ```
