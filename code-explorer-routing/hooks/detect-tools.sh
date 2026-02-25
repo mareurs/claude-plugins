@@ -56,6 +56,20 @@ if [ "$HAS_CODE_EXPLORER" = "true" ]; then
   CE_PREFIX="mcp__${CE_SERVER_NAME}__"
 fi
 
+# Read routing config for blocking behavior
+BLOCK_READS=true
+WORKSPACE_ROOT=""
+
+if [ -f "$ROUTING_CONFIG" ]; then
+  _block=$(jq -r '.block_reads // empty' "$ROUTING_CONFIG" 2>/dev/null)
+  [ "$_block" = "false" ] && BLOCK_READS=false
+  _ws=$(jq -r '.workspace_root // empty' "$ROUTING_CONFIG" 2>/dev/null)
+  if [ -n "$_ws" ]; then
+    # Expand ~ to $HOME
+    WORKSPACE_ROOT="${_ws/#\~/$HOME}"
+  fi
+fi
+
 # --- Onboarding state ---
 HAS_CE_ONBOARDING=false
 [ -f "$CE_CONFIG_FILE" ] && HAS_CE_ONBOARDING=true

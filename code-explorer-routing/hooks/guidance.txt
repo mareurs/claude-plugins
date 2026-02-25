@@ -1,0 +1,22 @@
+CODE-EXPLORER: Read → Navigate → Edit. Never skip steps.
+
+READ code:
+  get_symbols_overview(file)  → see structure + line numbers
+  find_symbol(name, include_body=true) → read one symbol
+  NEVER read_file without start_line + end_line from a prior overview.
+
+FIND code:
+  Know the name  → find_symbol(pattern)
+  Know a concept → semantic_search("query")
+  Need callers   → find_referencing_symbols(name_path, file)
+  Need regex     → search_for_pattern(pattern)
+
+EDIT code:
+  Symbol-level (preferred) → replace_symbol_body / insert_before_symbol / insert_after_symbol
+  Line-level (know lines)  → edit_lines(path, start_line, delete_count, new_text)
+  Text find-replace (non-code only) → replace_content(path, old, new)
+
+RULES:
+  1. Structure before content — get_symbols_overview ALWAYS before reading
+  2. Symbol tools for code edits — never replace_content on source files
+  3. Grep/Glob/Read are for .md .json .toml .yaml only — code-explorer for source

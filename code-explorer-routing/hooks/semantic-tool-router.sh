@@ -1,6 +1,6 @@
 #!/bin/bash
 # PreToolUse hook — redirect Grep/Glob/Read on source files to code-explorer tools
-# Pass-through for non-code files and when code-explorer is not configured.
+# Pass-through for non-code files, files outside workspace, and when blocking is disabled.
 
 INPUT=$(cat)
 TOOL_NAME=$(echo "$INPUT" | jq -r '.tool_name // empty')
@@ -8,32 +8,39 @@ CWD=$(echo "$INPUT" | jq -r '.cwd // empty')
 source "$(dirname "$0")/detect-tools.sh"
 
 [ "$HAS_CODE_EXPLORER" = "false" ] && exit 0
+[ "$BLOCK_READS" = "false" ] && exit 0
 
-# Redirect messages
-GREP_MSG="BLOCKED: Use code-explorer for source file search:
-- search_for_pattern(pattern, path)               — regex/literal across source
-- find_symbol(pattern, relative_path)             — find a class/function by name
-- find_referencing_symbols(name_path, file)       — find all callers/usages
-- semantic_search(\"concept\")                      — find code by meaning"
+# --- Helper: check if path is under workspace ---
+is_in_workspace() {
+  local file_path="$1"
+  # No workspace configured = block everything (original behavior)
+  [ -z "$WORKSPACE_ROOT" ] && return 0
+  # Make path absolute if relative
+  if [[ "$file_path" != /* ]]; then
+    file_path="${CWD}/${file_path}"
+  fi
+  # Check if under workspace root
+  [[ "$file_path" == "${WORKSPACE_ROOT}"* ]]
+}
 
-GLOB_MSG="BLOCKED: Use code-explorer for source file discovery:
-- find_file(\"**/*.ext\")                           — glob file discovery
-- find_symbol(pattern, relative_path)             — find symbol by name"
-
-READ_MSG="BLOCKED: Do NOT substitute read_file — use structure discovery instead:
-  1. get_symbols_overview(file)                   — see all symbols + line numbers
-  2. find_symbol(pattern, include_body=true)       — read a specific symbol body
-  3. list_functions(file)                          — fast offline function list
-
-read_file via code-explorer is only for when you have exact start_line+end_line
-from a prior get_symbols_overview or find_symbol call.
-Calling read_file on a whole file is the same mistake as the blocked Read."
+# --- Helper: emit deny response ---
+deny() {
+  jq -n --arg reason "$1" '{
+    hookSpecificOutput: {
+      hookEventName: "PreToolUse",
+      permissionDecision: "deny",
+      permissionDecisionReason: $reason
+    }
+  }'
+  exit 0
+}
 
 case "$TOOL_NAME" in
   Grep)
     GLOB=$(echo "$INPUT" | jq -r '.tool_input.glob // empty')
     PATH_VAL=$(echo "$INPUT" | jq -r '.tool_input.path // empty')
     TYPE=$(echo "$INPUT" | jq -r '.tool_input.type // empty')
+    PATTERN=$(echo "$INPUT" | jq -r '.tool_input.pattern // empty')
 
     IS_SOURCE=false
     case "$TYPE" in
@@ -46,23 +53,19 @@ case "$TOOL_NAME" in
       echo "$PATH_VAL" | grep -qiE "$SOURCE_EXT_PATTERN" && IS_SOURCE=true
     fi
 
-    if [ "$IS_SOURCE" = "true" ]; then
-      jq -n --arg reason "$GREP_MSG" '{
-        hookSpecificOutput: {
-          hookEventName: "PreToolUse",
-          permissionDecision: "deny",
-          permissionDecisionReason: $reason
-        }
-      }'
-    fi
+    [ "$IS_SOURCE" = "false" ] && exit 0
+    is_in_workspace "${PATH_VAL:-$CWD}" || exit 0
+
+    deny "BLOCKED: Use code-explorer for source file search:
+  search_for_pattern(\"${PATTERN}\")  — regex across source files
+  find_symbol(\"${PATTERN}\")         — find symbol by name
+  semantic_search(\"${PATTERN}\")     — find code by meaning"
     ;;
 
   Glob)
     PATTERN=$(echo "$INPUT" | jq -r '.tool_input.pattern // empty')
 
-    if ! echo "$PATTERN" | grep -qiE "$SOURCE_EXT_PATTERN"; then
-      exit 0
-    fi
+    echo "$PATTERN" | grep -qiE "$SOURCE_EXT_PATTERN" || exit 0
 
     BASENAME="${PATTERN##*/}"
 
@@ -71,17 +74,13 @@ case "$TOOL_NAME" in
       exit 0
     fi
 
-    # Block specific named file lookups: uppercase-start (e.g. ClassName.ts) or
-    # non-wildcard basename (e.g. main.ts). Partial wildcards (*foo.ts) pass through —
-    # they are unusual discovery patterns that don't warrant blocking.
+    is_in_workspace "${PATTERN}" || exit 0
+
+    # Block specific named file lookups
     if [[ "$BASENAME" =~ ^[A-Z] ]] || [[ "$BASENAME" != "*"* ]]; then
-      jq -n --arg reason "$GLOB_MSG" '{
-        hookSpecificOutput: {
-          hookEventName: "PreToolUse",
-          permissionDecision: "deny",
-          permissionDecisionReason: $reason
-        }
-      }'
+      deny "BLOCKED: Use code-explorer for source file discovery:
+  find_file(\"${PATTERN}\")           — glob file discovery
+  find_symbol(\"${BASENAME%.*}\")     — find symbol by name"
     fi
     ;;
 
@@ -90,22 +89,23 @@ case "$TOOL_NAME" in
     LIMIT=$(echo "$INPUT" | jq -r '.tool_input.limit // empty')
     OFFSET=$(echo "$INPUT" | jq -r '.tool_input.offset // empty')
 
-    if ! echo "$FILE_PATH" | grep -qiE "$SOURCE_EXT_PATTERN"; then
-      exit 0
-    fi
+    echo "$FILE_PATH" | grep -qiE "$SOURCE_EXT_PATTERN" || exit 0
 
     # Allow targeted reads (explicit limit or offset = intentional)
-    if [ -n "$LIMIT" ] || [ -n "$OFFSET" ]; then
-      exit 0
+    [ -n "$LIMIT" ] || [ -n "$OFFSET" ] && exit 0
+
+    is_in_workspace "$FILE_PATH" || exit 0
+
+    # Extract relative path for the suggestion
+    REL_PATH="$FILE_PATH"
+    if [[ "$FILE_PATH" == "$CWD"* ]]; then
+      REL_PATH="${FILE_PATH#$CWD/}"
     fi
 
-    jq -n --arg reason "$READ_MSG" '{
-      hookSpecificOutput: {
-        hookEventName: "PreToolUse",
-        permissionDecision: "deny",
-        permissionDecisionReason: $reason
-      }
-    }'
+    deny "BLOCKED: Use structure discovery instead of reading whole files:
+  get_symbols_overview(\"${REL_PATH}\")          — see all symbols + line numbers
+  find_symbol(name, include_body=true)           — read a specific symbol body
+  list_functions(\"${REL_PATH}\")                — fast offline function list"
     ;;
 esac
 
