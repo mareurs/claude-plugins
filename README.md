@@ -18,6 +18,7 @@ These plugins reflect specific workflows and tool choices -- they may not suit e
 |--------|---------|-------------|
 | **[sdd](./sdd/)** | 2.2.0 | Specification-Driven Development: governance, workflow commands, and enforcement hooks |
 | **[tool-infra](./tool-infra/)** | 2.7.1 | Semantic tool infrastructure: routes Claude to use Serena/IntelliJ/claude-context instead of Grep/Glob, with language-aware dual-tool routing |
+| **[code-explorer-routing](./code-explorer-routing/)** | 1.0.0 | Semantic tool routing for code-explorer MCP server: injects tool guidance into agents and redirects Grep/Glob/Read to symbol-aware equivalents |
 
 ## Requirements
 
@@ -30,6 +31,7 @@ These plugins reflect specific workflows and tool choices -- they may not suit e
 |--------|----------------------|
 | **sdd** | None (core workflow). [Serena MCP](https://github.com/oraios/serena) for `/drift` and `/document`. |
 | **tool-infra** | [Serena MCP](https://github.com/oraios/serena), [IntelliJ MCP](https://github.com/niclas-timm/intellij-index-mcp), and/or [claude-context](https://github.com/nicobailon/claude-context). Auto-detects which are available. |
+| **code-explorer-routing** | [code-explorer MCP](https://github.com/mareurs/code-explorer) server configured in `.mcp.json` or globally. |
 
 ## Plugins
 
@@ -58,6 +60,17 @@ Makes Claude use semantic code tools (Serena, IntelliJ MCP, claude-context) inst
 - **dual-tool-router** -- Language-aware blocking of broken Serena calls (Kotlin/Java), redirects to IntelliJ equivalents
 
 See [tool-infra/README.md](./tool-infra/) for details and configuration.
+
+### code-explorer-routing
+
+Makes Claude use [code-explorer](https://github.com/mareurs/code-explorer) MCP tools instead of falling back to Grep/Glob/Read for source file exploration. Auto-detects code-explorer from `.mcp.json`.
+
+**Hooks:**
+- **session-start** -- Tool selection decision tree, progressive disclosure rules, and memory hints for the main agent
+- **subagent-guidance** -- Compact guidance for all subagents; rich reference for Plan agents
+- **semantic-tool-router** -- Blocks Grep/Glob/Read on source files, redirects to code-explorer symbol-aware equivalents
+
+See [code-explorer-routing/README.md](./code-explorer-routing/) for details and configuration.
 
 ## Team Setup
 
