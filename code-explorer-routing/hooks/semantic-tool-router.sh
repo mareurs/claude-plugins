@@ -36,7 +36,7 @@ case "$TOOL_NAME" in
 
     IS_SOURCE=false
     case "$TYPE" in
-      kotlin|kt|java|ts|typescript|js|javascript|py|python|go|rust|cs|csharp|rb|ruby|scala|swift|cpp|c)
+      kotlin|kt|kts|java|ts|typescript|js|javascript|py|python|go|rust|cs|csharp|rb|ruby|scala|swift|cpp|c)
         IS_SOURCE=true ;;
     esac
 
@@ -70,7 +70,9 @@ case "$TOOL_NAME" in
       exit 0
     fi
 
-    # Block specific named file lookups (basename starts with uppercase or is specific)
+    # Block specific named file lookups: uppercase-start (e.g. ClassName.ts) or
+    # non-wildcard basename (e.g. main.ts). Partial wildcards (*foo.ts) pass through —
+    # they are unusual discovery patterns that don't warrant blocking.
     if [[ "$BASENAME" =~ ^[A-Z] ]] || [[ "$BASENAME" != "*"* ]]; then
       jq -n --arg reason "$GLOB_MSG" '{
         hookSpecificOutput: {
