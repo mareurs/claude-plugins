@@ -17,6 +17,10 @@ source "$(dirname "$0")/detect-tools.sh"
 
 [ "$HAS_CODE_EXPLORER" = "false" ] && exit 0
 
+# Note: tool names in guidance below are bare (not prefixed with CE_PREFIX).
+# Agents discover actual prefixed names (mcp__<server>__tool) from their MCP tool list.
+# The guidance here provides conceptual workflow, not invocation syntax.
+
 if [ "$AGENT_TYPE" = "Plan" ]; then
   # Rich guidance for Plan agents — they decide tool routing for the whole implementation
   CONTEXT="CODE-EXPLORER TOOL GUIDE (for planning implementation steps)
