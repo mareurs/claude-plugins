@@ -19,7 +19,6 @@ FIND code — NEVER use Grep or Glob on source files:
 EDIT code:
   Symbol-level (preferred) → replace_symbol_body / insert_before_symbol / insert_after_symbol
   Line-level (know lines)  → edit_lines(path, start_line, delete_count, new_text)
-  Text find-replace (non-code only) → replace_content(path, old, new)
 
 RULES:
   1. ToolSearch FIRST — load code-explorer tools before any code work

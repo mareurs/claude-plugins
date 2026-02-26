@@ -29,15 +29,6 @@
             "command": "${CLAUDE_PLUGIN_ROOT}/hooks/semantic-tool-router.sh"
           }
         ]
-      },
-      {
-        "matcher": "replace_content",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/edit-router.sh"
-          }
-        ]
       }
     ]
   }
