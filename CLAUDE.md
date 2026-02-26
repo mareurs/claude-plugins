@@ -9,11 +9,32 @@ Personal Claude Code plugin marketplace with SDD and tool-infra plugins.
 sdd/                             -- SDD plugin
   .claude-plugin/plugin.json     -- version source of truth
   hooks/, commands/, skills/     -- plugin content
-tool-infra/                      -- semantic tool infrastructure plugin
+tool-infra/                      -- semantic tool infrastructure plugin (DEPRECATED)
   .claude-plugin/plugin.json     -- version source of truth
   hooks/                         -- plugin content
+code-explorer-routing/           -- companion plugin for code-explorer MCP server
+  .claude-plugin/plugin.json     -- version source of truth
+  hooks/                         -- tool routing, guidance injection, auto-indexing
+  docs/plans/                    -- design and implementation docs
 scripts/check-versions.sh       -- version consistency validator
 ```
+
+## code-explorer-routing
+
+**Companion plugin for the [code-explorer](../code-explorer) MCP server.**
+
+This plugin is intentionally tightly coupled to code-explorer. It should be updated
+whenever code-explorer adds features that affect exploration workflows. The coupling
+is by design — the plugin reads code-explorer's SQLite DB, calls its CLI binary,
+and references its internal schema (meta table, drift_report table, project.toml config).
+
+**What it does:**
+- SessionStart/SubagentStart: injects tool-selection guidance (prefer symbol tools over Read)
+- PreToolUse: blocks Read/Grep/Glob on source files, redirects to code-explorer tools
+- Auto-reindexing: checks index staleness at session start, triggers `code-explorer index`
+- Drift warnings: surfaces high-drift files and stale docs/memories
+
+**Dependencies:** `jq`, `sqlite3`, `git`, code-explorer binary on PATH or in MCP config
 
 ## Version Management
 

@@ -37,19 +37,21 @@ if [ "$HAS_CODE_EXPLORER" = "false" ] && [ -f "$MCP_JSON" ]; then
   [ -n "$CE_SERVER_NAME" ] && HAS_CODE_EXPLORER=true
 fi
 
-# Path 3: auto-detect from user-level MCP config (global servers added via `claude mcp add`)
-# Uses CLAUDE_CONFIG_DIR if set, otherwise falls back to ~/.claude
-_USER_SETTINGS="${CLAUDE_CONFIG_DIR:-$HOME/.claude}/settings.json"
-if [ "$HAS_CODE_EXPLORER" = "false" ] && [ -f "$_USER_SETTINGS" ]; then
+# Path 3: auto-detect from user-level MCP config
+# `claude mcp add` writes to .claude.json; manual config goes in settings.json
+_CLAUDE_DIR="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
+for _cfg in "${_CLAUDE_DIR}/.claude.json" "${_CLAUDE_DIR}/settings.json"; do
+  [ "$HAS_CODE_EXPLORER" = "true" ] && break
+  [ -f "$_cfg" ] || continue
   CE_SERVER_NAME=$(jq -r '
     .mcpServers // {} | to_entries[] |
     select(
       (.value.command // "" | test("code-explorer")) or
       ((.value.args // []) | map(strings | test("code-explorer")) | any)
     ) | .key
-  ' "$_USER_SETTINGS" 2>/dev/null | head -1)
+  ' "$_cfg" 2>/dev/null | head -1)
   [ -n "$CE_SERVER_NAME" ] && HAS_CODE_EXPLORER=true
-fi
+done
 
 # Build tool prefix
 if [ "$HAS_CODE_EXPLORER" = "true" ]; then

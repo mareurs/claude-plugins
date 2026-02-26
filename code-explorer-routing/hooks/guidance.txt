@@ -1,11 +1,16 @@
-CODE-EXPLORER: Read → Navigate → Edit. Never skip steps.
+CODE-EXPLORER: Use ToolSearch to load tools, then Navigate → Read → Edit.
 
-READ code:
-  get_symbols_overview(file)  → see structure + line numbers
-  find_symbol(name, include_body=true) → read one symbol
-  NEVER read_file without start_line + end_line from a prior overview.
+SETUP (do this FIRST, before any code exploration):
+  ToolSearch("+code-explorer symbols")  → loads get_symbols_overview, find_symbol, etc.
+  ToolSearch("+code-explorer search")   → loads semantic_search, search_for_pattern, etc.
 
-FIND code:
+READ code — use symbol tools, NEVER Read/read_file:
+  get_symbols_overview(file)            → see structure + line numbers (ALWAYS first)
+  find_symbol(name, include_body=true)  → read one symbol body
+  list_functions(file)                  → quick function signatures
+  read_file is LAST RESORT — only with start_line + end_line, only after symbol tools fail.
+
+FIND code — NEVER use Grep or Glob on source files:
   Know the name  → find_symbol(pattern)
   Know a concept → semantic_search("query")
   Need callers   → find_referencing_symbols(name_path, file)
@@ -17,6 +22,9 @@ EDIT code:
   Text find-replace (non-code only) → replace_content(path, old, new)
 
 RULES:
-  1. Structure before content — get_symbols_overview ALWAYS before reading
-  2. Symbol tools for code edits — never replace_content on source files
-  3. Grep/Glob/Read are for .md .json .toml .yaml only — code-explorer for source
+  1. ToolSearch FIRST — load code-explorer tools before any code work
+  2. Structure before content — get_symbols_overview ALWAYS before reading
+  3. NEVER Read/Grep/Glob source files — use code-explorer tools instead
+  4. read_file is LAST RESORT — only when symbol tools cannot get what you need,
+     and ALWAYS with start_line + end_line (never read whole files)
+  5. Read/Grep/Glob are ONLY for .md .json .toml .yaml config files

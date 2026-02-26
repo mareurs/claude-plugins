@@ -102,10 +102,11 @@ case "$TOOL_NAME" in
       REL_PATH="${FILE_PATH#$CWD/}"
     fi
 
-    deny "BLOCKED: Use structure discovery instead of reading whole files:
-  get_symbols_overview(\"${REL_PATH}\")          — see all symbols + line numbers
+    deny "BLOCKED: Use symbol tools instead of reading whole files:
+  get_symbols_overview(\"${REL_PATH}\")          — see all symbols + line numbers (do this FIRST)
   find_symbol(name, include_body=true)           — read a specific symbol body
-  list_functions(\"${REL_PATH}\")                — fast offline function list"
+  list_functions(\"${REL_PATH}\")                — fast offline function list
+  read_file is LAST RESORT — only with start_line + end_line, only after symbol tools fail"
     ;;
 esac
 
