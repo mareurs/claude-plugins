@@ -18,7 +18,7 @@ These plugins reflect specific workflows and tool choices -- they may not suit e
 |--------|---------|-------------|
 | **[sdd](./sdd/)** | 2.2.1 | Specification-Driven Development: governance, workflow commands, and enforcement hooks |
 | **[tool-infra](./tool-infra/)** | 2.8.0 | **Deprecated -- superseded by code-explorer-routing.** Semantic tool infrastructure: routes Claude to use Serena/IntelliJ/claude-context instead of Grep/Glob, with language-aware dual-tool routing |
-| **[code-explorer-routing](./code-explorer-routing/)** | 0.1.1 | Semantic tool routing for [code-explorer](https://github.com/mareurs/code-explorer) MCP server: injects tool guidance into agents and redirects Grep/Glob/Read to symbol-aware equivalents. **Supersedes tool-infra.** |
+| **[code-explorer-routing](./code-explorer-routing/)** | 1.1.0 | Companion plugin for [code-explorer](https://github.com/mareurs/code-explorer) MCP server: injects tool guidance, redirects Read/Grep/Glob to symbol-aware tools, auto-reindex + drift warnings (planned). **Supersedes tool-infra.** |
 
 ## Requirements
 
@@ -65,12 +65,13 @@ See [tool-infra/README.md](./tool-infra/) for details and configuration.
 
 ### code-explorer-routing
 
-Supersedes [tool-infra](#tool-infra-deprecated). Makes Claude use [code-explorer](https://github.com/mareurs/code-explorer) MCP tools instead of falling back to Grep/Glob/Read for source file exploration. Auto-detects code-explorer from `.mcp.json`.
+Companion plugin for [code-explorer](https://github.com/mareurs/code-explorer) MCP server. Supersedes [tool-infra](#tool-infra-deprecated). Routes Claude to use code-explorer's symbol-aware tools instead of Read/Grep/Glob. Auto-detects code-explorer from `.mcp.json`, `~/.claude/.claude.json`, or `~/.claude/settings.json`.
 
 **Hooks:**
-- **session-start** -- Tool selection decision tree, progressive disclosure rules, and memory hints for the main agent
-- **subagent-guidance** -- Compact guidance for all subagents; rich reference for Plan agents
-- **semantic-tool-router** -- Blocks Grep/Glob/Read on source files, redirects to code-explorer symbol-aware equivalents
+- **session-start** -- Tool guidance, memory hints, onboarding nudge, auto-reindex + drift warnings (planned)
+- **subagent-guidance** -- Compact ToolSearch bootstrap + guidance for all subagents
+- **semantic-tool-router** -- Blocks Read/Grep/Glob on source files, redirects to code-explorer equivalents
+- **edit-router** -- Blocks `replace_content` on source files, redirects to symbol-aware edit tools
 
 See [code-explorer-routing/README.md](./code-explorer-routing/) for details and configuration.
 
