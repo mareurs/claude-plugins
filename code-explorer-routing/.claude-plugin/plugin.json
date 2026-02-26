@@ -1,7 +1,7 @@
 {
   "name": "code-explorer-routing",
   "description": "Semantic tool routing for code-explorer MCP server. Injects tool guidance into all agents and subagents, redirects Grep/Glob/Read to code-explorer for source files.",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "author": {
     "name": "Marius"
   },
