@@ -8,6 +8,17 @@ source "$(dirname "$0")/detect-tools.sh"
 
 [ "$HAS_CODE_EXPLORER" = "false" ] && exit 0
 
+# --- Worktree detection: skip auto-indexing if in a worktree ---
+IN_WORKTREE=false
+if git -C "$CWD" rev-parse --is-inside-work-tree &>/dev/null; then
+  GIT_COMMON=$(git -C "$CWD" rev-parse --git-common-dir 2>/dev/null)
+  GIT_DIR=$(git -C "$CWD" rev-parse --git-dir 2>/dev/null)
+  # In a worktree, git-common-dir != git-dir
+  if [ "$GIT_COMMON" != "$GIT_DIR" ]; then
+    IN_WORKTREE=true
+  fi
+fi
+
 GUIDANCE=$(cat "$(dirname "$0")/guidance.txt")
 MSG=""
 
