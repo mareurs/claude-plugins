@@ -59,7 +59,8 @@ case "$TOOL_NAME" in
     deny "BLOCKED: Use code-explorer for source file search:
   search_for_pattern(\"${PATTERN}\")  — regex across source files
   find_symbol(\"${PATTERN}\")         — find symbol by name
-  semantic_search(\"${PATTERN}\")     — find code by meaning"
+  semantic_search(\"${PATTERN}\")     — find code by meaning
+⚠ ALL Grep/Glob/Read calls on source files are blocked by policy — do not retry. Only code-explorer tools will work. Read/Grep/Glob are allowed ONLY for .md, .json, .toml, .yaml, and other non-source files."
     ;;
 
   Glob)
@@ -80,7 +81,8 @@ case "$TOOL_NAME" in
     if [[ "$BASENAME" =~ ^[A-Z] ]] || [[ "$BASENAME" != "*"* ]]; then
       deny "BLOCKED: Use code-explorer for source file discovery:
   find_file(\"${PATTERN}\")           — glob file discovery
-  find_symbol(\"${BASENAME%.*}\")     — find symbol by name"
+  find_symbol(\"${BASENAME%.*}\")     — find symbol by name
+⚠ ALL Grep/Glob/Read calls on source files are blocked by policy — do not retry. Only code-explorer tools will work. Read/Grep/Glob are allowed ONLY for .md, .json, .toml, .yaml, and other non-source files."
     fi
     ;;
 
@@ -106,7 +108,8 @@ case "$TOOL_NAME" in
   get_symbols_overview(\"${REL_PATH}\")          — see all symbols + line numbers (do this FIRST)
   find_symbol(name, include_body=true)           — read a specific symbol body
   list_functions(\"${REL_PATH}\")                — fast offline function list
-  read_file is LAST RESORT — only with start_line + end_line, only after symbol tools fail"
+⚠ ALL Grep/Glob/Read calls on source files are blocked by policy — do not retry. Only code-explorer tools will work. Read/Grep/Glob are allowed ONLY for .md, .json, .toml, .yaml, and other non-source files.
+read_file (via code-explorer) is LAST RESORT — only with start_line + end_line, only after symbol tools fail."
     ;;
 esac
 
