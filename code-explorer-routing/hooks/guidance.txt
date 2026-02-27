@@ -1,11 +1,11 @@
 CODE-EXPLORER: Use ToolSearch to load tools, then Navigate → Read → Edit.
 
 SETUP (do this FIRST, before any code exploration):
-  ToolSearch("+code-explorer symbols")  → loads get_symbols_overview, find_symbol, etc.
-  ToolSearch("+code-explorer search")   → loads semantic_search, search_for_pattern, etc.
+  ToolSearch("+code-explorer symbols")  → loads list_symbols, find_symbol, etc.
+  ToolSearch("+code-explorer search")   → loads semantic_search, search_pattern, etc.
 
 READ code — use symbol tools, NEVER Read/read_file:
-  get_symbols_overview(file)            → see structure + line numbers (ALWAYS first)
+  list_symbols(file)                    → see structure + line numbers (ALWAYS first)
   find_symbol(name, include_body=true)  → read one symbol body
   list_functions(file)                  → quick function signatures
   read_file is LAST RESORT — only with start_line + end_line, only after symbol tools fail.
@@ -13,16 +13,16 @@ READ code — use symbol tools, NEVER Read/read_file:
 FIND code — NEVER use Grep or Glob on source files:
   Know the name  → find_symbol(pattern)
   Know a concept → semantic_search("query")
-  Need callers   → find_referencing_symbols(name_path, file)
-  Need regex     → search_for_pattern(pattern)
+  Need callers   → find_references(name_path, file)
+  Need regex     → search_pattern(pattern)
 
 EDIT code:
-  Symbol-level (preferred) → replace_symbol_body / insert_before_symbol / insert_after_symbol
+  Symbol-level (preferred) → replace_symbol / insert_before_symbol / insert_after_symbol
   Line-level (know lines)  → edit_lines(path, start_line, delete_count, new_text)
 
 RULES:
   1. ToolSearch FIRST — load code-explorer tools before any code work
-  2. Structure before content — get_symbols_overview ALWAYS before reading
+  2. Structure before content — list_symbols ALWAYS before reading
   3. NEVER Read/Grep/Glob source files — use code-explorer tools instead
   4. read_file is LAST RESORT — only when symbol tools cannot get what you need,
      and ALWAYS with start_line + end_line (never read whole files)

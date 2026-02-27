@@ -9,7 +9,7 @@ falling back to Read/Grep/Glob on source files. Auto-detects code-explorer from
 ## What It Does
 
 - **Tool guidance** — Injects tool selection rules into all agents and subagents (SessionStart + SubagentStart hooks)
-- **Tool routing** — Blocks Read/Grep/Glob on source files, redirects to `get_symbols_overview`, `find_symbol`, `search_for_pattern` etc. (PreToolUse hook)
+- **Tool routing** — Warns when Read/Grep/Glob are used on source files, redirects to `list_symbols`, `find_symbol`, `search_pattern` etc. (PostToolUse hook)
 - **ToolSearch bootstrap** — Guides agents to load deferred MCP tools via `ToolSearch` before exploring code
 - **Auto-reindex** *(planned)* — Checks index staleness at session start, triggers `code-explorer index` if behind HEAD
 - **Drift warnings** *(planned)* — Surfaces high-drift files and flags stale docs/memories
@@ -79,8 +79,8 @@ Create `.claude/code-explorer-routing.json` in your project for fine-grained con
 |---|---|---|
 | `SessionStart` | `session-start.sh` | Tool guide + memory hints + onboarding nudge |
 | `SubagentStart` | `subagent-guidance.sh` | Compact guidance for all subagents |
-| `PreToolUse` (Grep/Glob/Read) | `semantic-tool-router.sh` | Redirect to code-explorer for source files |
-| `PreToolUse` (replace_content) | `edit-router.sh` | Redirect to symbol-aware edit tools |
+| `PostToolUse` (Grep/Glob/Read) | `post-tool-guidance.sh` | Warn and redirect to code-explorer for source files |
+| `PostToolUse` (EnterWorktree) | `worktree-activate.sh` | Symlink .code-explorer/ and inject activate_project guidance |
 
 ## Coupling to code-explorer
 
@@ -90,6 +90,13 @@ schema. It should be updated whenever code-explorer adds features that affect
 exploration workflows.
 
 ## Changelog
+
+### 1.2.0
+
+- **Switch:** PreToolUse hard-blocking → PostToolUse soft-blocking for Read/Grep/Glob on source files
+- **Remove:** `semantic-tool-router.sh` (replaced by `post-tool-guidance.sh`)
+- **Add:** `worktree-activate.sh` PostToolUse hook for git worktree support
+- **Update:** Tool name references to match code-explorer API rename (`list_symbols`, `search_pattern`, `find_references`, `replace_symbol`, etc.)
 
 ### 1.1.0
 

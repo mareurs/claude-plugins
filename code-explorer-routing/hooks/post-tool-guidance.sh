@@ -55,7 +55,7 @@ case "$TOOL_NAME" in
 
     warn "⚠ WARNING: Grep on source files is deprecated and will be blocked in the next update.
 Use code-explorer tools instead — they are faster and more token-efficient:
-  search_for_pattern(\"${PATTERN}\")  — regex across source files
+  search_pattern(\"${PATTERN}\")      — regex across source files
   find_symbol(\"${PATTERN}\")         — find symbol by name
   semantic_search(\"${PATTERN}\")     — find code by meaning
 This call succeeded, but future calls on source files WILL be denied."
@@ -105,7 +105,7 @@ This call succeeded, but future calls on source files WILL be denied."
 
     warn "⚠ WARNING: Read on source files is deprecated and will be blocked in the next update.
 Use code-explorer symbol tools instead — they are faster and more token-efficient:
-  get_symbols_overview(\"${REL_PATH}\")          — see all symbols + line numbers (do this FIRST)
+  list_symbols(\"${REL_PATH}\")                  — see all symbols + line numbers (do this FIRST)
   find_symbol(name, include_body=true)           — read a specific symbol body
   list_functions(\"${REL_PATH}\")                — fast offline function list
 This call succeeded, but future calls on source files WILL be denied.
