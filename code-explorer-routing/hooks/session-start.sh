@@ -58,15 +58,10 @@ if [ "$AUTO_INDEX" = "true" ] && [ "$IN_WORKTREE" = "false" ] && \
   HEAD_COMMIT=$(git -C "$CWD" rev-parse HEAD 2>/dev/null)
   if [ -n "$LAST_COMMIT" ] && [ -n "$HEAD_COMMIT" ] && [ "$LAST_COMMIT" != "$HEAD_COMMIT" ]; then
     BEHIND=$(git -C "$CWD" rev-list --count "${LAST_COMMIT}..${HEAD_COMMIT}" 2>/dev/null || echo "?")
-    if "$CE_BINARY" index --project "$CWD" >/dev/null 2>&1; then
-      MSG="${MSG}INDEX: Refreshed (was ${BEHIND} commits behind HEAD).
+    "$CE_BINARY" index --project "$CWD" >/dev/null 2>&1 &
+    MSG="${MSG}INDEX: Refreshing in background (${BEHIND} commits behind HEAD) — semantic_search works now, results improve as index updates.
 
 "
-    else
-      MSG="${MSG}INDEX: Refresh failed — results may be stale (${BEHIND} commits behind HEAD).
-
-"
-    fi
   fi
 fi
 
