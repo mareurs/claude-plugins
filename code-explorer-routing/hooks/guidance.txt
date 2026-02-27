@@ -21,6 +21,10 @@ EDIT code:
   Symbol-level (preferred) → replace_symbol / insert_before_symbol / insert_after_symbol
   Line-level (know lines)  → edit_lines(path, start_line, delete_count, new_text)
 
+OTHER LOCAL REPOSITORIES:
+  Quick peek (few files)   → use absolute paths — list_dir, read_file, list_functions, search_pattern all work without switching projects
+  Deep dive (symbols, refs, semantic search) → activate_project("/absolute/path") first, explore, then switch back
+
 RULES:
   1. ToolSearch FIRST — load code-explorer tools before any code work
   2. Structure before content — list_symbols ALWAYS before reading
