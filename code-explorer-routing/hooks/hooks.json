@@ -20,18 +20,16 @@
         ]
       }
     ],
-    "PreToolUse": [
+    "PostToolUse": [
       {
         "matcher": "Grep|Glob|Read",
         "hooks": [
           {
             "type": "command",
-            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/semantic-tool-router.sh"
+            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/post-tool-guidance.sh"
           }
         ]
-      }
-    ],
-    "PostToolUse": [
+      },
       {
         "matcher": "EnterWorktree",
         "hooks": [

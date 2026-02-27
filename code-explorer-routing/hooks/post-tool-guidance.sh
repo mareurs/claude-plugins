@@ -1,6 +1,7 @@
 #!/bin/bash
-# PreToolUse hook — redirect Grep/Glob/Read on source files to code-explorer tools
-# Pass-through for non-code files, files outside workspace, and when blocking is disabled.
+# PostToolUse hook — warn when Read/Grep/Glob are used on source files
+# Lets the tool succeed, then injects guidance to use code-explorer tools instead.
+# The AI sees the warning and avoids repeating the pattern.
 
 INPUT=$(cat)
 TOOL_NAME=$(echo "$INPUT" | jq -r '.tool_name // empty')
@@ -13,23 +14,19 @@ source "$(dirname "$0")/detect-tools.sh"
 # --- Helper: check if path is under workspace ---
 is_in_workspace() {
   local file_path="$1"
-  # No workspace configured = block everything (original behavior)
   [ -z "$WORKSPACE_ROOT" ] && return 0
-  # Make path absolute if relative
   if [[ "$file_path" != /* ]]; then
     file_path="${CWD}/${file_path}"
   fi
-  # Check if under workspace root
   [[ "$file_path" == "${WORKSPACE_ROOT}"* ]]
 }
 
-# --- Helper: emit deny response ---
-deny() {
-  jq -n --arg reason "$1" '{
+# --- Helper: emit warning via additionalContext ---
+warn() {
+  jq -n --arg ctx "$1" '{
     hookSpecificOutput: {
-      hookEventName: "PreToolUse",
-      permissionDecision: "deny",
-      permissionDecisionReason: $reason
+      hookEventName: "PostToolUse",
+      additionalContext: $ctx
     }
   }'
   exit 0
@@ -56,11 +53,12 @@ case "$TOOL_NAME" in
     [ "$IS_SOURCE" = "false" ] && exit 0
     is_in_workspace "${PATH_VAL:-$CWD}" || exit 0
 
-    deny "BLOCKED: Use code-explorer for source file search:
+    warn "⚠ WARNING: Grep on source files is deprecated and will be blocked in the next update.
+Use code-explorer tools instead — they are faster and more token-efficient:
   search_for_pattern(\"${PATTERN}\")  — regex across source files
   find_symbol(\"${PATTERN}\")         — find symbol by name
   semantic_search(\"${PATTERN}\")     — find code by meaning
-⚠ ALL Grep/Glob/Read calls on source files are blocked by policy — do not retry. Only code-explorer tools will work. Read/Grep/Glob are allowed ONLY for .md, .json, .toml, .yaml, and other non-source files."
+This call succeeded, but future calls on source files WILL be denied."
     ;;
 
   Glob)
@@ -77,12 +75,13 @@ case "$TOOL_NAME" in
 
     is_in_workspace "${PATTERN}" || exit 0
 
-    # Block specific named file lookups
+    # Warn only for specific named file lookups
     if [[ "$BASENAME" =~ ^[A-Z] ]] || [[ "$BASENAME" != "*"* ]]; then
-      deny "BLOCKED: Use code-explorer for source file discovery:
+      warn "⚠ WARNING: Glob on source files is deprecated and will be blocked in the next update.
+Use code-explorer tools instead — they are faster and more token-efficient:
   find_file(\"${PATTERN}\")           — glob file discovery
   find_symbol(\"${BASENAME%.*}\")     — find symbol by name
-⚠ ALL Grep/Glob/Read calls on source files are blocked by policy — do not retry. Only code-explorer tools will work. Read/Grep/Glob are allowed ONLY for .md, .json, .toml, .yaml, and other non-source files."
+This call succeeded, but future calls on source files WILL be denied."
     fi
     ;;
 
@@ -104,11 +103,12 @@ case "$TOOL_NAME" in
       REL_PATH="${FILE_PATH#$CWD/}"
     fi
 
-    deny "BLOCKED: Use symbol tools instead of reading whole files:
+    warn "⚠ WARNING: Read on source files is deprecated and will be blocked in the next update.
+Use code-explorer symbol tools instead — they are faster and more token-efficient:
   get_symbols_overview(\"${REL_PATH}\")          — see all symbols + line numbers (do this FIRST)
   find_symbol(name, include_body=true)           — read a specific symbol body
   list_functions(\"${REL_PATH}\")                — fast offline function list
-⚠ ALL Grep/Glob/Read calls on source files are blocked by policy — do not retry. Only code-explorer tools will work. Read/Grep/Glob are allowed ONLY for .md, .json, .toml, .yaml, and other non-source files.
+This call succeeded, but future calls on source files WILL be denied.
 read_file (via code-explorer) is LAST RESORT — only with start_line + end_line, only after symbol tools fail."
     ;;
 esac
