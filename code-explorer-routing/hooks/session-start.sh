@@ -94,6 +94,15 @@ $(echo "$DRIFT_FILES" | sed 's/^/  /')
   fi
 fi
 
+# --- Connectivity note ---
+# Hooks can't verify MCP handshake — detection is config-based only.
+# If the MCP server failed to connect, tools won't be available despite config existing.
+MSG="${MSG}CODE-EXPLORER: Detected in config (${CE_SERVER_NAME}).
+If tools (list_symbols, find_symbol, semantic_search, etc.) are not available,
+the MCP server may have failed to connect — fall back to Read/Grep/Glob.
+
+"
+
 # --- Tool guide ---
 MSG="${MSG}${GUIDANCE}
 

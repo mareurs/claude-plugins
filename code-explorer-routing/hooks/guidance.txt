@@ -1,9 +1,6 @@
-CODE-EXPLORER: Use ToolSearch to load tools, then Navigate → Read → Edit.
-Semantic index is kept fresh automatically — refreshed at session start if behind HEAD.
-
-SETUP (do this FIRST, before any code exploration):
-  ToolSearch("+code-explorer symbols")  → loads list_symbols, find_symbol, etc.
-  ToolSearch("+code-explorer search")   → loads semantic_search, search_pattern, etc.
+CODE-EXPLORER: high-performance semantic code intelligence.
+Provides symbol navigation (LSP), AST analysis (tree-sitter), semantic search (embeddings), and project memory.
+Tools are available automatically — no setup step needed.
 
 READ code — use symbol tools, NEVER Read/read_file:
   list_symbols(file)                    → see structure + line numbers (ALWAYS first)
@@ -26,9 +23,11 @@ OTHER LOCAL REPOSITORIES:
   Deep dive (symbols, refs, semantic search) → activate_project("/absolute/path") first, explore, then switch back
 
 RULES:
-  1. ToolSearch FIRST — load code-explorer tools before any code work
-  2. Structure before content — list_symbols ALWAYS before reading
-  3. NEVER Read/Grep/Glob source files — use code-explorer tools instead
-  4. read_file is LAST RESORT — only when symbol tools cannot get what you need,
+  1. Structure before content — list_symbols ALWAYS before reading
+  2. NEVER Read/Grep/Glob source files — use code-explorer tools instead
+  3. read_file is LAST RESORT — only when symbol tools cannot get what you need,
      and ALWAYS with start_line + end_line (never read whole files)
-  5. Read/Grep/Glob are ONLY for .md .json .toml .yaml config files
+  4. Read/Grep/Glob are ONLY for .md .json .toml .yaml config files
+
+FALLBACK: If code-explorer tools are not responding (MCP connection issue),
+Read/Grep/Glob are acceptable as a temporary workaround.

@@ -18,7 +18,7 @@ These plugins reflect specific workflows and tool choices -- they may not suit e
 |--------|---------|-------------|
 | **[sdd](./sdd/)** | 2.2.1 | Specification-Driven Development: governance, workflow commands, and enforcement hooks |
 | **[tool-infra](./tool-infra/)** | 2.8.0 | **Deprecated -- superseded by code-explorer-routing.** Semantic tool infrastructure: routes Claude to use Serena/IntelliJ/claude-context instead of Grep/Glob, with language-aware dual-tool routing |
-| **[code-explorer-routing](./code-explorer-routing/)** | 1.1.0 | Companion plugin for [code-explorer](https://github.com/mareurs/code-explorer) MCP server: injects tool guidance, redirects Read/Grep/Glob to symbol-aware tools, auto-reindex + drift warnings (planned). **Supersedes tool-infra.** |
+| **[code-explorer-routing](./code-explorer-routing/)** | 1.2.1 | Companion plugin for [code-explorer](https://github.com/mareurs/code-explorer) MCP server: injects tool guidance, redirects Read/Grep/Glob to symbol-aware tools, auto-reindex + drift warnings. **Supersedes tool-infra.** |
 
 ## Requirements
 
@@ -68,10 +68,10 @@ See [tool-infra/README.md](./tool-infra/) for details and configuration.
 Companion plugin for [code-explorer](https://github.com/mareurs/code-explorer) MCP server. Supersedes [tool-infra](#tool-infra-deprecated). Routes Claude to use code-explorer's symbol-aware tools instead of Read/Grep/Glob. Auto-detects code-explorer from `.mcp.json`, `~/.claude/.claude.json`, or `~/.claude/settings.json`.
 
 **Hooks:**
-- **session-start** -- Tool guidance, memory hints, onboarding nudge, auto-reindex + drift warnings (planned)
-- **subagent-guidance** -- Compact ToolSearch bootstrap + guidance for all subagents
-- **semantic-tool-router** -- Blocks Read/Grep/Glob on source files, redirects to code-explorer equivalents
-- **edit-router** -- Blocks `replace_content` on source files, redirects to symbol-aware edit tools
+- **session-start** -- Tool guidance, memory hints, onboarding nudge, auto-reindex + drift warnings
+- **subagent-guidance** -- Injects code-explorer guidance into all subagents (MCP server_instructions only reach the main agent)
+- **post-tool-guidance** -- PostToolUse soft warnings when Read/Grep/Glob are used on source files, suggests code-explorer alternatives
+- **worktree-activate** -- Re-activates code-explorer project after EnterWorktree
 
 See [code-explorer-routing/README.md](./code-explorer-routing/) for details and configuration.
 

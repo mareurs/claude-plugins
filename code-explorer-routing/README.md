@@ -10,16 +10,16 @@ falling back to Read/Grep/Glob on source files. Auto-detects code-explorer from
 
 - **Tool guidance** — Injects tool selection rules into all agents and subagents (SessionStart + SubagentStart hooks)
 - **Tool routing** — Warns when Read/Grep/Glob are used on source files, redirects to `list_symbols`, `find_symbol`, `search_pattern` etc. (PostToolUse hook)
-- **ToolSearch bootstrap** — Guides agents to load deferred MCP tools via `ToolSearch` before exploring code
-- **Auto-reindex** *(planned)* — Checks index staleness at session start, triggers `code-explorer index` if behind HEAD
-- **Drift warnings** *(planned)* — Surfaces high-drift files and flags stale docs/memories
+- **Auto-reindex** — Checks index staleness at session start, triggers `code-explorer index` in background if behind HEAD
+- **Drift warnings** — Surfaces high-drift files and flags stale docs/memories
+- **Graceful degradation** — Includes fallback guidance if MCP server fails to connect
 
 ## Requirements
 
 - [code-explorer](https://github.com/mareurs/code-explorer) MCP server configured locally or globally
 - `jq` installed (used for JSON parsing in hooks)
-- `sqlite3` installed (for staleness checks and drift queries — planned)
-- `git` installed (for HEAD comparison — planned)
+- `sqlite3` installed (for staleness checks and drift queries)
+- `git` installed (for HEAD comparison and worktree detection)
 
 ## Installation
 
@@ -69,9 +69,9 @@ Create `.claude/code-explorer-routing.json` in your project for fine-grained con
 |---|---|---|
 | `server_name` | auto-detected | Override code-explorer server name |
 | `workspace_root` | (none) | Only block tools for files under this path |
-| `block_reads` | `true` | Block Read/Grep/Glob on source files |
-| `auto_index` | `true` | Check staleness and reindex at session start *(planned)* |
-| `drift_warnings` | `true` | Surface drift warnings in session context *(planned)* |
+| `block_reads` | `true` | Warn on Read/Grep/Glob for source files (PostToolUse) |
+| `auto_index` | `true` | Check staleness and reindex at session start |
+| `drift_warnings` | `true` | Surface drift warnings in session context |
 
 ## Hooks
 
@@ -91,6 +91,16 @@ exploration workflows.
 
 ## Changelog
 
+### 1.2.1
+
+- **Fix:** Remove ToolSearch references from guidance — MCP tools auto-load, no manual step needed
+- **Add:** Graceful degradation — fallback note when MCP server fails to connect
+- **Add:** Connectivity caveat in SessionStart output (hooks can't verify MCP handshake)
+- **Add:** Auto-reindex at session start (background, non-blocking)
+- **Add:** Drift warnings for significantly changed files
+- **Fix:** Sync guidance.txt with server_instructions.md
+- **Fix:** Clean up README to match actual hook behavior
+
 ### 1.1.0
 
 - **Switch:** PreToolUse hard-blocking → PostToolUse soft-blocking for Read/Grep/Glob on source files
@@ -99,7 +109,6 @@ exploration workflows.
 - **Update:** Tool name references to match code-explorer API rename (`list_symbols`, `search_pattern`, `find_references`, `replace_symbol`, etc.)
 - **Fix:** Detect code-explorer from `~/.claude/.claude.json` (where `claude mcp add` writes), not just `settings.json`
 - **Strengthen:** `read_file` marked as LAST RESORT in all guidance
-- **Strengthen:** ToolSearch bootstrap instructions added to guidance (deferred MCP tools need loading)
 - **Add:** Auto-index + drift warnings design doc (`docs/plans/`)
 - **Add:** Companion plugin documentation in CLAUDE.md
 
