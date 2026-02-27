@@ -36,6 +36,11 @@ and references its internal schema (meta table, drift_report table, project.toml
 
 **Dependencies:** `jq`, `sqlite3`, `git`, code-explorer binary on PATH or in MCP config
 
+**Guidance duplication:** MCP `server_instructions` only reach the main agent, NOT
+subagents. The plugin's `guidance.txt` is injected into subagents via `SubagentStart`
+hook. Any guidance that subagents need MUST be in both `guidance.txt` AND
+`server_instructions.md` — keeping them in sync is required.
+
 ## Version Management
 
 **Single source of truth**: each plugin's `.claude-plugin/plugin.json` is the canonical version.
