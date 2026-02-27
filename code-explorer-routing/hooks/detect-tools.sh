@@ -1,7 +1,7 @@
 #!/bin/bash
 # Shared detection logic — sourced by other hooks
 # Expects: CWD to be set before sourcing
-# Sets: HAS_CODE_EXPLORER, CE_SERVER_NAME, CE_PREFIX,
+# Sets: HAS_CODE_EXPLORER, CE_SERVER_NAME, CE_PREFIX, CE_BINARY,
 #          HAS_CE_ONBOARDING, HAS_CE_MEMORIES, CE_MEMORY_NAMES,
 #          SOURCE_EXT_PATTERN
 
@@ -13,6 +13,7 @@ CE_CONFIG_FILE="${CWD}/.code-explorer/project.toml"
 HAS_CODE_EXPLORER=false
 CE_SERVER_NAME=""
 CE_PREFIX=""
+CE_BINARY=""
 
 # --- Detection ---
 
@@ -56,6 +57,18 @@ done
 # Build tool prefix
 if [ "$HAS_CODE_EXPLORER" = "true" ]; then
   CE_PREFIX="mcp__${CE_SERVER_NAME}__"
+fi
+
+# Extract binary path — same config files, same server name key
+if [ "$HAS_CODE_EXPLORER" = "true" ] && [ -n "$CE_SERVER_NAME" ]; then
+  for _cfg in "$MCP_JSON" "${_CLAUDE_DIR}/.claude.json" "${_CLAUDE_DIR}/settings.json"; do
+    [ -f "$_cfg" ] || continue
+    _bin=$(jq -r ".mcpServers[\"$CE_SERVER_NAME\"].command // empty" "$_cfg" 2>/dev/null)
+    if [ -n "$_bin" ]; then
+      CE_BINARY="${_bin/#\~/$HOME}"
+      break
+    fi
+  done
 fi
 
 # Read routing config for blocking behavior

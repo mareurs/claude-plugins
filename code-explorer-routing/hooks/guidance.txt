@@ -1,4 +1,5 @@
 CODE-EXPLORER: Use ToolSearch to load tools, then Navigate → Read → Edit.
+Semantic index is kept fresh automatically — refreshed at session start if behind HEAD.
 
 SETUP (do this FIRST, before any code exploration):
   ToolSearch("+code-explorer symbols")  → loads list_symbols, find_symbol, etc.
