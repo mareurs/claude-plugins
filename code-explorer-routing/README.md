@@ -91,19 +91,15 @@ exploration workflows.
 
 ## Changelog
 
-### 1.2.0
+### 1.1.0
 
 - **Switch:** PreToolUse hard-blocking → PostToolUse soft-blocking for Read/Grep/Glob on source files
 - **Remove:** `semantic-tool-router.sh` (replaced by `post-tool-guidance.sh`)
 - **Add:** `worktree-activate.sh` PostToolUse hook for git worktree support
 - **Update:** Tool name references to match code-explorer API rename (`list_symbols`, `search_pattern`, `find_references`, `replace_symbol`, etc.)
-
-### 1.1.0
-
 - **Fix:** Detect code-explorer from `~/.claude/.claude.json` (where `claude mcp add` writes), not just `settings.json`
 - **Strengthen:** `read_file` marked as LAST RESORT in all guidance
 - **Strengthen:** ToolSearch bootstrap instructions added to guidance (deferred MCP tools need loading)
-- **Strengthen:** PreToolUse deny messages include last-resort hierarchy
 - **Add:** Auto-index + drift warnings design doc (`docs/plans/`)
 - **Add:** Companion plugin documentation in CLAUDE.md
 
