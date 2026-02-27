@@ -30,8 +30,8 @@ and references its internal schema (meta table, drift_report table, project.toml
 
 **What it does:**
 - SessionStart/SubagentStart: injects tool-selection guidance (prefer symbol tools over Read)
-- PreToolUse: blocks Read/Grep/Glob on source files, redirects to code-explorer tools
-- Auto-reindexing: checks index staleness at session start, triggers `code-explorer index`
+- PostToolUse: soft warnings when Read/Grep/Glob are used on source files, suggests code-explorer alternatives
+- Auto-reindexing: checks index staleness at session start, triggers `code-explorer index` in background
 - Drift warnings: surfaces high-drift files and stale docs/memories
 
 **Dependencies:** `jq`, `sqlite3`, `git`, code-explorer binary on PATH or in MCP config
