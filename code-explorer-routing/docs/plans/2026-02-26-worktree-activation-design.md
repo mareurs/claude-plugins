@@ -79,7 +79,7 @@ Worktrees do NOT trigger `index_project`. The main branch owns the index.
 - `find_referencing_symbols` — LSP-based, live filesystem
 - `search_for_pattern` — regex on disk, no index needed
 - `semantic_search` — uses the shared embeddings DB (covers ~99% of code)
-- `read_file`, `git_blame`, `git_log`, `git_diff` — filesystem/git, no index
+- `read_file`, `git_blame` — filesystem/git, no index
 
 **What may miss new worktree-only files:**
 - `semantic_search` — new files not yet embedded (acceptable trade-off)
