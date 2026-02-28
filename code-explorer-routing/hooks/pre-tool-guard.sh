@@ -40,9 +40,25 @@ case "$TOOL_NAME" in
     CMD_SOURCE_PATTERN='\.(kt|kts|java|ts|tsx|js|jsx|py|go|rs|cs|rb|scala|swift|cpp|c|h|hpp)(\s|'"'"'|"|$|\\)'
 
     # Block grep/cat/head/tail on source files — use code-explorer read/search tools instead.
-    if echo "$CMD" | grep -qE '\b(grep|cat|head|tail)\b'; then
-      echo "$CMD" | grep -qiE "$CMD_SOURCE_PATTERN" || exit 0
-      READ_CMD=$(echo "$CMD" | grep -oE '\b(grep|cat|head|tail)\b' | head -1)
+    # Strip heredoc invocations (cat <<'EOF') — these read from stdin, not source files.
+    CMD_SCAN=$(printf '%s\n' "$CMD" | sed "s/\bcat[[:space:]]*<<[^[:space:]]*/HEREDOC/g")
+    # Normalize all command separators (&&, ;) to | alongside pipes so every sub-command
+    # is treated as an independent segment. || is already handled since tr splits on each |.
+    # This prevents false positives like `git diff src/foo.rs && tail app.log` where the
+    # read tool and source extension come from different, unrelated sub-commands.
+    CMD_SCAN=$(printf '%s\n' "$CMD_SCAN" | sed 's/&&/|/g; s/;/|/g')
+    # Only block if read tool AND source extension appear in the SAME segment.
+    SHOULD_BLOCK=false
+    READ_CMD=""
+    while IFS= read -r segment; do
+      if echo "$segment" | grep -qE '\b(grep|cat|head|tail)\b' && \
+         echo "$segment" | grep -qiE "$CMD_SOURCE_PATTERN"; then
+        SHOULD_BLOCK=true
+        READ_CMD=$(echo "$segment" | grep -oE '\b(grep|cat|head|tail)\b' | head -1)
+        break
+      fi
+    done < <(printf '%s\n' "$CMD_SCAN" | tr '|' '\n')
+    if [ "$SHOULD_BLOCK" = "true" ]; then
       deny "⛔ BLOCKED: $READ_CMD on source files via Bash is not allowed.
 Use code-explorer tools instead — they are faster and more token-efficient:
   search_pattern(\"pattern\")            — regex search across source files (replaces grep)

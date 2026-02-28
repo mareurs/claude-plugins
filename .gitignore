@@ -2,3 +2,5 @@
 .serena/memories/
 .serena/cache/
 *.bak
+.code-explorer/
+test-detect.sh
