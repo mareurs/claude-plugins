@@ -36,12 +36,25 @@ case "$TOOL_NAME" in
   Bash)
     CMD=$(echo "$INPUT" | jq -r '.tool_input.command // empty')
 
-    # Only block sed -i (in-place editing). Piped/read-only sed is fine.
-    echo "$CMD" | grep -qE '\bsed\b' || exit 0
-    echo "$CMD" | grep -qE '\bsed\b[^#]*-[a-zA-Z]*i' || exit 0
-
     # Source extension appearing anywhere in the command string.
     CMD_SOURCE_PATTERN='\.(kt|kts|java|ts|tsx|js|jsx|py|go|rs|cs|rb|scala|swift|cpp|c|h|hpp)(\s|'"'"'|"|$|\\)'
+
+    # Block grep/cat/head/tail on source files — use code-explorer read/search tools instead.
+    if echo "$CMD" | grep -qE '\b(grep|cat|head|tail)\b'; then
+      echo "$CMD" | grep -qiE "$CMD_SOURCE_PATTERN" || exit 0
+      READ_CMD=$(echo "$CMD" | grep -oE '\b(grep|cat|head|tail)\b' | head -1)
+      deny "⛔ BLOCKED: $READ_CMD on source files via Bash is not allowed.
+Use code-explorer tools instead — they are faster and more token-efficient:
+  search_pattern(\"pattern\")            — regex search across source files (replaces grep)
+  find_symbol(\"name\")                  — find symbol by name
+  semantic_search(\"concept\")           — find code by meaning
+  list_symbols(\"file\")                 — see all symbols + line numbers (replaces head/cat)
+  find_symbol(name, include_body=true)   — read one symbol body (replaces cat for functions)
+  read_file(path, start_line, end_line)  — targeted line read (last resort, known lines only)"
+    fi
+
+    # Block sed -i (in-place editing) on source files.
+    echo "$CMD" | grep -qE '\bsed\b[^#]*-[a-zA-Z]*i' || exit 0
     echo "$CMD" | grep -qiE "$CMD_SOURCE_PATTERN" || exit 0
 
     deny "⛔ BLOCKED: sed -i on source files is not allowed.

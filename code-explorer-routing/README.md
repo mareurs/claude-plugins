@@ -91,6 +91,11 @@ exploration workflows.
 
 ## Changelog
 
+### 1.5.1
+
+- **Fix:** Expand Bash guard to block `grep`/`cat`/`head`/`tail` on source files — agents were bypassing Read/Grep guards by routing through Bash
+- **Fix:** Session-start connectivity note no longer says "fall back to Read/Grep/Glob" (those are now hard-blocked); clarifies ToolSearch is not needed
+
 ### 1.5.0
 
 - **Switch:** PostToolUse soft warnings → PreToolUse hard blocks for Read/Grep/Glob/Bash(sed -i) on source files — soft warnings were ignored because tool output was already in context
