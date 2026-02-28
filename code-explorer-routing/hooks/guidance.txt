@@ -13,9 +13,10 @@ FIND code — NEVER use Grep or Glob on source files:
   Know a concept → semantic_search("query")
   Need callers   → find_references(name_path, file)
   Need regex     → search_pattern(pattern)
+  At a line      → goto_definition(path, line) / hover(path, line)
 
 EDIT code:
-  Symbol-level (preferred) → replace_symbol / insert_before_symbol / insert_after_symbol
+  Symbol-level (preferred) → replace_symbol / insert_code(position=before/after)
   Line-level (know lines)  → edit_lines(path, start_line, delete_count, new_text)
 
 OTHER LOCAL REPOSITORIES:
