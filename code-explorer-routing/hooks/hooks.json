@@ -20,6 +20,17 @@
         ]
       }
     ],
+    "PreToolUse": [
+      {
+        "matcher": "mcp__.*__(edit_lines|replace_symbol|insert_code|create_file|create_or_update_file)",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/worktree-write-guard.sh"
+          }
+        ]
+      }
+    ],
     "PostToolUse": [
       {
         "matcher": "Grep|Glob|Read|Bash",
@@ -36,6 +47,15 @@
           {
             "type": "command",
             "command": "${CLAUDE_PLUGIN_ROOT}/hooks/worktree-activate.sh"
+          }
+        ]
+      },
+      {
+        "matcher": "mcp__.*__activate_project",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/ce-activate-project.sh"
           }
         ]
       }
