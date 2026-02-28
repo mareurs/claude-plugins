@@ -20,9 +20,20 @@ source "$(dirname "$0")/detect-tools.sh"
 WORKTREE_PATH=$(echo "$INPUT" | jq -r '.tool_response.worktree_path // .tool_response.path // empty')
 
 if [ -z "$WORKTREE_PATH" ]; then
-  # Fallback: newest entry from git worktree list
-  WORKTREE_PATH=$(git -C "$CWD" worktree list --porcelain 2>/dev/null \
-    | grep '^worktree ' | tail -1 | sed 's/^worktree //')
+  # Fallback: most recently created linked worktree (by mtime).
+  # git worktree list order is not creation-time order, so tail -1 is unreliable
+  # when multiple worktrees exist.
+  MAIN_ROOT=$(git -C "$CWD" rev-parse --show-toplevel 2>/dev/null)
+  WORKTREE_PATH=$(
+    git -C "$CWD" worktree list --porcelain 2>/dev/null \
+      | grep '^worktree ' | sed 's/^worktree //' \
+      | grep -v "^${MAIN_ROOT}$" \
+      | while IFS= read -r wt; do
+          [ -d "$wt" ] || continue
+          printf '%s\t%s\n' "$(stat -c %Y "$wt" 2>/dev/null)" "$wt"
+        done \
+      | sort -rn | head -1 | cut -f2
+  )
 fi
 
 [ -z "$WORKTREE_PATH" ] && exit 0
