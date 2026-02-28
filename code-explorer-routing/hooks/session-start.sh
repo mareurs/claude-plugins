@@ -103,6 +103,15 @@ the MCP server may have failed to connect — fall back to Read/Grep/Glob.
 
 "
 
+# --- Worktree reminder (session resumed inside a worktree) ---
+if [ "$IN_WORKTREE" = "true" ]; then
+  WT_ROOT=$(git -C "$CWD" rev-parse --show-toplevel 2>/dev/null)
+  MSG="${MSG}WORKTREE SESSION: You are inside a git worktree at: ${WT_ROOT:-$CWD}
+→ Call activate_project(\"${WT_ROOT:-$CWD}\") before using any code-explorer write tools.
+
+"
+fi
+
 # --- Tool guide ---
 MSG="${MSG}${GUIDANCE}
 

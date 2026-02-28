@@ -32,3 +32,9 @@ RULES:
 
 FALLBACK: If code-explorer tools are not responding (MCP connection issue),
 Read/Grep/Glob are acceptable as a temporary workaround.
+
+WORKTREES:
+  After EnterWorktree, ALWAYS call activate_project("/abs/worktree/path") before
+  using any code-explorer tools. code-explorer tracks its own active project
+  independently of Bash CWD — they are NOT automatically coupled.
+  MCP write tools are HARD-BLOCKED until activate_project is called.
