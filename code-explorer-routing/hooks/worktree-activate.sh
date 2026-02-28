@@ -36,7 +36,7 @@ touch "$WORKTREE_PATH/.ce-worktree-pending" 2>/dev/null
 # --- Inject guidance (always, regardless of symlink success) ---
 jq -n --arg ctx "WORKTREE DETECTED: code-explorer must switch to the worktree.
 Call activate_project(\"$WORKTREE_PATH\") NOW as your next action.
-MCP write tools (edit_lines, replace_symbol, insert_code, create_file) are BLOCKED
+MCP write tools (edit_lines, replace_symbol, insert_code, create_file, create_or_update_file) are BLOCKED
 until activate_project is called — they would otherwise silently write to the wrong repo.
 Do NOT run index_project in worktrees — the shared index is read-only here." '{
   hookSpecificOutput: {
