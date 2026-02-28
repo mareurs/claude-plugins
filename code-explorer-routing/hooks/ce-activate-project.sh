@@ -30,3 +30,4 @@ Write tools (edit_lines, replace_symbol, etc.) are now unblocked for this worktr
   }'
 fi
 # If no marker, exit silently (normal activate_project on main project)
+exit 0
