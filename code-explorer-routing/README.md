@@ -8,11 +8,11 @@ falling back to Read/Grep/Glob on source files. Auto-detects code-explorer from
 
 ## What It Does
 
-- **Tool guidance** — Injects tool selection rules into all agents and subagents (SessionStart + SubagentStart hooks)
-- **Tool routing** — Warns when Read/Grep/Glob are used on source files, redirects to `list_symbols`, `find_symbol`, `search_pattern` etc. (PostToolUse hook)
+- **System prompt injection** — Injects `.code-explorer/system-prompt.md` verbatim into all agents and subagents at session start (SessionStart + SubagentStart hooks). Generated automatically by `onboarding()`, contains project-specific entry points, key abstractions, search tips, and navigation strategy.
+- **Tool routing** — Warns when Read/Grep/Glob are used on source files, suggests `list_symbols`, `find_symbol`, `search_pattern` etc. (PostToolUse hook). Generic tool routing is already covered by code-explorer's MCP `server_instructions`.
 - **Auto-reindex** — Checks index staleness at session start, triggers `code-explorer index` in background if behind HEAD
 - **Drift warnings** — Surfaces high-drift files and flags stale docs/memories
-- **Graceful degradation** — Includes fallback guidance if MCP server fails to connect
+- **Worktree guard** — Blocks code-explorer write tools until `activate_project` is called after `EnterWorktree`
 
 ## Requirements
 
@@ -90,6 +90,11 @@ schema. It should be updated whenever code-explorer adds features that affect
 exploration workflows.
 
 ## Changelog
+
+### 1.4.1
+
+- **Fix:** Add `git worktree prune` guidance to write guard block message — prevents agent looping when worktree directory is already deleted
+- **Update:** Plugin description and README to reflect actual behavior (system-prompt.md injection, not tool guidance injection)
 
 ### 1.4.0
 

@@ -1,0 +1,27 @@
+[project]
+name = "claude-plugins"
+languages = [
+    "bash",
+    "markdown",
+]
+encoding = "utf-8"
+tool_timeout_secs = 60
+
+[embeddings]
+model = "ollama:mxbai-embed-large"
+chunk_size = 1200
+chunk_overlap = 200
+drift_detection_enabled = true
+
+[ignored_paths]
+patterns = []
+
+[security]
+denied_read_patterns = []
+extra_write_roots = []
+shell_command_mode = "warn"
+shell_output_limit_bytes = 102400
+shell_enabled = false
+file_write_enabled = true
+git_enabled = true
+indexing_enabled = true
