@@ -22,7 +22,7 @@
     ],
     "PostToolUse": [
       {
-        "matcher": "Grep|Glob|Read",
+        "matcher": "Grep|Glob|Read|Bash",
         "hooks": [
           {
             "type": "command",

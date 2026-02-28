@@ -1,5 +1,5 @@
 #!/bin/bash
-# PostToolUse hook — warn when Read/Grep/Glob are used on source files
+# PostToolUse hook — warn when Read/Grep/Glob/Bash(sed) are used on source files
 # Lets the tool succeed, then injects guidance to use code-explorer tools instead.
 # The AI sees the warning and avoids repeating the pattern.
 
@@ -33,6 +33,29 @@ warn() {
 }
 
 case "$TOOL_NAME" in
+  Bash)
+    CMD=$(echo "$INPUT" | jq -r '.tool_input.command // empty')
+
+    # Only intercept sed -i (in-place editing). Piped/read-only sed is fine.
+    echo "$CMD" | grep -qE '\bsed\b' || exit 0
+    echo "$CMD" | grep -qE '\bsed\b[^#]*-[a-zA-Z]*i' || exit 0
+
+    # Source extension appearing anywhere in the command string.
+    # Use a word-boundary variant (no trailing $) since the ext is mid-string.
+    CMD_SOURCE_PATTERN='\.(kt|kts|java|ts|tsx|js|jsx|py|go|rs|cs|rb|scala|swift|cpp|c|h|hpp)(\s|'"'"'|"|$|\\)'
+    echo "$CMD" | grep -qiE "$CMD_SOURCE_PATTERN" || exit 0
+
+    warn "⚠ WARNING: sed -i on source files is deprecated.
+Use code-explorer symbol tools instead — they address code by name, not line position:
+  edit_lines(path, start_line, count, text) — targeted line-range replacement (closest sed equivalent)
+  replace_symbol(name_path, new_body)       — rewrite a function or method body
+  insert_code(name_path, code, position)    — add code before/after a named symbol
+  rename_symbol(name_path, new_name)        — rename a symbol everywhere via LSP
+sed -i edits by text pattern and silently corrupts edits if the file changed since you last read it.
+Symbol tools stay correct even when the file has been modified since your last read.
+This call succeeded, but sed -i on source files WILL be blocked in a future update."
+    ;;
+
   Grep)
     GLOB=$(echo "$INPUT" | jq -r '.tool_input.glob // empty')
     PATH_VAL=$(echo "$INPUT" | jq -r '.tool_input.path // empty')

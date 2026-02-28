@@ -9,6 +9,13 @@ Dates are release dates. Versions follow [Semantic Versioning](https://semver.or
 
 Companion plugin for the [code-explorer](https://github.com/mareurs/code-explorer) MCP server.
 
+### [1.2.3] — 2026-02-28
+
+- Intercept `sed -i` on source files via PostToolUse on the Bash tool
+- Warns and suggests `edit_lines`, `replace_symbol`, `insert_code`, or `rename_symbol`
+- Handles all in-place variants: `sed -i`, `sed -i.bak`, `sed -i ''` (macOS), `find ... -exec sed -i`
+- Non-source files (`.sh`, `.json`, `.md`) and piped sed pass through silently
+
 ### [1.2.2] — 2026-02-28
 
 - Add `goto_definition` and `hover` to FIND guidance (new LSP navigation tools in code-explorer)
