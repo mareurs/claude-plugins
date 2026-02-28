@@ -36,17 +36,16 @@ binary, and references its internal schema (meta table, drift_report table, proj
 Update this plugin whenever code-explorer adds features that affect exploration workflows.
 
 **What it does:**
-- SessionStart/SubagentStart: injects tool-selection guidance (prefer symbol tools over Read)
+- SessionStart/SubagentStart: injects `.code-explorer/system-prompt.md` content verbatim (project-specific guidance generated at onboarding)
 - PostToolUse: soft warnings when Read/Grep/Glob are used on source files, suggests alternatives
 - Auto-reindexing: checks index staleness at session start, triggers `code-explorer index` in background
 - Drift warnings: surfaces high-drift files and stale docs/memories
 
 **Dependencies:** `jq`, `sqlite3`, `git`, code-explorer binary on PATH or in MCP config
 
-**Guidance duplication:** MCP `server_instructions` only reach the main agent, NOT
-subagents. The plugin's `guidance.txt` is injected into subagents via `SubagentStart`
-hook. Any guidance that subagents need MUST be in both `guidance.txt` AND
-`server_instructions.md` — keep them in sync.
+**Note:** MCP `server_instructions` ARE re-sent to each subagent's fresh MCP session — generic
+tool routing guidance is already covered. The plugin only needs to inject dynamic, project-specific
+content that `server_instructions` cannot carry (system-prompt.md, memory hints, drift warnings).
 
 ## Version Management
 

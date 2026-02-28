@@ -17,9 +17,11 @@ source "$(dirname "$0")/detect-tools.sh"
 
 [ "$HAS_CODE_EXPLORER" = "false" ] && exit 0
 
-GUIDANCE=$(cat "$(dirname "$0")/guidance.txt")
+# server_instructions from MCP already deliver generic tool guidance to every subagent.
+# This hook only needs to inject project-specific content that server_instructions can't carry.
+[ "$HAS_CE_SYSTEM_PROMPT" = "false" ] && exit 0
 
-jq -n --arg ctx "$GUIDANCE" '{
+jq -n --arg ctx "$CE_SYSTEM_PROMPT" '{
   hookSpecificOutput: {
     hookEventName: "SubagentStart",
     additionalContext: $ctx

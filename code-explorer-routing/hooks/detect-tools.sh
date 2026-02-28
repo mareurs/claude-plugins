@@ -3,6 +3,7 @@
 # Expects: CWD to be set before sourcing
 # Sets: HAS_CODE_EXPLORER, CE_SERVER_NAME, CE_PREFIX, CE_BINARY,
 #          HAS_CE_ONBOARDING, HAS_CE_MEMORIES, CE_MEMORY_NAMES,
+#          HAS_CE_SYSTEM_PROMPT, CE_SYSTEM_PROMPT,
 #          SOURCE_EXT_PATTERN
 
 MCP_JSON="${CWD}/.mcp.json"
@@ -99,6 +100,15 @@ if [ -d "$CE_MEMORIES_DIR" ]; then
     CE_MEMORY_NAMES="${CE_MEMORY_NAMES}${name} "
     HAS_CE_MEMORIES=true
   done < <(find "$CE_MEMORIES_DIR" -maxdepth 1 -name '*.md' 2>/dev/null)
+fi
+
+# --- System prompt ---
+CE_SYSTEM_PROMPT_FILE="${CWD}/.code-explorer/system-prompt.md"
+CE_SYSTEM_PROMPT=""
+HAS_CE_SYSTEM_PROMPT=false
+if [ -f "$CE_SYSTEM_PROMPT_FILE" ]; then
+  CE_SYSTEM_PROMPT=$(cat "$CE_SYSTEM_PROMPT_FILE")
+  HAS_CE_SYSTEM_PROMPT=true
 fi
 
 # --- Source extension pattern ---

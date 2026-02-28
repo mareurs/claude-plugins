@@ -19,7 +19,6 @@ if git -C "$CWD" rev-parse --is-inside-work-tree &>/dev/null; then
   fi
 fi
 
-GUIDANCE=$(cat "$(dirname "$0")/guidance.txt")
 MSG=""
 
 # --- Onboarding check ---
@@ -35,6 +34,13 @@ fi
 if [ "$HAS_CE_MEMORIES" = "true" ]; then
   MSG="${MSG}CODE-EXPLORER MEMORIES: ${CE_MEMORY_NAMES}
 → Read relevant memories before exploring code (read_memory(\"architecture\"), etc.)
+
+"
+fi
+
+# --- System prompt injection ---
+if [ "$HAS_CE_SYSTEM_PROMPT" = "true" ]; then
+  MSG="${MSG}${CE_SYSTEM_PROMPT}
 
 "
 fi
@@ -113,9 +119,9 @@ if [ "$IN_WORKTREE" = "true" ]; then
 fi
 
 # --- Tool guide ---
-MSG="${MSG}${GUIDANCE}
-
-NEVER USE BASH AGENTS FOR CODE WORK.
+# server_instructions.md from MCP covers generic tool routing for all agents.
+# Only inject the project-specific system prompt here.
+MSG="${MSG}NEVER USE BASH AGENTS FOR CODE WORK.
 Bash agents have no code-explorer tools. Use general-purpose, Plan, or Explore
 agents for any task involving code reading, writing, or navigation."
 
