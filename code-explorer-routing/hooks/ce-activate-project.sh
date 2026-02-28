@@ -13,7 +13,8 @@ case "$TOOL_NAME" in
 esac
 
 # Extract the activated path from tool_input (what the agent passed in)
-ACTIVATED_PATH=$(echo "$INPUT" | jq -r '.tool_input.path // empty')
+# Strip trailing slash to ensure path matches the marker location exactly
+ACTIVATED_PATH=$(echo "$INPUT" | jq -r '.tool_input.path // empty' | sed 's|/$||')
 
 [ -z "$ACTIVATED_PATH" ] && exit 0
 

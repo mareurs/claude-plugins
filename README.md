@@ -71,7 +71,9 @@ Companion plugin for [code-explorer](https://github.com/mareurs/code-explorer) M
 - **session-start** -- Tool guidance, memory hints, onboarding nudge, auto-reindex + drift warnings
 - **subagent-guidance** -- Injects code-explorer guidance into all subagents (MCP server_instructions only reach the main agent)
 - **post-tool-guidance** -- PostToolUse soft warnings when Read/Grep/Glob are used on source files, suggests code-explorer alternatives
-- **worktree-activate** -- Re-activates code-explorer project after EnterWorktree
+- **worktree-activate** -- PostToolUse: creates write-guard marker + injects activate_project guidance after EnterWorktree
+- **worktree-write-guard** -- PreToolUse: hard-blocks code-explorer write tools in worktrees until activate_project is called
+- **ce-activate-project** -- PostToolUse: clears write-guard marker after activate_project fires
 
 See [code-explorer-routing/README.md](./code-explorer-routing/) for details and configuration.
 

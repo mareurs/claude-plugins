@@ -46,6 +46,7 @@ jq -n --arg reason "⛔ WORKTREE WRITE BLOCKED: activate_project must be called 
 You are in a worktree at: $WT_ROOT
 code-explorer is still pointing at the main repo — a write now would silently modify the wrong file.
 
-Fix: call activate_project(\"$WT_ROOT\") then retry this tool." \
+Fix: call activate_project(\"$WT_ROOT\") then retry this tool.
+If code-explorer is no longer configured, delete $WT_ROOT/.ce-worktree-pending manually to unblock." \
   '{"decision":"block","reason":$reason}'
 exit 2
