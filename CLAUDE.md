@@ -1,15 +1,15 @@
 # Claude Plugins Marketplace
 
-Personal Claude Code plugin marketplace with SDD and tool-infra plugins.
+Claude Code plugin marketplace. Primary active plugin: `code-explorer-routing`.
 
 ## Structure
 
 ```
 .claude-plugin/marketplace.json  -- marketplace catalog (NO version fields here)
-sdd/                             -- SDD plugin
+sdd/                             -- SDD plugin (stable)
   .claude-plugin/plugin.json     -- version source of truth
   hooks/, commands/, skills/     -- plugin content
-tool-infra/                      -- semantic tool infrastructure plugin (DEPRECATED)
+tool-infra/                      -- DEPRECATED, do not modify
   .claude-plugin/plugin.json     -- version source of truth
   hooks/                         -- plugin content
 code-explorer-routing/           -- companion plugin for code-explorer MCP server
@@ -19,18 +19,25 @@ code-explorer-routing/           -- companion plugin for code-explorer MCP serve
 scripts/check-versions.sh       -- version consistency validator
 ```
 
+## Active Development Focus
+
+**When "the plugin" is mentioned without qualification, it refers to `code-explorer-routing`.**
+
+- `code-explorer-routing` — **actively developed**, primary focus of all plugin work
+- `sdd` — **stable**, no active development expected
+- `tool-infra` — **DEPRECATED**, do not modify
+
 ## code-explorer-routing
 
-**Companion plugin for the [code-explorer](../code-explorer) MCP server.**
+**Companion plugin for the code-explorer MCP server.**
 
-This plugin is intentionally tightly coupled to code-explorer. It should be updated
-whenever code-explorer adds features that affect exploration workflows. The coupling
-is by design — the plugin reads code-explorer's SQLite DB, calls its CLI binary,
-and references its internal schema (meta table, drift_report table, project.toml config).
+Intentionally tightly coupled to code-explorer — reads its SQLite DB, calls its CLI
+binary, and references its internal schema (meta table, drift_report table, project.toml).
+Update this plugin whenever code-explorer adds features that affect exploration workflows.
 
 **What it does:**
 - SessionStart/SubagentStart: injects tool-selection guidance (prefer symbol tools over Read)
-- PostToolUse: soft warnings when Read/Grep/Glob are used on source files, suggests code-explorer alternatives
+- PostToolUse: soft warnings when Read/Grep/Glob are used on source files, suggests alternatives
 - Auto-reindexing: checks index staleness at session start, triggers `code-explorer index` in background
 - Drift warnings: surfaces high-drift files and stale docs/memories
 
@@ -39,58 +46,53 @@ and references its internal schema (meta table, drift_report table, project.toml
 **Guidance duplication:** MCP `server_instructions` only reach the main agent, NOT
 subagents. The plugin's `guidance.txt` is injected into subagents via `SubagentStart`
 hook. Any guidance that subagents need MUST be in both `guidance.txt` AND
-`server_instructions.md` — keeping them in sync is required.
+`server_instructions.md` — keep them in sync.
 
 ## Version Management
 
 **Single source of truth**: each plugin's `.claude-plugin/plugin.json` is the canonical version.
 
-**marketplace.json must NOT contain version fields**. Claude Code reads version from plugin.json at install time. Duplicating it in marketplace.json causes drift (this has already burned us).
+**marketplace.json must NOT contain version fields.** Claude Code reads version from
+plugin.json at install time. Duplicating it in marketplace.json causes drift.
 
 ### When bumping a plugin version
 
-1. Update `<plugin>/.claude-plugin/plugin.json` -- this is the source of truth
+1. Update `<plugin>/.claude-plugin/plugin.json` — source of truth
 2. Update the version table in `README.md`
 3. Run `scripts/check-versions.sh` to verify consistency
-4. Commit with message: `chore: bump <plugin> to <version>`
-
-### Validation
+4. Commit: `chore: bump <plugin> to <version>`
 
 ```bash
 ./scripts/check-versions.sh
 ```
 
-Checks:
-- Every plugin.json version matches the README.md table
-- marketplace.json contains no version fields
-
-Run this before every version bump commit.
+Checks: plugin.json versions match README.md table, marketplace.json has no version fields.
 
 ## Development
 
-- Hooks use `jq` for JSON parsing -- it's a required dependency
+- Hooks use `jq` for JSON parsing — required dependency
 - Hook scripts use `${CLAUDE_PLUGIN_ROOT}` to reference files within the plugin install directory
-- Test hooks locally: `echo '{"cwd":"/some/path"}' | bash tool-infra/hooks/session-start.sh`
+- Test hooks locally: `echo '{"cwd":"/some/path"}' | bash code-explorer-routing/hooks/session-start.sh`
 
-## Installing from this marketplace
+## Installing
 
 ```
 /plugin marketplace add mareurs/claude-plugins
-/plugin install tool-infra@sdd-misc-plugins
-/plugin install sdd@sdd-misc-plugins
+/plugin install code-explorer-routing@claude-plugins
+/plugin install sdd@claude-plugins
 ```
 
-For team setup, add to project `.claude/settings.json`:
+For project-level setup, add to `.claude/settings.json`:
 
 ```json
 {
   "extraKnownMarketplaces": {
-    "sdd-misc-plugins": {
-      "source": { "source": "github", "repo": "mareurs/sdd-misc-plugins" }
+    "claude-plugins": {
+      "source": { "source": "github", "repo": "mareurs/claude-plugins" }
     }
   },
   "enabledPlugins": {
-    "tool-infra@sdd-misc-plugins": true
+    "code-explorer-routing@claude-plugins": true
   }
 }
 ```
