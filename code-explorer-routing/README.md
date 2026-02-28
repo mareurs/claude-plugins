@@ -79,7 +79,7 @@ Create `.claude/code-explorer-routing.json` in your project for fine-grained con
 |---|---|---|
 | `SessionStart` | `session-start.sh` | Tool guide + memory hints + onboarding nudge |
 | `SubagentStart` | `subagent-guidance.sh` | Compact guidance for all subagents |
-| `PostToolUse` (Grep/Glob/Read) | `post-tool-guidance.sh` | Warn and redirect to code-explorer for source files |
+| `PreToolUse` (Grep/Glob/Read/Bash) | `pre-tool-guard.sh` | Hard-block Read/Grep/Glob/sed-i on source files, redirect to code-explorer |
 | `PostToolUse` (EnterWorktree) | `worktree-activate.sh` | Symlink .code-explorer/ and inject activate_project guidance |
 
 ## Coupling to code-explorer
@@ -90,6 +90,12 @@ schema. It should be updated whenever code-explorer adds features that affect
 exploration workflows.
 
 ## Changelog
+
+### 1.5.0
+
+- **Switch:** PostToolUse soft warnings → PreToolUse hard blocks for Read/Grep/Glob/Bash(sed -i) on source files — soft warnings were ignored because tool output was already in context
+- **Rename:** `post-tool-guidance.sh` → `pre-tool-guard.sh`
+- **Update:** Block messages now say "BLOCKED" instead of "deprecated, will be blocked"
 
 ### 1.4.1
 

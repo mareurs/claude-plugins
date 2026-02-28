@@ -29,18 +29,18 @@
             "command": "${CLAUDE_PLUGIN_ROOT}/hooks/worktree-write-guard.sh"
           }
         ]
-      }
-    ],
-    "PostToolUse": [
+      },
       {
         "matcher": "Grep|Glob|Read|Bash",
         "hooks": [
           {
             "type": "command",
-            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/post-tool-guidance.sh"
+            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/pre-tool-guard.sh"
           }
         ]
-      },
+      }
+    ],
+    "PostToolUse": [
       {
         "matcher": "EnterWorktree",
         "hooks": [
