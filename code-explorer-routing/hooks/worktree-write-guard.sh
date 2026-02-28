@@ -50,5 +50,9 @@ You are in a worktree at: $WT_ROOT
 code-explorer is still pointing at the main repo — a write now would silently modify the wrong file.
 
 Fix: call activate_project(\"$WT_ROOT\") then retry this tool.
-If code-explorer is no longer configured, delete $WT_ROOT/.ce-worktree-pending manually to unblock." \
+If code-explorer is no longer configured, delete $WT_ROOT/.ce-worktree-pending manually to unblock.
+
+To clean up a finished worktree: use git worktree prune (not git worktree remove —
+that requires the directory to still exist). Run prune from the main repo, then
+start a new session from the main repo directory." \
   '{hookSpecificOutput: {hookEventName: "PreToolUse", permissionDecision: "deny", permissionDecisionReason: $reason}}'
