@@ -3,7 +3,7 @@
 # without activate_project having been called.
 #
 # Triggered by: any tool whose name ends with a code-explorer write tool name
-# (filtered below via case statement — matcher in hooks.json may not support regex).
+# (hooks.json matcher regex confirmed to work; case statement adds defense-in-depth).
 #
 # State: .ce-worktree-pending in worktree root (created by worktree-activate.sh,
 #         deleted by ce-activate-project.sh).
@@ -40,7 +40,10 @@ WT_ROOT=$(git -C "$CWD" rev-parse --show-toplevel 2>/dev/null)
 # Check marker
 [ -f "$WT_ROOT/.ce-worktree-pending" ] || exit 0
 
-# Block the write
+# Block the write using the current (non-deprecated) PreToolUse deny format.
+# Output JSON to stdout + exit 0. Claude sees permissionDecisionReason.
+# (The old {"decision":"block"} + exit 2 hybrid was deprecated and broken:
+#  exit 2 ignores stdout, so the reason was never shown to Claude.)
 jq -n --arg reason "⛔ WORKTREE WRITE BLOCKED: activate_project must be called first.
 
 You are in a worktree at: $WT_ROOT
@@ -48,5 +51,4 @@ code-explorer is still pointing at the main repo — a write now would silently 
 
 Fix: call activate_project(\"$WT_ROOT\") then retry this tool.
 If code-explorer is no longer configured, delete $WT_ROOT/.ce-worktree-pending manually to unblock." \
-  '{"decision":"block","reason":$reason}'
-exit 2
+  '{hookSpecificOutput: {hookEventName: "PreToolUse", permissionDecision: "deny", permissionDecisionReason: $reason}}'
