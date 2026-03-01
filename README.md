@@ -18,7 +18,7 @@ These plugins reflect specific workflows and tool choices -- they may not suit e
 |--------|---------|-------------|
 | **[sdd](./sdd/)** | 2.2.1 | Specification-Driven Development: governance, workflow commands, and enforcement hooks |
 | **[tool-infra](./tool-infra/)** | 2.8.0 | **Deprecated -- superseded by code-explorer-routing.** Semantic tool infrastructure: routes Claude to use Serena/IntelliJ/claude-context instead of Grep/Glob, with language-aware dual-tool routing |
-| **[code-explorer-routing](./code-explorer-routing/)** | 1.5.2 | Companion plugin for [code-explorer](https://github.com/mareurs/code-explorer) MCP server: injects tool guidance, redirects Read/Grep/Glob to symbol-aware tools, auto-reindex + drift warnings. **Supersedes tool-infra.** |
+| **[code-explorer-routing](./code-explorer-routing/)** | 1.5.3 | Companion plugin for [code-explorer](https://github.com/mareurs/code-explorer) MCP server: injects tool guidance, redirects Read/Grep/Glob to symbol-aware tools, auto-reindex + drift warnings. **Supersedes tool-infra.** |
 
 ## Requirements
 
