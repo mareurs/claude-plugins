@@ -17,11 +17,20 @@ source "$(dirname "$0")/detect-tools.sh"
 
 [ "$HAS_CODE_EXPLORER" = "false" ] && exit 0
 
-# server_instructions from MCP already deliver generic tool guidance to every subagent.
-# This hook only needs to inject project-specific content that server_instructions can't carry.
-[ "$HAS_CE_SYSTEM_PROMPT" = "false" ] && exit 0
+# Always inject an active tool-use directive so coding subagents don't fall back
+# to Read/Grep/Glob/Bash on source files. Append project system-prompt if present.
+MSG="CODE-EXPLORER: For ALL code navigation, use code-explorer tools — not Read/Grep/Glob/Bash on source files:
+  find_symbol / list_symbols / semantic_search — discover code
+  goto_definition / find_references — navigate relationships
+  replace_symbol / insert_code — edit code"
 
-jq -n --arg ctx "$CE_SYSTEM_PROMPT" '{
+if [ "$HAS_CE_SYSTEM_PROMPT" = "true" ]; then
+  MSG="${MSG}
+
+${CE_SYSTEM_PROMPT}"
+fi
+
+jq -n --arg ctx "$MSG" '{
   hookSpecificOutput: {
     hookEventName: "SubagentStart",
     additionalContext: $ctx
