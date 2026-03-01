@@ -1,7 +1,7 @@
 {
   "name": "code-explorer-routing",
   "description": "Companion plugin for code-explorer MCP server. Injects system-prompt.md into all agents, warns on Read/Grep/Glob misuse, auto-reindexes stale projects, and surfaces drift warnings.",
-  "version": "1.5.3",
+  "version": "1.5.4",
   "author": {
     "name": "Marius"
   },
