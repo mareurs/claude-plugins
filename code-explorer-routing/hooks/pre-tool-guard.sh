@@ -34,16 +34,15 @@ deny() {
 
 case "$TOOL_NAME" in
   Bash)
-    CMD=$(echo "$INPUT" | jq -r '.tool_input.command // empty')
+    # When code-explorer is available, all Bash calls route through run_command.
+    [ "$HAS_CODE_EXPLORER" = "false" ] && exit 0
 
-    # Block ALL Bash when code-explorer is available.
-    # Agents should use run_command() instead — it provides smart output
-    # summaries, buffer refs for querying, and dangerous command detection.
-    deny "⛔ Use run_command(\"$(echo "$CMD" | head -c 80)\") instead of Bash.
+    CMD=$(echo "$INPUT" | jq -r '.tool_input.command // empty')
+    deny "⛔ BLOCKED: Use run_command(\"${CMD}\") instead of Bash.
 run_command provides:
-  - Smart output summaries (test pass/fail, build errors)
-  - Output buffers queryable with grep/tail/awk/sed @output_id
-  - Dangerous command detection with acknowledge_risk escape hatch
+  - Smart output summaries (test results, build errors)
+  - Output buffers queryable with grep/tail/awk/sed @output_id or @file_id
+  - Dangerous command detection with escape hatch (acknowledge_risk: true)
   - Runs in project root with optional cwd parameter"
     ;;
 
