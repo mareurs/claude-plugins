@@ -36,51 +36,15 @@ case "$TOOL_NAME" in
   Bash)
     CMD=$(echo "$INPUT" | jq -r '.tool_input.command // empty')
 
-    # Source extension appearing anywhere in the command string.
-    CMD_SOURCE_PATTERN='\.(kt|kts|java|ts|tsx|js|jsx|py|go|rs|cs|rb|scala|swift|cpp|c|h|hpp)(\s|'"'"'|"|$|\\)'
-
-    # Block grep/cat/head/tail on source files — use code-explorer read/search tools instead.
-    # Strip heredoc invocations (cat <<'EOF') — these read from stdin, not source files.
-    CMD_SCAN=$(printf '%s\n' "$CMD" | sed "s/\bcat[[:space:]]*<<[^[:space:]]*/HEREDOC/g")
-    # Normalize all command separators (&&, ;) to | alongside pipes so every sub-command
-    # is treated as an independent segment. || is already handled since tr splits on each |.
-    # This prevents false positives like `git diff src/foo.rs && tail app.log` where the
-    # read tool and source extension come from different, unrelated sub-commands.
-    CMD_SCAN=$(printf '%s\n' "$CMD_SCAN" | sed 's/&&/|/g; s/;/|/g')
-    # Only block if read tool AND source extension appear in the SAME segment.
-    SHOULD_BLOCK=false
-    READ_CMD=""
-    while IFS= read -r segment; do
-      if echo "$segment" | grep -qE '\b(grep|cat|head|tail)\b' && \
-         echo "$segment" | grep -qiE "$CMD_SOURCE_PATTERN"; then
-        SHOULD_BLOCK=true
-        READ_CMD=$(echo "$segment" | grep -oE '\b(grep|cat|head|tail)\b' | head -1)
-        break
-      fi
-    done < <(printf '%s\n' "$CMD_SCAN" | tr '|' '\n')
-    if [ "$SHOULD_BLOCK" = "true" ]; then
-      deny "⛔ BLOCKED: $READ_CMD on source files via Bash is not allowed.
-Use code-explorer tools instead — they are faster and more token-efficient:
-  search_pattern(\"pattern\")            — regex search across source files (replaces grep)
-  find_symbol(\"name\")                  — find symbol by name
-  semantic_search(\"concept\")           — find code by meaning
-  list_symbols(\"file\")                 — see all symbols + line numbers (replaces head/cat)
-  find_symbol(name, include_body=true)   — read one symbol body (replaces cat for functions)
-  read_file(path, start_line, end_line)  — targeted line read (last resort, known lines only)"
-    fi
-
-    # Block sed -i (in-place editing) on source files.
-    echo "$CMD" | grep -qE '\bsed\b[^#]*-[a-zA-Z]*i' || exit 0
-    echo "$CMD" | grep -qiE "$CMD_SOURCE_PATTERN" || exit 0
-
-    deny "⛔ BLOCKED: sed -i on source files is not allowed.
-Use code-explorer symbol tools instead — they address code by name, not line position:
-  edit_lines(path, start_line, count, text) — targeted line-range replacement (closest sed equivalent)
-  replace_symbol(name_path, new_body)       — rewrite a function or method body
-  insert_code(name_path, code, position)    — add code before/after a named symbol
-  rename_symbol(name_path, new_name)        — rename a symbol everywhere via LSP
-sed -i edits by text pattern and silently corrupts edits if the file changed since you last read it.
-Symbol tools stay correct even when the file has been modified since your last read."
+    # Block ALL Bash when code-explorer is available.
+    # Agents should use run_command() instead — it provides smart output
+    # summaries, buffer refs for querying, and dangerous command detection.
+    deny "⛔ Use run_command(\"$(echo "$CMD" | head -c 80)\") instead of Bash.
+run_command provides:
+  - Smart output summaries (test pass/fail, build errors)
+  - Output buffers queryable with grep/tail/awk/sed @output_id
+  - Dangerous command detection with acknowledge_risk escape hatch
+  - Runs in project root with optional cwd parameter"
     ;;
 
   Grep)
