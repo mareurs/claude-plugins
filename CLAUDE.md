@@ -73,6 +73,28 @@ Checks: plugin.json versions match README.md table, marketplace.json has no vers
 - Hook scripts use `${CLAUDE_PLUGIN_ROOT}` to reference files within the plugin install directory
 - Test hooks locally: `echo '{"cwd":"/some/path"}' | bash code-explorer-routing/hooks/session-start.sh`
 
+## Plugin Install Path (directory-source gotcha)
+
+Claude Code freezes `installPath` + `version` in `~/.claude/plugins/installed_plugins.json`
+at install time. For directory-source plugins (marketplace `source: directory`), the
+`installPath` points to the source folder — but commands and hooks are read from `installPath`,
+so **new components added after initial install are invisible until the record is updated**.
+
+**After adding a new component type (e.g. `commands/`) or bumping the version, update the
+install record to point at the new cache snapshot:**
+
+```bash
+# Check the latest cache version
+ls ~/.claude/plugins/cache/sdd-misc-plugins/code-explorer-routing/
+
+# Edit installed_plugins.json: update installPath + version to the new cache entry
+~/.claude/plugins/installed_plugins.json
+# → "installPath": "~/.claude/plugins/cache/sdd-misc-plugins/code-explorer-routing/<version>"
+# → "version": "<version>"
+```
+
+Then restart Claude Code.
+
 ## Installing
 
 ```
