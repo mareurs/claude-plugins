@@ -8,7 +8,7 @@ falling back to Read/Grep/Glob on source files. Auto-detects code-explorer from
 
 ## What It Does
 
-- **System prompt injection** — Injects `.code-explorer/system-prompt.md` verbatim into all agents and subagents at session start (SessionStart + SubagentStart hooks). Generated automatically by `onboarding()`, contains project-specific entry points, key abstractions, search tips, and navigation strategy.
+- **System prompt injection** — Injects an active tool-use directive into all coding subagents (SubagentStart hook); appends `.code-explorer/system-prompt.md` when present. Also injects memory hints, drift warnings, and onboarding nudge into the main agent (SessionStart hook).
 - **Tool routing** — Warns when Read/Grep/Glob are used on source files, suggests `list_symbols`, `find_symbol`, `search_pattern` etc. (PostToolUse hook). Generic tool routing is already covered by code-explorer's MCP `server_instructions`.
 - **Auto-reindex** — Checks index staleness at session start, triggers `code-explorer index` in background if behind HEAD
 - **Drift warnings** — Surfaces high-drift files and flags stale docs/memories
@@ -90,6 +90,15 @@ schema. It should be updated whenever code-explorer adds features that affect
 exploration workflows.
 
 ## Changelog
+
+### 1.5.3
+
+- **Feature:** `SubagentStart` hook now always injects an active tool-use directive into coding subagents, even when no `.code-explorer/system-prompt.md` exists. Previously the hook silently exited when the system prompt was absent, leaving subagents (code-reviewer, design agents, etc.) with no guidance to prefer code-explorer tools over Read/Grep/Glob/Bash.
+
+### 1.5.2
+
+- **Fix:** Improved detection of false positives in Bash read-tool detection
+- **Fix:** Block Bash grep/cat/head/tail on source files
 
 ### 1.5.1
 

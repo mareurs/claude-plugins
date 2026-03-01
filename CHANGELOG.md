@@ -9,6 +9,10 @@ Dates are release dates. Versions follow [Semantic Versioning](https://semver.or
 
 Companion plugin for the [code-explorer](https://github.com/mareurs/code-explorer) MCP server.
 
+### [1.5.3] — 2026-03-01
+
+- **Feature:** `SubagentStart` hook now always injects an active tool-use directive into coding subagents, even when no `system-prompt.md` exists
+
 ### [1.2.3] — 2026-02-28
 
 - Intercept `sed -i` on source files via PostToolUse on the Bash tool
