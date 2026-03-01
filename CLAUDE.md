@@ -56,10 +56,22 @@ plugin.json at install time. Duplicating it in marketplace.json causes drift.
 
 ### When bumping a plugin version
 
+Before bumping, verify:
+
+1. **Tested** — new behavior works as expected
+2. **Nothing pending** — no more changes planned for this version, `git status` clean
+
+Then:
+
 1. Update `<plugin>/.claude-plugin/plugin.json` — source of truth
 2. Update the version table in `README.md`
 3. Run `scripts/check-versions.sh` to verify consistency
 4. Commit: `chore: bump <plugin> to <version>`
+5. Update `installPath` + `version` in **both** install records:
+   - `~/.claude/plugins/installed_plugins.json`
+   - `~/.claude-sdd/plugins/installed_plugins.json`
+6. Push
+7. Restart both Claude Code instances
 
 ```bash
 ./scripts/check-versions.sh
