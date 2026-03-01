@@ -1,3 +1,7 @@
+---
+description: Launch the code-explorer dashboard web UI for the current project
+---
+
 # /dashboard
 
 Launch the code-explorer dashboard web UI for the current project.
