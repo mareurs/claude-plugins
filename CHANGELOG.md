@@ -9,6 +9,10 @@ Dates are release dates. Versions follow [Semantic Versioning](https://semver.or
 
 Companion plugin for the [code-explorer](https://github.com/mareurs/code-explorer) MCP server.
 
+### [1.5.4] — 2026-03-01
+
+- **Feature:** `PreToolUse` hook hard-blocks all `Bash` tool calls and redirects to `run_command` — eliminates direct shell use for code work entirely
+
 ### [1.5.3] — 2026-03-01
 
 - **Feature:** `SubagentStart` hook now always injects an active tool-use directive into coding subagents, even when no `system-prompt.md` exists
