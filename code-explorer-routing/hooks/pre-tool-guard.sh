@@ -1,6 +1,6 @@
 #!/bin/bash
-# PreToolUse hook — hard-block Read/Grep/Glob/Bash(sed -i) on source files
-# Emits a deny decision so the tool never runs; agent must use code-explorer instead.
+# PreToolUse hook — enforcer for code-explorer tool routing
+# Uses permissionDecision: deny + permissionDecisionReason (shown to Claude) for hard block + guidance.
 
 INPUT=$(cat)
 TOOL_NAME=$(echo "$INPUT" | jq -r '.tool_name // empty')
@@ -20,8 +20,8 @@ is_in_workspace() {
   [[ "$file_path" == "${WORKSPACE_ROOT}"* ]]
 }
 
-# --- Helper: emit deny decision ---
-deny() {
+# --- Helper: hard-block with reason shown to Claude ---
+enforce() {
   jq -n --arg reason "$1" '{
     hookSpecificOutput: {
       hookEventName: "PreToolUse",
@@ -34,16 +34,18 @@ deny() {
 
 case "$TOOL_NAME" in
   Bash)
-    # When code-explorer is available, all Bash calls route through run_command.
-    [ "$HAS_CODE_EXPLORER" = "false" ] && exit 0
-
     CMD=$(echo "$INPUT" | jq -r '.tool_input.command // empty')
-    deny "⛔ BLOCKED: Use run_command(\"${CMD}\") instead of Bash.
-run_command provides:
-  - Smart output summaries (test results, build errors)
-  - Output buffers queryable with grep/tail/awk/sed @output_id or @file_id
-  - Dangerous command detection with escape hatch (acknowledge_risk: true)
-  - Runs in project root with optional cwd parameter"
+    enforce "WRONG TOOL. You called Bash but CE is available.
+
+STOP. Do NOT run: ${CMD}
+
+USE run_command(\"${CMD}\") INSTEAD. Here is why this matters:
+- run_command returns SMART SUMMARIES — large output is stored in @ref buffers, saving THOUSANDS OF TOKENS
+- Bash dumps ALL output into your context window, WASTING YOUR TOKEN BUDGET
+- run_command provides dangerous command detection, structured error capture, and cwd parameter
+- Output buffers can be queried: grep PATTERN @cmd_id, tail -20 @cmd_id
+
+YOU MUST use run_command. Do not call Bash."
     ;;
 
   Grep)
@@ -66,11 +68,18 @@ run_command provides:
     [ "$IS_SOURCE" = "false" ] && exit 0
     is_in_workspace "${PATH_VAL:-$CWD}" || exit 0
 
-    deny "⛔ BLOCKED: Grep on source files is not allowed.
-Use code-explorer tools instead — they are faster and more token-efficient:
-  search_pattern(\"${PATTERN}\")      — regex across source files
-  find_symbol(\"${PATTERN}\")         — find symbol by name
-  semantic_search(\"${PATTERN}\")     — find code by meaning"
+    enforce "WRONG TOOL. You called Grep on source files but CE has a FULL INDEX.
+
+STOP. Do NOT grep source files.
+
+Grep scans files line-by-line and dumps raw matches into context — WASTEFUL AND SLOW.
+CE tools use a pre-built index and return STRUCTURED, TOKEN-EFFICIENT results:
+
+  search_pattern(\"${PATTERN}\")    — regex search, returns only matching lines with context
+  find_symbol(\"${PATTERN}\")       — locate symbol by name (MUCH faster than grep)
+  semantic_search(\"${PATTERN}\")   — find code by MEANING, not just text
+
+YOU MUST use CE search tools. Do not call Grep on source files."
     ;;
 
   Glob)
@@ -80,31 +89,24 @@ Use code-explorer tools instead — they are faster and more token-efficient:
 
     BASENAME="${PATTERN##*/}"
 
-    # Allow broad wildcard scans (e.g. **/*.ts for discovery)
-    if [[ "$BASENAME" == "*."* ]]; then
-      exit 0
-    fi
-
     is_in_workspace "${PATTERN}" || exit 0
 
-    # Block specific named file lookups
-    if [[ "$BASENAME" =~ ^[A-Z] ]] || [[ "$BASENAME" != "*"* ]]; then
-      deny "⛔ BLOCKED: Glob on source files is not allowed.
-Use code-explorer tools instead — they are faster and more token-efficient:
-  find_file(\"${PATTERN}\")           — glob file discovery
-  find_symbol(\"${BASENAME%.*}\")     — find symbol by name"
-    fi
+    enforce "WRONG TOOL. You called Glob on source files but CE has a FILE INDEX.
+
+STOP. Do NOT glob source files.
+
+CE has already indexed all files. Use the index directly — it is FASTER and uses FEWER TOKENS:
+
+  find_file(\"${PATTERN}\")         — glob-style file discovery via CE index
+  find_symbol(\"${BASENAME%.*}\")   — find a symbol by name if you know what you are looking for
+
+YOU MUST use CE file tools. Do not call Glob on source files."
     ;;
 
   Read)
     FILE_PATH=$(echo "$INPUT" | jq -r '.tool_input.file_path // empty')
-    LIMIT=$(echo "$INPUT" | jq -r '.tool_input.limit // empty')
-    OFFSET=$(echo "$INPUT" | jq -r '.tool_input.offset // empty')
 
     echo "$FILE_PATH" | grep -qiE "$SOURCE_EXT_PATTERN" || exit 0
-
-    # Allow targeted reads (explicit limit or offset = intentional, agent knows what it needs)
-    [ -n "$LIMIT" ] || [ -n "$OFFSET" ] && exit 0
 
     is_in_workspace "$FILE_PATH" || exit 0
 
@@ -114,12 +116,19 @@ Use code-explorer tools instead — they are faster and more token-efficient:
       REL_PATH="${FILE_PATH#$CWD/}"
     fi
 
-    deny "⛔ BLOCKED: Read on source files is not allowed.
-Use code-explorer symbol tools instead — they are faster and more token-efficient:
-  list_symbols(\"${REL_PATH}\")                  — see all symbols + line numbers (do this FIRST)
-  find_symbol(name, include_body=true)           — read a specific symbol body
-  list_functions(\"${REL_PATH}\")                — fast offline function list
-read_file (via code-explorer) is LAST RESORT — only with start_line + end_line, only after symbol tools fail."
+    enforce "WRONG TOOL. You called Read on a source file but CE has SYMBOL-LEVEL ACCESS.
+
+STOP. Do NOT read: ${FILE_PATH}
+
+Reading a full source file WASTES THOUSANDS OF TOKENS. CE returns ONLY what you need:
+
+  list_symbols(\"${REL_PATH}\")              — ALL symbols + line numbers in ~50 tokens (DO THIS FIRST)
+  find_symbol(name, include_body=true)       — ONE symbol body, targeted, token-efficient
+  list_functions(\"${REL_PATH}\")           — function signatures only (offline, instant)
+  read_file(\"${REL_PATH}\", start, end)    — LAST RESORT only, with explicit line range
+
+MANDATORY ORDER: list_symbols FIRST → find_symbol for the specific code → read_file only if symbol tools fail.
+Do not call Read on source files."
     ;;
 esac
 

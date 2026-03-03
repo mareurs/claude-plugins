@@ -22,7 +22,7 @@ ACTIVATED_PATH=$(echo "$INPUT" | jq -r '.tool_input.path // empty' | sed 's|/$||
 MARKER="$ACTIVATED_PATH/.ce-worktree-pending"
 if [ -f "$MARKER" ]; then
   rm -f "$MARKER"
-  jq -n --arg ctx "✓ code-explorer switched to: $ACTIVATED_PATH
+  jq -n --arg ctx "✓ CE switched to: $ACTIVATED_PATH
 Write tools (edit_lines, replace_symbol, etc.) are now unblocked for this worktree." '{
     hookSpecificOutput: {
       hookEventName: "PostToolUse",

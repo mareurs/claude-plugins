@@ -47,10 +47,10 @@ WT_ROOT=$(git -C "$CWD" rev-parse --show-toplevel 2>/dev/null)
 jq -n --arg reason "⛔ WORKTREE WRITE BLOCKED: activate_project must be called first.
 
 You are in a worktree at: $WT_ROOT
-code-explorer is still pointing at the main repo — a write now would silently modify the wrong file.
+CE is still pointing at the main repo — a write now would silently modify the wrong file.
 
 Fix: call activate_project(\"$WT_ROOT\") then retry this tool.
-If code-explorer is no longer configured, delete $WT_ROOT/.ce-worktree-pending manually to unblock.
+If CE is no longer configured, delete $WT_ROOT/.ce-worktree-pending manually to unblock.
 
 To clean up a finished worktree: use git worktree prune (not git worktree remove —
 that requires the directory to still exist). Run prune from the main repo, then

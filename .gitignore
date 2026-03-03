@@ -4,3 +4,4 @@
 *.bak
 .code-explorer/
 test-detect.sh
+.code-explorer/private-memories/

@@ -23,7 +23,7 @@ MSG=""
 
 # --- Onboarding check ---
 if [ "$HAS_CE_ONBOARDING" = "false" ]; then
-  MSG="CODE-EXPLORER: Project not yet onboarded.
+  MSG="CE: Project not yet onboarded.
 Run the onboarding() tool first — it detects languages, creates project config,
 and generates exploration memories that help every subsequent session.
 
@@ -32,7 +32,7 @@ fi
 
 # --- Memory hint ---
 if [ "$HAS_CE_MEMORIES" = "true" ]; then
-  MSG="${MSG}CODE-EXPLORER MEMORIES: ${CE_MEMORY_NAMES}
+  MSG="${MSG}CE MEMORIES: ${CE_MEMORY_NAMES}
 → Read relevant memories before exploring code (read_memory(\"architecture\"), etc.)
 
 "
@@ -103,7 +103,7 @@ fi
 # --- Connectivity note ---
 # Hooks can't verify MCP handshake — detection is config-based only.
 # If the MCP server failed to connect, tools won't be available despite config existing.
-MSG="${MSG}CODE-EXPLORER: Detected in config (${CE_SERVER_NAME}).
+MSG="${MSG}CE: Detected in config (${CE_SERVER_NAME}).
 Tools load automatically — no ToolSearch or setup step needed.
 If tools are unavailable, the MCP server failed to connect (check \`claude mcp list\`).
 
@@ -112,8 +112,24 @@ If tools are unavailable, the MCP server failed to connect (check \`claude mcp l
 # --- Worktree reminder (session resumed inside a worktree) ---
 if [ "$IN_WORKTREE" = "true" ]; then
   WT_ROOT=$(git -C "$CWD" rev-parse --show-toplevel 2>/dev/null)
+
+  # Ensure .code-explorer/ symlink exists — worktree-activate.sh creates it via
+  # PostToolUse on EnterWorktree, but a resumed or directly-opened session skips that.
+  CE_DEST="${WT_ROOT:-$CWD}/.code-explorer"
+  if [ ! -e "$CE_DEST" ]; then
+    # Derive main project root: --git-common-dir points to main .git dir
+    MAIN_GIT=$(git -C "$CWD" rev-parse --git-common-dir 2>/dev/null)
+    MAIN_ROOT=$(dirname "$MAIN_GIT")
+    if [ -n "$MAIN_ROOT" ] && [ "$MAIN_ROOT" != "." ]; then
+      # Create main .code-explorer/ if it doesn't exist yet (server writes project.toml on first run)
+      mkdir -p "$MAIN_ROOT/.code-explorer" 2>/dev/null
+      ln -s "$MAIN_ROOT/.code-explorer" "$CE_DEST" 2>/dev/null
+    fi
+  fi
+
   MSG="${MSG}WORKTREE SESSION: You are inside a git worktree at: ${WT_ROOT:-$CWD}
-→ Call activate_project(\"${WT_ROOT:-$CWD}\") before using any code-explorer write tools.
+→ Call activate_project(\"${WT_ROOT:-$CWD}\") before using any CE write tools.
+→ Memory writes go directly to the main project via symlink and can be committed there.
 
 "
 fi
@@ -122,7 +138,7 @@ fi
 # server_instructions.md from MCP covers generic tool routing for all agents.
 # Only inject the project-specific system prompt here.
 MSG="${MSG}NEVER USE BASH AGENTS FOR CODE WORK.
-Bash agents have no code-explorer tools. Use general-purpose, Plan, or Explore
+Bash agents have no CE tools. Use general-purpose, Plan, or Explore
 agents for any task involving code reading, writing, or navigation."
 
 jq -n --arg ctx "$MSG" '{

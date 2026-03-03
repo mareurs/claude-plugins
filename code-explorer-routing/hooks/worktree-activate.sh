@@ -45,7 +45,7 @@ fi
 touch "$WORKTREE_PATH/.ce-worktree-pending" 2>/dev/null
 
 # --- Inject guidance (always, regardless of symlink success) ---
-jq -n --arg ctx "WORKTREE DETECTED: code-explorer must switch to the worktree.
+jq -n --arg ctx "WORKTREE DETECTED: CE must switch to the worktree.
 Call activate_project(\"$WORKTREE_PATH\") NOW as your next action.
 MCP write tools (edit_lines, replace_symbol, insert_code, create_file, create_or_update_file) are BLOCKED
 until activate_project is called — they would otherwise silently write to the wrong repo.
@@ -57,6 +57,7 @@ Do NOT run index_project in worktrees — the shared index is read-only here." '
 }'
 
 # --- Symlink .code-explorer/ into worktree (best-effort) ---
+# Walk up from original project CWD to find the .code-explorer/ directory.
 CE_DIR=""
 CHECK="$CWD"
 while [ "$CHECK" != "/" ]; do
@@ -66,6 +67,15 @@ while [ "$CHECK" != "/" ]; do
   fi
   CHECK=$(dirname "$CHECK")
 done
+
+# If .code-explorer/ doesn't exist yet (server not run on main project), create it so
+# the symlink can be established immediately. The server writes project.toml on first run.
+if [ -z "$CE_DIR" ]; then
+  MAIN_ROOT=$(git -C "$CWD" rev-parse --show-toplevel 2>/dev/null)
+  if [ -n "$MAIN_ROOT" ]; then
+    mkdir -p "$MAIN_ROOT/.code-explorer" 2>/dev/null && CE_DIR="$MAIN_ROOT/.code-explorer"
+  fi
+fi
 
 [ -z "$CE_DIR" ] && exit 0
 

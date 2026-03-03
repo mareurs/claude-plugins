@@ -19,7 +19,7 @@ source "$(dirname "$0")/detect-tools.sh"
 
 # Always inject an active tool-use directive so coding subagents don't fall back
 # to Read/Grep/Glob/Bash on source files. Append project system-prompt if present.
-MSG="CODE-EXPLORER: For ALL code navigation, use code-explorer tools — not Read/Grep/Glob/Bash on source files:
+MSG="CE: For ALL code navigation, use CE tools — not Read/Grep/Glob/Bash on source files:
   find_symbol / list_symbols / semantic_search — discover code
   goto_definition / find_references — navigate relationships
   replace_symbol / insert_code — edit code"
