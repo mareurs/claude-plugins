@@ -9,6 +9,15 @@ Dates are release dates. Versions follow [Semantic Versioning](https://semver.or
 
 Companion plugin for the [code-explorer](https://github.com/mareurs/code-explorer) MCP server.
 
+### [1.5.5] — 2026-03-03
+
+- **Fix:** `pre-tool-guard`: stronger enforcement messages ("WRONG TOOL / STOP / YOU MUST") to improve routing compliance; rename `deny()` → `enforce()`
+- **Fix:** `pre-tool-guard`: remove Glob wildcard bypass (`*.ext`) and Read limit/offset bypass — all source file access goes through CE tools
+- **Fix:** `session-start`: auto-create `.code-explorer` symlink for worktree sessions resumed without going through `EnterWorktree`
+- **Fix:** `worktree-activate`: `mkdir -p .code-explorer/` before symlinking so fresh projects work without a prior server run
+- Shorten "code-explorer" → "CE" in hook messages for brevity
+- `.gitignore`: add `.code-explorer/private-memories/` exclusion
+
 ### [1.5.4] — 2026-03-01
 
 - **Feature:** `PreToolUse` hook hard-blocks all `Bash` tool calls and redirects to `run_command` — eliminates direct shell use for code work entirely
