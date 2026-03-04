@@ -32,8 +32,8 @@ if [ "$HAS_CODE_EXPLORER" = "false" ] && [ -f "$MCP_JSON" ]; then
   CE_SERVER_NAME=$(jq -r '
     .mcpServers // {} | to_entries[] |
     select(
-      (.value.command // "" | test("code-explorer")) or
-      ((.value.args // []) | map(test("code-explorer")) | any)
+      (.value.command // "" | test("code-explorer|codescout")) or
+      ((.value.args // []) | map(test("code-explorer|codescout")) | any)
     ) | .key
   ' "$MCP_JSON" 2>/dev/null | head -1)
   [ -n "$CE_SERVER_NAME" ] && HAS_CODE_EXPLORER=true
@@ -48,8 +48,8 @@ for _cfg in "${_CLAUDE_DIR}/.claude.json" "${_CLAUDE_DIR}/settings.json"; do
   CE_SERVER_NAME=$(jq -r '
     .mcpServers // {} | to_entries[] |
     select(
-      (.value.command // "" | test("code-explorer")) or
-      ((.value.args // []) | map(strings | test("code-explorer")) | any)
+      (.value.command // "" | test("code-explorer|codescout")) or
+      ((.value.args // []) | map(strings | test("code-explorer|codescout")) | any)
     ) | .key
   ' "$_cfg" 2>/dev/null | head -1)
   [ -n "$CE_SERVER_NAME" ] && HAS_CODE_EXPLORER=true
