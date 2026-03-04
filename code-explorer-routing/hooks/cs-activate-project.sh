@@ -1,6 +1,6 @@
 #!/bin/bash
 # PostToolUse hook — after activate_project is called:
-#   1. Delete .ce-worktree-pending marker (unblocks write tools)
+#   1. Delete .cs-worktree-pending marker (unblocks write tools)
 #   2. Inject confirmation via additionalContext
 
 INPUT=$(cat)
@@ -19,10 +19,10 @@ ACTIVATED_PATH=$(echo "$INPUT" | jq -r '.tool_input.path // empty' | sed 's|/$||
 [ -z "$ACTIVATED_PATH" ] && exit 0
 
 # Remove marker if it exists
-MARKER="$ACTIVATED_PATH/.ce-worktree-pending"
+MARKER="$ACTIVATED_PATH/.cs-worktree-pending"
 if [ -f "$MARKER" ]; then
   rm -f "$MARKER"
-  jq -n --arg ctx "✓ CE switched to: $ACTIVATED_PATH
+  jq -n --arg ctx "✓ codescout switched to: $ACTIVATED_PATH
 Write tools (edit_lines, replace_symbol, etc.) are now unblocked for this worktree." '{
     hookSpecificOutput: {
       hookEventName: "PostToolUse",

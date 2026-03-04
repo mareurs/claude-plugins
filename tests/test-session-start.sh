@@ -27,7 +27,7 @@ write_mcp_json "$T/t3"
 make_ce_dir "$T/t3"
 make_memories "$T/t3"
 OUT=$(printf '{"cwd":"%s"}' "$T/t3" | bash "$HOOK" 2>/dev/null)
-if assert_context_contains "$OUT" "CE MEMORIES:"; then
+if assert_context_contains "$OUT" "codescout MEMORIES:"; then
   pass "memories: hint shown"
 else
   fail "memories: hint shown" "$(echo "$OUT" | jq -r '.hookSpecificOutput.additionalContext' 2>/dev/null | head -3)"

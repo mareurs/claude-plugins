@@ -1,7 +1,7 @@
 #!/bin/bash
 # PostToolUse hook — after EnterWorktree:
 #   1. Inject activate_project guidance (always)
-#   2. Create .ce-worktree-pending marker (blocks writes until activate_project called)
+#   2. Create .cs-worktree-pending marker (blocks writes until activate_project called)
 #   3. Symlink .code-explorer/ into worktree (best-effort)
 # No-op if code-explorer is not configured.
 
@@ -14,7 +14,7 @@ TOOL_NAME=$(echo "$INPUT" | jq -r '.tool_name // empty')
 CWD=$(echo "$INPUT" | jq -r '.cwd // empty')
 source "$(dirname "$0")/detect-tools.sh"
 
-[ "$HAS_CODE_EXPLORER" = "false" ] && exit 0
+[ "$HAS_CODESCOUT" = "false" ] && exit 0
 
 # --- Find the worktree path ---
 WORKTREE_PATH=$(echo "$INPUT" | jq -r '.tool_response.worktree_path // .tool_response.path // empty')
@@ -42,10 +42,10 @@ fi
 # --- Create pending marker BEFORE injecting guidance ---
 # Marker signals: worktree entered, activate_project not yet called.
 # worktree-write-guard.sh checks this; ce-activate-project.sh clears it.
-touch "$WORKTREE_PATH/.ce-worktree-pending" 2>/dev/null
+touch "$WORKTREE_PATH/.cs-worktree-pending" 2>/dev/null
 
 # --- Inject guidance (always, regardless of symlink success) ---
-jq -n --arg ctx "WORKTREE DETECTED: CE must switch to the worktree.
+jq -n --arg ctx "WORKTREE DETECTED: codescout must switch to the worktree.
 Call activate_project(\"$WORKTREE_PATH\") NOW as your next action.
 MCP write tools (edit_lines, replace_symbol, insert_code, create_file, create_or_update_file) are BLOCKED
 until activate_project is called — they would otherwise silently write to the wrong repo.

@@ -3,7 +3,7 @@
 source "$(dirname "${BASH_SOURCE[0]}")/lib/fixtures.sh"
 
 echo "── ce-activate-project ──"
-HOOK="$HOOK_DIR/ce-activate-project.sh"
+HOOK="$HOOK_DIR/cs-activate-project.sh"
 T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
 
 make_git_repo "$T/main"
@@ -25,11 +25,11 @@ if assert_no_output "$OUT"; then pass "no marker: silent exit"; else fail "no ma
 make_pending_marker "$T/wt"
 OUT=$(printf '{"tool_name":"%s","tool_input":{"path":"%s"}}' "$ACTIVATE_TOOL" "$T/wt" \
   | bash "$HOOK" 2>/dev/null)
-if [ ! -f "$T/wt/.ce-worktree-pending" ] && assert_context_contains "$OUT" "CE switched"; then
+if [ ! -f "$T/wt/.cs-worktree-pending" ] && assert_context_contains "$OUT" "codescout switched"; then
   pass "marker present: deleted + confirmed"
 else
   fail "marker present: deleted + confirmed" \
-    "marker_exists=$([ -f "$T/wt/.ce-worktree-pending" ] && echo yes || echo no) out=$(echo "$OUT" | jq -r '.hookSpecificOutput.additionalContext' 2>/dev/null | head -1)"
+    "marker_exists=$([ -f "$T/wt/.cs-worktree-pending" ] && echo yes || echo no) out=$(echo "$OUT" | jq -r '.hookSpecificOutput.additionalContext' 2>/dev/null | head -1)"
 fi
 
 print_summary "ce-activate-project"

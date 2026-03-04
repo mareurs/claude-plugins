@@ -55,7 +55,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/ce-activate-project.sh"
+            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/cs-activate-project.sh"
           }
         ]
       }

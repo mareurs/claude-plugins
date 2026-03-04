@@ -25,7 +25,7 @@ make_worktree "$T/t3main" "$T/t3wt"
 OUT=$(printf '{"cwd":"%s","tool_name":"EnterWorktree","tool_response":{"worktree_path":"%s"}}' \
   "$T/t3main" "$T/t3wt" | bash "$HOOK" 2>/dev/null)
 MARKER_OK=false; GUIDANCE_OK=false; SYMLINK_OK=false
-[ -f "$T/t3wt/.ce-worktree-pending" ] && MARKER_OK=true
+[ -f "$T/t3wt/.cs-worktree-pending" ] && MARKER_OK=true
 assert_context_contains "$OUT" "activate_project" && GUIDANCE_OK=true
 [ -L "$T/t3wt/.code-explorer" ] && SYMLINK_OK=true
 if $MARKER_OK && $GUIDANCE_OK && $SYMLINK_OK; then
@@ -42,11 +42,11 @@ make_ce_dir "$T/t4main"
 make_worktree "$T/t4main" "$T/t4wt"
 OUT=$(printf '{"cwd":"%s","tool_name":"EnterWorktree","tool_response":{}}' \
   "$T/t4main" | bash "$HOOK" 2>/dev/null)
-if assert_context_contains "$OUT" "activate_project" && [ -f "$T/t4wt/.ce-worktree-pending" ]; then
+if assert_context_contains "$OUT" "activate_project" && [ -f "$T/t4wt/.cs-worktree-pending" ]; then
   pass "EnterWorktree fallback detection: marker+guidance"
 else
   fail "EnterWorktree fallback detection: marker+guidance" \
-    "marker=$(ls "$T/t4wt/.ce-worktree-pending" 2>/dev/null || echo missing) ctx=$(echo "$OUT" | jq -r '.hookSpecificOutput.additionalContext' 2>/dev/null | head -2)"
+    "marker=$(ls "$T/t4wt/.cs-worktree-pending" 2>/dev/null || echo missing) ctx=$(echo "$OUT" | jq -r '.hookSpecificOutput.additionalContext' 2>/dev/null | head -2)"
 fi
 
 print_summary "worktree-activate"

@@ -6,7 +6,7 @@ INPUT=$(cat)
 CWD=$(echo "$INPUT" | jq -r '.cwd // empty')
 source "$(dirname "$0")/detect-tools.sh"
 
-[ "$HAS_CODE_EXPLORER" = "false" ] && exit 0
+[ "$HAS_CODESCOUT" = "false" ] && exit 0
 
 # --- Worktree detection: skip auto-indexing if in a worktree ---
 IN_WORKTREE=false
@@ -22,8 +22,8 @@ fi
 MSG=""
 
 # --- Onboarding check ---
-if [ "$HAS_CE_ONBOARDING" = "false" ]; then
-  MSG="CE: Project not yet onboarded.
+if [ "$HAS_CS_ONBOARDING" = "false" ]; then
+  MSG="codescout: Project not yet onboarded.
 Run the onboarding() tool first — it detects languages, creates project config,
 and generates exploration memories that help every subsequent session.
 
@@ -31,16 +31,16 @@ and generates exploration memories that help every subsequent session.
 fi
 
 # --- Memory hint ---
-if [ "$HAS_CE_MEMORIES" = "true" ]; then
-  MSG="${MSG}CE MEMORIES: ${CE_MEMORY_NAMES}
+if [ "$HAS_CS_MEMORIES" = "true" ]; then
+  MSG="${MSG}codescout MEMORIES: ${CS_MEMORY_NAMES}
 → Read relevant memories before exploring code (read_memory(\"architecture\"), etc.)
 
 "
 fi
 
 # --- System prompt injection ---
-if [ "$HAS_CE_SYSTEM_PROMPT" = "true" ]; then
-  MSG="${MSG}${CE_SYSTEM_PROMPT}
+if [ "$HAS_CS_SYSTEM_PROMPT" = "true" ]; then
+  MSG="${MSG}${CS_SYSTEM_PROMPT}
 
 "
 fi
@@ -59,12 +59,12 @@ DB_PATH="${CWD}/.code-explorer/embeddings.db"
 
 # --- Auto-reindex (if stale) ---
 if [ "$AUTO_INDEX" = "true" ] && [ "$IN_WORKTREE" = "false" ] && \
-   [ -f "$DB_PATH" ] && [ -n "$CE_BINARY" ] && [ -x "$CE_BINARY" ]; then
+   [ -f "$DB_PATH" ] && [ -n "$CS_BINARY" ] && [ -x "$CS_BINARY" ]; then
   LAST_COMMIT=$(sqlite3 "$DB_PATH" "SELECT value FROM meta WHERE key='last_indexed_commit';" 2>/dev/null)
   HEAD_COMMIT=$(git -C "$CWD" rev-parse HEAD 2>/dev/null)
   if [ -n "$LAST_COMMIT" ] && [ -n "$HEAD_COMMIT" ] && [ "$LAST_COMMIT" != "$HEAD_COMMIT" ]; then
     BEHIND=$(git -C "$CWD" rev-list --count "${LAST_COMMIT}..${HEAD_COMMIT}" 2>/dev/null || echo "?")
-    "$CE_BINARY" index --project "$CWD" >/dev/null 2>&1 &
+    "$CS_BINARY" index --project "$CWD" >/dev/null 2>&1 &
     MSG="${MSG}INDEX: Refreshing in background (${BEHIND} commits behind HEAD) — semantic_search works now, results improve as index updates.
 
 "
@@ -103,7 +103,7 @@ fi
 # --- Connectivity note ---
 # Hooks can't verify MCP handshake — detection is config-based only.
 # If the MCP server failed to connect, tools won't be available despite config existing.
-MSG="${MSG}CE: Detected in config (${CE_SERVER_NAME}).
+MSG="${MSG}codescout: Detected in config (${CS_SERVER_NAME}).
 Tools load automatically — no ToolSearch or setup step needed.
 If tools are unavailable, the MCP server failed to connect (check \`claude mcp list\`).
 
@@ -128,7 +128,7 @@ if [ "$IN_WORKTREE" = "true" ]; then
   fi
 
   MSG="${MSG}WORKTREE SESSION: You are inside a git worktree at: ${WT_ROOT:-$CWD}
-→ Call activate_project(\"${WT_ROOT:-$CWD}\") before using any CE write tools.
+→ Call activate_project(\"${WT_ROOT:-$CWD}\") before using any codescout write tools.
 → Memory writes go directly to the main project via symlink and can be committed there.
 
 "
@@ -138,7 +138,7 @@ fi
 # server_instructions.md from MCP covers generic tool routing for all agents.
 # Only inject the project-specific system prompt here.
 MSG="${MSG}NEVER USE BASH AGENTS FOR CODE WORK.
-Bash agents have no CE tools. Use general-purpose, Plan, or Explore
+Bash agents have no codescout tools. Use general-purpose, Plan, or Explore
 agents for any task involving code reading, writing, or navigation."
 
 jq -n --arg ctx "$MSG" '{

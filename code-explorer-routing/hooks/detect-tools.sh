@@ -1,20 +1,20 @@
 #!/bin/bash
 # Shared detection logic — sourced by other hooks
 # Expects: CWD to be set before sourcing
-# Sets: HAS_CODE_EXPLORER, CE_SERVER_NAME, CE_PREFIX, CE_BINARY,
-#          HAS_CE_ONBOARDING, HAS_CE_MEMORIES, CE_MEMORY_NAMES,
-#          HAS_CE_SYSTEM_PROMPT, CE_SYSTEM_PROMPT,
+# Sets: HAS_CODESCOUT, CS_SERVER_NAME, CS_PREFIX, CS_BINARY,
+#          HAS_CS_ONBOARDING, HAS_CS_MEMORIES, CS_MEMORY_NAMES,
+#          HAS_CS_SYSTEM_PROMPT, CS_SYSTEM_PROMPT,
 #          SOURCE_EXT_PATTERN
 
 MCP_JSON="${CWD}/.mcp.json"
 ROUTING_CONFIG="${CWD}/.claude/code-explorer-routing.json"
-CE_MEMORIES_DIR="${CWD}/.code-explorer/memories"
-CE_CONFIG_FILE="${CWD}/.code-explorer/project.toml"
+CS_MEMORIES_DIR="${CWD}/.code-explorer/memories"
+CS_CONFIG_FILE="${CWD}/.code-explorer/project.toml"
 
-HAS_CODE_EXPLORER=false
-CE_SERVER_NAME=""
-CE_PREFIX=""
-CE_BINARY=""
+HAS_CODESCOUT=false
+CS_SERVER_NAME=""
+CS_PREFIX=""
+CS_BINARY=""
 
 # --- Detection ---
 
@@ -22,51 +22,51 @@ CE_BINARY=""
 if [ -f "$ROUTING_CONFIG" ]; then
   _override=$(jq -r '.server_name // empty' "$ROUTING_CONFIG" 2>/dev/null)
   if [ -n "$_override" ]; then
-    HAS_CODE_EXPLORER=true
-    CE_SERVER_NAME="$_override"
+    HAS_CODESCOUT=true
+    CS_SERVER_NAME="$_override"
   fi
 fi
 
 # Path 2: auto-detect from .mcp.json
-if [ "$HAS_CODE_EXPLORER" = "false" ] && [ -f "$MCP_JSON" ]; then
-  CE_SERVER_NAME=$(jq -r '
+if [ "$HAS_CODESCOUT" = "false" ] && [ -f "$MCP_JSON" ]; then
+  CS_SERVER_NAME=$(jq -r '
     .mcpServers // {} | to_entries[] |
     select(
       (.value.command // "" | test("code-explorer|codescout")) or
       ((.value.args // []) | map(test("code-explorer|codescout")) | any)
     ) | .key
   ' "$MCP_JSON" 2>/dev/null | head -1)
-  [ -n "$CE_SERVER_NAME" ] && HAS_CODE_EXPLORER=true
+  [ -n "$CS_SERVER_NAME" ] && HAS_CODESCOUT=true
 fi
 
 # Path 3: auto-detect from user-level MCP config
 # `claude mcp add` writes to .claude.json; manual config goes in settings.json
 _CLAUDE_DIR="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
 for _cfg in "${_CLAUDE_DIR}/.claude.json" "${_CLAUDE_DIR}/settings.json"; do
-  [ "$HAS_CODE_EXPLORER" = "true" ] && break
+  [ "$HAS_CODESCOUT" = "true" ] && break
   [ -f "$_cfg" ] || continue
-  CE_SERVER_NAME=$(jq -r '
+  CS_SERVER_NAME=$(jq -r '
     .mcpServers // {} | to_entries[] |
     select(
       (.value.command // "" | test("code-explorer|codescout")) or
       ((.value.args // []) | map(strings | test("code-explorer|codescout")) | any)
     ) | .key
   ' "$_cfg" 2>/dev/null | head -1)
-  [ -n "$CE_SERVER_NAME" ] && HAS_CODE_EXPLORER=true
+  [ -n "$CS_SERVER_NAME" ] && HAS_CODESCOUT=true
 done
 
 # Build tool prefix
-if [ "$HAS_CODE_EXPLORER" = "true" ]; then
-  CE_PREFIX="mcp__${CE_SERVER_NAME}__"
+if [ "$HAS_CODESCOUT" = "true" ]; then
+  CS_PREFIX="mcp__${CS_SERVER_NAME}__"
 fi
 
 # Extract binary path — same config files, same server name key
-if [ "$HAS_CODE_EXPLORER" = "true" ] && [ -n "$CE_SERVER_NAME" ]; then
+if [ "$HAS_CODESCOUT" = "true" ] && [ -n "$CS_SERVER_NAME" ]; then
   for _cfg in "$MCP_JSON" "${_CLAUDE_DIR}/.claude.json" "${_CLAUDE_DIR}/settings.json"; do
     [ -f "$_cfg" ] || continue
-    _bin=$(jq -r ".mcpServers[\"$CE_SERVER_NAME\"].command // empty" "$_cfg" 2>/dev/null)
+    _bin=$(jq -r ".mcpServers[\"$CS_SERVER_NAME\"].command // empty" "$_cfg" 2>/dev/null)
     if [ -n "$_bin" ]; then
-      CE_BINARY="${_bin/#\~/$HOME}"
+      CS_BINARY="${_bin/#\~/$HOME}"
       break
     fi
   done
@@ -87,28 +87,28 @@ if [ -f "$ROUTING_CONFIG" ]; then
 fi
 
 # --- Onboarding state ---
-HAS_CE_ONBOARDING=false
-[ -f "$CE_CONFIG_FILE" ] && HAS_CE_ONBOARDING=true
+HAS_CS_ONBOARDING=false
+[ -f "$CS_CONFIG_FILE" ] && HAS_CS_ONBOARDING=true
 
 # --- Memory state ---
-HAS_CE_MEMORIES=false
-CE_MEMORY_NAMES=""
-if [ -d "$CE_MEMORIES_DIR" ]; then
+HAS_CS_MEMORIES=false
+CS_MEMORY_NAMES=""
+if [ -d "$CS_MEMORIES_DIR" ]; then
   while IFS= read -r mem_file; do
     [ -f "$mem_file" ] || continue
     name=$(basename "$mem_file" .md)
-    CE_MEMORY_NAMES="${CE_MEMORY_NAMES}${name} "
-    HAS_CE_MEMORIES=true
-  done < <(find "$CE_MEMORIES_DIR" -maxdepth 1 -name '*.md' 2>/dev/null)
+    CS_MEMORY_NAMES="${CS_MEMORY_NAMES}${name} "
+    HAS_CS_MEMORIES=true
+  done < <(find "$CS_MEMORIES_DIR" -maxdepth 1 -name '*.md' 2>/dev/null)
 fi
 
 # --- System prompt ---
-CE_SYSTEM_PROMPT_FILE="${CWD}/.code-explorer/system-prompt.md"
-CE_SYSTEM_PROMPT=""
-HAS_CE_SYSTEM_PROMPT=false
-if [ -f "$CE_SYSTEM_PROMPT_FILE" ]; then
-  CE_SYSTEM_PROMPT=$(cat "$CE_SYSTEM_PROMPT_FILE")
-  HAS_CE_SYSTEM_PROMPT=true
+CS_SYSTEM_PROMPT_FILE="${CWD}/.code-explorer/system-prompt.md"
+CS_SYSTEM_PROMPT=""
+HAS_CS_SYSTEM_PROMPT=false
+if [ -f "$CS_SYSTEM_PROMPT_FILE" ]; then
+  CS_SYSTEM_PROMPT=$(cat "$CS_SYSTEM_PROMPT_FILE")
+  HAS_CS_SYSTEM_PROMPT=true
 fi
 
 # --- Source extension pattern ---

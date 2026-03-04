@@ -7,7 +7,7 @@ TOOL_NAME=$(echo "$INPUT" | jq -r '.tool_name // empty')
 CWD=$(echo "$INPUT" | jq -r '.cwd // empty')
 source "$(dirname "$0")/detect-tools.sh"
 
-[ "$HAS_CODE_EXPLORER" = "false" ] && exit 0
+[ "$HAS_CODESCOUT" = "false" ] && exit 0
 [ "$BLOCK_READS" = "false" ] && exit 0
 
 # --- Helper: check if path is under workspace ---
@@ -35,7 +35,7 @@ enforce() {
 case "$TOOL_NAME" in
   Bash)
     CMD=$(echo "$INPUT" | jq -r '.tool_input.command // empty')
-    enforce "WRONG TOOL. You called Bash but CE is available.
+    enforce "WRONG TOOL. You called Bash but codescout is available.
 
 STOP. Do NOT run: ${CMD}
 
@@ -68,7 +68,7 @@ YOU MUST use run_command. Do not call Bash."
     [ "$IS_SOURCE" = "false" ] && exit 0
     is_in_workspace "${PATH_VAL:-$CWD}" || exit 0
 
-    enforce "WRONG TOOL. You called Grep on source files but CE has a FULL INDEX.
+    enforce "WRONG TOOL. You called Grep on source files but codescout has a FULL INDEX.
 
 STOP. Do NOT grep source files.
 
@@ -79,7 +79,7 @@ CE tools use a pre-built index and return STRUCTURED, TOKEN-EFFICIENT results:
   find_symbol(\"${PATTERN}\")       — locate symbol by name (MUCH faster than grep)
   semantic_search(\"${PATTERN}\")   — find code by MEANING, not just text
 
-YOU MUST use CE search tools. Do not call Grep on source files."
+YOU MUST use codescout search tools. Do not call Grep on source files."
     ;;
 
   Glob)
@@ -91,16 +91,16 @@ YOU MUST use CE search tools. Do not call Grep on source files."
 
     is_in_workspace "${PATTERN}" || exit 0
 
-    enforce "WRONG TOOL. You called Glob on source files but CE has a FILE INDEX.
+    enforce "WRONG TOOL. You called Glob on source files but codescout has a FILE INDEX.
 
 STOP. Do NOT glob source files.
 
-CE has already indexed all files. Use the index directly — it is FASTER and uses FEWER TOKENS:
+codescout has already indexed all files. Use the index directly — it is FASTER and uses FEWER TOKENS:
 
-  find_file(\"${PATTERN}\")         — glob-style file discovery via CE index
+  find_file(\"${PATTERN}\")         — glob-style file discovery via codescout index
   find_symbol(\"${BASENAME%.*}\")   — find a symbol by name if you know what you are looking for
 
-YOU MUST use CE file tools. Do not call Glob on source files."
+YOU MUST use codescout file tools. Do not call Glob on source files."
     ;;
 
   Read)
@@ -116,11 +116,11 @@ YOU MUST use CE file tools. Do not call Glob on source files."
       REL_PATH="${FILE_PATH#$CWD/}"
     fi
 
-    enforce "WRONG TOOL. You called Read on a source file but CE has SYMBOL-LEVEL ACCESS.
+    enforce "WRONG TOOL. You called Read on a source file but codescout has SYMBOL-LEVEL ACCESS.
 
 STOP. Do NOT read: ${FILE_PATH}
 
-Reading a full source file WASTES THOUSANDS OF TOKENS. CE returns ONLY what you need:
+Reading a full source file WASTES THOUSANDS OF TOKENS. codescout returns ONLY what you need:
 
   list_symbols(\"${REL_PATH}\")              — ALL symbols + line numbers in ~50 tokens (DO THIS FIRST)
   find_symbol(name, include_body=true)       — ONE symbol body, targeted, token-efficient

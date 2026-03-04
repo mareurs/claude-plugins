@@ -120,7 +120,7 @@ seed_drift_db() {
 
 make_pending_marker() {
   local wt_dir="$1"
-  touch "$wt_dir/.ce-worktree-pending"
+  touch "$wt_dir/.cs-worktree-pending"
 }
 
 # --- Assertion helpers ---

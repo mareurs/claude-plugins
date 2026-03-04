@@ -5,7 +5,7 @@
 # Triggered by: any tool whose name ends with a code-explorer write tool name
 # (hooks.json matcher regex confirmed to work; case statement adds defense-in-depth).
 #
-# State: .ce-worktree-pending in worktree root (created by worktree-activate.sh,
+# State: .cs-worktree-pending in worktree root (created by worktree-activate.sh,
 #         deleted by ce-activate-project.sh).
 
 INPUT=$(cat)
@@ -38,7 +38,7 @@ WT_ROOT=$(git -C "$CWD" rev-parse --show-toplevel 2>/dev/null)
 [ -z "$WT_ROOT" ] && exit 0
 
 # Check marker
-[ -f "$WT_ROOT/.ce-worktree-pending" ] || exit 0
+[ -f "$WT_ROOT/.cs-worktree-pending" ] || exit 0
 
 # Block the write using the current (non-deprecated) PreToolUse deny format.
 # Output JSON to stdout + exit 0. Claude sees permissionDecisionReason.
@@ -50,7 +50,7 @@ You are in a worktree at: $WT_ROOT
 CE is still pointing at the main repo — a write now would silently modify the wrong file.
 
 Fix: call activate_project(\"$WT_ROOT\") then retry this tool.
-If CE is no longer configured, delete $WT_ROOT/.ce-worktree-pending manually to unblock.
+If CE is no longer configured, delete $WT_ROOT/.cs-worktree-pending manually to unblock.
 
 To clean up a finished worktree: use git worktree prune (not git worktree remove —
 that requires the directory to still exist). Run prune from the main repo, then

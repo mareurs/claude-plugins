@@ -15,19 +15,19 @@ esac
 CWD=$(echo "$INPUT" | jq -r '.cwd // empty')
 source "$(dirname "$0")/detect-tools.sh"
 
-[ "$HAS_CODE_EXPLORER" = "false" ] && exit 0
+[ "$HAS_CODESCOUT" = "false" ] && exit 0
 
 # Always inject an active tool-use directive so coding subagents don't fall back
 # to Read/Grep/Glob/Bash on source files. Append project system-prompt if present.
-MSG="CE: For ALL code navigation, use CE tools — not Read/Grep/Glob/Bash on source files:
+MSG="codescout: For ALL code navigation, use codescout tools — not Read/Grep/Glob/Bash on source files:
   find_symbol / list_symbols / semantic_search — discover code
   goto_definition / find_references — navigate relationships
   replace_symbol / insert_code — edit code"
 
-if [ "$HAS_CE_SYSTEM_PROMPT" = "true" ]; then
+if [ "$HAS_CS_SYSTEM_PROMPT" = "true" ]; then
   MSG="${MSG}
 
-${CE_SYSTEM_PROMPT}"
+${CS_SYSTEM_PROMPT}"
 fi
 
 jq -n --arg ctx "$MSG" '{
