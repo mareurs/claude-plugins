@@ -68,7 +68,7 @@ write_routing_config() {
   local dir="$1"
   local json="${2:-{}}"
   mkdir -p "$dir/.claude"
-  echo "$json" > "$dir/.claude/code-explorer-routing.json"
+  printf '%s\n' "$json" > "$dir/.claude/code-explorer-routing.json"
 }
 
 make_ce_dir() {
@@ -104,7 +104,8 @@ seed_sqlite_db() {
   mkdir -p "$dir/.code-explorer"
   local db="$dir/.code-explorer/embeddings.db"
   sqlite3 "$db" "CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT);"
-  sqlite3 "$db" "INSERT OR REPLACE INTO meta VALUES ('last_indexed_commit', '$last_commit');"
+  printf "INSERT OR REPLACE INTO meta VALUES ('last_indexed_commit', '%s');\n" "$last_commit" \
+    | sqlite3 "$db"
 }
 
 seed_drift_db() {
@@ -129,7 +130,7 @@ assert_context_contains() {
   local string="$2"
   local ctx
   ctx=$(echo "$output" | jq -r '.hookSpecificOutput.additionalContext // empty' 2>/dev/null)
-  echo "$ctx" | grep -qF "$string"
+  grep -qF "$string" <<< "$ctx"
 }
 
 assert_denied() {
@@ -144,7 +145,7 @@ assert_reason_contains() {
   local string="$2"
   local reason
   reason=$(echo "$output" | jq -r '.hookSpecificOutput.permissionDecisionReason // empty' 2>/dev/null)
-  echo "$reason" | grep -qF "$string"
+  grep -qF "$string" <<< "$reason"
 }
 
 assert_no_output() {
