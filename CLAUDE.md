@@ -58,8 +58,9 @@ plugin.json at install time. Duplicating it in marketplace.json causes drift.
 
 Before bumping, verify:
 
-1. **Tested** — new behavior works as expected
-2. **Nothing pending** — no more changes planned for this version, `git status` clean
+1. **Tests pass** — `./tests/run-all.sh` exits 0
+2. **Tested** — new behavior works as expected
+3. **Nothing pending** — no more changes planned for this version, `git status` clean
 
 Then:
 
@@ -84,6 +85,14 @@ Checks: plugin.json versions match README.md table, marketplace.json has no vers
 - Hooks use `jq` for JSON parsing — required dependency
 - Hook scripts use `${CLAUDE_PLUGIN_ROOT}` to reference files within the plugin install directory
 - Test hooks locally: `echo '{"cwd":"/some/path"}' | bash code-explorer-routing/hooks/session-start.sh`
+
+## Testing
+
+Run before any version bump:
+
+```bash
+./tests/run-all.sh
+```
 
 ## Plugin Install Path (directory-source gotcha)
 
