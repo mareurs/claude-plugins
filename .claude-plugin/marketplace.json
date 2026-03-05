@@ -40,6 +40,17 @@
       "license": "MIT",
       "keywords": ["codescout", "semantic", "hooks", "mcp", "routing", "infrastructure"],
       "category": "infrastructure"
+    },
+    {
+      "name": "code-explorer-routing",
+      "source": "./codescout-routing",
+      "description": "DEPRECATED — renamed to codescout-routing. Use: /plugin install codescout-routing@sdd-misc-plugins",
+      "author": {
+        "name": "Marius"
+      },
+      "license": "MIT",
+      "keywords": ["codescout", "deprecated"],
+      "category": "infrastructure"
     }
   ]
 }
