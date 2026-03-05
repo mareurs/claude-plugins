@@ -1,0 +1,10 @@
+{
+  "name": "codescout-routing",
+  "description": "Companion plugin for codescout MCP server. Injects system-prompt.md into all agents, warns on Read/Grep/Glob misuse, auto-reindexes stale projects, and surfaces drift warnings.",
+  "version": "1.7.0",
+  "author": {
+    "name": "Marius"
+  },
+  "license": "MIT",
+  "keywords": ["codescout", "hooks", "mcp", "semantic", "infrastructure"]
+}

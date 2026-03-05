@@ -9,7 +9,7 @@ These plugins reflect specific workflows and tool choices -- they may not suit e
 ```
 /plugin marketplace add mareurs/sdd-misc-plugins
 /plugin install sdd@sdd-misc-plugins
-/plugin install code-explorer-routing@sdd-misc-plugins
+/plugin install codescout-routing@sdd-misc-plugins
 ```
 
 ## Available Plugins
@@ -17,8 +17,8 @@ These plugins reflect specific workflows and tool choices -- they may not suit e
 | Plugin | Version | Description |
 |--------|---------|-------------|
 | **[sdd](./sdd/)** | 2.2.1 | Specification-Driven Development: governance, workflow commands, and enforcement hooks |
-| **[tool-infra](./tool-infra/)** | 2.8.0 | **Deprecated -- superseded by code-explorer-routing.** Semantic tool infrastructure: routes Claude to use Serena/IntelliJ/claude-context instead of Grep/Glob, with language-aware dual-tool routing |
-| **[code-explorer-routing](./code-explorer-routing/)** | 1.6.0 | Companion plugin for [code-explorer](https://github.com/mareurs/code-explorer) MCP server: injects tool guidance, redirects Read/Grep/Glob to symbol-aware tools, auto-reindex + drift warnings. **Supersedes tool-infra.** |
+| **[tool-infra](./tool-infra/)** | 2.8.0 | **Deprecated -- superseded by codescout-routing.** Semantic tool infrastructure: routes Claude to use Serena/IntelliJ/claude-context instead of Grep/Glob, with language-aware dual-tool routing |
+| **[codescout-routing](./codescout-routing/)** | 1.7.0 | Companion plugin for [codescout](https://github.com/mareurs/code-explorer) MCP server: injects tool guidance, redirects Read/Grep/Glob to symbol-aware tools, auto-reindex + drift warnings. **Supersedes tool-infra.** |
 
 ## Requirements
 
@@ -31,7 +31,7 @@ These plugins reflect specific workflows and tool choices -- they may not suit e
 |--------|----------------------|
 | **sdd** | None (core workflow). [Serena MCP](https://github.com/oraios/serena) for `/drift` and `/document`. |
 | **tool-infra** | [Serena MCP](https://github.com/oraios/serena), [IntelliJ MCP](https://github.com/niclas-timm/intellij-index-mcp), and/or [claude-context](https://github.com/nicobailon/claude-context). Auto-detects which are available. |
-| **code-explorer-routing** | [code-explorer MCP](https://github.com/mareurs/code-explorer) server configured in `.mcp.json` or globally. |
+| **codescout-routing** | [codescout MCP](https://github.com/mareurs/code-explorer) server configured in `.mcp.json` or globally. |
 
 ## Plugins
 
@@ -49,7 +49,7 @@ See [sdd/README.md](./sdd/) for full documentation.
 
 ### tool-infra (deprecated)
 
-> **Deprecated:** Superseded by [code-explorer-routing](#code-explorer-routing). tool-infra will be decommissioned in a future release. New projects should use code-explorer-routing with [code-explorer](https://github.com/mareurs/code-explorer).
+> **Deprecated:** Superseded by [codescout-routing](#codescout-routing). tool-infra will be decommissioned in a future release. New projects should use codescout-routing with [codescout](https://github.com/mareurs/code-explorer).
 
 Makes Claude use semantic code tools (Serena, IntelliJ MCP, claude-context) instead of falling back to text search. Auto-detects tools from `.mcp.json` and languages from `.serena/project.yml` for language-aware routing.
 
@@ -63,19 +63,19 @@ Makes Claude use semantic code tools (Serena, IntelliJ MCP, claude-context) inst
 
 See [tool-infra/README.md](./tool-infra/) for details and configuration.
 
-### code-explorer-routing
+### codescout-routing
 
-Companion plugin for [code-explorer](https://github.com/mareurs/code-explorer) MCP server. Supersedes [tool-infra](#tool-infra-deprecated). Routes Claude to use code-explorer's symbol-aware tools instead of Read/Grep/Glob. Auto-detects code-explorer from `.mcp.json`, `~/.claude/.claude.json`, or `~/.claude/settings.json`.
+Companion plugin for [codescout](https://github.com/mareurs/code-explorer) MCP server. Supersedes [tool-infra](#tool-infra-deprecated). Routes Claude to use codescout's symbol-aware tools instead of Read/Grep/Glob. Auto-detects codescout from `.mcp.json`, `~/.claude/.claude.json`, or `~/.claude/settings.json`.
 
 **Hooks:**
 - **session-start** -- Tool guidance, memory hints, onboarding nudge, auto-reindex + drift warnings
-- **subagent-guidance** -- Injects code-explorer guidance into all subagents (MCP server_instructions only reach the main agent)
-- **post-tool-guidance** -- PostToolUse soft warnings when Read/Grep/Glob are used on source files, suggests code-explorer alternatives
+- **subagent-guidance** -- Injects codescout guidance into all subagents (MCP server_instructions only reach the main agent)
+- **post-tool-guidance** -- PostToolUse soft warnings when Read/Grep/Glob are used on source files, suggests codescout alternatives
 - **worktree-activate** -- PostToolUse: creates write-guard marker + injects activate_project guidance after EnterWorktree
-- **worktree-write-guard** -- PreToolUse: hard-blocks code-explorer write tools in worktrees until activate_project is called
+- **worktree-write-guard** -- PreToolUse: hard-blocks codescout write tools in worktrees until activate_project is called
 - **ce-activate-project** -- PostToolUse: clears write-guard marker after activate_project fires
 
-See [code-explorer-routing/README.md](./code-explorer-routing/) for details and configuration.
+See [codescout-routing/README.md](./codescout-routing/) for details and configuration.
 
 ## Team Setup
 
@@ -93,7 +93,7 @@ Add to your project's `.claude/settings.json` so all team members get the plugin
   },
   "enabledPlugins": {
     "sdd@sdd-misc-plugins": true,
-    "code-explorer-routing@sdd-misc-plugins": true
+    "codescout-routing@sdd-misc-plugins": true
   }
 }
 ```

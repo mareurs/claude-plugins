@@ -1,6 +1,6 @@
 # Claude Plugins Marketplace
 
-Claude Code plugin marketplace. Primary active plugin: `code-explorer-routing`.
+Claude Code plugin marketplace. Primary active plugin: `codescout-routing`.
 
 ## Structure
 
@@ -12,7 +12,7 @@ sdd/                             -- SDD plugin (stable)
 tool-infra/                      -- DEPRECATED, do not modify
   .claude-plugin/plugin.json     -- version source of truth
   hooks/                         -- plugin content
-code-explorer-routing/           -- companion plugin for code-explorer MCP server
+codescout-routing/               -- companion plugin for codescout MCP server
   .claude-plugin/plugin.json     -- version source of truth
   hooks/                         -- tool routing, guidance injection, auto-indexing
   docs/plans/                    -- design and implementation docs
@@ -21,27 +21,27 @@ scripts/check-versions.sh       -- version consistency validator
 
 ## Active Development Focus
 
-**When "the plugin" is mentioned without qualification, it refers to `code-explorer-routing`.**
+**When "the plugin" is mentioned without qualification, it refers to `codescout-routing`.**
 
-- `code-explorer-routing` — **actively developed**, primary focus of all plugin work
+- `codescout-routing` — **actively developed**, primary focus of all plugin work
 - `sdd` — **stable**, no active development expected
 - `tool-infra` — **DEPRECATED**, do not modify
 
-## code-explorer-routing
+## codescout-routing
 
-**Companion plugin for the code-explorer MCP server.**
+**Companion plugin for the codescout MCP server.**
 
-Intentionally tightly coupled to code-explorer — reads its SQLite DB, calls its CLI
+Intentionally tightly coupled to codescout — reads its SQLite DB, calls its CLI
 binary, and references its internal schema (meta table, drift_report table, project.toml).
-Update this plugin whenever code-explorer adds features that affect exploration workflows.
+Update this plugin whenever codescout adds features that affect exploration workflows.
 
 **What it does:**
 - SessionStart/SubagentStart: injects `.code-explorer/system-prompt.md` content verbatim (project-specific guidance generated at onboarding)
 - PostToolUse: soft warnings when Read/Grep/Glob are used on source files, suggests alternatives
-- Auto-reindexing: checks index staleness at session start, triggers `code-explorer index` in background
+- Auto-reindexing: checks index staleness at session start, triggers `codescout index` in background
 - Drift warnings: surfaces high-drift files and stale docs/memories
 
-**Dependencies:** `jq`, `sqlite3`, `git`, code-explorer binary on PATH or in MCP config
+**Dependencies:** `jq`, `sqlite3`, `git`, codescout binary on PATH or in MCP config
 
 **Note:** MCP `server_instructions` ARE re-sent to each subagent's fresh MCP session — generic
 tool routing guidance is already covered. The plugin only needs to inject dynamic, project-specific
@@ -84,7 +84,7 @@ Checks: plugin.json versions match README.md table, marketplace.json has no vers
 
 - Hooks use `jq` for JSON parsing — required dependency
 - Hook scripts use `${CLAUDE_PLUGIN_ROOT}` to reference files within the plugin install directory
-- Test hooks locally: `echo '{"cwd":"/some/path"}' | bash code-explorer-routing/hooks/session-start.sh`
+- Test hooks locally: `echo '{"cwd":"/some/path"}' | bash codescout-routing/hooks/session-start.sh`
 
 ## Testing
 
@@ -106,11 +106,11 @@ install record to point at the new cache snapshot:**
 
 ```bash
 # Check the latest cache version
-ls ~/.claude/plugins/cache/sdd-misc-plugins/code-explorer-routing/
+ls ~/.claude/plugins/cache/sdd-misc-plugins/codescout-routing/
 
 # Edit installed_plugins.json: update installPath + version to the new cache entry
 ~/.claude/plugins/installed_plugins.json
-# → "installPath": "~/.claude/plugins/cache/sdd-misc-plugins/code-explorer-routing/<version>"
+# → "installPath": "~/.claude/plugins/cache/sdd-misc-plugins/codescout-routing/<version>"
 # → "version": "<version>"
 ```
 
@@ -120,7 +120,7 @@ Then restart Claude Code.
 
 ```
 /plugin marketplace add mareurs/claude-plugins
-/plugin install code-explorer-routing@claude-plugins
+/plugin install codescout-routing@claude-plugins
 /plugin install sdd@claude-plugins
 ```
 
@@ -134,7 +134,7 @@ For project-level setup, add to `.claude/settings.json`:
     }
   },
   "enabledPlugins": {
-    "code-explorer-routing@claude-plugins": true
+    "codescout-routing@claude-plugins": true
   }
 }
 ```

@@ -70,7 +70,7 @@ write_routing_config "$T/proj" '{"block_reads":"false"}'
 OUT=$(guard_input "Read" '"file_path":"'"$T/proj/app.ts"'"' | bash "$HOOK" 2>/dev/null)
 EC=$?
 if [ $EC -eq 0 ] && ! assert_denied "$OUT"; then pass "block_reads=false: allow source"; else fail "block_reads=false: allow source" "$OUT"; fi
-rm -f "$T/proj/.claude/code-explorer-routing.json"
+rm -f "$T/proj/.claude/codescout-routing.json"
 
 # Test 10: outside workspace_root → allow even if source
 write_routing_config "$T/proj" '{"workspace_root":"'"$T/proj/src"'"}'

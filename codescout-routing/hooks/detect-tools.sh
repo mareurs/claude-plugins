@@ -7,7 +7,9 @@
 #          SOURCE_EXT_PATTERN
 
 MCP_JSON="${CWD}/.mcp.json"
-ROUTING_CONFIG="${CWD}/.claude/code-explorer-routing.json"
+# Check new name first, fall back to old for backwards compatibility
+ROUTING_CONFIG="${CWD}/.claude/codescout-routing.json"
+[ -f "$ROUTING_CONFIG" ] || ROUTING_CONFIG="${CWD}/.claude/code-explorer-routing.json"
 CS_MEMORIES_DIR="${CWD}/.code-explorer/memories"
 CS_CONFIG_FILE="${CWD}/.code-explorer/project.toml"
 
@@ -77,7 +79,7 @@ BLOCK_READS=true
 WORKSPACE_ROOT=""
 
 if [ -f "$ROUTING_CONFIG" ]; then
-  _block=$(jq -r '.block_reads // empty' "$ROUTING_CONFIG" 2>/dev/null)
+  _block=$(jq -r 'if .block_reads == false or .block_reads == "false" then "false" else "" end' "$ROUTING_CONFIG" 2>/dev/null)
   [ "$_block" = "false" ] && BLOCK_READS=false
   _ws=$(jq -r '.workspace_root // empty' "$ROUTING_CONFIG" 2>/dev/null)
   if [ -n "$_ws" ]; then

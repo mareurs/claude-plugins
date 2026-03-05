@@ -31,14 +31,14 @@
       "category": "infrastructure"
     },
     {
-      "name": "code-explorer-routing",
-      "source": "./code-explorer-routing",
-      "description": "Semantic tool routing for code-explorer MCP server: injects tool guidance into agents and redirects Grep/Glob/Read on source files to symbol-aware equivalents",
+      "name": "codescout-routing",
+      "source": "./codescout-routing",
+      "description": "Semantic tool routing for codescout MCP server: injects tool guidance into agents and redirects Grep/Glob/Read on source files to symbol-aware equivalents",
       "author": {
         "name": "Marius"
       },
       "license": "MIT",
-      "keywords": ["code-explorer", "semantic", "hooks", "mcp", "routing", "infrastructure"],
+      "keywords": ["codescout", "semantic", "hooks", "mcp", "routing", "infrastructure"],
       "category": "infrastructure"
     }
   ]

@@ -5,9 +5,20 @@ Dates are release dates. Versions follow [Semantic Versioning](https://semver.or
 
 ---
 
-## code-explorer-routing
+## codescout-routing
 
-Companion plugin for the [code-explorer](https://github.com/mareurs/code-explorer) MCP server.
+Companion plugin for the [codescout](https://github.com/mareurs/code-explorer) MCP server.
+
+### [1.7.0] — 2026-03-05
+
+- **Rename:** `code-explorer-routing` → `codescout-routing` — aligns plugin name with the codescout MCP server rename
+- **Backwards compat:** Config file `.claude/code-explorer-routing.json` still works (new name `.claude/codescout-routing.json` checked first)
+- **Fix:** `block_reads: false` (boolean) now works in config — previously only the string `"false"` was recognized due to jq's `//` treating boolean false as absent
+- Install command is now: `/plugin install codescout-routing@sdd-misc-plugins`
+
+### [1.6.0] — 2026-03-05
+
+- **Rename:** CE → codescout across all hook messages and variable names
 
 ### [1.5.5] — 2026-03-03
 
@@ -15,7 +26,7 @@ Companion plugin for the [code-explorer](https://github.com/mareurs/code-explore
 - **Fix:** `pre-tool-guard`: remove Glob wildcard bypass (`*.ext`) and Read limit/offset bypass — all source file access goes through CE tools
 - **Fix:** `session-start`: auto-create `.code-explorer` symlink for worktree sessions resumed without going through `EnterWorktree`
 - **Fix:** `worktree-activate`: `mkdir -p .code-explorer/` before symlinking so fresh projects work without a prior server run
-- Shorten "code-explorer" → "CE" in hook messages for brevity
+- Shorten "code-explorer" → "codescout" / "CE" in hook messages for brevity
 - `.gitignore`: add `.code-explorer/private-memories/` exclusion
 
 ### [1.5.4] — 2026-03-01
@@ -35,9 +46,9 @@ Companion plugin for the [code-explorer](https://github.com/mareurs/code-explore
 
 ### [1.2.2] — 2026-02-28
 
-- Add `goto_definition` and `hover` to FIND guidance (new LSP navigation tools in code-explorer)
+- Add `goto_definition` and `hover` to FIND guidance (new LSP navigation tools in codescout)
 - Fix EDIT guidance: `insert_before_symbol` / `insert_after_symbol` → `insert_code(position=before/after)`
-- Syncs guidance.txt with code-explorer's updated server_instructions.md
+- Syncs guidance.txt with codescout's updated server_instructions.md
 
 ### [1.2.1] — 2026-02-27
 
@@ -52,10 +63,10 @@ Companion plugin for the [code-explorer](https://github.com/mareurs/code-explore
 
 - PostToolUse soft-block: warns when Read/Grep/Glob target source files, suggests symbol-tool alternatives
 - Worktree support: detects git worktrees in SessionStart, skips auto-index inside worktrees
-- PostToolUse `worktree-activate` hook: re-activates code-explorer project when entering a worktree
+- PostToolUse `worktree-activate` hook: re-activates codescout project when entering a worktree
 - Single-source guidance: `guidance.txt` is the canonical text injected by both SessionStart and SubagentStart
 - Workspace scoping: PostToolUse warnings only fire for files inside the active workspace root
-- Tool name sync: updated to match code-explorer API renames (list_symbols, find_references, etc.)
+- Tool name sync: updated to match codescout API renames (list_symbols, find_references, etc.)
 - Improved deny messages; `.sh` files unblocked from source-file warnings
 
 ### [0.1.1] — 2026-02-26
@@ -65,9 +76,9 @@ Companion plugin for the [code-explorer](https://github.com/mareurs/code-explore
 
 ### [0.1.0] — 2026-02-26
 
-Initial release. Supersedes tool-infra for projects using code-explorer.
+Initial release. Supersedes tool-infra for projects using codescout.
 
-- `detect-tools.sh`: scans 4 config locations for code-explorer (routing config, .mcp.json, .claude.json, settings.json)
+- `detect-tools.sh`: scans 4 config locations for codescout (routing config, .mcp.json, .claude.json, settings.json)
 - SessionStart hook: injects tool guidance + onboarding/memory hints into main agent
 - SubagentStart hook: injects same guidance into all spawned subagents
 - PostToolUse hook: blocks Read/Grep/Glob on source files, redirects to symbol tools
@@ -101,8 +112,8 @@ Initial release.
 
 ## tool-infra *(deprecated)*
 
-> **Deprecated as of 2026-02-26.** Superseded by [code-explorer-routing](#code-explorer-routing).
-> tool-infra will be decommissioned in a future release. New projects should use code-explorer-routing.
+> **Deprecated as of 2026-02-26.** Superseded by [codescout-routing](#codescout-routing).
+> tool-infra will be decommissioned in a future release. New projects should use codescout-routing.
 
 ### [2.8.0] — 2026-02-23 *(final release)*
 
