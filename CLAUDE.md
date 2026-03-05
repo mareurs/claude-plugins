@@ -1,6 +1,6 @@
 # Claude Plugins Marketplace
 
-Claude Code plugin marketplace. Primary active plugin: `codescout-routing`.
+Claude Code plugin marketplace. Primary active plugin: `codescout-companion`.
 
 ## Structure
 
@@ -12,7 +12,7 @@ sdd/                             -- SDD plugin (stable)
 tool-infra/                      -- DEPRECATED, do not modify
   .claude-plugin/plugin.json     -- version source of truth
   hooks/                         -- plugin content
-codescout-routing/               -- companion plugin for codescout MCP server
+codescout-companion/               -- companion plugin for codescout MCP server
   .claude-plugin/plugin.json     -- version source of truth
   hooks/                         -- tool routing, guidance injection, auto-indexing
   docs/plans/                    -- design and implementation docs
@@ -21,13 +21,13 @@ scripts/check-versions.sh       -- version consistency validator
 
 ## Active Development Focus
 
-**When "the plugin" is mentioned without qualification, it refers to `codescout-routing`.**
+**When "the plugin" is mentioned without qualification, it refers to `codescout-companion`.**
 
-- `codescout-routing` — **actively developed**, primary focus of all plugin work
+- `codescout-companion` — **actively developed**, primary focus of all plugin work
 - `sdd` — **stable**, no active development expected
 - `tool-infra` — **DEPRECATED**, do not modify
 
-## codescout-routing
+## codescout-companion
 
 **Companion plugin for the codescout MCP server.**
 
@@ -84,7 +84,7 @@ Checks: plugin.json versions match README.md table, marketplace.json has no vers
 
 - Hooks use `jq` for JSON parsing — required dependency
 - Hook scripts use `${CLAUDE_PLUGIN_ROOT}` to reference files within the plugin install directory
-- Test hooks locally: `echo '{"cwd":"/some/path"}' | bash codescout-routing/hooks/session-start.sh`
+- Test hooks locally: `echo '{"cwd":"/some/path"}' | bash codescout-companion/hooks/session-start.sh`
 
 ## Testing
 
@@ -106,11 +106,11 @@ install record to point at the new cache snapshot:**
 
 ```bash
 # Check the latest cache version
-ls ~/.claude/plugins/cache/sdd-misc-plugins/codescout-routing/
+ls ~/.claude/plugins/cache/sdd-misc-plugins/codescout-companion/
 
 # Edit installed_plugins.json: update installPath + version to the new cache entry
 ~/.claude/plugins/installed_plugins.json
-# → "installPath": "~/.claude/plugins/cache/sdd-misc-plugins/codescout-routing/<version>"
+# → "installPath": "~/.claude/plugins/cache/sdd-misc-plugins/codescout-companion/<version>"
 # → "version": "<version>"
 ```
 
@@ -120,7 +120,7 @@ Then restart Claude Code.
 
 ```
 /plugin marketplace add mareurs/claude-plugins
-/plugin install codescout-routing@claude-plugins
+/plugin install codescout-companion@claude-plugins
 /plugin install sdd@claude-plugins
 ```
 
@@ -134,7 +134,7 @@ For project-level setup, add to `.claude/settings.json`:
     }
   },
   "enabledPlugins": {
-    "codescout-routing@claude-plugins": true
+    "codescout-companion@claude-plugins": true
   }
 }
 ```

@@ -7,8 +7,9 @@
 #          SOURCE_EXT_PATTERN
 
 MCP_JSON="${CWD}/.mcp.json"
-# Check new name first, fall back to old for backwards compatibility
-ROUTING_CONFIG="${CWD}/.claude/codescout-routing.json"
+# Check new name first, fall back to old names for backwards compatibility
+ROUTING_CONFIG="${CWD}/.claude/codescout-companion.json"
+[ -f "$ROUTING_CONFIG" ] || ROUTING_CONFIG="${CWD}/.claude/codescout-routing.json"
 [ -f "$ROUTING_CONFIG" ] || ROUTING_CONFIG="${CWD}/.claude/code-explorer-routing.json"
 CS_MEMORIES_DIR="${CWD}/.code-explorer/memories"
 CS_CONFIG_FILE="${CWD}/.code-explorer/project.toml"

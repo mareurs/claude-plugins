@@ -2,8 +2,8 @@
 # tests/lib/fixtures.sh — shared helpers for hook tests
 # Source this file at the top of each test script.
 
-# Hook directory (relative to this file: tests/lib/ → ../../codescout-routing/hooks)
-HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../codescout-routing/hooks" && pwd)"
+# Hook directory (relative to this file: tests/lib/ → ../../codescout-companion/hooks)
+HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../codescout-companion/hooks" && pwd)"
 
 # --- Result tracking ---
 PASS_COUNT=0
@@ -68,7 +68,7 @@ write_routing_config() {
   local dir="$1"
   local json="${2:-{}}"
   mkdir -p "$dir/.claude"
-  printf '%s\n' "$json" > "$dir/.claude/codescout-routing.json"
+  printf '%s\n' "$json" > "$dir/.claude/codescout-companion.json"
 }
 
 make_ce_dir() {

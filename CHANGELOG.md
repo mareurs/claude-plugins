@@ -5,16 +5,22 @@ Dates are release dates. Versions follow [Semantic Versioning](https://semver.or
 
 ---
 
-## codescout-routing
+## codescout-companion
 
 Companion plugin for the [codescout](https://github.com/mareurs/code-explorer) MCP server.
+
+### [1.8.0] — 2026-03-05
+
+- **Rename:** `codescout-routing` → `codescout-companion` — better reflects what the plugin does
+- Config file `.claude/codescout-companion.json` checked first, falls back to `codescout-routing.json` and `code-explorer-routing.json`
+- Install command is now: `/plugin install codescout-companion@sdd-misc-plugins`
 
 ### [1.7.0] — 2026-03-05
 
 - **Rename:** `code-explorer-routing` → `codescout-routing` — aligns plugin name with the codescout MCP server rename
 - **Backwards compat:** Config file `.claude/code-explorer-routing.json` still works (new name `.claude/codescout-routing.json` checked first)
 - **Fix:** `block_reads: false` (boolean) now works in config — previously only the string `"false"` was recognized due to jq's `//` treating boolean false as absent
-- Install command is now: `/plugin install codescout-routing@sdd-misc-plugins`
+- Install command is now: `/plugin install codescout-companion@sdd-misc-plugins`
 
 ### [1.6.0] — 2026-03-05
 
@@ -112,8 +118,8 @@ Initial release.
 
 ## tool-infra *(deprecated)*
 
-> **Deprecated as of 2026-02-26.** Superseded by [codescout-routing](#codescout-routing).
-> tool-infra will be decommissioned in a future release. New projects should use codescout-routing.
+> **Deprecated as of 2026-02-26.** Superseded by [codescout-companion](#codescout-companion).
+> tool-infra will be decommissioned in a future release. New projects should use codescout-companion.
 
 ### [2.8.0] — 2026-02-23 *(final release)*
 

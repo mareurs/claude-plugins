@@ -1,4 +1,4 @@
-# codescout-routing
+# codescout-companion
 
 Companion plugin for [codescout](https://github.com/mareurs/code-explorer) MCP server.
 
@@ -25,7 +25,7 @@ falling back to Read/Grep/Glob on source files. Auto-detects codescout from
 
 ```
 /plugin marketplace add mareurs/sdd-misc-plugins
-/plugin install codescout-routing@sdd-misc-plugins
+/plugin install codescout-companion@sdd-misc-plugins
 ```
 
 Or add to project `.claude/settings.json`:
@@ -33,7 +33,7 @@ Or add to project `.claude/settings.json`:
 ```json
 {
   "enabledPlugins": {
-    "codescout-routing@sdd-misc-plugins": true
+    "codescout-companion@sdd-misc-plugins": true
   }
 }
 ```
@@ -44,7 +44,7 @@ Or add to project `.claude/settings.json`:
 
 The plugin auto-detects codescout by scanning (in order):
 
-1. `.claude/codescout-routing.json` (or `.claude/code-explorer-routing.json` for backwards compatibility) — explicit config override
+1. `.claude/codescout-companion.json` (or `.claude/codescout-routing.json` / `.claude/code-explorer-routing.json` for backwards compatibility) — explicit config override
 2. `.mcp.json` — project-level MCP config
 3. `~/.claude/.claude.json` — servers added via `claude mcp add`
 4. `~/.claude/settings.json` — manually configured servers
@@ -53,7 +53,7 @@ Detection matches any server whose `command` or `args` contain `codescout` or `c
 
 ### Config file
 
-Create `.claude/codescout-routing.json` in your project for fine-grained control:
+Create `.claude/codescout-companion.json` (or `codescout-routing.json`) in your project for fine-grained control:
 
 ```json
 {
