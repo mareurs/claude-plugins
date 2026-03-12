@@ -1,6 +1,6 @@
 # codescout-companion
 
-Companion plugin for [codescout](https://github.com/mareurs/code-explorer) MCP server.
+Companion plugin for [codescout](https://github.com/mareurs/codescout) MCP server.
 
 Routes Claude Code agents to use codescout's symbol-aware tools instead of
 falling back to Read/Grep/Glob on source files. Auto-detects codescout from
@@ -16,7 +16,7 @@ falling back to Read/Grep/Glob on source files. Auto-detects codescout from
 
 ## Requirements
 
-- [codescout](https://github.com/mareurs/code-explorer) MCP server configured locally or globally
+- [codescout](https://github.com/mareurs/codescout) MCP server configured locally or globally
 - `jq` installed (used for JSON parsing in hooks)
 - `sqlite3` installed (for staleness checks and drift queries)
 - `git` installed (for HEAD comparison and worktree detection)

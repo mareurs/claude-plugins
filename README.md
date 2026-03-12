@@ -17,8 +17,7 @@ These plugins reflect specific workflows and tool choices -- they may not suit e
 | Plugin | Version | Description |
 |--------|---------|-------------|
 | **[sdd](./sdd/)** | 2.2.1 | Specification-Driven Development: governance, workflow commands, and enforcement hooks |
-| **[tool-infra](./tool-infra/)** | 2.8.0 | **Deprecated -- superseded by codescout-companion.** Semantic tool infrastructure: routes Claude to use Serena/IntelliJ/claude-context instead of Grep/Glob, with language-aware dual-tool routing |
-| **[codescout-companion](./codescout-companion/)** | 1.8.0 | Companion plugin for [codescout](https://github.com/mareurs/code-explorer) MCP server: injects tool guidance, redirects Read/Grep/Glob to symbol-aware tools, auto-reindex + drift warnings. **Supersedes tool-infra.** |
+| **[codescout-companion](./codescout-companion/)** | 1.8.0 | Companion plugin for [codescout](https://github.com/mareurs/codescout) MCP server: injects tool guidance, redirects Read/Grep/Glob to symbol-aware tools, auto-reindex + drift warnings |
 
 ## Requirements
 
@@ -30,8 +29,7 @@ These plugins reflect specific workflows and tool choices -- they may not suit e
 | Plugin | Additional Requirements |
 |--------|----------------------|
 | **sdd** | None (core workflow). [Serena MCP](https://github.com/oraios/serena) for `/drift` and `/document`. |
-| **tool-infra** | [Serena MCP](https://github.com/oraios/serena), [IntelliJ MCP](https://github.com/niclas-timm/intellij-index-mcp), and/or [claude-context](https://github.com/nicobailon/claude-context). Auto-detects which are available. |
-| **codescout-companion** | [codescout MCP](https://github.com/mareurs/code-explorer) server configured in `.mcp.json` or globally. |
+| **codescout-companion** | [codescout MCP](https://github.com/mareurs/codescout) server configured in `.mcp.json` or globally. |
 
 ## Plugins
 
@@ -47,25 +45,9 @@ A methodology where code follows specifications. Every feature starts with a cle
 
 See [sdd/README.md](./sdd/) for full documentation.
 
-### tool-infra (deprecated)
-
-> **Deprecated:** Superseded by [codescout-companion](#codescout-companion). tool-infra will be decommissioned in a future release. New projects should use codescout-companion with [codescout](https://github.com/mareurs/code-explorer).
-
-Makes Claude use semantic code tools (Serena, IntelliJ MCP, claude-context) instead of falling back to text search. Auto-detects tools from `.mcp.json` and languages from `.serena/project.yml` for language-aware routing.
-
-**Hooks:**
-- **session-start** -- Tool reference card with known issues, dual-tool decision matrix, and workflow patterns
-- **subagent-guidance** -- Semantic tool workflow for all subagents; enriched guidance for Plan agents (workflow patterns, tool reference, known issues)
-- **semantic-tool-router** -- Blocks Grep/Glob/Read on source files, suggests semantic alternatives
-- **mcp-param-fixer** -- Auto-corrects wrong MCP parameter names in-place (e.g. `pattern` -> `substring_pattern`)
-- **intellij-project-path** -- Auto-injects `project_path` into IntelliJ index calls
-- **dual-tool-router** -- Language-aware blocking of broken Serena calls (Kotlin/Java), redirects to IntelliJ equivalents
-
-See [tool-infra/README.md](./tool-infra/) for details and configuration.
-
 ### codescout-companion
 
-Companion plugin for [codescout](https://github.com/mareurs/code-explorer) MCP server. Supersedes [tool-infra](#tool-infra-deprecated). Routes Claude to use codescout's symbol-aware tools instead of Read/Grep/Glob. Auto-detects codescout from `.mcp.json`, `~/.claude/.claude.json`, or `~/.claude/settings.json`.
+Companion plugin for [codescout](https://github.com/mareurs/codescout) MCP server. Routes Claude to use codescout's symbol-aware tools instead of Read/Grep/Glob. Auto-detects codescout from `.mcp.json`, `~/.claude/.claude.json`, or `~/.claude/settings.json`.
 
 **Hooks:**
 - **session-start** -- Tool guidance, memory hints, onboarding nudge, auto-reindex + drift warnings

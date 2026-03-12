@@ -20,17 +20,6 @@
       "category": "workflow"
     },
     {
-      "name": "tool-infra",
-      "source": "./tool-infra",
-      "description": "Infrastructure hooks for semantic code tools: routes Grep/Glob to semantic tools, dual-tool routing (Serena+IntelliJ), fixes MCP params, injects exploration guidance",
-      "author": {
-        "name": "Marius"
-      },
-      "license": "MIT",
-      "keywords": ["serena", "intellij", "hooks", "mcp", "semantic", "infrastructure"],
-      "category": "infrastructure"
-    },
-    {
       "name": "codescout-companion",
       "source": "./codescout-companion",
       "description": "Semantic tool routing for codescout MCP server: injects tool guidance into agents and redirects Grep/Glob/Read on source files to symbol-aware equivalents",
@@ -39,28 +28,6 @@
       },
       "license": "MIT",
       "keywords": ["codescout", "semantic", "hooks", "mcp", "routing", "infrastructure"],
-      "category": "infrastructure"
-    },
-    {
-      "name": "codescout-routing",
-      "source": "./codescout-companion",
-      "description": "DEPRECATED — renamed to codescout-companion. Use: /plugin install codescout-companion@sdd-misc-plugins",
-      "author": {
-        "name": "Marius"
-      },
-      "license": "MIT",
-      "keywords": ["codescout", "deprecated"],
-      "category": "infrastructure"
-    },
-    {
-      "name": "code-explorer-routing",
-      "source": "./codescout-companion",
-      "description": "DEPRECATED — renamed to codescout-companion. Use: /plugin install codescout-companion@sdd-misc-plugins",
-      "author": {
-        "name": "Marius"
-      },
-      "license": "MIT",
-      "keywords": ["codescout", "deprecated"],
       "category": "infrastructure"
     }
   ]

@@ -9,9 +9,6 @@ Claude Code plugin marketplace. Primary active plugin: `codescout-companion`.
 sdd/                             -- SDD plugin (stable)
   .claude-plugin/plugin.json     -- version source of truth
   hooks/, commands/, skills/     -- plugin content
-tool-infra/                      -- DEPRECATED, do not modify
-  .claude-plugin/plugin.json     -- version source of truth
-  hooks/                         -- plugin content
 codescout-companion/               -- companion plugin for codescout MCP server
   .claude-plugin/plugin.json     -- version source of truth
   hooks/                         -- tool routing, guidance injection, auto-indexing
@@ -25,7 +22,6 @@ scripts/check-versions.sh       -- version consistency validator
 
 - `codescout-companion` — **actively developed**, primary focus of all plugin work
 - `sdd` — **stable**, no active development expected
-- `tool-infra` — **DEPRECATED**, do not modify
 
 ## codescout-companion
 

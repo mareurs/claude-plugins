@@ -7,7 +7,7 @@ Dates are release dates. Versions follow [Semantic Versioning](https://semver.or
 
 ## codescout-companion
 
-Companion plugin for the [codescout](https://github.com/mareurs/code-explorer) MCP server.
+Companion plugin for the [codescout](https://github.com/mareurs/codescout) MCP server.
 
 ### [1.8.0] — 2026-03-05
 
