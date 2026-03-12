@@ -16,8 +16,8 @@ These plugins reflect specific workflows and tool choices -- they may not suit e
 
 | Plugin | Version | Description |
 |--------|---------|-------------|
-| **[sdd](./sdd/)** | 2.2.1 | Specification-Driven Development: governance, workflow commands, and enforcement hooks |
-| **[codescout-companion](./codescout-companion/)** | 1.8.0 | Companion plugin for [codescout](https://github.com/mareurs/codescout) MCP server: injects tool guidance, redirects Read/Grep/Glob to symbol-aware tools, auto-reindex + drift warnings |
+| **[sdd](./sdd/)** | 2.3.0 | Specification-Driven Development: governance, workflow commands, and enforcement hooks |
+| **[codescout-companion](./codescout-companion/)** | 1.8.1 | Companion plugin for [codescout](https://github.com/mareurs/codescout) MCP server: injects tool guidance, redirects Read/Grep/Glob to symbol-aware tools, auto-reindex + drift warnings |
 
 ## Requirements
 
