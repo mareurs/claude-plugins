@@ -55,7 +55,7 @@ if [ -f "$ROUTING_CONFIG" ]; then
   [ "$_dw" = "false" ] && DRIFT_WARNINGS=false
 fi
 
-DB_PATH="${CWD}/.code-explorer/embeddings.db"
+DB_PATH="${CS_PROJECT_DIR}/embeddings.db"
 
 # --- Auto-reindex (if stale) ---
 if [ "$AUTO_INDEX" = "true" ] && [ "$IN_WORKTREE" = "false" ] && \
@@ -73,7 +73,7 @@ fi
 
 # --- Drift warnings ---
 if [ "$DRIFT_WARNINGS" = "true" ] && [ -f "$DB_PATH" ]; then
-  if grep -q 'drift_detection_enabled = true' "${CWD}/.code-explorer/project.toml" 2>/dev/null; then
+  if grep -q 'drift_detection_enabled = true' "$CS_CONFIG_FILE" 2>/dev/null; then
     DRIFT_FILES=$(sqlite3 "$DB_PATH" \
       "SELECT file_path || ' (drift: ' || printf('%.2f', max_drift) || ')' \
        FROM drift_report WHERE max_drift > 0.1 ORDER BY max_drift DESC LIMIT 10;" 2>/dev/null)
@@ -89,7 +89,7 @@ $(echo "$DRIFT_FILES" | sed 's/^/  /')
         MSG="${MSG}→ Check if CLAUDE.md and README.md still match these changes.
 "
       fi
-      MEM_NAMES=$(find "${CWD}/.code-explorer/memories/" -maxdepth 1 -name '*.md' \
+      MEM_NAMES=$(find "${CS_MEMORIES_DIR}/" -maxdepth 1 -name '*.md' \
         -exec basename {} .md \; 2>/dev/null | tr '\n' ' ' | sed 's/ $//')
       if [ -n "$MEM_NAMES" ]; then
         MSG="${MSG}→ Memories may need updating: ${MEM_NAMES}
@@ -143,17 +143,22 @@ If tools are unavailable, the MCP server failed to connect (check \`claude mcp l
 if [ "$IN_WORKTREE" = "true" ]; then
   WT_ROOT=$(git -C "$CWD" rev-parse --show-toplevel 2>/dev/null)
 
-  # Ensure .code-explorer/ symlink exists — worktree-activate.sh creates it via
+  # Ensure .codescout/ (or .code-explorer/) symlink exists — worktree-activate.sh creates it via
   # PostToolUse on EnterWorktree, but a resumed or directly-opened session skips that.
-  CE_DEST="${WT_ROOT:-$CWD}/.code-explorer"
-  if [ ! -e "$CE_DEST" ]; then
-    # Derive main project root: --git-common-dir points to main .git dir
-    MAIN_GIT=$(git -C "$CWD" rev-parse --git-common-dir 2>/dev/null)
-    MAIN_ROOT=$(dirname "$MAIN_GIT")
-    if [ -n "$MAIN_ROOT" ] && [ "$MAIN_ROOT" != "." ]; then
-      # Create main .code-explorer/ if it doesn't exist yet (server writes project.toml on first run)
-      mkdir -p "$MAIN_ROOT/.code-explorer" 2>/dev/null
-      ln -s "$MAIN_ROOT/.code-explorer" "$CE_DEST" 2>/dev/null
+  MAIN_GIT=$(git -C "$CWD" rev-parse --git-common-dir 2>/dev/null)
+  MAIN_ROOT=$(dirname "$MAIN_GIT")
+  if [ -n "$MAIN_ROOT" ] && [ "$MAIN_ROOT" != "." ]; then
+    # Use .codescout if it exists on the main project, else .code-explorer (backwards compat)
+    if [ -d "$MAIN_ROOT/.codescout" ]; then
+      CE_NAME=".codescout"
+    else
+      CE_NAME=".code-explorer"
+    fi
+    CE_DEST="${WT_ROOT:-$CWD}/${CE_NAME}"
+    if [ ! -e "$CE_DEST" ]; then
+      # Create main project dir if it doesn't exist yet (server writes project.toml on first run)
+      mkdir -p "$MAIN_ROOT/${CE_NAME}" 2>/dev/null
+      ln -s "$MAIN_ROOT/${CE_NAME}" "$CE_DEST" 2>/dev/null
     fi
   fi
 

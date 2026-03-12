@@ -2,7 +2,7 @@
 # PostToolUse hook — after EnterWorktree:
 #   1. Inject activate_project guidance (always)
 #   2. Create .cs-worktree-pending marker (blocks writes until activate_project called)
-#   3. Symlink .code-explorer/ into worktree (best-effort)
+#   3. Symlink .codescout/ into worktree (best-effort)
 # No-op if code-explorer is not configured.
 
 INPUT=$(cat)
@@ -56,30 +56,34 @@ Do NOT run index_project in worktrees — the shared index is read-only here." '
   }
 }'
 
-# --- Symlink .code-explorer/ into worktree (best-effort) ---
-# Walk up from original project CWD to find the .code-explorer/ directory.
+# --- Symlink .codescout/ (or .code-explorer/) into worktree (best-effort) ---
+# Walk up from original project CWD to find the project dir (.codescout preferred).
 CE_DIR=""
 CHECK="$CWD"
 while [ "$CHECK" != "/" ]; do
-  if [ -d "$CHECK/.code-explorer" ]; then
+  if [ -d "$CHECK/.codescout" ]; then
+    CE_DIR="$CHECK/.codescout"
+    break
+  elif [ -d "$CHECK/.code-explorer" ]; then
     CE_DIR="$CHECK/.code-explorer"
     break
   fi
   CHECK=$(dirname "$CHECK")
 done
 
-# If .code-explorer/ doesn't exist yet (server not run on main project), create it so
+# If neither dir exists yet (server not run on main project), create .codescout so
 # the symlink can be established immediately. The server writes project.toml on first run.
 if [ -z "$CE_DIR" ]; then
   MAIN_ROOT=$(git -C "$CWD" rev-parse --show-toplevel 2>/dev/null)
   if [ -n "$MAIN_ROOT" ]; then
-    mkdir -p "$MAIN_ROOT/.code-explorer" 2>/dev/null && CE_DIR="$MAIN_ROOT/.code-explorer"
+    mkdir -p "$MAIN_ROOT/.codescout" 2>/dev/null && CE_DIR="$MAIN_ROOT/.codescout"
   fi
 fi
 
 [ -z "$CE_DIR" ] && exit 0
 
-DEST="$WORKTREE_PATH/.code-explorer"
+# Symlink name in worktree matches main project (preserves backwards compat for old projects)
+DEST="$WORKTREE_PATH/$(basename "$CE_DIR")"
 if [ ! -e "$DEST" ]; then
   ln -s "$CE_DIR" "$DEST" 2>/dev/null
 fi

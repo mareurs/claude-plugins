@@ -2,6 +2,7 @@
 # Shared detection logic — sourced by other hooks
 # Expects: CWD to be set before sourcing
 # Sets: HAS_CODESCOUT, CS_SERVER_NAME, CS_PREFIX, CS_BINARY,
+#          CS_PROJECT_DIR (.codescout/ or .code-explorer/ for backwards compat),
 #          HAS_CS_ONBOARDING, HAS_CS_MEMORIES, CS_MEMORY_NAMES,
 #          HAS_CS_SYSTEM_PROMPT, CS_SYSTEM_PROMPT,
 #          SOURCE_EXT_PATTERN
@@ -11,8 +12,11 @@ MCP_JSON="${CWD}/.mcp.json"
 ROUTING_CONFIG="${CWD}/.claude/codescout-companion.json"
 [ -f "$ROUTING_CONFIG" ] || ROUTING_CONFIG="${CWD}/.claude/codescout-routing.json"
 [ -f "$ROUTING_CONFIG" ] || ROUTING_CONFIG="${CWD}/.claude/code-explorer-routing.json"
-CS_MEMORIES_DIR="${CWD}/.code-explorer/memories"
-CS_CONFIG_FILE="${CWD}/.code-explorer/project.toml"
+# Check new dir name first, fall back to old name for backwards compatibility
+CS_PROJECT_DIR="${CWD}/.codescout"
+[ -d "$CS_PROJECT_DIR" ] || CS_PROJECT_DIR="${CWD}/.code-explorer"
+CS_MEMORIES_DIR="${CS_PROJECT_DIR}/memories"
+CS_CONFIG_FILE="${CS_PROJECT_DIR}/project.toml"
 
 HAS_CODESCOUT=false
 CS_SERVER_NAME=""
@@ -106,7 +110,7 @@ if [ -d "$CS_MEMORIES_DIR" ]; then
 fi
 
 # --- System prompt ---
-CS_SYSTEM_PROMPT_FILE="${CWD}/.code-explorer/system-prompt.md"
+CS_SYSTEM_PROMPT_FILE="${CS_PROJECT_DIR}/system-prompt.md"
 CS_SYSTEM_PROMPT=""
 HAS_CS_SYSTEM_PROMPT=false
 if [ -f "$CS_SYSTEM_PROMPT_FILE" ]; then
