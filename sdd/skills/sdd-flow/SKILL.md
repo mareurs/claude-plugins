@@ -112,7 +112,7 @@ How would you like to proceed?
 ```
 
 **Validation before resuming:**
-- If spec status is "Draft", cannot resume past SPECIFY
+- If spec status is "Draft", cannot resume past IDEATE+SPECIFY
 - If plan status is "Draft", cannot resume past PLAN
 - If plan status is "Approved", can resume at IMPLEMENT
 - If spec was bootstrapped (Source: Reverse-engineered), note this and offer to refine before proceeding
@@ -189,7 +189,7 @@ Present the spec and ask:
 | User Response | Action |
 |---------------|--------|
 | "approve", "approved", "yes", "lgtm" | Update spec Status to "Approved", proceed to WORKTREE_SETUP |
-| Feedback or concerns | Collect feedback, loop back to SPECIFY |
+| Feedback or concerns | Collect feedback, loop back to IDEATE+SPECIFY |
 | "cancel", "stop" | Exit flow gracefully |
 
 ### On Rejection
@@ -200,7 +200,7 @@ Got it. Let me revise the specification based on your feedback.
 Your concerns:
 - [listed concerns]
 
-Returning to SPECIFY phase...
+Returning to IDEATE+SPECIFY phase...
 ```
 
 Bump the changelog version with the feedback reason:
@@ -637,7 +637,7 @@ Use `write_memory` or `edit_memory` to persist.
 Error: No specification found at memory/specs/[feature-name].md
 
 Cannot create plan without approved spec (Article I).
-Returning to SPECIFY phase...
+Returning to IDEATE+SPECIFY phase...
 ```
 
 ### Plan Not Found (in IMPLEMENT phase)
@@ -715,9 +715,9 @@ Resume later with: /sdd-flow [feature-name]
 
 | Phase | External Skill | Purpose |
 |-------|----------------|---------|
-| IDEATE | `superpowers:brainstorming` | Explore requirements |
+| IDEATE+SPECIFY | `superpowers:brainstorming` | Full spec creation — Q&A, design, review loop, writes to `memory/specs/` |
 | WORKTREE_SETUP | `superpowers:using-git-worktrees` | Isolate feature work |
-| PLAN | `superpowers:writing-plans` | Structure plan |
+| PLAN | `superpowers:writing-plans` | Full plan creation — TDD tasks, review loop, writes to `memory/plans/` |
 | IMPLEMENT | `superpowers:subagent-driven-development` | Parallel task execution (user choice) |
 | IMPLEMENT | `superpowers:test-driven-development` | Sequential TDD discipline (user choice) |
 | IMPLEMENT | `superpowers:verification-before-completion` | Verify before claiming done |
@@ -732,8 +732,7 @@ Resume later with: /sdd-flow [feature-name]
 
 | Phase | Gate | Output | Next |
 |-------|------|--------|------|
-| IDEATE | - | Understanding | SPECIFY |
-| SPECIFY | Gate 1 | Spec (Review) + changelog + FEATURES.md entry | WORKTREE_SETUP |
+| IDEATE+SPECIFY | Gate 1 | `memory/specs/<feature>.md` (PRD format) + FEATURES.md entry | WORKTREE_SETUP |
 | WORKTREE_SETUP | - | Isolated branch | PLAN |
 | PLAN | Gate 2 | Plan (Approved) | IMPLEMENT |
 | IMPLEMENT | - | Code + Tests (+ ADRs) | DRIFT |
@@ -750,7 +749,7 @@ This skill enforces all six constitutional articles:
 
 | Article | Enforcement |
 |---------|-------------|
-| I: Spec-First | SPECIFY phase + Gate 1 |
+| I: Spec-First | IDEATE+SPECIFY phase + Gate 1 |
 | II: Human-in-the-Loop | Gate 2 (mandatory) |
 | III: Constitutional Review | REVIEW phase + Gate 3 |
 | IV: Documentation | DOCUMENT phase (auto-runs: spec versioning, FEATURES.md, ADRs) |
