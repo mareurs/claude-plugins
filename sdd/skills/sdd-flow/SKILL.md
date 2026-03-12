@@ -211,7 +211,7 @@ Bump the changelog version with the feedback reason:
 
 ---
 
-## Phase 4: Worktree Setup
+## Phase 3: Worktree Setup
 
 **Goal:** Isolate feature work in a dedicated worktree or branch.
 
@@ -242,7 +242,7 @@ Worktrees keep your main working directory clean and let you switch context easi
 
 ---
 
-## Phase 5: Plan
+## Phase 4: Plan
 
 **Goal:** Create implementation plan from approved spec.
 
@@ -302,7 +302,7 @@ Same as Gate 1, but on approval:
 
 ---
 
-## Phase 6: Implement
+## Phase 5: Implement
 
 **Goal:** Implement the plan using strict Test-Driven Development.
 
@@ -408,7 +408,7 @@ These are tracked but don't block - they inform the FINALIZE phase.
 
 ---
 
-## Phase 7: Drift Check
+## Phase 6: Drift Check
 
 **Goal:** Verify implementation matches specification.
 
@@ -431,7 +431,7 @@ These are tracked but don't block - they inform the FINALIZE phase.
 
 ---
 
-## Phase 8: Review
+## Phase 7: Review
 
 **Goal:** Constitutional compliance check + optional code quality review.
 
@@ -505,7 +505,7 @@ Map each violation to a fix action:
 
 ---
 
-## Phase 9: Document
+## Phase 8: Document
 
 **Goal:** Finalize all documentation artifacts. Auto-runs after Gate 3 GO.
 
@@ -543,7 +543,7 @@ Proceeding to FINALIZE...
 
 ---
 
-## Phase 10: Finalize
+## Phase 9: Finalize
 
 **Goal:** Merge, push, create PR, clean up.
 
