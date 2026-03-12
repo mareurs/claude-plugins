@@ -157,44 +157,6 @@ How would you like to proceed?
 
 ---
 
-## Phase 3: Specify
-
-**Goal:** Create a formal specification with changelog tracking.
-
-**Process:**
-1. Execute `/specify <feature-name>` logic inline:
-   - Ask 2-5 clarifying questions
-   - Generate PRD at `memory/specs/<feature-name>.md`
-   - Include: Problem, Solution, Acceptance Criteria, Out of Scope
-   - Include a **changelog table** at the top of the spec:
-
-```markdown
-## Changelog
-| Version | Date | Change | Reason |
-|---------|------|--------|--------|
-| v1 | [date] | Initial spec | Created via /sdd-flow |
-```
-
-2. Add an entry to `memory/FEATURES.md` with status `drafting`:
-
-```markdown
-| [feature-name] | drafting | specs/[feature-name].md | - | - | [date] |
-```
-
-If `memory/FEATURES.md` does not exist, create it with the header:
-
-```markdown
-# Feature Registry
-
-| Feature | Status | Spec | Plan | PR | Date |
-|---------|--------|------|------|----|------|
-```
-
-3. Present spec summary to user
-
-**Output:** `memory/specs/<feature-name>.md` with Status: Review, changelog table, and FEATURES.md entry
-
----
 
 ## Gate 1: Spec Approval
 
