@@ -119,20 +119,41 @@ How would you like to proceed?
 
 ---
 
-## Phase 2: Ideate (Brainstorming)
+## Phase 2: Ideate + Specify (Brainstorming)
 
-**Goal:** Explore the feature idea before formalizing.
+**Goal:** Explore the feature idea and produce the SDD spec through the full brainstorming process.
 
 **Process:**
-1. Invoke `superpowers:brainstorming` skill mindset
-2. Ask discovery questions:
-   - What problem does this solve?
-   - Who is the user?
-   - What's the minimal viable version?
-   - What's explicitly out of scope?
-3. Synthesize understanding before proceeding to SPECIFY
+1. Invoke `superpowers:brainstorming` via the Skill tool with these user preferences:
+   - **Spec save location:** `memory/specs/<feature-name>.md`
+   - **Format:** SDD PRD template — must include these sections:
+     ```
+     ## Changelog
+     | Version | Date | Change | Reason |
+     **Status:** Draft | Review | Approved
+     ## Problem Statement
+     ## Proposed Solution
+     ## Acceptance Criteria (checkboxes)
+     ## Technical Approach
+     ## Out of Scope
+     ## Open Questions
+     ```
+   - **Handoff override:** After the spec review loop passes, do NOT invoke `writing-plans` directly — present Gate 1 instead (worktree setup comes before planning)
+2. Brainstorming runs its full process: clarifying Q&A, 2-3 approaches, design sections, spec review loop
+3. After brainstorming completes and spec is saved to `memory/specs/<feature-name>.md`:
+   - Add an entry to `memory/FEATURES.md` with status `drafting`:
+     ```
+     | [feature-name] | drafting | specs/[feature-name].md | - | - | [date] |
+     ```
+   - If `memory/FEATURES.md` does not exist, create it with the header:
+     ```
+     # Feature Registry
+     | Feature | Status | Spec | Plan | PR | Date |
+     |---------|--------|------|------|----|------|
+     ```
+4. Present Gate 1
 
-**Output:** Clear understanding, ready to write spec
+**Output:** `memory/specs/<feature-name>.md` (SDD PRD format, Status: Review) + FEATURES.md entry
 
 ---
 
