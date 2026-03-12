@@ -20,7 +20,7 @@ When invoked, announce:
 ```
 Starting SDD Flow for [feature-name]...
 
-This orchestrates: IDEATE → SPECIFY → [Gate 1] → WORKTREE_SETUP → PLAN → [Gate 2] → IMPLEMENT → DRIFT → REVIEW → [Gate 3] → DOCUMENT → FINALIZE
+This orchestrates: IDEATE+SPECIFY → [Gate 1] → WORKTREE_SETUP → PLAN → [Gate 2] → IMPLEMENT → DRIFT → REVIEW → [Gate 3] → DOCUMENT → FINALIZE
 
 You'll have 3 approval gates where I'll stop and wait for your explicit approval.
 ```
