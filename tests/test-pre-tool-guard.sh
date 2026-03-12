@@ -57,10 +57,13 @@ else
   fail "Read .ts: deny with list_symbols" "$OUT"
 fi
 
-# Test 8: Read on .md file → allow
+# Test 8: Read on .md file → deny with heading navigation guidance
 OUT=$(guard_input "Read" '"file_path":"'"$T/proj/README.md"'"' | bash "$HOOK" 2>/dev/null)
-EC=$?
-if [ $EC -eq 0 ] && ! assert_denied "$OUT"; then pass "Read .md: allow"; else fail "Read .md: allow" "$OUT"; fi
+if assert_denied "$OUT" && echo "$OUT" | grep -q "heading="; then
+  pass "Read .md: deny with heading navigation"
+else
+  fail "Read .md: deny with heading navigation" "$OUT"
+fi
 
 # Test 9: block_reads=false → allow source file
 # Note: jq's // empty operator treats boolean false as absent; hook reads

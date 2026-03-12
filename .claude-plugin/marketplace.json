@@ -22,7 +22,7 @@
     {
       "name": "codescout-companion",
       "source": "./codescout-companion",
-      "description": "Semantic tool routing for codescout MCP server: injects tool guidance into agents and redirects Grep/Glob/Read on source files to symbol-aware equivalents",
+      "description": "Companion for codescout MCP server: injects tool guidance + GitHub context into agents, redirects Grep/Glob/Read on source and markdown files to symbol/heading-aware equivalents, auto-reindex + drift warnings",
       "author": {
         "name": "Marius"
       },

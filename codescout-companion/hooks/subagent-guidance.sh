@@ -24,6 +24,24 @@ MSG="codescout: For ALL code navigation, use codescout tools — not Read/Grep/G
   goto_definition / find_references — navigate relationships
   replace_symbol / insert_code — edit code"
 
+# --- GitHub identity + repo context ---
+if command -v gh &>/dev/null; then
+  GH_USER=$(gh auth status 2>&1 | grep -oP 'Logged in to github\.com account \K\S+' | head -1)
+  if [ -z "$GH_USER" ]; then
+    GH_USER=$(gh auth status 2>&1 | grep -oP 'Logged in to github\.com as \K\S+' | head -1)
+  fi
+  if [ -n "$GH_USER" ]; then
+    REMOTE_URL=$(git -C "$CWD" remote get-url origin 2>/dev/null)
+    if [[ "$REMOTE_URL" =~ github\.com[:/]([^/]+)/([^/.]+) ]]; then
+      GH_OWNER="${BASH_REMATCH[1]}"
+      GH_REPO="${BASH_REMATCH[2]%.git}"
+      MSG="${MSG}
+GitHub: @${GH_USER} | repo: ${GH_OWNER}/${GH_REPO}
+→ For issues/PRs/repo ops: github_issue/github_pr/github_repo with owner=\"${GH_OWNER}\" repo=\"${GH_REPO}\"."
+    fi
+  fi
+fi
+
 if [ "$HAS_CS_SYSTEM_PROMPT" = "true" ]; then
   MSG="${MSG}
 

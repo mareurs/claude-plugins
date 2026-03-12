@@ -106,8 +106,6 @@ YOU MUST use codescout file tools. Do not call Glob on source files."
   Read)
     FILE_PATH=$(echo "$INPUT" | jq -r '.tool_input.file_path // empty')
 
-    echo "$FILE_PATH" | grep -qiE "$SOURCE_EXT_PATTERN" || exit 0
-
     is_in_workspace "$FILE_PATH" || exit 0
 
     # Extract relative path for the suggestion
@@ -115,6 +113,24 @@ YOU MUST use codescout file tools. Do not call Glob on source files."
     if [[ "$FILE_PATH" == "$CWD"* ]]; then
       REL_PATH="${FILE_PATH#$CWD/}"
     fi
+
+    if echo "$FILE_PATH" | grep -qiE '\.md$'; then
+      enforce "WRONG TOOL. You called Read on a markdown file but codescout has HEADING-LEVEL NAVIGATION.
+
+STOP. Do NOT read the full file: ${FILE_PATH}
+
+Reading a full markdown file dumps all content into context — WASTEFUL when you need one section.
+codescout read_file returns a STRUCTURAL SUMMARY with heading tree first, then lets you navigate:
+
+  read_file(\"${REL_PATH}\")                         — heading tree summary (see full structure instantly)
+  read_file(\"${REL_PATH}\", heading=\"## Section\")  — jump directly to a named section
+  search_pattern(\"pattern\", path=\"${REL_PATH}\")   — find specific content within the file
+
+WORKFLOW: read_file first to see the heading tree → then read_file with heading= to get the section.
+Do not call Read on markdown files."
+    fi
+
+    echo "$FILE_PATH" | grep -qiE "$SOURCE_EXT_PATTERN" || exit 0
 
     enforce "WRONG TOOL. You called Read on a source file but codescout has SYMBOL-LEVEL ACCESS.
 

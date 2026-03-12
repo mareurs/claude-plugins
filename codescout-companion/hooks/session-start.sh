@@ -100,6 +100,36 @@ $(echo "$DRIFT_FILES" | sed 's/^/  /')
   fi
 fi
 
+# --- GitHub identity + repo context ---
+# Detect GitHub auth and owner/repo from git remote so github_* tools have context ready.
+# Uses gh auth status (local, no network) and parses the git remote URL.
+if command -v gh &>/dev/null; then
+  GH_USER=$(gh auth status 2>&1 | grep -oP 'Logged in to github\.com account \K\S+' | head -1)
+  if [ -z "$GH_USER" ]; then
+    # Newer gh versions use a different format
+    GH_USER=$(gh auth status 2>&1 | grep -oP 'Logged in to github\.com as \K\S+' | head -1)
+  fi
+  if [ -n "$GH_USER" ]; then
+    REMOTE_URL=$(git -C "$CWD" remote get-url origin 2>/dev/null)
+    GH_OWNER=""
+    GH_REPO=""
+    if [[ "$REMOTE_URL" =~ github\.com[:/]([^/]+)/([^/.]+) ]]; then
+      GH_OWNER="${BASH_REMATCH[1]}"
+      GH_REPO="${BASH_REMATCH[2]%.git}"
+    fi
+    if [ -n "$GH_OWNER" ] && [ -n "$GH_REPO" ]; then
+      MSG="${MSG}GitHub: @${GH_USER} | repo: ${GH_OWNER}/${GH_REPO}
+→ For issues/PRs/repo ops, use codescout github_issue/github_pr/github_repo tools with owner=\"${GH_OWNER}\" repo=\"${GH_REPO}\".
+
+"
+    else
+      MSG="${MSG}GitHub: @${GH_USER} (no GitHub remote detected on origin)
+
+"
+    fi
+  fi
+fi
+
 # --- Connectivity note ---
 # Hooks can't verify MCP handshake — detection is config-based only.
 # If the MCP server failed to connect, tools won't be available despite config existing.

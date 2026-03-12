@@ -5,3 +5,5 @@
 .code-explorer/
 test-detect.sh
 .code-explorer/private-memories/
+.codescout/
+.codescout/private-memories/
