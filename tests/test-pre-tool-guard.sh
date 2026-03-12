@@ -57,13 +57,28 @@ else
   fail "Read .ts: deny with list_symbols" "$OUT"
 fi
 
-# Test 8: Read on .md file → deny with heading navigation guidance
+# Test 8: Read on .md inside project → deny with heading navigation guidance
 OUT=$(guard_input "Read" '"file_path":"'"$T/proj/README.md"'"' | bash "$HOOK" 2>/dev/null)
 if assert_denied "$OUT" && echo "$OUT" | grep -q "heading="; then
-  pass "Read .md: deny with heading navigation"
+  pass "Read .md in project: deny with heading navigation"
 else
-  fail "Read .md: deny with heading navigation" "$OUT"
+  fail "Read .md in project: deny with heading navigation" "$OUT"
 fi
+
+# Test 8b: Read on .md outside project → allow
+OUT=$(guard_input "Read" '"file_path":"/tmp/some-skill/SKILL.md"' | bash "$HOOK" 2>/dev/null)
+EC=$?
+if [ $EC -eq 0 ] && ! assert_denied "$OUT"; then pass "Read .md outside project: allow"; else fail "Read .md outside project: allow" "$OUT"; fi
+
+# Test 8c: Read on skill SKILL.md inside project → allow
+OUT=$(guard_input "Read" '"file_path":"'"$T/proj/skills/my-skill/SKILL.md"'"' | bash "$HOOK" 2>/dev/null)
+EC=$?
+if [ $EC -eq 0 ] && ! assert_denied "$OUT"; then pass "Read SKILL.md in project: allow"; else fail "Read SKILL.md in project: allow" "$OUT"; fi
+
+# Test 8d: Read on .md in skills/ subdir inside project → allow
+OUT=$(guard_input "Read" '"file_path":"'"$T/proj/myplugin/skills/foo/guide.md"'"' | bash "$HOOK" 2>/dev/null)
+EC=$?
+if [ $EC -eq 0 ] && ! assert_denied "$OUT"; then pass "Read .md in skills/ dir: allow"; else fail "Read .md in skills/ dir: allow" "$OUT"; fi
 
 # Test 9: block_reads=false → allow source file
 # Note: jq's // empty operator treats boolean false as absent; hook reads

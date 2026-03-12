@@ -115,6 +115,11 @@ YOU MUST use codescout file tools. Do not call Glob on source files."
     fi
 
     if echo "$FILE_PATH" | grep -qiE '\.md$'; then
+      # Only guard .md files inside the current project
+      [[ "$FILE_PATH" != "${CWD}"* ]] && exit 0
+      # Exempt skill files (SKILL.md, files inside a skills/ directory)
+      echo "$FILE_PATH" | grep -qiE '(^|/)skills/' && exit 0
+      echo "$FILE_PATH" | grep -qiE '/SKILL\.md$' && exit 0
       enforce "WRONG TOOL. You called Read on a markdown file but codescout has HEADING-LEVEL NAVIGATION.
 
 STOP. Do NOT read the full file: ${FILE_PATH}
