@@ -247,16 +247,19 @@ Worktrees keep your main working directory clean and let you switch context easi
 **Goal:** Create implementation plan from approved spec.
 
 **Process:**
-1. Invoke `superpowers:writing-plans` mindset for structure
-2. Execute `/plan <feature-name>` logic inline:
-   - Read approved spec
-   - Analyze codebase for relevant files/patterns
-   - Generate plan at `memory/plans/<feature-name>/plan.md`
-   - Include: Phases, Files, Tasks, Testing Approach, Risks
-3. Update `memory/FEATURES.md` entry to status `planned`
-4. Present plan overview to user
+1. Invoke `superpowers:writing-plans` via the Skill tool with these user preferences:
+   - **Plan save location:** `memory/plans/<feature-name>/plan.md`
+   - **Keep execution header intact:** The plan MUST include:
+     ```
+     > **For agentic workers:** REQUIRED: Use superpowers:subagent-driven-development (if subagents available) or superpowers:executing-plans to implement this plan.
+     ```
+   - **Keep format:** checkbox syntax (`- [ ]`), bite-sized TDD tasks with exact code snippets and commands
+2. Writing-plans runs its full process: file structure mapping, task decomposition, review loop
+3. After plan is saved to `memory/plans/<feature-name>/plan.md`:
+   - Update `memory/FEATURES.md` entry to status `planned`
+4. Present Gate 2
 
-**Output:** `memory/plans/<feature-name>/plan.md` with Status: Draft
+**Output:** `memory/plans/<feature-name>/plan.md` with superpowers execution header and TDD task format
 
 ---
 
