@@ -31,7 +31,7 @@
         ]
       },
       {
-        "matcher": "Grep|Glob|Read|Bash",
+        "matcher": "Grep|Glob|Read|Bash|Edit|Write",
         "hooks": [
           {
             "type": "command",
