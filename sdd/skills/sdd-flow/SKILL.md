@@ -20,7 +20,7 @@ When invoked, announce:
 ```
 Starting SDD Flow for [feature-name]...
 
-This orchestrates: IDEATE+SPECIFY → [Gate 1] → WORKTREE_SETUP → PLAN → [Gate 2] → IMPLEMENT → DRIFT → REVIEW → [Gate 3] → DOCUMENT → FINALIZE
+This orchestrates: IDEATE → SPECIFY → [Gate 1] → WORKTREE → PLAN → [Gate 2] → IMPLEMENT → DRIFT → REVIEW → [Gate 3] → DOCUMENT → FINALIZE
 
 You'll have 3 approval gates where I'll stop and wait for your explicit approval.
 ```
@@ -35,7 +35,8 @@ digraph sdd_flow {
     START [shape=circle, label="START"];
     RESUME_CHECK [label="Check for\nexisting artifacts\n+ bootstrap state"];
     RESUME_DIALOG [label="Resume Dialog\n(if artifacts exist)"];
-    IDEATE [label="IDEATE+SPECIFY\n(Skill: brainstorming)"];
+    IDEATE [label="IDEATE\n(Skill: brainstorming)"];
+    SPECIFY [label="SPECIFY\n(transform design → PRD)"];
     GATE1 [shape=diamond, label="Gate 1\nSpec Approval"];
     WORKTREE_SETUP [label="WORKTREE_SETUP\n(worktree or branch)"];
     PLAN [label="PLAN\n(Skill: writing-plans)"];
@@ -54,12 +55,14 @@ digraph sdd_flow {
     RESUME_CHECK -> RESUME_DIALOG [label="artifacts exist"];
     RESUME_CHECK -> IDEATE [label="no artifacts"];
     RESUME_DIALOG -> IDEATE [label="start fresh"];
-    RESUME_DIALOG -> IDEATE [label="resume at spec"];
+    RESUME_DIALOG -> IDEATE [label="resume at design doc"];
+    RESUME_DIALOG -> SPECIFY [label="resume at spec"];
     RESUME_DIALOG -> PLAN [label="resume at plan"];
     RESUME_DIALOG -> IMPLEMENT [label="resume at impl"];
-    IDEATE -> GATE1;
+    IDEATE -> SPECIFY;
+    SPECIFY -> GATE1;
     GATE1 -> WORKTREE_SETUP [label="approved"];
-    GATE1 -> IDEATE [label="rejected\n(bump changelog)"];
+    GATE1 -> IDEATE [label="rejected\n(re-brainstorm)"];
     WORKTREE_SETUP -> PLAN;
     PLAN -> GATE2;
     GATE2 -> IMPLEMENT [label="approved"];
@@ -86,10 +89,11 @@ digraph sdd_flow {
 ### Check Logic
 
 ```
-1. Check if memory/specs/<feature-name>.md exists
-2. Check if memory/plans/<feature-name>/plan.md exists
-3. Check spec/plan Status field (Draft, Review, Approved)
-4. Check memory/.bootstrap-state.json for bootstrapped specs
+1. Check if docs/superpowers/specs/*-<feature-name>-design.md exists (design doc)
+2. Check if memory/specs/<feature-name>.md exists (SDD spec/PRD)
+3. Check if memory/plans/<feature-name>/plan.md exists
+4. Check spec/plan Status field (Draft, Review, Approved)
+5. Check memory/.bootstrap-state.json for bootstrapped specs
 ```
 
 If `.bootstrap-state.json` exists and contains a module matching `<feature-name>` with status `complete`, treat it as a bootstrapped spec available for resumption.
@@ -101,62 +105,90 @@ If artifacts exist, present options:
 ```
 I found existing artifacts for [feature-name]:
 
+Design doc: docs/superpowers/specs/[date]-[feature-name]-design.md (if exists)
 Spec: memory/specs/[feature-name].md (Status: [status])
 Plan: memory/plans/[feature-name]/plan.md (Status: [status])
 
 How would you like to proceed?
 1. Start fresh (archive existing artifacts)
-2. Resume from spec (edit and re-approve)
-3. Resume from plan (edit and re-approve)
-4. Resume implementation (continue from plan)
+2. Resume from design doc (re-brainstorm and revise)
+3. Resume from spec (re-transform design → PRD)
+4. Resume from plan (edit and re-approve)
+5. Resume implementation (continue from plan)
 ```
 
 **Validation before resuming:**
-- If spec status is "Draft", cannot resume past IDEATE+SPECIFY
+- If design doc exists but no PRD in `memory/specs/`, resume at SPECIFY
+- If spec status is "Draft", cannot resume past SPECIFY
 - If plan status is "Draft", cannot resume past PLAN
 - If plan status is "Approved", can resume at IMPLEMENT
 - If spec was bootstrapped (Source: Reverse-engineered), note this and offer to refine before proceeding
 
 ---
 
-## Phase 2: Ideate + Specify (Brainstorming)
+## Phase 2: Ideate (Brainstorming)
 
-**Goal:** Explore the feature idea and produce the SDD spec through the full brainstorming process.
+**Goal:** Explore the feature idea through superpowers' structured design process.
+
+### MANDATORY Skill Invocation
+
+**STOP. You MUST call `Skill("superpowers:brainstorming")` now.**
+
+Do NOT ask clarifying questions yourself. Do NOT write a design doc yourself. Do NOT write
+a spec/PRD yourself. Do NOT skip this step. The brainstorming skill has its own structured
+process (Q&A, approaches, design sections, review loop) that MUST run. It produces a
+**design doc** (not the SDD spec — that comes in the SPECIFY phase).
+
+### Interception Override
+
+When brainstorming reaches its terminal state ("invoke writing-plans"), do NOT invoke
+writing-plans. Instead, return to sdd-flow — the SPECIFY phase comes next, then Gate 1,
+then worktree setup, and ONLY THEN does planning happen.
+
+### After Brainstorming Completes
+
+Brainstorming will have written a design doc (typically to `docs/superpowers/specs/`).
+Note the path — you will need it in the SPECIFY phase.
+
+Proceed to SPECIFY.
+
+---
+
+## Phase 3: Specify (Transform Design → PRD)
+
+**Goal:** Transform the brainstorming design doc into SDD's governance-ready PRD format.
 
 **Process:**
-1. Invoke `superpowers:brainstorming` via the Skill tool with these user preferences:
-   - **Spec save location:** `memory/specs/<feature-name>.md`
-   - **Format:** SDD PRD template — must include these sections:
-     ```
-     ## Changelog
-     | Version | Date | Change | Reason |
-     **Status:** Draft | Review | Approved
-     ## Problem Statement
-     ## Proposed Solution
-     ## Acceptance Criteria (checkboxes)
-     ## Technical Approach
-     ## Out of Scope
-     ## Open Questions
-     ```
-   - **Handoff override:** After the spec review loop passes, do NOT invoke `writing-plans` directly — present Gate 1 instead (worktree setup comes before planning)
-2. Brainstorming runs its full process: clarifying Q&A, 2-3 approaches, design sections, spec review loop
-3. After brainstorming completes and spec is saved to `memory/specs/<feature-name>.md`:
-   - Add an entry to `memory/FEATURES.md` with status `drafting`:
-     ```
-     | [feature-name] | drafting | specs/[feature-name].md | - | - | [date] |
-     ```
-   - If `memory/FEATURES.md` does not exist, create it with the header:
-     ```
-     # Feature Registry
-     | Feature | Status | Spec | Plan | PR | Date |
-     |---------|--------|------|------|----|------|
-     ```
-4. Present Gate 1
+1. Read the design doc written by brainstorming
+2. Create `memory/specs/<feature-name>.md` by extracting and reformatting:
+   - **Problem Statement** ← from the design doc's context/exploration
+   - **Proposed Solution** ← from the chosen approach
+   - **Acceptance Criteria** ← derived from the design's requirements (as checkboxes)
+   - **Technical Approach** ← from the design's architecture section
+   - **Out of Scope** ← from scope decisions made during brainstorming
+   - **Open Questions** ← any unresolved items
+   - **Status:** Review
+   - **Changelog:** `v1 | [date] | Initial spec | Derived from design doc`
+   - **Design Doc:** `[path to design doc]` (link back)
+3. Create/update `memory/FEATURES.md` entry with status `drafting`:
+   ```
+   | [feature-name] | drafting | specs/[feature-name].md | - | - | [date] |
+   ```
+   If `memory/FEATURES.md` does not exist, create it with:
+   ```
+   # Feature Registry
+   | Feature | Status | Spec | Plan | PR | Date |
+   |---------|--------|------|------|----|------|
+   ```
+4. Present PRD summary to user
+5. Proceed to Gate 1
+
+**This phase does NOT ask new questions.** All the hard thinking happened in brainstorming.
+This is a transformation step — reshaping the design into SDD's governance format.
 
 **Output:** `memory/specs/<feature-name>.md` (SDD PRD format, Status: Review) + FEATURES.md entry
 
 ---
-
 
 ## Gate 1: Spec Approval
 
@@ -189,7 +221,7 @@ Present the spec and ask:
 | User Response | Action |
 |---------------|--------|
 | "approve", "approved", "yes", "lgtm" | Update spec Status to "Approved", proceed to WORKTREE_SETUP |
-| Feedback or concerns | Collect feedback, loop back to IDEATE+SPECIFY |
+| Feedback or concerns | Collect feedback, loop back to IDEATE |
 | "cancel", "stop" | Exit flow gracefully |
 
 ### On Rejection
@@ -200,7 +232,7 @@ Got it. Let me revise the specification based on your feedback.
 Your concerns:
 - [listed concerns]
 
-Returning to IDEATE+SPECIFY phase...
+Returning to IDEATE phase...
 ```
 
 Bump the changelog version with the feedback reason:
@@ -211,7 +243,7 @@ Bump the changelog version with the feedback reason:
 
 ---
 
-## Phase 3: Worktree Setup
+## Phase 4: Worktree Setup
 
 **Goal:** Isolate feature work in a dedicated worktree or branch.
 
@@ -242,24 +274,36 @@ Worktrees keep your main working directory clean and let you switch context easi
 
 ---
 
-## Phase 4: Plan
+## Phase 5: Plan
 
-**Goal:** Create implementation plan from approved spec.
+**Goal:** Create a detailed implementation plan from the approved spec.
 
-**Process:**
-1. Invoke `superpowers:writing-plans` via the Skill tool with these user preferences:
-   - **Plan save location:** `memory/plans/<feature-name>/plan.md`
-   - **Keep execution header intact:** The plan MUST include:
-     ```
-     > **For agentic workers:** REQUIRED: Use superpowers:subagent-driven-development (if subagents available) or superpowers:executing-plans to implement this plan.
-     ```
-   - **Keep format:** checkbox syntax (`- [ ]`), bite-sized TDD tasks with exact code snippets and commands
-2. Writing-plans runs its full process: file structure mapping, task decomposition, review loop
-3. After plan is saved to `memory/plans/<feature-name>/plan.md`:
-   - Update `memory/FEATURES.md` entry to status `planned`
-4. Present Gate 2
+### MANDATORY Skill Invocation
 
-**Output:** `memory/plans/<feature-name>/plan.md` with superpowers execution header and TDD task format
+**STOP. You MUST call `Skill("superpowers:writing-plans")` now.**
+
+Do NOT write a plan yourself. Do NOT create task lists yourself. Do NOT skip this step.
+The writing-plans skill has its own structured process (file structure mapping, bite-sized
+TDD tasks with code, plan review loop) that MUST run.
+
+Point writing-plans to both inputs:
+- The SDD spec at `memory/specs/<feature-name>.md` (for acceptance criteria)
+- The design doc at `docs/superpowers/specs/YYYY-MM-DD-<feature-name>-design.md` (for architecture)
+
+### Interception Override
+
+When writing-plans reaches its terminal state ("Ready to execute?"), do NOT invoke
+subagent-driven-development or executing-plans. Instead, return to sdd-flow — Gate 2
+comes next.
+
+### After Writing-Plans Completes
+
+1. Copy the plan to `memory/plans/<feature-name>/plan.md` so `/drift` and `/review` can
+   find it
+2. Update `memory/FEATURES.md` entry to status `planned`
+3. Proceed to Gate 2
+
+**Output:** `memory/plans/<feature-name>/plan.md` (superpowers format with execution header)
 
 ---
 
@@ -302,7 +346,7 @@ Same as Gate 1, but on approval:
 
 ---
 
-## Phase 5: Implement
+## Phase 6: Implement
 
 **Goal:** Implement the plan using strict Test-Driven Development.
 
@@ -343,36 +387,24 @@ NO PRODUCTION CODE WITHOUT A FAILING TEST FIRST
 
 ### Option A: Subagent-Driven Implementation
 
-1. Invoke `superpowers:subagent-driven-development` skill
-2. Each subagent task follows TDD:
-   - RED: Write failing test
-   - GREEN: Write minimal code to pass
-   - REFACTOR: Clean up
-3. Invoke `superpowers:verification-before-completion` before marking each task done
+**STOP. You MUST call `Skill("superpowers:subagent-driven-development")` now.**
+
+Do NOT dispatch subagents yourself. Do NOT create task lists yourself. The skill handles
+subagent dispatch, two-stage review (spec compliance + code quality), and task tracking.
+
+Each subagent task follows TDD (RED → GREEN → REFACTOR).
+Invoke `superpowers:verification-before-completion` before marking each task done.
 
 ### Option B: Sequential TDD
 
-1. Invoke `superpowers:test-driven-development` mindset
-2. For each plan task:
+**STOP. You MUST call `Skill("superpowers:test-driven-development")` first** to establish
+the test-first discipline. **Then call `Skill("superpowers:executing-plans")`** which walks
+through the plan's task list sequentially, applying TDD to each task.
 
-```
-+-----------------------------------------------------+
-| Task: [task description]                            |
-+-----------------------------------------------------+
-|                                                     |
-| 1. RED: Write test that captures the requirement   |
-|    -> Run test -> MUST FAIL (proves test works)     |
-|                                                     |
-| 2. GREEN: Write MINIMAL code to pass the test      |
-|    -> Run test -> MUST PASS                         |
-|                                                     |
-| 3. REFACTOR: Clean up while keeping tests green    |
-|    -> Run tests -> MUST STILL PASS                  |
-|                                                     |
-+-----------------------------------------------------+
-```
+Do NOT execute plan tasks yourself. Do NOT write code before tests. The skills enforce
+the RED-GREEN-REFACTOR cycle.
 
-3. Invoke `superpowers:verification-before-completion` before marking each task done
+Invoke `superpowers:verification-before-completion` before marking each task done.
 
 ### ADR Detection
 
@@ -406,9 +438,15 @@ Number ADRs sequentially (check existing files in `memory/adrs/` for the next nu
 
 These are tracked but don't block - they inform the FINALIZE phase.
 
+### Interception Override
+
+When implementation completes (all tasks done), do NOT invoke
+`finishing-a-development-branch`. Instead, return to sdd-flow — DRIFT phase comes next,
+then REVIEW, Gate 3, DOCUMENT, and only then FINALIZE.
+
 ---
 
-## Phase 6: Drift Check
+## Phase 7: Drift Check
 
 **Goal:** Verify implementation matches specification.
 
@@ -431,7 +469,7 @@ These are tracked but don't block - they inform the FINALIZE phase.
 
 ---
 
-## Phase 7: Review
+## Phase 8: Review
 
 **Goal:** Constitutional compliance check + optional code quality review.
 
@@ -505,7 +543,7 @@ Map each violation to a fix action:
 
 ---
 
-## Phase 8: Document
+## Phase 9: Document
 
 **Goal:** Finalize all documentation artifacts. Auto-runs after Gate 3 GO.
 
@@ -543,7 +581,7 @@ Proceeding to FINALIZE...
 
 ---
 
-## Phase 9: Finalize
+## Phase 10: Finalize
 
 **Goal:** Merge, push, create PR, clean up.
 
@@ -561,7 +599,8 @@ Choice? (1/2/3, default: 1)
 
 ### Process
 
-1. Invoke `superpowers:finishing-a-development-branch` skill
+1. **Call `Skill("superpowers:finishing-a-development-branch")` now.** The skill handles
+   branch integration based on user choice.
 2. Based on user choice:
    - **Squash (default):** Squash all commits, push, create PR
    - **Merge:** Push branch, create PR with merge commit
@@ -637,7 +676,7 @@ Use `write_memory` or `edit_memory` to persist.
 Error: No specification found at memory/specs/[feature-name].md
 
 Cannot create plan without approved spec (Article I).
-Returning to IDEATE+SPECIFY phase...
+Returning to IDEATE phase...
 ```
 
 ### Plan Not Found (in IMPLEMENT phase)
@@ -715,11 +754,12 @@ Resume later with: /sdd-flow [feature-name]
 
 | Phase | External Skill | Purpose |
 |-------|----------------|---------|
-| IDEATE+SPECIFY | `superpowers:brainstorming` | Full spec creation — Q&A, design, review loop, writes to `memory/specs/` |
+| IDEATE | `superpowers:brainstorming` | Full design process — Q&A, approaches, design doc, review loop |
+| SPECIFY | (none — internal transformation) | Transform design doc → SDD PRD in `memory/specs/` |
 | WORKTREE_SETUP | `superpowers:using-git-worktrees` | Isolate feature work |
-| PLAN | `superpowers:writing-plans` | Full plan creation — TDD tasks, review loop, writes to `memory/plans/` |
+| PLAN | `superpowers:writing-plans` | Full plan creation — TDD tasks, review loop |
 | IMPLEMENT | `superpowers:subagent-driven-development` | Parallel task execution (user choice) |
-| IMPLEMENT | `superpowers:test-driven-development` | Sequential TDD discipline (user choice) |
+| IMPLEMENT | `superpowers:test-driven-development` + `superpowers:executing-plans` | Sequential TDD discipline (user choice) |
 | IMPLEMENT | `superpowers:verification-before-completion` | Verify before claiming done |
 | REVIEW | `superpowers:requesting-code-review` | Optional code quality review |
 | FINALIZE | `superpowers:finishing-a-development-branch` | Branch merge/PR workflow |
@@ -732,9 +772,10 @@ Resume later with: /sdd-flow [feature-name]
 
 | Phase | Gate | Output | Next |
 |-------|------|--------|------|
-| IDEATE+SPECIFY | Gate 1 | `memory/specs/<feature>.md` (PRD format) + FEATURES.md entry | WORKTREE_SETUP |
+| IDEATE | - | Design doc in `docs/superpowers/specs/` | SPECIFY |
+| SPECIFY | Gate 1 | `memory/specs/<feature>.md` (PRD) + FEATURES.md entry | WORKTREE_SETUP |
 | WORKTREE_SETUP | - | Isolated branch | PLAN |
-| PLAN | Gate 2 | Plan (Approved) | IMPLEMENT |
+| PLAN | Gate 2 | Plan (Approved) in `memory/plans/` | IMPLEMENT |
 | IMPLEMENT | - | Code + Tests (+ ADRs) | DRIFT |
 | DRIFT | - | Alignment report | REVIEW |
 | REVIEW | Gate 3 | GO/NO-GO | DOCUMENT |
@@ -749,7 +790,7 @@ This skill enforces all six constitutional articles:
 
 | Article | Enforcement |
 |---------|-------------|
-| I: Spec-First | IDEATE+SPECIFY phase + Gate 1 |
+| I: Spec-First | IDEATE + SPECIFY phases + Gate 1 |
 | II: Human-in-the-Loop | Gate 2 (mandatory) |
 | III: Constitutional Review | REVIEW phase + Gate 3 |
 | IV: Documentation | DOCUMENT phase (auto-runs: spec versioning, FEATURES.md, ADRs) |
