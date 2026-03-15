@@ -99,4 +99,55 @@ else
   fail "drift: warning shown" "$(echo "$OUT" | jq -r '.hookSpecificOutput.additionalContext' 2>/dev/null | head -5)"
 fi
 
+# --- Test 9: worktree resumed with real .codescout/ dir → embeddings symlink created ---
+make_git_repo "$T/t9main"
+make_codescout_dir "$T/t9main"
+make_embeddings_dir "$T/t9main"
+write_mcp_json "$T/t9main"
+make_worktree "$T/t9main" "$T/t9wt"
+write_mcp_json "$T/t9wt"
+mkdir -p "$T/t9wt/.codescout"
+echo '[project]' > "$T/t9wt/.codescout/project.toml"
+OUT=$(printf '{"cwd":"%s"}' "$T/t9wt" | bash "$HOOK" 2>/dev/null)
+if [ -L "$T/t9wt/.codescout/embeddings" ]; then
+  pass "worktree real .codescout/: embeddings symlink created"
+else
+  fail "worktree real .codescout/: embeddings symlink created" \
+    "$(ls -la "$T/t9wt/.codescout/" 2>/dev/null)"
+fi
+
+# --- Test 10: worktree real .codescout/, embeddings missing from main → no symlink ---
+make_git_repo "$T/t10main"
+make_codescout_dir "$T/t10main"
+# intentionally no make_embeddings_dir
+write_mcp_json "$T/t10main"
+make_worktree "$T/t10main" "$T/t10wt"
+write_mcp_json "$T/t10wt"
+mkdir -p "$T/t10wt/.codescout"
+echo '[project]' > "$T/t10wt/.codescout/project.toml"
+OUT=$(printf '{"cwd":"%s"}' "$T/t10wt" | bash "$HOOK" 2>/dev/null)
+if [ ! -e "$T/t10wt/.codescout/embeddings" ]; then
+  pass "worktree real .codescout/, no embeddings in main: no symlink"
+else
+  fail "worktree real .codescout/, no embeddings in main: no symlink" \
+    "unexpected: $(ls -la "$T/t10wt/.codescout/embeddings" 2>/dev/null)"
+fi
+
+# --- Test 11: worktree real .codescout/, embeddings already present → not overwritten ---
+make_git_repo "$T/t11main"
+make_codescout_dir "$T/t11main"
+make_embeddings_dir "$T/t11main"
+write_mcp_json "$T/t11main"
+make_worktree "$T/t11main" "$T/t11wt"
+write_mcp_json "$T/t11wt"
+mkdir -p "$T/t11wt/.codescout/embeddings"
+echo "local" > "$T/t11wt/.codescout/embeddings/local.db"
+OUT=$(printf '{"cwd":"%s"}' "$T/t11wt" | bash "$HOOK" 2>/dev/null)
+if [ -d "$T/t11wt/.codescout/embeddings" ] && [ ! -L "$T/t11wt/.codescout/embeddings" ]; then
+  pass "worktree real .codescout/, embeddings already present: not overwritten"
+else
+  fail "worktree real .codescout/, embeddings already present: not overwritten" \
+    "$(ls -la "$T/t11wt/.codescout/embeddings" 2>/dev/null)"
+fi
+
 print_summary "session-start"

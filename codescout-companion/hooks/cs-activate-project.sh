@@ -4,7 +4,12 @@
 #   2. Inject confirmation via additionalContext
 
 INPUT=$(cat)
-TOOL_NAME=$(echo "$INPUT" | jq -r '.tool_name // empty')
+# Guard: empty stdin (e.g. hook triggered but pipe closed before write) would
+# cause jq to emit a parse error to stderr, which Claude Code reports as a hook
+# error even when the script exits 0.
+[ -z "$INPUT" ] && exit 0
+
+TOOL_NAME=$(echo "$INPUT" | jq -r '.tool_name // empty' 2>/dev/null)
 
 # Only fire on activate_project calls
 case "$TOOL_NAME" in
@@ -14,7 +19,7 @@ esac
 
 # Extract the activated path from tool_input (what the agent passed in)
 # Strip trailing slash to ensure path matches the marker location exactly
-ACTIVATED_PATH=$(echo "$INPUT" | jq -r '.tool_input.path // empty' | sed 's|/$||')
+ACTIVATED_PATH=$(echo "$INPUT" | jq -r '.tool_input.path // empty' 2>/dev/null | sed 's|/$||')
 
 [ -z "$ACTIVATED_PATH" ] && exit 0
 

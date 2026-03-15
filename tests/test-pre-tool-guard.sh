@@ -95,5 +95,32 @@ write_routing_config "$T/proj" '{"workspace_root":"'"$T/proj/src"'"}'
 OUT=$(guard_input "Read" '"file_path":"'"$T/proj/app.ts"'"' | bash "$HOOK" 2>/dev/null)
 EC=$?
 if [ $EC -eq 0 ] && ! assert_denied "$OUT"; then pass "outside workspace_root: allow"; else fail "outside workspace_root: allow" "$OUT"; fi
+rm -f "$T/proj/.claude/codescout-companion.json"
+
+# Test 11: Edit on .ts → deny with replace_symbol
+OUT=$(guard_input "Edit" '"file_path":"'"$T/proj/app.ts"'"' | bash "$HOOK" 2>/dev/null)
+if assert_denied "$OUT" && assert_reason_contains "$OUT" "replace_symbol"; then
+  pass "Edit .ts: deny with replace_symbol"
+else
+  fail "Edit .ts: deny with replace_symbol" "$OUT"
+fi
+
+# Test 12: Edit on .md → allow (markdown not in SOURCE_EXT_PATTERN)
+OUT=$(guard_input "Edit" '"file_path":"'"$T/proj/README.md"'"' | bash "$HOOK" 2>/dev/null)
+EC=$?
+if [ $EC -eq 0 ] && ! assert_denied "$OUT"; then pass "Edit .md: allow"; else fail "Edit .md: allow" "$OUT"; fi
+
+# Test 13: Write on .ts → deny with create_file
+OUT=$(guard_input "Write" '"file_path":"'"$T/proj/app.ts"'"' | bash "$HOOK" 2>/dev/null)
+if assert_denied "$OUT" && assert_reason_contains "$OUT" "create_file"; then
+  pass "Write .ts: deny with create_file"
+else
+  fail "Write .ts: deny with create_file" "$OUT"
+fi
+
+# Test 14: Write on .md → allow (markdown not in SOURCE_EXT_PATTERN)
+OUT=$(guard_input "Write" '"file_path":"'"$T/proj/README.md"'"' | bash "$HOOK" 2>/dev/null)
+EC=$?
+if [ $EC -eq 0 ] && ! assert_denied "$OUT"; then pass "Write .md: allow"; else fail "Write .md: allow" "$OUT"; fi
 
 print_summary "pre-tool-guard"

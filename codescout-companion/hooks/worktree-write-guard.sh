@@ -9,8 +9,9 @@
 #         deleted by ce-activate-project.sh).
 
 INPUT=$(cat)
-TOOL_NAME=$(echo "$INPUT" | jq -r '.tool_name // empty')
-CWD=$(echo "$INPUT" | jq -r '.cwd // empty')
+[ -z "$INPUT" ] && exit 0
+TOOL_NAME=$(echo "$INPUT" | jq -r '.tool_name // empty' 2>/dev/null)
+CWD=$(echo "$INPUT" | jq -r '.cwd // empty' 2>/dev/null)
 
 # Filter: only act on code-explorer write tools
 # MCP tools have format: mcp__<server>__<tool>

@@ -49,4 +49,38 @@ else
     "marker=$(ls "$T/t4wt/.cs-worktree-pending" 2>/dev/null || echo missing) ctx=$(echo "$OUT" | jq -r '.hookSpecificOutput.additionalContext' 2>/dev/null | head -2)"
 fi
 
+# Test 5: EnterWorktree, worktree has real .codescout/ dir → embeddings symlink created
+make_git_repo "$T/t5main"
+write_mcp_json "$T/t5main"
+make_codescout_dir "$T/t5main"
+make_embeddings_dir "$T/t5main"
+make_worktree "$T/t5main" "$T/t5wt"
+mkdir -p "$T/t5wt/.codescout"
+echo '[project]' > "$T/t5wt/.codescout/project.toml"
+OUT=$(printf '{"cwd":"%s","tool_name":"EnterWorktree","tool_response":{"worktree_path":"%s"}}' \
+  "$T/t5main" "$T/t5wt" | bash "$HOOK" 2>/dev/null)
+if [ -L "$T/t5wt/.codescout/embeddings" ]; then
+  pass "EnterWorktree real .codescout/: embeddings symlink created"
+else
+  fail "EnterWorktree real .codescout/: embeddings symlink created" \
+    "$(ls -la "$T/t5wt/.codescout/" 2>/dev/null)"
+fi
+
+# Test 6: EnterWorktree, real .codescout/, embeddings missing from main → no symlink
+make_git_repo "$T/t6main"
+write_mcp_json "$T/t6main"
+make_codescout_dir "$T/t6main"
+# intentionally no make_embeddings_dir
+make_worktree "$T/t6main" "$T/t6wt"
+mkdir -p "$T/t6wt/.codescout"
+echo '[project]' > "$T/t6wt/.codescout/project.toml"
+OUT=$(printf '{"cwd":"%s","tool_name":"EnterWorktree","tool_response":{"worktree_path":"%s"}}' \
+  "$T/t6main" "$T/t6wt" | bash "$HOOK" 2>/dev/null)
+if [ ! -e "$T/t6wt/.codescout/embeddings" ]; then
+  pass "EnterWorktree real .codescout/, no embeddings in main: no symlink"
+else
+  fail "EnterWorktree real .codescout/, no embeddings in main: no symlink" \
+    "unexpected: $(ls -la "$T/t6wt/.codescout/embeddings" 2>/dev/null)"
+fi
+
 print_summary "worktree-activate"

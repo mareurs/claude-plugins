@@ -118,6 +118,20 @@ seed_drift_db() {
   sqlite3 "$db" "INSERT INTO drift_report VALUES ('src/foo.rs', 0.85);"
 }
 
+make_codescout_dir() {
+  # Creates .codescout/project.toml (new dir name used by current codescout)
+  local dir="$1"
+  mkdir -p "$dir/.codescout"
+  echo '[project]' > "$dir/.codescout/project.toml"
+}
+
+make_embeddings_dir() {
+  # Creates .codescout/embeddings/ with a fake project.db (the semantic index dir)
+  local dir="$1"
+  mkdir -p "$dir/.codescout/embeddings"
+  echo "fake" > "$dir/.codescout/embeddings/project.db"
+}
+
 make_pending_marker() {
   local wt_dir="$1"
   touch "$wt_dir/.cs-worktree-pending"

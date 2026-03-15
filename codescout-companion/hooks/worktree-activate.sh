@@ -6,12 +6,13 @@
 # No-op if code-explorer is not configured.
 
 INPUT=$(cat)
-TOOL_NAME=$(echo "$INPUT" | jq -r '.tool_name // empty')
+[ -z "$INPUT" ] && exit 0
+TOOL_NAME=$(echo "$INPUT" | jq -r '.tool_name // empty' 2>/dev/null)
 
 [ "$TOOL_NAME" = "EnterWorktree" ] || exit 0
 
 # CWD at this point is the ORIGINAL project (before worktree switch)
-CWD=$(echo "$INPUT" | jq -r '.cwd // empty')
+CWD=$(echo "$INPUT" | jq -r '.cwd // empty' 2>/dev/null)
 source "$(dirname "$0")/detect-tools.sh"
 
 [ "$HAS_CODESCOUT" = "false" ] && exit 0
@@ -86,4 +87,14 @@ fi
 DEST="$WORKTREE_PATH/$(basename "$CE_DIR")"
 if [ ! -e "$DEST" ]; then
   ln -s "$CE_DIR" "$DEST" 2>/dev/null
+fi
+# Fallback: worktree has a real .codescout dir — symlink individual shared assets
+if [ -d "$DEST" ] && [ ! -L "$DEST" ]; then
+  for ASSET in embeddings; do
+    SRC="${CE_DIR}/${ASSET}"
+    DST="${DEST}/${ASSET}"
+    [ -e "$SRC" ] || continue
+    if [ -e "$DST" ] || [ -L "$DST" ]; then continue; fi
+    ln -s "$SRC" "$DST" 2>/dev/null
+  done
 fi

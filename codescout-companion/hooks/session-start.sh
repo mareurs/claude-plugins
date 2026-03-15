@@ -160,6 +160,16 @@ if [ "$IN_WORKTREE" = "true" ]; then
       mkdir -p "$MAIN_ROOT/${CE_NAME}" 2>/dev/null
       ln -s "$MAIN_ROOT/${CE_NAME}" "$CE_DEST" 2>/dev/null
     fi
+    # Fallback: worktree has a real .codescout dir — symlink individual shared assets
+    if [ -d "$CE_DEST" ] && [ ! -L "$CE_DEST" ]; then
+      for ASSET in embeddings; do
+        SRC="$MAIN_ROOT/${CE_NAME}/${ASSET}"
+        DST="${CE_DEST}/${ASSET}"
+        [ -e "$SRC" ] || continue
+        if [ -e "$DST" ] || [ -L "$DST" ]; then continue; fi
+        ln -s "$SRC" "$DST" 2>/dev/null
+      done
+    fi
   fi
 
   MSG="${MSG}WORKTREE SESSION: You are inside a git worktree at: ${WT_ROOT:-$CWD}

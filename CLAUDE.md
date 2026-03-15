@@ -90,6 +90,16 @@ Run before any version bump:
 ./tests/run-all.sh
 ```
 
+**Write tests when you find issues.** If a design review, code review, or debugging session
+reveals a bug or edge case — write a test for it before or alongside the fix. Don't rely on
+manual verification for behavior that can be captured as an automated test.
+
+**Test isolation: always clean up mutated state.** Each test that writes config, files, or
+env vars must remove them before the next test runs — otherwise subsequent tests run in a
+corrupted environment and produce false results. The pattern is: write config → test →
+remove config. If test N establishes this pattern, make sure test N+1 doesn't silently
+inherit leftover state.
+
 ## Plugin Install Path (directory-source gotcha)
 
 Claude Code freezes `installPath` + `version` in `~/.claude/plugins/installed_plugins.json`
