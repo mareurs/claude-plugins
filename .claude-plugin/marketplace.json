@@ -22,7 +22,7 @@
     {
       "name": "codescout-companion",
       "source": "./codescout-companion",
-      "description": "Companion for codescout MCP server: injects tool guidance + GitHub context into agents, redirects Grep/Glob/Read on source and markdown files to symbol/heading-aware equivalents, auto-reindex + drift warnings",
+      "description": "Companion for codescout MCP server: injects tool guidance + GitHub context into main and subagents, blocks Read/Grep/Glob/Bash/Edit/Write on source files with structured alternatives, worktree state machine (symlinks, write-guard, activate_project), auto-reindex + drift warnings",
       "author": {
         "name": "Marius"
       },
