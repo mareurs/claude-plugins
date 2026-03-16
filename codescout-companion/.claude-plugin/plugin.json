@@ -1,7 +1,7 @@
 {
   "name": "codescout-companion",
   "description": "Companion plugin for codescout MCP server. Injects system-prompt.md into all agents, warns on Read/Grep/Glob misuse, auto-reindexes stale projects, and surfaces drift warnings.",
-  "version": "1.8.5",
+  "version": "1.8.6",
   "author": {
     "name": "Marius"
   },
