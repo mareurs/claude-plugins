@@ -98,7 +98,7 @@ YOU MUST use codescout tools. Do not call Bash."
     if echo "${PATH_VAL}" | grep -q "\.cargo/registry"; then
       # Extract crate name from path like ~/.cargo/registry/src/index.crates.io-xxx/CRATE-VERSION/
       CRATE_DIR=$(echo "${PATH_VAL}" | grep -oE '[^/]+/[^/]+$' | head -1)
-      CRATE_NAME=$(echo "${PATH_VAL}" | grep -oE '/[a-zA-Z0-9_-]+-[0-9]+\.[0-9]' | tail -1 | grep -oE '/[a-zA-Z0-9_-]+' | tr -d '/')
+      CRATE_NAME=$(basename "$CRATE_DIR" | sed 's/-[0-9][0-9.]*$//')
       if [ -z "$CRATE_NAME" ]; then
         CRATE_NAME=$(basename "${PATH_VAL}")
       fi
@@ -184,8 +184,8 @@ Do not call Read on markdown files."
     # If path is under ~/.cargo/registry, guide toward register_library
     CARGO_HINT=""
     if echo "$FILE_PATH" | grep -q "\.cargo/registry"; then
-      CRATE_NAME=$(echo "$FILE_PATH" | grep -oE '/[a-zA-Z0-9_-]+-[0-9]+\.[0-9]' | tail -1 | grep -oE '/[a-zA-Z0-9_-]+' | tr -d '/')
       CRATE_DIR=$(echo "$FILE_PATH" | grep -oE '.*\.cargo/registry/src/[^/]+/[^/]+' | head -1)
+      CRATE_NAME=$(basename "$CRATE_DIR" | sed 's/-[0-9][0-9.]*$//')
       if [ -n "$CRATE_NAME" ] && [ -n "$CRATE_DIR" ]; then
         CARGO_HINT="
 NOTE: This file is from crate '${CRATE_NAME}' in ~/.cargo/registry.
@@ -245,7 +245,7 @@ Do not call Edit on source files."
     FILE_PATH=$(echo "$INPUT" | jq -r '.tool_input.file_path // empty')
 
     is_in_workspace "$FILE_PATH" || exit 0
-    echo "$FILE_PATH" | tee /tmp/codescout-unfiltered-Qg6OfS | grep -qiE "$SOURCE_EXT_PATTERN" || exit 0
+    echo "$FILE_PATH" | grep -qiE "$SOURCE_EXT_PATTERN" || exit 0
 
     # Extract relative path for the suggestion
     REL_PATH="$FILE_PATH"
