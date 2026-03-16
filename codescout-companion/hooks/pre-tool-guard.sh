@@ -36,17 +36,41 @@ enforce() {
 case "$TOOL_NAME" in
   Bash)
     CMD=$(echo "$INPUT" | jq -r '.tool_input.command // empty')
+
+    # Detect common patterns and give targeted suggestions
+    BASH_HINT=""
+    if echo "$CMD" | grep -qE '^(grep|rg) '; then
+      # grep/ripgrep on source → search_pattern / find_symbol
+      BASH_HINT="  search_pattern(\"PATTERN\")             — indexed regex, structured results
+  find_symbol(\"NAME\")                   — locate symbol by name (much faster)
+  semantic_search(\"CONCEPT\")           — find code by meaning, not just text"
+    elif echo "$CMD" | grep -qE '^cat .*\.(rs|ts|tsx|js|jsx|py|go|kt|kts|java|cs|rb|swift|cpp|c|h|hpp)'; then
+      # cat on a source file → list_symbols / find_symbol
+      SRC_FILE=$(echo "$CMD" | grep -oE '[^ ]+\.(rs|ts|tsx|js|jsx|py|go|kt|kts|java|cs|rb|swift|cpp|c|h|hpp)' | head -1)
+      REL_SRC="${SRC_FILE#$CWD/}"
+      BASH_HINT="  list_symbols(\"${REL_SRC}\")             — ALL symbols + line numbers in ~50 tokens (DO THIS FIRST)
+  find_symbol(name, include_body=true)   — read one specific symbol body"
+    elif echo "$CMD" | grep -qE '^find '; then
+      # find → find_file
+      BASH_HINT="  find_file(\"*.pattern\")                 — indexed file discovery, instant
+  find_symbol(\"NAME\")                   — locate a symbol by name across all files"
+    else
+      BASH_HINT="  run_command(\"${CMD}\")                  — same command with smart summaries + @ref buffers"
+    fi
+
     enforce "WRONG TOOL. You called Bash but codescout is available.
 
 STOP. Do NOT run: ${CMD}
 
-USE run_command(\"${CMD}\") INSTEAD. Here is why this matters:
-- run_command returns SMART SUMMARIES — large output is stored in @ref buffers, saving THOUSANDS OF TOKENS
-- Bash dumps ALL output into your context window, WASTING YOUR TOKEN BUDGET
-- run_command provides dangerous command detection, structured error capture, and cwd parameter
-- Output buffers can be queried: grep PATTERN @cmd_id, tail -20 @cmd_id
+USE codescout tools INSTEAD:
+${BASH_HINT}
 
-YOU MUST use run_command. Do not call Bash."
+For other shell commands: run_command(\"COMMAND\") — same execution but:
+- Large output stored in @ref buffers (saves THOUSANDS OF TOKENS)
+- Bash dumps ALL output into context — WASTING YOUR TOKEN BUDGET
+- Buffers are queryable: grep PATTERN @cmd_id, tail -20 @cmd_id
+
+YOU MUST use codescout tools. Do not call Bash."
     ;;
 
   Grep)
@@ -69,12 +93,31 @@ YOU MUST use run_command. Do not call Bash."
     [ "$IS_SOURCE" = "false" ] && exit 0
     is_in_workspace "${PATH_VAL:-$CWD}" || exit 0
 
+    # If path is under ~/.cargo/registry, the crate is not registered — guide to register_library
+    CARGO_HINT=""
+    if echo "${PATH_VAL}" | grep -q "\.cargo/registry"; then
+      # Extract crate name from path like ~/.cargo/registry/src/index.crates.io-xxx/CRATE-VERSION/
+      CRATE_DIR=$(echo "${PATH_VAL}" | grep -oE '[^/]+/[^/]+$' | head -1)
+      CRATE_NAME=$(echo "${PATH_VAL}" | grep -oE '/[a-zA-Z0-9_-]+-[0-9]+\.[0-9]' | tail -1 | grep -oE '/[a-zA-Z0-9_-]+' | tr -d '/')
+      if [ -z "$CRATE_NAME" ]; then
+        CRATE_NAME=$(basename "${PATH_VAL}")
+      fi
+      CARGO_HINT="
+NOTE: This path is inside ~/.cargo/registry — the crate '${CRATE_NAME}' is not registered.
+Register it first so codescout can index and search it:
+
+  register_library(\"${PATH_VAL}\", name=\"${CRATE_NAME}\")
+  find_symbol(\"${PATTERN}\", scope=\"lib:${CRATE_NAME}\")   — search only within this crate
+  list_symbols(scope=\"lib:${CRATE_NAME}\")                  — browse crate symbols
+"
+    fi
+
     enforce "WRONG TOOL. You called Grep on source files but codescout has a FULL INDEX.
 
 STOP. Do NOT grep source files.
-
+${CARGO_HINT}
 Grep scans files line-by-line and dumps raw matches into context — WASTEFUL AND SLOW.
-CE tools use a pre-built index and return STRUCTURED, TOKEN-EFFICIENT results:
+codescout tools use a pre-built index and return STRUCTURED, TOKEN-EFFICIENT results:
 
   search_pattern(\"${PATTERN}\")    — regex search, returns only matching lines with context
   find_symbol(\"${PATTERN}\")       — locate symbol by name (MUCH faster than grep)
@@ -138,16 +181,33 @@ Do not call Read on markdown files."
 
     echo "$FILE_PATH" | grep -qiE "$SOURCE_EXT_PATTERN" || exit 0
 
+    # If path is under ~/.cargo/registry, guide toward register_library
+    CARGO_HINT=""
+    if echo "$FILE_PATH" | grep -q "\.cargo/registry"; then
+      CRATE_NAME=$(echo "$FILE_PATH" | grep -oE '/[a-zA-Z0-9_-]+-[0-9]+\.[0-9]' | tail -1 | grep -oE '/[a-zA-Z0-9_-]+' | tr -d '/')
+      CRATE_DIR=$(echo "$FILE_PATH" | grep -oE '.*\.cargo/registry/src/[^/]+/[^/]+' | head -1)
+      if [ -n "$CRATE_NAME" ] && [ -n "$CRATE_DIR" ]; then
+        CARGO_HINT="
+NOTE: This file is from crate '${CRATE_NAME}' in ~/.cargo/registry.
+Register the crate once, then use symbol tools for all future lookups:
+
+  register_library(\"${CRATE_DIR}\", name=\"${CRATE_NAME}\")   — register crate (do this once)
+  list_symbols(scope=\"lib:${CRATE_NAME}\")                     — browse all symbols
+  find_symbol(\"SYMBOL\", scope=\"lib:${CRATE_NAME}\")         — find a specific symbol
+  goto_definition(path, line)                                   — jump to definition from usage site
+"
+      fi
+    fi
+
     enforce "WRONG TOOL. You called Read on a source file but codescout has SYMBOL-LEVEL ACCESS.
 
 STOP. Do NOT read: ${FILE_PATH}
-
+${CARGO_HINT}
 Reading a full source file WASTES THOUSANDS OF TOKENS. codescout returns ONLY what you need:
 
-  list_symbols(\"${REL_PATH}\")              — ALL symbols + line numbers in ~50 tokens (DO THIS FIRST)
-  find_symbol(name, include_body=true)       — ONE symbol body, targeted, token-efficient
-  list_functions(\"${REL_PATH}\")           — function signatures only (offline, instant)
-  read_file(\"${REL_PATH}\", start, end)    — LAST RESORT only, with explicit line range
+  list_symbols(\"${REL_PATH}\")                — ALL symbols + line numbers in ~50 tokens (DO THIS FIRST)
+  find_symbol(name, include_body=true)         — ONE symbol body, targeted, token-efficient
+  read_file(\"${REL_PATH}\", start_line, end_line) — LAST RESORT only, with explicit line range
 
 MANDATORY ORDER: list_symbols FIRST → find_symbol for the specific code → read_file only if symbol tools fail.
 Do not call Read on source files."
@@ -172,7 +232,7 @@ STOP. Do NOT use the native Edit tool on: ${FILE_PATH}
 The native Edit tool bypasses codescout's safety gates and LSP awareness.
 codescout provides STRUCTURAL, LSP-BACKED editing tools:
 
-  replace_symbol(name_path, path, new_body)   — replace a function/struct/class body via LSP
+  replace_symbol(name_path, path, new_body)    — replace a function/struct/class body via LSP
   insert_code(name_path, path, code, position) — insert before/after a named symbol
   remove_symbol(name_path, path)               — delete a symbol by name (LSP knows the exact range)
   edit_file(path, old_string, new_string)       — for imports, literals, comments, config (NOT structural code)
@@ -185,7 +245,7 @@ Do not call Edit on source files."
     FILE_PATH=$(echo "$INPUT" | jq -r '.tool_input.file_path // empty')
 
     is_in_workspace "$FILE_PATH" || exit 0
-    echo "$FILE_PATH" | grep -qiE "$SOURCE_EXT_PATTERN" || exit 0
+    echo "$FILE_PATH" | tee /tmp/codescout-unfiltered-Qg6OfS | grep -qiE "$SOURCE_EXT_PATTERN" || exit 0
 
     # Extract relative path for the suggestion
     REL_PATH="$FILE_PATH"
