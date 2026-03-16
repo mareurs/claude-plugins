@@ -123,4 +123,23 @@ OUT=$(guard_input "Write" '"file_path":"'"$T/proj/README.md"'"' | bash "$HOOK" 2
 EC=$?
 if [ $EC -eq 0 ] && ! assert_denied "$OUT"; then pass "Write .md: allow"; else fail "Write .md: allow" "$OUT"; fi
 
+# Test 15: Read on a .cargo/registry file (deep path inside crate) → deny, crate name not "lib.rs"
+CARGO_PATH="$HOME/.cargo/registry/src/index.crates.io-abc123/serde-1.0.195/src/lib.rs"
+OUT=$(guard_input "Read" "\"file_path\":\"$CARGO_PATH\"" | bash "$HOOK" 2>/dev/null)
+if assert_denied "$OUT" && assert_reason_contains "$OUT" "register_library" && assert_reason_contains "$OUT" "crate 'serde'"; then
+  pass "Read .cargo/registry deep path: deny with correct crate name"
+else
+  CRATE=$(echo "$OUT" | jq -r '.hookSpecificOutput.permissionDecisionReason' 2>/dev/null | grep -oE "crate '[^']+'" | head -1)
+  fail "Read .cargo/registry deep path: deny with correct crate name" "crate_hint=$CRATE"
+fi
+
+# Test 16: Grep on a .cargo/registry path (deep path inside crate) → deny, crate name not "lib.rs"
+OUT=$(guard_input "Grep" "\"pattern\":\"Serialize\",\"path\":\"$CARGO_PATH\"" | bash "$HOOK" 2>/dev/null)
+if assert_denied "$OUT" && assert_reason_contains "$OUT" "register_library" && assert_reason_contains "$OUT" "crate 'serde'"; then
+  pass "Grep .cargo/registry deep path: deny with correct crate name"
+else
+  CRATE=$(echo "$OUT" | jq -r '.hookSpecificOutput.permissionDecisionReason' 2>/dev/null | grep -oE "crate '[^']+'" | head -1)
+  fail "Grep .cargo/registry deep path: deny with correct crate name" "crate_hint=$CRATE"
+fi
+
 print_summary "pre-tool-guard"

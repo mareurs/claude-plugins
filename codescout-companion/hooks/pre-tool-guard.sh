@@ -97,7 +97,7 @@ YOU MUST use codescout tools. Do not call Bash."
     CARGO_HINT=""
     if echo "${PATH_VAL}" | grep -q "\.cargo/registry"; then
       # Extract crate name from path like ~/.cargo/registry/src/index.crates.io-xxx/CRATE-VERSION/
-      CRATE_DIR=$(echo "${PATH_VAL}" | grep -oE '[^/]+/[^/]+$' | head -1)
+      CRATE_DIR=$(echo "${PATH_VAL}" | grep -oE '.*\.cargo/registry/src/[^/]+/[^/]+' | head -1)
       CRATE_NAME=$(basename "$CRATE_DIR" | sed 's/-[0-9][0-9.]*$//')
       if [ -z "$CRATE_NAME" ]; then
         CRATE_NAME=$(basename "${PATH_VAL}")
