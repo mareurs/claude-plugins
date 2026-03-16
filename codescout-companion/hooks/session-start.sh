@@ -4,6 +4,7 @@
 
 INPUT=$(cat)
 CWD=$(echo "$INPUT" | jq -r '.cwd // empty')
+SOURCE=$(echo "$INPUT" | jq -r '.source // empty')
 source "$(dirname "$0")/detect-tools.sh"
 
 [ "$HAS_CODESCOUT" = "false" ] && exit 0
@@ -138,6 +139,15 @@ Tools load automatically — no ToolSearch or setup step needed.
 If tools are unavailable, the MCP server failed to connect (check \`claude mcp list\`).
 
 "
+
+# --- Post-compact LSP flush ---
+if [ "$SOURCE" = "compact" ]; then
+  MSG="${MSG}POST-COMPACT: Context was just compacted.
+→ Call project_status({\"post_compact\": true}) as your FIRST action to flush stale LSP position caches.
+   LSP clients restart lazily — no disruption to the session.
+
+"
+fi
 
 # --- Worktree reminder (session resumed inside a worktree) ---
 if [ "$IN_WORKTREE" = "true" ]; then

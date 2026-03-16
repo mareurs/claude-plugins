@@ -40,16 +40,6 @@
         ]
       }
     ],
-    "PostCompact": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/post-compact.sh"
-          }
-        ]
-      }
-    ],
     "PostToolUse": [
       {
         "matcher": "EnterWorktree",
