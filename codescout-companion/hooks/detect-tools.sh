@@ -47,9 +47,10 @@ if [ "$HAS_CODESCOUT" = "false" ] && [ -f "$MCP_JSON" ]; then
 fi
 
 # Path 3: auto-detect from user-level MCP config
-# `claude mcp add` writes to .claude.json; manual config goes in settings.json
+# When CLAUDE_CONFIG_DIR is set (multi-instance), .claude.json lives inside it.
+# When unset (standard install), `claude mcp add` writes to $HOME/.claude.json.
 _CLAUDE_DIR="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
-for _cfg in "${_CLAUDE_DIR}/.claude.json" "${_CLAUDE_DIR}/settings.json"; do
+for _cfg in "${_CLAUDE_DIR}/.claude.json" "${_CLAUDE_DIR}/settings.json" "$HOME/.claude.json"; do
   [ "$HAS_CODESCOUT" = "true" ] && break
   [ -f "$_cfg" ] || continue
   CS_SERVER_NAME=$(jq -r '
@@ -69,7 +70,7 @@ fi
 
 # Extract binary path — same config files, same server name key
 if [ "$HAS_CODESCOUT" = "true" ] && [ -n "$CS_SERVER_NAME" ]; then
-  for _cfg in "$MCP_JSON" "${_CLAUDE_DIR}/.claude.json" "${_CLAUDE_DIR}/settings.json"; do
+  for _cfg in "$MCP_JSON" "${_CLAUDE_DIR}/.claude.json" "${_CLAUDE_DIR}/settings.json" "$HOME/.claude.json"; do
     [ -f "$_cfg" ] || continue
     _bin=$(jq -r ".mcpServers[\"$CS_SERVER_NAME\"].command // empty" "$_cfg" 2>/dev/null)
     if [ -n "$_bin" ]; then

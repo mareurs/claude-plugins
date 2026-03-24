@@ -2,6 +2,11 @@
 # SessionStart hook — inject code-explorer tool guidance into main agent
 # No-op if code-explorer is not configured for this project.
 
+if ! command -v jq &>/dev/null; then
+  echo 'codescout-companion: jq is not installed — all hooks are non-functional. Install with: sudo apt install jq (Debian/Ubuntu) or brew install jq (macOS)'
+  exit 0
+fi
+
 INPUT=$(cat)
 CWD=$(echo "$INPUT" | jq -r '.cwd // empty')
 SOURCE=$(echo "$INPUT" | jq -r '.source // empty')

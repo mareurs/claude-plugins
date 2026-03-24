@@ -17,7 +17,7 @@ These plugins reflect specific workflows and tool choices -- they may not suit e
 | Plugin | Version | Description |
 |--------|---------|-------------|
 | **[sdd](./sdd/)** | 2.4.0 | Specification-Driven Development: governance, workflow commands, and enforcement hooks |
-| **[codescout-companion](./codescout-companion/)** | 1.8.7 | Companion plugin for [codescout](https://github.com/mareurs/codescout) MCP server: injects tool guidance, redirects Read/Grep/Glob/Edit/Write to symbol-aware tools, GitHub context injection, auto-reindex + drift warnings, worktree shared-asset symlinking |
+| **[codescout-companion](./codescout-companion/)** | 1.8.8 | Companion plugin for [codescout](https://github.com/mareurs/codescout) MCP server: injects tool guidance, redirects Read/Grep/Glob/Edit/Write to symbol-aware tools, GitHub context injection, auto-reindex + drift warnings, worktree shared-asset symlinking |
 
 ## Requirements
 
@@ -47,7 +47,7 @@ See [sdd/README.md](./sdd/) for full documentation.
 
 ### codescout-companion
 
-Companion plugin for [codescout](https://github.com/mareurs/codescout) MCP server. Routes Claude to use codescout's symbol-aware tools instead of Read/Grep/Glob. Auto-detects codescout from `.mcp.json`, `~/.claude/.claude.json`, or `~/.claude/settings.json`.
+Companion plugin for [codescout](https://github.com/mareurs/codescout) MCP server. Routes Claude to use codescout's symbol-aware tools instead of Read/Grep/Glob. Auto-detects codescout from `.mcp.json`, `~/.claude/.claude.json`, `~/.claude/settings.json`, or `~/.claude.json`.
 
 **Hooks:**
 - **session-start** -- Tool guidance, memory hints, onboarding nudge, auto-reindex + drift warnings
