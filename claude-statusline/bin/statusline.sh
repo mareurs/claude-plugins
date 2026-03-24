@@ -6,6 +6,12 @@
 # No set -e: status line should degrade gracefully, not crash
 export LC_NUMERIC=C
 
+# -- Check jq --
+if ! command -v jq &>/dev/null; then
+  echo -e "\033[31m[statusline: jq not installed — run: sudo apt install jq]\033[0m"
+  exit 0
+fi
+
 # -- Read stdin --
 input=$(cat)
 
