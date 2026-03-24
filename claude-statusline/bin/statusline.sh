@@ -13,6 +13,7 @@ input=$(cat)
 jq_out="$(echo "$input" | jq -r '
   (.model.display_name // ""),
   (.context_window.used_percentage // ""),
+  (.context_window.context_window_size // ""),
   (.rate_limits.five_hour.used_percentage // ""),
   (.rate_limits.five_hour.resets_at // ""),
   (.rate_limits.seven_day.used_percentage // ""),
@@ -31,24 +32,25 @@ jq_out="$(echo "$input" | jq -r '
 
 readarray -t F <<< "$jq_out"
 
-# Bail if jq produced insufficient output (16 fields: 15 data + sentinel)
-[[ ${#F[@]} -ge 16 ]] || exit 0
+# Bail if jq produced insufficient output (17 fields: 16 data + sentinel)
+[[ ${#F[@]} -ge 17 ]] || exit 0
 
 MODEL="${F[0]}"
 CTX_PCT="${F[1]}"
-RATE_5H="${F[2]}"
-RATE_5H_RESET="${F[3]}"
-RATE_7D="${F[4]}"
-RATE_7D_RESET="${F[5]}"
-COST_USD="${F[6]}"
-DURATION_MS="${F[7]}"
-LINES_ADD="${F[8]}"
-LINES_DEL="${F[9]}"
-CACHE_CREATE="${F[10]}"
-CACHE_READ="${F[11]}"
-AGENT_NAME="${F[12]}"
-WT_NAME="${F[13]}"
-WT_BRANCH="${F[14]}"
+CTX_SIZE="${F[2]}"
+RATE_5H="${F[3]}"
+RATE_5H_RESET="${F[4]}"
+RATE_7D="${F[5]}"
+RATE_7D_RESET="${F[6]}"
+COST_USD="${F[7]}"
+DURATION_MS="${F[8]}"
+LINES_ADD="${F[9]}"
+LINES_DEL="${F[10]}"
+CACHE_CREATE="${F[11]}"
+CACHE_READ="${F[12]}"
+AGENT_NAME="${F[13]}"
+WT_NAME="${F[14]}"
+WT_BRANCH="${F[15]}"
 
 # -- ANSI codes --
 RST='\033[0m'
@@ -147,6 +149,10 @@ if [[ -n "$CTX_PCT" ]]; then
   ctx_int=$(int_pct "$CTX_PCT")
   c=$(color_pct "$ctx_int")
   out+="${DIM}ctx${RST} ${c}${ctx_int}%${RST}"
+  if [[ -n "$CTX_SIZE" && "$CTX_SIZE" != "0" ]]; then
+    ctx_used=$(( CTX_SIZE * ctx_int / 100 ))
+    out+="${DIM}($(format_k "$ctx_used"))${RST}"
+  fi
 else
   out+="${DIM}ctx --${RST}"
 fi
