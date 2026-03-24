@@ -14,7 +14,9 @@ jq_out="$(echo "$input" | jq -r '
   (.model.display_name // ""),
   (.context_window.used_percentage // ""),
   (.rate_limits.five_hour.used_percentage // ""),
+  (.rate_limits.five_hour.resets_at // ""),
   (.rate_limits.seven_day.used_percentage // ""),
+  (.rate_limits.seven_day.resets_at // ""),
   (.cost.total_cost_usd // 0),
   (.cost.total_duration_ms // 0),
   (.cost.total_lines_added // 0),
@@ -29,22 +31,24 @@ jq_out="$(echo "$input" | jq -r '
 
 readarray -t F <<< "$jq_out"
 
-# Bail if jq produced insufficient output (14 fields: 13 data + sentinel)
-[[ ${#F[@]} -ge 14 ]] || exit 0
+# Bail if jq produced insufficient output (16 fields: 15 data + sentinel)
+[[ ${#F[@]} -ge 16 ]] || exit 0
 
 MODEL="${F[0]}"
 CTX_PCT="${F[1]}"
 RATE_5H="${F[2]}"
-RATE_7D="${F[3]}"
-COST_USD="${F[4]}"
-DURATION_MS="${F[5]}"
-LINES_ADD="${F[6]}"
-LINES_DEL="${F[7]}"
-CACHE_CREATE="${F[8]}"
-CACHE_READ="${F[9]}"
-AGENT_NAME="${F[10]}"
-WT_NAME="${F[11]}"
-WT_BRANCH="${F[12]}"
+RATE_5H_RESET="${F[3]}"
+RATE_7D="${F[4]}"
+RATE_7D_RESET="${F[5]}"
+COST_USD="${F[6]}"
+DURATION_MS="${F[7]}"
+LINES_ADD="${F[8]}"
+LINES_DEL="${F[9]}"
+CACHE_CREATE="${F[10]}"
+CACHE_READ="${F[11]}"
+AGENT_NAME="${F[12]}"
+WT_NAME="${F[13]}"
+WT_BRANCH="${F[14]}"
 
 # -- ANSI codes --
 RST='\033[0m'
@@ -101,6 +105,24 @@ format_k() {
   fi
 }
 
+# -- Format time remaining from unix timestamp --
+format_remaining() {
+  local reset_at=${1:-0}
+  [[ -z "$reset_at" || "$reset_at" == "0" ]] && return
+  local now=$(date +%s)
+  local diff=$(( reset_at - now ))
+  (( diff <= 0 )) && { printf 'now'; return; }
+  local days=$(( diff / 86400 ))
+  local hours=$(( (diff % 86400) / 3600 ))
+  if (( days > 0 )); then
+    printf '%dd%dh' "$days" "$hours"
+  elif (( hours > 0 )); then
+    printf '%dh' "$hours"
+  else
+    printf '%dm' "$(( diff / 60 ))"
+  fi
+}
+
 # -- Separator --
 SEP=" \\033[90m|\\033[0m "
 
@@ -134,7 +156,11 @@ rate_seg=""
 if [[ -n "$RATE_5H" ]]; then
   r5_int=$(int_pct "$RATE_5H")
   c=$(color_pct "$r5_int")
+  r5_remain=$(format_remaining "$RATE_5H_RESET")
   rate_seg+="${DIM}5h${RST} ${c}${r5_int}%${RST}"
+  if [[ -n "$r5_remain" ]]; then
+    rate_seg+="${DIM}(${r5_remain})${RST}"
+  fi
 fi
 if [[ -n "$RATE_5H" && -n "$RATE_7D" ]]; then
   rate_seg+="${DIM}/${RST}"
@@ -142,7 +168,11 @@ fi
 if [[ -n "$RATE_7D" ]]; then
   r7_int=$(int_pct "$RATE_7D")
   c=$(color_pct "$r7_int")
+  r7_remain=$(format_remaining "$RATE_7D_RESET")
   rate_seg+="${DIM}7d${RST} ${c}${r7_int}%${RST}"
+  if [[ -n "$r7_remain" ]]; then
+    rate_seg+="${DIM}(${r7_remain})${RST}"
+  fi
 fi
 if [[ -n "$rate_seg" ]]; then
   out+="${SEP}${rate_seg}"
