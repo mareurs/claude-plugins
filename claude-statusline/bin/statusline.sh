@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# claude-statusline v1.0.0
+# claude-statusline v1.0.1
 # Claude Code status line — informative single-line display
 # Reads JSON from stdin, outputs ANSI-colored status line to stdout
 
