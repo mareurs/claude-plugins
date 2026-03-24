@@ -91,7 +91,7 @@ git commit -m "feat: add claude-statusline plugin scaffold and script"
 
 The command is an LLM instruction file. It must tell the agent to:
 
-1. Read `~/.claude/plugins/installed_plugins.json` and extract the `installPath` for `claude-statusline@claude-plugins`
+1. Read `~/.claude/plugins/installed_plugins.json` and extract the `installPath` for `claude-statusline@sdd-misc-plugins`
 2. Check if `~/.claude/statusline.sh` exists — if yes, warn user and ask before overwriting
 3. Copy `<installPath>/bin/statusline.sh` to `~/.claude/statusline.sh` and `chmod +x`
 4. Read `~/.claude/settings.json` — if no `statusLine` key, add `"statusLine": { "type": "command", "command": "~/.claude/statusline.sh" }` and write back

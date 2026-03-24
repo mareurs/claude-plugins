@@ -6,7 +6,7 @@ Run this after first install and after plugin updates.
 
 ## Steps
 
-1. **Find the plugin install path.** Read `~/.claude/plugins/installed_plugins.json`. Find the entry for `claude-statusline@sdd-misc-plugins` (or `claude-statusline@claude-plugins`). Extract the `installPath` value. If not found, tell the user the plugin is not installed and stop.
+1. **Find the plugin install path.** Read `~/.claude/plugins/installed_plugins.json`. Find the entry for `claude-statusline@sdd-misc-plugins`. Extract the `installPath` value. If not found, tell the user the plugin is not installed and stop.
 
 2. **Copy the script.** Check if `~/.claude/statusline.sh` already exists. If it does, show the user the version stamp (line 2 of the existing file) and ask if they want to overwrite. If they decline, stop. Copy `<installPath>/bin/statusline.sh` to `~/.claude/statusline.sh` and run `chmod +x ~/.claude/statusline.sh`.
 

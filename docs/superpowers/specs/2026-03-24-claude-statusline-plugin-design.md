@@ -49,7 +49,7 @@ The existing `~/.claude/statusline.sh` script. Reads JSON from stdin (provided b
 
 An LLM-instruction slash command (`/setup-statusline`). When invoked, the agent executes these steps:
 
-1. **Discover plugin install path** — read `~/.claude/plugins/installed_plugins.json`, find the `claude-statusline@claude-plugins` entry, extract `installPath`
+1. **Discover plugin install path** — read `~/.claude/plugins/installed_plugins.json`, find the `claude-statusline@sdd-misc-plugins` entry, extract `installPath`
 2. **Copy the script** — if `~/.claude/statusline.sh` already exists, warn the user and ask before overwriting. Copy `<installPath>/bin/statusline.sh` to `~/.claude/statusline.sh` and `chmod +x`
 3. **Configure settings.json** — read `~/.claude/settings.json`, check if `statusLine` key exists. If not, add `"statusLine": { "type": "command", "command": "~/.claude/statusline.sh" }` and write back
 4. **Instruct user to restart** Claude Code to pick up the changes
@@ -85,7 +85,7 @@ The plugin lives in this repo (`claude-plugins`) alongside `codescout-companion`
 ## User Flow
 
 1. `/plugin marketplace add mareurs/claude-plugins` (if not already added)
-2. `/plugin install claude-statusline@claude-plugins`
+2. `/plugin install claude-statusline@sdd-misc-plugins`
 3. Run `/setup-statusline` (copies script, configures settings.json, prompts restart)
 
 On updates: run `/setup-statusline` again to refresh the script.

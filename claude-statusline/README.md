@@ -25,7 +25,7 @@ Rich, color-coded terminal status line for Claude Code.
 
 1. Install the plugin:
    ```
-   /plugin install claude-statusline@claude-plugins
+   /plugin install claude-statusline@sdd-misc-plugins
    ```
 2. Run the setup command:
    ```
