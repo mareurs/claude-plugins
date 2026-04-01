@@ -6,13 +6,14 @@ Routes Claude Code agents to use codescout's symbol-aware tools instead of
 falling back to Read/Grep/Glob on source files. Auto-detects codescout from
 `.mcp.json`, `~/.claude/.claude.json`, or `~/.claude/settings.json`.
 
-## What It Does
+## Quick Install
 
-- **System prompt injection** — Injects an active tool-use directive into all coding subagents (SubagentStart hook); appends `.code-explorer/system-prompt.md` when present. Also injects memory hints, drift warnings, and onboarding nudge into the main agent (SessionStart hook).
-- **Tool routing** — Warns when Read/Grep/Glob are used on source files, suggests `list_symbols`, `find_symbol`, `search_pattern` etc. (PostToolUse hook). Generic tool routing is already covered by codescout's MCP `server_instructions`.
-- **Auto-reindex** — Checks index staleness at session start, triggers `codescout index` in background if behind HEAD
-- **Drift warnings** — Surfaces high-drift files and flags stale docs/memories
-- **Worktree guard** — Blocks codescout write tools until `activate_project` is called after `EnterWorktree`
+```
+/plugin marketplace add mareurs/sdd-misc-plugins
+/plugin install codescout-companion@sdd-misc-plugins
+```
+
+Start a new Claude Code session — the plugin activates automatically.
 
 ## Requirements
 
@@ -21,7 +22,15 @@ falling back to Read/Grep/Glob on source files. Auto-detects codescout from
 - `sqlite3` installed (for staleness checks and drift queries)
 - `git` installed (for HEAD comparison and worktree detection)
 
-## Installation
+## What It Does
+
+- **System prompt injection** — Injects an active tool-use directive into all coding subagents (SubagentStart hook); appends `.code-explorer/system-prompt.md` when present. Also injects memory hints, drift warnings, and onboarding nudge into the main agent (SessionStart hook).
+- **Tool routing** — Warns when Read/Grep/Glob are used on source files, suggests `list_symbols`, `find_symbol`, `search_pattern` etc. (PostToolUse hook). Generic tool routing is already covered by codescout's MCP `server_instructions`.
+- **Auto-reindex** — Checks index staleness at session start, triggers `codescout index` in background if behind HEAD
+- **Drift warnings** — Surfaces high-drift files and flags stale docs/memories
+- **Worktree guard** — Blocks codescout write tools until `activate_project` is called after `EnterWorktree`
+
+## Full Installation
 
 ```
 /plugin marketplace add mareurs/sdd-misc-plugins
@@ -81,6 +90,121 @@ Create `.claude/codescout-companion.json` (or `codescout-routing.json`) in your 
 | `SubagentStart` | `subagent-guidance.sh` | Compact guidance for all subagents |
 | `PreToolUse` (Grep/Glob/Read/Bash) | `pre-tool-guard.sh` | Hard-block Read/Grep/Glob/sed-i on source files, redirect to codescout |
 | `PostToolUse` (EnterWorktree) | `worktree-activate.sh` | Symlink .code-explorer/ and inject activate_project guidance |
+
+## Ollama Setup
+
+Semantic search (`semantic_search`, `index_project`) requires an embedding backend.
+The recommended option is Ollama — fully local, no API key required.
+
+**Using the install script** (from the codescout repo root):
+
+```bash
+./scripts/install-ollama.sh --check     # verify current state
+./scripts/install-ollama.sh --install   # install ollama + pull nomic-embed-text
+```
+
+**Manually** (if you already have Ollama):
+
+```bash
+ollama pull nomic-embed-text
+```
+
+Then add to `.codescout/project.toml` in your project:
+
+```toml
+[embeddings]
+model = "ollama:nomic-embed-text"
+```
+
+Build the index once in a Claude Code session:
+
+```
+Run index_project
+```
+
+→ [Embedding backends reference](https://github.com/mareurs/codescout/blob/master/docs/manual/src/configuration/embedding-backends.md)
+
+## Troubleshooting
+
+### "codescout not detected"
+
+The plugin scans these locations for a codescout server entry (in order):
+
+1. `.claude/codescout-companion.json` (or `.claude/codescout-routing.json` for backwards compat)
+2. `.mcp.json` in the project root
+3. `~/.claude/.claude.json`
+4. `~/.claude/settings.json`
+
+It matches any server whose `command` or `args` contain `codescout` or `code-explorer`.
+
+If auto-detection fails, force it with `.claude/codescout-companion.json`:
+
+```json
+{ "server_name": "codescout" }
+```
+
+### Tools not routing to codescout
+
+Verify the plugin is enabled:
+
+```bash
+claude /plugin list
+# should show: codescout-companion@sdd-misc-plugins
+```
+
+Check that `block_reads` is not set to `false` in `.claude/codescout-companion.json`.
+
+### LSP errors on first use (`find_symbol`, `goto_definition` fail)
+
+LSP servers start during `onboarding`. If you skipped it, run:
+
+```
+Run onboarding
+```
+
+This detects languages, starts LSP servers, and writes project memories. Without it,
+symbol navigation tools return errors because no LSP server is running.
+
+### `semantic_search` returns nothing or errors
+
+The embedding index has not been built yet. Run:
+
+```
+Run index_project
+```
+
+For a ~100k line project this takes 1–3 minutes. Verify status with `project_status`.
+
+If `index_project` fails, confirm Ollama is running:
+
+```bash
+curl http://localhost:11434/api/tags
+```
+
+### MCP server fails to start (tools missing from Claude Code)
+
+```bash
+which codescout        # verify the binary is on PATH
+codescout --version    # verify it runs
+claude mcp list        # verify it is registered
+```
+
+If `codescout` is not on PATH, install it (`cargo install codescout`) or add
+`~/.cargo/bin` to your PATH.
+
+### SubagentStart hook not firing
+
+After updating Claude Code, plugins sometimes need to be re-enabled:
+
+```bash
+claude /plugin list
+```
+
+If `codescout-companion@sdd-misc-plugins` is absent, reinstall:
+
+```
+/plugin install codescout-companion@sdd-misc-plugins
+```
 
 ## Coupling to codescout
 
