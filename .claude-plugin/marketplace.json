@@ -43,7 +43,7 @@
     },
     {
       "name": "buddy",
-      "source": "/home/marius/agents/buddy-plugin",
+      "source": "./buddy",
       "description": "A Himalayan-aesthetic bodhisattva companion for Claude Code, with 9 specialist masters on demand. Standalone or composable with claude-statusline.",
       "author": {
         "name": "Marius"
