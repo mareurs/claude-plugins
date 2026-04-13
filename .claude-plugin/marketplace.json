@@ -40,6 +40,17 @@
       "license": "MIT",
       "keywords": ["statusline", "status", "terminal", "ui"],
       "category": "ui"
+    },
+    {
+      "name": "buddy",
+      "source": "/home/marius/agents/buddy-plugin",
+      "description": "A Himalayan-aesthetic bodhisattva companion for Claude Code, with 9 specialist masters on demand. Standalone or composable with claude-statusline.",
+      "author": {
+        "name": "Marius"
+      },
+      "license": "MIT",
+      "keywords": ["statusline", "companion", "bodhisattva", "focus", "specialists"],
+      "category": "ui"
     }
   ]
 }
