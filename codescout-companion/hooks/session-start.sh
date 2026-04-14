@@ -194,9 +194,17 @@ if [ "$IN_WORKTREE" = "true" ]; then
 "
 fi
 
+# --- Iron Laws reminder (survives context compression) ---
+MSG="${MSG}CODESCOUT RULES (compression-resilient reminder):
+• Source code: list_symbols + find_symbol, NOT read_file/Read
+• Code edits: replace_symbol/insert_code/remove_symbol, NOT edit_file/Edit for structural changes
+• Shell commands: run_command, NOT Bash — output buffers save tokens
+• Markdown: read_markdown/edit_markdown, NOT read_file/edit_file
+• Never pipe run_command output — query @ref buffers instead
+
+"
+
 # --- Tool guide ---
-# server_instructions.md from MCP covers generic tool routing for all agents.
-# Only inject the project-specific system prompt here.
 MSG="${MSG}NEVER USE BASH AGENTS FOR CODE WORK.
 Bash agents have no codescout tools. Use general-purpose, Plan, or Explore
 agents for any task involving code reading, writing, or navigation."

@@ -42,6 +42,16 @@ GitHub: @${GH_USER} | repo: ${GH_OWNER}/${GH_REPO}
   fi
 fi
 
+# --- Iron Laws reminder (survives context compression) ---
+MSG="${MSG}
+
+CODESCOUT RULES (compression-resilient reminder):
+• Source code: list_symbols + find_symbol, NOT read_file/Read
+• Code edits: replace_symbol/insert_code/remove_symbol, NOT edit_file/Edit for structural changes
+• Shell commands: run_command, NOT Bash — output buffers save tokens
+• Markdown: read_markdown/edit_markdown, NOT read_file/edit_file
+• Never pipe run_command output — query @ref buffers instead"
+
 if [ "$HAS_CS_SYSTEM_PROMPT" = "true" ]; then
   MSG="${MSG}
 
