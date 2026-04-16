@@ -142,4 +142,38 @@ else
   fail "Grep .cargo/registry deep path: deny with correct crate name" "crate_hint=$CRATE"
 fi
 
+# Test 17: parallel dedup — first call gets full reason
+OUT1=$(guard_input "Bash" '"command":"cat foo.rs"' | bash "$HOOK" 2>/dev/null)
+if assert_denied "$OUT1" && assert_reason_contains "$OUT1" "run_command"; then
+  pass "Bash dedup: first call gets full reason"
+else
+  fail "Bash dedup: first call gets full reason" "$OUT1"
+fi
+
+# Test 18: parallel dedup — second call within window gets short reason
+OUT2=$(guard_input "Bash" '"command":"cat bar.rs"' | bash "$HOOK" 2>/dev/null)
+if assert_denied "$OUT2" && assert_reason_contains "$OUT2" "see previous message"; then
+  pass "Bash dedup: second call gets short reason"
+else
+  fail "Bash dedup: second call gets short reason" "$OUT2"
+fi
+
+# Test 19: different tool type in same window gets its own full reason
+OUT3=$(guard_input "Read" '"file_path":"'"$T/proj/app.ts"'"' | bash "$HOOK" 2>/dev/null)
+if assert_denied "$OUT3" && assert_reason_contains "$OUT3" "list_symbols"; then
+  pass "Read dedup: different tool type gets full reason"
+else
+  fail "Read dedup: different tool type gets full reason" "$OUT3"
+fi
+
+# Test 20: after dedup window cleared, full reason again
+DEDUP_KEY=$(printf '%s\t%s' "Bash" "$T/proj" | md5sum | cut -c1-8)
+rm -f "/tmp/cs-block-$DEDUP_KEY"
+OUT4=$(guard_input "Bash" '"command":"cat baz.rs"' | bash "$HOOK" 2>/dev/null)
+if assert_denied "$OUT4" && assert_reason_contains "$OUT4" "run_command"; then
+  pass "Bash dedup: after window cleared, full reason again"
+else
+  fail "Bash dedup: after window cleared, full reason again" "$OUT4"
+fi
+
 print_summary "pre-tool-guard"
