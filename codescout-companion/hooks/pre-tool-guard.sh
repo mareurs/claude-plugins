@@ -22,8 +22,25 @@ is_in_workspace() {
 }
 
 # --- Helper: hard-block with reason shown to Claude ---
+# First blocked call in a 3-second window per (TOOL_NAME, CWD) gets the full reason.
+# Subsequent parallel calls get a short "see previous message" to avoid noise.
 enforce() {
-  jq -n --arg reason "$1" '{
+  local reason="$1"
+  local dedup_key
+  dedup_key=$(printf '%s\t%s' "$TOOL_NAME" "$CWD" | md5sum | cut -c1-8)
+  local dedup_file="/tmp/cs-block-$dedup_key"
+  if ! ( set -o noclobber; : > "$dedup_file" ) 2>/dev/null; then
+    jq -n '{
+      hookSpecificOutput: {
+        hookEventName: "PreToolUse",
+        permissionDecision: "deny",
+        permissionDecisionReason: "BLOCKED (see previous message)"
+      }
+    }'
+    exit 0
+  fi
+  ( sleep 3; rm -f "$dedup_file" ) >/dev/null 2>&1 &
+  jq -n --arg reason "$reason" '{
     hookSpecificOutput: {
       hookEventName: "PreToolUse",
       permissionDecision: "deny",

@@ -58,6 +58,9 @@ else
 fi
 
 # Test 8: Read on .md inside project → deny with heading navigation guidance
+# Clean up dedup file from previous tests so this gets full reason
+READ_DEDUP_KEY=$(printf '%s\t%s' "Read" "$T/proj" | md5sum | cut -c1-8)
+rm -f "/tmp/cs-block-$READ_DEDUP_KEY"
 OUT=$(guard_input "Read" '"file_path":"'"$T/proj/README.md"'"' | bash "$HOOK" 2>/dev/null)
 if assert_denied "$OUT" && echo "$OUT" | grep -q "heading="; then
   pass "Read .md in project: deny with heading navigation"
@@ -124,6 +127,9 @@ EC=$?
 if [ $EC -eq 0 ] && ! assert_denied "$OUT"; then pass "Write .md: allow"; else fail "Write .md: allow" "$OUT"; fi
 
 # Test 15: Read on a .cargo/registry file (deep path inside crate) → deny, crate name not "lib.rs"
+# Clean up dedup file from previous tests so this gets full reason
+READ_DEDUP_KEY=$(printf '%s\t%s' "Read" "$T/proj" | md5sum | cut -c1-8)
+rm -f "/tmp/cs-block-$READ_DEDUP_KEY"
 CARGO_PATH="$HOME/.cargo/registry/src/index.crates.io-abc123/serde-1.0.195/src/lib.rs"
 OUT=$(guard_input "Read" "\"file_path\":\"$CARGO_PATH\"" | bash "$HOOK" 2>/dev/null)
 if assert_denied "$OUT" && assert_reason_contains "$OUT" "register_library" && assert_reason_contains "$OUT" "crate 'serde'"; then
@@ -134,6 +140,9 @@ else
 fi
 
 # Test 16: Grep on a .cargo/registry path (deep path inside crate) → deny, crate name not "lib.rs"
+# Clean up dedup file from previous tests so this gets full reason
+GREP_DEDUP_KEY=$(printf '%s\t%s' "Grep" "$T/proj" | md5sum | cut -c1-8)
+rm -f "/tmp/cs-block-$GREP_DEDUP_KEY"
 OUT=$(guard_input "Grep" "\"pattern\":\"Serialize\",\"path\":\"$CARGO_PATH\"" | bash "$HOOK" 2>/dev/null)
 if assert_denied "$OUT" && assert_reason_contains "$OUT" "register_library" && assert_reason_contains "$OUT" "crate 'serde'"; then
   pass "Grep .cargo/registry deep path: deny with correct crate name"
@@ -143,6 +152,9 @@ else
 fi
 
 # Test 17: parallel dedup — first call gets full reason
+# Clean up dedup file from previous tests so this gets full reason
+BASH_DEDUP_KEY=$(printf '%s\t%s' "Bash" "$T/proj" | md5sum | cut -c1-8)
+rm -f "/tmp/cs-block-$BASH_DEDUP_KEY"
 OUT1=$(guard_input "Bash" '"command":"cat foo.rs"' | bash "$HOOK" 2>/dev/null)
 if assert_denied "$OUT1" && assert_reason_contains "$OUT1" "run_command"; then
   pass "Bash dedup: first call gets full reason"
