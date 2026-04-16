@@ -20,6 +20,8 @@ EC=$?
 if [ $EC -eq 0 ] && ! assert_denied "$OUT"; then pass "no CE: allow"; else fail "no CE: allow" "exit=$EC out=$OUT"; fi
 
 # Test 2: Bash tool → deny with run_command
+BASH_DEDUP_KEY=$(printf '%s\t%s' "Bash" "$T/proj" | md5sum | cut -c1-8)
+rm -f "/tmp/cs-block-$BASH_DEDUP_KEY"
 OUT=$(printf '{"cwd":"%s","tool_name":"Bash","tool_input":{"command":"git log"}}' "$T/proj" | bash "$HOOK" 2>/dev/null)
 if assert_denied "$OUT" && assert_reason_contains "$OUT" "run_command"; then
   pass "Bash: deny with run_command"
@@ -28,6 +30,8 @@ else
 fi
 
 # Test 3: Grep type=ts → deny with find_symbol
+GREP_DEDUP_KEY=$(printf '%s\t%s' "Grep" "$T/proj" | md5sum | cut -c1-8)
+rm -f "/tmp/cs-block-$GREP_DEDUP_KEY"
 OUT=$(guard_input "Grep" '"pattern":"foo","type":"ts"' | bash "$HOOK" 2>/dev/null)
 if assert_denied "$OUT" && assert_reason_contains "$OUT" "find_symbol"; then
   pass "Grep type=ts: deny"
@@ -41,6 +45,8 @@ EC=$?
 if [ $EC -eq 0 ] && ! assert_denied "$OUT"; then pass "Grep .md: allow"; else fail "Grep .md: allow" "$OUT"; fi
 
 # Test 5: Glob on *.ts → deny
+GLOB_DEDUP_KEY=$(printf '%s\t%s' "Glob" "$T/proj" | md5sum | cut -c1-8)
+rm -f "/tmp/cs-block-$GLOB_DEDUP_KEY"
 OUT=$(guard_input "Glob" '"pattern":"'"$T/proj/**/*.ts"'"' | bash "$HOOK" 2>/dev/null)
 if assert_denied "$OUT"; then pass "Glob *.ts: deny"; else fail "Glob *.ts: deny" "$OUT"; fi
 
@@ -50,6 +56,8 @@ EC=$?
 if [ $EC -eq 0 ] && ! assert_denied "$OUT"; then pass "Glob *.md: allow"; else fail "Glob *.md: allow" "$OUT"; fi
 
 # Test 7: Read on .ts file → deny with list_symbols
+READ_DEDUP_KEY=$(printf '%s\t%s' "Read" "$T/proj" | md5sum | cut -c1-8)
+rm -f "/tmp/cs-block-$READ_DEDUP_KEY"
 OUT=$(guard_input "Read" '"file_path":"'"$T/proj/app.ts"'"' | bash "$HOOK" 2>/dev/null)
 if assert_denied "$OUT" && assert_reason_contains "$OUT" "list_symbols"; then
   pass "Read .ts: deny with list_symbols"
@@ -101,6 +109,8 @@ if [ $EC -eq 0 ] && ! assert_denied "$OUT"; then pass "outside workspace_root: a
 rm -f "$T/proj/.claude/codescout-companion.json"
 
 # Test 11: Edit on .ts → deny with replace_symbol
+EDIT_DEDUP_KEY=$(printf '%s\t%s' "Edit" "$T/proj" | md5sum | cut -c1-8)
+rm -f "/tmp/cs-block-$EDIT_DEDUP_KEY"
 OUT=$(guard_input "Edit" '"file_path":"'"$T/proj/app.ts"'"' | bash "$HOOK" 2>/dev/null)
 if assert_denied "$OUT" && assert_reason_contains "$OUT" "replace_symbol"; then
   pass "Edit .ts: deny with replace_symbol"
@@ -114,6 +124,8 @@ EC=$?
 if [ $EC -eq 0 ] && ! assert_denied "$OUT"; then pass "Edit .md: allow"; else fail "Edit .md: allow" "$OUT"; fi
 
 # Test 13: Write on .ts → deny with create_file
+WRITE_DEDUP_KEY=$(printf '%s\t%s' "Write" "$T/proj" | md5sum | cut -c1-8)
+rm -f "/tmp/cs-block-$WRITE_DEDUP_KEY"
 OUT=$(guard_input "Write" '"file_path":"'"$T/proj/app.ts"'"' | bash "$HOOK" 2>/dev/null)
 if assert_denied "$OUT" && assert_reason_contains "$OUT" "create_file"; then
   pass "Write .ts: deny with create_file"
