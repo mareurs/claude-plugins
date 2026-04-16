@@ -181,18 +181,19 @@ YOU MUST use codescout file tools. Do not call Glob on source files."
       # Exempt skill files (SKILL.md, files inside a skills/ directory)
       echo "$FILE_PATH" | grep -qiE '(^|/)skills/' && exit 0
       echo "$FILE_PATH" | grep -qiE '/SKILL\.md$' && exit 0
-      enforce "WRONG TOOL. You called Read on a markdown file but codescout has HEADING-LEVEL NAVIGATION.
+      enforce "WRONG TOOL. You called Read on a markdown file but codescout has read_markdown.
 
 STOP. Do NOT read the full file: ${FILE_PATH}
 
 Reading a full markdown file dumps all content into context — WASTEFUL when you need one section.
-codescout read_file returns a STRUCTURAL SUMMARY with heading tree first, then lets you navigate:
+Use read_markdown — size-adaptive output (full content for small files, content+hint for medium, heading map+recipe for large):
 
-  read_file(\"${REL_PATH}\")                         — heading tree summary (see full structure instantly)
-  read_file(\"${REL_PATH}\", heading=\"## Section\")  — jump directly to a named section
-  search_pattern(\"pattern\", path=\"${REL_PATH}\")   — find specific content within the file
+  read_markdown(\"${REL_PATH}\")                            — adaptive output (start here)
+  read_markdown(\"${REL_PATH}\", heading=\"## Section\")      — one section
+  read_markdown(\"${REL_PATH}\", headings=[\"## A\", \"## B\"]) — multiple sections
+  search_pattern(\"pattern\", path=\"${REL_PATH}\")           — content search
 
-WORKFLOW: read_file first to see the heading tree → then read_file with heading= to get the section.
+WORKFLOW: read_markdown first → heading=/headings= for specific sections → line ranges only as last resort.
 Do not call Read on markdown files."
     fi
 
