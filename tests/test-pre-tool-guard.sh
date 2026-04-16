@@ -159,6 +159,8 @@ else
 fi
 
 # Test 19: different tool type in same window gets its own full reason
+READ_DEDUP_KEY=$(printf '%s\t%s' "Read" "$T/proj" | md5sum | cut -c1-8)
+rm -f "/tmp/cs-block-$READ_DEDUP_KEY"
 OUT3=$(guard_input "Read" '"file_path":"'"$T/proj/app.ts"'"' | bash "$HOOK" 2>/dev/null)
 if assert_denied "$OUT3" && assert_reason_contains "$OUT3" "list_symbols"; then
   pass "Read dedup: different tool type gets full reason"
