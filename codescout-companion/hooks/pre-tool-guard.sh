@@ -98,7 +98,7 @@ YOU MUST use codescout tools. Do not call Bash."
 
     IS_SOURCE=false
     case "$TYPE" in
-      kotlin|kt|kts|java|ts|typescript|js|javascript|py|python|go|rust|cs|csharp|rb|ruby|scala|swift|cpp|c|sh|bash|shellscript)
+      kotlin|kt|kts|java|ts|typescript|js|javascript|py|python|go|rust|cs|csharp|rb|ruby|scala|swift|cpp|c|sh)
         IS_SOURCE=true ;;
     esac
 
