@@ -61,9 +61,9 @@ case "$TOOL_NAME" in
       BASH_HINT="  search_pattern(\"PATTERN\")             — indexed regex, structured results
   find_symbol(\"NAME\")                   — locate symbol by name (much faster)
   semantic_search(\"CONCEPT\")           — find code by meaning, not just text"
-    elif echo "$CMD" | grep -qE '^cat .*\.(rs|ts|tsx|js|jsx|py|go|kt|kts|java|cs|rb|swift|cpp|c|h|hpp)'; then
+    elif echo "$CMD" | grep -qE '^cat .*\.(rs|ts|tsx|js|jsx|py|go|kt|kts|java|cs|rb|swift|cpp|c|h|hpp|sh|bash)'; then
       # cat on a source file → list_symbols / find_symbol
-      SRC_FILE=$(echo "$CMD" | grep -oE '[^ ]+\.(rs|ts|tsx|js|jsx|py|go|kt|kts|java|cs|rb|swift|cpp|c|h|hpp)' | head -1)
+      SRC_FILE=$(echo "$CMD" | grep -oE '[^ ]+\.(rs|ts|tsx|js|jsx|py|go|kt|kts|java|cs|rb|swift|cpp|c|h|hpp|sh|bash)' | head -1)
       REL_SRC="${SRC_FILE#$CWD/}"
       BASH_HINT="  list_symbols(\"${REL_SRC}\")             — ALL symbols + line numbers in ~50 tokens (DO THIS FIRST)
   find_symbol(name, include_body=true)   — read one specific symbol body"
@@ -98,7 +98,7 @@ YOU MUST use codescout tools. Do not call Bash."
 
     IS_SOURCE=false
     case "$TYPE" in
-      kotlin|kt|kts|java|ts|typescript|js|javascript|py|python|go|rust|cs|csharp|rb|ruby|scala|swift|cpp|c)
+      kotlin|kt|kts|java|ts|typescript|js|javascript|py|python|go|rust|cs|csharp|rb|ruby|scala|swift|cpp|c|sh|bash|shellscript)
         IS_SOURCE=true ;;
     esac
 

@@ -120,4 +120,4 @@ if [ -f "$CS_SYSTEM_PROMPT_FILE" ]; then
 fi
 
 # --- Source extension pattern ---
-SOURCE_EXT_PATTERN='\.(kt|kts|java|ts|tsx|js|jsx|py|go|rs|cs|rb|scala|swift|cpp|c|h|hpp)$'
+SOURCE_EXT_PATTERN='\.(kt|kts|java|ts|tsx|js|jsx|py|go|rs|cs|rb|scala|swift|cpp|c|h|hpp|sh|bash)$'
