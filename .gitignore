@@ -7,3 +7,6 @@ test-detect.sh
 .code-explorer/private-memories/
 .codescout/
 .codescout/private-memories/
+.buddy/
+__pycache__/
+*.pyc
