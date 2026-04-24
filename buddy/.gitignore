@@ -1,0 +1,11 @@
+__pycache__/
+*.pyc
+.pytest_cache/
+.venv/
+.DS_Store
+*.log
+hooks/judge.env
+.fastembed_cache/
+.buddy/
+.codescout/
+.codescout/private-memories/

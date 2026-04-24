@@ -1,0 +1,182 @@
+{
+  "owl-of-clear-seeing": {
+    "label": "Owl",
+    "base": "{env}\n   .~~.\n  ({eyes})\n   \\_/\n  ~~~~~",
+    "eyes": {
+      "flow": "°‿°",
+      "stuck": "o_O",
+      "test-streak": "^‿^",
+      "late-night": "-_-",
+      "full-context": ">_<",
+      "long-session": "=_=",
+      "victorious": "*_*",
+      "exploratory": "O.O",
+      "idle": "·_·",
+      "racing": ">‿>",
+      "drifting": "?_?",
+      "broken": "x_x"
+    }
+  },
+  "doe-of-gentle-attention": {
+    "label": "Doe",
+    "base": "{env}\n  (\\ /)\n  ({eyes})\n   ( )\n  / | \\",
+    "eyes": {
+      "flow": "°‿°",
+      "stuck": "o_o",
+      "test-streak": "^.^",
+      "late-night": "-.-",
+      "full-context": ">.>",
+      "long-session": "=.=",
+      "victorious": "*.*",
+      "exploratory": "O_O",
+      "idle": "·.·",
+      "racing": ">_>",
+      "drifting": "?_?",
+      "broken": "x_x"
+    }
+  },
+  "turtle-of-slow-breath": {
+    "label": "Turtle",
+    "base": "{env}\n   _____\n  / {eyes} \\\n |_______|\n  \"  \"  \"",
+    "eyes": {
+      "flow": "‿‿",
+      "stuck": "oO",
+      "test-streak": "^^",
+      "late-night": "--",
+      "full-context": "><",
+      "long-session": "==",
+      "victorious": "**",
+      "exploratory": "OO",
+      "idle": "··",
+      "racing": ">>",
+      "drifting": "??",
+      "broken": "xx"
+    }
+  },
+  "hare-of-present-moment": {
+    "label": "Hare",
+    "base": "{env}\n  /) /)\n  ({eyes})\n  c(\")(\")",
+    "eyes": {
+      "flow": "°‿°",
+      "stuck": "o_O",
+      "test-streak": "^_^",
+      "late-night": "-_-",
+      "full-context": ">_<",
+      "long-session": "=_=",
+      "victorious": "*_*",
+      "exploratory": "O_O",
+      "idle": "·_·",
+      "racing": ">_>",
+      "drifting": "?_?",
+      "broken": "x_x"
+    }
+  },
+  "lotus-of-floating-calm": {
+    "label": "Lotus",
+    "base": "{env}\n    @\n  /{eyes}\\\n .~~~~~.\n ~~~~~~~~",
+    "eyes": {
+      "flow": "‿‿",
+      "stuck": "oO",
+      "test-streak": "^^",
+      "late-night": "..",
+      "full-context": "><",
+      "long-session": "==",
+      "victorious": "**",
+      "exploratory": "OO",
+      "idle": "··",
+      "racing": ">>",
+      "drifting": "??",
+      "broken": "xx"
+    }
+  },
+  "flag-sprite-of-wind-clarity": {
+    "label": "Flag",
+    "base": "{env}\n  |{eyes}~>\n  |  ~>\n  |~>\n  |",
+    "eyes": {
+      "flow": "‿‿",
+      "stuck": "oO",
+      "test-streak": "^^",
+      "late-night": "..",
+      "full-context": "><",
+      "long-session": "==",
+      "victorious": "**",
+      "exploratory": "OO",
+      "idle": "··",
+      "racing": ">>",
+      "drifting": "??",
+      "broken": "xx"
+    }
+  },
+  "cloud-spirit-of-open-hands": {
+    "label": "Cloud",
+    "base": "{env}\n  .~~~.\n (  {eyes} )\n  `~~~'\n  ~ ~ ~",
+    "eyes": {
+      "flow": "°‿°",
+      "stuck": "o_O",
+      "test-streak": "^_^",
+      "late-night": "-_-",
+      "full-context": ">_<",
+      "long-session": "=_=",
+      "victorious": "*_*",
+      "exploratory": "O_O",
+      "idle": "·_·",
+      "racing": ">_>",
+      "drifting": "?_?",
+      "broken": "x_x"
+    }
+  },
+  "bell-sprite-of-soft-signal": {
+    "label": "Bell",
+    "base": "{env}\n    o\n  /|{eyes}|\\\n | _____ |\n  \\___/",
+    "eyes": {
+      "flow": "‿‿",
+      "stuck": "oO",
+      "test-streak": "^^",
+      "late-night": "..",
+      "full-context": "><",
+      "long-session": "==",
+      "victorious": "**",
+      "exploratory": "OO",
+      "idle": "··",
+      "racing": ">>",
+      "drifting": "??",
+      "broken": "xx"
+    }
+  },
+  "stone-cub-of-unshaken": {
+    "label": "Cub",
+    "base": "{env}\n  /\\_/\\\n ({eyes})\n  />o<\\\n ~~~~~~",
+    "eyes": {
+      "flow": "°‿°",
+      "stuck": "o_O",
+      "test-streak": "^_^",
+      "late-night": "-_-",
+      "full-context": ">_<",
+      "long-session": "=_=",
+      "victorious": "*_*",
+      "exploratory": "O_O",
+      "idle": "·_·",
+      "racing": ">_>",
+      "drifting": "?_?",
+      "broken": "x_x"
+    }
+  },
+  "sky-fox-of-vast-witness": {
+    "label": "Fox",
+    "base": "{env}\n  /\\_/\\\n ({eyes})>\n  / \\ /\n ~~ ~~",
+    "eyes": {
+      "flow": "°‿°",
+      "stuck": "o_O",
+      "test-streak": "^‿^",
+      "late-night": "-_-",
+      "full-context": ">_<",
+      "long-session": "=_=",
+      "victorious": "*_*",
+      "exploratory": "O.O",
+      "idle": "·_·",
+      "racing": ">‿>",
+      "drifting": "?_?",
+      "broken": "x_x"
+    }
+  }
+}
