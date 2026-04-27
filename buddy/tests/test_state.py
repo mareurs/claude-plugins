@@ -98,3 +98,88 @@ def test_pid_started_at_stable_across_calls():
     a = pid_started_at(os.getpid())
     b = pid_started_at(os.getpid())
     assert a == b
+
+
+def _setup_buddy_dir(tmp_path):
+    d = tmp_path / ".buddy"
+    d.mkdir()
+    return d
+
+
+def test_resolve_uses_by_ppid_when_started_at_matches(tmp_path, monkeypatch):
+    from scripts import state as state_mod
+    bdir = _setup_buddy_dir(tmp_path)
+    ppid_dir = bdir / "by-ppid" / "12345"
+    ppid_dir.mkdir(parents=True)
+    (ppid_dir / "session_id").write_text("sid-from-ppid")
+    (ppid_dir / "started_at").write_text("Mon Jan 1 00:00:00 2026")
+    monkeypatch.setattr(state_mod, "pid_started_at",
+                        lambda pid: "Mon Jan 1 00:00:00 2026" if pid == 12345 else None)
+
+    sid = state_mod.resolve_session_id_for_command(tmp_path, 12345)
+    assert sid == "sid-from-ppid"
+
+
+def test_resolve_falls_through_when_started_at_mismatches(tmp_path, monkeypatch):
+    """PID reuse — stored start_time != current start_time. Reject the entry."""
+    from scripts import state as state_mod
+    bdir = _setup_buddy_dir(tmp_path)
+    ppid_dir = bdir / "by-ppid" / "12345"
+    ppid_dir.mkdir(parents=True)
+    (ppid_dir / "session_id").write_text("stale-sid")
+    (ppid_dir / "started_at").write_text("OLD")
+    (bdir / ".current_session_id").write_text("pointer-sid")
+    monkeypatch.setattr(state_mod, "pid_started_at", lambda pid: "NEW")
+
+    sid = state_mod.resolve_session_id_for_command(tmp_path, 12345)
+    assert sid == "pointer-sid"
+
+
+def test_resolve_uses_pointer_when_no_by_ppid(tmp_path, monkeypatch):
+    from scripts import state as state_mod
+    bdir = _setup_buddy_dir(tmp_path)
+    (bdir / ".current_session_id").write_text("pointer-sid")
+    monkeypatch.setattr(state_mod, "pid_started_at", lambda pid: None)
+
+    sid = state_mod.resolve_session_id_for_command(tmp_path, 99999)
+    assert sid == "pointer-sid"
+
+
+def test_resolve_uses_lone_session_dir_when_no_pointer(tmp_path, monkeypatch):
+    from scripts import state as state_mod
+    bdir = _setup_buddy_dir(tmp_path)
+    (bdir / "the-only-sid").mkdir()
+    monkeypatch.setattr(state_mod, "pid_started_at", lambda pid: None)
+
+    sid = state_mod.resolve_session_id_for_command(tmp_path, 99999)
+    assert sid == "the-only-sid"
+
+
+def test_resolve_returns_none_when_multiple_dirs_no_pointer(tmp_path, monkeypatch):
+    from scripts import state as state_mod
+    bdir = _setup_buddy_dir(tmp_path)
+    (bdir / "sid-a").mkdir()
+    (bdir / "sid-b").mkdir()
+    monkeypatch.setattr(state_mod, "pid_started_at", lambda pid: None)
+
+    sid = state_mod.resolve_session_id_for_command(tmp_path, 99999)
+    assert sid is None
+
+
+def test_resolve_returns_none_when_buddy_dir_missing(tmp_path, monkeypatch):
+    from scripts import state as state_mod
+    monkeypatch.setattr(state_mod, "pid_started_at", lambda pid: None)
+    sid = state_mod.resolve_session_id_for_command(tmp_path, 99999)
+    assert sid is None
+
+
+def test_resolve_skips_by_ppid_dirs_in_lone_dir_check(tmp_path, monkeypatch):
+    """`by-ppid/` is a system dir — must not be picked as a 'lone session dir'."""
+    from scripts import state as state_mod
+    bdir = _setup_buddy_dir(tmp_path)
+    (bdir / "by-ppid").mkdir()
+    (bdir / "real-sid").mkdir()
+    monkeypatch.setattr(state_mod, "pid_started_at", lambda pid: None)
+
+    sid = state_mod.resolve_session_id_for_command(tmp_path, 99999)
+    assert sid == "real-sid"
