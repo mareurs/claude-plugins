@@ -22,7 +22,6 @@ if str(_PLUGIN_ROOT) not in sys.path:
 from scripts.buddha import derive_mood
 
 BUDDY_DIR = Path.home() / ".claude" / "buddy"
-STATE_PATH = BUDDY_DIR / "state.json"
 IDENTITY_PATH = BUDDY_DIR / "identity.json"
 
 PLUGIN_ROOT = _PLUGIN_ROOT
@@ -217,16 +216,18 @@ def main() -> int:
         raw_stdin = ""
 
     try:
-        from scripts.state import load_state
+        from scripts.state import load_state, default_state, session_state_path
         from scripts.identity import load_identity
 
-        state = load_state(STATE_PATH)
+        session_id, project_root = parse_stdin_session(raw_stdin)
+        if session_id and project_root:
+            state = load_state(session_state_path(project_root, session_id))
+        else:
+            state = default_state()
 
         ctx_pct = parse_stdin_context_pct(raw_stdin)
         if ctx_pct > 0:
             state.setdefault("signals", {})["context_pct"] = ctx_pct
-
-        session_id, project_root = parse_stdin_session(raw_stdin)
 
         import os
         user_id = os.environ.get("CLAUDE_CODE_USER_ID") or os.environ.get("USER", "user")

@@ -381,3 +381,38 @@ def test_render_existing_signature_unchanged(tmp_path):
         now=1000000, local_hour=14,
     )
     assert "Owl" in out  # bubble absent — no session kwargs passed
+
+
+def test_statusline_reads_session_scoped_state(tmp_path, monkeypatch, capsys):
+    """Statusline must derive state path from stdin session_id+cwd, not global."""
+    import json
+    from scripts.state import default_state, save_state, session_state_path
+
+    # Seed session-scoped state with a distinctive value
+    sid = "sid-test-xyz"
+    state = default_state()
+    state["derived_mood"] = "stuck"
+    state["active_specialists"] = ["debugging-yeti"]
+    save_state(session_state_path(tmp_path, sid), state)
+
+    # Stdin event for the statusline
+    stdin_event = json.dumps({
+        "session_id": sid,
+        "workspace": {"current_dir": str(tmp_path)},
+    })
+    monkeypatch.setattr("sys.stdin", __import__("io").StringIO(stdin_event))
+
+    from scripts import statusline
+    statusline.main()
+    out = capsys.readouterr().out
+    # The yeti specialist's initial 'D' (from SPECIALIST_INITIAL) must appear
+    assert "D" in out
+
+
+def test_statusline_renders_default_when_no_session_id(tmp_path, monkeypatch, capsys):
+    """No session_id in stdin → fall back to default_state, statusline still renders."""
+    import json
+    monkeypatch.setattr("sys.stdin", __import__("io").StringIO("{}"))
+    from scripts import statusline
+    rc = statusline.main()
+    assert rc == 0
