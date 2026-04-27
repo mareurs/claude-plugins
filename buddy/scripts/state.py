@@ -5,6 +5,7 @@ The buddy must never break user flow.
 """
 import json
 import os
+import subprocess
 import tempfile
 from pathlib import Path
 
@@ -166,3 +167,23 @@ def session_state_path(project_root: Path, session_id: str) -> Path:
     """Per-session state.json path. Hooks/statusline write here; slash commands
     look it up via resolve_session_id_for_command()."""
     return project_root / ".buddy" / session_id / "state.json"
+
+
+def pid_started_at(pid: int) -> str | None:
+    """Return process start time as an opaque string, or None if pid is gone.
+
+    Uses `ps -o lstart= -p <pid>` — works on Linux and macOS. Empty/failed
+    output → None. Used to detect PID reuse: if a stored start_time differs
+    from the current value for the same pid, the entry is stale.
+    """
+    try:
+        result = subprocess.run(
+            ["ps", "-o", "lstart=", "-p", str(pid)],
+            capture_output=True, text=True, timeout=2,
+        )
+        if result.returncode != 0:
+            return None
+        out = result.stdout.strip()
+        return out or None
+    except (subprocess.SubprocessError, OSError, ValueError):
+        return None

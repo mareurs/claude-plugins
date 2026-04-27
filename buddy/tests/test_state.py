@@ -73,3 +73,28 @@ def test_session_state_path_composes_correctly(tmp_path):
     from scripts.state import session_state_path
     result = session_state_path(tmp_path, "abc-123")
     assert result == tmp_path / ".buddy" / "abc-123" / "state.json"
+
+
+def test_pid_started_at_returns_string_for_self():
+    """The current process should be alive — ps must return a non-empty start time."""
+    import os
+    from scripts.state import pid_started_at
+    result = pid_started_at(os.getpid())
+    assert result is not None
+    assert len(result) > 0
+
+
+def test_pid_started_at_returns_none_for_nonexistent_pid():
+    from scripts.state import pid_started_at
+    # PID 0 is the kernel/scheduler placeholder — `ps -p 0` fails on Linux+macOS.
+    result = pid_started_at(0)
+    assert result is None
+
+
+def test_pid_started_at_stable_across_calls():
+    """Two consecutive calls for the same live pid must return the same value."""
+    import os
+    from scripts.state import pid_started_at
+    a = pid_started_at(os.getpid())
+    b = pid_started_at(os.getpid())
+    assert a == b
