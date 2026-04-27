@@ -46,27 +46,41 @@ def session_state_path(project_root: Path, session_id: str) -> Path:
 
 Claude Code does not expose `CLAUDE_SESSION_ID` (issue #13733, not implemented). Slash
 commands receive no stdin event. Resolution uses a PPID-indexed pointer maintained by
-hooks.
+hooks, with PID start-time verification to survive PID reuse.
 
 **Hooks write on every fire (SessionStart + UserPromptSubmit):**
 
 1. `<root>/.buddy/.current_session_id` — last-writer pointer (compat / distinct-cwd)
 2. `<root>/.buddy/by-ppid/<PPID>/session_id` — PPID-keyed index for same-cwd concurrency
+3. `<root>/.buddy/by-ppid/<PPID>/started_at` — parent process start time
+   (`ps -o lstart= -p $PPID`), used to detect PID reuse
 
 Both hook scripts and slash command `!`bash` ` blocks run as direct children of the same
 CC node process, so `$PPID` matches between them.
 
 **Slash command resolution chain (in order):**
 
-1. Read `<root>/.buddy/by-ppid/$PPID/session_id` — correct under same-cwd concurrency
-2. Read `<root>/.buddy/.current_session_id` — fallback for first prompt before
+1. `<root>/.buddy/by-ppid/$PPID/` — read `session_id`, verify `started_at` matches
+   current `ps -o lstart= -p $PPID`. Match → use it. Mismatch (PID reused) → fall through.
+2. `<root>/.buddy/.current_session_id` — fallback for first prompt before
    UserPromptSubmit
 3. If exactly one `<root>/.buddy/<sid>/` dir exists, use it
 4. Else: error gracefully ("send any prompt first to initialize")
 
-**GC:** SessionStart hook prunes `by-ppid/<pid>/` entries whose pid no longer exists
-(`kill -0 <pid>` check).
+**Cleanup of stale `by-ppid/<pid>/` entries — three layers:**
 
+1. **SessionEnd hook (graceful exit, ~99% of cases):** removes own `by-ppid/$PPID/`
+   directory immediately when session shuts down normally.
+2. **SessionStart GC (crash exits):** for each `by-ppid/<pid>/` entry, compare stored
+   `started_at` with `ps -o lstart= -p <pid>`. Mismatch (or pid gone) → remove. Catches
+   kill -9, OOM, and any case where SessionEnd never fires.
+3. **Resolution-time verification (race window):** the slash-command resolver also
+   checks `started_at` before trusting an entry. If a CC instance dies and a new
+   process inherits the same PID before the next SessionStart's GC runs, the stale
+   entry is rejected at read time.
+
+`ps -o lstart=` works on both Linux and macOS. Stored value is opaque — only equality
+matters.
 ### Identity (unchanged)
 
 `~/.claude/buddy/identity.json` stays global. Holds user_id, consent flags — no
@@ -104,18 +118,24 @@ Line 124: `state_path = Path.home() / ".claude" / "buddy" / "state.json"` → re
 - Compute `session_dir = <cwd>/.buddy/<session_id>` from event
 - Write `<root>/.buddy/.current_session_id` (sid)
 - Write `<root>/.buddy/by-ppid/$PPID/session_id` (sid)
-- GC: for each `by-ppid/<pid>/` entry, `kill -0 <pid>` — remove if dead
+- Write `<root>/.buddy/by-ppid/$PPID/started_at` (`ps -o lstart= -p $PPID`)
+- GC: for each `by-ppid/<pid>/` entry, read stored `started_at` and compare with
+  current `ps -o lstart= -p <pid>`. Mismatch or pid missing → `rm -rf` the entry
 - Pass `session_dir / "state.json"` to handler
-
 ### `hooks/user-prompt-submit.sh`
 
-- Same pointer + by-ppid writes as SessionStart
+- Same pointer + by-ppid writes as SessionStart (including `started_at`)
 - Pass session-scoped state path to `handle_user_prompt_submit`
-
 ### `hooks/post-tool-use.sh`
 
 - Compute `session_dir` from event
 - Pass session-scoped state path to handler
+
+### `hooks/session-end.sh` (NEW)
+
+- Read `event["cwd"]` and `$PPID`
+- `rm -rf <cwd>/.buddy/by-ppid/$PPID/`
+- Register in `hooks/hooks.json` under `SessionEnd` event
 
 ### Slash commands (`commands/*.md`)
 
@@ -149,16 +169,19 @@ Use existing pytest infrastructure at `buddy/tests/`.
 
 - **`test_state.py`** — add cases for `session_state_path(root, sid)` and
   `resolve_session_id_for_command()` resolution chain (each fallback rung +
-  error case)
+  error case + start_time mismatch)
 - **`test_statusline.py`** — feed stdin with session_id+cwd, verify reads
   session-scoped state; verify graceful default when missing
 - **`test_hook_helpers.py`** — update callers to pass session-scoped paths;
   existing `path`-parameterized tests remain valid
 - **`test_judge_worker.py`** — verify `state_path` is read from spawn args, not
   hardcoded
-- New shell-level test for `hooks/user-prompt-submit.sh` — verify both pointer and
-  by-ppid file are written
-
+- New shell-level test for `hooks/user-prompt-submit.sh` — verify pointer +
+  `by-ppid/<PPID>/{session_id,started_at}` are all written
+- New shell-level test for `hooks/session-end.sh` — verify `by-ppid/$PPID/`
+  removed on session end
+- New shell-level test for SessionStart GC — seed a fake `by-ppid/<bogus_pid>/`
+  with mismatched `started_at`, verify SessionStart removes it
 ## Documented limitations
 
 - PPID approach assumes CC spawns hooks and `!`bash` ` blocks as direct children of
