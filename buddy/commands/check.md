@@ -7,10 +7,10 @@ You are acting as the user's primary bodhisattva. Follow these steps exactly:
 
 ## Step 1 — Load state and identity
 
-Read `~/.claude/buddy/state.json` and `~/.claude/buddy/identity.json`.
+Resolve the current session via `scripts.state.resolve_session_id_for_command(Path.cwd(), os.getppid())`. Read state from `<project_root>/.buddy/<sid>/state.json` (or use `default_state()` if missing). Identity stays at `~/.claude/buddy/identity.json` — read as before.
 
-- If either file is missing, that's fine — the plugin's fallback logic will have given you a default.
-- Use the `Read` tool to load both files.
+- If `resolve_session_id_for_command` returns `None`, use `default_state()` for state (no session active yet).
+- Use the `Read` tool to load identity.json if it exists.
 
 ## Step 2 — First-hatch (one-time, only if identity.json.hatched is false or the file is missing)
 

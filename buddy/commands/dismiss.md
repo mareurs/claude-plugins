@@ -31,11 +31,15 @@ Use the `Bash` tool to run the appropriate Python one-liner.
 
 ```bash
 python3 -c "
-import sys
+import sys, os
 sys.path.insert(0, '${CLAUDE_PLUGIN_ROOT}')
 from pathlib import Path
-from scripts.state import load_state, save_state
-p = Path.home() / '.claude' / 'buddy' / 'state.json'
+from scripts.state import load_state, save_state, resolve_session_id_for_command, session_state_path
+sid = resolve_session_id_for_command(Path.cwd(), os.getppid())
+if not sid:
+    print('buddy: no active session — send any prompt first', file=sys.stderr)
+    raise SystemExit(0)
+p = session_state_path(Path.cwd(), sid)
 s = load_state(p)
 s['active_specialists'] = []
 save_state(p, s)
@@ -46,11 +50,15 @@ save_state(p, s)
 
 ```bash
 python3 -c "
-import sys
+import sys, os
 sys.path.insert(0, '${CLAUDE_PLUGIN_ROOT}')
 from pathlib import Path
-from scripts.state import load_state, save_state
-p = Path.home() / '.claude' / 'buddy' / 'state.json'
+from scripts.state import load_state, save_state, resolve_session_id_for_command, session_state_path
+sid = resolve_session_id_for_command(Path.cwd(), os.getppid())
+if not sid:
+    print('buddy: no active session — send any prompt first', file=sys.stderr)
+    raise SystemExit(0)
+p = session_state_path(Path.cwd(), sid)
 s = load_state(p)
 active = s.get('active_specialists', [])
 if '<directory>' in active:

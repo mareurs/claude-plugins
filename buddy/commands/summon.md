@@ -53,18 +53,21 @@ Use bash via the `Bash` tool to append. Silent on failure — the log is advisor
 
 ## Step 6 — Track the active specialist in state
 
-Append the resolved `<directory>` to the `active_specialists` list in
-`~/.claude/buddy/state.json`, so the statusline shows the specialist's initial.
+Append the resolved `<directory>` to the `active_specialists` list in the session-scoped state file, so the statusline shows the specialist's initial.
 
 Use the `Bash` tool to run this Python one-liner:
 
 ```bash
 python3 -c "
-import sys
+import sys, os
 sys.path.insert(0, '${CLAUDE_PLUGIN_ROOT}')
 from pathlib import Path
-from scripts.state import load_state, save_state
-p = Path.home() / '.claude' / 'buddy' / 'state.json'
+from scripts.state import load_state, save_state, resolve_session_id_for_command, session_state_path
+sid = resolve_session_id_for_command(Path.cwd(), os.getppid())
+if not sid:
+    print('buddy: no active session — send any prompt first', file=sys.stderr)
+    raise SystemExit(0)
+p = session_state_path(Path.cwd(), sid)
 s = load_state(p)
 active = s.setdefault('active_specialists', [])
 if '<directory>' not in active:
