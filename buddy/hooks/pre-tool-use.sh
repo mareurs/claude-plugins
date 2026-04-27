@@ -5,7 +5,17 @@
 # Must stay under 10ms. Never calls an LLM.
 set -e
 PLUGIN_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-[ -f "$PLUGIN_ROOT/hooks/judge.env" ] && . "$PLUGIN_ROOT/hooks/judge.env"
+# Source judge.env only as defaults — preserve any vars already set by the caller
+# (tests pass BUDDY_* via env; judge.env must not override them)
+if [ -f "$PLUGIN_ROOT/hooks/judge.env" ]; then
+    _PRE_JUDGE_ENABLED="${BUDDY_JUDGE_ENABLED-__unset__}"
+    _PRE_CS_JUDGE_ENABLED="${BUDDY_CS_JUDGE_ENABLED-__unset__}"
+    _PRE_JUDGE_BLOCK="${BUDDY_JUDGE_BLOCK-__unset__}"
+    . "$PLUGIN_ROOT/hooks/judge.env"
+    [ "$_PRE_JUDGE_ENABLED" != "__unset__" ] && BUDDY_JUDGE_ENABLED="$_PRE_JUDGE_ENABLED"
+    [ "$_PRE_CS_JUDGE_ENABLED" != "__unset__" ] && BUDDY_CS_JUDGE_ENABLED="$_PRE_CS_JUDGE_ENABLED"
+    [ "$_PRE_JUDGE_BLOCK" != "__unset__" ] && BUDDY_JUDGE_BLOCK="$_PRE_JUDGE_BLOCK"
+fi
 
 # Only run if at least one judge is enabled
 if [ "${BUDDY_JUDGE_ENABLED}" != "true" ] && [ "${BUDDY_CS_JUDGE_ENABLED}" != "true" ]; then
