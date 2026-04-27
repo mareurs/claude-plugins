@@ -145,6 +145,28 @@ If tools are unavailable, the MCP server failed to connect (check \`claude mcp l
 
 "
 
+# --- Librarian companion hint (if librarian-mcp is installed and used) ---
+# Suppress with LIBRARIAN_COMPANION_HINT=0. Detection is filesystem-based so it
+# works across multiple Claude Code instances (~/.claude vs ~/.claude-sdd).
+if [ "${LIBRARIAN_COMPANION_HINT:-1}" != "0" ]; then
+  LIB_BIN=""
+  if command -v librarian-mcp &>/dev/null; then
+    LIB_BIN="librarian-mcp"
+  elif command -v librarian-mcp-wrapper.sh &>/dev/null; then
+    LIB_BIN="librarian-mcp-wrapper.sh"
+  fi
+  LIB_DB="${LIBRARIAN_DB:-${XDG_DATA_HOME:-$HOME/.local/share}/librarian/catalog.db}"
+  LIB_CFG="${LIBRARIAN_WORKSPACE:-${XDG_CONFIG_HOME:-$HOME/.config}/librarian/workspace.toml}"
+  if [ -n "$LIB_BIN" ] && { [ -f "$LIB_DB" ] || [ -f "$LIB_CFG" ]; }; then
+    LIB_HINT=$("$LIB_BIN" print-companion-hint 2>/dev/null)
+    if [ -n "$LIB_HINT" ]; then
+      MSG="${MSG}${LIB_HINT}
+
+"
+    fi
+  fi
+fi
+
 # --- Post-compact LSP flush ---
 if [ "$SOURCE" = "compact" ]; then
   MSG="${MSG}POST-COMPACT: Context was just compacted.
