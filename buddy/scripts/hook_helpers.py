@@ -447,6 +447,7 @@ def accumulate_narrative(
         entry_count = len(read_narrative(narrative_path))
         if entry_count > 0 and entry_count % interval == 0:
             verdicts_path = narrative_path.parent / "verdicts.json"
+            state_path = project_root / ".buddy" / session_id / "state.json"
             plugin_root = str(Path(__file__).parent.parent)
             subprocess.Popen(
                 [
@@ -455,6 +456,7 @@ def accumulate_narrative(
                     str(verdicts_path),
                     str(project_root),
                     session_id,
+                    str(state_path),
                 ],
                 cwd=plugin_root,
                 env={**os.environ, "PYTHONPATH": plugin_root},

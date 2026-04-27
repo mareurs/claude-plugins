@@ -1,7 +1,7 @@
 """Background judge worker — assembles context, calls LLM, writes verdicts.
 
 Intended to be spawned as a detached subprocess by the PostToolUse hook.
-Usage: python3 -m scripts.judge_worker <narrative_path> <verdicts_path> <project_root> <session_id>
+Usage: python3 -m scripts.judge_worker <narrative_path> <verdicts_path> <project_root> <session_id> <state_path>
 """
 import os
 import sys
@@ -66,6 +66,7 @@ def format_action_entry(event: dict) -> str:
 def assemble_context(
     narrative_path: Path,
     project_root: Path,
+    state_path: Path,
 ) -> dict:
     """Gather all context the judge needs."""
     narrative_entries = read_narrative(narrative_path)
@@ -119,9 +120,8 @@ def assemble_context(
     if edited_files:
         affected_symbols = "Recently edited: " + ", ".join(set(edited_files))
 
-    # Test state from buddy state
+    # Test state from session-scoped buddy state
     test_state = None
-    state_path = Path.home() / ".claude" / "buddy" / "state.json"
     try:
         import json
         with open(state_path) as f:
@@ -144,10 +144,11 @@ def run_judge(
     verdicts_path: Path,
     project_root: Path,
     session_id: str,
+    state_path: Path,
 ) -> None:
     """Run the full judge cycle: assemble, compact, call LLM, write verdict."""
     try:
-        ctx = assemble_context(narrative_path, project_root)
+        ctx = assemble_context(narrative_path, project_root, state_path=state_path)
 
         if not ctx["narrative_entries"]:
             return
@@ -197,11 +198,12 @@ def run_judge(
 
 
 if __name__ == "__main__":
-    if len(sys.argv) != 5:
+    if len(sys.argv) != 6:
         sys.exit(0)
     run_judge(
         narrative_path=Path(sys.argv[1]),
         verdicts_path=Path(sys.argv[2]),
         project_root=Path(sys.argv[3]),
         session_id=sys.argv[4],
+        state_path=Path(sys.argv[5]),
     )

@@ -34,6 +34,7 @@ def test_full_pipeline_blocking_verdict(tmp_path):
             verdicts_path=verdicts_path,
             project_root=tmp_path,
             session_id="integration-test",
+            state_path=tmp_path / "state.json",
         )
 
     # Verify verdict was written
@@ -73,6 +74,7 @@ def test_full_pipeline_ok_verdict_no_block(tmp_path):
             verdicts_path=verdicts_path,
             project_root=tmp_path,
             session_id="integration-test",
+            state_path=tmp_path / "state.json",
         )
 
     blocked, verdicts = should_block(verdicts_path)

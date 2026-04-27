@@ -41,6 +41,7 @@ def test_assemble_context_reads_narrative(tmp_path):
     ctx = assemble_context(
         narrative_path=narrative_path,
         project_root=tmp_path,
+        state_path=tmp_path / "state.json",
     )
     assert len(ctx["narrative_entries"]) == 2
     assert ctx["narrative_entries"][0]["text"] == "Fix the bug"
@@ -69,6 +70,7 @@ def test_assemble_context_loads_plan(tmp_path):
     ctx = assemble_context(
         narrative_path=narrative_path,
         project_root=tmp_path,
+        state_path=tmp_path / "state.json",
     )
     assert "Step 1: do thing" in ctx["plan_content"]
 
@@ -79,6 +81,7 @@ def test_assemble_context_no_plan(tmp_path):
     ctx = assemble_context(
         narrative_path=narrative_path,
         project_root=tmp_path,
+        state_path=tmp_path / "state.json",
     )
     assert ctx["plan_content"] is None
 
@@ -103,7 +106,7 @@ def test_assemble_context_reads_session_active_plan(tmp_path):
         now=1000,
     )
 
-    ctx = assemble_context(narrative_path=narrative_path, project_root=tmp_path)
+    ctx = assemble_context(narrative_path=narrative_path, project_root=tmp_path, state_path=tmp_path / "state.json")
     assert "Step A: do A" in ctx["plan_content"]
     assert "Step Z" not in ctx["plan_content"]
 
@@ -119,7 +122,7 @@ def test_assemble_context_no_active_plan_returns_none(tmp_path):
     plans_dir.mkdir(parents=True)
     (plans_dir / "stale-plan.md").write_text("# Stale\nDo not pick me")
 
-    ctx = assemble_context(narrative_path=narrative_path, project_root=tmp_path)
+    ctx = assemble_context(narrative_path=narrative_path, project_root=tmp_path, state_path=tmp_path / "state.json")
     assert ctx["plan_content"] is None
 
 
@@ -138,7 +141,7 @@ def test_assemble_context_invalid_active_plan_path(tmp_path):
         now=1000,
     )
 
-    ctx = assemble_context(narrative_path=narrative_path, project_root=tmp_path)
+    ctx = assemble_context(narrative_path=narrative_path, project_root=tmp_path, state_path=tmp_path / "state.json")
     assert ctx["plan_content"] is None
 
 
@@ -161,6 +164,7 @@ def test_run_judge_writes_verdict(tmp_path):
             verdicts_path=verdicts_path,
             project_root=tmp_path,
             session_id="test-sess",
+            state_path=tmp_path / "state.json",
         )
 
     from scripts.verdicts import read_verdicts
@@ -188,6 +192,7 @@ def test_run_judge_skips_on_ok_verdict(tmp_path):
             verdicts_path=verdicts_path,
             project_root=tmp_path,
             session_id="test-sess",
+            state_path=tmp_path / "state.json",
         )
 
     from scripts.verdicts import read_verdicts
@@ -206,6 +211,7 @@ def test_run_judge_silent_on_llm_failure(tmp_path):
             verdicts_path=verdicts_path,
             project_root=tmp_path,
             session_id="test-sess",
+            state_path=tmp_path / "state.json",
         )
 
     from scripts.verdicts import read_verdicts
@@ -249,6 +255,24 @@ def test_assemble_context_extracts_cs_edit_files(tmp_path):
     append_entry(narrative_path, "action", "Claude cs.edit_file scripts/state.py")
     append_entry(narrative_path, "action", "Claude cs.create_file tests/new.py")
 
-    ctx = assemble_context(narrative_path=narrative_path, project_root=tmp_path)
+    ctx = assemble_context(narrative_path=narrative_path, project_root=tmp_path, state_path=tmp_path / "state.json")
     assert "scripts/state.py" in ctx["affected_symbols"]
     assert "tests/new.py" in ctx["affected_symbols"]
+
+
+def test_assemble_context_uses_provided_state_path(tmp_path):
+    """assemble_context must read test_state from the supplied state_path,
+    not from a hardcoded global path."""
+    import json
+    from scripts.judge_worker import assemble_context
+    from scripts.state import default_state
+
+    narrative = tmp_path / "narrative.jsonl"
+    narrative.write_text('{"text":"x","ts":1}\n')
+    state_path = tmp_path / "state.json"
+    s = default_state()
+    s["signals"]["last_test_result"] = {"ts": 100, "passed": 5, "failed": 2}
+    state_path.write_text(json.dumps(s))
+
+    ctx = assemble_context(narrative, tmp_path, state_path=state_path)
+    assert ctx["test_state"] == {"ts": 100, "passed": 5, "failed": 2}
