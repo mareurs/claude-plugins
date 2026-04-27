@@ -67,3 +67,9 @@ def test_default_state_includes_root_cwd():
     state = default_state()
     assert "root_cwd" in state["signals"]
     assert state["signals"]["root_cwd"] is None
+
+
+def test_session_state_path_composes_correctly(tmp_path):
+    from scripts.state import session_state_path
+    result = session_state_path(tmp_path, "abc-123")
+    assert result == tmp_path / ".buddy" / "abc-123" / "state.json"

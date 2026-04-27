@@ -160,3 +160,9 @@ def save_active_plan(
             raise
     except Exception:
         pass
+
+
+def session_state_path(project_root: Path, session_id: str) -> Path:
+    """Per-session state.json path. Hooks/statusline write here; slash commands
+    look it up via resolve_session_id_for_command()."""
+    return project_root / ".buddy" / session_id / "state.json"
