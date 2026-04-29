@@ -1,7 +1,7 @@
 {
   "name": "claude-statusline",
   "description": "Rich, color-coded terminal status line showing model, context %, rate limits, git info, cost, and more.",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "author": { "name": "Marius" },
   "license": "MIT",
   "keywords": ["statusline", "status", "terminal", "ui"]

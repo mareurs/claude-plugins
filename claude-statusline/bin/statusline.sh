@@ -194,9 +194,6 @@ fi
 out+="${SEP}"
 if [[ -n "$WT_NAME" ]]; then
   out+="${CYAN}wt:${RST}${BLUE}${WT_NAME}${RST}"
-  if [[ -n "$WT_BRANCH" ]]; then
-    out+=" ${DIM}on${RST} ${CYAN}${WT_BRANCH}${RST}"
-  fi
 else
   branch=$(git branch --show-current 2>/dev/null || true)
   if [[ -n "$branch" ]]; then
