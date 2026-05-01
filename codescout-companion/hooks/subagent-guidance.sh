@@ -20,8 +20,8 @@ source "$(dirname "$0")/detect-tools.sh"
 # Always inject an active tool-use directive so coding subagents don't fall back
 # to Read/Grep/Glob/Bash on source files. Append project system-prompt if present.
 MSG="codescout: For ALL code navigation, use codescout tools — not Read/Grep/Glob/Bash on source files:
-  find_symbol / list_symbols / semantic_search — discover code
-  goto_definition / find_references — navigate relationships
+  symbols / semantic_search — discover code
+  references / symbol_at — navigate relationships
   replace_symbol / insert_code — edit code"
 
 # --- GitHub identity + repo context ---
@@ -46,7 +46,7 @@ fi
 MSG="${MSG}
 
 CODESCOUT RULES (compression-resilient reminder):
-• Source code: list_symbols + find_symbol, NOT read_file/Read
+• Source code: symbols (list + find), NOT read_file/Read
 • Code edits: replace_symbol/insert_code/remove_symbol, NOT edit_file/Edit for structural changes
 • Shell commands: run_command, NOT Bash — output buffers save tokens
 • Markdown: read_markdown/edit_markdown, NOT read_file/edit_file

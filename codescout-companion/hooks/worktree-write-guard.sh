@@ -1,6 +1,6 @@
 #!/bin/bash
 # PreToolUse hook — block code-explorer write tools when in a worktree
-# without activate_project having been called.
+# without workspace having been called.
 #
 # Triggered by: any tool whose name ends with a code-explorer write tool name
 # (hooks.json matcher regex confirmed to work; case statement adds defense-in-depth).
@@ -45,12 +45,12 @@ WT_ROOT=$(git -C "$CWD" rev-parse --show-toplevel 2>/dev/null)
 # Output JSON to stdout + exit 0. Claude sees permissionDecisionReason.
 # (The old {"decision":"block"} + exit 2 hybrid was deprecated and broken:
 #  exit 2 ignores stdout, so the reason was never shown to Claude.)
-jq -n --arg reason "⛔ WORKTREE WRITE BLOCKED: activate_project must be called first.
+jq -n --arg reason "⛔ WORKTREE WRITE BLOCKED: workspace must be called first.
 
 You are in a worktree at: $WT_ROOT
 CE is still pointing at the main repo — a write now would silently modify the wrong file.
 
-Fix: call activate_project(\"$WT_ROOT\") then retry this tool.
+Fix: call workspace(\"$WT_ROOT\") then retry this tool.
 If CE is no longer configured, delete $WT_ROOT/.cs-worktree-pending manually to unblock.
 
 To clean up a finished worktree: use git worktree prune (not git worktree remove —

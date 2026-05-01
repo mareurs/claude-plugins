@@ -1,5 +1,5 @@
 #!/bin/bash
-# PostToolUse hook — after activate_project is called:
+# PostToolUse hook — after workspace is called:
 #   1. Delete .cs-worktree-pending marker (unblocks write tools)
 #   2. Inject confirmation via additionalContext
 
@@ -11,9 +11,9 @@ INPUT=$(cat)
 
 TOOL_NAME=$(echo "$INPUT" | jq -r '.tool_name // empty' 2>/dev/null)
 
-# Only fire on activate_project calls
+# Only fire on workspace calls
 case "$TOOL_NAME" in
-  *__activate_project) ;;
+  *__workspace) ;;
   *) exit 0 ;;
 esac
 
@@ -35,5 +35,5 @@ Write tools (edit_lines, replace_symbol, etc.) are now unblocked for this worktr
     }
   }'
 fi
-# If no marker, exit silently (normal activate_project on main project)
+# If no marker, exit silently (normal workspace call on main project)
 exit 0

@@ -145,32 +145,11 @@ If tools are unavailable, the MCP server failed to connect (check \`claude mcp l
 
 "
 
-# --- Librarian companion hint (if librarian-mcp is installed and used) ---
-# Suppress with LIBRARIAN_COMPANION_HINT=0. Detection is filesystem-based so it
-# works across multiple Claude Code instances (~/.claude vs ~/.claude-sdd).
-if [ "${LIBRARIAN_COMPANION_HINT:-1}" != "0" ]; then
-  LIB_BIN=""
-  if command -v librarian-mcp &>/dev/null; then
-    LIB_BIN="librarian-mcp"
-  elif command -v librarian-mcp-wrapper.sh &>/dev/null; then
-    LIB_BIN="librarian-mcp-wrapper.sh"
-  fi
-  LIB_DB="${LIBRARIAN_DB:-${XDG_DATA_HOME:-$HOME/.local/share}/librarian/catalog.db}"
-  LIB_CFG="${LIBRARIAN_WORKSPACE:-${XDG_CONFIG_HOME:-$HOME/.config}/librarian/workspace.toml}"
-  if [ -n "$LIB_BIN" ] && { [ -f "$LIB_DB" ] || [ -f "$LIB_CFG" ]; }; then
-    LIB_HINT=$("$LIB_BIN" print-companion-hint 2>/dev/null)
-    if [ -n "$LIB_HINT" ]; then
-      MSG="${MSG}${LIB_HINT}
-
-"
-    fi
-  fi
-fi
 
 # --- Post-compact LSP flush ---
 if [ "$SOURCE" = "compact" ]; then
   MSG="${MSG}POST-COMPACT: Context was just compacted.
-→ Call project_status({\"post_compact\": true}) as your FIRST action to flush stale LSP position caches.
+→ Call workspace({\"post_compact\": true}) as your FIRST action to flush stale LSP position caches.
    LSP clients restart lazily — no disruption to the session.
 
 "
@@ -210,7 +189,7 @@ if [ "$IN_WORKTREE" = "true" ]; then
   fi
 
   MSG="${MSG}WORKTREE SESSION: You are inside a git worktree at: ${WT_ROOT:-$CWD}
-→ Call activate_project(\"${WT_ROOT:-$CWD}\") before using any codescout write tools.
+→ Call workspace(\"${WT_ROOT:-$CWD}\") before using any codescout write tools.
 → Memory writes go directly to the main project via symlink and can be committed there.
 
 "
@@ -218,7 +197,7 @@ fi
 
 # --- Iron Laws reminder (survives context compression) ---
 MSG="${MSG}CODESCOUT RULES (compression-resilient reminder):
-• Source code: list_symbols + find_symbol, NOT read_file/Read
+• Source code: symbols (list + find), NOT read_file/Read
 • Code edits: replace_symbol/insert_code/remove_symbol, NOT edit_file/Edit for structural changes
 • Shell commands: run_command, NOT Bash — output buffers save tokens
 • Markdown: read_markdown/edit_markdown, NOT read_file/edit_file

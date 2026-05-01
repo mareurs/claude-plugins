@@ -51,7 +51,7 @@
         ]
       },
       {
-        "matcher": "mcp__.*__activate_project",
+        "matcher": "mcp__.*__workspace",
         "hooks": [
           {
             "type": "command",

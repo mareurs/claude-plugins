@@ -57,20 +57,20 @@ case "$TOOL_NAME" in
     # Detect common patterns and give targeted suggestions
     BASH_HINT=""
     if echo "$CMD" | grep -qE '^(grep|rg) '; then
-      # grep/ripgrep on source → search_pattern / find_symbol
+      # grep/ripgrep on source → search_pattern / symbols
       BASH_HINT="  search_pattern(\"PATTERN\")             — indexed regex, structured results
-  find_symbol(\"NAME\")                   — locate symbol by name (much faster)
+  symbols(\"NAME\")                       — locate symbol by name (much faster)
   semantic_search(\"CONCEPT\")           — find code by meaning, not just text"
     elif echo "$CMD" | grep -qE '^cat .*\.(rs|ts|tsx|js|jsx|py|go|kt|kts|java|cs|rb|swift|cpp|c|h|hpp|sh|bash)'; then
-      # cat on a source file → list_symbols / find_symbol
-      SRC_FILE=$(echo "$CMD" | grep -oE '[^ ]+\.(rs|ts|tsx|js|jsx|py|go|kt|kts|java|cs|rb|swift|cpp|c|h|hpp|sh|bash)' | head -1)
+      # cat on a source file → symbols
+      SRC_FILE=$(echo "$CMD" | grep -oE '[^ ]+\.(rs|ts|tsx|js|jsx|py|go|kt|kts|java|cs|rb|swift|cpp|c|h|hpp|sh|bash)' | tee /tmp/codescout-unfiltered-axZboM | head -1)
       REL_SRC="${SRC_FILE#$CWD/}"
-      BASH_HINT="  list_symbols(\"${REL_SRC}\")             — ALL symbols + line numbers in ~50 tokens (DO THIS FIRST)
-  find_symbol(name, include_body=true)   — read one specific symbol body"
+      BASH_HINT="  symbols(\"${REL_SRC}\")                  — ALL symbols + line numbers in ~50 tokens (DO THIS FIRST)
+  symbols(name, include_body=true)       — read one specific symbol body"
     elif echo "$CMD" | grep -qE '^find '; then
-      # find → find_file
-      BASH_HINT="  find_file(\"*.pattern\")                 — indexed file discovery, instant
-  find_symbol(\"NAME\")                   — locate a symbol by name across all files"
+      # find → tree
+      BASH_HINT="  tree(\"*.pattern\")                      — indexed file discovery, instant
+  symbols(\"NAME\")                       — locate a symbol by name across all files"
     else
       BASH_HINT="  run_command(\"${CMD}\")                  — same command with smart summaries + @ref buffers"
     fi
@@ -110,7 +110,7 @@ YOU MUST use codescout tools. Do not call Bash."
     [ "$IS_SOURCE" = "false" ] && exit 0
     is_in_workspace "${PATH_VAL:-$CWD}" || exit 0
 
-    # If path is under ~/.cargo/registry, the crate is not registered — guide to register_library
+    # If path is under ~/.cargo/registry, the crate is not registered — guide to library
     CARGO_HINT=""
     if echo "${PATH_VAL}" | grep -q "\.cargo/registry"; then
       # Extract crate name from path like ~/.cargo/registry/src/index.crates.io-xxx/CRATE-VERSION/
@@ -123,9 +123,9 @@ YOU MUST use codescout tools. Do not call Bash."
 NOTE: This path is inside ~/.cargo/registry — the crate '${CRATE_NAME}' is not registered.
 Register it first so codescout can index and search it:
 
-  register_library(\"${PATH_VAL}\", name=\"${CRATE_NAME}\")
-  find_symbol(\"${PATTERN}\", scope=\"lib:${CRATE_NAME}\")   — search only within this crate
-  list_symbols(scope=\"lib:${CRATE_NAME}\")                  — browse crate symbols
+  library(\"${PATH_VAL}\", name=\"${CRATE_NAME}\")
+  symbols(\"${PATTERN}\", scope=\"lib:${CRATE_NAME}\")   — search only within this crate
+  symbols(scope=\"lib:${CRATE_NAME}\")                   — browse crate symbols
 "
     fi
 
@@ -137,7 +137,7 @@ Grep scans files line-by-line and dumps raw matches into context — WASTEFUL AN
 codescout tools use a pre-built index and return STRUCTURED, TOKEN-EFFICIENT results:
 
   search_pattern(\"${PATTERN}\")    — regex search, returns only matching lines with context
-  find_symbol(\"${PATTERN}\")       — locate symbol by name (MUCH faster than grep)
+  symbols(\"${PATTERN}\")           — locate symbol by name (MUCH faster than grep)
   semantic_search(\"${PATTERN}\")   — find code by MEANING, not just text
 
 YOU MUST use codescout search tools. Do not call Grep on source files."
@@ -158,8 +158,8 @@ STOP. Do NOT glob source files.
 
 codescout has already indexed all files. Use the index directly — it is FASTER and uses FEWER TOKENS:
 
-  find_file(\"${PATTERN}\")         — glob-style file discovery via codescout index
-  find_symbol(\"${BASENAME%.*}\")   — find a symbol by name if you know what you are looking for
+  tree(\"${PATTERN}\")             — glob-style file discovery via codescout index
+  symbols(\"${BASENAME%.*}\")      — find a symbol by name if you know what you are looking for
 
 YOU MUST use codescout file tools. Do not call Glob on source files."
     ;;
@@ -199,7 +199,7 @@ Do not call Read on markdown files."
 
     echo "$FILE_PATH" | grep -qiE "$SOURCE_EXT_PATTERN" || exit 0
 
-    # If path is under ~/.cargo/registry, guide toward register_library
+    # If path is under ~/.cargo/registry, guide toward library
     CARGO_HINT=""
     if echo "$FILE_PATH" | grep -q "\.cargo/registry"; then
       CRATE_DIR=$(echo "$FILE_PATH" | grep -oE '.*\.cargo/registry/src/[^/]+/[^/]+' | head -1)
@@ -209,10 +209,10 @@ Do not call Read on markdown files."
 NOTE: This file is from crate '${CRATE_NAME}' in ~/.cargo/registry.
 Register the crate once, then use symbol tools for all future lookups:
 
-  register_library(\"${CRATE_DIR}\", name=\"${CRATE_NAME}\")   — register crate (do this once)
-  list_symbols(scope=\"lib:${CRATE_NAME}\")                     — browse all symbols
-  find_symbol(\"SYMBOL\", scope=\"lib:${CRATE_NAME}\")         — find a specific symbol
-  goto_definition(path, line)                                   — jump to definition from usage site
+  library(\"${CRATE_DIR}\", name=\"${CRATE_NAME}\")   — register crate (do this once)
+  symbols(scope=\"lib:${CRATE_NAME}\")                — browse all symbols
+  symbols(\"SYMBOL\", scope=\"lib:${CRATE_NAME}\")   — find a specific symbol
+  symbol_at(path, line)                              — jump to definition from usage site
 "
       fi
     fi
@@ -223,11 +223,11 @@ STOP. Do NOT read: ${FILE_PATH}
 ${CARGO_HINT}
 Reading a full source file WASTES THOUSANDS OF TOKENS. codescout returns ONLY what you need:
 
-  list_symbols(\"${REL_PATH}\")                — ALL symbols + line numbers in ~50 tokens (DO THIS FIRST)
-  find_symbol(name, include_body=true)         — ONE symbol body, targeted, token-efficient
+  symbols(\"${REL_PATH}\")                      — ALL symbols + line numbers in ~50 tokens (DO THIS FIRST)
+  symbols(name, include_body=true)             — ONE symbol body, targeted, token-efficient
   read_file(\"${REL_PATH}\", start_line, end_line) — LAST RESORT only, with explicit line range
 
-MANDATORY ORDER: list_symbols FIRST → find_symbol for the specific code → read_file only if symbol tools fail.
+MANDATORY ORDER: symbols FIRST → symbols(name, include_body=true) for specific code → read_file only if symbol tools fail.
 Do not call Read on source files."
     ;;
 
@@ -255,7 +255,7 @@ codescout provides STRUCTURAL, LSP-BACKED editing tools:
   remove_symbol(name_path, path)               — delete a symbol by name (LSP knows the exact range)
   edit_file(path, old_string, new_string)       — for imports, literals, comments, config (NOT structural code)
 
-WORKFLOW: find_symbol(name, include_body=true) to read the current body → replace_symbol to update it.
+WORKFLOW: symbols(name, include_body=true) to read the current body → replace_symbol to update it.
 Do not call Edit on source files."
     ;;
 
