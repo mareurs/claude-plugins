@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# claude-statusline v1.0.1
+# claude-statusline v1.0.3
 # Claude Code status line — informative single-line display
 # Reads JSON from stdin, outputs ANSI-colored status line to stdout
 
@@ -31,15 +31,16 @@ jq_out="$(echo "$input" | jq -r '
   (.context_window.current_usage.cache_creation_input_tokens // ""),
   (.context_window.current_usage.cache_read_input_tokens // ""),
   (.agent.name // ""),
-  (.worktree.name // ""),
-  (.worktree.branch // ""),
+  (.workspace.git_worktree.name // ""),
+  (.workspace.git_worktree.branch // ""),
+  (if .rate_limits_stale == true then "true" else "false" end),
   "END"
 ' 2>/dev/null)" || exit 0
 
 readarray -t F <<< "$jq_out"
 
-# Bail if jq produced insufficient output (17 fields: 16 data + sentinel)
-[[ ${#F[@]} -ge 17 ]] || exit 0
+# Bail if jq produced insufficient output (18 fields: 17 data + sentinel)
+[[ ${#F[@]} -ge 18 ]] || exit 0
 
 MODEL="${F[0]}"
 CTX_PCT="${F[1]}"
@@ -57,6 +58,7 @@ CACHE_READ="${F[12]}"
 AGENT_NAME="${F[13]}"
 WT_NAME="${F[14]}"
 WT_BRANCH="${F[15]}"
+RATE_STALE="${F[16]}"
 
 # -- ANSI codes --
 RST='\033[0m'
@@ -165,11 +167,18 @@ fi
 
 # Rate limits
 rate_seg=""
+if [[ -n "$RATE_5H" ]] || [[ -n "$RATE_7D" ]]; then
+  if [[ "$RATE_STALE" == "true" ]]; then
+    stale_pfx="${DIM}~${RST}"
+  else
+    stale_pfx=""
+  fi
+fi
 if [[ -n "$RATE_5H" ]]; then
   r5_int=$(int_pct "$RATE_5H")
   c=$(color_pct "$r5_int")
   r5_remain=$(format_remaining "$RATE_5H_RESET")
-  rate_seg+="${DIM}5h${RST} ${c}${r5_int}%${RST}"
+  rate_seg+="${DIM}5h${RST} ${stale_pfx}${c}${r5_int}%${RST}"
   if [[ -n "$r5_remain" ]]; then
     rate_seg+="${DIM}(${r5_remain})${RST}"
   fi
@@ -181,7 +190,7 @@ if [[ -n "$RATE_7D" ]]; then
   r7_int=$(int_pct "$RATE_7D")
   c=$(color_pct "$r7_int")
   r7_remain=$(format_remaining "$RATE_7D_RESET")
-  rate_seg+="${DIM}7d${RST} ${c}${r7_int}%${RST}"
+  rate_seg+="${DIM}7d${RST} ${stale_pfx}${c}${r7_int}%${RST}"
   if [[ -n "$r7_remain" ]]; then
     rate_seg+="${DIM}(${r7_remain})${RST}"
   fi

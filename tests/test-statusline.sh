@@ -5,7 +5,10 @@ source "$(dirname "${BASH_SOURCE[0]}")/lib/fixtures.sh"
 echo "── statusline ──"
 STATUSLINE="$(dirname "${BASH_SOURCE[0]}")/../claude-statusline/bin/statusline.sh"
 
-SAMPLE='{"model":{"display_name":"test-model"},"context_window":{"used_percentage":42,"current_usage":{"cache_creation_input_tokens":1500,"cache_read_input_tokens":3000}},"rate_limits":{"five_hour":{"used_percentage":10},"seven_day":{"used_percentage":5}},"cost":{"total_cost_usd":0.15,"total_duration_ms":30000,"total_lines_added":10,"total_lines_removed":3},"agent":{},"worktree":{}}'
+# Base sample — uses v2.1.97+ field paths
+SAMPLE='{"model":{"display_name":"test-model"},"context_window":{"used_percentage":42,"context_window_size":200000,"current_usage":{"cache_creation_input_tokens":1500,"cache_read_input_tokens":3000}},"rate_limits":{"five_hour":{"used_percentage":10,"resets_at":9999999999},"seven_day":{"used_percentage":5,"resets_at":9999999999}},"rate_limits_stale":false,"cost":{"total_cost_usd":0.15,"total_duration_ms":30000,"total_lines_added":10,"total_lines_removed":3},"workspace":{"git_worktree":{"name":"my-feature","branch":"feat/my-feature"}}}'
+
+SAMPLE_STALE='{"model":{"display_name":"test-model"},"context_window":{"used_percentage":42,"context_window_size":200000,"current_usage":{"cache_creation_input_tokens":1500,"cache_read_input_tokens":3000}},"rate_limits":{"five_hour":{"used_percentage":55,"resets_at":9999999999},"seven_day":{"used_percentage":30,"resets_at":9999999999}},"rate_limits_stale":true,"cost":{"total_cost_usd":0.15,"total_duration_ms":30000,"total_lines_added":10,"total_lines_removed":3}}'
 
 # Test 1: valid JSON produces exit 0 and non-empty output
 OUT=$(echo "$SAMPLE" | bash "$STATUSLINE" 2>/dev/null)
@@ -25,5 +28,24 @@ if [ $RC -eq 0 ]; then pass "empty JSON: exit 0"; else fail "empty JSON: exit 0"
 OUT=$(echo 'not json' | bash "$STATUSLINE" 2>/dev/null)
 RC=$?
 if [ $RC -eq 0 ]; then pass "malformed input: exit 0"; else fail "malformed input: exit 0" "exit=$RC"; fi
+
+# Test 5: rate limits displayed (fresh)
+OUT=$(echo "$SAMPLE" | bash "$STATUSLINE" 2>/dev/null)
+if echo "$OUT" | grep -qE "5h"; then pass "fresh rate limits: 5h label shown"; else fail "fresh rate limits: 5h label shown"; fi
+if echo "$OUT" | grep -qE "7d"; then pass "fresh rate limits: 7d label shown"; else fail "fresh rate limits: 7d label shown"; fi
+# No tilde when fresh
+if echo "$OUT" | grep -qP "\x1b\[90m~"; then
+  fail "fresh rate limits: no ~ prefix"
+else
+  pass "fresh rate limits: no ~ prefix"
+fi
+
+# Test 6: stale rate limits show ~ prefix
+OUT=$(echo "$SAMPLE_STALE" | bash "$STATUSLINE" 2>/dev/null)
+if echo "$OUT" | grep -qP "\x1b\[90m~"; then pass "stale rate limits: ~ prefix shown"; else fail "stale rate limits: ~ prefix shown"; fi
+
+# Test 7: worktree name shown when workspace.git_worktree present
+OUT=$(echo "$SAMPLE" | bash "$STATUSLINE" 2>/dev/null)
+if echo "$OUT" | grep -q "my-feature"; then pass "worktree: name shown"; else fail "worktree: name shown"; fi
 
 print_summary "statusline"
