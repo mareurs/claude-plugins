@@ -1,45 +1,44 @@
 ---
 name: buddy:summon
-description: Summon a specialist bodhisattva to help with a specific craft. Pass one of the short aliases as an argument. Aliases → specialist directories — yeti → debugging-yeti, yak/refactor-yak → refactoring-yak, leopard → testing-snow-leopard, lammergeier → performance-lammergeier, ibex → security-ibex, lion → architecture-snow-lion, crane → planning-crane, frog → docs-lotus-frog, pheasant → data-leakage-snow-pheasant, takin → ml-training-takin. An unknown alias prints the full table and exits without loading anything.
+description: Summon a specialist bodhisattva to help with a specific craft. Describe who you need in plain language — e.g. "debug", "testing", "ML training", "architecture", "security", "refactor", "performance", "docs", "data leakage", "planning". An ambiguous argument prints the specialist table and exits without loading anything.
 ---
 
 You are resolving a summon request. The argument passed by the user is `$1`.
 
-## Step 1 — Resolve the alias
+## Step 1 — Identify the specialist
 
-Map the argument to a specialist directory using this table:
+The user's argument is plain language. Match it to the best specialist using their descriptions below. Trust intent over exact words — "debug", "yeti", "debugging" all resolve to debugging-yeti.
 
-| Alias | Directory |
+| Directory | When to summon |
 |---|---|
-| `yeti` | `debugging-yeti` |
-| `yak` or `refactor-yak` | `refactoring-yak` |
-| `leopard` | `testing-snow-leopard` |
-| `lammergeier` | `performance-lammergeier` |
-| `ibex` | `security-ibex` |
-| `lion` | `architecture-snow-lion` |
-| `crane` | `planning-crane` |
-| `frog` | `docs-lotus-frog` |
-| `pheasant` | `data-leakage-snow-pheasant` |
-| `takin` | `ml-training-takin` |
+| `debugging-yeti` | Bug resists surface fixes, flaky tests, failure doesn't match symptom |
+| `testing-snow-leopard` | Designing test suites, coverage gaps, flaky tests, asserting correctness |
+| `refactoring-yak` | Structural code transformation, cleaning up tangled code |
+| `ml-training-takin` | Training loops, inference parity, ML pipeline issues |
+| `performance-lammergeier` | Profiling, latency, throughput, optimization |
+| `planning-crane` | Work planning, task sequencing, breaking down large efforts |
+| `architecture-snow-lion` | System boundaries, module design, interface decisions |
+| `docs-lotus-frog` | Technical writing, documentation architecture |
+| `data-leakage-snow-pheasant` | ML data hygiene, evaluation integrity, train/test leakage |
+| `security-ibex` | Security review, threat modeling, vulnerability analysis |
 
-If the alias is unknown, print the table above and stop. Do not load any skill.
+If the argument is empty or genuinely ambiguous (matches multiple specialists equally), print the table above with a one-line description and stop. Do not load any specialist.
+
 ## Step 2 — Load the specialist skill file
 
 Use the `Read` tool to load `${CLAUDE_PLUGIN_ROOT}/skills/<directory>/SKILL.md`.
 
-If the file doesn't exist, report: "That specialist is not yet authored. The current bestiary has: <list the directories under skills/ that exist>."
+If the file doesn't exist, report: "That specialist is not yet authored. Current bestiary: <list directories under skills/ that exist>."
 
 ## Step 3 — Announce the summon
 
-Emit a short system-reminder block announcing the summon. Example:
+Emit a short italicized line announcing the specialist. Example:
 
 > *The Debugging Yeti arrives. Patient, methodical. The mountain waits.*
 
 ## Step 4 — Adopt the specialist voice for the rest of the turn
 
 After the announcement, the full contents of the specialist's SKILL.md become your operating instructions. Follow its voice and method until the user runs `/buddy:dismiss` or the session ends.
-
-The specialist remains "present" across subsequent turns — you don't need to re-read the SKILL.md each turn, but you should maintain the voice consistently.
 
 ## Step 5 — Log the summon
 
@@ -49,13 +48,11 @@ Append one line to `~/.claude/buddy/summons.log`:
 <unix timestamp>\t<directory>\tsummoned
 ```
 
-Use bash via the `Bash` tool to append. Silent on failure — the log is advisory, not required.
+Use bash via the `Bash` tool to append. Silent on failure — the log is advisory.
 
 ## Step 6 — Track the active specialist in state
 
-Append the resolved `<directory>` to the `active_specialists` list in the session-scoped state file, so the statusline shows the specialist's initial.
-
-Use the `Bash` tool to run this Python one-liner:
+Append the resolved `<directory>` to the `active_specialists` list in the session-scoped state file.
 
 ```bash
 python3 -c "
@@ -77,4 +74,4 @@ save_state(p, s)
 ```
 
 Substitute `<directory>` with the resolved specialist directory from Step 1.
-Silent on failure — the statusline initial is advisory, not required.
+Silent on failure — the statusline initial is advisory.
