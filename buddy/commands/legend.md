@@ -1,8 +1,3 @@
----
-name: buddy:legend
-description: Print a reference card showing specialist initials, aliases, and mood meanings. Useful when the statusline shows [DT] and you want to know what that means.
----
-
 You are printing the buddy plugin reference card. Emit exactly the following markdown table in your response. No preamble, no commentary — just the table.
 
 ## Buddy Legend

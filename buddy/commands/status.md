@@ -1,8 +1,3 @@
----
-name: buddy:status
-description: Diagnostics for the buddy plugin. Prints identity, current mood, signal values, and hook health. Used for debugging the plugin itself, not a user-facing feature.
----
-
 You are diagnosing the buddy plugin. Do the following steps:
 
 1. Resolve current session: import `resolve_session_id_for_command` from `scripts.state`, call with `Path.cwd()` and `os.getppid()`. If `None`, report "no active buddy session in this project root" and stop.

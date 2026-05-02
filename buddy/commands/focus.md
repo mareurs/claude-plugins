@@ -1,8 +1,3 @@
----
-name: buddy:focus
-description: Set, clear, or show the active plan for this session. Scoped to session_id — multiple concurrent sessions on the same project each have their own focus. Usage: /buddy:focus <path>, /buddy:focus --clear, /buddy:focus (no args shows current).
----
-
 You are handling a /buddy:focus request. The argument is `$1`.
 
 ## Step 1 — Resolve the session

@@ -1,28 +1,25 @@
----
-name: buddy:dismiss
-description: Release one or all currently summoned specialists. With no argument, dismisses every active specialist. With an alias argument (yeti, yak, leopard, lammergeier, ibex, lion, crane, frog, pheasant, takin), dismisses only that one. The primary bodhisattva stays.
----
-
 You are releasing one or all summoned specialists. The argument passed by the user is `$1`.
 
 ## Step 1 — Resolve the target
 
-Map the argument to a specialist directory using this table. If `$1` is empty or absent, target is `"ALL"`.
+If `$1` is empty or absent, target is `"ALL"` — skip to Step 2.
 
-| Alias | Directory |
+Otherwise, match `$1` to the best specialist using their descriptions below. Trust intent over exact words — "debug", "yeti", "debugging" all resolve to `debugging-yeti`.
+
+| Directory | When to dismiss |
 |---|---|
-| `yeti` | `debugging-yeti` |
-| `yak` or `refactor-yak` | `refactoring-yak` |
-| `leopard` | `testing-snow-leopard` |
-| `lammergeier` | `performance-lammergeier` |
-| `ibex` | `security-ibex` |
-| `lion` | `architecture-snow-lion` |
-| `crane` | `planning-crane` |
-| `frog` | `docs-lotus-frog` |
-| `pheasant` | `data-leakage-snow-pheasant` |
-| `takin` | `ml-training-takin` |
+| `debugging-yeti` | Bug resists surface fixes, flaky tests, failure doesn't match symptom |
+| `testing-snow-leopard` | Designing test suites, coverage gaps, flaky tests, asserting correctness |
+| `refactoring-yak` | Structural code transformation, cleaning up tangled code |
+| `ml-training-takin` | Training loops, inference parity, ML pipeline issues |
+| `performance-lammergeier` | Profiling, latency, throughput, optimization |
+| `planning-crane` | Work planning, task sequencing, breaking down large efforts |
+| `architecture-snow-lion` | System boundaries, module design, interface decisions |
+| `docs-lotus-frog` | Technical writing, documentation architecture |
+| `data-leakage-snow-pheasant` | ML data hygiene, evaluation integrity, train/test leakage |
+| `security-ibex` | Security review, threat modeling, vulnerability analysis |
 
-If the alias is provided but unknown, print the table above and stop. Do not change state.
+If the argument is genuinely ambiguous (matches multiple equally), print the table above and stop. Do not change state.
 ## Step 2 — Update active_specialists in state
 
 Use the `Bash` tool to run the appropriate Python one-liner.

@@ -1,8 +1,3 @@
----
-name: buddy:install
-description: Auto-wire the buddy statusline into ~/.claude/settings.json. Detects whether claude-statusline is also installed and picks composed vs standalone mode accordingly. Asks before overwriting an existing statusLine entry.
----
-
 You are installing the buddy statusline into the user's Claude Code settings.
 
 ## Step 1 — Detect sibling plugins
