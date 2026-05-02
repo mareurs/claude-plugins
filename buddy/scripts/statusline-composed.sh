@@ -59,7 +59,7 @@ _fetch_usage() {
   if [[ "$http_code" == "200" ]]; then
     echo "$body" | jq --argjson now "$now" \
       '. + {fetched_at: $now, stale: false, retry_after: 0}' \
-      > "$tmp" 2>/dev/null && mv "$tmp" "$_CACHE"
+      > "$tmp" 2>/dev/null && mv "$tmp" "$_CACHE" || rm -f "$tmp"
 
   elif [[ "$http_code" == "429" ]]; then
     local retry_at=$(( now + retry_secs ))
