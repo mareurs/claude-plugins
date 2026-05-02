@@ -21,12 +21,13 @@ set -u
 INPUT=$(cat)
 
 # ── Rate limit cache ─────────────────────────────────────────────────────────
-# Credentials and cache always live in ~/.claude/ regardless of which CC
-# instance (main or sdd) is running — both share the same OAuth account.
+# Per-instance: each CC config dir has its own credentials and cache file.
+# CLAUDE_CONFIG_DIR is set by CC; falls back to ~/.claude.
 
-_CREDS="$HOME/.claude/.credentials.json"
-_CACHE="$HOME/.claude/statusline-usage-cache.json"
-_LOCK="$HOME/.claude/statusline-usage-cache.lock"
+_CFG="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
+_CREDS="$_CFG/.credentials.json"
+_CACHE="$_CFG/statusline-usage-cache.json"
+_LOCK="$_CFG/statusline-usage-cache.lock"
 
 _fetch_usage() {
   command -v curl &>/dev/null || return
@@ -125,10 +126,21 @@ _merge_cache() {
 
   local merged
   merged=$(jq -s '
+    def to_epoch:
+      if . == null then null
+      else (sub("\\.[0-9]+"; "") | sub("\\+00:00$"; "Z") | fromdateiso8601)
+      end;
+    def adapt:
+      if . == null then null
+      else {
+        used_percentage: (.utilization // null),
+        resets_at: (.resets_at | to_epoch)
+      }
+      end;
     .[0] + {
       rate_limits: {
-        five_hour: .[1].five_hour,
-        seven_day:  .[1].seven_day
+        five_hour: (.[1].five_hour | adapt),
+        seven_day: (.[1].seven_day | adapt)
       },
       rate_limits_stale: (.[1].stale // false)
     }

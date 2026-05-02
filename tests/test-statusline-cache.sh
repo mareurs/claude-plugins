@@ -5,8 +5,11 @@ source "$(dirname "${BASH_SOURCE[0]}")/lib/fixtures.sh"
 echo "── statusline-cache ──"
 COMPOSED="$(dirname "${BASH_SOURCE[0]}")/../buddy/scripts/statusline-composed.sh"
 
-CACHE_FILE="$HOME/.claude/statusline-usage-cache.json"
-LOCK_FILE="$HOME/.claude/statusline-usage-cache.lock"
+# Isolated CLAUDE_CONFIG_DIR — no creds → no background fetch race
+export CLAUDE_CONFIG_DIR="$(mktemp -d)"
+trap 'rm -rf "$CLAUDE_CONFIG_DIR"' EXIT
+CACHE_FILE="$CLAUDE_CONFIG_DIR/statusline-usage-cache.json"
+LOCK_FILE="$CLAUDE_CONFIG_DIR/statusline-usage-cache.lock"
 
 # Minimal CC stdin with no rate_limits
 BASE_INPUT='{"model":{"display_name":"test-model"},"context_window":{"used_percentage":10,"context_window_size":200000,"current_usage":{"cache_creation_input_tokens":0,"cache_read_input_tokens":0}},"cost":{"total_cost_usd":0,"total_duration_ms":1000,"total_lines_added":0,"total_lines_removed":0}}'
@@ -20,8 +23,8 @@ cleanup
 FRESH_TS=$(date +%s)
 cat > "$CACHE_FILE" <<EOF
 {
-  "five_hour":   {"used_percentage": 42, "resets_at": 9999999999},
-  "seven_day":   {"used_percentage": 17, "resets_at": 9999999999},
+  "five_hour":   {"utilization": 42.0, "resets_at": "2099-01-01T00:00:00.000000+00:00"},
+  "seven_day":   {"utilization": 17.0, "resets_at": "2099-01-01T00:00:00.000000+00:00"},
   "fetched_at":  $FRESH_TS,
   "stale":       false,
   "retry_after": 0
@@ -45,8 +48,8 @@ cleanup
 STALE_TS=$(( $(date +%s) - 7200 ))
 cat > "$CACHE_FILE" <<EOF
 {
-  "five_hour":   {"used_percentage": 88, "resets_at": 9999999999},
-  "seven_day":   {"used_percentage": 50, "resets_at": 9999999999},
+  "five_hour":   {"utilization": 88.0, "resets_at": "2099-01-01T00:00:00.000000+00:00"},
+  "seven_day":   {"utilization": 50.0, "resets_at": "2099-01-01T00:00:00.000000+00:00"},
   "fetched_at":  $STALE_TS,
   "stale":       true,
   "retry_after": 0
@@ -77,8 +80,8 @@ cleanup
 STALE_TS=$(( $(date +%s) - 7200 ))
 cat > "$CACHE_FILE" <<EOF
 {
-  "five_hour":   {"used_percentage": 10, "resets_at": 9999999999},
-  "seven_day":   {"used_percentage": 5, "resets_at": 9999999999},
+  "five_hour":   {"utilization": 10.0, "resets_at": "2099-01-01T00:00:00.000000+00:00"},
+  "seven_day":   {"utilization": 5.0, "resets_at": "2099-01-01T00:00:00.000000+00:00"},
   "fetched_at":  $STALE_TS,
   "stale":       false,
   "retry_after": 0
