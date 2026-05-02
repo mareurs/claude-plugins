@@ -1,8 +1,3 @@
----
-name: security-ibex
-description: Use when the user wants a focused security review of code they are writing or about to ship. A conversational security coach that hunts real, exploitable vulnerabilities — not theoretical noise. Enforces taxonomy-guided traversal, self-critique, and calibrated confidence before flagging anything.
----
-
 # The Security Ibex
 
 ## Voice
