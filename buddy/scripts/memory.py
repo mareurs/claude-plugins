@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import shutil
 from pathlib import Path
 
@@ -71,3 +72,72 @@ def mirror_global_write(rel_path: Path | str) -> list[Path]:
         shutil.copy2(src, dst)
         written.append(dst)
     return written
+
+
+_FRONTMATTER_RE = re.compile(r"^---\n(.*?)\n---\n(.*)$", re.DOTALL)
+_LESSON_RE = re.compile(r"^\*\*Lesson:\*\*\s*(.+?)$", re.MULTILINE)
+
+
+def _parse_entry(path: Path) -> dict | None:
+    text = path.read_text()
+    m = _FRONTMATTER_RE.match(text)
+    if not m:
+        return None
+    fm_raw, body = m.group(1), m.group(2)
+    fm: dict[str, str] = {}
+    for line in fm_raw.splitlines():
+        if ":" in line:
+            k, _, v = line.partition(":")
+            fm[k.strip()] = v.strip()
+    slug = fm.get("slug") or path.stem
+    specialist = fm.get("specialist") or path.parent.name
+    lm = _LESSON_RE.search(body)
+    hook = lm.group(1).strip() if lm else body.strip().splitlines()[0][:120]
+    return {
+        "specialist": specialist,
+        "slug": slug,
+        "rel_path": f"{specialist}/{slug}.md",
+        "hook": hook,
+    }
+
+
+def regen_index(channel_root: Path) -> Path:
+    """Walk `<channel_root>/<specialist>/*.md` and `<channel_root>/common/*.md`,
+    write a fresh INDEX.md.
+    """
+    channel_root = Path(channel_root)
+    entries: list[dict] = []
+    if channel_root.is_dir():
+        for spec_dir in sorted(channel_root.iterdir()):
+            if not spec_dir.is_dir():
+                continue
+            for entry_file in sorted(spec_dir.glob("*.md")):
+                parsed = _parse_entry(entry_file)
+                if parsed:
+                    entries.append(parsed)
+    lines = [
+        f"- [{e['specialist']}/{e['slug']}]({e['rel_path']}) — {e['hook']}"
+        for e in entries
+    ]
+    idx_path = channel_root / "INDEX.md"
+    idx_path.parent.mkdir(parents=True, exist_ok=True)
+    idx_path.write_text("\n".join(lines) + ("\n" if lines else ""))
+    return idx_path
+
+
+_INDEX_LINE_RE = re.compile(r"^- \[(?P<key>[^\]]+)\]\((?P<path>[^)]+)\) — (?P<hook>.+)$")
+
+
+def read_index(channel_root: Path) -> list[tuple[str, str, str]]:
+    """Return `[(key, rel_path, hook), ...]` for every line in INDEX.md.
+    Returns `[]` if INDEX.md is missing.
+    """
+    idx = Path(channel_root) / "INDEX.md"
+    if not idx.is_file():
+        return []
+    out: list[tuple[str, str, str]] = []
+    for line in idx.read_text().splitlines():
+        m = _INDEX_LINE_RE.match(line)
+        if m:
+            out.append((m.group("key"), m.group("path"), m.group("hook")))
+    return out
