@@ -38,6 +38,41 @@ If a lens was resolved in Step 1, also load `${CLAUDE_PLUGIN_ROOT}/skills/<direc
 
 If `SKILL.md` doesn't exist, report: "That specialist is not yet authored. Current bestiary: <list directories under skills/ that exist>."
 
+
+## Step 2.5 — Load memories and inject the memory protocol
+
+Memories are POV-scoped — only the resolved `<directory>` (and the `common` bucket) are loaded.
+
+**Resolve channels:**
+- **Global root**: pick the current CC instance dir. Detect via `CLAUDE_PLUGIN_ROOT` — the parent matching `.claude` or `.claude-sdd`. The global memory root is `<claude-dir>/buddy/memory/`.
+- **Project root**: `<cwd>/.buddy/memory/` if the directory exists. Skip if missing or if the user has the dir gitignored — in that case emit one warning line: `→ memory: project dir gitignored, skipping project channel`.
+
+**For each existing channel root**, read in this order:
+1. `<channel>/<directory>/*.md` (specialist POV)
+2. `<channel>/common/*.md` (cross-buddy)
+
+Use the `Read` tool for each file. If a file's frontmatter is malformed, skip it silently.
+
+**Inject under a `## Memories` heading appended to the specialist's instructions:**
+
+```
+## Memories — <directory> POV
+
+### Project (this repo)
+<project specialist entries verbatim, blank line between, then project common entries>
+
+### Global
+<global specialist entries verbatim, blank line between, then global common entries>
+```
+
+If a sub-section is empty, omit its heading. If both are empty, omit the whole `## Memories` section.
+
+**Soft cap:** if any one channel has more than 30 entries in `<directory>` + `common` combined, after loading print a one-line hint: `→ memory: <channel> has <N> entries — consider consolidating`. Still load all entries.
+
+**After memories are injected, also inject the protocol:**
+
+Use the `Read` tool on `${CLAUDE_PLUGIN_ROOT}/data/memory-protocol.md` and inject its contents verbatim under a `## Memory Protocol` heading right after `## Memories` (or right after the specialist instructions if `## Memories` was omitted).
+
 ## Step 3 — Announce the summon
 
 Emit a short italicized line announcing the specialist. If a lens was loaded, mention it. Examples:
