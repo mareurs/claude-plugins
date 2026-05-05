@@ -134,3 +134,22 @@ def test_read_index_returns_entries(tmp_path):
 
 def test_read_index_missing_returns_empty(tmp_path):
     assert memory.read_index(tmp_path / "missing") == []
+
+
+def test_regen_index_skips_empty_body_gracefully(tmp_path):
+    root = tmp_path / "memory"
+    yeti_dir = root / "debugging-yeti"
+    yeti_dir.mkdir(parents=True)
+    (yeti_dir / "empty-body.md").write_text(
+        "---\n"
+        "specialist: debugging-yeti\n"
+        "scope: project\n"
+        "slug: empty-body\n"
+        "created: 2026-05-05\n"
+        "updated: 2026-05-05\n"
+        "tags: []\n"
+        "---\n"
+    )
+    memory.regen_index(root)
+    idx = (root / "INDEX.md").read_text()
+    assert "[debugging-yeti/empty-body](debugging-yeti/empty-body.md)" in idx

@@ -92,7 +92,8 @@ def _parse_entry(path: Path) -> dict | None:
     slug = fm.get("slug") or path.stem
     specialist = fm.get("specialist") or path.parent.name
     lm = _LESSON_RE.search(body)
-    hook = lm.group(1).strip() if lm else body.strip().splitlines()[0][:120]
+    lines = body.strip().splitlines()
+    hook = lm.group(1).strip() if lm else (lines[0][:120] if lines else "")
     return {
         "specialist": specialist,
         "slug": slug,
