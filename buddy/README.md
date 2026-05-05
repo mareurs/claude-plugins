@@ -229,6 +229,33 @@ by `/buddy:check` but the renderer always re-derives live.
 
 ───────────────────────────────────────────────────────────────────
 
+## Memory
+
+Each summoned specialist has its own POV memory. Memories accumulate hard-won judgment across sessions — not transcripts.
+
+**Channels:**
+- **Global** — `~/.claude/buddy/memory/` (and `~/.claude-sdd/buddy/memory/` if you run both instances). Mirrored automatically. Craft-general lessons.
+- **Project** — `<repo>/.buddy/memory/`. Committed to the repo. Codebase-specific lessons.
+
+**Layout:**
+
+```
+.buddy/memory/
+  INDEX.md
+  debugging-yeti/<slug>.md   # only loaded when Yeti is summoned
+  testing-snow-leopard/<slug>.md
+  common/<slug>.md            # loaded for every summoned specialist
+```
+
+**Triggers for writes:**
+- `/buddy:remember <lesson>` — explicit ask.
+- Autonomous mid-turn (the buddy decides; it announces before writing so you can object).
+- `/buddy:dismiss` introspection sweep.
+
+**Project memories are committed.** Buddies stage with `git add`; you commit. If you have `.buddy/` in `.gitignore`, project memory is silently disabled (a warning is printed on summon).
+
+**Two CC instances:** if you run both `~/.claude` and `~/.claude-sdd`, edit `buddy/data/instances.json` to list both paths. Global writes mirror across them.
+
 ## License
 
 MIT
