@@ -13,7 +13,7 @@ TOOL_NAME=$(echo "$INPUT" | jq -r '.tool_name // empty' 2>/dev/null)
 
 # Only fire on workspace calls
 case "$TOOL_NAME" in
-  *__workspace) ;;
+  *__workspace|*__activate_project) ;;
   *) exit 0 ;;
 esac
 

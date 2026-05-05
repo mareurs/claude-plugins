@@ -10,3 +10,4 @@ test-detect.sh
 .buddy/
 __pycache__/
 *.pyc
+.fastembed_cache/

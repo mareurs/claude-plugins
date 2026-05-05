@@ -30,8 +30,8 @@ if [ $EC -eq 0 ] && ! assert_denied "$OUT"; then pass "worktree, no marker: allo
 # Test 4: write tool, in worktree, marker present → deny
 make_pending_marker "$T/wt"
 OUT=$(printf '{"cwd":"%s","tool_name":"%s"}' "$T/wt" "$WRITE_TOOL" | bash "$HOOK" 2>/dev/null)
-if assert_denied "$OUT" && assert_reason_contains "$OUT" "activate_project"; then
-  pass "worktree + marker: deny with activate_project"
+if assert_denied "$OUT" && assert_reason_contains "$OUT" "workspace("; then
+  pass "worktree + marker: deny with workspace call"
 else
   fail "worktree + marker: deny with activate_project" "$OUT"
 fi

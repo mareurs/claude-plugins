@@ -28,7 +28,7 @@ Explore a topic inside a foreign project as if Claude were running there.
 
 3. **Confirm.** Show the compact brief, ask "proceed?" — one step so the user can correct wrong inferences.
 
-4. **Spawn `Explore` subagent** using the subagent prompt template below. Fill in all `<...>` placeholders.
+4. **Spawn `general-purpose` subagent** using the subagent prompt template below. Fill in all `<...>` placeholders.
 
 5. **Present findings.** Return the subagent's `## Exploration` block as-is. Do not re-synthesize.
 
@@ -68,14 +68,14 @@ Build this before spawning. Pass it verbatim inside the subagent prompt.
 
 ## Subagent Prompt Template
 
-Pass verbatim to the `Explore` subagent. Substitute all `<...>` placeholders.
+Pass verbatim to the `general-purpose` subagent. Substitute all `<...>` placeholders.
 
 ```
 You are a code exploration subagent for <target path>.
 
 ## Bootstrap — do this FIRST, in order
 
-1. workspace("<target path>", read_only: true)
+1. workspace(action="activate", path="<target path>", read_only=true)
 2. read_markdown("<target path>/CLAUDE.md")           ← project rules and conventions
 3. read_markdown("<target path>/.code-explorer/system-prompt.md")  ← skip if file absent
 
@@ -90,7 +90,7 @@ Follow that project's CLAUDE.md conventions and restrictions for the duration of
 2. Use only codescout tools: symbols, semantic_search, grep, read_markdown, tree, glob.
 3. Answer every question in the brief. Keep refining your search until each is answered or explicitly flagged unanswerable.
 4. Do NOT write or modify any files — this is a read-only exploration.
-5. Before returning: workspace("<original project path>", read_only: false)
+5. Before returning: workspace(action="activate", path="<original project path>", read_only=false)
 
 ## Response format — return ONLY this block
 
@@ -115,5 +115,5 @@ Do not include raw symbol dumps, full file listings, or meta-commentary.
 - **Asking too many questions.** Hard cap at 3. Infer aggressively from ambient context.
 - **Skipping the brief confirm.** Cheap insurance — always confirm before spawning.
 - **Re-synthesizing the subagent output.** Present the `## Exploration` block as-is.
-- **Forgetting the bootstrap sequence.** Without `workspace` + CLAUDE.md read, the subagent has no project context.
+- **Forgetting the bootstrap sequence.** Without `workspace(action="activate")` + CLAUDE.md read, the subagent has no project context.
 - **Leaving the active project changed.** The subagent MUST restore the original project at the end (Iron Law #4).

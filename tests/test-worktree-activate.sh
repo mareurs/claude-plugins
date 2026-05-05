@@ -26,7 +26,7 @@ OUT=$(printf '{"cwd":"%s","tool_name":"EnterWorktree","tool_response":{"worktree
   "$T/t3main" "$T/t3wt" | bash "$HOOK" 2>/dev/null)
 MARKER_OK=false; GUIDANCE_OK=false; SYMLINK_OK=false
 [ -f "$T/t3wt/.cs-worktree-pending" ] && MARKER_OK=true
-assert_context_contains "$OUT" "activate_project" && GUIDANCE_OK=true
+assert_context_contains "$OUT" "workspace(" && GUIDANCE_OK=true
 [ -L "$T/t3wt/.code-explorer" ] && SYMLINK_OK=true
 if $MARKER_OK && $GUIDANCE_OK && $SYMLINK_OK; then
   pass "EnterWorktree with path: marker+guidance+symlink"
@@ -42,7 +42,7 @@ make_ce_dir "$T/t4main"
 make_worktree "$T/t4main" "$T/t4wt"
 OUT=$(printf '{"cwd":"%s","tool_name":"EnterWorktree","tool_response":{}}' \
   "$T/t4main" | bash "$HOOK" 2>/dev/null)
-if assert_context_contains "$OUT" "activate_project" && [ -f "$T/t4wt/.cs-worktree-pending" ]; then
+if assert_context_contains "$OUT" "workspace(" && [ -f "$T/t4wt/.cs-worktree-pending" ]; then
   pass "EnterWorktree fallback detection: marker+guidance"
 else
   fail "EnterWorktree fallback detection: marker+guidance" \

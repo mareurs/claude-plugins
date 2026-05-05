@@ -50,7 +50,9 @@ fi
 # When CLAUDE_CONFIG_DIR is set (multi-instance), .claude.json lives inside it.
 # When unset (standard install), `claude mcp add` writes to $HOME/.claude.json.
 _CLAUDE_DIR="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
-for _cfg in "${_CLAUDE_DIR}/.claude.json" "${_CLAUDE_DIR}/settings.json" "$HOME/.claude.json"; do
+_GLOBAL_FALLBACK=()
+[ -z "$CLAUDE_CONFIG_DIR" ] && _GLOBAL_FALLBACK=("$HOME/.claude.json")
+for _cfg in "${_CLAUDE_DIR}/.claude.json" "${_CLAUDE_DIR}/settings.json" "${_GLOBAL_FALLBACK[@]}"; do
   [ "$HAS_CODESCOUT" = "true" ] && break
   [ -f "$_cfg" ] || continue
   CS_SERVER_NAME=$(jq -r '

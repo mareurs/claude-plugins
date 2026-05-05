@@ -24,7 +24,7 @@ if assert_no_output "$OUT"; then pass "no CE: silent exit"; else fail "no CE: si
 # Test 4: coding agent, CE present, system prompt → context contains directive + prompt
 make_system_prompt "$T/proj"
 OUT=$(printf '{"cwd":"%s","agent_type":"general-purpose"}' "$T/proj" | bash "$HOOK" 2>/dev/null)
-if assert_context_contains "$OUT" "find_symbol" && assert_context_contains "$OUT" "SYSTEM PROMPT CONTENT"; then
+if assert_context_contains "$OUT" "symbols" && assert_context_contains "$OUT" "SYSTEM PROMPT CONTENT"; then
   pass "CE present: directive + system prompt injected"
 else
   fail "CE present: directive + system prompt injected" "$OUT"

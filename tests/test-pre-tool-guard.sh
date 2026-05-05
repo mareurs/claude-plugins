@@ -33,7 +33,7 @@ fi
 GREP_DEDUP_KEY=$(printf '%s\t%s' "Grep" "$T/proj" | md5sum | cut -c1-8)
 rm -f "/tmp/cs-block-$GREP_DEDUP_KEY"
 OUT=$(guard_input "Grep" '"pattern":"foo","type":"ts"' | bash "$HOOK" 2>/dev/null)
-if assert_denied "$OUT" && assert_reason_contains "$OUT" "find_symbol"; then
+if assert_denied "$OUT" && assert_reason_contains "$OUT" "search_pattern"; then
   pass "Grep type=ts: deny"
 else
   fail "Grep type=ts: deny" "$OUT"
@@ -59,7 +59,7 @@ if [ $EC -eq 0 ] && ! assert_denied "$OUT"; then pass "Glob *.md: allow"; else f
 READ_DEDUP_KEY=$(printf '%s\t%s' "Read" "$T/proj" | md5sum | cut -c1-8)
 rm -f "/tmp/cs-block-$READ_DEDUP_KEY"
 OUT=$(guard_input "Read" '"file_path":"'"$T/proj/app.ts"'"' | bash "$HOOK" 2>/dev/null)
-if assert_denied "$OUT" && assert_reason_contains "$OUT" "list_symbols"; then
+if assert_denied "$OUT" && assert_reason_contains "$OUT" "symbols"; then
   pass "Read .ts: deny with list_symbols"
 else
   fail "Read .ts: deny with list_symbols" "$OUT"
@@ -144,7 +144,7 @@ READ_DEDUP_KEY=$(printf '%s\t%s' "Read" "$T/proj" | md5sum | cut -c1-8)
 rm -f "/tmp/cs-block-$READ_DEDUP_KEY"
 CARGO_PATH="$HOME/.cargo/registry/src/index.crates.io-abc123/serde-1.0.195/src/lib.rs"
 OUT=$(guard_input "Read" "\"file_path\":\"$CARGO_PATH\"" | bash "$HOOK" 2>/dev/null)
-if assert_denied "$OUT" && assert_reason_contains "$OUT" "register_library" && assert_reason_contains "$OUT" "crate 'serde'"; then
+if assert_denied "$OUT" && assert_reason_contains "$OUT" "library(" && assert_reason_contains "$OUT" "crate 'serde'"; then
   pass "Read .cargo/registry deep path: deny with correct crate name"
 else
   CRATE=$(echo "$OUT" | jq -r '.hookSpecificOutput.permissionDecisionReason' 2>/dev/null | grep -oE "crate '[^']+'" | head -1)
@@ -156,7 +156,7 @@ fi
 GREP_DEDUP_KEY=$(printf '%s\t%s' "Grep" "$T/proj" | md5sum | cut -c1-8)
 rm -f "/tmp/cs-block-$GREP_DEDUP_KEY"
 OUT=$(guard_input "Grep" "\"pattern\":\"Serialize\",\"path\":\"$CARGO_PATH\"" | bash "$HOOK" 2>/dev/null)
-if assert_denied "$OUT" && assert_reason_contains "$OUT" "register_library" && assert_reason_contains "$OUT" "crate 'serde'"; then
+if assert_denied "$OUT" && assert_reason_contains "$OUT" "library(" && assert_reason_contains "$OUT" "crate 'serde'"; then
   pass "Grep .cargo/registry deep path: deny with correct crate name"
 else
   CRATE=$(echo "$OUT" | jq -r '.hookSpecificOutput.permissionDecisionReason' 2>/dev/null | grep -oE "crate '[^']+'" | head -1)
@@ -186,7 +186,7 @@ fi
 READ_DEDUP_KEY=$(printf '%s\t%s' "Read" "$T/proj" | md5sum | cut -c1-8)
 rm -f "/tmp/cs-block-$READ_DEDUP_KEY"
 OUT3=$(guard_input "Read" '"file_path":"'"$T/proj/app.ts"'"' | bash "$HOOK" 2>/dev/null)
-if assert_denied "$OUT3" && assert_reason_contains "$OUT3" "list_symbols"; then
+if assert_denied "$OUT3" && assert_reason_contains "$OUT3" "symbols"; then
   pass "Read dedup: different tool type gets full reason"
 else
   fail "Read dedup: different tool type gets full reason" "$OUT3"

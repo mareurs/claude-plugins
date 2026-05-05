@@ -10,9 +10,16 @@ fi
 INPUT=$(cat)
 CWD=$(echo "$INPUT" | jq -r '.cwd // empty')
 SOURCE=$(echo "$INPUT" | jq -r '.source // empty')
+SESSION_ID=$(echo "$INPUT" | jq -r '.session_id // empty')
 source "$(dirname "$0")/detect-tools.sh"
 
 [ "$HAS_CODESCOUT" = "false" ] && exit 0
+
+# --- Write CC session ID for usage.db correlation ---
+if [ -n "$SESSION_ID" ] && [ -n "$CS_PROJECT_DIR" ]; then
+  mkdir -p "$CS_PROJECT_DIR" 2>/dev/null
+  printf '%s' "$SESSION_ID" > "$CS_PROJECT_DIR/cc_session_id"
+fi
 
 # --- Worktree detection: skip auto-indexing if in a worktree ---
 IN_WORKTREE=false
