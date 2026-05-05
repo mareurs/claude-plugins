@@ -7,9 +7,10 @@ These plugins reflect specific workflows and tool choices -- they may not suit e
 ## Quick Start
 
 ```
-/plugin marketplace add mareurs/sdd-misc-plugins
-/plugin install sdd@sdd-misc-plugins
-/plugin install codescout-companion@sdd-misc-plugins
+/plugin marketplace add mareurs/claude-plugins
+/plugin install sdd@claude-plugins
+/plugin install codescout-companion@claude-plugins
+/plugin install buddy@claude-plugins
 ```
 
 ## Available Plugins
@@ -68,16 +69,17 @@ Add to your project's `.claude/settings.json` so all team members get the plugin
 ```json
 {
   "extraKnownMarketplaces": {
-    "sdd-misc-plugins": {
+    "claude-plugins": {
       "source": {
         "source": "github",
-        "repo": "mareurs/sdd-misc-plugins"
+        "repo": "mareurs/claude-plugins"
       }
     }
   },
   "enabledPlugins": {
-    "sdd@sdd-misc-plugins": true,
-    "codescout-companion@sdd-misc-plugins": true
+    "sdd@claude-plugins": true,
+    "codescout-companion@claude-plugins": true,
+    "buddy@claude-plugins": true
   }
 }
 ```

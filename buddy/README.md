@@ -88,10 +88,14 @@ the composed wrapper all work independently.
 
 | Command                    | What it does                                          |
 |----------------------------|-------------------------------------------------------|
-| `/buddy:status`            | Show diagnostic info: identity, mood, signals, state  |
-| `/buddy:check`             | Quick soul-check — the companion speaks               |
-| `/buddy:summon <alias>`    | Summon a specialist master into the session            |
-| `/buddy:dismiss`           | Dismiss the currently active specialist                |
+| `/buddy:status`                  | Show diagnostic info: identity, mood, signals, state                              |
+| `/buddy:check`                   | Quick soul-check — the companion speaks                                           |
+| `/buddy:summon <alias>`          | Summon a specialist master into the session                                        |
+| `/buddy:dismiss`                 | Dismiss the currently active specialist                                            |
+| `/buddy:install`                 | Auto-wire statusline into settings.json (detects claude-statusline, picks mode)   |
+| `/buddy:focus [path\|--clear]`   | Set or clear the current focus path (shown in statusline)                          |
+| `/buddy:legend`                  | Print the specialist reference card and mood table                                 |
+| `/buddy:remember <lesson>`       | Ask the active specialist to save a memory about the given lesson                  |
 
 ### Example session
 
@@ -135,7 +139,11 @@ the composed wrapper all work independently.
 │  ├── commands/check.md                           │
 │  ├── commands/summon.md                          │
 │  ├── commands/dismiss.md                         │
-│  └── skills/*/SKILL.md     (9 specialists)       │
+│  ├── commands/install.md                         │
+│  ├── commands/focus.md                           │
+│  ├── commands/legend.md                          │
+│  ├── commands/remember.md                        │
+│  └── skills/*/SKILL.md     (10 specialists)      │
 │  Markdown-driven prompts. LLM reads and acts.    │
 │  ✦ LLM calls only when you invoke a command.     │
 │                                                  │
