@@ -44,3 +44,38 @@ def test_other_instance_dirs_skips_missing(tmp_path, monkeypatch):
     reg = write_instances(tmp_path, [str(a), str(tmp_path / "nope")])
     monkeypatch.setattr(memory, "INSTANCES_REGISTRY", reg)
     assert memory.other_instance_dirs() == []
+
+
+def test_mirror_global_write_copies_to_other_instances(tmp_path, monkeypatch):
+    a = tmp_path / "claude"
+    b = tmp_path / "claude-sdd"
+    (a / "buddy" / "memory" / "debugging-yeti").mkdir(parents=True)
+    b.mkdir()
+    fake_plugin = a / "plugins" / "cache" / "buddy" / "0.1.0"
+    fake_plugin.mkdir(parents=True)
+    monkeypatch.setenv("CLAUDE_PLUGIN_ROOT", str(fake_plugin))
+    reg = write_instances(tmp_path, [str(a), str(b)])
+    monkeypatch.setattr(memory, "INSTANCES_REGISTRY", reg)
+
+    src_rel = Path("debugging-yeti/flaky-tests.md")
+    src_abs = a / "buddy" / "memory" / src_rel
+    src_abs.write_text("---\nslug: flaky-tests\n---\nbody")
+
+    written = memory.mirror_global_write(src_rel)
+
+    assert b / "buddy" / "memory" / src_rel in written
+    assert (b / "buddy" / "memory" / src_rel).read_text() == "---\nslug: flaky-tests\n---\nbody"
+
+
+def test_mirror_global_write_noop_when_no_other_instances(tmp_path, monkeypatch):
+    a = tmp_path / "claude"
+    (a / "buddy" / "memory" / "common").mkdir(parents=True)
+    fake_plugin = a / "plugins" / "cache" / "buddy" / "0.1.0"
+    fake_plugin.mkdir(parents=True)
+    monkeypatch.setenv("CLAUDE_PLUGIN_ROOT", str(fake_plugin))
+    reg = write_instances(tmp_path, [str(a)])
+    monkeypatch.setattr(memory, "INSTANCES_REGISTRY", reg)
+
+    src_rel = Path("common/no-mocks-in-it.md")
+    (a / "buddy" / "memory" / src_rel).write_text("body")
+    assert memory.mirror_global_write(src_rel) == []

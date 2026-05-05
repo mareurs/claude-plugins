@@ -48,3 +48,26 @@ def other_instance_dirs() -> list[Path]:
         if inst.is_dir():
             out.append(inst)
     return out
+
+
+def mirror_global_write(rel_path: Path | str) -> list[Path]:
+    """Copy a memory file from the current instance's global memory dir to
+    every other registered instance. Returns list of paths written.
+
+    `rel_path` is relative to `<instance>/buddy/memory/`, e.g.
+    `Path("debugging-yeti/flaky-tests.md")`.
+    """
+    rel = Path(rel_path)
+    cur = current_instance_dir()
+    if cur is None:
+        return []
+    src = cur / "buddy" / "memory" / rel
+    if not src.is_file():
+        return []
+    written: list[Path] = []
+    for other in other_instance_dirs():
+        dst = other / "buddy" / "memory" / rel
+        dst.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(src, dst)
+        written.append(dst)
+    return written
