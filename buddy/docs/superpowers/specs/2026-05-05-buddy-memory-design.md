@@ -106,15 +106,15 @@ User can object in the next prompt; buddy then `git restore --staged` (project) 
 ### Trigger 3 — Introspection sweep
 
 Fired by:
-- `/buddy:dismiss` — runs introspection on the dismissed specialist before clearing it from `active_specialists`.
-- `SessionEnd` hook — runs introspection for each specialist still in `active_specialists`, in alphabetical order.
+- `/buddy:dismiss` — runs introspection on the dismissed specialist before clearing it from `active_specialists`. **This is the only automatic introspection trigger.**
+
+> **Why not `SessionEnd`?** SessionEnd hooks run shell after the session has terminated; the model is already gone, so they cannot drive an introspection turn. A user who wants end-of-session sweep should `/buddy:dismiss` (or `/buddy:dismiss --all`) before exiting. If the session ends without dismiss, the only memories captured are those from triggers 1 and 2 during the session.
 
 The injected prompt:
 
 > Before you depart: reflect on this session from your POV. What did you learn that would change how you'd act next time? For each lesson: decide global vs project scope, propose a slug, scan INDEX for similar entries, then save (update if dup, else create). Announce each save. If nothing genuinely new, say so and stop — do not invent lessons.
 
 **Empty result is valid.** Guards against memory inflation.
-
 ## Write pipeline
 
 For every trigger:
@@ -125,8 +125,14 @@ For every trigger:
    - **Global** if: about the craft itself, language/framework patterns, debugging instincts, generally-applicable heuristics.
    - **Ambiguous → project** (safer; project memory only loads in this repo, won't pollute other work).
 3. **Slug** — propose kebab-case 3–6 words.
-4. **Dedup scan**: read `<channel>/INDEX.md`, look for slug match or near-duplicate topic in same `<specialist>` dir.
+4. **Dedup scan**: read `<channel>/INDEX.md`, look in same `<specialist>` dir for either:
+   - **slug match** (exact or near-identical kebab tokens), or
+   - **tag overlap ≥2 tags** with an existing entry whose lesson hook is topically similar (judged by the buddy from the INDEX one-liner).
+
+   If either holds:
    - **Match found** → load existing file, merge new info into body, bump `updated:`. Re-export INDEX line.
+
+   Else:
    - **No match** → write new file, append INDEX line.
 5. **Announce** save with one line: `→ memory: <scope> / <specialist> / <slug> — <hook>`.
 6. **Stage (project only)**: `git add .buddy/memory/<path>`. No commit. Buddy reports: "staged — commit when ready."
@@ -185,9 +191,9 @@ Add a new step between "Load specialist skill" and "Adopt voice":
 
 Before clearing the specialist from `active_specialists`, inject the introspection prompt scoped to that specialist. Wait for buddy to complete (zero or more saves). Then proceed with normal dismissal.
 
-### Modified: `buddy/hooks/session-end.sh`
+### Removed from scope: `SessionEnd` introspection
 
-Read `active_specialists` from session state. For each (alphabetical order), inject the introspection prompt scoped to that specialist. If `active_specialists` is empty, no-op.
+Originally drafted, then dropped — see Trigger 3. SessionEnd hooks cannot drive a model turn, so any sweep at session-exit is impossible without a different mechanism (e.g. a SessionStart-side replay of "your prior self had unsaved lessons"), which is YAGNI for v1. `/buddy:dismiss` is the only automatic introspection trigger.
 
 ### Reused: `buddy/data/environment.json`
 
