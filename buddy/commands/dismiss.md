@@ -20,6 +20,30 @@ Otherwise, match `$1` to the best specialist using their descriptions below. Tru
 | `security-ibex` | Security review, threat modeling, vulnerability analysis |
 
 If the argument is genuinely ambiguous (matches multiple equally), print the table above and stop. Do not change state.
+
+## Step 1.5 — Run introspection before dismissing
+
+Before clearing the specialist(s) from state, give them a chance to capture lessons.
+
+**If target is `"ALL"`:** for each entry in `active_specialists` (alphabetical order), run the introspection block below scoped to that specialist. Then proceed to Step 2.
+
+**Otherwise:** run the introspection block for the resolved `<directory>` only.
+
+**Introspection block** (emit verbatim as a system-style nudge to the buddy, then await its response):
+
+> Before you depart, <directory>: reflect on this session from your POV. What did you learn that would change how you'd act next time? For each lesson:
+> 1. Decide global vs project scope (see the Memory Protocol).
+> 2. Propose a slug (3–6 kebab-case words).
+> 3. Read the target channel's `INDEX.md` and check for slug match or ≥2-tag overlap with a topically similar hook. If matched, update the existing file; else create a new one.
+> 4. Announce each save (`→ memory: <scope> / <specialist> / <slug> — <hook>`).
+> 5. Stage project writes with `git add`. Mirror global writes via `scripts/memory.py`.
+>
+> If nothing genuinely new came up, say so explicitly and stop. Do not invent lessons.
+
+Wait for the buddy to complete (zero or more saves). Then continue with Step 2.
+
+If the project memory dir does not exist or the working tree is not a git repo, project writes during introspection are skipped silently — see the protocol's failure modes.
+
 ## Step 2 — Update active_specialists in state
 
 Use the `Bash` tool to run the appropriate Python one-liner.
