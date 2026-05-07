@@ -387,3 +387,9 @@ def _has_negation(text: str) -> bool:
 
 def _default_summons_log() -> Path:
     return Path.home() / ".claude" / "buddy" / "summons.log"
+
+
+
+def apply_plan_from_cache() -> str:
+    """Walk channel roots, find cached plans, apply each. Returns a summary string."""
+    raise NotImplementedError("filled in by Task 14")
