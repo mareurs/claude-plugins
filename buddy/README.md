@@ -96,6 +96,7 @@ the composed wrapper all work independently.
 | `/buddy:focus [path\|--clear]`   | Set or clear the current focus path (shown in statusline)                          |
 | `/buddy:legend`                  | Print the specialist reference card and mood table                                 |
 | `/buddy:remember <lesson>`       | Ask the active specialist to save a memory about the given lesson                  |
+| `/buddy:introspect [alias]`      | Mid-session reflection — capture lessons without dismissing the specialist         |
 
 ### Example session
 

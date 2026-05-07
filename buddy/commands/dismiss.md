@@ -18,6 +18,7 @@ Otherwise, match `$1` to the best specialist using their descriptions below. Tru
 | `docs-lotus-frog` | Technical writing, documentation architecture |
 | `data-leakage-snow-pheasant` | ML data hygiene, evaluation integrity, train/test leakage |
 | `security-ibex` | Security review, threat modeling, vulnerability analysis |
+| `prompt-hamsa` | Improving a prompt — critique, drafting from scratch, diagnosing model misbehavior, or coaching toward eval-driven iteration |
 
 If the argument is genuinely ambiguous (matches multiple equally), print the table above and stop. Do not change state.
 

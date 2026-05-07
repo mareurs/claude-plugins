@@ -2,6 +2,8 @@
 import json
 from pathlib import Path
 
+import pytest
+
 ROOT = Path(__file__).parent.parent
 
 REQUIRED_MOODS = {
@@ -42,10 +44,13 @@ def test_environment_json_shape():
 
 
 
-def test_every_skill_directory_has_a_summon_routing_entry():
-    """Each skills/<dir>/SKILL.md must be reachable via the summon routing table."""
+
+
+@pytest.mark.parametrize("command_file", ["summon.md", "dismiss.md", "introspect.md"])
+def test_every_skill_directory_has_a_routing_entry_in(command_file):
+    """Each skills/<dir>/SKILL.md must be reachable from every routing-table command."""
     skills_root = ROOT / "skills"
-    summon_md = (ROOT / "commands" / "summon.md").read_text()
+    cmd_md = (ROOT / "commands" / command_file).read_text()
 
     skill_dirs = [
         d.name for d in skills_root.iterdir()
@@ -53,8 +58,8 @@ def test_every_skill_directory_has_a_summon_routing_entry():
     ]
     assert skill_dirs, "no skill directories found"
 
-    missing = [d for d in skill_dirs if f"`{d}`" not in summon_md]
+    missing = [d for d in skill_dirs if f"`{d}`" not in cmd_md]
     assert not missing, (
-        f"skill directories with no summon routing entry: {missing}. "
-        f"Add a row to commands/summon.md routing table."
+        f"skill directories with no routing entry in {command_file}: {missing}. "
+        f"Add a row to commands/{command_file} routing table."
     )
