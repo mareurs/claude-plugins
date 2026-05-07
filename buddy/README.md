@@ -157,7 +157,7 @@ command (`/buddy:check`, `/buddy:summon`, `/buddy:dismiss`).
 
 ───────────────────────────────────────────────────────────────────
 
-## Bestiary — The Ten Specialists
+## Bestiary — The Eleven Specialists
 
 When you `/buddy:summon <alias>`, a specialist master enters the session with
 domain expertise and a distinctive voice. Use any alias from the left column.
@@ -174,6 +174,7 @@ domain expertise and a distinctive voice. Use any alias from the left column.
 | `frog`                 | docs-lotus-frog              | Technical writing, information architecture.       |
 | `pheasant`             | data-leakage-snow-pheasant   | Data splits, leakage audits, eval hygiene. Wary.   |
 | `takin`                | ml-training-takin            | Training loops, optim, inference parity. Patient.  |
+| `hamsa`, `prompt`      | prompt-hamsa                 | Prompt critique, drafting, diagnosis, eval-coaching. Discerning. |
 
 Each specialist's full system prompt lives in `skills/<name>/SKILL.md`.
 
