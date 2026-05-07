@@ -8,8 +8,11 @@ Phases:
 """
 from __future__ import annotations
 
+import re
 from datetime import date
 from pathlib import Path
+
+import yaml
 
 CHANNEL_LOCK_NAME = ".consolidation.lock"
 CHANNEL_LOG_NAME = ".consolidation.log"
@@ -94,9 +97,62 @@ def render_brief(cand: dict) -> str:
     return "\n".join(lines) + "\n"
 
 
+
+_FENCE_RE = re.compile(r"```yaml\s*\n(.*?)\n```", re.DOTALL)
+_VALID_OPS = {"merge", "archive", "summarize", "keep_all", "defer"}
+
+
+def _extract_yaml(text: str) -> str:
+    """Extract YAML payload from fenced block or return raw text if it contains plan keys."""
+    m = _FENCE_RE.search(text)
+    if m:
+        return m.group(1)
+    if "plan_version" in text and "operations" in text:
+        return text
+    raise ValueError("no plan: response contains no fenced yaml block and no plan keys")
+
+
+def _validate_plan(data: dict) -> None:
+    """Validate plan structure and operation requirements."""
+    if data.get("plan_version") != 1:
+        raise ValueError(f"unsupported plan_version: {data.get('plan_version')!r}")
+    if not isinstance(data.get("operations"), list):
+        raise ValueError("operations: must be a list")
+    for i, op in enumerate(data["operations"]):
+        if not isinstance(op, dict):
+            raise ValueError(f"operations[{i}] not a mapping")
+        kind = op.get("op")
+        if kind not in _VALID_OPS:
+            raise ValueError(f"operations[{i}].op {kind!r} not in {sorted(_VALID_OPS)}")
+        if kind in ("merge", "summarize"):
+            if not isinstance(op.get("inputs"), list) or not op["inputs"]:
+                raise ValueError(f"operations[{i}] ({kind}) requires non-empty inputs list")
+            if not isinstance(op.get("output"), dict):
+                raise ValueError(f"operations[{i}] ({kind}) requires output mapping")
+            if not op["output"].get("slug"):
+                raise ValueError(f"operations[{i}] ({kind}).output.slug missing")
+        if kind == "archive":
+            if not op.get("slug"):
+                raise ValueError(f"operations[{i}] (archive).slug missing")
+        if kind == "keep_all":
+            if not isinstance(op.get("slugs"), list):
+                raise ValueError(f"operations[{i}] (keep_all).slugs missing")
+        if kind == "defer":
+            if not op.get("target"):
+                raise ValueError(f"operations[{i}] (defer).target missing")
+
+
 def parse_plan(text: str) -> dict:
     """Parse the YAML plan emitted by the specialist. Raises ValueError on malformed input."""
-    raise NotImplementedError("filled in by Task 8")
+    payload = _extract_yaml(text)
+    try:
+        data = yaml.safe_load(payload)
+    except yaml.YAMLError as exc:
+        raise ValueError(f"plan YAML failed to parse: {exc}") from exc
+    if not isinstance(data, dict):
+        raise ValueError("plan must be a YAML mapping at the top level")
+    _validate_plan(data)
+    return data
 
 
 def render_plan_for_user(plan: dict) -> str:
