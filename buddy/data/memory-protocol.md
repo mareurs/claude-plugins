@@ -111,3 +111,9 @@ If `<rel-path>` was an update (not new), the mirror copies the new content over.
 - `.buddy/memory/` not writable → skip project write; announce skip; global still works.
 - Mirror target dir missing → write current instance only; log one-line warning.
 - Frontmatter parse error on load → skip that entry only; log warning; do not abort load.
+
+
+> **Consolidation:** when memories accumulate or drift, run
+> `/buddy:consolidate` to merge near-duplicates, archive stale entries,
+> summarize tag-clusters, and surface contradictions. See
+> `consolidation-protocol.md` for the operation schema.
