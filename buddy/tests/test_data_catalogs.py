@@ -46,7 +46,7 @@ def test_environment_json_shape():
 
 
 
-@pytest.mark.parametrize("command_file", ["summon.md", "dismiss.md", "introspect.md"])
+@pytest.mark.parametrize("command_file", ["summon.md", "dismiss.md", "introspect.md", "consolidate.md"])
 def test_every_skill_directory_has_a_routing_entry_in(command_file):
     """Each skills/<dir>/SKILL.md must be reachable from every routing-table command."""
     skills_root = ROOT / "skills"
