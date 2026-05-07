@@ -70,3 +70,28 @@ def test_stale_does_not_flag_recent_entry(monkeypatch):
     )
     stale_slugs = {s["slug"] for s in cand["stale"]}
     assert "eval-rubric-design" not in stale_slugs  # updated 2026-04-01
+
+
+
+def test_contradiction_flags_negation_pair_with_shared_tags():
+    cand = find_candidates(FIXTURES, "prompt-hamsa")
+    contras = cand["contradictions"]
+    pairs = {tuple(sorted(c["slugs"])) for c in contras}
+    assert ("cot-helps", "skip-cot-on-frontier") in pairs
+
+
+def test_orphan_flags_malformed_frontmatter():
+    cand = find_candidates(FIXTURES, "prompt-hamsa")
+    paths = [o["path"] for o in cand["orphans"]]
+    assert any("broken-entry.md" in p for p in paths)
+
+
+def test_render_brief_groups_each_category_under_heading():
+    cand = find_candidates(FIXTURES, "prompt-hamsa")
+    from scripts.consolidate import render_brief
+    md = render_brief(cand)
+    assert "## Slug-collision groups" in md
+    assert "## Tag-overlap clusters" in md
+    assert "## Stale" in md
+    assert "## Contradictions" in md
+    assert "## Orphans" in md

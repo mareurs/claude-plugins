@@ -59,14 +59,40 @@ def find_candidates(
         "slug_groups": _slug_collision_groups(entries),
         "tag_clusters": _tag_overlap_clusters([e for e in entries if e["slug"] not in grouped_slugs]),
         "stale": _stale_entries(entries, specialist, log_path, stale_days),
-        "contradictions": [],
+        "contradictions": _contradiction_pairs(entries),
         "orphans": orphans,
     }
 
 
-def render_brief(candidates: dict) -> str:
+def render_brief(cand: dict) -> str:
     """Render the candidate dict as a markdown brief for Phase 2."""
-    raise NotImplementedError("filled in by Task 6")
+    lines = [
+        f"# Consolidation Candidates — {cand['specialist']} in {cand['channel_root']}",
+        "",
+        f"## Slug-collision groups (N={len(cand['slug_groups'])})",
+    ]
+    for i, g in enumerate(cand["slug_groups"], 1):
+        lines.append(f"- Group {i}: " + ", ".join(f"`{s}`" for s in g["slugs"]))
+        for s, h in zip(g["slugs"], g["hooks"]):
+            lines.append(f"  - `{s}`: {h}")
+    lines.extend(["", f"## Tag-overlap clusters (N={len(cand['tag_clusters'])})"])
+    for i, c in enumerate(cand["tag_clusters"], 1):
+        tags = ", ".join(c["tags"])
+        lines.append(f"- Cluster {i} (tags {{{tags}}}, {len(c['slugs'])} entries):")
+        for s, h in zip(c["slugs"], c["hooks"]):
+            lines.append(f"  - `{s}`: {h}")
+    lines.extend(["", f"## Stale (N={len(cand['stale'])})"])
+    for s in cand["stale"]:
+        lines.append(f"- `{s['slug']}` — updated {s['updated']} ({s['days_stale']}d), no reload since")
+    lines.extend(["", f"## Contradictions (N={len(cand['contradictions'])})"])
+    for c in cand["contradictions"]:
+        lines.append(f"- Pair: " + " vs ".join(f"`{s}`" for s in c["slugs"])
+                     + f" — shared tags {c['shared_tags']}, negation in `{c['negation_in']}`")
+    lines.extend(["", f"## Orphans (N={len(cand['orphans'])})"])
+    for o in cand["orphans"]:
+        from pathlib import Path
+        lines.append(f"- `{Path(o['path']).name}` — {o['reason']}")
+    return "\n".join(lines) + "\n"
 
 
 def parse_plan(text: str) -> dict:
@@ -327,6 +353,37 @@ def _stale_entries(
             "loaded_since": False,
         })
     return stale
+
+
+
+NEGATION_TOKENS = {"don't", "dont", "never", "avoid", "not", "no", "stop"}
+
+
+def _contradiction_pairs(entries: list[dict]) -> list[dict]:
+    """Pairs that share ≥1 tag where exactly one entry's lesson contains a negation token."""
+    pairs: list[dict] = []
+    for i in range(len(entries)):
+        for j in range(i + 1, len(entries)):
+            a, b = entries[i], entries[j]
+            shared = set(a["tags"]) & set(b["tags"])
+            if not shared:
+                continue
+            neg_a = _has_negation(a["hook"])
+            neg_b = _has_negation(b["hook"])
+            if neg_a == neg_b:
+                continue
+            pairs.append({
+                "slugs": sorted([a["slug"], b["slug"]]),
+                "paths": [a["path"], b["path"]],
+                "shared_tags": sorted(shared),
+                "negation_in": a["slug"] if neg_a else b["slug"],
+            })
+    return pairs
+
+
+def _has_negation(text: str) -> bool:
+    words = [w.lower().strip(".,;:!?") for w in text.split()]
+    return any(w in NEGATION_TOKENS for w in words)
 
 
 def _default_summons_log() -> Path:
