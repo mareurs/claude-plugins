@@ -22,3 +22,21 @@ def test_slug_collision_groups_ignores_singletons():
     cand = find_candidates(FIXTURES, "prompt-hamsa")
     for g in cand["slug_groups"]:
         assert "unrelated" not in g["slugs"]
+
+
+def test_tag_overlap_cluster_detects_three_entries_sharing_two_tags():
+    cand = find_candidates(FIXTURES, "prompt-hamsa")
+    clusters = cand["tag_clusters"]
+    cluster_slugs = {tuple(sorted(c["slugs"])) for c in clusters}
+    expected = tuple(sorted(["eval-loop-pattern", "judge-prompt-discipline", "eval-set-size"]))
+    assert expected in cluster_slugs
+
+
+def test_tag_overlap_cluster_includes_shared_tags():
+    cand = find_candidates(FIXTURES, "prompt-hamsa")
+    for c in cand["tag_clusters"]:
+        if len(c["slugs"]) >= 3:
+            assert "prompts" in c["tags"]
+            assert "eval" in c["tags"]
+            return
+    pytest.fail("no cluster of size ≥3 returned")

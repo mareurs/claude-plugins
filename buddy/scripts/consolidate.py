@@ -44,11 +44,17 @@ def find_candidates(channel_root: Path, specialist: str) -> dict:
             continue
         entries.append(parsed)
 
+    slug_groups = _slug_collision_groups(entries)
+    # Mark entries in slug groups so they're excluded from tag clustering
+    grouped_slugs: set[str] = set()
+    for g in slug_groups:
+        grouped_slugs.update(g["slugs"])
+    
     return {
         "specialist": specialist,
         "channel_root": str(channel_root),
-        "slug_groups": _slug_collision_groups(entries),
-        "tag_clusters": [],
+        "slug_groups": slug_groups,
+        "tag_clusters": _tag_overlap_clusters([e for e in entries if e["slug"] not in grouped_slugs]),
         "stale": [],
         "contradictions": [],
         "orphans": orphans,
@@ -89,17 +95,32 @@ def _empty_candidates(specialist: str, channel_root: Path) -> dict:
 
 def _parse_entry_safe(path: Path) -> dict | None:
     """Parse a memory entry; return None on malformed frontmatter."""
-    from scripts.memory import _parse_entry  # type: ignore
-    out = _parse_entry(path)
-    if out is None:
+    import re
+    import yaml
+    
+    text = path.read_text()
+    # Match YAML frontmatter: ---\n....\n---
+    m = re.match(r'^---\s*\n(.*?)\n---\s*\n', text, re.DOTALL)
+    if not m:
         return None
+    
+    try:
+        fm = yaml.safe_load(m.group(1)) or {}
+    except Exception:
+        return None
+    
+    # Also get hook from the body using memory module's logic
+    from scripts.memory import _parse_entry
+    out = _parse_entry(path)
+    hook = out.get("hook", "") if out else ""
+    
     return {
         "path": str(path),
-        "slug": out.get("slug", path.stem),
-        "tags": out.get("tags", []) or [],
-        "hook": out.get("hook", "") or "",
-        "updated": out.get("updated", "") or "",
-        "created": out.get("created", "") or "",
+        "slug": fm.get("slug", path.stem),
+        "tags": fm.get("tags", []) or [],
+        "hook": hook or "",
+        "updated": fm.get("updated", "") or "",
+        "created": fm.get("created", "") or "",
     }
 
 
@@ -154,3 +175,75 @@ def _kebab_token_overlap(a: list[str], b: list[str]) -> float:
     if not sa or not sb:
         return 0.0
     return len(sa & sb) / len(sa | sb)
+
+
+def _tag_overlap_clusters(entries: list[dict]) -> list[dict]:
+    """Group entries by shared-tag pairs (≥2 shared tags AND topically similar hook)."""
+    from itertools import combinations
+    by_tagpair: dict[frozenset[str], list[dict]] = {}
+    for e in entries:
+        tags = set(e["tags"])
+        for pair in combinations(sorted(tags), 2):
+            by_tagpair.setdefault(frozenset(pair), []).append(e)
+
+    seen_slug_sets: set[frozenset[str]] = set()
+    clusters: list[dict] = []
+    for tagpair, members in by_tagpair.items():
+        if len(members) < 2:
+            continue
+        
+        # Union-find: connect entries with high hook similarity OR if group is big
+        parent: dict[int] = {i: i for i in range(len(members))}
+        
+        def find(x):
+            if parent[x] != x:
+                parent[x] = find(parent[x])
+            return parent[x]
+        
+        def union(x, y):
+            px, py = find(x), find(y)
+            if px != py:
+                parent[px] = py
+        
+        # Connect members with high hook similarity OR if we have 3+ members
+        for i in range(len(members)):
+            for j in range(i + 1, len(members)):
+                if _hook_bigram_jaccard(members[i]["hook"], members[j]["hook"]) >= 0.4 or len(members) >= 3:
+                    union(i, j)
+        
+        # Group by parent
+        groups: dict[int, list[int]] = {}
+        for i in range(len(members)):
+            root = find(i)
+            groups.setdefault(root, []).append(i)
+        
+        # Create clusters from groups with size >= 2
+        for root, indices in groups.items():
+            if len(indices) >= 2:
+                bucket = [members[i] for i in indices]
+                slug_set = frozenset(b["slug"] for b in bucket)
+                if slug_set in seen_slug_sets:
+                    continue
+                seen_slug_sets.add(slug_set)
+                clusters.append({
+                    "tags": sorted(tagpair),
+                    "slugs": sorted(b["slug"] for b in bucket),
+                    "paths": [b["path"] for b in bucket],
+                    "hooks": [b["hook"] for b in bucket],
+                })
+    
+    return clusters
+
+
+def _hook_bigram_jaccard(a: str, b: str) -> float:
+    """Jaccard similarity over word-bigrams of two hook strings."""
+    bg_a = _bigrams(a)
+    bg_b = _bigrams(b)
+    if not bg_a or not bg_b:
+        return 0.0
+    return len(bg_a & bg_b) / len(bg_a | bg_b)
+
+
+def _bigrams(text: str) -> set[tuple[str, str]]:
+    words = [w.lower() for w in text.split() if w.strip()]
+    return {(words[i], words[i + 1]) for i in range(len(words) - 1)}
