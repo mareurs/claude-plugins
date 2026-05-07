@@ -1,6 +1,6 @@
 ---
 name: buddy:summon
-description: Summon a specialist bodhisattva to help with a specific craft. Describe who you need in plain language — e.g. "debug", "testing", "ML training", "architecture", "security", "refactor", "performance", "docs", "data leakage classic", "data leakage llm", "planning". Some specialists have lenses; pass them as `<specialist>:<lens>` (e.g. `data-leakage:llm`). An ambiguous argument prints the specialist table and exits without loading anything.
+description: Summon a specialist bodhisattva to help with a specific craft. Describe who you need in plain language — e.g. "debug", "testing", "ML training", "architecture", "security", "refactor", "performance", "docs", "data leakage classic", "data leakage llm", "planning", "prompt". Some specialists have lenses; pass them as `<specialist>:<lens>` (e.g. `data-leakage:llm`). An ambiguous argument prints the specialist table and exits without loading anything.
 ---
 
 You are resolving a summon request. The argument passed by the user is `$1`.
@@ -21,6 +21,7 @@ The user's argument is plain language. Parse it into `<specialist>` and an optio
 | `docs-lotus-frog` | Technical writing, documentation architecture | — |
 | `data-leakage-snow-pheasant` | ML data hygiene, evaluation integrity, train/test leakage | **required**: `classic` or `llm` |
 | `security-ibex` | Security review, threat modeling, vulnerability analysis | — |
+| `prompt-hamsa` | Improving a prompt — critique, drafting from scratch, diagnosing model misbehavior, or coaching toward eval-driven iteration | — |
 
 ### Lens handling
 
