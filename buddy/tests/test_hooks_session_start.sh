@@ -52,3 +52,18 @@ if [ -n "$DEAD_BACKUP" ]; then mv "$DEAD_BACKUP" "$DEAD"; fi
 echo
 echo "Total: $((PASS+FAIL))  Pass: $PASS  Fail: $FAIL"
 [ "$FAIL" -eq 0 ]
+
+# Nudge test: 31 entries in prompt-hamsa triggers capacity nudge
+NUDGE_WORK=$(mktemp -d); trap 'rm -rf "$NUDGE_WORK"' EXIT
+NUDGE_MEM="$NUDGE_WORK/.buddy/memory/prompt-hamsa"
+mkdir -p "$NUDGE_MEM"
+for i in $(seq 1 31); do
+  echo "# entry $i" > "$NUDGE_MEM/entry-$(printf '%03d' $i).md"
+done
+
+NUDGE_EVENT='{"session_id":"sid-nudge","cwd":"'"$NUDGE_WORK"'","source":"startup","timestamp":1700003000}'
+NUDGE_OUT=$(echo "$NUDGE_EVENT" | CLAUDE_PLUGIN_ROOT="$PLUGIN_ROOT" bash "$HOOK" 2>/dev/null || true)
+
+echo "$NUDGE_OUT" | grep -q "consider /buddy:consolidate prompt-hamsa" \
+  && pass "capacity nudge fires for 31 entries" \
+  || fail "capacity nudge missing — output: $NUDGE_OUT"

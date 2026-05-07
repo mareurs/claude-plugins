@@ -789,3 +789,43 @@ def _is_empty(p: Path) -> bool:
         return not any(p.iterdir())
     except OSError:
         return True
+
+
+def session_start_nudges(channel_root: Path) -> list[str]:
+    """Return zero or more one-line nudges for session-start to print."""
+    if not channel_root.is_dir():
+        return []
+    out: list[str] = []
+    from scripts.memory import read_channel_meta
+    meta = read_channel_meta(channel_root)
+    last = meta.get("last_consolidated", {})
+    today = _today_iso()
+
+    # Suppress everything if a fresh plan is cached.
+    plan_yaml = channel_root / ".consolidation-plan.yaml"
+    if plan_yaml.is_file() and _plan_within_ttl(plan_yaml, hours=PLAN_TTL_HOURS):
+        return [f"→ memory: dry-run plan waiting at {plan_yaml.parent} — /buddy:consolidate apply | revise | cancel"]
+
+    for spec_dir in sorted(channel_root.iterdir()):
+        if not spec_dir.is_dir():
+            continue
+        # Soft cap nudge.
+        n_entries = sum(
+            1 for p in spec_dir.iterdir()
+            if p.is_file() and p.suffix == ".md" and not p.name.startswith(".")
+        )
+        if n_entries > SOFT_CAP_ENTRIES:
+            out.append(
+                f"→ memory: {spec_dir.name} has {n_entries} entries in {channel_root.name} — "
+                f"consider /buddy:consolidate {spec_dir.name}"
+            )
+        # Periodic nudge.
+        last_iso = last.get(spec_dir.name, "")
+        if last_iso:
+            age_d = _days_between(last_iso[:10], today)
+            if age_d > STALE_DAYS_NUDGE:
+                out.append(
+                    f"→ memory: {spec_dir.name} last consolidated {age_d} days ago — "
+                    f"/buddy:consolidate {spec_dir.name} when ready"
+                )
+    return out

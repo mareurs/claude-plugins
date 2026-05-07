@@ -48,6 +48,29 @@ fi
 DEAD_GLOBAL="$HOME/.claude/buddy/state.json"
 [ -f "$DEAD_GLOBAL" ] && rm -f "$DEAD_GLOBAL" 2>/dev/null || true
 
+# Memory consolidation nudges (capacity + stale-since).
+NUDGE_LINES=$(python3 -c "
+import sys
+sys.path.insert(0, '$PLUGIN_ROOT')
+from pathlib import Path
+from scripts.consolidate import session_start_nudges
+from scripts.memory import current_instance_dir
+inst = current_instance_dir()
+roots = []
+if inst:
+    roots.append(Path(inst) / 'buddy' / 'memory')
+proj = Path('${CLAUDE_PROJECT_DIR:-$CWD}') / '.buddy' / 'memory'
+if proj.is_dir():
+    roots.append(proj)
+for r in roots:
+    for line in session_start_nudges(r):
+        print(line)
+" 2>/dev/null)
+
+if [ -n "$NUDGE_LINES" ]; then
+    echo "$NUDGE_LINES"
+fi
+
 # Run state-handling Python with session-scoped path
 echo "$EVENT" | python3 -c "
 import sys, json, os
