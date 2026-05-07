@@ -681,8 +681,74 @@ def _default_summons_log() -> Path:
 
 
 def apply_plan_from_cache() -> str:
-    """Walk channel roots, find cached plans, apply each. Returns a summary string."""
-    raise NotImplementedError("filled in by Task 14")
+    """Walk both channel roots, find cached plans, apply each, mirror global writes."""
+    from scripts.memory import current_instance_dir
+
+    summary: list[str] = []
+    candidates: list[tuple[Path, str]] = []
+
+    inst_dir = current_instance_dir()
+    if inst_dir:
+        global_root = Path(inst_dir) / "buddy" / "memory"
+        if (global_root / ".consolidation-plan.yaml").is_file():
+            candidates.append((global_root, "global"))
+
+    project_root = Path.cwd() / ".buddy" / "memory"
+    if (project_root / ".consolidation-plan.yaml").is_file():
+        candidates.append((project_root, "project"))
+
+    if not candidates:
+        return "no cached plans found"
+
+    for channel_root, scope in candidates:
+        yaml_cache = channel_root / ".consolidation-plan.yaml"
+        if not _plan_within_ttl(yaml_cache, hours=PLAN_TTL_HOURS):
+            summary.append(f"{scope}: plan expired (>24h old). Re-run consolidate.")
+            continue
+        plan = parse_plan(yaml_cache.read_text())
+        result = apply_plan(plan, channel_root)
+        summary.append(
+            f"{scope}: {result['applied']} applied, {result['skipped']} skipped, "
+            f"{len(result['deferred'])} deferred"
+        )
+        # Mirror global writes to other CC instances.
+        if scope == "global":
+            _mirror_global_if_available(channel_root, plan)
+        # Stage project writes.
+        if scope == "project":
+            import subprocess
+            try:
+                subprocess.run(
+                    ["git", "add", str(channel_root)],
+                    check=False, capture_output=True, cwd=str(channel_root.parent),
+                )
+            except OSError:
+                pass
+
+    return "\n".join(summary)
+
+
+def _mirror_global_if_available(channel_root: Path, plan: dict) -> None:
+    """Mirror global writes to secondary CC instance if mirror_global_write exists."""
+    try:
+        from scripts.memory import mirror_global_write
+    except ImportError:
+        return
+    specialist = plan.get("specialist", "")
+    spec_dir = channel_root / specialist
+    if spec_dir.is_dir():
+        for p in spec_dir.rglob("*.md"):
+            try:
+                mirror_global_write(p.relative_to(channel_root))
+            except Exception:
+                pass
+
+
+def _plan_within_ttl(p: Path, *, hours: int) -> bool:
+    if not p.is_file():
+        return False
+    age_s = time.time() - p.stat().st_mtime
+    return age_s < hours * 3600
 
 
 def archive_entry(channel_root: Path, specialist: str, slug: str, *, today: str | None = None) -> Path:
