@@ -267,7 +267,24 @@ Each summoned specialist has its own POV memory. Memories accumulate hard-won ju
 
 **Two CC instances:** if you run both `~/.claude` and `~/.claude-sdd`, edit `buddy/data/instances.json` to list both paths. Global writes mirror across them.
 
-## License
+### Consolidation auto-trigger (opt-in)
+
+Add to `.claude/buddy.json`:
+
+```json
+{
+  "consolidation": {
+    "auto_dry_run_on_session_start": true,
+    "auto_dry_run_threshold_days": 30,
+    "auto_dry_run_threshold_entries": 30,
+    "auto_dry_run_debounce_hours": 6
+  }
+}
+```
+
+When enabled, the SessionStart hook surfaces the most-overdue specialist and
+suggests `/buddy:consolidate`. Apply still requires explicit user action.
+Default off.## License
 
 MIT
 

@@ -829,3 +829,64 @@ def session_start_nudges(channel_root: Path) -> list[str]:
                     f"/buddy:consolidate {spec_dir.name} when ready"
                 )
     return out
+
+
+def read_auto_trigger_config(cwd: Path) -> dict:
+    """Read .claude/buddy.json for auto-trigger flags. Returns defaults if absent."""
+    p = cwd / ".claude" / "buddy.json"
+    defaults = {
+        "auto_dry_run_on_session_start": False,
+        "auto_dry_run_threshold_days": 30,
+        "auto_dry_run_threshold_entries": 30,
+        "auto_dry_run_debounce_hours": 6,
+    }
+    if not p.is_file():
+        return defaults
+    try:
+        import json
+        data = json.loads(p.read_text())
+        cons = data.get("consolidation", {})
+        return {**defaults, **cons}
+    except (OSError, ValueError):
+        return defaults
+
+
+def auto_dry_run_eligible(channel_root: Path, cfg: dict) -> str | None:
+    """If auto-trigger should run on this channel, return the most-overdue specialist; else None."""
+    if not cfg.get("auto_dry_run_on_session_start"):
+        return None
+    if not channel_root.is_dir():
+        return None
+    from scripts.memory import read_channel_meta
+    meta = read_channel_meta(channel_root)
+    last_attempt = meta.get("last_auto_dry_run_attempt", "")
+    if last_attempt:
+        age_h = (time.time() - _iso_to_ts(last_attempt)) / 3600
+        if age_h < cfg["auto_dry_run_debounce_hours"]:
+            return None
+    last = meta.get("last_consolidated", {})
+    today = _today_iso()
+    overdue: list[tuple[int, str]] = []
+    for spec_dir in channel_root.iterdir():
+        if not spec_dir.is_dir() or spec_dir.name in (".archive",):
+            continue
+        n_entries = sum(
+            1 for p in spec_dir.iterdir()
+            if p.is_file() and p.suffix == ".md" and not p.name.startswith(".")
+        )
+        last_iso = last.get(spec_dir.name, "")
+        age_d = _days_between(last_iso[:10], today) if last_iso else 9999
+        if n_entries > cfg["auto_dry_run_threshold_entries"] or age_d > cfg["auto_dry_run_threshold_days"]:
+            overdue.append((age_d, spec_dir.name))
+    if not overdue:
+        return None
+    overdue.sort(reverse=True)
+    return overdue[0][1]
+
+
+def _iso_to_ts(iso: str) -> float:
+    try:
+        from datetime import datetime
+        return datetime.fromisoformat(iso.replace("Z", "+00:00")).timestamp()
+    except ValueError:
+        return 0.0

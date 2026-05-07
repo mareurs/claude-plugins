@@ -71,6 +71,32 @@ if [ -n "$NUDGE_LINES" ]; then
     echo "$NUDGE_LINES"
 fi
 
+# Optional auto-dry-run (opt-in via .claude/buddy.json).
+AUTO=$(python3 -c "
+import sys
+sys.path.insert(0, '${PLUGIN_ROOT}')
+from pathlib import Path
+from scripts.consolidate import read_auto_trigger_config, auto_dry_run_eligible
+from scripts.memory import current_instance_dir
+cfg = read_auto_trigger_config(Path('${CLAUDE_PROJECT_DIR:-$CWD}'))
+inst = current_instance_dir()
+roots = []
+if inst:
+    roots.append(Path(inst) / 'buddy' / 'memory')
+proj = Path('${CLAUDE_PROJECT_DIR:-$CWD}') / '.buddy' / 'memory'
+if proj.is_dir():
+    roots.append(proj)
+for r in roots:
+    target = auto_dry_run_eligible(r, cfg)
+    if target:
+        print(f'{r}\t{target}')
+        break
+" 2>/dev/null)
+
+if [ -n "$AUTO" ]; then
+    echo "→ memory: auto-trigger enabled — most-overdue: $AUTO. Run /buddy:consolidate to start the dry-run."
+fi
+
 # Run state-handling Python with session-scoped path
 echo "$EVENT" | python3 -c "
 import sys, json, os
