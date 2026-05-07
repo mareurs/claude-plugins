@@ -9,7 +9,8 @@ Phases:
 from __future__ import annotations
 
 import re
-from datetime import date
+import shutil
+from datetime import date, datetime
 from pathlib import Path
 
 import yaml
@@ -449,3 +450,43 @@ def _default_summons_log() -> Path:
 def apply_plan_from_cache() -> str:
     """Walk channel roots, find cached plans, apply each. Returns a summary string."""
     raise NotImplementedError("filled in by Task 14")
+
+
+def archive_entry(channel_root: Path, specialist: str, slug: str, *, today: str | None = None) -> Path:
+    """Move <channel>/<specialist>/<slug>.md into <channel>/<specialist>/.archive/<YYYY-MM-DD>/.
+
+    Returns the new archive path. Raises FileNotFoundError if source missing.
+    Handles same-day re-runs by suffixing the archive dir (-2, -3, ...).
+    """
+    today = today or _today_iso()
+    src = channel_root / specialist / f"{slug}.md"
+    if not src.is_file():
+        raise FileNotFoundError(f"no such entry: {src}")
+
+    archive_dir = _allocate_archive_dir(channel_root, specialist, today)
+    dst = archive_dir / src.name
+    shutil.move(str(src), str(dst))
+    return dst
+
+
+def _allocate_archive_dir(channel_root: Path, specialist: str, today: str) -> Path:
+    base = channel_root / specialist / ARCHIVE_DIRNAME
+    base.mkdir(parents=True, exist_ok=True)
+    candidate = base / today
+    if not candidate.exists() or _is_empty(candidate):
+        candidate.mkdir(parents=True, exist_ok=True)
+        return candidate
+    n = 2
+    while True:
+        c = base / f"{today}-{n}"
+        if not c.exists() or _is_empty(c):
+            c.mkdir(parents=True, exist_ok=True)
+            return c
+        n += 1
+
+
+def _is_empty(p: Path) -> bool:
+    try:
+        return not any(p.iterdir())
+    except OSError:
+        return True

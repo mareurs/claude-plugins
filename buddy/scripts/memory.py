@@ -113,6 +113,9 @@ def regen_index(channel_root: Path) -> Path:
             if not spec_dir.is_dir():
                 continue
             for entry_file in sorted(spec_dir.glob("*.md")):
+                # Skip archived entries
+                if any(part == ".archive" for part in entry_file.parts):
+                    continue
                 parsed = _parse_entry(entry_file)
                 if parsed:
                     entries.append(parsed)
@@ -142,3 +145,30 @@ def read_index(channel_root: Path) -> list[tuple[str, str, str]]:
         if m:
             out.append((m.group("key"), m.group("path"), m.group("hook")))
     return out
+
+
+def read_channel_meta(channel_root: Path) -> dict:
+    """Read <channel>/meta.json if present; return {} otherwise."""
+    p = channel_root / "meta.json"
+    if not p.is_file():
+        return {}
+    try:
+        return json.loads(p.read_text())
+    except (OSError, json.JSONDecodeError):
+        return {}
+
+
+def write_channel_meta(channel_root: Path, meta: dict) -> None:
+    """Atomic-ish write of <channel>/meta.json."""
+    p = channel_root / "meta.json"
+    p.parent.mkdir(parents=True, exist_ok=True)
+    tmp = p.with_suffix(".json.tmp")
+    tmp.write_text(json.dumps(meta, indent=2, sort_keys=True))
+    tmp.replace(p)
+
+
+def update_last_consolidated(channel_root: Path, specialist: str, iso: str) -> None:
+    meta = read_channel_meta(channel_root)
+    meta.setdefault("version", 1)
+    meta.setdefault("last_consolidated", {})[specialist] = iso
+    write_channel_meta(channel_root, meta)
