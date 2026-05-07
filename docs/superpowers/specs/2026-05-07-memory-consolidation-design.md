@@ -1,0 +1,449 @@
+# Memory Consolidation ("Sleep") — Design Document
+
+**Date:** 2026-05-07
+**Plugin:** `buddy`
+**Status:** Approved (brainstorming complete)
+
+## Problem
+
+The buddy plugin accumulates memories under `~/.claude/buddy/memory/` (global)
+and `<repo>/.buddy/memory/` (project), one markdown file per lesson, organized
+by specialist POV. Entries are written ad-hoc via `/buddy:remember` and during
+`/buddy:dismiss` introspection. Over time these will:
+
+- Drift (slug stutters: `eval-rubric` and `evaluation-rubric` written a week
+  apart by different summons)
+- Bloat (one specialist gathers dozens of small lessons that should be one)
+- Stale (lessons about model-generation features that no longer apply)
+- Contradict (an early heuristic that a later session disproved)
+
+The existing soft cap of 30 entries (per `summon.md` Step 2.5) emits a
+"consider consolidating" hint but has no command behind it. Users have no
+mechanism to actually consolidate.
+
+## Solution
+
+A single command, `/buddy:consolidate [target]`, that runs a four-phase
+pipeline: deterministic candidate detection → specialist judgment → user
+dry-run gate → mechanical apply. Inspired by the "sleep consolidation"
+metaphor (each specialist periodically reviews and reorganizes its own
+memories), engineered as a hybrid of rule-based shortlisting (cheap,
+auditable) and LLM-driven decisions (semantic merging in the specialist's
+voice).
+
+## Scope
+
+**In scope (v1):**
+
+- `/buddy:consolidate [target]` command (manual entry point)
+- Deterministic candidate detection (Phase 1) covering five categories: slug
+  collisions, tag-overlap clusters, stale entries, contradiction pairs,
+  parser-orphans
+- Specialist-driven judgment (Phase 2) producing a structured plan in a
+  fixed YAML schema, written to a cached plan file
+- User dry-run gate (Phase 3) with three responses: `apply`, `revise <text>`,
+  `cancel`
+- Mechanical apply (Phase 4): file moves to `.archive/<YYYY-MM-DD>/`, INDEX
+  regen, log append, mirror, idempotent re-runs
+- Trigger surfaces: manual command (always), soft-suggestion at capacity,
+  periodic nudge (>30d), opt-in auto-dry-run on SessionStart
+- Tests: candidate-detection, apply-mechanics, validation, lock, nudge
+
+**Out of scope (deferred to v2):**
+
+- `/buddy:consolidate revert <date>` — on-disk archive layout supports it;
+  command not authored
+- Cross-specialist consolidation (Hamsa noticing duplicates in Yeti's POV)
+- Embedding-based similarity for clustering — v1 uses tag overlap + hook
+  bigrams; embeddings can swap in behind the `find_candidates()` interface
+- Auto-apply (writing without user approval) — never planned
+
+## Surface and scope
+
+### Command
+
+```
+/buddy:consolidate [target]
+```
+
+| `target`                 | Effect                                                        |
+| ------------------------ | ------------------------------------------------------------- |
+| (empty)                  | Active specialists' memories + their `common/` overlap        |
+| specialist alias         | That specialist's POV only                                    |
+| `common`                 | Common bucket; judged by each currently-active specialist     |
+| `all`                    | Every specialist directory; requires confirmation             |
+| `apply`                  | Apply the most recent cached dry-run plan                     |
+| `revise <text>`          | Re-run Phase 2 with feedback appended; produces new plan      |
+| `cancel`                 | Discard cached plan                                           |
+
+### Files affected
+
+**Create:**
+
+- `buddy/commands/consolidate.md` — slash command entry point
+- `buddy/scripts/consolidate.py` — candidate detection + apply phase
+- `buddy/data/consolidation-protocol.md` — Phase 2 prompt template (mirrors
+  `data/memory-protocol.md`)
+- `buddy/tests/test_consolidate_candidates.py`
+- `buddy/tests/test_consolidate_apply.py`
+- `buddy/tests/test_consolidate_validation.py`
+- `buddy/tests/test_consolidate_lock.py`
+
+**Modify:**
+
+- `buddy/scripts/memory.py` — archive helpers; `last_consolidated` metadata
+  read/write; `regen_index` skips `.archive/` paths
+- `buddy/hooks/session-start.sh` — soft-suggestion + periodic nudge logic
+- `buddy/data/memory-protocol.md` — cross-link to consolidation protocol
+- `buddy/README.md` — Commands table row; brief Memory section update
+- `buddy/tests/test_data_catalogs.py` — extend parametrized routing-coverage
+  test to include `consolidate.md`
+- `buddy/tests/test_hooks_session_start.sh` — assert nudge messages
+  appear/suppress correctly under threshold conditions
+
+### Channel layout after consolidation
+
+```
+<channel>/
+  <specialist>/
+    <slug>.md                       # live entries
+    .archive/
+      2026-05-07/
+        <original-slug>.md          # archived on merge or archive op
+  common/
+    .archive/...
+  INDEX.md                          # regenerated by regen_index()
+  meta.json                         # { last_consolidated: { <specialist>: ISO8601 }, version: 1 }
+  .consolidation-plan.md            # cached dry-run plan (24h TTL)
+  .consolidation.log                # append-only audit trail
+  .consolidation.lock               # PID + ISO8601 during apply
+  .deferred.md                      # one-line reminders for `defer` ops
+```
+
+## Phase 1 — Deterministic candidate detection
+
+`buddy/scripts/consolidate.py::find_candidates(channel_root, specialist)`
+returns a structured candidate brief. Pure functions, no LLM call. Five
+categories:
+
+1. **Slug-collision groups.** Group entries by exact slug or by ≥0.85
+   token-overlap on kebab tokens. Groups of size ≥2 are merge candidates.
+2. **Tag-overlap clusters.** Pairs with ≥2 shared tags AND topically-similar
+   `hook` (Jaccard on hook bigrams ≥0.4). Clusters of ≥3 entries on the same
+   tag-pair flag as summarization candidates.
+3. **Stale entries.** `updated` more than `STALE_DAYS` (default 90) ago AND
+   no summon-log evidence the file was loaded since. Computed from
+   `~/.claude/buddy/summons.log` (existing).
+4. **Contradiction pairs.** Heuristic: pairs sharing ≥1 tag where one
+   `Lesson` line contains negation tokens (`don't`, `never`, `avoid`, `not`)
+   and the other does not. Flagged for specialist review; never auto-resolved
+   by rules.
+5. **Orphans.** Entries where `_parse_entry()` returned `None` (malformed
+   frontmatter). Specialist decides: fix or archive.
+
+The brief is rendered as markdown and passed verbatim to Phase 2 along with
+the full body of every referenced entry. Entries not in the brief are not
+loaded into Phase 2's context.
+
+## Phase 2 — Specialist judgment
+
+The active specialist receives the candidate brief plus the full body of
+every referenced entry. It is asked to produce a consolidation plan in a
+fixed YAML schema. The judgment prompt is in
+`buddy/data/consolidation-protocol.md` and gets injected into the active
+turn after the candidate brief.
+
+### Prompt skeleton (verbatim into the turn)
+
+> Consolidation reflection, `<directory>`. You see your own memories and the
+> consolidation candidates the rules surfaced. For each candidate group,
+> decide one of: `merge`, `archive`, `summarize`, `keep_all`, `defer`. Apply
+> your method, not generic editorial reflex. Three rules:
+>
+> 1. **Voice preservation.** When merging or summarizing, the new body must
+>    read as a single coherent lesson in your voice. If the originals
+>    disagree on substance, you cannot merge — you must reconcile (write a
+>    new entry that supersedes both) or `defer` to the user.
+> 2. **No silent loss.** Every entry that disappears from the active set
+>    must be either merged into a successor (cite by slug in the new body's
+>    `**Supersedes:**` line) or archived (which keeps the file readable).
+>    Never delete.
+> 3. **Doubt → defer.** If you cannot confidently decide, mark `defer` with
+>    a one-line reason. The user will judge.
+
+### Required output schema
+
+```yaml
+plan_version: 1
+specialist: <directory>
+channel: <global|project>
+generated: <ISO8601>
+operations:
+  - op: merge
+    inputs: [slug-a, slug-b]
+    output:
+      slug: <new-or-kept-slug>
+      tags: [...]
+      body: |
+        **Lesson:** ...
+        **Why:** ...
+        **How to apply:** ...
+        **Supersedes:** slug-a, slug-b
+    reason: <one line — why merge is safe>
+
+  - op: archive
+    slug: <slug>
+    reason: <one line — why no longer load-bearing>
+
+  - op: summarize
+    inputs: [slug-x, slug-y, slug-z]
+    output:
+      slug: <new-slug>
+      tags: [...]
+      body: |
+        ...
+    reason: ...
+
+  - op: keep_all
+    slugs: [...]
+    reason: <why the rules-shortlist was wrong>
+
+  - op: defer
+    target: <slug or group descriptor>
+    reason: <what the user must decide>
+```
+
+### Token-budget guardrail
+
+If candidate brief + full bodies exceeds 25k tokens, Phase 1 splits into
+multiple Phase-2 invocations per category (slug-groups first, then
+tag-clusters, then stale, then contradictions, then orphans). Each
+invocation produces a partial plan; Phase 3 stitches them by concatenating
+their `operations:` arrays.
+
+## Phase 3 — User gate
+
+The script renders the parsed plan as a single markdown report and writes it
+to `<channel>/.consolidation-plan.md`. User responds with one of three
+commands. No interactive per-op prompting; the gate is a deliberate batch.
+
+### Render format
+
+```
+# Consolidation plan — <specialist> in <channel>
+# Generated <ISO8601>, by <specialist>
+
+## Merges (N)
+▸ Merge `slug-a` + `slug-b` → `output-slug`
+  Reason: ...
+  New body: ...
+
+## Archives (N)
+▸ Archive `slug`
+  Reason: ...
+
+## Summaries (N)
+▸ Summarize {N entries on tags [...]} → `new-slug`
+  Reason: ...
+  New body: ...
+  Originals (will be archived): ...
+
+## Deferred (N)
+▸ Defer pair `slug-a` vs `slug-b`
+  Reason: ...
+
+## Summary
+  N ops, X entries collapsing to Y, Z deferred for your decision.
+```
+
+### Three responses
+
+| Command                              | Effect                                              |
+| ------------------------------------ | --------------------------------------------------- |
+| `/buddy:consolidate apply`           | Execute the cached plan; Phase 4 runs               |
+| `/buddy:consolidate revise <text>`   | Re-run Phase 2 with feedback appended; new plan     |
+| `/buddy:consolidate cancel`          | Discard cached plan; no changes                     |
+
+### Cache lifetime
+
+The `.consolidation-plan.md` file expires 24h after generation. After
+expiry, `apply` refuses with: "plan generated <X>h ago — re-run
+`/buddy:consolidate <target>` to refresh." Prevents accidental application
+of stale plans.
+
+## Phase 4 — Apply
+
+`buddy/scripts/consolidate.py::apply_plan(plan_path)` — pure file moves
+driven by the parsed plan. No LLM call. Idempotent: re-running `apply` on a
+plan that already executed is a no-op (operations whose preconditions are no
+longer satisfied are skipped silently and logged).
+
+### Per-op semantics
+
+| Op           | What happens |
+| ------------ | ------------ |
+| `merge`      | Write `output.body` to `<channel>/<specialist>/<output.slug>.md` with merged frontmatter (`created` = oldest input, `updated` = today, `tags` = unioned). Move every input file to `<channel>/<specialist>/.archive/<YYYY-MM-DD>/<input-slug>.md`. If `output.slug` equals an input slug, that input is rewritten in place rather than archived. |
+| `archive`    | Move file to `<channel>/<specialist>/.archive/<YYYY-MM-DD>/<slug>.md`. Body unchanged. |
+| `summarize`  | Mechanically identical to `merge`. Distinction is for the plan reader. |
+| `keep_all`   | No-op. Recorded in audit log. |
+| `defer`      | No-op. Unresolved item is appended to `<channel>/.deferred.md` so it is not lost. |
+
+### Post-apply
+
+1. `meta.json` updated: `last_consolidated[<specialist>] = <ISO8601>`.
+2. `INDEX.md` regenerated via `regen_index()` — walks live entries
+   (`.archive/` excluded) and rebuilds.
+3. **Mirror (global only):** mirror the entire specialist subtree (including
+   new `.archive/<date>/`) to other CC instances via `mirror_global_write()`.
+4. **Stage (project only):** `git add` the mutated paths. User commits when
+   ready.
+5. Append one line per applied op to `<channel>/.consolidation.log`:
+   ```
+   2026-05-07T14:35Z merge prompt-hamsa eval-rubric-design <- evaluation-rubric-design
+   2026-05-07T14:35Z archive prompt-hamsa claude-3-prefill-trick
+   ```
+6. Delete `.consolidation-plan.md`.
+
+### Index exclusion rule
+
+`regen_index()` is modified to skip any path under a `.archive/` segment
+(any depth). Required so archived entries don't reappear in INDEX.
+
+### Rollback (manual, not a v1 command)
+
+Archives are kept; nothing is `rm`ed. To undo by hand:
+
+1. Move files out of `.archive/<YYYY-MM-DD>/` back to
+   `<channel>/<specialist>/`.
+2. Delete the merged successor file(s).
+3. Re-run `regen_index()` (e.g. via the existing memory script entry point).
+
+`/buddy:consolidate revert <date>` is out of scope for v1 but the disk shape
+supports it.
+
+## Trigger surfaces
+
+Four entry points, all leading to the same dry-run gate. Defaults err
+toward predictability.
+
+### 1. Manual command
+
+`/buddy:consolidate [target]` — always available. Targets defined under
+"Surface and scope".
+
+### 2. Soft-suggestion at capacity
+
+`session-start.sh` already emits memory hints. Extend its channel scan: when
+`count(active entries in <specialist>) > SOFT_CAP_ENTRIES` (default 30),
+emit one line:
+
+```
+→ memory: prompt-hamsa has 34 entries in <channel> — consider /buddy:consolidate hamsa
+```
+
+Hint only. Never acts.
+
+### 3. Periodic nudge
+
+Same hook reads `meta.json`. If `last_consolidated[<specialist>]` is missing
+or older than `STALE_DAYS_NUDGE` (default 30):
+
+```
+→ memory: prompt-hamsa last consolidated 47 days ago — /buddy:consolidate hamsa when ready
+```
+
+Suppressed if a `.consolidation-plan.md` is already cached and not yet
+expired (don't double-nag).
+
+### 4. Auto-trigger (opt-in only)
+
+Config flag in `.claude/buddy.json`:
+
+```json
+{
+  "consolidation": {
+    "auto_dry_run_on_session_start": false,
+    "auto_dry_run_threshold_days": 30,
+    "auto_dry_run_threshold_entries": 30
+  }
+}
+```
+
+When `auto_dry_run_on_session_start: true`, the SessionStart hook runs
+Phase 1 + Phase 2 in the background (capped to one specialist per session —
+whichever is most overdue). Phase 4 still requires explicit `apply`. The
+user is told:
+
+```
+→ prompt-hamsa dry-run waiting at <channel>/.consolidation-plan.md
+   /buddy:consolidate apply | revise <text> | cancel
+```
+
+Auto Phase 2 runs as a subagent dispatch, not in the user's interactive
+turn, so token cost lands on the plugin rather than blocking the first
+prompt. Per-session debounce: `meta.json` records
+`last_auto_dry_run_attempt`; won't retry within 6h regardless of outcome.
+
+**Default off** for v1.
+
+## Failure modes
+
+| Failure                                          | Mitigation |
+| ------------------------------------------------ | ---------- |
+| Specialist emits malformed plan YAML             | Parser fails closed → Phase 3 reports raw output, user can `revise`. No mutations. |
+| Plan references slugs that don't exist           | `apply_plan()` validates every input slug exists as a live file before any move. Fail-closed if missing. |
+| Plan references files outside the target channel | Path containment check — every resolved path must be a child of `<channel-root>`. Reject the whole plan otherwise. |
+| Concurrent auto-dry-runs collide on `common/`    | Per-channel lock file `<channel>/.consolidation.lock` containing PID + ISO8601. Stale > 1h treated as crashed and cleared. |
+| Project memory dir is gitignored                 | Project-channel apply still works; just doesn't `git add`. Same posture as existing memory writes. |
+| Mirror to other CC instance fails partway        | `mirror_global_write()` returns the list of successful targets; consolidate logs the failure but doesn't roll back local state. User re-runs (idempotent) or next memory write catches up. |
+| `.archive/` path collision on same-day re-run    | Second consolidation appends `-2`, `-3` suffix to the date dir if the existing one is non-empty. |
+| Phase 2 token budget exceeded                    | Phase 1 splitter emits multiple plans per category; Phase 3 stitches by concatenating `operations:` arrays. |
+| Auto-trigger surprises a user who didn't opt in  | Default off. Flag explicit in `.claude/buddy.json`. |
+
+## Testing
+
+Additions to `buddy/tests/`:
+
+1. `test_consolidate_candidates.py` — fixture channels exercising each of
+   the five candidate categories. Pure-function tests, no LLM.
+2. `test_consolidate_apply.py` — given a hand-written plan + fixture
+   channel, confirm: files moved to `.archive/<date>/`, new entries written,
+   INDEX regenerated, log appended, idempotent on second run.
+3. `test_consolidate_validation.py` — malformed plans (bad YAML, missing
+   slugs, path escape attempts) all fail closed.
+4. `test_consolidate_lock.py` — concurrent invocations respect the lock;
+   stale lock recovery.
+5. `test_session_start_nudge.sh` — extends existing session-start tests;
+   confirms threshold messages appear / suppress correctly.
+6. `test_data_catalogs.py` — extend the parametrized routing-coverage test
+   to include `consolidate.md`.
+
+Phase 2 (specialist judgment) is **not** unit-tested directly — it is
+qualitative LLM output. An integration smoke test summons a fixture
+specialist against a tiny fixture channel; the assertion is "produces a
+parseable plan", not "produces a *good* plan".
+
+## Versioning
+
+- `plan_version: 1` baked into the plan schema. Apply rejects unknown
+  versions.
+- `meta.json` carries a `version: 1` field. Schema migrations are additive
+  only for v1.
+- Plugin-version bump is meaty: propose `buddy 0.5.0` (Hamsa + introspect)
+  → `0.6.0` (this feature). Confirm at release time.
+
+## Risks
+
+- **LLM voice drift during merge/summarize.** Mitigation: protocol's "Voice
+  preservation" rule + user dry-run gate + reversible archive.
+- **Specialist over-archives.** User can `revise` with explicit "keep these"
+  feedback. Threshold tuning left to user via config.
+- **Rules under-detect** real duplicates that don't share tags or slugs.
+  Acceptable for v1; embedding-based detection is a v2 swap.
+- **Cache file ages out mid-conversation.** 24h TTL plus the `.lock` makes
+  this rare. User gets a clear "re-run" message rather than a silent
+  failure.
+- **Per-instance mirror divergence.** If one instance applies and another
+  doesn't yet see the mirror, it may regenerate stale memories on its next
+  session. Mirror runs at apply time; lag is bounded by mirror latency
+  (typically < 1s for local filesystems).
