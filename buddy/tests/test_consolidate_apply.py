@@ -54,3 +54,83 @@ def test_regen_index_skips_archive_directory(channel):
     idx = (channel / "INDEX.md").read_text()
     assert "prompt-hamsa/y" in idx
     assert "prompt-hamsa/x" not in idx
+
+
+def test_apply_merge_writes_output_and_archives_inputs(channel):
+    """A merge op writes the new entry and archives the inputs."""
+    spec = channel / "prompt-hamsa"
+    (spec / "a.md").write_text(
+        "---\nspecialist: prompt-hamsa\nscope: global\nslug: a\n"
+        "created: 2026-04-01\nupdated: 2026-04-01\ntags: [t1]\n---\n\n**Lesson:** a.\n"
+    )
+    (spec / "b.md").write_text(
+        "---\nspecialist: prompt-hamsa\nscope: global\nslug: b\n"
+        "created: 2026-04-08\nupdated: 2026-04-08\ntags: [t2]\n---\n\n**Lesson:** b.\n"
+    )
+    plan = {
+        "plan_version": 1,
+        "specialist": "prompt-hamsa",
+        "channel": "global",
+        "generated": "2026-05-07T14:30Z",
+        "operations": [
+            {
+                "op": "merge",
+                "inputs": ["a", "b"],
+                "output": {
+                    "slug": "ab",
+                    "tags": ["t1", "t2"],
+                    "body": "**Lesson:** merged.\n**Supersedes:** a, b\n",
+                },
+                "reason": "stutter",
+            },
+        ],
+    }
+    from scripts.consolidate import apply_plan
+    result = apply_plan(plan, channel, today="2026-05-07")
+    assert result["applied"] == 1
+    new_path = spec / "ab.md"
+    assert new_path.exists()
+    txt = new_path.read_text()
+    assert "slug: ab" in txt
+    assert "**Supersedes:**" in txt
+    assert not (spec / "a.md").exists()
+    assert not (spec / "b.md").exists()
+    assert (spec / ARCHIVE_DIRNAME / "2026-05-07" / "a.md").exists()
+    assert (spec / ARCHIVE_DIRNAME / "2026-05-07" / "b.md").exists()
+
+
+def test_apply_archive_moves_file(channel):
+    """An archive op moves the file."""
+    plan = {
+        "plan_version": 1,
+        "specialist": "prompt-hamsa",
+        "channel": "global",
+        "generated": "2026-05-07T14:30Z",
+        "operations": [{"op": "archive", "slug": "x", "reason": "stale"}],
+    }
+    from scripts.consolidate import apply_plan
+    result = apply_plan(plan, channel, today="2026-05-07")
+    assert result["applied"] == 1
+    assert not (channel / "prompt-hamsa" / "x.md").exists()
+    assert (channel / "prompt-hamsa" / ARCHIVE_DIRNAME / "2026-05-07" / "x.md").exists()
+
+
+def test_apply_summarize_behaves_like_merge(channel):
+    """Summarize is mechanically identical to merge."""
+    spec = channel / "prompt-hamsa"
+    (spec / "a.md").write_text("---\nspecialist: prompt-hamsa\nscope: global\nslug: a\ncreated: 2026-04-01\nupdated: 2026-04-01\ntags: []\n---\n\n**Lesson:** a.\n")
+    (spec / "b.md").write_text("---\nspecialist: prompt-hamsa\nscope: global\nslug: b\ncreated: 2026-04-08\nupdated: 2026-04-08\ntags: []\n---\n\n**Lesson:** b.\n")
+    plan = {
+        "plan_version": 1, "specialist": "prompt-hamsa", "channel": "global",
+        "generated": "2026-05-07T14:30Z",
+        "operations": [{
+            "op": "summarize",
+            "inputs": ["a", "b", "x"],
+            "output": {"slug": "summary", "tags": [], "body": "**Lesson:** rolled up.\n"},
+            "reason": "small entries",
+        }],
+    }
+    from scripts.consolidate import apply_plan
+    result = apply_plan(plan, channel, today="2026-05-07")
+    assert result["applied"] == 1
+    assert (spec / "summary.md").exists()

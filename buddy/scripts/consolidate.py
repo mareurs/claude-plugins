@@ -161,9 +161,118 @@ def render_plan_for_user(plan: dict) -> str:
     raise NotImplementedError("filled in by Task 12")
 
 
-def apply_plan(plan: dict, channel_root: Path) -> dict:
-    """Phase 4 — file moves driven by the plan. Idempotent."""
-    raise NotImplementedError("filled in by Tasks 9–11, 13")
+def apply_plan(plan: dict, channel_root: Path, *, today: str | None = None) -> dict:
+    """Phase 4 — file moves driven by the plan. Idempotent, fail-closed.
+
+    Returns: {"applied": int, "skipped": int, "deferred": list[str], "log": list[str]}
+    """
+    today = today or _today_iso()
+    specialist = plan["specialist"]
+    spec_dir = channel_root / specialist
+    spec_dir.mkdir(parents=True, exist_ok=True)
+    log: list[str] = []
+    deferred: list[str] = []
+    applied = 0
+    skipped = 0
+
+    for op in plan["operations"]:
+        kind = op["op"]
+        try:
+            if kind in ("merge", "summarize"):
+                _apply_merge_like(op, spec_dir, channel_root, specialist, today, log)
+                applied += 1
+            elif kind == "archive":
+                _apply_archive(op, channel_root, specialist, today, log)
+                applied += 1
+            elif kind == "keep_all":
+                log.append(f"{today} keep_all {specialist} {op.get('slugs', [])}")
+                applied += 1
+            elif kind == "defer":
+                deferred.append(str(op.get("target", "")))
+                _append_deferred(channel_root, op, today)
+                log.append(f"{today} defer {specialist} {op.get('target', '')}")
+                applied += 1
+        except FileNotFoundError as exc:
+            log.append(f"{today} skip {kind} {specialist}: {exc}")
+            skipped += 1
+
+    return {"applied": applied, "skipped": skipped, "deferred": deferred, "log": log}
+
+
+def _apply_merge_like(op, spec_dir, channel_root, specialist, today, log):
+    inputs = op["inputs"]
+    output = op["output"]
+    out_slug = output["slug"]
+    out_path = spec_dir / f"{out_slug}.md"
+
+    oldest_created = None
+    union_tags: set[str] = set(output.get("tags", []) or [])
+    for slug in inputs:
+        src = spec_dir / f"{slug}.md"
+        if not src.is_file():
+            continue
+        parsed = _parse_entry_safe(src)
+        if parsed:
+            union_tags.update(parsed.get("tags") or [])
+            cre = parsed.get("created", "")
+            if cre and (oldest_created is None or cre < oldest_created):
+                oldest_created = cre
+
+    fm = _build_frontmatter(
+        specialist=specialist,
+        scope=_infer_scope(channel_root),
+        slug=out_slug,
+        created=oldest_created or today,
+        updated=today,
+        tags=sorted(union_tags),
+    )
+    body = output.get("body", "").rstrip() + "\n"
+    out_path.write_text(fm + "\n" + body)
+
+    # Archive all inputs (except the output slug) into a single dated dir.
+    to_archive = [slug for slug in inputs if slug != out_slug and (spec_dir / f"{slug}.md").is_file()]
+    if to_archive:
+        import shutil
+        archive_dir = _allocate_archive_dir(channel_root, specialist, today)
+        for slug in to_archive:
+            src = spec_dir / f"{slug}.md"
+            shutil.move(str(src), str(archive_dir / src.name))
+            log.append(f"{today} {op['op']} {specialist} {out_slug} <- {slug}")
+
+
+def _apply_archive(op, channel_root, specialist, today, log):
+    slug = op["slug"]
+    archive_entry(channel_root, specialist, slug, today=today)
+    log.append(f"{today} archive {specialist} {slug}")
+
+
+def _append_deferred(channel_root: Path, op: dict, today: str) -> None:
+    p = channel_root / CHANNEL_DEFERRED_NAME
+    p.parent.mkdir(parents=True, exist_ok=True)
+    line = f"{today} {op.get('target', '')} — {op.get('reason', '')}\n"
+    with p.open("a") as fh:
+        fh.write(line)
+
+
+def _build_frontmatter(*, specialist, scope, slug, created, updated, tags) -> str:
+    tag_line = "[" + ", ".join(tags) + "]"
+    return (
+        "---\n"
+        f"specialist: {specialist}\n"
+        f"scope: {scope}\n"
+        f"slug: {slug}\n"
+        f"created: {created}\n"
+        f"updated: {updated}\n"
+        f"tags: {tag_line}\n"
+        "---\n"
+    )
+
+
+def _infer_scope(channel_root: Path) -> str:
+    """Best-effort scope inference: 'project' if path contains '/.buddy/', else 'global'."""
+    s = str(channel_root)
+    return "project" if "/.buddy/" in s or s.endswith(".buddy/memory") or "/.buddy/memory" in s else "global"
+
 
 
 def _empty_candidates(specialist: str, channel_root: Path) -> dict:
