@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pytest
 
-from buddy.scripts.consolidate import find_candidates
+from scripts.consolidate import find_candidates
 
 FIXTURES = Path(__file__).parent / "fixtures" / "consolidate_channel"
 

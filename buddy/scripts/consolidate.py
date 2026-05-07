@@ -87,7 +87,7 @@ def _empty_candidates(specialist: str, channel_root: Path) -> dict:
 
 def _parse_entry_safe(path: Path) -> dict | None:
     """Parse a memory entry; return None on malformed frontmatter."""
-    from buddy.scripts.memory import _parse_entry  # type: ignore
+    from scripts.memory import _parse_entry  # type: ignore
     out = _parse_entry(path)
     if out is None:
         return None
