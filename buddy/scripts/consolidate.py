@@ -90,7 +90,6 @@ def render_brief(cand: dict) -> str:
                      + f" — shared tags {c['shared_tags']}, negation in `{c['negation_in']}`")
     lines.extend(["", f"## Orphans (N={len(cand['orphans'])})"])
     for o in cand["orphans"]:
-        from pathlib import Path
         lines.append(f"- `{Path(o['path']).name}` — {o['reason']}")
     return "\n".join(lines) + "\n"
 
