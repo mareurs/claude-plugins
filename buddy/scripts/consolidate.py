@@ -8,6 +8,7 @@ Phases:
 """
 from __future__ import annotations
 
+from datetime import date
 from pathlib import Path
 
 CHANNEL_LOCK_NAME = ".consolidation.lock"
@@ -23,7 +24,13 @@ STALE_DAYS_NUDGE = 30
 PLAN_TTL_HOURS = 24
 
 
-def find_candidates(channel_root: Path, specialist: str) -> dict:
+def find_candidates(
+    channel_root: Path,
+    specialist: str,
+    *,
+    summons_log_path: Path | None = None,
+    stale_days: int = STALE_DAYS_DEFAULT,
+) -> dict:
     """Phase 1 — deterministic candidate detection. Pure function, no LLM call."""
     spec_dir = channel_root / specialist
     if not spec_dir.is_dir():
@@ -44,18 +51,14 @@ def find_candidates(channel_root: Path, specialist: str) -> dict:
             continue
         entries.append(parsed)
 
-    slug_groups = _slug_collision_groups(entries)
-    # Mark entries in slug groups so they're excluded from tag clustering
-    grouped_slugs: set[str] = set()
-    for g in slug_groups:
-        grouped_slugs.update(g["slugs"])
-    
+    log_path = summons_log_path or _default_summons_log()
+    grouped_slugs = {s for g in _slug_collision_groups(entries) for s in g["slugs"]}
     return {
         "specialist": specialist,
         "channel_root": str(channel_root),
-        "slug_groups": slug_groups,
+        "slug_groups": _slug_collision_groups(entries),
         "tag_clusters": _tag_overlap_clusters([e for e in entries if e["slug"] not in grouped_slugs]),
-        "stale": [],
+        "stale": _stale_entries(entries, specialist, log_path, stale_days),
         "contradictions": [],
         "orphans": orphans,
     }
@@ -114,13 +117,21 @@ def _parse_entry_safe(path: Path) -> dict | None:
     out = _parse_entry(path)
     hook = out.get("hook", "") if out else ""
     
+    # Convert date objects back to ISO strings
+    updated = fm.get("updated", "") or ""
+    created = fm.get("created", "") or ""
+    if hasattr(updated, "isoformat"):
+        updated = updated.isoformat()
+    if hasattr(created, "isoformat"):
+        created = created.isoformat()
+    
     return {
         "path": str(path),
         "slug": fm.get("slug", path.stem),
         "tags": fm.get("tags", []) or [],
         "hook": hook or "",
-        "updated": fm.get("updated", "") or "",
-        "created": fm.get("created", "") or "",
+        "updated": updated or "",
+        "created": created or "",
     }
 
 
@@ -247,3 +258,76 @@ def _hook_bigram_jaccard(a: str, b: str) -> float:
 def _bigrams(text: str) -> set[tuple[str, str]]:
     words = [w.lower() for w in text.split() if w.strip()]
     return {(words[i], words[i + 1]) for i in range(len(words) - 1)}
+
+
+
+def _today_iso() -> str:
+    """Wrapped for test monkeypatching."""
+    return date.today().isoformat()
+
+
+def _days_between(iso_a: str, iso_b: str) -> int:
+    """Returns absolute day difference. Returns 0 if either parse fails."""
+    try:
+        da = date.fromisoformat(iso_a)
+        db = date.fromisoformat(iso_b)
+    except (ValueError, TypeError):
+        return 0
+    return abs((db - da).days)
+
+
+def _summons_after(specialist: str, since_iso: str, log_path: Path) -> bool:
+    """True if summons.log records the specialist being summoned after since_iso."""
+    if not log_path.is_file():
+        return False
+    try:
+        since_date = date.fromisoformat(since_iso)
+        import calendar
+        since_ts = calendar.timegm(since_date.timetuple())
+    except ValueError:
+        return False
+    with log_path.open() as fh:
+        for line in fh:
+            parts = line.strip().split("\t")
+            if len(parts) < 3:
+                continue
+            try:
+                ts = int(parts[0])
+            except ValueError:
+                continue
+            if parts[1] != specialist:
+                continue
+            if parts[2] == "summoned" and ts > since_ts:
+                return True
+    return False
+
+
+def _stale_entries(
+    entries: list[dict],
+    specialist: str,
+    summons_log_path: Path,
+    stale_days: int,
+) -> list[dict]:
+    today = _today_iso()
+    stale: list[dict] = []
+    for e in entries:
+        if not e.get("updated"):
+            continue
+        days_stale = _days_between(e["updated"], today)
+        if days_stale < stale_days:
+            continue
+        loaded_since = _summons_after(specialist, e["updated"], summons_log_path)
+        if loaded_since:
+            continue
+        stale.append({
+            "slug": e["slug"],
+            "path": e["path"],
+            "updated": e["updated"],
+            "days_stale": days_stale,
+            "loaded_since": False,
+        })
+    return stale
+
+
+def _default_summons_log() -> Path:
+    return Path.home() / ".claude" / "buddy" / "summons.log"

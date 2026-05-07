@@ -40,3 +40,33 @@ def test_tag_overlap_cluster_includes_shared_tags():
             assert "eval" in c["tags"]
             return
     pytest.fail("no cluster of size ≥3 returned")
+
+
+
+def test_stale_detects_entry_past_threshold(monkeypatch):
+    """Entry with updated > 90 days ago AND no summon-log evidence post-update is stale."""
+    monkeypatch.setattr(
+        "scripts.consolidate._today_iso",
+        lambda: "2026-05-07",
+    )
+    cand = find_candidates(
+        FIXTURES,
+        "prompt-hamsa",
+        summons_log_path=FIXTURES / "summons.log",
+    )
+    stale_slugs = {s["slug"] for s in cand["stale"]}
+    assert "old-prefill-trick" in stale_slugs
+
+
+def test_stale_does_not_flag_recent_entry(monkeypatch):
+    monkeypatch.setattr(
+        "scripts.consolidate._today_iso",
+        lambda: "2026-05-07",
+    )
+    cand = find_candidates(
+        FIXTURES,
+        "prompt-hamsa",
+        summons_log_path=FIXTURES / "summons.log",
+    )
+    stale_slugs = {s["slug"] for s in cand["stale"]}
+    assert "eval-rubric-design" not in stale_slugs  # updated 2026-04-01
