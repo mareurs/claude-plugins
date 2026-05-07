@@ -8,8 +8,11 @@ Phases:
 """
 from __future__ import annotations
 
+import os
 import re
 import shutil
+import time
+from contextlib import contextmanager
 from datetime import date, datetime
 from pathlib import Path
 
@@ -26,6 +29,34 @@ STALE_DAYS_DEFAULT = 90
 SOFT_CAP_ENTRIES = 30
 STALE_DAYS_NUDGE = 30
 PLAN_TTL_HOURS = 24
+LOCK_STALE_SECONDS = 3600
+
+
+@contextmanager
+def _channel_lock(channel_root: Path):
+    lock_path = channel_root / CHANNEL_LOCK_NAME
+    if lock_path.is_file():
+        try:
+            content = lock_path.read_text().strip()
+            _pid_str, ts_str = content.split("\t", 1)
+            ts = float(ts_str)
+            age = time.time() - ts
+            if age < LOCK_STALE_SECONDS:
+                raise RuntimeError(
+                    f"lock: another consolidation is running on {channel_root} "
+                    f"(pid in lock, age {int(age)}s)"
+                )
+        except (ValueError, OSError):
+            pass  # malformed → treat as stale, overwrite below
+    channel_root.mkdir(parents=True, exist_ok=True)
+    lock_path.write_text(f"{os.getpid()}\t{time.time()}")
+    try:
+        yield
+    finally:
+        try:
+            lock_path.unlink()
+        except FileNotFoundError:
+            pass
 
 
 def find_candidates(
@@ -193,18 +224,23 @@ def render_plan_for_user(plan: dict) -> str:
 
 
 def apply_plan(plan: dict, channel_root: Path, *, today: str | None = None) -> dict:
-    """Phase 4 — file moves driven by the plan. Idempotent, fail-closed.
-
-    Returns: {"applied": int, "skipped": int, "deferred": list[str], "log": list[str]}
-    """
+    """Phase 4 — file moves driven by the plan. Idempotent, fail-closed."""
     today = today or _today_iso()
     specialist = plan["specialist"]
+
     if not _is_safe_path_component(specialist):
         raise ValueError(f"path: specialist {specialist!r} is not a safe path component")
     for op in plan["operations"]:
         for slug in _slugs_in_op(op):
             if not _is_safe_path_component(slug):
                 raise ValueError(f"path: slug {slug!r} is not a safe path component")
+
+    with _channel_lock(channel_root):
+        return _apply_plan_inner(plan, channel_root, today)
+
+
+def _apply_plan_inner(plan: dict, channel_root: Path, today: str) -> dict:
+    specialist = plan["specialist"]
     spec_dir = channel_root / specialist
     spec_dir.mkdir(parents=True, exist_ok=True)
     log: list[str] = []
