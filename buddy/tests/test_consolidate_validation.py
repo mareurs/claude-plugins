@@ -71,3 +71,15 @@ def test_parse_plan_extracts_yaml_from_fenced_block():
 def test_parse_plan_raises_on_no_yaml_block_and_no_root_keys():
     with pytest.raises(ValueError, match="no plan"):
         parse_plan("This is just prose with no plan in it.")
+
+
+def test_apply_rejects_path_escape_attempt(tmp_path):
+    """A merge op trying to write outside the channel must fail closed."""
+    from scripts.consolidate import apply_plan
+    plan = {
+        "plan_version": 1, "specialist": "../../etc", "channel": "global",
+        "generated": "2026-05-07T14:30Z",
+        "operations": [{"op": "archive", "slug": "../../etc/passwd", "reason": "x"}],
+    }
+    with pytest.raises(ValueError, match="path"):
+        apply_plan(plan, tmp_path, today="2026-05-07")

@@ -134,3 +134,46 @@ def test_apply_summarize_behaves_like_merge(channel):
     result = apply_plan(plan, channel, today="2026-05-07")
     assert result["applied"] == 1
     assert (spec / "summary.md").exists()
+
+
+def test_apply_defer_writes_to_deferred_log(channel):
+    plan = {
+        "plan_version": 1, "specialist": "prompt-hamsa", "channel": "global",
+        "generated": "2026-05-07T14:30Z",
+        "operations": [{"op": "defer", "target": "a-vs-b", "reason": "user call"}],
+    }
+    from scripts.consolidate import apply_plan
+    result = apply_plan(plan, channel, today="2026-05-07")
+    assert result["deferred"] == ["a-vs-b"]
+    deferred_file = channel / ".deferred.md"
+    assert deferred_file.is_file()
+    txt = deferred_file.read_text()
+    assert "a-vs-b" in txt
+    assert "user call" in txt
+
+
+def test_apply_keep_all_is_noop(channel):
+    plan = {
+        "plan_version": 1, "specialist": "prompt-hamsa", "channel": "global",
+        "generated": "2026-05-07T14:30Z",
+        "operations": [{"op": "keep_all", "slugs": ["x"], "reason": "distinct"}],
+    }
+    from scripts.consolidate import apply_plan
+    result = apply_plan(plan, channel, today="2026-05-07")
+    assert result["applied"] == 1
+    assert (channel / "prompt-hamsa" / "x.md").is_file()  # unchanged
+
+
+def test_apply_is_idempotent_on_second_run(channel):
+    plan = {
+        "plan_version": 1, "specialist": "prompt-hamsa", "channel": "global",
+        "generated": "2026-05-07T14:30Z",
+        "operations": [{"op": "archive", "slug": "x", "reason": "stale"}],
+    }
+    from scripts.consolidate import apply_plan
+    r1 = apply_plan(plan, channel, today="2026-05-07")
+    assert r1["applied"] == 1
+    r2 = apply_plan(plan, channel, today="2026-05-07")
+    # Second run finds no source to archive — skipped, not error.
+    assert r2["applied"] == 0
+    assert r2["skipped"] == 1

@@ -168,6 +168,12 @@ def apply_plan(plan: dict, channel_root: Path, *, today: str | None = None) -> d
     """
     today = today or _today_iso()
     specialist = plan["specialist"]
+    if not _is_safe_path_component(specialist):
+        raise ValueError(f"path: specialist {specialist!r} is not a safe path component")
+    for op in plan["operations"]:
+        for slug in _slugs_in_op(op):
+            if not _is_safe_path_component(slug):
+                raise ValueError(f"path: slug {slug!r} is not a safe path component")
     spec_dir = channel_root / specialist
     spec_dir.mkdir(parents=True, exist_ok=True)
     log: list[str] = []
@@ -197,6 +203,35 @@ def apply_plan(plan: dict, channel_root: Path, *, today: str | None = None) -> d
             skipped += 1
 
     return {"applied": applied, "skipped": skipped, "deferred": deferred, "log": log}
+
+
+def _is_safe_path_component(s: str) -> bool:
+    if not isinstance(s, str) or not s:
+        return False
+    if "/" in s or "\\" in s:
+        return False
+    if s in (".", "..") or s.startswith(".."):
+        return False
+    if s.startswith("."):
+        return False
+    return True
+
+
+def _slugs_in_op(op: dict) -> list[str]:
+    slugs: list[str] = []
+    if "slug" in op and isinstance(op["slug"], str):
+        slugs.append(op["slug"])
+    for s in op.get("inputs", []) or []:
+        if isinstance(s, str):
+            slugs.append(s)
+    for s in op.get("slugs", []) or []:
+        if isinstance(s, str):
+            slugs.append(s)
+    out = op.get("output") or {}
+    if isinstance(out.get("slug"), str):
+        slugs.append(out["slug"])
+    return slugs
+
 
 
 def _apply_merge_like(op, spec_dir, channel_root, specialist, today, log):
