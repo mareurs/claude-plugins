@@ -39,3 +39,22 @@ def test_environment_json_shape():
     )
     for mood, strip in data.items():
         assert isinstance(strip, str)
+
+
+
+def test_every_skill_directory_has_a_summon_routing_entry():
+    """Each skills/<dir>/SKILL.md must be reachable via the summon routing table."""
+    skills_root = ROOT / "skills"
+    summon_md = (ROOT / "commands" / "summon.md").read_text()
+
+    skill_dirs = [
+        d.name for d in skills_root.iterdir()
+        if d.is_dir() and (d / "SKILL.md").is_file()
+    ]
+    assert skill_dirs, "no skill directories found"
+
+    missing = [d for d in skill_dirs if f"`{d}`" not in summon_md]
+    assert not missing, (
+        f"skill directories with no summon routing entry: {missing}. "
+        f"Add a row to commands/summon.md routing table."
+    )
