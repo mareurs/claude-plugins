@@ -36,6 +36,8 @@ def find_candidates(channel_root: Path, specialist: str) -> dict:
             continue
         if path.name.startswith("."):
             continue
+        if ARCHIVE_DIRNAME in path.parts:
+            continue
         parsed = _parse_entry_safe(path)
         if parsed is None:
             orphans.append({"path": str(path), "reason": "missing-frontmatter"})
@@ -136,14 +138,11 @@ def _kebab_tokens(slug: str) -> list[str]:
 
 
 def _stem(token: str) -> str:
-    """Crude stemmer: drop trailing 'tion'/'ing'/'s' so 'eval'/'evaluation' converge."""
-    # First, strip longest suffix
+    """Two-pass stemmer: (1) strip suffix (ation/tion/ing/es/s); (2) strip trailing weak vowel (u/a/e) if >4 chars. Together: 'eval'/'evaluation' both → 'eval'."""
     for suffix in ("ation", "tion", "ing", "es", "s"):
         if token.endswith(suffix) and len(token) > len(suffix) + 2:
             token = token[: -len(suffix)]
             break
-    # Then strip remaining vowel-heavy ending if still long enough
-    # e.g., "evalu" -> "eval"
     if token.endswith(("u", "a", "e")) and len(token) > 4:
         token = token[:-1]
     return token
