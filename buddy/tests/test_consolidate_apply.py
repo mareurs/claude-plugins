@@ -177,3 +177,39 @@ def test_apply_is_idempotent_on_second_run(channel):
     # Second run finds no source to archive — skipped, not error.
     assert r2["applied"] == 0
     assert r2["skipped"] == 1
+
+
+def test_render_plan_for_user_groups_ops_by_kind(channel):
+    """The user-facing rendering groups merge/archive/summarize/defer with counts."""
+    from scripts.consolidate import render_plan_for_user
+    plan = {
+        "plan_version": 1, "specialist": "prompt-hamsa", "channel": "global",
+        "generated": "2026-05-07T14:30Z",
+        "operations": [
+            {"op": "merge", "inputs": ["a", "b"], "output": {"slug": "ab", "tags": [], "body": "X"}, "reason": "r1"},
+            {"op": "archive", "slug": "c", "reason": "r2"},
+            {"op": "defer", "target": "d-vs-e", "reason": "r3"},
+        ],
+    }
+    md = render_plan_for_user(plan)
+    assert "# Consolidation plan" in md
+    assert "## Merges (1)" in md
+    assert "## Archives (1)" in md
+    assert "## Deferred (1)" in md
+    assert "ab" in md and "c" in md and "d-vs-e" in md
+
+
+def test_apply_writes_log_and_updates_meta(channel):
+    plan = {
+        "plan_version": 1, "specialist": "prompt-hamsa", "channel": "global",
+        "generated": "2026-05-07T14:30Z",
+        "operations": [{"op": "archive", "slug": "x", "reason": "stale"}],
+    }
+    from scripts.consolidate import apply_plan
+    apply_plan(plan, channel, today="2026-05-07")
+    log = (channel / ".consolidation.log").read_text()
+    assert "archive prompt-hamsa x" in log
+    meta_path = channel / "meta.json"
+    import json
+    meta = json.loads(meta_path.read_text())
+    assert meta["last_consolidated"]["prompt-hamsa"].startswith("2026-05-07")

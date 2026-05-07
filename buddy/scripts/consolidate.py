@@ -158,7 +158,38 @@ def parse_plan(text: str) -> dict:
 
 def render_plan_for_user(plan: dict) -> str:
     """Render parsed plan as the dry-run markdown shown to the user."""
-    raise NotImplementedError("filled in by Task 12")
+    by_kind: dict[str, list] = {"merge": [], "archive": [], "summarize": [], "keep_all": [], "defer": []}
+    for op in plan["operations"]:
+        by_kind[op["op"]].append(op)
+
+    lines = [
+        f"# Consolidation plan — {plan['specialist']} in {plan['channel']}",
+        f"# Generated {plan['generated']}, by {plan['specialist']}",
+        "",
+        f"## Merges ({len(by_kind['merge'])})",
+    ]
+    for op in by_kind["merge"]:
+        lines.append(f"▸ Merge `{'`, `'.join(op['inputs'])}` → `{op['output']['slug']}`")
+        lines.append(f"  Reason: {op['reason']}")
+        lines.append(f"  New body:")
+        for body_line in op["output"].get("body", "").splitlines():
+            lines.append(f"    {body_line}")
+    lines.extend(["", f"## Archives ({len(by_kind['archive'])})"])
+    for op in by_kind["archive"]:
+        lines.append(f"▸ Archive `{op['slug']}`")
+        lines.append(f"  Reason: {op['reason']}")
+    lines.extend(["", f"## Summaries ({len(by_kind['summarize'])})"])
+    for op in by_kind["summarize"]:
+        lines.append(f"▸ Summarize {{ {len(op['inputs'])} entries }} → `{op['output']['slug']}`")
+        lines.append(f"  Reason: {op['reason']}")
+        lines.append(f"  Originals (will be archived): {', '.join(op['inputs'])}")
+    lines.extend(["", f"## Deferred ({len(by_kind['defer'])})"])
+    for op in by_kind["defer"]:
+        lines.append(f"▸ Defer `{op['target']}`")
+        lines.append(f"  Reason: {op['reason']}")
+    n_ops = sum(len(v) for v in by_kind.values())
+    lines.extend(["", "## Summary", f"  {n_ops} ops, {len(by_kind['defer'])} deferred for your decision."])
+    return "\n".join(lines) + "\n"
 
 
 def apply_plan(plan: dict, channel_root: Path, *, today: str | None = None) -> dict:
@@ -201,6 +232,28 @@ def apply_plan(plan: dict, channel_root: Path, *, today: str | None = None) -> d
         except FileNotFoundError as exc:
             log.append(f"{today} skip {kind} {specialist}: {exc}")
             skipped += 1
+
+    # Append per-op log lines.
+    log_path = channel_root / CHANNEL_LOG_NAME
+    log_path.parent.mkdir(parents=True, exist_ok=True)
+    with log_path.open("a") as fh:
+        for line in log:
+            fh.write(line + "\n")
+
+    # Update last_consolidated in meta.json.
+    from scripts.memory import update_last_consolidated, regen_index
+    update_last_consolidated(channel_root, specialist, today + "T00:00:00Z")
+
+    # Regen INDEX.
+    try:
+        regen_index(channel_root)
+    except Exception:
+        pass  # INDEX is advisory; never block apply
+
+    # Delete cached plan if present.
+    plan_cache = channel_root / CHANNEL_PLAN_NAME
+    if plan_cache.is_file():
+        plan_cache.unlink()
 
     return {"applied": applied, "skipped": skipped, "deferred": deferred, "log": log}
 
