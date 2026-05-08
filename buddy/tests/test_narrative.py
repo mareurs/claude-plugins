@@ -102,3 +102,79 @@ def test_compact_noop_when_few_entries(tmp_path):
 
 def test_max_entries_before_compact_is_50():
     assert MAX_ENTRIES_BEFORE_COMPACT == 50
+
+
+
+def test_enforce_cap_noop_when_under_limit(tmp_path):
+    from scripts.narrative import (
+        append_entry,
+        enforce_narrative_cap,
+        read_narrative,
+    )
+    path = tmp_path / "narrative.jsonl"
+    for i in range(10):
+        append_entry(path, "action", f"entry-{i}")
+    truncated = enforce_narrative_cap(path)
+    assert truncated is False
+    assert len(read_narrative(path)) == 10
+
+
+def test_enforce_cap_truncates_to_keep_recent_when_over_entry_cap(tmp_path):
+    from scripts.narrative import (
+        MAX_ENTRIES_HARD_CAP,
+        KEEP_RECENT,
+        append_entry,
+        enforce_narrative_cap,
+        read_narrative,
+    )
+    path = tmp_path / "narrative.jsonl"
+    # Write exactly MAX_ENTRIES_HARD_CAP + 1 so truncation fires on the last
+    # append and no further writes accumulate after it. (append_entry calls
+    # enforce_narrative_cap on every write, so adding more entries beyond the
+    # truncation point would just grow the post-truncation tail.)
+    for i in range(MAX_ENTRIES_HARD_CAP + 1):
+        append_entry(path, "action", f"entry-{i}")
+    enforce_narrative_cap(path)  # idempotent
+    entries = read_narrative(path)
+    assert len(entries) == KEEP_RECENT + 1, (
+        f"expected KEEP_RECENT ({KEEP_RECENT}) recent entries + 1 truncation "
+        f"placeholder, got {len(entries)}"
+    )
+    assert entries[0]["type"] == "truncated", (
+        "first entry should be the truncation placeholder"
+    )
+    assert "auto-truncated" in entries[0]["text"]
+    last_text = entries[-1]["text"]
+    assert last_text.startswith("entry-"), (
+        "last entry should be a real action, got: " + last_text
+    )
+
+
+def test_enforce_cap_truncates_when_over_byte_cap(tmp_path, monkeypatch):
+    import scripts.narrative as nar
+    # Drop the byte cap so we can trigger it without writing a real megabyte.
+    monkeypatch.setattr(nar, "MAX_BYTES_HARD_CAP", 200)
+    monkeypatch.setattr(nar, "MAX_ENTRIES_HARD_CAP", 10_000)  # disable entry-cap path
+    path = tmp_path / "narrative.jsonl"
+    # Each entry is ~50 bytes; 20 entries blow the 200-byte cap.
+    for i in range(20):
+        nar.append_entry(path, "action", f"entry-{i}")
+    nar.enforce_narrative_cap(path)
+    entries = nar.read_narrative(path)
+    assert len(entries) <= nar.KEEP_RECENT + 1
+    assert entries[0]["type"] == "truncated"
+
+
+def test_append_entry_calls_enforce_cap(tmp_path, monkeypatch):
+    import scripts.narrative as nar
+    # Force the cap to engage after just a few entries to verify append_entry
+    # invokes enforce_narrative_cap on every write.
+    monkeypatch.setattr(nar, "MAX_ENTRIES_HARD_CAP", 5)
+    path = tmp_path / "narrative.jsonl"
+    for i in range(20):
+        nar.append_entry(path, "action", f"entry-{i}")
+    entries = nar.read_narrative(path)
+    # Should not exceed KEEP_RECENT + 1 placeholder.
+    assert len(entries) <= nar.KEEP_RECENT + 1, (
+        f"append_entry should enforce cap on every write; got {len(entries)}"
+    )
