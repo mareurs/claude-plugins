@@ -66,7 +66,8 @@ EOF
 
 write_routing_config() {
   local dir="$1"
-  local json="${2:-{}}"
+  local json="$2"
+  [ -z "$json" ] && json='{}'
   mkdir -p "$dir/.claude"
   printf '%s\n' "$json" > "$dir/.claude/codescout-companion.json"
 }
