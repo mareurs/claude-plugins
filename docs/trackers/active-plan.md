@@ -135,6 +135,49 @@ Append-only. Each entry: date, decision-id, what, why, who. Reversals get a new 
 
 **Resolves.** T-37.
 
+### D-7 — 2026-05-15 — Calibration target: strong-panel labels (degraded substitute for human labels)
+
+**Decision.** Substitute the human-label calibration set (originally specified in T-7) with **strong-panel labels**: run a separate, premium-model panel (Opus 4.7 / GPT-5 Pro / Gemini 3.1 Pro Preview) on the same candidate responses and treat the strong panel's majority vote as the gold label. Compute Cohen's κ between the cheap judge panel and the strong panel.
+
+**Why.** Human hand-labeling (T-7) requires ~2 hours of manual work. The user explicitly declined to do it ("I can't do it myself; let's use good models"). The alternatives were:
+
+- Skip calibration entirely (lose the κ ≥ 0.6 quality gate).
+- Recruit external annotators (not available).
+- Use stronger LLMs as a gold-label proxy (this option).
+
+**Degradation accepted — read this before trusting the κ.**
+
+Pheasant-llm Method 4 + 7 + 9 are explicit on this point: human labels are *the escape hatch from the closed eval loop*. All LLMs share biases (training-data correlations, instruction-tuning patterns, RLHF priors). Cross-LLM agreement systematically overstates true agreement with human judgment because the shared biases inflate the observed agreement rate.
+
+Therefore: the κ we will compute is **inter-panel agreement**, not panel-vs-human agreement. It is a *weaker* signal than the original specification.
+
+What κ ≥ 0.6 means under this degraded substitute:
+- Our cheap judge panel agrees with the strong panel ≥ 60% of the time, beyond chance.
+- Both panels may share the same systematic bias against (or for) certain response styles.
+- A real κ vs human could be substantially lower — we cannot know without humans.
+
+**Mitigations.**
+
+1. **Strong panel uses different models from the cheap panel** — not just upgraded variants. The aim is some methodological diversity even within the closed loop.
+2. **Result is labeled as `kappa_vs_strong_panel`, NEVER as `kappa_vs_human`** — both in code and in trackers.
+3. **TODO recorded in `eval-bringup.md` Setup checklist**: replace strong-panel labels with human labels when feasible. Until then, treat κ as a lower bound on judge reliability, not a quality guarantee.
+4. **Threshold raised**: target κ ≥ 0.7 (not 0.6) on inter-panel agreement, because the inflation bias means we need more margin to reach the equivalent of 0.6 vs humans.
+
+**Strong panel composition (D-7).**
+
+| Slot | Provider | Model | Differs from cheap panel by |
+|---|---|---|---|
+| 1 | Anthropic | `openrouter:anthropic/claude-opus-4.7` | Opus tier vs Sonnet (Opus = stronger reasoning) |
+| 2 | OpenAI | `openrouter:openai/gpt-5-pro` | Pro tier vs base GPT-5 (more reasoning budget, higher latency) |
+| 3 | Google | `openrouter:google/gemini-3.1-pro-preview` | 3.1 vs 2.5 (newer generation; preview model) |
+
+All run at temperature 0, max_tokens 8000 (premium models often produce more verbose reasoning).
+
+**Cost.** 3 cases × 3 gold judges ≈ 9 calls per calibration iteration. At premium pricing, ~$2–4 per iteration. Iterate the cheap judge prompt until κ ≥ 0.7.
+
+**Resolves.** T-7 + T-8 (degraded substitute path). Original T-7 (hand-label 15 cases) remains a TODO in `eval-bringup.md`.
+
+**Revert trigger.** When a human annotator is available, re-run κ vs human on the same 3 cases and record both numbers side by side. If κ-vs-human < 0.6 while κ-vs-strong-panel ≥ 0.7, that gap is the bias estimate.
 ## Self-Inspection Grounds
 
 The conditions under which the buddy suite gets re-audited. Without these, the introspection sweep we just finished is a one-shot ritual that drifts the moment lit changes or someone edits a SKILL.md.

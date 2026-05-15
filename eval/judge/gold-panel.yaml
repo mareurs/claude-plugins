@@ -1,0 +1,63 @@
+# Strong panel — premium-model gold-label proxy (D-7)
+#
+# Used by `eval/scripts/gold-label.py` to score candidate responses as a
+# substitute for human labels. The κ between this panel and the cheap
+# judge panel (`panel.yaml`) is the calibration signal under D-7.
+#
+# CRITICAL: this is panel-vs-strong-panel, NOT panel-vs-human. LLMs share
+# biases; cross-LLM agreement OVERSTATES true human agreement. The threshold
+# is raised from 0.6 → 0.7 to compensate, but the result is still a weaker
+# signal than the original specification.
+#
+# See docs/trackers/active-plan.md § Decisions Log § D-7 for the full
+# tradeoff analysis and revert trigger.
+
+description: |
+  Strong-panel gold-label proxy. Three premium models from three vendors,
+  intentionally tier-distinct from the cheap judge panel.
+
+env:
+  - OPENROUTER_API_KEY
+
+# Premium variants — different from cheap panel by tier/generation, not
+# just upgraded weights.
+judges:
+  - id: openrouter:anthropic/claude-opus-4.7
+    label: gold-anthropic
+    config:
+      max_tokens: 8000
+      temperature: 0
+      apiBaseUrl: https://openrouter.ai/api/v1
+      apiKeyEnvar: OPENROUTER_API_KEY
+
+  - id: openrouter:openai/gpt-5-pro
+    label: gold-openai
+    config:
+      max_tokens: 8000
+      temperature: 0
+      apiBaseUrl: https://openrouter.ai/api/v1
+      apiKeyEnvar: OPENROUTER_API_KEY
+
+  - id: openrouter:google/gemini-3.1-pro-preview
+    label: gold-google
+    config:
+      max_tokens: 8000
+      temperature: 0
+      apiBaseUrl: https://openrouter.ai/api/v1
+      apiKeyEnvar: OPENROUTER_API_KEY
+
+aggregation:
+  rule: majority_vote_per_criterion
+  on_split:
+    log_field: gold_panel_split
+    score_when_split: 0
+    require_human_review_at_freeze: true
+
+# κ target — raised from 0.6 to 0.7 because inter-LLM agreement is biased
+# upward vs human agreement. See D-7 mitigations.
+calibration:
+  target_kappa_vs_strong_panel: 0.7
+
+# panel_version for the strong panel is independent of the cheap panel's
+# version. If either panel changes, calibration must be re-run.
+panel_version: 1
