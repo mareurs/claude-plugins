@@ -1,0 +1,52 @@
+{
+  "specialist": "ml-training-takin",
+  "n_runs": 5,
+  "panel_version": 1,
+  "per_case": {
+    "case-01": {
+      "scores": [
+        1.0,
+        0.8333,
+        0.8333,
+        0.6667,
+        0.8333
+      ],
+      "n": 5,
+      "min": 0.6667,
+      "max": 1.0,
+      "max_abs_delta": 0.3333,
+      "mean": 0.8333
+    },
+    "case-02": {
+      "scores": [
+        0.8,
+        0.8,
+        0.8,
+        0.8,
+        0.8
+      ],
+      "n": 5,
+      "min": 0.8,
+      "max": 0.8,
+      "max_abs_delta": 0.0,
+      "mean": 0.8
+    },
+    "case-03": {
+      "scores": [
+        0.8,
+        0.8,
+        1.0,
+        0.8,
+        0.8
+      ],
+      "n": 5,
+      "min": 0.8,
+      "max": 1.0,
+      "max_abs_delta": 0.2,
+      "mean": 0.84
+    }
+  },
+  "variance_floor": 0.3333,
+  "interpretation": "Any reported improvement smaller than variance_floor is noise \u2014 do not claim a 'fix' worked unless its delta exceeds this floor.",
+  "ran_at": "2026-05-15T15:48:39.157360+00:00"
+}

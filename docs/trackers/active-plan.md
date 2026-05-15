@@ -20,50 +20,65 @@ Anything short of this is **in-progress**. Partial wins land in History but do n
 phase_current: 0   # Phase 0: eval grounds (blocks Phases 2-3)
 phase_total: 4
 tasks_total: 38
-tasks_done: 16     # T-1, T-2, T-3, T-4, T-5, T-12..T-22 complete (scripts ship outside the 38 task IDs)
+tasks_done: 17     # T-1, T-2, T-3, T-4, T-5, T-6, T-12..T-22
 tasks_in_progress: 0
-tasks_open: 22
+tasks_open: 21
 eval_baseline:
   established: false
-  variance_floor: null     # populated after T-6
-  judge_kappa: null        # populated after T-8
+  variance_floor: 0.333            # ml-training-takin, panel_version 1, 5 runs × 3 cases
+  judge_kappa: null                # populated after T-8
   pilot_specialist: ml-training-takin
-  pre_edit_snapshot_sha: 729dc22  # SKILL.md state before Phase 1 edits
+  pre_edit_snapshot_sha: 729dc22
   fixtures_count:
-    ml-training-takin: 3   # T-3 complete; targeting 5 total in T-9
+    ml-training-takin: 3           # T-3 done; targeting 5 total in T-9
   judge:
     prompt_drafted: true
     rubrics_drafted: ["ml-training-takin"]
     panel_drafted: true
     panel_version: 1
   scripts:
-    run_sh:             written
-    variance_floor_sh:  written
+    harness_py:         written + tested
+    run_sh:             written + tested
+    variance_floor_sh:  written + tested
     calibrate_sh:       written
     freeze_baseline_sh: written
-runtime_bringup_tracker: docs/trackers/eval-bringup.md   # blocks T-6 onward
+runtime_bringup_tracker: docs/trackers/eval-bringup.md
 last_updated: 2026-05-15
 ```
 ## Decisions Log
 
 Append-only. Each entry: date, decision-id, what, why, who. Reversals get a new entry pointing back; never edit history in place.
 
-### D-1 — 2026-05-15 — Eval tooling: DSPy + Promptfoo (split roles)
+### D-1 — 2026-05-15 — Eval tooling: Python harness (primary) + Promptfoo (CI) + DSPy (optimization)
 
-**Decision.** Use **Promptfoo** for fast regression (CI hook on every PR touching `buddy/skills/`) and **DSPy** for offline programmatic optimization (Phase 3+, after baseline is frozen).
+**Decision.** Three tools, three roles. Updated 2026-05-15 after smoke testing revealed Promptfoo's test-format mismatch with our custom fixture YAML schema would require significant translation work for v1.
 
-**Why.** Single-tool choice would compromise one of the two jobs:
-- Promptfoo alone — fast YAML-driven regression, but no automated prompt optimization. Phase 3 (systemic rewrites) would stay manual forever.
-- DSPy alone — strong at compile-time prompt search, but slow as a per-PR gate and not designed for asserting regression on a frozen baseline.
+| Tool | Role | When invoked |
+|---|---|---|
+| **Python harness** (`eval/scripts/harness.py`) | Primary v1 engine — runs fixtures end-to-end (candidate → 3-judge panel → majority vote → score JSON). Drives variance floor, calibration, baseline freeze. | Locally + manually (offline) |
+| **Promptfoo** | CI regression gate. YAML-driven, fast, integrates with GitHub Actions. Triggered on PRs that touch `buddy/skills/**/SKILL.md`. | CI hook on PR (post-baseline) |
+| **DSPy** | Programmatic prompt optimization. Compile each persona against its rubric automatically. | Phase 3+, offline batch |
 
-The two tools attack non-overlapping problems. Cost of running both is low (Promptfoo runs locally + in CI; DSPy runs offline on demand). The "do not split tools without reason" anti-pattern doesn't apply when the tools have non-overlapping jobs — splitting on job boundary is correct.
+**Why.** The three roles don't overlap:
+- Python harness is the *engine* — runs fixtures, scores responses, aggregates panel. Direct OpenRouter calls, no schema friction. Full control over the panel logic, position-swap, κ computation.
+- Promptfoo is the *CI gate* — YAML-driven, declarative, runs subset of suite on changed files, fast feedback in PRs. We use it as a thin wrapper that calls the harness or invokes its own evaluator once schema work is done.
+- DSPy is the *optimizer* — automated prompt-search against rubric. Long-term, replaces manual A/B for Phase 3 rewrites.
 
-**Rejected alternative.** Manual edits-with-eval-gate (no auto-optimization). Reason: 6 systemic gaps × 10 specialists × multiple A/B variants per gap is too many manual cycles. DSPy automates the search.
+**Originally decided.** Promptfoo + DSPy split. Python harness added 2026-05-15 after smoke testing revealed Promptfoo's `llm-rubric` + multi-judge panel + custom fixture format would take 1-2h to schema-match for v1, whereas a direct Python harness ships in 30m with full control.
 
-**Resolves.** T-1 (Phase 0).
+**Tradeoffs accepted.**
+- One more tool to maintain — but each has a distinct, non-overlapping job.
+- Promptfoo CI wiring is deferred until baselines exist (T-11 in active-plan).
+- DSPy onboarding waits until Phase 3 needs it (currently far ahead).
 
-**Triggers.** T-5 needs Promptfoo `panel.yaml`; T-11 needs Promptfoo CI workflow. DSPy module work starts in Phase 3.
+**Resolves.** T-1 (initial tooling decision); supersedes the previous two-tool framing.
 
+**Triggers.**
+- T-5: `eval/judge/panel.yaml` informs both harness and Promptfoo.
+- T-11: Promptfoo wiring in CI uses the existing `panel.yaml` + harness output schema.
+- Phase 3 (T-29..T-34): DSPy modules under `eval/dspy/<specialist>/optimize.py`.
+
+**Revert trigger.** If maintaining the harness becomes a drag and Promptfoo's schema catches up (or we adapt our fixture format), collapse back to Promptfoo-only.
 ### D-2 — 2026-05-15 — Pilot specialist: ml-training-takin
 
 **Decision.** Build the first eval fixtures and judge calibration on **ml-training-takin**.
@@ -469,3 +484,12 @@ The plan above carries defaults. All 6 defaults were accepted on 2026-05-15 (see
 - **Smoke test (direct OpenRouter access)**: all 4 models returned "pong" within 1.5–3.4s. ALL_OK.
 - Observation: reasoning models (GPT-5, Gemini 2.5 Pro) burn 50–150 reasoning tokens even on trivial prompts. Judge `max_tokens: 4000` is sufficient but cost-relevant for budget planning.
 - **Still pending**: wiring Promptfoo's test schema to consume the custom fixture YAML format (`case_id`, `input.user_message`, `ideal_rubric`). Two paths: (a) translate fixtures to Promptfoo-native shape, (b) bypass Promptfoo for v1 and write a thin python harness (deferring Promptfoo to CI gate).
+
+### 2026-05-15 — T-6 complete (variance floor measured)
+
+- Python harness (`eval/scripts/harness.py`, ~310 lines) shipped per D-1 amendment.
+- Variance floor on ml-training-takin: **0.333** (5 runs × 3 cases × 60 calls, $2.21 total).
+- Per-case stability ranges from rock-stable (case-02, Δ=0.0) to high-variance (case-01, Δ=0.333).
+- Flaky criteria identified: `references_method_*` is too fuzzy across judges. Either tighten to a literal-token check or replace before T-7 calibration.
+- Full results: `eval/baselines/2026-05-15/ml-training-takin/`.
+- Status: 17/38 tasks done. Phase 0 next-up: **T-7** (hand-label 15 calibration cases) — but consider a fixture-tightening pass first to lower the noise floor.
