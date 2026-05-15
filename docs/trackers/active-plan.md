@@ -2,7 +2,7 @@
 
 > **Tracker schema:** hybrid (task_list spine + reflective methodology + metric_baseline once eval is live).
 > Plain-markdown fallback because `claude-plugins` is not registered as a codescout artifact repo.
-> Companion to [`buddy-introspection.md`](buddy-introspection.md) — that one names the gaps; this one resolves them.
+> Indexed in [INDEX.md](INDEX.md). Companion to [buddy-introspection.md](buddy-introspection.md) — that one names the gaps; this one resolves them. Runtime execution of Phase 0 (T-6..T-11) tracked in [eval-bringup.md](eval-bringup.md).
 
 ## Done-condition
 
@@ -14,14 +14,13 @@ This plan is **done** when:
 4. `buddy/skills/*` mean eval score has not regressed vs the pre-rewrite baseline.
 
 Anything short of this is **in-progress**. Partial wins land in History but do not close the plan.
-
 ## Live state
 
 ```yaml
 phase_current: 0   # Phase 0: eval grounds (blocks Phases 2-3)
 phase_total: 4
 tasks_total: 38
-tasks_done: 16     # T-1, T-2, T-3, T-4, T-5, T-12..T-22 complete
+tasks_done: 16     # T-1, T-2, T-3, T-4, T-5, T-12..T-22 complete (scripts ship outside the 38 task IDs)
 tasks_in_progress: 0
 tasks_open: 22
 eval_baseline:
@@ -37,6 +36,12 @@ eval_baseline:
     rubrics_drafted: ["ml-training-takin"]
     panel_drafted: true
     panel_version: 1
+  scripts:
+    run_sh:             written
+    variance_floor_sh:  written
+    calibrate_sh:       written
+    freeze_baseline_sh: written
+runtime_bringup_tracker: docs/trackers/eval-bringup.md   # blocks T-6 onward
 last_updated: 2026-05-15
 ```
 ## Decisions Log
@@ -426,3 +431,17 @@ The plan above carries defaults. All 6 defaults were accepted on 2026-05-15 (see
 - Runtime requires `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GOOGLE_API_KEY`.
 - Status: 16/38 tasks done. Phase 0 next-up: **T-6** (variance-floor
   measurement on ml-training-takin — 3 cases × 5 reruns).
+
+### 2026-05-15 — Bringup scripts + tracker + INDEX
+
+- 4 runtime scripts written and committed to `eval/scripts/`:
+  - `run.sh` — main eval runner per specialist
+  - `variance-floor.sh` — N=5 identical reruns; computes max|Δ| (noise floor)
+  - `calibrate.sh` — panel-vs-human, computes Cohen's κ; exits non-zero if < 0.6
+  - `freeze-baseline.sh` — snapshots scores with panel_version + git SHA; refuses dirty tree or unpassed κ
+- All scripts: bash strict mode, env preflight (3 API keys), promptfoo prereq check.
+- Promptfoo provider-string + CLI-flag specifics marked `verify on first run` — confirmation deferred to live API call.
+- New tracker created: `docs/trackers/eval-bringup.md` — runtime bringup runbook (setup checklist, runtime sequence, cost log, notes-from-first-runner section).
+- New `docs/trackers/INDEX.md` surfaces all 3 trackers + relationships diagram + conventions.
+- T-6 onward is **blocked on environment** (Promptfoo install + API keys) — runtime work tracked in eval-bringup.md, NOT inside this plan to keep concerns separated.
+- Status: 16/38 tasks done in this plan. Bringup tracker is separately tracked.
