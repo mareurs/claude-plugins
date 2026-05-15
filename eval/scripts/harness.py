@@ -41,8 +41,9 @@ CANDIDATE_MODEL = "anthropic/claude-opus-4.7"
 PANEL_VERSION = 1
 
 
-def call(model: str, messages: list[dict], *, max_tokens: int = 4000, temperature: float = 0, reasoning: dict | None = None) -> dict:
+def call(model: str, messages: list[dict], *, max_tokens: int = 4000, temperature: float = 0, reasoning: dict | None = None, timeout: int = 300) -> dict:
     """Call OpenRouter chat-completions. Returns the full response dict."""
+    import http.client
     key = os.environ.get("OPENROUTER_API_KEY")
     if not key:
         raise SystemExit("OPENROUTER_API_KEY missing")
@@ -54,32 +55,34 @@ def call(model: str, messages: list[dict], *, max_tokens: int = 4000, temperatur
     }
     if reasoning is not None:
         payload["reasoning"] = reasoning
-    req = Request(
-        OPENROUTER_URL,
-        data=json.dumps(payload).encode(),
-        headers={
-            "Authorization": f"Bearer {key}",
-            "Content-Type": "application/json",
-            "HTTP-Referer": "https://github.com/mareurs/claude-plugins",
-            "X-Title": "buddy-eval-harness",
-        },
-    )
-    for attempt in range(3):
+    body = json.dumps(payload).encode()
+    headers = {
+        "Authorization": f"Bearer {key}",
+        "Content-Type": "application/json",
+        "HTTP-Referer": "https://github.com/mareurs/claude-plugins",
+        "X-Title": "buddy-eval-harness",
+    }
+    for attempt in range(5):
+        # Build a fresh request each retry so any closed connections re-open
+        req = Request(OPENROUTER_URL, data=body, headers=headers)
         try:
-            resp = urlopen(req, timeout=120).read()
+            resp = urlopen(req, timeout=timeout).read()
             return json.loads(resp)
         except HTTPError as e:
-            body = e.read().decode()[:300]
-            if e.code in (429, 500, 502, 503, 504) and attempt < 2:
-                wait = 2 ** attempt
-                print(f"  HTTP {e.code}, retrying in {wait}s: {body[:80]}", file=sys.stderr)
+            err_body = e.read().decode()[:300]
+            if e.code in (429, 500, 502, 503, 504) and attempt < 4:
+                wait = min(2 ** attempt, 30)
+                print(f"  HTTP {e.code} ({model}), retrying in {wait}s: {err_body[:80]}", file=sys.stderr)
                 time.sleep(wait)
                 continue
-            raise SystemExit(f"OpenRouter HTTP {e.code} for {model}: {body}")
-        except URLError as e:
-            if attempt < 2:
-                time.sleep(2 ** attempt); continue
-            raise SystemExit(f"OpenRouter URL error for {model}: {e}")
+            raise SystemExit(f"OpenRouter HTTP {e.code} for {model}: {err_body}")
+        except (URLError, http.client.IncompleteRead, http.client.RemoteDisconnected, ConnectionError, TimeoutError, OSError) as e:
+            if attempt < 4:
+                wait = min(2 ** attempt, 30)
+                print(f"  {type(e).__name__} ({model}), retrying in {wait}s: {str(e)[:80]}", file=sys.stderr)
+                time.sleep(wait)
+                continue
+            raise SystemExit(f"OpenRouter network error for {model} after retries: {type(e).__name__}: {e}")
     raise SystemExit(f"OpenRouter call failed after retries: {model}")
 
 

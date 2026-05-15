@@ -82,8 +82,9 @@ def score_with_gold_judge(
     )
     # GPT-5-Pro is a reasoning model; same effort=low pattern as cheap GPT-5.
     reasoning = {"effort": "low"} if judge_model.startswith("openai/") else None
+    # Premium models can be slow — bump timeout to 600s (was 300 in cheap path).
     resp = call(judge_model, [{"role": "user", "content": prompt}],
-                max_tokens=8000, temperature=0, reasoning=reasoning)
+                max_tokens=8000, temperature=0, reasoning=reasoning, timeout=600)
     raw = extract_text(resp)
     parsed = parse_judge_output(raw)
     scores = {}
