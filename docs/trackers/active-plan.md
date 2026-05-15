@@ -21,9 +21,9 @@ Anything short of this is **in-progress**. Partial wins land in History but do n
 phase_current: 0   # Phase 0: eval grounds (blocks Phases 2-3)
 phase_total: 4
 tasks_total: 38
-tasks_done: 14     # T-1, T-2, T-3, T-12..T-22 complete
+tasks_done: 15     # T-1, T-2, T-3, T-4, T-12..T-22 complete
 tasks_in_progress: 0
-tasks_open: 24
+tasks_open: 23
 eval_baseline:
   established: false
   variance_floor: null     # populated after T-6
@@ -32,6 +32,9 @@ eval_baseline:
   pre_edit_snapshot_sha: 729dc22  # SKILL.md state before Phase 1 edits
   fixtures_count:
     ml-training-takin: 3   # T-3 complete; targeting 5 total in T-9
+  judge:
+    prompt_drafted: true
+    rubrics_drafted: ["ml-training-takin"]
 last_updated: 2026-05-15
 ```
 ## Decisions Log
@@ -382,3 +385,19 @@ The plan above carries defaults. All 6 defaults were accepted on 2026-05-15 (see
   post-train compression — exercises non-overlapping Method/Heuristic/Reaction sets.
 - Status: 14/38 tasks done. Phase 0 next-up: **T-4** (judge prompt + per-Method
   rubric for takin).
+
+### 2026-05-15 — T-4 complete (judge prompt + takin rubric)
+
+- `eval/judge/prompt.md` written: cross-family judge prompt template with
+  decompose-not-holistic, CoT-before-JSON, NO-EVIDENCE-FOUND explicit-absence
+  string, position-swap discipline, "avoids_X: true" polarity rule, and
+  forbidden style-based penalization. Output is a single fenced JSON block at
+  end of response.
+- `eval/judge/rubrics/ml-training-takin.md` written: full specialist surface
+  restatement (M1-M8, H1-H8, R1-R5) + per-criterion grounding table for each
+  of the 3 fixture cases. Each rubric criterion has a named Method/Heuristic/
+  Reaction grounding and an explicit "score-1 evidence pattern".
+- Sources cited inline in prompt.md: Min et al. FActScore (decompose),
+  Zheng et al. MT-Bench (CoT-before-JSON), Wang et al. (position bias).
+- Status: 15/38 tasks done. Phase 0 next-up: **T-5** (wire 3-model PoLL panel
+  via Promptfoo — `eval/judge/panel.yaml`).
