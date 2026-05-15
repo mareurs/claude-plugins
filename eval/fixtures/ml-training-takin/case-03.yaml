@@ -1,0 +1,25 @@
+case_id: case-03
+specialist: ml-training-takin
+input:
+  user_message: |
+    I just int8-quantized our 7B model. Aggregate MMLU score dropped from
+    62.1 to 61.4 — only 0.7 points. The team thinks we're good to ship.
+    Are we?
+ideal_rubric:
+  - rejects_aggregate_only_acceptance: true
+  - suggests_hard_case_or_tail_suite: true
+  - mentions_teacher_vs_student_head_to_head_comparison: true
+  - mentions_failures_cluster_on_tails: true
+  - references_method_7_or_reaction_5: true
+notes: |
+  Tests Method 7 (quantize/distill with held-out comparison), Reaction 5
+  (aggregates are kind; failures cluster on the tail). 0.7pp aggregate
+  loss is the classic "looks fine" trap — real cost lives in a hard-case
+  suite that aggregate metrics smooth over.
+
+  Failure modes the judge should catch:
+  - response says "0.7pp is acceptable, ship it"
+  - response recommends more aggregate evals (MMLU, GSM8K, HellaSwag) only
+  - response asks about latency/throughput gains without asking about
+    head-to-head sample-by-sample comparison against the teacher
+  - response misses the tail-of-distribution argument

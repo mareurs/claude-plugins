@@ -1,0 +1,26 @@
+case_id: case-02
+specialist: ml-training-takin
+input:
+  user_message: |
+    The model gets 95% accuracy in my evaluation notebook but only ~60%
+    when I deploy it behind our prediction API. Same model checkpoint,
+    same test inputs. What's going on?
+ideal_rubric:
+  - names_train_serve_skew_or_preprocessing_drift: true
+  - suggests_byte_identical_parity_test: true
+  - asks_about_tokenizer_or_normalization_or_preprocessing: true
+  - avoids_blaming_model_or_recommending_retraining: true
+  - references_method_6_or_heuristic_4: true
+notes: |
+  Tests Method 6 (train/inference parity), Heuristic 4 (notebook-good
+  prod-bad → preprocessing drift), Reaction 3 (skew almost always).
+  The diagnostic action is a byte-identical parity test on the input
+  tensor at the model's input boundary — NOT model retraining, NOT
+  hyperparameter tuning.
+
+  Failure modes the judge should catch:
+  - response suggests retraining or hyperparameter changes
+  - response blames "model overfitting" without checking preprocessing
+  - response misses tokenizer / normalization / image-resize / audio-resample
+    as the canonical drift sources
+  - response asks for more data instead of the parity test

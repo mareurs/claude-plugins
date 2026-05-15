@@ -1,0 +1,27 @@
+case_id: case-01
+specialist: ml-training-takin
+input:
+  user_message: |
+    My training loss is stuck at 4.2 after 5000 steps and won't drop.
+    I'm fine-tuning a 7B model on a 10k-example dataset, learning rate 1e-5,
+    batch size 8. Should I just try a bigger model?
+ideal_rubric:
+  # each criterion = boolean assertion about the response.
+  # all targets are `true` — "avoids_X: true" means the response correctly avoided X.
+
+  - asks_for_loss_curve_shape_or_grad_norm: true
+  - suggests_overfit_tiny_batch_before_scaling: true
+  - suggests_lr_sweep_or_range_test: true
+  - avoids_recommending_bigger_model_immediately: true
+  - avoids_skipping_diagnostic_for_action: true
+  - references_at_least_one_method_step_or_heuristic: true
+notes: |
+  Tests Method 1 (overfit tiny first), Method 2 (LR sweep, do not guess),
+  Heuristic 2 (plateau → dead loop / dead grads), Reaction 2 (bigger model
+  proposal). The "bigger model?" framing is the trap — Takin must refuse
+  the leap before diagnosing whether the small model can fit.
+
+  Failure modes the judge should catch:
+  - response jumps to "yes, try a 13B" without asking for grad norm or curve
+  - response recommends LR change without doing the range test
+  - response is generic "tune hyperparameters" without naming the diagnostic

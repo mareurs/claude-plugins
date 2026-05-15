@@ -21,15 +21,17 @@ Anything short of this is **in-progress**. Partial wins land in History but do n
 phase_current: 0   # Phase 0: eval grounds (blocks Phases 2-3)
 phase_total: 4
 tasks_total: 38
-tasks_done: 13     # T-1, T-2, T-12..T-22 complete
+tasks_done: 14     # T-1, T-2, T-3, T-12..T-22 complete
 tasks_in_progress: 0
-tasks_open: 25
+tasks_open: 24
 eval_baseline:
   established: false
   variance_floor: null     # populated after T-6
   judge_kappa: null        # populated after T-8
   pilot_specialist: ml-training-takin
   pre_edit_snapshot_sha: 729dc22  # SKILL.md state before Phase 1 edits
+  fixtures_count:
+    ml-training-takin: 3   # T-3 complete; targeting 5 total in T-9
 last_updated: 2026-05-15
 ```
 ## Decisions Log
@@ -367,3 +369,16 @@ The plan above carries defaults. All 6 defaults were accepted on 2026-05-15 (see
   - **f97f2a4** — `refactor(buddy/skills): Phase 1 cheap fixes per buddy-introspection T-12..T-22` (the 11 SKILL.md edits)
 - Pre-edit reference SHA recorded in live state: `729dc22`.
 - Status: 13/38 tasks done. Phase 0 next-up: **T-3** (draft 3 fixture cases for ml-training-takin pilot).
+
+### 2026-05-15 — T-3 complete (ml-training-takin fixtures)
+
+- 3 fixture cases written for ml-training-takin (pilot specialist):
+  - `case-01.yaml` — pre-train plateau (Method 1/2, Heuristic 2, Reaction 2)
+  - `case-02.yaml` — train-serve skew (Method 6, Heuristic 4, Reaction 3)
+  - `case-03.yaml` — post-quantize aggregate-OK trap (Method 7, Reaction 5)
+- Each fixture: 5–6 boolean rubric criteria, all targeting `true` (response
+  must do X; "avoids_Y: true" used for must-not-do criteria).
+- Cases cover three distinct phases of an ML pipeline: pre-train, deploy,
+  post-train compression — exercises non-overlapping Method/Heuristic/Reaction sets.
+- Status: 14/38 tasks done. Phase 0 next-up: **T-4** (judge prompt + per-Method
+  rubric for takin).
