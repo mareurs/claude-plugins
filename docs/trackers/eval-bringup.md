@@ -37,8 +37,8 @@ scripts:
   freeze_baseline_sh:   { written: true, smoke_tested: false }
 
 runtime_executions:
-  smoke_test:                true       # case-01 ran clean through panel; all 3 judges parsed; ~$0.17/case
-  variance_floor:            true       # 5 reruns × 3 cases done; floor = 0.333 (ml-training-takin)
+  smoke_test:                true
+  variance_floor:            true       # tightened rubric — floor = 0.200 (was 0.333 pre-tighten)
   hand_labels_15_cases:      false
   judge_calibration_passed:  false
   fixtures_expanded_to_5:    false
@@ -49,19 +49,19 @@ variance_floor_results:
   ml-training-takin:
     panel_version: 1
     n_runs: 5
-    floor: 0.3333
+    floor: 0.2000                       # tightened rubric (was 0.333 before drop)
+    rubric_version: 2                   # references_* meta-criterion dropped 2026-05-15
     per_case:
-      case-01: { delta: 0.3333, mean: 0.833, scores: [1.0, 0.833, 0.833, 0.667, 0.833] }
-      case-02: { delta: 0.0000, mean: 0.800, scores: [0.8, 0.8, 0.8, 0.8, 0.8] }
-      case-03: { delta: 0.2000, mean: 0.840, scores: [0.8, 0.8, 1.0, 0.8, 0.8] }
-    flaky_criteria:
-      - { case: case-01, criterion: suggests_lr_sweep_or_range_test, votes: [1,1,1,0,0], cause: candidate-side-variance }
-      - { case: case-01, criterion: references_at_least_one_method_step_or_heuristic, votes: [1,0,0,0,1], cause: judge-disagreement-citation-vs-paraphrase }
-      - { case: case-03, criterion: references_method_7_or_reaction_5, votes: [0,0,1,0,0], cause: judge-disagreement-citation-vs-paraphrase }
+      case-01: { delta: 0.2000, mean: 0.880, scores: [0.8, 1.0, 1.0, 0.8, 0.8] }
+      case-02: { delta: 0.0000, mean: 1.000, scores: [1.0, 1.0, 1.0, 1.0, 1.0] }
+      case-03: { delta: 0.0000, mean: 1.000, scores: [1.0, 1.0, 1.0, 1.0, 1.0] }
+    remaining_flake:
+      - { case: case-01, criterion: suggests_lr_sweep_or_range_test, votes: [0,1,1,0,0], cause: candidate-side-variance, action: keep-as-real-signal }
 
 cost_observed:
-  per_case_usd:              0.17       # case-01 smoke: candidate + 3 judges, GPT-5 reasoning effort=low
-  per_variance_run_total:    2.21       # 5 reruns × 3 cases = 60 OpenRouter calls
+  per_case_usd:              0.17
+  per_variance_run_total:    2.02       # tightened: 5 reruns × 3 cases = 60 OpenRouter calls
+  cumulative_session:        4.23       # smoke ($0.17) + variance v1 ($2.21) + variance v2 ($2.02)
 
 last_updated: 2026-05-15
 ```

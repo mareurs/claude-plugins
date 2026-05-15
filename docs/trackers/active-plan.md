@@ -20,17 +20,18 @@ Anything short of this is **in-progress**. Partial wins land in History but do n
 phase_current: 0   # Phase 0: eval grounds (blocks Phases 2-3)
 phase_total: 4
 tasks_total: 38
-tasks_done: 17     # T-1, T-2, T-3, T-4, T-5, T-6, T-12..T-22
+tasks_done: 17     # T-1, T-2, T-3, T-4, T-5, T-6, T-12..T-22 (plus rubric-tighten pre-T-7)
 tasks_in_progress: 0
 tasks_open: 21
 eval_baseline:
   established: false
-  variance_floor: 0.333            # ml-training-takin, panel_version 1, 5 runs × 3 cases
-  judge_kappa: null                # populated after T-8
+  variance_floor: 0.200             # ml-training-takin, panel_version 1, rubric_version 2
+  judge_kappa: null                 # populated after T-8
   pilot_specialist: ml-training-takin
   pre_edit_snapshot_sha: 729dc22
   fixtures_count:
-    ml-training-takin: 3           # T-3 done; targeting 5 total in T-9
+    ml-training-takin: 3            # T-3 done; targeting 5 total in T-9
+  rubric_version: 2                 # references_* meta-criterion dropped to lower floor
   judge:
     prompt_drafted: true
     rubrics_drafted: ["ml-training-takin"]
@@ -493,3 +494,23 @@ The plan above carries defaults. All 6 defaults were accepted on 2026-05-15 (see
 - Flaky criteria identified: `references_method_*` is too fuzzy across judges. Either tighten to a literal-token check or replace before T-7 calibration.
 - Full results: `eval/baselines/2026-05-15/ml-training-takin/`.
 - Status: 17/38 tasks done. Phase 0 next-up: **T-7** (hand-label 15 calibration cases) — but consider a fixture-tightening pass first to lower the noise floor.
+
+### 2026-05-15 — Rubric tightened; variance floor 0.333 → 0.200 (validated)
+
+- Dropped `references_*` meta-criterion from all 3 takin fixtures + rubric
+  doc (commit 6d1dd4a). Reason: judge disagreement on citation-vs-paraphrase
+  was the largest single source of cross-run noise; content-specific
+  criteria already test method grounding.
+- Re-ran variance: 5 runs × 3 cases × 60 calls in ~13 min, cost $2.02.
+- **New variance floor: 0.200** — matches prediction exactly.
+- per-case: case-01 Δ=0.200 (single LR-sweep flake), case-02 Δ=0.000,
+  case-03 Δ=0.000.
+- 12 of 13 criteria now 100% stable across 5 reruns.
+- Mean scores: 0.88 / 1.00 / 1.00. Opus 4.7 running takin scores ~96% on
+  the tightened rubric.
+- Remaining variance is **candidate-side** (LR-sweep mentioned in 2 of 5
+  runs at production temperature t=0.7) — real persona reliability signal,
+  not a fixture bug; kept.
+- Results: `eval/baselines/2026-05-15-tightened/ml-training-takin/`.
+- Cumulative session cost: $4.23.
+- Status: 17/38. Phase 0 next-up: **T-7** (hand-label 15 calibration cases).
