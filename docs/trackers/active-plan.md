@@ -362,5 +362,8 @@ The plan above carries defaults. All 6 defaults were accepted on 2026-05-15 (see
 - **Phase 1 (T-12 through T-22)** done: 11 surgical SKILL.md edits applied by 3 parallel agents (groups A/B/C). All edits matched their spec exactly; no auto-rewrites; no behavioral drift beyond the named fix.
 - Diff: 9 files changed, +31 −10 lines (architecture-snow-lion, debugging-yeti, testing-snow-leopard, refactoring-yak ×2, performance-lammergeier, planning-crane ×2, docs-lotus-frog, data-leakage-snow-pheasant/_llm.md, security-ibex).
 - One markdown-format nit fixed post-hoc: missing blank line before `## Severity Rubric` in security-ibex.
-- Working tree is uncommitted; awaits user review of diffs before commit.
+- Committed in two atomic commits:
+  - **a73c47c** — `chore(buddy): add introspection + active-plan trackers and eval skeleton` (this tracker, the introspection tracker, eval/ skeleton)
+  - **f97f2a4** — `refactor(buddy/skills): Phase 1 cheap fixes per buddy-introspection T-12..T-22` (the 11 SKILL.md edits)
+- Pre-edit reference SHA recorded in live state: `729dc22`.
 - Status: 13/38 tasks done. Phase 0 next-up: **T-3** (draft 3 fixture cases for ml-training-takin pilot).
