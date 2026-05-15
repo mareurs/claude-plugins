@@ -10,7 +10,8 @@
 
 description: |
   Buddy-specialist eval harness. Scores each specialist's candidate response
-  against per-case fixture rubrics using a 3-judge cross-family panel.
+  against per-case fixture rubrics using a 3-judge cross-family panel
+  routed through OpenRouter.
 
 # The "prompt under test" — the generator side, NOT the judge side.
 # At runtime, run.sh feeds each fixture's user_message to the candidate
@@ -26,15 +27,17 @@ prompts:
 
 # The candidate provider — the model under test, generating responses
 # as the specialist. Same model used across all specialists for
-# apples-to-apples comparison.
+# apples-to-apples comparison. Routed via OpenRouter for billing parity.
 providers:
-  - id: anthropic:messages:claude-opus-4-7
+  - id: openrouter:anthropic/claude-opus-4.7
     label: candidate
     config:
       max_tokens: 4000
       temperature: 0.7              # match production specialist temperature
       # NOTE: this is the GENERATOR temperature, not the judge temperature.
       # Judges always run at temperature 0 — see panel.yaml.
+      apiBaseUrl: https://openrouter.ai/api/v1
+      apiKeyEnvar: OPENROUTER_API_KEY
 
 # Tests are loaded dynamically from eval/fixtures/<specialist>/case-NN.yaml
 # by run.sh. Each fixture becomes one Promptfoo test case with the rubric

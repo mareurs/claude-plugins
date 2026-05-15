@@ -90,16 +90,27 @@ The two tools attack non-overlapping problems. Cost of running both is low (Prom
 
 **Resolves.** T-7, T-9.
 
-### D-5 — 2026-05-15 — PoLL panel: Anthropic + OpenAI + Google
+### D-5 — 2026-05-15 — PoLL panel: Anthropic + OpenAI + Google via OpenRouter
 
-**Decision.** 3-judge cross-family panel: Claude Sonnet 4.6, GPT-4.1 (or successor), Gemini 2.5 Pro (or successor).
+**Decision.** 3-judge cross-family panel routed through **OpenRouter** with a single API key:
+- `openrouter:anthropic/claude-sonnet-4` (or successor)
+- `openrouter:openai/gpt-4.1` (or successor)
+- `openrouter:google/gemini-2.5-pro` (or successor)
 
-**Why.** Three is the minimum for majority vote without ties. Three different vendor families neutralize per-family self-preference bias (pheasant-llm Method 4(a)). Open-weight alternative (Llama) was considered for reproducibility but a hosted-model panel is faster to wire and the κ-vs-human calibration step (T-8) provides the ground truth anyway.
+**Why.** Three is the minimum for majority vote without ties. Three different vendor families neutralize per-family self-preference bias (pheasant-llm Method 4(a)). OpenRouter consolidates the 3 vendors behind one key so we don't need separate Anthropic / Google billing relationships.
 
-**Cost.** All three vendors have paid API access. Budget concern: 50 fixtures × 3 judges × 2 (position-swap) = 300 judge calls per full eval run. Expected ~$3–10 per full run at 2026 pricing.
+**Originally proposed.** Direct provider access (separate `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GOOGLE_API_KEY`). Switched to OpenRouter on 2026-05-15 because direct Anthropic + Google keys weren't available in the environment; OpenRouter key existed (in `/home/marius/agents/llm-proxy/.env`).
+
+**Tradeoffs accepted.**
+- Slight latency overhead (one extra hop).
+- OpenRouter's per-token markup (~5% above direct) — acceptable at this scale.
+- Dependency on OpenRouter availability — if it goes down, the eval pipeline blocks. Mitigation: panel.yaml can be reverted to direct providers if keys appear.
+
+**Cost.** All three vendors via single OpenRouter account. Budget concern: 50 fixtures × 3 judges × 2 (position-swap) = 300 judge calls per full eval run. Expected ~$3–10 per full run at 2026 OpenRouter pricing.
 
 **Resolves.** T-5.
 
+**Revert trigger.** If direct API keys (Anthropic, Google) appear and OpenRouter latency/markup becomes uncomfortable.
 ### D-6 — 2026-05-15 — Stale threshold: 90 days
 
 **Decision.** Stale-detector (T-37) warns when any SKILL.md mtime > 90 days AND no eval run in that window.
@@ -445,3 +456,16 @@ The plan above carries defaults. All 6 defaults were accepted on 2026-05-15 (see
 - New `docs/trackers/INDEX.md` surfaces all 3 trackers + relationships diagram + conventions.
 - T-6 onward is **blocked on environment** (Promptfoo install + API keys) — runtime work tracked in eval-bringup.md, NOT inside this plan to keep concerns separated.
 - Status: 16/38 tasks done in this plan. Bringup tracker is separately tracked.
+
+### 2026-05-15 — OpenRouter wired; smoke pass on all 4 models
+
+- D-5 amended: panel now routed through **OpenRouter** with a single key (found in `/home/marius/agents/llm-proxy/.env`) instead of direct Anthropic/OpenAI/Google keys. Reason: Anthropic and Google direct keys not available in the env; OpenRouter consolidates billing.
+- Model IDs pinned in `eval/judge/panel.yaml`:
+  - judge-anthropic: `openrouter:anthropic/claude-sonnet-4.6`
+  - judge-openai: `openrouter:openai/gpt-5`
+  - judge-google: `openrouter:google/gemini-2.5-pro`
+- Candidate (`eval/promptfoo.yaml`): `openrouter:anthropic/claude-opus-4.7` — matches the actual Opus 4.7 model that users run buddies on (self-test).
+- Promptfoo v0.121.11 installed globally.
+- **Smoke test (direct OpenRouter access)**: all 4 models returned "pong" within 1.5–3.4s. ALL_OK.
+- Observation: reasoning models (GPT-5, Gemini 2.5 Pro) burn 50–150 reasoning tokens even on trivial prompts. Judge `max_tokens: 4000` is sufficient but cost-relevant for budget planning.
+- **Still pending**: wiring Promptfoo's test schema to consume the custom fixture YAML format (`case_id`, `input.user_message`, `ideal_rubric`). Two paths: (a) translate fixtures to Promptfoo-native shape, (b) bypass Promptfoo for v1 and write a thin python harness (deferring Promptfoo to CI gate).

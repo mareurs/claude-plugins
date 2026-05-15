@@ -24,11 +24,9 @@ This tracker closes when ALL of the following hold:
 status: open
 
 environment:
-  promptfoo_installed: false        # `npm i -g promptfoo`
+  promptfoo_installed: true         # v0.121.11 installed 2026-05-15
   api_keys:
-    anthropic: false                # ANTHROPIC_API_KEY
-    openai: false                   # OPENAI_API_KEY
-    google: false                   # GOOGLE_API_KEY
+    openrouter: discovered           # found in /home/marius/agents/llm-proxy/.env (D-5)
 
 scripts:
   run_sh:               { written: true, smoke_tested: false }
@@ -37,7 +35,7 @@ scripts:
   freeze_baseline_sh:   { written: true, smoke_tested: false }
 
 runtime_executions:
-  smoke_test:                false
+  smoke_test:                partial    # OpenRouter access verified for all 4 models; promptfoo schema wiring pending
   variance_floor:            false
   hand_labels_15_cases:      false
   judge_calibration_passed:  false

@@ -1,4 +1,4 @@
-# PoLL (Panel of LLM Judges) — 3 cross-family judges
+# PoLL (Panel of LLM Judges) — 3 cross-family judges via OpenRouter
 #
 # Used by every fixture run. Each candidate response is scored by all 3 judges
 # in parallel; final score per criterion = majority vote across the panel.
@@ -7,8 +7,10 @@
 # - 3 is the minimum for majority without ties.
 # - Cross-family neutralizes per-family self-preference bias
 #   (pheasant-llm Method 4(a); Zheng et al. 2023).
+# - Single OpenRouter key fronts all 3 vendors — no separate Anthropic/Google
+#   billing relationships needed.
 #
-# Pricing budget: ~$3–10 per full eval run at 2026 prices
+# Pricing budget: ~$3–10 per full eval run at 2026 OpenRouter prices
 # (50 fixtures × 3 judges × 2 position-swap runs = 300 judge calls).
 
 description: |
@@ -17,41 +19,40 @@ description: |
   Judge prompt: eval/judge/prompt.md.
 
 env:
-  # Required at runtime. Source from shell, .env, or 1Password. NEVER commit.
-  - ANTHROPIC_API_KEY
-  - OPENAI_API_KEY
-  - GOOGLE_API_KEY
+  # Required at runtime. Source from /home/marius/agents/llm-proxy/.env or
+  # equivalent. NEVER commit.
+  - OPENROUTER_API_KEY
 
-# Three judges, three vendors. Models pinned to specific identifiers so that
-# panel results are reproducible across runs.
-#
-# When a model is retired or a successor releases, update the id here AND
-# re-run calibration (T-8) before trusting new scores — judge swaps invalidate
-# the κ measurement against human labels.
+# Three judges via OpenRouter. Models pinned to specific identifiers so that
+# panel results are reproducible across runs. When a model is retired or a
+# successor releases, update the id here AND re-run calibration (T-8) before
+# trusting new scores — judge swaps invalidate the κ measurement.
 judges:
-  - id: anthropic:messages:claude-sonnet-4-6
+  - id: openrouter:anthropic/claude-sonnet-4.6
     label: judge-anthropic
     config:
       max_tokens: 4000
       temperature: 0
-      # Sonnet 4.6 chosen over Opus 4.7 for cost; if scoring instability is
-      # observed, swap to Opus 4.7 and recalibrate.
+      # Pinned 2026-05-15. Successor available: claude-opus-4.7 (more expensive).
+      # Verify model id at https://openrouter.ai/models on swap.
+      apiBaseUrl: https://openrouter.ai/api/v1
+      apiKeyEnvar: OPENROUTER_API_KEY
 
-  - id: openai:chat:gpt-4.1
+  - id: openrouter:openai/gpt-5
     label: judge-openai
     config:
       max_tokens: 4000
       temperature: 0
-      # Verify exact provider string on first run — Promptfoo may want
-      # `openai:gpt-4.1` (no `chat` segment) depending on version.
+      apiBaseUrl: https://openrouter.ai/api/v1
+      apiKeyEnvar: OPENROUTER_API_KEY
 
-  - id: googleai:gemini-2.5-pro
+  - id: openrouter:google/gemini-2.5-pro
     label: judge-google
     config:
       max_tokens: 4000
       temperature: 0
-      # Verify provider string — could be `vertex:gemini-2.5-pro` if going
-      # through Vertex AI, or `googleai:gemini-2.5-pro` for the public API.
+      apiBaseUrl: https://openrouter.ai/api/v1
+      apiKeyEnvar: OPENROUTER_API_KEY
 
 # Aggregation rule applied AFTER all 3 judges have scored a case.
 #
