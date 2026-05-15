@@ -20,30 +20,35 @@ Anything short of this is **in-progress**. Partial wins land in History but do n
 phase_current: 0   # Phase 0: eval grounds (blocks Phases 2-3)
 phase_total: 4
 tasks_total: 38
-tasks_done: 17     # T-1, T-2, T-3, T-4, T-5, T-6, T-12..T-22 (plus rubric-tighten pre-T-7)
+tasks_done: 18     # T-1, T-2, T-3, T-4, T-5, T-6, T-8 (D-7 substitute), T-12..T-22
 tasks_in_progress: 0
-tasks_open: 21
+tasks_open: 20
 eval_baseline:
-  established: false
-  variance_floor: 0.200             # ml-training-takin, panel_version 1, rubric_version 2
-  judge_kappa: null                 # populated after T-8
+  established: false           # T-10 still pending (freeze)
+  variance_floor: 0.200        # ml-training-takin, panel_version 1, rubric_version 2
+  judge_kappa_vs_strong_panel: 1.0   # n=13, D-7 substitute; NOT vs human
+  judge_kappa_target: 0.7      # raised from 0.6 under D-7
   pilot_specialist: ml-training-takin
   pre_edit_snapshot_sha: 729dc22
   fixtures_count:
-    ml-training-takin: 3            # T-3 done; targeting 5 total in T-9
-  rubric_version: 2                 # references_* meta-criterion dropped to lower floor
+    ml-training-takin: 3       # T-3 done; targeting 5 total in T-9
+  rubric_version: 2
   judge:
     prompt_drafted: true
     rubrics_drafted: ["ml-training-takin"]
     panel_drafted: true
     panel_version: 1
+    gold_panel_drafted: true
+    gold_panel_version: 1
   scripts:
     harness_py:         written + tested
     run_sh:             written + tested
     variance_floor_sh:  written + tested
-    calibrate_sh:       written
+    calibrate_sh:       written  # legacy promptfoo shape; superseded by gold-label.py
     freeze_baseline_sh: written
+    gold_label_py:      written + tested
 runtime_bringup_tracker: docs/trackers/eval-bringup.md
+human_anchor_TODO: "Replace D-7 strong-panel calibration with human labels when feasible — current κ inflates above κ-vs-human due to shared LLM biases"
 last_updated: 2026-05-15
 ```
 ## Decisions Log
@@ -557,3 +562,22 @@ The plan above carries defaults. All 6 defaults were accepted on 2026-05-15 (see
 - Results: `eval/baselines/2026-05-15-tightened/ml-training-takin/`.
 - Cumulative session cost: $4.23.
 - Status: 17/38. Phase 0 next-up: **T-7** (hand-label 15 calibration cases).
+
+### 2026-05-15 — T-8 (degraded substitute path under D-7) — strong-panel calibration PASS
+
+- D-7 decision committed: substitute human hand-labels (T-7) with **strong-panel labels** as a degraded calibration proxy.
+- Strong panel composition: Opus 4.7 / GPT-5 Pro / Gemini 3.1 Pro Preview (different model tiers from cheap panel, not just upgrades).
+- Wrote `eval/scripts/gold-label.py` and `eval/judge/gold-panel.yaml`. Strong panel reuses cheap-panel candidate responses (no need to regenerate).
+- Fixed `harness.call()` retry to catch `http.client.IncompleteRead` / `ConnectionError` / `TimeoutError` / `OSError`; first gold-label run had crashed on a chunked-transfer drop while waiting on GPT-5-Pro.
+- Ran gold-label.py on `variance-run-05.json` after the retry fix.
+- **Result: κ_vs_strong_panel = 1.0 (n=13, p_observed=1.0, p_expected=0.858). PASS (target ≥ 0.7).**
+- Honest read: this is a strong signal on a weak test.
+  - Heavy "met"-skew (12 of 13 criteria scored 1) — only 1 discriminating judgment.
+  - Both panels independently agreed on that single "0" (`suggests_lr_sweep_or_range_test` — candidate did not suggest LR sweep, matching the LR-sweep candidate-side flake found earlier).
+  - n=13 has wide CI on κ; bigger fixture sets in T-9 will stress-test discrimination.
+  - WARNING preserved everywhere: κ_vs_strong_panel ≠ κ_vs_human. LLMs share biases. Replace with human anchor when feasible.
+- Cost: $1.69 for the gold-label run. Cumulative session: ~$5.92.
+- Files:
+  - `eval/judge/calibration/gold-run-01.json` (per-case gold labels)
+  - `eval/judge/calibration/kappa-vs-strong-01.json` (κ result with verdict + warning)
+- Status: Phase 0 effectively unblocked. T-7 (manual) permanently deferred; T-8 substitute path PASS. Next: T-9 (expand fixtures to 5/specialist) or T-10 (freeze baseline on current 3 takin fixtures).

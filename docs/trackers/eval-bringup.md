@@ -33,14 +33,15 @@ scripts:
   harness_py:           { written: true, smoke_tested: true }
   run_sh:               { written: true, smoke_tested: true }     # wraps harness.py
   variance_floor_sh:    { written: true, smoke_tested: true }     # wraps harness.py
-  calibrate_sh:         { written: true, smoke_tested: false }
+  calibrate_sh:         { written: true, smoke_tested: false }    # legacy promptfoo shape; superseded by gold-label.py under D-7
   freeze_baseline_sh:   { written: true, smoke_tested: false }
+  gold_label_py:        { written: true, smoke_tested: true }     # D-7 substitute calibration path
 
 runtime_executions:
   smoke_test:                true
-  variance_floor:            true       # tightened rubric — floor = 0.200 (was 0.333 pre-tighten)
-  hand_labels_15_cases:      false
-  judge_calibration_passed:  false
+  variance_floor:            true       # tightened rubric — floor = 0.200
+  hand_labels_15_cases:      false      # PERMANENTLY DEFERRED under D-7 — strong panel substituted
+  judge_calibration_passed:  true       # D-7 substitute path: κ vs strong panel = 1.0 (n=13, target ≥ 0.7)
   fixtures_expanded_to_5:    false
   first_baseline_frozen:     false
   ci_wired:                  false
@@ -49,8 +50,8 @@ variance_floor_results:
   ml-training-takin:
     panel_version: 1
     n_runs: 5
-    floor: 0.2000                       # tightened rubric (was 0.333 before drop)
-    rubric_version: 2                   # references_* meta-criterion dropped 2026-05-15
+    floor: 0.2000
+    rubric_version: 2
     per_case:
       case-01: { delta: 0.2000, mean: 0.880, scores: [0.8, 1.0, 1.0, 0.8, 0.8] }
       case-02: { delta: 0.0000, mean: 1.000, scores: [1.0, 1.0, 1.0, 1.0, 1.0] }
@@ -58,10 +59,24 @@ variance_floor_results:
     remaining_flake:
       - { case: case-01, criterion: suggests_lr_sweep_or_range_test, votes: [0,1,1,0,0], cause: candidate-side-variance, action: keep-as-real-signal }
 
+calibration_results:
+  ml-training-takin:
+    iteration: 1
+    source_cheap_run: eval/baselines/2026-05-15-tightened/ml-training-takin/variance-run-05.json
+    n_paired_items: 13
+    p_observed: 1.000
+    p_expected: 0.858
+    kappa_vs_strong_panel: 1.000   # NOT vs human; see D-7
+    target: 0.7
+    verdict: PASS
+    caveat: "Sample is heavily 'met'-skewed (12/13 criteria scored 1). The single discriminating judgment was both panels agreeing on the LR-sweep 'not met'. κ on n=13 has wide CI — more discriminative fixtures needed to stress-test. See D-7."
+    human_anchor_TODO: "Replace with human labels when feasible — κ vs strong panel inflates above κ vs human due to shared LLM biases."
+
 cost_observed:
-  per_case_usd:              0.17
-  per_variance_run_total:    2.02       # tightened: 5 reruns × 3 cases = 60 OpenRouter calls
-  cumulative_session:        4.23       # smoke ($0.17) + variance v1 ($2.21) + variance v2 ($2.02)
+  per_case_usd:              0.17       # cheap panel
+  per_variance_run_total:    2.02       # 5 reruns × 3 cases (tightened)
+  gold_label_run_total:      1.69       # 3 cases × 3 premium judges, 1 iteration
+  cumulative_session:        5.92       # smoke ($0.17) + variance v1 ($2.21) + variance v2 ($2.02) + κ ($1.69) — approximate
 
 last_updated: 2026-05-15
 ```

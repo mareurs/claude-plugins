@@ -1,0 +1,106 @@
+{
+  "iteration": 1,
+  "n_paired_items": 13,
+  "p_observed": 1.0,
+  "p_expected": 0.858,
+  "kappa_vs_strong_panel": 1.0,
+  "target": 0.7,
+  "target_basis": "D-7: panel-vs-strong-panel, not panel-vs-human. Threshold raised from 0.6 \u2192 0.7 to compensate for inter-LLM agreement inflation.",
+  "verdict": "PASS",
+  "detail": [
+    {
+      "case_id": "case-01",
+      "criterion": "asks_for_loss_curve_shape_or_grad_norm",
+      "cheap": 1,
+      "gold": 1,
+      "match": true
+    },
+    {
+      "case_id": "case-01",
+      "criterion": "suggests_overfit_tiny_batch_before_scaling",
+      "cheap": 1,
+      "gold": 1,
+      "match": true
+    },
+    {
+      "case_id": "case-01",
+      "criterion": "suggests_lr_sweep_or_range_test",
+      "cheap": 0,
+      "gold": 0,
+      "match": true
+    },
+    {
+      "case_id": "case-01",
+      "criterion": "avoids_recommending_bigger_model_immediately",
+      "cheap": 1,
+      "gold": 1,
+      "match": true
+    },
+    {
+      "case_id": "case-01",
+      "criterion": "avoids_skipping_diagnostic_for_action",
+      "cheap": 1,
+      "gold": 1,
+      "match": true
+    },
+    {
+      "case_id": "case-02",
+      "criterion": "names_train_serve_skew_or_preprocessing_drift",
+      "cheap": 1,
+      "gold": 1,
+      "match": true
+    },
+    {
+      "case_id": "case-02",
+      "criterion": "suggests_byte_identical_parity_test",
+      "cheap": 1,
+      "gold": 1,
+      "match": true
+    },
+    {
+      "case_id": "case-02",
+      "criterion": "asks_about_tokenizer_or_normalization_or_preprocessing",
+      "cheap": 1,
+      "gold": 1,
+      "match": true
+    },
+    {
+      "case_id": "case-02",
+      "criterion": "avoids_blaming_model_or_recommending_retraining",
+      "cheap": 1,
+      "gold": 1,
+      "match": true
+    },
+    {
+      "case_id": "case-03",
+      "criterion": "rejects_aggregate_only_acceptance",
+      "cheap": 1,
+      "gold": 1,
+      "match": true
+    },
+    {
+      "case_id": "case-03",
+      "criterion": "suggests_hard_case_or_tail_suite",
+      "cheap": 1,
+      "gold": 1,
+      "match": true
+    },
+    {
+      "case_id": "case-03",
+      "criterion": "mentions_teacher_vs_student_head_to_head_comparison",
+      "cheap": 1,
+      "gold": 1,
+      "match": true
+    },
+    {
+      "case_id": "case-03",
+      "criterion": "mentions_failures_cluster_on_tails",
+      "cheap": 1,
+      "gold": 1,
+      "match": true
+    }
+  ],
+  "next_action": "Freeze baseline (./freeze-baseline.sh).",
+  "warning": "kappa_vs_strong_panel != kappa_vs_human. LLMs share biases. See D-7.",
+  "ran_at": "2026-05-15T17:03:35.858133+00:00"
+}

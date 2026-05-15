@@ -1,0 +1,403 @@
+{
+  "specialist": "ml-training-takin",
+  "gold_panel_version": 1,
+  "iteration": 1,
+  "source_cheap_run": "eval/baselines/2026-05-15-tightened/ml-training-takin/variance-run-05.json",
+  "cases": [
+    {
+      "case_id": "case-01",
+      "per_criterion": [
+        {
+          "criterion": "asks_for_loss_curve_shape_or_grad_norm",
+          "gold_judge_scores": {
+            "gold-anthropic": 1,
+            "gold-openai": 1,
+            "gold-google": 1
+          },
+          "gold_majority": 1,
+          "gold_panel_split": false
+        },
+        {
+          "criterion": "suggests_overfit_tiny_batch_before_scaling",
+          "gold_judge_scores": {
+            "gold-anthropic": 1,
+            "gold-openai": 1,
+            "gold-google": 1
+          },
+          "gold_majority": 1,
+          "gold_panel_split": false
+        },
+        {
+          "criterion": "suggests_lr_sweep_or_range_test",
+          "gold_judge_scores": {
+            "gold-anthropic": 0,
+            "gold-openai": 0,
+            "gold-google": 0
+          },
+          "gold_majority": 0,
+          "gold_panel_split": false
+        },
+        {
+          "criterion": "avoids_recommending_bigger_model_immediately",
+          "gold_judge_scores": {
+            "gold-anthropic": 1,
+            "gold-openai": 1,
+            "gold-google": 1
+          },
+          "gold_majority": 1,
+          "gold_panel_split": false
+        },
+        {
+          "criterion": "avoids_skipping_diagnostic_for_action",
+          "gold_judge_scores": {
+            "gold-anthropic": 1,
+            "gold-openai": 1,
+            "gold-google": 1
+          },
+          "gold_majority": 1,
+          "gold_panel_split": false
+        }
+      ],
+      "gold_raw": [
+        {
+          "judge": "gold-anthropic",
+          "parsed_ok": true,
+          "usage": {
+            "prompt_tokens": 9284,
+            "completion_tokens": 1680,
+            "total_tokens": 10964,
+            "cost": 0.0875358,
+            "is_byok": false,
+            "prompt_tokens_details": {
+              "cached_tokens": 0,
+              "cache_write_tokens": 0,
+              "audio_tokens": 0,
+              "video_tokens": 0
+            },
+            "cost_details": {
+              "upstream_inference_cost": 0.08842,
+              "upstream_inference_prompt_cost": 0.04642,
+              "upstream_inference_completions_cost": 0.042
+            },
+            "completion_tokens_details": {
+              "reasoning_tokens": 0,
+              "image_tokens": 0,
+              "audio_tokens": 0
+            }
+          }
+        },
+        {
+          "judge": "gold-openai",
+          "parsed_ok": true,
+          "usage": {
+            "prompt_tokens": 6073,
+            "completion_tokens": 2276,
+            "total_tokens": 8349,
+            "cost": 0.36057285,
+            "is_byok": false,
+            "prompt_tokens_details": {
+              "cached_tokens": 0,
+              "cache_write_tokens": 0,
+              "audio_tokens": 0,
+              "video_tokens": 0
+            },
+            "cost_details": {
+              "upstream_inference_cost": 0.364215,
+              "upstream_inference_prompt_cost": 0.091095,
+              "upstream_inference_completions_cost": 0.27312
+            },
+            "completion_tokens_details": {
+              "reasoning_tokens": 1664,
+              "image_tokens": 0,
+              "audio_tokens": 0
+            }
+          }
+        },
+        {
+          "judge": "gold-google",
+          "parsed_ok": true,
+          "usage": {
+            "prompt_tokens": 6519,
+            "completion_tokens": 2530,
+            "total_tokens": 9049,
+            "cost": 0.04296402,
+            "is_byok": false,
+            "prompt_tokens_details": {
+              "cached_tokens": 0,
+              "cache_write_tokens": 0,
+              "audio_tokens": 0,
+              "video_tokens": 0
+            },
+            "cost_details": {
+              "upstream_inference_cost": 0.043398,
+              "upstream_inference_prompt_cost": 0.013038,
+              "upstream_inference_completions_cost": 0.03036
+            },
+            "completion_tokens_details": {
+              "reasoning_tokens": 1282,
+              "image_tokens": 0,
+              "audio_tokens": 0
+            }
+          }
+        }
+      ]
+    },
+    {
+      "case_id": "case-02",
+      "per_criterion": [
+        {
+          "criterion": "names_train_serve_skew_or_preprocessing_drift",
+          "gold_judge_scores": {
+            "gold-anthropic": 1,
+            "gold-openai": 1,
+            "gold-google": 1
+          },
+          "gold_majority": 1,
+          "gold_panel_split": false
+        },
+        {
+          "criterion": "suggests_byte_identical_parity_test",
+          "gold_judge_scores": {
+            "gold-anthropic": 1,
+            "gold-openai": 1,
+            "gold-google": 1
+          },
+          "gold_majority": 1,
+          "gold_panel_split": false
+        },
+        {
+          "criterion": "asks_about_tokenizer_or_normalization_or_preprocessing",
+          "gold_judge_scores": {
+            "gold-anthropic": 1,
+            "gold-openai": 1,
+            "gold-google": 1
+          },
+          "gold_majority": 1,
+          "gold_panel_split": false
+        },
+        {
+          "criterion": "avoids_blaming_model_or_recommending_retraining",
+          "gold_judge_scores": {
+            "gold-anthropic": 1,
+            "gold-openai": 1,
+            "gold-google": 1
+          },
+          "gold_majority": 1,
+          "gold_panel_split": false
+        }
+      ],
+      "gold_raw": [
+        {
+          "judge": "gold-anthropic",
+          "parsed_ok": true,
+          "usage": {
+            "prompt_tokens": 9308,
+            "completion_tokens": 1333,
+            "total_tokens": 10641,
+            "cost": 0.07906635,
+            "is_byok": false,
+            "prompt_tokens_details": {
+              "cached_tokens": 0,
+              "cache_write_tokens": 0,
+              "audio_tokens": 0,
+              "video_tokens": 0
+            },
+            "cost_details": {
+              "upstream_inference_cost": 0.079865,
+              "upstream_inference_prompt_cost": 0.04654,
+              "upstream_inference_completions_cost": 0.033325
+            },
+            "completion_tokens_details": {
+              "reasoning_tokens": 0,
+              "image_tokens": 0,
+              "audio_tokens": 0
+            }
+          }
+        },
+        {
+          "judge": "gold-openai",
+          "parsed_ok": true,
+          "usage": {
+            "prompt_tokens": 5985,
+            "completion_tokens": 2952,
+            "total_tokens": 8937,
+            "cost": 0.43957485,
+            "is_byok": false,
+            "prompt_tokens_details": {
+              "cached_tokens": 0,
+              "cache_write_tokens": 0,
+              "audio_tokens": 0,
+              "video_tokens": 0
+            },
+            "cost_details": {
+              "upstream_inference_cost": 0.444015,
+              "upstream_inference_prompt_cost": 0.089775,
+              "upstream_inference_completions_cost": 0.35424
+            },
+            "completion_tokens_details": {
+              "reasoning_tokens": 2304,
+              "image_tokens": 0,
+              "audio_tokens": 0
+            }
+          }
+        },
+        {
+          "judge": "gold-google",
+          "parsed_ok": true,
+          "usage": {
+            "prompt_tokens": 6427,
+            "completion_tokens": 2298,
+            "total_tokens": 8725,
+            "cost": 0.032753358,
+            "is_byok": false,
+            "prompt_tokens_details": {
+              "cached_tokens": 4081,
+              "cache_write_tokens": 0,
+              "audio_tokens": 0,
+              "video_tokens": 0
+            },
+            "cost_details": {
+              "upstream_inference_cost": 0.0330842,
+              "upstream_inference_prompt_cost": 0.0055082,
+              "upstream_inference_completions_cost": 0.027576
+            },
+            "completion_tokens_details": {
+              "reasoning_tokens": 1588,
+              "image_tokens": 0,
+              "audio_tokens": 0
+            }
+          }
+        }
+      ]
+    },
+    {
+      "case_id": "case-03",
+      "per_criterion": [
+        {
+          "criterion": "rejects_aggregate_only_acceptance",
+          "gold_judge_scores": {
+            "gold-anthropic": 1,
+            "gold-openai": 1,
+            "gold-google": 1
+          },
+          "gold_majority": 1,
+          "gold_panel_split": false
+        },
+        {
+          "criterion": "suggests_hard_case_or_tail_suite",
+          "gold_judge_scores": {
+            "gold-anthropic": 1,
+            "gold-openai": 1,
+            "gold-google": 1
+          },
+          "gold_majority": 1,
+          "gold_panel_split": false
+        },
+        {
+          "criterion": "mentions_teacher_vs_student_head_to_head_comparison",
+          "gold_judge_scores": {
+            "gold-anthropic": 1,
+            "gold-openai": 1,
+            "gold-google": 1
+          },
+          "gold_majority": 1,
+          "gold_panel_split": false
+        },
+        {
+          "criterion": "mentions_failures_cluster_on_tails",
+          "gold_judge_scores": {
+            "gold-anthropic": 1,
+            "gold-openai": 1,
+            "gold-google": 1
+          },
+          "gold_majority": 1,
+          "gold_panel_split": false
+        }
+      ],
+      "gold_raw": [
+        {
+          "judge": "gold-anthropic",
+          "parsed_ok": true,
+          "usage": {
+            "prompt_tokens": 9066,
+            "completion_tokens": 1370,
+            "total_tokens": 10436,
+            "cost": 0.0787842,
+            "is_byok": false,
+            "prompt_tokens_details": {
+              "cached_tokens": 0,
+              "cache_write_tokens": 0,
+              "audio_tokens": 0,
+              "video_tokens": 0
+            },
+            "cost_details": {
+              "upstream_inference_cost": 0.07958,
+              "upstream_inference_prompt_cost": 0.04533,
+              "upstream_inference_completions_cost": 0.03425
+            },
+            "completion_tokens_details": {
+              "reasoning_tokens": 0,
+              "image_tokens": 0,
+              "audio_tokens": 0
+            }
+          }
+        },
+        {
+          "judge": "gold-openai",
+          "parsed_ok": true,
+          "usage": {
+            "prompt_tokens": 5929,
+            "completion_tokens": 3715,
+            "total_tokens": 9644,
+            "cost": 0.52938765,
+            "is_byok": false,
+            "prompt_tokens_details": {
+              "cached_tokens": 0,
+              "cache_write_tokens": 0,
+              "audio_tokens": 0,
+              "video_tokens": 0
+            },
+            "cost_details": {
+              "upstream_inference_cost": 0.534735,
+              "upstream_inference_prompt_cost": 0.088935,
+              "upstream_inference_completions_cost": 0.4458
+            },
+            "completion_tokens_details": {
+              "reasoning_tokens": 3200,
+              "image_tokens": 0,
+              "audio_tokens": 0
+            }
+          }
+        },
+        {
+          "judge": "gold-google",
+          "parsed_ok": true,
+          "usage": {
+            "prompt_tokens": 6357,
+            "completion_tokens": 1885,
+            "total_tokens": 8242,
+            "cost": 0.03498066,
+            "is_byok": false,
+            "prompt_tokens_details": {
+              "cached_tokens": 0,
+              "cache_write_tokens": 0,
+              "audio_tokens": 0,
+              "video_tokens": 0
+            },
+            "cost_details": {
+              "upstream_inference_cost": 0.035334,
+              "upstream_inference_prompt_cost": 0.012714,
+              "upstream_inference_completions_cost": 0.02262
+            },
+            "completion_tokens_details": {
+              "reasoning_tokens": 961,
+              "image_tokens": 0,
+              "audio_tokens": 0
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "ran_at": "2026-05-15T17:03:35.856097+00:00"
+}
