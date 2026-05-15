@@ -10,7 +10,21 @@ Loaded alongside `SKILL.md` when summoned as `data-leakage:llm`. Apply on top of
 
 3. **For RAG: audit the retrieval index for eval-answer presence AND check whether the model is actually using retrieved evidence.** Two distinct failure modes: (a) gold-answer chunks in the index → retrieval reads the answer; (b) model ignores retrieval entirely and answers from parametric memory — this is undetectable without probing. Use **RePCS** (Retrieval-Path Contamination Scoring): compute KL divergence between query-only inference and retrieval-augmented inference; low divergence means the model is ignoring retrieved context in favour of memorised data. Also run the **chunk permutation sanity check** (see Heuristics): shuffle the retrieved chunks before passing to the generator; faithfulness should collapse — if it doesn't, the judge is not measuring grounding. (Es et al., *RAGAS*, EACL 2024; Saad-Falcon et al., *ARES*, NAACL 2024; *RePCS: Diagnosing Data Memorization in LLM-Powered RAG*, arxiv 2506.15513.)
 
-4. **Use a cross-family panel of judges — and audit for position, length, and self-preference bias before trusting any score.** LLM judges exhibit four systematic biases: (a) **self-preference** — the model prefers text with lower perplexity relative to its own outputs, not text that is objectively better; (b) **position bias** — one study found 48.4% of pairwise verdicts reversed simply by swapping the response order; (c) **verbosity bias** — longer responses score higher regardless of instruction-following accuracy; (d) **scoring instability** — rubric item order and score ID phrasing shift absolute scores. Mitigations: (1) use a PoLL (Panel of LLM Judges) of ≥3 models from different families — 3-member panels consistently outperform single judges by averaging out individual biases; (2) run **position swapping** (evaluate each pair in both orders; flag any verdict that reverses); (3) force **chain-of-thought reasoning before the final judgment** — this reduces self-preference bias by requiring explicit justification; (4) calibrate the judge against human-annotated samples and iterate the judge prompt until Cohen's κ ≥ 0.6 against humans. (Zheng et al., *Judging LLM-as-a-Judge with MT-Bench and Chatbot Arena*, NeurIPS 2023; Wang et al., *Large Language Models are not Fair Evaluators*, 2023; *A Survey on LLM-as-a-Judge*, arxiv 2411.15594, 2024; *PoLL*, getmaxim.ai, 2024.)
+4. **Use a cross-family panel of judges — and audit for position, length, and self-preference bias before trusting any score.** LLM judges exhibit four systematic biases:
+
+   - **(a) self-preference** — the model prefers text with lower perplexity relative to its own outputs, not text that is objectively better
+   - **(b) position bias** — one study found 48.4% of pairwise verdicts reversed simply by swapping the response order
+   - **(c) verbosity bias** — longer responses score higher regardless of instruction-following accuracy
+   - **(d) scoring instability** — rubric item order and score ID phrasing shift absolute scores
+
+   Mitigations:
+
+   - Use a **PoLL (Panel of LLM Judges)** of ≥3 models from different families — 3-member panels consistently outperform single judges by averaging out individual biases
+   - Run **position swapping** (evaluate each pair in both orders; flag any verdict that reverses)
+   - Force **chain-of-thought reasoning before the final judgment** — this reduces self-preference bias by requiring explicit justification
+   - **Calibrate** the judge against human-annotated samples and iterate the judge prompt until Cohen's κ ≥ 0.6 against humans
+
+   (Zheng et al., *Judging LLM-as-a-Judge with MT-Bench and Chatbot Arena*, NeurIPS 2023; Wang et al., *Large Language Models are not Fair Evaluators*, 2023; *A Survey on LLM-as-a-Judge*, arxiv 2411.15594, 2024; *PoLL*, getmaxim.ai, 2024.)
 
 5. **Decompose holistic judging prompts into per-claim verification.** A single "rate this answer 1–5 for faithfulness" prompt invites the judge to confabulate a global feel. Decompose into atomic claims, verify each against the source, aggregate. Holistic prompts produce inflated, lower-variance scores; decomposed prompts produce honest, higher-variance scores. (Min et al., *FActScore*, EMNLP 2023; Es et al., *RAGAS*, EACL 2024. MRV-poc real example: holistic Gemini judge scored faithfulness 0.91; ragas claim-decomposition on the same data scored 0.70.)
 

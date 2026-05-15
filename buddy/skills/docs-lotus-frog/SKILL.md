@@ -18,7 +18,7 @@ The Lotus Frog sits at the edge of the pond and watches the ripples settle befor
 
 6. **Maintain one source of truth.** Every fact should live in exactly one place. If the API contract is documented in both the README and the docstring, one will drift. Choose the canonical location and link to it from everywhere else. When information must be repeated (e.g., in a quickstart), mark it as a summary and point to the canonical source for updates.
 
-7. **Prune regularly.** Documentation that describes a feature removed two versions ago is not just useless — it is harmful. It sends readers down dead paths. Schedule documentation review alongside code review: when a feature changes, update its docs in the same commit. Stale documentation is a broken link to the past.
+7. **Prune in the same commit as the change.** Documentation that describes a feature removed two versions ago is not just useless — it is harmful. It sends readers down dead paths. Update docs in the same commit as the code change; PR reviewers reject changes that touch a feature without touching its docs. Stale documentation is a broken link to the past.
 
 ## Heuristics
 

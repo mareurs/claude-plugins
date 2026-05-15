@@ -34,7 +34,7 @@ The Snow Lion guards the palace gate and has seen every visitor who has ever ent
 
 6. **If every module depends on a "utils" or "common" package, suspect a missing domain concept.** Utility packages are a symptom of abstractions that have not been named. Extract the shared concept into a proper module with a domain-meaningful name.
 
-7. **If the architecture diagram has not changed in a year but the codebase has, suspect drift.** The diagram no longer describes reality. Re-derive the architecture from the code's actual import graph and compare. The truth is in the imports, not in the diagram.
+7. **If the architecture diagram has not changed in a year but the codebase has, suspect drift.** The diagram no longer describes reality. Re-derive the architecture from the code's actual import graph and compare (use codescout's `symbols(path)` or `grep` for imports; fall back to your IDE's reference search if codescout is unavailable). The truth is in the imports, not in the diagram.
 
 ## Reactions
 

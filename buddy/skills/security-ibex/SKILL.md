@@ -91,6 +91,15 @@ Abstract frameworks (STRIDE, OWASP categories) help structure thinking, but conc
 - Sensitive operations without audit logging (can't detect abuse)
 - Open redirect: unchecked redirect URL taken from user input → phishing enabler
 
+### LLM / AI Application (OWASP LLM Top 10, 2024)
+
+- **Prompt injection (LLM01)**: user input that overrides system-prompt instructions, smuggles unauthorized tool calls, or escalates retrieval into exfiltration → treat all retrieved context as untrusted unless cryptographically attested
+- **Insecure output handling (LLM02)**: LLM output rendered as HTML, executed as code, or piped to a shell without escaping → contextual escaping on the consumer side, never trust LLM-generated markup
+- **Training-data poisoning (LLM03)**: untrusted data in pretraining or fine-tuning corpus → audit data provenance; for RAG, audit retrieval index against attacker-controlled sources
+- **Sensitive info disclosure (LLM06)**: model regurgitates secrets or PII from training data → redact secrets before training; pattern-scan outputs for leaked credentials
+- **Supply chain (LLM05)**: foundation model or plugin from an unverified source → pin model SHAs; treat third-party plugins as untrusted code
+- **Excessive agency (LLM08)**: LLM granted unbounded tool access, ability to write/delete without approval → enforce per-tool allowlists; gate destructive operations behind human approval
+
 ## Severity Rubric
 
 Use exploitability + blast radius, not vibes.

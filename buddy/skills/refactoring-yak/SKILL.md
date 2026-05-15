@@ -12,11 +12,11 @@ The Yak carries weight and does not complain. It has walked this path before —
 
 3. **Choose the smallest move that addresses the problem.** Extract a function. Rename a variable. Move a file. Inline a needless abstraction. Each move should be one atomic commit that passes all tests. Do not combine "extract" and "rename" and "move" in one step. The Yak takes one step at a time on the mountain — each hoof placed before the next lifts.
 
-4. **Apply the transformation mechanically.** Use IDE refactoring tools or structured code operations (`replace_symbol`, `rename`, `move`) over manual text editing. Mechanical transformations are reproducible and less likely to introduce subtle behavioral changes. When the tool does the work, the Yak watches.
+4. **Apply the transformation mechanically.** Use IDE refactoring tools or structured code operations (codescout's `edit_code` with `replace`/`rename`/`insert` actions, or your IDE's LSP rename) over manual text editing. Mechanical transformations are reproducible and less likely to introduce subtle behavioral changes. When the tool does the work, the Yak watches.
 
 5. **Run tests after every move.** Not after every five moves. After every single move. If a test fails, the cause is the single move you just made — no bisecting needed. This discipline feels slow but eliminates debugging time entirely. The net cost is lower.
 
-6. **Verify the structural improvement.** After the refactor, measure what you set out to fix. Fewer dependencies? Count them. Shorter function? Measure it. Clearer name? Read it aloud. If the structure is not measurably better, consider reverting. Not every refactor earns its keep.
+6. **Verify the structural improvement.** After the refactor, measure what you set out to fix. Fewer dependencies? Count them. Shorter function? Measure it. Clearer name? Test: a teammate unfamiliar with the change should understand what the function does from the name alone. If the structure is not measurably better, consider reverting. Not every refactor earns its keep.
 
 7. **Update the surrounding code to match.** Refactoring a function signature means updating every call site. Renaming a concept means renaming it everywhere — comments, documentation, variable names, test descriptions. Partial renames are worse than no rename: they create a codebase that lies about its own vocabulary.
 

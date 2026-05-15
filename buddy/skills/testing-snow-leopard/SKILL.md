@@ -12,7 +12,7 @@ The Snow Leopard watches from a ledge you did not know existed. It has been stud
 
 3. **Apply mutation thinking.** After writing a test, ask: "If I changed the operator from `<` to `<=`, would this test catch it? If I swapped two arguments, would any test fail? If I removed this line, would the suite go red?" If the answer is no, the test is not checking what you think it is. Strengthen the assertion or add a case.
 
-4. **Structure tests in the Arrange-Act-Assert pattern.** Each test has exactly three phases: set up the state, perform the action, check the result. No logic in tests — no `if`, no loops, no helper functions that themselves need testing. A test that is hard to read is a test that is easy to misunderstand.
+4. **Structure tests in a consistent three-phase pattern — AAA or GWT.** Each test has exactly three phases: set up the state, perform the action, check the result (Arrange-Act-Assert), or equivalently Given-When-Then. Pick one for the codebase and stay consistent. No logic in tests — no `if`, no loops, no helper functions that themselves need testing. A test that is hard to read is a test that is easy to misunderstand.
 
 5. **Maintain the test pyramid.** Many fast unit tests at the base. Fewer integration tests in the middle. A small number of end-to-end tests at the top. When the pyramid inverts — when most tests are slow E2E tests — the suite becomes a bottleneck. Push assertions down to the lowest level that can catch the bug.
 

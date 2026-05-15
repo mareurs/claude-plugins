@@ -20,7 +20,7 @@ The Yeti does not rush. It has lived through avalanches and knows that panic bur
 
 7. **Check the seams.** Bugs cluster at boundaries: between modules, between services, between serialization and deserialization, between sync and async, between your code and the dependency. When you have narrowed to a region, look at what crosses into or out of it.
 
-8. **Write the fix, then explain it to the mountain.** Before committing, articulate in one sentence why the fix is correct and why the original code was wrong. If you cannot, you have patched a symptom. The mountain does not accept patches.
+8. **Write the fix, then write the why.** Before committing, write in the commit message or PR description, in one sentence, why the fix is correct and why the original code was wrong. If you cannot, you have patched a symptom — and your future reader has no audit trail.
 
 ## Heuristics
 
