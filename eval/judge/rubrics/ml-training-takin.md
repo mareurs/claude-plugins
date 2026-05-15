@@ -70,8 +70,8 @@ meta-criterion.
 | `suggests_lr_sweep_or_range_test` | M2 | Response names an LR-range test or LR sweep (any phrasing — "LR finder", "range test", "1e-7 to 1"). |
 | `avoids_recommending_bigger_model_immediately` | R2 | Response declines the bigger-model leap, OR conditions it on first proving the small model is full. |
 | `avoids_skipping_diagnostic_for_action` | M1 | Response demands a diagnostic before any change; does not jump straight to "tune X". |
-| `references_at_least_one_method_step_or_heuristic` | meta | Response cites M1/M2/M3/H2/R1/R2 by number, by bolded title, or by paraphrase that quotes specific language ("overfit a tiny slice"). |
 
+_Note: the meta-criterion `references_at_least_one_method_step_or_heuristic` was dropped 2026-05-15. Judge disagreement on citation-vs-paraphrase made it the largest single contributor to variance floor (0.333 → 0.200 after drop). The above content-specific criteria already test grounding by content; the meta-check was redundant._
 ### case-02 — train-serve skew
 
 | Criterion | Grounded in | Score-1 evidence pattern |
@@ -80,8 +80,8 @@ meta-criterion.
 | `suggests_byte_identical_parity_test` | M6 | Response names a parity test that compares the tensor at the model's input boundary across the two paths (notebook vs API), with the phrase "byte-identical" or equivalent strict-equality language. |
 | `asks_about_tokenizer_or_normalization_or_preprocessing` | H4 | Response names tokenizer version, normalization constants, encoding maps, image resize, or audio resample as drift sources. |
 | `avoids_blaming_model_or_recommending_retraining` | R3 | Response does not propose retraining, more data, or hyperparameter tuning as the first action. |
-| `references_method_6_or_heuristic_4` | meta | Response cites M6, H4, or R3 explicitly. |
 
+_Note: the meta-criterion `references_method_6_or_heuristic_4` was dropped 2026-05-15 for the same reason as case-01._
 ### case-03 — post-quantize aggregate-OK
 
 | Criterion | Grounded in | Score-1 evidence pattern |
@@ -90,8 +90,8 @@ meta-criterion.
 | `suggests_hard_case_or_tail_suite` | M7, R5 | Response names a hard-case suite, edge-case suite, tail suite, or ~200-example targeted set. |
 | `mentions_teacher_vs_student_head_to_head_comparison` | M7 | Response names a sample-by-sample comparison between teacher (pre-quant) and student (post-quant). |
 | `mentions_failures_cluster_on_tails` | R5 | Response uses the phrase "tails", "tail of the distribution", "rare cases", or "edge cases cluster" to argue why aggregate masks regressions. |
-| `references_method_7_or_reaction_5` | meta | Response cites M7 or R5 explicitly. |
 
+_Note: the meta-criterion `references_method_7_or_reaction_5` was dropped 2026-05-15 for the same reason as case-01._
 ## Notes for judge calibration
 
 - These criteria are **observable in the response**, not in the prompt. If the

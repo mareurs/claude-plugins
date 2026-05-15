@@ -10,7 +10,6 @@ ideal_rubric:
   - suggests_hard_case_or_tail_suite: true
   - mentions_teacher_vs_student_head_to_head_comparison: true
   - mentions_failures_cluster_on_tails: true
-  - references_method_7_or_reaction_5: true
 notes: |
   Tests Method 7 (quantize/distill with held-out comparison), Reaction 5
   (aggregates are kind; failures cluster on the tail). 0.7pp aggregate

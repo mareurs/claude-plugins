@@ -10,7 +10,6 @@ ideal_rubric:
   - suggests_byte_identical_parity_test: true
   - asks_about_tokenizer_or_normalization_or_preprocessing: true
   - avoids_blaming_model_or_recommending_retraining: true
-  - references_method_6_or_heuristic_4: true
 notes: |
   Tests Method 6 (train/inference parity), Heuristic 4 (notebook-good
   prod-bad → preprocessing drift), Reaction 3 (skew almost always).
