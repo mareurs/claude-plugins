@@ -21,9 +21,9 @@ Anything short of this is **in-progress**. Partial wins land in History but do n
 phase_current: 0   # Phase 0: eval grounds (blocks Phases 2-3)
 phase_total: 4
 tasks_total: 38
-tasks_done: 15     # T-1, T-2, T-3, T-4, T-12..T-22 complete
+tasks_done: 16     # T-1, T-2, T-3, T-4, T-5, T-12..T-22 complete
 tasks_in_progress: 0
-tasks_open: 23
+tasks_open: 22
 eval_baseline:
   established: false
   variance_floor: null     # populated after T-6
@@ -35,6 +35,8 @@ eval_baseline:
   judge:
     prompt_drafted: true
     rubrics_drafted: ["ml-training-takin"]
+    panel_drafted: true
+    panel_version: 1
 last_updated: 2026-05-15
 ```
 ## Decisions Log
@@ -401,3 +403,26 @@ The plan above carries defaults. All 6 defaults were accepted on 2026-05-15 (see
   Zheng et al. MT-Bench (CoT-before-JSON), Wang et al. (position bias).
 - Status: 15/38 tasks done. Phase 0 next-up: **T-5** (wire 3-model PoLL panel
   via Promptfoo — `eval/judge/panel.yaml`).
+
+### 2026-05-15 — T-5 complete (PoLL panel wired)
+
+- `eval/judge/panel.yaml` written: 3-judge cross-family panel definition.
+  - Claude Sonnet 4.6 (Anthropic)
+  - GPT-4.1 (OpenAI)
+  - Gemini 2.5 Pro (Google)
+- All 3 judges pinned to specific model IDs, temperature 0, max_tokens 4000.
+- Aggregation rule: majority vote per criterion; split (1-of-3) → score 0 +
+  `panel_split` flag for human review.
+- Position-swap discipline enforced at panel level; reversed verdicts flagged
+  `position_unstable: true`.
+- κ ≥ 0.6 calibration target baked into panel config; below that requires
+  judge-prompt iteration before trusting scores.
+- `panel_version: 1` tag for reproducibility — baseline scores namespaced by
+  version; cross-version comparisons forbidden.
+- `eval/promptfoo.yaml` filled: overall harness config wiring fixtures →
+  candidate (Opus 4.7, t=0.7) → judge panel. `threshold: 0.8` per case.
+- Several provider-string and Promptfoo-schema specifics marked
+  `# verify on first run` — confirm with actual API calls during T-6.
+- Runtime requires `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GOOGLE_API_KEY`.
+- Status: 16/38 tasks done. Phase 0 next-up: **T-6** (variance-floor
+  measurement on ml-training-takin — 3 cases × 5 reruns).

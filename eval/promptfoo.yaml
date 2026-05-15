@@ -1,0 +1,72 @@
+# Promptfoo overall config — buddy-specialist eval harness
+#
+# Entry point invoked by `eval/scripts/run.sh`.
+# Composes: fixtures (eval/fixtures/) + judge prompt (eval/judge/prompt.md) +
+# panel definition (eval/judge/panel.yaml) + per-specialist rubrics
+# (eval/judge/rubrics/<specialist>.md).
+#
+# Schema: Promptfoo v0.115+. Pin exact version once first run verifies the
+# schema. See https://promptfoo.dev for current docs.
+
+description: |
+  Buddy-specialist eval harness. Scores each specialist's candidate response
+  against per-case fixture rubrics using a 3-judge cross-family panel.
+
+# The "prompt under test" — the generator side, NOT the judge side.
+# At runtime, run.sh feeds each fixture's user_message to the candidate
+# specialist (loaded from buddy/skills/<specialist>/SKILL.md) and captures
+# the response. That response is what the panel judges.
+prompts:
+  - id: candidate_response
+    raw: |
+      {{ specialist_skill_md }}
+
+      User message:
+      {{ user_message }}
+
+# The candidate provider — the model under test, generating responses
+# as the specialist. Same model used across all specialists for
+# apples-to-apples comparison.
+providers:
+  - id: anthropic:messages:claude-opus-4-7
+    label: candidate
+    config:
+      max_tokens: 4000
+      temperature: 0.7              # match production specialist temperature
+      # NOTE: this is the GENERATOR temperature, not the judge temperature.
+      # Judges always run at temperature 0 — see panel.yaml.
+
+# Tests are loaded dynamically from eval/fixtures/<specialist>/case-NN.yaml
+# by run.sh. Each fixture becomes one Promptfoo test case with the rubric
+# fed into the judge prompt.
+tests:
+  - vars:
+      _comment: "Filled at runtime by eval/scripts/run.sh from eval/fixtures/**.yaml"
+
+# Assertions run AFTER the candidate produces a response. Here we invoke
+# the judge panel.
+defaultTest:
+  assert:
+    - type: llm-rubric
+      provider:
+        id: file://./judge/panel.yaml         # 3-judge PoLL aggregation
+      rubric:
+        # Substituted from the fixture's ideal_rubric and the per-specialist
+        # rubric grounding.
+        file: file://./judge/prompt.md
+      # Pass threshold per case (out of 1.0). Below threshold → fail at CI.
+      threshold: 0.8
+
+# Output destinations
+outputPath:
+  - eval/baselines/<date>/<specialist>/scores.json
+  - eval/baselines/<date>/<specialist>/raw.html        # human-readable detail
+
+# Cache: judge calls on identical inputs return the same scores at
+# temperature 0, so caching is safe and saves cost.
+cache:
+  enabled: true
+  ttlHours: 168                                       # 1 week
+
+# Concurrency: be polite to the panel's APIs.
+maxConcurrency: 4

@@ -1,0 +1,89 @@
+# PoLL (Panel of LLM Judges) — 3 cross-family judges
+#
+# Used by every fixture run. Each candidate response is scored by all 3 judges
+# in parallel; final score per criterion = majority vote across the panel.
+#
+# Rationale (D-5 in docs/trackers/active-plan.md):
+# - 3 is the minimum for majority without ties.
+# - Cross-family neutralizes per-family self-preference bias
+#   (pheasant-llm Method 4(a); Zheng et al. 2023).
+#
+# Pricing budget: ~$3–10 per full eval run at 2026 prices
+# (50 fixtures × 3 judges × 2 position-swap runs = 300 judge calls).
+
+description: |
+  Buddy-specialist judge panel — 3 cross-family models scoring responses
+  against the per-case rubric (eval/fixtures/<specialist>/case-NN.yaml).
+  Judge prompt: eval/judge/prompt.md.
+
+env:
+  # Required at runtime. Source from shell, .env, or 1Password. NEVER commit.
+  - ANTHROPIC_API_KEY
+  - OPENAI_API_KEY
+  - GOOGLE_API_KEY
+
+# Three judges, three vendors. Models pinned to specific identifiers so that
+# panel results are reproducible across runs.
+#
+# When a model is retired or a successor releases, update the id here AND
+# re-run calibration (T-8) before trusting new scores — judge swaps invalidate
+# the κ measurement against human labels.
+judges:
+  - id: anthropic:messages:claude-sonnet-4-6
+    label: judge-anthropic
+    config:
+      max_tokens: 4000
+      temperature: 0
+      # Sonnet 4.6 chosen over Opus 4.7 for cost; if scoring instability is
+      # observed, swap to Opus 4.7 and recalibrate.
+
+  - id: openai:chat:gpt-4.1
+    label: judge-openai
+    config:
+      max_tokens: 4000
+      temperature: 0
+      # Verify exact provider string on first run — Promptfoo may want
+      # `openai:gpt-4.1` (no `chat` segment) depending on version.
+
+  - id: googleai:gemini-2.5-pro
+    label: judge-google
+    config:
+      max_tokens: 4000
+      temperature: 0
+      # Verify provider string — could be `vertex:gemini-2.5-pro` if going
+      # through Vertex AI, or `googleai:gemini-2.5-pro` for the public API.
+
+# Aggregation rule applied AFTER all 3 judges have scored a case.
+#
+# Per-criterion: majority vote (2-of-3 or 3-of-3) wins. 1-of-3 = score 0
+# and `panel_split: true` is logged for review.
+#
+# Per-case total: sum of per-criterion majority votes / total criteria.
+aggregation:
+  rule: majority_vote_per_criterion
+  on_split:
+    log_field: panel_split           # flagged for human review
+    score_when_split: 0              # conservative: split = unmet
+    require_human_review_at_freeze: true
+
+# Position-swap discipline (Wang et al. 2023; pheasant-llm Method 4(b)).
+# Each candidate is run through the panel twice: positions A→B and B→A.
+# If any judge reverses a per-criterion verdict between runs, the case is
+# flagged `position_unstable: true` and human-reviewed before baseline freeze.
+position_swap:
+  enabled: true
+  log_field: position_unstable
+  require_human_review_at_freeze: true
+
+# Calibration target (T-8). Below this κ, the judge prompt or panel
+# composition must be revisited before scores are trusted.
+calibration:
+  target_kappa_vs_human: 0.6
+  calibration_set_path: eval/judge/calibration/human-labels.csv
+  iteration_log_dir: eval/judge/calibration/
+
+# Reproducibility tag. Increment when the panel composition changes
+# (model swap, temperature change, prompt change, anything observable).
+# Baselines are namespaced by panel_version — score deltas across versions
+# are not directly comparable.
+panel_version: 1
