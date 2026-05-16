@@ -15,7 +15,7 @@ Compute:
 
 ### No argument
 
-Read `$SESSION_DIR/active_plan.json` via the Read tool. If present, print:
+Read `$SESSION_DIR/active_plan.json` (use codescout `read_file` if available, native Read otherwise). If present, print:
 
 ```
 Active plan: <path> (<source>, set <relative time> ago)
@@ -29,7 +29,7 @@ No active plan. Judge running in narrative-only mode.
 
 ### `--clear`
 
-Use the Bash tool to delete `$SESSION_DIR/active_plan.json`:
+Delete `$SESSION_DIR/active_plan.json` via codescout `run_command` (native Bash as fallback):
 
 ```bash
 rm -f "$SESSION_DIR/active_plan.json"

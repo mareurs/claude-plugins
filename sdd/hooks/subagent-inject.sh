@@ -64,7 +64,7 @@ Check: does implementation match acceptance criteria? Does it exceed scope?"
         done <<< "$SPEC_FILES"
       fi
     fi
-    CONTEXT="SDD PROJECT - EXPLORATION GUIDANCE\n\nThis project uses Specification-Driven Development.\nSpecs: memory/specs/ | Plans: memory/plans/ | Constitution: memory/constitution.md\n${SPEC_LIST}\nTOOL ROUTING:\n- Source code: prefer Serena tools (find_symbol, get_symbols_overview, search_for_pattern) over Grep/Read\n- Non-code files (.md, .json, .yaml, .sql): use Grep, Read, Glob\n- Always pass relative_path to find_symbol for performance\n\nPHASES:\n1. Semantic Discovery - search_code or search_for_pattern for concepts\n2. Symbol Drill-down - find_symbol for specific classes/methods\n3. Cross-reference - find_referencing_symbols for usage patterns"
+    CONTEXT="SDD PROJECT - EXPLORATION GUIDANCE\n\nThis project uses Specification-Driven Development.\nSpecs: memory/specs/ | Plans: memory/plans/ | Constitution: memory/constitution.md\n${SPEC_LIST}\nTOOL ROUTING (codescout MCP, when present):\n- Source code: prefer codescout symbols/symbol_at/references/grep/semantic_search over native Read/Grep/Glob\n- Markdown (.md): use read_markdown / edit_markdown — heading-aware, slice-able\n- Other non-code (.json, .yaml, .toml, .sql): read_file is fine\n- Structural code edits: edit_code (replace/insert/remove/rename) — never edit_file on function bodies\n\nPHASES:\n1. Semantic Discovery - semantic_search for concepts when name is unknown\n2. Symbol Drill-down - symbols(name=..., include_body=true) for specific classes/methods\n3. Cross-reference - references(symbol, path) or call_graph for usage patterns"
     ;;
 
   *)

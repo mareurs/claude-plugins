@@ -33,7 +33,7 @@ fi
 GREP_DEDUP_KEY=$(printf '%s\t%s' "Grep" "$T/proj" | md5sum | cut -c1-8)
 rm -f "/tmp/cs-block-$GREP_DEDUP_KEY"
 OUT=$(guard_input "Grep" '"pattern":"foo","type":"ts"' | bash "$HOOK" 2>/dev/null)
-if assert_denied "$OUT" && assert_reason_contains "$OUT" "search_pattern"; then
+if assert_denied "$OUT" && assert_reason_contains "$OUT" "semantic_search"; then
   pass "Grep type=ts: deny"
 else
   fail "Grep type=ts: deny" "$OUT"
@@ -55,14 +55,14 @@ OUT=$(guard_input "Glob" '"pattern":"'"$T/proj/**/*.md"'"' | bash "$HOOK" 2>/dev
 EC=$?
 if [ $EC -eq 0 ] && ! assert_denied "$OUT"; then pass "Glob *.md: allow"; else fail "Glob *.md: allow" "$OUT"; fi
 
-# Test 7: Read on .ts file → deny with list_symbols
+# Test 7: Read on .ts file → deny with symbols
 READ_DEDUP_KEY=$(printf '%s\t%s' "Read" "$T/proj" | md5sum | cut -c1-8)
 rm -f "/tmp/cs-block-$READ_DEDUP_KEY"
 OUT=$(guard_input "Read" '"file_path":"'"$T/proj/app.ts"'"' | bash "$HOOK" 2>/dev/null)
 if assert_denied "$OUT" && assert_reason_contains "$OUT" "symbols"; then
-  pass "Read .ts: deny with list_symbols"
+  pass "Read .ts: deny with symbols"
 else
-  fail "Read .ts: deny with list_symbols" "$OUT"
+  fail "Read .ts: deny with symbols" "$OUT"
 fi
 
 # Test 8: Read on .md inside project → deny with heading navigation guidance
@@ -108,14 +108,14 @@ EC=$?
 if [ $EC -eq 0 ] && ! assert_denied "$OUT"; then pass "outside workspace_root: allow"; else fail "outside workspace_root: allow" "$OUT"; fi
 rm -f "$T/proj/.claude/codescout-companion.json"
 
-# Test 11: Edit on .ts → deny with replace_symbol
+# Test 11: Edit on .ts → deny with edit_code
 EDIT_DEDUP_KEY=$(printf '%s\t%s' "Edit" "$T/proj" | md5sum | cut -c1-8)
 rm -f "/tmp/cs-block-$EDIT_DEDUP_KEY"
 OUT=$(guard_input "Edit" '"file_path":"'"$T/proj/app.ts"'"' | bash "$HOOK" 2>/dev/null)
-if assert_denied "$OUT" && assert_reason_contains "$OUT" "replace_symbol"; then
-  pass "Edit .ts: deny with replace_symbol"
+if assert_denied "$OUT" && assert_reason_contains "$OUT" "edit_code"; then
+  pass "Edit .ts: deny with edit_code"
 else
-  fail "Edit .ts: deny with replace_symbol" "$OUT"
+  fail "Edit .ts: deny with edit_code" "$OUT"
 fi
 
 # Test 12: Edit on .md → allow (markdown not in SOURCE_EXT_PATTERN)

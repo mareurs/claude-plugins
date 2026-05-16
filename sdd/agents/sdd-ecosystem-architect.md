@@ -86,30 +86,34 @@ These tools are always available:
 | `TodoWrite` | Track task progress | Multi-step agents |
 | `NotebookEdit` | Edit Jupyter notebooks | Data science agents |
 
-### Serena MCP Tools (Semantic Code Understanding)
+### Codescout MCP Tools (Semantic Code Understanding)
 
-**CRITICAL**: For any agent that needs to understand or navigate code, Serena tools provide 70% token savings vs. reading raw files.
+When the **codescout** MCP server is connected (check `mcp__codescout__*` namespace), prefer these over native Read/Grep/Glob — they save 70%+ tokens vs raw file reads.
 
 | Tool | Purpose | When to Recommend |
 |------|---------|-------------------|
-| `mcp__plugin_serena_serena__find_symbol` | Find classes/functions by name | Code navigation, locating implementations |
-| `mcp__plugin_serena_serena__get_symbols_overview` | List symbols in a file | Understanding file structure |
-| `mcp__plugin_serena_serena__find_referencing_symbols` | Find where symbol is used | Impact analysis, dependency mapping |
-| `mcp__plugin_serena_serena__search_for_pattern` | Regex search codebase | Pattern detection, tech stack discovery |
-| `mcp__plugin_serena_serena__read_file` | Read file with line numbers | When you need specific file content |
-| `mcp__plugin_serena_serena__list_dir` | List directory structure | Project exploration |
-| `mcp__plugin_serena_serena__replace_symbol_body` | Replace function/class body | Targeted code modification |
-| `mcp__plugin_serena_serena__replace_content` | Regex-based replacement | Multi-line code changes |
-| `mcp__plugin_serena_serena__insert_after_symbol` | Add code after symbol | Extending existing code |
-| `mcp__plugin_serena_serena__insert_before_symbol` | Add code before symbol | Adding imports, decorators |
-| `mcp__plugin_serena_serena__rename_symbol` | Rename across codebase | Refactoring |
-| `mcp__plugin_serena_serena__write_memory` | Persist knowledge | Agents that discover reusable info |
-| `mcp__plugin_serena_serena__read_memory` | Retrieve persisted knowledge | Agents that need project context |
-| `mcp__plugin_serena_serena__list_memories` | Show available memories | Discovery, context loading |
-| `mcp__plugin_serena_serena__activate_project` | Activate Serena for project | Initial setup |
-| `mcp__plugin_serena_serena__onboarding` | Run project onboarding | New project setup |
-| `mcp__plugin_serena_serena__execute_shell_command` | Run commands via Serena | When Bash isn't available |
+| `mcp__codescout__symbols` | Overview of all symbols in a file, OR search by name across project | First call for any code-navigation task; pass `name=...` + `include_body=true` to fetch a specific body |
+| `mcp__codescout__symbol_at` | LSP definition + hover at line/col | Jump to definition from a usage site |
+| `mcp__codescout__references` | All callers/users of a symbol | Impact analysis, dependency mapping |
+| `mcp__codescout__call_graph` | Transitive callers or callees | Blast radius for refactors |
+| `mcp__codescout__grep` | Regex search across files | Pattern detection, finding string literals |
+| `mcp__codescout__semantic_search` | Concept-level search when name unknown | Onboarding, finding implementations by behavior |
+| `mcp__codescout__tree` | Directory listing or glob match | Project exploration |
+| `mcp__codescout__read_markdown` | Read `.md` with heading navigation | Any markdown file — never use `Read` on `.md` |
+| `mcp__codescout__read_file` | Read non-source non-markdown (toml/json/yaml/env) | Config files only |
+| `mcp__codescout__edit_code` | Replace / insert / remove / rename a symbol via LSP | Structural code changes |
+| `mcp__codescout__edit_file` | Edit imports, literals, comments | Targeted small-scope edits — NOT function bodies |
+| `mcp__codescout__edit_markdown` | Heading-addressed `.md` edits | Any markdown change |
+| `mcp__codescout__create_file` | Create or overwrite a file | New files |
+| `mcp__codescout__run_command` | Shell with `@cmd_*` buffer refs | Build / test / git — query buffers via grep `@cmd_id` |
+| `mcp__codescout__workspace` | Activate / status / list projects | Switching project context — **always restore home** |
+| `mcp__codescout__memory` | Read / write / remember / recall | Persistent project memory |
+| `mcp__codescout__librarian` | Cross-doc context pack | Pulling neighbourhood of related artifacts |
+| `mcp__codescout__artifact` | Spec / plan / ADR CRUD | Augmented documents |
+| `mcp__codescout__index` | Build / status of semantic index | After heavy mutation, before semantic search |
+| `mcp__codescout__onboarding` | Generate project system prompt | First-time setup |
 
+**Fallback policy:** When codescout is not connected, use native Read / Grep / Glob / Edit / Write. Detect via tool prefix presence in the agent's available tool list.
 ### Available Skills & Plugins
 
 Recommend invoking these via `Skill` tool when appropriate:
@@ -171,27 +175,34 @@ When designing a new agent, use this decision tree:
 ├─────────────────────────────────────────────────────────────────┤
 │                                                                 │
 │  Does the agent need to UNDERSTAND CODE?                        │
-│  └─► YES → Include Serena tools (find_symbol, search_for_pattern)│
+│  └─► YES → codescout: symbols, semantic_search, references      │
+│            (native Grep/Read only if codescout absent)          │
 │                                                                 │
 │  Does the agent need to MODIFY CODE?                            │
-│  └─► YES → Serena symbolic editing (replace_symbol_body)        │
-│            OR native Edit tool for simple changes               │
+│  └─► YES → codescout: edit_code for structural changes          │
+│            codescout: edit_file for imports/literals/comments   │
+│            (native Edit only if codescout absent)               │
+│                                                                 │
+│  Does the agent need to READ/EDIT MARKDOWN?                     │
+│  └─► YES → codescout: read_markdown / edit_markdown             │
+│            (never use Read/Edit on .md — codescout rejects it)  │
 │                                                                 │
 │  Does the agent need USER INPUT during execution?               │
 │  └─► YES → Include AskUserQuestion                              │
 │                                                                 │
 │  Does the agent need to RUN COMMANDS (build/test)?              │
-│  └─► YES → Include Bash                                         │
+│  └─► YES → codescout: run_command (buffer refs save context)    │
+│            (native Bash if codescout absent)                    │
 │                                                                 │
 │  Does the agent need to INVOKE EXISTING WORKFLOWS?              │
 │  └─► YES → Include Skill tool + list specific skills            │
 │                                                                 │
 │  Does the agent need to PERSIST KNOWLEDGE?                      │
-│  └─► YES → Include Serena memory tools (write_memory, etc.)     │
+│  └─► YES → codescout: memory (read/write/remember/recall)       │
 │                                                                 │
 │  Does the agent need to EXPLORE CODEBASE?                       │
-│  └─► YES → Serena list_dir + get_symbols_overview               │
-│            OR native Glob + Grep for simpler searches           │
+│  └─► YES → codescout: tree, symbols, semantic_search            │
+│            (native Glob/Grep only if codescout absent)          │
 │                                                                 │
 │  Does the agent need to TRACK PROGRESS?                         │
 │  └─► YES → Include TodoWrite                                    │
@@ -203,17 +214,14 @@ When designing a new agent, use this decision tree:
 
 | Agent Type | Recommended Tools |
 |------------|-------------------|
-| **Code Analyzer** | Serena: find_symbol, get_symbols_overview, search_for_pattern, read_memory |
-| **Code Modifier** | Serena: find_symbol, replace_symbol_body, insert_after_symbol; Native: Edit |
-| **Documentation Generator** | Serena: search_for_pattern, get_symbols_overview, write_memory; Native: Write |
-| **Validator/Reviewer** | Serena: find_symbol, search_for_pattern; Native: Grep, Bash; Skill: verification-before-completion |
-| **Interactive Designer** | Native: AskUserQuestion, Read, Write; Skill: brainstorming |
-| **Test Runner** | Native: Bash, Grep, Read; Skill: test-driven-development |
-| **Git/Release Agent** | Native: Bash; Skill: commit, commit-push-pr, finishing-a-development-branch |
-| **Exploration Agent** | Serena: list_dir, get_symbols_overview, search_for_pattern; Native: Glob, Grep |
-
----
-
+| **Code Analyzer** | codescout: symbols, semantic_search, references, memory |
+| **Code Modifier** | codescout: symbols, edit_code, edit_file |
+| **Documentation Generator** | codescout: semantic_search, symbols, read_markdown, edit_markdown, create_file, memory |
+| **Validator/Reviewer** | codescout: symbols, grep, run_command; Skill: verification-before-completion |
+| **Interactive Designer** | Native: AskUserQuestion; codescout: read_markdown, create_file; Skill: brainstorming |
+| **Test Runner** | codescout: run_command, grep, symbols; Skill: test-driven-development |
+| **Git/Release Agent** | codescout: run_command; Skill: commit, commit-push-pr, finishing-a-development-branch |
+| **Exploration Agent** | codescout: tree, symbols, semantic_search, grep |
 ## Process: Five Phases
 
 ### Phase 1: Understand
@@ -222,10 +230,10 @@ When designing a new agent, use this decision tree:
 - Determine if this is: new creation, enhancement, analysis, or maintenance
 
 ### Phase 2: Explore
-- Use Grep/Glob to find relevant patterns in existing components
-- Read existing commands in `.claude/commands/` for style reference
-- Check `memory/constitution.md` for governance alignment
 
+- Use codescout `grep` / `tree` to find relevant patterns in existing components (native Grep/Glob as fallback)
+- Use `read_markdown` on existing commands in `.claude/commands/` for style reference
+- Check `memory/constitution.md` for governance alignment
 ### Phase 3: Design
 - For **new components**: Use brainstorming dialogue (one question at a time)
 - For **enhancements**: Propose specific changes with rationale
@@ -245,7 +253,7 @@ After brainstorming and design approval:
 3. agent-creator generates file with proper YAML formatting
 
 **For Validation:**
-1. Use Bash tool to run validate-agent.sh:
+1. Use codescout `run_command` (or native Bash as fallback) to run validate-agent.sh:
    ```bash
    bash ~/.claude/plugins/cache/claude-plugins-official/plugin-dev/*/skills/agent-development/scripts/validate-agent.sh .claude/agents/<name>.md
    ```

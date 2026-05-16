@@ -75,19 +75,17 @@ case "$TOOL_NAME" in
       BASH_HINT="  run_command(\"${CMD}\")                  — same command with smart summaries + @ref buffers"
     fi
 
-    enforce "WRONG TOOL. You called Bash but codescout is available.
+    enforce "This call is blocked because codescout offers a leaner path for shell work.
 
-STOP. Do NOT run: ${CMD}
+Command: ${CMD}
 
-USE codescout tools INSTEAD:
+Suggested codescout tools:
 ${BASH_HINT}
 
-For other shell commands: run_command(\"COMMAND\") — same execution but:
-- Large output stored in @ref buffers (saves THOUSANDS OF TOKENS)
-- Bash dumps ALL output into context — WASTING YOUR TOKEN BUDGET
-- Buffers are queryable: grep PATTERN @cmd_id, tail -20 @cmd_id
-
-YOU MUST use codescout tools. Do not call Bash."
+For any other shell command: run_command(\"COMMAND\") — same execution, with:
+- Large output stored in @cmd_* buffers (saves context tokens)
+- Buffers queryable: grep PATTERN @cmd_id, tail -20 @cmd_id
+- Smart summaries returned inline"
     ;;
 
   Grep)
@@ -129,18 +127,14 @@ Register it first so codescout can index and search it:
 "
     fi
 
-    enforce "WRONG TOOL. You called Grep on source files but codescout has a FULL INDEX.
-
-STOP. Do NOT grep source files.
+    enforce "This call is blocked because codescout has a pre-built index for source files.
 ${CARGO_HINT}
-Grep scans files line-by-line and dumps raw matches into context — WASTEFUL AND SLOW.
-codescout tools use a pre-built index and return STRUCTURED, TOKEN-EFFICIENT results:
+Native Grep scans files line-by-line and dumps raw matches into context.
+codescout uses the index and returns structured, token-efficient results:
 
-  search_pattern(\"${PATTERN}\")    — regex search, returns only matching lines with context
-  symbols(\"${PATTERN}\")           — locate symbol by name (MUCH faster than grep)
-  semantic_search(\"${PATTERN}\")   — find code by MEANING, not just text
-
-YOU MUST use codescout search tools. Do not call Grep on source files."
+  grep(\"${PATTERN}\")              — regex search, returns matching lines with optional context_lines
+  symbols(\"${PATTERN}\")           — locate symbol by name (faster than text search)
+  semantic_search(\"${PATTERN}\")   — concept-level search when the name is unknown"
     ;;
 
   Glob)
@@ -152,16 +146,12 @@ YOU MUST use codescout search tools. Do not call Grep on source files."
 
     is_in_workspace "${PATTERN}" || exit 0
 
-    enforce "WRONG TOOL. You called Glob on source files but codescout has a FILE INDEX.
+    enforce "This call is blocked because codescout has an indexed file lister.
 
-STOP. Do NOT glob source files.
-
-codescout has already indexed all files. Use the index directly — it is FASTER and uses FEWER TOKENS:
+codescout already knows every file in the project. Use the index directly:
 
   tree(\"${PATTERN}\")             — glob-style file discovery via codescout index
-  symbols(\"${BASENAME%.*}\")      — find a symbol by name if you know what you are looking for
-
-YOU MUST use codescout file tools. Do not call Glob on source files."
+  symbols(\"${BASENAME%.*}\")      — find a symbol by name if you know what you are after"
     ;;
 
   Read)
@@ -181,20 +171,18 @@ YOU MUST use codescout file tools. Do not call Glob on source files."
       # Exempt skill files (SKILL.md, files inside a skills/ directory)
       echo "$FILE_PATH" | grep -qiE '(^|/)skills/' && exit 0
       echo "$FILE_PATH" | grep -qiE '/SKILL\.md$' && exit 0
-      enforce "WRONG TOOL. You called Read on a markdown file but codescout has read_markdown.
+      enforce "This call is blocked because codescout has heading-aware markdown reading.
 
-STOP. Do NOT read the full file: ${FILE_PATH}
+File: ${FILE_PATH}
 
-Reading a full markdown file dumps all content into context — WASTEFUL when you need one section.
-Use read_markdown — size-adaptive output (full content for small files, content+hint for medium, heading map+recipe for large):
+Reading a full markdown file dumps everything into context. read_markdown is size-adaptive (full content for small files, heading map + slice recipe for large):
 
   read_markdown(\"${REL_PATH}\")                            — adaptive output (start here)
   read_markdown(\"${REL_PATH}\", heading=\"## Section\")      — one section
   read_markdown(\"${REL_PATH}\", headings=[\"## A\", \"## B\"]) — multiple sections
-  search_pattern(\"pattern\", path=\"${REL_PATH}\")           — content search
+  grep(\"pattern\", path=\"${REL_PATH}\")                     — content search
 
-WORKFLOW: read_markdown first → heading=/headings= for specific sections → line ranges only as last resort.
-Do not call Read on markdown files."
+Suggested flow: read_markdown first → heading= or headings= for sections → line ranges only as last resort."
     fi
 
     echo "$FILE_PATH" | grep -qiE "$SOURCE_EXT_PATTERN" || exit 0
@@ -217,18 +205,17 @@ Register the crate once, then use symbol tools for all future lookups:
       fi
     fi
 
-    enforce "WRONG TOOL. You called Read on a source file but codescout has SYMBOL-LEVEL ACCESS.
+    enforce "This call is blocked because codescout has a faster path for source files.
 
-STOP. Do NOT read: ${FILE_PATH}
+File: ${FILE_PATH}
 ${CARGO_HINT}
-Reading a full source file WASTES THOUSANDS OF TOKENS. codescout returns ONLY what you need:
+Reading a full source file costs thousands of tokens. codescout returns just what you need:
 
-  symbols(\"${REL_PATH}\")                      — ALL symbols + line numbers in ~50 tokens (DO THIS FIRST)
-  symbols(name, include_body=true)             — ONE symbol body, targeted, token-efficient
-  read_file(\"${REL_PATH}\", start_line, end_line) — LAST RESORT only, with explicit line range
+  symbols(\"${REL_PATH}\")                      — overview + line numbers (~50 tokens)
+  symbols(name, include_body=true)             — one symbol body, targeted
+  read_file(\"${REL_PATH}\", start_line, end_line) — only when symbol tools cannot reach it
 
-MANDATORY ORDER: symbols FIRST → symbols(name, include_body=true) for specific code → read_file only if symbol tools fail.
-Do not call Read on source files."
+Suggested flow: symbols first → symbols(name, include_body=true) for specific code → read_file with an explicit range only as last resort."
     ;;
 
   Edit)
@@ -243,20 +230,20 @@ Do not call Read on source files."
       REL_PATH="${FILE_PATH#$CWD/}"
     fi
 
-    enforce "WRONG TOOL. You called Edit on a source file but codescout has LSP-BACKED SYMBOL EDITING.
+    enforce "This call is blocked because codescout's edit_code is the safer path for structural source edits.
 
-STOP. Do NOT use the native Edit tool on: ${FILE_PATH}
+File: ${FILE_PATH}
 
-The native Edit tool bypasses codescout's safety gates and LSP awareness.
-codescout provides STRUCTURAL, LSP-BACKED editing tools:
+The native Edit tool bypasses codescout's LSP awareness and safety gates.
+codescout offers structural, LSP-backed editing via edit_code:
 
-  replace_symbol(name_path, path, new_body)    — replace a function/struct/class body via LSP
-  insert_code(name_path, path, code, position) — insert before/after a named symbol
-  remove_symbol(name_path, path)               — delete a symbol by name (LSP knows the exact range)
-  edit_file(path, old_string, new_string)       — for imports, literals, comments, config (NOT structural code)
+  edit_code(symbol, path, action=\"replace\", body=...)               — replace a function/struct/class body
+  edit_code(symbol, path, action=\"insert\", position=\"before\"|\"after\", body=...) — inject near a symbol
+  edit_code(symbol, path, action=\"remove\")                          — delete a symbol
+  edit_code(symbol, path, action=\"rename\", new_name=...)            — project-wide rename via LSP
+  edit_file(path, old_string, new_string)                            — imports, literals, comments, config (not structural code)
 
-WORKFLOW: symbols(name, include_body=true) to read the current body → replace_symbol to update it.
-Do not call Edit on source files."
+Suggested flow: symbols(name, include_body=true) to inspect the current body → edit_code to change it."
     ;;
 
   Write)
@@ -271,18 +258,16 @@ Do not call Edit on source files."
       REL_PATH="${FILE_PATH#$CWD/}"
     fi
 
-    enforce "WRONG TOOL. You called Write on a source file but codescout has create_file.
+    enforce "This call is blocked because codescout's create_file is the tracked path for new source files.
 
-STOP. Do NOT use the native Write tool on: ${FILE_PATH}
+File: ${FILE_PATH}
 
 The native Write tool bypasses codescout's safety gates and file tracking.
-Use codescout tools instead:
+codescout alternatives:
 
-  create_file(path, content)                    — create or overwrite a file (tracked by codescout)
-  replace_symbol(name_path, path, new_body)     — replace existing code via LSP
-  insert_code(name_path, path, code, position)  — insert code near a symbol
-
-Do not call Write on source files."
+  create_file(path, content)                                 — create or overwrite (tracked by codescout)
+  edit_code(symbol, path, action=\"replace\", body=...)        — replace an existing symbol body via LSP
+  edit_code(symbol, path, action=\"insert\", position=..., body=...) — insert code near a symbol"
     ;;
 esac
 
