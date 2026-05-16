@@ -17,25 +17,26 @@ Anything short of this is **in-progress**. Partial wins land in History but do n
 ## Live state
 
 ```yaml
-phase_current: 2.5   # Phase 2 done; gap before Phase 3 (systemic rewrites)
+phase_current: 2.9   # Phase 2 fully closed including takin refactor; gap before Phase 3
 phase_total: 4
 tasks_total: 38
-tasks_done: 28     # T-1..T-6, T-8, T-10, T-12..T-22, T-23..T-28; T-7+T-9 externalized
+tasks_done: 29     # T-1..T-6, T-8, T-10, T-12..T-22, T-23..T-28, takin refactor + v3 baseline
 tasks_in_progress: 0
-tasks_open: 10     # T-11 (CI) + Phase 3 (6) + Phase 4 (4) - T-7+T-9 externalized
+tasks_open: 9     # T-11 (CI) + Phase 3 (6) + Phase 4 (4) - T-7+T-9 externalized
 eval_baseline:
-  established: true            # T-10 frozen v1 2026-05-16; v2 supersedes 2026-05-16 (numerical equal, parser-bug fix)
-  baseline_version: 2          # use frozen/ml-training-takin@v2/
-  baseline_path: eval/baselines/frozen/ml-training-takin@v2/
-  v1_status: superseded        # forensic only; SUPERSEDED.md in v1 dir explains
-  variance_floor: 0.200        # unchanged v1→v2; case-01 spread is real judge disagreement
-  judge_kappa_vs_strong_panel: 1.0   # n=13, D-7 substitute; inherited v1→v2 via bug-symmetry argument
+  established: true            # v3 supersedes v2 (refactored candidate)
+  baseline_version: 3
+  baseline_path: eval/baselines/frozen/ml-training-takin@v3/
+  v1_status: superseded        # forensic — pre-parser-fix
+  v2_status: superseded        # forensic — pre-takin-refactor
+  variance_floor: 0.200        # unchanged v1→v2→v3
+  judge_kappa_vs_strong_panel: 1.0   # n=13, inherited via candidate-content-preservation argument
   judge_kappa_target: 0.7
   pilot_specialist: ml-training-takin
   control_specialist: ml-training-takin
   pre_edit_snapshot_sha: 729dc22
   fixtures_count:
-    ml-training-takin: 3       # frozen v2; remaining specialists deferred to fixture-expansion tracker
+    ml-training-takin: 3
   rubric_version: 2
   judge:
     prompt_drafted: true
@@ -50,9 +51,10 @@ eval_baseline:
     variance_floor_sh:  written + tested
     calibrate_sh:       written  # legacy promptfoo shape; superseded by gold-label.py
     freeze_baseline_sh: written
-    gold_label_py:      written + tested (κ calibration; not re-run for v2 per bug-symmetry argument)
+    gold_label_py:      written + tested (κ calibration; not re-run since v1 per bug-symmetry and content-preservation arguments)
   known_issues:
-    - "openai/gpt-5 still parses_ok 14/15 (93%) in v2 — 1 cell still fails (raw_text now captured for diagnosis). Investigate before T-11 if a tighter rate is needed for CI gating; current rate is enough for offline regression detection on takin."
+    - "openai/gpt-5 parse rate now 100% in v3 (15/15). Earlier issue (12/15 in v1, 14/15 in v2) was the parse_judge_output rfind bug — fully resolved. Issue closed."
+all_specialists_refactored: true   # 10/11 ibex-promoted; security-ibex IS the source pattern
 runtime_bringup_tracker: docs/trackers/eval-bringup.md
 fixture_expansion_tracker: docs/trackers/fixture-expansion.md
 human_anchor_TODO: "Replace D-7 strong-panel calibration with human labels when feasible — current κ inflates above κ-vs-human due to shared LLM biases"
@@ -705,3 +707,49 @@ value — deferred to first Phase 3 rewrite that needs fresh κ.
 **Drift-control case-03 1.0→0.833 from baa1759** is now recategorized as
 parser bug, NOT candidate or panel drift. Phase 2 refactors stand
 unambiguously.
+
+### 2026-05-16 — takin refactored (Phase 2 fully closed); baseline v3 frozen
+
+**Last buddy refactored.** Takin's exception-from-Phase-2 was deliberate
+(preserving v2 baseline integrity). User decided full bestiary uniformity
+beats the "untouched control" reference — v2 is preserved in
+`frozen/v2/` for any future ibex-pattern-vs-flat-method analysis.
+
+Pheasant lens addendums (`_classic.md`, `_llm.md`) got the S-4 fix
+(Reactions tagged `_Applies:_` + "Non-exhaustive" disclaimer) in `35e92cc`
+before this refactor — they were a Phase 2 oversight noticed during the
+"did we refactor all buddies?" audit.
+
+**Refactor delta** (v2 → v3):
+
+| Case | v2 mean | v3 mean | Δ | Claimable? |
+|------|---------|---------|---|---|
+| case-01 | 0.880 | 0.960 | +0.080 | NO — below floor 0.200 |
+| case-02 | 1.000 | 1.000 | +0.000 | — |
+| case-03 | 1.000 | 1.000 | +0.000 | — |
+
+Floor unchanged 0.200. openai parse rate 14/15 → 15/15. Candidate response
+length +50% (refactored skill emits longer, more structured responses per
+the Training Diagnosis Format schema).
+
+**Verdict**: refactor maintained quality. case-01 directional improvement
+is documented but not claimed — anti-drift rule applies to us too.
+
+**Bestiary uniformity achieved.** 10 of 11 specialists follow the ibex
+pattern (security-ibex IS the source pattern, intrinsically conforms).
+All `## Operating Principles`, `## Method — Three Phases` (with mandatory
+Phase 3 Self-Critique), domain-specific `## [X] Format` schema,
+`## Self-Traps`, tagged Reactions with "Non-exhaustive" disclaimer, and
+one-line Voice tone-cues.
+
+**v3 frozen** at `eval/baselines/frozen/ml-training-takin@v3/` with full
+METADATA + `delta_vs_v2` narrative. v2 retains `SUPERSEDED.md` explaining
+the trigger and delta. `frozen/README.md` updated.
+
+**κ_vs_strong_panel = 1.000 inherited** via judgment: candidate changed
+but the new SKILL.md preserves all v2 Method substance + adds structure
+(Phases, Format, Self-Traps). Strong-panel disagreement unlikely to grow.
+Rigorous re-verification deferred to first Phase 3 systemic rewrite.
+
+**Phase 2 fully closed.** Next unblocked: T-11 (CI), Phase 3 (S-N
+systemic rewrites), fixture-expansion tracker work.
