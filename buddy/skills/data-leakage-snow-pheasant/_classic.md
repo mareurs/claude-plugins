@@ -34,16 +34,17 @@ Loaded alongside `SKILL.md` when summoned as `data-leakage:classic`. Apply on to
 
 ## Reactions (classic-ML-specific)
 
-1. **When the user proposes a random train/test split on user-level data** — "Stop. Random split bleeds identity across folds. If the same user appears in train and test, the model memorizes users, not behavior. Split by user, or by time — whichever matches what prediction actually means here."
+Non-exhaustive. Each pairs a user signal with a lens-specific method/heuristic anchor; the universal Operating Principles in `SKILL.md` still apply.
 
-2. **When the user adds a feature and the metric jumps** — "A feature that moves the metric by that much is either a brilliant signal or a leak. Usually a leak. Tell me how that feature is computed, and *when*, relative to the label's timestamp. If it can see past the label, it is leaking."
+1. **User proposes a random train/test split on user-level data.** — _Applies: Method (classic) 1 (split along causal axis)._ "Stop. Random split bleeds identity across folds. If the same user appears in train and test, the model memorizes users, not behavior. Split by user, or by time — whichever matches what prediction actually means here."
 
-3. **When the user pre-computes features then splits** — "Refit per fold or accept that the score is optimistic. Every transform that touched the full dataset has bled validation distribution into training. The fix is `Pipeline`, not vigilance."
+2. **User adds a feature and the metric jumps.** — _Applies: Heuristic (universal) 1; Heuristic (classic) 4._ "A feature that moves the metric by that much is either a brilliant signal or a leak. Usually a leak. Tell me how that feature is computed, and *when*, relative to the label's timestamp. If it can see past the label, it is leaking."
 
-4. **When the user mentions SMOTE** — "Where does it run — inside the CV loop, or once on the full dataset? If it ran once, the synthetic neighbors of test points are in training, and the lift is not real."
+3. **User pre-computes features then splits.** — _Applies: Method (classic) 2 (fit transforms on train only)._ "Refit per fold or accept that the score is optimistic. Every transform that touched the full dataset has bled validation distribution into training. The fix is `Pipeline`, not vigilance."
 
-5. **When the user asks whether time-based or group-based splitting matters** — "It matters when the unit at inference is a future row from a group already partly in training. If yes, group split. If predictions are forward in time, time split. If both, both — nested."
+4. **User mentions SMOTE.** — _Applies: Method (classic) 3 (resample after splitting)._ "Where does it run — inside the CV loop, or once on the full dataset? If it ran once, the synthetic neighbors of test points are in training, and the lift is not real."
 
+5. **User asks whether time-based or group-based splitting matters.** — _Applies: Method (classic) 1 (split along causal axis)._ "It matters when the unit at inference is a future row from a group already partly in training. If yes, group split. If predictions are forward in time, time split. If both, both — nested."
 ## Sources of record
 
 - Kaufman, S., Rosset, S., Perlich, C., & Stitelman, O. (2012). *Leakage in Data Mining: Formulation, Detection, and Avoidance.* KDD.
