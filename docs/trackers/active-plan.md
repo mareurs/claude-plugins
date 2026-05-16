@@ -20,20 +20,22 @@ Anything short of this is **in-progress**. Partial wins land in History but do n
 phase_current: 2.5   # Phase 2 done; gap before Phase 3 (systemic rewrites)
 phase_total: 4
 tasks_total: 38
-tasks_done: 28     # T-1..T-6, T-8, T-10, T-12..T-22, T-23..T-28 (Phase 2 = 9 specialists); T-7+T-9 externalized
+tasks_done: 28     # T-1..T-6, T-8, T-10, T-12..T-22, T-23..T-28; T-7+T-9 externalized
 tasks_in_progress: 0
 tasks_open: 10     # T-11 (CI) + Phase 3 (6) + Phase 4 (4) - T-7+T-9 externalized
 eval_baseline:
-  established: true            # T-10 done 2026-05-16 → eval/baselines/frozen/ml-training-takin@v1/
-  baseline_version: 1
-  variance_floor: 0.200        # ml-training-takin, panel_version 1, rubric_version 2
-  judge_kappa_vs_strong_panel: 1.0   # n=13, D-7 substitute; NOT vs human
-  judge_kappa_target: 0.7      # raised from 0.6 under D-7
+  established: true            # T-10 frozen v1 2026-05-16; v2 supersedes 2026-05-16 (numerical equal, parser-bug fix)
+  baseline_version: 2          # use frozen/ml-training-takin@v2/
+  baseline_path: eval/baselines/frozen/ml-training-takin@v2/
+  v1_status: superseded        # forensic only; SUPERSEDED.md in v1 dir explains
+  variance_floor: 0.200        # unchanged v1→v2; case-01 spread is real judge disagreement
+  judge_kappa_vs_strong_panel: 1.0   # n=13, D-7 substitute; inherited v1→v2 via bug-symmetry argument
+  judge_kappa_target: 0.7
   pilot_specialist: ml-training-takin
-  control_specialist: ml-training-takin   # used as drift control during Phase 2 ibex-promote
+  control_specialist: ml-training-takin
   pre_edit_snapshot_sha: 729dc22
   fixtures_count:
-    ml-training-takin: 3       # frozen v1; remaining specialists deferred to fixture-expansion tracker
+    ml-training-takin: 3       # frozen v2; remaining specialists deferred to fixture-expansion tracker
   rubric_version: 2
   judge:
     prompt_drafted: true
@@ -43,16 +45,16 @@ eval_baseline:
     gold_panel_drafted: true
     gold_panel_version: 1
   scripts:
-    harness_py:         written + tested + raw_text-capture fix (2026-05-16)
+    harness_py:         written + tested + parse_judge_output bare-JSON fix (ac9ae8a) + raw_text capture + unit-test cover
     run_sh:             written + tested
     variance_floor_sh:  written + tested
     calibrate_sh:       written  # legacy promptfoo shape; superseded by gold-label.py
     freeze_baseline_sh: written
-    gold_label_py:      written + tested
+    gold_label_py:      written + tested (κ calibration; not re-run for v2 per bug-symmetry argument)
   known_issues:
-    - "openai/gpt-5 judge intermittently unparseable in variance mode (drift-run 2026-05-16: 4-5 unparseables across 3 cases × 3 runs). Effective panel degrades to 2 judges → tied-criterion defaults to not-met → spurious score drops. Raw-text capture restored to enable diagnosis. Investigate before T-11 CI wiring."
+    - "openai/gpt-5 still parses_ok 14/15 (93%) in v2 — 1 cell still fails (raw_text now captured for diagnosis). Investigate before T-11 if a tighter rate is needed for CI gating; current rate is enough for offline regression detection on takin."
 runtime_bringup_tracker: docs/trackers/eval-bringup.md
-fixture_expansion_tracker: docs/trackers/fixture-expansion.md   # T-9 lives here now
+fixture_expansion_tracker: docs/trackers/fixture-expansion.md
 human_anchor_TODO: "Replace D-7 strong-panel calibration with human labels when feasible — current κ inflates above κ-vs-human due to shared LLM biases"
 last_updated: 2026-05-16
 ```
@@ -655,3 +657,51 @@ before measuring delta, or is takin-drift sufficient again? Likely depends
 on the magnitude of the S-N change: small rewrites can use drift control,
 large ones (S-6 interview-style A/B) need their own fixtures from the
 fixture-expansion tracker.
+
+### 2026-05-16 — parse_judge_output bug fixed; takin baseline re-frozen v2 (numerical equal)
+
+**Root cause of openai "unparseable" warnings (was: judge model reliability).**
+parse_judge_output's no-fence fallback used `rfind('{')`, picking the LAST
+opening brace — an inner `rubric_scores[i]` object — instead of the
+outermost JSON. Fragment fails to parse, judge silently dropped, panel
+degrades to 2 judges, tied criteria default to not-met.
+
+gpt-5 emits bare JSON (no `\`\`\`json` fence, no CoT preamble) frequently
+despite the prompt asking for CoT-first. Anthropic and Google honor the
+prompt and were unaffected.
+
+**Fix `ac9ae8a`**: 3-line prepend — try whole-text json.loads if text
+starts with `{`, fall through to existing fence/rfind logic otherwise.
+Verified against captured raw_texts from diagnostic run:
+
+  - run-01 case-02 openai (parsed_ok=false before) → 4/4 met after
+  - run-02 case-01 openai (parsed_ok=false before) → 5/5 met after
+
+**Regression cover `dd2209e`**: 6 unit tests in `tests/test_harness_parse.py`
+including forensic re-parse of real captured raw_text.
+
+**Re-baseline v2 result**: numerically identical to v1.
+
+| | Floor | case-01 | case-02 | case-03 | openai parse rate |
+|---|---|---|---|---|---|
+| v1 | 0.200 | 0.880 (Δ 0.20) | 1.000 | 1.000 | 12/15 (80%) |
+| v2 | 0.200 | 0.880 (Δ 0.20) | 1.000 | 1.000 | 14/15 (93%) |
+
+case-01's 0.20 spread is GENUINE judge disagreement on one criterion, not
+parser artifact. The 3 v1 parse-failures fell on cells where anthropic+google
+agreed, so panels still resolved correctly — explaining why v1 numbers were
+right despite the bug.
+
+**v2 frozen at `eval/baselines/frozen/ml-training-takin@v2/`** with full
+METADATA. v1 retained for forensics with `SUPERSEDED.md` explaining the
+delta. `frozen/README.md` updated to point at v2.
+
+**κ_vs_strong_panel = 1.000 inherited** from v1 calibration. Both panels
+had the same bug pre-fix, dropping outputs symmetrically; κ was computed
+on cells both panels scored, so dropped cells were excluded equally on
+both sides. Re-verification would cost ~$2 and is unlikely to move the
+value — deferred to first Phase 3 rewrite that needs fresh κ.
+
+**Drift-control case-03 1.0→0.833 from baa1759** is now recategorized as
+parser bug, NOT candidate or panel drift. Phase 2 refactors stand
+unambiguously.

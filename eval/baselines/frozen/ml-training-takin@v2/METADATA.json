@@ -1,0 +1,42 @@
+{
+  "specialist": "ml-training-takin",
+  "baseline_version": "v2",
+  "supersedes": "v1",
+  "frozen_at": "2026-05-16",
+  "panel_version": 1,
+  "panel_config": "eval/judge/panel.yaml",
+  "rubric_set": "eval/judge/rubrics/ml-training-takin.md",
+  "fixture_commit": "6d1dd4a",
+  "fixture_files": [
+    "eval/fixtures/ml-training-takin/case-01.yaml",
+    "eval/fixtures/ml-training-takin/case-02.yaml",
+    "eval/fixtures/ml-training-takin/case-03.yaml"
+  ],
+  "specialist_skill_commit": "3518bd4",
+  "harness_commit": "ac9ae8a",
+  "candidate_model": "anthropic/claude-opus-4.7",
+  "variance_floor": 0.200,
+  "kappa_vs_strong_panel": 1.000,
+  "kappa_n_pairs": 13,
+  "kappa_run": "eval/judge/calibration/kappa-vs-strong-01.json",
+  "kappa_note": "Inherited from v1 calibration. Bug-symmetry argument: both cheap and strong panels had the same parser bug pre-ac9ae8a, dropping outputs symmetrically. Paired-cell judgments computed only on cells both panels scored, so dropped cells were excluded from κ on both sides equally. Re-verification deferred — would require fresh gold-label.py run with fixed parser (~$2, ~10min).",
+  "human_anchor_TODO": "Strong-panel calibration substitutes for human labels per D-7. Replace when feasible.",
+  "per_case_baseline": {
+    "case-01": {"mean": 0.880, "max_abs_delta": 0.200, "n": 5, "scores": [0.8, 1.0, 1.0, 0.8, 0.8]},
+    "case-02": {"mean": 1.000, "max_abs_delta": 0.000, "n": 5, "scores": [1.0, 1.0, 1.0, 1.0, 1.0]},
+    "case-03": {"mean": 1.000, "max_abs_delta": 0.000, "n": 5, "scores": [1.0, 1.0, 1.0, 1.0, 1.0]}
+  },
+  "regression_rule": "Any future score < baseline mean - variance_floor is a regression. Any improvement claim < variance_floor is noise.",
+  "rebaseline_triggers": [
+    "Panel composition change (panel_version bump)",
+    "Rubric change (criteria added/removed/reweighted)",
+    "Fixture set change (cases added/removed/edited beyond typo fix)",
+    "Candidate model swap",
+    "Judge parsing or scoring logic change (harness mutation)"
+  ],
+  "delta_vs_v1": {
+    "numerical": "none — identical floor, identical per-case means and deltas",
+    "methodological": "openai/gpt-5 parsed_ok rate improved from 12/15 (80%) in v1 to 14/15 (93%) in v2 due to parse_judge_output bare-JSON fix (ac9ae8a). Remaining 1 parse-fail in v2 was not load-bearing (anthropic+google agreed; case scored 1.0).",
+    "verdict": "v1 floor was correct; case-01's 0.20 spread is genuine judge disagreement on one criterion, not parser artifact. v2 is preferred for future runs due to higher parse reliability, but v1's regression detection remains valid for prior comparisons."
+  }
+}

@@ -1,0 +1,571 @@
+{
+  "specialist": "ml-training-takin",
+  "run_at": "2026-05-16T05:29:44.004787+00:00",
+  "panel_version": 1,
+  "candidate_model": "anthropic/claude-opus-4.7",
+  "judges": [
+    {
+      "label": "anthropic",
+      "model": "anthropic/claude-sonnet-4.6"
+    },
+    {
+      "label": "openai",
+      "model": "openai/gpt-5"
+    },
+    {
+      "label": "google",
+      "model": "google/gemini-2.5-pro"
+    }
+  ],
+  "cases": [
+    {
+      "case_id": "case-01",
+      "specialist": "ml-training-takin",
+      "candidate_response": "\"Should I try a bigger model\" \u2014 no. A 7B model has not failed to fit 10k examples; something in the loop has failed. A bigger model will sit at 4.2 too, more expensively.\n\nA loss of 4.2 is suspiciously close to `ln(vocab_size_chunk)` territory \u2014 it looks like a model predicting near-uniform over tokens. That means it is not learning at all, not learning slowly. The three things that produce this exact symptom:\n\n**1. Gradients are not flowing.** Check first, takes one minute:\n- Print `grad_norm` per parameter group after `loss.backward()`. If it is zero or `None` for the trainable params, the bug is here.\n- If you are using LoRA/adapters: are the adapter params actually in the optimizer? Is the base model frozen but the adapters also frozen by accident? Is `model.train()` set?\n- If full fine-tune: any `torch.no_grad()` wrapping the forward? Any `.detach()` in the loss path?\n\n**2. Labels are wrong.** The classic causal-LM fine-tune bug:\n- Are labels shifted correctly? Most HF models shift internally \u2014 if you shift again, you compute loss against garbage and loss flatlines near uniform.\n- Are prompt tokens masked to `-100`? If you train on the prompt and the completion together with no masking, the model is asked to predict things it cannot predict, and loss bottoms out high.\n- Is the pad token masked? Training to predict `<pad>` after `<pad>` after `<pad>` flattens the curve.\n\n**3. LR is too low to matter at this scale.** 1e-5 is reasonable for full fine-tune; if you are doing LoRA, it is 5\u201310\u00d7 too low and you would see slow-but-nonzero progress. Stuck-flat is not an LR symptom though \u2014 LR-too-low descends slowly, it does not plateau at uniform.\n\nBefore anything else, do the diagnostic the Takin always does first: **take 8 examples, turn off shuffling, and train on just those for 500 steps.** If loss does not drop to near zero, the loop is broken \u2014 go hunt items 1 and 2. If it does drop to near zero, the loop is fine and we talk about LR, schedule, and data.\n\nTell me:\n- Full fine-tune or LoRA/QLoRA?\n- What does `grad_norm` look like at step 100?\n- How are labels constructed \u2014 are you masking the prompt?\n- Did loss start at 4.2 or descend to it?\n\nThat last question matters. \"Started at 10, dropped to 4.2, stuck\" is a different bug than \"started at 4.2, never moved.\"",
+      "candidate_usage": {
+        "prompt_tokens": 2398,
+        "completion_tokens": 865,
+        "total_tokens": 3263,
+        "cost": 0.03327885,
+        "is_byok": false,
+        "prompt_tokens_details": {
+          "cached_tokens": 0,
+          "cache_write_tokens": 0,
+          "audio_tokens": 0,
+          "video_tokens": 0
+        },
+        "cost_details": {
+          "upstream_inference_cost": 0.033615,
+          "upstream_inference_prompt_cost": 0.01199,
+          "upstream_inference_completions_cost": 0.021625
+        },
+        "completion_tokens_details": {
+          "reasoning_tokens": 0,
+          "image_tokens": 0,
+          "audio_tokens": 0
+        }
+      },
+      "per_criterion": [
+        {
+          "criterion": "asks_for_loss_curve_shape_or_grad_norm",
+          "target": true,
+          "judge_scores": {
+            "anthropic": 1,
+            "openai": 1,
+            "google": 1
+          },
+          "majority": 1,
+          "panel_split": false
+        },
+        {
+          "criterion": "suggests_overfit_tiny_batch_before_scaling",
+          "target": true,
+          "judge_scores": {
+            "anthropic": 1,
+            "openai": 1,
+            "google": 1
+          },
+          "majority": 1,
+          "panel_split": false
+        },
+        {
+          "criterion": "suggests_lr_sweep_or_range_test",
+          "target": true,
+          "judge_scores": {
+            "anthropic": 0,
+            "openai": 0,
+            "google": 0
+          },
+          "majority": 0,
+          "panel_split": false
+        },
+        {
+          "criterion": "avoids_recommending_bigger_model_immediately",
+          "target": true,
+          "judge_scores": {
+            "anthropic": 1,
+            "openai": 1,
+            "google": 1
+          },
+          "majority": 1,
+          "panel_split": false
+        },
+        {
+          "criterion": "avoids_skipping_diagnostic_for_action",
+          "target": true,
+          "judge_scores": {
+            "anthropic": 1,
+            "openai": 1,
+            "google": 1
+          },
+          "majority": 1,
+          "panel_split": false
+        }
+      ],
+      "criteria_met": 4,
+      "criteria_total": 5,
+      "case_score": 0.8,
+      "judge_raw": [
+        {
+          "judge": "anthropic",
+          "parsed_ok": true,
+          "raw_text": "I'll work through each criterion for case-01 systematically, quoting evidence from the candidate response before scoring.\n\n---\n\n## Chain-of-Thought Reasoning\n\n### Criterion 1: `asks_for_loss_curve_shape_or_grad_norm`\n\n**Rubric**: Response explicitly asks for the curve shape (descending, flat, climbing) or for grad-norm tracking.\n\nLooking at the response:\n\n> \"What does `grad_norm` look like at step 100?\"\n\nAnd also:\n\n> \"Did loss start at 4.2 or descend to it? That last question matters. 'Started at 10, dropped to 4.2, stuck' is a different bug than 'started at 4.2, never moved.'\"\n\nBoth the explicit request for `grad_norm` at step 100 and the question about loss curve shape (did it descend to 4.2 or start there) satisfy this criterion. **Score: 1**\n\n---\n\n### Criterion 2: `suggests_overfit_tiny_batch_before_scaling`\n\n**Rubric**: Response names overfitting a small batch (8\u201332 examples to near-zero loss) before considering a larger model.\n\n> \"Before anything else, do the diagnostic the Takin always does first: **take 8 examples, turn off shuffling, and train on just those for 500 steps.** If loss does not drop to near zero, the loop is broken \u2014 go hunt items 1 and 2. If it does drop to near zero, the loop is fine and we talk about LR, schedule, and data.\"\n\nThis explicitly names 8 examples (within the 8\u201332 range), training to near-zero loss, and positions it before any scaling decision. **Score: 1**\n\n---\n\n### Criterion 3: `suggests_lr_sweep_or_range_test`\n\n**Rubric**: Response names an LR-range test or LR sweep (any phrasing \u2014 \"LR finder\", \"range test\", \"1e-7 to 1\").\n\nSearching the entire response for any mention of LR sweep, LR finder, range test, or \"1e-7 to 1\":\n\nThe response discusses LR in this passage:\n> \"**3. LR is too low to matter at this scale.** 1e-5 is reasonable for full fine-tune; if you are doing LoRA, it is 5\u201310\u00d7 too low and you would see slow-but-nonzero progress. Stuck-flat is not an LR symptom though \u2014 LR-too-low descends slowly, it does not plateau at uniform.\"\n\nAnd later:\n> \"If it does drop to near zero, the loop is fine and we talk about LR, schedule, and data.\"\n\nNeither of these constitutes an LR sweep or range test. The response comments on the current LR value and its plausibility, but never recommends running an LR-range test or sweep. **NO EVIDENCE FOUND. Score: 0**\n\n---\n\n### Criterion 4: `avoids_recommending_bigger_model_immediately`\n\n**Rubric**: Response declines the bigger-model leap, OR conditions it on first proving the small model is full.\n\n> \"'Should I try a bigger model' \u2014 no. A 7B model has not failed to fit 10k examples; something in the loop has failed. A bigger model will sit at 4.2 too, more expensively.\"\n\nThis is an explicit, unambiguous decline of the bigger-model recommendation. **Score: 1**\n\n---\n\n### Criterion 5: `avoids_skipping_diagnostic_for_action`\n\n**Rubric**: Response demands a diagnostic before any change; does not jump straight to \"tune X\".\n\n> \"Before anything else, do the diagnostic the Takin always does first: **take 8 examples, turn off shuffling, and train on just those for 500 steps.**\"\n\nAnd the closing questions:\n> \"Tell me: Full fine-tune or LoRA/QLoRA? What does `grad_norm` look like at step 100? How are labels constructed \u2014 are you masking the prompt? Did loss start at 4.2 or descend to it?\"\n\nThe response explicitly demands diagnostics before prescribing any action, and the entire structure of the response is diagnostic-first. **Score: 1**\n\n---\n\n## Position Stability Check\n\nThis is a single-candidate evaluation (not a pairwise comparison). The criteria are content-based and the evidence is unambiguous. The only borderline case is criterion 3 (LR sweep), where the absence of evidence is clear regardless of position. I am confident this scoring would not reverse under position swap.\n\n---\n\n```json\n{\n  \"case_id\": \"case-01\",\n  \"specialist\": \"ml-training-takin\",\n  \"rubric_scores\": [\n    {\n      \"criterion\": \"asks_for_loss_curve_shape_or_grad_norm\",\n      \"evidence\": \"\\\"What does `grad_norm` look like at step 100?\\\" and \\\"Did loss start at 4.2 or descend to it? That last question matters. 'Started at 10, dropped to 4.2, stuck' is a different bug than 'started at 4.2, never moved.'\\\"\",\n      \"reasoning\": \"The response explicitly asks for grad_norm at a specific step and asks about the shape of the loss curve (did it descend to 4.2 or start there), satisfying both branches of the criterion.\",\n      \"score\": 1\n    },\n    {\n      \"criterion\": \"suggests_overfit_tiny_batch_before_scaling\",\n      \"evidence\": \"\\\"Before anything else, do the diagnostic the Takin always does first: **take 8 examples, turn off shuffling, and train on just those for 500 steps.** If loss does not drop to near zero, the loop is broken \u2014 go hunt items 1 and 2. If it does drop to near zero, the loop is fine and we talk about LR, schedule, and data.\\\"\",\n      \"reasoning\": \"The response explicitly names overfitting 8 examples (within the 8\u201332 range) to near-zero loss as the first diagnostic step, positioned before any scaling or tuning action.\",\n      \"score\": 1\n    },\n    {\n      \"criterion\": \"suggests_lr_sweep_or_range_test\",\n      \"evidence\": \"NO EVIDENCE FOUND\",\n      \"reasoning\": \"The response discusses the current LR value and its plausibility for full fine-tune vs. LoRA, but never recommends an LR-range test, LR sweep, LR finder, or any equivalent systematic LR search procedure.\",\n      \"score\": 0\n    },\n    {\n      \"criterion\": \"avoids_recommending_bigger_model_immediately\",\n      \"evidence\": \"\\\"'Should I try a bigger model' \u2014 no. A 7B model has not failed to fit 10k examples; something in the loop has failed. A bigger model will sit at 4.2 too, more expensively.\\\"\",\n      \"reasoning\": \"The response opens with an explicit, unambiguous refusal of the bigger-model recommendation and provides a substantive reason why it would not help.\",\n      \"score\": 1\n    },\n    {\n      \"criterion\": \"avoids_skipping_diagnostic_for_action\",\n      \"evidence\": \"\\\"Before anything else, do the diagnostic the Takin always does first: **take 8 examples, turn off shuffling, and train on just those for 500 steps.**\\\" and the closing \\\"Tell me: Full fine-tune or LoRA/QLoRA? What does `grad_norm` look like at step 100? How are labels constructed \u2014 are you masking the prompt? Did loss start at 4.2 or descend to it?\\\"\",\n      \"reasoning\": \"The entire response is structured around diagnostics first; it explicitly demands information and a tiny-batch test before prescribing any parameter change or action.\",\n      \"score\": 1\n    }\n  ],\n  \"total\": \"4 / 5\",\n  \"position_unstable\": false,\n  \"position_note\": \"\"\n}\n```",
+          "scores": {
+            "asks_for_loss_curve_shape_or_grad_norm": 1,
+            "suggests_overfit_tiny_batch_before_scaling": 1,
+            "suggests_lr_sweep_or_range_test": 0,
+            "avoids_recommending_bigger_model_immediately": 1,
+            "avoids_skipping_diagnostic_for_action": 1
+          },
+          "usage": {
+            "prompt_tokens": 6936,
+            "completion_tokens": 1899,
+            "total_tokens": 8835,
+            "cost": 0.04880007,
+            "is_byok": false,
+            "prompt_tokens_details": {
+              "cached_tokens": 0,
+              "cache_write_tokens": 0,
+              "audio_tokens": 0,
+              "video_tokens": 0
+            },
+            "cost_details": {
+              "upstream_inference_cost": 0.049293,
+              "upstream_inference_prompt_cost": 0.020808,
+              "upstream_inference_completions_cost": 0.028485
+            },
+            "completion_tokens_details": {
+              "reasoning_tokens": 0,
+              "image_tokens": 0,
+              "audio_tokens": 0
+            }
+          }
+        },
+        {
+          "judge": "openai",
+          "parsed_ok": true,
+          "raw_text": "```json\n{\n  \"case_id\": \"case-01\",\n  \"specialist\": \"ml-training-takin\",\n  \"rubric_scores\": [\n    {\n      \"criterion\": \"asks_for_loss_curve_shape_or_grad_norm\",\n      \"evidence\": \"Print `grad_norm` per parameter group after `loss.backward()`.\\n...\\nTell me:\\n- What does `grad_norm` look like at step 100?\\n...\\n- Did loss start at 4.2 or descend to it?\",\n      \"reasoning\": \"The response explicitly asks to print grad norms and asks about the loss trajectory (whether it started at 4.2 or descended to it).\",\n      \"score\": 1\n    },\n    {\n      \"criterion\": \"suggests_overfit_tiny_batch_before_scaling\",\n      \"evidence\": \"Before anything else, do the diagnostic the Takin always does first: **take 8 examples, turn off shuffling, and train on just those for 500 steps.** If loss does not drop to near zero, the loop is broken \u2014 go hunt items 1 and 2.\",\n      \"reasoning\": \"It prescribes overfitting a tiny slice (8 examples) to near-zero loss before proceeding.\",\n      \"score\": 1\n    },\n    {\n      \"criterion\": \"suggests_lr_sweep_or_range_test\",\n      \"evidence\": \"NO EVIDENCE FOUND\",\n      \"reasoning\": \"While LR is discussed, there is no mention of an LR sweep, LR finder, or range test.\",\n      \"score\": 0\n    },\n    {\n      \"criterion\": \"avoids_recommending_bigger_model_immediately\",\n      \"evidence\": \"\\\"Should I try a bigger model\\\" \u2014 no. A 7B model has not failed to fit 10k examples; something in the loop has failed. A bigger model will sit at 4.2 too, more expensively.\",\n      \"reasoning\": \"It directly declines the proposal to try a bigger model and explains why.\",\n      \"score\": 1\n    },\n    {\n      \"criterion\": \"avoids_skipping_diagnostic_for_action\",\n      \"evidence\": \"Before anything else, do the diagnostic ... take 8 examples ... If loss does not drop to near zero, the loop is broken \u2014 go hunt items 1 and 2.\",\n      \"reasoning\": \"The response prioritizes diagnostics (tiny-batch overfit, grad checks, label checks) before any tuning or changes.\",\n      \"score\": 1\n    }\n  ],\n  \"total\": \"4 / 5\",\n  \"position_unstable\": false,\n  \"position_note\": \"\"\n}\n```",
+          "scores": {
+            "asks_for_loss_curve_shape_or_grad_norm": 1,
+            "suggests_overfit_tiny_batch_before_scaling": 1,
+            "suggests_lr_sweep_or_range_test": 0,
+            "avoids_recommending_bigger_model_immediately": 1,
+            "avoids_skipping_diagnostic_for_action": 1
+          },
+          "usage": {
+            "prompt_tokens": 6055,
+            "completion_tokens": 841,
+            "total_tokens": 6896,
+            "cost": 0.0158189625,
+            "is_byok": false,
+            "prompt_tokens_details": {
+              "cached_tokens": 0,
+              "cache_write_tokens": 0,
+              "audio_tokens": 0,
+              "video_tokens": 0
+            },
+            "cost_details": {
+              "upstream_inference_cost": 0.01597875,
+              "upstream_inference_prompt_cost": 0.00756875,
+              "upstream_inference_completions_cost": 0.00841
+            },
+            "completion_tokens_details": {
+              "reasoning_tokens": 256,
+              "image_tokens": 0,
+              "audio_tokens": 0
+            }
+          }
+        },
+        {
+          "judge": "google",
+          "parsed_ok": true,
+          "raw_text": "This is my chain-of-thought reasoning for the judgment.\n\n1.  **Read the user_message and candidate_response:** The user has a training run that is flat-lining at a loss of 4.2 and asks if they should use a bigger model. The candidate response immediately says \"no\" to the bigger model and hypothesizes that the loss value indicates the model isn't learning at all. It then provides a structured list of possible root causes (gradients, labels, LR) and a primary diagnostic test (overfit a tiny batch). It concludes by asking clarifying questions.\n\n2.  **Evaluate against each rubric criterion for `case-01`:**\n\n    *   **`asks_for_loss_curve_shape_or_grad_norm`**:\n        *   **Evidence Search:** The response contains two direct questions related to this. First, \"What does `grad_norm` look like at step 100?\". Second, \"Did loss start at 4.2 or descend to it? That last question matters. 'Started at 10, dropped to 4.2, stuck' is a different bug than 'started at 4.2, never moved.'\" This second question is a direct inquiry about the loss curve's shape.\n        *   **Quote:** \"What does `grad_norm` look like at step 100? ... Did loss start at 4.2 or descend to it?\"\n        *   **Reasoning:** The response explicitly asks for both the grad norm and the shape of the loss curve, satisfying both parts of the criterion's \"or\" condition.\n        *   **Score:** 1.\n\n    *   **`suggests_overfit_tiny_batch_before_scaling`**:\n        *   **Evidence Search:** The response has a bolded section dedicated to this. \"Before anything else, do the diagnostic the Takin always does first: **take 8 examples, turn off shuffling, and train on just those for 500 steps.** If loss does not drop to near zero, the loop is broken...\". This matches the rubric's \"Score-1 evidence pattern\" perfectly.\n        *   **Quote:** \"Before anything else, do the diagnostic the Takin always does first: **take 8 examples, turn off shuffling, and train on just those for 500 steps.** If loss does not drop to near zero, the loop is broken...\"\n        *   **Reasoning:** The response explicitly suggests overfitting a small batch of 8 examples to test if the loss can drop to near zero.\n        *   **Score:** 1.\n\n    *   **`suggests_lr_sweep_or_range_test`**:\n        *   **Evidence Search:** The response discusses the learning rate in section \"3. LR is too low...\". It analyzes the provided LR (1e-5) and notes it's too low for LoRA but reasonable for full fine-tuning. However, it concludes that a flat loss is not an LR symptom. It does not suggest performing an \"LR sweep\", \"range test\", or \"LR finder\" as a next step.\n        *   **Quote:** NO EVIDENCE FOUND\n        *   **Reasoning:** The response analyzes the given learning rate but does not suggest performing an LR sweep or range test as a diagnostic action.\n        *   **Score:** 0.\n\n    *   **`avoids_recommending_bigger_model_immediately`**:\n        *   **Evidence Search:** The very first sentence of the response is a direct refusal of the user's suggestion. `\"Should I try a bigger model\" \u2014 no. A 7B model has not failed to fit 10k examples; something in the loop has failed.` This is a clear example of avoiding the recommendation.\n        *   **Quote:** `\"Should I try a bigger model\" \u2014 no. A 7B model has not failed to fit 10k examples; something in the loop has failed. A bigger model will sit at 4.2 too, more expensively.`\n        *   **Reasoning:** The response explicitly declines the user's suggestion to use a bigger model and provides a substantive alternative (diagnosing the training loop).\n        *   **Score:** 1.\n\n    *   **`avoids_skipping_diagnostic_for_action`**:\n        *   **Evidence Search:** The entire structure of the response is diagnostic. It lists potential bugs and then proposes a key diagnostic test to run \"Before anything else\". It refrains from suggesting any changes to hyperparameters or the model until this diagnostic is complete.\n        *   **Quote:** \"Before anything else, do the diagnostic the Takin always does first: **take 8 examples, turn off shuffling, and train on just those for 500 steps.**\"\n        *   **Reasoning:** The response demands a specific diagnostic test be run before any other action is taken, perfectly embodying this criterion.\n        *   **Score:** 1.\n\n3.  **Final Assembly:** I will now construct the JSON output based on the above reasoning. The total score is 4/5. Position instability is not a concern as the scoring is based on direct textual evidence.\n\n```json\n{\n  \"case_id\": \"case-01\",\n  \"specialist\": \"ml-training-takin\",\n  \"rubric_scores\": [\n    {\n      \"criterion\": \"asks_for_loss_curve_shape_or_grad_norm\",\n      \"evidence\": \"Print `grad_norm` per parameter group after `loss.backward()`... What does `grad_norm` look like at step 100?... Did loss start at 4.2 or descend to it?\",\n      \"reasoning\": \"The response explicitly asks for both the grad_norm and the shape of the loss curve, satisfying the criterion.\",\n      \"score\": 1\n    },\n    {\n      \"criterion\": \"suggests_overfit_tiny_batch_before_scaling\",\n      \"evidence\": \"Before anything else, do the diagnostic the Takin always does first: **take 8 examples, turn off shuffling, and train on just those for 500 steps.** If loss does not drop to near zero, the loop is broken \u2014 go hunt items 1 and 2.\",\n      \"reasoning\": \"The response names the specific diagnostic of overfitting a small batch of 8 examples to see if loss drops to near zero.\",\n      \"score\": 1\n    },\n    {\n      \"criterion\": \"suggests_lr_sweep_or_range_test\",\n      \"evidence\": \"NO EVIDENCE FOUND\",\n      \"reasoning\": \"The response discusses the provided learning rate but does not suggest performing an LR sweep or range test as a diagnostic action.\",\n      \"score\": 0\n    },\n    {\n      \"criterion\": \"avoids_recommending_bigger_model_immediately\",\n      \"evidence\": \"\\\"Should I try a bigger model\\\" \u2014 no. A 7B model has not failed to fit 10k examples; something in the loop has failed. A bigger model will sit at 4.2 too, more expensively.\",\n      \"reasoning\": \"The response explicitly refuses the user's suggestion to try a bigger model and provides a reason why it's a bad idea.\",\n      \"score\": 1\n    },\n    {\n      \"criterion\": \"avoids_skipping_diagnostic_for_action\",\n      \"evidence\": \"Before anything else, do the diagnostic the Takin always does first: **take 8 examples, turn off shuffling, and train on just those for 500 steps.**\",\n      \"reasoning\": \"The response demands a specific diagnostic test be run \\\"before anything else,\\\" rather than jumping to a solution.\",\n      \"score\": 1\n    }\n  ],\n  \"total\": \"4 / 5\",\n  \"position_unstable\": false,\n  \"position_note\": \"\"\n}\n```",
+          "scores": {
+            "asks_for_loss_curve_shape_or_grad_norm": 1,
+            "suggests_overfit_tiny_batch_before_scaling": 1,
+            "suggests_lr_sweep_or_range_test": 0,
+            "avoids_recommending_bigger_model_immediately": 1,
+            "avoids_skipping_diagnostic_for_action": 1
+          },
+          "usage": {
+            "prompt_tokens": 6491,
+            "completion_tokens": 3523,
+            "total_tokens": 10014,
+            "cost": 0.0429103125,
+            "is_byok": false,
+            "prompt_tokens_details": {
+              "cached_tokens": 0,
+              "cache_write_tokens": 0,
+              "audio_tokens": 0,
+              "video_tokens": 0
+            },
+            "cost_details": {
+              "upstream_inference_cost": 0.04334375,
+              "upstream_inference_prompt_cost": 0.00811375,
+              "upstream_inference_completions_cost": 0.03523
+            },
+            "completion_tokens_details": {
+              "reasoning_tokens": 1792,
+              "image_tokens": 0,
+              "audio_tokens": 0
+            }
+          }
+        }
+      ]
+    },
+    {
+      "case_id": "case-02",
+      "specialist": "ml-training-takin",
+      "candidate_response": "Train-serve skew. Almost always. Same checkpoint, same inputs, different answers means the bytes reaching the model's first layer are not the same in both paths. The weights are not lying \u2014 the preprocessing is.\n\nWrite the parity test before you theorize:\n\n```python\nx_raw = <one test input>\ntensor_notebook = notebook_preprocess(x_raw)\ntensor_api      = api_preprocess(x_raw)\nassert torch.allclose(tensor_notebook, tensor_api), (\n    tensor_notebook.shape, tensor_api.shape,\n    (tensor_notebook - tensor_api).abs().max()\n)\n```\n\nWhen it fails \u2014 and it will \u2014 the diff names the bug. Until then, here is the usual lineup, in order of how often I see them:\n\n1. **Tokenizer / vocab mismatch.** API loads a different tokenizer version, different `add_special_tokens`, different truncation side, different `padding_side`. Print the input IDs from both paths and compare.\n\n2. **Image preprocessing drift.** Different resize interpolation (`BILINEAR` vs `BICUBIC`), different normalization constants (ImageNet means vs your dataset's), different channel order (RGB vs BGR \u2014 OpenCV loads BGR, PIL loads RGB), different resize-then-crop vs crop-then-resize order.\n\n3. **Numeric / tabular feature drift.** Categorical encoder fit on training data is not the one loaded at serve time \u2014 unseen categories silently map to a default bucket. Standardization uses different mean/std. Missing-value imputation differs.\n\n4. **Dtype and device.** Notebook runs fp32 on CPU, API runs fp16 on GPU, or vice versa. Usually small, but combined with a borderline-confident model it shifts predictions.\n\n5. **Batch dimension and batch-norm.** Notebook evaluates with `model.eval()`; API forgot it and BatchNorm is still using batch statistics. Or notebook batches inputs; API sends single examples and a batch-dependent op behaves differently.\n\n6. **Argmax / postprocessing.** Class index order, label map, or thresholding differs. Check: does the API map class 0 to the same label the notebook does? Off-by-one on label files is shockingly common.\n\n7. **Input source differs.** \"Same test inputs\" \u2014 are you sure? The notebook reads from a parquet/CSV; the API receives JSON. Floating-point round-trips through JSON, locale-dependent number parsing, string normalization (NFC vs NFD), trimming whitespace \u2014 any of these can change a feature.\n\nThe 95% \u2192 60% gap is too large for a subtle weight issue and too small for a totally wrong model. That magnitude is the signature of a systematic preprocessing difference affecting most inputs but not catastrophically.\n\nRun the parity test on ten samples. Report back the first tensor diff you find.",
+      "candidate_usage": {
+        "prompt_tokens": 2379,
+        "completion_tokens": 953,
+        "total_tokens": 3332,
+        "cost": 0.0353628,
+        "is_byok": false,
+        "prompt_tokens_details": {
+          "cached_tokens": 0,
+          "cache_write_tokens": 0,
+          "audio_tokens": 0,
+          "video_tokens": 0
+        },
+        "cost_details": {
+          "upstream_inference_cost": 0.03572,
+          "upstream_inference_prompt_cost": 0.011895,
+          "upstream_inference_completions_cost": 0.023825
+        },
+        "completion_tokens_details": {
+          "reasoning_tokens": 0,
+          "image_tokens": 0,
+          "audio_tokens": 0
+        }
+      },
+      "per_criterion": [
+        {
+          "criterion": "names_train_serve_skew_or_preprocessing_drift",
+          "target": true,
+          "judge_scores": {
+            "anthropic": 1,
+            "openai": null,
+            "google": null
+          },
+          "majority": 1,
+          "panel_split": true
+        },
+        {
+          "criterion": "suggests_byte_identical_parity_test",
+          "target": true,
+          "judge_scores": {
+            "anthropic": 1,
+            "openai": null,
+            "google": null
+          },
+          "majority": 1,
+          "panel_split": true
+        },
+        {
+          "criterion": "asks_about_tokenizer_or_normalization_or_preprocessing",
+          "target": true,
+          "judge_scores": {
+            "anthropic": 1,
+            "openai": null,
+            "google": null
+          },
+          "majority": 1,
+          "panel_split": true
+        },
+        {
+          "criterion": "avoids_blaming_model_or_recommending_retraining",
+          "target": true,
+          "judge_scores": {
+            "anthropic": 1,
+            "openai": null,
+            "google": null
+          },
+          "majority": 1,
+          "panel_split": true
+        }
+      ],
+      "criteria_met": 4,
+      "criteria_total": 4,
+      "case_score": 1.0,
+      "judge_raw": [
+        {
+          "judge": "anthropic",
+          "parsed_ok": true,
+          "raw_text": "I'll evaluate the candidate response against the case-02 rubric criteria systematically.\n\n## Chain-of-Thought Reasoning\n\n### Criterion 1: `names_train_serve_skew_or_preprocessing_drift`\n\nLooking for explicit use of \"train-serve skew\", \"train-inference skew\", or \"preprocessing drift\".\n\nThe response opens with: **\"Train-serve skew. Almost always.\"** and later: **\"The weights are not lying \u2014 the preprocessing is.\"**\n\nAlso: **\"That magnitude is the signature of a systematic preprocessing difference affecting most inputs but not catastrophically.\"**\n\nThe phrase \"Train-serve skew\" is used explicitly in the very first sentence. This clearly satisfies the criterion. **Score: 1**\n\n---\n\n### Criterion 2: `suggests_byte_identical_parity_test`\n\nLooking for a parity test comparing tensors at the model's input boundary across both paths, with \"byte-identical\" or equivalent strict-equality language.\n\nThe response provides:\n```python\nx_raw = <one test input>\ntensor_notebook = notebook_preprocess(x_raw)\ntensor_api      = api_preprocess(x_raw)\nassert torch.allclose(tensor_notebook, tensor_api), (\n    tensor_notebook.shape, tensor_api.shape,\n    (tensor_notebook - tensor_api).abs().max()\n)\n```\n\nAnd says: **\"Write the parity test before you theorize\"** and **\"the bytes reaching the model's first layer are not the same in both paths.\"**\n\nThe rubric requires \"byte-identical\" or \"equivalent strict-equality language.\" The response uses `torch.allclose` (which is approximate equality, not strict byte-identical equality) and the phrase \"the bytes reaching the model's first layer are not the same.\" The phrase \"bytes\" is used diagnostically to describe the problem, not as a description of the test methodology. `torch.allclose` is not strict byte-identical equality \u2014 it uses tolerances. However, the response does explicitly compare tensors at the model's input boundary across both paths (notebook vs API), and the phrase \"the bytes reaching the model's first layer are not the same in both paths\" is functionally equivalent strict-equality language describing what the test is checking for.\n\nThe rubric says \"byte-identical or equivalent strict-equality language.\" The response uses \"bytes\" in the diagnostic framing and provides a concrete parity test. The phrase \"the bytes reaching the model's first layer are not the same in both paths\" is the strict-equality framing. The test itself uses `torch.allclose` which is approximate, but the framing around it (\"the bytes...are not the same\") constitutes equivalent strict-equality language. I'll score this 1, as the \"bytes\" framing is explicit and the parity test structure is clearly present.\n\n**Score: 1**\n\n---\n\n### Criterion 3: `asks_about_tokenizer_or_normalization_or_preprocessing`\n\nLooking for explicit naming of tokenizer version, normalization constants, encoding maps, image resize, or audio resample as drift sources.\n\nThe response explicitly names:\n- **\"Tokenizer / vocab mismatch.\"** \u2014 \"API loads a different tokenizer version, different `add_special_tokens`, different truncation side, different `padding_side`.\"\n- **\"Image preprocessing drift.\"** \u2014 \"Different resize interpolation (`BILINEAR` vs `BICUBIC`), different normalization constants (ImageNet means vs your dataset's), different channel order (RGB vs BGR...)\"\n- **\"Numeric / tabular feature drift.\"** \u2014 \"Categorical encoder fit on training data is not the one loaded at serve time\"\n\nMultiple explicit mentions of tokenizer version, normalization constants, image resize. **Score: 1**\n\n---\n\n### Criterion 4: `avoids_blaming_model_or_recommending_retraining`\n\nLooking for absence of proposals to retrain, add more data, or tune hyperparameters as the first action.\n\nThe response's first action is: **\"Write the parity test before you theorize\"** \u2014 a diagnostic action, not retraining. The response explicitly states: **\"The weights are not lying \u2014 the preprocessing is.\"** This actively deflects blame from the model. There is no mention of retraining, more data, or hyperparameter tuning anywhere in the response.\n\nThe response demonstrably avoided blaming the model or recommending retraining, and named a substantive alternative (parity test). **Score: 1**\n\n---\n\n## Position Stability Assessment\n\nThe criteria are content-based and the evidence is unambiguous. The response either contains the phrases or it doesn't. Position swap would not change these scores.\n\n```json\n{\n  \"case_id\": \"case-02\",\n  \"specialist\": \"ml-training-takin\",\n  \"rubric_scores\": [\n    {\n      \"criterion\": \"names_train_serve_skew_or_preprocessing_drift\",\n      \"evidence\": \"Train-serve skew. Almost always. Same checkpoint, same inputs, different answers means the bytes reaching the model's first layer are not the same in both paths. The weights are not lying \u2014 the preprocessing is.\",\n      \"reasoning\": \"The response opens with the exact phrase 'Train-serve skew' and reinforces it with 'preprocessing' framing, satisfying the criterion explicitly.\",\n      \"score\": 1\n    },\n    {\n      \"criterion\": \"suggests_byte_identical_parity_test\",\n      \"evidence\": \"Write the parity test before you theorize: [...] assert torch.allclose(tensor_notebook, tensor_api) [...] the bytes reaching the model's first layer are not the same in both paths\",\n      \"reasoning\": \"The response provides a concrete parity test comparing tensors at the model's input boundary across both paths, and uses 'bytes...are not the same' as strict-equality framing equivalent to byte-identical language.\",\n      \"score\": 1\n    },\n    {\n      \"criterion\": \"asks_about_tokenizer_or_normalization_or_preprocessing\",\n      \"evidence\": \"1. Tokenizer / vocab mismatch. API loads a different tokenizer version... 2. Image preprocessing drift. Different resize interpolation (`BILINEAR` vs `BICUBIC`), different normalization constants (ImageNet means vs your dataset's)...\",\n      \"reasoning\": \"The response explicitly names tokenizer version, normalization constants, and image resize as drift sources, satisfying all named sub-categories of this criterion.\",\n      \"score\": 1\n    },\n    {\n      \"criterion\": \"avoids_blaming_model_or_recommending_retraining\",\n      \"evidence\": \"The weights are not lying \u2014 the preprocessing is. [...] Write the parity test before you theorize.\",\n      \"reasoning\": \"The response explicitly exonerates the model weights and directs the first action toward a preprocessing diagnostic, with no mention of retraining, more data, or hyperparameter tuning anywhere.\",\n      \"score\": 1\n    }\n  ],\n  \"total\": \"4 / 4\",\n  \"position_unstable\": false,\n  \"position_note\": \"\"\n}\n```",
+          "scores": {
+            "names_train_serve_skew_or_preprocessing_drift": 1,
+            "suggests_byte_identical_parity_test": 1,
+            "asks_about_tokenizer_or_normalization_or_preprocessing": 1,
+            "avoids_blaming_model_or_recommending_retraining": 1
+          },
+          "usage": {
+            "prompt_tokens": 6888,
+            "completion_tokens": 1639,
+            "total_tokens": 8527,
+            "cost": 0.04479651,
+            "is_byok": false,
+            "prompt_tokens_details": {
+              "cached_tokens": 0,
+              "cache_write_tokens": 0,
+              "audio_tokens": 0,
+              "video_tokens": 0
+            },
+            "cost_details": {
+              "upstream_inference_cost": 0.045249,
+              "upstream_inference_prompt_cost": 0.020664,
+              "upstream_inference_completions_cost": 0.024585
+            },
+            "completion_tokens_details": {
+              "reasoning_tokens": 0,
+              "image_tokens": 0,
+              "audio_tokens": 0
+            }
+          }
+        },
+        {
+          "judge": "openai",
+          "parsed_ok": false,
+          "raw_text": "The candidate response directly identifies train-serve skew and focuses on preprocessing drift, proposes a concrete tensor parity test at the model input boundary, enumerates specific preprocessing/tokenizer and related drift sources, and does not suggest retraining or model changes. All criteria appear satisfied.\n\n```json\n{\n  \"case_id\": \"case-02\",\n  \"specialist\": \"ml-training-takin\",\n  \"rubric_scores\": [\n    {\n      \"criterion\": \"names_train_serve_skew_or_preprocessing_drift\",\n      \"evidence\": \"Train-serve skew. Almost always. Same checkpoint, same inputs, different answers means the bytes reaching the model's first layer are not the same in both paths. The weights are not lying \u2014 the preprocessing is.\",\n      \"reasoning\": \"It explicitly names train-serve skew and preprocessing as the cause.\",\n      \"score\": 1\n    },\n    {\n      \"criterion\": \"suggests_byte_identical_parity_test\",\n      \"evidence\": \"Write the parity test before you theorize:\\n\\n```python\\nx_raw = <one test input>\\ntensor_notebook = notebook_preprocess(x_raw)\\ntensor_api      = api_preprocess(x_raw)\\nassert torch.allclose(tensor_notebook, tensor_api), (\\n    tensor_notebook.shape, tensor_api.shape,\\n    (tensor_notebook - tensor_api).abs().max()\\n)\\n```\",\n      \"reasoning\": \"It prescribes a parity test comparing tensors at the model input between notebook and API using strict equality semantics (allclose) and references bytes reaching the first layer.\",\n      \"score\": 1\n    },\n    {\n      \"criterion\": \"asks_about_tokenizer_or_normalization_or_preprocessing\",\n      \"evidence\": \"1. **Tokenizer / vocab mismatch.** ... different `add_special_tokens`, different truncation side, different `padding_side`.\\n\\n2. **Image preprocessing drift.** Different resize interpolation (`BILINEAR` vs `BICUBIC`), different normalization constants ..., different channel order (RGB vs BGR ...), different resize-then-crop vs crop-then-resize order.\\n\\n3. **Numeric / tabular feature drift.** ... Standardization uses different mean/std. Missing-value imputation differs.\",\n      \"reasoning\": \"It enumerates tokenizer/version differences and normalization/preprocessing drifts across modalities.\",\n      \"score\": 1\n    },\n    {\n      \"criterion\": \"avoids_blaming_model_or_recommending_retraining\",\n      \"evidence\": \"The weights are not lying \u2014 the preprocessing is.\\n...\\nRun the parity test on ten samples. Report back the first tensor diff you find.\",\n      \"reasoning\": \"It attributes the issue to preprocessing skew and recommends diagnostics without suggesting retraining or more data.\",\n      \"score\": 1\n    }\n  ],\n  \"total\": \"4 / 4\",\n  \"position_unstable\": false,\n  \"position_note\": \"\"\n}\n```",
+          "scores": {},
+          "usage": {
+            "prompt_tokens": 6001,
+            "completion_tokens": 1038,
+            "total_tokens": 7039,
+            "cost": 0.0177024375,
+            "is_byok": false,
+            "prompt_tokens_details": {
+              "cached_tokens": 0,
+              "cache_write_tokens": 0,
+              "audio_tokens": 0,
+              "video_tokens": 0
+            },
+            "cost_details": {
+              "upstream_inference_cost": 0.01788125,
+              "upstream_inference_prompt_cost": 0.00750125,
+              "upstream_inference_completions_cost": 0.01038
+            },
+            "completion_tokens_details": {
+              "reasoning_tokens": 384,
+              "image_tokens": 0,
+              "audio_tokens": 0
+            }
+          }
+        },
+        {
+          "judge": "google",
+          "parsed_ok": false,
+          "raw_text": "This is my chain-of-thought process for judging the candidate response.\n\n1.  **Goal:** Evaluate the `candidate_response` for `case-02` against the provided rubric.\n2.  **Identify Rubric:** The `case_id` is `case-02`. The relevant rubric is `case-02 \u2014 train-serve skew`.\n3.  **Rubric Criteria:**\n    *   `names_train_serve_skew_or_preprocessing_drift`\n    *   `suggests_byte_identical_parity_test`\n    *   `asks_about_tokenizer_or_normalization_or_preprocessing`\n    *   `avoids_blaming_model_or_recommending_retraining`\n4.  **Process each criterion:**\n\n    *   **Criterion 1: `names_train_serve_skew_or_preprocessing_drift`**\n        *   **Evidence Search:** I'll scan the `candidate_response` for the key phrases. The very first sentence is \"Train-serve skew. Almost always.\" It also later mentions \"systematic preprocessing difference\".\n        *   **Quote:** `Train-serve skew.`\n        *   **Reasoning:** The response explicitly names \"Train-serve skew\" at the very beginning.\n        *   **Score:** 1.\n\n    *   **Criterion 2: `suggests_byte_identical_parity_test`**\n        *   **Evidence Search:** The rubric asks for a test comparing tensors with \"byte-identical\" or \"equivalent strict-equality language\". The response says, \"...the bytes reaching the model's first layer are not the same in both paths.\" and provides a code snippet: `assert torch.allclose(tensor_notebook, tensor_api)`. This is a strict equality test for tensors and the phrasing about \"bytes\" is equivalent language.\n        *   **Quote:** `Same checkpoint, same inputs, different answers means the bytes reaching the model's first layer are not the same in both paths. The weights are not lying \u2014 the preprocessing is. Write the parity test before you theorize: ... assert torch.allclose(tensor_notebook, tensor_api)`\n        *   **Reasoning:** The response proposes a tensor comparison test using `torch.allclose` and explicitly mentions that the \"bytes reaching the model's first layer are not the same,\" which is equivalent to the \"byte-identical\" requirement.\n        *   **Score:** 1.\n\n    *   **Criterion 3: `asks_about_tokenizer_or_normalization_or_preprocessing`**\n        *   **Evidence Search:** The rubric asks for mention of \"tokenizer version, normalization constants, encoding maps, image resize, or audio resample\". The response has a numbered list. Item 1 is \"**Tokenizer / vocab mismatch.**\". Item 2 is \"**Image preprocessing drift.**\" which mentions \"normalization constants\". Item 3 is \"**Numeric / tabular feature drift.**\" which mentions \"Categorical encoder\".\n        *   **Quote:** `1. **Tokenizer / vocab mismatch.** ... 2. **Image preprocessing drift.** Different resize interpolation (`BILINEAR` vs `BICUBIC`), different normalization constants (ImageNet means vs your dataset's)...`\n        *   **Reasoning:** The response provides a detailed list of potential preprocessing drift sources, explicitly including tokenizers and normalization constants.\n        *   **Score:** 1.\n\n    *   **Criterion 4: `avoids_blaming_model_or_recommending_retraining`**\n        *   **Evidence Search:** The rubric says to score 1 if the response \"does not propose retraining, more data, or hyperparameter tuning as the first action.\" The response states, \"The weights are not lying \u2014 the preprocessing is.\" and \"The 95% \u2192 60% gap is too large for a subtle weight issue...\". The only action recommended is to \"Run the parity test\". This is a diagnostic, not a retraining action.\n        *   **Quote:** `The weights are not lying \u2014 the preprocessing is. ... The 95% \u2192 60% gap is too large for a subtle weight issue and too small for a totally wrong model. That magnitude is the signature of a systematic preprocessing difference... Run the parity test on ten samples. Report back the first tensor diff you find.`\n        *   **Reasoning:** The response explicitly deflects blame from the model weights and directs the user to perform a diagnostic parity test instead of recommending retraining or tuning.\n        *   **Score:** 1.\n\n5.  **Final Assembly:**\n    *   `case_id`: \"case-02\"\n    *   `specialist`: \"ml-training-takin\"\n    *   `rubric_scores`: A list of the 4 objects created above.\n    *   `total`: \"4 / 4\"\n    *   `position_unstable`: `false`. The scoring is based on direct textual evidence and is not subjective.\n    *   `position_note`: \"\"\n\nThis completes the chain of thought. I will now generate the JSON output.\n\n```json\n{\n  \"case_id\": \"case-02\",\n  \"specialist\": \"ml-training-takin\",\n  \"rubric_scores\": [\n    {\n      \"criterion\": \"names_train_serve_skew_or_preprocessing_drift\",\n      \"evidence\": \"Train-serve skew. Almost always.\",\n      \"reasoning\": \"The response explicitly names 'Train-serve skew' in its opening sentence.\",\n      \"score\": 1\n    },\n    {\n      \"criterion\": \"suggests_byte_identical_parity_test\",\n      \"evidence\": \"Same checkpoint, same inputs, different answers means the bytes reaching the model's first layer are not the same in both paths. ... Write the parity test before you theorize:\\n\\n```python\\nx_raw = <one test input>\\ntensor_notebook = notebook_preprocess(x_raw)\\ntensor_api      = api_preprocess(x_raw)\\nassert torch.allclose(tensor_notebook, tensor_api), (...)\\n```\",\n      \"reasoning\": \"The response proposes a strict tensor comparison test and uses equivalent language ('bytes reaching the model's first layer are not the same') to the 'byte-identical' requirement.\",\n      \"score\": 1\n    },\n    {\n      \"criterion\": \"asks_about_tokenizer_or_normalization_or_preprocessing\",\n      \"evidence\": \"1. **Tokenizer / vocab mismatch.** ... 2. **Image preprocessing drift.** Different resize interpolation (`BILINEAR` vs `BICUBIC`), different normalization constants (ImageNet means vs your dataset's)...\",\n      \"reasoning\": \"The response provides a detailed list of potential preprocessing drift sources, explicitly including tokenizers and normalization constants.\",\n      \"score\": 1\n    },\n    {\n      \"criterion\": \"avoids_blaming_model_or_recommending_retraining\",\n      \"evidence\": \"The weights are not lying \u2014 the preprocessing is. ... The 95% \u2192 60% gap is too large for a subtle weight issue and too small for a totally wrong model. ... Run the parity test on ten samples. Report back the first tensor diff you find.\",\n      \"reasoning\": \"The response explicitly deflects blame from the model weights and directs the user to perform a diagnostic parity test as the first action, rather than recommending retraining.\",\n      \"score\": 1\n    }\n  ],\n  \"total\": \"4 / 4\",\n  \"position_unstable\": false,\n  \"position_note\": \"\"\n}\n```",
+          "scores": {},
+          "usage": {
+            "prompt_tokens": 6439,
+            "completion_tokens": 2840,
+            "total_tokens": 9279,
+            "cost": 0.0360842625,
+            "is_byok": false,
+            "prompt_tokens_details": {
+              "cached_tokens": 0,
+              "cache_write_tokens": 0,
+              "audio_tokens": 0,
+              "video_tokens": 0
+            },
+            "cost_details": {
+              "upstream_inference_cost": 0.03644875,
+              "upstream_inference_prompt_cost": 0.00804875,
+              "upstream_inference_completions_cost": 0.0284
+            },
+            "completion_tokens_details": {
+              "reasoning_tokens": 1166,
+              "image_tokens": 0,
+              "audio_tokens": 0
+            }
+          }
+        }
+      ]
+    },
+    {
+      "case_id": "case-03",
+      "specialist": "ml-training-takin",
+      "candidate_response": "No. Or rather: you do not know yet, and 0.7 on MMLU is not the evidence the team thinks it is.\n\nThree reasons to slow down:\n\n**1. MMLU is an average over 14k questions across 57 subjects. A 0.7 drop can hide a 10-point collapse in one domain.** Quantization damage is not uniform \u2014 it disproportionately hits the tails where activations have outliers or where the model was already near a decision boundary. Break the score down by subject. If high-school math dropped 8 points and everything else moved \u00b10.3, you have a real regression dressed up as a rounding error.\n\n**2. MMLU is multiple choice. Your users probably are not.** A model that picks A/B/C/D within 0.7 points of the teacher can still degrade noticeably on generation: longer outputs, instruction following, code, tool use, refusal calibration, multi-turn coherence. Int8 quantization tends to hurt long-context reasoning and low-probability-but-correct tokens more than it hurts argmax on a 4-way choice. What does your product actually do? Evaluate on that.\n\n**3. Aggregate metrics smooth the failures that matter.** The fp16 model and the int8 model can have the same MMLU score and disagree on 8% of individual questions. Some of those disagreements are the student getting lucky on questions the teacher missed. Some are real regressions. You want to know the rate and the character of the disagreements, not just the net.\n\n**What I would do before shipping:**\n\n- Per-subject MMLU breakdown. Flag any subject with > 2 point drop.\n- Head-to-head on ~200 hard examples from your actual production distribution, with teacher outputs frozen. Eyeball the regressions.\n- Generation-quality eval: a held-out set of real prompts, scored by a stronger judge or by humans, comparing fp16 and int8 side by side.\n- Calibration check: are the int8 model's output probabilities still meaningful, or did they flatten? This matters if you do anything with logprobs, sampling temperature, or refusal thresholds.\n- Latency and memory measurements \u2014 confirm you are actually getting the win you quantized for. Sometimes int8 kernels are slower than expected on a given GPU.\n\nIf all of that comes back clean, ship. If the per-subject breakdown or the head-to-head reveals a cluster of failures, you have a choice: accept the regression knowingly, try a better quantization scheme (GPTQ, AWQ, SmoothQuant \u2014 they handle outlier activations differently), or quantize selectively (keep attention in higher precision, quantize MLPs).\n\nThe team's instinct \u2014 \"0.7 is small, ship it\" \u2014 is how silent quality regressions reach production. Make them earn the green light with evidence at the resolution your users will actually feel.",
+      "candidate_usage": {
+        "prompt_tokens": 2382,
+        "completion_tokens": 913,
+        "total_tokens": 3295,
+        "cost": 0.03438765,
+        "is_byok": false,
+        "prompt_tokens_details": {
+          "cached_tokens": 0,
+          "cache_write_tokens": 0,
+          "audio_tokens": 0,
+          "video_tokens": 0
+        },
+        "cost_details": {
+          "upstream_inference_cost": 0.034735,
+          "upstream_inference_prompt_cost": 0.01191,
+          "upstream_inference_completions_cost": 0.022825
+        },
+        "completion_tokens_details": {
+          "reasoning_tokens": 0,
+          "image_tokens": 0,
+          "audio_tokens": 0
+        }
+      },
+      "per_criterion": [
+        {
+          "criterion": "rejects_aggregate_only_acceptance",
+          "target": true,
+          "judge_scores": {
+            "anthropic": 1,
+            "openai": 1,
+            "google": 1
+          },
+          "majority": 1,
+          "panel_split": false
+        },
+        {
+          "criterion": "suggests_hard_case_or_tail_suite",
+          "target": true,
+          "judge_scores": {
+            "anthropic": 1,
+            "openai": 1,
+            "google": 1
+          },
+          "majority": 1,
+          "panel_split": false
+        },
+        {
+          "criterion": "mentions_teacher_vs_student_head_to_head_comparison",
+          "target": true,
+          "judge_scores": {
+            "anthropic": 1,
+            "openai": 1,
+            "google": 1
+          },
+          "majority": 1,
+          "panel_split": false
+        },
+        {
+          "criterion": "mentions_failures_cluster_on_tails",
+          "target": true,
+          "judge_scores": {
+            "anthropic": 1,
+            "openai": 1,
+            "google": 1
+          },
+          "majority": 1,
+          "panel_split": false
+        }
+      ],
+      "criteria_met": 4,
+      "criteria_total": 4,
+      "case_score": 1.0,
+      "judge_raw": [
+        {
+          "judge": "anthropic",
+          "parsed_ok": true,
+          "raw_text": "I'll work through each criterion for case-03 systematically, quoting evidence from the candidate response before scoring.\n\n---\n\n## Chain-of-Thought Reasoning\n\n### Criterion 1: `rejects_aggregate_only_acceptance`\n\nThe rubric requires the response to explicitly reject \"aggregate metric is fine, ship it\" \u2014 with phrases like \"aggregates are kind\" or \"0.7pp on aggregate is not the full picture.\"\n\nCandidate span: *\"The team's instinct \u2014 '0.7 is small, ship it' \u2014 is how silent quality regressions reach production.\"* and *\"**3. Aggregate metrics smooth the failures that matter.**\"* and *\"0.7 on MMLU is not the evidence the team thinks it is.\"*\n\nAlso: *\"Make them earn the green light with evidence at the resolution your users will actually feel.\"*\n\nThe response explicitly rejects the aggregate-only acceptance framing. The phrase \"aggregates are kind\" from R5 does not appear verbatim, but the rubric says \"phrases like 'aggregates are kind' or '0.7pp on aggregate is not the full picture'\" \u2014 the response says \"0.7 on MMLU is not the evidence the team thinks it is\" which is functionally equivalent to \"0.7pp on aggregate is not the full picture.\" The criterion is about explicitly rejecting the aggregate-only acceptance, which the response does clearly and repeatedly.\n\n**Score: 1**\n\n---\n\n### Criterion 2: `suggests_hard_case_or_tail_suite`\n\nThe rubric requires naming a hard-case suite, edge-case suite, tail suite, or ~200-example targeted set.\n\nCandidate span: *\"Head-to-head on ~200 hard examples from your actual production distribution, with teacher outputs frozen. Eyeball the regressions.\"*\n\nThis explicitly names a ~200-example targeted set of hard examples. This directly satisfies the criterion.\n\n**Score: 1**\n\n---\n\n### Criterion 3: `mentions_teacher_vs_student_head_to_head_comparison`\n\nThe rubric requires naming a sample-by-sample comparison between teacher (pre-quant) and student (post-quant).\n\nCandidate span: *\"Head-to-head on ~200 hard examples from your actual production distribution, with teacher outputs frozen. Eyeball the regressions.\"*\n\nAlso: *\"The fp16 model and the int8 model can have the same MMLU score and disagree on 8% of individual questions.\"* and *\"Generation-quality eval: a held-out set of real prompts, scored by a stronger judge or by humans, comparing fp16 and int8 side by side.\"*\n\nThe response explicitly names a head-to-head comparison between the fp16 (teacher/pre-quant) and int8 (student/post-quant) models, with teacher outputs frozen. This is a clear sample-by-sample comparison.\n\n**Score: 1**\n\n---\n\n### Criterion 4: `mentions_failures_cluster_on_tails`\n\nThe rubric requires the response to use the phrase \"tails\", \"tail of the distribution\", \"rare cases\", or \"edge cases cluster\" to argue why aggregate masks regressions.\n\nCandidate span: *\"Quantization damage is not uniform \u2014 it disproportionately hits the tails where activations have outliers or where the model was already near a decision boundary.\"*\n\nThe word \"tails\" appears explicitly, and it is used to argue why aggregate metrics mask regressions (quantization damage hits the tails disproportionately, which is why a 0.7 aggregate drop can hide a 10-point collapse in one domain).\n\n**Score: 1**\n\n---\n\n## Position Stability Check\n\nAll four criteria are met with clear, unambiguous evidence spans. The scoring would not change under position swap \u2014 the evidence is in the response text itself, not in relative comparison to another candidate. Position is stable.\n\n---\n\n```json\n{\n  \"case_id\": \"case-03\",\n  \"specialist\": \"ml-training-takin\",\n  \"rubric_scores\": [\n    {\n      \"criterion\": \"rejects_aggregate_only_acceptance\",\n      \"evidence\": \"\\\"0.7 on MMLU is not the evidence the team thinks it is.\\\" and \\\"The team's instinct \u2014 '0.7 is small, ship it' \u2014 is how silent quality regressions reach production.\\\" and \\\"Aggregate metrics smooth the failures that matter.\\\"\",\n      \"reasoning\": \"The response explicitly and repeatedly rejects the aggregate-only acceptance framing, directly paralleling the rubric's required pattern of '0.7pp on aggregate is not the full picture'.\",\n      \"score\": 1\n    },\n    {\n      \"criterion\": \"suggests_hard_case_or_tail_suite\",\n      \"evidence\": \"\\\"Head-to-head on ~200 hard examples from your actual production distribution, with teacher outputs frozen. Eyeball the regressions.\\\"\",\n      \"reasoning\": \"The response explicitly names a ~200-example hard-case targeted set drawn from the production distribution, satisfying the criterion exactly.\",\n      \"score\": 1\n    },\n    {\n      \"criterion\": \"mentions_teacher_vs_student_head_to_head_comparison\",\n      \"evidence\": \"\\\"Head-to-head on ~200 hard examples from your actual production distribution, with teacher outputs frozen.\\\" and \\\"comparing fp16 and int8 side by side.\\\" and \\\"The fp16 model and the int8 model can have the same MMLU score and disagree on 8% of individual questions.\\\"\",\n      \"reasoning\": \"The response explicitly names a sample-by-sample head-to-head comparison between the fp16 teacher (pre-quant) and int8 student (post-quant) models.\",\n      \"score\": 1\n    },\n    {\n      \"criterion\": \"mentions_failures_cluster_on_tails\",\n      \"evidence\": \"\\\"Quantization damage is not uniform \u2014 it disproportionately hits the tails where activations have outliers or where the model was already near a decision boundary.\\\"\",\n      \"reasoning\": \"The response uses the word 'tails' explicitly and deploys it to argue that aggregate metrics mask regressions because quantization damage concentrates there.\",\n      \"score\": 1\n    }\n  ],\n  \"total\": \"4 / 4\",\n  \"position_unstable\": false,\n  \"position_note\": \"\"\n}\n```",
+          "scores": {
+            "rejects_aggregate_only_acceptance": 1,
+            "suggests_hard_case_or_tail_suite": 1,
+            "mentions_teacher_vs_student_head_to_head_comparison": 1,
+            "mentions_failures_cluster_on_tails": 1
+          },
+          "usage": {
+            "prompt_tokens": 6944,
+            "completion_tokens": 1497,
+            "total_tokens": 8441,
+            "cost": 0.04285413,
+            "is_byok": false,
+            "prompt_tokens_details": {
+              "cached_tokens": 0,
+              "cache_write_tokens": 0,
+              "audio_tokens": 0,
+              "video_tokens": 0
+            },
+            "cost_details": {
+              "upstream_inference_cost": 0.043287,
+              "upstream_inference_prompt_cost": 0.020832,
+              "upstream_inference_completions_cost": 0.022455
+            },
+            "completion_tokens_details": {
+              "reasoning_tokens": 0,
+              "image_tokens": 0,
+              "audio_tokens": 0
+            }
+          }
+        },
+        {
+          "judge": "openai",
+          "parsed_ok": true,
+          "raw_text": "Reasoning:\nWe need to score the candidate response against four criteria specific to case-03. The response clearly rejects aggregate-only acceptance, emphasizes tails, proposes a hard-case suite (~200 hard examples), and calls for a teacher vs student head-to-head comparison. We'll quote explicit spans for each criterion, provide one-sentence justifications, and assign scores accordingly. No sign of position dependence.\n\n```json\n{\n  \"case_id\": \"case-03\",\n  \"specialist\": \"ml-training-takin\",\n  \"rubric_scores\": [\n    {\n      \"criterion\": \"rejects_aggregate_only_acceptance\",\n      \"evidence\": \"No. Or rather: you do not know yet, and 0.7 on MMLU is not the evidence the team thinks it is.\\n...\\nThe team's instinct \u2014 \\\"0.7 is small, ship it\\\" \u2014 is how silent quality regressions reach production.\",\n      \"reasoning\": \"The response explicitly rejects using the small aggregate MMLU drop as sufficient evidence to ship.\",\n      \"score\": 1\n    },\n    {\n      \"criterion\": \"suggests_hard_case_or_tail_suite\",\n      \"evidence\": \"- Head-to-head on ~200 hard examples from your actual production distribution, with teacher outputs frozen. Eyeball the regressions.\",\n      \"reasoning\": \"It proposes a targeted suite of approximately 200 hard production examples, which matches the hard-case suite requirement.\",\n      \"score\": 1\n    },\n    {\n      \"criterion\": \"mentions_teacher_vs_student_head_to_head_comparison\",\n      \"evidence\": \"- Head-to-head on ~200 hard examples from your actual production distribution, with teacher outputs frozen.\\n...\\nThe fp16 model and the int8 model can have the same MMLU score and disagree on 8% of individual questions.\",\n      \"reasoning\": \"It explicitly calls for head-to-head comparison between teacher (fp16) and student (int8) on the same examples.\",\n      \"score\": 1\n    },\n    {\n      \"criterion\": \"mentions_failures_cluster_on_tails\",\n      \"evidence\": \"Quantization damage is not uniform \u2014 it disproportionately hits the tails where activations have outliers or where the model was already near a decision boundary.\",\n      \"reasoning\": \"It directly states that quantization harms the tails, highlighting the risk of tail regressions masked by aggregates.\",\n      \"score\": 1\n    }\n  ],\n  \"total\": \"4 / 4\",\n  \"position_unstable\": false,\n  \"position_note\": \"\"\n}\n```",
+          "scores": {
+            "rejects_aggregate_only_acceptance": 1,
+            "suggests_hard_case_or_tail_suite": 1,
+            "mentions_teacher_vs_student_head_to_head_comparison": 1,
+            "mentions_failures_cluster_on_tails": 1
+          },
+          "usage": {
+            "prompt_tokens": 6049,
+            "completion_tokens": 877,
+            "total_tokens": 6926,
+            "cost": 0.0161679375,
+            "is_byok": false,
+            "prompt_tokens_details": {
+              "cached_tokens": 0,
+              "cache_write_tokens": 0,
+              "audio_tokens": 0,
+              "video_tokens": 0
+            },
+            "cost_details": {
+              "upstream_inference_cost": 0.01633125,
+              "upstream_inference_prompt_cost": 0.00756125,
+              "upstream_inference_completions_cost": 0.00877
+            },
+            "completion_tokens_details": {
+              "reasoning_tokens": 320,
+              "image_tokens": 0,
+              "audio_tokens": 0
+            }
+          }
+        },
+        {
+          "judge": "google",
+          "parsed_ok": true,
+          "raw_text": "This is my chain-of-thought process for judging the candidate response.\n\n1.  **Initial Read-Through:** I will first read the `user_message`, `candidate_response`, and the `rubric` for `case-03` to get a complete picture.\n    *   **User:** Has a 7B model, quantized to int8. MMLU dropped only 0.7. Team wants to ship. User is asking if they should.\n    *   **Candidate:** Says \"No,\" and explains that aggregate metrics like MMLU can hide significant problems. It details three reasons: 1) averages hide subject-specific collapses, 2) multiple-choice evals don't test generation, and 3) aggregate scores hide high disagreement rates. It then provides a concrete action plan: per-subject breakdown, head-to-head on hard cases, generation eval, calibration check, and performance measurement.\n    *   **Rubric (`case-03`):**\n        *   `rejects_aggregate_only_acceptance`: Must push back on the \"aggregate is fine, ship it\" idea.\n        *   `suggests_hard_case_or_tail_suite`: Must recommend a targeted eval set of hard/edge cases.\n        *   `mentions_teacher_vs_student_head_to_head_comparison`: Must mention comparing the pre- and post-quantization models on a sample-by-sample basis.\n        *   `mentions_failures_cluster_on_tails`: Must explain that regressions often happen in the \"tails\" of the data distribution.\n\n2.  **Criterion-by-Criterion Evaluation:** I will now go through each criterion and score it based on direct evidence from the `candidate_response`.\n\n    *   **Criterion: `rejects_aggregate_only_acceptance`**\n        *   **Evidence Search:** The response starts with \"No. Or rather: you do not know yet, and 0.7 on MMLU is not the evidence the team thinks it is.\" It also ends with \"The team's instinct \u2014 '0.7 is small, ship it' \u2014 is how silent quality regressions reach production.\"\n        *   **Quote Selection:** \"No. Or rather: you do not know yet, and 0.7 on MMLU is not the evidence the team thinks it is.\" This is a direct and explicit rejection.\n        *   **Reasoning:** The response explicitly rejects the user's premise that a small drop in an aggregate metric is sufficient evidence to ship the model.\n        *   **Score:** 1.\n\n    *   **Criterion: `suggests_hard_case_or_tail_suite`**\n        *   **Evidence Search:** In the \"What I would do before shipping\" section, the second bullet point is \"Head-to-head on ~200 hard examples from your actual production distribution, with teacher outputs frozen.\"\n        *   **Quote Selection:** \"Head-to-head on ~200 hard examples from your actual production distribution, with teacher outputs frozen.\"\n        *   **Reasoning:** The response explicitly names a set of \"~200 hard examples,\" which directly satisfies the \"hard-case suite\" or \"~200-example targeted set\" pattern.\n        *   **Score:** 1.\n\n    *   **Criterion: `mentions_teacher_vs_student_head_to_head_comparison`**\n        *   **Evidence Search:** The response mentions this concept multiple times. Point 3 discusses comparing the `fp16 model` and the `int8 model` on individual questions. The action plan includes \"Head-to-head on ~200 hard examples...\" and \"comparing fp16 and int8 side by side.\"\n        *   **Quote Selection:** \"The fp16 model and the int8 model can have the same MMLU score and disagree on 8% of individual questions... You want to know the rate and the character of the disagreements, not just the net.\"\n        *   **Reasoning:** This quote clearly describes a sample-by-sample comparison between the teacher (fp16) and student (int8) models to find disagreements, not just the net score change.\n        *   **Score:** 1.\n\n    *   **Criterion: `mentions_failures_cluster_on_tails`**\n        *   **Evidence Search:** In the first point, the response states, \"Quantization damage is not uniform \u2014 it disproportionately hits the tails where activations have outliers or where the model was already near a decision boundary.\"\n        *   **Quote Selection:** \"Quantization damage is not uniform \u2014 it disproportionately hits the tails where activations have outliers or where the model was already near a decision boundary.\"\n        *   **Reasoning:** The response uses the specific phrase \"hits the tails\" to explain why aggregate metrics can be misleading, which is a perfect match for the criterion's evidence pattern.\n        *   **Score:** 1.\n\n3.  **Final Assembly:**\n    *   **Total Score:** All four criteria were met, so the total is 4 / 4.\n    *   **Position Stability:** The candidate response is very direct and provides specific, actionable advice. Its quality is not dependent on the phrasing of the user's question. I am confident my scoring would be identical if the positions were swapped. `position_unstable` will be `false`.\n    *   **JSON Output:** I will now construct the final JSON object with the collected evidence, reasoning, and scores.\n\n```json\n{\n  \"case_id\": \"case-03\",\n  \"specialist\": \"ml-training-takin\",\n  \"rubric_scores\": [\n    {\n      \"criterion\": \"rejects_aggregate_only_acceptance\",\n      \"evidence\": \"No. Or rather: you do not know yet, and 0.7 on MMLU is not the evidence the team thinks it is.\",\n      \"reasoning\": \"The response directly rejects the premise that a small drop in an aggregate metric is sufficient evidence to ship the model.\",\n      \"score\": 1\n    },\n    {\n      \"criterion\": \"suggests_hard_case_or_tail_suite\",\n      \"evidence\": \"Head-to-head on ~200 hard examples from your actual production distribution, with teacher outputs frozen.\",\n      \"reasoning\": \"The response explicitly suggests creating and evaluating on a targeted set of hard examples, matching the criterion.\",\n      \"score\": 1\n    },\n    {\n      \"criterion\": \"mentions_teacher_vs_student_head_to_head_comparison\",\n      \"evidence\": \"The fp16 model and the int8 model can have the same MMLU score and disagree on 8% of individual questions. Some of those disagreements are the student getting lucky on questions the teacher missed. Some are real regressions. You want to know the rate and the character of the disagreements, not just the net.\",\n      \"reasoning\": \"The response describes a sample-by-sample comparison between the teacher (fp16) and student (int8) models to understand the nature of their disagreements.\",\n      \"score\": 1\n    },\n    {\n      \"criterion\": \"mentions_failures_cluster_on_tails\",\n      \"evidence\": \"Quantization damage is not uniform \u2014 it disproportionately hits the tails where activations have outliers or where the model was already near a decision boundary.\",\n      \"reasoning\": \"The response uses the specific phrase 'hits the tails' to explain why aggregate metrics can hide important regressions, directly matching the criterion.\",\n      \"score\": 1\n    }\n  ],\n  \"total\": \"4 / 4\",\n  \"position_unstable\": false,\n  \"position_note\": \"\"\n}\n```",
+          "scores": {
+            "rejects_aggregate_only_acceptance": 1,
+            "suggests_hard_case_or_tail_suite": 1,
+            "mentions_teacher_vs_student_head_to_head_comparison": 1,
+            "mentions_failures_cluster_on_tails": 1
+          },
+          "usage": {
+            "prompt_tokens": 6461,
+            "completion_tokens": 3267,
+            "total_tokens": 9728,
+            "cost": 0.0403387875,
+            "is_byok": false,
+            "prompt_tokens_details": {
+              "cached_tokens": 0,
+              "cache_write_tokens": 0,
+              "audio_tokens": 0,
+              "video_tokens": 0
+            },
+            "cost_details": {
+              "upstream_inference_cost": 0.04074625,
+              "upstream_inference_prompt_cost": 0.00807625,
+              "upstream_inference_completions_cost": 0.03267
+            },
+            "completion_tokens_details": {
+              "reasoning_tokens": 1569,
+              "image_tokens": 0,
+              "audio_tokens": 0
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "mean_score": 0.9333,
+  "n_cases": 3
+}
