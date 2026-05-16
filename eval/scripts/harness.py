@@ -118,7 +118,21 @@ def render_judge_prompt(
 
 
 def parse_judge_output(text: str) -> dict | None:
-    """Extract the trailing JSON block from a judge response. Returns dict or None."""
+    """Extract the trailing JSON block from a judge response. Returns dict or None.
+
+    Tolerates three shapes:
+      1. CoT prose followed by ```json ... ``` fenced block (prompt-intended)
+      2. CoT prose followed by ``` ... ``` un-tagged fenced block
+      3. Bare JSON object — no CoT preamble, no fences (gpt-5 frequently does this
+         even when the prompt asks for CoT first; refusing this output would
+         silently degrade the panel to 2 judges and bias scores toward 0 on ties)
+    """
+    stripped = text.strip()
+    if stripped.startswith("{"):
+        try:
+            return json.loads(stripped)
+        except json.JSONDecodeError:
+            pass
     if "```json" in text:
         chunk = text.rsplit("```json", 1)[-1]
         chunk = chunk.split("```", 1)[0]
@@ -126,7 +140,6 @@ def parse_judge_output(text: str) -> dict | None:
         chunk = text.rsplit("```", 2)[-2] if text.count("```") >= 2 else text.rsplit("```", 1)[-1]
         chunk = chunk.split("```", 1)[0]
     else:
-        # Try to find the last `{...}` block
         last_brace = text.rfind("{")
         if last_brace < 0:
             return None
