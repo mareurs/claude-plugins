@@ -13,7 +13,7 @@ dated history. Promote to codescout artifact (`kind=tracker`) once
 | [buddy-introspection.md](buddy-introspection.md) | Hamsa-lens audit of all 10 buddy specialists. Gap inventory: 6 systemic (S-1..S-6) + 14 unique per-specialist issues + 1 positive pattern + cross-promote table. | open | blocks active-plan |
 | [active-plan.md](active-plan.md) | 38-task plan in 4 phases for resolving every issue in buddy-introspection.md and establishing eval grounds. Source of truth for what to do next. | open | blocks eval-bringup; depends on buddy-introspection |
 | [eval-bringup.md](eval-bringup.md) | Runtime bringup tracker for the eval harness — env setup, first executions, calibration loop. Subset focus of active-plan Phase 0 (T-6..T-11 specifically). | open | depends on active-plan setup work (T-1..T-5) |
-
+| [fixture-expansion.md](fixture-expansion.md) | Deferred T-9: author 5 fixtures + baseline + κ-calibrate for 9 remaining specialists. Backfilled on-demand as Phase 2/3 refactors each specialist. | open | blocks Phase-2/3 completion for non-takin specialists |
 ## Relationships
 
 ```

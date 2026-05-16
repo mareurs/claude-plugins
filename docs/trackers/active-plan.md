@@ -17,21 +17,23 @@ Anything short of this is **in-progress**. Partial wins land in History but do n
 ## Live state
 
 ```yaml
-phase_current: 0   # Phase 0: eval grounds (blocks Phases 2-3)
+phase_current: 2   # Phase 2: promote ibex patterns to other specialists (T-23..T-28)
 phase_total: 4
 tasks_total: 38
-tasks_done: 18     # T-1, T-2, T-3, T-4, T-5, T-6, T-8 (D-7 substitute), T-12..T-22
+tasks_done: 19     # T-1..T-6, T-8 (D-7 substitute), T-10, T-12..T-22; T-9 deferred to fixture-expansion tracker
 tasks_in_progress: 0
-tasks_open: 20
+tasks_open: 19     # T-11 + Phase 2 (6) + Phase 3 (6) + Phase 4 (4) + T-7 permanently deferred + T-9 externalized
 eval_baseline:
-  established: false           # T-10 still pending (freeze)
+  established: true            # T-10 done 2026-05-16 → eval/baselines/frozen/ml-training-takin@v1/
+  baseline_version: 1
   variance_floor: 0.200        # ml-training-takin, panel_version 1, rubric_version 2
   judge_kappa_vs_strong_panel: 1.0   # n=13, D-7 substitute; NOT vs human
   judge_kappa_target: 0.7      # raised from 0.6 under D-7
   pilot_specialist: ml-training-takin
+  control_specialist: ml-training-takin   # used as control during Phase 2 ibex-promote (catches eval drift)
   pre_edit_snapshot_sha: 729dc22
   fixtures_count:
-    ml-training-takin: 3       # T-3 done; targeting 5 total in T-9
+    ml-training-takin: 3       # frozen v1; remaining specialists deferred to fixture-expansion tracker
   rubric_version: 2
   judge:
     prompt_drafted: true
@@ -48,8 +50,9 @@ eval_baseline:
     freeze_baseline_sh: written
     gold_label_py:      written + tested
 runtime_bringup_tracker: docs/trackers/eval-bringup.md
+fixture_expansion_tracker: docs/trackers/fixture-expansion.md   # T-9 lives here now
 human_anchor_TODO: "Replace D-7 strong-panel calibration with human labels when feasible — current κ inflates above κ-vs-human due to shared LLM biases"
-last_updated: 2026-05-15
+last_updated: 2026-05-16
 ```
 ## Decisions Log
 
@@ -342,8 +345,8 @@ Each task is a **deliverable** (planning-crane Method 2), sized to one focus ses
 | T-6 | Run variance-floor measurement (N=5 identical reruns × 3 cases × pilot specialist) | `eval/baselines/<date>/ml-training-takin/variance.json` | 30m | |
 | T-7 | Hand-label 3 cases × 5 specialists = 15 cases for calibration | `eval/judge/calibration/human-labels.csv` | 120m | Highest manual-effort task |
 | T-8 | Run panel on calibration set; compute κ; iterate judge prompt until κ ≥ 0.6 | `eval/judge/calibration/kappa-run-<n>.json` | 120m | May need 2–3 iterations |
-| T-9 | Expand fixtures: 5 cases × each of 10 specialists = 50 cases | full `eval/fixtures/` | 8h | Spread across multiple sessions; budget ~50m per specialist |
-| T-10 | Freeze baseline scores; commit `eval/baselines/<date>/` | baseline JSON per specialist | 30m | This is the **pre-rewrite reference** |
+| T-9 | ~~Expand fixtures: 5 cases × each of 10 specialists~~ **DEFERRED** to [fixture-expansion.md](fixture-expansion.md) — backfilled on-demand per Phase 2/3 refactor | `docs/trackers/fixture-expansion.md` | — | 2026-05-16: deferred; takin baseline alone gates Phase 2 |
+| T-10 | ✅ Freeze takin baseline v1 | `eval/baselines/frozen/ml-training-takin@v1/` | 30m | Done 2026-05-16. κ=1.0, floor 0.200 |
 | T-11 | Wire Promptfoo into CI; gate merges on no-regression | `.github/workflows/eval.yml` + `promptfoo.yaml` | 60m | Run subset on changed files only |
 
 **Phase 0 done-condition:** baseline frozen, judge calibrated, CI gating live.
@@ -581,3 +584,19 @@ The plan above carries defaults. All 6 defaults were accepted on 2026-05-15 (see
   - `eval/judge/calibration/gold-run-01.json` (per-case gold labels)
   - `eval/judge/calibration/kappa-vs-strong-01.json` (κ result with verdict + warning)
 - Status: Phase 0 effectively unblocked. T-7 (manual) permanently deferred; T-8 substitute path PASS. Next: T-9 (expand fixtures to 5/specialist) or T-10 (freeze baseline on current 3 takin fixtures).
+
+### 2026-05-16 — T-10 done (takin baseline frozen v1); T-9 deferred to fixture-expansion tracker
+
+**T-10** complete. Frozen snapshot at `eval/baselines/frozen/ml-training-takin@v1/`:
+- copy of `2026-05-15-tightened/ml-training-takin/` (5 variance runs + aggregate)
+- METADATA.json with panel_version 1, fixture commit `6d1dd4a`, specialist commit `3518bd4`,
+  candidate `anthropic/claude-opus-4.7`, variance_floor 0.200, κ_vs_strong_panel 1.000 (n=13)
+- regression rule: candidate_mean < baseline_mean − variance_floor → regression
+- rebaseline triggers documented (panel/rubric/fixture/model change)
+
+**T-9** externalized to its own tracker: [fixture-expansion.md](fixture-expansion.md).
+Rationale: 8h of fixture-writing across 9 specialists deferred since takin baseline alone
+gates Phase 2 (takin used as control specialist for ibex-promote eval drift). Backfill on
+demand as Phase 2/3 touches each specialist.
+
+**State**: Phase 0 done except T-11 (CI wiring). Phase 2 unblocked. Moving to T-23 (debugging-yeti ibex-promote pilot).
