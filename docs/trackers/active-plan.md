@@ -17,12 +17,12 @@ Anything short of this is **in-progress**. Partial wins land in History but do n
 ## Live state
 
 ```yaml
-phase_current: 2.9   # Phase 2 fully closed including takin refactor; gap before Phase 3
+phase_current: 4   # Phase 3 closed (T-29..T-32 done incidentally; T-33/T-34 disposed); Phase 4 next
 phase_total: 4
 tasks_total: 38
-tasks_done: 29     # T-1..T-6, T-8, T-10, T-12..T-22, T-23..T-28, takin refactor + v3 baseline
+tasks_done: 30     # T-1..T-6, T-8, T-10, T-12..T-22, T-23..T-28, takin refactor + v3 baseline, T-33/T-34 disposition
 tasks_in_progress: 0
-tasks_open: 9     # T-11 (CI) + Phase 3 (6) + Phase 4 (4) - T-7+T-9 externalized
+tasks_open: 7     # T-11 (CI) + Phase 4 (4) - T-7+T-9 externalized; Phase 3 closed (T-29..T-32 done in Phase 2; T-33/T-34 wontfix-with-data)
 eval_baseline:
   established: true            # v3 supersedes v2 (refactored candidate)
   baseline_version: 3
@@ -753,3 +753,61 @@ Rigorous re-verification deferred to first Phase 3 systemic rewrite.
 
 **Phase 2 fully closed.** Next unblocked: T-11 (CI), Phase 3 (S-N
 systemic rewrites), fixture-expansion tracker work.
+
+### 2026-05-16 — T-33/T-34 disposition: S-6 closed as wontfix-with-data
+
+**Context**: S-6 was the hedged proposal to A/B declarative third-person Voice
+against interview-style dialogic recast — explicitly marked "do NOT deploy
+without S-5 (eval grounds)". S-5 is now in place (frozen baseline v3,
+calibrated panel), but yeti-specific fixtures do not yet exist (deferred to
+fixture-expansion tracker), so the rigorous A/B eval-gate cannot fire.
+
+**Path taken (fork B per user choice)**: drafted `SKILL-dialogic.md` as a
+sibling forensic artifact (NOT loaded by summon — declarative `SKILL.md`
+remains canonical). Ran hamsa-Critique-Format on both variants — inspection
+only, explicitly NOT eval-grade per hamsa Operating Principle 3.
+
+**Hamsa inspection result**:
+
+| Dimension | Declarative (A) | Dialogic (B) |
+|---|---|---|
+| Token count | ~3000 | ~4100 (+37%) |
+| Rule enumeration | numbered, scannable, citable | embedded in prose |
+| Method phase signaling | bold `### Phase N` headers | weaker Q&A flow |
+| Reactions register | already dialogic | dialogic-wrapped-dialogic (redundant) |
+| Operating Principles shape | 5 enumerated bullets | 1 prose paragraph |
+| Finding Format | preserved | preserved |
+| Named failure-mode hypothesis | n/a | absent in audit and in original S-6 hedge |
+
+Variant A wins on inspection. Variant B adds ~37% token cost without lifting
+any specific failure mode. The S-6 hedge ("dialogic may be more memorable")
+was speculative; inspection suggests the opposite — declarative enumeration
+is more memorable for an LLM that already speaks prose. Dialogic adds
+register-shift cost (parse Q&A scaffold, extract rule) without benefit.
+
+**Disposition**: **wontfix-with-data**.
+
+- Inspection consistently disprefers dialogic across 6 of 7 dimensions
+- No named failure mode in S-6 or hamsa audit that dialogic would address
+- Reactions section in declarative form is already the only place dialog
+  serves the persona — re-wrapping it is redundant
+- Phase 2 structural cleanup (Method-Three-Phases, Format schema, Self-Traps,
+  Operating Principles, tagged Reactions) already addresses what S-6 was
+  hedging against — "interview-style" was a proposed proxy for "more
+  applicable / actionable," which Phase 2 achieves directly via structure
+
+**Revisit-when**: a specific symptom appears in production yeti use — e.g.
+user reports yeti's Method steps feel "preachy" or "lecture-y," or
+multi-turn debugging conversations show yeti dropping the persona under
+prolonged dialogue. None of these is currently observed.
+
+**Forensic artifact preserved**: `buddy/skills/debugging-yeti/SKILL-dialogic.md`
+retained as the comparison reference for any future S-6 reopen. Header notes
+explain it is NOT loaded at summon.
+
+**Update to buddy-introspection.md**: S-6 row status changed `open` →
+`wontfix-with-data` with link to this disposition.
+
+**Phase 3 fully closed**. T-29..T-32 done incidentally in Phase 2;
+T-33/T-34 disposed. Remaining open: T-11 (CI, deferred) + Phase 4 (4
+hygiene items) + fixture-expansion tracker (backfill on demand).

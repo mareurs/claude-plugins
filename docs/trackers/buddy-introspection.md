@@ -33,7 +33,7 @@ These are the canonical rows. Per-specialist duplicates are not recorded; severi
 | S-3 | No soft scope rule for out-of-domain input | high | open | step-5 | arxiv 2505.18325 | adopt ibex-style "set scope, ask once" pattern | **8** (ibex + pheasant have explicit scope-ask) |
 | S-4 | Closed-set Reactions (~5 pairs) without trigger-rationale | high | open | H3 | arxiv 2403.16512 | add _Applies: <Method/Heuristic ref>_ per Reaction; mark non-exhaustive | **10** |
 | S-5 | No eval set (zero graded examples per specialist) | high | open | H7 | DSPy/Promptfoo/LangSmith 2025 | build shared harness 5×10; LLM-judge with per-Method rubric | **10** |
-| S-6 | Declarative third-person framing vs interview-style | med | open | H2 | arxiv 2507.16076 | experimental dialogic recast; A/B post-eval; do NOT deploy without #S-5 | **10** |
+| S-6 | Declarative third-person framing vs interview-style | med | **wontfix-with-data** | H2 | arxiv 2507.16076 | T-33 dialogic draft + hamsa inspection on both variants: declarative wins on 6/7 dimensions; dialogic adds ~37% token cost without named benefit hypothesis. Forensic artifact at `buddy/skills/debugging-yeti/SKILL-dialogic.md`. See active-plan.md 2026-05-16 disposition entry. | **10** |
 
 ## Per-specialist issue table — unique gaps only
 
