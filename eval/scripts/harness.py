@@ -248,7 +248,7 @@ def run_one_case(
         "criteria_met": n_met,
         "criteria_total": n_criteria,
         "case_score": round(case_score, 4),
-        "judge_raw": [{"judge": jr["judge"], "parsed_ok": jr["parsed_ok"], "usage": jr["usage"]} for jr in judge_results],
+        "judge_raw": [{"judge": jr["judge"], "parsed_ok": jr["parsed_ok"], "raw_text": jr["raw_text"], "scores": jr["scores"], "usage": jr["usage"]} for jr in judge_results],
     }
 
 

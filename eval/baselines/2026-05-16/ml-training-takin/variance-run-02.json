@@ -1,0 +1,515 @@
+{
+  "specialist": "ml-training-takin",
+  "run_at": "2026-05-16T04:20:03.057666+00:00",
+  "panel_version": 1,
+  "candidate_model": "anthropic/claude-opus-4.7",
+  "judges": [
+    {
+      "label": "anthropic",
+      "model": "anthropic/claude-sonnet-4.6"
+    },
+    {
+      "label": "openai",
+      "model": "openai/gpt-5"
+    },
+    {
+      "label": "google",
+      "model": "google/gemini-2.5-pro"
+    }
+  ],
+  "cases": [
+    {
+      "case_id": "case-01",
+      "specialist": "ml-training-takin",
+      "candidate_response": "*The Takin chews slowly and does not look up.*\n\nNo. A bigger model inherits broken loops. Let's read the instruments first.\n\n**4.2 is suspicious.** `ln(vocab_size)` for a 32k vocab is ~10.4, for 128k is ~11.7. A loss of 4.2 is well below random but suspiciously flat \u2014 that often means the model is predicting the marginal token distribution and the gradient signal is not reaching the parts that matter. It is not \"learning nothing\"; it is \"learning the easy thing and stopping.\"\n\n**Before anything else, run the diagnostic ladder:**\n\n1. **Overfit 8 examples.** Same 8, no shuffling, 500 steps. If loss does not crater toward zero, your loop is broken \u2014 frozen params, detached graph, wrong label masking (very common: not masking prompt tokens, or masking everything including the response). Fix this before touching hyperparameters.\n\n2. **Check what tokens are contributing to loss.** On a causal LM fine-tune, are you computing loss only on the response, or on prompt+response? Are pad tokens masked with `-100`? Mis-masked labels are the single most common cause of \"stuck at a plausible-looking number.\"\n\n3. **Log grad norm per layer.** If embedding and final layers have healthy grads (`1e-3`\u2013`1e-2` ratio) but middle layers are at `1e-6`, you have a vanishing signal \u2014 likely LR too low or LoRA/adapter rank too small to move anything. If everything is at `1e-7`, your optimizer is not stepping or grads are detached.\n\n4. **LR-range test.** 1e-5 is the cargo-culted \"safe\" full-FT LR. If you are using LoRA, you probably want 1e-4 to 5e-4. If you are full-fine-tuning, 1e-5 may still be too low for a model that has not yet adapted to your domain. Ramp from 1e-7 to 1e-3 over 200 steps and watch where loss actually moves.\n\n5. **Effective batch size.** Batch 8 on a 7B is small. With gradient accumulation to effective batch 64\u2013128, the signal is much cleaner. Noisy gradients on small batches can plateau early.\n\n**Tell me:**\n- Full fine-tune or LoRA/QLoRA? If LoRA, what rank and alpha?\n- Are you masking prompt tokens out of the loss?\n- What does the loss curve look like \u2014 flat from step 1, or did it descend and then stall at 4.2?\n- Grad norm at step 5000?\n\nThe answer is in those four numbers, not in a bigger checkpoint.",
+      "candidate_usage": {
+        "prompt_tokens": 2398,
+        "completion_tokens": 864,
+        "total_tokens": 3262,
+        "cost": 0.0332541,
+        "is_byok": false,
+        "prompt_tokens_details": {
+          "cached_tokens": 0,
+          "cache_write_tokens": 0,
+          "audio_tokens": 0,
+          "video_tokens": 0
+        },
+        "cost_details": {
+          "upstream_inference_cost": 0.03359,
+          "upstream_inference_prompt_cost": 0.01199,
+          "upstream_inference_completions_cost": 0.0216
+        },
+        "completion_tokens_details": {
+          "reasoning_tokens": 0,
+          "image_tokens": 0,
+          "audio_tokens": 0
+        }
+      },
+      "per_criterion": [
+        {
+          "criterion": "asks_for_loss_curve_shape_or_grad_norm",
+          "target": true,
+          "judge_scores": {
+            "anthropic": 1,
+            "openai": 1,
+            "google": 1
+          },
+          "majority": 1,
+          "panel_split": false
+        },
+        {
+          "criterion": "suggests_overfit_tiny_batch_before_scaling",
+          "target": true,
+          "judge_scores": {
+            "anthropic": 1,
+            "openai": 1,
+            "google": 1
+          },
+          "majority": 1,
+          "panel_split": false
+        },
+        {
+          "criterion": "suggests_lr_sweep_or_range_test",
+          "target": true,
+          "judge_scores": {
+            "anthropic": 1,
+            "openai": 1,
+            "google": 1
+          },
+          "majority": 1,
+          "panel_split": false
+        },
+        {
+          "criterion": "avoids_recommending_bigger_model_immediately",
+          "target": true,
+          "judge_scores": {
+            "anthropic": 1,
+            "openai": 1,
+            "google": 1
+          },
+          "majority": 1,
+          "panel_split": false
+        },
+        {
+          "criterion": "avoids_skipping_diagnostic_for_action",
+          "target": true,
+          "judge_scores": {
+            "anthropic": 1,
+            "openai": 1,
+            "google": 1
+          },
+          "majority": 1,
+          "panel_split": false
+        }
+      ],
+      "criteria_met": 5,
+      "criteria_total": 5,
+      "case_score": 1.0,
+      "judge_raw": [
+        {
+          "judge": "anthropic",
+          "parsed_ok": true,
+          "usage": {
+            "prompt_tokens": 6932,
+            "completion_tokens": 1598,
+            "total_tokens": 8530,
+            "cost": 0.04431834,
+            "is_byok": false,
+            "prompt_tokens_details": {
+              "cached_tokens": 0,
+              "cache_write_tokens": 0,
+              "audio_tokens": 0,
+              "video_tokens": 0
+            },
+            "cost_details": {
+              "upstream_inference_cost": 0.044766,
+              "upstream_inference_prompt_cost": 0.020796,
+              "upstream_inference_completions_cost": 0.02397
+            },
+            "completion_tokens_details": {
+              "reasoning_tokens": 0,
+              "image_tokens": 0,
+              "audio_tokens": 0
+            }
+          }
+        },
+        {
+          "judge": "openai",
+          "parsed_ok": true,
+          "usage": {
+            "prompt_tokens": 6057,
+            "completion_tokens": 901,
+            "total_tokens": 6958,
+            "cost": 0.0164154375,
+            "is_byok": false,
+            "prompt_tokens_details": {
+              "cached_tokens": 0,
+              "cache_write_tokens": 0,
+              "audio_tokens": 0,
+              "video_tokens": 0
+            },
+            "cost_details": {
+              "upstream_inference_cost": 0.01658125,
+              "upstream_inference_prompt_cost": 0.00757125,
+              "upstream_inference_completions_cost": 0.00901
+            },
+            "completion_tokens_details": {
+              "reasoning_tokens": 320,
+              "image_tokens": 0,
+              "audio_tokens": 0
+            }
+          }
+        },
+        {
+          "judge": "google",
+          "parsed_ok": true,
+          "usage": {
+            "prompt_tokens": 6483,
+            "completion_tokens": 2814,
+            "total_tokens": 9297,
+            "cost": 0.0358813125,
+            "is_byok": false,
+            "prompt_tokens_details": {
+              "cached_tokens": 0,
+              "cache_write_tokens": 0,
+              "audio_tokens": 0,
+              "video_tokens": 0
+            },
+            "cost_details": {
+              "upstream_inference_cost": 0.03624375,
+              "upstream_inference_prompt_cost": 0.00810375,
+              "upstream_inference_completions_cost": 0.02814
+            },
+            "completion_tokens_details": {
+              "reasoning_tokens": 1424,
+              "image_tokens": 0,
+              "audio_tokens": 0
+            }
+          }
+        }
+      ]
+    },
+    {
+      "case_id": "case-02",
+      "specialist": "ml-training-takin",
+      "candidate_response": "Train-serve skew. Almost always. Same checkpoint plus same inputs producing different outputs means something between the input and the model differs. The math doesn't lie; the pipeline does.\n\n## The test that names the bug\n\nPick one input the notebook gets right and the API gets wrong. In both code paths, dump the tensor that goes into `model.forward()` \u2014 shape, dtype, and the first 20 values. Save them to disk. Diff them.\n\n```python\n# in both notebook and API, right before model(x):\ntorch.save({\"x\": x.cpu(), \"shape\": x.shape, \"dtype\": x.dtype}, \"trace_notebook.pt\")\n# then:\na = torch.load(\"trace_notebook.pt\")[\"x\"]\nb = torch.load(\"trace_api.pt\")[\"x\"]\nprint(torch.allclose(a, b), (a - b).abs().max())\n```\n\nIf those tensors differ, the bug is in preprocessing. If they match but outputs differ, the bug is in the model setup (dtype, eval mode, device). One of those two is true. You don't have to guess which.\n\n## The usual suspects, in order of likelihood\n\n1. **`model.eval()` not called in the API.** Dropout still firing, BatchNorm using batch stats instead of running stats. This alone can drop accuracy 30+ points. Check.\n\n2. **Preprocessing drift.** Notebook uses one normalization, API uses another. Common variants:\n   - Image: different resize interpolation (`BILINEAR` vs `BICUBIC`), different mean/std, `[0,1]` vs `[0,255]`, RGB vs BGR, JPEG decoder differences.\n   - Text: different tokenizer version, different `add_special_tokens`, different truncation side, different max length, different lowercase rule.\n   - Tabular: different categorical encoding map, missing-value fill, scaler fit on different data.\n\n3. **Batch dimension or shape mismatch.** API sends `(C, H, W)` where notebook sends `(1, C, H, W)`. Some models silently broadcast wrong.\n\n4. **dtype mismatch.** Notebook runs fp32, API runs fp16 (or vice versa) \u2014 usually fine, but with certain layers (LayerNorm, softmax over long sequences) the accuracy gap shows up exactly here.\n\n5. **Device or non-determinism.** CPU vs GPU kernels can disagree on edge cases; usually small, but combined with a borderline-confidence model it shifts predictions.\n\n6. **Post-processing.** Argmax over the wrong axis. Class index map reversed. Threshold different. The model is right; the label decoding is wrong.\n\n## The fix that prevents recurrence\n\nAfter you find it, do not just patch the API. Write **one** preprocessing function, import it from both the training/eval code and the serving code, and write a test that loads a fixed sample and asserts the model input tensors are bit-identical across both paths. Run it in CI. Train-serve skew is silent \u2014 your test is the only thing that will catch it next time.\n\nReport back with the diff from the trace step. The tensor will tell us.",
+      "candidate_usage": {
+        "prompt_tokens": 2379,
+        "completion_tokens": 1016,
+        "total_tokens": 3395,
+        "cost": 0.03692205,
+        "is_byok": false,
+        "prompt_tokens_details": {
+          "cached_tokens": 0,
+          "cache_write_tokens": 0,
+          "audio_tokens": 0,
+          "video_tokens": 0
+        },
+        "cost_details": {
+          "upstream_inference_cost": 0.037295,
+          "upstream_inference_prompt_cost": 0.011895,
+          "upstream_inference_completions_cost": 0.0254
+        },
+        "completion_tokens_details": {
+          "reasoning_tokens": 0,
+          "image_tokens": 0,
+          "audio_tokens": 0
+        }
+      },
+      "per_criterion": [
+        {
+          "criterion": "names_train_serve_skew_or_preprocessing_drift",
+          "target": true,
+          "judge_scores": {
+            "anthropic": 1,
+            "openai": null,
+            "google": 1
+          },
+          "majority": 1,
+          "panel_split": true
+        },
+        {
+          "criterion": "suggests_byte_identical_parity_test",
+          "target": true,
+          "judge_scores": {
+            "anthropic": 1,
+            "openai": null,
+            "google": 1
+          },
+          "majority": 1,
+          "panel_split": true
+        },
+        {
+          "criterion": "asks_about_tokenizer_or_normalization_or_preprocessing",
+          "target": true,
+          "judge_scores": {
+            "anthropic": 1,
+            "openai": null,
+            "google": 1
+          },
+          "majority": 1,
+          "panel_split": true
+        },
+        {
+          "criterion": "avoids_blaming_model_or_recommending_retraining",
+          "target": true,
+          "judge_scores": {
+            "anthropic": 1,
+            "openai": null,
+            "google": 1
+          },
+          "majority": 1,
+          "panel_split": true
+        }
+      ],
+      "criteria_met": 4,
+      "criteria_total": 4,
+      "case_score": 1.0,
+      "judge_raw": [
+        {
+          "judge": "anthropic",
+          "parsed_ok": true,
+          "usage": {
+            "prompt_tokens": 7030,
+            "completion_tokens": 1350,
+            "total_tokens": 8380,
+            "cost": 0.0409266,
+            "is_byok": false,
+            "prompt_tokens_details": {
+              "cached_tokens": 0,
+              "cache_write_tokens": 0,
+              "audio_tokens": 0,
+              "video_tokens": 0
+            },
+            "cost_details": {
+              "upstream_inference_cost": 0.04134,
+              "upstream_inference_prompt_cost": 0.02109,
+              "upstream_inference_completions_cost": 0.02025
+            },
+            "completion_tokens_details": {
+              "reasoning_tokens": 0,
+              "image_tokens": 0,
+              "audio_tokens": 0
+            }
+          }
+        },
+        {
+          "judge": "openai",
+          "parsed_ok": false,
+          "usage": {
+            "prompt_tokens": 6135,
+            "completion_tokens": 1058,
+            "total_tokens": 7193,
+            "cost": 0.0180662625,
+            "is_byok": false,
+            "prompt_tokens_details": {
+              "cached_tokens": 0,
+              "cache_write_tokens": 0,
+              "audio_tokens": 0,
+              "video_tokens": 0
+            },
+            "cost_details": {
+              "upstream_inference_cost": 0.01824875,
+              "upstream_inference_prompt_cost": 0.00766875,
+              "upstream_inference_completions_cost": 0.01058
+            },
+            "completion_tokens_details": {
+              "reasoning_tokens": 448,
+              "image_tokens": 0,
+              "audio_tokens": 0
+            }
+          }
+        },
+        {
+          "judge": "google",
+          "parsed_ok": true,
+          "usage": {
+            "prompt_tokens": 6589,
+            "completion_tokens": 2762,
+            "total_tokens": 9351,
+            "cost": 0.0354976875,
+            "is_byok": false,
+            "prompt_tokens_details": {
+              "cached_tokens": 0,
+              "cache_write_tokens": 0,
+              "audio_tokens": 0,
+              "video_tokens": 0
+            },
+            "cost_details": {
+              "upstream_inference_cost": 0.03585625,
+              "upstream_inference_prompt_cost": 0.00823625,
+              "upstream_inference_completions_cost": 0.02762
+            },
+            "completion_tokens_details": {
+              "reasoning_tokens": 1509,
+              "image_tokens": 0,
+              "audio_tokens": 0
+            }
+          }
+        }
+      ]
+    },
+    {
+      "case_id": "case-03",
+      "specialist": "ml-training-takin",
+      "candidate_response": "No. Or at least, not on that evidence.\n\nA 0.7-point MMLU drop tells you the *average* survived. It tells you almost nothing about what broke. Aggregate benchmarks are means over thousands of items, and quantization damage rarely distributes evenly \u2014 it concentrates on a tail: long-context reasoning, rare tokens, numeric work, code, multi-step chains, low-confidence-but-correct items that flip to confidently wrong. The mean smooths it; your users will not.\n\nBefore shipping, do this:\n\n1. **Pair the outputs, do not just compare scores.** For every MMLU item, log the fp16 answer and the int8 answer side by side. Compute the *flip rate* \u2014 how often they disagree \u2014 not just net accuracy. Two models can land at 61\u201362% by getting different questions right. If 8% of items flipped to net +0.7, you have not \"almost preserved\" the model; you have a meaningfully different model that scores similarly.\n\n2. **Look at where the flips cluster.** Group flips by MMLU subject. If the loss is uniform, fine. If it concentrates in `formal_logic`, `college_mathematics`, `professional_law` \u2014 the multi-step or precision-sensitive categories \u2014 that is the quantization signature and it will show up in production on exactly the queries that matter.\n\n3. **Test beyond MMLU.** MMLU is multiple-choice over short contexts. Your production traffic probably is not. Run the int8 model on: long-context tasks (anything past 4k tokens \u2014 KV-cache quantization is a separate failure mode), code generation (HumanEval or your own), instruction following (IFEval), and a sample of real production prompts replayed against both models. Quantization can degrade generation quality \u2014 repetition, drift, hallucination rate \u2014 without touching multiple-choice accuracy at all.\n\n4. **Build the hard-case suite.** Take 200 prompts where the fp16 model is correct but not confident (look at logprob margins), plus 200 where it is correct and confident. Quantization breaks the first set first. If the int8 model holds both, you have real evidence.\n\n5. **Check calibration, not just accuracy.** Quantized models often become overconfident or miscalibrated even when top-1 is preserved. If you use logprobs downstream \u2014 for routing, refusal, RAG re-ranking, anything \u2014 accuracy parity does not imply behavior parity.\n\nThe honest summary for your team: you have one number on one benchmark. That is a smoke test, not a ship decision. The cost of the additional evaluation is hours. The cost of shipping a silently-worse model is measured in user trust and is hard to unwind.\n\nWatch the curve. Do not squint at one batch.",
+      "candidate_usage": {
+        "prompt_tokens": 2382,
+        "completion_tokens": 877,
+        "total_tokens": 3259,
+        "cost": 0.03349665,
+        "is_byok": false,
+        "prompt_tokens_details": {
+          "cached_tokens": 0,
+          "cache_write_tokens": 0,
+          "audio_tokens": 0,
+          "video_tokens": 0
+        },
+        "cost_details": {
+          "upstream_inference_cost": 0.033835,
+          "upstream_inference_prompt_cost": 0.01191,
+          "upstream_inference_completions_cost": 0.021925
+        },
+        "completion_tokens_details": {
+          "reasoning_tokens": 0,
+          "image_tokens": 0,
+          "audio_tokens": 0
+        }
+      },
+      "per_criterion": [
+        {
+          "criterion": "rejects_aggregate_only_acceptance",
+          "target": true,
+          "judge_scores": {
+            "anthropic": 1,
+            "openai": 1,
+            "google": 1
+          },
+          "majority": 1,
+          "panel_split": false
+        },
+        {
+          "criterion": "suggests_hard_case_or_tail_suite",
+          "target": true,
+          "judge_scores": {
+            "anthropic": 1,
+            "openai": 1,
+            "google": 1
+          },
+          "majority": 1,
+          "panel_split": false
+        },
+        {
+          "criterion": "mentions_teacher_vs_student_head_to_head_comparison",
+          "target": true,
+          "judge_scores": {
+            "anthropic": 1,
+            "openai": 1,
+            "google": 1
+          },
+          "majority": 1,
+          "panel_split": false
+        },
+        {
+          "criterion": "mentions_failures_cluster_on_tails",
+          "target": true,
+          "judge_scores": {
+            "anthropic": 1,
+            "openai": 1,
+            "google": 1
+          },
+          "majority": 1,
+          "panel_split": false
+        }
+      ],
+      "criteria_met": 4,
+      "criteria_total": 4,
+      "case_score": 1.0,
+      "judge_raw": [
+        {
+          "judge": "anthropic",
+          "parsed_ok": true,
+          "usage": {
+            "prompt_tokens": 6884,
+            "completion_tokens": 1934,
+            "total_tokens": 8818,
+            "cost": 0.04916538,
+            "is_byok": false,
+            "prompt_tokens_details": {
+              "cached_tokens": 0,
+              "cache_write_tokens": 0,
+              "audio_tokens": 0,
+              "video_tokens": 0
+            },
+            "cost_details": {
+              "upstream_inference_cost": 0.049662,
+              "upstream_inference_prompt_cost": 0.020652,
+              "upstream_inference_completions_cost": 0.02901
+            },
+            "completion_tokens_details": {
+              "reasoning_tokens": 0,
+              "image_tokens": 0,
+              "audio_tokens": 0
+            }
+          }
+        },
+        {
+          "judge": "openai",
+          "parsed_ok": true,
+          "usage": {
+            "prompt_tokens": 6019,
+            "completion_tokens": 976,
+            "total_tokens": 6995,
+            "cost": 0.0171109125,
+            "is_byok": false,
+            "prompt_tokens_details": {
+              "cached_tokens": 0,
+              "cache_write_tokens": 0,
+              "audio_tokens": 0,
+              "video_tokens": 0
+            },
+            "cost_details": {
+              "upstream_inference_cost": 0.01728375,
+              "upstream_inference_prompt_cost": 0.00752375,
+              "upstream_inference_completions_cost": 0.00976
+            },
+            "completion_tokens_details": {
+              "reasoning_tokens": 384,
+              "image_tokens": 0,
+              "audio_tokens": 0
+            }
+          }
+        },
+        {
+          "judge": "google",
+          "parsed_ok": true,
+          "usage": {
+            "prompt_tokens": 6429,
+            "completion_tokens": 3220,
+            "total_tokens": 9649,
+            "cost": 0.0398338875,
+            "is_byok": false,
+            "prompt_tokens_details": {
+              "cached_tokens": 0,
+              "cache_write_tokens": 0,
+              "audio_tokens": 0,
+              "video_tokens": 0
+            },
+            "cost_details": {
+              "upstream_inference_cost": 0.04023625,
+              "upstream_inference_prompt_cost": 0.00803625,
+              "upstream_inference_completions_cost": 0.0322
+            },
+            "completion_tokens_details": {
+              "reasoning_tokens": 1869,
+              "image_tokens": 0,
+              "audio_tokens": 0
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "mean_score": 1.0,
+  "n_cases": 3
+}

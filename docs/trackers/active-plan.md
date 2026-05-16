@@ -17,12 +17,12 @@ Anything short of this is **in-progress**. Partial wins land in History but do n
 ## Live state
 
 ```yaml
-phase_current: 2   # Phase 2: promote ibex patterns to other specialists (T-23..T-28)
+phase_current: 2.5   # Phase 2 done; gap before Phase 3 (systemic rewrites)
 phase_total: 4
 tasks_total: 38
-tasks_done: 19     # T-1..T-6, T-8 (D-7 substitute), T-10, T-12..T-22; T-9 deferred to fixture-expansion tracker
+tasks_done: 28     # T-1..T-6, T-8, T-10, T-12..T-22, T-23..T-28 (Phase 2 = 9 specialists); T-7+T-9 externalized
 tasks_in_progress: 0
-tasks_open: 19     # T-11 + Phase 2 (6) + Phase 3 (6) + Phase 4 (4) + T-7 permanently deferred + T-9 externalized
+tasks_open: 10     # T-11 (CI) + Phase 3 (6) + Phase 4 (4) - T-7+T-9 externalized
 eval_baseline:
   established: true            # T-10 done 2026-05-16 → eval/baselines/frozen/ml-training-takin@v1/
   baseline_version: 1
@@ -30,7 +30,7 @@ eval_baseline:
   judge_kappa_vs_strong_panel: 1.0   # n=13, D-7 substitute; NOT vs human
   judge_kappa_target: 0.7      # raised from 0.6 under D-7
   pilot_specialist: ml-training-takin
-  control_specialist: ml-training-takin   # used as control during Phase 2 ibex-promote (catches eval drift)
+  control_specialist: ml-training-takin   # used as drift control during Phase 2 ibex-promote
   pre_edit_snapshot_sha: 729dc22
   fixtures_count:
     ml-training-takin: 3       # frozen v1; remaining specialists deferred to fixture-expansion tracker
@@ -43,12 +43,14 @@ eval_baseline:
     gold_panel_drafted: true
     gold_panel_version: 1
   scripts:
-    harness_py:         written + tested
+    harness_py:         written + tested + raw_text-capture fix (2026-05-16)
     run_sh:             written + tested
     variance_floor_sh:  written + tested
     calibrate_sh:       written  # legacy promptfoo shape; superseded by gold-label.py
     freeze_baseline_sh: written
     gold_label_py:      written + tested
+  known_issues:
+    - "openai/gpt-5 judge intermittently unparseable in variance mode (drift-run 2026-05-16: 4-5 unparseables across 3 cases × 3 runs). Effective panel degrades to 2 judges → tied-criterion defaults to not-met → spurious score drops. Raw-text capture restored to enable diagnosis. Investigate before T-11 CI wiring."
 runtime_bringup_tracker: docs/trackers/eval-bringup.md
 fixture_expansion_tracker: docs/trackers/fixture-expansion.md   # T-9 lives here now
 human_anchor_TODO: "Replace D-7 strong-panel calibration with human labels when feasible — current κ inflates above κ-vs-human due to shared LLM biases"
@@ -600,3 +602,56 @@ gates Phase 2 (takin used as control specialist for ibex-promote eval drift). Ba
 demand as Phase 2/3 touches each specialist.
 
 **State**: Phase 0 done except T-11 (CI wiring). Phase 2 unblocked. Moving to T-23 (debugging-yeti ibex-promote pilot).
+
+### 2026-05-16 — Phase 2 complete (9 specialists ibex-promoted); drift verdict ships
+
+**Phase 2 done.** Ibex pattern promoted across the bestiary:
+
+| Wave | Specialists | Commits |
+|------|-------------|---------|
+| D-3 first batch | yeti, crane, snow-lion | `a00429a` |
+| Parallel-agent batch | snow-leopard, yak, lammergeier, frog | `9c0d770` |
+| Complex pair | pheasant (universal-spine + lens dispatch preserved), hamsa (self-rewrite) | `06121ff` |
+
+Per specialist gained: Operating Principles (5 non-negotiables), Method—Three-Phases
+(with mandatory P3 Self-Critique), domain-specific Format schema (Finding / Plan /
+Decision / Test / Refactor / Profile / Doc / Leakage Report / Critique), 6-8
+domain-specific Self-Traps. Voice trimmed to one line + tone cue (S-1 fix).
+Reactions tagged `_Applies: <method/principle ref>_` with "Non-exhaustive"
+disclaimer (S-4 fix). Heuristics preserved verbatim. Method substance
+redistributed into phases, not dropped.
+
+**Untouched (intentional):**
+- ml-training-takin — pilot/control; refactoring would invalidate frozen baseline v1
+- security-ibex — source pattern itself; nothing to promote into
+
+**Drift control verdict (fork A gate):** Takin variance run 3× during Phase 2.
+Per-case deltas vs frozen baseline:
+
+| Case | Baseline mean | Drift-run mean | |Δ| | Within baseline floor (0.20)? |
+|------|---------------|----------------|----|---|
+| case-01 | 0.880 | 0.933 | 0.053 | YES |
+| case-02 | 1.000 | 1.000 | 0.000 | YES |
+| case-03 | 1.000 | 0.833 | 0.167 | YES (marginally) |
+
+Drift-run measured floor: 0.250 (vs baseline 0.200). The widening traces to
+judge-panel degradation — openai/gpt-5 returned unparseable output on
+4-5 (case, run) cells, causing panel to fall to 2 judges; tied criteria
+default to not-met → case-03 dropped from 1.0 → 0.75 on one run.
+
+**Verdict: Phase 2 ships.** Candidate (takin SKILL.md) unchanged; deltas are
+judge-panel artifacts, not specialist drift. No yeti/crane/etc. content
+appears in takin's eval, so candidate refactors cannot have caused this.
+
+**Known issue carried forward** (logged in live-state `known_issues`):
+openai/gpt-5 judge reliability degrades in variance mode. Raw-text capture
+in harness.py fixed in this commit (was silently dropped from saved JSON,
+blocking diagnosis). Investigate before T-11 (CI wiring) — a flaky judge
+in CI will produce false regression alarms.
+
+**Phase 2 → Phase 3 transition.** Phase 3 (S-N systemic rewrites) is now
+unblocked. Open question: do Phase 3 rewrites need fixtures-per-specialist
+before measuring delta, or is takin-drift sufficient again? Likely depends
+on the magnitude of the S-N change: small rewrites can use drift control,
+large ones (S-6 interview-style A/B) need their own fixtures from the
+fixture-expansion tracker.
