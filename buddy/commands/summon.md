@@ -102,7 +102,35 @@ If the argument is empty or genuinely ambiguous (matches multiple specialists eq
 Mark shadowed entries with `(shadowed by <higher-scope>)` next to the lower-scope listing so the user knows which version `/buddy:summon <name>` will actually load.
 ## Step 2 — Load the specialist skill file (and lens addendum, if any)
 
-The resolved specialist has a `(scope, path)` pair from Step 1. Use the `Read` tool to load `<path>/SKILL.md`.
+The resolved specialist has a `(scope, path)` pair from Step 1.
+
+### Step 2a — Cheap dedup check (skip on already-active)
+
+Before loading SKILL.md, check whether this specialist is already active in
+the current session. SKILL.md is 150-300 lines; re-injecting it on every
+`/buddy:summon` for an already-summoned specialist wastes context.
+
+Use the `Bash` tool:
+
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/track_specialist.py" status <directory>
+```
+
+- **Exit 0 → already active in this session.** Skip the rest of Step 2,
+  Step 2.5 (memories), and Step 2.6 (gates) — they were injected on the
+  prior summon and survive `/compact` and resume via the SessionStart reload
+  block. Emit a short refresh line and jump to Step 3:
+
+  > *The <Label> is already with you — voice, principles, and memories are in scope. Continuing.*
+
+  Substitute `<Label>` with the specialist's display label (e.g. "Debugging
+  Yeti"). Then proceed to Step 3 (announce) and Step 4 (adopt voice).
+
+- **Exit non-zero → not active.** Proceed with the heavy load below.
+
+### Step 2b — Load SKILL.md and lens addendum
+
+Use the `Read` tool to load `<path>/SKILL.md`.
 
 If a lens was resolved in Step 1, also load `<path>/_<lens>.md`. If the addendum file does not exist, report: "That lens is not yet authored. Available lenses: <list `_*.md` files in `<path>`>." and stop.
 

@@ -99,3 +99,35 @@ def test_no_session_exits_zero_with_message(tmp_path):
 def test_requires_action_arg(tmp_path):
     r = _run([], cwd=tmp_path)
     assert r.returncode != 0
+
+
+
+def test_status_returns_zero_when_active(tmp_path):
+    sid = _seed_session(tmp_path, "sid1")
+    _run(["summon", "debugging-yeti"], cwd=tmp_path)
+    r = _run(["status", "debugging-yeti"], cwd=tmp_path)
+    assert r.returncode == 0
+
+
+def test_status_returns_one_when_inactive(tmp_path):
+    sid = _seed_session(tmp_path, "sid1")
+    r = _run(["status", "debugging-yeti"], cwd=tmp_path)
+    assert r.returncode == 1
+
+
+def test_status_returns_one_after_dismiss(tmp_path):
+    sid = _seed_session(tmp_path, "sid1")
+    _run(["summon", "debugging-yeti"], cwd=tmp_path)
+    _run(["dismiss", "debugging-yeti"], cwd=tmp_path)
+    r = _run(["status", "debugging-yeti"], cwd=tmp_path)
+    assert r.returncode == 1
+
+
+def test_status_returns_one_with_no_session(tmp_path):
+    r = _run(["status", "debugging-yeti"], cwd=tmp_path)
+    assert r.returncode == 1
+
+
+def test_status_requires_directory_arg(tmp_path):
+    r = _run(["status"], cwd=tmp_path)
+    assert r.returncode != 0

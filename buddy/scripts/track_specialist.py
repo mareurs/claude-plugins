@@ -84,9 +84,26 @@ def cmd_dismiss(directory: str | None) -> int:
     return 0
 
 
+
+def cmd_status(directory: str) -> int:
+    """Exit 0 if specialist is currently active in this session, 1 otherwise.
+
+    Silent on no session — treats it as 'not active' (the safe default that
+    re-loads SKILL.md on cold paths).
+    """
+    project = _project_root()
+    sid = _resolve_sid(project)
+    if not sid:
+        return 1
+    path = session_state_path(project, sid)
+    state = load_state(path)
+    active = state.get("active_specialists", []) or []
+    return 0 if directory in active else 1
+
+
 def main(argv: list[str]) -> int:
     if not argv:
-        print("usage: track_specialist.py {summon <dir> | dismiss [<dir>]}",
+        print("usage: track_specialist.py {summon <dir> | dismiss [<dir>] | status <dir>}",
               file=sys.stderr)
         return 2
     action = argv[0]
@@ -98,6 +115,11 @@ def main(argv: list[str]) -> int:
     if action == "dismiss":
         target = argv[1] if len(argv) > 1 else None
         return cmd_dismiss(target)
+    if action == "status":
+        if len(argv) < 2:
+            print("usage: track_specialist.py status <dir>", file=sys.stderr)
+            return 2
+        return cmd_status(argv[1])
     print(f"unknown action: {action}", file=sys.stderr)
     return 2
 
