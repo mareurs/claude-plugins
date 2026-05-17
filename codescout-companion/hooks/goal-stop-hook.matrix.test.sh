@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# T2e — 7-branch decision matrix test for goal-stop-hook.sh.
+# T2e — 8-branch decision matrix test for goal-stop-hook.sh.
 #
 # Mocks the `codescout` binary by prepending a stub directory to PATH that
 # answers both `artifact find` and `artifact get` with canned JSON, then
@@ -13,6 +13,7 @@
 #   5. 1 goal, status=abandoned → STOP, "goal abandoned"
 #   6. 1 goal, status=active + unmet signal → continue, "next acceptance signal"
 #   7. codescout binary missing → continue, "fail-open" (binary not found)
+#   8. 1 goal, status=unknown  → continue, "malformed" (Hamsa S-2 — fail-open with distinct signal)
 
 set -uo pipefail
 
@@ -119,4 +120,11 @@ assert_hook "active-with-next" "true" "step two"
 rm -f "$WORK/bin/codescout"
 assert_hook "binary-missing" "true" "fail-open"
 
-echo "All 7 branches passed."
+# --- Branch 8: status=unknown / malformed (Hamsa S-2) ---
+# Reinstall the stub for this branch.
+install_find_get_stub \
+    "{\"count\":1,\"items\":[{\"id\":\"$GOAL_ID\",\"title\":\"G\"}]}" \
+    "{\"id\":\"$GOAL_ID\",\"title\":\"G\",\"augmentation\":{\"params\":{\"status\":\"unknown\",\"criterion\":\"do X\"}}}"
+assert_hook "malformed-status" "true" "malformed"
+
+echo "All 8 branches passed."

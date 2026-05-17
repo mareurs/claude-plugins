@@ -96,23 +96,36 @@ fi
 STATUS=$(echo "$PARAMS" | jq -r '.status // "unknown"' 2>/dev/null || echo "unknown")
 CRITERION=$(echo "$PARAMS" | jq -r '.criterion // ""' 2>/dev/null | cut -c1-120)
 BLOCKED_REASON=$(echo "$PARAMS" | jq -r '.blocked_reason // ""' 2>/dev/null | cut -c1-120)
+# Hamsa S-1: surface refresh staleness in reason text so the agent reading
+# the Stop hook output can distinguish fresh state from stale-lying state.
+LAST_REFRESHED=$(echo "$GET_OUT" | jq -r '.augmentation.last_refreshed_at // "never"' 2>/dev/null || echo "never")
 
 case "$STATUS" in
     done)
-        jq -nc --arg c "$CRITERION" '{continue: false, reason: ("goal done: " + $c)}'
+        jq -nc --arg c "$CRITERION" --arg lr "$LAST_REFRESHED" \
+          '{continue: false, reason: ("goal done: " + $c + " (last refreshed: " + $lr + ")")}'
         ;;
     blocked)
         REASON_TEXT="${BLOCKED_REASON:-$CRITERION}"
-        jq -nc --arg r "$REASON_TEXT" '{continue: false, reason: ("goal blocked: " + $r)}'
+        jq -nc --arg r "$REASON_TEXT" --arg lr "$LAST_REFRESHED" \
+          '{continue: false, reason: ("goal blocked: " + $r + " (last refreshed: " + $lr + ")")}'
         ;;
     abandoned)
-        jq -nc --arg c "$CRITERION" '{continue: false, reason: ("goal abandoned: " + $c)}'
+        jq -nc --arg c "$CRITERION" --arg lr "$LAST_REFRESHED" \
+          '{continue: false, reason: ("goal abandoned: " + $c + " (last refreshed: " + $lr + ")")}'
+        ;;
+    unknown|"")
+        # Hamsa S-2: malformed/empty status no longer collapses into the active
+        # branch — emit a distinct fail-open signal so the agent knows to refresh.
+        jq -nc --arg s "$STATUS" --arg lr "$LAST_REFRESHED" \
+          '{continue: true, reason: ("goal params malformed (status=" + $s + ") — fail-open; please refresh (last refreshed: " + $lr + ")")}'
         ;;
     *)
-        # active / scoping / pending-confirmation / unknown — keep going.
+        # active / scoping / pending-confirmation — keep going.
         NEXT=$(echo "$PARAMS" | jq -r '.acceptance_signals // [] | map(select(.met == false)) | .[0].description // ""' 2>/dev/null | cut -c1-120)
         TARGET="${NEXT:-$CRITERION}"
         TARGET="${TARGET:-active goal in progress}"
-        jq -nc --arg t "$TARGET" '{continue: true, reason_to_continue: ("next acceptance signal: " + $t)}'
+        jq -nc --arg t "$TARGET" --arg lr "$LAST_REFRESHED" \
+          '{continue: true, reason_to_continue: ("next acceptance signal: " + $t + " (last refreshed: " + $lr + ")")}'
         ;;
 esac
