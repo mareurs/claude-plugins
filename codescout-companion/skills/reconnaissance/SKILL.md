@@ -5,171 +5,229 @@ description: Use before subagent dispatch, before editing code that changes a st
 
 # /codescout-companion:reconnaissance
 
-Scout the seam before you act. When you find drift between plan and reality,
-externalize it as a session-log entry so the next session inherits the lesson.
+A **seam** is a place where your next action depends on the current shape of code you have not read this session: a struct's fields, a function's signature, an API's response, a tool's actual output. Scout the seam before you act. When plan and reality disagree, externalize the gap as a session-log entry with a monotonic ID — IDs make lessons portable across sessions; entries without IDs don't compound.
 
-**REQUIRED SUB-SKILL:** None. Self-contained but composes with
-`subagent-driven-development`, `writing-plans`, and `verification-before-completion`.
+**REQUIRED SUB-SKILL:** None. Composes with `subagent-driven-development`, `writing-plans`, and `verification-before-completion`.
 
 ## When to Use
 
-- **Before delegating to a subagent.** Scout the seam yourself first — read the
-  affected symbols, confirm the plan's code matches reality. Subagents inherit
-  drift; the controller absorbs it.
-- **Before editing code whose shape you have not verified.** If the change names
-  a struct, function, or API you haven't read this session, read it before editing.
-- **After a tool response disagrees with the plan.** Empty results when the plan
-  predicted N entries, compile errors on plan code, a wrong status field — these
-  are signals that the plan is stale or the substrate has moved.
-- **When the controller has just discovered the plan code is fictional.** Inline
-  reconnaissance beats re-dispatching a subagent with the same wrong plan.
+- **Before delegating to a subagent.** Scout the seam yourself first — read the affected symbols, confirm the plan's code matches reality. Subagents inherit drift; the controller absorbs it.
+- **Before editing code whose shape you have not verified.** If the change names a struct, function, type method, or API you haven't read this session, read it before editing.
+- **After a tool response disagrees with the plan.** Empty results where N were predicted, compile errors on plan code, a wrong field name, an unexpected status — signals that plan is stale or substrate moved.
 
 ## When NOT to Use
 
-- **Read-only Q&A.** "What does X do?" — answer via `symbols(name=..., include_body=true)`,
-  not via reconnaissance ceremony.
-- **Trivial mechanical edits.** Version bumps, formatting, doc-only changes — no
-  shape dependency, no plan drift surface.
-- **The session is already in verification phase.** Use
-  `verification-before-completion` for completion claims; reconnaissance is for
-  drift detection, not commit gating.
-- **Already scouted this seam in the current session.** Reconnaissance
-  externalizes findings; once externalized, don't re-scout the same shape unless
-  the source has changed.
-- **Underspecified refactor prompts** (`"refactor X for readability"` with no
-  shape contact named). Ask the user whether shape changes; do not run
-  reconnaissance speculatively.
+- **Read-only Q&A.** "What does X do?" — answer via `symbols(name=..., include_body=true)`. No scout, no entry.
+- **Trivial mechanical edits.** Version bumps, formatting, doc-only changes — no shape dependency.
+- **Already in verification phase.** Use `verification-before-completion` for commit gating.
+- **Already scouted this seam in the current session.** One pass per seam — re-scouting the same struct/function is noise unless the source has changed since.
+- **Underspecified refactor prompts** (`"refactor X for readability"` with no shape contact named). Ask the user whether shape changes; do not scout speculatively.
 
-## Flow
+## Method — Four Phases
 
 ```
-1. Scout the seam
+1. Scout (read actual shape)
    ↓
-2. Compare reality to plan / expectations
+2. Compare (plan vs reality)
    ↓
-3. If gap found    → externalize as F-N entry
-   If practice won → externalize as W-N entry
+3. If gap     → F-N entry  (friction: drift, surprise, cost)
+   If win     → W-N entry  (pattern that prevented worse)
+   If match   → silent resume (no entry needed)
    ↓
-4. Resume original task with verified context
+4. Resume task + announce one-line outcome to user
 ```
 
 ### Phase 1 — Scout
 
-For the symbol, file, or contract about to be touched:
+For each symbol, type, or contract about to be touched:
 
-- Read the symbol: `symbols(name=..., include_body=true)`
-- Read the callers if shape changes: `references(symbol, ...)` or
-  `call_graph(symbol, direction="callers")`
-- For tools / APIs: read the tool's actual response shape, not the doc's
-  described shape.
+- Read the symbol body: `symbols(name=..., include_body=true)`
+- Read callers if shape changes: `references(symbol, ...)` or `call_graph(symbol, direction="callers")`
+- For tools / external APIs: read the actual response shape, not docs. Run the call once, inspect output.
 
-**Statusline signal** (one-time per scout, optional but recommended): before the
-first `symbols`/`references`/`call_graph` call of this scout, drop a per-session
-marker in the active project:
+**Statusline marker (recommended).** Touch `.buddy/$SID/recon-active` once at scout start so the user's statusline shows `[recon]` for 30 minutes. The badge signals scout-in-progress; the user knows not to redirect mid-scout, which prevents abort-and-restart cost:
 
 ```bash
 SID=$(cat .buddy/.current_session_id 2>/dev/null) && \
   [ -n "$SID" ] && mkdir -p ".buddy/$SID" && touch ".buddy/$SID/recon-active"
 ```
 
-The buddy statusline reads `.buddy/<session_id>/recon-active` and shows
-`[recon]` for 30 minutes afterward, so the user sees that scouting is in
-progress for this session. The marker dies with the session — no cross-session
-leakage.
+Skip silently if the marker dir is unavailable. The skill works without the badge; the badge does not work without the skill.
+
 ### Phase 2 — Compare
 
-State what the plan / expectation said vs. what reality holds. Two outcomes:
+State what the plan / docs said vs. what reality holds. Three outcomes:
 
-- **Match** → scout passed; resume task. No entry needed.
-- **Gap** → continue to Phase 3.
+- **Match** → scout passed; resume task. No entry.
+- **Gap** → continue to Phase 3 (F-N).
+- **Match, and the scout was non-trivial** (multiple files read, hidden contract surfaced, non-obvious shape) → Phase 3 (W-N). A pre-dispatch scout that prevented a subagent slip is a W-N event even though nothing broke.
 
 ### Phase 3 — Externalize
 
-Findings go into a session-log tracker file in the active project. If one does
-not exist yet, copy `docs/templates/session-log.md` (in the codescout repo) to
-`docs/trackers/<topic>-session-log.md` in the active project and append.
+Findings go into `docs/trackers/<topic>-session-log.md` in the active project.
 
-**F-N entries (frictions — drift, surprises, costs):**
+**Topic naming.** Pick a topic from the work stream, not the seam: `bug-fix`, `auth-refactor`, `jsonpath-impl`, `migration-2026-q2`. One topic = one work stream across sessions. If the right topic file already exists, append; if not, copy the template:
 
-```markdown
-### F-N — <one-line title>
-**When:** <session task you were doing>
-**Expected:** <what plan / docs / prior session said>
-**Got:** <actual observed reality>
-**Probable cause:** <one sentence>
-**Workaround:** <what you did to proceed>
-**Severity:** low | med | high
-**Status:** open | wontfix-false-alarm | fixed-verified | promoted-to-bug-tracker
+```bash
+cp <codescout-repo>/docs/templates/session-log.md \
+   docs/trackers/<topic>-session-log.md
 ```
 
-**W-N entries (wins — patterns that prevented worse):**
+The codescout repo path is `/home/marius/work/claude/code-explorer` on this machine; in general, ask the user or check `claude mcp list` for the codescout source location.
 
-```markdown
-### W-N — <one-line title>
-**When:** <session task>
-**Pattern:** <the practice that worked>
-**Counterfactual:** <what would have happened without it>
-**Confirming data points:** <N session moments that validate this>
-**Impact:** low | med | high
-**Promote-when:** <criterion for graduation into permanent docs>
+**ID allocation.** Read the tracker's existing IDs and use the next monotonic integer:
+
+```python
+# Pseudocode: grep -oE 'F-[0-9]+' tracker.md | sort -V | tail -1, then +1
+# F-N and W-N have separate counters.
 ```
 
-Always allocate the next ID (`F-10`, `W-6`, etc.). Entries without IDs cannot
-be cited in commits or future sessions and do not compound.
+Never reuse an ID. Never skip an ID. Entries without IDs cannot be cited in commits and do not compound.
 
-### Phase 4 — Resume
+**Append mechanism.** Use `edit_markdown` to insert the new entry above the `## Template for new entries` marker, then update the Index / Wins Index table at the top:
 
-With verified context, return to the original task. Cite the F-N / W-N entry
-by ID in the next subagent dispatch or commit message — IDs persist; the
-lesson compounds across sessions.
+```python
+edit_markdown(
+    path="docs/trackers/<topic>-session-log.md",
+    action="insert_before",
+    heading="## Template for new entries",
+    content="## F-7 — <title>\n\n**Observed:** ...\n...",
+)
+```
 
-## Stop Condition
+**Severity rubric (F-N).**
+
+| Severity | When |
+|---|---|
+| `low` | Cosmetic, surfaced-but-not-blocking, future-proofing |
+| `med` | Would have caused ≥1 failed tool call, compile error, or 1 subagent retry; controller could absorb |
+| `high` | Would have cascaded — multiple subagent retries, wrong code merged, data loss risk, or hidden state change |
+
+If unsure, write `med` and explain the cost in one line. Anchored severity beats free-form severity.
+
+**Status vocabulary.** See the template's `## Status vocabulary` section — `open | mitigated | fixed-verified | wontfix-false-alarm | promoted-to-bug-tracker | pinned-as-eval-baseline` for frictions; `validated | promoted-to-permanent-docs | archived` for wins. Pick the one that matches; the template defines each.
+
+#### Worked exemplars
+
+These are real entries from `code-explorer/docs/trackers/bug-fix-session-log.md`. Pattern your new entries on these, not the bare template.
+
+**F-N exemplar — a pre-dispatch scout that caught test-shape drift:**
+
+```markdown
+## F-3 — Plan test assertions cited non-existent `RecoverableError.hint` field
+
+**Observed:** 2026-05-18, pre-dispatch reconnaissance for the jsonpath
+negative-slice implementation plan. About to dispatch Task 1.
+
+**When:** Reading the plan's Task 2 test code, about to dispatch the
+subagent for Task 1.
+
+**Expected (plan):** `RecoverableError` has accessible `.hint: Option<String>`
+field; plan tests used `err.hint.as_deref().unwrap_or("")`.
+
+**Got (scouted reality):** `RecoverableError` at `src/tools/core/types.rs:169`
+exposes `pub message: String` and `pub guidance: Option<Guidance>` — there is
+NO `.hint` field. There IS a method `.hint() -> Option<&str>` that returns the
+text only for the `Guidance::Hint` variant. Display impl renders
+`"{message} — Hint: {text}"` and is the documented stable test contract:
+`to_string().contains(...)` is the supported assertion shape.
+
+**Probable cause:** Plan was written from the design spec; spec didn't pin the
+assertion-side accessor shape; writing-plans phase didn't scout
+`RecoverableError`. The scout-helper-fn-bodies rule (W-1, same session log)
+applies to type shapes too.
+
+**Workaround:** Edit Task 2 + Task 3 test code to use
+`err.to_string().contains(...)` everywhere. Drops the `.hint` field reference.
+
+**Severity:** med — would have caused first subagent's tests to fail
+`cargo check`; controller would absorb the failed-task drift mid-dispatch.
+
+**Status:** fixed-verified — plan edit landed before any subagent ran.
+
+**Fix idea / Pointer:** Plan task 2 + 3, this session.
+```
+
+**W-N exemplar — the win that the F-3 scout produced:**
+
+```markdown
+## W-2 — Pre-dispatch recon caught test-shape error before any subagent ran
+
+**Observed:** 2026-05-18, about to dispatch Task 1 of the jsonpath
+negative-slice plan (subagent-driven-development mode).
+
+**Pattern:** Before the first subagent dispatch on a plan that names *types*
+in test assertions (not just *fns*), scout each referenced type's actual
+field/method shape: `symbols(name=<TypeName>, include_body=true)` for any
+type whose accessors the plan tests mention.
+
+**Counterfactual:** Without this scout, Task 2's first subagent would have
+written `err.hint.as_deref().unwrap_or("")` and failed `cargo check` on
+the first parse test. The subagent would have flailed (probable retries
+with `.guidance`, `.hint()`, `.to_string()`) without the Display-impl
+contract context. Best case: 1 extra round-trip per failing test
+(~11 for the 11 parser tests in Task 2). Worst case: subagent gives up,
+controller re-scopes plan mid-dispatch.
+
+**Confirming data points:**
+1. F-3 (this session) — `RecoverableError.hint` field cited by plan did
+   not exist; scout caught it pre-dispatch.
+2. Pending: any future plan that names types in assertions.
+
+**Impact:** med — saves ≥1 failed subagent task and prevents controller
+context absorption.
+
+**Promote-when:** A second pre-dispatch recon catches a similarly hidden
+type-shape mismatch. At 2 datapoints, promote to CLAUDE.md as
+"Before dispatching the first subagent of an implementation plan, scout
+every type whose accessors the plan asserts on."
+
+**Status:** validated — single datapoint, drift caught + fixed before
+any subagent dispatch. Awaiting promotion criterion.
+```
+
+Two things to copy from the exemplars: **specificity** (file paths, line numbers, actual identifier names) and **counterfactual evidence** (what the cost of not-scouting would have been, in concrete units like "11 round-trips"). Vague entries do not compound; specific entries do.
+
+### Phase 4 — Resume + Announce
+
+With verified context, return to the original task. Announce the scout outcome to the user in **one line**, citing the F-N / W-N ID if one was written:
+
+- Match, no entry: `Recon: matched plan, proceeding.`
+- F-N written: `Recon: gap captured as F-7 (plan cited .hint field; type has no such field). Proceeding with workaround.`
+- W-N written: `Recon: scout prevented Task 2 test-shape slip; captured as W-2.`
+
+Cite the ID in the next subagent dispatch prompt and in the commit message of any change that closes the gap. IDs persist; the lesson compounds.
+
+## Stop Conditions
 
 Reconnaissance is done when **any one** of:
 
 - The shape question has a one-line answer cited from the code.
-- The plan-vs-reality gap is captured as an F-N entry.
-- The decision is made to revise the plan rather than the code.
+- The gap is captured as an F-N entry with an ID.
+- The decision is made to revise the plan rather than the code (the plan owns the drift, not the substrate).
 
-Do NOT loop reconnaissance — one pass per seam per session. If the same seam
-needs scouting again later in the session, the substrate has moved; capture
-that as a separate F-N entry rather than re-running this flow.
+Do NOT loop reconnaissance. One pass per seam per session. If the same seam needs scouting again later in the session, the substrate has moved — capture that as a separate F-N entry (`category: architectural` or similar) rather than re-running this flow.
 
 ## Common Mistakes
 
-- **Scouting after dispatching.** The subagent has already started; drift in
-  the plan now lives in two contexts. Scout BEFORE dispatch.
-- **Externalizing without an ID.** Entries without F-N / W-N IDs can't be cited
-  in commits and don't compound. Always allocate the next ID.
-- **Skipping the counterfactual on W-N.** A win without a counterfactual reads
-  as marketing. Name what would have happened without the pattern, with
-  evidence.
-- **Treating reconnaissance as verification.** Verification is at completion;
-  reconnaissance is at the seam. Different skills, different timing.
-- **Re-scouting the same seam twice.** If the shape didn't change, re-reading
-  is noise. If it did change, that's a new F-N entry.
+- **Scouting after dispatching.** The subagent has already started; drift now lives in two contexts. Scout BEFORE dispatch.
+- **Externalizing without an ID.** Entries without F-N / W-N IDs can't be cited and don't compound. Always allocate the next ID.
+- **Skipping the counterfactual on W-N.** A win without a counterfactual reads as marketing. Name what would have happened without the pattern, with concrete evidence (round-trips saved, tests that would have failed, files that would have been wrongly edited).
+- **Treating reconnaissance as verification.** Verification gates completion claims; reconnaissance gates seam contact. Different skills, different timing.
+- **Re-scouting the same seam twice.** If the shape didn't change, re-reading is noise. If it did change, that's a new F-N entry.
+- **Pad-filling severity / status.** `med` / `open` as defaults are fine; `med` / `open` with no concrete cost statement is slop. The status enum is in the template — use the specific value that matches.
 
 ## Composition with other skills
 
 | Trigger | Skill | Reconnaissance role |
 |---|---|---|
 | Plan dispatched to subagent | `subagent-driven-development` | Scout the seam BEFORE dispatch |
-| Plan code looks fictional | (inline execution) | Externalize as F-N, fix plan inline |
-| Tool returned unexpected output | `systematic-debugging` | Capture as F-N, then debug |
-| About to claim work complete | `verification-before-completion` | Different skill — reconnaissance is at the seam, not at completion |
+| Plan code looks fictional | `writing-plans` | Externalize as F-N, revise plan inline before any subagent |
+| Tool returned unexpected output | `systematic-debugging` | Capture as F-N, then debug from the captured baseline |
+| About to claim work complete | `verification-before-completion` | Different timing — reconnaissance is at the seam, verification is at completion |
 
-## Eval
+## Skill maintenance
 
-Trigger string is scored against `docs/evals/reconnaissance-trigger.md` in the
-codescout repo. Empirical baseline (2026-05-17): **v0.2 = 13/15 (at threshold)**.
-Re-score before any future description change.
+Trigger-string scoring lives in `<codescout-repo>/docs/evals/reconnaissance-trigger.md`. Re-score before any future description change. **Behavioral eval** (do triggered scouts produce useful F-N entries?) — to be authored at `<codescout-repo>/docs/evals/reconnaissance-output.md`. Until that exists, every claim about ledger quality is unverified.
 
-### Version history
-
-- **v0.1** (2026-05-17 11:52, commit `748625f` in claude-plugins): initial.
-  7-case baseline 6/7; 15-case re-run 12/15 (Case 6, 14, 15 FAIL).
-- **v0.2** (2026-05-17): cut *"at the start of multi-task work"* + *"ANY"* +
-  replaced *"structural edits that depend on struct/API shapes"* with explicit
-  *"struct, function signature, or API contract"*. 15-case score 13/15 — Case
-  14 fixed; Cases 6 and 15 remain as case-design questions (model behavior
-  defensible).
+Version history is tracked via git on this file; see `git log -- codescout-companion/skills/reconnaissance/SKILL.md`.
