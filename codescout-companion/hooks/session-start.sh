@@ -153,18 +153,20 @@ If tools are unavailable, the MCP server failed to connect (check \`claude mcp l
 "
 
 # --- Reconnaissance skill primer ---
-# Pre-arm the reconnaissance skill on every session start (including
-# resume/compact) so its triggers are visible to the LLM without waiting
-# for description-match. Marker file feeds the buddy [recon] statusline badge.
-MSG="${MSG}RECONNAISSANCE: \`/codescout-companion:reconnaissance\` is in scope this session.
-Use proactively when:
-- About to dispatch a subagent (scout the seam first — subagents inherit drift)
-- About to edit code that changes a struct, function signature, or API contract
-- A tool response contradicts the plan (compile error, wrong shape, empty result)
-Touch \`.buddy/\$(cat .buddy/.current_session_id)/recon-active\` at scout start to surface a [recon] badge.
-Externalize friction (F-N) / wins (W-N) into the project's session-log tracker.
+# Inject the full SKILL.md verbatim on every session start (including
+# resume/compact) so its instructions are inline in context — no Skill-tool
+# call required to load. Marker file feeds the buddy [recon] statusline badge.
+PLUGIN_ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+RECON_SKILL="$PLUGIN_ROOT_DIR/skills/reconnaissance/SKILL.md"
+if [ -f "$RECON_SKILL" ]; then
+  RECON_BODY=$(cat "$RECON_SKILL")
+  MSG="${MSG}<!-- codescout-companion:reconnaissance loaded at SessionStart -->
+RECONNAISSANCE SKILL — pre-loaded for this session (no Skill-tool call needed):
+
+${RECON_BODY}
 
 "
+fi
 
 
 # --- Post-compact LSP flush ---

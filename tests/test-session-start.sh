@@ -155,10 +155,16 @@ make_git_repo "$T/t12"
 write_mcp_json "$T/t12"
 make_ce_dir "$T/t12"
 OUT=$(printf '{"cwd":"%s"}' "$T/t12" | bash "$HOOK" 2>/dev/null)
-if assert_context_contains "$OUT" "RECONNAISSANCE:"; then
+if assert_context_contains "$OUT" "RECONNAISSANCE SKILL"; then
   pass "reconnaissance: primer emitted"
 else
   fail "reconnaissance: primer emitted" "$(echo "$OUT" | jq -r '.hookSpecificOutput.additionalContext' 2>/dev/null | head -10)"
+fi
+# SKILL.md body markers — confirm full content is inlined, not just the header
+if assert_context_contains "$OUT" "Phase 1 — Scout" && assert_context_contains "$OUT" "Phase 3 — Externalize"; then
+  pass "reconnaissance: full SKILL.md body inlined"
+else
+  fail "reconnaissance: full SKILL.md body inlined" "$(echo "$OUT" | jq -r '.hookSpecificOutput.additionalContext' 2>/dev/null | grep -c 'Phase')"
 fi
 
 print_summary "session-start"
