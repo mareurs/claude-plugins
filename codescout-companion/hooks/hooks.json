@@ -38,6 +38,15 @@
             "command": "${CLAUDE_PLUGIN_ROOT}/hooks/pre-tool-guard.sh"
           }
         ]
+      },
+      {
+        "matcher": "mcp__.*__run_command",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/il3-warn-hook.sh"
+          }
+        ]
       }
     ],
     "PostToolUse": [
