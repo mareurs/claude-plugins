@@ -341,3 +341,116 @@ def test_session_start_resume_within_600s_is_not_treated_as_subagent(tmp_path):
         "resume must reset signals regardless of time gap"
     assert result["signals"]["session_start_ts"] == resume_ts
     assert result.get("current_session_id") == "session-b"
+
+
+
+def test_session_start_resume_carries_active_specialists_from_prev_sid(tmp_path):
+    """On source=resume with BUDDY_PREV_SID set, copy active_specialists from
+    the prev session's state.json into the new one, and record parent_sid.
+    """
+    import os
+    from scripts.hook_helpers import handle_session_start
+    from scripts.state import load_state, save_state, default_state
+
+    project = tmp_path
+    prev_sid = "prev-sid-aaa"
+    new_sid = "new-sid-bbb"
+
+    prev_state = default_state()
+    prev_state["current_session_id"] = prev_sid
+    prev_state["active_specialists"] = ["debugging-yeti", "prompt-hamsa"]
+    prev_path = project / ".buddy" / prev_sid / "state.json"
+    save_state(prev_path, prev_state)
+
+    new_path = project / ".buddy" / new_sid / "state.json"
+
+    os.environ["BUDDY_PREV_SID"] = prev_sid
+    try:
+        handle_session_start(
+            {"timestamp": 1700000000, "session_id": new_sid,
+             "source": "resume", "cwd": str(project)},
+            path=new_path,
+        )
+    finally:
+        del os.environ["BUDDY_PREV_SID"]
+
+    result = load_state(new_path)
+    assert result["active_specialists"] == ["debugging-yeti", "prompt-hamsa"]
+    assert result["parent_sid"] == prev_sid
+    assert result["current_session_id"] == new_sid
+
+
+def test_session_start_compact_carries_active_specialists(tmp_path):
+    import os
+    from scripts.hook_helpers import handle_session_start
+    from scripts.state import load_state, save_state, default_state
+
+    project = tmp_path
+    prev_sid = "prev-sid"
+    new_sid = "new-sid"
+
+    prev_state = default_state()
+    prev_state["active_specialists"] = ["testing-snow-leopard"]
+    save_state(project / ".buddy" / prev_sid / "state.json", prev_state)
+
+    new_path = project / ".buddy" / new_sid / "state.json"
+    os.environ["BUDDY_PREV_SID"] = prev_sid
+    try:
+        handle_session_start(
+            {"timestamp": 1700000000, "session_id": new_sid,
+             "source": "compact", "cwd": str(project)},
+            path=new_path,
+        )
+    finally:
+        del os.environ["BUDDY_PREV_SID"]
+
+    result = load_state(new_path)
+    assert result["active_specialists"] == ["testing-snow-leopard"]
+    assert result["parent_sid"] == prev_sid
+
+
+def test_session_start_startup_does_not_carry_active_specialists(tmp_path):
+    """Cold startup must not pull in prior specialists even if BUDDY_PREV_SID
+    is set (defensive — startup means fresh intent).
+    """
+    import os
+    from scripts.hook_helpers import handle_session_start
+    from scripts.state import load_state, save_state, default_state
+
+    project = tmp_path
+    prev_sid = "prev-sid"
+    new_sid = "new-sid"
+
+    prev_state = default_state()
+    prev_state["active_specialists"] = ["debugging-yeti"]
+    save_state(project / ".buddy" / prev_sid / "state.json", prev_state)
+
+    new_path = project / ".buddy" / new_sid / "state.json"
+    os.environ["BUDDY_PREV_SID"] = prev_sid
+    try:
+        handle_session_start(
+            {"timestamp": 1700000000, "session_id": new_sid,
+             "source": "startup", "cwd": str(project)},
+            path=new_path,
+        )
+    finally:
+        del os.environ["BUDDY_PREV_SID"]
+
+    result = load_state(new_path)
+    assert result["active_specialists"] == []
+    assert result["parent_sid"] == ""
+
+
+def test_session_start_resume_no_prev_sid_is_noop_on_specialists(tmp_path):
+    from scripts.hook_helpers import handle_session_start
+    from scripts.state import load_state
+
+    new_path = tmp_path / ".buddy" / "sid" / "state.json"
+    handle_session_start(
+        {"timestamp": 1700000000, "session_id": "sid",
+         "source": "resume", "cwd": str(tmp_path)},
+        path=new_path,
+    )
+    result = load_state(new_path)
+    assert result["active_specialists"] == []
+    assert result["parent_sid"] == ""

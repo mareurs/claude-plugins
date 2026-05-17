@@ -41,6 +41,7 @@ def default_state() -> dict:
         "suggested_specialist": None,
         "last_mood_transition_ts": 0,
         "active_specialists": [],
+        "parent_sid": "",
     }
 
 

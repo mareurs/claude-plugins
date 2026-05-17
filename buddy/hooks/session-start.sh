@@ -21,6 +21,13 @@ SID=$(echo "$EVENT" | jq -r '.session_id // empty' 2>/dev/null || true)
 BUDDY_PROJECT_DIR="$CWD/.buddy"
 BY_PPID_DIR="$BUDDY_PROJECT_DIR/by-ppid"
 
+# Capture previous session id BEFORE overwriting the pointer — reload uses it.
+PREV_SID=""
+if [ -f "$BUDDY_PROJECT_DIR/.current_session_id" ]; then
+    PREV_SID=$(cat "$BUDDY_PROJECT_DIR/.current_session_id" 2>/dev/null || true)
+fi
+export BUDDY_PREV_SID="$PREV_SID"
+
 # Ensure dirs exist
 mkdir -p "$BY_PPID_DIR/$PPID" 2>/dev/null || true
 

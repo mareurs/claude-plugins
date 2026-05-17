@@ -159,7 +159,44 @@ def handle_session_start(
 
         state["signals"]["root_cwd"] = ""
 
+        # Carry-forward active_specialists from prev session on resume/compact.
+        # Cold startup keeps the new state empty even if BUDDY_PREV_SID is set.
+        carried_specialists: list[str] = []
+        prev_sid = os.environ.get("BUDDY_PREV_SID", "").strip()
+        if source in ("resume", "compact") and prev_sid and prev_sid != incoming_sid:
+            project_root = Path(event.get("cwd") or "")
+            prev_state_path = project_root / ".buddy" / prev_sid / "state.json"
+            if prev_state_path.is_file():
+                prev_state = load_state(prev_state_path)
+                carried_specialists = list(prev_state.get("active_specialists", []) or [])
+                if carried_specialists:
+                    state["active_specialists"] = carried_specialists
+                state["parent_sid"] = prev_sid
+
         save_state(path, state)
+
+        # Emit reload context block to stdout so Claude Code appends it to
+        # the new session's context. The block instructs Claude to announce
+        # each specialist's arrival on the first user-facing line.
+        if carried_specialists:
+            try:
+                import sys as _sys
+                from scripts.reload import render_reload_block
+                plugin_root = Path(os.environ.get("CLAUDE_PLUGIN_ROOT") or "")
+                project_root = Path(event.get("cwd") or "")
+                block = render_reload_block(
+                    carried_specialists,
+                    new_sid=incoming_sid,
+                    prev_sid=prev_sid,
+                    source=source,
+                    plugin_root=plugin_root,
+                    project_root=project_root,
+                    home=Path.home(),
+                )
+                if block:
+                    _sys.stdout.write(block + "\n")
+            except Exception:
+                pass
 
         # Clear narrative and verdicts for new session
         if narrative_path:

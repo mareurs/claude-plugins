@@ -189,26 +189,10 @@ Use bash via the `Bash` tool to append. Silent on failure — the log is advisor
 
 ## Step 6 — Track the active specialist in state
 
-Append the resolved `<directory>` (without lens suffix) to the `active_specialists` list in the session-scoped state file.
+Use the `Bash` tool to call the helper:
 
 ```bash
-python3 -c "
-import sys, os
-sys.path.insert(0, '${CLAUDE_PLUGIN_ROOT}')
-from pathlib import Path
-from scripts.state import load_state, save_state, resolve_session_id_for_command, session_state_path
-sid = resolve_session_id_for_command(Path.cwd(), os.getppid())
-if not sid:
-    print('buddy: no active session — send any prompt first', file=sys.stderr)
-    raise SystemExit(0)
-p = session_state_path(Path.cwd(), sid)
-s = load_state(p)
-active = s.setdefault('active_specialists', [])
-if '<directory>' not in active:
-    active.append('<directory>')
-save_state(p, s)
-" || true
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/track_specialist.py" summon <directory>
 ```
 
-Substitute `<directory>` with the resolved specialist directory from Step 1.
-Silent on failure — the statusline initial is advisory.
+Substitute `<directory>` with the resolved specialist directory from Step 1 (no lens suffix). Silent on failure — the statusline initial is advisory.

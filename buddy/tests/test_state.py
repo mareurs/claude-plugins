@@ -62,6 +62,12 @@ def test_default_state_has_active_specialists_empty_list():
 
 
 
+def test_default_state_has_parent_sid_empty_string():
+    s = default_state()
+    assert s["parent_sid"] == ""
+
+
+
 def test_default_state_includes_root_cwd():
     from scripts.state import default_state
     state = default_state()

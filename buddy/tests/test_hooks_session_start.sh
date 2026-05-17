@@ -62,8 +62,78 @@ for i in $(seq 1 31); do
 done
 
 NUDGE_EVENT='{"session_id":"sid-nudge","cwd":"'"$NUDGE_WORK"'","source":"startup","timestamp":1700003000}'
-NUDGE_OUT=$(echo "$NUDGE_EVENT" | CLAUDE_PLUGIN_ROOT="$PLUGIN_ROOT" bash "$HOOK" 2>/dev/null || true)
+NUDGE_OUT=$(echo "$NUDGE_EVENT" | env -u CLAUDE_PROJECT_DIR CLAUDE_PLUGIN_ROOT="$PLUGIN_ROOT" bash "$HOOK" 2>/dev/null || true)
 
 echo "$NUDGE_OUT" | grep -q "consider /buddy:consolidate prompt-hamsa" \
   && pass "capacity nudge fires for 31 entries" \
   || fail "capacity nudge missing — output: $NUDGE_OUT"
+
+# Reload test: resume from a prev session with active specialists must emit
+# reload block + carry-forward active_specialists.
+RELOAD_WORK=$(mktemp -d); trap 'rm -rf "$RELOAD_WORK"' EXIT
+PREV_SID="prev-sid-reload"
+NEW_SID="new-sid-reload"
+
+# Seed prev session state with active_specialists
+mkdir -p "$RELOAD_WORK/.buddy/$PREV_SID"
+cat > "$RELOAD_WORK/.buddy/$PREV_SID/state.json" <<EOF
+{
+  "version": 1,
+  "current_session_id": "$PREV_SID",
+  "signals": {
+    "context_pct": 0, "last_edit_ts": 0, "last_commit_ts": 0,
+    "session_start_ts": 1700000000, "prompt_count": 0, "tool_call_count": 0,
+    "last_test_result": null, "recent_errors": [], "idle_ts": 0,
+    "judge_verdict": null, "judge_severity": null, "judge_block_count": 0,
+    "judge_last_ts": 0, "cs_judge_verdict": null, "cs_judge_severity": null,
+    "cs_tool_call_count": 0, "cs_active_project": null, "root_cwd": null
+  },
+  "derived_mood": "flow",
+  "suggested_specialist": null,
+  "last_mood_transition_ts": 0,
+  "active_specialists": ["debugging-yeti"],
+  "parent_sid": ""
+}
+EOF
+
+# Point .current_session_id to PREV_SID (this is what the bash hook reads)
+echo "$PREV_SID" > "$RELOAD_WORK/.buddy/.current_session_id"
+
+RELOAD_EVENT='{"session_id":"'"$NEW_SID"'","cwd":"'"$RELOAD_WORK"'","source":"resume","timestamp":1700004000}'
+RELOAD_OUT=$(echo "$RELOAD_EVENT" | env -u CLAUDE_PROJECT_DIR CLAUDE_PLUGIN_ROOT="$PLUGIN_ROOT" bash "$HOOK" 2>/dev/null || true)
+
+echo "$RELOAD_OUT" | grep -q "buddy:reloaded" \
+  && pass "reload block emitted on resume" \
+  || fail "reload block missing — output: $RELOAD_OUT"
+
+echo "$RELOAD_OUT" | grep -q "debugging-yeti" \
+  && pass "reload block includes specialist directory" \
+  || fail "reload block missing specialist directory — output: $RELOAD_OUT"
+
+# Verify new session state carries forward
+NEW_ACTIVE=$(jq -r '.active_specialists[0] // ""' "$RELOAD_WORK/.buddy/$NEW_SID/state.json" 2>/dev/null)
+[ "$NEW_ACTIVE" = "debugging-yeti" ] \
+  && pass "new session carries active_specialists" \
+  || fail "new session did not carry active_specialists — got: $NEW_ACTIVE"
+
+NEW_PARENT=$(jq -r '.parent_sid // ""' "$RELOAD_WORK/.buddy/$NEW_SID/state.json" 2>/dev/null)
+[ "$NEW_PARENT" = "$PREV_SID" ] \
+  && pass "new session records parent_sid" \
+  || fail "parent_sid not set — got: $NEW_PARENT"
+
+# Startup must NOT emit reload block even if .current_session_id points at a prev
+STARTUP_WORK=$(mktemp -d); trap 'rm -rf "$STARTUP_WORK"' EXIT
+mkdir -p "$STARTUP_WORK/.buddy/prev-sid-startup"
+cat > "$STARTUP_WORK/.buddy/prev-sid-startup/state.json" <<EOF
+{"version":1,"current_session_id":"prev-sid-startup","signals":{"context_pct":0,"last_edit_ts":0,"last_commit_ts":0,"session_start_ts":0,"prompt_count":0,"tool_call_count":0,"last_test_result":null,"recent_errors":[],"idle_ts":0,"judge_verdict":null,"judge_severity":null,"judge_block_count":0,"judge_last_ts":0,"cs_judge_verdict":null,"cs_judge_severity":null,"cs_tool_call_count":0,"cs_active_project":null,"root_cwd":null},"derived_mood":"flow","suggested_specialist":null,"last_mood_transition_ts":0,"active_specialists":["debugging-yeti"],"parent_sid":""}
+EOF
+echo "prev-sid-startup" > "$STARTUP_WORK/.buddy/.current_session_id"
+
+STARTUP_EVENT='{"session_id":"fresh-startup-sid","cwd":"'"$STARTUP_WORK"'","source":"startup","timestamp":1700100000}'
+STARTUP_OUT=$(echo "$STARTUP_EVENT" | env -u CLAUDE_PROJECT_DIR CLAUDE_PLUGIN_ROOT="$PLUGIN_ROOT" bash "$HOOK" 2>/dev/null || true)
+
+if echo "$STARTUP_OUT" | grep -q "buddy:reloaded"; then
+  fail "startup must NOT emit reload block — output: $STARTUP_OUT"
+else
+  pass "startup does not emit reload block"
+fi

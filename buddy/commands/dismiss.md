@@ -47,51 +47,21 @@ If the project memory dir does not exist or the working tree is not a git repo, 
 
 ## Step 2 — Update active_specialists in state
 
-Use the `Bash` tool to run the appropriate Python one-liner.
+Use the `Bash` tool to call the helper.
 
 **If target is `"ALL"`:**
 
 ```bash
-python3 -c "
-import sys, os
-sys.path.insert(0, '${CLAUDE_PLUGIN_ROOT}')
-from pathlib import Path
-from scripts.state import load_state, save_state, resolve_session_id_for_command, session_state_path
-sid = resolve_session_id_for_command(Path.cwd(), os.getppid())
-if not sid:
-    print('buddy: no active session — send any prompt first', file=sys.stderr)
-    raise SystemExit(0)
-p = session_state_path(Path.cwd(), sid)
-s = load_state(p)
-s['active_specialists'] = []
-save_state(p, s)
-" || true
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/track_specialist.py" dismiss
 ```
 
 **Otherwise (specific directory):**
 
 ```bash
-python3 -c "
-import sys, os
-sys.path.insert(0, '${CLAUDE_PLUGIN_ROOT}')
-from pathlib import Path
-from scripts.state import load_state, save_state, resolve_session_id_for_command, session_state_path
-sid = resolve_session_id_for_command(Path.cwd(), os.getppid())
-if not sid:
-    print('buddy: no active session — send any prompt first', file=sys.stderr)
-    raise SystemExit(0)
-p = session_state_path(Path.cwd(), sid)
-s = load_state(p)
-active = s.get('active_specialists', [])
-if '<directory>' in active:
-    active.remove('<directory>')
-s['active_specialists'] = active
-save_state(p, s)
-" || true
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/track_specialist.py" dismiss <directory>
 ```
 
 Substitute `<directory>` with the resolved directory from Step 1.
-
 ## Step 3 — Emit the farewell
 
 - If target is `"ALL"`: emit a brief farewell addressing all specialists. Example: *"The specialists step back into the mountains. You carry what you learned."*
