@@ -70,7 +70,8 @@ Create `.claude/codescout-companion.json` (or `codescout-routing.json`) in your 
   "workspace_root": "~/work",
   "block_reads": true,
   "auto_index": true,
-  "drift_warnings": true
+  "drift_warnings": true,
+  "goal_stop_hook": true
 }
 ```
 
@@ -81,6 +82,7 @@ Create `.claude/codescout-companion.json` (or `codescout-routing.json`) in your 
 | `block_reads` | `true` | Warn on Read/Grep/Glob for source files (PostToolUse) |
 | `auto_index` | `true` | Check staleness and reindex at session start |
 | `drift_warnings` | `true` | Surface drift warnings in session context |
+| `goal_stop_hook` | `true` | Stop hook reads active goal-tracker (`kind=tracker`, `tags=["goal"]`, `status=active`) and signals stop when its augmentation `params.status` is `done`/`blocked`/`abandoned`; otherwise continues with the next unmet acceptance signal. Fails open if codescout is missing. Set `false` for vanilla Stop semantics. |
 
 ## Hooks
 
