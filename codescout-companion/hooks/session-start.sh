@@ -161,7 +161,7 @@ Use proactively when:
 - About to dispatch a subagent (scout the seam first — subagents inherit drift)
 - About to edit code that changes a struct, function signature, or API contract
 - A tool response contradicts the plan (compile error, wrong shape, empty result)
-Touch \`~/.claude/buddy/.recon-active\` at scout start to surface a [recon] badge.
+Touch \`.buddy/\$(cat .buddy/.current_session_id)/recon-active\` at scout start to surface a [recon] badge.
 Externalize friction (F-N) / wins (W-N) into the project's session-log tracker.
 
 "

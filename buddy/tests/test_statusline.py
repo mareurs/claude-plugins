@@ -159,11 +159,11 @@ def test_render_no_initials_when_no_active_specialists():
     assert "[" not in output.split("\n")[-1]
 
 
-def test_render_shows_recon_badge_when_marker_fresh(tmp_path, monkeypatch):
-    import scripts.statusline as sl
-    marker = tmp_path / ".recon-active"
+def test_render_shows_recon_badge_when_marker_fresh(tmp_path):
+    sid = "sid-test"
+    marker = tmp_path / ".buddy" / sid / "recon-active"
+    marker.parent.mkdir(parents=True)
     marker.write_text("")
-    monkeypatch.setattr(sl, "RECON_MARKER", marker)
     identity = {
         "version": 1, "form": "owl-of-clear-seeing", "name": "Lin",
         "personality": "", "hatched_at": 0, "soul_model": "fallback",
@@ -172,28 +172,29 @@ def test_render_shows_recon_badge_when_marker_fresh(tmp_path, monkeypatch):
     state = default_state()
     now = int(marker.stat().st_mtime) + 60
     output = render(identity=identity, state=state, bodhisattvas=BODHIS,
-                    env=ENV, now=now, local_hour=14)
+                    env=ENV, now=now, local_hour=14,
+                    session_id=sid, project_root=tmp_path)
     assert "[recon]" in output
 
 
-def test_render_no_recon_badge_when_marker_missing(tmp_path, monkeypatch):
-    import scripts.statusline as sl
-    monkeypatch.setattr(sl, "RECON_MARKER", tmp_path / "nope")
+def test_render_no_recon_badge_when_marker_missing(tmp_path):
     identity = {
         "version": 1, "form": "owl-of-clear-seeing", "name": "Lin",
         "personality": "", "hatched_at": 0, "soul_model": "fallback",
         "hatched": False,
     }
     output = render(identity=identity, state=default_state(),
-                    bodhisattvas=BODHIS, env=ENV, now=1000000, local_hour=14)
+                    bodhisattvas=BODHIS, env=ENV, now=1000000, local_hour=14,
+                    session_id="sid-test", project_root=tmp_path)
     assert "[recon]" not in output
 
 
 def test_render_no_recon_badge_when_marker_stale(tmp_path, monkeypatch):
     import scripts.statusline as sl
-    marker = tmp_path / ".recon-active"
+    sid = "sid-test"
+    marker = tmp_path / ".buddy" / sid / "recon-active"
+    marker.parent.mkdir(parents=True)
     marker.write_text("")
-    monkeypatch.setattr(sl, "RECON_MARKER", marker)
     monkeypatch.setattr(sl, "RECON_FRESH_SECS", 60)
     now = int(marker.stat().st_mtime) + 3600
     identity = {
@@ -202,7 +203,8 @@ def test_render_no_recon_badge_when_marker_stale(tmp_path, monkeypatch):
         "hatched": False,
     }
     output = render(identity=identity, state=default_state(),
-                    bodhisattvas=BODHIS, env=ENV, now=now, local_hour=14)
+                    bodhisattvas=BODHIS, env=ENV, now=now, local_hour=14,
+                    session_id=sid, project_root=tmp_path)
     assert "[recon]" not in output
 
 

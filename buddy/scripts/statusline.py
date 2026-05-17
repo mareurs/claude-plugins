@@ -159,20 +159,22 @@ def _render_cs_bubble(session_id, project_root, now):
 
 
 
-RECON_MARKER = Path.home() / ".claude" / "buddy" / ".recon-active"
 RECON_FRESH_SECS = 30 * 60
 
 
-def _render_recon_badge(project_root, now):
-    """Show '[recon]' when the reconnaissance skill marker is fresh.
+def _render_recon_badge(project_root, now, session_id=None):
+    """Show '[recon]' when the per-session reconnaissance marker is fresh.
 
-    The skill instructs the LLM to `touch ~/.claude/buddy/.recon-active`
-    at scout start. Mtime within RECON_FRESH_SECS = active.
+    Marker path: <project_root>/.buddy/<session_id>/recon-active.
+    The skill instructs the LLM to touch it at scout start.
     """
     try:
-        if not RECON_MARKER.is_file():
+        if not project_root or not session_id or session_id == "unknown":
             return ""
-        mtime = int(RECON_MARKER.stat().st_mtime)
+        marker = Path(project_root) / ".buddy" / session_id / "recon-active"
+        if not marker.is_file():
+            return ""
+        mtime = int(marker.stat().st_mtime)
         if (now or int(time.time())) - mtime > RECON_FRESH_SECS:
             return ""
         return "\033[35m[recon]\033[0m"
@@ -230,7 +232,7 @@ def render(
             names = ", ".join(active)
         label_parts.append(f"[{names}]")
 
-    recon = _render_recon_badge(project_root, now)
+    recon = _render_recon_badge(project_root, now, session_id=session_id)
     if recon:
         label_parts.append(recon)
 

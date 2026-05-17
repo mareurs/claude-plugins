@@ -64,14 +64,18 @@ For the symbol, file, or contract about to be touched:
   described shape.
 
 **Statusline signal** (one-time per scout, optional but recommended): before the
-first `symbols`/`references`/`call_graph` call of this scout, run
+first `symbols`/`references`/`call_graph` call of this scout, drop a per-session
+marker in the active project:
 
 ```bash
-mkdir -p ~/.claude/buddy && touch ~/.claude/buddy/.recon-active
+SID=$(cat .buddy/.current_session_id 2>/dev/null) && \
+  [ -n "$SID" ] && mkdir -p ".buddy/$SID" && touch ".buddy/$SID/recon-active"
 ```
 
-The buddy statusline reads this marker and shows `[recon]` for 30 minutes
-afterward, so the user sees that scouting is in progress.
+The buddy statusline reads `.buddy/<session_id>/recon-active` and shows
+`[recon]` for 30 minutes afterward, so the user sees that scouting is in
+progress for this session. The marker dies with the session — no cross-session
+leakage.
 ### Phase 2 — Compare
 
 State what the plan / expectation said vs. what reality holds. Two outcomes:
