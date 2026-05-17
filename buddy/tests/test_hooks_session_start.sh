@@ -62,11 +62,28 @@ for i in $(seq 1 31); do
 done
 
 NUDGE_EVENT='{"session_id":"sid-nudge","cwd":"'"$NUDGE_WORK"'","source":"startup","timestamp":1700003000}'
-NUDGE_OUT=$(echo "$NUDGE_EVENT" | env -u CLAUDE_PROJECT_DIR CLAUDE_PLUGIN_ROOT="$PLUGIN_ROOT" bash "$HOOK" 2>/dev/null || true)
+NUDGE_OUT=$(echo "$NUDGE_EVENT" | CLAUDE_PLUGIN_ROOT="$PLUGIN_ROOT" bash "$HOOK" 2>/dev/null || true)
 
 echo "$NUDGE_OUT" | grep -q "consider /buddy:consolidate prompt-hamsa" \
   && pass "capacity nudge fires for 31 entries" \
   || fail "capacity nudge missing — output: $NUDGE_OUT"
+
+# Env-leak test: CLAUDE_PROJECT_DIR set to bogus path must NOT override
+# event.cwd — the hook must operate on what the event says, not inherited env.
+LEAK_WORK=$(mktemp -d); trap 'rm -rf "$LEAK_WORK"' EXIT
+LEAK_MEM="$LEAK_WORK/.buddy/memory/prompt-hamsa"
+mkdir -p "$LEAK_MEM"
+for i in $(seq 1 31); do
+  echo "# entry $i" > "$LEAK_MEM/entry-$(printf '%03d' $i).md"
+done
+BOGUS_DIR=$(mktemp -d); trap 'rm -rf "$BOGUS_DIR"' EXIT
+
+LEAK_EVENT='{"session_id":"sid-leak","cwd":"'"$LEAK_WORK"'","source":"startup","timestamp":1700003500}'
+LEAK_OUT=$(echo "$LEAK_EVENT" | CLAUDE_PROJECT_DIR="$BOGUS_DIR" CLAUDE_PLUGIN_ROOT="$PLUGIN_ROOT" bash "$HOOK" 2>/dev/null || true)
+
+echo "$LEAK_OUT" | grep -q "consider /buddy:consolidate prompt-hamsa" \
+  && pass "hook uses event.cwd over inherited CLAUDE_PROJECT_DIR" \
+  || fail "hook leaked CLAUDE_PROJECT_DIR — output: $LEAK_OUT"
 
 # Reload test: resume from a prev session with active specialists must emit
 # reload block + carry-forward active_specialists.
@@ -100,7 +117,7 @@ EOF
 echo "$PREV_SID" > "$RELOAD_WORK/.buddy/.current_session_id"
 
 RELOAD_EVENT='{"session_id":"'"$NEW_SID"'","cwd":"'"$RELOAD_WORK"'","source":"resume","timestamp":1700004000}'
-RELOAD_OUT=$(echo "$RELOAD_EVENT" | env -u CLAUDE_PROJECT_DIR CLAUDE_PLUGIN_ROOT="$PLUGIN_ROOT" bash "$HOOK" 2>/dev/null || true)
+RELOAD_OUT=$(echo "$RELOAD_EVENT" | CLAUDE_PLUGIN_ROOT="$PLUGIN_ROOT" bash "$HOOK" 2>/dev/null || true)
 
 echo "$RELOAD_OUT" | grep -q "buddy:reloaded" \
   && pass "reload block emitted on resume" \
@@ -130,7 +147,7 @@ EOF
 echo "prev-sid-startup" > "$STARTUP_WORK/.buddy/.current_session_id"
 
 STARTUP_EVENT='{"session_id":"fresh-startup-sid","cwd":"'"$STARTUP_WORK"'","source":"startup","timestamp":1700100000}'
-STARTUP_OUT=$(echo "$STARTUP_EVENT" | env -u CLAUDE_PROJECT_DIR CLAUDE_PLUGIN_ROOT="$PLUGIN_ROOT" bash "$HOOK" 2>/dev/null || true)
+STARTUP_OUT=$(echo "$STARTUP_EVENT" | CLAUDE_PLUGIN_ROOT="$PLUGIN_ROOT" bash "$HOOK" 2>/dev/null || true)
 
 if echo "$STARTUP_OUT" | grep -q "buddy:reloaded"; then
   fail "startup must NOT emit reload block — output: $STARTUP_OUT"

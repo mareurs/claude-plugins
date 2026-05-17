@@ -66,7 +66,7 @@ inst = current_instance_dir()
 roots = []
 if inst:
     roots.append(Path(inst) / 'buddy' / 'memory')
-proj = Path('${CLAUDE_PROJECT_DIR:-$CWD}') / '.buddy' / 'memory'
+proj = Path('$CWD') / '.buddy' / 'memory'
 if proj.is_dir():
     roots.append(proj)
 for r in roots:
@@ -85,12 +85,12 @@ sys.path.insert(0, '${PLUGIN_ROOT}')
 from pathlib import Path
 from scripts.consolidate import read_auto_trigger_config, auto_dry_run_eligible
 from scripts.memory import current_instance_dir
-cfg = read_auto_trigger_config(Path('${CLAUDE_PROJECT_DIR:-$CWD}'))
+cfg = read_auto_trigger_config(Path('$CWD'))
 inst = current_instance_dir()
 roots = []
 if inst:
     roots.append(Path(inst) / 'buddy' / 'memory')
-proj = Path('${CLAUDE_PROJECT_DIR:-$CWD}') / '.buddy' / 'memory'
+proj = Path('$CWD') / '.buddy' / 'memory'
 if proj.is_dir():
     roots.append(proj)
 for r in roots:
