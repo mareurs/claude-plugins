@@ -145,3 +145,52 @@ benefit). Revisit Option 3 if Memory Cadence drift becomes a wider
 pattern across new specialists.
 
 **Resolved by:** _(open)_
+
+
+
+## F6 — Step 2 collision check is name-only, no conceptual-overlap surfacing
+
+**Status:** deferred
+**Discovered:** 2026-05-17 during Pass B — pheasant
+**Surfaced by:** Pheasant subagent draft picked archetype "Himalayan
+Griffon" with slug `data-hygiene-himalayan-griffon`. The command's
+Step 2 collision check (dir-name only) saw no collision and proceeded
+— but the new specialist substantially overlaps the existing
+`data-leakage-snow-pheasant` (ML data hygiene + evaluation integrity).
+**Trace:** Pass B pheasant subagent (agentId af2d... in
+2026-05-17 session); Step 2 logic in `buddy/commands/create.md` lines
+~70-95.
+
+**Problem:** A new buddy with a different dir name but overlapping
+craft / domain creates two specialists doing nearly the same work.
+On summon, neither will shadow the other (different names), but the
+user has redundant specialists with no good way to know which to
+pick. The discovery composition (commit 4850c8c) returns both; the
+empty-arg listing shows both as separate entries.
+
+This is a soft failure — not a crash, not an immediate bug. But over
+many `/buddy:create` invocations, the specialist landscape drifts
+toward "many similar buddies with different names" rather than "a
+small set of orthogonal crafts." That undermines the value of the
+Hamsa-pattern specialist conventions.
+
+**Why deferred:** Needs a Step 2b design:
+
+1. **Lightweight option** — surface existing specialists' titles +
+   one-line descriptions during Step 2 so the drafter sees what
+   already exists. Drafter judgment closes the gap. Cheap, no new
+   logic, mostly a presentation change.
+2. **Semantic option** — read existing specialists' `## Voice` and
+   `## Operating Principles` sections, embed (or summarize), and
+   flag if proposed specialist's brainstorm answers are semantically
+   close to an existing one. More accurate but adds an embed step
+   and a similarity threshold to tune.
+3. **Hybrid** — show titles + descriptions always (cheap); add
+   semantic surfacing only when hint is long enough to be embedded
+   meaningfully (≥ 30 words).
+
+**Proposed fix:** Option 1 (lightweight) ships in the next
+`/buddy:create` patch. Option 3 (hybrid) revisit after we see how
+often near-duplicates actually get created in real use.
+
+**Resolved by:** _(open)_
