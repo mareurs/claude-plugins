@@ -10,9 +10,10 @@
 # additionalContext line so Claude sees the violation in the next turn
 # and self-corrects. Telemetry-gathering phase before promotion to deny.
 #
-# Trigger: command starts with a build/test runner (cargo, npm, pytest, etc.)
-# AND has a pipe whose post-pipe target is a log-trimmer (tail, head, grep,
-# less, wc, sed, awk, cut, sort, uniq, tr, fmt).
+# Trigger: command starts with a known LHS command (build/test runner OR
+# git/find/ls/grep/cat/diff/du/stat/rg/fd — see telemetry comment near the
+# detection block) AND has a pipe whose post-pipe target is a log-trimmer
+# (tail, head, grep, less, wc, sed, awk, cut, sort, uniq, tr, fmt).
 #
 # Allow-list pipes (jq, yq, fx, etc.) are simply not in the deny-pipe list —
 # they fall through silently. `cargo metadata | jq '.packages'` is structured
@@ -32,12 +33,17 @@ esac
 CMD=$(echo "$INPUT" | jq -r '.tool_input.command // empty' 2>/dev/null)
 [ -z "$CMD" ] && exit 0
 
-# IL3 detection: <BUILD_TOOL> ... | <DENY_PIPE>
+# IL3 detection: <LHS_CMD> ... | <DENY_PIPE>
 # Anchored at start to avoid catching mid-script pipes.
-BUILD_TOOLS='(cargo|npm|pnpm|yarn|python|pytest|go|mvn|gradle)'
+#
+# Empirical (2026-05-18 telemetry): the original build-tools-only LHS caught
+# 8/45 = 18% of real IL3 slips. Bulk of slip commands were git, find, ls, grep,
+# cat, diff. Widened to cover those families. Recall ~93% projected, FP cost
+# low (warn-only mode).
+LHS_COMMANDS='(cargo|npm|pnpm|yarn|python|pytest|go|mvn|gradle|git|find|ls|grep|cat|diff|du|stat|rg|fd)'
 DENY_PIPE='(tail|head|grep|less|wc|sed|awk|cut|sort|uniq|tr|fmt)'
 
-if ! echo "$CMD" | grep -qE "^[[:space:]]*${BUILD_TOOLS}[[:space:]].*\\|[[:space:]]*${DENY_PIPE}\\b"; then
+if ! echo "$CMD" | grep -qE "^[[:space:]]*${LHS_COMMANDS}[[:space:]].*\\|[[:space:]]*${DENY_PIPE}\\b"; then
   exit 0
 fi
 
