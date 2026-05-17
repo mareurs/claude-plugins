@@ -59,6 +59,16 @@
           }
         ]
       }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/goal-stop-hook.sh"
+          }
+        ]
+      }
     ]
   }
 }
