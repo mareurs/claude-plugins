@@ -16,7 +16,7 @@ Release readiness across plugins × profiles. See
 
 ## State
 
-_Last refresh: `8dbe924`_
+_Last refresh: `HEAD-pending`_
 
 **codescout-companion** — canonical `1.9.8` · readme `1.9.8` · marketplace clean ✅
 
@@ -26,13 +26,13 @@ _Last refresh: `8dbe924`_
 | `~/.claude-sdd` | 1.9.8 ✅ | ✅ | ✅ |
 | `~/.claude-kat` | 1.9.8 ✅ | ✅ | ✅ |
 
-**buddy** — canonical `0.7.4` · readme `0.7.4` · marketplace clean ✅
+**buddy** — canonical `0.7.5` · readme `0.7.5` · marketplace clean ✅
 
 | profile | installed | cache dir | install_path ok |
 |---|---|---|---|
-| `~/.claude` | 0.7.4 ✅ | ✅ | ✅ |
-| `~/.claude-sdd` | 0.7.4 ✅ | ✅ | ✅ |
-| `~/.claude-kat` | 0.7.4 ✅ | ✅ | ✅ |
+| `~/.claude` | 0.7.5 ✅ | ✅ | ✅ |
+| `~/.claude-sdd` | 0.7.5 ✅ | ✅ | ✅ |
+| `~/.claude-kat` | 0.7.5 ✅ | ✅ | ✅ |
 
 **sdd** — canonical `2.4.1` · readme `2.4.1` · marketplace clean ✅
 
@@ -45,4 +45,8 @@ _Last refresh: `8dbe924`_
 ## History
 
 _Append dated session deltas: ### YYYY-MM-DD — <what changed>._
+
+### 2026-05-18 — buddy 0.7.4 → 0.7.5
+
+Fixed CLAUDE_DIR detection in summon.md + create.md (ancestor walk instead of fixed 2-dirname). Bumped, cache seeded, install records updated across 3 profiles.
 

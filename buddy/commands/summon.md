@@ -26,12 +26,18 @@ Use the `Bash` tool to compose the index:
 
 ```bash
 PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT}"
-# Detect claude-dir from CLAUDE_PLUGIN_ROOT (parent matching .claude / .claude-sdd / .claude-kat)
-CLAUDE_DIR=$(dirname "$(dirname "$PLUGIN_ROOT")")
-case "$(basename "$CLAUDE_DIR")" in
-  .claude|.claude-sdd|.claude-kat) ;;
-  *) CLAUDE_DIR="" ;;
-esac
+# Detect claude-dir by walking ancestors of CLAUDE_PLUGIN_ROOT until basename
+# matches .claude / .claude-sdd / .claude-kat. The fixed 2-dirname pattern
+# breaks for cached directory-source installs at
+# <claude-dir>/plugins/cache/<marketplace>/<plugin>/<version>/ (5 levels deep).
+CLAUDE_DIR=""
+d="$PLUGIN_ROOT"
+while [ -n "$d" ] && [ "$d" != "/" ]; do
+  case "$(basename "$d")" in
+    .claude|.claude-sdd|.claude-kat) CLAUDE_DIR="$d"; break ;;
+  esac
+  d=$(dirname "$d")
+done
 
 scan() {
   local scope="$1" root="$2"

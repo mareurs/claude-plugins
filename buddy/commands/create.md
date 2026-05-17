@@ -49,11 +49,18 @@ Run the 3-scope discovery scan (same logic as `summon.md` Step 1). Use the `Bash
 
 ```bash
 PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT}"
-CLAUDE_DIR=$(dirname "$(dirname "$PLUGIN_ROOT")")
-case "$(basename "$CLAUDE_DIR")" in
-  .claude|.claude-sdd|.claude-kat) ;;
-  *) CLAUDE_DIR="" ;;
-esac
+# Detect claude-dir by walking ancestors of CLAUDE_PLUGIN_ROOT until basename
+# matches .claude / .claude-sdd / .claude-kat. The fixed 2-dirname pattern
+# breaks for cached directory-source installs at
+# <claude-dir>/plugins/cache/<marketplace>/<plugin>/<version>/ (5 levels deep).
+CLAUDE_DIR=""
+d="$PLUGIN_ROOT"
+while [ -n "$d" ] && [ "$d" != "/" ]; do
+  case "$(basename "$d")" in
+    .claude|.claude-sdd|.claude-kat) CLAUDE_DIR="$d"; break ;;
+  esac
+  d=$(dirname "$d")
+done
 
 scan() {
   local scope="$1" root="$2"
