@@ -22,6 +22,13 @@ Examples: `# The Debugging Yeti`, `# The Snow Pheasant`, `# The
 Prompt Hamsa`. Archetype is typically a Himalayan/high-altitude animal
 or symbol; pick one whose temperament fits the voice.
 
+**Check the archetype name against existing specialists before
+committing to it.** Run the 3-scope discovery scan from `summon.md`
+Step 1 (or call `/buddy:summon` with no arg to list the composed
+index). Picking a name already in use by a builtin / global / project
+specialist will silently shadow that specialist on summon. The
+`/buddy:create` command (when it ships) will enforce this check at
+Phase 1; until then, the drafter is responsible.
 ### `## Voice`
 
 **REQUIRED.** 2–4 sentences. Captures cadence, register, and a recurring

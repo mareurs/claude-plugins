@@ -15,18 +15,69 @@ The eval is **human-driven** for v1 (no automated scoring). Two passes:
 For each case:
 
 1. Read `cases/<name>/hint.txt` — that is the input.
-2. Using `buddy/data/skill-template.md` directly, draft a SKILL.md
-   from the hint (as if `/buddy:create` were a person, not a command).
-3. Compare your draft against `cases/<name>/reference-skill.md`
-   (the actual hand-authored specialist).
-4. Score using `rubric.md` (5 dimensions × 3 cases = 15 scores).
-5. Record results in `runs/<date>-pass-a.md`.
+2. Spawn a **fresh subagent** with no session memory of existing
+   specialists, using the hardened prompt below. Do not draft yourself
+   in a session that has already read any builtin SKILL.md — your
+   recall will inflate the voice score.
+3. Subagent reads `buddy/data/skill-template.md` and produces a draft
+   from the template alone.
+4. Compare the draft against `cases/<name>/reference-skill.md` (the
+   actual hand-authored specialist).
+5. Score using `rubric.md` (5 dimensions × 3 cases = 15 scores).
+6. Record results in `runs/<date>-pass-a.md`.
 
 **Pass bar:** total ≥ 12/15 per case, no individual dimension < 2.
 
 If Pass A fails, the **template** is the bug. Fix `skill-template.md`,
 re-run.
 
+#### Hardened subagent prompt (anti-memorization)
+
+LLM drafters trained on this repo's content will tend to recall exact
+catchphrases and citations from existing specialists, producing
+"perfect-score" drafts that test recall rather than the template.
+Calibration from the yeti pass: without explicit tripwires, the
+draft converged on the reference's verbatim opening phrase. The
+hardened pheasant prompt fixed it.
+
+Use this scaffold for every Pass A subagent invocation:
+
+```
+You are drafting a SKILL.md for a "buddy" specialist using ONLY the
+canonical template. This is an evaluation — your draft will be scored
+against a hand-authored reference you must NOT read.
+
+INPUTS:
+- buddy/tests/create-buddy-eval/cases/<name>/hint.txt
+- buddy/data/skill-template.md
+
+FORBIDDEN:
+- buddy/skills/**       (the 12 builtin specialists)
+- buddy/tests/create-buddy-eval/cases/<name>/expected-facts.md
+- buddy/tests/create-buddy-eval/cases/<name>/reference-skill.md
+- Codebase searches for keywords related to the target specialist
+
+ANTI-MEMORIZATION TRIPWIRES:
+Your training data almost certainly contains earlier versions of
+similar specialists. If you find yourself reaching for any of these
+patterns, STOP and derive from template instead:
+- Catchphrases (e.g. "the mountain waits", "fame is a leak",
+  "every clean number deserves a second look")
+- Specific archetype-name combos used by existing specialists
+- Verbatim section names not in the canonical template
+- Specific citations (e.g. "FActScore EMNLP 2023", "RAGAS EACL 2024")
+
+Honest drafts that miss reference catchphrases are MORE valuable than
+high-recall drafts. The goal is to test the template, not your memory.
+
+OUTPUT: SKILL.md only as markdown text. No commentary. For
+lens-required specialists, also output `_<lens>.md` addenda separated
+by `=== filename ===` headers.
+```
+
+Augment this with case-specific minimum-section requirements (lens
+required? Self-Traps recommended? etc.) per the template's section
+spec.
 ### Pass B — command correctness (after `/buddy:create` exists)
 
 For each case:
