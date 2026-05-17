@@ -1,7 +1,7 @@
 # Skill Template — Canonical Structure for `/buddy:create`
 
 This is the frozen template every new specialist SKILL.md must fill. It is
-derived from the convergent structure of the 12 builtin specialists
+derived from the convergent structure of the 11 builtin specialists
 (yeti, pheasant, lion, hamsa, owl, leopard, takin, lammergeier, crane,
 yak, ibex, lotus-frog). Do not invent new top-level sections without
 strong justification — section drift erodes the predictability that

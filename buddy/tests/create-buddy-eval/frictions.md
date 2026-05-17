@@ -106,7 +106,7 @@ the brainstorm Phase 2, the command must:
 **Surfaced by:** Owl subagent draft omitted `## Memory Cadence` entirely;
 reference Owl includes it with a cross-lens correlation save criterion.
 **Trace:** Griffon draft (Pass A owl run); reference at
-`buddy/skills/mrv-reviewer/SKILL.md` lines 295-338.
+`/home/marius/work/stefanini/southpole/MRV-poc/.buddy/skills/snow-owl/SKILL.md` (moved 2026-05-17 from claude-plugins builtin scope).
 
 **Problem:** The template marks `## Memory Cadence` as CONDITIONAL —
 include only when save criteria diverge from the default two-strike

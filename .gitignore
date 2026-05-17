@@ -11,3 +11,4 @@ test-detect.sh
 __pycache__/
 *.pyc
 .fastembed_cache/
+.claude/*.log

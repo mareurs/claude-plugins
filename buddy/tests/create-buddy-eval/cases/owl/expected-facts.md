@@ -59,8 +59,10 @@ recognize this as a project-specific domain signal and:
    `<cwd>/.buddy/skills/snow-owl/` (or similar dir name), NOT to
    builtin or global.
 
-The original Owl was misfiled to builtin (`buddy/skills/mrv-reviewer/`)
-because no scope question existed. This case calibrates whether the
+The original Owl was misfiled to claude-plugins builtin
+(`buddy/skills/mrv-reviewer/`) because no scope question existed.
+It has since been moved to its correct home at
+`/home/marius/work/stefanini/southpole/MRV-poc/.buddy/skills/snow-owl/`. This case calibrates whether the
 new command would have prevented the misfile.
 
 **If the draft defaults to `global` or `builtin` without asking, the
