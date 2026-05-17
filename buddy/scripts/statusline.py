@@ -163,21 +163,40 @@ RECON_FRESH_SECS = 30 * 60
 
 
 def _render_recon_badge(project_root, now, session_id=None):
-    """Show '[recon]' when the per-session reconnaissance marker is fresh.
+    """Two-state reconnaissance badge.
 
-    Marker path: <project_root>/.buddy/<session_id>/recon-active.
-    The skill instructs the LLM to touch it at scout start.
+    Markers under <project_root>/.buddy/<session_id>/:
+      - recon-loaded : SessionStart dropped it; recon SKILL.md in scope.
+                       No freshness check — lives for the session.
+      - recon-active : LLM touched during a scout. Fresh-mtime (<30 min)
+                       indicates scout in progress.
+
+    Display:
+      - active fresh           → "[recon•]" (bright purple)
+      - loaded only            → "[recon]" (dim purple)
+      - neither                → empty
     """
     try:
         if not project_root or not session_id or session_id == "unknown":
             return ""
-        marker = Path(project_root) / ".buddy" / session_id / "recon-active"
-        if not marker.is_file():
-            return ""
-        mtime = int(marker.stat().st_mtime)
-        if (now or int(time.time())) - mtime > RECON_FRESH_SECS:
-            return ""
-        return "\033[35m[recon]\033[0m"
+        session_dir = Path(project_root) / ".buddy" / session_id
+        loaded = session_dir / "recon-loaded"
+        active = session_dir / "recon-active"
+        now_ts = now or int(time.time())
+
+        active_fresh = False
+        if active.is_file():
+            try:
+                if now_ts - int(active.stat().st_mtime) <= RECON_FRESH_SECS:
+                    active_fresh = True
+            except OSError:
+                pass
+
+        if active_fresh:
+            return "\033[95m[recon•]\033[0m"  # bright purple, scout in progress
+        if loaded.is_file():
+            return "\033[35m[recon]\033[0m"  # purple, in scope
+        return ""
     except Exception:
         return ""
 

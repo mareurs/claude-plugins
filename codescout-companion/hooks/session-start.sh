@@ -166,6 +166,14 @@ RECONNAISSANCE SKILL — pre-loaded for this session (no Skill-tool call needed)
 ${RECON_BODY}
 
 "
+  # Session-scoped marker: tells buddy statusline that recon is in scope.
+  # Distinct from .recon-active (LLM touches during a scout) — this one
+  # is always present once the primer fires, no freshness check.
+  if [ -n "$SESSION_ID" ] && [ -n "$CWD" ]; then
+    BUDDY_SESSION_DIR="$CWD/.buddy/$SESSION_ID"
+    mkdir -p "$BUDDY_SESSION_DIR" 2>/dev/null
+    touch "$BUDDY_SESSION_DIR/recon-loaded" 2>/dev/null
+  fi
 fi
 
 

@@ -167,4 +167,16 @@ else
   fail "reconnaissance: full SKILL.md body inlined" "$(echo "$OUT" | jq -r '.hookSpecificOutput.additionalContext' 2>/dev/null | grep -c 'Phase')"
 fi
 
+# --- Test 13: reconnaissance recon-loaded marker is dropped at SessionStart ---
+make_git_repo "$T/t13"
+write_mcp_json "$T/t13"
+make_ce_dir "$T/t13"
+SID_T13="sid-recon-marker-test"
+OUT=$(printf '{"session_id":"%s","cwd":"%s"}' "$SID_T13" "$T/t13" | bash "$HOOK" 2>/dev/null)
+if [ -f "$T/t13/.buddy/$SID_T13/recon-loaded" ]; then
+  pass "reconnaissance: recon-loaded marker dropped under .buddy/<sid>/"
+else
+  fail "reconnaissance: recon-loaded marker dropped" "marker absent at $T/t13/.buddy/$SID_T13/recon-loaded; .buddy contents: $(ls -la "$T/t13/.buddy" 2>/dev/null)"
+fi
+
 print_summary "session-start"

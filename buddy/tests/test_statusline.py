@@ -160,6 +160,7 @@ def test_render_no_initials_when_no_active_specialists():
 
 
 def test_render_shows_recon_badge_when_marker_fresh(tmp_path):
+    """Active-only marker (no loaded marker) → [recon•] bright."""
     sid = "sid-test"
     marker = tmp_path / ".buddy" / sid / "recon-active"
     marker.parent.mkdir(parents=True)
@@ -174,7 +175,68 @@ def test_render_shows_recon_badge_when_marker_fresh(tmp_path):
     output = render(identity=identity, state=state, bodhisattvas=BODHIS,
                     env=ENV, now=now, local_hour=14,
                     session_id=sid, project_root=tmp_path)
+    assert "[recon•]" in output
+
+
+def test_render_shows_loaded_recon_badge_when_only_loaded(tmp_path):
+    """Loaded-only marker → [recon] dim."""
+    sid = "sid-test"
+    loaded = tmp_path / ".buddy" / sid / "recon-loaded"
+    loaded.parent.mkdir(parents=True)
+    loaded.write_text("")
+    identity = {
+        "version": 1, "form": "owl-of-clear-seeing", "name": "Lin",
+        "personality": "", "hatched_at": 0, "soul_model": "fallback",
+        "hatched": False,
+    }
+    output = render(identity=identity, state=default_state(),
+                    bodhisattvas=BODHIS, env=ENV, now=1000000, local_hour=14,
+                    session_id=sid, project_root=tmp_path)
     assert "[recon]" in output
+    assert "[recon•]" not in output
+
+
+def test_render_active_wins_over_loaded(tmp_path):
+    """Both markers present, active fresh → [recon•] (active wins)."""
+    sid = "sid-test"
+    session_dir = tmp_path / ".buddy" / sid
+    session_dir.mkdir(parents=True)
+    (session_dir / "recon-loaded").write_text("")
+    active = session_dir / "recon-active"
+    active.write_text("")
+    identity = {
+        "version": 1, "form": "owl-of-clear-seeing", "name": "Lin",
+        "personality": "", "hatched_at": 0, "soul_model": "fallback",
+        "hatched": False,
+    }
+    now = int(active.stat().st_mtime) + 60
+    output = render(identity=identity, state=default_state(),
+                    bodhisattvas=BODHIS, env=ENV, now=now, local_hour=14,
+                    session_id=sid, project_root=tmp_path)
+    assert "[recon•]" in output
+
+
+def test_render_falls_back_to_loaded_when_active_stale(tmp_path, monkeypatch):
+    """Both markers, but active mtime expired → [recon] (loaded only)."""
+    import scripts.statusline as sl
+    monkeypatch.setattr(sl, "RECON_FRESH_SECS", 60)
+    sid = "sid-test"
+    session_dir = tmp_path / ".buddy" / sid
+    session_dir.mkdir(parents=True)
+    (session_dir / "recon-loaded").write_text("")
+    active = session_dir / "recon-active"
+    active.write_text("")
+    now = int(active.stat().st_mtime) + 3600
+    identity = {
+        "version": 1, "form": "owl-of-clear-seeing", "name": "Lin",
+        "personality": "", "hatched_at": 0, "soul_model": "fallback",
+        "hatched": False,
+    }
+    output = render(identity=identity, state=default_state(),
+                    bodhisattvas=BODHIS, env=ENV, now=now, local_hour=14,
+                    session_id=sid, project_root=tmp_path)
+    assert "[recon]" in output
+    assert "[recon•]" not in output
 
 
 def test_render_no_recon_badge_when_marker_missing(tmp_path):
