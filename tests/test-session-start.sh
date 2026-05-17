@@ -150,4 +150,15 @@ else
     "$(ls -la "$T/t11wt/.codescout/embeddings" 2>/dev/null)"
 fi
 
+# --- Test 12: reconnaissance primer always emitted when CE configured ---
+make_git_repo "$T/t12"
+write_mcp_json "$T/t12"
+make_ce_dir "$T/t12"
+OUT=$(printf '{"cwd":"%s"}' "$T/t12" | bash "$HOOK" 2>/dev/null)
+if assert_context_contains "$OUT" "RECONNAISSANCE:"; then
+  pass "reconnaissance: primer emitted"
+else
+  fail "reconnaissance: primer emitted" "$(echo "$OUT" | jq -r '.hookSpecificOutput.additionalContext' 2>/dev/null | head -10)"
+fi
+
 print_summary "session-start"

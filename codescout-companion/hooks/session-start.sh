@@ -152,6 +152,20 @@ If tools are unavailable, the MCP server failed to connect (check \`claude mcp l
 
 "
 
+# --- Reconnaissance skill primer ---
+# Pre-arm the reconnaissance skill on every session start (including
+# resume/compact) so its triggers are visible to the LLM without waiting
+# for description-match. Marker file feeds the buddy [recon] statusline badge.
+MSG="${MSG}RECONNAISSANCE: \`/codescout-companion:reconnaissance\` is in scope this session.
+Use proactively when:
+- About to dispatch a subagent (scout the seam first — subagents inherit drift)
+- About to edit code that changes a struct, function signature, or API contract
+- A tool response contradicts the plan (compile error, wrong shape, empty result)
+Touch \`~/.claude/buddy/.recon-active\` at scout start to surface a [recon] badge.
+Externalize friction (F-N) / wins (W-N) into the project's session-log tracker.
+
+"
+
 
 # --- Post-compact LSP flush ---
 if [ "$SOURCE" = "compact" ]; then
