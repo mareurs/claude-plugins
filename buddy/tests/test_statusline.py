@@ -124,7 +124,7 @@ def test_render_shows_active_specialist_initial():
     state = default_state()
     state["active_specialists"] = ["debugging-yeti"]
     output = render(identity=identity, state=state, bodhisattvas=BODHIS, env=ENV, now=1000000, local_hour=14)
-    assert "[D]" in output
+    assert "Debugging Yeti" in output
 
 
 def test_render_shows_multiple_active_specialists_initials():
@@ -140,7 +140,8 @@ def test_render_shows_multiple_active_specialists_initials():
     state = default_state()
     state["active_specialists"] = ["debugging-yeti", "testing-snow-leopard"]
     output = render(identity=identity, state=state, bodhisattvas=BODHIS, env=ENV, now=1000000, local_hour=14)
-    assert "[DT]" in output
+    assert "Debugging Yeti" in output
+    assert "Testing Snow Leopard" in output
 
 
 def test_render_no_initials_when_no_active_specialists():
@@ -156,6 +157,53 @@ def test_render_no_initials_when_no_active_specialists():
     state = default_state()
     output = render(identity=identity, state=state, bodhisattvas=BODHIS, env=ENV, now=1000000, local_hour=14)
     assert "[" not in output.split("\n")[-1]
+
+
+def test_render_shows_recon_badge_when_marker_fresh(tmp_path, monkeypatch):
+    import scripts.statusline as sl
+    marker = tmp_path / ".recon-active"
+    marker.write_text("")
+    monkeypatch.setattr(sl, "RECON_MARKER", marker)
+    identity = {
+        "version": 1, "form": "owl-of-clear-seeing", "name": "Lin",
+        "personality": "", "hatched_at": 0, "soul_model": "fallback",
+        "hatched": False,
+    }
+    state = default_state()
+    now = int(marker.stat().st_mtime) + 60
+    output = render(identity=identity, state=state, bodhisattvas=BODHIS,
+                    env=ENV, now=now, local_hour=14)
+    assert "[recon]" in output
+
+
+def test_render_no_recon_badge_when_marker_missing(tmp_path, monkeypatch):
+    import scripts.statusline as sl
+    monkeypatch.setattr(sl, "RECON_MARKER", tmp_path / "nope")
+    identity = {
+        "version": 1, "form": "owl-of-clear-seeing", "name": "Lin",
+        "personality": "", "hatched_at": 0, "soul_model": "fallback",
+        "hatched": False,
+    }
+    output = render(identity=identity, state=default_state(),
+                    bodhisattvas=BODHIS, env=ENV, now=1000000, local_hour=14)
+    assert "[recon]" not in output
+
+
+def test_render_no_recon_badge_when_marker_stale(tmp_path, monkeypatch):
+    import scripts.statusline as sl
+    marker = tmp_path / ".recon-active"
+    marker.write_text("")
+    monkeypatch.setattr(sl, "RECON_MARKER", marker)
+    monkeypatch.setattr(sl, "RECON_FRESH_SECS", 60)
+    now = int(marker.stat().st_mtime) + 3600
+    identity = {
+        "version": 1, "form": "owl-of-clear-seeing", "name": "Lin",
+        "personality": "", "hatched_at": 0, "soul_model": "fallback",
+        "hatched": False,
+    }
+    output = render(identity=identity, state=default_state(),
+                    bodhisattvas=BODHIS, env=ENV, now=now, local_hour=14)
+    assert "[recon]" not in output
 
 
 import subprocess

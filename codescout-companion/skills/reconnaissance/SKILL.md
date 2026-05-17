@@ -63,6 +63,15 @@ For the symbol, file, or contract about to be touched:
 - For tools / APIs: read the tool's actual response shape, not the doc's
   described shape.
 
+**Statusline signal** (one-time per scout, optional but recommended): before the
+first `symbols`/`references`/`call_graph` call of this scout, run
+
+```bash
+mkdir -p ~/.claude/buddy && touch ~/.claude/buddy/.recon-active
+```
+
+The buddy statusline reads this marker and shows `[recon]` for 30 minutes
+afterward, so the user sees that scouting is in progress.
 ### Phase 2 — Compare
 
 State what the plan / expectation said vs. what reality holds. Two outcomes:

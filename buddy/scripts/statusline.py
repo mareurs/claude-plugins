@@ -157,6 +157,28 @@ def _render_cs_bubble(session_id, project_root, now):
         return ""
 
 
+
+
+RECON_MARKER = Path.home() / ".claude" / "buddy" / ".recon-active"
+RECON_FRESH_SECS = 30 * 60
+
+
+def _render_recon_badge(project_root, now):
+    """Show '[recon]' when the reconnaissance skill marker is fresh.
+
+    The skill instructs the LLM to `touch ~/.claude/buddy/.recon-active`
+    at scout start. Mtime within RECON_FRESH_SECS = active.
+    """
+    try:
+        if not RECON_MARKER.is_file():
+            return ""
+        mtime = int(RECON_MARKER.stat().st_mtime)
+        if (now or int(time.time())) - mtime > RECON_FRESH_SECS:
+            return ""
+        return "\033[35m[recon]\033[0m"
+    except Exception:
+        return ""
+
 def render(
     identity: dict,
     state: dict,
@@ -193,8 +215,24 @@ def render(
 
     active = state.get("active_specialists", [])
     if active:
-        initials = "".join(SPECIALIST_INITIAL.get(s, "?") for s in active)
-        label_parts.append(f"[{initials}]")
+        plugin_root = _PLUGIN_ROOT
+        proj_root = project_root or Path.cwd()
+        try:
+            from scripts.specialist_labels import resolve_labels
+            pairs = resolve_labels(
+                active,
+                plugin_root=plugin_root,
+                project_root=proj_root,
+                home=Path.home(),
+            )
+            names = ", ".join(label for _slug, label in pairs)
+        except Exception:
+            names = ", ".join(active)
+        label_parts.append(f"[{names}]")
+
+    recon = _render_recon_badge(project_root, now)
+    if recon:
+        label_parts.append(recon)
 
     label = " · ".join(label_parts)
 
