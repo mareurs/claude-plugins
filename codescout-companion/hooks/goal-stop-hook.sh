@@ -102,8 +102,22 @@ LAST_REFRESHED=$(echo "$GET_OUT" | jq -r '.augmentation.last_refreshed_at // "ne
 
 case "$STATUS" in
     done)
-        jq -nc --arg c "$CRITERION" --arg lr "$LAST_REFRESHED" \
-          '{continue: false, reason: ("goal done: " + $c + " (last refreshed: " + $lr + ")")}'
+        # S-4: surface the auto-close gate evidence from the latest gate_check
+        # note event so the agent reading "goal done" sees WHY (which children
+        # done, which signals met). The event is emitted by the librarian when
+        # the auto-close gate (amendment D11) passes — see
+        # src/librarian/tools/augment.rs `gate_check_evidence`. Fail-soft: if
+        # no gate_check event is found (legacy goals, or status flipped by
+        # hand), fall back to the criterion + refresh timestamp string.
+        GATE_OUT=$("$CS" artifact-event list --artifact-id "$GOAL_ID" --kinds note --limit 20 --project "$CWD" --json 2>/dev/null || echo "")
+        GATE_TEXT=$(echo "$GATE_OUT" | jq -r 'map(select(.payload.tag == "gate_check" and .payload.gate_passed == true)) | .[0].payload.text // empty' 2>/dev/null | cut -c1-200)
+        if [[ -n "$GATE_TEXT" ]]; then
+            jq -nc --arg c "$CRITERION" --arg g "$GATE_TEXT" --arg lr "$LAST_REFRESHED" \
+              '{continue: false, reason: ("goal done: " + $c + " — " + $g + " (last refreshed: " + $lr + ")")}'
+        else
+            jq -nc --arg c "$CRITERION" --arg lr "$LAST_REFRESHED" \
+              '{continue: false, reason: ("goal done: " + $c + " (last refreshed: " + $lr + ")")}'
+        fi
         ;;
     blocked)
         REASON_TEXT="${BLOCKED_REASON:-$CRITERION}"
