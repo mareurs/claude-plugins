@@ -33,7 +33,7 @@ Update this plugin whenever codescout adds features that affect exploration work
 
 **What it does:**
 - SessionStart/SubagentStart: injects `.code-explorer/system-prompt.md` content verbatim (project-specific guidance generated at onboarding)
-- PostToolUse: soft warnings when Read/Grep/Glob are used on source files, suggests alternatives
+- PreToolUse: hard-blocks Read/Grep/Glob/Bash/Edit on source files (`permissionDecision: "deny"`)
 - Auto-reindexing: checks index staleness at session start, triggers `codescout index` in background
 - Drift warnings: surfaces high-drift files and stale docs/memories
 
@@ -43,6 +43,20 @@ Update this plugin whenever codescout adds features that affect exploration work
 tool routing guidance is already covered. The plugin only needs to inject dynamic, project-specific
 content that `server_instructions` cannot carry (system-prompt.md, memory hints, drift warnings).
 
+
+**Himalayan-aesthetic companion plugin.**
+
+Lives at `buddy/` in this repo. Provides mood-reactive statusline, 11 specialist personas (bodhisattvas), async LLM judges for plan drift and codescout tool violations, and a structured memory system mirrored across CC instances.
+
+**What it does:**
+- SessionStart: mood reset, PPID index, memory consolidation nudges
+- PostToolUse: signal tracking, narrative accumulation, CS heuristics (sync), judge subprocess spawning
+- PreToolUse: reads judge verdicts, optionally hard-blocks (`exit 2`) when `BUDDY_JUDGE_BLOCK=true`
+- Statusline: mood-reactive ASCII spirit animal with specialist eye expressions
+
+**Dependencies:** `jq`, `python3` (3.13+), `requests` (lazy, for judge only)
+
+**Judge config:** `buddy/hooks/judge.env` is the authoritative source — do NOT put judge config in settings.json.
 ## Version Management
 
 **Single source of truth**: each plugin's `.claude-plugin/plugin.json` is the canonical version.
@@ -64,11 +78,17 @@ Then:
 2. Update the version table in `README.md`
 3. Run `scripts/check-versions.sh` to verify consistency
 4. Commit: `chore: bump <plugin> to <version>`
-5. Update `installPath` + `version` in **both** install records:
+5. **Seed the versioned cache directory in all three profiles** — directory-source plugins read files from `cache/sdd-misc-plugins/<plugin>/<version>/`; if that path doesn't exist, the install record points at nothing and the hook silently fails to load:
+   ```bash
+   ./scripts/bump-cache.sh <plugin> <version>
+   ```
+   The script rsyncs the source dir into `~/.claude`, `~/.claude-sdd`, and `~/.claude-kat` under the matching version. Skipping this step is the #1 cause of "plugin appears installed but hook never fires" — installed_plugins.json claims `<version>` at a path that doesn't exist on disk.
+6. Update `installPath` + `version` in **all three** install records:
    - `~/.claude/plugins/installed_plugins.json`
    - `~/.claude-sdd/plugins/installed_plugins.json`
-6. Push
-7. Restart both Claude Code instances
+   - `~/.claude-kat/plugins/installed_plugins.json`
+7. Push
+8. Restart all three Claude Code instances
 
 ```bash
 ./scripts/check-versions.sh
@@ -76,6 +96,16 @@ Then:
 
 Checks: plugin.json versions match README.md table, marketplace.json has no version fields.
 
+**Sanity check after bumping**: for each profile, verify the path in installed_plugins.json actually exists on disk:
+
+```bash
+for p in ~/.claude ~/.claude-sdd ~/.claude-kat; do
+  for plug in codescout-companion buddy; do
+    v=$(jq -r ".plugins[\"$plug@sdd-misc-plugins\"][0].version" "$p/plugins/installed_plugins.json")
+    [ -d "$p/plugins/cache/sdd-misc-plugins/$plug/$v" ] && echo "✓ $p $plug $v" || echo "✗ $p $plug $v MISSING"
+  done
+done
+```
 ## Development
 
 - Hooks use `jq` for JSON parsing — required dependency
@@ -112,11 +142,11 @@ install record to point at the new cache snapshot:**
 
 ```bash
 # Check the latest cache version
-ls ~/.claude/plugins/cache/sdd-misc-plugins/codescout-companion/
+ls ~/.claude/plugins/cache/claude-plugins/codescout-companion/
 
 # Edit installed_plugins.json: update installPath + version to the new cache entry
 ~/.claude/plugins/installed_plugins.json
-# → "installPath": "~/.claude/plugins/cache/sdd-misc-plugins/codescout-companion/<version>"
+# → "installPath": "~/.claude/plugins/cache/claude-plugins/codescout-companion/<version>"
 # → "version": "<version>"
 ```
 
