@@ -1,6 +1,6 @@
 ---
 name: reconnaissance
-description: Use before subagent dispatch, before structural edits that depend on struct/API shapes, after ANY surprise from the plan or expectations, and at the start of multi-task work. Externalizes drift findings to a session-log tracker (F-N/W-N entries) so the discipline compounds across sessions.
+description: Use before subagent dispatch, before editing code that changes a struct, function signature, or API contract, or after a tool response contradicts the plan. Appends friction (F-N) and wins (W-N) to the project's session-log tracker.
 ---
 
 # /codescout-companion:reconnaissance
@@ -148,5 +148,15 @@ that as a separate F-N entry rather than re-running this flow.
 ## Eval
 
 Trigger string is scored against `docs/evals/reconnaissance-trigger.md` in the
-codescout repo. Empirical baseline (2026-05-17): 6/7 with this description.
+codescout repo. Empirical baseline (2026-05-17): **v0.2 = 13/15 (at threshold)**.
 Re-score before any future description change.
+
+### Version history
+
+- **v0.1** (2026-05-17 11:52, commit `748625f` in claude-plugins): initial.
+  7-case baseline 6/7; 15-case re-run 12/15 (Case 6, 14, 15 FAIL).
+- **v0.2** (2026-05-17): cut *"at the start of multi-task work"* + *"ANY"* +
+  replaced *"structural edits that depend on struct/API shapes"* with explicit
+  *"struct, function signature, or API contract"*. 15-case score 13/15 — Case
+  14 fixed; Cases 6 and 15 remain as case-design questions (model behavior
+  defensible).
