@@ -1,0 +1,4 @@
+# Ignore actual run files; keep README + this gitignore tracked
+*.md
+!README.md
+!.gitignore
