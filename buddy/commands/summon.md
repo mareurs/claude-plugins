@@ -7,7 +7,50 @@ You are resolving a summon request. The argument passed by the user is `$1`.
 
 ## Step 1 — Identify the specialist (and lens, if any)
 
-The user's argument is plain language. Parse it into `<specialist>` and an optional `<lens>` separated by `:` (e.g. `data-leakage:llm`, `data-leakage llm`, `data leakage llm` — accept any reasonable form). Match the specialist part to the table below. Trust intent over exact words — "debug", "yeti", "debugging" all resolve to debugging-yeti.
+The user's argument is plain language. Parse it into `<specialist>` and an optional `<lens>` separated by `:` (e.g. `data-leakage:llm`, `data-leakage llm`, `data leakage llm` — accept any reasonable form).
+
+### Compose the specialist index from three scopes
+
+Specialists are discovered at lookup time from three scope roots, with precedence **project > global > builtin** (a later scope's entry shadows the earlier one on name collision):
+
+1. **builtin** — `${CLAUDE_PLUGIN_ROOT}/skills/`
+   Frozen, plugin-shipped. The 12 entries in the table below are the only builtin specialists; the table is authoritative documentation.
+2. **global** — `<claude-dir>/buddy/skills/`
+   `<claude-dir>` is the parent of `CLAUDE_PLUGIN_ROOT` whose basename matches `.claude`, `.claude-sdd`, or `.claude-kat`. Optional — directory may not exist.
+3. **project** — `<cwd>/.buddy/skills/`
+   Optional — directory may not exist.
+
+For each existing scope root, enumerate immediate subdirectories that contain a `SKILL.md` file. Each such subdirectory is a specialist; the directory name is the specialist's lookup key.
+
+Use the `Bash` tool to compose the index:
+
+```bash
+PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT}"
+# Detect claude-dir from CLAUDE_PLUGIN_ROOT (parent matching .claude / .claude-sdd / .claude-kat)
+CLAUDE_DIR=$(dirname "$(dirname "$PLUGIN_ROOT")")
+case "$(basename "$CLAUDE_DIR")" in
+  .claude|.claude-sdd|.claude-kat) ;;
+  *) CLAUDE_DIR="" ;;
+esac
+
+scan() {
+  local scope="$1" root="$2"
+  [ -z "$root" ] && return
+  [ -d "$root" ] || return
+  for dir in "$root"/*/; do
+    [ -f "$dir/SKILL.md" ] || continue
+    echo "$scope $(basename "$dir") $dir"
+  done
+}
+
+scan builtin "$PLUGIN_ROOT/skills"
+scan global "${CLAUDE_DIR:+$CLAUDE_DIR/buddy/skills}"
+scan project "$PWD/.buddy/skills"
+```
+
+The output is one line per `(scope, name, path)` triple. Compose into an index in your reasoning state, applying precedence: later scopes override earlier ones on the same `name`. Track shadows (entries that were overridden) for the announcement in Step 2.
+
+### Builtin specialist table (frozen — 12 entries)
 
 | Directory | When to summon | Lens? |
 |---|---|---|
@@ -24,23 +67,55 @@ The user's argument is plain language. Parse it into `<specialist>` and an optio
 | `security-ibex` | Security review, threat modeling, vulnerability analysis | — |
 | `prompt-hamsa` | Improving a prompt — critique, drafting from scratch, diagnosing model misbehavior, or coaching toward eval-driven iteration | — |
 
+### Argument matching
+
+Match the parsed `<specialist>` part against the composed index keys. Trust intent over exact words — "debug", "yeti", "debugging" all resolve to `debugging-yeti`. Fuzzy matching is over the **keys of the composed index**, not just the builtin table.
+
 ### Lens handling
 
-- If a specialist has `Lens? = required` and the user did not supply one, print the available lenses with a one-line description of each, ask the user to pick, and stop. Do not load anything.
+- **Builtin specialists** — lens requirements are declared in the table above.
+- **Global / project specialists** — lens is required if and only if the resolved `SKILL.md`'s directory contains one or more `_*.md` files. The lens names are the basenames stripped of the leading `_` and trailing `.md`.
+
+Apply these rules:
+
+- If a specialist has a required lens and the user did not supply one, print the available lenses with a one-line description of each (read from the addendum's first paragraph), ask the user to pick, and stop. Do not load anything.
 - If the user supplied a lens for a specialist that has no lenses, ignore the lens silently and proceed.
-- Resolve the lens to an addendum file name: `_<lens>.md` in the same directory as `SKILL.md`.
+- Resolve the lens to an addendum file name: `_<lens>.md` in the same directory as the resolved `SKILL.md`.
 
-If the argument is empty or genuinely ambiguous (matches multiple specialists equally), print the table above with a one-line description and stop. Do not load any specialist.
+### Empty / ambiguous argument
 
+If the argument is empty or genuinely ambiguous (matches multiple specialists equally), print the composed index grouped by scope, then stop without loading:
+
+```
+### Builtin
+- <name> — <description from builtin table>
+...
+
+### Global (N specialists)        # omit section if N=0
+- <name> — <first paragraph of SKILL.md, or "no description">
+...
+
+### Project (N specialists)        # omit section if N=0
+- <name> — <first paragraph of SKILL.md, or "no description">
+...
+```
+
+Mark shadowed entries with `(shadowed by <higher-scope>)` next to the lower-scope listing so the user knows which version `/buddy:summon <name>` will actually load.
 ## Step 2 — Load the specialist skill file (and lens addendum, if any)
 
-Use the `Read` tool to load `${CLAUDE_PLUGIN_ROOT}/skills/<directory>/SKILL.md`.
+The resolved specialist has a `(scope, path)` pair from Step 1. Use the `Read` tool to load `<path>/SKILL.md`.
 
-If a lens was resolved in Step 1, also load `${CLAUDE_PLUGIN_ROOT}/skills/<directory>/_<lens>.md`. If the addendum file does not exist, report: "That lens is not yet authored. Available lenses: <list `_*.md` files in the directory>." and stop.
+If a lens was resolved in Step 1, also load `<path>/_<lens>.md`. If the addendum file does not exist, report: "That lens is not yet authored. Available lenses: <list `_*.md` files in `<path>`>." and stop.
 
-If `SKILL.md` doesn't exist, report: "That specialist is not yet authored. Current bestiary: <list directories under skills/ that exist>."
+If `SKILL.md` doesn't exist (race condition between Step 1 enumeration and Step 2 read), report: "That specialist disappeared between lookup and load. Re-run the summon." and stop.
 
+### Shadow announcement
 
+If the resolved specialist's name also exists in a lower-precedence scope (project shadows global or builtin; global shadows builtin), emit one line before proceeding:
+
+> *loading `<name>` from `<scope>` (shadows `<other-scope>`)*
+
+This makes shadowing visible. Silent shadowing breeds confusion when a user expects the plugin version and gets a project override.
 ## Step 2.5 — Load memories and inject the memory protocol
 
 Memories are POV-scoped — only the resolved `<directory>` (and the `common` bucket) are loaded.
