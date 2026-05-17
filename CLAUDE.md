@@ -87,6 +87,12 @@ Then:
    - `~/.claude/plugins/installed_plugins.json`
    - `~/.claude-sdd/plugins/installed_plugins.json`
    - `~/.claude-kat/plugins/installed_plugins.json`
+6.5. Refresh the version-bump-checklist tracker and verify every row is ✅:
+   ```
+   artifact(action="update", id="cc8cb9e23ab5cc67", commit_refresh=true)
+   artifact(action="get", id="cc8cb9e23ab5cc67", full=true)
+   ```
+   Any ❌ blocks push. The tracker catches the 2026-05-16 cross-profile `installPath` drift and the missing cache-dir class automatically; passing it makes the manual sanity loop below redundant (kept as a fallback for environments without codescout MCP). See `docs/superpowers/specs/2026-05-18-version-bump-checklist-tracker-design.md`.
 7. Push
 8. Restart all three Claude Code instances
 
