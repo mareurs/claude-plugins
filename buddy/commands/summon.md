@@ -20,6 +20,7 @@ The user's argument is plain language. Parse it into `<specialist>` and an optio
 | `architecture-snow-lion` | System boundaries, module design, interface decisions | — |
 | `docs-lotus-frog` | Technical writing, documentation architecture | — |
 | `data-leakage-snow-pheasant` | ML data hygiene, evaluation integrity, train/test leakage | **required**: `classic` or `llm` |
+| `mrv-reviewer` | Audit MR section text for chunk-fidelity or VCS v4.4 template completeness, yields rewrite to Hamsa and retrieval debugging to Pheasant | **required**: `output` or `compliance` |
 | `security-ibex` | Security review, threat modeling, vulnerability analysis | — |
 | `prompt-hamsa` | Improving a prompt — critique, drafting from scratch, diagnosing model misbehavior, or coaching toward eval-driven iteration | — |
 
