@@ -19,8 +19,8 @@ These plugins reflect specific workflows and tool choices -- they may not suit e
 |--------|---------|-------------|
 | **[sdd](./sdd/)** | 2.4.1 | Specification-Driven Development: governance, workflow commands, and enforcement hooks |
 | **[codescout-companion](./codescout-companion/)** | 1.9.2 | Companion plugin for [codescout](https://github.com/mareurs/codescout) MCP server: injects tool guidance, redirects Read/Grep/Glob/Edit/Write to symbol-aware tools, GitHub context injection, auto-reindex + drift warnings, worktree shared-asset symlinking |
-| **[claude-statusline](./claude-statusline/)** | 1.0.2 | Rich, color-coded terminal status line: model, context %, rate limits, git info, cost, duration |
-| **[buddy](./buddy/)** | 0.5.1 | Himalayan-aesthetic bodhisattva companion: 10 specialist masters on demand, AI judge, focus tracking, statusline integration |
+| **[claude-statusline](./claude-statusline/)** | 1.1.0 | Rich, color-coded terminal status line: model, context %, rate limits, git info, cost, duration. Self-heals orphan `statusLine` settings when sibling plugins are uninstalled. |
+| **[buddy](./buddy/)** | 0.5.2 | Himalayan-aesthetic bodhisattva companion: 10 specialist masters on demand, AI judge, focus tracking, statusline integration |
 ## Requirements
 
 - [Claude Code](https://claude.com/claude-code) CLI
