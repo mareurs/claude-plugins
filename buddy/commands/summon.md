@@ -75,6 +75,23 @@ If a sub-section is empty, omit its heading. If both are empty, omit the whole `
 
 Use the `Read` tool on `${CLAUDE_PLUGIN_ROOT}/data/memory-protocol.md` and inject its contents verbatim under a `## Memory Protocol` heading right after `## Memories` (or right after the specialist instructions if `## Memories` was omitted).
 
+
+## Step 2.6 — Inject the gates
+
+Every summoned specialist operates within tool, runtime, role, and memory
+gates. They must be aware of these gates explicitly — implicit gate-knowledge
+drifts as the plugin evolves.
+
+Use the `Read` tool on `${CLAUDE_PLUGIN_ROOT}/data/gates.md` and inject its
+contents verbatim under a `## Gates` heading right after `## Memory Protocol`
+(or right after `## Memories` if no protocol was injected, or right after the
+specialist instructions if neither memories nor protocol were injected).
+
+Gates are universal — every specialist sees the same gate text. The
+specialist's own `## Operating Principles` and yields-to convention add
+specialist-specific gate detail; the injected `## Gates` carries the
+plugin-wide gate landscape.
+
 ## Step 3 — Announce the summon
 
 Emit a short italicized line announcing the specialist. If a lens was loaded, mention it. Examples:
