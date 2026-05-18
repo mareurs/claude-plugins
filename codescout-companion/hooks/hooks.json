@@ -40,6 +40,15 @@
         ]
       },
       {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/git-worktree-guard.sh"
+          }
+        ]
+      },
+      {
         "matcher": "mcp__.*__run_command",
         "hooks": [
           {
