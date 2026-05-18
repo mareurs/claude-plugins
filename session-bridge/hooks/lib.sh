@@ -49,6 +49,9 @@ sb_instance() {
     "$HOME/.claude/"*)     echo main ;;
     "$HOME/.claude-sdd/"*) echo sdd ;;
     "$HOME/.claude-kat/"*) echo kat ;;
+    */.claude/*)           echo main ;;
+    */.claude-sdd/*)       echo sdd ;;
+    */.claude-kat/*)       echo kat ;;
     *) echo unknown ;;
   esac
 }
