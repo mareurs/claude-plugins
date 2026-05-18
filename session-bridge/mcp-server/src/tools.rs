@@ -108,7 +108,7 @@ async fn run_ephemeral(bin: &str, entry: &SessionEntry, prompt: &str, timeout_s:
 
 async fn run_bidirectional(bin: &str, entry: &SessionEntry, prompt: &str, timeout_s: u64) -> Result<String> {
     // Serialize concurrent bidirectional asks on the same transcript via flock.
-    let lock_file = OpenOptions::new().read(true).write(true).create(true)
+    let lock_file = OpenOptions::new().read(true).write(true).create(true).truncate(false)
         .open(&entry.transcript_path)?;
     if lock_file.try_lock_exclusive().is_err() {
         let lf = lock_file.try_clone()?;

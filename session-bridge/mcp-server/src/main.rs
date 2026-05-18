@@ -46,6 +46,7 @@ struct AliasArgs {
 
 #[derive(Debug, Clone)]
 struct Bridge {
+    #[allow(dead_code)] // read by #[tool_router]/#[tool_handler] macro expansion
     tool_router: ToolRouter<Self>,
 }
 

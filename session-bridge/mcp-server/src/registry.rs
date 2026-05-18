@@ -55,7 +55,7 @@ pub fn load(path: &Path, lock: &Path) -> Result<Registry> {
     if let Some(parent) = lock.parent() {
         std::fs::create_dir_all(parent)?;
     }
-    let lock_file = OpenOptions::new().read(true).write(true).create(true).open(lock)?;
+    let lock_file = OpenOptions::new().read(true).write(true).create(true).truncate(false).open(lock)?;
     lock_file.lock_shared()?;
     let mut buf = String::new();
     File::open(path)?.read_to_string(&mut buf)?;
@@ -73,7 +73,7 @@ pub fn save(path: &Path, lock: &Path, reg: &Registry) -> Result<()> {
     if let Some(parent) = lock.parent() {
         std::fs::create_dir_all(parent)?;
     }
-    let lock_file = OpenOptions::new().read(true).write(true).create(true).open(lock)?;
+    let lock_file = OpenOptions::new().read(true).write(true).create(true).truncate(false).open(lock)?;
     lock_file.lock_exclusive()?;
     let tmp = path.with_extension("json.tmp");
     {
