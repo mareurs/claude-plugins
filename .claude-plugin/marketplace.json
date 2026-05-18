@@ -51,6 +51,17 @@
       "license": "MIT",
       "keywords": ["statusline", "companion", "bodhisattva", "focus", "specialists"],
       "category": "ui"
+    },
+    {
+      "name": "session-bridge",
+      "source": "./session-bridge",
+      "description": "Cross-session MCP bridge: register every active Claude Code session locally and ask one session a question from another, answered in its loaded context via --resume + --fork-session.",
+      "author": {
+        "name": "Marius"
+      },
+      "license": "MIT",
+      "keywords": ["mcp", "session", "rpc", "bridge", "rust"],
+      "category": "infrastructure"
     }
   ]
 }
