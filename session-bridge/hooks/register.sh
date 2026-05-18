@@ -42,4 +42,12 @@ sb_mutate_registry \
   --argjson pid "$pid" \
   --argjson ts "$started_at"
 
+# Session-scoped state dir under the project cwd (mirrors buddy's .buddy/<sid> pattern).
+# Slash commands read .current-session-id to know which session they're running inside.
+if [ -n "$cwd" ] && [ -d "$cwd" ]; then
+  sb_dir="$cwd/.session-bridge"
+  mkdir -p "$sb_dir/$session_id" 2>/dev/null || true
+  printf '%s\n' "$session_id" > "$sb_dir/.current-session-id" 2>/dev/null || true
+fi
+
 exit 0

@@ -1,16 +1,24 @@
 ---
-description: Show the currently-connected bridge target and the full list of registered sessions.
+description: Show the currently-connected bridge target (from .session-bridge/&lt;sid&gt;/connection.json) and all registered sessions.
 ---
 
-Display two blocks:
+Read-only status command. Do NOT call `ask_session`.
 
-1. **Active bridge target** (set via `/connect-to`):
-   - If set: show `session_id`, `alias`, `cwd`, `instance`, `branch`, `age_seconds`.
-   - If unset: say "no active connection — use `/connect-to <ref>` to set one".
+**Steps:**
 
-2. **All registered sessions** (from `session-bridge.list_sessions`):
-   - Render as a compact table with columns: `instance`, `alias`, `id8` (first 8 chars of session_id), `cwd`, `branch`, `age`.
-   - Mark the active target row with `→` in the first column.
-   - If the list is empty, say so plainly.
+1. Determine our session id:
+   - `OUR_SID = cat <cwd>/.session-bridge/.current-session-id 2>/dev/null` (may be missing).
 
-Do not call `ask_session`. This is a read-only status command.
+2. Load the active connection:
+   - `CONN_FILE = <cwd>/.session-bridge/$OUR_SID/connection.json` (only if `OUR_SID` is set and the file exists).
+
+3. Display two blocks:
+
+   **Active connection**
+   - If `CONN_FILE` exists: pretty-print `target_session_id` (first 8 chars), `alias`, `target_cwd`, `instance`, `mode_default`, and a human age from `set_at`.
+   - If absent: say "no active connection — use `/connect-to <ref>` to set one".
+
+   **Registered sessions** (from `session-bridge.list_sessions`)
+   - Compact table, columns: `instance`, `alias`, `id8`, `cwd`, `branch`, `age`.
+   - Prefix the row for the active connection target with `→`.
+   - If list is empty: "no sessions registered."

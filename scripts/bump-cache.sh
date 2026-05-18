@@ -14,7 +14,7 @@
 
 set -euo pipefail
 
-PLUGIN="${1:?plugin name required (buddy | codescout-companion | sdd | claude-statusline)}"
+PLUGIN="${1:?plugin name required (buddy | codescout-companion | sdd | claude-statusline | session-bridge)}"
 VERSION="${2:?version required (e.g. 0.7.3)}"
 MARKETPLACE="sdd-misc-plugins"
 
@@ -44,6 +44,15 @@ for PROFILE in ~/.claude ~/.claude-sdd ~/.claude-kat; do
   rsync -a --delete \
     --exclude='__pycache__' --exclude='.pytest_cache' \
     --exclude='*.pyc' --exclude='.mypy_cache' \
+    --exclude='target/debug' --exclude='target/deps' \
+    --exclude='target/.fingerprint' --exclude='target/.rustc_info.json' \
+    --exclude='target/build' --exclude='target/incremental' \
+    --exclude='target/.cargo-lock' --exclude='target/CACHEDIR.TAG' \
+    --exclude='target/doc' --exclude='target/package' \
+    --exclude='target/release/build' --exclude='target/release/deps' \
+    --exclude='target/release/examples' --exclude='target/release/incremental' \
+    --exclude='target/release/.fingerprint' --exclude='target/release/*.d' \
+    --exclude='target/release/*.rlib' --exclude='target/release/*.rmeta' \
     "$SRC/" "$DEST/"
 done
 
