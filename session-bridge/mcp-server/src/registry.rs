@@ -109,3 +109,39 @@ pub fn pid_alive(pid: i32) -> bool {
     use nix::unistd::Pid;
     kill(Pid::from_raw(pid), None).is_ok()
 }
+
+/// Resolve a user-supplied reference to a single session entry.
+/// Resolution order:
+///   1. Exact session_id match
+///   2. Exact alias match
+///   3. Substring match across {session_id prefix, alias, cwd}
+pub fn resolve_ref<'a>(reg: &'a Registry, query: &str) -> Result<&'a SessionEntry> {
+    if let Some(e) = reg.sessions.get(query) {
+        return Ok(e);
+    }
+    for e in reg.sessions.values() {
+        if e.alias.as_deref() == Some(query) {
+            return Ok(e);
+        }
+    }
+    let matches: Vec<&SessionEntry> = reg
+        .sessions
+        .values()
+        .filter(|e| {
+            e.session_id.starts_with(query)
+                || e.alias.as_deref().map(|a| a.contains(query)).unwrap_or(false)
+                || e.cwd.contains(query)
+        })
+        .collect();
+    match matches.len() {
+        0 => Err(BridgeError::SessionNotFound(
+            query.to_string(),
+            reg.sessions.keys().cloned().collect(),
+        )),
+        1 => Ok(matches[0]),
+        _ => Err(BridgeError::AmbiguousRef(
+            query.to_string(),
+            matches.iter().map(|e| e.session_id.clone()).collect(),
+        )),
+    }
+}

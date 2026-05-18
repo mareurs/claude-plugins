@@ -76,3 +76,67 @@ fn prune_noop_when_all_alive() {
     assert!(pruned.is_empty());
     assert_eq!(reg.sessions.len(), 1);
 }
+
+use session_bridge_mcp::registry::resolve_ref;
+use session_bridge_mcp::error::BridgeError;
+
+fn fixture() -> Registry {
+    let mut sessions = BTreeMap::new();
+    let mut a = entry("abc-123", 1);
+    a.cwd = "/home/u/work/foo".into();
+    a.alias = Some("foo-session".into());
+    let mut b = entry("def-456", 2);
+    b.cwd = "/home/u/work/bar".into();
+    sessions.insert("abc-123".into(), a);
+    sessions.insert("def-456".into(), b);
+    Registry { version: 1, sessions }
+}
+
+#[test]
+fn resolve_by_full_id() {
+    let reg = fixture();
+    let e = resolve_ref(&reg, "abc-123").unwrap();
+    assert_eq!(e.session_id, "abc-123");
+}
+
+#[test]
+fn resolve_by_id_prefix() {
+    let reg = fixture();
+    let e = resolve_ref(&reg, "def").unwrap();
+    assert_eq!(e.session_id, "def-456");
+}
+
+#[test]
+fn resolve_by_alias() {
+    let reg = fixture();
+    let e = resolve_ref(&reg, "foo-session").unwrap();
+    assert_eq!(e.session_id, "abc-123");
+}
+
+#[test]
+fn resolve_by_cwd_substring() {
+    let reg = fixture();
+    let e = resolve_ref(&reg, "work/bar").unwrap();
+    assert_eq!(e.session_id, "def-456");
+}
+
+#[test]
+fn resolve_not_found() {
+    let reg = fixture();
+    let err = resolve_ref(&reg, "nope").unwrap_err();
+    assert!(matches!(err, BridgeError::SessionNotFound(_, _)));
+}
+
+#[test]
+fn resolve_ambiguous() {
+    let reg = fixture();
+    let err = resolve_ref(&reg, "work").unwrap_err();
+    assert!(matches!(err, BridgeError::AmbiguousRef(_, _)));
+}
+
+#[test]
+fn resolve_full_id_wins_over_substring() {
+    let reg = fixture();
+    let e = resolve_ref(&reg, "abc-123").unwrap();
+    assert_eq!(e.session_id, "abc-123");
+}
