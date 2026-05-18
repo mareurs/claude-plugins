@@ -4,5 +4,11 @@
   "version": "0.1.0",
   "author": { "name": "Marius" },
   "license": "MIT",
-  "keywords": ["mcp", "session", "rpc", "bridge"]
+  "keywords": ["mcp", "session", "rpc", "bridge"],
+  "mcpServers": {
+    "session-bridge": {
+      "command": "${CLAUDE_PLUGIN_ROOT}/mcp-server/target/release/session-bridge-mcp",
+      "args": []
+    }
+  }
 }
