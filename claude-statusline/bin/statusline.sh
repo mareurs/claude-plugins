@@ -34,13 +34,14 @@ jq_out="$(echo "$input" | jq -r '
   (.workspace.git_worktree.name // ""),
   (.workspace.git_worktree.branch // ""),
   (if .rate_limits_stale == true then "true" else "false" end),
+  (.session_id // ""),
   "END"
 ' 2>/dev/null)" || exit 0
 
 readarray -t F <<< "$jq_out"
 
-# Bail if jq produced insufficient output (18 fields: 17 data + sentinel)
-[[ ${#F[@]} -ge 18 ]] || exit 0
+# Bail if jq produced insufficient output (19 fields: 18 data + sentinel)
+[[ ${#F[@]} -ge 19 ]] || exit 0
 
 MODEL="${F[0]}"
 CTX_PCT="${F[1]}"
@@ -59,6 +60,7 @@ AGENT_NAME="${F[13]}"
 WT_NAME="${F[14]}"
 WT_BRANCH="${F[15]}"
 RATE_STALE="${F[16]}"
+SESSION_ID="${F[17]}"
 
 # -- ANSI codes --
 RST='\033[0m'
@@ -204,18 +206,38 @@ out+="${SEP}"
 if [[ -n "$WT_NAME" ]]; then
   out+="${CYAN}wt:${RST}${BLUE}${WT_NAME}${RST}"
 else
-  branch=$(git branch --show-current 2>/dev/null || true)
-  if [[ -n "$branch" ]]; then
-    out+="${BLUE}${branch}${RST}"
-    # Multi-worktree ambiguity warning — statusline runs in CC's frozen PWD;
-    # Bash `cd` in tool calls does not propagate. If multiple worktrees exist
-    # the displayed branch may not match the agent's intended worktree.
-    wt_count=$(git worktree list --porcelain 2>/dev/null | grep -c '^worktree ')
-    if [[ "$wt_count" -gt 1 ]]; then
-      out+="${DIM}·${wt_count}wt${RST}"
+  # Codescout-active marker: session-scoped truth about which workspace the
+  # agent declared via workspace()/EnterWorktree. Written by codescout-companion
+  # hooks at $CLAUDE_CONFIG_DIR/codescout-active/<session_id>. Reading it lets
+  # us display the worktree branch instead of guessing from CC's frozen PWD.
+  cs_branch=""
+  if [[ -n "$SESSION_ID" ]]; then
+    _cs_cfg="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
+    _cs_marker="$_cs_cfg/codescout-active/$SESSION_ID"
+    if [[ -f "$_cs_marker" ]]; then
+      _cs_path=$(cat "$_cs_marker" 2>/dev/null)
+      if [[ -n "$_cs_path" && -d "$_cs_path" ]]; then
+        cs_branch=$(git -C "$_cs_path" branch --show-current 2>/dev/null || true)
+      fi
     fi
+  fi
+
+  if [[ -n "$cs_branch" ]]; then
+    out+="${DIM}cs:${RST}${BLUE}${cs_branch}${RST}"
   else
-    out+="${DIM}--${RST}"
+    branch=$(git branch --show-current 2>/dev/null || true)
+    if [[ -n "$branch" ]]; then
+      out+="${BLUE}${branch}${RST}"
+      # Multi-worktree ambiguity warning — statusline runs in CC's frozen PWD;
+      # Bash `cd` in tool calls does not propagate. If multiple worktrees exist
+      # the displayed branch may not match the agent's intended worktree.
+      wt_count=$(git worktree list --porcelain 2>/dev/null | grep -c '^worktree ')
+      if [[ "$wt_count" -gt 1 ]]; then
+        out+="${DIM}·${wt_count}wt${RST}"
+      fi
+    else
+      out+="${DIM}--${RST}"
+    fi
   fi
 fi
 
