@@ -101,8 +101,7 @@ Returns `{answer, session_id, mode, duration_ms}` on success.
 
 ### `set_alias(session_id, alias)`
 
-Convenience: writes `alias` field for a session. Useful when the consumer wants a stable name independent of cwd.
-
+Convenience: writes `alias` field for a session. Useful when the consumer wants a stable name independent of cwd. Uses the same `flock -x` + atomic-rename protocol as the bash hooks.
 ## Components & file layout
 
 ```
@@ -174,13 +173,12 @@ session-bridge/
 
 ## Testing
 
-- **Rust unit** (`mcp-server/tests/`): registry round-trip; prune-dead-pid (inject a liveness trait); resolve_ref ambiguity; argv construction for both modes.
-- **Rust integration**: place a mock `claude` script earlier on `$PATH` that echoes a canned answer; assert subprocess wiring, timeout kills child, tmp file cleanup in success/error/timeout paths.
-- **Bash hook tests** (`tests/`, reusing `tests/lib/fixtures.sh`): `register.sh` writes a valid entry; `unregister.sh` removes by id; two `register.sh` runs in parallel both land (flock works).
+- **Rust unit** (`mcp-server/tests/`): registry round-trip; prune-dead-pid (inject a liveness trait); resolve_ref ambiguity; argv construction for both modes; `set_alias` writes under flock.
+- **Rust integration**: place a mock `claude` script earlier on `$PATH` that echoes a canned answer; assert subprocess wiring for both ephemeral and bidirectional modes, timeout kills child, tmp file cleanup in success/error/timeout paths, bidirectional flock serialization (two concurrent calls run sequentially).
+- **Bash hook tests** (`tests/`, reusing `tests/lib/fixtures.sh`): `register.sh` writes a valid entry; `unregister.sh` removes by id; two `register.sh` runs in parallel both land (flock works); hook never blocks CC startup beyond 10s even if lock contended.
 - **End-to-end (manual, documented in README)**: two CC instances in different cwds, `list_sessions` shows both, `ask_session` returns a plausible answer in each mode.
 
 Wire bash tests into `tests/run-all.sh`. Rust tests run via `cargo test` in `mcp-server/`; `scripts/build.sh` invokes `cargo test` before `cargo build --release`.
-
 ## Dependencies
 
 - `jq`, `bash`, `flock` (already required by other plugins in this repo).
