@@ -1,0 +1,8 @@
+{
+  "name": "session-bridge",
+  "description": "Cross-session MCP bridge — ask one Claude Code session a question from another, in its loaded context.",
+  "version": "0.1.0",
+  "author": { "name": "Marius" },
+  "license": "MIT",
+  "keywords": ["mcp", "session", "rpc", "bridge"]
+}
