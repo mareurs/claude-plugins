@@ -1,0 +1,25 @@
+[package]
+name = "session-bridge-mcp"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "session_bridge_mcp"
+path = "src/lib.rs"
+
+[[bin]]
+name = "session-bridge-mcp"
+path = "src/main.rs"
+
+[dependencies]
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "process", "fs", "io-util", "sync", "time"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+anyhow = "1"
+thiserror = "1"
+nix = { version = "0.27", features = ["signal"] }
+fs2 = "0.4"
+which = "6"
+
+[dev-dependencies]
+tempfile = "3"
