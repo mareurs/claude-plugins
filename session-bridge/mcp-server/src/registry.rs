@@ -85,3 +85,27 @@ pub fn save(path: &Path, lock: &Path, reg: &Registry) -> Result<()> {
     lock_file.unlock()?;
     Ok(())
 }
+
+/// Drop sessions whose pid fails the liveness predicate. Returns the removed ids.
+pub fn prune_with<F>(reg: &mut Registry, mut alive: F) -> Vec<String>
+where
+    F: FnMut(i32) -> bool,
+{
+    let dead: Vec<String> = reg
+        .sessions
+        .iter()
+        .filter(|(_, e)| !alive(e.pid))
+        .map(|(k, _)| k.clone())
+        .collect();
+    for id in &dead {
+        reg.sessions.remove(id);
+    }
+    dead
+}
+
+/// Real liveness check: kill(pid, 0) via nix.
+pub fn pid_alive(pid: i32) -> bool {
+    use nix::sys::signal::kill;
+    use nix::unistd::Pid;
+    kill(Pid::from_raw(pid), None).is_ok()
+}

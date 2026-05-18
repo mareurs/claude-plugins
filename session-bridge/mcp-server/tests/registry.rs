@@ -35,3 +35,44 @@ fn empty_registry_round_trips() {
     assert_eq!(back.version, 1);
     assert!(back.sessions.is_empty());
 }
+
+use session_bridge_mcp::registry::prune_with;
+use std::collections::BTreeMap;
+
+fn entry(id: &str, pid: i32) -> SessionEntry {
+    SessionEntry {
+        session_id: id.into(),
+        transcript_path: format!("/tmp/{}.jsonl", id),
+        cwd: "/tmp".into(),
+        branch: "main".into(),
+        pid,
+        started_at: 0,
+        alias: None,
+        instance: "main".into(),
+    }
+}
+
+#[test]
+fn prune_removes_dead_pids_only() {
+    let mut sessions = BTreeMap::new();
+    sessions.insert("a".into(), entry("a", 1));
+    sessions.insert("b".into(), entry("b", 2));
+    sessions.insert("c".into(), entry("c", 3));
+    let mut reg = Registry { version: 1, sessions };
+
+    let pruned = prune_with(&mut reg, |pid| pid != 2);
+    assert_eq!(pruned, vec!["b".to_string()]);
+    assert_eq!(reg.sessions.len(), 2);
+    assert!(reg.sessions.contains_key("a"));
+    assert!(reg.sessions.contains_key("c"));
+}
+
+#[test]
+fn prune_noop_when_all_alive() {
+    let mut sessions = BTreeMap::new();
+    sessions.insert("a".into(), entry("a", 1));
+    let mut reg = Registry { version: 1, sessions };
+    let pruned = prune_with(&mut reg, |_| true);
+    assert!(pruned.is_empty());
+    assert_eq!(reg.sessions.len(), 1);
+}
