@@ -33,6 +33,17 @@ esac
 CMD=$(echo "$INPUT" | jq -r '.tool_input.command // empty' 2>/dev/null)
 [ -z "$CMD" ] && exit 0
 
+# Allow buffer-ops: if the pre-pipe segment references an @cmd_*, @bg_*, @file_*,
+# @tool_*, or @ack_* buffer handle, the LHS is operating on already-buffered
+# data — no full-output capture is being thrown away. Examples allowed:
+#   grep PATTERN @cmd_abc | sort -u
+#   cat @bg_xyz | head -50
+# Still blocked: live commands piped to log-trimmers (`cargo test | grep FAIL`).
+PRE_PIPE=$(echo "$CMD" | sed 's/[[:space:]]*|.*//')
+if echo "$PRE_PIPE" | grep -qE '@(cmd|bg|file|tool|ack)_[A-Za-z0-9_]+'; then
+  exit 0
+fi
+
 LHS_COMMANDS='(cargo|npm|pnpm|yarn|python|pytest|go|mvn|gradle|git|find|ls|grep|cat|diff|du|stat|rg|fd)'
 DENY_PIPE='(tail|head|grep|less|wc|sed|awk|cut|sort|uniq|tr|fmt)'
 

@@ -33,6 +33,14 @@ esac
 CMD=$(echo "$INPUT" | jq -r '.tool_input.command // empty' 2>/dev/null)
 [ -z "$CMD" ] && exit 0
 
+# Allow buffer-ops: pre-pipe segment references a buffer handle (@cmd_*, @bg_*,
+# @file_*, @tool_*, @ack_*). Operating on already-buffered data costs nothing
+# in context — the capture has already happened.
+PRE_PIPE=$(echo "$CMD" | sed 's/[[:space:]]*|.*//')
+if echo "$PRE_PIPE" | grep -qE '@(cmd|bg|file|tool|ack)_[A-Za-z0-9_]+'; then
+  exit 0
+fi
+
 # IL3 detection: <LHS_CMD> ... | <DENY_PIPE>
 # Anchored at start to avoid catching mid-script pipes.
 #
