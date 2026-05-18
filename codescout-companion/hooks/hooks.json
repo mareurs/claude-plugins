@@ -44,7 +44,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/il3-warn-hook.sh"
+            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/il3-deny-hook.sh"
           }
         ]
       }
