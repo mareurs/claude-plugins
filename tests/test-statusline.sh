@@ -3,7 +3,7 @@
 source "$(dirname "${BASH_SOURCE[0]}")/lib/fixtures.sh"
 
 echo "── statusline ──"
-STATUSLINE="$(dirname "${BASH_SOURCE[0]}")/../claude-statusline/bin/statusline.sh"
+STATUSLINE="$(cd "$(dirname "${BASH_SOURCE[0]}")/../claude-statusline/bin" && pwd)/statusline.sh"
 
 # Base sample — uses v2.1.97+ field paths
 SAMPLE='{"model":{"display_name":"test-model"},"context_window":{"used_percentage":42,"context_window_size":200000,"current_usage":{"cache_creation_input_tokens":1500,"cache_read_input_tokens":3000}},"rate_limits":{"five_hour":{"used_percentage":10,"resets_at":9999999999},"seven_day":{"used_percentage":5,"resets_at":9999999999}},"rate_limits_stale":false,"cost":{"total_cost_usd":0.15,"total_duration_ms":30000,"total_lines_added":10,"total_lines_removed":3},"workspace":{"git_worktree":{"name":"my-feature","branch":"feat/my-feature"}}}'
@@ -47,5 +47,29 @@ if echo "$OUT" | grep -qP "\x1b\[90m~"; then pass "stale rate limits: ~ prefix s
 # Test 7: worktree name shown when workspace.git_worktree present
 OUT=$(echo "$SAMPLE" | bash "$STATUSLINE" 2>/dev/null)
 if echo "$OUT" | grep -q "my-feature"; then pass "worktree: name shown"; else fail "worktree: name shown"; fi
+
+# Test 8: multi-worktree warning when fallback `git branch` runs in repo with ≥2 worktrees
+TMPREPO=$(mktemp -d)
+trap 'rm -rf "$TMPREPO"' EXIT
+make_git_repo "$TMPREPO"
+make_worktree "$TMPREPO" "$TMPREPO/.worktrees/feat"
+# Run statusline from inside the main repo with NO worktree field — forces fallback
+OUT=$(cd "$TMPREPO" && echo '{"model":{"display_name":"m"}}' | bash "$STATUSLINE" 2>/dev/null)
+if echo "$OUT" | grep -qE 'of [0-9]+ wts'; then
+  pass "multi-worktree fallback: warning suffix appended"
+else
+  fail "multi-worktree fallback: warning suffix appended" "$OUT"
+fi
+
+# Test 9: no warning in single-worktree repo
+SOLO=$(mktemp -d)
+make_git_repo "$SOLO"
+OUT=$(cd "$SOLO" && echo '{"model":{"display_name":"m"}}' | bash "$STATUSLINE" 2>/dev/null)
+if echo "$OUT" | grep -qE 'of [0-9]+ wts'; then
+  fail "single-worktree: no warning" "$OUT"
+else
+  pass "single-worktree: no warning"
+fi
+rm -rf "$SOLO"
 
 print_summary "statusline"

@@ -207,6 +207,13 @@ else
   branch=$(git branch --show-current 2>/dev/null || true)
   if [[ -n "$branch" ]]; then
     out+="${BLUE}${branch}${RST}"
+    # Multi-worktree ambiguity warning — statusline runs in CC's frozen PWD;
+    # Bash `cd` in tool calls does not propagate. If multiple worktrees exist
+    # the displayed branch may not match the agent's intended worktree.
+    wt_count=$(git worktree list --porcelain 2>/dev/null | grep -c '^worktree ')
+    if [[ "$wt_count" -gt 1 ]]; then
+      out+="${DIM}(of ${wt_count} wts — verify PWD)${RST}"
+    fi
   else
     out+="${DIM}--${RST}"
   fi
