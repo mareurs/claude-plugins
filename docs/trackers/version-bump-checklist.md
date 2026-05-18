@@ -16,15 +16,15 @@ Release readiness across plugins × profiles. See
 
 ## State
 
-_Last refresh: `HEAD-pending`_
+_Last refresh: `79636b3`_
 
-**codescout-companion** — canonical `1.9.8` · readme `1.9.8` · marketplace clean ✅
+**codescout-companion** — canonical `1.9.9` · readme `1.9.9` · marketplace clean ✅
 
 | profile | installed | cache dir | install_path ok |
 |---|---|---|---|
-| `~/.claude` | 1.9.8 ✅ | ✅ | ✅ |
-| `~/.claude-sdd` | 1.9.8 ✅ | ✅ | ✅ |
-| `~/.claude-kat` | 1.9.8 ✅ | ✅ | ✅ |
+| `~/.claude` | 1.9.9 ✅ | ✅ | ✅ |
+| `~/.claude-sdd` | 1.9.9 ✅ | ✅ | ✅ |
+| `~/.claude-kat` | 1.9.9 ✅ | ✅ | ✅ |
 
 **buddy** — canonical `0.7.5` · readme `0.7.5` · marketplace clean ✅
 
@@ -45,6 +45,10 @@ _Last refresh: `HEAD-pending`_
 ## History
 
 _Append dated session deltas: ### YYYY-MM-DD — <what changed>._
+
+### 2026-05-18 — codescout-companion 1.9.8 → 1.9.9, claude-statusline 1.1.0 → 1.1.1
+
+Added `git-worktree-guard.sh` (codescout-companion) and multi-worktree warning suffix (claude-statusline). Both target the worktree-ambiguous-PWD failure class that caused the 2026-05-18 MRV-poc wrong-branch commit. claude-statusline not tracked in this tracker (user-managed `~/.claude/statusline.sh`).
 
 ### 2026-05-18 — buddy 0.7.4 → 0.7.5
 
