@@ -145,3 +145,17 @@ pub fn resolve_ref<'a>(reg: &'a Registry, query: &str) -> Result<&'a SessionEntr
         )),
     }
 }
+
+/// In-memory alias write. The MCP tool wraps this with load/save under flock.
+pub fn set_alias_in(reg: &mut Registry, session_id: &str, alias: Option<String>) -> Result<()> {
+    match reg.sessions.get_mut(session_id) {
+        Some(e) => {
+            e.alias = alias;
+            Ok(())
+        }
+        None => Err(BridgeError::SessionNotFound(
+            session_id.to_string(),
+            reg.sessions.keys().cloned().collect(),
+        )),
+    }
+}

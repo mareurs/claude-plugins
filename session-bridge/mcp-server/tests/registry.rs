@@ -140,3 +140,26 @@ fn resolve_full_id_wins_over_substring() {
     let e = resolve_ref(&reg, "abc-123").unwrap();
     assert_eq!(e.session_id, "abc-123");
 }
+
+use session_bridge_mcp::registry::set_alias_in;
+
+#[test]
+fn set_alias_updates_existing_entry() {
+    let mut reg = fixture();
+    set_alias_in(&mut reg, "abc-123", Some("renamed".into())).unwrap();
+    assert_eq!(reg.sessions["abc-123"].alias.as_deref(), Some("renamed"));
+}
+
+#[test]
+fn set_alias_clears_when_none() {
+    let mut reg = fixture();
+    set_alias_in(&mut reg, "abc-123", None).unwrap();
+    assert_eq!(reg.sessions["abc-123"].alias, None);
+}
+
+#[test]
+fn set_alias_errors_on_unknown_session() {
+    let mut reg = fixture();
+    let err = set_alias_in(&mut reg, "missing", Some("x".into())).unwrap_err();
+    assert!(matches!(err, BridgeError::SessionNotFound(_, _)));
+}
