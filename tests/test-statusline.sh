@@ -72,4 +72,15 @@ else
 fi
 rm -rf "$SOLO"
 
+# Test 10: profile badge — derived from CLAUDE_CONFIG_DIR
+for pair in ".claude-sdd|sdd" ".claude-kat|kat" ".claude|claude"; do
+  IFS='|' read -r cfg label <<< "$pair"
+  OUT=$(CLAUDE_CONFIG_DIR="/home/x/$cfg" echo '{"model":{"display_name":"m"}}' | CLAUDE_CONFIG_DIR="/home/x/$cfg" bash "$STATUSLINE" 2>/dev/null)
+  if echo "$OUT" | grep -q " $label "; then
+    pass "profile badge: $cfg → $label"
+  else
+    fail "profile badge: $cfg → $label" "$OUT"
+  fi
+done
+
 print_summary "statusline"

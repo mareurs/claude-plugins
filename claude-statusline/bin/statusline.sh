@@ -262,5 +262,17 @@ right+="${DIM}\$${RST}${WHITE}$(printf '%.2f' "$COST_USD")${RST}"
 dur=$(format_duration "$DURATION_MS")
 right+="${SEP}${DIM}${dur}${RST}"
 
+# Profile badge — derive from CLAUDE_CONFIG_DIR so multi-instance setups
+# (~/.claude / ~/.claude-sdd / ~/.claude-kat) show which instance rendered.
+# Silent when CLAUDE_CONFIG_DIR is unset or matches no known pattern.
+_cfg="${CLAUDE_CONFIG_DIR:-}"
+if [[ "$_cfg" == *.claude-sdd* ]]; then
+  right+="${SEP}${AGENT_BG} sdd ${RST}"
+elif [[ "$_cfg" == *.claude-kat* ]]; then
+  right+="${SEP}${AGENT_BG} kat ${RST}"
+elif [[ "$_cfg" == *.claude* ]]; then
+  right+="${SEP}${MODEL_BG} claude ${RST}"
+fi
+
 # Final output
 echo -e "${out}    ${right}"
