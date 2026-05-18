@@ -212,7 +212,7 @@ else
     # the displayed branch may not match the agent's intended worktree.
     wt_count=$(git worktree list --porcelain 2>/dev/null | grep -c '^worktree ')
     if [[ "$wt_count" -gt 1 ]]; then
-      out+="${DIM}(of ${wt_count} wts — verify PWD)${RST}"
+      out+="${DIM}·${wt_count}wt${RST}"
     fi
   else
     out+="${DIM}--${RST}"

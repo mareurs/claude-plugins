@@ -55,7 +55,7 @@ make_git_repo "$TMPREPO"
 make_worktree "$TMPREPO" "$TMPREPO/.worktrees/feat"
 # Run statusline from inside the main repo with NO worktree field — forces fallback
 OUT=$(cd "$TMPREPO" && echo '{"model":{"display_name":"m"}}' | bash "$STATUSLINE" 2>/dev/null)
-if echo "$OUT" | grep -qE 'of [0-9]+ wts'; then
+if echo "$OUT" | grep -qE '·[0-9]+wt'; then
   pass "multi-worktree fallback: warning suffix appended"
 else
   fail "multi-worktree fallback: warning suffix appended" "$OUT"
@@ -65,7 +65,7 @@ fi
 SOLO=$(mktemp -d)
 make_git_repo "$SOLO"
 OUT=$(cd "$SOLO" && echo '{"model":{"display_name":"m"}}' | bash "$STATUSLINE" 2>/dev/null)
-if echo "$OUT" | grep -qE 'of [0-9]+ wts'; then
+if echo "$OUT" | grep -qE '·[0-9]+wt'; then
   fail "single-worktree: no warning" "$OUT"
 else
   pass "single-worktree: no warning"
