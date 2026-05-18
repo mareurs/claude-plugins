@@ -76,3 +76,46 @@ async fn spawn_times_out() {
     let err = run_with_binary(script.to_str().unwrap(), &spec).await.unwrap_err();
     assert!(matches!(err, session_bridge_mcp::error::BridgeError::Timeout(_)));
 }
+
+#[test]
+fn list_sessions_reads_registry_and_prunes_dead_pids() {
+    use session_bridge_mcp::registry::{save, Registry, SessionEntry};
+    use std::collections::BTreeMap;
+    let tmp = tempfile::tempdir().unwrap();
+    let home = tmp.path();
+    // SAFETY: test runs single-threaded (see comment below).
+    std::env::set_var("HOME", home);
+
+    let mut sessions = BTreeMap::new();
+    let alive_pid = std::process::id() as i32;
+    let dead_pid: i32 = 999_999;
+    sessions.insert("a".into(), SessionEntry {
+        session_id: "a".into(),
+        transcript_path: "/tmp/a.jsonl".into(),
+        cwd: "/tmp".into(),
+        branch: "main".into(),
+        pid: alive_pid,
+        started_at: 0,
+        alias: None,
+        instance: "main".into(),
+    });
+    sessions.insert("b".into(), SessionEntry {
+        session_id: "b".into(),
+        transcript_path: "/tmp/b.jsonl".into(),
+        cwd: "/tmp".into(),
+        branch: "main".into(),
+        pid: dead_pid,
+        started_at: 0,
+        alias: None,
+        instance: "main".into(),
+    });
+    let reg = Registry { version: 1, sessions };
+    let reg_path = home.join(".claude/sessions/active.json");
+    std::fs::create_dir_all(reg_path.parent().unwrap()).unwrap();
+    let lock_path = home.join(".claude/sessions/.lock");
+    save(&reg_path, &lock_path, &reg).unwrap();
+
+    let items = session_bridge_mcp::tools::list_sessions().unwrap();
+    assert_eq!(items.len(), 1);
+    assert_eq!(items[0].session_id, "a");
+}
