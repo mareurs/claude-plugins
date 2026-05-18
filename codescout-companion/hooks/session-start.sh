@@ -32,6 +32,25 @@ if git -C "$CWD" rev-parse --is-inside-work-tree &>/dev/null; then
   fi
 fi
 
+# --- Codescout-active marker: seed + sweep ---
+# Marker convention: $CLAUDE_CONFIG_DIR/codescout-active/<session_id> holds one
+# line, the active workspace path. Read by claude-statusline so the branch
+# display reflects the agent's *declared* workspace, not CC's frozen PWD.
+# Seed only when resumed inside a worktree (main-repo sessions leave it unset
+# to avoid false-confirming wrong belief — fallback ·Nwt warning fires instead).
+CS_ACTIVE_DIR="${CLAUDE_CONFIG_DIR:-$HOME/.claude}/codescout-active"
+if [ "$IN_WORKTREE" = "true" ] && [ -n "$SESSION_ID" ]; then
+  WT_ROOT=$(git -C "$CWD" rev-parse --show-toplevel 2>/dev/null)
+  if [ -n "$WT_ROOT" ]; then
+    mkdir -p "$CS_ACTIVE_DIR" 2>/dev/null
+    printf '%s' "$WT_ROOT" > "$CS_ACTIVE_DIR/$SESSION_ID" 2>/dev/null
+  fi
+fi
+# Sweep markers older than 7 days (cheap; rare; ignore errors)
+if [ -d "$CS_ACTIVE_DIR" ]; then
+  find "$CS_ACTIVE_DIR" -maxdepth 1 -type f -mtime +7 -delete 2>/dev/null || true
+fi
+
 MSG=""
 
 # --- Onboarding check ---

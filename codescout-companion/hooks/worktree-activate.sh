@@ -40,6 +40,16 @@ fi
 [ -z "$WORKTREE_PATH" ] && exit 0
 [ -d "$WORKTREE_PATH" ] || exit 0
 
+# --- Write codescout-active marker (session-scoped workspace truth) ---
+# Statusline reads this to display the worktree branch instead of guessing
+# from CC's frozen PWD. See docs/marker-convention.md.
+SESSION_ID=$(echo "$INPUT" | jq -r '.session_id // empty' 2>/dev/null)
+if [ -n "$SESSION_ID" ]; then
+  CFG="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
+  mkdir -p "$CFG/codescout-active" 2>/dev/null
+  printf '%s' "$WORKTREE_PATH" > "$CFG/codescout-active/$SESSION_ID" 2>/dev/null
+fi
+
 # --- Create pending marker BEFORE injecting guidance ---
 # Marker signals: worktree entered, workspace not yet called.
 # worktree-write-guard.sh checks this; ce-activate-project.sh clears it.

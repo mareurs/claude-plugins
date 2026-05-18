@@ -23,7 +23,17 @@ ACTIVATED_PATH=$(echo "$INPUT" | jq -r '.tool_input.path // empty' 2>/dev/null |
 
 [ -z "$ACTIVATED_PATH" ] && exit 0
 
-# Remove marker if it exists
+# --- Write codescout-active marker (session-scoped workspace truth) ---
+# Statusline reads this to display the agent's *declared* workspace branch
+# instead of guessing from CC's frozen PWD. See docs/marker-convention.md.
+SESSION_ID=$(echo "$INPUT" | jq -r '.session_id // empty' 2>/dev/null)
+if [ -n "$SESSION_ID" ] && [ -d "$ACTIVATED_PATH" ]; then
+  CFG="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
+  mkdir -p "$CFG/codescout-active" 2>/dev/null
+  printf '%s' "$ACTIVATED_PATH" > "$CFG/codescout-active/$SESSION_ID" 2>/dev/null
+fi
+
+# Remove .cs-worktree-pending marker if it exists (unblocks write tools)
 MARKER="$ACTIVATED_PATH/.cs-worktree-pending"
 if [ -f "$MARKER" ]; then
   rm -f "$MARKER"
