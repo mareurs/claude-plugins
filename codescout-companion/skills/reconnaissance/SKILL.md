@@ -226,6 +226,58 @@ Do NOT loop reconnaissance. One pass per seam per session. If the same seam need
 | Tool returned unexpected output | `systematic-debugging` | Capture as F-N, then debug from the captured baseline |
 | About to claim work complete | `verification-before-completion` | Different timing — reconnaissance is at the seam, verification is at completion |
 
+## The recon-patterns tracker (per project)
+
+Each project that uses this skill keeps its own R-N ledger at
+`docs/trackers/reconnaissance-patterns.md`. This is a librarian
+tracker artifact, separate from the per-work-stream session logs in
+Phase 3 — its scope is the **skill itself**, not any one task. Entries
+describe when recon helped (hit), when it missed (miss), and what
+should change in `SKILL.md` next (proposal).
+
+**Bootstrap (first use per project):**
+
+```bash
+cp <skill-dir>/references/reconnaissance-patterns-template.md \
+   docs/trackers/reconnaissance-patterns.md
+```
+
+Where `<skill-dir>` resolves to the cached skill location — typically
+`~/.claude/plugins/cache/.../codescout-companion/skills/reconnaissance/`.
+Verify the path with `claude plugin list` or read the skill's own
+`base directory` line.
+
+**When to append an R-N entry.** After a recon scout completes:
+
+| Did recon catch the drift? | Action |
+|---|---|
+| Yes, and downstream gates (spec review, compiler) confirmed | Write a `hit` entry, cite the W-N in the work-stream session log |
+| No, but a downstream gate caught it instead | Write a `miss` entry, cite the F-N. Optionally a `proposal` if the fix is obvious |
+| Drift was a false alarm | No R-N entry (work-stream session log only) |
+
+Per-project R-N entries are short — one paragraph + evidence. The full
+narrative lives in the work-stream session log; the R-N entry is the
+cross-cutting lesson.
+
+**Sync flow.** When an R-N proposal reaches promote-when threshold,
+sync it back into the skill:
+
+1. PR against `codescout-companion/skills/reconnaissance/SKILL.md`.
+2. PR description cites the R-N IDs + their session-log evidence.
+3. On merge, mark the project's R-N entry `Verdict: promoted` and
+   pin the commit SHA + skill version.
+
+Manual flow. No automated cross-project aggregation; the skill is the
+canonical destination. Per-project trackers are the substrate that
+earns its way in.
+
+**Why per project, not global.** Recon patterns are project-shaped:
+a Rust workspace's blast-radius question (struct-field threading,
+trait-method addition) differs from a TypeScript monorepo's (barrel
+re-exports, generated types). Per-project ledgers keep the lessons
+close to the substrate that produced them. Cross-project lessons
+graduate via the sync flow — explicitly, not implicitly.
+
 ## Skill maintenance
 
 Trigger-string scoring lives in `<codescout-repo>/docs/evals/reconnaissance-trigger.md`. Re-score before any future description change. **Behavioral eval** (do triggered scouts produce useful F-N entries?) — to be authored at `<codescout-repo>/docs/evals/reconnaissance-output.md`. Until that exists, every claim about ledger quality is unverified.
