@@ -30,6 +30,7 @@
 | F-1 | 2026-05-19 | low | self-friction | fixed-verified | Test file naming pattern wrong (`*.test.sh` vs `test-*.sh`) |
 | F-2 | 2026-05-19 | med | architectural | fixed-verified | `hooks/lib/` subdir non-existent; convention is flat peers |
 | F-3 | 2026-05-19 | med | codescout-tool | fixed-verified | `edit_code` matcher coverage stale in worktree-write-guard |
+| F-4 | 2026-05-20 | low | self-friction | deferred | `test-statusline-cache.sh` pre-existing failures (buddy plugin, unrelated to injection budget) |
 ## Wins Index
 
 | ID | Date | Impact | Pattern | Counterfactual | Status |
@@ -253,6 +254,19 @@ Codified so the Index column means the same thing across sessions.
 - Probe ran in one CC instance (`~/.claude-kat`). Other instances assumed equivalent — CC build is the same, but worth re-probing if behavior diverges across instances.
 
 ---
+
+## F-4 — `test-statusline-cache.sh` pre-existing failures
+
+- **Date:** 2026-05-20
+- **Severity:** low
+- **Category:** self-friction
+- **Status:** deferred
+
+**What happened:** During Task 8 full-suite verification, `test-statusline-cache.sh` reported 2 failures: "fresh cache: rate limits displayed" and "stale cache: ~ prefix shown". Both are in the buddy plugin's statusline cache logic, not touched by injection-budget work.
+
+**Verification of pre-existence:** Stashed all working-tree changes and re-ran on bare HEAD `d658653` — same 2 failures. Confirmed not introduced by this PR.
+
+**Resolution:** Defer. Out of scope for injection-budget redesign. Likely related to in-flight `buddy/scripts/statusline-composed.sh` edits (already dirty in working tree at session start). Not blocking version bump per plan Task 8 Step 2.
 
 ## Template for new entries
 
