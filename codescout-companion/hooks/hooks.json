@@ -56,6 +56,24 @@
             "command": "${CLAUDE_PLUGIN_ROOT}/hooks/il3-deny-hook.sh"
           }
         ]
+      },
+      {
+        "matcher": "Task",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/pre-task-hint.sh"
+          }
+        ]
+      },
+      {
+        "matcher": "mcp__codescout__(edit_code|replace_symbol)",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/pre-edit-hint.sh"
+          }
+        ]
       }
     ],
     "PostToolUse": [
