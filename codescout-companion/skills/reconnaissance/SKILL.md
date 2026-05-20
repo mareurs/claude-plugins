@@ -73,7 +73,7 @@ cp <codescout-repo>/docs/templates/session-log.md \
    docs/trackers/<topic>-session-log.md
 ```
 
-The codescout repo path is `/home/marius/work/claude/code-explorer` on this machine; in general, ask the user or check `claude mcp list` for the codescout source location.
+Resolve `<codescout-repo>` from `claude mcp list` (the codescout server's source path) or ask the user. Do not hardcode a path — installations differ.
 
 **ID allocation.** Read the tracker's existing IDs and use the next monotonic integer:
 
