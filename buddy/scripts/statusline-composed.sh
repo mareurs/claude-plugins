@@ -162,10 +162,17 @@ resolve_primary() {
   fi
 
   local cfg="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
+  local base="$cfg/plugins/cache/sdd-misc-plugins/claude-statusline"
+  # Glob returns versions alphabetically; sort -V picks the newest semver.
+  # Without -V we'd silently pin to the oldest cached version forever.
   local candidate
-  for candidate in "$cfg"/plugins/cache/sdd-misc-plugins/claude-statusline/*/bin/statusline.sh; do
-    [[ -x "$candidate" ]] && { printf '%s' "$candidate"; return; }
-  done
+  if [[ -d "$base" ]]; then
+    candidate=$(ls -1 "$base" 2>/dev/null | sort -V | tail -1)
+    if [[ -n "$candidate" ]] && [[ -x "$base/$candidate/bin/statusline.sh" ]]; then
+      printf '%s' "$base/$candidate/bin/statusline.sh"
+      return
+    fi
+  fi
 
   if [[ -x "$HOME/.claude/statusline.sh" ]]; then
     printf '%s' "$HOME/.claude/statusline.sh"
@@ -177,11 +184,35 @@ resolve_primary() {
 
 # ── Render primary ───────────────────────────────────────────────────────────
 
+_render_rate_limits_fallback() {
+  # Minimal rate-limits line for when no primary statusline is installed.
+  # Emits "5h <pct>%/7d <pct>%" with a leading "~" (dim) prefix when stale.
+  # Schema accepts either {utilization, resets_at} or {remaining_pct, resets_at}.
+  local stale
+  stale=$(printf '%s' "$INPUT" | jq -r '.rate_limits_stale // false' 2>/dev/null)
+  printf '%s' "$INPUT" | jq -r '
+    .rate_limits as $r |
+    if ($r == null) then empty
+    else
+      ($r.five_hour.utilization // (100 - ($r.five_hour.remaining_pct // 0))) as $h |
+      ($r.seven_day.utilization // (100 - ($r.seven_day.remaining_pct // 0))) as $w |
+      [$h, $w] | @tsv
+    end
+  ' 2>/dev/null | while IFS=$'\t' read -r h w; do
+    [ -z "$h" ] && continue
+    local prefix=""
+    [ "$stale" = "true" ] && prefix=$'\033[90m~\033[0m'
+    printf '%s\033[90m5h\033[0m %.0f%%\033[90m/\033[0m\033[90m7d\033[0m %.0f%%\n' "$prefix" "$h" "$w"
+  done
+}
+
 if [[ "${BUDDY_SKIP_PRIMARY:-0}" != "1" ]]; then
   PRIMARY=$(resolve_primary)
   if [[ -n "$PRIMARY" ]]; then
     printf '%s' "$INPUT" | "$PRIMARY" 2>/dev/null || true
     echo
+  else
+    _render_rate_limits_fallback
   fi
 fi
 
