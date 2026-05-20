@@ -182,8 +182,17 @@ def handle_session_start(
             else:
                 carried_specialists = list(state.get("active_specialists", []) or [])
 
-            session_dir = project_root / ".buddy" / incoming_sid
-            if (session_dir / "recon-loaded").is_file():
+            # Auto-include reconnaissance when codescout-companion is the
+            # MCP backend for this project. We avoid the .buddy/$SID/recon-loaded
+            # marker because hook ordering across plugins is alphabetical:
+            # buddy runs before codescout-companion, so the marker isn't yet
+            # present when buddy reads. Detect codescout via the onboarding
+            # convention (.codescout/project.toml or legacy .code-explorer/),
+            # matching detect.py's _find_project_dir resolution.
+            cs_project_dir = project_root / ".codescout"
+            if not cs_project_dir.is_dir():
+                cs_project_dir = project_root / ".code-explorer"
+            if (cs_project_dir / "project.toml").is_file():
                 if "reconnaissance" not in carried_specialists:
                     carried_specialists.append("reconnaissance")
 

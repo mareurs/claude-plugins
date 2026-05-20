@@ -12,6 +12,20 @@ from __future__ import annotations
 from pathlib import Path
 
 
+def _semver_key(name: str) -> tuple:
+    """Sort key for cached version directories. Numeric tuple per dot-segment;
+    falls back to (-1, name) for non-semver names so they sort before real
+    versions. '1.11.0' must beat '1.9.9' which lex sort gets wrong."""
+    parts = name.split(".")
+    out: list[int] = []
+    for p in parts:
+        try:
+            out.append(int(p))
+        except ValueError:
+            return (-1, name)
+    return (0, tuple(out))
+
+
 def _sister_plugin_candidates(directory: str, plugin_root: Path) -> list[Path]:
     """Sister-plugin SKILL.md candidates derived from the plugin cache layout.
 
@@ -45,7 +59,7 @@ def _sister_plugin_candidates(directory: str, plugin_root: Path) -> list[Path]:
         try:
             versions = sorted(
                 (v for v in sibling.iterdir() if v.is_dir()),
-                key=lambda p: p.name,
+                key=lambda p: _semver_key(p.name),
                 reverse=True,
             )
         except OSError:

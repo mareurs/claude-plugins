@@ -182,7 +182,9 @@ rm -rf "$SAMESID_WORK"
 RECON_WORK=$(mktemp -d)
 RECON_SID="recon-marker-sid"
 mkdir -p "$RECON_WORK/.buddy/$RECON_SID"
-touch "$RECON_WORK/.buddy/$RECON_SID/recon-loaded"
+# codescout detect convention: .codescout/project.toml signals onboarding.
+mkdir -p "$RECON_WORK/.codescout"
+echo "[project]" > "$RECON_WORK/.codescout/project.toml"
 cat > "$RECON_WORK/.buddy/$RECON_SID/state.json" <<EOF
 {"version":1,"current_session_id":"$RECON_SID","signals":{"context_pct":0,"last_edit_ts":0,"last_commit_ts":0,"session_start_ts":1700000000,"prompt_count":0,"tool_call_count":0,"last_test_result":null,"recent_errors":[],"idle_ts":0,"judge_verdict":null,"judge_severity":null,"judge_block_count":0,"judge_last_ts":0,"cs_judge_verdict":null,"cs_judge_severity":null,"cs_tool_call_count":0,"cs_active_project":null,"root_cwd":null},"derived_mood":"flow","suggested_specialist":null,"last_mood_transition_ts":0,"active_specialists":[],"parent_sid":""}
 EOF
@@ -204,11 +206,11 @@ RECON_EVENT='{"session_id":"'"$RECON_SID"'","cwd":"'"$RECON_WORK"'","source":"re
 RECON_OUT=$(echo "$RECON_EVENT" | CLAUDE_PLUGIN_ROOT="$FAKE_BUDDY_ROOT" HOME="$RECON_WORK/_fake_claude/.." bash "$HOOK" 2>/dev/null || true)
 
 echo "$RECON_OUT" | grep -q "reconnaissance" \
-  && pass "recon-loaded marker: reconnaissance included in reload" \
-  || fail "recon-loaded marker not honored — output: $(echo "$RECON_OUT" | head -c 400)"
+  && pass "codescout detected: reconnaissance included in reload" \
+  || fail "codescout detect not honored — output: $(echo "$RECON_OUT" | head -c 400)"
 
 echo "$RECON_OUT" | grep -q "Reconnaissance test stub" \
-  && pass "recon-loaded marker: SKILL.md body inlined via sister-scope" \
+  && pass "codescout detected: SKILL.md body inlined via sister-scope" \
   || fail "recon SKILL body not inlined — output: $(echo "$RECON_OUT" | head -c 400)"
 
 rm -rf "$RECON_WORK"

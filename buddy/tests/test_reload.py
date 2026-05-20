@@ -213,3 +213,38 @@ def test_find_skill_md_builtin_wins_over_sister(tmp_path):
         home=tmp_path / "home",
     )
     assert result == builtin
+
+
+
+def test_find_skill_md_sister_semver_sort_beats_lex(tmp_path):
+    """1.11.0 must beat 1.9.9 — lex sort would pick 1.9.9 incorrectly."""
+    from scripts.reload import find_skill_md
+    cache = tmp_path / ".claude" / "plugins" / "cache" / "sdd-misc-plugins"
+    buddy_root = cache / "buddy" / "0.7.8"
+    buddy_root.mkdir(parents=True)
+    old = cache / "codescout-companion" / "1.9.9" / "skills" / "reconnaissance" / "SKILL.md"
+    new = cache / "codescout-companion" / "1.11.0" / "skills" / "reconnaissance" / "SKILL.md"
+    for p, text in ((old, "old-1.9.9"), (new, "new-1.11.0")):
+        p.parent.mkdir(parents=True)
+        p.write_text(text)
+
+    result = find_skill_md(
+        "reconnaissance",
+        plugin_root=buddy_root,
+        project_root=tmp_path / "proj",
+        home=tmp_path / "home",
+    )
+    assert result == new
+    assert result.read_text() == "new-1.11.0"
+
+
+def test_semver_key_non_semver_sorts_lower(tmp_path):
+    """Non-numeric version names (e.g. 'dev', '0.7.8-rc1') must not crash and
+    sort BELOW real semvers — otherwise a stray 'tmp' dir could shadow real
+    releases."""
+    from scripts.reload import _semver_key
+    assert _semver_key("1.11.0") > _semver_key("1.9.9")
+    assert _semver_key("1.0.0") > _semver_key("0.99.99")
+    # non-semver sorts lower
+    assert _semver_key("dev") < _semver_key("0.0.1")
+    assert _semver_key("0.7.8-rc1") < _semver_key("0.7.8")
