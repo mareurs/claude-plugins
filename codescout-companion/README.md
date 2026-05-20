@@ -90,7 +90,7 @@ Create `.claude/codescout-companion.json` (or `codescout-routing.json`) in your 
 |---|---|---|
 | `SessionStart` | `session-start.sh` | Tool guide + memory hints + onboarding nudge |
 | `SubagentStart` | `subagent-guidance.sh` | Compact guidance for all subagents |
-| `PreToolUse` (Grep/Glob/Read/Bash) | `pre-tool-guard.sh` | Hard-block Read/Grep/Glob/sed-i on source files, redirect to codescout |
+| `PreToolUse` (Grep/Glob/Read/Bash) | `pre-tool-guard.sh` | Hard-block Read/Grep/Glob/sed-i on source files, redirect to codescout. Bash is scoped: a leading `cd <dir>` outside the active workspace allows the command through (see Troubleshooting → "Cross-repo git ops blocked"). |
 | `PostToolUse` (EnterWorktree) | `worktree-activate.sh` | Symlink .code-explorer/ and inject workspace guidance |
 
 ## Ollama Setup
@@ -208,6 +208,19 @@ If `codescout-companion@sdd-misc-plugins` is absent, reinstall:
 /plugin install codescout-companion@sdd-misc-plugins
 ```
 
+
+### Cross-repo git ops blocked
+
+By default, all `Bash` calls are routed to codescout's `run_command`. When you need to run a git op (or other shell) in a *sibling* repo from a session anchored to a different project, the Bash branch detects a leading `cd <dir>` and passes the call through if `<dir>` resolves outside the active project's `$CWD`. Supported shapes:
+
+- `cd /abs/path && <cmd>`
+- `cd "/quoted abs/path" && <cmd>`
+- `cd ~/expanded/path && <cmd>`
+- `cd ../relative/sibling && <cmd>`
+
+If a command starts elsewhere (`pushd`, `bash -c '...'`, no `cd` prefix), the standard block applies. In that case, switch the codescout workspace explicitly via `workspace(action="activate", path="/path/to/sibling")` — and restore the original workspace before the turn ends per Iron Law 4.
+
+Tracked in code-explorer/docs/issues/2026-05-20-cross-repo-git-ops-friction.md.
 ## Coupling to codescout
 
 This plugin is **intentionally tightly coupled** to codescout. It reads
@@ -216,6 +229,10 @@ schema. It should be updated whenever codescout adds features that affect
 exploration workflows.
 
 ## Changelog
+
+### 1.11.1
+
+- **Fix:** Bash branch of `pre-tool-guard.sh` now scopes the block to the active workspace, symmetric with Read/Grep/Glob/Edit/Write. Commands with a leading `cd <dir>` resolving outside `$CWD` pass through, enabling cross-repo git ops without a workspace switch. Test matrix added at `hooks/pre-tool-guard.test.sh` (9 cases).
 
 ### 1.5.3
 

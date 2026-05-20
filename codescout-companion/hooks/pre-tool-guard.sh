@@ -54,6 +54,29 @@ case "$TOOL_NAME" in
   Bash)
     CMD=$(echo "$INPUT" | jq -r '.tool_input.command // empty')
 
+    # Cross-repo escape: leading `cd <dir>` overrides the tool's $CWD.
+    # If the command cd's outside the announced $CWD subtree, treat it like
+    # a Read/Edit/Grep on an external path and exit 0 (allow native shell).
+    # See bug docs/issues/2026-05-20-cross-repo-git-ops-friction.md
+    # (code-explorer repo). is_in_workspace cannot be reused here because
+    # WORKSPACE_ROOT is empty when no workspace config is set, making the
+    # helper fail-closed — that's correct for source-file scoping but wrong
+    # for cross-repo cd. Use $CWD-prefix compare instead.
+    EFFECTIVE_CWD="$CWD"
+    if [[ "$CMD" =~ ^[[:space:]]*cd[[:space:]]+\"([^\"]+)\" ]] || \
+       [[ "$CMD" =~ ^[[:space:]]*cd[[:space:]]+\'([^\']+)\' ]] || \
+       [[ "$CMD" =~ ^[[:space:]]*cd[[:space:]]+([^[:space:]\;\&]+) ]]; then
+      EFFECTIVE_CWD="${BASH_REMATCH[1]}"
+      EFFECTIVE_CWD="${EFFECTIVE_CWD/#\~/$HOME}"
+      if [[ "$EFFECTIVE_CWD" != /* ]]; then
+        EFFECTIVE_CWD="${CWD}/${EFFECTIVE_CWD}"
+      fi
+      # Canonicalize so `..` and `.` segments don't string-prefix-match $CWD.
+      # `realpath -m` resolves without requiring the path to exist.
+      EFFECTIVE_CWD=$(realpath -m "$EFFECTIVE_CWD" 2>/dev/null || echo "$EFFECTIVE_CWD")
+    fi
+    [[ "$EFFECTIVE_CWD" != "${CWD}"* ]] && exit 0
+
     # Detect common patterns and give targeted suggestions
     BASH_HINT=""
     if echo "$CMD" | grep -qE '^(grep|rg) '; then
