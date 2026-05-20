@@ -159,19 +159,33 @@ def handle_session_start(
 
         state["signals"]["root_cwd"] = ""
 
-        # Carry-forward active_specialists from prev session on resume/compact.
-        # Cold startup keeps the new state empty even if BUDDY_PREV_SID is set.
+        # Carry-forward active_specialists on resume/compact.
+        # Cross-SID: copy from prev session's state.
+        # Same-SID (CC reuses session_id on resume): use the active_specialists
+        # already present in the current state file (preserved across reset
+        # because it's not in _SESSION_SCOPED_FIELDS).
+        # Also auto-include "reconnaissance" when the recon-loaded marker is
+        # present in the session dir — so the recon SKILL.md is re-injected
+        # at resume just like a summoned specialist.
         carried_specialists: list[str] = []
         prev_sid = os.environ.get("BUDDY_PREV_SID", "").strip()
-        if source in ("resume", "compact") and prev_sid and prev_sid != incoming_sid:
+        if source in ("resume", "compact"):
             project_root = Path(event.get("cwd") or "")
-            prev_state_path = project_root / ".buddy" / prev_sid / "state.json"
-            if prev_state_path.is_file():
-                prev_state = load_state(prev_state_path)
-                carried_specialists = list(prev_state.get("active_specialists", []) or [])
-                if carried_specialists:
-                    state["active_specialists"] = carried_specialists
-                state["parent_sid"] = prev_sid
+            if prev_sid and prev_sid != incoming_sid:
+                prev_state_path = project_root / ".buddy" / prev_sid / "state.json"
+                if prev_state_path.is_file():
+                    prev_state = load_state(prev_state_path)
+                    carried_specialists = list(prev_state.get("active_specialists", []) or [])
+                    if carried_specialists:
+                        state["active_specialists"] = carried_specialists
+                    state["parent_sid"] = prev_sid
+            else:
+                carried_specialists = list(state.get("active_specialists", []) or [])
+
+            session_dir = project_root / ".buddy" / incoming_sid
+            if (session_dir / "recon-loaded").is_file():
+                if "reconnaissance" not in carried_specialists:
+                    carried_specialists.append("reconnaissance")
 
         save_state(path, state)
 

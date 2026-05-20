@@ -12,6 +12,53 @@ from __future__ import annotations
 from pathlib import Path
 
 
+def _sister_plugin_candidates(directory: str, plugin_root: Path) -> list[Path]:
+    """Sister-plugin SKILL.md candidates derived from the plugin cache layout.
+
+    When plugin_root looks like `<claude-dir>/plugins/cache/<marketplace>/buddy/<ver>`,
+    its grandparent (`<claude-dir>/plugins/cache/<marketplace>`) holds sibling
+    plugins (codescout-companion, etc.). For each sibling, return the highest
+    cached version's `skills/<directory>/SKILL.md`. Returns [] when plugin_root
+    does not match the cache pattern (e.g. dev mode where plugin_root points
+    at the repo itself).
+    """
+    try:
+        marketplace_root = plugin_root.parent.parent
+        if not marketplace_root.is_dir():
+            return []
+        if "cache" not in marketplace_root.parts:
+            return []
+    except (OSError, IndexError):
+        return []
+
+    out: list[Path] = []
+    self_plugin_name = plugin_root.parent.name
+    try:
+        siblings = list(marketplace_root.iterdir())
+    except OSError:
+        return []
+    for sibling in siblings:
+        if not sibling.is_dir():
+            continue
+        if sibling.name == self_plugin_name:
+            continue
+        try:
+            versions = sorted(
+                (v for v in sibling.iterdir() if v.is_dir()),
+                key=lambda p: p.name,
+                reverse=True,
+            )
+        except OSError:
+            continue
+        for v in versions:
+            cand = v / "skills" / directory / "SKILL.md"
+            if cand.is_file():
+                out.append(cand)
+                break
+    return out
+
+
+
 def find_skill_md(
     directory: str,
     *,
@@ -19,12 +66,20 @@ def find_skill_md(
     project_root: Path,
     home: Path,
 ) -> Path | None:
-    """Locate SKILL.md for a specialist directory across 3 scopes.
+    """Locate SKILL.md for a specialist directory across 4 scopes.
 
     Precedence (highest first):
       1. project: <project_root>/.claude/buddy/skills/<directory>/SKILL.md
       2. global:  <home>/.claude/buddy/skills/<directory>/SKILL.md
       3. builtin: <plugin_root>/skills/<directory>/SKILL.md
+      4. sister:  <claude-dir>/plugins/cache/<marketplace>/<other-plugin>/<ver>/skills/<directory>/SKILL.md
+
+    Sister scope is derived from plugin_root's grandparent. When plugin_root
+    is `<claude-dir>/plugins/cache/<marketplace>/buddy/<ver>`, that grandparent
+    is `<claude-dir>/plugins/cache/<marketplace>` and we iterate sibling
+    plugins (codescout-companion, etc.) picking the newest cached version
+    that ships `skills/<directory>/SKILL.md`. Returns None on dev installs
+    where plugin_root does not match the cache layout.
     """
     candidates = [
         project_root / ".claude" / "buddy" / "skills" / directory / "SKILL.md",
@@ -37,6 +92,8 @@ def find_skill_md(
                 return c
         except OSError:
             continue
+    for c in _sister_plugin_candidates(directory, plugin_root):
+        return c
     return None
 
 

@@ -154,3 +154,61 @@ if echo "$STARTUP_OUT" | grep -q "buddy:reloaded"; then
 else
   pass "startup does not emit reload block"
 fi
+
+
+# ── Same-SID resume: CC reuses session_id on resume; reload must still fire ──
+SAMESID_WORK=$(mktemp -d)
+SAMESID="same-sid-resume"
+mkdir -p "$SAMESID_WORK/.buddy/$SAMESID"
+cat > "$SAMESID_WORK/.buddy/$SAMESID/state.json" <<EOF
+{"version":1,"current_session_id":"$SAMESID","signals":{"context_pct":0,"last_edit_ts":0,"last_commit_ts":0,"session_start_ts":1700000000,"prompt_count":0,"tool_call_count":0,"last_test_result":null,"recent_errors":[],"idle_ts":0,"judge_verdict":null,"judge_severity":null,"judge_block_count":0,"judge_last_ts":0,"cs_judge_verdict":null,"cs_judge_severity":null,"cs_tool_call_count":0,"cs_active_project":null,"root_cwd":null},"derived_mood":"flow","suggested_specialist":null,"last_mood_transition_ts":0,"active_specialists":["debugging-yeti"],"parent_sid":""}
+EOF
+echo "$SAMESID" > "$SAMESID_WORK/.buddy/.current_session_id"
+
+SAMESID_EVENT='{"session_id":"'"$SAMESID"'","cwd":"'"$SAMESID_WORK"'","source":"resume","timestamp":1700004000}'
+SAMESID_OUT=$(echo "$SAMESID_EVENT" | CLAUDE_PLUGIN_ROOT="$PLUGIN_ROOT" bash "$HOOK" 2>/dev/null || true)
+
+echo "$SAMESID_OUT" | grep -q "buddy:reloaded" \
+  && pass "same-SID resume: reload block emitted" \
+  || fail "same-SID resume: reload missing — output: $SAMESID_OUT"
+
+echo "$SAMESID_OUT" | grep -q "debugging-yeti" \
+  && pass "same-SID resume: specialist included" \
+  || fail "same-SID resume: specialist missing — output: $SAMESID_OUT"
+
+rm -rf "$SAMESID_WORK"
+
+# ── Recon marker auto-includes reconnaissance in reload list ──
+RECON_WORK=$(mktemp -d)
+RECON_SID="recon-marker-sid"
+mkdir -p "$RECON_WORK/.buddy/$RECON_SID"
+touch "$RECON_WORK/.buddy/$RECON_SID/recon-loaded"
+cat > "$RECON_WORK/.buddy/$RECON_SID/state.json" <<EOF
+{"version":1,"current_session_id":"$RECON_SID","signals":{"context_pct":0,"last_edit_ts":0,"last_commit_ts":0,"session_start_ts":1700000000,"prompt_count":0,"tool_call_count":0,"last_test_result":null,"recent_errors":[],"idle_ts":0,"judge_verdict":null,"judge_severity":null,"judge_block_count":0,"judge_last_ts":0,"cs_judge_verdict":null,"cs_judge_severity":null,"cs_tool_call_count":0,"cs_active_project":null,"root_cwd":null},"derived_mood":"flow","suggested_specialist":null,"last_mood_transition_ts":0,"active_specialists":[],"parent_sid":""}
+EOF
+echo "$RECON_SID" > "$RECON_WORK/.buddy/.current_session_id"
+
+# Stage a sibling-plugin recon SKILL.md so the reload block can find it.
+# Mirror real cache layout: <fake-claude>/plugins/cache/sdd-misc-plugins/{buddy,codescout-companion}/<ver>
+FAKE_CACHE="$RECON_WORK/_fake_claude/plugins/cache/sdd-misc-plugins"
+FAKE_BUDDY_ROOT="$FAKE_CACHE/buddy/0.7.7"
+FAKE_RECON_SKILL="$FAKE_CACHE/codescout-companion/1.11.0/skills/reconnaissance/SKILL.md"
+mkdir -p "$FAKE_BUDDY_ROOT" "$(dirname "$FAKE_RECON_SKILL")"
+echo "# Reconnaissance test stub" > "$FAKE_RECON_SKILL"
+# Mirror plugin tree under fake buddy root so PLUGIN_ROOT-based hook sources resolve
+ln -s "$PLUGIN_ROOT/scripts" "$FAKE_BUDDY_ROOT/scripts" 2>/dev/null || cp -r "$PLUGIN_ROOT/scripts" "$FAKE_BUDDY_ROOT/scripts"
+ln -s "$PLUGIN_ROOT/hooks" "$FAKE_BUDDY_ROOT/hooks" 2>/dev/null || cp -r "$PLUGIN_ROOT/hooks" "$FAKE_BUDDY_ROOT/hooks"
+ln -s "$PLUGIN_ROOT/skills" "$FAKE_BUDDY_ROOT/skills" 2>/dev/null || cp -r "$PLUGIN_ROOT/skills" "$FAKE_BUDDY_ROOT/skills"
+
+RECON_EVENT='{"session_id":"'"$RECON_SID"'","cwd":"'"$RECON_WORK"'","source":"resume","timestamp":1700004000}'
+RECON_OUT=$(echo "$RECON_EVENT" | CLAUDE_PLUGIN_ROOT="$FAKE_BUDDY_ROOT" HOME="$RECON_WORK/_fake_claude/.." bash "$HOOK" 2>/dev/null || true)
+
+echo "$RECON_OUT" | grep -q "reconnaissance" \
+  && pass "recon-loaded marker: reconnaissance included in reload" \
+  || fail "recon-loaded marker not honored — output: $(echo "$RECON_OUT" | head -c 400)"
+
+echo "$RECON_OUT" | grep -q "Reconnaissance test stub" \
+  && pass "recon-loaded marker: SKILL.md body inlined via sister-scope" \
+  || fail "recon SKILL body not inlined — output: $(echo "$RECON_OUT" | head -c 400)"
+
+rm -rf "$RECON_WORK"

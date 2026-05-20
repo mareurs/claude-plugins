@@ -131,3 +131,85 @@ def test_render_reload_block_empty_specialists_returns_empty(tmp_path):
         plugin_root=tmp_path, project_root=tmp_path, home=tmp_path,
     )
     assert block == ""
+
+
+
+def test_find_skill_md_sister_plugin_scope(tmp_path):
+    """Sister-plugin scope: when plugin_root is in cache layout, find SKILL.md
+    in sibling plugin's newest cached version."""
+    from scripts.reload import find_skill_md
+    # Simulate cache layout: <home>/.claude/plugins/cache/<marketplace>/buddy/<ver>
+    cache = tmp_path / ".claude" / "plugins" / "cache" / "sdd-misc-plugins"
+    buddy_root = cache / "buddy" / "0.7.7"
+    buddy_root.mkdir(parents=True)
+    # Sibling plugin with the target skill
+    sibling_skill = cache / "codescout-companion" / "1.11.0" / "skills" / "reconnaissance" / "SKILL.md"
+    sibling_skill.parent.mkdir(parents=True)
+    sibling_skill.write_text("# Reconnaissance\nScout the seam.")
+
+    result = find_skill_md(
+        "reconnaissance",
+        plugin_root=buddy_root,
+        project_root=tmp_path / "proj",
+        home=tmp_path / "home",
+    )
+    assert result == sibling_skill
+
+
+def test_find_skill_md_sister_plugin_newest_version_wins(tmp_path):
+    """When multiple cached versions of a sibling plugin exist, the newest
+    (sort-descending by directory name) is picked."""
+    from scripts.reload import find_skill_md
+    cache = tmp_path / ".claude" / "plugins" / "cache" / "sdd-misc-plugins"
+    buddy_root = cache / "buddy" / "0.7.7"
+    buddy_root.mkdir(parents=True)
+    old = cache / "codescout-companion" / "1.10.0" / "skills" / "reconnaissance" / "SKILL.md"
+    new = cache / "codescout-companion" / "1.11.0" / "skills" / "reconnaissance" / "SKILL.md"
+    for p, text in ((old, "old"), (new, "new")):
+        p.parent.mkdir(parents=True)
+        p.write_text(text)
+
+    result = find_skill_md(
+        "reconnaissance",
+        plugin_root=buddy_root,
+        project_root=tmp_path / "proj",
+        home=tmp_path / "home",
+    )
+    assert result == new
+
+
+def test_find_skill_md_sister_plugin_skipped_in_dev_layout(tmp_path):
+    """Dev mode: plugin_root does not match cache layout — sister scope returns
+    []. Falls through to None."""
+    from scripts.reload import find_skill_md
+    # Not under a 'cache' segment
+    dev_root = tmp_path / "repo" / "buddy"
+    dev_root.mkdir(parents=True)
+    result = find_skill_md(
+        "reconnaissance",
+        plugin_root=dev_root,
+        project_root=tmp_path / "proj",
+        home=tmp_path / "home",
+    )
+    assert result is None
+
+
+def test_find_skill_md_builtin_wins_over_sister(tmp_path):
+    """Builtin scope (plugin_root/skills) wins over sister-plugin scope."""
+    from scripts.reload import find_skill_md
+    cache = tmp_path / ".claude" / "plugins" / "cache" / "sdd-misc-plugins"
+    buddy_root = cache / "buddy" / "0.7.7"
+    builtin = buddy_root / "skills" / "shared-skill" / "SKILL.md"
+    builtin.parent.mkdir(parents=True)
+    builtin.write_text("builtin")
+    sister = cache / "other" / "1.0.0" / "skills" / "shared-skill" / "SKILL.md"
+    sister.parent.mkdir(parents=True)
+    sister.write_text("sister")
+
+    result = find_skill_md(
+        "shared-skill",
+        plugin_root=buddy_root,
+        project_root=tmp_path / "proj",
+        home=tmp_path / "home",
+    )
+    assert result == builtin
