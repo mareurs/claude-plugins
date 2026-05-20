@@ -86,8 +86,10 @@ W-1 (pre-spec recon caught all three).
    `SENTINEL_2500_FF` not visible).
 2. **Tool-call results respect `MAX_MCP_OUTPUT_TOKENS` (~25 K tokens ≈ 100 KB)**
    and use codescout's `@tool_*` buffer for progressive disclosure when over.
-   This is the only autonomous channel with >2 KB capacity, and the `Skill` tool
-   uses it.
+   This is the only autonomous channel with >2 KB capacity. The built-in `Skill`
+   tool empirically behaves the same way: model-autonomous `Skill('...:reconnaissance')`
+   returned a full 12,886-byte body with no truncation marker (W-2 in the
+   session log; exact cap ≥12 KB, not sentinel-probed further).
 3. **Hook output format is fixed** by CC: `{"hookSpecificOutput":
    {"additionalContext":"..."}}`. JSON construction via `jq -n --arg ctx ...`
    handles escaping.
@@ -455,8 +457,11 @@ message.
 
 - **Skill content vs additionalContext cap.** Skill tool result channel respects
   `MAX_MCP_OUTPUT_TOKENS` (~100 KB) and uses progressive disclosure. Not affected
-  by the 2 KB cap. Confirmed by user — Skill tool calls in this session have
-  loaded full SKILL.md content (>12 KB) successfully.
+  by the 2 KB cap. **Empirically validated** by model-autonomous invocation of
+  `Skill('codescout-companion:reconnaissance')` post-commit: full 12,886-byte
+  SKILL.md body returned, all headings intact, no `… [truncated]` marker.
+  Captured as W-2 in `docs/trackers/injection-budget-session-log.md`. Exact cap
+  ≥12 KB; not sentinel-probed beyond that yet.
 - **Read/edit routing.** Native `Read`/`Edit`/`Write` on source files are denied
   by existing `pre-tool-guard.sh`. The active edit channel is
   `mcp__codescout__edit_code` (and `replace_symbol`, `edit_file`, `edit_markdown`).

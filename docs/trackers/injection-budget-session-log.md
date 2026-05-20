@@ -35,6 +35,7 @@
 | ID | Date | Impact | Pattern | Counterfactual | Status |
 |----|------|-------:|---------|----------------|--------|
 | W-1 | 2026-05-19 | med | Pre-spec recon on file paths / matchers / hook conventions | Spec would ship naming `*.test.sh`, `hooks/lib/`, `Edit/Write` matchers — three subagent retries during implementation | validated |
+| W-2 | 2026-05-19 | high | Empirical probe of unmeasured channel cap before committing to design | Spec's load-bearing claim ("Skill tool, no 2 KB cap") was cargo-culted from MCP tool-result rules. If false, the entire pointer-not-content architecture collapses. Probe took one tool call; would have cost a full implementation PR + dogfood week to discover post-ship. | validated |
 ## Category conventions
 
 Use a short kebab-case category to group similar frictions. Prior
@@ -220,6 +221,36 @@ Codified so the Index column means the same thing across sessions.
 **Promote-when:** A second multi-file design where pre-spec recon on conventions catches ≥2 drift sources. At 2 datapoints, promote to a permanent rule in `superpowers/skills/writing-plans/SKILL.md` or `CLAUDE.md`: *"Before writing a spec that names hooks, test files, or matcher regexes, scout the existing repo conventions for each."*
 
 **Status:** validated — single multi-finding datapoint. Awaiting promotion criterion.
+
+---
+
+## W-2 — Empirical probe validated Skill tool channel capacity ≥12 KB
+
+**Observed:** 2026-05-19, immediately after the spec was committed (`4a505be`). User questioned whether the spec's claim "Skill tool loads SKILL.md, no 2 KB cap" was actually validated.
+
+**Pattern:** When a design's load-bearing claim about a channel/tool's capacity is unmeasured, probe before committing to the architecture. The cheapest probe — one tool call invoking the channel with content of known size — preempts a full implementation PR built on a wrong premise.
+
+**Counterfactual:** The spec's pointer-not-content architecture rests entirely on the Skill tool returning >2 KB without truncation. The claim was cargo-culted from MCP tool-result rules (~100 KB / `MAX_MCP_OUTPUT_TOKENS`), but the Skill tool is built into Claude Code, not an MCP tool — the assumption was unverified. If the Skill tool channel were also capped at ~2 KB:
+- Pointer "call Skill('...:reconnaissance')" would deliver truncated content
+- Model would still lack method / F-N format / exemplars
+- Entire architecture collapses
+- Discovered only after implementation PR + dogfood week (≥4 hours sunk cost)
+
+**Confirming data points:**
+1. Probe invocation: `Skill('codescout-companion:reconnaissance')` from this session, model-autonomous (not user slash-command).
+2. SKILL.md source: 12,886 bytes on disk.
+3. Result observed: full body returned, all headings present (Voice through Skill maintenance), tail line preserved ("Version history is tracked via git..."), no `… [truncated]` marker (the literal cut signature documented in `mcp-channel-caps.md` ADR).
+4. Negative space: prior MCP-channel probes (`SENTINEL_NNNN_XX`) cut at byte ~2000 with the truncation marker. Skill tool result shows neither cut nor marker through byte 12,886.
+
+**Impact:** high — validated the design's foundational claim before the implementation PR. Probe took one tool call and one assistant turn.
+
+**Promote-when:** A second "design with an unmeasured load-bearing channel claim" benefits from a pre-commit probe. At 2 datapoints, promote to `writing-plans` skill or CLAUDE.md as: *"Before committing a spec whose architecture depends on a tool/channel capacity, run the cheapest possible probe to verify the capacity claim is true under realistic content."*
+
+**Status:** validated — single datapoint. Awaiting promotion criterion.
+
+**Caveats on the probe itself:**
+- Measures ≥12 KB. Exact cap unmeasured. Likely matches MCP tool-result `MAX_MCP_OUTPUT_TOKENS` (~25 K tokens / 100 KB) but no sentinel-probe equivalent has been run for the Skill tool. If future skills approach that range, run a full sentinel probe.
+- Probe ran in one CC instance (`~/.claude-kat`). Other instances assumed equivalent — CC build is the same, but worth re-probing if behavior diverges across instances.
 
 ---
 
