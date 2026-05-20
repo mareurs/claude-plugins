@@ -170,7 +170,11 @@ def handle_session_start(
         carried_specialists: list[str] = []
         prev_sid = os.environ.get("BUDDY_PREV_SID", "").strip()
         if source in ("resume", "compact"):
-            project_root = Path(event.get("cwd") or "")
+            # event.cwd may be missing on some CC builds; fall back to the
+            # process cwd (bash hook inherits it from CC's launch dir). Without
+            # this, project_root collapses to Path("") and the .codescout
+            # detect below resolves relative to whatever cwd python landed in.
+            project_root = Path(event.get("cwd") or os.getcwd())
             if prev_sid and prev_sid != incoming_sid:
                 prev_state_path = project_root / ".buddy" / prev_sid / "state.json"
                 if prev_state_path.is_file():
