@@ -70,11 +70,18 @@ if [ "$HAS_CS_MEMORIES" = "true" ]; then
 "
 fi
 
-# --- System prompt injection ---
-if [ "$HAS_CS_SYSTEM_PROMPT" = "true" ]; then
-  MSG="${MSG}${CS_SYSTEM_PROMPT}
+# --- Skill pointers (replaces verbatim content injection — see
+# docs/superpowers/specs/2026-05-19-injection-budget-design.md) ---
+MSG="${MSG}SKILLS AVAILABLE:
+- Reconnaissance — Skill('codescout-companion:reconnaissance'). Recommended before subagent dispatch or shape-changing edits.
+- System prompt for this project — read_memory('system-prompt').
 
 "
+
+# Statusline marker (kept from prior recon-primer block — feeds buddy [recon] badge).
+if [ -n "$SESSION_ID" ] && [ -n "$CWD" ]; then
+  mkdir -p "$CWD/.buddy/$SESSION_ID" 2>/dev/null
+  touch "$CWD/.buddy/$SESSION_ID/recon-loaded" 2>/dev/null
 fi
 
 # --- Auto-reindex config ---
@@ -170,30 +177,6 @@ Tools load automatically — no ToolSearch or setup step needed.
 If tools are unavailable, the MCP server failed to connect (check \`claude mcp list\`).
 
 "
-
-# --- Reconnaissance skill primer ---
-# Inject the full SKILL.md verbatim on every session start (including
-# resume/compact) so its instructions are inline in context — no Skill-tool
-# call required to load. Marker file feeds the buddy [recon] statusline badge.
-PLUGIN_ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
-RECON_SKILL="$PLUGIN_ROOT_DIR/skills/reconnaissance/SKILL.md"
-if [ -f "$RECON_SKILL" ]; then
-  RECON_BODY=$(cat "$RECON_SKILL")
-  MSG="${MSG}<!-- codescout-companion:reconnaissance loaded at SessionStart -->
-RECONNAISSANCE SKILL — pre-loaded for this session (no Skill-tool call needed):
-
-${RECON_BODY}
-
-"
-  # Session-scoped marker: tells buddy statusline that recon is in scope.
-  # Distinct from .recon-active (LLM touches during a scout) — this one
-  # is always present once the primer fires, no freshness check.
-  if [ -n "$SESSION_ID" ] && [ -n "$CWD" ]; then
-    BUDDY_SESSION_DIR="$CWD/.buddy/$SESSION_ID"
-    mkdir -p "$BUDDY_SESSION_DIR" 2>/dev/null
-    touch "$BUDDY_SESSION_DIR/recon-loaded" 2>/dev/null
-  fi
-fi
 
 
 # --- Post-compact LSP flush ---
