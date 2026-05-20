@@ -212,10 +212,31 @@ def handle_session_start(
             cs_dir = Path(event.get("cwd") or os.getcwd()) / ".codescout"
             if not cs_dir.is_dir():
                 cs_dir = Path(event.get("cwd") or os.getcwd()) / ".code-explorer"
+            plugin_root_env_dbg = os.environ.get("CLAUDE_PLUGIN_ROOT") or ""
+            plugin_root_dbg = (
+                Path(plugin_root_env_dbg)
+                if plugin_root_env_dbg
+                else Path(__file__).resolve().parent.parent
+            )
+            recon_skill_dbg = "-"
+            try:
+                from scripts.reload import find_skill_md as _fsm
+                hit = _fsm(
+                    "reconnaissance",
+                    plugin_root=plugin_root_dbg,
+                    project_root=Path(event.get("cwd") or os.getcwd()),
+                    home=Path.home(),
+                )
+                recon_skill_dbg = str(hit) if hit else "NONE"
+            except Exception as e:
+                recon_skill_dbg = f"ERR:{type(e).__name__}"
             trace_line = (
                 f"{ts}\tsource={source}\tsid={incoming_sid}"
                 f"\tprev={prev_sid or '-'}\tevent_cwd={event.get('cwd') or '-'}"
                 f"\tcs_dir={cs_dir}\tcs_toml={(cs_dir / 'project.toml').is_file()}"
+                f"\tplugin_root_env={'Y' if plugin_root_env_dbg else 'N'}"
+                f"\tplugin_root={plugin_root_dbg}"
+                f"\trecon_skill={recon_skill_dbg}"
                 f"\tcarried={','.join(carried_specialists) or '-'}\n"
             )
             if trace_path.is_file():
@@ -234,8 +255,17 @@ def handle_session_start(
             try:
                 import sys as _sys
                 from scripts.reload import render_reload_block
-                plugin_root = Path(os.environ.get("CLAUDE_PLUGIN_ROOT") or "")
-                project_root = Path(event.get("cwd") or "")
+                # CLAUDE_PLUGIN_ROOT may not be set in CC's SessionStart env.
+                # Self-locate: hook_helpers.py lives at <plugin_root>/scripts/.
+                # Without this, sister-plugin SKILL.md lookup silently fails
+                # because Path("").parent.parent does not resolve to a cache dir.
+                plugin_root_env = os.environ.get("CLAUDE_PLUGIN_ROOT") or ""
+                plugin_root = (
+                    Path(plugin_root_env)
+                    if plugin_root_env
+                    else Path(__file__).resolve().parent.parent
+                )
+                project_root = Path(event.get("cwd") or os.getcwd())
                 block = render_reload_block(
                     carried_specialists,
                     new_sid=incoming_sid,
