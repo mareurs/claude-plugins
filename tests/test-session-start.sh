@@ -33,16 +33,19 @@ else
   fail "memories: hint shown" "$(echo "$OUT" | jq -r '.hookSpecificOutput.additionalContext' 2>/dev/null | head -3)"
 fi
 
-# --- Test 4: has system-prompt.md → content injected ---
+# --- Test 4: has system-prompt.md → pointer emitted (not content) ---
+# Verbatim system-prompt body no longer injected (injection-budget redesign).
+# The SKILLS AVAILABLE pointer block always emits regardless of file presence;
+# size + content contract covered by test-session-start-payload.sh.
 make_git_repo "$T/t4"
 write_mcp_json "$T/t4"
 make_ce_dir "$T/t4"
 make_system_prompt "$T/t4"
 OUT=$(printf '{"cwd":"%s"}' "$T/t4" | bash "$HOOK" 2>/dev/null)
-if assert_context_contains "$OUT" "SYSTEM PROMPT CONTENT"; then
-  pass "system-prompt: injected"
+if assert_context_contains "$OUT" "read_memory('system-prompt')"; then
+  pass "system-prompt: pointer emitted"
 else
-  fail "system-prompt: injected" "$OUT"
+  fail "system-prompt: pointer emitted" "$OUT"
 fi
 
 # --- Test 5: index stale → INDEX: Refreshing message ---
@@ -150,21 +153,17 @@ else
     "$(ls -la "$T/t11wt/.codescout/embeddings" 2>/dev/null)"
 fi
 
-# --- Test 12: reconnaissance primer always emitted when CE configured ---
+# --- Test 12: reconnaissance pointer always emitted when CE configured ---
+# Verbatim SKILL.md body no longer injected (injection-budget redesign).
+# Full body now loads via Skill('codescout-companion:reconnaissance') on demand.
 make_git_repo "$T/t12"
 write_mcp_json "$T/t12"
 make_ce_dir "$T/t12"
 OUT=$(printf '{"cwd":"%s"}' "$T/t12" | bash "$HOOK" 2>/dev/null)
-if assert_context_contains "$OUT" "RECONNAISSANCE SKILL"; then
-  pass "reconnaissance: primer emitted"
+if assert_context_contains "$OUT" "codescout-companion:reconnaissance"; then
+  pass "reconnaissance: pointer emitted"
 else
-  fail "reconnaissance: primer emitted" "$(echo "$OUT" | jq -r '.hookSpecificOutput.additionalContext' 2>/dev/null | head -10)"
-fi
-# SKILL.md body markers — confirm full content is inlined, not just the header
-if assert_context_contains "$OUT" "Phase 1 — Scout" && assert_context_contains "$OUT" "Phase 3 — Externalize"; then
-  pass "reconnaissance: full SKILL.md body inlined"
-else
-  fail "reconnaissance: full SKILL.md body inlined" "$(echo "$OUT" | jq -r '.hookSpecificOutput.additionalContext' 2>/dev/null | grep -c 'Phase')"
+  fail "reconnaissance: pointer emitted" "$(echo "$OUT" | jq -r '.hookSpecificOutput.additionalContext' 2>/dev/null | head -10)"
 fi
 
 # --- Test 13: reconnaissance recon-loaded marker is dropped at SessionStart ---
