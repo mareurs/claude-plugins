@@ -202,6 +202,31 @@ def handle_session_start(
 
         save_state(path, state)
 
+        # Diagnostic trace (one line per SessionStart). Helps debug reload
+        # failures where the reload block omits expected specialists.
+        # Truncate file when it grows past 200 lines so it stays small.
+        try:
+            trace_root = Path(event.get("cwd") or os.getcwd()) / ".buddy"
+            trace_root.mkdir(parents=True, exist_ok=True)
+            trace_path = trace_root / ".session-start-trace.log"
+            cs_dir = Path(event.get("cwd") or os.getcwd()) / ".codescout"
+            if not cs_dir.is_dir():
+                cs_dir = Path(event.get("cwd") or os.getcwd()) / ".code-explorer"
+            trace_line = (
+                f"{ts}\tsource={source}\tsid={incoming_sid}"
+                f"\tprev={prev_sid or '-'}\tevent_cwd={event.get('cwd') or '-'}"
+                f"\tcs_dir={cs_dir}\tcs_toml={(cs_dir / 'project.toml').is_file()}"
+                f"\tcarried={','.join(carried_specialists) or '-'}\n"
+            )
+            if trace_path.is_file():
+                lines = trace_path.read_text().splitlines()
+                if len(lines) > 200:
+                    trace_path.write_text("\n".join(lines[-150:]) + "\n")
+            with trace_path.open("a") as f:
+                f.write(trace_line)
+        except Exception:
+            pass
+
         # Emit reload context block to stdout so Claude Code appends it to
         # the new session's context. The block instructs Claude to announce
         # each specialist's arrival on the first user-facing line.
