@@ -39,10 +39,11 @@ else
   fail "Grep type=ts: deny" "$OUT"
 fi
 
-# Test 4: Grep on .md glob → allow
+# Test 4: Grep on .md glob → deny (Grep always routed)
+GREP_DEDUP_KEY=$(printf '%s\t%s' "Grep" "$T/proj" | md5sum | cut -c1-8)
+rm -f "/tmp/cs-block-$GREP_DEDUP_KEY"
 OUT=$(guard_input "Grep" '"pattern":"foo","glob":"**/*.md"' | bash "$HOOK" 2>/dev/null)
-EC=$?
-if [ $EC -eq 0 ] && ! assert_denied "$OUT"; then pass "Grep .md: allow"; else fail "Grep .md: allow" "$OUT"; fi
+if assert_denied "$OUT"; then pass "Grep .md: deny"; else fail "Grep .md: deny" "$OUT"; fi
 
 # Test 5: Glob on *.ts → deny
 GLOB_DEDUP_KEY=$(printf '%s\t%s' "Glob" "$T/proj" | md5sum | cut -c1-8)
@@ -50,10 +51,11 @@ rm -f "/tmp/cs-block-$GLOB_DEDUP_KEY"
 OUT=$(guard_input "Glob" '"pattern":"'"$T/proj/**/*.ts"'"' | bash "$HOOK" 2>/dev/null)
 if assert_denied "$OUT"; then pass "Glob *.ts: deny"; else fail "Glob *.ts: deny" "$OUT"; fi
 
-# Test 6: Glob on *.md → allow
+# Test 6: Glob on *.md → deny (Glob always routed)
+GLOB_DEDUP_KEY=$(printf '%s\t%s' "Glob" "$T/proj" | md5sum | cut -c1-8)
+rm -f "/tmp/cs-block-$GLOB_DEDUP_KEY"
 OUT=$(guard_input "Glob" '"pattern":"'"$T/proj/**/*.md"'"' | bash "$HOOK" 2>/dev/null)
-EC=$?
-if [ $EC -eq 0 ] && ! assert_denied "$OUT"; then pass "Glob *.md: allow"; else fail "Glob *.md: allow" "$OUT"; fi
+if assert_denied "$OUT"; then pass "Glob *.md: deny"; else fail "Glob *.md: deny" "$OUT"; fi
 
 # Test 7: Read on .ts file → deny with symbols
 READ_DEDUP_KEY=$(printf '%s\t%s' "Read" "$T/proj" | md5sum | cut -c1-8)
@@ -76,20 +78,35 @@ else
   fail "Read .md in project: deny with heading navigation" "$OUT"
 fi
 
-# Test 8b: Read on .md outside project → allow
+# Test 8b: Read on .md outside project → deny (path-agnostic)
+READ_DEDUP_KEY=$(printf '%s\t%s' "Read" "$T/proj" | md5sum | cut -c1-8)
+rm -f "/tmp/cs-block-$READ_DEDUP_KEY"
 OUT=$(guard_input "Read" '"file_path":"/tmp/some-skill/SKILL.md"' | bash "$HOOK" 2>/dev/null)
-EC=$?
-if [ $EC -eq 0 ] && ! assert_denied "$OUT"; then pass "Read .md outside project: allow"; else fail "Read .md outside project: allow" "$OUT"; fi
+if assert_denied "$OUT" && echo "$OUT" | grep -q "read_markdown"; then
+  pass "Read .md outside project: deny with read_markdown guidance"
+else
+  fail "Read .md outside project: deny with read_markdown guidance" "$OUT"
+fi
 
-# Test 8c: Read on skill SKILL.md inside project → allow
+# Test 8c: Read on skill SKILL.md inside project → deny (no skill exemption)
+READ_DEDUP_KEY=$(printf '%s\t%s' "Read" "$T/proj" | md5sum | cut -c1-8)
+rm -f "/tmp/cs-block-$READ_DEDUP_KEY"
 OUT=$(guard_input "Read" '"file_path":"'"$T/proj/skills/my-skill/SKILL.md"'"' | bash "$HOOK" 2>/dev/null)
-EC=$?
-if [ $EC -eq 0 ] && ! assert_denied "$OUT"; then pass "Read SKILL.md in project: allow"; else fail "Read SKILL.md in project: allow" "$OUT"; fi
+if assert_denied "$OUT" && echo "$OUT" | grep -q "read_markdown"; then
+  pass "Read SKILL.md in project: deny (no skill exemption)"
+else
+  fail "Read SKILL.md in project: deny (no skill exemption)" "$OUT"
+fi
 
-# Test 8d: Read on .md in skills/ subdir inside project → allow
+# Test 8d: Read on .md in skills/ subdir inside project → deny (no skills/ exemption)
+READ_DEDUP_KEY=$(printf '%s\t%s' "Read" "$T/proj" | md5sum | cut -c1-8)
+rm -f "/tmp/cs-block-$READ_DEDUP_KEY"
 OUT=$(guard_input "Read" '"file_path":"'"$T/proj/myplugin/skills/foo/guide.md"'"' | bash "$HOOK" 2>/dev/null)
-EC=$?
-if [ $EC -eq 0 ] && ! assert_denied "$OUT"; then pass "Read .md in skills/ dir: allow"; else fail "Read .md in skills/ dir: allow" "$OUT"; fi
+if assert_denied "$OUT" && echo "$OUT" | grep -q "read_markdown"; then
+  pass "Read .md in skills/ dir: deny (no skills/ exemption)"
+else
+  fail "Read .md in skills/ dir: deny (no skills/ exemption)" "$OUT"
+fi
 
 # Test 9: block_reads=false → allow source file
 # Note: jq's // empty operator treats boolean false as absent; hook reads
@@ -101,11 +118,16 @@ EC=$?
 if [ $EC -eq 0 ] && ! assert_denied "$OUT"; then pass "block_reads=false: allow source"; else fail "block_reads=false: allow source" "$OUT"; fi
 rm -f "$T/proj/.claude/codescout-companion.json"
 
-# Test 10: outside workspace_root → allow even if source
+# Test 10: outside workspace_root → still deny (workspace_root no longer relaxes guard)
 write_routing_config "$T/proj" '{"workspace_root":"'"$T/proj/src"'"}'
+READ_DEDUP_KEY=$(printf '%s\t%s' "Read" "$T/proj" | md5sum | cut -c1-8)
+rm -f "/tmp/cs-block-$READ_DEDUP_KEY"
 OUT=$(guard_input "Read" '"file_path":"'"$T/proj/app.ts"'"' | bash "$HOOK" 2>/dev/null)
-EC=$?
-if [ $EC -eq 0 ] && ! assert_denied "$OUT"; then pass "outside workspace_root: allow"; else fail "outside workspace_root: allow" "$OUT"; fi
+if assert_denied "$OUT" && assert_reason_contains "$OUT" "symbols"; then
+  pass "outside workspace_root: deny (no relaxation)"
+else
+  fail "outside workspace_root: deny (no relaxation)" "$OUT"
+fi
 rm -f "$T/proj/.claude/codescout-companion.json"
 
 # Test 11: Edit on .ts → deny with edit_code
@@ -118,10 +140,15 @@ else
   fail "Edit .ts: deny with edit_code" "$OUT"
 fi
 
-# Test 12: Edit on .md → allow (markdown not in SOURCE_EXT_PATTERN)
+# Test 12: Edit on .md → deny (Edit now blocks all text)
+EDIT_DEDUP_KEY=$(printf '%s\t%s' "Edit" "$T/proj" | md5sum | cut -c1-8)
+rm -f "/tmp/cs-block-$EDIT_DEDUP_KEY"
 OUT=$(guard_input "Edit" '"file_path":"'"$T/proj/README.md"'"' | bash "$HOOK" 2>/dev/null)
-EC=$?
-if [ $EC -eq 0 ] && ! assert_denied "$OUT"; then pass "Edit .md: allow"; else fail "Edit .md: allow" "$OUT"; fi
+if assert_denied "$OUT" && assert_reason_contains "$OUT" "edit_code"; then
+  pass "Edit .md: deny (path-agnostic)"
+else
+  fail "Edit .md: deny (path-agnostic)" "$OUT"
+fi
 
 # Test 13: Write on .ts → deny with create_file
 WRITE_DEDUP_KEY=$(printf '%s\t%s' "Write" "$T/proj" | md5sum | cut -c1-8)
@@ -133,10 +160,15 @@ else
   fail "Write .ts: deny with create_file" "$OUT"
 fi
 
-# Test 14: Write on .md → allow (markdown not in SOURCE_EXT_PATTERN)
+# Test 14: Write on .md → deny (Write now blocks all text)
+WRITE_DEDUP_KEY=$(printf '%s\t%s' "Write" "$T/proj" | md5sum | cut -c1-8)
+rm -f "/tmp/cs-block-$WRITE_DEDUP_KEY"
 OUT=$(guard_input "Write" '"file_path":"'"$T/proj/README.md"'"' | bash "$HOOK" 2>/dev/null)
-EC=$?
-if [ $EC -eq 0 ] && ! assert_denied "$OUT"; then pass "Write .md: allow"; else fail "Write .md: allow" "$OUT"; fi
+if assert_denied "$OUT" && assert_reason_contains "$OUT" "create_file"; then
+  pass "Write .md: deny (path-agnostic)"
+else
+  fail "Write .md: deny (path-agnostic)" "$OUT"
+fi
 
 # Test 15: Read on a .cargo/registry file (deep path inside crate) → deny, crate name not "lib.rs"
 # Clean up dedup file from previous tests so this gets full reason
