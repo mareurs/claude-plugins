@@ -11,14 +11,10 @@ source "$(dirname "$0")/detect-tools.sh"
 [ "$HAS_CODESCOUT" = "false" ] && exit 0
 [ "$BLOCK_READS" = "false" ] && exit 0
 
-# --- Helper: check if path is under workspace ---
-is_in_workspace() {
-  local file_path="$1"
-  [ -z "$WORKSPACE_ROOT" ] && return 0
-  if [[ "$file_path" != /* ]]; then
-    file_path="${CWD}/${file_path}"
-  fi
-  [[ "$file_path" == "${WORKSPACE_ROOT}"* ]]
+# --- Helper: binary images/PDF are the ONLY native-Read exemption ---
+# codescout has no renderer for these, so native Read must pass through.
+is_binary_image() {
+  echo "$1" | grep -qiE '\.(png|jpg|jpeg|gif|webp|bmp|ico|pdf)$'
 }
 
 # --- Helper: hard-block with reason shown to Claude ---
@@ -54,28 +50,9 @@ case "$TOOL_NAME" in
   Bash)
     CMD=$(echo "$INPUT" | jq -r '.tool_input.command // empty')
 
-    # Cross-repo escape: leading `cd <dir>` overrides the tool's $CWD.
-    # If the command cd's outside the announced $CWD subtree, treat it like
-    # a Read/Edit/Grep on an external path and exit 0 (allow native shell).
-    # See bug docs/issues/2026-05-20-cross-repo-git-ops-friction.md
-    # (code-explorer repo). is_in_workspace cannot be reused here because
-    # WORKSPACE_ROOT is empty when no workspace config is set, making the
-    # helper fail-closed — that's correct for source-file scoping but wrong
-    # for cross-repo cd. Use $CWD-prefix compare instead.
-    EFFECTIVE_CWD="$CWD"
-    if [[ "$CMD" =~ ^[[:space:]]*cd[[:space:]]+\"([^\"]+)\" ]] || \
-       [[ "$CMD" =~ ^[[:space:]]*cd[[:space:]]+\'([^\']+)\' ]] || \
-       [[ "$CMD" =~ ^[[:space:]]*cd[[:space:]]+([^[:space:]\;\&]+) ]]; then
-      EFFECTIVE_CWD="${BASH_REMATCH[1]}"
-      EFFECTIVE_CWD="${EFFECTIVE_CWD/#\~/$HOME}"
-      if [[ "$EFFECTIVE_CWD" != /* ]]; then
-        EFFECTIVE_CWD="${CWD}/${EFFECTIVE_CWD}"
-      fi
-      # Canonicalize so `..` and `.` segments don't string-prefix-match $CWD.
-      # `realpath -m` resolves without requiring the path to exist.
-      EFFECTIVE_CWD=$(realpath -m "$EFFECTIVE_CWD" 2>/dev/null || echo "$EFFECTIVE_CWD")
-    fi
-    [[ "$EFFECTIVE_CWD" != "${CWD}"* ]] && exit 0
+    # Hardened 2026-05-21: no cross-repo cd-escape. All Bash routes to
+    # run_command (which sandboxes cwd to the project). Sibling-repo git
+    # uses `git -C /abs/path` from the project root — no cd needed.
 
     # Detect common patterns and give targeted suggestions
     BASH_HINT=""
@@ -108,7 +85,10 @@ ${BASH_HINT}
 For any other shell command: run_command(\"COMMAND\") — same execution, with:
 - Large output stored in @cmd_* buffers (saves context tokens)
 - Buffers queryable: grep PATTERN @cmd_id, tail -20 @cmd_id
-- Smart summaries returned inline"
+- Smart summaries returned inline
+
+Cross-repo: run_command sandboxes cwd to the project. For a sibling repo's git,
+use run_command(\"git -C /abs/path <subcommand>\") from here — no cd needed."
     ;;
 
   Grep)
@@ -128,8 +108,7 @@ For any other shell command: run_command(\"COMMAND\") — same execution, with:
       echo "$PATH_VAL" | grep -qiE "$SOURCE_EXT_PATTERN" && IS_SOURCE=true
     fi
 
-    [ "$IS_SOURCE" = "false" ] && exit 0
-    is_in_workspace "${PATH_VAL:-$CWD}" || exit 0
+    : # path-agnostic: every Grep routes to codescout grep/symbols/semantic_search
 
     # If path is under ~/.cargo/registry, the crate is not registered — guide to library
     CARGO_HINT=""
@@ -163,11 +142,8 @@ codescout uses the index and returns structured, token-efficient results:
   Glob)
     PATTERN=$(echo "$INPUT" | jq -r '.tool_input.pattern // empty')
 
-    echo "$PATTERN" | grep -qiE "$SOURCE_EXT_PATTERN" || exit 0
-
     BASENAME="${PATTERN##*/}"
-
-    is_in_workspace "${PATTERN}" || exit 0
+    # path-agnostic: every Glob routes to codescout tree
 
     enforce "This call is blocked because codescout has an indexed file lister.
 
@@ -180,20 +156,15 @@ codescout already knows every file in the project. Use the index directly:
   Read)
     FILE_PATH=$(echo "$INPUT" | jq -r '.tool_input.file_path // empty')
 
-    is_in_workspace "$FILE_PATH" || exit 0
+    is_binary_image "$FILE_PATH" && exit 0
 
-    # Extract relative path for the suggestion
+    # Relative path when under CWD; absolute (cross-repo) otherwise — both work for codescout.
     REL_PATH="$FILE_PATH"
     if [[ "$FILE_PATH" == "$CWD"* ]]; then
       REL_PATH="${FILE_PATH#$CWD/}"
     fi
 
     if echo "$FILE_PATH" | grep -qiE '\.md$'; then
-      # Only guard .md files inside the current project
-      [[ "$FILE_PATH" != "${CWD}"* ]] && exit 0
-      # Exempt skill files (SKILL.md, files inside a skills/ directory)
-      echo "$FILE_PATH" | grep -qiE '(^|/)skills/' && exit 0
-      echo "$FILE_PATH" | grep -qiE '/SKILL\.md$' && exit 0
       enforce "This call is blocked because codescout has heading-aware markdown reading.
 
 File: ${FILE_PATH}
@@ -205,18 +176,16 @@ Reading a full markdown file dumps everything into context. read_markdown is siz
   read_markdown(\"${REL_PATH}\", headings=[\"## A\", \"## B\"]) — multiple sections
   grep(\"pattern\", path=\"${REL_PATH}\")                     — content search
 
-Suggested flow: read_markdown first → heading= or headings= for sections → line ranges only as last resort."
+read_markdown works on absolute cross-repo paths too. Native Read of markdown is blocked regardless of which repo the file lives in."
     fi
 
-    echo "$FILE_PATH" | grep -qiE "$SOURCE_EXT_PATTERN" || exit 0
-
-    # If path is under ~/.cargo/registry, guide toward library
-    CARGO_HINT=""
-    if echo "$FILE_PATH" | grep -q "\.cargo/registry"; then
-      CRATE_DIR=$(echo "$FILE_PATH" | grep -oE '.*\.cargo/registry/src/[^/]+/[^/]+' | head -1)
-      CRATE_NAME=$(basename "$CRATE_DIR" | sed 's/-[0-9][0-9.]*$//')
-      if [ -n "$CRATE_NAME" ] && [ -n "$CRATE_DIR" ]; then
-        CARGO_HINT="
+    if echo "$FILE_PATH" | grep -qiE "$SOURCE_EXT_PATTERN"; then
+      CARGO_HINT=""
+      if echo "$FILE_PATH" | grep -q "\.cargo/registry"; then
+        CRATE_DIR=$(echo "$FILE_PATH" | grep -oE '.*\.cargo/registry/src/[^/]+/[^/]+' | head -1)
+        CRATE_NAME=$(basename "$CRATE_DIR" | sed 's/-[0-9][0-9.]*$//')
+        if [ -n "$CRATE_NAME" ] && [ -n "$CRATE_DIR" ]; then
+          CARGO_HINT="
 NOTE: This file is from crate '${CRATE_NAME}' in ~/.cargo/registry.
 Register the crate once, then use symbol tools for all future lookups:
 
@@ -225,10 +194,9 @@ Register the crate once, then use symbol tools for all future lookups:
   symbols(\"SYMBOL\", scope=\"lib:${CRATE_NAME}\")   — find a specific symbol
   symbol_at(path, line)                              — jump to definition from usage site
 "
+        fi
       fi
-    fi
-
-    enforce "This call is blocked because codescout has a faster path for source files.
+      enforce "This call is blocked because codescout has a faster path for source files.
 
 File: ${FILE_PATH}
 ${CARGO_HINT}
@@ -239,13 +207,30 @@ Reading a full source file costs thousands of tokens. codescout returns just wha
   read_file(\"${REL_PATH}\", start_line, end_line) — only when symbol tools cannot reach it
 
 Suggested flow: symbols first → symbols(name, include_body=true) for specific code → read_file with an explicit range only as last resort."
+    fi
+
+    # Any other text file → read_file (tracked, buffer-aware). Structured hint for json/toml/yaml.
+    STRUCT_HINT=""
+    if echo "$FILE_PATH" | grep -qiE '\.json$'; then
+      STRUCT_HINT="
+  read_file(\"${REL_PATH}\", json_path=\"\$.key\")    — extract a JSON subtree"
+    elif echo "$FILE_PATH" | grep -qiE '\.(toml|ya?ml)$'; then
+      STRUCT_HINT="
+  read_file(\"${REL_PATH}\", toml_key=\"section\")     — extract a TOML/YAML section"
+    fi
+    enforce "This call is blocked because codescout reads files through its tracked, buffer-aware reader.
+
+File: ${FILE_PATH}
+
+  read_file(\"${REL_PATH}\")                      — full content; large output stored as an @file_* buffer${STRUCT_HINT}
+
+read_file works on absolute cross-repo paths. Only binary images/PDF are exempt from this block (codescout has no renderer)."
     ;;
 
   Edit)
     FILE_PATH=$(echo "$INPUT" | jq -r '.tool_input.file_path // empty')
 
-    is_in_workspace "$FILE_PATH" || exit 0
-    echo "$FILE_PATH" | grep -qiE "$SOURCE_EXT_PATTERN" || exit 0
+    is_binary_image "$FILE_PATH" && exit 0
 
     # Extract relative path for the suggestion
     REL_PATH="$FILE_PATH"
@@ -272,8 +257,7 @@ Suggested flow: symbols(name, include_body=true) to inspect the current body →
   Write)
     FILE_PATH=$(echo "$INPUT" | jq -r '.tool_input.file_path // empty')
 
-    is_in_workspace "$FILE_PATH" || exit 0
-    echo "$FILE_PATH" | grep -qiE "$SOURCE_EXT_PATTERN" || exit 0
+    is_binary_image "$FILE_PATH" && exit 0
 
     # Extract relative path for the suggestion
     REL_PATH="$FILE_PATH"
