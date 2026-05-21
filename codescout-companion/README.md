@@ -78,7 +78,7 @@ Create `.claude/codescout-companion.json` (or `codescout-routing.json`) in your 
 | Field | Default | Description |
 |---|---|---|
 | `server_name` | auto-detected | Override codescout server name |
-| `workspace_root` | (none) | Only block tools for files under this path |
+| `workspace_root` | (none) | Parsed for compatibility; no longer affects pre-tool-guard (the guard is now path-agnostic) |
 | `block_reads` | `true` | Warn on Read/Grep/Glob for source files (PostToolUse) |
 | `auto_index` | `true` | Check staleness and reindex at session start |
 | `drift_warnings` | `true` | Surface drift warnings in session context |
@@ -90,7 +90,7 @@ Create `.claude/codescout-companion.json` (or `codescout-routing.json`) in your 
 |---|---|---|
 | `SessionStart` | `session-start.sh` | Tool guide + memory hints + onboarding nudge |
 | `SubagentStart` | `subagent-guidance.sh` | Compact guidance for all subagents |
-| `PreToolUse` (Grep/Glob/Read/Bash) | `pre-tool-guard.sh` | Hard-block Read/Grep/Glob/sed-i on source files, redirect to codescout. Bash is scoped: a leading `cd <dir>` outside the active workspace allows the command through (see Troubleshooting → "Cross-repo git ops blocked"). |
+| `PreToolUse` (Grep/Glob/Read/Bash) | `pre-tool-guard.sh` | Hard-block Read/Edit/Write/Grep/Glob/Bash on source files (path-agnostic), redirect to codescout. Native Read of binary images/PDF is the sole exemption. |
 | `PostToolUse` (EnterWorktree) | `worktree-activate.sh` | Symlink .code-explorer/ and inject workspace guidance |
 
 ## Ollama Setup
@@ -211,16 +211,11 @@ If `codescout-companion@sdd-misc-plugins` is absent, reinstall:
 
 ### Cross-repo git ops blocked
 
-By default, all `Bash` calls are routed to codescout's `run_command`. When you need to run a git op (or other shell) in a *sibling* repo from a session anchored to a different project, the Bash branch detects a leading `cd <dir>` and passes the call through if `<dir>` resolves outside the active project's `$CWD`. Supported shapes:
+All Bash routes to `run_command`. For sibling-repo git, run from this project's root:
 
-- `cd /abs/path && <cmd>`
-- `cd "/quoted abs/path" && <cmd>`
-- `cd ~/expanded/path && <cmd>`
-- `cd ../relative/sibling && <cmd>`
+    run_command("git -C /abs/path/to/sibling <subcommand>")
 
-If a command starts elsewhere (`pushd`, `bash -c '...'`, no `cd` prefix), the standard block applies. In that case, switch the codescout workspace explicitly via `workspace(action="activate", path="/path/to/sibling")` — and restore the original workspace before the turn ends per Iron Law 4.
-
-Tracked in code-explorer/docs/issues/2026-05-20-cross-repo-git-ops-friction.md.
+No `cd` and no workspace switch needed — `run_command` sandboxes cwd to the project. (Pre-1.11.3 the hook recognised a leading `cd <dir>` to a sibling repo and let the command through to native Bash; that escape was removed because it silently bypassed Read/Edit guards too.)
 ## Coupling to codescout
 
 This plugin is **intentionally tightly coupled** to codescout. It reads

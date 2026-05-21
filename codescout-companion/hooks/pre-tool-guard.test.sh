@@ -1,14 +1,15 @@
 #!/usr/bin/env bash
-# Test matrix for pre-tool-guard.sh — Bash branch cross-repo scope.
+# Test matrix for pre-tool-guard.sh — path-agnostic contract (2026-05-21).
 #
-# Covers the fix for bug "cross-repo git-ops friction" (2026-05-20):
-# the Bash branch must exit 0 (allow) when the command cd's outside the
-# announced $CWD, matching the scoping behavior of Read/Edit/Grep/Glob.
+# Bash, Read, Edit, Write, Grep, and Glob all route to codescout regardless
+# of path or extension. Native Read of binary images/PDF is the sole
+# exemption (codescout has no renderer for those). workspace_root no longer
+# relaxes the guard.
 #
 # Sources `pre-tool-guard.sh` as a black box; relies on detect-tools.sh →
 # detect.py to fill in HAS_CODESCOUT / BLOCK_READS / WORKSPACE_ROOT from
-# the announced $CWD. The tests use code-explorer as the active workspace
-# because that's where the friction was first observed.
+# the announced $CWD. ACTIVE_CWD uses code-explorer to exercise the
+# cross-repo case (its sibling claude-plugins acts as SIBLING_CWD).
 
 set -uo pipefail
 
@@ -104,6 +105,8 @@ assert_file "edit-xrepo-source" "Edit"  "$SIBLING_CWD/buddy/scripts/statusline.p
 assert_file "edit-inrepo-json"  "Edit"  "$ACTIVE_CWD/tsconfig.json"            "deny"
 assert_file "write-xrepo-src"   "Write" "$SIBLING_CWD/new_module.py"          "deny"
 assert_file "write-inrepo-yaml" "Write" "$ACTIVE_CWD/config.yaml"            "deny"
+assert_file "edit-png-allow"   "Edit"  "$ACTIVE_CWD/diagram.png"             "allow"
+assert_file "write-pdf-allow"  "Write" "$ACTIVE_CWD/spec.pdf"                "allow"
 
 # --- Grep / Glob: always routed ---
 assert_tool "grep-any"  "Grep" '{"pattern":"foo","path":"src","output_mode":"content"}' "deny"
