@@ -1,14 +1,8 @@
-"""Tests for migrate-global-to-home.py — per-profile → ~/.buddy merge."""
-import importlib.util
+"""Tests for scripts/migrate_global.py — per-profile → ~/.buddy merge."""
 import time
 from pathlib import Path
 
-_SPEC = importlib.util.spec_from_file_location(
-    "migrate_global",
-    Path(__file__).resolve().parent.parent / "scripts" / "migrate-global-to-home.py",
-)
-migrate = importlib.util.module_from_spec(_SPEC)
-_SPEC.loader.exec_module(migrate)
+from scripts import migrate_global as migrate
 
 
 def _profile(home: Path, name: str):
