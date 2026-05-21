@@ -39,8 +39,8 @@ python3 -c "
 import sys
 sys.path.insert(0, '${CLAUDE_PLUGIN_ROOT}')
 from pathlib import Path
-from scripts.memory import current_instance_dir
-print(current_instance_dir())
+from scripts import buddy_paths
+print(buddy_paths.global_memory())
 " 2>&1
 ```
 
