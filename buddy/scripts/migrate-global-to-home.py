@@ -8,6 +8,11 @@ profiles, sorted, deduped.
 
 Source profiles are left in place; delete them by hand once verified.
 Dry-run by default; pass --apply to write.
+
+memory/INDEX.md is migrated with the same newest-mtime-wins rule as other
+files (not union-rebuilt); it is regenerated from the per-specialist entries
+by scripts.memory.regen_index on the next consolidate, so a stale merged
+index self-heals.
 """
 from __future__ import annotations
 

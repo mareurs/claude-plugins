@@ -245,7 +245,6 @@ def render(
                 active,
                 plugin_root=plugin_root,
                 project_root=proj_root,
-                home=Path.home(),
             )
             names = ", ".join(label for _slug, label in pairs)
         except Exception:

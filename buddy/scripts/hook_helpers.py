@@ -221,7 +221,6 @@ def handle_session_start(
                     "reconnaissance",
                     plugin_root=plugin_root_dbg,
                     project_root=Path(event.get("cwd") or os.getcwd()),
-                    home=Path.home(),
                 )
                 recon_skill_dbg = str(hit) if hit else "NONE"
             except Exception as e:
@@ -265,7 +264,6 @@ def handle_session_start(
                     source=source,
                     plugin_root=plugin_root,
                     project_root=project_root,
-                    home=Path.home(),
                 )
                 if block:
                     _sys.stdout.write(block + "\n")

@@ -1,7 +1,7 @@
 """Resolve specialist slug → plain label (e.g. 'debugging-yeti' → 'Debugging Yeti').
 
 Reads YAML frontmatter `name:` field from SKILL.md across 3 scopes
-(project → global → builtin), mirroring reload.find_skill_md precedence.
+(project → global → builtin), matching reload.find_skill_md precedence.
 
 Falls back to a humanized slug when frontmatter is missing or the file
 cannot be located. Silent on errors.
@@ -47,7 +47,6 @@ def resolve_label(
     *,
     plugin_root: Path,
     project_root: Path,
-    home: Path,
 ) -> str:
     """Return a plain label for a specialist directory.
 
@@ -57,7 +56,6 @@ def resolve_label(
         directory,
         plugin_root=plugin_root,
         project_root=project_root,
-        home=home,
     )
     if skill is not None:
         name = _parse_frontmatter_name(skill)
@@ -71,12 +69,11 @@ def resolve_labels(
     *,
     plugin_root: Path,
     project_root: Path,
-    home: Path,
 ) -> list[tuple[str, str]]:
     """Resolve a list of slugs into (slug, label) pairs preserving order."""
     out = []
     for d in directories:
         out.append((d, resolve_label(
-            d, plugin_root=plugin_root, project_root=project_root, home=home,
+            d, plugin_root=plugin_root, project_root=project_root,
         )))
     return out

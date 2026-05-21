@@ -80,7 +80,6 @@ def find_skill_md(
     *,
     plugin_root: Path,
     project_root: Path,
-    home: Path,
 ) -> Path | None:
     """Locate SKILL.md for a specialist directory across 4 scopes.
 
@@ -121,7 +120,6 @@ def render_reload_block(
     source: str,
     plugin_root: Path,
     project_root: Path,
-    home: Path,
 ) -> str:
     """Render the reload block injected into the new session's context.
 
@@ -149,7 +147,6 @@ def render_reload_block(
             directory,
             plugin_root=plugin_root,
             project_root=project_root,
-            home=home,
         )
         if skill is None:
             continue
