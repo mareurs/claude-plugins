@@ -107,6 +107,15 @@ If unsure, write `med` and explain the cost in one line. Anchored severity beats
 
 **Status vocabulary.** See the template's `## Status vocabulary` section — `open | mitigated | fixed-verified | wontfix-false-alarm | promoted-to-bug-tracker | pinned-as-eval-baseline` for frictions; `validated | promoted-to-permanent-docs | archived` for wins. Pick the one that matches; the template defines each.
 
+**Count the entry.** Right after the `edit_markdown` append lands, bump the session counter so the statusline `[recon]` badge shows your scout output as an `F<n>/W<n>` suffix. Use the helper next to this skill (its directory is the "Base directory for this skill" path printed when the skill loaded):
+
+```bash
+python3 "<skill-dir>/recon_count.py" bump F 2>/dev/null || true   # friction
+python3 "<skill-dir>/recon_count.py" bump W 2>/dev/null || true   # win
+```
+
+Best-effort — the `2>/dev/null || true` keeps a counter failure from ever breaking the turn. The counter is session-scoped (resets each CC session) and independent of the tracker's monotonic F-N/W-N IDs.
+
 #### Worked exemplars
 
 These are real entries from `code-explorer/docs/trackers/bug-fix-session-log.md`. Pattern your new entries on these, not the bare template.
