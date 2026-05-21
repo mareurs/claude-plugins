@@ -125,7 +125,7 @@ the composed wrapper all work independently.
 │  ├── scripts/statusline.py                       │
 │  ├── data/bodhisattvas.json (10 forms catalog)   │
 │  ├── data/environment.json  (mood → strip)       │
-│  └── ~/.claude/buddy/identity.json  (runtime)   │
+│  └── ~/.buddy/identity.json  (runtime)         │
 │  Pure Python. Reads state.json, renders text.    │
 │  ✦ No LLM calls.                                 │
 │                                                  │
@@ -245,7 +245,7 @@ by `/buddy:check` but the renderer always re-derives live.
 Each summoned specialist has its own POV memory. Memories accumulate hard-won judgment across sessions — not transcripts.
 
 **Channels:**
-- **Global** — `~/.claude/buddy/memory/` (and `~/.claude-sdd/buddy/memory/` if you run both instances). Mirrored automatically. Craft-general lessons.
+- **Global** — `${BUDDY_HOME:-~/.buddy}/memory/`. A single profile-agnostic home shared across all CC instances — no mirroring. Craft-general lessons.
 - **Project** — `<repo>/.buddy/memory/`. Committed to the repo. Codebase-specific lessons.
 
 **Layout:**
