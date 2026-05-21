@@ -3,15 +3,19 @@
 Each handler is called by a thin bash wrapper that passes the Claude Code
 hook event JSON via stdin. All handlers are silent on failure.
 """
+import fcntl
 import fnmatch
 import os
 import re
+import shutil
 import subprocess
 from pathlib import Path
 
 from scripts.state import load_state, save_state
 from scripts.narrative import append_entry, read_narrative
 from scripts.judge_worker import format_action_entry
+from scripts import buddy_paths
+from scripts import migrate_global
 
 MAX_RECENT_ERRORS = 10
 
@@ -43,6 +47,24 @@ PLAN_TOOL_PATH_KEYS = {
 }
 
 DEFAULT_PLAN_GLOBS = "docs/superpowers/plans/*.md:docs/superpowers/specs/*.md"
+
+
+_LEGACY_PROFILES = migrate_global.PROFILES
+# Artifacts migrate_global knows how to merge; detection + deletion key on these.
+_MIGRATE_ARTIFACTS = ("skills", "memory", "summons.log", "identity.json")
+
+
+def _pending_migration_sources(home: Path) -> list[Path]:
+    """Return each <home>/<profile>/buddy dir that still holds a migratable
+    artifact (skills/, memory/, summons.log, identity.json). Keying on the
+    artifacts — not merely the buddy dir's existence — means detection goes
+    false once they are deleted, even if unrelated files linger."""
+    out: list[Path] = []
+    for name in _LEGACY_PROFILES:
+        buddy = home / name / "buddy"
+        if any((buddy / a).exists() for a in _MIGRATE_ARTIFACTS):
+            out.append(buddy)
+    return out
 
 
 def _matches_plan_glob(rel_path: str) -> bool:

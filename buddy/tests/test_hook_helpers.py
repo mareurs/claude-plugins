@@ -454,3 +454,20 @@ def test_session_start_resume_no_prev_sid_is_noop_on_specialists(tmp_path):
     result = load_state(new_path)
     assert result["active_specialists"] == []
     assert result["parent_sid"] == ""
+
+
+def test_pending_migration_sources_detects_artifacts(tmp_path):
+    from scripts.hook_helpers import _pending_migration_sources
+    (tmp_path / ".claude-sdd" / "buddy" / "skills").mkdir(parents=True)
+    (tmp_path / ".claude-kat" / "buddy").mkdir(parents=True)
+    (tmp_path / ".claude-kat" / "buddy" / "summons.log").write_text("x\n")
+    # .claude has a buddy dir but NO known artifact -> not pending.
+    (tmp_path / ".claude" / "buddy").mkdir(parents=True)
+    found = _pending_migration_sources(tmp_path)
+    names = {p.parent.name for p in found}
+    assert names == {".claude-sdd", ".claude-kat"}
+
+
+def test_pending_migration_sources_empty_when_none(tmp_path):
+    from scripts.hook_helpers import _pending_migration_sources
+    assert _pending_migration_sources(tmp_path) == []
