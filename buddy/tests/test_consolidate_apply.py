@@ -213,3 +213,21 @@ def test_apply_writes_log_and_updates_meta(channel):
     import json
     meta = json.loads(meta_path.read_text())
     assert meta["last_consolidated"]["prompt-hamsa"].startswith("2026-05-07")
+
+
+def test_infer_scope_buddy_home_memory_is_global(monkeypatch, tmp_path):
+    from scripts import consolidate
+    monkeypatch.setenv("BUDDY_HOME", str(tmp_path / "bh"))
+    root = tmp_path / "bh" / "memory"
+    assert consolidate._infer_scope(root) == "global"
+
+
+def test_infer_scope_project_buddy_is_project(tmp_path):
+    from scripts import consolidate
+    root = tmp_path / "myproj" / ".buddy" / "memory"
+    assert consolidate._infer_scope(root) == "project"
+
+
+def test_no_mirror_helper_remains():
+    from scripts import consolidate
+    assert not hasattr(consolidate, "_mirror_global_if_available")

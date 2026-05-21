@@ -18,6 +18,8 @@ from pathlib import Path
 
 import yaml
 
+from scripts import buddy_paths
+
 CHANNEL_LOCK_NAME = ".consolidation.lock"
 CHANNEL_LOG_NAME = ".consolidation.log"
 CHANNEL_PLAN_NAME = ".consolidation-plan.md"
@@ -393,9 +395,16 @@ def _build_frontmatter(*, specialist, scope, slug, created, updated, tags) -> st
 
 
 def _infer_scope(channel_root: Path) -> str:
-    """Best-effort scope inference: 'project' if path contains '/.buddy/', else 'global'."""
-    s = str(channel_root)
-    return "project" if "/.buddy/" in s or s.endswith(".buddy/memory") or "/.buddy/memory" in s else "global"
+    """Scope by location: at/under the global memory root → 'global', else 'project'.
+
+    Path-anchored (not substring) because the global home (~/.buddy/memory) and
+    project channels (<repo>/.buddy/memory) both contain the literal '.buddy'.
+    """
+    try:
+        Path(channel_root).resolve().relative_to(buddy_paths.global_memory().resolve())
+        return "global"
+    except ValueError:
+        return "project"
 
 
 
@@ -676,22 +685,18 @@ def _has_negation(text: str) -> bool:
 
 
 def _default_summons_log() -> Path:
-    return Path.home() / ".claude" / "buddy" / "summons.log"
+    return buddy_paths.summons_log()
 
 
 
 def apply_plan_from_cache() -> str:
-    """Walk both channel roots, find cached plans, apply each, mirror global writes."""
-    from scripts.memory import current_instance_dir
-
+    """Walk both channel roots, find cached plans, apply each."""
     summary: list[str] = []
     candidates: list[tuple[Path, str]] = []
 
-    inst_dir = current_instance_dir()
-    if inst_dir:
-        global_root = Path(inst_dir) / "buddy" / "memory"
-        if (global_root / ".consolidation-plan.yaml").is_file():
-            candidates.append((global_root, "global"))
+    global_root = buddy_paths.global_memory()
+    if (global_root / ".consolidation-plan.yaml").is_file():
+        candidates.append((global_root, "global"))
 
     project_root = Path.cwd() / ".buddy" / "memory"
     if (project_root / ".consolidation-plan.yaml").is_file():
@@ -711,9 +716,6 @@ def apply_plan_from_cache() -> str:
             f"{scope}: {result['applied']} applied, {result['skipped']} skipped, "
             f"{len(result['deferred'])} deferred"
         )
-        # Mirror global writes to other CC instances.
-        if scope == "global":
-            _mirror_global_if_available(channel_root, plan)
         # Stage project writes.
         if scope == "project":
             import subprocess
@@ -728,20 +730,6 @@ def apply_plan_from_cache() -> str:
     return "\n".join(summary)
 
 
-def _mirror_global_if_available(channel_root: Path, plan: dict) -> None:
-    """Mirror global writes to secondary CC instance if mirror_global_write exists."""
-    try:
-        from scripts.memory import mirror_global_write
-    except ImportError:
-        return
-    specialist = plan.get("specialist", "")
-    spec_dir = channel_root / specialist
-    if spec_dir.is_dir():
-        for p in spec_dir.rglob("*.md"):
-            try:
-                mirror_global_write(p.relative_to(channel_root))
-            except Exception:
-                pass
 
 
 def _plan_within_ttl(p: Path, *, hours: int) -> bool:
