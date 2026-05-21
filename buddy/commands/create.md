@@ -38,44 +38,20 @@ Resolve scope using this decision tree:
 **Never silently default.** The original Owl was misfiled because scope was never asked. Always confirm scope before proceeding.
 
 Resolve the write target path:
-- `global` → `${CLAUDE_DIR}/buddy/skills/<dir>/` where `${CLAUDE_DIR}` is the parent of `CLAUDE_PLUGIN_ROOT` matching `.claude`, `.claude-sdd`, or `.claude-kat`
+- `global` → `${CLAUDE_DIR}/buddy/skills/<dir>/` where `${CLAUDE_DIR}` is the active CC profile, resolved by `scripts/discover-specialists.sh --claude-dir` (`$CLAUDE_CONFIG_DIR` when set, else the nearest `.claude` / `.claude-sdd` / `.claude-kat` ancestor)
 - `project` → `${PWD}/.buddy/skills/<dir>/` (create `.buddy/skills/` if missing)
 
 `<dir>` is determined in Step 2 after the collision check.
 
 ## Step 2 — Compose the existing-specialist index and pre-check for collision
 
-Run the 3-scope discovery scan (same logic as `summon.md` Step 1). Use the `Bash` tool:
+Run the shared 3-scope discovery scan (same script as `summon.md` Step 1). Use the `Bash` tool:
 
 ```bash
-PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT}"
-# Detect claude-dir by walking ancestors of CLAUDE_PLUGIN_ROOT until basename
-# matches .claude / .claude-sdd / .claude-kat. The fixed 2-dirname pattern
-# breaks for cached directory-source installs at
-# <claude-dir>/plugins/cache/<marketplace>/<plugin>/<version>/ (5 levels deep).
-CLAUDE_DIR=""
-d="$PLUGIN_ROOT"
-while [ -n "$d" ] && [ "$d" != "/" ]; do
-  case "$(basename "$d")" in
-    .claude|.claude-sdd|.claude-kat) CLAUDE_DIR="$d"; break ;;
-  esac
-  d=$(dirname "$d")
-done
-
-scan() {
-  local scope="$1" root="$2"
-  [ -z "$root" ] && return
-  [ -d "$root" ] || return
-  for dir in "$root"/*/; do
-    [ -f "$dir/SKILL.md" ] || continue
-    echo "$scope $(basename "$dir")"
-  done
-}
-
-scan builtin "$PLUGIN_ROOT/skills"
-scan global "${CLAUDE_DIR:+$CLAUDE_DIR/buddy/skills}"
-scan project "$PWD/.buddy/skills"
+bash "${CLAUDE_PLUGIN_ROOT}/scripts/discover-specialists.sh"
 ```
+
+Each line is `scope name path`. The script self-locates its plugin root and resolves the global profile from `$CLAUDE_CONFIG_DIR` (falling back to an ancestor walk), so global-scope specialists are found even for directory-source installs. See `scripts/discover-specialists.sh`.
 
 Compose the index into a list of names with their scopes. The collision check happens at archetype-naming time (Step 4) — keep this list ready.
 
@@ -168,10 +144,11 @@ Hamsa's stranger-reading test catches gaps the drafting process is too close to 
 Use the `Bash` tool to create the directory and write the files atomically:
 
 ```bash
-# For global scope
+# For global scope — resolve the active profile the same way discovery does
+CLAUDE_DIR="$(bash "${CLAUDE_PLUGIN_ROOT}/scripts/discover-specialists.sh" --claude-dir)"
 DST="${CLAUDE_DIR}/buddy/skills/<dir>"
 # For project scope
-DST="${PWD}/.buddy/skills/<dir>"
+DST="${CLAUDE_PROJECT_DIR:-$PWD}/.buddy/skills/<dir>"
 mkdir -p "$DST"
 ```
 

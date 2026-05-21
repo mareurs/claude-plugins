@@ -16,43 +16,19 @@ Specialists are discovered at lookup time from three scope roots, with precedenc
 1. **builtin** — `${CLAUDE_PLUGIN_ROOT}/skills/`
    Frozen, plugin-shipped. The 11 entries in the table below are the only builtin specialists; the table is authoritative documentation.
 2. **global** — `<claude-dir>/buddy/skills/`
-   `<claude-dir>` is the parent of `CLAUDE_PLUGIN_ROOT` whose basename matches `.claude`, `.claude-sdd`, or `.claude-kat`. Optional — directory may not exist.
+   `<claude-dir>` is the active CC profile: `$CLAUDE_CONFIG_DIR` when set, else the nearest `.claude` / `.claude-sdd` / `.claude-kat` ancestor of the plugin root. Optional — directory may not exist.
 3. **project** — `<cwd>/.buddy/skills/`
    Optional — directory may not exist.
 
 For each existing scope root, enumerate immediate subdirectories that contain a `SKILL.md` file. Each such subdirectory is a specialist; the directory name is the specialist's lookup key.
 
-Use the `Bash` tool to compose the index:
+Use the `Bash` tool to compose the index by running the shared discovery script:
 
 ```bash
-PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT}"
-# Detect claude-dir by walking ancestors of CLAUDE_PLUGIN_ROOT until basename
-# matches .claude / .claude-sdd / .claude-kat. The fixed 2-dirname pattern
-# breaks for cached directory-source installs at
-# <claude-dir>/plugins/cache/<marketplace>/<plugin>/<version>/ (5 levels deep).
-CLAUDE_DIR=""
-d="$PLUGIN_ROOT"
-while [ -n "$d" ] && [ "$d" != "/" ]; do
-  case "$(basename "$d")" in
-    .claude|.claude-sdd|.claude-kat) CLAUDE_DIR="$d"; break ;;
-  esac
-  d=$(dirname "$d")
-done
-
-scan() {
-  local scope="$1" root="$2"
-  [ -z "$root" ] && return
-  [ -d "$root" ] || return
-  for dir in "$root"/*/; do
-    [ -f "$dir/SKILL.md" ] || continue
-    echo "$scope $(basename "$dir") $dir"
-  done
-}
-
-scan builtin "$PLUGIN_ROOT/skills"
-scan global "${CLAUDE_DIR:+$CLAUDE_DIR/buddy/skills}"
-scan project "$PWD/.buddy/skills"
+bash "${CLAUDE_PLUGIN_ROOT}/scripts/discover-specialists.sh"
 ```
+
+The script self-locates its plugin root (does not trust `CLAUDE_PLUGIN_ROOT`, which can arrive unset or as a bare slug) and resolves the global profile from `$CLAUDE_CONFIG_DIR`, falling back to an ancestor walk. This is why global-scope specialists are found even for directory-source installs whose `installPath` points at the plugin source dir. See `scripts/discover-specialists.sh`.
 
 The output is one line per `(scope, name, path)` triple. Compose into an index in your reasoning state, applying precedence: later scopes override earlier ones on the same `name`. Track shadows (entries that were overridden) for the announcement in Step 2.
 
