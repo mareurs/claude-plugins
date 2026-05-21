@@ -61,11 +61,11 @@ import sys
 sys.path.insert(0, '$PLUGIN_ROOT')
 from pathlib import Path
 from scripts.consolidate import session_start_nudges
-from scripts.memory import current_instance_dir
-inst = current_instance_dir()
+from scripts import buddy_paths
 roots = []
-if inst:
-    roots.append(Path(inst) / 'buddy' / 'memory')
+gm = buddy_paths.global_memory()
+if gm.is_dir():
+    roots.append(gm)
 proj = Path('$CWD') / '.buddy' / 'memory'
 if proj.is_dir():
     roots.append(proj)
@@ -84,12 +84,12 @@ import sys
 sys.path.insert(0, '${PLUGIN_ROOT}')
 from pathlib import Path
 from scripts.consolidate import read_auto_trigger_config, auto_dry_run_eligible
-from scripts.memory import current_instance_dir
+from scripts import buddy_paths
 cfg = read_auto_trigger_config(Path('$CWD'))
-inst = current_instance_dir()
 roots = []
-if inst:
-    roots.append(Path(inst) / 'buddy' / 'memory')
+gm = buddy_paths.global_memory()
+if gm.is_dir():
+    roots.append(gm)
 proj = Path('$CWD') / '.buddy' / 'memory'
 if proj.is_dir():
     roots.append(proj)
