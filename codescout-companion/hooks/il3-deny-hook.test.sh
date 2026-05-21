@@ -73,6 +73,43 @@ assert "buffer-mixed-id" "$(mkinput 'grep -oE pat @cmd_a1b2c3d4 | uniq')" "allow
 # 10. Real user command from F-incident → ALLOW (this is the friction we fixed)
 assert "friction-repro" "$(mkinput 'grep -oE \"\\\"cwd\\\":\\\"[^\\\"]*\\\"\" @cmd_3b8e6cc5 | sort -u')" "allow"
 
+# --- Bounded-LHS cases (2026-05-18 bounded-LHS fix) ---
+# 11. cat <file> → bounded → ALLOW
+assert "bounded-cat-grep" "$(mkinput 'cat items.txt | grep apple')" "allow"
+
+# 12. ls <dir> → bounded → ALLOW
+assert "bounded-ls-head" "$(mkinput 'ls /some/dir | head -20')" "allow"
+
+# 13. grep <pat> <file> (non-recursive) → bounded → ALLOW
+assert "bounded-grep-file-wc" "$(mkinput 'grep -oE pat src/lib.rs | sort -u')" "allow"
+
+# 14. awk <prog> <file> → bounded → ALLOW
+assert "bounded-awk-sort" "$(mkinput 'awk {print} file.log | sort -u')" "allow"
+
+# 15. sed <prog> <file> → bounded → ALLOW
+assert "bounded-sed-head" "$(mkinput 'sed s/foo/bar/ file.txt | head')" "allow"
+
+# 16. find with -maxdepth → bounded → ALLOW
+assert "bounded-find-maxdepth" "$(mkinput 'find . -maxdepth 2 -name *.rs | head')" "allow"
+
+# 17. grep -r → recursive → unbounded → DENY
+assert "unbounded-grep-recursive" "$(mkinput 'grep -r FAILED src/ | head')" "deny"
+
+# 18. grep -R (capital) → unbounded → DENY
+assert "unbounded-grep-capital-R" "$(mkinput 'grep -R pat src/ | wc -l')" "deny"
+
+# 19. grep --recursive → unbounded → DENY
+assert "unbounded-grep-long-recursive" "$(mkinput 'grep --recursive pat src/ | sort')" "deny"
+
+# 20. find without -maxdepth → unbounded → DENY
+assert "unbounded-find-bare" "$(mkinput 'find / -name *.rs | head')" "deny"
+
+# 21. rg → defaults recursive → unbounded → DENY
+assert "unbounded-rg-head" "$(mkinput 'rg pattern | head')" "deny"
+
+# 22. fd → defaults recursive → unbounded → DENY
+assert "unbounded-fd-wc" "$(mkinput 'fd .rs | wc -l')" "deny"
+
 echo
 echo "Passed: $PASS   Failed: $FAIL"
 [[ $FAIL -eq 0 ]]
