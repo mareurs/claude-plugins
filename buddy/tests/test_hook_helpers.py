@@ -471,3 +471,80 @@ def test_pending_migration_sources_detects_artifacts(tmp_path):
 def test_pending_migration_sources_empty_when_none(tmp_path):
     from scripts.hook_helpers import _pending_migration_sources
     assert _pending_migration_sources(tmp_path) == []
+
+
+def _legacy_profile(home, name):
+    """Create <home>/<name>/buddy with one skill, one memory, a summons log."""
+    b = home / name / "buddy"
+    (b / "skills" / "codescout-pika").mkdir(parents=True)
+    (b / "skills" / "codescout-pika" / "SKILL.md").write_text("pika\n")
+    (b / "memory" / "debugging-yeti").mkdir(parents=True)
+    (b / "memory" / "debugging-yeti" / "flaky.md").write_text("lesson\n")
+    (b / "summons.log").write_text("2026-01-01 yeti\n")
+    return b
+
+
+def test_auto_migrate_happy_path(tmp_path, monkeypatch):
+    from scripts.hook_helpers import auto_migrate_if_needed
+    monkeypatch.delenv("BUDDY_NO_AUTO_MIGRATE", raising=False)
+    src = _legacy_profile(tmp_path, ".claude-sdd")
+    dest = tmp_path / ".buddy"
+    line = auto_migrate_if_needed(home=tmp_path, dest=dest)
+    # merged into dest
+    assert (dest / "skills" / "codescout-pika" / "SKILL.md").read_text() == "pika\n"
+    assert (dest / "memory" / "debugging-yeti" / "flaky.md").read_text() == "lesson\n"
+    assert (dest / "summons.log").read_text() == "2026-01-01 yeti\n"
+    # source artifacts deleted + empty buddy dir removed
+    assert not src.exists()
+    assert isinstance(line, str) and "migrated" in line
+    # idempotent
+    assert auto_migrate_if_needed(home=tmp_path, dest=dest) is None
+
+
+def test_auto_migrate_respects_kill_switch(tmp_path, monkeypatch):
+    from scripts.hook_helpers import auto_migrate_if_needed
+    monkeypatch.setenv("BUDDY_NO_AUTO_MIGRATE", "1")
+    src = _legacy_profile(tmp_path, ".claude-sdd")
+    assert auto_migrate_if_needed(home=tmp_path, dest=tmp_path / ".buddy") is None
+    assert src.exists()  # untouched
+
+
+def test_auto_migrate_preserves_unknown_files(tmp_path, monkeypatch):
+    from scripts.hook_helpers import auto_migrate_if_needed
+    monkeypatch.delenv("BUDDY_NO_AUTO_MIGRATE", raising=False)
+    src = _legacy_profile(tmp_path, ".claude-sdd")
+    (src / "notes.txt").write_text("keep me\n")
+    auto_migrate_if_needed(home=tmp_path, dest=tmp_path / ".buddy")
+    assert (src / "notes.txt").read_text() == "keep me\n"  # survived
+    assert not (src / "skills").exists()  # known artifact gone
+    assert src.exists()  # buddy dir kept (not empty)
+
+
+def test_auto_migrate_failure_leaves_sources(tmp_path, monkeypatch):
+    from scripts import hook_helpers
+    monkeypatch.delenv("BUDDY_NO_AUTO_MIGRATE", raising=False)
+    src = _legacy_profile(tmp_path, ".claude-sdd")
+
+    def boom(**kwargs):
+        raise RuntimeError("disk full")
+    monkeypatch.setattr(hook_helpers.migrate_global, "run", boom)
+    line = hook_helpers.auto_migrate_if_needed(home=tmp_path, dest=tmp_path / ".buddy")
+    assert (src / "skills").exists()  # nothing deleted
+    assert isinstance(line, str) and "failed" in line
+
+
+def test_auto_migrate_skips_when_locked(tmp_path, monkeypatch):
+    import fcntl
+    from scripts.hook_helpers import auto_migrate_if_needed
+    monkeypatch.delenv("BUDDY_NO_AUTO_MIGRATE", raising=False)
+    _legacy_profile(tmp_path, ".claude-sdd")
+    dest = tmp_path / ".buddy"
+    dest.mkdir(parents=True)
+    # Hold the lock from this process via a separate fd.
+    held = open(dest / ".migrate.lock", "w")
+    fcntl.flock(held, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    try:
+        assert auto_migrate_if_needed(home=tmp_path, dest=dest) is None
+    finally:
+        fcntl.flock(held, fcntl.LOCK_UN)
+        held.close()

@@ -67,6 +67,52 @@ def _pending_migration_sources(home: Path) -> list[Path]:
     return out
 
 
+def auto_migrate_if_needed(home: Path | None = None, dest: Path | None = None) -> str | None:
+    """Detect leftover per-profile global buddy state and migrate it into the
+    unified home, then delete the migrated source artifacts. Returns a one-line
+    summary (or warning) for the hook to print, or None when there's nothing to
+    do / another instance is handling it / the kill-switch is set.
+
+    Never raises — a SessionStart hook must not break on migration failure.
+    """
+    if os.environ.get("BUDDY_NO_AUTO_MIGRATE"):
+        return None
+    home = home or Path.home()
+    dest = dest or buddy_paths.global_root()
+    sources = _pending_migration_sources(home)
+    if not sources:
+        return None
+    try:
+        dest.mkdir(parents=True, exist_ok=True)
+        # .migrate.lock is left on disk deliberately: deleting a flock'd file
+        # invites an unlink/reacquire race (two instances lock different inodes).
+        # A stable 0-byte sentinel is the safe choice.
+        with open(dest / ".migrate.lock", "w") as lock:
+            try:
+                fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            except OSError:
+                return None  # another CC instance is migrating
+            stats = migrate_global.run(home=home, dest=dest, apply=True)
+            for src in sources:
+                for tree in ("skills", "memory"):
+                    p = src / tree
+                    if p.is_dir():
+                        shutil.rmtree(p)
+                for fname in ("summons.log", "identity.json"):
+                    p = src / fname
+                    if p.is_file():
+                        p.unlink()
+                try:
+                    src.rmdir()  # only succeeds if now empty
+                except OSError:
+                    pass
+        return (f"→ buddy: migrated {stats['copied']} file(s) from "
+                f"{len(sources)} profile(s) into {dest}; removed legacy dirs")
+    except Exception as e:  # noqa: BLE001 - hook must never raise
+        return (f"→ buddy: auto-migration failed ({e}); legacy dirs left "
+                f"in place — run scripts/migrate-global-to-home.py --apply")
+
+
 def _matches_plan_glob(rel_path: str) -> bool:
     """Match `rel_path` against BUDDY_PLAN_GLOBS (colon-separated)."""
     raw = os.environ.get("BUDDY_PLAN_GLOBS", DEFAULT_PLAN_GLOBS)
