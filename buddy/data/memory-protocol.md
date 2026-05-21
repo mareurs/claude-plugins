@@ -17,7 +17,7 @@ You have a memory system. Use it to capture lessons that would change how you ac
 | Channel | Path | Pick when |
 | --- | --- | --- |
 | **Project** | `<repo-root>/.buddy/memory/` | Lesson references this repo's files, conventions, infra, team decisions, tooling, or data. |
-| **Global** | `<claude-dir>/buddy/memory/` | Lesson is about the craft itself — language/framework patterns, debugging instincts, generally-applicable heuristics. |
+| **Global** | `${BUDDY_HOME:-~/.buddy}/memory/` | Lesson is about the craft itself — language/framework patterns, debugging instincts, generally-applicable heuristics. |
 
 **Ambiguous → project.** Project memory only loads in this repo, so a wrong call there is contained. A wrong "global" call follows the user everywhere.
 
@@ -76,7 +76,7 @@ Always announce a save with one line *before* writing, so the user can object:
 
 If the user objects on the next turn, undo:
 - Project: `git restore --staged <path> && rm <path>`
-- Global: `rm <path>` and re-mirror.
+- Global: `rm <path>` (single home; no re-mirror).
 
 ## Staging — project only
 
@@ -90,26 +90,10 @@ git add .buddy/memory/<rel-path>
 
 If `git add` fails (not a repo, etc.), report `→ memory: skipped (project dir not writable)` and do not retry.
 
-## Mirror — global only
-
-After writing a global memory at `<current-claude-dir>/buddy/memory/<rel-path>`, mirror it to other instances:
-
-```bash
-python3 -c "
-import sys; sys.path.insert(0, '${CLAUDE_PLUGIN_ROOT}')
-from pathlib import Path
-from scripts.memory import mirror_global_write
-written = mirror_global_write(Path('<rel-path>'))
-for p in written: print(f'mirrored: {p}')
-" || true
-```
-
-If `<rel-path>` was an update (not new), the mirror copies the new content over. INDEX regeneration on the mirror is handled the next time that instance summons the specialist (lazy).
-
 ## Failure modes
 
 - `.buddy/memory/` not writable → skip project write; announce skip; global still works.
-- Mirror target dir missing → write current instance only; log one-line warning.
+- Global write goes to the shared `${BUDDY_HOME:-~/.buddy}/memory/` — no mirroring needed.
 - Frontmatter parse error on load → skip that entry only; log warning; do not abort load.
 
 

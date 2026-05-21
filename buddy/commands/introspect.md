@@ -42,7 +42,7 @@ The resolved target must be currently in `active_specialists`. If it is not, rep
 > 2. Propose a slug (3–6 kebab-case words).
 > 3. Read the target channel's `INDEX.md` and check for slug match or ≥2-tag overlap with a topically similar hook. If matched, update the existing file; else create a new one.
 > 4. Announce each save (`→ memory: <scope> / <specialist> / <slug> — <hook>`).
-> 5. Stage project writes with `git add`. Mirror global writes via `scripts/memory.py`.
+> 5. Stage project writes with `git add`. Global writes go to `${BUDDY_HOME:-~/.buddy}/memory/` directly — no mirroring.
 >
 > If nothing genuinely new came up, say so explicitly and stop. Do not invent lessons. You remain summoned after this — work continues.
 
@@ -52,7 +52,7 @@ If the project memory dir does not exist or the working tree is not a git repo, 
 
 ## Step 3 — Log the introspection
 
-Append one line to `~/.claude/buddy/summons.log`:
+Append one line to `${BUDDY_HOME:-~/.buddy}/summons.log`:
 
 - If target is `"ALL"`: `<unix timestamp>\tall\tintrospected`
 - Otherwise: `<unix timestamp>\t<directory>\tintrospected`

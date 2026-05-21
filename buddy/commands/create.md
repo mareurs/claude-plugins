@@ -38,7 +38,7 @@ Resolve scope using this decision tree:
 **Never silently default.** The original Owl was misfiled because scope was never asked. Always confirm scope before proceeding.
 
 Resolve the write target path:
-- `global` → `${CLAUDE_DIR}/buddy/skills/<dir>/` where `${CLAUDE_DIR}` is the active CC profile, resolved by `scripts/discover-specialists.sh --claude-dir` (`$CLAUDE_CONFIG_DIR` when set, else the nearest `.claude` / `.claude-sdd` / `.claude-kat` ancestor)
+- `global` → `${BUDDY_HOME:-~/.buddy}/skills/<dir>/`
 - `project` → `${PWD}/.buddy/skills/<dir>/` (create `.buddy/skills/` if missing)
 
 `<dir>` is determined in Step 2 after the collision check.
@@ -144,9 +144,8 @@ Hamsa's stranger-reading test catches gaps the drafting process is too close to 
 Use the `Bash` tool to create the directory and write the files atomically:
 
 ```bash
-# For global scope — resolve the active profile the same way discovery does
-CLAUDE_DIR="$(bash "${CLAUDE_PLUGIN_ROOT}/scripts/discover-specialists.sh" --claude-dir)"
-DST="${CLAUDE_DIR}/buddy/skills/<dir>"
+# For global scope
+DST="${BUDDY_HOME:-$HOME/.buddy}/skills/<dir>"
 # For project scope
 DST="${CLAUDE_PROJECT_DIR:-$PWD}/.buddy/skills/<dir>"
 mkdir -p "$DST"

@@ -15,8 +15,8 @@ Specialists are discovered at lookup time from three scope roots, with precedenc
 
 1. **builtin** — `${CLAUDE_PLUGIN_ROOT}/skills/`
    Frozen, plugin-shipped. The 11 entries in the table below are the only builtin specialists; the table is authoritative documentation.
-2. **global** — `<claude-dir>/buddy/skills/`
-   `<claude-dir>` is the active CC profile: `$CLAUDE_CONFIG_DIR` when set, else the nearest `.claude` / `.claude-sdd` / `.claude-kat` ancestor of the plugin root. Optional — directory may not exist.
+2. **global** — `${BUDDY_HOME:-~/.buddy}/skills/`
+   Optional — directory may not exist.
 3. **project** — `<cwd>/.buddy/skills/`
    Optional — directory may not exist.
 
@@ -130,7 +130,7 @@ This makes shadowing visible. Silent shadowing breeds confusion when a user expe
 Memories are POV-scoped — only the resolved `<directory>` (and the `common` bucket) are loaded.
 
 **Resolve channels:**
-- **Global root**: pick the current CC instance dir. Detect via `CLAUDE_PLUGIN_ROOT` — the parent matching `.claude` or `.claude-sdd`. The global memory root is `<claude-dir>/buddy/memory/`.
+- **Global root**: `${BUDDY_HOME:-~/.buddy}/memory/` (profile-agnostic; see `scripts/buddy_paths.py`).
 - **Project root**: `<cwd>/.buddy/memory/` if the directory exists. Skip if missing or if the user has the dir gitignored — in that case emit one warning line: `→ memory: project dir gitignored, skipping project channel`.
 
 **For each existing channel root**, read in this order:
@@ -189,7 +189,7 @@ After the announcement, the full contents of the specialist's `SKILL.md` (and th
 
 ## Step 5 — Log the summon
 
-Append one line to `~/.claude/buddy/summons.log`:
+Append one line to `${BUDDY_HOME:-~/.buddy}/summons.log`:
 
 ```
 <unix timestamp>\t<directory>[:<lens>]\tsummoned

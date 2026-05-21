@@ -38,7 +38,7 @@ The chosen specialist (you, in their voice) follows the Memory Protocol from `${
 3. Dedup-scan the target channel's INDEX.md.
 4. Update existing entry or create new file.
 5. Announce save with `→ memory: <scope> / <specialist> / <slug> — <hook>`.
-6. Stage (project) or mirror (global).
+6. Stage (project) or write to `${BUDDY_HOME:-~/.buddy}/memory/` (global). No mirroring — one shared home.
 7. Regenerate INDEX line.
 
 If the input is too vague to capture as a lesson, ask one clarifying question instead of writing.

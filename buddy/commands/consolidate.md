@@ -44,7 +44,7 @@ print(current_instance_dir())
 " 2>&1
 ```
 
-Global channel: `<current-instance-dir>/buddy/memory/`. Project channel: `<cwd>/.buddy/memory/` if it exists.
+Global channel: `${BUDDY_HOME:-~/.buddy}/memory/`. Project channel: `<cwd>/.buddy/memory/` if it exists.
 
 For each (channel, specialist) pair, run Step 3.
 
