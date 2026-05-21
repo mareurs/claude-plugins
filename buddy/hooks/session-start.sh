@@ -55,6 +55,20 @@ fi
 DEAD_GLOBAL="$HOME/.claude/buddy/state.json"
 [ -f "$DEAD_GLOBAL" ] && rm -f "$DEAD_GLOBAL" 2>/dev/null || true
 
+# Auto-migrate legacy per-profile global state (~/.claude*/buddy) into ~/.buddy.
+# Runs before nudges so the nudge block sees the merged memory on first session.
+MIGRATE_LINE=$(python3 -c "
+import sys
+sys.path.insert(0, '$PLUGIN_ROOT')
+from scripts.hook_helpers import auto_migrate_if_needed
+line = auto_migrate_if_needed()
+if line:
+    print(line)
+" 2>/dev/null)
+if [ -n "$MIGRATE_LINE" ]; then
+    echo "$MIGRATE_LINE"
+fi
+
 # Memory consolidation nudges (capacity + stale-since).
 NUDGE_LINES=$(python3 -c "
 import sys
