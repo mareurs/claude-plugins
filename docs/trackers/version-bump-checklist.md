@@ -9,6 +9,7 @@ topic: null
 time_scope: null
 ---
 
+
 ## What this tracks
 
 Release readiness across plugins × profiles. See
@@ -16,23 +17,23 @@ Release readiness across plugins × profiles. See
 
 ## State
 
-_Last refresh: `d747e5c`_
+_Last refresh: `b48a2cf`_
 
-**codescout-companion** — canonical `1.9.10` · readme `1.9.10` · marketplace clean ✅
-
-| profile | installed | cache dir | install_path ok |
-|---|---|---|---|
-| `~/.claude` | 1.9.10 ✅ | ✅ | ✅ |
-| `~/.claude-sdd` | 1.9.10 ✅ | ✅ | ✅ |
-| `~/.claude-kat` | 1.9.10 ✅ | ✅ | ✅ |
-
-**buddy** — canonical `0.7.5` · readme `0.7.5` · marketplace clean ✅
+**codescout-companion** — canonical `1.11.1` · readme `1.11.1` · marketplace clean ✅
 
 | profile | installed | cache dir | install_path ok |
 |---|---|---|---|
-| `~/.claude` | 0.7.5 ✅ | ✅ | ✅ |
-| `~/.claude-sdd` | 0.7.5 ✅ | ✅ | ✅ |
-| `~/.claude-kat` | 0.7.5 ✅ | ✅ | ✅ |
+| `~/.claude` | 1.11.1 ✅ | ✅ | ✅ |
+| `~/.claude-sdd` | 1.11.1 ✅ | ✅ | ✅ |
+| `~/.claude-kat` | 1.11.1 ✅ | ✅ | ✅ |
+
+**buddy** — canonical `0.7.13` · readme `0.7.13` · marketplace clean ✅
+
+| profile | installed | cache dir | install_path ok |
+|---|---|---|---|
+| `~/.claude` | 0.7.13 ✅ | ✅ | ✅ |
+| `~/.claude-sdd` | 0.7.13 ✅ | ✅ | ✅ |
+| `~/.claude-kat` | 0.7.13 ✅ | ✅ | ✅ |
 
 **sdd** — canonical `2.4.1` · readme `2.4.1` · marketplace clean ✅
 
@@ -46,6 +47,10 @@ _Last refresh: `d747e5c`_
 
 _Append dated session deltas: ### YYYY-MM-DD — <what changed>._
 
+### 2026-05-21 — buddy 0.7.5 → 0.7.13, codescout-companion 1.9.10 → 1.11.1
+
+buddy 0.7.13: auto-migrate legacy per-profile global state (`~/.claude*/buddy`) into `${BUDDY_HOME:-~/.buddy}` on SessionStart — lock-guarded, idempotent, never breaks session start; merged via `buddy-global-home` branch (fast-forward into main). codescout-companion State row advanced 1.9.10 → 1.11.1 (interim bumps not individually logged here; reconciled this refresh). Both plugins green across 3 profiles after cache seed + install-record update. sdd remains uninstalled in all profiles (unchanged).
+
 ### 2026-05-18 — codescout-companion 1.9.9 → 1.9.10, claude-statusline 1.1.2 → 1.1.3
 
 Added codescout-active marker convention: three codescout-companion hooks (cs-activate-project, worktree-activate, session-start) write the agent's declared workspace path to $CLAUDE_CONFIG_DIR/codescout-active/<session_id>. claude-statusline reads it to display `cs:<branch>` truthfully instead of guessing from CC's frozen PWD. Falls back silently when marker absent. See docs/marker-convention.md.
@@ -57,4 +62,5 @@ Added `git-worktree-guard.sh` (codescout-companion) and multi-worktree warning s
 ### 2026-05-18 — buddy 0.7.4 → 0.7.5
 
 Fixed CLAUDE_DIR detection in summon.md + create.md (ancestor walk instead of fixed 2-dirname). Bumped, cache seeded, install records updated across 3 profiles.
+
 
