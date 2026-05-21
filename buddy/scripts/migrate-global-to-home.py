@@ -36,6 +36,7 @@ def run(*, home: Path, dest: Path, apply: bool) -> dict:
     sources = [home / name / "buddy" for name in PROFILES if (home / name / "buddy").is_dir()]
     stats = {"copied": 0, "skipped": 0, "conflicts": 0, "backups": 0, "sources": [str(s) for s in sources]}
     summons_lines: set[str] = set()
+    dest_origin: dict[Path, str] = {}  # rel → profile that last wrote to dest
 
     for src in sources:
         profile = src.parent.name  # e.g. ".claude-sdd"
@@ -63,6 +64,7 @@ def run(*, home: Path, dest: Path, apply: bool) -> dict:
             destf = dest / rel
             if not destf.exists():
                 _copy(srcf, destf, apply)
+                dest_origin[rel] = profile
                 stats["copied"] += 1
             elif filecmp.cmp(srcf, destf, shallow=False):
                 stats["skipped"] += 1
@@ -72,10 +74,18 @@ def run(*, home: Path, dest: Path, apply: bool) -> dict:
                     loser, winner = destf, srcf
                 else:
                     loser, winner = srcf, destf
-                backup = dest / ".migration-backup" / profile / rel
+                # Archive loser under its origin profile.
+                if winner is srcf:
+                    # destf is the loser — use whichever profile originally wrote it.
+                    backup_profile = dest_origin.get(rel, profile)
+                else:
+                    # srcf is the loser — it belongs to the current profile.
+                    backup_profile = profile
+                backup = dest / ".migration-backup" / backup_profile / rel
                 _copy(loser, backup, apply)
                 if winner is srcf:
                     _copy(srcf, destf, apply)
+                    dest_origin[rel] = profile
                 stats["conflicts"] += 1
                 stats["backups"] += 1
 

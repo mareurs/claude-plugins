@@ -91,3 +91,22 @@ def test_idempotent_rerun_is_noop(tmp_path):
     second = migrate.run(home=home, dest=dest, apply=True)
     assert second["copied"] == 0
     assert second["conflicts"] == 0
+
+
+def test_three_way_divergence_archives_losers_by_origin(tmp_path):
+    import os
+    home = tmp_path
+    dest = tmp_path / ".buddy"
+    contents = {".claude": ("A\n", 1000), ".claude-sdd": ("B\n", 2000), ".claude-kat": ("C\n", 3000)}
+    for prof, (text, mt) in contents.items():
+        p = _profile(home, prof)
+        (p / "skills" / "x").mkdir(parents=True)
+        f = p / "skills" / "x" / "SKILL.md"
+        f.write_text(text)
+        os.utime(f, (mt, mt))
+    migrate.run(home=home, dest=dest, apply=True)
+    # Newest (C, from .claude-kat) wins.
+    assert (dest / "skills" / "x" / "SKILL.md").read_text() == "C\n"
+    # Losers archived under their ORIGIN profile dirs.
+    assert (dest / ".migration-backup" / ".claude" / "skills" / "x" / "SKILL.md").read_text() == "A\n"
+    assert (dest / ".migration-backup" / ".claude-sdd" / "skills" / "x" / "SKILL.md").read_text() == "B\n"
