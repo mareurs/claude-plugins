@@ -565,8 +565,9 @@ def test_render_recon_counts_on_active(tmp_path):
     identity = {"version": 1, "form": "owl-of-clear-seeing", "name": "Lin",
                 "personality": "", "hatched_at": 0, "soul_model": "fallback",
                 "hatched": False}
+    now = int(active.stat().st_mtime) + 60
     output = render(identity=identity, state=default_state(),
-                    bodhisattvas=BODHIS, env=ENV, now=1000000, local_hour=14,
+                    bodhisattvas=BODHIS, env=ENV, now=now, local_hour=14,
                     session_id=sid, project_root=tmp_path)
     assert "[recon• F3/W4]" in output
 
