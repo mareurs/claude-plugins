@@ -536,3 +536,103 @@ def test_identity_path_under_buddy_home(monkeypatch, tmp_path):
     from scripts import statusline
     importlib.reload(statusline)
     assert statusline.IDENTITY_PATH == tmp_path / "bh" / "identity.json"
+
+
+def test_render_recon_counts_on_loaded(tmp_path):
+    """recon-loaded + counts → [recon F3/W4] (dim, counts shown)."""
+    sid = "sid-test"
+    sd = tmp_path / ".buddy" / sid
+    sd.mkdir(parents=True)
+    (sd / "recon-loaded").write_text("")
+    (sd / "recon-counts.json").write_text('{"F": 3, "W": 4}')
+    identity = {"version": 1, "form": "owl-of-clear-seeing", "name": "Lin",
+                "personality": "", "hatched_at": 0, "soul_model": "fallback",
+                "hatched": False}
+    output = render(identity=identity, state=default_state(),
+                    bodhisattvas=BODHIS, env=ENV, now=1000000, local_hour=14,
+                    session_id=sid, project_root=tmp_path)
+    assert "[recon F3/W4]" in output
+
+
+def test_render_recon_counts_on_active(tmp_path):
+    """recon-active fresh + counts → [recon• F3/W4] (bright, counts shown)."""
+    sid = "sid-test"
+    sd = tmp_path / ".buddy" / sid
+    sd.mkdir(parents=True)
+    active = sd / "recon-active"
+    active.write_text("")
+    (sd / "recon-counts.json").write_text('{"F": 3, "W": 4}')
+    identity = {"version": 1, "form": "owl-of-clear-seeing", "name": "Lin",
+                "personality": "", "hatched_at": 0, "soul_model": "fallback",
+                "hatched": False}
+    output = render(identity=identity, state=default_state(),
+                    bodhisattvas=BODHIS, env=ENV, now=1000000, local_hour=14,
+                    session_id=sid, project_root=tmp_path)
+    assert "[recon• F3/W4]" in output
+
+
+def test_render_recon_counts_omit_zero_friction(tmp_path):
+    """F0/W2 → only W2 shown."""
+    sid = "sid-test"
+    sd = tmp_path / ".buddy" / sid
+    sd.mkdir(parents=True)
+    (sd / "recon-loaded").write_text("")
+    (sd / "recon-counts.json").write_text('{"F": 0, "W": 2}')
+    identity = {"version": 1, "form": "owl-of-clear-seeing", "name": "Lin",
+                "personality": "", "hatched_at": 0, "soul_model": "fallback",
+                "hatched": False}
+    output = render(identity=identity, state=default_state(),
+                    bodhisattvas=BODHIS, env=ENV, now=1000000, local_hour=14,
+                    session_id=sid, project_root=tmp_path)
+    assert "[recon W2]" in output
+    assert "F0" not in output
+
+
+def test_render_recon_counts_omit_zero_win(tmp_path):
+    """F1/W0 → only F1 shown."""
+    sid = "sid-test"
+    sd = tmp_path / ".buddy" / sid
+    sd.mkdir(parents=True)
+    (sd / "recon-loaded").write_text("")
+    (sd / "recon-counts.json").write_text('{"F": 1, "W": 0}')
+    identity = {"version": 1, "form": "owl-of-clear-seeing", "name": "Lin",
+                "personality": "", "hatched_at": 0, "soul_model": "fallback",
+                "hatched": False}
+    output = render(identity=identity, state=default_state(),
+                    bodhisattvas=BODHIS, env=ENV, now=1000000, local_hour=14,
+                    session_id=sid, project_root=tmp_path)
+    assert "[recon F1]" in output
+    assert "W0" not in output
+
+
+def test_render_recon_counts_both_zero_no_suffix(tmp_path):
+    """F0/W0 → bare [recon], no suffix, no trailing space."""
+    sid = "sid-test"
+    sd = tmp_path / ".buddy" / sid
+    sd.mkdir(parents=True)
+    (sd / "recon-loaded").write_text("")
+    (sd / "recon-counts.json").write_text('{"F": 0, "W": 0}')
+    identity = {"version": 1, "form": "owl-of-clear-seeing", "name": "Lin",
+                "personality": "", "hatched_at": 0, "soul_model": "fallback",
+                "hatched": False}
+    output = render(identity=identity, state=default_state(),
+                    bodhisattvas=BODHIS, env=ENV, now=1000000, local_hour=14,
+                    session_id=sid, project_root=tmp_path)
+    assert "[recon]" in output
+    assert "[recon ]" not in output
+
+
+def test_render_recon_counts_corrupt_file_degrades(tmp_path):
+    """Corrupt counts JSON → base [recon] badge, no crash, no suffix."""
+    sid = "sid-test"
+    sd = tmp_path / ".buddy" / sid
+    sd.mkdir(parents=True)
+    (sd / "recon-loaded").write_text("")
+    (sd / "recon-counts.json").write_text("{ not json")
+    identity = {"version": 1, "form": "owl-of-clear-seeing", "name": "Lin",
+                "personality": "", "hatched_at": 0, "soul_model": "fallback",
+                "hatched": False}
+    output = render(identity=identity, state=default_state(),
+                    bodhisattvas=BODHIS, env=ENV, now=1000000, local_hour=14,
+                    session_id=sid, project_root=tmp_path)
+    assert "[recon]" in output

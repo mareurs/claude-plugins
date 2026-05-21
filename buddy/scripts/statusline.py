@@ -164,18 +164,22 @@ RECON_FRESH_SECS = 30 * 60
 
 
 def _render_recon_badge(project_root, now, session_id=None):
-    """Two-state reconnaissance badge.
+    """Reconnaissance badge with session F/W counters.
 
     Markers under <project_root>/.buddy/<session_id>/:
       - recon-loaded : SessionStart dropped it; recon SKILL.md in scope.
                        No freshness check — lives for the session.
       - recon-active : LLM touched during a scout. Fresh-mtime (<30 min)
                        indicates scout in progress.
+      - recon-counts.json : {"F": n, "W": n} session-scoped entry counts,
+                       bumped by recon_count.py at SKILL.md Phase 3.
 
     Display:
-      - active fresh           → "[recon•]" (bright purple)
-      - loaded only            → "[recon]" (dim purple)
-      - neither                → empty
+      - active fresh   → "[recon•]" (bright purple)
+      - loaded only    → "[recon]" (dim purple)
+      - neither        → empty
+    A non-zero count suffix (" F<n>/W<n>", omitting a zero side) is appended
+    inside the brackets in both the dim and bright states.
     """
     try:
         if not project_root or not session_id or session_id == "unknown":
@@ -194,10 +198,27 @@ def _render_recon_badge(project_root, now, session_id=None):
                 pass
 
         if active_fresh:
-            return "\033[95m[recon•]\033[0m"  # bright purple, scout in progress
-        if loaded.is_file():
-            return "\033[35m[recon]\033[0m"  # purple, in scope
-        return ""
+            color, glyph = "\033[95m", "recon•"  # bright purple, scout in progress
+        elif loaded.is_file():
+            color, glyph = "\033[35m", "recon"   # purple, in scope
+        else:
+            return ""
+
+        suffix = ""
+        try:
+            data = json.loads((session_dir / "recon-counts.json").read_text())
+            f, w = int(data.get("F", 0)), int(data.get("W", 0))
+            parts = []
+            if f > 0:
+                parts.append(f"F{f}")
+            if w > 0:
+                parts.append(f"W{w}")
+            if parts:
+                suffix = " " + "/".join(parts)
+        except (OSError, ValueError, TypeError):
+            suffix = ""
+
+        return f"{color}[{glyph}{suffix}]\033[0m"
     except Exception:
         return ""
 
