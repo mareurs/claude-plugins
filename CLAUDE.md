@@ -83,10 +83,24 @@ Then:
    ./scripts/bump-cache.sh <plugin> <version>
    ```
    The script rsyncs the source dir into `~/.claude`, `~/.claude-sdd`, and `~/.claude-kat` under the matching version. Skipping this step is the #1 cause of "plugin appears installed but hook never fires" — installed_plugins.json claims `<version>` at a path that doesn't exist on disk.
-6. Update `installPath` + `version` in **all three** install records:
-   - `~/.claude/plugins/installed_plugins.json`
-   - `~/.claude-sdd/plugins/installed_plugins.json`
-   - `~/.claude-kat/plugins/installed_plugins.json`
+6. Update `installPath` + `version` in **all three** install records.
+   Copy-paste (substitute `<plugin>` and `<version>`):
+   ```bash
+   PLUGIN=buddy; VERSION=0.7.12   # substitute
+   for PROFILE in ~/.claude ~/.claude-sdd ~/.claude-kat; do
+     jq --arg v "$VERSION" \
+        --arg p "$PROFILE/plugins/cache/sdd-misc-plugins/$PLUGIN/$VERSION" \
+        "(.plugins[\"$PLUGIN@sdd-misc-plugins\"][0].version) = \$v
+        | (.plugins[\"$PLUGIN@sdd-misc-plugins\"][0].installPath) = \$p" \
+        "$PROFILE/plugins/installed_plugins.json" > /tmp/ip.json \
+        && mv /tmp/ip.json "$PROFILE/plugins/installed_plugins.json"
+   done
+   ```
+   Both `codescout-companion` and `buddy` are versioned, directory-source
+   plugins keyed `<plugin>@sdd-misc-plugins` — the same procedure applies to
+   each. If a sister-session bumped one plugin but missed a profile (e.g.
+   `.claude-sdd` left a version behind), `check-versions.sh` won't catch it —
+   only the per-profile sanity loop below does. Run it after every bump.
 6.5. Refresh the version-bump-checklist tracker and verify every row is ✅:
    ```
    artifact(action="update", id="cc8cb9e23ab5cc67", commit_refresh=true)
@@ -94,7 +108,15 @@ Then:
    ```
    Any ❌ blocks push. The tracker catches the 2026-05-16 cross-profile `installPath` drift and the missing cache-dir class automatically; passing it makes the manual sanity loop below redundant (kept as a fallback for environments without codescout MCP). See `docs/superpowers/specs/2026-05-18-version-bump-checklist-tracker-design.md`.
 7. Push
-8. Restart all three Claude Code instances
+8. **Cold-restart all three Claude Code instances — a `resume` is not enough.**
+   CC resolves hook commands + `installPath` at process launch and caches them.
+   Re-attaching a conversation with `source=resume` reuses the *old* in-memory
+   hook even after `installed_plugins.json` points at the new version — the
+   bumped code never runs. Confirm via the SessionStart payload: a true cold
+   start reports `source=startup`; a re-attach reports `source=resume`. Either
+   fully quit + relaunch, or run `/reload-plugins` to force a registry reload.
+   (This is the trap behind "I bumped + restarted but the fix still isn't
+   live" — verified 2026-05-21 chasing a buddy reload bug across 4 bumps.)
 
 ```bash
 ./scripts/check-versions.sh
