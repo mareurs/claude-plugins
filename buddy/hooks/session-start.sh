@@ -64,7 +64,7 @@ from scripts.hook_helpers import auto_migrate_if_needed
 line = auto_migrate_if_needed()
 if line:
     print(line)
-" 2>/dev/null)
+" 2>/dev/null) || true
 if [ -n "$MIGRATE_LINE" ]; then
     echo "$MIGRATE_LINE"
 fi
