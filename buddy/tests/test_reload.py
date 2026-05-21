@@ -17,15 +17,15 @@ def test_find_skill_md_project_scope(tmp_path, monkeypatch):
     assert result == proj_skill
 
 
-def test_find_skill_md_global_scope_when_no_project(tmp_path):
+def test_find_skill_md_global_scope_when_no_project(tmp_path, monkeypatch):
     from scripts.reload import find_skill_md
-    home = tmp_path / "home"
-    global_skill = home / ".claude" / "buddy" / "skills" / "foo-bar" / "SKILL.md"
+    monkeypatch.setenv("BUDDY_HOME", str(tmp_path / "bh"))
+    global_skill = tmp_path / "bh" / "skills" / "foo-bar" / "SKILL.md"
     global_skill.parent.mkdir(parents=True)
     global_skill.write_text("# global foo-bar")
 
     result = find_skill_md("foo-bar", plugin_root=tmp_path / "plug",
-                           project_root=tmp_path / "proj", home=home)
+                           project_root=tmp_path / "proj", home=tmp_path / "unused-home")
     assert result == global_skill
 
 
@@ -41,19 +41,19 @@ def test_find_skill_md_builtin_scope_when_no_global_or_project(tmp_path):
     assert result == builtin_skill
 
 
-def test_find_skill_md_precedence_project_over_global_over_builtin(tmp_path):
+def test_find_skill_md_precedence_project_over_global_over_builtin(tmp_path, monkeypatch):
     from scripts.reload import find_skill_md
+    monkeypatch.setenv("BUDDY_HOME", str(tmp_path / "bh"))
     plug = tmp_path / "plug"
-    home = tmp_path / "home"
     project = tmp_path / "proj"
 
     for root in [plug / "skills" / "foo" / "SKILL.md",
-                 home / ".claude" / "buddy" / "skills" / "foo" / "SKILL.md",
+                 tmp_path / "bh" / "skills" / "foo" / "SKILL.md",
                  project / ".claude" / "buddy" / "skills" / "foo" / "SKILL.md"]:
         root.parent.mkdir(parents=True)
         root.write_text(f"# {root}")
 
-    result = find_skill_md("foo", plugin_root=plug, project_root=project, home=home)
+    result = find_skill_md("foo", plugin_root=plug, project_root=project, home=tmp_path / "unused-home")
     assert "proj" in str(result)
 
 
@@ -248,3 +248,18 @@ def test_semver_key_non_semver_sorts_lower(tmp_path):
     # non-semver sorts lower
     assert _semver_key("dev") < _semver_key("0.0.1")
     assert _semver_key("0.7.8-rc1") < _semver_key("0.7.8")
+
+
+def test_global_skill_resolved_from_buddy_home(tmp_path, monkeypatch):
+    from scripts.reload import find_skill_md
+    monkeypatch.setenv("BUDDY_HOME", str(tmp_path / "bh"))
+    skill = tmp_path / "bh" / "skills" / "codescout-pika" / "SKILL.md"
+    skill.parent.mkdir(parents=True)
+    skill.write_text("# pika\n")
+    found = find_skill_md(
+        "codescout-pika",
+        plugin_root=tmp_path / "plugin",
+        project_root=tmp_path / "proj",
+        home=tmp_path / "unused-home",
+    )
+    assert found == skill

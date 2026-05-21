@@ -11,6 +11,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from scripts import buddy_paths
+
 
 def _semver_key(name: str) -> tuple:
     """Sort key for cached version directories. Numeric tuple per dot-segment;
@@ -84,7 +86,7 @@ def find_skill_md(
 
     Precedence (highest first):
       1. project: <project_root>/.claude/buddy/skills/<directory>/SKILL.md
-      2. global:  <home>/.claude/buddy/skills/<directory>/SKILL.md
+      2. global:  ${BUDDY_HOME:-~/.buddy}/skills/<directory>/SKILL.md
       3. builtin: <plugin_root>/skills/<directory>/SKILL.md
       4. sister:  <claude-dir>/plugins/cache/<marketplace>/<other-plugin>/<ver>/skills/<directory>/SKILL.md
 
@@ -97,7 +99,7 @@ def find_skill_md(
     """
     candidates = [
         project_root / ".claude" / "buddy" / "skills" / directory / "SKILL.md",
-        home / ".claude" / "buddy" / "skills" / directory / "SKILL.md",
+        buddy_paths.global_skills() / directory / "SKILL.md",
         plugin_root / "skills" / directory / "SKILL.md",
     ]
     for c in candidates:
