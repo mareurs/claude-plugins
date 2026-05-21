@@ -213,11 +213,7 @@ def handle_session_start(
             if not cs_dir.is_dir():
                 cs_dir = Path(event.get("cwd") or os.getcwd()) / ".code-explorer"
             plugin_root_env_dbg = os.environ.get("CLAUDE_PLUGIN_ROOT") or ""
-            plugin_root_dbg = (
-                Path(plugin_root_env_dbg)
-                if plugin_root_env_dbg
-                else Path(__file__).resolve().parent.parent
-            )
+            plugin_root_dbg = Path(__file__).resolve().parent.parent
             recon_skill_dbg = "-"
             try:
                 from scripts.reload import find_skill_md as _fsm
@@ -255,16 +251,12 @@ def handle_session_start(
             try:
                 import sys as _sys
                 from scripts.reload import render_reload_block
-                # CLAUDE_PLUGIN_ROOT may not be set in CC's SessionStart env.
-                # Self-locate: hook_helpers.py lives at <plugin_root>/scripts/.
-                # Without this, sister-plugin SKILL.md lookup silently fails
-                # because Path("").parent.parent does not resolve to a cache dir.
-                plugin_root_env = os.environ.get("CLAUDE_PLUGIN_ROOT") or ""
-                plugin_root = (
-                    Path(plugin_root_env)
-                    if plugin_root_env
-                    else Path(__file__).resolve().parent.parent
-                )
+                # Always self-locate via __file__. CC's CLAUDE_PLUGIN_ROOT can
+                # arrive as just the plugin slug ("buddy") rather than a full
+                # path (observed 2026-05-20 trace log); trusting it broke
+                # _sister_plugin_candidates which needs an absolute cache path.
+                # hook_helpers.py is reliably at <plugin_root>/scripts/.
+                plugin_root = Path(__file__).resolve().parent.parent
                 project_root = Path(event.get("cwd") or os.getcwd())
                 block = render_reload_block(
                     carried_specialists,
