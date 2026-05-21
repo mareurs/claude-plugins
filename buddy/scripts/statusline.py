@@ -20,9 +20,10 @@ if str(_PLUGIN_ROOT) not in sys.path:
     sys.path.insert(0, str(_PLUGIN_ROOT))
 
 from scripts.buddha import derive_mood
+from scripts import buddy_paths
 
-BUDDY_DIR = Path.home() / ".claude" / "buddy"
-IDENTITY_PATH = BUDDY_DIR / "identity.json"
+BUDDY_DIR = buddy_paths.global_root()
+IDENTITY_PATH = buddy_paths.identity_path()
 
 PLUGIN_ROOT = _PLUGIN_ROOT
 DATA_DIR = PLUGIN_ROOT / "data"

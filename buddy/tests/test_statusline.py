@@ -528,3 +528,11 @@ def test_statusline_renders_default_when_no_session_id(tmp_path, monkeypatch, ca
     from scripts import statusline
     rc = statusline.main()
     assert rc == 0
+
+
+def test_identity_path_under_buddy_home(monkeypatch, tmp_path):
+    monkeypatch.setenv("BUDDY_HOME", str(tmp_path / "bh"))
+    import importlib
+    from scripts import statusline
+    importlib.reload(statusline)
+    assert statusline.IDENTITY_PATH == tmp_path / "bh" / "identity.json"
