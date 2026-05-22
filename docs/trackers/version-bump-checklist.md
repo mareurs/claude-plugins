@@ -16,15 +16,15 @@ Release readiness across plugins × profiles. See
 
 ## State
 
-_Last refresh: `9f7ff75`_
+_Last refresh: `f1b0f31`_
 
-**codescout-companion** — canonical `1.11.2` · readme `1.11.2` · marketplace clean ✅
+**codescout-companion** — canonical `1.11.3` · readme `1.11.3` · marketplace clean ✅
 
 | profile | installed | cache dir | install_path ok |
 |---|---|---|---|
-| `~/.claude` | 1.11.2 ✅ | ✅ | ✅ |
-| `~/.claude-sdd` | 1.11.2 ✅ | ✅ | ✅ |
-| `~/.claude-kat` | 1.11.2 ✅ | ✅ | ✅ |
+| `~/.claude` | 1.11.3 ✅ | ✅ | ✅ |
+| `~/.claude-sdd` | 1.11.3 ✅ | ✅ | ✅ |
+| `~/.claude-kat` | 1.11.3 ✅ | ✅ | ✅ |
 
 **buddy** — canonical `0.7.14` · readme `0.7.14` · marketplace clean ✅
 
@@ -45,6 +45,10 @@ _Last refresh: `9f7ff75`_
 ## History
 
 _Append dated session deltas: ### YYYY-MM-DD — <what changed>._
+
+### 2026-05-22 — codescout-companion 1.11.2 → 1.11.3
+
+Path-agnostic guard hardening: native Read/Edit/Write/Grep/Glob/Bash blocked regardless of path or extension; cross-repo md/source/Bash `cd <other-repo>` escapes closed; only binary images/PDF exempt from native Read; `workspace_root` no longer relaxes the guard. Cache seeded + install records updated across 3 profiles, all green.
 
 ### 2026-05-21 — codescout-companion 1.11.1 → 1.11.2, buddy 0.7.13 → 0.7.14
 
