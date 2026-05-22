@@ -95,6 +95,19 @@ def _terminal_width() -> int:
         return 80
 
 
+def _format_specialists(active: list[str], pairs: list[tuple[str, str]]) -> str:
+    """Adaptive specialist line. ≤2 active → full labels from pairs (slug fallback); ≥3 → role names from SPECIALIST_ROLE (slug fallback)."""
+    if not active:
+        return ""
+    label_map = dict(pairs)
+    if len(active) <= 2:
+        return ", ".join(label_map.get(slug, slug) for slug in active)
+    return ", ".join(
+        SPECIALIST_ROLE.get(slug, SPECIALIST_SHORT.get(slug, slug))
+        for slug in active
+    )
+
+
 
 def _load_json(path: Path) -> dict:
     try:

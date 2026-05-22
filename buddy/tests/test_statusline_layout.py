@@ -68,3 +68,55 @@ def test_terminal_width_ignores_nonpositive_columns(monkeypatch):
         return_value=os.terminal_size((100, 24)),
     ):
         assert _terminal_width() == 100
+
+
+
+from scripts.statusline import _format_specialists
+
+
+def test_format_specialists_empty_returns_empty_string():
+    assert _format_specialists([], []) == ""
+
+
+def test_format_specialists_one_uses_full_label():
+    active = ["debugging-yeti"]
+    pairs = [("debugging-yeti", "Yeti")]
+    assert _format_specialists(active, pairs) == "Yeti"
+
+
+def test_format_specialists_two_uses_full_labels_comma_joined():
+    active = ["debugging-yeti", "testing-snow-leopard"]
+    pairs = [("debugging-yeti", "Yeti"), ("testing-snow-leopard", "Snow Leopard")]
+    assert _format_specialists(active, pairs) == "Yeti, Snow Leopard"
+
+
+def test_format_specialists_three_uses_role_names():
+    active = [
+        "debugging-yeti",
+        "testing-snow-leopard",
+        "architecture-snow-lion",
+    ]
+    pairs = [
+        ("debugging-yeti", "Yeti"),
+        ("testing-snow-leopard", "Snow Leopard"),
+        ("architecture-snow-lion", "Snow Lion"),
+    ]
+    assert _format_specialists(active, pairs) == "debugger, tester, architect"
+
+
+def test_format_specialists_unknown_slug_falls_back_to_short():
+    active = ["debugging-yeti", "testing-snow-leopard", "future-unknown-slug"]
+    pairs = [
+        ("debugging-yeti", "Yeti"),
+        ("testing-snow-leopard", "Snow Leopard"),
+        ("future-unknown-slug", "Future"),
+    ]
+    result = _format_specialists(active, pairs)
+    assert result.startswith("debugger, tester, ")
+    assert result.endswith("future-unknown-slug")
+
+
+def test_format_specialists_active_is_authoritative_when_pairs_partial():
+    active = ["debugging-yeti", "missing-slug"]
+    pairs = [("debugging-yeti", "Yeti")]
+    assert _format_specialists(active, pairs) == "Yeti, missing-slug"
