@@ -248,3 +248,112 @@ def test_truncate_visible_no_csi_no_trailing_reset():
     result = _truncate_visible(src, 8)
     assert not result.endswith("\x1b[0m")
     assert result.endswith("…")
+
+
+from scripts.statusline import _compose_segments
+
+
+def test_compose_segments_slot_0_always_empty():
+    segs = _compose_segments(
+        form_label="Owl",
+        mood="flow",
+        suggested=None,
+        specialists_line="",
+        recon_badge="",
+        verdict_bubble="",
+        cs_verdict_bubble="",
+    )
+    assert segs[0] == ""
+
+
+def test_compose_segments_slot_1_always_form_mood():
+    segs = _compose_segments(
+        form_label="Owl",
+        mood="flow",
+        suggested=None,
+        specialists_line="",
+        recon_badge="",
+        verdict_bubble="",
+        cs_verdict_bubble="",
+    )
+    assert segs[1] == "Owl · flow"
+
+
+def test_compose_segments_specialists_slot_2():
+    segs = _compose_segments(
+        form_label="Owl",
+        mood="flow",
+        suggested=None,
+        specialists_line="architect, tester",
+        recon_badge="",
+        verdict_bubble="",
+        cs_verdict_bubble="",
+    )
+    assert segs[2] == "architect, tester"
+
+
+def test_compose_segments_suggested_and_recon_combined_slot_3():
+    segs = _compose_segments(
+        form_label="Owl",
+        mood="flow",
+        suggested="debugging-yeti",
+        specialists_line="",
+        recon_badge="[recon]",
+        verdict_bubble="",
+        cs_verdict_bubble="",
+    )
+    assert "yeti nearby" in segs[3]
+    assert "[recon]" in segs[3]
+
+
+def test_compose_segments_suggested_only_slot_3():
+    segs = _compose_segments(
+        form_label="Owl",
+        mood="flow",
+        suggested="debugging-yeti",
+        specialists_line="",
+        recon_badge="",
+        verdict_bubble="",
+        cs_verdict_bubble="",
+    )
+    assert segs[3] == "yeti nearby"
+
+
+def test_compose_segments_recon_only_slot_3():
+    segs = _compose_segments(
+        form_label="Owl",
+        mood="flow",
+        suggested=None,
+        specialists_line="",
+        recon_badge="[recon]",
+        verdict_bubble="",
+        cs_verdict_bubble="",
+    )
+    assert segs[3] == "[recon]"
+
+
+def test_compose_segments_verdict_slot_4_cs_verdict_slot_5():
+    segs = _compose_segments(
+        form_label="Owl",
+        mood="flow",
+        suggested=None,
+        specialists_line="",
+        recon_badge="",
+        verdict_bubble="[ok] plan",
+        cs_verdict_bubble="[cs!] iron",
+    )
+    assert segs[4] == "[ok] plan"
+    assert segs[5] == "[cs!] iron"
+
+
+def test_compose_segments_returns_6_slots_always():
+    segs = _compose_segments(
+        form_label="Owl",
+        mood="flow",
+        suggested=None,
+        specialists_line="",
+        recon_badge="",
+        verdict_bubble="",
+        cs_verdict_bubble="",
+    )
+    assert len(segs) == 6

@@ -161,6 +161,30 @@ def _compose_rows(base: str, segments: list[str], term_w: int) -> str:
             out_lines.append(art_piece)
 
     return "\n".join(out_lines)
+def _compose_segments(
+    form_label: str,
+    mood: str,
+    suggested: str | None,
+    specialists_line: str,
+    recon_badge: str,
+    verdict_bubble: str,
+    cs_verdict_bubble: str,
+) -> list[str]:
+    """Build the 6-slot segment list for the right column of the statusline.
+
+    Slot 0 is always empty (env strip row). Slot 1 is form · mood (always). Slot 2 is the
+    specialists line (or empty). Slot 3 combines `<short> nearby` and the recon badge.
+    Slots 4 and 5 carry the plan verdict and codescout verdict bubbles respectively.
+    """
+    slot1 = f"{form_label} · {mood}" if form_label else mood
+    parts = []
+    if suggested:
+        short = SPECIALIST_SHORT.get(suggested, suggested)
+        parts.append(f"{short} nearby")
+    if recon_badge:
+        parts.append(recon_badge)
+    slot3 = " ".join(parts)
+    return ["", slot1, specialists_line, slot3, verdict_bubble, cs_verdict_bubble]
 
 
 
