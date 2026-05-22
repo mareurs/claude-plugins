@@ -45,19 +45,6 @@ SPECIALIST_SHORT = {
     "ml-training-takin": "takin",
 }
 
-SPECIALIST_INITIAL = {
-    "debugging-yeti": "D",
-    "refactoring-yak": "R",
-    "testing-snow-leopard": "T",
-    "performance-lammergeier": "P",
-    "security-ibex": "S",
-    "architecture-snow-lion": "A",
-    "planning-crane": "C",
-    "docs-lotus-frog": "W",
-    "data-leakage-snow-pheasant": "L",
-    "ml-training-takin": "M",
-}
-
 
 SPECIALIST_ROLE = {
     "debugging-yeti": "debugger",

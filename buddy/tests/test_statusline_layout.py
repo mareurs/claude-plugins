@@ -452,6 +452,7 @@ def test_render_one_specialist_uses_full_label(monkeypatch):
         now=1000000,
         local_hour=14,
     )
+    assert "Debugging Yeti" in output
     assert "debugger" not in output
 
 

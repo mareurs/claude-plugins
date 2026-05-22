@@ -111,7 +111,7 @@ def test_render_derives_mood_when_only_signals_set():
     assert "full-context" in output
 
 
-def test_render_shows_active_specialist_initial():
+def test_render_shows_active_specialist_label():
     identity = {
         "version": 1,
         "form": "owl-of-clear-seeing",
@@ -127,7 +127,7 @@ def test_render_shows_active_specialist_initial():
     assert "Debugging Yeti" in output
 
 
-def test_render_shows_multiple_active_specialists_initials():
+def test_render_shows_multiple_active_specialists_labels():
     identity = {
         "version": 1,
         "form": "owl-of-clear-seeing",
@@ -144,7 +144,7 @@ def test_render_shows_multiple_active_specialists_initials():
     assert "Testing Snow Leopard" in output
 
 
-def test_render_no_initials_when_no_active_specialists():
+def test_render_no_specialists_section_when_none_active():
     identity = {
         "version": 1,
         "form": "owl-of-clear-seeing",
@@ -517,8 +517,7 @@ def test_statusline_reads_session_scoped_state(tmp_path, monkeypatch, capsys):
     from scripts import statusline
     statusline.main()
     out = capsys.readouterr().out
-    # The yeti specialist's initial 'D' (from SPECIALIST_INITIAL) must appear
-    assert "D" in out
+    assert "Debugging Yeti" in out
 
 
 def test_statusline_renders_default_when_no_session_id(tmp_path, monkeypatch, capsys):
