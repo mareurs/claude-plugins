@@ -357,3 +357,135 @@ def test_compose_segments_returns_6_slots_always():
         cs_verdict_bubble="",
     )
     assert len(segs) == 6
+
+
+
+# --- Task 5: render() side-by-side integration tests ---
+
+import json
+from pathlib import Path
+
+from scripts.statusline import render
+from scripts.state import default_state
+
+DATA_DIR = Path(__file__).parent.parent / "data"
+BODHIS = json.loads((DATA_DIR / "bodhisattvas.json").read_text())
+ENV = json.loads((DATA_DIR / "environment.json").read_text())
+
+
+def _identity(form="owl-of-clear-seeing"):
+    return {
+        "version": 1,
+        "form": form,
+        "name": "Lin",
+        "personality": "",
+        "hatched_at": 0,
+        "soul_model": "fallback",
+        "hatched": False,
+    }
+
+
+def test_render_side_by_side_form_mood_on_row_1(monkeypatch):
+    monkeypatch.setenv("COLUMNS", "200")
+    state = default_state()
+    output = render(
+        identity=_identity(),
+        state=state,
+        bodhisattvas=BODHIS,
+        env=ENV,
+        now=1000000,
+        local_hour=14,
+    )
+    lines = output.split("\n")
+    # row 0 is env strip, row 1 is first art row + "Owl · flow"
+    assert "Owl" in lines[1]
+    assert "flow" in lines[1]
+
+
+def test_render_no_specialists_keeps_slot_2_blank(monkeypatch):
+    monkeypatch.setenv("COLUMNS", "200")
+    state = default_state()
+    output = render(
+        identity=_identity(),
+        state=state,
+        bodhisattvas=BODHIS,
+        env=ENV,
+        now=1000000,
+        local_hour=14,
+    )
+    lines = output.split("\n")
+    for line in lines[2:]:
+        assert "," not in line  # no specialists list
+
+
+def test_render_three_specialists_uses_role_names(monkeypatch):
+    monkeypatch.setenv("COLUMNS", "200")
+    state = default_state()
+    state["active_specialists"] = [
+        "debugging-yeti",
+        "testing-snow-leopard",
+        "architecture-snow-lion",
+    ]
+    output = render(
+        identity=_identity(),
+        state=state,
+        bodhisattvas=BODHIS,
+        env=ENV,
+        now=1000000,
+        local_hour=14,
+    )
+    assert "debugger" in output
+    assert "tester" in output
+    assert "architect" in output
+    assert "Yeti" not in output
+
+
+def test_render_one_specialist_uses_full_label(monkeypatch):
+    monkeypatch.setenv("COLUMNS", "200")
+    state = default_state()
+    state["active_specialists"] = ["debugging-yeti"]
+    output = render(
+        identity=_identity(),
+        state=state,
+        bodhisattvas=BODHIS,
+        env=ENV,
+        now=1000000,
+        local_hour=14,
+    )
+    assert "debugger" not in output
+
+
+def test_render_narrow_terminal_truncates_specialists(monkeypatch):
+    monkeypatch.setenv("COLUMNS", "30")
+    state = default_state()
+    state["active_specialists"] = [
+        "debugging-yeti",
+        "testing-snow-leopard",
+        "architecture-snow-lion",
+        "security-ibex",
+        "performance-lammergeier",
+    ]
+    output = render(
+        identity=_identity(),
+        state=state,
+        bodhisattvas=BODHIS,
+        env=ENV,
+        now=1000000,
+        local_hour=14,
+    )
+    assert "…" in output
+
+
+def test_render_fallback_no_form_returns_single_line(monkeypatch):
+    monkeypatch.setenv("COLUMNS", "200")
+    state = default_state()
+    output = render(
+        identity=_identity(form="nonexistent-form"),
+        state=state,
+        bodhisattvas=BODHIS,
+        env=ENV,
+        now=1000000,
+        local_hour=14,
+    )
+    assert "\n" not in output
+    assert "Lin" in output

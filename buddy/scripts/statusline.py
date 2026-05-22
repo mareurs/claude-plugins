@@ -383,12 +383,10 @@ def render(
     eyes = form["eyes"].get(mood) or form["eyes"].get("flow", "·_·")
     base = form["base"].replace("{env}", env_strip).replace("{eyes}", eyes)
 
-    label_parts = [form.get("label", form_name), mood]
-    if suggested:
-        short = SPECIALIST_SHORT.get(suggested, suggested)
-        label_parts.append(f"{short} nearby")
+    form_label = form.get("label", form_name)
 
     active = state.get("active_specialists", [])
+    specialists_line = ""
     if active:
         plugin_root = _PLUGIN_ROOT
         proj_root = project_root or Path.cwd()
@@ -399,26 +397,25 @@ def render(
                 plugin_root=plugin_root,
                 project_root=proj_root,
             )
-            names = ", ".join(label for _slug, label in pairs)
         except Exception:
-            names = ", ".join(active)
-        label_parts.append(f"[{names}]")
+            pairs = []
+        specialists_line = _format_specialists(active, pairs)
 
-    recon = _render_recon_badge(project_root, now, session_id=session_id)
-    if recon:
-        label_parts.append(recon)
+    recon_badge = _render_recon_badge(project_root, now, session_id=session_id)
+    verdict_bubble = _render_bubble(session_id, project_root, now)
+    cs_verdict_bubble = _render_cs_bubble(session_id, project_root, now)
 
-    label = " · ".join(label_parts)
+    segments = _compose_segments(
+        form_label=form_label,
+        mood=mood,
+        suggested=suggested,
+        specialists_line=specialists_line,
+        recon_badge=recon_badge,
+        verdict_bubble=verdict_bubble,
+        cs_verdict_bubble=cs_verdict_bubble,
+    )
 
-    bubble = _render_bubble(session_id, project_root, now)
-    if bubble:
-        label = f"{label} {bubble}"
-
-    cs_bubble = _render_cs_bubble(session_id, project_root, now)
-    if cs_bubble:
-        label = f"{label} {cs_bubble}"
-
-    return f"{base}\n {label}"
+    return _compose_rows(base, segments, _terminal_width())
 
 
 def main() -> int:
