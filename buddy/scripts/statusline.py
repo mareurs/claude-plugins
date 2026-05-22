@@ -106,6 +106,61 @@ def _format_specialists(active: list[str], pairs: list[tuple[str, str]]) -> str:
         SPECIALIST_ROLE.get(slug, SPECIALIST_SHORT.get(slug, slug))
         for slug in active
     )
+def _truncate_visible(s: str, max_w: int) -> str:
+    if max_w <= 0:
+        return ""
+    if _visible_width(s) <= max_w:
+        return s
+    had_csi = bool(_CSI_RE.search(s))
+    plain = _CSI_RE.sub("", s)
+    cut_w = max(max_w - 1, 0)
+    truncated = plain[:cut_w] + "…"
+    if had_csi:
+        truncated += "\033[0m"
+    return truncated
+
+
+def _compose_rows(base: str, segments: list[str], term_w: int) -> str:
+    art_rows = base.split("\n")
+
+    trimmed = list(segments)
+    while trimmed and trimmed[-1] == "":
+        trimmed.pop()
+    n = max(len(art_rows), len(trimmed))
+
+    art_visible_widths = [_visible_width(r) for r in art_rows]
+    anchor = (max(art_visible_widths) if art_visible_widths else 0) + 2
+    right_budget = max(term_w - anchor, 20)
+
+    work = list(trimmed)
+    # Truncation priority — slot indices in order of expendability:
+    # 2 = specialists (longest, lowest info density)
+    # 3 = suggested + recon
+    # 4, 5 = verdict bubbles
+    # 1 = form · mood (last resort)
+    # 0 is always empty by design (env strip row).
+    priority = [2, 3, 4, 5, 1]
+    for idx in priority:
+        if idx >= len(work):
+            continue
+        if _visible_width(work[idx]) > right_budget:
+            work[idx] = _truncate_visible(work[idx], right_budget)
+
+    out_lines = []
+    for i in range(n):
+        art_piece = art_rows[i] if i < len(art_rows) else ""
+        seg = work[i] if i < len(work) else ""
+        if art_piece == "" and seg == "":
+            continue
+        if seg:
+            pad = anchor - _visible_width(art_piece)
+            if pad < 0:
+                pad = 0
+            out_lines.append(art_piece + (" " * pad) + seg)
+        else:
+            out_lines.append(art_piece)
+
+    return "\n".join(out_lines)
 
 
 

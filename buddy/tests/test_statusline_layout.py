@@ -120,3 +120,131 @@ def test_format_specialists_active_is_authoritative_when_pairs_partial():
     active = ["debugging-yeti", "missing-slug"]
     pairs = [("debugging-yeti", "Yeti")]
     assert _format_specialists(active, pairs) == "Yeti, missing-slug"
+
+
+from scripts.statusline import _compose_rows
+
+
+def test_compose_rows_basic_side_by_side():
+    base = "env\n   .~~.\n  (°‿°)\n   \\_/\n  ~~~~~"
+    segments = ["", "Owl · flow", "tester", "", "[ok] plan"]
+    output = _compose_rows(base, segments, term_w=200)
+    lines = output.split("\n")
+    assert lines[0].rstrip() == "env"
+    assert "Owl · flow" in lines[1]
+    assert "tester" in lines[2]
+    # slot 3 empty but art row 3 present → art piece padded, empty right column
+    assert lines[3].rstrip() == "   \\_/"
+    assert "[ok] plan" in lines[4]
+
+
+def test_compose_rows_trailing_empty_segments_dropped():
+    base = "env\n   .~~.\n  (°‿°)\n   \\_/\n  ~~~~~"
+    segments = ["", "Owl · flow", "", "", ""]
+    output = _compose_rows(base, segments, term_w=200)
+    lines = output.split("\n")
+    assert len(lines) == 5
+    assert lines[2].rstrip() == "  (°‿°)"
+    assert lines[3].rstrip() == "   \\_/"
+    assert lines[4].rstrip() == "  ~~~~~"
+
+
+def test_compose_rows_short_art_more_segments():
+    base = "env\nART"
+    segments = ["", "slot1", "slot2", "slot3"]
+    output = _compose_rows(base, segments, term_w=200)
+    lines = output.split("\n")
+    assert len(lines) == 4
+    assert lines[0].rstrip() == "env"
+    assert lines[1].endswith("slot1")
+    assert lines[2].endswith("slot2")
+    assert lines[3].endswith("slot3")
+    assert "ART" in lines[1]
+
+
+def test_compose_rows_tall_art_few_segments():
+    base = "env\n.\n.\n.\n.\n."
+    segments = ["", "slot1", "slot2"]
+    output = _compose_rows(base, segments, term_w=200)
+    lines = output.split("\n")
+    assert len(lines) == 6
+
+
+def test_compose_rows_truncates_specialists_first():
+    base = "env\nA\nB\nC"
+    long_specialists = "architect, tester, security, perf, debugger, refactorer"
+    short_recon = "[recon]"
+    segments = ["", "form · mood", long_specialists, short_recon]
+    output = _compose_rows(base, segments, term_w=30)
+    lines = output.split("\n")
+    spec_line = lines[2]
+    assert "…" in spec_line
+    assert "[recon]" in lines[3]
+
+
+def test_compose_rows_truncated_visible_width_within_budget():
+    base = "env\nABC"
+    long = "x" * 200
+    segments = ["", long]
+    output = _compose_rows(base, segments, term_w=40)
+    lines = output.split("\n")
+    assert _visible_width(lines[1]) <= 40
+
+
+def test_compose_rows_no_trailing_newline():
+    base = "env\nA"
+    segments = ["", "slot1"]
+    output = _compose_rows(base, segments, term_w=200)
+    assert not output.endswith("\n")
+
+
+def test_compose_rows_empty_middle_slot_preserves_pinning():
+    base = "env\nA\nB\nC\nD"
+    segments = ["", "form", "", "[recon]", "[ok]"]
+    output = _compose_rows(base, segments, term_w=200)
+    lines = output.split("\n")
+    assert lines[2].rstrip() == "B"
+    assert "[recon]" in lines[3]
+    assert "[ok]" in lines[4]
+
+
+
+from scripts.statusline import _truncate_visible
+
+
+def test_truncate_visible_zero_width_returns_empty():
+    assert _truncate_visible("anything", 0) == ""
+    assert _truncate_visible("anything", -5) == ""
+
+
+def test_truncate_visible_short_string_unchanged():
+    assert _truncate_visible("abc", 10) == "abc"
+    assert _truncate_visible("", 10) == ""
+
+
+def test_truncate_visible_ascii_truncation_appends_ellipsis():
+    result = _truncate_visible("abcdefghij", 5)
+    assert result == "abcd…"
+    assert _visible_width(result) == 5
+
+
+def test_truncate_visible_preserves_trailing_reset_when_csi_present():
+    src = "\x1b[32mok this is a long success message\x1b[0m"
+    result = _truncate_visible(src, 10)
+    assert result.endswith("\x1b[0m")
+    assert "…" in result
+    assert _visible_width(result) == 10
+
+
+def test_truncate_visible_appends_reset_when_csi_is_mid_string():
+    src = "\x1b[32m[ok] verdict: text\x1b[0m (+3)"
+    result = _truncate_visible(src, 12)
+    assert result.endswith("\x1b[0m")
+    assert _visible_width(result) == 12
+
+
+def test_truncate_visible_no_csi_no_trailing_reset():
+    src = "plain long ascii content"
+    result = _truncate_visible(src, 8)
+    assert not result.endswith("\x1b[0m")
+    assert result.endswith("…")
