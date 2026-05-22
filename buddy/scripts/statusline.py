@@ -120,13 +120,14 @@ def _compose_rows(base: str, segments: list[str], term_w: int) -> str:
     right_budget = max(term_w - anchor, 20)
 
     work = list(trimmed)
-    # Truncation priority — slot indices in order of expendability:
-    # 2 = specialists (longest, lowest info density)
-    # 3 = suggested + recon
-    # 4, 5 = verdict bubbles
-    # 1 = form · mood (last resort)
-    # 0 is always empty by design (env strip row).
-    priority = [2, 3, 4, 5, 1]
+    # Truncation priority — slot 2 (specialists) is intentionally OMITTED:
+    # term width detection falsely reports 80 cols inside CC's statusline
+    # subprocess, so capping specialists eats visible names even on wide
+    # terminals. Let slot 2 overflow and wrap; that's better than always
+    # ellipsizing roles when there's actually space. Bubbles/recon stay
+    # capped because they're short-by-design and a wrap onto art rows
+    # below would look worse than truncation.
+    priority = [3, 4, 5, 1]
     for idx in priority:
         if idx >= len(work):
             continue

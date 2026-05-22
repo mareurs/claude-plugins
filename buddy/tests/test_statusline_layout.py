@@ -170,16 +170,26 @@ def test_compose_rows_tall_art_few_segments():
     assert len(lines) == 6
 
 
-def test_compose_rows_truncates_specialists_first():
+def test_compose_rows_specialists_pass_through_uncapped():
     base = "env\nA\nB\nC"
     long_specialists = "architect, tester, security, perf, debugger, refactorer"
     short_recon = "[recon]"
     segments = ["", "form · mood", long_specialists, short_recon]
     output = _compose_rows(base, segments, term_w=30)
     lines = output.split("\n")
-    spec_line = lines[2]
-    assert "…" in spec_line
+    assert long_specialists in lines[2]
+    assert "…" not in lines[2]
     assert "[recon]" in lines[3]
+
+
+
+def test_compose_rows_truncates_recon_when_over_budget():
+    base = "env\nA\nB\nC"
+    long_recon = "[recon F12/W34 + cluttered " + "x" * 80 + "]"
+    segments = ["", "form · mood", "", long_recon]
+    output = _compose_rows(base, segments, term_w=30)
+    lines = output.split("\n")
+    assert "…" in lines[3]
 
 
 def test_compose_rows_truncated_visible_width_within_budget():
@@ -456,7 +466,7 @@ def test_render_one_specialist_uses_full_label(monkeypatch):
     assert "debugger" not in output
 
 
-def test_render_narrow_terminal_truncates_specialists(monkeypatch):
+def test_render_narrow_terminal_does_not_truncate_specialists(monkeypatch):
     monkeypatch.setenv("COLUMNS", "30")
     state = default_state()
     state["active_specialists"] = [
@@ -474,7 +484,8 @@ def test_render_narrow_terminal_truncates_specialists(monkeypatch):
         now=1000000,
         local_hour=14,
     )
-    assert "…" in output
+    for role in ("debugger", "tester", "architect", "security", "perf"):
+        assert role in output
 
 
 def test_render_fallback_no_form_returns_single_line(monkeypatch):
