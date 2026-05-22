@@ -6,6 +6,9 @@ renders the primary bodhisattva to stdout.
 Zero LLM involvement. < 1ms per render.
 """
 import json
+import os
+import re
+import shutil
 import sys
 import time
 from datetime import datetime
@@ -54,6 +57,43 @@ SPECIALIST_INITIAL = {
     "data-leakage-snow-pheasant": "L",
     "ml-training-takin": "M",
 }
+
+
+SPECIALIST_ROLE = {
+    "debugging-yeti": "debugger",
+    "refactoring-yak": "refactorer",
+    "testing-snow-leopard": "tester",
+    "performance-lammergeier": "perf",
+    "security-ibex": "security",
+    "architecture-snow-lion": "architect",
+    "planning-crane": "planner",
+    "docs-lotus-frog": "docs",
+    "data-leakage-snow-pheasant": "leakage",
+    "ml-training-takin": "ml",
+}
+
+_CSI_RE = re.compile(r"\x1b\[[0-9;]*m")
+
+
+def _visible_width(s: str) -> int:
+    return len(_CSI_RE.sub("", s))
+
+
+def _terminal_width() -> int:
+    """Width for statusline layout. COLUMNS env wins (CC sets it per render); shutil ioctl as fallback; 80 on failure."""
+    raw = os.environ.get("COLUMNS")
+    if raw:
+        try:
+            n = int(raw)
+            if n > 0:
+                return n
+        except ValueError:
+            pass
+    try:
+        return shutil.get_terminal_size((80, 24)).columns
+    except OSError:
+        return 80
+
 
 
 def _load_json(path: Path) -> dict:
