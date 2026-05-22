@@ -174,8 +174,8 @@ resolve_primary() {
     fi
   fi
 
-  if [[ -x "$HOME/.claude/statusline.sh" ]]; then
-    printf '%s' "$HOME/.claude/statusline.sh"
+  if [[ -x "${CLAUDE_CONFIG_DIR:-$HOME/.claude}/statusline.sh" ]]; then
+    printf '%s' "${CLAUDE_CONFIG_DIR:-$HOME/.claude}/statusline.sh"
     return
   fi
 
@@ -225,7 +225,7 @@ fi
 
 # ── Render caveman badge ──────────────────────────────────────────────────────
 
-CAVEMAN_FLAG="$HOME/.claude/.caveman-active"
+CAVEMAN_FLAG="${CLAUDE_CONFIG_DIR:-$HOME/.claude}/.caveman-active"
 if [[ -f "$CAVEMAN_FLAG" ]]; then
   CAVEMAN_MODE=$(cat "$CAVEMAN_FLAG" 2>/dev/null)
   if [[ "$CAVEMAN_MODE" == "full" ]] || [[ -z "$CAVEMAN_MODE" ]]; then

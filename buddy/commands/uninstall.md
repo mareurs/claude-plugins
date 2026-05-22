@@ -1,13 +1,13 @@
 You are uninstalling the buddy statusline integration from the user's Claude Code settings.
 
-This removes the `statusLine` entry from `~/.claude/settings.json` only if it currently points at buddy. Other keys in settings.json are preserved. The plugin itself is NOT removed — run `/plugin uninstall buddy@<marketplace>` separately for that.
+This removes the `statusLine` entry from `${CLAUDE_CONFIG_DIR:-$HOME/.claude}/settings.json` only if it currently points at buddy. Other keys in settings.json are preserved. The plugin itself is NOT removed — run `/plugin uninstall buddy@<marketplace>` separately for that.
 
 ## Step 1 — Inspect the current statusLine
 
 ```bash
-python3 -c "
-import json, pathlib
-p = pathlib.Path.home() / '.claude' / 'settings.json'
+SETTINGS="${CLAUDE_CONFIG_DIR:-$HOME/.claude}/settings.json" python3 -c "
+import json, os, pathlib
+p = pathlib.Path(os.environ['SETTINGS'])
 if not p.exists():
     print('NO_SETTINGS')
     raise SystemExit(0)
@@ -25,7 +25,6 @@ cmd = sl.get('command', '') or ''
 print('CURRENT:', cmd)
 "
 ```
-
 ## Step 2 — Decide whether to prune
 
 Inspect the printed `CURRENT:` command. It belongs to buddy if it contains any of these markers:
@@ -42,16 +41,15 @@ If `NO_SETTINGS` or `NO_STATUSLINE` was printed, STOP. Report: "Nothing to remov
 
 Print the current command and ask:
 
-> "Remove buddy statusLine entry `<current command>` from `~/.claude/settings.json`? Reply yes to remove, no to cancel."
+> "Remove buddy statusLine entry `<current command>` from `${CLAUDE_CONFIG_DIR:-$HOME/.claude}/settings.json`? Reply yes to remove, no to cancel."
 
 If anything other than a clear yes, STOP and report cancelled.
-
 ## Step 4 — Atomic prune
 
 ```bash
-python3 -c "
-import json, pathlib, tempfile, os
-p = pathlib.Path.home() / '.claude' / 'settings.json'
+SETTINGS="${CLAUDE_CONFIG_DIR:-$HOME/.claude}/settings.json" python3 -c "
+import json, os, pathlib, tempfile
+p = pathlib.Path(os.environ['SETTINGS'])
 raw = p.read_text() if p.exists() else '{}'
 try:
     s = json.loads(raw) if raw.strip() else {}
@@ -77,7 +75,6 @@ except Exception:
 print('Removed statusLine:', json.dumps(removed))
 "
 ```
-
 ## Step 5 — Report
 
 Print:

@@ -2,11 +2,12 @@ You are installing the buddy statusline into the user's Claude Code settings.
 
 ## Step 1 — Detect sibling plugins
 
-Use the `Bash` tool to detect whether the `claude-statusline` plugin is installed alongside buddy. The plugin root for buddy is `${CLAUDE_PLUGIN_ROOT}`; claude-statusline (if present) lives at `~/.claude/plugins/claude-statusline/`.
+Use the `Bash` tool to detect whether the `claude-statusline` plugin is installed alongside buddy. The plugin root for buddy is `${CLAUDE_PLUGIN_ROOT}`; claude-statusline (if present) lives under the active CC config dir.
 
 ```bash
-PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$HOME/.claude/plugins/buddy}"
-if [ -d "$HOME/.claude/plugins/claude-statusline" ]; then
+CFG="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
+PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$CFG/plugins/buddy}"
+if [ -d "$CFG/plugins/claude-statusline" ]; then
   echo "MODE=composed"
 else
   echo "MODE=standalone"
@@ -28,14 +29,15 @@ Note: `${CLAUDE_PLUGIN_ROOT}` stays as a literal in the written string; Claude C
 ## Step 3 — Inspect the current settings.json
 
 ```bash
-SETTINGS="$HOME/.claude/settings.json"
+CFG="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
+SETTINGS="$CFG/settings.json"
 mkdir -p "$(dirname "$SETTINGS")"
 if [ ! -f "$SETTINGS" ]; then
   echo '{}' > "$SETTINGS"
 fi
-python3 -c "
-import json, pathlib
-p = pathlib.Path.home() / '.claude' / 'settings.json'
+SETTINGS="$SETTINGS" python3 -c "
+import json, os, pathlib
+p = pathlib.Path(os.environ['SETTINGS'])
 raw = p.read_text() if p.exists() else '{}'
 try:
     s = json.loads(raw) if raw.strip() else {}
@@ -66,17 +68,17 @@ If the user replies no (or anything other than a clear yes), STOP. Do not modify
 Use the `Bash` tool. Substitute `<CHOSEN_COMMAND>` with the command chosen in Step 2 (keep the literal `${CLAUDE_PLUGIN_ROOT}` inside it).
 
 ```bash
-python3 -c "
-import json, pathlib, tempfile, os
-p = pathlib.Path.home() / '.claude' / 'settings.json'
+SETTINGS="${CLAUDE_CONFIG_DIR:-$HOME/.claude}/settings.json" python3 -c "
+import json, os, pathlib, tempfile
+p = pathlib.Path(os.environ['SETTINGS'])
 raw = p.read_text() if p.exists() else '{}'
 try:
     s = json.loads(raw) if raw.strip() else {}
 except json.JSONDecodeError:
-    print('ERROR: ~/.claude/settings.json is not valid JSON. Aborting install.')
+    print(f'ERROR: {p} is not valid JSON. Aborting install.')
     raise SystemExit(1)
 if not isinstance(s, dict):
-    print('ERROR: ~/.claude/settings.json top-level value is not an object. Aborting install.')
+    print(f'ERROR: {p} top-level value is not an object. Aborting install.')
     raise SystemExit(1)
 s['statusLine'] = {
     'type': 'command',
@@ -102,10 +104,9 @@ print('Wrote statusLine:', s['statusLine']['command'])
 Print a short summary:
 
 - Which mode was chosen (composed or standalone) and why
-- The exact command string written to `~/.claude/settings.json`
+- The exact command string written to `${CLAUDE_CONFIG_DIR:-$HOME/.claude}/settings.json`
 - Tell the user to restart Claude Code (or run `/reload-plugins` if available) for the statusline to take effect
 - Suggest next steps: `/buddy:legend` for the reference card, `/buddy:status` for diagnostics
-
 ## Step 7 — Do not log
 
 Install is not a summon event. Skip the `summons.log` append.

@@ -16,6 +16,17 @@ codescout-companion/               -- companion plugin for codescout MCP server
 scripts/check-versions.sh       -- version consistency validator
 ```
 
+## Config Dir Resolution
+
+CC sets `CLAUDE_CONFIG_DIR` per profile. Plugin code must resolve config paths via `${CLAUDE_CONFIG_DIR:-$HOME/.claude}` — never bare `$HOME/.claude`.
+
+- Unset → single-profile user, falls back to `~/.claude` (correct).
+- Set → multi-profile install (e.g. `~/.claude-sdd`), uses the right profile.
+
+Same shape works for both. Hardcoding `$HOME/.claude` writes to the wrong profile for multi-profile users; the fallback pattern costs nothing.
+
+For `.claude.json` (the file): single-profile users have it at `~/.claude.json`; multi-profile users have it inside the profile dir as `<profile>/.claude.json`. When code needs to read it, try `${CLAUDE_CONFIG_DIR:-$HOME/.claude}/.claude.json` first, fall back to `$HOME/.claude.json`. See `codescout-companion/scripts/detect.py` for the canonical implementation.
+
 ## Active Development Focus
 
 **When "the plugin" is mentioned without qualification, it refers to `codescout-companion`.**
