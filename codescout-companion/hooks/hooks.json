@@ -67,7 +67,7 @@
         ]
       },
       {
-        "matcher": "mcp__codescout__(edit_code|replace_symbol)",
+        "matcher": "mcp__codescout__edit_code",
         "hooks": [
           {
             "type": "command",
