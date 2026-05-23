@@ -38,7 +38,7 @@ MARKER="$ACTIVATED_PATH/.cs-worktree-pending"
 if [ -f "$MARKER" ]; then
   rm -f "$MARKER"
   jq -n --arg ctx "✓ codescout switched to: $ACTIVATED_PATH
-Write tools (edit_lines, replace_symbol, etc.) are now unblocked for this worktree." '{
+Write tools (edit_code, edit_file, edit_markdown, create_file) are now unblocked for this worktree." '{
     hookSpecificOutput: {
       hookEventName: "PostToolUse",
       additionalContext: $ctx

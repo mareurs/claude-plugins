@@ -2,8 +2,9 @@
 # PreToolUse hook — block code-explorer write tools when in a worktree
 # without workspace having been called.
 #
-# Triggered by: any tool whose name ends with a code-explorer write tool name
-# (hooks.json matcher regex confirmed to work; case statement adds defense-in-depth).
+# Triggered by: hooks.json matches mcp__codescout__(edit_code|edit_file|edit_markdown|create_file).
+# The case statement below mirrors the matcher as defense-in-depth (in case the
+# hook is wired into a broader matcher in the future).
 #
 # State: .cs-worktree-pending in worktree root (created by worktree-activate.sh,
 #         deleted by ce-activate-project.sh).
@@ -16,7 +17,7 @@ CWD=$(echo "$INPUT" | jq -r '.cwd // empty' 2>/dev/null)
 # Filter: only act on code-explorer write tools
 # MCP tools have format: mcp__<server>__<tool>
 case "$TOOL_NAME" in
-  *__edit_lines|*__replace_symbol|*__insert_code|*__create_file|*__create_or_update_file)
+  *__edit_code|*__edit_file|*__edit_markdown|*__create_file)
     ;;
   *)
     exit 0
