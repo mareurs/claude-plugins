@@ -7,32 +7,30 @@ suggestions, and the user has chosen to install them.
 
 ## Tool gates — codescout Iron Laws
 
-When this project uses the codescout MCP server, the following rules apply
-to every tool call:
+When the codescout MCP server is the backend, the **Iron Laws** apply to every
+tool call. The authoritative statement — with current tool names and per-law
+exceptions — is the `server_instructions` surface delivered at every MCP
+session start; see *Iron Laws* and *Workspace gate* there.
 
-1. **No `read_file` on source code.** Use `symbols(path)` for overview,
-   `symbols(name=..., include_body=true)` for specific bodies. `read_file`
-   on a source path returns a summary, not raw content.
-2. **No `read_file` on markdown.** Use `read_markdown` — heading-addressed,
-   slice-able. `read_file` on `.md` is hard-rejected.
-3. **No `edit_file` for structural code changes.** Use `edit_code` with
-   `action="replace" | "insert" | "remove" | "rename"`. `edit_file` is for
-   imports, literals, comments, config only.
-4. **No `edit_file` on markdown.** Use `edit_markdown` — heading-addressed,
-   batchable via `edits[]`.
-5. **No piping `run_command` output.** Run the command bare, query the
-   `@cmd_*` buffer in a follow-up. The buffer system exists to save
-   context — use it.
-6. **Always restore the active project.** After
-   `workspace(action="activate", path=foreign)`, call
-   `workspace(action="activate", path=home)` before finishing. Forgetting
-   silently breaks subsequent tool calls.
+At-a-glance cheat sheet (defense-in-depth for compaction / cross-specialist
+load — canonical wins on any disagreement):
 
-If codescout is not the MCP backend in this session, the native equivalents
+1. Source code reads → `symbols`, not `read_file` / `Read`.
+2. Markdown reads → `read_markdown`, not `read_file` / `Read`.
+3. Structural code edits → `edit_code` (`action=replace|insert|remove|rename`),
+   not `edit_file` / `Edit`. `edit_file` is for imports, literals, comments,
+   config only.
+4. Markdown edits → `edit_markdown` (heading-addressed; batchable via `edits[]`).
+5. `run_command` output → run bare, query the returned `@cmd_*` buffer in a
+   follow-up. Bounded LHS (`ls`, `cat`, `awk`, `sed`, `find -maxdepth N`) is OK.
+6. After `workspace(action="activate", path=foreign)`, restore the home
+   project before the turn ends — the MCP server is shared state across the
+   session.
+
+If codescout is not the MCP backend in this session, native equivalents
 apply, but the same intent holds: prefer structured navigation over raw
 reads, prefer atomic edits over text-search-replace, never lose project
 context across tool calls.
-
 ## Runtime gates — buddy hooks
 
 The buddy plugin observes every tool call you make in this session. Two
