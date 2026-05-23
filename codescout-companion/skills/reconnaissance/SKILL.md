@@ -44,6 +44,7 @@ For each symbol, type, or contract about to be touched:
 - Read the symbol body: `symbols(name=..., include_body=true)`
 - Read callers if shape changes: `references(symbol, ...)` or `call_graph(symbol, direction="callers")`
 - For tools / external APIs: read the actual response shape, not docs. Run the call once, inspect output.
+- **Grep scope: workspace root, not the file being modified.** Assertions on the symbol, runtime token substitutions, and constructor sites routinely cross crate/module boundaries; a scope narrowed to the changing file's directory will miss them. (R-3 in `docs/trackers/reconnaissance-patterns.md` of codescout.)
 
 **Statusline marker (recommended).** Touch `.buddy/$SID/recon-active` once at scout start so the user's statusline shows `[recon]` for 30 minutes. The badge signals scout-in-progress; the user knows not to redirect mid-scout, which prevents abort-and-restart cost:
 
