@@ -231,10 +231,10 @@ fi
 # --- Iron Laws reminder (survives context compression) ---
 MSG="${MSG}CODESCOUT RULES (compression-resilient reminder):
 • Source code: symbols (list + find), NOT read_file/Read
-• Code edits: replace_symbol/insert_code/remove_symbol, NOT edit_file/Edit for structural changes
+• Code edits: edit_code (LSP-aware; action=replace/insert/remove/rename), NOT edit_file/Edit for structural changes
 • Shell commands: run_command, NOT Bash — output buffers save tokens
 • Markdown: read_markdown/edit_markdown, NOT read_file/edit_file
-• Never pipe run_command output — query @ref buffers instead
+• Never pipe unbounded run_command output — run bare, query @cmd_* buffer (bounded LHS like ls, cat, awk, sed, find -maxdepth N is OK)
 
 "
 
