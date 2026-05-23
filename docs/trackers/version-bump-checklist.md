@@ -16,7 +16,7 @@ Release readiness across plugins × profiles. See
 
 ## State
 
-_Last refresh: `f1b0f31`_
+_Last refresh: `b15c861`_
 
 **codescout-companion** — canonical `1.11.3` · readme `1.11.3` · marketplace clean ✅
 
@@ -26,13 +26,13 @@ _Last refresh: `f1b0f31`_
 | `~/.claude-sdd` | 1.11.3 ✅ | ✅ | ✅ |
 | `~/.claude-kat` | 1.11.3 ✅ | ✅ | ✅ |
 
-**buddy** — canonical `0.7.14` · readme `0.7.14` · marketplace clean ✅
+**buddy** — canonical `0.7.15` · readme `0.7.15` · marketplace clean ✅
 
 | profile | installed | cache dir | install_path ok |
 |---|---|---|---|
-| `~/.claude` | 0.7.14 ✅ | ✅ | ✅ |
-| `~/.claude-sdd` | 0.7.14 ✅ | ✅ | ✅ |
-| `~/.claude-kat` | 0.7.14 ✅ | ✅ | ✅ |
+| `~/.claude` | 0.7.15 ✅ | ✅ | ✅ |
+| `~/.claude-sdd` | 0.7.15 ✅ | ✅ | ✅ |
+| `~/.claude-kat` | 0.7.15 ✅ | ✅ | ✅ |
 
 **sdd** — canonical `2.4.1` · readme `2.4.1` · marketplace clean ✅
 
@@ -45,6 +45,10 @@ _Last refresh: `f1b0f31`_
 ## History
 
 _Append dated session deltas: ### YYYY-MM-DD — <what changed>._
+
+### 2026-05-23 — buddy 0.7.14 → 0.7.15
+
+Statusline rewrite to side-by-side layout: ASCII art on left, segments stacked in fixed slots on the right (form·mood, specialists, suggested+recon, plan verdict, codescout verdict). Adaptive specialist line: 1–2 active → full labels, 3+ → role names. Specialists segment exempt from truncation priority (let it overflow rather than ellipsize on falsely-narrow terminal width). Plus fix: `${CLAUDE_CONFIG_DIR:-$HOME/.claude}` resolution everywhere in buddy (install/uninstall commands, statusline-composed.sh caveman + primary fallback) so non-default profiles get the right config dir. CLAUDE.md adds the config-dir resolution rule. Cache seeded + install records updated across 3 profiles, all green.
 
 ### 2026-05-22 — codescout-companion 1.11.2 → 1.11.3
 
