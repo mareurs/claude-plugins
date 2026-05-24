@@ -58,6 +58,15 @@
         ]
       },
       {
+        "matcher": "mcp__.*__read_file",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/il4-deny-hook.sh"
+          }
+        ]
+      },
+      {
         "matcher": "Task",
         "hooks": [
           {
