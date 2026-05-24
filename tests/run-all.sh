@@ -6,7 +6,10 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 FAILED=()
 
-for f in "$SCRIPT_DIR"/test-*.sh; do
+# tests/test-*.sh plus colocated hook tests (codescout-companion/hooks/*.test.sh)
+HOOK_TESTS_DIR="$SCRIPT_DIR/../codescout-companion/hooks"
+
+for f in "$SCRIPT_DIR"/test-*.sh "$HOOK_TESTS_DIR"/*.test.sh; do
   echo "▶ $(basename "$f")"
   if bash "$f"; then
     :
