@@ -9,6 +9,7 @@ topic: null
 time_scope: null
 ---
 
+
 ## What this tracks
 
 Release readiness across plugins × profiles. See
@@ -16,15 +17,15 @@ Release readiness across plugins × profiles. See
 
 ## State
 
-_Last refresh: `b15c861`_
+_Last refresh: `3979eb6`_
 
-**codescout-companion** — canonical `1.11.3` · readme `1.11.3` · marketplace clean ✅
+**codescout-companion** — canonical `1.11.4` · readme `1.11.4` · marketplace clean ✅
 
 | profile | installed | cache dir | install_path ok |
 |---|---|---|---|
-| `~/.claude` | 1.11.3 ✅ | ✅ | ✅ |
-| `~/.claude-sdd` | 1.11.3 ✅ | ✅ | ✅ |
-| `~/.claude-kat` | 1.11.3 ✅ | ✅ | ✅ |
+| `~/.claude` | 1.11.4 ✅ | ✅ | ✅ |
+| `~/.claude-sdd` | 1.11.4 ✅ | ✅ | ✅ |
+| `~/.claude-kat` | 1.11.4 ✅ | ✅ | ✅ |
 
 **buddy** — canonical `0.7.15` · readme `0.7.15` · marketplace clean ✅
 
@@ -45,6 +46,10 @@ _Last refresh: `b15c861`_
 ## History
 
 _Append dated session deltas: ### YYYY-MM-DD — <what changed>._
+
+### 2026-05-24 — codescout-companion 1.11.3 → 1.11.4
+
+Covers the IL4 deny hook (`il4-deny-hook.sh` — blocks `read_file`/`Read` on `.md` paths, routes to `read_markdown`) and the recon SKILL.md R-3 grep-scope sentence, both committed on top of 1.11.3 without a bump. Pre-bump gate fixed a stale test: `run-all.sh` now also globs colocated `codescout-companion/hooks/*.test.sh`, so the new `il4-deny-hook.test.sh` and the modern `worktree-write-guard.test.sh` execute in the suite; the obsolete `tests/test-worktree-write-guard.sh` (asserted `replace_symbol → deny`, contradicting the modern `edit_code/edit_file/edit_markdown/create_file` matcher) was deleted. Cache seeded + install records updated across 3 profiles, all green.
 
 ### 2026-05-23 — buddy 0.7.14 → 0.7.15
 
