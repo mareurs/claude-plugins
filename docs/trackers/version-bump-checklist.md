@@ -17,15 +17,15 @@ Release readiness across plugins × profiles. See
 
 ## State
 
-_Last refresh: `3979eb6`_
+_Last refresh: `282f754`_
 
-**codescout-companion** — canonical `1.11.4` · readme `1.11.4` · marketplace clean ✅
+**codescout-companion** — canonical `1.11.5` · readme `1.11.5` · marketplace clean ✅
 
 | profile | installed | cache dir | install_path ok |
 |---|---|---|---|
-| `~/.claude` | 1.11.4 ✅ | ✅ | ✅ |
-| `~/.claude-sdd` | 1.11.4 ✅ | ✅ | ✅ |
-| `~/.claude-kat` | 1.11.4 ✅ | ✅ | ✅ |
+| `~/.claude` | 1.11.5 ✅ | ✅ | ✅ |
+| `~/.claude-sdd` | 1.11.5 ✅ | ✅ | ✅ |
+| `~/.claude-kat` | 1.11.5 ✅ | ✅ | ✅ |
 
 **buddy** — canonical `0.7.15` · readme `0.7.15` · marketplace clean ✅
 
@@ -46,6 +46,10 @@ _Last refresh: `3979eb6`_
 ## History
 
 _Append dated session deltas: ### YYYY-MM-DD — <what changed>._
+
+### 2026-05-25 — codescout-companion 1.11.4 → 1.11.5
+
+Downgraded IL3 run_command pipe guard from deny to warn-only (user request: deny was high-friction). `hooks.json` `mcp__.*__run_command` matcher re-pointed `il3-deny-hook.sh` → `il3-warn-hook.sh`; pipes now run with a non-blocking nudge instead of a hard block. Deny hook + its unit test kept in-repo, unwired, for re-promotion. Registration test updated to expect the warn hook. Cache seeded + install records updated across 3 profiles, all green.
 
 ### 2026-05-24 — codescout-companion 1.11.3 → 1.11.4
 
