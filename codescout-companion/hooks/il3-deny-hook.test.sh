@@ -110,6 +110,22 @@ assert "unbounded-rg-head" "$(mkinput 'rg pattern | head')" "deny"
 # 22. fd → defaults recursive → unbounded → DENY
 assert "unbounded-fd-wc" "$(mkinput 'fd .rs | wc -l')" "deny"
 
+# --- U-22: literal `|` inside quoted strings is not a real pipe ---
+# 23. git commit message with single-quoted pipe → ALLOW (no real pipe)
+assert "u22-single-quoted-pipe" "$(mkinput 'git commit -m \"uses '\''yes | head -20'\'' here\"')" "allow"
+
+# 24. git commit message with double-quoted pipe inside outer single quotes → ALLOW
+assert "u22-double-quoted-pipe-in-single" "$(mkinput 'git commit -m '\''uses \"yes | head -20\" here'\''')" "allow"
+
+# 25. Real pipe AFTER a quoted pipe in the SAME command → still DENY.
+#     De-quoting must let PRE_PIPE find the first real pipe, not the
+#     quoted one. Compound shell (&& / ; / ||) decomposition is a
+#     separate detector capability and out of scope here.
+assert "u22-quoted-then-real-pipe" "$(mkinput 'cargo test '\''pat | with pipe'\'' | head -20')" "deny"
+
+# 26. Echo command with quoted pipe but no real pipe → ALLOW
+assert "u22-echo-with-quoted-pipe-only" "$(mkinput 'echo \"contains | a pipe\"')" "allow"
+
 echo
 echo "Passed: $PASS   Failed: $FAIL"
 [[ $FAIL -eq 0 ]]

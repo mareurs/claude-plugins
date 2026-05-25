@@ -36,13 +36,31 @@ CMD=$(echo "$INPUT" | jq -r '.tool_input.command // empty' 2>/dev/null)
 [ -z "$CMD" ] && exit 0
 
 # Cheap reject: no log-trimmer on the RHS of any pipe → never IL3.
+#
+# U-22 fix: literal `|` characters inside single- or double-quoted string
+# content of the command (e.g. a `git commit -m "... 'yes | head -20' ..."`
+# message body referring to a shell pipeline) used to trigger this match
+# even though the `|` was never going to be evaluated as a pipe. Strip
+# quoted substrings before the regex check.
+#
+# Single-quote stripping is exact — single-quoted strings in shell cannot
+# contain a literal `'` (no escapes inside). Double-quote stripping ignores
+# backslash-escaped `\"` inside the string, which is a slight over-strip
+# but only risks a false negative on real IL3 (we'd miss a true pipe whose
+# pre-pipe segment crosses an escaped-quote boundary — extremely rare in
+# practice; better than the U-22 false positive shape).
+DEQUOTED=$(echo "$CMD" | sed -E "s/'[^']*'//g; s/\"[^\"]*\"//g")
+
 DENY_PIPE='(tail|head|grep|less|wc|sed|awk|cut|sort|uniq|tr|fmt)'
-if ! echo "$CMD" | grep -qE "\\|[[:space:]]*${DENY_PIPE}\\b"; then
+if ! echo "$DEQUOTED" | grep -qE "\\|[[:space:]]*${DENY_PIPE}\\b"; then
   exit 0
 fi
 
 # Allow buffer-ops: pre-pipe segment references a buffer handle.
-PRE_PIPE=$(echo "$CMD" | sed 's/[[:space:]]*|.*//')
+# Use DEQUOTED so a literal `|` inside a quoted substring (U-22) does not
+# truncate PRE_PIPE at the wrong position. The result still names the
+# first REAL command-position token, which is what HEAD needs.
+PRE_PIPE=$(echo "$DEQUOTED" | sed 's/[[:space:]]*|.*//')
 if echo "$PRE_PIPE" | grep -qE '@(cmd|bg|file|tool|ack)_[A-Za-z0-9_]+'; then
   exit 0
 fi
