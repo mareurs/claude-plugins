@@ -18,7 +18,7 @@ A **seam** is a place where your next action depends on the current shape of cod
 ## When NOT to Use
 
 - **Read-only Q&A.** "What does X do?" — answer via `symbols(name=..., include_body=true)`. No scout, no entry.
-- **Trivial mechanical edits.** Version bumps, formatting, doc-only changes — no shape dependency.
+- **Genuinely no-decision edits.** Whitespace, comment typos, version-string bumps that no test asserts on. When in doubt whether an edit is "mechanical," scout — one extra `grep` costs less than one missed invariant. Editing a markdown file that backs an `include_str!`'d constant is NOT mechanical: see Phase 1's `include_str!`'d-constant bullet below.
 - **Already in verification phase.** Use `verification-before-completion` for commit gating.
 - **Already scouted this seam in the current session.** One pass per seam — re-scouting the same struct/function is noise unless the source has changed since.
 - **Underspecified refactor prompts** (`"refactor X for readability"` with no shape contact named). Ask the user whether shape changes; do not scout speculatively.
@@ -45,6 +45,8 @@ For each symbol, type, or contract about to be touched:
 - Read callers if shape changes: `references(symbol, ...)` or `call_graph(symbol, direction="callers")`
 - For tools / external APIs: read the actual response shape, not docs. Run the call once, inspect output.
 - **Grep scope: workspace root, not the file being modified.** Assertions on the symbol, runtime token substitutions, and constructor sites routinely cross crate/module boundaries; a scope narrowed to the changing file's directory will miss them. (R-3 in `docs/trackers/reconnaissance-patterns.md` of codescout.)
+- **For files backing `include_str!`'d constants** (`source.md`, embedded templates, prompt surface files): grep `*_invariants` modules and `<CONST>.contains` / `<CONST>.find` / snapshot calls naming the surface. Enumerate every test that asserts on the rendered output before editing. "It's just a doc change" is the loophole that lets size-cap, byte-budget, and required-mention invariants fire downstream. (R-1 + R-7 in codescout's `docs/trackers/reconnaissance-patterns.md`.)
+- **For subagent dispatch:** also scout session-level state — what `get_guide` topics has the parent triggered, what workspace is active, what's already in the `@ref` buffer. The `guide_hints_emitted` ledger (per-MCP-session, shared across parent and subagents) has no read-only query tool; the parent must remember what it triggered. Brief the subagent explicitly: *"I've triggered: [librarian, progressive-disclosure]"* lets the subagent predict its own V2 auto-inject behavior accurately. (R-9 in codescout's `docs/trackers/reconnaissance-patterns.md`.)
 
 **Statusline marker (recommended).** Touch `.buddy/$SID/recon-active` once at scout start so the user's statusline shows `[recon]` for 30 minutes. The badge signals scout-in-progress; the user knows not to redirect mid-scout, which prevents abort-and-restart cost:
 
