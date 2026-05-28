@@ -42,7 +42,7 @@ write_mcp_json "$T/t4"
 make_ce_dir "$T/t4"
 make_system_prompt "$T/t4"
 OUT=$(printf '{"cwd":"%s"}' "$T/t4" | bash "$HOOK" 2>/dev/null)
-if assert_context_contains "$OUT" "read_memory('system-prompt')"; then
+if assert_context_contains "$OUT" 'memory(action="read", topic="system-prompt")'; then
   pass "system-prompt: pointer emitted"
 else
   fail "system-prompt: pointer emitted" "$OUT"

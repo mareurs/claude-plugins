@@ -49,7 +49,7 @@ else
 fi
 
 # Test 3: system-prompt pointer present
-if echo "$PREVIEW" | grep -q "read_memory('system-prompt')"; then
+if echo "$PREVIEW" | grep -q 'memory(action="read", topic="system-prompt")'; then
   pass "system-prompt pointer present"
 else
   fail "system-prompt pointer present"

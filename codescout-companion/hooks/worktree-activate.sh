@@ -57,7 +57,7 @@ touch "$WORKTREE_PATH/.cs-worktree-pending" 2>/dev/null
 
 # --- Inject guidance (always, regardless of symlink success) ---
 jq -n --arg ctx "WORKTREE DETECTED: codescout must switch to the worktree.
-Call workspace(\"$WORKTREE_PATH\") NOW as your next action.
+Call workspace(action=\"activate\", path=\"$WORKTREE_PATH\") NOW as your next action.
 MCP write tools (edit_code, edit_file, edit_markdown, create_file) are BLOCKED
 until workspace is called — they would otherwise silently write to the wrong repo.
 Do NOT run index in worktrees — the shared index is read-only here." '{

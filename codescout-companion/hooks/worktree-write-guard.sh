@@ -51,7 +51,7 @@ jq -n --arg reason "⛔ WORKTREE WRITE BLOCKED: workspace must be called first.
 You are in a worktree at: $WT_ROOT
 CE is still pointing at the main repo — a write now would silently modify the wrong file.
 
-Fix: call workspace(\"$WT_ROOT\") then retry this tool.
+Fix: call workspace(action=\"activate\", path=\"$WT_ROOT\") then retry this tool.
 If CE is no longer configured, delete $WT_ROOT/.cs-worktree-pending manually to unblock.
 
 To clean up a finished worktree: use git worktree prune (not git worktree remove —

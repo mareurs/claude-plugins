@@ -65,7 +65,7 @@ fi
 # --- Memory hint ---
 if [ "$HAS_CS_MEMORIES" = "true" ]; then
   MSG="${MSG}codescout MEMORIES: ${CS_MEMORY_NAMES}
-→ Read relevant memories before exploring code (read_memory(\"architecture\"), etc.)
+→ Read relevant memories before exploring code (memory(action=\"read\", topic=\"architecture\"), etc.)
 
 "
 fi
@@ -74,7 +74,7 @@ fi
 # docs/superpowers/specs/2026-05-19-injection-budget-design.md) ---
 MSG="${MSG}SKILLS AVAILABLE:
 - Reconnaissance — Skill('codescout-companion:reconnaissance'). Recommended before subagent dispatch or shape-changing edits.
-- System prompt for this project — read_memory('system-prompt').
+- System prompt for this project — memory(action=\"read\", topic=\"system-prompt\").
 
 "
 
@@ -182,7 +182,7 @@ If tools are unavailable, the MCP server failed to connect (check \`claude mcp l
 # --- Post-compact LSP flush ---
 if [ "$SOURCE" = "compact" ]; then
   MSG="${MSG}POST-COMPACT: Context was just compacted.
-→ Call workspace({\"post_compact\": true}) as your FIRST action to flush stale LSP position caches.
+→ Call workspace(post_compact=true) as your FIRST action to flush stale LSP position caches.
    LSP clients restart lazily — no disruption to the session.
 
 "
@@ -222,7 +222,7 @@ if [ "$IN_WORKTREE" = "true" ]; then
   fi
 
   MSG="${MSG}WORKTREE SESSION: You are inside a git worktree at: ${WT_ROOT:-$CWD}
-→ Call workspace(\"${WT_ROOT:-$CWD}\") before using any codescout write tools.
+→ Call workspace(action=\"activate\", path=\"${WT_ROOT:-$CWD}\") before using any codescout write tools.
 → Memory writes go directly to the main project via symlink and can be committed there.
 
 "
