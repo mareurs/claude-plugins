@@ -17,15 +17,15 @@ Release readiness across plugins × profiles. See
 
 ## State
 
-_Last refresh: `282f754`_
+_Last refresh: `5e17eb6`_
 
-**codescout-companion** — canonical `1.11.5` · readme `1.11.5` · marketplace clean ✅
+**codescout-companion** — canonical `1.11.6` · readme `1.11.6` · marketplace clean ✅
 
 | profile | installed | cache dir | install_path ok |
 |---|---|---|---|
-| `~/.claude` | 1.11.5 ✅ | ✅ | ✅ |
-| `~/.claude-sdd` | 1.11.5 ✅ | ✅ | ✅ |
-| `~/.claude-kat` | 1.11.5 ✅ | ✅ | ✅ |
+| `~/.claude` | 1.11.6 ✅ | ✅ | ✅ |
+| `~/.claude-sdd` | 1.11.6 ✅ | ✅ | ✅ |
+| `~/.claude-kat` | 1.11.6 ✅ | ✅ | ✅ |
 
 **buddy** — canonical `0.7.15` · readme `0.7.15` · marketplace clean ✅
 
@@ -42,8 +42,11 @@ _Last refresh: `282f754`_
 | `~/.claude` | — ❌ | ❌ | ❌ |
 | `~/.claude-sdd` | — ❌ | ❌ | ❌ |
 | `~/.claude-kat` | — ❌ | ❌ | ❌ |
-
 ## History
+
+### 2026-05-28 — codescout-companion 1.11.5 → 1.11.6
+
+Two commits accumulated on top of 1.11.5: `d64749e` IL3 fix (ignore literal `|` inside quoted substrings — U-22; 4 new hook tests) and `f842848` recon SKILL.md update (close 'trivial mechanical edits' loophole, promote R-1, add R-9). Pre-bump `./tests/run-all.sh` all suites green. Cache seeded + install records updated across 3 profiles, all green.
 
 _Append dated session deltas: ### YYYY-MM-DD — <what changed>._
 
@@ -82,4 +85,3 @@ Added `git-worktree-guard.sh` (codescout-companion) and multi-worktree warning s
 ### 2026-05-18 — buddy 0.7.4 → 0.7.5
 
 Fixed CLAUDE_DIR detection in summon.md + create.md (ancestor walk instead of fixed 2-dirname). Bumped, cache seeded, install records updated across 3 profiles.
-
