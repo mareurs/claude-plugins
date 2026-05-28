@@ -17,15 +17,15 @@ Release readiness across plugins × profiles. See
 
 ## State
 
-_Last refresh: `5e17eb6`_
+_Last refresh: `6f60125`_
 
-**codescout-companion** — canonical `1.11.6` · readme `1.11.6` · marketplace clean ✅
+**codescout-companion** — canonical `1.11.7` · readme `1.11.7` · marketplace clean ✅
 
 | profile | installed | cache dir | install_path ok |
 |---|---|---|---|
-| `~/.claude` | 1.11.6 ✅ | ✅ | ✅ |
-| `~/.claude-sdd` | 1.11.6 ✅ | ✅ | ✅ |
-| `~/.claude-kat` | 1.11.6 ✅ | ✅ | ✅ |
+| `~/.claude` | 1.11.7 ✅ | ✅ | ✅ |
+| `~/.claude-sdd` | 1.11.7 ✅ | ✅ | ✅ |
+| `~/.claude-kat` | 1.11.7 ✅ | ✅ | ✅ |
 
 **buddy** — canonical `0.7.15` · readme `0.7.15` · marketplace clean ✅
 
@@ -43,6 +43,10 @@ _Last refresh: `5e17eb6`_
 | `~/.claude-sdd` | — ❌ | ❌ | ❌ |
 | `~/.claude-kat` | — ❌ | ❌ | ❌ |
 ## History
+
+### 2026-05-28 — codescout-companion 1.11.6 → 1.11.7
+
+Followed audit of all MCP tool-call hints emitted by plugin hooks. Three classes of broken/ambiguous call shapes fixed in commit `89af38d`: Class A (non-existent tools `search_pattern`, `library` in `pre-tool-guard.sh`); Class B (`workspace(...)` missing required `action` param across 4 sites in `worktree-write-guard.sh`, `worktree-activate.sh`, `session-start.sh`); Class C (positional shorthand `tool("X")` throughout `pre-tool-guard.sh` — expanded to `tool(param="X")`). Plus the earlier `read_memory("X")` → `memory(action="read", topic="X")` shorthand fix in `session-start.sh`. Cause: caller hit `memory(action="read", name="gotchas")` → `missing topic parameter`. Pre-bump `./tests/run-all.sh` all suites green (test-pre-tool-guard cargo assertions updated to look for `scope="lib:serde"` instead of removed `library(`). Cache seeded + install records updated across 3 profiles, all green.
 
 ### 2026-05-28 — codescout-companion 1.11.5 → 1.11.6
 
