@@ -6,9 +6,11 @@
 # accepts follow-up queries — `grep PATTERN @cmd_id`, `tail -20 @cmd_id`.
 # Piping wastes context tokens.
 #
-# This hook is warn-only by design: it allows the call but injects an
+# This hook is advisory-only: it allows the call (exit 0) and injects an
 # additionalContext line so Claude sees the violation in the next turn
-# and self-corrects. Telemetry-gathering phase before promotion to deny.
+# and self-corrects. NOTE: codescout's own run_command gate
+# (path_security.rs) already denies unbounded-LHS pipes server-side;
+# this hook is a redundant echo, not the enforcer.
 #
 # Trigger: command starts with a known LHS command (build/test runner OR
 # git/find/ls/grep/cat/diff/du/stat/rg/fd — see telemetry comment near the
@@ -47,7 +49,7 @@ fi
 # Empirical (2026-05-18 telemetry): the original build-tools-only LHS caught
 # 8/45 = 18% of real IL3 slips. Bulk of slip commands were git, find, ls, grep,
 # cat, diff. Widened to cover those families. Recall ~93% projected, FP cost
-# low (warn-only mode).
+# low (advisory-only — this hook never blocks; the server gate enforces).
 LHS_COMMANDS='(cargo|npm|pnpm|yarn|python|pytest|go|mvn|gradle|git|find|ls|grep|cat|diff|du|stat|rg|fd)'
 DENY_PIPE='(tail|head|grep|less|wc|sed|awk|cut|sort|uniq|tr|fmt)'
 
@@ -65,8 +67,10 @@ The @cmd_* buffer system saves context tokens:
   2. grep PATTERN @cmd_xxx                 — query the buffer at any granularity
                                               (also: tail -20 @cmd_xxx, head -50 @cmd_xxx)
 
-Allowed for now (warn-only mode). Get the buffer-query habit in before
-this promotes to deny."
+codescout's run_command gate already denies unbounded-LHS pipes
+server-side — this hook is an advisory echo, not the enforcer. Run
+bare and query @cmd_xxx; bounded-LHS pipes (ls/cat/awk/sed/find
+-maxdepth N) pass through."
 
 jq -n --arg reason "$REASON" '{
   hookSpecificOutput: {
