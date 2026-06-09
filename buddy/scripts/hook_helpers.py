@@ -259,11 +259,9 @@ def handle_session_start(
             # marker because hook ordering across plugins is alphabetical:
             # buddy runs before codescout-companion, so the marker isn't yet
             # present when buddy reads. Detect codescout via the onboarding
-            # convention (.codescout/project.toml or legacy .code-explorer/),
-            # matching detect.py's _find_project_dir resolution.
+            # convention (.codescout/project.toml), matching detect.py's
+            # _find_project_dir resolution.
             cs_project_dir = project_root / ".codescout"
-            if not cs_project_dir.is_dir():
-                cs_project_dir = project_root / ".code-explorer"
             if (cs_project_dir / "project.toml").is_file():
                 if "reconnaissance" not in carried_specialists:
                     carried_specialists.append("reconnaissance")
@@ -278,8 +276,6 @@ def handle_session_start(
             trace_root.mkdir(parents=True, exist_ok=True)
             trace_path = trace_root / ".session-start-trace.log"
             cs_dir = Path(event.get("cwd") or os.getcwd()) / ".codescout"
-            if not cs_dir.is_dir():
-                cs_dir = Path(event.get("cwd") or os.getcwd()) / ".code-explorer"
             plugin_root_env_dbg = os.environ.get("CLAUDE_PLUGIN_ROOT") or ""
             plugin_root_dbg = Path(__file__).resolve().parent.parent
             recon_skill_dbg = "-"
