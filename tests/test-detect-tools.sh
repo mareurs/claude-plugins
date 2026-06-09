@@ -72,12 +72,12 @@ assert_var "$OUT" "CS_PREFIX" "mcp__custom-cs__" "routing override: prefix built
 # --- Test 3: .mcp.json with codescout-matching command ---
 mkdir -p "$T/mcp"
 # Manual mcp.json — fixtures.sh::write_mcp_json creates a binary at fake-ce
-# whose path doesn't match the hook's `code-explorer|codescout` regex, so
+# whose path doesn't match the hook's `codescout|codescout` regex, so
 # we write directly to ensure detection actually fires.
 cat > "$T/mcp/.mcp.json" <<EOF
 {
   "mcpServers": {
-    "code-explorer": {
+    "codescout": {
       "command": "/usr/local/bin/codescout",
       "args": ["serve"]
     }
@@ -86,10 +86,10 @@ cat > "$T/mcp/.mcp.json" <<EOF
 EOF
 OUT=$(detect_vars "$T/mcp")
 assert_var "$OUT" "HAS_CODESCOUT" "true" "mcp.json: detected"
-assert_var "$OUT" "CS_SERVER_NAME" "code-explorer" "mcp.json: server name"
-assert_var "$OUT" "CS_PREFIX" "mcp__code-explorer__" "mcp.json: prefix"
+assert_var "$OUT" "CS_SERVER_NAME" "codescout" "mcp.json: server name"
+assert_var "$OUT" "CS_PREFIX" "mcp__codescout__" "mcp.json: prefix"
 
-# --- Test 4: .codescout/ takes precedence over .code-explorer/ ---
+# --- Test 4: .codescout/ takes precedence over .codescout/ ---
 mkdir -p "$T/both"
 make_codescout_dir "$T/both"
 make_ce_dir "$T/both"
@@ -99,12 +99,12 @@ case "$(echo "$OUT" | grep '^CS_PROJECT_DIR=')" in
     *) fail "both dirs: .codescout precedence" "$(echo "$OUT" | grep CS_PROJECT_DIR)" ;;
 esac
 
-# --- Test 5: legacy .code-explorer/ still detected when .codescout/ absent ---
+# --- Test 5: legacy .codescout/ still detected when .codescout/ absent ---
 mkdir -p "$T/legacy"
 make_ce_dir "$T/legacy"
 OUT=$(detect_vars "$T/legacy")
 case "$(echo "$OUT" | grep '^CS_PROJECT_DIR=')" in
-    *.code-explorer) pass "legacy dir: .code-explorer/ used as fallback" ;;
+    *.codescout) pass "legacy dir: .codescout/ used as fallback" ;;
     *) fail "legacy dir fallback" "$(echo "$OUT" | grep CS_PROJECT_DIR)" ;;
 esac
 assert_var "$OUT" "HAS_CS_ONBOARDING" "true" "legacy dir: project.toml → onboarded"
@@ -145,10 +145,10 @@ echo '{"server_name":"legacy-name"}' > "$T/legacy-routing/.claude/codescout-rout
 OUT=$(detect_vars "$T/legacy-routing")
 assert_var "$OUT" "CS_SERVER_NAME" "legacy-name" "legacy routing config name (codescout-routing.json) honored"
 
-# --- Test 11: routing config legacy-legacy `code-explorer-routing.json` honored ---
+# --- Test 11: routing config legacy-legacy `codescout-routing.json` honored ---
 mkdir -p "$T/llegacy-routing/.claude"
-echo '{"server_name":"oldest-name"}' > "$T/llegacy-routing/.claude/code-explorer-routing.json"
+echo '{"server_name":"oldest-name"}' > "$T/llegacy-routing/.claude/codescout-routing.json"
 OUT=$(detect_vars "$T/llegacy-routing")
-assert_var "$OUT" "CS_SERVER_NAME" "oldest-name" "legacy^2 routing config name (code-explorer-routing.json) honored"
+assert_var "$OUT" "CS_SERVER_NAME" "oldest-name" "legacy^2 routing config name (codescout-routing.json) honored"
 
 print_summary "detect-tools"

@@ -121,7 +121,7 @@ Best-effort — the `2>/dev/null || true` keeps a counter failure from ever brea
 
 #### Worked exemplars
 
-These are real entries from `code-explorer/docs/trackers/bug-fix-session-log.md`. Pattern your new entries on these, not the bare template.
+These are real entries from `codescout/docs/trackers/bug-fix-session-log.md`. Pattern your new entries on these, not the bare template.
 
 **F-N exemplar — a pre-dispatch scout that caught test-shape drift:**
 

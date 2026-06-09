@@ -28,7 +28,7 @@ from pathlib import Path
 from typing import Any
 
 SOURCE_EXT_PATTERN = r"\.(kt|kts|java|ts|tsx|js|jsx|py|go|rs|cs|rb|scala|swift|cpp|c|h|hpp|sh|bash)$"
-SERVER_NAME_RE = re.compile(r"code-explorer|codescout")
+SERVER_NAME_RE = re.compile(r"codescout")
 
 
 def _load_json(path: Path) -> dict[str, Any] | None:
@@ -52,7 +52,6 @@ def _find_routing_config(cwd: Path) -> Path | None:
     candidates = [
         cwd / ".claude" / "codescout-companion.json",
         cwd / ".claude" / "codescout-routing.json",
-        cwd / ".claude" / "code-explorer-routing.json",
     ]
     for p in candidates:
         if p.is_file():
@@ -61,10 +60,7 @@ def _find_routing_config(cwd: Path) -> Path | None:
 
 
 def _find_project_dir(cwd: Path) -> Path:
-    new = cwd / ".codescout"
-    if new.is_dir():
-        return new
-    return cwd / ".code-explorer"
+    return cwd / ".codescout"
 
 
 def _server_name_from_mcp_config(cfg: dict[str, Any]) -> str:

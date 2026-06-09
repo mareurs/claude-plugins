@@ -1,5 +1,5 @@
 #!/bin/bash
-# PreToolUse hook — enforcer for code-explorer tool routing
+# PreToolUse hook — enforcer for codescout tool routing
 # Uses permissionDecision: deny + permissionDecisionReason (shown to Claude) for hard block + guidance.
 
 INPUT=$(cat)

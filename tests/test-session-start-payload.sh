@@ -13,15 +13,15 @@ mkdir -p "$FAKE_HOME"
 make_git_repo "$T/proj"
 make_codescout_dir "$T/proj"
 # Place memories + system-prompt under .codescout/ (fixture's make_memories
-# uses legacy .code-explorer/ which loses to .codescout/ in detect.py's project-dir lookup).
+# uses legacy .codescout/ which loses to .codescout/ in detect.py's project-dir lookup).
 mkdir -p "$T/proj/.codescout/memories"
 echo "# Arch" > "$T/proj/.codescout/memories/arch.md"
 echo "# Patterns" > "$T/proj/.codescout/memories/patterns.md"
 echo "SYSTEM PROMPT CONTENT" > "$T/proj/.codescout/system-prompt.md"
 # Inline .mcp.json with codescout-matching command (fixture write_mcp_json
-# uses fake-ce which doesn't match detect.py's code-explorer|codescout regex).
+# uses fake-ce which doesn't match detect.py's codescout|codescout regex).
 cat > "$T/proj/.mcp.json" <<'MCP'
-{"mcpServers":{"code-explorer":{"command":"/usr/local/bin/codescout","args":["serve"]}}}
+{"mcpServers":{"codescout":{"command":"/usr/local/bin/codescout","args":["serve"]}}}
 MCP
 
 run_hook() {

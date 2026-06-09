@@ -3,7 +3,7 @@
 #   1. Inject workspace guidance (always)
 #   2. Create .cs-worktree-pending marker (blocks writes until workspace called)
 #   3. Symlink .codescout/ into worktree (best-effort)
-# No-op if code-explorer is not configured.
+# No-op if codescout is not configured.
 
 INPUT=$(cat)
 [ -z "$INPUT" ] && exit 0
@@ -67,16 +67,13 @@ Do NOT run index in worktrees — the shared index is read-only here." '{
   }
 }'
 
-# --- Symlink .codescout/ (or .code-explorer/) into worktree (best-effort) ---
-# Walk up from original project CWD to find the project dir (.codescout preferred).
+# --- Symlink .codescout/ into worktree (best-effort) ---
+# Walk up from original project CWD to find the project dir.
 CE_DIR=""
 CHECK="$CWD"
 while [ "$CHECK" != "/" ]; do
   if [ -d "$CHECK/.codescout" ]; then
     CE_DIR="$CHECK/.codescout"
-    break
-  elif [ -d "$CHECK/.code-explorer" ]; then
-    CE_DIR="$CHECK/.code-explorer"
     break
   fi
   CHECK=$(dirname "$CHECK")
@@ -93,7 +90,7 @@ fi
 
 [ -z "$CE_DIR" ] && exit 0
 
-# Symlink name in worktree matches main project (preserves backwards compat for old projects)
+# Symlink the project dir (.codescout) into the worktree
 DEST="$WORKTREE_PATH/$(basename "$CE_DIR")"
 if [ ! -e "$DEST" ]; then
   ln -s "$CE_DIR" "$DEST" 2>/dev/null

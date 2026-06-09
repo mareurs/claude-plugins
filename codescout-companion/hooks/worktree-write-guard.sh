@@ -1,5 +1,5 @@
 #!/bin/bash
-# PreToolUse hook — block code-explorer write tools when in a worktree
+# PreToolUse hook — block codescout write tools when in a worktree
 # without workspace having been called.
 #
 # Triggered by: hooks.json matches mcp__codescout__(edit_code|edit_file|edit_markdown|create_file).
@@ -14,7 +14,7 @@ INPUT=$(cat)
 TOOL_NAME=$(echo "$INPUT" | jq -r '.tool_name // empty' 2>/dev/null)
 CWD=$(echo "$INPUT" | jq -r '.cwd // empty' 2>/dev/null)
 
-# Filter: only act on code-explorer write tools
+# Filter: only act on codescout write tools
 # MCP tools have format: mcp__<server>__<tool>
 case "$TOOL_NAME" in
   *__edit_code|*__edit_file|*__edit_markdown|*__create_file)

@@ -1,10 +1,10 @@
 ---
-description: Launch the code-explorer dashboard web UI for the current project
+description: Launch the codescout dashboard web UI for the current project
 ---
 
 # /dashboard
 
-Launch the code-explorer dashboard web UI for the current project.
+Launch the codescout dashboard web UI for the current project.
 
 ## Usage
 
@@ -16,11 +16,11 @@ Defaults: `host=127.0.0.1`, `port=8099`
 
 ## Steps
 
-1. **Find the code-explorer binary.**
+1. **Find the codescout binary.**
    Source `detect-tools.sh` logic or inspect the MCP config directly:
    - Check `.mcp.json`, `~/.claude/.claude.json`, `~/.claude/settings.json`
-   - Extract `.mcpServers.<server>.command` for the entry whose command or args contain `code-explorer`
-   - Fallback: use `code-explorer` if available on PATH
+   - Extract `.mcpServers.<server>.command` for the entry whose command or args contain `codescout`
+   - Fallback: use `codescout` if available on PATH
 
 2. **Start the dashboard in the background** using `run_command` with `run_in_background: true`:
    ```
@@ -34,4 +34,4 @@ Defaults: `host=127.0.0.1`, `port=8099`
 
 - The server blocks until killed — always run in background
 - If the port is already in use, suggest re-running with `--port <other>`
-- If the binary is not found, tell the user to ensure code-explorer is installed and configured as an MCP server
+- If the binary is not found, tell the user to ensure codescout is installed and configured as an MCP server

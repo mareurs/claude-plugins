@@ -88,11 +88,10 @@ def test_routing_override_wins_over_mcp_json(tmp_path: Path) -> None:
 
 
 def test_routing_legacy_names_in_priority_order(tmp_path: Path) -> None:
-    """codescout-companion.json > codescout-routing.json > code-explorer-routing.json."""
+    """codescout-companion.json > codescout-routing.json."""
     claude = tmp_path / ".claude"
     _write(claude / "codescout-companion.json", json.dumps({"server_name": "winner"}))
     _write(claude / "codescout-routing.json", json.dumps({"server_name": "loser1"}))
-    _write(claude / "code-explorer-routing.json", json.dumps({"server_name": "loser2"}))
     out = _detect(tmp_path)
     assert out["CS_SERVER_NAME"] == "winner"
 
@@ -107,22 +106,17 @@ def test_workspace_root_tilde_expanded(tmp_path: Path) -> None:
     assert out["WORKSPACE_ROOT"] == str(fake_home / "some-project")
 
 
-def test_codescout_dir_takes_precedence_over_code_explorer(tmp_path: Path) -> None:
+def test_project_dir_is_codescout(tmp_path: Path) -> None:
     (tmp_path / ".codescout").mkdir()
-    (tmp_path / ".code-explorer").mkdir()
     out = _detect(tmp_path)
     assert out["CS_PROJECT_DIR"].endswith("/.codescout")
 
 
-def test_legacy_code_explorer_dir_used_when_codescout_absent(tmp_path: Path) -> None:
-    (tmp_path / ".code-explorer").mkdir()
-    out = _detect(tmp_path)
-    assert out["CS_PROJECT_DIR"].endswith("/.code-explorer")
 
 
 def test_memories_collected_with_trailing_space(tmp_path: Path) -> None:
     """The bash impl produced 'name1 name2 ' with trailing space — preserve."""
-    mem_dir = tmp_path / ".code-explorer" / "memories"
+    mem_dir = tmp_path / ".codescout" / "memories"
     _write(mem_dir / "alpha.md", "")
     _write(mem_dir / "beta.md", "")
     out = _detect(tmp_path)
@@ -135,7 +129,7 @@ def test_memories_collected_with_trailing_space(tmp_path: Path) -> None:
 def test_system_prompt_multiline_unicode(tmp_path: Path) -> None:
     """Multi-line content with quotes and unicode survives the round trip."""
     prompt = "Line 1\n\"quoted\"\nUnicode: éàü 中文\n"
-    _write(tmp_path / ".code-explorer" / "system-prompt.md", prompt)
+    _write(tmp_path / ".codescout" / "system-prompt.md", prompt)
     out = _detect(tmp_path)
     assert out["HAS_CS_SYSTEM_PROMPT"] == "true"
     assert out["CS_SYSTEM_PROMPT"] == prompt
@@ -187,7 +181,7 @@ def test_binary_tilde_expanded(tmp_path: Path) -> None:
 def test_shell_emit_is_eval_safe(tmp_path: Path) -> None:
     """Verify shell output is eval-able and round-trips multi-line content."""
     prompt = "line1\n'single quoted'\n\"double quoted\"\n"
-    _write(tmp_path / ".code-explorer" / "system-prompt.md", prompt)
+    _write(tmp_path / ".codescout" / "system-prompt.md", prompt)
 
     proc = subprocess.run(
         [sys.executable, str(DETECT_PY)],

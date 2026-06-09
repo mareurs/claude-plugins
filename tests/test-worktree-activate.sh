@@ -27,7 +27,7 @@ OUT=$(printf '{"cwd":"%s","tool_name":"EnterWorktree","tool_response":{"worktree
 MARKER_OK=false; GUIDANCE_OK=false; SYMLINK_OK=false
 [ -f "$T/t3wt/.cs-worktree-pending" ] && MARKER_OK=true
 assert_context_contains "$OUT" "workspace(" && GUIDANCE_OK=true
-[ -L "$T/t3wt/.code-explorer" ] && SYMLINK_OK=true
+[ -L "$T/t3wt/.codescout" ] && SYMLINK_OK=true
 if $MARKER_OK && $GUIDANCE_OK && $SYMLINK_OK; then
   pass "EnterWorktree with path: marker+guidance+symlink"
 else

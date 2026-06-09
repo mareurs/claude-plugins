@@ -77,7 +77,7 @@ You are a code exploration subagent for <target path>.
 
 1. workspace(action="activate", path="<target path>", read_only=true)
 2. read_markdown("<target path>/CLAUDE.md")           ← project rules and conventions
-3. read_markdown("<target path>/.code-explorer/system-prompt.md")  ← skip if file absent
+3. read_markdown("<target path>/.codescout/system-prompt.md")  ← skip if file absent
 
 You are now operating as if you were launched inside <target path>.
 Follow that project's CLAUDE.md conventions and restrictions for the duration of this task.

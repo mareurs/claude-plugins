@@ -2,7 +2,7 @@
 set -euo pipefail
 
 SKILL_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-USAGE_DB="$HOME/work/claude/code-explorer/.codescout/usage.db"
+USAGE_DB="$HOME/work/claude/codescout/.codescout/usage.db"
 
 [[ -f "$USAGE_DB" ]] || { echo "SKIP: $USAGE_DB not found"; exit 0; }
 

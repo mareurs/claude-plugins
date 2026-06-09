@@ -43,7 +43,7 @@ binary, and references its internal schema (meta table, drift_report table, proj
 Update this plugin whenever codescout adds features that affect exploration workflows.
 
 **What it does:**
-- SessionStart/SubagentStart: injects `.code-explorer/system-prompt.md` content verbatim (project-specific guidance generated at onboarding)
+- SessionStart/SubagentStart: injects `.codescout/system-prompt.md` content verbatim (project-specific guidance generated at onboarding)
 - PreToolUse: hard-blocks Read/Grep/Glob/Bash/Edit on source files (`permissionDecision: "deny"`)
 - Auto-reindexing: checks index staleness at session start, triggers `codescout index` in background
 - Drift warnings: surfaces high-drift files and stale docs/memories

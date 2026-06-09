@@ -12,9 +12,9 @@ mkdir -p "$FAKE_HOME"
 make_git_repo "$T/proj"
 make_codescout_dir "$T/proj"  # marks codescout as detected
 # write_mcp_json fixture uses fake-ce which doesn't match detect.py's
-# `code-explorer|codescout` regex; write directly with a matching command
+# `codescout|codescout` regex; write directly with a matching command
 cat > "$T/proj/.mcp.json" <<'MCP'
-{"mcpServers":{"code-explorer":{"command":"/usr/local/bin/codescout","args":["serve"]}}}
+{"mcpServers":{"codescout":{"command":"/usr/local/bin/codescout","args":["serve"]}}}
 MCP
 
 hook_input() {

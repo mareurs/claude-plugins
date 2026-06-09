@@ -47,7 +47,7 @@ make_worktree() {
 
 write_mcp_json() {
   local dir="$1"
-  local server_name="${2:-code-explorer}"
+  local server_name="${2:-codescout}"
   # Create a dummy binary the hook can find and exec-check
   local dummy_bin="$dir/fake-ce"
   printf '#!/bin/bash\nexit 0\n' > "$dummy_bin"
@@ -73,37 +73,37 @@ write_routing_config() {
 }
 
 make_ce_dir() {
-  # Creates .code-explorer/project.toml (marks project as onboarded)
+  # Creates .codescout/project.toml (marks project as onboarded)
   # Pass drift=true to enable drift detection
   local dir="$1"
   local drift="${2:-false}"
-  mkdir -p "$dir/.code-explorer"
+  mkdir -p "$dir/.codescout"
   if [ "$drift" = "true" ]; then
-    printf '[project]\ndrift_detection_enabled = true\n' > "$dir/.code-explorer/project.toml"
+    printf '[project]\ndrift_detection_enabled = true\n' > "$dir/.codescout/project.toml"
   else
-    echo '[project]' > "$dir/.code-explorer/project.toml"
+    echo '[project]' > "$dir/.codescout/project.toml"
   fi
 }
 
 make_memories() {
   local dir="$1"
-  mkdir -p "$dir/.code-explorer/memories"
-  echo "# Arch" > "$dir/.code-explorer/memories/arch.md"
-  echo "# Patterns" > "$dir/.code-explorer/memories/patterns.md"
+  mkdir -p "$dir/.codescout/memories"
+  echo "# Arch" > "$dir/.codescout/memories/arch.md"
+  echo "# Patterns" > "$dir/.codescout/memories/patterns.md"
 }
 
 make_system_prompt() {
   local dir="$1"
-  mkdir -p "$dir/.code-explorer"
-  echo "SYSTEM PROMPT CONTENT" > "$dir/.code-explorer/system-prompt.md"
+  mkdir -p "$dir/.codescout"
+  echo "SYSTEM PROMPT CONTENT" > "$dir/.codescout/system-prompt.md"
 }
 
 seed_sqlite_db() {
-  # Creates .code-explorer/embeddings.db with meta table
+  # Creates .codescout/embeddings.db with meta table
   local dir="$1"
   local last_commit="$2"
-  mkdir -p "$dir/.code-explorer"
-  local db="$dir/.code-explorer/embeddings.db"
+  mkdir -p "$dir/.codescout"
+  local db="$dir/.codescout/embeddings.db"
   sqlite3 "$db" "CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT);"
   printf "INSERT OR REPLACE INTO meta VALUES ('last_indexed_commit', '%s');\n" "$last_commit" \
     | sqlite3 "$db"
@@ -114,7 +114,7 @@ seed_drift_db() {
   local dir="$1"
   local last_commit="$2"
   seed_sqlite_db "$dir" "$last_commit"
-  local db="$dir/.code-explorer/embeddings.db"
+  local db="$dir/.codescout/embeddings.db"
   sqlite3 "$db" "CREATE TABLE IF NOT EXISTS drift_report (file_path TEXT, max_drift REAL);"
   sqlite3 "$db" "INSERT INTO drift_report VALUES ('src/foo.rs', 0.85);"
 }
@@ -166,4 +166,14 @@ assert_reason_contains() {
 assert_no_output() {
   local output="$1"
   [ -z "$output" ]
+}
+
+seed_index_state() {
+  # Writes .codescout/index-state.json — the Qdrant-era freshness sidecar the
+  # auto-reindex block reads (last_indexed_commit = full git oid at sync time).
+  local dir="$1"
+  local last_commit="$2"
+  mkdir -p "$dir/.codescout"
+  printf '{"last_indexed_commit": "%s", "last_indexed_at": "2026-06-09T00:00:00Z", "schema_version": 1}\n' \
+    "$last_commit" > "$dir/.codescout/index-state.json"
 }

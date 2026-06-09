@@ -1,6 +1,6 @@
 #!/bin/bash
-# SessionStart hook — inject code-explorer tool guidance into main agent
-# No-op if code-explorer is not configured for this project.
+# SessionStart hook — inject codescout tool guidance into main agent
+# No-op if codescout is not configured for this project.
 
 if ! command -v jq &>/dev/null; then
   echo 'codescout-companion: jq is not installed — all hooks are non-functional. Install with: sudo apt install jq (Debian/Ubuntu) or brew install jq (macOS)'
@@ -94,12 +94,22 @@ if [ -f "$ROUTING_CONFIG" ]; then
   [ "$_dw" = "false" ] && DRIFT_WARNINGS=false
 fi
 
+# Auto-reindex reads the Qdrant-era freshness sidecar codescout writes on each
+# successful sync (.codescout/index-state.json :: last_indexed_commit, a full
+# git oid). It detects *external* HEAD moves (checkout/pull/HEAD change) that
+# codescout's on-edit reindex never observes. Contract:
+# codescout docs/state-protocol.md § .codescout/index-state.json.
+#
+# The drift block below still reads the legacy sqlite-vec surface
+# (.codescout/embeddings.db :: drift_report), which the Qdrant migration froze;
+# it stays inert (the file no longer exists) pending a per-chunk drift port.
+INDEX_STATE="${CS_PROJECT_DIR}/index-state.json"
 DB_PATH="${CS_PROJECT_DIR}/embeddings.db"
 
 # --- Auto-reindex (if stale) ---
 if [ "$AUTO_INDEX" = "true" ] && [ "$IN_WORKTREE" = "false" ] && \
-   [ -f "$DB_PATH" ] && [ -n "$CS_BINARY" ] && [ -x "$CS_BINARY" ]; then
-  LAST_COMMIT=$(sqlite3 "$DB_PATH" "SELECT value FROM meta WHERE key='last_indexed_commit';" 2>/dev/null)
+   [ -f "$INDEX_STATE" ] && [ -n "$CS_BINARY" ] && [ -x "$CS_BINARY" ]; then
+  LAST_COMMIT=$(jq -r '.last_indexed_commit // empty' "$INDEX_STATE" 2>/dev/null)
   HEAD_COMMIT=$(git -C "$CWD" rev-parse HEAD 2>/dev/null)
   if [ -n "$LAST_COMMIT" ] && [ -n "$HEAD_COMMIT" ] && [ "$LAST_COMMIT" != "$HEAD_COMMIT" ]; then
     BEHIND=$(git -C "$CWD" rev-list --count "${LAST_COMMIT}..${HEAD_COMMIT}" 2>/dev/null || echo "?")
@@ -139,36 +149,6 @@ $(echo "$DRIFT_FILES" | sed 's/^/  /')
   fi
 fi
 
-# --- GitHub identity + repo context ---
-# Detect GitHub auth and owner/repo from git remote so github_* tools have context ready.
-# Uses gh auth status (local, no network) and parses the git remote URL.
-if command -v gh &>/dev/null; then
-  GH_USER=$(gh auth status 2>&1 | grep -oP 'Logged in to github\.com account \K\S+' | head -1)
-  if [ -z "$GH_USER" ]; then
-    # Newer gh versions use a different format
-    GH_USER=$(gh auth status 2>&1 | grep -oP 'Logged in to github\.com as \K\S+' | head -1)
-  fi
-  if [ -n "$GH_USER" ]; then
-    REMOTE_URL=$(git -C "$CWD" remote get-url origin 2>/dev/null)
-    GH_OWNER=""
-    GH_REPO=""
-    if [[ "$REMOTE_URL" =~ github\.com[:/]([^/]+)/([^/.]+) ]]; then
-      GH_OWNER="${BASH_REMATCH[1]}"
-      GH_REPO="${BASH_REMATCH[2]%.git}"
-    fi
-    if [ -n "$GH_OWNER" ] && [ -n "$GH_REPO" ]; then
-      MSG="${MSG}GitHub: @${GH_USER} | repo: ${GH_OWNER}/${GH_REPO}
-→ For issues/PRs/repo ops, use codescout github_issue/github_pr/github_repo tools with owner=\"${GH_OWNER}\" repo=\"${GH_REPO}\".
-
-"
-    else
-      MSG="${MSG}GitHub: @${GH_USER} (no GitHub remote detected on origin)
-
-"
-    fi
-  fi
-fi
-
 # --- Connectivity note ---
 # Hooks can't verify MCP handshake — detection is config-based only.
 # If the MCP server failed to connect, tools won't be available despite config existing.
@@ -192,17 +172,12 @@ fi
 if [ "$IN_WORKTREE" = "true" ]; then
   WT_ROOT=$(git -C "$CWD" rev-parse --show-toplevel 2>/dev/null)
 
-  # Ensure .codescout/ (or .code-explorer/) symlink exists — worktree-activate.sh creates it via
+  # Ensure .codescout/ symlink exists — worktree-activate.sh creates it via
   # PostToolUse on EnterWorktree, but a resumed or directly-opened session skips that.
   MAIN_GIT=$(git -C "$CWD" rev-parse --git-common-dir 2>/dev/null)
   MAIN_ROOT=$(dirname "$MAIN_GIT")
   if [ -n "$MAIN_ROOT" ] && [ "$MAIN_ROOT" != "." ]; then
-    # Use .codescout if it exists on the main project, else .code-explorer (backwards compat)
-    if [ -d "$MAIN_ROOT/.codescout" ]; then
-      CE_NAME=".codescout"
-    else
-      CE_NAME=".code-explorer"
-    fi
+    CE_NAME=".codescout"
     CE_DEST="${WT_ROOT:-$CWD}/${CE_NAME}"
     if [ ! -e "$CE_DEST" ]; then
       # Create main project dir if it doesn't exist yet (server writes project.toml on first run)

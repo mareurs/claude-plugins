@@ -52,7 +52,7 @@ fi
 make_git_repo "$T/t5"
 write_mcp_json "$T/t5"
 make_ce_dir "$T/t5"
-seed_sqlite_db "$T/t5" "deadbeef0000000000000000000000000000000000"
+seed_index_state "$T/t5" "deadbeef0000000000000000000000000000000000"
 OUT=$(printf '{"cwd":"%s"}' "$T/t5" | bash "$HOOK" 2>/dev/null)
 if assert_context_contains "$OUT" "INDEX: Refreshing"; then
   pass "stale index: refresh triggered"
@@ -65,7 +65,7 @@ make_git_repo "$T/t6"
 write_mcp_json "$T/t6"
 make_ce_dir "$T/t6"
 HEAD=$(git -C "$T/t6" rev-parse HEAD)
-seed_sqlite_db "$T/t6" "$HEAD"
+seed_index_state "$T/t6" "$HEAD"
 OUT=$(printf '{"cwd":"%s"}' "$T/t6" | bash "$HOOK" 2>/dev/null)
 if ! assert_context_contains "$OUT" "INDEX:"; then
   pass "current index: no refresh"
@@ -77,11 +77,11 @@ fi
 make_git_repo "$T/t7main"
 write_mcp_json "$T/t7main"
 make_ce_dir "$T/t7main"
-seed_sqlite_db "$T/t7main" "deadbeef0000000000000000000000000000000000"
+seed_index_state "$T/t7main" "deadbeef0000000000000000000000000000000000"
 make_worktree "$T/t7main" "$T/t7wt"
 cp "$T/t7main/.mcp.json" "$T/t7wt/.mcp.json"
 cp "$T/t7main/fake-ce" "$T/t7wt/fake-ce" 2>/dev/null || true
-ln -s "$T/t7main/.code-explorer" "$T/t7wt/.code-explorer"
+ln -s "$T/t7main/.codescout" "$T/t7wt/.codescout"
 OUT=$(printf '{"cwd":"%s"}' "$T/t7wt" | bash "$HOOK" 2>/dev/null)
 if assert_context_contains "$OUT" "WORKTREE SESSION" && ! assert_context_contains "$OUT" "INDEX:"; then
   pass "worktree: WORKTREE SESSION shown, no INDEX"

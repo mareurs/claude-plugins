@@ -9,10 +9,10 @@ T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
 make_git_repo "$T/main"
 make_worktree "$T/main" "$T/wt"
 
-ACTIVATE_TOOL="mcp__code-explorer__activate_project"
+ACTIVATE_TOOL="mcp__codescout__activate_project"
 
 # Test 1: non-activate_project tool → silent exit
-OUT=$(printf '{"tool_name":"mcp__code-explorer__list_symbols","tool_input":{"path":"%s"}}' "$T/wt" \
+OUT=$(printf '{"tool_name":"mcp__codescout__list_symbols","tool_input":{"path":"%s"}}' "$T/wt" \
   | bash "$HOOK" 2>/dev/null)
 if assert_no_output "$OUT"; then pass "non-activate: silent exit"; else fail "non-activate: silent exit" "$OUT"; fi
 

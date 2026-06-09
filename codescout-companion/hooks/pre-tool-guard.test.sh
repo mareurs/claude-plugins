@@ -8,13 +8,13 @@
 #
 # Sources `pre-tool-guard.sh` as a black box; relies on detect-tools.sh →
 # detect.py to fill in HAS_CODESCOUT / BLOCK_READS / WORKSPACE_ROOT from
-# the announced $CWD. ACTIVE_CWD uses code-explorer to exercise the
+# the announced $CWD. ACTIVE_CWD uses codescout to exercise the
 # cross-repo case (its sibling claude-plugins acts as SIBLING_CWD).
 
 set -uo pipefail
 
 HOOK="$(cd "$(dirname "$0")" && pwd)/pre-tool-guard.sh"
-ACTIVE_CWD="/home/marius/work/claude/code-explorer"
+ACTIVE_CWD="/home/marius/work/claude/codescout"
 SIBLING_CWD="/home/marius/work/claude/claude-plugins"
 PASS=0
 FAIL=0

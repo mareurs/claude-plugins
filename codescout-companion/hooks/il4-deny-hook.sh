@@ -13,7 +13,7 @@
 # stage). Justification: the predicate is universally invalid — there is no
 # legitimate read_file(*.md) call, so the warn stage carries zero FP risk
 # and only delays substrate enforcement. See H-2 in
-# code-explorer:docs/trackers/codescout-usage-hookify.md.
+# codescout:docs/trackers/codescout-usage-hookify.md.
 
 INPUT=$(cat)
 [ -z "$INPUT" ] && exit 0
