@@ -1,9 +1,10 @@
 #!/bin/bash
 # codescout-companion/hooks/pre-edit-hint.sh
-# PreToolUse hook on mcp__codescout__(edit_code|replace_symbol) — emit
+# PreToolUse hook on mcp__codescout__(edit_code) — emit
 # recon-for-shape-changes pointer on first shape-changing edit this session.
 # Dedup via .buddy/$SID/hint-emitted-recon-edit marker (shared across
-# edit_code and replace_symbol because both are shape-changing seams).
+# edit_code is the shape-changing seam; the old replace_symbol/insert_code/
+# remove_symbol tools were folded into it).
 
 if ! command -v jq &>/dev/null; then
   exit 0
@@ -20,5 +21,5 @@ source "$(dirname "$0")/detect-tools.sh"
 
 source "$(dirname "$0")/skill-hints.sh"
 
-emit_skill_hint "recon-edit" "Before this shape-changing edit (edit_code|replace_symbol): if the change touches struct fields, function signatures, or API contracts not yet scouted this session, call Skill('codescout-companion:reconnaissance') first to capture friction and wins."
+emit_skill_hint "recon-edit" "Before this shape-changing edit (edit_code): if the change touches struct fields, function signatures, or API contracts not yet scouted this session, call Skill('codescout-companion:reconnaissance') first to capture friction and wins."
 exit 0
