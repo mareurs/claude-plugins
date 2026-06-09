@@ -17,7 +17,7 @@ A **seam** is a place where your next action depends on the current shape of cod
 
 ## When NOT to Use
 
-- **Read-only Q&A.** "What does X do?" — answer via `symbols(name=..., include_body=true)`. No scout, no entry.
+- **Read-only Q&A that *describes behavior*.** "What does X do?" — answer via `symbols(name=..., include_body=true)`. No scout, no entry. **But asserting a specific, checkable fact is not Q&A** — "it IS BLAKE3", "the field IS named Y", "it's at line N" — especially when the assertion will be presented as a recommendation or written into a doc. Read the symbol this session before you commit the fact. (R-19)
 - **Genuinely no-decision edits.** Whitespace, comment typos, version-string bumps that no test asserts on. When in doubt whether an edit is "mechanical," scout — one extra `grep` costs less than one missed invariant. Editing a markdown file that backs an `include_str!`'d constant is NOT mechanical: see Phase 1's `include_str!`'d-constant bullet below.
 - **Already in verification phase.** Use `verification-before-completion` for commit gating.
 - **Already scouted this seam in the current session.** One pass per seam — re-scouting the same struct/function is noise unless the source has changed since.
