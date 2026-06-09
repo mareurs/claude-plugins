@@ -17,23 +17,23 @@ Release readiness across plugins × profiles. See
 
 ## State
 
-_Last refresh: `5a5b9c9`_
+_Last refresh: `23cdc1a`_
 
-**codescout-companion** — canonical `1.11.8` · readme `1.11.8` · marketplace clean ✅
-
-| profile | installed | cache dir | install_path ok |
-|---|---|---|---|
-| `~/.claude` | 1.11.8 ✅ | ✅ | ✅ |
-| `~/.claude-sdd` | 1.11.8 ✅ | ✅ | ✅ |
-| `~/.claude-kat` | 1.11.8 ✅ | ✅ | ✅ |
-
-**buddy** — canonical `0.7.16` · readme `0.7.16` · marketplace clean ✅
+**codescout-companion** — canonical `1.11.9` · readme `1.11.9` · marketplace clean ✅
 
 | profile | installed | cache dir | install_path ok |
 |---|---|---|---|
-| `~/.claude` | 0.7.16 ✅ | ✅ | ✅ |
-| `~/.claude-sdd` | 0.7.16 ✅ | ✅ | ✅ |
-| `~/.claude-kat` | 0.7.16 ✅ | ✅ | ✅ |
+| `~/.claude` | 1.11.9 ✅ | ✅ | ✅ |
+| `~/.claude-sdd` | 1.11.9 ✅ | ✅ | ✅ |
+| `~/.claude-kat` | 1.11.9 ✅ | ✅ | ✅ |
+
+**buddy** — canonical `0.7.17` · readme `0.7.17` · marketplace clean ✅
+
+| profile | installed | cache dir | install_path ok |
+|---|---|---|---|
+| `~/.claude` | 0.7.17 ✅ | ✅ | ✅ |
+| `~/.claude-sdd` | 0.7.17 ✅ | ✅ | ✅ |
+| `~/.claude-kat` | 0.7.17 ✅ | ✅ | ✅ |
 
 **sdd** — canonical `2.4.1` · readme `2.4.1` · marketplace clean ✅
 
@@ -43,6 +43,10 @@ _Last refresh: `5a5b9c9`_
 | `~/.claude-sdd` | — ❌ | ❌ | ❌ |
 | `~/.claude-kat` | — ❌ | ❌ | ❌ |
 ## History
+
+### 2026-06-09 — codescout-companion 1.11.8 → 1.11.9, buddy 0.7.16 → 0.7.17
+
+Scrubbed the obsolete pre-rename name code-explorer from the entire live surface of both plugins (hooks, detect.py, skills, READMEs, dashboard, commands, root tests, CLAUDE.md, .gitignore, buddy hook_helpers.py; pika smoke test renamed test-smoke-codescout.sh) and removed the GitHub guidance naming nonexistent github_* tools; dated design docs + CHANGELOG keep the name. Dropped the legacy .code-explorer/ directory fallback in detect.py + worktree hooks (.codescout only). codescout-companion auto-reindex now reads the Qdrant-era freshness sidecar .codescout/index-state.json (tracker 286ac62b; codescout writer still on experiments) instead of the frozen embeddings.db meta. New seed_index_state fixture; run-all.sh + test_detect.py (19) + buddy pytest (418) + pika smoke all green. Cache seeded + install records updated across 3 profiles; sanity loop all ✅.
 
 ### 2026-06-09 — claude-statusline 1.1.4 → 1.1.5, codescout-companion 1.11.7 → 1.11.8
 
