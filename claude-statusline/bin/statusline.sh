@@ -31,8 +31,8 @@ jq_out="$(echo "$input" | jq -r '
   (.context_window.current_usage.cache_creation_input_tokens // ""),
   (.context_window.current_usage.cache_read_input_tokens // ""),
   (.agent.name // ""),
-  (.workspace.git_worktree.name // ""),
-  (.workspace.git_worktree.branch // ""),
+  ((try .workspace.git_worktree.name) // .workspace.git_worktree // ""),
+  ((try .workspace.git_worktree.branch) // ""),
   (if .rate_limits_stale == true then "true" else "false" end),
   (.session_id // ""),
   "END"
