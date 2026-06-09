@@ -17,15 +17,15 @@ Release readiness across plugins × profiles. See
 
 ## State
 
-_Last refresh: `ccfefdc`_
+_Last refresh: `5a5b9c9`_
 
-**codescout-companion** — canonical `1.11.7` · readme `1.11.7` · marketplace clean ✅
+**codescout-companion** — canonical `1.11.8` · readme `1.11.8` · marketplace clean ✅
 
 | profile | installed | cache dir | install_path ok |
 |---|---|---|---|
-| `~/.claude` | 1.11.7 ✅ | ✅ | ✅ |
-| `~/.claude-sdd` | 1.11.7 ✅ | ✅ | ✅ |
-| `~/.claude-kat` | 1.11.7 ✅ | ✅ | ✅ |
+| `~/.claude` | 1.11.8 ✅ | ✅ | ✅ |
+| `~/.claude-sdd` | 1.11.8 ✅ | ✅ | ✅ |
+| `~/.claude-kat` | 1.11.8 ✅ | ✅ | ✅ |
 
 **buddy** — canonical `0.7.16` · readme `0.7.16` · marketplace clean ✅
 
@@ -43,6 +43,10 @@ _Last refresh: `ccfefdc`_
 | `~/.claude-sdd` | — ❌ | ❌ | ❌ |
 | `~/.claude-kat` | — ❌ | ❌ | ❌ |
 ## History
+
+### 2026-06-09 — claude-statusline 1.1.4 → 1.1.5, codescout-companion 1.11.7 → 1.11.8
+
+claude-statusline 1.1.5: jq fix in `bin/statusline.sh` — `.workspace.git_worktree.name`/`.branch` now tolerate `git_worktree` arriving as a bare string (not just an object) via `try` + fallback (commit `15c9da6`). codescout-companion 1.11.8: recon SKILL.md R-19 — asserting a specific checkable fact ("it IS BLAKE3", "field IS named Y", "at line N"), especially when it becomes a recommendation or is written into a doc, now requires reading the symbol this session first; plain behavior-describing Q&A still skips the scout (commit `5a5b9c9`). Pre-bump `./tests/run-all.sh` all suites green; `check-versions.sh` clean. Cache seeded + install records updated across 3 profiles; sanity loop all ✅ (cache + installPath). buddy (0.7.16) and sdd (uninstalled) unchanged.
 
 ### 2026-06-02 — buddy 0.7.15 → 0.7.16
 
