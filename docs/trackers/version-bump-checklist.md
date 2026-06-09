@@ -17,7 +17,7 @@ Release readiness across plugins × profiles. See
 
 ## State
 
-_Last refresh: `6f60125`_
+_Last refresh: `ccfefdc`_
 
 **codescout-companion** — canonical `1.11.7` · readme `1.11.7` · marketplace clean ✅
 
@@ -27,13 +27,13 @@ _Last refresh: `6f60125`_
 | `~/.claude-sdd` | 1.11.7 ✅ | ✅ | ✅ |
 | `~/.claude-kat` | 1.11.7 ✅ | ✅ | ✅ |
 
-**buddy** — canonical `0.7.15` · readme `0.7.15` · marketplace clean ✅
+**buddy** — canonical `0.7.16` · readme `0.7.16` · marketplace clean ✅
 
 | profile | installed | cache dir | install_path ok |
 |---|---|---|---|
-| `~/.claude` | 0.7.15 ✅ | ✅ | ✅ |
-| `~/.claude-sdd` | 0.7.15 ✅ | ✅ | ✅ |
-| `~/.claude-kat` | 0.7.15 ✅ | ✅ | ✅ |
+| `~/.claude` | 0.7.16 ✅ | ✅ | ✅ |
+| `~/.claude-sdd` | 0.7.16 ✅ | ✅ | ✅ |
+| `~/.claude-kat` | 0.7.16 ✅ | ✅ | ✅ |
 
 **sdd** — canonical `2.4.1` · readme `2.4.1` · marketplace clean ✅
 
@@ -43,6 +43,10 @@ _Last refresh: `6f60125`_
 | `~/.claude-sdd` | — ❌ | ❌ | ❌ |
 | `~/.claude-kat` | — ❌ | ❌ | ❌ |
 ## History
+
+### 2026-06-02 — buddy 0.7.15 → 0.7.16
+
+Promoted `codescout-pika` from a user-global specialist (`~/.buddy/skills/`) to the 12th builtin (`buddy/skills/codescout-pika/`, incl. its `sql/` + `tests/`); deleted the global copy so builtin isn't shadowed (precedence project > global > builtin). Registered in summon/dismiss/introspect/consolidate tables and legend (initial `K`); backfilled the already-missing `prompt-hamsa` into statusline `SPECIALIST_SHORT`/`SPECIALIST_ROLE` and legend (initial `H`). Bumped all "11 builtin" count refs → 12 (summon, create, skill-template, create-buddy-eval README, root CLAUDE.md) and "10 specialist masters" → 12 (README row, plugin.json description). De-hardcoded pika's shipped shell tests (`$HOME/.claude/...` → self-locate via `BASH_SOURCE`). Pre-bump green: buddy pytest 418 passed (widened `test_specialist_role` expected-set to 12), root `run-all.sh` all suites, pika 5/5. Cache seeded + install records updated across 3 profiles, all green. sdd remains uninstalled in all profiles (unchanged).
 
 ### 2026-05-28 — codescout-companion 1.11.6 → 1.11.7
 

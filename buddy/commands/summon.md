@@ -14,7 +14,7 @@ The user's argument is plain language. Parse it into `<specialist>` and an optio
 Specialists are discovered at lookup time from three scope roots, with precedence **project > global > builtin** (a later scope's entry shadows the earlier one on name collision):
 
 1. **builtin** — `${CLAUDE_PLUGIN_ROOT}/skills/`
-   Frozen, plugin-shipped. The 11 entries in the table below are the only builtin specialists; the table is authoritative documentation.
+   Frozen, plugin-shipped. The 12 entries in the table below are the only builtin specialists; the table is authoritative documentation.
 2. **global** — `${BUDDY_HOME:-~/.buddy}/skills/`
    Optional — directory may not exist.
 3. **project** — `<cwd>/.buddy/skills/`
@@ -32,7 +32,7 @@ The script self-locates its plugin root (does not trust `CLAUDE_PLUGIN_ROOT`, wh
 
 The output is one line per `(scope, name, path)` triple. Compose into an index in your reasoning state, applying precedence: later scopes override earlier ones on the same `name`. Track shadows (entries that were overridden) for the announcement in Step 2.
 
-### Builtin specialist table (frozen — 11 entries)
+### Builtin specialist table (frozen — 12 entries)
 
 | Directory | When to summon | Lens? |
 |---|---|---|
@@ -47,6 +47,7 @@ The output is one line per `(scope, name, path)` triple. Compose into an index i
 | `data-leakage-snow-pheasant` | ML data hygiene, evaluation integrity, train/test leakage | **required**: `classic` or `llm` |
 | `security-ibex` | Security review, threat modeling, vulnerability analysis | — |
 | `prompt-hamsa` | Improving a prompt — critique, drafting from scratch, diagnosing model misbehavior, or coaching toward eval-driven iteration | — |
+| `codescout-pika` | Auditing codescout tool-call usage — inefficient tool patterns, recurring frictions, hookify candidates | — |
 
 ### Argument matching
 

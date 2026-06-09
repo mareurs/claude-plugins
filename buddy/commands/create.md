@@ -22,7 +22,7 @@ The hint may contain:
 Resolve scope using this decision tree:
 
 1. **If hint contains `builtin`** → refuse:
-   > "Builtin specialists are frozen at the 11 entries shipped in the plugin. To add one, PR the marketplace repo. For your case, would `global` (your CC instance, every project you work on) or `project` (this repo only) work?"
+   > "Builtin specialists are frozen at the 12 entries shipped in the plugin. To add one, PR the marketplace repo. For your case, would `global` (your CC instance, every project you work on) or `project` (this repo only) work?"
    Then await user input and re-enter Step 1.
 
 2. **If hint contains `project`** → scope = `project`.
@@ -182,7 +182,7 @@ section if your specialist has a cross-lens correlation save criterion
 
 ## Anti-patterns for this command itself
 
-- **Do not register in `summon.md` table.** That table is hand-curated documentation for the 11 builtin specialists. Global and project specialists are discovered by path-scan, not by table lookup.
+- **Do not register in `summon.md` table.** That table is hand-curated documentation for the 12 builtin specialists. Global and project specialists are discovered by path-scan, not by table lookup.
 - **Do not bump plugin version.** This command writes user content, not plugin content. Version bumps are for plugin releases.
 - **Do not spawn a subagent to validate the draft.** Same-turn self-critique on the same model is unreliable (Hamsa Heuristic 8). User's manual summon is the validation.
 - **Do not skip the preview.** The preview is the Hamsa principle applied recursively — buddy-builder must read its own buddies as a stranger.

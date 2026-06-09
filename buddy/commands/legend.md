@@ -61,6 +61,8 @@ Dismiss one with `/buddy:dismiss <alias>` or all with `/buddy:dismiss`.
 | W | Docs Lotus Frog | `/buddy:summon frog` |
 | L | Data Leakage Snow Pheasant | `/buddy:summon pheasant` |
 | M | ML Training Takin | `/buddy:summon takin` |
+| H | Prompt Hamsa | `/buddy:summon hamsa` |
+| K | Codescout Pika | `/buddy:summon pika` |
 
 Project-scoped specialists (under `<cwd>/.buddy/skills/`) are shown in
 *Currently Active* when summoned; they live alongside the builtin set with

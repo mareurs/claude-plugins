@@ -57,7 +57,7 @@ content that `server_instructions` cannot carry (system-prompt.md, memory hints,
 
 **Himalayan-aesthetic companion plugin.**
 
-Lives at `buddy/` in this repo. Provides mood-reactive statusline, 11 specialist personas (bodhisattvas), async LLM judges for plan drift and codescout tool violations, and a structured memory system mirrored across CC instances.
+Lives at `buddy/` in this repo. Provides mood-reactive statusline, 12 specialist personas (bodhisattvas), async LLM judges for plan drift and codescout tool violations, and a structured memory system mirrored across CC instances.
 
 **What it does:**
 - SessionStart: mood reset, PPID index, memory consolidation nudges

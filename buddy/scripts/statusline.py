@@ -43,6 +43,8 @@ SPECIALIST_SHORT = {
     "docs-lotus-frog": "frog",
     "data-leakage-snow-pheasant": "pheasant",
     "ml-training-takin": "takin",
+    "prompt-hamsa": "hamsa",
+    "codescout-pika": "pika",
 }
 
 
@@ -57,6 +59,8 @@ SPECIALIST_ROLE = {
     "docs-lotus-frog": "docs",
     "data-leakage-snow-pheasant": "leakage",
     "ml-training-takin": "ml",
+    "prompt-hamsa": "prompt",
+    "codescout-pika": "watcher",
 }
 
 _CSI_RE = re.compile(r"\x1b\[[0-9;]*m")

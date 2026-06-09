@@ -18,6 +18,7 @@ Specialists this command can target (alias-table parity with summon.md):
 - `data-leakage-snow-pheasant`
 - `security-ibex`
 - `prompt-hamsa`
+- `codescout-pika`
 -->
 
 ## Step 1 — Parse the argument

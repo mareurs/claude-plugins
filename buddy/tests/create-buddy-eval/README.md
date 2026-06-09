@@ -52,7 +52,7 @@ INPUTS:
 - buddy/data/skill-template.md
 
 FORBIDDEN:
-- buddy/skills/**       (the 11 builtin specialists)
+- buddy/skills/**       (the 12 builtin specialists)
 - buddy/tests/create-buddy-eval/cases/<name>/expected-facts.md
 - buddy/tests/create-buddy-eval/cases/<name>/reference-skill.md
 - Codebase searches for keywords related to the target specialist

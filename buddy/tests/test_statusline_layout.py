@@ -21,6 +21,8 @@ def test_specialist_role_covers_all_known_specialists():
         "docs-lotus-frog",
         "data-leakage-snow-pheasant",
         "ml-training-takin",
+        "prompt-hamsa",
+        "codescout-pika",
     }
     assert set(SPECIALIST_ROLE.keys()) == expected
 
