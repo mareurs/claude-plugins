@@ -290,6 +290,44 @@ re-exports, generated types). Per-project ledgers keep the lessons
 close to the substrate that produced them. Cross-project lessons
 graduate via the sync flow — explicitly, not implicitly.
 
+### Promotion routing — craft-shaped vs project-shaped
+
+`promote-when` has two destinations, not one. Classify the lesson before promoting.
+
+**Routing test:** *"Would this rule mislead a different project?"*
+
+- **No — it's craft-shaped** (a language / tool / protocol pattern true in any repo):
+  promote to this `SKILL.md` via the Sync flow above. Global; every project loads it.
+- **Yes — it's project-shaped** (this repo's dialect, build quirks, gotchas): promote to
+  the project's codescout memory, not the global skill —
+
+  ```
+  memory(action="write", topic="reconnaissance", content="<one distilled rule>")
+  ```
+
+  This is the *topic-based* memory system (an on-disk `.codescout/memories/reconnaissance.md`)
+  which the companion advertises by name at every SessionStart, so a future agent sees
+  `reconnaissance` in the memory list and is nudged to read it. (Not the semantic
+  `remember`/`recall` system — that is meaning-search, not advertised by name.)
+
+**Rule format — concrete and bounded, never prose.** A memory rule names the trigger and
+the action with a checkable bound. Write *"before asserting a checkable fact about a symbol,
+read it this session"* — not *"be careful about hashes."* Each entry is the one-line rule +
+a `(R-N)` / `(F-N)` pointer to its ledger origin. The tracker keeps the full narrative; the
+memory carries only the imperative.
+
+**Cap ≈ 10 rules.** The advertised channel costs tokens in every session that reads it; an
+unbounded memory bloats and gets ignored (the same failure as a prose tracker no one opens).
+When the topic exceeds the cap, consolidate near-duplicates or demote the weakest rule back
+to tracker-only.
+
+**The channel is ungated — guard it.** Any agent can `memory(write)` this topic; the
+substrate enforces nothing. So promotion writes happen **only** through this routing, at a
+real promote-when threshold — never ad-hoc, never from a subagent mid-task. The bar is a
+norm this skill owns, not a permission the system checks.
+
+As with the Sync flow, the `R-N`/`F-N` ledger entry stays the source of record; the memory
+rule is its promoted, distilled projection.
 ## Skill maintenance
 
 Trigger-string scoring lives in `<codescout-repo>/docs/evals/reconnaissance-trigger.md`. Re-score before any future description change. **Behavioral eval** (do triggered scouts produce useful F-N entries?) lives at `<codescout-repo>/docs/evals/reconnaissance-output.md` — 14 cases drawn from the R-N ledger's hits and misses, with the six MISS cases (R-2, R-4, R-8, R-10, R-19, R-23) as a hard regression gate. **Bootstrap: cases pinned, baseline not yet run (n=0).** Re-score before any change that targets scout *behavior* (not just the trigger string); until the first empirical row lands in that eval's Iteration log, every claim about behavioral efficacy remains unverified.
