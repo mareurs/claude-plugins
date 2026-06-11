@@ -292,6 +292,6 @@ graduate via the sync flow — explicitly, not implicitly.
 
 ## Skill maintenance
 
-Trigger-string scoring lives in `<codescout-repo>/docs/evals/reconnaissance-trigger.md`. Re-score before any future description change. **Behavioral eval** (do triggered scouts produce useful F-N entries?) — to be authored at `<codescout-repo>/docs/evals/reconnaissance-output.md`. Until that exists, every claim about ledger quality is unverified.
+Trigger-string scoring lives in `<codescout-repo>/docs/evals/reconnaissance-trigger.md`. Re-score before any future description change. **Behavioral eval** (do triggered scouts produce useful F-N entries?) lives at `<codescout-repo>/docs/evals/reconnaissance-output.md` — 14 cases drawn from the R-N ledger's hits and misses, with the six MISS cases (R-2, R-4, R-8, R-10, R-19, R-23) as a hard regression gate. **Bootstrap: cases pinned, baseline not yet run (n=0).** Re-score before any change that targets scout *behavior* (not just the trigger string); until the first empirical row lands in that eval's Iteration log, every claim about behavioral efficacy remains unverified.
 
 Version history is tracked via git on this file; see `git log -- codescout-companion/skills/reconnaissance/SKILL.md`.
