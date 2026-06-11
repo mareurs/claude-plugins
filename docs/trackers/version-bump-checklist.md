@@ -17,15 +17,15 @@ Release readiness across plugins × profiles. See
 
 ## State
 
-_Last refresh: `23cdc1a`_
+_Last refresh: `767b64c`_
 
-**codescout-companion** — canonical `1.11.9` · readme `1.11.9` · marketplace clean ✅
+**codescout-companion** — canonical `1.11.10` · readme `1.11.10` · marketplace clean ✅
 
 | profile | installed | cache dir | install_path ok |
 |---|---|---|---|
-| `~/.claude` | 1.11.9 ✅ | ✅ | ✅ |
-| `~/.claude-sdd` | 1.11.9 ✅ | ✅ | ✅ |
-| `~/.claude-kat` | 1.11.9 ✅ | ✅ | ✅ |
+| `~/.claude` | 1.11.10 ✅ | ✅ | ✅ |
+| `~/.claude-sdd` | 1.11.10 ✅ | ✅ | ✅ |
+| `~/.claude-kat` | 1.11.10 ✅ | ✅ | ✅ |
 
 **buddy** — canonical `0.7.17` · readme `0.7.17` · marketplace clean ✅
 
@@ -43,6 +43,10 @@ _Last refresh: `23cdc1a`_
 | `~/.claude-sdd` | — ❌ | ❌ | ❌ |
 | `~/.claude-kat` | — ❌ | ❌ | ❌ |
 ## History
+
+### 2026-06-11 — codescout-companion 1.11.9 → 1.11.10
+
+Recon skill gains **promotion routing**: project-shaped lessons promote to a codescout `reconnaissance` memory topic (advertised free by the existing `detect.py` glob — zero companion change), craft-shaped stay → `SKILL.md`; concrete+bounded rule format, ~10-rule cap, ungated-channel discipline. Authored the design + plan as superpowers specs (`2026-06-11-recon-findings-as-project-memory`), substrate verified against codescout source (`memory(write, topic=…)` on-disk Markdown, advertise-pull, ungated — any agent can write). Behavioral eval `reconnaissance-output.md` (codescout) gained Case 15 (advertise-pull efficacy probe). Doc-drift fixed: `CLAUDE.md` + README now say the companion injects *pointers* not verbatim content; dropped the stale "GitHub context injection". `run-all.sh` green; `check-versions.sh` clean. Cache seeded + install records updated across 3 profiles; sanity loop all ✅ (cache + installPath, no cross-profile drift). buddy (`0.7.17`) + sdd (uninstalled) unchanged.
 
 ### 2026-06-09 — codescout-companion 1.11.8 → 1.11.9, buddy 0.7.16 → 0.7.17
 
