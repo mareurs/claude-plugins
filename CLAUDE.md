@@ -43,7 +43,8 @@ binary, and references its internal schema (meta table, drift_report table, proj
 Update this plugin whenever codescout adds features that affect exploration workflows.
 
 **What it does:**
-- SessionStart/SubagentStart: injects **pointers**, not content — memory-topic names (`CS_MEMORY_NAMES`) + a read-nudge, and a system-prompt pointer (`memory(action="read", topic="system-prompt")`). Verbatim content injection was removed in the injection-budget redesign (`docs/superpowers/specs/2026-05-19-injection-budget-design.md`); the model pulls the bodies on demand.
+- **SessionStart** (main agent): injects **pointers**, not content — memory-topic names (`CS_MEMORY_NAMES`) + a read-nudge + a system-prompt pointer (`memory(action="read", topic="system-prompt")`). Verbatim injection on this path was removed in the injection-budget redesign (`docs/superpowers/specs/2026-05-19-injection-budget-design.md`); the model pulls bodies on demand.
+- **SubagentStart** (`subagent-guidance.sh`): injects the codescout tool-routing directive + an Iron-Laws reminder, **and the project system-prompt verbatim** (`CS_SYSTEM_PROMPT`, read from the *root* `.codescout/system-prompt.md`). The redesign converted SessionStart to pointers but left this path pushing verbatim — so the root `.codescout/system-prompt.md` (a file distinct from the `system-prompt` *memory* that SessionStart points at) must be kept fresh too, or subagents read stale guidance.
 - PreToolUse: hard-blocks Read/Grep/Glob/Bash/Edit on source files (`permissionDecision: "deny"`)
 - Auto-reindexing: checks index staleness at session start, triggers `codescout index` in background
 - Drift warnings: surfaces high-drift files and stale docs/memories
