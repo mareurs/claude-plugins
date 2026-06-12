@@ -17,23 +17,23 @@ Release readiness across plugins × profiles. See
 
 ## State
 
-_Last refresh: `c7de6cb`_
+_Last refresh: `a959619`_
 
-**codescout-companion** — canonical `1.11.11` · readme `1.11.11` · marketplace clean ✅
-
-| profile | installed | cache dir | install_path ok |
-|---|---|---|---|
-| `~/.claude` | 1.11.11 ✅ | ✅ | ✅ |
-| `~/.claude-sdd` | 1.11.11 ✅ | ✅ | ✅ |
-| `~/.claude-kat` | 1.11.11 ✅ | ✅ | ✅ |
-
-**buddy** — canonical `0.7.17` · readme `0.7.17` · marketplace clean ✅
+**codescout-companion** — canonical `1.11.12` · readme `1.11.12` · marketplace clean ✅
 
 | profile | installed | cache dir | install_path ok |
 |---|---|---|---|
-| `~/.claude` | 0.7.17 ✅ | ✅ | ✅ |
-| `~/.claude-sdd` | 0.7.17 ✅ | ✅ | ✅ |
-| `~/.claude-kat` | 0.7.17 ✅ | ✅ | ✅ |
+| `~/.claude` | 1.11.12 ✅ | ✅ | ✅ |
+| `~/.claude-sdd` | 1.11.12 ✅ | ✅ | ✅ |
+| `~/.claude-kat` | 1.11.12 ✅ | ✅ | ✅ |
+
+**buddy** — canonical `0.7.18` · readme `0.7.18` · marketplace clean ✅
+
+| profile | installed | cache dir | install_path ok |
+|---|---|---|---|
+| `~/.claude` | 0.7.18 ✅ | ✅ | ✅ |
+| `~/.claude-sdd` | 0.7.18 ✅ | ✅ | ✅ |
+| `~/.claude-kat` | 0.7.18 ✅ | ✅ | ✅ |
 
 **sdd** — canonical `2.4.1` · readme `2.4.1` · marketplace clean ✅
 
@@ -44,6 +44,9 @@ _Last refresh: `c7de6cb`_
 | `~/.claude-kat` | — ❌ | ❌ | ❌ |
 ## History
 
+### 2026-06-12 — codescout-companion 1.11.11 → 1.11.12, buddy 0.7.17 → 0.7.18
+
+Skill-loading bootstrap (spec `2026-06-12-skill-loading-bootstrap-design.md`; F-1/W-1 evidence in `docs/trackers/skill-loading-session-log.md`). **companion 1.11.12**: `is_skill_payload()` joins `is_binary_image()` as a native-Read exemption (SKILL.md / lens addenda / `references/`, plugin cache, `.buddy/` trees — verbatim fidelity required, codescout has no index over plugin payloads); guard matrix 32/32, repo suite 23/23 (test 8c intentionally flipped deny→allow). **buddy 0.7.18**: UserPromptSubmit summon bootstrap (`summon_bootstrap.py` — cold `/buddy:summon` costs zero model tool calls; tracking happens hook-side at injection time, making the statusline specialist line a certain record); skill ledger (`skill_ledger.py` — transcript scan is the only ground truth for Skill-tool loads since no hook fires for Skill, claude-code#43630; repeat loads emit do-not-reinvoke advisories; statusline gains a skills slot); frontmatter on all 12 personas (consumed by `specialist_labels`) + flat `inject_trackers`/`inject_memory_topics` bindings (planning-crane ← `docs/trackers/active-plan.md`; codescout-pika ← codescout memories gotchas+conventions); reload blocks strip frontmatter. buddy pytest 448 green; `run-all.sh` all suites; `check-versions.sh` clean. Cache seeded + install records updated across 3 profiles; sanity loop all ✅. sdd remains uninstalled in all profiles (standing baseline).
 ### 2026-06-12 — codescout-companion 1.11.10 → 1.11.11
 
 Removed the redundant SessionStart system-prompt pointer (`memory(action="read", topic="system-prompt")`). codescout injects the root `.codescout/system-prompt.md` into the **main agent** via `server_instructions` (`## Custom Instructions`), so the companion pointer was a duplicate — and it aimed at the `system-prompt` *memory topic* that codescout's onboarding fix (issue `e492592986c67138`) just disowned. **Subagents** do NOT receive `server_instructions` (`claude-code#29655`), so `subagent-guidance.sh`'s verbatim injection is the sole delivery path to them — kept and comment-pinned. Two SessionStart tests flipped to assert pointer absence; the `subagent-guidance` verbatim test is unchanged and green. Spec + plan: `2026-06-12-system-prompt-source-consolidation-design.md`. Pre-bump `run-all.sh` all suites green; `check-versions.sh` clean. Cache seeded + install records updated across 3 profiles; sanity loop all ✅ (cache + installPath, no cross-profile drift). buddy (`0.7.17`) + sdd (uninstalled) unchanged.
