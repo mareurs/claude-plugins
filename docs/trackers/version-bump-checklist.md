@@ -17,15 +17,15 @@ Release readiness across plugins × profiles. See
 
 ## State
 
-_Last refresh: `767b64c`_
+_Last refresh: `c7de6cb`_
 
-**codescout-companion** — canonical `1.11.10` · readme `1.11.10` · marketplace clean ✅
+**codescout-companion** — canonical `1.11.11` · readme `1.11.11` · marketplace clean ✅
 
 | profile | installed | cache dir | install_path ok |
 |---|---|---|---|
-| `~/.claude` | 1.11.10 ✅ | ✅ | ✅ |
-| `~/.claude-sdd` | 1.11.10 ✅ | ✅ | ✅ |
-| `~/.claude-kat` | 1.11.10 ✅ | ✅ | ✅ |
+| `~/.claude` | 1.11.11 ✅ | ✅ | ✅ |
+| `~/.claude-sdd` | 1.11.11 ✅ | ✅ | ✅ |
+| `~/.claude-kat` | 1.11.11 ✅ | ✅ | ✅ |
 
 **buddy** — canonical `0.7.17` · readme `0.7.17` · marketplace clean ✅
 
@@ -43,6 +43,10 @@ _Last refresh: `767b64c`_
 | `~/.claude-sdd` | — ❌ | ❌ | ❌ |
 | `~/.claude-kat` | — ❌ | ❌ | ❌ |
 ## History
+
+### 2026-06-12 — codescout-companion 1.11.10 → 1.11.11
+
+Removed the redundant SessionStart system-prompt pointer (`memory(action="read", topic="system-prompt")`). codescout injects the root `.codescout/system-prompt.md` into the **main agent** via `server_instructions` (`## Custom Instructions`), so the companion pointer was a duplicate — and it aimed at the `system-prompt` *memory topic* that codescout's onboarding fix (issue `e492592986c67138`) just disowned. **Subagents** do NOT receive `server_instructions` (`claude-code#29655`), so `subagent-guidance.sh`'s verbatim injection is the sole delivery path to them — kept and comment-pinned. Two SessionStart tests flipped to assert pointer absence; the `subagent-guidance` verbatim test is unchanged and green. Spec + plan: `2026-06-12-system-prompt-source-consolidation-design.md`. Pre-bump `run-all.sh` all suites green; `check-versions.sh` clean. Cache seeded + install records updated across 3 profiles; sanity loop all ✅ (cache + installPath, no cross-profile drift). buddy (`0.7.17`) + sdd (uninstalled) unchanged.
 
 ### 2026-06-11 — codescout-companion 1.11.9 → 1.11.10
 
