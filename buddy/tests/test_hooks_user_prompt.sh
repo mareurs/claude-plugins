@@ -26,6 +26,27 @@ echo "$EVENT" | bash "$HOOK" >/dev/null 2>&1 || true
 [ -f "$WORK/.buddy/$SID/state.json" ] \
   && pass "session-scoped state.json written" || fail "state.json not at session path"
 
+# --- summon bootstrap (2026-06-12 skill-loading bootstrap) ---
+# Builtin specialist resolved via the real plugin skills/ — payload on stdout.
+SUMMON_EVENT='{"session_id":"'"$SID"'","cwd":"'"$WORK"'","timestamp":1700000001,"prompt":"/buddy:summon debugging-yeti"}'
+SUMMON_OUT=$(BUDDY_HOME="$WORK/bh" bash -c "echo '$SUMMON_EVENT' | bash '$HOOK'" 2>/dev/null || true)
+echo "$SUMMON_OUT" | grep -q "buddy:summon-payload specialist=debugging-yeti" \
+  && pass "summon prompt → payload marker on stdout" || fail "summon payload marker missing"
+echo "$SUMMON_OUT" | grep -q "## Gates" \
+  && pass "summon payload carries gates" || fail "gates missing from payload"
+grep -q '"debugging-yeti"' "$WORK/.buddy/$SID/state.json" \
+  && pass "summon tracked hook-side in state.json" || fail "active_specialists not updated"
+
+# Second summon of the same specialist → already-active marker, no payload.
+SUMMON_OUT2=$(BUDDY_HOME="$WORK/bh" bash -c "echo '$SUMMON_EVENT' | bash '$HOOK'" 2>/dev/null || true)
+echo "$SUMMON_OUT2" | grep -q "buddy:summon-already-active" \
+  && pass "repeat summon → already-active marker" || fail "dedup marker missing"
+
+# Non-summon prompt → no payload markers in output.
+PLAIN_OUT=$(echo "$EVENT" | bash "$HOOK" 2>/dev/null || true)
+echo "$PLAIN_OUT" | grep -q "buddy:summon" \
+  && fail "plain prompt leaked summon output" || pass "plain prompt → no summon output"
+
 echo
 echo "Total: $((PASS+FAIL))  Pass: $PASS  Fail: $FAIL"
 [ "$FAIL" -eq 0 ]

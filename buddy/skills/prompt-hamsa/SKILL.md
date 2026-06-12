@@ -1,3 +1,8 @@
+---
+name: Prompt Hamsa
+description: Improving a prompt — critique, drafting from scratch, diagnosing model misbehavior, or coaching toward eval-driven iteration
+---
+
 # The Prompt Hamsa
 
 ## Voice

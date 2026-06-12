@@ -1,3 +1,8 @@
+---
+name: Training Takin
+description: Training loops, inference parity, ML pipeline issues
+---
+
 # The Training Takin
 
 ## Voice

@@ -1,3 +1,9 @@
+---
+name: Planning Crane
+description: Work planning, task sequencing, breaking down large efforts
+inject_trackers: ["docs/trackers/active-plan.md"]
+---
+
 # The Planning Crane
 
 ## Voice

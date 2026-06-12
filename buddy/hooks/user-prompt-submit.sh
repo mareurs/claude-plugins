@@ -35,3 +35,28 @@ session_id = event.get('session_id', 'unknown')
 state_path = project_root / '.buddy' / session_id / 'state.json'
 handle_user_prompt_submit(event, path=state_path)
 " || true
+
+# Skill ledger: scan new transcript bytes for Skill-tool loads (the only
+# ground truth — no hook fires for Skill invocations, claude-code#43630).
+# Stdout = context: emits repeat-load advisories only; silent otherwise.
+echo "$EVENT" | python3 -c "
+import sys, json
+sys.path.insert(0, '$PLUGIN_ROOT')
+from scripts.skill_ledger import scan_from_event
+try:
+    event = json.loads(sys.stdin.read() or '{}')
+except Exception:
+    event = {}
+for line in scan_from_event(event):
+    print(line)
+" 2>/dev/null || true
+
+# Summon bootstrap: /buddy:summon prompts get the full specialist payload
+# injected here (zero model tool calls). Silent no-op for everything else;
+# summon.md's legacy load path remains the fallback when this declines.
+PROMPT=$(echo "$EVENT" | jq -r '.prompt // empty' 2>/dev/null || true)
+case "$PROMPT" in
+  /buddy:summon*)
+    echo "$EVENT" | python3 "$PLUGIN_ROOT/scripts/summon_bootstrap.py" 2>/dev/null || true
+    ;;
+esac

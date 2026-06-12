@@ -5,6 +5,26 @@ description: Summon a specialist bodhisattva to help with a specific craft. Desc
 
 You are resolving a summon request. The argument passed by the user is `$1`.
 
+## Step 0 — Check for the hook-injected payload (fast path)
+
+buddy's UserPromptSubmit hook (`scripts/summon_bootstrap.py`) resolves
+unambiguous summons **before this command runs** and injects the full payload
+— SKILL.md, lens addendum, memories, memory protocol, gates, and any bound
+live state — directly into context. Look for one of these markers in the
+current context:
+
+- `<!-- buddy:summon-payload specialist=<dir> ... -->` — **everything is
+  already loaded and tracked.** Skip Steps 1–2.6 and 5–6 entirely; go
+  straight to Step 3 (announce) and Step 4 (adopt). Do not re-read any file
+  the payload already contains.
+- `<!-- buddy:summon-already-active specialist=<dir> -->` — the specialist
+  was already summoned this session. Emit the short refresh line from
+  Step 2a and continue; load nothing.
+
+**No marker present?** The hook declined (ambiguous argument, missing/unknown
+lens, or hook failure). Proceed with Step 1 — the steps below are the
+fallback path and remain fully authoritative for interactive resolution
+(fuzzy matching, lens prompts, index listings).
 ## Step 1 — Identify the specialist (and lens, if any)
 
 The user's argument is plain language. Parse it into `<specialist>` and an optional `<lens>` separated by `:` (e.g. `data-leakage:llm`, `data-leakage llm`, `data leakage llm` — accept any reasonable form).
@@ -85,7 +105,13 @@ If the argument is empty or genuinely ambiguous (matches multiple specialists eq
 Mark shadowed entries with `(shadowed by <higher-scope>)` next to the lower-scope listing so the user knows which version `/buddy:summon <name>` will actually load.
 ## Step 2 — Load the specialist skill file (and lens addendum, if any)
 
+**Fallback path only** — skip when Step 0 found a payload marker.
+
 The resolved specialist has a `(scope, path)` pair from Step 1.
+
+> Tool note: when the codescout companion is active, native `Read` works for
+> skill payloads (SKILL.md, `_<lens>.md` — exempted from the guard), and
+> `run_command` replaces `Bash` for the helper scripts below.
 
 ### Step 2a — Cheap dedup check (skip on already-active)
 
@@ -128,6 +154,8 @@ If the resolved specialist's name also exists in a lower-precedence scope (proje
 This makes shadowing visible. Silent shadowing breeds confusion when a user expects the plugin version and gets a project override.
 ## Step 2.5 — Load memories and inject the memory protocol
 
+**Fallback path only** — skip when Step 0 found a payload marker.
+
 Memories are POV-scoped — only the resolved `<directory>` (and the `common` bucket) are loaded.
 
 **Resolve channels:**
@@ -163,6 +191,8 @@ Use the `Read` tool on `${CLAUDE_PLUGIN_ROOT}/data/memory-protocol.md` and injec
 
 ## Step 2.6 — Inject the gates
 
+**Fallback path only** — skip when Step 0 found a payload marker.
+
 Every summoned specialist operates within tool, runtime, role, and memory
 gates. They must be aware of these gates explicitly — implicit gate-knowledge
 drifts as the plugin evolves.
@@ -190,6 +220,8 @@ After the announcement, the full contents of the specialist's `SKILL.md` (and th
 
 ## Step 5 — Log the summon
 
+**Fallback path only** — the hook already logged fast-path summons.
+
 Append one line to `${BUDDY_HOME:-~/.buddy}/summons.log`:
 
 ```
@@ -200,7 +232,11 @@ Use bash via the `Bash` tool to append. Silent on failure — the log is advisor
 
 ## Step 6 — Track the active specialist in state
 
-Use the `Bash` tool to call the helper:
+**Fallback path only** — the hook already tracked fast-path summons
+(hook-side tracking is what makes the statusline's specialist line a
+*certain* record rather than a model-discretion one).
+
+Use the `Bash` tool (or `run_command` when codescout is active) to call the helper:
 
 ```bash
 python3 "${CLAUDE_PLUGIN_ROOT}/scripts/track_specialist.py" summon <directory>

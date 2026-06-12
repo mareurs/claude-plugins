@@ -112,6 +112,50 @@ def find_skill_md(
     return None
 
 
+def strip_frontmatter(text: str) -> str:
+    """Drop a leading YAML frontmatter block (--- ... ---) from SKILL.md text.
+
+    Frontmatter is loader metadata (name/description/inject bindings); the
+    injected payload must start at the persona body. Returns text unchanged
+    when no leading fence is present.
+    """
+    if not text.startswith("---"):
+        return text
+    end = text.find("\n---", 3)
+    if end == -1:
+        return text
+    rest = text[end + 4:]
+    return rest.lstrip("\n")
+
+
+def parse_frontmatter(text: str) -> dict:
+    """Minimal frontmatter parser for the buddy-accepted subset.
+
+    Flat `key: value` pairs only; a value shaped `[a, b]` parses as a list.
+    This matches what edit_markdown's frontmatter tooling can write (flat
+    keys, scalar/inline-array values). PyYAML is not a buddy dependency;
+    anything outside this shape is silently ignored.
+    """
+    out: dict = {}
+    if not text.startswith("---"):
+        return out
+    end = text.find("\n---", 3)
+    if end == -1:
+        return out
+    for raw in text[3:end].splitlines():
+        line = raw.strip()
+        if not line or ":" not in line or raw.startswith((" ", "\t")):
+            continue
+        key, _, value = line.partition(":")
+        value = value.strip()
+        if value.startswith("[") and value.endswith("]"):
+            items = [v.strip().strip("'\"") for v in value[1:-1].split(",")]
+            out[key.strip()] = [v for v in items if v]
+        else:
+            out[key.strip()] = value.strip("'\"")
+    return out
+
+
 def render_reload_block(
     specialists: list[str],
     *,
@@ -151,7 +195,7 @@ def render_reload_block(
         if skill is None:
             continue
         try:
-            content = skill.read_text(encoding="utf-8")
+            content = strip_frontmatter(skill.read_text(encoding="utf-8"))
         except OSError:
             continue
         parts.append(f"\n## {directory}\n{content}\n---")

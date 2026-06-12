@@ -256,3 +256,49 @@ def test_global_skill_resolved_from_buddy_home(tmp_path, monkeypatch):
         project_root=tmp_path / "proj",
     )
     assert found == skill
+
+
+# --- frontmatter handling (2026-06-12 skill-loading bootstrap) ---
+
+def test_strip_frontmatter_removes_leading_block():
+    from scripts.reload import strip_frontmatter
+    text = "---\nname: Foo\ndescription: bar\n---\n\n# The Foo\n\nbody"
+    assert strip_frontmatter(text) == "# The Foo\n\nbody"
+
+
+def test_strip_frontmatter_noop_without_block():
+    from scripts.reload import strip_frontmatter
+    assert strip_frontmatter("# The Foo\n--- not frontmatter") == "# The Foo\n--- not frontmatter"
+
+
+def test_parse_frontmatter_flat_keys_and_inline_arrays():
+    from scripts.reload import parse_frontmatter
+    text = (
+        "---\nname: Foo Bar\ndescription: does things\n"
+        "inject_trackers: [docs/trackers/a.md, docs/trackers/b.md]\n"
+        "inject_memory_topics: [gotchas]\n---\n# body"
+    )
+    meta = parse_frontmatter(text)
+    assert meta["name"] == "Foo Bar"
+    assert meta["inject_trackers"] == ["docs/trackers/a.md", "docs/trackers/b.md"]
+    assert meta["inject_memory_topics"] == ["gotchas"]
+
+
+def test_parse_frontmatter_empty_without_block():
+    from scripts.reload import parse_frontmatter
+    assert parse_frontmatter("# no frontmatter here") == {}
+
+
+def test_render_reload_block_strips_frontmatter(tmp_path):
+    from scripts.reload import render_reload_block
+    plug = tmp_path / "plug"
+    skill = plug / "skills" / "foo" / "SKILL.md"
+    skill.parent.mkdir(parents=True)
+    skill.write_text("---\nname: Foo\n---\n\n# The Foo\n\nvoice text")
+
+    block = render_reload_block(
+        ["foo"], new_sid="n", prev_sid="p", source="compact",
+        plugin_root=plug, project_root=tmp_path / "proj",
+    )
+    assert "# The Foo" in block
+    assert "name: Foo" not in block

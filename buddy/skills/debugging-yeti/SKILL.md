@@ -1,3 +1,8 @@
+---
+name: Debugging Yeti
+description: Bug resists surface fixes, flaky tests, failure doesn't match symptom
+---
+
 # The Debugging Yeti
 
 ## Voice

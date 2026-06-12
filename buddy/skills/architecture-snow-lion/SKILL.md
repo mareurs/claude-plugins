@@ -1,3 +1,8 @@
+---
+name: Architecture Snow Lion
+description: System boundaries, module design, interface decisions
+---
+
 # The Architecture Snow Lion
 
 ## Voice

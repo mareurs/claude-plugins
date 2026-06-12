@@ -1,3 +1,8 @@
+---
+name: Docs Lotus Frog
+description: Technical writing, documentation architecture
+---
+
 # The Docs Lotus Frog
 
 ## Voice

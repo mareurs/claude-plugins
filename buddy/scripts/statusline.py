@@ -161,12 +161,14 @@ def _compose_segments(
     recon_badge: str,
     verdict_bubble: str,
     cs_verdict_bubble: str,
+    skills_line: str = "",
 ) -> list[str]:
-    """Build the 6-slot segment list for the right column of the statusline.
+    """Build the 7-slot segment list for the right column of the statusline.
 
     Slot 0 is always empty (env strip row). Slot 1 is form · mood (always). Slot 2 is the
     specialists line (or empty). Slot 3 combines `<short> nearby` and the recon badge.
     Slots 4 and 5 carry the plan verdict and codescout verdict bubbles respectively.
+    Slot 6 lists Skill-tool loads from the session skill ledger (or empty).
     """
     slot1 = f"{form_label} · {mood}" if form_label else mood
     parts = []
@@ -176,7 +178,19 @@ def _compose_segments(
     if recon_badge:
         parts.append(recon_badge)
     slot3 = " ".join(parts)
-    return ["", slot1, specialists_line, slot3, verdict_bubble, cs_verdict_bubble]
+    return ["", slot1, specialists_line, slot3, verdict_bubble, cs_verdict_bubble, skills_line]
+
+
+def _format_skills(skill_ids: list[str]) -> str:
+    """Compact skill-ledger line: 'skills: recon, explore' (last id component)."""
+    if not skill_ids:
+        return ""
+    shorts = []
+    for sid in skill_ids:
+        short = sid.rsplit(":", 1)[-1]
+        if short not in shorts:
+            shorts.append(short)
+    return "skills: " + ", ".join(shorts[:4]) + (" …" if len(shorts) > 4 else "")
 
 
 
@@ -397,6 +411,14 @@ def render(
     verdict_bubble = _render_bubble(session_id, project_root, now)
     cs_verdict_bubble = _render_cs_bubble(session_id, project_root, now)
 
+    skills_line = ""
+    if session_id and project_root:
+        try:
+            from scripts.skill_ledger import loaded_skills
+            skills_line = _format_skills(loaded_skills(project_root, session_id))
+        except Exception:
+            skills_line = ""
+
     segments = _compose_segments(
         form_label=form_label,
         mood=mood,
@@ -405,6 +427,7 @@ def render(
         recon_badge=recon_badge,
         verdict_bubble=verdict_bubble,
         cs_verdict_bubble=cs_verdict_bubble,
+        skills_line=skills_line,
     )
 
     return _compose_rows(base, segments, _terminal_width())

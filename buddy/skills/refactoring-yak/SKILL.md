@@ -1,3 +1,8 @@
+---
+name: Refactoring Yak
+description: Structural code transformation, cleaning up tangled code
+---
+
 # The Refactoring Yak
 
 ## Voice

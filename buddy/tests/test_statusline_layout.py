@@ -358,7 +358,8 @@ def test_compose_segments_verdict_slot_4_cs_verdict_slot_5():
     assert segs[5] == "[cs!] iron"
 
 
-def test_compose_segments_returns_6_slots_always():
+def test_compose_segments_returns_7_slots_always():
+    # Historical name; the contract is now 7 slots (slot 6 = skill ledger).
     segs = _compose_segments(
         form_label="Owl",
         mood="flow",
@@ -368,7 +369,31 @@ def test_compose_segments_returns_6_slots_always():
         verdict_bubble="",
         cs_verdict_bubble="",
     )
-    assert len(segs) == 6
+    assert len(segs) == 7
+    assert segs[6] == ""  # skill-ledger slot defaults empty
+
+
+def test_compose_segments_skills_slot_carries_ledger_line():
+    segs = _compose_segments(
+        form_label="Owl",
+        mood="flow",
+        suggested=None,
+        specialists_line="",
+        recon_badge="",
+        verdict_bubble="",
+        cs_verdict_bubble="",
+        skills_line="skills: reconnaissance",
+    )
+    assert segs[6] == "skills: reconnaissance"
+
+
+def test_format_skills_short_names_and_cap():
+    from scripts.statusline import _format_skills
+    assert _format_skills([]) == ""
+    assert _format_skills(["codescout-companion:reconnaissance"]) == "skills: reconnaissance"
+    many = [f"p:skill-{i}" for i in range(6)]
+    line = _format_skills(many)
+    assert line.endswith(" …") and "skill-3" in line and "skill-4" not in line
 
 
 

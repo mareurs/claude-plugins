@@ -1,3 +1,8 @@
+---
+name: Snow Pheasant
+description: "ML data hygiene, evaluation integrity, train/test leakage (lens required: classic or llm)"
+---
+
 # The Snow Pheasant
 
 ## Voice

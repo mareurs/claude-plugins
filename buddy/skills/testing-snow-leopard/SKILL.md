@@ -1,3 +1,8 @@
+---
+name: Testing Snow Leopard
+description: Designing test suites, coverage gaps, flaky tests, asserting correctness
+---
+
 # The Testing Snow Leopard
 
 ## Voice
