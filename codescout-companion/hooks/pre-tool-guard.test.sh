@@ -2,8 +2,10 @@
 # Test matrix for pre-tool-guard.sh — path-agnostic contract (2026-05-21).
 #
 # Bash, Read, Edit, Write, Grep, and Glob all route to codescout regardless
-# of path or extension. Native Read of binary images/PDF is the sole
-# exemption (codescout has no renderer for those). workspace_root no longer
+# of path or extension. Native Read has two exemptions: binary images/PDF
+# (codescout has no renderer) and skill payloads (SKILL.md / lens addenda /
+# references, plugin cache, .buddy trees — verbatim fidelity required; see
+# 2026-06-12-skill-loading-bootstrap-design.md). workspace_root no longer
 # relaxes the guard.
 #
 # Sources `pre-tool-guard.sh` as a black box; relies on detect-tools.sh →
@@ -90,7 +92,6 @@ assert "grep-on-source"      "grep foo src/main.rs"                             
 
 # --- Read: path-agnostic, type-gated ---
 assert_file "read-xrepo-md"     "Read" "$SIBLING_CWD/buddy/data/gates.md"        "deny"
-assert_file "read-skill-md"     "Read" "$ACTIVE_CWD/skills/foo/SKILL.md"         "deny"
 assert_file "read-skills-dir"   "Read" "$ACTIVE_CWD/skills/foo/notes.md"         "deny"
 assert_file "read-inrepo-md"    "Read" "$ACTIVE_CWD/docs/x.md"                   "deny"
 assert_file "read-xrepo-source" "Read" "$SIBLING_CWD/buddy/scripts/statusline.py" "deny"
@@ -99,6 +100,17 @@ assert_file "read-env"          "Read" "$ACTIVE_CWD/.env"                       
 assert_file "read-txt"          "Read" "$ACTIVE_CWD/notes.txt"                  "deny"
 assert_file "read-png-allow"    "Read" "$ACTIVE_CWD/diagram.png"               "allow"
 assert_file "read-pdf-allow"    "Read" "$ACTIVE_CWD/spec.pdf"                  "allow"
+
+# --- Read: skill-payload exemption (2026-06-12) ---
+assert_file "read-skill-md-allow"    "Read" "$ACTIVE_CWD/skills/foo/SKILL.md"                                    "allow"
+assert_file "read-skill-lens-allow"  "Read" "$SIBLING_CWD/buddy/skills/data-leakage-snow-pheasant/_llm.md"      "allow"
+assert_file "read-skill-refs-allow"  "Read" "$SIBLING_CWD/codescout-companion/skills/reconnaissance/references/reconnaissance-patterns-template.md" "allow"
+assert_file "read-plugin-cache-allow" "Read" "$HOME/.claude/plugins/cache/sdd-misc-plugins/buddy/0.7.17/data/gates.md" "allow"
+assert_file "read-dot-buddy-allow"   "Read" "$ACTIVE_CWD/.buddy/memory/debugging-yeti/lesson.md"                "allow"
+assert_file "read-buddy-home-allow"  "Read" "$HOME/.buddy/skills/custom-buddy/SKILL.md"                         "allow"
+# Non-payload shapes inside skills/ stay denied (read-skills-dir above);
+# sibling-repo data files stay denied (read-xrepo-md above — the summon hook
+# injects gates/protocol; native Read of them is still routed to codescout).
 
 # --- Edit / Write: path-agnostic, all text ---
 assert_file "edit-xrepo-source" "Edit"  "$SIBLING_CWD/buddy/scripts/statusline.py" "deny"

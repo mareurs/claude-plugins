@@ -88,14 +88,14 @@ else
   fail "Read .md outside project: deny with read_markdown guidance" "$OUT"
 fi
 
-# Test 8c: Read on skill SKILL.md inside project → deny (no skill exemption)
-READ_DEDUP_KEY=$(printf '%s\t%s' "Read" "$T/proj" | md5sum | cut -c1-8)
-rm -f "/tmp/cs-block-$READ_DEDUP_KEY"
+# Test 8c: Read on skill SKILL.md inside project → ALLOW (skill-payload exemption,
+# 2026-06-12 skill-loading-bootstrap design: verbatim fidelity required, codescout
+# has no index over plugin payloads)
 OUT=$(guard_input "Read" '"file_path":"'"$T/proj/skills/my-skill/SKILL.md"'"' | bash "$HOOK" 2>/dev/null)
-if assert_denied "$OUT" && echo "$OUT" | grep -q "read_markdown"; then
-  pass "Read SKILL.md in project: deny (no skill exemption)"
+if [ -z "$OUT" ]; then
+  pass "Read SKILL.md in project: allow (skill-payload exemption)"
 else
-  fail "Read SKILL.md in project: deny (no skill exemption)" "$OUT"
+  fail "Read SKILL.md in project: allow (skill-payload exemption)" "$OUT"
 fi
 
 # Test 8d: Read on .md in skills/ subdir inside project → deny (no skills/ exemption)

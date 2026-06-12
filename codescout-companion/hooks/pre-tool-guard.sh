@@ -11,10 +11,24 @@ source "$(dirname "$0")/detect-tools.sh"
 [ "$HAS_CODESCOUT" = "false" ] && exit 0
 [ "$BLOCK_READS" = "false" ] && exit 0
 
-# --- Helper: binary images/PDF are the ONLY native-Read exemption ---
+# --- Helper: binary images/PDF are a native-Read exemption ---
 # codescout has no renderer for these, so native Read must pass through.
 is_binary_image() {
   echo "$1" | grep -qiE '\.(png|jpg|jpeg|gif|webp|bmp|ico|pdf)$'
+}
+
+# --- Helper: skill payloads are the other native-Read exemption ---
+# Same exemption class as binary images: codescout has no index over plugin
+# payloads, and skill loading needs whole-body verbatim fidelity —
+# read_markdown's adaptive output fragments persona-sized files (123+ lines
+# → heading map). Read-only exemption: Edit/Write/Bash stay guarded.
+# See docs/superpowers/specs/2026-06-12-skill-loading-bootstrap-design.md.
+is_skill_payload() {
+  case "$1" in
+    */plugins/cache/*) return 0 ;;   # installed plugin payloads, any profile
+    */.buddy/*) return 0 ;;          # buddy global + project trees
+  esac
+  echo "$1" | grep -qE '(^|/)skills/[^/]+/(SKILL\.md|_[^/]+\.md|references/[^/]+)$'
 }
 
 # --- Helper: hard-block with reason shown to Claude ---
@@ -156,6 +170,7 @@ codescout already knows every file in the project. Use the index directly:
     FILE_PATH=$(echo "$INPUT" | jq -r '.tool_input.file_path // empty')
 
     is_binary_image "$FILE_PATH" && exit 0
+    is_skill_payload "$FILE_PATH" && exit 0
 
     # Relative path when under CWD; absolute (cross-repo) otherwise — both work for codescout.
     REL_PATH="$FILE_PATH"
@@ -222,7 +237,7 @@ File: ${FILE_PATH}
 
   read_file(path=\"${REL_PATH}\")                  — full content; large output stored as an @file_* buffer${STRUCT_HINT}
 
-read_file works on absolute cross-repo paths. Only binary images/PDF are exempt from this block (codescout has no renderer)."
+read_file works on absolute cross-repo paths. Exempt from this block: binary images/PDF (codescout has no renderer) and skill payloads (SKILL.md / lens addenda / references, plugin cache, .buddy trees — verbatim fidelity required)."
     ;;
 
   Edit)
