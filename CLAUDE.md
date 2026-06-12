@@ -43,17 +43,15 @@ binary, and references its internal schema (meta table, drift_report table, proj
 Update this plugin whenever codescout adds features that affect exploration workflows.
 
 **What it does:**
-- **SessionStart** (main agent): injects **pointers**, not content — memory-topic names (`CS_MEMORY_NAMES`) + a read-nudge + a system-prompt pointer (`memory(action="read", topic="system-prompt")`). Verbatim injection on this path was removed in the injection-budget redesign (`docs/superpowers/specs/2026-05-19-injection-budget-design.md`); the model pulls bodies on demand.
-- **SubagentStart** (`subagent-guidance.sh`): injects the codescout tool-routing directive + an Iron-Laws reminder, **and the project system-prompt verbatim** (`CS_SYSTEM_PROMPT`, read from the *root* `.codescout/system-prompt.md`). The redesign converted SessionStart to pointers but left this path pushing verbatim — so the root `.codescout/system-prompt.md` (a file distinct from the `system-prompt` *memory* that SessionStart points at) must be kept fresh too, or subagents read stale guidance.
+- **SessionStart** (main agent): injects **pointers**, not content — memory-topic names (`CS_MEMORY_NAMES`) + a read-nudge. (It still also injects a system-prompt pointer `memory(action="read", topic="system-prompt")` — **redundant**: the main agent already receives the system-prompt via codescout's `## Custom Instructions`, and that memory topic is defunct post-fix; slated for removal — see `docs/superpowers/specs/2026-06-12-system-prompt-source-consolidation-design.md`.) Verbatim injection on this path was removed in the injection-budget redesign (`docs/superpowers/specs/2026-05-19-injection-budget-design.md`); the model pulls bodies on demand.
+- **SubagentStart** (`subagent-guidance.sh`): injects the codescout tool-routing directive + an Iron-Laws reminder, **and the project system-prompt verbatim** (`CS_SYSTEM_PROMPT`, read from the *root* `.codescout/system-prompt.md`). This verbatim push is **necessary, not an oversight**: subagents do **not** receive codescout's `server_instructions` (`claude-code#29655`, closed not-planned), so this hook is the only channel that delivers the system-prompt to them. codescout's `onboarding()` writes the *root* `.codescout/system-prompt.md` directly (post the `e492592986c67138` fix), making it the canonical always-on prompt — keep it fresh via `onboarding(action="refresh_prompt")`.
 - PreToolUse: hard-blocks Read/Grep/Glob/Bash/Edit on source files (`permissionDecision: "deny"`)
 - Auto-reindexing: checks index staleness at session start, triggers `codescout index` in background
 - Drift warnings: surfaces high-drift files and stale docs/memories
 
 **Dependencies:** `jq`, `sqlite3`, `git`, codescout binary on PATH or in MCP config
 
-**Note:** MCP `server_instructions` ARE re-sent to each subagent's fresh MCP session — generic
-tool routing guidance is already covered. The plugin only needs to inject dynamic, project-specific
-content that `server_instructions` cannot carry (system-prompt.md, memory hints, drift warnings).
+**Note:** Two facts about `server_instructions`, both the **opposite** of what this note once claimed. (1) codescout **does** inject the project system-prompt (the root `.codescout/system-prompt.md`) into the **main agent** via `server_instructions`, as a `## Custom Instructions` section (`project_status()` → `build_server_instructions`). (2) **Subagents do NOT receive `server_instructions`** — only the tool allowlist (`claude-code#29655`, closed not-planned). Consequence: the main agent already has the system-prompt from codescout (the SessionStart pointer is redundant), while **subagents get it only from the companion's SubagentStart hook** — which is therefore necessary. See `docs/superpowers/specs/2026-06-12-system-prompt-source-consolidation-design.md`.
 
 
 **Himalayan-aesthetic companion plugin.**
