@@ -34,6 +34,11 @@ CODESCOUT RULES (compression-resilient reminder):
 • Markdown: read_markdown/edit_markdown, NOT read_file/edit_file
 • Never pipe unbounded run_command output — run bare, query @cmd_* buffer (bounded LHS like ls, cat, awk, sed, find -maxdepth N is OK)"
 
+# Subagents do NOT receive codescout's server_instructions (claude-code#29655), so the
+# ## Custom Instructions block the main agent gets never reaches them. This verbatim
+# injection of the root .codescout/system-prompt.md is the ONLY delivery path to subagents
+# — do NOT remove it as "redundant with server_instructions". See
+# docs/superpowers/specs/2026-06-12-system-prompt-source-consolidation-design.md.
 if [ "$HAS_CS_SYSTEM_PROMPT" = "true" ]; then
   MSG="${MSG}
 

@@ -72,9 +72,13 @@ fi
 
 # --- Skill pointers (replaces verbatim content injection — see
 # docs/superpowers/specs/2026-05-19-injection-budget-design.md) ---
+# No system-prompt pointer here: codescout injects the project system-prompt into the
+# MAIN agent via server_instructions (## Custom Instructions), so a companion pointer is
+# redundant. Subagents do NOT get server_instructions (claude-code#29655) — they receive
+# the system-prompt via subagent-guidance.sh. See
+# docs/superpowers/specs/2026-06-12-system-prompt-source-consolidation-design.md.
 MSG="${MSG}SKILLS AVAILABLE:
 - Reconnaissance — Skill('codescout-companion:reconnaissance'). Recommended before subagent dispatch or shape-changing edits.
-- System prompt for this project — memory(action=\"read\", topic=\"system-prompt\").
 
 "
 

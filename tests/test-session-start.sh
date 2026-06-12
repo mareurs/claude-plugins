@@ -33,19 +33,20 @@ else
   fail "memories: hint shown" "$(echo "$OUT" | jq -r '.hookSpecificOutput.additionalContext' 2>/dev/null | head -3)"
 fi
 
-# --- Test 4: has system-prompt.md → pointer emitted (not content) ---
-# Verbatim system-prompt body no longer injected (injection-budget redesign).
-# The SKILLS AVAILABLE pointer block always emits regardless of file presence;
-# size + content contract covered by test-session-start-payload.sh.
+# --- Test 4: system-prompt pointer REMOVED (main agent gets it from codescout's
+# ## Custom Instructions; subagents via subagent-guidance.sh — claude-code#29655).
+# See docs/superpowers/specs/2026-06-12-system-prompt-source-consolidation-design.md. ---
 make_git_repo "$T/t4"
 write_mcp_json "$T/t4"
 make_ce_dir "$T/t4"
 make_system_prompt "$T/t4"
 OUT=$(printf '{"cwd":"%s"}' "$T/t4" | bash "$HOOK" 2>/dev/null)
-if assert_context_contains "$OUT" 'memory(action="read", topic="system-prompt")'; then
-  pass "system-prompt: pointer emitted"
+if echo "$OUT" | grep -q 'memory(action="read", topic="system-prompt")'; then
+  fail "system-prompt pointer should be removed" "$OUT"
+elif assert_context_contains "$OUT" "codescout-companion:reconnaissance"; then
+  pass "system-prompt pointer removed; recon pointer kept"
 else
-  fail "system-prompt: pointer emitted" "$OUT"
+  fail "recon pointer missing" "$OUT"
 fi
 
 # --- Test 5: index stale → INDEX: Refreshing message ---

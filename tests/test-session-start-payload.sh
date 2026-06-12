@@ -48,11 +48,12 @@ else
   fail "recon pointer in first 2 KB"
 fi
 
-# Test 3: system-prompt pointer present
-if echo "$PREVIEW" | grep -q 'memory(action="read", topic="system-prompt")'; then
-  pass "system-prompt pointer present"
+# Test 3: system-prompt pointer REMOVED (main agent gets it from codescout's
+# ## Custom Instructions; subagents via subagent-guidance.sh — claude-code#29655)
+if echo "$CTX" | grep -q 'memory(action="read", topic="system-prompt")'; then
+  fail "system-prompt pointer should be removed"
 else
-  fail "system-prompt pointer present"
+  pass "system-prompt pointer removed"
 fi
 
 # Test 4: no verbatim recon SKILL.md body
