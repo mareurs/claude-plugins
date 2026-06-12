@@ -28,6 +28,7 @@
 | ID | Date | Severity | Category | Status | Title |
 |----|------|---------:|----------|--------|-------|
 | F-1 | 2026-06-12 | med | cc-hooks | fixed-verified | Brainstorm cited PostToolUse:Skill as binder channel; Skill bypasses the tool-hook pipeline |
+| F-2 | 2026-06-12 | med | architectural | fixed-verified | Live ledger probe: compact replay inflates counts (false-advisory risk) + tool_use path missed buddy:* exclusion |
 
 ## Wins Index
 
@@ -177,6 +178,27 @@ Codified so the Index column means the same thing across sessions.
 **Promote-when:** A third pre-spec doc-check catches a non-existent or changed CC mechanism → promote to CLAUDE.md as "Before spec'ing against CC runtime behavior (hooks, skill registration, tool pipeline), verify each named mechanism against docs or a live probe; CC hook coverage is uneven (Skill bypasses tool hooks)."
 
 **Status:** validated
+
+---
+## F-2 — Live ledger probe: compact replay inflates counts; tool_use path missed buddy:* exclusion
+
+**Observed:** 2026-06-12, first live run of buddy 0.7.18's `skill_ledger.py` after `/reload-plugins` (user: "reloaded skills. check").
+
+**When:** Verifying the freshly shipped layer E against the real session transcript.
+
+**Expected:** Ledger records one entry per genuine skill load; `buddy:*` excluded; advisory only on true re-invocation.
+
+**Got:** (1) `codescout-companion:reconnaissance` at count=2 from ONE invocation — transcript lines 1362 + 3798; the second is a compact-replay echo quoting the original `<command-name>` tag. Consequence: after any compact, a single past load could trip a false "already loaded" advisory. (2) `buddy:summon` recorded — the `buddy:*` exclusion lived only in `_command_skills` (command-name path); the `tool_use name==Skill` path had none, and the prior segment had invoked `Skill(buddy:summon)`.
+
+**Probable cause:** Scanner treated every transcript line as ground truth; compact summaries replay content verbatim. Exclusion was written once at the path where the design discussion happened, not as a shared invariant.
+
+**Workaround (fix, shipped in 0.7.19):** (a) advisory fires only for skills already in the ledger BEFORE the current scan chunk — a from-zero scan can never advise, so replays are structurally silent; (b) lines must be `type ∈ {user, assistant}` and not `isCompactSummary`/`isMeta`; (c) `buddy:*` excluded on both paths; (d) advisories deduped per chunk. 4 new tests pin all four behaviors.
+
+**Severity:** med — false advisories after every compact would have trained the model to distrust the channel; silent until a compact occurred, i.e. exactly the kind of bug manual pre-ship testing misses.
+
+**Status:** fixed-verified — 12/12 ledger tests, 451/451 buddy suite; live session ledger scrubbed.
+
+**Fix idea / Pointer:** buddy 0.7.19. Bonus empirical finding from the same probe: `/reload-skills` reported "+12" — persona frontmatter DOES register buddy skills with the Skill tool, settling the Q4 docs-silent gap from F-1 (W-1's verification ledger updated by reality).
 
 ---
 ## Template for new entries

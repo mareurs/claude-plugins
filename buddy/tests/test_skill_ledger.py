@@ -43,14 +43,62 @@ def test_skill_tool_use_recorded(tmp_path):
 
 
 def test_repeat_load_emits_advisory(tmp_path):
+    # Cross-chunk repeat → advisory (deduped within the chunk). Same-chunk
+    # repeats stay silent — see test_same_chunk_repeats_stay_silent.
+    transcript = tmp_path / "t.jsonl"
+    ledger_file = tmp_path / "ledger.json"
+    _write_transcript(transcript, [_tool_use_line("a:b")])
+    scan_transcript(transcript, ledger_file)
+
+    with open(transcript, "a", encoding="utf-8") as f:
+        f.write(_tool_use_line("a:b") + "\n")
+        f.write(_tool_use_line("a:b") + "\n")
+    advisories = scan_transcript(transcript, ledger_file)
+    assert len(advisories) == 1
+    assert "a:b" in advisories[0]
+    assert "already loaded" in advisories[0]
+
+
+def test_same_chunk_repeats_stay_silent(tmp_path):
+    # Initial full scan: replay echoes (e.g. compact summaries quoting the
+    # conversation) may repeat a load — counts grow, but NO advisory fires
+    # because nothing pre-existed the chunk (observed live 2026-06-12:
+    # one recon invocation → two transcript occurrences after compact).
     transcript = tmp_path / "t.jsonl"
     ledger_file = tmp_path / "ledger.json"
     _write_transcript(transcript, [_tool_use_line("a:b"), _tool_use_line("a:b")])
 
     advisories = scan_transcript(transcript, ledger_file)
-    assert len(advisories) == 1
-    assert "a:b" in advisories[0]
-    assert "already loaded" in advisories[0]
+    assert advisories == []
+    assert load_ledger(ledger_file)["skills"]["a:b"]["count"] == 2
+
+
+def test_tool_use_buddy_skills_excluded(tmp_path):
+    transcript = tmp_path / "t.jsonl"
+    ledger_file = tmp_path / "ledger.json"
+    _write_transcript(transcript, [
+        _tool_use_line("buddy:summon"),
+        _tool_use_line("buddy:prompt-hamsa"),
+        _tool_use_line("a:b"),
+    ])
+    scan_transcript(transcript, ledger_file)
+    assert list(load_ledger(ledger_file)["skills"]) == ["a:b"]
+
+
+def test_compact_summary_and_meta_lines_skipped(tmp_path):
+    transcript = tmp_path / "t.jsonl"
+    ledger_file = tmp_path / "ledger.json"
+    summary = json.loads(_command_line("/x:y"))
+    summary["isCompactSummary"] = True
+    meta = json.loads(_tool_use_line("a:b"))
+    meta["isMeta"] = True
+    other_type = json.loads(_tool_use_line("c:d"))
+    other_type["type"] = "summary"
+    _write_transcript(transcript, [
+        json.dumps(summary), json.dumps(meta), json.dumps(other_type),
+    ])
+    scan_transcript(transcript, ledger_file)
+    assert load_ledger(ledger_file)["skills"] == {}
 
 
 def test_offset_persists_no_rescan(tmp_path):

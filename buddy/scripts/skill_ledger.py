@@ -11,8 +11,11 @@ Two load classes, two sources of truth:
   byte offset on each UserPromptSubmit and records:
     * assistant ``tool_use`` entries with ``name == "Skill"`` → ``input.skill``
     * ``<command-name>plugin:skill</command-name>`` user invocations
-      (plugin-namespaced only; ``buddy:*`` commands are excluded — they are
-      commands, not skills, and summons are tracked in state.json)
+      (plugin-namespaced only)
+  ``buddy:*`` is excluded on both paths — buddy commands are not skills and
+  persona loads are tracked in state.json by the summon bootstrap. Compact
+  summaries / meta lines are skipped (they replay earlier content), and
+  advisories fire only for cross-chunk repeats — see ``scan_transcript``.
 
 Ledger file: ``.buddy/<sid>/loaded_skills.json``::
 
@@ -61,13 +64,24 @@ def save_ledger(path: Path, ledger: dict) -> None:
 
 
 def _skill_ids_in_line(line: str) -> list[str]:
-    """Extract skill identifiers from one transcript JSONL line."""
+    """Extract skill identifiers from one transcript JSONL line.
+
+    Only genuine conversation lines count: compact summaries and meta lines
+    replay earlier content verbatim and would double-count loads (observed
+    live 2026-06-12: one recon invocation → two transcript occurrences).
+    buddy:* is excluded on BOTH paths — buddy commands are not skills, and
+    persona loads are tracked in state.json by the summon bootstrap.
+    """
     out: list[str] = []
     if '"Skill"' not in line and "<command-name>" not in line:
         return out
     try:
         obj = json.loads(line)
     except (json.JSONDecodeError, ValueError):
+        return out
+    if obj.get("type") not in ("user", "assistant"):
+        return out
+    if obj.get("isCompactSummary") or obj.get("isMeta"):
         return out
     message = obj.get("message")
     if not isinstance(message, dict):
@@ -80,7 +94,9 @@ def _skill_ids_in_line(line: str) -> list[str]:
             if item.get("type") == "tool_use" and item.get("name") == "Skill":
                 skill = (item.get("input") or {}).get("skill")
                 if isinstance(skill, str) and skill:
-                    out.append(skill.lstrip("/"))
+                    skill = skill.lstrip("/")
+                    if not skill.startswith("buddy:"):
+                        out.append(skill)
             elif item.get("type") == "text":
                 out.extend(_command_skills(item.get("text") or ""))
     elif isinstance(content, str):
@@ -104,8 +120,11 @@ def scan_transcript(
 ) -> list[str]:
     """Scan new transcript bytes; update the ledger; return advisory lines.
 
-    Advisory lines are emitted only for repeat loads (count crossing 2+) —
-    first loads stay silent so prompts aren't padded with noise.
+    Advisory rule: a skill must have been in the ledger BEFORE this scan
+    chunk to trigger one — a genuine re-invocation across prompts. Multiple
+    occurrences inside a single chunk (initial full scan, compact-replay
+    echoes) inflate the count but stay silent: on a from-zero scan nothing
+    pre-exists, so replays can never produce a false advisory.
     """
     advisories: list[str] = []
     try:
@@ -126,14 +145,17 @@ def scan_transcript(
     except OSError:
         return advisories
 
+    pre_existing = set(ledger["skills"]) if offset > 0 else set()
     changed = new_offset != offset
+    advised: set[str] = set()
     for line in chunk.splitlines():
         for skill in _skill_ids_in_line(line):
             entry = ledger["skills"].setdefault(
                 skill, {"first_ts": ts, "count": 0}
             )
             entry["count"] = int(entry.get("count", 0)) + 1
-            if entry["count"] >= 2:
+            if skill in pre_existing and skill not in advised:
+                advised.add(skill)
                 advisories.append(
                     f"→ skill `{skill}` already loaded this session "
                     f"(seen {entry['count']}×) — do not re-invoke; "
