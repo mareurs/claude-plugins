@@ -17,7 +17,7 @@ Release readiness across plugins × profiles. See
 
 ## State
 
-_Last refresh: `a959619`_
+_Last refresh: `e5a3d9d`_
 
 **codescout-companion** — canonical `1.11.12` · readme `1.11.12` · marketplace clean ✅
 
@@ -27,13 +27,13 @@ _Last refresh: `a959619`_
 | `~/.claude-sdd` | 1.11.12 ✅ | ✅ | ✅ |
 | `~/.claude-kat` | 1.11.12 ✅ | ✅ | ✅ |
 
-**buddy** — canonical `0.7.18` · readme `0.7.18` · marketplace clean ✅
+**buddy** — canonical `0.7.19` · readme `0.7.19` · marketplace clean ✅
 
 | profile | installed | cache dir | install_path ok |
 |---|---|---|---|
-| `~/.claude` | 0.7.18 ✅ | ✅ | ✅ |
-| `~/.claude-sdd` | 0.7.18 ✅ | ✅ | ✅ |
-| `~/.claude-kat` | 0.7.18 ✅ | ✅ | ✅ |
+| `~/.claude` | 0.7.19 ✅ | ✅ | ✅ |
+| `~/.claude-sdd` | 0.7.19 ✅ | ✅ | ✅ |
+| `~/.claude-kat` | 0.7.19 ✅ | ✅ | ✅ |
 
 **sdd** — canonical `2.4.1` · readme `2.4.1` · marketplace clean ✅
 
@@ -44,6 +44,9 @@ _Last refresh: `a959619`_
 | `~/.claude-kat` | — ❌ | ❌ | ❌ |
 ## History
 
+### 2026-06-13 — buddy 0.7.18 → 0.7.19
+
+Skill-ledger hardening from the first live probe (F-2 in `docs/trackers/skill-loading-session-log.md`): compact replays echo `<command-name>` tags (one recon load → two transcript occurrences), so count-threshold advisories would fire falsely after every compact; and `Skill(buddy:summon)` leaked into the ledger because the `buddy:*` exclusion only guarded the command-name path. Fix: advisories require the skill to pre-exist the scan chunk (from-zero scans can never advise), `type ∈ {user, assistant}` + not `isCompactSummary`/`isMeta` filtering, uniform `buddy:*` exclusion, per-chunk advisory dedup. Bonus empirical: `/reload-skills` "+12" confirmed persona frontmatter registers buddy skills with the Skill tool (settles F-1's Q4 docs-silent gap). Ledger tests 12/12, buddy pytest 451 green, hook integration 9/9. Cache seeded + install records updated across 3 profiles; sanity loop all ✅.
 ### 2026-06-12 — codescout-companion 1.11.11 → 1.11.12, buddy 0.7.17 → 0.7.18
 
 Skill-loading bootstrap (spec `2026-06-12-skill-loading-bootstrap-design.md`; F-1/W-1 evidence in `docs/trackers/skill-loading-session-log.md`). **companion 1.11.12**: `is_skill_payload()` joins `is_binary_image()` as a native-Read exemption (SKILL.md / lens addenda / `references/`, plugin cache, `.buddy/` trees — verbatim fidelity required, codescout has no index over plugin payloads); guard matrix 32/32, repo suite 23/23 (test 8c intentionally flipped deny→allow). **buddy 0.7.18**: UserPromptSubmit summon bootstrap (`summon_bootstrap.py` — cold `/buddy:summon` costs zero model tool calls; tracking happens hook-side at injection time, making the statusline specialist line a certain record); skill ledger (`skill_ledger.py` — transcript scan is the only ground truth for Skill-tool loads since no hook fires for Skill, claude-code#43630; repeat loads emit do-not-reinvoke advisories; statusline gains a skills slot); frontmatter on all 12 personas (consumed by `specialist_labels`) + flat `inject_trackers`/`inject_memory_topics` bindings (planning-crane ← `docs/trackers/active-plan.md`; codescout-pika ← codescout memories gotchas+conventions); reload blocks strip frontmatter. buddy pytest 448 green; `run-all.sh` all suites; `check-versions.sh` clean. Cache seeded + install records updated across 3 profiles; sanity loop all ✅. sdd remains uninstalled in all profiles (standing baseline).
