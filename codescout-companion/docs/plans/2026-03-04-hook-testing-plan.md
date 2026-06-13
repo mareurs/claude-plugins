@@ -17,7 +17,7 @@ All hooks read JSON from stdin, write JSON to stdout, exit 0.
 
 ```
 echo '{"cwd":"/path","tool_name":"Read","tool_input":{"file_path":"/path/file.ts"}}' \
-  | bash code-explorer-routing/hooks/pre-tool-guard.sh
+  | bash codescout-companion/hooks/pre-tool-guard.sh
 ```
 
 Output for a **deny**:
@@ -33,7 +33,7 @@ Output for **context injection** (SessionStart, etc.):
 **Silent exit** (hook is a no-op): empty stdout, exit 0.
 
 ### How `detect-tools.sh` finds CE
-1. `.claude/code-explorer-routing.json` with `server_name` override
+1. `.claude/codescout-companion.json` with `server_name` override
 2. `${CWD}/.mcp.json` — checked against `cwd` from the JSON input
 3. `${CLAUDE_CONFIG_DIR:-$HOME/.claude}/settings.json` — user-level fallback
 
@@ -54,8 +54,8 @@ Output for **context injection** (SessionStart, etc.):
 # tests/lib/fixtures.sh — shared helpers for hook tests
 # Source this file at the top of each test script.
 
-# Hook directory (relative to this file: tests/lib/ → ../../code-explorer-routing/hooks)
-HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../code-explorer-routing/hooks" && pwd)"
+# Hook directory (relative to this file: tests/lib/ → ../../codescout-companion/hooks)
+HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../codescout-companion/hooks" && pwd)"
 
 # --- Result tracking ---
 PASS_COUNT=0
@@ -99,7 +99,7 @@ make_worktree() {
 
 write_mcp_json() {
   local dir="$1"
-  local server_name="${2:-code-explorer}"
+  local server_name="${2:-codescout}"
   # Create a dummy binary the hook can find and exec-check
   local dummy_bin="$dir/fake-ce"
   printf '#!/bin/bash\nexit 0\n' > "$dummy_bin"
@@ -120,41 +120,41 @@ write_routing_config() {
   local dir="$1"
   local json="${2:-{}}"
   mkdir -p "$dir/.claude"
-  echo "$json" > "$dir/.claude/code-explorer-routing.json"
+  echo "$json" > "$dir/.claude/codescout-companion.json"
 }
 
 make_ce_dir() {
-  # Creates .code-explorer/project.toml (marks project as onboarded)
+  # Creates .codescout/project.toml (marks project as onboarded)
   # Pass drift=true to enable drift detection
   local dir="$1"
   local drift="${2:-false}"
-  mkdir -p "$dir/.code-explorer"
+  mkdir -p "$dir/.codescout"
   if [ "$drift" = "true" ]; then
-    printf '[project]\ndrift_detection_enabled = true\n' > "$dir/.code-explorer/project.toml"
+    printf '[project]\ndrift_detection_enabled = true\n' > "$dir/.codescout/project.toml"
   else
-    echo '[project]' > "$dir/.code-explorer/project.toml"
+    echo '[project]' > "$dir/.codescout/project.toml"
   fi
 }
 
 make_memories() {
   local dir="$1"
-  mkdir -p "$dir/.code-explorer/memories"
-  echo "# Arch" > "$dir/.code-explorer/memories/arch.md"
-  echo "# Patterns" > "$dir/.code-explorer/memories/patterns.md"
+  mkdir -p "$dir/.codescout/memories"
+  echo "# Arch" > "$dir/.codescout/memories/arch.md"
+  echo "# Patterns" > "$dir/.codescout/memories/patterns.md"
 }
 
 make_system_prompt() {
   local dir="$1"
-  mkdir -p "$dir/.code-explorer"
-  echo "SYSTEM PROMPT CONTENT" > "$dir/.code-explorer/system-prompt.md"
+  mkdir -p "$dir/.codescout"
+  echo "SYSTEM PROMPT CONTENT" > "$dir/.codescout/system-prompt.md"
 }
 
 seed_sqlite_db() {
-  # Creates .code-explorer/embeddings.db with meta table
+  # Creates .codescout/embeddings.db with meta table
   local dir="$1"
   local last_commit="$2"
-  mkdir -p "$dir/.code-explorer"
-  local db="$dir/.code-explorer/embeddings.db"
+  mkdir -p "$dir/.codescout"
+  local db="$dir/.codescout/embeddings.db"
   sqlite3 "$db" "CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT);"
   sqlite3 "$db" "INSERT OR REPLACE INTO meta VALUES ('last_indexed_commit', '$last_commit');"
 }
@@ -164,7 +164,7 @@ seed_drift_db() {
   local dir="$1"
   local last_commit="$2"
   seed_sqlite_db "$dir" "$last_commit"
-  local db="$dir/.code-explorer/embeddings.db"
+  local db="$dir/.codescout/embeddings.db"
   sqlite3 "$db" "CREATE TABLE IF NOT EXISTS drift_report (file_path TEXT, max_drift REAL);"
   sqlite3 "$db" "INSERT INTO drift_report VALUES ('src/foo.rs', 0.85);"
 }
@@ -210,7 +210,7 @@ assert_no_output() {
 ```bash
 bash -c 'source tests/lib/fixtures.sh && echo "HOOK_DIR=$HOOK_DIR"'
 ```
-Expected: `HOOK_DIR=/absolute/path/to/code-explorer-routing/hooks`
+Expected: `HOOK_DIR=/absolute/path/to/codescout-companion/hooks`
 
 ### Step 3: Commit
 
@@ -417,7 +417,7 @@ OUT=$(guard_input "Read" '"file_path":"'"$T/proj/app.ts"'"' | bash "$HOOK" 2>/de
 EC=$?
 if [ $EC -eq 0 ] && ! assert_denied "$OUT"; then pass "block_reads=false: allow source"; else fail "block_reads=false: allow source" "$OUT"; fi
 # Reset routing config
-rm -f "$T/proj/.claude/code-explorer-routing.json"
+rm -f "$T/proj/.claude/codescout-companion.json"
 
 # Test 10: file outside workspace_root → allow even if source
 write_routing_config "$T/proj" '{"workspace_root":"'"$T/proj/src"'"}'
@@ -537,8 +537,8 @@ write_mcp_json "$T/t7main"
 make_ce_dir "$T/t7main"
 seed_sqlite_db "$T/t7main" "deadbeef0000000000000000000000000000000000"
 make_worktree "$T/t7main" "$T/t7wt"
-# Symlink .code-explorer into worktree (as the hook would do in a real session)
-ln -s "$T/t7main/.code-explorer" "$T/t7wt/.code-explorer"
+# Symlink .codescout into worktree (as the hook would do in a real session)
+ln -s "$T/t7main/.codescout" "$T/t7wt/.codescout"
 cp "$T/t7main/.mcp.json" "$T/t7wt/.mcp.json"
 OUT=$(printf '{"cwd":"%s"}' "$T/t7wt" | bash "$HOOK" 2>/dev/null)
 if assert_context_contains "$OUT" "WORKTREE SESSION" && ! assert_context_contains "$OUT" "INDEX:"; then
@@ -591,7 +591,7 @@ git commit -m "test: add session-start hook tests"
 - Create: `tests/test-worktree-write-guard.sh`
 
 Hook: `hooks/worktree-write-guard.sh`
-Input shape: `{"cwd":"...","tool_name":"mcp__code-explorer__replace_symbol"}`
+Input shape: `{"cwd":"...","tool_name":"mcp__codescout__replace_symbol"}`
 
 ### Step 1: Create the file
 
@@ -607,8 +607,8 @@ T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
 make_git_repo "$T/main"
 make_worktree "$T/main" "$T/wt"
 
-WRITE_TOOL="mcp__code-explorer__replace_symbol"
-READ_TOOL="mcp__code-explorer__list_symbols"
+WRITE_TOOL="mcp__codescout__replace_symbol"
+READ_TOOL="mcp__codescout__list_symbols"
 
 # Test 1: non-write tool → allow
 OUT=$(printf '{"cwd":"%s","tool_name":"%s"}' "$T/wt" "$READ_TOOL" | bash "$HOOK" 2>/dev/null)
@@ -697,7 +697,7 @@ OUT=$(printf '{"cwd":"%s","tool_name":"EnterWorktree","tool_response":{"worktree
 MARKER_OK=false; GUIDANCE_OK=false; SYMLINK_OK=false
 [ -f "$T/t3wt/.ce-worktree-pending" ] && MARKER_OK=true
 assert_context_contains "$OUT" "activate_project" && GUIDANCE_OK=true
-[ -L "$T/t3wt/.code-explorer" ] && SYMLINK_OK=true
+[ -L "$T/t3wt/.codescout" ] && SYMLINK_OK=true
 if $MARKER_OK && $GUIDANCE_OK && $SYMLINK_OK; then
   pass "EnterWorktree with path: marker+guidance+symlink"
 else
@@ -749,7 +749,7 @@ git commit -m "test: add worktree-activate hook tests"
 - Create: `tests/test-ce-activate-project.sh`
 
 Hook: `hooks/ce-activate-project.sh`
-Input shape: `{"tool_name":"mcp__code-explorer__activate_project","tool_input":{"path":"..."}}`
+Input shape: `{"tool_name":"mcp__codescout__activate_project","tool_input":{"path":"..."}}`
 
 ### Step 1: Create the file
 
@@ -765,10 +765,10 @@ T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
 make_git_repo "$T/main"
 make_worktree "$T/main" "$T/wt"
 
-ACTIVATE_TOOL="mcp__code-explorer__activate_project"
+ACTIVATE_TOOL="mcp__codescout__activate_project"
 
 # Test 1: non-activate_project tool → silent exit
-OUT=$(printf '{"tool_name":"mcp__code-explorer__list_symbols","tool_input":{"path":"%s"}}' "$T/wt" \
+OUT=$(printf '{"tool_name":"mcp__codescout__list_symbols","tool_input":{"path":"%s"}}' "$T/wt" \
   | bash "$HOOK" 2>/dev/null)
 if assert_no_output "$OUT"; then pass "non-activate: silent exit"; else fail "non-activate: silent exit" "$OUT"; fi
 

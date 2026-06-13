@@ -2,7 +2,7 @@
 
 **Date:** 2026-02-26
 **Status:** Approved
-**Scope:** code-explorer-routing plugin (companion to code-explorer MCP server)
+**Scope:** codescout-companion plugin (companion to codescout MCP server)
 
 ## Problem
 
@@ -11,19 +11,19 @@
    before learning the index is stale.
 
 2. **Documentation drift** — Code changes significantly but docs, README, CLAUDE.md,
-   and code-explorer memories don't get updated. Nobody notices until the docs mislead.
+   and codescout memories don't get updated. Nobody notices until the docs mislead.
 
 ## Design Decisions
 
 ### Approach: Hybrid (sqlite3 staleness + guidance-driven drift)
 
 - **Staleness check**: bash hook queries sqlite3 directly (one meta row + git compare).
-  Tight coupling to code-explorer's schema is intentional — this plugin is a companion.
-- **Auto-reindex**: calls `code-explorer index` CLI binary when stale.
+  Tight coupling to codescout's schema is intentional — this plugin is a companion.
+- **Auto-reindex**: calls `codescout index` CLI binary when stale.
 - **Drift warnings**: for users with `drift_detection_enabled`, hook queries `drift_report`
   table and injects warnings into session context.
 - **Doc/memory staleness**: hook cross-references high-drift files with known doc locations
-  and code-explorer memory topics.
+  and codescout memory topics.
 
 ### Why not MCP tools from bash?
 
@@ -31,7 +31,7 @@ SessionStart hooks are bash scripts. They cannot call MCP tools (`index_status`,
 `check_drift`). The alternatives were:
 
 - **Guidance-only** (tell agent to call tools) — unreliable, agent might skip it
-- **CLI with --json** — clean but requires code-explorer changes
+- **CLI with --json** — clean but requires codescout changes
 - **sqlite3 direct** — tight coupling, but this plugin IS a companion. Ships now.
 
 ### Why not agent-driven reindexing?
@@ -43,7 +43,7 @@ uses fresh data. Agent-driven reindexing would mean the first `semantic_search` 
 ### Concurrency (multiple sessions)
 
 - sqlite3 reads are safe under WAL mode (concurrent readers OK)
-- If two sessions both detect stale and both call `code-explorer index`:
+- If two sessions both detect stale and both call `codescout index`:
   that's fine — `build_index` is idempotent, second run finds nothing changed
 - After index completes, `last_indexed_commit` is updated, so late-starting
   sessions see fresh state and skip
@@ -54,13 +54,13 @@ uses fresh data. Agent-driven reindexing would mean the first `semantic_search` 
 
 ```
 session-start.sh:
-  1. detect-tools.sh               (existing — find code-explorer)
+  1. detect-tools.sh               (existing — find codescout)
   2. Onboarding check              (existing)
   3. Memory hints                   (existing)
   4. Guidance injection             (existing)
   ─── NEW ───
   5. STALENESS CHECK
-     a. DB_PATH = $CWD/.code-explorer/embeddings.db
+     a. DB_PATH = $CWD/.codescout/embeddings.db
      b. If DB doesn't exist → skip (not indexed yet)
      c. sqlite3: SELECT value FROM meta WHERE key='last_indexed_commit'
      d. git -C $CWD rev-parse HEAD
@@ -80,12 +80,12 @@ session-start.sh:
      b. If results: inject "High-drift files since last index: [list]"
      c. Cross-reference with docs:
         - docs/, README.md, CLAUDE.md → "Check if docs still match"
-        - .code-explorer/memories/ → "Memory 'X' may be outdated"
+        - .codescout/memories/ → "Memory 'X' may be outdated"
 
   8. Append to session context message
 ```
 
-### Finding the code-explorer binary
+### Finding the codescout binary
 
 detect-tools.sh already parses `.mcp.json` / `.claude.json` / `settings.json` to find
 the server name. Extend it to also extract the `command` field:
@@ -95,7 +95,7 @@ the server name. Extend it to also extract the `command` field:
 CE_BINARY=$(jq -r ".mcpServers[\"$CE_SERVER_NAME\"].command" "$_cfg")
 ```
 
-This gives us the full path to the binary (e.g., `/home/user/.cargo/bin/code-explorer`
+This gives us the full path to the binary (e.g., `/home/user/.cargo/bin/codescout`
 or a debug build path).
 
 ### Drift-to-docs mapping
@@ -111,11 +111,11 @@ The agent is better at nuanced doc mapping. The hook just surfaces the signal.
 
 ### Config
 
-In `.claude/code-explorer-routing.json`:
+In `.claude/codescout-companion.json`:
 
 ```json
 {
-  "server_name": "code-explorer",
+  "server_name": "codescout",
   "workspace_root": "~/work",
   "block_reads": true,
   "auto_index": true,
@@ -127,14 +127,14 @@ In `.claude/code-explorer-routing.json`:
 - `drift_warnings` (default: true) — query drift_report and inject warnings
   (no-op if drift_detection_enabled is false in project.toml)
 
-### Schema dependencies (code-explorer internals)
+### Schema dependencies (codescout internals)
 
 | Table/Column | Used for | Stability |
 |---|---|---|
 | `meta` WHERE key='last_indexed_commit' | Staleness check | Stable — fundamental to incremental indexing |
 | `meta` WHERE key='embed_model' | (not used by hook) | — |
 | `drift_report.file_path, max_drift, avg_drift` | Drift warnings | Stable — dedicated table for this purpose |
-| `.code-explorer/project.toml` [embeddings] drift_detection_enabled | Gate drift queries | Stable — config flag |
+| `.codescout/project.toml` [embeddings] drift_detection_enabled | Gate drift queries | Stable — config flag |
 
 ### SubagentStart hook
 
@@ -196,7 +196,7 @@ INDEX: Refreshed (was 3 commits behind HEAD).
 
 - **PostToolUse hook on Edit/Write** — trigger incremental reindex mid-session
   after the agent edits source files. Deferred: adds latency after every edit.
-- **`code-explorer status --json`** — if code-explorer adds structured CLI output,
+- **`codescout status --json`** — if codescout adds structured CLI output,
   switch from sqlite3 to that. Cleaner, but not blocking.
-- **Layer 1 auto-index via git post-commit hook** — code-explorer's roadmap includes
+- **Layer 1 auto-index via git post-commit hook** — codescout's roadmap includes
   this. Once available, the SessionStart hook rarely finds a stale index.

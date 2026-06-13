@@ -1,13 +1,13 @@
-# Design: Worktree-aware code-explorer activation
+# Design: Worktree-aware codescout activation
 
 **Date:** 2026-02-26
 **Status:** Draft
-**Plugin:** code-explorer-routing
+**Plugin:** codescout-companion
 
 ## Problem
 
 When `EnterWorktree` is called in Claude Code, the CWD changes to the worktree
-path, but code-explorer continues operating on the original project root. All
+path, but codescout continues operating on the original project root. All
 symbol navigation, semantic search, and file operations target the wrong tree.
 
 There is no `EnterWorktree` hook event — the session continues silently with a
@@ -26,18 +26,18 @@ A `PostToolUse` hook fires after `EnterWorktree` completes. At that point:
 
 **New file: `hooks/worktree-activate.sh`**
 
-1. **Detect code-explorer** — reuse `detect-tools.sh` (exit early if absent)
+1. **Detect codescout** — reuse `detect-tools.sh` (exit early if absent)
 2. **Extract worktree path** — from `tool_response` or derive from new `cwd`
 3. **Find original project root** — walk up from pre-worktree `cwd` to find
-   nearest `.code-explorer/`
-4. **Symlink `.code-explorer/`** from original project into worktree root:
+   nearest `.codescout/`
+4. **Symlink `.codescout/`** from original project into worktree root:
    ```
-   ln -s /original/project/.code-explorer /worktree/path/.code-explorer
+   ln -s /original/project/.codescout /worktree/path/.codescout
    ```
 5. **Inject guidance** via `additionalContext`:
    ```
    Worktree detected. Call activate_project("/worktree/path") now to switch
-   code-explorer to the worktree. Do NOT run index_project in worktrees —
+   codescout to the worktree. Do NOT run index_project in worktrees —
    the shared index from the main project is read-only here.
    ```
 
@@ -59,7 +59,7 @@ A `PostToolUse` hook fires after `EnterWorktree` completes. At that point:
 
 ### Index sharing via symlink
 
-The entire `.code-explorer/` directory is symlinked, not copied. This means:
+The entire `.codescout/` directory is symlinked, not copied. This means:
 
 - **`embeddings.db`** — shared read-only from worktrees
 - **`project.toml`** — same config (no path fields; project root comes from
@@ -97,10 +97,10 @@ safe because:
 
 | Case | Behavior |
 |------|----------|
-| `.code-explorer/` already exists in worktree | Skip symlink (idempotent) |
-| No code-explorer configured | Exit 0, do nothing |
+| `.codescout/` already exists in worktree | Skip symlink (idempotent) |
+| No codescout configured | Exit 0, do nothing |
 | Worktree path can't be determined | Log warning, exit 0 |
-| Original project has no `.code-explorer/` | Exit 0 (nothing to symlink) |
+| Original project has no `.codescout/` | Exit 0 (nothing to symlink) |
 | Session resumes inside a worktree | Not handled (future: SessionStart detection) |
 
 ### Future considerations

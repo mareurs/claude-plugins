@@ -46,11 +46,11 @@ All tests create a `TMPDIR=$(mktemp -d)` and register `trap 'rm -rf "$TMPDIR"' E
 ```bash
 make_git_repo <dir>                 # git init + initial commit (HEAD + rev-parse work)
 make_worktree <main_dir> <wt_dir>   # git worktree add (git-common-dir ≠ git-dir)
-write_mcp_json <dir> <server_name>  # .mcp.json with code-explorer entry + dummy binary
-write_routing_config <dir> <json>   # .claude/code-explorer-routing.json
-make_ce_dir <dir>                   # .code-explorer/project.toml (marks as onboarded)
-make_memories <dir>                 # .code-explorer/memories/arch.md, patterns.md
-make_system_prompt <dir>            # .code-explorer/system-prompt.md with known content
+write_mcp_json <dir> <server_name>  # .mcp.json with codescout entry + dummy binary
+write_routing_config <dir> <json>   # .claude/codescout-companion.json
+make_ce_dir <dir>                   # .codescout/project.toml (marks as onboarded)
+make_memories <dir>                 # .codescout/memories/arch.md, patterns.md
+make_system_prompt <dir>            # .codescout/system-prompt.md with known content
 seed_sqlite_db <db_path> <commit>   # minimal SQLite DB: meta table with last_indexed_commit
                                     # optionally with drift_report rows for drift tests
 make_pending_marker <wt_dir>        # touch <wt_dir>/.ce-worktree-pending
@@ -115,7 +115,7 @@ Counters `PASS_COUNT` and `FAIL_COUNT` are global, accumulated across all script
 |---|-------------|----------|
 | 1 | Non-`EnterWorktree` tool | Silent exit |
 | 2 | `EnterWorktree`, no CE configured | Silent exit |
-| 3 | `EnterWorktree`, `worktree_path` in response | Marker created, context contains "activate_project", symlink at `<wt>/.code-explorer` |
+| 3 | `EnterWorktree`, `worktree_path` in response | Marker created, context contains "activate_project", symlink at `<wt>/.codescout` |
 | 4 | `EnterWorktree`, no `worktree_path` in response | Fallback: finds most-recent worktree, same outputs |
 
 ### `test-ce-activate-project.sh` (3 tests)

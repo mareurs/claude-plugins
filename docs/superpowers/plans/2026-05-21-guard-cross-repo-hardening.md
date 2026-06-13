@@ -17,7 +17,7 @@
 - The hook is `case "$TOOL_NAME"` with six branches: `Bash` (L57+), `Grep`, `Glob`, `Read` (L180+), `Edit`, `Write`. Every file branch starts with `is_in_workspace "$FILE_PATH" || exit 0`.
 - `is_in_workspace()` (L15-22) returns 0 when `WORKSPACE_ROOT` is empty (fail-closed → guard proceeds). So cross-repo *source* reads are already denied by default; the live cross-repo holes are the Read-md `!=CWD*` exit and the Bash `cd`-escape.
 - `enforce()` emits `{hookSpecificOutput:{permissionDecision:"deny",permissionDecisionReason:...}}` and `exit 0`; a 3-second dedup file under `/tmp/cs-block-*` suppresses duplicate reasons.
-- The test harness `assert` hardcodes `tool_name:"Bash"`. A general helper is needed for other tools. `ACTIVE_CWD=/home/marius/work/claude/code-explorer` (no routing config → `WORKSPACE_ROOT` empty), `SIBLING_CWD=/home/marius/work/claude/claude-plugins`.
+- The test harness `assert` hardcodes `tool_name:"Bash"`. A general helper is needed for other tools. `ACTIVE_CWD=/home/marius/work/claude/codescout` (no routing config → `WORKSPACE_ROOT` empty), `SIBLING_CWD=/home/marius/work/claude/claude-plugins`.
 - The existing `cd-sibling-*` and `cd-tmp` asserts expect `allow` — they MUST flip to `deny`.
 
 ---
@@ -460,7 +460,7 @@ Run: `run_command("bash tests/run-all.sh 2>&1", acknowledge_risk=true)` → expe
 Run (asserts a cross-repo md Read is now denied):
 
 ```
-run_command("printf '%s' '{\"tool_name\":\"Read\",\"cwd\":\"/home/marius/work/claude/code-explorer\",\"tool_input\":{\"file_path\":\"/home/marius/work/claude/claude-plugins/README.md\"}}' | bash codescout-companion/hooks/pre-tool-guard.sh", acknowledge_risk=true)
+run_command("printf '%s' '{\"tool_name\":\"Read\",\"cwd\":\"/home/marius/work/claude/codescout\",\"tool_input\":{\"file_path\":\"/home/marius/work/claude/claude-plugins/README.md\"}}' | bash codescout-companion/hooks/pre-tool-guard.sh", acknowledge_risk=true)
 ```
 Expected: JSON with `permissionDecision":"deny"` and a `read_markdown(...)` reason. (Before this change it returned empty = allow.)
 

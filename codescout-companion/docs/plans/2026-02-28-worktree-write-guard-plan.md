@@ -2,7 +2,7 @@
 
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
-**Goal:** Hard-block code-explorer write tools (edit_lines, replace_symbol, etc.) when the agent is in a worktree but has not yet called activate_project, turning a silent wrong-file write into an immediate error.
+**Goal:** Hard-block codescout write tools (edit_lines, replace_symbol, etc.) when the agent is in a worktree but has not yet called activate_project, turning a silent wrong-file write into an immediate error.
 
 **Architecture:** State machine via marker file `$WORKTREE/.ce-worktree-pending`. The file is created by the existing PostToolUse/EnterWorktree hook and deleted by a new PostToolUse/activate_project hook. A new PreToolUse hook blocks MCP write tools while the marker exists.
 
@@ -13,13 +13,13 @@
 ### Task 1: Fix `worktree-activate.sh` — early-exit bug + marker creation
 
 **Files:**
-- Modify: `code-explorer-routing/hooks/worktree-activate.sh`
+- Modify: `codescout-companion/hooks/worktree-activate.sh`
 
-The bug: `[ -z "$CE_DIR" ] && exit 0` exits *before* guidance injection, so projects without `.code-explorer/` get no guidance at all. Fix: inject guidance first, then attempt symlink as best-effort. Also add marker file creation.
+The bug: `[ -z "$CE_DIR" ] && exit 0` exits *before* guidance injection, so projects without `.codescout/` get no guidance at all. Fix: inject guidance first, then attempt symlink as best-effort. Also add marker file creation.
 
 **Step 1: Read current file to confirm line numbers**
 
-Run: `cat -n code-explorer-routing/hooks/worktree-activate.sh`
+Run: `cat -n codescout-companion/hooks/worktree-activate.sh`
 
 **Step 2: Rewrite the file**
 
@@ -30,8 +30,8 @@ Replace the entire file with:
 # PostToolUse hook — after EnterWorktree:
 #   1. Inject activate_project guidance (always)
 #   2. Create .ce-worktree-pending marker (blocks writes until activate_project called)
-#   3. Symlink .code-explorer/ into worktree (best-effort)
-# No-op if code-explorer is not configured.
+#   3. Symlink .codescout/ into worktree (best-effort)
+# No-op if codescout is not configured.
 
 INPUT=$(cat)
 TOOL_NAME=$(echo "$INPUT" | jq -r '.tool_name // empty')
@@ -62,7 +62,7 @@ fi
 touch "$WORKTREE_PATH/.ce-worktree-pending" 2>/dev/null
 
 # --- Inject guidance (always, regardless of symlink success) ---
-jq -n --arg ctx "WORKTREE DETECTED: code-explorer must switch to the worktree.
+jq -n --arg ctx "WORKTREE DETECTED: codescout must switch to the worktree.
 Call activate_project(\"$WORKTREE_PATH\") NOW as your next action.
 MCP write tools (edit_lines, replace_symbol, insert_code, create_file) are BLOCKED
 until activate_project is called — they would otherwise silently write to the wrong repo.
@@ -73,12 +73,12 @@ Do NOT run index_project in worktrees — the shared index is read-only here." '
   }
 }'
 
-# --- Symlink .code-explorer/ into worktree (best-effort) ---
+# --- Symlink .codescout/ into worktree (best-effort) ---
 CE_DIR=""
 CHECK="$CWD"
 while [ "$CHECK" != "/" ]; do
-  if [ -d "$CHECK/.code-explorer" ]; then
-    CE_DIR="$CHECK/.code-explorer"
+  if [ -d "$CHECK/.codescout" ]; then
+    CE_DIR="$CHECK/.codescout"
     break
   fi
   CHECK=$(dirname "$CHECK")
@@ -86,7 +86,7 @@ done
 
 [ -z "$CE_DIR" ] && exit 0
 
-DEST="$WORKTREE_PATH/.code-explorer"
+DEST="$WORKTREE_PATH/.codescout"
 if [ ! -e "$DEST" ]; then
   ln -s "$CE_DIR" "$DEST" 2>/dev/null
 fi
@@ -94,25 +94,25 @@ fi
 
 **Step 3: Make executable**
 
-Run: `chmod +x code-explorer-routing/hooks/worktree-activate.sh`
+Run: `chmod +x codescout-companion/hooks/worktree-activate.sh`
 
-**Step 4: Test — guidance fires even without .code-explorer/**
+**Step 4: Test — guidance fires even without .codescout/**
 
 Run:
 ```bash
 mkdir -p /tmp/wt-test-no-ce
 echo '{"tool_name":"EnterWorktree","cwd":"/tmp","tool_response":{"worktree_path":"/tmp/wt-test-no-ce"}}' \
-  | CLAUDE_CONFIG_DIR=/nonexistent bash code-explorer-routing/hooks/worktree-activate.sh
+  | CLAUDE_CONFIG_DIR=/nonexistent bash codescout-companion/hooks/worktree-activate.sh
 ```
-Expected: no output (HAS_CODE_EXPLORER=false exits early) — that's fine, the fix is for projects that DO have code-explorer. If you have a project with code-explorer configured, test with that CWD.
+Expected: no output (HAS_CODE_EXPLORER=false exits early) — that's fine, the fix is for projects that DO have codescout. If you have a project with codescout configured, test with that CWD.
 
-**Step 5: Test with a project that has code-explorer**
+**Step 5: Test with a project that has codescout**
 
 Run:
 ```bash
 mkdir -p /tmp/wt-test
-echo '{"tool_name":"EnterWorktree","cwd":"/home/marius/work/claude/code-explorer","tool_response":{"worktree_path":"/tmp/wt-test"}}' \
-  | bash code-explorer-routing/hooks/worktree-activate.sh | jq .
+echo '{"tool_name":"EnterWorktree","cwd":"/home/marius/work/claude/codescout","tool_response":{"worktree_path":"/tmp/wt-test"}}' \
+  | bash codescout-companion/hooks/worktree-activate.sh | jq .
 ls /tmp/wt-test/.ce-worktree-pending && echo "marker created" || echo "marker missing"
 rm -rf /tmp/wt-test
 ```
@@ -122,13 +122,13 @@ Expected:
 
 **Step 6: Test — non-EnterWorktree tool is a no-op**
 
-Run: `echo '{"tool_name":"Read","cwd":"/tmp"}' | bash code-explorer-routing/hooks/worktree-activate.sh`
+Run: `echo '{"tool_name":"Read","cwd":"/tmp"}' | bash codescout-companion/hooks/worktree-activate.sh`
 Expected: no output, exit 0.
 
 **Step 7: Commit**
 
 ```bash
-git add code-explorer-routing/hooks/worktree-activate.sh
+git add codescout-companion/hooks/worktree-activate.sh
 git commit -m "fix(routing): fix worktree-activate early-exit bug, add write-guard marker"
 ```
 
@@ -137,7 +137,7 @@ git commit -m "fix(routing): fix worktree-activate early-exit bug, add write-gua
 ### Task 2: Create `worktree-write-guard.sh` — PreToolUse block
 
 **Files:**
-- Create: `code-explorer-routing/hooks/worktree-write-guard.sh`
+- Create: `codescout-companion/hooks/worktree-write-guard.sh`
 
 **Step 1: Verify PreToolUse blocking format**
 
@@ -164,11 +164,11 @@ Output this JSON to stdout and exit 2.
 
 **Step 2: Write the guard hook**
 
-Create `code-explorer-routing/hooks/worktree-write-guard.sh`:
+Create `codescout-companion/hooks/worktree-write-guard.sh`:
 
 ```bash
 #!/bin/bash
-# PreToolUse hook — block code-explorer write tools when in a worktree
+# PreToolUse hook — block codescout write tools when in a worktree
 # without activate_project having been called.
 #
 # Triggered by: any tool whose name contains 'edit_lines', 'replace_symbol',
@@ -181,7 +181,7 @@ INPUT=$(cat)
 TOOL_NAME=$(echo "$INPUT" | jq -r '.tool_name // empty')
 CWD=$(echo "$INPUT" | jq -r '.cwd // empty')
 
-# Filter: only act on code-explorer write tools
+# Filter: only act on codescout write tools
 # MCP tools have format: mcp__<server>__<tool>
 case "$TOOL_NAME" in
   *__edit_lines|*__replace_symbol|*__insert_code|*__create_file|*__create_or_update_file)
@@ -213,7 +213,7 @@ WT_ROOT=$(git -C "$CWD" rev-parse --show-toplevel 2>/dev/null)
 jq -n --arg reason "⛔ WORKTREE WRITE BLOCKED: activate_project must be called first.
 
 You are in a worktree at: $WT_ROOT
-code-explorer is still pointing at the main repo — a write now would silently modify the wrong file.
+codescout is still pointing at the main repo — a write now would silently modify the wrong file.
 
 Fix: call activate_project(\"$WT_ROOT\") then retry this tool." \
   '{"decision":"block","reason":$reason}'
@@ -222,14 +222,14 @@ exit 2
 
 **Step 3: Make executable**
 
-Run: `chmod +x code-explorer-routing/hooks/worktree-write-guard.sh`
+Run: `chmod +x codescout-companion/hooks/worktree-write-guard.sh`
 
 **Step 4: Test — non-write tool passes through**
 
 Run:
 ```bash
-echo '{"tool_name":"mcp__code-explorer__list_symbols","cwd":"/tmp"}' \
-  | bash code-explorer-routing/hooks/worktree-write-guard.sh
+echo '{"tool_name":"mcp__codescout__list_symbols","cwd":"/tmp"}' \
+  | bash codescout-companion/hooks/worktree-write-guard.sh
 echo "exit: $?"
 ```
 Expected: no output, exit 0.
@@ -238,8 +238,8 @@ Expected: no output, exit 0.
 
 Run:
 ```bash
-echo '{"tool_name":"mcp__code-explorer__edit_lines","cwd":"/home/marius/work/claude/claude-plugins"}' \
-  | bash code-explorer-routing/hooks/worktree-write-guard.sh
+echo '{"tool_name":"mcp__codescout__edit_lines","cwd":"/home/marius/work/claude/claude-plugins"}' \
+  | bash codescout-companion/hooks/worktree-write-guard.sh
 echo "exit: $?"
 ```
 Expected: no output, exit 0 (not a worktree).
@@ -253,8 +253,8 @@ cd /home/marius/work/claude/claude-plugins
 git worktree add /tmp/guard-test-wt HEAD 2>/dev/null || true
 touch /tmp/guard-test-wt/.ce-worktree-pending
 
-echo '{"tool_name":"mcp__code-explorer__edit_lines","cwd":"/tmp/guard-test-wt"}' \
-  | bash code-explorer-routing/hooks/worktree-write-guard.sh | jq .
+echo '{"tool_name":"mcp__codescout__edit_lines","cwd":"/tmp/guard-test-wt"}' \
+  | bash codescout-companion/hooks/worktree-write-guard.sh | jq .
 echo "exit: $?"
 
 # Cleanup
@@ -270,8 +270,8 @@ Run (same worktree setup but no marker file):
 git worktree add /tmp/guard-test-wt2 HEAD 2>/dev/null || true
 # NOTE: do NOT create .ce-worktree-pending
 
-echo '{"tool_name":"mcp__code-explorer__edit_lines","cwd":"/tmp/guard-test-wt2"}' \
-  | bash code-explorer-routing/hooks/worktree-write-guard.sh
+echo '{"tool_name":"mcp__codescout__edit_lines","cwd":"/tmp/guard-test-wt2"}' \
+  | bash codescout-companion/hooks/worktree-write-guard.sh
 echo "exit: $?"
 
 git worktree remove /tmp/guard-test-wt2 --force 2>/dev/null || rm -rf /tmp/guard-test-wt2
@@ -282,7 +282,7 @@ Expected: no output, exit 0 (marker absent = activate_project already called).
 **Step 8: Commit**
 
 ```bash
-git add code-explorer-routing/hooks/worktree-write-guard.sh
+git add codescout-companion/hooks/worktree-write-guard.sh
 git commit -m "feat(routing): add worktree-write-guard PreToolUse hook"
 ```
 
@@ -291,7 +291,7 @@ git commit -m "feat(routing): add worktree-write-guard PreToolUse hook"
 ### Task 3: Create `ce-activate-project.sh` — marker cleanup
 
 **Files:**
-- Create: `code-explorer-routing/hooks/ce-activate-project.sh`
+- Create: `codescout-companion/hooks/ce-activate-project.sh`
 
 **Step 1: Discover activate_project tool_input schema**
 
@@ -299,7 +299,7 @@ The hook receives `tool_input` from what the agent called. For `activate_project
 
 **Step 2: Write the hook**
 
-Create `code-explorer-routing/hooks/ce-activate-project.sh`:
+Create `codescout-companion/hooks/ce-activate-project.sh`:
 
 ```bash
 #!/bin/bash
@@ -325,7 +325,7 @@ ACTIVATED_PATH=$(echo "$INPUT" | jq -r '.tool_input.path // empty')
 MARKER="$ACTIVATED_PATH/.ce-worktree-pending"
 if [ -f "$MARKER" ]; then
   rm -f "$MARKER"
-  jq -n --arg ctx "✓ code-explorer switched to: $ACTIVATED_PATH
+  jq -n --arg ctx "✓ codescout switched to: $ACTIVATED_PATH
 Write tools (edit_lines, replace_symbol, etc.) are now unblocked for this worktree." '{
     hookSpecificOutput: {
       hookEventName: "PostToolUse",
@@ -338,7 +338,7 @@ fi
 
 **Step 3: Make executable**
 
-Run: `chmod +x code-explorer-routing/hooks/ce-activate-project.sh`
+Run: `chmod +x codescout-companion/hooks/ce-activate-project.sh`
 
 **Step 4: Test — activate_project clears marker**
 
@@ -347,8 +347,8 @@ Run:
 mkdir -p /tmp/ce-clear-test
 touch /tmp/ce-clear-test/.ce-worktree-pending
 
-echo '{"tool_name":"mcp__code-explorer__activate_project","tool_input":{"path":"/tmp/ce-clear-test"}}' \
-  | bash code-explorer-routing/hooks/ce-activate-project.sh | jq .
+echo '{"tool_name":"mcp__codescout__activate_project","tool_input":{"path":"/tmp/ce-clear-test"}}' \
+  | bash codescout-companion/hooks/ce-activate-project.sh | jq .
 
 ls /tmp/ce-clear-test/.ce-worktree-pending 2>/dev/null && echo "marker still exists (BUG)" || echo "marker cleared (OK)"
 rm -rf /tmp/ce-clear-test
@@ -362,8 +362,8 @@ Run:
 mkdir -p /tmp/ce-clear-test2
 # No marker created
 
-echo '{"tool_name":"mcp__code-explorer__activate_project","tool_input":{"path":"/tmp/ce-clear-test2"}}' \
-  | bash code-explorer-routing/hooks/ce-activate-project.sh
+echo '{"tool_name":"mcp__codescout__activate_project","tool_input":{"path":"/tmp/ce-clear-test2"}}' \
+  | bash codescout-companion/hooks/ce-activate-project.sh
 echo "exit: $?"
 rm -rf /tmp/ce-clear-test2
 ```
@@ -373,8 +373,8 @@ Expected: no output, exit 0.
 
 Run:
 ```bash
-echo '{"tool_name":"mcp__code-explorer__list_symbols","tool_input":{}}' \
-  | bash code-explorer-routing/hooks/ce-activate-project.sh
+echo '{"tool_name":"mcp__codescout__list_symbols","tool_input":{}}' \
+  | bash codescout-companion/hooks/ce-activate-project.sh
 echo "exit: $?"
 ```
 Expected: no output, exit 0.
@@ -382,7 +382,7 @@ Expected: no output, exit 0.
 **Step 7: Commit**
 
 ```bash
-git add code-explorer-routing/hooks/ce-activate-project.sh
+git add codescout-companion/hooks/ce-activate-project.sh
 git commit -m "feat(routing): add ce-activate-project PostToolUse hook to clear write guard"
 ```
 
@@ -391,13 +391,13 @@ git commit -m "feat(routing): add ce-activate-project PostToolUse hook to clear 
 ### Task 4: Update `hooks.json` — register new hooks
 
 **Files:**
-- Modify: `code-explorer-routing/hooks/hooks.json`
+- Modify: `codescout-companion/hooks/hooks.json`
 
-The PreToolUse matcher needs to catch all code-explorer write tools. Since the server name varies, we match on the tool name suffix using a pattern. The hooks matcher in Claude Code supports regex.
+The PreToolUse matcher needs to catch all codescout write tools. Since the server name varies, we match on the tool name suffix using a pattern. The hooks matcher in Claude Code supports regex.
 
 **Step 1: Read current hooks.json**
 
-Run: `cat code-explorer-routing/hooks/hooks.json`
+Run: `cat codescout-companion/hooks/hooks.json`
 
 **Step 2: Add PreToolUse and new PostToolUse entries**
 
@@ -472,13 +472,13 @@ Replace the full file with:
 
 **Step 3: Validate JSON**
 
-Run: `jq . code-explorer-routing/hooks/hooks.json`
+Run: `jq . codescout-companion/hooks/hooks.json`
 Expected: valid JSON, no errors.
 
 **Step 4: Commit**
 
 ```bash
-git add code-explorer-routing/hooks/hooks.json
+git add codescout-companion/hooks/hooks.json
 git commit -m "feat(routing): register worktree-write-guard and ce-activate-project hooks"
 ```
 
@@ -487,17 +487,17 @@ git commit -m "feat(routing): register worktree-write-guard and ce-activate-proj
 ### Task 5: Update `guidance.txt` and `session-start.sh`
 
 **Files:**
-- Modify: `code-explorer-routing/hooks/guidance.txt`
-- Modify: `code-explorer-routing/hooks/session-start.sh`
+- Modify: `codescout-companion/hooks/guidance.txt`
+- Modify: `codescout-companion/hooks/session-start.sh`
 
 **Step 1: Add WORKTREES section to guidance.txt**
 
-Append to `code-explorer-routing/hooks/guidance.txt`:
+Append to `codescout-companion/hooks/guidance.txt`:
 
 ```
 WORKTREES:
   After EnterWorktree, ALWAYS call activate_project("/abs/worktree/path") before
-  using any code-explorer tools. code-explorer tracks its own active project
+  using any codescout tools. codescout tracks its own active project
   independently of Bash CWD — they are NOT automatically coupled.
   MCP write tools are HARD-BLOCKED until activate_project is called.
 ```
@@ -511,7 +511,7 @@ In `session-start.sh`, the `IN_WORKTREE` variable is already detected. Find the 
 if [ "$IN_WORKTREE" = "true" ]; then
   WT_ROOT=$(git -C "$CWD" rev-parse --show-toplevel 2>/dev/null)
   MSG="${MSG}WORKTREE SESSION: You are inside a git worktree at: ${WT_ROOT:-$CWD}
-→ Call activate_project(\"${WT_ROOT:-$CWD}\") before using any code-explorer write tools.
+→ Call activate_project(\"${WT_ROOT:-$CWD}\") before using any codescout write tools.
 
 "
 fi
@@ -519,7 +519,7 @@ fi
 
 **Step 3: Verify guidance.txt looks correct**
 
-Run: `cat code-explorer-routing/hooks/guidance.txt`
+Run: `cat codescout-companion/hooks/guidance.txt`
 Expected: WORKTREES section at the bottom.
 
 **Step 4: Test session-start with worktree detection**
@@ -527,7 +527,7 @@ Expected: WORKTREES section at the bottom.
 Run:
 ```bash
 git worktree add /tmp/ss-test-wt HEAD 2>/dev/null || true
-echo '{"cwd":"/tmp/ss-test-wt"}' | bash code-explorer-routing/hooks/session-start.sh 2>/dev/null | jq -r '.hookSpecificOutput.additionalContext' | grep -A3 "WORKTREE SESSION" || echo "worktree guidance missing"
+echo '{"cwd":"/tmp/ss-test-wt"}' | bash codescout-companion/hooks/session-start.sh 2>/dev/null | jq -r '.hookSpecificOutput.additionalContext' | grep -A3 "WORKTREE SESSION" || echo "worktree guidance missing"
 git worktree remove /tmp/ss-test-wt --force 2>/dev/null || rm -rf /tmp/ss-test-wt
 git worktree prune
 ```
@@ -536,7 +536,7 @@ Expected: Output includes "WORKTREE SESSION" guidance.
 **Step 5: Commit**
 
 ```bash
-git add code-explorer-routing/hooks/guidance.txt code-explorer-routing/hooks/session-start.sh
+git add codescout-companion/hooks/guidance.txt codescout-companion/hooks/session-start.sh
 git commit -m "feat(routing): add worktree guidance to guidance.txt and session-start"
 ```
 
@@ -553,21 +553,21 @@ Note: this file is outside the claude-plugins repo. Commit it separately in its 
 
 Run: `cat ~/.claude/plugins/superpowers-local/skills/using-git-worktrees/SKILL.md`
 
-**Step 2: Add code-explorer step after "Create Worktree" section**
+**Step 2: Add codescout step after "Create Worktree" section**
 
 Find the `### 2. Create Worktree` section. Add a new subsection immediately after it:
 
 ```markdown
-### 2b. Activate code-explorer (if configured)
+### 2b. Activate codescout (if configured)
 
-If the project uses [code-explorer](https://github.com/oraios/serena) semantic intelligence:
+If the project uses [codescout](https://github.com/oraios/serena) semantic intelligence:
 
 ```bash
 # After EnterWorktree, call activate_project with the ABSOLUTE worktree path
 activate_project("/absolute/path/to/worktree")
 ```
 
-**Why:** code-explorer tracks its own active project independently of Bash CWD.
+**Why:** codescout tracks its own active project independently of Bash CWD.
 Without this call, all symbol navigation and file edits target the main repo, not the worktree.
 MCP write tools (edit_lines, replace_symbol, etc.) are hard-blocked until this is called.
 ```
@@ -577,9 +577,9 @@ MCP write tools (edit_lines, replace_symbol, etc.) are hard-blocked until this i
 Append to the Common Mistakes section:
 
 ```markdown
-### Forgetting activate_project (when code-explorer is configured)
+### Forgetting activate_project (when codescout is configured)
 
-- **Problem:** code-explorer writes silently target the main repo instead of the worktree
+- **Problem:** codescout writes silently target the main repo instead of the worktree
 - **Fix:** Always call `activate_project("/abs/worktree/path")` immediately after `EnterWorktree`
 ```
 
@@ -591,7 +591,7 @@ Expected: the new section appears correctly.
 **Step 5: Commit in claude-plugins (document the update)**
 
 ```bash
-git add code-explorer-routing/  # already staged above; just note the skill update in commit message
+git add codescout-companion/  # already staged above; just note the skill update in commit message
 git commit -m "docs(routing): note using-git-worktrees skill updated with activate_project step"
 ```
 
@@ -613,28 +613,28 @@ WT="/tmp/e2e-wt"
 # 1. Simulate EnterWorktree (worktree-activate.sh)
 echo "=== Step 1: EnterWorktree fires ==="
 echo "{\"tool_name\":\"EnterWorktree\",\"cwd\":\"$CWD_MAIN\",\"tool_response\":{\"worktree_path\":\"$WT\"}}" \
-  | bash code-explorer-routing/hooks/worktree-activate.sh | jq -r '.hookSpecificOutput.additionalContext'
+  | bash codescout-companion/hooks/worktree-activate.sh | jq -r '.hookSpecificOutput.additionalContext'
 ls "$WT/.ce-worktree-pending" && echo "marker: created" || echo "marker: MISSING (bug)"
 
 # 2. Simulate write attempt before activate_project (should BLOCK)
 echo ""
 echo "=== Step 2: Write attempt before activate_project (expect BLOCK) ==="
-echo "{\"tool_name\":\"mcp__code-explorer__edit_lines\",\"cwd\":\"$WT\"}" \
-  | bash code-explorer-routing/hooks/worktree-write-guard.sh | jq -r '.reason'
+echo "{\"tool_name\":\"mcp__codescout__edit_lines\",\"cwd\":\"$WT\"}" \
+  | bash codescout-companion/hooks/worktree-write-guard.sh | jq -r '.reason'
 echo "guard exit: $?"
 
 # 3. Simulate activate_project call
 echo ""
 echo "=== Step 3: activate_project fires ==="
-echo "{\"tool_name\":\"mcp__code-explorer__activate_project\",\"tool_input\":{\"path\":\"$WT\"}}" \
-  | bash code-explorer-routing/hooks/ce-activate-project.sh | jq -r '.hookSpecificOutput.additionalContext'
+echo "{\"tool_name\":\"mcp__codescout__activate_project\",\"tool_input\":{\"path\":\"$WT\"}}" \
+  | bash codescout-companion/hooks/ce-activate-project.sh | jq -r '.hookSpecificOutput.additionalContext'
 ls "$WT/.ce-worktree-pending" 2>/dev/null && echo "marker: still present (bug)" || echo "marker: cleared"
 
 # 4. Simulate write attempt after activate_project (should ALLOW)
 echo ""
 echo "=== Step 4: Write attempt after activate_project (expect ALLOW) ==="
-echo "{\"tool_name\":\"mcp__code-explorer__edit_lines\",\"cwd\":\"$WT\"}" \
-  | bash code-explorer-routing/hooks/worktree-write-guard.sh
+echo "{\"tool_name\":\"mcp__codescout__edit_lines\",\"cwd\":\"$WT\"}" \
+  | bash codescout-companion/hooks/worktree-write-guard.sh
 echo "guard exit: $? (expect 0)"
 
 # Cleanup
@@ -660,24 +660,24 @@ git commit -m "fix(routing): e2e test corrections" # only if changes were made
 ### Task 8: Version bump + final commit
 
 **Files:**
-- Modify: `code-explorer-routing/.claude-plugin/plugin.json`
+- Modify: `codescout-companion/.claude-plugin/plugin.json`
 - Modify: `README.md`
 
 **Step 1: Read current version**
 
-Run: `jq .version code-explorer-routing/.claude-plugin/plugin.json`
+Run: `jq .version codescout-companion/.claude-plugin/plugin.json`
 Expected: `"1.2.3"` (current version from last commit).
 
 **Step 2: Bump to 1.3.0** (minor bump — new behavior/features)
 
-Update `code-explorer-routing/.claude-plugin/plugin.json`:
+Update `codescout-companion/.claude-plugin/plugin.json`:
 ```json
 "version": "1.3.0"
 ```
 
 **Step 3: Update README.md version table**
 
-Find the table row for code-explorer-routing and update from `1.2.3` to `1.3.0`.
+Find the table row for codescout-companion and update from `1.2.3` to `1.3.0`.
 
 **Step 4: Run version check**
 
@@ -687,8 +687,8 @@ Expected: all versions consistent, no errors.
 **Step 5: Final commit**
 
 ```bash
-git add code-explorer-routing/.claude-plugin/plugin.json README.md
-git commit -m "feat(code-explorer-routing): worktree write guard, v1.3.0
+git add codescout-companion/.claude-plugin/plugin.json README.md
+git commit -m "feat(codescout-companion): worktree write guard, v1.3.0
 
 - Fix early-exit bug in worktree-activate.sh (guidance now always fires)
 - Add .ce-worktree-pending marker state machine

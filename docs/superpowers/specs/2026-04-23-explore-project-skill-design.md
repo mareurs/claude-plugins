@@ -46,7 +46,7 @@ present findings block
 
 1. `activate_project(path, read_only: true)` — codescout index + project memories
 2. `read_markdown("<path>/CLAUDE.md")` — project rules, conventions, active focus
-3. `read_markdown("<path>/.code-explorer/system-prompt.md")` — codescout guidance (skip if absent)
+3. `read_markdown("<path>/.codescout/system-prompt.md")` — codescout guidance (skip if absent)
 4. Explore using codescout tools only (no writes)
 5. `activate_project("<original>", read_only: false)` at end (Iron Law #4)
 
@@ -94,7 +94,7 @@ Your FIRST action must be:
 
 Then read the project context:
   read_markdown("<path>/CLAUDE.md")
-  read_markdown("<path>/.code-explorer/system-prompt.md")  ← skip if file absent
+  read_markdown("<path>/.codescout/system-prompt.md")  ← skip if file absent
 
 You are now operating as if you were launched inside <path>.
 Follow the project's CLAUDE.md conventions and restrictions.

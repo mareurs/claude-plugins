@@ -1,10 +1,10 @@
-# Worktree-aware code-explorer activation — Implementation Plan
+# Worktree-aware codescout activation — Implementation Plan
 
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
-**Goal:** When EnterWorktree is called, automatically symlink `.code-explorer/` into the worktree and instruct the model to call `activate_project` on the new path.
+**Goal:** When EnterWorktree is called, automatically symlink `.codescout/` into the worktree and instruct the model to call `activate_project` on the new path.
 
-**Architecture:** PostToolUse hook on EnterWorktree. Shell script symlinks `.code-explorer/` from original project, then injects `additionalContext` telling the model to call `activate_project`. Session-start auto-index is guarded to skip worktrees.
+**Architecture:** PostToolUse hook on EnterWorktree. Shell script symlinks `.codescout/` from original project, then injects `additionalContext` telling the model to call `activate_project`. Session-start auto-index is guarded to skip worktrees.
 
 **Tech Stack:** Bash, jq, git (worktree detection), existing detect-tools.sh
 
@@ -13,14 +13,14 @@
 ### Task 1: Create worktree-activate.sh
 
 **Files:**
-- Create: `code-explorer-routing/hooks/worktree-activate.sh`
+- Create: `codescout-companion/hooks/worktree-activate.sh`
 
 **Step 1: Write the hook script**
 
 ```bash
 #!/bin/bash
-# PostToolUse hook — after EnterWorktree, symlink .code-explorer/ and inject activate_project guidance
-# No-op if code-explorer is not configured.
+# PostToolUse hook — after EnterWorktree, symlink .codescout/ and inject activate_project guidance
+# No-op if codescout is not configured.
 
 INPUT=$(cat)
 TOOL_NAME=$(echo "$INPUT" | jq -r '.tool_name // empty')
@@ -47,12 +47,12 @@ fi
 [ -z "$WORKTREE_PATH" ] && exit 0
 [ -d "$WORKTREE_PATH" ] || exit 0
 
-# --- Find .code-explorer/ in original project ---
+# --- Find .codescout/ in original project ---
 CE_DIR=""
 CHECK="$CWD"
 while [ "$CHECK" != "/" ]; do
-  if [ -d "$CHECK/.code-explorer" ]; then
-    CE_DIR="$CHECK/.code-explorer"
+  if [ -d "$CHECK/.codescout" ]; then
+    CE_DIR="$CHECK/.codescout"
     break
   fi
   CHECK=$(dirname "$CHECK")
@@ -60,14 +60,14 @@ done
 
 [ -z "$CE_DIR" ] && exit 0
 
-# --- Symlink .code-explorer/ into worktree ---
-DEST="$WORKTREE_PATH/.code-explorer"
+# --- Symlink .codescout/ into worktree ---
+DEST="$WORKTREE_PATH/.codescout"
 if [ ! -e "$DEST" ]; then
   ln -s "$CE_DIR" "$DEST" 2>/dev/null
 fi
 
 # --- Inject guidance ---
-jq -n --arg ctx "WORKTREE DETECTED: code-explorer must switch to the worktree.
+jq -n --arg ctx "WORKTREE DETECTED: codescout must switch to the worktree.
 Call activate_project(\"$WORKTREE_PATH\") NOW as your next action.
 Do NOT run index_project in worktrees — the shared index is read-only here." '{
   hookSpecificOutput: {
@@ -79,13 +79,13 @@ Do NOT run index_project in worktrees — the shared index is read-only here." '
 
 **Step 2: Make it executable**
 
-Run: `chmod +x code-explorer-routing/hooks/worktree-activate.sh`
+Run: `chmod +x codescout-companion/hooks/worktree-activate.sh`
 
 **Step 3: Test with mock input**
 
-Run: `mkdir -p /tmp/test-worktree && echo '{"tool_name":"EnterWorktree","cwd":"/home/marius/work/claude/claude-plugins","tool_response":{"worktree_path":"/tmp/test-worktree"}}' | bash code-explorer-routing/hooks/worktree-activate.sh | jq .`
+Run: `mkdir -p /tmp/test-worktree && echo '{"tool_name":"EnterWorktree","cwd":"/home/marius/work/claude/claude-plugins","tool_response":{"worktree_path":"/tmp/test-worktree"}}' | bash codescout-companion/hooks/worktree-activate.sh | jq .`
 
-Expected: JSON output with `additionalContext` containing the activate_project instruction, and `/tmp/test-worktree/.code-explorer` symlink created.
+Expected: JSON output with `additionalContext` containing the activate_project instruction, and `/tmp/test-worktree/.codescout` symlink created.
 
 **Step 4: Clean up test artifacts**
 
@@ -94,7 +94,7 @@ Run: `rm -rf /tmp/test-worktree`
 **Step 5: Commit**
 
 ```bash
-git add code-explorer-routing/hooks/worktree-activate.sh
+git add codescout-companion/hooks/worktree-activate.sh
 git commit -m "feat(routing): add worktree-activate PostToolUse hook"
 ```
 
@@ -103,7 +103,7 @@ git commit -m "feat(routing): add worktree-activate PostToolUse hook"
 ### Task 2: Register hook in hooks.json
 
 **Files:**
-- Modify: `code-explorer-routing/hooks/hooks.json`
+- Modify: `codescout-companion/hooks/hooks.json`
 
 **Step 1: Add PostToolUse entry**
 
@@ -176,13 +176,13 @@ The full hooks.json should be:
 
 **Step 2: Validate JSON**
 
-Run: `jq . code-explorer-routing/hooks/hooks.json`
+Run: `jq . codescout-companion/hooks/hooks.json`
 Expected: Valid JSON, no parse errors.
 
 **Step 3: Commit**
 
 ```bash
-git add code-explorer-routing/hooks/hooks.json
+git add codescout-companion/hooks/hooks.json
 git commit -m "feat(routing): register worktree-activate in hooks.json"
 ```
 
@@ -191,7 +191,7 @@ git commit -m "feat(routing): register worktree-activate in hooks.json"
 ### Task 3: Guard session-start auto-index for worktrees
 
 **Files:**
-- Modify: `code-explorer-routing/hooks/session-start.sh`
+- Modify: `codescout-companion/hooks/session-start.sh`
 
 **Step 1: Add worktree detection early in session-start.sh**
 
@@ -223,7 +223,7 @@ Expected: Both return `.git` (same = not a worktree).
 **Step 3: Commit**
 
 ```bash
-git add code-explorer-routing/hooks/session-start.sh
+git add codescout-companion/hooks/session-start.sh
 git commit -m "feat(routing): detect worktrees in session-start, skip auto-index"
 ```
 
@@ -233,12 +233,12 @@ git commit -m "feat(routing): detect worktrees in session-start, skip auto-index
 
 **Step 1: Verify the plugin is live via symlink**
 
-Run: `ls -la ~/.claude/plugins/cache/sdd-misc-plugins/code-explorer-routing/1.1.0`
-Expected: Symlink to `/home/marius/work/claude/claude-plugins/code-explorer-routing`
+Run: `ls -la ~/.claude/plugins/cache/sdd-misc-plugins/codescout-companion/1.1.0`
+Expected: Symlink to `/home/marius/work/claude/claude-plugins/codescout-companion`
 
 **Step 2: Verify hooks.json includes PostToolUse**
 
-Run: `jq '.hooks | keys' ~/.claude/plugins/cache/sdd-misc-plugins/code-explorer-routing/1.1.0/hooks/hooks.json`
+Run: `jq '.hooks | keys' ~/.claude/plugins/cache/sdd-misc-plugins/codescout-companion/1.1.0/hooks/hooks.json`
 Expected: `["PostToolUse", "PreToolUse", "SessionStart", "SubagentStart"]`
 
 **Step 3: Simulate worktree hook with mock input**
@@ -247,16 +247,16 @@ Run:
 ```bash
 mkdir -p /tmp/wt-test
 echo '{"tool_name":"EnterWorktree","cwd":"/home/marius/work/claude/claude-plugins","tool_response":{"worktree_path":"/tmp/wt-test"}}' \
-  | bash code-explorer-routing/hooks/worktree-activate.sh | jq .
-ls -la /tmp/wt-test/.code-explorer
+  | bash codescout-companion/hooks/worktree-activate.sh | jq .
+ls -la /tmp/wt-test/.codescout
 rm -rf /tmp/wt-test
 ```
 
 Expected:
 - JSON with `additionalContext` containing `activate_project("/tmp/wt-test")`
-- Symlink from `/tmp/wt-test/.code-explorer` → `/home/marius/work/claude/claude-plugins/.code-explorer`
+- Symlink from `/tmp/wt-test/.codescout` → `/home/marius/work/claude/claude-plugins/.codescout`
 
 **Step 4: Verify non-worktree tools pass through**
 
-Run: `echo '{"tool_name":"Write","cwd":"/tmp"}' | bash code-explorer-routing/hooks/worktree-activate.sh`
+Run: `echo '{"tool_name":"Write","cwd":"/tmp"}' | bash codescout-companion/hooks/worktree-activate.sh`
 Expected: No output, exit 0 (passes through).

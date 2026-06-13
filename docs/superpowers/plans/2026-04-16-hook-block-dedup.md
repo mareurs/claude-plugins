@@ -188,6 +188,6 @@ Expected: `Both instances in sync` with no diff output.
 
 - [ ] **Step 3: Start a new Claude Code session and verify**
 
-Manually trigger a parallel violation (e.g., two parallel `Read` calls on source files in code-explorer). Confirm:
+Manually trigger a parallel violation (e.g., two parallel `Read` calls on source files in codescout). Confirm:
 - First blocked call shows full `"WRONG TOOL. You called Read..."` message
 - Second blocked call shows `"BLOCKED (see previous message)"`

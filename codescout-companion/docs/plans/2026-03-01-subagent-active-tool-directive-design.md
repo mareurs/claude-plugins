@@ -5,17 +5,17 @@
 
 ## Problem
 
-`subagent-guidance.sh` currently exits immediately if no `.code-explorer/system-prompt.md`
+`subagent-guidance.sh` currently exits immediately if no `.codescout/system-prompt.md`
 exists. When the system prompt does exist, the hook injects it verbatim — but provides no
 active directive about *how* to navigate code.
 
 Result: subagents (code-reviewer, design agents, implementation agents, etc.) default to
 `git diff`, `Read`, `Grep`, `Bash` — exactly what the pre-tool-guard blocks and what
-code-explorer is designed to replace.
+codescout is designed to replace.
 
 ## Goal
 
-All coding subagents receive an imperative "use code-explorer for ALL code navigation"
+All coding subagents receive an imperative "use codescout for ALL code navigation"
 directive, regardless of whether a project system-prompt.md exists.
 
 ## Design
@@ -27,7 +27,7 @@ Remove the early exit on `HAS_CE_SYSTEM_PROMPT = false`. Always build and emit a
 **New message structure:**
 
 ```
-CODE-EXPLORER: For ALL code navigation, use code-explorer tools — not Read/Grep/Glob/Bash on source files:
+CODE-EXPLORER: For ALL code navigation, use codescout tools — not Read/Grep/Glob/Bash on source files:
   find_symbol / list_symbols / semantic_search — discover code
   goto_definition / find_references — navigate relationships
   replace_symbol / insert_code — edit code
@@ -41,7 +41,7 @@ CODE-EXPLORER: For ALL code navigation, use code-explorer tools — not Read/Gre
 
 ### Exit conditions unchanged
 
-Still exits if `HAS_CODE_EXPLORER = false` (no code-explorer configured for project).
+Still exits if `HAS_CODE_EXPLORER = false` (no codescout configured for project).
 
 ## Rationale
 

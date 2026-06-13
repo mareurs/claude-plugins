@@ -5,8 +5,8 @@ opened: 2026-05-19
 owner: marius
 tags: [codescout-companion, hooks, prompt-channels, injection-budget, recon]
 related:
-  - "[mcp-channel-caps ADR](../../../../code-explorer/docs/architecture/mcp-channel-caps.md) — evidence base"
-  - "[mcp-prompt-channel-redesign](../../../../code-explorer/docs/superpowers/specs/2026-05-19-mcp-prompt-channel-redesign-design.md) — sibling design"
+  - "[mcp-channel-caps ADR](../../../../codescout/docs/architecture/mcp-channel-caps.md) — evidence base"
+  - "[mcp-prompt-channel-redesign](../../../../codescout/docs/superpowers/specs/2026-05-19-mcp-prompt-channel-redesign-design.md) — sibling design"
   - "[injection-budget-session-log](../../trackers/injection-budget-session-log.md) — F-N / W-N ledger"
 ---
 
@@ -17,7 +17,7 @@ related:
 The `codescout-companion` SessionStart hook today emits ~16 KB of `additionalContext`
 into a channel that Claude Code truncates at ~2 KB. The reconnaissance skill (12 KB
 `SKILL.md`, injected verbatim) lands entirely past the cut and never reaches the
-model. The project's `.code-explorer/system-prompt.md` also exceeds the budget on
+model. The project's `.codescout/system-prompt.md` also exceeds the budget on
 its own (~2 KB), pushing every later block — including the recon primer — into the
 dead zone.
 
@@ -474,14 +474,14 @@ message.
 
 ## References
 
-- `/home/marius/work/claude/code-explorer/docs/architecture/mcp-channel-caps.md` —
+- `/home/marius/work/claude/codescout/docs/architecture/mcp-channel-caps.md` —
   ADR establishing the 2 KB cap evidence base (empirical sentinel probes).
-- `/home/marius/work/claude/code-explorer/docs/superpowers/specs/2026-05-19-mcp-prompt-channel-redesign-design.md` —
+- `/home/marius/work/claude/codescout/docs/superpowers/specs/2026-05-19-mcp-prompt-channel-redesign-design.md` —
   Sibling design on the codescout MCP side; same structural pattern applied to
   MCP `initialize.instructions` + per-tool `description`.
-- `/home/marius/work/claude/code-explorer/docs/trackers/get-guide-topics.md` —
+- `/home/marius/work/claude/codescout/docs/trackers/get-guide-topics.md` —
   Surface D tracker (sibling pattern).
-- `/home/marius/work/claude/code-explorer/src/tools/guide.rs` — `get_guide`
+- `/home/marius/work/claude/codescout/src/tools/guide.rs` — `get_guide`
   tool implementation that this design's `Skill` invocation mirrors.
 - `codescout-companion/hooks/session-start.sh` — current SessionStart hook
   (modification target).

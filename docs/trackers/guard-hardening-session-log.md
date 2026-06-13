@@ -156,7 +156,7 @@ Codified so the Index column means the same thing across sessions.
 
 **Status:** fixed-verified
 
-**Fix idea / Pointer:** Implemented by `ad9073d` (hook hardening) + `e70d783` (legacy test migration). Verified 2026-05-21: `tests/run-all.sh` green (pre-tool-guard.test.sh 25/25); manual cross-repo Read of `/home/marius/work/claude/code-explorer/README.md` from this repo's CWD returns `permissionDecision: deny` with `read_markdown` guidance, where pre-`ad9073d` the same call exited silent-allow. Design doc: `docs/superpowers/specs/2026-05-21-guard-cross-repo-hardening-design.md`.
+**Fix idea / Pointer:** Implemented by `ad9073d` (hook hardening) + `e70d783` (legacy test migration). Verified 2026-05-21: `tests/run-all.sh` green (pre-tool-guard.test.sh 25/25); manual cross-repo Read of `/home/marius/work/claude/codescout/README.md` from this repo's CWD returns `permissionDecision: deny` with `read_markdown` guidance, where pre-`ad9073d` the same call exited silent-allow. Design doc: `docs/superpowers/specs/2026-05-21-guard-cross-repo-hardening-design.md`.
 
 ---
 ## Template for new entries

@@ -2,11 +2,11 @@
 
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
-**Goal:** Refactor code-explorer-routing plugin for single-source guidance, workspace-scoped blocking, specific redirect messages, and a new edit-router hook.
+**Goal:** Refactor codescout-companion plugin for single-source guidance, workspace-scoped blocking, specific redirect messages, and a new edit-router hook.
 
 **Architecture:** Extract guidance into `guidance.txt`, add config for `workspace_root` and `block_reads` in `detect-tools.sh`, generate specific redirect messages in `semantic-tool-router.sh`, and add `edit-router.sh` for blocking `replace_content` on source files.
 
-**Tech Stack:** Bash, jq. All files in `/home/marius/work/claude/claude-plugins/code-explorer-routing/hooks/`.
+**Tech Stack:** Bash, jq. All files in `/home/marius/work/claude/claude-plugins/codescout-companion/hooks/`.
 
 **Design doc:** `docs/plans/2026-02-26-plugin-refactor-design.md`
 
@@ -41,7 +41,7 @@ EDIT code:
 RULES:
   1. Structure before content — get_symbols_overview ALWAYS before reading
   2. Symbol tools for code edits — never replace_content on source files
-  3. Grep/Glob/Read are for .md .json .toml .yaml only — code-explorer for source
+  3. Grep/Glob/Read are for .md .json .toml .yaml only — codescout for source
 ```
 
 **Step 2: Verify**
@@ -65,7 +65,7 @@ git commit -m "feat(routing): add single-source guidance.txt"
 
 **Step 1: Add config reading after the existing detection logic**
 
-After the `SOURCE_EXT_PATTERN` line at the end of the file, the file currently ends. Add config reading from `.claude/code-explorer-routing.json` for the new fields. Also read the config file earlier where `ROUTING_CONFIG` is defined — it's already read for `server_name`, extend it.
+After the `SOURCE_EXT_PATTERN` line at the end of the file, the file currently ends. Add config reading from `.claude/codescout-companion.json` for the new fields. Also read the config file earlier where `ROUTING_CONFIG` is defined — it's already read for `server_name`, extend it.
 
 After the existing config reading block (around line 20-27 where `_override` is read), add:
 
@@ -89,7 +89,7 @@ Place this block AFTER the existing `if [ -f "$ROUTING_CONFIG" ]` block (don't m
 
 **Step 2: Verify detection script still works**
 
-Run: `CWD=/home/marius/work/claude/code-explorer source hooks/detect-tools.sh && echo "CE=$HAS_CODE_EXPLORER BLOCK=$BLOCK_READS WS=$WORKSPACE_ROOT"`
+Run: `CWD=/home/marius/work/claude/codescout source hooks/detect-tools.sh && echo "CE=$HAS_CODE_EXPLORER BLOCK=$BLOCK_READS WS=$WORKSPACE_ROOT"`
 Expected: `CE=true BLOCK=true WS=` (empty workspace since no config yet)
 
 **Step 3: Test with a config file**
@@ -97,14 +97,14 @@ Expected: `CE=true BLOCK=true WS=` (empty workspace since no config yet)
 Run:
 ```bash
 mkdir -p /tmp/test-routing/.claude
-echo '{"workspace_root": "~/work", "block_reads": true}' > /tmp/test-routing/.claude/code-explorer-routing.json
+echo '{"workspace_root": "~/work", "block_reads": true}' > /tmp/test-routing/.claude/codescout-companion.json
 CWD=/tmp/test-routing source hooks/detect-tools.sh && echo "BLOCK=$BLOCK_READS WS=$WORKSPACE_ROOT"
 ```
 Expected: `BLOCK=true WS=/home/marius/work`
 
 Run:
 ```bash
-echo '{"block_reads": false}' > /tmp/test-routing/.claude/code-explorer-routing.json
+echo '{"block_reads": false}' > /tmp/test-routing/.claude/codescout-companion.json
 CWD=/tmp/test-routing source hooks/detect-tools.sh && echo "BLOCK=$BLOCK_READS"
 ```
 Expected: `BLOCK=false`
@@ -131,7 +131,7 @@ Replace the entire `MSG` construction (the ~80 line tool guide) with reading fro
 
 The new script should:
 1. Source `detect-tools.sh` (unchanged)
-2. Exit if no code-explorer (unchanged)
+2. Exit if no codescout (unchanged)
 3. Build `MSG` with onboarding hint if needed (unchanged logic, same text)
 4. Build `MSG` with memory hint if needed (unchanged logic, same text)
 5. Read `guidance.txt` and append it to `MSG` (replaces the hardcoded guide)
@@ -142,8 +142,8 @@ The full new script:
 
 ```bash
 #!/bin/bash
-# SessionStart hook — inject code-explorer tool guidance into main agent
-# No-op if code-explorer is not configured for this project.
+# SessionStart hook — inject codescout tool guidance into main agent
+# No-op if codescout is not configured for this project.
 
 INPUT=$(cat)
 CWD=$(echo "$INPUT" | jq -r '.cwd // empty')
@@ -175,7 +175,7 @@ fi
 MSG="${MSG}${GUIDANCE}
 
 NEVER USE BASH AGENTS FOR CODE WORK.
-Bash agents have no code-explorer tools. Use general-purpose, Plan, or Explore
+Bash agents have no codescout tools. Use general-purpose, Plan, or Explore
 agents for any task involving code reading, writing, or navigation."
 
 jq -n --arg ctx "$MSG" '{
@@ -188,13 +188,13 @@ jq -n --arg ctx "$MSG" '{
 
 **Step 2: Verify output**
 
-Run: `echo '{"cwd":"/home/marius/work/claude/code-explorer"}' | bash hooks/session-start.sh | jq -r '.hookSpecificOutput.additionalContext' | head -5`
+Run: `echo '{"cwd":"/home/marius/work/claude/codescout"}' | bash hooks/session-start.sh | jq -r '.hookSpecificOutput.additionalContext' | head -5`
 Expected: Should start with `CODE-EXPLORER MEMORIES:` or `CODE-EXPLORER: Read →` depending on onboarding/memory state.
 
-Run: `echo '{"cwd":"/home/marius/work/claude/code-explorer"}' | bash hooks/session-start.sh | jq -r '.hookSpecificOutput.additionalContext' | grep "edit_lines"`
+Run: `echo '{"cwd":"/home/marius/work/claude/codescout"}' | bash hooks/session-start.sh | jq -r '.hookSpecificOutput.additionalContext' | grep "edit_lines"`
 Expected: Should find the `edit_lines` line from guidance.txt.
 
-Run: `echo '{"cwd":"/home/marius/work/claude/code-explorer"}' | bash hooks/session-start.sh | jq -r '.hookSpecificOutput.additionalContext' | wc -l`
+Run: `echo '{"cwd":"/home/marius/work/claude/codescout"}' | bash hooks/session-start.sh | jq -r '.hookSpecificOutput.additionalContext' | wc -l`
 Expected: ~30-35 lines (preamble + 20 lines guidance + bash agents warning).
 
 **Step 3: Commit**
@@ -217,7 +217,7 @@ Remove the Plan vs compact split. All code-capable agents get the same `guidance
 
 ```bash
 #!/bin/bash
-# SubagentStart hook — inject code-explorer guidance into all subagents
+# SubagentStart hook — inject codescout guidance into all subagents
 # Skips agents that don't do code work.
 
 INPUT=$(cat)
@@ -247,13 +247,13 @@ jq -n --arg ctx "$GUIDANCE" '{
 
 **Step 2: Verify output**
 
-Run: `echo '{"cwd":"/home/marius/work/claude/code-explorer","agent_type":"general-purpose"}' | bash hooks/subagent-guidance.sh | jq -r '.hookSpecificOutput.additionalContext' | head -3`
+Run: `echo '{"cwd":"/home/marius/work/claude/codescout","agent_type":"general-purpose"}' | bash hooks/subagent-guidance.sh | jq -r '.hookSpecificOutput.additionalContext' | head -3`
 Expected: `CODE-EXPLORER: Read → Navigate → Edit. Never skip steps.`
 
-Run: `echo '{"cwd":"/home/marius/work/claude/code-explorer","agent_type":"Bash"}' | bash hooks/subagent-guidance.sh`
+Run: `echo '{"cwd":"/home/marius/work/claude/codescout","agent_type":"Bash"}' | bash hooks/subagent-guidance.sh`
 Expected: Empty output (Bash agents skipped).
 
-Run: `echo '{"cwd":"/home/marius/work/claude/code-explorer","agent_type":"Plan"}' | bash hooks/subagent-guidance.sh | jq -r '.hookSpecificOutput.additionalContext' | grep "edit_lines"`
+Run: `echo '{"cwd":"/home/marius/work/claude/codescout","agent_type":"Plan"}' | bash hooks/subagent-guidance.sh | jq -r '.hookSpecificOutput.additionalContext' | grep "edit_lines"`
 Expected: Should find `edit_lines` — Plan agents now get the same guidance as everyone else.
 
 **Step 3: Commit**
@@ -279,7 +279,7 @@ Major changes:
 
 ```bash
 #!/bin/bash
-# PreToolUse hook — redirect Grep/Glob/Read on source files to code-explorer tools
+# PreToolUse hook — redirect Grep/Glob/Read on source files to codescout tools
 # Pass-through for non-code files, files outside workspace, and when blocking is disabled.
 
 INPUT=$(cat)
@@ -336,7 +336,7 @@ case "$TOOL_NAME" in
     [ "$IS_SOURCE" = "false" ] && exit 0
     is_in_workspace "${PATH_VAL:-$CWD}" || exit 0
 
-    deny "BLOCKED: Use code-explorer for source file search:
+    deny "BLOCKED: Use codescout for source file search:
   search_for_pattern(\"${PATTERN}\")  — regex across source files
   find_symbol(\"${PATTERN}\")         — find symbol by name
   semantic_search(\"${PATTERN}\")     — find code by meaning"
@@ -358,7 +358,7 @@ case "$TOOL_NAME" in
 
     # Block specific named file lookups
     if [[ "$BASENAME" =~ ^[A-Z] ]] || [[ "$BASENAME" != "*"* ]]; then
-      deny "BLOCKED: Use code-explorer for source file discovery:
+      deny "BLOCKED: Use codescout for source file discovery:
   find_file(\"${PATTERN}\")           — glob file discovery
   find_symbol(\"${BASENAME%.*}\")     — find symbol by name"
     fi
@@ -394,37 +394,37 @@ exit 0
 
 **Step 2: Verify — source file inside workspace is blocked**
 
-Run: `echo '{"cwd":"/home/marius/work/claude/code-explorer","tool_name":"Read","tool_input":{"file_path":"/home/marius/work/claude/code-explorer/src/server.rs"}}' | bash hooks/semantic-tool-router.sh | jq -r '.hookSpecificOutput.permissionDecisionReason' | head -1`
+Run: `echo '{"cwd":"/home/marius/work/claude/codescout","tool_name":"Read","tool_input":{"file_path":"/home/marius/work/claude/codescout/src/server.rs"}}' | bash hooks/semantic-tool-router.sh | jq -r '.hookSpecificOutput.permissionDecisionReason' | head -1`
 Expected: `BLOCKED: Use structure discovery instead of reading whole files:`
 
 **Step 3: Verify — source file outside workspace passes through**
 
 First create a config with workspace_root:
 ```bash
-mkdir -p /home/marius/work/claude/code-explorer/.claude
-echo '{"workspace_root": "~/work/claude/code-explorer"}' > /home/marius/work/claude/code-explorer/.claude/code-explorer-routing.json
+mkdir -p /home/marius/work/claude/codescout/.claude
+echo '{"workspace_root": "~/work/claude/codescout"}' > /home/marius/work/claude/codescout/.claude/codescout-companion.json
 ```
 
-Run: `echo '{"cwd":"/home/marius/work/claude/code-explorer","tool_name":"Read","tool_input":{"file_path":"/home/marius/work/claude/claude-plugins/code-explorer-routing/hooks/session-start.sh"}}' | bash hooks/semantic-tool-router.sh`
+Run: `echo '{"cwd":"/home/marius/work/claude/codescout","tool_name":"Read","tool_input":{"file_path":"/home/marius/work/claude/claude-plugins/codescout-companion/hooks/session-start.sh"}}' | bash hooks/semantic-tool-router.sh`
 Expected: Empty output (file is outside workspace, passes through).
 
-Clean up the test config: `rm /home/marius/work/claude/code-explorer/.claude/code-explorer-routing.json`
+Clean up the test config: `rm /home/marius/work/claude/codescout/.claude/codescout-companion.json`
 
 **Step 4: Verify — targeted read passes through**
 
-Run: `echo '{"cwd":"/home/marius/work/claude/code-explorer","tool_name":"Read","tool_input":{"file_path":"src/server.rs","limit":20,"offset":100}}' | bash hooks/semantic-tool-router.sh`
+Run: `echo '{"cwd":"/home/marius/work/claude/codescout","tool_name":"Read","tool_input":{"file_path":"src/server.rs","limit":20,"offset":100}}' | bash hooks/semantic-tool-router.sh`
 Expected: Empty output (targeted read, passes through).
 
 **Step 5: Verify — non-source file passes through**
 
-Run: `echo '{"cwd":"/home/marius/work/claude/code-explorer","tool_name":"Read","tool_input":{"file_path":"README.md"}}' | bash hooks/semantic-tool-router.sh`
+Run: `echo '{"cwd":"/home/marius/work/claude/codescout","tool_name":"Read","tool_input":{"file_path":"README.md"}}' | bash hooks/semantic-tool-router.sh`
 Expected: Empty output (not a source file).
 
 **Step 6: Verify — block_reads=false disables all blocking**
 
 ```bash
 mkdir -p /tmp/test-routing/.claude
-echo '{"block_reads": false}' > /tmp/test-routing/.claude/code-explorer-routing.json
+echo '{"block_reads": false}' > /tmp/test-routing/.claude/codescout-companion.json
 echo '{"cwd":"/tmp/test-routing","tool_name":"Read","tool_input":{"file_path":"src/main.rs"}}' | bash hooks/semantic-tool-router.sh
 ```
 Expected: Empty output (blocking disabled).
@@ -449,7 +449,7 @@ git commit -m "feat(routing): workspace-scoped blocking with specific redirect m
 ```bash
 #!/bin/bash
 # PreToolUse hook — redirect replace_content on source files to edit_lines or symbol tools
-# Only blocks when the tool belongs to the code-explorer MCP server.
+# Only blocks when the tool belongs to the codescout MCP server.
 
 INPUT=$(cat)
 TOOL_NAME=$(echo "$INPUT" | jq -r '.tool_name // empty')
@@ -458,7 +458,7 @@ source "$(dirname "$0")/detect-tools.sh"
 
 [ "$HAS_CODE_EXPLORER" = "false" ] && exit 0
 
-# Only block code-explorer's replace_content, not other tools matching the substring
+# Only block codescout's replace_content, not other tools matching the substring
 EXPECTED_TOOL="mcp__${CE_SERVER_NAME}__replace_content"
 [ "$TOOL_NAME" != "$EXPECTED_TOOL" ] && exit 0
 
@@ -492,18 +492,18 @@ Run: `chmod +x hooks/edit-router.sh`
 
 **Step 3: Verify — blocks replace_content on source file**
 
-Run: `echo '{"cwd":"/home/marius/work/claude/code-explorer","tool_name":"mcp__code-explorer__replace_content","tool_input":{"path":"src/server.rs","old":"foo","new":"bar"}}' | bash hooks/edit-router.sh | jq -r '.hookSpecificOutput.permissionDecisionReason' | head -1`
+Run: `echo '{"cwd":"/home/marius/work/claude/codescout","tool_name":"mcp__codescout__replace_content","tool_input":{"path":"src/server.rs","old":"foo","new":"bar"}}' | bash hooks/edit-router.sh | jq -r '.hookSpecificOutput.permissionDecisionReason' | head -1`
 Expected: `BLOCKED: For code files, use symbol-aware or line-based editing:`
 
 **Step 4: Verify — passes through for non-source file**
 
-Run: `echo '{"cwd":"/home/marius/work/claude/code-explorer","tool_name":"mcp__code-explorer__replace_content","tool_input":{"path":"README.md","old":"foo","new":"bar"}}' | bash hooks/edit-router.sh`
+Run: `echo '{"cwd":"/home/marius/work/claude/codescout","tool_name":"mcp__codescout__replace_content","tool_input":{"path":"README.md","old":"foo","new":"bar"}}' | bash hooks/edit-router.sh`
 Expected: Empty output (not a source file).
 
-**Step 5: Verify — passes through for non-code-explorer tool**
+**Step 5: Verify — passes through for non-codescout tool**
 
-Run: `echo '{"cwd":"/home/marius/work/claude/code-explorer","tool_name":"Edit","tool_input":{"path":"src/server.rs"}}' | bash hooks/edit-router.sh`
-Expected: Empty output (not the code-explorer MCP tool).
+Run: `echo '{"cwd":"/home/marius/work/claude/codescout","tool_name":"Edit","tool_input":{"path":"src/server.rs"}}' | bash hooks/edit-router.sh`
+Expected: Empty output (not the codescout MCP tool).
 
 **Step 6: Commit**
 
@@ -595,22 +595,22 @@ If any missing: `chmod +x hooks/*.sh`
 
 **Step 2: End-to-end test — session start**
 
-Run: `echo '{"cwd":"/home/marius/work/claude/code-explorer"}' | bash hooks/session-start.sh | jq -r '.hookSpecificOutput.additionalContext'`
+Run: `echo '{"cwd":"/home/marius/work/claude/codescout"}' | bash hooks/session-start.sh | jq -r '.hookSpecificOutput.additionalContext'`
 Expected: Onboarding/memory preamble + guidance from `guidance.txt` + bash agents warning. Should contain `edit_lines`. Should NOT contain the old 80-line tool guide.
 
 **Step 3: End-to-end test — subagent (Plan)**
 
-Run: `echo '{"cwd":"/home/marius/work/claude/code-explorer","agent_type":"Plan"}' | bash hooks/subagent-guidance.sh | jq -r '.hookSpecificOutput.additionalContext'`
+Run: `echo '{"cwd":"/home/marius/work/claude/codescout","agent_type":"Plan"}' | bash hooks/subagent-guidance.sh | jq -r '.hookSpecificOutput.additionalContext'`
 Expected: Same ~20 line guidance. No more separate "rich Plan" variant.
 
 **Step 4: End-to-end test — read blocked with specific path**
 
-Run: `echo '{"cwd":"/home/marius/work/claude/code-explorer","tool_name":"Read","tool_input":{"file_path":"src/tools/file.rs"}}' | bash hooks/semantic-tool-router.sh | jq -r '.hookSpecificOutput.permissionDecisionReason'`
+Run: `echo '{"cwd":"/home/marius/work/claude/codescout","tool_name":"Read","tool_input":{"file_path":"src/tools/file.rs"}}' | bash hooks/semantic-tool-router.sh | jq -r '.hookSpecificOutput.permissionDecisionReason'`
 Expected: Message includes `get_symbols_overview("src/tools/file.rs")` — the actual path.
 
 **Step 5: End-to-end test — replace_content blocked on source**
 
-Run: `echo '{"cwd":"/home/marius/work/claude/code-explorer","tool_name":"mcp__code-explorer__replace_content","tool_input":{"path":"src/server.rs","old":"x","new":"y"}}' | bash hooks/edit-router.sh | jq -r '.hookSpecificOutput.permissionDecisionReason'`
+Run: `echo '{"cwd":"/home/marius/work/claude/codescout","tool_name":"mcp__codescout__replace_content","tool_input":{"path":"src/server.rs","old":"x","new":"y"}}' | bash hooks/edit-router.sh | jq -r '.hookSpecificOutput.permissionDecisionReason'`
 Expected: Message includes `edit_lines("src/server.rs", ...)` — the actual path.
 
 **Step 6: Verify file count**

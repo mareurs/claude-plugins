@@ -884,8 +884,8 @@ T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
 make_git_repo "$T/proj"
 write_mcp_json "$T/proj"
 make_codescout_dir "$T/proj"
-make_memories "$T/proj"          # creates .code-explorer/memories
-make_system_prompt "$T/proj"     # creates .code-explorer/system-prompt.md
+make_memories "$T/proj"          # creates .codescout/memories
+make_system_prompt "$T/proj"     # creates .codescout/system-prompt.md
 
 INPUT=$(printf '{"cwd":"%s","session_id":"size-sid","source":"startup"}' "$T/proj")
 OUT=$(echo "$INPUT" | bash "$HOOK" 2>/dev/null)

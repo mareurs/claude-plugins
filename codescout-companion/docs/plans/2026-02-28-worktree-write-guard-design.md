@@ -2,7 +2,7 @@
 
 **Date:** 2026-02-28
 **Status:** Approved
-**Plugin:** code-explorer-routing
+**Plugin:** codescout-companion
 
 ## Problem
 
@@ -11,15 +11,15 @@ When `EnterWorktree` is called, two independent systems track "current directory
 | Tool | Current directory | How it changes |
 |------|-------------------|----------------|
 | Bash tool | Resets each call; must use absolute paths or `-C` | `cd`, `-C`, absolute paths |
-| code-explorer MCP | Main repo (set at startup) | Only via `activate_project` |
+| codescout MCP | Main repo (set at startup) | Only via `activate_project` |
 
-This split-brain causes code-explorer write tools (`edit_lines`, `replace_symbol`, etc.)
+This split-brain causes codescout write tools (`edit_lines`, `replace_symbol`, etc.)
 to silently resolve relative paths against the **main repo root**, not the worktree.
 The tool returns the absolute path it actually wrote, but agents don't notice.
 
 There is also a **bug in the existing `worktree-activate.sh`**: it exits early with
 `[ -z "$CE_DIR" ] && exit 0` before the guidance injection block. Any project without
-a `.code-explorer/` directory gets **no guidance at all** after `EnterWorktree`.
+a `.codescout/` directory gets **no guidance at all** after `EnterWorktree`.
 
 ## Design
 
@@ -56,7 +56,7 @@ worktree-activate.sh creates $WT/.ce-worktree-pending
 1. Detect worktree path (existing logic)
 2. Inject `additionalContext` with activate_project instruction **(always)**
 3. Create `$WORKTREE_PATH/.ce-worktree-pending` marker
-4. Attempt symlink `.code-explorer/` (best-effort, skip if CE_DIR missing)
+4. Attempt symlink `.codescout/` (best-effort, skip if CE_DIR missing)
 
 ### Piece 2: New `worktree-write-guard.sh` (PreToolUse)
 
@@ -81,7 +81,7 @@ Logic:
      "hookSpecificOutput": {
        "hookEventName": "PreToolUse",
        "decision": "block",
-       "reason": "⛔ WORKTREE WRITE BLOCKED: activate_project must be called first.\nCall activate_project(\"$WT_ROOT\") before using code-explorer write tools in a worktree.\nThis prevents silently writing to the wrong repository."
+       "reason": "⛔ WORKTREE WRITE BLOCKED: activate_project must be called first.\nCall activate_project(\"$WT_ROOT\") before using codescout write tools in a worktree.\nThis prevents silently writing to the wrong repository."
      }
    }
    ```
@@ -101,7 +101,7 @@ mcp__.*__activate_project
 Logic:
 1. Extract activated path from `tool_response` (JSON field `path` or `project_root`)
 2. Remove `$ACTIVATED_PATH/.ce-worktree-pending` if it exists
-3. Inject `additionalContext` confirming: "code-explorer switched to `$ACTIVATED_PATH`. Write tools unblocked."
+3. Inject `additionalContext` confirming: "codescout switched to `$ACTIVATED_PATH`. Write tools unblocked."
 
 ### Piece 4: Guidance hardening
 
@@ -109,7 +109,7 @@ Logic:
 ```
 WORKTREES:
   After EnterWorktree, ALWAYS call activate_project("/abs/worktree/path") before
-  using any code-explorer tools. Code-explorer tracks its own active project
+  using any codescout tools. Code-explorer tracks its own active project
   independently of Bash CWD — they are NOT coupled automatically.
 ```
 
@@ -117,7 +117,7 @@ WORKTREES:
 
 **`using-git-worktrees` SKILL.md** — add after step 2 (Create Worktree):
 ```
-### 2b. If code-explorer is configured (Step only when relevant)
+### 2b. If codescout is configured (Step only when relevant)
 Call activate_project("/abs/path/to/worktree") immediately after EnterWorktree.
 Code-explorer's active project does not change automatically when the Bash CWD changes.
 ```
@@ -132,7 +132,7 @@ Code-explorer's active project does not change automatically when the Bash CWD c
 | `hooks/hooks.json` | Add matchers for new hooks |
 | `hooks/guidance.txt` | Add WORKTREES section |
 | `hooks/session-start.sh` | Inject activate_project guidance when IN_WORKTREE |
-| `skills/using-git-worktrees/SKILL.md` | Add code-explorer integration step |
+| `skills/using-git-worktrees/SKILL.md` | Add codescout integration step |
 
 ## Out of scope
 

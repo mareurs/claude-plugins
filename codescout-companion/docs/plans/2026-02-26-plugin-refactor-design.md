@@ -8,11 +8,11 @@
 1. **Editing guidance missing** — LLM picks `replace_content` for code instead of
    `edit_lines` or symbol tools. No hook or guidance steers editing choices.
 2. **Blocking scope too broad** — PreToolUse hook blocks source file reads outside
-   the workspace where code-explorer can't help (e.g. reading `.sh` in a sibling repo).
+   the workspace where codescout can't help (e.g. reading `.sh` in a sibling repo).
 3. **Block fatigue** — Generic block messages don't tell Claude what to do next.
    Repeated blocks make Claude give up instead of trying the right tool.
 4. **Guidance staleness** — Tool guide is duplicated in 3 places (session-start,
-   subagent Plan, subagent compact). Every code-explorer tool change requires
+   subagent Plan, subagent compact). Every codescout tool change requires
    updating all 3.
 
 ## Solution
@@ -44,7 +44,7 @@ EDIT code:
 RULES:
   1. Structure before content -- get_symbols_overview ALWAYS before reading
   2. Symbol tools for code edits -- never replace_content on source files
-  3. Grep/Glob/Read are for .md .json .toml .yaml only -- code-explorer for source
+  3. Grep/Glob/Read are for .md .json .toml .yaml only -- codescout for source
 ```
 
 No more Plan vs compact split. Everyone gets the same 20 lines. Session-start
@@ -52,10 +52,10 @@ prepends onboarding/memory preamble when applicable.
 
 ### 2. Workspace-scoped blocking
 
-Config in `.claude/code-explorer-routing.json`:
+Config in `.claude/codescout-companion.json`:
 ```json
 {
-  "server_name": "code-explorer",
+  "server_name": "codescout",
   "workspace_root": "~/work",
   "block_reads": true
 }
@@ -131,5 +131,5 @@ hooks/
 ```
 
 The `replace_content` matcher matches any tool with that substring. `edit-router.sh`
-verifies it's the code-explorer MCP tool (checks against `CE_SERVER_NAME`) before
+verifies it's the codescout MCP tool (checks against `CE_SERVER_NAME`) before
 blocking.
