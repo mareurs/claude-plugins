@@ -1,0 +1,39 @@
+# Eval corpus for the explore-bootstrap injector's foreign-project detector.
+# Derived from real Agent dispatch prompts mined across all 3 profiles
+# (2,501 dispatches, 2026-06-13). Each row: a (cwd, path) pair that appeared
+# in a real dispatch, with the gold label.
+#
+# CONTRACT under test: a dispatch should get the foreign-project bootstrap
+# injected iff the prompt names an absolute path that resolves into a git repo
+# whose identity (git-common-dir, to fold worktrees) differs from cwd's repo.
+# Comment lines (#) and blank lines are ignored by the test harness.
+#
+# Headline eval result: 199/2501 = 7% inject. Precision high on this corpus;
+# the two known imperfections are tagged below (FP-RISK / KNOWN-FN).
+
+# ---------- POSITIVE: foreign repo, inject ----------
+{"cwd":"/home/marius/work/mirela/backend-kotlin","path":"/home/marius/work/mirela/eduplanner-ui","expect":"inject","reason":"cross-repo: FE work in sibling repo"}
+{"cwd":"/home/marius/work/mirela/backend-kotlin","path":"/home/marius/work/mirela/deployment","expect":"inject","reason":"Explore deployment repo for fix evidence"}
+{"cwd":"/home/marius/work/mirela/deployment","path":"/home/marius/work/mirela/backend-kotlin","expect":"inject","reason":"review backend impl from deployment cwd"}
+{"cwd":"/home/marius/work/claude/codescout","path":"/home/marius/work/mirela/backend-kotlin","expect":"inject","reason":"cross-umbrella foreign repo"}
+{"cwd":"/home/marius/work/claude/claude-plugins","path":"/home/marius/work/claude/codescout","expect":"inject","reason":"investigate the codescout server repo from claude-plugins"}
+{"cwd":"/home/marius/work/claude/codescout","path":"/home/marius/work/claude/claude-plugins/codescout-companion/hooks/goal-stop-hook.sh","expect":"inject","reason":"a FILE inside a different repo resolves to that repo's root"}
+
+# ---------- NEGATIVE: outside-cwd path but NOT a foreign repo, skip ----------
+{"cwd":"/home/marius/work/claude/claude-plugins","path":"/usr/bin/env","expect":"skip","reason":"shebang; no git repo up-tree"}
+{"cwd":"/home/marius/work/stefanini/southpole/MRV-poc","path":"/tmp/probe_claude_opus_vertex.md","expect":"skip","reason":"temp doc; no git repo"}
+{"cwd":"/home/marius/work/claude/claude-plugins","path":"/home/marius/.buddy","expect":"skip","reason":"home data dir; not a git repo; work is in cwd"}
+{"cwd":"/home/marius/work/claude/codescout","path":"/home/marius/.claude/buddy/skills/codescout-pika/sql/queries.sql","expect":"skip","reason":"~/.claude is not a repo; skill files referenced, work in cwd"}
+{"cwd":"/home/marius/work/claude/claude-plugins","path":"/home/marius/.cargo/registry/src/index.crates.io/rmcp/examples","expect":"skip","reason":"dependency source under ~/.cargo; not a project repo"}
+{"cwd":"/home/marius/work/claude/claude-plugins","path":"/home/u/.claude/projects/x/abc-123.jsonl","expect":"skip","reason":"placeholder / non-existent path; no repo"}
+{"cwd":"/home/marius/work/stefanini/extenda/extenda-buddy-smartstore","path":"/home/marius/.ssh","expect":"skip","reason":"referenced config path; not a repo"}
+
+# ---------- EDGE: same repo identity, skip ----------
+{"cwd":"/home/marius/work/claude/claude-plugins","path":"/home/marius/work/claude/claude-plugins/codescout-companion","expect":"skip","reason":"subdir of cwd's OWN repo, not foreign"}
+
+# ---------- KNOWN-FN: foreign intent the path-detector cannot see (documents the miss) ----------
+{"cwd":"/home/marius/work/claude/codescout","path":"/tmp/onboarding-project-kotlin-library.md","expect":"skip","reason":"KNOWN false-negative: a foreign-project onboarding, but addressed via a /tmp instructions file, not a repo path"}
+
+# ---------- FP-RISK: reads a file in another repo but real work is in cwd (documents the over-trigger) ----------
+# (No clean negative row — the git-identity rule WILL inject here. Tracked as the
+#  primary residual false-positive; mitigate later via an idempotency/intent check.)
