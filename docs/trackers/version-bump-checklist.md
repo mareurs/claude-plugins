@@ -17,7 +17,7 @@ Release readiness across plugins × profiles. See
 
 ## State
 
-_Last refresh: `be87850`_
+_Last refresh: `2c1fcc5`_
 
 **codescout-companion** — canonical `1.11.12` · readme `1.11.12` · marketplace clean ✅
 
@@ -27,13 +27,13 @@ _Last refresh: `be87850`_
 | `~/.claude-sdd` | 1.11.12 ✅ | ✅ | ✅ |
 | `~/.claude-kat` | 1.11.12 ✅ | ✅ | ✅ |
 
-**buddy** — canonical `0.7.19` · readme `0.7.19` · marketplace clean ✅
+**buddy** — canonical `0.7.20` · readme `0.7.20` · marketplace clean ✅
 
 | profile | installed | cache dir | install_path ok |
 |---|---|---|---|
-| `~/.claude` | 0.7.19 ✅ | ✅ | ✅ |
-| `~/.claude-sdd` | 0.7.19 ✅ | ✅ | ✅ |
-| `~/.claude-kat` | 0.7.19 ✅ | ✅ | ✅ |
+| `~/.claude` | 0.7.20 ✅ | ✅ | ✅ |
+| `~/.claude-sdd` | 0.7.20 ✅ | ✅ | ✅ |
+| `~/.claude-kat` | 0.7.20 ✅ | ✅ | ✅ |
 
 **sdd** — canonical `2.4.1` · readme `2.4.1` · marketplace clean ✅
 
@@ -43,6 +43,15 @@ _Last refresh: `be87850`_
 | `~/.claude-sdd` | — ❌ | ❌ | ❌ |
 | `~/.claude-kat` | — ❌ | ❌ | ❌ |
 ## History
+
+### 2026-06-13 — buddy 0.7.19 → 0.7.20
+
+Versions the cache-based migration (be87850 + 2c1fcc5): SessionStart drops the
+dev-symlink warning, dev-install/dev-check tooling removed, and the in-place
+0.7.19 cache re-seed gets an honest new version number. Cache seeded + records
+repointed to 0.7.20 across all three profiles; vestigial 0.7.19 cache pruned.
+Tests: `run-all.sh` all suites green, buddy pytest 451. Cold restart pending to
+bind the 0.7.20 cache.
 
 ### 2026-06-13 — buddy reverted to cache-based install
 
