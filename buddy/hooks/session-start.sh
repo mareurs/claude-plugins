@@ -4,11 +4,6 @@ set -e
 PLUGIN_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 [ -f "$PLUGIN_ROOT/hooks/judge.env" ] && . "$PLUGIN_ROOT/hooks/judge.env"
 
-# Dev-mode symlink health check
-if [ -n "${CLAUDE_PLUGIN_ROOT:-}" ] && [ -d "$CLAUDE_PLUGIN_ROOT" ] && [ ! -L "$CLAUDE_PLUGIN_ROOT" ]; then
-    echo "⚠ buddy: dev symlink broken — run: bash $PLUGIN_ROOT/scripts/dev-install.sh" >&2
-fi
-
 # Read event from stdin
 EVENT=$(cat)
 

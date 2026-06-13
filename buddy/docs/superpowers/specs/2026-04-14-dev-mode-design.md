@@ -1,3 +1,11 @@
+> **⚠ SUPERSEDED 2026-06-13 — dev mode removed.** buddy is now a cache-based
+> directory-source plugin like its siblings: versioned cache copies seeded by
+> `scripts/bump-cache.sh`, install records pointing at
+> `cache/sdd-misc-plugins/buddy/<version>/`. The `dev-install.sh` / `dev-check.sh`
+> scripts, the SessionStart symlink-health check, and the dev-mode `CLAUDE.md`
+> section described below **no longer exist**. The `buddy` codescout sub-project was
+> also folded into `root`. Kept as a historical record of the 2026-04 → 2026-06 dev-mode era.
+
 # Buddy Plugin — Dev Mode Design Spec
 
 ## 1. Problem

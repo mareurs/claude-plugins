@@ -28,45 +28,24 @@ Break things silently if violated:
 - **Catalog sync**: adding form to `data/bodhisattvas.json` → update `EXPECTED_FORMS` in `tests/test_data_catalogs.py`
 - **Run pytest** from project root before completing any change to `scripts/`
 
-## Plugin Development (dev mode)
+## Plugin Development
 
-Repo is source for `buddy` Claude Code plugin. Dev mode: plugin cache symlinked to repo, edits live instantly.
+Repo is the source for the `buddy` Claude Code plugin. buddy is a **cache-based directory-source plugin** in the `sdd-misc-plugins` marketplace — installed and version-bumped exactly like its siblings (codescout-companion, etc.). It is NOT dev-symlinked, so edits to `buddy/` are not live.
 
-### First-time setup
+### Applying a change
 
-```bash
-bash scripts/dev-install.sh
-```
-
-Registers buddy in all three Claude Code instances (`~/.claude`, `~/.claude-sdd`, and `~/.claude-kat`), replaces cache copies with symlinks to this repo.
-
-### After `/reload-plugins` clobbers the symlink
-
-See `⚠ buddy: dev symlink broken` at session start? Re-run:
+Follow the repo-root `CLAUDE.md` § "When bumping a plugin version":
 
 ```bash
-bash scripts/dev-install.sh
+# 1. bump buddy/.claude-plugin/plugin.json + the README version table, then:
+./scripts/check-versions.sh
+# 2. seed the versioned cache in all three profiles:
+./scripts/bump-cache.sh buddy <version>
+# 3. repoint installPath + version in all three install records (root CLAUDE.md step 6)
+# 4. cold-restart all three instances
 ```
 
-### Adding new commands, hooks, skills, or agents
-
-File changes live immediately (symlink). New component files (new `.md` commands, new skill dirs, etc.) need reload:
-
-```
-/reload-plugins
-```
-
-If reload replaces symlink with copy, re-run `dev-install.sh`.
-
-### Checking symlink health
-
-```bash
-bash scripts/dev-check.sh
-```
-
-### For non-dev users
-
-Install via marketplace — no dev scripts needed:
+### Install (any user)
 
 ```
 /plugin install buddy@sdd-misc-plugins
