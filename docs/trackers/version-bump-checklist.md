@@ -17,7 +17,7 @@ Release readiness across plugins × profiles. See
 
 ## State
 
-_Last refresh: `6ec9ae6`_
+_Last refresh: `be87850`_
 
 **codescout-companion** — canonical `1.11.12` · readme `1.11.12` · marketplace clean ✅
 
@@ -27,13 +27,13 @@ _Last refresh: `6ec9ae6`_
 | `~/.claude-sdd` | 1.11.12 ✅ | ✅ | ✅ |
 | `~/.claude-kat` | 1.11.12 ✅ | ✅ | ✅ |
 
-**buddy** (dev-symlinked → repo) — canonical `0.7.19` · readme `0.7.19` · marketplace clean ✅
+**buddy** — canonical `0.7.19` · readme `0.7.19` · marketplace clean ✅
 
-| profile | installed | dev symlink → repo | install_path ok |
+| profile | installed | cache dir | install_path ok |
 |---|---|---|---|
-| `~/.claude` | `0.1.0` | ✅ | ✅ |
-| `~/.claude-sdd` | `0.1.0` | ✅ | ✅ |
-| `~/.claude-kat` | `0.1.0` | ✅ | ✅ |
+| `~/.claude` | 0.7.19 ✅ | ✅ | ✅ |
+| `~/.claude-sdd` | 0.7.19 ✅ | ✅ | ✅ |
+| `~/.claude-kat` | 0.7.19 ✅ | ✅ | ✅ |
 
 **sdd** — canonical `2.4.1` · readme `2.4.1` · marketplace clean ✅
 
@@ -43,6 +43,16 @@ _Last refresh: `6ec9ae6`_
 | `~/.claude-sdd` | — ❌ | ❌ | ❌ |
 | `~/.claude-kat` | — ❌ | ❌ | ❌ |
 ## History
+
+### 2026-06-13 — buddy reverted to cache-based install
+
+Dev-symlink model retired (commit be87850). buddy is now a cache-based
+directory-source plugin like codescout-companion: the `0.1.0` symlinks were
+removed, all three install records repointed to `cache/.../buddy/0.7.19`,
+`dev-install.sh`/`dev-check.sh` deleted, and the buddy codescout sub-project
+folded into `root`. State columns for buddy revert to cache-based
+(`installed == canonical`, cache dir); the refresh prompt's dev-symlink logic
+was removed.
 
 ### 2026-06-13 — buddy switched to dev-symlink install model
 
