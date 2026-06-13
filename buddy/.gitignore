@@ -9,3 +9,4 @@ hooks/judge.env
 .buddy/
 .codescout/
 .codescout/private-memories/
+uv.lock

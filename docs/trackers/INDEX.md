@@ -15,6 +15,7 @@ dated history. Promote to codescout artifact (`kind=tracker`) once
 | [eval-bringup.md](eval-bringup.md) | Runtime bringup tracker for the eval harness — env setup, first executions, calibration loop. Subset focus of active-plan Phase 0 (T-6..T-11 specifically). | open | depends on active-plan setup work (T-1..T-5) |
 | [fixture-expansion.md](fixture-expansion.md) | Deferred T-9: author 5 fixtures + baseline + κ-calibrate for 9 remaining specialists. Backfilled on-demand as Phase 2/3 refactors each specialist. | open | blocks Phase-2/3 completion for non-takin specialists |
 | [injection-budget-session-log.md](injection-budget-session-log.md) | Reconnaissance session-log for the injection-budget work stream. Friction (F-1..F-4) + wins (W-1, W-2) ledger: hook conventions, test naming, Skill channel capacity, edit_code matcher drift. | open | standalone (recon ledger) |
+| [release-hygiene-session-log.md](release-hygiene-session-log.md) | Reconnaissance session-log for the plugin publishing / release-hygiene work stream. W-1: read a lockfile (+ its manifest) before committing — caught a stray empty `buddy/uv.lock` pinning a `requires-python` that contradicted documented runtime. | open | standalone (recon ledger) |
 | [version-bump-checklist.md](version-bump-checklist.md) | Librarian-managed artifact (`id=cc8cb9e23ab5cc67`, kind=tracker). Release readiness across plugins × profiles — gate before any version bump. Edit via artifact tools, not markdown tools. | draft | gates version bumps |
 ## Relationships
 
