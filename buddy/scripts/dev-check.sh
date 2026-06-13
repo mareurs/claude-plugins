@@ -10,7 +10,7 @@ VERSION="0.1.0"
 exit_code=0
 installed_count=0
 
-for config_dir in "$HOME/.claude" "$HOME/.claude-sdd"; do
+for config_dir in "$HOME/.claude" "$HOME/.claude-sdd" "$HOME/.claude-kat"; do
     cache_dir="$config_dir/plugins/cache/$MARKETPLACE/$PLUGIN/$VERSION"
     instance="$(basename "$config_dir")"
 

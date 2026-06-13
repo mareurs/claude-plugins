@@ -38,7 +38,7 @@ Repo is source for `buddy` Claude Code plugin. Dev mode: plugin cache symlinked 
 bash scripts/dev-install.sh
 ```
 
-Registers buddy in both Claude Code instances (`~/.claude` and `~/.claude-sdd`), replaces cache copies with symlinks to this repo.
+Registers buddy in all three Claude Code instances (`~/.claude`, `~/.claude-sdd`, and `~/.claude-kat`), replaces cache copies with symlinks to this repo.
 
 ### After `/reload-plugins` clobbers the symlink
 

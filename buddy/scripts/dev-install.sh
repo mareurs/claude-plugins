@@ -11,7 +11,7 @@ PLUGIN_KEY="buddy@sdd-misc-plugins"
 
 failures=0
 
-for config_dir in "$HOME/.claude" "$HOME/.claude-sdd"; do
+for config_dir in "$HOME/.claude" "$HOME/.claude-sdd" "$HOME/.claude-kat"; do
     instance="$(basename "$config_dir")"
     cache_parent="$config_dir/plugins/cache/$MARKETPLACE/$PLUGIN"
     cache_dir="$cache_parent/$VERSION"
@@ -19,38 +19,42 @@ for config_dir in "$HOME/.claude" "$HOME/.claude-sdd"; do
 
     echo "── ~/$instance ──"
 
-    # 1. Ensure buddy is registered in installed_plugins.json
+    # 1. Ensure buddy's install record points at the dev symlink (0.1.0).
+    #    Registers if missing; REPAIRS installPath/version if a version bump
+    #    clobbered them to a versioned cache copy. That clobber is the drift
+    #    that silently freezes dev mode at a stale snapshot on the next cold
+    #    restart — repairing it here is what keeps re-running idempotent.
     if [ -f "$plugins_json" ]; then
-        if python3 -c "
-import json, sys
-with open('$plugins_json') as f:
-    data = json.load(f)
-if '$PLUGIN_KEY' not in data.get('plugins', {}):
-    sys.exit(1)
-" 2>/dev/null; then
-            echo "  ✓ registered in installed_plugins.json"
-        else
-            echo "  + registering in installed_plugins.json"
-            python3 -c "
+        python3 -c "
 import json, tempfile, os
 from datetime import datetime, timezone
-plugins_json = '$plugins_json'
-with open(plugins_json) as f:
+pj = '$plugins_json'
+with open(pj) as f:
     data = json.load(f)
-data.setdefault('plugins', {})['$PLUGIN_KEY'] = [{
-    'scope': 'user',
-    'installPath': '$cache_dir',
-    'version': '$VERSION',
-    'installedAt': datetime.now(timezone.utc).isoformat(timespec='milliseconds').replace('+00:00', 'Z'),
-    'lastUpdated': datetime.now(timezone.utc).isoformat(timespec='milliseconds').replace('+00:00', 'Z'),
-}]
-fd, tmp = tempfile.mkstemp(dir=os.path.dirname(plugins_json))
+plugins = data.setdefault('plugins', {})
+now = datetime.now(timezone.utc).isoformat(timespec='milliseconds').replace('+00:00', 'Z')
+entry = plugins.get('$PLUGIN_KEY')
+if not entry:
+    plugins['$PLUGIN_KEY'] = [{
+        'scope': 'user', 'installPath': '$cache_dir', 'version': '$VERSION',
+        'installedAt': now, 'lastUpdated': now,
+    }]
+    print('  + registered in installed_plugins.json (dev)')
+else:
+    e = entry[0]
+    if e.get('installPath') != '$cache_dir' or e.get('version') != '$VERSION':
+        print('  ~ repairing record -> dev symlink (was %s @ %s)' % (e.get('version'), e.get('installPath')))
+        e['installPath'] = '$cache_dir'
+        e['version'] = '$VERSION'
+        e['lastUpdated'] = now
+    else:
+        print('  ✓ record already points at dev symlink')
+fd, tmp = tempfile.mkstemp(dir=os.path.dirname(pj))
 with os.fdopen(fd, 'w') as f:
     json.dump(data, f, indent=2)
     f.write('\n')
-os.replace(tmp, plugins_json)
+os.replace(tmp, pj)
 "
-        fi
     else
         echo "  ⚠ $plugins_json not found — install buddy via /plugin first, then re-run"
         ((failures++))

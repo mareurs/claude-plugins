@@ -76,6 +76,9 @@ plugin.json at install time. Duplicating it in marketplace.json causes drift.
 
 ### When bumping a plugin version
 
+> ⚠ **The two plugins use different install models — `buddy` is dev-symlinked, `codescout-companion` is cache-based.**
+> `buddy/scripts/dev-install.sh` points **all three** profiles' `cache/sdd-misc-plugins/buddy/0.1.0` at this repo via symlink, so buddy always runs the live repo. Buddy's install records must stay pinned at the `0.1.0` dev symlink. **Steps 5 and 6 below (cache-seed + install-record rewrite) apply to `codescout-companion` ONLY.** A buddy bump is: update `plugin.json` + `README` + run `check-versions.sh`, then re-run `buddy/scripts/dev-install.sh` (repairs the symlink record across all three profiles) and cold-restart. Running `bump-cache.sh` or the step-6 `jq` rewrite for buddy clobbers the dev symlink and silently freezes buddy at a stale cache snapshot on the next cold restart — that exact drift is what made a summon-path bug take a full session to diagnose (2026-06-13).
+
 Before bumping, verify:
 
 1. **Tests pass** — `./tests/run-all.sh` exits 0
@@ -88,12 +91,12 @@ Then:
 2. Update the version table in `README.md`
 3. Run `scripts/check-versions.sh` to verify consistency
 4. Commit: `chore: bump <plugin> to <version>`
-5. **Seed the versioned cache directory in all three profiles** — directory-source plugins read files from `cache/sdd-misc-plugins/<plugin>/<version>/`; if that path doesn't exist, the install record points at nothing and the hook silently fails to load:
+5. **Seed the versioned cache directory in all three profiles** (codescout-companion only — skip for the dev-symlinked buddy) — directory-source plugins read files from `cache/sdd-misc-plugins/<plugin>/<version>/`; if that path doesn't exist, the install record points at nothing and the hook silently fails to load:
    ```bash
    ./scripts/bump-cache.sh <plugin> <version>
    ```
    The script rsyncs the source dir into `~/.claude`, `~/.claude-sdd`, and `~/.claude-kat` under the matching version. Skipping this step is the #1 cause of "plugin appears installed but hook never fires" — installed_plugins.json claims `<version>` at a path that doesn't exist on disk.
-6. Update `installPath` + `version` in **all three** install records.
+6. Update `installPath` + `version` in **all three** install records (codescout-companion only — never for the dev-symlinked buddy; see the callout at the top of this section).
    Copy-paste (substitute `<plugin>` and `<version>`):
    ```bash
    PLUGIN=buddy; VERSION=0.7.12   # substitute
@@ -106,11 +109,15 @@ Then:
         && mv /tmp/ip.json "$PROFILE/plugins/installed_plugins.json"
    done
    ```
-   Both `codescout-companion` and `buddy` are versioned, directory-source
-   plugins keyed `<plugin>@sdd-misc-plugins` — the same procedure applies to
-   each. If a sister-session bumped one plugin but missed a profile (e.g.
-   `.claude-sdd` left a version behind), `check-versions.sh` won't catch it —
-   only the per-profile sanity loop below does. Run it after every bump.
+   This applies to **`codescout-companion` only** — a versioned, cache-based,
+   directory-source plugin keyed `codescout-companion@sdd-misc-plugins`.
+   **`buddy` is dev-symlinked** (see the callout at the top of this section):
+   never run `bump-cache.sh` or this `jq` rewrite for buddy — re-run
+   `buddy/scripts/dev-install.sh` instead, which repairs buddy's `0.1.0` symlink
+   record across all three profiles. If a sister-session bumped
+   codescout-companion but missed a profile (e.g. `.claude-sdd` left a version
+   behind), `check-versions.sh` won't catch it — only the per-profile sanity
+   loop below does. Run it after every bump.
 6.5. Refresh the version-bump-checklist tracker and verify every row is ✅:
    ```
    artifact(action="update", id="cc8cb9e23ab5cc67", commit_refresh=true)
@@ -134,11 +141,11 @@ Then:
 
 Checks: plugin.json versions match README.md table, marketplace.json has no version fields.
 
-**Sanity check after bumping**: for each profile, verify the path in installed_plugins.json actually exists on disk:
+**Sanity check after bumping** (codescout-companion, cache-based): for each profile, verify the path in installed_plugins.json actually exists on disk. Buddy (dev-symlinked) is verified separately by `bash buddy/scripts/dev-check.sh`, which confirms the `0.1.0` symlink resolves to this repo in all three profiles.
 
 ```bash
 for p in ~/.claude ~/.claude-sdd ~/.claude-kat; do
-  for plug in codescout-companion buddy; do
+  for plug in codescout-companion; do  # buddy is dev-symlinked — verify with: bash buddy/scripts/dev-check.sh
     v=$(jq -r ".plugins[\"$plug@sdd-misc-plugins\"][0].version" "$p/plugins/installed_plugins.json")
     [ -d "$p/plugins/cache/sdd-misc-plugins/$plug/$v" ] && echo "✓ $p $plug $v" || echo "✗ $p $plug $v MISSING"
   done
