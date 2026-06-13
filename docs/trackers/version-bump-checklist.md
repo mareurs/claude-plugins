@@ -17,32 +17,20 @@ Release readiness across plugins × profiles. See
 
 ## State
 
-_Last refresh: `2c1fcc5`_
+_Last refresh: `7ad4fa0`_
 
-**codescout-companion** — canonical `1.11.12` · readme `1.11.12` · marketplace clean ✅
-
-| profile | installed | cache dir | install_path ok |
-|---|---|---|---|
-| `~/.claude` | 1.11.12 ✅ | ✅ | ✅ |
-| `~/.claude-sdd` | 1.11.12 ✅ | ✅ | ✅ |
-| `~/.claude-kat` | 1.11.12 ✅ | ✅ | ✅ |
-
-**buddy** — canonical `0.7.20` · readme `0.7.20` · marketplace clean ✅
+**buddy** — canonical `0.7.21` · readme `0.7.21` · marketplace clean ✅
 
 | profile | installed | cache dir | install_path ok |
 |---|---|---|---|
-| `~/.claude` | 0.7.20 ✅ | ✅ | ✅ |
-| `~/.claude-sdd` | 0.7.20 ✅ | ✅ | ✅ |
-| `~/.claude-kat` | 0.7.20 ✅ | ✅ | ✅ |
-
-**sdd** — canonical `2.4.1` · readme `2.4.1` · marketplace clean ✅
-
-| profile | installed | cache dir | install_path ok |
-|---|---|---|---|
-| `~/.claude` | — ❌ | ❌ | ❌ |
-| `~/.claude-sdd` | — ❌ | ❌ | ❌ |
-| `~/.claude-kat` | — ❌ | ❌ | ❌ |
+| `~/.claude` | `0.7.21` ✅ | ✅ | ✅ |
+| `~/.claude-sdd` | `0.7.21` ✅ | ✅ | ✅ |
+| `~/.claude-kat` | `0.7.21` ✅ | ✅ | ✅ |
 ## History
+
+### 2026-06-14 — buddy 0.7.20 → 0.7.21
+
+prompt-hamsa upgrade: completeness done-state + audit-log tracker + compute-the-fault Reaction (commits `6eda7ca` + `7ad4fa0`). Canonical/readme → 0.7.21; cache seeded + install records repointed across all three profiles; sanity loop all ✅ (cache + installPath, no cross-profile drift). Pre-bump `run-all.sh` all suites green, buddy pytest 451. Cold restart pending to bind the 0.7.21 cache.
 
 ### 2026-06-13 — buddy 0.7.19 → 0.7.20
 
