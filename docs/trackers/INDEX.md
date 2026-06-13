@@ -1,10 +1,22 @@
 # Trackers — Index
 
-This directory holds active project trackers for the buddy-specialist
-introspection-and-rewrite initiative. Each tracker is markdown with a
-structured live-state block, a done-condition, body sections, and a
-dated history. Promote to codescout artifact (`kind=tracker`) once
-`claude-plugins` is registered as an artifact repo.
+This directory holds active project trackers in two families:
+
+1. **Buddy-specialist introspection-and-rewrite initiative** — the
+   audit/plan/eval chain (`buddy-introspection`, `active-plan`,
+   `eval-bringup`, `fixture-expansion`).
+2. **Standalone reconnaissance session-logs** — per-work-stream F-N/W-N
+   ledgers (`injection-budget`, `release-hygiene`, `guard-hardening`,
+   `skill-loading`), independent of the initiative above.
+
+Plus the release-gating `version-bump-checklist` (a librarian-managed
+`kind=tracker` artifact — edit via artifact tools, not markdown tools).
+
+Each tracker is markdown with a structured live-state block (or
+Index/Wins tables for the recon ledgers), a done-condition, body
+sections, and a dated history. Promote the plain-markdown ones to
+codescout artifacts (`kind=tracker`) once `claude-plugins` is registered
+as an artifact repo.
 
 ## Active trackers
 
@@ -16,6 +28,8 @@ dated history. Promote to codescout artifact (`kind=tracker`) once
 | [fixture-expansion.md](fixture-expansion.md) | Deferred T-9: author 5 fixtures + baseline + κ-calibrate for 9 remaining specialists. Backfilled on-demand as Phase 2/3 refactors each specialist. | open | blocks Phase-2/3 completion for non-takin specialists |
 | [injection-budget-session-log.md](injection-budget-session-log.md) | Reconnaissance session-log for the injection-budget work stream. Friction (F-1..F-4) + wins (W-1, W-2) ledger: hook conventions, test naming, Skill channel capacity, edit_code matcher drift. | open | standalone (recon ledger) |
 | [release-hygiene-session-log.md](release-hygiene-session-log.md) | Reconnaissance session-log for the plugin publishing / release-hygiene work stream. W-1: read a lockfile (+ its manifest) before committing — caught a stray empty `buddy/uv.lock` pinning a `requires-python` that contradicted documented runtime. | open | standalone (recon ledger) |
+| [guard-hardening-session-log.md](guard-hardening-session-log.md) | Reconnaissance session-log for the pre-tool-guard cross-repo hardening work stream. F-1: cross-repo escape lives in the markdown + Bash branches, not `is_in_workspace` (fixed-verified, `ad9073d` + `e70d783`). | open | standalone (recon ledger) |
+| [skill-loading-session-log.md](skill-loading-session-log.md) | Reconnaissance session-log for the skill-loading work stream. F-1 (Skill bypasses the tool-hook pipeline), W-1 (pre-spec recon validated all 5 load-bearing mechanisms), F-2 (compact replay inflates ledger counts). | open | standalone (recon ledger) |
 | [version-bump-checklist.md](version-bump-checklist.md) | Librarian-managed artifact (`id=cc8cb9e23ab5cc67`, kind=tracker). Release readiness across plugins × profiles — gate before any version bump. Edit via artifact tools, not markdown tools. | draft | gates version bumps |
 ## Relationships
 
