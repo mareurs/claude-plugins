@@ -1,6 +1,6 @@
 #!/bin/bash
 # codescout-companion/hooks/pre-task-hint.sh
-# PreToolUse hook on Task — emit recon pointer on first Agent dispatch
+# PreToolUse hook on Agent — emit recon pointer on first Agent dispatch
 # this session. Dedup via .buddy/$SID/hint-emitted-recon marker.
 
 if ! command -v jq &>/dev/null; then

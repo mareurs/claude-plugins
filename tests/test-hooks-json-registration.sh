@@ -12,12 +12,23 @@ else
   fail "hooks.json is valid JSON"
 fi
 
-# Test 2: Task matcher registered to pre-task-hint.sh
-MATCH=$(jq -r '.hooks.PreToolUse[] | select(.matcher == "Task") | .hooks[0].command' "$HOOKS_JSON")
+# Test 2: Agent matcher registered to pre-task-hint.sh
+# (subagent-dispatch tool was renamed Task -> Agent, 2026-06-13; matching the
+# old name silently disabled this hook — see pre-task-hint.test.sh)
+MATCH=$(jq -r '.hooks.PreToolUse[] | select(.matcher == "Agent") | .hooks[0].command' "$HOOKS_JSON")
 if echo "$MATCH" | grep -q "pre-task-hint.sh"; then
-  pass "Task matcher → pre-task-hint.sh"
+  pass "Agent matcher → pre-task-hint.sh"
 else
-  fail "Task matcher → pre-task-hint.sh" "got: $MATCH"
+  fail "Agent matcher → pre-task-hint.sh" "got: $MATCH"
+fi
+
+# Test 2b: Agent matcher also registered to explore-inject.sh (foreign-project
+# bootstrap injector — a second Agent hook alongside pre-task-hint.sh)
+MATCH=$(jq -r '.hooks.PreToolUse[] | select(.matcher == "Agent") | .hooks[].command' "$HOOKS_JSON")
+if echo "$MATCH" | grep -q "explore-inject.sh"; then
+  pass "Agent matcher → explore-inject.sh"
+else
+  fail "Agent matcher → explore-inject.sh" "got: $MATCH"
 fi
 
 # Test 3: edit_code|replace_symbol matcher registered to pre-edit-hint.sh
