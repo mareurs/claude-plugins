@@ -17,7 +17,7 @@ Release readiness across plugins × profiles. See
 
 ## State
 
-_Last refresh: `e5a3d9d`_
+_Last refresh: `6ec9ae6`_
 
 **codescout-companion** — canonical `1.11.12` · readme `1.11.12` · marketplace clean ✅
 
@@ -27,13 +27,13 @@ _Last refresh: `e5a3d9d`_
 | `~/.claude-sdd` | 1.11.12 ✅ | ✅ | ✅ |
 | `~/.claude-kat` | 1.11.12 ✅ | ✅ | ✅ |
 
-**buddy** — canonical `0.7.19` · readme `0.7.19` · marketplace clean ✅
+**buddy** (dev-symlinked → repo) — canonical `0.7.19` · readme `0.7.19` · marketplace clean ✅
 
-| profile | installed | cache dir | install_path ok |
+| profile | installed | dev symlink → repo | install_path ok |
 |---|---|---|---|
-| `~/.claude` | 0.7.19 ✅ | ✅ | ✅ |
-| `~/.claude-sdd` | 0.7.19 ✅ | ✅ | ✅ |
-| `~/.claude-kat` | 0.7.19 ✅ | ✅ | ✅ |
+| `~/.claude` | `0.1.0` | ✅ | ✅ |
+| `~/.claude-sdd` | `0.1.0` | ✅ | ✅ |
+| `~/.claude-kat` | `0.1.0` | ✅ | ✅ |
 
 **sdd** — canonical `2.4.1` · readme `2.4.1` · marketplace clean ✅
 
@@ -43,6 +43,15 @@ _Last refresh: `e5a3d9d`_
 | `~/.claude-sdd` | — ❌ | ❌ | ❌ |
 | `~/.claude-kat` | — ❌ | ❌ | ❌ |
 ## History
+
+### 2026-06-13 — buddy switched to dev-symlink install model
+
+buddy is now dev-symlinked across all three profiles: install records pinned at
+`0.1.0` → repo via `dev-install.sh` (now covers `.claude-kat` and repairs a
+bump-clobbered record). Buddy's State columns changed from cache-based
+(`installed == canonical`, cache dir) to dev-symlink (`installed == 0.1.0`,
+symlink → repo); refresh prompt updated to match. Vestigial `0.7.x` cache
+copies pruned in all three profiles. Commit 6ec9ae6.
 
 ### 2026-06-13 — buddy 0.7.18 → 0.7.19
 
