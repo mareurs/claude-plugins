@@ -81,7 +81,7 @@ if proj.is_dir():
 for r in roots:
     for line in session_start_nudges(r):
         print(line)
-" 2>/dev/null)
+" 2>/dev/null) || true
 
 if [ -n "$NUDGE_LINES" ]; then
     echo "$NUDGE_LINES"
@@ -107,7 +107,7 @@ for r in roots:
     if target:
         print(f'{r}\t{target}')
         break
-" 2>/dev/null)
+" 2>/dev/null) || true
 
 if [ -n "$AUTO" ]; then
     echo "→ memory: auto-trigger enabled — most-overdue: $AUTO. Run /buddy:consolidate to start the dry-run."
