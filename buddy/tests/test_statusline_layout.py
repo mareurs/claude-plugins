@@ -359,7 +359,7 @@ def test_compose_segments_verdict_slot_4_cs_verdict_slot_5():
 
 
 def test_compose_segments_returns_7_slots_always():
-    # Historical name; the contract is now 7 slots (slot 6 = skill ledger).
+    # Historical name; the contract is now 8 slots (slot 6 = cs skills, slot 7 = other).
     segs = _compose_segments(
         form_label="Owl",
         mood="flow",
@@ -369,11 +369,13 @@ def test_compose_segments_returns_7_slots_always():
         verdict_bubble="",
         cs_verdict_bubble="",
     )
-    assert len(segs) == 7
-    assert segs[6] == ""  # skill-ledger slot defaults empty
+    assert len(segs) == 8
+    assert segs[6] == ""  # codescout-skills slot defaults empty
+    assert segs[7] == ""  # other-skills slot defaults empty
 
 
 def test_compose_segments_skills_slot_carries_ledger_line():
+    # cs skills land in slot 6, other skills in slot 7.
     segs = _compose_segments(
         form_label="Owl",
         mood="flow",
@@ -382,18 +384,34 @@ def test_compose_segments_skills_slot_carries_ledger_line():
         recon_badge="",
         verdict_bubble="",
         cs_verdict_bubble="",
-        skills_line="skills: reconnaissance",
+        cs_skills_line="cs: reconnaissance",
+        skills_line="skills: tdd",
     )
-    assert segs[6] == "skills: reconnaissance"
+    assert segs[6] == "cs: reconnaissance"
+    assert segs[7] == "skills: tdd"
 
 
 def test_format_skills_short_names_and_cap():
     from scripts.statusline import _format_skills
     assert _format_skills([]) == ""
     assert _format_skills(["codescout-companion:reconnaissance"]) == "skills: reconnaissance"
+    assert _format_skills(["codescout-companion:reconnaissance"], label="cs") == "cs: reconnaissance"
     many = [f"p:skill-{i}" for i in range(6)]
     line = _format_skills(many)
     assert line.endswith(" …") and "skill-3" in line and "skill-4" not in line
+
+
+def test_partition_skills_splits_codescout_from_other():
+    from scripts.statusline import _partition_skills
+    cs, other = _partition_skills([
+        "codescout-companion:reconnaissance",
+        "superpowers:test-driven-development",
+        "codescout-companion:dashboard",
+        "hookify:hookify",
+    ])
+    assert cs == ["codescout-companion:reconnaissance", "codescout-companion:dashboard"]
+    assert other == ["superpowers:test-driven-development", "hookify:hookify"]
+    assert _partition_skills([]) == ([], [])
 
 
 

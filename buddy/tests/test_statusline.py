@@ -636,3 +636,43 @@ def test_render_recon_counts_corrupt_file_degrades(tmp_path):
                     bodhisattvas=BODHIS, env=ENV, now=1000000, local_hour=14,
                     session_id=sid, project_root=tmp_path)
     assert "[recon]" in output
+
+
+def test_render_skills_line_from_ledger(tmp_path):
+    """End-to-end: a populated ledger surfaces split `cs:` / `skills:` lines in render().
+
+    Mirrors the recon-badge integration tests — exercises the full loaded_skills()
+    → _partition_skills() → _format_skills() → slots 6/7 wiring, not just the halves.
+    A codescout skill and a non-codescout skill must land on separate lines.
+    """
+    sid = "sid-test"
+    sd = tmp_path / ".buddy" / sid
+    sd.mkdir(parents=True)
+    (sd / "loaded_skills.json").write_text(json.dumps({
+        "version": 1, "transcript_offset": 1,
+        "skills": {
+            "codescout-companion:reconnaissance": {"first_ts": 1, "count": 1},
+            "superpowers:test-driven-development": {"first_ts": 2, "count": 1},
+        },
+    }))
+    identity = {"version": 1, "form": "owl-of-clear-seeing", "name": "Lin",
+                "personality": "", "hatched_at": 0, "soul_model": "fallback",
+                "hatched": False}
+    output = render(identity=identity, state=default_state(),
+                    bodhisattvas=BODHIS, env=ENV, now=1000000, local_hour=14,
+                    session_id=sid, project_root=tmp_path)
+    assert "cs: reconnaissance" in output
+    assert "skills: test-driven-development" in output
+    # the two skills must be on different lines, not merged into one
+    assert "reconnaissance, test-driven-development" not in output
+
+
+def test_render_no_skills_line_when_ledger_empty(tmp_path):
+    """No ledger file → no `skills:` line, and render() still succeeds."""
+    identity = {"version": 1, "form": "owl-of-clear-seeing", "name": "Lin",
+                "personality": "", "hatched_at": 0, "soul_model": "fallback",
+                "hatched": False}
+    output = render(identity=identity, state=default_state(),
+                    bodhisattvas=BODHIS, env=ENV, now=1000000, local_hour=14,
+                    session_id="sid-test", project_root=tmp_path)
+    assert "skills:" not in output

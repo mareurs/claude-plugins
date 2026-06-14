@@ -130,8 +130,12 @@ def _compose_rows(base: str, segments: list[str], term_w: int) -> str:
     # terminals. Let slot 2 overflow and wrap; that's better than always
     # ellipsizing roles when there's actually space. Bubbles/recon stay
     # capped because they're short-by-design and a wrap onto art rows
-    # below would look worse than truncation.
-    priority = [3, 4, 5, 1]
+    # below would look worse than truncation. Slot 6 (cs skills) is capped
+    # too — it now sits ABOVE slot 7, so an overflow would wrap into the
+    # other-skills line. Slot 7 (other skills) is the bottom row with nothing
+    # beneath it, so its overflow wraps harmlessly; left OMITTED. Both skills
+    # lines are content-bounded to ≤4 short names by _format_skills.
+    priority = [3, 4, 5, 6, 1]
     for idx in priority:
         if idx >= len(work):
             continue
@@ -161,14 +165,16 @@ def _compose_segments(
     recon_badge: str,
     verdict_bubble: str,
     cs_verdict_bubble: str,
+    cs_skills_line: str = "",
     skills_line: str = "",
 ) -> list[str]:
-    """Build the 7-slot segment list for the right column of the statusline.
+    """Build the 8-slot segment list for the right column of the statusline.
 
     Slot 0 is always empty (env strip row). Slot 1 is form · mood (always). Slot 2 is the
     specialists line (or empty). Slot 3 combines `<short> nearby` and the recon badge.
     Slots 4 and 5 carry the plan verdict and codescout verdict bubbles respectively.
-    Slot 6 lists Skill-tool loads from the session skill ledger (or empty).
+    Slot 6 lists loaded codescout skills (`cs: …`); slot 7 lists other Skill-tool loads
+    (`skills: …`) — both from the session skill ledger, either may be empty.
     """
     slot1 = f"{form_label} · {mood}" if form_label else mood
     parts = []
@@ -178,11 +184,28 @@ def _compose_segments(
     if recon_badge:
         parts.append(recon_badge)
     slot3 = " ".join(parts)
-    return ["", slot1, specialists_line, slot3, verdict_bubble, cs_verdict_bubble, skills_line]
+    return ["", slot1, specialists_line, slot3, verdict_bubble,
+            cs_verdict_bubble, cs_skills_line, skills_line]
 
 
-def _format_skills(skill_ids: list[str]) -> str:
-    """Compact skill-ledger line: 'skills: recon, explore' (last id component)."""
+def _partition_skills(skill_ids: list[str]) -> tuple[list[str], list[str]]:
+    """Split loaded skill ids into (codescout, other), preserving order.
+
+    Codescout skills (any ``codescout*`` plugin namespace, e.g.
+    ``codescout-companion:reconnaissance``) get their own statusline line so a
+    crowd of unrelated skills can't bury the workflow-relevant ones. Match on
+    the FULL id's namespace — the short name alone (``reconnaissance``) has
+    lost the plugin prefix.
+    """
+    cs, other = [], []
+    for sid in skill_ids:
+        ns = sid.split(":", 1)[0]
+        (cs if ns.startswith("codescout") else other).append(sid)
+    return cs, other
+
+
+def _format_skills(skill_ids: list[str], label: str = "skills") -> str:
+    """Compact skill-ledger line: '<label>: recon, explore' (last id component)."""
     if not skill_ids:
         return ""
     shorts = []
@@ -190,7 +213,7 @@ def _format_skills(skill_ids: list[str]) -> str:
         short = sid.rsplit(":", 1)[-1]
         if short not in shorts:
             shorts.append(short)
-    return "skills: " + ", ".join(shorts[:4]) + (" …" if len(shorts) > 4 else "")
+    return f"{label}: " + ", ".join(shorts[:4]) + (" …" if len(shorts) > 4 else "")
 
 
 
@@ -411,12 +434,18 @@ def render(
     verdict_bubble = _render_bubble(session_id, project_root, now)
     cs_verdict_bubble = _render_cs_bubble(session_id, project_root, now)
 
+    cs_skills_line = ""
     skills_line = ""
     if session_id and project_root:
         try:
             from scripts.skill_ledger import loaded_skills
-            skills_line = _format_skills(loaded_skills(project_root, session_id))
+            cs_skills, other_skills = _partition_skills(
+                loaded_skills(project_root, session_id)
+            )
+            cs_skills_line = _format_skills(cs_skills, label="cs")
+            skills_line = _format_skills(other_skills, label="skills")
         except Exception:
+            cs_skills_line = ""
             skills_line = ""
 
     segments = _compose_segments(
@@ -427,6 +456,7 @@ def render(
         recon_badge=recon_badge,
         verdict_bubble=verdict_bubble,
         cs_verdict_bubble=cs_verdict_bubble,
+        cs_skills_line=cs_skills_line,
         skills_line=skills_line,
     )
 
