@@ -53,9 +53,25 @@ fi
 
 MSG=""
 
+# --- Project bootstrap: nudge activate_project as the first action ---
+# A SessionStart shell hook cannot call an MCP tool, so we ask the agent to
+# activate the project itself. activate_project (workspace action="activate")
+# prewarms LSP, auto-registers cross-project deps, and returns project_hints —
+# the orientation a fresh session needs to bootstrap. Skipped in worktrees (the
+# WORKTREE block below carries its own activate nudge to WT_ROOT) and on compact
+# (the post-compact block already routes a workspace call).
+if [ "$IN_WORKTREE" = "false" ] && [ "$SOURCE" != "compact" ] && [ -n "$CWD" ]; then
+  MSG="${MSG}PROJECT BOOTSTRAP: As your FIRST codescout action, call
+workspace(action=\"activate\", path=\"${CWD}\") (the activate_project tool) to
+bootstrap this project — it prewarms LSP, auto-registers dependencies, and
+returns project_hints (primary language, entry points, build commands).
+
+"
+fi
+
 # --- Onboarding check ---
 if [ "$HAS_CS_ONBOARDING" = "false" ]; then
-  MSG="codescout: Project not yet onboarded.
+  MSG="${MSG}codescout: Project not yet onboarded.
 Run the onboarding() tool first — it detects languages, creates project config,
 and generates exploration memories that help every subsequent session.
 

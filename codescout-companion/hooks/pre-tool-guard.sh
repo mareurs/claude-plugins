@@ -31,6 +31,20 @@ is_skill_payload() {
   echo "$1" | grep -qE '(^|/)skills/[^/]+/(SKILL\.md|_[^/]+\.md|references/[^/]+)$'
 }
 
+# --- Helper: CC harness persisted output is a native-Read exemption ---
+# When a hook's stdout (or a tool result) exceeds the inline budget, the
+# harness persists it to <config>/projects/<slug>/<uuid>/tool-results/ and
+# injects only a preview. Reading the full payload back (e.g. an over-cap
+# summon payload — a skill payload that overflowed) must pass through:
+# codescout has no index over harness scratch output, and it is never source.
+# Read-only exemption: Edit/Write to these paths stay guarded (read branch only).
+is_harness_output() {
+  case "$1" in
+    */tool-results/*) return 0 ;;
+  esac
+  return 1
+}
+
 # --- Helper: hard-block with reason shown to Claude ---
 # First blocked call in a 3-second window per (TOOL_NAME, CWD) gets the full reason.
 # Subsequent parallel calls get a short "see previous message" to avoid noise.
@@ -171,6 +185,7 @@ codescout already knows every file in the project. Use the index directly:
 
     is_binary_image "$FILE_PATH" && exit 0
     is_skill_payload "$FILE_PATH" && exit 0
+    is_harness_output "$FILE_PATH" && exit 0
 
     # Relative path when under CWD; absolute (cross-repo) otherwise — both work for codescout.
     REL_PATH="$FILE_PATH"
@@ -237,7 +252,7 @@ File: ${FILE_PATH}
 
   read_file(path=\"${REL_PATH}\")                  — full content; large output stored as an @file_* buffer${STRUCT_HINT}
 
-read_file works on absolute cross-repo paths. Exempt from this block: binary images/PDF (codescout has no renderer) and skill payloads (SKILL.md / lens addenda / references, plugin cache, .buddy trees — verbatim fidelity required)."
+read_file works on absolute cross-repo paths. Exempt from this block: binary images/PDF (codescout has no renderer), skill payloads (SKILL.md / lens addenda / references, plugin cache, .buddy trees — verbatim fidelity required), and CC harness persisted output (tool-results/ — over-cap hook/tool payloads read back)."
     ;;
 
   Edit)

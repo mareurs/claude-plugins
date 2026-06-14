@@ -112,6 +112,15 @@ assert_file "read-buddy-home-allow"  "Read" "$HOME/.buddy/skills/custom-buddy/SK
 # sibling-repo data files stay denied (read-xrepo-md above — the summon hook
 # injects gates/protocol; native Read of them is still routed to codescout).
 
+# --- Read: harness persisted-output exemption (tool-results/, 2026-06-14) ---
+# An over-cap summon payload is persisted to .../tool-results/ and must be
+# readable back natively (F-3 in skill-loading-session-log.md).
+assert_file "read-tool-results-allow"  "Read"  "$HOME/.claude-kat/projects/-home-x/abc-uuid/tool-results/hook-123-stdout.txt" "allow"
+assert_file "read-tool-results-allow2" "Read"  "$ACTIVE_CWD/.codescout/tool-results/big-output.txt"                          "allow"
+# Read-only exemption: Edit/Write to a tool-results path stay blocked.
+assert_file "edit-tool-results-deny"   "Edit"  "$HOME/.claude/projects/x/uuid/tool-results/hook-9-stdout.txt"                 "deny"
+assert_file "write-tool-results-deny"  "Write" "$HOME/.claude/projects/x/uuid/tool-results/hook-9-stdout.txt"                 "deny"
+
 # --- Edit / Write: path-agnostic, all text ---
 assert_file "edit-xrepo-source" "Edit"  "$SIBLING_CWD/buddy/scripts/statusline.py" "deny"
 assert_file "edit-inrepo-json"  "Edit"  "$ACTIVE_CWD/tsconfig.json"            "deny"
