@@ -17,16 +17,20 @@ Release readiness across plugins × profiles. See
 
 ## State
 
-_Last refresh: `9366c3b`_
+_Last refresh: `9e1dbaa`_
 
-**buddy** — canonical `0.7.22` · readme `0.7.22` · marketplace clean ✅
+**buddy** — canonical `0.7.23` · readme `0.7.23` · marketplace clean ✅
 
 | profile | installed | cache dir | install_path ok |
 |---|---|---|---|
-| `~/.claude` | `0.7.22` ✅ | ✅ | ✅ |
-| `~/.claude-sdd` | `0.7.22` ✅ | ✅ | ✅ |
-| `~/.claude-kat` | `0.7.22` ✅ | ✅ | ✅ |
+| `~/.claude` | `0.7.23` ✅ | ✅ | ✅ |
+| `~/.claude-sdd` | `0.7.23` ✅ | ✅ | ✅ |
+| `~/.claude-kat` | `0.7.23` ✅ | ✅ | ✅ |
 ## History
+
+### 2026-06-14 — buddy 0.7.22 → 0.7.23
+
+Statusline skills display split (commit `dbbc166`; bump `9e1dbaa`): codescout skills now render on their own `cs:` line (slot 6) above the generic `skills:` line (slot 7), so a crowd of loaded skills no longer buries workflow-relevant ones. `_compose_segments` grew 7→8 slots and `_partition_skills` was added; truncation priority now caps slot 6 while slot 7 stays the uncapped bottom row. Canonical/readme → 0.7.23; cache seeded + install records repointed across all three profiles; sanity loop all ✅ (cache + installPath, no cross-profile drift). Pre-bump `run-all.sh` all suites green + buddy pytest 454. Pushed to main; cold restart pending to bind the 0.7.23 cache.
 
 ### 2026-06-14 — buddy 0.7.21 → 0.7.22
 
