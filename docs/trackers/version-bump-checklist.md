@@ -17,16 +17,20 @@ Release readiness across plugins × profiles. See
 
 ## State
 
-_Last refresh: `7ad4fa0`_
+_Last refresh: `9366c3b`_
 
-**buddy** — canonical `0.7.21` · readme `0.7.21` · marketplace clean ✅
+**buddy** — canonical `0.7.22` · readme `0.7.22` · marketplace clean ✅
 
 | profile | installed | cache dir | install_path ok |
 |---|---|---|---|
-| `~/.claude` | `0.7.21` ✅ | ✅ | ✅ |
-| `~/.claude-sdd` | `0.7.21` ✅ | ✅ | ✅ |
-| `~/.claude-kat` | `0.7.21` ✅ | ✅ | ✅ |
+| `~/.claude` | `0.7.22` ✅ | ✅ | ✅ |
+| `~/.claude-sdd` | `0.7.22` ✅ | ✅ | ✅ |
+| `~/.claude-kat` | `0.7.22` ✅ | ✅ | ✅ |
 ## History
+
+### 2026-06-14 — buddy 0.7.21 → 0.7.22
+
+codescout-pika Phase 2b SQL path fix (commit `3e8ff23`; bump `9366c3b`): replaced `$HOME/.claude/buddy/skills/codescout-pika/sql/` — wrong profile root for multi-profile users (-sdd/-kat) + a nonexistent subpath — with `${CLAUDE_PLUGIN_ROOT}/skills/codescout-pika/sql/`, the plugin-wide convention. Canonical/readme → 0.7.22; cache seeded + install records repointed across all three profiles; sanity loop all ✅ (cache + installPath, no cross-profile drift). Pre-bump `run-all.sh` all suites green + buddy pytest. NO_PUSH (committed locally, not pushed); cold restart pending to bind the 0.7.22 cache.
 
 ### 2026-06-14 — buddy 0.7.20 → 0.7.21
 
