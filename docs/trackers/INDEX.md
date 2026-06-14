@@ -7,7 +7,7 @@ This directory holds active project trackers in two families:
    `eval-bringup`, `fixture-expansion`).
 2. **Standalone reconnaissance session-logs** — per-work-stream F-N/W-N
    ledgers (`injection-budget`, `release-hygiene`, `guard-hardening`,
-   `skill-loading`), independent of the initiative above.
+   `skill-loading`, `codescout-usage-audit`), independent of the initiative above.
 
 Plus the release-gating `version-bump-checklist` (a librarian-managed
 `kind=tracker` artifact — edit via artifact tools, not markdown tools).
@@ -30,6 +30,7 @@ as an artifact repo.
 | [release-hygiene-session-log.md](release-hygiene-session-log.md) | Reconnaissance session-log for the plugin publishing / release-hygiene work stream. W-1: read a lockfile (+ its manifest) before committing — caught a stray empty `buddy/uv.lock` pinning a `requires-python` that contradicted documented runtime. | open | standalone (recon ledger) |
 | [guard-hardening-session-log.md](guard-hardening-session-log.md) | Reconnaissance session-log for the pre-tool-guard cross-repo hardening work stream. F-1: cross-repo escape lives in the markdown + Bash branches, not `is_in_workspace` (fixed-verified, `ad9073d` + `e70d783`). | open | standalone (recon ledger) |
 | [skill-loading-session-log.md](skill-loading-session-log.md) | Reconnaissance session-log for the skill-loading work stream. F-1 (Skill bypasses the tool-hook pipeline), W-1 (pre-spec recon validated all 5 load-bearing mechanisms), F-2 (compact replay inflates ledger counts). | open | standalone (recon ledger) |
+| [codescout-usage-audit-session-log.md](codescout-usage-audit-session-log.md) | Pika+Dzo audit of `.codescout/usage.db` (5961 calls). U-1..U-5 (wrong-tool routing, server-enforced), F-1 (un-backfilled columns mislead scoping), W-1 (Dzo re-read refuted a stale `statusline.py` target). | open | standalone (recon ledger) |
 | [version-bump-checklist.md](version-bump-checklist.md) | Librarian-managed artifact (`id=cc8cb9e23ab5cc67`, kind=tracker). Release readiness across plugins × profiles — gate before any version bump. Edit via artifact tools, not markdown tools. | draft | gates version bumps |
 ## Relationships
 
