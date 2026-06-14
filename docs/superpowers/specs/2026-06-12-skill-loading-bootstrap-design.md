@@ -102,6 +102,19 @@ announce/adopt (Steps 3–4); payload absent → legacy load path (now tolerable
 because layer A exempted the reads). `reload.py` strips frontmatter when
 rendering reload blocks (same payload hygiene as the bootstrap).
 
+**Addendum (2026-06-14, F-4).** The "stdout → injected as context" assumption
+above is false for real personas. A full payload is 18-48KB; CC's
+persisted-output mechanism truncates any hook stdout over its inline cap to a
+~2KB preview with **no `@ref` handle** — the same wall codescout hit (see its
+`2026-03-29-onboarding-buffered-output-design.md`). So `summon_bootstrap.py`
+now mirrors codescout's core principle — *always buffer, return a compact
+pointer*: `spill_payload()` writes the assembled payload to
+`.buddy/<sid>/summon-payload-<dir>.md` (a path layer A already exempts), and
+the hook emits a pointer marker carrying `payload-file=<path>`. summon.md
+Step 0 reads that one file with **native `Read`** (not `read_markdown`, which
+would fragment a persona-sized file). Inline emission survives only as the
+no-session-id / spill-failed fallback. Evidence + measurements:
+`docs/trackers/skill-loading-session-log.md` F-4.
 ### C. Frontmatter hygiene (buddy personas)
 
 All 12 builtin `SKILL.md` files gain YAML frontmatter: `name` (directory name),
@@ -164,7 +177,8 @@ acceptable for statusline + advisory purposes; buddy summons have zero lag.
 
 | Condition | Behavior | Cost |
 |---|---|---|
-| Hook resolves + payload injected | summon.md skips to announce | 0 model tool calls |
+| Hook resolves, payload fits inline (small persona) | summon.md skips to announce | 0 model tool calls |
+| Hook resolves, payload over CC inline cap (all real personas, 18-48KB) | hook spills to `.buddy/<sid>/` (guard-exempt) + injects a `payload-file=` pointer; summon.md reads the one file | 1 native read |
 | Hook can't resolve (fuzzy arg, lens ask, hook failure) | legacy load path with A's exemptions | few native reads, no denials |
 | Companion not installed (no guard) | legacy path, native tools | unchanged from today |
 | Buddy not installed | `/buddy:summon` doesn't exist | n/a |

@@ -29,12 +29,15 @@
 |----|------|---------:|----------|--------|-------|
 | F-1 | 2026-06-12 | med | cc-hooks | fixed-verified | Brainstorm cited PostToolUse:Skill as binder channel; Skill bypasses the tool-hook pipeline |
 | F-2 | 2026-06-12 | med | architectural | fixed-verified | Live ledger probe: compact replay inflates counts (false-advisory risk) + tool_use path missed buddy:* exclusion |
+| F-3 | 2026-06-14 | med | cc-hooks | fixed-verified | codescout-companion read-guard blocks reading back the persisted summon payload |
+| F-4 | 2026-06-14 | high | architectural | fixed-verified | Summon payload overflows the CC hook-output cap; the "fully-loaded" marker is false for all 14 personas |
 
 ## Wins Index
 
 | ID | Date | Impact | Pattern | Counterfactual | Status |
 |----|------|-------:|---------|----------------|--------|
 | W-1 | 2026-06-12 | high | pre-spec mechanism verification | spec built on a hook that never fires | validated |
+| W-2 | 2026-06-14 | high | measure population before per-instance fix | "trim hamsa" fix would have left 13 personas silently truncated | validated |
 
 ---
 
@@ -199,6 +202,67 @@ Codified so the Index column means the same thing across sessions.
 **Status:** fixed-verified — 12/12 ledger tests, 451/451 buddy suite; live session ledger scrubbed.
 
 **Fix idea / Pointer:** buddy 0.7.19. Bonus empirical finding from the same probe: `/reload-skills` reported "+12" — persona frontmatter DOES register buddy skills with the Skill tool, settling the Q4 docs-silent gap from F-1 (W-1's verification ledger updated by reality).
+
+---
+## F-3 — codescout-companion read-guard blocks reading back the persisted summon payload
+
+**Observed:** 2026-06-14, `/buddy:summon hamsa`. The summon hook's payload (26.1 KB) exceeded the CC UserPromptSubmit hook-output cap, so the harness persisted it to `…/<uuid>/tool-results/hook-…-stdout.txt` and injected only a ~2 KB preview + the marker. Recovering the full body via native `Read` of the persisted file was hard-denied.
+
+**When:** Adopting the Hamsa persona — the marker said "fully loaded, skip the load steps," but only the 2 KB head was in context, so the body had to be re-fetched.
+
+**Expected:** Native `Read` of a persisted *skill payload* passes the guard — the guard's own block message advertises "skill payloads exempt (verbatim fidelity required)."
+
+**Got:** `is_skill_payload` (`codescout-companion/hooks/pre-tool-guard.sh:26-35`) exempts only `*/plugins/cache/*`, `*/.buddy/*`, and `skills/.../SKILL.md|_lens.md|references/`. The harness `tool-results/` persisted-output dir matches none, so the read was denied. Recovery required a codescout `read_file` detour.
+
+**Probable cause:** The exemption list was written for *source-tree* skill payloads; it never anticipated the harness persisting an over-cap hook payload to its own scratch dir and the model needing to read it back. The block message promises an exemption the glob list doesn't deliver for this path.
+
+**Workaround:** Used codescout `read_file` (exempt) instead of native `Read`. Fix: add the harness persisted-output path (`*/tool-results/*`) to `is_skill_payload` + a guard test.
+
+**Severity:** med — would have blocked the recovery read entirely; controller absorbed it via the read_file detour. Compounds with F-4 (which creates the need to read the persisted file in the first place).
+
+**Status:** fixed-verified — added `is_harness_output` (`*/tool-results/*`) to the Read branch of `pre-tool-guard.sh`; 36/36 guard tests pass incl. 4 new tool-results cases (read allows, Edit/Write still deny). buddy/codescout-companion not yet version-bumped/restarted, so not live in this session.
+
+**Fix idea / Pointer:** `codescout-companion/hooks/pre-tool-guard.sh:26-35` + case in `pre-tool-guard.test.sh`. Cross-ref `guard-hardening-session-log.md`.
+
+---
+
+## F-4 — Summon payload overflows the CC hook-output cap; the "fully-loaded" marker is false for all 14 personas
+
+**Observed:** 2026-06-14, measured every persona's assembled `build_payload` output. All 14 exceed 10 KB (debugging-yeti 18.9 KB → planning-crane 48.7 KB); hamsa 26.3 KB matches the harness-reported 26.1 KB that triggered persist-and-truncate.
+
+**When:** `/buddy:summon <any>` — the `UserPromptSubmit` hook (`summon_bootstrap.py`) `print()`s the payload; the harness caps hook stdout, persists the overflow, and injects only a ~2 KB preview + the marker.
+
+**Expected:** The marker `<!-- buddy:summon-payload … -->` is a contract: present ⇒ "everything is loaded, skip Steps 1-2.6, do not re-read" (`/buddy:summon` Step 0).
+
+**Got:** For every persona the contract is false — only the ~2 KB head reaches context. The model is told to adopt the persona AND to skip the load steps that would recover the missing ~90 %. No escape hatch exists: an over-cap payload cannot signal "I am incomplete." `build_payload` (`buddy/scripts/summon_bootstrap.py:190-232`) has no total-size budget — only `MEMORY_SOFT_CAP` (warn, :148) and `BINDING_LINE_CAP` (per-binding, :174).
+
+**Probable cause:** The fast-path design assumed the assembled payload fits in injected context. Personas (150-300 lines) + memories + protocol + gates + bindings never do. The marker promises completeness the producer cannot deliver under the harness cap.
+
+**Workaround:** None at runtime — the model must notice the truncation and re-run the fallback load steps (which F-3 then blocks). Fix options: (A1) honest degraded marker that routes to the fallback load steps when over budget; (A2) write the assembled payload to a guard-exempt `.buddy/<sid>/` file and point the marker at it (one exempt read, fast-path preserved).
+
+**Severity:** high — silent across every summon; a less careful model adopts a persona from ~8 % of its definition (missing Method, Heuristics, Self-Traps, **Gates**) while believing it complete. Masked by a "complete" marker, so manual testing of a single summon would not catch it.
+
+**Status:** fixed-verified — fork resolved by reading codescout's own fix to the *identical* CC wall (`2026-03-29-onboarding-buffered-output-design.md`: "always buffer, return a compact pointer"). Chose **A2**: `spill_payload()` writes the full payload to the guard-exempt `.buddy/<sid>/summon-payload-<dir>.md` and the hook emits a `payload-file=` pointer; summon.md Step 0 reads that one file with native `Read`. Inline kept as the no-sid/spill-failed fallback. Verified: buddy pytest 455 pass, summon suite 15 pass (incl. new `test_large_payload_spilled_not_inlined`), hook shell test 10 pass, `run-all.sh` all suites pass. Not yet version-bumped/restarted — not live in-session.
+
+**Fix idea / Pointer:** `buddy/scripts/summon_bootstrap.py:190-232` (build_payload) + Step 0 of `buddy/commands/summon.md`. Design spec: `docs/superpowers/specs/2026-06-12-skill-loading-bootstrap-design.md`.
+
+---
+
+## W-2 — Measuring all personas turned a one-off "hamsa quirk" into a systemic contract bug
+
+**Observed:** 2026-06-14, scout of the `/buddy:summon` loading seam (recon + codescout-pika + prompt-hamsa — three lenses on one seam).
+
+**Pattern:** Before fixing a friction observed on ONE instance, measure the same property across the whole population. Here: byte-size `build_payload` for all 14 personas instead of fixing only the hamsa summon that surfaced it.
+
+**Counterfactual:** Treated as N=1, the fix would have been "trim hamsa" — leaving the other 13 silently truncated behind the same false "fully-loaded" marker. Measurement showed the smallest payload (18.9 KB) is already ~9× the ~2 KB preview, so the fix must change the marker *contract*, not shrink one persona.
+
+**Confirming data points:** (1) hamsa 26.3 KB measured ≈ 26.1 KB harness-reported truncation — measurement matches observed reality; (2) all 14 personas >10 KB, range 18.9-48.7 KB.
+
+**Impact:** high — redirected the fix from a cosmetic trim to a contract redesign.
+
+**Promote-when:** A second "fixed N=1, missed N=many" near-miss. At 2 data points, promote to CLAUDE.md as "measure the population before fixing a per-instance friction."
+
+**Status:** validated — single datapoint, drift caught before any one-off fix shipped.
 
 ---
 ## Template for new entries
