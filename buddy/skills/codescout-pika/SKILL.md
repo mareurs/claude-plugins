@@ -68,7 +68,7 @@ violations. No DB write. Whistles are ephemeral.
 Triggered by phrases like "scan", "audit", "review my usage", "report".
 
 1. **Ensure schema.** Run
-   `sqlite3 .codescout/usage.db < $HOME/.claude/buddy/skills/codescout-pika/sql/v1-bootstrap.sql`.
+   `sqlite3 .codescout/usage.db < ${CLAUDE_PLUGIN_ROOT}/skills/codescout-pika/sql/v1-bootstrap.sql`.
    Idempotent — safe on every scan.
 2. **Resolve scan bound** from the user's phrasing:
    - "scan this session" → `cc_session_id = <current>`
@@ -77,7 +77,7 @@ Triggered by phrases like "scan", "audit", "review my usage", "report".
    - "scan everything new" →
      `id > (SELECT COALESCE(MAX(tool_call_id), 0) FROM pika_observations)`
    - "scan all" → no bound; warn if `> 10k` rows
-3. **Run the predicate matrix** in `$HOME/.claude/buddy/skills/codescout-pika/sql/queries.sql` against
+3. **Run the predicate matrix** in `${CLAUDE_PLUGIN_ROOT}/skills/codescout-pika/sql/queries.sql` against
    `tool_calls` in scope. Open a sqlite3 connection with
    `PRAGMA foreign_keys = ON; PRAGMA busy_timeout = 5000;` set.
 4. **For each candidate**, judge severity + recurrence + verdict. Write
