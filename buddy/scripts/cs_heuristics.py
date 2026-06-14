@@ -21,14 +21,16 @@ _DEFINITION_KEYWORDS = (
     "trait ", "interface ", "func ", "function ",
 )
 
-# Tools that perform writes (used by parallel-write heuristic).
+# Codescout write tools, used by the parallel-write heuristic. Only codescout
+# MCP writes flow through handle_cs_tool_use and get logged, so native
+# Edit/Write can never reach this heuristic and are intentionally omitted.
+# edit_code (action=replace/insert/remove/rename) replaced the old
+# replace_symbol/insert_code/remove_symbol tools; edit_markdown handles .md.
 _WRITE_TOOLS = frozenset({
-    "Edit", "Write",
     "mcp__codescout__edit_file",
     "mcp__codescout__create_file",
-    "mcp__codescout__replace_symbol",
-    "mcp__codescout__insert_code",
-    "mcp__codescout__remove_symbol",
+    "mcp__codescout__edit_code",
+    "mcp__codescout__edit_markdown",
 })
 
 # Source file extensions where Bash cat/head/tail/sed should be avoided.
@@ -84,7 +86,7 @@ def _check_structural_edit(event: dict, session_log: list[dict]) -> str | None:
         stripped = line.lstrip()
         if any(stripped.startswith(kw) for kw in _DEFINITION_KEYWORDS):
             return (
-                "Use `replace_symbol` for structural edits — "
+                "Use `edit_code` for structural edits — "
                 "`edit_file` on definition bodies risks LSP range "
                 "corruption (BUG-027)."
             )
@@ -236,19 +238,19 @@ def _check_parallel_write(event: dict, session_log: list[dict]) -> str | None:
 
 
 def _check_grep_for_concept(event: dict, session_log: list[dict]) -> str | None:
-    """Detect search_pattern used with a natural-language concept phrase.
+    """Detect grep used with a natural-language concept phrase.
 
-    search_pattern matches text literally (regex). When the pattern looks like
+    grep matches text literally (regex). When the pattern looks like
     a concept description rather than a code fragment or regex, semantic_search
     will find semantically related code without requiring an exact text match.
 
     Decision table (from codescout manual):
-      "A text fragment"        → search_pattern  ✓
+      "A text fragment"        → grep  ✓
       "The concept, not name"  → semantic_search  ← this heuristic fires here
     """
     import re as _re
 
-    if event.get("tool_name") != "mcp__codescout__search_pattern":
+    if event.get("tool_name") != "mcp__codescout__grep":
         return None
 
     pattern = (event.get("tool_input") or {}).get("pattern", "")
@@ -269,7 +271,7 @@ def _check_grep_for_concept(event: dict, session_log: list[dict]) -> str | None:
     words = pattern.split()
     if len(words) >= 2 and all(_re.match(r"^[a-zA-Z]+$", w) for w in words):
         return (
-            f'`search_pattern("{pattern}")` matches text literally. '
+            f'`grep("{pattern}")` matches text literally. '
             f"For concept queries, `semantic_search` finds related code "
             f"by meaning without requiring an exact text match."
         )

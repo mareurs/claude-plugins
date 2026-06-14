@@ -197,13 +197,18 @@ FAKE_BUDDY_ROOT="$FAKE_CACHE/buddy/0.7.7"
 FAKE_RECON_SKILL="$FAKE_CACHE/codescout-companion/1.11.0/skills/reconnaissance/SKILL.md"
 mkdir -p "$FAKE_BUDDY_ROOT" "$(dirname "$FAKE_RECON_SKILL")"
 echo "# Reconnaissance test stub" > "$FAKE_RECON_SKILL"
-# Mirror plugin tree under fake buddy root so PLUGIN_ROOT-based hook sources resolve
-ln -s "$PLUGIN_ROOT/scripts" "$FAKE_BUDDY_ROOT/scripts" 2>/dev/null || cp -r "$PLUGIN_ROOT/scripts" "$FAKE_BUDDY_ROOT/scripts"
-ln -s "$PLUGIN_ROOT/hooks" "$FAKE_BUDDY_ROOT/hooks" 2>/dev/null || cp -r "$PLUGIN_ROOT/hooks" "$FAKE_BUDDY_ROOT/hooks"
-ln -s "$PLUGIN_ROOT/skills" "$FAKE_BUDDY_ROOT/skills" 2>/dev/null || cp -r "$PLUGIN_ROOT/skills" "$FAKE_BUDDY_ROOT/skills"
+# Copy (NOT symlink) the plugin tree into the fake cache. The hook self-locates
+# via Path(__file__).resolve(), which collapses symlinks back to the dev repo —
+# only real copies keep plugin_root inside the cache-layout path so the
+# sister-plugin SKILL resolution (codescout-companion/reconnaissance) works.
+# CLAUDE_PLUGIN_ROOT is deliberately NOT set: the hook ignores it and self-locates.
+cp -r "$PLUGIN_ROOT/scripts" "$FAKE_BUDDY_ROOT/scripts"
+cp -r "$PLUGIN_ROOT/hooks" "$FAKE_BUDDY_ROOT/hooks"
+cp -r "$PLUGIN_ROOT/skills" "$FAKE_BUDDY_ROOT/skills"
 
 RECON_EVENT='{"session_id":"'"$RECON_SID"'","cwd":"'"$RECON_WORK"'","source":"resume","timestamp":1700004000}'
-RECON_OUT=$(echo "$RECON_EVENT" | CLAUDE_PLUGIN_ROOT="$FAKE_BUDDY_ROOT" HOME="$RECON_WORK/_fake_claude/.." bash "$HOOK" 2>/dev/null || true)
+# Run the COPIED hook so BASH_SOURCE + __file__.resolve() land in the fake cache.
+RECON_OUT=$(echo "$RECON_EVENT" | HOME="$RECON_WORK/_fake_claude/.." bash "$FAKE_BUDDY_ROOT/hooks/session-start.sh" 2>/dev/null || true)
 
 echo "$RECON_OUT" | grep -q "reconnaissance" \
   && pass "codescout detected: reconnaissance included in reload" \

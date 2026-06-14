@@ -16,7 +16,7 @@ def test_run_cs_judge_writes_verdict(tmp_path):
         "verdict": "cs-misuse",
         "severity": "blocking",
         "evidence": "Used edit_file for structural change",
-        "correction": "Use replace_symbol instead",
+        "correction": "Use edit_code instead",
         "affected_tools": ["edit_file"],
     })
 

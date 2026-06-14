@@ -28,7 +28,7 @@ def test_structural_edit_detected():
     )
     result = check(event, [])
     assert result is not None
-    assert "replace_symbol" in result
+    assert "edit_code" in result
     assert "BUG-027" in result
 
 
@@ -218,9 +218,9 @@ def test_native_bash_non_source_ok():
 def test_parallel_write_detected():
     log = [
         _make_log_entry(tool="mcp__codescout__edit_file", ts=1000),
-        _make_log_entry(tool="mcp__codescout__replace_symbol", ts=1000),
+        _make_log_entry(tool="mcp__codescout__edit_code", ts=1000),
     ]
-    event = _make_event(tool_name="mcp__codescout__replace_symbol")
+    event = _make_event(tool_name="mcp__codescout__edit_code")
     result = check(event, log)
     assert result is not None
     assert "BUG-021" in result
@@ -229,9 +229,9 @@ def test_parallel_write_detected():
 def test_sequential_writes_ok():
     log = [
         _make_log_entry(tool="mcp__codescout__edit_file", ts=1000),
-        _make_log_entry(tool="mcp__codescout__replace_symbol", ts=1002),
+        _make_log_entry(tool="mcp__codescout__edit_code", ts=1002),
     ]
-    event = _make_event(tool_name="mcp__codescout__replace_symbol")
+    event = _make_event(tool_name="mcp__codescout__edit_code")
     result = check(event, log)
     assert result is None
 
@@ -241,7 +241,7 @@ def test_sequential_writes_ok():
 def test_grep_for_concept_detected():
     """Multi-word all-alpha phrase should suggest semantic_search."""
     event = _make_event(
-        tool_name="mcp__codescout__search_pattern",
+        tool_name="mcp__codescout__grep",
         tool_input={"pattern": "retry logic backoff"},
     )
     result = check(event, [])
@@ -251,7 +251,7 @@ def test_grep_for_concept_detected():
 
 def test_grep_for_concept_two_words_detected():
     event = _make_event(
-        tool_name="mcp__codescout__search_pattern",
+        tool_name="mcp__codescout__grep",
         tool_input={"pattern": "authentication middleware"},
     )
     result = check(event, [])
@@ -262,7 +262,7 @@ def test_grep_for_concept_two_words_detected():
 def test_grep_for_concept_regex_metachar_ok():
     """Pattern with regex metacharacters is a legitimate regex — no hint."""
     event = _make_event(
-        tool_name="mcp__codescout__search_pattern",
+        tool_name="mcp__codescout__grep",
         tool_input={"pattern": r"fn handle_\w+"},
     )
     result = check(event, [])
@@ -272,7 +272,7 @@ def test_grep_for_concept_regex_metachar_ok():
 def test_grep_for_concept_pipe_ok():
     """Pattern with | is a regex alternation — no hint."""
     event = _make_event(
-        tool_name="mcp__codescout__search_pattern",
+        tool_name="mcp__codescout__grep",
         tool_input={"pattern": "notification|push"},
     )
     result = check(event, [])
@@ -282,7 +282,7 @@ def test_grep_for_concept_pipe_ok():
 def test_grep_for_concept_short_ok():
     """Short patterns are literal lookups — no hint."""
     event = _make_event(
-        tool_name="mcp__codescout__search_pattern",
+        tool_name="mcp__codescout__grep",
         tool_input={"pattern": "pub fn"},
     )
     result = check(event, [])
@@ -292,7 +292,7 @@ def test_grep_for_concept_short_ok():
 def test_grep_for_concept_code_syntax_ok():
     """Pattern containing :: or -> is a code fragment — no hint."""
     event = _make_event(
-        tool_name="mcp__codescout__search_pattern",
+        tool_name="mcp__codescout__grep",
         tool_input={"pattern": "std::collections::HashMap"},
     )
     result = check(event, [])
@@ -302,7 +302,7 @@ def test_grep_for_concept_code_syntax_ok():
 def test_grep_for_concept_snake_case_ok():
     """Single snake_case identifier (contains __) — no hint."""
     event = _make_event(
-        tool_name="mcp__codescout__search_pattern",
+        tool_name="mcp__codescout__grep",
         tool_input={"pattern": "derive_mood_from_signals"},
     )
     result = check(event, [])
@@ -310,7 +310,7 @@ def test_grep_for_concept_snake_case_ok():
 
 
 def test_grep_for_concept_wrong_tool_ok():
-    """Only fires for search_pattern, not other tools."""
+    """Only fires for grep, not other tools."""
     event = _make_event(
         tool_name="mcp__codescout__find_symbol",
         tool_input={"query": "authentication middleware"},

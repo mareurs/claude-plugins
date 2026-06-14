@@ -70,17 +70,17 @@ def test_codescout_create_file_plan():
     assert detect_plan_touch(event, PROJECT_ROOT) == "docs/superpowers/plans/foo.md"
 
 
-def test_codescout_insert_code_plan():
+def test_codescout_edit_code_plan():
     event = make_event(
-        "mcp__codescout__insert_code",
+        "mcp__codescout__edit_code",
         path="docs/superpowers/plans/foo.md",
     )
     assert detect_plan_touch(event, PROJECT_ROOT) == "docs/superpowers/plans/foo.md"
 
 
-def test_codescout_replace_symbol_plan():
+def test_codescout_edit_markdown_plan():
     event = make_event(
-        "mcp__codescout__replace_symbol",
+        "mcp__codescout__edit_markdown",
         path="docs/superpowers/plans/foo.md",
     )
     assert detect_plan_touch(event, PROJECT_ROOT) == "docs/superpowers/plans/foo.md"

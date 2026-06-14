@@ -199,6 +199,25 @@ def test_render_plan_for_user_groups_ops_by_kind(channel):
     assert "ab" in md and "c" in md and "d-vs-e" in md
 
 
+def test_render_plan_for_user_tolerates_missing_reason():
+    """A valid op that omits the optional 'reason' renders without KeyError.
+
+    _validate_plan does not require 'reason', so an LLM-generated plan may omit
+    it; the renderer must degrade gracefully instead of crashing the dry-run.
+    """
+    from scripts.consolidate import render_plan_for_user
+    plan = {
+        "plan_version": 1, "specialist": "prompt-hamsa", "channel": "global",
+        "generated": "2026-05-07T14:30Z",
+        "operations": [
+            {"op": "archive", "slug": "c"},  # no 'reason' key
+        ],
+    }
+    md = render_plan_for_user(plan)
+    assert "## Archives (1)" in md
+    assert "(no reason given)" in md
+
+
 def test_apply_writes_log_and_updates_meta(channel):
     plan = {
         "plan_version": 1, "specialist": "prompt-hamsa", "channel": "global",

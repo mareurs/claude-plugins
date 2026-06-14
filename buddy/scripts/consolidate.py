@@ -203,23 +203,23 @@ def render_plan_for_user(plan: dict) -> str:
     ]
     for op in by_kind["merge"]:
         lines.append(f"▸ Merge `{'`, `'.join(op['inputs'])}` → `{op['output']['slug']}`")
-        lines.append(f"  Reason: {op['reason']}")
+        lines.append(f"  Reason: {op.get('reason', '(no reason given)')}")
         lines.append(f"  New body:")
         for body_line in op["output"].get("body", "").splitlines():
             lines.append(f"    {body_line}")
     lines.extend(["", f"## Archives ({len(by_kind['archive'])})"])
     for op in by_kind["archive"]:
         lines.append(f"▸ Archive `{op['slug']}`")
-        lines.append(f"  Reason: {op['reason']}")
+        lines.append(f"  Reason: {op.get('reason', '(no reason given)')}")
     lines.extend(["", f"## Summaries ({len(by_kind['summarize'])})"])
     for op in by_kind["summarize"]:
         lines.append(f"▸ Summarize {{ {len(op['inputs'])} entries }} → `{op['output']['slug']}`")
-        lines.append(f"  Reason: {op['reason']}")
+        lines.append(f"  Reason: {op.get('reason', '(no reason given)')}")
         lines.append(f"  Originals (will be archived): {', '.join(op['inputs'])}")
     lines.extend(["", f"## Deferred ({len(by_kind['defer'])})"])
     for op in by_kind["defer"]:
         lines.append(f"▸ Defer `{op['target']}`")
-        lines.append(f"  Reason: {op['reason']}")
+        lines.append(f"  Reason: {op.get('reason', '(no reason given)')}")
     n_ops = sum(len(v) for v in by_kind.values())
     lines.extend(["", "## Summary", f"  {n_ops} ops, {len(by_kind['defer'])} deferred for your decision."])
     return "\n".join(lines) + "\n"

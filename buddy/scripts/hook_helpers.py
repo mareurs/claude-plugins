@@ -41,9 +41,8 @@ PLAN_TOOL_PATH_KEYS = {
     "mcp__codescout__read_markdown": "path",
     "mcp__codescout__edit_file": "path",
     "mcp__codescout__create_file": "path",
-    "mcp__codescout__insert_code": "path",
-    "mcp__codescout__replace_symbol": "path",
-    "mcp__codescout__remove_symbol": "path",
+    "mcp__codescout__edit_code": "path",
+    "mcp__codescout__edit_markdown": "path",
 }
 
 DEFAULT_PLAN_GLOBS = "docs/superpowers/plans/*.md:docs/superpowers/specs/*.md"
