@@ -8,22 +8,35 @@ You are resolving a summon request. The argument passed by the user is `$1`.
 ## Step 0 — Check for the hook-injected payload (fast path)
 
 buddy's UserPromptSubmit hook (`scripts/summon_bootstrap.py`) resolves
-unambiguous summons **before this command runs** and injects the full payload
-— SKILL.md, lens addendum, memories, memory protocol, gates, and any bound
-live state — directly into context. Look for one of these markers in the
-current context:
+unambiguous summons **before this command runs**. A full persona payload
+(SKILL.md + lens + memories + protocol + gates + live state) assembles to
+18–48KB, and CC's persisted-output mechanism truncates any hook stdout over
+its inline cap to a ~2KB preview with no `@ref` handle — so the hook does
+**not** inline the body. It **spills the full payload to a guard-exempt file**
+and injects a compact pointer. Look for one of these markers in the current
+context:
 
-- `<!-- buddy:summon-payload specialist=<dir> ... -->` — **everything is
-  already loaded and tracked.** Skip Steps 1–2.6 and 5–6 entirely; go
-  straight to Step 3 (announce) and Step 4 (adopt). Do not re-read any file
-  the payload already contains.
+- `<!-- buddy:summon-payload specialist=<dir> … payload-file=<path> -->` —
+  the full payload was spilled to `<path>` (under `.buddy/<sid>/`, which the
+  codescout guard exempts). **Read that one file first with native `Read`**
+  — it contains SKILL.md + lens + memories + protocol + gates verbatim. Use
+  native `Read`, not `read_markdown`: the `.buddy/` path is guard-exempt, and
+  `read_markdown` would fragment a persona-sized file into a heading map. Then
+  skip Steps 1–2.6 and 5–6 entirely and go straight to Step 3 (announce) and
+  Step 4 (adopt) — resolution, tracking, and logging are already done
+  hook-side.
+- `<!-- buddy:summon-payload specialist=<dir> … -->` *(no `payload-file`)* —
+  a small payload was inlined directly; everything is already in context.
+  Skip Steps 1–2.6 and 5–6 and go straight to Step 3 and Step 4. Do not
+  re-read any file the payload already contains.
 - `<!-- buddy:summon-already-active specialist=<dir> -->` — the specialist
   was already summoned this session. Emit the short refresh line from
   Step 2a and continue; load nothing.
 
 **No marker present?** The hook declined (ambiguous argument, missing/unknown
-lens, or hook failure). Proceed with Step 1 — the steps below are the
-fallback path and remain fully authoritative for interactive resolution
+lens, or hook failure) — or, rarely, a `payload-file` pointer was injected but
+the file is unreadable. Either way, proceed with Step 1 — the steps below are
+the fallback path and remain fully authoritative for interactive resolution
 (fuzzy matching, lens prompts, index listings).
 ## Step 1 — Identify the specialist (and lens, if any)
 

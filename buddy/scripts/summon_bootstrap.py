@@ -230,6 +230,29 @@ def build_payload(
     if bindings:
         parts.append(bindings)
     return "\n\n".join(parts)
+def spill_payload(payload: str, directory: str, project_root: Path, sid: str) -> str | None:
+    """Write the full payload to the guard-exempt `.buddy/<sid>/` tree.
+
+    CC's persisted-output mechanism truncates any hook stdout over its inline
+    cap to a ~2KB preview with NO @ref handle (documented in codescout's
+    docs/superpowers/specs/2026-03-29-onboarding-buffered-output-design.md —
+    codescout hit the identical wall and fixed it the same way). Personas
+    assemble to 18-48KB, so inlining always truncates behind a "fully-loaded"
+    marker. Mirror codescout's core principle — always buffer, return a compact
+    pointer: keep stdout tiny, spill the body to a file the guard already
+    exempts (`*/.buddy/*` in pre-tool-guard.sh), and let the model pull it in
+    one Read. Returns the project-relative path, or None if the write failed.
+    """
+    try:
+        out_dir = project_root / ".buddy" / sid
+        out_dir.mkdir(parents=True, exist_ok=True)
+        name = f"summon-payload-{directory}.md"
+        tmp = out_dir / f".{name}.tmp"
+        tmp.write_text(payload, encoding="utf-8")
+        os.replace(tmp, out_dir / name)
+        return f".buddy/{sid}/{name}"
+    except OSError:
+        return None
 
 
 # ---------------------------------------------------------------- tracking
@@ -302,6 +325,24 @@ def bootstrap(event: dict) -> str:
         if sid:
             track_summon(directory, project_root, sid)
         log_summon(directory, lens)
+
+        lens_clause = f" lens={lens}" if lens else ""
+        rel = spill_payload(payload, directory, project_root, sid) if sid else None
+        if rel is not None:
+            # Compact pointer — stays well under CC's inline cap, so it is never
+            # truncated. The model reads the spilled file (one guard-exempt Read);
+            # if the spill is ever absent, summon.md's legacy load path covers it.
+            return (
+                f"<!-- buddy:summon-payload specialist={directory}{lens_clause} "
+                f"scope={scope} payload-file={rel} -->\n"
+                "The summon payload is too large to inline, so buddy's prompt hook "
+                f"spilled the full SKILL.md + memories + protocol + gates to `{rel}` "
+                "(a guard-exempt path). Read that file once, then announce the "
+                "specialist (italic arrival line) and adopt its voice. The load "
+                "steps in /buddy:summon are already done."
+            )
+        # No session id (or the spill write failed): inline the payload and accept
+        # that CC may truncate it — summon.md's legacy load path then recovers.
         return payload
     except Exception:
         return ""

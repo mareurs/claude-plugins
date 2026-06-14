@@ -26,14 +26,19 @@ echo "$EVENT" | bash "$HOOK" >/dev/null 2>&1 || true
 [ -f "$WORK/.buddy/$SID/state.json" ] \
   && pass "session-scoped state.json written" || fail "state.json not at session path"
 
-# --- summon bootstrap (2026-06-12 skill-loading bootstrap) ---
-# Builtin specialist resolved via the real plugin skills/ — payload on stdout.
+# --- summon bootstrap (2026-06-12 skill-loading bootstrap; A2 spill 2026-06-14) ---
+# Builtin specialist resolved via the real plugin skills/. The payload is too
+# large to inline (CC truncates large hook stdout), so the hook spills it to the
+# guard-exempt .buddy/<sid>/ tree and emits a compact pointer on stdout.
 SUMMON_EVENT='{"session_id":"'"$SID"'","cwd":"'"$WORK"'","timestamp":1700000001,"prompt":"/buddy:summon debugging-yeti"}'
 SUMMON_OUT=$(BUDDY_HOME="$WORK/bh" bash -c "echo '$SUMMON_EVENT' | bash '$HOOK'" 2>/dev/null || true)
 echo "$SUMMON_OUT" | grep -q "buddy:summon-payload specialist=debugging-yeti" \
   && pass "summon prompt → payload marker on stdout" || fail "summon payload marker missing"
-echo "$SUMMON_OUT" | grep -q "## Gates" \
-  && pass "summon payload carries gates" || fail "gates missing from payload"
+echo "$SUMMON_OUT" | grep -q "payload-file=.buddy/$SID/summon-payload-debugging-yeti.md" \
+  && pass "pointer carries payload-file path" || fail "payload-file pointer missing"
+SPILL="$WORK/.buddy/$SID/summon-payload-debugging-yeti.md"
+{ [ -f "$SPILL" ] && grep -q "## Gates" "$SPILL"; } \
+  && pass "spilled payload carries gates" || fail "gates missing from spilled payload"
 grep -q '"debugging-yeti"' "$WORK/.buddy/$SID/state.json" \
   && pass "summon tracked hook-side in state.json" || fail "active_specialists not updated"
 

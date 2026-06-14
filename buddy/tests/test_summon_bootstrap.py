@@ -71,14 +71,31 @@ def test_payload_assembly_order_and_frontmatter_strip(plugin):
     plug, project = plugin
     out = sb.bootstrap(_event(project, "/buddy:summon foo-bar"))
 
+    # Return is a compact pointer (A2): marker + payload-file, body NOT inlined.
     assert out.startswith("<!-- buddy:summon-payload specialist=foo-bar")
-    assert "name: Foo Bar" not in out          # frontmatter stripped
-    body_at = out.index("# The Foo Bar")
-    protocol_at = out.index("## Memory Protocol")
-    gates_at = out.index("## Gates")
+    assert "payload-file=.buddy/sid-1/summon-payload-foo-bar.md" in out
+    assert "# The Foo Bar" not in out          # body spilled to file, not stdout
+    payload = (project / ".buddy" / "sid-1" / "summon-payload-foo-bar.md").read_text()
+    assert "name: Foo Bar" not in payload      # frontmatter stripped
+    body_at = payload.index("# The Foo Bar")
+    protocol_at = payload.index("## Memory Protocol")
+    gates_at = payload.index("## Gates")
     assert body_at < protocol_at < gates_at
     # binding files absent in project → Live State soft-skipped entirely
-    assert "## Live State" not in out
+    assert "## Live State" not in payload
+def test_large_payload_spilled_not_inlined(plugin):
+    plug, project = plugin
+    out = sb.bootstrap(_event(project, "/buddy:summon foo-bar", sid="sid-7"))
+    # CC truncates a large stdout, so the hook returns a compact pointer, not body.
+    assert out.startswith("<!-- buddy:summon-payload specialist=foo-bar")
+    assert "payload-file=.buddy/sid-7/summon-payload-foo-bar.md" in out
+    assert "## Gates" not in out
+    spill = project / ".buddy" / "sid-7" / "summon-payload-foo-bar.md"
+    assert spill.exists()
+    payload = spill.read_text()
+    assert "# The Foo Bar" in payload
+    assert "## Gates" in payload
+    assert not list(spill.parent.glob(".summon-payload-*.tmp"))   # temp cleaned up
 
 
 def test_bindings_injected_when_files_exist(plugin):
@@ -91,11 +108,13 @@ def test_bindings_injected_when_files_exist(plugin):
     mem.write_text("# Gotchas\nrule one")
 
     out = sb.bootstrap(_event(project, "/buddy:summon foo-bar"))
-    assert "## Live State" in out
-    assert "### Tracker: docs/trackers/live.md" in out
-    assert "state row" in out
-    assert "### codescout memory: gotchas" in out
-    assert "rule one" in out
+    assert "payload-file=" in out
+    payload = (project / ".buddy" / "sid-1" / "summon-payload-foo-bar.md").read_text()
+    assert "## Live State" in payload
+    assert "### Tracker: docs/trackers/live.md" in payload
+    assert "state row" in payload
+    assert "### codescout memory: gotchas" in payload
+    assert "rule one" in payload
 
 
 def test_memories_injected_pov_then_common(plugin, tmp_path):
@@ -110,11 +129,12 @@ def test_memories_injected_pov_then_common(plugin, tmp_path):
     (proj_mem / "c.md").write_text("project pov lesson")
 
     out = sb.bootstrap(_event(project, "/buddy:summon foo-bar"))
-    assert "## Memories — foo-bar POV" in out
-    proj_at = out.index("project pov lesson")
-    glob_at = out.index("global pov lesson")
+    payload = (project / ".buddy" / "sid-1" / "summon-payload-foo-bar.md").read_text()
+    assert "## Memories — foo-bar POV" in payload
+    proj_at = payload.index("project pov lesson")
+    glob_at = payload.index("global pov lesson")
     assert proj_at < glob_at                   # Project section before Global
-    assert "global common lesson" in out
+    assert "global common lesson" in payload
 
 
 def test_dedup_marker_on_second_summon(plugin):
@@ -148,8 +168,10 @@ def test_required_lens_missing_declines(plugin):
 
     assert sb.bootstrap(_event(project, "/buddy:summon foo-bar")) == ""
     out = sb.bootstrap(_event(project, "/buddy:summon foo-bar:alpha"))
-    assert "## Lens addendum — alpha" in out
-    assert "alpha lens text" in out
+    assert "lens=alpha" in out.splitlines()[0]
+    payload = (project / ".buddy" / "sid-1" / "summon-payload-foo-bar.md").read_text()
+    assert "## Lens addendum — alpha" in payload
+    assert "alpha lens text" in payload
     assert sb.bootstrap(_event(project, "/buddy:summon foo-bar:nope", sid="s2")) == ""
 
 
