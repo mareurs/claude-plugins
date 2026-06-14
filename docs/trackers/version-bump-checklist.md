@@ -17,16 +17,28 @@ Release readiness across plugins × profiles. See
 
 ## State
 
-_Last refresh: `9e1dbaa`_
+_Last refresh: `cfef899`_
 
-**buddy** — canonical `0.7.23` · readme `0.7.23` · marketplace clean ✅
+**codescout-companion** — canonical `1.11.13` · readme `1.11.13` · marketplace clean ✅
 
 | profile | installed | cache dir | install_path ok |
 |---|---|---|---|
-| `~/.claude` | `0.7.23` ✅ | ✅ | ✅ |
-| `~/.claude-sdd` | `0.7.23` ✅ | ✅ | ✅ |
-| `~/.claude-kat` | `0.7.23` ✅ | ✅ | ✅ |
+| `~/.claude` | `1.11.13` ✅ | ✅ | ✅ |
+| `~/.claude-sdd` | `1.11.13` ✅ | ✅ | ✅ |
+| `~/.claude-kat` | `1.11.13` ✅ | ✅ | ✅ |
+
+**buddy** — canonical `0.7.24` · readme `0.7.24` · marketplace clean ✅
+
+| profile | installed | cache dir | install_path ok |
+|---|---|---|---|
+| `~/.claude` | `0.7.24` ✅ | ✅ | ✅ |
+| `~/.claude-sdd` | `0.7.24` ✅ | ✅ | ✅ |
+| `~/.claude-kat` | `0.7.24` ✅ | ✅ | ✅ |
 ## History
+
+### 2026-06-14 — codescout-companion 1.11.12 → 1.11.13, buddy 0.7.23 → 0.7.24
+
+Three fixes shipped (commits `38987dc`/`dd38543`/`f3538d7`/`20f7fd2`; bumps in the `cfef899` chain). **companion 1.11.13**: `pre-tool-guard.sh` gains `is_harness_output` (`*/tool-results/*`) so an over-cap summon payload persisted by CC's persisted-output mechanism is readable back (F-3; Edit/Write stay blocked, +4 guard tests); `session-start.sh` nudges `workspace(action="activate", path=cwd)` as the first action to bootstrap the project (LSP prewarm, dep register, project_hints), gated non-worktree/non-compact, and its onboarding MSG block now appends instead of resetting (new `session-start.test.sh`, 4 cases). **buddy 0.7.24**: over-cap summon payload now spills to a guard-exempt `.buddy/<sid>/summon-payload-<dir>.md` with a compact `payload-file=` pointer (F-4 / A2 — mirrors codescout's own "always buffer, return a pointer" fix); codescout-pika gains a silent param-drop detector (heuristic 11 + param-surface query). Canonical/readme → 1.11.13 / 0.7.24; cache seeded + install records repointed across all three profiles; sanity loop all ✅ (cache + installPath, no cross-profile drift). Pre-bump `run-all.sh` all suites green; buddy pytest 455 (via uv). NO_PUSH (committed locally, not pushed); cold restart pending to bind the new caches. codescout-companion re-enters the tracker (the prior refresh tracked buddy only).
 
 ### 2026-06-14 — buddy 0.7.22 → 0.7.23
 
