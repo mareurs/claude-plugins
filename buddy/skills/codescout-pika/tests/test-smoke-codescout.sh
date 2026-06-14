@@ -23,7 +23,7 @@ SINCE_ID=0
 
 IL1=$(sqlite3 "$USAGE_DB" \
     "SELECT COUNT(*) FROM tool_calls
-     WHERE tool_name='read_file' AND outcome='ok'
+     WHERE tool_name='read_file' AND outcome='success'
        AND (input_json LIKE '%\"path\":\"%.rs\"%'
          OR input_json LIKE '%\"path\":\"%.py\"%'
          OR input_json LIKE '%\"path\":\"%.ts\"%'
@@ -36,7 +36,7 @@ IL1=$(sqlite3 "$USAGE_DB" \
 
 IL2=$(sqlite3 "$USAGE_DB" \
     "SELECT COUNT(*) FROM tool_calls
-     WHERE tool_name='edit_file' AND outcome='ok'
+     WHERE tool_name='edit_file' AND outcome='success'
        AND (input_json LIKE '%\"new_string\":\"%fn %'
          OR input_json LIKE '%\"new_string\":\"%class %'
          OR input_json LIKE '%\"new_string\":\"%struct %'

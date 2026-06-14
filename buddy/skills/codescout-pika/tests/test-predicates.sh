@@ -25,7 +25,7 @@ sqlite3 "$TMPDB" < "$SKILL_DIR/tests/fixtures.sql"
 # === Iron Law 1: read_file on source ===
 COUNT=$(sqlite3 "$TMPDB" \
     "SELECT COUNT(*) FROM tool_calls
-     WHERE tool_name='read_file' AND outcome='ok'
+     WHERE tool_name='read_file' AND outcome='success'
        AND (input_json LIKE '%\"path\":\"%.rs\"%'
          OR input_json LIKE '%\"path\":\"%.py\"%'
          OR input_json LIKE '%\"path\":\"%.ts\"%'
@@ -39,7 +39,7 @@ COUNT=$(sqlite3 "$TMPDB" \
 # === Iron Law 2: edit_file with structural keywords ===
 COUNT=$(sqlite3 "$TMPDB" \
     "SELECT COUNT(*) FROM tool_calls
-     WHERE tool_name='edit_file' AND outcome='ok'
+     WHERE tool_name='edit_file' AND outcome='success'
        AND (input_json LIKE '%\"new_string\":\"%fn %'
          OR input_json LIKE '%\"new_string\":\"%class %'
          OR input_json LIKE '%\"new_string\":\"%struct %'
@@ -112,10 +112,25 @@ grep -q "Tool bug candidates (judgment-based)" "$SKILL_DIR/sql/queries.sql"
 # Expected: 1 match from sess-E (the symbols-with-LSP-timeout error)
 COUNT=$(sqlite3 "$TMPDB" \
     "SELECT COUNT(*) FROM tool_calls
-     WHERE (outcome != 'ok'
+     WHERE (outcome IN ('error', 'recoverable_error')
         OR LENGTH(output_json) > 100000
         OR error_msg IS NOT NULL)
        AND id > 0")
 [[ "$COUNT" == "1" ]] || { echo "FAIL: tool_bug candidate expected 1, got $COUNT"; exit 1; }
 
-echo "PASS: all predicates + tool-bug candidates detect expected fixture rows"
+# === Silent param-drop STEP 1: param-surface query (json_each) ===
+# The undeclared key 'bogus_param' on a successful read_file must be surfaced.
+COUNT=$(sqlite3 "$TMPDB" \
+    "SELECT COUNT(*) FROM (
+        SELECT tc.tool_name AS tn, je.key AS input_key
+        FROM tool_calls tc, json_each(tc.input_json) je
+        WHERE tc.outcome='success' AND tc.id > 0
+        GROUP BY tc.tool_name, je.key
+     ) WHERE tn='read_file' AND input_key='bogus_param'")
+[[ "$COUNT" == "1" ]] || { echo "FAIL: param-surface expected to surface bogus_param once, got $COUNT"; exit 1; }
+
+# === queries.sql must contain the silent param-drop detector block ===
+grep -q "Silent param-drop candidates" "$SKILL_DIR/sql/queries.sql"
+[[ $? -eq 0 ]] || { echo "FAIL: queries.sql missing silent param-drop block"; exit 1; }
+
+echo "PASS: all predicates + tool-bug candidates + param-surface detect expected fixture rows"

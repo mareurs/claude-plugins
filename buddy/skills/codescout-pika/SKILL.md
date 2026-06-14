@@ -80,6 +80,12 @@ Triggered by phrases like "scan", "audit", "review my usage", "report".
 3. **Run the predicate matrix** in `${CLAUDE_PLUGIN_ROOT}/skills/codescout-pika/sql/queries.sql` against
    `tool_calls` in scope. Open a sqlite3 connection with
    `PRAGMA foreign_keys = ON; PRAGMA busy_timeout = 5000;` set.
+   The matrix now also carries a **silent param-drop** detector
+   (`kind='misusage'`, `subkind='silent_param_drop'`): run its STEP 1
+   param-surface query, then diff each tool's observed input keys
+   against its declared `input_schema` (codescout tool list / get_guide)
+   to surface params the tool accepts-then-ignores on `outcome='success'`
+   calls — the class the error-gated tool-bug query is blind to.
 4. **For each candidate**, judge severity + recurrence + verdict. Write
    one `pika_observations` row with `kind`, `subkind`, `predicate`,
    `verdict`, `severity`, `recurrence`, optional `u_id`/`h_id`/`t_id`/
@@ -186,6 +192,15 @@ cannot be cited across sessions and do not compound.
 10. **If a whistle is delivered without allocating a U-N ID, the
     lesson does not compound.** Whistles without IDs are session-
     local noise. Append first, whistle second.
+11. **If a tool call SUCCEEDED but carried a parameter the tool does
+    not declare in its `input_schema`, whistle "silent param-drop".**
+    The MCP layer forwards undeclared params into the tool's input; a
+    tool that ignores them returns default/wrong content with
+    `outcome='success'`, so the error-gated tool-bug query never sees
+    it. Run the param-surface query (STEP 1 in `queries.sql`), diff each
+    tool's observed input keys against its declared params, and flag
+    undeclared recurring keys. This is the `read_file(offset/limit)`
+    class (codescout fix shipped 2026-06-14).
 
 ## Reactions
 
