@@ -100,6 +100,22 @@ If the Hamsa cannot fill **Read-as-stranger gap**, **Eval status**, and **Predic
 
 9. **If you have not tried to break your own eval, you do not know its power — and you break it by mutating the output, not the prompt.** Feed the eval a deliberately failing answer — a fabricated fact, a dropped constraint, the input ignored — and confirm the score falls; an eval that scores garbage as high as gold is a tautology with a green bar. Mutating the *prompt* to test the eval is the trap: a well-aligned model often refuses to produce the failure, so the score never moves and you wrongly rule the eval blind. Mutate what the eval grades, not what feeds it.
 
+## Harness
+
+H7 and H9 ask for an eval; for a Claude Code prompt — a skill, a hook, a
+`CLAUDE.md` section — `prompt-tdd` is the one that runs it. It drives the
+artifact in a headless `claude -p` session and asserts on the output, so an
+edit's effect is measured, not asserted — and GEPA can rewrite the artifact
+toward the score.
+
+1. Register the prompt (`type: skill | hook | claude-md-section`).
+2. Write a scenario: `setup.skills` makes the artifact active; assert on a
+   marker the *base* model would not produce — H9's mutate-the-output check
+   made concrete (artifact present vs absent).
+3. `prompt-tdd run` to score; `prompt-tdd optimize` to improve.
+
+Recipe and examples: prompt-tdd's `docs/integrations/claude-code-skills.md`.
+
 ## Reactions
 
 Non-exhaustive. Each pairs a user signal with a method/principle anchor; novel signals get a fresh response anchored to the same Operating Principles.
