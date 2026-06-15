@@ -15,7 +15,9 @@
 # Trigger: command starts with a known LHS command (build/test runner OR
 # git/find/ls/grep/cat/diff/du/stat/rg/fd — see telemetry comment near the
 # detection block) AND has a pipe whose post-pipe target is a log-trimmer
-# (tail, head, grep, less, wc, sed, awk, cut, sort, uniq, tr, fmt).
+# (tail, head, grep, less, sed, awk, cut, sort, uniq, tr, fmt). Pure
+# aggregators that collapse output to a summary — wc, and a counting
+# grep -c/--count — SAVE context and are NOT treated as trims.
 #
 # Allow-list pipes (jq, yq, fx, etc.) are simply not in the deny-pipe list —
 # they fall through silently. `cargo metadata | jq '.packages'` is structured
@@ -51,9 +53,18 @@ fi
 # cat, diff. Widened to cover those families. Recall ~93% projected, FP cost
 # low (advisory-only — this hook never blocks; the server gate enforces).
 LHS_COMMANDS='(cargo|npm|pnpm|yarn|python|pytest|go|mvn|gradle|git|find|ls|grep|cat|diff|du|stat|rg|fd)'
-DENY_PIPE='(tail|head|grep|less|wc|sed|awk|cut|sort|uniq|tr|fmt)'
+DENY_PIPE='(tail|head|grep|less|sed|awk|cut|sort|uniq|tr|fmt)'
 
 if ! echo "$CMD" | grep -qE "^[[:space:]]*${LHS_COMMANDS}[[:space:]].*\\|[[:space:]]*${DENY_PIPE}\\b"; then
+  exit 0
+fi
+
+# Pure aggregators on the RHS SAVE context (collapse output to a count) rather
+# than trim it — allowed even from an unbounded LHS. `wc` is dropped from
+# DENY_PIPE above; exempt a counting `grep -c`/`--count` when grep is the only
+# trimmer target (mirrors stage_trims in codescout's path_security.rs).
+if ! echo "$CMD" | grep -qE "\\|[[:space:]]*(tail|head|less|sed|awk|cut|sort|uniq|tr|fmt)\\b" \
+   && echo "$CMD" | grep -qE "\\|[[:space:]]*grep\\b[^|]*(--count|-[A-Za-z]*c[A-Za-z]*)"; then
   exit 0
 fi
 

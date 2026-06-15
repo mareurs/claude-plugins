@@ -11,8 +11,9 @@
 # — see docs/issues/2026-05-18-il3-overtriggers-bounded-lhs.md.
 #
 # Trigger: command's first token is a known UNBOUNDED command AND has a pipe
-# whose post-pipe target is a log-trimmer (tail, head, grep, less, wc, sed,
-# awk, cut, sort, uniq, tr, fmt).
+# whose post-pipe target is a log-trimmer (tail, head, grep, less, sed,
+# awk, cut, sort, uniq, tr, fmt). Pure aggregators that collapse output to a
+# summary — wc, and a counting grep -c/--count — are allowed, not trims.
 #
 # Bounded LHS (ls, cat, stat, du, diff, awk, sed, non-recursive grep, find
 # with -maxdepth) is allowed — their output is bounded by direct argument
@@ -51,8 +52,17 @@ CMD=$(echo "$INPUT" | jq -r '.tool_input.command // empty' 2>/dev/null)
 # practice; better than the U-22 false positive shape).
 DEQUOTED=$(echo "$CMD" | sed -E "s/'[^']*'//g; s/\"[^\"]*\"//g")
 
-DENY_PIPE='(tail|head|grep|less|wc|sed|awk|cut|sort|uniq|tr|fmt)'
+DENY_PIPE='(tail|head|grep|less|sed|awk|cut|sort|uniq|tr|fmt)'
 if ! echo "$DEQUOTED" | grep -qE "\\|[[:space:]]*${DENY_PIPE}\\b"; then
+  exit 0
+fi
+
+# Pure aggregators on the RHS SAVE context (collapse output to a count) rather
+# than trim it — allowed even from an unbounded LHS. `wc` is dropped from
+# DENY_PIPE above; exempt a counting `grep -c`/`--count` when grep is the only
+# trimmer target (mirrors stage_trims in path_security.rs).
+if ! echo "$DEQUOTED" | grep -qE "\\|[[:space:]]*(tail|head|less|sed|awk|cut|sort|uniq|tr|fmt)\\b" \
+   && echo "$DEQUOTED" | grep -qE "\\|[[:space:]]*grep\\b[^|]*(--count|-[A-Za-z]*c[A-Za-z]*)"; then
   exit 0
 fi
 

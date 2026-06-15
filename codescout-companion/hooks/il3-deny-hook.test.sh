@@ -95,8 +95,8 @@ assert "bounded-find-maxdepth" "$(mkinput 'find . -maxdepth 2 -name *.rs | head'
 # 17. grep -r → recursive → unbounded → DENY
 assert "unbounded-grep-recursive" "$(mkinput 'grep -r FAILED src/ | head')" "deny"
 
-# 18. grep -R (capital) → unbounded → DENY
-assert "unbounded-grep-capital-R" "$(mkinput 'grep -R pat src/ | wc -l')" "deny"
+# 18. grep -R | wc → wc aggregates (count), not trims → ALLOW (was deny pre-2026-06-15)
+assert "aggregator-grep-recursive-wc" "$(mkinput 'grep -R pat src/ | wc -l')" "allow"
 
 # 19. grep --recursive → unbounded → DENY
 assert "unbounded-grep-long-recursive" "$(mkinput 'grep --recursive pat src/ | sort')" "deny"
@@ -107,8 +107,8 @@ assert "unbounded-find-bare" "$(mkinput 'find / -name *.rs | head')" "deny"
 # 21. rg → defaults recursive → unbounded → DENY
 assert "unbounded-rg-head" "$(mkinput 'rg pattern | head')" "deny"
 
-# 22. fd → defaults recursive → unbounded → DENY
-assert "unbounded-fd-wc" "$(mkinput 'fd .rs | wc -l')" "deny"
+# 22. fd | wc → wc aggregates (count files) → ALLOW (was deny pre-2026-06-15)
+assert "aggregator-fd-wc" "$(mkinput 'fd .rs | wc -l')" "allow"
 
 # --- U-22: literal `|` inside quoted strings is not a real pipe ---
 # 23. git commit message with single-quoted pipe → ALLOW (no real pipe)
@@ -125,6 +125,28 @@ assert "u22-quoted-then-real-pipe" "$(mkinput 'cargo test '\''pat | with pipe'\'
 
 # 26. Echo command with quoted pipe but no real pipe → ALLOW
 assert "u22-echo-with-quoted-pipe-only" "$(mkinput 'echo \"contains | a pipe\"')" "allow"
+
+# --- 2026-06-15: RHS aggregators (wc, counting grep) SAVE context → ALLOW ---
+# 27. git status | wc -l — the reported friction. wc aggregates → ALLOW
+assert "aggregator-git-status-wc" "$(mkinput 'git status --porcelain | wc -l')" "allow"
+
+# 28. cargo test | wc -l — unbounded LHS, but wc collapses to a count → ALLOW
+assert "aggregator-cargo-wc" "$(mkinput 'cargo test | wc -l')" "allow"
+
+# 29. counting grep (-c) — emits a match count, not the matches → ALLOW
+assert "aggregator-counting-grep" "$(mkinput 'git log --oneline | grep -c fix')" "allow"
+
+# 30. counting grep (--count long flag) → ALLOW
+assert "aggregator-counting-grep-long" "$(mkinput 'cargo test | grep --count PASS')" "allow"
+
+# 31. counting grep (bundled -ic) — still counting → ALLOW
+assert "aggregator-counting-grep-bundled" "$(mkinput 'cargo test | grep -ic warning')" "allow"
+
+# 32. plain filtering grep (no -c) — hides non-matches → still DENY
+assert "filtering-grep-still-denies" "$(mkinput 'git log --oneline | grep fix')" "deny"
+
+# 33. -C context grep (capital, not a count) — filter → still DENY
+assert "context-grep-still-denies" "$(mkinput 'cargo test | grep -C 2 warning')" "deny"
 
 echo
 echo "Passed: $PASS   Failed: $FAIL"
