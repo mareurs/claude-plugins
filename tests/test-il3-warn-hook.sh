@@ -23,7 +23,7 @@ else
 fi
 
 # New: git family (most-slipped family in telemetry)
-for cmd in "git log --oneline | head -3" "git status --short | grep M" "git diff HEAD~1 | wc -l"; do
+for cmd in "git log --oneline | head -3" "git status --short | grep M"; do
   OUT=$(il3_input "mcp__codescout__run_command" "$cmd" | bash "$HOOK" 2>/dev/null)
   if assert_context_contains "$OUT" "IL3 warning"; then
     pass "fires on: $cmd"
@@ -41,7 +41,7 @@ else
 fi
 
 # New: ls, grep, cat, diff, du
-for cmd in "ls -la | wc -l" "grep -r foo src/ | head -50" "cat file.log | tail -20" "diff a b | head" "du -sh */ | sort"; do
+for cmd in "ls -la | head" "grep -r foo src/ | head -50" "cat file.log | tail -20" "diff a b | head" "du -sh */ | sort"; do
   OUT=$(il3_input "mcp__codescout__run_command" "$cmd" | bash "$HOOK" 2>/dev/null)
   if assert_context_contains "$OUT" "IL3 warning"; then
     pass "fires on: $cmd"
@@ -110,5 +110,25 @@ if ! assert_context_contains "$OUT" "IL3 warning"; then
 else
   fail "allows unknown LHS" "$OUT"
 fi
+
+# --- Aggregators SAVE context (collapse to a summary) — should NOT fire (2026-06-15) ---
+for cmd in "git diff HEAD~1 | wc -l" "ls -la | wc -l" "git status --porcelain | wc -l" "git log | grep -c fix" "cargo test | grep --count PASS"; do
+  OUT=$(il3_input "mcp__codescout__run_command" "$cmd" | bash "$HOOK" 2>/dev/null)
+  if ! assert_context_contains "$OUT" "IL3 warning"; then
+    pass "allows aggregator: $cmd"
+  else
+    fail "allows aggregator: $cmd" "$OUT"
+  fi
+done
+
+# A filtering / context grep still trims and must still fire
+for cmd in "git log | grep fix" "cargo test | grep -C 2 warn"; do
+  OUT=$(il3_input "mcp__codescout__run_command" "$cmd" | bash "$HOOK" 2>/dev/null)
+  if assert_context_contains "$OUT" "IL3 warning"; then
+    pass "fires on filtering grep: $cmd"
+  else
+    fail "fires on filtering grep: $cmd" "$OUT"
+  fi
+done
 
 print_summary "il3-warn-hook"
