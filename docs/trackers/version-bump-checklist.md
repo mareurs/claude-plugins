@@ -17,7 +17,7 @@ Release readiness across plugins × profiles. See
 
 ## State
 
-_Last refresh: `cfef899`_
+_Last refresh: `cf05a3a`_
 
 **codescout-companion** — canonical `1.11.13` · readme `1.11.13` · marketplace clean ✅
 
@@ -27,14 +27,18 @@ _Last refresh: `cfef899`_
 | `~/.claude-sdd` | `1.11.13` ✅ | ✅ | ✅ |
 | `~/.claude-kat` | `1.11.13` ✅ | ✅ | ✅ |
 
-**buddy** — canonical `0.7.24` · readme `0.7.24` · marketplace clean ✅
+**buddy** — canonical `0.7.25` · readme `0.7.25` · marketplace clean ✅
 
 | profile | installed | cache dir | install_path ok |
 |---|---|---|---|
-| `~/.claude` | `0.7.24` ✅ | ✅ | ✅ |
-| `~/.claude-sdd` | `0.7.24` ✅ | ✅ | ✅ |
-| `~/.claude-kat` | `0.7.24` ✅ | ✅ | ✅ |
+| `~/.claude` | `0.7.25` ✅ | ✅ | ✅ |
+| `~/.claude-sdd` | `0.7.25` ✅ | ✅ | ✅ |
+| `~/.claude-kat` | `0.7.25` ✅ | ✅ | ✅ |
 ## History
+
+### 2026-06-14 — buddy 0.7.24 → 0.7.25
+
+Stale-tool-name drift swept out of buddy + two robustness fixes (fix commit `044a0d0`; bump `cf05a3a`). codescout folded `replace_symbol`/`insert_code`/`remove_symbol` into `edit_code` and added `edit_markdown`, but four buddy sites still referenced the dead names: `cs_heuristics._check_grep_for_concept` matched the nonexistent `search_pattern` (dead heuristic → now `grep`); `_WRITE_TOOLS` missed `edit_code`/`edit_markdown` (parallel-write detection blind to the main edit tool); `_check_structural_edit` recommended dead `replace_symbol` → `edit_code`; `hook_helpers.PLAN_TOOL_PATH_KEYS` missed `edit_code`/`edit_markdown` (plan-drift blind to the primary structural-edit tool). Plus `consolidate.render_plan_for_user` now guards the optional `reason` key (no KeyError on a reasonless plan), and the recon `test_hooks_session_start.sh` was repaired (it relied on symlinks + `CLAUDE_PLUGIN_ROOT`, which the hook ignores — it self-locates via `__file__.resolve()`; now real-copies into a cache-layout dir and runs the copied hook). The earlier `set -e` command-substitution guard in `session-start.sh` (commit `e58e2f1`) also ships in this cache. Canonical/readme → 0.7.25; cache seeded + install records repointed across all three profiles; sanity loop all ✅ (cache + installPath, no cross-profile drift). Pre-bump `run-all.sh` all suites green; buddy pytest 456. Pushed to main (`cf05a3a`); cold restart pending to bind the 0.7.25 cache.
 
 ### 2026-06-14 — codescout-companion 1.11.12 → 1.11.13, buddy 0.7.23 → 0.7.24
 

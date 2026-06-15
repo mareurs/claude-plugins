@@ -1,0 +1,296 @@
+{
+ "gen_model": "gemini-flash-lite-latest",
+ "grade_model": "gemini-2.5-flash",
+ "n": 5,
+ "temp": 0.7,
+ "results": [
+  {
+   "id": "F",
+   "name": "negation-only (length calibration)",
+   "n": 5,
+   "temp": 0.7,
+   "summary": {
+    "control": {
+     "length_hit": 1.0,
+     "coverage": 1.0
+    },
+    "treatment": {
+     "length_hit": 1.0,
+     "coverage": 1.0
+    }
+   },
+   "rows": [
+    {
+     "arm": "control",
+     "input_id": "f1",
+     "output": "The Riverside city council approved a $4 million, 12-mile protected bike lane project for the downtown area. Construction will occur from next spring through 2027 to accommodate a 30% increase in cycling commutes, despite one council member's concerns over costs.",
+     "scores": {
+      "length_hit": 1.0,
+      "coverage": 1.0
+     }
+    },
+    {
+     "arm": "control",
+     "input_id": "f1",
+     "output": "The Riverside city council approved a $4 million, 12-mile protected bike lane project for downtown. Construction runs from next spring through 2027, aimed at supporting a 30% increase in local cycling.",
+     "scores": {
+      "length_hit": 1.0,
+      "coverage": 1.0
+     }
+    },
+    {
+     "arm": "control",
+     "input_id": "f1",
+     "output": "The Riverside city council approved $4 million for 12 miles of protected bike lanes downtown. Construction runs from next spring through 2027, a decision driven by a 30% increase in cycling commutes despite concerns over project costs.",
+     "scores": {
+      "length_hit": 1.0,
+      "coverage": 1.0
+     }
+    },
+    {
+     "arm": "control",
+     "input_id": "f1",
+     "output": "The Riverside city council approved a $4 million, 12-mile protected bike lane project for the downtown area. Construction will occur between next spring and 2027 to accommodate a 30% increase in cycling commuters.",
+     "scores": {
+      "length_hit": 1.0,
+      "coverage": 1.0
+     }
+    },
+    {
+     "arm": "control",
+     "input_id": "f1",
+     "output": "The Riverside city council approved a $4 million, 12-mile protected bike lane project for downtown. Construction runs from next spring through 2027, aimed at supporting a 30% increase in cycling commutes. The vote was 6-1, with the dissenter citing cost concerns.",
+     "scores": {
+      "length_hit": 1.0,
+      "coverage": 1.0
+     }
+    },
+    {
+     "arm": "control",
+     "input_id": "f2",
+     "output": "Northstar Appliances is recalling 80,000 electric kettles manufactured between June and September 2025 due to a defective thermostat that poses an overheating risk. Customers can receive a full refund or a free replacement.",
+     "scores": {
+      "length_hit": 1.0,
+      "coverage": 1.0
+     }
+    },
+    {
+     "arm": "control",
+     "input_id": "f2",
+     "output": "Northstar Appliances is recalling 80,000 electric kettles manufactured between June and September 2025 due to a defective thermostat that poses an overheating risk. Customers are eligible for a full refund or a replacement.",
+     "scores": {
+      "length_hit": 1.0,
+      "coverage": 1.0
+     }
+    },
+    {
+     "arm": "control",
+     "input_id": "f2",
+     "output": "Northstar Appliances is recalling 80,000 electric kettles manufactured between June and September 2025 due to a defective thermostat that poses an overheating risk. Customers are eligible for a full refund or free replacement. No serious injuries have been reported.",
+     "scores": {
+      "length_hit": 1.0,
+      "coverage": 1.0
+     }
+    },
+    {
+     "arm": "control",
+     "input_id": "f2",
+     "output": "Northstar Appliances has recalled 80,000 electric kettles produced between June and September 2025 due to a defective thermostat that poses an overheating risk. Customers are eligible for a full refund or a free replacement. Two minor burn injuries have been reported.",
+     "scores": {
+      "length_hit": 1.0,
+      "coverage": 1.0
+     }
+    },
+    {
+     "arm": "control",
+     "input_id": "f2",
+     "output": "Northstar Appliances is recalling 80,000 electric kettles manufactured between June and September 2025 due to defective thermostats that pose an overheating risk. Customers are eligible for a full refund or a free replacement.",
+     "scores": {
+      "length_hit": 1.0,
+      "coverage": 1.0
+     }
+    },
+    {
+     "arm": "control",
+     "input_id": "f3",
+     "output": "A six-month study of 1,200 adults found that consistent bedtimes reduce daytime concentration lapses by 22%, independent of total sleep duration. Researchers noted the study is observational and does not prove causation.",
+     "scores": {
+      "length_hit": 1.0,
+      "coverage": 1.0
+     }
+    },
+    {
+     "arm": "control",
+     "input_id": "f3",
+     "output": "A six-month study of 1,200 adults found that consistent bedtimes reduce daytime concentration lapses by 22%, independent of total sleep duration. Researchers noted the study is observational and does not prove causation.",
+     "scores": {
+      "length_hit": 1.0,
+      "coverage": 1.0
+     }
+    },
+    {
+     "arm": "control",
+     "input_id": "f3",
+     "output": "A six-month study of 1,200 adults found that consistent bedtimes reduce daytime concentration lapses by 22%, independent of total sleep duration. Researchers noted the study is observational and does not prove causation.",
+     "scores": {
+      "length_hit": 1.0,
+      "coverage": 1.0
+     }
+    },
+    {
+     "arm": "control",
+     "input_id": "f3",
+     "output": "A six-month study of 1,200 adults suggests that consistent bedtimes reduce daytime concentration lapses by 22%, independent of total sleep duration. Researchers noted the findings are observational and do not establish a direct cause.",
+     "scores": {
+      "length_hit": 1.0,
+      "coverage": 1.0
+     }
+    },
+    {
+     "arm": "control",
+     "input_id": "f3",
+     "output": "A six-month study of 1,200 adults found that consistent bedtimes reduce daytime concentration lapses by 22%, independent of total sleep duration. Researchers noted the study is observational and does not prove causation.",
+     "scores": {
+      "length_hit": 1.0,
+      "coverage": 1.0
+     }
+    },
+    {
+     "arm": "treatment",
+     "input_id": "f1",
+     "output": "The Riverside city council approved a $4 million budget to construct 12 miles of protected bike lanes along the downtown corridor. Construction is scheduled to begin next spring and conclude in 2027 to accommodate a 30% increase in cycling commutes since 2023. Despite the project\u2019s approval, one council member dissented due to concerns over the cost.",
+     "scores": {
+      "length_hit": 1.0,
+      "coverage": 1.0
+     }
+    },
+    {
+     "arm": "treatment",
+     "input_id": "f1",
+     "output": "The Riverside city council approved a $4 million project to install 12 miles of protected bike lanes along the downtown corridor. Construction is scheduled to begin next spring and conclude in 2027 to accommodate a 30% increase in cycling commutes since 2023. Despite one dissenting vote regarding the cost, the measure passed with a 6-1 majority.",
+     "scores": {
+      "length_hit": 1.0,
+      "coverage": 1.0
+     }
+    },
+    {
+     "arm": "treatment",
+     "input_id": "f1",
+     "output": "The Riverside city council approved a $4 million budget to construct 12 miles of protected bike lanes along the downtown corridor. The project is scheduled to begin next spring and conclude by 2027, driven by a 30% increase in cycling commutes since 2023. Despite one dissenting vote regarding the cost, the measure passed with a 6-1 majority.",
+     "scores": {
+      "length_hit": 1.0,
+      "coverage": 1.0
+     }
+    },
+    {
+     "arm": "treatment",
+     "input_id": "f1",
+     "output": "The Riverside city council approved a $4 million budget to construct 12 miles of protected bike lanes throughout the downtown corridor. Construction is scheduled to begin next spring and conclude in 2027 to accommodate a 30% increase in cycling commutes since 2023. Despite the project\u2019s approval, one council member dissented due to concerns over the cost.",
+     "scores": {
+      "length_hit": 1.0,
+      "coverage": 1.0
+     }
+    },
+    {
+     "arm": "treatment",
+     "input_id": "f1",
+     "output": "The Riverside city council approved a $4 million budget to construct 12 miles of protected bike lanes along the downtown corridor. The project is scheduled to begin next spring and conclude in 2027 to accommodate a 30% increase in cycling commutes since 2023. Despite the project's approval by a 6-1 vote, the lone dissenting council member expressed concerns regarding the cost.",
+     "scores": {
+      "length_hit": 1.0,
+      "coverage": 1.0
+     }
+    },
+    {
+     "arm": "treatment",
+     "input_id": "f2",
+     "output": "Northstar Appliances has recalled 80,000 electric kettles produced between June and September 2025 due to a defective thermostat that poses an overheating risk. While 14 incidents have been reported, including two minor burns, no serious injuries occurred. Customers are entitled to a full refund or a free replacement for their units.",
+     "scores": {
+      "length_hit": 1.0,
+      "coverage": 1.0
+     }
+    },
+    {
+     "arm": "treatment",
+     "input_id": "f2",
+     "output": "Northstar Appliances has recalled 80,000 electric kettles manufactured between June and September 2025 due to a defective thermostat that poses an overheating risk. While 14 incidents have been reported, including two minor burns, there have been no serious injuries. Customers are eligible for a full refund or a free replacement for their affected units.",
+     "scores": {
+      "length_hit": 1.0,
+      "coverage": 1.0
+     }
+    },
+    {
+     "arm": "treatment",
+     "input_id": "f2",
+     "output": "Northstar Appliances has recalled 80,000 electric kettles manufactured between June and September 2025 due to a defective thermostat that poses an overheating risk. While there have been 14 reports of overheating and two minor burns, no serious injuries occurred. Customers are eligible for a full refund or a free replacement.",
+     "scores": {
+      "length_hit": 1.0,
+      "coverage": 1.0
+     }
+    },
+    {
+     "arm": "treatment",
+     "input_id": "f2",
+     "output": "Northstar Appliances has recalled 80,000 electric kettles produced between June and September 2025 due to a defective thermostat that poses an overheating risk. While there have been 14 reports of overheating resulting in two minor burns, no serious injuries occurred. Customers are entitled to a full refund or a free replacement for the affected units.",
+     "scores": {
+      "length_hit": 1.0,
+      "coverage": 1.0
+     }
+    },
+    {
+     "arm": "treatment",
+     "input_id": "f2",
+     "output": "Northstar Appliances has recalled 80,000 electric kettles produced between June and September 2025 due to a defective thermostat that poses an overheating risk. While there have been 14 reports of overheating resulting in two minor burns, no serious injuries occurred. Customers are entitled to a full refund or a free replacement for their affected units.",
+     "scores": {
+      "length_hit": 1.0,
+      "coverage": 1.0
+     }
+    },
+    {
+     "arm": "treatment",
+     "input_id": "f3",
+     "output": "A six-month study of 1,200 adults found that those with consistent bedtimes experienced 22% fewer daytime concentration lapses than those with irregular schedules, regardless of total sleep duration. However, researchers noted that because the study was observational, it cannot definitively prove a cause-and-effect relationship.",
+     "scores": {
+      "length_hit": 1.0,
+      "coverage": 1.0
+     }
+    },
+    {
+     "arm": "treatment",
+     "input_id": "f3",
+     "output": "A six-month study of 1,200 adults found that those with consistent bedtimes experienced 22% fewer daytime concentration lapses than those with irregular schedules, regardless of total sleep duration. However, researchers noted that because the study was observational, it cannot definitively prove that a consistent bedtime causes improved focus.",
+     "scores": {
+      "length_hit": 1.0,
+      "coverage": 1.0
+     }
+    },
+    {
+     "arm": "treatment",
+     "input_id": "f3",
+     "output": "A six-month study of 1,200 adults found that those with consistent bedtimes experienced 22% fewer daytime concentration lapses than those with irregular schedules, regardless of total sleep duration. However, researchers noted that the study was observational and cannot definitively prove a cause-and-effect relationship.",
+     "scores": {
+      "length_hit": 1.0,
+      "coverage": 1.0
+     }
+    },
+    {
+     "arm": "treatment",
+     "input_id": "f3",
+     "output": "A six-month study of 1,200 adults found that those with consistent bedtimes experienced 22% fewer daytime concentration lapses than those with irregular schedules, regardless of total sleep duration. While these findings highlight the benefits of sleep consistency, researchers noted the study was observational and cannot definitively prove cause.",
+     "scores": {
+      "length_hit": 1.0,
+      "coverage": 1.0
+     }
+    },
+    {
+     "arm": "treatment",
+     "input_id": "f3",
+     "output": "A six-month study of 1,200 participants found that maintaining a consistent bedtime reduces daytime concentration lapses by 22%, independent of total sleep duration. While the results suggest a link between schedule regularity and focus, researchers noted that the observational study design cannot definitively prove cause.",
+     "scores": {
+      "length_hit": 1.0,
+      "coverage": 1.0
+     }
+    }
+   ]
+  }
+ ]
+}

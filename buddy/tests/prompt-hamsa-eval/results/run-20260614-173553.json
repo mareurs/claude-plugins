@@ -1,0 +1,664 @@
+{
+ "gen_model": "gemini-flash-lite-latest",
+ "grade_model": "gemini-2.5-flash",
+ "n": 5,
+ "temp": 0.7,
+ "results": [
+  {
+   "id": "G",
+   "name": "capability / hidden-rules (behavioral signal)",
+   "n": 5,
+   "temp": 0.7,
+   "summary": {
+    "control": {
+     "accuracy": 0.75
+    },
+    "treatment": {
+     "accuracy": 1.0
+    }
+   },
+   "rows": [
+    {
+     "arm": "control",
+     "input_id": "g1",
+     "output": "Tech",
+     "scores": {
+      "accuracy": 0.0
+     }
+    },
+    {
+     "arm": "control",
+     "input_id": "g1",
+     "output": "Tech",
+     "scores": {
+      "accuracy": 0.0
+     }
+    },
+    {
+     "arm": "control",
+     "input_id": "g1",
+     "output": "Tech",
+     "scores": {
+      "accuracy": 0.0
+     }
+    },
+    {
+     "arm": "control",
+     "input_id": "g1",
+     "output": "Tech",
+     "scores": {
+      "accuracy": 0.0
+     }
+    },
+    {
+     "arm": "control",
+     "input_id": "g1",
+     "output": "Tech",
+     "scores": {
+      "accuracy": 0.0
+     }
+    },
+    {
+     "arm": "control",
+     "input_id": "g2",
+     "output": "Tech",
+     "scores": {
+      "accuracy": 1.0
+     }
+    },
+    {
+     "arm": "control",
+     "input_id": "g2",
+     "output": "Tech",
+     "scores": {
+      "accuracy": 1.0
+     }
+    },
+    {
+     "arm": "control",
+     "input_id": "g2",
+     "output": "Tech",
+     "scores": {
+      "accuracy": 1.0
+     }
+    },
+    {
+     "arm": "control",
+     "input_id": "g2",
+     "output": "Tech",
+     "scores": {
+      "accuracy": 1.0
+     }
+    },
+    {
+     "arm": "control",
+     "input_id": "g2",
+     "output": "Tech",
+     "scores": {
+      "accuracy": 1.0
+     }
+    },
+    {
+     "arm": "control",
+     "input_id": "g3",
+     "output": "Billing",
+     "scores": {
+      "accuracy": 1.0
+     }
+    },
+    {
+     "arm": "control",
+     "input_id": "g3",
+     "output": "Billing",
+     "scores": {
+      "accuracy": 1.0
+     }
+    },
+    {
+     "arm": "control",
+     "input_id": "g3",
+     "output": "Billing",
+     "scores": {
+      "accuracy": 1.0
+     }
+    },
+    {
+     "arm": "control",
+     "input_id": "g3",
+     "output": "Billing",
+     "scores": {
+      "accuracy": 1.0
+     }
+    },
+    {
+     "arm": "control",
+     "input_id": "g3",
+     "output": "Billing",
+     "scores": {
+      "accuracy": 1.0
+     }
+    },
+    {
+     "arm": "control",
+     "input_id": "g4",
+     "output": "Escalations",
+     "scores": {
+      "accuracy": 1.0
+     }
+    },
+    {
+     "arm": "control",
+     "input_id": "g4",
+     "output": "Escalations",
+     "scores": {
+      "accuracy": 1.0
+     }
+    },
+    {
+     "arm": "control",
+     "input_id": "g4",
+     "output": "Escalations",
+     "scores": {
+      "accuracy": 1.0
+     }
+    },
+    {
+     "arm": "control",
+     "input_id": "g4",
+     "output": "Escalations",
+     "scores": {
+      "accuracy": 1.0
+     }
+    },
+    {
+     "arm": "control",
+     "input_id": "g4",
+     "output": "Escalations",
+     "scores": {
+      "accuracy": 1.0
+     }
+    },
+    {
+     "arm": "control",
+     "input_id": "g5",
+     "output": "Tech",
+     "scores": {
+      "accuracy": 0.0
+     }
+    },
+    {
+     "arm": "control",
+     "input_id": "g5",
+     "output": "Tech",
+     "scores": {
+      "accuracy": 0.0
+     }
+    },
+    {
+     "arm": "control",
+     "input_id": "g5",
+     "output": "Tech",
+     "scores": {
+      "accuracy": 0.0
+     }
+    },
+    {
+     "arm": "control",
+     "input_id": "g5",
+     "output": "Tech",
+     "scores": {
+      "accuracy": 0.0
+     }
+    },
+    {
+     "arm": "control",
+     "input_id": "g5",
+     "output": "Tech",
+     "scores": {
+      "accuracy": 0.0
+     }
+    },
+    {
+     "arm": "control",
+     "input_id": "g6",
+     "output": "Billing",
+     "scores": {
+      "accuracy": 1.0
+     }
+    },
+    {
+     "arm": "control",
+     "input_id": "g6",
+     "output": "Billing",
+     "scores": {
+      "accuracy": 1.0
+     }
+    },
+    {
+     "arm": "control",
+     "input_id": "g6",
+     "output": "Billing",
+     "scores": {
+      "accuracy": 1.0
+     }
+    },
+    {
+     "arm": "control",
+     "input_id": "g6",
+     "output": "Billing",
+     "scores": {
+      "accuracy": 1.0
+     }
+    },
+    {
+     "arm": "control",
+     "input_id": "g6",
+     "output": "Billing",
+     "scores": {
+      "accuracy": 1.0
+     }
+    },
+    {
+     "arm": "control",
+     "input_id": "g7",
+     "output": "Tech",
+     "scores": {
+      "accuracy": 1.0
+     }
+    },
+    {
+     "arm": "control",
+     "input_id": "g7",
+     "output": "Tech",
+     "scores": {
+      "accuracy": 1.0
+     }
+    },
+    {
+     "arm": "control",
+     "input_id": "g7",
+     "output": "Tech",
+     "scores": {
+      "accuracy": 1.0
+     }
+    },
+    {
+     "arm": "control",
+     "input_id": "g7",
+     "output": "Tech",
+     "scores": {
+      "accuracy": 1.0
+     }
+    },
+    {
+     "arm": "control",
+     "input_id": "g7",
+     "output": "Tech",
+     "scores": {
+      "accuracy": 1.0
+     }
+    },
+    {
+     "arm": "control",
+     "input_id": "g8",
+     "output": "Escalations",
+     "scores": {
+      "accuracy": 1.0
+     }
+    },
+    {
+     "arm": "control",
+     "input_id": "g8",
+     "output": "Escalations",
+     "scores": {
+      "accuracy": 1.0
+     }
+    },
+    {
+     "arm": "control",
+     "input_id": "g8",
+     "output": "Escalations",
+     "scores": {
+      "accuracy": 1.0
+     }
+    },
+    {
+     "arm": "control",
+     "input_id": "g8",
+     "output": "Escalations",
+     "scores": {
+      "accuracy": 1.0
+     }
+    },
+    {
+     "arm": "control",
+     "input_id": "g8",
+     "output": "Escalations",
+     "scores": {
+      "accuracy": 1.0
+     }
+    },
+    {
+     "arm": "treatment",
+     "input_id": "g1",
+     "output": "Accounts",
+     "scores": {
+      "accuracy": 1.0
+     }
+    },
+    {
+     "arm": "treatment",
+     "input_id": "g1",
+     "output": "Accounts",
+     "scores": {
+      "accuracy": 1.0
+     }
+    },
+    {
+     "arm": "treatment",
+     "input_id": "g1",
+     "output": "Accounts",
+     "scores": {
+      "accuracy": 1.0
+     }
+    },
+    {
+     "arm": "treatment",
+     "input_id": "g1",
+     "output": "Accounts",
+     "scores": {
+      "accuracy": 1.0
+     }
+    },
+    {
+     "arm": "treatment",
+     "input_id": "g1",
+     "output": "Accounts",
+     "scores": {
+      "accuracy": 1.0
+     }
+    },
+    {
+     "arm": "treatment",
+     "input_id": "g2",
+     "output": "Tech",
+     "scores": {
+      "accuracy": 1.0
+     }
+    },
+    {
+     "arm": "treatment",
+     "input_id": "g2",
+     "output": "Tech",
+     "scores": {
+      "accuracy": 1.0
+     }
+    },
+    {
+     "arm": "treatment",
+     "input_id": "g2",
+     "output": "Tech",
+     "scores": {
+      "accuracy": 1.0
+     }
+    },
+    {
+     "arm": "treatment",
+     "input_id": "g2",
+     "output": "Tech",
+     "scores": {
+      "accuracy": 1.0
+     }
+    },
+    {
+     "arm": "treatment",
+     "input_id": "g2",
+     "output": "Tech",
+     "scores": {
+      "accuracy": 1.0
+     }
+    },
+    {
+     "arm": "treatment",
+     "input_id": "g3",
+     "output": "Billing",
+     "scores": {
+      "accuracy": 1.0
+     }
+    },
+    {
+     "arm": "treatment",
+     "input_id": "g3",
+     "output": "Billing",
+     "scores": {
+      "accuracy": 1.0
+     }
+    },
+    {
+     "arm": "treatment",
+     "input_id": "g3",
+     "output": "Billing",
+     "scores": {
+      "accuracy": 1.0
+     }
+    },
+    {
+     "arm": "treatment",
+     "input_id": "g3",
+     "output": "Billing",
+     "scores": {
+      "accuracy": 1.0
+     }
+    },
+    {
+     "arm": "treatment",
+     "input_id": "g3",
+     "output": "Billing",
+     "scores": {
+      "accuracy": 1.0
+     }
+    },
+    {
+     "arm": "treatment",
+     "input_id": "g4",
+     "output": "Escalations",
+     "scores": {
+      "accuracy": 1.0
+     }
+    },
+    {
+     "arm": "treatment",
+     "input_id": "g4",
+     "output": "Escalations",
+     "scores": {
+      "accuracy": 1.0
+     }
+    },
+    {
+     "arm": "treatment",
+     "input_id": "g4",
+     "output": "Escalations",
+     "scores": {
+      "accuracy": 1.0
+     }
+    },
+    {
+     "arm": "treatment",
+     "input_id": "g4",
+     "output": "Escalations",
+     "scores": {
+      "accuracy": 1.0
+     }
+    },
+    {
+     "arm": "treatment",
+     "input_id": "g4",
+     "output": "Escalations",
+     "scores": {
+      "accuracy": 1.0
+     }
+    },
+    {
+     "arm": "treatment",
+     "input_id": "g5",
+     "output": "Accounts",
+     "scores": {
+      "accuracy": 1.0
+     }
+    },
+    {
+     "arm": "treatment",
+     "input_id": "g5",
+     "output": "Accounts",
+     "scores": {
+      "accuracy": 1.0
+     }
+    },
+    {
+     "arm": "treatment",
+     "input_id": "g5",
+     "output": "Accounts",
+     "scores": {
+      "accuracy": 1.0
+     }
+    },
+    {
+     "arm": "treatment",
+     "input_id": "g5",
+     "output": "Accounts",
+     "scores": {
+      "accuracy": 1.0
+     }
+    },
+    {
+     "arm": "treatment",
+     "input_id": "g5",
+     "output": "Accounts",
+     "scores": {
+      "accuracy": 1.0
+     }
+    },
+    {
+     "arm": "treatment",
+     "input_id": "g6",
+     "output": "Billing",
+     "scores": {
+      "accuracy": 1.0
+     }
+    },
+    {
+     "arm": "treatment",
+     "input_id": "g6",
+     "output": "Billing",
+     "scores": {
+      "accuracy": 1.0
+     }
+    },
+    {
+     "arm": "treatment",
+     "input_id": "g6",
+     "output": "Billing",
+     "scores": {
+      "accuracy": 1.0
+     }
+    },
+    {
+     "arm": "treatment",
+     "input_id": "g6",
+     "output": "Billing",
+     "scores": {
+      "accuracy": 1.0
+     }
+    },
+    {
+     "arm": "treatment",
+     "input_id": "g6",
+     "output": "Billing",
+     "scores": {
+      "accuracy": 1.0
+     }
+    },
+    {
+     "arm": "treatment",
+     "input_id": "g7",
+     "output": "Tech",
+     "scores": {
+      "accuracy": 1.0
+     }
+    },
+    {
+     "arm": "treatment",
+     "input_id": "g7",
+     "output": "Tech",
+     "scores": {
+      "accuracy": 1.0
+     }
+    },
+    {
+     "arm": "treatment",
+     "input_id": "g7",
+     "output": "Tech",
+     "scores": {
+      "accuracy": 1.0
+     }
+    },
+    {
+     "arm": "treatment",
+     "input_id": "g7",
+     "output": "Tech",
+     "scores": {
+      "accuracy": 1.0
+     }
+    },
+    {
+     "arm": "treatment",
+     "input_id": "g7",
+     "output": "Tech",
+     "scores": {
+      "accuracy": 1.0
+     }
+    },
+    {
+     "arm": "treatment",
+     "input_id": "g8",
+     "output": "Escalations",
+     "scores": {
+      "accuracy": 1.0
+     }
+    },
+    {
+     "arm": "treatment",
+     "input_id": "g8",
+     "output": "Escalations",
+     "scores": {
+      "accuracy": 1.0
+     }
+    },
+    {
+     "arm": "treatment",
+     "input_id": "g8",
+     "output": "Escalations",
+     "scores": {
+      "accuracy": 1.0
+     }
+    },
+    {
+     "arm": "treatment",
+     "input_id": "g8",
+     "output": "Escalations",
+     "scores": {
+      "accuracy": 1.0
+     }
+    },
+    {
+     "arm": "treatment",
+     "input_id": "g8",
+     "output": "Escalations",
+     "scores": {
+      "accuracy": 1.0
+     }
+    }
+   ]
+  }
+ ]
+}
