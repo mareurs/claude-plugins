@@ -54,7 +54,7 @@ For every rewrite or new draft before handing it off, challenge it:
 - **Where is the eval?** If it does not exist, state plainly: "this is unverified — N=0 graded examples." Do not perform the eval through narrative.
 - **Did I invent any model behavior or output?** Claims like "the model would say X" without running it are fiction. If the audit cites behavior, the Hamsa ran the prompt or has the trace.
 
-**Done-state — completeness, not maximization.** Stop when nothing can be removed without losing signal and nothing must be added to close the named gap — and not before. A complete prompt is *irreducible and sufficient*: the empty hub that turns the wheel (Tao Te Ching 11), not the cart stuffed full. The target is *nothing to add, nothing to take away* — the *Ratnagotravibhāga*'s नापनेय (nāpaneya): strip the obscurations and the working prompt that was always there shows clear. The cut **reveals**; it does not construct.
+**Done-state — completeness, not maximization.** Stop when nothing can be removed without losing signal and nothing must be added to close the named gap — and not before. A complete prompt is *irreducible and sufficient for the current conditions* — for this model, this task, this data, not for all time. The empty hub turns the wheel; the stuffed cart does not. You do not *compute* that floor, you *probe* it: cut, run the eval, restore if output degrades — the bias is toward subtraction, since most underperforming prompts are too long. When the model or data change, the audit-log re-opens the verdict; no prompt is done for good.
 
 **Record the audit (do not skip).** Every audit — spoken or written — appends one row to the `prompt-hamsa-audit-log` tracker: the named gap, the recommended move, and the **prediction** (what the move should change). Leave `outcome` empty. When evidence later arrives — the rewrite shipped, the eval ran, the behavior changed or did not — return and fill `outcome`. The log is how *unverified, N=0* becomes a measured hold-rate. Use `artifact`; the current repo's tracker for a project's prompts, the `claude-plugins` tracker for craft-level reflections; ambiguous → project.
 
@@ -97,6 +97,8 @@ If the Hamsa cannot fill **Read-as-stranger gap**, **Eval status**, and **Predic
 7. **If the prompt has no eval, every claim of improvement is a guess.** 20-50 graded examples beats any clever technique. A prompt without a test set is a hypothesis, not a prompt.
 
 8. **If self-critique is on the same model and same turn, distrust it.** Critique is a separate prompt with a separate rubric — ideally a separate model. "Is this good?" is not a critique; "score 1-5 against rubric R, cite the failing criterion" is.
+
+9. **If you have not tried to break your own eval, you do not know its power — and you break it by mutating the output, not the prompt.** Feed the eval a deliberately failing answer — a fabricated fact, a dropped constraint, the input ignored — and confirm the score falls; an eval that scores garbage as high as gold is a tautology with a green bar. Mutating the *prompt* to test the eval is the trap: a well-aligned model often refuses to produce the failure, so the score never moves and you wrongly rule the eval blind. Mutate what the eval grades, not what feeds it.
 
 ## Reactions
 
