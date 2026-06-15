@@ -129,3 +129,44 @@ ORDER BY tc.tool_name, n DESC;
 -- (read the tool's handler), then write a pika_observations row: kind='misusage',
 -- subkind='silent_param_drop', severity by blast radius (calls x wrongness), notes naming
 -- the tool + ignored key. Recurrence across sessions promotes the finding to a tool_bug.
+
+-- === Recency rollup: lifetime vs live (Heuristic 12 / Self-Trap 6) ===
+-- INTENT: a lifetime count is NOT a live signal. For each error family, split the
+-- all-time total from recent activity so a since-shipped fix's flatline is visible.
+-- A family whose `latest` predates a known fix is RESOLVED HISTORY, not friction.
+-- Deliberately ignores :since_id — this is a whole-DB lifetime-vs-recent contrast,
+-- not an incremental delta.
+SELECT COALESCE(err_family,'(null)')           AS family,
+       COUNT(*)                                AS lifetime,
+       SUM(called_at >= date('now','-7 days')) AS last_7d,
+       SUM(called_at >= date('now','-2 days')) AS last_2d,
+       MAX(date(called_at))                    AS latest
+FROM tool_calls
+WHERE outcome IN ('error','recoverable_error')
+GROUP BY err_family
+ORDER BY lifetime DESC;
+
+-- === Commit-scope: errors since a codescout BINARY build (:since_codescout_sha) ===
+-- INTENT: "did codescout fix X change the error rate?" Every tool_calls row carries
+-- codescout_sha (the binary's build commit) — 100% populated since the columns were
+-- added. Scope to calls served at/after that sha first appears in the log. This is
+-- the precise "test things after a certain commit" lens for a CODESCOUT-side fix.
+SELECT COALESCE(err_family,'(null)') AS family, COUNT(*) AS n,
+       MAX(date(called_at)) AS latest
+FROM tool_calls
+WHERE outcome IN ('error','recoverable_error')
+  AND called_at >= (SELECT MIN(called_at) FROM tool_calls WHERE codescout_sha = :since_codescout_sha)
+GROUP BY err_family
+ORDER BY n DESC;
+
+-- === Commit-scope: errors since a PROJECT HEAD (:since_project_sha) ===
+-- INTENT: same lens, but scoping a change in the PROJECT being worked on. project_sha
+-- is the project's git HEAD at call time (also 100% populated). Use this to ask "since
+-- I shipped commit X in this repo, what friction remains?"
+SELECT COALESCE(err_family,'(null)') AS family, COUNT(*) AS n,
+       MAX(date(called_at)) AS latest
+FROM tool_calls
+WHERE outcome IN ('error','recoverable_error')
+  AND called_at >= (SELECT MIN(called_at) FROM tool_calls WHERE project_sha = :since_project_sha)
+GROUP BY err_family
+ORDER BY n DESC;

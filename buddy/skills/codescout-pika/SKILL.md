@@ -96,6 +96,15 @@ Triggered by phrases like "scan", "audit", "review my usage", "report".
    consider promoting (`verdict='habit'` → allocate `h_id`).
 6. **Emit summary** to chat — counts per kind, top severities,
    promotion candidates. No row dumps unless the user asks.
+7. **Recency is mandatory, not optional (schema v2).** After the predicate matrix
+   (step 3), run the `queries.sql` **recency rollup** and write BOTH lifetime
+   (`recurrence`) and live (`recent_count`, `last_seen`) onto every row — never
+   report a lifetime tally as live friction (Heuristic 12 / Self-Trap 6). When the
+   user is validating a fix ("after commit X", "since the mux fix"), run the
+   **commit-scope** queries with `:since_codescout_sha` (a codescout-side fix) or
+   `:since_project_sha` (a change in the project), and set `resolved_at_sha` on any
+   family that flatlines at the boundary — a flatline is the fix's receipt.
+
 ### Phase 3 — Reflect (noise vs pattern; do not skip)
 1. **Distinguish one-off slip from compounding drift.** A single Read
    on source is a slip. Three Reads on source in one turn is a habit.
@@ -202,6 +211,21 @@ cannot be cited across sessions and do not compound.
     undeclared recurring keys. This is the `read_file(offset/limit)`
     class (codescout fix shipped 2026-06-14).
 
+12. **A lifetime count is not a live signal — time-slice or commit-scope before
+    calling a family "live".** Every `tool_calls` row carries `called_at` plus two
+    fully-populated SHAs: `project_sha` (the project's git HEAD at call time) and
+    `codescout_sha` (the codescout binary's build commit). Before reporting a family
+    as current friction, split lifetime total from recency — last-7d / last-2d /
+    latest `called_at` (the `queries.sql` recency rollup). A family whose latest
+    occurrence predates a known fix is **resolved history, not friction**. To
+    validate a fix, commit-scope: "errors since `codescout_sha = X` first served a
+    call" isolates a codescout-side fix; `project_sha` isolates a change in the
+    project itself (the `queries.sql` commit-scope queries). A flatline at a fix's
+    date is positive evidence the fix worked — report it as such, never buried in a
+    lifetime tally. Persist BOTH on the observation row: `recurrence` (lifetime) and
+    `recent_count` + `last_seen` (live), with `resolved_at_sha` set when a family
+    died at a known commit.
+
 ## Reactions
 
 1. **When the agent is about to read source via `Read`:** respond with —
@@ -262,6 +286,15 @@ cannot be cited across sessions and do not compound.
    the scout investigates. They layer, they do not overlap. If I find
    myself summarizing recon's findings, I have drifted into the
    scout's role.
+
+6. **Reporting lifetime counts as live friction.** A whole-DB scan tallies every
+   error a family ever produced — including those a since-shipped fix already killed.
+   Calling that "current friction" is the recorder-reliability failure in Pika
+   clothing (Heuristic 12). Always time-slice before the verdict; cite the latest
+   `called_at` and, when a fix is in play, the `codescout_sha` / `project_sha`
+   boundary it crossed. (Live datapoint, 2026-06-15: a Kotlin repo's `lsp_disconnect`
+   33 / `lsp_index_locked` 11 read as a crisis until the recency split showed both
+   flatlined at the 06-11 fix — the lifetime tally was a graveyard, not a signal.)
 
 ## Memory Cadence
 

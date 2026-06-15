@@ -16,6 +16,13 @@
 `.codescout/usage.db` `tool_calls` has 17 columns, but four diagnostic
 ones are **un-backfilled** and near-useless on this DB (captured as F-1):
 
+> **UPDATE 2026-06-14 — superseded by the codescout fix.** F-1 is fixed and
+> *this* DB was backfilled: `project_root` is now 100% populated and `err_family`
+> classifies 258/363 errors (was 1). The table below is the **pre-fix snapshot**,
+> kept for history. Future Pika/Dzo runs MAY group/scope on `project_root` and
+> `err_family` again (still skip `overflow_tokens` / `friction_target` on pre-fix
+> rows — those aren't reconstructable and self-heal via 30-day retention).
+
 | Column | Populated | Verdict |
 |---|---|---|
 | `err_family` | 1 / 362 errors | dead — do not group by it |
@@ -44,7 +51,7 @@ is sourced from those, not the dead columns.
 
 | ID | Date | Severity | Category | Status | Title |
 |----|------|---------:|----------|--------|-------|
-| F-1 | 2026-06-14 | med | codescout-tool | promoted-to-bug-tracker | `usage.db` diagnostic columns un-backfilled — mislead any tool that trusts `project_root`/`err_family` for scoping/classification |
+| F-1 | 2026-06-14 | med | codescout-tool | fixed | `usage.db` diagnostic columns un-backfilled — mislead any tool that trusts `project_root`/`err_family` for scoping/classification |
 
 ## Wins Index (W-N)
 
@@ -152,7 +159,7 @@ data issue — the fix lives in the codescout Rust repo, not here.
 `outcome`. Treat the four columns as advisory-only until a codescout backfill ships.
 **Severity:** med — misleads any consumer that trusts the columns (incl. a future
 Pika/Dzo run); does not block, because reliable signals exist.
-**Status:** promoted-to-bug-tracker — dealt with in the codescout repo (owning substrate), 2026-06-14. claude-plugins cannot verify the codescout-side fix from here; treat the four columns as advisory until a re-indexed `usage.db` confirms population on new rows.
+**Status:** fixed (codescout, 2026-06-14). Root cause was two defects: (1) `normalize_err_family` only matched LSP/AST errors, never the Iron-Law routing rejections that dominate — so `err_family` was NULL even on fresh rows (the real bug; does not self-heal); (2) the v0.11 friction columns had no backfill, so pre-2026-06-13 rows were NULL (self-heals under 30-day retention; `project_root` is always set on new writes). Fixed in codescout `src/usage/db.rs`: taxonomy extended with 9 IL/routing/write/json families + `backfill_legacy_rows` in `open_db` (gated on `PRAGMA user_version`; repairs each project DB on next open). **All 12 active project DBs backfilled 2026-06-14, including this one** — `project_root` now 100% populated, `err_family` 258/363 errors classified (was 1). Tracked at codescout `docs/issues/2026-06-14-usage-db-diagnostic-columns-unbackfilled.md`. Remaining ~26% NULL `err_family` is a heterogeneous long tail (arg-validation / not-found), not IL frictions.
 **Fix idea / Pointer:** codescout repo `/home/marius/work/claude/codescout` — backfill
 on index, or document the columns as new-rows-only.
 
