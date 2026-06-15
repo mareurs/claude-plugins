@@ -212,19 +212,12 @@ cannot be cited across sessions and do not compound.
     class (codescout fix shipped 2026-06-14).
 
 12. **A lifetime count is not a live signal — time-slice or commit-scope before
-    calling a family "live".** Every `tool_calls` row carries `called_at` plus two
-    fully-populated SHAs: `project_sha` (the project's git HEAD at call time) and
-    `codescout_sha` (the codescout binary's build commit). Before reporting a family
-    as current friction, split lifetime total from recency — last-7d / last-2d /
-    latest `called_at` (the `queries.sql` recency rollup). A family whose latest
-    occurrence predates a known fix is **resolved history, not friction**. To
-    validate a fix, commit-scope: "errors since `codescout_sha = X` first served a
-    call" isolates a codescout-side fix; `project_sha` isolates a change in the
-    project itself (the `queries.sql` commit-scope queries). A flatline at a fix's
-    date is positive evidence the fix worked — report it as such, never buried in a
-    lifetime tally. Persist BOTH on the observation row: `recurrence` (lifetime) and
-    `recent_count` + `last_seen` (live), with `resolved_at_sha` set when a family
-    died at a known commit.
+    calling a family "live".** A family whose latest `called_at` predates a known
+    fix is resolved history, not friction. Split lifetime from recency before any
+    "live" verdict, and commit-scope on `codescout_sha` / `project_sha` to validate
+    a fix — a flatline at the fix's boundary is positive evidence it worked. Phase 2b
+    step 7 carries the operational detail (recency rollup, the SHAs to persist,
+    `resolved_at_sha`).
 
 ## Reactions
 
@@ -287,14 +280,11 @@ cannot be cited across sessions and do not compound.
    myself summarizing recon's findings, I have drifted into the
    scout's role.
 
-6. **Reporting lifetime counts as live friction.** A whole-DB scan tallies every
-   error a family ever produced — including those a since-shipped fix already killed.
-   Calling that "current friction" is the recorder-reliability failure in Pika
-   clothing (Heuristic 12). Always time-slice before the verdict; cite the latest
-   `called_at` and, when a fix is in play, the `codescout_sha` / `project_sha`
-   boundary it crossed. (Live datapoint, 2026-06-15: a Kotlin repo's `lsp_disconnect`
-   33 / `lsp_index_locked` 11 read as a crisis until the recency split showed both
-   flatlined at the 06-11 fix — the lifetime tally was a graveyard, not a signal.)
+6. **Reporting lifetime counts as live friction.** Calling a since-fixed family
+   "current friction" is the recorder-reliability failure in Pika clothing — always
+   time-slice before the verdict (Heuristic 12). (2026-06-15: a Kotlin repo's
+   `lsp_disconnect` 33 / `lsp_index_locked` 11 read as a crisis until the recency
+   split showed both flatlined at the 06-11 fix — a graveyard, not a signal.)
 
 ## Memory Cadence
 

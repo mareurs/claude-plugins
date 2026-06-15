@@ -1,0 +1,18 @@
+# prompt-tdd eval for the codescout-pika skill.
+#
+# Scope: pika's JUDGMENT — the Whistle/Observe path. Each scenario hands pika a
+# tool-call log in the message and checks whether it flags the real Iron Law
+# violations (recall) and stays quiet on clean calls (precision).
+#
+# Tier: T3 judge. The tool names (symbols, edit_code, grep) appear in BOTH the
+# audited calls and pika's verdicts, so substring matching cannot distinguish
+# "flagged a violation" from "echoed a tool name" — only a semantic judge can.
+#
+# Not covered here: the Persist/SQL audit path against a live .codescout/usage.db
+# (needs setup-time DB seeding the harness does not have yet).
+#
+# The judge (default claude-haiku-4-5) calls the Anthropic API — run with
+# ANTHROPIC_API_KEY in the environment.
+registry: claude-code
+scenarios: scenarios/
+baselines: .prompt-tdd/baselines/
