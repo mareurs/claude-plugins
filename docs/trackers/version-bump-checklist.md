@@ -17,15 +17,15 @@ Release readiness across plugins × profiles. See
 
 ## State
 
-_Last refresh: `cf05a3a`_
+_Last refresh: `5f37f80`_
 
-**codescout-companion** — canonical `1.11.13` · readme `1.11.13` · marketplace clean ✅
+**codescout-companion** — canonical `1.11.14` · readme `1.11.14` · marketplace clean ✅
 
 | profile | installed | cache dir | install_path ok |
 |---|---|---|---|
-| `~/.claude` | `1.11.13` ✅ | ✅ | ✅ |
-| `~/.claude-sdd` | `1.11.13` ✅ | ✅ | ✅ |
-| `~/.claude-kat` | `1.11.13` ✅ | ✅ | ✅ |
+| `~/.claude` | `1.11.14` ✅ | ✅ | ✅ |
+| `~/.claude-sdd` | `1.11.14` ✅ | ✅ | ✅ |
+| `~/.claude-kat` | `1.11.14` ✅ | ✅ | ✅ |
 
 **buddy** — canonical `0.7.25` · readme `0.7.25` · marketplace clean ✅
 
@@ -35,6 +35,10 @@ _Last refresh: `cf05a3a`_
 | `~/.claude-sdd` | `0.7.25` ✅ | ✅ | ✅ |
 | `~/.claude-kat` | `0.7.25` ✅ | ✅ | ✅ |
 ## History
+
+### 2026-06-15 — codescout-companion 1.11.13 → 1.11.14
+
+IL3 guard reclassified: RHS aggregators (`wc`, counting `grep -c`/`--count`) now pass — they collapse output to a bounded summary you cannot get from a partial view, so they SAVE context rather than trim it; `git status --porcelain | wc -l` and `git log | grep -c fix` are no longer blocked. The enforcer is codescout's `path_security.rs::detect_il3_violation` (rewritten to a per-stage `stage_trims` classification; commit `589997a6` on the codescout `experiments` branch — separate repo, live & verified by re-running the reported command). This bump syncs the companion's advisory mirror: `il3-warn-hook.sh` (active) + `il3-deny-hook.sh` (dormant) drop `wc` from `DENY_PIPE` and exempt a counting grep (commit `bb85c55`); `il3-deny-hook.test.sh` (33/33) and `tests/test-il3-warn-hook.sh` (24/24) updated (`3214a4d`). Truncators/filters (head, tail, plain grep, less, sed, awk, cut, sort, uniq, tr, fmt) still warn from an unbounded LHS. Canonical/readme → 1.11.14; cache seeded + install records repointed across all three profiles; sanity loop all ✅ (cache + installPath, no cross-profile drift), independently re-verified post-release. Pre-bump `run-all.sh` all suites green; buddy pytest 456. NO_PUSH (committed locally on `feat/pika-tighten`, merged to `main`, not pushed); cold restart pending to bind the 1.11.14 cache.
 
 ### 2026-06-14 — buddy 0.7.24 → 0.7.25
 
