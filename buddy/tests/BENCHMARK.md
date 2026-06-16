@@ -18,6 +18,38 @@ method from mimicry.
 has been executed; the verdicts below are build+review verdicts (structure valid, control
 arm valid, rubric discriminating), not measured power.
 
+## Measured power map (Phase B — 2026-06-16)
+
+All 15 harnesses run present + `--ablate` against the blank `~/.claude-test`
+profile, T3 judge (`claude-haiku-4-5`). **Teeth = present PASS *and* ablate RED.**
+(The first run was void — the judge's `max_tokens=256` truncated verdict JSON and
+faked the teeth signature on 13/15 skills; fixed at 2048, prompt-engineering commit
+`62621c8`. This v2 run had **0 parse failures**.)
+
+| Skill | Hypothesis | Teeth | Measured verdict |
+|---|---|---|---|
+| codescout-pika | teeth | 2/2 | ✅ teeth |
+| refactoring-yak | tautological | 2/2 | ✅ teeth (reversal) |
+| data-leakage-snow-pheasant | teeth | 1/2 | ◐ partial (classic lens) |
+| performance-lammergeier | partial | 1/2 | ◐ partial (profile-first) |
+| prompt-hamsa | partial | 1/2 | ◐ partial (resist-adding) |
+| architecture-snow-lion | tautological | 0/2 | ⚪ tautological |
+| debugging-yeti | partial | 0/2 | ⚪ tautological |
+| legibility-dzo | teeth | 0/2 | ⚪ tautological (reversal) |
+| ml-training-takin | partial | 0/2 | ⚪ tautological |
+| security-ibex | teeth | 0/2 | ⚪ tautological (reversal) |
+| testing-snow-leopard | partial | 0/2 | ⚪ tautological |
+| reconnaissance | partial (L-7) | 0/2 | ⚪ tautological (isolation) |
+| docs-lotus-frog | tautological | 0/2 | ⚪ taut + present-FAIL |
+| explore-project | L-7 | 0/2 | ⚪ L-7 + present-FAIL |
+| planning-crane | tautological | 0/2 | ⚪ taut + present-FAIL |
+
+**2 full teeth (pika, refactoring-yak), 3 single-scenario, 10 tautological under
+isolation — 7 of 30 scenarios show power.** The apparatus reversed ~half the
+build-phase hypotheses. Reversals + per-scenario detail: prompt-engineering
+`docs/trackers/skill-eval-log.md` § Buddy benchmark. The build-phase Verdict column
+in the index below is **superseded by this map**.
+
 ## Skill index
 
 All eval dirs are under `buddy/tests/`. The `prompt_tdd.yaml` is at
@@ -25,7 +57,7 @@ All eval dirs are under `buddy/tests/`. The `prompt_tdd.yaml` is at
 in a `prompt-tdd/` subdir (the eval dir also hosts a separate bespoke harness measuring a
 different question).
 
-| Skill | Eval dir | Tier | Expected power | Discriminating marker | Control valid? | Verdict |
+| Skill | Eval dir | Tier | Expected power | Discriminating marker | Control valid? | Build verdict (superseded — see Measured power map) |
 |---|---|---|---|---|---|---|
 | architecture-snow-lion | `architecture-snow-lion-eval/` | judge (T3) | tautological | Named concrete change scenario + cite-import + ADR decision-record format on a tangled OrderService; restraint scenario must contradict user's "just split it" framing | yes | ready-with-notes |
 | codescout-pika | `codescout-pika-eval/` | judge (T3, mode: output) | teeth | Flags each Iron-Law violation naming exact replacement codescout tool + Iron Law number (recall); zero findings on all-clean log incl. workspace-restore bait (precision) | yes | ready-with-notes |
@@ -63,26 +95,34 @@ recorded expectation, not a harness defect.
 - **`~/.claude-test` must stay blank.** It is the negative-control profile: no globally
   loaded buddy plugin, run with `--strict-mcp-config`. The skill arrives only via
   `setup.skills`. If the profile carries stray skills/memories the control is no longer real.
-- **Run cwd matters.** codescout-pika's skill source path resolves against
-  `project_root = os.getcwd()` (the eval dir per its README), so run it from its eval dir.
+- **Invoke with `--config`, never a positional.** `prompt-tdd run <yaml>` reads the yaml as a
+  scenario-path *override* and discovers 0 scenarios; use `prompt-tdd run --config <yaml>`.
+  All `setup.skills` sources are absolute paths, so cwd is otherwise irrelevant.
+- **Scenario files must be named `scenario.yaml`.** `discover_scenarios` matches that name
+  strictly (at any depth under `scenarios/`); a flat `scenarios/foo.yaml` is silently skipped.
 
 ### Commands
 
+Source the judge key once, then run each harness with `--config` (present arm = expect PASS;
+`--ablate` arm = expect RED, which is what proves power):
+
 ```bash
-# 14 skills — yaml at <eval-dir>/prompt_tdd.yaml
+set -a; . /home/marius/work/claude/prompt-engineering/.env; set +a   # judge key; never echo it
+PT=/home/marius/work/claude/prompt-engineering/.venv/bin/prompt-tdd
+R=/home/marius/work/claude/claude-plugins/buddy/tests
+
 for s in architecture-snow-lion codescout-pika data-leakage-snow-pheasant \
-         debugging-yeti docs-lotus-frog ml-training-takin performance-lammergeier \
-         planning-crane refactoring-yak security-ibex testing-snow-leopard \
-         legibility-dzo reconnaissance explore-project; do
-  prompt-tdd run buddy/tests/${s}-eval/prompt_tdd.yaml            # expect PASS
-  prompt-tdd run buddy/tests/${s}-eval/prompt_tdd.yaml --ablate   # expect FAIL = skill has power
+         debugging-yeti docs-lotus-frog explore-project legibility-dzo \
+         ml-training-takin performance-lammergeier planning-crane \
+         reconnaissance refactoring-yak security-ibex testing-snow-leopard; do
+  "$PT" run --config "$R/${s}-eval/prompt_tdd.yaml"            # expect PASS
+  "$PT" run --config "$R/${s}-eval/prompt_tdd.yaml" --ablate   # expect RED = skill has power
 done
 
-# prompt-hamsa — yaml in a prompt-tdd/ subdir
-prompt-tdd run buddy/tests/prompt-hamsa-eval/prompt-tdd/prompt_tdd.yaml           # expect PASS
-prompt-tdd run buddy/tests/prompt-hamsa-eval/prompt-tdd/prompt_tdd.yaml --ablate # expect FAIL
+# prompt-hamsa — config lives in a prompt-tdd/ subdir alongside the bespoke harness
+"$PT" run --config "$R/prompt-hamsa-eval/prompt-tdd/prompt_tdd.yaml"
+"$PT" run --config "$R/prompt-hamsa-eval/prompt-tdd/prompt_tdd.yaml" --ablate
 ```
-
 ### Reading results
 
 - **PASS / FAIL** → skill has power on that scenario. The intended outcome.
