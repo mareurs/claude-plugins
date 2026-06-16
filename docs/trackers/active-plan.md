@@ -811,3 +811,30 @@ explain it is NOT loaded at summon.
 **Phase 3 fully closed**. T-29..T-32 done incidentally in Phase 2;
 T-33/T-34 disposed. Remaining open: T-11 (CI, deferred) + Phase 4 (4
 hygiene items) + fixture-expansion tracker (backfill on demand).
+
+### 2026-06-16 — Measure→optimize ordering recorded (prompt-tdd benchmark track)
+
+The parallel prompt-tdd benchmark (Phase B — 15 specialists under isolated-profile
+harnesses in `buddy/tests/`, indexed in `buddy/tests/BENCHMARK.md`) produced its power
+map (2 full teeth, 4 single-scenario, 8 tautological, 1 L-7) and raised the natural
+"why not just MIPRO?" question. The ordering lesson is recorded where the optimization
+tooling lives:
+
+- **D-1 named "DSPy (optimization)" as planned tooling.** Clarified ordering: an
+  optimizer (TextGrad/MIPRO/GEPA, all implemented in prompt-tdd, DSPy 3.2.1) maximizes
+  the absolute present-score, not the present−ablate delta — so it **cannot manufacture
+  teeth** on a tautological specialist (fix there = harder fixtures), and it tunes the
+  prompt, never the judge — so optimizing against an unstabilized metric inflates a
+  non-replicable score (it keeps the max-scoring candidate and latches onto lucky draws).
+- **The metric must be stabilized FIRST.** The cross-family panel (prompt-tdd
+  `PanelJudge`, calibrated `max_spread=0.25`) and/or `runs:N` is the *prerequisite* for
+  optimization, not optional polish.
+- **Optimization applies only to genuine-teeth specialists** (refactoring-yak,
+  codescout-pika) on a held-out split + human gate — a persona SKILL.md optimized against
+  a scalar score overfits voice/generality.
+- **Roadmap:** `buddy/tests/BENCHMARK.md` § Next phase. Full reasoning: prompt-engineering
+  `docs/trackers/skill-eval-playbook.md` § L-9.
+
+Cross-track note: the native promptfoo/python harness (Phase 0, `eval-bringup.md`) and
+the prompt-tdd benchmark are two distinct eval systems; the measure→optimize ordering
+holds for both.

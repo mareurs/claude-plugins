@@ -245,3 +245,35 @@ to confirm empirically when the suite runs.
 12. **explore-project / `(?i)caveats?`** — the `?` makes the trailing `s` optional, so it matches
     singular 'caveat' too. Harmless (the template mandates the plural); the judge rubric enforces
     the full skeleton.
+
+## Next phase — optimization (gated on a trustworthy metric)
+
+This suite *measures* power; it does not *improve* skills. prompt-tdd already ships the other
+half of the loop — `prompt-tdd optimize --optimizer {textgrad,mipro,gepa}` (DSPy 3.2.1
+installed, all three runnable, scored by `judge_score_metric`). The temptation is to reach for
+MIPRO/GEPA instead of stabilizing the judge. That ordering is wrong, for two reasons rooted in
+how the power map above came out:
+
+1. **Optimizers maximize the absolute present-score, not the present−ablate delta — they cannot
+   manufacture teeth.** The 8 tautological skills score ~1.0 on the bare model already; there is
+   no headroom and no gradient toward "discriminates skill from no-skill." Optimizing them
+   overfits cosmetics while power stays zero. The fix for a tautological verdict is a *harder
+   scenario* (test design), never a reworded SKILL.md.
+2. **Optimizers tune the prompt, never the judge — so they do nothing for the "Judge variance"
+   limitation above, and optimizing against a wobbling metric is harmful.** Each optimizer keeps
+   the max-scoring candidate, so near the 0.7–0.75 band it latches onto lucky judge draws and
+   reports an inflated `best_score` that does not replicate.
+
+So the ordered loop is: **measure (this suite, done) → stabilize the metric (the cross-family
+`PanelJudge`, already calibrated upstream at `max_spread=0.25`) → harden the tautological
+scenarios → only then optimize.** The panel is not an alternative to MIPRO; it is the
+precondition that makes any optimizer output trustworthy.
+
+When optimization is warranted, it applies **only to the genuine-teeth skills** in the power map
+(`refactoring-yak`, `codescout-pika`), on a held-out scenario split with a human gate — because a
+buddy SKILL.md is a general-purpose voice, and optimizing it against a scalar score on a few
+scenarios overfits voice and generality (what human review like the prompt-hamsa critique
+protects). Prefer **GEPA** (consumes our tiered assertion-failure text as feedback — closest to
+how we hand-edit) or **TextGrad** (cheapest, no DSPy).
+
+Full lesson + the optimizer-mechanics reasoning: prompt-engineering `docs/trackers/skill-eval-playbook.md` § L-9.
