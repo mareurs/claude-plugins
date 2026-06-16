@@ -1,0 +1,40 @@
+# prompt-tdd eval for the codescout-companion:explore-project skill.
+#
+# Scope: explore-project's METHOD — its prescribed dispatch discipline and the
+# fixed structured findings format. The skill tells the model to (a) dispatch a
+# general-purpose subagent at the FOREIGN repo with a verbatim template, (b) NOT
+# hand-write the workspace-activate bootstrap (the explore-inject hook owns it),
+# and (c) return a `## Exploration:` block with the exact Findings / Key files /
+# Confidence / Caveats / Follow-up shape. A bare model asked the same thing just
+# explores inline and answers in prose — it neither dispatches a subagent with
+# the template nor emits the fixed report skeleton.
+#
+# Tier: T3 judge (method markers are structural, not literal substrings the user
+# supplied) + a couple of T1 output substrings for the load-bearing literal
+# section headers the template mandates.
+#
+# L-7 PARTIAL-CONTROL CAVEAT (read before trusting the delta): the skill's full
+# capability — auto-bootstrapping the foreign project's CLAUDE.md + codescout
+# memories — comes from the `explore-inject.sh` PreToolUse-on-Agent hook, a
+# PLUGIN hook that is NOT copied by setup.skills and is absent from the isolated
+# ~/.claude-test profile. So neither arm exercises the hook. What this eval
+# measures is the SKILL.md-content floor: does the prose payload alone change the
+# model's behavior toward the dispatch-template + structured-report method. The
+# subagent dispatch itself may also be constrained in the headless harness; if
+# the model cannot spawn a general-purpose subagent it should still emit the
+# template + report skeleton it was told to use, which is what the judge scores.
+# Treat the A-vs-ablate delta as a lower bound on the skill's real power.
+#
+# The judge (default claude-haiku-4-5) calls the Anthropic API — run with
+# ANTHROPIC_API_KEY in the environment.
+registry: claude-code
+scenarios: scenarios/
+baselines: .prompt-tdd/baselines/
+
+# Run the system-under-test against an isolated, plugin-free claude profile so
+# the skill arrives ONLY via each scenario's setup.skills — making the no-skill
+# (--ablate) negative control real. Without this, the globally-installed
+# codescout-companion plugin loads regardless and every scenario is confounded.
+claude_code:
+  session:
+    config_dir: ~/.claude-test

@@ -1,0 +1,79 @@
+name: "hamsa critiques a weak prompt with its method, not generic polish"
+description: >
+  A deliberately weak prompt is handed over with the request to critique it. The
+  prompt is bloated with role-priming decoration ("world-class expert"), carries a
+  negation-only rule with no bound ("don't be too verbose"), leaves key terms
+  unanchored ("concise", "appropriate detail", "if needed"), has NO output schema
+  and NO legal "I don't know" escape hatch, and ships with NO eval set. A bare model
+  asked to "make this better" rewrites it into cleaner prose and may add structure,
+  but a model running the Hamsa method does four skill-specific things instead:
+  (1) reads it as a stranger and NAMES the unanchored terms, (2) identifies the
+  role-priming as decoration to CUT before adding anything, (3) names which contract
+  pieces are missing — specifically an output schema and a legal escape hatch — and
+  (4) declares the critique UNVERIFIED because there are zero graded examples, rather
+  than asserting the rewrite is "improved." A pass means the method fired; a generic
+  cleanup will not satisfy the rubric because it lacks the named gap, the cut-first
+  ordering, and the eval-status flag.
+
+input:
+  message: |
+    Critique this prompt for me. Tell me what is wrong with it and what to fix.
+    I have not run it against any test cases yet — I just want your read on it.
+
+    --- prompt under review ---
+    You are a world-class, expert senior customer-support agent with decades of
+    experience and impeccable judgment. You always give the best possible answers.
+    Read the customer's message and respond helpfully. Be concise but give
+    appropriate detail. Don't be too verbose. Add extra context if needed. Always
+    be professional and make the customer happy.
+    --- end prompt ---
+
+mode: judge
+
+setup:
+  skills:
+    - source: /home/marius/work/claude/claude-plugins/buddy/skills/prompt-hamsa
+
+assertions:
+  judge:
+    - type: rubric
+      rubric: >
+        Score this prompt critique on whether it applied a specific auditing
+        METHOD, not whether it produced a generally nicer prompt. Award credit
+        ONLY for these four skill-specific markers, and require at least THREE of
+        the four for a passing score:
+        (a) Reads the prompt as a stranger / literal model would and explicitly
+            NAMES at least two unanchored or vague terms whose meaning is not
+            pinned down — e.g. "concise", "appropriate detail", "if needed",
+            "professional", "make the customer happy" — calling out that the model
+            could legally satisfy them in unintended ways.
+        (b) Identifies the role-priming ("world-class expert", "decades of
+            experience", "impeccable judgment") as DECORATION to cut, and frames
+            cutting as coming BEFORE any addition (cut-before-add ordering) — not
+            merely adding new instructions.
+        (c) Names a MISSING CONTRACT element specifically: that there is no output
+            shape/schema AND no legal escape hatch / "I don't know" path, warning
+            this invites hallucination under load.
+        (d) Declares the critique UNVERIFIED / a guess / N=0 because there is no
+            eval set, OR proposes building a small graded set (a handful of inputs
+            with expected outputs and a rubric) as the next move — rather than
+            asserting the rewrite "improves" the prompt.
+        Score 1.0 if at least three of (a)-(d) are clearly present. Score around
+        0.3 if only one is present. Score 0.0 if the response just rewrites the
+        prompt into cleaner prose, adds instructions without cutting, praises or
+        condemns it ("this is a good/bad prompt"), and never names unanchored
+        terms, never flags the missing escape hatch, and never mentions verification
+        or an eval set.
+      threshold: 0.7
+      expected_pass: true
+    - type: rubric
+      rubric: >
+        Score 1.0 if the critique declares its verdict UNVERIFIED — explicitly
+        stating that without graded/test examples this is an inspection or a guess,
+        not a measurement (phrasings like "unverified", "N=0", "this is a guess
+        until you run it", "we are not improving, we are guessing", or "build five
+        inputs and expected outputs first"). Score 0.0 if the response confidently
+        claims the prompt is "improved" / "better" / "fixed" without any caveat that
+        the claim is unverified for lack of an eval.
+      threshold: 0.7
+      expected_pass: true

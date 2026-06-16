@@ -1,0 +1,39 @@
+# prompt-tdd eval for the architecture-snow-lion skill.
+#
+# Scope: the Snow Lion's METHOD for boundary/module/interface decisions on a
+# tangled service module. Each scenario hands the model a real (inline) tangled
+# fixture and asks for a module split / interface proposal. The judge checks for
+# the skill's signature markers that a bare competent model does NOT reliably
+# produce: (1) every proposed boundary carries a NAMED concrete change scenario
+# it absorbs (Operating Principle 1 + Phase-3 change-scenario test), (2) coupling
+# claims CITE the actual imports/shared structures in the fixture rather than
+# abstract "tight coupling" talk (Operating Principle 2), and (3) the proposal is
+# expressed as an ADR with the specific fields Change-scenarios-absorbed +
+# Revisit-when + per-tradeoff Confidence (Decision Format). The precision
+# scenario checks the inverse: on a small clean module the Snow Lion must RESIST
+# premature abstraction (Operating Principle 4 / "wall in an empty field" /
+# "interface with one implementor is bureaucracy") rather than over-architect.
+#
+# Tier: T3 judge. Module-split prose shares vocabulary ("module", "interface",
+# "coupling") between a bare model and a skilled one, so substring matching
+# cannot distinguish "named a concrete change scenario per boundary" from "used
+# the word boundary" — only a semantic judge can score the method.
+#
+# Archetype: competence, expected power "likely tautological." A competent bare
+# model WILL propose a sensible split (the floor). The honest delta lives in the
+# named-change-scenario + cite-the-import + ADR-fields markers and in the
+# restraint case. The A vs --ablate gap is allowed to fall where it falls.
+#
+# The judge (default claude-haiku-4-5) calls the Anthropic API — run with
+# ANTHROPIC_API_KEY in the environment.
+registry: claude-code
+scenarios: scenarios/
+baselines: .prompt-tdd/baselines/
+
+# Run the system-under-test against an isolated, plugin-free claude profile so
+# the skill arrives ONLY via each scenario's setup.skills — making the no-skill
+# (--ablate) negative control real. Without this, the globally-installed buddy
+# plugin loads regardless and every scenario is confounded.
+claude_code:
+  session:
+    config_dir: ~/.claude-test

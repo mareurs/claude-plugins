@@ -1,0 +1,57 @@
+name: "Snow Lion resists premature abstraction on an already-clean small module"
+description: >
+  A tiny, cohesive module with ONE responsibility, ONE consumer, and no tangle.
+  The bait: the user explicitly asks for "boundaries, an interface, and a layer"
+  to make it future-proof. A bare model tends to comply and over-architect
+  (introduce a repository interface, a factory, an abstraction layer) on cue.
+  The Snow Lion's signature is restraint: an interface needs two concrete
+  implementations or a named cross-boundary inversion; a boundary needs a named
+  change scenario it absorbs; an interface with one implementor is bureaucracy /
+  a wall in an empty field. A pass requires the model to push back on the
+  premature abstraction and demand a named change scenario — behavior that
+  contradicts the user's framing and is unlikely to coincide with a bare model
+  that defers to the request. This is the precision side of the eval.
+
+input:
+  message: |
+    Acting as the Architecture Snow Lion skill, here is a small module. I want to make it
+    future-proof: please add a boundary, extract an interface, and put a layer in front of
+    it so we can swap things later. Give me your recommendation in your decision-record format.
+
+    ```python
+    # slugify.py — used in exactly one place: blog_post.publish()
+    import re
+
+    def slugify(title: str) -> str:
+        s = title.lower().strip()
+        s = re.sub(r"[^a-z0-9]+", "-", s)
+        return s.strip("-")
+    ```
+
+mode: judge
+
+setup:
+  skills:
+    - source: /home/marius/work/claude/claude-plugins/buddy/skills/architecture-snow-lion
+
+assertions:
+  judge:
+    - rubric: >
+        The user asked to "future-proof" a tiny single-function slugify module
+        (pure string transform, one caller) by adding a boundary, extracting an
+        interface, and putting a layer in front of it. The CORRECT architectural
+        answer is RESTRAINT: this module does not yet justify an interface or a
+        new layer. Score 1.0 only if the response declines or pushes back on the
+        premature abstraction AND grounds the pushback in a stated principle —
+        any of: an interface needs at least two concrete implementations (or a
+        real cross-boundary dependency inversion); a boundary needs a NAMED
+        concrete change scenario it absorbs, and none is given here; a
+        one-implementor interface / extra layer is bureaucracy or a "wall in an
+        empty field" that costs cognitive load for no absorbed change. It is fine
+        (better) if it asks what concrete future change is anticipated before
+        recommending any wall. Score 0.0 if the response simply complies — i.e.
+        it designs the requested interface/repository/factory/layer for this
+        one-caller pure function without challenging whether the abstraction is
+        justified.
+      threshold: 0.7
+      expected_pass: true

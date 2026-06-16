@@ -1,0 +1,105 @@
+name: "Yak untangles a knotted function: safety net first, named defect, atomic moves"
+description: >
+  A 50-line function mixes four responsibilities (parse, validate, compute,
+  persist) and has no tests. A bare model asked to "clean it up" will return a
+  tidier rewrite. The refactoring-yak skill should instead refuse to move until
+  a safety net exists (run the suite / write characterization tests pinning
+  current behavior), name the structural defect in one sentence in STRUCTURAL
+  terms, and sequence the work as small atomic transformations with the test
+  suite re-run after EACH move against a recorded baseline. The judge scores for
+  those method markers, not for code prettiness.
+
+input:
+  message: |
+    This function is a tangled mess and I touch it every week. Untangle it / clean
+    up this knotted code so the responsibilities are separated. Here is the file.
+
+    ```python
+    # billing.py  (no tests exist for this module)
+    def process_order(raw, db):
+        # parse
+        parts = raw.strip().split(",")
+        oid = int(parts[0])
+        qty = int(parts[1])
+        price = float(parts[2])
+        cust = parts[3]
+        # validate
+        if qty <= 0:
+            raise ValueError("bad qty")
+        if price < 0:
+            raise ValueError("bad price")
+        if not cust:
+            raise ValueError("no customer")
+        # compute
+        subtotal = qty * price
+        if qty > 10:
+            subtotal = subtotal * 0.9
+        tax = subtotal * 0.2
+        total = subtotal + tax
+        # persist
+        db.execute(
+            "INSERT INTO orders (id, customer, total) VALUES (?, ?, ?)",
+            (oid, cust, total),
+        )
+        db.commit()
+        return total
+    ```
+
+mode: judge
+
+setup:
+  skills:
+    - source: /home/marius/work/claude/claude-plugins/buddy/skills/refactoring-yak
+  files:
+    billing.py: |
+      # billing.py  (no tests exist for this module)
+      def process_order(raw, db):
+          parts = raw.strip().split(",")
+          oid = int(parts[0])
+          qty = int(parts[1])
+          price = float(parts[2])
+          cust = parts[3]
+          if qty <= 0:
+              raise ValueError("bad qty")
+          if price < 0:
+              raise ValueError("bad price")
+          if not cust:
+              raise ValueError("no customer")
+          subtotal = qty * price
+          if qty > 10:
+              subtotal = subtotal * 0.9
+          tax = subtotal * 0.2
+          total = subtotal + tax
+          db.execute(
+              "INSERT INTO orders (id, customer, total) VALUES (?, ?, ?)",
+              (oid, cust, total),
+          )
+          db.commit()
+          return total
+
+assertions:
+  judge:
+    - type: rubric
+      rubric: >
+        Judge a refactoring plan for the tangled process_order function. The
+        module is stated to have NO tests. Score 1.0 ONLY if the response shows
+        ALL THREE of these method markers: (a) it makes establishing a SAFETY NET
+        the first step BEFORE any structural change — i.e. it says to write
+        characterization tests (or run an existing suite and record a baseline)
+        that pin the CURRENT behavior before moving code, rather than diving
+        straight into rewriting; AND (b) it NAMES the structural defect in one
+        sentence in structural terms — e.g. "this function mixes parsing,
+        validation, computation, and persistence" / "it has four
+        responsibilities" — as an explicit diagnosis, not just an implied tidy-up;
+        AND (c) it sequences the work as SMALL ATOMIC moves (extract one function
+        at a time, e.g. one each for parse / validate / compute / persist) with
+        the intent of re-running tests after EACH move and preserving behavior
+        exactly. Score around 0.3 if it produces a cleaner rewrite that separates
+        the responsibilities but skips the tests-first safety net OR does not name
+        the structural defect as an explicit diagnosis OR treats it as one big
+        rewrite rather than incremental verified moves. Score 0.0 if it just
+        returns refactored code with no method. Aesthetic quality of the resulting
+        code does NOT earn points; only the presence of the safety-net-first,
+        named-defect, atomic-verified-move method does.
+      threshold: 0.7
+      expected_pass: true

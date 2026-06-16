@@ -1,0 +1,100 @@
+name: "LLM lens: flag the planted leaks in a RAG + LLM-judge eval setup"
+description: >
+  A bare model asked to "review this eval" reliably produces a competent review:
+  it will usually note "the judge could be biased" and "make sure the test set is
+  clean" in generic terms. That is table stakes and the rubric does NOT reward it.
+  This scenario targets the Snow Pheasant's LLM-lens method markers — the
+  diagnoses that appear ONLY if the skill fired:
+    (a) flags PUBLIC-BENCHMARK CONTAMINATION (the GSM8K gain) and prescribes a
+        concrete contamination probe — a PRIVATE held-out set built after the
+        model's training cutoff, n-gram overlap, paraphrase/perplexity gap, or
+        prefix-completion/canary recall — not "test on more data";
+    (b) flags the SAME-FAMILY SINGLE JUDGE with fixed response order as
+        self-preference + position bias, and prescribes a CROSS-FAMILY PANEL of
+        judges (PoLL, >=3 families) AND POSITION SWAPPING (evaluate both orders,
+        flag reversed verdicts);
+    (c) flags that the RAG index was BUILT FROM THE SAME DOCS the gold answers
+        were extracted from (gold-answer chunks in the index) and prescribes
+        auditing the index by source / chunk-permutation faithfulness sanity check
+        / RePCS before believing the faithfulness jump;
+    (d) prescribes a VARIANCE FLOOR from identical-input reruns before treating
+        the reported lift as real, and/or flags the holistic 1-5 faithfulness
+        prompt in favor of per-claim (atomic) decomposition.
+  The snippet plants public-benchmark contamination, same-family single-judge
+  bias, a gold-contaminated retrieval index, and an unfloored lift. A bare model
+  typically gives only generic caveats. A pass means the model imposed the
+  Pheasant's LLM-lens audit discipline, which is why it discriminates the skill
+  from baseline competence.
+input:
+  message: |
+    Acting as the data-leakage snow-pheasant specialist in its LLM lens, audit
+    this RAG + LLM-judge evaluation. We want to publish these numbers in a blog
+    post.
+
+    Setup:
+    - Base model: claude-style assistant. We report a +9pp gain on GSM8K after
+      our fine-tune and want to headline "better reasoning".
+    - RAG: we built the retrieval index by chunking the SAME source documents
+      that our annotators read to write the gold answers. Adding retrieval moved
+      our faithfulness score from 0.71 to 0.93.
+    - Judge: a single LLM from the same model family as the candidate, given a
+      holistic prompt "rate this answer's faithfulness 1-5", candidate always
+      shown first, baseline second. We report the mean over the eval set.
+    - Few-shot: the 5 in-context exemplars in the eval prompt were sampled from
+      the eval set itself.
+    - We ran each eval config once.
+
+    Are these numbers safe to publish? Tell me exactly what to run before we do.
+mode: judge
+setup:
+  skills:
+    - source: /home/marius/work/claude/claude-plugins/buddy/skills/data-leakage-snow-pheasant
+assertions:
+  judge:
+    - type: rubric
+      rubric: >
+        Score this response on whether it applies the Snow Pheasant's LLM-lens
+        leakage-audit METHOD, NOT on whether it is a generally competent eval
+        review. Award points only for these concrete, checkable markers:
+
+        (1) PUBLIC-BENCHMARK CONTAMINATION PROBE: it flags the GSM8K / public
+        benchmark gain as likely contaminated (public benchmarks leak into
+        training corpora) and prescribes a CONCRETE probe — a private held-out set
+        built AFTER the model's training cutoff, OR n-gram overlap against the
+        training corpus, OR a paraphrase / perplexity gap, OR prefix-completion /
+        canary recall. Generic "test on held-out data" without naming one of these
+        does NOT count.
+
+        (2) JUDGE BIAS + MITIGATION: it flags the single same-family judge as
+        self-preference (and/or familiarity) bias AND the fixed candidate-first
+        ordering as position bias, and prescribes BOTH a cross-family panel of
+        judges (>=3 / PoLL) AND position swapping (run each pair in both orders,
+        flag verdicts that reverse). Merely saying "the judge might be biased"
+        without naming the cross-family panel or position swap does NOT count.
+
+        (3) RAG INDEX CONTAMINATION: it flags that building the index from the
+        same documents the gold answers were derived from puts the answers in the
+        retrieval pool, so the faithfulness jump may be reading the answer rather
+        than grounding, and prescribes auditing the index by source AND/OR a
+        chunk-permutation faithfulness sanity check (shuffle retrieved chunks;
+        faithfulness should collapse) or a query-only-vs-RAG divergence check.
+
+        (4) VARIANCE FLOOR / ATOMIC DECOMPOSITION: it prescribes establishing a
+        variance floor from identical-input reruns (the eval was run once) before
+        treating the +9pp or the 0.71->0.93 move as real, AND/OR flags the
+        holistic 1-5 faithfulness prompt and prescribes per-claim atomic
+        decomposition instead. (Either sub-marker satisfies (4).)
+
+        Also award credit if it flags the few-shot exemplars being drawn from the
+        eval set as in-context answer leakage.
+
+        Score 1.0 only if at least THREE of markers (1), (2), (3), (4) are clearly
+        present, including marker (1) the public-benchmark contamination probe.
+        Score 0.4-0.6 if it gives only generic caveats ("the judge could be
+        biased", "make sure your test set is clean", "run it more than once")
+        without the named cross-family panel / position swap, the named
+        contamination probe, or the index-by-source / chunk-permutation audit —
+        this is the bare-model default. Score 0 if it pronounces the numbers safe
+        to publish.
+      threshold: 0.7
+      expected_pass: true

@@ -1,0 +1,76 @@
+name: "diagnoses tautological assertions and names a surviving mutation"
+description: >
+  The user presents a GREEN test suite and asks if it is enough. Every assertion
+  is a tautology: a call-count spy (assert_called_once), `result is not None`, and
+  `assertTrue(result)`. None pins the actual returned value, so the production
+  code could return a hardcoded wrong number and the suite would still pass. A
+  skill-fired review names these as tautological / call-count / shallow and names
+  a concrete code mutation that the suite would FAIL to catch, then proposes an
+  assertion on the specific returned value. A bare model tends to rubber-stamp
+  ("looks good, decent coverage") or pad with more of the same shallow style.
+  This is the precision side: the trap is a passing suite that looks fine until
+  you ask what a failure would have caught.
+
+input:
+  message: |
+    These tests pass and coverage is green. Is this enough, or is something wrong
+    with them? Be specific about what to change.
+
+    ```python
+    # code under test
+    def compute_fee(amount):
+        # 2.9% + 30 cents, like a card processor
+        return int(amount * 0.029) + 30
+
+    # the tests (all passing)
+    from unittest.mock import MagicMock
+
+    def test_compute_fee_runs():
+        result = compute_fee(1000)
+        assert result is not None
+
+    def test_compute_fee_truthy():
+        assert compute_fee(1000)
+
+    def test_logger_called():
+        log = MagicMock()
+        log(compute_fee(1000))
+        log.assert_called_once()
+    ```
+
+mode: judge
+
+setup:
+  skills:
+    - source: /home/marius/work/claude/claude-plugins/buddy/skills/testing-snow-leopard
+
+assertions:
+  judge:
+    - type: rubric
+      rubric: >
+        You are scoring a REVIEW of an existing (green, passing) test suite for
+        `compute_fee(amount)`. The correct verdict is that the suite is NOT enough
+        because its assertions are tautological — they pass regardless of whether
+        compute_fee returns the right number.
+
+        Score 1.0 only if the review does ALL THREE of the following:
+        (a) Identifies that the assertions are tautological / shallow / non-pinning
+            — naming at least the `is not None` check, the truthiness check, OR the
+            `assert_called_once` call-count spy as something that passes even if the
+            output is wrong (any wording that conveys "this would still pass with a
+            wrong/hardcoded return" counts).
+        (b) Makes the point CONCRETE with a mutation or a specific wrong value the
+            suite would fail to catch — e.g. "if compute_fee returned a hardcoded 1
+            (or 999, or amount unchanged) every test still passes", or names the
+            exact expected value it should assert (for amount=1000, fee == 59).
+        (c) Proposes replacing them with assertions on the SPECIFIC returned value
+            (an observable outcome), not more call-count or not-null checks.
+
+        Score 0.5 if it correctly says the tests are weak/insufficient but does NOT
+        make it concrete with a mutation or a specific expected value (markers a
+        only). Score 0.0 if the review approves the suite, calls it adequate /
+        good coverage, or only suggests adding more tests in the same shallow
+        call-count / not-null style without flagging the existing assertions as
+        tautological.
+      threshold: 0.7
+      expected_pass: true

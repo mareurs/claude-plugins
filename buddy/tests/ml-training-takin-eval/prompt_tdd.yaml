@@ -1,0 +1,35 @@
+# prompt-tdd eval for the ml-training-takin skill.
+#
+# Scope: takin's train/inference PARITY method. The positive scenario presents a
+# classic "great in the notebook, worse in production" symptom — train-serve
+# skew — and checks whether takin (a) names the PIPELINE failure mode out of its
+# three-mode taxonomy, (b) prescribes the byte-identical parity test (one shared
+# preprocessing fn, assert the input tensor is identical on both paths) BEFORE
+# blaming the checkpoint/model, and (c) enumerates the concrete preprocessing
+# drift suspects (tokenizer version, normalization constants, encoding maps,
+# image resize interpolation, audio resample). The precision scenario presents a
+# genuine GENERALIZATION failure with parity already proven, and checks takin
+# does NOT misfire the parity prescription — guarding against a model that just
+# pattern-matches "say train-serve skew."
+#
+# Tier: T3 judge. The words "parity", "preprocessing", "train-serve skew" appear
+# in both the prompt and any plausible answer, so substring matching cannot tell
+# "ran the disciplined parity protocol + named the failure mode" from "echoed the
+# vocabulary." Only a semantic judge separates method from mimicry.
+#
+# Not covered here: live training-loop diagnostics (overfit-tiny-batch, LR sweep,
+# grad-norm ratio) — those need an executable loop the harness does not run.
+#
+# The judge (default claude-haiku-4-5) calls the Anthropic API — run with
+# ANTHROPIC_API_KEY in the environment.
+registry: claude-code
+scenarios: scenarios/
+baselines: .prompt-tdd/baselines/
+
+# Run the system-under-test against an isolated, plugin-free claude profile so
+# the skill arrives ONLY via each scenario's setup.skills — making the no-skill
+# (--ablate) negative control real. Without this, the globally-installed plugin
+# loads regardless and every scenario is confounded.
+claude_code:
+  session:
+    config_dir: ~/.claude-test

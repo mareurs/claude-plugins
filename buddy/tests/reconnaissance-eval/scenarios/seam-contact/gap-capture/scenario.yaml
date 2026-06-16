@@ -1,0 +1,182 @@
+name: "recon scouts the seam, catches plan drift, captures it as F-3 with a monotonic ID"
+description: >
+  A seam-contact edit task: the plan asserts the code has a field that the
+  actual source does NOT have. A bare model edits straight from the plan and
+  hits the fictional field, or silently invents it. The reconnaissance skill
+  scouts the real shape FIRST (reads the struct), states the plan-vs-reality
+  gap, and externalizes it as an F-N session-log entry — and the ID must be the
+  next monotonic integer (F-3, because the seeded tracker already has F-1 and
+  F-2), with the anchored entry shape. A pass here can only come from the skill:
+  a bare model has no notion of an F-N tracker, monotonic-ID allocation, or the
+  scout-before-edit ordering. The fixture supplies the tracker (the skill's
+  MCP-backed librarian tracker is stripped by the isolated profile — see README,
+  L-7 partial control).
+
+input:
+  message: |
+    Implement Task 1 of the auth-refactor plan below in this repo, then record
+    any reconnaissance finding in the work-stream session log.
+
+    PLAN — Task 1: In src/session.py, make `SessionToken.expired()` return True
+    once the token is past its deadline. Use the token's `.expiry_ts` field
+    (a unix timestamp) versus the current time. The plan's test asserts
+    `tok.expired() is True` for a stale token.
+
+    Before you edit, the tracker docs/trackers/auth-refactor-session-log.md is
+    the work stream's session log; honor its existing F-N / W-N entries.
+
+mode: judge
+
+setup:
+  skills:
+    - source: /home/marius/work/claude/claude-plugins/codescout-companion/skills/reconnaissance
+  files:
+    src/session.py: |
+      """Session token model. Stable contract: see tests/test_session.py."""
+      import time
+      from dataclasses import dataclass
+
+
+      @dataclass
+      class SessionToken:
+          token: str
+          # NOTE: the deadline field is `deadline_unix`, NOT `expiry_ts`.
+          # `expiry_ts` does not exist on this struct.
+          deadline_unix: int
+
+          def remaining(self) -> int:
+              return self.deadline_unix - int(time.time())
+
+      # `expired()` is not implemented yet — Task 1 adds it.
+    tests/test_session.py: |
+      import time
+      from src.session import SessionToken
+
+
+      def test_expired_true_for_stale():
+          tok = SessionToken(token="x", deadline_unix=int(time.time()) - 10)
+          assert tok.expired() is True
+
+
+      def test_expired_false_for_fresh():
+          tok = SessionToken(token="x", deadline_unix=int(time.time()) + 10)
+          assert tok.expired() is False
+    docs/trackers/auth-refactor-session-log.md: |
+      # Session Log — auth-refactor
+
+      ## Index
+
+      | ID | Date | Severity | Category | Status | Title |
+      |----|------|---------:|----------|--------|-------|
+      | F-1 | 2026-06-10 | med | plan-prose | fixed-verified | Plan named src/auth.py; module is src/session.py |
+      | F-2 | 2026-06-12 | low | codescout-tool | open | grep scoped to file missed a cross-module caller |
+
+      ## Wins Index
+
+      | ID | Date | Impact | Pattern | Counterfactual | Status |
+      |----|------|-------:|---------|----------------|--------|
+      | W-1 | 2026-06-12 | med | Scouted caller sites before signature change | Would have broken 3 call sites | validated |
+
+      ---
+
+      ## F-1 — Plan named src/auth.py; module is src/session.py
+
+      **Observed:** 2026-06-10, auth-refactor kickoff.
+
+      **When:** About to open the file the plan named.
+
+      **Expected:** src/auth.py.
+
+      **Got:** The token model lives in src/session.py.
+
+      **Probable cause:** Plan written from an older layout.
+
+      **Workaround:** Edit src/session.py instead.
+
+      **Severity:** med
+
+      **Status:** fixed-verified
+
+      **Fix idea / Pointer:** Plan task 1, this work stream.
+
+      ---
+
+      ## F-2 — grep scoped to file missed a cross-module caller
+
+      **Observed:** 2026-06-12, auth-refactor.
+
+      **When:** Searching for callers of `remaining()`.
+
+      **Expected:** All callers in src/session.py.
+
+      **Got:** A caller in src/middleware.py was missed by a file-scoped grep.
+
+      **Probable cause:** Grep scope narrowed to the changing file.
+
+      **Workaround:** Re-ran grep at workspace root.
+
+      **Severity:** low
+
+      **Status:** open
+
+      **Fix idea / Pointer:** TBD.
+
+      ---
+
+      ## W-1 — Scouted caller sites before signature change
+
+      **Observed:** 2026-06-12, auth-refactor.
+
+      **Pattern:** Read all caller sites before changing a method signature.
+
+      **Counterfactual:** Without the scout, 3 call sites in src/middleware.py
+      would have broken at import time.
+
+      **Confirming data points:** F-2 (this log); the middleware caller.
+
+      **Impact:** med
+
+      **Promote-when:** A second signature change confirms the pattern.
+
+      **Status:** validated
+
+      ---
+
+      ## Template for new entries
+
+      <!-- Insert new F-N / W-N entries above this line. Also update the
+           matching Index / Wins Index table row at the top. -->
+
+assertions:
+  judge:
+    - type: rubric
+      rubric: >
+        The task asked the model to implement a plan whose code references a
+        field (`expiry_ts`) that the actual src/session.py does NOT have — the
+        real field is `deadline_unix`. The session log already contains F-1 and
+        F-2 (and W-1). Score 1.0 ONLY IF the response does ALL of:
+        (1) Scouts BEFORE editing — surfaces that it read the actual
+            src/session.py shape, and states the plan-vs-reality gap explicitly
+            (plan said `.expiry_ts`; the struct has `.deadline_unix`, no
+            `expiry_ts` field). The implementation it writes uses
+            `deadline_unix`, not the fictional `expiry_ts`.
+        (2) Externalizes the gap as a NEW session-log entry whose ID is the next
+            monotonic friction integer — it MUST be `F-3` (not F-1, not F-2, not
+            F-4, not W-anything), because F-1 and F-2 already exist and IDs are
+            never reused or skipped.
+        (3) Writes the F-3 entry in the anchored shape: it has an Expected
+            (plan: `.expiry_ts`) vs Got (reality: `.deadline_unix` / no such
+            field) split, a Severity from {low, med, high} with a one-line cost,
+            and a Status from the friction enum
+            {open, mitigated, fixed-verified, wontfix-false-alarm,
+            promoted-to-bug-tracker, pinned-as-eval-baseline}. The entry names
+            the concrete identifier (`expiry_ts` / `deadline_unix`) and the file
+            (src/session.py) — vague entries do not count.
+        (4) Announces a one-line scout outcome that cites the F-3 ID.
+        Score 0 if the response just implements the plan (with or without using
+        the fictional `expiry_ts`) and never produces an ID-bearing session-log
+        entry, OR if it writes an entry with no ID / a reused or skipped ID
+        (anything other than F-3), OR if it edits before scouting. Losing any
+        one of (1)-(4) caps the score below the threshold.
+      threshold: 0.7
+      expected_pass: true

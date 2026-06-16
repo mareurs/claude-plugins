@@ -1,0 +1,35 @@
+# prompt-tdd eval for the security-ibex skill.
+#
+# Scope: ibex's METHOD on a code snippet — does it (a) find the specific
+# high-severity vuln class the snippet plants and (b) threat-model it the
+# Ibex way: trust boundary + source->sink exploit sketch + the structured
+# finding fields (Severity/Category/Location/Exploit sketch/Fix/Confidence)?
+#
+# The discriminating bug is an IDOR / BOLA (authenticated-but-not-authorized
+# object access), which the SKILL.md names "the #1 missed class" and "the
+# most-missed vulnerability class in AI security reviews." A bare model tends
+# to fixate on injection-shaped surface and miss authorization-on-the-object.
+#
+# Tier: T3 judge. Security vocabulary ("SQL", "injection", "user", "token")
+# appears in BOTH the fixture code and any review, so substring matching can't
+# tell "diagnosed the IDOR and threat-modeled it" from "echoed the snippet."
+# Only a semantic judge separates the Ibex's method from generic commentary.
+#
+# The clean scenario tests precision: a snippet that LOOKS injectable but is
+# safe. A skill that only pattern-matches "string + query = HIGH" fails it;
+# the Ibex's Phase-3 self-critique (false-positive check, raise as QUESTION)
+# passes it.
+#
+# The judge (default claude-haiku-4-5) calls the Anthropic API — run with
+# ANTHROPIC_API_KEY in the environment.
+registry: claude-code
+scenarios: scenarios/
+baselines: .prompt-tdd/baselines/
+
+# Run the system-under-test against an isolated, plugin-free claude profile so
+# the skill arrives ONLY via each scenario's setup.skills — making the no-skill
+# (--ablate) negative control real. Without this, the globally-installed plugin
+# loads regardless and every scenario is confounded.
+claude_code:
+  session:
+    config_dir: ~/.claude-test

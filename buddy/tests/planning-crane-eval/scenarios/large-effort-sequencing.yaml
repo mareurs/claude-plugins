@@ -1,0 +1,69 @@
+name: "Sequence a large multi-part effort with the Crane's named markers"
+description: >
+  A bare model asked to "break this down and sequence it" reliably produces a
+  competent generic plan: phases, a task list, rough dependencies, maybe
+  milestones. That is table stakes and the rubric does NOT reward it. This
+  scenario targets the Planning Crane's SKILL-SPECIFIC method markers — the
+  things that appear in output ONLY if the skill fired:
+    (a) a one-sentence DONE-CONDITION stated BEFORE any task breakdown
+        ("we are done when X is true / Y passes");
+    (b) a named LOAD-BEARING TASK — the single task that dominates the effort's
+        uncertainty/risk — explicitly scheduled early (first or second), with a
+        reason it dominates;
+    (c) dependency-CITED sequencing ("task A unblocks task B"), not "feels right"
+        ordering;
+    (d) per-task SIZING CONFIDENCE (high/medium/low) where a low-confidence size
+        triggers a time-boxed SPIKE instead of a harder guess.
+  A pass means the model imposed the Crane's specific planning discipline, not
+  that it merely produced a reasonable-looking list — that is why this
+  discriminates the skill from baseline competence.
+input:
+  message: >
+    I need to plan a fairly large effort and sequence the work properly. We are
+    building a new billing service from scratch: it has to ingest usage events
+    from a queue, aggregate them into monthly invoices, expose a REST API for
+    customers to fetch invoices, integrate with Stripe for charging, send email
+    receipts, and have an admin dashboard. There's also a data migration from
+    the legacy spreadsheet-based system. I'm not sure how hard the Stripe and
+    legacy-migration parts will be. Break this down and sequence it for me so I
+    know what to do first and how to split it across work sessions.
+mode: judge
+setup:
+  skills:
+    - source: /home/marius/work/claude/claude-plugins/buddy/skills/planning-crane
+assertions:
+  judge:
+    - type: rubric
+      rubric: >
+        Score this response on whether it applies the Planning Crane's
+        SKILL-SPECIFIC planning method, NOT on whether it is a generally good
+        plan. Award points only for the following concrete, checkable markers:
+
+        (1) DONE-CONDITION FIRST: it states a single concrete done-condition
+        sentence ("we are done when ... is true / ... passes") and does so
+        BEFORE listing the task breakdown — not a vague goal restatement, an
+        explicit finish test.
+
+        (2) LOAD-BEARING TASK NAMED: it identifies ONE task as the load-bearing
+        / highest-uncertainty / dominating-risk task (the Stripe integration or
+        legacy migration are the natural candidates), gives a reason it
+        dominates, AND schedules it early (first or second) rather than last.
+
+        (3) DEPENDENCY-CITED ORDER: the sequencing names what unblocks what
+        (e.g. "event ingestion unblocks aggregation"), rather than ordering by
+        preference or "feels right".
+
+        (4) CONFIDENCE + SPIKE: at least one task carries an explicit sizing
+        confidence (high/medium/low) AND the low-confidence work (Stripe or
+        migration) is handled with a time-boxed SPIKE / exploration to gather
+        the missing information instead of a harder point estimate.
+
+        Score 1.0 only if at least THREE of these four markers are clearly
+        present, including marker (2) the named load-bearing task scheduled
+        early. Score 0.4-0.6 if it produces a competent phased plan with
+        dependencies but omits the load-bearing-task call-out and the
+        confidence/spike treatment (this is the bare-model default). Score 0
+        if it is just an ordered task list with no done-condition, no
+        load-bearing task, and no confidence reasoning.
+      threshold: 0.7
+      expected_pass: true

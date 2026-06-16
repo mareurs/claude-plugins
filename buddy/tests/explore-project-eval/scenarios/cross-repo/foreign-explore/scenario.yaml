@@ -1,0 +1,75 @@
+name: "explore-project dispatches a templated subagent and returns a structured Exploration report"
+description: >
+  A deliberate, read-only, cross-repo exploration request: "explore the OTHER
+  repo at /srv/legacy-billing and tell me how it handles retries". The skill's
+  method is to dispatch a general-purpose subagent with its VERBATIM template
+  (naming the foreign path + topic, ordering it READ-ONLY, pointing it at
+  codescout tools pinned with workspace=<path>) and to NOT hand-write a
+  workspace(activate) bootstrap (the explore-inject hook owns that). The result
+  must come back as the fixed `## Exploration:` skeleton — Findings, Key files,
+  Confidence, Caveats, Follow-up. A bare model lacking the skill explores inline
+  (or answers from the fixture in prose) and does not produce the dispatch +
+  fixed report shape, so a pass here is attributable to the skill, not the prompt.
+
+input:
+  message: |
+    I want a deliberate read-only exploration of a DIFFERENT repo than the one
+    I'm in. The target repo is at /srv/legacy-billing — a separate git repo.
+    Topic: how the billing service handles retries on failed charges.
+    Please run the explore-project flow: dispatch the read-only exploration and
+    give me back the structured findings report. Do not modify anything.
+
+mode: judge
+
+setup:
+  skills:
+    - source: /home/marius/work/claude/claude-plugins/codescout-companion/skills/explore-project
+  files:
+    # A minimal stand-in for the foreign repo's surface, so a model CAN answer
+    # the topic in prose if it ignores the dispatch discipline — which is exactly
+    # the bare-model failure mode the rubric distinguishes from the skill's method.
+    SCENARIO_NOTES.md: |
+      (Harness note: /srv/legacy-billing is a separate repo. Its retry logic
+      lives in billing/retry.py — exponential backoff, max 5 attempts. This file
+      exists only so the task is answerable; it is NOT the explore-project method.)
+
+assertions:
+  output:
+    # The fixed report skeleton the template mandates. These exact headers do not
+    # appear in the user's message — they come only from the skill payload.
+    - contains: "## Exploration"
+    - matches: "(?i)confidence"
+    - matches: "(?i)caveats?"
+  judge:
+    - type: rubric
+      rubric: >
+        Judge whether the response follows the explore-project METHOD rather than
+        just answering the question. Score 1.0 ONLY if BOTH hold: (1) the response
+        treats this as a SUBAGENT DISPATCH against the foreign repo — it either
+        spawns / states it is spawning a general-purpose subagent with an
+        exploration prompt that names the path /srv/legacy-billing as a DIFFERENT
+        repo and orders it READ-ONLY (use codescout tools, do not modify), OR it
+        clearly lays out that dispatch prompt to be passed verbatim; AND (2) the
+        findings come back in the skill's FIXED report skeleton: a
+        "## Exploration: <topic>" heading followed by a Findings section, a Key
+        files section, and explicit Confidence / Caveats / Follow-up lines. Score
+        0 if the response just answers "how retries work" inline in ordinary prose
+        without dispatching/templating a read-only subagent and without the fixed
+        Exploration report skeleton — that is the bare-model default. Do not award
+        credit merely for the answer being correct or well written.
+      threshold: 0.7
+      expected_pass: true
+    - type: rubric
+      rubric: >
+        Judge whether the response AVOIDS the skill's named anti-pattern of
+        hand-writing the bootstrap. The skill is explicit that you must NOT write a
+        workspace(action="activate", ...) call (or otherwise hand-roll the
+        foreign-project bootstrap / manually activate the workspace) into the
+        subagent prompt, because the explore-inject hook owns that and a manual
+        version suppresses the richer auto-bootstrap. Score 1.0 if the response
+        does NOT instruct the subagent to call workspace activate / manually
+        bootstrap the foreign project (it names the path + topic and lets the
+        bootstrap be injected). Score 0 if it hand-writes a workspace-activate or
+        manual-bootstrap step into the dispatch.
+      threshold: 0.7
+      expected_pass: true

@@ -1,0 +1,106 @@
+name: "Snow Lion splits a tangled service with named change scenarios and cited imports"
+description: >
+  A single OrderService module that mixes order domain logic, Stripe payment I/O,
+  SendGrid email, and direct SQL — with concrete imports the proposal can cite.
+  A bare competent model will propose a reasonable split (the tautological floor).
+  The Snow Lion's method shows up in three checkable markers a bare model omits:
+  (1) each proposed boundary names the CONCRETE future change it absorbs (swap
+  Stripe -> Adyen, swap email provider, change DB), not "future flexibility";
+  (2) coupling claims CITE the actual imports/symbols in the fixture (stripe,
+  sendgrid, the psycopg connection, the OrderRow dict) rather than abstract
+  "tight coupling"; (3) the recommendation is an ADR carrying Change-scenarios-
+  absorbed, Revisit-when, and per-tradeoff Confidence. A pass requires the
+  method, not just a plausible diagram, so a pass is unlikely to be coincidence.
+
+input:
+  message: |
+    Acting as the Architecture Snow Lion skill, review this tangled service module and
+    propose system boundaries: how would you split it into modules, and what interface
+    decisions follow? Give me your recommendation in your decision-record format.
+
+    ```python
+    # order_service.py  — the whole module
+    import stripe
+    import sendgrid
+    import psycopg2
+    from sendgrid.helpers.mail import Mail
+
+    DB = psycopg2.connect(DSN)
+    stripe.api_key = STRIPE_KEY
+    sg = sendgrid.SendGridAPIClient(SENDGRID_KEY)
+
+    class OrderService:
+        def place_order(self, user_id, cart, card_token):
+            # 1. domain: compute totals, apply discount rules
+            total = sum(i["price"] * i["qty"] for i in cart)
+            if total > 100:
+                total *= 0.9  # loyalty discount rule
+
+            # 2. payment: talk to Stripe directly
+            charge = stripe.Charge.create(amount=int(total * 100),
+                                          currency="usd", source=card_token)
+
+            # 3. persistence: raw SQL against the shared DB connection
+            cur = DB.cursor()
+            cur.execute("INSERT INTO orders (user_id, total, charge_id) "
+                        "VALUES (%s,%s,%s) RETURNING id",
+                        (user_id, total, charge["id"]))
+            order_id = cur.fetchone()[0]
+            DB.commit()
+
+            # 4. notification: send a SendGrid email inline
+            msg = Mail(from_email="shop@x.com", to_emails=self._email(user_id),
+                       subject="Order confirmed", html_content=f"Order {order_id}")
+            sg.send(msg)
+            return order_id
+
+        def refund(self, order_id):
+            cur = DB.cursor()
+            cur.execute("SELECT charge_id, user_id FROM orders WHERE id=%s", (order_id,))
+            charge_id, user_id = cur.fetchone()
+            stripe.Refund.create(charge=charge_id)            # payment again
+            msg = Mail(from_email="shop@x.com", to_emails=self._email(user_id),
+                       subject="Refunded", html_content=f"Order {order_id} refunded")
+            sg.send(msg)                                       # notification again
+
+        def _email(self, user_id):
+            cur = DB.cursor()
+            cur.execute("SELECT email FROM users WHERE id=%s", (user_id,))
+            return cur.fetchone()[0]
+    ```
+
+mode: judge
+
+setup:
+  skills:
+    - source: /home/marius/work/claude/claude-plugins/buddy/skills/architecture-snow-lion
+
+assertions:
+  judge:
+    - rubric: >
+        Score this architecture recommendation for an OrderService that tangles
+        order-domain logic, Stripe payment, SendGrid email, and raw SQL. The
+        response must propose a sensible split — at minimum separating the domain
+        (totals/discount) from payment, persistence, and notification — AND show
+        all three of the following method markers:
+        (A) NAMED CONCRETE CHANGE SCENARIO PER BOUNDARY: for the boundaries it
+        proposes, it justifies them by naming a specific future change each
+        absorbs (e.g. "swap Stripe for Adyen", "change email provider",
+        "switch the database / move off raw SQL"), NOT a generic phrase like
+        "future flexibility", "cleaner", "separation of concerns", or
+        "maintainability" with no named change.
+        (B) CITES THE CODE: its coupling claims point to the actual imports or
+        symbols in the fixture (stripe / stripe.Charge / sendgrid / Mail / the
+        shared psycopg2 DB connection / raw SQL / _email), not just abstract
+        "tight coupling" with no reference to what is imported.
+        (C) DECISION-RECORD FIELDS: the recommendation is structured as a
+        decision record that includes the consequences/tradeoffs (what gets
+        harder, not only what gets easier) AND at least one of: an explicit
+        Confidence level, a "revisit-when" trigger, or "change scenarios
+        absorbed".
+        Score 1.0 only if a sensible split is present AND all three markers
+        (A, B, C) are clearly present. Score 0.5 if the split is present and one
+        or two markers are present. Score 0.0 if it gives only a generic split
+        with abstract justifications and none of A/B/C.
+      threshold: 0.7
+      expected_pass: true

@@ -1,0 +1,32 @@
+# prompt-tdd eval for the legibility-dzo skill.
+#
+# Scope: dzo's CENTRAL DISCIPLINE — evidence-gated, instrument-framed
+# machine-legibility refactoring. Two scenarios test the two halves of that
+# discipline:
+#   - defect-present: code with a real, instrument-visible legibility defect
+#     (over-budget body + generic scattered name + anonymous closure). The dzo
+#     must name the defect in TOOL terms (symbols inline budget, index
+#     invisibility, grep-roulette) and pick budget/concern-driven moves.
+#   - clean-bait: short, cohesive, cleanly-mappable code with a "make it cleaner
+#     for the AI" request and no friction evidence. The dzo must REFUSE to churn
+#     and demand a degraded reading / friction row first (Reaction 1 & 3,
+#     Heuristic 10) — the bare model just refactors.
+#
+# Tier: T3 judge. Code terms (symbols, budget, refactor, function names) appear
+# in BOTH the prompt and any response, so substring matching cannot distinguish
+# "applied the instrument-evidence method" from "echoed the vocabulary" — only a
+# semantic judge can tell whether the refusal/instrument framing actually fired.
+#
+# The judge (default claude-haiku-4-5) calls the Anthropic API — run with
+# ANTHROPIC_API_KEY in the environment.
+registry: claude-code
+scenarios: scenarios/
+baselines: .prompt-tdd/baselines/
+
+# Run the system-under-test against an isolated, plugin-free claude profile so
+# the skill arrives ONLY via each scenario's setup.skills — making the no-skill
+# (--ablate) negative control real. Without this, the globally-installed buddy
+# plugin loads regardless and every scenario is confounded.
+claude_code:
+  session:
+    config_dir: ~/.claude-test

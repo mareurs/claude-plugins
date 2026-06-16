@@ -1,0 +1,32 @@
+# prompt-tdd eval for the data-leakage-snow-pheasant skill (the Snow Pheasant).
+#
+# Scope: the Pheasant's leakage-AUDIT method — does the loaded skill make the
+# model diagnose train/test leakage the way the Pheasant prescribes, rather than
+# give a generic code review? Two scenarios, one per lens (classic, llm). Each
+# hands the model a pipeline snippet with PLANTED leaks plus a flattering
+# headline score, and judges whether the response applies the lens-specific
+# method markers (null/permutation test, group/contamination probes, the Leakage
+# Report discipline) — not whether it merely "found a bug".
+#
+# Tier: T3 judge. The leak terms (scaler, split, judge, RAG, faithfulness) appear
+# in both the snippet and any competent review, so substring matching cannot tell
+# "prescribed the null/permutation test" from "echoed the word permutation" — only
+# a semantic judge can score whether the SPECIFIC method fired.
+#
+# Lens note: the summoned arm copies the WHOLE skill dir, so BOTH _classic.md and
+# _llm.md are present in every scenario's work dir. Lens selection is not harness-
+# enforced; each scenario's message names the lens so the right addendum dominates.
+#
+# The judge (default claude-haiku-4-5) calls the Anthropic API — run with
+# ANTHROPIC_API_KEY in the environment.
+registry: claude-code
+scenarios: scenarios/
+baselines: .prompt-tdd/baselines/
+
+# Run the system-under-test against an isolated, plugin-free claude profile so
+# the skill arrives ONLY via each scenario's setup.skills — making the no-skill
+# (--ablate) negative control real. Without this, the globally-installed plugin
+# loads regardless and every scenario is confounded.
+claude_code:
+  session:
+    config_dir: ~/.claude-test

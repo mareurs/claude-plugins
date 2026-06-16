@@ -1,0 +1,80 @@
+name: "writes boundary cases + observable-outcome assertions for a unit with a side-effect seam"
+description: >
+  The unit (apply_discount) has a real boundary surface (qty 0, qty 1, the
+  bulk threshold off-by-one, negative qty, an empty cart) AND a side-effecting
+  dependency (an audit_log the bare model is tempted to spy on with
+  assert_called_once / call_count). A skill-fired suite enumerates the edges
+  before the happy path and asserts on the RETURNED total and the LOGGED
+  CONTENT (observable state) rather than how many times the logger was called.
+  A bare model typically writes one happy-path test and reaches for a mock-spy
+  call-count assertion on the logger. The judge reads which one was produced.
+  PASS here means the skill changed the test design, not coincidence.
+
+input:
+  message: |
+    Write a unit test suite for the function below. I am worried about correctness
+    at the edges, and I want the tests to actually catch bugs.
+
+    ```python
+    # discount.py
+    BULK_THRESHOLD = 10   # qty >= 10 gets the bulk rate
+    UNIT_PRICE = 100      # cents
+
+    def apply_discount(qty, audit_log):
+        """Return the order total in cents for `qty` units, after discount.
+
+        - qty < 0 raises ValueError.
+        - qty == 0 returns 0.
+        - qty >= BULK_THRESHOLD applies a 20% discount to the whole order.
+        - otherwise full price.
+        Every call appends one line to `audit_log` (a list): the computed total.
+        """
+        if qty < 0:
+            raise ValueError("qty must be non-negative")
+        subtotal = qty * UNIT_PRICE
+        if qty >= BULK_THRESHOLD:
+            subtotal = int(subtotal * 0.8)
+        audit_log.append(subtotal)
+        return subtotal
+    ```
+
+mode: judge
+
+setup:
+  skills:
+    - source: /home/marius/work/claude/claude-plugins/buddy/skills/testing-snow-leopard
+
+assertions:
+  judge:
+    - type: rubric
+      rubric: >
+        You are scoring a Python unit-test suite written for `apply_discount(qty,
+        audit_log)`. Score on TWO independent method markers, each worth half.
+
+        MARKER 1 — Boundary coverage (0.5). The suite must include test cases at
+        the EDGES of the qty parameter, not just one happy-path value. Award the
+        full half only if it tests at LEAST THREE of these distinct boundaries:
+        qty == 0 (returns 0), qty < 0 / negative (raises ValueError), the bulk
+        threshold off-by-one (qty == 9 full price vs qty == 10 discounted), and
+        an explicit at-the-limit/max case. Give partial credit (0.25) for exactly
+        two boundaries; 0.0 if it tests only one happy value (e.g. only qty == 5).
+
+        MARKER 2 — Observable-outcome assertions, NOT call counts (0.5). The suite
+        must assert on the RETURNED total value (e.g. 1000 for qty 10 after 20%
+        off, 0 for qty 0) AND/OR on the CONTENTS of audit_log (the appended total),
+        which are outcomes a caller can observe. Award the full half only if the
+        observable assertions are present AND the suite does NOT rely on a
+        spy/call-count assertion as its check on the logging side effect — i.e. it
+        does NOT use `assert_called_once`, `call_count`, `assert_called_with`,
+        `mock.called`, or assert merely that the result `is not None`. If the suite
+        verifies the logging by inspecting `audit_log` contents (a real list) that
+        is the CORRECT observable approach and earns the half. Deduct the entire
+        half if the logging behavior is checked ONLY via a mock call-count / spy
+        assertion, or if the only assertion on a path is `is not None` / "does not
+        raise".
+
+        Sum the two halves. Score 1.0 for full marks on both. Score at or below 0.4
+        for a single-happy-path test that spies on the logger with a call-count
+        assertion (the bare-model default).
+      threshold: 0.7
+      expected_pass: true

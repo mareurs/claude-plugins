@@ -1,0 +1,88 @@
+name: "dzo names legibility defects in instrument terms and gates on evidence"
+description: >
+  The user reports concrete tool friction (symbols truncates the body, an intent
+  query misses, references finds nothing) and a fixture with three
+  instrument-visible defects: an over-budget function body, a generic name that
+  collides across files, and logic buried in an anonymous closure. A model WITH
+  the dzo skill diagnoses each defect in TOOL terms (symbols inline budget /
+  index invisibility / grep-roulette), proposes budget-and-concern-driven moves
+  (split at seams, extract the closure to a named symbol, rename toward intent),
+  and insists on before/after instrument readings plus a green baseline. A bare
+  model treats it as ordinary "this function is long and messy" cleanup, framed
+  by human aesthetics and line count, with no instrument panel and no
+  evidence gate. A pass here means the dzo's machine-legibility method fired,
+  not generic refactoring instinct.
+
+input:
+  message: |
+    Acting as the Legibility Dzo skill, here is observed codescout friction on
+    `billing/process.py`:
+
+      - symbols(name="run", include_body=true) returns a truncated body — it does
+        not fit the inline budget.
+      - semantic_search("apply late-payment penalty to an overdue invoice") does
+        not return this code.
+      - references("run") and the call graph come back nearly empty.
+      - the logs show 9 grep guesses for the penalty logic before it was found.
+
+    Tell me what the legibility defects are and what you would do about them.
+
+mode: judge
+
+setup:
+  skills:
+    - source: /home/marius/.buddy/skills/legibility-dzo
+  files:
+    billing/process.py: |
+      import datetime
+
+      def run(invoice, today=None):
+          # 180-ish line god-function: validation, penalty calc, ledger write,
+          # notification — all inline, no seams extracted.
+          today = today or datetime.date.today()
+          if not invoice:
+              raise ValueError("no invoice")
+          if invoice.get("void"):
+              return {"status": "void"}
+          due = invoice["due_date"]
+          amount = invoice["amount"]
+          # ... 40 lines of field validation ...
+          overdue_days = (today - due).days
+          # penalty logic hidden in an anonymous closure, invisible to the index:
+          calc = lambda d, a: 0 if d <= 0 else round(a * 0.015 * d, 2)
+          penalty = calc(overdue_days, amount)
+          total = amount + penalty
+          # ... 60 lines of ledger-write side effects ...
+          ledger = []
+          ledger.append({"type": "charge", "amount": amount})
+          if penalty:
+              ledger.append({"type": "penalty", "amount": penalty})
+          # ... 50 lines of notification assembly ...
+          msg = f"Invoice total {total}"
+          return {"status": "ok", "total": total, "ledger": ledger, "message": msg}
+
+      def handle(x):  # generic name, also defined in two sibling modules
+          return run(x)
+
+assertions:
+  judge:
+    - rubric: >
+        Score whether this response diagnoses the code using MACHINE-LEGIBILITY /
+        TOOL-INSTRUMENT reasoning, not generic code-cleanliness advice. Score 1.0
+        only if the response does ALL of: (a) names at least one defect explicitly
+        in tool/instrument terms — e.g. the body exceeds the symbols inline budget
+        / symbols truncates it, OR the lambda/closure penalty logic is invisible
+        to the symbol index, OR the generic name (`run`/`handle`) defeats
+        retrieval/intent search — rather than only calling it "long", "messy", or
+        "hard to read"; (b) proposes a concrete move tied to that instrument
+        defect — splitting the over-budget body at its seams AND extracting the
+        anonymous penalty closure into a named top-level symbol and/or renaming
+        toward the intent so the search query lands; (c) treats the cited friction
+        (truncated symbols, missed semantic_search, empty references, grep guesses)
+        as the justification and calls for re-taking those instrument readings
+        before/after, or for a green test baseline before moving. Score 0 if the
+        response reads as ordinary refactoring driven by line count or human taste
+        with no instrument framing, or if it never connects a move to a tool
+        reading.
+      threshold: 0.7
+      expected_pass: true

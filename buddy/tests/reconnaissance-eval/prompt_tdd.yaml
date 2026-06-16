@@ -1,0 +1,38 @@
+# prompt-tdd eval for the codescout-companion:reconnaissance skill.
+#
+# Scope: reconnaissance's SCOUT-BEFORE-ACT discipline and its F-N/W-N
+# session-log externalization protocol. Each scenario presents a seam-contact
+# task (a plan that names code shape the model has not read), pre-seeds a
+# session-log tracker, and judges whether the model (a) scouts the actual shape
+# BEFORE editing/asserting, (b) captures the plan-vs-reality gap as an F-N entry
+# with the NEXT MONOTONIC ID into the tracker, and (c) announces a one-line
+# outcome citing that ID.
+#
+# Tier: T3 judge. The discriminating markers (next-monotonic-ID allocation, the
+# anchored F-N entry shape, the counterfactual on W-N) are semantic structure,
+# not literal substrings the prompt already contains — only a judge can score
+# "allocated F-3 because F-1/F-2 already exist" vs "echoed an F-number."
+#
+# L-7 CONTROL CAVEAT (read README): this skill is MCP-coupled. Its native method
+# runs on codescout tools (symbols/references/edit_markdown) and a librarian
+# tracker. The isolated ~/.claude-test profile strips MCP, so the scout is
+# exercised with plain Read/Grep and the tracker is supplied as a setup.files
+# fixture. What survives the strip — and what these scenarios measure — is the
+# scout-before-act DISCIPLINE, the monotonic-ID allocation, and the entry shape.
+# The MCP plumbing (edit_markdown insert_before, librarian artifact, recon_count
+# statusline bump) is NOT exercised here. The control is therefore PARTIAL.
+#
+# The judge (default claude-haiku-4-5) calls the Anthropic API — run with
+# ANTHROPIC_API_KEY in the environment.
+registry: claude-code
+scenarios: scenarios/
+baselines: .prompt-tdd/baselines/
+
+# Run the system-under-test against an isolated, plugin-free claude profile so
+# the skill arrives ONLY via each scenario's setup.skills — making the no-skill
+# (--ablate) negative control real. Without this, the globally-installed
+# codescout-companion plugin loads regardless and every scenario is confounded.
+# See prompt-engineering docs/trackers/skill-eval-playbook.md (plugin-load confound).
+claude_code:
+  session:
+    config_dir: ~/.claude-test

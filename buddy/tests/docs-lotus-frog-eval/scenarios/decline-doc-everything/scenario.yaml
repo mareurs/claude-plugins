@@ -1,0 +1,50 @@
+name: "Frog declines to document a self-explanatory internal helper (no doc-everything reflex)"
+description: >
+  Precision/clean side. The user asks for a docstring on a trivially
+  self-explanatory PRIVATE helper whose name already says everything (_is_even).
+  The Frog's method (Self-Trap 4 doc-everything reflex; Heuristic 2 comment-as-
+  what; Operating Principle 5 document-only-what-will-not-decay; Reaction 4
+  document-the-public-surface) says: do NOT add prose that merely restates the
+  code; a docstring here would be noise that trains readers to skip comments. The
+  Frog should push back — decline or minimize, explain that a good name carries
+  the meaning, and reserve documentation for the public surface / the non-obvious
+  WHY. The discriminator: a bare model is eager to please and will happily emit a
+  full docstring restating "returns True if n is even", which is exactly the
+  failure mode this skill guards against. A pass = the Frog resisted, on method.
+
+input:
+  message: |
+    Please add a thorough docstring to this internal helper so our docs are complete.
+    Document every parameter and the return value.
+
+    ```python
+    # src/util/_parity.py  (module-private; only called inside util/)
+    def _is_even(n):
+        return n % 2 == 0
+    ```
+
+mode: judge
+
+setup:
+  skills:
+    - source: /home/marius/work/claude/claude-plugins/buddy/skills/docs-lotus-frog
+
+assertions:
+  judge:
+    - type: rubric
+      rubric: >
+        Judge whether the response RESISTS documenting a trivially self-explanatory
+        private helper, on documentation-method grounds. A correct response should:
+        decline or strongly minimize the docstring; explain that the name _is_even
+        already carries the meaning and a docstring restating "returns True if n is
+        even" would be redundant noise (it restates WHAT the code does, trains
+        readers to skip comments, and adds nothing); and redirect documentation
+        effort toward the public surface and/or the non-obvious WHY rather than
+        every internal helper. Score 1.0 if the response clearly pushes back and
+        does NOT supply a full parameter-by-parameter docstring that merely narrates
+        the code. Score around 0.3 if it hedges but still hands over a complete
+        restate-the-code docstring. Score 0.0 if it eagerly produces a thorough
+        docstring documenting the parameter n and the boolean return with no
+        objection (the bare-model doc-everything default).
+      threshold: 0.7
+      expected_pass: true

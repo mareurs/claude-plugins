@@ -1,0 +1,31 @@
+# prompt-tdd eval for the refactoring-yak skill.
+#
+# Scope: the Yak's METHOD — the safety-net-before-move discipline, the named
+# structural defect, the smallest-atomic-move sequence, and the
+# behavior-preserved / no-feature-smuggling guardrail. Each scenario hands the
+# model a knotted function and judges whether the response carries the skill's
+# specific markers, not just "cleaner code."
+#
+# Tier: T3 judge. The discriminating markers (tests-first / characterization,
+# a one-sentence structural-defect name, atomic moves verified against a
+# baseline, refusal to change behavior or smuggle a feature) are about the
+# SHAPE of the method, not literal strings — only a semantic judge separates
+# "the Yak fired" from "a bare model wrote a tidy rewrite."
+#
+# Not covered here: the live tool-use path (codescout edit_code / LSP rename),
+# actual commit splitting, or running a real test suite — this is a single
+# headless turn over a fixture, so we judge the planned method, not execution.
+#
+# The judge (default claude-haiku-4-5) calls the Anthropic API — run with
+# ANTHROPIC_API_KEY in the environment.
+registry: claude-code
+scenarios: scenarios/
+baselines: .prompt-tdd/baselines/
+
+# Run the system-under-test against an isolated, plugin-free claude profile so
+# the skill arrives ONLY via each scenario's setup.skills — making the no-skill
+# (--ablate) negative control real. Without this, the globally-installed plugin
+# loads regardless and every scenario is confounded.
+claude_code:
+  session:
+    config_dir: ~/.claude-test

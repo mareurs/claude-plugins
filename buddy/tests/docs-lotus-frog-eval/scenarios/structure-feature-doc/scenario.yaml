@@ -1,0 +1,83 @@
+name: "Frog structures feature docs: named reader, why-over-what, stale-when trigger"
+description: >
+  Asked to document a newly added feature, the Frog should not emit a generic
+  prose dump. The skill's method produces a distinctive scaffold: it names ONE
+  primary reader and the question they arrived with, leads with a one-sentence
+  summary (progressive disclosure), explains WHY the code is shaped the way it is
+  (the constraint/tradeoff) rather than restating what the code does, places the
+  doc where that reader will already be looking, and names a STALE-WHEN trigger —
+  the concrete condition (file/behavior/version) that would make the doc wrong.
+  The named-reader and stale-when markers are the discriminator: a competent bare
+  model writes readable docs but rarely volunteers an explicit primary audience
+  or an invalidation trigger. A pass means the Frog's architecture method fired,
+  not that the prose was merely nice.
+
+input:
+  message: |
+    We just added a retry feature to our HTTP client and I need to document it.
+    Here is the function we shipped:
+
+    ```python
+    # src/httpclient/retry.py
+    DEFAULT_MAX_RETRIES = 3
+
+    def request_with_retry(method, url, *, max_retries=DEFAULT_MAX_RETRIES, backoff_base=0.5):
+        """sends an HTTP request, retrying on 429 and 5xx."""
+        attempt = 0
+        while True:
+            resp = _send(method, url)
+            if resp.status_code < 500 and resp.status_code != 429:
+                return resp
+            attempt += 1
+            if attempt > max_retries:
+                return resp
+            # full jitter: random delay in [0, backoff_base * 2**attempt)
+            time.sleep(random.uniform(0, backoff_base * (2 ** attempt)))
+    ```
+
+    The non-obvious part: we use full-jitter exponential backoff (not fixed delay)
+    because under load a thundering herd of synchronized retries was overwhelming
+    our upstream. And we deliberately do NOT retry 4xx other than 429, because
+    those are client errors that will never succeed on retry.
+
+    Please structure the documentation for this feature. Where should it live and
+    what should it say?
+
+mode: judge
+
+setup:
+  skills:
+    - source: /home/marius/work/claude/claude-plugins/buddy/skills/docs-lotus-frog
+
+assertions:
+  judge:
+    - type: rubric
+      rubric: >
+        Judge whether this response structures the feature documentation using the
+        documentation-architecture method, NOT merely whether the prose reads well.
+        Award credit for each of these distinct markers, all of which a generic
+        doc dump tends to OMIT:
+        (a) NAMES a specific primary reader/audience for the doc (e.g. the API
+        caller / library user / on-call operator) rather than addressing "everyone"
+        or leaving the audience implicit;
+        (b) leads with progressive disclosure — a one-sentence summary or answer
+        up front, THEN context/detail — rather than opening with throat-clearing
+        background;
+        (c) explains the WHY (the full-jitter-vs-thundering-herd rationale and/or
+        the deliberate no-retry-on-non-429-4xx decision) as the load-bearing
+        content, instead of restating in prose what the code already shows
+        line-by-line;
+        (d) PLACES the doc on a concrete surface where that reader will look
+        (e.g. the function docstring/signature, a README section, or an ADR) with
+        an explicit reason for that placement;
+        (e) names a STALE-WHEN / invalidation trigger — a concrete condition
+        (a file, behavior, default value like DEFAULT_MAX_RETRIES, or version)
+        whose change would make the doc wrong.
+        Score 1.0 only if the response clearly hits at least FOUR of (a)-(e),
+        INCLUDING (e) the stale-when trigger AND (a) the named reader. Score around
+        0.4 if it produces readable, well-organized docs but leaves the reader
+        unnamed and names no stale-when trigger (the typical bare-model default).
+        Score 0.0 if it just restates the code as prose with no audience, no
+        placement reasoning, and no invalidation trigger.
+      threshold: 0.7
+      expected_pass: true

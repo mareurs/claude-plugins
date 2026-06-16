@@ -1,0 +1,69 @@
+name: "takin diagnoses train-serve skew with the parity protocol, not the checkpoint"
+description: >
+  A model scores 95% on the held-out set inside the training notebook but ~60%
+  in the production serving path. This is the canonical train/inference parity
+  mismatch. A bare model tends to scatter — suggest retraining, distribution
+  shift, a bad checkpoint, more data, monitoring. The takin skill fires a
+  specific disciplined method: it names the PIPELINE failure mode (out of its
+  optimization|generalization|pipeline taxonomy), prescribes a byte-identical
+  parity TEST (push one sample through train and serve, assert the input tensor
+  is identical) via a single shared preprocessing function, defers blaming the
+  model/checkpoint until parity rules it out, and lists the concrete drift
+  suspects. A pass means that fingerprint appeared, not coincidence — those four
+  elements together are not the bare-model default.
+
+input:
+  message: |
+    Our text-classification model gets 95% accuracy on the held-out set when we
+    evaluate it inside the training notebook, but in the production serving
+    service the same checkpoint scores around 60% on what should be the same kind
+    of inputs. Nothing about the model weights changed between the two. The team
+    wants to retrain with more data and a bigger model. How should I diagnose
+    this before we spend a week retraining?
+
+mode: judge
+
+setup:
+  skills:
+    - source: /home/marius/work/claude/claude-plugins/buddy/skills/ml-training-takin
+  files:
+    notes/symptom.md: |
+      # Repro notes
+      - Notebook eval: 95.2% accuracy on held-out split.
+      - Production serving: ~60% on live traffic of the same task.
+      - Same checkpoint file in both (sha256 matches).
+      - Training preprocessing lives in train/data.py.
+      - Serving preprocessing lives in serve/handler.py (separate codebase).
+
+assertions:
+  judge:
+    - rubric: >
+        Score how well this response runs the train/inference PARITY method on a
+        notebook-vs-production accuracy gap, versus a generic "could be a few
+        things" answer.
+
+        Award full credit (1.0) ONLY if ALL of the following are present:
+        (a) it classifies this as a PIPELINE / train-serve-skew failure
+        (explicitly distinguished from an optimization or generalization failure,
+        i.e. it picks one named failure mode rather than listing causes flatly);
+        (b) it prescribes a concrete PARITY TEST: feed the SAME sample through
+        both the training and serving preprocessing paths and ASSERT the resulting
+        input tensor (or token ids) is identical / byte-identical, ideally by
+        routing both paths through ONE shared preprocessing function;
+        (c) it explicitly defers blaming the model, weights, or checkpoint, and
+        explicitly says NOT to retrain / not to go bigger until parity is ruled
+        out (it should note the checkpoint is identical so the model is not the
+        suspect);
+        (d) it names at least TWO specific preprocessing DRIFT suspects from this
+        family: tokenizer/vocabulary version, normalization constants, categorical
+        or label encoding maps, image resize interpolation, or audio resample
+        algorithm.
+
+        Score 0.0 if the response is a generic differential ("it could be data
+        drift, the checkpoint, the environment, retrain with more data...") that
+        does NOT name the pipeline failure mode AND does NOT prescribe the
+        assert-equal parity test. Deduct heavily if it endorses retraining or a
+        bigger model as the first step, since that is the exact bare-model trap
+        this method overrides.
+      threshold: 0.75
+      expected_pass: true

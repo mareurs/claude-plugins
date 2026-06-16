@@ -1,0 +1,88 @@
+name: "ibex finds the IDOR and threat-models it (not the injection distractor)"
+description: >
+  The fixture is a Flask invoice endpoint. The query is parameterized (no SQL
+  injection), so a reviewer fixated on injection-shaped surface finds nothing
+  high-severity. The real HIGH bug is an IDOR / BOLA: the endpoint authenticates
+  the caller (require_login) but never checks that the requested invoice_id
+  belongs to the caller — any logged-in user can read any invoice by changing
+  the id in the URL. The Ibex names this class explicitly (it is the skill's
+  "#1 missed class") and threat-models it: trust boundary crossed, source->sink
+  exploit sketch, structured finding fields. A pass here means the skill's
+  taxonomy + finding format fired, not that the model happened to spot a bug.
+
+input:
+  message: |
+    Acting as the Security Ibex skill, do a security review of this Flask handler.
+    Find the highest-severity vulnerability, threat-model it, and write it up in
+    your finding format. This is a focused review of authn/authz and input
+    handling for this one endpoint — DOS and rate limiting are out of scope.
+
+    ```python
+    # billing/views.py
+    from flask import request, jsonify, g
+    from .db import get_conn
+    from .auth import require_login
+
+    @app.route("/api/invoices/<int:invoice_id>")
+    @require_login          # sets g.user_id from the session cookie
+    def get_invoice(invoice_id):
+        conn = get_conn()
+        cur = conn.cursor()
+        # parameterized — no string concatenation
+        cur.execute(
+            "SELECT id, customer_id, amount_cents, pdf_url FROM invoices WHERE id = %s",
+            (invoice_id,),
+        )
+        row = cur.fetchone()
+        if row is None:
+            return jsonify({"error": "not found"}), 404
+        return jsonify({
+            "id": row[0],
+            "customer_id": row[1],
+            "amount_cents": row[2],
+            "pdf_url": row[3],
+        })
+    ```
+
+mode: judge
+
+setup:
+  skills:
+    - source: /home/marius/work/claude/claude-plugins/buddy/skills/security-ibex
+
+assertions:
+  judge:
+    - type: rubric
+      rubric: >
+        Score this security review of a Flask invoice endpoint. The endpoint runs
+        @require_login but never checks that the requested invoice_id belongs to
+        the authenticated user (g.user_id), so any logged-in user can read any
+        invoice by changing the id — a broken-object-level-authorization bug.
+
+        Score 1.0 ONLY IF ALL of the following hold:
+        (a) IDENTIFIES THE RIGHT CLASS: the review names this missing-authorization
+            / broken-object-level-authorization issue as the primary finding —
+            explicitly using a term from {IDOR, BOLA, broken object level
+            authorization, missing authorization check, missing ownership check,
+            authenticated-but-not-authorized}. Merely saying "add validation" or
+            "check the user" without identifying it as an authorization-on-the-
+            object problem does NOT count.
+        (b) THREAT-MODELS IT: the review gives a concrete exploit sketch describing
+            HOW an attacker triggers it — e.g. a logged-in user requests
+            /api/invoices/<another_user's_id> (or otherwise enumerates/changes the
+            id) with their own valid session and reads another customer's invoice.
+            A generic "this is insecure" with no attacker action does NOT count.
+        (c) STRUCTURED FINDING: the write-up carries the Ibex's finding fields —
+            it states a Severity (HIGH or similar), points to the specific
+            location (the get_invoice handler / the SELECT line, by name or line),
+            and gives a concrete fix that scopes the query or check to the owner
+            (e.g. add "AND customer_id = <the caller's customer>" or verify
+            ownership of the row before returning it).
+
+        Score 0 if the review's primary or only finding is about SQL injection,
+        input sanitization of invoice_id, or generic hardening, while missing the
+        authorization-on-the-object bug. Lose points for each of (a)/(b)/(c) not
+        clearly met. Do not award credit for security-sounding vocabulary that
+        echoes the snippet without diagnosing the ownership gap.
+      threshold: 0.7
+      expected_pass: true

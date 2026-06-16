@@ -1,0 +1,46 @@
+name: "Underspecified request — the Crane gates on done-condition before decomposing"
+description: >
+  Precision / clean case. The request is large but the destination is unstated
+  and the user wants to dive straight into tasks. The bare-model default is to
+  be helpful by GUESSING a goal and immediately emitting a plausible multi-step
+  plan. The Planning Crane's distinctive, checkable move (Operating Principle 1,
+  Phase 1, Self-Trap "premature decomposition") is the OPPOSITE: it refuses to
+  decompose until the done-condition is concrete, and asks the user to state
+  "what is true when we stop?" in one sentence before producing the breakdown.
+  A pass here means the model imposed the done-condition gate rather than
+  producing tasks on a goal nobody named — a marker that distinguishes the
+  skill from default eager-to-help planning.
+input:
+  message: >
+    Let's just start. I want to "modernize the platform" — it's a big multi-part
+    job and I want to get going. Give me the task breakdown so I can start
+    coding right now.
+mode: judge
+setup:
+  skills:
+    - source: /home/marius/work/claude/claude-plugins/buddy/skills/planning-crane
+assertions:
+  judge:
+    - type: rubric
+      rubric: >
+        The request is deliberately underspecified ("modernize the platform")
+        and pushes to skip planning and start coding immediately. Score whether
+        the response applies the Planning Crane's DONE-CONDITION GATE:
+
+        Score 1.0 if the response declines to emit a concrete task breakdown
+        until the destination is pinned down, and instead asks the user to state
+        the done-condition — "what is true / what test passes when we stop?" — in
+        one concrete sentence, naming that decomposing before the end state is
+        defined would produce guess-tasks / rework. It is fine to offer a small
+        illustrative shape, but the dominant move must be requiring the
+        done-condition first.
+
+        Score 0.3-0.5 if it pays brief lip service to clarifying the goal but
+        then proceeds to dump a full generic "modernization" task list anyway
+        (the bare-model eager-to-help default).
+
+        Score 0 if it immediately produces a multi-step task breakdown for an
+        invented "modernize the platform" goal with no done-condition gate at
+        all.
+      threshold: 0.7
+      expected_pass: true

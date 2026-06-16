@@ -1,0 +1,29 @@
+# prompt-tdd eval for the debugging-yeti skill.
+#
+# Scope: yeti's METHOD on a bug whose OBVIOUS surface fix is wrong. The symptom
+# surfaces at one site (a crash / wrong output) but the real cause is upstream.
+# A bare model patches the symptom site; the skill forces a root-cause hypothesis
+# pinned to a specific upstream line BEFORE proposing the patch.
+#
+# Tier: T3 judge. The discriminator is structural ("did it name the upstream
+# root cause and resist the symptom-site patch"), not a literal token, so a
+# substring match cannot tell a real diagnosis from a confident-sounding
+# symptom patch — only a semantic judge can.
+#
+# Not covered here: live reproduction (the harness runs headless with no test
+# runner wired up) and the intermittent/flaky-test heuristics, which need a
+# multi-run loop the adapter does not provide.
+#
+# The judge (default claude-haiku-4-5) calls the Anthropic API — run with
+# ANTHROPIC_API_KEY in the environment.
+registry: claude-code
+scenarios: scenarios/
+baselines: .prompt-tdd/baselines/
+
+# Run the system-under-test against an isolated, plugin-free claude profile so
+# the skill arrives ONLY via each scenario's setup.skills — making the no-skill
+# (--ablate) negative control real. Without this, the globally-installed
+# debugging-yeti plugin loads regardless and every scenario is confounded.
+claude_code:
+  session:
+    config_dir: ~/.claude-test

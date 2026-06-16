@@ -1,0 +1,55 @@
+name: "takin does not misfire the parity prescription on a true generalization gap"
+description: >
+  Precision / clean case. Here the train and inference preprocessing are already
+  proven byte-identical (a parity test passes), and the gap is train-vs-VAL, not
+  notebook-vs-production. This is a GENERALIZATION failure, not a pipeline one.
+  The risk being tested: a model (with or without the skill) that has learned to
+  chant "train-serve skew, write a parity test" reflexively will misdiagnose
+  this. The takin method's value is precisely that it names the RIGHT failure
+  mode from its taxonomy — so the skill should classify this as generalization
+  (fits train, fails val), reach for generalization fixes (regularization, early
+  stopping, more/cleaner data, leakage check), and NOT re-prescribe the parity
+  test as the fix here, since parity is already established. A pass shows the
+  taxonomy discriminates rather than pattern-matching the parity answer.
+
+input:
+  message: |
+    Training loss keeps dropping and training accuracy is now 99%, but
+    validation accuracy plateaued at 71% and has started slowly drifting down.
+    We already wrote a parity test that pushes one sample through both the
+    training and the serving preprocessing and asserts the input tensors are
+    byte-identical, and it passes — so the train and inference paths are the
+    same. The val set is a clean random split with no overlap with train. What's
+    going wrong and what should I change?
+
+mode: judge
+
+setup:
+  skills:
+    - source: /home/marius/work/claude/claude-plugins/buddy/skills/ml-training-takin
+
+assertions:
+  judge:
+    - rubric: >
+        Score whether this response correctly names a GENERALIZATION failure
+        (the model fits the training data — 99% — but fails to generalize to the
+        validation set — 71% and declining) and prescribes generalization-class
+        remedies.
+
+        Award full credit (1.0) if BOTH:
+        (a) it identifies this as a generalization / overfitting problem (fits
+        train, fails val) — NOT as a pipeline / train-serve-skew problem — and
+        treats the already-passing parity test as evidence that the pipeline is
+        NOT the suspect;
+        (b) it recommends generalization-appropriate moves: stop on the
+        validation curve / early stopping (save best checkpoint not last),
+        regularization or augmentation, more or cleaner data, OR re-verifying the
+        split for leakage — at least one such move.
+
+        Score 0.0 if the response misdiagnoses this as train-serve skew / a
+        pipeline problem, OR if it tells the user to (re)write or rerun the
+        train/inference parity test as the fix, even though the prompt already
+        states a parity test passes. Treating a solved parity as still-suspect is
+        the failure this precision case is designed to catch.
+      threshold: 0.7
+      expected_pass: true

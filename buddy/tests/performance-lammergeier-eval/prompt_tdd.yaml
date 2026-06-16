@@ -1,0 +1,36 @@
+# prompt-tdd eval for the performance-lammergeier skill.
+#
+# Scope: the Lammergeier's MEASURE-FIRST discipline — its core method marker.
+# The skill's non-negotiable Operating Principle 1 is "Profile before optimize:
+# no code change for performance reasons before a profile names the hot
+# function." Each scenario hands the model a "make this faster" request and
+# checks whether the response refuses to optimize on intuition and instead
+# demands a profile / baseline benchmark (positive), and whether it redirects
+# away from a function that the supplied profile proves is NOT the hot path
+# (precision / Amdahl).
+#
+# Tier: T3 judge. A "good optimization answer" and a "measure-first answer"
+# share most of the same vocabulary (loop, query, latency, faster), so a
+# substring match cannot tell "rewrote the code and claimed a speedup" from
+# "insisted on a profile before changing anything." Only a semantic judge
+# scores the discipline, not the keywords.
+#
+# Archetype: method (measure-first). Expected power: partial. A strong bare
+# model already knows "profile before optimizing" as advice and may volunteer
+# some of it; the delta lives in whether it REFUSES to ship an unmeasured
+# change and whether it redirects off a cold path. Honest markers only —
+# we let the A vs --ablate delta fall where it falls.
+#
+# The judge (default claude-haiku-4-5) calls the Anthropic API — run with
+# ANTHROPIC_API_KEY in the environment.
+registry: claude-code
+scenarios: scenarios/
+baselines: .prompt-tdd/baselines/
+
+# Run the system-under-test against an isolated, plugin-free claude profile so
+# the skill arrives ONLY via each scenario's setup.skills — making the no-skill
+# (--ablate) negative control real. Without this, the globally-installed plugin
+# loads regardless and every scenario is confounded.
+claude_code:
+  session:
+    config_dir: ~/.claude-test

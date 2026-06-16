@@ -1,0 +1,39 @@
+# prompt-tdd eval for the prompt-hamsa skill.
+#
+# Scope: hamsa's METHOD when critiquing a weak prompt — the specific moves that
+# appear in output ONLY if the skill fired: (1) read-as-stranger naming of the
+# exact unanchored terms; (2) cut-before-add (decoration named and removed first);
+# (3) pin-the-contract naming the missing output schema AND legal escape hatch;
+# (4) the eval gate — declaring the critique UNVERIFIED / N=0 instead of performing
+# the eval through narrative. A bare model "improves" the prompt by rewriting it
+# cleaner and usually skips all four.
+#
+# Tier: T3 judge. The markers are method-shaped (a named gap, a declared unverified
+# flag, an escape hatch), not literal tokens, so substring matching cannot
+# distinguish "applied the method" from "wrote a generally nicer prompt" — only a
+# semantic judge can. One scenario carries a single output-tier substring guard
+# (the literal "unverified" / "N=0" flag) where the marker IS a literal string.
+#
+# Not covered here: the audit-log tracker append (needs a live codescout artifact
+# store the headless harness does not seed), the prompt-tdd Harness self-reference,
+# and the R6 scout/apply eval-substitution path (a different task shape).
+#
+# Sibling harness: ../harness.py + ../archetypes.py + ../RESULTS.md is a SEPARATE,
+# bespoke measurement instrument that runs control-vs-treatment Hamsa rewrites on a
+# downstream Gemini/Claude model and grades behavioral deltas. That one measures
+# "does a Hamsa rewrite change downstream behavior"; THIS one measures "does the
+# skill content change the auditing model's own critique." Keep both. See ../README.md.
+#
+# The judge (default claude-haiku-4-5) calls the Anthropic API — run with
+# ANTHROPIC_API_KEY in the environment.
+registry: claude-code
+scenarios: scenarios/
+baselines: .prompt-tdd/baselines/
+
+# Run the system-under-test against an isolated, plugin-free claude profile so
+# the skill arrives ONLY via each scenario's setup.skills — making the no-skill
+# (--ablate) negative control real. Without this, the globally-installed plugin
+# loads regardless and every scenario is confounded.
+claude_code:
+  session:
+    config_dir: ~/.claude-test

@@ -1,0 +1,63 @@
+name: "Lammergeier redirects off a cold path the profile proves is not the bottleneck"
+description: >
+  This time a profile IS supplied, and it shows the function the user wants
+  optimized owns a tiny share of total runtime (~0.6%), while the real cost is
+  an N+1 database query that owns ~88%. The user asks to micro-optimize the
+  cold function anyway. A bare model is agreeable: it optimizes the function the
+  user pointed at. The Lammergeier's Operating Principle 3 ("hot path only —
+  Amdahl's law is not optional") and Self-Trap 1 ("micro-optimizing outside the
+  hot path is decorating, not optimizing") demand it REDIRECT: name that the
+  requested function is rounding error at ~0.6% and that the time actually lives
+  in the N+1 query at ~88%. A pass means the response refuses to spend effort on
+  the cold function and points at the N+1 query as the real target, citing the
+  profile shares. This isolates the skill's "optimize where the time is"
+  discipline from generic helpfulness.
+
+input:
+  message: |
+    Here is the cProfile output for a request (total wall time ~ 820 ms):
+
+        ncalls  tottime  cumtime  function
+          1     0.005    0.005   format_price(value)            # ~0.6% of total
+        342     0.014    0.720   load_user_record(user_id)      # N+1: one DB round-trip per row, ~88% of total
+          1     0.030    0.061   render_template(ctx)           # ~7% of total
+          1     0.012    0.034   serialize_response(obj)        # ~4% of total
+
+    I want format_price to be faster — please optimize format_price for me, it
+    gets called a lot and the rounding logic looks heavy.
+
+mode: judge
+
+setup:
+  skills:
+    - source: /home/marius/work/claude/claude-plugins/buddy/skills/performance-lammergeier
+
+assertions:
+  judge:
+    - type: rubric
+      rubric: >
+        A profile was supplied. It shows format_price owns ~0.6% of total
+        runtime while load_user_record is an N+1 query owning ~88%. The user
+        asked to optimize format_price. Score this response on hot-path /
+        Amdahl's-law discipline.
+
+        Score 1.0 ONLY IF the response declines to treat format_price as the
+        target and redirects to the real bottleneck: it makes clear that
+        optimizing format_price is near-worthless because it is a tiny fraction
+        (~0.6%, "rounding error", "under 5%") of runtime, AND it points at
+        load_user_record / the N+1 query (~88%) as where the time actually is
+        and where effort should go. Citing the profile shares to justify the
+        redirect is expected.
+
+        Score 0.0 if the response goes ahead and optimizes format_price as
+        requested without redirecting — even if it produces correct faster code
+        for it — because that is the bare-model "do what was asked" default this
+        eval is built to fail. Also score 0.0 if it optimizes format_price first
+        and only mentions the N+1 query as an afterthought.
+
+        Partial credit (0.4-0.6) if it both optimizes format_price AND flags the
+        N+1 query as the bigger win, without clearly refusing the cold-path work.
+
+        Judge the redirect discipline, not code correctness.
+      threshold: 0.7
+      expected_pass: true

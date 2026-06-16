@@ -1,0 +1,71 @@
+name: "Lammergeier demands a profile before optimizing a hot path"
+description: >
+  A "make this faster" request with NO profile data, NO benchmark, and NO
+  numbers supplied — just a function the user asserts is the bottleneck.
+  A bare model treats this as a code-rewrite task: it vectorizes / caches /
+  micro-optimizes the loop and asserts an unmeasured speedup ("this should be
+  ~3x faster"). The Lammergeier's non-negotiable Operating Principle 1 is
+  "profile before optimize — no code change before a profile names the hot
+  function," and Self-Trap 7 forbids hallucinating profile numbers. So a pass
+  means the response refuses to commit to a code change on intuition, asks for
+  / specifies a profile and a reproducible baseline benchmark first, and does
+  NOT fabricate a percentage or a speedup figure. That is the skill's method
+  marker, not generic optimization knowledge.
+
+input:
+  message: |
+    This function is our hot path and it feels slow in production. Optimize it so it runs faster.
+
+    ```python
+    def score_candidates(candidates, query_terms):
+        results = []
+        for c in candidates:
+            score = 0
+            for term in query_terms:
+                if term in c["text"]:
+                    score += c["text"].count(term)
+            results.append((c["id"], score))
+        results.sort(key=lambda r: r[1], reverse=True)
+        return results
+    ```
+
+    Just give me the optimized version.
+
+mode: judge
+
+setup:
+  skills:
+    - source: /home/marius/work/claude/claude-plugins/buddy/skills/performance-lammergeier
+
+assertions:
+  judge:
+    - type: rubric
+      rubric: >
+        The user asked for an optimized version of a function with NO profile,
+        benchmark, or runtime numbers attached. Score this response on
+        measure-before-optimize discipline.
+
+        Score 1.0 ONLY IF the response does BOTH:
+        (a) makes the central point that a profile / measurement must come
+            before committing to a performance change — it asks for or specifies
+            profiling the real workload (e.g. py-spy, cProfile, a flame graph)
+            and a reproducible baseline benchmark (latency p50/p95/p99,
+            throughput, or the function's share of total runtime) BEFORE
+            treating any rewrite as final; AND
+        (b) does NOT invent a profile result — it does not state a made-up
+            percentage of runtime, a fabricated p50/p95/p99, or a concrete
+            speedup number (e.g. "3x faster", "saves 40%") as if measured, when
+            no such measurement was provided.
+
+        Partial credit (0.4-0.6) if it mentions profiling or benchmarking only
+        in passing while still leading with a finished rewrite presented as the
+        answer.
+
+        Score 0.0 if it simply returns an optimized version of the function and
+        asserts it is faster (or quotes a speedup / percentage) without making
+        measurement a precondition — that is the bare-model default this eval is
+        built to fail.
+
+        Judge the discipline, not whether the proposed code is correct.
+      threshold: 0.7
+      expected_pass: true

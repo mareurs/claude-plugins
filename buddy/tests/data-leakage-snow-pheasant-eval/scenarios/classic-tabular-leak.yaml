@@ -1,0 +1,106 @@
+name: "Classic lens: flag the planted leaks in a scikit-learn churn pipeline"
+description: >
+  A bare model asked to "review this pipeline" reliably produces a competent
+  review: it will usually spot the famous scaler-fit-before-split bug and may
+  hedge on the 98% number. That is table stakes and the rubric does NOT reward it.
+  This scenario targets the Snow Pheasant's CLASSIC-lens method markers — the
+  diagnoses that appear ONLY if the skill fired:
+    (a) prescribes the NULL / PERMUTATION test (shuffle the labels, re-fit,
+        compare to the majority-class / chance baseline) as the cheapest
+        highest-yield check BEFORE trusting the 98% headline;
+    (b) flags the TARGET / MEAN ENCODING computed over the full dataframe
+        (cat_target_rate) as a LABEL-INTO-FEATURE leak, and prescribes
+        out-of-fold (OOF) encoding;
+    (c) flags the RANDOM train_test_split on data with MULTIPLE ROWS PER
+        customer_id as a GROUP leak (same customer in train and test), and
+        prescribes group-aware splitting (GroupKFold / split by customer);
+    (d) prescribes the Pipeline fix for the scaler — fit on TRAIN ONLY / refit
+        per fold via sklearn Pipeline — not merely "move the scaler down".
+  The snippet plants four leaks at increasing subtlety; a bare model typically
+  catches only the scaler. A pass means the model imposed the Pheasant's audit
+  discipline (distrust the headline, run the null test, name provenance/group
+  leaks), which is why it discriminates the skill from baseline competence.
+input:
+  message: |
+    Acting as the data-leakage snow-pheasant specialist in its CLASSIC lens,
+    audit this scikit-learn pipeline for train/test leakage. We get 98% test
+    accuracy on customer-churn prediction and the team wants to ship it.
+
+    ```python
+    import pandas as pd
+    from sklearn.preprocessing import StandardScaler
+    from sklearn.linear_model import LogisticRegression
+    from sklearn.model_selection import train_test_split
+
+    df = pd.read_csv("churn_events.csv")   # one row per support interaction;
+                                           # the same customer_id appears many times
+    y = df["churned"]
+
+    # encode each category by its average churn rate
+    cat_target_rate = df.groupby("plan_tier")["churned"].transform("mean")
+    df["plan_tier_rate"] = cat_target_rate
+
+    features = ["tenure_days", "monthly_charges", "n_support_calls", "plan_tier_rate"]
+    X = df[features]
+
+    # scale, then split
+    X_scaled = StandardScaler().fit_transform(X)
+    X_train, X_test, y_train, y_test = train_test_split(
+        X_scaled, y, test_size=0.2, random_state=42
+    )
+
+    model = LogisticRegression().fit(X_train, y_train)
+    print("test acc:", model.score(X_test, y_test))   # 0.98
+    ```
+
+    Is this number trustworthy? Tell me exactly what to do before we ship.
+mode: judge
+setup:
+  skills:
+    - source: /home/marius/work/claude/claude-plugins/buddy/skills/data-leakage-snow-pheasant
+assertions:
+  judge:
+    - type: rubric
+      rubric: >
+        Score this response on whether it applies the Snow Pheasant's CLASSIC-lens
+        leakage-audit METHOD, NOT on whether it is a generally competent code
+        review. Award points only for these concrete, checkable markers:
+
+        (1) NULL / PERMUTATION TEST: it explicitly prescribes shuffling /
+        permuting the labels (y) and re-fitting, then comparing the resulting
+        accuracy to the majority-class or chance baseline, as a sanity check the
+        team must run BEFORE trusting the 98%. A generic "validate more" or
+        "use cross-validation" does NOT count; it must name the permute-labels /
+        null / shuffle-and-refit test specifically.
+
+        (2) TARGET-ENCODING LABEL LEAK: it identifies plan_tier_rate
+        (the per-category mean of "churned" computed over the full dataframe)
+        as leaking the label into a feature, and prescribes out-of-fold / per-fold
+        (OOF) target encoding or removing the feature. Catching this requires more
+        than seeing "a feature looks suspicious" — it must tie the leak to the fact
+        that the encoding used the target over all rows.
+
+        (3) GROUP LEAK ON RANDOM SPLIT: it flags that a random train_test_split on
+        data with many rows per the same customer_id puts the same customer in both
+        train and test (identity leak), and prescribes group-aware splitting
+        (split BY customer / GroupKFold), not a plain random split.
+
+        (4) PIPELINE / FIT-ON-TRAIN-ONLY: it identifies the StandardScaler being
+        fit on the full X before the split as leaking test distribution into
+        training, AND prescribes fitting the transform on TRAIN ONLY / refitting
+        per fold (e.g. wrapping in an sklearn Pipeline), not merely "scale after
+        splitting" as an afterthought.
+
+        (5) DISTRUST THE HEADLINE: it treats the 98% as suspect / a costume to be
+        disproven rather than a result to celebrate, and withholds a "ship it"
+        verdict until the checks above are run.
+
+        Score 1.0 only if marker (1) the null/permutation test is clearly present
+        AND at least TWO of markers (2), (3), (4) are clearly present, with the
+        headline treated as suspect (marker 5). Score 0.4-0.6 if it only catches
+        the scaler-before-split bug (marker 4) and gives generic
+        "use cross-validation / hold out more data" advice without the null test or
+        the target-encoding/group leaks — this is the bare-model default. Score 0
+        if it endorses shipping or treats the 98% as trustworthy.
+      threshold: 0.7
+      expected_pass: true

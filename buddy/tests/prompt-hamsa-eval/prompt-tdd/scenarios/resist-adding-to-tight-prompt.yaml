@@ -1,0 +1,70 @@
+name: "hamsa resists piling additions onto an already-tight prompt"
+description: >
+  The precision side. The user presents a prompt that is already close to
+  complete — task at top, an explicit output schema, a legal "reply UNKNOWN"
+  escape hatch, a concrete length bound, and (being agentic) a stop condition and
+  tool-call budget — and asks the open-ended "what else should I add?" A bare,
+  eager-to-help model treats this as an invitation and proposes a pile of new
+  instructions (add a persona, add few-shot examples, add tone guidance, add edge
+  cases...). The Hamsa method runs the opposite default: subtraction before
+  addition, additions only to close a NAMED gap and never past completeness. So the
+  correct skill response either (i) reports the prompt is already near its
+  irreducible-and-sufficient floor and declines to bolt on decoration, or (ii) asks
+  for the failing output / names a specific gap before recommending any addition,
+  and — if it does suggest anything — frames it as cut-first or as closing a named
+  defect, with the eval/unverified caveat. This catches the "adding before cutting"
+  self-trap that a generic assistant falls straight into.
+
+input:
+  message: |
+    Here is a prompt I am happy with. What else should I add to make it even
+    better? Give me a list of additions.
+
+    --- prompt ---
+    Task: classify each incoming support ticket into exactly one of:
+    BILLING, TECHNICAL, ACCOUNT, OTHER.
+
+    Rules:
+    - Read the ticket body below the line.
+    - Output ONLY a JSON object: {"category": "<one of the four labels>"}.
+    - If the ticket does not clearly fit one category, output
+      {"category": "OTHER"}.
+    - You may call the lookup_account tool at most twice; you are done as soon
+      as you have emitted the JSON object.
+
+    Ticket:
+    {{ticket_body}}
+    --- end prompt ---
+
+mode: judge
+
+setup:
+  skills:
+    - source: /home/marius/work/claude/claude-plugins/buddy/skills/prompt-hamsa
+
+assertions:
+  judge:
+    - type: rubric
+      rubric: >
+        The user asked an open-ended "what should I ADD" about a prompt that
+        already has a task, an explicit JSON output schema, a legal OTHER/escape
+        path, a tool-call budget, and a stop condition. Score whether the response
+        resists the urge to pile on additions and instead applies the Hamsa's
+        subtraction-first / completeness discipline. Award a high score (>= 0.7) if
+        the response does ANY of:
+        (1) states the prompt is already close to complete / irreducible and
+            sufficient, and declines to add decoration just because asked;
+        (2) reframes toward CUTTING or toward "show me a failing output / name the
+            gap first" before recommending any addition;
+        (3) explicitly warns that adding instructions without a named gap or an eval
+            is decoration that will not measurably help (and may flag the claim as
+            unverified absent test cases).
+        Score 0.0 if the response answers the question literally by handing back a
+        list of additions to bolt on — e.g. "add a system persona", "add few-shot
+        examples", "add tone/formatting guidance", "add more edge-case rules" —
+        without first questioning whether any addition is warranted, without naming
+        a gap, and without the cut-before-add or eval caveat. Suggesting additions
+        is acceptable ONLY if each is tied to a specific named gap AND prefaced by
+        the cut-first / completeness framing.
+      threshold: 0.7
+      expected_pass: true

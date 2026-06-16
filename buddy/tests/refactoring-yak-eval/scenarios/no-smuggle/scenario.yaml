@@ -1,0 +1,101 @@
+name: "Yak preserves behavior and refuses to smuggle a fix/feature into the refactor"
+description: >
+  The same untangling task, but baited: the user asks to ALSO fix a latent bug
+  and ALSO add a new discount tier in the same pass. A bare model cleaning up the
+  code will happily fix the bug and add the feature inline — which silently
+  changes behavior. The refactoring-yak skill should hold the line: a refactor
+  preserves behavior exactly, so the bug gets PINNED by a characterization test
+  (or flagged to fix in a SEPARATE change, not folded into the refactor), and the
+  new discount tier is a feature that belongs in a separate commit AFTER the green
+  refactor — it asks before pulling in scope rather than mixing structure and
+  behavior. The judge scores for that behavior-preserved / no-smuggling discipline.
+
+input:
+  message: |
+    Untangle / clean up this knotted function so the parse, validate, compute and
+    persist concerns are separated. While you are in there: the rounding is wrong
+    (totals should round to 2 decimals — go ahead and fix it), and please also add
+    a new "premium customer" 15% discount tier. Do it all in this one cleanup.
+
+    ```python
+    # billing.py  (no tests exist for this module)
+    def process_order(raw, db):
+        parts = raw.strip().split(",")
+        oid = int(parts[0])
+        qty = int(parts[1])
+        price = float(parts[2])
+        cust = parts[3]
+        if qty <= 0:
+            raise ValueError("bad qty")
+        if price < 0:
+            raise ValueError("bad price")
+        if not cust:
+            raise ValueError("no customer")
+        subtotal = qty * price
+        if qty > 10:
+            subtotal = subtotal * 0.9
+        tax = subtotal * 0.2
+        total = subtotal + tax   # not rounded -- latent bug per the user
+        db.execute(
+            "INSERT INTO orders (id, customer, total) VALUES (?, ?, ?)",
+            (oid, cust, total),
+        )
+        db.commit()
+        return total
+    ```
+
+mode: judge
+
+setup:
+  skills:
+    - source: /home/marius/work/claude/claude-plugins/buddy/skills/refactoring-yak
+  files:
+    billing.py: |
+      # billing.py  (no tests exist for this module)
+      def process_order(raw, db):
+          parts = raw.strip().split(",")
+          oid = int(parts[0])
+          qty = int(parts[1])
+          price = float(parts[2])
+          cust = parts[3]
+          if qty <= 0:
+              raise ValueError("bad qty")
+          if price < 0:
+              raise ValueError("bad price")
+          if not cust:
+              raise ValueError("no customer")
+          subtotal = qty * price
+          if qty > 10:
+              subtotal = subtotal * 0.9
+          tax = subtotal * 0.2
+          total = subtotal + tax
+          db.execute(
+              "INSERT INTO orders (id, customer, total) VALUES (?, ?, ?)",
+              (oid, cust, total),
+          )
+          db.commit()
+          return total
+
+assertions:
+  judge:
+    - type: rubric
+      rubric: >
+        The user asked to untangle the function AND, in the same pass, to fix a
+        rounding bug AND to add a new "premium customer" 15% discount tier. Judge
+        whether the response holds the refactoring discipline of separating
+        STRUCTURE from BEHAVIOR. Score 1.0 ONLY if the response does BOTH: (a) it
+        keeps the refactor itself behavior-preserving — it does NOT fold the
+        rounding fix into the structural change; instead it pins the current
+        (unrounded) behavior with a characterization test / baseline and defers
+        the rounding fix to a SEPARATE change or commit after the green refactor;
+        AND (b) it treats the new 15% discount tier as a FEATURE that does not
+        belong in the refactor and explicitly keeps it out of the structural pass
+        (separate commit / after the refactor / asking before pulling it in),
+        rather than adding the new branch inline. Score around 0.3 if it untangles
+        the code AND silently applies the rounding fix or adds the discount tier in
+        the same pass, mixing structure and behavior. Score 0.0 if it just rewrites
+        the function with the bug fixed and the new tier added with no separation.
+        The reasoning that distinguishes refactor (structure) from fix/feature
+        (behavior) is what earns the score, not code quality.
+      threshold: 0.7
+      expected_pass: true

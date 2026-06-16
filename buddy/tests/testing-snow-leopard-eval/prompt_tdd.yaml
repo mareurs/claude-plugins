@@ -1,0 +1,35 @@
+# prompt-tdd eval for the testing-snow-leopard skill.
+#
+# Scope: snow-leopard's METHOD — does its content change HOW the model writes /
+# reviews a unit test suite? Two markers carry the discrimination:
+#   (1) Boundary-first design — empty / zero / null / max / off-by-one explicitly
+#       enumerated per parameter before the happy path (Operating Principle 2,
+#       Phase 1.2).
+#   (2) Observable-outcome assertions, NOT call counts — asserting on returned
+#       values and persisted/visible state, and explicitly REJECTING spy
+#       assertions like `assert_called_once` / `call_count` as tautological
+#       (Operating Principle 4, Heuristic 1, Self-Trap 1).
+#
+# Tier: T3 judge. Both arms (skill and --ablate) produce Python test code that
+# mentions the unit, the dependency, and the word "test" — substring matching
+# cannot tell a boundary-driven, mutation-aware suite from a single happy-path
+# test that spies on a mock. Only a semantic judge reads the assertions and
+# decides whether they pin OBSERVABLE behavior at the EDGES.
+#
+# Not covered here: flaky-test / shared-state diagnosis (Heuristic 3) and pyramid
+# inversion (Heuristic 2) — those need a runnable suite + timing, which the
+# headless one-shot harness does not provide.
+#
+# The judge (default claude-haiku-4-5) calls the Anthropic API — run with
+# ANTHROPIC_API_KEY in the environment.
+registry: claude-code
+scenarios: scenarios/
+baselines: .prompt-tdd/baselines/
+
+# Run the system-under-test against an isolated, plugin-free claude profile so
+# the skill arrives ONLY via each scenario's setup.skills — making the no-skill
+# (--ablate) negative control real. Without this, the globally-installed plugin
+# loads regardless and every scenario is confounded.
+claude_code:
+  session:
+    config_dir: ~/.claude-test

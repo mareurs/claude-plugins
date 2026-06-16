@@ -1,0 +1,93 @@
+name: "yeti names the upstream root cause before patching the symptom site"
+description: >
+  A bug whose OBVIOUS surface fix is wrong. The crash (KeyError) is raised inside
+  render_invoice, so the tempting fix is a defensive .get()/guard at that line.
+  But the real cause is upstream: Invoice.__init__ uses a mutable default argument
+  (items=[]), so every Invoice built without an explicit items list shares ONE
+  module-level list. The second invoice's items list already holds the first
+  invoice's Item (A-100); render then looks that SKU up in the second invoice's
+  own (fresh, per-instance) discounts dict, which never got an A-100 key —
+  KeyError. Guarding the lookup silences the crash but leaves the second invoice
+  summing items it never had, so the total is silently wrong. A pass means the
+  model resisted the symptom-site patch, traced upstream, and pinned the root
+  cause to the mutable-default line BEFORE proposing the fix — the yeti's "name
+  the misbehaving expression / does the fix address cause or symptom" discipline.
+  A bare model typically wraps the KeyError at the crash site and calls it fixed.
+
+input:
+  message: |
+    Acting as the Debugging Yeti skill, debug this. Two invoices are created in a
+    loop. The first renders fine. The second crashes with:
+
+        KeyError: 'A-100'
+
+    raised at billing.py line 21 inside render_invoice, on the line
+    `pct = inv.discounts[item.sku]`. SKU 'A-100' belongs to the FIRST invoice, not
+    the second. The obvious fix is to guard that lookup with
+    `inv.discounts.get(item.sku, 0)`. Tell me what is actually wrong and what the
+    correct fix is. Be specific about the line and the root cause.
+
+    billing.py:
+    ```python
+     1  class Invoice:
+     2      def __init__(self, customer, items=[]):
+     3          self.customer = customer
+     4          self.items = items          # list of Item
+     5          self.discounts = {}         # maps sku -> discount pct
+     6
+     7  class Item:
+     8      def __init__(self, sku, price):
+     9          self.sku = sku
+    10          self.price = price
+    11
+    12  def add_line_item(inv, sku, price, pct):
+    13      inv.items.append(Item(sku, price))
+    14      inv.discounts[sku] = pct
+    15
+    16  def render_invoice(inv):
+    17      total = 0.0
+    18      for item in inv.items:
+    19          # every item we added got a discount key, so a direct lookup
+    20          # is "safe"
+    21          pct = inv.discounts[item.sku]
+    22          total += item.price * (1 - pct / 100.0)
+    23      return f"{inv.customer}: {total:.2f}"
+    24
+    25  def main():
+    26      for cust, sku in [("Acme", "A-100"), ("Globex", "G-200")]:
+    27          inv = Invoice(cust)
+    28          add_line_item(inv, sku, price=10.0, pct=5)
+    29          print(render_invoice(inv))
+    30  ```
+
+mode: judge
+
+setup:
+  skills:
+    - source: /home/marius/work/claude/claude-plugins/buddy/skills/debugging-yeti
+
+assertions:
+  judge:
+    - type: rubric
+      rubric: >
+        The bug is a mutable default argument: `def __init__(self, customer,
+        items=[])` at line 2 means every Invoice constructed without an explicit
+        items arg SHARES one list object. So the Globex invoice's items list
+        already contains the Acme Item (sku 'A-100') from the first iteration;
+        render_invoice then looks 'A-100' up in Globex's own (fresh, per-instance)
+        discounts dict — which only has 'G-200' — and raises the KeyError. The real
+        defect is the shared aliased list; render_invoice is only where it
+        surfaces. Score 1.0 ONLY IF the response (a) identifies the mutable default
+        argument at line 2 (`items=[]`) as the root cause — naming the shared /
+        aliased list — AND (b) gives the correct fix at that line (default items to
+        None and assign a fresh `[]` inside __init__, or otherwise give each
+        instance its own list) AND (c) treats the suggested
+        `inv.discounts.get(item.sku, 0)` guard at the crash site as a symptom patch
+        that hides the bug (it would silence the crash but leave the second invoice
+        summing items it never added) rather than as the real fix. Score 0 if the
+        response endorses or applies the .get()/try-except guard at line 21 as THE
+        fix, or blames render_invoice / the discounts lookup as the root cause, or
+        never identifies the mutable default argument. Naming line 21 as merely
+        "where it surfaces" is fine; naming it as the cause is a 0.
+      threshold: 0.7
+      expected_pass: true

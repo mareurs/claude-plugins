@@ -1,0 +1,48 @@
+name: "explore-project does NOT fire for a same-repo question (When NOT to Use)"
+description: >
+  Precision / clean case. The skill's "When NOT to Use" is explicit: if the
+  target is the CURRENT project, explore directly with codescout tools — do not
+  dispatch a foreign-repo exploration subagent. Here the user asks about THIS
+  repo. A model carrying the skill should recognize the boundary and just explore
+  inline; it should NOT manufacture a general-purpose subagent dispatch with the
+  foreign-repo template, and should NOT wrap the answer in the
+  "## Exploration:" report skeleton meant for foreign repos. This guards against
+  the skill over-firing (treating every exploration as a cross-repo dispatch),
+  which would make the positive scenario's marker meaningless.
+
+input:
+  message: |
+    Can you explore THIS repo (the current project, the one we're already in) and
+    tell me how the test harness is laid out? Just a read-only look — no changes.
+
+mode: judge
+
+setup:
+  skills:
+    - source: /home/marius/work/claude/claude-plugins/codescout-companion/skills/explore-project
+  files:
+    src/harness.py: |
+      # Current-project file. The test harness entrypoint lives here.
+      def run_suite(path: str) -> int:
+          """Discover scenarios under path/ and run them."""
+          ...
+
+assertions:
+  judge:
+    - type: rubric
+      rubric: >
+        The user asked to explore the CURRENT project (the repo they are already
+        in), not a different repo. The explore-project skill explicitly says it is
+        for a DIFFERENT repo and that same-repo exploration should be done inline
+        with codescout tools instead. Score 1.0 if the response handles this as a
+        direct, in-repo exploration — it does NOT dispatch a general-purpose
+        subagent at a foreign path, does NOT name some other repo, and does NOT
+        force the answer into the foreign-repo "## Exploration: <topic>" report
+        skeleton (Findings / Key files / Confidence / Caveats / Follow-up). A plain
+        helpful answer about the harness layout, or an explicit note that this is
+        the current repo so no cross-repo dispatch is needed, both score 1.0.
+        Score 0 if the response treats this as a foreign-repo exploration: spawns /
+        proposes a subagent dispatch with the explore-project template or emits the
+        fixed Exploration report skeleton for a same-repo question.
+      threshold: 0.7
+      expected_pass: true

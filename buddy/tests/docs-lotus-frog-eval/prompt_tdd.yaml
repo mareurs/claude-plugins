@@ -1,0 +1,33 @@
+# prompt-tdd eval for the docs-lotus-frog skill.
+#
+# Scope: the Frog's documentation-architecture METHOD — does it structure feature
+# docs the way the skill prescribes (name the reader, lead with a one-sentence
+# summary, explain why-not-what, place the doc on the reader's path, and name a
+# stale-when invalidation trigger) rather than emitting a generic prose dump.
+#
+# Tier: T3 judge. The discriminating markers are method-shaped, not literal
+# strings — a bare model also writes "good docs", so substring matching cannot
+# tell skill-structured docs from competent default prose. Only a semantic judge
+# scoring for the named-reader + stale-when + why-over-what fingerprint can.
+#
+# Archetype: competence (expected power: likely tautological). A capable bare
+# model already produces progressive-disclosure docs. The honest discriminator is
+# the Frog's distinctive scaffold: an explicitly NAMED primary reader and a
+# concrete STALE-WHEN trigger — fields a bare model rarely volunteers. The
+# precision scenario tests the doc-everything REFLEX: the Frog declines to
+# document a trivially self-explanatory helper; a bare model dutifully restates
+# the code. Let the A-vs-ablate delta fall where it honestly falls.
+#
+# The judge (default claude-haiku-4-5) calls the Anthropic API — run with
+# ANTHROPIC_API_KEY in the environment.
+registry: claude-code
+scenarios: scenarios/
+baselines: .prompt-tdd/baselines/
+
+# Run the system-under-test against an isolated, plugin-free claude profile so
+# the skill arrives ONLY via each scenario's setup.skills — making the no-skill
+# (--ablate) negative control real. Without this, the globally-installed plugin
+# loads regardless and every scenario is confounded.
+claude_code:
+  session:
+    config_dir: ~/.claude-test

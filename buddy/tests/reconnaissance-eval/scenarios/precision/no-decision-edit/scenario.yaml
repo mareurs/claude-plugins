@@ -1,0 +1,102 @@
+name: "recon does NOT fire on a genuinely mechanical edit (precision / no over-flagging)"
+description: >
+  A no-decision edit the skill's "When NOT to Use" explicitly excludes: a comment
+  typo fix that no test asserts on, on a struct whose shape the edit does not
+  touch. The reconnaissance skill must make the edit WITHOUT manufacturing an
+  F-N / W-N session-log entry and without a speculative scout loop. This is the
+  precision side: a skill that writes a tracker entry for every edit is noise.
+  PRECISION/CONTROL CASE — a bare model also writes no entry here, so the
+  A-vs-ablate delta on the "no entry" marker is expected to be LOW (documented in
+  README). The skill-specific signal this case still catches is over-firing:
+  the equipped model should not fabricate an F-N entry to look diligent. Treat a
+  near-zero delta on this scenario as a valid, honest result.
+
+input:
+  message: |
+    In src/session.py, fix the typo in the docstring of `remaining()`: change
+    "remaning" to "remaining". This is a comment-only fix; no test asserts on
+    the docstring text. Then tell me you are done.
+
+    docs/trackers/auth-refactor-session-log.md is the work stream's session log.
+
+mode: judge
+
+setup:
+  skills:
+    - source: /home/marius/work/claude/claude-plugins/codescout-companion/skills/reconnaissance
+  files:
+    src/session.py: |
+      """Session token model."""
+      import time
+      from dataclasses import dataclass
+
+
+      @dataclass
+      class SessionToken:
+          token: str
+          deadline_unix: int
+
+          def remaining(self) -> int:
+              """Seconds remaning until the deadline."""
+              return self.deadline_unix - int(time.time())
+    docs/trackers/auth-refactor-session-log.md: |
+      # Session Log — auth-refactor
+
+      ## Index
+
+      | ID | Date | Severity | Category | Status | Title |
+      |----|------|---------:|----------|--------|-------|
+      | F-1 | 2026-06-10 | med | plan-prose | fixed-verified | Plan named src/auth.py; module is src/session.py |
+
+      ## Wins Index
+
+      | ID | Date | Impact | Pattern | Counterfactual | Status |
+      |----|------|-------:|---------|----------------|--------|
+
+      ---
+
+      ## F-1 — Plan named src/auth.py; module is src/session.py
+
+      **Observed:** 2026-06-10, auth-refactor kickoff.
+
+      **When:** About to open the file the plan named.
+
+      **Expected:** src/auth.py.
+
+      **Got:** The token model lives in src/session.py.
+
+      **Probable cause:** Plan written from an older layout.
+
+      **Workaround:** Edit src/session.py instead.
+
+      **Severity:** med
+
+      **Status:** fixed-verified
+
+      **Fix idea / Pointer:** Plan task 1, this work stream.
+
+      ---
+
+      ## Template for new entries
+
+      <!-- Insert new F-N / W-N entries above this line. -->
+
+assertions:
+  judge:
+    - type: rubric
+      rubric: >
+        The task is a docstring typo fix ("remaning" -> "remaining") that no test
+        asserts on and that touches no struct shape, signature, or API — the
+        reconnaissance skill's "When NOT to Use" explicitly excludes genuinely
+        mechanical, no-decision edits. Score 1.0 if the response makes (or
+        clearly describes making) the one-word docstring fix and does NOT
+        manufacture any new session-log entry: no new F-N or W-N entry is added
+        to auth-refactor-session-log.md (the log still has only F-1), and there
+        is no fabricated friction/win written up about a typo. A correct response
+        may briefly note that no entry is warranted because the edit is
+        mechanical. Score 0 if the response invents an F-2 (or any F-N / W-N)
+        entry for the typo, writes a friction/win record about the docstring, or
+        otherwise treats this trivial edit as a seam-contact event requiring
+        externalization.
+      threshold: 0.7
+      expected_pass: true

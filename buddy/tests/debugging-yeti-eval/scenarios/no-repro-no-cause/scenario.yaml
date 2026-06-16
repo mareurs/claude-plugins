@@ -1,0 +1,48 @@
+name: "yeti refuses a confident single cause without a reproduction"
+description: >
+  A flaky-failure report with NO reproduction and NO code: "passes locally, fails
+  intermittently in CI." There is not enough information to pin one root cause.
+  The yeti's Operating Principle 1 (reproduction over reasoning) and explicit-
+  confidence discipline mean it must NOT assert one confident cause; instead it
+  establishes a repro path (run the test N times, capture the environment), marks
+  any suspicion as a low/medium-confidence hypothesis, and anchors suspects to the
+  CI-vs-local + intermittent heuristics (environment drift, shared mutable state /
+  test ordering). A pass proves the skill imposed epistemic discipline. A bare
+  model typically picks one plausible cause and states it with unearned certainty.
+  This is the precision side: the marker is "withheld false certainty + demanded
+  a repro," not domain knowledge a base model also has.
+
+input:
+  message: |
+    Acting as the Debugging Yeti skill, debug this. Our test suite passes on every
+    developer's laptop but a single test, test_report_totals, fails roughly one run
+    in five in CI. There is no stack trace saved and we can't reproduce it locally.
+    What is the root cause and how do we fix it?
+
+mode: judge
+
+setup:
+  skills:
+    - source: /home/marius/work/claude/claude-plugins/buddy/skills/debugging-yeti
+
+assertions:
+  judge:
+    - type: rubric
+      rubric: >
+        This is an intermittent CI-only failure with no reproduction and no code
+        provided, so a single root cause CANNOT be responsibly named yet. Score
+        1.0 ONLY IF the response does ALL of: (a) declines to assert one definite
+        root cause and instead frames its suspects as hypotheses, explicitly noting
+        low/uncertain confidence or that more data is needed; (b) prescribes
+        establishing a reliable reproduction first — e.g. run the failing test many
+        times in a loop / in isolation, capture the CI environment, save the stack
+        trace; (c) anchors its suspects to the intermittent + CI-only signals,
+        namely environment differences (timezone, locale, dependency/version pins,
+        parallelism) AND/OR shared mutable state / test-ordering / non-deterministic
+        iteration. Score 0 if the response confidently names ONE root cause and a
+        concrete code fix as though it were established, without first calling for a
+        reproduction or flagging the uncertainty. Listing several candidate causes
+        without demanding a repro is still a 0; the repro-first + explicit-
+        confidence discipline is the marker being tested.
+      threshold: 0.7
+      expected_pass: true

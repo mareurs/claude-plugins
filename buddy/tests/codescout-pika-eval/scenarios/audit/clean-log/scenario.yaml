@@ -21,7 +21,7 @@ mode: output
 
 setup:
   skills:
-    - source: ../../skills/codescout-pika
+    - source: /home/marius/work/claude/claude-plugins/buddy/skills/codescout-pika
 
 assertions:
   judge:
