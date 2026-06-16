@@ -5,6 +5,7 @@
 # Must stay under 10ms. Never calls an LLM.
 set -e
 PLUGIN_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+command -v cygpath >/dev/null 2>&1 && PLUGIN_ROOT="$(cygpath -m "$PLUGIN_ROOT")"
 # Source judge.env only as defaults — preserve any vars already set by the caller
 # (tests pass BUDDY_* via env; judge.env must not override them)
 if [ -f "$PLUGIN_ROOT/hooks/judge.env" ]; then

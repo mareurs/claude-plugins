@@ -2,6 +2,7 @@
 # PostToolUse hook — updates signals + accumulates narrative for judge.
 set -e
 PLUGIN_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+command -v cygpath >/dev/null 2>&1 && PLUGIN_ROOT="$(cygpath -m "$PLUGIN_ROOT")"
 [ -f "$PLUGIN_ROOT/hooks/judge.env" ] && . "$PLUGIN_ROOT/hooks/judge.env"
 python3 -c "
 import sys, json, os
