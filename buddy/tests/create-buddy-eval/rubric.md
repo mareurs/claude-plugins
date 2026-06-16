@@ -1,13 +1,34 @@
 # Rubric — `/buddy:create` Evaluation
 
-Score each case on 5 dimensions, 0–3 each. Total range: 0–15.
+Score each case on 5 dimensions, 0–3 each. But the dimensions are **not
+equal evidence**. Pass 0 — the bare-model floor run on 2026-06-16 (no
+template, no command) — proved that two of the five float high without
+the apparatus, so an absolute total hides where the command actually
+earns its keep. The pass bar is therefore **split**: hygiene floors that
+must hold, and value dimensions the command must measurably move.
 
-**Pass bar per case:**
-- Total ≥ 12 / 15
-- No individual dimension < 2
+**Hygiene floors (binary — must hold; not scored toward the value bar):**
+- **Voice ≥ 2** — base competence. Bare model already clears it (Pass 0: 2, 2, 3; owl scored a full 3 unaided).
+- **Heuristics ≥ 2** — mostly base competence (Pass 0: 2, 2, 2).
+- **Lens ≥ 2 on no-lens cases** (no invented lens) — free for yeti; carries no command signal.
 
-A case scoring 12 with one 1 fails. A case scoring 11 with all 2s
-fails. Both bars must hold.
+Fail any floor → the case fails regardless of value score. These gates
+catch regressions; clearing them is **not** evidence the command did
+anything.
+
+**Value dimensions (where `/buddy:create` must show power):**
+- **Sections** — template-borne. Judge on delta **A − 0 ≥ 2** (Pass 0: 1, 1, 1 → Pass A: 3, 3, 3).
+- **Lens** (lens-required cases only — pheasant, owl) — apparatus-borne. Judge on delta over bare **≥ 2** (free, uninformative on no-lens yeti).
+- **Scope** — command-borne, the cleanest discriminator. Judge on delta **B − A ≥ 2** (bare model can't resolve scope at all: Pass 0: 0, 0, 0).
+
+**A case passes** when every applicable hygiene floor holds AND every
+applicable value dimension clears its delta bar.
+
+The old "Total ≥ 12 / 15, no dimension < 2" bar is **retired**: Pass 0
+reached 6–8 / 15 with no apparatus whatsoever, so a 12/15 absolute can be
+more than half base competence — the same tautology trap pika's Persist
+eval fell into. Use the **Power check (three-arm delta)** section at the
+bottom to compute the deltas this bar reads.
 
 ---
 
@@ -127,8 +148,12 @@ Create `runs/YYYY-MM-DD-<pass-letter>.md`:
 {{ship | iterate template | iterate command}}
 ```
 
-Three rows passing = green light. Any row failing = the failing row's
-weakest dimension names what to fix.
+Three rows passing the split bar = green light. A row fails if any
+hygiene floor (Voice, Heuristics, no-lens Lens) drops below 2, or any
+applicable value dimension (Sections, Lens, Scope) misses its delta bar.
+The failing arm names what to fix: a floor miss = a regression in base
+quality; a value-delta miss = the command/template stopped earning its
+keep on that dimension.
 
 ## Power check (three-arm delta)
 
