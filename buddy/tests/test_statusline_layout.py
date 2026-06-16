@@ -396,9 +396,28 @@ def test_format_skills_short_names_and_cap():
     assert _format_skills([]) == ""
     assert _format_skills(["codescout-companion:reconnaissance"]) == "skills: reconnaissance"
     assert _format_skills(["codescout-companion:reconnaissance"], label="cs") == "cs: reconnaissance"
+    # Generous cap: the right column / wrap row gets filled before ellipsizing.
+    # Six skills (the old cap was 4) now all show, no overflow marker.
     many = [f"p:skill-{i}" for i in range(6)]
     line = _format_skills(many)
-    assert line.endswith(" …") and "skill-3" in line and "skill-4" not in line
+    assert "skill-4" in line and "skill-5" in line and "…" not in line
+    # Overflow only past the cap (default 12).
+    flood = [f"p:skill-{i}" for i in range(15)]
+    over = _format_skills(flood)
+    assert over.endswith(" …") and "skill-11" in over and "skill-12" not in over
+
+
+def test_format_skills_reconnaissance_hoisted_first():
+    """Recon is the highest-signal load — it must lead its line and never hide
+    behind the overflow ellipsis, regardless of when it was loaded."""
+    from scripts.statusline import _format_skills
+    # Loaded last, still leads.
+    line = _format_skills(["p:alpha", "p:beta", "codescout-companion:reconnaissance"], label="cs")
+    assert line == "cs: reconnaissance, alpha, beta"
+    # Even when the rest would overflow the cap, recon survives at the front.
+    flood = [f"p:skill-{i}" for i in range(20)] + ["codescout-companion:reconnaissance"]
+    over = _format_skills(flood, label="cs")
+    assert over.startswith("cs: reconnaissance,") and over.endswith(" …")
 
 
 def test_partition_skills_splits_codescout_from_other():

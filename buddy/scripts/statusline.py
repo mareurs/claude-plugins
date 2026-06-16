@@ -133,8 +133,9 @@ def _compose_rows(base: str, segments: list[str], term_w: int) -> str:
     # below would look worse than truncation. Slot 6 (cs skills) is capped
     # too — it now sits ABOVE slot 7, so an overflow would wrap into the
     # other-skills line. Slot 7 (other skills) is the bottom row with nothing
-    # beneath it, so its overflow wraps harmlessly; left OMITTED. Both skills
-    # lines are content-bounded to ≤4 short names by _format_skills.
+    # beneath it, so its overflow wraps onto the next terminal row harmlessly;
+    # left OMITTED so it can use that room. Both skills lines are content-bounded
+    # to a generous short-name cap by _format_skills (recon always leads the cs line).
     priority = [3, 4, 5, 6, 1]
     for idx in priority:
         if idx >= len(work):
@@ -204,8 +205,18 @@ def _partition_skills(skill_ids: list[str]) -> tuple[list[str], list[str]]:
     return cs, other
 
 
-def _format_skills(skill_ids: list[str], label: str = "skills") -> str:
-    """Compact skill-ledger line: '<label>: recon, explore' (last id component)."""
+def _format_skills(skill_ids: list[str], label: str = "skills", cap: int = 12) -> str:
+    """Compact skill-ledger line: '<label>: recon, explore' (last id component).
+
+    Reconnaissance is hoisted to the front whenever it's loaded — it's the
+    highest-signal load to confirm at a glance, so it must lead its line and
+    never slip behind the overflow ellipsis. Names are deduped (by short name),
+    then the line carries up to ``cap`` of them before an ' …' marker. The cap is
+    deliberately generous: the right column has width to spare and the bottom
+    (other-skills) slot wraps onto the next row, so we'd rather fill that space
+    than ellipsize early. Width-truncation in _compose_rows still bounds the
+    single-line ``cs:`` slot; the wrapping ``skills:`` slot is content-bounded here.
+    """
     if not skill_ids:
         return ""
     shorts = []
@@ -213,7 +224,10 @@ def _format_skills(skill_ids: list[str], label: str = "skills") -> str:
         short = sid.rsplit(":", 1)[-1]
         if short not in shorts:
             shorts.append(short)
-    return f"{label}: " + ", ".join(shorts[:4]) + (" …" if len(shorts) > 4 else "")
+    if "reconnaissance" in shorts:
+        shorts.remove("reconnaissance")
+        shorts.insert(0, "reconnaissance")
+    return f"{label}: " + ", ".join(shorts[:cap]) + (" …" if len(shorts) > cap else "")
 
 
 
