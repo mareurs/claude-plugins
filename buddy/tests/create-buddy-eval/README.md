@@ -8,8 +8,41 @@ or command changes.
 
 ## How to run
 
-The eval is **human-driven** for v1 (no automated scoring). Two passes:
+The eval is **human-driven** for v1 (no automated scoring). Three passes — a
+bare-model floor, then template-only, then command-driven:
 
+### Pass 0 — bare-model floor (negative control)
+
+Pass A controls for the *command* (template-only vs command-driven). It does NOT
+control for the *template + rubric themselves*: if a capable model scores ≥ 12/15
+from the bare hint alone — no template, no command — then on those dimensions the
+rubric is measuring general writing competence, not specialist craft, and a pass
+says nothing about create-buddy. Pass 0 establishes that floor.
+
+For each case:
+
+1. Read `cases/<name>/hint.txt` — the only input.
+2. Spawn a **fresh subagent given ONLY the hint** — NOT the template, NOT the
+   command — with the anti-memorization tripwires below. The whole prompt is, in
+   effect: "Write a SKILL.md for this specialist." Nothing else.
+3. Score the draft on `rubric.md` exactly as for A/B.
+4. Record in `runs/<date>-pass-0.md`.
+
+Read the per-dimension deltas across the three arms:
+
+- **Pass A − Pass 0** = what the *template* contributes.
+- **Pass B − Pass A** = what the *command* contributes.
+- A dimension where **Pass 0 ≈ Pass A ≈ Pass B** is base competence — the rubric
+  is not measuring the apparatus there, so treat that dimension's pass as
+  uninformative about create-buddy. Expectation to test, not assume: dims 2
+  (sections), 4 (lens), 5 (scope) should need the template/command (low Pass 0);
+  dims 1 (voice), 3 (heuristics) may already float high on Pass 0.
+
+**Run Pass 0 against the isolated `~/.claude-test` profile** (no buddy plugin, no
+MCP) so the bare model genuinely lacks the 12 builtin specialists — the same
+isolation prompt-tdd uses for its negative control. Without it, the installed
+buddy plugin leaks the builtins into context and the "bare" floor is fake (the
+plugin-load confound — see prompt-engineering `docs/trackers/skill-eval-playbook.md`).
 ### Pass A — template correctness (no command yet)
 
 For each case:

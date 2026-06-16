@@ -129,3 +129,24 @@ Create `runs/YYYY-MM-DD-<pass-letter>.md`:
 
 Three rows passing = green light. Any row failing = the failing row's
 weakest dimension names what to fix.
+
+## Power check (three-arm delta)
+
+After recording Pass 0, A, and B for a case, fill the per-dimension delta to see
+where the apparatus actually carries signal — the manual analog of
+`prompt-tdd run --ablate`:
+
+| Dimension  | Pass 0 (bare) | Pass A (template) | Pass B (command) | A−0 | B−A | Verdict |
+|---|---|---|---|---|---|---|
+| Voice      | /3 | /3 | /3 | | | |
+| Sections   | /3 | /3 | /3 | | | |
+| Heuristics | /3 | /3 | /3 | | | |
+| Lens       | /3 | /3 | /3 | | | |
+| Scope      | /3 | /3 | /3 | | | |
+
+Per-dimension verdict: **base-competence** if Pass 0 ≈ A ≈ B (the rubric is not
+measuring create-buddy here); **template-borne** if A > 0 but B ≈ A;
+**command-borne** if B > A. Only template- and command-borne dimensions justify
+create-buddy's existence. If the ≥ 12/15 pass is carried mostly by
+base-competence dimensions, the eval is passing regardless of the command —
+tautological, the same trap pika's Persist eval fell into.
