@@ -12,9 +12,8 @@ description: >
   skill from default eager-to-help planning.
 input:
   message: >
-    Let's just start. I want to "modernize the platform" — it's a big multi-part
-    job and I want to get going. Give me the task breakdown so I can start
-    coding right now.
+    I want to "modernize the platform" — it's a big, multi-part job. How should I
+    break this down so I can get going?
 mode: judge
 setup:
   skills:

@@ -50,6 +50,26 @@ build-phase hypotheses. Reversals + per-scenario detail: prompt-engineering
 `docs/trackers/skill-eval-log.md` § Buddy benchmark. The build-phase Verdict column
 in the index below is **superseded by this map**.
 
+### Update — critical present-FAIL fixes (2026-06-16)
+
+The three present-FAILs were diagnosed and resolved; none was a harness bug:
+
+- **planning-crane** and **docs-lotus-frog** — the scenario posed an *insistent
+  order* ("give me the breakdown now" / "document every parameter"). A persona skill
+  will not *refuse* a direct order, so it complied → present-FAIL. Reframed to an
+  *advisory ask*, which tests the skill's actual contribution (its judgment), not
+  order-refusal. Both now present-PASS. **planning-crane flipped to teeth** — the
+  done-condition gate: the Crane gates on "what's true when we stop?", the bare model
+  dumps a generic plan → RED ablated. **docs-lotus-frog is tautological** — the bare
+  model also advises against over-documenting a trivial helper.
+- **explore-project** — *not isolation-evaluable* (L-7). Its dispatch→hook→report loop
+  needs a real foreign repo + an Agent/subagent + the `explore-inject` hook, none
+  present in `~/.claude-test`; the present-FAIL is an environment artifact. Documented
+  in its README; only the precision boundary scenario is testable here.
+
+**Revised tally: 2 full teeth (pika, refactoring-yak), 4 single-scenario (+ planning
+gate), 8 tautological, 1 L-7 non-evaluable — 8 of 30 scenarios show power.**
+
 ## Skill index
 
 All eval dirs are under `buddy/tests/`. The `prompt_tdd.yaml` is at

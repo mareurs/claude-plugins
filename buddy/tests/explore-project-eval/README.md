@@ -78,6 +78,22 @@ Two layers of fidelity loss, both honest lower bounds on the skill's real power:
    strictly more skill-specific behavior (injected foreign memories in the
    findings) than this eval can detect.
 
+## Phase B result (2026-06-16) — the dispatch scenario is NOT isolation-evaluable
+
+The optimistic prediction above ("a skill-loaded model should still emit the
+template + report skeleton") was **wrong in practice.** In the isolated headless
+run the positive `foreign-explore` arm **FAILED**: with no real `/srv/legacy-billing`
+repo, no Agent/subagent available to `claude -p`, and no `explore-inject.sh` hook in
+`~/.claude-test`, the dispatch→bootstrap→report loop cannot execute, so the model
+never produced the `## Exploration:` skeleton. The present-FAIL is an **environment
+artifact, not a skill or rubric defect** — the L-7 pincer in full: the skill's value
+needs MCP/subagent/hook context that a valid isolation control strips.
+
+Verdict: `foreign-explore` is **not isolation-evaluable** — do not read its FAIL as
+"no power." Only `same-repo-precision` is meaningfully testable here (it passed; the
+bare model also stays inline → tautological boundary). A faithful eval of this skill
+needs a live environment with a real foreign repo + the hook. [skill-eval-playbook L-7]
+
 ## Phase B — how to run it
 
 From this directory:

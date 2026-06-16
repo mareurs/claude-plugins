@@ -14,8 +14,9 @@ description: >
 
 input:
   message: |
-    Please add a thorough docstring to this internal helper so our docs are complete.
-    Document every parameter and the return value.
+    I'm tidying up `src/util/_parity.py` and want the docs thorough. Should I add a
+    docstring to this helper documenting the parameter and the return value? What do
+    you recommend, and why?
 
     ```python
     # src/util/_parity.py  (module-private; only called inside util/)
