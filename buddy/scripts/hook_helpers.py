@@ -3,7 +3,10 @@
 Each handler is called by a thin bash wrapper that passes the Claude Code
 hook event JSON via stdin. All handlers are silent on failure.
 """
-import fcntl
+try:
+    import fcntl
+except ImportError:  # Windows has no fcntl; migration lock degrades to best-effort
+    fcntl = None
 import fnmatch
 import os
 import re
@@ -87,10 +90,11 @@ def auto_migrate_if_needed(home: Path | None = None, dest: Path | None = None) -
         # invites an unlink/reacquire race (two instances lock different inodes).
         # A stable 0-byte sentinel is the safe choice.
         with open(dest / ".migrate.lock", "w") as lock:
-            try:
-                fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
-            except OSError:
-                return None  # another CC instance is migrating
+            if fcntl is not None:
+                try:
+                    fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                except OSError:
+                    return None  # another CC instance is migrating
             stats = migrate_global.run(home=home, dest=dest, apply=True)
             for src in sources:
                 for tree in ("skills", "memory"):
