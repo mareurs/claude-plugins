@@ -2,6 +2,7 @@
 # UserPromptSubmit hook — increments prompt count + maintains PPID index.
 set -e
 PLUGIN_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.."; pwd)"
+command -v cygpath >/dev/null 2>&1 && PLUGIN_ROOT="$(cygpath -m "$PLUGIN_ROOT")"
 
 EVENT=$(cat)
 CWD=$(echo "$EVENT" | jq -r '.cwd // empty' 2>/dev/null || true)

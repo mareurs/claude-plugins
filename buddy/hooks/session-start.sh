@@ -2,6 +2,7 @@
 # SessionStart hook — resets session-scoped state + manages PPID index.
 set -e
 PLUGIN_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+command -v cygpath >/dev/null 2>&1 && PLUGIN_ROOT="$(cygpath -m "$PLUGIN_ROOT")"
 [ -f "$PLUGIN_ROOT/hooks/judge.env" ] && . "$PLUGIN_ROOT/hooks/judge.env"
 
 # Read event from stdin
