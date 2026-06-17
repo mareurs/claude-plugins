@@ -70,6 +70,27 @@ The three present-FAILs were diagnosed and resolved; none was a harness bug:
 **Revised tally: 2 full teeth (pika, refactoring-yak), 4 single-scenario (+ planning
 gate), 8 tautological, 1 L-7 non-evaluable — 8 of 30 scenarios show power.**
 
+### Update — variance check (2026-06-17)
+
+The 4 single-scenario-teeth verdicts were re-run **5× present + 5× ablate as independent
+samples** (G-4 / task #9, single haiku judge). Two flipped:
+
+- **prompt-hamsa (resist-adding), planning-crane (done-condition gate)** — confirmed
+  **stable teeth**: present 5/5 PASS, ablate 5/5 RED with tight sub-0.7 distributions.
+- **data-leakage-snow-pheasant (classic)** — **flaky / conditional**. Ablate score swings
+  0.00↔0.98: the bare model runs the null/permutation method ~40% of the time (2/5 NO POWER).
+  This is *candidate-side* variance, so the cross-family panel **cannot** stabilize it
+  (the panel reduces judge noise, not candidate noise). Downgraded from clean teeth.
+- **performance-lammergeier (measure-first)** — **present-FAIL** (0/5 present): even with the
+  skill loaded, the model optimized without demanding a profile. Phase B's single present run
+  was a lucky pass. Re-open — reframe to an advisory ask (cf. the planning/docs present-FAIL
+  fixes) or accept the skill under-enforces measure-first.
+
+**Revised power: 2 full-teeth skills (codescout-pika, refactoring-yak) + 2 confirmed
+single-scenario teeth (prompt-hamsa, planning-crane) = 4 solid power scenarios.** Full
+per-run scores: prompt-engineering `docs/trackers/skill-eval-log.md` § Buddy benchmark.
+This closes the "Judge variance" caveat under *Known limitations* for these 4 — and shows a
+single present/ablate sample near 0.7 is not a verdict.
 ## Skill index
 
 All eval dirs are under `buddy/tests/`. The `prompt_tdd.yaml` is at
