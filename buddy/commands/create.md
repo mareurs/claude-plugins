@@ -1,5 +1,4 @@
 ---
-name: buddy:create
 description: Create a new buddy specialist (global or project scope; builtin is frozen). Brainstorms with the user, drafts from the canonical skill template, previews what /buddy:summon will load (template + memory protocol + gates), then writes. Discovery is path-scan — no registration step needed. The argument is a freeform hint (e.g. "buddy for X", "buddy for X project") or empty.
 ---
 

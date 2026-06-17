@@ -1,5 +1,4 @@
 ---
-name: buddy:remember
 description: Ask the currently active specialist(s) to save a memory about the given lesson. Pass the lesson as the argument — e.g. `/buddy:remember in this repo, integration tests must hit a real database`. The specialist decides global vs project scope and the slug.
 ---
 

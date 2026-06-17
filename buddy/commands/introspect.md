@@ -1,5 +1,4 @@
 ---
-name: buddy:introspect
 description: Run mid-session introspection on one or all currently summoned specialists. Unlike `/buddy:dismiss`, the specialist stays active afterward. Pass a specialist name to introspect just that one (e.g. `/buddy:introspect hamsa`); pass nothing to introspect all active.
 ---
 

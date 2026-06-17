@@ -1,5 +1,4 @@
 ---
-name: buddy:summon
 description: Summon a specialist bodhisattva to help with a specific craft. Describe who you need in plain language — e.g. "debug", "testing", "ML training", "architecture", "security", "refactor", "performance", "docs", "data leakage classic", "data leakage llm", "planning", "prompt". Some specialists have lenses; pass them as `<specialist>:<lens>` (e.g. `data-leakage:llm`). An ambiguous argument prints the specialist table and exits without loading anything.
 ---
 

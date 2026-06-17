@@ -1,5 +1,4 @@
 ---
-name: buddy:consolidate
 description: Consolidate accumulated memories — merge near-duplicates, archive stale entries, summarize tag-clusters, surface contradictions for resolution. Runs as a four-phase pipeline (rules shortlist → specialist judgment → user dry-run gate → apply). Pass a target (specialist alias, `common`, `all`) or one of the sub-commands `apply`/`revise <text>`/`cancel`. With no argument, consolidates memories of currently active specialists.
 ---
 
