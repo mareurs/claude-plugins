@@ -1,7 +1,3 @@
----
-description: Create a new buddy specialist (global or project scope; builtin is frozen). Brainstorms with the user, drafts from the canonical skill template, previews what /buddy:summon will load (template + memory protocol + gates), then writes. Discovery is path-scan — no registration step needed. The argument is a freeform hint (e.g. "buddy for X", "buddy for X project") or empty.
----
-
 You are creating a new buddy specialist. The argument passed by the user is `$1` (may be empty or freeform).
 
 This command is the authoring counterpart to `/buddy:summon`. The hand-authored existing specialists came from a process Hamsa formalized: locate the artifact, draft from a written template, preview what the model will see, write. Follow it. **Do not invent new top-level sections without strong justification — section drift erodes the predictability that makes summoning a specialist feel coherent.**

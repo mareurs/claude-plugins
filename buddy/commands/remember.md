@@ -1,7 +1,3 @@
----
-description: Ask the currently active specialist(s) to save a memory about the given lesson. Pass the lesson as the argument — e.g. `/buddy:remember in this repo, integration tests must hit a real database`. The specialist decides global vs project scope and the slug.
----
-
 You are processing an explicit memory request. The argument passed by the user is `$1`.
 
 ## Step 1 — Resolve who saves it
