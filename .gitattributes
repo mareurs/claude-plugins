@@ -1,0 +1,6 @@
+# Hook/statusline scripts must keep LF endings even when checked out on Windows.
+# With CRLF, bash chokes on `#!/usr/bin/env bash\r` ("bad interpreter") and
+# `\r` leaks into sourced .env values — breaking the plugins before any code runs.
+*.sh  text eol=lf
+*.py  text eol=lf
+*.env text eol=lf

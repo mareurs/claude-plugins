@@ -220,6 +220,7 @@ fi
 
 if [[ "${BUDDY_SKIP_SELF:-0}" != "1" ]]; then
   SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+  command -v cygpath >/dev/null 2>&1 && SELF_DIR="$(cygpath -m "$SELF_DIR")"
   printf '%s' "$INPUT" | python3 "$SELF_DIR/statusline.py" 2>/dev/null || true
 fi
 

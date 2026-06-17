@@ -13,6 +13,9 @@
 # I-11 in docs/trackers/2026-05-07-shine-improvements.md.
 
 _DETECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../scripts" && pwd)"
+# Windows (Git Bash/Cygwin): convert /c/... → C:/... so native python3 resolves
+# the script path. No-op on Linux/macOS where cygpath is absent.
+command -v cygpath >/dev/null 2>&1 && _DETECT_DIR="$(cygpath -m "$_DETECT_DIR")"
 eval "$(CWD="$CWD" HOME="$HOME" CLAUDE_CONFIG_DIR="${CLAUDE_CONFIG_DIR-}" \
         python3 "$_DETECT_DIR/detect.py")"
 unset _DETECT_DIR
