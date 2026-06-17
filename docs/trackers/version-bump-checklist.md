@@ -17,24 +17,33 @@ Release readiness across plugins × profiles. See
 
 ## State
 
-_Last refresh: `8ef4292`_
+_Last refresh: `ade79d5`_
 
-**codescout-companion** — canonical `1.11.14` · readme `1.11.14` · marketplace clean ✅
-
-| profile | installed | cache dir | install_path ok |
-|---|---|---|---|
-| `~/.claude` | 1.11.14 ✅ | ✅ | ✅ |
-| `~/.claude-sdd` | 1.11.14 ✅ | ✅ | ✅ |
-| `~/.claude-kat` | 1.11.14 ✅ | ✅ | ✅ |
-
-**buddy** — canonical `0.7.26` · readme `0.7.26` · marketplace clean ✅
+**codescout-companion** — canonical `1.11.15` · readme `1.11.15` · marketplace clean ✅
 
 | profile | installed | cache dir | install_path ok |
 |---|---|---|---|
-| `~/.claude` | 0.7.26 ✅ | ✅ | ✅ |
-| `~/.claude-sdd` | 0.7.26 ✅ | ✅ | ✅ |
-| `~/.claude-kat` | 0.7.26 ✅ | ✅ | ✅ |
+| `~/.claude` | 1.11.15 ✅ | ✅ | ✅ |
+| `~/.claude-sdd` | 1.11.15 ✅ | ✅ | ✅ |
+| `~/.claude-kat` | 1.11.15 ✅ | ✅ | ✅ |
+
+**buddy** — canonical `0.7.27` · readme `0.7.27` · marketplace clean ✅
+
+| profile | installed | cache dir | install_path ok |
+|---|---|---|---|
+| `~/.claude` | 0.7.27 ✅ | ✅ | ✅ |
+| `~/.claude-sdd` | 0.7.27 ✅ | ✅ | ✅ |
+| `~/.claude-kat` | 0.7.27 ✅ | ✅ | ✅ |
 ## History
+
+### 2026-06-17 — buddy 0.7.26 → 0.7.27, codescout-companion 1.11.14 → 1.11.15
+
+Windows cross-platform hooks (merge of fix/windows-hook-paths): `cygpath -m`
+conversion of PLUGIN_ROOT / _DETECT_DIR, a `python`/`python3` interpreter shim,
+and a new `.gitattributes` forcing LF on *.sh/*.py/*.env. Both plugins' hooks
+changed (buddy hooks + statusline-composed; codescout-companion detect-tools.sh)
+— so both bumped. Cache seeded + records repointed across all three profiles;
+all green. Pushed to origin/main.
 
 ### 2026-06-16 — buddy 0.7.25 → 0.7.26
 
