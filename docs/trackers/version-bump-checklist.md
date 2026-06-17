@@ -17,24 +17,28 @@ Release readiness across plugins × profiles. See
 
 ## State
 
-_Last refresh: `5f37f80`_
+_Last refresh: `8ef4292`_
 
 **codescout-companion** — canonical `1.11.14` · readme `1.11.14` · marketplace clean ✅
 
 | profile | installed | cache dir | install_path ok |
 |---|---|---|---|
-| `~/.claude` | `1.11.14` ✅ | ✅ | ✅ |
-| `~/.claude-sdd` | `1.11.14` ✅ | ✅ | ✅ |
-| `~/.claude-kat` | `1.11.14` ✅ | ✅ | ✅ |
+| `~/.claude` | 1.11.14 ✅ | ✅ | ✅ |
+| `~/.claude-sdd` | 1.11.14 ✅ | ✅ | ✅ |
+| `~/.claude-kat` | 1.11.14 ✅ | ✅ | ✅ |
 
-**buddy** — canonical `0.7.25` · readme `0.7.25` · marketplace clean ✅
+**buddy** — canonical `0.7.26` · readme `0.7.26` · marketplace clean ✅
 
 | profile | installed | cache dir | install_path ok |
 |---|---|---|---|
-| `~/.claude` | `0.7.25` ✅ | ✅ | ✅ |
-| `~/.claude-sdd` | `0.7.25` ✅ | ✅ | ✅ |
-| `~/.claude-kat` | `0.7.25` ✅ | ✅ | ✅ |
+| `~/.claude` | 0.7.26 ✅ | ✅ | ✅ |
+| `~/.claude-sdd` | 0.7.26 ✅ | ✅ | ✅ |
+| `~/.claude-kat` | 0.7.26 ✅ | ✅ | ✅ |
 ## History
+
+### 2026-06-16 — buddy 0.7.25 → 0.7.26
+
+Statusline change: recon-first ordering on the `cs:` skills line + raised the per-line name cap (4 → 12) so lines fill the right column and the bottom line wraps (`feat` b4f68ce). Bumped 0.7.25 → 0.7.26; cache seeded and install records repointed across all three profiles — all green. Local-only release (`NO_PUSH=1`); not yet pushed to origin.
 
 ### 2026-06-15 — codescout-companion 1.11.13 → 1.11.14
 
