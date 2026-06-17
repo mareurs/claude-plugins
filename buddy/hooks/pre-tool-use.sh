@@ -30,7 +30,9 @@ export PLUGIN_ROOT
 EVENT_JSON=$(cat)
 export EVENT_JSON
 _py_exit=0
-python3 <<'PYEOF' || _py_exit=$?
+# Windows native Python is `python`, not `python3` — resolve once (no-op elsewhere).
+PYTHON="$(command -v python3 || command -v python || echo python3)"
+"$PYTHON" <<'PYEOF' || _py_exit=$?
 import sys, json, os
 plugin_root = os.environ.get('PLUGIN_ROOT', '')
 sys.path.insert(0, plugin_root)

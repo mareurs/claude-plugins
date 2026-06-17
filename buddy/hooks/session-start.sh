@@ -50,9 +50,12 @@ fi
 DEAD_GLOBAL="$HOME/.claude/buddy/state.json"
 [ -f "$DEAD_GLOBAL" ] && rm -f "$DEAD_GLOBAL" 2>/dev/null || true
 
+# Windows native Python is `python`, not `python3` — resolve once (no-op elsewhere).
+PYTHON="$(command -v python3 || command -v python || echo python3)"
+
 # Auto-migrate legacy per-profile global state (~/.claude*/buddy) into ~/.buddy.
 # Runs before nudges so the nudge block sees the merged memory on first session.
-MIGRATE_LINE=$(python3 -c "
+MIGRATE_LINE=$("$PYTHON" -c "
 import sys
 sys.path.insert(0, '$PLUGIN_ROOT')
 from scripts.hook_helpers import auto_migrate_if_needed
@@ -65,7 +68,7 @@ if [ -n "$MIGRATE_LINE" ]; then
 fi
 
 # Memory consolidation nudges (capacity + stale-since).
-NUDGE_LINES=$(python3 -c "
+NUDGE_LINES=$("$PYTHON" -c "
 import sys
 sys.path.insert(0, '$PLUGIN_ROOT')
 from pathlib import Path
@@ -88,7 +91,7 @@ if [ -n "$NUDGE_LINES" ]; then
 fi
 
 # Optional auto-dry-run (opt-in via .claude/buddy.json).
-AUTO=$(python3 -c "
+AUTO=$("$PYTHON" -c "
 import sys
 sys.path.insert(0, '${PLUGIN_ROOT}')
 from pathlib import Path
@@ -114,7 +117,7 @@ if [ -n "$AUTO" ]; then
 fi
 
 # Run state-handling Python with session-scoped path
-echo "$EVENT" | python3 -c "
+echo "$EVENT" | "$PYTHON" -c "
 import sys, json, os
 sys.path.insert(0, '$PLUGIN_ROOT')
 from pathlib import Path

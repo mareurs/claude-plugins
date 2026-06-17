@@ -9,6 +9,9 @@ SID=$(echo "$EVENT" | jq -r '.session_id // empty' 2>/dev/null || true)
 [ -z "$CWD" ] && CWD=$(pwd)
 [ -z "$SID" ] && SID="unknown"
 
+# Windows native Python is `python`, not `python3` — resolve once (no-op elsewhere).
+PYTHON="$(command -v python3 || command -v python || echo python3)"
+
 BUDDY_PROJECT_DIR="$CWD/.buddy"
 BY_PPID_DIR="$BUDDY_PROJECT_DIR/by-ppid"
 mkdir -p "$BY_PPID_DIR/$PPID" 2>/dev/null || true
@@ -17,7 +20,7 @@ echo "$SID" > "$BUDDY_PROJECT_DIR/.current_session_id" 2>/dev/null || true
 echo "$SID" > "$BY_PPID_DIR/$PPID/session_id" 2>/dev/null || true
 ps -o lstart= -p "$PPID" 2>/dev/null | sed 's/^ *//' > "$BY_PPID_DIR/$PPID/started_at" 2>/dev/null || true
 
-echo "$EVENT" | python3 -c "
+echo "$EVENT" | "$PYTHON" -c "
 import sys, json, os
 sys.path.insert(0, '$PLUGIN_ROOT')
 from pathlib import Path
@@ -39,7 +42,7 @@ handle_user_prompt_submit(event, path=state_path)
 # Skill ledger: scan new transcript bytes for Skill-tool loads (the only
 # ground truth — no hook fires for Skill invocations, claude-code#43630).
 # Stdout = context: emits repeat-load advisories only; silent otherwise.
-echo "$EVENT" | python3 -c "
+echo "$EVENT" | "$PYTHON" -c "
 import sys, json
 sys.path.insert(0, '$PLUGIN_ROOT')
 from scripts.skill_ledger import scan_from_event
@@ -57,6 +60,6 @@ for line in scan_from_event(event):
 PROMPT=$(echo "$EVENT" | jq -r '.prompt // empty' 2>/dev/null || true)
 case "$PROMPT" in
   /buddy:summon*)
-    echo "$EVENT" | python3 "$PLUGIN_ROOT/scripts/summon_bootstrap.py" 2>/dev/null || true
+    echo "$EVENT" | "$PYTHON" "$PLUGIN_ROOT/scripts/summon_bootstrap.py" 2>/dev/null || true
     ;;
 esac

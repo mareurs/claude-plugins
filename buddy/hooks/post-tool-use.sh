@@ -3,7 +3,9 @@
 set -e
 PLUGIN_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 [ -f "$PLUGIN_ROOT/hooks/judge.env" ] && . "$PLUGIN_ROOT/hooks/judge.env"
-python3 -c "
+# Windows native Python is `python`, not `python3` — resolve once (no-op elsewhere).
+PYTHON="$(command -v python3 || command -v python || echo python3)"
+"$PYTHON" -c "
 import sys, json, os
 sys.path.insert(0, '$PLUGIN_ROOT')
 from pathlib import Path
