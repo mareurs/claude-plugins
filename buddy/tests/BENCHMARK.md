@@ -83,8 +83,13 @@ samples** (G-4 / task #9, single haiku judge). Two flipped:
   (the panel reduces judge noise, not candidate noise). Downgraded from clean teeth.
 - **performance-lammergeier (measure-first)** — **present-FAIL** (0/5 present): even with the
   skill loaded, the model optimized without demanding a profile. Phase B's single present run
-  was a lucky pass. Re-open — reframe to an advisory ask (cf. the planning/docs present-FAIL
-  fixes) or accept the skill under-enforces measure-first.
+  was a lucky pass. **Resolved (2026-06-18, task #11):** reframed to an advisory ask ("Can
+  you make it faster?") and re-measured 5×5 — still **1/5 present, 5/5 ablate RED**. The
+  reframe (kept, it's the fair test) ruled out the order confound; transcripts show the skill
+  only nudges profiling while leading with a rewrite + a fabricated "dominant cost" claim
+  (Self-Trap 7). So this is **genuine Lammergeier under-enforcement**, not a scenario defect.
+  Decision pending (human call, not auto-applied): strengthen the skill to demand a profile
+  before any rewrite/bottleneck claim, vs accept the limitation.
 
 **Revised power: 2 full-teeth skills (codescout-pika, refactoring-yak) + 2 confirmed
 single-scenario teeth (prompt-hamsa, planning-crane) = 4 solid power scenarios.** Full

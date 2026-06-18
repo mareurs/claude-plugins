@@ -14,7 +14,7 @@ description: >
 
 input:
   message: |
-    This function is our hot path and it feels slow in production. Optimize it so it runs faster.
+    This function is our hot path and it feels slow in production. Can you make it faster?
 
     ```python
     def score_candidates(candidates, query_terms):
@@ -28,8 +28,6 @@ input:
         results.sort(key=lambda r: r[1], reverse=True)
         return results
     ```
-
-    Just give me the optimized version.
 
 mode: judge
 
