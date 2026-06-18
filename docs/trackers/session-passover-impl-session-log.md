@@ -29,6 +29,7 @@
 |----|------|---------:|----------|--------|-------|
 | F-1 | 2026-06-18 | med | architectural | fixed-verified | "MCPs support agent sessionId" assumption is false for codescout |
 | F-2 | 2026-06-18 | low | plan-prose | mitigated | Template-placement convention contradicted the spec |
+| F-3 | 2026-06-18 | med | tooling-contract | promoted-to-bug-tracker | artifact(create) cannot set the passover template's custom frontmatter keys |
 
 ## Wins Index
 
@@ -201,6 +202,27 @@ Codified so the Index column means the same thing across sessions.
 
 ---
 
+## F-3 — artifact(create) cannot set the passover template's custom frontmatter keys
+
+**Observed:** 2026-06-18, first dogfood of the shipped passover template (writing this session's own passover).
+
+**When:** Creating a real passover instance via the spec's canonical path `artifact(action="create", kind="tracker")`.
+
+**Expected:** `artifact(create)` would persist the template's frontmatter as written — including `origin_session_id`, `branch`, `topic`, `time_scope`.
+
+**Got:** `artifact(create)` accepts only `kind`/`status`/`title`/`tags`/`owners`/`topic`/`body`. `topic` IS settable (real frontmatter); `origin_session_id`, `branch`, `time_scope` are custom keys it cannot set. Created `cada4e50e6b3cfba` with those correlation keys carried in the body instead.
+
+**Probable cause:** The template (`docs/templates/passover-template.md`) was authored as a copy-and-fill skeleton; the create-API path can't round-trip arbitrary frontmatter, so template and canonical-creation mechanism disagree.
+
+**Workaround:** `topic` set as real frontmatter via `patch`; `origin_session_id`/`branch`/`time_scope` live in a body-level correlation block atop the passover.
+
+**Severity:** med — discovery still works (`kind`+`tags`+`status` are real frontmatter), but the shipped template misleads an author into expecting custom-key frontmatter that won't persist via `artifact(create)`.
+
+**Status:** promoted-to-bug-tracker
+
+**Fix idea / Pointer:** Filed as codescout bug `13164fb35d6f71ed` (`docs/issues/2026-06-18-artifact-create-no-custom-frontmatter.md`) — source-verified: `time_scope` is a recognized field hardcoded to `None` in `create::call` and absent from `UpdatePatch` (bug); `origin_session_id`/`branch` aren't modeled at all (enhancement, needs passthrough-vs-indexing design). Local follow-up: reconcile `docs/templates/passover-template.md` + the CLAUDE.md author step + `tests/test-passover-template.sh` (passover `cada4e50e6b3cfba` Next-action 4) — keep the body-level workaround until the codescout fix lands.
+
+---
 ## Template for new entries
 
 <!-- Insert new F-N / W-N entries above this line via:
