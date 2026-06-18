@@ -310,3 +310,47 @@ protects). Prefer **GEPA** (consumes our tiered assertion-failure text as feedba
 how we hand-edit) or **TextGrad** (cheapest, no DSPy).
 
 Full lesson + the optimizer-mechanics reasoning: prompt-engineering `docs/trackers/skill-eval-playbook.md` § L-9.
+
+## Roster decision — keep / cut / rewrite-probe (proposed, 2026-06-18)
+
+The benchmark exists to answer one question per buddy: **what does it do that a bare
+expert model would not?** Applying that test to every verdict (grounding each call in the
+skill's actual SKILL.md, not the verdict label):
+
+| Skill | Eval verdict | Marginal value over a bare expert | Decision |
+|---|---|---|---|
+| codescout-pika | full teeth | yes (confirmed) | **KEEP** |
+| refactoring-yak | full teeth | restraint: no-smuggle, atomic moves | **KEEP** |
+| prompt-hamsa | single teeth | resist-adding to a tight prompt | **KEEP** |
+| planning-crane | single teeth | gate on done-condition before decomposing | **KEEP** |
+| reconnaissance | L-7 | scout-before-act + F-N/W-N ledger; MCP/process-coupled | **KEEP — isolation-blind** |
+| legibility-dzo | "tautological" → corrected | machine-legibility vs codescout budgets / `usage.db` / librarian — NOT generic readability; runs only through the MCP the eval strips | **KEEP — isolation-blind** |
+| security-ibex | tautological | systematic threat coverage (STRIDE) vs cherry-picking the obvious vuln | **REWRITE-PROBE** |
+| debugging-yeti | tautological | methodical hypothesis-test on a *non-pattern* bug | **REWRITE-PROBE** |
+| testing-snow-leopard | tautological | mutation-awareness; reject call-count spies | **REWRITE-PROBE** |
+| architecture-snow-lion | tautological | restraint — resist over-engineering | **REWRITE-PROBE** |
+| ml-training-takin | tautological | overfit-tiny gate; grad/param-norm band; train/serve parity | **REWRITE-PROBE** |
+| docs-lotus-frog | tautological | stale-when trigger; reader-path; one-source-of-truth | **REWRITE-PROBE** |
+| performance-lammergeier | present-FAIL (not promptable) | profile-first / no fabricated numbers — but not via handed code (L-10) | **REWRITE-PROBE (no-code scenario)** |
+| data-leakage (llm lens) | tautological | RePCS / canary / cross-family bias methods (model may already know) | **REWRITE-PROBE (low) / accept** |
+
+**Three conclusions:**
+
+1. **No clean CUT candidates.** Every "tautological" / present-FAIL verdict is explained by
+   either (a) the scenario tested *base competence* rather than the skill's marginal
+   discipline (under-probing), or (b) the skill's value is MCP/process-coupled and the
+   isolation harness structurally cannot exercise it. Cutting any skill now would be premature.
+
+2. **legibility-dzo was nearly miscut.** First-pass instinct was "legibility is base
+   competence → cut." Reading the SKILL.md corrected it: dzo is bound to codescout's symbol
+   budgets, `usage.db` friction, and `legibility_scan` — exactly the MCP the `~/.claude-test`
+   profile strips. It is isolation-blind (like reconnaissance), not redundant. (Conclude after
+   evaluating, not before — the label "tautological" was an eval artifact, not a skill fact.)
+
+3. **Next action = a rewrite-probe pass**, not cuts. For each REWRITE-PROBE skill, design a
+   scenario whose *ideal* response **leads** with the skill's marginal discipline (not base
+   competence — L-10), gating each on first naming that discipline (done in the table above),
+   then measure present + ablate. A skill becomes a genuine CUT candidate **only** if a fair,
+   harder probe still shows no power. The two isolation-blind skills (reconnaissance,
+   legibility-dzo) need live MCP-coupled evaluation, not the headless isolation harness — out
+   of scope for this suite.
