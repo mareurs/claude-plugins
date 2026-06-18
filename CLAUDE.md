@@ -161,6 +161,7 @@ Always run Next-actions step 1 (verify state) before acting.
 
 **Consume:** when done, flip `status: archived`, append `## Consumed — YYYY-MM-DD`, and
 `artifact(action="move", …)` into `docs/trackers/archive/` (never bare `git mv`).
+
 ## Plugin Install Path (directory-source gotcha)
 
 Claude Code freezes `installPath` + `version` in `~/.claude/plugins/installed_plugins.json`
