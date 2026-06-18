@@ -139,6 +139,29 @@ corrupted environment and produce false results. The pattern is: write config �
 remove config. If test N establishes this pattern, make sure test N+1 doesn't silently
 inherit leftover state.
 
+## Session Passover
+
+Hand a live work thread to a fresh session (e.g. after compaction, or one of several
+parallel threads on this repo). **Manual and selective** — write one only when a session is
+worth resuming; a finished session needs none.
+
+**Author (outgoing session):** copy `docs/templates/passover-template.md` to
+`docs/trackers/passover-<topic>-YYYY-MM-DD.md`, fill State / Next actions / Working state /
+Anti-goals. Get `origin_session_id` from `cat .codescout/cc_session_id` (or
+`.buddy/.current_session_id`); omit if absent.
+
+**Discover (incoming session):** run, early in the session —
+
+    artifact(action="find", kind="tracker",
+             filter={"and":[{"tags":{"in":["passover"]}}, {"status":{"eq":"active"}}]})
+
+Zero results → proceed normally. One → resume it (auto-confirm if your own session id equals
+`origin_session_id`, which holds on `--resume`). Multiple → pick by `topic`/`branch`.
+Always run Next-actions step 1 (verify state) before acting.
+
+**Consume:** when done, flip `status: archived`, append `## Consumed — YYYY-MM-DD`, and
+`artifact(action="move", …)` into `docs/trackers/archive/` (never bare `git mv`).
+
 ## Plugin Install Path (directory-source gotcha)
 
 Claude Code freezes `installPath` + `version` in `~/.claude/plugins/installed_plugins.json`
