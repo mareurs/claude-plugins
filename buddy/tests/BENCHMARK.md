@@ -88,8 +88,15 @@ samples** (G-4 / task #9, single haiku judge). Two flipped:
   reframe (kept, it's the fair test) ruled out the order confound; transcripts show the skill
   only nudges profiling while leading with a rewrite + a fabricated "dominant cost" claim
   (Self-Trap 7). So this is **genuine Lammergeier under-enforcement**, not a scenario defect.
-  Decision pending (human call, not auto-applied): strengthen the skill to demand a profile
-  before any rewrite/bottleneck claim, vs accept the limitation.
+  **Resolved (2026-06-18, task #12):** strengthened the SKILL.md faithfully (OP1 + a targeted
+  "handed code → profile first, no rewrite" reaction) and re-measured 5×5 — **present 0/5,
+  identical to ablate**; the model still led with a rewrite and fabricated "halves the work"
+  claims, ignoring the explicit instruction. The target behavior (withhold a rewrite for
+  obviously-improvable code) is **not reliably promptable** — the same persona-steering limit
+  as order-refusal. Inert edit reverted (no L-2 gaming). **Accepted: documented present-FAIL,
+  not skill-measurable via this probe.** A no-code-handed scenario (a claim to verify, or
+  "our API is slow — approach?") would better probe the Lammergeier's real power. See
+  prompt-engineering `skill-eval-playbook.md` § L-10.
 
 **Revised power: 2 full-teeth skills (codescout-pika, refactoring-yak) + 2 confirmed
 single-scenario teeth (prompt-hamsa, planning-crane) = 4 solid power scenarios.** Full
