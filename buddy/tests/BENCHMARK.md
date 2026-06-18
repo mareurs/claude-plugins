@@ -389,3 +389,35 @@ act AGAINST its instinct, or where its value is tool/process-coupled.
 
 Cutting is the user's call — these are recommendations. Probe evidence: prompt-engineering
 `skill-eval-log.md` § Buddy benchmark; probe scenario at `/tmp/ibex-probe` (local, not committed).
+
+### Rewrite-probe pass — restraint probes + FINAL roster (2026-06-18)
+
+Re-measured architecture + testing's existing restraint scenarios 5× present + 5× ablate (they had
+only been run once; the variance pass never covered them). **Both tautological — ablate 1.00 on
+5/5.** The bare model resists premature abstraction (architecture: a one-caller `slugify` the user
+explicitly asks to over-architect) and rejects tautological tests + names the mutation (testing)
+entirely unaided.
+
+**This refuted L-11's prediction that restraint → teeth.** Restraint is not sufficient — the base
+model already has most best-practice restraints (YAGNI, assert-the-value, reproduce-first,
+threat-coverage). The corrected lesson (prompt-engineering `skill-eval-playbook.md` L-11) is
+methodological: **you cannot predict marginal value from a skill's category — measure against
+`--ablate` before any keep/cut call.** The probe-worthy bucket is now empty; every probe came back
+base competence.
+
+**FINAL roster (measured):**
+
+| Bucket | Skills | Basis |
+|---|---|---|
+| **KEEP — confirmed teeth** | refactoring-yak, planning-crane, prompt-hamsa, codescout-pika | present PASS + ablate RED, replicated |
+| **KEEP — isolation-blind** (tool/process-coupled; evaluate live, not headless) | reconnaissance, legibility-dzo | value is MCP/ledger-coupled, eval strips it |
+| **CUT candidate — confirmed base competence** | security-ibex, debugging-yeti, architecture-snow-lion, testing-snow-leopard | bare model ≈1.00 on a fair/hard probe |
+| **Predicted base competence — MEASURE before cutting** (L-11) | ml-training-takin, docs-lotus-frog, data-leakage (llm lens) | consistent with pattern; not yet probed |
+| **Documented present-FAIL** (not promptable, L-10) | performance-lammergeier | skill can't impose profile-first on handed code |
+
+**Bottom line:** of the roster, **4 skills earn their keep by measurement** (yak, planning, hamsa,
+pika); **2 are real but isolation-blind** (recon, dzo); the knowledge/best-practice skills add no
+measurable single-turn advice delta over a modern base model. "Tautological" = no measurable
+single-turn power — a skill may still be kept for voice/consistency, but it is not earning power.
+Cutting is the user's call. Per L-11, the 3 predicted-tautological skills should be *measured*, not
+cut on prediction, before action.
