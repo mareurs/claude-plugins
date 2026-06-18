@@ -25,5 +25,19 @@ done
 # 4. verify-before-trust escape hatch baked into the resume script
 if grep -qi "VERIFY" "$TPL"; then ok "verify-before-trust gate present"; else bad "verify gate" "missing VERIFY step in Next actions"; fi
 
+CLAUDEMD="$ROOT/CLAUDE.md"
+# 5. discovery query documented verbatim in CLAUDE.md (drift guard)
+if grep -qF '{"tags":{"in":["passover"]}}' "$CLAUDEMD"; then
+  ok "CLAUDE.md documents the discovery query"
+else
+  bad "CLAUDE.md discovery query" "marker {\"tags\":{\"in\":[\"passover\"]}} not found"
+fi
+# 6. CLAUDE.md points at the template path
+if grep -qF 'docs/templates/passover-template.md' "$CLAUDEMD"; then
+  ok "CLAUDE.md points at template"
+else
+  bad "CLAUDE.md template pointer" "docs/templates/passover-template.md not referenced"
+fi
+
 echo "── passover-template: $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]
