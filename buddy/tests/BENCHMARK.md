@@ -354,3 +354,38 @@ skill's actual SKILL.md, not the verdict label):
    harder probe still shows no power. The two isolation-blind skills (reconnaissance,
    legibility-dzo) need live MCP-coupled evaluation, not the headless isolation harness — out
    of scope for this suite.
+
+### Rewrite-probe pass — first results (2026-06-18)
+
+Probed the first two REWRITE-PROBE skills. Both came back **confirmed tautological**, and the
+pattern reframes the rest of the roster.
+
+- **debugging-yeti — no new probe needed.** Scouting its existing scenarios showed
+  `no-repro-no-cause` already fairly tests its marginal discipline (reproduce-first, decline
+  false certainty, anchor to env / shared-state heuristics) — and it is tautological. A bare
+  model imposes that debugging method unaided; its single-turn *advice* is base competence (any
+  execution-discipline value is multi-turn, unmeasurable here). → **CUT candidate.**
+- **security-ibex — new harder probe, decisively tautological.** Built a fair probe where every
+  loud surface is correct (parameterized SQL, bcrypt, CSPRNG single-use token) and the only HIGH
+  vuln is a SUBTLE host-header injection (poisoned reset link → account takeover). Skill removed,
+  the bare model scored **1.00 on 4/4 runs** — class, exploit, and fix. Two distinct angles
+  (idor + host-header) now both show the bare model at 1.00. → **CUT candidate.**
+
+**Generalizing lesson (→ skill-eval-playbook L-11): teeth come from RESTRAINT or TOOL-COUPLING,
+not domain knowledge.** A skill encoding knowledge/method heavily represented in training is
+tautological — the base model already has it. Teeth appear only where the skill makes the model
+act AGAINST its instinct, or where its value is tool/process-coupled.
+
+**Refined roster:**
+
+| Bucket | Skills | Action |
+|---|---|---|
+| KEEP — teeth (restraint/judgment) | refactoring-yak, planning-crane, prompt-hamsa | keep |
+| KEEP — teeth (tool-coupled) | codescout-pika | keep |
+| KEEP — isolation-blind (tool/process-coupled) | reconnaissance, legibility-dzo | keep; eval live, not headless |
+| **CUT candidate** — knowledge = base competence (confirmed) | **debugging-yeti, security-ibex** | propose cut |
+| Probe-worthy — restraint/judgment angle untested | architecture-snow-lion (resist over-engineering), testing-snow-leopard (reject weak/call-count tests) | one more probe each |
+| Likely tautological — pure knowledge (accept) | ml-training-takin, docs-lotus-frog, data-leakage (llm lens) | accept as base competence |
+
+Cutting is the user's call — these are recommendations. Probe evidence: prompt-engineering
+`skill-eval-log.md` § Buddy benchmark; probe scenario at `/tmp/ibex-probe` (local, not committed).
