@@ -421,3 +421,30 @@ measurable single-turn advice delta over a modern base model. "Tautological" = n
 single-turn power — a skill may still be kept for voice/consistency, but it is not earning power.
 Cutting is the user's call. Per L-11, the 3 predicted-tautological skills should be *measured*, not
 cut on prediction, before action.
+
+### Empirical roster COMPLETE — all 14 skills measured (2026-06-19)
+
+Measured the 3 predicted-tautological skills 5×5 (per L-11: don't cut on prediction). All
+confirmed: ml-training-takin/parity-mismatch ablate **1.00×5**; docs-lotus-frog/structure-feature-doc
+ablate **0.8–0.95** (all > 0.7); data-leakage llm-lens ablate **0.95–1.00**. The bare model
+prescribes the parity protocol, the named-reader/stale-when doc discipline, and the LLM-eval
+contamination audit unaided. Predictions held (this time) — but the restraint prediction had failed
+with the same confidence, so measuring was the right call regardless.
+
+**No "predicted/unmeasured" bucket remains. Final measured roster:**
+
+| Verdict | Skills | Count |
+|---|---|---|
+| **KEEP — teeth** (single-turn power, replicated) | refactoring-yak, planning-crane, prompt-hamsa, codescout-pika | 4 |
+| **KEEP — conditional** | data-leakage-snow-pheasant (classic lens 3/5 RED; llm lens taut) | 1 |
+| **KEEP — isolation-blind** (tool/process-coupled; evaluate live, not headless) | reconnaissance, legibility-dzo | 2 |
+| **CUT candidate — base competence** (bare model ≈ ablate, replicated 5×) | security-ibex, debugging-yeti, architecture-snow-lion, testing-snow-leopard, ml-training-takin, docs-lotus-frog | 6 |
+| **Present-FAIL — not promptable** (L-10) | performance-lammergeier | 1 |
+
+**Bottom line:** of 14 buddy skills, **4 earn their keep by single-turn measurement**, **1 is
+conditional**, **2 are real but the headless harness can't see them**, **6 are base competence** a
+modern model does unaided, and **1 is a not-promptable present-FAIL**. "CUT candidate" = no
+measurable single-turn power — a skill may still be kept for voice/consistency, but on the merits the
+eval can see, it is not earning its per-summon context cost. Cutting is the user's call. Method notes:
+L-9 (optimize is gated on a stable metric), L-10 (some behaviors aren't promptable), L-11 (you cannot
+predict marginal value from a skill's category — measure).
