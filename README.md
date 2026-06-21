@@ -21,6 +21,7 @@ These plugins reflect specific workflows and tool choices -- they may not suit e
 | **[codescout-companion](./codescout-companion/)** | 1.11.15 | Companion plugin for [codescout](https://github.com/mareurs/codescout) MCP server: injects tool guidance, redirects Read/Grep/Glob/Edit/Write to symbol-aware tools, auto-reindex + drift warnings, worktree shared-asset symlinking |
 | **[claude-statusline](./claude-statusline/)** | 1.1.5 | Rich, color-coded terminal status line: model, context %, rate limits, git info, cost, duration. Self-heals orphan `statusLine` settings when sibling plugins are uninstalled. |
 | **[buddy](./buddy/)** | 0.7.27 | Himalayan-aesthetic bodhisattva companion: 12 specialist masters on demand, AI judge, focus tracking, statusline integration |
+| **[pi companion](./pi/)** | 0.1.0 | Companion for [pi](https://github.com/earendil-works/pi-mono): skill-load tracker, recon badge, MCP status widget; wires all CC skills into pi |
 | **[session-bridge](./session-bridge/)** | 0.1.0 | Cross-session MCP bridge: ask one Claude Code session a question from another, answered in its loaded context. Rust MCP server, bash SessionStart/Stop hooks. |
 ## Requirements
 
@@ -37,7 +38,21 @@ These plugins reflect specific workflows and tool choices -- they may not suit e
 
 ## Pi
 
-For [pi](https://github.com/earendil-works/pi-mono) users, see [pi/](./pi/) — installs the companion extension and wires up all CC skill directories into pi with a single `./install.sh`.
+For [pi](https://github.com/earendil-works/pi-mono) users, this repo ships a companion extension in [`pi/`](./pi/).
+
+```bash
+git clone https://github.com/mareurs/claude-plugins
+cd claude-plugins/pi
+./install.sh
+# follow printed mcp.json instructions, then /reload in pi
+```
+
+What you get:
+- Widget below the editor: `cs: reconnaissance  [recon F2/W1]`, `skills: debugging-yeti, pdf …`, `MCP: 2/2  codescout ●  researcher ●`
+- All CC skill directories (`codescout-companion/skills`, `buddy/skills`, `sdd/skills`) wired into pi — no duplication
+- Research skills (`/research-web`, `/research-subagent`) ready to use with the researcher MCP server
+
+See [pi/README.md](./pi/) for details.
 
 ## Plugins
 
@@ -66,6 +81,16 @@ Companion plugin for [codescout](https://github.com/mareurs/codescout) MCP serve
 - **ce-activate-project** -- PostToolUse: clears write-guard marker after activate_project fires
 
 See [codescout-companion/README.md](./codescout-companion/) for details and configuration.
+
+### Pi companion
+
+Companion for [pi](https://github.com/earendil-works/pi-mono). Installs a TypeScript extension that tracks skill loads, shows a recon badge, and displays MCP server status in a widget below the editor. Wires all CC skill directories (`codescout-companion/skills`, `buddy/skills`, `sdd/skills`) into pi — no content duplication.
+
+**Extension:** `codescout-companion.ts` — skill-load tracker, recon badge (reads `.buddy/<sid>/` marker files), MCP status from `pi.getAllTools()`
+
+**Skills wired into pi:** reconnaissance, explore-project, 12 buddy specialists, sdd-flow, researcher-mcp, research-web, research-subagent
+
+See [pi/README.md](./pi/) for install instructions.
 
 ## Team Setup
 
