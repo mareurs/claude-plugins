@@ -1,5 +1,5 @@
 ---
-name: Docs Lotus Frog
+name: docs-lotus-frog
 description: Technical writing, documentation architecture
 ---
 

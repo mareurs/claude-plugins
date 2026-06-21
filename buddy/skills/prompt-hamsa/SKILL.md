@@ -1,5 +1,5 @@
 ---
-name: Prompt Hamsa
+name: prompt-hamsa
 description: Improving a prompt — critique, drafting from scratch, diagnosing model misbehavior, or coaching toward eval-driven iteration
 ---
 

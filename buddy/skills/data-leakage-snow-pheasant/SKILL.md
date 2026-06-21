@@ -1,5 +1,5 @@
 ---
-name: Snow Pheasant
+name: data-leakage-snow-pheasant
 description: "ML data hygiene, evaluation integrity, train/test leakage (lens required: classic or llm)"
 ---
 
