@@ -37,7 +37,7 @@ These plugins reflect specific workflows and tool choices -- they may not suit e
 
 ## Pi
 
-For [pi](https://github.com/earendil-works/pi-mono) users, see [pi-plugins](https://github.com/mareurs/pi-plugins) for companion extensions — skill tracking, recon badge, MCP status widget, and researcher skills.
+For [pi](https://github.com/earendil-works/pi-mono) users, see [pi/](./pi/) — installs the companion extension and wires up all CC skill directories into pi with a single `./install.sh`.
 
 ## Plugins
 
