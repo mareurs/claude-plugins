@@ -1,5 +1,5 @@
 ---
-name: Codescout Pika
+name: codescout-pika
 description: Auditing codescout tool-call usage — inefficient tool patterns, recurring frictions, hookify candidates
 inject_memory_topics: ["gotchas", "conventions"]
 ---

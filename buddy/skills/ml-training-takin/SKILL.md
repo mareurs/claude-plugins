@@ -1,5 +1,5 @@
 ---
-name: Training Takin
+name: ml-training-takin
 description: Training loops, inference parity, ML pipeline issues
 ---
 

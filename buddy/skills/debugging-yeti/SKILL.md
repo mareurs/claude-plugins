@@ -1,5 +1,5 @@
 ---
-name: Debugging Yeti
+name: debugging-yeti
 description: Bug resists surface fixes, flaky tests, failure doesn't match symptom
 ---
 

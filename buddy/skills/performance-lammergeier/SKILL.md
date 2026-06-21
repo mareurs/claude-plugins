@@ -1,5 +1,5 @@
 ---
-name: Performance Lammergeier
+name: performance-lammergeier
 description: Profiling, latency, throughput, optimization
 ---
 

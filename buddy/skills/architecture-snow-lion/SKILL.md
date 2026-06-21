@@ -1,5 +1,5 @@
 ---
-name: Architecture Snow Lion
+name: architecture-snow-lion
 description: System boundaries, module design, interface decisions
 ---
 
