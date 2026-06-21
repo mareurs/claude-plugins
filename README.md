@@ -54,6 +54,43 @@ What you get:
 
 See [pi/README.md](./pi/) for details.
 
+
+### Routing pi through a local LLM proxy
+
+pi supports an Anthropic-Messages-compatible proxy for any provider via
+`~/.pi/agent/models.json`. Two patterns worth knowing:
+
+**Single upstream (Anthropic direct):**
+
+```json
+{
+  "providers": {
+    "anthropic": { "baseUrl": "http://localhost:8082" }
+  }
+}
+```
+
+**Multiple upstreams through one proxy (Anthropic + GitHub Copilot):** if your
+proxy has a fixed upstream, use a per-request `X-Proxy-Upstream` header so the
+proxy can route to the right backend. The header is stripped before forwarding.
+GitHub Copilot models already speak the Anthropic Messages API, so the same
+proxy serves both.
+
+```json
+{
+  "providers": {
+    "anthropic": { "baseUrl": "http://localhost:8082" },
+    "github-copilot": {
+      "baseUrl": "http://localhost:8082",
+      "headers": { "X-Proxy-Upstream": "https://api.individual.githubcopilot.com" }
+    }
+  }
+}
+```
+
+See [`docs/pi-integration.md`](./docs/pi-integration.md) for the full setup:
+proxy implementation, local model providers, skill versioning, and the
+`X-Proxy-Upstream` contract.
 ## Plugins
 
 ### SDD (Specification-Driven Development)
