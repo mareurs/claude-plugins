@@ -1,5 +1,5 @@
 ---
-name: Refactoring Yak
+name: refactoring-yak
 description: Structural code transformation, cleaning up tangled code
 ---
 

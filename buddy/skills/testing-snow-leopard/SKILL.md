@@ -1,5 +1,5 @@
 ---
-name: Testing Snow Leopard
+name: testing-snow-leopard
 description: Designing test suites, coverage gaps, flaky tests, asserting correctness
 ---
 

@@ -1,5 +1,5 @@
 ---
-name: Security Ibex
+name: security-ibex
 description: Security review, threat modeling, vulnerability analysis
 ---
 
