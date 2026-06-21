@@ -34,6 +34,11 @@ These plugins reflect specific workflows and tool choices -- they may not suit e
 | **sdd** | None (core workflow). [Serena MCP](https://github.com/oraios/serena) for `/drift` and `/document`. |
 | **codescout-companion** | [codescout MCP](https://github.com/mareurs/codescout) server configured in `.mcp.json` or globally. |
 
+
+## Pi
+
+For [pi](https://github.com/earendil-works/pi-mono) users, see [pi-plugins](https://github.com/mareurs/pi-plugins) for companion extensions — skill tracking, recon badge, MCP status widget, and researcher skills.
+
 ## Plugins
 
 ### SDD (Specification-Driven Development)
