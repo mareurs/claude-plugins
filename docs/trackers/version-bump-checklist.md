@@ -17,24 +17,38 @@ Release readiness across plugins × profiles. See
 
 ## State
 
-_Last refresh: `ade79d5`_
+_Last refresh: `7088820`_
 
-**codescout-companion** — canonical `1.11.15` · readme `1.11.15` · marketplace clean ✅
-
-| profile | installed | cache dir | install_path ok |
-|---|---|---|---|
-| `~/.claude` | 1.11.15 ✅ | ✅ | ✅ |
-| `~/.claude-sdd` | 1.11.15 ✅ | ✅ | ✅ |
-| `~/.claude-kat` | 1.11.15 ✅ | ✅ | ✅ |
-
-**buddy** — canonical `0.7.27` · readme `0.7.27` · marketplace clean ✅
+**codescout-companion** — canonical `1.11.16` · readme `1.11.16` · marketplace clean ✅
 
 | profile | installed | cache dir | install_path ok |
 |---|---|---|---|
-| `~/.claude` | 0.7.27 ✅ | ✅ | ✅ |
-| `~/.claude-sdd` | 0.7.27 ✅ | ✅ | ✅ |
-| `~/.claude-kat` | 0.7.27 ✅ | ✅ | ✅ |
+| `~/.claude` | 1.11.16 ✅ | ✅ | ✅ |
+| `~/.claude-sdd` | 1.11.16 ✅ | ✅ | ✅ |
+| `~/.claude-kat` | 1.11.16 ✅ | ✅ | ✅ |
+
+**buddy** — canonical `0.7.31` · readme `0.7.31` · marketplace clean ✅
+
+| profile | installed | cache dir | install_path ok |
+|---|---|---|---|
+| `~/.claude` | 0.7.31 ✅ | ✅ | ✅ |
+| `~/.claude-sdd` | 0.7.31 ✅ | ✅ | ✅ |
+| `~/.claude-kat` | 0.7.31 ✅ | ✅ | ✅ |
 ## History
+
+### 2026-06-23 — codescout-companion 1.11.15 → 1.11.16, buddy 0.7.27 → 0.7.31
+
+codescout-companion: `session-start.sh` bootstrap activate nudge now fires on
+`source=startup` only (was every non-compact SessionStart — a resume re-attach
+reuses the per-process active project) — patch. buddy: ships the lowercase
+skill-name Agent-Skills-spec migration plus a `resolve_label` fix that humanizes
+kebab names for the statusline label (`debugging-yeti` → `Debugging Yeti`),
+restoring 4 statusline tests. buddy bumped 0.7.27 → **0.7.31**, deliberately
+skipping 0.7.28–0.7.30 to avoid colliding with the excluded Windows track
+(`fix/copilot-cli-command-name-load`, which already used those numbers). Cache
+seeded + install records repointed across all three profiles; sanity loop all ✅.
+`run-all.sh` green; buddy pytest 457. Pushed to origin/main (`7088820`). Cold
+restart pending to bind the new caches.
 
 ### 2026-06-17 — buddy 0.7.26 → 0.7.27, codescout-companion 1.11.14 → 1.11.15
 
