@@ -206,7 +206,12 @@ else
   fail "Bash dedup: first call gets full reason" "$OUT1"
 fi
 
-# Test 18: parallel dedup — second call within window gets short reason
+# Test 18: parallel dedup — second call within window gets short reason.
+# Assert the precondition (dedup file present) deterministically rather than relying
+# on Test 17's file surviving: the hook cleans the dedup file via a detached
+# `( sleep 3; rm )`, so a stale removal from an earlier same-key call can fire
+# mid-window and flake this assertion under load / suite-timing shifts.
+: > "/tmp/cs-block-$BASH_DEDUP_KEY"
 OUT2=$(guard_input "Bash" '"command":"cat bar.rs"' | bash "$HOOK" 2>/dev/null)
 if assert_denied "$OUT2" && assert_reason_contains "$OUT2" "see previous message"; then
   pass "Bash dedup: second call gets short reason"
