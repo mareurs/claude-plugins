@@ -60,7 +60,10 @@ def resolve_label(
     if skill is not None:
         name = _parse_frontmatter_name(skill)
         if name:
-            return name
+            # Agent Skills spec names are lowercase-hyphenated identifiers; humanize
+            # them for the statusline label ("debugging-yeti" → "Debugging Yeti").
+            # A legacy Title-cased name is already display-ready — keep it as-is.
+            return _humanize(name) if name == name.lower() else name
     return _humanize(directory)
 
 
