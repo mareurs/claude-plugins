@@ -46,6 +46,15 @@ else
   pass "compact → bootstrap suppressed"
 fi
 
+# Resume must NOT re-inject the nudge (startup-only): a same-process re-attach
+# reuses the already-active project; a real resume re-runs activate at most lazily.
+RESUME=$(ctx resume)
+if echo "$RESUME" | grep -q "PROJECT BOOTSTRAP"; then
+  fail "bootstrap nudge should be suppressed on resume (startup-only)"
+else
+  pass "resume → bootstrap suppressed"
+fi
+
 # Append-not-reset guard: a non-onboarded temp project emits the onboarding
 # nudge too. Both must coexist — if the onboarding block reset MSG (the old
 # bug), the prepended bootstrap line would vanish.

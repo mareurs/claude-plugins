@@ -57,10 +57,12 @@ MSG=""
 # A SessionStart shell hook cannot call an MCP tool, so we ask the agent to
 # activate the project itself. activate_project (workspace action="activate")
 # prewarms LSP, auto-registers cross-project deps, and returns project_hints —
-# the orientation a fresh session needs to bootstrap. Skipped in worktrees (the
-# WORKTREE block below carries its own activate nudge to WT_ROOT) and on compact
-# (the post-compact block already routes a workspace call).
-if [ "$IN_WORKTREE" = "false" ] && [ "$SOURCE" != "compact" ] && [ -n "$CWD" ]; then
+# the orientation a fresh session needs to bootstrap. Fires on startup ONLY:
+# a resume re-attach reuses the already-active project (codescout is a per-process
+# stdio server), so re-nudging on resume only re-injects the directive — no new
+# activation is needed. Skipped in worktrees (the WORKTREE block below carries its
+# own activate nudge to WT_ROOT) and on compact (the post-compact block owns its flush).
+if [ "$IN_WORKTREE" = "false" ] && [ "$SOURCE" = "startup" ] && [ -n "$CWD" ]; then
   MSG="${MSG}PROJECT BOOTSTRAP: As your FIRST codescout action, call
 workspace(action=\"activate\", path=\"${CWD}\") (the activate_project tool) to
 bootstrap this project — it prewarms LSP, auto-registers dependencies, and
