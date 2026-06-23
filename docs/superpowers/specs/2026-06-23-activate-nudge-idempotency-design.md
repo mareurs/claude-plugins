@@ -60,12 +60,46 @@ third assertion: **`resume → nudge suppressed`** (`ctx resume` must not contai
 ## Fix #2 — workspace-gate relax (codescout repo; DRAFT only here)
 
 This is the driver that actually reduces activate-*call* count, but the text lives in the
-**codescout** repo (server instructions / `workspace-state` guide), not this plugin. Draft
-direction: reword the gate so foreign reads prefer per-call `workspace=<abs path>` pinning
-over `activate(foreign)` + `activate(home)` round-trips; reserve the home re-activate for the
-case where a foreign `activate` actually happened. Concrete wording to be drafted against the
-codescout source and handed off as a separate change — **not** committed in this repo's PR.
+**codescout** repo — `src/prompts/source.md`, the `## Workspace gate` section (an
+`include_str!`'d `server_instructions` surface). **Not committed in this repo's PR.**
 
+**Current wording** (`src/prompts/source.md` § Workspace gate):
+
+```
+After workspace(activate, path=foreign), call workspace(activate, path=home)
+before finishing the turn. Foreign-project state otherwise leaks.
+
+Parallel subagents on DIFFERENT workspaces: pin each call with
+workspace=<abs path>, don't activate. Full rules: get_guide("workspace-state").
+```
+
+The lead sentence makes `activate(foreign)` the default mental model and pinning the
+exception — so single-agent cross-repo reads do `activate(foreign)` + `activate(home)` per
+excursion (10× home re-activates in the observed Jun-13 session).
+
+**Drafted relaxed wording** (promote pinning to the default; reserve activate for genuine
+switches):
+
+```
+For a foreign repo, prefer per-call pinning: pass workspace=<abs path> — it touches
+the other project without moving the shared active state, so there is nothing to
+restore. Default for single-agent cross-repo reads AND parallel subagents.
+
+Only workspace(activate, path=foreign) when you must switch the active project for
+sustained work; then workspace(activate, path=home) before finishing, or foreign
+state leaks. Full rules: get_guide("workspace-state").
+```
+
+**Caveats for whoever applies it (codescout side):**
+- `source.md` backs `include_str!` constants — after editing, run the prompt-surface
+  invariants: `prompt_surfaces_reference_only_real_tools` (no backticked snake_case
+  non-tool tokens) and the **size-cap** test. The `## Workspace gate` section has
+  previously over-run its cap (issue `2026-05-31-prompt-slice-over-cap-concurrent-commit`),
+  so keep the new text ≤ the current length; the draft above is ~6 lines vs the current ~5
+  — trim further if the cap test fails.
+- `get_guide("workspace-state")` (the full rules) should get the same emphasis shift.
+- No `ONBOARDING_VERSION` bump needed (server_instructions-surface-only change, per the
+  prior pinning work's note).
 ## Non-goals
 
 - No change to codescout in this repo / this PR (only a draft for #2).
