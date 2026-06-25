@@ -104,7 +104,7 @@ _maybe_refresh_cache() {
   fi
 
   cache_age=$(( now - fetched_at ))
-  (( cache_age < 3600 )) && return   # Fresh — no refresh needed
+  (( cache_age < 300 )) && return   # Fresh (<5m) — no refresh needed
   (( now <= retry_after )) && return  # 429-blocked — honour retry_after
 
   # Acquire lock — skip if another render is mid-fetch (lock < 30s old)
@@ -140,7 +140,8 @@ _merge_cache() {
     .[0] + {
       rate_limits: {
         five_hour: (.[1].five_hour | adapt),
-        seven_day: (.[1].seven_day | adapt)
+        seven_day: (.[1].seven_day | adapt),
+        seven_day_opus: (.[1].seven_day_opus | adapt)
       },
       rate_limits_stale: (.[1].stale // false)
     }

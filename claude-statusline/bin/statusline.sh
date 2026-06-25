@@ -24,12 +24,10 @@ jq_out="$(echo "$input" | jq -r '
   (.rate_limits.five_hour.resets_at // ""),
   (.rate_limits.seven_day.used_percentage // ""),
   (.rate_limits.seven_day.resets_at // ""),
-  (.cost.total_cost_usd // 0),
+  (.rate_limits.seven_day_opus.used_percentage // ""),
   (.cost.total_duration_ms // 0),
   (.cost.total_lines_added // 0),
   (.cost.total_lines_removed // 0),
-  (.context_window.current_usage.cache_creation_input_tokens // ""),
-  (.context_window.current_usage.cache_read_input_tokens // ""),
   (.agent.name // ""),
   ((try .workspace.git_worktree.name) // .workspace.git_worktree // ""),
   ((try .workspace.git_worktree.branch) // ""),
@@ -40,8 +38,8 @@ jq_out="$(echo "$input" | jq -r '
 
 readarray -t F <<< "$jq_out"
 
-# Bail if jq produced insufficient output (19 fields: 18 data + sentinel)
-[[ ${#F[@]} -ge 19 ]] || exit 0
+# Bail if jq produced insufficient output (17 fields: 16 data + sentinel)
+[[ ${#F[@]} -ge 17 ]] || exit 0
 
 MODEL="${F[0]}"
 CTX_PCT="${F[1]}"
@@ -50,17 +48,15 @@ RATE_5H="${F[3]}"
 RATE_5H_RESET="${F[4]}"
 RATE_7D="${F[5]}"
 RATE_7D_RESET="${F[6]}"
-COST_USD="${F[7]}"
+RATE_7DO="${F[7]}"
 DURATION_MS="${F[8]}"
 LINES_ADD="${F[9]}"
 LINES_DEL="${F[10]}"
-CACHE_CREATE="${F[11]}"
-CACHE_READ="${F[12]}"
-AGENT_NAME="${F[13]}"
-WT_NAME="${F[14]}"
-WT_BRANCH="${F[15]}"
-RATE_STALE="${F[16]}"
-SESSION_ID="${F[17]}"
+AGENT_NAME="${F[11]}"
+WT_NAME="${F[12]}"
+WT_BRANCH="${F[13]}"
+RATE_STALE="${F[14]}"
+SESSION_ID="${F[15]}"
 
 # -- ANSI codes --
 RST='\033[0m'
@@ -197,6 +193,12 @@ if [[ -n "$RATE_7D" ]]; then
     rate_seg+="${DIM}(${r7_remain})${RST}"
   fi
 fi
+# Opus weekly limit — only present on plans whose /api/oauth/usage reports it
+if [[ -n "$RATE_7DO" ]]; then
+  ro_int=$(int_pct "$RATE_7DO")
+  c=$(color_pct "$ro_int")
+  rate_seg+="${DIM}/${RST}${DIM}7dO${RST} ${stale_pfx}${c}${ro_int}%${RST}"
+fi
 if [[ -n "$rate_seg" ]]; then
   out+="${SEP}${rate_seg}"
 fi
@@ -247,20 +249,12 @@ out+="${SEP}${GREEN}+${LINES_ADD}${RST} ${RED}-${LINES_DEL}${RST}"
 # Right side
 right=""
 
-# Cache stats
-if [[ -n "$CACHE_CREATE" || -n "$CACHE_READ" ]]; then
-  c_create=$(format_k "${CACHE_CREATE:-0}")
-  c_read=$(format_k "${CACHE_READ:-0}")
-  right+="${DIM}cache${RST} ${GREEN}${c_create}${RST}${DIM}/${RST}${BLUE}${c_read}${RST}"
-  right+="${SEP}"
-fi
-
-# Cost (always 2 decimal places)
-right+="${DIM}\$${RST}${WHITE}$(printf '%.2f' "$COST_USD")${RST}"
+# Cache stats and $ cost removed: cache tokens are noise, and $ cost is a
+# meaningless API-equivalent estimate on a subscription.
 
 # Duration
 dur=$(format_duration "$DURATION_MS")
-right+="${SEP}${DIM}${dur}${RST}"
+right+="${DIM}${dur}${RST}"
 
 # Profile badge — derive from CLAUDE_CONFIG_DIR so multi-instance setups
 # (~/.claude / ~/.claude-sdd / ~/.claude-kat) show which instance rendered.

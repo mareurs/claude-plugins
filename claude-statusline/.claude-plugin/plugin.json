@@ -1,6 +1,6 @@
 {
   "name": "claude-statusline",
-  "description": "Rich, color-coded terminal status line showing model, context %, rate limits, git info, cost, and more.",
+  "description": "Rich, color-coded terminal status line showing model, context %, rate limits (incl. Opus weekly), git info, and more.",
   "version": "1.1.5",
   "author": { "name": "Marius" },
   "license": "MIT",
