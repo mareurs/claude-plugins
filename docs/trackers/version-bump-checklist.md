@@ -17,7 +17,7 @@ Release readiness across plugins × profiles. See
 
 ## State
 
-_Last refresh: `7088820`_
+_Last refresh: `f00d89f`_
 
 **codescout-companion** — canonical `1.11.16` · readme `1.11.16` · marketplace clean ✅
 
@@ -27,14 +27,35 @@ _Last refresh: `7088820`_
 | `~/.claude-sdd` | 1.11.16 ✅ | ✅ | ✅ |
 | `~/.claude-kat` | 1.11.16 ✅ | ✅ | ✅ |
 
-**buddy** — canonical `0.7.31` · readme `0.7.31` · marketplace clean ✅
+**buddy** — canonical `0.7.32` · readme `0.7.32` · marketplace clean ✅
 
 | profile | installed | cache dir | install_path ok |
 |---|---|---|---|
-| `~/.claude` | 0.7.31 ✅ | ✅ | ✅ |
-| `~/.claude-sdd` | 0.7.31 ✅ | ✅ | ✅ |
-| `~/.claude-kat` | 0.7.31 ✅ | ✅ | ✅ |
+| `~/.claude` | 0.7.32 ✅ | ✅ | ✅ |
+| `~/.claude-sdd` | 0.7.32 ✅ | ✅ | ✅ |
+| `~/.claude-kat` | 0.7.32 ✅ | ✅ | ✅ |
+
+**claude-statusline** — canonical `1.1.6` · readme `1.1.6` · marketplace clean ✅
+
+| profile | installed | cache dir | install_path ok |
+|---|---|---|---|
+| `~/.claude` | 1.1.6 ✅ | ✅ | ✅ |
+| `~/.claude-sdd` | 1.1.6 ✅ | ✅ | ✅ |
+| `~/.claude-kat` | 1.1.6 ✅ | ✅ | ✅ |
 ## History
+
+### 2026-06-25 — buddy 0.7.31 → 0.7.32, claude-statusline 1.1.5 → 1.1.6 (newly tracked)
+
+Statusline rate-limit polling + content. buddy: `/api/oauth/usage` cache refresh
+cadence cut 1h → 5m — the endpoint is healthy and tolerates ~5 rapid requests
+before returning `retry-after: 300`; `_merge_cache` now forwards `seven_day_opus`.
+claude-statusline: renders a conditional `7dO` (Opus weekly) segment beside `7d`,
+and drops the cache-token and `$cost` segments (`$cost` is a meaningless
+API-equivalent estimate on a subscription). claude-statusline added to this
+tracker for the first time. Cache seeded + install records repointed across all
+three profiles; sanity loop all ✅. `run-all.sh` green; buddy pytest 457. Pushed
+to origin/main (buddy `b5d8ca0`, claude-statusline `f00d89f`). Cold restart
+pending to bind the new caches.
 
 ### 2026-06-23 — codescout-companion 1.11.15 → 1.11.16, buddy 0.7.27 → 0.7.31
 
