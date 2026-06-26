@@ -17,7 +17,7 @@ Release readiness across plugins × profiles. See
 
 ## State
 
-_Last refresh: `5f81197`_
+_Last refresh: `d79a295`_
 
 **codescout-companion** — canonical `1.11.16` · readme `1.11.16` · marketplace clean ✅
 
@@ -27,13 +27,13 @@ _Last refresh: `5f81197`_
 | `~/.claude-sdd` | 1.11.16 ✅ | ✅ | ✅ |
 | `~/.claude-kat` | 1.11.16 ✅ | ✅ | ✅ |
 
-**buddy** — canonical `0.7.33` · readme `0.7.33` · marketplace clean ✅
+**buddy** — canonical `0.7.34` · readme `0.7.34` · marketplace clean ✅
 
 | profile | installed | cache dir | install_path ok |
 |---|---|---|---|
-| `~/.claude` | 0.7.33 ✅ | ✅ | ✅ |
-| `~/.claude-sdd` | 0.7.33 ✅ | ✅ | ✅ |
-| `~/.claude-kat` | 0.7.33 ✅ | ✅ | ✅ |
+| `~/.claude` | 0.7.34 ✅ | ✅ | ✅ |
+| `~/.claude-sdd` | 0.7.34 ✅ | ✅ | ✅ |
+| `~/.claude-kat` | 0.7.34 ✅ | ✅ | ✅ |
 
 **claude-statusline** — canonical `1.1.6` · readme `1.1.6` · marketplace clean ✅
 
@@ -43,6 +43,9 @@ _Last refresh: `5f81197`_
 | `~/.claude-sdd` | 1.1.6 ✅ | ✅ | ✅ |
 | `~/.claude-kat` | 1.1.6 ✅ | ✅ | ✅ |
 ## History
+### 2026-06-26 — buddy 0.7.33 → 0.7.34
+
+Shipped the `find_skill_md` flat-repo sibling-scope fallback (commit `dca9e35`, release `d79a295`): cross-plugin specialists like `reconnaissance` (shipped by codescout-companion, not buddy) now resolve when the hook runs from the source tree, not only the cache layout. Delta: buddy canonical / readme / installed `0.7.33 → 0.7.34` across all three profiles; cache dirs seeded, install paths same-profile. All rows ✅.
 ### 2026-06-26 — buddy 0.7.32 → 0.7.33
 
 buddy: specialists are no longer auto-reloaded on SessionStart. They're persona
