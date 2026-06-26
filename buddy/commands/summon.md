@@ -140,8 +140,11 @@ python3 "${CLAUDE_PLUGIN_ROOT}/scripts/track_specialist.py" status <directory>
 
 - **Exit 0 → already active in this session.** Skip the rest of Step 2,
   Step 2.5 (memories), and Step 2.6 (gates) — they were injected on the
-  prior summon and survive `/compact` and resume via the SessionStart reload
-  block. Emit a short refresh line and jump to Step 3:
+  prior summon and persist across **resume** (CC restores the full transcript,
+  so they're still in context). On `/compact` they are **released** — the
+  SessionStart hook clears `active_specialists` and emits a dismissal notice — so
+  after a compaction this check exits non-zero and you do the full load below.
+  Emit a short refresh line and jump to Step 3:
 
   > *The <Label> is already with you — voice, principles, and memories are in scope. Continuing.*
 

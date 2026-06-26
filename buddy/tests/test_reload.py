@@ -302,3 +302,22 @@ def test_render_reload_block_strips_frontmatter(tmp_path):
     )
     assert "# The Foo" in block
     assert "name: Foo" not in block
+
+
+def test_render_dismissal_notice_lists_names_and_instruction():
+    from scripts.reload import render_dismissal_notice
+    notice = render_dismissal_notice(
+        ["debugging-yeti", "prompt-hamsa"],
+        new_sid="new", prev_sid="prev", source="compact",
+    )
+    assert "buddy:dismissed-on-compact" in notice
+    assert "debugging-yeti" in notice
+    assert "prompt-hamsa" in notice
+    assert "/buddy:summon" in notice
+    # Release, don't re-inject: no SKILL.md bodies, no reload marker.
+    assert "buddy:reloaded" not in notice
+
+
+def test_render_dismissal_notice_empty_returns_empty():
+    from scripts.reload import render_dismissal_notice
+    assert render_dismissal_notice([], new_sid="n", prev_sid="p", source="compact") == ""

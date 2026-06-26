@@ -85,8 +85,9 @@ echo "$LEAK_OUT" | grep -q "consider /buddy:consolidate prompt-hamsa" \
   && pass "hook uses event.cwd over inherited CLAUDE_PROJECT_DIR" \
   || fail "hook leaked CLAUDE_PROJECT_DIR — output: $LEAK_OUT"
 
-# Reload test: resume from a prev session with active specialists must emit
-# reload block + carry-forward active_specialists.
+# Resume test: specialists are already in the restored transcript, so resume
+# must NOT re-emit them (no reload/dismissal block) — but active_specialists
+# carries forward so the statusline stays correct.
 RELOAD_WORK=$(mktemp -d); trap 'rm -rf "$RELOAD_WORK"' EXIT
 PREV_SID="prev-sid-reload"
 NEW_SID="new-sid-reload"
@@ -119,13 +120,11 @@ echo "$PREV_SID" > "$RELOAD_WORK/.buddy/.current_session_id"
 RELOAD_EVENT='{"session_id":"'"$NEW_SID"'","cwd":"'"$RELOAD_WORK"'","source":"resume","timestamp":1700004000}'
 RELOAD_OUT=$(echo "$RELOAD_EVENT" | CLAUDE_PLUGIN_ROOT="$PLUGIN_ROOT" bash "$HOOK" 2>/dev/null || true)
 
-echo "$RELOAD_OUT" | grep -q "buddy:reloaded" \
-  && pass "reload block emitted on resume" \
-  || fail "reload block missing — output: $RELOAD_OUT"
-
-echo "$RELOAD_OUT" | grep -q "debugging-yeti" \
-  && pass "reload block includes specialist directory" \
-  || fail "reload block missing specialist directory — output: $RELOAD_OUT"
+if echo "$RELOAD_OUT" | grep -q "buddy:reloaded\|buddy:dismissed"; then
+  fail "resume must NOT emit a reload/dismissal block — output: $RELOAD_OUT"
+else
+  pass "resume emits no reload block (bodies already in transcript)"
+fi
 
 # Verify new session state carries forward
 NEW_ACTIVE=$(jq -r '.active_specialists[0] // ""' "$RELOAD_WORK/.buddy/$NEW_SID/state.json" 2>/dev/null)
@@ -137,6 +136,33 @@ NEW_PARENT=$(jq -r '.parent_sid // ""' "$RELOAD_WORK/.buddy/$NEW_SID/state.json"
 [ "$NEW_PARENT" = "$PREV_SID" ] \
   && pass "new session records parent_sid" \
   || fail "parent_sid not set — got: $NEW_PARENT"
+
+# ── Compact: history is summarized away → release the specialists. Emit a
+# dismissal notice (names, NO body) and clear active_specialists so they leave
+# the statusline. Reuses RELOAD_WORK's seeded prev state (debugging-yeti); no
+# .codescout here, so recon does not fire.
+COMPACT_SID="new-sid-compact"
+COMPACT_EVENT='{"session_id":"'"$COMPACT_SID"'","cwd":"'"$RELOAD_WORK"'","source":"compact","timestamp":1700004100}'
+COMPACT_OUT=$(echo "$COMPACT_EVENT" | CLAUDE_PLUGIN_ROOT="$PLUGIN_ROOT" bash "$HOOK" 2>/dev/null || true)
+
+echo "$COMPACT_OUT" | grep -q "buddy:dismissed-on-compact" \
+  && pass "compact emits dismissal notice" \
+  || fail "compact dismissal notice missing — output: $COMPACT_OUT"
+
+echo "$COMPACT_OUT" | grep -q "debugging-yeti" \
+  && pass "compact dismissal lists released specialist" \
+  || fail "compact dismissal missing specialist name — output: $COMPACT_OUT"
+
+if echo "$COMPACT_OUT" | grep -q "buddy:reloaded"; then
+  fail "compact must NOT re-inject specialist bodies — output: $COMPACT_OUT"
+else
+  pass "compact omits specialist bodies (no reload block)"
+fi
+
+COMPACT_ACTIVE=$(jq -r '.active_specialists | length' "$RELOAD_WORK/.buddy/$COMPACT_SID/state.json" 2>/dev/null)
+[ "$COMPACT_ACTIVE" = "0" ] \
+  && pass "compact clears active_specialists (statusline emptied)" \
+  || fail "compact did not clear active_specialists — got: $COMPACT_ACTIVE"
 
 # Startup must NOT emit reload block even if .current_session_id points at a prev
 STARTUP_WORK=$(mktemp -d); trap 'rm -rf "$STARTUP_WORK"' EXIT
@@ -168,17 +194,18 @@ echo "$SAMESID" > "$SAMESID_WORK/.buddy/.current_session_id"
 SAMESID_EVENT='{"session_id":"'"$SAMESID"'","cwd":"'"$SAMESID_WORK"'","source":"resume","timestamp":1700004000}'
 SAMESID_OUT=$(echo "$SAMESID_EVENT" | CLAUDE_PLUGIN_ROOT="$PLUGIN_ROOT" bash "$HOOK" 2>/dev/null || true)
 
-echo "$SAMESID_OUT" | grep -q "buddy:reloaded" \
-  && pass "same-SID resume: reload block emitted" \
-  || fail "same-SID resume: reload missing — output: $SAMESID_OUT"
-
-echo "$SAMESID_OUT" | grep -q "debugging-yeti" \
-  && pass "same-SID resume: specialist included" \
-  || fail "same-SID resume: specialist missing — output: $SAMESID_OUT"
+if echo "$SAMESID_OUT" | grep -q "buddy:reloaded\|buddy:dismissed"; then
+  fail "same-SID resume must NOT emit a reload/dismissal block — output: $SAMESID_OUT"
+else
+  pass "same-SID resume emits no reload block (bodies already in transcript)"
+fi
 
 rm -rf "$SAMESID_WORK"
 
-# ── Recon marker auto-includes reconnaissance in reload list ──
+# ── Recon is the sole auto-reload, and ONLY on compact: codescout present →
+# reconnaissance SKILL.md is re-injected (its body was summarized away).
+# Resume would NOT reload it (transcript intact); this case uses source=compact.
+# ──
 RECON_WORK=$(mktemp -d)
 RECON_SID="recon-marker-sid"
 mkdir -p "$RECON_WORK/.buddy/$RECON_SID"
@@ -206,7 +233,7 @@ cp -r "$PLUGIN_ROOT/scripts" "$FAKE_BUDDY_ROOT/scripts"
 cp -r "$PLUGIN_ROOT/hooks" "$FAKE_BUDDY_ROOT/hooks"
 cp -r "$PLUGIN_ROOT/skills" "$FAKE_BUDDY_ROOT/skills"
 
-RECON_EVENT='{"session_id":"'"$RECON_SID"'","cwd":"'"$RECON_WORK"'","source":"resume","timestamp":1700004000}'
+RECON_EVENT='{"session_id":"'"$RECON_SID"'","cwd":"'"$RECON_WORK"'","source":"compact","timestamp":1700004000}'
 # Run the COPIED hook so BASH_SOURCE + __file__.resolve() land in the fake cache.
 RECON_OUT=$(echo "$RECON_EVENT" | HOME="$RECON_WORK/_fake_claude/.." bash "$FAKE_BUDDY_ROOT/hooks/session-start.sh" 2>/dev/null || true)
 

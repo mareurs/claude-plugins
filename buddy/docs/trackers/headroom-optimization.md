@@ -30,7 +30,7 @@ This is a cross-repo initiative (llm-proxy + buddy plugin + the 3 CC profiles). 
 | skill_load reduction (18.7%/~27K tok) | **NEXT — big lever** | Skill-tool bodies persist full-text |
 | SessionStart superpowers inject (8.7K tok) | candidate | superpowers plugin SessionStart |
 | output_style reminder ×92 (4.5K tok) | candidate | user output-style setting |
-| Reload-payload slimming (53 KB) | backlog (subset of skill_load) | `buddy/scripts/reload.py` |
+| Reload payload: release-on-compact | **done, 2026-06-26** | `reload.py`, `hook_helpers.py` |
 
 ## Done — details
 
@@ -115,6 +115,66 @@ subagent histories are short — claudeMd+ctx 6.9K tok + subagentstart_inject (c
 5. **thinking signatures**: ~140K chars of opaque thinking-block signatures ride on the wire but
    are **not** context tokens (CC strips the reasoning text, keeps the signature). Wire cost, not
    headroom — ignore for window budgeting.
+## Cache & skill-retention constraint — researched 2026-06-23
+
+**Question:** does CC keep skill bodies all session, and would removing one mid-session break the
+prompt cache? **Both confirmed.** Researched via the `claude-api` skill (caching ground truth),
+a `claude-code-guide` agent (CC docs), and direct Langfuse measurement (breakpoint placement).
+
+### What's true
+
+1. **CC keeps each invoked skill's full `SKILL.md` for the entire session** (documented). It enters
+   the conversation as one message and is **not evicted** between turns; there is **no per-skill
+   unload** mechanism. (Confirmed empirically: in the long-session capture, the skill loaded at
+   message index 3 is still present at message 281.)
+2. **Removing prefix content mid-session triggers cascade-forward cache invalidation** (documented +
+   mechanics). Prompt cache is a byte-exact prefix match (render order `tools → system → messages`);
+   any change at message position N invalidates the **messages** cache from N forward. The next
+   request re-processes that span at `cache_creation` (~1.25× input) instead of `cache_read` (~0.1×)
+   — a one-time **~12.5× premium** on the re-cached tokens, plus a latency spike. tools+system cache
+   (earlier tiers) is untouched.
+3. **The earlier the skill, the worse.** CC's one message-tier breakpoint sits at the *last* turn
+   (idx 279 of 281); all skill bodies precede it. Measured invalidation if removed:
+
+   | skill at msg idx | message cache invalidated |
+   |---|---|
+   | 3 (first/earliest) | **~94%** |
+   | 63 / 84 / 90 | ~71% / ~66% / ~59% |
+   | 195 | ~29% |
+   | 264 (latest) | ~7% |
+
+4. **Auto-compaction already bounds skill bulk** (documented — the key fact). On summarize, CC
+   re-attaches the most recent invocation of each skill after the summary, keeping the **first
+   5 K tokens each, 25 K total** across all skills (oldest dropped first). Compaction is the
+   sanctioned, cache-aware eviction point; it pays the one-time cache cost by design to reclaim window.
+
+### Consequences for the roadmap
+
+- **Mid-session skill eviction is OFF THE TABLE** — unsafe (breaks cache for ~all of a long session
+  if the skill loaded early) and unsupported (no CC mechanism; transcript is append-only bar compaction).
+- **`skill_load` (P1) must be attacked at the source and at compaction, not live:**
+  - **reload.py (P1a) — RESOLVED 2026-06-23: not fighting CC's budget; it's buddy's own (necessary)
+    carry-forward, and it re-injects FULL bodies.** Buddy loads specialists by **native `Read` of
+    `skills/<dir>/SKILL.md`** (`summon.md` Step 2b), or by reading a hook-spilled composite payload
+    file (`summon_bootstrap.py` UserPromptSubmit fast path = SKILL.md + lens + memories + protocol +
+    gates) — **NOT the Skill tool.** So the body enters as ordinary tool-result content and CC's
+    native 5 K/25 K skill-carry-forward **never applies** to it; CC would lose it in a `/compact`
+    summary, which is exactly why `reload.py` exists. But `render_reload_block` (`reload.py:159`)
+    re-injects each specialist's **full** SKILL.md verbatim (frontmatter stripped, no cap) on every
+    SessionStart source∈{resume,compact} — so buddy specialists are *worse* for headroom than
+    Skill-tool skills (which CC would cap at 5 K each). **Fix:** make `reload.py` re-inject a compact
+    digest (≤~5 K: Voice + Operating Principles) and pull the full body on demand — mirror CC's
+    native cap. Clean win, no conflict. (Composite payload means buddy can't simply delegate to the
+    Skill tool — slim the reload, don't re-architect summon.)
+  - **Two distinct skill costs** — separate them: (a) skill **descriptions**, loaded at session start
+    for *all* available skills (baseline, always-on; trimmable via `skillOverrides: name-only|off` and
+    per-skill `disable-model-invocation: true`); (b) skill **bodies**, loaded only on invocation,
+    persist the session (the 18.7%/~27K-tok measured). My measurement is (b); the override knobs
+    attack (a). Both are real, no-code-cost levers worth testing.
+  - Leaner SKILL.md bodies for skills we own (buddy specialists, codescout-companion).
+- **Fixed-overhead levers (SessionStart superpowers inject, output-style reminder) are unaffected by
+  this** — they live in system/early-message, equally bound by the prefix rule, so they're
+  "cut at source / next session," never mid-session.
 ## Backlog — prioritized for a clean session
 
 Re-measure via Langfuse (`scratchpad/decompose.py`) before AND after any cut.
@@ -124,12 +184,19 @@ Re-measure via Langfuse (`scratchpad/decompose.py`) before AND after any cut.
 
 2. **Attack `skill_load` (P1, ~27K tok / 18.7%) — the big lever.** Every Skill-tool invocation
    injects its full `SKILL.md` as a user message that persists all session. Sub-levers:
-   a. **Reload payload** (`buddy/scripts/reload.py`, ~53 KB): replace full-SKILL.md re-injection
-      on compact/resume with a compact digest (Voice + Operating Principles), pull body on demand.
-      Guarded by `tests/test_reload.py`, `tests/test_hooks_session_start.sh`. (was P2)
-   b. **Audit which skills auto-load vs are invoked** — trim fat SKILL.md bodies we own (buddy
-      specialists, codescout-companion). Investigate whether CC retains skill bodies after use or
-      can evict them (harness question — verify, don't assume).
+   a. **Reload payload — DONE 2026-06-26 (release, not digest).** Specialists are no longer
+      auto-reloaded. `resume` is a no-op (bodies are already in the restored transcript — the old
+      reload was a duplication bug); `compact` clears `active_specialists` (drops them from the
+      statusline) and emits a `buddy:dismissed-on-compact` notice prompting manual re-summon.
+      Reconnaissance stays auto-reloaded on compact when codescout is present. Reclaims the full
+      ~53 KB per compact. Code: `hook_helpers.handle_session_start` + `reload.py:render_dismissal_notice`;
+      tests in `test_reload.py`, `test_hooks_session_start.sh`, `test_hook_helpers.py`.
+   b. **Trim at source — mid-session eviction is OFF THE TABLE** (resolved 2026-06-23: CC keeps
+      skill bodies all session, no eviction; removing one mid-session breaks the cache — see
+      "Cache & skill-retention constraint"). Real sub-levers: leaner SKILL.md bodies for skills we
+      own (buddy specialists, codescout-companion); separate skill **descriptions** (always-on
+      baseline, trim via `skillOverrides`/`disable-model-invocation`) from skill **bodies** (the
+      ~27K-tok measured); confirm reload.py (2a) isn't fighting CC's native 25K compaction budget.
 
 3. **Trim FIXED per-request overhead (P2) — cut once, save everywhere.**
    a. **SessionStart superpowers inject (8.7K tok):** superpowers injects `using-superpowers`

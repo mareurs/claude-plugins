@@ -226,15 +226,19 @@ def handle_session_start(
 
         state["signals"]["root_cwd"] = ""
 
-        # Carry-forward active_specialists on resume/compact.
-        # Cross-SID: copy from prev session's state.
-        # Same-SID (CC reuses session_id on resume): use the active_specialists
-        # already present in the current state file (preserved across reset
-        # because it's not in _SESSION_SCOPED_FIELDS).
-        # Also auto-include "reconnaissance" when the recon-loaded marker is
-        # present in the session dir — so the recon SKILL.md is re-injected
-        # at resume just like a summoned specialist.
+        # Specialist handling on resume/compact. Specialists are persona
+        # instructions the model loaded via `Read` of SKILL.md, so they live in
+        # the conversation transcript — NOT as Skill-tool skills.
+        #   - resume: `claude --resume` restores the full transcript, so the
+        #     bodies are already present. Re-injecting would duplicate them.
+        #     Carry active_specialists forward (statusline continuity), emit nothing.
+        #   - compact: history is summarized, so the verbatim bodies are gone.
+        #     Release the specialists (drop from active_specialists → statusline)
+        #     and tell the user to re-summon manually. Reconnaissance is the one
+        #     exception: re-injected when codescout is the backend.
         carried_specialists: list[str] = []
+        dismissed_specialists: list[str] = []
+        recon_reload = False
         prev_sid = os.environ.get("BUDDY_PREV_SID", "").strip()
         if source in ("resume", "compact"):
             # event.cwd may be missing on some CC builds; fall back to the
@@ -253,17 +257,23 @@ def handle_session_start(
             else:
                 carried_specialists = list(state.get("active_specialists", []) or [])
 
-            # Auto-include reconnaissance when codescout-companion is the
-            # MCP backend for this project. We avoid the .buddy/$SID/recon-loaded
-            # marker because hook ordering across plugins is alphabetical:
-            # buddy runs before codescout-companion, so the marker isn't yet
-            # present when buddy reads. Detect codescout via the onboarding
+            # Reconnaissance is re-injected (the sole auto-reload) when
+            # codescout-companion is the backend. Detect via the onboarding
             # convention (.codescout/project.toml), matching detect.py's
-            # _find_project_dir resolution.
+            # _find_project_dir resolution. (We avoid the .buddy/$SID/recon-loaded
+            # marker because hook ordering is alphabetical: buddy runs before
+            # codescout-companion, so the marker isn't present yet.)
             cs_project_dir = project_root / ".codescout"
-            if (cs_project_dir / "project.toml").is_file():
-                if "reconnaissance" not in carried_specialists:
-                    carried_specialists.append("reconnaissance")
+            recon_reload = (cs_project_dir / "project.toml").is_file()
+
+            if source == "compact":
+                # Released = everything summoned except recon (recon is
+                # re-injected, not dismissed). Clear them from state so they
+                # leave the statusline; the user re-summons manually.
+                dismissed_specialists = [
+                    s for s in carried_specialists if s != "reconnaissance"
+                ]
+                state["active_specialists"] = []
 
         save_state(path, state)
 
@@ -306,13 +316,15 @@ def handle_session_start(
         except Exception:
             pass
 
-        # Emit reload context block to stdout so Claude Code appends it to
-        # the new session's context. The block instructs Claude to announce
-        # each specialist's arrival on the first user-facing line.
-        if carried_specialists:
+        # Emit context blocks to stdout (CC appends them to the new session).
+        # Specialists are never auto-reloaded: on resume their bodies are already
+        # in the restored transcript; on compact they are released with a dismissal
+        # notice and re-summoned manually. Reconnaissance is the one exception —
+        # re-injected on compact when codescout is the backend.
+        if source == "compact":
             try:
                 import sys as _sys
-                from scripts.reload import render_reload_block
+                from scripts.reload import render_reload_block, render_dismissal_notice
                 # Always self-locate via __file__. CC's CLAUDE_PLUGIN_ROOT can
                 # arrive as just the plugin slug ("buddy") rather than a full
                 # path (observed 2026-05-20 trace log); trusting it broke
@@ -320,16 +332,26 @@ def handle_session_start(
                 # hook_helpers.py is reliably at <plugin_root>/scripts/.
                 plugin_root = Path(__file__).resolve().parent.parent
                 project_root = Path(event.get("cwd") or os.getcwd())
-                block = render_reload_block(
-                    carried_specialists,
-                    new_sid=incoming_sid,
-                    prev_sid=prev_sid,
-                    source=source,
-                    plugin_root=plugin_root,
-                    project_root=project_root,
-                )
-                if block:
-                    _sys.stdout.write(block + "\n")
+                if recon_reload:
+                    block = render_reload_block(
+                        ["reconnaissance"],
+                        new_sid=incoming_sid,
+                        prev_sid=prev_sid,
+                        source=source,
+                        plugin_root=plugin_root,
+                        project_root=project_root,
+                    )
+                    if block:
+                        _sys.stdout.write(block + "\n")
+                if dismissed_specialists:
+                    notice = render_dismissal_notice(
+                        dismissed_specialists,
+                        new_sid=incoming_sid,
+                        prev_sid=prev_sid,
+                        source=source,
+                    )
+                    if notice:
+                        _sys.stdout.write(notice + "\n")
             except Exception:
                 pass
 

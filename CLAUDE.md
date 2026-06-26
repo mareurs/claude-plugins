@@ -59,7 +59,7 @@ Update this plugin whenever codescout adds features that affect exploration work
 Lives at `buddy/` in this repo. Provides mood-reactive statusline, 12 specialist personas (bodhisattvas), async LLM judges for plan drift and codescout tool violations, and a structured memory system mirrored across CC instances.
 
 **What it does:**
-- SessionStart: mood reset, PPID index, memory consolidation nudges
+- SessionStart: mood reset, PPID index, memory consolidation nudges; on **compact** releases summoned specialists with a re-summon notice (reconnaissance kept). Specialists are **not** auto-reloaded on resume — they're already in the restored transcript.
 - PostToolUse: signal tracking, narrative accumulation, CS heuristics (sync), judge subprocess spawning
 - PreToolUse: reads judge verdicts, optionally hard-blocks (`exit 2`) when `BUDDY_JUDGE_BLOCK=true`
 - Statusline: mood-reactive ASCII spirit animal with specialist eye expressions

@@ -205,3 +205,29 @@ def render_reload_block(
         return ""
 
     return "\n\n".join(parts)
+def render_dismissal_notice(
+    specialists: list[str],
+    *,
+    new_sid: str,
+    prev_sid: str,
+    source: str,
+) -> str:
+    """Render the notice shown when specialists are released at compaction.
+
+    Unlike render_reload_block, this injects NO SKILL.md bodies. Compaction
+    summarizes history, so the verbatim personas are gone from context; rather
+    than auto-re-injecting them (re-bloat), buddy releases them and lets the
+    user re-summon the ones they still want. Lists the released specialists by
+    slug so they map directly onto `/buddy:summon <name>`. Returns "" for an
+    empty list.
+    """
+    if not specialists:
+        return ""
+    names = ", ".join(specialists)
+    return (
+        f"<!-- buddy:dismissed-on-compact sid={new_sid} from={prev_sid} source={source} -->\n"
+        "The session compacted, so the specialists summoned earlier were released — "
+        "their full personas are no longer in context. Begin this turn by telling the "
+        "user, in one line, that the following were released and can be re-summoned with "
+        f"`/buddy:summon <name>` if still needed: {names}."
+    )

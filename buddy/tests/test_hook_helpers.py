@@ -380,7 +380,7 @@ def test_session_start_resume_carries_active_specialists_from_prev_sid(tmp_path)
     assert result["current_session_id"] == new_sid
 
 
-def test_session_start_compact_carries_active_specialists(tmp_path):
+def test_session_start_compact_releases_active_specialists(tmp_path):
     import os
     from scripts.hook_helpers import handle_session_start
     from scripts.state import load_state, save_state, default_state
@@ -405,7 +405,7 @@ def test_session_start_compact_carries_active_specialists(tmp_path):
         del os.environ["BUDDY_PREV_SID"]
 
     result = load_state(new_path)
-    assert result["active_specialists"] == ["testing-snow-leopard"]
+    assert result["active_specialists"] == []
     assert result["parent_sid"] == prev_sid
 
 
