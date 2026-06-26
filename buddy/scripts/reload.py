@@ -74,6 +74,37 @@ def _sister_plugin_candidates(directory: str, plugin_root: Path) -> list[Path]:
     return out
 
 
+def _sibling_repo_candidates(directory: str, plugin_root: Path) -> list[Path]:
+    """Sister-plugin SKILL.md candidates for the flat dev/source-repo layout.
+
+    In a dev install plugin_root points at the repo's plugin folder
+    (`<repo>/buddy`) and sibling plugins live directly beside it
+    (`<repo>/codescout-companion/skills/<directory>/SKILL.md`) with no
+    intervening version directory. This complements _sister_plugin_candidates,
+    which only matches the cached `<marketplace>/<plugin>/<ver>/` layout. The
+    direct `<sibling>/skills/...` path never exists under the cache layout (it's
+    `<sibling>/<ver>/skills/...`), so this fallback can't produce false matches
+    there. Returns [] when no sibling ships the skill.
+    """
+    out: list[Path] = []
+    try:
+        repo_root = plugin_root.parent
+        self_plugin_name = plugin_root.name
+        siblings = list(repo_root.iterdir())
+    except OSError:
+        return []
+    for sibling in siblings:
+        try:
+            if not sibling.is_dir() or sibling.name == self_plugin_name:
+                continue
+            cand = sibling / "skills" / directory / "SKILL.md"
+            if cand.is_file():
+                out.append(cand)
+        except OSError:
+            continue
+    return out
+
+
 
 def find_skill_md(
     directory: str,
@@ -81,20 +112,23 @@ def find_skill_md(
     plugin_root: Path,
     project_root: Path,
 ) -> Path | None:
-    """Locate SKILL.md for a specialist directory across 4 scopes.
+    """Locate SKILL.md for a specialist directory across 5 scopes.
 
     Precedence (highest first):
       1. project: <project_root>/.claude/buddy/skills/<directory>/SKILL.md
       2. global:  ${BUDDY_HOME:-~/.buddy}/skills/<directory>/SKILL.md
       3. builtin: <plugin_root>/skills/<directory>/SKILL.md
       4. sister:  <claude-dir>/plugins/cache/<marketplace>/<other-plugin>/<ver>/skills/<directory>/SKILL.md
+      5. sibling: <repo>/<other-plugin>/skills/<directory>/SKILL.md  (flat dev/source layout)
 
-    Sister scope is derived from plugin_root's grandparent. When plugin_root
-    is `<claude-dir>/plugins/cache/<marketplace>/buddy/<ver>`, that grandparent
-    is `<claude-dir>/plugins/cache/<marketplace>` and we iterate sibling
-    plugins (codescout-companion, etc.) picking the newest cached version
-    that ships `skills/<directory>/SKILL.md`. Returns None on dev installs
-    where plugin_root does not match the cache layout.
+    Sister scope (4) is derived from plugin_root's grandparent under the plugin
+    cache layout. When plugin_root is `<claude-dir>/plugins/cache/<marketplace>/buddy/<ver>`,
+    that grandparent is `<claude-dir>/plugins/cache/<marketplace>` and we iterate
+    sibling plugins (codescout-companion, etc.) picking the newest cached version
+    that ships `skills/<directory>/SKILL.md`. Sibling scope (5) covers the flat
+    dev/source-repo layout where sibling plugins sit directly beside plugin_root
+    with no version directory. This matters for cross-plugin specialists like
+    `reconnaissance`, which ships in codescout-companion, not buddy.
     """
     candidates = [
         project_root / ".claude" / "buddy" / "skills" / directory / "SKILL.md",
@@ -108,6 +142,8 @@ def find_skill_md(
         except OSError:
             continue
     for c in _sister_plugin_candidates(directory, plugin_root):
+        return c
+    for c in _sibling_repo_candidates(directory, plugin_root):
         return c
     return None
 

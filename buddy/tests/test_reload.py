@@ -190,6 +190,48 @@ def test_find_skill_md_sister_plugin_skipped_in_dev_layout(tmp_path):
     assert result is None
 
 
+def test_find_skill_md_sibling_repo_scope_flat_dev_layout(tmp_path):
+    """Flat dev/source-repo layout: sibling plugins sit directly beside
+    plugin_root with no version dir. A cross-plugin skill like reconnaissance,
+    shipped by a sibling (codescout-companion), resolves via the sibling scope
+    even though the cache-layout sister scope returns []."""
+    from scripts.reload import find_skill_md
+    repo = tmp_path / "claude-plugins"
+    buddy_root = repo / "buddy"
+    buddy_root.mkdir(parents=True)
+    sibling_skill = repo / "codescout-companion" / "skills" / "reconnaissance" / "SKILL.md"
+    sibling_skill.parent.mkdir(parents=True)
+    sibling_skill.write_text("# Reconnaissance\nScout the seam.")
+
+    result = find_skill_md(
+        "reconnaissance",
+        plugin_root=buddy_root,
+        project_root=tmp_path / "proj",
+    )
+    assert result == sibling_skill
+
+
+def test_find_skill_md_builtin_wins_over_sibling_repo(tmp_path):
+    """Builtin scope (3) outranks the flat sibling scope (5): when buddy itself
+    ships the skill, the sibling copy is not consulted."""
+    from scripts.reload import find_skill_md
+    repo = tmp_path / "claude-plugins"
+    buddy_root = repo / "buddy"
+    builtin = buddy_root / "skills" / "reconnaissance" / "SKILL.md"
+    builtin.parent.mkdir(parents=True)
+    builtin.write_text("# builtin recon")
+    sibling = repo / "codescout-companion" / "skills" / "reconnaissance" / "SKILL.md"
+    sibling.parent.mkdir(parents=True)
+    sibling.write_text("# sibling recon")
+
+    result = find_skill_md(
+        "reconnaissance",
+        plugin_root=buddy_root,
+        project_root=tmp_path / "proj",
+    )
+    assert result == builtin
+
+
 def test_find_skill_md_builtin_wins_over_sister(tmp_path):
     """Builtin scope (plugin_root/skills) wins over sister-plugin scope."""
     from scripts.reload import find_skill_md
