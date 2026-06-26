@@ -17,7 +17,7 @@ Release readiness across plugins × profiles. See
 
 ## State
 
-_Last refresh: `f00d89f`_
+_Last refresh: `5f81197`_
 
 **codescout-companion** — canonical `1.11.16` · readme `1.11.16` · marketplace clean ✅
 
@@ -27,13 +27,13 @@ _Last refresh: `f00d89f`_
 | `~/.claude-sdd` | 1.11.16 ✅ | ✅ | ✅ |
 | `~/.claude-kat` | 1.11.16 ✅ | ✅ | ✅ |
 
-**buddy** — canonical `0.7.32` · readme `0.7.32` · marketplace clean ✅
+**buddy** — canonical `0.7.33` · readme `0.7.33` · marketplace clean ✅
 
 | profile | installed | cache dir | install_path ok |
 |---|---|---|---|
-| `~/.claude` | 0.7.32 ✅ | ✅ | ✅ |
-| `~/.claude-sdd` | 0.7.32 ✅ | ✅ | ✅ |
-| `~/.claude-kat` | 0.7.32 ✅ | ✅ | ✅ |
+| `~/.claude` | 0.7.33 ✅ | ✅ | ✅ |
+| `~/.claude-sdd` | 0.7.33 ✅ | ✅ | ✅ |
+| `~/.claude-kat` | 0.7.33 ✅ | ✅ | ✅ |
 
 **claude-statusline** — canonical `1.1.6` · readme `1.1.6` · marketplace clean ✅
 
@@ -43,6 +43,19 @@ _Last refresh: `f00d89f`_
 | `~/.claude-sdd` | 1.1.6 ✅ | ✅ | ✅ |
 | `~/.claude-kat` | 1.1.6 ✅ | ✅ | ✅ |
 ## History
+### 2026-06-26 — buddy 0.7.32 → 0.7.33
+
+buddy: specialists are no longer auto-reloaded on SessionStart. They're persona
+instructions loaded via `Read` of SKILL.md, so they live in the transcript — on
+`resume` the restored transcript already has them (the old reload duplicated
+them), and on `compact` the verbatim bodies are summarized away. Now resume is a
+no-op; compact clears `active_specialists` (dropping them from the statusline)
+and emits a `buddy:dismissed-on-compact` notice prompting manual re-summon.
+Reconnaissance stays re-injected on compact when codescout is the backend.
+Reclaims ~53 KB of compact-cycle re-injection. Cache seeded + install records
+repointed across all three profiles; sanity loop all ✅. `run-all.sh` green;
+buddy pytest 459. Pushed to origin/main (`5f81197`). Cold restart pending to
+bind the new caches.
 
 ### 2026-06-25 — buddy 0.7.31 → 0.7.32, claude-statusline 1.1.5 → 1.1.6 (newly tracked)
 
