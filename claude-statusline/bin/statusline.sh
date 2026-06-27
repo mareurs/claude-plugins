@@ -24,7 +24,7 @@ jq_out="$(echo "$input" | jq -r '
   (.rate_limits.five_hour.resets_at // ""),
   (.rate_limits.seven_day.used_percentage // ""),
   (.rate_limits.seven_day.resets_at // ""),
-  (.rate_limits.seven_day_opus.used_percentage // ""),
+  (.rate_limits.scoped // [] | map(.model + "=" + (.pct|tostring)) | join(";")),
   (.cost.total_duration_ms // 0),
   (.cost.total_lines_added // 0),
   (.cost.total_lines_removed // 0),
@@ -48,7 +48,7 @@ RATE_5H="${F[3]}"
 RATE_5H_RESET="${F[4]}"
 RATE_7D="${F[5]}"
 RATE_7D_RESET="${F[6]}"
-RATE_7DO="${F[7]}"
+RATE_SCOPED="${F[7]}"
 DURATION_MS="${F[8]}"
 LINES_ADD="${F[9]}"
 LINES_DEL="${F[10]}"
@@ -193,11 +193,18 @@ if [[ -n "$RATE_7D" ]]; then
     rate_seg+="${DIM}(${r7_remain})${RST}"
   fi
 fi
-# Opus weekly limit — only present on plans whose /api/oauth/usage reports it
-if [[ -n "$RATE_7DO" ]]; then
-  ro_int=$(int_pct "$RATE_7DO")
-  c=$(color_pct "$ro_int")
-  rate_seg+="${DIM}/${RST}${DIM}7dO${RST} ${stale_pfx}${c}${ro_int}%${RST}"
+# Scoped per-model weekly limits (Sonnet → 7dS, Opus → 7dO, …) — only the ones
+# /api/oauth/usage reports for this plan. Format: "Model=pct;Model=pct".
+if [[ -n "$RATE_SCOPED" ]]; then
+  IFS=';' read -ra _scoped <<< "$RATE_SCOPED"
+  for _s in "${_scoped[@]}"; do
+    _model="${_s%%=*}"; _pct="${_s##*=}"
+    [[ -z "$_model" || -z "$_pct" ]] && continue
+    _init=$(printf '%s' "${_model:0:1}" | tr '[:lower:]' '[:upper:]')
+    _spi=$(int_pct "$_pct")
+    c=$(color_pct "$_spi")
+    rate_seg+="${DIM}/${RST}${DIM}7d${_init}${RST} ${stale_pfx}${c}${_spi}%${RST}"
+  done
 fi
 if [[ -n "$rate_seg" ]]; then
   out+="${SEP}${rate_seg}"

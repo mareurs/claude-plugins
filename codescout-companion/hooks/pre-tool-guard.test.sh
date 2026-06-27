@@ -121,6 +121,19 @@ assert_file "read-tool-results-allow2" "Read"  "$ACTIVE_CWD/.codescout/tool-resu
 assert_file "edit-tool-results-deny"   "Edit"  "$HOME/.claude/projects/x/uuid/tool-results/hook-9-stdout.txt"                 "deny"
 assert_file "write-tool-results-deny"  "Write" "$HOME/.claude/projects/x/uuid/tool-results/hook-9-stdout.txt"                 "deny"
 
+# --- Read: profile config-dir exemption (plans/skills/settings under ~/.claude*) ---
+# Content under a CC config dir is not project source — native read passes through.
+assert_file "read-config-plan-allow"     "Read" "$HOME/.claude-sdd/plans/my-plan.md"        "allow"
+assert_file "read-config-skill-allow"    "Read" "$HOME/.claude-sdd/skills/foo/notes.md"     "allow"
+assert_file "read-config-settings-allow" "Read" "$HOME/.claude/settings.json"               "allow"
+assert_file "read-config-source-allow"   "Read" "$HOME/.claude-kat/plugins/cache/x/y/z.py"  "allow"
+# Read-only: Edit/Write under a config dir stay blocked.
+assert_file "edit-config-deny"  "Edit"  "$HOME/.claude-sdd/plans/my-plan.md" "deny"
+assert_file "write-config-deny" "Write" "$HOME/.claude-sdd/skills/foo/x.md"  "deny"
+# Grep/Glob scoped to a config dir are exempt; project-scoped stay blocked (grep-any/glob-any above).
+assert_tool "grep-config-allow" "Grep" "$(jq -nc --arg p "$HOME/.claude-sdd" '{pattern:"foo",path:$p,output_mode:"content"}')" "allow"
+assert_tool "glob-config-allow" "Glob" "$(jq -nc --arg p "$HOME/.claude-sdd/skills/**/*.md" '{pattern:$p}')" "allow"
+
 # --- Edit / Write: path-agnostic, all text ---
 assert_file "edit-xrepo-source" "Edit"  "$SIBLING_CWD/buddy/scripts/statusline.py" "deny"
 assert_file "edit-inrepo-json"  "Edit"  "$ACTIVE_CWD/tsconfig.json"            "deny"

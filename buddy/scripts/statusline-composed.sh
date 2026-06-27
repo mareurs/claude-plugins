@@ -141,7 +141,7 @@ _merge_cache() {
       rate_limits: {
         five_hour: (.[1].five_hour | adapt),
         seven_day: (.[1].seven_day | adapt),
-        seven_day_opus: (.[1].seven_day_opus | adapt)
+        scoped: ([.[1].limits[]? | select(.kind == "weekly_scoped") | {model: (.scope.model.display_name // "?"), pct: .percent}])
       },
       rate_limits_stale: (.[1].stale // false)
     }

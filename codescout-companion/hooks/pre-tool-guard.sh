@@ -45,6 +45,20 @@ is_harness_output() {
   return 1
 }
 
+# --- Helper: Claude Code profile config dirs are a native-Read exemption ---
+# Plans, skills, commands, settings, etc. under a CC config dir (~/.claude,
+# ~/.claude-sdd, ~/.claude-kat, or an explicit $CLAUDE_CONFIG_DIR) are not
+# project source — codescout has no index over them, and the user often needs
+# them read verbatim. Read-only: Edit/Write/Bash stay guarded. The project root
+# has no leading-dot `.claude` segment, so it is never matched here.
+is_config_dir() {
+  case "$1" in
+    "$HOME/.claude/"*|"$HOME/.claude-"*) return 0 ;;
+  esac
+  [ -n "${CLAUDE_CONFIG_DIR:-}" ] && case "$1" in "${CLAUDE_CONFIG_DIR}/"*) return 0 ;; esac
+  return 1
+}
+
 # --- Helper: hard-block with reason shown to Claude ---
 # First blocked call in a 3-second window per (TOOL_NAME, CWD) gets the full reason.
 # Subsequent parallel calls get a short "see previous message" to avoid noise.
@@ -125,6 +139,9 @@ use run_command(command=\"git -C /abs/path <subcommand>\") from here — no cd n
     TYPE=$(echo "$INPUT" | jq -r '.tool_input.type // empty')
     PATTERN=$(echo "$INPUT" | jq -r '.tool_input.pattern // empty')
 
+    # Config-dir reads are exempt — native Grep over ~/.claude* plans/skills/settings.
+    is_config_dir "$PATH_VAL" && exit 0
+
     IS_SOURCE=false
     case "$TYPE" in
       kotlin|kt|kts|java|ts|typescript|js|javascript|py|python|go|rust|cs|csharp|rb|ruby|scala|swift|cpp|c|sh)
@@ -169,6 +186,7 @@ codescout uses the index and returns structured, token-efficient results:
   Glob)
     PATTERN=$(echo "$INPUT" | jq -r '.tool_input.pattern // empty')
 
+    is_config_dir "$PATTERN" && exit 0
     BASENAME="${PATTERN##*/}"
     # path-agnostic: every Glob routes to codescout tree
 
@@ -186,6 +204,7 @@ codescout already knows every file in the project. Use the index directly:
     is_binary_image "$FILE_PATH" && exit 0
     is_skill_payload "$FILE_PATH" && exit 0
     is_harness_output "$FILE_PATH" && exit 0
+    is_config_dir "$FILE_PATH" && exit 0
 
     # Relative path when under CWD; absolute (cross-repo) otherwise — both work for codescout.
     REL_PATH="$FILE_PATH"
