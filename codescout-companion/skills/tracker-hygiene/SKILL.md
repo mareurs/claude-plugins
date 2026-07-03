@@ -1,0 +1,161 @@
+---
+name: tracker-hygiene
+description: Use when asked to run a tracker hygiene sweep, audit tracker staleness or drift, clean up docs/trackers, before backlog triage or any "what's open?" report, or when the SessionStart banner says a tracker hygiene sweep is overdue. Interactive — every finding is human-gated; approved fixes apply via the librarian; each sweep appends to the project's tracker-hygiene-log.
+---
+
+# /codescout-companion:tracker-hygiene
+
+Tracker corpora drift even after formal consolidation: index maps miss new
+files, terminal trackers linger in live directories, "active" frontmatter
+outlives the work. Drift is a **disagreement between three states** the
+project already holds — this skill diffs them and lets a human gate every
+fix.
+
+| State | What it is | Where it lives |
+|---|---|---|
+| **Convention** | The local dialect: status vocabularies, archive dir, index format | `CONVENTIONS.md`, `TAXONOMY.md`, archive policy docs, `get_guide("tracker-conventions")` defaults |
+| **Declared** | What the project *says* is true | index/README cluster maps, frontmatter `status:` |
+| **Observed** | What *is* true | `git log -1` per file, actual directory, librarian catalog, `artifact_refresh(list_stale)` |
+
+**REQUIRED SUB-SKILL:** None. Composes with `reconnaissance` (per-task
+drift-catching; this skill is the corpus-wide periodic sweep).
+
+## When to Use
+
+- Explicitly invoked, or the SessionStart banner says a sweep is overdue.
+- Before backlog triage or any "what's open?" report.
+- When recon or any session notices corpus-level drift (orphaned trackers,
+  index rows pointing nowhere).
+
+## When NOT to Use
+
+- Mid-task single-tracker updates — that's normal editing.
+- Single-bug archive moves — the project's ship sequence covers those.
+- Anything in `docs/issues/` — bug-file discipline is v2 (D8), not yet here.
+
+## The loop — five phases
+
+### Phase 1 — Learn
+
+Read the project's convention surfaces to parameterize the detectors. Look
+for, in order: a tracker index (`docs/trackers/README.md`, `docs/TAXONOMY.md`),
+a conventions doc (`docs/trackers/CONVENTIONS.md`), an archive policy
+(`docs/trackers/archive-cadence-policy.md` or equivalent). Extract: the
+index format, the archive directory, status vocabularies, the staleness
+threshold N (default **45 days** if none declared).
+
+If no convention docs exist: announce it, run the **thin sweep** (D2/D3/D4/D9
+only — no index to diff), and emit a synthetic finding recommending a
+conventions bootstrap.
+
+If the ledger `docs/trackers/tracker-hygiene-log.md` does not exist,
+bootstrap it now: copy `references/tracker-hygiene-log-template.md` from this
+skill's directory, set `next-sweep-due` to today, fill the real frontmatter
+(strip the template preamble above the `---`).
+
+### Phase 2 — Inventory
+
+Build both states. All shell via `run_command`; never pipe unbounded output.
+
+- **Observed dates:** `for f in $(git -C <root> ls-files 'docs/trackers/*.md'); do echo "$(git -C <root> log -1 --format=%ad --date=short -- "$f")  $f"; done`
+- **Observed placement:** which files sit in the live dir vs the archive dir.
+- **Observed catalog:** `artifact(action="find", kind="tracker", include_archived=true)` — note rows whose `status` or `rel_path` disagree with disk.
+- **Observed augmentation freshness:** `artifact_refresh(action="list_stale", threshold_hours=168)`.
+- **Declared:** parse the index file's rows (file links + claimed status); read each tracker's frontmatter `status:` via `read_markdown`.
+
+### Phase 3 — Diff (the detectors)
+
+Run each detector; emit findings as `(detector, evidence pair, proposed fix,
+confidence)`. An evidence pair always names both sides: *"declared X;
+observed Y"*.
+
+| ID | Name | Fires when | Proposed fix | Confidence |
+|---|---|---|---|---|
+| **D1** | index-drift | Live file absent from the index, or index row points at a missing/moved file | add or repoint the index row | high |
+| **D2** | terminal-not-archived | Frontmatter `archived`/`superseded` but file in live dir; or file in archive dir with `status: active` | `artifact(update, patch={status:...})` + `artifact(move, new_rel_path=...)` per the project's archive policy | high |
+| **D3** | stale-active | `status: active` and no git touch in N days | **a question** — archive, or confirm still-live? Never presume archive | low, by design |
+| **D4** | frontmatter-catalog-mismatch | Catalog row disagrees with file frontmatter, or file has no catalog row / no `kind:` | reconcile via `artifact(update)`; `librarian(action="reindex")` for orphans | high |
+| **D5** | canonical-conflict | Two live trackers claim one topic (tag/topic overlap + index cluster), or a child restates its canonical's status | judgment call — merge, link, or bless the fork | low |
+| **D9** | augmentation-stale | `artifact_refresh(list_stale)` returns the artifact | run gather → synthesize → `artifact(update, commit_refresh=true)`, or defer to owner | medium |
+
+D6 (entry-level verify-open), D7 (citation format), D8 (`docs/issues/`
+discipline) are **v2** — do not improvise them mid-sweep; a drift you notice
+outside D1–D5/D9 is a `miss` HY-N entry, which is how v2 earns its way in.
+
+### Phase 4 — Triage (interactive, one finding at a time)
+
+Check the ledger's **Detector trust state** table first. For detectors in
+`individual` mode (v1 default: all), present each finding as its own
+`AskUserQuestion`: the evidence pair, the proposed fix, the detector name.
+Verdicts:
+
+- **approve** — fix applies in Phase 5.
+- **reject** — false positive. A one-line reason is mandatory; it is the
+  training signal. Record it verbatim.
+- **defer** — no action; the finding recomputes and resurfaces next sweep.
+
+For detectors that have graduated to `batch` mode (two consecutive
+zero-reject sweeps, per the trust table), present all of that detector's
+findings as one batch gate. **Any reject drops the detector back to
+`individual`** — update the trust table in Phase 5. Auto-apply does not
+exist at any trust level.
+
+Nothing is edited before its verdict.
+
+### Phase 5 — Apply + Log
+
+- Apply approved fixes **through the librarian** — `artifact(update)`,
+  `artifact(move)` — never bare `git mv`, which orphans the catalog row
+  (`id = sha256(abs_path)`).
+- Append one sweep entry to the ledger (template in the ledger file) via
+  `edit_markdown(action="insert_before", heading="## Template for new entries", ...)`;
+  in the same call set the frontmatter:
+  `frontmatter={set: {"next-sweep-due": "<today + sweep-interval-days>"}}`.
+- Update the Detector trust state table (zero-reject streaks, demotions).
+- Add HY-N entries for anything meta: a `miss` (drift found outside the
+  detectors), a `false-positive-pattern` (recurring reject reason), a
+  `proposal`.
+- One commit for the whole sweep, message referencing the sweep entry,
+  SHAs cited in the project's citation format.
+
+## Degradation rules
+
+- **No convention docs** → thin sweep + bootstrap-recommendation finding.
+- **Librarian unavailable / catalog empty** → skip D4 and D9; say so in the
+  sweep entry, so the gap is visible rather than silent.
+- **Interrupted sweep** → safe by construction: nothing applies ungated,
+  the ledger writes at the end, findings recompute next sweep.
+- **Multi-workspace sessions** → pin `workspace=` per call; never
+  `activate` a foreign project mid-sweep (see `get_guide("workspace-state")`).
+
+## Stop conditions
+
+- The user rejects three findings in a row from the same detector — stop
+  presenting that detector's findings this sweep, log a
+  `false-positive-pattern` HY-N, move on.
+- More than ~25 findings total — present counts per detector first and ask
+  which detectors to triage this session; the rest defer.
+
+## The ledger (per project)
+
+`docs/trackers/tracker-hygiene-log.md`, bootstrapped from this skill's
+`references/tracker-hygiene-log-template.md`. Holds sweep entries, HY-N
+meta-entries, and the detector trust table. The companion's SessionStart
+hook reads its `next-sweep-due:` frontmatter and nudges when overdue —
+keeping that field current is part of every sweep's Phase 5.
+
+HY-N promotion mirrors reconnaissance's R-N flow: proposals confirmed
+across 2+ sweeps → PR against this SKILL.md citing the HY-N IDs → mark
+`promoted` with commit SHA + plugin version.
+
+## Growth path (so future sessions don't re-litigate)
+
+1. **v2 detectors:** D6 entry-level verify-open, D7 citation-format,
+   D8 `docs/issues/` archive discipline — added when file-level sweeps are
+   trusted and `miss` entries demand them.
+2. **Batch approval** per detector via the trust table (mechanical rule
+   above).
+3. **Substrate promotion:** when D1/D2/D4 hold sustained zero-reject
+   records, their detection graduates to a Rust
+   `librarian(action="audit_trackers")` beside `audit_doc_refs`; the skill
+   then consumes its output and keeps only triage in skill-land.
