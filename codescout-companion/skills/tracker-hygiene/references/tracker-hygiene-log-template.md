@@ -43,8 +43,10 @@ start. Every sweep entry ends by updating it to
 ## Detector trust state
 
 Batch-approval graduation is per detector, earned from this table.
-A detector enters `batch` after **two consecutive sweeps with zero
-rejects**; any reject drops it back to `individual`.
+A detector enters `batch` after **two consecutive advancing sweeps** — a sweep
+advances only if the detector fired and every finding was approved (zero rejects,
+zero defers). Any reject resets to `individual`; a no-finding or deferred sweep is
+neutral (streak unchanged).
 
 | Detector | Mode | Consecutive zero-reject sweeps | Last reject (sweep, reason) |
 |----------|------|-------------------------------|------------------------------|
@@ -99,7 +101,7 @@ canonical destination; per-project ledgers are the substrate.
 **Rejects (verbatim reasons — the training signal):**
 - <detector>: "<finding one-line>" → rejected: <reason>
 
-**Fixes applied:** <commit ref in the project's citation format, e.g. `(master:<sha>)`>
+**Fixes applied:** "this commit" (a sweep entry can't cite its own commit's SHA); use the project's citation format for any *external* SHA.
 
 **Detector trust updates:** <rows changed in the trust table, or "none">
 

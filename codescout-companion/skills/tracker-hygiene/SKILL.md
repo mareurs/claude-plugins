@@ -68,7 +68,7 @@ Build both states. All shell via `run_command`; never pipe unbounded output.
 
 - **Observed dates:** `for f in $(git -C <root> ls-files 'docs/trackers/*.md'); do echo "$(git -C <root> log -1 --format=%ad --date=short -- "$f")  $f"; done`
 - **Observed placement:** which files sit in the live dir vs the archive dir.
-- **Observed catalog:** `artifact(action="find", kind="tracker", include_archived=true)` — note rows whose `status` or `rel_path` disagree with disk. This query is project-wide: it returns trackers **anywhere** in the project, including outside `docs/trackers/` (e.g. a subproject's `*/docs/*_TRACKER.md`). The file inventory above only sees `docs/trackers/` — so the two halves disagree on scope. Treat `docs/trackers/` as the sweep's authoritative scope; a catalog tracker living elsewhere is a *separate observation*, not a D1 index-drift finding. (If you reach for `librarian(action="doctor")` to find orphans, note it scans the **whole catalog across all projects** — filter its `missing_file` violations to this project's path.)
+- **Observed catalog:** `artifact(action="find", kind="tracker", include_archived=true)` — note rows whose `status` or `rel_path` disagree with disk. This query is project-wide: it returns trackers **anywhere** in the project, including outside `docs/trackers/` (e.g. a subproject's `*/docs/*_TRACKER.md`). The file inventory above only sees `docs/trackers/` — so the two halves disagree on scope. Treat `docs/trackers/` as the sweep's authoritative scope; a catalog tracker living elsewhere is a *separate observation*, not a D1 index-drift finding. (If you reach for `librarian(action="doctor")` to find orphans, note it scans the **whole catalog across all projects** — filter its `missing_file` violations to this project's path.) `kind=tracker` can also return mis-classified `docs/issues/` bug files (a bug file carrying `kind: tracker`) — exclude `docs/issues/` from the cross-check; bug-file lifecycle is D8/v2.
 - **Observed augmentation freshness:** `artifact_refresh(action="list_stale", threshold_hours=168)`.
 - **Declared:** parse the index file's rows (file links + claimed status); read each tracker's frontmatter `status:` via `read_markdown`.
 
@@ -80,22 +80,38 @@ observed Y"*.
 
 | ID | Name | Fires when | Proposed fix | Confidence |
 |---|---|---|---|---|
-| **D1** | index-drift | Live file absent from the index, or index row points at a missing/moved file | add or repoint the index row | high |
+| **D1** | index-drift | Live file absent from the index, or index row points at a missing/moved file | add or repoint the index row — *which* cluster/section is a per-file placement judgment, so gate the placement, not just the add | high |
 | **D2** | terminal-not-archived | Frontmatter `archived`/`superseded` but file in live dir; or file in archive dir with `status: active` | `artifact(update, patch={status:...})` + `artifact(move, new_rel_path=...)` per the project's archive policy | high |
 | **D3** | stale-active | `status: active` and no git touch in N days | **a question** — archive, or confirm still-live? Never presume archive | low, by design |
 | **D4** | frontmatter-catalog-mismatch | Catalog row disagrees with file frontmatter, or file has no catalog row / no `kind:` | reconcile via `artifact(update)`; `librarian(action="reindex")` for orphans | high |
 | **D5** | canonical-conflict | Two live trackers claim one topic (tag/topic overlap + index cluster), or a child restates its canonical's status | judgment call — merge, link, or bless the fork | low |
-| **D9** | augmentation-stale | `artifact_refresh(list_stale)` returns the artifact | run gather → synthesize → `artifact(update, commit_refresh=true)`, or defer to owner | medium |
+| **D9** | augmentation-stale | `artifact_refresh(list_stale)` returns the artifact | refresh **only if mechanical**, else defer to owner (see the D9 rule below) — never fabricate | medium |
 
 D6 (entry-level verify-open), D7 (citation format), D8 (`docs/issues/`
 discipline) are **v2** — do not improvise them mid-sweep; a drift you notice
 outside D1–D5/D9 is a `miss` HY-N entry, which is how v2 earns its way in.
+
+**D9 defer-vs-refresh — default to defer.** Before synthesizing a D9 refresh, read
+the augmentation's own prompt. Auto-refresh **only** when that prompt describes a
+mechanical, gather-driven body ("summarize recent commits," a status rollup) — one
+you can regenerate from the gathered context without domain judgment. If the prompt
+is append-only or domain-expert (invariants, decisions, judgment-authored lessons —
+e.g. an `SI-N` solving-invariants registry), or you are unsure, **defer to the
+owner**: record the finding, do NOT synthesize entries, and do NOT reset the
+staleness clock (it should re-surface next sweep). Fabricating into a domain
+registry is the worst outcome; deferring a mechanical one only costs a re-run.
 
 ### Phase 4 — Triage (interactive, one finding at a time)
 
 Check the ledger's **Detector trust state** table first. For detectors in
 `individual` mode (v1 default: all), present each finding as its own
 `AskUserQuestion`: the evidence pair, the proposed fix, the detector name.
+**Batching homogeneous findings:** when a detector produces several findings that
+share one fix shape (e.g. many D1 "add index row"), you may present them as a
+single gate listing every finding with a *per-item* approve/reject/defer, instead
+of one question each — presentation only, not auto-approval; every finding still
+gets its own verdict. Keep strict one-at-a-time for judgment-heavy detectors
+(D3, D5) and any detector whose fixes differ per finding.
 Verdicts:
 
 - **approve** — fix applies in Phase 5.
@@ -103,11 +119,17 @@ Verdicts:
   training signal. Record it verbatim.
 - **defer** — no action; the finding recomputes and resurfaces next sweep.
 
-For detectors that have graduated to `batch` mode (two consecutive
-zero-reject sweeps, per the trust table), present all of that detector's
-findings as one batch gate. **Any reject drops the detector back to
-`individual`** — update the trust table in Phase 5. Auto-apply does not
-exist at any trust level.
+For detectors that have graduated to `batch` mode, present all of that
+detector's findings as one batch gate (same per-item verdicts). Auto-apply does
+not exist at any trust level.
+
+**What advances graduation.** A sweep advances a detector's streak *only if the
+detector produced ≥1 finding and every one was approved* (zero rejects, zero
+defers). Any reject resets the streak to 0 and drops the detector back to
+`individual`. A no-finding sweep, or any sweep with a deferral, is **neutral** —
+the streak is unchanged (no evidence the detector fired *and was right*). Batch
+mode is earned after two consecutive advancing sweeps; update the trust table in
+Phase 5.
 
 Nothing is edited before its verdict.
 
@@ -124,8 +146,10 @@ Nothing is edited before its verdict.
 - Add HY-N entries for anything meta: a `miss` (drift found outside the
   detectors), a `false-positive-pattern` (recurring reject reason), a
   `proposal`.
-- One commit for the whole sweep, message referencing the sweep entry,
-  SHAs cited in the project's citation format.
+- One commit for the whole sweep, message referencing the sweep entry. Cite
+  SHAs in the project's citation format for *external* references; the sweep
+  entry cannot cite its own commit's SHA (it lives inside that commit) — write
+  "this commit" there.
 
 ## Degradation rules
 
