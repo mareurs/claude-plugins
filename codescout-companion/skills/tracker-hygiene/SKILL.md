@@ -68,7 +68,7 @@ Build both states. All shell via `run_command`; never pipe unbounded output.
 
 - **Observed dates:** `for f in $(git -C <root> ls-files 'docs/trackers/*.md'); do echo "$(git -C <root> log -1 --format=%ad --date=short -- "$f")  $f"; done`
 - **Observed placement:** which files sit in the live dir vs the archive dir.
-- **Observed catalog:** `artifact(action="find", kind="tracker", include_archived=true)` — note rows whose `status` or `rel_path` disagree with disk.
+- **Observed catalog:** `artifact(action="find", kind="tracker", include_archived=true)` — note rows whose `status` or `rel_path` disagree with disk. This query is project-wide: it returns trackers **anywhere** in the project, including outside `docs/trackers/` (e.g. a subproject's `*/docs/*_TRACKER.md`). The file inventory above only sees `docs/trackers/` — so the two halves disagree on scope. Treat `docs/trackers/` as the sweep's authoritative scope; a catalog tracker living elsewhere is a *separate observation*, not a D1 index-drift finding. (If you reach for `librarian(action="doctor")` to find orphans, note it scans the **whole catalog across all projects** — filter its `missing_file` violations to this project's path.)
 - **Observed augmentation freshness:** `artifact_refresh(action="list_stale", threshold_hours=168)`.
 - **Declared:** parse the index file's rows (file links + claimed status); read each tracker's frontmatter `status:` via `read_markdown`.
 
@@ -134,8 +134,15 @@ Nothing is edited before its verdict.
   sweep entry, so the gap is visible rather than silent.
 - **Interrupted sweep** → safe by construction: nothing applies ungated,
   the ledger writes at the end, findings recompute next sweep.
-- **Multi-workspace sessions** → pin `workspace=` per call; never
-  `activate` a foreign project mid-sweep (see `get_guide("workspace-state")`).
+- **Foreign-project sweep (target ≠ session home)** → the catalog detectors
+  (D4, D9) run via `artifact()` / `artifact_refresh()`, which query only the
+  ACTIVE project and take **no** `workspace=` param. So you MUST
+  `workspace(action="activate", path=<target>, read_only=false)` before Phase 2,
+  and confirm the response shows `read_only: false` — a read-only activation
+  blocks Phase 5 apply and the ledger bootstrap. Restore the home project before
+  the turn ends (`get_guide("workspace-state")`). Pinning `workspace=` reaches only
+  the file-based detectors (D1/D2/D3 via `run_command`/`read_markdown`), never the
+  catalog — so a pinned-not-activated sweep silently runs at most half the detectors.
 
 ## Stop conditions
 

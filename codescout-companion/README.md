@@ -225,6 +225,9 @@ schema. It should be updated whenever codescout adds features that affect
 exploration workflows.
 
 ## Changelog
+### 1.12.1
+
+- `tracker-hygiene`: fix cross-workspace guidance found by the first live sweep. A foreign-project sweep must `workspace(activate, read_only=false)` (the catalog detectors D4/D9 go through `artifact()`/`artifact_refresh()`, which have no `workspace=` param and query only the active project); the old "pin, never activate" rule silently ran at most the file-based detectors. Also note the file-inventory-vs-catalog scope mismatch (catalog returns trackers project-wide) and that `librarian(doctor)` is not project-scoped.
 
 ### 1.12.0
 
