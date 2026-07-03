@@ -66,6 +66,46 @@ else
   pass "temp project already onboarded — append-guard N/A"
 fi
 
+# --- Tracker-hygiene overdue nudge ---
+# Ledger absent (all earlier ctx calls ran without it): no nudge.
+if echo "$STARTUP" | grep -q "TRACKER HYGIENE"; then
+  fail "hygiene nudge must be silent when no ledger exists"
+else
+  pass "no ledger → no hygiene nudge"
+fi
+
+mkdir -p "$TMP/docs/trackers"
+LEDGER="$TMP/docs/trackers/tracker-hygiene-log.md"
+
+# Overdue date → nudge present, names the due date and the skill.
+printf -- '---\nkind: tracker\nstatus: active\ntitle: Tracker hygiene log\nnext-sweep-due: 2020-01-01\nsweep-interval-days: 30\n---\n# Tracker hygiene log\n' > "$LEDGER"
+OVERDUE=$(ctx startup)
+echo "$OVERDUE" | grep -q "TRACKER HYGIENE: sweep overdue (due 2020-01-01)" \
+  && pass "overdue ledger → hygiene nudge with due date" \
+  || fail "overdue ledger did not produce the hygiene nudge"
+echo "$OVERDUE" | grep -q "codescout-companion:tracker-hygiene" \
+  && pass "nudge names the skill invocation" \
+  || fail "nudge missing the skill name"
+
+# Future date → silent.
+printf -- '---\nkind: tracker\nstatus: active\ntitle: Tracker hygiene log\nnext-sweep-due: 2099-01-01\nsweep-interval-days: 30\n---\n# Tracker hygiene log\n' > "$LEDGER"
+FUTURE=$(ctx startup)
+if echo "$FUTURE" | grep -q "TRACKER HYGIENE"; then
+  fail "future due date must not nudge"
+else
+  pass "future due date → silent"
+fi
+
+# Malformed date → silent (never nudge on garbage).
+printf -- '---\nnext-sweep-due: soonish\n---\n' > "$LEDGER"
+BAD=$(ctx startup)
+if echo "$BAD" | grep -q "TRACKER HYGIENE"; then
+  fail "malformed date must not nudge"
+else
+  pass "malformed date → silent"
+fi
+rm -f "$LEDGER"
+
 echo
 echo "Total: $((PASS+FAIL))  Pass: $PASS  Fail: $FAIL"
 [ "$FAIL" -eq 0 ]

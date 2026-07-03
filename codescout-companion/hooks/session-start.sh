@@ -100,6 +100,25 @@ MSG="${MSG}SKILLS AVAILABLE:
 
 "
 
+# --- Tracker-hygiene overdue nudge ---
+# Reads next-sweep-due from the project's hygiene ledger frontmatter (one file
+# read, no git). Absent file or malformed date → silent. Contract:
+# skills/tracker-hygiene/SKILL.md + references/tracker-hygiene-log-template.md.
+HYGIENE_LOG="$CWD/docs/trackers/tracker-hygiene-log.md"
+if [ -f "$HYGIENE_LOG" ]; then
+  HYGIENE_DUE=$(grep -m1 '^next-sweep-due:' "$HYGIENE_LOG" 2>/dev/null \
+    | sed 's/^next-sweep-due:[[:space:]]*//;s/[[:space:]]*$//')
+  if [[ "$HYGIENE_DUE" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]]; then
+    TODAY=$(date +%F)
+    # ISO dates compare correctly as strings; due today counts as due.
+    if [[ ! "$HYGIENE_DUE" > "$TODAY" ]]; then
+      MSG="${MSG}TRACKER HYGIENE: sweep overdue (due ${HYGIENE_DUE}) — run /codescout-companion:tracker-hygiene
+
+"
+    fi
+  fi
+fi
+
 # Statusline marker (kept from prior recon-primer block — feeds buddy [recon] badge).
 if [ -n "$SESSION_ID" ] && [ -n "$CWD" ]; then
   mkdir -p "$CWD/.buddy/$SESSION_ID" 2>/dev/null
