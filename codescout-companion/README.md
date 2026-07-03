@@ -29,7 +29,7 @@ Start a new Claude Code session — the plugin activates automatically.
 - **Auto-reindex** — Checks index staleness at session start, triggers `codescout index` in background if behind HEAD
 - **Drift warnings** — Surfaces high-drift files and flags stale docs/memories
 - **Worktree guard** — Blocks codescout write tools until `workspace` is called after `EnterWorktree`
-- **Tracker hygiene** — `/codescout-companion:tracker-hygiene` runs a human-gated tracker-corpus sweep (staleness, index drift, archive discipline); SessionStart nudges when the project's ledger says a sweep is overdue
+- **Tracker hygiene** — `/codescout-companion:tracker-hygiene` runs a human-gated tracker-corpus sweep (staleness, index drift, terminal-tracker archiving); SessionStart nudges when the project's ledger says a sweep is overdue
 
 ## Full Installation
 
@@ -225,6 +225,7 @@ schema. It should be updated whenever codescout adds features that affect
 exploration workflows.
 
 ## Changelog
+
 ### 1.12.0
 
 - New skill `tracker-hygiene`: periodic, human-gated tracker-corpus sweep — six detectors (index-drift, terminal-not-archived, stale-active, frontmatter-catalog-mismatch, canonical-conflict, augmentation-stale), per-project sweep ledger with HY-N self-improvement entries, per-detector batch-approval graduation.

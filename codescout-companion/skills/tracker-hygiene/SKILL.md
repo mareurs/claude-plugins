@@ -49,9 +49,18 @@ only — no index to diff), and emit a synthetic finding recommending a
 conventions bootstrap.
 
 If the ledger `docs/trackers/tracker-hygiene-log.md` does not exist,
-bootstrap it now: copy `references/tracker-hygiene-log-template.md` from this
-skill's directory, set `next-sweep-due` to today, fill the real frontmatter
-(strip the template preamble above the `---`).
+bootstrap it now from `references/tracker-hygiene-log-template.md`. The
+template stores its frontmatter inside a fenced ```yaml sample, so you must
+convert it into a REAL top-of-file frontmatter block: delete everything
+above that fenced block — the `# Tracker hygiene log — template` title, the
+bootstrap blockquote, and the fence markers themselves — so the file begins
+at byte 0 with `---` on line 1, then `kind: tracker`, `status: active`, … .
+Set `next-sweep-due` to today and keep `sweep-interval-days` (default 30).
+Verify with `head -1` that the first line is exactly `---`; if it is not,
+the librarian will not catalog the ledger as a tracker (making it invisible
+to this skill's own Phase 2 inventory) and Phase 5's frontmatter update will
+synthesize a duplicate block. The file body (from the `# Tracker hygiene
+log` H1 downward) is copied as-is.
 
 ### Phase 2 — Inventory
 
