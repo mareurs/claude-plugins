@@ -213,3 +213,59 @@ foregrounding raises oblique firing above 1/5 — but verifying it is an A/B nee
 (a 1/5→3/5 move is inside n=5 noise). Persist the oblique message as a prompt-tdd regression scenario
 only *after* a fix makes firing reliable (a flaky "contains D1" assertion now would just add a red
 scenario). Companion repo is under concurrent edit — coordinate before touching the skill.
+
+### 2026-07-03 — tracker-hygiene activation fix A/B: premise REFUTED, fix NOT shipped
+
+**Follows:** the trigger-coverage audit directly above, which predicted that foregrounding
+the proactive trigger would raise oblique firing above 1/5, and flagged that verifying it
+needs n≥10/arm (a 1/5→3/5 move is inside n=5 noise). This entry executes that A/B.
+
+**Method:** prompt-tdd A/B, plugin-free profile, generator sonnet, **n=10/arm**. Arm A =
+live description; Arm B = revised (proactive trigger moved to first position + a causal
+because-clause "a trustworthy answer needs a sweep first…" + scoped to "the project's
+trackers"). Oblique message *"What's currently open across our trackers?"* over the drift-y
+D1 fixture. Automated marker recorded = response contains `D1`; **decision made on spot-read**
+(fired = the skill demonstrably loaded), not on the marker.
+
+**Marker-validity correction (load-bearing, overturns the prior baseline):** `contains "D1"`
+measures P(fired AND rendered the full detector-labeled sweep), **not** P(fired). In headless
+`claude -p` a fired skill frequently renders a *condensed prose* sweep, or is cut off
+mid-Phase-4 gating, emitting no literal "D1". Spot-read of arm A's two D1-marker "no-fires":
+run 1 referenced the hygiene log + librarian tooling (skill-aware); run 7 had already
+**bootstrapped the ledger** (Phase 1). Both were fires. So the earlier *"oblique fires 1/5"*
+was a **compound artifact** of (a) n=5 noise and (b) this label-undercount — activation was
+near-saturated all along.
+
+**Result — spot-read firing rate:**
+
+| Arm | D1-marker | Spot-read firing |
+|---|---|---|
+| A (current description) | 6/10 | **10/10** |
+| B (revised description) | 9/10 | **10/10** |
+
+Both saturate activation on the oblique prompt. The revised description captures **no**
+activation headroom because there is none.
+
+**Secondary observation (NOT a shipping rationale):** B's full-labeled-render rate (d1 9/10)
+> A's (6/10). Mechanistically weak — the skill *body* is identical across arms; the
+`description` drives selection, not execution — and borderline at n=10 (Fisher's exact
+p≈0.3). Chasing this to justify shipping, when the stated rationale (activation) is dead,
+would be exactly the manufactured-justification the creed cuts. Left for future investigation
+only if a body/priming hypothesis is formed first.
+
+**Confound caught + corrected (my measurement defect, not the harness's):** prompt-tdd's
+`_install_skill` names the install dir from `basename(source)`. The first B run pointed at a
+copy dir named `skill-B` → installed at `.claude/skills/skill-B/`, so Claude Code never
+registered it as `tracker-hygiene` → the runs were **base-model prose** (tell: B_oblique
+4/10, B_literal **0/10** despite a verbatim trigger). Re-ran with the copy dir renamed
+`tracker-hygiene` (identical install path to arm A, varying only SKILL.md) — B then fired
+9–10/10, which by itself re-confirms the corrected install loads, so the B_literal/B_negative
+load-check arms were not re-run. **Reusable lesson:** a skill A/B via prompt-tdd must hold the
+install-dir name constant across arms and vary only the SKILL.md contents.
+
+**Outcome: `refuted` — description left UNCHANGED; live SKILL.md never edited.** No regression
+scenario persisted: activation is already reliable, and a `contains "D1"` firing gate would be
+invalid (it measures render, not activation). Companion repo remained untouched by this work.
+
+**Confidence:** high — n=10/arm, both arms spot-read to the activation ceiling, marker
+undercount diagnosed and bypassed.
