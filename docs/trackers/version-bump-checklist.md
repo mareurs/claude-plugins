@@ -17,15 +17,15 @@ Release readiness across plugins × profiles. See
 
 ## State
 
-_Last refresh: `761e7a7`_
+_Last refresh: `09a5f71`_
 
-**codescout-companion** — canonical `1.11.17` · readme `1.11.17` · marketplace clean ✅
+**codescout-companion** — canonical `1.12.2` · readme `1.12.2` · marketplace clean ✅
 
 | profile | installed | cache dir | install_path ok |
 |---|---|---|---|
-| `~/.claude` | 1.11.17 ✅ | ✅ | ✅ |
-| `~/.claude-sdd` | 1.11.17 ✅ | ✅ | ✅ |
-| `~/.claude-kat` | 1.11.17 ✅ | ✅ | ✅ |
+| `~/.claude` | 1.12.2 ✅ | ✅ | ✅ |
+| `~/.claude-sdd` | 1.12.2 ✅ | ✅ | ✅ |
+| `~/.claude-kat` | 1.12.2 ✅ | ✅ | ✅ |
 
 **buddy** — canonical `0.7.35` · readme `0.7.35` · marketplace clean ✅
 
@@ -43,6 +43,10 @@ _Last refresh: `761e7a7`_
 | `~/.claude-sdd` | 1.1.7 ✅ | ✅ | ✅ |
 | `~/.claude-kat` | 1.1.7 ✅ | ✅ | ✅ |
 ## History
+
+### 2026-07-03 — codescout-companion 1.11.17 → 1.12.2
+
+Finished a release left half-done. The 1.12.0/1.12.1/1.12.2 bumps (tracker-hygiene skill — gated corpus sweep, SessionStart overdue-nudge, Phase 4/5 live-sweep fixes, cross-workspace guidance) had been committed to `plugin.json` but the release was never completed: README table stalled at `1.11.17` (check-versions failing), and caches/records topped out at `1.12.0` (`.claude`, `.claude-kat`) and `1.11.17` (`.claude-sdd`) — none at the canonical `1.12.2`. Ran `release.sh codescout-companion 1.12.2`: synced README → 1.12.2, seeded the 1.12.2 cache + repointed install records across all three profiles, sanity loop all ✅. `run-all.sh` green (all suites). Pushed to origin/main (`09a5f71`; 13 commits incl. docs/tracker updates). Cold restart pending to bind the 1.12.2 caches.
 
 ### 2026-06-27 — buddy 0.7.34 → 0.7.35, claude-statusline 1.1.6 → 1.1.7, codescout-companion 1.11.16 → 1.11.17
 
