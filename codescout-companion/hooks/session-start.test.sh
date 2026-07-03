@@ -106,6 +106,30 @@ else
 fi
 rm -f "$LEDGER"
 
+# --- Tracker-hygiene nudge: guard-hardening (numeric-malformed) ---
+# A numeric-but-invalid value sorts BEFORE today and would wrongly nudge if the
+# ISO regex guard regressed; asserting silence here actually exercises the guard
+# (a letter-led value stays silent with or without the guard — vacuous).
+mkdir -p "$TMP/docs/trackers"
+LEDGER="$TMP/docs/trackers/tracker-hygiene-log.md"
+printf -- '---\nnext-sweep-due: 202\n---\n' > "$LEDGER"
+NUMBAD=$(ctx startup)
+if echo "$NUMBAD" | grep -q "TRACKER HYGIENE"; then
+  fail "numeric-malformed date (202) must not nudge — ISO guard regressed"
+else
+  pass "numeric-malformed date → silent (ISO guard exercised)"
+fi
+
+# --- Tracker-hygiene nudge: due==today boundary ---
+printf -- '---\nnext-sweep-due: %s\n---\n' "$(date +%F)" > "$LEDGER"
+DUETODAY=$(ctx startup)
+if echo "$DUETODAY" | grep -q "TRACKER HYGIENE: sweep overdue (due $(date +%F))"; then
+  pass "due today → nudge fires (boundary: today counts as due)"
+else
+  fail "due today must nudge (today counts as due)"
+fi
+rm -f "$LEDGER"
+
 echo
 echo "Total: $((PASS+FAIL))  Pass: $PASS  Fail: $FAIL"
 [ "$FAIL" -eq 0 ]
