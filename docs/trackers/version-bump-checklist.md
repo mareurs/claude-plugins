@@ -17,32 +17,36 @@ Release readiness across plugins × profiles. See
 
 ## State
 
-_Last refresh: `d79a295`_
+_Last refresh: `761e7a7`_
 
-**codescout-companion** — canonical `1.11.16` · readme `1.11.16` · marketplace clean ✅
-
-| profile | installed | cache dir | install_path ok |
-|---|---|---|---|
-| `~/.claude` | 1.11.16 ✅ | ✅ | ✅ |
-| `~/.claude-sdd` | 1.11.16 ✅ | ✅ | ✅ |
-| `~/.claude-kat` | 1.11.16 ✅ | ✅ | ✅ |
-
-**buddy** — canonical `0.7.34` · readme `0.7.34` · marketplace clean ✅
+**codescout-companion** — canonical `1.11.17` · readme `1.11.17` · marketplace clean ✅
 
 | profile | installed | cache dir | install_path ok |
 |---|---|---|---|
-| `~/.claude` | 0.7.34 ✅ | ✅ | ✅ |
-| `~/.claude-sdd` | 0.7.34 ✅ | ✅ | ✅ |
-| `~/.claude-kat` | 0.7.34 ✅ | ✅ | ✅ |
+| `~/.claude` | 1.11.17 ✅ | ✅ | ✅ |
+| `~/.claude-sdd` | 1.11.17 ✅ | ✅ | ✅ |
+| `~/.claude-kat` | 1.11.17 ✅ | ✅ | ✅ |
 
-**claude-statusline** — canonical `1.1.6` · readme `1.1.6` · marketplace clean ✅
+**buddy** — canonical `0.7.35` · readme `0.7.35` · marketplace clean ✅
 
 | profile | installed | cache dir | install_path ok |
 |---|---|---|---|
-| `~/.claude` | 1.1.6 ✅ | ✅ | ✅ |
-| `~/.claude-sdd` | 1.1.6 ✅ | ✅ | ✅ |
-| `~/.claude-kat` | 1.1.6 ✅ | ✅ | ✅ |
+| `~/.claude` | 0.7.35 ✅ | ✅ | ✅ |
+| `~/.claude-sdd` | 0.7.35 ✅ | ✅ | ✅ |
+| `~/.claude-kat` | 0.7.35 ✅ | ✅ | ✅ |
+
+**claude-statusline** — canonical `1.1.7` · readme `1.1.7` · marketplace clean ✅
+
+| profile | installed | cache dir | install_path ok |
+|---|---|---|---|
+| `~/.claude` | 1.1.7 ✅ | ✅ | ✅ |
+| `~/.claude-sdd` | 1.1.7 ✅ | ✅ | ✅ |
+| `~/.claude-kat` | 1.1.7 ✅ | ✅ | ✅ |
 ## History
+
+### 2026-06-27 — buddy 0.7.34 → 0.7.35, claude-statusline 1.1.6 → 1.1.7, codescout-companion 1.11.16 → 1.11.17
+
+Generic per-model weekly limits + config-dir read exemption. claude-statusline + buddy: replaced the hardcoded `7dO` with a generic `weekly_scoped` renderer driven by `limits[]` (renders `7dS`/`7dO`/etc.; the Sonnet scoped weekly is live now); buddy `_merge_cache` forwards `limits[]` weekly_scoped entries as `rate_limits.scoped`. codescout-companion: `pre-tool-guard` gained `is_config_dir` — native Read/Grep/Glob of plans/skills/settings under a CC config dir (`~/.claude`, `~/.claude-sdd`, `~/.claude-kat`, `$CLAUDE_CONFIG_DIR`) now pass through; Edit/Write/Bash stay guarded. +8 guard tests (44 total). Also restored codescout-companion + claude-statusline to params — both had been dropped by the wholesale `plugins` replacement that `artifact_augment(merge=true)` performs on buddy-only refreshes. Cache seeded + records repointed across all three profiles; sanity loops all ✅. `run-all.sh` green; buddy pytest 461. Pushed (buddy `7be0179`, claude-statusline `11ffc3e`, codescout-companion `761e7a7`).
 ### 2026-06-26 — buddy 0.7.33 → 0.7.34
 
 Shipped the `find_skill_md` flat-repo sibling-scope fallback (commit `dca9e35`, release `d79a295`): cross-plugin specialists like `reconnaissance` (shipped by codescout-companion, not buddy) now resolve when the hook runs from the source tree, not only the cache layout. Delta: buddy canonical / readme / installed `0.7.33 → 0.7.34` across all three profiles; cache dirs seeded, install paths same-profile. All rows ✅.

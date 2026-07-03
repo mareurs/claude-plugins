@@ -192,4 +192,24 @@ activation — **absent (N=0), unverified.**
 NOT recommended for cut — it may curb mis-invocation in non-interactive contexts; only a selection
 A/B would settle it. Left as-is.
 
-**Confidence:** medium. **Outcome:** `unobserved` — pending the trigger-coverage scenario.
+**Confidence:** medium → **high** (directional). **Outcome: `held`** — prediction confirmed.
+
+**Measured (2026-07-03; n=5/arm; generator sonnet; plugin-free profile; marker = response
+contains `D1`, bound to actual responses — not tally-only):** literal-invoke **5/5 fired**;
+oblique *"What's currently open across our trackers?"* **1/5 fired**. The directional prediction
+holds unambiguously (5/5 vs 1/5, well outside the n=5 ambiguous band); the oblique *rate* itself is
+coarse at n=5. **Marker validated by spot-read:** the 4 oblique no-fires were genuine — the base
+model answered "what's open?" directly (listed the 3 active trackers), emitted no D1/phase taxonomy,
+and one explicitly said "a plain read of the three files, not a full sweep." The no-fire path is also
+**degraded, not merely unstructured**: one no-fire *hallucinated that no README index exists* (it
+does), whereas every fired sweep read the README correctly — so reliable proactive firing is worth
+fixing (it buys accuracy, not just format).
+
+**Recommended fix (one; NOT applied — skill edit, defer to Marius):** raise the salience of the
+proactive trigger in the `description`. It is currently buried mid-sentence ("…clean up
+docs/trackers, before backlog triage or any 'what's open?' report, or when…"). Foreground the
+"what's open? / backlog triage / status report" trigger. **Fix-verification prediction:**
+foregrounding raises oblique firing above 1/5 — but verifying it is an A/B needing **n≥10/arm**
+(a 1/5→3/5 move is inside n=5 noise). Persist the oblique message as a prompt-tdd regression scenario
+only *after* a fix makes firing reliable (a flaky "contains D1" assertion now would just add a red
+scenario). Companion repo is under concurrent edit — coordinate before touching the skill.
