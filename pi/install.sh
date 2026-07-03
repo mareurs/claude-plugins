@@ -45,32 +45,42 @@ add_skill_dir "$REPO_DIR/buddy/skills"                  # 12 specialist skills
 add_skill_dir "$REPO_DIR/sdd/skills"                    # sdd-flow
 
 # ── mcp.json hint ──────────────────────────────────────────────────────────
+# NOTE: directTools is a per-server field nested inside mcpServers.<name>.
+# grep is intentionally absent from codescout's directTools — it collides
+# with pi's built-in grep; reach codescout's grep as codescout_grep instead.
 
 cat <<EOF
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-MANUAL STEP — add servers to ~/.pi/agent/mcp.json
+MANUAL STEP — configure ~/.pi/agent/mcp.json
 
-  codescout (for cs: line and recon badge):
-    Ensure "codescout_grep" is in directTools.
+The codescout/contrib/pi install script manages this file. If you
+are setting it up manually, see codescout/contrib/pi/mcp.json.example
+or pi/README.md § Step 4 for the full format.
 
-  researcher (for /research-web and /research-subagent):
+Minimal example (codescout only):
   {
     "mcpServers": {
-      "researcher": {
-        "type": "stdio",
-        "command": "/path/to/researcher-mcp",
-        "env": {
-          "LLM_BASE_URL": "...",
-          "LLM_MODEL":    "...",
-          "LLM_API_KEY":  "...",
-          "SEARXNG_URL":  "http://localhost:4000"
-        }
+      "codescout": {
+        "command": "/home/you/.cargo/bin/codescout",
+        "args": ["start"],
+        "lifecycle": "lazy",
+        "directTools": [
+          "symbols", "symbol_at", "tree", "semantic_search", "references",
+          "read_file", "read_markdown", "edit_code", "edit_file", "edit_markdown"
+        ]
       }
-    },
-    "directTools": ["grep", "researcher"]
+    }
   }
+
+Note: grep is absent from directTools — it collides with pi's built-in.
+Use codescout_grep (mcp-prefixed) to reach codescout's grep tool.
+
+For researcher-mcp, see pi/README.md § Step 4.
+
+After editing mcp.json, run in pi:
+  /mcp reconnect codescout
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
