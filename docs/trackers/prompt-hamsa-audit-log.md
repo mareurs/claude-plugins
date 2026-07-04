@@ -269,3 +269,21 @@ invalid (it measures render, not activation). Companion repo remained untouched 
 
 **Confidence:** high — n=10/arm, both arms spot-read to the activation ceiling, marker
 undercount diagnosed and bypassed.
+
+### 2026-07-04 — gate-stability follow-up: committed literal-invoke marker is SOUND (n=15)
+
+Second-order check on the marker-validity finding above: does the COMMITTED scenario's
+`contains "D1"` gate flake, given that a fired skill sometimes renders condensed (no label)?
+Ran the committed literal-invoke input against the live skill, n=15: **gate 15/15, contains-D1
+15/15, firing 15/15**, zero errors — all full structured sweeps (56–114s each). No flake.
+
+**Refinement (the keeper):** D1-*label* emission is conditional on **invocation style**, not
+random. Literal *"run a sweep and report the findings"* → full labeled sweep 15/15; oblique
+*"what's open?"* → labeled 6/10 (condensed the rest), same skill. The committed gate uses the
+literal invoke — the high-label path — so its marker is reliable. **No hardening; committed
+scenario unchanged.** So the marker lesson is *not* "distinctive-label markers are unreliable"
+— it's "broaden the marker (skill-vocab / spot-read) only for **oblique/condensed-invocation**
+evals; a literal-invoke regression gate keeps the crisp distinctive label."
+
+**Outcome: `verified — no action`.** Fourth inspection-based worry in this stream dissolved by
+measurement (after: D1 meta-file FP, the fix premise, "B renders worse").
