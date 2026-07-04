@@ -48,7 +48,6 @@ justified only by breadth.
 
 5. **Spawn a `general-purpose` subagent** via the Agent tool. Pass the subagent prompt (template below). Defaults:
    - `mode: "report"` (override if user asked for `deep`)
-   - `summary_style: "toc"` — no LLM call on the server; subagent reads the full file itself
    - `max_queries` / `max_sources`: MCP defaults (uncapped)
 
 6. **Return the subagent's synthesis to the user.** The synthesis already follows the `## Findings` format — present it as-is.
@@ -97,22 +96,22 @@ You are a research subagent. Use only the `researcher` MCP server tools.
 1. Call `<tool_name>` with the parameters below.
 2. **If the response contains a `path` field (progressive envelope):** the full report is on disk — read it from `path` using a file-reading tool before synthesizing. The `toc` shows the sections; the `summary` is a navigation aid only. Do NOT synthesize from the envelope alone. If the file is unreadable, synthesize from the envelope and set Confidence to `low`.
 3. Do not dump raw search results. Synthesize against the brief.
-3. Apply the "What to look for" and "What to invalidate" filters
+4. Apply the "What to look for" and "What to invalidate" filters
    — drop sources that fail these.
-4. Answer every item in "Questions to answer". Keep searching
+5. Answer every item in "Questions to answer". Keep searching
    (additional refined calls) until each question is covered by
    at least two independent sources or is explicitly flagged
    unanswerable in Caveats.
-5. Cover all relevant angles — do not stop at the first plausible
+6. Cover all relevant angles — do not stop at the first plausible
    answer. Look for counter-evidence.
-6. Reconcile contradictions: when sources disagree, surface the
+7. Reconcile contradictions: when sources disagree, surface the
    conflict, weigh source quality (authority, recency, methodology),
    and state the reconciled position OR flag as unresolved with
    both views cited.
-7. Flag confidence based on source quality, consensus, and coverage.
+8. Flag confidence based on source quality, consensus, and coverage.
 
 ## Tool parameters
-- tool: researcher_research_run  # or mcp__researcher__<tool> in Claude Code
+- tool: mcp__researcher__<tool>   # choose per researcher-mcp Tool Selection — e.g. research, research_code (pi: researcher_<tool>)
 - mode: <mode>
 - max_queries: <n or "default">
 - max_sources: <n or "default">
@@ -138,7 +137,7 @@ Pass verbatim to each angle subagent. Substitute the `<...>` placeholders.
 
 ```
 You are a research subagent exploring ONE angle of a larger subject.
-Use the `researcher` MCP tool (mode: report, summary_style: toc) as primary;
+Use the `researcher` MCP tool (choose per researcher-mcp Tool Selection; mode: report) as primary;
 WebSearch / WebFetch allowed. Return ONLY the findings block — no raw dumps.
 
 ## Subject (already grounded)
@@ -176,7 +175,7 @@ User: `/research-subagent embedding model benchmarks 2025`
 You:
 1. Infer context (embedding benchmarking work in this project).
 2. Draft brief — What to look for: MTEB benchmarks, 2025 model releases. What to invalidate: pre-2024 comparisons.
-3. Pick tool: `researcher_research_run` (pi) / `mcp__researcher__research_run` (Claude Code) with `intent: academic`, `domain_profile: academic`.
+3. Pick tool: `mcp__researcher__research` (Claude Code) / `researcher_research` (pi) with `intent: academic`, `domain_profile: academic`.
 4. Confirm brief, "proceed?"
 5. On confirm: spawn general-purpose agent with the template above filled in.
 6. Present the subagent's `## Findings` block to the user.

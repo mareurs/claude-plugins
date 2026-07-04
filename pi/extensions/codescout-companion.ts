@@ -30,7 +30,7 @@ const SKILL_READ_TOOLS = new Set([
 // only registered when that server is connected. Edit to match your mcp.json.
 const MCP_SERVERS: { name: string; indicatorTool: string }[] = [
   { name: "codescout",  indicatorTool: "codescout_grep" },
-  { name: "researcher", indicatorTool: "researcher_research_run" },
+  { name: "researcher", indicatorTool: "researcher_research" },
 ];
 
 const RECON_FRESH_SECS = 30 * 60;

@@ -59,9 +59,9 @@ User: `/research-web rust async cancellation patterns`
 You:
 1. Infer context (Rust project, currently working on async code).
 2. Draft brief — What to look for: canonical patterns, tokio docs, recent (2024+). What to invalidate: pre-tokio-1.0 info.
-3. Pick tool: `researcher_research_run` (pi) / `mcp__researcher__research_run` (Claude Code) (framework-specific).
+3. Pick tool: `mcp__researcher__research_code` (Claude Code) / `researcher_research_code` (pi) — framework-specific.
 4. Show compact brief, ask "proceed?"
-5. On confirm: call `research_run(target="code", repo="tokio-rs/tokio", aspects=["community","changelog"], query="async cancellation patterns")` with `mode: summary`, `max_queries: 3`, `max_sources: 5`.
+5. On confirm: call `research_code(framework="tokio", repo="tokio-rs/tokio", aspects=["community","changelog"], query="async cancellation patterns")`. (`research_code` takes no `mode` / `max_queries` / `max_sources` — those apply to `research`.)
 6. Present the MCP output.
 
 ## Common Mistakes

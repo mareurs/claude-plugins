@@ -149,7 +149,7 @@ Create or edit `~/.pi/agent/mcp.json`. This file is personal — keep it out of 
     "researcher": {
       "command": "/path/to/researcher-mcp",
       "lifecycle": "lazy",
-      "directTools": ["research_run"],
+      "directTools": ["research", "research_person", "research_company", "research_code", "market_insight", "search_jobs"],
       "env": {
         "LLM_BASE_URL": "https://generativelanguage.googleapis.com/v1beta/openai/",
         "LLM_MODEL":    "gemini-2.5-flash",
@@ -219,7 +219,7 @@ Edit the `MCP_SERVERS` constant at the top of the file:
 ```typescript
 const MCP_SERVERS: { name: string; indicatorTool: string }[] = [
   { name: "codescout",  indicatorTool: "codescout_grep" },
-  { name: "researcher", indicatorTool: "researcher_research_run" },
+  { name: "researcher", indicatorTool: "researcher_research" },
 ];
 ```
 

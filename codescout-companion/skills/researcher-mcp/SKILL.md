@@ -1,118 +1,128 @@
 ---
 name: researcher-mcp
-description: Reference guide for /research-web and /research-subagent — do not invoke directly. Provides tool-selection matrix, mode guide, context budgets, and the shared research brief template used when calling the researcher MCP server.
+description: Reference guide for /research-web and /research-subagent — do not invoke directly. Provides the tool-selection matrix, mode guide, context budgets, and the shared research brief template used when calling the researcher MCP server.
 ---
 
 # Researcher MCP — Shared Reference
 
 **Not intended for direct invocation.** Loaded by `/research-web` and `/research-subagent` as `REQUIRED SUB-SKILL` to share tool selection logic, context budgets, and the research brief template.
 
-## Single Tool API
+## Tools
 
-The server exposes **one tool**. All research targets go through it via the `target` parameter. There are no separate `research_code`, `research_person`, `market_insight`, or `search_jobs` tools — those do not exist.
+The server exposes **six tools**, one per research target. Pick the tool that matches the query — there is no single dispatcher tool and no `target` parameter.
 
 > **Tool name by runtime**
-> - **pi**: `researcher_research_run` (direct tool)
-> - **Claude Code**: `mcp__researcher__research_run`
-> Use whichever is available in your tool list.
+> - **Claude Code**: `mcp__researcher__<tool>` (e.g. `mcp__researcher__research`)
+> - **pi**: `researcher_<tool>` (e.g. `researcher_research`)
+> Use whichever prefix appears in your tool list.
 
-```
-researcher_research_run(   # or mcp__researcher__research_run in Claude Code
-  query,          # required — research subject or question
-  target?,        # topic(default)|person|company|market|code|jobs
-  mode?,          # quick|summary|report(default)|deep
-  ...             # per-target params below
-)
-```
-
-## Target Selection
-
-| Query type | `target` value | Notes |
+| Tool | Signature | Use for |
 |---|---|---|
-| General web topic | `"topic"` (default) | Omit target entirely |
-| Person background | `"person"` | Meeting prep on individuals |
-| Company intel | `"company"` | Meeting prep on organizations |
-| Library / framework | `"code"` | Bugs, releases, breaking changes |
-| Stock / crypto / macro | `"market"` | Web research only, no price APIs |
-| Job search | `"jobs"` | Uses profiles.toml [job-profile] |
+| `research` | `research(query, mode?, intent?, domain_profile?, domains?, max_queries?, max_sources?)` | General web topic / question |
+| `research_person` | `research_person(name, method?)` | Person background / meeting prep |
+| `research_company` | `research_company(name, country?)` | Company intel |
+| `research_code` | `research_code(framework, version?, aspects?, repo?, query?)` | Library / framework: bugs, releases, breaking changes |
+| `market_insight` | `market_insight(query, asset_class?, mode?)` | Stock / crypto / macro (web research, no price APIs) |
+| `search_jobs` | `search_jobs(query, mode?)` | Job search (uses `profiles.toml [job-profile]`) |
+
+## Tool Selection
+
+| Query type | Tool |
+|---|---|
+| General web topic | `research` |
+| Person background | `research_person` |
+| Company intel | `research_company` |
+| Library / framework | `research_code` |
+| Stock / crypto / macro | `market_insight` |
+| Job search | `search_jobs` |
 
 ## Mode Guide
+
+`mode` applies to `research` and `market_insight`; `search_jobs` has its own mode values; the remaining tools have no `mode`.
 
 | Mode | Output | Token cost | When |
 |---|---|---|---|
 | `quick` | Links + snippets only | Very low | Just need URLs |
-| `summary` | Bullet facts | Low | Inline default |
-| `report` | Full markdown analysis | Medium | Subagent default |
-| `deep` | Exhaustive (2× queries+sources) | High | Only when thorough research required |
+| `summary` | Bullet facts | Low | Inline default (`/research-web`) |
+| `report` | Full markdown analysis | Medium | Subagent default (`/research-subagent`) |
+| `deep` | Exhaustive (2× queries + sources) | High | Only when thorough research required |
 
-## Per-Target Parameters
+`search_jobs` modes: `list` (ranked shortlist, default) | `deep` (shortlist + company briefs on the top matches).
 
-**[person]**
-- `person_method`: `"company"` | `"personal"` | `"both"` (default)
+## Per-Tool Parameters
 
-**[company]**
-- `country`: string — disambiguates company name
+**`research`** (general web)
+- `mode`: quick | summary | report (default) | deep
+- `intent`: developer-docs | news | product-research | academic | general (default) — tunes planner query style
+- `domain_profile`: named preset — news | academic | tech-news | llm-news | shopping-ro | travel
+- `domains`: **JSON array** of sites to pin — `["docs.rs","example.com"]`
+- `max_queries`: integer — max planner sub-questions
+- `max_sources`: integer — max sources scraped per query
 
-**[market]**
-- `asset_class`: `"stock"` | `"crypto"` | `"macro"` (default)
+**`research_person`**
+- `method`: company | personal | both (default)
 
-**[code]** — all optional
-- `version`: string — e.g. `"0.8"` or `"latest"`
-- `aspects`: **JSON array** of aspects to research — `["bugs","changelog","community","releases"]`
-  - Default when omitted: `["bugs","changelog","community"]`
-  - Pass as a real JSON array, NOT a string: ✓ `["releases","changelog"]` ✗ `"releases,changelog"`
-- `repo`: `"owner/repo"` — GitHub repo for targeted issue/release search
-- `keywords`: string — narrows search within the framework
+**`research_company`**
+- `country`: string — disambiguates the company name
 
-**[all targets]**
-- `intent`: `"developer-docs"` | `"news"` | `"product-research"` | `"academic"` | `"general"` (default)
-- `domain_profile`: named preset — `"news"` | `"academic"` | `"tech-news"` | `"llm-news"` | `"shopping-ro"` | `"travel"`
-- `domains`: **JSON array** of sites to pin — `["example.com","docs.rs"]`
-- `summary_style`: `"toc"` | `"abstract"` (default) | `"takeaways"`
-- `max_queries`: integer — max sub-questions for planner (topic/market only)
-- `max_sources`: integer — max sources scraped per query (topic/market only)
+**`research_code`** — all optional except `framework`
+- `version`: string — e.g. `"0.8"` or `"latest"` (default)
+- `aspects`: **JSON array** — `["bugs","changelog","community","releases"]` (default `["bugs","changelog","community"]`). Pass a real JSON array, NOT a string.
+- `repo`: `"owner/repo"` — anchors bug / release search to GitHub
+- `query`: string — keyword appended to every search to narrow results
+
+**`market_insight`**
+- `asset_class`: stock | crypto | macro (default)
+- `mode`: quick | summary | report (default) | deep
+
+**`search_jobs`**
+- `mode`: list (default) | deep
 
 ## Context Budget Defaults
 
-| Path | mode | summary_style | max_queries | max_sources |
-|---|---|---|---|---|
-| `/research-web` (inline) | `summary` | omit (server default `abstract`) | 3 | 5 |
-| `/research-subagent` | `report` | `"toc"` (cheapest; subagent reads file) | default (uncapped) | default (uncapped) |
+| Path | mode | max_queries | max_sources |
+|---|---|---|---|
+| `/research-web` (inline) | `summary` | 3 | 5 |
+| `/research-subagent` | `report` | default (uncapped) | default (uncapped) |
+
+`max_queries` / `max_sources` apply to `research` (and `market_insight`).
 
 ## Examples
 
+Names shown in Claude Code form (`mcp__researcher__<tool>`); in pi use `researcher_<tool>`.
+
 ```
 # General topic
-researcher_research_run(query="Rust async runtimes comparison 2025", mode="summary")
+research(query="Rust async runtimes comparison 2025", mode="summary")
 
 # Code / library
-researcher_research_run(query="Axum 0.8 breaking changes", target="code", version="0.8", aspects=["changelog","releases"])
+research_code(framework="axum", version="0.8", aspects=["changelog","releases"])
 
 # Code with repo pinning
-researcher_research_run(query="tokio", target="code", version="1.44", aspects=["bugs","releases"], repo="tokio-rs/tokio")
+research_code(framework="tokio", version="1.44", aspects=["bugs","releases"], repo="tokio-rs/tokio")
 
 # Person
-researcher_research_run(query="Andrej Karpathy", target="person", person_method="company")
+research_person(name="Andrej Karpathy", method="company")
 
 # Company
-researcher_research_run(query="Anthropic", target="company", country="US")
+research_company(name="Anthropic", country="US")
 
 # Market
-researcher_research_run(query="BTC halving", target="market", asset_class="crypto")
+market_insight(query="BTC halving", asset_class="crypto")
 
-# News with domain profile
-researcher_research_run(query="OpenAI o3 release", intent="news", domain_profile="news", mode="summary")
+# News topic with domain profile
+research(query="OpenAI o3 release", intent="news", domain_profile="news", mode="summary")
 
 # Jobs
-researcher_research_run(query="senior Rust engineer", target="jobs", mode="deep")
+search_jobs(query="senior Rust engineer", mode="deep")
 
 # Pinned domains
-researcher_research_run(query="Ktor routing", domains=["ktor.io","kotlinlang.org"])
+research(query="Ktor routing", domains=["ktor.io","kotlinlang.org"])
 ```
 
 ## Progressive Disclosure
 
-The researcher MCP applies size-gated progressive disclosure. Reports under ~4000 characters return inline; larger reports return a progressive envelope instead.
+The researcher applies size-gated progressive disclosure to `research` / `market_insight` reports. Reports under ~4000 characters return inline; larger reports return a progressive envelope instead.
 
 ### Detecting an envelope
 
@@ -120,28 +130,22 @@ Response is an envelope if it contains a `path` field:
 
 ```json
 {
-  "summary": "<generated per summary_style>",
+  "summary": "<server-generated summary>",
   "toc": ["## Section 1", "## Section 2"],
   "path": "/home/user/.local/share/researcher/2026-05-03T14-30-42-<slug>.md",
   "word_count": 1847,
-  "hint": "Full report saved to disk. Read the file at 'path' using a file-reading tool, or read specific sections by heading."
+  "hint": "Full report saved to disk. Read the file at 'path' using a file-reading tool."
 }
 ```
 
-### `summary_style` parameter
-
-| Value | Behavior | LLM call? |
-|---|---|---|
-| `"toc"` | Headings only | No — cheapest |
-| `"abstract"` | 3–5 sentence abstract | Yes — server default |
-| `"takeaways"` | 5–8 bullet key findings | Yes |
+The `summary` and `toc` are generated server-side. **Summary style is not a caller parameter** — do not pass `summary_style`.
 
 ### Handling envelope responses
 
 | Context | What to do |
 |---|---|
-| Inline (`/research-web`) | Present `summary` content + `toc` to user; offer to read `path` for full depth |
-| Subagent (`/research-subagent`) | Read full file at `path`, synthesize from complete content; if file unreadable, synthesize from envelope and set Confidence to `low` |
+| Inline (`/research-web`) | Present `summary` + `toc`; offer to read `path` for full depth |
+| Subagent (`/research-subagent`) | Read the full file at `path`, synthesize from complete content; if the file is unreadable, synthesize from the envelope and set Confidence to `low` |
 
 ## Research Brief Template
 
@@ -201,8 +205,8 @@ Both action skills build this brief before calling the MCP. In `/research-web` i
 Minimal — infer from ambient context, ask only true unknowns.
 
 1. **Query** — ask once if no args, otherwise skip
-2. **Target disambiguation** — multiple choice, only if query maps to multiple targets ambiguously
-3. **Mode** — default per skill; ask only if user hints at depth
+2. **Tool disambiguation** — multiple choice, only if the query maps to multiple tools ambiguously
+3. **Mode** — default per skill; ask only if the user hints at depth
 4. **Invalidation targets** — only if stakes are high or ambient context is thin
 
 **Hard cap:** max 3 questions. Beyond that, build the brief with best-effort inference.
