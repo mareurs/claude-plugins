@@ -401,3 +401,26 @@ turn index.
 turn-distance (codescout A-10, transcript-bound). Untested residue: high-token-volume distance
 (20k+ tokens; heavy-output cells hit the harness 300s/run cap) and weaker models. Heuristic 10
 Distance corollary + buddy memory + codescout A-10/findings shipped 2026-07-04.
+
+### 2026-07-05 — distance gap closed: token-volume + middle-position also inert (~24k tokens)
+
+Closed the honest residue the 2026-07-04 distance cell left open. That cell pushed distance via
+turn COUNT with short fillers, and the rule always sat at turn 1 (primacy-protected) — so
+"no decay" could have been primacy doing the work, and high token VOLUME was untested (the
+heavy-output cells that would test it hit the harness 300s/run cap).
+
+Fix for the timeout: bury the rule under non-code **INPUT** bulk (cheap prefill), not model
+**output** (slow generation). Two cells, ~24k tokens of intervening context, transcript-bound:
+- **xbulk** (rule at start, 24k tokens after): held both channels — F 2/2, V 2/2.
+- **xmid** (rule in the MIDDLE — ~12k tokens each side, primacy-free, the faithful get_guide
+  placement): held — F 2/2, 0 re-anchoring.
+
+**Result:** no decay across turn-count, token-volume, AND context-position. The A-10 conclusion
+(channel/placement inert; the get_guide lever is discoverability, not re-injection) now stands on
+all three distance dimensions. Heuristic 10 Distance corollary residue narrowed to EXTREME volume
+(100k+ tokens) + weaker models.
+
+**Craft banked:** push token-VOLUME distance via input bulk, never model output; and a directive
+at *primacy* (turn 1) is a weak decay test — place it mid-context to actually stress retention.
+
+**Outcome:** `held` — codescout A-10 gap-closure addendum (2026-07-05), transcript-bound.
