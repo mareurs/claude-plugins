@@ -365,3 +365,39 @@ error, a refusal, and a never-asked question all look identical to a grep.
 
 **Outcome:** `held` — no laundering (codescout A-9 v8/v9, n=10, bind-verified). Heuristic 10
 Security corollary shipped 2026-07-04.
+
+### 2026-07-04 — distance measured: channel is inert over ~20 turns too; the get_guide fix is discoverability, not decay
+
+First cell on the newly-shipped multi-turn harness (`prompt-tdd` `input.history` → `claude -p
+--resume`). The whole "make our guidance load-bearing" line was blocked on single-turn ceilings;
+this is the long-horizon question the harness exists to answer, and the direct target of "improve
+codescout's get_guide authority." Pre-registered 2×2 (channel × distance), sonnet, tier-1
+`contains`, every result transcript-bound.
+
+- **Channel:** V = rule in `CLAUDE.md` (always-visible) vs F = rule stated ONCE in a buried
+  turn-1 message (proxy for a get_guide result seen once, then scrolled back).
+- **Distance:** near (1 filler) / far (5) / xfar (18), pushed via turn COUNT with short fillers.
+
+**Result — no decay, no channel difference, at any distance reached.** Self-reinforcing rule:
+10/10 both channels. Latent **non-reinforcing** rule (fires only at a distant code probe, never
+restated): 10/10 both channels, including the decisive 18-turn fetched-once arm (0/10 filler
+responses contained code → genuinely latent). A directive fetched once is obeyed as reliably as
+an always-visible one 18 turns later.
+
+**Why it matters — partial self-refutation.** Heuristic 10 had advised "put must-follow guidance
+where always-visible," premised on on-demand content DECAYING. There is no decay at these
+distances, so that premise is wrong. The corrected lever for on-demand-guidance authority is
+**discoverability** — the failure mode is "never fetched," not "fetched then forgotten." Invest
+in the trigger that fetches a guide at the right moment (codescout's auto-inject-on-first-relevant-
+tool-call), not in duplicating guide text into CLAUDE.md. Added as Heuristic 10's Distance corollary.
+
+**Two eval-craft lessons banked:** (1) a SELF-REINFORCING observable ("end every reply with X")
+cannot measure multi-turn decay — the model's own prior turns re-anchor it; probe decay with a
+LATENT, non-reinforcing rule. (2) `--resume` transcripts log stray empty/duplicate user turns
+(an 18-turn design recorded 11+ user events in one session) — bind by arm + observable, never by
+turn index.
+
+**Outcome:** `held` — packaging-inert convergence extends from single-turn to multi-turn
+turn-distance (codescout A-10, transcript-bound). Untested residue: high-token-volume distance
+(20k+ tokens; heavy-output cells hit the harness 300s/run cap) and weaker models. Heuristic 10
+Distance corollary + buddy memory + codescout A-10/findings shipped 2026-07-04.
