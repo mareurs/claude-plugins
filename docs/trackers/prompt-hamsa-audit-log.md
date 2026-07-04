@@ -287,3 +287,40 @@ evals; a literal-invoke regression gate keeps the crisp distinctive label."
 
 **Outcome: `verified — no action`.** Fourth inspection-based worry in this stream dissolved by
 measurement (after: D1 meta-file FP, the fix premise, "B renders worse").
+
+### 2026-07-04 — model-steering law promoted to craft: packaging is inert, steer by merit + placement
+
+Not a prompt audit — a self-reflection promoting a measured finding out of a project
+ledger (codescout audit-log A-4/A-5/A-8/A-9) into Hamsa's own craft. Four eval arcs
+converged on one law, and the last gap just closed.
+
+**Finding.** For a capable model (sonnet, single-turn), how you *dress* a directive is
+inert for both trust and obedience. Null across every packaging lever tried:
+- authority/persona framing (A-4) — no adherence lift, and a documented jailbreak vector;
+- overselling freshness (A-8) — did not make the model over-trust a deliberately stale
+  tracker; it verified regardless and flagged the oversell as a hazard;
+- delivery channel / provenance (A-9) — a directive in a project *file on disk* was obeyed
+  no more than the same directive inline or in `CLAUDE.md`;
+- **cost of complying (A-9 costly cell, 2026-07-04)** — escalating a neutral directive's
+  effort-cost left all channels at 100% (v5, n=10/arm, gap +0%, 737 line judgments).
+
+The only lever that ever moved behavior was the model's OWN verification/judgment (A-5).
+
+**Why it matters to Hamsa.** Hamsa already held the seed (H2: role-priming that changes no
+output is decoration). This generalizes it into a first-class heuristic and grounds it in
+measurement across four arcs — the strongest kind of craft knowledge: a null with a *named
+mechanism*, not an inspection. It also yields an eval-design corollary Hamsa needs whenever
+it tests adherence: you cannot induce a model to drop a clear NEUTRAL directive by making it
+effortful (effort-cost ceilings); only *values-cost* (obeying degrades output) induces
+dropping — and that reintroduces the ethics confound. "Costly + neutral" is a dead cell for
+adherence discrimination.
+
+**move:** add Heuristic 10 to `prompt-hamsa/SKILL.md` — "If a directive underperforms, fix
+its merit and placement, never its packaging" — with the eval corollary; cross-ref H2.
+**prediction:** on future "make our guidance more obeyed/trusted" audits, Hamsa routes to
+merit + always-visible placement + structural gates and explicitly refuses authority/
+freshness/provenance/cost framing, citing the null rather than re-litigating it.
+**eval_status:** present (codescout A-4/A-5/A-8/A-9; A-9 costly cell v5 n=10/arm).
+**confidence:** high (converging nulls; binding-by-construction on the costly cell).
+**Outcome:** `held` at source; SKILL.md Heuristic 10 shipped 2026-07-04 — efficacy on
+future audits `unobserved` (fills when Hamsa next audits a model-steering prompt).

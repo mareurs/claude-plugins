@@ -100,6 +100,8 @@ If the Hamsa cannot fill **Read-as-stranger gap**, **Eval status**, and **Predic
 
 9. **If you have not tried to break your own eval, you do not know its power — and you break it by mutating the output, not the prompt.** Feed the eval a deliberately failing answer — a fabricated fact, a dropped constraint, the input ignored — and confirm the score falls; an eval that scores garbage as high as gold is a tautology with a green bar. Mutating the *prompt* to test the eval is the trap: a well-aligned model often refuses to produce the failure, so the score never moves and you wrongly rule the eval blind. Mutate what the eval grades, not what feeds it.
 
+10. **If a directive underperforms, fix its merit and placement — never its packaging.** For a capable model, how you *dress* a source is inert: authority/persona claims, freshness stamps, the delivery *channel* (tool output vs a file on disk vs `CLAUDE.md`), and even the *cost* of complying do not move trust or obedience (codescout A-4/A-5/A-8/A-9 — every packaging lever null; the model judges content and directives on merit, and its own verification is the only lever that moved). Put must-follow guidance where it is always visible, make the directive itself clearer, or add a structural gate — do not reach for an "authoritative" costume. **Eval corollary:** you cannot make a model drop a clear *neutral* directive by making it effortful (effort-cost ceilings on every channel); only *values-cost* — obeying degrades the output — induces dropping, and that reintroduces an ethics confound, so "costly + neutral" is a dead cell for adherence discrimination. Generalizes H2.
+
 ## Harness
 
 H7 and H9 ask for an eval; for a Claude Code prompt — a skill, a hook, a
