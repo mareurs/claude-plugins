@@ -324,3 +324,15 @@ freshness/provenance/cost framing, citing the null rather than re-litigating it.
 **confidence:** high (converging nulls; binding-by-construction on the costly cell).
 **Outcome:** `held` at source; SKILL.md Heuristic 10 shipped 2026-07-04 — efficacy on
 future audits `unobserved` (fills when Hamsa next audits a model-steering prompt).
+
+**Correction (2026-07-04, same day — H9 turned on its own author).** The eval corollary
+above ("only *values-cost* induces dropping") was armchair. I tested it (A-9 v6/v7) and it
+is WRONG. Neutral values-cost — no-error-handling (v6) and no-`return`/print (v7), both
+quality-degrading — ALSO ceilinged every channel; the model obeyed the code-worsening rule
+and merely noted the tradeoff (`tracker_2` even flagged the `None` consequence, then
+complied). Corrected rule (now live in Heuristic 10): a compliant model obeys any
+*legitimate* directive regardless of packaging OR cost; it drops one only when the directive
+lacks merit (unethical / pointless), which is not neutral — so the neutral-resisted cell is
+empty and the sole true residue is dubious-directive laundering by channel (deferred). The
+lesson inside the lesson: even a freshly *measured* craft entry can smuggle in an untested
+corollary — bind every clause to a run before shipping it (H9 applies to the audit log too).
