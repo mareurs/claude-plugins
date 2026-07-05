@@ -288,6 +288,43 @@ evals; a literal-invoke regression gate keeps the crisp distinctive label."
 **Outcome: `verified — no action`.** Fourth inspection-based worry in this stream dissolved by
 measurement (after: D1 meta-file FP, the fix premise, "B renders worse").
 
+### 2026-07-05 — tracker-hygiene cross-linking skill-update audit (self-audit of proposed edits)
+
+**Prompt under audit:** proposed A+B+C edits to `codescout-companion/skills/tracker-hygiene/SKILL.md`,
+aligning the skill with codescout's cross-linking stream (`link_scan` + `supersedes`-as-edge
+convention, shipped codescout `experiments` 2026-07-05).
+
+**Symptom:** requested "review how to update the skill." Produced 5 edits (A1–A5); Hamsa-audited them.
+
+**Read-as-stranger gap:** the correctness gap (skill's D2/Phase-5 bare-patches `status:superseded`
+where `tracker-conventions.md` § Cross-linking now requires a side-effectful `supersedes` edge via
+`artifact(action="link")`) is **computed from reading the skill against the guide, never observed** —
+and sharply so: the only real sweep (backend-kotlin 2026-07-03) DEFERRED every D2 finding, so the
+archive path being "fixed" has never executed in the wild.
+
+**Decoration to cut:** `supersedes` stated 4× across the 5 edits (D2 cell, note, Phase-5 bullet,
+Phase-1 awareness). Load-bearing statement for a procedural skill is the point-of-action one (Phase 5).
+A5 ("never hand-create `cites` edges") guards a step the skill doesn't perform → cut candidate (framed
+as A/B hypothesis per [[persona-prompt-redundancy-may-be-load-bearing]], not a certain defect).
+
+**Contract missing:** A3 supersedes bullet assumed a successor exists; needs the escape hatch (no
+successor → `status:archived`; forked → D5 judgment).
+
+**Eval status:** ABSENT (N=0). Correction: `artifact(action="link")` IS in the live MCP, so the
+supersedes edit is eval-able now; only the `link_scan`-repair edit is blocked until `cargo rb`.
+
+**Recommended move:** ship the load-bearing correctness core (supersedes-at-Phase-5 + escape hatch;
+link_scan-after-move), reduce A1→pointer, fold A2 as the single note, cut A5. Then the fixture below.
+
+**Prediction (falsifiable):** a prompt-tdd fixture — a tracker marked terminal *with a named
+successor* + the successor — will show the current skill emitting a `status:"superseded"` patch, and
+the edited skill emitting an `artifact(action="link", rel="supersedes")` call instead. link_scan-repair
+half awaits the rebuild.
+
+**Confidence:** medium — convention mismatch is verbatim/real; "skill mis-behaves today" is inferred
+(path never ran); proposed edit set larger than the gap required.
+
+**Outcome:** _(empty — fill when the fixture runs or a sweep exercises the superseded-archive path)_
 ### 2026-07-04 — model-steering law promoted to craft: packaging is inert, steer by merit + placement
 
 Not a prompt audit — a self-reflection promoting a measured finding out of a project
