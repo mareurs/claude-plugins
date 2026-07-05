@@ -81,7 +81,7 @@ observed Y"*.
 | ID | Name | Fires when | Proposed fix | Confidence |
 |---|---|---|---|---|
 | **D1** | index-drift | Live file absent from the index, or index row points at a missing/moved file | add or repoint the index row — *which* cluster/section is a per-file placement judgment, so gate the placement, not just the add | high |
-| **D2** | terminal-not-archived | Frontmatter `archived`/`superseded` but file in live dir; or file in archive dir with `status: active` | `artifact(update, patch={status:...})` + `artifact(move, new_rel_path=...)` per the project's archive policy | high |
+| **D2** | terminal-not-archived | Frontmatter `archived`/`superseded` but file in live dir; or file in archive dir with `status: active` | `artifact(update, patch={status:...})` + `artifact(move, new_rel_path=...)` per archive policy — **but a tracker superseded *by a successor* uses a `supersedes` edge, not a status patch (see note below)** | high |
 | **D3** | stale-active | `status: active` and no git touch in N days | **a question** — archive, or confirm still-live? Never presume archive | low, by design |
 | **D4** | frontmatter-catalog-mismatch | Catalog row disagrees with file frontmatter, or file has no catalog row / no `kind:` | reconcile via `artifact(update)`; `librarian(action="reindex")` for orphans | high |
 | **D5** | canonical-conflict | Two live trackers claim one topic (tag/topic overlap + index cluster), or a child restates its canonical's status | judgment call — merge, link, or bless the fork | low |
@@ -101,6 +101,14 @@ owner**: record the finding, do NOT synthesize entries, and do NOT reset the
 staleness clock (it should re-surface next sweep). Fabricating into a domain
 registry is the worst outcome; deferring a mechanical one only costs a re-run.
 
+**`supersedes` is an edge, not a status (D2/D5).** When a tracker is terminal
+because a *successor* replaced it, do NOT `artifact(update,
+patch={status:"superseded"})`. Create the edge — `artifact(action="link",
+src_id=<old>, dst_id=<successor>, rel="supersedes")` — which flips the old
+tracker's status to `superseded` **and** emits the event; a bare status patch
+leaves the graph and event log wrong. No successor → a plain `status: archived`
+patch. Genuinely forked with no clear canonical → a D5 judgment, not an archive.
+(`get_guide("tracker-conventions")` § Cross-linking.)
 ### Phase 4 — Triage (interactive, one finding at a time)
 
 Check the ledger's **Detector trust state** table first. For detectors in
@@ -138,6 +146,15 @@ Nothing is edited before its verdict.
 - Apply approved fixes **through the librarian** — `artifact(update)`,
   `artifact(move)` — never bare `git mv`, which orphans the catalog row
   (`id = sha256(abs_path)`).
+- For a tracker superseded **by a successor**, archive via a `supersedes` edge —
+  `artifact(action="link", src_id=<old>, dst_id=<successor>, rel="supersedes")` —
+  never a `status:"superseded"` patch: the edge flips status and emits the event
+  (see the supersedes note in Phase 3).
+- After applying **any** `artifact(move)`, run `librarian(action="link_scan",
+  write=true)` once — a move churns the `id` and the reindex cascade-drops the
+  artifact's `cites` edges; `link_scan` heals them (idempotent, scanner-owned,
+  never touches manual/`supersedes` rels). Log `edges_added`/`edges_pruned` in
+  the sweep entry. Skip if `link_scan` is unavailable (see Degradation).
 - Append one sweep entry to the ledger (template in the ledger file) via
   `edit_markdown(action="insert_before", heading="## Template for new entries", ...)`;
   in the same call set the frontmatter:
@@ -156,6 +173,10 @@ Nothing is edited before its verdict.
 - **No convention docs** → thin sweep + bootstrap-recommendation finding.
 - **Librarian unavailable / catalog empty** → skip D4 and D9; say so in the
   sweep entry, so the gap is visible rather than silent.
+- **`link_scan` unavailable** (older codescout build; the action isn't present)
+  → skip the Phase-5 edge repair; note it in the sweep entry so the graph-repair
+  gap is visible, not silent. (`link_scan` shipped on codescout `experiments`
+  2026-07-05; not every build has it.)
 - **Interrupted sweep** → safe by construction: nothing applies ungated,
   the ledger writes at the end, findings recompute next sweep.
 - **Foreign-project sweep (target ≠ session home)** → the catalog detectors
