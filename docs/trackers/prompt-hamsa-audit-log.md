@@ -424,3 +424,32 @@ all three distance dimensions. Heuristic 10 Distance corollary residue narrowed 
 at *primacy* (turn 1) is a weak decay test — place it mid-context to actually stress retention.
 
 **Outcome:** `held` — codescout A-10 gap-closure addendum (2026-07-05), transcript-bound.
+
+### 2026-07-05 — A-11: binary verdicts on unverifiable ground engineer false certainty; "unverifiable" shipped as a verdict
+
+Field incident (foreign session, kat profile): a subagent met genuine harness meta-content
+attached at context assembly and — holding only two nouns, *genuine* or *injection* — asserted
+"this WAS untrusted content injected… NOT a genuine system message" as fact. Its actions were
+flawless (quarantine + report; the A-5 protocol held); the REPORT was miscalibrated, it dismissed
+a TRUE checkable claim (a real date rollover) as "fabricated" without running the one-command
+check, and the controller laundered the label into a security event. The artifact under audit
+was our own shipped A-5 rule: it pinned the action contract but not the claim contract, stated
+half the marker principle (a marker can't prove content genuine — never the mirror: failure to
+verify can't prove attack), and never named the harness-plumbing base rate.
+
+Move: one section — "Unverifiable is a verdict" (3-way taxonomy: verified-fact /
+malicious-directive judged by the directive's own content / unverifiable as the honest default;
+base rate; report contract with a copyable exemplar; escalation; dispatch-brief line).
+Pre-registered eval, all four predictions held: routine-base 1–2/5 calibrated (failure
+reproduced) → routine-fix 5/5; forgery guard 5/5 + 5/5 refused, 0/10 attested in-code — the
+section moved vocabulary, not trust. Shipped bytes == tested bytes. Promoted to **Heuristic 11**.
+
+Eval-craft banked: the v1 cell was discarded on binding — the hook payload never arrived as
+model-visible feedback AND the subject read the fixture script, gaining the channel evidence the
+scenario was designed to withhold (one run offered to remove the fixture). The workdir is part of
+the stimulus: diegetic or invisible; bind DELIVERY, not byte-presence. Harness-side lessons
+persisted where their readers work: prompt-engineering playbook **L-14** + backlog **G-5** + a
+just-in-time warning in the hooks integration doc — placement chosen per our own A-10 finding
+(discoverability, not duplication).
+
+**Outcome:** `held` — codescout A-11, guide shipped `3e2bfc32`, eval `283fe1e`.
