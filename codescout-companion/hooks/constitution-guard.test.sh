@@ -53,5 +53,24 @@ assert "different session -> deny again (not seen in THIS session)" "$(mkinput s
 
 assert "missing session_id -> allow" "$(jq -n --arg cwd "$PROJECT" --arg p "src/solver/x.kt" '{tool_name:"Edit", cwd:$cwd, tool_input:{file_path:$p}}')" "allow"
 
+seed_state() {
+  local sid="$1" content="$2"
+  mkdir -p "$PROJECT/.codescout/constitution-seen"
+  printf '%s' "$content" > "$PROJECT/.codescout/constitution-seen/$sid.json"
+}
+
+export CS_STUB_RESPONSE='[{"id":"C-1","tracker_id":"t1","title":"T","rule":"R"}]'
+rm -rf "$PROJECT/.codescout/constitution-seen"
+seed_state s6 'not valid json'
+assert "corrupt state file -> deny (recovers, does not crash/hang)" "$(mkinput s6 src/solver/x.kt)" "deny"
+
+export CS_STUB_RESPONSE='[{"id":"C-1","tracker_id":"t1","title":"T1","rule":"R1"},{"id":"C-1","tracker_id":"t2","title":"T2","rule":"R2"}]'
+rm -rf "$PROJECT/.codescout/constitution-seen"
+assert "two trackers, same rule id, same session, first touch -> deny" "$(mkinput s4 src/solver/x.kt)" "deny"
+assert "two trackers, same rule id, same session, second touch -> allow (both marked seen via composite key)" "$(mkinput s4 src/solver/x.kt)" "allow"
+
+export CS_STUB_RESPONSE='[{"id":"C-1","tracker_id":"t2","title":"T2","rule":"R2"}]'
+assert "same tracker_id/id pair, new session -> deny again (session isolation preserved)" "$(mkinput s5 src/solver/x.kt)" "deny"
+
 echo "== constitution-guard.sh: $PASS passed, $FAIL failed =="
 [ "$FAIL" -eq 0 ]

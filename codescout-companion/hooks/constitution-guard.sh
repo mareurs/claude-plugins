@@ -37,16 +37,17 @@ STATE_FILE="$STATE_DIR/$SESSION_ID.json"
 mkdir -p "$STATE_DIR" 2>/dev/null
 [ -f "$STATE_FILE" ] || echo '{"epoch":0,"seen_path_rules":[],"global_surfaced_epoch":-1}' > "$STATE_FILE"
 STATE=$(cat "$STATE_FILE")
+echo "$STATE" | jq -e . >/dev/null 2>&1 || STATE='{"epoch":0,"seen_path_rules":[],"global_surfaced_epoch":-1}'
 
 UNSEEN=$(jq -n --argjson matches "$MATCHES" --argjson state "$STATE" \
-  '$matches | map(select(.id as $id | ($state.seen_path_rules | index($id)) == null))')
+  '$matches | map(select(("\(.tracker_id)/\(.id)") as $id | ($state.seen_path_rules | index($id)) == null))')
 
 [ "$(echo "$UNSEEN" | jq 'length')" -eq 0 ] && exit 0
 
 REASON=$(echo "$UNSEEN" | jq -r 'map("[\(.id)] \(.title)\n\(.rule)") | join("\n\n")')
 
 NEW_STATE=$(jq -n --argjson state "$STATE" --argjson unseen "$UNSEEN" \
-  '$state * {seen_path_rules: ($state.seen_path_rules + ($unseen | map(.id)))}')
+  '$state * {seen_path_rules: ($state.seen_path_rules + ($unseen | map("\(.tracker_id)/\(.id)")))}')
 echo "$NEW_STATE" > "$STATE_FILE"
 
 jq -n --arg reason "$REASON" '{
