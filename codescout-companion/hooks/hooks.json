@@ -31,6 +31,15 @@
         ]
       },
       {
+        "matcher": "Edit|Write|mcp__codescout__(edit_code|edit_file|create_file)",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/constitution-guard.sh"
+          }
+        ]
+      },
+      {
         "matcher": "Grep|Glob|Read|Bash|Edit|Write",
         "hooks": [
           {
