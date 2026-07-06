@@ -93,6 +93,9 @@ Create `.claude/codescout-companion.json` (or `codescout-routing.json`) in your 
 | `SubagentStart` | `subagent-guidance.sh` | Compact guidance for all subagents |
 | `PreToolUse` (Grep/Glob/Read/Bash) | `pre-tool-guard.sh` | Hard-block Read/Edit/Write/Grep/Glob/Bash on source files (path-agnostic), redirect to codescout. Native Read of binary images/PDF is the sole exemption. |
 | `PostToolUse` (EnterWorktree) | `worktree-activate.sh` | Symlink .codescout/ and inject workspace guidance |
+| `PreToolUse` (Edit/Write/edit_code/edit_file/create_file) | `constitution-guard.sh` | Deny-once-per-epoch enforcement of path-scoped "constitution" tracker rules — shells into `codescout constitution-check --path` |
+| `UserPromptSubmit` | `constitution-brief.sh` | Surface global (path-less) "constitution" tracker rules once per epoch via `additionalContext` |
+| `PreCompact` | `constitution-epoch-bump.sh` | Bump the per-session constitution "epoch" so rules re-surface after compaction |
 
 ## Ollama Setup
 
@@ -225,6 +228,10 @@ schema. It should be updated whenever codescout adds features that affect
 exploration workflows.
 
 ## Changelog
+### 1.13.0
+
+- Three new hooks enforce codescout's `constitution` tracker archetype mechanically instead of by prose trust: `constitution-guard.sh` (`PreToolUse`, deny-once-per-epoch for path-scoped rules), `constitution-brief.sh` (`UserPromptSubmit`, once-per-epoch injection of global/path-less rules), `constitution-epoch-bump.sh` (`PreCompact`, resets exposure so rules re-surface after compaction). All shell into the `codescout constitution-check` CLI subcommand and degrade to silent allow/no-injection on any internal failure. See `docs/plans/2026-07-06-constitution-tracker-hooks.md`.
+
 ### 1.12.2
 
 - `tracker-hygiene`: six Phase 4/5 fixes from the first live sweep. **D9 defer-vs-refresh** criterion (default to defer; auto-refresh only mechanical gather-driven bodies, never fabricate into append-only/domain-expert registries like `SI-N`). **Graduation semantics** defined (a sweep advances a detector's streak only if it fired and every finding was approved; no-finding and deferred sweeps are neutral). **Batching** homogeneous same-fix findings into one gate below the 25-finding threshold. Plus: exclude `docs/issues/` from the catalog cross-check, note D1's per-file placement judgment, and the ledger self-SHA convention ("this commit").
