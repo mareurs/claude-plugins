@@ -63,11 +63,14 @@ export CS_STUB_RESPONSE='[{"id":"C-1","tracker_id":"t1","title":"T","rule":"R"}]
 rm -rf "$PROJECT/.codescout/constitution-seen"
 seed_state s6 'not valid json'
 assert "corrupt state file -> deny (recovers, does not crash/hang)" "$(mkinput s6 src/solver/x.kt)" "deny"
+assert "corrupt state healed, second touch same session -> allow" "$(mkinput s6 src/solver/x.kt)" "allow"
 
-export CS_STUB_RESPONSE='[{"id":"C-1","tracker_id":"t1","title":"T1","rule":"R1"},{"id":"C-1","tracker_id":"t2","title":"T2","rule":"R2"}]'
 rm -rf "$PROJECT/.codescout/constitution-seen"
-assert "two trackers, same rule id, same session, first touch -> deny" "$(mkinput s4 src/solver/x.kt)" "deny"
-assert "two trackers, same rule id, same session, second touch -> allow (both marked seen via composite key)" "$(mkinput s4 src/solver/x.kt)" "allow"
+export CS_STUB_RESPONSE='[{"id":"C-1","tracker_id":"t1","title":"T1","rule":"R1"}]'
+assert "tracker t1's C-1 -> deny (first time)" "$(mkinput s7 src/solver/x.kt)" "deny"
+
+export CS_STUB_RESPONSE='[{"id":"C-1","tracker_id":"t2","title":"T2","rule":"R2"}]'
+assert "tracker t2's distinct C-1 (same session) -> deny (not deduped against t1's C-1)" "$(mkinput s7 src/solver/x.kt)" "deny"
 
 export CS_STUB_RESPONSE='[{"id":"C-1","tracker_id":"t2","title":"T2","rule":"R2"}]'
 assert "same tracker_id/id pair, new session -> deny again (session isolation preserved)" "$(mkinput s5 src/solver/x.kt)" "deny"
