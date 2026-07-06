@@ -30,7 +30,7 @@ CS_BIN=$(command -v codescout 2>/dev/null) || exit 0
 [ -z "$CS_BIN" ] && exit 0
 
 MATCHES=$("$CS_BIN" constitution-check --path "$TARGET_PATH" --project "$CWD" 2>/dev/null)
-echo "$MATCHES" | jq -e 'type == "array" and length > 0' >/dev/null 2>&1 || { echo '{}'; exit 0; }
+echo "$MATCHES" | jq -e 'type == "array" and length > 0' >/dev/null 2>&1 || exit 0
 
 STATE_DIR="$CWD/.codescout/constitution-seen"
 STATE_FILE="$STATE_DIR/$SESSION_ID.json"
@@ -41,7 +41,7 @@ STATE=$(cat "$STATE_FILE")
 UNSEEN=$(jq -n --argjson matches "$MATCHES" --argjson state "$STATE" \
   '$matches | map(select(.id as $id | ($state.seen_path_rules | index($id)) == null))')
 
-[ "$(echo "$UNSEEN" | jq 'length')" -eq 0 ] && { echo '{}'; exit 0; }
+[ "$(echo "$UNSEEN" | jq 'length')" -eq 0 ] && exit 0
 
 REASON=$(echo "$UNSEEN" | jq -r 'map("[\(.id)] \(.title)\n\(.rule)") | join("\n\n")')
 

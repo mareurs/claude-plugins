@@ -22,7 +22,12 @@ assert() {
   local label="$1" input="$2" expected_decision="$3"
   local got decision
   got=$(echo "$input" | "$HOOK")
-  decision=$(echo "$got" | jq -r '.hookSpecificOutput.permissionDecision // "allow"' 2>/dev/null)
+  if [ -z "$got" ]; then
+    decision="allow"
+  else
+    decision=$(echo "$got" | jq -r '.hookSpecificOutput.permissionDecision // "allow"' 2>/dev/null)
+    [ -z "$decision" ] && decision="allow"
+  fi
   if [ "$decision" = "$expected_decision" ]; then
     PASS=$((PASS+1))
   else
@@ -45,6 +50,8 @@ rm -rf "$PROJECT/.codescout/constitution-seen"
 assert "unseen match -> deny" "$(mkinput s2 src/solver/x.kt)" "deny"
 assert "same session, same rule, second touch -> allow" "$(mkinput s2 src/solver/y.kt)" "allow"
 assert "different session -> deny again (not seen in THIS session)" "$(mkinput s3 src/solver/x.kt)" "deny"
+
+assert "missing session_id -> allow" "$(jq -n --arg cwd "$PROJECT" --arg p "src/solver/x.kt" '{tool_name:"Edit", cwd:$cwd, tool_input:{file_path:$p}}')" "allow"
 
 echo "== constitution-guard.sh: $PASS passed, $FAIL failed =="
 [ "$FAIL" -eq 0 ]
