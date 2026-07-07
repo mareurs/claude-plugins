@@ -490,3 +490,39 @@ just-in-time warning in the hooks integration doc — placement chosen per our o
 (discoverability, not duplication).
 
 **Outcome:** `held` — codescout A-11, guide shipped `3e2bfc32`, eval `283fe1e`.
+
+### 2026-07-07 — base-arm-first promoted to craft: additions must prove the deficit exists
+
+Not a prompt audit — a self-reflection promoting a measured pattern out of the codescout
+ledger (A-4/A-6/A-8/A-9/A-14, protocol P-1..P-8) into Hamsa's own craft, the same move as
+the 2026-07-04 model-steering promotion.
+
+**Finding.** Across the codescout ledger, **6 of 9 intervention audits landed no-ship** —
+the failure the proposed instruction would treat was already absent (adherence/restraint
+at ceiling) or never manifested locally despite being documented elsewhere. The capstone
+is A-14 (2026-07-07): Anthropic's own migration guide documents "unrequested tidying" as
+a Fable default, yet fable went 10/10 surgical on a deliberately tempting stimulus with
+zero anti-tidying guidance — the pre-registered ceiling branch fired and the snippet was
+correctly not shipped. Without the base-arm-first gate, a 10/10 treatment arm would have
+read as "the snippet works" and shipped a permanent dead rule.
+
+**Why it matters to Hamsa.** Hamsa held the seed twice over — Operating Principle 2 (cut
+before adding) and H7 (no eval = guess) — but neither pins the *order of arms*: the
+no-change arm is the test of whether the deficit exists at all, and it runs FIRST, under
+a pre-registered numeric ship/no-ship rule so a green treatment arm cannot rationalize a
+ship. The corollary for imported claims (migration guides, forum lore, another team's
+telemetry) is the sharp edge: they are hypotheses about *your* stack, not evidence.
+Deletions invert the burden — prove the cut regresses nothing (A-2: −70% prompt, zero
+regression observed over 2.5 weeks).
+
+**move:** add Heuristic 12 to `prompt-hamsa/SKILL.md` — "If the base arm doesn't show the
+failure, the addition doesn't ship" — with the imported-claim and deletion corollaries;
+cross-ref H2/H7 and codescout § Protocol (P-1..P-8).
+**prediction:** on future "add a snippet to fix X" audits, Hamsa demands the base arm +
+decision rule before drafting the snippet, and closes no-ship at ceiling without running
+the treatment arm — citing the 6-of-9 rate rather than re-litigating it.
+**eval_status:** present (codescout A-4/A-6/A-8/A-9/A-14; A-14 base arm n=10, mechanical
+mutation-tested checker).
+**confidence:** high (five converging audits; the capstone pre-registered).
+**Outcome:** `held` at source; SKILL.md Heuristic 12 shipped 2026-07-07 — efficacy on
+future audits `unobserved` (fills when Hamsa next audits a snippet-addition proposal).
