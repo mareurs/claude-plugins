@@ -19,21 +19,21 @@ Release readiness across plugins × profiles. See
 
 _Last refresh: `09a5f71`_
 
-**codescout-companion** — canonical `1.12.3` · readme `1.12.2` · marketplace clean ⚠️ pending release.sh
+**codescout-companion** — canonical `1.12.3` · readme `1.12.3` · marketplace clean ✅ (this machine)
 
 | profile | installed | cache dir | install_path ok |
 |---|---|---|---|
-| `~/.claude` | 1.12.2 (stale) | — | — |
-| `~/.claude-sdd` | 1.12.2 (stale) | — | — |
-| `~/.claude-kat` | 1.12.2 (stale) | — | — |
+| `~/.claude` | 1.12.3 ✅ | ✅ | ✅ |
+| `~/.claude-sdd` | n/a (profile doesn't exist on this Windows machine) | — | — |
+| `~/.claude-kat` | n/a (profile doesn't exist on this Windows machine) | — | — |
 
-**buddy** — canonical `0.7.36` · readme `0.7.35` · marketplace clean ⚠️ pending release.sh
+**buddy** — canonical `0.7.36` · readme `0.7.36` · marketplace clean ✅ (this machine)
 
 | profile | installed | cache dir | install_path ok |
 |---|---|---|---|
-| `~/.claude` | 0.7.35 (stale) | — | — |
-| `~/.claude-sdd` | 0.7.35 (stale) | — | — |
-| `~/.claude-kat` | 0.7.35 (stale) | — | — |
+| `~/.claude` | 0.7.36 ✅ | ✅ | ✅ |
+| `~/.claude-sdd` | n/a (profile doesn't exist on this Windows machine) | — | — |
+| `~/.claude-kat` | n/a (profile doesn't exist on this Windows machine) | — | — |
 
 **claude-statusline** — canonical `1.1.7` · readme `1.1.7` · marketplace clean ✅
 
