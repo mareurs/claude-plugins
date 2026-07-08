@@ -5,7 +5,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/session-start.sh"
+            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/session-start.cmd"
           }
         ]
       }
@@ -15,7 +15,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/subagent-guidance.sh"
+            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/subagent-guidance.cmd"
           }
         ]
       }
@@ -26,7 +26,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/worktree-write-guard.sh"
+            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/worktree-write-guard.cmd"
           }
         ]
       },
@@ -35,7 +35,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/pre-tool-guard.sh"
+            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/pre-tool-guard.cmd"
           }
         ]
       },
@@ -44,7 +44,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/git-worktree-guard.sh"
+            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/git-worktree-guard.cmd"
           }
         ]
       },
@@ -53,7 +53,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/il3-warn-hook.sh"
+            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/il3-warn-hook.cmd"
           }
         ]
       },
@@ -62,7 +62,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/il4-deny-hook.sh"
+            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/il4-deny-hook.cmd"
           }
         ]
       },
@@ -71,7 +71,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/pre-task-hint.sh"
+            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/pre-task-hint.cmd"
           }
         ]
       },
@@ -80,7 +80,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/explore-inject.sh"
+            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/explore-inject.cmd"
           }
         ]
       },
@@ -89,7 +89,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/pre-edit-hint.sh"
+            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/pre-edit-hint.cmd"
           }
         ]
       }
@@ -100,7 +100,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/worktree-activate.sh"
+            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/worktree-activate.cmd"
           }
         ]
       },
@@ -109,7 +109,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/cs-activate-project.sh"
+            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/cs-activate-project.cmd"
           }
         ]
       }
@@ -119,7 +119,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/goal-stop-hook.sh"
+            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/goal-stop-hook.cmd"
           }
         ]
       }

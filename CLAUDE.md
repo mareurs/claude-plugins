@@ -76,6 +76,22 @@ plugin.json at install time. Duplicating it in marketplace.json causes drift.
 
 ### When bumping a plugin version
 
+**Claude Code and GitHub Copilot are separate apps with separate plugin systems** —
+Copilot's registry (`.copilot/config.json`, JSONC) and cache
+(`.copilot/installed-plugins/<marketplace>/<plugin>/`, flat/unversioned — no
+per-version subdir the way Claude Code's is) are unrelated to the 3-profile dance
+above. `release.sh` covers both as of the `sync-copilot.sh` step; if you ever run
+the two halves separately, don't assume bumping Claude Code's caches also updated
+Copilot's — they don't share any state.
+
+**Optional but recommended: `./scripts/install-hooks.sh`** (one-time per clone — git
+hooks live in `.git/hooks/`, which isn't cloned/synced). Installs a `pre-push` guard
+that refuses a force-push to `main` unless the remote tip is an ancestor of what
+you're pushing (fast-forward), or `ALLOW_FORCE_PUSH_MAIN=1` is set. This is the
+guard that would have caught the 2026-07-08 incident where a force-push to `main`
+silently dropped 3 already-merged commits (a concurrent branch had been based on
+an older snapshot) — see `docs/superpowers/specs/2026-07-08-plugin-install-sync-design.md`.
+
 **One command runs the whole dance:**
 
 ```bash
@@ -87,7 +103,7 @@ plugin.json at install time. Duplicating it in marketplace.json causes drift.
 Each step is gated (aborts on first failure): **pre-flight** (working tree clean +
 `./tests/run-all.sh` + buddy pytest green) → bump `plugin.json` + the README version
 table → `check-versions.sh` → commit `chore: bump …` → seed the versioned cache in all
-three profiles (`bump-cache.sh`) → repoint `version` + `installPath` in all three install
+three Claude Code profiles (`bump-cache.sh`) → sync to **GitHub Copilot's separate marketplace/cache** (`sync-copilot.sh` — soft-skips if this machine has no Copilot install) → repoint `version` + `installPath` in all three Claude Code install
 records → **sanity loop** → `git push`. Toggles: `NO_PUSH=1` (commit locally, skip push —
 use it to dry-run a release), `SKIP_TESTS=1`. **The script header is the authoritative
 step-by-step** — read/edit it there, not here.
