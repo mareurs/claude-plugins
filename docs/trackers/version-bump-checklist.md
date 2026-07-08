@@ -56,6 +56,63 @@ tracker-hygiene skill feature (`a000916`): added the **D10 session-log-decay det
 
 Cross-platform (Windows + GitHub Copilot) porting — the hook layer now runs on Windows and under Copilot's plugin format. codescout-companion: all 16 hooks rewritten from bash+jq to Node `.mjs` exec-form (`hooks.json` is 100% `command:"node"`), `detect.py`→`detect.mjs`, fail-open contract (a crash never denies). buddy: the 5 bash hook wrappers → a Node launcher (`run.mjs`, probes python3→python→`py -3`) + a Python dispatcher (`hook_dispatch.py` + `hook_entry.py`); `requests`→stdlib urllib; `fcntl` and `ps -o lstart=` Windows-guarded. sdd (not installed in any profile): its 4 hooks were ported to `.mjs` too and reach main via the merge, but no profile record needed updating. Two Opus review rounds caught + fixed a CRITICAL fail-open break and a HIGH Windows interpreter-stub silent-no-op. Ran `release.sh codescout-companion minor` (→1.14.0) + `release.sh buddy minor` (→0.8.0): `run-all.sh` green (16 suites; buddy pytest 483 separately), caches seeded + install records repointed across all three profiles, sanity loops all ✅. Verified directly: new code (`run.mjs`, `pre-tool-guard.mjs`) present in all three caches and the old `.sh` wrappers gone. Pushed to origin/main (codescout-companion `caf17b7`, buddy `00cbf03`; the merge landed the P0–P3 port + `docs/INSTALL-COPILOT.md` P4 plan). Cold restart of all three instances still required to bind the new caches. Copilot (P4) authoring deferred — sourced plan in `docs/INSTALL-COPILOT.md`.
 
+### 2026-07-08 — codescout-companion 1.12.2 → 1.12.3 (Windows/Copilot-CLI hook fix, mirrored from the buddy reconciliation above) — superseded 2026-07-13 by the full Node port above
+
+Same session as the buddy reconciliation above. `codescout-companion/hooks/hooks.json`
+was NOT affected by the 65-commit `main` divergence (confirmed via
+`git diff ae860b0 origin/main -- codescout-companion/hooks/hooks.json` — no
+diff besides the version bump), so this is a genuinely new fix, not a
+recovery: `codescout-companion`'s hooks had never received the `.cmd`-wrapper
+treatment at all. Added the 13 no-arg polyglot `.cmd` wrappers (one per
+unique hook script: `session-start`, `subagent-guidance`,
+`worktree-write-guard`, `pre-tool-guard`, `git-worktree-guard`,
+`il3-warn-hook`, `il4-deny-hook`, `pre-task-hint`, `explore-inject`,
+`pre-edit-hint`, `worktree-activate`, `cs-activate-project`,
+`goal-stop-hook`), repointed `hooks.json` at them, and added
+`hooks/.gitattributes` (`*.cmd text eol=lf`). No `fcntl`/Windows-Python issue
+found in this plugin's hook scripts (`detect.py` already resolves
+`python3`/`python` correctly per earlier Windows fixes).
+
+State table above reflects `plugin.json` bumped to `1.12.3` only —
+`release.sh codescout-companion 1.12.3` has NOT been run yet. **Superseded**:
+the 2026-07-13 Node-launcher port replaced these `.cmd` wrappers outright.
+
+### 2026-07-08 — buddy 0.7.35 → 0.7.36 (reconciliation — recovered commits dropped by a `main` force-push) — superseded 2026-07-13 by the full Node port above
+
+`git fetch` surfaced `main` force-updated (`b201e0d...c113b14`). Investigation
+(`git merge-base b201e0d origin/main` = `ae860b0`; `81739c5` — main's first
+post-merge-base commit, dated the morning after `b201e0d` — has `ae860b0` as
+its direct parent) shows this was a concurrent-session collision, not a
+deliberate revert: another long-running line of work (65 commits, `ae860b0`
+→ `c113b14`, 2026-06-18 → 2026-07-03) was based on the pre-merge snapshot and
+its eventual force-push silently dropped the `fix/copilot-cli-command-name-load`
+branch's 3 substantive commits (`e8966ff`, `7533c61`, `b201e0d`) after they had
+briefly been on `main`. No revert/rejection commit exists anywhere in the 65
+commits, and `origin/fix/copilot-cli-command-name-load` (remote ref, untouched)
+still has the fix intact — confirming nothing was lost, just unmerged.
+
+Reconstructed (not cherry-picked, since `buddy/hooks/hooks.json` +
+`buddy/scripts/hook_helpers.py` were substantially refactored in the
+intervening 65 commits) on a fresh branch off current `origin/main`:
+- Stripped the `---\nname: buddy:<x>\ndescription: ...\n---` frontmatter block
+  from the same 5 command files (`consolidate`, `create`, `introspect`,
+  `remember`, `summon`) — confirmed via `git grep "^name: buddy:"` that these
+  are still the only 5 files with the Copilot-CLI-incompatible frontmatter;
+  the 7 newer commands (`check`, `dismiss`, `focus`, `install`, `legend`,
+  `status`, `uninstall`) never had it.
+- Re-added the 5 no-arg polyglot `.cmd` hook wrappers + `hooks.json` pointing
+  at them + `hooks/.gitattributes` (`*.cmd text eol=lf`).
+- Re-guarded `import fcntl` in `hook_helpers.py` (`try/except ImportError` +
+  `if fcntl:` at the one call site) — Windows has no `fcntl`, so this
+  unconditional import was silently crashing every hook on Windows again.
+
+State table above reflects `plugin.json` bumped to `0.7.36` only —
+`release.sh buddy 0.7.36` (README sync + cache reseed + install-record
+repoint across all 3 profiles) has NOT been run yet; do that before treating
+this as shipped. **Superseded**: the 2026-07-13 Node-launcher port
+(`_try_exclusive_lock`, cross-platform `run.mjs`) replaced the `.cmd`
+wrappers + raw `fcntl` guard added here.
+
 ### 2026-07-03 — codescout-companion 1.11.17 → 1.12.2
 
 Finished a release left half-done. The 1.12.0/1.12.1/1.12.2 bumps (tracker-hygiene skill — gated corpus sweep, SessionStart overdue-nudge, Phase 4/5 live-sweep fixes, cross-workspace guidance) had been committed to `plugin.json` but the release was never completed: README table stalled at `1.11.17` (check-versions failing), and caches/records topped out at `1.12.0` (`.claude`, `.claude-kat`) and `1.11.17` (`.claude-sdd`) — none at the canonical `1.12.2`. Ran `release.sh codescout-companion 1.12.2`: synced README → 1.12.2, seeded the 1.12.2 cache + repointed install records across all three profiles, sanity loop all ✅. `run-all.sh` green (all suites). Pushed to origin/main (`09a5f71`; 13 commits incl. docs/tracker updates). Cold restart pending to bind the 1.12.2 caches.
