@@ -19,21 +19,21 @@ Release readiness across plugins × profiles. See
 
 _Last refresh: `09a5f71`_
 
-**codescout-companion** — canonical `1.12.2` · readme `1.12.2` · marketplace clean ✅
+**codescout-companion** — canonical `1.12.3` · readme `1.12.2` · marketplace clean ⚠️ pending release.sh
 
 | profile | installed | cache dir | install_path ok |
 |---|---|---|---|
-| `~/.claude` | 1.12.2 ✅ | ✅ | ✅ |
-| `~/.claude-sdd` | 1.12.2 ✅ | ✅ | ✅ |
-| `~/.claude-kat` | 1.12.2 ✅ | ✅ | ✅ |
+| `~/.claude` | 1.12.2 (stale) | — | — |
+| `~/.claude-sdd` | 1.12.2 (stale) | — | — |
+| `~/.claude-kat` | 1.12.2 (stale) | — | — |
 
-**buddy** — canonical `0.7.35` · readme `0.7.35` · marketplace clean ✅
+**buddy** — canonical `0.7.36` · readme `0.7.35` · marketplace clean ⚠️ pending release.sh
 
 | profile | installed | cache dir | install_path ok |
 |---|---|---|---|
-| `~/.claude` | 0.7.35 ✅ | ✅ | ✅ |
-| `~/.claude-sdd` | 0.7.35 ✅ | ✅ | ✅ |
-| `~/.claude-kat` | 0.7.35 ✅ | ✅ | ✅ |
+| `~/.claude` | 0.7.35 (stale) | — | — |
+| `~/.claude-sdd` | 0.7.35 (stale) | — | — |
+| `~/.claude-kat` | 0.7.35 (stale) | — | — |
 
 **claude-statusline** — canonical `1.1.7` · readme `1.1.7` · marketplace clean ✅
 
@@ -43,6 +43,60 @@ _Last refresh: `09a5f71`_
 | `~/.claude-sdd` | 1.1.7 ✅ | ✅ | ✅ |
 | `~/.claude-kat` | 1.1.7 ✅ | ✅ | ✅ |
 ## History
+
+### 2026-07-08 — codescout-companion 1.12.2 → 1.12.3 (Windows/Copilot-CLI hook fix, mirrored from the buddy reconciliation above)
+
+Same session as the buddy reconciliation above. `codescout-companion/hooks/hooks.json`
+was NOT affected by the 65-commit `main` divergence (confirmed via
+`git diff ae860b0 origin/main -- codescout-companion/hooks/hooks.json` — no
+diff besides the version bump), so this is a genuinely new fix, not a
+recovery: `codescout-companion`'s hooks had never received the `.cmd`-wrapper
+treatment at all. Added the 13 no-arg polyglot `.cmd` wrappers (one per
+unique hook script: `session-start`, `subagent-guidance`,
+`worktree-write-guard`, `pre-tool-guard`, `git-worktree-guard`,
+`il3-warn-hook`, `il4-deny-hook`, `pre-task-hint`, `explore-inject`,
+`pre-edit-hint`, `worktree-activate`, `cs-activate-project`,
+`goal-stop-hook`), repointed `hooks.json` at them, and added
+`hooks/.gitattributes` (`*.cmd text eol=lf`). No `fcntl`/Windows-Python issue
+found in this plugin's hook scripts (`detect.py` already resolves
+`python3`/`python` correctly per earlier Windows fixes).
+
+State table above reflects `plugin.json` bumped to `1.12.3` only —
+`release.sh codescout-companion 1.12.3` has NOT been run yet.
+
+### 2026-07-08 — buddy 0.7.35 → 0.7.36 (reconciliation — recovered commits dropped by a `main` force-push)
+
+`git fetch` surfaced `main` force-updated (`b201e0d...c113b14`). Investigation
+(`git merge-base b201e0d origin/main` = `ae860b0`; `81739c5` — main's first
+post-merge-base commit, dated the morning after `b201e0d` — has `ae860b0` as
+its direct parent) shows this was a concurrent-session collision, not a
+deliberate revert: another long-running line of work (65 commits, `ae860b0`
+→ `c113b14`, 2026-06-18 → 2026-07-03) was based on the pre-merge snapshot and
+its eventual force-push silently dropped the `fix/copilot-cli-command-name-load`
+branch's 3 substantive commits (`e8966ff`, `7533c61`, `b201e0d`) after they had
+briefly been on `main`. No revert/rejection commit exists anywhere in the 65
+commits, and `origin/fix/copilot-cli-command-name-load` (remote ref, untouched)
+still has the fix intact — confirming nothing was lost, just unmerged.
+
+Reconstructed (not cherry-picked, since `buddy/hooks/hooks.json` +
+`buddy/scripts/hook_helpers.py` were substantially refactored in the
+intervening 65 commits) on a fresh branch off current `origin/main`:
+- Stripped the `---\nname: buddy:<x>\ndescription: ...\n---` frontmatter block
+  from the same 5 command files (`consolidate`, `create`, `introspect`,
+  `remember`, `summon`) — confirmed via `git grep "^name: buddy:"` that these
+  are still the only 5 files with the Copilot-CLI-incompatible frontmatter;
+  the 7 newer commands (`check`, `dismiss`, `focus`, `install`, `legend`,
+  `status`, `uninstall`) never had it.
+- Re-added the 5 no-arg polyglot `.cmd` hook wrappers + `hooks.json` pointing
+  at them + `hooks/.gitattributes` (`*.cmd text eol=lf`).
+- Re-guarded `import fcntl` in `hook_helpers.py` (`try/except ImportError` +
+  `if fcntl:` at the one call site) — Windows has no `fcntl`, so this
+  unconditional import was silently crashing every hook on Windows again.
+
+State table above reflects `plugin.json` bumped to `0.7.36` only —
+`release.sh buddy 0.7.36` (README sync + cache reseed + install-record
+repoint across all 3 profiles) has NOT been run yet; do that before treating
+this as shipped.
 
 ### 2026-07-03 — codescout-companion 1.11.17 → 1.12.2
 
