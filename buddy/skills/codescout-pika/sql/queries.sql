@@ -130,6 +130,20 @@ ORDER BY tc.tool_name, n DESC;
 -- subkind='silent_param_drop', severity by blast radius (calls x wrongness), notes naming
 -- the tool + ignored key. Recurrence across sessions promotes the finding to a tool_bug.
 
+-- === Silent hollow-output candidates (kind='tool_bug', subkind='silent_hollow_output') ===
+-- INTENT: flag outcome='success' calls whose output_json contains a known hollow-content
+-- marker. Two known markers today — this is a closed, curated list (see Heuristic 13),
+-- not a general anomaly detector. Pika's judgment pass (not pure SQL) distinguishes a
+-- real bug from a legitimately-empty file by checking whether the PREVIOUS call in the
+-- same cc_session_id produced the buffer being read here.
+SELECT id, cc_session_id, tool_name, called_at, input_json, output_json
+FROM tool_calls
+WHERE outcome = 'success'
+  AND (output_json LIKE '%"0 lines"%'
+    OR output_json LIKE '%"heading_missing":true%'
+    OR output_json LIKE '%"line_count":0%')
+  AND id > :since_id;
+
 -- === Recency rollup: lifetime vs live (Heuristic 12 / Self-Trap 6) ===
 -- INTENT: a lifetime count is NOT a live signal. For each error family, split the
 -- all-time total from recent activity so a since-shipped fix's flatline is visible.

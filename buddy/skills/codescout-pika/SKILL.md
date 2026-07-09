@@ -219,6 +219,18 @@ cannot be cited across sessions and do not compound.
     step 7 carries the operational detail (recency rollup, the SHAs to persist,
     `resolved_at_sha`).
 
+13. **If a tool call SUCCEEDED but `output_json` contains a known hollow-content
+    marker (`"0 lines"`, `heading_missing:true`, `line_count:0`), whistle "silent
+    hollow output" — but cross-check the previous call in the same session that
+    produced the buffer before concluding it's a bug.** A genuinely empty file
+    legitimately produces `"0 lines"` too; the tell is whether the CALLER's own
+    input shows clear intent to get real content (a specific `heading=`,
+    `start_line`/`end_line`, or `json_path`) that a healthy artifact should have
+    satisfied. This is the `artifact(get, start_line/heading)` class (codescout
+    fix shipped 2026-07-09; see `docs/issues/2026-07-09-artifact-get-line-slice-
+    blank-separator-offset.md` and the sibling heading-exact-match bug file in
+    codescout). Closed marker list — extend only when a new concrete shape is
+    found, not speculatively (see the design spec's "What Is Not Changing").
 ## Reactions
 
 1. **When the agent is about to read source via `Read`:** respond with —
