@@ -228,6 +228,10 @@ schema. It should be updated whenever codescout adds features that affect
 exploration workflows.
 
 ## Changelog
+### 1.13.1
+
+- `subagent-guidance.sh`: replace the vague nav directive with an **exploration protocol** (v1.1) for code subagents — Phase 0 loads project knowledge (memories + open-bug ledger via `artifact(find, kind="bug")` + matching `get_guide`), Phase 1 routes each lookup by what the agent knows, Phase 2 adds evidence discipline (a finding needs bytes actually read; for tool-behavior claims run the call and read real output; a doc/comment the code contradicts is itself a finding), plus a report contract requiring a `Ledger checked:` line. Folds in the `reconnaissance` skill's run-the-call and doc-vs-code ingredients. The `CODESCOUT RULES` compression-resilient block is unchanged. Provenance: codescout `docs/trackers/prompt-hamsa-audit-log.md` A-16 (3-arm bug-hunt A/B) + A-15 (memory-blind subagents).
+
 ### 1.13.0
 
 - Three new hooks enforce codescout's `constitution` tracker archetype mechanically instead of by prose trust: `constitution-guard.sh` (`PreToolUse`, deny-once-per-epoch for path-scoped rules), `constitution-brief.sh` (`UserPromptSubmit`, once-per-epoch injection of global/path-less rules), `constitution-epoch-bump.sh` (`PreCompact`, resets exposure so rules re-surface after compaction). All shell into the `codescout constitution-check` CLI subcommand and degrade to silent allow/no-injection on any internal failure. See `docs/plans/2026-07-06-constitution-tracker-hooks.md`.
