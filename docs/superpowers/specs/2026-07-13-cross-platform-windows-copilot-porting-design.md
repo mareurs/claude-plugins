@@ -395,12 +395,24 @@ plugin format.
 2. ~~Exit-code-2 on Copilot CLI — blocking or warning?~~ **RESOLVED (2026-07-13):** `preToolUse`
    is fail-closed; JSON `permissionDecision` honored. Consequence folded into Copilot residuals
    + Risks. New sub-task: audit every guard so a dependency-miss cannot crash it into a deny.
-3. **Bundled Node version in Claude Code + Copilot** — is `node:sqlite` (≥22) available, or do
-   we bundle sqlite?
-4. **buddy on Windows — require Python 3.13+, or rewrite to Node?** Product decision, gates P3
-   scope.
-5. **Do we adopt per-OS command variants anywhere, or hold the line on single Node exec-form?**
-   Default is single implementation; revisit only if a hook genuinely needs OS-divergent logic.
+3. ~~Bundled Node version — is `node:sqlite` available?~~ **RESOLVED (2026-07-13):** CC ships
+   no Node; it uses **system Node (≥20)**. `node:sqlite` is **NOT available by default**
+   (needs `--experimental-sqlite` through 22.12; still experimental) — do **not** rely on it in
+   a hook. (codescout-companion session-start's drift query uses it via a lazy import in the
+   dead post-Qdrant path, so it never actually fires — acceptable, but flagged.)
+4. ~~buddy on Windows — require Python, or rewrite to Node?~~ **RESOLVED (2026-07-13):** keep
+   Python (26 scripts are the asset; a rewrite is wasteful). Require Python on PATH and reach
+   it via a **Node launcher** (`hooks/run.mjs`) — Node is guaranteed wherever CC runs, and it
+   probes `python3 → python → py -3` so neither `python3`-only (Linux/macOS) nor `python`-only
+   (Windows) users regress. P3 core shipped on this basis.
+5. ~~Per-OS command variants?~~ **RESOLVED (2026-07-13):** CC hooks.json has **no** per-OS
+   field — a single `command` must work everywhere (→ the Node-launcher / Node-exec-form
+   pattern). **Copilot CLI is different and gates P4:** its hooks config is a *separate schema*
+   — per-event `bash`/`powershell` keys, **no `args`**, and it does **not** expand
+   `${CLAUDE_PLUGIN_ROOT}`. So Copilot needs its **own** hooks manifest; the CC hooks.json will
+   not load as-is. Also confirmed: `.sh` as a hook `command` is broken on Windows (opens in
+   editor / WSL-vs-Git-Bash `bash.exe` conflict — claude-code#21847/#23556) and `python3` fails
+   on Windows (#15908/#46449) — both already designed around.
 
 ## Tests / Validation
 
