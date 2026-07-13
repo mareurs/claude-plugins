@@ -4,10 +4,10 @@
 # asserts the fail-open output is valid JSON with a boolean `continue` field.
 set -uo pipefail
 
-HOOK="$(dirname "$0")/goal-stop-hook.sh"
+HOOK="$(dirname "$0")/goal-stop-hook.mjs"
 
-if [[ ! -x "$HOOK" ]]; then
-    echo "FAIL: hook not executable: $HOOK"
+if [[ ! -f "$HOOK" ]]; then
+    echo "FAIL: hook not found: $HOOK"
     exit 1
 fi
 
@@ -21,7 +21,7 @@ INPUT="{\"session_id\":\"test\",\"transcript_path\":\"/dev/null\",\"cwd\":\"$WOR
 # Force fail-open: scrub PATH (no `codescout`) and point HOME at a nonexistent
 # dir so the $HOME/.cargo/bin fallback also misses. The hook should still
 # emit `{"continue": true, ...}` rather than crash or produce non-JSON.
-OUTPUT=$(echo "$INPUT" | env -i PATH=/usr/bin:/bin HOME=/nonexistent "$HOOK" 2>&1 || true)
+OUTPUT=$(echo "$INPUT" | env -i PATH=/usr/bin:/bin HOME=/nonexistent node "$HOOK" 2>&1 || true)
 
 PARSED=$(echo "$OUTPUT" | jq -r '.continue' 2>/dev/null || echo "")
 if [[ "$PARSED" != "true" && "$PARSED" != "false" ]]; then

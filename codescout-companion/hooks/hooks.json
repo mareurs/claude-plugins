@@ -161,7 +161,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/goal-stop-hook.sh"
+            "command": "node",
+            "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/goal-stop-hook.mjs"]
           }
         ]
       }

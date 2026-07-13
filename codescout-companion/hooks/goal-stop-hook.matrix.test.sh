@@ -19,7 +19,7 @@
 
 set -uo pipefail
 
-HOOK="$(cd "$(dirname "$0")" && pwd)/goal-stop-hook.sh"
+HOOK="$(cd "$(dirname "$0")" && pwd)/goal-stop-hook.mjs"
 WORK=$(mktemp -d)
 trap "rm -rf $WORK" EXIT
 
@@ -66,7 +66,7 @@ assert_hook() {
 
     local input="{\"session_id\":\"t\",\"transcript_path\":\"/dev/null\",\"cwd\":\"$WORK/project\",\"last_assistant_message\":\"\"}"
     local output
-    output=$(echo "$input" | PATH="$WORK/bin:/usr/bin:/bin" HOME="$WORK/home" "$HOOK")
+    output=$(echo "$input" | PATH="$WORK/bin:/usr/bin:/bin" HOME="$WORK/home" node "$HOOK")
 
     local got_continue
     got_continue=$(echo "$output" | jq -r '.continue' 2>/dev/null || echo "")
@@ -142,7 +142,7 @@ install_find_get_stub \
     '[]'
 assert_hook "done-no-gate" "false" "goal done: do X"
 # Defensive: also assert the gate substring is ABSENT in the fallback path.
-fallback_out=$(echo "{\"session_id\":\"t\",\"transcript_path\":\"/dev/null\",\"cwd\":\"$WORK/project\",\"last_assistant_message\":\"\"}" | PATH="$WORK/bin:/usr/bin:/bin" HOME="$WORK/home" "$HOOK")
+fallback_out=$(echo "{\"session_id\":\"t\",\"transcript_path\":\"/dev/null\",\"cwd\":\"$WORK/project\",\"last_assistant_message\":\"\"}" | PATH="$WORK/bin:/usr/bin:/bin" HOME="$WORK/home" node "$HOOK")
 if [[ "$fallback_out" == *"auto-close gate passed"* ]]; then
     echo "FAIL [done-no-gate-no-leak]: fallback reason should NOT contain 'auto-close gate passed' substring"
     echo "  full output: $fallback_out"
