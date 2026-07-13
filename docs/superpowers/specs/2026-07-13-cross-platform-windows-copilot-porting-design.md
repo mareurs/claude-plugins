@@ -294,10 +294,17 @@ installable.
    unblocking buddy-on-Windows without touching the 26-script bulk.
 3. **P2 — codescout-companion Node rewrite.** The big chunk. Windows-build gate cleared.
    ✅ **Foundation DONE (2026-07-13):** `detect.py` → `hooks/detect.mjs` (byte-parity tested).
-   **Remaining:** port the 19 bash hooks onto `detect.mjs` — guards first (load-bearing:
-   il4-deny, pre-tool-guard, constitution-guard, worktree-write-guard), then the informational/
-   stateful hooks (session-start with `node:sqlite` for the drift query + `fs.symlink(...,'junction')`
-   + `spawn().unref()`, worktree-activate, cs-activate-project, goal-stop-hook, subagent-guidance).
+   ✅ **Shared `hooks/lib.mjs` + IL3/IL4 guards DONE (2026-07-13):** `il3-warn-hook.mjs`,
+   `il4-deny-hook.mjs` on `lib.mjs` (readInput/emit/deny/context); hooks.json exec-form; tests
+   ported (il3: 24, il4: 18) + registration test repinned. **Remaining guards:** pre-tool-guard
+   (the big source-file blocker: source-ext regex + os.tmpdir dedup + spawn().unref cleanup),
+   constitution-guard, worktree-write-guard, git-worktree-guard, and the hint hooks
+   (pre-task-hint, explore-inject, pre-edit-hint). **Remaining stateful:** session-start
+   (`node:sqlite` drift query + `fs.symlink(...,'junction')` + `spawn().unref()`),
+   worktree-activate, cs-activate-project, goal-stop-hook, subagent-guidance, constitution-brief,
+   constitution-epoch-bump. **Cleanup:** delete `detect-tools.sh` (superseded by `detect.mjs`)
+   and port/retire `detect.py` once no hook shells it. NB: `il3-deny-hook.sh` is unregistered in
+   hooks.json — decide retire vs port separately.
 4. **P3 — buddy wrapper/statusline cross-platform + pika sqlite via stdlib.**
 5. **P4 — Copilot residuals.** Matcher validation, exit-code testing per surface, MCP setup
    docs, `.github/agents`/`.github/prompts` mirrors if we want first-class Copilot commands.
