@@ -3,13 +3,18 @@
 Each handler is called by a thin bash wrapper that passes the Claude Code
 hook event JSON via stdin. All handlers are silent on failure.
 """
-import fcntl
 import fnmatch
 import os
 import re
 import shutil
 import subprocess
+import sys
 from pathlib import Path
+
+try:
+    import fcntl  # POSIX advisory file locks
+except ImportError:  # Windows has no fcntl
+    fcntl = None
 
 from scripts.state import load_state, save_state
 from scripts.narrative import append_entry, read_narrative
@@ -66,6 +71,51 @@ def _pending_migration_sources(home: Path) -> list[Path]:
     return out
 
 
+def _try_exclusive_lock(handle) -> bool:
+    """Non-blocking exclusive advisory lock on an open file handle.
+
+    True if acquired, False if another process holds it. Cross-platform:
+    fcntl.flock on POSIX, msvcrt.locking on Windows. Releases on handle close.
+    """
+    if fcntl is not None:
+        try:
+            fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            return True
+        except OSError:
+            return False
+    try:
+        import msvcrt
+
+        msvcrt.locking(handle.fileno(), msvcrt.LK_NBLCK, 1)
+        return True
+    except OSError:
+        return False
+
+
+def _spawn_detached_worker(args, *, cwd, env) -> None:
+    """Fire-and-forget a detached background worker, cross-platform.
+
+    POSIX starts a new session (setsid); Windows uses DETACHED_PROCESS +
+    CREATE_NEW_PROCESS_GROUP. Best-effort: silent on failure.
+    """
+    kwargs = {
+        "cwd": cwd,
+        "env": env,
+        "stdout": subprocess.DEVNULL,
+        "stderr": subprocess.DEVNULL,
+    }
+    if os.name == "nt":
+        kwargs["creationflags"] = (
+            subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP
+        )
+    else:
+        kwargs["start_new_session"] = True
+    try:
+        subprocess.Popen(args, **kwargs)
+    except Exception:
+        pass
+
+
 def auto_migrate_if_needed(home: Path | None = None, dest: Path | None = None) -> str | None:
     """Detect leftover per-profile global buddy state and migrate it into the
     unified home, then delete the migrated source artifacts. Returns a one-line
@@ -87,9 +137,7 @@ def auto_migrate_if_needed(home: Path | None = None, dest: Path | None = None) -
         # invites an unlink/reacquire race (two instances lock different inodes).
         # A stable 0-byte sentinel is the safe choice.
         with open(dest / ".migrate.lock", "w") as lock:
-            try:
-                fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
-            except OSError:
+            if not _try_exclusive_lock(lock):
                 return None  # another CC instance is migrating
             stats = migrate_global.run(home=home, dest=dest, apply=True)
             for src in sources:
@@ -556,9 +604,9 @@ def handle_cs_tool_use(
             cs_verdicts_path = session_dir / "cs_verdicts.json"
             project_root = session_dir.parent.parent  # .buddy/<sid> → project
             plugin_root = str(Path(__file__).parent.parent)
-            subprocess.Popen(
+            _spawn_detached_worker(
                 [
-                    "python3", "-m", "scripts.cs_judge_worker",
+                    sys.executable, "-m", "scripts.cs_judge_worker",
                     str(cs_log_path),
                     str(cs_verdicts_path),
                     str(project_root),
@@ -566,9 +614,6 @@ def handle_cs_tool_use(
                 ],
                 cwd=plugin_root,
                 env={**os.environ, "PYTHONPATH": plugin_root},
-                start_new_session=True,
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
             )
     except Exception:
         pass
@@ -643,9 +688,9 @@ def accumulate_narrative(
             verdicts_path = narrative_path.parent / "verdicts.json"
             state_path = project_root / ".buddy" / session_id / "state.json"
             plugin_root = str(Path(__file__).parent.parent)
-            subprocess.Popen(
+            _spawn_detached_worker(
                 [
-                    "python3", "-m", "scripts.judge_worker",
+                    sys.executable, "-m", "scripts.judge_worker",
                     str(narrative_path),
                     str(verdicts_path),
                     str(project_root),
@@ -654,9 +699,6 @@ def accumulate_narrative(
                 ],
                 cwd=plugin_root,
                 env={**os.environ, "PYTHONPATH": plugin_root},
-                start_new_session=True,
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
             )
     except Exception:
         pass
