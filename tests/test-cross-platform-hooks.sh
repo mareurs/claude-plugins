@@ -79,6 +79,59 @@ else
 fi
 rm -rf "$tmp" 2>/dev/null || true
 
+# 5b. launcher exit-code + interpreter-probe semantics (all require node).
+if command -v node >/dev/null 2>&1; then
+  LAUNCH="$ROOT/buddy/hooks/run.mjs"
+
+  # (a) the dispatcher actually RAN (side effect written) — not a silent no-op.
+  t2="$(mktemp -d 2>/dev/null || mktemp -d -t cphooks)"
+  printf '%s' '{"session_id":"cp-se","cwd":"'"$t2"'"}' | node "$LAUNCH" session-start >/dev/null 2>&1
+  if [ "$(cat "$t2/.buddy/.current_session_id" 2>/dev/null)" = "cp-se" ]; then
+    ok "launcher: dispatcher ran (pointer written)"
+  else
+    bad "launcher: dispatcher did not write state (silent no-op)"
+  fi
+  rm -rf "$t2" 2>/dev/null || true
+
+  # (b) an intentional pre-tool-use judge block (exit 2) is forwarded.
+  t3="$(mktemp -d 2>/dev/null || mktemp -d -t cphooks)"
+  sd="$t3/.buddy/blk"; mkdir -p "$sd"
+  now="$(date +%s)"  # verdict must be fresh — should_block filters by a TTL
+  printf '{"session_id":"blk","last_updated":%s,"active_verdicts":[{"ts":%s,"verdict":"cs-misuse","severity":"blocking","evidence":"e","correction":"c","affected_tools":["read_file"],"acknowledged":false}]}' "$now" "$now" > "$sd/cs_verdicts.json"
+  rc=0
+  printf '%s' '{"session_id":"blk","cwd":"'"$t3"'","tool_name":"Read"}' \
+    | BUDDY_CS_JUDGE_ENABLED=true BUDDY_JUDGE_BLOCK=true node "$LAUNCH" pre-tool-use >/dev/null 2>&1 || rc=$?
+  [ "$rc" -eq 2 ] && ok "launcher: forwards intentional block (exit 2)" \
+    || bad "launcher: intentional block not forwarded (rc=$rc)"
+  rm -rf "$t3" 2>/dev/null || true
+
+  # (c) malformed stdin fails open (exit 0).
+  rc=0
+  printf 'not json' | node "$LAUNCH" session-start >/dev/null 2>&1 || rc=$?
+  [ "$rc" -eq 0 ] && ok "launcher: malformed stdin fails open (exit 0)" \
+    || bad "launcher: malformed stdin rc=$rc"
+
+  # (d) a nonzero-exiting `python3` (Windows Store-alias-stub analogue) must NOT
+  #     disable buddy — the probe skips it and falls through to a real python.
+  if command -v python >/dev/null 2>&1; then
+    stub="$(mktemp -d 2>/dev/null || mktemp -d -t cpstub)"
+    printf '#!/bin/sh\nexit 9009\n' > "$stub/python3"; chmod +x "$stub/python3"
+    t4="$(mktemp -d 2>/dev/null || mktemp -d -t cphooks)"
+    printf '%s' '{"session_id":"cp-stub","cwd":"'"$t4"'"}' \
+      | PATH="$stub:$PATH" node "$LAUNCH" session-start >/dev/null 2>&1
+    if [ "$(cat "$t4/.buddy/.current_session_id" 2>/dev/null)" = "cp-stub" ]; then
+      ok "launcher: skips a nonzero-exiting python3 stub, uses real python"
+    else
+      bad "launcher: nonzero python3 stub disabled buddy (probe regression)"
+    fi
+    rm -rf "$stub" "$t4" 2>/dev/null || true
+  else
+    skip "no real \`python\` besides python3 — stub-fallthrough check skipped"
+  fi
+else
+  skip "node absent — launcher exit-code/probe checks require Node"
+fi
+
 # 6. .gitattributes guard: no CRLF in tracked shell/python scripts. On a Windows
 #    checkout this fails loudly if `*.sh text eol=lf` ever stops working.
 crlf="$(git -C "$ROOT" grep -lI "$(printf '\r')" -- '*.sh' '*.py' '*.mjs' 2>/dev/null || true)"

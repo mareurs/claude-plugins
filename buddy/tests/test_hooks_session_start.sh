@@ -234,8 +234,8 @@ cp -r "$PLUGIN_ROOT/hooks" "$FAKE_BUDDY_ROOT/hooks"
 cp -r "$PLUGIN_ROOT/skills" "$FAKE_BUDDY_ROOT/skills"
 
 RECON_EVENT='{"session_id":"'"$RECON_SID"'","cwd":"'"$RECON_WORK"'","source":"compact","timestamp":1700004000}'
-# Run the COPIED hook so BASH_SOURCE + __file__.resolve() land in the fake cache.
-RECON_OUT=$(echo "$RECON_EVENT" | HOME="$RECON_WORK/_fake_claude/.." bash "$FAKE_BUDDY_ROOT/hooks/session-start.sh" 2>/dev/null || true)
+# Run the COPIED dispatcher so __file__.resolve() lands in the fake cache.
+RECON_OUT=$(echo "$RECON_EVENT" | HOME="$RECON_WORK/_fake_claude/.." python3 "$FAKE_BUDDY_ROOT/hooks/hook_dispatch.py" session-start 2>/dev/null || true)
 
 echo "$RECON_OUT" | grep -q "reconnaissance" \
   && pass "codescout detected: reconnaissance included in reload" \

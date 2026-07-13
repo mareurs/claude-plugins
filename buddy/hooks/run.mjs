@@ -28,22 +28,33 @@ const candidates = [
   ['py', ['-3']],
 ];
 
+// Resolve a REAL Python by probing each candidate with a trivial program. This
+// is deliberately NOT "run the dispatcher and try the next on failure": on
+// Windows `python3` is frequently the Microsoft Store app-execution-alias stub,
+// which spawns successfully but exits nonzero (not ENOENT) — probing rejects it
+// (its `-c ''` does not exit 0) so we fall through to the real `python`/`py`,
+// instead of mistaking the stub's nonzero exit for the dispatcher having run.
+function resolvePython() {
+  for (const [cmd, pre] of candidates) {
+    const probe = spawnSync(cmd, [...pre, '-c', ''], { stdio: 'ignore' });
+    if (!probe.error && probe.status === 0) return [cmd, pre];
+  }
+  return null;
+}
+
 function run() {
   if (!event || !existsSync(dispatch)) return 0;
-  for (const [cmd, pre] of candidates) {
-    const res = spawnSync(cmd, [...pre, dispatch, event], {
-      stdio: 'inherit',
-      env: { ...process.env, BUDDY_HOOK_PPID: String(process.ppid) },
-    });
-    if (res.error) {
-      if (res.error.code === 'ENOENT') continue; // interpreter absent — try next
-      return 0; // other spawn failure — fail open
-    }
-    // Interpreter ran: forward only the intentional block; a normal exit or a
-    // Python crash both fail open.
-    return res.status === 2 ? 2 : 0;
-  }
-  return 0; // no interpreter found — fail open
+  const found = resolvePython();
+  if (!found) return 0; // no working interpreter — fail open
+  const [cmd, pre] = found;
+  const res = spawnSync(cmd, [...pre, dispatch, event], {
+    stdio: 'inherit',
+    env: { ...process.env, BUDDY_HOOK_PPID: String(process.ppid) },
+  });
+  if (res.error) return 0; // spawn failed after a good probe — fail open
+  // Forward only the intentional pre-tool-use block; a normal exit or a Python
+  // crash both fail open.
+  return res.status === 2 ? 2 : 0;
 }
 
 process.exit(run());

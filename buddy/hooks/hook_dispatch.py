@@ -36,14 +36,22 @@ def main() -> int:
         return 0
     event_name = sys.argv[1]
 
-    # judge.env supplies BUDDY_JUDGE_* config. session-start/pre/post used it in
-    # the bash wrappers; loading with override=False keeps any caller/test env
-    # authoritative and is harmless for the other events.
-    try:
-        from scripts.hook_helpers import load_judge_env
-        load_judge_env(PLUGIN_ROOT, override=False)
-    except Exception:
-        pass
+    # judge.env supplies BUDDY_JUDGE_* config. Match the bash wrappers' precedence
+    # per event: session-start / post-tool-use sourced it unconditionally (file
+    # wins → override=True), pre-tool-use preserved any caller/test vars (caller
+    # wins → override=False), and user-prompt-submit / session-end did not source
+    # it at all.
+    judge_env_override = {
+        "session-start": True,
+        "post-tool-use": True,
+        "pre-tool-use": False,
+    }
+    if event_name in judge_env_override:
+        try:
+            from scripts.hook_helpers import load_judge_env
+            load_judge_env(PLUGIN_ROOT, override=judge_env_override[event_name])
+        except Exception:
+            pass
 
     try:
         event = json.loads(sys.stdin.read() or "{}")

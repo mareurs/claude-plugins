@@ -67,6 +67,8 @@ def discover(project_root: Path) -> dict[str, tuple[str, Path]]:
         except OSError:
             continue
         for entry in entries:
+            if entry.name.startswith("."):
+                continue  # skip dotdirs (matches the shell `*/` glob)
             try:
                 if entry.is_dir() and (entry / "SKILL.md").is_file():
                     index[entry.name] = (scope, entry)
