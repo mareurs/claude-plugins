@@ -3,7 +3,7 @@
 source "$(dirname "${BASH_SOURCE[0]}")/lib/fixtures.sh"
 
 echo "── git-worktree-guard ──"
-HOOK="$HOOK_DIR/git-worktree-guard.sh"
+HOOK="$HOOK_DIR/git-worktree-guard.mjs"
 
 # Helper: build Bash hook input JSON
 guard_input() {
@@ -35,7 +35,7 @@ for cmd in \
   "git rebase -i HEAD~3" \
   "git merge feature" \
   "git checkout -b new-branch"; do
-  OUT=$(guard_input "Bash" "$MAIN" "$cmd" | bash "$HOOK" 2>/dev/null)
+  OUT=$(guard_input "Bash" "$MAIN" "$cmd" | node "$HOOK" 2>/dev/null)
   if assert_denied "$OUT" && assert_reason_contains "$OUT" "Worktree-ambiguous"; then
     pass "denies: $cmd"
   else
@@ -49,7 +49,7 @@ for cmd in \
   "git -C $MAIN/.worktrees/feature commit -m 'x'" \
   "git -C $MAIN/.worktrees/feature push" \
   "git -C $MAIN/.worktrees/feature reset --hard HEAD~1"; do
-  OUT=$(guard_input "Bash" "$MAIN" "$cmd" | bash "$HOOK" 2>/dev/null)
+  OUT=$(guard_input "Bash" "$MAIN" "$cmd" | node "$HOOK" 2>/dev/null)
   if ! assert_denied "$OUT"; then
     pass "allows: $cmd"
   else
@@ -62,7 +62,7 @@ done
 for cmd in \
   "cd $MAIN/.worktrees/feature && git commit -m 'x'" \
   "cd $MAIN/.worktrees/feature && git push"; do
-  OUT=$(guard_input "Bash" "$MAIN" "$cmd" | bash "$HOOK" 2>/dev/null)
+  OUT=$(guard_input "Bash" "$MAIN" "$cmd" | node "$HOOK" 2>/dev/null)
   if ! assert_denied "$OUT"; then
     pass "allows chained cd: ${cmd:0:60}..."
   else
@@ -76,7 +76,7 @@ for cmd in \
   "git commit -m 'x'" \
   "git push" \
   "git reset --hard HEAD~1"; do
-  OUT=$(guard_input "Bash" "$SOLO" "$cmd" | bash "$HOOK" 2>/dev/null)
+  OUT=$(guard_input "Bash" "$SOLO" "$cmd" | node "$HOOK" 2>/dev/null)
   if ! assert_denied "$OUT"; then
     pass "allows in single-worktree repo: $cmd"
   else
@@ -93,7 +93,7 @@ for cmd in \
   "git branch --show-current" \
   "git worktree list" \
   "git fetch"; do
-  OUT=$(guard_input "Bash" "$MAIN" "$cmd" | bash "$HOOK" 2>/dev/null)
+  OUT=$(guard_input "Bash" "$MAIN" "$cmd" | node "$HOOK" 2>/dev/null)
   if ! assert_denied "$OUT"; then
     pass "allows read-only: $cmd"
   else
@@ -103,7 +103,7 @@ done
 
 # === ALLOWS: non-Bash tools (skip entirely) ===
 
-OUT=$(guard_input "Read" "$MAIN" "git commit -m 'x'" | bash "$HOOK" 2>/dev/null)
+OUT=$(guard_input "Read" "$MAIN" "git commit -m 'x'" | node "$HOOK" 2>/dev/null)
 if assert_no_output "$OUT"; then
   pass "skips non-Bash tool"
 else
@@ -112,7 +112,7 @@ fi
 
 # === ALLOWS: cwd outside a git repo ===
 
-OUT=$(guard_input "Bash" "/tmp" "git commit -m 'x'" | bash "$HOOK" 2>/dev/null)
+OUT=$(guard_input "Bash" "/tmp" "git commit -m 'x'" | node "$HOOK" 2>/dev/null)
 if ! assert_denied "$OUT"; then
   pass "allows when cwd is not a git repo"
 else
@@ -121,7 +121,7 @@ fi
 
 # === EMPTY input: silent exit ===
 
-OUT=$(printf '' | bash "$HOOK" 2>/dev/null)
+OUT=$(printf '' | node "$HOOK" 2>/dev/null)
 if assert_no_output "$OUT"; then
   pass "empty input: silent exit"
 else
@@ -132,7 +132,7 @@ fi
 # Subagent in main repo PWD (after "plugin reload reset shell") issues bare git commit.
 # Main repo has the worktree branch checked out elsewhere. Must deny.
 
-OUT=$(guard_input "Bash" "$MAIN" "git commit -m 'feat: scaffold mrv.gcp subpackage'" | bash "$HOOK" 2>/dev/null)
+OUT=$(guard_input "Bash" "$MAIN" "git commit -m 'feat: scaffold mrv.gcp subpackage'" | node "$HOOK" 2>/dev/null)
 if assert_denied "$OUT" && assert_reason_contains "$OUT" "git -C"; then
   pass "regression: MRV-poc commit-on-wrong-branch denied"
 else

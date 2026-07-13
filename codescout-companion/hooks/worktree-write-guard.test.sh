@@ -8,7 +8,7 @@
 
 set -uo pipefail
 
-HOOK="$(cd "$(dirname "$0")" && pwd)/worktree-write-guard.sh"
+HOOK="$(cd "$(dirname "$0")" && pwd)/worktree-write-guard.mjs"
 PASS=0
 FAIL=0
 
@@ -45,7 +45,7 @@ assert() {
     local input
     input=$(jq -n --arg t "$tool" --arg c "$cwd" '{tool_name:$t, cwd:$c}')
     local got
-    got=$(verdict "$(echo "$input" | "$HOOK")")
+    got=$(verdict "$(echo "$input" | node "$HOOK")")
     if [ "$got" = "$expected" ]; then
         echo "PASS [$label]"
         PASS=$((PASS+1))

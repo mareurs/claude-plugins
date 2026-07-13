@@ -46,7 +46,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/worktree-write-guard.sh"
+            "command": "node",
+            "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/worktree-write-guard.mjs"]
           }
         ]
       },
@@ -73,7 +74,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/git-worktree-guard.sh"
+            "command": "node",
+            "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/git-worktree-guard.mjs"]
           }
         ]
       },
