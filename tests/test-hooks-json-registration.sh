@@ -24,8 +24,8 @@ fi
 
 # Test 2b: Agent matcher also registered to explore-inject.sh (foreign-project
 # bootstrap injector — a second Agent hook alongside pre-task-hint.sh)
-MATCH=$(jq -r '.hooks.PreToolUse[] | select(.matcher == "Agent") | .hooks[].command' "$HOOKS_JSON")
-if echo "$MATCH" | grep -q "explore-inject.sh"; then
+MATCH=$(jq -r '.hooks.PreToolUse[] | select(.matcher == "Agent") | .hooks[] | (.command + " " + ((.args // []) | join(" ")))' "$HOOKS_JSON")
+if echo "$MATCH" | grep -q "explore-inject.mjs"; then
   pass "Agent matcher → explore-inject.sh"
 else
   fail "Agent matcher → explore-inject.sh" "got: $MATCH"

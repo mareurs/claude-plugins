@@ -12,13 +12,12 @@
 set -uo pipefail
 
 HERE="$(cd "$(dirname "$0")" && pwd)"
-HOOK="$HERE/explore-inject.sh"
-source "$HOOK"   # exposes repo_id / is_foreign / first_foreign_root; main() does NOT run
+HOOK="$HERE/explore-inject.mjs"
 
 PASS=0; FAIL=0; SKIP=0
 ok()   { if [ "$2" = "$3" ]; then echo "PASS [$1]"; PASS=$((PASS+1)); else echo "FAIL [$1]: exp=$3 got=$2"; FAIL=$((FAIL+1)); fi; }
-fclass(){ is_foreign "$1" "$2" && echo inject || echo skip; }
-run()  { printf '%s' "$1" | CS_EXPLORE_INJECT_FORCE=1 bash "$HOOK"; }
+fclass(){ node "$HOOK" --is-foreign "$1" "$2"; }
+run()  { printf '%s' "$1" | CS_EXPLORE_INJECT_FORCE=1 node "$HOOK"; }
 
 # ---------- 1. Portable detector unit tests ----------
 SB=$(mktemp -d)
@@ -62,7 +61,7 @@ IN_W=$(jq -nc --arg cwd "$SB/repoA" --arg p "workspace(action=\"activate\", path
 [ -z "$(run "$IN_W")" ] && ok "e2e: idempotent (hand-written activate)" skip skip || ok "e2e: idempotent (hand-written activate)" inject skip
 
 IN_O=$(jq -nc '{tool_name:"Bash",cwd:"/x",tool_input:{command:"ls"}}')
-[ -z "$(printf '%s' "$IN_O" | CS_EXPLORE_INJECT_FORCE=1 bash "$HOOK")" ] \
+[ -z "$(printf '%s' "$IN_O" | CS_EXPLORE_INJECT_FORCE=1 node "$HOOK")" ] \
   && ok "e2e: non-Agent ignored" skip skip || ok "e2e: non-Agent ignored" inject skip
 
 # ---------- 3. Real-world corpus replay (guarded) ----------
