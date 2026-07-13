@@ -64,6 +64,11 @@ already portable-as-text and auto-discovered by Copilot; it needs no work beyond
   suite (466) green. Deferred buddy items (need a decision or more care): `requests`→urllib
   (or declare it), the `ps -o lstart=` PPID index, the Windows statusline default, pika
   `sqlite3`→stdlib.
+- **P2 foundation SHIPPED (2026-07-13):** `scripts/detect.py` (241-line codescout server/binary/
+  config resolver) ported to `hooks/detect.mjs` (Node-only, no Python), with `hooks/detect.test.sh`
+  proving **byte-parity** vs `detect.py --json` across 6 config scenarios. This keystone unblocks
+  porting the 19 companion bash hooks onto a Node foundation. Committed on branch
+  `feat/cross-platform-porting` (4 commits: spec, sdd, buddy, detect-foundation).
 - Remaining product decision: buddy Python-vs-Node for the *deep* work (gates P3) — the P1
   mechanical fixes above assume Python-first (the spec's recommendation) and are low-regret; see
   Open questions #4.
@@ -287,8 +292,12 @@ installable.
    index (design fork: psutil dep vs read from hook stdin vs drop start-time disambiguation on
    Windows), the `requests`/`pyproject.toml` declaration (or drop to urllib). These finish
    unblocking buddy-on-Windows without touching the 26-script bulk.
-3. **P2 — codescout-companion Node rewrite.** The big chunk. Gated on confirming codescout's
-   Windows build. Do the guards first (load-bearing), then the informational hooks.
+3. **P2 — codescout-companion Node rewrite.** The big chunk. Windows-build gate cleared.
+   ✅ **Foundation DONE (2026-07-13):** `detect.py` → `hooks/detect.mjs` (byte-parity tested).
+   **Remaining:** port the 19 bash hooks onto `detect.mjs` — guards first (load-bearing:
+   il4-deny, pre-tool-guard, constitution-guard, worktree-write-guard), then the informational/
+   stateful hooks (session-start with `node:sqlite` for the drift query + `fs.symlink(...,'junction')`
+   + `spawn().unref()`, worktree-activate, cs-activate-project, goal-stop-hook, subagent-guidance).
 4. **P3 — buddy wrapper/statusline cross-platform + pika sqlite via stdlib.**
 5. **P4 — Copilot residuals.** Matcher validation, exit-code testing per surface, MCP setup
    docs, `.github/agents`/`.github/prompts` mirrors if we want first-class Copilot commands.
