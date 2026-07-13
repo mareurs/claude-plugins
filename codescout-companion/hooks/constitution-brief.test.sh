@@ -3,7 +3,7 @@
 # constitution-guard.test.sh does.
 set -uo pipefail
 
-HOOK="$(cd "$(dirname "$0")" && pwd)/constitution-brief.sh"
+HOOK="$(cd "$(dirname "$0")" && pwd)/constitution-brief.mjs"
 PASS=0
 FAIL=0
 
@@ -20,7 +20,7 @@ PROJECT=$(mktemp -d)
 assert_has_context() {
   local label="$1" input="$2" expect_present="$3"
   local got ctx
-  got=$(echo "$input" | "$HOOK")
+  got=$(echo "$input" | node "$HOOK")
   ctx=$(echo "$got" | jq -r '.hookSpecificOutput.additionalContext // empty' 2>/dev/null)
   local present="false"
   [ -n "$ctx" ] && present="true"

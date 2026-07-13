@@ -40,7 +40,7 @@ cs_input() {
 
 rm -f "$MARKER"
 cs_input "mcp__codescout__workspace" "$SID" "$WT" \
-  | bash "$HOOK_DIR/cs-activate-project.sh" >/dev/null 2>&1
+  | node "$HOOK_DIR/cs-activate-project.mjs" >/dev/null 2>&1
 if [ -f "$MARKER" ] && [ "$(cat "$MARKER")" = "$WT" ]; then
   pass "cs-activate-project: writes marker on workspace call"
 else
@@ -51,7 +51,7 @@ fi
 rm -f "$MARKER"
 echo "$MAIN" > "$MARKER"
 cs_input "mcp__codescout__workspace" "$SID" "$WT" \
-  | bash "$HOOK_DIR/cs-activate-project.sh" >/dev/null 2>&1
+  | node "$HOOK_DIR/cs-activate-project.mjs" >/dev/null 2>&1
 if [ "$(cat "$MARKER")" = "$WT" ]; then
   pass "cs-activate-project: overwrites marker on re-activation"
 else
