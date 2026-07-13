@@ -6,7 +6,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/session-start.sh",
+            "command": "node",
+            "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/session-start.mjs"],
             "async": true
           }
         ]
@@ -18,7 +19,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/spec-guard.sh"
+            "command": "node",
+            "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/spec-guard.mjs"]
           }
         ]
       },
@@ -27,7 +29,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/review-guard.sh"
+            "command": "node",
+            "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/review-guard.mjs"]
           }
         ]
       }
@@ -37,7 +40,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/subagent-inject.sh"
+            "command": "node",
+            "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/subagent-inject.mjs"]
           }
         ]
       }

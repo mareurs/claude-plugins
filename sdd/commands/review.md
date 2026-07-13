@@ -62,12 +62,11 @@ NO-GO: <Article N> - <brief reason>
 
 ## On GO
 
-Create review marker file:
+Create the review marker (checked by the review-guard hook to allow commits):
 
 ```bash
-touch /tmp/.sdd-reviewed-$(echo -n "$PWD" | md5sum | cut -c1-8)
+node "${CLAUDE_PLUGIN_ROOT}/hooks/mark-reviewed.mjs"
 ```
 
-This marker is checked by the review-guard hook to allow commits.
-
-If spec-name provided, suggest: `/document sync --from-spec <spec-name>`
+This runs cross-platform (Windows/macOS/Linux) and writes the same marker path
+`review-guard` reads. If spec-name provided, suggest: `/document sync --from-spec <spec-name>`
