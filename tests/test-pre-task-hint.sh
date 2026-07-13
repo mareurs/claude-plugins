@@ -3,7 +3,7 @@
 source "$(dirname "${BASH_SOURCE[0]}")/lib/fixtures.sh"
 
 echo "── pre-task-hint ──"
-HOOK="$HOOK_DIR/pre-task-hint.sh"
+HOOK="$HOOK_DIR/pre-task-hint.mjs"
 T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
 
 FAKE_HOME="$T/_home"
@@ -22,7 +22,7 @@ hook_input() {
 }
 
 run_hook() {
-  HOME="$FAKE_HOME" CLAUDE_CONFIG_DIR="" bash "$HOOK" 2>/dev/null
+  HOME="$FAKE_HOME" CLAUDE_CONFIG_DIR="" node "$HOOK" 2>/dev/null
 }
 
 # Test 1: first Task call → emits hint

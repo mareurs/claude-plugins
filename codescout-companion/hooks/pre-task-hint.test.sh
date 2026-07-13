@@ -28,7 +28,7 @@ check() {  # <label> <got> <expected>
 # dispatch tool name.
 matcher=$(jq -r '
   .hooks.PreToolUse[]
-  | select(any(.hooks[]?.command; test("pre-task-hint\\.sh")))
+  | select(any(.hooks[]?; ((.command // "") + " " + ((.args // []) | join(" "))) | test("pre-task-hint\\.mjs")))
   | .matcher' "$HOOKS_JSON")
 check "pre-task-hint wired to Agent" "$matcher" "Agent"
 

@@ -104,7 +104,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/pre-task-hint.sh"
+            "command": "node",
+            "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/pre-task-hint.mjs"]
           }
         ]
       },
@@ -122,7 +123,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/pre-edit-hint.sh"
+            "command": "node",
+            "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/pre-edit-hint.mjs"]
           }
         ]
       }

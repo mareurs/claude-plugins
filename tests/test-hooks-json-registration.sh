@@ -15,8 +15,8 @@ fi
 # Test 2: Agent matcher registered to pre-task-hint.sh
 # (subagent-dispatch tool was renamed Task -> Agent, 2026-06-13; matching the
 # old name silently disabled this hook — see pre-task-hint.test.sh)
-MATCH=$(jq -r '.hooks.PreToolUse[] | select(.matcher == "Agent") | .hooks[0].command' "$HOOKS_JSON")
-if echo "$MATCH" | grep -q "pre-task-hint.sh"; then
+MATCH=$(jq -r '.hooks.PreToolUse[] | select(.matcher == "Agent") | .hooks[] | (.command + " " + ((.args // []) | join(" ")))' "$HOOKS_JSON")
+if echo "$MATCH" | grep -q "pre-task-hint.mjs"; then
   pass "Agent matcher → pre-task-hint.sh"
 else
   fail "Agent matcher → pre-task-hint.sh" "got: $MATCH"
@@ -32,8 +32,8 @@ else
 fi
 
 # Test 3: edit_code|replace_symbol matcher registered to pre-edit-hint.sh
-MATCH=$(jq -r '.hooks.PreToolUse[] | select(.matcher | test("edit_code|replace_symbol")) | .hooks[0].command' "$HOOKS_JSON")
-if echo "$MATCH" | grep -q "pre-edit-hint.sh"; then
+MATCH=$(jq -r '.hooks.PreToolUse[] | select(.matcher | test("edit_code|replace_symbol")) | .hooks[] | (.command + " " + ((.args // []) | join(" ")))' "$HOOKS_JSON")
+if echo "$MATCH" | grep -q "pre-edit-hint.mjs"; then
   pass "edit_code|replace_symbol matcher → pre-edit-hint.sh"
 else
   fail "edit_code|replace_symbol matcher → pre-edit-hint.sh" "got: $MATCH"
