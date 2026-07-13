@@ -223,9 +223,15 @@ def resolve_session_id_for_command(project_root: Path, ppid: int) -> str | None:
     if sid_file.is_file():
         try:
             if not _START_TIME_SUPPORTED:
-                # Platform can't verify process start time (e.g. Windows) —
-                # trust the PPID mapping alone. Session-start GC and the
-                # last-writer pointer remain as backstops against a stale entry.
+                # Platform can't verify process start time (e.g. Windows: no
+                # stdlib start-time API) — trust the PPID mapping alone. NOTE:
+                # this returns before the pointer / lone-dir steps below, and
+                # session-start GC cannot detect PID reuse without a start-time
+                # either, so a reused PID could resolve to a dead session. This
+                # is an accepted, bounded Windows-only limitation; the by-ppid
+                # *writer* is still bash-only (ported in P3), so this branch is
+                # not yet reached on Windows. Revisit the Windows by-ppid
+                # strategy when the writer lands.
                 sid = sid_file.read_text().strip()
                 if sid:
                     return sid

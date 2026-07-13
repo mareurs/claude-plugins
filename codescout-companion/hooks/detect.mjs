@@ -164,11 +164,17 @@ export function detect(cwd, home, claudeConfigDir) {
   let hasMemories = 'false';
   let memoryNames = '';
   if (isDir(memoriesDir)) {
-    for (const name of readdirSync(memoriesDir).sort()) {
-      if (isFile(join(memoriesDir, name)) && name.endsWith('.md')) {
-        memoryNames += `${name.slice(0, -3)} `;
-        hasMemories = 'true';
+    try {
+      for (const name of readdirSync(memoriesDir).sort()) {
+        // name.length > 3 excludes a file literally named ".md" (parity with
+        // detect.py, where Path(".md").suffix == "" so it is not a memory).
+        if (isFile(join(memoriesDir, name)) && name.endsWith('.md') && name.length > 3) {
+          memoryNames += `${name.slice(0, -3)} `;
+          hasMemories = 'true';
+        }
       }
+    } catch {
+      /* fail-open: unreadable memories dir → treat as no memories, never throw */
     }
   }
 

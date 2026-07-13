@@ -72,7 +72,6 @@ def call_cs_judge_llm(prompt: str) -> str:
     failure).
     """
     import urllib.request
-    import urllib.error
 
     api_url = os.environ.get("BUDDY_JUDGE_API_URL", "")
     model = os.environ.get("BUDDY_JUDGE_MODEL", "")

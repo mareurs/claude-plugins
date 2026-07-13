@@ -51,7 +51,15 @@ export function contextPreToolUse(context) {
 // (cross-platform: HOME on POSIX, USERPROFILE/os.homedir() on Windows).
 export function detectFor(cwd) {
   const home = process.env.HOME || process.env.USERPROFILE || homedir();
-  return detect(cwd || process.cwd(), home, process.env.CLAUDE_CONFIG_DIR || null);
+  try {
+    return detect(cwd || process.cwd(), home, process.env.CLAUDE_CONFIG_DIR || null);
+  } catch {
+    // Fail-open: any detection error → behave as if codescout is absent so the
+    // hook exits 0 without denying. A crash must never block the user's tool
+    // (on Copilot CLI a non-zero PreToolUse exit is itself a deny). Every hook
+    // gates on HAS_CODESCOUT/BLOCK_READS before doing anything else.
+    return { HAS_CODESCOUT: 'false', BLOCK_READS: 'false' };
+  }
 }
 
 // `git -C <cwd> <args...>` → trimmed stdout, or null on error / non-zero exit.

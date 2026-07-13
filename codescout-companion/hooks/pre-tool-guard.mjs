@@ -14,8 +14,12 @@ const SOURCE_RE = new RegExp(SOURCE_EXT_PATTERN, 'i');
 const input = readInput();
 if (!input) process.exit(0);
 
+// Normalize Windows backslash paths to forward slashes so the exemption checks
+// and cwd-relative logic below (all written with `/`) match on Windows too.
+const norm = (p) => (p || '').replace(/\\/g, '/');
+
 const toolName = input.tool_name || '';
-const cwd = input.cwd || '';
+const cwd = norm(input.cwd || '');
 
 const d = detectFor(cwd);
 if (d.HAS_CODESCOUT === 'false') process.exit(0);
@@ -33,10 +37,10 @@ function isSkillPayload(p) {
 const isHarnessOutput = (p) => /\/tool-results\//.test(p);
 
 function isConfigDir(p) {
-  const home = process.env.HOME || process.env.USERPROFILE || homedir();
+  const home = norm(process.env.HOME || process.env.USERPROFILE || homedir());
   if (p.startsWith(`${home}/.claude/`) || p.startsWith(`${home}/.claude-`)) return true;
   const ccd = process.env.CLAUDE_CONFIG_DIR;
-  if (ccd && p.startsWith(`${ccd}/`)) return true;
+  if (ccd && p.startsWith(`${norm(ccd)}/`)) return true;
   return false;
 }
 
@@ -47,22 +51,32 @@ const rel = (p) => (cwd && p.startsWith(`${cwd}/`) ? p.slice(cwd.length + 1) : p
 // full reason; parallel/repeat calls within the window get a short pointer.
 // Window tracked by a temp-file mtime (cross-platform; no backgrounded cleanup).
 function enforce(reason) {
-  const key = createHash('md5').update(`${toolName}\t${cwd}`).digest('hex').slice(0, 8);
+  const key = createHash('sha256').update(`${toolName}\t${cwd}`).digest('hex').slice(0, 8);
   const dedupFile = join(tmpdir(), `cs-block-${key}`);
-  let recent = false;
+  let firstInWindow = false;
   try {
-    if (Date.now() - statSync(dedupFile).mtimeMs < 3000) recent = true;
+    // Atomic create-if-absent (O_EXCL): in a burst of parallel hook processes,
+    // exactly one wins the create and emits the full reason; the rest fall
+    // through to the short pointer. Fixes the check-then-write race that let
+    // every parallel call print the full multi-line block.
+    writeFileSync(dedupFile, '', { flag: 'wx' });
+    firstInWindow = true;
   } catch {
-    /* no prior file */
+    // Marker exists (or the write failed). If the 3s window has elapsed, refresh
+    // it and treat this as a fresh first block, so a later unrelated block in
+    // the same session re-explains rather than staying terse forever.
+    try {
+      if (Date.now() - statSync(dedupFile).mtimeMs >= 3000) {
+        writeFileSync(dedupFile, '');
+        firstInWindow = true;
+      }
+    } catch {
+      /* best-effort: treat as not-first */
+    }
   }
-  if (recent) {
+  if (!firstInWindow) {
     denyPreToolUse('BLOCKED (see previous message)');
     process.exit(0);
-  }
-  try {
-    writeFileSync(dedupFile, '');
-  } catch {
-    /* best-effort */
   }
   denyPreToolUse(reason);
   process.exit(0);
@@ -103,7 +117,7 @@ use run_command(command="git -C /abs/path <subcommand>") from here — no cd nee
 }
 
 if (toolName === 'Grep') {
-  const pathVal = (input.tool_input && input.tool_input.path) || '';
+  const pathVal = norm((input.tool_input && input.tool_input.path) || '');
   const pattern = (input.tool_input && input.tool_input.pattern) || '';
   if (isConfigDir(pathVal)) process.exit(0);
 
@@ -131,7 +145,7 @@ codescout uses the index and returns structured, token-efficient results:
 }
 
 if (toolName === 'Glob') {
-  const pattern = (input.tool_input && input.tool_input.pattern) || '';
+  const pattern = norm((input.tool_input && input.tool_input.pattern) || '');
   if (isConfigDir(pattern)) process.exit(0);
   const basename = pattern.split('/').pop();
   const stem = basename.replace(/\.[^.]*$/, '');
@@ -144,7 +158,7 @@ codescout already knows every file in the project. Use the index directly:
 }
 
 if (toolName === 'Read') {
-  const filePath = (input.tool_input && input.tool_input.file_path) || '';
+  const filePath = norm((input.tool_input && input.tool_input.file_path) || '');
   if (isBinaryImage(filePath)) process.exit(0);
   if (isSkillPayload(filePath)) process.exit(0);
   if (isHarnessOutput(filePath)) process.exit(0);
@@ -214,7 +228,7 @@ read_file works on absolute cross-repo paths. Exempt from this block: binary ima
 }
 
 if (toolName === 'Edit') {
-  const filePath = (input.tool_input && input.tool_input.file_path) || '';
+  const filePath = norm((input.tool_input && input.tool_input.file_path) || '');
   if (isBinaryImage(filePath)) process.exit(0);
   enforce(`This call is blocked because codescout's edit_code is the safer path for structural source edits.
 
@@ -233,7 +247,7 @@ Suggested flow: symbols(name=NAME, include_body=true) to inspect the current bod
 }
 
 if (toolName === 'Write') {
-  const filePath = (input.tool_input && input.tool_input.file_path) || '';
+  const filePath = norm((input.tool_input && input.tool_input.file_path) || '');
   if (isBinaryImage(filePath)) process.exit(0);
   enforce(`This call is blocked because codescout's create_file is the tracked path for new source files.
 

@@ -136,7 +136,6 @@ def call_judge_llm(prompt: str) -> str:
     (urllib raises HTTPError on non-2xx, URLError on connection failure).
     """
     import urllib.request
-    import urllib.error
 
     api_url = os.environ.get("BUDDY_JUDGE_API_URL", "")
     model = os.environ.get("BUDDY_JUDGE_MODEL", "")

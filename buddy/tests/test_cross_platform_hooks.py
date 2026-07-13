@@ -163,6 +163,8 @@ def test_call_judge_llm_posts_via_urllib(monkeypatch):
         captured["method"] = req.get_method()
         captured["body"] = json.loads(req.data.decode("utf-8"))
         captured["auth"] = req.headers.get("Authorization")
+        # urllib capitalizes header keys: "Content-Type" -> "Content-type".
+        captured["ctype"] = req.headers.get("Content-type")
         captured["timeout"] = timeout
         return _FakeResp({"choices": [{"message": {"content": "VERDICT-OK"}}]})
 
@@ -174,6 +176,7 @@ def test_call_judge_llm_posts_via_urllib(monkeypatch):
     assert captured["method"] == "POST"
     assert captured["body"]["model"] == "test-model"
     assert captured["auth"] == "Bearer secret"
+    assert captured["ctype"] == "application/json"
     assert captured["timeout"] == 30
 
 
@@ -190,6 +193,7 @@ def test_call_cs_judge_llm_posts_via_urllib(monkeypatch):
         captured["url"] = req.full_url
         captured["method"] = req.get_method()
         captured["auth"] = req.headers.get("Authorization")
+        captured["ctype"] = req.headers.get("Content-type")
         return _FakeResp({"choices": [{"message": {"content": "CS-OK"}}]})
 
     monkeypatch.setattr(urllib.request, "urlopen", fake_urlopen)
@@ -199,5 +203,54 @@ def test_call_cs_judge_llm_posts_via_urllib(monkeypatch):
     # trailing slash on the base URL must not double up
     assert captured["url"] == "http://example.test/v1/chat/completions"
     assert captured["method"] == "POST"
+    assert captured["ctype"] == "application/json"
     # no API key set → no Authorization header
     assert captured["auth"] is None
+
+
+def test_call_judge_llm_raises_on_http_error(monkeypatch):
+    # The requests->urllib swap must preserve the raises-on-failure contract:
+    # a non-2xx must propagate (urllib raises HTTPError), never be swallowed.
+    import urllib.error
+    import pytest
+    import scripts.judge as judge
+    monkeypatch.setenv("BUDDY_JUDGE_API_URL", "http://example.test/v1")
+    monkeypatch.setenv("BUDDY_JUDGE_MODEL", "test-model")
+
+    def boom(req, timeout=None):
+        raise urllib.error.HTTPError(req.full_url, 500, "Server Error", {}, None)
+
+    monkeypatch.setattr(urllib.request, "urlopen", boom)
+    with pytest.raises(urllib.error.HTTPError):
+        judge.call_judge_llm("hello")
+
+
+def test_call_cs_judge_llm_raises_on_url_error(monkeypatch):
+    # Connection failures (URLError) must also propagate, not be swallowed.
+    import urllib.error
+    import pytest
+    import scripts.cs_judge as cs_judge
+    monkeypatch.setenv("BUDDY_JUDGE_API_URL", "http://example.test/v1")
+    monkeypatch.setenv("BUDDY_JUDGE_MODEL", "cs-model")
+    monkeypatch.setattr(cs_judge, "load_rules", lambda: "RULES")
+
+    def boom(req, timeout=None):
+        raise urllib.error.URLError("connection refused")
+
+    monkeypatch.setattr(urllib.request, "urlopen", boom)
+    with pytest.raises(urllib.error.URLError):
+        cs_judge.call_cs_judge_llm("hi")
+
+
+def test_resolve_rejects_dead_pid_when_supported(monkeypatch, tmp_path):
+    # POSIX: a by-ppid entry whose pid is gone (pid_started_at -> None) must NOT
+    # resolve via the index. Guards the `current_started and ...` truthy check.
+    import scripts.state as state
+    monkeypatch.setattr(state, "_START_TIME_SUPPORTED", True)
+    monkeypatch.setattr(state, "pid_started_at", lambda pid: None)
+    ppid = 4242
+    ppid_dir = tmp_path / ".buddy" / "by-ppid" / str(ppid)
+    ppid_dir.mkdir(parents=True)
+    (ppid_dir / "session_id").write_text("sess-dead\n")
+    (ppid_dir / "started_at").write_text("SOME TIME\n")
+    assert state.resolve_session_id_for_command(tmp_path, ppid) is None
