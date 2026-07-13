@@ -1,7 +1,7 @@
 ---
 id: '4c3331864bcf8d9f'
 kind: bug
-status: open
+status: fixed
 title: Verify codescout still uses `server_instructions` for the system-prompt (not replaced by memories/guides)
 owners: []
 tags:
@@ -23,6 +23,25 @@ memories / guides system.** If true, the `CLAUDE.md` `## codescout-companion` No
 companion's `subagent-guidance.sh` rationale describe a **dead mechanism** — stale *and*
 load-bearing. Verify before refactoring any of that prose.
 
+## RE-VERIFIED 2026-07-13 — verdict holds; closing (was zombie-open)
+
+This was **zombie-open**: the 2026-06-14 resolution below already carried a definitive verdict, but the status was never flipped. Per this file's own warning (*"repeat-offender claim — do NOT trust the in-repo docs; verify against codescout's current source"*), the month-old resolution was **re-verified against live codescout source** rather than rubber-stamped. Line numbers drifted (as expected over a month), but **every claim holds**:
+
+| Claim | 2026-06-14 | Current 2026-07-13 |
+|---|---|---|
+| `build_server_instructions` exists | `prompts/mod.rs:27` | ✅ `prompts/mod.rs:27-121` |
+| Appends system-prompt as `## Custom Instructions` | `:115-119` | ✅ present — `if let Some(prompt) = &status.system_prompt { ... "## Custom Instructions" ... }` |
+| Computed in `from_parts` | `server.rs:103` | ✅ `server.rs:103-104` |
+| Sent on the MCP `ServerInfo.instructions` surface | `server.rs:756` | ✅ **`server.rs:791`** — `get_info()` → `.with_instructions(self.instructions.read().clone())` |
+| `refresh_instructions()` after `activate_project` | `:478` | ✅ **`:516-520`**, invoked at **`:923`** |
+| Test asserts presence | `:2096` | ✅ **`:2156`** `get_info_contains_instructions` |
+| memories/guides COEXIST (did not replace) | — | ✅ the memory *list* rides **inside** the same `server_instructions` payload (`- **Memories:** {}`); `get_guide` remains a separate on-demand pull. Neither carries the system-prompt. |
+
+**Verdict unchanged: `server_instructions` is STILL LIVE and still the system-prompt delivery channel. The hypothesis (removed in favour of memories/guides) remains REFUTED. `CLAUDE.md` and the companion hook rationale are accurate — no correction required.**
+
+**No code or doc change was made** — this issue's deliverable was a *verdict*, and the verdict is "nothing is stale." Status flipped to `fixed` to mean *resolved / no action needed*; there is no fix SHA to gate archiving on.
+
+**Unblocks:** the deferred Hamsa `CLAUDE.md` prose consolidation (3× restatement of the server_instructions fact) — content confirmed accurate, so consolidating is a safe *optional* cleanup, not a staleness fix.
 ## Why an issue, not a quick fix — this is a repeat-offender claim
 
 Do **not** trust the in-repo docs on this; verify against codescout's current source:
