@@ -294,15 +294,18 @@ installable.
    unblocking buddy-on-Windows without touching the 26-script bulk.
 3. **P2 — codescout-companion Node rewrite.** The big chunk. Windows-build gate cleared.
    ✅ **Foundation DONE (2026-07-13):** `detect.py` → `hooks/detect.mjs` (byte-parity tested).
-   ✅ **`hooks/lib.mjs` + 4 guards DONE (2026-07-13):** `lib.mjs` now has readInput/emit/deny/
-   context + `git()` (child_process) + `detectFor()` + `emitSkillHint()`. Ported: `il3-warn-hook`
-   (24 tests), `il4-deny-hook` (18), `worktree-write-guard` (16), `git-worktree-guard` (24), all
-   exec-form in hooks.json; registration test repinned. **Remaining guards/hints:** pre-tool-guard
-   (the big source-file blocker: source-ext regex + os.tmpdir dedup + spawn().unref cleanup),
-   constitution-guard (`codescout constitution-check` subprocess + JSON seen-state),
-   pre-task-hint + pre-edit-hint (trivial now — detectFor + emitSkillHint ready), explore-inject
-   (complex: git repo_id + path-regex + updatedInput.prompt rewrite; its test sources bash
-   functions → needs a test rewrite). **Remaining stateful:** session-start
+   ✅ **PreToolUse guard/hint layer DONE (2026-07-13):** `lib.mjs` (readInput/emit/deny/context +
+   `git()` + `detectFor()` + `emitSkillHint()`) plus 8 hooks all ported to exec-form and tested:
+   `il3-warn-hook`, `il4-deny-hook`, `worktree-write-guard`, `git-worktree-guard`, `pre-task-hint`,
+   `pre-edit-hint`, `constitution-guard`, `pre-tool-guard` (dedup reimplemented as an os.tmpdir()
+   mtime window — cross-platform, no backgrounded rm). Retired `skill-hints.sh`. il4 + il3
+   additionally **live-verified** in the harness after `/reload-plugins`.
+   **Remaining:** `explore-inject` (complex: git repo_id + path-regex + updatedInput.prompt
+   rewrite; its test sources bash functions → needs a test rewrite) and the 7 stateful hooks
+   (session-start — `node:sqlite` drift query + `fs.symlink(...,'junction')` + `spawn().unref()`;
+   subagent-guidance, constitution-brief, constitution-epoch-bump, worktree-activate,
+   cs-activate-project, goal-stop-hook). **Cleanup:** retire `detect-tools.sh` + `detect.py` once
+   no hook shells them; decide retire-vs-port for unregistered `il3-deny-hook.sh`. **Remaining stateful:** session-start
    (`node:sqlite` drift query + `fs.symlink(...,'junction')` + `spawn().unref()`),
    worktree-activate, cs-activate-project, goal-stop-hook, subagent-guidance, constitution-brief,
    constitution-epoch-bump. **Cleanup:** delete `detect-tools.sh` (superseded by `detect.mjs`)
