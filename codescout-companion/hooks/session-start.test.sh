@@ -6,7 +6,7 @@
 
 set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-HOOK="$SCRIPT_DIR/session-start.sh"
+HOOK="$SCRIPT_DIR/session-start.mjs"
 PASS=0; FAIL=0
 pass() { echo "PASS: $1"; PASS=$((PASS+1)); }
 fail() { echo "FAIL: $1"; FAIL=$((FAIL+1)); }
@@ -26,7 +26,7 @@ fi
 # and print the injected additionalContext.
 ctx() {
   printf '{"cwd":"%s","source":"%s","session_id":"sst-%s"}' "$TMP" "$1" "$1" \
-    | bash "$HOOK" 2>/dev/null | jq -r '.hookSpecificOutput.additionalContext // ""'
+    | node "$HOOK" 2>/dev/null | jq -r '.hookSpecificOutput.additionalContext // ""'
 }
 
 STARTUP=$(ctx startup)

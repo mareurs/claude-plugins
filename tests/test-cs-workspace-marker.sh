@@ -87,7 +87,7 @@ ss_input() {
 
 # Resumed in worktree → marker seeded
 rm -f "$MARKER"
-ss_input "$SID" "$WT" | bash "$HOOK_DIR/session-start.sh" >/dev/null 2>&1
+ss_input "$SID" "$WT" | node "$HOOK_DIR/session-start.mjs" >/dev/null 2>&1
 if [ -f "$MARKER" ] && [ "$(cat "$MARKER")" = "$WT" ]; then
   pass "session-start: seeds marker when CWD is inside a worktree"
 else
@@ -96,7 +96,7 @@ fi
 
 # Resumed in main repo → marker NOT seeded (avoid false confirmation)
 rm -f "$MARKER"
-ss_input "$SID" "$MAIN" | bash "$HOOK_DIR/session-start.sh" >/dev/null 2>&1
+ss_input "$SID" "$MAIN" | node "$HOOK_DIR/session-start.mjs" >/dev/null 2>&1
 if [ ! -f "$MARKER" ]; then
   pass "session-start: skips seed when CWD is main repo (no false confirmation)"
 else
@@ -111,7 +111,7 @@ NEW="$CFG/codescout-active/fresh-sid"
 echo "/some/path" > "$OLD"; touch -d '14 days ago' "$OLD"
 echo "/some/path" > "$NEW"; touch -d '1 day ago' "$NEW"
 
-ss_input "another-sid" "$MAIN" | bash "$HOOK_DIR/session-start.sh" >/dev/null 2>&1
+ss_input "another-sid" "$MAIN" | node "$HOOK_DIR/session-start.mjs" >/dev/null 2>&1
 
 if [ ! -f "$OLD" ] && [ -f "$NEW" ]; then
   pass "session-start: sweeps markers older than 7 days, keeps fresh"

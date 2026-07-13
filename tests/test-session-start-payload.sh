@@ -4,7 +4,7 @@
 source "$(dirname "${BASH_SOURCE[0]}")/lib/fixtures.sh"
 
 echo "── session-start payload ──"
-HOOK="$HOOK_DIR/session-start.sh"
+HOOK="$HOOK_DIR/session-start.mjs"
 T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
 
 FAKE_HOME="$T/_home"
@@ -25,7 +25,7 @@ cat > "$T/proj/.mcp.json" <<'MCP'
 MCP
 
 run_hook() {
-  HOME="$FAKE_HOME" CLAUDE_CONFIG_DIR="" bash "$HOOK" 2>/dev/null
+  HOME="$FAKE_HOME" CLAUDE_CONFIG_DIR="" node "$HOOK" 2>/dev/null
 }
 
 INPUT=$(printf '{"cwd":"%s","session_id":"size-sid","source":"startup"}' "$T/proj")

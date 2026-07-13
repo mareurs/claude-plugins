@@ -3,18 +3,18 @@
 source "$(dirname "${BASH_SOURCE[0]}")/lib/fixtures.sh"
 
 echo "── session-start ──"
-HOOK="$HOOK_DIR/session-start.sh"
+HOOK="$HOOK_DIR/session-start.mjs"
 T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
 
 # --- Test 1: no CE → silent exit ---
 make_git_repo "$T/t1"
-OUT=$(printf '{"cwd":"%s"}' "$T/t1" | CLAUDE_CONFIG_DIR="$T/empty" bash "$HOOK" 2>/dev/null)
+OUT=$(printf '{"cwd":"%s"}' "$T/t1" | CLAUDE_CONFIG_DIR="$T/empty" node "$HOOK" 2>/dev/null)
 if assert_no_output "$OUT"; then pass "no CE: silent exit"; else fail "no CE: silent exit" "$OUT"; fi
 
 # --- Test 2: CE configured, not onboarded (no project.toml) ---
 make_git_repo "$T/t2"
 write_mcp_json "$T/t2"
-OUT=$(printf '{"cwd":"%s"}' "$T/t2" | bash "$HOOK" 2>/dev/null)
+OUT=$(printf '{"cwd":"%s"}' "$T/t2" | node "$HOOK" 2>/dev/null)
 if assert_context_contains "$OUT" "not yet onboarded"; then
   pass "not onboarded: hint shown"
 else
@@ -26,7 +26,7 @@ make_git_repo "$T/t3"
 write_mcp_json "$T/t3"
 make_ce_dir "$T/t3"
 make_memories "$T/t3"
-OUT=$(printf '{"cwd":"%s"}' "$T/t3" | bash "$HOOK" 2>/dev/null)
+OUT=$(printf '{"cwd":"%s"}' "$T/t3" | node "$HOOK" 2>/dev/null)
 if assert_context_contains "$OUT" "codescout MEMORIES:"; then
   pass "memories: hint shown"
 else
@@ -40,7 +40,7 @@ make_git_repo "$T/t4"
 write_mcp_json "$T/t4"
 make_ce_dir "$T/t4"
 make_system_prompt "$T/t4"
-OUT=$(printf '{"cwd":"%s"}' "$T/t4" | bash "$HOOK" 2>/dev/null)
+OUT=$(printf '{"cwd":"%s"}' "$T/t4" | node "$HOOK" 2>/dev/null)
 if echo "$OUT" | grep -q 'memory(action="read", topic="system-prompt")'; then
   fail "system-prompt pointer should be removed" "$OUT"
 elif assert_context_contains "$OUT" "codescout-companion:reconnaissance"; then
@@ -54,7 +54,7 @@ make_git_repo "$T/t5"
 write_mcp_json "$T/t5"
 make_ce_dir "$T/t5"
 seed_index_state "$T/t5" "deadbeef0000000000000000000000000000000000"
-OUT=$(printf '{"cwd":"%s"}' "$T/t5" | bash "$HOOK" 2>/dev/null)
+OUT=$(printf '{"cwd":"%s"}' "$T/t5" | node "$HOOK" 2>/dev/null)
 if assert_context_contains "$OUT" "INDEX: Refreshing"; then
   pass "stale index: refresh triggered"
 else
@@ -67,7 +67,7 @@ write_mcp_json "$T/t6"
 make_ce_dir "$T/t6"
 HEAD=$(git -C "$T/t6" rev-parse HEAD)
 seed_index_state "$T/t6" "$HEAD"
-OUT=$(printf '{"cwd":"%s"}' "$T/t6" | bash "$HOOK" 2>/dev/null)
+OUT=$(printf '{"cwd":"%s"}' "$T/t6" | node "$HOOK" 2>/dev/null)
 if ! assert_context_contains "$OUT" "INDEX:"; then
   pass "current index: no refresh"
 else
@@ -83,7 +83,7 @@ make_worktree "$T/t7main" "$T/t7wt"
 cp "$T/t7main/.mcp.json" "$T/t7wt/.mcp.json"
 cp "$T/t7main/fake-ce" "$T/t7wt/fake-ce" 2>/dev/null || true
 ln -s "$T/t7main/.codescout" "$T/t7wt/.codescout"
-OUT=$(printf '{"cwd":"%s"}' "$T/t7wt" | bash "$HOOK" 2>/dev/null)
+OUT=$(printf '{"cwd":"%s"}' "$T/t7wt" | node "$HOOK" 2>/dev/null)
 if assert_context_contains "$OUT" "WORKTREE SESSION" && ! assert_context_contains "$OUT" "INDEX:"; then
   pass "worktree: WORKTREE SESSION shown, no INDEX"
 else
@@ -96,7 +96,7 @@ write_mcp_json "$T/t8"
 make_ce_dir "$T/t8" "true"
 HEAD=$(git -C "$T/t8" rev-parse HEAD)
 seed_drift_db "$T/t8" "$HEAD"
-OUT=$(printf '{"cwd":"%s"}' "$T/t8" | bash "$HOOK" 2>/dev/null)
+OUT=$(printf '{"cwd":"%s"}' "$T/t8" | node "$HOOK" 2>/dev/null)
 if assert_context_contains "$OUT" "DRIFT WARNING"; then
   pass "drift: warning shown"
 else
@@ -112,7 +112,7 @@ make_worktree "$T/t9main" "$T/t9wt"
 write_mcp_json "$T/t9wt"
 mkdir -p "$T/t9wt/.codescout"
 echo '[project]' > "$T/t9wt/.codescout/project.toml"
-OUT=$(printf '{"cwd":"%s"}' "$T/t9wt" | bash "$HOOK" 2>/dev/null)
+OUT=$(printf '{"cwd":"%s"}' "$T/t9wt" | node "$HOOK" 2>/dev/null)
 if [ -L "$T/t9wt/.codescout/embeddings" ]; then
   pass "worktree real .codescout/: embeddings symlink created"
 else
@@ -129,7 +129,7 @@ make_worktree "$T/t10main" "$T/t10wt"
 write_mcp_json "$T/t10wt"
 mkdir -p "$T/t10wt/.codescout"
 echo '[project]' > "$T/t10wt/.codescout/project.toml"
-OUT=$(printf '{"cwd":"%s"}' "$T/t10wt" | bash "$HOOK" 2>/dev/null)
+OUT=$(printf '{"cwd":"%s"}' "$T/t10wt" | node "$HOOK" 2>/dev/null)
 if [ ! -e "$T/t10wt/.codescout/embeddings" ]; then
   pass "worktree real .codescout/, no embeddings in main: no symlink"
 else
@@ -146,7 +146,7 @@ make_worktree "$T/t11main" "$T/t11wt"
 write_mcp_json "$T/t11wt"
 mkdir -p "$T/t11wt/.codescout/embeddings"
 echo "local" > "$T/t11wt/.codescout/embeddings/local.db"
-OUT=$(printf '{"cwd":"%s"}' "$T/t11wt" | bash "$HOOK" 2>/dev/null)
+OUT=$(printf '{"cwd":"%s"}' "$T/t11wt" | node "$HOOK" 2>/dev/null)
 if [ -d "$T/t11wt/.codescout/embeddings" ] && [ ! -L "$T/t11wt/.codescout/embeddings" ]; then
   pass "worktree real .codescout/, embeddings already present: not overwritten"
 else
@@ -160,7 +160,7 @@ fi
 make_git_repo "$T/t12"
 write_mcp_json "$T/t12"
 make_ce_dir "$T/t12"
-OUT=$(printf '{"cwd":"%s"}' "$T/t12" | bash "$HOOK" 2>/dev/null)
+OUT=$(printf '{"cwd":"%s"}' "$T/t12" | node "$HOOK" 2>/dev/null)
 if assert_context_contains "$OUT" "codescout-companion:reconnaissance"; then
   pass "reconnaissance: pointer emitted"
 else
@@ -172,7 +172,7 @@ make_git_repo "$T/t13"
 write_mcp_json "$T/t13"
 make_ce_dir "$T/t13"
 SID_T13="sid-recon-marker-test"
-OUT=$(printf '{"session_id":"%s","cwd":"%s"}' "$SID_T13" "$T/t13" | bash "$HOOK" 2>/dev/null)
+OUT=$(printf '{"session_id":"%s","cwd":"%s"}' "$SID_T13" "$T/t13" | node "$HOOK" 2>/dev/null)
 if [ -f "$T/t13/.buddy/$SID_T13/recon-loaded" ]; then
   pass "reconnaissance: recon-loaded marker dropped under .buddy/<sid>/"
 else
