@@ -300,12 +300,16 @@ installable.
    `pre-edit-hint`, `constitution-guard`, `pre-tool-guard` (dedup reimplemented as an os.tmpdir()
    mtime window — cross-platform, no backgrounded rm). Retired `skill-hints.sh`. il4 + il3
    additionally **live-verified** in the harness after `/reload-plugins`.
-   **Remaining:** `explore-inject` (complex: git repo_id + path-regex + updatedInput.prompt
-   rewrite; its test sources bash functions → needs a test rewrite) and the 7 stateful hooks
-   (session-start — `node:sqlite` drift query + `fs.symlink(...,'junction')` + `spawn().unref()`;
-   subagent-guidance, constitution-brief, constitution-epoch-bump, worktree-activate,
-   cs-activate-project, goal-stop-hook). **Cleanup:** retire `detect-tools.sh` + `detect.py` once
-   no hook shells them; decide retire-vs-port for unregistered `il3-deny-hook.sh`. **Remaining stateful:** session-start
+   ✅ **P2 COMPLETE (2026-07-13).** All 14 live hooks + `detect.mjs` foundation ported to Node
+   exec-form; `hooks.json` is now 100% `command:"node"` (16 entries, 0 `.sh`). Stateful set done:
+   session-start (node:sqlite drift + junction symlinks + spawn().unref() + marker seed/sweep +
+   tracker-hygiene), subagent-guidance, constitution-brief, constitution-epoch-bump,
+   worktree-activate, cs-activate-project, goal-stop-hook, explore-inject. Every `*.test.sh`
+   repointed to node; full `tests/run-all.sh` green.
+   **Deferred (optional housekeeping, NOT portability blockers — no live hook invokes them):**
+   `detect-tools.sh` + `detect.py` are retained as the byte-parity oracle for `detect.mjs` (and
+   `detect.py` backs `detect.test.sh`); unregistered `il3-deny-hook.sh` is dead code (not in
+   hooks.json) — retire-vs-port is a separate call. **Remaining stateful:** session-start
    (`node:sqlite` drift query + `fs.symlink(...,'junction')` + `spawn().unref()`),
    worktree-activate, cs-activate-project, goal-stop-hook, subagent-guidance, constitution-brief,
    constitution-epoch-bump. **Cleanup:** delete `detect-tools.sh` (superseded by `detect.mjs`)
