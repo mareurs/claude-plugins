@@ -17,23 +17,23 @@ Release readiness across plugins × profiles. See
 
 ## State
 
-_Last refresh: `09a5f71`_
+_Last refresh: `00cbf03`_
 
-**codescout-companion** — canonical `1.12.2` · readme `1.12.2` · marketplace clean ✅
-
-| profile | installed | cache dir | install_path ok |
-|---|---|---|---|
-| `~/.claude` | 1.12.2 ✅ | ✅ | ✅ |
-| `~/.claude-sdd` | 1.12.2 ✅ | ✅ | ✅ |
-| `~/.claude-kat` | 1.12.2 ✅ | ✅ | ✅ |
-
-**buddy** — canonical `0.7.35` · readme `0.7.35` · marketplace clean ✅
+**codescout-companion** — canonical `1.14.0` · readme `1.14.0` · marketplace clean ✅
 
 | profile | installed | cache dir | install_path ok |
 |---|---|---|---|
-| `~/.claude` | 0.7.35 ✅ | ✅ | ✅ |
-| `~/.claude-sdd` | 0.7.35 ✅ | ✅ | ✅ |
-| `~/.claude-kat` | 0.7.35 ✅ | ✅ | ✅ |
+| `~/.claude` | 1.14.0 ✅ | ✅ | ✅ |
+| `~/.claude-sdd` | 1.14.0 ✅ | ✅ | ✅ |
+| `~/.claude-kat` | 1.14.0 ✅ | ✅ | ✅ |
+
+**buddy** — canonical `0.8.0` · readme `0.8.0` · marketplace clean ✅
+
+| profile | installed | cache dir | install_path ok |
+|---|---|---|---|
+| `~/.claude` | 0.8.0 ✅ | ✅ | ✅ |
+| `~/.claude-sdd` | 0.8.0 ✅ | ✅ | ✅ |
+| `~/.claude-kat` | 0.8.0 ✅ | ✅ | ✅ |
 
 **claude-statusline** — canonical `1.1.7` · readme `1.1.7` · marketplace clean ✅
 
@@ -43,6 +43,10 @@ _Last refresh: `09a5f71`_
 | `~/.claude-sdd` | 1.1.7 ✅ | ✅ | ✅ |
 | `~/.claude-kat` | 1.1.7 ✅ | ✅ | ✅ |
 ## History
+
+### 2026-07-13 — codescout-companion 1.13.1 → 1.14.0, buddy 0.7.35 → 0.8.0
+
+Cross-platform (Windows + GitHub Copilot) porting — the hook layer now runs on Windows and under Copilot's plugin format. codescout-companion: all 16 hooks rewritten from bash+jq to Node `.mjs` exec-form (`hooks.json` is 100% `command:"node"`), `detect.py`→`detect.mjs`, fail-open contract (a crash never denies). buddy: the 5 bash hook wrappers → a Node launcher (`run.mjs`, probes python3→python→`py -3`) + a Python dispatcher (`hook_dispatch.py` + `hook_entry.py`); `requests`→stdlib urllib; `fcntl` and `ps -o lstart=` Windows-guarded. sdd (not installed in any profile): its 4 hooks were ported to `.mjs` too and reach main via the merge, but no profile record needed updating. Two Opus review rounds caught + fixed a CRITICAL fail-open break and a HIGH Windows interpreter-stub silent-no-op. Ran `release.sh codescout-companion minor` (→1.14.0) + `release.sh buddy minor` (→0.8.0): `run-all.sh` green (16 suites; buddy pytest 483 separately), caches seeded + install records repointed across all three profiles, sanity loops all ✅. Verified directly: new code (`run.mjs`, `pre-tool-guard.mjs`) present in all three caches and the old `.sh` wrappers gone. Pushed to origin/main (codescout-companion `caf17b7`, buddy `00cbf03`; the merge landed the P0–P3 port + `docs/INSTALL-COPILOT.md` P4 plan). Cold restart of all three instances still required to bind the new caches. Copilot (P4) authoring deferred — sourced plan in `docs/INSTALL-COPILOT.md`.
 
 ### 2026-07-03 — codescout-companion 1.11.17 → 1.12.2
 
