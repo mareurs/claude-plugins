@@ -255,6 +255,9 @@ Wrapper + statusline layer:
 
 ## Copilot-only residuals (after hooks are cross-platform)
 
+> **Authoritative, sourced plan: `docs/INSTALL-COPILOT.md`** (2026-07-13) — it supersedes any
+> detail below where they conflict.
+
 The shared plugin format does **not** erase these four:
 
 1. **Matcher syntax.** Our matchers (`mcp__codescout__*`, `EnterWorktree`, `Agent`,
@@ -274,11 +277,11 @@ The shared plugin format does **not** erase these four:
    (copilot-cli#2528). Document `.vscode/mcp.json` (IDE) and `~/.copilot/mcp-config.json` (CLI)
    setup rather than assuming plugin-bundled install.
 
-Distribution note: Copilot discovers plugins via `chat.plugins.marketplaces`, git-URL install
-(*Chat: Install Plugin From Source*), `chat.pluginLocations`, or auto-discovery of
-CLI-installed plugins; Copilot CLI understands `.claude-plugin` manifests and installs via
-`copilot plugin install owner/repo:subdir`. No conversion needed — the existing repo layout is
-installable.
+Distribution note (**revised 2026-07-13** — see `docs/INSTALL-COPILOT.md`): the earlier claim
+that Copilot CLI ingests `.claude-plugin` manifests as-is is **unconfirmed and likely wrong**.
+Sourced docs describe Copilot's *own* `plugin.json` (distinct fields; installed under
+`~/.copilot/installed-plugins/`) plus its own hooks and (user-level-only) MCP schemas. Treat
+Copilot packaging as a separate manifest to author, not a free import of the CC layout.
 
 ## Phasing / sequencing
 
@@ -355,8 +358,17 @@ installable.
    `create.md`/`summon.md` command docs still show `bash discover-specialists.sh`
    as an interactive fallback (the hot hook path is Python; discover-specialists.sh
    kept as its own test's POSIX oracle).
-5. **P4 — Copilot residuals.** Matcher validation, exit-code testing per surface, MCP setup
-   docs, `.github/agents`/`.github/prompts` mirrors if we want first-class Copilot commands.
+5. ◐ **P4 — Copilot residuals — PLAN DOCUMENTED (2026-07-13).** Research (sourced) confirmed
+   Copilot CLI is a **separate port**, not a free side effect: its hooks schema differs (camelCase
+   events, `bash`/`powershell` keys, **no `args`**, **no `${CLAUDE_PLUGIN_ROOT}` expansion**), MCP
+   config is **user-level only** (`~/.copilot/mcp-config.json`; no per-repo — #2528), and
+   plugin-declared MCP isn't auto-merged (#2709). **What ports:** codescout MCP (manual
+   `mcp-config.json` entry — the high-value win), skills (Copilot reads `.claude/skills/`). **What's
+   blocked:** hooks, on one **UNCONFIRMED** unknown — how a Copilot hook references its plugin's own
+   scripts without a plugin-root variable (needs one empirical test on a live Copilot install).
+   Full sourced plan + schema mapping + setup steps: **`docs/INSTALL-COPILOT.md`**. Authoring the
+   `.github/hooks/` manifests is deferred until the plugin-root question is answered and a Copilot
+   CLI environment is available to verify against (untestable on the dev box).
 
 P0–P1 deliver graceful Windows degradation quickly. P2 delivers full Windows companion
 function. P4 is the Copilot-specific tail — largely free once P0–P3 land, because it is the same
