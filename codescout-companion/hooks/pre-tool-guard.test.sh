@@ -15,7 +15,7 @@
 
 set -uo pipefail
 
-HOOK="$(cd "$(dirname "$0")" && pwd)/pre-tool-guard.sh"
+HOOK="$(cd "$(dirname "$0")" && pwd)/pre-tool-guard.mjs"
 ACTIVE_CWD="/home/marius/work/claude/codescout"
 SIBLING_CWD="/home/marius/work/claude/claude-plugins"
 PASS=0
@@ -42,7 +42,7 @@ assert() {
     input=$(jq -n --arg c "$cmd" --arg cwd "$ACTIVE_CWD" \
         '{tool_name:"Bash", cwd:$cwd, tool_input:{command:$c}}')
     local got
-    got=$(verdict "$(echo "$input" | "$HOOK")")
+    got=$(verdict "$(echo "$input" | node "$HOOK")")
     if [[ "$got" == "$expected" ]]; then
         echo "PASS [$label]"
         PASS=$((PASS+1))
@@ -62,7 +62,7 @@ assert_tool() {
     input=$(jq -n --arg t "$tool" --arg cwd "$ACTIVE_CWD" --argjson ti "$tinput" \
         '{tool_name:$t, cwd:$cwd, tool_input:$ti}')
     local got
-    got=$(verdict "$(echo "$input" | "$HOOK")")
+    got=$(verdict "$(echo "$input" | node "$HOOK")")
     if [[ "$got" == "$expected" ]]; then
         echo "PASS [$label]"; PASS=$((PASS+1))
     else

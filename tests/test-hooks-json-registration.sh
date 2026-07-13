@@ -40,7 +40,7 @@ else
 fi
 
 # Test 4: existing matchers preserved
-for keep in "pre-tool-guard.sh" "il3-warn-hook.mjs" "worktree-write-guard.mjs"; do
+for keep in "pre-tool-guard.mjs" "il3-warn-hook.mjs" "worktree-write-guard.mjs"; do
   if grep -q "$keep" "$HOOKS_JSON"; then
     pass "preserved: $keep"
   else
