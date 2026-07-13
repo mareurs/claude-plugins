@@ -287,11 +287,24 @@ installable.
    `node:crypto` md5, `os.tmpdir()` marker (not world-writable `/tmp`), and
    `tests/test-sdd-hooks.sh`. `${CLAUDE_PLUGIN_ROOT}` referenced via exec-form `args`. Old `.sh`
    deleted. All suites green.
-2. **P1 — buddy point-defects (cheap, high-value).** ~~`fcntl` guard~~ ✅, ~~judge-spawn
-   interpreter + detachment~~ ✅ (2026-07-13, tested). **Remaining:** the `ps -o lstart=` PPID
-   index (design fork: psutil dep vs read from hook stdin vs drop start-time disambiguation on
-   Windows), the `requests`/`pyproject.toml` declaration (or drop to urllib). These finish
-   unblocking buddy-on-Windows without touching the 26-script bulk.
+2. ✅ **P1 — buddy point-defects — COMPLETE (2026-07-13).** ~~`fcntl` guard~~ ✅, ~~judge-spawn
+   interpreter + detachment~~ ✅. **Design fork resolved (stdlib-only, no new dep):**
+   - `ps -o lstart=` PPID index (`state.py`) — added `_START_TIME_SUPPORTED = os.name != "nt"`;
+     `pid_started_at` short-circuits to None where start-time is unsupported (Windows), and
+     `resolve_session_id_for_command` trusts the PPID mapping alone there (no `started_at` file
+     required) while still requiring a start-time match on POSIX. Rejected `psutil` (new dep,
+     against buddy's dependency-free ethos) and Windows `ctypes` (unverifiable on the Linux dev
+     box). Note: the *writer* side (`ps` in the bash wrappers) is ported in **P3**; this makes
+     the reader forward-compatible so the index works on Windows once P3 lands.
+   - `requests` → stdlib `urllib.request` in `judge.py` + `cs_judge.py` (matches the eval
+     harness pattern; preserves the raises-on-failure contract via HTTPError/URLError). Erases
+     the only undeclared third-party runtime dep. `pyproject.toml` now documents zero runtime
+     deps + Python 3.13+ floor (comment, not a `[project]` table — version stays owned by
+     `plugin.json`, no drift).
+   - Tests: 7 added to `tests/test_cross_platform_hooks.py` (Windows PPID-alone resolution,
+     POSIX match/mismatch guards, urllib-not-requests source scan + functional POST for both
+     judge modules). Buddy pytest 473 green; full `tests/run-all.sh` green.
+   These finish unblocking buddy-on-Windows without touching the 26-script bulk.
 3. **P2 — codescout-companion Node rewrite.** The big chunk. Windows-build gate cleared.
    ✅ **Foundation DONE (2026-07-13):** `detect.py` → `hooks/detect.mjs` (byte-parity tested).
    ✅ **PreToolUse guard/hint layer DONE (2026-07-13):** `lib.mjs` (readInput/emit/deny/context +

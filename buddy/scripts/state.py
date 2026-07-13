@@ -11,6 +11,12 @@ from pathlib import Path
 
 STATE_VERSION = 1
 
+# Whether this platform can report a process's start time for PID-reuse
+# detection. POSIX has `ps -o lstart=`; Windows has no `ps` and no stdlib
+# start-time API (short of ctypes/psutil, which we decline — buddy stays
+# dependency-free). Where unsupported, the by-ppid index keys on PPID alone.
+_START_TIME_SUPPORTED = os.name != "nt"
+
 
 def default_state() -> dict:
     return {
@@ -171,12 +177,18 @@ def session_state_path(project_root: Path, session_id: str) -> Path:
 
 
 def pid_started_at(pid: int) -> str | None:
-    """Return process start time as an opaque string, or None if pid is gone.
+    """Return process start time as an opaque string, or None if unavailable.
 
-    Uses `ps -o lstart= -p <pid>` — works on Linux and macOS. Empty/failed
-    output → None. Used to detect PID reuse: if a stored start_time differs
-    from the current value for the same pid, the entry is stale.
+    POSIX: uses `ps -o lstart= -p <pid>` (Linux + macOS). Returns None if the
+    pid is gone or ps fails. Windows has no `ps` and no stdlib process-start
+    API, so start-time reuse detection is unsupported there
+    (``_START_TIME_SUPPORTED`` is False) — this returns None immediately and
+    the resolver keys on PPID alone. Used to detect PID reuse: if a stored
+    start_time differs from the current value for the same pid, the entry is
+    stale.
     """
+    if not _START_TIME_SUPPORTED:
+        return None
     try:
         result = subprocess.run(
             ["ps", "-o", "lstart=", "-p", str(pid)],
@@ -195,6 +207,7 @@ def resolve_session_id_for_command(project_root: Path, ppid: int) -> str | None:
 
     Resolution chain:
       1. by-ppid/<ppid>/{session_id,started_at} — verify started_at matches current
+         (on platforms without start-time support, trust the PPID mapping alone)
       2. .current_session_id pointer (last-writer)
       3. Sole session dir under .buddy/ (excluding by-ppid)
       4. None
@@ -207,14 +220,22 @@ def resolve_session_id_for_command(project_root: Path, ppid: int) -> str | None:
     ppid_dir = buddy_dir / "by-ppid" / str(ppid)
     sid_file = ppid_dir / "session_id"
     started_file = ppid_dir / "started_at"
-    if sid_file.is_file() and started_file.is_file():
+    if sid_file.is_file():
         try:
-            stored_started = started_file.read_text().strip()
-            current_started = pid_started_at(ppid)
-            if current_started and current_started == stored_started:
+            if not _START_TIME_SUPPORTED:
+                # Platform can't verify process start time (e.g. Windows) —
+                # trust the PPID mapping alone. Session-start GC and the
+                # last-writer pointer remain as backstops against a stale entry.
                 sid = sid_file.read_text().strip()
                 if sid:
                     return sid
+            elif started_file.is_file():
+                stored_started = started_file.read_text().strip()
+                current_started = pid_started_at(ppid)
+                if current_started and current_started == stored_started:
+                    sid = sid_file.read_text().strip()
+                    if sid:
+                        return sid
         except OSError:
             pass
 

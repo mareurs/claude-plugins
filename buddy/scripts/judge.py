@@ -131,9 +131,12 @@ def parse_judge_response(raw: str) -> dict:
 def call_judge_llm(prompt: str) -> str:
     """Call the OpenAI-compatible LLM endpoint. Returns raw response text.
 
-    Raises on failure — caller must handle exceptions.
+    Uses stdlib urllib (no third-party dependency) so the judge runs on any
+    platform with Python. Raises on failure — caller must handle exceptions
+    (urllib raises HTTPError on non-2xx, URLError on connection failure).
     """
-    import requests
+    import urllib.request
+    import urllib.error
 
     api_url = os.environ.get("BUDDY_JUDGE_API_URL", "")
     model = os.environ.get("BUDDY_JUDGE_MODEL", "")
@@ -157,7 +160,12 @@ def call_judge_llm(prompt: str) -> str:
         "max_tokens": 1000,
     }
 
-    resp = requests.post(url, json=payload, headers=headers, timeout=30)
-    resp.raise_for_status()
-    data = resp.json()
+    req = urllib.request.Request(
+        url,
+        data=json.dumps(payload).encode("utf-8"),
+        headers=headers,
+        method="POST",
+    )
+    with urllib.request.urlopen(req, timeout=30) as resp:
+        data = json.load(resp)
     return data["choices"][0]["message"]["content"]

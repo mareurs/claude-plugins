@@ -1,2 +1,7 @@
+# buddy has NO third-party runtime dependencies — all hooks and scripts run on
+# the Python standard library alone (urllib for the judge HTTP calls, not
+# `requests`). Requires Python 3.13+. Version is owned by
+# .claude-plugin/plugin.json (single source of truth — not duplicated here).
+
 [tool.pytest.ini_options]
 pythonpath = ["."]

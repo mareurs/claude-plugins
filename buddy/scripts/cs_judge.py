@@ -66,10 +66,13 @@ def build_cs_judge_prompt(tool_log_entries: list[dict]) -> str:
 def call_cs_judge_llm(prompt: str) -> str:
     """Call the LLM endpoint for codescout judgment.
 
-    Uses the same env vars as the plan judge (BUDDY_JUDGE_API_*).
-    Raises on failure — caller must handle exceptions.
+    Uses the same env vars as the plan judge (BUDDY_JUDGE_API_*). Uses stdlib
+    urllib (no third-party dependency). Raises on failure — caller must handle
+    exceptions (urllib raises HTTPError on non-2xx, URLError on connection
+    failure).
     """
-    import requests
+    import urllib.request
+    import urllib.error
 
     api_url = os.environ.get("BUDDY_JUDGE_API_URL", "")
     model = os.environ.get("BUDDY_JUDGE_MODEL", "")
@@ -96,9 +99,14 @@ def call_cs_judge_llm(prompt: str) -> str:
         "max_tokens": 500,
     }
 
-    resp = requests.post(url, json=payload, headers=headers, timeout=30)
-    resp.raise_for_status()
-    data = resp.json()
+    req = urllib.request.Request(
+        url,
+        data=json.dumps(payload).encode("utf-8"),
+        headers=headers,
+        method="POST",
+    )
+    with urllib.request.urlopen(req, timeout=30) as resp:
+        data = json.load(resp)
     return data["choices"][0]["message"]["content"]
 
 
