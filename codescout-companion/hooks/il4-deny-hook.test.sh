@@ -11,7 +11,7 @@
 
 set -uo pipefail
 
-HOOK="$(cd "$(dirname "$0")" && pwd)/il4-deny-hook.sh"
+HOOK="$(cd "$(dirname "$0")" && pwd)/il4-deny-hook.mjs"
 PASS=0
 FAIL=0
 
@@ -20,7 +20,7 @@ assert() {
     local input="$2"
     local expected="$3"  # "deny" or "allow"
     local got
-    got=$(echo "$input" | "$HOOK")
+    got=$(echo "$input" | node "$HOOK")
     local decision="allow"
     if [[ -n "$got" ]]; then
         decision=$(echo "$got" | jq -r '.hookSpecificOutput.permissionDecision // "allow"' 2>/dev/null || echo "allow")
