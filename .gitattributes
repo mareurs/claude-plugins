@@ -3,4 +3,5 @@
 # `\r` leaks into sourced .env values — breaking the plugins before any code runs.
 *.sh  text eol=lf
 *.py  text eol=lf
+*.mjs text eol=lf
 *.env text eol=lf

@@ -1,7 +1,7 @@
 """Hook event handlers that mutate state.json.
 
-Each handler is called by a thin bash wrapper that passes the Claude Code
-hook event JSON via stdin. All handlers are silent on failure.
+Each handler is called by the hook dispatcher (hooks/hook_dispatch.py), which
+passes the Claude Code hook event JSON. All handlers are silent on failure.
 """
 import fnmatch
 import os
@@ -702,3 +702,41 @@ def accumulate_narrative(
             )
     except Exception:
         pass
+
+
+def load_judge_env(plugin_root, *, override: bool = False) -> None:
+    """Load hooks/judge.env (KEY=VALUE, optional `export`) into os.environ.
+
+    Cross-platform replacement for the bash `. judge.env` step. With
+    override=False (default) a variable already present in the environment is
+    left untouched, so a caller/test that set BUDDY_* wins over the file —
+    matching the precedence the pre-tool-use wrapper took pains to preserve.
+    Resolves the one `${VAR:-default}` form used in judge.env; does not do
+    general shell expansion. Best-effort: never raises.
+    """
+    env_file = Path(plugin_root) / "hooks" / "judge.env"
+    if not env_file.is_file():
+        return
+    try:
+        text = env_file.read_text()
+    except OSError:
+        return
+    for raw in text.splitlines():
+        line = raw.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        if line.startswith("export "):
+            line = line[len("export "):]
+        key, val = line.split("=", 1)
+        key = key.strip()
+        val = val.strip()
+        if not key:
+            continue
+        if len(val) >= 2 and val[0] == val[-1] and val[0] in ("'", '"'):
+            val = val[1:-1]
+        m = re.fullmatch(r"\$\{(\w+):-(.*)\}", val)
+        if m:
+            val = os.environ.get(m.group(1), m.group(2))
+        if not override and key in os.environ:
+            continue
+        os.environ[key] = val

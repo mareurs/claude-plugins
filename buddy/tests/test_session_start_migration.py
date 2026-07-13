@@ -1,4 +1,4 @@
-"""Integration smoke test: session-start.sh bash->python auto-migration wiring.
+"""Integration smoke test: session-start hook (hook_dispatch.py) auto-migration wiring.
 
 Runs the real hook via subprocess with a temp HOME + BUDDY_HOME so it cannot
 touch the developer's real ~/.claude*/buddy dirs. Catches heredoc/sys.path
@@ -6,10 +6,11 @@ typos that unit tests on auto_migrate_if_needed() cannot.
 """
 import json
 import subprocess
+import sys
 from pathlib import Path
 
 PLUGIN_ROOT = Path(__file__).resolve().parent.parent  # buddy/
-HOOK = PLUGIN_ROOT / "hooks" / "session-start.sh"
+DISPATCH = PLUGIN_ROOT / "hooks" / "hook_dispatch.py"
 
 
 def test_session_start_migrates_legacy_profile(tmp_path):
@@ -25,7 +26,7 @@ def test_session_start_migrates_legacy_profile(tmp_path):
         "PATH": __import__("os").environ["PATH"],
     }
     result = subprocess.run(
-        ["bash", str(HOOK)],
+        [sys.executable, str(DISPATCH), "session-start"],
         input=json.dumps({"cwd": str(tmp_path), "session_id": "smoke"}),
         capture_output=True, text=True, env=env, cwd=str(tmp_path),
     )
@@ -46,7 +47,7 @@ def test_session_start_noop_when_no_legacy_state(tmp_path):
         "PATH": __import__("os").environ["PATH"],
     }
     result = subprocess.run(
-        ["bash", str(HOOK)],
+        [sys.executable, str(DISPATCH), "session-start"],
         input=json.dumps({"cwd": str(tmp_path), "session_id": "smoke"}),
         capture_output=True, text=True, env=env, cwd=str(tmp_path),
     )

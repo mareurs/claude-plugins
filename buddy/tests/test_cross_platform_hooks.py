@@ -254,3 +254,119 @@ def test_resolve_rejects_dead_pid_when_supported(monkeypatch, tmp_path):
     (ppid_dir / "session_id").write_text("sess-dead\n")
     (ppid_dir / "started_at").write_text("SOME TIME\n")
     assert state.resolve_session_id_for_command(tmp_path, ppid) is None
+
+
+# --- state: PPID-index write / gc / remove (Python port of the bash blocks) ---
+
+def test_update_ppid_index_writes_pointer_and_entry(tmp_path):
+    import scripts.state as state
+    ppid = os.getpid()  # a live pid, so start-time is available on POSIX
+    state.update_ppid_index(tmp_path, "sid-x", ppid)
+    assert (tmp_path / ".buddy" / ".current_session_id").read_text() == "sid-x"
+    entry = tmp_path / ".buddy" / "by-ppid" / str(ppid)
+    assert (entry / "session_id").read_text() == "sid-x"
+    if state._START_TIME_SUPPORTED:
+        assert (entry / "started_at").read_text().strip()  # written on POSIX
+
+
+def test_gc_ppid_index_prunes_stale_keeps_live_and_self(tmp_path, monkeypatch):
+    import scripts.state as state
+    monkeypatch.setattr(state, "_START_TIME_SUPPORTED", True)
+    # 111 = keep_ppid (skipped), 222 = dead pid, 444 = alive+match, 555 = reused
+    monkeypatch.setattr(
+        state, "pid_started_at",
+        lambda pid: {111: "LIVE", 444: "MATCH", 555: "FRESH"}.get(pid),
+    )
+    by = tmp_path / ".buddy" / "by-ppid"
+    for pid, stored in (("111", "LIVE"), ("222", "OLD"), ("444", "MATCH"), ("555", "STALE")):
+        (by / pid).mkdir(parents=True)
+        (by / pid / "started_at").write_text(stored)
+    state.gc_ppid_index(tmp_path, keep_ppid=111)
+    assert (by / "111").is_dir()      # keep_ppid — never touched
+    assert not (by / "222").exists()  # dead pid — pruned
+    assert (by / "444").is_dir()      # alive + start-time match — kept
+    assert not (by / "555").exists()  # alive but start-time drift (reuse) — pruned
+
+
+def test_gc_ppid_index_noop_when_start_time_unsupported(tmp_path, monkeypatch):
+    import scripts.state as state
+    monkeypatch.setattr(state, "_START_TIME_SUPPORTED", False)
+    by = tmp_path / ".buddy" / "by-ppid" / "999"
+    by.mkdir(parents=True)
+    (by / "started_at").write_text("whatever")
+    state.gc_ppid_index(tmp_path, keep_ppid=111)
+    assert by.is_dir()  # cannot verify reuse without start-time → leave entries
+
+
+def test_remove_ppid_entry(tmp_path):
+    import scripts.state as state
+    entry = tmp_path / ".buddy" / "by-ppid" / "321"
+    entry.mkdir(parents=True)
+    (entry / "session_id").write_text("x")
+    state.remove_ppid_entry(tmp_path, 321)
+    assert not entry.exists()
+    state.remove_ppid_entry(tmp_path, 321)  # missing entry → no-op, no raise
+
+
+# --- hook_helpers: judge.env loader (Python port of `. judge.env`) ------------
+
+def test_load_judge_env_parses_and_respects_override(tmp_path, monkeypatch):
+    from scripts.hook_helpers import load_judge_env
+    hooks = tmp_path / "hooks"
+    hooks.mkdir()
+    (hooks / "judge.env").write_text(
+        "# comment line\n"
+        "\n"
+        "export BUDDY_JUDGE_ENABLED=false\n"
+        "export BUDDY_JUDGE_MODEL=qwen\n"
+        "export BUDDY_JUDGE_API_KEY=\n"
+        'export BUDDY_JUDGE_BLOCK="${BUDDY_JUDGE_BLOCK:-false}"\n'
+    )
+    monkeypatch.setenv("BUDDY_JUDGE_ENABLED", "true")  # caller value must win
+    monkeypatch.delenv("BUDDY_JUDGE_MODEL", raising=False)
+    monkeypatch.delenv("BUDDY_JUDGE_API_KEY", raising=False)
+    monkeypatch.delenv("BUDDY_JUDGE_BLOCK", raising=False)
+
+    load_judge_env(tmp_path)
+
+    assert os.environ["BUDDY_JUDGE_ENABLED"] == "true"   # override=False → caller wins
+    assert os.environ["BUDDY_JUDGE_MODEL"] == "qwen"     # taken from the file
+    assert os.environ["BUDDY_JUDGE_API_KEY"] == ""       # empty value handled
+    assert os.environ["BUDDY_JUDGE_BLOCK"] == "false"    # ${VAR:-default} resolved
+
+
+def test_load_judge_env_override_true_clobbers(tmp_path, monkeypatch):
+    from scripts.hook_helpers import load_judge_env
+    hooks = tmp_path / "hooks"
+    hooks.mkdir()
+    (hooks / "judge.env").write_text("export BUDDY_JUDGE_MODEL=fromfile\n")
+    monkeypatch.setenv("BUDDY_JUDGE_MODEL", "caller")
+    load_judge_env(tmp_path, override=True)
+    assert os.environ["BUDDY_JUDGE_MODEL"] == "fromfile"
+
+
+# --- summon_bootstrap.discover: pure-Python scope precedence (no bash) ---------
+
+def test_discover_precedence_project_over_global_over_builtin(tmp_path, monkeypatch):
+    import scripts.summon_bootstrap as sb
+
+    builtin = tmp_path / "builtin"
+    (builtin / "skills" / "alpha").mkdir(parents=True)
+    (builtin / "skills" / "alpha" / "SKILL.md").write_text("builtin-alpha")
+    monkeypatch.setattr(sb, "PLUGIN_ROOT", builtin)
+
+    gh = tmp_path / "gh"
+    (gh / "skills" / "alpha").mkdir(parents=True)
+    (gh / "skills" / "alpha" / "SKILL.md").write_text("global-alpha")  # overrides builtin
+    (gh / "skills" / "beta").mkdir(parents=True)
+    (gh / "skills" / "beta" / "SKILL.md").write_text("global-beta")
+    monkeypatch.setenv("BUDDY_HOME", str(gh))
+
+    proj = tmp_path / "proj"
+    (proj / ".buddy" / "skills" / "beta").mkdir(parents=True)
+    (proj / ".buddy" / "skills" / "beta" / "SKILL.md").write_text("proj-beta")  # overrides global
+
+    idx = sb.discover(proj)
+    assert set(idx) == {"alpha", "beta"}
+    assert idx["alpha"][0] == "global"   # global beat builtin
+    assert idx["beta"][0] == "project"   # project beat global

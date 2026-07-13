@@ -16,12 +16,14 @@ echo "PLUGIN_ROOT=$PLUGIN_ROOT"
 ```
 
 Capture the `MODE` value from the output.
+
+**Windows:** the composed statusline is POSIX-only (it needs bash, curl, jq, `stat`, and background jobs). On Windows always use `MODE=standalone` — if you cannot run the bash block above (no bash on the machine), set `MODE=standalone` directly.
 ## Step 2 — Choose the statusLine command
 
 Based on MODE:
 
 - **composed:** `bash ${CLAUDE_PLUGIN_ROOT}/scripts/statusline-composed.sh`
-- **standalone:** `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/statusline.py`
+- **standalone:** `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/statusline.py` — on **Windows** substitute `python` for `python3` (Windows Python installs as `python.exe`; `python3` is usually absent). The standalone statusline is pure Python and needs no bash/jq.
 
 Keep `${CLAUDE_PLUGIN_ROOT}` as a literal string in the written settings — Claude Code expands it at statusline execution time.
 

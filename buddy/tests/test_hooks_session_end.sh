@@ -2,7 +2,7 @@
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
-HOOK="$PLUGIN_ROOT/hooks/session-end.sh"
+DISPATCH="$PLUGIN_ROOT/hooks/hook_dispatch.py"
 
 PASS=0; FAIL=0
 fail() { echo "FAIL: $1"; FAIL=$((FAIL+1)); }
@@ -16,7 +16,7 @@ echo "sid-end-test" > "$WORK/.buddy/by-ppid/$$/session_id"
 echo "TIME" > "$WORK/.buddy/by-ppid/$$/started_at"
 
 EVENT='{"cwd":"'"$WORK"'","session_id":"sid-end-test"}'
-echo "$EVENT" | bash "$HOOK" >/dev/null 2>&1 || true
+echo "$EVENT" | python3 "$DISPATCH" session-end >/dev/null 2>&1 || true
 
 [ ! -d "$WORK/.buddy/by-ppid/$$" ] \
   && pass "by-ppid entry for own PPID removed" || fail "by-ppid entry not removed"
@@ -24,7 +24,7 @@ echo "$EVENT" | bash "$HOOK" >/dev/null 2>&1 || true
 # Seed an entry for a different PPID — must NOT be touched
 mkdir -p "$WORK/.buddy/by-ppid/77777"
 echo "other" > "$WORK/.buddy/by-ppid/77777/session_id"
-echo "$EVENT" | bash "$HOOK" >/dev/null 2>&1 || true
+echo "$EVENT" | python3 "$DISPATCH" session-end >/dev/null 2>&1 || true
 [ -d "$WORK/.buddy/by-ppid/77777" ] \
   && pass "other PPID entries untouched" || fail "other PPID was wrongly removed"
 

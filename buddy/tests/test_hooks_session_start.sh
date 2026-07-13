@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# Test session-start.sh: pointer + by-ppid + GC + dead file removal.
+# Test session-start hook (via hook_dispatch.py): pointer + by-ppid + GC + dead file removal.
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
-HOOK="$PLUGIN_ROOT/hooks/session-start.sh"
+DISPATCH="$PLUGIN_ROOT/hooks/hook_dispatch.py"
 
 PASS=0; FAIL=0
 fail() { echo "FAIL: $1"; FAIL=$((FAIL+1)); }
@@ -12,7 +12,7 @@ pass() { echo "PASS: $1"; PASS=$((PASS+1)); }
 WORK=$(mktemp -d); trap 'rm -rf "$WORK"' EXIT
 EVENT='{"session_id":"sid-aaa","cwd":"'"$WORK"'","source":"startup","timestamp":1700000000}'
 
-echo "$EVENT" | bash "$HOOK" >/dev/null 2>&1 || true
+echo "$EVENT" | python3 "$DISPATCH" session-start >/dev/null 2>&1 || true
 
 [ -f "$WORK/.buddy/.current_session_id" ] && [ "$(cat "$WORK/.buddy/.current_session_id")" = "sid-aaa" ] \
   && pass "pointer file written" || fail "pointer file"
@@ -29,7 +29,7 @@ echo "stale-sid" > "$WORK/.buddy/by-ppid/99999/session_id"
 echo "BOGUS_TIME" > "$WORK/.buddy/by-ppid/99999/started_at"
 
 EVENT2='{"session_id":"sid-bbb","cwd":"'"$WORK"'","source":"resume","timestamp":1700001000}'
-echo "$EVENT2" | bash "$HOOK" >/dev/null 2>&1 || true
+echo "$EVENT2" | python3 "$DISPATCH" session-start >/dev/null 2>&1 || true
 
 [ ! -d "$WORK/.buddy/by-ppid/99999" ] \
   && pass "GC removed stale entry" || fail "GC stale entry — still exists"
@@ -42,7 +42,7 @@ if [ -f "$DEAD" ]; then DEAD_BACKUP=$(mktemp); cp "$DEAD" "$DEAD_BACKUP"; fi
 echo '{"version":1}' > "$DEAD"
 
 EVENT3='{"session_id":"sid-ccc","cwd":"'"$WORK"'","source":"startup","timestamp":1700002000}'
-echo "$EVENT3" | bash "$HOOK" >/dev/null 2>&1 || true
+echo "$EVENT3" | python3 "$DISPATCH" session-start >/dev/null 2>&1 || true
 
 [ ! -f "$DEAD" ] && pass "dead global state.json removed" || fail "dead global state.json still exists"
 
@@ -62,7 +62,7 @@ for i in $(seq 1 31); do
 done
 
 NUDGE_EVENT='{"session_id":"sid-nudge","cwd":"'"$NUDGE_WORK"'","source":"startup","timestamp":1700003000}'
-NUDGE_OUT=$(echo "$NUDGE_EVENT" | CLAUDE_PLUGIN_ROOT="$PLUGIN_ROOT" bash "$HOOK" 2>/dev/null || true)
+NUDGE_OUT=$(echo "$NUDGE_EVENT" | CLAUDE_PLUGIN_ROOT="$PLUGIN_ROOT" python3 "$DISPATCH" session-start 2>/dev/null || true)
 
 echo "$NUDGE_OUT" | grep -q "consider /buddy:consolidate prompt-hamsa" \
   && pass "capacity nudge fires for 31 entries" \
@@ -79,7 +79,7 @@ done
 BOGUS_DIR=$(mktemp -d); trap 'rm -rf "$BOGUS_DIR"' EXIT
 
 LEAK_EVENT='{"session_id":"sid-leak","cwd":"'"$LEAK_WORK"'","source":"startup","timestamp":1700003500}'
-LEAK_OUT=$(echo "$LEAK_EVENT" | CLAUDE_PROJECT_DIR="$BOGUS_DIR" CLAUDE_PLUGIN_ROOT="$PLUGIN_ROOT" bash "$HOOK" 2>/dev/null || true)
+LEAK_OUT=$(echo "$LEAK_EVENT" | CLAUDE_PROJECT_DIR="$BOGUS_DIR" CLAUDE_PLUGIN_ROOT="$PLUGIN_ROOT" python3 "$DISPATCH" session-start 2>/dev/null || true)
 
 echo "$LEAK_OUT" | grep -q "consider /buddy:consolidate prompt-hamsa" \
   && pass "hook uses event.cwd over inherited CLAUDE_PROJECT_DIR" \
@@ -118,7 +118,7 @@ EOF
 echo "$PREV_SID" > "$RELOAD_WORK/.buddy/.current_session_id"
 
 RELOAD_EVENT='{"session_id":"'"$NEW_SID"'","cwd":"'"$RELOAD_WORK"'","source":"resume","timestamp":1700004000}'
-RELOAD_OUT=$(echo "$RELOAD_EVENT" | CLAUDE_PLUGIN_ROOT="$PLUGIN_ROOT" bash "$HOOK" 2>/dev/null || true)
+RELOAD_OUT=$(echo "$RELOAD_EVENT" | CLAUDE_PLUGIN_ROOT="$PLUGIN_ROOT" python3 "$DISPATCH" session-start 2>/dev/null || true)
 
 if echo "$RELOAD_OUT" | grep -q "buddy:reloaded\|buddy:dismissed"; then
   fail "resume must NOT emit a reload/dismissal block — output: $RELOAD_OUT"
@@ -143,7 +143,7 @@ NEW_PARENT=$(jq -r '.parent_sid // ""' "$RELOAD_WORK/.buddy/$NEW_SID/state.json"
 # .codescout here, so recon does not fire.
 COMPACT_SID="new-sid-compact"
 COMPACT_EVENT='{"session_id":"'"$COMPACT_SID"'","cwd":"'"$RELOAD_WORK"'","source":"compact","timestamp":1700004100}'
-COMPACT_OUT=$(echo "$COMPACT_EVENT" | CLAUDE_PLUGIN_ROOT="$PLUGIN_ROOT" bash "$HOOK" 2>/dev/null || true)
+COMPACT_OUT=$(echo "$COMPACT_EVENT" | CLAUDE_PLUGIN_ROOT="$PLUGIN_ROOT" python3 "$DISPATCH" session-start 2>/dev/null || true)
 
 echo "$COMPACT_OUT" | grep -q "buddy:dismissed-on-compact" \
   && pass "compact emits dismissal notice" \
@@ -173,7 +173,7 @@ EOF
 echo "prev-sid-startup" > "$STARTUP_WORK/.buddy/.current_session_id"
 
 STARTUP_EVENT='{"session_id":"fresh-startup-sid","cwd":"'"$STARTUP_WORK"'","source":"startup","timestamp":1700100000}'
-STARTUP_OUT=$(echo "$STARTUP_EVENT" | CLAUDE_PLUGIN_ROOT="$PLUGIN_ROOT" bash "$HOOK" 2>/dev/null || true)
+STARTUP_OUT=$(echo "$STARTUP_EVENT" | CLAUDE_PLUGIN_ROOT="$PLUGIN_ROOT" python3 "$DISPATCH" session-start 2>/dev/null || true)
 
 if echo "$STARTUP_OUT" | grep -q "buddy:reloaded"; then
   fail "startup must NOT emit reload block — output: $STARTUP_OUT"
@@ -192,7 +192,7 @@ EOF
 echo "$SAMESID" > "$SAMESID_WORK/.buddy/.current_session_id"
 
 SAMESID_EVENT='{"session_id":"'"$SAMESID"'","cwd":"'"$SAMESID_WORK"'","source":"resume","timestamp":1700004000}'
-SAMESID_OUT=$(echo "$SAMESID_EVENT" | CLAUDE_PLUGIN_ROOT="$PLUGIN_ROOT" bash "$HOOK" 2>/dev/null || true)
+SAMESID_OUT=$(echo "$SAMESID_EVENT" | CLAUDE_PLUGIN_ROOT="$PLUGIN_ROOT" python3 "$DISPATCH" session-start 2>/dev/null || true)
 
 if echo "$SAMESID_OUT" | grep -q "buddy:reloaded\|buddy:dismissed"; then
   fail "same-SID resume must NOT emit a reload/dismissal block — output: $SAMESID_OUT"

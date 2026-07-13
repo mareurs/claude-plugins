@@ -1,12 +1,13 @@
-"""Integration tests for hooks/pre-tool-use.sh — exit code and routing."""
+"""Integration tests for the pre-tool-use hook (via hook_dispatch.py) — exit code and routing."""
 import json
 import os
 import subprocess
+import sys
 import time
 from pathlib import Path
 
 PLUGIN_ROOT = Path(__file__).parent.parent
-HOOK = PLUGIN_ROOT / "hooks" / "pre-tool-use.sh"
+DISPATCH = PLUGIN_ROOT / "hooks" / "hook_dispatch.py"
 
 
 def _make_verdicts(tmp_path, session_id, verdicts, kind="verdicts"):
@@ -31,7 +32,7 @@ def _run_hook(tmp_path, session_id="test-sess", cs_judge=False, judge=False, blo
         "BUDDY_JUDGE_BLOCK": "true" if block else "false",
     }
     return subprocess.run(
-        ["bash", str(HOOK)],
+        [sys.executable, str(DISPATCH), "pre-tool-use"],
         input=event,
         capture_output=True,
         text=True,

@@ -328,7 +328,33 @@ installable.
    constitution-epoch-bump. **Cleanup:** delete `detect-tools.sh` (superseded by `detect.mjs`)
    and port/retire `detect.py` once no hook shells it. NB: `il3-deny-hook.sh` is unregistered in
    hooks.json — decide retire vs port separately.
-4. **P3 — buddy wrapper/statusline cross-platform + pika sqlite via stdlib.**
+4. ◐ **P3 — buddy wrapper/statusline cross-platform — CORE DONE (2026-07-13).**
+   The 5 bash hook wrappers (session-start/user-prompt-submit/pre-tool-use/
+   post-tool-use/session-end) are replaced by a Python layer reached through a
+   Node launcher. **Interpreter fork resolved:** `python3` fails on Windows,
+   bare `python` is often absent on macOS, and CC hooks.json has no per-OS
+   variants — so a single interpreter name can't work without regressing the
+   current python3 users. Solution: `hooks/run.mjs` (Node is guaranteed wherever
+   CC runs) resolves `python3 → python → py -3`, spawns `hooks/hook_dispatch.py
+   <event>` with stdio inherited, forwards only an intentional exit 2, and passes
+   CC's PID as `BUDDY_HOOK_PPID` so the by-ppid index keys on CC not the launcher.
+   hooks.json is now the node exec-form (mirrors codescout-companion). Logic
+   folded into `scripts/hook_entry.py` (5 run_* fns) + `hook_dispatch.py`:
+   jq→json, ps/sed/mkdir/echo→`state.update_ppid_index`/`gc_ppid_index`/
+   `remove_ppid_entry`, `. judge.env`→`hook_helpers.load_judge_env`,
+   multiple `python -c`→direct calls. `summon_bootstrap.discover()` ported to a
+   pure-Python scope scan (no `bash discover-specialists.sh`). Statusline:
+   `commands/install.md` now forces standalone `statusline.py` on Windows (composed
+   is POSIX-only) and uses `python` there. `.gitattributes` enforces LF on `.mjs`;
+   the CI cross-platform test drives the node launcher end-to-end (real on the
+   Windows runner). All 6 wrapper tests repointed to `hook_dispatch.py`; +11 new
+   tests (ppid index, judge.env loader, discover precedence, launcher e2e). buddy
+   pytest 483 green; full `tests/run-all.sh` green.
+   **Deferred:** pika `sqlite3`→stdlib (`skills/codescout-pika` — a specialist
+   skill that degrades gracefully; largest, least-critical item). Minor: the
+   `create.md`/`summon.md` command docs still show `bash discover-specialists.sh`
+   as an interactive fallback (the hot hook path is Python; discover-specialists.sh
+   kept as its own test's POSIX oracle).
 5. **P4 — Copilot residuals.** Matcher validation, exit-code testing per surface, MCP setup
    docs, `.github/agents`/`.github/prompts` mirrors if we want first-class Copilot commands.
 

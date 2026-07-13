@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Hook-side summon bootstrap — deliver the specialist payload at prompt time.
 
-Called from user-prompt-submit.sh when the prompt starts with /buddy:summon.
+Called from the user-prompt-submit hook entry (scripts.hook_entry) when the
+prompt starts with /buddy:summon.
 Reads the hook event JSON on stdin; prints the full summon payload to stdout
 (UserPromptSubmit stdout is injected as context); exits 0 always. A cold
 summon thereby costs ZERO model tool calls — summon.md's load steps become a
@@ -46,26 +47,31 @@ BINDING_LINE_CAP = 500
 def discover(project_root: Path) -> dict[str, tuple[str, Path]]:
     """name → (scope, path), precedence applied (project > global > builtin).
 
-    Shells out to discover-specialists.sh (the tested resolver) rather than
-    forking its logic. The script prints builtin, global, project in order;
-    later assignment wins, which IS the precedence rule.
+    Pure-Python scan (no bash) so it runs on Windows too. Scans builtin, then
+    global, then project; later assignment wins, which IS the precedence rule.
+    A specialist is a subdirectory containing a SKILL.md. Mirrors the retired
+    discover-specialists.sh (self-located builtin; $BUDDY_HOME global via
+    buddy_paths; project under <project_root>/.buddy/skills).
     """
-    script = PLUGIN_ROOT / "scripts" / "discover-specialists.sh"
-    env = dict(os.environ)
-    env["CLAUDE_PROJECT_DIR"] = str(project_root)
-    try:
-        out = subprocess.run(
-            ["bash", str(script)],
-            capture_output=True, text=True, timeout=10, env=env,
-        ).stdout
-    except (OSError, subprocess.SubprocessError):
-        return {}
+    scopes = (
+        ("builtin", PLUGIN_ROOT / "skills"),
+        ("global", buddy_paths.global_skills()),
+        ("project", Path(project_root) / ".buddy" / "skills"),
+    )
     index: dict[str, tuple[str, Path]] = {}
-    for line in out.splitlines():
-        parts = line.split(maxsplit=2)
-        if len(parts) == 3:
-            scope, name, path = parts
-            index[name] = (scope, Path(path))
+    for scope, root in scopes:
+        if not root or not root.is_dir():
+            continue
+        try:
+            entries = sorted(root.iterdir())
+        except OSError:
+            continue
+        for entry in entries:
+            try:
+                if entry.is_dir() and (entry / "SKILL.md").is_file():
+                    index[entry.name] = (scope, entry)
+            except OSError:
+                continue
     return index
 
 

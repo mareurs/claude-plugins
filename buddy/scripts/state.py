@@ -5,6 +5,7 @@ The buddy must never break user flow.
 """
 import json
 import os
+import shutil
 import subprocess
 import tempfile
 from pathlib import Path
@@ -267,3 +268,77 @@ def resolve_session_id_for_command(project_root: Path, ppid: int) -> str | None:
         pass
 
     return None
+def update_ppid_index(project_root, sid: str, ppid: int) -> None:
+    """Write the last-writer pointer + by-ppid/<ppid> mapping for this session.
+
+    Cross-platform replacement for the bash `echo … > … ; ps -o lstart= …`
+    block in the session-start / user-prompt-submit wrappers. started_at is
+    written only where process start-time is available (POSIX); on Windows it
+    is omitted and the resolver keys on PPID alone (see pid_started_at). All
+    writes are best-effort — buddy must never break the user's flow.
+    """
+    buddy_dir = Path(project_root) / ".buddy"
+    ppid_dir = buddy_dir / "by-ppid" / str(ppid)
+    try:
+        ppid_dir.mkdir(parents=True, exist_ok=True)
+    except OSError:
+        pass
+    for path, value in (
+        (buddy_dir / ".current_session_id", sid),
+        (ppid_dir / "session_id", sid),
+    ):
+        try:
+            path.write_text(value)
+        except OSError:
+            pass
+    started = pid_started_at(ppid)
+    if started:
+        try:
+            (ppid_dir / "started_at").write_text(started)
+        except OSError:
+            pass
+
+
+def gc_ppid_index(project_root, keep_ppid: int) -> None:
+    """Prune stale by-ppid entries (dead pid, or PID reused → start-time drift).
+
+    Only runs where start-time verification is supported; on platforms without
+    it (Windows), reuse cannot be detected safely, so entries are left in place
+    (session-end removes each session's own entry, and the resolver trusts the
+    PPID mapping there — an accepted, bounded limitation).
+    """
+    if not _START_TIME_SUPPORTED:
+        return
+    by_ppid = Path(project_root) / ".buddy" / "by-ppid"
+    if not by_ppid.is_dir():
+        return
+    try:
+        entries = list(by_ppid.iterdir())
+    except OSError:
+        return
+    for entry in entries:
+        if not entry.is_dir():
+            continue
+        try:
+            pid = int(entry.name)
+        except ValueError:
+            continue
+        if pid == keep_ppid:
+            continue
+        stored = ""
+        started_file = entry / "started_at"
+        if started_file.is_file():
+            try:
+                stored = started_file.read_text().strip()
+            except OSError:
+                stored = ""
+        current = pid_started_at(pid) or ""
+        if not current or current != stored:
+            shutil.rmtree(entry, ignore_errors=True)
+
+
+def remove_ppid_entry(project_root, ppid: int) -> None:
+    """Remove this session's own by-ppid entry (SessionEnd cleanup)."""
+    entry = Path(project_root) / ".buddy" / "by-ppid" / str(ppid)
+    if entry.is_dir():
+        shutil.rmtree(entry, ignore_errors=True)

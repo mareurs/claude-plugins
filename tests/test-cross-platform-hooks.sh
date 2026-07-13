@@ -7,8 +7,8 @@
 #   2. cygpath -m PLUGIN_ROOT conversion (Git Bash only; self-skips elsewhere)
 #   3. buddy statusline.py running via the resolved interpreter + (converted) path
 #   4. codescout-companion detect-tools.sh sourcing (runs detect.py via the shim)
-#   5. a real buddy hook executing end-to-end (isolated HOME + CWD)
-#   6. .gitattributes doing its job: no CRLF in tracked .sh/.py
+#   5. a real buddy hook executing end-to-end via the Node launcher (isolated HOME + CWD)
+#   6. .gitattributes doing its job: no CRLF in tracked .sh/.py/.mjs
 #
 # Runs in tests/run-all.sh on Linux and in CI
 # (.github/workflows/cross-platform-hooks.yml) on ubuntu/macos/windows.
@@ -63,23 +63,27 @@ else
   bad "codescout-companion detect-tools.sh failed to source"
 fi
 
-# 5. a real buddy hook executes end-to-end (isolated HOME + CWD — no pollution).
-#    Proves the cygpath-converted PLUGIN_ROOT reaches Python's sys.path so the
-#    `from scripts...` imports resolve on Windows.
+# 5. a real buddy hook executes end-to-end via the Node launcher → Python
+#    dispatcher (the cross-platform path). Proves node resolves a Python
+#    interpreter and PLUGIN_ROOT reaches Python's sys.path so the
+#    `from scripts...` imports resolve. Node is guaranteed wherever Claude Code
+#    runs; if absent here we skip rather than fail.
 tmp="$(mktemp -d 2>/dev/null || mktemp -d -t cphooks)"
 ev='{"session_id":"ci-smoke","cwd":"'"$tmp"'","tool_name":"Read","tool_input":{},"prompt":"hi"}'
-if printf '%s' "$ev" | HOME="$tmp" bash "$ROOT/buddy/hooks/post-tool-use.sh" >/dev/null 2>&1; then
-  ok "buddy post-tool-use.sh runs end-to-end"
+if ! command -v node >/dev/null 2>&1; then
+  skip "node absent — buddy launcher end-to-end check requires Node (Claude Code ships it)"
+elif printf '%s' "$ev" | HOME="$tmp" node "$ROOT/buddy/hooks/run.mjs" post-tool-use >/dev/null 2>&1; then
+  ok "buddy hook runs end-to-end via node launcher → python dispatcher"
 else
-  bad "buddy post-tool-use.sh failed end-to-end"
+  bad "buddy hook failed end-to-end via node launcher"
 fi
 rm -rf "$tmp" 2>/dev/null || true
 
 # 6. .gitattributes guard: no CRLF in tracked shell/python scripts. On a Windows
 #    checkout this fails loudly if `*.sh text eol=lf` ever stops working.
-crlf="$(git -C "$ROOT" grep -lI "$(printf '\r')" -- '*.sh' '*.py' 2>/dev/null || true)"
+crlf="$(git -C "$ROOT" grep -lI "$(printf '\r')" -- '*.sh' '*.py' '*.mjs' 2>/dev/null || true)"
 if [ -z "$crlf" ]; then
-  ok "no CRLF in tracked .sh/.py (LF enforced by .gitattributes)"
+  ok "no CRLF in tracked .sh/.py/.mjs (LF enforced by .gitattributes)"
 else
   bad "CRLF found in tracked scripts: $crlf"
 fi
