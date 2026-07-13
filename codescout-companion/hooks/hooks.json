@@ -56,7 +56,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/constitution-guard.sh"
+            "command": "node",
+            "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/constitution-guard.mjs"]
           }
         ]
       },

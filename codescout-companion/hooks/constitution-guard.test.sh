@@ -4,7 +4,7 @@
 # hooks/il3-deny-hook.test.sh for the black-box invocation style this mirrors.
 set -uo pipefail
 
-HOOK="$(cd "$(dirname "$0")" && pwd)/constitution-guard.sh"
+HOOK="$(cd "$(dirname "$0")" && pwd)/constitution-guard.mjs"
 PASS=0
 FAIL=0
 
@@ -21,7 +21,7 @@ PROJECT=$(mktemp -d)
 assert() {
   local label="$1" input="$2" expected_decision="$3"
   local got decision
-  got=$(echo "$input" | "$HOOK")
+  got=$(echo "$input" | node "$HOOK")
   if [ -z "$got" ]; then
     decision="allow"
   else
