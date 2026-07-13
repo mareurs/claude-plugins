@@ -70,7 +70,7 @@ wt_input() {
 
 rm -f "$MARKER"
 wt_input "$SID" "$MAIN" "$WT" \
-  | bash "$HOOK_DIR/worktree-activate.sh" >/dev/null 2>&1
+  | node "$HOOK_DIR/worktree-activate.mjs" >/dev/null 2>&1
 if [ -f "$MARKER" ] && [ "$(cat "$MARKER")" = "$WT" ]; then
   pass "worktree-activate: writes marker on EnterWorktree"
 else

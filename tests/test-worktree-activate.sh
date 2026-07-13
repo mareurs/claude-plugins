@@ -3,18 +3,18 @@
 source "$(dirname "${BASH_SOURCE[0]}")/lib/fixtures.sh"
 
 echo "── worktree-activate ──"
-HOOK="$HOOK_DIR/worktree-activate.sh"
+HOOK="$HOOK_DIR/worktree-activate.mjs"
 T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
 
 # Test 1: non-EnterWorktree tool → silent exit
-OUT=$(printf '{"cwd":"%s","tool_name":"Bash","tool_response":{}}' "$T" | bash "$HOOK" 2>/dev/null)
+OUT=$(printf '{"cwd":"%s","tool_name":"Bash","tool_response":{}}' "$T" | node "$HOOK" 2>/dev/null)
 if assert_no_output "$OUT"; then pass "non-EnterWorktree: silent exit"; else fail "non-EnterWorktree: silent exit" "$OUT"; fi
 
 # Test 2: EnterWorktree, no CE → silent exit
 make_git_repo "$T/t2main"
 make_worktree "$T/t2main" "$T/t2wt"
 OUT=$(printf '{"cwd":"%s","tool_name":"EnterWorktree","tool_response":{"worktree_path":"%s"}}' \
-  "$T/t2main" "$T/t2wt" | CLAUDE_CONFIG_DIR="$T/empty" bash "$HOOK" 2>/dev/null)
+  "$T/t2main" "$T/t2wt" | CLAUDE_CONFIG_DIR="$T/empty" node "$HOOK" 2>/dev/null)
 if assert_no_output "$OUT"; then pass "no CE: silent exit"; else fail "no CE: silent exit" "$OUT"; fi
 
 # Test 3: EnterWorktree with worktree_path → marker created, guidance injected, symlink exists
@@ -23,7 +23,7 @@ write_mcp_json "$T/t3main"
 make_ce_dir "$T/t3main"
 make_worktree "$T/t3main" "$T/t3wt"
 OUT=$(printf '{"cwd":"%s","tool_name":"EnterWorktree","tool_response":{"worktree_path":"%s"}}' \
-  "$T/t3main" "$T/t3wt" | bash "$HOOK" 2>/dev/null)
+  "$T/t3main" "$T/t3wt" | node "$HOOK" 2>/dev/null)
 MARKER_OK=false; GUIDANCE_OK=false; SYMLINK_OK=false
 [ -f "$T/t3wt/.cs-worktree-pending" ] && MARKER_OK=true
 assert_context_contains "$OUT" "workspace(" && GUIDANCE_OK=true
@@ -41,7 +41,7 @@ write_mcp_json "$T/t4main"
 make_ce_dir "$T/t4main"
 make_worktree "$T/t4main" "$T/t4wt"
 OUT=$(printf '{"cwd":"%s","tool_name":"EnterWorktree","tool_response":{}}' \
-  "$T/t4main" | bash "$HOOK" 2>/dev/null)
+  "$T/t4main" | node "$HOOK" 2>/dev/null)
 if assert_context_contains "$OUT" "workspace(" && [ -f "$T/t4wt/.cs-worktree-pending" ]; then
   pass "EnterWorktree fallback detection: marker+guidance"
 else
@@ -58,7 +58,7 @@ make_worktree "$T/t5main" "$T/t5wt"
 mkdir -p "$T/t5wt/.codescout"
 echo '[project]' > "$T/t5wt/.codescout/project.toml"
 OUT=$(printf '{"cwd":"%s","tool_name":"EnterWorktree","tool_response":{"worktree_path":"%s"}}' \
-  "$T/t5main" "$T/t5wt" | bash "$HOOK" 2>/dev/null)
+  "$T/t5main" "$T/t5wt" | node "$HOOK" 2>/dev/null)
 if [ -L "$T/t5wt/.codescout/embeddings" ]; then
   pass "EnterWorktree real .codescout/: embeddings symlink created"
 else
@@ -75,7 +75,7 @@ make_worktree "$T/t6main" "$T/t6wt"
 mkdir -p "$T/t6wt/.codescout"
 echo '[project]' > "$T/t6wt/.codescout/project.toml"
 OUT=$(printf '{"cwd":"%s","tool_name":"EnterWorktree","tool_response":{"worktree_path":"%s"}}' \
-  "$T/t6main" "$T/t6wt" | bash "$HOOK" 2>/dev/null)
+  "$T/t6main" "$T/t6wt" | node "$HOOK" 2>/dev/null)
 if [ ! -e "$T/t6wt/.codescout/embeddings" ]; then
   pass "EnterWorktree real .codescout/, no embeddings in main: no symlink"
 else
