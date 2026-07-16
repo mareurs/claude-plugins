@@ -56,6 +56,7 @@ neutral (streak unchanged).
 | D4 frontmatter-catalog-mismatch | individual | 0 | — |
 | D5 canonical-conflict | individual | 0 | — |
 | D9 augmentation-stale | individual | 0 | — |
+| D10 session-log-decay | individual | 0 | — |
 
 ## HY-N verdict vocabulary
 
@@ -97,6 +98,7 @@ canonical destination; per-project ledgers are the substrate.
 | D4 frontmatter-catalog-mismatch | 0 | 0 | 0 | 0 |
 | D5 canonical-conflict | 0 | 0 | 0 | 0 |
 | D9 augmentation-stale | 0 | 0 | 0 | 0 |
+| D10 session-log-decay | 0 | 0 | 0 | 0 |
 
 **Rejects (verbatim reasons — the training signal):**
 - <detector>: "<finding one-line>" → rejected: <reason>

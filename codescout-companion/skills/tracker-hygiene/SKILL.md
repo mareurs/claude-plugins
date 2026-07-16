@@ -70,6 +70,7 @@ Build both states. All shell via `run_command`; never pipe unbounded output.
 - **Observed placement:** which files sit in the live dir vs the archive dir.
 - **Observed catalog:** `artifact(action="find", kind="tracker", include_archived=true)` — note rows whose `status` or `rel_path` disagree with disk. This query is project-wide: it returns trackers **anywhere** in the project, including outside `docs/trackers/` (e.g. a subproject's `*/docs/*_TRACKER.md`). The file inventory above only sees `docs/trackers/` — so the two halves disagree on scope. Treat `docs/trackers/` as the sweep's authoritative scope; a catalog tracker living elsewhere is a *separate observation*, not a D1 index-drift finding. (If you reach for `librarian(action="doctor")` to find orphans, note it scans the **whole catalog across all projects** — filter its `missing_file` violations to this project's path.) `kind=tracker` can also return mis-classified `docs/issues/` bug files (a bug file carrying `kind: tracker`) — exclude `docs/issues/` from the cross-check; bug-file lifecycle is D8/v2.
 - **Observed augmentation freshness:** `artifact_refresh(action="list_stale", threshold_hours=168)`.
+- **Observed citation-graph drift:** `librarian(action="link_scan")` (report mode) — record `counts.edges_missing` and `counts.dangling` in the sweep entry; a jump vs the previous sweep is an observation worth an HY-N note (materializing with `write=true` is a Phase-5 fix, gated like any other).
 - **Declared:** parse the index file's rows (file links + claimed status); read each tracker's frontmatter `status:` via `read_markdown`.
 
 ### Phase 3 — Diff (the detectors)
@@ -86,10 +87,11 @@ observed Y"*.
 | **D4** | frontmatter-catalog-mismatch | Catalog row disagrees with file frontmatter, or file has no catalog row / no `kind:` | reconcile via `artifact(update)`; `librarian(action="reindex")` for orphans | high |
 | **D5** | canonical-conflict | Two live trackers claim one topic (tag/topic overlap + index cluster), or a child restates its canonical's status | judgment call — merge, link, or bless the fork | low |
 | **D9** | augmentation-stale | `artifact_refresh(list_stale)` returns the artifact | refresh **only if mechanical**, else defer to owner (see the D9 rule below) — never fabricate | medium |
+| **D10** | session-log-decay | File matches `*session-log*.md` in the live dir, frontmatter `status: active` or `draft`, AND no git touch in ≥21 days | propose **distill-then-archive** (procedure below) — never a bare archive; every sub-step is its own gate | low, by design |
 
 D6 (entry-level verify-open), D7 (citation format), D8 (`docs/issues/`
 discipline) are **v2** — do not improvise them mid-sweep; a drift you notice
-outside D1–D5/D9 is a `miss` HY-N entry, which is how v2 earns its way in.
+outside D1–D5/D9/D10 is a `miss` HY-N entry, which is how v2 earns its way in.
 
 **D9 defer-vs-refresh — default to defer.** Before synthesizing a D9 refresh, read
 the augmentation's own prompt. Auto-refresh **only** when that prompt describes a
@@ -109,6 +111,33 @@ tracker's status to `superseded` **and** emits the event; a bare status patch
 leaves the graph and event log wrong. No successor → a plain `status: archived`
 patch. Genuinely forked with no clear canonical → a D5 judgment, not an archive.
 (`get_guide("tracker-conventions")` § Cross-linking.)
+
+**D10 distill-then-archive — the session-log decay policy.** A session log's value
+inverts once its work stream wraps: unpromoted content is index noise, and its
+per-file F-1/W-1 numbering pollutes citation resolution. When D10 fires, walk this
+sequence — each mutation is its own Phase-4 gate:
+
+1. **Promote wins.** For every W-N with `Status: validated`, check its
+   `Promote-when` criterion. Fired → promote (CLAUDE.md / skill / project memory,
+   per the win's own routing) and set `promoted-to-permanent-docs`. Not fired →
+   note it in the digest (step 4) so the criterion survives.
+2. **Rehome open frictions.** For every F-N with `Status: open`, run a verify-open
+   check against current code (distributed fixes leave entries zombie-open).
+   Still real → promote to a bug file (`docs/issues/`) or move to the successor
+   work stream's log; otherwise flip to `fixed-verified` / `wontfix-false-alarm`
+   with one line of evidence.
+3. **Confirm with the owner** that the work stream is actually wrapped (D3-style
+   question — an idle-but-planned stream gets `defer`, which resurfaces next sweep).
+4. **Compact.** Replace the body with an outcomes digest: the Index / Wins Index
+   tables (statuses updated), one paragraph per promoted/rehomed entry naming its
+   destination, and unfired Promote-when criteria. Full prose history stays in git.
+5. **Archive through the catalog:** `artifact(update, patch={status:"archived"})`
+   then `artifact(move, new_rel_path="docs/trackers/archive/<name>.md")`.
+
+Evidence base: TMR-6 in codescout's `docs/trackers/tracker-management-redesign.md`
+(2026-07-17 survey: session logs were the dominant zombie-active class in all three
+surveyed repos; 6/13 codescout session logs untouched 4–5 weeks yet `active`).
+
 ### Phase 4 — Triage (interactive, one finding at a time)
 
 Check the ledger's **Detector trust state** table first. For detectors in
