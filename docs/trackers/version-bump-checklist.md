@@ -17,15 +17,15 @@ Release readiness across plugins × profiles. See
 
 ## State
 
-_Last refresh: `00cbf03`_
+_Last refresh: `16e0685`_
 
-**codescout-companion** — canonical `1.14.0` · readme `1.14.0` · marketplace clean ✅
+**codescout-companion** — canonical `1.15.0` · readme `1.15.0` · marketplace clean ✅
 
 | profile | installed | cache dir | install_path ok |
 |---|---|---|---|
-| `~/.claude` | 1.14.0 ✅ | ✅ | ✅ |
-| `~/.claude-sdd` | 1.14.0 ✅ | ✅ | ✅ |
-| `~/.claude-kat` | 1.14.0 ✅ | ✅ | ✅ |
+| `~/.claude` | 1.15.0 ✅ | ✅ | ✅ |
+| `~/.claude-sdd` | 1.15.0 ✅ | ✅ | ✅ |
+| `~/.claude-kat` | 1.15.0 ✅ | ✅ | ✅ |
 
 **buddy** — canonical `0.8.0` · readme `0.8.0` · marketplace clean ✅
 
@@ -43,6 +43,10 @@ _Last refresh: `00cbf03`_
 | `~/.claude-sdd` | 1.1.7 ✅ | ✅ | ✅ |
 | `~/.claude-kat` | 1.1.7 ✅ | ✅ | ✅ |
 ## History
+
+### 2026-07-17 — codescout-companion 1.14.0 → 1.15.0
+
+tracker-hygiene skill feature (`a000916`): added the **D10 session-log-decay detector** with a distill-then-archive procedure (implements TMR-6 from codescout's `tracker-management-redesign`), plus `link_scan` drift counts in the Phase 2 inventory (TMR-3). Skill-content-only change to two files under `skills/tracker-hygiene/` — no hook or code change, so a patch/minor bump with no cache-shape change. Ran `release.sh codescout-companion minor` (→1.15.0): `run-all.sh` green, caches seeded + install records repointed across all three profiles, sanity loop all ✅. Verified directly: install records → 1.15.0 with same-profile installPaths, and the new `session-log-decay` content present in all three caches. Pushed to origin/main (`16e0685`; the push also carried the earlier-committed `a000916`). Cold restart of all three instances still required to bind the new caches.
 
 ### 2026-07-13 — codescout-companion 1.13.1 → 1.14.0, buddy 0.7.35 → 0.8.0
 
