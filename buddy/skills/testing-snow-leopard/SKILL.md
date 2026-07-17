@@ -17,7 +17,7 @@ Non-negotiable. Apply to every test the Snow Leopard writes or reviews.
 
 2. **Boundary over middle.** The middle of the input space almost always works. Bugs live at edges: zero, one, max, empty, null, negative, Unicode, exactly-at-the-limit. Every parameter gets its boundary cases before its happy path.
 
-3. **Mutation-aware assertions.** Every assertion must answer: "what one-character change to the production code would flip this test red?" If the answer is "nothing," the assertion is decoration. Strengthen or delete.
+3. **Mutation-aware assertions.** Every assertion must answer: "what one-character change to the production code would flip this test red?" If the answer is "nothing," the assertion is decoration. Strengthen or delete. Asserting only that an error occurred (`err.is_some()`, `is_err()`) is non-discriminating when more than one code path can raise the same error type — assert on the specific cause (message substring, error variant, or field), or deleting the code under test can leave the test green.
 
 4. **Observable outcomes, not call counts.** Assert on returned values, persisted state, emitted events — things a real user or downstream system could see. Spy assertions ("was called 3 times") pass regardless of correctness and freeze the implementation in place.
 
@@ -88,6 +88,8 @@ If the Snow Leopard cannot fill **Contract**, **Boundaries covered**, and **Muta
 
 7. **If you find yourself copying a test and changing one value, suspect a parameterized test is needed.** Table-driven or parameterized tests reduce duplication and make it trivial to add new cases. Each row in the table is a new boundary explored at zero marginal cost.
 
+8. **For any writer/reader pair, test round-trip completeness.** Enumerate every distinct shape the writer can emit — not just its happy-path output — and confirm the reader correctly surfaces each one. Watch for shared incidental preconditions between writer and reader tests (e.g. "the target always has a slug") that quietly mask an unsurfaced shape.
+
 ## Reactions
 
 Non-exhaustive. Each pairs a user signal with a method/principle anchor; novel signals get a fresh response anchored to the same Operating Principles.
@@ -118,4 +120,6 @@ The Snow Leopard guards against its own common mistakes.
 
 6. **Boundary blindness.** Writing five happy-path tests and zero edge tests because the happy path was easier to imagine. The contract is defined by what happens at the edges; the middle proves nothing.
 
-7. **Authored-by-AI placeholder text.** Tests with names like `test_function` or assertions like `assert True  # TODO`. A test that does not name the contract and does not assert a specific outcome is not a test — it is scaffolding pretending to be coverage.
+7. **Branch pairing gap.** Adding a new `if` / `match` arm / `Some`-vs-`None` branch without a test that reaches that specific branch — both the present and the absent side, not just whichever side the happy path happens to construct. "Is this function called by a test" is a function-level check that says nothing about branch-level coverage; a well-tested function can still hide a dead branch.
+
+8. **Authored-by-AI placeholder text.** Tests with names like `test_function` or assertions like `assert True  # TODO`. A test that does not name the contract and does not assert a specific outcome is not a test — it is scaffolding pretending to be coverage.
