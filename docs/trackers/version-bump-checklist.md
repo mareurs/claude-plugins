@@ -17,23 +17,23 @@ Release readiness across plugins × profiles. See
 
 ## State
 
-_Last refresh: `16e0685`_
+_Last refresh: `4bdcace`_
 
-**codescout-companion** — canonical `1.15.0` · readme `1.15.0` · marketplace clean ✅
-
-| profile | installed | cache dir | install_path ok |
-|---|---|---|---|
-| `~/.claude` | 1.15.0 ✅ | ✅ | ✅ |
-| `~/.claude-sdd` | 1.15.0 ✅ | ✅ | ✅ |
-| `~/.claude-kat` | 1.15.0 ✅ | ✅ | ✅ |
-
-**buddy** — canonical `0.8.0` · readme `0.8.0` · marketplace clean ✅
+**codescout-companion** — canonical `1.16.0` · readme `1.16.0` · marketplace clean ✅
 
 | profile | installed | cache dir | install_path ok |
 |---|---|---|---|
-| `~/.claude` | 0.8.0 ✅ | ✅ | ✅ |
-| `~/.claude-sdd` | 0.8.0 ✅ | ✅ | ✅ |
-| `~/.claude-kat` | 0.8.0 ✅ | ✅ | ✅ |
+| `~/.claude` | 1.16.0 ✅ | ✅ | ✅ |
+| `~/.claude-sdd` | 1.16.0 ✅ | ✅ | ✅ |
+| `~/.claude-kat` | 1.16.0 ✅ | ✅ | ✅ |
+
+**buddy** — canonical `0.9.0` · readme `0.9.0` · marketplace clean ✅
+
+| profile | installed | cache dir | install_path ok |
+|---|---|---|---|
+| `~/.claude` | 0.9.0 ✅ | ✅ | ✅ |
+| `~/.claude-sdd` | 0.9.0 ✅ | ✅ | ✅ |
+| `~/.claude-kat` | 0.9.0 ✅ | ✅ | ✅ |
 
 **claude-statusline** — canonical `1.1.7` · readme `1.1.7` · marketplace clean ✅
 
@@ -43,6 +43,10 @@ _Last refresh: `16e0685`_
 | `~/.claude-sdd` | 1.1.7 ✅ | ✅ | ✅ |
 | `~/.claude-kat` | 1.1.7 ✅ | ✅ | ✅ |
 ## History
+
+### 2026-07-19 — codescout-companion 1.15.0 → 1.16.0, buddy 0.8.0 → 0.9.0
+
+Skill-content release (`627bbde` feat(skills): encode entry-graph Stage 2 test-design + scouting lessons). Two plugins touched: codescout-companion `skills/reconnaissance/SKILL.md` (+2) and buddy `skills/testing-snow-leopard/SKILL.md` (+8) — both stale in all three caches, no hook/code change. Ran `release.sh codescout-companion minor` (→1.16.0) then `release.sh buddy minor` (→0.9.0): `run-all.sh` green both times, caches seeded + install records repointed across all three profiles, sanity loops all ✅. Verified directly: records → cc 1.16.0 / buddy 0.9.0 with same-profile installPaths, and the changed skill files IN SYNC in all three caches. The cc push (`332f7f9`) also carried the earlier `docs/pi` commits (`627bbde`, `e86c506`); buddy pushed at `4bdcace`. Cold restart of all three instances still required to bind the new caches.
 
 ### 2026-07-17 — codescout-companion 1.14.0 → 1.15.0
 
