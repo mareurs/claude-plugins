@@ -6,6 +6,10 @@ ecosystem as Claude Code, and to route all of pi's LLM traffic through a local
 proxy for observability. It is a reference, not an installer — adapt the paths
 to your own machine.
 
+For the Codescout companion installation, MCP configuration, and health checks,
+use the canonical [pi companion guide](../pi/README.md). Keep this document for
+cross-cutting skill-source and model-routing patterns.
+
 ## Table of contents
 
 - [Skill sources and versioning](#skill-sources-and-versioning)

@@ -44,33 +44,17 @@ add_skill_dir "$REPO_DIR/codescout-companion/skills"   # reconnaissance, explore
 add_skill_dir "$REPO_DIR/buddy/skills"                  # 12 specialist skills
 add_skill_dir "$REPO_DIR/sdd/skills"                    # sdd-flow
 
-# ── mcp.json hint ──────────────────────────────────────────────────────────
+# ── MCP configuration ──────────────────────────────────────────────────────
 
 cat <<EOF
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-MANUAL STEP — add servers to ~/.pi/agent/mcp.json
+MANUAL STEP — configure ~/.pi/agent/mcp.json
 
-  codescout (for cs: line and recon badge):
-    Ensure "codescout_grep" is in directTools.
-
-  researcher (for /research-web and /research-subagent):
-  {
-    "mcpServers": {
-      "researcher": {
-        "type": "stdio",
-        "command": "/path/to/researcher-mcp",
-        "env": {
-          "LLM_BASE_URL": "...",
-          "LLM_MODEL":    "...",
-          "LLM_API_KEY":  "...",
-          "SEARXNG_URL":  "http://localhost:4000"
-        }
-      }
-    },
-    "directTools": ["grep", "researcher"]
-  }
+See $REPO_DIR/pi/README.md, "Step 4 — MCP configuration", for a current
+minimal configuration and the verification steps. Keep credentials and personal
+server paths in ~/.pi/agent/mcp.json; do not commit that file.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 

@@ -27,15 +27,17 @@ MCP: 2/2  codescout ●  researcher ●
 | `buddy/skills/` | debugging-yeti, testing-snow-leopard, planning-crane, architecture-snow-lion, and 8 more |
 | `sdd/skills/` | sdd-flow |
 
-**codescout tools as native pi tools** — when codescout is connected, its read/search/edit
-tools surface without the `mcp__codescout__` prefix:
-`symbols`, `read_file`, `read_markdown`, `semantic_search`, `references`, `edit_code`,
-`edit_file`, `edit_markdown`, `tree`, `symbol_at`.
-`grep` stays prefixed as `codescout_grep` to avoid a name collision with pi's built-in.
+**codescout tools as Pi tools** — `pi-mcp-adapter` registers the configured
+`directTools` with its default `codescout_` prefix, for example
+`codescout_symbols`, `codescout_read_file`, `codescout_edit_code`, and
+`codescout_grep`. The prefix avoids collisions with Pi's built-in tools.
 
-**codescout-mode extension** (from the codescout repo) — on each session start:
-- drops pi's native `edit` tool and activates the codescout hot-set (guarded: no-ops if codescout isn't loaded)
-- appends a one-time hint when bash is used to grep/find source files
+**codescout-mode extension** (from the codescout repo) — applies the Codescout-first
+policy only when replacement tools are available: it removes native `edit`/`write`,
+reserves native `read` for images, and blocks shell commands that duplicate the
+Codescout source-reading/search path. It leaves shell commands for tests, Git, and
+process tasks available. Add `# codescout-override` to an intentionally raw source
+shell command.
 
 ## Prerequisites
 
@@ -107,16 +109,17 @@ Create or edit `~/.pi/agent/mcp.json`. This file is personal — keep it out of 
         "read_markdown",
         "edit_code",
         "edit_file",
-        "edit_markdown"
+        "edit_markdown",
+        "grep"
       ]
     }
   }
 }
 ```
 
-> Note: `grep` is intentionally absent from `directTools` — it collides with pi's
-> built-in `grep`. Reach codescout's grep as `codescout_grep` (it's still available
-> via the mcp proxy, and AGENTS.md documents this).
+> With the adapter's default `codescout_` prefix, including `grep` registers it as
+> `codescout_grep` rather than colliding with Pi's built-in `grep`. The companion
+> widget uses that tool as its Codescout connection indicator.
 
 **With semantic search** (Ollama + Qdrant or llama-server embedder):
 
@@ -129,7 +132,7 @@ Create or edit `~/.pi/agent/mcp.json`. This file is personal — keep it out of 
       "lifecycle": "lazy",
       "directTools": [
         "symbols", "symbol_at", "tree", "semantic_search", "references",
-        "read_file", "read_markdown", "edit_code", "edit_file", "edit_markdown"
+        "read_file", "read_markdown", "edit_code", "edit_file", "edit_markdown", "grep"
       ],
       "env": {
         "CODESCOUT_QDRANT_URL": "http://127.0.0.1:6334",
@@ -179,7 +182,42 @@ After that, every session auto-connects codescout on first tool use (`lifecycle:
 ```
 
 The widget should appear below the editor. If the MCP line shows `0/2` circles,
-the servers haven't connected yet — they connect lazily on first use.
+the servers have not connected yet — they connect lazily on first use.
+
+## Verify and troubleshoot
+
+Start a fresh Pi session in a project directory. Its startup summary should list
+`codescout-companion.ts`, `codescout-mode.ts`, and `pi-mcp-adapter` under
+**[Extensions]**. The companion widget should appear below the editor.
+
+The companion widget and the adapter footer report different state. The widget
+counts MCP tools registered in Pi (`pi.getAllTools()`); the adapter footer counts
+live MCP connections. With lazy servers, a fresh session can legitimately show a
+registered Codescout tool in the widget while the footer remains `MCP: 0/2 servers`.
+Use `/mcp reconnect <server>` or invoke a tool from that server to establish the
+connection.
+
+Validate an installation without exposing credentials:
+
+```bash
+for path in \
+  ~/.pi/agent/AGENTS.md \
+  ~/.pi/agent/mcp.json \
+  ~/.pi/agent/extensions/codescout-mode.ts \
+  ~/.pi/agent/extensions/codescout-companion.ts; do
+  test -e "$path" && printf 'OK %s\n' "$path" || printf 'MISSING %s\n' "$path"
+done
+pi list
+```
+
+`settings.json` may retain skill directories from versioned plugin caches after a
+plugin update. For every non-excluded `skills` entry, either repair the path, use a
+`latest` symlink, or remove the stale entry. Live checkouts are preferred because
+`git pull` updates the skills without changing Pi configuration.
+
+This section is stale when the extension names, the adapter's direct-tool naming,
+or the lazy-connection behavior changes; verify those in the linked extension
+sources before changing the instructions.
 
 ## What `settings.json` looks like after install
 
@@ -228,16 +266,17 @@ connected. Pick a tool that is always present when the server is up.
 
 ## Extension: codescout-mode.ts
 
-Shipped in the codescout repo at `contrib/pi/codescout-mode.ts`.
+Shipped in the codescout repo at `contrib/pi/codescout-mode.ts`. It is intentionally
+a policy layer rather than a replacement for general shell access.
 
-On `session_start`:
-- If `edit_code` and `symbols` are present (codescout is connected and cache is warm),
-  drops pi's native `edit` and activates the codescout hot-set via `pi.setActiveTools()`
-- Safe no-op if codescout isn't loaded (e.g. in a non-code directory)
+At `session_start`, it removes native `edit` and `write` only if the corresponding
+Codescout tools are already registered; otherwise it safely leaves the native tools
+available. On every tool call, it also blocks native `edit`/`write` when replacements
+exist, native `read` except for image files, and redundant source-reading/search shell
+commands. Tests, Git, and process-management shell commands remain available.
 
-On `tool_result` from bash:
-- Appends a one-time hint if the command looks like `rg`, `ag`, recursive grep, or `find -name`
-
+The behavior is defined by `codescout-mode.ts`; keep this description aligned with that
+source when changing its blocking rules.
 ## Skill usage in pi
 
 Skills from all three directories are available as `/skill:<name>` or load automatically
