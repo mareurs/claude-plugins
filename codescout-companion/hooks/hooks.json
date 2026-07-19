@@ -5,8 +5,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node",
-            "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/session-start.mjs"]
+            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/session-start.cmd"
           }
         ]
       }
@@ -16,8 +15,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node",
-            "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/subagent-guidance.mjs"]
+            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/subagent-guidance.cmd"
           }
         ]
       }
@@ -27,8 +25,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node",
-            "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/constitution-brief.mjs"]
+            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/constitution-brief.cmd"
           }
         ]
       }
@@ -38,8 +35,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node",
-            "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/constitution-epoch-bump.mjs"]
+            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/constitution-epoch-bump.cmd"
           }
         ]
       }
@@ -50,8 +46,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node",
-            "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/worktree-write-guard.mjs"]
+            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/worktree-write-guard.cmd"
           }
         ]
       },
@@ -60,8 +55,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node",
-            "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/constitution-guard.mjs"]
+            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/constitution-guard.cmd"
           }
         ]
       },
@@ -70,8 +64,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node",
-            "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/pre-tool-guard.mjs"]
+            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/pre-tool-guard.cmd"
           }
         ]
       },
@@ -80,8 +73,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node",
-            "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/git-worktree-guard.mjs"]
+            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/git-worktree-guard.cmd"
           }
         ]
       },
@@ -90,8 +82,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node",
-            "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/il3-warn-hook.mjs"]
+            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/il3-warn-hook.cmd"
           }
         ]
       },
@@ -100,8 +91,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node",
-            "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/il4-deny-hook.mjs"]
+            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/il4-deny-hook.cmd"
           }
         ]
       },
@@ -110,8 +100,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node",
-            "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/pre-task-hint.mjs"]
+            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/pre-task-hint.cmd"
           }
         ]
       },
@@ -120,8 +109,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node",
-            "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/explore-inject.mjs"]
+            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/explore-inject.cmd"
           }
         ]
       },
@@ -130,8 +118,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node",
-            "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/pre-edit-hint.mjs"]
+            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/pre-edit-hint.cmd"
           }
         ]
       }
@@ -142,8 +129,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node",
-            "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/worktree-activate.mjs"]
+            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/worktree-activate.cmd"
           }
         ]
       },
@@ -152,8 +138,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node",
-            "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/cs-activate-project.mjs"]
+            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/cs-activate-project.cmd"
           }
         ]
       }
@@ -163,8 +148,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node",
-            "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/goal-stop-hook.mjs"]
+            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/goal-stop-hook.cmd"
           }
         ]
       }
