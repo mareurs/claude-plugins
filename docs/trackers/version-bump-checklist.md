@@ -17,15 +17,15 @@ Release readiness across plugins × profiles. See
 
 ## State
 
-_Last refresh: `4bdcace`_
+_Last refresh: `a4b2cfa`_
 
-**codescout-companion** — canonical `1.16.0` · readme `1.16.0` · marketplace clean ✅
+**codescout-companion** — canonical `1.16.1` · readme `1.16.1` · marketplace clean ✅
 
 | profile | installed | cache dir | install_path ok |
 |---|---|---|---|
-| `~/.claude` | 1.16.0 ✅ | ✅ | ✅ |
-| `~/.claude-sdd` | 1.16.0 ✅ | ✅ | ✅ |
-| `~/.claude-kat` | 1.16.0 ✅ | ✅ | ✅ |
+| `~/.claude` | 1.16.1 ✅ | ✅ | ✅ |
+| `~/.claude-sdd` | 1.16.1 ✅ | ✅ | ✅ |
+| `~/.claude-kat` | 1.16.1 ✅ | ✅ | ✅ |
 
 **buddy** — canonical `0.9.0` · readme `0.9.0` · marketplace clean ✅
 
@@ -43,6 +43,10 @@ _Last refresh: `4bdcace`_
 | `~/.claude-sdd` | 1.1.7 ✅ | ✅ | ✅ |
 | `~/.claude-kat` | 1.1.7 ✅ | ✅ | ✅ |
 ## History
+
+### 2026-07-19 — codescout-companion 1.16.0 → 1.16.1
+
+reconnaissance skill refinement (`87c9e28`): hardened the "no-decision edits" bullet into a firm SKIP (prose-only comment/typo/log-string/whitespace/version-string edits — edit directly, no scout), and sharpened two seam-class bullets (schema-migration `INSERT…SELECT` silent allow-list; writer-shape ↔ reader-surfacing dead-end None branch). Skill-content-only, no hook/code change. The edit was found uncommitted in the working tree, committed (`87c9e28`), then `release.sh codescout-companion patch` (→1.16.1): `run-all.sh` green, caches seeded + records repointed across all three profiles, sanity loop all ✅. Verified directly: records → 1.16.1 with same-profile installPaths, recon SKILL.md IN SYNC in all three caches. Pushed to origin/main (`a4b2cfa`; carried `87c9e28` + the bump). Cold restart / `/reload-plugins` per instance still required to bind the new cache.
 
 ### 2026-07-19 — codescout-companion 1.15.0 → 1.16.0, buddy 0.8.0 → 0.9.0
 
