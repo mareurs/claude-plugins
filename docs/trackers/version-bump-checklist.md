@@ -17,15 +17,15 @@ Release readiness across plugins × profiles. See
 
 ## State
 
-_Last refresh: `a4b2cfa`_
+_Last refresh: `8481bea`_
 
-**codescout-companion** — canonical `1.16.1` · readme `1.16.1` · marketplace clean ✅
+**codescout-companion** — canonical `1.16.2` · readme `1.16.2` · marketplace clean ✅
 
 | profile | installed | cache dir | install_path ok |
 |---|---|---|---|
-| `~/.claude` | 1.16.1 ✅ | ✅ | ✅ |
-| `~/.claude-sdd` | 1.16.1 ✅ | ✅ | ✅ |
-| `~/.claude-kat` | 1.16.1 ✅ | ✅ | ✅ |
+| `~/.claude` | 1.16.1 ❌ | ✅ | ✅ |
+| `~/.claude-sdd` | 1.16.1 ❌ | ✅ | ✅ |
+| `~/.claude-kat` | 1.16.1 ❌ | ✅ | ✅ |
 
 **buddy** — canonical `0.9.0` · readme `0.9.0` · marketplace clean ✅
 
@@ -43,6 +43,9 @@ _Last refresh: `a4b2cfa`_
 | `~/.claude-sdd` | 1.1.7 ✅ | ✅ | ✅ |
 | `~/.claude-kat` | 1.1.7 ✅ | ✅ | ✅ |
 ## History
+
+### 2026-07-19 — codescout-companion 1.16.1 → 1.16.2
+Reconnaissance seam-class collapse to R-41/R-42 pointers + C14 revert (42a5d11), bump 8481bea. Delta: installed `1.16.1` ≠ canonical `1.16.2` in all three profiles (❌) — `/reload-plugins` reloaded content but did not advance the installed_plugins.json record; a reinstall syncs it.
 
 ### 2026-07-19 — codescout-companion 1.16.0 → 1.16.1
 
