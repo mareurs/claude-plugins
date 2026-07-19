@@ -17,15 +17,15 @@ Release readiness across plugins × profiles. See
 
 ## State
 
-_Last refresh: `8481bea`_
+_Last refresh: `ddf8215`_
 
 **codescout-companion** — canonical `1.16.2` · readme `1.16.2` · marketplace clean ✅
 
 | profile | installed | cache dir | install_path ok |
 |---|---|---|---|
-| `~/.claude` | 1.16.1 ❌ | ✅ | ✅ |
-| `~/.claude-sdd` | 1.16.1 ❌ | ✅ | ✅ |
-| `~/.claude-kat` | 1.16.1 ❌ | ✅ | ✅ |
+| `~/.claude` | 1.16.2 ✅ | ✅ | ✅ |
+| `~/.claude-sdd` | 1.16.2 ✅ | ✅ | ✅ |
+| `~/.claude-kat` | 1.16.2 ✅ | ✅ | ✅ |
 
 **buddy** — canonical `0.9.0` · readme `0.9.0` · marketplace clean ✅
 
@@ -45,7 +45,7 @@ _Last refresh: `8481bea`_
 ## History
 
 ### 2026-07-19 — codescout-companion 1.16.1 → 1.16.2
-Reconnaissance seam-class collapse to R-41/R-42 pointers + C14 revert (42a5d11), bump 8481bea. Delta: installed `1.16.1` ≠ canonical `1.16.2` in all three profiles (❌) — `/reload-plugins` reloaded content but did not advance the installed_plugins.json record; a reinstall syncs it.
+Reconnaissance seam-class collapse to R-41/R-42 pointers + C14 revert (42a5d11), bump 8481bea. The bump + `/reload-plugins` advanced content but not the deploy — install records stayed at `1.16.1` and no `1.16.2` cache was seeded, so the initial refresh (ddf8215) honestly showed ❌. Completed the deploy separately: `bump-cache.sh codescout-companion 1.16.2` seeded the cache + repointed install records across all three profiles; sanity + recon-content check all ✅. Pushed to origin/main. Cold restart / `/reload-plugins` per instance still required to bind the 1.16.2 record.
 
 ### 2026-07-19 — codescout-companion 1.16.0 → 1.16.1
 
