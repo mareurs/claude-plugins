@@ -204,24 +204,15 @@ def render_reload_block(
     """Render the reload block injected into the new session's context.
 
     Returns empty string when there are no specialists to reload. Specialists
-    whose SKILL.md cannot be located are silently skipped.
+    whose SKILL.md cannot be located are silently skipped from BOTH the body
+    and the arrival-line instruction — the model must never be told to
+    announce an arrival for something it has no reloaded content for.
     """
     if not specialists:
         return ""
 
-    parts: list[str] = []
-    parts.append(
-        f"<!-- buddy:reloaded sid={new_sid} from={prev_sid} source={source} -->"
-    )
-    parts.append(
-        "The following specialists were summoned in the prior segment. "
-        f"Reload them now (source: {source}). "
-        "Your FIRST user-facing line of this turn MUST be one italic arrival "
-        "line per specialist, e.g. `*The Debugging Yeti arrives — reloaded from "
-        f"{source}.*`"
-    )
-
-    body_count = 0
+    bodies: list[str] = []
+    included: list[str] = []
     for directory in specialists:
         skill = find_skill_md(
             directory,
@@ -234,13 +225,30 @@ def render_reload_block(
             content = strip_frontmatter(skill.read_text(encoding="utf-8"))
         except OSError:
             continue
-        parts.append(f"\n## {directory}\n{content}\n---")
-        body_count += 1
+        bodies.append(f"\n## {directory}\n{content}\n---")
+        included.append(directory)
 
-    if body_count == 0:
+    if not included:
         return ""
 
+    names = ", ".join(included)
+    parts: list[str] = [
+        f"<!-- buddy:reloaded sid={new_sid} from={prev_sid} source={source} -->",
+        (
+            f"Reloaded from {source} — and ONLY these, nothing else: {names}. "
+            "Your FIRST user-facing line of this turn MUST be exactly one italic "
+            "arrival line per name listed above, e.g. `*The Debugging Yeti arrives "
+            f"— reloaded from {source}.*` Do not add an arrival line, mention, or "
+            "persona banner for any other skill, specialist, or persona — even one "
+            "named in the conversation summary above — since only the names listed "
+            "here were actually restored to context."
+        ),
+    ]
+    parts.extend(bodies)
+
     return "\n\n".join(parts)
+
+
 def render_dismissal_notice(
     specialists: list[str],
     *,
