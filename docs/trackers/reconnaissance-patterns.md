@@ -44,7 +44,7 @@ end-to-end stdin drivers), which is the local hazard R-1 records.
 | ID | Date | Verdict | Pattern | Evidence (session-log) |
 |----|------|---------|---------|------------------------|
 | R-1 | 2026-07-28 | hit | Spec testing sections assert on the harness; scout the cited exemplar, not just the code under change | `subagent-bootstrap-session-log.md` F-1 + F-2 + F-3 + W-1 |
-
+| R-2 | 2026-07-28 | miss | Scout enumerated one test directory, not all of them — missed the suite that already covered the hook | `subagent-bootstrap-session-log.md` F-4 + F-5 |
 ## Status vocabulary
 
 | Verdict | Meaning |
@@ -177,6 +177,66 @@ the shape should recur here. If it recurs *only* in hook work, keep it
 project-scoped in the `reconnaissance` memory topic rather than promoting to
 `SKILL.md`.
 
+## R-2 — Scout searched one test directory and concluded "no tests exist"
+
+**Verdict:** miss
+
+**Observed:** 2026-07-28, subagent bootstrap injection work stream — same scout as R-1,
+caught one stage later by a downstream gate.
+
+**Source session log:** `docs/trackers/subagent-bootstrap-session-log.md`, F-4 and F-5.
+
+**Pattern that failed:** The scout established "`subagent-guidance.mjs` has no test
+file" from a single `ls codescout-companion/hooks/` — the directory where sibling hooks
+keep colocated `*.test.sh` files. It never enumerated `tests/`. But `tests/run-all.sh`
+globs **both** `tests/test-*.sh` and `codescout-companion/hooks/*.test.sh`, and
+`tests/test-subagent-guidance.sh` (4 cases) had been driving this exact hook all along.
+The scout even read `tests/run-all.sh` and quoted its hook-test glob while missing the
+`tests/test-*.sh` term on the same line.
+
+The same one-directory blind spot hid `tests/lib/fixtures.sh` — a 179-line helper
+library with `write_routing_config`, `make_memories`, `make_system_prompt`,
+`make_worktree`, and assertion helpers. Its absence from the scout is what made the
+plan invent a `CS_SUBAGENT_GUIDANCE_FORCE` env seam: production code added purely for
+testability, in a repo that already had a fixture idiom for exactly that job.
+
+**Caught by:** the Task 1 code review (Opus), after the seam had already been
+implemented, committed, and recorded in a spec, a plan, a session log, an R-N entry,
+and four commit messages.
+
+**Evidence:** One task's work reverted, one plan amended, five documents corrected. The
+seam shipped with no discriminating test — reverting the gate change left the suite
+8/8 green, so nothing would have caught its removal. Two further facts surfaced only
+under controller re-verification, and one contradicted the reviewer: `write_mcp_json`
+does **not** open the codescout gate (`HAS_CODESCOUT=false` — `detect.mjs` matches
+`/codescout/` against the server `command`/`args`, and the fixture writes
+`command: <dir>/fake-ce`; the server key is never consulted), while
+`write_routing_config '{"server_name":"codescout"}'` does. So the pre-existing suite's
+exclusion cases were themselves vacuous, and its system-prompt case passed only on a
+machine with codescout configured.
+
+**Pattern proposal:** Add to Phase 1's scout checklist —
+*"Before concluding that no test covers a symbol, enumerate every test root the runner
+actually globs, not the one directory where siblings keep theirs. Read the runner's
+glob list and search each term. An absence claim is only as wide as the search that
+produced it, and 'no tests exist' is the absence claim most likely to be acted on."*
+
+By the routing test this is **craft-shaped** — multi-root test layouts are ubiquitous
+(`tests/` + colocated, `__tests__/` + `*.spec.ts`, `src/**/test_*.py` + `tests/`), so
+it would not mislead another project. Pairs naturally with R-1's harness bullet: R-1
+says *read the exemplar you cite*, R-2 says *bound your absence claims by your actual
+search*.
+
+**Promote-when:** 1 more datapoint. Lower than the default 3 because the proposal is
+cheap, purely additive, and this miss cost a full task revert plus five corrected
+documents — the asymmetry between the fix's cost and the miss's cost argues for a low
+bar.
+
+**Cross-reference:** R-1 is the hit half of this same scout. Both concern claims about
+the *test harness* rather than the production code, and the design body was correct in
+both. Two entries, one lesson: this scout's blind spot was the harness, in both
+directions — the exemplar it cited without reading, and the suite it never found.
+
 ## Template for new entries
 
 <!-- Insert new R-N entries above this line via:
@@ -184,4 +244,3 @@ project-scoped in the `reconnaissance` memory topic rather than promoting to
                    heading="## Template for new entries",
                    content="## R-N — title\n**Verdict:** ...\n...")
      Also update the Index table row at the top. -->
-

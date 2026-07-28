@@ -142,68 +142,74 @@ agent's variant is unconditional, the subagent's is soft-conditional.
 
 ## Testing
 
-> Revised 2026-07-28 after pre-planning reconnaissance. See F-1 / F-2 / F-3 in
-> `docs/trackers/subagent-bootstrap-session-log.md` — the original version of this
-> section cited an exemplar that does not demonstrate the technique, and specified
-> one case that cannot be produced as worded.
+> **Corrected 2026-07-28** during execution, after Task 1's review. This section
+> previously claimed `subagent-guidance.mjs` had no test file and mandated a
+> `CS_SUBAGENT_GUIDANCE_FORCE` env seam. Both were wrong. See R-2 in
+> `docs/trackers/reconnaissance-patterns.md`.
 
-`subagent-guidance.mjs` currently has **no test file**. Add
-`codescout-companion/hooks/subagent-guidance.test.sh`; `tests/run-all.sh`
-auto-discovers `hooks/*.test.sh`, so no registration is needed.
+**The canonical suite already exists: `tests/test-subagent-guidance.sh`** (4 cases,
+already driving this hook). All new cases land there. `tests/run-all.sh` globs **both**
+`tests/test-*.sh` and `codescout-companion/hooks/*.test.sh`; the earlier version of this
+section named only the second glob, which is why `tests/` was never searched.
 
-**Exemplar: `explore-inject.test.sh`.** It is the suite that actually drives a hook
-end-to-end — `run() { printf '%s' "$1" | CS_EXPLORE_INJECT_FORCE=1 node "$HOOK"; }`,
-payloads built with `jq -nc`, fixtures in a `mktemp -d` git sandbox. Borrow only the
-`PASS`/`FAIL` `check`-helper shape from `pre-task-hint.test.sh`; that suite is
-config-only (it `jq`s `hooks.json` and never invokes its hook), so it is not a model
-for output-shape assertions. (F-1)
+**Exemplar and helper library.** `tests/lib/fixtures.sh` supplies `HOOK_DIR`,
+`make_git_repo`, `make_worktree`, `write_routing_config`, `make_memories` (writes
+`arch.md` + `patterns.md`), `make_system_prompt`, plus `pass` / `fail` /
+`print_summary` / `assert_context_contains` / `assert_no_output`. For end-to-end
+stdin driving, `explore-inject.test.sh` is the reference; `pre-task-hint.test.sh` is
+config-only and is not a model for output assertions. (F-1)
 
-**A test seam is required.** `HAS_CODESCOUT` is **config-based, not project-based**:
-`detect.mjs` resolves it from a routing-config `server_name` override,
-`<cwd>/.mcp.json`, then the user-level `<claudeDir>/.claude.json`,
-`<claudeDir>/settings.json`, and `~/.claude.json`. Nothing under `<cwd>/.codescout/`
-participates. So a `mktemp` cwd on a configured machine still gates *open*, and no
-fixture can close it. Add a seam mirroring `explore-inject`'s:
+**No test seam.** Gate control is per-project and environment-sealed, verified with
+`detect.mjs --json`:
 
-    if (process.env.CS_SUBAGENT_GUIDANCE_FORCE !== '1') {
-      if (d.HAS_CODESCOUT === 'false') process.exit(0);
-    }
+| Setup | `HAS_CODESCOUT` |
+|---|---|
+| `write_routing_config "$DIR" '{"server_name":"codescout"}'` + sealed env | `true` (`CS_PREFIX=mcp__codescout__`) |
+| sealed `HOME` + `CLAUDE_CONFIG_DIR`, no routing config | `false` |
+| `write_mcp_json` + sealed env | **`false` — a trap** |
 
-Cases 3–8 then run deterministically on any machine. `session-start.test.sh`'s
-alternative — SKIP the whole suite when codescout is unconfigured — is rejected: it
-would leave the new suite silently inert in CI. (F-3)
+`write_mcp_json` does not open the gate: `serverNameFromMcpConfig` matches `/codescout/`
+against the server's `command`/`args`, and that fixture writes `command: <dir>/fake-ce`.
+The server *key* is not consulted. The pre-existing suite relies on it, so its
+`Bash`/`statusline-setup` cases were vacuous (gate closed, silence proving nothing about
+the exclusion) and its system-prompt case omitted the env override, passing only on a
+machine with codescout configured. Both are fixed as part of this work.
 
-Per-project state *is* fixture-controllable: `HAS_CS_MEMORIES`, `CS_MEMORY_NAMES`,
-and `HAS_CS_SYSTEM_PROMPT` all read `<cwd>/.codescout/`, so cases 3, 4, and 7 build
-`.codescout/memories/*.md` and `.codescout/system-prompt.md` under `mktemp -d`.
-`CS_MEMORY_NAMES` is a space-separated list of basenames with `.md` stripped, and
-carries a **trailing space** — assert with substring containment, not equality.
+**Every hook invocation seals `HOME` and `CLAUDE_CONFIG_DIR`.** An unsealed call reads
+the developer's real config, so it passes on a configured box and fails on CI — the
+inverted flake F-2 was written to prevent. Sealing `CLAUDE_CONFIG_DIR` is what removes
+the `~/.claude.json` discovery path.
 
-Per the isolation rule in `CLAUDE.md`, each case builds its fixture under
-`mktemp -d` and removes it before the next case runs.
+**Per-project state is fixture-controllable:** `HAS_CS_MEMORIES`, `CS_MEMORY_NAMES`, and
+`HAS_CS_SYSTEM_PROMPT` all read `<cwd>/.codescout/`.
+
+Per the isolation rule in `CLAUDE.md`, each fixture lives under `mktemp -d` and is
+removed via `trap`.
 
 | # | Case | Setup | Asserts |
 |---|---|---|---|
-| 1 | gate closed | `HOME=$TMP CLAUDE_CONFIG_DIR=$TMP/empty-cfg`, no `.mcp.json`, no `.claude/codescout-*.json`, **force seam unset** | empty output |
-| 2 | `agent_type: Bash` | force seam set | no output |
-| 3 | memories present | `.codescout/memories/{architecture,gotchas}.md` | contains `activate(path=<root>)` and both names; does **not** contain `memory(action="list")` |
-| 4 | memories absent | no `.codescout/memories/` | contains `memory(action="list")`; no stray names |
-| 5 | cwd = subdirectory of a repo | git repo + `sub/` | injected path is the repo toplevel, not the subdir |
-| 6 | worktree cwd | `git worktree add` | fires; injected path is the worktree root |
-| 7 | `HAS_CS_SYSTEM_PROMPT === 'true'` | `.codescout/system-prompt.md` | system prompt still appended (regression on existing behavior) |
-| 8 | wording | any codescout fixture | soft-conditional clause present |
+| 1 | gate closed | sealed env, no routing config | silent |
+| 2 | excluded `agent_type` ×3 | gate **open**, so silence proves the exclusion | silent for `Bash`, `statusline-setup`, `claude-code-guide` |
+| 2b | positive control | gate open, `general-purpose` | emits protocol + rules — without this, case 2 could pass by the hook being globally silent |
+| 3 | memories present | `make_memories` | inline header + `patterns`; **not** `memory(action="list")`; `.md` stripped |
+| 4 | memories absent | separate fixture | contains `memory(action="list")`, no inline header |
+| 4b | empty memories dir | `mkdir .codescout/memories` | falls back to list |
+| 5 | cwd = subdirectory | repo + `nested/deeper` | names the toplevel, not the subdir |
+| 6 | worktree cwd | `make_worktree` + its own routing config | fires; names the worktree root, not the main repo |
+| 7 | system prompt | `make_system_prompt` | appended verbatim (pre-existing behavior) |
+| 8 | wording | any open-gate fixture | soft-conditional clause present |
 
-Case 1 must override `CLAUDE_CONFIG_DIR`, not merely point at a clean cwd —
-`detect.mjs` consults `~/.claude.json` only when that variable is unset, so setting
-it is what seals the last discovery path. Worded as "non-codescout cwd" the case
-would pass by vacuity on an unconfigured box and fail on a configured one: green
-while asserting nothing. (F-2)
+Cases 5 and 6 are the regression guards for the root-resolution bug; case 8 guards the
+design decision that makes the prompt-blind channel viable; case 2b and the mutation
+checks below guard against vacuity.
 
-Cases 5 and 6 are the regression guards for the root-resolution bug; case 8 guards
-the design decision that makes the prompt-blind channel viable.
+**Discrimination is proved, not assumed.** Two assertions are verified by temporary
+mutation: commenting out the `agentType` early-return must flip case 2 to FAIL, and
+dropping `CLAUDE_CONFIG_DIR` from the invocation helper must flip case 1 to FAIL. An
+assertion that survives its mutation is vacuous regardless of how it reads.
 
-`detect.mjs` is **not** modified, so the `detect.mjs` ↔ `scripts/detect.py`
-byte-parity contract enforced by `detect.test.sh` is unaffected.
+`detect.mjs` is **not** modified, so the `detect.mjs` ↔ `scripts/detect.py` byte-parity
+contract enforced by `detect.test.sh` is unaffected.
 ## Deploy
 
     ./scripts/release.sh codescout-companion patch

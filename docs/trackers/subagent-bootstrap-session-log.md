@@ -22,16 +22,16 @@ Design spec: `docs/superpowers/specs/2026-07-28-subagent-bootstrap-injection-des
 
 | ID | Title | Severity | Status |
 |---|---|---|---|
-| F-1 | Spec cited a config-only test as the stdin-driving exemplar | med | open |
-| F-2 | Test case 1 unachievable as worded — `HAS_CODESCOUT` is config-based | med | open |
-| F-3 | Machine-dependence strategy undecided; hook has no test seam | med | open |
-
+| F-1 | Spec cited a config-only test as the stdin-driving exemplar | med | fixed-verified |
+| F-2 | Test case 1 unachievable as worded — `HAS_CODESCOUT` is config-based | med | fixed-verified (conclusion partly overstated — see correction) |
+| F-3 | Machine-dependence strategy undecided; hook has no test seam | med | mitigated (real gap, wrong prescription — superseded by F-4) |
+| F-4 | Scout concluded "no test file exists" from a one-directory search | high | fixed-verified |
+| F-5 | `write_mcp_json` does not open the codescout gate; existing suite partly vacuous | med | fixed-verified |
 ## Wins Index
 
 | ID | Title | Impact | Status |
 |---|---|---|---|
-| W-1 | Pre-planning scout caught three spec defects before any plan was written | med | validated |
-
+| W-1 | Pre-planning scout caught three spec defects before any plan was written | med | validated (see correction — a fourth defect escaped it) |
 ## F-1 — Spec cited a config-only test as the stdin-driving exemplar
 
 **Observed:** 2026-07-28, pre-planning reconnaissance for the subagent bootstrap
@@ -108,7 +108,14 @@ Setting `CLAUDE_CONFIG_DIR` is what seals the last path, since `detect` consults
 box and fail on the author's machine: an inverted flake, green where it tests
 nothing. The env-override formulation is deterministic on both.
 
-**Status:** open — spec edit pending.
+**Status:** fixed-verified — but the conclusion was partly overstated.
+
+**Correction (2026-07-28):** the core fact holds — `HAS_CODESCOUT` is config-based, and
+a bare `mktemp` cwd does not close the gate. But this entry's framing ("no fixture can
+close it") was too strong, and the plan inherited it as the justification for an env
+seam. Verified: sealing `HOME` + `CLAUDE_CONFIG_DIR` **does** close the gate, and
+`write_routing_config '{"server_name":"codescout"}'` **opens** it per-project. Fixtures
+control the gate in both directions; no production seam is needed. See F-4, F-5.
 
 **Fix idea / Pointer:** Spec § Testing case 1, this session.
 
@@ -145,7 +152,14 @@ force seam bypasses the gate in the wrong direction to test the gate.
 and the SKIP branch would leave the new suite silently inert on any box without
 codescout, including CI.
 
-**Status:** open — spec edit pending.
+**Status:** mitigated — real gap, wrong prescription.
+
+**Correction (2026-07-28):** the observation stands — the spec did leave the strategy
+undecided, and the hook did lack a seam. The prescribed fix was wrong: it recommended
+*adding* a seam, when the repo already had `tests/lib/fixtures.sh` for exactly this.
+The entry surveyed `explore-inject.test.sh` and `session-start.test.sh` and treated
+those two as the whole precedent space, having never enumerated `tests/`. Superseded by
+F-4.
 
 **Fix idea / Pointer:** Spec § Testing preamble + § Change surface, this session.
 
@@ -188,15 +202,116 @@ the spec names as an exemplar."
 
 **Status:** validated — three datapoints within one scout, all caught pre-plan.
 
+**Correction (2026-07-28):** this win is real but was written too early to be the whole
+picture. The same scout **missed** a fourth defect of the same class — the pre-existing
+`tests/test-subagent-guidance.sh` — which escaped into implementation and a commit
+before the Task 1 review caught it (F-4). The claim "only harness claims broke" was
+correct; the implied claim that the scout *caught* the harness problems was not — it
+caught three and created a fourth. R-2 is the counterweight to R-1 in the patterns
+ledger. Net verdict on the scout: positive, but it demonstrated that a scout can be
+simultaneously the thing that finds harness defects and the thing that introduces one,
+when its absence claims outrun its search.
+
 ## Status vocabulary
 
 Frictions: `open | mitigated | fixed-verified | wontfix-false-alarm | promoted-to-bug-tracker | pinned-as-eval-baseline`
 
 Wins: `validated | promoted-to-permanent-docs | archived`
 
+## F-4 — Scout concluded "no test file exists" from a one-directory search
+
+**Observed:** 2026-07-28, during SDD execution of Task 1. Surfaced by the Task 1 code
+review (Opus), after the work had been implemented and committed.
+
+**When:** Reviewing Task 1's diff — one stage past the pre-planning scout that produced
+F-1 through F-3.
+
+**Expected (spec + plan + F-1 narrative + R-1):** "`subagent-guidance.mjs` currently has
+**no test file**."
+
+**Got (verified reality):** `tests/test-subagent-guidance.sh` exists — 33 lines, 4
+cases, driving this exact hook, covering the `Bash` and `statusline-setup` exclusions,
+the closed-gate path, and the system-prompt append. `tests/lib/fixtures.sh` (179 lines)
+supplies `write_routing_config`, `make_memories`, `make_system_prompt`, `make_worktree`,
+`make_git_repo`, `assert_context_contains`, `assert_no_output`, and `pass`/`fail`/
+`print_summary`.
+
+**Probable cause:** The scout ran `ls codescout-companion/hooks/` — the directory where
+sibling hooks keep colocated `*.test.sh` files — and never enumerated `tests/`. It read
+`tests/run-all.sh` and quoted the `hooks/*.test.sh` glob while missing the
+`tests/test-*.sh` term on the same line. An absence claim was made at the width of one
+directory and then propagated as established fact.
+
+**Blast radius:** the false premise reached the spec, the plan, F-1's narrative, W-1's
+counterfactual, R-1, and four commit messages. It caused the plan to mandate a
+`CS_SUBAGENT_GUIDANCE_FORCE` env seam — production code added purely for testability —
+in a repo that already had a fixture idiom for the job. The seam shipped with no
+discriminating test: reverting the gate change left the suite 8/8 green.
+
+**Workaround:** Revert the seam and the duplicate colocated suite; grow
+`tests/test-subagent-guidance.sh` using `fixtures.sh`. Plan amended (`65c1e98`), spec
+Testing section corrected, R-2 filed as the skill-level `miss`.
+
+**Severity:** high — it cascaded. Unlike F-1/F-2/F-3, which were caught before any code
+existed, this one survived into implementation and a commit, and corrupted five
+documents plus the R-N ledger entry meant to record the lesson.
+
+**Status:** fixed-verified — seam reverted, suite consolidated, all five documents
+corrected.
+
+**Fix idea / Pointer:** R-2 in `docs/trackers/reconnaissance-patterns.md` carries the
+proposed Phase 1 checklist bullet: bound absence claims by the runner's actual glob
+list, not by one directory.
+
+## F-5 — `write_mcp_json` does not open the codescout gate; existing suite partly vacuous
+
+**Observed:** 2026-07-28, controller re-verification of the Task 1 review's claims.
+
+**When:** Checking the reviewer's assertion that `write_mcp_json` opens the gate
+per-project, before rewriting the plan around it.
+
+**Expected (review claim):** `tests/lib/fixtures.sh`'s `write_mcp_json` opens the gate,
+so the existing suite's exclusion cases run against an open gate.
+
+**Got (verified with `detect.mjs --json`, environment sealed):**
+
+| Setup | `HAS_CODESCOUT` |
+|---|---|
+| `write_mcp_json` | **`false`** |
+| `write_routing_config '{"server_name":"codescout"}'` | `true` (`CS_PREFIX=mcp__codescout__`) |
+| sealed `HOME` + `CLAUDE_CONFIG_DIR`, no routing config | `false` |
+
+`serverNameFromMcpConfig` matches `/codescout/` against the server's `command`/`args`;
+`write_mcp_json` writes `command: <dir>/fake-ce`. The server *key* is never consulted,
+so the fixture leaves the gate closed.
+
+**Consequences for the pre-existing suite:** its `Bash` and `statusline-setup` cases ran
+with the gate **closed**, so the silence they assert proves nothing about the exclusion
+logic — deleting the `agentType` early-return would leave them green. Its system-prompt
+case omits the env override entirely, so it reads the developer's ambient config and
+passes only where codescout is configured; it would fail on CI.
+
+**Probable cause:** `write_mcp_json` predates or diverged from `detect.mjs`'s
+command/args matching. Nothing asserts the fixture actually achieves what its name
+implies — a fixture with no test of its own.
+
+**Workaround:** Use `write_routing_config` for the open-gate case; seal `HOME` +
+`CLAUDE_CONFIG_DIR` on every invocation. Task 1 rewrites the suite accordingly and
+proves two assertions discriminate by temporary mutation.
+
+**Severity:** med — pre-existing and latent rather than introduced here, but it made
+the suite's central guarantee false, and it nearly propagated into the amended plan on
+the reviewer's word.
+
+**Status:** fixed-verified — open-gate path switched to `write_routing_config`,
+mutation checks added.
+
+**Fix idea / Pointer:** `write_mcp_json` remains a trap for any future suite. Worth
+either fixing the fixture (name the dummy binary so it matches `/codescout/`) or
+renaming it to state what it actually does. Not in this work stream's scope.
+
 ## Template for new entries
 
 Copy the shape of F-1 (Observed / When / Expected / Got / Probable cause /
 Workaround / Severity / Status / Fix idea) or W-1 (Observed / Pattern /
 Counterfactual / Confirming data points / Impact / Promote-when / Status).
-
