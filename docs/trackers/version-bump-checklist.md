@@ -17,15 +17,15 @@ Release readiness across plugins × profiles. See
 
 ## State
 
-_Last refresh: `1956219`_
+_Last refresh: `f1488c2`_
 
-**codescout-companion** — canonical `1.16.2` · readme `1.16.2` · marketplace clean ✅
+**codescout-companion** — canonical `1.16.3` · readme `1.16.3` · marketplace clean ✅
 
 | profile | installed | cache dir | install_path ok |
 |---|---|---|---|
-| `~/.claude` | 1.16.2 ✅ | ✅ | ✅ |
-| `~/.claude-sdd` | 1.16.2 ✅ | ✅ | ✅ |
-| `~/.claude-kat` | 1.16.2 ✅ | ✅ | ✅ |
+| `~/.claude` | 1.16.3 ✅ | ✅ | ✅ |
+| `~/.claude-sdd` | 1.16.3 ✅ | ✅ | ✅ |
+| `~/.claude-kat` | 1.16.3 ✅ | ✅ | ✅ |
 
 **buddy** — canonical `0.9.1` · readme `0.9.1` · marketplace clean ✅
 
@@ -43,6 +43,18 @@ _Last refresh: `1956219`_
 | `~/.claude-sdd` | 1.1.7 ✅ | ✅ | ✅ |
 | `~/.claude-kat` | 1.1.7 ✅ | ✅ | ✅ |
 ## History
+
+### 2026-07-28 — codescout-companion 1.16.2 → 1.16.3
+
+Subagent bootstrap injection (`f1488c2` carries the merge of 13 commits). `subagent-guidance.mjs` now prepends a `PROJECT BOOTSTRAP` paragraph — `workspace(action="activate", path=<root>)` resolved via `git rev-parse --show-toplevel` with a raw-cwd fallback — and Phase 0's first bullet lists the project's memory topics inline instead of instructing a `memory(action="list")` discovery call, falling back to the original wording when a project has no memories. Root resolution uses the toplevel because `worktree-write-guard.mjs` places `.cs-worktree-pending` there and `cs-activate-project.mjs` releases it via a literal `join(tool_input.path, …)`, so activating a subdirectory path would leave codescout writes blocked.
+
+Execution was rougher than the diff suggests. `tests/test-subagent-guidance.sh` grew 4 → 34 assertions across three hardening rounds and a final fix wave, all driven by one recurring defect class: assertions that read correct while proving nothing. A whole task was reverted after review found the plan rested on two false premises — that this hook had no test suite (it did, in `tests/`, never searched) and that no fixture could control the `HAS_CODESCOUT` gate (`write_routing_config` does; `write_mcp_json` is a trap that leaves it closed, because `detect.mjs` matches `/codescout/` against the server `command`/`args`, not its key). Every non-obvious assertion is now mutation-proven. Recorded as F-1…F-5/W-1 in `docs/trackers/subagent-bootstrap-session-log.md` and R-1 (hit) / R-2 (miss) in `docs/trackers/reconnaissance-patterns.md`.
+
+Ran `release.sh codescout-companion patch` (→1.16.3): `run-all.sh` green (16 suites, 491 PASS, 0 FAIL), buddy pytest green, caches seeded + install records repointed across all three profiles, sanity loop all ✅. Verified independently rather than trusting the script's printout: all three records → `1.16.3` with same-profile `installPath`s, the `1.16.3` cache dir present in each, and the deployed `subagent-guidance.mjs` byte-identical to the repo copy in all three (4949 bytes) carrying the bootstrap paragraph, the inline memory bullet, and no `CS_SUBAGENT_GUIDANCE_FORCE` residue. `check-versions.sh` clean across all five plugins. Pushed to origin/main (`f1488c2`).
+
+Two notes for the next release. First, `artifact(action="get", id="cc8cb9e23ab5cc67")` returned `null` at refresh time — the librarian catalog held only artifacts created in-session, so all 17 pre-existing trackers were invisible to `find`. `librarian(action="reindex")` restored it (222 added) and the id in `CLAUDE.md` then resolved correctly; it was never stale. Worth reindexing before trusting any tracker lookup. Second, the root `.codescout/system-prompt.md` still lists the hook entry points as `.sh` files (`subagent-guidance.sh`, `session-start.sh`, `explore-inject.sh`, `pre-tool-guard.sh`, `pre-task-hint.sh`, `il3-warn-hook.sh`, `il4-deny-hook.sh`, `goal-stop-hook.sh`); only `detect-tools.sh` still exists as named — the rest became `.mjs` in the 1.14.0 cross-platform port. That prompt is injected verbatim into every subagent, so the stale file map ships on the always-on channel. `onboarding(action="refresh_prompt")` is the fix; not done here, out of this release's scope.
+
+Cold restart / `/reload-plugins` per instance still required to bind the 1.16.3 record.
 
 ### 2026-07-22 — buddy 0.9.0 → 0.9.1
 
