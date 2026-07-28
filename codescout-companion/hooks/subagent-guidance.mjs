@@ -1,8 +1,11 @@
 // SubagentStart hook — inject codescout guidance into coding subagents.
-// Port of subagent-guidance.sh. Delivers the exploration protocol + Iron-Laws
-// reminder + the project system-prompt verbatim (the ONLY channel that reaches
-// subagents — they don't get codescout's server_instructions, claude-code#29655).
-import { readInput, detectFor, emit } from './lib.mjs';
+// Port of subagent-guidance.sh. Delivers the project bootstrap + exploration
+// protocol + Iron-Laws reminder + the project system-prompt verbatim (the ONLY
+// channel that reaches subagents — they don't get codescout's
+// server_instructions, claude-code#29655).
+//
+// Testing seam: CS_SUBAGENT_GUIDANCE_FORCE=1 bypasses the codescout gate.
+import { readInput, detectFor, git, emit } from './lib.mjs';
 
 const input = readInput();
 if (!input) process.exit(0);
@@ -14,7 +17,13 @@ if (agentType === 'Bash' || agentType === 'statusline-setup' || agentType === 'c
 
 const cwd = input.cwd || '';
 const d = detectFor(cwd);
-if (d.HAS_CODESCOUT === 'false') process.exit(0);
+
+// Test seam: HAS_CODESCOUT is config-based, not per-project, so no fixture can
+// close it — the suite forces it open instead. Mirrors explore-inject.mjs's
+// CS_EXPLORE_INJECT_FORCE. See subagent-guidance.test.sh.
+if (process.env.CS_SUBAGENT_GUIDANCE_FORCE !== '1') {
+  if (d.HAS_CODESCOUT === 'false') process.exit(0);
+}
 
 let msg = `codescout EXPLORATION PROTOCOL — before exploring or auditing code:
 
