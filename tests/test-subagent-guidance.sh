@@ -144,6 +144,15 @@ else fail "no memories: falls back to list" "$OUT"; fi
 if assert_context_contains "$OUT" "Memory topics available here:"; then
   fail "no memories: must NOT emit the inline header" "$OUT"
 else pass "no memories: no inline header"; fi
+# --- Pin the sentinel phrase at its source. The "memories: inline bullet
+# --- replaces the fallback" case above depends on "then read the topics
+# --- matching your task" being unique to the fallback bullet, but nothing
+# --- asserted that phrase is actually PRESENT there — a fallback reword
+# --- could silently disarm that other assertion. Assert it here, on the
+# --- fallback branch itself.
+if assert_context_contains "$OUT" "then read the topics matching your task"; then
+  pass "no memories: fallback sentinel phrase present"
+else fail "no memories: fallback sentinel phrase present" "$OUT"; fi
 
 # --- Empty memories dir → also fallback. Exercises HAS_CS_MEMORIES' computation
 # --- rather than only the missing-directory path.
@@ -157,5 +166,24 @@ else fail "empty memories dir: falls back to list" "$OUT"; fi
 if assert_context_contains "$OUT" "Memory topics available here:"; then
   fail "empty memories dir: must NOT emit the inline header" "$OUT"
 else pass "empty memories dir: no inline header"; fi
+
+# --- Whitespace-only memory name → the trim guard must still fall back.
+# --- A memory file named " .md" (one leading space, then the extension)
+# --- makes detect.mjs report HAS_CS_MEMORIES=true with CS_MEMORY_NAMES=" "
+# --- (name.slice(0,-3) of " .md" is a single space) -- non-empty as a raw
+# --- string, so an untrimmed guard would take the inline branch and render
+# --- a degenerate header with no topic names. Covers the trim guard in
+# --- subagent-guidance.mjs, which had zero test coverage before this case.
+make_git_repo "$T/whitespacemem"
+write_routing_config "$T/whitespacemem" '{"server_name":"codescout"}'
+mkdir -p "$T/whitespacemem/.codescout/memories"
+echo "# space" > "$T/whitespacemem/.codescout/memories/ .md"
+OUT=$(run_hook "$T/whitespacemem" "general-purpose")
+if assert_context_contains "$OUT" 'memory(action="list")'; then
+  pass "whitespace-only memory name: falls back to list"
+else fail "whitespace-only memory name: falls back to list" "$OUT"; fi
+if assert_context_contains "$OUT" "Memory topics available here:"; then
+  fail "whitespace-only memory name: must NOT emit the inline header" "$OUT"
+else pass "whitespace-only memory name: no inline header"; fi
 
 print_summary "subagent-guidance"
