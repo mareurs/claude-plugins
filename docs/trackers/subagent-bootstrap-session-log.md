@@ -55,9 +55,14 @@ stdin-driving exemplar is `explore-inject.test.sh:19-21`:
 `jq -nc`-built payloads and a `mktemp -d` two-repo git sandbox.
 
 **Probable cause:** Exemplar chosen by filename adjacency (both are small
-Agent-related hook tests) without reading the body. The spec's neighbouring claim —
-that `subagent-guidance.mjs` has no test file — *was* verified; the substitute
-exemplar was not.
+Agent-related hook tests) without reading the body.
+
+**Correction (2026-07-28):** this entry originally continued "The spec's neighbouring
+claim — that `subagent-guidance.mjs` has no test file — *was* verified; the substitute
+exemplar was not." That is false and is retracted. The no-test-file claim was **not**
+verified — it rested on a single `ls` of one directory, and `tests/test-subagent-guidance.sh`
+existed the whole time. See F-4. Neither claim in this entry's original probable-cause
+was verified; one exemplar went unread and one absence claim went unbounded.
 
 **Workaround:** Repoint the spec's Testing section at `explore-inject.test.sh` for
 stdin driving + sandbox construction, keeping `pre-task-hint.test.sh` only as the

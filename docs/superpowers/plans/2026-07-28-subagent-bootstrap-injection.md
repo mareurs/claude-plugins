@@ -4,7 +4,7 @@
 
 **Goal:** Deliver the `PROJECT BOOTSTRAP` triad (activate directive + inline memory topic names) to every codescout subagent via the `SubagentStart` hook.
 
-**Architecture:** One behavior change to `codescout-companion/hooks/subagent-guidance.mjs` — prepend a soft-conditional activate paragraph resolved to the git toplevel, and fold `CS_MEMORY_NAMES` into the exploration protocol's Phase 0 bullet, replacing its `memory(action="list")` instruction. A new `CS_SUBAGENT_GUIDANCE_FORCE=1` env seam bypasses the config-based codescout gate so the hook is testable on any machine. The hook currently has no test file; this plan adds one covering both new and pre-existing behavior.
+**Architecture:** One behavior change to `codescout-companion/hooks/subagent-guidance.mjs` — prepend a soft-conditional activate paragraph resolved to the git toplevel, and fold `CS_MEMORY_NAMES` into the exploration protocol's Phase 0 bullet, replacing its `memory(action="list")` instruction. Tests live in `tests/test-subagent-guidance.sh` — the suite that **already exists** and already drives this hook — extended using the `tests/lib/fixtures.sh` helper library. Gate control is per-project and environment-sealed via `write_routing_config`; no production code exists for testability.
 
 **Tech Stack:** Node ESM (`.mjs`, no dependencies), bash + `jq` test harness, `git` CLI for root resolution.
 
@@ -215,7 +215,8 @@ expected case to FAIL, the assertion is vacuous — say so rather than proceedin
 - [ ] **Step 4: Run the suites**
 
 Run: `bash tests/test-subagent-guidance.sh`
-Expected: `subagent-guidance: 7 passed, 0 failed`
+Expected: `subagent-guidance: 8 passed, 0 failed` (3 exclusions + 3 positive-control
+assertions + gate-closed + system-prompt)
 
 Run: `./tests/run-all.sh`
 Expected: `✓ All suites passed.`
@@ -466,7 +467,7 @@ Leave Phase 0's remaining two bullets, Phases 1–2, and the report contract unt
 - [ ] **Step 4: Run tests to verify they pass**
 
 Run: `bash tests/test-subagent-guidance.sh`
-Expected: `subagent-guidance: 25 passed, 0 failed`
+Expected: `subagent-guidance: 23 passed, 0 failed` (16 after Task 2, plus this task's 7)
 
 Run: `./tests/run-all.sh`
 Expected: `✓ All suites passed.`
@@ -584,7 +585,7 @@ artifact(action="update", id="9ea452e9cf4d9fbe", patch={body_edits: [...]})
 | Interaction — soft-conditional yields to prompt | Task 2 (case 8) + Task 4 Step 2 |
 | Interaction — `explore-inject` idempotency unaffected | Task 4 Step 2 (its suite runs green) |
 | Interaction — `session-start.mjs` not changed | No task touches it |
-| Testing — seam, exemplar, all 8 cases | Tasks 1–3 |
+| Testing — canonical suite, fixture gate control, all cases | Tasks 1–3 |
 | Testing — `detect.mjs` untouched, parity safe | Global Constraints; no task modifies it |
 | Deploy — `release.sh` + tracker refresh + cold restart | Task 4 |
 
@@ -593,11 +594,11 @@ No gaps. Two additions beyond the spec's 8 cases, both cheap and worth keeping: 
 **2. Placeholder scan.** No `TBD`/`TODO`/"similar to Task N"/"add error handling". Every code step carries literal code. Task 4's steps 1–2 are human-judgment verifications and say so explicitly rather than pretending to be assertions.
 
 **3. Type consistency.**
-- `CS_SUBAGENT_GUIDANCE_FORCE` — spelled identically in Task 1 Step 3, the test `ctx()` helper, and the spec.
+- `write_routing_config "$DIR" '{"server_name":"codescout"}'` — the open-gate idiom, spelled identically in Global Constraints, Tasks 1–3, and the spec. `write_mcp_json` appears nowhere as a gate-control call.
 - `memoryBullet` — declared in Task 3 Step 3, consumed in the same step's template literal.
 - `root` — declared Task 2 Step 3, used in the same paragraph.
 - `git(cwd, args)` — imported Task 1 Step 3, called Task 2 Step 3, signature matches `lib.mjs` (returns `string | null`).
-- Shell helpers `ok`/`has`/`hasnt`/`ctx`/`raw` — defined Task 1, used unchanged in Tasks 2–3.
-- Assertion counts (8 → 17 → 28) are cumulative and consistent with the cases each task appends.
+- Shell helper `run_hook <cwd> <agent_type>` — defined Task 1, used unchanged in Tasks 2–3. Assertion helpers come from `tests/lib/fixtures.sh` (`assert_no_output`, `assert_context_contains`, `pass`, `fail`, `print_summary`), not from bespoke definitions.
+- Assertion counts (8 → 16 → 23) are cumulative and consistent with the cases each task appends: Task 1 leaves 8 (3 exclusions + 3 positive-control + gate-closed + system-prompt), Task 2 adds 8, Task 3 adds 7.
 
 One consistency risk worth flagging for the implementer: Tasks 2 and 3 both insert their test blocks "immediately before the `echo \"---\"` summary block". Executed in order this is unambiguous, but if the tasks are done out of order the blocks land in a different sequence. Order does not affect correctness — each block is self-contained with its own fixture setup and teardown.
