@@ -121,9 +121,17 @@ else fail "memories: names the topics" "$OUT"; fi
 if assert_context_contains "$OUT" "patterns.md"; then
   fail "memories: must strip the .md extension" "$OUT"
 else pass "memories: strips the .md extension"; fi
-if assert_context_contains "$OUT" 'memory(action="list")'; then
-  fail "memories: must NOT tell the subagent to list" "$OUT"
-else pass "memories: no list round-trip"; fi
+# --- The literal substring memory(action="list") is REQUIRED in the fallback
+# --- branch and FORBIDDEN in the inline branch, so asserting on that literal
+# --- is a tripwire in both directions (any rewording of either branch's
+# --- "don't call list" phrasing evades a substring check trivially). Assert
+# --- instead on the fallback bullet's own distinctive phrase, which is unique
+# --- to that branch and appears nowhere in the inline bullet: this tests that
+# --- the inline bullet REPLACED the fallback rather than being appended
+# --- alongside it, which is the behavior that actually matters here.
+if assert_context_contains "$OUT" "then read the topics matching your task"; then
+  fail "memories: inline bullet must replace the fallback, not append to it" "$OUT"
+else pass "memories: inline bullet replaces the fallback"; fi
 
 # --- No memories → fallback to today's wording verbatim. $T/nomem is a separate
 # --- fixture so the memories written above cannot leak into it.
@@ -146,5 +154,8 @@ OUT=$(run_hook "$T/emptymem" "general-purpose")
 if assert_context_contains "$OUT" 'memory(action="list")'; then
   pass "empty memories dir: falls back to list"
 else fail "empty memories dir: falls back to list" "$OUT"; fi
+if assert_context_contains "$OUT" "Memory topics available here:"; then
+  fail "empty memories dir: must NOT emit the inline header" "$OUT"
+else pass "empty memories dir: no inline header"; fi
 
 print_summary "subagent-guidance"

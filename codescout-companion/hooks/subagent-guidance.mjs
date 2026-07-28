@@ -26,10 +26,16 @@ const root = (cwd && git(cwd, ['rev-parse', '--show-toplevel'])) || cwd;
 
 // Phase 0's memory bullet. When the topic names are already known, hand them
 // over instead of telling the subagent to spend a call discovering them.
-// CS_MEMORY_NAMES is space-separated with a trailing space — trim it.
+// CS_MEMORY_NAMES is space-separated with a trailing space — trim it. Guard
+// on the TRIMMED value: a memory file named " .md" (leading space) makes
+// detect.mjs report HAS_CS_MEMORIES='true' with a whitespace-only name, and
+// the untrimmed guard would emit a degenerate "Memory topics available
+// here: —" header. detect.mjs is parity-locked against scripts/detect.py and
+// can't be touched, so the guard belongs here.
+const memoryNames = (d.CS_MEMORY_NAMES || '').trim();
 const memoryBullet =
-  d.HAS_CS_MEMORIES === 'true' && d.CS_MEMORY_NAMES
-    ? `• Memory topics available here: ${d.CS_MEMORY_NAMES.trim()} — read the ones matching your task via memory(action="read", topic="…"); architecture and gotchas usually pay off. This is the complete list, so skip the separate discovery call.`
+  d.HAS_CS_MEMORIES === 'true' && memoryNames
+    ? `• Memory topics available here: ${memoryNames} — read the ones matching your task via memory(action="read", topic="…"); architecture and gotchas usually pay off. This is the complete list, so skip the separate discovery call.`
     : `• memory(action="list"), then read the topics matching your task (architecture, gotchas usually pay off).`;
 
 let msg = '';
