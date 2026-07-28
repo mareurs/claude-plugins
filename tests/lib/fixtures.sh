@@ -168,8 +168,10 @@ assert_no_output() {
   [ -z "$output" ]
 }
 
-# Fail-open invariant: hooks must exit 0 even on internal error (a non-zero
-# PreToolUse/SubagentStart exit is itself a deny on Copilot CLI). Capture the
+# Fail-open invariant: hooks must exit 0 even on internal error. The sourced
+# claim is narrower than this helper's use — a non-zero *PreToolUse* exit is
+# itself a deny on Copilot CLI (see hooks/lib.mjs) — but the exit-0 contract
+# is repo-wide, so this guard applies to any hook. Capture the
 # hook's rc into a variable immediately after its command substitution — a
 # variable set inside the substitution's subshell would never escape it, so
 # the exit-status channel (`RC=$?` right after `OUT=$(run_hook ...)`) is the

@@ -8,6 +8,18 @@
 
 **Tech Stack:** Node ESM (`.mjs`, no dependencies), bash + `jq` test harness, `git` CLI for root resolution.
 
+> **The shipped suite is canonical, not this document's code blocks.** Every test block
+> below is the version as *authored*, before three hardening rounds and a final fix wave
+> that grew the suite from 24 as-planned to **34** shipped assertions. Those rounds added
+> exit-status checks (`check_rc` + `RC=$?` plumbing), pinned the `action="activate"` verb
+> as one substring, covered the `|| cwd` non-git fallback, moved the memories fixture off
+> the shared `$T/proj`, and retired one assertion proven to be a false negative.
+>
+> Transcribing these blocks literally would rebuild the weaker suite **and** reintroduce
+> defects already removed. If you are re-running this plan, read
+> `tests/test-subagent-guidance.sh` and extend it; use the blocks below only as a record
+> of intent. Run the suite for the live count — do not trust any number in this document.
+
 **Spec:** `docs/superpowers/specs/2026-07-28-subagent-bootstrap-injection-design.md`
 **Recon findings this plan encodes:** F-1, F-2, F-3 in `docs/trackers/subagent-bootstrap-session-log.md`
 
