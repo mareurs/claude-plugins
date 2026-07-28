@@ -17,7 +17,30 @@ const cwd = input.cwd || '';
 const d = detectFor(cwd);
 if (d.HAS_CODESCOUT === 'false') process.exit(0);
 
-let msg = `codescout EXPLORATION PROTOCOL — before exploring or auditing code:
+// Project root for the bootstrap directive. Raw cwd is NOT sufficient: a cwd
+// inside a worktree SUBDIRECTORY would not match .cs-worktree-pending's
+// location (worktree-write-guard puts it at --show-toplevel; cs-activate-project
+// deletes it via a literal join on tool_input.path), so the injected activate
+// would be obeyed and still leave writes blocked.
+const root = (cwd && git(cwd, ['rev-parse', '--show-toplevel'])) || cwd;
+
+let msg = '';
+
+// Soft-conditional on purpose: SubagentStart cannot see the dispatch prompt, so
+// a foreign-targeted subagent (explore-inject prepended its own root directive
+// to the prompt) must be able to override this. Do NOT "simplify" to an
+// unconditional activate — that reintroduces the conflict.
+if (root) {
+  msg += `PROJECT BOOTSTRAP: unless the task below names a different project root, your
+FIRST codescout action is workspace(action="activate", path="${root}") — it
+prewarms LSP, auto-registers dependencies, and returns project_hints (primary
+language, entry points, build commands). If the task DOES name another repo,
+follow that directive instead and pin every call with workspace="<that root>".
+
+`;
+}
+
+msg += `codescout EXPLORATION PROTOCOL — before exploring or auditing code:
 
 Phase 0 — load what the project already knows (do FIRST):
 • memory(action="list"), then read the topics matching your task (architecture, gotchas usually pay off).
