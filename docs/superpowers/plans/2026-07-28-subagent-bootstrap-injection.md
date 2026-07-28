@@ -277,6 +277,13 @@ else fail "bootstrap: soft-conditional wording present" "$OUT"; fi
 # --- path would not match .cs-worktree-pending's location and so would never
 # --- release worktree-write-guard.
 mkdir -p "$T/proj/nested/deeper"
+# The subdir needs its OWN routing config: detect.mjs's findRoutingConfig is
+# cwd-only with no upward walk, so without this the gate is CLOSED here, the
+# hook exits before the root-resolution code runs, and this block stops
+# discriminating anything. It is the ONLY discriminator for the git-toplevel
+# requirement — the worktree block passes even under `root = cwd`, because a
+# worktree's cwd already equals its toplevel.
+write_routing_config "$T/proj/nested/deeper" '{"server_name":"codescout"}'
 OUT=$(run_hook "$T/proj/nested/deeper" "general-purpose")
 if assert_context_contains "$OUT" "path=\"$PROJ_ROOT\""; then
   pass "subdir cwd: names repo toplevel"
@@ -305,7 +312,7 @@ else pass "worktree: does not name the main repo"; fi
 - [ ] **Step 2: Run tests to verify they fail**
 
 Run: `bash tests/test-subagent-guidance.sh`
-Expected: the 6 positive assertions FAIL (`bootstrap: marker present`, `names the project root`, `soft-conditional wording present`, `subdir cwd: names repo toplevel`, `worktree: bootstrap fires`, `worktree: names the worktree root`). The 3 negative assertions pass vacuously — nothing is emitted to contain a wrong path. Note that in your report.
+Expected: `10 passed, 6 failed`. The 6 FAILs are exactly the 6 positive assertions (`bootstrap: marker present`, `names the project root`, `soft-conditional wording present`, `subdir cwd: names repo toplevel`, `worktree: bootstrap fires`, `worktree: names the worktree root`). The 2 negative assertions (`subdir cwd: does not name the subdir`, `worktree: does not name the main repo`) pass **vacuously** — nothing is emitted to contain a wrong path. This block defines 8 new assertions, 6 positive and 2 negative. Report which were vacuous rather than reporting a clean red.
 
 - [ ] **Step 3: Write minimal implementation**
 
