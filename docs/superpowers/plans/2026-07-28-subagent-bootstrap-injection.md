@@ -13,15 +13,50 @@
 
 ## Global Constraints
 
+> **Amended 2026-07-28** after Task 1's review. Two original premises were false:
+> `subagent-guidance.mjs` *does* already have a test suite (`tests/test-subagent-guidance.sh`),
+> and a per-project fixture *can* control the codescout gate — so the
+> `CS_SUBAGENT_GUIDANCE_FORCE` seam this plan originally mandated is unnecessary and
+> has been reverted. See the ledger and R-2 in `docs/trackers/reconnaissance-patterns.md`.
+
 - **Fail-open contract** (`hooks/lib.mjs` header): hooks MUST exit 0 even on error. A non-zero `PreToolUse` exit is itself a deny on Copilot CLI. Never let a crash block a user's tool.
 - **Node-only.** No bash, no `jq`, no Python inside hook `.mjs` files — they must run on Windows and under GitHub Copilot without Git Bash.
+- **No production code exists solely for tests.** Gate control comes from fixtures, not from an env seam in the hook.
 - **`jq` is a required dependency** for test scripts (not for hooks).
 - **Config dir resolution:** always `${CLAUDE_CONFIG_DIR:-$HOME/.claude}`, never bare `$HOME/.claude`.
-- **Test isolation** (`CLAUDE.md`): every test that writes config/files/env must remove them before the next test runs. Pattern: write fixture → test → remove fixture.
-- **`tests/run-all.sh` auto-discovers** `codescout-companion/hooks/*.test.sh` — no registration step.
-- **Do not modify `detect.mjs`.** It is held at byte-parity with `scripts/detect.py` by `detect.test.sh`; changing one without the other breaks that suite.
-- **`HAS_CODESCOUT` is config-based, not project-based.** No per-project fixture can close that gate. (F-2)
+- **Test isolation** (`CLAUDE.md`): every test that writes config/files/env must remove them before the next test runs.
+- **`tests/run-all.sh` globs BOTH** `tests/test-*.sh` **and** `codescout-companion/hooks/*.test.sh`. Neither needs registration. (The original plan named only the second glob — that omission is why the existing suite was missed.)
+- **Do not modify `detect.mjs`.** It is held at byte-parity with `scripts/detect.py` by `detect.test.sh`.
 
+### Gate control — verified empirically, use exactly this
+
+`HAS_CODESCOUT` is resolved by `detect.mjs` in this order: routing-config `server_name`
+override → `<cwd>/.mcp.json` → user-level `<claudeDir>/.claude.json`,
+`<claudeDir>/settings.json`, `~/.claude.json` (the last only when `CLAUDE_CONFIG_DIR`
+is unset).
+
+**To OPEN the gate deterministically** (per-project, environment sealed):
+
+```bash
+write_routing_config "$DIR" '{"server_name":"codescout"}'
+# then invoke with: HOME="$T" CLAUDE_CONFIG_DIR="$T/empty"
+```
+
+Verified: `HAS_CODESCOUT=true`, `CS_SERVER_NAME=codescout`, `CS_PREFIX=mcp__codescout__`.
+
+**To CLOSE the gate deterministically:** seal `HOME` and `CLAUDE_CONFIG_DIR` to empty
+dirs, and write no routing config. Sealing `CLAUDE_CONFIG_DIR` is what removes the
+`~/.claude.json` path.
+
+**`write_mcp_json` is a TRAP — do not use it for gate control.** Verified:
+`HAS_CODESCOUT=false`. `serverNameFromMcpConfig` matches `/codescout/` against the
+server's `command`/`args`, and that fixture writes `command: <dir>/fake-ce`, which does
+not match. The server *key* is not consulted. Every existing test that relies on it for
+an open gate is passing for the wrong reason.
+
+**Always seal `HOME` + `CLAUDE_CONFIG_DIR` on every hook invocation.** An unsealed call
+reads the developer's real config, so it passes on a configured box and fails on CI —
+the inverted flake this plan's F-2 was written to prevent.
 ---
 
 ## File Structure
@@ -29,128 +64,40 @@
 | File | Responsibility |
 |---|---|
 | `codescout-companion/hooks/subagent-guidance.mjs` | **Modify.** The only behavior change. Adds the force seam, root resolution, the bootstrap paragraph, and the Phase 0 memory bullet branch. |
-| `codescout-companion/hooks/subagent-guidance.test.sh` | **Create.** Colocated suite. Layer 1 = gate tests, Layer 2 = output-shape tests driven through the force seam. |
+| `tests/test-subagent-guidance.sh` | **Modify.** The canonical suite — it already existed and already drives this hook. All new cases land here, using `tests/lib/fixtures.sh` helpers. |
+| `codescout-companion/hooks/subagent-guidance.test.sh` | **Delete** (Task 1). Created in error on the false premise that no suite existed; duplicates the canonical one. |
 | `codescout-companion/.claude-plugin/plugin.json` | **Modify (Task 4).** Version bump — canonical source of truth. |
 | `README.md` | **Modify (Task 4).** Version table, updated by `release.sh`. |
 
 No `hooks.json` change: `SubagentStart` → `subagent-guidance.mjs` is already registered.
 
+**Fixture helpers available** in `tests/lib/fixtures.sh` — source it; it also exports
+`HOOK_DIR`, `pass`, `fail`, `print_summary`, `assert_context_contains`,
+`assert_no_output`. Setup helpers: `make_git_repo`, `make_worktree`,
+`write_routing_config`, `make_memories` (writes `arch.md` + `patterns.md`),
+`make_system_prompt` (writes `SYSTEM PROMPT CONTENT`), `make_codescout_dir`.
+
 ---
 
-### Task 1: Test harness + force seam + pre-existing-behavior guards
+### Task 1: Revert the seam; make the canonical suite deterministic
 
-Establishes the suite and the seam every later task's tests depend on, and characterizes the two gates plus the system-prompt append that already work today. No output-shape change yet.
+**Amended.** The original Task 1 built a new colocated suite and an env seam, both on
+the false premise that no suite existed. Revert both, and fix the two real defects in
+the suite that *does* exist: its exclusion cases are vacuous, and one case reads the
+developer's ambient config.
 
 **Files:**
-- Modify: `codescout-companion/hooks/subagent-guidance.mjs:5` (import), `:17-18` (gate)
-- Create: `codescout-companion/hooks/subagent-guidance.test.sh`
+- Modify: `codescout-companion/hooks/subagent-guidance.mjs` — revert the gate to its original bare form; keep only the `git` import (Task 2 consumes it)
+- Delete: `codescout-companion/hooks/subagent-guidance.test.sh`
+- Modify: `tests/test-subagent-guidance.sh` — seal the environment, open the gate with `write_routing_config`, add the missing exclusion case and a positive control
 
 **Interfaces:**
-- Consumes: `readInput`, `detectFor`, `emit` from `./lib.mjs` (already imported); `d.HAS_CODESCOUT`, `d.HAS_CS_SYSTEM_PROMPT`, `d.CS_SYSTEM_PROMPT` from `detectFor`.
-- Produces: the env seam name `CS_SUBAGENT_GUIDANCE_FORCE` (Tasks 2–3 test cases all run through it); the shell helpers `ok`, `has`, `hasnt`, `ctx` in the test file (Tasks 2–3 append cases using them).
+- Consumes: `tests/lib/fixtures.sh` — `HOOK_DIR`, `make_git_repo`, `write_routing_config`, `make_system_prompt`, `assert_no_output`, `assert_context_contains`, `pass`, `fail`, `print_summary`.
+- Produces: the `run_hook <cwd> <agent_type>` helper and the sealed-env convention (`HOME="$T" CLAUDE_CONFIG_DIR="$T/empty"`) that Tasks 2 and 3 reuse for every case they add.
 
-- [ ] **Step 1: Write the failing test**
+- [ ] **Step 1: Revert Task 1's production change**
 
-Create `codescout-companion/hooks/subagent-guidance.test.sh`:
-
-```bash
-#!/usr/bin/env bash
-# Tests for subagent-guidance.mjs — the SubagentStart codescout briefing.
-#
-# Two layers:
-#  1. Gate tests — agent_type exclusions, and the codescout gate driven to
-#     CLOSED. The gate case overrides HOME + CLAUDE_CONFIG_DIR; a bare temp cwd
-#     is NOT enough, because HAS_CODESCOUT is config-based, not per-project
-#     (F-2 in docs/trackers/subagent-bootstrap-session-log.md). detect.mjs
-#     consults ~/.claude.json only when CLAUDE_CONFIG_DIR is unset, so setting
-#     it is what seals the last discovery path.
-#  2. Output-shape tests — driven with CS_SUBAGENT_GUIDANCE_FORCE=1 so they run
-#     on any machine regardless of local codescout config. Modelled on
-#     explore-inject.test.sh, which is the suite that actually drives a hook
-#     end-to-end; pre-task-hint.test.sh is config-only and is NOT a model for
-#     output assertions (F-1).
-
-set -uo pipefail
-
-HERE="$(cd "$(dirname "$0")" && pwd)"
-HOOK="$HERE/subagent-guidance.mjs"
-
-PASS=0; FAIL=0
-ok() {
-  if [ "$2" = "$3" ]; then echo "PASS [$1]"; PASS=$((PASS+1));
-  else echo "FAIL [$1]: exp=$3 got=$2"; FAIL=$((FAIL+1)); fi
-}
-has()   { case "$2" in *"$3"*) ok "$1" yes yes ;; *) ok "$1" no yes ;; esac; }
-hasnt() { case "$2" in *"$3"*) ok "$1" present absent ;; *) ok "$1" absent absent ;; esac; }
-
-# ctx <cwd> [agent_type] → injected additionalContext, forced past the gate.
-ctx() {
-  local cwd="$1" at="${2:-general-purpose}"
-  jq -nc --arg cwd "$cwd" --arg at "$at" \
-    '{cwd:$cwd,agent_type:$at,agent_id:"a1",session_id:"s1"}' \
-    | CS_SUBAGENT_GUIDANCE_FORCE=1 node "$HOOK" 2>/dev/null \
-    | jq -r '.hookSpecificOutput.additionalContext // ""'
-}
-
-# raw <cwd> <agent_type> → whole stdout, seam NOT set (for gate tests).
-raw() {
-  jq -nc --arg cwd "$1" --arg at "$2" '{cwd:$cwd,agent_type:$at}' | node "$HOOK" 2>/dev/null
-}
-
-# ---------- 1. Gates ----------
-
-# Case 1: codescout not configured → silent. Needs env override, not just cwd.
-T1=$(mktemp -d); mkdir -p "$T1/cfg"
-O1=$(jq -nc --arg cwd "$T1" '{cwd:$cwd,agent_type:"general-purpose"}' \
-      | HOME="$T1" CLAUDE_CONFIG_DIR="$T1/cfg" node "$HOOK" 2>/dev/null)
-[ -z "$O1" ] && ok "gate: no codescout config → silent" silent silent \
-             || ok "gate: no codescout config → silent" emitted silent
-rm -rf "$T1"
-
-# Case 2: excluded agent types exit before any detection.
-for at in Bash statusline-setup claude-code-guide; do
-  [ -z "$(raw /tmp "$at")" ] && ok "gate: agent_type $at → silent" silent silent \
-                             || ok "gate: agent_type $at → silent" emitted silent
-done
-
-# Non-excluded type must NOT be silenced by the exclusion list.
-T2=$(mktemp -d)
-[ -n "$(ctx "$T2")" ] && ok "gate: general-purpose → emits" emits emits \
-                      || ok "gate: general-purpose → emits" silent emits
-rm -rf "$T2"
-
-# ---------- 2. Pre-existing behavior (regression guards) ----------
-
-# Case 7: system prompt still appended verbatim.
-T7=$(mktemp -d); mkdir -p "$T7/.codescout"
-printf 'SENTINEL-SYSPROMPT-SEVEN\n' > "$T7/.codescout/system-prompt.md"
-O7=$(ctx "$T7")
-has "sysprompt: appended verbatim" "$O7" "SENTINEL-SYSPROMPT-SEVEN"
-has "sysprompt: protocol still present" "$O7" "codescout EXPLORATION PROTOCOL"
-has "sysprompt: rules still present"    "$O7" "CODESCOUT RULES"
-rm -rf "$T7"
-
-echo "---"
-echo "Total: $((PASS+FAIL)). Pass: $PASS. Fail: $FAIL."
-[ "$FAIL" -gt 0 ] && exit 1
-exit 0
-```
-
-- [ ] **Step 2: Run test to verify it fails**
-
-Run: `bash codescout-companion/hooks/subagent-guidance.test.sh`
-
-Expected: FAIL on `gate: general-purpose → emits` and all three `sysprompt:` cases — `ctx()` sets `CS_SUBAGENT_GUIDANCE_FORCE=1`, but the hook does not honor it yet, so a `mktemp` cwd with no codescout config exits silently and `additionalContext` is empty. The `gate: no codescout config` and `gate: agent_type` cases should already PASS.
-
-- [ ] **Step 3: Write minimal implementation**
-
-In `codescout-companion/hooks/subagent-guidance.mjs`, extend the import to pull in `git` (needed by Task 2; added now so the import is touched once):
-
-```javascript
-import { readInput, detectFor, git, emit } from './lib.mjs';
-```
-
-Then replace the bare gate:
+In `codescout-companion/hooks/subagent-guidance.mjs`, restore the gate to exactly:
 
 ```javascript
 const cwd = input.cwd || '';
@@ -158,121 +105,210 @@ const d = detectFor(cwd);
 if (d.HAS_CODESCOUT === 'false') process.exit(0);
 ```
 
-with the seamed gate:
+Keep the `git` import (Task 2 needs it):
 
 ```javascript
-const cwd = input.cwd || '';
-const d = detectFor(cwd);
+import { readInput, detectFor, git, emit } from './lib.mjs';
+```
 
-// Test seam: HAS_CODESCOUT is config-based, not per-project, so no fixture can
-// close it — the suite forces it open instead. Mirrors explore-inject.mjs's
-// CS_EXPLORE_INJECT_FORCE. See subagent-guidance.test.sh.
-if (process.env.CS_SUBAGENT_GUIDANCE_FORCE !== '1') {
-  if (d.HAS_CODESCOUT === 'false') process.exit(0);
+Remove the `Testing seam: CS_SUBAGENT_GUIDANCE_FORCE=1 …` line from the header comment. Leave the rest of the header's description of what the hook delivers.
+
+Then delete the duplicate suite:
+
+```bash
+git rm codescout-companion/hooks/subagent-guidance.test.sh
+```
+
+- [ ] **Step 2: Rewrite `tests/test-subagent-guidance.sh`**
+
+Replace the whole file. Two defects are being fixed: `write_mcp_json` does **not** open
+the gate (verified `HAS_CODESCOUT=false` — `detect.mjs` matches `/codescout/` against the
+server command/args, and that fixture writes `command: <dir>/fake-ce`), so the old
+Bash/statusline cases proved nothing; and the old Test 4 omitted the env override, so it
+passed only on a machine with codescout configured.
+
+```bash
+#!/bin/bash
+# tests/test-subagent-guidance.sh
+#
+# Gate control is per-project + environment-sealed:
+#   OPEN  → write_routing_config with an explicit server_name
+#   CLOSE → seal HOME + CLAUDE_CONFIG_DIR, write no routing config
+# Do NOT use write_mcp_json to open the gate: detect.mjs matches /codescout/
+# against the server command/args, and that fixture's command is <dir>/fake-ce,
+# so it leaves HAS_CODESCOUT=false. Every invocation seals HOME and
+# CLAUDE_CONFIG_DIR — an unsealed call reads the developer's real config and
+# passes on a configured box while failing on CI.
+source "$(dirname "${BASH_SOURCE[0]}")/lib/fixtures.sh"
+
+echo "── subagent-guidance ──"
+HOOK="$HOOK_DIR/subagent-guidance.mjs"
+T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
+mkdir -p "$T/empty"
+
+# Gate OPEN for $T/proj.
+make_git_repo "$T/proj"
+write_routing_config "$T/proj" '{"server_name":"codescout"}'
+
+# Gate CLOSED for $T/bare (git repo, no routing config).
+make_git_repo "$T/bare"
+
+# run_hook <cwd> <agent_type> → raw stdout, env sealed so only the fixture decides.
+run_hook() {
+  printf '{"cwd":"%s","agent_type":"%s","agent_id":"a1","session_id":"s1"}' "$1" "$2" \
+    | HOME="$T" CLAUDE_CONFIG_DIR="$T/empty" node "$HOOK" 2>/dev/null
 }
+
+# --- Exclusions. Gate is OPEN, so silence proves the exclusion, not the gate. ---
+for at in Bash statusline-setup claude-code-guide; do
+  OUT=$(run_hook "$T/proj" "$at")
+  if assert_no_output "$OUT"; then pass "$at agent: silent exit"
+  else fail "$at agent: silent exit" "$OUT"; fi
+done
+
+# --- Positive control: without it, every exclusion case above could pass by
+# --- the hook being globally silent.
+OUT=$(run_hook "$T/proj" "general-purpose")
+if [ -n "$OUT" ]; then pass "general-purpose + gate open: emits"
+else fail "general-purpose + gate open: emits" "(empty)"; fi
+if assert_context_contains "$OUT" "codescout EXPLORATION PROTOCOL"; then
+  pass "emits the exploration protocol"
+else fail "emits the exploration protocol" "$OUT"; fi
+if assert_context_contains "$OUT" "CODESCOUT RULES"; then
+  pass "emits the codescout rules"
+else fail "emits the codescout rules" "$OUT"; fi
+
+# --- Gate CLOSED → silent, with the environment sealed (not ambient config). ---
+OUT=$(run_hook "$T/bare" "general-purpose")
+if assert_no_output "$OUT"; then pass "gate closed: silent exit"
+else fail "gate closed: silent exit" "$OUT"; fi
+
+# --- System prompt appended verbatim (gate open). ---
+make_system_prompt "$T/proj"
+OUT=$(run_hook "$T/proj" "general-purpose")
+if assert_context_contains "$OUT" "SYSTEM PROMPT CONTENT"; then
+  pass "system prompt appended"
+else fail "system prompt appended" "$OUT"; fi
+
+print_summary "subagent-guidance"
 ```
 
-Also update the file's header comment to record the seam:
+- [ ] **Step 3: Prove each new assertion discriminates**
 
-```javascript
-// SubagentStart hook — inject codescout guidance into coding subagents.
-// Port of subagent-guidance.sh. Delivers the project bootstrap + exploration
-// protocol + Iron-Laws reminder + the project system-prompt verbatim (the ONLY
-// channel that reaches subagents — they don't get codescout's
-// server_instructions, claude-code#29655).
-//
-// Testing seam: CS_SUBAGENT_GUIDANCE_FORCE=1 bypasses the codescout gate.
+An assertion that passes whether or not the behavior exists is worthless. Verify two by
+temporary mutation, then revert each:
+
+```bash
+# 1. Exclusions really are what silences those three agent types:
+#    comment out the agentType early-return in subagent-guidance.mjs, re-run.
+#    Expected: the three "silent exit" cases FAIL. Then restore.
+# 2. The gate-closed case really depends on the seal:
+#    drop CLAUDE_CONFIG_DIR from run_hook, re-run.
+#    Expected on this machine: "gate closed: silent exit" FAILS (ambient config
+#    opens the gate). Then restore.
+bash tests/test-subagent-guidance.sh
 ```
 
-- [ ] **Step 4: Run test to verify it passes**
+Record both mutation results in your report. If a mutation does **not** flip the
+expected case to FAIL, the assertion is vacuous — say so rather than proceeding.
 
-Run: `bash codescout-companion/hooks/subagent-guidance.test.sh`
-Expected: PASS — all 8 assertions. Final line `Fail: 0.`
+- [ ] **Step 4: Run the suites**
 
-Then confirm nothing else regressed: `./tests/run-all.sh`
+Run: `bash tests/test-subagent-guidance.sh`
+Expected: `subagent-guidance: 7 passed, 0 failed`
+
+Run: `./tests/run-all.sh`
 Expected: `✓ All suites passed.`
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add codescout-companion/hooks/subagent-guidance.mjs codescout-companion/hooks/subagent-guidance.test.sh
-git commit -m "test(codescout-companion): add subagent-guidance suite + force seam
+git add -A codescout-companion/hooks/subagent-guidance.mjs tests/test-subagent-guidance.sh
+git rm --cached codescout-companion/hooks/subagent-guidance.test.sh 2>/dev/null; true
+git commit -m "test(codescout-companion): make subagent-guidance suite deterministic
 
-subagent-guidance.mjs had no test file. Adds one covering both gates and
-the verbatim system-prompt append, plus a CS_SUBAGENT_GUIDANCE_FORCE seam
-mirroring explore-inject's, because HAS_CODESCOUT is config-based and no
-fixture can close it (F-2).
+Reverts the CS_SUBAGENT_GUIDANCE_FORCE seam and the duplicate colocated
+suite, both added on a false premise: tests/test-subagent-guidance.sh
+already existed, and write_routing_config already controls the gate
+per-project with the environment sealed. No production code for tests.
+
+Fixes two real defects in the existing suite: it used write_mcp_json to
+open the gate, which leaves HAS_CODESCOUT=false (detect matches
+/codescout/ against the server command, not its key), so the exclusion
+cases proved nothing; and its system-prompt case omitted the env
+override, passing only where codescout is configured.
 
 Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>"
 ```
-
 ---
 
 ### Task 2: Bootstrap paragraph with git-toplevel root resolution
 
-Adds the activate directive. Root resolution is a correctness requirement, not a detail: `worktree-write-guard.mjs` places `.cs-worktree-pending` at `git rev-parse --show-toplevel`, and `cs-activate-project.mjs` releases it with a literal `join(tool_input.path, '.cs-worktree-pending')` — so an `activate(path=cwd)` from a worktree *subdirectory* would never release the guard.
+Adds the activate directive. Root resolution is a correctness requirement: `worktree-write-guard.mjs` places `.cs-worktree-pending` at `git rev-parse --show-toplevel`, and `cs-activate-project.mjs` releases it with a literal `join(tool_input.path, '.cs-worktree-pending')` — so `activate(path=cwd)` from a worktree *subdirectory* would never release the guard.
 
 **Files:**
 - Modify: `codescout-companion/hooks/subagent-guidance.mjs` (root resolution + `msg` initialization)
-- Modify: `codescout-companion/hooks/subagent-guidance.test.sh` (append Layer 3)
+- Modify: `tests/test-subagent-guidance.sh` (append cases)
 
 **Interfaces:**
-- Consumes: `git(cwd, args)` from `./lib.mjs` — returns trimmed stdout, or `null` on error/non-zero exit. Imported in Task 1.
-- Produces: the literal marker string `PROJECT BOOTSTRAP:` and the substring `path="<root>"` in `additionalContext`; the shell variable convention `O<n>` for captured output. Task 3 asserts against the same `additionalContext`.
+- Consumes: `git(cwd, args)` from `./lib.mjs` — returns trimmed stdout, or `null` on error/non-zero exit; imported in Task 1. From the suite: `run_hook`, the sealed-env convention, `write_routing_config`, `make_git_repo`, `make_worktree`, `assert_context_contains`.
+- Produces: the literal marker `PROJECT BOOTSTRAP:` and the substring `path="<root>"` in `additionalContext`.
 
-- [ ] **Step 1: Write the failing test**
+- [ ] **Step 1: Write the failing tests**
 
-Insert into `subagent-guidance.test.sh`, immediately before the `echo "---"` summary block:
+Append to `tests/test-subagent-guidance.sh`, immediately before `print_summary`:
 
 ```bash
-# ---------- 3. Bootstrap paragraph + root resolution ----------
+# --- Bootstrap paragraph. $T/proj is a git repo, so root == its toplevel. ---
+PROJ_ROOT=$(git -C "$T/proj" rev-parse --show-toplevel)
+OUT=$(run_hook "$T/proj" "general-purpose")
+if assert_context_contains "$OUT" "PROJECT BOOTSTRAP:"; then
+  pass "bootstrap: marker present"
+else fail "bootstrap: marker present" "$OUT"; fi
+if assert_context_contains "$OUT" "path=\"$PROJ_ROOT\""; then
+  pass "bootstrap: names the project root"
+else fail "bootstrap: names the project root" "$OUT"; fi
+if assert_context_contains "$OUT" "unless the task below names a different project root"; then
+  pass "bootstrap: soft-conditional wording present"
+else fail "bootstrap: soft-conditional wording present" "$OUT"; fi
 
-# Case 8 + activate presence: plain (non-repo) cwd falls back to cwd.
-T8=$(mktemp -d)
-O8=$(ctx "$T8")
-has "bootstrap: marker present"        "$O8" "PROJECT BOOTSTRAP:"
-has "bootstrap: names cwd as fallback" "$O8" "path=\"$T8\""
-has "bootstrap: soft-conditional wording" "$O8" \
-    "unless the task below names a different project root"
-has "bootstrap: names the pin escape"  "$O8" 'pin every call with workspace='
-rm -rf "$T8"
+# --- cwd is a SUBDIRECTORY → must name the toplevel, not the subdir. A subdir
+# --- path would not match .cs-worktree-pending's location and so would never
+# --- release worktree-write-guard.
+mkdir -p "$T/proj/nested/deeper"
+OUT=$(run_hook "$T/proj/nested/deeper" "general-purpose")
+if assert_context_contains "$OUT" "path=\"$PROJ_ROOT\""; then
+  pass "subdir cwd: names repo toplevel"
+else fail "subdir cwd: names repo toplevel" "$OUT"; fi
+if assert_context_contains "$OUT" "path=\"$T/proj/nested/deeper\""; then
+  fail "subdir cwd: must NOT name the subdir" "$OUT"
+else pass "subdir cwd: does not name the subdir"; fi
 
-# Case 5: cwd is a SUBDIRECTORY of a repo → activate must name the toplevel,
-# not the subdir. A subdir path would not match .cs-worktree-pending's location
-# and so would never release worktree-write-guard.
-T5=$(mktemp -d)
-git -C "$T5" init -q
-git -C "$T5" -c user.email=t@t -c user.name=t commit -q --allow-empty -m init
-mkdir -p "$T5/nested/deeper"
-ROOT5=$(git -C "$T5" rev-parse --show-toplevel)
-O5=$(ctx "$T5/nested/deeper")
-has   "subdir: activate names repo toplevel" "$O5" "path=\"$ROOT5\""
-hasnt "subdir: does not name the subdir"     "$O5" "path=\"$T5/nested/deeper\""
-rm -rf "$T5"
-
-# Case 6: worktree cwd → fires, and names the WORKTREE root (not the main repo).
-T6=$(mktemp -d)
-mkdir -p "$T6/main"
-git -C "$T6/main" init -q
-git -C "$T6/main" -c user.email=t@t -c user.name=t commit -q --allow-empty -m init
-git -C "$T6/main" worktree add -q "$T6/wt" -b wtbranch >/dev/null 2>&1
-WT6=$(git -C "$T6/wt" rev-parse --show-toplevel)
-MAIN6=$(git -C "$T6/main" rev-parse --show-toplevel)
-O6=$(ctx "$T6/wt")
-has   "worktree: bootstrap fires"            "$O6" "PROJECT BOOTSTRAP:"
-has   "worktree: names the worktree root"    "$O6" "path=\"$WT6\""
-hasnt "worktree: does not name main repo"    "$O6" "path=\"$MAIN6\""
-rm -rf "$T6"
+# --- Worktree cwd → fires, and names the WORKTREE root, not the main repo.
+# --- The worktree needs its own routing config: detect reads it from cwd.
+make_worktree "$T/proj" "$T/wt"
+write_routing_config "$T/wt" '{"server_name":"codescout"}'
+WT_ROOT=$(git -C "$T/wt" rev-parse --show-toplevel)
+OUT=$(run_hook "$T/wt" "general-purpose")
+if assert_context_contains "$OUT" "PROJECT BOOTSTRAP:"; then
+  pass "worktree: bootstrap fires"
+else fail "worktree: bootstrap fires" "$OUT"; fi
+if assert_context_contains "$OUT" "path=\"$WT_ROOT\""; then
+  pass "worktree: names the worktree root"
+else fail "worktree: names the worktree root" "$OUT"; fi
+if assert_context_contains "$OUT" "path=\"$PROJ_ROOT\""; then
+  fail "worktree: must NOT name the main repo" "$OUT"
+else pass "worktree: does not name the main repo"; fi
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [ ] **Step 2: Run tests to verify they fail**
 
-Run: `bash codescout-companion/hooks/subagent-guidance.test.sh`
-Expected: FAIL on every new assertion except the two `hasnt` cases (which pass vacuously — nothing is emitted to contain the wrong path). Failures read `FAIL [bootstrap: marker present]: exp=yes got=no`.
+Run: `bash tests/test-subagent-guidance.sh`
+Expected: the 6 positive assertions FAIL (`bootstrap: marker present`, `names the project root`, `soft-conditional wording present`, `subdir cwd: names repo toplevel`, `worktree: bootstrap fires`, `worktree: names the worktree root`). The 3 negative assertions pass vacuously — nothing is emitted to contain a wrong path. Note that in your report.
 
 - [ ] **Step 3: Write minimal implementation**
 
-In `subagent-guidance.mjs`, insert the root resolution after the gate block, then change `let msg = \`codescout EXPLORATION PROTOCOL…` to initialize empty and prepend the paragraph:
+In `subagent-guidance.mjs`, insert after the gate block, then change `let msg = \`codescout EXPLORATION PROTOCOL…` to initialize empty and prepend:
 
 ```javascript
 // Project root for the bootstrap directive. Raw cwd is NOT sufficient: a cwd
@@ -303,10 +339,10 @@ msg += `codescout EXPLORATION PROTOCOL — before exploring or auditing code:
 
 The rest of the existing template literal is unchanged.
 
-- [ ] **Step 4: Run test to verify it passes**
+- [ ] **Step 4: Run tests to verify they pass**
 
-Run: `bash codescout-companion/hooks/subagent-guidance.test.sh`
-Expected: PASS — 17 assertions, `Fail: 0.`
+Run: `bash tests/test-subagent-guidance.sh`
+Expected: `subagent-guidance: 16 passed, 0 failed`
 
 Run: `./tests/run-all.sh`
 Expected: `✓ All suites passed.`
@@ -314,7 +350,7 @@ Expected: `✓ All suites passed.`
 - [ ] **Step 5: Commit**
 
 ```bash
-git add codescout-companion/hooks/subagent-guidance.mjs codescout-companion/hooks/subagent-guidance.test.sh
+git add codescout-companion/hooks/subagent-guidance.mjs tests/test-subagent-guidance.sh
 git commit -m "feat(codescout-companion): inject PROJECT BOOTSTRAP into subagents
 
 Subagents on the home project never received the activate directive the
@@ -327,7 +363,6 @@ explore-inject's foreign-root directive.
 
 Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>"
 ```
-
 ---
 
 ### Task 3: Fold memory topic names into Phase 0
@@ -336,60 +371,71 @@ Replaces Phase 0's `memory(action="list")` instruction with the actual topic nam
 
 **Files:**
 - Modify: `codescout-companion/hooks/subagent-guidance.mjs` (Phase 0 first bullet)
-- Modify: `codescout-companion/hooks/subagent-guidance.test.sh` (append Layer 4)
+- Modify: `tests/test-subagent-guidance.sh` (append cases)
 
 **Interfaces:**
-- Consumes: `d.HAS_CS_MEMORIES` (`'true'`/`'false'` string) and `d.CS_MEMORY_NAMES` from `detectFor`. `CS_MEMORY_NAMES` is a space-separated list of `.md` basenames with the extension stripped, built by `detect.mjs` as `memoryNames += \`${name.slice(0,-3)} \`` — it therefore carries a **trailing space**.
+- Consumes: `d.HAS_CS_MEMORIES` (`'true'`/`'false'` string) and `d.CS_MEMORY_NAMES` from `detectFor`. `CS_MEMORY_NAMES` is a space-separated list of `.md` basenames with the extension stripped, built as `memoryNames += \`${name.slice(0,-3)} \`` — it therefore carries a **trailing space**. From the suite: `run_hook`, `make_memories`, `write_routing_config`, `make_git_repo`.
 - Produces: the discriminating header string `Memory topics available here:`.
 
-- [ ] **Step 1: Write the failing test**
+- [ ] **Step 1: Write the failing tests**
 
-Insert into `subagent-guidance.test.sh`, immediately before the `echo "---"` summary block:
+`make_memories` writes `arch.md` and `patterns.md`. **Assert on `patterns`, never on
+`arch`** — `arch` is a substring of the word "architecture", which appears in the
+*fallback* bullet's own text, so an `arch` assertion would pass in both branches and
+discriminate nothing. `patterns` appears nowhere in the static message.
+
+Append to `tests/test-subagent-guidance.sh`, immediately before `print_summary`:
 
 ```bash
-# ---------- 4. Phase 0 memory-name folding ----------
-# Fixture memory names are SENTINELS on purpose: the fallback bullet's own text
-# contains the words "architecture" and "gotchas", so asserting on those names
-# would not discriminate between the two branches.
+# --- Memories present → names inlined, no list round-trip. Assert on
+# --- "patterns", NOT "arch": "arch" is a substring of "architecture" which the
+# --- fallback bullet itself contains, so it would not discriminate.
+make_memories "$T/proj"
+OUT=$(run_hook "$T/proj" "general-purpose")
+if assert_context_contains "$OUT" "Memory topics available here:"; then
+  pass "memories: inline header present"
+else fail "memories: inline header present" "$OUT"; fi
+if assert_context_contains "$OUT" "patterns"; then
+  pass "memories: names the topics"
+else fail "memories: names the topics" "$OUT"; fi
+if assert_context_contains "$OUT" "patterns.md"; then
+  fail "memories: must strip the .md extension" "$OUT"
+else pass "memories: strips the .md extension"; fi
+if assert_context_contains "$OUT" 'memory(action="list")'; then
+  fail "memories: must NOT tell the subagent to list" "$OUT"
+else pass "memories: no list round-trip"; fi
 
-# Case 3: memories present → names inlined, no list round-trip.
-T3=$(mktemp -d); mkdir -p "$T3/.codescout/memories"
-: > "$T3/.codescout/memories/sentinel-alpha.md"
-: > "$T3/.codescout/memories/sentinel-beta.md"
-: > "$T3/.codescout/memories/notamemory.txt"   # non-.md must be ignored
-O3=$(ctx "$T3")
-has   "memories: inline header present"  "$O3" "Memory topics available here:"
-has   "memories: names sentinel-alpha"   "$O3" "sentinel-alpha"
-has   "memories: names sentinel-beta"    "$O3" "sentinel-beta"
-hasnt "memories: strips .md extension"   "$O3" "sentinel-alpha.md"
-hasnt "memories: ignores non-md files"   "$O3" "notamemory"
-hasnt "memories: no list round-trip"     "$O3" 'memory(action="list")'
-rm -rf "$T3"
+# --- No memories → fallback to today's wording verbatim. $T/nomem is a separate
+# --- fixture so the memories written above cannot leak into it.
+make_git_repo "$T/nomem"
+write_routing_config "$T/nomem" '{"server_name":"codescout"}'
+OUT=$(run_hook "$T/nomem" "general-purpose")
+if assert_context_contains "$OUT" 'memory(action="list")'; then
+  pass "no memories: falls back to list"
+else fail "no memories: falls back to list" "$OUT"; fi
+if assert_context_contains "$OUT" "Memory topics available here:"; then
+  fail "no memories: must NOT emit the inline header" "$OUT"
+else pass "no memories: no inline header"; fi
 
-# Case 4: no memories dir → fallback to today's wording verbatim.
-T4=$(mktemp -d); mkdir -p "$T4/.codescout"
-O4=$(ctx "$T4")
-has   "no memories: falls back to list"     "$O4" 'memory(action="list")'
-hasnt "no memories: no inline header"       "$O4" "Memory topics available here:"
-rm -rf "$T4"
-
-# Case 4b: memories dir exists but is empty → also fallback (HAS_CS_MEMORIES stays false).
-T4B=$(mktemp -d); mkdir -p "$T4B/.codescout/memories"
-O4B=$(ctx "$T4B")
-has   "empty memories dir: falls back to list" "$O4B" 'memory(action="list")'
-hasnt "empty memories dir: no inline header"   "$O4B" "Memory topics available here:"
-rm -rf "$T4B"
+# --- Empty memories dir → also fallback. Exercises HAS_CS_MEMORIES' computation
+# --- rather than only the missing-directory path.
+make_git_repo "$T/emptymem"
+write_routing_config "$T/emptymem" '{"server_name":"codescout"}'
+mkdir -p "$T/emptymem/.codescout/memories"
+OUT=$(run_hook "$T/emptymem" "general-purpose")
+if assert_context_contains "$OUT" 'memory(action="list")'; then
+  pass "empty memories dir: falls back to list"
+else fail "empty memories dir: falls back to list" "$OUT"; fi
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [ ] **Step 2: Run tests to verify they fail**
 
-Run: `bash codescout-companion/hooks/subagent-guidance.test.sh`
-
-Expected: FAIL on `memories: inline header present`, `memories: names sentinel-alpha`, `memories: names sentinel-beta`, and `memories: no list round-trip` — the hook still emits the static `memory(action="list")` bullet and never names topics. The three `hasnt` extension/non-md cases and both fallback cases should already PASS.
+Run: `bash tests/test-subagent-guidance.sh`
+Expected: FAIL on `memories: inline header present`, `memories: names the topics`, and `memories: no list round-trip` — the hook still emits the static bullet and never names topics. The two `.md`-stripping / fallback-branch cases and both no-memories cases pass already. Note which passed pre-implementation in your report.
 
 - [ ] **Step 3: Write minimal implementation**
 
-In `subagent-guidance.mjs`, add the branch above the `let msg = ''` line:
+In `subagent-guidance.mjs`, add above the `let msg = ''` line:
 
 ```javascript
 // Phase 0's memory bullet. When the topic names are already known, hand them
@@ -401,7 +447,7 @@ const memoryBullet =
     : `• memory(action="list"), then read the topics matching your task (architecture, gotchas usually pay off).`;
 ```
 
-Then, in the exploration-protocol template literal, replace the hardcoded first bullet:
+Then in the exploration-protocol template literal, replace the hardcoded first bullet:
 
 ```javascript
 Phase 0 — load what the project already knows (do FIRST):
@@ -417,10 +463,10 @@ ${memoryBullet}
 
 Leave Phase 0's remaining two bullets, Phases 1–2, and the report contract untouched.
 
-- [ ] **Step 4: Run test to verify it passes**
+- [ ] **Step 4: Run tests to verify they pass**
 
-Run: `bash codescout-companion/hooks/subagent-guidance.test.sh`
-Expected: PASS — 28 assertions, `Fail: 0.`
+Run: `bash tests/test-subagent-guidance.sh`
+Expected: `subagent-guidance: 25 passed, 0 failed`
 
 Run: `./tests/run-all.sh`
 Expected: `✓ All suites passed.`
@@ -428,7 +474,7 @@ Expected: `✓ All suites passed.`
 - [ ] **Step 5: Commit**
 
 ```bash
-git add codescout-companion/hooks/subagent-guidance.mjs codescout-companion/hooks/subagent-guidance.test.sh
+git add codescout-companion/hooks/subagent-guidance.mjs tests/test-subagent-guidance.sh
 git commit -m "feat(codescout-companion): fold memory topic names into Phase 0
 
 Phase 0 told every subagent to call memory(action=\"list\") to discover
@@ -438,7 +484,6 @@ subagent. Falls back to the old wording when the project has no memories.
 
 Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>"
 ```
-
 ---
 
 ### Task 4: Manual verification, version bump, deploy
