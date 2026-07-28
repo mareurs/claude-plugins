@@ -17,7 +17,7 @@ Release readiness across plugins × profiles. See
 
 ## State
 
-_Last refresh: `ddf8215`_
+_Last refresh: `1956219`_
 
 **codescout-companion** — canonical `1.16.2` · readme `1.16.2` · marketplace clean ✅
 
@@ -27,13 +27,13 @@ _Last refresh: `ddf8215`_
 | `~/.claude-sdd` | 1.16.2 ✅ | ✅ | ✅ |
 | `~/.claude-kat` | 1.16.2 ✅ | ✅ | ✅ |
 
-**buddy** — canonical `0.9.0` · readme `0.9.0` · marketplace clean ✅
+**buddy** — canonical `0.9.1` · readme `0.9.1` · marketplace clean ✅
 
 | profile | installed | cache dir | install_path ok |
 |---|---|---|---|
-| `~/.claude` | 0.9.0 ✅ | ✅ | ✅ |
-| `~/.claude-sdd` | 0.9.0 ✅ | ✅ | ✅ |
-| `~/.claude-kat` | 0.9.0 ✅ | ✅ | ✅ |
+| `~/.claude` | 0.9.1 ✅ | ✅ | ✅ |
+| `~/.claude-sdd` | 0.9.1 ✅ | ✅ | ✅ |
+| `~/.claude-kat` | 0.9.1 ✅ | ✅ | ✅ |
 
 **claude-statusline** — canonical `1.1.7` · readme `1.1.7` · marketplace clean ✅
 
@@ -43,6 +43,10 @@ _Last refresh: `ddf8215`_
 | `~/.claude-sdd` | 1.1.7 ✅ | ✅ | ✅ |
 | `~/.claude-kat` | 1.1.7 ✅ | ✅ | ✅ |
 ## History
+
+### 2026-07-22 — buddy 0.9.0 → 0.9.1
+
+Fix (`2ff1ad6`): closed the compact reload arrival-line instruction in `render_reload_block` to an explicit named-specialist list — previously generic "one arrival line per specialist" wording let the model fabricate arrival announcements (e.g. "Tracker Hygiene arrives — reloaded from compact") for skills never actually reloaded into context. `tests/test_reload.py` (25) + full non-eval suite (483) green. Ran `release.sh buddy patch` (→0.9.1): caches seeded + install records repointed across all three profiles, sanity loop all ✅ (verified independently via direct `jq` read, not just the script's own printout). Pushed to origin/main (`1956219`). Cold restart / `/reload-plugins` per instance still required to bind the new cache.
 
 ### 2026-07-19 — codescout-companion 1.16.1 → 1.16.2
 Reconnaissance seam-class collapse to R-41/R-42 pointers + C14 revert (42a5d11), bump 8481bea. The bump + `/reload-plugins` advanced content but not the deploy — install records stayed at `1.16.1` and no `1.16.2` cache was seeded, so the initial refresh (ddf8215) honestly showed ❌. Completed the deploy separately: `bump-cache.sh codescout-companion 1.16.2` seeded the cache + repointed install records across all three profiles; sanity + recon-content check all ✅. Pushed to origin/main. Cold restart / `/reload-plugins` per instance still required to bind the 1.16.2 record.
