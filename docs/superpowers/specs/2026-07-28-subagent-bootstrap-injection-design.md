@@ -99,7 +99,13 @@ is non-empty:
 
     • Memory topics available here: <CS_MEMORY_NAMES> — read the ones matching
       your task via memory(action="read", topic="…"); architecture and gotchas
-      usually pay off. This is the complete list — don't call memory(action="list").
+      usually pay off. This is the complete list, so skip the separate discovery call.
+
+The closing clause deliberately avoids the literal `memory(action="list")`. An earlier
+draft ended `— don't call memory(action="list").`, which is self-defeating twice over: it
+puts the string you don't want executed in front of the model, and it collides with the
+test asserting that literal is absent from this branch. The fallback branch below must
+contain the literal, so no substring assertion can police both branches — see Testing.
 
 Otherwise that bullet keeps today's wording verbatim:
 
@@ -191,7 +197,9 @@ removed via `trap`.
 | 1 | gate closed | sealed env, no routing config | silent |
 | 2 | excluded `agent_type` ×3 | gate **open**, so silence proves the exclusion | silent for `Bash`, `statusline-setup`, `claude-code-guide` |
 | 2b | positive control | gate open, `general-purpose` | emits protocol + rules — without this, case 2 could pass by the hook being globally silent |
-| 3 | memories present | `make_memories` | inline header + `patterns`; **not** `memory(action="list")`; `.md` stripped |
+| 3 | memories present | `make_memories` | inline header + `patterns`; `.md` stripped; inline bullet **replaced** the fallback (asserted via absence of the fallback's own phrase `then read the topics matching your task`, **not** via absence of `memory(action="list")` — see below) |
+| 3b | fallback sentinel pinned | `nomem` fixture | the phrase `then read the topics matching your task` is **present** in the fallback, so rewording it cannot silently hollow out case 3 |
+| 4c | whitespace-only memory name | file named `" .md"` | falls back to list; no inline header — pins the `.trim()` guard |
 | 4 | memories absent | separate fixture | contains `memory(action="list")`, no inline header |
 | 4b | empty memories dir | `mkdir .codescout/memories` | falls back to list |
 | 5 | cwd = subdirectory | repo + `nested/deeper` | names the toplevel, not the subdir |
@@ -203,10 +211,31 @@ Cases 5 and 6 are the regression guards for the root-resolution bug; case 8 guar
 design decision that makes the prompt-blind channel viable; case 2b and the mutation
 checks below guard against vacuity.
 
-**Discrimination is proved, not assumed.** Two assertions are verified by temporary
-mutation: commenting out the `agentType` early-return must flip case 2 to FAIL, and
-dropping `CLAUDE_CONFIG_DIR` from the invocation helper must flip case 1 to FAIL. An
-assertion that survives its mutation is vacuous regardless of how it reads.
+**Discrimination is proved, not assumed.** Every non-obvious assertion is verified by
+temporary mutation, and a mutation that fails to flip its case is reported rather than
+worked around. Confirmed during execution: commenting out the `agentType` early-return
+flips exactly case 2; dropping `CLAUDE_CONFIG_DIR` from the invocation helper flips
+exactly case 1; `root = cwd` flips both subdir assertions; resolving via
+`--git-common-dir` flips both worktree assertions; emitting both memory bullets flips
+case 3; rewording the fallback sentinel flips case 3b; reverting the `.trim()` guard
+flips case 4c.
+
+**A limit worth recording.** The `memory(action="list")` literal is *required* in the
+fallback branch and *unwanted* in the inline branch, so a substring assertion on it is a
+tripwire in both directions — it fires on the clearest phrasing of the very instruction
+it encodes, and it is evaded by whitespace variation (`action = "list"`). Case 3
+therefore asserts the structural property (the inline bullet **replaced** the fallback)
+rather than the copy property (the bullet doesn't order a list call). The copy property
+is genuinely untestable by substring match; it is a review concern, not a test one. Case
+3b exists so that the phrase case 3 depends on cannot be reworded without failing loudly
+at its source.
+
+**A caveat on the git-toplevel guard.** The subdirectory case is the *only* discriminator
+for root resolution. The worktree case passes even under `root = cwd`, because a
+worktree's cwd already equals its toplevel. And the subdirectory fixture needs its own
+routing config — `findRoutingConfig` is cwd-only with no upward walk, so without one the
+gate is closed, the hook exits before root resolution runs, and the case fails for a
+misleading reason.
 
 `detect.mjs` is **not** modified, so the `detect.mjs` ↔ `scripts/detect.py` byte-parity
 contract enforced by `detect.test.sh` is unaffected.

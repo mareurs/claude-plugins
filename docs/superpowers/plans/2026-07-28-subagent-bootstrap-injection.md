@@ -448,10 +448,19 @@ In `subagent-guidance.mjs`, add above the `let msg = ''` line:
 ```javascript
 // Phase 0's memory bullet. When the topic names are already known, hand them
 // over instead of telling the subagent to spend a call discovering them.
-// CS_MEMORY_NAMES is space-separated with a trailing space — trim it.
+// CS_MEMORY_NAMES is space-separated with a trailing space — trim it, and guard
+// on the TRIMMED value: a memory file named " .md" makes detect report
+// HAS_CS_MEMORIES=true with whitespace-only names, which would otherwise emit a
+// bullet naming nothing. detect.mjs is parity-locked, so the guard lives here.
+//
+// The closing clause deliberately avoids the literal memory(action="list"):
+// naming the call you don't want made puts it in front of the model, and the
+// fallback branch below must contain that literal, so no substring assertion
+// can police both branches.
+const memoryNames = (d.CS_MEMORY_NAMES || '').trim();
 const memoryBullet =
-  d.HAS_CS_MEMORIES === 'true' && d.CS_MEMORY_NAMES
-    ? `• Memory topics available here: ${d.CS_MEMORY_NAMES.trim()} — read the ones matching your task via memory(action="read", topic="…"); architecture and gotchas usually pay off. This is the complete list — don't call memory(action="list").`
+  d.HAS_CS_MEMORIES === 'true' && memoryNames
+    ? `• Memory topics available here: ${memoryNames} — read the ones matching your task via memory(action="read", topic="…"); architecture and gotchas usually pay off. This is the complete list, so skip the separate discovery call.`
     : `• memory(action="list"), then read the topics matching your task (architecture, gotchas usually pay off).`;
 ```
 
