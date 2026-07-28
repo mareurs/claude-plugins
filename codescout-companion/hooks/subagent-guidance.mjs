@@ -24,6 +24,14 @@ if (d.HAS_CODESCOUT === 'false') process.exit(0);
 // would be obeyed and still leave writes blocked.
 const root = (cwd && git(cwd, ['rev-parse', '--show-toplevel'])) || cwd;
 
+// Phase 0's memory bullet. When the topic names are already known, hand them
+// over instead of telling the subagent to spend a call discovering them.
+// CS_MEMORY_NAMES is space-separated with a trailing space — trim it.
+const memoryBullet =
+  d.HAS_CS_MEMORIES === 'true' && d.CS_MEMORY_NAMES
+    ? `• Memory topics available here: ${d.CS_MEMORY_NAMES.trim()} — read the ones matching your task via memory(action="read", topic="…"); architecture and gotchas usually pay off. This is the complete list, so skip the separate discovery call.`
+    : `• memory(action="list"), then read the topics matching your task (architecture, gotchas usually pay off).`;
+
 let msg = '';
 
 // Soft-conditional on purpose: SubagentStart cannot see the dispatch prompt, so
@@ -43,7 +51,7 @@ follow that directive instead and pin every call with workspace="<that root>".
 msg += `codescout EXPLORATION PROTOCOL — before exploring or auditing code:
 
 Phase 0 — load what the project already knows (do FIRST):
-• memory(action="list"), then read the topics matching your task (architecture, gotchas usually pay off).
+${memoryBullet}
 • Bug/regression hunts: artifact(action="find", kind="bug", status="open") — the known-bug ledger. Don't re-report a filed bug as new; mark rediscoveries KNOWN with the ledger path.
 • If a get_guide topic matches your area (error-handling, progressive-disclosure, workspace-state, librarian, tracker-conventions), read it — it states the contract whose violations you hunt.
 

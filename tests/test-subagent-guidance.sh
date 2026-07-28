@@ -106,4 +106,45 @@ if assert_context_contains "$OUT" "path=\"$PROJ_ROOT\""; then
   fail "worktree: must NOT name the main repo" "$OUT"
 else pass "worktree: does not name the main repo"; fi
 
+
+# --- Memories present → names inlined, no list round-trip. Assert on
+# --- "patterns", NOT "arch": "arch" is a substring of "architecture" which the
+# --- fallback bullet itself contains, so it would not discriminate.
+make_memories "$T/proj"
+OUT=$(run_hook "$T/proj" "general-purpose")
+if assert_context_contains "$OUT" "Memory topics available here:"; then
+  pass "memories: inline header present"
+else fail "memories: inline header present" "$OUT"; fi
+if assert_context_contains "$OUT" "patterns"; then
+  pass "memories: names the topics"
+else fail "memories: names the topics" "$OUT"; fi
+if assert_context_contains "$OUT" "patterns.md"; then
+  fail "memories: must strip the .md extension" "$OUT"
+else pass "memories: strips the .md extension"; fi
+if assert_context_contains "$OUT" 'memory(action="list")'; then
+  fail "memories: must NOT tell the subagent to list" "$OUT"
+else pass "memories: no list round-trip"; fi
+
+# --- No memories → fallback to today's wording verbatim. $T/nomem is a separate
+# --- fixture so the memories written above cannot leak into it.
+make_git_repo "$T/nomem"
+write_routing_config "$T/nomem" '{"server_name":"codescout"}'
+OUT=$(run_hook "$T/nomem" "general-purpose")
+if assert_context_contains "$OUT" 'memory(action="list")'; then
+  pass "no memories: falls back to list"
+else fail "no memories: falls back to list" "$OUT"; fi
+if assert_context_contains "$OUT" "Memory topics available here:"; then
+  fail "no memories: must NOT emit the inline header" "$OUT"
+else pass "no memories: no inline header"; fi
+
+# --- Empty memories dir → also fallback. Exercises HAS_CS_MEMORIES' computation
+# --- rather than only the missing-directory path.
+make_git_repo "$T/emptymem"
+write_routing_config "$T/emptymem" '{"server_name":"codescout"}'
+mkdir -p "$T/emptymem/.codescout/memories"
+OUT=$(run_hook "$T/emptymem" "general-purpose")
+if assert_context_contains "$OUT" 'memory(action="list")'; then
+  pass "empty memories dir: falls back to list"
+else fail "empty memories dir: falls back to list" "$OUT"; fi
+
 print_summary "subagent-guidance"
