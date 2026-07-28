@@ -112,7 +112,11 @@ Otherwise that bullet keeps today's wording verbatim:
     • memory(action="list"), then read the topics matching your task
       (architecture, gotchas usually pay off).
 
-`CS_MEMORY_NAMES` is space-separated and used as-is.
+`CS_MEMORY_NAMES` is space-separated with a trailing space. The hook trims it and
+guards on the *trimmed* value before treating it as non-empty — a memory file named
+`" .md"` would otherwise make `HAS_CS_MEMORIES` true with a whitespace-only name, and
+an untrimmed guard would emit a degenerate header naming nothing. See the `.trim()`
+guard under Testing, case 4c.
 
 Everything else in the message — Phase 0's remaining bullets, Phases 1 and 2, the
 report contract, `CODESCOUT RULES`, and the verbatim system-prompt block — is
@@ -226,9 +230,14 @@ tripwire in both directions — it fires on the clearest phrasing of the very in
 it encodes, and it is evaded by whitespace variation (`action = "list"`). Case 3
 therefore asserts the structural property (the inline bullet **replaced** the fallback)
 rather than the copy property (the bullet doesn't order a list call). The copy property
-is genuinely untestable by substring match; it is a review concern, not a test one. Case
-3b exists so that the phrase case 3 depends on cannot be reworded without failing loudly
-at its source.
+is not detectable by a *fixed-string* substring match — which is all
+`assert_context_contains` does (`grep -qF`, `tests/lib/fixtures.sh`). An ERE assertion
+such as `memory[[:space:]]*\([[:space:]]*action[[:space:]]*=[[:space:]]*"list"` would
+catch the whitespace-variant evasion, so the accurate, narrower claim is "not testable by
+fixed-string match," not "genuinely untestable." Adding such an assertion is a review
+call, not something this suite needs — the sentinel-phrase assertion (case 3b) already
+covers the behavior that matters. Case 3b exists so that the phrase case 3 depends on
+cannot be reworded without failing loudly at its source.
 
 **A caveat on the git-toplevel guard.** The subdirectory case is the *only* discriminator
 for root resolution. The worktree case passes even under `root = cwd`, because a

@@ -63,7 +63,7 @@ the inverted flake this plan's F-2 was written to prevent.
 
 | File | Responsibility |
 |---|---|
-| `codescout-companion/hooks/subagent-guidance.mjs` | **Modify.** The only behavior change. Adds the force seam, root resolution, the bootstrap paragraph, and the Phase 0 memory bullet branch. |
+| `codescout-companion/hooks/subagent-guidance.mjs` | **Modify.** The only behavior change. Adds root resolution, the bootstrap paragraph, and the Phase 0 memory bullet branch. |
 | `tests/test-subagent-guidance.sh` | **Modify.** The canonical suite — it already existed and already drives this hook. All new cases land here, using `tests/lib/fixtures.sh` helpers. |
 | `codescout-companion/hooks/subagent-guidance.test.sh` | **Delete** (Task 1). Created in error on the false premise that no suite existed; duplicates the canonical one. |
 | `codescout-companion/.claude-plugin/plugin.json` | **Modify (Task 4).** Version bump — canonical source of truth. |
@@ -409,9 +409,17 @@ else fail "memories: names the topics" "$OUT"; fi
 if assert_context_contains "$OUT" "patterns.md"; then
   fail "memories: must strip the .md extension" "$OUT"
 else pass "memories: strips the .md extension"; fi
-if assert_context_contains "$OUT" 'memory(action="list")'; then
-  fail "memories: must NOT tell the subagent to list" "$OUT"
-else pass "memories: no list round-trip"; fi
+# --- The literal substring memory(action="list") is REQUIRED in the fallback
+# --- branch and FORBIDDEN in the inline branch, so asserting on that literal
+# --- is a tripwire in both directions (any rewording of either branch's
+# --- "don't call list" phrasing evades a substring check trivially). Assert
+# --- instead on the fallback bullet's own distinctive phrase, which is unique
+# --- to that branch and appears nowhere in the inline bullet: this tests that
+# --- the inline bullet REPLACED the fallback rather than being appended
+# --- alongside it, which is the behavior that actually matters here.
+if assert_context_contains "$OUT" "then read the topics matching your task"; then
+  fail "memories: inline bullet must replace the fallback, not append to it" "$OUT"
+else pass "memories: inline bullet replaces the fallback"; fi
 
 # --- No memories → fallback to today's wording verbatim. $T/nomem is a separate
 # --- fixture so the memories written above cannot leak into it.
@@ -424,6 +432,14 @@ else fail "no memories: falls back to list" "$OUT"; fi
 if assert_context_contains "$OUT" "Memory topics available here:"; then
   fail "no memories: must NOT emit the inline header" "$OUT"
 else pass "no memories: no inline header"; fi
+# --- Pin the sentinel phrase at its source: the "inline bullet replaces the
+# --- fallback" case above depends on "then read the topics matching your
+# --- task" being unique to the fallback bullet, but nothing yet asserts that
+# --- phrase is actually PRESENT there — assert it here, on the fallback
+# --- branch itself, so a fallback reword can't silently disarm that case.
+if assert_context_contains "$OUT" "then read the topics matching your task"; then
+  pass "no memories: fallback sentinel phrase present"
+else fail "no memories: fallback sentinel phrase present" "$OUT"; fi
 
 # --- Empty memories dir → also fallback. Exercises HAS_CS_MEMORIES' computation
 # --- rather than only the missing-directory path.
@@ -439,7 +455,7 @@ else fail "empty memories dir: falls back to list" "$OUT"; fi
 - [ ] **Step 2: Run tests to verify they fail**
 
 Run: `bash tests/test-subagent-guidance.sh`
-Expected: FAIL on `memories: inline header present`, `memories: names the topics`, and `memories: no list round-trip` — the hook still emits the static bullet and never names topics. The two `.md`-stripping / fallback-branch cases and both no-memories cases pass already. Note which passed pre-implementation in your report.
+Expected: FAIL on `memories: inline header present`, `memories: names the topics`, and `memories: inline bullet replaces the fallback` — the hook still emits the static bullet unconditionally, so it never names topics and never replaces itself. The `.md`-stripping case, both no-memories cases, and `no memories: fallback sentinel phrase present` pass already (the static bullet already contains the sentinel phrase, memories or not). Note which passed pre-implementation in your report.
 
 - [ ] **Step 3: Write minimal implementation**
 
@@ -483,7 +499,13 @@ Leave Phase 0's remaining two bullets, Phases 1–2, and the report contract unt
 - [ ] **Step 4: Run tests to verify they pass**
 
 Run: `bash tests/test-subagent-guidance.sh`
-Expected: `subagent-guidance: 23 passed, 0 failed` (16 after Task 2, plus this task's 7)
+Expected (as authored, before later hardening): `subagent-guidance: 24 passed, 0 failed`
+(16 after Task 2, plus this task's 8 — the `no memories: fallback sentinel phrase
+present` case above, not the retired `no list round-trip` one, is the 8th). The suite was
+hardened further after this task shipped (the sentinel-phrase replacement above, plus
+later review rounds); as of this plan's final state it reports `subagent-guidance: 34
+passed, 0 failed` — treat that number, not this one, as current. Run `bash
+tests/test-subagent-guidance.sh` for the live count rather than trusting either figure.
 
 Run: `./tests/run-all.sh`
 Expected: `✓ All suites passed.`
@@ -615,6 +637,6 @@ No gaps. Two additions beyond the spec's 8 cases, both cheap and worth keeping: 
 - `root` — declared Task 2 Step 3, used in the same paragraph.
 - `git(cwd, args)` — imported Task 1 Step 3, called Task 2 Step 3, signature matches `lib.mjs` (returns `string | null`).
 - Shell helper `run_hook <cwd> <agent_type>` — defined Task 1, used unchanged in Tasks 2–3. Assertion helpers come from `tests/lib/fixtures.sh` (`assert_no_output`, `assert_context_contains`, `pass`, `fail`, `print_summary`), not from bespoke definitions.
-- Assertion counts (8 → 16 → 23) are cumulative and consistent with the cases each task appends: Task 1 leaves 8 (3 exclusions + 3 positive-control + gate-closed + system-prompt), Task 2 adds 8, Task 3 adds 7.
+- Assertion counts (8 → 16 → 24 as authored) are cumulative and consistent with the cases each task appends: Task 1 leaves 8 (3 exclusions + 3 positive-control + gate-closed + system-prompt), Task 2 adds 8, Task 3 adds 8 (not 7 — see Task 3 Step 4: the sentinel-phrase replacement for the retired `no list round-trip` case nets one extra case, `no memories: fallback sentinel phrase present`). The suite has been hardened further since this plan was authored (the sentinel-phrase fix itself, plus later review rounds) and no longer matches this arithmetic — run `bash tests/test-subagent-guidance.sh` for the live count rather than deriving it from this table.
 
-One consistency risk worth flagging for the implementer: Tasks 2 and 3 both insert their test blocks "immediately before the `echo \"---\"` summary block". Executed in order this is unambiguous, but if the tasks are done out of order the blocks land in a different sequence. Order does not affect correctness — each block is self-contained with its own fixture setup and teardown.
+One consistency risk worth flagging for the implementer: Tasks 2 and 3 both insert their test blocks "immediately before the `print_summary` call". Executed in order this is unambiguous, but if the tasks are done out of order the blocks land in a different sequence. Order does not affect correctness — each block is self-contained with its own fixture setup and teardown.

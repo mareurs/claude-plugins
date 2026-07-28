@@ -45,11 +45,11 @@ let msg = '';
 // to the prompt) must be able to override this. Do NOT "simplify" to an
 // unconditional activate — that reintroduces the conflict.
 if (root) {
-  msg += `PROJECT BOOTSTRAP: unless the task below names a different project root, your
-FIRST codescout action is workspace(action="activate", path="${root}") — it
-prewarms LSP, auto-registers dependencies, and returns project_hints (primary
-language, entry points, build commands). If the task DOES name another repo,
-follow that directive instead and pin every call with workspace="<that root>".
+  msg += `PROJECT BOOTSTRAP: workspace(action="activate", path="${root}") is your FIRST
+codescout action, before Phase 0 below — it prewarms LSP, auto-registers
+dependencies, and returns project_hints (primary language, entry points, build
+commands). Exception: if your task names a different project root, follow
+that directive instead and pin every call with workspace="<that root>".
 
 `;
 }

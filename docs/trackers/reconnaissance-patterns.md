@@ -45,6 +45,7 @@ end-to-end stdin drivers), which is the local hazard R-1 records.
 |----|------|---------|---------|------------------------|
 | R-1 | 2026-07-28 | hit | Spec testing sections assert on the harness; scout the cited exemplar, not just the code under change | `subagent-bootstrap-session-log.md` F-1 + F-2 + F-3 + W-1 |
 | R-2 | 2026-07-28 | miss | Scout enumerated one test directory, not all of them — missed the suite that already covered the hook | `subagent-bootstrap-session-log.md` F-4 + F-5 |
+
 ## Status vocabulary
 
 | Verdict | Meaning |

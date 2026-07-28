@@ -25,15 +25,21 @@ make_git_repo "$T/bare"
 
 # run_hook <cwd> <agent_type> → raw stdout, env sealed so only the fixture decides.
 run_hook() {
+  local _rc
   printf '{"cwd":"%s","agent_type":"%s","agent_id":"a1","session_id":"s1"}' "$1" "$2" \
     | HOME="$T" CLAUDE_CONFIG_DIR="$T/empty" node "$HOOK" 2>/dev/null
+  _rc=$?
+  return $_rc
 }
 
 # --- Exclusions. Gate is OPEN, so silence proves the exclusion, not the gate. ---
 for at in Bash statusline-setup claude-code-guide; do
   OUT=$(run_hook "$T/proj" "$at")
+  RC=$?
   if assert_no_output "$OUT"; then pass "$at agent: silent exit"
   else fail "$at agent: silent exit" "$OUT"; fi
+  if check_rc "$RC"; then pass "$at agent: exits 0"
+  else fail "$at agent: exits 0" "rc=$RC"; fi
 done
 
 # --- Positive control: without it, every exclusion case above could pass by
@@ -50,8 +56,11 @@ else fail "emits the codescout rules" "$OUT"; fi
 
 # --- Gate CLOSED → silent, with the environment sealed (not ambient config). ---
 OUT=$(run_hook "$T/bare" "general-purpose")
+RC=$?
 if assert_no_output "$OUT"; then pass "gate closed: silent exit"
 else fail "gate closed: silent exit" "$OUT"; fi
+if check_rc "$RC"; then pass "gate closed: exits 0"
+else fail "gate closed: exits 0" "rc=$RC"; fi
 
 # --- System prompt appended verbatim (gate open). ---
 make_system_prompt "$T/proj"
@@ -69,9 +78,16 @@ else fail "bootstrap: marker present" "$OUT"; fi
 if assert_context_contains "$OUT" "path=\"$PROJ_ROOT\""; then
   pass "bootstrap: names the project root"
 else fail "bootstrap: names the project root" "$OUT"; fi
-if assert_context_contains "$OUT" "unless the task below names a different project root"; then
-  pass "bootstrap: soft-conditional wording present"
-else fail "bootstrap: soft-conditional wording present" "$OUT"; fi
+# --- Pin the verb, not just the two substrings separately: "PROJECT BOOTSTRAP:"
+# --- and path="$PROJ_ROOT" are asserted above but are free to land on
+# --- different tool calls with a different action= (e.g. action="reset")
+# --- and still pass both. Assert the call as one contiguous substring.
+if assert_context_contains "$OUT" "workspace(action=\"activate\", path=\"$PROJ_ROOT\")"; then
+  pass "bootstrap: pins the activate verb"
+else fail "bootstrap: pins the activate verb" "$OUT"; fi
+if assert_context_contains "$OUT" "if your task names a different project root"; then
+  pass "bootstrap: exception wording present"
+else fail "bootstrap: exception wording present" "$OUT"; fi
 
 # --- cwd is a SUBDIRECTORY → must name the toplevel, not the subdir. A subdir
 # --- path would not match .cs-worktree-pending's location and so would never
@@ -110,8 +126,13 @@ else pass "worktree: does not name the main repo"; fi
 # --- Memories present → names inlined, no list round-trip. Assert on
 # --- "patterns", NOT "arch": "arch" is a substring of "architecture" which the
 # --- fallback bullet itself contains, so it would not discriminate.
-make_memories "$T/proj"
-OUT=$(run_hook "$T/proj" "general-purpose")
+# --- Dedicated fixture ($T/mem), not $T/proj: $T/proj is read by earlier
+# --- assertions (bootstrap paragraph, subdir cwd, worktree) and mutating it
+# --- here would make those order-dependent on this block running after them.
+make_git_repo "$T/mem"
+write_routing_config "$T/mem" '{"server_name":"codescout"}'
+make_memories "$T/mem"
+OUT=$(run_hook "$T/mem" "general-purpose")
 if assert_context_contains "$OUT" "Memory topics available here:"; then
   pass "memories: inline header present"
 else fail "memories: inline header present" "$OUT"; fi
@@ -185,5 +206,23 @@ else fail "whitespace-only memory name: falls back to list" "$OUT"; fi
 if assert_context_contains "$OUT" "Memory topics available here:"; then
   fail "whitespace-only memory name: must NOT emit the inline header" "$OUT"
 else pass "whitespace-only memory name: no inline header"; fi
+
+# --- Non-git cwd → the `|| cwd` fallback. Every fixture above is a git repo,
+# --- so root always resolved via `git rev-parse --show-toplevel`; a plain
+# --- directory (no make_git_repo) exercises the fallback branch instead.
+# --- HAS_CODESCOUT is decided purely by the routing config (findRoutingConfig
+# --- reads .claude/codescout-companion.json off cwd, no git involved — see
+# --- detect.mjs), so a subagent dispatched into a non-git cwd with
+# --- user-level codescout config is a normal, reachable case, not a fixture
+# --- artifact.
+mkdir -p "$T/nogit"
+write_routing_config "$T/nogit" '{"server_name":"codescout"}'
+OUT=$(run_hook "$T/nogit" "general-purpose")
+if assert_context_contains "$OUT" "PROJECT BOOTSTRAP:"; then
+  pass "non-git cwd: bootstrap still fires"
+else fail "non-git cwd: bootstrap still fires" "$OUT"; fi
+if assert_context_contains "$OUT" "path=\"$T/nogit\""; then
+  pass "non-git cwd: names the cwd itself"
+else fail "non-git cwd: names the cwd itself" "$OUT"; fi
 
 print_summary "subagent-guidance"

@@ -27,6 +27,7 @@ Design spec: `docs/superpowers/specs/2026-07-28-subagent-bootstrap-injection-des
 | F-3 | Machine-dependence strategy undecided; hook has no test seam | med | mitigated (real gap, wrong prescription — superseded by F-4) |
 | F-4 | Scout concluded "no test file exists" from a one-directory search | high | fixed-verified |
 | F-5 | `write_mcp_json` does not open the codescout gate; existing suite partly vacuous | med | fixed-verified |
+
 ## Wins Index
 
 | ID | Title | Impact | Status |
@@ -73,7 +74,7 @@ test that never executes the hook, and cases 3–8 (every output-shape assertion
 i.e. the entire point of the suite) cannot be expressed that way. Caught before any
 plan text or subagent dispatch.
 
-**Status:** open — spec edit pending.
+**Status:** fixed-verified — the spec's Testing section was repointed at `explore-inject.test.sh` for stdin driving + sandbox construction; `pre-task-hint.test.sh` kept only as the `PASS`/`FAIL` `check`-helper reference.
 
 **Fix idea / Pointer:** Spec § Testing, this session.
 

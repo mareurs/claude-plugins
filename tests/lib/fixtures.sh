@@ -168,6 +168,17 @@ assert_no_output() {
   [ -z "$output" ]
 }
 
+# Fail-open invariant: hooks must exit 0 even on internal error (a non-zero
+# PreToolUse/SubagentStart exit is itself a deny on Copilot CLI). Capture the
+# hook's rc into a variable immediately after its command substitution — a
+# variable set inside the substitution's subshell would never escape it, so
+# the exit-status channel (`RC=$?` right after `OUT=$(run_hook ...)`) is the
+# only thing that reliably crosses that boundary — then pass it here.
+check_rc() {
+  local rc="$1"
+  [ "$rc" -eq 0 ]
+}
+
 seed_index_state() {
   # Writes .codescout/index-state.json — the Qdrant-era freshness sidecar the
   # auto-reindex block reads (last_indexed_commit = full git oid at sync time).
