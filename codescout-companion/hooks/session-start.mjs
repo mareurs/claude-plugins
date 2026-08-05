@@ -79,8 +79,15 @@ if (existsSync(csActiveDir)) {
 
 let msg = '';
 
-// Project bootstrap nudge — startup only (skipped in worktrees + on resume/compact).
-if (!inWorktree && source === 'startup' && cwd) {
+// Project bootstrap nudge — fresh-session only (skipped in worktrees + on
+// resume/compact/clear). Claude Code's `source` enum is {startup, resume,
+// clear, compact}; other clients (e.g. GitHub Copilot's SessionStart-equivalent
+// event) are not guaranteed to send the literal string "startup" for a fresh
+// session. Allowlisting only 'startup' silently drops this nudge on every
+// non-Claude-Code client. Denylist the known suppress-cases instead and
+// default-fire otherwise, so an unrecognized/empty `source` still bootstraps.
+const BOOTSTRAP_SUPPRESSED_SOURCES = new Set(['compact', 'resume', 'clear']);
+if (!inWorktree && !BOOTSTRAP_SUPPRESSED_SOURCES.has(source) && cwd) {
   msg += `PROJECT BOOTSTRAP: As your FIRST codescout action, call
 workspace(action="activate", path="${cwd}") (the activate_project tool) to
 bootstrap this project — it prewarms LSP, auto-registers dependencies, and
