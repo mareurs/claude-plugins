@@ -19,10 +19,14 @@
 #   1. version     — bump <plugin>/.claude-plugin/plugin.json + README.md table
 #   2. consistency — scripts/check-versions.sh
 #   3. commit      — "chore: bump <plugin> to <version>"
-#   4. cache       — scripts/bump-cache.sh (seed all 3 profiles)
+#   4. cache       — scripts/bump-cache.sh (seed all 3 Claude Code profiles)
+#   4.5. copilot    — scripts/sync-copilot.sh (separate app/marketplace; soft-skips
+#                     if this machine has no Copilot install or this plugin isn't
+#                     registered there)
 #   5. records     — repoint version + installPath in all 3 install records
 #   6. sanity      — recorded version's cache dir exists; installPath owns its profile
-#   7. push        — unless NO_PUSH=1
+#   7. push        — unless NO_PUSH=1 (protected by the pre-push-guard hook if
+#                     installed — see ./scripts/install-hooks.sh)
 #   8. prints the two steps a bash script CANNOT do: codescout tracker refresh + cold restart
 set -euo pipefail
 
@@ -78,6 +82,10 @@ git commit -m "chore: bump $PLUGIN to $VERSION" \
 
 # 4. seed the versioned cache in all profiles ----------------------------------
 ./scripts/bump-cache.sh "$PLUGIN" "$VERSION"
+
+# 4.5. sync to GitHub Copilot's separate marketplace/cache (soft-skips if this
+#      machine has no Copilot install, or this plugin isn't registered there) --
+./scripts/sync-copilot.sh "$PLUGIN" "$VERSION"
 
 # 5. repoint version + installPath in all 3 install records --------------------
 for P in "${PROFILES[@]}"; do

@@ -14,11 +14,15 @@
 
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=lib-copy-plugin.sh
+source "$SCRIPT_DIR/lib-copy-plugin.sh"
+
 PLUGIN="${1:?plugin name required (buddy | codescout-companion | sdd | claude-statusline | session-bridge)}"
 VERSION="${2:?version required (e.g. 0.7.3)}"
 MARKETPLACE="sdd-misc-plugins"
 
-REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 SRC="$REPO_ROOT/$PLUGIN"
 
 if [ ! -d "$SRC" ]; then
@@ -40,20 +44,7 @@ for PROFILE in ~/.claude ~/.claude-sdd ~/.claude-kat; do
   else
     echo "+ $PROFILE: $PLUGIN $VERSION installing"
   fi
-  mkdir -p "$DEST"
-  rsync -a --delete \
-    --exclude='__pycache__' --exclude='.pytest_cache' \
-    --exclude='*.pyc' --exclude='.mypy_cache' \
-    --exclude='target/debug' --exclude='target/deps' \
-    --exclude='target/.fingerprint' --exclude='target/.rustc_info.json' \
-    --exclude='target/build' --exclude='target/incremental' \
-    --exclude='target/.cargo-lock' --exclude='target/CACHEDIR.TAG' \
-    --exclude='target/doc' --exclude='target/package' \
-    --exclude='target/release/build' --exclude='target/release/deps' \
-    --exclude='target/release/examples' --exclude='target/release/incremental' \
-    --exclude='target/release/.fingerprint' --exclude='target/release/*.d' \
-    --exclude='target/release/*.rlib' --exclude='target/release/*.rmeta' \
-    "$SRC/" "$DEST/"
+  copy_plugin_tree "$SRC" "$DEST"
 done
 
 echo "✓ $PLUGIN $VERSION cached in 3 profiles"
