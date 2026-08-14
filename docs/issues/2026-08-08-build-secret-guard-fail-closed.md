@@ -22,6 +22,7 @@ severity: high
 > standard `artifact(action="find", kind="bug", filter={"status": {"in": ["open",
 > "investigating"]}})` query surfaces it. It is a **build task**, not a defect in this repo.
 
+> **Hold — needs more investigation before build starts (flagged 2026-08-14).** This doc was drafted from a review of `codescout` PR #9 and the review conversation alone; the 5 bypasses, the false-positive list, and the fail-closed redesign below have not been independently re-verified against the PR's current state since. Before implementing: re-confirm the bypasses still reproduce, and get a second look at the allow-list design itself — an allow-list still has to parse destinations correctly, and the same class of URL-userinfo confusion listed under Bypasses could resurface in a new implementation if not deliberately guarded against. Not blocked, just not ready — do not start the build from this doc as-is without revisiting first.
 ## Summary
 
 `mareurs/codescout` PR **#9** (`feat/pi-secret-guard`, fork from `mic-urs`) adds a Pi extension
@@ -294,4 +295,3 @@ so the suite is enforced from its first commit rather than retroactively.
 
 Leave codescout PR #9 open or close it with a pointer here — that routing decision is the
 operator's, tracked as codescout task #42.
-
