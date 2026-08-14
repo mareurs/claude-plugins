@@ -75,7 +75,10 @@ emit({
 Call workspace(action="activate", path="${worktreePath}") NOW as your next action.
 MCP write tools (edit_code, edit_file, edit_markdown, create_file) are BLOCKED
 until workspace is called — they would otherwise silently write to the wrong repo.
-Do NOT run index in worktrees — the shared index is read-only here.`,
+After workspace() succeeds, call index(action="build") in the worktree to build
+its per-worktree delta index — only files that differ from main get embedded,
+so this is incremental, not a full reindex. Skip it and semantic_search returns
+a not-yet-indexed hint instead of results.`,
   },
 });
 
