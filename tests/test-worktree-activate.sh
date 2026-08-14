@@ -83,4 +83,40 @@ else
     "unexpected: $(ls -la "$T/t6wt/.codescout/embeddings" 2>/dev/null)"
 fi
 
+# Test 7: additionalContext instructs index(action="build") in the worktree
+# (worktree delta search made building the per-worktree delta index the one
+# thing that makes semantic_search work there), the guidance reads AFTER
+# workspace() since index needs the workspace switched first, and the
+# retired "Do NOT run index in worktrees" claim (true before that feature,
+# false after) is gone for good.
+make_git_repo "$T/t7main"
+write_mcp_json "$T/t7main"
+make_ce_dir "$T/t7main"
+make_worktree "$T/t7main" "$T/t7wt"
+OUT=$(printf '{"cwd":"%s","tool_name":"EnterWorktree","tool_response":{"worktree_path":"%s"}}' \
+  "$T/t7main" "$T/t7wt" | node "$HOOK" 2>/dev/null)
+CTX=$(echo "$OUT" | jq -r '.hookSpecificOutput.additionalContext // empty' 2>/dev/null)
+
+if assert_context_contains "$OUT" 'index(action="build")'; then
+  pass "additionalContext instructs index(action=\"build\") in the worktree"
+else
+  fail "additionalContext instructs index(action=\"build\") in the worktree" "$CTX"
+fi
+
+if echo "$CTX" | grep -q "Do NOT run index"; then
+  fail "retired 'Do NOT run index in worktrees' claim is still present" "$CTX"
+else
+  pass "retired 'Do NOT run index in worktrees' claim is gone"
+fi
+
+# Ordering must fail on an absent line (grep -n yields nothing → empty guard),
+# not merely compare empty strings.
+WS_LINE=$(echo "$CTX" | grep -n 'workspace(action="activate"' | head -1 | cut -d: -f1)
+IDX_LINE=$(echo "$CTX" | grep -n 'index(action="build")' | head -1 | cut -d: -f1)
+if [ -n "${WS_LINE:-}" ] && [ -n "${IDX_LINE:-}" ] && [ "$IDX_LINE" -gt "$WS_LINE" ]; then
+  pass 'index(action="build") guidance comes after workspace() in reading order'
+else
+  fail "index guidance is not ordered after workspace()" "ws=${WS_LINE:-?} idx=${IDX_LINE:-?}"
+fi
+
 print_summary "worktree-activate"

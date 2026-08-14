@@ -76,9 +76,8 @@ Call workspace(action="activate", path="${worktreePath}") NOW as your next actio
 MCP write tools (edit_code, edit_file, edit_markdown, create_file) are BLOCKED
 until workspace is called — they would otherwise silently write to the wrong repo.
 After workspace() succeeds, call index(action="build") in the worktree to build
-its per-worktree delta index — only files that differ from main get embedded,
-so this is incremental, not a full reindex. Skip it and semantic_search returns
-a not-yet-indexed hint instead of results.`,
+its per-worktree delta index — only files that differ from main get embedded.
+Skip it and semantic_search returns a not-yet-indexed hint instead of results.`,
   },
 });
 
