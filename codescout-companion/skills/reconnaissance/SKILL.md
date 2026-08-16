@@ -300,12 +300,26 @@ graduate via the sync flow — explicitly, not implicitly.
 
 ### Promotion routing — craft-shaped vs project-shaped
 
-`promote-when` has two destinations, not one. Classify the lesson before promoting.
+`promote-when` has **three** destinations. Classify the lesson before promoting.
 
 **Routing test:** *"Would this rule mislead a different project?"*
 
 - **No — it's craft-shaped** (a language / tool / protocol pattern true in any repo):
-  promote to this `SKILL.md` via the Sync flow above. Global; every project loads it.
+  promote to this `SKILL.md` via the Sync flow above. Global; every project loads it
+  — *when this skill is invoked*, which is the limit to weigh against the next option.
+- **No, AND it is measured not to hold unaided** — promote instead to the host tool's
+  **session-opening surface**, if it has one. codescout's
+  `project-activation-bootstrap` guide is hard-injected on the first tool call of every
+  session: uncapped, harness-independent, and requiring no skill invocation, so it is the
+  only channel that reaches an agent who never runs this skill. Two conditions, both
+  required:
+  1. a **base arm** — a measurement that an unaided agent does *not* already do this.
+     Precedent: the verify-before-assert imperative, bare arm 0% against planted-belief
+     traps, shipped arm 100% over 35 runs, shipped 2026-08-16 as codescout `5917e37e`.
+     Without a base arm this is an addition with no shown deficit, which is the
+     accretion this section exists to prevent.
+  2. a **slot budget** — bytes here are paid by every session, so the cap is one or two
+     laws, not the promoted set. A law that fits the skill fits the skill.
 - **Yes — it's project-shaped** (this repo's dialect, build quirks, gotchas): promote to
   the project's codescout memory, not the global skill —
 
@@ -336,6 +350,49 @@ norm this skill owns, not a permission the system checks.
 
 As with the Sync flow, the `R-N`/`F-N` ledger entry stays the source of record; the memory
 rule is its promoted, distilled projection.
+
+### Every promotion audits the promoted set
+
+**Promoting a law is the trigger to re-verify the ones already promoted.** A promoted
+law is text, and text goes stale in four distinct ways with four different remedies.
+Check the existing set against these *before* adding to it — the set is small, the audit
+is cheap, and it is the only thing stopping this section becoming the ledger it was
+extracted from.
+
+1. **False** — the substrate changed and the law now describes behaviour that does not
+   exist. Precedent: codescout's `iron-laws-detail` guide asserted `cat src/foo.rs` was
+   permitted on bounded files when the gate had never permitted it; measured **0/10**
+   unaided survival against that one sentence. *Remedy:* fix the text **and** add a test
+   pinning the claim to the code, or it drifts again.
+
+2. **Outgrown** — still true, too narrow, and the ledger keeps recording recurrences the
+   promoted wording does not cover. Precedent: *"Grep scope: workspace root, not the file
+   being modified"* (promoted 2026-05-23 from R-3) against a chain that then ran
+   R-73b → R-77 → R-79 → R-87, adding wrong-query-shape, negative-result-authorises-
+   deletion, and state-what-the-search-cannot-see — a **fifth** self-labelled recurrence
+   of a law that had been promoted after the first.
+   **A recurrence of an already-promoted law is a defect in the promoted text, not a new
+   entry.** *Remedy:* re-promote the evolved form. Filing the fifth instance and moving
+   on is how a guard stays narrow while the failure keeps happening.
+
+3. **Unreachable** — general enough, and still not reached at the moment of need.
+   *Remedy is placement, not rewording.* Precedent: the substrate law in Phase 1 already
+   names *"a test suite importing an installed wheel instead of the working tree"*, which
+   is the same class as R-89's stale-build miss — and R-89 recurred **×4**, naming a
+   session-log entry as its parent, without anyone connecting it to the promoted law. The
+   text was right and was never fetched. This is the routing question above: if a law
+   keeps recurring in sessions that never invoke this skill, the fix is the
+   session-opening surface, not a better sentence here.
+
+4. **Obsolete** — the failure it guards can no longer happen, because a structural gate
+   now prevents it. *Remedy:* cut it. A law guarding an impossible failure is decoration
+   paying rent in every session that loads this file, and the bias on a promoted set
+   should be subtraction.
+
+**Record the audit, not just the promotion.** Note in the ledger entry which of the four
+each existing law was checked against and the verdict, so the next promotion inherits the
+check rather than repeating it. An audit nobody recorded is one that will be skipped next
+time on the grounds that it was probably done.
 ## Skill maintenance
 
 Trigger-string scoring lives in `<codescout-repo>/docs/evals/reconnaissance-trigger.md`. Re-score before any future description change. **Behavioral eval** (do triggered scouts produce useful F-N entries?) lives at `<codescout-repo>/docs/evals/reconnaissance-output.md` — 14 cases drawn from the R-N ledger's hits and misses, with the six MISS cases (R-2, R-4, R-8, R-10, R-19, R-23) as a hard regression gate. **Bootstrap: cases pinned, baseline not yet run (n=0).** Re-score before any change that targets scout *behavior* (not just the trigger string); until the first empirical row lands in that eval's Iteration log, every claim about behavioral efficacy remains unverified.
