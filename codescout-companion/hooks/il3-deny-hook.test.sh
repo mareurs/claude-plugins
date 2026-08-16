@@ -148,6 +148,39 @@ assert "filtering-grep-still-denies" "$(mkinput 'git log --oneline | grep fix')"
 # 33. -C context grep (capital, not a count) — filter → still DENY
 assert "context-grep-still-denies" "$(mkinput 'cargo test | grep -C 2 warning')" "deny"
 
+# --- 2026-08-16: git is flag-conditional, mirroring git_output_is_bounded in
+#     codescout's src/util/path_security.rs. GF-1/GF-2 in
+#     docs/trackers/2026-08-16-iron-law-gate-firing-audit.md — 47 of 94 measured
+#     git refusals carried an explicit limiter. ---
+
+# 34. explicit commit count → bounded → ALLOW
+assert "bounded-git-count-shorthand" "$(mkinput 'git log --oneline -3 | head -20')" "allow"
+
+# 35. -n <N> count → bounded → ALLOW
+assert "bounded-git-dash-n" "$(mkinput 'git log -n 5 | tail -20')" "allow"
+
+# 36. porcelain status → bounded by the working tree → ALLOW
+assert "bounded-git-status-short" "$(mkinput 'git status --short | head -30')" "allow"
+
+# 37. --show-current → one value by construction → ALLOW
+assert "bounded-git-show-current" "$(mkinput 'git branch --show-current | head -1')" "allow"
+
+# 38. show --stat → a diffstat for one commit, not a diff body → ALLOW
+assert "bounded-git-show-stat" "$(mkinput 'git show --stat abc1234 | head -20')" "allow"
+
+# 39. bare git log → no limiter → unbounded → DENY
+assert "unbounded-git-log-bare" "$(mkinput 'git log | head -40')" "deny"
+
+# 40. --oneline is NOT a limiter: it bounds line WIDTH, not line COUNT, so
+#     `git log --oneline` still emits one line per commit for every commit.
+#     The most tempting false entry on the bounding list → DENY
+assert "unbounded-git-oneline-no-count" "$(mkinput 'git log --oneline | head -40')" "deny"
+
+# 41. the limiter must come from the LHS — the trimmer's own `head -20` must
+#     not bound the producer. This contamination inflated the defect's first
+#     measurement from 24% to 30%.
+assert "git-limiter-not-read-from-trimmer" "$(mkinput 'git diff | head -20')" "deny"
+
 echo
 echo "Passed: $PASS   Failed: $FAIL"
 [[ $FAIL -eq 0 ]]

@@ -81,8 +81,21 @@ HEAD=$(echo "$PRE_PIPE" | awk '{print $1}')
 is_unbounded=0
 
 case "$HEAD" in
-  cargo|npm|pnpm|yarn|python|python3|pytest|go|mvn|gradle|git|rg|fd)
+  cargo|npm|pnpm|yarn|python|python3|pytest|go|mvn|gradle|rg|fd)
     is_unbounded=1
+    ;;
+  git)
+    # git is unbounded ONLY without an output limiter. Mirrors
+    # `git_output_is_bounded` in codescout's src/util/path_security.rs --
+    # keep the two in sync, per the Resume note in
+    # docs/issues/archive/2026-05-18-il3-overtriggers-bounded-lhs.md.
+    #
+    # `--oneline` is deliberately absent: it bounds line WIDTH, not line
+    # COUNT, so `git log --oneline` still emits one line per commit for
+    # every commit.
+    if ! echo "$PRE_PIPE" | grep -qE '(^|[[:space:]])(-n|--max-count(=[0-9]+)?|--show-current|--porcelain|--short|-s|--stat|--name-only|--name-status|-[0-9]+)([[:space:]]|$)'; then
+      is_unbounded=1
+    fi
     ;;
   grep)
     # Recursive grep is unbounded; non-recursive is bounded by file args.
@@ -110,7 +123,9 @@ The @cmd_* buffer system saves context tokens:
                                               (also: tail -20 @cmd_xxx, head -50 @cmd_xxx)
 
 Bounded LHS (ls, cat, stat, du, diff, awk, sed, non-recursive grep, find -maxdepth) is allowed —
-only unbounded LHS (cargo, npm, pytest, git, rg, fd, grep -r, bare find, ...) is blocked.
+only unbounded LHS (cargo, npm, pytest, rg, fd, grep -r, bare find, ...) is blocked.
+\`git\` is unbounded ONLY without an output limiter: \`git log -3\`, \`git status --short\`,
+\`git show --stat\` are bounded and may be piped; \`--oneline\` is not a limiter.
 
 Rerun the command bare and query the returned @cmd_* buffer."
 
