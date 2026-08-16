@@ -17,15 +17,15 @@ Release readiness across plugins × profiles. See
 
 ## State
 
-_Last refresh: `f1488c2`_
+_Last refresh: `6e4f21f`_
 
-**codescout-companion** — canonical `1.16.3` · readme `1.16.3` · marketplace clean ✅
+**codescout-companion** — canonical `1.16.4` · readme `1.16.4` · marketplace clean ✅
 
 | profile | installed | cache dir | install_path ok |
 |---|---|---|---|
-| `~/.claude` | 1.16.3 ✅ | ✅ | ✅ |
-| `~/.claude-sdd` | 1.16.3 ✅ | ✅ | ✅ |
-| `~/.claude-kat` | 1.16.3 ✅ | ✅ | ✅ |
+| `~/.claude` | 1.16.4 ✅ | ✅ | ✅ |
+| `~/.claude-sdd` | 1.16.4 ✅ | ✅ | ✅ |
+| `~/.claude-kat` | 1.16.4 ✅ | ✅ | ✅ |
 
 **buddy** — canonical `0.9.1` · readme `0.9.1` · marketplace clean ✅
 
@@ -43,6 +43,36 @@ _Last refresh: `f1488c2`_
 | `~/.claude-sdd` | 1.1.7 ✅ | ✅ | ✅ |
 | `~/.claude-kat` | 1.1.7 ✅ | ✅ | ✅ |
 ## History
+
+### 2026-08-14 — codescout-companion 1.16.3 → 1.16.4
+
+Two reconnaissance-rule-promotion PRs merged same day, both doc-only content to
+`skills/reconnaissance/SKILL.md`, no hook/code change: PR #7 (`b9625ac`, 3 bullets —
+substrate-vs-verdict for environment-resolved tools, rendered-read-vs-bytes for
+exact-match edits, scoping infra renders to avoid printing k8s Secrets) and PR #8
+(`b844c41`, 2 bullets — a proposed fix/prohibition as an unverified state claim, a
+green result only certifying the path that executed), stacked and merged via direct
+git merges (not GitHub's merge button, so both auto-flipped to `MERGED` once their
+tip commits landed in `main`'s history) rather than fast-forwards, since `main` had
+moved on other unrelated work in between — both merges were conflict-free
+(`git merge-tree` confirmed clean before each push).
+
+Also separately merged same session: a salvage of the still-useful pieces from a
+stale, conflicting PR (#6) whose Windows/Copilot hook fix had been independently
+superseded by the 2026-07-13 cross-platform-porting effort — `scripts/bump-cache.sh`
+rsync→`cp`+`find` fallback, new `scripts/sync-copilot.sh` (wired into `release.sh`
+step 4.5), and `scripts/pre-push-guard.sh`/`install-hooks.sh` (opt-in force-push
+guard). Repo-level tooling, not a plugin — no version bump for that push.
+
+Ran `release.sh codescout-companion patch` (→1.16.4): `run-all.sh` green, and this
+is the first real run of the new `sync-copilot.sh` step — it correctly soft-skipped
+(no `~/.copilot/config.json` on this machine). Verified independently rather than
+trusting the script's printout: all three install records → `1.16.4` with
+same-profile `installPath`s, the `1.16.4` cache dir present in each, and the deployed
+`reconnaissance/SKILL.md` byte-identical (md5) to the repo copy in all three caches.
+`check-versions.sh` clean. Pushed to origin/main (`6e4f21f`).
+
+Cold restart / `/reload-plugins` per instance still required to bind the 1.16.4 record.
 
 ### 2026-07-28 — codescout-companion 1.16.2 → 1.16.3
 
