@@ -1,14 +1,14 @@
 ---
-id: <librarian-assigned>
+id: cedbb7f0919a7444
 kind: tracker
 status: active
-tags: [passover]
-topic: <thread-name>           # PRIMARY human disambiguator across parallel threads
-branch: <git-branch>           # often the sharpest parallel disambiguator
-origin_session_id: <cc-session-id-or-omit>   # cat .codescout/cc_session_id (or .buddy/.current_session_id)
-time_scope: "dated:<YYYY-MM-DD>"
-title: "Passover — <thread-name> — <YYYY-MM-DD>"
-owners: []
+title: Passover — <thread-name> — <YYYY-MM-DD>
+tags:
+- passover
+topic: <thread-name>
+time_scope: dated:<YYYY-MM-DD>
+branch: <git-branch>
+origin_session_id: <cc-session-id-or-omit>
 ---
 
 # Passover — <thread-name> — <YYYY-MM-DD>
