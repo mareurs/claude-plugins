@@ -17,15 +17,15 @@ Release readiness across plugins × profiles. See
 
 ## State
 
-_Last refresh: `6e4f21f`_
+_Last refresh: `5da03d8`_
 
-**codescout-companion** — canonical `1.16.4` · readme `1.16.4` · marketplace clean ✅
+**codescout-companion** — canonical `1.16.5` · readme `1.16.5` · marketplace clean ✅
 
 | profile | installed | cache dir | install_path ok |
 |---|---|---|---|
-| `~/.claude` | 1.16.4 ✅ | ✅ | ✅ |
-| `~/.claude-sdd` | 1.16.4 ✅ | ✅ | ✅ |
-| `~/.claude-kat` | 1.16.4 ✅ | ✅ | ✅ |
+| `~/.claude` | 1.16.5 ✅ | ✅ | ✅ |
+| `~/.claude-sdd` | 1.16.5 ✅ | ✅ | ✅ |
+| `~/.claude-kat` | 1.16.5 ✅ | ✅ | ✅ |
 
 **buddy** — canonical `0.9.1` · readme `0.9.1` · marketplace clean ✅
 
@@ -296,3 +296,22 @@ Added `git-worktree-guard.sh` (codescout-companion) and multi-worktree warning s
 ### 2026-05-18 — buddy 0.7.4 → 0.7.5
 
 Fixed CLAUDE_DIR detection in summon.md + create.md (ancestor walk instead of fixed 2-dirname). Bumped, cache seeded, install records updated across 3 profiles.
+
+
+### 2026-08-16 — codescout-companion 1.16.4 → 1.16.5
+
+Two unreleased commits had accumulated after the 1.16.4 bump: `2b224b6`/`d65f96d`
+(worktree-activate hook fix, merged as `18dd2aa`) and `c889e83` (reconnaissance
+SKILL.md promotion — third destination + promoted-set audit rule). Both touch
+real plugin content (a hook and a skill file), so they weren't "released" until
+this bump shipped them.
+
+Ran `release.sh codescout-companion patch` (→1.16.5): `run-all.sh` green, pushed
+to origin/main (`5da03d8`). Verified independently rather than trusting the
+script's printout: `plugin.json`/README/`check-versions.sh` all agree on 1.16.5,
+all three install records point at same-profile `installPath`s with the
+`1.16.5` cache dir present, and `skills/reconnaissance/SKILL.md` is md5-identical
+across the repo and all three caches.
+
+Cold restart / `/reload-plugins` per instance still required to bind the 1.16.5
+record.
