@@ -19,13 +19,13 @@ Release readiness across plugins × profiles. See
 
 _Last refresh: `49b64c3`_
 
-**codescout-companion** — canonical `1.16.8` · readme `1.16.8` · marketplace clean ✅
+**codescout-companion** — canonical `1.16.9` · readme `1.16.9` · marketplace clean ✅
 
 | profile | installed | cache dir | install_path ok |
 |---|---|---|---|
-| `~/.claude` | 1.16.8 ✅ | ✅ | ✅ |
-| `~/.claude-sdd` | 1.16.8 ✅ | ✅ | ✅ |
-| `~/.claude-kat` | 1.16.8 ✅ | ✅ | ✅ |
+| `~/.claude` | 1.16.9 ✅ | ✅ | ✅ |
+| `~/.claude-sdd` | 1.16.9 ✅ | ✅ | ✅ |
+| `~/.claude-kat` | 1.16.9 ✅ | ✅ | ✅ |
 
 **buddy** — canonical `0.9.1` · readme `0.9.1` · marketplace clean ✅
 
@@ -43,6 +43,39 @@ _Last refresh: `49b64c3`_
 | `~/.claude-sdd` | 1.1.7 ✅ | ✅ | ✅ |
 | `~/.claude-kat` | 1.1.7 ✅ | ✅ | ✅ |
 ## History
+
+### 2026-08-17 — codescout-companion 1.16.8 → 1.16.9
+
+Deleted `hooks/il3-warn-hook.mjs` and its `mcp__.*__run_command` registration
+(`a989d73`). The hook decided "unbounded LHS" from one flat regex including
+`ls`, `cat`, `diff`, `du`, `stat` and an unconditional `git` — all of which
+codescout's server-side gate treats as bounded and allows — so it fired on legal
+pipes while its own message named `ls` and `cat` as pass-through. Measured 3
+warnings / 3 legal pipes / 0 true positives on codescout `experiments@671e114b`,
+reproduced again on `ls docs/issues/ | head -30` (server: exit_code 0).
+
+Deleted rather than corrected: the hook is `contextPreToolUse`, so it can never
+block — redundant when the server refuses (its message already carries the
+`@cmd_*` recovery path), wrong when the server allows. Correcting the regex would
+have rebuilt the duplicated predicate that caused this and U-22. One rule, one
+implementation: `path_security.rs` owns it.
+
+`tests/test-il3-warn-hook.sh` deleted with it — the suite asserted
+`ls -la | head`, `cat file.log | tail -20`, `diff a b | head` and
+`git status --short | grep M` *should* warn, all bounded under the server's rule,
+so it encoded the false positives as intended behaviour and could never have
+caught this. `il3-deny-hook.sh` + its 33-case suite untouched and still unwired,
+as since the 2026-07 warn-only downgrade; the `mcp__.*__run_command` matcher now
+has no companion hook at all.
+
+`run-all.sh` green before and after. Cache seeded and install records repointed
+across all three profiles, each `installPath` inside its own profile; verified at
+the bytes in all three caches that the warn hook is absent, the deny hook present,
+and `hooks.json` carries zero `run_command` matchers. NO_PUSH — committed locally
+on `main` (`a989d73`, `c6fdd64`), not pushed. Cold restart / `/reload-plugins`
+still required per instance to bind the 1.16.9 cache.
+
+Fixes codescout `docs/issues/2026-08-17-il3-warn-hook-flags-bounded-lhs-pipes.md`.
 
 ### 2026-08-14 — codescout-companion 1.16.3 → 1.16.4
 
