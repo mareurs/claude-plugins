@@ -12,10 +12,18 @@ echo "── passover-template ──"
 # 1. template file exists
 if [ -f "$TPL" ]; then ok "template exists"; else bad "template exists" "missing $TPL"; fi
 
-# 2. required frontmatter keys present (tags is a LIST; passover is literal)
-for key in "kind: tracker" "tags: [passover]" "topic:" "origin_session_id:" "branch:" "time_scope:"; do
+# 2. required frontmatter keys present
+for key in "kind: tracker" "topic:" "origin_session_id:" "branch:" "time_scope:"; do
   if grep -qF "$key" "$TPL"; then ok "frontmatter has '$key'"; else bad "frontmatter '$key'" "not found"; fi
 done
+
+# 2b. tags is a LIST containing 'passover' — librarian serializes YAML lists in
+# block style ("tags:\n- passover"), not flow style ("tags: [passover]")
+if grep -qF "tags:" "$TPL" && grep -qF -- "- passover" "$TPL"; then
+  ok "frontmatter has 'tags: [passover]'"
+else
+  bad "frontmatter 'tags: [passover]'" "not found"
+fi
 
 # 3. required body headings present
 for h in "## State" "## Next actions" "## Working state" "## Anti-goals" "## Pointers"; do
