@@ -131,8 +131,27 @@ sequence — each mutation is its own Phase-4 gate:
 4. **Compact.** Replace the body with an outcomes digest: the Index / Wins Index
    tables (statuses updated), one paragraph per promoted/rehomed entry naming its
    destination, and unfired Promote-when criteria. Full prose history stays in git.
-5. **Archive through the catalog:** `artifact(update, patch={status:"archived"})`
-   then `artifact(move, new_rel_path="docs/trackers/archive/<name>.md")`.
+5. **Archive through the catalog, in three steps — not two.** Per
+   `archive-cadence-policy` § 3 (amended, ratified 2026-08-17):
+   a. `artifact(update, patch={status:"archived"})` — or a `supersedes` **edge**
+      instead, when a successor replaced it (see the note above);
+   b. `artifact(move, new_rel_path="docs/trackers/archive/<name>-<YYYY-MM-DD>.md")`
+      — **timestamped**, the date being the day the stream was declared wrapped in
+      step 3. The timestamp is not decoration: `artifact(move)` fails if the
+      destination exists, so a stream that wraps, gets archived, is restarted at the
+      live path and wraps again could not be archived at all. It is also the only
+      surviving record of *when* it wrapped once the file leaves the live dir.
+      (A ledger's **entry-level** archive companion is the opposite case — stable
+      name, no timestamp, and check it exists before creating one, or the namespace
+      forks into ambiguous tokens.)
+   c. **Repoint citations of the old path AND the old 16-hex id, in the same commit**,
+      then verify with a scoped `audit_doc_refs` (0 high findings as the gate).
+      `link_scan(write=true)` does not do this — markdown citations are not catalog
+      edges. HY-5 § 1 measured the cost of skipping it: 24 moves broke 8 path
+      references across 7 live surfaces, none caught by `link_scan`, one failing CI on
+      a release tip. Leave `docs/trackers/archive/**` and superseded session-log
+      rounds alone — those are historical snapshots, and `archive_drop` exists so a
+      retired document citing a moved path does not gate.
 
 Evidence base: TMR-6 in codescout's `docs/trackers/tracker-management-redesign.md`
 (2026-07-17 survey: session logs were the dominant zombie-active class in all three
