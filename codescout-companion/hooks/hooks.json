@@ -86,16 +86,6 @@
         ]
       },
       {
-        "matcher": "mcp__.*__run_command",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "node",
-            "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/il3-warn-hook.mjs"]
-          }
-        ]
-      },
-      {
         "matcher": "mcp__.*__read_file",
         "hooks": [
           {
