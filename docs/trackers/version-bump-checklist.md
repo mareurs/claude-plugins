@@ -17,15 +17,15 @@ Release readiness across plugins × profiles. See
 
 ## State
 
-_Last refresh: `5da03d8`_
+_Last refresh: `49b64c3`_
 
-**codescout-companion** — canonical `1.16.5` · readme `1.16.5` · marketplace clean ✅
+**codescout-companion** — canonical `1.16.8` · readme `1.16.8` · marketplace clean ✅
 
 | profile | installed | cache dir | install_path ok |
 |---|---|---|---|
-| `~/.claude` | 1.16.5 ✅ | ✅ | ✅ |
-| `~/.claude-sdd` | 1.16.5 ✅ | ✅ | ✅ |
-| `~/.claude-kat` | 1.16.5 ✅ | ✅ | ✅ |
+| `~/.claude` | 1.16.8 ✅ | ✅ | ✅ |
+| `~/.claude-sdd` | 1.16.8 ✅ | ✅ | ✅ |
+| `~/.claude-kat` | 1.16.8 ✅ | ✅ | ✅ |
 
 **buddy** — canonical `0.9.1` · readme `0.9.1` · marketplace clean ✅
 
@@ -314,4 +314,33 @@ all three install records point at same-profile `installPath`s with the
 across the repo and all three caches.
 
 Cold restart / `/reload-plugins` per instance still required to bind the 1.16.5
+record.
+
+
+### 2026-08-17 — codescout-companion 1.16.5 → 1.16.8
+
+Catching up three unreleased bumps/changes accumulated since the 1.16.5 release:
+`a94f7bc` (reconnaissance skill: re-promote law C, correct the audit's own
+precedent), `1ad10be` (repair stale frontmatter ids against the librarian
+catalog), `5f6b336`/`9877b9d` (il3 git-hook fix, bumped to 1.16.7 in a prior
+session), and this session's `9d9ecc2` (tracker-hygiene SKILL.md: archive step
+5 split into three explicit sub-steps — timestamped archive path, citation
+repointing gate, per the amended `archive-cadence-policy` ratified 2026-08-17).
+
+First `release.sh codescout-companion patch` attempt (1.16.7→1.16.8) **failed
+pre-flight**: `test-passover-template.sh` asserted the frontmatter literal
+`tags: [passover]` (flow-style YAML), but the librarian serializes tag lists in
+block style (`tags:\n- passover`) — confirmed against both real passover
+trackers in `docs/trackers/`, which use the same block form. The test never
+matched reality; not a regression from this session's edits. Fixed the test
+(`eb5ba0f`) to check for the block-list form instead of rewriting the (correct)
+template to match a stale assertion. Full suite green after the fix, re-ran
+`release.sh` clean: pushed to origin/main (`49b64c3`).
+
+Verified independently: `plugin.json`/README/`check-versions.sh` agree on
+1.16.8, all three install records point at same-profile `installPath`s with the
+`1.16.8` cache dir present, and `skills/tracker-hygiene/SKILL.md` is
+md5-identical across the repo and all three caches.
+
+Cold restart / `/reload-plugins` per instance still required to bind the 1.16.8
 record.
