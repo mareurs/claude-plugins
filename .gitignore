@@ -8,10 +8,16 @@ test-detect.sh
 # .codescout/ holds machine-local cache/logs (usage.db, debug logs, embeddings,
 # session state) AND durable project knowledge (memories/, system-prompt.md).
 # Ignore the former by default; track the latter so it syncs across machines.
-.codescout/*
-!.codescout/memories/
-!.codescout/system-prompt.md
-.codescout/private-memories/
+# Root-anchored (leading /) on purpose: a nested .codescout/ (e.g. one left
+# behind under a subdirectory from a one-off scoped run) stays fully ignored
+# by the general `.codescout/` rule below — only the repo-root instance gets
+# the memories/system-prompt exception.
+.codescout/
+!/.codescout/
+/.codescout/*
+!/.codescout/memories/
+!/.codescout/system-prompt.md
+/.codescout/private-memories/
 .buddy/
 __pycache__/
 *.pyc
