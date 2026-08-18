@@ -26,8 +26,65 @@ fi
 # and print the injected additionalContext.
 ctx() {
   printf '{"cwd":"%s","source":"%s","session_id":"sst-%s"}' "$TMP" "$1" "$1" \
-    | node "$HOOK" 2>/dev/null | jq -r '.hookSpecificOutput.additionalContext // ""'
+    | XDG_STATE_HOME="${XDG_STATE_HOME-}" node "$HOOK" 2>/dev/null \
+    | jq -r '.hookSpecificOutput.additionalContext // ""'
 }
+
+# --- rendezvous: the hook stamps slots whose ppid is on our ancestry ---
+RV="$TMP/state/codescout/servers"; mkdir -p "$RV"
+MYPPID=$(ps -o ppid= -p $$ | tr -d ' ')
+printf '{"pid":999001,"ppid":%s,"started_at":"2026-01-01T00:00:00Z","cwd":"/","session":null,"hook_at":null}' "$MYPPID" > "$RV/999001.json"
+printf '{"pid":999002,"ppid":1,"started_at":"2026-01-01T00:00:00Z","cwd":"/","session":null,"hook_at":null}' > "$RV/999002.json"
+
+XDG_STATE_HOME="$TMP/state" ctx startup >/dev/null
+
+jq -e '.session == "sst-startup" and .hook_at != null' "$RV/999001.json" >/dev/null \
+  && pass "rendezvous: entry on our ancestry is stamped" \
+  || fail "rendezvous: entry on our ancestry was NOT stamped"
+
+jq -e '.session == null and .hook_at == null' "$RV/999002.json" >/dev/null \
+  && pass "rendezvous: unrelated entry is left alone" \
+  || fail "rendezvous: unrelated entry was stamped — selection is too broad"
+
+# The Rust Entry struct has no #[serde(default)] on ANY field — a partial
+# write-back (e.g. just {session, hook_at}) parses fine here but fails silently
+# on the server's next poll(). Assert every original field survived the stamp.
+jq -e --arg ppid "$MYPPID" \
+  '.pid == 999001 and (.ppid|tostring) == $ppid and .started_at == "2026-01-01T00:00:00Z" and .cwd == "/"' \
+  "$RV/999001.json" >/dev/null \
+  && pass "rendezvous: stamp round-trips every original field (pid/ppid/started_at/cwd)" \
+  || fail "rendezvous: stamp dropped a field — server's poll() would silently fail to parse"
+
+# --- rendezvous: a comm field containing spaces/parens must not shift ppid parsing ---
+# Regression for the /proc/<pid>/stat hazard: field 2 (comm) can itself contain
+# spaces and parens (the `claude` and `node` wrappers routinely produce this),
+# which shifts every later whitespace-split field and silently yields the wrong
+# ppid. The other rendezvous assertions above never exercise this: nothing in
+# this test's own process tree (bash/node) has a weird comm. Fabricate one: a
+# python3 process renames itself via prctl(PR_SET_NAME) to a name containing
+# both a space and unbalanced-looking parens, then spawns node (running the
+# hook) as its child — so the hook's grandparent-hop must correctly climb PAST
+# a weird-comm process to reach us ($$, this test script).
+if [ "$(uname)" = "Linux" ] && command -v python3 >/dev/null 2>&1; then
+  WEIRD_ENTRY="$RV/999003.json"
+  printf '{"pid":999003,"ppid":%s,"started_at":"2026-01-01T00:00:00Z","cwd":"/","session":null,"hook_at":null}' "$$" > "$WEIRD_ENTRY"
+
+  XDG_STATE_HOME="$TMP/state" python3 - "$HOOK" "$TMP" <<'PYEOF' >/dev/null 2>&1
+import ctypes, subprocess, sys
+libc = ctypes.CDLL('libc.so.6')
+libc.prctl(15, b'weird (na) x\0', 0, 0, 0)  # PR_SET_NAME
+hook, tmp = sys.argv[1], sys.argv[2]
+payload = ('{"cwd":"%s","source":"startup","session_id":"sst-weirdcomm"}' % tmp).encode()
+subprocess.run(['node', hook], input=payload,
+                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+PYEOF
+
+  jq -e '.session == "sst-weirdcomm" and .hook_at != null' "$WEIRD_ENTRY" >/dev/null \
+    && pass "rendezvous: ppid parsing survives a comm field with spaces/parens" \
+    || fail "rendezvous: comm-with-spaces broke ppid parsing (whitespace-split regression)"
+else
+  pass "rendezvous: comm-with-spaces test N/A (not Linux or no python3)"
+fi
 
 STARTUP=$(ctx startup)
 COMPACT=$(ctx compact)

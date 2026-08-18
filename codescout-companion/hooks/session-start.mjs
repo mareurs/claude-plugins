@@ -11,7 +11,7 @@ import {
 } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { homedir } from 'node:os';
-import { spawn } from 'node:child_process';
+import { spawn, execFileSync } from 'node:child_process';
 import { readInput, detectFor, git, emit } from './lib.mjs';
 
 const input = readInput();
@@ -47,6 +47,40 @@ if (cwd && git(cwd, ['rev-parse', '--is-inside-work-tree']) !== null) {
 const home = process.env.HOME || process.env.USERPROFILE || homedir();
 const csActiveDir = join(process.env.CLAUDE_CONFIG_DIR || join(home, '.claude'), 'codescout-active');
 
+// Stamp codescout rendezvous slots belonging to our own process ancestry.
+// The server publishes <pid>.json at construction (it cannot learn the session
+// id at startup: MCP initialize runs before SessionStart), and this writes the
+// id into it. Matching on ppid-within-our-ancestry is what keeps two concurrent
+// windows on one repo from stamping each other's servers.
+if (sessionId) {
+  try {
+    const stateHome = process.env.XDG_STATE_HOME || join(home, '.local', 'state');
+    const rvDir = join(stateHome, 'codescout', 'servers');
+    if (existsSync(rvDir)) {
+      const ancestry = ownAncestry();
+      const stampedAt = new Date().toISOString();
+      for (const name of readdirSync(rvDir)) {
+        if (!name.endsWith('.json')) continue;
+        const f = join(rvDir, name);
+        try {
+          const e = JSON.parse(readFileSync(f, 'utf8'));
+          if (!ancestry.has(e.ppid)) continue;
+          // Already current: rewriting would bump mtime and cost the server a
+          // parse on its next call for no change.
+          if (e.session === sessionId && e.hook_at) continue;
+          e.session = sessionId;
+          e.hook_at = stampedAt;
+          writeFileSync(f, JSON.stringify(e));
+        } catch {
+          /* skip unreadable, unparseable, or concurrently-removed slots */
+        }
+      }
+    }
+  } catch {
+    /* best-effort — never let the rendezvous break the hook */
+  }
+}
+
 // Seed the codescout-active marker only when resumed inside a worktree.
 if (inWorktree && sessionId) {
   const wtRoot = git(cwd, ['rev-parse', '--show-toplevel']);
@@ -74,6 +108,42 @@ if (existsSync(csActiveDir)) {
     }
   } catch {
     /* best-effort */
+  }
+}
+
+// Our own pid chain, capped at 10 hops: a corrupt or cyclic chain must not spin
+// inside a SessionStart hook, which blocks the session from starting.
+function ownAncestry() {
+  const seen = new Set();
+  let pid = process.pid;
+  for (let hop = 0; hop < 10; hop++) {
+    if (pid <= 1 || seen.has(pid)) break;
+    seen.add(pid);
+    const parent = parentOf(pid);
+    if (parent === null) break;
+    pid = parent;
+  }
+  return seen;
+}
+
+function parentOf(pid) {
+  try {
+    if (process.platform === 'linux') {
+      // Field 4 of /proc/<pid>/stat. The comm field (2) may contain spaces and
+      // parens, so split after the LAST ')' rather than on whitespace.
+      const stat = readFileSync(`/proc/${pid}/stat`, 'utf8');
+      const rest = stat.slice(stat.lastIndexOf(')') + 2).split(' ');
+      const ppid = Number.parseInt(rest[1], 10);
+      return Number.isNaN(ppid) ? null : ppid;
+    }
+    const out = execFileSync('ps', ['-o', 'ppid=', '-p', String(pid)], {
+      encoding: 'utf8',
+      timeout: 2000,
+    });
+    const ppid = Number.parseInt(out.trim(), 10);
+    return Number.isNaN(ppid) ? null : ppid;
+  } catch {
+    return null;
   }
 }
 
