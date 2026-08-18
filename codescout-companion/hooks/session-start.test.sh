@@ -55,6 +55,17 @@ jq -e --arg ppid "$MYPPID" \
   && pass "rendezvous: stamp round-trips every original field (pid/ppid/started_at/cwd)" \
   || fail "rendezvous: stamp dropped a field — server's poll() would silently fail to parse"
 
+# Atomic write: the stamp stages to a sibling "<name>.json.tmp" then renames
+# over the target. A leftover .tmp file means the write path fell back to (or
+# was mixed with) a bare non-atomic write instead of completing the rename —
+# content-correctness checks above are blind to that regression since the
+# target ends up right either way.
+if find "$RV" -maxdepth 1 -name '*.tmp' 2>/dev/null | grep -q .; then
+  fail "rendezvous: stray .tmp file left in $RV — atomic write did not clean up"
+else
+  pass "rendezvous: no leftover .tmp file after the stamp (rename completed)"
+fi
+
 # The Rust side declares hook_at: Option<chrono::DateTime<Utc>> — an RFC3339
 # string, not a JSON number. `Date.now()` in place of `.toISOString()` would
 # stay valid JSON and pass every other assertion here while the server's

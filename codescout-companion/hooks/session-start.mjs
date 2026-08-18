@@ -7,7 +7,7 @@
 // Also seeds/sweeps the codescout-active marker and writes cc_session_id.
 import {
   existsSync, statSync, lstatSync, readFileSync, readdirSync,
-  mkdirSync, writeFileSync, unlinkSync, symlinkSync,
+  mkdirSync, writeFileSync, unlinkSync, symlinkSync, renameSync,
 } from 'node:fs';
 import { join, dirname, isAbsolute } from 'node:path';
 import { homedir } from 'node:os';
@@ -74,7 +74,15 @@ if (sessionId) {
           if (e.session === sessionId && e.hook_at) continue;
           e.session = sessionId;
           e.hook_at = stampedAt;
-          writeFileSync(f, JSON.stringify(e));
+          // Atomic write: stage to a sibling tmp file in the SAME directory,
+          // then rename over the target — rename is only atomic within one
+          // filesystem. A bare writeFileSync here let a poll on the server
+          // side land mid-write and see truncated JSON (see poll() in
+          // src/tools/rendezvous.rs, which now tolerates that too, but the
+          // torn write itself is fixed here, at the source).
+          const tmp = `${f}.tmp`;
+          writeFileSync(tmp, JSON.stringify(e));
+          renameSync(tmp, f);
         } catch {
           /* skip unreadable, unparseable, or concurrently-removed slots */
         }
