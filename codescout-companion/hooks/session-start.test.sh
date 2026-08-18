@@ -26,7 +26,7 @@ fi
 # and print the injected additionalContext.
 ctx() {
   printf '{"cwd":"%s","source":"%s","session_id":"sst-%s"}' "$TMP" "$1" "$1" \
-    | XDG_STATE_HOME="${XDG_STATE_HOME-}" node "$HOOK" 2>/dev/null \
+    | XDG_STATE_HOME="${XDG_STATE_HOME:-$TMP/state}" node "$HOOK" 2>/dev/null \
     | jq -r '.hookSpecificOutput.additionalContext // ""'
 }
 
@@ -54,6 +54,26 @@ jq -e --arg ppid "$MYPPID" \
   "$RV/999001.json" >/dev/null \
   && pass "rendezvous: stamp round-trips every original field (pid/ppid/started_at/cwd)" \
   || fail "rendezvous: stamp dropped a field — server's poll() would silently fail to parse"
+
+# The Rust side declares hook_at: Option<chrono::DateTime<Utc>> — an RFC3339
+# string, not a JSON number. `Date.now()` in place of `.toISOString()` would
+# stay valid JSON and pass every other assertion here while the server's
+# poll() silently fails to parse it forever. Pin the wire shape.
+jq -e '.hook_at | test("^[0-9]{4}-.*(Z|[+-][0-9]{2}:[0-9]{2})$")' "$RV/999001.json" >/dev/null \
+  && pass "rendezvous: hook_at is an RFC3339 string, not a numeric timestamp" \
+  || fail "rendezvous: hook_at is not RFC3339 — server's poll() would fail to parse Option<DateTime<Utc>>"
+
+# --- rendezvous: a missing/empty session_id must not stamp (rekey("") hazard) ---
+# The server's rekey("") would repoint the ledger to "<dir>/.json" (empty
+# basename). The outer `if (sessionId)` guard exists to prevent that; assert a
+# matching slot is left completely untouched when session_id is absent.
+NOSID_ENTRY="$RV/999004.json"
+printf '{"pid":999004,"ppid":%s,"started_at":"2026-01-01T00:00:00Z","cwd":"/","session":null,"hook_at":null}' "$MYPPID" > "$NOSID_ENTRY"
+printf '{"cwd":"%s","source":"startup"}' "$TMP" \
+  | XDG_STATE_HOME="$TMP/state" node "$HOOK" >/dev/null 2>&1
+jq -e '.session == null and .hook_at == null' "$NOSID_ENTRY" >/dev/null \
+  && pass "rendezvous: missing session_id leaves a matching slot untouched" \
+  || fail "rendezvous: missing session_id stamped a slot — rekey(\"\") hazard"
 
 # --- rendezvous: a comm field containing spaces/parens must not shift ppid parsing ---
 # Regression for the /proc/<pid>/stat hazard: field 2 (comm) can itself contain

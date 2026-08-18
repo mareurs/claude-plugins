@@ -9,7 +9,7 @@ import {
   existsSync, statSync, lstatSync, readFileSync, readdirSync,
   mkdirSync, writeFileSync, unlinkSync, symlinkSync,
 } from 'node:fs';
-import { join, dirname } from 'node:path';
+import { join, dirname, isAbsolute } from 'node:path';
 import { homedir } from 'node:os';
 import { spawn, execFileSync } from 'node:child_process';
 import { readInput, detectFor, git, emit } from './lib.mjs';
@@ -54,7 +54,11 @@ const csActiveDir = join(process.env.CLAUDE_CONFIG_DIR || join(home, '.claude'),
 // windows on one repo from stamping each other's servers.
 if (sessionId) {
   try {
-    const stateHome = process.env.XDG_STATE_HOME || join(home, '.local', 'state');
+    // XDG basedir spec: a relative value must be treated as unset — mirrors
+    // src/util/fs.rs's state_dir_from(), so both sides agree on which directory
+    // they mean rather than silently looking in different places.
+    const xdgStateHome = process.env.XDG_STATE_HOME;
+    const stateHome = xdgStateHome && isAbsolute(xdgStateHome) ? xdgStateHome : join(home, '.local', 'state');
     const rvDir = join(stateHome, 'codescout', 'servers');
     if (existsSync(rvDir)) {
       const ancestry = ownAncestry();
