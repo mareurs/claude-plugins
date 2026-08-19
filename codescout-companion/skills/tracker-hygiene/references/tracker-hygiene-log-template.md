@@ -57,6 +57,7 @@ neutral (streak unchanged).
 | D5 canonical-conflict | individual | 0 | — |
 | D9 augmentation-stale | individual | 0 | — |
 | D10 session-log-decay | individual | 0 | — |
+| D11 promotion-pointer drift | individual | 0 | — |
 
 ## HY-N verdict vocabulary
 

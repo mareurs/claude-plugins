@@ -88,10 +88,11 @@ observed Y"*.
 | **D5** | canonical-conflict | Two live trackers claim one topic (tag/topic overlap + index cluster), or a child restates its canonical's status | judgment call — merge, link, or bless the fork | low |
 | **D9** | augmentation-stale | `artifact_refresh(list_stale)` returns the artifact | refresh **only if mechanical**, else defer to owner (see the D9 rule below) — never fabricate | medium |
 | **D10** | session-log-decay | File matches `*session-log*.md` in the live dir, frontmatter `status: active` or `draft`, AND no git touch in ≥21 days | propose **distill-then-archive** (procedure below) — never a bare archive; every sub-step is its own gate | low, by design |
+| **D11** | promotion-pointer drift | An **active** entry claims a promoted status and the claim does not hold at the target: no `Promoted-to:` named, a named destination whose heading is absent, or a destination whose current text no longer carries the promoted claim | one of three verdicts — **repoint** / **absorbed** / **retire** — never a blanket relink, and never a `Status:` downgrade | high for "heading absent" (syntactic); **low by design** for the other two |
 
 D6 (entry-level verify-open), D7 (citation format), D8 (`docs/issues/`
 discipline) are **v2** — do not improvise them mid-sweep; a drift you notice
-outside D1–D5/D9/D10 is a `miss` HY-N entry, which is how v2 earns its way in.
+outside D1–D5/D9/D10/D11 is a `miss` HY-N entry, which is how v2 earns its way in.
 
 **D9 defer-vs-refresh — default to defer.** Before synthesizing a D9 refresh, read
 the augmentation's own prompt. Auto-refresh **only** when that prompt describes a
@@ -156,6 +157,56 @@ sequence — each mutation is its own Phase-4 gate:
 Evidence base: TMR-6 in codescout's `docs/trackers/tracker-management-redesign.md`
 (2026-07-17 survey: session logs were the dominant zombie-active class in all three
 surveyed repos; 6/13 codescout session logs untouched 4–5 weeks yet `active`).
+
+**D11 promotion-pointer drift — check the target, never the entry.** A promotion claim is
+the one tracker field whose truth lives entirely outside the tracker, so
+`Status: promoted-to-permanent-docs` reads identical whether the text landed or not. Unlike
+D10 this runs **every sweep**: D10 fires at ≥21 days idle, which is archive time, and a
+lesson that failed to land is needed long before then.
+
+**Scope to ACTIVE entries.** A stale pointer inside `docs/trackers/archive/**` is the
+historical record, not drift — the same rule `audit_doc_refs`' `archive_drop` and
+`get_guide("tracker-conventions")` already apply. Rewriting one falsifies the record to
+satisfy a linter meant to ignore it.
+
+**Three verdicts, because "fix the link" gets two of them wrong.**
+
+- **repoint** — the rule survived a refactor at a new location. Rewrite the pointer.
+- **absorbed** — the rule was generalized into a broader one. The pointer becomes a pointer
+  to the general rule *plus* a note that this entry was one of its inputs. This is the
+  verdict distillation actually produces, and the one a naive link-fixer silently converts
+  into `repoint`, losing the fact that a specific lesson became a general rule.
+- **retire** — the rule was dropped because it no longer applies. The promotion is void, and
+  recording *that* is the fix: a fact about the lesson's lifetime, not an error to erase.
+
+**Never resolve a D11 by editing the `Status:` down.** The finding is that a lesson is not
+where it was said to be; the fix is to put it there. Downgrading makes the sweep green and
+leaves the lesson absent.
+
+**Three rules for reading the target, each earned from a measured miss:**
+
+1. **Name every instance of the target, not the target's type.** An audit that wrote *"the
+   user's global CLAUDE.md"* — singular — promoted into one file of three, on a machine
+   running three Claude Code profiles. Enumerate the instances and compare them; files that
+   should be identical have a checksum.
+2. **For an installed artifact the target is the SERVING copy, not the repo source.**
+   Measured 2026-08-20: three rules promoted into a plugin skill were byte-identical across
+   all three profile caches *and* stale against source, because the commit never bumped the
+   version the cache is keyed on. Comparing the copies to each other reads green there; only
+   comparing each copy to the claim catches it. The session that made the edit is the least
+   representative observer, being the only one reading the write-side copy.
+3. **Prefer a back-citation to a verbatim quote.** A quote goes red when the promoted rule is
+   legitimately reworded — a false positive produced by the promotion working as intended.
+   The durable anchor is the promoted text citing its own entry id — *"(R-1 + R-7 in
+   codescout's `docs/trackers/reconnaissance-patterns.md`.)"* — which survives every rewrite,
+   so verification is a `grep` for the id.
+
+Evidence base: **HY-11** in codescout's `docs/trackers/tracker-hygiene-log.md` — the spec,
+the three verdicts, and why the graph route is unavailable (edges are artifact-grain,
+promotions are entry-grain). Prerequisite shipped alongside: a `**Promoted-to:**` field in
+the wins block of `docs/templates/session-log.md`, because a detector cannot check a pointer
+that was never written. Also `docs/issues/2026-08-19-no-check-detects-a-fired-unharvested-promote-when.md`
+(re-opened at n=2) and `prompt-surface-compaction-session-log:F-9`.
 
 ### Phase 4 — Triage (interactive, one finding at a time)
 
