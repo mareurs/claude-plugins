@@ -17,15 +17,15 @@ Release readiness across plugins × profiles. See
 
 ## State
 
-_Last refresh: `49b64c3`_
+_Last refresh: `23ca288`_
 
-**codescout-companion** — canonical `1.16.9` · readme `1.16.9` · marketplace clean ✅
+**codescout-companion** — canonical `1.16.11` · readme `1.16.11` · marketplace clean ✅
 
 | profile | installed | cache dir | install_path ok |
 |---|---|---|---|
-| `~/.claude` | 1.16.9 ✅ | ✅ | ✅ |
-| `~/.claude-sdd` | 1.16.9 ✅ | ✅ | ✅ |
-| `~/.claude-kat` | 1.16.9 ✅ | ✅ | ✅ |
+| `~/.claude` | 1.16.11 ✅ | ✅ | ✅ |
+| `~/.claude-sdd` | 1.16.11 ✅ | ✅ | ✅ |
+| `~/.claude-kat` | 1.16.11 ✅ | ✅ | ✅ |
 
 **buddy** — canonical `0.9.1` · readme `0.9.1` · marketplace clean ✅
 
@@ -377,3 +377,29 @@ md5-identical across the repo and all three caches.
 
 Cold restart / `/reload-plugins` per instance still required to bind the 1.16.8
 record.
+
+
+### 2026-08-20 — codescout-companion 1.16.9 → 1.16.11
+
+Catching up two rounds of plugin-content work: `95e8c85`/`48a8684` (session-start
+hook now stamps the codescout rendezvous slot with the session id, then a
+follow-up made that stamp atomic — tmp-file + rename — to close a torn-write
+race with the server's mtime-based poll) and `23a11c3` (three Phase 1 scout
+rules promoted into `reconnaissance/SKILL.md` from codescout's
+promote-when-harvest sweep).
+
+One of those commits (`b8ffa8b`) hand-bumped `plugin.json` to 1.16.10 directly
+instead of going through `release.sh` — the README version table and all
+cache/install-record sync were skipped, and two more plugin-content commits
+landed on top before this session caught it (`check-versions.sh` failing on a
+plugin.json/README mismatch). Ran `release.sh codescout-companion patch`
+(→1.16.11), which corrected the stale README row as a side effect of its own
+bump. Full suite green, pushed to origin/main (`23ca288`).
+
+Verified independently: `plugin.json`/README/`check-versions.sh` agree on
+1.16.11, all three install records + cache dirs correct, and both
+`session-start.mjs` and `reconnaissance/SKILL.md` are md5-identical across the
+repo and all three caches.
+
+Cold restart / `/reload-plugins` per instance still required to bind the
+1.16.11 record.
