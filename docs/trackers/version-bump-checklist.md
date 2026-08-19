@@ -19,13 +19,13 @@ Release readiness across plugins × profiles. See
 
 _Last refresh: `1.16.13` release commit_
 
-**codescout-companion** — canonical `1.16.13` · readme `1.16.13` · marketplace clean ✅
+**codescout-companion** — canonical `1.16.14` · readme `1.16.14` · marketplace clean ✅
 
 | profile | installed | cache dir | install_path ok |
 |---|---|---|---|
-| `~/.claude` | 1.16.13 ✅ | ✅ | ✅ |
-| `~/.claude-sdd` | 1.16.13 ✅ | ✅ | ✅ |
-| `~/.claude-kat` | 1.16.13 ✅ | ✅ | ✅ |
+| `~/.claude` | 1.16.14 ✅ | ✅ | ✅ |
+| `~/.claude-sdd` | 1.16.14 ✅ | ✅ | ✅ |
+| `~/.claude-kat` | 1.16.14 ✅ | ✅ | ✅ |
 
 **buddy** — canonical `0.9.1` · readme `0.9.1` · marketplace clean ✅
 
@@ -43,6 +43,33 @@ _Last refresh: `1.16.13` release commit_
 | `~/.claude-sdd` | 1.1.7 ✅ | ✅ | ✅ |
 | `~/.claude-kat` | 1.1.7 ✅ | ✅ | ✅ |
 ## History
+
+### 2026-08-20 — codescout-companion 1.16.13 → 1.16.14
+
+Two Phase 1 bullets promoted from codescout's R-N ledger, both criteria fired and neither
+ever harvested. Surfaced by the verify-open sweep that closed that ledger's 56%
+`Status:`-line gap (codescout `tracker-hygiene-log:HY-15`).
+
+**R-95 — re-cost a deferral before believing it is expensive.** Its `Promote-when` asked for
+*"one more cluster where a deferral rationale is falsified on contact"* — a cluster, not a
+datapoint count, which is why `hit ×5` alone never fired it. The second cluster is
+codescout's own promote-when bug, closed `wontfix` on four rationales, all falsified within
+24 hours: a *"schema change"* that was one markdown field, a *"retroactive back-fill"* that
+was 13 entries and found three defects rather than costing anything, a *"101 entries … which
+is noise"* whose precise population was 13, and *"the generalisation was the agent's"*
+refuted by a user-raised proposal filed two days earlier under the same detector name. Nine
+rationales across two clusters, every one inflating in the direction that justified stopping.
+
+**R-51 — an instrument that writes into the corpus it measures.** Marked `promote-ready`
+since 2026-08-04 with two datapoints, and unharvested for sixteen days because nothing
+queried that state. The bullet carries both forms the entry asked for: where output *happens*
+to land, and whether the system's own emissions re-enter its input — the second invisible to
+a directory exclusion.
+
+Both bullets back-cite their entry ids, per the anchor rule shipped in `1.16.13`.
+`run-all.sh` green. Verified at the bytes in all three caches: 37817 bytes, identical to
+source, both back-citations present. NO_PUSH — local on `main`. Cold restart /
+`/reload-plugins` required per instance to bind the `1.16.14` cache.
 
 ### 2026-08-20 — codescout-companion 1.16.12 → 1.16.13
 
