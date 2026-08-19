@@ -17,15 +17,15 @@ Release readiness across plugins × profiles. See
 
 ## State
 
-_Last refresh: `23ca288`_
+_Last refresh: `a526f3f`_
 
-**codescout-companion** — canonical `1.16.11` · readme `1.16.11` · marketplace clean ✅
+**codescout-companion** — canonical `1.16.12` · readme `1.16.12` · marketplace clean ✅
 
 | profile | installed | cache dir | install_path ok |
 |---|---|---|---|
-| `~/.claude` | 1.16.11 ✅ | ✅ | ✅ |
-| `~/.claude-sdd` | 1.16.11 ✅ | ✅ | ✅ |
-| `~/.claude-kat` | 1.16.11 ✅ | ✅ | ✅ |
+| `~/.claude` | 1.16.12 ✅ | ✅ | ✅ |
+| `~/.claude-sdd` | 1.16.12 ✅ | ✅ | ✅ |
+| `~/.claude-kat` | 1.16.12 ✅ | ✅ | ✅ |
 
 **buddy** — canonical `0.9.1` · readme `0.9.1` · marketplace clean ✅
 
@@ -43,6 +43,33 @@ _Last refresh: `23ca288`_
 | `~/.claude-sdd` | 1.1.7 ✅ | ✅ | ✅ |
 | `~/.claude-kat` | 1.1.7 ✅ | ✅ | ✅ |
 ## History
+
+### 2026-08-20 — codescout-companion 1.16.10 → 1.16.11 → 1.16.12
+
+Two bumps in one day, and the second exists because the first was omitted.
+
+`23a11c3` added three Phase 1 scout rules to `skills/reconnaissance/SKILL.md`,
+harvested from fired `Promote-when` criteria in codescout's ledgers — and did not
+bump `plugin.json`. The cache is keyed on that version, so all three profiles kept
+serving the pre-edit copy: committed, reviewed, in force nowhere, with no error and
+nothing in `git status` to suggest it. `23ca288` + `dbc8982` shipped it as `1.16.11`.
+
+That omission then recurred one of the very rules it was shipping. R-89's promoted
+wording was *"build freshness and process freshness are two separate facts"*; this
+was a **third** axis — distribution — since the artifact was committed and neither a
+build nor a process was involved. Per the reconnaissance skill's own audit rule (a
+recurrence of an already-promoted law is a defect in the promoted text, not a new
+entry) R-89 was rewritten rather than supplemented: `a5df5bd`, shipped as `1.16.12`
+(`a526f3f`) via `scripts/release.sh`.
+
+`run-all.sh` green. Cache seeded and install records repointed across all three
+profiles, each `installPath` inside its own profile root. Verified at the bytes in
+all three caches: three-axis text present, prior wording absent, 34497 bytes
+identical to source. NO_PUSH — `a5df5bd` and `a526f3f` are local on `main`, not
+pushed. Cold restart / `/reload-plugins` still required per instance to bind the
+`1.16.12` cache.
+
+Closes codescout `docs/trackers/prompt-surface-compaction-session-log.md` F-9.
 
 ### 2026-08-17 — codescout-companion 1.16.8 → 1.16.9
 
