@@ -80,8 +80,8 @@ the skill files. Phase B validates this assumption empirically.
 ## L-7 caveat — PARTIAL control
 
 This skill is **MCP-coupled** (level 7): its native method runs on codescout
-tools (`symbols(include_body=true)`, `references`, `edit_markdown` with
-`insert_before`) and on a **librarian tracker artifact**. The isolated
+tools (`symbols(include_body=true)`, `references`, `artifact(action="append_entry")`)
+and on a **librarian tracker artifact**. The isolated
 `~/.claude-test` profile strips ALL MCP. Consequences:
 
 - The **scout** is exercised with plain `Read`/`Grep` instead of `symbols`/
@@ -89,7 +89,7 @@ tools (`symbols(include_body=true)`, `references`, `edit_markdown` with
   specific codescout tool calls do not.
 - The **tracker** is supplied as a `setup.files` fixture (a pre-seeded
   `auth-refactor-session-log.md`) so the model has a real seam-log to append to
-  with plain file tools. The skill's `cp <template>` bootstrap, `edit_markdown`
+  with plain file tools. The skill's `cp <template>` bootstrap, `append_entry`
   append mechanism, librarian artifact model, and `recon_count.py` statusline
   bump are **NOT** exercised.
 

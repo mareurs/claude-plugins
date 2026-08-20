@@ -66,16 +66,17 @@ When Phase 3 of a recon scout produces evidence about the *skill itself*
 (not just the work stream), capture it here in addition to the
 work-stream session log:
 
+Let the server allocate the id and write the section in the same call — do not hand-allocate by grepping the file, and do not pre-write the Index row (a pre-written row consumes the id it names):
+
 ```python
 # Cite session-log evidence; don't duplicate prose.
-edit_markdown(
-    path="docs/trackers/reconnaissance-patterns.md",
-    action="insert_before",
-    heading="## Template for new entries",
-    content="## R-N — <title>\n**Verdict:** hit | miss | proposal\n..."
-)
-# Add a matching row to the Index table.
+artifact(action="append_entry", id="<tracker artifact id>", id_prefix="R",
+         anchor_heading="## Template for new entries",
+         title="<title>", body="**Verdict:** hit | miss | proposal\n...")
+# Add a matching row to the Index table, using the id the call returned.
 ```
+
+`edit_markdown` is not the append path, though it works at first: this template ships without `entry_prefix`, so a fresh copy is directly editable — but once `entry_prefix` is declared to guard the ledger (`get_guide("tracker-conventions")` § *Make the tracker guarded*), the librarian guard refuses direct edits and only `append_entry` writes. Reach for `edit_markdown` for the prose sections and the Index table, never for allocating an entry.
 
 ## How to sync
 
@@ -124,7 +125,9 @@ shape; can be 1 if the proposal is cheap and clearly correct>.
 ## Template for new entries
 
 <!-- Insert new R-N entries above this line via:
-     edit_markdown(action="insert_before",
-                   heading="## Template for new entries",
-                   content="## R-N — title\n**Verdict:** ...\n...")
-     Also update the Index table row at the top. -->
+     artifact(action="append_entry", id="<tracker artifact id>", id_prefix="R",
+              anchor_heading="## Template for new entries",
+              title="title", body="**Verdict:** ...\n...")
+     Also update the Index table row at the top, using the id the call
+     returned. `edit_markdown` is refused once entry_prefix guards the
+     ledger — it only works on an unguarded fresh copy. -->

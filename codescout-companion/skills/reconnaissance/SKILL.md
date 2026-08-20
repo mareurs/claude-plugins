@@ -92,25 +92,19 @@ cp <codescout-repo>/docs/templates/session-log.md \
 
 Resolve `<codescout-repo>` from `claude mcp list` (the codescout server's source path) or ask the user. Do not hardcode a path — installations differ.
 
-**ID allocation.** Read the tracker's existing IDs and use the next monotonic integer:
+**ID + append — one call.** Do not hand-allocate the ID by grepping the tracker, and do not pre-write the Index row before the section exists — both race a peer session, and a pre-written row consumes the id it names (this is why codescout's own `statement-validity-session-log` starts at `F-2`/`W-3`). Let the server allocate and write the section in the same call:
 
 ```python
-# Pseudocode: grep -oE 'F-[0-9]+' tracker.md | sort -V | tail -1, then +1
-# F-N and W-N have separate counters.
+artifact(action="append_entry", id="<tracker artifact id>", id_prefix="F",
+         anchor_heading="## Template for new entries",
+         title="<one-line title>", body="**Observed:** ...")
 ```
+
+One write: the server allocates the next `F-N` / `W-N` id (separate counters), writes `## F-N — <title>` at the ledger's own level — the only heading shape `link_scan` accepts as a definition — records the high-water mark, and stamps `**Valid:** dated <today>` unless the body declares a class. **Then** add the Index / Wins Index row using the id the call returned.
+
+`edit_markdown` is not the append path, though it works at first: a fresh copy of the template ships without `entry_prefix`, so it's directly editable — but once `entry_prefix` is declared to guard the ledger (which `get_guide("tracker-conventions")` instructs), the librarian guard refuses direct edits and only `append_entry` writes. Reach for `edit_markdown` for prose sections and index-table touch-ups, never for allocating an entry.
 
 Never reuse an ID. Never skip an ID. Entries without IDs cannot be cited in commits and do not compound.
-
-**Append mechanism.** Use `edit_markdown` to insert the new entry above the `## Template for new entries` marker, then update the Index / Wins Index table at the top:
-
-```python
-edit_markdown(
-    path="docs/trackers/<topic>-session-log.md",
-    action="insert_before",
-    heading="## Template for new entries",
-    content="## F-7 — <title>\n\n**Observed:** ...\n...",
-)
-```
 
 **Severity rubric (F-N).**
 
@@ -124,7 +118,7 @@ If unsure, write `med` and explain the cost in one line. Anchored severity beats
 
 **Status vocabulary.** See the template's `## Status vocabulary` section — `open | mitigated | fixed-verified | wontfix-false-alarm | promoted-to-bug-tracker | pinned-as-eval-baseline` for frictions; `validated | promoted-to-permanent-docs | archived` for wins. Pick the one that matches; the template defines each.
 
-**Count the entry.** Right after the `edit_markdown` append lands, bump the session counter so the statusline `[recon]` badge shows your scout output as an `F<n>/W<n>` suffix. Use the helper next to this skill (its directory is the "Base directory for this skill" path printed when the skill loaded):
+**Count the entry.** Right after the `append_entry` call lands, bump the session counter so the statusline `[recon]` badge shows your scout output as an `F<n>/W<n>` suffix. Use the helper next to this skill (its directory is the "Base directory for this skill" path printed when the skill loaded):
 
 ```bash
 python3 "<skill-dir>/recon_count.py" bump F 2>/dev/null || true   # friction
@@ -171,6 +165,10 @@ applies to type shapes too.
 
 **Status:** fixed-verified — plan edit landed before any subagent ran.
 
+**Valid:** dated 2026-05-18 — true of `RecoverableError`'s field/method shape at that commit; re-verify if `src/tools/core/types.rs` changes.
+
+**Rests on:** the Display impl being the documented stable test contract (`to_string().contains(...)`), not a `.hint` field.
+
 **Fix idea / Pointer:** Plan task 2 + 3, this session.
 ```
 
@@ -210,6 +208,10 @@ every type whose accessors the plan asserts on."
 
 **Status:** validated — single datapoint, drift caught + fixed before
 any subagent dispatch. Awaiting promotion criterion.
+
+**Valid:** dated 2026-05-18 — one confirmed datapoint; promote-when threshold (2 datapoints) not yet reached.
+
+**Rests on:** the F-3 finding, same session — this win is F-3's counterfactual, not independent evidence.
 ```
 
 Two things to copy from the exemplars: **specificity** (file paths, line numbers, actual identifier names) and **counterfactual evidence** (what the cost of not-scouting would have been, in concrete units like "11 round-trips"). Vague entries do not compound; specific entries do.

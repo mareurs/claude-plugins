@@ -254,10 +254,31 @@ Nothing is edited before its verdict.
   artifact's `cites` edges; `link_scan` heals them (idempotent, scanner-owned,
   never touches manual/`supersedes` rels). Log `edges_added`/`edges_pruned` in
   the sweep entry. Skip if `link_scan` is unavailable (see Degradation).
-- Append one sweep entry to the ledger (template in the ledger file) via
-  `edit_markdown(action="insert_before", heading="## Template for new entries", ...)`;
-  in the same call set the frontmatter:
-  `frontmatter={set: {"next-sweep-due": "<today + sweep-interval-days>"}}`.
+- Append the sweep entry (`## Sweep YYYY-MM-DD`) and bump `next-sweep-due`
+  in one call. A sweep entry has no monotonic id — it's dated, not `HY-N` —
+  so this goes through a plain body edit, not `append_entry`:
+
+  ```python
+  artifact(action="update", id="<ledger artifact id>",
+           patch={body_edits: [{heading: "## Template for new entries",
+                                 action: "insert_before",
+                                 content: "## Sweep YYYY-MM-DD\n..."}],
+                  extra: {"next-sweep-due": "<today + sweep-interval-days>"}})
+  ```
+
+  For an `HY-N` meta-entry, let the server allocate the id instead — do not
+  hand-grep the highest `HY-N` (this ledger has no index table; the headings
+  ARE the index):
+
+  ```python
+  artifact(action="append_entry", id="<ledger artifact id>", id_prefix="HY",
+           anchor_heading="## Template for new entries",
+           title="<one-line title>", body="**Verdict:** ...")
+  ```
+
+  `edit_markdown` is refused once the ledger declares `entry_prefix` to
+  guard it (the template instructs this on first sweep) — it only works on
+  an unguarded fresh copy.
 - Update the Detector trust state table (zero-reject streaks, demotions).
 - Add HY-N entries for anything meta: a `miss` (drift found outside the
   detectors), a `false-positive-pattern` (recurring reject reason), a

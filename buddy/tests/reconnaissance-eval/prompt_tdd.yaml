@@ -14,12 +14,12 @@
 # "allocated F-3 because F-1/F-2 already exist" vs "echoed an F-number."
 #
 # L-7 CONTROL CAVEAT (read README): this skill is MCP-coupled. Its native method
-# runs on codescout tools (symbols/references/edit_markdown) and a librarian
+# runs on codescout tools (symbols/references/append_entry) and a librarian
 # tracker. The isolated ~/.claude-test profile strips MCP, so the scout is
 # exercised with plain Read/Grep and the tracker is supplied as a setup.files
 # fixture. What survives the strip — and what these scenarios measure — is the
 # scout-before-act DISCIPLINE, the monotonic-ID allocation, and the entry shape.
-# The MCP plumbing (edit_markdown insert_before, librarian artifact, recon_count
+# The MCP plumbing (append_entry, librarian artifact, recon_count
 # statusline bump) is NOT exercised here. The control is therefore PARTIAL.
 #
 # The judge (default claude-haiku-4-5) calls the Anthropic API — run with
