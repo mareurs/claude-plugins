@@ -17,15 +17,15 @@ Release readiness across plugins × profiles. See
 
 ## State
 
-_Last refresh: `40e16f9`_
+_Last refresh: `78d3284`_
 
-**codescout-companion** — canonical `1.16.15` · readme `1.16.15` · marketplace clean ✅
+**codescout-companion** — canonical `1.16.16` · readme `1.16.16` · marketplace clean ✅
 
 | profile | installed | cache dir | install_path ok |
 |---|---|---|---|
-| `~/.claude` | 1.16.15 ✅ | ✅ | ✅ |
-| `~/.claude-sdd` | 1.16.15 ✅ | ✅ | ✅ |
-| `~/.claude-kat` | 1.16.15 ✅ | ✅ | ✅ |
+| `~/.claude` | 1.16.16 ✅ | ✅ | ✅ |
+| `~/.claude-sdd` | 1.16.16 ✅ | ✅ | ✅ |
+| `~/.claude-kat` | 1.16.16 ✅ | ✅ | ✅ |
 
 **buddy** — canonical `0.9.1` · readme `0.9.1` · marketplace clean ✅
 
@@ -43,6 +43,23 @@ _Last refresh: `40e16f9`_
 | `~/.claude-sdd` | 1.1.7 ✅ | ✅ | ✅ |
 | `~/.claude-kat` | 1.1.7 ✅ | ✅ | ✅ |
 ## History
+
+### 2026-08-21 — codescout-companion 1.16.15 → 1.16.16
+
+Fixed `docs/issues/2026-08-21-zero-law-does-not-cover-wrong-answer-instruments.md`:
+reconnaissance Phase 1's promoted search-zero law (`R-3 → R-73b → R-77 → R-79`) is built
+entirely around absence, so an instrument returning a complete, plausible, WRONG answer
+trips none of its three arms. Reported against a session where a lexical `sort -r` on
+`ps lstart` timestamps ordered by weekday name instead of time, reporting two-day-old
+processes as newest — published to a user before it was caught. Widened the bullet's
+opening to name the predicate-authorship failure alongside the zero case, and added the
+actual remedy: a positive control against one known-answer case before trusting the
+instrument on the unknown one. Citation chain extended to `R-104` per the skill's own
+§ *Outgrown* handling. Kept the three existing arms and the never-authorise-a-deletion
+rule unchanged.
+
+`run-all.sh` + buddy `pytest` (483 tests) green. NO_PUSH — local on `main`. Cold restart /
+`/reload-plugins` required per instance to bind the `1.16.16` cache.
 
 ### 2026-08-20 — codescout-companion 1.16.14 → 1.16.15
 
