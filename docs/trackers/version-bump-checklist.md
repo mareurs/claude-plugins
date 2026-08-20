@@ -17,15 +17,15 @@ Release readiness across plugins × profiles. See
 
 ## State
 
-_Last refresh: `1.16.13` release commit_
+_Last refresh: `40e16f9`_
 
-**codescout-companion** — canonical `1.16.14` · readme `1.16.14` · marketplace clean ✅
+**codescout-companion** — canonical `1.16.15` · readme `1.16.15` · marketplace clean ✅
 
 | profile | installed | cache dir | install_path ok |
 |---|---|---|---|
-| `~/.claude` | 1.16.14 ✅ | ✅ | ✅ |
-| `~/.claude-sdd` | 1.16.14 ✅ | ✅ | ✅ |
-| `~/.claude-kat` | 1.16.14 ✅ | ✅ | ✅ |
+| `~/.claude` | 1.16.15 ✅ | ✅ | ✅ |
+| `~/.claude-sdd` | 1.16.15 ✅ | ✅ | ✅ |
+| `~/.claude-kat` | 1.16.15 ✅ | ✅ | ✅ |
 
 **buddy** — canonical `0.9.1` · readme `0.9.1` · marketplace clean ✅
 
@@ -43,6 +43,27 @@ _Last refresh: `1.16.13` release commit_
 | `~/.claude-sdd` | 1.1.7 ✅ | ✅ | ✅ |
 | `~/.claude-kat` | 1.1.7 ✅ | ✅ | ✅ |
 ## History
+
+### 2026-08-20 — codescout-companion 1.16.14 → 1.16.15
+
+Fixed `docs/issues/2026-08-20-reconnaissance-skill-prescribes-hand-allocated-edit-markdown-appends.md`:
+reconnaissance's Phase 3 taught hand-grepping the next F-N/W-N id and appending via
+`edit_markdown`, which races peer sessions and breaks outright once the ledger it drives
+is guarded (`entry_prefix` declared) — codescout's librarian then refuses direct edits and
+only `append_entry` writes. Replaced with the single-call `append_entry` form and added
+`**Valid:**`/`**Rests on:**` to both worked exemplars.
+
+The same root cause recurred in three more surfaces, found tracing this bug's blast
+radius, all fixed in the same pass: reconnaissance's R-N ledger template
+(`references/reconnaissance-patterns-template.md`), tracker-hygiene's Phase 5 plus
+its HY-N/Sweep ledger template, and (doc-only, no test-scoring change) the
+reconnaissance eval suite's description of the skill's native mechanism in
+`buddy/tests/reconnaissance-eval/`. The live R-N and HY-N ledgers in the codescout repo
+had already been hand-patched at the instance level to work around this; the shipped
+skill + templates were never fixed at the source until now.
+
+`run-all.sh` + buddy `pytest` (483 tests) green. NO_PUSH — local on `main`. Cold restart /
+`/reload-plugins` required per instance to bind the `1.16.15` cache.
 
 ### 2026-08-20 — codescout-companion 1.16.13 → 1.16.14
 
