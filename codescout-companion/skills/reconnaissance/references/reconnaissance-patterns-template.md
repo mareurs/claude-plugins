@@ -48,7 +48,7 @@ produced them. Cross-project lessons graduate via the sync flow.
 
 | ID | Date | Verdict | Pattern | Evidence (session-log) |
 |----|------|---------|---------|------------------------|
-| R-1 | YYYY-MM-DD | hit / miss / proposal | <one-line pattern> | `<topic>-session-log.md` F-N + W-N |
+| R-<n> | YYYY-MM-DD | hit / miss / proposal | <one-line pattern> | `<topic>-session-log.md` F-N + W-N |
 
 ## Status vocabulary
 
