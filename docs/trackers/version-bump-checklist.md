@@ -47,7 +47,7 @@ _Last refresh: `78d3284`_
 ### 2026-08-21 — codescout-companion 1.16.15 → 1.16.16
 
 Fixed `docs/issues/2026-08-21-zero-law-does-not-cover-wrong-answer-instruments.md`:
-reconnaissance Phase 1's promoted search-zero law (`R-3 → R-73b → R-77 → R-79`) is built
+reconnaissance Phase 1's promoted search-zero law (`R-3 → R-113 → R-77 → R-79`) is built
 entirely around absence, so an instrument returning a complete, plausible, WRONG answer
 trips none of its three arms. Reported against a session where a lexical `sort -r` on
 `ps lstart` timestamps ordered by weekday name instead of time, reporting two-day-old

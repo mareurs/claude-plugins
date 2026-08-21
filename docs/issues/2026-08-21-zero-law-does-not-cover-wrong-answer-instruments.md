@@ -137,7 +137,7 @@ absence arms — scope/shape/encoding — and the never-authorise-a-deletion rul
 unchanged): the opening now names the wrong-answer case alongside the
 zero case, and the remedy adds a positive control — verify the instrument
 against one known-answer case before trusting it on the unknown one. Citation
-chain extended `R-3 → R-73b → R-77 → R-79 → R-104`, per the skill's own
+chain extended `R-3 → R-113 → R-77 → R-79 → R-104`, per the skill's own
 "Every promotion audits the promoted set" § *Outgrown* handling (re-promote
 the evolved form rather than filing a sibling law).
 `codescout-companion/.claude-plugin/plugin.json` bumped to `1.16.16` and
