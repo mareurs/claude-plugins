@@ -1,5 +1,5 @@
 ---
-id: '77b4b1f3cdef95de'
+id: 2ad2e4c87ccc7cd0
 kind: bug
 status: mitigated
 title: "scripts/check-versions.sh working-tree copy drifted to CRLF, invisible to `git status`/`git diff`"

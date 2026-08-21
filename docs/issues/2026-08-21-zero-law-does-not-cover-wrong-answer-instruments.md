@@ -148,3 +148,21 @@ profile caches verified — see the version-bump-checklist tracker.
 - `codescout:docs/PROBES.md` § *Before you trust any probe on this page*, rule 4
 - `codescout:scripts/stale-servers.sh` — the instance-3 trap, documented at the sort key
 - `codescout-companion/skills/reconnaissance/SKILL.md` Phase 1 — the bullet to widen
+
+
+## Fix provenance
+
+- **SHA:** `577e8e1` (on `main`, pushed to `origin`) — positional; does not survive a rebase.
+- **patch-id:** `300d76f780d15cb6466ad0ea94a1257166f42d4b` — content hash of the diff; survives rebase and cherry-pick.
+
+Note: `df0a0338` elsewhere in this file is the upstream codescout commit that
+lands the R-104 ledger entry this bug was widened from — not the commit
+that closed this bug. `577e8e1` above is the fix.
+
+If the SHA stops resolving, recover the commit by patch-id:
+
+```
+git log --all -p > /tmp/all.patch
+git patch-id --stable < /tmp/all.patch > /tmp/patch-ids.txt
+grep 300d76f780d1 /tmp/patch-ids.txt
+```

@@ -204,3 +204,21 @@ tracker for the specific version.
 - `buddy/tests/reconnaissance-eval/README.md`, `prompt_tdd.yaml` — eval-doc prose updated for accuracy
 - codescout `docs/trackers/reconnaissance-patterns.md` (artifact `5696563f06b2c222`) — live R-N ledger, already hand-patched at instance level
 - codescout `docs/trackers/tracker-hygiene-log.md` (artifact `7e498b6dcb45b924`) — live HY-N ledger, already hand-patched at instance level
+
+
+## Fix provenance
+
+- **SHA:** `460e7b9` (on `main`, pushed to `origin`) — positional; does not survive a rebase.
+- **patch-id:** `1fddd1b3ea859628f41d8036eebccd78a62d7267` — content hash of the diff; survives rebase and cherry-pick.
+
+Note: `0b622f3a` and `df0a0338` elsewhere in this file are upstream codescout
+commits cited as context (the counterpart fix and a related ledger fix) —
+neither is the commit that closed this bug. `460e7b9` above is the fix.
+
+If the SHA stops resolving, recover the commit by patch-id:
+
+```
+git log --all -p > /tmp/all.patch
+git patch-id --stable < /tmp/all.patch > /tmp/patch-ids.txt
+grep 1fddd1b3ea85 /tmp/patch-ids.txt
+```

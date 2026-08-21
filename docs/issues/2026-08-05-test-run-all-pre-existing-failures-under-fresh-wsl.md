@@ -1,5 +1,5 @@
 ---
-id: '8736c8a3395a306f'
+id: 2646bba03b528020
 kind: bug
 status: open
 title: "`tests/run-all.sh` has ~16 pre-existing failing suites, unrelated to session-start.mjs bootstrap fix"
