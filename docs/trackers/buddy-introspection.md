@@ -7,7 +7,7 @@
 ## Live state
 
 ```yaml
-specialists_scanned: 10/10
+specialists_scanned: 10/12          # roster grew to 12 AFTER this sweep
   - architecture-snow-lion
   - debugging-yeti
   - testing-snow-leopard
@@ -18,8 +18,10 @@ specialists_scanned: 10/10
   - docs-lotus-frog
   - data-leakage-snow-pheasant   # classic + llm lenses
   - security-ibex
-specialists_pending: []
-last_updated: 2026-05-15
+specialists_pending:                 # never audited, never listed as pending
+  - codescout-pika                   # 316 lines - the roster's real length outlier
+  - prompt-hamsa                     # 158 lines
+last_updated: 2026-08-26
 ```
 
 ## Systemic table — issues recurring across ≥3 specialists
@@ -32,8 +34,14 @@ These are the canonical rows. Per-specialist duplicates are not recorded; severi
 | S-2 | No I/O contract (no input/output shape, no escape hatch) | high | open | step-5 | — | adopt ibex-style Finding Format and/or output schema block | **9** (ibex has Finding Format) |
 | S-3 | No soft scope rule for out-of-domain input | high | open | step-5 | arxiv 2505.18325 | adopt ibex-style "set scope, ask once" pattern | **8** (ibex + pheasant have explicit scope-ask) |
 | S-4 | Closed-set Reactions (~5 pairs) without trigger-rationale | high | open | H3 | arxiv 2403.16512 | add _Applies: <Method/Heuristic ref>_ per Reaction; mark non-exhaustive | **10** |
-| S-5 | No eval set (zero graded examples per specialist) | high | open | H7 | DSPy/Promptfoo/LangSmith 2025 | build shared harness 5×10; LLM-judge with per-Method rubric | **10** |
+| S-5 | No eval set (zero graded examples per specialist) | high | **fixed** — falsified 2026-08-26 | H7 | DSPy/Promptfoo/LangSmith 2025 | **done**: `buddy/tests/<specialist>-eval/` exists for **12/12**, each with 2 prompt-tdd scenarios + a `prompt_tdd.yaml` (hamsa's sits at a nested `prompt-tdd/` path under an older bespoke harness) | **0** (was 10) |
 | S-6 | Declarative third-person framing vs interview-style | med | **wontfix-with-data** | H2 | arxiv 2507.16076 | T-33 dialogic draft + hamsa inspection on both variants: declarative wins on 6/7 dimensions; dialogic adds ~37% token cost without named benefit hypothesis. Forensic artifact at `buddy/skills/debugging-yeti/SKILL-dialogic.md`. See active-plan.md 2026-05-16 disposition entry. | **10** |
+
+**The `Applies to (N/10)` denominator is the audited ten, not the roster.** `codescout-pika`
+and `prompt-hamsa` joined afterwards and have never been assessed against `S-1`..`S-6`, so
+the counts are neither stale nor complete — they are simply scoped to the ten. Re-measuring
+them is real work (reading two specialists against six rubrics), deliberately not done here;
+what is fixed is that the denominator no longer *claims* to cover the roster.
 
 ## Per-specialist issue table — unique gaps only
 
@@ -58,7 +66,7 @@ These are the canonical rows. Per-specialist duplicates are not recorded; severi
 | 17 | docs-lotus-frog | Method step 7 "Schedule documentation review" — schedule mechanism unspecified | low | open | step-6 | — | replace with "update docs in the same commit as the code change; reject PRs that touch a feature without touching its docs" | none |
 | 18 | data-leakage-snow-pheasant (llm) | Method step 4 inline 4-bias paragraph (a/b/c/d) is dense, scannability suffers | low | open | step-6 | — | break into sub-bullets, one per bias | none |
 | 19 | data-leakage-snow-pheasant | Lens-dispatch pattern is a POSITIVE; promote to template for other multi-aspect specialists | low | wontfix | — | — | _no fix needed — see Cross-specialist patterns_ | n/a |
-| 20 | security-ibex | Length 167 lines — highest of all specialists | low | open | H4 | — | accept (security complexity earns the budget); revisit if attention metrics show drift | none |
+| 20 | security-ibex | ~~Length 167 lines — highest of all specialists~~ → **falsified 2026-08-26: 181 lines, and *second*. `codescout-pika` is 316.** | low | **re-opened** | H4 | — | the `accept` rested on "highest" **and** "3× baseline" — both false. Re-judge against the real distribution (118–316, median 123), and audit the actual outlier, which is outside audit scope | none |
 | 21 | security-ibex | Phase-2 taxonomy is OWASP-2017-flavored; ASVS / OWASP-2021 LLM categories not surfaced | med | fixed | — | OWASP LLM Top 10 (2024) | **done `f97f2a4`** (2026-05-15) — sixth sub-section *LLM / AI Application* added; exceeds the ask (LLM01/02/03 **+** 05/06/08) | none |
 | 22 | security-ibex | _superseded by S-4_ — Reactions still closed-set | — | wontfix | — | — | see S-4 | — |
 
@@ -78,6 +86,14 @@ Security-ibex was either designed later or by someone with stronger prompt-engin
 **Pheasant lens-dispatch** is also a portable pattern: when one specialist covers multiple sub-domains, force the user to pick a lens or stop. Single prompt cannot serve both well — admit it.
 
 ## Audit scope and methodology
+
+> **Scope correction 2026-08-26.** "All 10" was true when written and is not true now —
+> the roster is **12**. `codescout-pika` (316 lines) and `prompt-hamsa` (158) were added
+> after this sweep and have never been audited, while `specialists_scanned: 10/10` and an
+> empty `specialists_pending: []` reported the audit as complete. A complete-looking
+> fraction with a stale denominator is the failure mode; both fields are now corrected.
+> Filed as `roster-audit-session-log` `F-2`; issue
+> `docs/issues/2026-08-26-buddy-introspection-scope-stale-10-of-12-specialists.md`.
 
 Hamsa-lens introspection of all 10 buddy specialists under `buddy/skills/`. Each
 SKILL.md (and lens addendums for pheasant) was read as a stranger would read it, then
@@ -176,6 +192,21 @@ when no Reaction matches, derive response from Method + Heuristics."*
 **Predicted impact:** Less surface shoehorning on novel inputs. Token cost ~40/specialist.
 
 #### S-5 — No eval set (systemic across all 10)
+
+> **CLOSED 2026-08-26 — falsified as stated.** Every specialist now has an eval set:
+> `buddy/tests/<specialist>-eval/` exists for **12/12**, each carrying 2 prompt-tdd
+> `scenario.yaml` files and a `prompt_tdd.yaml` config. `prompt-hamsa-eval` is the one
+> irregular layout — an older bespoke harness (`harness.py`, `archetypes.py`, `RESULTS.md`)
+> with the prompt-tdd form nested at `prompt-hamsa-eval/prompt-tdd/` — which is why a
+> top-level config check reports it missing. It is not.
+>
+> **What is closed is "no eval set exists"; what is NOT established is that they pass.**
+> Existence was measured here; outcomes were not. Per-finding coverage is also *not*
+> implied — `security-ibex-eval`'s two scenarios (`idor`, `precision-clean`) do not touch
+> the LLM taxonomy, and `testing-snow-leopard-eval`'s do not touch the new property
+> vocabulary. That distinction is what the `Field semantics` table means by
+> `eval_status: passing`, and it is the trap behind `roster-audit-session-log` `F-9`:
+> a specialist having *an* eval does not make any given finding eval-confirmed.
 
 **Symptom:** Zero graded examples per specialist. Every claim that a persona "works"
 is unverified.
@@ -353,6 +384,36 @@ roughly 3× per specialist baseline.
 (Operating Principles, Severity Rubric, Finding Format, Taxonomy, Self-Traps).
 
 **Fix:** Accept. Revisit if usage telemetry shows attention drift mid-session.
+
+**RE-OPENED 2026-08-26 — every number in the Symptom is false, and the disposition rested
+on them.** Measured across all 12 `buddy/skills/*/SKILL.md`:
+
+| Claim | Measured 2026-08-26 |
+|---|---|
+| `security-ibex` is 167 lines | **181** |
+| "Highest length of any specialist" | **Second.** `codescout-pika` is **316** |
+| "others 47–60 lines" | **118–316**; the minimum is 118, twice the stated maximum |
+| "roughly 3× per specialist baseline" | **1.47×** (181 vs a median of 123 across the other 11) |
+
+Distribution, ascending: 118, 118, 121, 121, 123, 123, 130, 141, 148, 158, **181 (ibex)**,
+**316 (pika)**. Two of those moved today — `data-leakage-snow-pheasant` to 141 (`VG-7`) and
+`testing-snow-leopard` to 148 (`VG-6`) — but neither is load-bearing here: the "47–60" and
+"highest" claims fail against every reading of the roster, before or after.
+
+**Why this matters more than a stale integer.** The `Fix: Accept` reasoning was *security
+complexity earns the extra budget* — an argument that only makes sense for **the** outlier.
+Ibex is not the outlier. The audit accepted a 1.47× specialist as the one whose size needed
+justifying, while a **316-line** specialist — 1.75× ibex, 2.7× the median — sat entirely
+outside audit scope and generated no row at all. `#20` and the `10/12` scope gap are the
+same defect seen from two directions: the audit reasoned about a distribution it had not
+finished measuring.
+
+**Accept may still be the right call for 181 lines.** What is retracted is the *evidence*,
+not necessarily the verdict — and the verdict cannot be re-derived without auditing
+`codescout-pika` first, since "is this length justified?" is a question about rank.
+
+Filed as `roster-audit-session-log` `F-1`; issue `docs/issues/2026-08-26-buddy-introspection-20-outlier-comparison-falsified.md`.
+The stale line count alone is also `VG-8` in `validation-domain-coverage.md`.
 
 #### #21 — security-ibex — OWASP-2017-flavored taxonomy; LLM threats absent
 
