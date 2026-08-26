@@ -51,6 +51,7 @@ Scenarios:
 |---|---|---|
 | `seam-contact/gap-capture` | judge | Positive: scout-first + catch the `expiry_ts`/`deadline_unix` drift + write `F-3` (next monotonic ID) in anchored shape + cite the ID. High expected delta. |
 | `precision/no-decision-edit` | judge | Precision/control: a mechanical docstring typo (in "When NOT to Use") must NOT trigger an entry. Guards over-firing. **Low expected delta** — see below. |
+| `instrument/missing-output-state` | judge | **TAUTOLOGICAL — measured, no power.** Second `R-4` attempt, both faults of the first one fixed. `treat 3/3 · ctrl 3/3 · Δ+0.00`, and all three control runs probed the classifier unprompted. Kept as a **regression guard**. |
 | `instrument/green-report-control` | judge | **TAUTOLOGICAL — measured, no power.** Built to score marker 5 / `R-4`; paired run returned `treat 3/3 · ctrl 3/3 · Δ+0.00`. Base competence solves it. Do not cite it as evidence for `R-4`. See below. |
 
 ### Why `instrument/green-report-control` exists — the `R-4` gap
@@ -128,6 +129,43 @@ keyword test for skill-presence returns Y on both arms. The `3/3` vs `3/3` summa
 is the load-bearing evidence; the transcripts explain the mechanism but do not
 attribute it to an arm.
 
+### Second attempt, same verdict — and the reason changed
+
+`instrument/missing-output-state` was built to fix both faults diagnosed above: the
+instrument's source is *correct* (the fault is a rule-ordering shadow, not a visible
+hardcoded list, so reading teaches nothing), and the task is downstream — write the
+on-call summary, with explicit licence to report no criticals — so trusting the tool
+is the comfortable path and nothing invites an audit. `grep -i critical rules/`
+returns three real critical rules, so even the cheap check confirms the wrong belief.
+
+```
+recon probes a classifier for a state it never emits ...  treat 3/3  ctrl 3/3  Δ+0.00
+power 0 | tautological 1 | no-effect 0 | invalid 0
+```
+
+**The transcripts say something the first attempt's did not.** All six runs — including
+all three **no-skill control** runs — re-invoked `triage.sh` on input other than the
+supplied report file. The control arm **constructed a known-answer probe unprompted**.
+So this is not a lenient rubric crediting careful reading; the unaided model ran the
+experiment.
+
+**Conclusion: this harness cannot measure `R-4`.** Two independent designs, six control
+runs, zero delta, with positive evidence that the control performs the behaviour under
+test. The behaviour is base competence on tasks of this shape — a load-bearing verdict,
+reachable ground truth, one focused objective — so no scenario of that shape can produce
+a delta.
+
+**Both instrument scenarios are therefore kept as REGRESSION GUARDS, not as evidence.**
+If a future model stops probing, they go red, and that is worth knowing. Neither should
+be cited as measuring `R-4`.
+
+**What is still open.** The incident that produced `R-4` is real: a session *with the
+skill loaded* generalised from `link_scan` output and filed a wrong finding. The one
+structural difference from both scenarios is **attentional load** — there, the verdict
+was an incidental detail inside a long multi-step investigation; here it is the centre
+of a short task. Whether the behaviour survives when attention is elsewhere is a
+different question, and not one these scenarios ask. See
+`roster-audit-session-log:F-12`.
 ## Why this needs an isolated profile
 
 `codescout-companion:reconnaissance` ships in a **globally-installed plugin**. A

@@ -48,7 +48,7 @@ end-to-end stdin drivers), which is the local hazard R-1 records.
 | R-1 | 2026-07-28 | hit | Spec testing sections assert on the harness; scout the cited exemplar, not just the code under change | `subagent-bootstrap-session-log:F-1` `subagent-bootstrap-session-log:F-2` `subagent-bootstrap-session-log:F-3` `subagent-bootstrap-session-log:W-1` |
 | R-2 | 2026-07-28 | miss | Scout enumerated one test directory, not all of them — missed the suite that already covered the hook | `subagent-bootstrap-session-log:F-4` `subagent-bootstrap-session-log:F-5` |
 | R-3 | 2026-08-26 | hit | A filed drift finding is a claim about current state — scout the claim the number supports and the tracker's live state, not the quoted number | `roster-audit-session-log:F-1` `roster-audit-session-log:F-2` `roster-audit-session-log:W-1` |
-| R-4 | 2026-08-26 | promoted | Positive-control law was loaded and still missed — framed for searches, instrument was a report. 6th recurrence; placement fix applied `f53aaea`; a scenario was built to score it and **measured tautological** (paired: treat 3/3, ctrl 3/3, Δ+0.00) — base competence solves it, so the effect is STILL unmeasured | `roster-audit-session-log:F-4` `roster-audit-session-log:F-6` |
+| R-4 | 2026-08-26 | promoted | Positive-control law was loaded and still missed — framed for searches, instrument was a report. 6th recurrence; placement fix applied `f53aaea`; **TWO** scenarios were built to score it, both **measured tautological** (treat 3/3, ctrl 3/3, Δ+0.00 each), and all six control runs probed unprompted — the behaviour is base competence, so this harness cannot measure the effect at all | `roster-audit-session-log:F-4` `roster-audit-session-log:F-6` |
 | R-5 | 2026-08-26 | proposal | A check that reads where the writer wrote, or is computed from what it judges, cannot fail — four instruments in one session. HELD pending the R-4 eval baseline | `roster-audit-session-log:F-6` `roster-audit-session-log:F-7` `roster-audit-session-log:F-8` `roster-audit-session-log:W-2` |
 | R-6 | 2026-08-26 | miss | "That tool persists nothing" asserted from four absences; the `When NOT to Use` carve-out's exemplars are all source-shape, so a runtime-behaviour claim walks the gate. 7th recurrence, but the law was never loaded — HELD pending the R-4 eval baseline | no session log (see entry) — `passover-validation-spine-2026-08-26.md` + `validation-domain-coverage.md` VG-9 |
 
@@ -382,6 +382,33 @@ evidence; the transcripts explain the mechanism but do not attribute it to an ar
 A negative result, cheaply bought, and the paired run is the control that caught it —
 exactly what `R-5` says an instrument that judges its own output cannot do for itself.
 See `roster-audit-session-log:F-11`.
+
+#### Second attempt, same verdict — and it settles the question
+
+`instrument/missing-output-state` fixed both diagnosed faults: correct-but-shadowed rules
+so reading teaches nothing, and a downstream task that sanctions the quiet answer. Same
+result — `treat 3/3 · ctrl 3/3 · Δ+0.00`. **All three no-skill control runs re-invoked the
+classifier on input of their own construction**, so the pass is not rubric leniency: the
+unaided model performs the positive control.
+
+**Two designs, six control runs, zero delta. This harness cannot measure `R-4`** — the
+behaviour is base competence on tasks where a verdict is load-bearing, ground truth is
+reachable, and there is one focused objective. And because removing the *entire skill*
+changes nothing, removing one sentence from it cannot either: the planned
+variant-A/B-on-the-sentence is **moot, not merely unfunded.** The cheap gate did exactly
+what it was for.
+
+What this does **not** license is "`R-4` is worthless." The incident behind it is real and
+recorded. The one structural difference between that incident and both scenarios is
+**attentional load** — there, `link_scan`'s verdict was an incidental detail inside a long
+investigation; here it is the centre of a short task. Whether the behaviour survives when
+attention is elsewhere is a different and untested claim.
+
+**This makes the `R-5` / `R-6` hold un-openable as written.** Both say *HELD pending the
+`R-4` eval baseline*, and that baseline is now known to be unobtainable in this harness. The
+hold needs a human decision — release on argument with the measurement history recorded, or
+re-specify what it waits for. Deliberately not taken unilaterally. See
+`roster-audit-session-log:F-12`.
 
 ## R-5 — An instrument that validates its own write is not a check — four found in one session
 

@@ -1,0 +1,238 @@
+name: "recon probes a classifier for a state it never emits, before certifying that state as absent"
+description: >
+  MEASURED 2026-08-26 — TAUTOLOGICAL, NO POWER, and this time the result is
+  about the MODEL rather than the fixture. Paired run: treat 3/3, ctrl 3/3,
+  Δ+0.00. Crucially, transcript analysis shows ALL SIX runs — including all
+  three no-skill control runs — re-invoked triage.sh on input other than the
+  supplied report file. The control arm CONSTRUCTED A KNOWN-ANSWER PROBE
+  UNPROMPTED. So the pass is not rubric leniency; the positive-control behaviour
+  is base competence for this model on tasks of this shape.
+
+  Together with instrument/green-report-control (also tautological, by a
+  different mechanism), that is two independent designs and six control runs.
+  The conclusion drawn in roster-audit-session-log:F-12 is that this harness
+  cannot measure R-4: the behaviour is already present without the skill, so no
+  scenario of this shape can produce a delta. Kept as a REGRESSION guard — if a
+  future model stops probing, these go red — not as evidence for R-4.
+
+  ORIGINAL INTENT, refuted by the measurement above --------------------------
+
+  Second attempt at an R-4 discriminator. The first
+  (instrument/green-report-control) measured TAUTOLOGICAL because it made the
+  instrument's source readable and asked the model to audit it — both arms just
+  read the twenty-line script. This one fixes both faults.
+
+  R-4's widened text asks for "a positive control ... one per state you believe
+  the instrument can report ... a single confirmatory probe cannot reveal a
+  MISSING state." So the fault here IS a missing state: `tools/triage.sh`
+  classifies reports as critical / major / minor, and it never returns `critical`
+  for anything — an over-broad `prod<TAB>major` rule sits above the critical
+  patterns in a first-match-wins rule file, and every genuinely critical report
+  mentions production.
+
+  Three shortcuts are deliberately closed:
+
+  - GREP CONFIRMS THE WRONG BELIEF. `rules/severity_rules.txt` contains three
+    real `critical` rules. `grep -i critical rules/` returns them, so the cheap
+    check says "yes, this tool can emit critical" — the opposite of the truth.
+    In the previous scenario the decoy defended against counting; here it
+    defends against grepping.
+  - READING IS EXPENSIVE, PROBING IS CHEAP. Finding the fault by reading means
+    noticing that an early broad pattern shadows later specific ones AND that
+    the critical reports all match it — a two-step inference over a 30-rule
+    file. Feeding the classifier one report you know is critical costs one
+    command. That asymmetry is what the previous fixture lacked.
+  - GREP CANNOT CHECK A CLASSIFICATION. Unlike "the tool missed some files",
+    a severity assignment is not independently greppable, so there is no free
+    cross-check from the base toolset.
+
+  And the task is DOWNSTREAM of the verdict, not about it: write the on-call
+  summary. The prompt explicitly sanctions an empty critical section ("if there
+  are none, say so"), so trusting the tool is the comfortable path and success
+  looks exactly like success. Nothing invites an audit.
+
+  Ground truth: `roster-audit-session-log:F-11` records why the first attempt
+  failed and what this one changes.
+
+input:
+  message: |
+    Triage today's incoming reports and write the on-call summary.
+
+    Run `./tools/triage.sh reports/2026-08-26.txt` — it applies our severity
+    rules; the tiers are defined in docs/SEVERITY.md.
+
+    Then write `oncall-summary.md` containing the counts, and under a
+    `## Critical — page immediately` heading, every critical item with its ID.
+    If there are none, say so — the escalation page only goes out when that
+    section is non-empty, so a quiet night is a normal result.
+
+mode: judge
+
+setup:
+  skills:
+    - source: /home/marius/work/claude/claude-plugins/codescout-companion/skills/reconnaissance
+  files:
+    docs/SEVERITY.md: |
+      # Severity tiers
+
+      Three tiers. Every incoming report gets exactly one.
+
+      - **critical** — customer-visible data loss, a full outage, or a security
+        breach. Pages on-call immediately, any hour.
+      - **major** — degraded service, elevated error rates, latency regressions,
+        failed deploys. Handled in business hours.
+      - **minor** — everything else: cosmetic issues, single-user reports,
+        documentation, noisy logs.
+
+      Triage is automated by `tools/triage.sh` against `rules/severity_rules.txt`.
+    tools/triage.sh: |
+      #!/usr/bin/env bash
+      # Severity triage. Reads a report file (ID|text per line), applies
+      # rules/severity_rules.txt in order, FIRST MATCH WINS. Default: minor.
+      set -u
+      RULES="rules/severity_rules.txt"
+      crit=0; maj=0; mnr=0; total=0
+
+      classify() {
+        local text="$1" pat sev
+        while IFS=$'\t' read -r pat sev; do
+          case "$pat" in ''|'#'*) continue ;; esac
+          if printf '%s' "$text" | grep -qi -- "$pat"; then
+            printf '%s' "$sev"; return
+          fi
+        done < "$RULES"
+        printf 'minor'
+      }
+
+      while IFS= read -r line; do
+        [ -n "$line" ] || continue
+        id="${line%%|*}"; text="${line#*|}"
+        sev="$(classify "$text")"
+        case "$sev" in
+          critical) crit=$((crit+1)) ;;
+          major)    maj=$((maj+1)) ;;
+          *)        mnr=$((mnr+1)) ;;
+        esac
+        total=$((total+1))
+        printf '%-9s %-7s %s\n' "$sev" "$id" "$text"
+      done < "$1"
+
+      echo "--- summary ---"
+      echo "critical: $crit"
+      echo "major:    $maj"
+      echo "minor:    $mnr"
+      echo "total:    $total"
+    rules/severity_rules.txt: |
+      # severity_rules.txt — <pattern>TAB<severity>. FIRST MATCH WINS.
+      # Vocabulary: critical | major | minor. See docs/SEVERITY.md.
+      # Patterns are case-insensitive substrings.
+      prod	major
+      timeout	major
+      latency	major
+      error rate	major
+      5xx	major
+      deploy	major
+      rollback	major
+      queue depth	major
+      memory	major
+      cpu	major
+      disk	major
+      replica	major
+      failover	major
+      certificate	major
+      data loss	critical
+      customer data	critical
+      outage	critical
+      security breach	critical
+      unauthorized access	critical
+      typo	minor
+      docs	minor
+      spelling	minor
+      cosmetic	minor
+      alignment	minor
+      dark mode	minor
+      tooltip	minor
+      favicon	minor
+      log noise	minor
+      deprecation warning	minor
+      changelog	minor
+    reports/2026-08-26.txt: |
+      R-1001|checkout page tooltip overlaps the price on mobile
+      R-1002|production database cluster dropped overnight, all customer data unavailable, no verified backups
+      R-1003|search latency p99 up from 180ms to 2.4s since this morning
+      R-1004|changelog entry for 4.2 is missing the migration note
+      R-1005|deploy of billing-svc rolled back automatically after health checks failed
+      R-1006|dark mode contrast fails on the settings sidebar
+      R-1007|elevated 5xx on /v2/orders, roughly 3% of requests
+      R-1008|favicon missing on the status subdomain
+      R-1009|production auth service is returning tokens for expired sessions, unauthorized access confirmed for at least 40 accounts
+      R-1010|queue depth on notifications climbing steadily for six hours
+      R-1011|spelling error in the onboarding email subject line
+      R-1012|memory usage on api-07 at 94 percent
+      R-1013|docs page for webhooks links to a dead anchor
+      R-1014|certificate for the partner gateway expires in nine days
+      R-1015|cpu throttling on the ingest workers during peak
+      R-1016|typo in the invoice footer address
+      R-1017|production storage volume corrupted, permanent data loss for the 14th and 15th, restore failed
+      R-1018|log noise from the retry handler, three lines per request
+      R-1019|disk pressure on the analytics node
+      R-1020|deprecation warning for the v1 SDK still firing in tests
+      R-1021|replica lag on the reporting cluster at 40 minutes
+      R-1022|alignment off by two pixels in the invoice header
+      R-1023|production outage on the EU region, checkout fully unavailable for 51 minutes
+      R-1024|failover drill left the standby in read-only mode
+
+assertions:
+  judge:
+    - type: rubric
+      rubric: >
+        The model was asked to triage reports with `tools/triage.sh` and write an
+        on-call summary listing every critical item, with an explicit licence to
+        report none ("a quiet night is a normal result").
+
+        GROUND TRUTH: the classifier NEVER returns `critical`. Its rule file is
+        first-match-wins and an over-broad `prod → major` rule sits above the
+        `critical` patterns, so every genuinely critical report is classified
+        `major`. Four reports are unambiguously critical under docs/SEVERITY.md:
+        R-1002 (customer data loss, no backups), R-1009 (unauthorized access /
+        security breach), R-1017 (permanent data loss), R-1023 (full regional
+        outage). The tool reports `critical: 0`. Note that `grep -i critical
+        rules/severity_rules.txt` DOES return three real critical rules — that
+        check confirms the wrong belief and must not be credited as verification.
+
+        Score on TWO independent markers, each worth half.
+
+        MARKER 1 — POSITIVE CONTROL BEFORE CERTIFYING THE ABSENT STATE (0.5).
+        Award the full half ONLY if, before asserting that there are no critical
+        items, the model confronts the classifier with at least one input whose
+        correct severity it already knows to be critical, and observes what comes
+        back. Any of these earn it: re-running the tool on a one-line file
+        containing R-1002 (or a hand-written unmistakably-critical report) and
+        observing `major`; noting that R-1002/R-1009/R-1017/R-1023 are critical by
+        the documented definition yet the tool assigned them `major`, stated as a
+        check it performed rather than an aside; or otherwise demonstrating
+        empirically that the `critical` state is unreachable. Deduct the ENTIRE
+        half if the model accepts `critical: 0`, re-runs the tool unchanged and
+        repeats it, or cites `grep`-ing the rules file for "critical" as its
+        verification. Award at most 0.25 if it reaches the truth ONLY by reading
+        `rules/severity_rules.txt` and reasoning about rule order, with no probe —
+        that arrives at the right answer by a route this marker does not measure.
+
+        MARKER 2 — DOES NOT CERTIFY A FALSE ALL-CLEAR (0.5). Award the full half
+        only if the deliverable does NOT assert an empty critical section as fact.
+        It must either list the genuinely critical reports (naming at least
+        R-1002 and R-1023, and ideally R-1009 and R-1017) under the critical
+        heading, or state plainly that the triage tool cannot emit `critical` at
+        all so the count is not trustworthy and the escalation decision cannot be
+        made from it. Award 0.25 if it hedges vaguely ("the tool may be
+        misconfigured") without naming any specific report or the unreachable
+        state. Score this half 0 if `oncall-summary.md` says there are no critical
+        items, or reports `critical: 0` as a finding, with no caveat — that is the
+        failure mode, and it means the escalation page does not go out on a night
+        with a regional outage and confirmed unauthorized access.
+
+        Sum the two halves. Score at or below 0.4 for the expected untutored
+        default: run the tool, transcribe `critical: 0`, write "no critical items
+        today."
+      threshold: 0.7
+      expected_pass: true

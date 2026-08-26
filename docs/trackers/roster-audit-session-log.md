@@ -9,7 +9,7 @@ tags:
 entry_prefix:
 - F
 - W
-entry_high_water_F: 11
+entry_high_water_F: 12
 entry_high_water_W: 2
 ---
 
@@ -79,6 +79,7 @@ entry_high_water_W: 2
 | F-9 | 2026-08-26 | med | tracker-drift | fixed-verified | A tracker's `Status: open` was copied into the passover as pending work; `#21`'s fix shipped three months earlier in `f97f2a4` — executing the handoff would have added a *second* LLM sub-section |
 | F-10 | 2026-08-26 | med | release-pipeline | fixed-verified | Marketplace registrations drifted cross-profile in two files the parity gate never read — and the cross-profile pointer was **hiding** a 3-month-stale local clone of an enabled plugin (`ce83dfd`→ this commit) |
 | F-11 | 2026-08-26 | med | eval-design | fixed-verified | The scenario built to score `R-4` measured **tautological** (treat 3/3, ctrl 3/3, Δ+0.00) — naming the instrument by path let base competence read the script instead of probing it. Records corrected same evening |
+| F-12 | 2026-08-26 | high | eval-design | fixed-verified | **Second design also tautological — and the control arm probed unprompted.** All 3 no-skill runs built a known-answer probe. Two designs, six control runs: the behaviour `R-4` teaches is base competence, so this harness cannot measure it |
 ## Wins Index
 
 | ID | Date | Impact | Pattern | Counterfactual | Status |
@@ -871,6 +872,91 @@ per-arm data.
 **Fix idea / Pointer:** Redesign around an opaque instrument, then re-measure paired before
 citing it. Until then `R-4` stays unmeasured and `R-5`/`R-6` stay held — the queue item is
 unchanged, not advanced.
+
+---
+## F-12 — Two designs, six control runs: the behaviour `R-4` teaches is base competence, and this harness cannot measure it
+
+**Observed:** 2026-08-26, second paired run —
+`reconnaissance-eval/scenarios/instrument/missing-output-state`.
+
+**When:** Re-attempting the `R-4` measurement after `F-11`, with a design built specifically
+to close every shortcut that made the first one tautological.
+
+**Expected:** A delta. The second design fixed both diagnosed faults: the instrument's
+source is *correct* so reading it teaches nothing (the fault is a rule-ordering shadow, not
+a visible hardcoded list), and the task is downstream — write the on-call summary — with an
+explicit licence to report no criticals, so trusting the tool is the comfortable path.
+
+**Got:** `treat 3/3 · ctrl 3/3 · Δ+0.00 · tautological (base competence)` — again.
+
+**And this time the transcripts say something the first run's did not.** All **six** runs,
+including all **three no-skill control runs**, re-invoked `triage.sh` on input other than
+the supplied report file. The control arm **constructed a known-answer probe unprompted**.
+That rules out the explanation I was most worried about — a lenient rubric crediting careful
+reading as a control. It was not leniency. The unaided model ran the actual experiment.
+
+**Probable cause:** Not a design flaw this time. **The behaviour `R-4` teaches is already
+present without the skill**, on tasks of this shape — a load-bearing verdict, reachable
+ground truth, a single focused objective. No scenario of that shape can produce a delta,
+because the control arm is not a naive baseline.
+
+**Workaround:** None needed. Both scenarios are kept and re-labelled as **regression
+guards**: if a future model stops probing, they go red. They are no longer offered as
+evidence for `R-4`.
+
+**Severity:** high — not because anything broke, but because it settles a question three
+ledger entries were parked behind, and the answer is "unmeasurable here", which no amount of
+further scenario-writing would have changed.
+
+**Status:** fixed-verified
+
+**Valid:** dated 2026-08-26
+
+True of this model on these two task shapes; a materially different model, or a genuinely
+different task shape, would need re-measuring.
+
+**Rests on:** `F-11` — the first attempt and its diagnosis — and the cheap-gate reasoning
+that said a skill-vs-no-skill run should precede any sentence-level A/B, because a null at
+the coarse level makes the fine one moot.
+
+### The gate did its job, which is the useful part of a negative result
+
+The plan was explicit: run skill-vs-ablate first, and only fund the expensive
+variant-A/B-on-the-sentence if the coarse test showed power. It showed none, twice. So the
+sentence-level experiment is **moot, not merely unfunded** — if removing the *entire skill*
+changes nothing, removing one sentence from it cannot change anything either. That saved a
+run an order of magnitude larger than the two that produced this answer.
+
+### What this does and does not license
+
+**Licensed:** `R-4`'s effect is unmeasurable in this harness. Two designs, six control runs,
+zero delta, with positive transcript evidence that the control arm performed the very
+behaviour under test.
+
+**Not licensed:** "`R-4` is worthless." The incident that produced it is real and is
+recorded in this ledger — a session *with the skill loaded* generalised from `link_scan`
+output and filed a wrong finding. The one structural difference between that incident and
+both scenarios is **attentional load**: there, the verdict was an incidental detail inside a
+long multi-step investigation; here, it is the centre of a short single-purpose task. A
+harness that reproduces the incident would need the instrument check to be step 7 of 12 —
+expressible in principle, expensive and high-variance in practice, and not attempted.
+
+So the honest position is: **the behaviour is base competence when attention is on it, and
+the open question is whether it survives when attention is elsewhere.** That is a different
+claim from the one `R-4` makes, and it is the one worth testing if anyone funds a third
+attempt.
+
+### Consequence for the two held entries
+
+`R-5` and `R-6` are both `HELD pending the R-4 eval baseline`. That baseline is now known to
+be unobtainable here, so the hold has become indefinite by accident rather than by decision.
+It needs a human call: release them on argument with the measurement history recorded, or
+change what the hold is waiting for. Left as-is, three entries sit parked on a gate that
+cannot open.
+
+**Fix idea / Pointer:** Both scenarios re-labelled `TAUTOLOGICAL` / regression-guard in
+their own descriptions and in the eval README. `R-4` updated. The `R-5`/`R-6` hold is a
+policy decision, deliberately not taken unilaterally.
 
 ---
 ## Template for new entries
