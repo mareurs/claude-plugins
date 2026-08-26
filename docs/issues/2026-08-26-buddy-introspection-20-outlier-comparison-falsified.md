@@ -1,16 +1,19 @@
 ---
 id: a4dbafccf02bc14c
 kind: bug
-status: open
+status: fixed
 title: 'buddy-introspection #20''s "3× baseline / highest length" comparison is falsified, so its `Fix: Accept` disposition rests on arithmetic that no longer holds'
 tags:
 - buddy
 - buddy-introspection
 - tracker-drift
 - roster-audit
+closed: 2026-08-26
+fix_patch_id: 893c9e35072b8b1480a0b7be44deeb3237b05724
+fix_sha: d334a50 (main)
 opened: 2026-08-26
 severity: med
-unverified: No regression coverage. Nothing re-derives a length-comparison claim from source, so the same class of staleness will recur silently the next time the roster grows.
+unverified: 'The VERDICT is not re-derived, only its evidence retracted — "is 181 lines justified?" is a question about rank, unanswerable until codescout-pika (316) is audited, and that specialist is outside audit scope. Also still no regression coverage: nothing re-derives a length comparison from source, so the same staleness recurs silently the next time the roster grows.'
 ---
 
 ## Summary
@@ -99,6 +102,33 @@ Re-open `#20` rather than re-stamping its line count:
 3. Widen `VG-8` in `docs/trackers/validation-domain-coverage.md` from "the number moved"
    to "the comparison behind the disposition is falsified", and raise it above low.
 
+### Applied 2026-08-26 — `d334a50` (patch-id `893c9e35072b8b14`)
+
+- **Step 1 — done.** `#20`'s row and detail now carry the measured distribution as a table
+  (181 not 167; second not highest; 118–316 not 47–60; 1.47× not 3×), and the row status
+  reads **re-opened** rather than a silently re-stamped integer.
+- **Step 2 — partially done, and the remainder is genuinely blocked.** The disposition is
+  re-opened and its reasoning retracted in place. It is **not** re-derived: `Accept` may
+  still be correct for 181 lines, but the argument it rested on (*security complexity earns
+  the extra budget*) is an argument about **the** outlier, and settling rank requires
+  auditing `codescout-pika` first. Recorded under `unverified:`.
+- **Step 3 — done.** `VG-8` widened from "the number moved" to "the disposition rests on a
+  falsified comparison", with the measurement-versus-comparison decay asymmetry written out,
+  and closed.
+
+**One thing this issue's own Evidence table now gets wrong, worth naming rather than
+quietly fixing.** It lists `testing-snow-leopard` at 125 and `data-leakage-snow-pheasant`
+at 136. Both moved *later the same day* — to **148** (`VG-6`, the new Properties and
+Invariants section) and **141** (`VG-7`, the lens re-extraction). The audited-ten range is
+therefore **118–148**, not 118–136. The table was accurate when written and is left as
+written, because the drift is the point: this file's central claim is that a comparison
+decays whenever its reference class moves, and its own reference class moved within hours
+of filing. None of the conclusions turn on it — "47–60" and "highest" fail against every
+reading of the roster, before or after.
+
+**Not fixed, and not in scope here:** no check derives either the line counts or the
+comparison from `buddy/skills/`. This class recurs on the next roster change.
+
 ## Tests added
 
 None. See `unverified:`.
@@ -116,4 +146,3 @@ the next reader, and by `active-plan.md`'s `T-35` quarterly sweep.
 - `roster-audit-session-log:W-1` — the pattern that surfaced it
 - `reconnaissance-patterns:R-3` — the promoted cross-cutting lesson
 - `docs/issues/2026-08-26-buddy-introspection-scope-stale-10-of-12-specialists.md` — sibling staleness in the same tracker
-
