@@ -9,7 +9,7 @@ tags:
 - scout
 topic: reconnaissance
 entry_prefix: R
-entry_high_water_R: 4
+entry_high_water_R: 5
 ---
 
 # Reconnaissance patterns
@@ -49,6 +49,7 @@ end-to-end stdin drivers), which is the local hazard R-1 records.
 | R-2 | 2026-07-28 | miss | Scout enumerated one test directory, not all of them — missed the suite that already covered the hook | `subagent-bootstrap-session-log.md` F-4 + F-5 |
 | R-3 | 2026-08-26 | hit | A filed drift finding is a claim about current state — scout the claim the number supports and the tracker's live state, not the quoted number | `roster-audit-session-log.md` F-1 + F-2 + W-1 |
 | R-4 | 2026-08-26 | promoted | Positive-control law was loaded and still missed — framed for searches, instrument was a report. 6th recurrence; placement fix applied `f53aaea`, effect unmeasured (eval baseline n=0) | `roster-audit-session-log.md` F-4 + F-6 |
+| R-5 | 2026-08-26 | proposal | A check that reads where the writer wrote, or is computed from what it judges, cannot fail — four instruments in one session. HELD pending the R-4 eval baseline | `roster-audit-session-log.md` F-6 + F-7 + F-8 + W-2 |
 
 ## Status vocabulary
 
@@ -302,6 +303,35 @@ Per the skill's own rule that a recurrence is a defect in the promoted text, thi
 **Valid:** dated 2026-08-26
 
 **Rests on:** `roster-audit-session-log:F-4` and `roster-audit-session-log:F-6`, both measured from `link_scan` output rather than from the resolver's documented rule; and the five-recurrence chain the Phase 1 bullet cites for itself.
+
+## R-5 — An instrument that validates its own write is not a check — four found in one session
+
+**Verdict:** proposal
+
+**Observed:** 2026-08-26, buddy-roster-audit and release-integrity work streams, one session.
+
+**Source session log:** `roster-audit-session-log.md`, citing `roster-audit-session-log:F-4`, `roster-audit-session-log:F-6`, `roster-audit-session-log:F-7`, `roster-audit-session-log:F-8`, `roster-audit-session-log:W-2`.
+
+**Pattern (or pattern that failed):** `R-4` is about the *reader* — run a positive control before generalising from output. This is its structural twin, about the *instrument*: **a check that reads the same place the writer wrote, or that is derived from the quantity it is meant to judge, cannot fail.** It reports healthy in the broken world by construction, so its green carries no information. Four instances turned up in a single session, in four different systems, none of which raised anything:
+
+1. **`release.sh` steps 5 + 6.** Step 5 repoints install-record element `[0]`; step 6 validates element `[0]`. The record is an array. A sibling at `[1]` pinned to a superseded version was invisible, and the release printed `✅ … (pushed)` with ✓✓✓. (`F-7`)
+2. **The `version-bump-checklist` tracker.** Documented in CLAUDE.md as "the richer cross-check of the same two failure classes" — and its gather prompt also read `[0]`. Not richer on this axis; it shared the defect. (`F-7`)
+3. **`link_scan` / `doctor`.** A citation can be resolved, dangling, or **inert** — prefix has no definer anywhere, so the token is never a candidate. Neither surfaces the third state; `doctor`'s two relevant checks iterate *entries*, and an artifact declaring no `entry_prefix` owns none. ~60 citations produced no edge and no warning. (`F-6`)
+4. **`VG-7`'s split-quality ratio.** `(base + lens) / monolith`, prescribing that general material move from addendum into base. Relocation leaves both terms unchanged, so the metric is invariant under the exact fix it asks for. (`F-8`)
+
+The family resemblance to a codescout issue filed the same day by another thread — `index(action="status")` reporting `indexed: true, queryable: true` off a single chunk because it never checks coverage — makes five, across two repos.
+
+**Evidence:** Two of the four produced findings that were filed *wrong* before being caught (`F-4` claimed dangling where the truth was inert; the release was reported green over a stale record). Two produced mis-scoped work (`headroom` backlog 2b credited with a context lever worth 6 lines; three further specialists queued on that costing). The catch in every case was the same move, not four different insights: build the known-bad case and see whether the instrument says so (`W-2`).
+
+**Pattern proposal (if any):** a Phase 1 bullet, adjacent to the positive-control law rather than inside it, because the target differs — that law disciplines the reader, this one disciplines what you accept *as* a check:
+
+> **A check that reads where the writer wrote, or is computed from the thing it judges, cannot fail — treat its green as unmeasured.** Before trusting any gate, ask what it reads and whether that is the same place the change landed. Three tells: it validates the field it just set; it iterates a collection the defect removes from; it is a ratio whose numerator and denominator both contain the quantity being moved. The remedy is a second, independently-sourced signal — read the *consumer's* copy, enumerate the *whole* namespace, measure the absolute quantity rather than its share.
+
+**Promote-when:** the four instances above are already measured, so the threshold is met on evidence. Holding it as `proposal` rather than promoting immediately for one reason: `R-4` shipped in `codescout-companion` 1.16.17 and its effect is **unmeasured** (`buddy/tests/reconnaissance-eval` has cases pinned, baseline n=0). Adding a second Phase 1 law before the first is scored would put two unmeasured additions into a bullet whose own audit section warns that the bias on a promoted set should be subtraction. **Sequence: establish the eval baseline, score `R-4`, then promote this.**
+
+**Valid:** dated 2026-08-26
+
+**Rests on:** `roster-audit-session-log:F-6`, `F-7`, `F-8` as the three instrument measurements, `F-4` as the wrong finding one of them produced, and `W-2` as the countermeasure that caught all of them.
 
 ## Template for new entries
 

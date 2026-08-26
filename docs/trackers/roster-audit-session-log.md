@@ -9,8 +9,8 @@ tags:
 entry_prefix:
 - F
 - W
-entry_high_water_F: 6
-entry_high_water_W: 1
+entry_high_water_F: 8
+entry_high_water_W: 2
 ---
 
 # Session Log — Buddy Roster Audit
@@ -74,11 +74,14 @@ entry_high_water_W: 1
 | F-4 | 2026-08-26 | med | tracker-drift | open | `T-N` is not a live namespace, so ~60 citations are silently inert — invisible to `link_scan` and to `doctor` (**corrected** same day; original claim was "dangles permanently") |
 | F-5 | 2026-08-26 | med | codescout-tool | open | codescout's session-log template cites its own ledger's ids bare, so every fresh copy injects cross-repo dangling (and one wrongly-resolving) citation |
 | F-6 | 2026-08-26 | med | codescout-tool | open | `link_scan` has a third citation state it never reports, and its finding arrays are silently capped at 50 — two sessions drew opposite wrong conclusions from one output |
+| F-7 | 2026-08-26 | med | release-pipeline | fixed-verified | `release.sh` repoint + sanity loop + version-bump tracker all read install-record element `[0]`; release reported green over a stale sibling (`ce83dfd`) |
+| F-8 | 2026-08-26 | med | tracker-drift | fixed-verified | `VG-7`'s success ratio is invariant under relocation — the exact fix it prescribes cannot move it; headroom 2b re-scoped (`0fd8eb1`) |
 ## Wins Index
 
 | ID | Date | Impact | Pattern | Counterfactual | Status |
 |----|------|-------:|---------|----------------|--------|
 | W-1 | 2026-08-26 | med | Audit a drift finding by reading the whole cited claim + its tracker's live state, not the fragment the finding quotes | `VG-8` would have closed as a one-integer edit, leaving `#20`'s falsified 3×-baseline `Accept` and a `10/10` scope over a 12-specialist roster both standing | validated |
+| W-2 | 2026-08-26 | med-high | Prove the instrument against a known-positive before believing its verdict — one control per state it can report | Three claims would have shipped as verified: a regex zero, a push-gate checker's green, and a metric read after the fix instead of against it | validated (promote-when fired → `reconnaissance-patterns:R-4`, shipped `f53aaea`) |
 ---
 
 ## Promotion status
@@ -513,6 +516,104 @@ Measured against the codescout build serving this session; `citations: 469`, `am
 **Rests on:** the four-namespace measurement in `roster-audit-session-log:F-4` (`U`/`D`/`S` live, `T` inert), and the two-session divergence described above.
 
 **Fix idea / Pointer:** a `doctor` check — `cited_prefix_with_no_definer`: any prefix with ≥1 citation and 0 definers, reported with the citation count and the citing files. That converts the invisible state into a worklist row and is the only remedy either session could not have missed. Secondarily, a per-array `truncated: true` flag on `link_scan`'s findings. Both belong to codescout, not this repo. Reasoning-side counterpart: `reconnaissance-patterns:R-4`.
+
+## F-7 — release.sh's repoint, its own sanity loop, and the version-bump tracker all read install-record element [0] — the release reported green over a stale sibling
+
+**Observed:** 2026-08-26, immediately after `./scripts/release.sh codescout-companion patch` printed `✅ codescout-companion 1.16.17 released (pushed)` with its step-6 sanity loop showing ✓✓✓ for all three profiles.
+
+**When:** Independently probing the shipped artefact rather than trusting the success line — the copy the consumer loads, per the freshness law in the skill's Phase 1.
+
+**Expected:** a green release means every profile's install record points at the new version.
+
+**Got (scouted reality):** `.plugins["codescout-companion@sdd-misc-plugins"]` is an **array**, one element per install scope. In `~/.claude-kat`:
+
+| | scope | version |
+|---|---|---|
+| `[0]` | `user` | 1.16.17 ✅ repointed |
+| `[1]` | `project`, `projectPath=/home/marius` | **1.16.16** ❌ untouched |
+
+The 1.16.16 cache dir still existed, so the stale element resolved to real bytes and would serve pre-fix code rather than erroring.
+
+**Probable cause:** three checks, one blind spot, same index. `release.sh` step 5 repoints `[0]`; step 6 validates *the element step 5 just wrote*; and the `version-bump-checklist` tracker's gather prompt read `…[0].version`. CLAUDE.md calls that tracker "the richer cross-check of the same two failure classes" — on this axis it was not richer, it shared the defect.
+
+Mechanism of the drift itself, measured: `~/.claude-kat` held project-scope entries for **three unrelated plugins** at the identical timestamp `2026-08-24T14:06:57.809Z` with `projectPath=/home/marius` — one `/plugin install` run with cwd=`~`. Every *other* project-scope entry across all three profiles names a real project directory.
+
+**Workaround:** none needed — fixed.
+
+**Severity:** med — no data loss, and the user-scope element is probably what resolves; but a release that reports fully green while one profile records a superseded version is a false negative in the one gate that exists for it. Not high because whether project-scope shadows user-scope was never established, and the served bytes were correct in `[0]`.
+
+**Status:** fixed-verified — `scripts/check-profile-parity.sh` reads **every** element of every plugin this repo publishes across all three profiles and reports four classes (stale sibling, cross-profile installPath, missing cache, version skew). Wired in as `release.sh` step 6.5, refusing to push on failure. It **detects and never rewrites**, because a project-scope pin may be deliberate elsewhere. `main` `ce83dfd`, pushed. Being a repo script rather than plugin content, it is live immediately — no version bump gates it. The three home-dir entries were removed on the user's decision; parity now green for all four published plugins.
+
+**Valid:** dated 2026-08-26
+
+Verified against a synthetic profile tree reproducing all four classes — each fires, exit 1 — so the green result on the real profiles is evidence rather than an untested absence.
+
+**Rests on:** the array shape of `installed_plugins.json` and the identical-timestamp evidence for accidental origin, both read this session; and `roster-audit-session-log:W-2`, the pattern that caught it.
+
+**Fix idea / Pointer:** `scripts/check-profile-parity.sh`; `scripts/release.sh` step 6.5; `version-bump-checklist` (`cc8cb9e23ab5cc67`) History 2026-08-26, whose gather prompt and `params_schema` now emit `all_versions` + `stale_sibling`. Same shape as `F-6` (link_scan) — see `reconnaissance-patterns:R-5`.
+
+## F-8 — VG-7's success ratio is algebraically blind to the fix it prescribes — relocation cannot move it, only deletion can
+
+**Observed:** 2026-08-26, executing `VG-7` (re-extract the `data-leakage-snow-pheasant` lens split).
+
+**When:** After reading all three files and building the extraction list, before applying it — the arithmetic was checked against the proposed change rather than after it.
+
+**Expected (per `VG-7`):** the entry measures split quality as `(base + lens) / monolith`, reports `:llm` at **82%**, calls that "a thin saving", and prescribes moving general material out of `_llm.md` into `SKILL.md`.
+
+**Got (scouted reality):** the prescribed fix cannot move the metric. Moving *k* lines from the addendum into the base leaves `base + lens` unchanged — `(136+k) + (129−k) = 265` — and the monolith unchanged, so the ratio is identical. **Only deletion moves it.** Measured after applying the extraction:
+
+| | before | after |
+|---|---|---|
+| monolith | 324 | 318 |
+| base + `:classic` | 195 (60.2%) | 200 (**62.9%**) |
+| base + `:llm` | 265 (81.8%) | 259 (**81.4%**) |
+
+0.4 points on the headline, and `:classic` got *worse* as a ratio — because the base grew, which is the fix working.
+
+**Probable cause:** the ratio was adopted as a *quality* measure when it is a *concentration* measure. It answers "what share of the total does this lens load?", not "is anything in this addendum lens-agnostic?" The second question is answered by reading, and reading is what actually found the defects: 6 lines of genuine duplication (including the same MRV-poc LoRA α=0.06 example in both files) and three lens-agnostic laws stranded in the LLM addendum.
+
+**Workaround:** measure **absolute lines per summon**. `:llm` 265 → 259; `:classic` 195 → 200, paying 5 lines to gain three laws it was missing. Net roster saving: 6 lines.
+
+**Severity:** med — the metric produced a real finding by luck, then mis-scoped the payoff. `headroom-optimization` backlog 2b had been credited with a context-budget lever on this arithmetic (by me, earlier this session); at 6 lines against `skill_load` ~27K tok it is a **correctness and duplication lever, not a headroom lever**. Three further candidates (`codescout-pika` 316, `security-ibex` 181, `prompt-hamsa` 158) were queued on that mis-costing.
+
+**Status:** fixed-verified — `VG-7` re-scoped with the arithmetic and the false-positive mode; `headroom-optimization` 2b corrected in place; extraction applied at `main` `0fd8eb1`.
+
+**Valid:** dated 2026-08-26
+
+Line counts measured against `buddy/skills/` source at plugin version 0.9.1, before and after the edit.
+
+**Rests on:** the identity `(b+k) + (l−k) = b + l`, which holds for any relocation; and the post-edit counts above.
+
+**Fix idea / Pointer:** `VG-7` in `docs/trackers/validation-domain-coverage.md`; `buddy/docs/trackers/headroom-optimization.md` backlog 2b. Note the stated rule — *"an addendum approaching the size of its base means the base is under-extracted"* — also has a false-positive mode: post-extraction `_llm.md` is 118 lines against a 141-line base (0.84, still flagged) and every remaining line is LLM-substrate. It is a smell, not a law; `VG-1`/`VG-5` should clone the question, not the threshold.
+
+## W-2 — Proving the instrument against a known-positive before believing its verdict — three times, three different instruments
+
+**Observed:** 2026-08-26, after `F-4` had been filed wrong and corrected the same day. The correction changed method for the rest of the session, and the change paid three times.
+
+**Pattern:** Before accepting any instrument's verdict — a grep's zero, a checker's green, a metric's number — **construct a case whose answer you already know and confirm the instrument reports it as expected.** One control per state you believe the instrument can report, because a single confirmatory probe cannot reveal a *missing* state.
+
+**Counterfactual:** three applications, each of which would otherwise have shipped an unverified claim.
+
+1. **A grep's zero.** Claiming `**Valid:** dated <date> — <prose>` was gone from all shipped skills rested on `grep -rn '^\*\*Valid:\*\* dated [0-9-]\+ \+.'` returning empty across `codescout-companion/skills/`, `buddy/skills/` and `sdd/`. I first ran that regex against a synthetic file holding all four forms; it matched **only** the illegal one and none of the three legal ones. Without that, "empty = clean" was exactly the untested negative `R-4` is about — and the regex had a plausible failure mode (the `\+ \+.` tail) that would have reported clean on a dirty tree.
+2. **A checker's green.** `scripts/check-profile-parity.sh` returned OK for all four published plugins. Before trusting it I built a synthetic profile tree — `HOME=$(mktemp -d)` with three fake profiles — reproducing all four drift classes it claims to catch. All four fired, exit 1. The green on the real profiles is therefore evidence. A parity checker that silently matches nothing is worse than no checker, because it converts an unknown into a false assurance.
+3. **A metric's number.** `VG-7` prescribed moving general material from `_llm.md` into the base and measured success as `(base + lens) / monolith`. Checking the arithmetic *against the proposed change* before applying it showed the ratio is invariant under relocation — `(b+k) + (l−k) = b + l`. Had I applied the fix and then read the ratio, the 0.4-point move would have read as "the fix barely worked" rather than "the metric cannot see this fix" (`F-8`).
+
+**Confirming data points:**
+1. `roster-audit-session-log:F-3` — the exemplar fix, class-wide grep proven against a known-positive.
+2. `roster-audit-session-log:F-7` — the parity checker, proven against a synthetic four-class tree.
+3. `roster-audit-session-log:F-8` — the VG-7 ratio, proven inert against its own prescription.
+
+**Impact:** med-to-high — three claims that would each have been stated as verified. Case 2 is the sharpest: a checker wired into `release.sh` as a push gate, whose green would have been trusted by every future release.
+
+**Promote-when:** **fired.** The threshold was met at datapoint 2 and the law is already promoted — `reconnaissance-patterns:R-4` widened the Phase 1 positive-control bullet from searches to any instrument, shipped in `codescout-companion` 1.16.17 (`main` `f53aaea`). This entry is the evidence that the widened form is the right one; it is not a new proposal.
+
+**Status:** validated — three independent datapoints, one session, three different instrument kinds (regex, checker, metric).
+
+**Valid:** dated 2026-08-26
+
+Each case measured at the time; the synthetic fixtures were built and run, not reasoned about.
+
+**Rests on:** `F-3`, `F-7`, `F-8` in this log — this win is their shared method, not independent evidence. Contrast `F-4`, the failure that prompted it.
 
 ## Template for new entries
 
