@@ -8,6 +8,8 @@ tags:
 - skill-meta
 - scout
 topic: reconnaissance
+entry_prefix: R
+entry_high_water_R: 4
 ---
 
 # Reconnaissance patterns
@@ -45,6 +47,8 @@ end-to-end stdin drivers), which is the local hazard R-1 records.
 |----|------|---------|---------|------------------------|
 | R-1 | 2026-07-28 | hit | Spec testing sections assert on the harness; scout the cited exemplar, not just the code under change | `subagent-bootstrap-session-log.md` F-1 + F-2 + F-3 + W-1 |
 | R-2 | 2026-07-28 | miss | Scout enumerated one test directory, not all of them — missed the suite that already covered the hook | `subagent-bootstrap-session-log.md` F-4 + F-5 |
+| R-3 | 2026-08-26 | hit | A filed drift finding is a claim about current state — scout the claim the number supports and the tracker's live state, not the quoted number | `roster-audit-session-log.md` F-1 + F-2 + W-1 |
+| R-4 | 2026-08-26 | miss | Positive-control law was loaded and still missed — framed for searches, instrument was a report. 6th recurrence; placement fix proposed | `roster-audit-session-log.md` F-4 + F-6 |
 
 ## Status vocabulary
 
@@ -237,6 +241,61 @@ bar.
 the *test harness* rather than the production code, and the design body was correct in
 both. Two entries, one lesson: this scout's blind spot was the harness, in both
 directions — the exemplar it cited without reading, and the suite it never found.
+
+## R-3 — Re-measuring a drift finding's quoted number is not auditing it
+
+**Verdict:** hit
+
+**Observed:** 2026-08-26, buddy-roster-audit work stream — reviewing a cross-repo research handoff (a new `validation-domain-coverage.md` with eight `VG-N` entries) before accepting any of it.
+
+**Source session log:** `roster-audit-session-log.md`, citing `roster-audit-session-log:F-1`, `roster-audit-session-log:F-2`, `roster-audit-session-log:W-1`.
+
+**Pattern (or pattern that failed):** A **doc-vs-code drift finding is itself a claim about current state**, and the number it quotes is the least of it. `VG-8` cited one datum from its target — `buddy-introspection` `#20`'s heading, `security-ibex — Length 167 lines` — against 181 lines on disk. Re-measuring that integer confirms the drift and closes the entry. Opening `#20`'s four-line body instead showed *"others 47–60 lines"* and *"roughly 3× per specialist baseline"* to be false (the audited ten measure 118–136; `codescout-pika` at 316 outweighs `security-ibex` outright), which falsifies the `Fix: Accept` disposition the number was there to support. Reading the same tracker's § Live state — two screens above the entry, not cited at all — showed `specialists_scanned: 10/10` against a roster of twelve. The scout that catches these is not a better re-measurement; it is reading **the claim the datum serves, and the live state of the tracker holding it.**
+
+**Evidence:** Two findings (`roster-audit-session-log:F-1`, `roster-audit-session-log:F-2`), both invisible to a re-measurement of the quoted number, both changing a disposition rather than a value. Cost of the cheap check: one integer edited, `#20` re-blessed by the audit meant to test it, and `active-plan.md` `T-35` (overdue since 2026-08-15) left re-auditing 10 of 12 specialists with no signal its scope had grown. Cost of the pattern: two commands — `wc -l buddy/skills/*/SKILL.md` and reading four lines of body.
+
+**Pattern proposal (if any):** Extend the Phase 1 bullet *"A proposed fix — and equally a prohibition — is a claim about CURRENT STATE. Verify it before designing around it"* from **proposals** to **filed findings**: when the seam is an existing tracker entry, scout the entry's *supporting claims and its tracker's live-state block*, not just the datum it quotes. This is the same law one step downstream — the existing bullet guards *"just pin X"*; this guards *"X was 167, now it's 181, filed."* Both fail because a recorded number reads as settled rather than as an assertion.
+
+**Promote-when:** one more datapoint of this shape from a different tracker family — ideally in another repo, so the routing test (*"would this mislead a different project?"*) is answered by evidence rather than by argument. At two independent datapoints it is craft-shaped and belongs in `SKILL.md` Phase 1, not in a project memory.
+
+**Valid:** dated 2026-08-26
+
+**Rests on:** `roster-audit-session-log:F-1` and `roster-audit-session-log:F-2`, both measured against `buddy/skills/` source at plugin version 0.9.1.
+
+## R-4 — The positive-control law was in context and still did not fire — it is framed for searches, and the instrument was a report
+
+**Verdict:** miss
+
+**Observed:** 2026-08-26, buddy-roster-audit work stream. The reconnaissance skill was **invoked in this same session**, so the law below was in context when the error was made.
+
+**Source session log:** `roster-audit-session-log.md`, citing `roster-audit-session-log:F-4` (the wrong finding, corrected same day) and `roster-audit-session-log:F-6` (the tooling gap it exposed).
+
+**Pattern (or pattern that failed):** Phase 1 already carries the remedy:
+
+> **Run a positive control before trusting either shape:** make the instrument find or rank one case whose answer you already know, before believing the case you don't.
+
+It did not fire. I asserted that ~60 `T-N` citations dangle, from the premise that no `T-N` heading exists. The premise was true; the inference was a claim about `link_scan`'s **state space**, and I took it from a mental model of the resolver rather than from its output — which was open in a buffer at the time, with the `raw` token of every reported citation in it. A peer session made the mirror-image error on the same namespace, inferring *resolution* from absence in an array capped at 50 against a population of 70. There turned out to be a third state, **inert**, that neither of us knew existed: a prefix with zero definers is never a citation candidate, so it is neither resolved nor reported.
+
+Why the law did not reach the moment of need: **it is framed around searches.** Its examples are grep, a path, a sort key, a field name — *"a search that finds nothing is evidence about the search."* `link_scan` does not read as a search. It reads as a report, and a report feels like testimony rather than an instrument answering a predicate you supplied. The two-word tell — *"either shape"* — covers this case exactly, and I did not connect it.
+
+**Evidence:** Two filed findings, one of which reached a `docs/issues/` bug file before correction. Cost of the positive control that would have prevented both: **one call**. Resolve `U-28` (known undefined → expect dangling) and `D-6` (known defined → expect resolved) alongside `T-35`. Three tokens, three expected states; the token that matches neither expectation names the missing state on the spot. Cost of not doing it: a wrong mechanism filed as an issue, a wrong prescription inside it (the fix ordering inverted), and a second session's conclusion left standing on an unsound premise.
+
+**Pattern proposal (if any):** This is the skill's own **"Unreachable"** staleness class — *"general enough, and still not reached at the moment of need. Remedy is placement, not rewording."* The bullet already names five self-labelled recurrences of this law in codescout's ledger (`R-3 → R-113 → R-77 → R-79 → R-104`). **This is the sixth, and the first where the skill was demonstrably loaded and the law still missed** — which is evidence about placement rather than about the reader.
+
+Two changes, both placement:
+
+1. **Widen the trigger from searches to instruments.** The law should fire on *any* tool output you are about to make a categorical claim from — a report, a scan, a linter, a diagnostic — not only on a query that returned zero. The operative condition is "I am about to say *all X are Y*", not "my grep came back empty".
+2. **Name the recipe in terms of known-state cases, plural.** "One case whose answer you already know" invites a single confirmatory probe, which cannot reveal a *missing* state. What works is one case per state you believe exists — and a case that matches none of them is the discovery. State it that way.
+
+Per the skill's own rule that a recurrence is a defect in the promoted text, this should re-promote the evolved form rather than sit as a sixth instance.
+
+**Routing note, stated rather than assumed:** this law keeps recurring in sessions that never invoke the skill, which by the skill's routing test points at codescout's `project-activation-bootstrap` surface instead. That route requires a **base arm** — a measurement that an unaided agent does not already do this. I have one datapoint, not a measured arm, so I am not proposing the session-opening slot. Recording the gap so the next instance can supply the arm rather than re-derive the argument.
+
+**Promote-when:** immediately for change 1 and 2 above, since the threshold was met five recurrences ago and the proposal is a rewording of placement rather than a new rule. Do not wait for a seventh.
+
+**Valid:** dated 2026-08-26
+
+**Rests on:** `roster-audit-session-log:F-4` and `roster-audit-session-log:F-6`, both measured from `link_scan` output rather than from the resolver's documented rule; and the five-recurrence chain the Phase 1 bullet cites for itself.
 
 ## Template for new entries
 
