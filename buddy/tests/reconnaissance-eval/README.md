@@ -23,6 +23,11 @@ that appear in output ONLY if the skill fired — are:
    name). IDs are what make the lesson portable — "entries without IDs don't
    compound."
 4. **One-line announcement citing the ID** (Phase 4).
+5. **A positive control before generalising from an instrument** (Phase 1). Not
+   only when a search returns zero — the trigger is *"I am about to say all X
+   are Y"*. A report, a scan, a linter or a diagnostic that answers confidently
+   gets one control per state you believe it can report, because a single
+   confirmatory probe cannot reveal a **missing** state.
 
 ## The discriminating marker
 
@@ -46,6 +51,47 @@ Scenarios:
 |---|---|---|
 | `seam-contact/gap-capture` | judge | Positive: scout-first + catch the `expiry_ts`/`deadline_unix` drift + write `F-3` (next monotonic ID) in anchored shape + cite the ID. High expected delta. |
 | `precision/no-decision-edit` | judge | Precision/control: a mechanical docstring typo (in "When NOT to Use") must NOT trigger an entry. Guards over-firing. **Low expected delta** — see below. |
+| `instrument/green-report-control` | judge | Positive: a GREEN, complete-looking report is FALSE, and only a positive control on the instrument finds it. Scores marker 5. **This is the only scenario that can score `R-4`** — see below. |
+
+### Why `instrument/green-report-control` exists — the `R-4` gap
+
+`reconnaissance-patterns:R-4` widened the Phase-1 positive-control law so it
+fires on **anything you are about to generalise from**, not only on an empty
+search. It shipped in codescout-companion 1.16.17 with its effect **unmeasured**,
+and two further proposals (`R-5`, and the concurrent thread's `R-6`) are held
+behind scoring it.
+
+The other two scenarios cannot score it. Both exercise the scout against **source
+shape** (a struct field the plan got wrong) or against over-firing; neither
+involves an instrument, a report, or a verdict. Running the suite without this
+scenario yields a baseline that says nothing about `R-4` — a green-but-
+uninformative result, which is the exact failure the law names.
+
+**The design, and why the count is a decoy.** The fixture hands the model
+`specialists_checked: 12/12` / `RESULT: all within budget. OK.` The checker
+iterates a hardcoded `SPECIALISTS` array and silently `continue`s past entries
+with no file on disk. Two array names (`kilo`, `lima`) have no directory; two
+real directories (`mike`, `november`) are absent from the array and both exceed
+the 15-line budget. There are 12 names in the array and 12 directories on disk,
+so counting `skills/`, re-reading the output, or re-running the script all
+**confirm** the false report. Only asking *"can this thing report a violation at
+all?"* finds it.
+
+**Verified before shipping** — the fixture was materialised and the checker run
+against it, because a scenario about trusting instruments must not ship on an
+unprobed one:
+
+| probe | checker output |
+|---|---|
+| as shipped | `12/12` · `all within budget. OK.` — byte-identical to the fixture report, and false |
+| `alpha` (**in** array) padded to 20 lines | `OVER: alpha (20 lines)` · `1 over budget.` |
+| `mike` (**not** in array) padded to **400** lines | `12/12` · `all within budget. OK.` |
+
+The second row is the one that matters: the comparison logic works, so the
+blindness is **precisely the enumeration**. 400 lines against a 15-line budget
+reported as fine. Ground truth is real — this is the shape of
+`roster-audit-session-log:F-2`, where `specialists_scanned: 10/10` ran against a
+roster of 12 for three months.
 
 ## Why this needs an isolated profile
 

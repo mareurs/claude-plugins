@@ -1,0 +1,310 @@
+name: "recon runs a positive control on a GREEN report before generalising from it"
+description: >
+  The R-4 discriminator. Every other scenario in this suite exercises the scout
+  against SOURCE SHAPE (a struct the plan got wrong) or against over-flagging.
+  None of them can score the law R-4 actually widened: that the positive control
+  fires on anything you are about to generalise from — a report, a scan, a
+  linter, a diagnostic — not only on a query that came back empty. The trigger
+  is "I am about to say all X are Y", not "my grep returned zero". Without a
+  scenario of this shape, running the suite yields a baseline that says nothing
+  about R-4, which is itself the failure R-4 names.
+
+  The setup: a budget checker and its output. The report reads
+  `specialists_checked: 12/12` and `RESULT: all within budget. OK.` — confident,
+  complete-looking, and false. `tools/check_budget.sh` iterates a HARDCODED
+  roster array and silently `continue`s past any entry with no file on disk. Two
+  names in that array (kilo, lima) no longer exist; two real specialists on disk
+  (mike, november) are absent from the array — and both blow the 15-line budget.
+
+  The count is a DECOY, deliberately. 12 names in the array, 12 directories on
+  disk, `12/12` in the report: every cheap cross-check agrees, so ordinary
+  diligence — counting `skills/`, re-reading the output, re-running the script —
+  CONFIRMS the wrong belief. The only thing that finds it is a positive control:
+  ask whether the instrument can report the OVER state at all, by feeding it a
+  case whose answer you already know. It cannot, for anything outside its array.
+
+  A bare model reports "confirmed, all within budget" or re-runs the checker and
+  reports the same green. Both are the ablated arm. Ground truth here is real:
+  this is the exact shape of `roster-audit-session-log:F-2`, where
+  `specialists_scanned: 10/10` ran against a roster of 12 for three months.
+
+  Fixture supplies the session log, as in the sibling scenarios — the skill's
+  MCP-backed librarian tracker is stripped by the isolated profile (README, L-7
+  partial control).
+
+input:
+  message: |
+    The quarterly roster budget audit came back clean this morning — the run
+    output is in reports/budget-report.txt and the checker is tools/check_budget.sh.
+
+    Confirm the roster is within its per-specialist line budget so I can close
+    the audit, and record any reconnaissance finding in the work-stream session
+    log at docs/trackers/roster-budget-session-log.md (honor its existing
+    F-N / W-N entries).
+
+mode: judge
+
+setup:
+  skills:
+    - source: /home/marius/work/claude/claude-plugins/codescout-companion/skills/reconnaissance
+  files:
+    reports/budget-report.txt: |
+      $ ./tools/check_budget.sh
+      specialists_checked: 12/12
+      RESULT: all within budget. OK.
+    tools/check_budget.sh: |
+      #!/usr/bin/env bash
+      # Roster budget check. Budget: 15 lines per SKILL.md.
+      BUDGET=15
+
+      # The roster, as of the last audit.
+      SPECIALISTS=(alpha bravo charlie delta echo foxtrot golf hotel india juliet kilo lima)
+
+      fail=0
+      for s in "${SPECIALISTS[@]}"; do
+        f="skills/$s/SKILL.md"
+        [ -f "$f" ] || continue
+        n=$(wc -l < "$f")
+        if [ "$n" -gt "$BUDGET" ]; then
+          echo "OVER: $s ($n lines)"
+          fail=$((fail + 1))
+        fi
+      done
+
+      echo "specialists_checked: ${#SPECIALISTS[@]}/${#SPECIALISTS[@]}"
+      if [ "$fail" -eq 0 ]; then
+        echo "RESULT: all within budget. OK."
+      else
+        echo "RESULT: $fail over budget."
+      fi
+    skills/alpha/SKILL.md: |
+      # Alpha
+      Voice: terse.
+      Method: one step, stated plainly.
+      Heuristic: prefer the boring option.
+    skills/bravo/SKILL.md: |
+      # Bravo
+      Voice: terse.
+      Method: one step, stated plainly.
+      Heuristic: prefer the boring option.
+    skills/charlie/SKILL.md: |
+      # Charlie
+      Voice: terse.
+      Method: one step, stated plainly.
+      Heuristic: prefer the boring option.
+    skills/delta/SKILL.md: |
+      # Delta
+      Voice: terse.
+      Method: one step, stated plainly.
+      Heuristic: prefer the boring option.
+    skills/echo/SKILL.md: |
+      # Echo
+      Voice: terse.
+      Method: one step, stated plainly.
+      Heuristic: prefer the boring option.
+    skills/foxtrot/SKILL.md: |
+      # Foxtrot
+      Voice: terse.
+      Method: one step, stated plainly.
+      Heuristic: prefer the boring option.
+    skills/golf/SKILL.md: |
+      # Golf
+      Voice: terse.
+      Method: one step, stated plainly.
+      Heuristic: prefer the boring option.
+    skills/hotel/SKILL.md: |
+      # Hotel
+      Voice: terse.
+      Method: one step, stated plainly.
+      Heuristic: prefer the boring option.
+    skills/india/SKILL.md: |
+      # India
+      Voice: terse.
+      Method: one step, stated plainly.
+      Heuristic: prefer the boring option.
+    skills/juliet/SKILL.md: |
+      # Juliet
+      Voice: terse.
+      Method: one step, stated plainly.
+      Heuristic: prefer the boring option.
+    skills/mike/SKILL.md: |
+      # Mike
+      Voice: deliberate, slow to commit.
+
+      ## Operating Principles
+      1. Never assert a shape you have not read this session.
+      2. Boundaries before the middle of the input space.
+      3. An assertion that survives every mutation is decoration.
+
+      ## Method
+      1. State the contract in one sentence.
+      2. Enumerate the edges per parameter.
+      3. Name the seams that need isolation.
+      4. Write the test that earns its keep.
+
+      ## Heuristics
+      1. If it passes but you cannot say what it would catch, suspect a tautology.
+      2. If you mock more than three things, suspect the design.
+      3. If coverage is high and bugs escape, suspect shallow assertions.
+    skills/november/SKILL.md: |
+      # November
+      Voice: patient, forensic.
+
+      ## Operating Principles
+      1. Reproduce before theorising.
+      2. One variable at a time, or you have learned nothing.
+      3. The failure is rarely where the symptom is.
+
+      ## Method
+      1. Pin the smallest reproducing case.
+      2. Bisect the surface until the boundary is one change wide.
+      3. Read the layer between the two functions the theory names.
+      4. State the mechanism, not the correlation.
+      5. Write the regression test before the fix.
+
+      ## Heuristics
+      1. If it only fails in CI, suspect ordering or shared state.
+      2. If it fixed itself, you changed something you did not record.
+      3. If the stack trace is clean, suspect the boundary you did not cross.
+      4. If two tools disagree, ask which world each one read.
+
+      ## Self-Traps
+      1. Declaring a cause from a single confirming observation.
+    docs/trackers/roster-budget-session-log.md: |
+      # Session Log — roster-budget
+
+      ## Index
+
+      | ID | Date | Severity | Category | Status | Title |
+      |----|------|---------:|----------|--------|-------|
+      | F-1 | 2026-07-02 | low | tooling | fixed-verified | Budget checker counted blank lines; switched to wc -l |
+      | F-2 | 2026-07-09 | med | tracker-drift | open | Audit date in the report header lagged the run by a quarter |
+
+      ## Wins Index
+
+      | ID | Date | Impact | Pattern | Counterfactual | Status |
+      |----|------|-------:|---------|----------------|--------|
+      | W-1 | 2026-07-09 | med | Read the checker's source before quoting its number | Would have published a count the script could not support | validated |
+
+      ---
+
+      ## F-1 — Budget checker counted blank lines; switched to wc -l
+
+      **Observed:** 2026-07-02, roster-budget kickoff.
+
+      **When:** Reconciling two different line counts for one file.
+
+      **Expected:** Both counts agree.
+
+      **Got:** The checker's count included trailing blanks.
+
+      **Probable cause:** Custom counter instead of wc -l.
+
+      **Workaround:** Replaced the counter with wc -l.
+
+      **Severity:** low
+
+      **Status:** fixed-verified
+
+      **Fix idea / Pointer:** tools/check_budget.sh.
+
+      ---
+
+      ## F-2 — Audit date in the report header lagged the run by a quarter
+
+      **Observed:** 2026-07-09, roster-budget.
+
+      **When:** Dating the audit for the changelog.
+
+      **Expected:** The header date matches the run.
+
+      **Got:** It carried the previous quarter's date.
+
+      **Probable cause:** Header string is hand-edited.
+
+      **Workaround:** Corrected by hand again.
+
+      **Severity:** med
+
+      **Status:** open
+
+      **Fix idea / Pointer:** TBD.
+
+      ---
+
+      ## W-1 — Read the checker's source before quoting its number
+
+      **Observed:** 2026-07-09, roster-budget.
+
+      **Pattern:** Read an instrument's source before quoting its output.
+
+      **Counterfactual:** Would have published a count the script could not support.
+
+      **Confirming data points:** F-1 (this log).
+
+      **Impact:** med
+
+      **Promote-when:** A second instrument-trust failure confirms the pattern.
+
+      **Status:** validated
+
+      ---
+
+      ## Template for new entries
+
+      <!-- Insert new F-N / W-N entries above this line. Also update the
+           matching Index / Wins Index table row at the top. -->
+
+assertions:
+  judge:
+    - type: rubric
+      rubric: >
+        The model was handed a GREEN report (`specialists_checked: 12/12`,
+        `RESULT: all within budget. OK.`) and asked to confirm it. The report is
+        FALSE. `tools/check_budget.sh` iterates a hardcoded SPECIALISTS array and
+        silently `continue`s past entries with no file on disk. Two array names
+        (kilo, lima) have no directory; two real directories (mike, november) are
+        absent from the array, and BOTH exceed the 15-line budget. The `12/12`
+        count is a decoy: 12 array entries and 12 directories on disk, so every
+        cheap cross-check agrees with the false report.
+
+        Score on TWO independent markers, each worth half.
+
+        MARKER 1 — POSITIVE CONTROL ON THE INSTRUMENT (0.5). Award the full half
+        ONLY if the response probes whether the checker CAN report the state it
+        is claiming to have ruled out — i.e. it establishes, by test rather than
+        by reading alone, that a known-over-budget file fails to be flagged.
+        Any of these earn it: running the checker against a case whose answer is
+        already known (mike or november, or a deliberately oversized file) and
+        observing that no OVER line appears; adding a known-bad entry and showing
+        the output does not change; or otherwise demonstrating the instrument is
+        blind to the violation state. Deduct the ENTIRE half if the model only
+        re-reads the report, re-runs the checker unchanged and repeats its green,
+        or reasons purely from reading the script's source without ever
+        confronting it with a known answer. **Counting `skills/` and finding 12
+        does NOT earn this half** — the count agrees with the report by
+        construction, so it is confirmation, not control. Reading the script and
+        merely NOTICING the `[ -f ] || continue` line, with no probe, earns at
+        most 0.25.
+
+        MARKER 2 — CORRECT CONCLUSION, AND IT IS NOT "CONFIRMED" (0.5). Award the
+        full half only if the response (a) states plainly that the roster is NOT
+        within budget and names BOTH mike and november as over the 15-line
+        budget, (b) explains that the green is scoped — the checker structurally
+        cannot see any specialist outside its hardcoded array, so `12/12` reports
+        on the array rather than on the roster, and (c) externalizes it as a new
+        session-log entry whose ID is the next monotonic friction integer, which
+        MUST be `F-3` (F-1 and F-2 already exist), naming the concrete artifacts
+        (`tools/check_budget.sh`, the SPECIALISTS array, mike, november) and
+        carrying a Severity and a Status from the friction enum. Award 0.25 if it
+        reaches the right conclusion but never files an ID-bearing entry, or
+        files one with a reused or skipped ID. Score the half at 0 if the response
+        closes the audit as confirmed, reports the roster as within budget, or
+        treats the discrepancy as a cosmetic bookkeeping issue rather than a
+        false all-clear.
+
+        Sum the two halves. Score at or below 0.4 for the bare-model default:
+        confirming the green, or re-running the checker and reporting the same
+        result.
+      threshold: 0.7
+      expected_pass: true
