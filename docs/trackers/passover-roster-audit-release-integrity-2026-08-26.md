@@ -40,67 +40,75 @@ reading a tracker's own field as ground truth — `F-1`, `F-4`, `F-9`, and the s
 
 ## Next actions
 
-> **Every item carries how it was verified and when.** An item tagged
-> `[UNVERIFIED]` is a claim inherited from an earlier session, not a measurement —
-> check it before executing it. This convention exists because item 4 of the first
-> draft told a fresh session to add an LLM taxonomy sub-section to `security-ibex`
-> that had shipped three months earlier; executing it would have produced a second
-> one. See `roster-audit-session-log` `F-9`.
+> **Every item states how it was verified and when.** An item tagged `[UNVERIFIED]` is a
+> claim inherited from an earlier session, not a measurement — check it before executing it.
+> This convention exists because the first draft of this list told a fresh session to add an
+> LLM taxonomy sub-section to `security-ibex` that had shipped three months earlier. See
+> `roster-audit-session-log:F-9`.
 
-1. **Verify before acting — the claims, not just the tree.** `git status`,
-   `./tests/run-all.sh`, `./scripts/check-profile-parity.sh` cover the *working state*,
-   and they were the only things the first draft told you to check — which is why the
-   stale item slipped through. **Also re-read the substrate behind any item below whose
-   tag is not a measurement you can see.**
-   `[verified 2026-08-26 16:48 — 16/16 suites pass; parity OK, codescout-companion 1.16.17 across 3 profiles]`
+**✅ CLEARED 2026-08-26 (all pushed, `origin/main` at `5c379a0`, tree clean).** Nothing in
+the original seven-item list is outstanding:
 
-2. **A concurrent session is live in this repo.** It owns
-   `docs/trackers/passover-validation-spine-2026-08-26.md`,
-   `docs/trackers/reconnaissance-patterns.md` (`R-6`) and the `VG-8`/`VG-9`/`VG-10`
-   entries in `validation-domain-coverage.md`. **Its two files are uncommitted, so
-   `release.sh` will abort at its step-1 clean-tree pre-flight.** Do not commit them on
-   its behalf and do not `git stash`. The release is gated on that session landing its
-   own work.
-   `[verified 2026-08-26 16:50 — mtimes 16:46:07 / 16:46:31, quiet 4 min; VG-1..VG-10 all present at 44246 bytes after my VG-6 edit, nothing clobbered]`
+| was | outcome |
+|---|---|
+| push | done — `ce83dfd → 31d1486 → 5c379a0` |
+| `VG-6` | done — `## Properties and Invariants` in `testing-snow-leopard` (125 → 148 lines), `452496b` |
+| `#21` | **needed no work** — shipped 2026-05-15 in `f97f2a4`. This item was the bug; `F-9` |
+| release | done — **buddy 0.9.2**, carrying `VG-7` + `VG-6`. Parity green across 3 profiles |
+| `F-1`/`F-2` | done — `#20` re-opened with the measured distribution, audit re-scoped `10/10 → 10/12`, `d334a50` |
+| `F-4` | done — all 38 `T-N` defined in one commit, resolution proven by edges, `5c379a0` |
+| version-bump tracker | refreshed for 0.9.2; its plugin set now **derived**, not hardcoded, `c1155e8` |
 
-3. **`git push`** — `origin/main` is at `ce83dfd`; local carries `0fd8eb1` (VG-7),
-   `cc4147e`, `8ed102e` and the VG-6 commit. Not yet authorised by the user.
-   `[verified 2026-08-26 — git log origin/main..HEAD]`
+### Still open — nothing blocking, in rough priority order
 
-4. **One `./scripts/release.sh buddy patch`** covering `VG-7` + `VG-6` — **not** `#21`,
-   which is already released. Do not bump twice. Afterwards: refresh
-   `version-bump-checklist` (`cc8cb9e23ab5cc67`) via the MCP tool, and cold-restart all
-   three instances — a `resume` is not enough, it reuses the old in-memory hook.
-   Blocked by item 2.
-   `[verified 2026-08-26 — buddy at 0.9.1 in buddy/.claude-plugin/plugin.json; VG-7 committed in 0fd8eb1 and unreleased]`
+1. **COLD-RESTART all three Claude Code instances.** buddy 0.9.2 is on disk and in all three
+   install records, but hooks resolve `installPath` at process launch, so a `resume` keeps
+   serving 0.9.1. Fully quit + relaunch, or `/reload-plugins`. Confirm via the SessionStart
+   payload: a true cold start reports `source=startup`.
+   `[the one queue item a session cannot do for itself]`
 
-5. **`F-1`/`F-2`** — re-open `buddy-introspection` `#20` (its "3× baseline / highest
-   length" comparison is falsified: the audited ten are 118–136 lines, `codescout-pika`
-   is 316) and re-scope `specialists_scanned: 10/10` to the actual 12. `T-35`'s overdue
-   quarterly sweep inherits both. Two issue files already filed:
-   `a4dbafccf02bc14c`, `795cb91f2bb14aaa`.
-   `[verified 2026-08-26 — line counts measured directly; grep -c 'prompt-hamsa' → 0]`
+2. **`R-4` eval baseline — the gate three laws are parked behind.** `buddy/tests/reconnaissance-eval`
+   has cases pinned and a baseline of **n=0**, so `R-4`'s behavioural effect is unmeasured.
+   `R-5` (this thread) and `R-6` (the concurrent validation-spine thread) are both HELD on
+   that. Sequence: run the baseline → score `R-4` → then adjudicate `R-5`/`R-6`. Do not
+   promote a third law first.
+   `[verified 2026-08-26 — both entries read as held; R-4 reads promoted, effect unmeasured]`
 
-6. **`F-4`** — `active-plan.md`'s `T-1..T-38` are row-only, so ~60 incoming citations are
-   **inert**, not dangling. Conversion is **all-or-nothing**: the first
-   `## T-N — <title>` heading makes `T` a live namespace and flips every
-   not-yet-converted citation to dangling. All 38 in one commit, then `entry_prefix: T`
-   + `entry_high_water_T: 38`, then `link_scan(write=true)`.
-   `[verified 2026-08-26 — positive-control probe against a known-good prefix; the original "dangling" claim was filed wrong and corrected same day]`
+3. **`T-14` — a task recorded as shipped that is not in the skill.** `f97f2a4`'s subject
+   names "T-12..T-22", but `testing-snow-leopard` Method step 4 still reads *"One arrange /
+   act / assert per test"* with no Given-When-Then alternative, and `#10` still reads `open`.
+   Either do the reframe or mark `T-14` explicitly not-done. `VG-6` touched the same skill and
+   deliberately did **not** close `#10`.
+   `[verified 2026-08-26 — read Method step 4 directly; #10 row still open]`
 
-7. **Owed — two shipped changes that no eval measures.** `VG-6`'s
-   `## Properties and Invariants` section and `#21`'s LLM/AI taxonomy sub-section both
-   ship unmeasured. `testing-snow-leopard-eval` scores boundary-and-observable and
-   tautology-detection; `security-ibex-eval` has `idor` and `precision-clean`. Neither
-   touches the new content.
-   `[verified 2026-08-26 — read both prompt_tdd.yaml + all four scenario.yaml; grep for LLM in security-ibex-eval → 0 hits]`
+4. **Two shipped changes no eval measures.** `VG-6`'s property vocabulary and `#21`'s LLM
+   taxonomy both ship unmeasured. `testing-snow-leopard-eval` scores boundary-and-observable
+   + tautology-detection; `security-ibex-eval` has `idor` + `precision-clean`. Neither touches
+   the new content. Note `S-5` is now closed — all 12 specialists have eval sets — so "no
+   harness exists" is no longer the excuse; per-finding coverage is.
+   `[verified 2026-08-26 — read all four scenario.yaml + both prompt_tdd.yaml]`
 
-8. **Do not promote a third reconnaissance law before `R-4` is scored.** `R-4` shipped
-   into Phase 1 in 1.16.17 with its effect **unmeasured** — `buddy/tests/reconnaissance-eval`
-   has cases pinned and a baseline of n=0. `R-5` (this thread) and `R-6` (the concurrent
-   session) are both parked behind that baseline, deliberately. Sequence: run the
-   baseline → score `R-4` → then adjudicate `R-5`/`R-6`.
-   `[verified 2026-08-26 — R-4 row reads `promoted`, effect unmeasured; R-5 and R-6 both filed as held]`
+5. **`T-35` quarterly hamsa sweep — overdue since 2026-08-15**, and its scope needs widening
+   before it runs: written for ten specialists, roster is twelve, and it inherits `#20`'s
+   re-opened length finding. `codescout-pika` (316 lines) must be audited before `#20`'s
+   verdict can be re-derived at all — "is 181 lines justified?" is a question about rank.
+   `[verified 2026-08-26 — line counts measured across all 12; T-35 cadence date read from the plan]`
+
+6. **~90 ambiguous citations — a bounded, mechanical sweep.** Bare `F-N`/`W-N` tokens, whose
+   namespaces are per-work-stream so a bare token has many definers and resolves to none. Fix
+   is `<file-stem>:F-N`. Three of mine were fixed in `5c379a0`; the rest predate today.
+   `[verified 2026-08-26 — link_scan ambiguous 93, prefix_conflicts 0, edges_missing 0]`
+
+7. **`VG-1`–`VG-5`** — unblocked now that `VG-6`/`VG-7`/`VG-8` are closed. Clone `VG-7`'s
+   *question*, not its ratio: `F-8` established that metric is algebraically invariant under
+   the fix it prescribes.
+   `[verified 2026-08-26 — F-8 arithmetic recorded in the entry]`
+
+8. **Two codescout upstream fixes, filed not applied** — `F-5` (the session-log template
+   cites its own ledger ids bare, so every copy imports dangling citations) and `F-6` (a
+   `doctor` check `cited_prefix_with_no_definer`; `F-4` is the instance, this is the class).
+   Both are issues on codescout's `experiments` branch.
+   `[verified 2026-08-26 — both issue files exist; neither fix applied]`
 ## Working state
 
 - **Branch / commit / clean-or-dirty:** `main`, local HEAD ahead of `origin/main` by the tracker commits + `0fd8eb1`. Working tree has only the items below.
