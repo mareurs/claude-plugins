@@ -212,6 +212,23 @@ Re-measure via Langfuse (`scratchpad/decompose.py`) before AND after any cut.
       inherits the thin-saving flaw. Largest raw candidates by size: `codescout-pika` (316),
       `security-ibex` (181), `prompt-hamsa` (158).
 
+      **CORRECTION 2026-08-26 — the ratio above is the wrong instrument, and this entry
+      over-credited it.** `VG-7` was executed: 6 lines of genuine duplication deleted, three
+      lens-agnostic laws promoted from `_llm.md` into the universal base. Result — `:llm`
+      moved 81.8% → **81.4%**, and `:classic` got *worse* as a ratio (60.2% → 62.9%).
+      **Relocating a line from an addendum into the base is algebraically invisible to
+      `(base + lens) / monolith`**: both numerator and denominator contain it. Only deletion
+      moves the ratio, and most of what a good extraction does is relocation.
+
+      So this sub-lever is real but must be measured as **absolute lines per summon**, not
+      as a ratio: `:llm` 265 → 259, `:classic` 195 → 200 (paying 5 lines to gain three laws
+      it was missing). Net roster saving from the exemplar: **6 lines**, against `skill_load`
+      at ~27K tok. On that evidence, trim-at-source via lens extraction is a **correctness
+      and duplication lever, not a headroom lever** — it will not move 18.7% meaningfully.
+      The three raw candidates above are still worth reading for duplication, but they should
+      not be costed as context savings until one of them is measured end-to-end. `VG-7`
+      carries the full arithmetic and the rule's false-positive mode.
+
 3. **Trim FIXED per-request overhead (P2) — cut once, save everywhere.**
    a. **SessionStart superpowers inject (8.7K tok):** superpowers injects `using-superpowers`
       verbatim every session. Decide: trim, gate, or accept (it's a 3rd-party plugin — confirm

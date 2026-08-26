@@ -34,7 +34,9 @@ entries_open: 9
 entries_mitigated: 1           # VG-9 — spine reshaped, effect not yet measured
 entries_closed: 0
 new_specialists_proposed: 2    # data-contract (VG-1, VG-2), eval-harness-teaching (VG-5)
-spine_status: rewritten 2026-08-26 to outcome framing; UNMEASURED — see VG-9
+spine_status: rewritten 2026-08-26 to outcome framing; measurement ATTEMPTED, verdict UNRESOLVED — see VG-9
+eval_location: prompt-engineering:scenarios/validation-spine/ (registered in that repo's skill-eval-log.md)
+eval_blockers: 4 harness defects found while building it — prompt-tdd-operating-guide OP-13..OP-16
 scope_note: >
   VG-1..VG-8 are coverage findings — which competency has no owner. VG-9 and VG-10 are
   method findings, about this tracker's own prompt spine and about audit triggers. They
@@ -383,7 +385,45 @@ section, not a specialist.
 
 ## VG-7 — The Snow Pheasant lens split is under-extracted
 
-**Status:** open
+**Status:** fixed — extraction applied 2026-08-26. **But the entry's own success metric was wrong, and the measurement below is the correction.**
+
+### What was actually wrong (confirmed by reading all three files)
+
+The diagnosis held, in two parts the entry did not separate:
+
+1. **Genuine duplication.** `_llm.md` Method 8 (variance floor) restated base Phase 3 and base Reaction 5. `_llm.md` Heuristic 15 restated base Heuristic 7 **using the same MRV-poc LoRA α=0.06 example**. Method 9 (triangulate across two fixtures) was base Heuristic 7's remedy. Deleted; the two-fixtures requirement folded into base H-7.
+2. **Three lens-agnostic laws stranded in the LLM addendum** — promoted to universal Heuristics 8/9/10: *the audit metric must match the production topology*, *an audit's failure mode must be distinguishable from a valid zero*, and *if the rule's signal and the content's signal agree you proved correlation, not dominance — swap the confound*. None is about LLMs. `:classic` summons were missing all three.
+
+`_classic.md` needed nothing — all 59 lines are sklearn/temporal-split specific. That asymmetry is real.
+
+### The metric this entry proposed does not measure extraction quality
+
+| | before | after |
+|---|---|---|
+| monolith | 324 | 318 |
+| base + `:classic` | 195 (60.2%) | 200 (**62.9%**) |
+| base + `:llm` | 265 (81.8%) | 259 (**81.4%**) |
+| `_llm.md` / base ratio | 0.95 | 0.84 |
+
+The headline `:llm` figure moved **0.4 points**, and `:classic` got *worse* as a ratio. That is not a weak fix; it is the wrong instrument. **Relocating a line from an addendum into the base is algebraically invisible to `(base + lens) / monolith`** — both numerator and denominator contain it, so the ratio is unchanged. Only *deletion* moves it, and only 6 lines were genuinely deletable. `:classic`'s ratio rose because the base grew, which is the fix working.
+
+What actually improved, and what the entry should have measured:
+
+- **absolute lines per summon** — `:llm` 265 → 259, `:classic` 195 → 200 (paying 5 lines for three laws it was missing)
+- **duplication** — 11 lines of restatement gone; the LoRA example now appears once, not twice
+- **correctness** — `:classic` now carries the confound-swap, metric-topology and valid-zero laws
+
+### The stated rule has a false-positive mode
+
+> **The rule: an addendum approaching the size of its base means the base is under-extracted.**
+
+After extracting everything genuinely general, `_llm.md` is still 118 lines against a 141-line base — ratio **0.84**, which the rule still flags. But every remaining line is LLM-substrate: contamination probing, RAG/RePCS, judge bias, chat-template pinning. LLM-eval leakage simply has more distinct failure modes than tabular leakage — 18 heuristics against `_classic.md`'s 6.
+
+So the rule is a **smell, not a law**. It correctly pointed at this file, and a large addendum can equally mean a genuinely richer lens. **Do not clone it to `VG-1`/`VG-5` as a numeric gate** — clone the *question* ("is anything in here lens-agnostic?"), which is answered by reading, not by a ratio.
+
+### Found while doing it
+
+`_llm.md` Reactions 5 and 8 both cited *"Heuristic (universal) 5 (variance floor)"*. Base universal Heuristic 5 is **label noise**; the variance floor lives in Phase 3. A pre-existing mis-citation in shipped prompt content, repointed to Phase 3 in the same pass. Base Heuristics 1–7 kept their numbering precisely so `_classic.md`'s surviving `Heuristic (universal) 1` cross-reference did not break.
 **Valid:** conditional — the `_llm.md`-to-`SKILL.md` line ratio in `data-leakage-snow-pheasant` changes
 **Rests on:** the under-extraction rule stated below; feeds `buddy/docs/trackers/headroom-optimization.md` backlog item 2b.
 
@@ -493,6 +533,33 @@ Cross-reference: `VG-10` records the trigger problem this entry exposed — the 
 written and invalidated inside a single session, with no time elapsed, which a 90-day
 staleness clock would never have caught.
 
+**Measurement attempt — 2026-08-26, same session.** The eval was built and run. The verdict
+is **unresolved**, so this entry does not close. Registered in
+`prompt-engineering:docs/trackers/skill-eval-log.md` under *validation-spine (VG-9 spine
+ablation)*, with stimulus, confound controls and file paths.
+
+What the attempt established — none of it about the spine:
+
+- **Smoke at n=1 on Claude Opus 5: both variants PASS.** Under the harness's own paired
+  predicates that classifies `tautological`, consistent with Opus 5 catching a crisp
+  docstring contradiction unaided — i.e. neither variant having power on this stimulus.
+  One run per arm proves nothing; it is a direction, not a result.
+- The `--ablate` control ran and its summary was lost to a buffer handle that expired on an
+  MCP reconnect. Transcript recovery is inconclusive and attributable only by mtime.
+- **The plan changed on evidence.** `--paired`, the mode `skill-eval-playbook` `L-15`
+  prescribes, discards both arms' per-run results
+  (`prompt-tdd-operating-guide:OP-14`), and a partly-errored arm silently depresses its own
+  rate while the delta still prints clean (`OP-15`) — which at exactly the n and margin
+  planned here would have produced a clean-looking number out of a corrupted run. Revised
+  design: `--ablate` per arm, n>=10, `defaults.timeout` raised above 300s.
+- Cost reality: ~$1.32 per generator invocation and 40 invocations for the planned design,
+  against a config whose `max_cost_per_run` cap turned out to be inert (`OP-16`).
+
+The status line above is unchanged and correct: the rewritten spine remains a better-argued
+hypothesis, not a measured one. The one thing the attempt *did* settle is that this
+stimulus may be too easy to discriminate on — a harder or subtler contradiction is likely
+needed before any variant delta is detectable at all.
+
 ## VG-10 — Prompt artifacts decay on model release, not on the 90-day clock
 
 **Status:** open
@@ -568,6 +635,33 @@ Two further findings were dropped as duplicates on the same pass:
   `VG-N` that motivated it.
 
 ## History
+
+### 2026-08-26 — Spine ablation built and run; verdict unresolved
+
+Built the `VG-9` ablation as a prompt-tdd eval in `prompt-engineering` and ran it. Recorded
+in full under *validation-spine (VG-9 spine ablation)* in that repo's `skill-eval-log.md`;
+the substance is appended to `VG-9` here.
+
+**Result: unresolved, and `VG-9` stays open.** Smoke at n=1 on Claude Opus 5 passed *both*
+variants, which the harness's own paired predicates would classify `tautological` — pointing
+at the stimulus being too easy rather than at either spine having power. The `--ablate`
+control ran but its summary was lost to an expired buffer handle, and transcript recovery is
+inconclusive.
+
+**The measurement design changed on evidence, before any money was committed to it.**
+`--paired` — the mode `skill-eval-playbook:L-15` prescribes — turns out to discard both
+arms' per-run results, and a partly-errored arm silently depresses its own rate while the
+delta still prints clean. At the planned n=10 against a hard-wired 0.50 margin, three
+timeouts would have produced a clean-looking number from a corrupted run and it would have
+been reported as a measurement. Four defects were filed against the harness in the process
+(`OP-13`..`OP-16`), one of which — `OP-16` — showed the run's own cost cap was inert.
+
+Method note worth carrying: the first claim made about the harness in this session ("runs
+are not auditable") was asserted from three absent files and one timed-out command, and was
+wrong — transcripts *are* persisted, by Claude Code rather than by prompt-tdd. A subagent
+audit established that from source. The same failure shape then recurred in the transcript
+recovery probe, whose literal `== 51` pattern cannot match a `parametrize` table, so its
+zeros were evidence about the pattern rather than the models.
 
 ### 2026-08-26 — Spine rewritten; VG-9, VG-10 opened
 
