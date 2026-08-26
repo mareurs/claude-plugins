@@ -10,7 +10,7 @@ entry_prefix:
 - F
 - W
 entry_high_water_F: 13
-entry_high_water_W: 4
+entry_high_water_W: 5
 ---
 
 # Session Log — Buddy Roster Audit
@@ -1229,6 +1229,78 @@ line reads correctly. Stubbing the implementation and re-running is what
 separated the assertion that discriminates from the one that does not, and it
 cost about twenty seconds. This is `W-2`'s known-positive discipline applied to a
 test suite instead of to a tool.
+
+## W-5 — Writing the caveat discharges the obligation to close it — and the tell is whether it names a next action
+
+**Status:** candidate — recorded, NOT promoted. Same selection defect as its own evidence; see *Promote-when*.
+**Valid:** dated 2026-08-27
+**Rests on:** `codescout:R-95` (deferral rationales are inflated, measured from outside), `codescout:F-72` (the peer's write-up of the same mechanism), `claude-plugins:W-4`
+
+### The claim
+
+An honestly-written limitation is not a safeguard against leaving it open. It is
+the most reliable *cause* of leaving it open. Having named the gap, the author has
+already paid the visible honesty cost — and that payment feels like having taken
+the gap seriously, which is the feeling that would otherwise have sent them to
+close it.
+
+This is the inside view of `codescout:R-95`. That law measures deferral rationales
+from outside — nine of them, every one inflated, bias running one direction
+because nobody drafts an estimate that fails to justify stopping. This entry is
+why the author never re-checks his own: he is not being lazy or evasive at the
+moment he writes it. He is being scrupulous, and the scruple is what closes the
+question.
+
+### The tell — the peer's contribution, and the operational half
+
+**Does the caveat name a specific next action — a file, a command, a path?**
+
+- **Names one → it is a work item you have just written down and are about to not
+  do.** The remedy was in hand at write time.
+- **Names a blocker instead → it genuinely cannot be closed this turn.** Reads
+  differently, and correctly.
+
+This is checkable at write time, which *"notice when you are discharging"* is not.
+Credit to session `77c6f4ae`; without it this is a resolution to try harder.
+
+### Four instances in one night, two of them mine
+
+1. **This session, `docs/issues/2026-08-26-companion-blocks-bash-after-codescout-disconnect.md`.**
+   Filed fix (c) as *"needs a PostToolUse path that sees MCP transport errors —
+   **not confirmed to exist**."* That names a checkable premise and I did not
+   check it. When the user said "go", `hooks.json` turned out to have carried
+   PostToolUse matchers on MCP tools since before the bug was filed. **The
+   rationale was both wrong and load-bearing**: it was the only thing blocking (c),
+   and (c) is what shipped.
+2. **This session, the guide issue's `Not yet done`.** Named the missing
+   population precisely — "which sections are actually used across a real sample" —
+   and did not go looking. A peer did, and the census existed: 91 session ledgers,
+   one function read away, in the XDG *state* dir.
+3. **Peer, `codescout:F-72` instance 1** — told their user the guide ledger might
+   be inert, offered "one function read settles it", wrapped up instead.
+4. **Peer, `codescout:F-72` instance 2** — handed me `error-handling` at 1/91 as
+   evidence four messages after correctly diagnosing that a number two hypotheses
+   both predict is not evidence.
+
+Instance 1 is the one that matters most, because the caveat did not merely fail to
+prompt work — **it authorised not doing the work, and it was false.** Note also
+that it survived a code review and a commit message that quoted it approvingly.
+
+### Promote-when
+
+**Four instances, two agents, one night, one conversation that was explicitly
+about this mechanism.** That is the same tail-sampling defect the guide issue
+just caught in its own two anecdotes — both were top-decile sessions that found
+each other interesting. Instances collected while hunting for instances are not a
+sample, and the fact that the count reached four in three hours is evidence about
+the search, not about the base rate.
+
+Promote to the reconnaissance skill on **two instances from work streams that were
+not about caveats or deferrals** — ordinary sessions where the tell would have
+fired unprompted. The skill already carries the read-time half (*"a deferral
+rationale is a claim, and the least-audited kind — re-cost it before you accept
+it"*), so what would be new is only the **write-time check**, which is one
+sentence and should not ship on evidence gathered this way.
 
 ## Template for new entries
 
