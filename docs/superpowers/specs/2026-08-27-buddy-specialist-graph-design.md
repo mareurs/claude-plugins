@@ -192,6 +192,49 @@ with no Voice, still adopts the advisor's voice or emits its output format, then
 projection-by-omission is insufficient and the payload needs an explicit
 instruction in its header.
 
+#### The window closes, and one of the two remedies closes it permanently
+
+Added 2026-08-27, from the whole-branch review. This section previously said
+"specified, not gating" and stopped there — a caveat with no owner, no trigger and
+no tracked obligation, which is `claude-plugins:W-5` committed on the same page
+that cites W-5 under *Rests on*. This is that obligation, made explicit.
+
+**The eval will never be cheaper than it is at this commit.** 0 of the 12 shipped
+specialists declare `advisors:` or `fragments:`. That is not merely a coverage gap
+— it is the eval's *baseline arm*, clean and free right now. The moment any shipped
+specialist declares either key, the baseline stops being clean and the measurement
+gets monotonically more expensive.
+
+**And the cheap insurance is mutually exclusive with the measurement.** The
+falsifier's own stated remedy is "an explicit instruction in the payload header" —
+one clause added to the string at `summon_bootstrap.py:290-295`. But that clause
+**pre-empts exactly what the eval measures**: whether projection-by-omission *alone*
+suffices. Adding it does not defer the question; it destroys the ability to ask it.
+
+So there are two defensible paths, and **doing neither is not one of them**:
+
+1. **Run the eval first**, while the baseline arm is still clean, then decide
+   whether the clause is needed. Three arms as specified above, including the
+   size-matched irrelevant advisor.
+2. **Add the clause now**, and amend this section to record that the premise was
+   **insured, not verified**, retiring the falsifier explicitly.
+
+**The hazard to guard against is path 2 happening by accident.** Someone adds the
+header clause "to be safe", touches nothing else, and the result is permanent: the
+eval can never be run, while this spec still reads as though the premise were open.
+A future reader would have no way to tell the difference between "unverified and
+still measurable" and "unverified and no longer measurable."
+
+**Trigger — fires on either of these, whichever comes first:**
+
+- **Before any shipped specialist declares `advisors:` or `fragments:`.** That
+  declaration is what spends the clean baseline.
+- **Before any edit to the payload header string** (`summon_bootstrap.py:290-295`).
+  If the edit adds advisor-handling guidance, it is path 2 — amend this section in
+  the same commit, or do not make the edit.
+
+**Owner:** whoever takes `T-39`. The obligation is discharged by *recording which
+path was taken*, not by taking a particular one.
 ## Cut from v1, and what brings each back
 
 **`guides:`** — cannot deliver. Three routes, all closed: emitting
