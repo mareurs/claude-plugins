@@ -202,3 +202,34 @@ def test_resolve_short_fragment_declines():
     index = {"security-ibex": ("builtin", Path("/x"))}
     assert sb.resolve("x", index) is None      # <3 chars: no substring match
     assert sb.resolve("ibex", index) == "security-ibex"
+
+
+# ------------------------------------------------- payload golden (pre-graph)
+
+PAYLOAD_NOTE = (
+    "The summon payload below was injected by buddy's prompt hook — "
+    "the load steps in /buddy:summon are already done. Announce the "
+    "specialist (italic arrival line) and adopt its voice for the "
+    "rest of the session."
+)
+
+
+def test_payload_is_pinned_byte_for_byte(plugin):
+    """Pins the payload build_payload produces TODAY, before fragments land.
+
+    Captured from HEAD deliberately. A golden generated from the post-refactor
+    code would assert that the new code equals itself and would stay green in a
+    world where the fragment list silently drops gates.md.
+    """
+    plug, project = plugin
+    payload = sb.build_payload(
+        "foo-bar", "builtin", plug / "skills" / "foo-bar", None, project
+    )
+    expected = "\n\n".join([
+        "<!-- buddy:summon-payload specialist=foo-bar scope=builtin -->",
+        PAYLOAD_NOTE,
+        "# The Foo Bar\n\n## Voice\n\nCalm.",
+        "## Memory Protocol\n\nprotocol text",
+        "## Gates\n\ngates text",
+    ])
+    assert payload == expected
