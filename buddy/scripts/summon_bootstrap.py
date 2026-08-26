@@ -41,6 +41,17 @@ PLUGIN_ROOT = _HERE
 MEMORY_SOFT_CAP = 30
 BINDING_LINE_CAP = 500
 
+# Exactly what build_payload read before fragments existed, in that order.
+# NOTE: data/cs_rules.md is deliberately absent — its only consumer is
+# cs_judge.py, which embeds it in the codescout judge's system prompt. Adding
+# it here would change the payload rather than preserve it.
+DEFAULT_FRAGMENTS = ("memory-protocol", "gates")
+
+FRAGMENT_TITLES = {
+    "memory-protocol": "Memory Protocol",
+    "gates": "Gates",
+}
+
 
 # ---------------------------------------------------------------- discovery
 
@@ -75,6 +86,34 @@ def discover(project_root: Path) -> dict[str, tuple[str, Path]]:
             except OSError:
                 continue
     return index
+
+
+def resolve_fragment(name: str, project_root: Path) -> Path | None:
+    """Resolve a fragment name across the three scopes, project first.
+
+    Mirrors discover()'s precedence (project > global > builtin) but returns on
+    first hit rather than letting later scopes overwrite, which is the same rule
+    read from the other end. Returns None when no scope has it — callers
+    soft-skip, because a project that lacks a fragment should cost nothing.
+    """
+    try:
+        global_dir = buddy_paths.global_root() / "fragments"
+    except Exception:
+        global_dir = None
+    candidates = [
+        Path(project_root) / ".buddy" / "fragments" / f"{name}.md",
+        (global_dir / f"{name}.md") if global_dir else None,
+        PLUGIN_ROOT / "data" / f"{name}.md",
+    ]
+    for path in candidates:
+        if path is None:
+            continue
+        try:
+            if path.is_file():
+                return path
+        except OSError:
+            continue
+    return None
 
 
 def parse_argument(prompt: str) -> str:
@@ -228,12 +267,17 @@ def build_payload(
     memories = collect_memories(directory, project_root)
     if memories:
         parts.append(memories)
-    protocol = _read(PLUGIN_ROOT / "data" / "memory-protocol.md")
-    if protocol:
-        parts.append("## Memory Protocol\n\n" + protocol.strip())
-    gates = _read(PLUGIN_ROOT / "data" / "gates.md")
-    if gates:
-        parts.append("## Gates\n\n" + gates.strip())
+    declared = meta.get("fragments")
+    names = declared if isinstance(declared, list) else list(DEFAULT_FRAGMENTS)
+    for name in names:
+        path = resolve_fragment(str(name), project_root)
+        if path is None:
+            continue
+        text = _read(path)
+        if not text:
+            continue
+        title = FRAGMENT_TITLES.get(str(name), str(name))
+        parts.append(f"## {title}\n\n{text.strip()}")
     bindings = collect_bindings(meta, project_root)
     if bindings:
         parts.append(bindings)

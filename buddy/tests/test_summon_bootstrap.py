@@ -233,3 +233,57 @@ def test_payload_is_pinned_byte_for_byte(plugin):
         "## Gates\n\ngates text",
     ])
     assert payload == expected
+
+# ------------------------------------------------------------- fragments
+
+def test_default_fragments_reproduce_todays_payload(plugin):
+    """No `fragments:` key → identical to the Task 1 golden."""
+    plug, project = plugin
+    payload = sb.build_payload(
+        "foo-bar", "builtin", plug / "skills" / "foo-bar", None, project
+    )
+    assert "## Memory Protocol\n\nprotocol text" in payload
+    assert "## Gates\n\ngates text" in payload
+    assert payload.index("## Memory Protocol") < payload.index("## Gates")
+
+
+def test_explicit_fragment_list_narrows_the_payload(plugin):
+    """Declaring `fragments: [gates]` drops memory-protocol."""
+    plug, project = plugin
+    skill = plug / "skills" / "foo-bar"
+    skill.joinpath("SKILL.md").write_text(
+        "---\nname: Foo Bar\ndescription: t\nfragments: [gates]\n---\n\n"
+        + SKILL_BODY
+    )
+    payload = sb.build_payload("foo-bar", "builtin", skill, None, project)
+    assert "gates text" in payload
+    assert "protocol text" not in payload
+
+
+def test_project_fragment_shadows_builtin(plugin):
+    """project > global > builtin, asserted on the PROJECT text specifically.
+
+    The project text is deliberately NOT a superstring of the builtin text: an
+    assertion satisfied by substring would pass whether or not shadowing worked.
+    """
+    plug, project = plugin
+    frag = project / ".buddy" / "fragments"
+    frag.mkdir(parents=True)
+    frag.joinpath("gates.md").write_text("PROJECT-ONLY gates")
+    payload = sb.build_payload(
+        "foo-bar", "builtin", plug / "skills" / "foo-bar", None, project
+    )
+    assert "PROJECT-ONLY gates" in payload
+    assert "gates text" not in payload      # the builtin body is gone
+
+
+def test_missing_fragment_is_soft_skipped(plugin):
+    plug, project = plugin
+    skill = plug / "skills" / "foo-bar"
+    skill.joinpath("SKILL.md").write_text(
+        "---\nname: Foo Bar\ndescription: t\nfragments: [nope, gates]\n---\n\n"
+        + SKILL_BODY
+    )
+    payload = sb.build_payload("foo-bar", "builtin", skill, None, project)
+    assert payload is not None
+    assert "gates text" in payload
