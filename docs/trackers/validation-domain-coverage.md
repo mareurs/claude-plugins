@@ -23,20 +23,32 @@ entry_prefix: VG
 ```yaml
 axis: domain coverage          # NOT prompt craft — see buddy-introspection.md for that axis
 roster_version: 0.9.1
-roster_lines_total: 1958       # verified against source, not plugin cache, 2026-08-26
+roster_lines_total: 2125       # buddy 0.9.2, source not cache, 2026-08-26; method:
+                               #   find buddy/skills -maxdepth 2 -name '*.md' -exec cat + | wc -l
+                               # the prior 1958 figure's method was not recorded, so treat
+                               # 1958 -> 2125 as NOT a comparable delta (VG-6 closure added
+                               # a property-testing section; VG-7 removed 6 lines)
 specialists: 12
 competencies_surveyed: 14
 competencies_held: 4
 competencies_partial: 4
 competencies_unowned: 6
 entries_total: 10
-entries_open: 9
-entries_mitigated: 1           # VG-9 — spine reshaped, effect not yet measured
-entries_closed: 0
+entries_open: 6                # VG-1..VG-5, VG-10
+entries_mitigated: 1           # VG-9 — spine reshaped; stimulus retired as non-discriminating
+entries_closed: 3              # VG-6, VG-7, VG-8 — all marked `fixed` by a concurrent session
 new_specialists_proposed: 2    # data-contract (VG-1, VG-2), eval-harness-teaching (VG-5)
-spine_status: rewritten 2026-08-26 to outcome framing; measurement ATTEMPTED, verdict UNRESOLVED — see VG-9
+spine_status: >
+  rewritten 2026-08-26 to outcome framing. Measurement RESOLVED as non-discriminating:
+  6 no-skill control runs recovered from the Claude Code transcripts, 3 read in full,
+  all 3 clear both judge rubrics unaided. Neither variant has headroom on this fixture.
+  Not a verdict on the spine — an instrument that cannot separate the arms cannot rank
+  them — but direct evidence for the premise. See VG-9.
 eval_location: prompt-engineering:scenarios/validation-spine/ (registered in that repo's skill-eval-log.md)
 eval_blockers: 4 harness defects found while building it — prompt-tdd-operating-guide OP-13..OP-16
+eval_next: build a stimulus above the unaided floor; run CONTROLS FIRST, before any arm
+transcripts: ~/.claude-test/projects/-tmp-prompt-test-*/*.jsonl — attribute by a content
+  marker unique per arm, never by mtime (that failure is reconnaissance-patterns:R-6)
 scope_note: >
   VG-1..VG-8 are coverage findings — which competency has no owner. VG-9 and VG-10 are
   method findings, about this tracker's own prompt spine and about audit triggers. They
@@ -557,8 +569,8 @@ scope, which is why `F-1` and `F-2` are the same defect seen from two directions
 
 ## VG-9 — The prompting spine was over-specified for current models
 
-**Status:** mitigated — spine rewritten 2026-08-26; shape corrected, effect not measured
-**Valid:** conditional — a per-model ablation at n≥10/arm returns a per-requirement effect size, or the stimulus is retired as non-discriminating
+**Status:** mitigated — spine rewritten 2026-08-26, shape corrected. Effect unmeasured and, on the stimulus built for it, **unmeasurable**: the unaided Opus 5 floor clears the pass bar 3/3. Stimulus retired; a discriminating one is owed.
+**Valid:** conditional — a stimulus exists on which unaided Opus 5 measurably fails, established by controls before any arm is built
 **Rests on:** `shared/prompt-audit.md` §1a/§1b/§1c in the bundled `claude-api` skill — first-party guidance on prompting patterns that degrade current models — plus the capability-scaling result in the reward-hacking literature.
 
 The seven-rule spine as first written rested on benchmark literature about unit-test
@@ -642,10 +654,72 @@ What the attempt established — none of it about the spine:
 - Cost reality: ~$1.32 per generator invocation and 40 invocations for the planned design,
   against a config whose `max_cost_per_run` cap turned out to be inert (`OP-16`).
 
-The status line above is unchanged and correct: the rewritten spine remains a better-argued
-hypothesis, not a measured one. The one thing the attempt *did* settle is that this
-stimulus may be too easy to discriminate on — a harder or subtler contradiction is likely
-needed before any variant delta is detectable at all.
+**Stimulus question RESOLVED — 2026-08-26, later session, at zero API cost.** The
+previous paragraph guessed that the stimulus "may be too easy." It is, and the evidence
+was already on disk. The `--ablate` run's control arm had been written to the Claude Code
+transcripts all along; what was missing was not data but **attribution**, and the earlier
+attempt failed because it tried to attribute by *mtime*. Attributing by a **content marker
+unique to each arm** works on the first try:
+
+| Arm | Marker | Sessions |
+|---|---|---|
+| old choreography | `Follow this procedure exactly` | 4 (15:16, 15:18, 15:21, 15:27) |
+| new outcome framing | `So: the checks you write must be able to fail` | 3 (15:22, 15:24, 15:25) |
+| **no skill at all** | both markers absent, `Validation Spine` absent, fixture present | **6** (15:28–15:37) |
+
+The six controls are Opus 5 sessions with zero mention of `validation-spine` and no judge
+traffic. That is the negative control `skill-eval-playbook` `L-1` requires, and it had
+already run.
+
+**Three controls read in full. All three clear both judge rubrics unaided:**
+
+- Named the negative-clamp contradiction with the arithmetic — `apply_discount(1000, -50)`
+  returns `1500`, "a 50% markup", against a docstring promising a 0..100 clamp. One cited
+  `src/pricing.py:14`.
+- Named the truncation-vs-round-half-up contradiction. One used *the exact case in the
+  rubric* — `apply_discount(101, 50)` returns 50, not 51.
+- **Did not flag `normalize_currency`** — the `L-13` precision bait. One wrote "matches its
+  docstring in every case I probed."
+- All three invented the same design unprompted: characterization tests pinning observed
+  behaviour, plus a separate `xfail(strict=True)` class encoding the documented contract,
+  so the suite is green today and turns red the moment a refactor makes the docstring true.
+- One went further than either spine asks: it built a throwaway corrected implementation,
+  confirmed all 10 xfails flipped "along with exactly the 9 paired pins and nothing else,"
+  and deleted it. That is mutation verification of its own assertions, self-initiated.
+- One found a contradiction the fixture's author did not know was there — float division
+  lossy past `2**53`.
+
+**Verdict: the stimulus is retired as non-discriminating**, satisfying the second clause of
+the `**Valid:**` condition above. The unaided Opus 5 floor sits *at or above* the eval's
+pass bar, so both variants had zero headroom and the harness's `tautological`
+classification of the n=1 double-pass was right — for a reason the run itself could not
+show. **Do not spend the ~$26 on n>=10 against this fixture; it would measure nothing.**
+
+**What this does and does not say about the spine.** It is not a refutation of the rewrite
+and not a validation of it — an instrument that cannot separate the arms cannot rank them.
+But it is direct evidence for the *premise*: every requirement the spine states — spec as
+oracle, name the unspecified case, mutation-gate each assertion, run it and report — Opus 5
+performed here **unprompted, 3 for 3**. That is what `prompt-audit` §1c predicts about
+choreography for a task the model already plans well. Scope it honestly: six controls, one
+fixture shape, one model. It says the spine is redundant *on this task shape*, not that it
+is redundant.
+
+**The one thing that could overturn this, stated so it is not glossed.** The verdict above
+rests on *my own reading* of three control transcripts against the rubric text — not on the
+judge's scores for them, which were in the `--ablate` summary that was lost. The controls
+were graded; the numbers are simply gone. So what is established is that the **stimulus** sits
+below Opus 5's unaided capability, which is a fact about behaviour and is not in doubt: all
+three named both contradictions and spared the bait, explicitly. What is *not* directly
+established is that the judge scored them PASS. If a Haiku 4.5 judge failed those runs anyway
+— and `skill-eval-playbook` `L-16` records that a judge's score field can contradict its own
+reasoning — then the eval would show a delta for the wrong reason: judge miscalibration, not
+spine power. That would make the measurement worse, not better, and the remedy is the same
+rebuild. Recovering the lost scores would settle it; re-running the old fixture would not.
+
+**A valid stimulus must now be built above that floor, not merely "harder"** — the
+requirement is a task where unaided Opus 5 measurably fails, established by controls
+*first*. Building the arms before the floor was known is what cost the $2.64 and the
+session. The next attempt runs controls before it runs anything else.
 
 ## VG-10 — Prompt artifacts decay on model release, not on the 90-day clock
 

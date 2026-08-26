@@ -47,9 +47,29 @@ For `.claude.json` (the file): single-profile users have it at `~/.claude.json`;
 - **Native Linux git. The cross-shell CRLF advice in the Windows section below does not
   apply** — `core.autocrlf` is not in play and the working tree does not go pseudo-dirty.
 - **Cross-profile parity is checked, not assumed:** `./scripts/check-profile-parity.sh`
-  verifies every *array element* of each record (see its header for the four drift
-  classes and why `[0]`-only checks missed one). `release.sh` runs it at step 6.5 and
-  refuses to push on failure.
+  verifies every *array element* of each record **and** every marketplace registration
+  (see its header for the seven drift classes and why `[0]`-only checks missed one).
+  `release.sh` runs it at step 6.5 and refuses to push on failure.
+- **Our plugins load from the REPO WORKING TREE, not from a versioned cache dir.**
+  `known_marketplaces.json` records `sdd-misc-plugins` as
+  `{"source": "directory", "path": "/home/marius/work/claude/claude-plugins"}` with
+  `installLocation` set to that same repo path. Confirmed at runtime, not inferred:
+  `.buddy/.session-start-trace.log` shows every hook invocation resolving
+  `plugin_root=/home/marius/work/claude/claude-plugins/buddy`, including entries written
+  after a release repointed `installPath` at a cache dir. **So an edit to `buddy/` or
+  `codescout-companion/` is live in the working tree immediately; `bump-cache.sh` seeding
+  and the `installPath` repointing are belt-and-braces for this marketplace, not the load
+  path.** What a restart/reload still buys you is *registration* — which hooks, skills and
+  commands exist — because that is resolved at process launch. Third-party github-source
+  marketplaces are the opposite: those genuinely load from `<profile>/plugins/marketplaces/…`.
+- **Marketplace registrations drifted for months in two files nothing checked** (fixed
+  2026-08-26). `~/.claude-kat/plugins/known_marketplaces.json` pointed five of six
+  marketplaces at `~/.claude/plugins/marketplaces/…`, and
+  `~/.claude-sdd/plugins/marketplaces/caveman` was a *symlink* into `~/.claude`. The
+  pointer was also **hiding** a second fault: kat's own `superpowers` clone had rotted to
+  `91cb319` (2026-05-06) while the other two profiles ran `1ab7b8e` (2026-08-12), so
+  repointing without refreshing first would have silently downgraded an enabled plugin by
+  three months. **Refresh the local copy, then repoint — never the reverse.**
 
 ## The Windows work box (verified 2026-08-05 — NOT the machine above)
 
@@ -238,6 +258,18 @@ Always run Next-actions step 1 (verify state) before acting.
 `artifact(action="move", …)` into `docs/trackers/archive/` (never bare `git mv`).
 
 ## Plugin Install Path (directory-source gotcha)
+
+> **Measured correction, 2026-08-26.** The rest of this section describes the general
+> mechanism, but for **this** repo's marketplace it is not what happens. `sdd-misc-plugins`
+> is registered as a `directory` source whose `installLocation` is the repo itself, and
+> `CLAUDE_PLUGIN_ROOT` resolves to `<repo>/<plugin>` at runtime — verified in
+> `.buddy/.session-start-trace.log`, where every entry reads
+> `plugin_root=/home/marius/work/claude/claude-plugins/buddy`, including ones written after
+> `installPath` had been repointed at a cache dir. **Content is therefore served from the
+> working tree, and the cache snapshot is not the load path.** New components still need a
+> reload or restart, but because *registration* is resolved at launch — not because the
+> bytes are stale. Do not reason about content freshness from `installPath` here; probe
+> `plugin_root` in the trace log instead.
 
 Claude Code freezes `installPath` + `version` in `~/.claude/plugins/installed_plugins.json`
 at install time. For directory-source plugins (marketplace `source: directory`), the

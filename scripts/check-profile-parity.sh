@@ -7,7 +7,11 @@
 # diverge by design (e.g. ~/.claude-sdd carries hookify + andrej-karpathy-skills, and
 # permissions/model/theme differ per profile on purpose).
 #
-# Four drift classes, all measured 2026-08-26:
+# Seven drift classes, all measured 2026-08-26. Classes 1-4 live in
+# installed_plugins.json; classes 5-7 live in known_marketplaces.json and the
+# marketplaces/ directory, which this script did not read until 2026-08-26 and
+# which were drifting the whole time it reported green.
+#
 #
 #   1. STALE SIBLING — `.plugins["<plugin>@<marketplace>"]` is an ARRAY, one element per
 #      install scope (`user`, plus one per `project` install). release.sh steps 5 and 6
@@ -23,6 +27,22 @@
 #   3. MISSING CACHE — a recorded version with no cache dir on disk. The #1 cause of
 #      "plugin appears installed but hook never fires".
 #   4. VERSION SKEW — profiles recording different versions of the same plugin.
+#   5. MARKETPLACE CROSS-PROFILE — known_marketplaces.json records an installLocation
+#      per marketplace, and it is a SECOND place a profile can point at another one.
+#      Found in ~/.claude-kat: five of six marketplaces pointed at
+#      ~/.claude/plugins/marketplaces/… while kat held its own copies of all six.
+#      A `directory` source is exempt — it legitimately lives outside every profile
+#      (sdd-misc-plugins resolves to this repo, which is why buddy's hooks run from
+#      the working tree and not from a versioned cache dir).
+#   6. MARKETPLACE SYMLINK — a marketplaces/<name> entry that is a symlink couples two
+#      profiles exactly as effectively, and is invisible to the JSON check above.
+#      Found in ~/.claude-sdd: caveman -> ~/.claude/plugins/marketplaces/caveman.
+#   7. MARKETPLACE SKEW — same marketplace at different git HEADs across profiles.
+#      This is the one a cross-profile pointer actively HIDES: because kat read
+#      ~/.claude's copies, nobody noticed kat's own superpowers clone had rotted to
+#      91cb319 (2026-05-06) while the other two ran 1ab7b8e (2026-08-12). Repointing
+#      without refreshing would have silently downgraded an enabled plugin by three
+#      months — so class 7 must be checked, not just class 5.
 #
 # This script DETECTS and FAILS; it never rewrites a record. A project-scope entry pinning
 # an older version may be deliberate somewhere, so the repair stays a human call.
@@ -121,6 +141,66 @@ for PLUGIN in "${PLUGINS[@]}"; do
   unset seen_versions
 done
 
+# ---------------------------------------------------------------------------
+# Marketplace registration pass — profile-level, not per-plugin (classes 5-7).
+# ---------------------------------------------------------------------------
+mp_errors=0
+declare -A mp_heads=()
+
+for P in "${PROFILES[@]}"; do
+  km="$P/plugins/known_marketplaces.json"
+  [ -f "$km" ] || continue
+
+  while IFS=$'\t' read -r name loc styp spath; do
+    # A `directory` source IS the source tree and legitimately sits outside every
+    # profile. Assert it matches its declared path rather than its profile root.
+    if [ "$styp" = "directory" ]; then
+      if [ -n "$spath" ] && [ "$loc" != "$spath" ]; then
+        echo "MARKETPLACE MISMATCH: $name in $P — installLocation '$loc' != directory source '$spath'"
+        mp_errors=$((mp_errors + 1))
+      fi
+      continue
+    fi
+    case "$loc" in
+      "$P"/*) ;;
+      *) echo "MARKETPLACE CROSS-PROFILE: $name in $P — installLocation escapes its profile: $loc"
+         mp_errors=$((mp_errors + 1)) ;;
+    esac
+  done < <(jq -r 'to_entries[] | [.key, (.value.installLocation // "-"), (.value.source.source // "-"), (.value.source.path // "")] | @tsv' "$km")
+
+  if [ -d "$P/plugins/marketplaces" ]; then
+    while IFS= read -r link; do
+      [ -n "$link" ] || continue
+      echo "MARKETPLACE SYMLINK: $(basename "$link") in $P is a symlink -> $(readlink -f "$link" 2>/dev/null || echo '?')"
+      mp_errors=$((mp_errors + 1))
+    done < <(find "$P/plugins/marketplaces" -maxdepth 1 -type l)
+  fi
+
+  for d in "$P"/plugins/marketplaces/*/; do
+    [ -d "$d/.git" ] || continue
+    mp_heads["$(basename "$d")|$P"]="$(git -C "$d" rev-parse --short HEAD 2>/dev/null || echo '?')"
+  done
+done
+
+if [ "${#mp_heads[@]}" -gt 0 ]; then
+  for name in $(printf '%s\n' "${!mp_heads[@]}" | cut -d'|' -f1 | sort -u); do
+    heads=""
+    for P in "${PROFILES[@]}"; do
+      h="${mp_heads["$name|$P"]:-}"
+      [ -n "$h" ] && heads="$heads $h"
+    done
+    if [ "$(printf '%s\n' $heads | sort -u | wc -l)" -gt 1 ]; then
+      echo "MARKETPLACE SKEW: $name — different git HEADs across profiles:$(printf '%s\n' $heads | sort -u | tr '\n' ' ')"
+      mp_errors=$((mp_errors + 1))
+    fi
+  done
+fi
+
+if [ "$mp_errors" -eq 0 ]; then
+  echo "OK: marketplace registrations — every installLocation owns its profile, no symlinks, no HEAD skew"
+fi
+errors=$((errors + mp_errors))
+
 echo ""
 if [ "$errors" -gt 0 ]; then
   echo "FAILED: $errors profile-parity problem(s) across $checked plugin(s)."
@@ -131,6 +211,11 @@ if [ "$errors" -gt 0 ]; then
   echo "    may be deliberate; check projectPath before removing anything."
   echo "  · MISSING CACHE → ./scripts/bump-cache.sh <plugin> <version>"
   echo "  · CROSS-PROFILE → repoint installPath to the record's own profile root"
+  echo "  · MARKETPLACE CROSS-PROFILE / SYMLINK → REFRESH THE LOCAL COPY FIRST, then"
+  echo "    repoint. Repointing alone can downgrade an enabled plugin: the pointer is"
+  echo "    what hides the local copy rotting behind it (class 7)."
+  echo "  · MARKETPLACE SKEW → rsync -a --delete from the profile with the newest HEAD,"
+  echo "    but check for symlinks first, or you write through one into another profile."
   exit 1
 else
   echo "Profile parity holds across $checked plugin(s)."

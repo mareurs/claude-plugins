@@ -9,7 +9,7 @@ tags:
 entry_prefix:
 - F
 - W
-entry_high_water_F: 9
+entry_high_water_F: 10
 entry_high_water_W: 2
 ---
 
@@ -77,6 +77,7 @@ entry_high_water_W: 2
 | F-7 | 2026-08-26 | med | release-pipeline | fixed-verified | `release.sh` repoint + sanity loop + version-bump tracker all read install-record element `[0]`; release reported green over a stale sibling (`ce83dfd`) |
 | F-8 | 2026-08-26 | med | tracker-drift | fixed-verified | `VG-7`'s success ratio is invariant under relocation — the exact fix it prescribes cannot move it; headroom 2b re-scoped (`0fd8eb1`) |
 | F-9 | 2026-08-26 | med | tracker-drift | fixed-verified | A tracker's `Status: open` was copied into the passover as pending work; `#21`'s fix shipped three months earlier in `f97f2a4` — executing the handoff would have added a *second* LLM sub-section |
+| F-10 | 2026-08-26 | med | release-pipeline | fixed-verified | Marketplace registrations drifted cross-profile in two files the parity gate never read — and the cross-profile pointer was **hiding** a 3-month-stale local clone of an enabled plugin (`ce83dfd`→ this commit) |
 ## Wins Index
 
 | ID | Date | Impact | Pattern | Counterfactual | Status |
@@ -687,6 +688,93 @@ The passover's own Next-action 1 is *"VERIFY the working state below still holds
 **Cheap countermeasure, applied:** each Next-action item now states *how it was verified and when*, so an unverified item is visible as unverified rather than indistinguishable from a measured one. Verifying `#21` cost one `read_markdown`; the queue had four items of the same shape.
 
 **Fix idea / Pointer:** `#21` row + detail updated in `buddy-introspection.md`. Passover Next actions rewritten with per-item provenance. Candidate `R-N` if this recurs: *a handoff's action list is a set of claims about current state, and inherits no credibility from the session that wrote it* — held for now, since `R-5` and the concurrent session's `R-6` are both already parked pending the `R-4` eval baseline, and a third unmeasured law would repeat the error `R-5` names.
+
+---
+## F-10 — A cross-profile pointer hid a three-month-stale clone, in two files the parity gate never read
+
+**Observed:** 2026-08-26, verifying that buddy 0.9.2 was actually live after `/reload-plugins`.
+
+**When:** Probing which copy of the plugin the running process serves — the `R-89`
+freshness law, which says to probe the copy the consumer loads rather than any upstream
+proxy for it.
+
+**Expected:** `check-profile-parity.sh` reports green, so profiles agree.
+
+**Got:** Green, and three separate faults underneath it.
+
+1. **`~/.claude-kat/plugins/known_marketplaces.json` pointed five of six marketplaces at
+   `~/.claude/plugins/marketplaces/…`** — while kat held its own copies of all six.
+   `superpowers` is enabled in kat, so this profile was loading it out of another profile.
+2. **`~/.claude-sdd/plugins/marketplaces/caveman` was a symlink** into `~/.claude`, dated
+   2026-04-14 — the same coupling by a different mechanism, invisible to any JSON check.
+3. **kat's own clones had rotted.** `superpowers` at `91cb319` (2026-05-06) against
+   `1ab7b8e` (2026-08-12) in the other two; `anthropic-agent-skills` at `5128e18`
+   (2026-04-23) against `3b3fad9` (2026-08-21).
+
+**Probable cause:** `check-profile-parity.sh` read `installed_plugins.json` and nothing
+else. Marketplace *registration* lives in a different file, and marketplace *content* lives
+in a directory neither file describes. The gate's name promises profile parity; its scope
+was one file.
+
+**Workaround:** None needed — fixed. Refreshed kat's five copies from `~/.claude` with
+`rsync -a --delete`, replaced sdd's symlink with a real copy, repointed kat's six
+`installLocation` values to its own profile, and extended the gate with three new classes.
+
+**Severity:** med
+
+**Status:** fixed-verified
+
+**Valid:** dated 2026-08-26
+
+True of all three profiles' registrations and marketplace clones as of this date.
+
+**Rests on:** `F-7` — the same law one level out. A check that reads where the writer wrote
+cannot fail; `F-7` was three checks reading array element `[0]`, this is a whole gate
+reading one file of three.
+
+### The part worth carrying: the pointer was load-bearing in the wrong direction
+
+**Fixing fault 1 alone would have caused a regression.** Repointing kat at its own copies,
+which is the obvious repair and the one the drift class name suggests, would have
+downgraded `superpowers` — an enabled plugin — from 2026-08-12 to 2026-05-06. The
+cross-profile pointer was not merely wrong; it was **the only reason kat was serving
+current code**, and it had been silently compensating for its own local rot.
+
+So the ordering is a rule, not a preference: **refresh the local copy, then repoint. Never
+the reverse.** It is written into the script's own failure hint, because the moment anyone
+reads `MARKETPLACE CROSS-PROFILE` the tempting one-line fix is exactly the wrong one.
+
+The deeper shape: **a pointer that papers over a fault also suppresses the signal for it.**
+Nobody noticed kat's clones were three months old *because* kat never read them. The
+staleness became visible only at the instant the pointer was corrected — which is the worst
+possible moment to discover it, since it arrives disguised as a regression caused by the
+fix. That is why the gate now checks git HEAD skew (class 7) *as well as* the pointer
+(class 5): the two faults are generated by one mechanism and must be reported together.
+
+### Method note — I wrote through the symlink before checking for one
+
+Syncing kat, I also rsynced `~/.claude`'s caveman into sdd's caveman — which was a symlink
+back to `~/.claude`'s caveman. Source and destination resolved to the same tree, so
+`rsync -a --delete` was inert and `~/.claude`'s copy verified intact afterwards (206 files,
+`0d95a81`). It cost nothing, and only because the accident happened to be reflexive. The
+rule earned: **enumerate symlinks in a tree before rsyncing into it**, especially with
+`--delete`, and especially when the whole reason you are there is cross-profile coupling —
+which is to say, when links between the trees are the thing you already know exists. The
+check is now class 6 in the gate, and the failure hint says it in the imperative.
+
+### Verified by positive control, four for four
+
+A green gate after a fix is uninformative — it reads identical whether the checks work or
+not. Built a synthetic three-profile tree under a temp `HOME` with one case per new state:
+a cross-profile `installLocation`, a symlinked marketplace dir, two git repos at different
+HEADs, and a `directory` source whose `installLocation` disagreed with its declared path.
+All four fired, exit 1. The real tree then reported
+`OK: marketplace registrations — every installLocation owns its profile, no symlinks, no
+HEAD skew`, which now means something.
+
+**Fix idea / Pointer:** `scripts/check-profile-parity.sh` classes 5–7 + `MARKETPLACE
+MISMATCH`; `CLAUDE.md` § *This Machine* and § *Plugin Install Path*; issue
+`docs/issues/2026-08-26-marketplace-registration-cross-profile-drift.md`.
 
 ---
 ## Template for new entries

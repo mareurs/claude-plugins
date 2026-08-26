@@ -19,8 +19,13 @@ sibling_repo_branch: prompt-engineering@master
 An AI-eng/DS **validation domain-coverage audit** shipped as `validation-domain-coverage.md`
 (`VG-1`..`VG-10`, committed by another session as `08029a7`). Its prompt spine was rewritten
 from numbered choreography to outcome framing on first-party evidence, and then an ablation
-was **built and run to measure whether that rewrite helped — verdict UNRESOLVED.** The spine
-remains a better-argued hypothesis, not a measured one; `VG-9` is `mitigated`, not `fixed`.
+was built and run to measure whether that rewrite helped. **Verdict, resolved 2026-08-26 at
+zero further spend: the STIMULUS is non-discriminating and is retired.** Six no-skill control
+runs were recovered from the Claude Code transcripts — they had been there the whole time,
+missing only attribution — and three read in full all clear both judge rubrics unaided. The
+pass bar sits below Opus 5's unaided floor, so neither variant ever had headroom. The spine
+remains a better-argued hypothesis, not a measured one; `VG-9` stays `mitigated`, now blocked
+on a *new* fixture rather than on more runs of the old one.
 
 Building the eval turned up four defects in `prompt-tdd` itself, filed as
 `prompt-engineering:prompt-tdd-operating-guide` `OP-13`..`OP-16`. One of them (`OP-15`) would
@@ -30,23 +35,33 @@ them wasted on an accidental `report` re-execution).
 
 ## Next actions
 
-1. Read this doc, then **VERIFY** the working state below still holds (`git status` in both
-   repos, `wc -l` on the Pheasant skill files) BEFORE acting — a peer session was committing
-   into `claude-plugins` while this was written, and had uncommitted edits in
-   `buddy/skills/data-leakage-snow-pheasant/`.
-2. **Decide the stimulus question first, before spending anything.** The n=1 smoke passed
-   *both* spine variants on Claude Opus 5, which the harness's own paired predicates would
-   classify `tautological`. That points at the fixture being too easy — a frontier model
-   catches a crisp docstring-vs-code contradiction unaided. Running n>=10 on the same
-   stimulus likely buys a confident null. Consider a subtler discriminator: an
-   *under-specified* edge the model must notice is unspecified, rather than a flat
-   contradiction; or move the spec to a separate file so the test is whether the model seeks
-   it at all.
-3. Only then run the arms: `--ablate` per variant, **never `--paired`** (see Anti-goals),
-   n>=10, `defaults.timeout` raised above 300s, `max_cost_per_scenario` halved because it is
-   enforced per arm. Budget ~$1.32 × (scenarios × 2 × runs) plus judge calls, sequential.
-4. Owed and not written: an `F-N` friction entry for the method failure described under Open
-   threads. It has no session-log ledger yet in either repo for this work stream.
+**Actions 1, 2 and 4 are DONE. Only the rebuild remains, and it is not urgent.**
+
+1. ~~Verify the working state~~ — **done.** The peer's Pheasant edits landed as `0fd8eb1`, and
+   they also closed `VG-6` and `VG-8` and shipped buddy 0.9.2. Their re-extraction refuted
+   `VG-7`'s success metric on algebra: `(base + lens) / monolith` is invariant under
+   relocation, so it could not respond to the fix it asked for. `VG-7` is now `fixed` and its
+   conditional discharged; the roster measures 2125 lines by a stated method.
+2. ~~Decide the stimulus question~~ — **done, and the answer is no.** Not "probably too easy"
+   but measured: 6 no-skill controls, 3 read in full, all 3 clear both rubrics. Full evidence
+   in `VG-9` and in `prompt-engineering:skill-eval-log`. Generalised as
+   `skill-eval-playbook` `L-17`.
+3. **Rebuild the stimulus above the unaided floor, and run the CONTROL FIRST.** This is the
+   only open action. The requirement is a task where unaided Opus 5 measurably fails,
+   established by controls *before* any variant is built — that ordering is now step 4 of the
+   playbook's checklist rather than step 5. The old note's guesses are still the best
+   candidates: an *under-specified* edge the model must notice is unspecified rather than a
+   flat contradiction, or a spec moved to a separate file so the test is whether the model
+   seeks it out. Everything else carries over unchanged — confound controls, plugin-free
+   profile, both configs, and the marker-per-arm attribution technique. Do not re-run the old
+   fixture at any n.
+4. ~~Owed `F-N` for the method failure~~ — **done**, as
+   `claude-plugins:reconnaissance-patterns` `R-6` (`5f6ce6e`), not an `F-N`: `F-N`/`W-N` are
+   per-work-stream namespaces and this stream opened no session log, while the lesson is about
+   the reconnaissance skill itself. Verdict `miss`, proposal HELD behind the `R-4` eval
+   baseline. Two further findings surfaced while verifying it — a filename in a citation's
+   qualifier slot becomes a silent non-edge, and a fenced block exempts a citation you are
+   writing *about* while backticks do not.
 
 ## Working state
 
@@ -91,17 +106,27 @@ them wasted on an accidental `report` re-execution).
 
 ## Open threads
 
-- **`VG-9` open** — the spine rewrite is unmeasured. Closing condition is a per-model ablation
-  with per-requirement effect sizes, not another argument.
+- **`VG-9` open, but re-scoped.** The spine rewrite is still unmeasured; what changed is that
+  the blocker is now a *missing fixture*, not missing runs. Closing condition rewritten to:
+  a stimulus exists on which unaided Opus 5 measurably fails, established by controls before
+  any arm is built.
 - **`VG-10` open** — prompt artifacts should re-audit on model release, not on `active-plan`'s
   90-day `D-6` clock. Fix lands in `active-plan.md`, routed through `T-37`'s existing
   stale-detector rather than a second mechanism.
-- **`VG-1`..`VG-6`, `VG-8` open** — the coverage gaps proper, untouched by this session.
-- **Lost result** — the `--ablate` control ran and its summary was lost to a buffer handle that
-  expired on an MCP reconnect. Transcript recovery attempted and **inconclusive**: eight
-  transcripts cluster ~90s apart across three invocations, attributable only by mtime, and the
-  probe's literal `== 51` pattern cannot match a `parametrize` table, so its zeros were
-  evidence about the pattern rather than the models. Re-run rather than mine it further.
+- **`VG-1`..`VG-5` and `VG-10` open** — the coverage gaps proper, untouched by this session.
+  `VG-6` (property-based testing) and `VG-8` (stale ibex line count) were closed by a peer
+  session, and `VG-7` fixed; all three are `fixed` as of buddy 0.9.2. Live-state counts
+  updated to 6 open / 1 mitigated / 3 closed.
+- **Lost result — RECOVERED, and it was the decisive one.** The `--ablate` summary was lost to
+  an expired buffer handle, and the first recovery attempt called the transcripts
+  "attributable only by mtime" and gave up. That was wrong twice over. They attribute on the
+  first try by a **content marker unique per arm** (`Follow this procedure exactly` vs
+  `So: the checks you write must be able to fail`, with `checks which cannot fail` /
+  `Validation Spine` confirming absence in controls, and `_LEGACY_ALIASES` as the positive
+  control that the search reached the right files). That resolved 4 OLD / 3 NEW / **6
+  no-skill controls** — and the controls are what retired the stimulus. "Re-run rather than
+  mine it further" was exactly the wrong call: mining it further cost nothing and answered
+  the question a re-run would have obscured.
 - **Method lesson — FILED, no longer owed.** Landed as
   `reconnaissance-patterns:R-6` in **claude-plugins**, not as an `F-N`: the `F-N`/`W-N`
   namespaces are per-work-stream and this stream never opened a session log in either repo,
