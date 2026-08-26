@@ -51,7 +51,7 @@ Scenarios:
 |---|---|---|
 | `seam-contact/gap-capture` | judge | Positive: scout-first + catch the `expiry_ts`/`deadline_unix` drift + write `F-3` (next monotonic ID) in anchored shape + cite the ID. High expected delta. |
 | `precision/no-decision-edit` | judge | Precision/control: a mechanical docstring typo (in "When NOT to Use") must NOT trigger an entry. Guards over-firing. **Low expected delta** — see below. |
-| `instrument/missing-output-state` | judge | **TAUTOLOGICAL — measured, no power.** Second `R-4` attempt, both faults of the first one fixed. `treat 3/3 · ctrl 3/3 · Δ+0.00`, and all three control runs probed the classifier unprompted. Kept as a **regression guard**. |
+| `instrument/self-validating-gate` | judge | **CONFIRMED GAP — the one that works.** Base-competence screen for `R-5`. Control 0/3, treatment (current skill) 0/3, both 0.00. Behaviour is absent by default *and* absent from the skill. Now the **pre-registered validation test** for `R-5`'s promotion — red today, and a flip to green measures the effect. |\n| `instrument/missing-output-state` | judge | **TAUTOLOGICAL — measured, no power.** Second `R-4` attempt, both faults of the first one fixed. `treat 3/3 · ctrl 3/3 · Δ+0.00`, and all three control runs probed the classifier unprompted. Kept as a **regression guard**. |
 | `instrument/green-report-control` | judge | **TAUTOLOGICAL — measured, no power.** Built to score marker 5 / `R-4`; paired run returned `treat 3/3 · ctrl 3/3 · Δ+0.00`. Base competence solves it. Do not cite it as evidence for `R-4`. See below. |
 
 ### Why `instrument/green-report-control` exists — the `R-4` gap

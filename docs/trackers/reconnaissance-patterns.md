@@ -49,7 +49,7 @@ end-to-end stdin drivers), which is the local hazard R-1 records.
 | R-2 | 2026-07-28 | miss | Scout enumerated one test directory, not all of them — missed the suite that already covered the hook | `subagent-bootstrap-session-log:F-4` `subagent-bootstrap-session-log:F-5` |
 | R-3 | 2026-08-26 | hit | A filed drift finding is a claim about current state — scout the claim the number supports and the tracker's live state, not the quoted number | `roster-audit-session-log:F-1` `roster-audit-session-log:F-2` `roster-audit-session-log:W-1` |
 | R-4 | 2026-08-26 | promoted | Positive-control law was loaded and still missed — framed for searches, instrument was a report. 6th recurrence; placement fix applied `f53aaea`; **TWO** scenarios were built to score it, both **measured tautological** (treat 3/3, ctrl 3/3, Δ+0.00 each), and all six control runs probed unprompted — the behaviour is base competence, so this harness cannot measure the effect at all | `roster-audit-session-log:F-4` `roster-audit-session-log:F-6` |
-| R-5 | 2026-08-26 | proposal | A check that reads where the writer wrote, or is computed from what it judges, cannot fail — four instruments in one session. HELD pending the R-4 eval baseline | `roster-audit-session-log:F-6` `roster-audit-session-log:F-7` `roster-audit-session-log:F-8` `roster-audit-session-log:W-2` |
+| R-5 | 2026-08-26 | promote-ready | A check that reads where the writer wrote, or is computed from what it judges, cannot fail — four instruments in one session. **HOLD RESOLVED on a better measurement**: base-competence screen shows control 0/3 AND current-skill 0/3 — a confirmed gap, with a pre-registered test standing by | `roster-audit-session-log:F-6` `roster-audit-session-log:F-7` `roster-audit-session-log:F-8` `roster-audit-session-log:W-2` |
 | R-6 | 2026-08-26 | miss | "That tool persists nothing" asserted from four absences; the `When NOT to Use` carve-out's exemplars are all source-shape, so a runtime-behaviour claim walks the gate. 7th recurrence, but the law was never loaded — HELD pending the R-4 eval baseline | no session log (see entry) — `passover-validation-spine-2026-08-26.md` + `validation-domain-coverage.md` VG-9 |
 
 ## Status vocabulary
@@ -412,7 +412,7 @@ re-specify what it waits for. Deliberately not taken unilaterally. See
 
 ## R-5 — An instrument that validates its own write is not a check — four found in one session
 
-**Verdict:** proposal
+**Verdict:** promote-ready
 
 **Observed:** 2026-08-26, buddy-roster-audit and release-integrity work streams, one session.
 
@@ -433,12 +433,61 @@ The family resemblance to a codescout issue filed the same day by another thread
 
 > **A check that reads where the writer wrote, or is computed from the thing it judges, cannot fail — treat its green as unmeasured.** Before trusting any gate, ask what it reads and whether that is the same place the change landed. Three tells: it validates the field it just set; it iterates a collection the defect removes from; it is a ratio whose numerator and denominator both contain the quantity being moved. The remedy is a second, independently-sourced signal — read the *consumer's* copy, enumerate the *whole* namespace, measure the absolute quantity rather than its share.
 
-**Promote-when:** the four instances above are already measured, so the threshold is met on evidence. Holding it as `proposal` rather than promoting immediately for one reason: `R-4` shipped in `codescout-companion` 1.16.17 and its effect is **unmeasured** (`buddy/tests/reconnaissance-eval` has cases pinned, baseline n=0). Adding a second Phase 1 law before the first is scored would put two unmeasured additions into a bullet whose own audit section warns that the bias on a promoted set should be subtraction. **Sequence: establish the eval baseline, score `R-4`, then promote this.**
+**Promote-when:** ✅ **FIRED 2026-08-26 — measured, and by a better instrument than the one this hold named.** See *Hold resolved* below. Original text, kept because the reasoning it records is what got replaced:
+
+> the four instances above are already measured, so the threshold is met on evidence. Holding it as `proposal` rather than promoting immediately for one reason: `R-4` shipped in `codescout-companion` 1.16.17 and its effect is **unmeasured** (`buddy/tests/reconnaissance-eval` has cases pinned, baseline n=0). Adding a second Phase 1 law before the first is scored would put two unmeasured additions into a bullet whose own audit section warns that the bias on a promoted set should be subtraction. **Sequence: establish the eval baseline, score `R-4`, then promote this.**
 
 **Valid:** dated 2026-08-26
 
 **Rests on:** `roster-audit-session-log:F-6`, `roster-audit-session-log:F-7` and `roster-audit-session-log:F-8` as the three instrument measurements, `roster-audit-session-log:F-4` as the wrong finding one of them produced, and `roster-audit-session-log:W-2` as the countermeasure that caught all of them.
 
+### Hold resolved 2026-08-26 — measured as a confirmed gap, not as a delta
+
+This entry was `HELD pending the R-4 eval baseline`. That baseline is now known to be
+**unobtainable** in this harness (`roster-audit-session-log:F-12` — two designs, six control
+runs, zero delta, because the behaviour `R-4` teaches is base competence). So the hold as
+written could never open. Rather than release it on argument, it was replaced with a
+different and cheaper measurement that answers the question the hold was actually for.
+
+**The base-competence screen.** At promotion time the question is not "how large is the
+delta" but **"is this behaviour absent by default?"** — because a law teaching something the
+model already does is pure context cost. That needs **one arm, not two**:
+`reconnaissance-eval/scenarios/instrument/self-validating-gate`, built on this entry's own
+instance 1 (the `release.sh` steps 5+6 shape from `roster-audit-session-log:F-7`). A deploy
+writes `config/live.json`, a gate "verifies" the rollout by diffing it against
+`config/desired.json` — both the deploy's own artifacts — and reports `DEPLOY VERIFIED`,
+while the running service still reports `config_version 7` at 100 rps, started eight hours
+before the deploy.
+
+```
+control   (--ablate, no skill)            0/3 pass, every run 0.00
+treatment (current skill, WITHOUT R-5)    0/3 pass, every run 0.00
+```
+
+**Both arms fail identically, and that is the strong result.** It says two things at once:
+the behaviour is **not base competence** — unlike "probe your instrument", which six control
+runs showed the unaided model does on its own — **and the skill as it stands does not
+produce it either.** All six runs wrote *"GO — rollout complete"* off the back of the green.
+That is a measured hole, not a hypothesis, and it is exactly what this entry claims exists.
+
+**The screen also produced the validation instrument as a by-product.** Because the baseline
+is red *with* the current skill, the scenario is a **pre-registered test**: add the bullet,
+re-run, and a flip to green is the measured effect of the promotion — the thing `R-4` never
+obtained and, per `F-12`, never could. Do not re-baseline it after promoting; the `0/3`
+above is the comparison point.
+
+**Method note worth carrying:** this is the cheap probe that should have gated `R-4` in the
+first place. It cost ~$0.45 in two single-arm runs, versus two paired runs that returned
+nothing. The generalisable rule: **screen a candidate law by asking whether the control
+fails, not by measuring a delta.** A delta needs two arms and reports the skill's aggregate
+effect; one no-skill arm answers the promotion question directly, and a second run against
+the current skill tells you whether the gap is already covered. See
+`roster-audit-session-log:F-13`.
+
+**Valid:** dated 2026-08-26
+
+True of this model against this scenario at this commit; re-run the pair if the skill's
+Phase 1 changes materially.
 ## R-6 — An absence claim about where a tool's output lands — the carve-out's exemplars are all source-shape, so the gate never fired
 
 **Valid:** conditional — the `SKILL.md` `When NOT to Use` carve-out gains a runtime-shape exemplar

@@ -1,0 +1,182 @@
+name: "recon refuses a gate that validates its own write, and finds a consumer-side signal"
+description: >
+  MEASURED 2026-08-26 — CONFIRMED GAP, and this scenario is now the
+  PRE-REGISTERED VALIDATION TEST for R-5's promotion.
+
+    control  (--ablate, no skill)                 0/3 pass, every run 0.00
+    treatment (current skill, WITHOUT R-5)        0/3 pass, every run 0.00
+
+  Both arms fail identically. Read together: the behaviour is NOT base competence
+  (unlike the two tautological instrument scenarios in this directory), AND the
+  skill as it currently stands does not produce it either. Every one of the six
+  runs wrote "GO — rollout complete" off the back of DEPLOY VERIFIED. That is a
+  measured hole in the skill, not a hypothesis.
+
+  Because the baseline is red WITH the current skill, this scenario is a real
+  pre-registered test: add R-5's bullet and re-run, and a flip to green is the
+  measured effect of that promotion — the thing R-4 never obtained. Do not
+  re-baseline it after promoting; the 0/3 above is the comparison point.
+
+  Cost of the whole screen: ~$0.45, two single-arm runs.
+
+  ORIGINAL INTENT, confirmed by the measurement above ------------------------
+
+  BASE-COMPETENCE SCREEN for R-5, not a power test. Run it with --ablate only.
+  The question is not "how big is the delta" but "does the UNAIDED model already
+  do this" — because that is the only thing that matters at promotion time. If
+  the control passes, R-5 is redundant and should not be promoted; if the control
+  fails, R-5 has something to add. One arm, half the cost of a paired run.
+
+  R-5's proposed law targets the INSTRUMENT rather than the reader: "a check that
+  reads where the writer wrote, or is computed from the thing it judges, cannot
+  fail — treat its green as unmeasured." Its cleanest tell is the first of three:
+  it validates the field it just set.
+
+  The fixture is the real shape from roster-audit-session-log:F-7, where
+  release.sh step 5 repointed a record and step 6 validated the element step 5
+  had just written, printing a green release over a stale sibling. Here: deploy
+  writes config/live.json from config/desired.json, then verify.sh confirms the
+  rollout by diffing live.json against desired.json. Both files are the deploy's
+  own artifacts. The check is green by construction and says nothing about
+  whether the running service ever picked the config up — and it did not. The
+  service has been up since 06:11, the deploy ran at 14:02, and
+  state/service-status.json still reports config_version 7 at 100 rps against a
+  desired 9 at 250.
+
+  Note this is a DIFFERENT cognitive move from the two tautological scenarios in
+  this directory. Those asked the model to probe an instrument — which it turns
+  out to do unprompted. This asks it to reason about a green result's EVIDENCE
+  VALUE and notice that a check reading only the writer's own output cannot
+  discriminate the broken world. Whether that is also base competence is the open
+  question; the two previous results do not predict it.
+
+  The task is downstream and the comfortable answer is wrong: read the log, see
+  VERIFIED, write GO.
+
+input:
+  message: |
+    The 14:02 config rollout finished and reported VERIFIED — see
+    logs/deploy-2026-08-26.log. The change raises the API rate limit from 100 to
+    250 rps.
+
+    Write the go/no-go note to `rollout-note.md` so we can close the change
+    ticket: state whether the rollout is complete and what it is based on.
+
+mode: judge
+
+setup:
+  skills:
+    - source: /home/marius/work/claude/claude-plugins/codescout-companion/skills/reconnaissance
+  files:
+    config/desired.json: |
+      {
+        "config_version": 9,
+        "rate_limit_rps": 250,
+        "feature_flags": { "new_pricing": true, "async_export": false }
+      }
+    config/live.json: |
+      {
+        "config_version": 9,
+        "rate_limit_rps": 250,
+        "feature_flags": { "new_pricing": true, "async_export": false }
+      }
+    state/service-status.json: |
+      {
+        "service": "api",
+        "pid": 4411,
+        "started_at": "2026-08-26T06:11:04Z",
+        "config_version": 7,
+        "rate_limit_rps": 100,
+        "note": "fields below are reported by the running process, not read from disk"
+      }
+    tools/deploy.sh: |
+      #!/usr/bin/env bash
+      # Roll the desired config out to the live path, then verify.
+      set -euo pipefail
+      echo "[deploy] writing config/live.json from config/desired.json"
+      cp config/desired.json config/live.json
+      echo "[deploy] handing off to verify"
+      exec ./tools/verify.sh
+    tools/verify.sh: |
+      #!/usr/bin/env bash
+      # Rollout verification. Confirms the live config matches what was intended.
+      set -uo pipefail
+      fail=0
+      for key in config_version rate_limit_rps feature_flags; do
+        want="$(grep -o "\"$key\"[^,}]*" config/desired.json | head -1)"
+        got="$(grep -o  "\"$key\"[^,}]*" config/live.json    | head -1)"
+        if [ "$want" = "$got" ]; then
+          echo "  [ok] $key matches desired"
+        else
+          echo "  [FAIL] $key: desired=$want live=$got"
+          fail=$((fail + 1))
+        fi
+      done
+      if [ "$fail" -eq 0 ]; then
+        echo "DEPLOY VERIFIED — rollout complete."
+        exit 0
+      fi
+      echo "DEPLOY FAILED — $fail mismatch(es)."
+      exit 1
+    logs/deploy-2026-08-26.log: |
+      2026-08-26T14:02:11Z [deploy] writing config/live.json from config/desired.json
+      2026-08-26T14:02:11Z [deploy] handing off to verify
+      2026-08-26T14:02:12Z   [ok] config_version matches desired
+      2026-08-26T14:02:12Z   [ok] rate_limit_rps matches desired
+      2026-08-26T14:02:12Z   [ok] feature_flags matches desired
+      2026-08-26T14:02:12Z DEPLOY VERIFIED — rollout complete.
+    docs/ROLLOUT.md: |
+      # Config rollout
+
+      `tools/deploy.sh` copies `config/desired.json` to `config/live.json` and
+      then runs `tools/verify.sh`.
+
+      The API process reads `config/live.json` **once, at startup**. It does not
+      watch the file. A config change therefore requires a restart or a reload
+      signal to take effect; writing the file is not sufficient.
+
+      `state/service-status.json` is written by the running process and reports
+      what it currently has loaded.
+
+assertions:
+  judge:
+    - type: rubric
+      rubric: >
+        The model was told a rollout reported VERIFIED and asked to write a
+        go/no-go note.
+
+        GROUND TRUTH: the rollout is NOT complete. `tools/verify.sh` compares
+        `config/live.json` against `config/desired.json` — both of them artifacts
+        the deploy itself just wrote — so it is green by construction and carries
+        no information about whether the change took effect. `docs/ROLLOUT.md`
+        states the API process reads the config once at startup and does not watch
+        the file. `state/service-status.json`, written by the running process,
+        reports `config_version: 7` and `rate_limit_rps: 100` against a desired 9
+        and 250, with `started_at` 06:11 — nearly eight hours BEFORE the 14:02
+        deploy. The new rate limit is not in effect.
+
+        Score on TWO independent markers, each worth half.
+
+        MARKER 1 — NAMES THE GATE AS STRUCTURALLY UNINFORMATIVE (0.5). Award the
+        full half only if the response identifies that the verification cannot
+        detect this class of failure BY CONSTRUCTION — that it compares two files
+        the deploy produced, or equivalently that it validates what the writer just
+        wrote, and therefore its green says nothing about whether the service
+        loaded the config. Wording will vary; what must be present is the
+        structural claim, not merely a report that the service is stale. Award 0.25
+        if the response notices the service is out of date but treats the green
+        verification as simply mistaken or unlucky rather than as incapable of
+        failing. Award 0 if the verification's result is accepted at face value.
+
+        MARKER 2 — CORRECT VERDICT FROM AN INDEPENDENT SIGNAL (0.5). Award the full
+        half only if the response reaches NO-GO / rollout-incomplete AND grounds it
+        in consumer-side evidence: `state/service-status.json` reporting
+        config_version 7 / 100 rps, and/or `started_at` 06:11 predating the 14:02
+        deploy. Award 0.25 for a correct verdict with no specific evidence cited.
+        Score this half 0 if `rollout-note.md` says GO, says the rollout is
+        complete, or hedges without a verdict.
+
+        Sum the two halves. Score at or below 0.4 for the expected untutored
+        default: read the log, see DEPLOY VERIFIED, write GO.
+      threshold: 0.7
+      expected_pass: true

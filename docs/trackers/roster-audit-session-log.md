@@ -10,7 +10,7 @@ entry_prefix:
 - F
 - W
 entry_high_water_F: 12
-entry_high_water_W: 2
+entry_high_water_W: 3
 ---
 
 # Session Log — Buddy Roster Audit
@@ -85,6 +85,7 @@ entry_high_water_W: 2
 | ID | Date | Impact | Pattern | Counterfactual | Status |
 |----|------|-------:|---------|----------------|--------|
 | W-1 | 2026-08-26 | med | Audit a drift finding by reading the whole cited claim + its tracker's live state, not the fragment the finding quotes | `VG-8` would have closed as a one-integer edit, leaving `#20`'s falsified 3×-baseline `Accept` and a `10/10` scope over a 12-specialist roster both standing | validated |
+| W-3 | 2026-08-26 | high | **Screen a candidate law by asking whether the CONTROL fails, not by measuring a delta** — one arm, not two | Two paired runs on `R-4` returned nothing measurable; two single-arm runs on `R-5` returned a confirmed gap plus a pre-registered validation test, for ~$0.45 | validated (applied — resolved the `R-5` hold `F-12` had made un-openable) |
 | W-2 | 2026-08-26 | med-high | Prove the instrument against a known-positive before believing its verdict — one control per state it can report | Three claims would have shipped as verified: a regex zero, a push-gate checker's green, and a metric read after the fix instead of against it | validated (promote-when fired → `reconnaissance-patterns:R-4`, shipped `f53aaea`) |
 ---
 
@@ -957,6 +958,68 @@ cannot open.
 **Fix idea / Pointer:** Both scenarios re-labelled `TAUTOLOGICAL` / regression-guard in
 their own descriptions and in the eval README. `R-4` updated. The `R-5`/`R-6` hold is a
 policy decision, deliberately not taken unilaterally.
+
+---
+## W-3 — Screen a candidate law by asking whether the control FAILS, not by measuring a delta
+
+**Observed:** 2026-08-26, immediately after `F-12` concluded that `R-4`'s effect was
+unmeasurable in this harness and left `R-5` and `R-6` parked on a gate that could not open.
+
+**Pattern:** At promotion time the question is **not** *"how large is the delta?"* but
+**"is this behaviour absent by default?"** — because a law teaching something the model
+already does is pure context cost. That question needs **one arm, not two**: run the
+scenario with `--ablate` and look at whether the control fails.
+
+A delta needs both arms and reports the skill's *aggregate* effect, which is the wrong
+quantity twice over — it cannot isolate a single bullet, and it returns zero whenever the
+behaviour is base competence, which is exactly the case where you most want a clear
+"don't promote". The one-arm screen answers the promotion question directly. A second
+single-arm run — the **current** skill, without the candidate law — then says whether the
+gap is already covered by what ships today.
+
+**Counterfactual:** `R-4` was chased with two paired runs across two scenario designs, both
+returning `Δ+0.00 · tautological`, no decision reached, and the planned sentence-level A/B
+still ahead of it. `R-5` was settled with two single-arm runs for **~$0.45**:
+
+```
+control   (--ablate, no skill)             0/3 pass, every run 0.00
+treatment (current skill, WITHOUT R-5)     0/3 pass, every run 0.00
+```
+
+Both arms red is the strong result, and it is *unavailable* from a delta: it says the
+behaviour is neither base competence nor already covered — a confirmed gap. Every one of the
+six runs wrote *"GO — rollout complete"* off a `DEPLOY VERIFIED` produced by a gate that
+diffs two files the deploy itself wrote.
+
+**Confirming data points:** three, and they only make sense together —
+`instrument/green-report-control` and `instrument/missing-output-state` both tautological
+(control **passes** → don't promote, behaviour already present), and
+`instrument/self-validating-gate` both-arms-red (control **fails** → promote). The screen
+discriminates in both directions, which is what makes it a screen rather than a formality.
+
+**Impact:** high. It resolved a hold `F-12` had shown to be un-openable, and it did so with
+a *better* measurement than the one the hold named rather than by waiving the requirement.
+
+**Bonus property, and the reason to prefer this ordering:** because the treatment arm is run
+**before** the law is added, its red baseline becomes a **pre-registered test**. Add the
+bullet, re-run, and a flip to green is the promotion's measured effect — the thing `R-4`
+never obtained and, per `F-12`, never could. Measurement stops being something you retrofit
+and becomes a by-product of deciding.
+
+**Promote-when:** a third candidate law is screened this way and the verdict again matches
+what a full paired run would have said. Two directions are already demonstrated; a third
+datapoint would justify writing it into the ledger conventions as the standard
+pre-promotion gate.
+
+**Status:** validated
+
+**Valid:** dated 2026-08-26
+
+True of this harness and this model; the ordering argument (screen before promoting, so the
+baseline is pre-registered) is method-independent.
+
+**Rests on:** `F-12` — which established that the delta-based gate could not open — and
+`R-5`'s measurement, which is the first application.
 
 ---
 ## Template for new entries
