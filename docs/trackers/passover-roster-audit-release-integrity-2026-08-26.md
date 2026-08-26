@@ -104,7 +104,16 @@ the original seven-item list is outstanding:
    the fix it prescribes.
    `[verified 2026-08-26 — F-8 arithmetic recorded in the entry]`
 
-8. **Two codescout upstream fixes, filed not applied** — `F-5` (the session-log template
+8. **Marketplace clones have no sync mechanism.** `F-10` was repaired by a one-time
+   `rsync` from `~/.claude`; nothing keeps the three profiles' marketplace clones current,
+   so HEAD skew reappears whenever one profile auto-updates and another does not. The gate
+   now **detects** it (class 7) and never repairs it — deliberately, since choosing which
+   profile is canonical is a judgement call. Blind spot: `claude-plugins-official` is not a
+   git clone in any profile, so class 7 cannot see its staleness at all (kat's copy was 180
+   plugins against `.claude`'s 289 before the sync, visible only as a file count).
+   `[verified 2026-08-26 — parity green after the fix; positive control fired all four new classes]`
+
+9. **Two codescout upstream fixes, filed not applied** — `F-5` (the session-log template
    cites its own ledger ids bare, so every copy imports dangling citations) and `F-6` (a
    `doctor` check `cited_prefix_with_no_definer`; `F-4` is the instance, this is the class).
    Both are issues on codescout's `experiments` branch.
