@@ -161,6 +161,18 @@ If a lens was resolved in Step 1, also load `<path>/_<lens>.md`. If the addendum
 
 If `SKILL.md` doesn't exist (race condition between Step 1 enumeration and Step 2 read), report: "That specialist disappeared between lookup and load. Re-run the summon." and stop.
 
+**Advisors (fallback only).** If the resolved `SKILL.md`'s frontmatter declares
+`advisors: [name, ...]`, also `Read` each named specialist's `SKILL.md` from the
+index built in Step 1. Use **only** their `## Operating Principles`,
+`## Heuristics` and `## Self-Traps` sections; ignore their `## Voice`,
+`## Method` and any `## ... Format` section — the primary owns the voice and the
+output contract. Skip any advisor the index does not contain and say so in one
+line.
+
+This path is deliberately simpler than the hook's. When the hook fires it
+assembles the projection itself (`summon_bootstrap.py::project_advisor`) and
+Step 0 short-circuits this whole step.
+
 ### Shadow announcement
 
 If the resolved specialist's name also exists in a lower-precedence scope (project shadows global or builtin; global shadows builtin), emit one line before proceeding:
