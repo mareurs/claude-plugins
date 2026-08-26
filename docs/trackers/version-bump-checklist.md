@@ -17,32 +17,78 @@ Release readiness across plugins × profiles. See
 
 ## State
 
-_Last refresh: `78d3284`_
+_Last refresh: `448a1b8`_
 
-**codescout-companion** — canonical `1.16.16` · readme `1.16.16` · marketplace clean ✅
+**codescout-companion** — canonical `1.16.17` · readme `1.16.17` · marketplace clean ✅
 
-| profile | installed | cache dir | install_path ok |
-|---|---|---|---|
-| `~/.claude` | 1.16.16 ✅ | ✅ | ✅ |
-| `~/.claude-sdd` | 1.16.16 ✅ | ✅ | ✅ |
-| `~/.claude-kat` | 1.16.16 ✅ | ✅ | ✅ |
+| profile | installed | cache dir | install_path ok | all entries |
+|---|---|---|---|---|
+| `~/.claude` | 1.16.17 ✅ | ✅ | ✅ | `1.16.17` ✅ |
+| `~/.claude-sdd` | 1.16.17 ✅ | ✅ | ✅ | `1.16.17` ✅ |
+| `~/.claude-kat` | 1.16.17 ✅ | ✅ | ✅ | `1.16.17, 1.16.16` ❌ **STALE SIBLING** |
 
 **buddy** — canonical `0.9.1` · readme `0.9.1` · marketplace clean ✅
 
-| profile | installed | cache dir | install_path ok |
-|---|---|---|---|
-| `~/.claude` | 0.9.1 ✅ | ✅ | ✅ |
-| `~/.claude-sdd` | 0.9.1 ✅ | ✅ | ✅ |
-| `~/.claude-kat` | 0.9.1 ✅ | ✅ | ✅ |
+| profile | installed | cache dir | install_path ok | all entries |
+|---|---|---|---|---|
+| `~/.claude` | 0.9.1 ✅ | ✅ | ✅ | `0.9.1` ✅ |
+| `~/.claude-sdd` | 0.9.1 ✅ | ✅ | ✅ | `0.9.1` ✅ |
+| `~/.claude-kat` | 0.9.1 ✅ | ✅ | ✅ | `0.9.1, 0.9.1` ✅ — two entries, both current *only because buddy has not been bumped since*. **The next buddy release reproduces the stale sibling here** unless step 5 repoints every element. |
 
 **claude-statusline** — canonical `1.1.7` · readme `1.1.7` · marketplace clean ✅
 
-| profile | installed | cache dir | install_path ok |
-|---|---|---|---|
-| `~/.claude` | 1.1.7 ✅ | ✅ | ✅ |
-| `~/.claude-sdd` | 1.1.7 ✅ | ✅ | ✅ |
-| `~/.claude-kat` | 1.1.7 ✅ | ✅ | ✅ |
+| profile | installed | cache dir | install_path ok | all entries |
+|---|---|---|---|---|
+| `~/.claude` | 1.1.7 ✅ | ✅ | ✅ | `1.1.7` ✅ |
+| `~/.claude-sdd` | 1.1.7 ✅ | ✅ | ✅ | `1.1.7` ✅ |
+| `~/.claude-kat` | 1.1.7 ✅ | ✅ | ✅ | `1.1.7` ✅ |
+
+**sdd** — canonical `2.4.1` · readme `2.4.1` · marketplace clean ✅ — **not installed in any
+profile** (0 entries in all three). Stable by design, not a failure, and deliberately absent
+from `params`: RFC 7396 merge-patch reads a `null` value as *delete the key*, so an
+uninstalled plugin cannot be represented as `installed: null` under a schema that requires
+the key. Omitted from params, recorded here.
 ## History
+
+### 2026-08-26 — codescout-companion 1.16.16 → 1.16.17, and a THIRD failure class found
+
+**Release green, one row red.** `release.sh` reported `✅ released (pushed)` with its step-6
+sanity loop showing ✓✓✓, and it was right about everything it looked at. An independent probe
+of the copy the consumer actually loads found the fix present in all three caches
+(`grep -c 'one per state you believe the instrument can report'` → 1; bad-`Valid:` form → 0)
+and `origin/main` carrying `448a1b8`.
+
+Then the record itself: `.plugins["codescout-companion@sdd-misc-plugins"]` in `~/.claude-kat`
+is an **array of two** — `[0]` `scope=user` `1.16.17` (repointed), `[1]` `scope=project`
+`projectPath=/home/marius` **`1.16.16`** (untouched). The 1.16.16 cache dir still exists, so
+the stale entry resolves to real bytes and would serve pre-fix code rather than erroring.
+
+**Three checks, one blind spot, same index.** `release.sh` step 5 repoints the user entry;
+step 6 validates the entry it just wrote; and this tracker's gather prompt read
+`…["<plugin>@sdd-misc-plugins"][0].version`. All three read element `[0]`. CLAUDE.md calls
+this tracker "the richer cross-check of the same two failure classes" — on this axis it was
+not richer, it shared the defect. The gather prompt and `params_schema` were amended today to
+read **every** element and emit `all_versions` + `stale_sibling`; that is why the State table
+now carries an `all entries` column.
+
+**Mechanism, measured — drift, not a deliberate pin.** In `~/.claude-kat` three unrelated
+plugins carry project-scope entries at the identical timestamp `2026-08-24T14:06:57.809Z`
+with `projectPath=/home/marius`: `superpowers` 6.3.0, `codescout-companion` 1.16.16,
+`buddy` 0.9.1. One `/plugin install` run with cwd=`~`. Every *other* project-scope entry
+across all three profiles names a real project dir (`work/mirela/backend-kotlin`, …), and
+`/home/marius` as a "project" matches essentially everything beneath it.
+
+**Predictable recurrence:** `buddy` in `~/.claude-kat` also has two entries, both `0.9.1`
+today only because buddy has not been bumped since. The next buddy release reproduces this
+silently.
+
+**Not asserted:** whether a project-scope record shadows a user-scope one is CC's resolution
+order, which was not established this session. The stale entry is drift regardless of order.
+
+**Open:** the stale `[1]` entry was **left in place** pending a decision — bump it to
+1.16.17, or drop the three home-dir project-scope entries so each profile keeps one record
+per plugin. Also open: teach `release.sh` step 5 to repoint every element and step 6 to
+validate every element.
 
 ### 2026-08-21 — codescout-companion 1.16.15 → 1.16.16
 
