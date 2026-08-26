@@ -31,7 +31,12 @@ verdict() {
 }
 
 # Clear the 3-second dedup window so each test runs with a fresh slate.
-clean() { /bin/rm -f /tmp/cs-block-* 2>/dev/null; }
+clean_window() { /bin/rm -f /tmp/cs-block-* 2>/dev/null; }
+# Clear the redirect circuit-breaker strike counter (see lib.mjs breakerFile).
+# MUST be reset between tests: a leaked counter stands the guard down, which
+# turns every later "deny" assertion into a silent false PASS-as-allow.
+clean_breaker() { /bin/rm -f /tmp/cs-redirect-* 2>/dev/null; }
+clean() { clean_window; clean_breaker; }
 
 assert() {
     local label="$1"
@@ -145,6 +150,93 @@ assert_file "write-pdf-allow"  "Write" "$ACTIVE_CWD/spec.pdf"                "al
 # --- Grep / Glob: always routed ---
 assert_tool "grep-any"  "Grep" '{"pattern":"foo","path":"src","output_mode":"content"}' "deny"
 assert_tool "glob-any"  "Glob" '{"pattern":"**/*.py"}'                                  "deny"
+
+# --- Redirect circuit breaker (2026-08-26) ---------------------------------
+# The guard says "use codescout tool Y instead". When an MCP disconnect strips Y
+# from the tool list, that redirect points at nothing and every route to a shell
+# closes at once. After BREAKER_THRESHOLD consecutive denies with no codescout
+# tool answering, the guard stands down.
+# See docs/issues/2026-08-26-companion-blocks-bash-after-codescout-disconnect.md
+LIVENESS="$(cd "$(dirname "$0")" && pwd)/cs-liveness.mjs"
+
+check() {  # <label> <got> <expected>
+    if [[ "$2" == "$3" ]]; then
+        echo "PASS [$1]"; PASS=$((PASS+1))
+    else
+        echo "FAIL [$1]: expected=$3 got=$2"; FAIL=$((FAIL+1))
+    fi
+}
+
+# Fire one Bash call, clearing ONLY the dedup window so the strike counter
+# survives across calls the way it does in a real session.
+fire() {  # <session_id> <cmd>  -> raw hook stdout
+    clean_window
+    if [[ -n "$1" ]]; then
+        jq -n --arg s "$1" --arg c "$2" --arg cwd "$ACTIVE_CWD" \
+            '{tool_name:"Bash", session_id:$s, cwd:$cwd, tool_input:{command:$c}}' | node "$HOOK"
+    else
+        jq -n --arg c "$2" --arg cwd "$ACTIVE_CWD" \
+            '{tool_name:"Bash", cwd:$cwd, tool_input:{command:$c}}' | node "$HOOK"
+    fi
+}
+
+clean
+SID="breaker-test-$$"
+
+# Strikes 1..3 still deny; the 3rd warns that the guard is about to stand down.
+for i in 1 2 3; do
+    OUT=$(fire "$SID" "echo strike-$i")
+    check "breaker-strike-$i-deny" "$(verdict "$OUT")" "deny"
+done
+case "$OUT" in
+    *"stands down on the next call"*) check "breaker-warns-at-threshold" "yes" "yes" ;;
+    *)                                check "breaker-warns-at-threshold" "no"  "yes" ;;
+esac
+
+# 4th consecutive unanswered redirect → stand down (advisory context, no deny).
+OUT=$(fire "$SID" "echo strike-4")
+check "breaker-stands-down-at-4" "$(verdict "$OUT")" "allow"
+# LOAD-BEARING, not redundant with the line above. verdict() maps EMPTY output to
+# "allow", so breaker-stands-down-at-4 passes even if the stand-down branch emits
+# nothing at all. Measured by mutation 2026-08-26: stubbing out the
+# contextPreToolUse call leaves breaker-stands-down-at-4 GREEN and is caught by
+# this assertion alone. Deleting it re-opens a check that cannot fail.
+case "$OUT" in
+    *"stood its guard down"*) check "breaker-standdown-explains" "yes" "yes" ;;
+    *)                        check "breaker-standdown-explains" "no"  "yes" ;;
+esac
+# Stand-down must be advisory only — never an auto-approval of the user's tool.
+case "$OUT" in
+    *'"permissionDecision":"allow"'*) check "breaker-standdown-not-autoapprove" "no"  "yes" ;;
+    *)                                check "breaker-standdown-not-autoapprove" "yes" "yes" ;;
+esac
+
+# Proof of life re-arms the guard, with no manual reset.
+echo "{\"session_id\":\"$SID\"}" | node "$LIVENESS"
+OUT=$(fire "$SID" "echo after-liveness")
+check "breaker-liveness-rearms" "$(verdict "$OUT")" "deny"
+
+# No session id → breaker disabled (a cwd-keyed counter would be shared by two
+# concurrent sessions in one repo). Must never stand down, however many strikes.
+clean
+NOSID_OK=yes
+for i in 1 2 3 4 5 6; do
+    [[ "$(verdict "$(fire "" "echo nosid-$i")")" == "deny" ]] || NOSID_OK=no
+done
+check "breaker-disabled-without-session" "$NOSID_OK" "yes"
+
+# Fix (a): every deny names the human escape, and never the config file the
+# guard itself forbids writing.
+clean
+OUT=$(fire "$SID" "echo footer")
+case "$OUT" in
+    *"/mcp"*) check "escape-footer-names-mcp" "yes" "yes" ;;
+    *)        check "escape-footer-names-mcp" "no"  "yes" ;;
+esac
+case "$OUT" in
+    *"codescout-companion.json"*) check "escape-footer-avoids-unreachable-config" "no"  "yes" ;;
+    *)                            check "escape-footer-avoids-unreachable-config" "yes" "yes" ;;
+esac
 
 clean
 echo "---"

@@ -1,7 +1,7 @@
 ---
 id: b86bd10b9a5da5cc
 kind: bug
-status: open
+status: fixed
 title: codescout-companion keeps hard-blocking Bash after the MCP server disconnects, redirecting to tools that no longer exist — the session loses every shell capability at once
 tags:
 - codescout-companion
@@ -97,28 +97,26 @@ deadlock into a documented one. (a) should name the *human* action (`/mcp`, `!`)
 not the config file.
 ## Candidate fixes — not yet chosen
 
-- **(a) Name the HUMAN escape in the deny reason** — `/mcp` to reconnect, or `!
-  <command>` at the prompt. Smallest change, strictly additive, and it lands
-  regardless of which other fix wins. Note the measurement above: it must NOT
-  point at `.claude/codescout-companion.json`, which the guard itself forbids
-  writing. Necessary but not sufficient — on its own it converts a silent
-  deadlock into a documented one.
-- **(b) Session-scoped liveness marker.** SessionStart records that codescout
-  answered; the guard fails open when the marker is absent or stale. Needs a
-  freshness policy — a marker that never expires reintroduces the same
-  config-shaped staleness one layer down (cf. `R-89`).
-- **(c) Failure-driven circuit breaker.** A codescout tool call failing with a
-  connection error disarms the guard for the rest of the session. Closest to the
-  real signal; needs a PostToolUse path that sees MCP transport errors — **not
-  confirmed to exist.**
+**Chosen: (a) + (c), landed together.** (b) was rejected — a marker with a
+freshness window reintroduces exactly the config-shaped staleness one layer down
+(`R-89`), and it cannot distinguish "codescout is gone" from "nobody happened to
+call codescout for a while", which at session start is every session.
 
-(a) is independent of the others and can land first.
-
+(c) was filed as *"needs a PostToolUse path that sees MCP transport errors — not
+confirmed to exist."* That framing was the thing blocking it, and it was wrong.
+Transport errors are not observable, but they are also not needed: what the guard
+has to know is whether the redirect **target is reachable**, and any codescout
+tool answering proves that. An error payload proves it just as well as a success.
+Silence is the only negative signal, and consecutive unanswered denies are how it
+is read.
 ## Not yet done
 
-No regression test. The natural shape is a `pre-tool-guard.test.sh` case asserting
-`allow` for `Bash` when codescout is configured but unreachable — which cannot be
-written until a fix picks the liveness signal, since there is nothing to simulate
-today.
+Superseded — see *Fix* below. A regression test now exists; the design note that
+it "cannot be written until a fix picks the liveness signal" was wrong, and wrong
+in an informative way: it assumed the signal had to be a *transport error*, which
+indeed is not observable. Proof-of-life is observable, and it was already in the
+file — `hooks.json` has carried PostToolUse matchers on MCP tools
+(`mcp__.*__workspace`) since before this bug was filed.
 
-**Valid:** dated 2026-08-26
+The deferral rationale inflated the cost of the work, in the direction the
+reconnaissance skill predicts a deferral rationale always inflates it.

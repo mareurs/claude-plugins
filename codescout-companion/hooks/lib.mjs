@@ -8,7 +8,8 @@
 // PreToolUse exit is itself a deny, so a crash would block the user's tool.
 import { readFileSync, existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { homedir } from 'node:os';
+import { homedir, tmpdir } from 'node:os';
+import { createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
 import { detect } from './detect.mjs';
 
@@ -46,6 +47,32 @@ export function contextPreToolUse(context) {
     },
   });
 }
+
+// --- Redirect circuit breaker: shared state key -------------------------
+//
+// pre-tool-guard's whole contract is "don't use X, use codescout Y instead".
+// That contract is VOID the moment Y is unreachable: an MCP disconnect removes
+// every codescout tool from the tool list while leaving the guard armed, so the
+// deny reason names tools that cannot be called and the session loses every
+// route to a shell at once — including the ones needed to diagnose it.
+// See docs/issues/2026-08-26-companion-blocks-bash-after-codescout-disconnect.md.
+//
+// Detection is by PROOF OF LIFE, not by polling the server: cs-liveness.mjs
+// (PostToolUse on the codescout tool names) clears the counter whenever any
+// codescout tool answers. An error payload still counts — what is measured is
+// whether the tool surface is REACHABLE, not whether the call succeeded.
+// Consecutive denies with no codescout answer in between are the evidence that
+// the redirect is going nowhere.
+//
+// Returns null when there is no session id, which DISABLES the breaker. That is
+// deliberate: a cwd-keyed counter would be shared by two concurrent sessions in
+// the same repo, so one session's denies would stand down the other's guard.
+export function breakerFile(sessionId) {
+  if (!sessionId) return null;
+  const key = createHash('sha256').update(String(sessionId)).digest('hex').slice(0, 12);
+  return join(tmpdir(), `cs-redirect-${key}`);
+}
+
 
 // Run codescout detection for a cwd, resolving home/config-dir from env
 // (cross-platform: HOME on POSIX, USERPROFILE/os.homedir() on Windows).

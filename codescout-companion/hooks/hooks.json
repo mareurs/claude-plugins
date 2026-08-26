@@ -146,6 +146,16 @@
             "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/cs-activate-project.mjs"]
           }
         ]
+      },
+      {
+        "matcher": "mcp__.*__(symbols|run_command|read_file|grep|semantic_search|edit_code|edit_file|edit_markdown|read_markdown|tree|references|call_graph|symbol_at|workspace|artifact|memory|index|onboarding|librarian)",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node",
+            "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/cs-liveness.mjs"]
+          }
+        ]
       }
     ],
     "Stop": [

@@ -2,11 +2,17 @@
 // Blocks native Bash/Grep/Glob/Read/Edit/Write in favour of codescout tools via
 // permissionDecision:deny + a guidance reason. Exemptions: binary images/PDF,
 // skill payloads, harness tool-results, and CC config dirs (read-side only).
-import { statSync, writeFileSync } from 'node:fs';
+import { statSync, writeFileSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir, homedir } from 'node:os';
 import { createHash } from 'node:crypto';
-import { readInput, detectFor, denyPreToolUse } from './lib.mjs';
+import {
+  readInput,
+  detectFor,
+  denyPreToolUse,
+  contextPreToolUse,
+  breakerFile,
+} from './lib.mjs';
 import { SOURCE_EXT_PATTERN } from './detect.mjs';
 
 const SOURCE_RE = new RegExp(SOURCE_EXT_PATTERN, 'i');
@@ -47,6 +53,45 @@ function isConfigDir(p) {
 // Relative path when under CWD; absolute (cross-repo) otherwise.
 const rel = (p) => (cwd && p.startsWith(`${cwd}/`) ? p.slice(cwd.length + 1) : p);
 
+const sessionId = input.session_id || '';
+
+// After this many consecutive denies with no codescout tool answering in
+// between, the redirect is demonstrably going nowhere and the guard stands down.
+// See breakerFile() in lib.mjs for why proof-of-life is the signal.
+const BREAKER_THRESHOLD = 3;
+
+// One sentence, on every deny: the redirect above is only good advice while the
+// codescout tools actually exist, and the caller is the one who can see whether
+// they do. Deliberately does NOT point at .claude/codescout-companion.json —
+// measured 2026-08-26, this guard denies Write and Edit on that file too, so the
+// documented block_reads escape is unreachable by whoever is being blocked.
+const ESCAPE_FOOTER =
+  '\n\nIf these codescout tools are not in your tool list, the MCP server has ' +
+  'disconnected and this redirect points at nothing — ask the user to run /mcp, ' +
+  'or to run the command for you by typing "! <command>" at the prompt.';
+
+// Count one strike. Returns 0 when the breaker is disabled (no session id) or
+// when its state is unreadable — both fail SAFE, i.e. toward the guard staying
+// armed and behaving exactly as it did before this was added.
+function bumpBreaker() {
+  const f = breakerFile(sessionId);
+  if (!f) return 0;
+  try {
+    let n = 0;
+    try {
+      n = parseInt(readFileSync(f, 'utf8'), 10) || 0;
+    } catch {
+      n = 0; // absent marker = no strikes yet
+    }
+    n += 1;
+    writeFileSync(f, String(n));
+    return n;
+  } catch {
+    return 0;
+  }
+}
+
+
 // --- Hard block with reason. First block in a 3s window per (tool,cwd) gets the
 // full reason; parallel/repeat calls within the window get a short pointer.
 // Window tracked by a temp-file mtime (cross-platform; no backgrounded cleanup).
@@ -78,7 +123,36 @@ function enforce(reason) {
     denyPreToolUse('BLOCKED (see previous message)');
     process.exit(0);
   }
-  denyPreToolUse(reason);
+
+  // Only first-in-window denies count, so a burst of parallel calls the model
+  // issued in ONE turn scores a single strike rather than tripping the breaker
+  // on its own.
+  const strikes = bumpBreaker();
+
+  if (strikes > BREAKER_THRESHOLD) {
+    // Stand down: let the call through normal permissions (this is advisory
+    // context, NOT an auto-approval — the user's own Bash/Edit prompt still
+    // applies) and say why, so neither the model nor the user has to guess.
+    contextPreToolUse(
+      `codescout-companion stood its guard down for this call.\n\n` +
+        `${strikes} consecutive redirects to codescout tools went unanswered — no ` +
+        `codescout tool has responded in between. The usual cause is the MCP server ` +
+        `having disconnected, which strips every codescout tool from the tool list ` +
+        `while leaving this hook armed, so the redirect names tools you cannot call.\n\n` +
+        `Run /mcp to check the connection. The guard re-arms by itself the moment any ` +
+        `codescout tool answers again — nothing needs resetting by hand.`
+    );
+    process.exit(0);
+  }
+
+  let full = reason + ESCAPE_FOOTER;
+  if (strikes === BREAKER_THRESHOLD) {
+    full +=
+      `\n\n[!] ${strikes} redirects in a row and no codescout tool has answered. If ` +
+      `codescout is disconnected, this guard stands down on the next call rather ` +
+      `than leaving you with no way to run anything.`;
+  }
+  denyPreToolUse(full);
   process.exit(0);
 }
 
