@@ -10,7 +10,7 @@ entry_prefix:
 - F
 - W
 entry_high_water_F: 13
-entry_high_water_W: 3
+entry_high_water_W: 4
 ---
 
 # Session Log — Buddy Roster Audit
@@ -1161,6 +1161,75 @@ an activation lever outside the prompt — a profile with the skill pre-loaded r
 offered — which would need adapter work in `prompt-engineering`. Neither attempted.
 
 ---
+## W-4 — A check that returns the same value for every candidate reads exactly like a check that passed — a second mechanism, adjacent to R-5
+
+**Status:** candidate — recorded, NOT promoted. See *Promote-when*.
+**Valid:** dated 2026-08-26
+**Rests on:** `claude-plugins:R-5` (the tautology law it sits beside), `claude-plugins:F-13` (why a thin evidence base gets recorded rather than shipped)
+
+### The claim
+
+R-5 as shipped covers checks that **cannot fail**: they read where the writer
+wrote, or are computed from the thing they judge. This is a different mechanism
+with the same signature — a check with **no resolving power between the
+hypotheses under test**. It *can* fail in principle; it just returns the same
+value for every candidate, so its green carries no information about which one is
+true. Tautology versus non-discrimination.
+
+The phrasing is a peer's, from session 77c6f4ae working the codescout checkout:
+*"it is not that author/email is a bad discriminator, it is that a check
+returning the same value for every candidate reads exactly like a check that
+passed."*
+
+### Evidence — two instances, and one illustration that is NOT evidence
+
+1. **Measured here, 2026-08-26 (mine).** `pre-tool-guard.test.sh`'s `verdict()`
+   maps EMPTY hook output to `"allow"`. So `breaker-stands-down-at-4`, which
+   asserts `allow`, passes both when the stand-down works and when the
+   `contextPreToolUse` call is stubbed out entirely. Confirmed by mutation: with
+   the call disabled the suite reported 54/55 and that assertion stayed **green**;
+   only `breaker-standdown-explains`, which greps the emitted text, caught it.
+   Annotated in the test file so it is not deleted as redundant.
+
+2. **Reported by the peer, not measured by me.** They attributed four commits to
+   a candidate session on **timing correlation alone** — a signal shared by every
+   session concurrent in the window — and reported it as settled. The
+   discriminating signal (`.codescout/cc_session_id`, the buddy trace log) was on
+   disk in their own repo, unread. Running it showed **three** live sessions in
+   that checkout, two of them descended from their own sid.
+
+3. **NOT evidence: the author/email illustration.** I raised
+   `Marius Ailinca <ailinca.marius@gmail.com>` being constant across every commit
+   on this machine — including my own — as the clean example of the shape. The
+   peer then stated they had never used author or email. It is a good teaching
+   case and it is *true* that the field cannot discriminate, but no one was
+   actually misled by it, so it counts as illustration, not a datapoint. Recording
+   the distinction because the temptation is to bank all three and call the
+   threshold met.
+
+### Promote-when
+
+Two datapoints, and only one of them measured by this session. That is thinner
+than it feels, and it feels strong because the phrasing is crisp — which is the
+condition `F-13` was written about. **Promote to the reconnaissance skill on a
+third instance from an independent work stream**, ideally one where the
+non-discriminating check is neither a test assertion nor an attribution, so the
+class is shown to generalise past the two shapes seen here.
+
+Until then the operational advice already exists and needs no new bullet: R-5's
+positive-control neighbour ("make the instrument find one case whose answer you
+already know") catches this mechanism too, because an instrument with no
+resolving power fails a positive control exactly as a tautological one does.
+
+### Method note — what actually caught instance 1
+
+Mutation, not review. The assertion was written by me, ten minutes earlier, with
+the defect in plain sight, and reviewing it again would not have found it: the
+line reads correctly. Stubbing the implementation and re-running is what
+separated the assertion that discriminates from the one that does not, and it
+cost about twenty seconds. This is `W-2`'s known-positive discipline applied to a
+test suite instead of to a tool.
+
 ## Template for new entries
 
 <!-- New F-N / W-N entries land above this line. This heading is the anchor:
