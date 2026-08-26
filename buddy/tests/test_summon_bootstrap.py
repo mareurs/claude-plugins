@@ -287,3 +287,94 @@ def test_missing_fragment_is_soft_skipped(plugin):
     payload = sb.build_payload("foo-bar", "builtin", skill, None, project)
     assert payload is not None
     assert "gates text" in payload
+
+
+# -------------------------------------------------------------- advisors
+
+ADVISOR_SKILL = (
+    "---\nname: Sec Ibex\ndescription: security\n---\n\n"
+    "# The Security Ibex\n\n"
+    "## Voice\n\nTerse and wary.\n\n"
+    "## Operating Principles\n\n1. Trust nothing inbound.\n\n"
+    "## Method — Three Phases\n\n### Phase 1 — Map\n\nMap the surface.\n\n"
+    "## Finding Format\n\nSEVERITY / ASSET / PATH\n\n"
+    "## Heuristics (universal)\n\n1. Every input is hostile.\n\n"
+    "## Self-Traps (Failure Modes to Avoid)\n\n1. Auditing only the diff.\n"
+)
+
+
+@pytest.fixture
+def plugin_with_advisor(plugin):
+    plug, project = plugin
+    (plug / "skills" / "sec-ibex").mkdir(parents=True)
+    (plug / "skills" / "sec-ibex" / "SKILL.md").write_text(ADVISOR_SKILL)
+    skill = plug / "skills" / "foo-bar"
+    skill.joinpath("SKILL.md").write_text(
+        "---\nname: Foo Bar\ndescription: t\nadvisors: [sec-ibex]\n---\n\n"
+        "# The Foo Bar\n\n## Voice\n\nCalm.\n\n"
+        "## Test Format\n\nGIVEN / WHEN / THEN\n"
+    )
+    return plug, project
+
+
+def _advised(sb_mod, plug, project):
+    return sb_mod.build_payload(
+        "foo-bar", "builtin", plug / "skills" / "foo-bar", None, project
+    )
+
+
+def test_advisor_contributes_its_projected_sections(plugin_with_advisor, monkeypatch):
+    plug, project = plugin_with_advisor
+    monkeypatch.setattr(sb, "discover", lambda root: {
+        "foo-bar": ("builtin", plug / "skills" / "foo-bar"),
+        "sec-ibex": ("builtin", plug / "skills" / "sec-ibex"),
+    })
+    payload = _advised(sb, plug, project)
+    assert "Trust nothing inbound." in payload
+    assert "Every input is hostile." in payload
+    assert "Auditing only the diff." in payload
+    assert "advisor: sec-ibex" in payload
+
+
+def test_advisor_voice_and_output_contract_are_NOT_projected(
+    plugin_with_advisor, monkeypatch
+):
+    """LOAD-BEARING, and it looks redundant with the test above. It is not.
+
+    A contains-check for the advisor's heuristics passes just as well if the
+    WHOLE advisor file was appended. These exclusions are the only assertions
+    that distinguish projection from concatenation. Deleting them re-opens a
+    check that cannot fail (claude-plugins:W-4).
+    """
+    plug, project = plugin_with_advisor
+    monkeypatch.setattr(sb, "discover", lambda root: {
+        "foo-bar": ("builtin", plug / "skills" / "foo-bar"),
+        "sec-ibex": ("builtin", plug / "skills" / "sec-ibex"),
+    })
+    payload = _advised(sb, plug, project)
+    assert "Terse and wary." not in payload          # advisor Voice
+    assert "SEVERITY / ASSET / PATH" not in payload  # advisor output contract
+    assert "Map the surface." not in payload         # advisor Method
+    assert payload.count("## Test Format") == 1      # primary's, exactly once
+    assert "Calm." in payload                        # primary Voice survives
+
+
+def test_unresolvable_advisor_is_soft_skipped(plugin_with_advisor, monkeypatch):
+    plug, project = plugin_with_advisor
+    monkeypatch.setattr(sb, "discover", lambda root: {
+        "foo-bar": ("builtin", plug / "skills" / "foo-bar"),
+    })
+    payload = _advised(sb, plug, project)
+    assert payload is not None
+    assert "Calm." in payload
+
+
+def test_project_advisor_matches_heading_variants():
+    body = (
+        "## Heuristics (universal)\n\nH text\n\n"
+        "## Self-Traps (Failure Modes to Avoid)\n\nS text\n\n"
+        "## Voice\n\nV text\n"
+    )
+    out = sb.project_advisor(body, "x")
+    assert "H text" in out and "S text" in out
+    assert "V text" not in out

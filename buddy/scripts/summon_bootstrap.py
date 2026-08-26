@@ -116,6 +116,42 @@ def resolve_fragment(name: str, project_root: Path) -> Path | None:
     return None
 
 
+# Prefix-matched, not equality: `## Heuristics (universal)` and
+# `## Self-Traps (Failure Modes to Avoid)` are live variants in the corpus.
+ADVISOR_SECTIONS = (
+    "## Operating Principles",
+    "## Heuristics",
+    "## Self-Traps",
+)
+
+
+def project_advisor(body: str, name: str) -> str:
+    """Keep only the advisor-role sections of a specialist body.
+
+    Voice, Method and the `{{Domain}} Format` section are never projected — the
+    primary owns the voice and the output contract, which is what makes
+    composition collision-free by construction rather than by merge rules.
+    Each kept heading is tagged with its origin so the primary's own sections
+    are never shadowed and every line is attributable.
+    """
+    out: list[str] = []
+    current: list[str] | None = None
+    for line in body.splitlines():
+        if line.startswith("## "):
+            if current:
+                out.append("\n".join(current).rstrip())
+            current = (
+                [f"{line} — advisor: {name}"]
+                if line.startswith(ADVISOR_SECTIONS)
+                else None
+            )
+        elif current is not None:
+            current.append(line)
+    if current:
+        out.append("\n".join(current).rstrip())
+    return "\n\n".join(out)
+
+
 def parse_argument(prompt: str) -> str:
     """'/buddy:summon data-leakage:llm' → 'data-leakage:llm' (raw argument)."""
     parts = prompt.split(None, 1)
@@ -267,6 +303,19 @@ def build_payload(
     memories = collect_memories(directory, project_root)
     if memories:
         parts.append(memories)
+    declared_advisors = meta.get("advisors")
+    if isinstance(declared_advisors, list) and declared_advisors:
+        index = discover(project_root)
+        for adv in declared_advisors:
+            entry = index.get(str(adv))
+            if entry is None:
+                continue
+            adv_raw = _read(entry[1] / "SKILL.md")
+            if adv_raw is None:
+                continue
+            projected = project_advisor(strip_frontmatter(adv_raw), str(adv))
+            if projected:
+                parts.append(projected)
     declared = meta.get("fragments")
     names = declared if isinstance(declared, list) else list(DEFAULT_FRAGMENTS)
     for name in names:
