@@ -1,3 +1,7 @@
+---
+entry_high_water_T: 38
+entry_prefix: T
+---
 # Buddy Specialists — Active Plan
 
 > **Tracker schema:** hybrid (task_list spine + reflective methodology + metric_baseline once eval is live).
@@ -424,6 +428,237 @@ wontfix-with-data-on-why); no specialist regressed.
 **Phase 4 done-condition:** cadence is on calendar; stale-detector is wired; the loop
 is documented so this plan can be re-derived without re-summoning hamsa from scratch.
 
+## Task definitions (T-1 … T-38)
+
+> **Why this section exists.** `link_scan` derives an entry definition from a
+> `<ID> — <title>` heading and from **nothing else** — a table row defines no token. Until
+> 2026-08-26 every `T-N` above lived only in a phase-table row, so the namespace was not
+> merely broken but **inert**: 218 `T-N` citations across 13 files resolved to nothing while
+> being reported as neither dangling nor ambiguous, because a prefix with zero definers is
+> never a resolution candidate. The same file defined `D-1`..`D-7` as headings all along, so
+> `D` was citable and `T` was not, in one document. See `roster-audit-session-log:F-4` and
+> `docs/issues/2026-08-26-active-plan-t-n-row-only-uncitable.md`.
+>
+> **All 38 were converted in a single commit, deliberately.** The conversion is
+> all-or-nothing: the first `T-N` heading makes `T` a live namespace, which flips every
+> not-yet-converted citation from inert to **dangling**. A partial pass is strictly worse
+> than none.
+>
+> **The phase tables above remain the working surface** and are hand-maintained. These
+> headings are what make the ids reachable. Keeping both is allowed; what is not allowed is
+> letting the rows be the only form.
+>
+> **Scope boundary — completion state is NOT re-derived here.** Each entry carries its
+> row's own fields. This commit makes `T-N` citable; it does not audit which tasks are
+> actually done, and no `Status:` is asserted where the plan does not already state one.
+> That restraint is deliberate: `f97f2a4` is titled *"Phase 1 cheap fixes per
+> buddy-introspection T-12..T-22"*, but `T-14` (reframe `testing-snow-leopard` Method 4 as
+> "AAA or GWT") is **not** in the skill — Method step 4 still reads *"One arrange / act /
+> assert per test"* with no GWT alternative, and `#10` still reads `open`. Copying a claimed
+> status into 38 new sections would have minted at least one false one. See
+> `roster-audit-session-log:F-9` for why that failure mode is worth designing against.
+
+### Phase 0 — eval grounds
+
+#### T-1 — Pick eval tooling: confirm DSPy + Promptfoo split
+
+**Deliverable:** DECISION recorded in this tracker · **Est:** 30m · **Phase:** 0
+Default picked; user can revise. History records `T-1 complete; all 6 defaults accepted` (2026-05-15).
+
+#### T-2 — Create `eval/` directory skeleton (per layout above)
+
+**Deliverable:** committed empty dirs + README · **Est:** 30m · **Phase:** 0
+History records `T-2 + Phase 1 fan-out complete` (2026-05-15).
+
+#### T-3 — Draft 3 fixture cases for ml-training-takin (pilot specialist)
+
+**Deliverable:** `eval/fixtures/ml-training-takin/case-{01,02,03}.yaml` · **Est:** 60m · **Phase:** 0
+Pick from real session traces if available. History records `T-3 complete (ml-training-takin fixtures)`.
+
+#### T-4 — Write the judge prompt (skeleton above) + per-Method rubric for takin
+
+**Deliverable:** `eval/judge/prompt.md` + `rubric-ml-training-takin.md` · **Est:** 90m · **Phase:** 0
+History records `T-4 complete (judge prompt + takin rubric)`.
+
+#### T-5 — Wire 3-model PoLL panel via Promptfoo
+
+**Deliverable:** `eval/judge/panel.yaml` · **Est:** 60m · **Phase:** 0
+Needs API keys: Anthropic, OpenAI, Google. History records `T-5 complete (PoLL panel wired)`.
+
+#### T-6 — Run variance-floor measurement (N=5 identical reruns × 3 cases × pilot specialist)
+
+**Deliverable:** `eval/baselines/<date>/ml-training-takin/variance.json` · **Est:** 30m · **Phase:** 0
+History records `T-6 complete (variance floor measured)`, then a tightening to 0.333 → 0.200.
+
+#### T-7 — Hand-label 3 cases × 5 specialists = 15 cases for calibration
+
+**Deliverable:** `eval/judge/calibration/human-labels.csv` · **Est:** 120m · **Phase:** 0
+Highest manual-effort task. **Note:** `D-7` adopts strong-panel labels as a *degraded
+substitute* for human labels, and `T-8` was run on that path — so whether this task was
+completed, or superseded by `D-7`, is not stated anywhere in the plan. Left unasserted.
+
+#### T-8 — Run panel on calibration set; compute κ; iterate judge prompt until κ ≥ 0.6
+
+**Deliverable:** `eval/judge/calibration/kappa-run-<n>.json` · **Est:** 120m · **Phase:** 0
+May need 2–3 iterations. History records `T-8 (degraded substitute path under D-7) — strong-panel calibration PASS`.
+
+#### T-9 — ~~Expand fixtures: 5 cases × each of 10 specialists~~ DEFERRED
+
+**Deliverable:** `docs/trackers/fixture-expansion.md` · **Est:** — · **Phase:** 0
+**Deferred** to [fixture-expansion.md](fixture-expansion.md); backfilled on-demand per
+Phase 2/3 refactor. 2026-05-16: takin baseline alone gates Phase 2.
+
+#### T-10 — Freeze takin baseline v1
+
+**Deliverable:** `eval/baselines/frozen/ml-training-takin@v1/` · **Est:** 30m · **Phase:** 0
+✅ Done 2026-05-16, κ=1.0, floor 0.200. Later re-frozen v2 (numerically equal, after the
+`parse_judge_output` fix) and v3 (after the takin refactor).
+
+#### T-11 — Wire Promptfoo into CI; gate merges on no-regression
+
+**Deliverable:** `.github/workflows/eval.yml` + `promptfoo.yaml` · **Est:** 60m · **Phase:** 0
+Run subset on changed files only. Phase 0's done-condition names CI gating as required;
+the plan does not record it as met.
+
+### Phase 1 — cheap unique fixes
+
+Each resolves one `buddy-introspection` row. Fan-out commit: `f97f2a4`.
+
+#### T-12 — Add `symbols`/`grep` parenthetical to architect Heuristic 7
+
+**Resolves:** `#6` · **Phase:** 1
+
+#### T-13 — Rewrite debugging-yeti Method 8 (commit/PR message externalization)
+
+**Resolves:** `#9` · **Phase:** 1
+
+#### T-14 — Reframe testing-snow-leopard Method 4 (AAA or GWT — pick one)
+
+**Resolves:** `#10` · **Phase:** 1
+**Not done as of 2026-08-26**, despite `f97f2a4`'s subject naming `T-12..T-22`: Method step 4
+still reads *"One arrange / act / assert per test"* with no GWT alternative, and `#10`'s row
+still reads `open`. `VG-6` added a *Properties and Invariants* section to the same skill and
+explicitly did **not** close `#10` — that is the format lock; `VG-6` was the discipline.
+
+#### T-15 — Rewrite refactoring-yak Method 6 ("elevator test" replaces "read aloud")
+
+**Resolves:** `#11` · **Phase:** 1
+
+#### T-16 — Tag codescout-specific tool names in refactoring-yak Method 4
+
+**Resolves:** `#12` · **Phase:** 1
+
+#### T-17 — Gate performance-lammergeier Method 6 systems-lang content
+
+**Resolves:** `#14` · **Phase:** 1
+
+#### T-18 — Lead with definition for planning-crane Method 7 "compaction"
+
+**Resolves:** `#15` · **Phase:** 1
+
+#### T-19 — Drop or cite planning-crane Reaction 3 quantitative claim
+
+**Resolves:** `#16` · **Phase:** 1
+
+#### T-20 — Rewrite docs-lotus-frog Method 7 to same-commit discipline
+
+**Resolves:** `#17` · **Phase:** 1
+
+#### T-21 — Sub-bullet pheasant-llm Method 4 judge biases
+
+**Resolves:** `#18` · **Phase:** 1
+
+#### T-22 — Add OWASP LLM Top 10 sub-category to security-ibex Phase-2 Taxonomy
+
+**Resolves:** `#21` · **Phase:** 1
+**Done** in `f97f2a4` (2026-05-15) and released long since — the sixth Taxonomy
+sub-section, covering LLM01/02/03 **plus** LLM05/06/08. `#21`'s row nonetheless read `open`
+until 2026-08-26 because that table reserves `fixed` for post-eval state changes; the
+misreading is `roster-audit-session-log:F-9`.
+
+### Phase 2 — promote ibex patterns (eval-gated)
+
+#### T-23 — Pilot ibex-promote on debugging-yeti
+
+Add Operating Principles, Phased Method with self-critique, Finding Format, Self-Traps.
+**Resolves:** partial `S-2`, `S-3` · **Phase:** 2
+
+#### T-24 — Pilot ibex-promote on planning-crane (same 4 patterns)
+
+**Resolves:** partial `S-2`, `S-3` · **Phase:** 2
+
+#### T-25 — Pilot ibex-promote on architecture-snow-lion (same 4 patterns)
+
+**Resolves:** partial `S-2`, `S-3` · **Phase:** 2
+
+#### T-26 — Run eval on the 3 pilots
+
+Require ≥ variance-floor improvement on at least 1 specialist, no regression on any.
+**Resolves:** gate for `T-27` · **Phase:** 2
+
+#### T-27 — If gate passes: roll out to remaining 6
+
+testing, refactor, ml, perf, docs, leakage.
+**Resolves:** full `S-2`, `S-3` · **Phase:** 2
+History records `Phase 2 complete (9 specialists ibex-promoted); drift verdict ships` (2026-05-16).
+
+#### T-28 — Promote pheasant lens-dispatch pattern as official template for multi-aspect specialists
+
+**Deliverable:** documented in `buddy/skills/AUTHORING.md` · **Resolves:** `#19` (positive) · **Phase:** 2
+
+### Phase 3 — systemic large rewrites (eval-gated)
+
+#### T-29 — S-4 pilot: add `_Applies: <ref>_` lines to Reactions + non-exhaustive disclaimer (3 specialists)
+
+**Resolves:** partial `S-4` · **Phase:** 3
+
+#### T-30 — Eval gate; roll out to remaining 7 if positive
+
+**Resolves:** full `S-4` · **Phase:** 3
+
+#### T-31 — S-1 pilot: cut biographical bio on 3 specialists; keep one-line tone cue
+
+**Resolves:** partial `S-1` · **Phase:** 3
+
+#### T-32 — Eval gate; if positive roll out, if negative revert and mark wontfix with finding
+
+**Resolves:** full `S-1` or wontfix-with-data · **Phase:** 3
+
+#### T-33 — S-6 experiment: dialogic recast of debugging-yeti's Voice vs current declarative
+
+**Resolves:** data point for the `S-6` decision · **Phase:** 3
+Forensic artifact at `buddy/skills/debugging-yeti/SKILL-dialogic.md`.
+
+#### T-34 — Decide S-6 disposition based on T-33 result; document outcome
+
+**Resolves:** full `S-6` or wontfix-with-data · **Phase:** 3
+History records `T-33/T-34 disposition: S-6 closed as wontfix-with-data` (2026-05-16):
+declarative wins on 6/7 dimensions; dialogic adds ~37% token cost with no named benefit
+hypothesis.
+
+### Phase 4 — long-term hygiene
+
+#### T-35 — Schedule quarterly hamsa sweep
+
+**Deliverable:** memory entry + calendar reminder · **Cadence:** next 2026-08-15 · **Phase:** 4
+**Overdue as of 2026-08-26.** Its scope also needs widening before it runs: the sweep is
+written for ten specialists and the roster is twelve
+(`roster-audit-session-log:F-2`), and it inherits `#20`'s re-opened length finding
+(`roster-audit-session-log:F-1`).
+
+#### T-36 — Schedule annual researcher MCP lit refresh
+
+**Cadence:** next 2027-05-15 · **Phase:** 4
+
+#### T-37 — Implement stale-detector
+
+Warn if any SKILL.md mtime > 90 days AND no eval run in that window.
+**Deliverable:** one-off script · **Phase:** 4
+
+#### T-38 — Document the introspection + plan loop for future maintainers
+
+**Deliverable:** `buddy/docs/introspection-loop.md` · **Phase:** 4
+So the loop can be re-derived without re-summoning hamsa from scratch.
 ## Open decisions
 
 The plan above carries defaults. All 6 defaults were accepted on 2026-05-15 (see § Decisions Log). The table below preserves the rejected alternatives for future reference if a decision is revisited.

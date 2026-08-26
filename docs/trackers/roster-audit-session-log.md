@@ -71,7 +71,7 @@ entry_high_water_W: 2
 | F-1 | 2026-08-26 | med | tracker-drift | open | A drift finding re-measured its own title; the claim that number supported was falsified and went unfiled |
 | F-2 | 2026-08-26 | med | tracker-drift | open | `buddy-introspection` reports `specialists_scanned: 10/10` while the roster has grown to 12 |
 | F-3 | 2026-08-26 | med | codescout-tool | fixed-verified | The reconnaissance skill's own worked exemplars use a `**Valid:**` form that `append_entry` hard-rejects (`f53aaea`, shipped in codescout-companion 1.16.17) |
-| F-4 | 2026-08-26 | med | tracker-drift | open | `T-N` is not a live namespace, so ~60 citations are silently inert — invisible to `link_scan` and to `doctor` (**corrected** same day; original claim was "dangles permanently") |
+| F-4 | 2026-08-26 | med | tracker-drift | fixed-verified | `T-N` is not a live namespace, so ~60 citations are silently inert — invisible to `link_scan` and to `doctor` (**corrected** same day; original claim was "dangles permanently") |
 | F-5 | 2026-08-26 | med | codescout-tool | open | codescout's session-log template cites its own ledger's ids bare, so every fresh copy injects cross-repo dangling (and one wrongly-resolving) citation |
 | F-6 | 2026-08-26 | med | codescout-tool | open | `link_scan` has a third citation state it never reports, and its finding arrays are silently capped at 50 — two sessions drew opposite wrong conclusions from one output |
 | F-7 | 2026-08-26 | med | release-pipeline | fixed-verified | `release.sh` repoint + sanity loop + version-bump tracker all read install-record element `[0]`; release reported green over a stale sibling (`ce83dfd`) |
@@ -424,7 +424,7 @@ inert one is reported nowhere. `librarian(action="doctor")`'s `entry_without_def
 cannot fire either, because there are no entries to lack definitions. ~60 cross-file
 references to `active-plan.md`'s tasks produce no edge and no warning.
 
-**Status:** open
+**Status:** fixed-verified
 
 **Valid:** dated 2026-08-26
 
@@ -448,6 +448,42 @@ All 38 must land in one pass, then `entry_prefix: T` + `entry_high_water_T: 38`,
 `active-plan.md` carries **no frontmatter at all** (it opens on its `#` title) yet is
 catalogued as `kind: tracker, status: active` by the classifier — so there is no frontmatter
 block to add the declaration to, and one has to be created.
+### Fixed 2026-08-26 — all 38 in one commit, and the pre-checks the all-or-nothing rule demands
+
+`active-plan.md` gained a `## Task definitions (T-1 … T-38)` section with 38
+`#### T-N — <title>` definers. The five phase tables are kept as the plan's working
+surface; the headings are what make the ids reachable.
+
+**Two pre-checks ran first, because a partial conversion is strictly worse than none** —
+the first `T-N` heading makes `T` live and flips every unconverted citation from inert to
+dangling:
+
+1. **Cited range** — exactly `T-1`…`T-38`, no gaps, nothing above 38. Had anything cited
+   `T-39+`, converting 1–38 would have created dangling citations that did not exist before.
+2. **No rival definer** — zero `^#+ *T-[0-9]+` headings anywhere in the repo, hidden
+   directories included. The `grep` tool's first answer was a bare `0` **with a warning that
+   the zero excluded `.buddy/`, `.claude/`, `.github/` and seven more roots**; re-running with
+   `include_hidden=true` is what made it evidence. That warning is `W-2` built into a tool.
+
+**Result:** `link_scan` — entry edges derived 120 → 172, `prefix_conflicts: 0`,
+`edges_missing: 0`, `edges_stale: 0`, and **zero `T-` tokens in the dangling, ambiguous or
+cross-repo arrays**. All 218 `T-N` citations across 13 files now resolve.
+
+**One thing deliberately not done: no per-task completion status was minted.** Each entry
+carries its row's own fields, and the section says so. The temptation was real — five phase
+tables plus a History section between them assert plenty — and acting on it would have
+written at least one false claim: `f97f2a4` is titled *"Phase 1 cheap fixes per
+buddy-introspection T-12..T-22"*, but `T-14` (reframe `testing-snow-leopard` Method 4 as
+"AAA or GWT") is **not in the skill** — step 4 still reads *"One arrange / act / assert per
+test"*, and `#10` still reads `open`. A commit subject naming a task range is not evidence
+the range was completed. That is `F-9` again, one day old, and it fired here because the
+conversion put me one keystroke from copying 38 statuses I had not checked.
+
+**Residue, measured and left:** the repo carries **93** ambiguous citations, nearly all bare
+`F-N`/`W-N` tokens — the per-work-stream namespaces, where a bare token has many definers
+and resolves to none. Three of those were mine, introduced by this very section and fixed in
+the same commit (`roster-audit-session-log:F-4` form). The remaining ~90 predate today and
+are a separate, bounded sweep: qualify each bare token with its file stem. Not started.
 ## F-5 — codescout's session-log template cites its own ledger's ids bare, so every fresh copy injects cross-repo dangling citations
 
 **Observed:** 2026-08-26, same `link_scan` verification pass as `F-4`. Of the four dangling citations this log introduced, three were `T-35` (`F-4`); the fourth, plus several ambiguous ones, came from the template's own prose — not from any entry I wrote.

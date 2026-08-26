@@ -1,7 +1,7 @@
 ---
 id: a1bbcbff8e035b6c
 kind: bug
-status: open
+status: fixed
 title: '`T-N` is not a live namespace, so active-plan.md''s ~60 incoming citations are silently inert — invisible to link_scan and to doctor'
 tags:
 - tracker-drift
@@ -9,9 +9,10 @@ tags:
 - link-graph
 - active-plan
 - roster-audit
+closed: 2026-08-26
 opened: 2026-08-26
 severity: med
-unverified: Fix not applied. The all-or-nothing conversion constraint is derived from the measured namespace behaviour, not from a trial conversion — nobody has added one T-N heading and re-run link_scan to watch the other 37 flip to dangling. Do that on a scratch copy before converting for real.
+unverified: 'The all-or-nothing constraint remains DERIVED, not demonstrated: the prescribed scratch-copy trial (add one T-N heading, watch the other 37 flip to dangling) was never run, because converting all 38 atomically made it unnecessary and running it would have been the only way to actually enter the dangling state. Also unfixed: the upstream doctor check cited_prefix_with_no_definer, which is the half that generalises. And no per-task completion status was derived — the new sections carry row fields only.'
 ---
 
 ## Summary
@@ -156,6 +157,35 @@ or the repo sits in the dangling state in between.
 
 Leave `validation-domain-coverage.md` § Maintenance as written — it becomes correct once the
 definitions exist.
+
+### Applied 2026-08-26 — all four steps, in the prescribed order
+
+1. **38 `#### T-N — <title>` headings added in one `edit_markdown` pass**, tables kept, under
+   a new `## Task definitions (T-1 … T-38)` section.
+2. **`entry_prefix: T` + `entry_high_water_T: 38`** declared afterwards — and the ordering
+   warning above proved real, not theoretical: the very next `read_markdown` on the file was
+   refused with *"a ledger — it declares an entry_prefix"*. Declaring first would have locked
+   out the tool doing the insertions.
+3. **`link_scan(write=true)`** — entry edges derived **120 → 172**, `prefix_conflicts: 0`,
+   `edges_missing: 0`, `edges_stale: 0`.
+4. **Positive control run, and it mattered.** "No `T-` tokens in the dangling array" is
+   *not* evidence of resolution — inert tokens are absent from that array too, which is this
+   issue's entire subject. The real check was reading the edges: `D-1 → T-1/T-5/T-11/T-29/T-34`,
+   `D-7 → T-7/T-8`, `T-26 → T-27`, `T-34 → T-33`, and outgoing `T-23 → buddy-specialists-hamsa-introspection-audit:S-2`.
+   Live, attributed, bidirectional edges — the namespace resolves.
+
+**Two pre-checks first, since a partial pass is worse than none.** Cited range is exactly
+`T-1`…`T-38` with no gaps and nothing above 38, so no citation could be stranded above the
+converted range. And zero rival `^#+ *T-[0-9]+` definers repo-wide — where the first answer
+was a bare `0` carrying a warning that it had skipped `.buddy/`, `.claude/`, `.github/` and
+seven more hidden roots; re-running with `include_hidden=true` is what turned that zero into
+evidence.
+
+**Scope held deliberately:** no per-task completion status was minted. The phase tables and
+History assert plenty, and copying them would have written at least one falsehood —
+`f97f2a4`'s subject names `T-12..T-22`, but `T-14` (reframe Method 4 as "AAA or GWT") is not
+in `testing-snow-leopard`; step 4 still reads *"One arrange / act / assert per test"* and
+`#10` still reads `open`. A commit subject naming a range is not evidence the range shipped.
 
 **Upstream, and the higher-leverage half:** a `doctor` check — `cited_prefix_with_no_definer`
 (any prefix with ≥1 citation and 0 definers, reported with count and citing files). That
