@@ -202,7 +202,11 @@ def resolve(arg: str, index: dict) -> str | None:
 def _read(path: Path) -> str | None:
     try:
         return path.read_text(encoding="utf-8")
-    except OSError:
+    except (OSError, UnicodeDecodeError):
+        # UnicodeDecodeError is included alongside OSError because a
+        # non-UTF-8 SKILL.md (e.g. in an advisor) must soft-skip like any
+        # other unreadable file, never raise — an advisor that does not
+        # resolve must never take down the whole summon.
         return None
 
 
@@ -309,6 +313,10 @@ def build_payload(
         for adv in declared_advisors:
             entry = index.get(str(adv))
             if entry is None:
+                parts.append(
+                    f"> advisor '{adv}' declared but not installed — "
+                    f"its heuristics are absent from this payload."
+                )
                 continue
             adv_raw = _read(entry[1] / "SKILL.md")
             if adv_raw is None:

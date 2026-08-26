@@ -297,7 +297,7 @@ ADVISOR_SKILL = (
     "## Voice\n\nTerse and wary.\n\n"
     "## Operating Principles\n\n1. Trust nothing inbound.\n\n"
     "## Method — Three Phases\n\n### Phase 1 — Map\n\nMap the surface.\n\n"
-    "## Finding Format\n\nSEVERITY / ASSET / PATH\n\n"
+    "## Test Format\n\nSEVERITY / ASSET / PATH\n\n"
     "## Heuristics (universal)\n\n1. Every input is hostile.\n\n"
     "## Self-Traps (Failure Modes to Avoid)\n\n1. Auditing only the diff.\n"
 )
@@ -363,6 +363,41 @@ def test_unresolvable_advisor_is_soft_skipped(plugin_with_advisor, monkeypatch):
     plug, project = plugin_with_advisor
     monkeypatch.setattr(sb, "discover", lambda root: {
         "foo-bar": ("builtin", plug / "skills" / "foo-bar"),
+    })
+    payload = _advised(sb, plug, project)
+    assert payload is not None
+    assert "Calm." in payload
+
+
+def test_unresolvable_advisor_emits_a_warning_line(plugin_with_advisor, monkeypatch):
+    """Soft-skip must be VISIBLE. A silently missing advisor is indistinguishable
+    from an advisor with nothing to say."""
+    plug, project = plugin_with_advisor
+    monkeypatch.setattr(sb, "discover", lambda root: {
+        "foo-bar": ("builtin", plug / "skills" / "foo-bar"),
+    })
+    payload = _advised(sb, plug, project)
+    assert "advisor 'sec-ibex' declared but not installed" in payload
+
+
+def test_advisor_with_invalid_utf8_is_soft_skipped(plugin, monkeypatch):
+    """A non-UTF-8 SKILL.md in an advisor must not take down the whole summon
+    (claude-plugins ruling: "an advisor that does not resolve must never raise").
+    """
+    plug, project = plugin
+    bad = plug / "skills" / "bad-advisor"
+    bad.mkdir(parents=True)
+    (bad / "SKILL.md").write_bytes(
+        b"---\nname: Bad\ndescription: t\n---\n\n# Bad\n\n\xff\xfe not valid utf-8\n"
+    )
+    skill = plug / "skills" / "foo-bar"
+    skill.joinpath("SKILL.md").write_text(
+        "---\nname: Foo Bar\ndescription: t\nadvisors: [bad-advisor]\n---\n\n"
+        "# The Foo Bar\n\n## Voice\n\nCalm.\n"
+    )
+    monkeypatch.setattr(sb, "discover", lambda root: {
+        "foo-bar": ("builtin", plug / "skills" / "foo-bar"),
+        "bad-advisor": ("builtin", bad),
     })
     payload = _advised(sb, plug, project)
     assert payload is not None
