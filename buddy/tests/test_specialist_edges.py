@@ -22,6 +22,12 @@ def _declared(key: str) -> list[tuple[str, str]]:
         values = meta.get(key)
         if isinstance(values, list):
             out.extend((skill.name, str(v)) for v in values)
+        elif values is not None:
+            # Present but not parsed as a list (e.g. `advisors: sec-ibex`, or
+            # block-style YAML that parse_frontmatter can't read) is a failure
+            # of its own -- the isinstance(values, list) guard used to make
+            # this invisible to the lint (Important 2).
+            out.append((skill.name, f"<unparsed {key}: {values!r}>"))
     return out
 
 
@@ -54,7 +60,43 @@ def test_every_declared_fragment_resolves(tmp_path, monkeypatch):
     assert not missing, f"fragments declared but not resolvable: {missing}"
 
 
-def test_default_fragments_all_exist(tmp_path):
+def test_default_fragments_all_exist(tmp_path, monkeypatch):
     """Guards the default list itself -- the one nobody declares and everybody gets."""
+    monkeypatch.setenv("BUDDY_HOME", str(tmp_path))
     missing = [f for f in sb.DEFAULT_FRAGMENTS if sb.resolve_fragment(f, tmp_path) is None]
     assert not missing, f"DEFAULT_FRAGMENTS unresolvable: {missing}"
+
+
+def test_default_fragments_all_exist_discriminates_from_a_leaked_global(tmp_path, monkeypatch):
+    """Proves the BUDDY_HOME pin above actually matters (Important 3).
+
+    Simulates the exact failure mode without touching the real machine: a
+    builtin fragment is "deleted" (PLUGIN_ROOT/data points at an empty dir)
+    while an unrelated, unpinned BUDDY_HOME happens to have a same-named
+    global fragment. Without pinning BUDDY_HOME per-test, resolve_fragment
+    leaks through that global copy and the missing builtin goes unnoticed --
+    exactly the "passes by luck, not by construction" scenario the review
+    flagged. Pinning BUDDY_HOME to a clean, empty dir (what the fixed test
+    above does) exposes the gap instead.
+    """
+    fake_plugin = tmp_path / "fake_plugin"
+    (fake_plugin / "data").mkdir(parents=True)
+    # deliberately no gates.md here -- simulates a deleted buddy/data/gates.md
+    monkeypatch.setattr(sb, "PLUGIN_ROOT", fake_plugin)
+
+    leaked_home = tmp_path / "leaked_home"
+    (leaked_home / "fragments").mkdir(parents=True)
+    (leaked_home / "fragments" / "gates.md").write_text("leaked global gates")
+
+    project = tmp_path / "proj"
+
+    # Unpinned BUDDY_HOME (the pre-fix shape of the sibling test): the leaked
+    # global fragment silently stands in for the missing builtin one.
+    monkeypatch.setenv("BUDDY_HOME", str(leaked_home))
+    assert sb.resolve_fragment("gates", project) is not None
+
+    # Pinned BUDDY_HOME (the fix): the same missing-builtin state is now
+    # correctly reported as unresolvable.
+    clean_home = tmp_path / "clean_home"
+    monkeypatch.setenv("BUDDY_HOME", str(clean_home))
+    assert sb.resolve_fragment("gates", project) is None

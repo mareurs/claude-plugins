@@ -308,7 +308,12 @@ def build_payload(
     if memories:
         parts.append(memories)
     declared_advisors = meta.get("advisors")
-    if isinstance(declared_advisors, list) and declared_advisors:
+    if declared_advisors is not None and not isinstance(declared_advisors, list):
+        parts.append(
+            f"> advisors: '{declared_advisors}' is not a list — declare it as "
+            f"an inline array (`advisors: [name, ...]`) or it is ignored entirely."
+        )
+    elif isinstance(declared_advisors, list) and declared_advisors:
         index = discover(project_root)
         for adv in declared_advisors:
             entry = index.get(str(adv))
@@ -340,13 +345,23 @@ def build_payload(
                     f"— its heuristics are absent from this payload."
                 )
     declared = meta.get("fragments")
+    if declared is not None and not isinstance(declared, list):
+        parts.append(
+            f"> fragments: '{declared}' is not a list — declare it as an "
+            f"inline array (`fragments: [name, ...]`); falling back to the "
+            f"default fragment set."
+        )
     names = declared if isinstance(declared, list) else list(DEFAULT_FRAGMENTS)
     for name in names:
         path = resolve_fragment(str(name), project_root)
         if path is None:
+            parts.append(
+                f"> fragment '{name}' declared but not resolvable in any scope"
+            )
             continue
         text = _read(path)
         if not text:
+            parts.append(f"> fragment '{name}' resolved to an empty file")
             continue
         title = FRAGMENT_TITLES.get(str(name), str(name))
         parts.append(f"## {title}\n\n{text.strip()}")

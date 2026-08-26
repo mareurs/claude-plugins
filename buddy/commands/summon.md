@@ -169,9 +169,8 @@ index built in Step 1. Use **only** their `## Operating Principles`,
 output contract. Skip any advisor the index does not contain and say so in one
 line.
 
-This path is deliberately simpler than the hook's. When the hook fires it
-assembles the projection itself (`summon_bootstrap.py::project_advisor`) and
-Step 0 short-circuits this whole step.
+This path is deliberately simpler than the hook's, which assembles the
+projection itself (`summon_bootstrap.py::project_advisor`).
 
 ### Shadow announcement
 

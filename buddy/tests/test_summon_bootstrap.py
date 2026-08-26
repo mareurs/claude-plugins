@@ -287,6 +287,62 @@ def test_missing_fragment_is_soft_skipped(plugin):
     payload = sb.build_payload("foo-bar", "builtin", skill, None, project)
     assert payload is not None
     assert "gates text" in payload
+    # Load-bearing once I1 lands: the soft-skip must be visible, not just
+    # non-fatal -- a silently missing fragment is indistinguishable from one
+    # with nothing to say.
+    assert "fragment 'nope' declared but not resolvable in any scope" in payload
+
+
+def test_fragment_resolved_to_empty_file_emits_a_warning_line(plugin):
+    plug, project = plugin
+    (plug / "data" / "gates.md").write_text("")
+    skill = plug / "skills" / "foo-bar"
+    skill.joinpath("SKILL.md").write_text(
+        "---\nname: Foo Bar\ndescription: t\nfragments: [gates]\n---\n\n"
+        + SKILL_BODY
+    )
+    payload = sb.build_payload("foo-bar", "builtin", skill, None, project)
+    assert payload is not None
+    assert "fragment 'gates' resolved to an empty file" in payload
+
+
+def test_non_list_advisors_value_emits_a_warning_and_loads_no_advisors(plugin, monkeypatch):
+    plug, project = plugin
+    (plug / "skills" / "sec-ibex").mkdir(parents=True)
+    (plug / "skills" / "sec-ibex" / "SKILL.md").write_text(
+        "---\nname: Sec Ibex\ndescription: security\n---\n\n"
+        "# The Security Ibex\n\n## Operating Principles\n\n1. Trust nothing.\n"
+    )
+    skill = plug / "skills" / "foo-bar"
+    skill.joinpath("SKILL.md").write_text(
+        "---\nname: Foo Bar\ndescription: t\nadvisors: sec-ibex\n---\n\n"
+        + SKILL_BODY
+    )
+    monkeypatch.setattr(sb, "discover", lambda root: {
+        "foo-bar": ("builtin", plug / "skills" / "foo-bar"),
+        "sec-ibex": ("builtin", plug / "skills" / "sec-ibex"),
+    })
+    payload = sb.build_payload("foo-bar", "builtin", skill, None, project)
+    assert payload is not None
+    # fail-closed: a malformed advisors value loads no advisors at all
+    assert "Trust nothing." not in payload
+    assert "advisors: 'sec-ibex' is not a list" in payload
+
+
+def test_non_list_fragments_value_emits_a_warning_and_falls_back_to_defaults(plugin):
+    plug, project = plugin
+    skill = plug / "skills" / "foo-bar"
+    skill.joinpath("SKILL.md").write_text(
+        "---\nname: Foo Bar\ndescription: t\nfragments: gates\n---\n\n"
+        + SKILL_BODY
+    )
+    payload = sb.build_payload("foo-bar", "builtin", skill, None, project)
+    assert payload is not None
+    # fail-open: a malformed fragments value falls back to BOTH defaults,
+    # preserving gates.md rather than dropping it
+    assert "gates text" in payload
+    assert "protocol text" in payload
+    assert "fragments: 'gates' is not a list" in payload
 
 
 # -------------------------------------------------------------- advisors
@@ -351,6 +407,11 @@ def test_advisor_voice_and_output_contract_are_NOT_projected(
     heading — that collision is what makes `payload.count("## Test Format")
     == 1` below a real discriminator instead of a tautology. Reverting that
     heading back to `## Finding Format` silently re-vacuates this assertion.
+
+    Also asserts the advisor projection actually landed at all (`advisor:
+    sec-ibex` tag) -- without it this test passes identically whether the
+    advisors feature is present or entirely absent, which defeats its own
+    purpose as a guard.
     """
     plug, project = plugin_with_advisor
     monkeypatch.setattr(sb, "discover", lambda root: {
@@ -358,6 +419,7 @@ def test_advisor_voice_and_output_contract_are_NOT_projected(
         "sec-ibex": ("builtin", plug / "skills" / "sec-ibex"),
     })
     payload = _advised(sb, plug, project)
+    assert "advisor: sec-ibex" in payload             # advisor feature actually fired
     assert "Terse and wary." not in payload          # advisor Voice
     assert "SEVERITY / ASSET / PATH" not in payload  # advisor output contract
     assert "Map the surface." not in payload         # advisor Method
