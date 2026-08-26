@@ -7,12 +7,14 @@ owners: []
 tags:
 - passover
 topic: session-passover-tracker
-time_scope: null
+time_scope: dated:2026-06-18
+branch: main
+origin_session_id: b53ae7a6-e322-4f78-988c-3522541a18ac
 ---
 
 # Passover — session-passover-tracker — 2026-06-18
 
-> **Correlation keys.** `topic` is set as real frontmatter; `origin_session_id`/`branch`/`time_scope` are body-level because `artifact(create)` cannot set custom frontmatter keys (F-3):
+> **Correlation keys** — now all in **frontmatter** (`topic`/`time_scope` native, `origin_session_id`/`branch` via the `extra` passthrough; codescout bug `13164fb35d6f71ed` fixed + live-verified 2026-06-19). Echoed here for the human reader:
 > - **topic:** session-passover-tracker
 > - **origin_session_id:** b53ae7a6-e322-4f78-988c-3522541a18ac
 > - **branch:** main (feature already merged; no live feature branch)
@@ -47,7 +49,7 @@ Feature **B** (the session-passover tracker pattern: template + discovery conven
 
 ## Open threads
 
-- **F-3 (this session):** `artifact(create)` accepts `kind`/`status`/`title`/`tags`/`owners`/`topic`/`body` — but NOT custom keys (`origin_session_id`, `branch`, `time_scope`). So `topic` belongs in frontmatter; the others stay body-level. **Filed as codescout bug `13164fb35d6f71ed`** (`time_scope` = recognized-field-not-wired bug; `origin_session_id`/`branch` = enhancement). Local follow-up is Next-action 4.
+- **F-3 (resolved 2026-06-19):** the create/update custom-frontmatter gap is **fixed + live-verified** — codescout `13164fb35d6f71ed` (`time_scope` param + `extra` passthrough). This passover's `origin_session_id`/`branch`/`time_scope` are now in real frontmatter; no body-level workaround needed on current codescout.
 - Compaction sid-stability is undocumented (spec §6) — verify locally before relying on `--compact` auto-match.
 
 ## Pointers

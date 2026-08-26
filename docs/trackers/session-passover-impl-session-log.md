@@ -29,7 +29,7 @@
 |----|------|---------:|----------|--------|-------|
 | F-1 | 2026-06-18 | med | architectural | fixed-verified | "MCPs support agent sessionId" assumption is false for codescout |
 | F-2 | 2026-06-18 | low | plan-prose | mitigated | Template-placement convention contradicted the spec |
-| F-3 | 2026-06-18 | med | tooling-contract | promoted-to-bug-tracker | artifact(create) cannot set the passover template's custom frontmatter keys |
+| F-3 | 2026-06-18 | med | tooling-contract | fixed-verified | artifact(create) cannot set the passover template's custom frontmatter keys |
 
 ## Wins Index
 
@@ -218,9 +218,9 @@ Codified so the Index column means the same thing across sessions.
 
 **Severity:** med — discovery still works (`kind`+`tags`+`status` are real frontmatter), but the shipped template misleads an author into expecting custom-key frontmatter that won't persist via `artifact(create)`.
 
-**Status:** promoted-to-bug-tracker
+**Status:** fixed-verified
 
-**Fix idea / Pointer:** Filed as codescout bug `13164fb35d6f71ed` (`docs/issues/2026-06-18-artifact-create-no-custom-frontmatter.md`) — source-verified: `time_scope` is a recognized field hardcoded to `None` in `create::call` and absent from `UpdatePatch` (bug); `origin_session_id`/`branch` aren't modeled at all (enhancement, needs passthrough-vs-indexing design). Local follow-up: reconcile `docs/templates/passover-template.md` + the CLAUDE.md author step + `tests/test-passover-template.sh` (passover `cada4e50e6b3cfba` Next-action 4) — keep the body-level workaround until the codescout fix lands.
+**Fix idea / Pointer:** Filed as codescout bug `13164fb35d6f71ed` (`docs/issues/2026-06-18-artifact-create-no-custom-frontmatter.md`) — source-verified: `time_scope` is a recognized field hardcoded to `None` in `create::call` and absent from `UpdatePatch` (bug); `origin_session_id`/`branch` aren't modeled at all (enhancement, needs passthrough-vs-indexing design). **Fixed + live-verified 2026-06-19** (codescout `8f26a2d4` wired `time_scope` into create/update; `752febb5` added the `extra` custom-frontmatter passthrough). Verified this session: `time_scope` + `extra` both accepted by `artifact(update)`; passover `cada4e50e6b3cfba` migrated to real frontmatter. CLAUDE.md author step updated to use the new params; no body-level workaround needed on current codescout.
 
 ---
 ## Template for new entries

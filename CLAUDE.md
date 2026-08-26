@@ -185,10 +185,13 @@ Hand a live work thread to a fresh session (e.g. after compaction, or one of sev
 parallel threads on this repo). **Manual and selective** — write one only when a session is
 worth resuming; a finished session needs none.
 
-**Author (outgoing session):** copy `docs/templates/passover-template.md` to
-`docs/trackers/passover-<topic>-YYYY-MM-DD.md`, fill State / Next actions / Working state /
-Anti-goals. Get `origin_session_id` from `cat .codescout/cc_session_id` (or
-`.buddy/.current_session_id`); omit if absent.
+**Author (outgoing session):** create it as a catalog artifact so the discovery query finds it —
+`artifact(action="create", kind="tracker", tags=["passover"], topic="<thread>", time_scope="dated:YYYY-MM-DD", extra={"origin_session_id":"<id>","branch":"<branch>"}, title=…, rel_path="docs/trackers/passover-<topic>-YYYY-MM-DD.md", body=…)`,
+filling State / Next actions / Working state / Anti-goals from the `docs/templates/passover-template.md`
+skeleton. Get the session id from `cat .codescout/cc_session_id` (or `.buddy/.current_session_id`);
+omit `extra`/`origin_session_id` if absent. (`time_scope` + the `extra` custom-frontmatter passthrough
+require codescout ≥ the build that fixed bug `13164fb35d6f71ed`; on older builds keep those keys in a
+body-level block.)
 
 **Discover (incoming session):** run, early in the session —
 
