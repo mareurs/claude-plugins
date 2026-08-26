@@ -166,6 +166,54 @@ was an incidental detail inside a long multi-step investigation; here it is the 
 of a short task. Whether the behaviour survives when attention is elsewhere is a
 different question, and not one these scenarios ask. See
 `roster-audit-session-log:F-12`.
+## READ FIRST — the activation confound (measured 2026-08-26)
+
+**This harness cannot cleanly measure a summonable skill's content.** Every
+verdict in the table above is subject to this; `roster-audit-session-log:F-13`
+has the full account.
+
+The adapter copies the skill to `<work_dir>/.claude/skills/<name>/`
+(`adapters/claude_code.py:481`), so it is **installed and offered**. But Claude
+Code loads a skill's *body* only when the model invokes it, and this skill's
+description triggers on *"before subagent dispatch, before editing code that
+changes a struct … or after a tool response contradicts the plan."* Measured
+across 48 session directories, the skill fired in **14** — all of them
+`gap-capture` or `green-report-control`, whose messages carry the clause *"record
+any reconnaissance finding in the work-stream session log"*. Scenarios without
+that clause run their "treatment" arm with **no skill loaded**, making it a second
+control.
+
+**And the clause is not a switch — it is a treatment.** Adding it to
+`self-validating-gate` and re-running both arms:
+
+| message | control (no skill) | treatment (skill loaded) |
+|---|---|---|
+| without the clause | **0/3 FAIL** | — (skill never loaded) |
+| with the clause | **3/3 PASS @ 1.00** | **0/2 FAIL** |
+
+One sentence flips the unaided control from failing every run to passing every
+run. Priming the model to be reconnaissance-minded is worth more on that task
+than the entire 40 KB skill. So: activate the skill and you have primed the
+control; keep the control naive and the skill never loads. **There is no third
+option in this design**, which means the “Activation assumption” flagged below is
+not merely unvalidated — it is unvalidatable as the harness stands.
+
+**What the suite can still do**, and it is not nothing:
+
+- **Unprimed control runs are clean.** "Is this behaviour absent by default?" is
+  answerable, and it is the question that matters at promotion time — see
+  `roster-audit-session-log:W-3`. Run `--ablate` on a scenario with **no**
+  activation clause.
+- **Regression guards.** A scenario that is green today going red later is worth
+  knowing, whichever condition it pins.
+
+**What it cannot do:** attribute an effect to skill content, or to one bullet
+within it. Use the ledger's recurrence counting for that instead.
+
+Fixing this needs an activation lever outside the prompt — a profile with the
+skill pre-loaded rather than offered — which is adapter work in
+`prompt-engineering`. Not attempted.
+
 ## Why this needs an isolated profile
 
 `codescout-companion:reconnaissance` ships in a **globally-installed plugin**. A

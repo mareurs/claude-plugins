@@ -49,7 +49,7 @@ end-to-end stdin drivers), which is the local hazard R-1 records.
 | R-2 | 2026-07-28 | miss | Scout enumerated one test directory, not all of them — missed the suite that already covered the hook | `subagent-bootstrap-session-log:F-4` `subagent-bootstrap-session-log:F-5` |
 | R-3 | 2026-08-26 | hit | A filed drift finding is a claim about current state — scout the claim the number supports and the tracker's live state, not the quoted number | `roster-audit-session-log:F-1` `roster-audit-session-log:F-2` `roster-audit-session-log:W-1` |
 | R-4 | 2026-08-26 | promoted | Positive-control law was loaded and still missed — framed for searches, instrument was a report. 6th recurrence; placement fix applied `f53aaea`; **TWO** scenarios were built to score it, both **measured tautological** (treat 3/3, ctrl 3/3, Δ+0.00 each), and all six control runs probed unprompted — the behaviour is base competence, so this harness cannot measure the effect at all | `roster-audit-session-log:F-4` `roster-audit-session-log:F-6` |
-| R-5 | 2026-08-26 | promote-ready | A check that reads where the writer wrote, or is computed from what it judges, cannot fail — four instruments in one session. **HOLD RESOLVED on a better measurement**: base-competence screen shows control 0/3 AND current-skill 0/3 — a confirmed gap, with a pre-registered test standing by | `roster-audit-session-log:F-6` `roster-audit-session-log:F-7` `roster-audit-session-log:F-8` `roster-audit-session-log:W-2` |
+| R-5 | 2026-08-26 | promoted | A check that reads where the writer wrote, or is computed from what it judges, cannot fail — four instruments in one session. **PROMOTED 2026-08-26 on evidence**, shipped in the Phase 1 bullet adjacent to the positive-control law. The unprimed control measured 0/3 — the behaviour is absent by default — but per `roster-audit-session-log:F-13` the harness cannot validate the promotion itself | `roster-audit-session-log:F-6` `roster-audit-session-log:F-7` `roster-audit-session-log:F-8` `roster-audit-session-log:W-2` |
 | R-6 | 2026-08-26 | miss | "That tool persists nothing" asserted from four absences; the `When NOT to Use` carve-out's exemplars are all source-shape, so a runtime-behaviour claim walks the gate. 7th recurrence, but the law was never loaded. **SCREENED 2026-08-26: control 3/3 PASS — the behaviour is base competence, so the proposal is redundant. Do NOT promote.** The observation stands; the proposed clauses do not | no session log (see entry) — `passover-validation-spine-2026-08-26.md` + `validation-domain-coverage.md` VG-9 |
 
 ## Status vocabulary
@@ -412,7 +412,7 @@ re-specify what it waits for. Deliberately not taken unilaterally. See
 
 ## R-5 — An instrument that validates its own write is not a check — four found in one session
 
-**Verdict:** promote-ready
+**Verdict:** promoted
 
 **Observed:** 2026-08-26, buddy-roster-audit and release-integrity work streams, one session.
 
@@ -488,6 +488,42 @@ the current skill tells you whether the gap is already covered. See
 
 True of this model against this scenario at this commit; re-run the pair if the skill's
 Phase 1 changes materially.
+### Promoted 2026-08-26 — and the correction to how it was justified
+
+Shipped into `codescout-companion/skills/reconnaissance/SKILL.md`, Phase 1, as a bullet
+**adjacent to** the positive-control law rather than inside it, exactly as this entry's
+proposal specified — that law disciplines the reader, this one disciplines what you accept
+*as* a check.
+
+**The justification is the four measured instances in this entry, not the eval.** The
+section above claimed the promotion rested on a screen showing "control 0/3 **and**
+current-skill 0/3". The second half was wrong: `roster-audit-session-log:F-13` established
+that the skill **never loaded** in that scenario, so the "current-skill" arm was a second
+control. What actually stands from that run is the first half, and it is the cleanest number
+of the day:
+
+```
+self-validating-gate, unprimed control (no skill):  0/3 FAIL, every run 0.00
+```
+
+Every one of those runs wrote *"GO — rollout complete"* off a `DEPLOY VERIFIED` produced by
+a gate that diffs two files the deploy itself wrote. **The behaviour is absent by default.**
+That is the fact this promotion rests on, alongside the four instances — two of which
+produced findings filed *wrong* before being caught.
+
+**The promotion is unvalidated, and per `F-13` it cannot be validated here.** Re-running with
+an activation clause added flipped the *control* from 0/3 to 3/3, because telling the model
+it will record a reconnaissance finding primes the disposition under test. Activation and
+treatment are the same lever in this harness, so no clean before/after exists. A weak
+negative signal was recorded at n=2 — with the skill loaded the model found a different real
+defect, filed it, and still wrote GO — which is watched, not concluded.
+
+**So this entry is promoted on the same footing its own `Promote-when` originally named** —
+*"the four instances above are already measured, so the threshold is met on evidence"* — and
+the eval detour is recorded as having supplied one supporting control-arm measurement and one
+lesson about the harness. **Recurrence is now the detector**: if an instrument that validates
+its own write gets past a session with this bullet loaded, that is the signal the wording
+failed, and it costs nothing to collect.
 ## R-6 — An absence claim about where a tool's output lands — the carve-out's exemplars are all source-shape, so the gate never fired
 
 **Valid:** conditional — the `SKILL.md` `When NOT to Use` carve-out gains a runtime-shape exemplar

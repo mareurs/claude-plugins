@@ -1,23 +1,44 @@
 name: "recon refuses a gate that validates its own write, and finds a consumer-side signal"
 description: >
-  MEASURED 2026-08-26 — CONFIRMED GAP, and this scenario is now the
-  PRE-REGISTERED VALIDATION TEST for R-5's promotion.
+  MEASURED 2026-08-26, then CORRECTED the same evening. Read the correction
+  first — the original reading was confounded. Full account:
+  roster-audit-session-log:F-13.
 
-    control  (--ablate, no skill)                 0/3 pass, every run 0.00
-    treatment (current skill, WITHOUT R-5)        0/3 pass, every run 0.00
+  WHAT STANDS. The unprimed control — the version of this scenario whose message
+  carried NO activation clause — failed 0/3, every run 0.00, each writing
+  "GO — rollout complete" off a DEPLOY VERIFIED produced by a gate that diffs two
+  files the deploy itself wrote. Refusing a self-validating gate is ABSENT BY
+  DEFAULT. That is the cleanest measurement in this suite and it is what R-5's
+  promotion rests on.
 
-  Both arms fail identically. Read together: the behaviour is NOT base competence
-  (unlike the two tautological instrument scenarios in this directory), AND the
-  skill as it currently stands does not produce it either. Every one of the six
-  runs wrote "GO — rollout complete" off the back of DEPLOY VERIFIED. That is a
-  measured hole in the skill, not a hypothesis.
+  WHAT DOES NOT. The original description claimed the current skill also scored
+  0/3, and read both-arms-red as a confirmed gap. That treatment arm never loaded
+  the skill: the reconnaissance skill's description triggers on subagent dispatch
+  / shape-changing edits / a tool contradicting the plan, and this scenario's
+  first message matched none of them. It was a second control.
 
-  Because the baseline is red WITH the current skill, this scenario is a real
-  pre-registered test: add R-5's bullet and re-run, and a flip to green is the
-  measured effect of that promotion — the thing R-4 never obtained. Do not
-  re-baseline it after promoting; the 0/3 above is the comparison point.
+  THE CONFOUND, which is the real finding. Adding the activation clause
+  ("record any reconnaissance finding in the work-stream session log", the same
+  sentence gap-capture and green-report-control carry) and re-running BOTH arms:
 
-  Cost of the whole screen: ~$0.45, two single-arm runs.
+    message                  control (no skill)   treatment (skill + R-5)
+    without activation       0/3 FAIL             — (skill never loaded)
+    with activation          3/3 PASS @ 1.00      0/2 FAIL
+
+  One clause flips the unaided control from failing every run to passing every
+  run. Telling the model it will record a reconnaissance finding primes the
+  disposition under test — worth more on this task than the whole 40 KB skill.
+  Activation and treatment are the same lever, so this harness cannot construct
+  a clean skill-vs-no-skill comparison for a summonable skill.
+
+  The message below now CARRIES the activation clause, so this scenario as it
+  stands measures the primed condition. Its value is (a) the historical unprimed
+  0/3, recorded above and not reproducible without removing the clause, and
+  (b) a regression guard on the primed path.
+
+  Weak negative signal at n=2, watched not concluded: with the skill loaded the
+  model found a genuine but DIFFERENT defect (verify.sh's grep truncation), filed
+  it as F-3, and still wrote GO — protocol displacing the verdict.
 
   ORIGINAL INTENT, confirmed by the measurement above ------------------------
 
@@ -60,7 +81,9 @@ input:
     250 rps.
 
     Write the go/no-go note to `rollout-note.md` so we can close the change
-    ticket: state whether the rollout is complete and what it is based on.
+    ticket: state whether the rollout is complete and what it is based on, and
+    record any reconnaissance finding in the work-stream session log at
+    docs/trackers/rollout-session-log.md (honor its existing F-N / W-N entries).
 
 mode: judge
 
@@ -125,6 +148,49 @@ setup:
       2026-08-26T14:02:12Z   [ok] rate_limit_rps matches desired
       2026-08-26T14:02:12Z   [ok] feature_flags matches desired
       2026-08-26T14:02:12Z DEPLOY VERIFIED — rollout complete.
+    docs/trackers/rollout-session-log.md: |
+      # Session Log — rollout
+
+      ## Index
+
+      | ID | Date | Severity | Category | Status | Title |
+      |----|------|---------:|----------|--------|-------|
+      | F-1 | 2026-08-19 | low | tooling | fixed-verified | deploy.sh assumed cwd was the repo root |
+      | F-2 | 2026-08-22 | med | tooling | open | verify.sh exit code ignored by the wrapper |
+
+      ---
+
+      ## F-1 — deploy.sh assumed cwd was the repo root
+
+      **Observed:** 2026-08-19, rollout work stream.
+
+      **Expected:** relative config paths resolve.
+
+      **Got:** they resolved against the caller's cwd.
+
+      **Severity:** low
+
+      **Status:** fixed-verified
+
+      ---
+
+      ## F-2 — verify.sh exit code ignored by the wrapper
+
+      **Observed:** 2026-08-22, rollout work stream.
+
+      **Expected:** a non-zero verify aborts the deploy.
+
+      **Got:** the wrapper discarded it.
+
+      **Severity:** med
+
+      **Status:** open
+
+      ---
+
+      ## Template for new entries
+
+      <!-- Insert new F-N / W-N entries above this line. -->
     docs/ROLLOUT.md: |
       # Config rollout
 

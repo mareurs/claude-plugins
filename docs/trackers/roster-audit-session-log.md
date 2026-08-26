@@ -9,7 +9,7 @@ tags:
 entry_prefix:
 - F
 - W
-entry_high_water_F: 12
+entry_high_water_F: 13
 entry_high_water_W: 3
 ---
 
@@ -79,6 +79,7 @@ entry_high_water_W: 3
 | F-9 | 2026-08-26 | med | tracker-drift | fixed-verified | A tracker's `Status: open` was copied into the passover as pending work; `#21`'s fix shipped three months earlier in `f97f2a4` — executing the handoff would have added a *second* LLM sub-section |
 | F-10 | 2026-08-26 | med | release-pipeline | fixed-verified | Marketplace registrations drifted cross-profile in two files the parity gate never read — and the cross-profile pointer was **hiding** a 3-month-stale local clone of an enabled plugin (`ce83dfd`→ this commit) |
 | F-11 | 2026-08-26 | med | eval-design | fixed-verified | The scenario built to score `R-4` measured **tautological** (treat 3/3, ctrl 3/3, Δ+0.00) — naming the instrument by path let base competence read the script instead of probing it. Records corrected same evening |
+| F-13 | 2026-08-26 | high | eval-design | **The skill never loaded in three of four instrument scenarios**, so their "treatment" arms were controls. Adding the clause that activates it flips the *control* 0/3 → 3/3 — activation IS the treatment, and this harness cannot separate them. Corrects `F-11`, `F-12`, `W-3` |
 | F-12 | 2026-08-26 | high | eval-design | fixed-verified | **Second design also tautological — and the control arm probed unprompted.** All 3 no-skill runs built a known-answer probe. Two designs, six control runs: the behaviour `R-4` teaches is base competence, so this harness cannot measure it |
 ## Wins Index
 
@@ -1052,6 +1053,112 @@ skill content is a change to what every dispatch carries, and the attentional-lo
 screens cannot reach is precisely what a trim would risk. But the queue was only ever asking
 "what should we add?", and the honest answer from four measurements is **one addition and
 two declines, with a subtraction candidate on the board.**
+
+---
+## F-13 — The skill never loaded, and the clause that loads it is itself the treatment
+
+**Observed:** 2026-08-26, running the pre-registered test after adding `R-5`'s bullet to
+Phase 1.
+
+**When:** `self-validating-gate` had a `0/3` red baseline with the current skill. `R-5`'s
+bullet was added; the test should have flipped green if the promotion worked.
+
+**Expected:** green, or an honest red saying the bullet does not work.
+
+**Got:** red — and then, checking *why* before reporting it, the transcripts showed **no
+skill text at all**. No `SKILL.md`, no `Skill` tool call, not even the word "scout". The
+run had not tested the promotion; it had tested nothing.
+
+**Probable cause — two layers, and the second is the finding.**
+
+**Layer 1: three scenarios never activated the skill.** `prompt-tdd`'s claude-code adapter
+copies the skill to `<work_dir>/.claude/skills/<name>/` (`adapters/claude_code.py:481`), so
+it is *installed and offered* — but Claude Code loads a skill's body only when the model
+invokes it, and the reconnaissance skill's description triggers on *"before subagent
+dispatch, before editing code that changes a struct … or after a tool response contradicts
+the plan."* Measured across 48 session directories, the skill fired in exactly **14** — all
+of them `gap-capture` or `green-report-control`, whose messages carry the clause *"record
+any reconnaissance finding in the work-stream session log"*, copied from the sibling
+scenario. My three later scenarios dropped that clause, so their treatment arms were
+byte-identical to their controls.
+
+**Layer 2 — and this is the one that matters: the activation clause is a TREATMENT.**
+Adding that single sentence to `self-validating-gate`'s message and re-running both arms:
+
+| message | control (no skill) | treatment (skill loaded) |
+|---|---|---|
+| without the clause | **0/3 FAIL** | — (skill never loaded) |
+| with the clause | **3/3 PASS @ 1.00** | **0/2 FAIL** (`R-5` bullet verified in transcript) |
+
+**One clause flipped the unaided model from failing every run to passing every run.**
+Telling the model it will be recording a reconnaissance finding makes it
+reconnaissance-minded, and that priming is worth more on this task than the entire 40 KB
+skill. The clause is not a switch that turns the skill on; it is an intervention that
+changes the behaviour under test.
+
+**Which means the harness cannot construct a clean comparison.** The only lever available
+to load a summonable skill is the prompt, and the prompt is also the treatment. Activate
+the skill and you have primed the control; leave the control naive and the skill never
+loads. There is no third option in this design.
+
+**Severity:** high — it invalidates the reasoning behind two entries filed hours earlier and
+reverses an action I was about to take.
+
+**Status:** fixed-verified
+
+**Valid:** dated 2026-08-26
+
+**Rests on:** transcript enumeration over all 48 `~/.claude-test/projects/-tmp-prompt-test-*`
+session directories, keyed on each transcript's first user message for scenario identity and
+on `"name":"Skill"` plus the skill's own opening line for activation; and the four-cell table
+above, each cell a separate run.
+
+### What survives, and what does not
+
+**Survives — every control-arm fact.** A control run has no skill by construction, so nothing
+about it depended on activation:
+
+- `self-validating-gate`, **unprimed**: 0/3. Refusing a self-validating gate is genuinely
+  **absent by default**. This is the cleanest measurement of the day and it supports `R-5`.
+- `absence-about-a-writer`: control 3/3 — but see the caveat below; that scenario carries no
+  activation clause, so its control is naive and the verdict holds.
+
+**Does not survive — every treatment-arm claim from the three non-activating scenarios.**
+`missing-output-state` and `self-validating-gate`'s "the current skill does not produce it
+either", and `absence-about-a-writer`'s treatment row, all compared a control to a control.
+`F-11`'s green-report result is the one that *does* stand — its skill fired, body loaded, and
+both arms still passed.
+
+**And `F-12`'s headline needs re-reading.** It concluded *"this harness cannot measure `R-4`
+because the behaviour is base competence"*. The first half is right and the second is at best
+half the story: `green-report-control`'s control was **primed by the same clause**, so
+"base competence" was measured on a model already told to be reconnaissance-minded. The
+correct statement is the stronger and simpler one: **this harness cannot cleanly measure a
+summonable skill's content at all.**
+
+### The action this reversed
+
+I was one step from **subtracting `R-4`'s widening** from the shipped skill, on the strength
+of two "base competence" verdicts. Both came from primed controls. **That subtraction is now
+unsupported and was not made.** The 689-token bullet stays.
+
+The near-miss is the point: a confounded measurement did not merely fail to inform, it very
+nearly authorised deleting shipped content. That is `R-5`'s own law — *a green that cannot
+fail actively reassures* — arriving one level up, in the instrument I built to adjudicate
+`R-5`.
+
+### Weak negative signal, recorded but not concluded
+
+With the skill loaded and `R-5`'s bullet confirmed present, treatment scored **0/2** where
+the primed control scored 3/3. The judge's reading: the model went into reconnaissance mode,
+found a *genuine but different* defect in `verify.sh`'s grep truncation, filed it as `F-3` —
+and still wrote GO, never reaching the service state. A plausible mechanism (protocol
+displacing the verdict) at n=2, on a confounded design. **Not a finding. A thing to watch.**
+
+**Fix idea / Pointer:** the honest options are (a) accept that skill-content power is not
+measurable in this harness and rely on the ledger's recurrence counting instead, or (b) find
+an activation lever outside the prompt — a profile with the skill pre-loaded rather than
+offered — which would need adapter work in `prompt-engineering`. Neither attempted.
 
 ---
 ## Template for new entries
