@@ -102,12 +102,22 @@ them wasted on an accidental `report` re-execution).
   transcripts cluster ~90s apart across three invocations, attributable only by mtime, and the
   probe's literal `== 51` pattern cannot match a `parametrize` table, so its zeros were
   evidence about the pattern rather than the models. Re-run rather than mine it further.
-- **Method lesson owed as an `F-N`.** The first claim this session made about the harness —
-  "runs are not auditable" — was asserted from three absent files and one timed-out command,
-  and was **wrong**: transcripts are persisted, by Claude Code rather than by prompt-tdd. A
-  subagent audit established that from source. The same failure shape then recurred in the
-  transcript-recovery probe. Both are the reconnaissance skill's "a search that finds nothing
-  is evidence about the search, not about the world", and neither had a positive control.
+- **Method lesson — FILED, no longer owed.** Landed as
+  `reconnaissance-patterns:R-6` in **claude-plugins**, not as an `F-N`: the `F-N`/`W-N`
+  namespaces are per-work-stream and this stream never opened a session log in either repo,
+  so there was no counter to append to. `R-N` was the right home anyway — the lesson is
+  about the reconnaissance skill itself, and `R-1`..`R-5` are all this same family.
+  Summary: the claim "runs are not auditable" was asserted from four observations, not one
+  of them positive, and was **wrong** — transcripts are persisted, by Claude Code rather
+  than by prompt-tdd, at `~/.claude-test/projects/-tmp-prompt-test-*/*.jsonl`. Verdict
+  `miss`; proposal **HELD** behind the `R-4` eval baseline (`n=0`) on `R-4`'s own reasoning,
+  rather than promoted on argument.
+  Mechanism worth carrying forward: unlike `R-4`, the law was **never loaded** — the
+  reconnaissance skill was invoked later in the session. The `When NOT to Use` carve-out at
+  `SKILL.md:20` already says "asserting a specific, checkable fact is not Q&A", but all
+  three of its exemplars and its remedy are **source-shape** ("read the symbol this
+  session"), and a claim about whether a tool persists anything has no symbol that settles
+  it — so the situation resolved to read-only Q&A and the gate never asked for a scout.
 
 ## Pointers
 
@@ -124,4 +134,3 @@ them wasted on an accidental `report` re-execution).
 - Adjacent initiative, different axis: `docs/trackers/buddy-introspection.md` audits how
   specialists are *written*; this one audits what the roster does not *cover*. `active-plan.md`
   owns the `T-N` namespace — file work there, not here.
-

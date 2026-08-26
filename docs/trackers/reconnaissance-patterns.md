@@ -9,7 +9,7 @@ tags:
 - scout
 topic: reconnaissance
 entry_prefix: R
-entry_high_water_R: 5
+entry_high_water_R: 6
 ---
 
 # Reconnaissance patterns
@@ -50,6 +50,7 @@ end-to-end stdin drivers), which is the local hazard R-1 records.
 | R-3 | 2026-08-26 | hit | A filed drift finding is a claim about current state — scout the claim the number supports and the tracker's live state, not the quoted number | `roster-audit-session-log.md` F-1 + F-2 + W-1 |
 | R-4 | 2026-08-26 | promoted | Positive-control law was loaded and still missed — framed for searches, instrument was a report. 6th recurrence; placement fix applied `f53aaea`, effect unmeasured (eval baseline n=0) | `roster-audit-session-log.md` F-4 + F-6 |
 | R-5 | 2026-08-26 | proposal | A check that reads where the writer wrote, or is computed from what it judges, cannot fail — four instruments in one session. HELD pending the R-4 eval baseline | `roster-audit-session-log.md` F-6 + F-7 + F-8 + W-2 |
+| R-6 | 2026-08-26 | miss | "That tool persists nothing" asserted from four absences; the `When NOT to Use` carve-out's exemplars are all source-shape, so a runtime-behaviour claim walks the gate. 7th recurrence, but the law was never loaded — HELD pending the R-4 eval baseline | no session log (see entry) — `passover-validation-spine-2026-08-26.md` + `validation-domain-coverage.md` VG-9 |
 
 ## Status vocabulary
 
@@ -317,7 +318,7 @@ Per the skill's own rule that a recurrence is a defect in the promoted text, thi
 1. **`release.sh` steps 5 + 6.** Step 5 repoints install-record element `[0]`; step 6 validates element `[0]`. The record is an array. A sibling at `[1]` pinned to a superseded version was invisible, and the release printed `✅ … (pushed)` with ✓✓✓. (`F-7`)
 2. **The `version-bump-checklist` tracker.** Documented in CLAUDE.md as "the richer cross-check of the same two failure classes" — and its gather prompt also read `[0]`. Not richer on this axis; it shared the defect. (`F-7`)
 3. **`link_scan` / `doctor`.** A citation can be resolved, dangling, or **inert** — prefix has no definer anywhere, so the token is never a candidate. Neither surfaces the third state; `doctor`'s two relevant checks iterate *entries*, and an artifact declaring no `entry_prefix` owns none. ~60 citations produced no edge and no warning. (`F-6`)
-4. **`VG-7`'s split-quality ratio.** `(base + lens) / monolith`, prescribing that general material move from addendum into base. Relocation leaves both terms unchanged, so the metric is invariant under the exact fix it asks for. (`F-8`)
+4. **`VG-7`'s split-quality ratio.** `(base + lens) / monolith`, prescribing that general material move from addendum into base. Relocation leaves both terms unchanged, so the metric is invariant under the exact fix it asks for. (`F-8`) — **and one step downstream, its immobility was read as a positive signal.** The entry's author, in a separate session hours before the fix landed, checked the ratio against a drifting working tree, found it unmoved at 81.8%, reported that to the user as *"the validity-class design paying off — a well-chosen `conditional` survives noise that a `dated` would have flagged spuriously"*, and declined to edit the entry on that basis. This is the worst property of the class and the reason it outranks a missing check: an invariant metric does not merely fail to fire, it **actively reassures**, and it reassures hardest exactly when someone is deciding whether to look closer. Recorded here by that author. (`validation-domain-coverage:VG-7`)
 
 The family resemblance to a codescout issue filed the same day by another thread — `index(action="status")` reporting `indexed: true, queryable: true` off a single chunk because it never checks coverage — makes five, across two repos.
 
@@ -332,6 +333,141 @@ The family resemblance to a codescout issue filed the same day by another thread
 **Valid:** dated 2026-08-26
 
 **Rests on:** `roster-audit-session-log:F-6`, `F-7`, `F-8` as the three instrument measurements, `F-4` as the wrong finding one of them produced, and `W-2` as the countermeasure that caught all of them.
+
+## R-6 — An absence claim about where a tool's output lands — the carve-out's exemplars are all source-shape, so the gate never fired
+
+**Valid:** conditional — the `SKILL.md` `When NOT to Use` carve-out gains a runtime-shape exemplar
+
+**Verdict:** miss
+
+**Observed:** 2026-08-26, validation-spine / `VG-9` work stream — building a
+skill A/B on the `prompt-tdd` harness in the sibling `prompt-engineering` repo.
+
+**Source session log:** none — this work stream never opened one, which is
+itself the small finding at the end of this entry. Evidence lives in
+`passover-validation-spine-2026-08-26.md` (Open threads) and `VG-9` in
+`validation-domain-coverage.md` (History).
+
+**Pattern (or pattern that failed):** I told the user that a `$1.32` harness run
+was **not auditable** — that `prompt-tdd` persists no transcript. The claim was
+built from four observations, not one of them positive: two absences (`ls -a
+.prompt-tdd/`, one `find`), one stale `results/` directory that was present but
+uninformative, and a command that hit its 60s timeout. No source read. No tool
+run to completion. **Nothing in that set could have come out differently in a
+world where the claim was false** — which is the test the evidence had to pass
+and did not. The user's response was the correct
+one — *"prompt-tdd should be auditable. check properly in a subagent and prove
+it"* — and the subagent refuted me in a single pass.
+
+Transcripts **are** persisted: by Claude Code, not by `prompt-tdd`, at
+`~/.claude-test/projects/-tmp-prompt-test-*/*.jsonl`. Re-verified while writing
+this entry — 13 session directories, newest 106,513 bytes.
+
+Two things made the absence feel like evidence. I searched the **harness's** own
+working directory for an artifact written by the harness's **subprocess**; and
+the path I failed to find was keyed on `config_dir: ~/.claude-test`, a line in a
+config file **I had authored myself** earlier in the same session. The location
+was not obscure — it was upstream in my own writing.
+
+This is the same law as `R-2`, `R-3` and `R-4`: *a search that finds nothing is
+evidence about the search.* But unlike `R-4` — where the law was loaded and
+still did not fire — **here it was never loaded.** The reconnaissance skill was
+invoked later in this session, after the failure. So the interesting question is
+not why the law failed to apply, but why the gate never asked for it.
+
+**It is the `When NOT to Use` carve-out at `SKILL.md:20`.** The line is correct
+and already anticipates this: *"asserting a specific, checkable fact is not
+Q&A."* But all three of its exemplars are **source-shape** — *"it IS BLAKE3"*,
+*"the field IS named Y"*, *"it's at line N"* — and so is its remedy: *"Read the
+symbol this session."* A claim about **whether a tool persists anything, and
+where** has no symbol whose body settles it. The carve-out therefore reads as
+not-applicable, the situation resolves to *"read-only Q&A that describes
+behavior"*, and the reader walks through the gate.
+
+Worth noting: the right sentence already exists elsewhere in the ecosystem. The
+`project-activation-bootstrap` guide carries it exactly — *"A claim about how a
+TOOL behaves needs the call run once and the real output read — reading the
+source alone misses runtime shape."* It is injected on **project activation**,
+which is not where the reader is standing when the claim gets made.
+
+**Recurrence, same session, self-caught.** Recovering the lost `--ablate`
+summary from those transcripts, I grepped literal `== 51` and `== 1000`. Both
+models had written `@pytest.mark.parametrize` tables, which no such literal can
+match, so `spec51=0` across all eight files was evidence about my pattern. This
+is the **Encoding** clause of the Phase 1 bullet, already written down. Recorded
+as inconclusive rather than read as a result — but only after producing the
+table, not before designing the probe.
+
+**Evidence:** One wrong claim presented to the user as settled fact. One user
+round-trip spent demanding proof. One subagent dispatched to refute my own
+assertion. One defect nearly filed against `prompt-tdd` for something that does
+not exist — `OP-13`..`OP-16` in `prompt-tdd-operating-guide.md` are real, but
+they came from reading `cli.py` / `runner.py` / `types.py` **afterwards**; the
+auditability claim was the one that came from nowhere. Cost of the positive
+control: **one call.** Grep any string known to be present — the scenario's own
+`input.message` — across `~/.claude-test/`. I ran exactly that call once
+challenged, and it found the scenario prompt five times over.
+
+**Pattern proposal:** two clauses on `SKILL.md:20`.
+
+1. Add a **runtime-shape exemplar** alongside the source-shape three — *"it
+   writes nothing", "there is no transcript", "that output is not persisted"* —
+   with its own remedy, because reading a symbol does not settle it: **run the
+   call once and read the real output.**
+2. For an absence claim about a tool's *outputs* specifically, **name the writer
+   before believing the absence.** *"Who would write this, and what does its
+   config say about where?"* The failure here was searching the caller's
+   directory for the callee's artifact, at a path pinned in my own config file.
+
+**Promote-when:** **HELD** behind the `R-4` eval baseline, on `R-4`'s own
+reasoning — `buddy/tests/reconnaissance-eval/` is still `n=0`, and this proposal
+edits the same region of the same line `R-4` just changed unmeasured. Two
+unmeasured placement fixes stacked on one line is how a skill accumulates
+wording nobody can attribute an effect to. The law itself is at seven
+datapoints and needs no further argument; the *proposal* is new and has one.
+When the baseline exists, score both together.
+
+**A fourth silent state, found while verifying this very entry.** The first draft
+cited the evidence with the **filename** in the qualifier slot, not the stem:
+
+```text
+validation-domain-coverage.md:VG-9   →  reported as  md:VG-9  (CrossRepoToken)
+```
+
+`link_scan` split on the last dot-segment, so the qualifier resolved to a repo
+named `md`. It produced **no edge**, and it did not dangle and was not
+ambiguous: a malformed qualifier lands in a category that means *"correct, just
+not representable as an edge"*, so the scan reads clean and both counts a
+reviewer would check stay flat. Alongside `R-4`'s **inert** prefix, that is a
+second way a citation can be silently non-existent while every error count says
+zero. Corrected to the bare token; the qualifier is the file **stem**, never the
+filename. Caught only because the verification enumerated `cross_repo` instead of
+stopping at the two counts it expected to move — the positive-control law applied
+to its own remedy.
+
+One mechanic, measured while writing the paragraph above: the first draft wrote
+the bad citation in an **inline code span**, and `link_scan` parsed it anyway —
+the count stayed at 1 with the real citation already fixed, because prose *about*
+a malformed citation reproduces it. Moving the example into a **fenced block**
+dropped it (`cross_repo` 12 → 11, this artifact to zero). So the fenced-block
+exemption that `get_guide("tracker-conventions")` documents for validity-field
+detection covers citation tokens too; backticks alone do not. **Fence any
+citation you are writing about rather than making.**
+
+**Ledger gap this exposed.** The `Source session log` field assumes the work
+stream opened one, and the `How to append` recipe assumes an `F-N` to cite. This
+work stream ran across two repos and never opened a session log in either, so
+the lesson had nowhere conventional to land and sat undelivered across a
+compaction boundary. A short work stream should be able to file an `R-N` citing
+whatever durable artifacts it *does* have.
+
+**Rests on:** the refutation, re-verified 2026-08-26 — 13 session directories
+under `~/.claude-test/projects/-tmp-prompt-test-*/`, newest `*.jsonl` 106,513
+bytes; the carve-out text read from
+`codescout-companion/skills/reconnaissance/SKILL.md` line 20 this session, which
+is what the `**Valid:**` condition above is keyed to; and `link_scan` counts for
+the qualifier and fence measurements, taken from its own output rather than from
+the resolver's documented rule.
 
 ## Template for new entries
 
