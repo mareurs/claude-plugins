@@ -85,7 +85,7 @@ entry_high_water_W: 3
 | ID | Date | Impact | Pattern | Counterfactual | Status |
 |----|------|-------:|---------|----------------|--------|
 | W-1 | 2026-08-26 | med | Audit a drift finding by reading the whole cited claim + its tracker's live state, not the fragment the finding quotes | `VG-8` would have closed as a one-integer edit, leaving `#20`'s falsified 3×-baseline `Accept` and a `10/10` scope over a 12-specialist roster both standing | validated |
-| W-3 | 2026-08-26 | high | **Screen a candidate law by asking whether the CONTROL fails, not by measuring a delta** — one arm, not two | Two paired runs on `R-4` returned nothing measurable; two single-arm runs on `R-5` returned a confirmed gap plus a pre-registered validation test, for ~$0.45 | validated (applied — resolved the `R-5` hold `F-12` had made un-openable) |
+| W-3 | 2026-08-26 | high | **Screen a candidate law by asking whether the CONTROL fails, not by measuring a delta** — one arm, not two | Two paired runs on `R-4` returned nothing measurable; single-arm screens settled `R-5` (promote) and `R-6` (do not) for ~$1 total | **promoted-ready — promote-when FIRED**: four screens, three verdicts, both directions demonstrated |
 | W-2 | 2026-08-26 | med-high | Prove the instrument against a known-positive before believing its verdict — one control per state it can report | Three claims would have shipped as verified: a regex zero, a push-gate checker's green, and a metric read after the fix instead of against it | validated (promote-when fired → `reconnaissance-patterns:R-4`, shipped `f53aaea`) |
 ---
 
@@ -1006,10 +1006,25 @@ bullet, re-run, and a flip to green is the promotion's measured effect — the t
 never obtained and, per `F-12`, never could. Measurement stops being something you retrofit
 and becomes a by-product of deciding.
 
-**Promote-when:** a third candidate law is screened this way and the verdict again matches
-what a full paired run would have said. Two directions are already demonstrated; a third
-datapoint would justify writing it into the ledger conventions as the standard
-pre-promotion gate.
+**Promote-when:** ✅ **FIRED the same day.** `R-6` was screened third and returned the
+opposite verdict to `R-5` — control 3/3 PASS at 1.00, "NO POWER", so the proposal is
+redundant and was declined. Four screens now stand across three candidate laws, and the
+method produced three distinct verdicts:
+
+| law | scenario | control | treatment | verdict |
+|---|---|---|---|---|
+| `R-4` | `green-report-control` | pass | pass | redundant — **already shipped** |
+| `R-4` | `missing-output-state` | pass | pass | redundant |
+| `R-5` | `self-validating-gate` | **FAIL 0/3** | **FAIL 0/3** | confirmed gap → **promote** |
+| `R-6` | `absence-about-a-writer` | **PASS 3/3** | pass | redundant → **do not promote** |
+
+That is the property a gate needs: it says no twice, yes once, and each time for a reason
+you can read off the arms. A delta could not have produced the `R-5` row at all — both arms
+red is `Δ = 0`, indistinguishable from the tautological rows unless you look at *which*
+direction they failed in.
+
+**Ready to write into the ledger conventions as the standard pre-promotion gate.** Two
+single-arm runs, ~$0.45–$1.00 per candidate, verdict same session.
 
 **Status:** validated
 
@@ -1018,8 +1033,25 @@ pre-promotion gate.
 True of this harness and this model; the ordering argument (screen before promoting, so the
 baseline is pre-registered) is method-independent.
 
-**Rests on:** `F-12` — which established that the delta-based gate could not open — and
-`R-5`'s measurement, which is the first application.
+**Rests on:** `F-12` — which established that the delta-based gate could not open — and the
+`R-5` / `R-6` measurements, the first two applications and the two that demonstrate the
+method discriminating in opposite directions.
+
+### The uncomfortable corollary
+
+Three of the four screens came back *redundant*, and two of those three are `R-4` — which is
+**already shipped**, in codescout-companion 1.16.17. It was promoted on argument, before any
+screen existed, for a behaviour both of its scenarios show the unaided model performs. Its
+bullet is 2,757 bytes, ~689 tokens, **6.8% of a 40,679-byte skill**, carried on every
+subagent dispatch.
+
+So the first thing this gate did, applied retrospectively, was flag a promotion that had
+already happened. That is `R-4`'s own rule — *the bias on a promoted set should be
+subtraction* — pointing at `R-4`. Left as a finding rather than an action: trimming shipped
+skill content is a change to what every dispatch carries, and the attentional-load case the
+screens cannot reach is precisely what a trim would risk. But the queue was only ever asking
+"what should we add?", and the honest answer from four measurements is **one addition and
+two declines, with a subtraction candidate on the board.**
 
 ---
 ## Template for new entries

@@ -50,7 +50,7 @@ end-to-end stdin drivers), which is the local hazard R-1 records.
 | R-3 | 2026-08-26 | hit | A filed drift finding is a claim about current state — scout the claim the number supports and the tracker's live state, not the quoted number | `roster-audit-session-log:F-1` `roster-audit-session-log:F-2` `roster-audit-session-log:W-1` |
 | R-4 | 2026-08-26 | promoted | Positive-control law was loaded and still missed — framed for searches, instrument was a report. 6th recurrence; placement fix applied `f53aaea`; **TWO** scenarios were built to score it, both **measured tautological** (treat 3/3, ctrl 3/3, Δ+0.00 each), and all six control runs probed unprompted — the behaviour is base competence, so this harness cannot measure the effect at all | `roster-audit-session-log:F-4` `roster-audit-session-log:F-6` |
 | R-5 | 2026-08-26 | promote-ready | A check that reads where the writer wrote, or is computed from what it judges, cannot fail — four instruments in one session. **HOLD RESOLVED on a better measurement**: base-competence screen shows control 0/3 AND current-skill 0/3 — a confirmed gap, with a pre-registered test standing by | `roster-audit-session-log:F-6` `roster-audit-session-log:F-7` `roster-audit-session-log:F-8` `roster-audit-session-log:W-2` |
-| R-6 | 2026-08-26 | miss | "That tool persists nothing" asserted from four absences; the `When NOT to Use` carve-out's exemplars are all source-shape, so a runtime-behaviour claim walks the gate. 7th recurrence, but the law was never loaded — HELD pending the R-4 eval baseline | no session log (see entry) — `passover-validation-spine-2026-08-26.md` + `validation-domain-coverage.md` VG-9 |
+| R-6 | 2026-08-26 | miss | "That tool persists nothing" asserted from four absences; the `When NOT to Use` carve-out's exemplars are all source-shape, so a runtime-behaviour claim walks the gate. 7th recurrence, but the law was never loaded. **SCREENED 2026-08-26: control 3/3 PASS — the behaviour is base competence, so the proposal is redundant. Do NOT promote.** The observation stands; the proposed clauses do not | no session log (see entry) — `passover-validation-spine-2026-08-26.md` + `validation-domain-coverage.md` VG-9 |
 
 ## Status vocabulary
 
@@ -573,9 +573,14 @@ challenged, and it found the scenario prompt five times over.
    config say about where?"* The failure here was searching the caller's
    directory for the callee's artifact, at a path pinned in my own config file.
 
-**Promote-when:** **HELD** behind the `R-4` eval baseline, on `R-4`'s own
-reasoning — and this proposal edits the same region of the same line `R-4` just
-changed unmeasured.
+**Promote-when:** ❌ **RESOLVED 2026-08-26 — DO NOT PROMOTE.** Screened directly rather
+than waiting on the `R-4` baseline that `roster-audit-session-log:F-12` showed to be
+unobtainable. See *Screened* below. Original text, kept because the reasoning it records
+is what got replaced:
+
+> **HELD** behind the `R-4` eval baseline, on `R-4`'s own
+> reasoning — and this proposal edits the same region of the same line `R-4` just
+> changed unmeasured.
 
 > **Blocker state, 2026-08-26 (re-checked after a concurrent session finished).**
 > The suite gained the scenario that can actually score `R-4` — `d6a4355`,
@@ -640,6 +645,48 @@ is what the `**Valid:**` condition above is keyed to; and `link_scan` counts for
 the qualifier and fence measurements, taken from its own output rather than from
 the resolver's documented rule.
 
+### Screened 2026-08-26 — base competence. The observation stands; the proposal does not.
+
+Ran the base-competence screen (`roster-audit-session-log:W-3`) on
+`reconnaissance-eval/scenarios/instrument/absence-about-a-writer`, a fixture built to this
+entry's own shape rather than to a generic missing-file puzzle: the artifact is written by
+the **callee** (`worker.sh`), not the tool being searched around; its location is pinned in
+a config file present in the repo; `logs/` exists holding only a `.keep` note; the docs say
+logging "was removed in 2.0"; and no `*.log` exists anywhere, so a `find` for the expected
+shape returns clean. The task sanctions the negative answer.
+
+```
+control   (--ablate, no skill)          3/3 PASS, every run 1.00   — "NO POWER"
+treatment (current skill)               1/1 PASS
+```
+
+**The unaided model ran `batchrun --status`, followed `worker_state_dir`, and found all
+three records — in every run.** Establishing persistence positively before asserting absence
+is something this model already does on a task of this shape. So the two proposed clauses on
+`SKILL.md:20` would add ~a paragraph of context to every subagent dispatch and buy nothing
+measurable.
+
+**What this does and does not say.** The *observation* is untouched — the incident happened,
+the wrong claim reached a user, and the four-non-positive-observations anatomy is still the
+most useful thing in this entry. What is refuted is the *remedy*: the model does not need to
+be told this in the general case.
+
+**And the residue is the same one `R-4` left.** This entry records that the law *was never
+loaded* — the skill was invoked later in the session — and that the failure happened deep in
+a multi-step task with the claim made in passing. The screen tests a short, focused task
+where the question is the objective. Per `roster-audit-session-log:F-12` the attentional-load
+case is not reachable in this harness, so what remains unmeasured here is exactly what
+remains unmeasured for `R-4`. Two entries, one open question, and it is not the one either
+proposal was written to answer.
+
+**Consequence for `R-4`, worth stating plainly:** `R-4` shipped in codescout-companion
+1.16.17 on the same class of reasoning this screen just declined — and its own two scenarios
+came back base-competence as well. Its bullet is **2,757 bytes, ~689 tokens, 6.8% of a
+40,679-byte skill**, carried on every dispatch. By this entry's evidence and `R-4`'s own
+rule that *the bias on a promoted set should be subtraction*, `R-4`'s widening is a
+subtraction candidate rather than a precedent. Not acted on here — it edits shipped content.
+
+**Status:** screened — do not promote
 ## Template for new entries
 
 <!-- Insert new R-N entries above this line via:

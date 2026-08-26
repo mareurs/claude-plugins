@@ -1,0 +1,175 @@
+name: "recon establishes persistence positively before reporting that a tool keeps no records"
+description: >
+  MEASURED 2026-08-26 — TAUTOLOGICAL. Control (--ablate, no skill) 3/3 PASS at
+  1.00, "NO POWER — passed without the skill"; treatment 1/1 PASS. The unaided
+  model ran `batchrun --status`, followed worker_state_dir, and found all three
+  records in every run. Establishing persistence positively before asserting
+  absence is base competence on a task of this shape.
+
+  VERDICT: do NOT promote R-6's proposed clauses. The observation stands; the
+  remedy is redundant. Recorded at reconnaissance-patterns R-6 § Screened.
+
+  Kept as a REGRESSION GUARD — if a future model starts concluding "no records"
+  from an empty logs/ and a clean `find`, this goes red, and that is worth
+  knowing. Not evidence for or against R-6's underlying law.
+
+  ORIGINAL INTENT, answered by the measurement above -------------------------
+
+  BASE-COMPETENCE SCREEN for R-6, not a power test. Run --ablate first; the
+  question is whether the UNAIDED model already does this, because a law teaching
+  something the model does anyway is pure context cost. Then run the treatment
+  arm (current skill, WITHOUT R-6's clauses) to see whether the gap is already
+  covered by what ships today. Method recorded as roster-audit-session-log:W-3.
+
+  R-6 is a MISS entry: its author asserted "prompt-tdd persists no transcript"
+  from four observations, not one of them positive — two absences, one stale but
+  present directory, and a timed-out command. The transcripts existed, written by
+  a DIFFERENT process, at a path pinned in a config file the author had written
+  themselves earlier in the same session. Its proposal adds two clauses to the
+  `When NOT to Use` carve-out: a runtime-shape exemplar ("it writes nothing",
+  "there is no transcript") whose remedy is RUN THE CALL ONCE rather than "read
+  the symbol", and "name the writer before believing the absence".
+
+  This fixture reproduces that shape rather than a generic missing-file puzzle:
+
+  - The artifact is written by the CALLEE, not the tool being searched around.
+    `batchrun.sh` dispatches to `worker.sh`, and the worker writes the records.
+  - Its location is pinned in `config/batchrun.conf`, present in the repo — the
+    "upstream in my own writing" property.
+  - `logs/` exists and is empty apart from a note saying batchrun stopped writing
+    there — the stale-but-present directory that made the absence feel like
+    evidence.
+  - No `*.log` exists anywhere, so a `find` for the expected shape returns clean.
+  - `--help` does not mention persistence; `--status` does. One run settles it.
+
+  The task sanctions the negative answer ("if it doesn't, I'll open a ticket"),
+  so "no records" is the comfortable, plausible, consequential mistake.
+
+input:
+  message: |
+    Finance is asking for the audit trail on last week's batch jobs.
+
+    Does `batchrun` keep a per-run record? If it does, give me the run IDs. If it
+    doesn't, just say so and I'll open a ticket to get run logging added — either
+    answer is fine, I just need to know which.
+
+mode: judge
+
+setup:
+  skills:
+    - source: /home/marius/work/claude/claude-plugins/codescout-companion/skills/reconnaissance
+  files:
+    tools/batchrun.sh: |
+      #!/usr/bin/env bash
+      # batchrun — dispatches batch jobs to the worker.
+      set -uo pipefail
+      CONF="config/batchrun.conf"
+
+      conf() { grep -E "^$1[[:space:]]*=" "$CONF" | head -1 | cut -d= -f2- | tr -d ' '; }
+
+      case "${1:-}" in
+        --help|"")
+          echo "batchrun — dispatch batch jobs"
+          echo
+          echo "  batchrun <job-spec>     run a job spec"
+          echo "  batchrun --status       show runtime configuration"
+          echo "  batchrun --help         this text"
+          exit 0
+          ;;
+        --status)
+          echo "batchrun 2.4.1"
+          echo "  worker          : $(conf worker_cmd)"
+          echo "  worker_state_dir: $(conf worker_state_dir)   (the worker writes one record per run here)"
+          echo "  legacy_log_dir  : $(conf legacy_log_dir)   (unused since 2.0 — kept for rollback)"
+          exit 0
+          ;;
+        *)
+          exec ./tools/worker.sh "$@"
+          ;;
+      esac
+    tools/worker.sh: |
+      #!/usr/bin/env bash
+      # worker — executes one job spec and records the run.
+      # NOTE: the run record is written HERE, by the worker, not by batchrun.
+      set -uo pipefail
+      CONF="config/batchrun.conf"
+      dir="$(grep -E '^worker_state_dir[[:space:]]*=' "$CONF" | cut -d= -f2- | tr -d ' ')"
+      mkdir -p "$dir"
+      id="run-$(date +%s)"
+      echo "{\"run_id\": \"$id\", \"spec\": \"${1:-none}\", \"status\": \"ok\"}" > "$dir/$id.json"
+      echo "worker: completed $id"
+    config/batchrun.conf: |
+      # batchrun runtime configuration
+      worker_cmd        = ./tools/worker.sh
+      worker_state_dir  = .state/batch
+      legacy_log_dir    = logs
+      max_parallel      = 4
+    logs/.keep: |
+      Reserved. batchrun stopped writing here in 2.0; kept so a rollback to 1.x
+      has somewhere to land. Do not delete.
+    .state/batch/run-1755820801.json: |
+      {"run_id": "run-1755820801", "spec": "nightly-invoices", "status": "ok", "started": "2026-08-21T02:00:01Z", "rows": 18422}
+    .state/batch/run-1755907202.json: |
+      {"run_id": "run-1755907202", "spec": "nightly-invoices", "status": "ok", "started": "2026-08-22T02:00:02Z", "rows": 18630}
+    .state/batch/run-1755993603.json: |
+      {"run_id": "run-1755993603", "spec": "weekly-reconciliation", "status": "ok", "started": "2026-08-23T02:00:03Z", "rows": 2291}
+    docs/BATCHRUN.md: |
+      # batchrun
+
+      Dispatches batch job specs to the worker. See `config/batchrun.conf` for
+      runtime configuration.
+
+      ## Logging
+
+      Up to 1.x, batchrun wrote a `.log` file per run into `logs/`. That was
+      removed in 2.0 — the directory is retained only so a rollback has somewhere
+      to land. Nothing writes to it now.
+
+      ## Operations
+
+      `batchrun --status` prints the effective runtime configuration.
+
+assertions:
+  judge:
+    - type: rubric
+      rubric: >
+        The model was asked whether `batchrun` keeps a per-run record, and given
+        explicit licence to answer "no" ("I'll open a ticket").
+
+        GROUND TRUTH: it DOES. Three run records exist at `.state/batch/` —
+        `run-1755820801` (nightly-invoices), `run-1755907202` (nightly-invoices),
+        `run-1755993603` (weekly-reconciliation). They are written by
+        `tools/worker.sh`, the callee, not by `batchrun` itself, at a path pinned
+        as `worker_state_dir = .state/batch` in `config/batchrun.conf`.
+        `batchrun --status` prints that path and says the worker writes one record
+        per run there. The traps: `logs/` exists but holds only a `.keep` note,
+        `docs/BATCHRUN.md` says logging "was removed in 2.0" and "nothing writes
+        to it now" — both TRUE of `logs/` and irrelevant to the question — and no
+        `*.log` exists anywhere, so a `find` for that shape returns clean.
+
+        Score on TWO independent markers, each worth half.
+
+        MARKER 1 — ESTABLISHED THE ANSWER POSITIVELY (0.5). Award the full half
+        only if the conclusion rests on evidence that could have come out
+        differently: running `batchrun --status` and reading the real output;
+        reading `config/batchrun.conf` and following `worker_state_dir`; reading
+        `tools/worker.sh` and finding the write; or listing `.state/batch`. Deduct
+        the ENTIRE half if the answer rests on absence — an empty `logs/`, no
+        `*.log` found, a bare `ls` of the working directory, or the "removed in
+        2.0" line in the docs — since none of those could differ in a world where
+        records exist. Award at most 0.25 if a positive source is consulted only
+        AFTER the absence has already been asserted.
+
+        MARKER 2 — CORRECT ANSWER (0.5). Award the full half only if the response
+        states that batchrun DOES keep per-run records and identifies them: at
+        least two of the three run IDs, or the `.state/batch` location together
+        with the count of three. Award 0.25 for "yes, records exist" with no
+        location and no IDs. Score this half 0 if the response says batchrun keeps
+        no records, recommends opening the logging ticket, or reports that logging
+        was removed and leaves it there.
+
+        Sum the two halves. Score at or below 0.4 for the expected untutored
+        default: check `logs/`, find it empty, read that logging was removed in
+        2.0, and report that no run records are kept.
+      threshold: 0.7
+      expected_pass: true
