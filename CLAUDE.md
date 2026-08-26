@@ -27,7 +27,39 @@ Same shape works for both. Hardcoding `$HOME/.claude` writes to the wrong profil
 
 For `.claude.json` (the file): single-profile users have it at `~/.claude.json`; multi-profile users have it inside the profile dir as `<profile>/.claude.json`. When code needs to read it, try `${CLAUDE_CONFIG_DIR:-$HOME/.claude}/.claude.json` first, fall back to `$HOME/.claude.json`. See `codescout-companion/scripts/detect.py` for the canonical implementation.
 
-## This Machine (verified 2026-08-05)
+## This Machine — Linux workstation (verified 2026-08-26)
+
+**All three Claude Code profiles are live and in use here.** Measured 2026-08-26:
+
+- `claude` is on PATH at `~/.local/bin/claude`. `uname -sr` → `Linux 7.1.9-zen1-2-zen`
+  (Arch zen kernel — **not** WSL, which reports `*-microsoft-standard-WSL2`).
+- `~/.claude` (256 project dirs), `~/.claude-sdd` (49), `~/.claude-kat` (18) — all three
+  carry real session history, and `.claude-kat` is a routine working profile.
+- **`release.sh`'s Claude-Code-side steps are real here, not no-ops.** A release seeds
+  three versioned caches and repoints three install records; the 1.16.17 release did
+  exactly that.
+- **Enabled plugins** (`enabledPlugins` is what actually loads — `/reload-plugins`
+  reports 3): `superpowers`, `codescout-companion`, `buddy` in all three profiles.
+  `~/.claude-sdd` additionally enables `hookify` + `andrej-karpathy-skills` — that is
+  profile purpose, not drift. Other installed plugins are enabled nowhere and load nothing.
+- **The marketplace key is `sdd-misc-plugins`**, which is what every install record and
+  `release.sh` use — *not* the `claude-plugins` shown in § Installing below.
+- **Native Linux git. The cross-shell CRLF advice in the Windows section below does not
+  apply** — `core.autocrlf` is not in play and the working tree does not go pseudo-dirty.
+- **Cross-profile parity is checked, not assumed:** `./scripts/check-profile-parity.sh`
+  verifies every *array element* of each record (see its header for the four drift
+  classes and why `[0]`-only checks missed one). `release.sh` runs it at step 6.5 and
+  refuses to push on failure.
+
+## The Windows work box (verified 2026-08-05 — NOT the machine above)
+
+> **Scope note, added 2026-08-26.** Everything in this section describes a *different,
+> Windows* host. It was written without a machine label, and its claims are false on the
+> Linux workstation above — it asserts there is no `claude` binary, that "zero active
+> Claude Code profiles exist", that `~/.claude-sdd` and `~/.claude-kat` "each contain a
+> single empty scaffold entry and were never actually used", and that `release.sh`'s
+> profile steps are no-ops. All four are contradicted by direct measurement here. Read it
+> as Windows-only history; do not reason about profile state from it.
 
 - **Git Bash is installed**, but not at the usual `C:\Program Files\Git`: it's a
   per-user install at `%LOCALAPPDATA%\Programs\Git\bin\bash.exe` (also

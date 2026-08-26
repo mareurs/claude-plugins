@@ -25,6 +25,9 @@
 #                     registered there)
 #   5. records     — repoint version + installPath in all 3 install records
 #   6. sanity      — recorded version's cache dir exists; installPath owns its profile
+#   6.5. parity    — scripts/check-profile-parity.sh: every ARRAY element across all 3
+#                    profiles is canonical, cached, and owns its profile (steps 5 and 6
+#                    only ever look at element [0])
 #   7. push        — unless NO_PUSH=1 (protected by the pre-push-guard hook if
 #                     installed — see ./scripts/install-hooks.sh)
 #   8. prints the two steps a bash script CANNOT do: codescout tracker refresh + cold restart
@@ -108,6 +111,14 @@ for P in "${PROFILES[@]}"; do
   case "$ip" in "$P"/*) ;; *) echo "  ✗ $P  installPath escapes profile: $ip"; fail=1 ;; esac
 done
 [ "$fail" = 0 ] || { echo "✗ sanity failed — NOT pushing. Fix records, re-run, or push manually."; exit 1; }
+
+# 6.5. profile parity — EVERY array element, not just [0] ----------------------
+# Step 5 repoints [0] and step 6 validates what step 5 wrote, so both are blind to a
+# sibling element pinned to a superseded version. Measured 2026-08-26: ~/.claude-kat
+# carried [0]=1.16.17 (user) alongside [1]=1.16.16 (project, projectPath=$HOME) and this
+# script reported fully green. See scripts/check-profile-parity.sh for the four classes.
+./scripts/check-profile-parity.sh "$PLUGIN" || {
+  echo "✗ profile parity failed — NOT pushing. Fix the records above, then re-run."; exit 1; }
 
 # 7. push ----------------------------------------------------------------------
 if [ "${NO_PUSH:-0}" = "1" ]; then echo "▶ NO_PUSH=1 — committed locally, not pushed"; else git push; fi
