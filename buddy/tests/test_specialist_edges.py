@@ -26,12 +26,26 @@ def _declared(key: str) -> list[tuple[str, str]]:
 
 
 def test_every_declared_advisor_resolves():
-    index = sb.discover(Path.cwd())
+    # Builtin scope only -- the docstring's claim is about every *shipped*
+    # specialist. sb.discover(Path.cwd()) also layers in the developer's
+    # $BUDDY_HOME global skills and <cwd>/.buddy/skills project skills, so an
+    # advisor that only exists in this machine's global dir would pass here
+    # and dangle for every other user -- and the verdict would silently
+    # change with the invocation directory (Important 2, fix round 1).
+    index = {
+        p.name: ("builtin", p) for p in BUILTIN.iterdir() if (p / "SKILL.md").is_file()
+    }
     missing = [(s, a) for s, a in _declared("advisors") if a not in index]
     assert not missing, f"advisors declared but not installed: {missing}"
 
 
-def test_every_declared_fragment_resolves(tmp_path):
+def test_every_declared_fragment_resolves(tmp_path, monkeypatch):
+    # resolve_fragment() always consults buddy_paths.global_root(), which
+    # reads $BUDDY_HOME regardless of tmp_path -- pin BUDDY_HOME to tmp_path
+    # so the developer's real global fragments dir can't leak in and the
+    # verdict can't change with the invocation environment (Important 2,
+    # fix round 1).
+    monkeypatch.setenv("BUDDY_HOME", str(tmp_path))
     missing = [
         (s, f)
         for s, f in _declared("fragments")

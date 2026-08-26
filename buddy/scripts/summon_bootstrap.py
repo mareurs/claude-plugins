@@ -320,10 +320,25 @@ def build_payload(
                 continue
             adv_raw = _read(entry[1] / "SKILL.md")
             if adv_raw is None:
+                # Installed but unreadable (e.g. non-UTF-8 SKILL.md) is the
+                # same silent-drop defect class as "not installed" -- must
+                # be visible in the payload, not a bare skip.
+                parts.append(
+                    f"> advisor '{adv}' is installed but unreadable — "
+                    f"its heuristics are absent from this payload."
+                )
                 continue
             projected = project_advisor(strip_frontmatter(adv_raw), str(adv))
             if projected:
                 parts.append(projected)
+            else:
+                # The advisor resolved and was readable, but contributed no
+                # advisor-role sections (Operating Principles / Heuristics /
+                # Self-Traps) -- still a silent content drop if left quiet.
+                parts.append(
+                    f"> advisor '{adv}' contributed no advisor-role sections "
+                    f"— its heuristics are absent from this payload."
+                )
     declared = meta.get("fragments")
     names = declared if isinstance(declared, list) else list(DEFAULT_FRAGMENTS)
     for name in names:

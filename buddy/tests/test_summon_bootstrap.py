@@ -297,7 +297,7 @@ ADVISOR_SKILL = (
     "## Voice\n\nTerse and wary.\n\n"
     "## Operating Principles\n\n1. Trust nothing inbound.\n\n"
     "## Method — Three Phases\n\n### Phase 1 — Map\n\nMap the surface.\n\n"
-    "## Test Format\n\nSEVERITY / ASSET / PATH\n\n"
+    "## Test Format\n\nSEVERITY / ASSET / PATH\n\n"  # deliberately collides with the primary's heading — makes count()==1 at :358 a real discriminator
     "## Heuristics (universal)\n\n1. Every input is hostile.\n\n"
     "## Self-Traps (Failure Modes to Avoid)\n\n1. Auditing only the diff.\n"
 )
@@ -345,6 +345,12 @@ def test_advisor_voice_and_output_contract_are_NOT_projected(
     WHOLE advisor file was appended. These exclusions are the only assertions
     that distinguish projection from concatenation. Deleting them re-opens a
     check that cannot fail (claude-plugins:W-4).
+
+    ADVISOR_SKILL's `## Test Format` heading (renamed from `## Finding
+    Format`) deliberately collides with the primary's own `## Test Format`
+    heading — that collision is what makes `payload.count("## Test Format")
+    == 1` below a real discriminator instead of a tautology. Reverting that
+    heading back to `## Finding Format` silently re-vacuates this assertion.
     """
     plug, project = plugin_with_advisor
     monkeypatch.setattr(sb, "discover", lambda root: {
@@ -382,7 +388,10 @@ def test_unresolvable_advisor_emits_a_warning_line(plugin_with_advisor, monkeypa
 
 def test_advisor_with_invalid_utf8_is_soft_skipped(plugin, monkeypatch):
     """A non-UTF-8 SKILL.md in an advisor must not take down the whole summon
-    (claude-plugins ruling: "an advisor that does not resolve must never raise").
+    (claude-plugins ruling: "an advisor that does not resolve must never raise")
+    — and the drop must be VISIBLE, not silent (Important 1, fix round 1): an
+    installed-but-unreadable advisor is the same silent-content-drop defect
+    class as a not-installed one.
     """
     plug, project = plugin
     bad = plug / "skills" / "bad-advisor"
@@ -402,6 +411,35 @@ def test_advisor_with_invalid_utf8_is_soft_skipped(plugin, monkeypatch):
     payload = _advised(sb, plug, project)
     assert payload is not None
     assert "Calm." in payload
+    assert "advisor 'bad-advisor' is installed but unreadable" in payload
+
+
+def test_advisor_with_no_advisor_role_sections_emits_a_warning_line(plugin, monkeypatch):
+    """An advisor that resolves and is readable but contributes nothing
+    (no Operating Principles/Heuristics/Self-Traps section) must still say
+    so — the same silent-content-drop defect class as not-installed or
+    unreadable (Important 1, fix round 1).
+    """
+    plug, project = plugin
+    empty_advisor = plug / "skills" / "empty-advisor"
+    empty_advisor.mkdir(parents=True)
+    (empty_advisor / "SKILL.md").write_text(
+        "---\nname: Empty\ndescription: t\n---\n\n"
+        "# The Empty Advisor\n\n## Voice\n\nSilent.\n"
+    )
+    skill = plug / "skills" / "foo-bar"
+    skill.joinpath("SKILL.md").write_text(
+        "---\nname: Foo Bar\ndescription: t\nadvisors: [empty-advisor]\n---\n\n"
+        "# The Foo Bar\n\n## Voice\n\nCalm.\n"
+    )
+    monkeypatch.setattr(sb, "discover", lambda root: {
+        "foo-bar": ("builtin", plug / "skills" / "foo-bar"),
+        "empty-advisor": ("builtin", empty_advisor),
+    })
+    payload = _advised(sb, plug, project)
+    assert payload is not None
+    assert "Calm." in payload
+    assert "advisor 'empty-advisor' contributed no advisor-role sections" in payload
 
 
 def test_project_advisor_matches_heading_variants():
