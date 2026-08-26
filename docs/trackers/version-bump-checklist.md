@@ -17,15 +17,15 @@ Release readiness across plugins × profiles. See
 
 ## State
 
-_Last refresh: `31d1486`_
+_Last refresh: `27ac0ab`_
 
-**codescout-companion** — canonical `1.16.17` · readme `1.16.17` · marketplace clean ✅
+**codescout-companion** — canonical `1.17.0` · readme `1.17.0` · marketplace clean ✅
 
 | profile | installed | cache dir | install_path ok | all entries |
 |---|---|---|---|---|
-| `~/.claude` | 1.16.17 ✅ | ✅ | ✅ | `1.16.17` ✅ |
-| `~/.claude-sdd` | 1.16.17 ✅ | ✅ | ✅ | `1.16.17` ✅ |
-| `~/.claude-kat` | 1.16.17 ✅ | ✅ | ✅ | `1.16.17` ✅ |
+| `~/.claude` | 1.17.0 ✅ | ✅ | ✅ | `1.17.0` ✅ |
+| `~/.claude-sdd` | 1.17.0 ✅ | ✅ | ✅ | `1.17.0` ✅ |
+| `~/.claude-kat` | 1.17.0 ✅ | ✅ | ✅ | `1.17.0` ✅ |
 
 **buddy** — canonical `0.9.2` · readme `0.9.2` · marketplace clean ✅
 
@@ -58,7 +58,51 @@ profile.** Stable and uninstalled by design; omitted from `params` because a `nu
 `pi` — README lists it at `0.1.0`, but `pi/` carries no `.claude-plugin/plugin.json` (it is
 a pi-harness extension with its own `install.sh`), so it is outside the discovered plugin
 set and has no install record. Not a gap.
+
+**⚠ Registration is outstanding for 1.17.0 — the ✅ above do NOT cover it.** Every column
+in these tables is a fact about files on disk. `1.17.0` adds a NEW hook
+(`hooks/cs-liveness.mjs`, PostToolUse), and which hooks *exist* is resolved by Claude Code
+at process launch. Verified present and registered in all three seeded snapshots —
+`cs-liveness.mjs` on disk, 1 matching PostToolUse entry in each `hooks/hooks.json` — but no
+running instance has re-read them. Until all three cold-restart (a `resume` does NOT
+suffice), the liveness hook does not fire, and the redirect circuit breaker it feeds will
+trip once and never re-arm: the session recovers its shell and silently loses the guard for
+its remainder. That degrades safe, but it does degrade. Confirm a true cold start via the
+SessionStart payload reporting `source=startup`, not `source=resume`.
 ## History
+### 2026-08-26 — codescout-companion 1.16.17 → 1.17.0, and the first release where registration is the load-bearing step
+
+Minor rather than the default patch, deliberately: this is the first bump in a long
+run of patches that adds a **new registered component** — `hooks/cs-liveness.mjs`
+plus a PostToolUse matcher on codescout's tool names. Content ships from the repo
+working tree here (directory-source marketplace), so the code was already live
+before the release; what the release actually buys is the version number carrying
+the "registration changed" signal, and the cold restart that acts on it.
+
+Release gate: all suites green (`pre-tool-guard` 44 → 55 with the new breaker
+cases), cache seeded in 3 profiles, `check-profile-parity.sh` reporting *parity
+across 3 profile(s), one canonical version, caches present* and *every
+installLocation owns its profile, no symlinks, no HEAD skew*. Copilot soft-skipped
+— codescout-companion is not installed there on this machine.
+
+**Two query defects hit while refreshing this tracker, both returning a clean
+empty rather than an error.** Worth recording because the tracker exists to be the
+richer cross-check, and a cross-check that silently reads nothing is worse than
+none. First, `..|objects|select(.name?=="codescout-companion")` over
+`installed_plugins.json` — there is no `name` key; records are keyed
+`.plugins["<plugin>@<marketplace>"]` and the value is an array. Second, a README
+version-table grep anchored on a leading `` |`plugin`| `` cell that the table does
+not use. Both printed nothing and nothing is exactly what a healthy result would
+have looked like for the question *"is anything wrong?"*. Fixed by reading the
+actual structures (`jq 'to_entries[0]'`, `head`) instead of re-guessing —
+`claude-plugins:W-4` is the general form.
+
+The tables above were then rebuilt from a direct measurement of all 12 records
+(3 profiles × 4 installed plugins), every array element rather than `[0]` alone —
+each array holds exactly one element today, so `F-7`'s element-`[0]` blind spot has
+nothing to hide behind this time — plus a `-d` existence test per cache dir and a
+per-snapshot probe that `cs-liveness.mjs` is present AND registered in that
+snapshot's own `hooks.json`.
 ### 2026-08-26 — buddy 0.9.1 → 0.9.2, and the tracker's own plugin set was stale
 
 **All green, and one row existed that had never been looked at.** `release.sh buddy patch`
