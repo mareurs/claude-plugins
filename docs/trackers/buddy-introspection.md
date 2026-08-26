@@ -59,7 +59,7 @@ These are the canonical rows. Per-specialist duplicates are not recorded; severi
 | 18 | data-leakage-snow-pheasant (llm) | Method step 4 inline 4-bias paragraph (a/b/c/d) is dense, scannability suffers | low | open | step-6 | — | break into sub-bullets, one per bias | none |
 | 19 | data-leakage-snow-pheasant | Lens-dispatch pattern is a POSITIVE; promote to template for other multi-aspect specialists | low | wontfix | — | — | _no fix needed — see Cross-specialist patterns_ | n/a |
 | 20 | security-ibex | Length 167 lines — highest of all specialists | low | open | H4 | — | accept (security complexity earns the budget); revisit if attention metrics show drift | none |
-| 21 | security-ibex | Phase-2 taxonomy is OWASP-2017-flavored; ASVS / OWASP-2021 LLM categories not surfaced | med | open | — | OWASP LLM Top 10 (2024) | add an LLM-specific sub-category (prompt injection, insecure output handling, training-data poisoning) — even one bullet would close it | none |
+| 21 | security-ibex | Phase-2 taxonomy is OWASP-2017-flavored; ASVS / OWASP-2021 LLM categories not surfaced | med | fixed | — | OWASP LLM Top 10 (2024) | **done `f97f2a4`** (2026-05-15) — sixth sub-section *LLM / AI Application* added; exceeds the ask (LLM01/02/03 **+** 05/06/08) | none |
 | 22 | security-ibex | _superseded by S-4_ — Reactions still closed-set | — | wontfix | — | — | see S-4 | — |
 
 **Status legend.** `open` = audit finding awaiting decision. `wontfix` = duplicates a systemic row; resolution happens at the systemic level. `in-progress`/`fixed` reserved for post-eval state changes.
@@ -371,6 +371,28 @@ any user reviewing AI features.
 
 **Predicted impact:** Brings ibex current for 2024–2026 security review work, which is
 where most new buddy users likely operate.
+
+**Resolved 2026-08-26 — and it had already been resolved for three months.** The fix
+landed in `f97f2a4` (2026-05-15) as `### LLM / AI Application (OWASP LLM Top 10, 2024)`,
+the sixth Taxonomy sub-section exactly as prescribed, and it goes past the stated
+minimum: LLM01 prompt injection, LLM02 insecure output handling and LLM03
+training-data poisoning, **plus** LLM05 supply chain, LLM06 sensitive info disclosure
+and LLM08 excessive agency — each with a mitigation clause, not just a trigger. `buddy`
+has been bumped ~44 times since (0.7.x → 0.9.1), so it has long been live in every
+profile.
+
+**Caveat, stated because the Status column now reads `fixed`:** no eval exercises it.
+`buddy/tests/security-ibex-eval` has two scenarios, `idor` and `precision-clean`, and
+neither mentions LLM or prompt injection. Under the Status legend's rule that
+`fixed` is *"reserved for post-eval state changes"* this row is ahead of its evidence —
+the shipped-and-released code change is the fact being recorded; behavioural
+confirmation is still owed, which is what `Eval: none` means here.
+
+**Why this sat unnoticed.** The row's own `Status: open` was read as current state by a
+later session and copied into a handoff as pending work, which would have produced a
+*second* LLM sub-section had anyone executed it. A status field is a claim about the
+substrate like any other — see `roster-audit-session-log` `F-9`, and `R-3` in
+`reconnaissance-patterns.md`.
 
 #### #13 — ml-training-takin — No unique gaps recorded
 

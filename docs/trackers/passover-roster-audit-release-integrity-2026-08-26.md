@@ -22,16 +22,85 @@ Two threads, both at a clean stopping point. **(1) Roster audit:** a cross-repo 
 
 Two of this session's own findings were **filed wrong and corrected the same day** — `F-4` (claimed dangling where the truth was "inert") and the `VG-7` metric. Both corrections are recorded in place rather than overwritten, because the mechanism is the reusable part. Read `W-2` before trusting any instrument in this repo.
 
+**Update 2026-08-26, post-compaction.** `VG-6` is **closed** — `testing-snow-leopard`
+gained a `## Properties and Invariants` section (125 → 148 lines) plus a `**Properties:**`
+field and Heuristic 9. The scout before that edit paid for itself twice: the drafted
+content's lead instruction (*"Prefer invariants to examples"*) would have suppressed the
+exact boundary enumeration the skill's own eval scores, and the eval cites the skill by
+positional anchor, so inserting into any numbered list would have silently re-pointed its
+references. Both recorded under `VG-6`.
+
+`#21` needed **no work at all** — it shipped 2026-05-15 in `f97f2a4` and has been live
+through ~44 buddy bumps. It appeared in this passover's own action list as pending because
+the queue was built from `buddy-introspection`'s `Status` column, where `open` encodes
+*"not eval-confirmed"* rather than *"not done"*. That is `F-9`, and it is why every Next
+action now states how it was verified. A third of this thread's findings are now about
+reading a tracker's own field as ground truth — `F-1`, `F-4`, `F-9`, and the stale
+"not yet shipped" note on `F-3`'s own Index row, corrected in the same pass.
+
 ## Next actions
 
-1. Read this doc, then **VERIFY** the working state below still holds (`git status`, `./tests/run-all.sh`, `./scripts/check-profile-parity.sh`) BEFORE acting — the handoff may be stale.
-2. **`git push`** — `0fd8eb1` (VG-7) and the tracker commits are local; `origin/main` is at `ce83dfd`.
-3. **`VG-6`** — add a property/invariant section to `testing-snow-leopard`. Content is drafted in `validation-domain-coverage.md` § Domain block D, first paragraph. Cheapest of the open VG items: a section, not a specialist.
-4. **`#21`** — add an LLM/AI taxonomy sub-section to `security-ibex` (prompt injection LLM01, insecure output handling LLM02, training-data poisoning LLM03). `buddy-introspection` `#21` has the fix already written.
-5. **Then one `./scripts/release.sh buddy patch`** covering `VG-7` + `VG-6` + `#21` — do not bump three times. Afterwards: refresh `version-bump-checklist` (`cc8cb9e23ab5cc67`) via the MCP tool, and cold-restart all three instances (a `resume` is not enough).
-6. **`F-1`/`F-2`** — re-open `buddy-introspection` `#20` (its "3× baseline / highest length" comparison is falsified: audited ten are 118–136 lines, `codescout-pika` is 316) and re-scope `specialists_scanned: 10/10` to the actual 12. `T-35`'s overdue quarterly sweep inherits both.
-7. **`F-4`** — `active-plan.md`'s `T-1..T-38` are row-only, so ~60 incoming citations are **inert** (not dangling — see the correction). Conversion is **all-or-nothing**: the first `## T-N — <title>` heading makes `T` a live namespace and flips every not-yet-converted citation to dangling. All 38 in one commit, then `entry_prefix: T` + `entry_high_water_T: 38`, then `link_scan(write=true)`.
+> **Every item carries how it was verified and when.** An item tagged
+> `[UNVERIFIED]` is a claim inherited from an earlier session, not a measurement —
+> check it before executing it. This convention exists because item 4 of the first
+> draft told a fresh session to add an LLM taxonomy sub-section to `security-ibex`
+> that had shipped three months earlier; executing it would have produced a second
+> one. See `roster-audit-session-log` `F-9`.
 
+1. **Verify before acting — the claims, not just the tree.** `git status`,
+   `./tests/run-all.sh`, `./scripts/check-profile-parity.sh` cover the *working state*,
+   and they were the only things the first draft told you to check — which is why the
+   stale item slipped through. **Also re-read the substrate behind any item below whose
+   tag is not a measurement you can see.**
+   `[verified 2026-08-26 16:48 — 16/16 suites pass; parity OK, codescout-companion 1.16.17 across 3 profiles]`
+
+2. **A concurrent session is live in this repo.** It owns
+   `docs/trackers/passover-validation-spine-2026-08-26.md`,
+   `docs/trackers/reconnaissance-patterns.md` (`R-6`) and the `VG-8`/`VG-9`/`VG-10`
+   entries in `validation-domain-coverage.md`. **Its two files are uncommitted, so
+   `release.sh` will abort at its step-1 clean-tree pre-flight.** Do not commit them on
+   its behalf and do not `git stash`. The release is gated on that session landing its
+   own work.
+   `[verified 2026-08-26 16:50 — mtimes 16:46:07 / 16:46:31, quiet 4 min; VG-1..VG-10 all present at 44246 bytes after my VG-6 edit, nothing clobbered]`
+
+3. **`git push`** — `origin/main` is at `ce83dfd`; local carries `0fd8eb1` (VG-7),
+   `cc4147e`, `8ed102e` and the VG-6 commit. Not yet authorised by the user.
+   `[verified 2026-08-26 — git log origin/main..HEAD]`
+
+4. **One `./scripts/release.sh buddy patch`** covering `VG-7` + `VG-6` — **not** `#21`,
+   which is already released. Do not bump twice. Afterwards: refresh
+   `version-bump-checklist` (`cc8cb9e23ab5cc67`) via the MCP tool, and cold-restart all
+   three instances — a `resume` is not enough, it reuses the old in-memory hook.
+   Blocked by item 2.
+   `[verified 2026-08-26 — buddy at 0.9.1 in buddy/.claude-plugin/plugin.json; VG-7 committed in 0fd8eb1 and unreleased]`
+
+5. **`F-1`/`F-2`** — re-open `buddy-introspection` `#20` (its "3× baseline / highest
+   length" comparison is falsified: the audited ten are 118–136 lines, `codescout-pika`
+   is 316) and re-scope `specialists_scanned: 10/10` to the actual 12. `T-35`'s overdue
+   quarterly sweep inherits both. Two issue files already filed:
+   `a4dbafccf02bc14c`, `795cb91f2bb14aaa`.
+   `[verified 2026-08-26 — line counts measured directly; grep -c 'prompt-hamsa' → 0]`
+
+6. **`F-4`** — `active-plan.md`'s `T-1..T-38` are row-only, so ~60 incoming citations are
+   **inert**, not dangling. Conversion is **all-or-nothing**: the first
+   `## T-N — <title>` heading makes `T` a live namespace and flips every
+   not-yet-converted citation to dangling. All 38 in one commit, then `entry_prefix: T`
+   + `entry_high_water_T: 38`, then `link_scan(write=true)`.
+   `[verified 2026-08-26 — positive-control probe against a known-good prefix; the original "dangling" claim was filed wrong and corrected same day]`
+
+7. **Owed — two shipped changes that no eval measures.** `VG-6`'s
+   `## Properties and Invariants` section and `#21`'s LLM/AI taxonomy sub-section both
+   ship unmeasured. `testing-snow-leopard-eval` scores boundary-and-observable and
+   tautology-detection; `security-ibex-eval` has `idor` and `precision-clean`. Neither
+   touches the new content.
+   `[verified 2026-08-26 — read both prompt_tdd.yaml + all four scenario.yaml; grep for LLM in security-ibex-eval → 0 hits]`
+
+8. **Do not promote a third reconnaissance law before `R-4` is scored.** `R-4` shipped
+   into Phase 1 in 1.16.17 with its effect **unmeasured** — `buddy/tests/reconnaissance-eval`
+   has cases pinned and a baseline of n=0. `R-5` (this thread) and `R-6` (the concurrent
+   session) are both parked behind that baseline, deliberately. Sequence: run the
+   baseline → score `R-4` → then adjudicate `R-5`/`R-6`.
+   `[verified 2026-08-26 — R-4 row reads `promoted`, effect unmeasured; R-5 and R-6 both filed as held]`
 ## Working state
 
 - **Branch / commit / clean-or-dirty:** `main`, local HEAD ahead of `origin/main` by the tracker commits + `0fd8eb1`. Working tree has only the items below.
@@ -64,4 +133,3 @@ Two of this session's own findings were **filed wrong and corrected the same day
 - Sibling thread: `docs/trackers/passover-validation-spine-2026-08-26.md` — concurrent session, VG-9 spine measurement. Different thread; its anti-goals are its own.
 - Key commits: `f53aaea` (recon SKILL fix), `448a1b8` (1.16.17 bump), `cb7d3f4` (tracker refresh), `ce83dfd` (parity check + CLAUDE.md), `0fd8eb1` (VG-7).
 - Back-link: `.buddy/f6ae2d77-3ee3-46f9-ab0d-270afd61c592/` and the session transcript.
-

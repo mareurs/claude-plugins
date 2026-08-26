@@ -9,7 +9,7 @@ tags:
 entry_prefix:
 - F
 - W
-entry_high_water_F: 8
+entry_high_water_F: 9
 entry_high_water_W: 2
 ---
 
@@ -70,12 +70,13 @@ entry_high_water_W: 2
 |----|------|---------:|----------|--------|-------|
 | F-1 | 2026-08-26 | med | tracker-drift | open | A drift finding re-measured its own title; the claim that number supported was falsified and went unfiled |
 | F-2 | 2026-08-26 | med | tracker-drift | open | `buddy-introspection` reports `specialists_scanned: 10/10` while the roster has grown to 12 |
-| F-3 | 2026-08-26 | med | codescout-tool | fixed-verified | The reconnaissance skill's own worked exemplars use a `**Valid:**` form that `append_entry` hard-rejects (`f53aaea`; committed, not yet shipped) |
+| F-3 | 2026-08-26 | med | codescout-tool | fixed-verified | The reconnaissance skill's own worked exemplars use a `**Valid:**` form that `append_entry` hard-rejects (`f53aaea`, shipped in codescout-companion 1.16.17) |
 | F-4 | 2026-08-26 | med | tracker-drift | open | `T-N` is not a live namespace, so ~60 citations are silently inert — invisible to `link_scan` and to `doctor` (**corrected** same day; original claim was "dangles permanently") |
 | F-5 | 2026-08-26 | med | codescout-tool | open | codescout's session-log template cites its own ledger's ids bare, so every fresh copy injects cross-repo dangling (and one wrongly-resolving) citation |
 | F-6 | 2026-08-26 | med | codescout-tool | open | `link_scan` has a third citation state it never reports, and its finding arrays are silently capped at 50 — two sessions drew opposite wrong conclusions from one output |
 | F-7 | 2026-08-26 | med | release-pipeline | fixed-verified | `release.sh` repoint + sanity loop + version-bump tracker all read install-record element `[0]`; release reported green over a stale sibling (`ce83dfd`) |
 | F-8 | 2026-08-26 | med | tracker-drift | fixed-verified | `VG-7`'s success ratio is invariant under relocation — the exact fix it prescribes cannot move it; headroom 2b re-scoped (`0fd8eb1`) |
+| F-9 | 2026-08-26 | med | tracker-drift | fixed-verified | A tracker's `Status: open` was copied into the passover as pending work; `#21`'s fix shipped three months earlier in `f97f2a4` — executing the handoff would have added a *second* LLM sub-section |
 ## Wins Index
 
 | ID | Date | Impact | Pattern | Counterfactual | Status |
@@ -615,6 +616,43 @@ Each case measured at the time; the synthetic fixtures were built and run, not r
 
 **Rests on:** `F-3`, `F-7`, `F-8` in this log — this win is their shared method, not independent evidence. Contrast `F-4`, the failure that prompted it.
 
+## F-9 — A tracker's own `Status` column became "pending work" in a handoff; the fix had shipped three months earlier
+
+**Observed:** 2026-08-26, resuming this thread after compaction.
+
+**When:** Executing Next-action 4 of `passover-roster-audit-release-integrity-2026-08-26.md` — *"add an LLM/AI taxonomy sub-section to `security-ibex` (prompt injection LLM01, insecure output handling LLM02, training-data poisoning LLM03). `buddy-introspection` `#21` has the fix already written."*
+
+**Expected:** `security-ibex/SKILL.md` carries five Taxonomy sub-sections and no LLM coverage.
+
+**Got:** Six. `### LLM / AI Application (OWASP LLM Top 10, 2024)` sits at L99 — the sixth sub-section, exactly as `#21` prescribed — and it exceeds the ask: LLM01, LLM02 and LLM03 **plus** LLM05 supply chain, LLM06 sensitive info disclosure and LLM08 excessive agency, each with a mitigation clause rather than a bare trigger. It landed 2026-05-15 in `f97f2a4`, and `buddy` has been bumped roughly 44 times since (0.7.x → 0.9.1), so it has been live in all three profiles for three months.
+
+**Probable cause:** I assembled the queue from the `Status` column of `buddy-introspection`'s per-specialist table, which reads `open` for `#21`, and never opened the skill. **The row is not stale, and that is the whole point** — that table's own Status legend reserves `fixed` for *"post-eval state changes"*, and no eval touches the LLM sub-section (`buddy/tests/security-ibex-eval` has two scenarios, `idor` and `precision-clean`, neither mentioning LLM). So `open` there means *"shipped but not eval-confirmed"*, and I read it as *"not done"*. A status vocabulary that encodes a second axis in one field will be misread by anyone who has not also read the legend.
+
+**Workaround:** Read the skill. Flipped the `#21` row to `fixed` with the SHA, and wrote the eval caveat into the `#21` detail section so the next reader inherits the distinction instead of re-deriving it.
+
+**Severity:** med — nothing was broken, but a fresh session executing this handoff had no context with which to doubt it, and the natural outcome is a **second** LLM sub-section appended to a shipped skill.
+
+**Status:** fixed-verified
+
+**Valid:** dated 2026-08-26
+
+True of `security-ibex/SKILL.md` and of `#21`'s row as of this date; re-verify if the ibex taxonomy is restructured.
+
+**Rests on:** `R-3` in `reconnaissance-patterns.md` — *a filed drift finding is a claim about current state; scout the claim, not the quoted number* — and the reconnaissance skill's Phase 1 law that *a proposed fix is a claim about CURRENT STATE, so verify it before designing around it.*
+
+### Why this one is worth an entry rather than a quiet correction
+
+**`R-3` was filed earlier in this same session, and the violation is in the artifact whose entire job is to carry state forward.** `R-3` came out of `F-1`/`F-2` — two findings about exactly this, a tracker's own numbers read as current state. I filed it, then wrote a handoff that did the same thing four items later. That is the `R-4` shape again: the law was loaded and did not fire.
+
+What is new here is *where* it landed. `F-1` and `F-2` were wrong claims sitting in a tracker, discoverable by anyone who re-measured. A wrong item in a **passover** is different in kind: a passover is read by a session with no independent knowledge of the thread, and its Next actions are written to be executed rather than evaluated. The document is trusted in proportion to how little the reader knows — which is the worst possible place for an unverified claim about current state.
+
+The passover's own Next-action 1 is *"VERIFY the working state below still holds BEFORE acting — the handoff may be stale."* It named `git status`, the test suite and the parity script — the three things I had just measured — and none of the seven substantive items, which were the part actually carrying unverified claims. **A staleness warning that points at the state you checked most recently, rather than at the claims you checked least, is decoration.**
+
+**Cheap countermeasure, applied:** each Next-action item now states *how it was verified and when*, so an unverified item is visible as unverified rather than indistinguishable from a measured one. Verifying `#21` cost one `read_markdown`; the queue had four items of the same shape.
+
+**Fix idea / Pointer:** `#21` row + detail updated in `buddy-introspection.md`. Passover Next actions rewritten with per-item provenance. Candidate `R-N` if this recurs: *a handoff's action list is a set of claims about current state, and inherits no credibility from the session that wrote it* — held for now, since `R-5` and the concurrent session's `R-6` are both already parked pending the `R-4` eval baseline, and a third unmeasured law would repeat the error `R-5` names.
+
+---
 ## Template for new entries
 
 <!-- New F-N / W-N entries land above this line. This heading is the anchor:
