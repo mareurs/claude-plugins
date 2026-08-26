@@ -1347,6 +1347,24 @@ rationale is a claim, and the least-audited kind — re-cost it before you accep
 it"*), so what would be new is only the **write-time check**, which is one
 sentence and should not ship on evidence gathered this way.
 
+### Is that promote-when honestly set?
+
+**A criterion that only rules out conclusions you did not want is not a criterion.**
+
+Applied here: the criterion above forbids the *unflattering* reading of the
+instance count — that the peer who wrote up four of the five is worse at this —
+exactly as firmly as it forbids the flattering one. Neither survives it.
+
+And the unflattering reading is wrong for a reason worth keeping. **The ratio
+measures who was holding the lens.** Those instances exist because that session
+went looking at this one's work; nothing suggests the ratio survives anyone
+auditing theirs as closely. A count assembled by looking is a fact about the
+looking — the same defect as the `get_guide` sampling and the two top-decile
+anecdotes, arriving a third time in one night in a third namespace.
+
+Symmetry under both readings is the evidence a criterion sits in the right place.
+A promote-when that would have let through the conclusion its author was hoping
+for has not been set; it has been decorated.
 ## Template for new entries
 
 <!-- New F-N / W-N entries land above this line. This heading is the anchor:
