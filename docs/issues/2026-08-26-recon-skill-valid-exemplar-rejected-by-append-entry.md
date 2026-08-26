@@ -1,7 +1,7 @@
 ---
 id: e51ea9ef00e3739e
 kind: bug
-status: open
+status: fixed
 title: reconnaissance SKILL.md's worked exemplars use a `**Valid:** dated … — <prose>` form that `append_entry` hard-rejects — a regression from the 2026-08-20 fix
 tags:
 - codescout-companion
@@ -9,9 +9,10 @@ tags:
 - skill
 - session-log
 - librarian
+closed: 2026-08-26
 opened: 2026-08-26
 severity: med
-unverified: 'Only two forms were probed: `dated <date> — <prose>` (rejected, twice) and bare `dated <date>` (accepted). Whether the validator refuses ALL trailing content or only the em-dash form is untested; the fix below is safe either way, but a validator-side fix needs that boundary established first.'
+unverified: 'The exemplar half is verified (class-wide grep clean, regex checked against a known-positive; run-all.sh 16/16). The R-4 behavioural half is NOT measured — buddy/tests/reconnaissance-eval has cases pinned but no baseline (n=0), so the widened law''s effect on scout behaviour is unknown. Also NOT LIVE: no version bump yet, so all profile caches still serve the pre-fix copy. Still no automated check that a skill''s prescribed tool calls stay legal against the MCP server — the gap that produced this bug is unclosed.'
 ---
 
 ## Summary
@@ -100,30 +101,53 @@ True of `buddy/skills/` at plugin version 0.9.1; re-verify after any specialist 
 
 ## Fix
 
-**Skill side (this repo, primary):** rewrite L168 and L212 to the bare-date form with the
-qualifier on a following line, so the exemplars demonstrate something that works. Add one
-sentence to the Phase 3 prose noting that `dated` takes no trailing text while
-`conditional` requires it — the asymmetry is the trap.
+**Applied 2026-08-26** — `main` `f53aaea`, patch-id `5576ef7bc111539ce56ac0b7170cfbe631e25e9c`.
 
-**Server side (codescout, optional):** accept `dated YYYY-MM-DD — <prose>` by parsing only
-up to the first em-dash. This is the more forgiving fix and would make the existing
-exemplars correct retroactively, but it widens a grammar that is currently strict, so it is
-a judgement call for codescout rather than a defect to assert. **Establish the boundary
-first** — see `unverified:`.
+Both exemplars now use the bare-date form with the qualifier on a following line:
 
-Do not do both without deciding which is canonical.
+```
+**Valid:** dated 2026-05-18
 
+True of `RecoverableError`'s field/method shape at that commit; re-verify if
+`src/tools/core/types.rs` changes.
+```
+
+And Phase 3 now states the asymmetry that caused it, at the point where the stamp is
+described: *"`dated` takes no trailing text. Put any qualifier on a following line — an
+em-dash tail after `dated` is rejected outright (`is not an ISO date`), and the two branches
+of the grammar differ here: only `conditional — <event>` carries one."*
+
+The same commit applied the `R-4` placement fix to the positive-control bullet, since it is
+the same file and the same pass. That half is behavioural and unmeasured — see `unverified:`.
+
+**Server-side option not taken.** Accepting `dated YYYY-MM-DD — <prose>` by parsing to the
+first em-dash would have made the old exemplars retroactively correct, but it widens a
+currently-strict grammar and the boundary was never established (only two forms were
+probed). Left to codescout as a judgement call rather than asserted as a defect.
+
+**Not live.** No version bump yet — more refactoring is queued for the same release — so
+every profile cache still serves the pre-fix copy. The honest claim for this edit is
+*committed*, not *shipped*.
 ## Tests added
 
-None yet, and this is the gap that matters rather than one to excuse. The 2026-08-20 fix
-named it, shipped without it, and this bug is the direct consequence — the second defect
-in six days from the same uncovered seam.
+None, and this is the gap worth naming rather than excusing. The 2026-08-20 fix named it,
+shipped without it, and this bug is the direct consequence — the second defect in six days
+from the same uncovered seam. Shipping a third fix without the check would be the third.
 
-The cheap regression is a test that extracts every `**Valid:**` / `**Rests on:**` line from
-`codescout-companion/skills/**` and asserts each parses against the documented grammar. It
+What was done instead, this pass:
+
+- Class-wide grep for the bad form across `codescout-companion/skills/`, `buddy/skills/` and
+  `sdd/` — clean. **The regex was first checked against a known-positive line**, so the
+  zero is evidence rather than an untested absence (which is `R-4`'s whole subject).
+- `./tests/run-all.sh` — 16/16 suites green on Linux. Note the ~16 pre-existing failures
+  recorded in `docs/issues/2026-08-05-test-run-all-pre-existing-failures-under-fresh-wsl.md`
+  did **not** reproduce here; that bug is WSL-scoped.
+- Confirmed no test pins the edited strings, so nothing was silently depending on them.
+
+The cheap regression still owed: extract every `**Valid:**` / `**Rests on:**` line from
+`codescout-companion/skills/**` and assert each parses against the documented grammar. It
 needs no MCP server, only the grammar, and it would have caught this at the commit that
 introduced it.
-
 ## Workarounds
 
 Write `**Valid:** dated YYYY-MM-DD` bare; put the qualifier on the next line. Applied
@@ -139,4 +163,3 @@ throughout `docs/trackers/roster-audit-session-log.md`.
 - `roster-audit-session-log:F-3` — the reconnaissance entry this issue is filed from
 - `roster-audit-session-log:F-5` — sibling defect, same class (recon boilerplate that does
   not survive contact with the tool that consumes it)
-

@@ -48,7 +48,7 @@ end-to-end stdin drivers), which is the local hazard R-1 records.
 | R-1 | 2026-07-28 | hit | Spec testing sections assert on the harness; scout the cited exemplar, not just the code under change | `subagent-bootstrap-session-log.md` F-1 + F-2 + F-3 + W-1 |
 | R-2 | 2026-07-28 | miss | Scout enumerated one test directory, not all of them — missed the suite that already covered the hook | `subagent-bootstrap-session-log.md` F-4 + F-5 |
 | R-3 | 2026-08-26 | hit | A filed drift finding is a claim about current state — scout the claim the number supports and the tracker's live state, not the quoted number | `roster-audit-session-log.md` F-1 + F-2 + W-1 |
-| R-4 | 2026-08-26 | miss | Positive-control law was loaded and still missed — framed for searches, instrument was a report. 6th recurrence; placement fix proposed | `roster-audit-session-log.md` F-4 + F-6 |
+| R-4 | 2026-08-26 | promoted | Positive-control law was loaded and still missed — framed for searches, instrument was a report. 6th recurrence; placement fix applied `f53aaea`, effect unmeasured (eval baseline n=0) | `roster-audit-session-log.md` F-4 + F-6 |
 
 ## Status vocabulary
 
@@ -264,7 +264,13 @@ directions — the exemplar it cited without reading, and the suite it never fou
 
 ## R-4 — The positive-control law was in context and still did not fire — it is framed for searches, and the instrument was a report
 
-**Verdict:** miss
+**Verdict:** promoted — applied 2026-08-26, `main` `f53aaea`, patch-id `5576ef7bc111539ce56ac0b7170cfbe631e25e9c`. (Originally filed `miss`; the miss stands as the record, the verdict tracks the disposition.)
+
+Both placement changes landed in the Phase 1 bullet: the positive-control sentence now reads *"one per state you believe the instrument can report"* and states that a single confirmatory probe cannot reveal a **missing** state, and it explicitly fires on *"anything you are about to generalise from — a report, a scan, a linter, a diagnostic — not only on a query that came back empty."* The recurrence chain in the bullet's own parenthetical now names this entry as the sixth.
+
+**Effect UNMEASURED, and it should not be recorded as validated on argument alone.** `buddy/tests/reconnaissance-eval/` has cases pinned but **no baseline run (n=0)**, which is precisely the surface that would score a behavioural change to scout conduct. The skill's own Skill-maintenance section says re-score before any change targeting behaviour; there is nothing to score against yet. Establishing that baseline is the work this entry actually generates.
+
+**Not shipped.** Committed on `main`, no version bump — all three profile caches still serve the pre-fix copy.
 
 **Observed:** 2026-08-26, buddy-roster-audit work stream. The reconnaissance skill was **invoked in this same session**, so the law below was in context when the error was made.
 

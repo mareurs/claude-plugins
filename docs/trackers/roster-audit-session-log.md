@@ -70,7 +70,7 @@ entry_high_water_W: 1
 |----|------|---------:|----------|--------|-------|
 | F-1 | 2026-08-26 | med | tracker-drift | open | A drift finding re-measured its own title; the claim that number supported was falsified and went unfiled |
 | F-2 | 2026-08-26 | med | tracker-drift | open | `buddy-introspection` reports `specialists_scanned: 10/10` while the roster has grown to 12 |
-| F-3 | 2026-08-26 | med | codescout-tool | open | The reconnaissance skill's own worked exemplars use a `**Valid:**` form that `append_entry` hard-rejects |
+| F-3 | 2026-08-26 | med | codescout-tool | fixed-verified | The reconnaissance skill's own worked exemplars use a `**Valid:**` form that `append_entry` hard-rejects (`f53aaea`; committed, not yet shipped) |
 | F-4 | 2026-08-26 | med | tracker-drift | open | `T-N` is not a live namespace, so ~60 citations are silently inert — invisible to `link_scan` and to `doctor` (**corrected** same day; original claim was "dangles permanently") |
 | F-5 | 2026-08-26 | med | codescout-tool | open | codescout's session-log template cites its own ledger's ids bare, so every fresh copy injects cross-repo dangling (and one wrongly-resolving) citation |
 | F-6 | 2026-08-26 | med | codescout-tool | open | `link_scan` has a third citation state it never reports, and its finding arrays are silently capped at 50 — two sessions drew opposite wrong conclusions from one output |
@@ -327,7 +327,9 @@ Reproduced twice — once with my own wording, once with the exemplar's wording 
 
 **Severity:** med — costs one rejected round-trip on the first entry of every session that follows the skill's own instruction to copy the exemplars. Silent-failure risk is nil (it errors loudly and the hint names the fix), which is what keeps it below high.
 
-**Status:** open — needs either a skill-side exemplar fix or a validator that accepts `dated YYYY-MM-DD — <prose>`.
+**Status:** fixed-verified — skill-side fix applied 2026-08-26, `main` `f53aaea`, patch-id `5576ef7bc111539ce56ac0b7170cfbe631e25e9c`. Both exemplars now use the bare-date form, and Phase 3 states the `dated`-vs-`conditional` asymmetry at the point the stamp is described. Verified by a class-wide grep across `codescout-companion/skills/`, `buddy/skills/` and `sdd/` — **with the regex first checked against a known-positive line**, so the zero is evidence rather than an untested absence. `./tests/run-all.sh` 16/16 green; no test pins the edited strings.
+
+**NOT LIVE.** No version bump yet — more refactoring is queued for the same release — so every profile cache still serves the pre-fix copy. Per the freshness law in Phase 1, the honest claim for this edit is *committed*, not *shipped*. The server-side option (accept `dated <date> — <prose>`) was deliberately not taken: it widens a currently-strict grammar and the boundary was never established.
 
 **Valid:** dated 2026-08-26
 
