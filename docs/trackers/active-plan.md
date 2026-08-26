@@ -1,5 +1,5 @@
 ---
-entry_high_water_T: 38
+entry_high_water_T: 39
 entry_prefix: T
 ---
 # Buddy Specialists — Active Plan
@@ -659,6 +659,42 @@ Warn if any SKILL.md mtime > 90 days AND no eval run in that window.
 
 **Deliverable:** `buddy/docs/introspection-loop.md` · **Phase:** 4
 So the loop can be re-derived without re-summoning hamsa from scratch.
+#### T-39 — Implement the specialist graph — advisors + fragments over the existing binding layer
+
+**Status:** open — design approved-pending-review, no implementation started
+**Valid:** conditional — the design spec is superseded or withdrawn
+**Rests on:** `docs/superpowers/specs/2026-08-27-buddy-specialist-graph-design.md`
+
+Make specialists composable as **primary + advisors**: one node owns the voice and
+the output contract, others contribute `Operating Principles` / `Heuristics` /
+`Self-Traps` via a projection rule. Two frontmatter edge kinds (`advisors:`,
+`fragments:`) added as binding kinds to `summon_bootstrap.py::collect_bindings`,
+the hook-side assembler that already resolves `inject_trackers` /
+`inject_memory_topics`.
+
+Scoped by measurement, not by preference:
+
+- **No new resolver, notation or walker** — all three already exist. The design
+  shrank on contact with the code.
+- **The DRY target is the hardcoded bundle, not the specialists.** Cross-specialist
+  text duplication is **0.35%** (3 of 853 substantive lines), so there is nothing
+  to extract; what is un-composable is `build_payload`'s two hardcoded reads.
+- **`guides:` and `affinity:` are cut** — neither can deliver, and citation-style
+  delivery measured **0 of 91 sessions** in the codescout guide ledger.
+- **Routing is deferred**, with a concrete trigger recorded in the spec.
+
+Work: two binding kinds + projection in `build_payload`; matching prose in
+`summon.md` (kept deliberately dumber — no projection in the fallback); a
+dangling-edge pytest plus a runtime warning line; four gating tests. **The
+byte-for-byte golden must be captured from HEAD in a separate commit before the
+change lands** — generated from the new code it asserts that the new code equals
+itself.
+
+A three-arm behavioural eval is specified but not gating. It is possible here in a
+way `roster-audit-session-log:F-13` was not: summon injects via a
+`UserPromptSubmit` hook, so activation is guaranteed by the substrate rather than
+chosen by the model, and the lever is finally separable from the treatment.
+
 ## Open decisions
 
 The plan above carries defaults. All 6 defaults were accepted on 2026-05-15 (see § Decisions Log). The table below preserves the rejected alternatives for future reference if a decision is revisited.
