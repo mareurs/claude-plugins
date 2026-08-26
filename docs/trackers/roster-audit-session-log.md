@@ -803,8 +803,9 @@ and `R-4`'s effect remains unmeasured.
 (`tools/check_budget.sh`). Hand someone a twenty-line shell script and ask them to confirm
 its output, and reading it is the obvious move — spotting a hardcoded roster array in
 twenty lines is ordinary competence, not a promoted law. Transcripts bear it out:
-`check_budget` mentioned 20–38 times per run, `kilo`/`lima` found, the over-budget verdict
-reached, and several arms mutating the fixture to probe it.
+across the **8** `green-report-control` runs, **7 of 8** found the `kilo`/`lima` mismatch
+and reached the over-budget verdict, referencing `check_budget` 20–38 times; the eighth
+referenced it twice and reached no verdict (an aborted run).
 
 **Workaround:** None — the scenario is marked `TAUTOLOGICAL` in its own description, in the
 eval README's scenario table, and in `R-4`'s entry, all within the hour. Kept rather than
@@ -848,9 +849,21 @@ building the instrument to detect it.
 
 ### Method note — the transcript analysis cannot attribute an arm
 
-My first pass tagged every transcript `skill=Y` from a keyword test, which is worthless
-here: every transcript mentions "reconnaissance" through the scenario path, so the test
-returns Y on both arms by construction. The `3/3` vs `3/3` summary is the load-bearing
+My first pass had **two** defects, and the second is the worse one.
+
+1. It tagged every transcript `skill=Y` from a keyword test, which is worthless here:
+   every transcript mentions "reconnaissance" through the scenario path, so the test
+   returns Y on both arms by construction.
+2. **It silently mixed in three runs of a different scenario.** Three transcripts in the
+   same time window were `seam-contact/gap-capture` (the `auth-refactor` / `expiry_ts`
+   task), pulled in by a `prompt-tdd report` invocation, and they sat in my table showing
+   `check_budget = 0`. I read that table and published "20–38 times per run" from the rows
+   that happened to be mine. Re-running the analysis with a scenario label — keyed on each
+   transcript's first user message — gives the real figures above.
+
+The irony is exact and worth stating rather than smoothing over: an analysis written to
+diagnose why a positive-control scenario failed was itself an instrument whose scope I did
+not check before generalising from its output. Third instance today, after `F-1` and `F-9`. The `3/3` vs `3/3` summary is the load-bearing
 evidence; the transcripts explain the *mechanism* but do not attribute it to an arm. Stated
 rather than quietly dropped, because a reader could otherwise take the per-run table as
 per-arm data.

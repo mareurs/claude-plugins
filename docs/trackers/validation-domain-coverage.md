@@ -559,13 +559,13 @@ comparison and reporting it green is the exact failure this entry committed.
 
 Corrected in `d334a50`: `#20` re-opened with the measured distribution, the audit re-scoped
 from `10/10` to `10/12`, and `S-5` closed as falsified. Full detail in
-`roster-audit-session-log` `F-1`/`F-2` and
+`roster-audit-session-log:F-1` / `roster-audit-session-log:F-2` and
 `docs/issues/2026-08-26-buddy-introspection-20-outlier-comparison-falsified.md`.
 
 **Still owed:** `#20`'s *verdict* is not re-derived, only its evidence retracted. "Is 181
 lines justified?" is a question about rank, so it cannot be answered until
 `codescout-pika` (316) is audited — and that specialist is one of the two outside audit
-scope, which is why `F-1` and `F-2` are the same defect seen from two directions.
+scope, which is why `roster-audit-session-log:F-1` and `roster-audit-session-log:F-2` are the same defect seen from two directions.
 
 ## VG-9 — The prompting spine was over-specified for current models
 

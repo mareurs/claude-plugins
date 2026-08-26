@@ -106,9 +106,10 @@ It is kept, marked, rather than deleted, because the design error is the useful
 part.
 
 **Why it failed.** The scenario's `message` names the checker by path
-(`tools/check_budget.sh`). Transcripts show `check_budget` mentioned 20–38 times
-per run, `kilo`/`lima` found, the over-budget verdict reached, and several arms
-mutating the fixture to probe it. Hand someone a twenty-line shell script and ask
+(`tools/check_budget.sh`). Across the 8 runs of this scenario, **7 of 8** found the
+`kilo`/`lima` mismatch and reached the over-budget verdict, referencing
+`check_budget` 20–38 times; the eighth referenced it twice and reached no
+verdict (an aborted run). Hand someone a twenty-line shell script and ask
 them to "confirm" its output, and reading it is the obvious move — spotting a
 hardcoded array in twenty lines is base competence, not a promoted law. The decoy
 defended against *counting directories*; it did nothing about *reading the source*.

@@ -45,11 +45,11 @@ end-to-end stdin drivers), which is the local hazard R-1 records.
 
 | ID | Date | Verdict | Pattern | Evidence (session-log) |
 |----|------|---------|---------|------------------------|
-| R-1 | 2026-07-28 | hit | Spec testing sections assert on the harness; scout the cited exemplar, not just the code under change | `subagent-bootstrap-session-log.md` F-1 + F-2 + F-3 + W-1 |
-| R-2 | 2026-07-28 | miss | Scout enumerated one test directory, not all of them — missed the suite that already covered the hook | `subagent-bootstrap-session-log.md` F-4 + F-5 |
-| R-3 | 2026-08-26 | hit | A filed drift finding is a claim about current state — scout the claim the number supports and the tracker's live state, not the quoted number | `roster-audit-session-log.md` F-1 + F-2 + W-1 |
-| R-4 | 2026-08-26 | promoted | Positive-control law was loaded and still missed — framed for searches, instrument was a report. 6th recurrence; placement fix applied `f53aaea`, effect unmeasured (eval baseline n=0) | `roster-audit-session-log.md` F-4 + F-6 |
-| R-5 | 2026-08-26 | proposal | A check that reads where the writer wrote, or is computed from what it judges, cannot fail — four instruments in one session. HELD pending the R-4 eval baseline | `roster-audit-session-log.md` F-6 + F-7 + F-8 + W-2 |
+| R-1 | 2026-07-28 | hit | Spec testing sections assert on the harness; scout the cited exemplar, not just the code under change | `subagent-bootstrap-session-log:F-1` `subagent-bootstrap-session-log:F-2` `subagent-bootstrap-session-log:F-3` `subagent-bootstrap-session-log:W-1` |
+| R-2 | 2026-07-28 | miss | Scout enumerated one test directory, not all of them — missed the suite that already covered the hook | `subagent-bootstrap-session-log:F-4` `subagent-bootstrap-session-log:F-5` |
+| R-3 | 2026-08-26 | hit | A filed drift finding is a claim about current state — scout the claim the number supports and the tracker's live state, not the quoted number | `roster-audit-session-log:F-1` `roster-audit-session-log:F-2` `roster-audit-session-log:W-1` |
+| R-4 | 2026-08-26 | promoted | Positive-control law was loaded and still missed — framed for searches, instrument was a report. 6th recurrence; placement fix applied `f53aaea`; a scenario was built to score it and **measured tautological** (paired: treat 3/3, ctrl 3/3, Δ+0.00) — base competence solves it, so the effect is STILL unmeasured | `roster-audit-session-log:F-4` `roster-audit-session-log:F-6` |
+| R-5 | 2026-08-26 | proposal | A check that reads where the writer wrote, or is computed from what it judges, cannot fail — four instruments in one session. HELD pending the R-4 eval baseline | `roster-audit-session-log:F-6` `roster-audit-session-log:F-7` `roster-audit-session-log:F-8` `roster-audit-session-log:W-2` |
 | R-6 | 2026-08-26 | miss | "That tool persists nothing" asserted from four absences; the `When NOT to Use` carve-out's exemplars are all source-shape, so a runtime-behaviour claim walks the gate. 7th recurrence, but the law was never loaded — HELD pending the R-4 eval baseline | no session log (see entry) — `passover-validation-spine-2026-08-26.md` + `validation-domain-coverage.md` VG-9 |
 
 ## Status vocabulary
@@ -135,16 +135,18 @@ shape; can be 1 if the proposal is cheap and clearly correct>.
 `SubagentStart`).
 
 **Source session log:** `docs/trackers/subagent-bootstrap-session-log.md`,
-citing F-1, F-2, F-3 and W-1.
+citing `subagent-bootstrap-session-log:F-1`, `subagent-bootstrap-session-log:F-2`,
+`subagent-bootstrap-session-log:F-3` and `subagent-bootstrap-session-log:W-1`.
 
 **Pattern:** The scout fired between committing a design spec and invoking
 `writing-plans`. It read both the production code the spec changes
 (`subagent-guidance.mjs`, `lib.mjs`, `detect.mjs`, the worktree guard pair) *and*
 the test files the spec names as exemplars. The second half is what paid. All
 three defects were in the spec's Testing section — a cited exemplar that does not
-demonstrate the technique it is cited for (F-1), a fixture that cannot produce
-the state it asserts (F-2), and an undecided strategy where two sibling suites
-diverge (F-3). The design body — channel choice, payload composition, root
+demonstrate the technique it is cited for (`subagent-bootstrap-session-log:F-1`),
+a fixture that cannot produce the state it asserts
+(`subagent-bootstrap-session-log:F-2`), and an undecided strategy where two
+sibling suites diverge (`subagent-bootstrap-session-log:F-3`). The design body — channel choice, payload composition, root
 resolution, sibling-hook interaction — survived the scout unchanged.
 
 The asymmetry is the finding: design decisions had been argued through in
@@ -153,13 +155,15 @@ written straight to disk and never questioned. Scout coverage that stops at "the
 code under change" misses that half entirely.
 
 **Evidence:** Three defects caught pre-plan, zero subagents dispatched.
-Counterfactual costed in W-1: one full plan revision plus ~3 implementer
-round-trips. F-2 is the one that would plausibly have shipped — a case worded
+Counterfactual costed in `subagent-bootstrap-session-log:W-1`: one full plan
+revision plus ~3 implementer round-trips.
+`subagent-bootstrap-session-log:F-2` is the one that would plausibly have shipped — a case worded
 "non-codescout cwd → empty output" passes by vacuity on a configured machine, so
 it reads green while asserting nothing. Concretely, `detect.mjs` resolves
 `HAS_CODESCOUT` from a routing-config override, `<cwd>/.mcp.json`, then
 user-level `.claude.json` / `settings.json`; nothing under `<cwd>/.codescout/`
-participates, so no per-project fixture can close that gate. F-1 would have
+participates, so no per-project fixture can close that gate.
+`subagent-bootstrap-session-log:F-1` would have
 surfaced at the first output-shape assertion the implementer tried to write,
 because `pre-task-hint.test.sh` — the cited exemplar — only `jq`s `hooks.json`
 and never invokes its hook.
@@ -167,7 +171,7 @@ and never invokes its hook.
 **Pattern proposal:** Add a harness bullet to Phase 1's scout checklist —
 *"When a plan or spec names a test file as an exemplar, or claims a fixture can
 produce a given state, read that test file's body and the detection/config code
-the fixture depends on. A cited exemplar is a checkable claim (R-19 class).
+the fixture depends on. A cited exemplar is a checkable claim (codescout:R-19 class).
 Suites in one directory routinely differ in kind — config-only wiring guards vs.
 end-to-end stdin drivers — and a config-only exemplar cannot express
 output-shape assertions."*
@@ -191,7 +195,7 @@ project-scoped in the `reconnaissance` memory topic rather than promoting to
 **Observed:** 2026-07-28, subagent bootstrap injection work stream — same scout as R-1,
 caught one stage later by a downstream gate.
 
-**Source session log:** `docs/trackers/subagent-bootstrap-session-log.md`, F-4 and F-5.
+**Source session log:** `subagent-bootstrap-session-log:F-4` and `subagent-bootstrap-session-log:F-5`.
 
 **Pattern that failed:** The scout established "`subagent-guidance.mjs` has no test
 file" from a single `ls codescout-companion/hooks/` — the directory where sibling hooks
@@ -286,9 +290,22 @@ It did not fire. I asserted that ~60 `T-N` citations dangle, from the premise th
 
 Why the law did not reach the moment of need: **it is framed around searches.** Its examples are grep, a path, a sort key, a field name — *"a search that finds nothing is evidence about the search."* `link_scan` does not read as a search. It reads as a report, and a report feels like testimony rather than an instrument answering a predicate you supplied. The two-word tell — *"either shape"* — covers this case exactly, and I did not connect it.
 
-**Evidence:** Two filed findings, one of which reached a `docs/issues/` bug file before correction. Cost of the positive control that would have prevented both: **one call**. Resolve `U-28` (known undefined → expect dangling) and `D-6` (known defined → expect resolved) alongside `T-35`. Three tokens, three expected states; the token that matches neither expectation names the missing state on the spot. Cost of not doing it: a wrong mechanism filed as an issue, a wrong prescription inside it (the fix ordering inverted), and a second session's conclusion left standing on an unsound premise.
+**Evidence:** Two filed findings, one of which reached a `docs/issues/` bug file before correction. Cost of the positive control that would have prevented both: **one call** — resolve three tokens whose answers you already know, one per state you believe the instrument can report:
 
-**Pattern proposal (if any):** This is the skill's own **"Unreachable"** staleness class — *"general enough, and still not reached at the moment of need. Remedy is placement, not rewording."* The bullet already names five self-labelled recurrences of this law in codescout's ledger (`R-3 → R-113 → R-77 → R-79 → R-104`). **This is the sixth, and the first where the skill was demonstrably loaded and the law still missed** — which is evidence about placement rather than about the reader.
+```text
+U-28   known undefined  →  expect dangling
+D-6    known defined    →  expect resolved
+T-35   the token under test
+```
+
+Three tokens, three expected states; the token that matches neither expectation names the missing state on the spot. Cost of not doing it: a wrong mechanism filed as an issue, a wrong prescription inside it (the fix ordering inverted), and a second session's conclusion left standing on an unsound premise.
+
+**Pattern proposal (if any):** This is the skill's own **"Unreachable"** staleness class — *"general enough, and still not reached at the moment of need. Remedy is placement, not rewording."* The bullet already names five self-labelled recurrences of this law in codescout's ledger:
+
+```text
+R-3 → R-113 → R-77 → R-79 → R-104
+```
+ **This is the sixth, and the first where the skill was demonstrably loaded and the law still missed** — which is evidence about placement rather than about the reader.
 
 Two changes, both placement:
 
@@ -305,6 +322,67 @@ Per the skill's own rule that a recurrence is a defect in the promoted text, thi
 
 **Rests on:** `roster-audit-session-log:F-4` and `roster-audit-session-log:F-6`, both measured from `link_scan` output rather than from the resolver's documented rule; and the five-recurrence chain the Phase 1 bullet cites for itself.
 
+### 2026-08-26 — now measurable; the suite could not score this until today
+
+The placement fix shipped in codescout-companion 1.16.17 and its effect went
+unmeasured, which is why `R-5` and `R-6` are both held behind scoring it. On
+re-examining the gate before spending on a run, the suite **could not have scored
+this entry at all**: `seam-contact/gap-capture` exercises the scout against source
+shape (a struct field the plan got wrong) and `precision/no-decision-edit` guards
+over-firing. Neither involves an instrument, a report, or a verdict — the exact
+thing this entry is about. A baseline run would have produced a number for two
+unrelated markers and left `R-4` as unscored as before: green, and uninformative.
+
+Added `reconnaissance-eval/scenarios/instrument/green-report-control`. It hands the
+model a confident `12/12 · all within budget. OK.` that is false, from a checker
+whose hardcoded roster array silently skips two real over-budget specialists. **The
+count is a decoy** — 12 in the array, 12 on disk — so counting, re-reading and
+re-running all confirm the false report. Only asking whether the instrument can
+report a violation *at all* finds it.
+
+The fixture was probed before shipping, since a scenario about trusting instruments
+must not itself ship unprobed: as shipped it emits the report byte-for-byte; an
+**in-array** file padded to 20 lines is correctly flagged `OVER`; an **out-of-array**
+file padded to **400** lines is still reported as within a 15-line budget. The middle
+row is the load-bearing one — it rules out a broken comparison, leaving the
+enumeration as the sole fault.
+
+**Still n=0.** Building the instrument that can measure this is not measuring it.
+The baseline run is a paid, API-backed judge run and remains outstanding; `R-5` and
+`R-6` stay held until it happens.
+
+#### Correction, same day — the scenario does NOT discriminate
+
+Ran it paired the same evening. **`treat 3/3 · ctrl 3/3 · Δ+0.00 · tautological (base
+competence)`.** The unaided model solves the task, so this scenario cannot score `R-4`
+and the claim two paragraphs above — that the law is now measurable — was wrong within
+hours of being written.
+
+**The design error, and it is instructive.** The scenario's prompt named the checker by
+path (`tools/check_budget.sh`). Across the 8 runs of that scenario, **7 of 8**
+found the `kilo`/`lima` mismatch and reached the over-budget verdict, referencing
+`check_budget` 20–38 times; the eighth was an aborted run. Handing over a twenty-line shell script and asking
+someone to "confirm" its output invites reading it, and spotting a hardcoded array in
+twenty lines is ordinary competence, not a promoted law. The decoy I built defended
+against *counting directories*; it did nothing about *reading the source*.
+
+**What `R-4` actually protects is generalising from a verdict you cannot audit by
+reading.** A CI summary, a colleague's report, a compiled binary, an API response, a
+dashboard. The moment the instrument's internals are in front of you, code-reading is the
+cheaper route and the positive control is redundant — which is precisely why the arms
+tied. A scenario that discriminates this law must make the instrument **opaque**, so the
+only available move is empirical: feed it a case whose answer you already know.
+
+**Method note:** the transcript analysis had two defects — it could not separate treatment
+from control (every transcript mentions "reconnaissance" through the scenario path, so a
+keyword skill-presence test returns Y on both arms), and it silently mixed in three runs of
+a *different* scenario, from which a first, wrong figure was published. The `3/3` vs `3/3` summary is the load-bearing
+evidence; the transcripts explain the mechanism but do not attribute it to an arm.
+
+A negative result, cheaply bought, and the paired run is the control that caught it —
+exactly what `R-5` says an instrument that judges its own output cannot do for itself.
+See `roster-audit-session-log:F-11`.
+
 ## R-5 — An instrument that validates its own write is not a check — four found in one session
 
 **Verdict:** proposal
@@ -315,14 +393,14 @@ Per the skill's own rule that a recurrence is a defect in the promoted text, thi
 
 **Pattern (or pattern that failed):** `R-4` is about the *reader* — run a positive control before generalising from output. This is its structural twin, about the *instrument*: **a check that reads the same place the writer wrote, or that is derived from the quantity it is meant to judge, cannot fail.** It reports healthy in the broken world by construction, so its green carries no information. Four instances turned up in a single session, in four different systems, none of which raised anything:
 
-1. **`release.sh` steps 5 + 6.** Step 5 repoints install-record element `[0]`; step 6 validates element `[0]`. The record is an array. A sibling at `[1]` pinned to a superseded version was invisible, and the release printed `✅ … (pushed)` with ✓✓✓. (`F-7`)
-2. **The `version-bump-checklist` tracker.** Documented in CLAUDE.md as "the richer cross-check of the same two failure classes" — and its gather prompt also read `[0]`. Not richer on this axis; it shared the defect. (`F-7`)
-3. **`link_scan` / `doctor`.** A citation can be resolved, dangling, or **inert** — prefix has no definer anywhere, so the token is never a candidate. Neither surfaces the third state; `doctor`'s two relevant checks iterate *entries*, and an artifact declaring no `entry_prefix` owns none. ~60 citations produced no edge and no warning. (`F-6`)
-4. **`VG-7`'s split-quality ratio.** `(base + lens) / monolith`, prescribing that general material move from addendum into base. Relocation leaves both terms unchanged, so the metric is invariant under the exact fix it asks for. (`F-8`) — **and one step downstream, its immobility was read as a positive signal.** The entry's author, in a separate session hours before the fix landed, checked the ratio against a drifting working tree, found it unmoved at 81.8%, reported that to the user as *"the validity-class design paying off — a well-chosen `conditional` survives noise that a `dated` would have flagged spuriously"*, and declined to edit the entry on that basis. This is the worst property of the class and the reason it outranks a missing check: an invariant metric does not merely fail to fire, it **actively reassures**, and it reassures hardest exactly when someone is deciding whether to look closer. Recorded here by that author. (`validation-domain-coverage:VG-7`)
+1. **`release.sh` steps 5 + 6.** Step 5 repoints install-record element `[0]`; step 6 validates element `[0]`. The record is an array. A sibling at `[1]` pinned to a superseded version was invisible, and the release printed `✅ … (pushed)` with ✓✓✓. (`roster-audit-session-log:F-7`)
+2. **The `version-bump-checklist` tracker.** Documented in CLAUDE.md as "the richer cross-check of the same two failure classes" — and its gather prompt also read `[0]`. Not richer on this axis; it shared the defect. (`roster-audit-session-log:F-7`)
+3. **`link_scan` / `doctor`.** A citation can be resolved, dangling, or **inert** — prefix has no definer anywhere, so the token is never a candidate. Neither surfaces the third state; `doctor`'s two relevant checks iterate *entries*, and an artifact declaring no `entry_prefix` owns none. ~60 citations produced no edge and no warning. (`roster-audit-session-log:F-6`)
+4. **`VG-7`'s split-quality ratio.** `(base + lens) / monolith`, prescribing that general material move from addendum into base. Relocation leaves both terms unchanged, so the metric is invariant under the exact fix it asks for. (`roster-audit-session-log:F-8`) — **and one step downstream, its immobility was read as a positive signal.** The entry's author, in a separate session hours before the fix landed, checked the ratio against a drifting working tree, found it unmoved at 81.8%, reported that to the user as *"the validity-class design paying off — a well-chosen `conditional` survives noise that a `dated` would have flagged spuriously"*, and declined to edit the entry on that basis. This is the worst property of the class and the reason it outranks a missing check: an invariant metric does not merely fail to fire, it **actively reassures**, and it reassures hardest exactly when someone is deciding whether to look closer. Recorded here by that author. (`validation-domain-coverage:VG-7`)
 
 The family resemblance to a codescout issue filed the same day by another thread — `index(action="status")` reporting `indexed: true, queryable: true` off a single chunk because it never checks coverage — makes five, across two repos.
 
-**Evidence:** Two of the four produced findings that were filed *wrong* before being caught (`F-4` claimed dangling where the truth was inert; the release was reported green over a stale record). Two produced mis-scoped work (`headroom` backlog 2b credited with a context lever worth 6 lines; three further specialists queued on that costing). The catch in every case was the same move, not four different insights: build the known-bad case and see whether the instrument says so (`W-2`).
+**Evidence:** Two of the four produced findings that were filed *wrong* before being caught (`roster-audit-session-log:F-4` claimed dangling where the truth was inert; the release was reported green over a stale record). Two produced mis-scoped work (`headroom` backlog 2b credited with a context lever worth 6 lines; three further specialists queued on that costing). The catch in every case was the same move, not four different insights: build the known-bad case and see whether the instrument says so (`roster-audit-session-log:W-2`).
 
 **Pattern proposal (if any):** a Phase 1 bullet, adjacent to the positive-control law rather than inside it, because the target differs — that law disciplines the reader, this one disciplines what you accept *as* a check:
 
@@ -332,7 +410,7 @@ The family resemblance to a codescout issue filed the same day by another thread
 
 **Valid:** dated 2026-08-26
 
-**Rests on:** `roster-audit-session-log:F-6`, `F-7`, `F-8` as the three instrument measurements, `F-4` as the wrong finding one of them produced, and `W-2` as the countermeasure that caught all of them.
+**Rests on:** `roster-audit-session-log:F-6`, `roster-audit-session-log:F-7` and `roster-audit-session-log:F-8` as the three instrument measurements, `roster-audit-session-log:F-4` as the wrong finding one of them produced, and `roster-audit-session-log:W-2` as the countermeasure that caught all of them.
 
 ## R-6 — An absence claim about where a tool's output lands — the carve-out's exemplars are all source-shape, so the gate never fired
 
@@ -420,8 +498,25 @@ challenged, and it found the scenario prompt five times over.
    directory for the callee's artifact, at a path pinned in my own config file.
 
 **Promote-when:** **HELD** behind the `R-4` eval baseline, on `R-4`'s own
-reasoning — `buddy/tests/reconnaissance-eval/` is still `n=0`, and this proposal
-edits the same region of the same line `R-4` just changed unmeasured. Two
+reasoning — and this proposal edits the same region of the same line `R-4` just
+changed unmeasured.
+
+> **Blocker state, 2026-08-26 (re-checked after a concurrent session finished).**
+> The suite gained the scenario that can actually score `R-4` — `d6a4355`,
+> `scenarios/instrument/green-report-control`, whose fixture is a budget checker
+> reporting `12/12 — all within budget. OK.` over a hardcoded roster that
+> silently skips two absent names and never sees two real over-budget ones. The
+> `12/12` is a deliberate decoy: array count, directory count and report agree,
+> so re-counting, re-reading and re-running all **confirm** the wrong belief, and
+> only a positive control finds it. Suite is now three scenarios
+> (`instrument/`, `precision/`, `seam-contact/`).
+>
+> **Still `n=0`.** There is no `.prompt-tdd/` directory under
+> `buddy/tests/reconnaissance-eval/`, so no baseline has been run — verified by
+> looking, not inferred from the commit message. The blocker has therefore moved
+> from *"the scenario does not exist"* to *"the scenario exists and is unrun"*,
+> which is a materially cheaper thing to clear. `R-4` and `R-5` are held behind
+> the same run; all three unblock together. Two
 unmeasured placement fixes stacked on one line is how a skill accumulates
 wording nobody can attribute an effect to. The law itself is at seven
 datapoints and needs no further argument; the *proposal* is new and has one.

@@ -132,14 +132,14 @@ validate every element.
 ### 2026-08-21 — codescout-companion 1.16.15 → 1.16.16
 
 Fixed `docs/issues/2026-08-21-zero-law-does-not-cover-wrong-answer-instruments.md`:
-reconnaissance Phase 1's promoted search-zero law (`R-3 → R-113 → R-77 → R-79`) is built
+reconnaissance Phase 1's promoted search-zero law (chain `R-3 → R-113 → R-77 → R-79` in codescout's ledger) is built
 entirely around absence, so an instrument returning a complete, plausible, WRONG answer
 trips none of its three arms. Reported against a session where a lexical `sort -r` on
 `ps lstart` timestamps ordered by weekday name instead of time, reporting two-day-old
 processes as newest — published to a user before it was caught. Widened the bullet's
 opening to name the predicate-authorship failure alongside the zero case, and added the
 actual remedy: a positive control against one known-answer case before trusting the
-instrument on the unknown one. Citation chain extended to `R-104` per the skill's own
+instrument on the unknown one. Citation chain extended to `codescout:R-104` per the skill's own
 § *Outgrown* handling. Kept the three existing arms and the never-authorise-a-deletion
 rule unchanged.
 
@@ -173,7 +173,7 @@ Two Phase 1 bullets promoted from codescout's R-N ledger, both criteria fired an
 ever harvested. Surfaced by the verify-open sweep that closed that ledger's 56%
 `Status:`-line gap (codescout `tracker-hygiene-log:HY-15`).
 
-**R-95 — re-cost a deferral before believing it is expensive.** Its `Promote-when` asked for
+**`codescout:R-95` — re-cost a deferral before believing it is expensive.** Its `Promote-when` asked for
 *"one more cluster where a deferral rationale is falsified on contact"* — a cluster, not a
 datapoint count, which is why `hit ×5` alone never fired it. The second cluster is
 codescout's own promote-when bug, closed `wontfix` on four rationales, all falsified within
@@ -183,7 +183,7 @@ is noise"* whose precise population was 13, and *"the generalisation was the age
 refuted by a user-raised proposal filed two days earlier under the same detector name. Nine
 rationales across two clusters, every one inflating in the direction that justified stopping.
 
-**R-51 — an instrument that writes into the corpus it measures.** Marked `promote-ready`
+**`codescout:R-51` — an instrument that writes into the corpus it measures.** Marked `promote-ready`
 since 2026-08-04 with two datapoints, and unharvested for sixteen days because nothing
 queried that state. The bullet carries both forms the entry asked for: where output *happens*
 to land, and whether the system's own emissions re-enter its input — the second invisible to
@@ -211,7 +211,7 @@ every instance of the target rather than its type; for an installed artifact the
 the **serving** copy; and prefer a back-citation to a verbatim quote, since a quote goes red
 when the rule is legitimately reworded.
 
-Applying that third rule in the same commit: the `R-89` / `R-49` / `W-36` bullets added in
+Applying that third rule in the same commit: the `codescout:R-89` / `codescout:R-49` / `codescout:W-36` bullets added in
 `23a11c3` now back-cite their own entry ids, as `R-1` and `R-3` have since May. Before this,
 none of the three cited themselves.
 
@@ -265,7 +265,7 @@ reproduced again on `ls docs/issues/ | head -30` (server: exit_code 0).
 Deleted rather than corrected: the hook is `contextPreToolUse`, so it can never
 block — redundant when the server refuses (its message already carries the
 `@cmd_*` recovery path), wrong when the server allows. Correcting the regex would
-have rebuilt the duplicated predicate that caused this and U-22. One rule, one
+have rebuilt the duplicated predicate that caused this and `codescout:U-22`. One rule, one
 implementation: `path_security.rs` owns it.
 
 `tests/test-il3-warn-hook.sh` deleted with it — the suite asserted
@@ -332,7 +332,7 @@ Cold restart / `/reload-plugins` per instance still required to bind the 1.16.3 
 Fix (`2ff1ad6`): closed the compact reload arrival-line instruction in `render_reload_block` to an explicit named-specialist list — previously generic "one arrival line per specialist" wording let the model fabricate arrival announcements (e.g. "Tracker Hygiene arrives — reloaded from compact") for skills never actually reloaded into context. `tests/test_reload.py` (25) + full non-eval suite (483) green. Ran `release.sh buddy patch` (→0.9.1): caches seeded + install records repointed across all three profiles, sanity loop all ✅ (verified independently via direct `jq` read, not just the script's own printout). Pushed to origin/main (`1956219`). Cold restart / `/reload-plugins` per instance still required to bind the new cache.
 
 ### 2026-07-19 — codescout-companion 1.16.1 → 1.16.2
-Reconnaissance seam-class collapse to R-41/R-42 pointers + C14 revert (42a5d11), bump 8481bea. The bump + `/reload-plugins` advanced content but not the deploy — install records stayed at `1.16.1` and no `1.16.2` cache was seeded, so the initial refresh (ddf8215) honestly showed ❌. Completed the deploy separately: `bump-cache.sh codescout-companion 1.16.2` seeded the cache + repointed install records across all three profiles; sanity + recon-content check all ✅. Pushed to origin/main. Cold restart / `/reload-plugins` per instance still required to bind the 1.16.2 record.
+Reconnaissance seam-class collapse to `codescout:R-41`/`codescout:R-42` pointers + C14 revert (42a5d11), bump 8481bea. The bump + `/reload-plugins` advanced content but not the deploy — install records stayed at `1.16.1` and no `1.16.2` cache was seeded, so the initial refresh (ddf8215) honestly showed ❌. Completed the deploy separately: `bump-cache.sh codescout-companion 1.16.2` seeded the cache + repointed install records across all three profiles; sanity + recon-content check all ✅. Pushed to origin/main. Cold restart / `/reload-plugins` per instance still required to bind the 1.16.2 record.
 
 ### 2026-07-19 — codescout-companion 1.16.0 → 1.16.1
 
@@ -486,7 +486,7 @@ Scrubbed the obsolete pre-rename name code-explorer from the entire live surface
 
 ### 2026-06-09 — claude-statusline 1.1.4 → 1.1.5, codescout-companion 1.11.7 → 1.11.8
 
-claude-statusline 1.1.5: jq fix in `bin/statusline.sh` — `.workspace.git_worktree.name`/`.branch` now tolerate `git_worktree` arriving as a bare string (not just an object) via `try` + fallback (commit `15c9da6`). codescout-companion 1.11.8: recon SKILL.md R-19 — asserting a specific checkable fact ("it IS BLAKE3", "field IS named Y", "at line N"), especially when it becomes a recommendation or is written into a doc, now requires reading the symbol this session first; plain behavior-describing Q&A still skips the scout (commit `5a5b9c9`). Pre-bump `./tests/run-all.sh` all suites green; `check-versions.sh` clean. Cache seeded + install records updated across 3 profiles; sanity loop all ✅ (cache + installPath). buddy (0.7.16) and sdd (uninstalled) unchanged.
+claude-statusline 1.1.5: jq fix in `bin/statusline.sh` — `.workspace.git_worktree.name`/`.branch` now tolerate `git_worktree` arriving as a bare string (not just an object) via `try` + fallback (commit `15c9da6`). codescout-companion 1.11.8: recon SKILL.md `codescout:R-19` — asserting a specific checkable fact ("it IS BLAKE3", "field IS named Y", "at line N"), especially when it becomes a recommendation or is written into a doc, now requires reading the symbol this session first; plain behavior-describing Q&A still skips the scout (commit `5a5b9c9`). Pre-bump `./tests/run-all.sh` all suites green; `check-versions.sh` clean. Cache seeded + install records updated across 3 profiles; sanity loop all ✅ (cache + installPath). buddy (0.7.16) and sdd (uninstalled) unchanged.
 
 ### 2026-06-02 — buddy 0.7.15 → 0.7.16
 
@@ -498,7 +498,7 @@ Followed audit of all MCP tool-call hints emitted by plugin hooks. Three classes
 
 ### 2026-05-28 — codescout-companion 1.11.5 → 1.11.6
 
-Two commits accumulated on top of 1.11.5: `d64749e` IL3 fix (ignore literal `|` inside quoted substrings — U-22; 4 new hook tests) and `f842848` recon SKILL.md update (close 'trivial mechanical edits' loophole, promote R-1, add R-9). Pre-bump `./tests/run-all.sh` all suites green. Cache seeded + install records updated across 3 profiles, all green.
+Two commits accumulated on top of 1.11.5: `d64749e` IL3 fix (ignore literal `|` inside quoted substrings — `codescout:U-22`; 4 new hook tests) and `f842848` recon SKILL.md update (close 'trivial mechanical edits' loophole, promote `codescout:R-1`, add `codescout:R-9`). Pre-bump `./tests/run-all.sh` all suites green. Cache seeded + install records updated across 3 profiles, all green.
 
 _Append dated session deltas: ### YYYY-MM-DD — <what changed>._
 

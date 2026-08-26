@@ -6,8 +6,9 @@ description: >
   Kept and marked rather than deleted, because the design error is the useful
   part: the message below names the checker BY PATH, so the model reads the
   20-line script and spots the hardcoded array — base competence, not a promoted
-  law. Transcripts show `check_budget` mentioned 20–38 times per run, kilo/lima
-  found, and several arms mutating the fixture to probe it. The decoy defended
+  law. Across the 8 runs of this scenario, 7 of 8 found the kilo/lima mismatch
+  and reached the over-budget verdict, referencing check_budget 20–38 times; the
+  eighth was an aborted run. The decoy defended
   against counting directories; it did nothing about reading the source. A
   discriminating version must make the instrument OPAQUE — a CI summary, a
   compiled binary, an API response — leaving only the empirical move. See the
