@@ -448,3 +448,47 @@ measurable single-turn power — a skill may still be kept for voice/consistency
 eval can see, it is not earning its per-summon context cost. Cutting is the user's call. Method notes:
 L-9 (optimize is gated on a stable metric), L-10 (some behaviors aren't promptable), L-11 (you cannot
 predict marginal value from a skill's category — measure).
+
+### Blast-radius — buddha routing makes one cut candidate load-bearing (2026-06-19)
+
+The headless eval measures *single-turn advice value*. It is blind to a skill's role as a
+**buddha routing destination** — the statusline's mood→specialist suggestion. Verified the
+routing map against `buddy/scripts/buddha.py::derive_mood` (re-read 2026-06-19, post-compact):
+
+| Mood | Route | Driven by |
+|---|---|---|
+| full-context (ctx ≥80%) | planning-crane | heuristic |
+| drifting (plan/doc/scope-creep) | planning-crane | **LLM judge** |
+| broken (missed-callers / missed-consideration) | debugging-yeti | **LLM judge** |
+| correction (cs_judge blocking) | — (no specialist) | **LLM judge** |
+| stuck (≥3 test fails / 15 min) | debugging-yeti | heuristic |
+| long-session (>2h) | planning-crane | heuristic |
+| racing (high edit velocity) | refactoring-yak | heuristic |
+| exploratory (old session, many calls, low ctx) | architecture-snow-lion | heuristic |
+
+`derive_mood` is a pure deterministic priority-ladder — **no LLM in buddha itself**. The only
+LLM in the buddy system is the judge layer (`judge.py` / `cs_judge.py` → an OpenAI-compatible
+`/chat/completions` endpoint, env-configured `BUDDY_JUDGE_API_URL` / `MODEL` / `KEY`), which
+produces the `judge_verdict` + `cs_judge_severity` that buddha routes on.
+
+**Effect on the cut recommendations:**
+
+- **debugging-yeti (CUT candidate) is the one load-bearing case.** It is the destination for
+  *both* an LLM-judged signal (broken) and a heuristic signal (stuck). Cutting it orphans two
+  routes → **not a clean cut; rewire buddha's broken/stuck route first** (redirect to a KEEP
+  skill, or drop the moods).
+- **security-ibex, testing-snow-leopard, ml-training-takin, docs-lotus-frog — no routing
+  dependency.** Clean cuts from buddha's standpoint.
+- **architecture-snow-lion** has a *soft* route only (exploratory, heuristic) — weak dependency.
+- planning-crane and refactoring-yak are routing targets too, but already KEEP.
+
+**Operational status (2026-06-19): the external judge is OFF.** The LLM-judged routes
+(drifting, broken, correction) are **dormant** right now — only the heuristic routes fire.
+debugging-yeti's `broken` route is therefore currently unexercised; its `stuck` (heuristic)
+route still fires. Re-confirm the judge-dependent value once the judge is back on.
+
+**Lesson:** the isolation harness sees advice-value only; a skill can carry orthogonal
+*system-integration* value (being a routing target) the eval structurally cannot measure — the
+same class as the "isolation-blind" KEEPs (reconnaissance, legibility-dzo), but along the wiring
+axis. Run a blast-radius check (who routes to / links this skill) as a gate before any cut.
+(→ prompt-engineering `skill-eval-playbook.md` L-12.)
