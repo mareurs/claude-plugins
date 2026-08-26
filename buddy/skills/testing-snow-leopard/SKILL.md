@@ -63,6 +63,7 @@ Every test or test plan the Snow Leopard produces — whether a single assertion
 **Contract:** <one sentence — the promise being verified>
 **Boundaries covered:** <each parameter's edge cases listed: empty, max, null, ...>
 **Arrange / Act / Assert:** <the three phases, no logic, one focus>
+**Properties:** <invariants asserted over generated inputs, or "none — examples only" with reason>
 **Mutation-survival:** <name one code mutation this test would catch>
 **Isolation:** <real | fake | stub for each dependency; how state is torn down>
 **Pyramid level:** unit | integration | e2e  (with reason if not the lowest viable)
@@ -71,6 +72,26 @@ Every test or test plan the Snow Leopard produces — whether a single assertion
 ```
 
 If the Snow Leopard cannot fill **Contract**, **Boundaries covered**, and **Mutation-survival** in its own words, the test is not ready.
+
+## Properties and Invariants
+
+Examples check the cases you thought of. A **property** checks the cases you did not — it states something that must hold for *every* input, and lets a generator hunt for the input that breaks it. This is the standing answer to the test-oracle problem: when you cannot say what the right output is for an arbitrary input, you can usually still say what must remain true about it.
+
+**Properties do not replace the boundary list — they sit beside it.** A generator explores the space; a named boundary case pins the specific edge the contract calls out, in a test whose name says which contract it is. Operating Principle 2 still governs: enumerate the edges per parameter first, then add the properties that cover the space between them. A suite of pure `@given(...)` with no named edge cases has *lost* coverage, not gained it — the generator may never sample exactly-at-the-limit, and a failure reports a random value rather than the boundary that matters.
+
+Propose properties before cases, from this list:
+
+- **Round-trip** — `decode(encode(x)) == x`. Any writer/reader, serializer, parser, or migration pair.
+- **Idempotency** — `f(f(x)) == f(x)`. Normalizers, upserts, sync jobs, deduplication, retry paths.
+- **Metamorphic relations** — you cannot compute the expected output, but you know how it must *change*: adding an item never decreases the total; sorting twice changes nothing; a discount never exceeds the subtotal. The workhorse when there is no oracle.
+- **Order-independence** — `f(a, b) == f(b, a)`, or a batch equals the same items applied one at a time. Merges, set operations, concurrent writers.
+- **Conservation** — something is neither created nor destroyed: totals sum, counts balance, no record is dropped across a transform.
+
+Implement with Hypothesis (Python), fast-check (JS/TS), proptest or quickcheck (Rust). For multi-step or stateful units, model with `RuleBasedStateMachine` rather than a sequence of unit tests — the model explores interleavings a hand-written sequence never reaches.
+
+**The shrunk counterexample is the deliverable, not the red bar.** A property failure hands you the minimal input that breaks the contract; that value belongs in the suite as its own named regression case, so the bug stays pinned even if the generator never samples it again. Record the seed for any failure you cannot yet minimize.
+
+Mutation-awareness (Operating Principle 3) applies unchanged: a property that holds for every implementation you could plausibly write is decoration. Ask which one-line change to the production code the generator would catch — if the answer is "none," the property is a tautology with a wider input space.
 
 ## Heuristics
 
@@ -88,7 +109,9 @@ If the Snow Leopard cannot fill **Contract**, **Boundaries covered**, and **Muta
 
 7. **If you find yourself copying a test and changing one value, suspect a parameterized test is needed.** Table-driven or parameterized tests reduce duplication and make it trivial to add new cases. Each row in the table is a new boundary explored at zero marginal cost.
 
-8. **For any writer/reader pair, test round-trip completeness.** Enumerate every distinct shape the writer can emit — not just its happy-path output — and confirm the reader correctly surfaces each one. Watch for shared incidental preconditions between writer and reader tests (e.g. "the target always has a slug") that quietly mask an unsurfaced shape.
+8. **For any writer/reader pair, test round-trip completeness.** Enumerate every distinct shape the writer can emit — not just its happy-path output — and confirm the reader correctly surfaces each one. Watch for shared incidental preconditions between writer and reader tests (e.g. "the target always has a slug") that quietly mask an unsurfaced shape. State it as a round-trip property (see *Properties and Invariants*) so the generator enumerates the shapes for you.
+
+9. **If you cannot state the expected output for an arbitrary input, suspect you need a metamorphic relation, not another example.** Reaching for "I will just test a few values I can compute by hand" is the test-oracle problem arriving in disguise, and hand-picked values are exactly the ones the implementation was written against. Ask instead how the output must *change* when the input changes — monotonic, bounded, conserved, order-independent — and assert that. It holds for inputs you could never compute.
 
 ## Reactions
 

@@ -366,8 +366,12 @@ coverage gap. Closing one does not close the other.
 
 ## VG-6 — Property-based testing has no home in the roster
 
-**Status:** open
-**Valid:** conditional — `testing-snow-leopard` gains a property/invariant lens or section
+**Status:** fixed
+**Valid:** dated 2026-08-26
+
+Closed by the `## Properties and Invariants` section in `testing-snow-leopard/SKILL.md`;
+re-verify if that section is removed or the skill is lens-split.
+
 **Rests on:** `testing-snow-leopard` Principle 3 (mutation-aware assertions), which implies invariant thinking without naming it; and buddy-introspection's `#10 — testing-snow-leopard — AAA-only pattern lock`.
 
 Invariants, generators, shrinking, metamorphic relations, and `RuleBasedStateMachine`
@@ -382,6 +386,47 @@ Arrange-Act-Assert as a *format*; this says it lacks property-based testing as a
 
 Content is Domain block D, first paragraph. Cheapest of the six to close — it is a
 section, not a specialist.
+
+### Closed 2026-08-26 — and the draft needed one correction before it could ship
+
+`testing-snow-leopard/SKILL.md` gained `## Properties and Invariants` (125 → 148 lines),
+placed between *Test Format* and *Heuristics*: the five property families from Domain
+block D (round-trip, idempotency, metamorphic, order-independence, conservation) with a
+concrete trigger each, the Hypothesis / fast-check / proptest pointer,
+`RuleBasedStateMachine` for stateful units, and shrinking framed as *the counterexample
+is the deliverable* — the shrunk value belongs in the suite as its own named regression
+case. Plus a `**Properties:**` field in the Test Format block, so the section is
+load-bearing rather than advisory, and Heuristic 9 naming the test-oracle problem
+directly.
+
+**The draft's lead sentence had to be inverted, and this is the part worth keeping.**
+Domain block D opens *"Prefer invariants to examples."* Dropped into this skill as
+written, that instruction is actively harmful — because `buddy/tests/testing-snow-leopard-eval`
+scores the skill on exactly the behaviour it displaces. The `write/boundary-and-observable`
+rubric awards MARKER 1 only for **three or more named boundaries** (`qty == 0`, negative,
+the `qty == 9` vs `qty == 10` threshold off-by-one, an at-the-limit case) and scores `0.0`
+for a suite testing one happy value. A model told to prefer invariants writes
+`@given(st.integers())` and satisfies none of them: a generator may never sample
+exactly-at-the-limit, and its failure reports a random value rather than the boundary the
+contract names. So the section states the opposite of the draft — **properties sit beside
+the boundary list, never instead of it**, Operating Principle 2 still governs, and a suite
+of pure `@given` has *lost* coverage.
+
+**Second constraint, from the same scout.** `prompt_tdd.yaml` and the rubric both cite
+the skill by **positional anchor** — "Operating Principle 2", "Operating Principle 4",
+"Heuristic 1", "Self-Trap 1", "Phase 1.2". Inserting into any of those lists silently
+re-points the eval's own references at different content, with nothing failing. Hence a
+new top-level section and an *appended* Heuristic 9 — Operating Principles 1–5, Heuristics
+1–8 and the Self-Traps keep their numbers, verified after the edit.
+
+**Not closed by this:** `buddy-introspection` `#10` (Method step 4 locks Arrange-Act-Assert
+as a format, ignoring Given-When-Then). `VG-6` said a fix for `#10` that merely loosened
+the format would not close `VG-6`; the converse also holds — this section adds the
+discipline and leaves the format lock untouched. `#10` stays `open`.
+
+**Owed:** no eval scenario exercises the property vocabulary. The two existing scenarios
+score boundary-and-observable and tautology-detection, so the section ships unmeasured —
+the same gap `#21` carries, and the reason its row reads `fixed` with `Eval: none`.
 
 ## VG-7 — The Snow Pheasant lens split is under-extracted
 
@@ -424,8 +469,18 @@ So the rule is a **smell, not a law**. It correctly pointed at this file, and a 
 ### Found while doing it
 
 `_llm.md` Reactions 5 and 8 both cited *"Heuristic (universal) 5 (variance floor)"*. Base universal Heuristic 5 is **label noise**; the variance floor lives in Phase 3. A pre-existing mis-citation in shipped prompt content, repointed to Phase 3 in the same pass. Base Heuristics 1–7 kept their numbering precisely so `_classic.md`'s surviving `Heuristic (universal) 1` cross-reference did not break.
-**Valid:** conditional — the `_llm.md`-to-`SKILL.md` line ratio in `data-leakage-snow-pheasant` changes
-**Rests on:** the under-extraction rule stated below; feeds `buddy/docs/trackers/headroom-optimization.md` backlog item 2b.
+**Valid:** dated 2026-08-26
+**Rests on:** the measurement table below, taken from source at `0fd8eb1`; feeds `buddy/docs/trackers/headroom-optimization.md` backlog item 2b.
+
+**Condition discharged — and it was the wrong condition.** The original class was
+*conditional — the `_llm.md`-to-`SKILL.md` line ratio changes*. That ratio moved
+0.95 → 0.84 at `0fd8eb1`, so the condition fired; but the correction section
+below shows the headline `(base + lens) / monolith` figure it was standing in for
+is **algebraically incapable of moving** under relocation, which is what the fix
+mostly did. A conditional keyed to a quantity that cannot respond to the
+intervention is not a decay class — it is a check that passes in every world.
+Re-declared as `dated`, whose failure mode is at least honest. See
+`reconnaissance-patterns:R-5`, which this is a fifth instance of.
 
 Verified against source on 2026-08-26 (not the plugin cache):
 
@@ -471,7 +526,7 @@ and dropping it would be the drift the entry describes.
 ## VG-9 — The prompting spine was over-specified for current models
 
 **Status:** mitigated — spine rewritten 2026-08-26; shape corrected, effect not measured
-**Valid:** conditional — the rewritten spine is ablated per-model against the eval harness
+**Valid:** conditional — a per-model ablation at n≥10/arm returns a per-requirement effect size, or the stimulus is retired as non-discriminating
 **Rests on:** `shared/prompt-audit.md` §1a/§1b/§1c in the bundled `claude-api` skill — first-party guidance on prompting patterns that degrade current models — plus the capability-scaling result in the reward-hacking literature.
 
 The seven-rule spine as first written rested on benchmark literature about unit-test
