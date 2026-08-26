@@ -1286,6 +1286,51 @@ Instance 1 is the one that matters most, because the caveat did not merely fail 
 prompt work — **it authorised not doing the work, and it was false.** Note also
 that it survived a code review and a commit message that quoted it approvingly.
 
+**Dated by the peer, 2026-08-27:** `hooks.json:141` is `mcp__.*__workspace`, and
+`git log -S` puts it at `2926543`, **2026-05-01** — roughly four months before the
+bug was filed. The premise was not awaiting confirmation; it had been false for a
+third of a year. And this failure *propagates* rather than merely persists: the
+label "limit" is what makes a false premise read as a finding, so each re-reading
+confirms it instead of testing it. It is also the only instance whose
+counterfactual is **measured** rather than argued — the deferred fix was already
+possible and shipped on first contact.
+
+### Knowing the FACT does not install the check either
+
+The peer's write-up of instance 1 reproduced the mechanism inside itself, which is
+the sharpest form this entry has reached. Recorded on their side as
+`codescout:F-72` instance 4.
+
+They strengthened instance 1 with two claims. The first — line 141, four months —
+they dated with `git log -S`, and it is correct. The second — *"there is also a
+line-151 matcher covering nearly every codescout tool"* — is **`cs-liveness.mjs`,
+`b0db2d1`, that same night.** It is the *remedy* for that bug, read out of the
+current file and attributed to the past. One dated claim and one undated one, and
+only the dated one was about the past.
+
+**And they already knew.** Hours earlier in the same session they had investigated
+`cs-liveness.mjs`, established it was a PostToolUse hook clearing the circuit
+breaker, and told their user `/reload-plugins` was needed *specifically to register
+it*. The fact was in context, established by them, before they cited that matcher
+as four-month-old evidence.
+
+So the claim is not only that holding the correct rule in mind fails to install the
+check. **Holding the relevant fact in mind fails too.** It is not a knowledge
+problem in either direction — which is why this is an entry and not a resolution.
+A resolution is addressed to the part of you that already agreed.
+
+### The dating rule — the write-time check for this variant
+
+Theirs, and the analogue of the next-action tell:
+
+> **A file read reports the PRESENT. It answers a question about the past only if
+> you date it — and nothing in the reading tells you that you failed to.**
+
+This is the recon ledger's substrate law (*not whose logic is wrong, but which
+world each tool read*) one level up: the two worlds here are not two datastores but
+two moments, and `git log -S` / `git blame` is the instrument that separates them.
+It fires exactly when a claim about history is sourced from a working tree.
+
 ### Promote-when
 
 **Four instances, two agents, one night, one conversation that was explicitly
