@@ -1,5 +1,20 @@
 name: "recon runs a positive control on a GREEN report before generalising from it"
 description: >
+  MEASURED 2026-08-26 — TAUTOLOGICAL, NO POWER. A paired run returned
+  `treat 3/3 · ctrl 3/3 · Δ+0.00`. The unaided arm solves this as reliably as the
+  skill arm, so it does NOT score R-4 and must not be cited as evidence for it.
+  Kept and marked rather than deleted, because the design error is the useful
+  part: the message below names the checker BY PATH, so the model reads the
+  20-line script and spots the hardcoded array — base competence, not a promoted
+  law. Transcripts show `check_budget` mentioned 20–38 times per run, kilo/lima
+  found, and several arms mutating the fixture to probe it. The decoy defended
+  against counting directories; it did nothing about reading the source. A
+  discriminating version must make the instrument OPAQUE — a CI summary, a
+  compiled binary, an API response — leaving only the empirical move. See the
+  README § "MEASURED 2026-08-26" and reconnaissance-patterns R-4.
+
+  ORIGINAL INTENT, refuted by the measurement above --------------------------
+
   The R-4 discriminator. Every other scenario in this suite exercises the scout
   against SOURCE SHAPE (a struct the plan got wrong) or against over-flagging.
   None of them can score the law R-4 actually widened: that the positive control

@@ -9,7 +9,7 @@ tags:
 entry_prefix:
 - F
 - W
-entry_high_water_F: 10
+entry_high_water_F: 11
 entry_high_water_W: 2
 ---
 
@@ -78,6 +78,7 @@ entry_high_water_W: 2
 | F-8 | 2026-08-26 | med | tracker-drift | fixed-verified | `VG-7`'s success ratio is invariant under relocation — the exact fix it prescribes cannot move it; headroom 2b re-scoped (`0fd8eb1`) |
 | F-9 | 2026-08-26 | med | tracker-drift | fixed-verified | A tracker's `Status: open` was copied into the passover as pending work; `#21`'s fix shipped three months earlier in `f97f2a4` — executing the handoff would have added a *second* LLM sub-section |
 | F-10 | 2026-08-26 | med | release-pipeline | fixed-verified | Marketplace registrations drifted cross-profile in two files the parity gate never read — and the cross-profile pointer was **hiding** a 3-month-stale local clone of an enabled plugin (`ce83dfd`→ this commit) |
+| F-11 | 2026-08-26 | med | eval-design | fixed-verified | The scenario built to score `R-4` measured **tautological** (treat 3/3, ctrl 3/3, Δ+0.00) — naming the instrument by path let base competence read the script instead of probing it. Records corrected same evening |
 ## Wins Index
 
 | ID | Date | Impact | Pattern | Counterfactual | Status |
@@ -775,6 +776,88 @@ HEAD skew`, which now means something.
 **Fix idea / Pointer:** `scripts/check-profile-parity.sh` classes 5–7 + `MARKETPLACE
 MISMATCH`; `CLAUDE.md` § *This Machine* and § *Plugin Install Path*; issue
 `docs/issues/2026-08-26-marketplace-registration-cross-profile-drift.md`.
+
+---
+## F-11 — The scenario written to measure `R-4` measured nothing: naming the instrument by path let base competence solve it
+
+**Observed:** 2026-08-26 evening, first paired run of
+`reconnaissance-eval/scenarios/instrument/green-report-control`.
+
+**When:** Measuring `R-4`, whose effect had been unmeasured since it shipped in
+codescout-companion 1.16.17, and behind which `R-5` and `R-6` are both held.
+
+**Expected:** A green skill arm and a red control arm — the gap being the skill's power
+on the positive-control marker.
+
+**Got:**
+
+```text
+treat 3/3   ctrl 3/3   Δ+0.00   tautological (base competence)
+power 0 | tautological 1 | no-effect 0 | invalid 0   (power margin: Δ ≥ 0.50)
+```
+
+The unaided arm solves it as reliably as the skill arm. The scenario cannot score `R-4`,
+and `R-4`'s effect remains unmeasured.
+
+**Probable cause:** The scenario's `message` names the checker **by path**
+(`tools/check_budget.sh`). Hand someone a twenty-line shell script and ask them to confirm
+its output, and reading it is the obvious move — spotting a hardcoded roster array in
+twenty lines is ordinary competence, not a promoted law. Transcripts bear it out:
+`check_budget` mentioned 20–38 times per run, `kilo`/`lima` found, the over-budget verdict
+reached, and several arms mutating the fixture to probe it.
+
+**Workaround:** None — the scenario is marked `TAUTOLOGICAL` in its own description, in the
+eval README's scenario table, and in `R-4`'s entry, all within the hour. Kept rather than
+deleted: the design error is the reusable part.
+
+**Severity:** med — nothing shipped wrong, but for about ninety minutes the repo asserted
+in three places that `R-4` was now measurable, which was false.
+
+**Status:** fixed-verified
+
+**Valid:** dated 2026-08-26
+
+True of this scenario at this commit; a redesigned opaque-instrument version would need
+its own measurement.
+
+**Rests on:** `R-4` itself — the law under test — and `W-2`, prove the instrument against a
+known-positive before believing its verdict. The paired run *is* that proof, applied to a
+scenario rather than to a tool.
+
+### What the design got wrong, and it is not a detail
+
+I hardened the fixture against the wrong attack. The decoy — 12 names in the array, 12
+directories on disk, `12/12` in the report — was built so that **counting** would confirm
+the false result rather than expose it. It does exactly that. But counting was never the
+threat; **reading** was, and I handed over the source in the prompt.
+
+**`R-4` protects generalising from a verdict you cannot audit by reading.** A CI summary, a
+colleague's report, a compiled binary, an API response, a dashboard. The instant the
+instrument's internals are in front of you, code-reading is cheaper than an empirical
+probe and the positive control is *redundant* — which is precisely why the arms tied. A
+discriminating version has to make the instrument **opaque**, leaving only the empirical
+move: feed it a case whose answer you already know and watch what comes back.
+
+The uncomfortable part: I ran a positive control on the **fixture** — proving the checker
+reports 400 lines as within a 15-line budget — and reported that as verification. It was
+real, and it verified the wrong proposition. It established that the *fixture behaves as
+described*; it said nothing about whether the *scenario discriminates*, which is the claim
+I actually made. Two different propositions, one probe, and I let the probe I could run
+stand in for the claim I wanted. That is the same substitution `R-4` names, committed while
+building the instrument to detect it.
+
+### Method note — the transcript analysis cannot attribute an arm
+
+My first pass tagged every transcript `skill=Y` from a keyword test, which is worthless
+here: every transcript mentions "reconnaissance" through the scenario path, so the test
+returns Y on both arms by construction. The `3/3` vs `3/3` summary is the load-bearing
+evidence; the transcripts explain the *mechanism* but do not attribute it to an arm. Stated
+rather than quietly dropped, because a reader could otherwise take the per-run table as
+per-arm data.
+
+**Fix idea / Pointer:** Redesign around an opaque instrument, then re-measure paired before
+citing it. Until then `R-4` stays unmeasured and `R-5`/`R-6` stay held — the queue item is
+unchanged, not advanced.
 
 ---
 ## Template for new entries

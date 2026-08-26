@@ -51,7 +51,7 @@ Scenarios:
 |---|---|---|
 | `seam-contact/gap-capture` | judge | Positive: scout-first + catch the `expiry_ts`/`deadline_unix` drift + write `F-3` (next monotonic ID) in anchored shape + cite the ID. High expected delta. |
 | `precision/no-decision-edit` | judge | Precision/control: a mechanical docstring typo (in "When NOT to Use") must NOT trigger an entry. Guards over-firing. **Low expected delta** — see below. |
-| `instrument/green-report-control` | judge | Positive: a GREEN, complete-looking report is FALSE, and only a positive control on the instrument finds it. Scores marker 5. **This is the only scenario that can score `R-4`** — see below. |
+| `instrument/green-report-control` | judge | **TAUTOLOGICAL — measured, no power.** Built to score marker 5 / `R-4`; paired run returned `treat 3/3 · ctrl 3/3 · Δ+0.00`. Base competence solves it. Do not cite it as evidence for `R-4`. See below. |
 
 ### Why `instrument/green-report-control` exists — the `R-4` gap
 
@@ -92,6 +92,40 @@ blindness is **precisely the enumeration**. 400 lines against a 15-line budget
 reported as fine. Ground truth is real — this is the shape of
 `roster-audit-session-log:F-2`, where `specialists_scanned: 10/10` ran against a
 roster of 12 for three months.
+
+### MEASURED 2026-08-26 — it does not discriminate. Do not trust it.
+
+```
+recon runs a positive control on a GREEN report ...  treat 3/3  ctrl 3/3  Δ+0.00
+power 0 | tautological 1 | no-effect 0 | invalid 0   (power margin: Δ ≥ 0.50)
+```
+
+The unaided arm solves it as reliably as the skill arm, so **this scenario cannot
+score `R-4`** and the section above describes an intent the measurement refuted.
+It is kept, marked, rather than deleted, because the design error is the useful
+part.
+
+**Why it failed.** The scenario's `message` names the checker by path
+(`tools/check_budget.sh`). Transcripts show `check_budget` mentioned 20–38 times
+per run, `kilo`/`lima` found, the over-budget verdict reached, and several arms
+mutating the fixture to probe it. Hand someone a twenty-line shell script and ask
+them to "confirm" its output, and reading it is the obvious move — spotting a
+hardcoded array in twenty lines is base competence, not a promoted law. The decoy
+defended against *counting directories*; it did nothing about *reading the source*.
+
+**What a discriminating version needs.** `R-4` protects generalising from a verdict
+you **cannot audit by reading** — a CI summary, a colleague's report, a compiled
+binary, an API response, a dashboard. Once the instrument's internals are in front
+of the model, code-reading is cheaper than a control and the control becomes
+redundant, which is exactly why the arms tied. The redesign must make the
+instrument **opaque**, leaving only the empirical move: feed it a case whose answer
+you already know and watch what it does.
+
+**Caveat on the diagnosis.** The transcript analysis cannot separate treatment from
+control — every transcript mentions "reconnaissance" via the scenario path, so a
+keyword test for skill-presence returns Y on both arms. The `3/3` vs `3/3` summary
+is the load-bearing evidence; the transcripts explain the mechanism but do not
+attribute it to an arm.
 
 ## Why this needs an isolated profile
 
