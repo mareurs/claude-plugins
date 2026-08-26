@@ -17,7 +17,7 @@ Release readiness across plugins × profiles. See
 
 ## State
 
-_Last refresh: `448a1b8`_
+_Last refresh: `31d1486`_
 
 **codescout-companion** — canonical `1.16.17` · readme `1.16.17` · marketplace clean ✅
 
@@ -25,15 +25,15 @@ _Last refresh: `448a1b8`_
 |---|---|---|---|---|
 | `~/.claude` | 1.16.17 ✅ | ✅ | ✅ | `1.16.17` ✅ |
 | `~/.claude-sdd` | 1.16.17 ✅ | ✅ | ✅ | `1.16.17` ✅ |
-| `~/.claude-kat` | 1.16.17 ✅ | ✅ | ✅ | `1.16.17, 1.16.16` ❌ **STALE SIBLING** |
+| `~/.claude-kat` | 1.16.17 ✅ | ✅ | ✅ | `1.16.17` ✅ |
 
-**buddy** — canonical `0.9.1` · readme `0.9.1` · marketplace clean ✅
+**buddy** — canonical `0.9.2` · readme `0.9.2` · marketplace clean ✅
 
 | profile | installed | cache dir | install_path ok | all entries |
 |---|---|---|---|---|
-| `~/.claude` | 0.9.1 ✅ | ✅ | ✅ | `0.9.1` ✅ |
-| `~/.claude-sdd` | 0.9.1 ✅ | ✅ | ✅ | `0.9.1` ✅ |
-| `~/.claude-kat` | 0.9.1 ✅ | ✅ | ✅ | `0.9.1, 0.9.1` ✅ — two entries, both current *only because buddy has not been bumped since*. **The next buddy release reproduces the stale sibling here** unless step 5 repoints every element. |
+| `~/.claude` | 0.9.2 ✅ | ✅ | ✅ | `0.9.2` ✅ |
+| `~/.claude-sdd` | 0.9.2 ✅ | ✅ | ✅ | `0.9.2` ✅ |
+| `~/.claude-kat` | 0.9.2 ✅ | ✅ | ✅ | `0.9.2` ✅ |
 
 **claude-statusline** — canonical `1.1.7` · readme `1.1.7` · marketplace clean ✅
 
@@ -43,12 +43,51 @@ _Last refresh: `448a1b8`_
 | `~/.claude-sdd` | 1.1.7 ✅ | ✅ | ✅ | `1.1.7` ✅ |
 | `~/.claude-kat` | 1.1.7 ✅ | ✅ | ✅ | `1.1.7` ✅ |
 
-**sdd** — canonical `2.4.1` · readme `2.4.1` · marketplace clean ✅ — **not installed in any
-profile** (0 entries in all three). Stable by design, not a failure, and deliberately absent
-from `params`: RFC 7396 merge-patch reads a `null` value as *delete the key*, so an
-uninstalled plugin cannot be represented as `installed: null` under a schema that requires
-the key. Omitted from params, recorded here.
+**session-bridge** — canonical `0.1.0` · readme `0.1.0` · marketplace clean ✅
+
+| profile | installed | cache dir | install_path ok | all entries |
+|---|---|---|---|---|
+| `~/.claude` | 0.1.0 ✅ | ✅ | ✅ | `0.1.0` ✅ |
+| `~/.claude-sdd` | 0.1.0 ✅ | ✅ | ✅ | `0.1.0` ✅ |
+| `~/.claude-kat` | 0.1.0 ✅ | ✅ | ✅ | `0.1.0` ✅ |
+
+`sdd` — canonical `2.4.1`, readme `2.4.1`, marketplace clean ✅ — **not installed in any
+profile.** Stable and uninstalled by design; omitted from `params` because a `null`
+`installed` would be read as a key deletion by RFC 7396 and fail the schema's `required`.
+
+`pi` — README lists it at `0.1.0`, but `pi/` carries no `.claude-plugin/plugin.json` (it is
+a pi-harness extension with its own `install.sh`), so it is outside the discovered plugin
+set and has no install record. Not a gap.
 ## History
+### 2026-08-26 — buddy 0.9.1 → 0.9.2, and the tracker's own plugin set was stale
+
+**All green, and one row existed that had never been looked at.** `release.sh buddy patch`
+carried `VG-7` (pheasant lens re-extraction) and `VG-6` (the new *Properties and
+Invariants* section in `testing-snow-leopard`) to `0.9.2`, pushing `ce83dfd..31d1486`. All
+three profiles repointed cleanly, step 6.5 parity passed, and every cell above is ✅.
+
+The finding is what the previous refresh could not see. **This prompt hardcoded its plugin
+set as `{codescout-companion, buddy, claude-statusline, sdd}`.** `session-bridge` is
+published by this repo, carries `0.1.0` in the README table, and is installed in **all
+three** profiles — and the tracker reported full green across every refresh without ever
+reading its record. Now discovered, now tracked, all three profiles green.
+
+The prompt now **derives** the set from `*/.claude-plugin/plugin.json` instead of naming it,
+matching `scripts/check-profile-parity.sh` (lines 44–48), which had auto-discovered from the
+start — so the release gate was covering a plugin its own tracker was blind to, and the two
+could not be reconciled by reading either one alone.
+
+This is the same defect as the `[0]`-only reads fixed on 2026-08-21, one level up: not *a
+record element the checks skipped*, but *a plugin the enumeration skipped*. Both are a
+complete-looking green over an incomplete domain. It is also, exactly, the defect this
+session spent the day fixing in `buddy-introspection` — `specialists_scanned: 10/10` against
+a roster of 12 (`roster-audit-session-log` `F-2`). A fixed enumeration of the things you
+audit is a stale denominator wearing different clothes.
+
+Also cleared since the last refresh: `.claude-kat`'s `codescout-companion` stale sibling
+(`[1]=1.16.16`) is gone — every plugin in every profile now has exactly one record element.
+The `all entries` column, added 2026-08-26 to surface that class, reads a single canonical
+version everywhere.
 
 ### 2026-08-26 — codescout-companion 1.16.16 → 1.16.17, and a THIRD failure class found
 
