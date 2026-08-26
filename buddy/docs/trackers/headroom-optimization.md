@@ -198,6 +198,20 @@ Re-measure via Langfuse (`scratchpad/decompose.py`) before AND after any cut.
       baseline, trim via `skillOverrides`/`disable-model-invocation`) from skill **bodies** (the
       ~27K-tok measured); confirm reload.py (2a) isn't fighting CC's native 25K compaction budget.
 
+      **Mechanism + first measurement (2026-08-26).** The lens pattern is the trim-at-source
+      mechanism for specialist bodies: a universal spine in `SKILL.md` plus a lens addendum
+      loaded on demand, as `data-leakage-snow-pheasant` already does with `_classic.md` /
+      `_llm.md`. Measured against `buddy/skills/` source at v0.9.1 — a monolithic Pheasant
+      would be 324 lines (136 + 59 + 129); a `:classic` summon loads 195 (60%), a `:llm`
+      summon 265 (**82%**). The `:llm` figure is the useful one: a 129-line addendum against
+      a 136-line base means general material is stranded in the addendum, so the split barely
+      pays. **Rule: an addendum approaching the size of its base means the base is
+      under-extracted.** Roster line counts, per-specialist split proposals, and the
+      re-extraction task live in `docs/trackers/validation-domain-coverage.md` `VG-7`
+      — fix that exemplar before cloning the pattern to any other specialist, or every copy
+      inherits the thin-saving flaw. Largest raw candidates by size: `codescout-pika` (316),
+      `security-ibex` (181), `prompt-hamsa` (158).
+
 3. **Trim FIXED per-request overhead (P2) — cut once, save everywhere.**
    a. **SessionStart superpowers inject (8.7K tok):** superpowers injects `using-superpowers`
       verbatim every session. Decide: trim, gate, or accept (it's a 3rd-party plugin — confirm

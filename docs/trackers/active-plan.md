@@ -205,6 +205,7 @@ The conditions under which the buddy suite gets re-audited. Without these, the i
 | 12 months since the last researcher MCP query on persona-prompt patterns | Re-run the literature query; compare new findings vs the 5 papers in current audit; update systemic rows if lit shifts |
 | Eval mean score regresses by more than the variance floor on any specialist | Audit that specialist; the regression is itself a finding |
 | A new specialist is added under `buddy/skills/` | Audit before merge — never ship a specialist without going through this lens |
+| The underlying Claude model version changes (new Opus/Sonnet/etc. generation) | Re-run the full sweep + eval suite; a new model can unlock or change capabilities the audited baseline doesn't account for. Run the eval harness across all affected model tiers (e.g. `claude-opus-5` and `claude-sonnet-5`) and diff results — see `buddy-learning-and-model-drift.md` |
 
 ### Methodology — how to re-run (one specialist or the whole suite)
 
