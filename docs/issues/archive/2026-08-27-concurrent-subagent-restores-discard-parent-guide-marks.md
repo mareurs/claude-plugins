@@ -10,7 +10,7 @@ tags:
 - guide-ledger
 - concurrency
 closed: 2026-08-27
-unverified: 'Regression-tested (17 assertions, 3 mutants killed) but NOT observed live with real concurrent subagent dispatches — every trace in this file is hook-driven simulation. Separately, the fix is PARTIAL by construction: a parent mark landing after ALL live agents started is unattributable and still removed (see the 2026-08-27 correction under Proposed fix).'
+unverified: 'SUPERSEDED BY MEASUREMENT 2026-08-27 — see docs/issues/2026-08-27-guide-ledger-bracket-is-inert-within-its-own-session.md. The fix was live-probed with two real concurrent subagents: the hooks fire correctly, snapshots use the new session-scoped name, the tombstone is written and all files are cleaned up. But the ledger convergence this fix is about CANNOT be observed, because codescout loads the ledger once at server construction and the in-memory map is authoritative thereafter. The fix is correct file-state engineering whose in-session effect is nil. Separately still true: the fix is PARTIAL by construction (a parent mark landing after ALL live agents started is unattributable and still removed).'
 ---
 
 ---
@@ -223,6 +223,38 @@ tree on every invocation, and the **registration** (`SubagentStart` / `SubagentS
 unchanged. See `.codescout/memories/agent-dispatch-hooks.md` § *Hook CONTENT vs hook
 REGISTRATION*.
 
+
+### Live probe, 2026-08-27 — the hooks work; the mechanism does not reach the server
+
+Two real concurrent subagents, dispatched from a live session (`f6ae2d77-…`), with a
+parent `get_guide` between the two dispatches — the Variant 1 interleaving, for real.
+
+**What the probe confirmed about the hooks:**
+
+- `SubagentStart` fired ~1s after each dispatch and wrote a snapshot.
+- The new two-segment filename resolved as designed:
+  `cs-guide-snapshot-1a33e00d8469cb56-<agentHash>`, session-scoped and enumerable.
+- The payload was the new shape: `{"v":1,"keys":[…],"done":false}`.
+- The short probe stopped first and wrote a **tombstone** (`"done":true`) rather than
+  deleting, because a sibling was still live — the retention rule, working live.
+- After the long probe stopped, **0 snapshot files remained**, and 0 outside the session
+  prefix. Full cleanup, no leak.
+
+**What the probe could not confirm, and why that is the finding:** the ledger never moved.
+Not because the hooks failed — because codescout loads the guide ledger once at server
+construction and the in-memory map is authoritative for the process's life. The hooks edit
+a file the running server neither re-reads nor consults. Filed as
+`docs/issues/2026-08-27-guide-ledger-bracket-is-inert-within-its-own-session.md`.
+
+A first attempt at that conclusion was **confounded and wrong**: this session's server had
+been rekeyed to a test fixture's session id by the repo's own test suite
+(`docs/issues/2026-08-27-test-suite-rekeys-live-codescout-server.md`), so the first probe
+removed a key from a file the server had abandoned. Redone against the file the server
+actually writes, the result held — and only then.
+
+So this fix stands as correct, and its scope is smaller than this file originally implied:
+it makes the *persisted* ledger right, which matters when a **new** server loads it after a
+reconnect. It never mattered within the session that produced it.
 ## References
 
 - `docs/issues/archive/2026-08-27-agent-guide-restore-fires-at-launch-not-completion.md` —
