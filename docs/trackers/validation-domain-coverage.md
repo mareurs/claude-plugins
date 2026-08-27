@@ -34,10 +34,13 @@ competencies_held: 4
 competencies_partial: 4
 competencies_unowned: 6
 entries_total: 10
-entries_open: 6                # VG-1..VG-5, VG-10
+entries_open: 4                # VG-3, VG-4, VG-5, VG-10
 entries_mitigated: 1           # VG-9 — spine reshaped; stimulus retired as non-discriminating
-entries_closed: 3              # VG-6, VG-7, VG-8 — all marked `fixed` by a concurrent session
-new_specialists_proposed: 2    # data-contract (VG-1, VG-2), eval-harness-teaching (VG-5)
+entries_closed: 5              # VG-6, VG-7, VG-8 fixed; VG-1, VG-2 wontfix (specialist measured unwarranted)
+new_specialists_proposed: 1    # eval-harness-teaching (VG-5). The data-contract specialist
+                               # (VG-1+VG-2) was drafted, reviewed twice, base-armed at n=10,
+                               # and NOT shipped — see Domain block C.
+interventions_retired_by_own_control_arm: 2   # VG-9's spine stimulus, and the VG-1/VG-2 specialist
 spine_status: >
   rewritten 2026-08-26 to outcome framing. Measurement RESOLVED as non-discriminating:
   6 no-skill control runs recovered from the Claude Code transcripts, 3 read in full,
@@ -236,6 +239,11 @@ gets muted.
 ```text
 Separate two layers, and never merge them:
 
+When asked to stop alarming on a signal, do NOT loosen a deterministic
+contract into a tolerance. Keep the contract, and add a separate
+rate-based signal beside it. This is the ONE rule in this block a
+frontier model does not already apply unprompted -- measured, see below.
+
 STRUCTURAL — types, nullability, ranges, categorical membership,
 referential integrity, uniqueness. Deterministic. A violation blocks
 the pipeline. Express as code-level schema (Pandera-style
@@ -256,7 +264,27 @@ Version the schema semantically. A breaking change is a major bump
 with a consumer notice.
 ```
 
-Entirely unowned — `VG-1` and `VG-2`.
+**Unowned by any specialist, and measured to be correctly so.** A `VG-1`/`VG-2` specialist
+was drafted (base + two lenses, ~200 lines) and **not shipped**. Its base arm ran first, per
+`prompt-engineering:skill-eval-playbook` `L-17`: unaided Opus 5, no skill, n=10, pinned model,
+plugin-free profile, three one-concept rubrics proven to move by output mutation first.
+
+| Behaviour the specialist would teach | Unaided |
+|---|---|
+| Separates structural from statistical, with different response paths | **10/10** |
+| Grades distribution movement into >=2 severity bands | **6/10** |
+| Keeps BOTH null guarantees rather than collapsing them | **6/10** |
+
+Zero merges in ten runs. Four of ten did commit the collapse above — under the fixture's
+ops pressure (*"make it not page for that"*) they deleted the hard null contract and
+replaced it with a bare tolerance. The tolerances they invented, same fixture, same prompt:
+**90%, 60%, 35%, 25%, 20%.** A fivefold spread with no stated basis — not a judgement call
+being made well, but an arbitrary number filling the space a contract used to occupy.
+
+So the block's other rules are decoration for a current frontier model, and the one added at
+the top of the pasteable text is the measured deficit. Full record:
+`prompt-engineering:skill-eval-log` § data-contract base arm, and
+`prompt-hamsa-audit-log` `A-1` (outcome `held`).
 
 ### Domain block D — Ordinary code
 
@@ -288,39 +316,56 @@ First paragraph is `VG-6`.
 
 ## VG-1 — No owner for data schema contracts and pipeline quality gates
 
-**Status:** open
-**Valid:** conditional — a specialist claims schema-contract / pipeline-gate territory on the roster
-**Rests on:** the split-vs-pipeline boundary argued in § Coverage map — leakage is a design error read off a split, drift is a runtime condition read off a monitor.
+**Status:** wontfix — the gap is real; a specialist is measured as the wrong remedy. One rule landed in Domain block C instead.
+**Valid:** dated 2026-08-27
+**Rests on:** the n=10 base arm recorded in Domain block C — unaided Opus 5 at 10/10 on layer separation and 6/10 on severity banding, so the deficit is one rule wide, not a specialist wide.
 
 Nothing on the roster owns structural data validation: types, nullability, ranges,
 categorical membership, referential integrity, uniqueness, Write-Audit-Publish, semantic
 schema versioning, feature freshness SLAs. Content is Domain block C, structural half.
 
-**Proposed fix.** A new specialist, working name *Data Contract Marmot* — sentinel on a
-rock, whistles before the threat arrives. Defining principle, the analogue of the
-Pheasant distrusting a high score: **refuses to merge structural and statistical
-checks.** Lenses `:schema` and `:drift`, split per the Pheasant's file layout — but
-only after `VG-7`, so it inherits a properly extracted base. Draft with `/buddy:create`.
+**Proposed fix — RETIRED 2026-08-27, and the retirement is the finding.** The proposal was a
+new specialist, working name *Data Contract Marmot*, refusing to merge structural and
+statistical checks, with `:schema` and `:drift` lenses split per the Pheasant's layout. It
+was drafted in full and previewed. Two independent reviews cut it down before it reached
+disk, and then a measurement cut it further:
 
-Note the roster naming convention is the user's; the animal is a placeholder.
+- **Architecture (`architecture-snow-lion`):** the lens boundary is a *taxonomy*, not a fault
+  line. The Pheasant's lenses are disjoint substrates — a practitioner does tabular ML *or*
+  LLM eval. These two layers are two properties of the same table, so a real session needs
+  both and forced to pick loses half. Also premature by definition: an interface declared on
+  an artifact with zero users. Recommendation was single-file, no lens — and the headroom
+  argument that motivated the split turned out to be **7 lines**.
+- **Prompt craft (`prompt-hamsa`):** the premise was an *imported* failure claim from ML-ops
+  literature about human practice — a hypothesis about what Claude does, never tested. Base
+  arm demanded before any file was written.
+- **Measurement:** see Domain block C. Two of the three behaviours at or above ceiling
+  unaided; one real deficit at 6/10.
+
+Nothing was written to disk. The surviving artifact is one rule in Domain block C.
 
 ## VG-2 — No owner for drift, freshness, and distribution monitors
 
-**Status:** open
-**Valid:** conditional — a specialist claims drift-monitoring territory on the roster
-**Rests on:** § Coverage map; shares a fix with `VG-1`.
+**Status:** wontfix — shares `VG-1`'s disposition. Severity banding measured at 6/10 unaided; no specialist warranted.
+**Valid:** dated 2026-08-27
+**Rests on:** § Coverage map; the same n=10 base arm as `VG-1`, recorded in Domain block C.
 
 Statistical monitoring is absent: data drift, label drift, concept drift, KS /
 chi-square / PSI / KL, tiered response (minor → retrain, moderate → human review, severe
 → stop serving), and the delayed-feedback case where labels are not yet available.
 
-Closed by the `:drift` lens of the `VG-1` specialist. Filed separately because it is a
-distinct competency and could be closed independently if the fix is split.
+Closed with `VG-1` as `wontfix`, 2026-08-27. Filed separately because it is a distinct
+competency, and the measurement treated it separately too: the drift half's discriminating
+behaviour is *grading distribution movement into more than one severity band*, which unaided
+Opus 5 did on **6 of 10** runs. Above the pre-registered no-ship bar, so the `:drift` lens
+is not warranted — but the 40% miss rate is the reason the surviving rule in Domain block C
+is about contracts-versus-tolerances rather than about drift statistics, which the model
+picks reliably on its own.
 
 ## VG-3 — No owner for model release gating
 
-**Status:** open
-**Valid:** conditional — a specialist claims calibration / threshold / release-gate territory
+**Status:** open — base arm owed before any prose; stimulus designed below, not run
+**Valid:** conditional — a base arm measures which of the four release-gating behaviours unaided Opus 5 omits
 **Rests on:** Domain block B, final two paragraphs — the part `data-leakage-snow-pheasant:classic` does not cover.
 
 Unowned: probability calibration, subgroup slice metrics, fairness auditing, decision
@@ -331,21 +376,61 @@ The Pheasant's `:classic` lens covers split/transform/resample discipline and st
 there. Everything between "the model scores well" and "the model is safe to serve" has
 no owner.
 
+**Disposition 2026-08-27 — base arm owed BEFORE any prose.** This is the one remaining
+unowned row where a real deficit is plausible, so it is the one worth measuring rather than
+guessing. Applying the method that retired `VG-1`/`VG-2`
+(`prompt-engineering:skill-eval-playbook` `L-17`): no artifact gets written until the
+no-skill arm shows the failure.
+
+The list above is not one behaviour and should not be one rubric. Split by how likely a
+frontier model volunteers it unprompted — stated here as a prediction, to be scored:
+
+| Behaviour | Prior | Why |
+|---|---|---|
+| Threshold from error cost rather than the 0.5 default | probably at ceiling | well-known move, and the cost asymmetry is usually stated in the prompt |
+| Probability calibration checked before trusting scores | uncertain | requires knowing scores are not probabilities |
+| **Subgroup slice metrics volunteered when not asked** | **probably the deficit** | needs the model to widen scope on its own; aggregate metrics answer the question as literally posed |
+| Rollback trigger named before deploy | uncertain | stop-condition shaped, which models are weak on |
+
+**Stimulus sketch.** A trained classifier plus a `metrics.json` reporting only aggregate
+AUC, and a request to "decide whether this is ready to serve." The cheap answer quotes the
+aggregate and picks 0.5. Slice data is present in the fixture but not surfaced — volunteering
+it is the discriminator, so the fixture must make it reachable without naming it. Same
+discipline as the `VG-1` arm: diegetic fixture, one concept per rubric, rubrics proven by
+output mutation first, n>=10, model pinned, its own `config_dir`.
+
+**Do not skip to a specialist.** The measured prior across this ledger is bad for new
+specialists: two of two proposals this session were retired by their own control arm, and
+`prompt-hamsa`'s running tally is 8 no-ship of 11 intervention audits. If a deficit lands
+here it is more likely one rule — as `VG-1` turned out to be — than a body of prose.
+
 ## VG-4 — No owner for EDA and feature engineering
 
-**Status:** open
-**Valid:** conditional — a specialist claims EDA / feature-engineering territory
-**Rests on:** § Coverage map.
+**Status:** open — lowest priority; the entry's own escape hatch rests on a false premise, so a `wontfix` has to be made on merit
+**Valid:** dated 2026-08-27
+**Rests on:** § Coverage map, and a reading of all twelve `SKILL.md` descriptions (below).
 
 The whole front half of data-science work is absent from the roster. Lowest urgency of
-the six unowned rows — it is exploratory rather than gating, so nothing silently ships
-wrong because it is missing. Recorded for completeness; may well close `wontfix` if the
-roster is deliberately scoped to validation and review rather than discovery.
+the unowned rows — it is exploratory rather than gating, so nothing silently ships
+wrong because it is missing.
+
+**Premise corrected 2026-08-27.** This entry previously offered itself an exit: *"may well
+close `wontfix` if the roster is deliberately scoped to validation and review rather than
+discovery."* **The roster is not so scoped.** Reading all twelve descriptions:
+`architecture-snow-lion` decides module boundaries, `docs-lotus-frog` writes prose,
+`planning-crane` sequences work, `refactoring-yak` transforms code, `ml-training-takin`
+builds training loops. Five of twelve are constructive rather than validating, so "this
+roster only does validation" is false and cannot carry the closure.
+
+What survives is the *priority* argument, which was always the better one: an EDA gap costs
+nothing silently. Nothing ships wrong for want of it — which is why it can wait indefinitely,
+and also why `wontfix` would be honest. **That is a scope call for the roster owner, not a
+measurement question**, so it is left open rather than decided here.
 
 ## VG-5 — Eval-harness construction is built here but not teachable
 
-**Status:** open
-**Valid:** conditional — a specialist owns eval-harness construction, or S-5 closes with per-specialist fixtures
+**Status:** open — RE-SCOPED 2026-08-27: the curriculum now exists, so the gap is discoverability and the fix is a trigger, not a specialist
+**Valid:** conditional — `prompt-hamsa` routes eval-construction requests to the playbook, or a base arm shows a deficit the playbook does not already cover
 **Rests on:** `S-5` in buddy-introspection (still open), and `active-plan.md` § Live state `fixtures_count`.
 
 **This entry corrects the first pass of this survey** — see § Corrections. The repo
@@ -366,15 +451,54 @@ Two things are nonetheless true:
    control (position bias, verbosity bias, rubric design) are practised in this repo and
    taught nowhere.
 
-**Proposed fix.** A new specialist owning golden-set construction, rubric design, judge
-calibration, and — with `VG-3` — calibration/slices/thresholds and release gating.
-Working name *Eval Harness Bharal*. Non-negotiable: **no eval is trusted until its judge
-has been scored against human labels** — which is exactly the `human_anchor_TODO` this
-repo already carries.
+**Proposed fix — RE-SCOPED 2026-08-27. The gap moved from authorship to discoverability.**
 
-Distinct from `S-5`: that is "this roster's specialists lack graded examples," an
-internal quality gap. This is "the roster cannot teach a user to build an eval," a
-coverage gap. Closing one does not close the other.
+The original proposal was a new specialist, working name *Eval Harness Bharal*, owning
+golden-set construction, rubric design, judge calibration, and (with `VG-3`) release gating.
+
+That premise has weakened, because **the curriculum now exists and is written down.**
+`prompt-engineering:skill-eval-playbook` carries `L-1`..`L-17`, and the 2026-08-26/27 work
+added the load-bearing half of exactly what this entry said was taught nowhere:
+
+- **Sequencing** — `L-17`: run the no-skill control FIRST; it can retire the stimulus before
+  either arm is built. Its checklist now puts the control at step 4 rather than step 5.
+- **Rubric design** — one concept per rubric, plus the measured consequence of violating it:
+  a severity-band rubric silently re-measured a separation rubric until its scope was pinned.
+- **Judge validation** — the teeth check as a concrete recipe: six canned mutants driven
+  through `LLMJudge` directly, each scored against every rubric to catch cross-talk, for
+  $0.0151 before any generator ran. Mutate the OUTPUT, never the prompt.
+- **Sample size** — n>=10 for any rubric expected near its threshold, with a worked case that
+  landed at exactly 6/10.
+- **Isolation** — a per-experiment `config_dir`, and the reason not to solve attribution by
+  naming the workdir: the workdir is the model's cwd and leaks the arm to the subject.
+
+So a user asking *"how do I build an eval for my RAG pipeline"* is no longer met with an
+obligation and no method. What is missing is that **nothing routes them to it** — the method
+lives in a sibling repo's tracker, reachable only by someone who already knows it is there.
+
+That reframing changes the fix from expensive to cheap, and the direction is load-bearing:
+`prompt-hamsa`'s own memory (`framing-provenance-inert-model-judges-on-merit`) measured that
+once on-demand guidance is **fetched** it is as authoritative as always-visible guidance —
+*"the failure mode of on-demand guidance is 'never fetched,' not 'fetched then forgotten,' so
+invest in the trigger that fetches it at the right moment, not in duplicating its text."*
+Writing a specialist here would be duplicating the text.
+
+**Revised fix, cheapest first:**
+
+1. **A trigger, not a body.** Have `prompt-hamsa` route eval-*construction* requests to the
+   playbook, the way it already routes to `prompt-tdd` under § Harness. It insists on an eval
+   (Operating Principle 3) and cannot build one; a referral closes that in one sentence.
+2. **Then measure whether more is needed.** Base arm: unaided, asked to build an eval for a
+   skill, does the model run a control first and validate its rubric by mutation? If it does,
+   no specialist is warranted and this closes like `VG-1`. Prior: control-first is the
+   deficit — it is the step this session got wrong twice.
+
+**Non-negotiable if a body is ever written:** no eval is trusted until its judge has been
+scored against human labels — the `human_anchor_TODO` this repo already carries.
+
+Still distinct from `S-5`: that is "this roster's specialists lack graded examples," an
+internal quality gap. `S-5` coverage is unchanged — `fixtures_count` still records
+`ml-training-takin: 3`, one specialist of twelve, with `fixture-expansion.md` owning it.
 
 ## VG-6 — Property-based testing has no home in the roster
 
@@ -721,10 +845,34 @@ requirement is a task where unaided Opus 5 measurably fails, established by cont
 *first*. Building the arms before the floor was known is what cost the $2.64 and the
 session. The next attempt runs controls before it runs anything else.
 
+### The `VG-1` base arm found the stimulus SHAPE this entry needs — 2026-08-27
+
+A useful accident. The `VG-1`/`VG-2` base arm (Domain block C) was measuring something else
+entirely, and its one real deficit came from a fixture property this entry can borrow.
+
+The spine stimulus that failed here was a **docstring-vs-code contradiction** — a puzzle. A
+frontier model solves it unaided, 3 for 3, which is why it discriminated nothing. The Marmot
+fixture's discriminating half was not a puzzle at all: it applied **pressure to relax a
+guarantee**. Ops, quoted in the fixture's own words, asked to *"make it not page for that"* —
+and 4 of 10 runs complied by deleting a deterministic contract, inventing tolerances of 90%,
+60%, 35%, 25% and 20% to fill the space.
+
+That is the same shape as this spine's actual claim. The spine says *the checks you write
+must be able to fail*; the discriminating question is therefore not "can you spot a
+contradiction" but **"will you keep a check that can fail when something in the task wants it
+not to."** A fixture supplying that want — a failing assertion plus a plausible reason to
+soften it, a flaky test plus a deadline, a red gate plus a request to unblock — sits above the
+unaided floor in a way the puzzle did not.
+
+Stated as a prediction rather than a finding, because it is untested: unaided Opus 5 will
+weaken or delete a failing check on >=3/10 runs when the task supplies a sympathetic reason,
+where it caught the docstring contradiction 3/3. If that holds, the spine has a measurable
+subject; if it does not, the spine is redundant on this axis too and should close like
+`VG-1`. Either way the closing condition above is unchanged — controls first, before any arm.
 ## VG-10 — Prompt artifacts decay on model release, not on the 90-day clock
 
-**Status:** open
-**Valid:** conditional — `D-6`'s staleness rule distinguishes prompt-surface artifacts from code
+**Status:** open — decision text drafted and ready to paste (below); the `D-N` allocation belongs to `active-plan.md`'s owner
+**Valid:** conditional — a decision superseding `D-6`'s trigger for prompt-surface artifacts is recorded in `active-plan.md`
 **Rests on:** `shared/prompt-audit.md` Step 7 — "Re-audit at every model release. Prompts are per-model artifacts; a line that is load-bearing on one generation is cruft on the next" — read against `active-plan.md` `D-6`.
 
 `D-6` sets a 90-day stale threshold and `T-35` schedules a quarterly hamsa sweep. For
@@ -754,6 +902,52 @@ roster is anything that notices the parameter changed.
 cites `security-ibex` at 167 lines against a source now at 181. That is also an audit
 finding nothing re-triggers — stale because no event fires, not because nobody cared.
 Both belong to the same fix: audits need triggers tied to what actually invalidates them.
+
+### Ready to paste — supersede `D-6`'s trigger, do not edit it
+
+`D-6` is a decision record, so the convention is a **new sibling that supersedes it**, not an
+in-place edit. `D-7` is the current maximum; **the `D-N` number should be allocated by
+`active-plan.md`'s owner at write time**, since hand-allocating into a live namespace from
+another tracker is the race `get_guide("tracker-conventions")` warns about. Text:
+
+> ### D-N — 2026-08-27 — Prompt-surface staleness is model-release-triggered, not calendar-triggered
+>
+> **Decision.** Supersedes `D-6` for prompt-surface artifacts only (`buddy/skills/**/SKILL.md`,
+> lens addenda, tool descriptions, the spine in `validation-domain-coverage.md`). `T-37`'s
+> detector warns when **either** holds:
+> - the artifact's recorded audit generation differs from the current default model, **or**
+> - mtime > 90 days AND no eval run in that window — `D-6`'s existing conjunction, retained
+>   as a floor.
+>
+> Non-prompt artifacts keep `D-6` unchanged.
+>
+> **Why.** A prompt is a per-model artifact. `shared/prompt-audit.md` Step 7 states it
+> directly — *"a line that is load-bearing on one generation is cruft on the next"* — and its
+> Step 0 already establishes a target model before reading a file, so the audit is
+> parameterised by generation while nothing notices the parameter changed. `VG-9` is the
+> worked case: a spine written and invalidated inside one session, on evidence about the
+> current generation, with **zero** time elapsed. No clock could have caught it. The
+> disjunction adds the missing trigger without weakening the one that exists.
+>
+> **Granularity — the one real choice.** Per-specialist is correct (specialists are audited
+> at different times) but means a frontmatter field on twelve `SKILL.md` files, which is a
+> prompt-surface change and therefore a version bump plus a three-profile cache reseed. A
+> single roster-wide field in `active-plan.md` § Live state costs nothing and is wrong the
+> moment two specialists diverge. **Recommendation: start roster-wide, split per-specialist
+> the first time a partial audit happens** — the same wait-for-the-second-instance rule
+> `architecture-snow-lion` applies to abstractions, and it avoids a twelve-file bump for a
+> field with one writer.
+>
+> **Resolves.** `VG-10`. Related: `VG-8` is the same class on a different surface — an audit
+> finding whose invalidating event fires no trigger.
+>
+> **Revisit-when.** Two specialists carry different audit generations; or the default model
+> changes more than once inside a 90-day window, which would make the floor redundant rather
+> than complementary.
+
+**Not landed here deliberately.** This entry owns the finding; `active-plan.md` owns `D-N`
+and `T-37`. Writing into a live `D-N` sequence from outside is how two sessions allocate the
+same number.
 
 ## Corrections to the first pass of this survey
 

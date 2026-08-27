@@ -1,7 +1,7 @@
 ---
 id: cedbb7f0919a7444
 kind: tracker
-status: active
+status: draft
 title: Passover — <thread-name> — <YYYY-MM-DD>
 tags:
 - passover
@@ -12,6 +12,20 @@ origin_session_id: <cc-session-id-or-omit>
 ---
 
 # Passover — <thread-name> — <YYYY-MM-DD>
+
+> **This file is the SKELETON, not a handoff. Its `status:` must stay `draft`.**
+> It carries `tags: [passover]` deliberately — `tests/test-passover-template.sh` asserts
+> that tag, and a copy of this file needs it to be discoverable. But the discovery query
+> in `CLAUDE.md` § *Session Passover* filters on `tags contains passover` **AND**
+> `status == active`, so an `active` template is returned to every incoming session as a
+> candidate live thread — an empty skeleton offered as work. `draft` is what keeps it out
+> of that result while leaving it visible to `find`.
+>
+> When you copy this file, set `status: active` in **the copy**.
+>
+> (Measured 2026-08-27, the day the discovery query started working: it returned 6 rows
+> and this template was one of them. The fault was invisible while the query's operator
+> was broken and returning zero — fixing one defect is what surfaced the other.)
 
 ## State
 

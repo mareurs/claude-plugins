@@ -69,9 +69,28 @@ unreleased-code drift recorded here on 2026-08-27 is CLOSED.**
 
 | profile | installed | cache dir | install_path ok | all entries | cache = working tree |
 |---|---|---|---|---|---|
-| `~/.claude` | 0.10.0 ✅ | ✅ | ✅ | `0.10.0` ✅ | ✅ (one note below) |
-| `~/.claude-sdd` | 0.10.0 ✅ | ✅ | ✅ | `0.10.0` ✅ | ✅ |
-| `~/.claude-kat` | 0.10.0 ✅ | ✅ | ✅ | `0.10.0` ✅ | ✅ |
+| `~/.claude` | 0.10.0 ✅ | ✅ | ✅ | `0.10.0` ✅ | ⚠ 1 doc — see below |
+| `~/.claude-sdd` | 0.10.0 ✅ | ✅ | ✅ | `0.10.0` ✅ | ⚠ 1 doc — see below |
+| `~/.claude-kat` | 0.10.0 ✅ | ✅ | ✅ | `0.10.0` ✅ | ⚠ 1 doc — see below |
+
+**The buddy ⚠ is one file, named, and deliberately not repaired.** Measured 2026-08-27:
+`diff -rq` of each profile's `buddy/0.10.0` cache against the working tree reports exactly
+one differing file in all three — `docs/trackers/headroom-optimization.md` — plus `.venv`,
+which is local-only and never seeded. The delta was introduced *after* the 0.10.0 release
+by `da4cd36`, which qualified two `codescout:U-28` citations in that tracker.
+
+**Nothing loads that file** — no hook, skill, command or statusline reads
+`buddy/docs/`, so no behaviour differs between cache and tree.
+
+**Not repaired by re-seeding, on purpose.** Re-running `bump-cache.sh buddy 0.10.0` would
+turn the column green, and would make the string `0.10.0` denote two different byte sets
+depending on when a profile was seeded. A version that is not a stable name for a
+specific set of bytes defeats the whole point of this tracker. An annotated delta is worth
+more than a manufactured ✅. It clears on buddy's next real bump.
+
+**This row was ✅ for both profiles until it was checked.** It is recorded here because
+the tracker's own field had become a claim that no longer held — the
+`roster-audit-session-log:F-9` shape, found by re-measuring rather than re-reading.
 
 **claude-statusline** — canonical `1.1.7` · readme `1.1.7` · marketplace clean ✅
 
