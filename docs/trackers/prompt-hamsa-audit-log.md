@@ -54,6 +54,78 @@ This is how *"unverified, N=0"* stops being a permanent flag and becomes a hold-
   hold-rate = `held` ÷ (high-confidence rows with a non-empty `outcome`).
 
 ## History
+### 2026-08-27 — self-audit: the rule was present three times and still did not fire (row `A-3`)
+
+**Artifact:** the Hamsa's own craft surface — `H12` in the claude-plugins skill, and
+`P-6` in this file's § *Protocol*. Audited immediately after `A-2` closed `held`.
+
+**Symptom — observed, local, n=1.** `A-2`'s `PRE-REGISTRATION.md` shipped a verdict
+rule whose failure signal is an **absence**: *behavioural leak ≤ 1/5*. That observable
+returns 0 when projection works **and** when the advisor text was never attended to at
+all — an inert 4 KB block produces no leak by producing nothing. The rule returns
+*premise holds* in both worlds. The eval was rescued only by an **unregistered**
+observable noticed while reading blinded responses: advisor-citation count, A2 5/5
+against 0/5 in both other arms. Had that come out zero, the pre-registered rule would
+have reported success over an eval that measured nothing.
+
+**Gap — not a missing rule.** The law was already stated in three places, all of them
+in context when the pre-registration was written:
+
+1. **`P-6`, in this very file:** *"Feed it a passing trace, a failing trace, and an
+   **absent-behavior trace**; all three must split correctly."* Applied to the leak
+   observable: passing trace → 0, absent-behaviour trace → 0. They do not split. P-6
+   fails, and P-6 is the check that was supposed to catch it.
+2. **Global memory `behavior-eval-bind-the-artifact`:** *"Only a POSITIVE CONTROL
+   separates 'the treatment does nothing' from 'the treatment never reached the
+   model'."* Written 2026-08-18, nine days earlier.
+3. **`H9`**, which `P-6` cites.
+
+Two details make this worse than a lapse. **`AMENDMENT-1` ran P-6's split
+PARTIALLY** — it caught that verbatim-leak fails pass-vs-fail, replaced the
+observable, and never re-ran the third trace against the replacement. And **the
+absent-behaviour trace was already in the design as arm A1**: collected, scored, and
+printed in the same table as A2. A1 had been designated the instrument control *for
+RETAIN*, so its leak column was never read as the absent-behaviour trace *for LEAK*.
+The data that falsifies the observable was sitting in the output of the scoring script.
+
+**Move: NO-SHIP a new heuristic.** A fourth statement of a thrice-stated law is the
+exact accretion `H2` has to cut later, and on prescription-sensitive models a net
+quality loss. The demonstrated failure mode is **non-application of a present rule**,
+not absence of one — and `H10`'s finding is that the lever for that is a structural
+gate, never more text.
+
+Instead, promote `P-6`'s three-way split from a protocol **bullet** to a required,
+pre-filled **field** of the pre-registration — three rows the author writes down
+*before* running:
+
+| trace | observable returns |
+|---|---|
+| treatment works | ? |
+| treatment fails | ? |
+| treatment absent | ? |
+
+Stop rule: **two rows holding the same value means the observable is dead.** Exact
+precedent, same shape, same reason — `pre-register-model-and-n-near-threshold` made
+the generator model and N required fields because *"pre-registration only protects
+what it explicitly checks."* This is the third field.
+
+**Prediction.** With the three-row table required, an author writing an
+absence-shaped observable is forced to write the same value twice and sees it at
+authoring time. **Held** if the next absence-shaped pre-registration either carries a
+treatment-side positive control or is stopped by the table. **Failed** if a filled-in
+table still ships a non-discriminating observable — which would mean the form is
+decoration and the lever is elsewhere. Explicitly **not** predicted: that more prose
+in `H12` or `P-6` would help.
+
+**Eval status: absent. UNVERIFIED, n=1.** A form field is not cheaply A/B-able; the
+outcome lands on the next absence-shaped eval, not on a run anyone can schedule.
+**Confidence: medium** — the diagnosis is exact and checkable, the remedy is a
+precedent-backed guess.
+
+**Scope note.** `P-6` lives in codescout's copy of this ledger and governs codescout
+prompt surfaces; the proposed field would go there. Nothing has been edited — this is
+a critique, and the rewrite is the user's call.
+
 ### 2026-08-27 — advisor projection rule: base arm first, eval HELD, clause no-shipped (row `A-2`)
 
 **Artifact:** `buddy/scripts/summon_bootstrap.py::build_payload` — the advisor
