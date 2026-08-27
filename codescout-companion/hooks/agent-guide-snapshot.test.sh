@@ -70,6 +70,17 @@ STATE_HOME="$SANDBOX/state"
 mkdir -p "$STATE_HOME"
 export XDG_STATE_HOME="$STATE_HOME"
 
+# TMPDIR isolates the SNAPSHOT files, which is a separate directory from the
+# ledger and was NOT covered before 2026-08-27: agentGuideSnapshotFile() writes
+# to os.tmpdir(), not under XDG_STATE_HOME, so Case 3's deliberately-unconsumed
+# second snapshot leaked a real file into the real /tmp on every run. Node reads
+# TMPDIR on POSIX and TEMP/TMP on Windows; set all three so the trap's cleanup
+# actually reaches them.
+export TMPDIR="$SANDBOX/tmp"
+export TEMP="$TMPDIR"
+export TMP="$TMPDIR"
+mkdir -p "$TMPDIR"
+
 SESSION="conv-a"
 LEDGER_DIR="$STATE_HOME/codescout/guide_hints"
 LEDGER_FILE="$LEDGER_DIR/${SESSION}.json"
@@ -96,6 +107,12 @@ run_stop() {  # <session_id> <agent_id>
 #     not an empty ledger -- proving this is snapshot/restore, not a wipe. ---
 echo '{"librarian":"2026-08-01T00:00:00Z"}' > "$LEDGER_FILE"
 run_start "$SESSION" "agent_1" > /dev/null
+# The sandbox must actually BE the sandbox. Without this, the leak check at the
+# end of the suite is worthless: drop the TMPDIR export and it would scan an
+# empty dir, find nothing, and pass green while writing into the real /tmp --
+# which is exactly what this suite did until 2026-08-27.
+SANDBOXED=$(find "$TMPDIR" -maxdepth 1 -name 'cs-guide-snapshot-*' 2>/dev/null | wc -l)
+check "snapshot lands inside the sandbox, not the real tmpdir" "$SANDBOXED" "1"
 # Simulate the subagent's own tool call marking a second topic delivered.
 echo '{"librarian":"2026-08-01T00:00:00Z","workspace-state":"2026-08-01T00:05:00Z"}' > "$LEDGER_FILE"
 run_stop "$SESSION" "agent_1" > /dev/null
@@ -127,6 +144,10 @@ run_stop "$SESSION" "agent_3a" > /dev/null
 GOT=$(cat "$LEDGER_FILE" | jq -S .)
 WANT=$(echo '{"a":"2026-08-01T00:00:00Z"}' | jq -S .)
 check "first dispatch restores its own pre-dispatch snapshot" "$GOT" "$WANT"
+
+# Drain the sibling: every real dispatch gets a SubagentStop, so leaving
+# agent_3b's snapshot behind models nothing and leaks a file.
+run_stop "$SESSION" "agent_3b" > /dev/null
 
 # --- Case 4: restore with no prior snapshot (SubagentStart never ran) is a
 #     no-op. ---
@@ -194,6 +215,11 @@ check "snapshot hook wired to SubagentStart" \
   "$(hook_events 'agent-guide-snapshot\.mjs')" "SubagentStart"
 check "restore hook wired to SubagentStop" \
   "$(hook_events 'agent-guide-restore\.mjs')" "SubagentStop"
+
+# --- Hygiene: no snapshot file may outlive the suite. Before 2026-08-27 this
+#     could not even be checked -- the writes went to the real /tmp. ---
+LEAKED=$(find "$TMPDIR" -maxdepth 1 -name 'cs-guide-snapshot-*' 2>/dev/null | wc -l)
+check "no snapshot files leak out of the suite" "$LEAKED" "0"
 
 echo "---"
 echo "Total: $((PASS+FAIL)). Pass: $PASS. Fail: $FAIL."
