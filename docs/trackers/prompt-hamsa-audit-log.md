@@ -123,8 +123,27 @@ outcome lands on the next absence-shaped eval, not on a run anyone can schedule.
 precedent-backed guess.
 
 **Scope note.** `P-6` lives in codescout's copy of this ledger and governs codescout
-prompt surfaces; the proposed field would go there. Nothing has been edited — this is
-a critique, and the rewrite is the user's call.
+prompt surfaces; the proposed field would go there.
+
+**SHIPPED 2026-08-27, same day** (the critique above was written first, and the user
+asked for the rewrite after reading it). Two commits:
+
+- **codescout `b53a0053`** — `P-2` gains **`P-2a`**, the three-row observable table as
+  a required pre-registration field with the stop rule *two rows holding the same
+  value means the observable is dead*. `P-6` keeps its bullet and now carries the
+  measured account of why the promotion was earned, plus an explicit instruction not
+  to answer a recurrence by restating the rule a fourth time.
+- **claude-plugins `docs/templates/eval-pre-registration.md`** — the form itself.
+
+**The scope fix is the part that mattered most.** The codescout protocol binds *"any
+change to a codescout prompt surface."* The failure it now guards against happened
+here, in `claude-plugins`, **outside that binding** — so amending only codescout would
+have shipped a gate that could not have caught the thing that prompted it. A gate only
+works where the form is actually filled in, so the table travels with the
+pre-registration rather than with the repo.
+
+**Outcome stays open.** Shipping the field is not evidence the field works. The
+prediction is scored by the next absence-shaped eval, not by this commit.
 
 ### 2026-08-27 — advisor projection rule: base arm first, eval HELD, clause no-shipped (row `A-2`)
 
