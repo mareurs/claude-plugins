@@ -789,3 +789,74 @@ repo and all three caches.
 
 Cold restart / `/reload-plugins` per instance still required to bind the
 1.16.11 record.
+
+### 2026-08-27 — codescout-companion 1.18.0 → 1.19.0, completing a hand-bump, and three cache-seeder defects
+
+**All ✅ across all three profiles**, for both plugins, verified by content diff and not
+by the parity gate alone.
+
+| profile | codescout-companion | buddy | install_path owns profile | cache = working tree |
+|---|---|---|---|---|
+| `~/.claude` | 1.19.0 ✅ | 0.10.0 ✅ | ✅ | ✅ both |
+| `~/.claude-sdd` | 1.19.0 ✅ | 0.10.0 ✅ | ✅ | ✅ both |
+| `~/.claude-kat` | 1.19.0 ✅ | 0.10.0 ✅ | ✅ | ✅ both |
+
+**What was wrong on arrival.** A concurrent session committed `b7b7ab1` — a *hand* bump of
+`plugin.json` 1.18.0 → 1.19.0 for a widened reconnaissance bullet — without the rest of the
+dance. `release.sh` was not used, and could not have been: it gates on
+`check-versions.sh`, which was **failing** on `plugin.json=1.19.0, README.md=1.18.0`. So the
+repo claimed 1.19.0 while every profile served 1.18.0, and no reload could have picked it up.
+
+Completed with `NO_PUSH=1 ./scripts/release.sh codescout-companion 1.19.0` — an explicit
+version equal to the current one is the right entry point for a stranded hand-bump: step 1
+rewrites `plugin.json` as a no-op and the README table for real, and every later gate runs
+normally. Green through pre-flight, check-versions, commit `22a5071`, cache seed ×3,
+record repoint ×3, sanity ×3, parity.
+
+The bump carried real content — `skills/reconnaissance/SKILL.md` differs between the 1.18.0
+and 1.19.0 caches — which closes `b7b7ab1`'s own instruction to *"verify after reinstall by
+grepping the CACHE path, not the source."*
+
+### The parity gate passed while buddy was drifting — read this before trusting it
+
+`check-profile-parity.sh` reported **OK for buddy on all three profiles** while buddy's cache
+differed from the working tree in all three. That is not a gate bug: it checks *records,
+canonical version, cache presence, and registration ownership*. It does not compare **bytes**.
+The `cache = working tree` column of this table is the check that catches content drift, and
+it is the reason the column exists.
+
+What it found, and the two further defects that fell out of fixing it — all three now covered
+by `tests/test-copy-plugin-tree.sh`, which did not exist before (`d6ba54b`):
+
+1. **`.buddy/` leaked into every cache on every seed.** Gitignored in both
+   `buddy/.gitignore` and the root `.gitignore`, and copied anyway — the second instance of
+   the failure mode `lib-copy-plugin.sh`'s own header warns about (it mirrors the
+   *filesystem*, not git). The leaked file is `.buddy/.session-start-trace.log`, the artifact
+   CLAUDE.md tells you to probe to learn a plugin's real load path, so the stale copy
+   actively misleads that diagnostic.
+2. **The exclusion did not evict what was already there.** rsync *protects* excluded paths
+   from `--delete`. Re-seeding all three profiles after adding `--exclude='.buddy'` left every
+   stale copy in place — measured `leaks=1 × 3`, not reasoned. Needed `--delete-excluded`,
+   which also aligned the rsync branch with the fallback branch; they had silently disagreed,
+   so `.orphaned_at` would have survived re-seeds by the same mechanism.
+3. **The fallback branch never cleared stale dotfiles.** `rm -rf "$dest"/*` does not glob
+   dotfiles, so any stale dotfile not on the exclude list survived forever. Found *by the new
+   test*, failing red before the fix. It is the Git-for-Windows path — the least-exercised
+   branch, which is why it carried the defect longest.
+
+**Method note for the next refresh.** The content check is the load-bearing one and the gate
+does not do it. Run it explicitly, per profile per plugin:
+
+```
+diff -rq --exclude=__pycache__ --exclude=.pytest_cache --exclude=.venv \
+         --exclude=.mypy_cache --exclude='*.pyc' --exclude=.orphaned_at \
+         --exclude=.buddy <plugin> <cache>
+find <cache> \( -name '.buddy' -o -name '.orphaned_at' -o -name '__pycache__' \) | wc -l
+```
+
+The `find` half matters separately: a leak that is also in the `diff` exclude list is
+invisible to the diff by construction. Excluding a path from the comparison and excluding it
+from the copy are different claims, and only the second is what you want to verify.
+
+**Outstanding:** cold restart / `/reload-plugins` on all three instances — registration
+resolves at launch. Commits are local; 33 unpushed on `main`.
