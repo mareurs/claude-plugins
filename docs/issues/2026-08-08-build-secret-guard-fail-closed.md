@@ -12,7 +12,6 @@ tags:
 - prompt-injection
 - cross-repo
 - from-codescout-pr-9
-kind: bug
 opened: 2026-08-08
 severity: high
 ---

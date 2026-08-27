@@ -193,7 +193,11 @@ Anti-goals. Get `origin_session_id` from `cat .codescout/cc_session_id` (or
 **Discover (incoming session):** run, early in the session —
 
     artifact(action="find", kind="tracker",
-             filter={"and":[{"tags":{"in":["passover"]}}, {"status":{"eq":"active"}}]})
+             filter={"and":[{"tags":{"contains":"passover"}}, {"status":{"eq":"active"}}]})
+
+**`contains`, not `in`** — `in` on a tag array matches nothing and returns a clean zero, which
+reads exactly like "no handoffs". Measured 2026-08-27: the `in` form returned 0 against 5 live
+tagged passovers. See `CLAUDE.md` § Session Passover.
 
 Zero results → proceed normally. One → resume it (auto-confirm if your own session id equals
 `origin_session_id`, which holds on `--resume`). Multiple → pick by `topic`/`branch`.

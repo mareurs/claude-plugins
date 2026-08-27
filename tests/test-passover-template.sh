@@ -35,10 +35,15 @@ if grep -qi "VERIFY" "$TPL"; then ok "verify-before-trust gate present"; else ba
 
 CLAUDEMD="$ROOT/CLAUDE.md"
 # 5. discovery query documented verbatim in CLAUDE.md (drift guard)
-if grep -qF '{"tags":{"in":["passover"]}}' "$CLAUDEMD"; then
+#    Assert the WORKING form. `in` on a tag array matches nothing (measured 2026-08-27:
+#    0 hits against 5 live tagged passovers) and returns a clean zero that reads like
+#    "no handoffs" — so this marker must never revert to `{"tags":{"in":["passover"]}}`.
+#    That broken form still appears in CLAUDE.md prose, deliberately, as the cautionary
+#    note — which is why this greps for the fix rather than against the defect.
+if grep -qF '{"tags":{"contains":"passover"}}' "$CLAUDEMD"; then
   ok "CLAUDE.md documents the discovery query"
 else
-  bad "CLAUDE.md discovery query" "marker {\"tags\":{\"in\":[\"passover\"]}} not found"
+  bad "CLAUDE.md discovery query" "marker {\"tags\":{\"contains\":\"passover\"}} not found"
 fi
 # 6. CLAUDE.md points at the template path
 if grep -qF 'docs/templates/passover-template.md' "$CLAUDEMD"; then

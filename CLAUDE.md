@@ -248,7 +248,15 @@ body-level block.)
 **Discover (incoming session):** run, early in the session —
 
     artifact(action="find", kind="tracker",
-             filter={"and":[{"tags":{"in":["passover"]}}, {"status":{"eq":"active"}}]})
+             filter={"and":[{"tags":{"contains":"passover"}}, {"status":{"eq":"active"}}]})
+
+**`contains`, not `in` — `in` on a tag array silently matches nothing.** Measured 2026-08-27:
+`{"tags":{"in":["passover"]}}` returned 0 against 5 live tagged passovers; swapping the op to
+`contains` returned all of them. `contains` is the documented array-membership op; `in` means
+scalar-field-is-one-of. This query carried `in` from the day it was written, inherited from the
+librarian guide's own leaf example (`{"tags": {"in": ["foo","bar"]}}` — wrong upstream too). A
+zero here reads exactly like "no handoffs", so the broken op hid every live thread instead of
+failing loudly.
 
 Zero results → proceed normally. One → resume it (auto-confirm if your own session id equals
 `origin_session_id`, which holds on `--resume`). Multiple → pick by `topic`/`branch`.
