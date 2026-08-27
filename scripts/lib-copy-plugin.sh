@@ -6,9 +6,15 @@
 #
 # Wipes <dest-dir> and mirrors <src-dir> into it, pruning the same set of
 # build/cache artifacts every plugin-cache-seeding script needs to exclude
-# (Python __pycache__/venv cruft, Rust target/ build dirs). Kept in one place
-# so the exclude list can't drift between bump-cache.sh's rsync-missing
-# fallback and sync-copilot.sh's flat-copy — both call this.
+# (Python __pycache__/venv cruft, Rust target/ build dirs, Claude Code's
+# .orphaned_at runtime marker). Kept in one place so the exclude list can't
+# drift between bump-cache.sh's rsync-missing fallback and sync-copilot.sh's
+# flat-copy — both call this.
+#
+# NOTE: this mirrors the FILESYSTEM, not git. A .gitignore entry does not keep
+# a file out of a cache snapshot — only this list does. That is why
+# .orphaned_at needed both: gitignoring it stops a fresh clone carrying it,
+# excluding it here stops every future seed carrying it.
 #
 # Prefers rsync (delta-copy, real excludes) when available; falls back to a
 # plain cp + find-prune mirror (Git-for-Windows bash ships no rsync).
@@ -22,6 +28,7 @@ copy_plugin_tree() {
     rsync -a --delete \
       --exclude='__pycache__' --exclude='.pytest_cache' \
       --exclude='*.pyc' --exclude='.mypy_cache' --exclude='.venv' \
+      --exclude='.orphaned_at' \
       --exclude='target/debug' --exclude='target/deps' \
       --exclude='target/.fingerprint' --exclude='target/.rustc_info.json' \
       --exclude='target/build' --exclude='target/incremental' \
@@ -37,7 +44,7 @@ copy_plugin_tree() {
     cp -a "$src/." "$dest/"
     find "$dest" -depth \( \
       -name '__pycache__' -o -name '.pytest_cache' -o -name '*.pyc' \
-      -o -name '.mypy_cache' -o -name '.venv' \
+      -o -name '.mypy_cache' -o -name '.venv' -o -name '.orphaned_at' \
       -o -path '*/target/debug' -o -path '*/target/deps' \
       -o -path '*/target/.fingerprint' -o -path '*/target/.rustc_info.json' \
       -o -path '*/target/build' -o -path '*/target/incremental' \

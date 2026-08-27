@@ -9,4 +9,5 @@ hooks/judge.env
 .buddy/
 .codescout/
 .codescout/private-memories/
+.orphaned_at
 uv.lock
