@@ -54,6 +54,49 @@ This is how *"unverified, N=0"* stops being a permanent flag and becomes a hold-
   hold-rate = `held` ÷ (high-confidence rows with a non-empty `outcome`).
 
 ## History
+### 2026-08-27 — advisor projection rule: base arm first, eval RUNNING (row `A-2`)
+
+**Artifact:** `buddy/scripts/summon_bootstrap.py::build_payload` — the advisor
+projection rule as assembled into a summon payload.
+
+**Gap named.** The rule is negation-only *and the negation is implicit*. An advisor
+contributes `Operating Principles` / `Heuristics` / `Self-Traps`; its `Voice`,
+`Method` and output contract are omitted. Nothing in the payload says what that
+omission obliges. Read as a stranger, the model receives three unattributed sections
+tagged `— advisor: X` and no statement of what the tag means. H1: a negation-only
+rule is the weak form, and an *implicit* negation is weaker still.
+
+**Move: do not write the clause. Measure first.** Not caution — an ordering forced by
+the structure. The spec's own remedy is one clause in the payload header, and that
+clause **pre-empts exactly what the eval measures**: whether omission *alone*
+suffices. Insurance and measurement are mutually exclusive here, so the measurement
+goes first or never happens. H12 supplies the rest: 6 of 9 codescout intervention
+audits landed no-ship, and a green treatment arm over an absent deficit ships a dead
+rule.
+
+**Window.** 0 of 12 shipped specialists declare `advisors:` or `fragments:`. That is
+the clean baseline, and it exists only until one does.
+
+**Design.** Three arms, each the real `build_payload` output: A1 primary alone
+(24,079 chars), A2 + `security-ibex` (28,446), A3 + `planning-crane` as a
+size-matched irrelevant control (28,383 — 63 chars, 0.2% from A2; chosen by
+measurement, projecting 47 lines/4,302 chars against ibex's 47/4,365). Isolated
+plugin-free profile, model pinned `sonnet`, pre-registered decision rule with an
+explicit inconclusive band.
+
+**Amendment 1, before any run.** The original LEAK observable matched
+`**Exploit sketch:**` — a string *projection removes from the payload*. Near-guaranteed
+0 whether projection works or fails: the same value under both hypotheses, which is
+no check at all (`claude-plugins:W-4`). Re-read against a payload containing neither
+the advisor's voice nor its format, the falsifier predicts **displacement**, not
+reproduction. RETAIN became load-bearing; verbatim leak demoted to expected-0.
+
+**Instrument positive control: A1 RETAIN 5/5.** The primary emits its own contract
+unaided, so a drop in A2 would mean something. Eval not void.
+
+**Outcome: pending** — A2/A3 running at time of writing. Row `A-2`'s `outcome` stays
+`null` until they land. Prediction on record: A2 RETAIN ≥ 4/5 and behavioural leak
+≤ 1/5 → no-ship the clause.
 
 ### 2026-06-13 — created
 

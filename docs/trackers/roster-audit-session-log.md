@@ -1230,6 +1230,59 @@ separated the assertion that discriminates from the one that does not, and it
 cost about twenty seconds. This is `W-2`'s known-positive discipline applied to a
 test suite instead of to a tool.
 
+### W-4 addendum — four more instances, 2026-08-27, and the promote-when is met on SHAPE but not on INDEPENDENCE
+
+The original entry named two instances and asked for *"a third from an independent
+work stream, ideally one where the non-discriminating check is neither a test
+assertion nor an attribution."* Four more arrived the same night. Two of them are
+exactly the shapes that criterion asked for — and the criterion is still **not met**,
+for a reason worth writing down.
+
+**3. Pre-flight scan, SDD run.** The plan I authored specified
+`assert "gates text" in payload` against a fixture writing `"project gates text"` —
+satisfied as a *substring*, in the working and broken world alike. Caught before
+execution; test rewritten to use a non-superstring.
+
+**4. Task 3, caught by review.** `assert payload.count("## Test Format") == 1` — the
+primary owns that heading, the advisor fixture's contract was named
+`## Finding Format`, so the count was 1 under projection, under whole-file
+concatenation, and with the advisor block deleted entirely. It sat **inside the test
+whose docstring I wrote claiming these exclusions are the only assertions that
+distinguish projection from concatenation.** Fixed by renaming the fixture heading to
+create a real collision.
+
+**5. An eval decision rule** — *not a test assertion, not an attribution.*
+`PRE-REGISTRATION.md` defined LEAK as an exact match on `**Exploit sketch:**`, a
+string **projection removes from the payload under test**. Near-guaranteed 0 whether
+projection works or fails. Caught before any arm ran; recorded as `AMENDMENT-1.md`
+rather than edited away.
+
+**6. A data-collection pattern** — *also neither.* `grep "Ruling:"` over the SDD
+ledger returned 6; there were **7**. The seventh read `Ruling on IMP-2:`. The skill's
+requirement is that the list handed to the human be exhaustive, so a pattern silently
+returning fewer than exist would have dropped a decision from the only place decisions
+reach them.
+
+**Why the criterion is still not met.** Instances 5 and 6 are the shapes the
+promote-when asked for. But *"independent work stream"* is the part that fails: six
+instances, one night, one session, one conversation **explicitly about this
+mechanism**. Instances collected while hunting for instances are a fact about the
+hunting. That is the same tail-sampling defect this session measured twice elsewhere
+— the two `get_guide` anecdotes that were both top-decile sessions, and `W-5`'s own
+instance count reflecting who held the lens.
+
+So the promote-when stands unchanged and unfired. What has changed is the
+**hypothesis**: the class now looks broader than "tests and attributions" — it reaches
+decision rules and extraction patterns, i.e. anywhere a discriminator is chosen without
+checking that the thing it discriminates on is reachable in the case under test. That
+is a sharper statement to test later, not evidence for promoting now.
+
+**One observation that is evidence rather than instance-counting:** every one of the
+six was caught by *review* — a reviewer, a pre-flight scan, or a deliberate re-read —
+and not one by the authoring pass that produced it. If that holds up, the remedy is a
+checking step at authoring time, not a better-informed author. Knowing the law did not
+install the check; six times.
+
 ## W-5 — Writing the caveat discharges the obligation to close it — and the tell is whether it names a next action
 
 **Status:** candidate — recorded, NOT promoted. Same selection defect as its own evidence; see *Promote-when*.
