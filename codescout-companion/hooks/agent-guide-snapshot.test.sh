@@ -1,16 +1,38 @@
 #!/usr/bin/env bash
-# Test: agent-guide-snapshot.mjs (PreToolUse: Agent) + agent-guide-restore.mjs
-# (PostToolUse: Agent) — snapshot/restore the codescout guide-hints ledger
-# around a subagent dispatch, so a subagent's own get_guide-triggering tool
-# calls don't silently mark topics delivered for the whole session, starving
-# the parent of guidance the server believes it already handed over.
+# Test: agent-guide-snapshot.mjs (SubagentStart) + agent-guide-restore.mjs
+# (SubagentStop) — snapshot/restore the codescout guide-hints ledger around a
+# subagent's lifetime, so a subagent's own get_guide-triggering tool calls
+# don't silently mark topics delivered for the whole session, starving the
+# parent of guidance the server believes it already handed over.
 #
-# codescout:docs/issues/2026-08-26-subagent-guide-fetch-starves-parent.md
+# codescout:docs/issues/archive/2026-08-26-subagent-guide-fetch-starves-parent.md
 #
 # Ledger path mirrors src/tools/guide_ledger.rs's own resolution exactly:
 # <XDG_STATE_HOME>/codescout/guide_hints/<sanitize(session_id)>.json, where
 # sanitize maps anything outside [A-Za-z0-9_-] to '_'. Both sides must agree
 # on this path or the hooks silently operate on the wrong file.
+#
+# --- What this suite could NOT catch, and what was added so it can ----------
+#
+# Until 2026-08-27 these hooks were wired to PreToolUse/PostToolUse:Agent, and
+# the pair was a complete no-op: Agent dispatch is asynchronous, so the tool
+# call returns at LAUNCH and PostToolUse fired in the same millisecond as
+# SubagentStart — 3.4s before the subagent's first tool call, 17.2s before it
+# finished. Every mark the subagent made landed after the restore meant to
+# undo it.
+#
+# This suite was green throughout, and it was a good test of the wrong thing.
+# It feeds hand-written payloads and calls the hooks in an order IT chooses, so
+# it can never observe WHEN Claude Code invokes them. No shell test can — that
+# needs a live session.
+#
+# The gate that closes it is therefore not an ordering assertion but a PAYLOAD
+# CONTRACT: the bracket keys on agent_id, which appears on SubagentStart and
+# SubagentStop and on NEITHER tool event. Case 6 feeds each hook a genuine
+# tool-lifecycle payload and requires a diagnostic + a no-op. Re-wire either
+# hook back to a tool event and it fails at runtime, loudly, instead of
+# silently doing nothing for a week.
+# docs/issues/2026-08-27-agent-guide-restore-fires-at-launch-not-completion.md
 
 set -uo pipefail
 
@@ -18,6 +40,7 @@ HERE="$(cd "$(dirname "$0")" && pwd)"
 SNAPSHOT_HOOK="$HERE/agent-guide-snapshot.mjs"
 RESTORE_HOOK="$HERE/agent-guide-restore.mjs"
 HOOKS_JSON="$HERE/hooks.json"
+MISWIRED_MARKER="cs-guide-bracket-miswired"
 PASS=0
 FAIL=0
 
@@ -28,6 +51,9 @@ check() {  # <label> <got> <expected>
     echo "FAIL [$1]: expected=$3 got=$2"; FAIL=$((FAIL+1))
   fi
 }
+
+ok() {   echo "PASS [$1]"; PASS=$((PASS+1)); }
+bad() {  echo "FAIL [$1]: $2"; FAIL=$((FAIL+1)); }
 
 SANDBOX=$(mktemp -d)
 trap 'rm -rf "$SANDBOX"' EXIT
@@ -47,25 +73,32 @@ export XDG_STATE_HOME="$STATE_HOME"
 SESSION="conv-a"
 LEDGER_DIR="$STATE_HOME/codescout/guide_hints"
 LEDGER_FILE="$LEDGER_DIR/${SESSION}.json"
+STDERR_FILE="$SANDBOX/stderr.txt"
 mkdir -p "$LEDGER_DIR"
 
-run_pre() {  # <session_id> <tool_use_id>
-  jq -n --arg s "$1" --arg id "$2" --arg c "$PROJECT" \
-    '{session_id:$s, tool_use_id:$id, cwd:$c, tool_name:"Agent"}' | node "$SNAPSHOT_HOOK"
+# Agent-lifecycle payloads: the shape SubagentStart / SubagentStop actually
+# deliver, measured 2026-08-27. Note there is no tool_use_id and no tool_name
+# on either — that is the whole point of the contract Case 6 pins.
+run_start() {  # <session_id> <agent_id>
+  jq -n --arg s "$1" --arg a "$2" --arg c "$PROJECT" \
+    '{session_id:$s, agent_id:$a, agent_type:"general-purpose", cwd:$c,
+      hook_event_name:"SubagentStart"}' | node "$SNAPSHOT_HOOK" 2>"$STDERR_FILE"
 }
-run_post() {  # <session_id> <tool_use_id>
-  jq -n --arg s "$1" --arg id "$2" --arg c "$PROJECT" \
-    '{session_id:$s, tool_use_id:$id, cwd:$c, tool_name:"Agent"}' | node "$RESTORE_HOOK"
+run_stop() {  # <session_id> <agent_id>
+  jq -n --arg s "$1" --arg a "$2" --arg c "$PROJECT" \
+    '{session_id:$s, agent_id:$a, agent_type:"general-purpose", cwd:$c,
+      hook_event_name:"SubagentStop", stop_hook_active:false}' \
+    | node "$RESTORE_HOOK" 2>"$STDERR_FILE"
 }
 
 # --- Case 1: ledger pre-exists with a parent-delivered topic; a subagent's
 #     own fetch adds a new one; restore must bring back exactly the original,
 #     not an empty ledger -- proving this is snapshot/restore, not a wipe. ---
 echo '{"librarian":"2026-08-01T00:00:00Z"}' > "$LEDGER_FILE"
-run_pre "$SESSION" "toolu_1" > /dev/null
+run_start "$SESSION" "agent_1" > /dev/null
 # Simulate the subagent's own tool call marking a second topic delivered.
 echo '{"librarian":"2026-08-01T00:00:00Z","workspace-state":"2026-08-01T00:05:00Z"}' > "$LEDGER_FILE"
-run_post "$SESSION" "toolu_1" > /dev/null
+run_stop "$SESSION" "agent_1" > /dev/null
 GOT=$(cat "$LEDGER_FILE" 2>/dev/null | jq -S .)
 WANT=$(echo '{"librarian":"2026-08-01T00:00:00Z"}' | jq -S .)
 check "restores pre-dispatch content, not empty" "$GOT" "$WANT"
@@ -73,55 +106,94 @@ check "restores pre-dispatch content, not empty" "$GOT" "$WANT"
 # --- Case 2: no ledger existed before dispatch; subagent's fetch creates
 #     one; restore must delete it, returning to true absence. ---
 rm -f "$LEDGER_FILE"
-run_pre "$SESSION" "toolu_2" > /dev/null
+run_start "$SESSION" "agent_2" > /dev/null
 echo '{"progressive-disclosure":"2026-08-01T00:10:00Z"}' > "$LEDGER_FILE"
-run_post "$SESSION" "toolu_2" > /dev/null
+run_stop "$SESSION" "agent_2" > /dev/null
 if [[ -f "$LEDGER_FILE" ]]; then
-  echo "FAIL [restores true absence]: ledger file still exists"; FAIL=$((FAIL+1))
+  bad "restores true absence" "ledger file still exists"
 else
-  echo "PASS [restores true absence]"; PASS=$((PASS+1))
+  ok "restores true absence"
 fi
 
-# --- Case 3: concurrent dispatches (two distinct tool_use_id) must not
-#     collide -- each pair operates on its own snapshot. ---
+# --- Case 3: concurrent dispatches (two distinct agent_id) must not
+#     collide -- each pair operates on its own snapshot. This is why the key
+#     is session_id+agent_id and not session_id alone. ---
 echo '{"a":"2026-08-01T00:00:00Z"}' > "$LEDGER_FILE"
-run_pre "$SESSION" "toolu_3a" > /dev/null
+run_start "$SESSION" "agent_3a" > /dev/null
 echo '{"a":"2026-08-01T00:00:00Z","b":"2026-08-01T00:01:00Z"}' > "$LEDGER_FILE"
-run_pre "$SESSION" "toolu_3b" > /dev/null
+run_start "$SESSION" "agent_3b" > /dev/null
 echo '{"a":"2026-08-01T00:00:00Z","b":"2026-08-01T00:01:00Z","c":"2026-08-01T00:02:00Z"}' > "$LEDGER_FILE"
-run_post "$SESSION" "toolu_3a" > /dev/null
+run_stop "$SESSION" "agent_3a" > /dev/null
 GOT=$(cat "$LEDGER_FILE" | jq -S .)
 WANT=$(echo '{"a":"2026-08-01T00:00:00Z"}' | jq -S .)
 check "first dispatch restores its own pre-dispatch snapshot" "$GOT" "$WANT"
 
-# --- Case 4: restore with no prior snapshot (Pre never ran) is a no-op. ---
+# --- Case 4: restore with no prior snapshot (SubagentStart never ran) is a
+#     no-op. ---
 echo '{"z":"2026-08-01T00:00:00Z"}' > "$LEDGER_FILE"
-run_post "$SESSION" "toolu_never_snapshotted" > /dev/null
+run_stop "$SESSION" "agent_never_snapshotted" > /dev/null
 GOT=$(cat "$LEDGER_FILE" | jq -S .)
 WANT=$(echo '{"z":"2026-08-01T00:00:00Z"}' | jq -S .)
 check "restore no-ops without a matching snapshot" "$GOT" "$WANT"
 
-# --- Case 5: missing tool_use_id degrades to a safe no-op on both sides. ---
+# --- Case 5: missing agent_id degrades to a safe no-op on both sides. ---
 echo '{"q":"2026-08-01T00:00:00Z"}' > "$LEDGER_FILE"
-run_pre "$SESSION" "" > /dev/null
+run_start "$SESSION" "" > /dev/null
 echo '{"q":"2026-08-01T00:00:00Z","r":"2026-08-01T00:01:00Z"}' > "$LEDGER_FILE"
-run_post "$SESSION" "" > /dev/null
+run_stop "$SESSION" "" > /dev/null
 GOT=$(cat "$LEDGER_FILE" | jq -S .)
 WANT=$(echo '{"q":"2026-08-01T00:00:00Z","r":"2026-08-01T00:01:00Z"}' | jq -S .)
-check "missing tool_use_id is a safe no-op, not a crash" "$GOT" "$WANT"
+check "missing agent_id is a safe no-op, not a crash" "$GOT" "$WANT"
 
-# --- Wiring: both hooks registered on the Agent matcher, correct events. ---
-PRE_MATCHER=$(jq -r '
-  .hooks.PreToolUse[]
-  | select(any(.hooks[]?; ((.command // "") + " " + ((.args // []) | join(" "))) | test("agent-guide-snapshot\\.mjs")))
-  | .matcher' "$HOOKS_JSON")
-check "snapshot hook wired to PreToolUse:Agent" "$PRE_MATCHER" "Agent"
+# --- Case 6: THE REGRESSION GATE. Feed each hook a real tool-lifecycle
+#     payload -- exactly what PreToolUse/PostToolUse:Agent deliver, carrying
+#     tool_use_id and NO agent_id. Both must (a) leave the ledger untouched
+#     and (b) say so on stderr. This is what fails if either hook is ever
+#     re-wired to a tool event; the pre-2026-08-27 wiring passed every other
+#     case in this file while doing nothing at all. ---
+tool_payload() {  # <hook_event_name>
+  jq -n --arg s "$SESSION" --arg c "$PROJECT" --arg e "$1" \
+    '{session_id:$s, tool_use_id:"toolu_01ABC", tool_name:"Agent", cwd:$c,
+      hook_event_name:$e, tool_input:{}}'
+}
 
-POST_MATCHER=$(jq -r '
-  .hooks.PostToolUse[]
-  | select(any(.hooks[]?; ((.command // "") + " " + ((.args // []) | join(" "))) | test("agent-guide-restore\\.mjs")))
-  | .matcher' "$HOOKS_JSON")
-check "restore hook wired to PostToolUse:Agent" "$POST_MATCHER" "Agent"
+echo '{"parent":"2026-08-01T00:00:00Z"}' > "$LEDGER_FILE"
+tool_payload "PreToolUse" | node "$SNAPSHOT_HOOK" > /dev/null 2>"$STDERR_FILE"
+if grep -q "$MISWIRED_MARKER" "$STDERR_FILE"; then
+  ok "snapshot on a tool-lifecycle payload reports mis-wiring"
+else
+  bad "snapshot on a tool-lifecycle payload reports mis-wiring" \
+      "no '$MISWIRED_MARKER' on stderr -- a tool-event wiring would fail silently again"
+fi
+
+# The subagent's marks land here in the real world; a mis-wired restore must
+# not undo them on the strength of a snapshot it never legitimately took.
+echo '{"parent":"2026-08-01T00:00:00Z","subagent":"2026-08-01T00:05:00Z"}' > "$LEDGER_FILE"
+tool_payload "PostToolUse" | node "$RESTORE_HOOK" > /dev/null 2>"$STDERR_FILE"
+if grep -q "$MISWIRED_MARKER" "$STDERR_FILE"; then
+  ok "restore on a tool-lifecycle payload reports mis-wiring"
+else
+  bad "restore on a tool-lifecycle payload reports mis-wiring" \
+      "no '$MISWIRED_MARKER' on stderr -- a tool-event wiring would fail silently again"
+fi
+
+GOT=$(cat "$LEDGER_FILE" | jq -S .)
+WANT=$(echo '{"parent":"2026-08-01T00:00:00Z","subagent":"2026-08-01T00:05:00Z"}' | jq -S .)
+check "tool-lifecycle payload leaves the ledger untouched" "$GOT" "$WANT"
+
+# --- Wiring: the bracket must sit on the AGENT lifecycle, both ends. ---
+hook_events() {  # <script basename> -> newline-separated event names
+  jq -r --arg s "$1" '
+    .hooks | to_entries[]
+    | .key as $ev | .value[]
+    | select(any(.hooks[]?; ((.args // []) | join(" ")) | test($s)))
+    | $ev' "$HOOKS_JSON" | sort -u
+}
+
+check "snapshot hook wired to SubagentStart" \
+  "$(hook_events 'agent-guide-snapshot\.mjs')" "SubagentStart"
+check "restore hook wired to SubagentStop" \
+  "$(hook_events 'agent-guide-restore\.mjs')" "SubagentStop"
 
 echo "---"
 echo "Total: $((PASS+FAIL)). Pass: $PASS. Fail: $FAIL."

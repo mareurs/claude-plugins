@@ -24,8 +24,15 @@ _Last refresh: codescout-companion 1.18.0 + buddy 0.10.0, 2026-08-27._
 | `~/.claude-kat` | 1.18.0 ✅ | ✅ | ✅ | `1.18.0` ✅ | ✅ |
 
 **⚠ Registration IS load-bearing for 1.18.0** — unlike buddy 0.10.0. It adds two NEW
-hook files (`agent-guide-snapshot.mjs` on `PreToolUse:Agent`,
-`agent-guide-restore.mjs` on `PostToolUse:Agent`) with two new `hooks.json` entries.
+hook files (`agent-guide-snapshot.mjs`, `agent-guide-restore.mjs`) with two new
+`hooks.json` entries.
+
+*(Wiring corrected 2026-08-27: they shipped on `PreToolUse:Agent` / `PostToolUse:Agent`
+and were a no-op there — Agent dispatch is async, so the tool call returns at launch and
+the bracket closed before the subagent ran. They now sit on `SubagentStart` /
+`SubagentStop`, keyed by `agent_id`. The registration point below is unchanged and is
+exactly why the correction needs a reload too.
+docs/issues/2026-08-27-agent-guide-restore-fires-at-launch-not-completion.md)*
 Which hooks *exist* is resolved by Claude Code at process launch, so the working-tree
 load path does **not** rescue this one: until a profile re-reads them, the guide-ledger
 snapshot/restore around subagent dispatch does not run there. `~/.claude` reloaded at

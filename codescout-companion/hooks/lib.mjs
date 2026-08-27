@@ -158,11 +158,66 @@ export function guideLedgerPath(sessionId, home) {
 // its own tool_use_id — matching PreToolUse/PostToolUse pairs for the SAME
 // dispatch without colliding with a sibling dispatch's own snapshot.
 // codescout:docs/issues/archive/2026-08-26-subagent-guide-fetch-starves-parent.md
-export function agentGuideSnapshotFile(sessionId, toolUseId) {
-  if (!sessionId || !toolUseId) return null;
+// --- Agent-dispatch guide-ledger snapshot: shared state key -------------
+//
+// A subagent shares its parent's Claude Code session_id (no separate MCP
+// identity exists for it), so the guide_hints ledger above is one keyspace
+// for both. A subagent's own first get_guide-triggering tool call marks a
+// topic delivered FOR THE WHOLE SESSION, silently starving the parent of
+// guidance the server believes it already handed over.
+// codescout:docs/issues/archive/2026-08-26-subagent-guide-fetch-starves-parent.md
+//
+// Keyed by BOTH session_id and agent_id: concurrent subagent dispatches
+// share one session_id, so session_id alone (like breakerFile above) would
+// let siblings clobber each other's snapshot.
+//
+// agent_id, NOT tool_use_id. The bracket runs SubagentStart -> SubagentStop,
+// which is the AGENT lifecycle; tool_use_id belongs to the TOOL lifecycle
+// (PreToolUse/PostToolUse:Agent) and is absent from both agent events. The
+// two lifecycles share no identifier at all, and they are not the same
+// interval: measured 2026-08-27, PostToolUse:Agent fires in the SAME
+// MILLISECOND as SubagentStart, ~17s before the subagent finishes, because
+// Agent dispatch is asynchronous and the tool call returns at launch.
+// docs/issues/2026-08-27-agent-guide-restore-fires-at-launch-not-completion.md
+export function agentGuideSnapshotFile(sessionId, agentId) {
+  if (!sessionId || !agentId) return null;
   const key = createHash('sha256')
-    .update(`${sessionId}:${toolUseId}`)
+    .update(`${sessionId}:${agentId}`)
     .digest('hex')
     .slice(0, 16);
   return join(tmpdir(), `cs-guide-snapshot-${key}`);
+}
+
+// Marker for the mis-wiring diagnostic below. Exported so the hook tests can
+// assert on it rather than on prose that a later edit would silently reword.
+export const MISWIRED_MARKER = 'cs-guide-bracket-miswired';
+
+// The agent-lifecycle bracket — agent-guide-snapshot.mjs on SubagentStart,
+// agent-guide-restore.mjs on SubagentStop — is keyed by agent_id. Tool-lifecycle
+// payloads (PreToolUse/PostToolUse with matcher Agent) carry tool_use_id and NO
+// agent_id, so a hook wired to the wrong event has nothing to key on.
+//
+// This is the structural gate for exactly that mis-wiring, and it exists because
+// the previous wiring was wrong for a week and nothing could tell. Restore was on
+// PostToolUse:Agent, which fires in the same millisecond as SubagentStart — ~17s
+// before the subagent finishes, since Agent dispatch is async and the tool call
+// returns at launch. Its only observable was an absent snapshot file, which is
+// ALSO what correct, already-completed operation looks like: one reading, six
+// causes. A green test suite sat on top of it the whole time.
+//
+// So: refuse to guess, and say so on stderr. Still fail-open — a hook that
+// blocked a dispatch over its own misconfiguration would be a worse bug than the
+// one it guards.
+// docs/issues/2026-08-27-agent-guide-restore-fires-at-launch-not-completion.md
+export function agentIdOrComplain(input, hookName) {
+  const agentId = input.agent_id || '';
+  if (!agentId) {
+    process.stderr.write(
+      `${MISWIRED_MARKER}: ${hookName} received hook_event_name=` +
+        `${input.hook_event_name || '?'} with no agent_id. It must be wired to an ` +
+        `agent lifecycle event (SubagentStart / SubagentStop), not a tool event. ` +
+        `Doing nothing.\n`
+    );
+  }
+  return agentId;
 }

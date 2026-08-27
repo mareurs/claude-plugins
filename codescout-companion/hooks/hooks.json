@@ -20,6 +20,15 @@
             "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/subagent-guidance.mjs"]
           }
         ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node",
+            "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/agent-guide-snapshot.mjs"]
+          }
+        ]
       }
     ],
     "UserPromptSubmit": [
@@ -124,29 +133,9 @@
             "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/pre-edit-hint.mjs"]
           }
         ]
-      },
-      {
-        "matcher": "Agent",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "node",
-            "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/agent-guide-snapshot.mjs"]
-          }
-        ]
       }
     ],
     "PostToolUse": [
-      {
-        "matcher": "Agent",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "node",
-            "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/agent-guide-restore.mjs"]
-          }
-        ]
-      },
       {
         "matcher": "EnterWorktree",
         "hooks": [
@@ -185,6 +174,17 @@
             "type": "command",
             "command": "node",
             "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/goal-stop-hook.mjs"]
+          }
+        ]
+      }
+    ],
+    "SubagentStop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node",
+            "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/agent-guide-restore.mjs"]
           }
         ]
       }

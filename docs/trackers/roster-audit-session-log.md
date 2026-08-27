@@ -1325,6 +1325,52 @@ zero when the intervention is inert, and check it first. That is `R-5`'s
 positive-control neighbour, applied to the treatment arm instead of the instrument —
 and `prompt-hamsa` H12 does not currently ask for it, since it governs the base arm
 only.
+
+### W-4 addendum 3 — instance 8: the instrument reproduced the bug it was built to diagnose, and a pre-registered control caught it
+
+**Valid:** dated 2026-08-27
+
+**8. The `SubagentStop` lifecycle probe.** Bug `bf528f91450857a4` exists because
+"no snapshot file" is one reading for six causes. To settle its last open question —
+does this harness emit a subagent-*completion* event — I registered a probe on
+`SubagentStop` and dispatched a real agent.
+
+The designed observable was **the presence of a `subagentstop` line**. Its absence
+reads identically for *the event does not fire* and *my registration never took* —
+because plugin hook **content** loads live from the working tree while hook
+**registration** resolves at process launch, and no relaunch had happened. Same defect
+as F-13, in the apparatus built to diagnose a bug whose headline finding is that
+defect.
+
+**What was different this time: the control was pre-registered, and it fired.** The
+same probe script was registered in the same edit under `PreToolUse:Agent` — an event
+known to fire, matcher known to match. On dispatch, no `subagentstop` line **and no
+`control-pretooluse` line**, while the three hooks whose file *contents* I had
+instrumented all wrote normally. Reading: registration stale, result VOID. A hand
+invocation of the script wrote its line and exited 0, closing the last alternative
+(script broken).
+
+Had I shipped only the designed observable, I would have read the silence as
+"`SubagentStop` does not fire" and chosen a fix direction on it — most likely
+reverting `d47dea4` — on no evidence at all.
+
+**What this is and is not evidence for.** Addendum 2 closed with a hypothesis: that
+the remedy for a non-discriminating check is a required **treatment-side** positive
+control, not a better review checklist. This instance does **not** test that. The
+control here is **instrument-side** — `R-5`'s neighbour, the one addendum 2 explicitly
+sets aside — and instrument-side controls were already required by
+`docs/templates/eval-pre-registration.md`, written earlier the same night.
+
+So the honest reading is narrower than it first looks: this is the pre-registration
+template's instrument-control gate **paying out on its first real use outside the eval
+it was written for**, on a measurement nobody would have called an eval. The
+treatment-side hypothesis remains untested. What generalises is the scope: the gate
+earns its keep on any measurement whose negative result is an absence — not only on
+things labelled evals.
+
+**Promote-when: still unfired.** Same session, same night, same conversation. Eight
+instances, one of them now from the apparatus rather than the object of study, and the
+criterion still wants an independent work stream.
 ## W-5 — Writing the caveat discharges the obligation to close it — and the tell is whether it names a next action
 
 **Status:** candidate — recorded, NOT promoted. Same selection defect as its own evidence; see *Promote-when*.
