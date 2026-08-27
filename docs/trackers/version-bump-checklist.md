@@ -13,15 +13,15 @@ Release readiness across plugins × profiles. See
 
 ## State
 
-_Last refresh: codescout-companion 1.19.2 + buddy 0.10.0, 2026-08-27._
+_Last refresh: codescout-companion 1.19.3 + buddy 0.10.0, 2026-08-27._
 
-**codescout-companion** — canonical `1.19.2` · readme `1.19.2` · marketplace clean ✅
+**codescout-companion** — canonical `1.19.3` · readme `1.19.3` · marketplace clean ✅
 
 | profile | installed | cache dir | install_path ok | all entries | cache = working tree |
 |---|---|---|---|---|---|
-| `~/.claude` | 1.19.2 ✅ | ✅ | ✅ | `1.19.2` ✅ | ✅ |
-| `~/.claude-sdd` | 1.19.2 ✅ | ✅ | ✅ | `1.19.2` ✅ | ✅ |
-| `~/.claude-kat` | 1.19.2 ✅ | ✅ | ✅ | `1.19.2` ✅ | ✅ |
+| `~/.claude` | 1.19.3 ✅ | ✅ | ✅ | `1.19.3` ✅ | ✅ |
+| `~/.claude-sdd` | 1.19.3 ✅ | ✅ | ✅ | `1.19.3` ✅ | ✅ |
+| `~/.claude-kat` | 1.19.3 ✅ | ✅ | ✅ | `1.19.3` ✅ | ✅ |
 
 **Registration is NOT load-bearing for 1.19.1.** It changes hook *content* only —
 `lib.mjs`, `agent-guide-snapshot.mjs`, `agent-guide-restore.mjs` — and touches no
@@ -144,6 +144,35 @@ trace log does not attribute startups per profile. A session in either profile c
 run the four lines above to close it. Until then the honest state is one profile
 measured, two inferred.
 ## History
+
+### 2026-08-27 — 1.19.3, and the shortest a `cache = working tree ✅` has ever stayed true
+
+**Two minutes.** 1.19.2 seeded the caches at 14:18:05. A concurrent session committed
+`88f1e29` at 14:20:28 — two files, syncing the parked `il3-deny-hook.sh` mirror to
+codescout `18f8f9d1` — and all three profiles immediately differed from the working tree
+by exactly those two files. The table above was false before anyone read it.
+
+This is the *"release on content, not on behaviour"* rule from the 1.19.2 entry proving
+itself faster than it was written: `il3-deny-hook.sh` is **parked and unwired** — its own
+header says "This file does NOT run" — so the commit changed no behaviour whatsoever, and
+it drifted the caches anyway.
+
+**The operational lesson is about concurrency, not about that file.** This repo is worked
+by more than one session at a time. A release's cache-seeding is a snapshot of the tree at
+one instant, so *any* commit landing after it — yours or someone else's — silently
+invalidates the column. Re-check `cache = working tree` against `git log` at refresh time
+rather than trusting the release run that seeded it; the parity gates will not tell you,
+because they compare records to records and never read bytes.
+
+Verified after 1.19.3: `diff=0`, `leaks=0`, `il3-deny-hook.sh` md5 identical in all three
+caches and the tree; both parity gates OK; 41 suites green.
+
+**Do not read this release as closing the IL-3 friction.** The companion mirror is parked
+and does not run; the guard that actually fires is codescout's own, and the running MCP
+binary is `~/.cargo/bin/codescout` dated **2026-06-02**. `18f8f9d1` landed 2026-08-27
+12:55 and is built at `target/release/codescout` (14:11), but was never installed over the
+cargo-bin copy. Probed at 14:2x: `git rev-parse HEAD | head -1` is still refused. Fixed in
+source, not in the process answering calls — needs an install plus an MCP reconnect.
 
 ### 2026-08-27 — codescout-companion 1.19.2, a DOCUMENTATION-only release
 
