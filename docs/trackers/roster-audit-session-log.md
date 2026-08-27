@@ -1284,6 +1284,46 @@ and not one by the authoring pass that produced it. If that holds up, the remedy
 checking step at authoring time, not a better-informed author. Knowing the law did not
 install the check; six times.
 
+
+### W-4 addendum 2 — instance 7, and the first one a MACHINE caught
+
+**Valid:** dated 2026-08-27
+
+Still the same session, so it does nothing for the independence criterion. It earns its
+place for a different reason: it is the first instance caught by a **mechanical check at
+authoring time** rather than by a reviewer, which is precisely the remedy the previous
+addendum proposed on the strength of six instances that were all caught by review.
+
+The check: `docs/issues/archive/2026-08-27-concurrent-subagent-restores-discard-parent-guide-marks.md`
+asked for an *order-permutation* test — for one fixed interleaving, both subagent
+completion orders must produce the same final guide ledger — on the explicit grounds that
+"asserting it directly is stronger than asserting either specific outcome". It is a
+reasonable claim and it is wrong in the W-4 way. Mutation-testing the shipped fix by
+deleting sibling awareness (`vouched = ∅`) killed four assertions and **left the
+order-independence check GREEN**: both orders then converge on the same *wrong* ledger.
+A property that quantifies over orderings cannot see a defect that is uniform across
+orderings.
+
+So the strongest-sounding assertion in the suite was the one blind to the suite's own
+headline defect. It is now paired with a value check, and the pairing is commented in
+`agent-guide-snapshot.test.sh` so the next person to "simplify" the redundancy finds the
+reason first.
+
+**What this is evidence for.** Six instances said *knowing the law does not install the
+check*. This one says a cheap mechanical step does install it: mutation testing asks
+"which assertion dies?" and a non-discriminating assertion answers by not dying. No
+judgement, no vigilance, no memory of W-4 required — the author who wrote the blind
+assertion and the author who caught it were the same author in the same hour, and the
+only thing that changed was running the mutant.
+
+**Promote-when (unchanged, still unfired):** an instance from an independent work stream.
+**New, narrower promote-when:** two more cases where mutation testing catches a
+non-discriminating assertion that review had already passed. If that holds, the remedy
+promotes ahead of the law — "mutate before you trust a new gate" is actionable in a way
+that "beware non-discriminating checks" has now failed to be, seven times.
+
+**Status:** open — both criteria unfired.
+**Rests on:** the mutation run recorded in the archived bug file's *Tests to add* section.
 ### W-4 addendum 2 — instance 7, and it survived both of its own amendments
 
 **Valid:** dated 2026-08-27
