@@ -21,6 +21,22 @@
 //    torn — the restore write goes through the same write-tmp-then-rename
 //    pattern codescout's own Rust side uses (util::fs::write_utf8), so a
 //    reader can never observe a partial file.
+//
+// SUBTRACTIVE, not overwrite. Until 1.19.0 this wrote the snapshot over the
+// whole ledger, so with two dispatches in flight the LAST restore to fire won
+// and replayed the ledger as of ITS agent's start — discarding every mark the
+// parent made in between, and (via the `__ABSENT__` sentinel) sometimes
+// deleting the ledger outright. Now it removes only the keys that appeared
+// during this agent's lifetime AND that no sibling snapshot vouches for.
+//
+// Known limit, stated rather than left to be found: a key added while EVERY
+// live agent was already running is unattributable — no sibling snapshot
+// predates it — so a parent mark landing in that window is still removed.
+// Ledger keys carry no author, so no inspection of the ledger can fix this;
+// it needs per-tool-call attribution. The cost is one re-injected guide body,
+// and removal is the correct side to err on: keeping an unattributable key
+// risks the starvation this whole bracket exists to stop.
+// docs/issues/2026-08-27-concurrent-subagent-restores-discard-parent-guide-marks.md
 import { readFileSync, existsSync, writeFileSync, unlinkSync, renameSync } from 'node:fs';
 import { homedir } from 'node:os';
 import {
@@ -29,6 +45,9 @@ import {
   guideLedgerPath,
   agentGuideSnapshotFile,
   agentIdOrComplain,
+  listSiblingGuideSnapshots,
+  decodeGuideSnapshot,
+  encodeGuideSnapshot,
   emit,
 } from './lib.mjs';
 
@@ -52,22 +71,71 @@ const snapPath = agentGuideSnapshotFile(sessionId, agentId);
 
 if (ledgerPath && snapPath && existsSync(snapPath)) {
   try {
-    const snapshot = readFileSync(snapPath);
-    if (snapshot.toString('utf8') === '__ABSENT__') {
-      if (existsSync(ledgerPath)) unlinkSync(ledgerPath);
+    const self = decodeGuideSnapshot(readFileSync(snapPath, 'utf8'));
+    const siblings = listSiblingGuideSnapshots(sessionId, snapPath);
+
+    if (self && existsSync(ledgerPath)) {
+      let ledger = null;
+      try {
+        ledger = JSON.parse(readFileSync(ledgerPath, 'utf8'));
+      } catch {
+        // Unparseable. guide_ledger.rs's read_entries reads it as empty and
+        // the next mark overwrites it wholesale; touching it here could only
+        // make things worse.
+      }
+
+      // A key is this agent's to remove only if it appeared after this agent
+      // started AND no sibling vouches for it. A key in a sibling's
+      // start-snapshot predates that sibling, so it is not ours to drop.
+      const before = new Set(self.keys);
+      const vouched = new Set(siblings.flatMap((s) => s.keys));
+      const keep = (k) => before.has(k) || vouched.has(k);
+
+      let next = null;
+      if (Array.isArray(ledger)) {
+        const kept = ledger.map(String).filter(keep);
+        if (kept.length !== ledger.length) next = kept;
+      } else if (ledger && typeof ledger === 'object') {
+        const kept = Object.fromEntries(Object.entries(ledger).filter(([k]) => keep(k)));
+        if (Object.keys(kept).length !== Object.keys(ledger).length) next = kept;
+      }
+
+      if (next !== null) {
+        const empty = Array.isArray(next) ? next.length === 0 : Object.keys(next).length === 0;
+        if (empty) {
+          // `{}` is equivalent to a missing file for codescout's reader —
+          // read_entries() returns an empty map for both (verified against
+          // src/tools/guide_ledger.rs). Deleting anyway preserves the
+          // observable contract this hook has always had, so nothing
+          // downstream depends on that equivalence continuing to hold.
+          unlinkSync(ledgerPath);
+        } else {
+          const tmpPath = `${ledgerPath}.tmp-${process.pid}`;
+          writeFileSync(tmpPath, JSON.stringify(next));
+          renameSync(tmpPath, ledgerPath);
+        }
+      }
+    }
+
+    // Retain as a tombstone while any sibling is still live: "key K existed
+    // when this agent started" is evidence a later-finishing sibling needs,
+    // and it stays true after this agent is gone. Once every sibling is done
+    // too, nothing will ever consult them again.
+    const remaining = listSiblingGuideSnapshots(sessionId, snapPath);
+    if (remaining.every((s) => s.done)) {
+      for (const s of remaining) {
+        try {
+          unlinkSync(s.path);
+        } catch {
+          /* best-effort cleanup */
+        }
+      }
+      unlinkSync(snapPath);
     } else {
-      const tmpPath = `${ledgerPath}.tmp-${process.pid}`;
-      writeFileSync(tmpPath, snapshot);
-      renameSync(tmpPath, ledgerPath);
+      writeFileSync(snapPath, encodeGuideSnapshot(self ? self.keys : [], true));
     }
   } catch {
     /* best-effort: worst case the subagent's marks survive, same as before this fix */
-  } finally {
-    try {
-      unlinkSync(snapPath);
-    } catch {
-      /* best-effort cleanup */
-    }
   }
 }
 

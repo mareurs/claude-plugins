@@ -6,7 +6,7 @@
 // through the JSON `permissionDecision` field (honored by Claude Code AND
 // Copilot). A non-zero exit is never used to deny — on Copilot CLI a non-zero
 // PreToolUse exit is itself a deny, so a crash would block the user's tool.
-import { readFileSync, existsSync, mkdirSync, writeFileSync } from 'node:fs';
+import { readFileSync, existsSync, mkdirSync, writeFileSync, readdirSync, statSync, unlinkSync } from 'node:fs';
 import { join, isAbsolute } from 'node:path';
 import { homedir, tmpdir } from 'node:os';
 import { createHash } from 'node:crypto';
@@ -152,18 +152,6 @@ export function guideLedgerPath(sessionId, home) {
 // identity exists for it), so the guide_hints ledger above is one keyspace
 // for both. A subagent's own first get_guide-triggering tool call marks a
 // topic delivered FOR THE WHOLE SESSION, silently starving the parent of
-// guidance the server believes it already handed over. Keyed by BOTH
-// session_id and tool_use_id (not session_id alone, like breakerFile above)
-// because concurrent subagent dispatches share one session_id but each gets
-// its own tool_use_id — matching PreToolUse/PostToolUse pairs for the SAME
-// dispatch without colliding with a sibling dispatch's own snapshot.
-// codescout:docs/issues/archive/2026-08-26-subagent-guide-fetch-starves-parent.md
-// --- Agent-dispatch guide-ledger snapshot: shared state key -------------
-//
-// A subagent shares its parent's Claude Code session_id (no separate MCP
-// identity exists for it), so the guide_hints ledger above is one keyspace
-// for both. A subagent's own first get_guide-triggering tool call marks a
-// topic delivered FOR THE WHOLE SESSION, silently starving the parent of
 // guidance the server believes it already handed over.
 // codescout:docs/issues/archive/2026-08-26-subagent-guide-fetch-starves-parent.md
 //
@@ -179,13 +167,116 @@ export function guideLedgerPath(sessionId, home) {
 // MILLISECOND as SubagentStart, ~17s before the subagent finishes, because
 // Agent dispatch is asynchronous and the tool call returns at launch.
 // docs/issues/archive/2026-08-27-agent-guide-restore-fires-at-launch-not-completion.md
+//
+// The session hash and the agent hash are SEPARATE segments, rather than one
+// hash of "session:agent" as shipped in 1.19.0, because restore has to consult
+// its live SIBLINGS and a single combined hash cannot be globbed by session.
+// docs/issues/2026-08-27-concurrent-subagent-restores-discard-parent-guide-marks.md
+const SNAP_PREFIX = 'cs-guide-snapshot-';
+
+// Debris from a crashed session: the only deleter is a SubagentStop that may
+// never have fired, so nothing else ever collects these.
+const SNAP_MAX_AGE_MS = 24 * 60 * 60 * 1000;
+
+function shortHash(s) {
+  return createHash('sha256').update(String(s)).digest('hex').slice(0, 16);
+}
+
+export function agentGuideSnapshotPrefix(sessionId) {
+  if (!sessionId) return null;
+  return `${SNAP_PREFIX}${shortHash(sessionId)}-`;
+}
+
 export function agentGuideSnapshotFile(sessionId, agentId) {
   if (!sessionId || !agentId) return null;
-  const key = createHash('sha256')
-    .update(`${sessionId}:${agentId}`)
-    .digest('hex')
-    .slice(0, 16);
-  return join(tmpdir(), `cs-guide-snapshot-${key}`);
+  return join(tmpdir(), `${agentGuideSnapshotPrefix(sessionId)}${shortHash(agentId)}`);
+}
+
+// --- Snapshot payload ----------------------------------------------------
+//
+// A snapshot records the ledger's KEY SET at SubagentStart, not the ledger's
+// bytes. Restore is SUBTRACTIVE — it removes the keys that appeared during
+// this agent's lifetime — so it never writes a stamp back, and every
+// surviving topic keeps the parent's real delivery time. (The 1.19.0 restore
+// overwrote the whole file, rewinding every stamp to snapshot time, which is
+// the input to codescout's idle-expiry.)
+//
+// `done` marks a snapshot whose agent has already stopped. It is retained
+// rather than deleted while any sibling is still live, because "key K existed
+// when agent X started" stays true forever and a later-finishing sibling
+// still needs to consult it.
+export function encodeGuideSnapshot(keys, done = false) {
+  return JSON.stringify({ v: 1, keys: [...new Set(keys)].sort(), done: !!done });
+}
+
+// Tolerates every shape a snapshot file has ever had, so a mid-session plugin
+// upgrade degrades to a slightly stale key set rather than to a crash:
+//   {v:1,keys:[…],done:bool}   current
+//   "__ABSENT__"               1.19.0 sentinel for "no ledger at dispatch"
+//   {"topic":"<stamp>", …}     1.19.0 raw ledger bytes
+//   ["topic", …]               codescout's own legacy ledger shape
+// Returns null only when the text is none of them.
+export function decodeGuideSnapshot(text) {
+  const raw = String(text ?? '');
+  if (raw === '__ABSENT__') return { keys: [], done: false };
+  try {
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed)) return { keys: parsed.map(String), done: false };
+    if (parsed && typeof parsed === 'object') {
+      if (Array.isArray(parsed.keys)) return { keys: parsed.keys.map(String), done: !!parsed.done };
+      return { keys: Object.keys(parsed), done: false };
+    }
+  } catch {
+    /* fall through */
+  }
+  return null;
+}
+
+// The ledger's own on-disk shapes, mirroring guide_ledger.rs's `LedgerFile`:
+// a JSON object of topic -> RFC3339 stamp, or the legacy bare array. An
+// unparseable file yields no keys — which is what read_entries() does too.
+export function guideLedgerKeys(text) {
+  try {
+    const parsed = JSON.parse(String(text ?? ''));
+    if (Array.isArray(parsed)) return parsed.map(String);
+    if (parsed && typeof parsed === 'object') return Object.keys(parsed);
+  } catch {
+    /* an empty ledger, same as guide_ledger.rs's read_entries */
+  }
+  return [];
+}
+
+// Every snapshot for this session except `selfPath`. Best-effort in every
+// direction: an unreadable or unparseable sibling contributes nothing rather
+// than aborting the restore, since losing one sibling's evidence costs a
+// re-injected guide while aborting costs the whole undo.
+export function listSiblingGuideSnapshots(sessionId, selfPath, now = Date.now()) {
+  const prefix = agentGuideSnapshotPrefix(sessionId);
+  if (!prefix) return [];
+  const dir = tmpdir();
+  let names;
+  try {
+    names = readdirSync(dir);
+  } catch {
+    return [];
+  }
+  const out = [];
+  for (const name of names) {
+    if (!name.startsWith(prefix)) continue;
+    const path = join(dir, name);
+    if (path === selfPath) continue;
+    try {
+      if (now - statSync(path).mtimeMs > SNAP_MAX_AGE_MS) {
+        unlinkSync(path);
+        continue;
+      }
+      const snap = decodeGuideSnapshot(readFileSync(path, 'utf8'));
+      if (snap) out.push({ path, ...snap });
+    } catch {
+      /* best-effort */
+    }
+  }
+  return out;
 }
 
 // Marker for the mis-wiring diagnostic below. Exported so the hook tests can

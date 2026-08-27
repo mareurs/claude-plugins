@@ -134,20 +134,88 @@ fi
 
 # --- Case 3: concurrent dispatches (two distinct agent_id) must not
 #     collide -- each pair operates on its own snapshot. This is why the key
-#     is session_id+agent_id and not session_id alone. ---
+#     is session_id+agent_id and not session_id alone.
+#
+#     It also pins the SIBLING rule. `b` here is a mark the PARENT made
+#     between the two dispatches, and it must survive agent_3a's restore:
+#     agent_3b's start-snapshot contains `b`, which proves `b` predates 3b
+#     and so is not 3a's to remove. Until 1.19.0 restore overwrote the ledger
+#     wholesale, so 3a replayed its own start-view and discarded `b` -- and
+#     this case asserted that discard as if it were the correct answer.
+#     docs/issues/2026-08-27-concurrent-subagent-restores-discard-parent-guide-marks.md
 echo '{"a":"2026-08-01T00:00:00Z"}' > "$LEDGER_FILE"
 run_start "$SESSION" "agent_3a" > /dev/null
 echo '{"a":"2026-08-01T00:00:00Z","b":"2026-08-01T00:01:00Z"}' > "$LEDGER_FILE"
 run_start "$SESSION" "agent_3b" > /dev/null
+# `c` is a subagent's own mark -- the thing the bracket exists to undo.
 echo '{"a":"2026-08-01T00:00:00Z","b":"2026-08-01T00:01:00Z","c":"2026-08-01T00:02:00Z"}' > "$LEDGER_FILE"
 run_stop "$SESSION" "agent_3a" > /dev/null
 GOT=$(cat "$LEDGER_FILE" | jq -S .)
-WANT=$(echo '{"a":"2026-08-01T00:00:00Z"}' | jq -S .)
-check "first dispatch restores its own pre-dispatch snapshot" "$GOT" "$WANT"
+WANT=$(echo '{"a":"2026-08-01T00:00:00Z","b":"2026-08-01T00:01:00Z"}' | jq -S .)
+check "sibling's snapshot vouches for the parent's interleaved mark" "$GOT" "$WANT"
 
 # Drain the sibling: every real dispatch gets a SubagentStop, so leaving
 # agent_3b's snapshot behind models nothing and leaks a file.
 run_stop "$SESSION" "agent_3b" > /dev/null
+GOT=$(cat "$LEDGER_FILE" | jq -S .)
+check "second stop converges to the same ledger" "$GOT" "$WANT"
+
+# --- Case 3b: stamp preservation. Subtractive restore filters the CURRENT
+#     ledger, so a topic the parent RE-marked during the dispatch keeps its
+#     new stamp. Overwrite-restore replayed the snapshot's stale stamp,
+#     silently rewinding the input to codescout's idle-expiry. Case 3 cannot
+#     catch this -- its stamps never change, so both designs agree there. ---
+rm -f "$TMPDIR"/cs-guide-snapshot-* 2>/dev/null
+echo '{"a":"2026-08-01T00:00:00Z"}' > "$LEDGER_FILE"
+run_start "$SESSION" "agent_stamp" > /dev/null
+echo '{"a":"2026-08-01T09:00:00Z","sub":"2026-08-01T00:05:00Z"}' > "$LEDGER_FILE"
+run_stop "$SESSION" "agent_stamp" > /dev/null
+GOT=$(cat "$LEDGER_FILE" | jq -S .)
+WANT=$(echo '{"a":"2026-08-01T09:00:00Z"}' | jq -S .)
+check "a re-marked topic keeps its new stamp, not the snapshot's" "$GOT" "$WANT"
+
+# --- Case 3c: ORDER INDEPENDENCE. For one fixed interleaving of marks, both
+#     completion orders must produce the SAME final ledger. That is the
+#     property 1.19.0 actually violated -- same inputs, different stop order,
+#     different result -- and asserting it directly is stronger than
+#     asserting either specific outcome.
+#
+#     But it is NOT sufficient alone, and the pairing below is deliberate:
+#     mutation-tested 2026-08-27, deleting sibling awareness entirely left
+#     this check GREEN, because both orders then converge on the same WRONG
+#     ledger. Order-independence pins the shape; the value check underneath
+#     pins the content. Keep both. ---
+run_interleaving() {  # <suffix> <stop_first> <stop_second> -> final ledger
+  rm -f "$TMPDIR"/cs-guide-snapshot-* 2>/dev/null
+  echo '{"base":"2026-08-01T00:00:00Z"}' > "$LEDGER_FILE"
+  run_start "$SESSION" "A$1" > /dev/null
+  echo '{"base":"2026-08-01T00:00:00Z","PARENT_Z":"2026-08-01T00:01:00Z"}' > "$LEDGER_FILE"
+  run_start "$SESSION" "B$1" > /dev/null
+  echo '{"base":"2026-08-01T00:00:00Z","PARENT_Z":"2026-08-01T00:01:00Z","subX":"2026-08-01T00:02:00Z","subY":"2026-08-01T00:03:00Z"}' > "$LEDGER_FILE"
+  run_stop "$SESSION" "$2" > /dev/null
+  run_stop "$SESSION" "$3" > /dev/null
+  cat "$LEDGER_FILE" 2>/dev/null | jq -S .
+}
+ORDER_AB=$(run_interleaving 1 A1 B1)
+ORDER_BA=$(run_interleaving 2 B2 A2)
+check "final ledger is independent of completion order" "$ORDER_AB" "$ORDER_BA"
+WANT=$(echo '{"base":"2026-08-01T00:00:00Z","PARENT_Z":"2026-08-01T00:01:00Z"}' | jq -S .)
+check "both orders keep the parent's mark and drop both subagents'" "$ORDER_AB" "$WANT"
+
+# --- Case 3d: the earliest agent started when NO ledger existed, and
+#     finishes LAST. Until 1.19.0 its `__ABSENT__` sentinel made restore
+#     unlinkSync the ledger outright, so every mark the parent made after
+#     that dispatch was destroyed -- the worst outcome of the whole class. ---
+rm -f "$LEDGER_FILE" "$TMPDIR"/cs-guide-snapshot-* 2>/dev/null
+run_start "$SESSION" "agent_v3a" > /dev/null
+echo '{"PARENT_Z":"2026-08-01T00:01:00Z"}' > "$LEDGER_FILE"
+run_start "$SESSION" "agent_v3b" > /dev/null
+echo '{"PARENT_Z":"2026-08-01T00:01:00Z","subX":"2026-08-01T00:02:00Z"}' > "$LEDGER_FILE"
+run_stop "$SESSION" "agent_v3b" > /dev/null
+run_stop "$SESSION" "agent_v3a" > /dev/null
+GOT=$(cat "$LEDGER_FILE" 2>/dev/null | jq -S .)
+WANT=$(echo '{"PARENT_Z":"2026-08-01T00:01:00Z"}' | jq -S .)
+check "an agent predating the ledger no longer deletes it on the way out" "$GOT" "$WANT"
 
 # --- Case 4: restore with no prior snapshot (SubagentStart never ran) is a
 #     no-op. ---

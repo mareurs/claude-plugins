@@ -33,6 +33,8 @@ import {
   guideLedgerPath,
   agentGuideSnapshotFile,
   agentIdOrComplain,
+  guideLedgerKeys,
+  encodeGuideSnapshot,
   emit,
 } from './lib.mjs';
 
@@ -56,15 +58,15 @@ const snapPath = agentGuideSnapshotFile(sessionId, agentId);
 
 if (ledgerPath && snapPath) {
   try {
-    if (existsSync(ledgerPath)) {
-      writeFileSync(snapPath, readFileSync(ledgerPath));
-    } else {
-      // Absence is itself the state to restore — a sentinel distinct from
-      // "no snapshot file" (SubagentStart never ran), which restore treats as
-      // a no-op. Safe: the real ledger is always JSON the server writes, never
-      // this literal string.
-      writeFileSync(snapPath, '__ABSENT__');
-    }
+    // The KEY SET, not the bytes: restore subtracts what appeared during this
+    // agent's lifetime rather than overwriting, so it never needs the stamps.
+    // An absent ledger is simply an empty key set — the `__ABSENT__` sentinel
+    // this hook wrote until 1.19.0 existed only because restore-by-overwrite
+    // had no way to express "and there was no file", and its restore path
+    // (unlinkSync) is what deleted a whole ledger out from under the parent.
+    // docs/issues/2026-08-27-concurrent-subagent-restores-discard-parent-guide-marks.md
+    const keys = existsSync(ledgerPath) ? guideLedgerKeys(readFileSync(ledgerPath, 'utf8')) : [];
+    writeFileSync(snapPath, encodeGuideSnapshot(keys, false));
   } catch {
     /* best-effort: a failed snapshot means restore no-ops for this dispatch */
   }
