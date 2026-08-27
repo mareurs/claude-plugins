@@ -145,6 +145,33 @@ run the four lines above to close it. Until then the honest state is one profile
 measured, two inferred.
 ## History
 
+### 2026-08-27 — scope correction: what the 1.18.0–1.19.1 guide-ledger work actually bought
+
+Not a release. Recorded here because three consecutive entries above describe releases of a
+feature whose value was overstated, and a reader working back through them would inherit
+the overstatement.
+
+The `SubagentStart`/`SubagentStop` guide-ledger bracket — shipped 1.18.0, rewired 1.19.0,
+made concurrency-safe 1.19.1 — **cannot affect the session it runs in**. codescout loads
+the ledger once at server construction; the in-memory map is authoritative thereafter and
+`persist` is deliberately not read-modify-write, so the hooks edit a file the running
+server never re-reads. Measured, not read off the source: removing a topic from the live
+ledger file and re-fetching it still answered *"You already fetched … earlier this
+session"*, and the key reappeared in the file, re-persisted from memory.
+
+What the bracket does buy is the **next** server — a reconnect loads the cleaned file. That
+is kept; the claim is now scoped to it, in the hooks, the test suite, `lib.mjs`, and the
+`agent-dispatch-hooks` memory.
+
+**Release-process lesson, which is why this belongs in this tracker:** all three releases
+passed every gate this checklist has, and none of those gates can see the defect. Version
+consistency, cache seeding, install records, parity, byte-identical caches — every one
+asks *"is what we built deployed correctly?"*, never *"does what we built do anything?"*
+That is not a gap to close here (a release script cannot answer it), but it is worth
+knowing that a clean run of this checklist is silent on whether a feature works.
+
+`docs/issues/archive/2026-08-27-guide-ledger-bracket-is-inert-within-its-own-session.md`
+
 ### 2026-08-27 — codescout-companion 1.19.0 → 1.19.1, the first release with nothing to deploy
 
 A clean run: every gate green, no drift found, no new failure class. Recorded because

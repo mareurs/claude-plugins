@@ -10,7 +10,7 @@ tags:
 - guide-ledger
 - concurrency
 closed: 2026-08-27
-unverified: 'SUPERSEDED BY MEASUREMENT 2026-08-27 — see docs/issues/2026-08-27-guide-ledger-bracket-is-inert-within-its-own-session.md. The fix was live-probed with two real concurrent subagents: the hooks fire correctly, snapshots use the new session-scoped name, the tombstone is written and all files are cleaned up. But the ledger convergence this fix is about CANNOT be observed, because codescout loads the ledger once at server construction and the in-memory map is authoritative thereafter. The fix is correct file-state engineering whose in-session effect is nil. Separately still true: the fix is PARTIAL by construction (a parent mark landing after ALL live agents started is unattributable and still removed).'
+unverified: 'SUPERSEDED BY MEASUREMENT 2026-08-27 — see docs/issues/archive/2026-08-27-guide-ledger-bracket-is-inert-within-its-own-session.md. The fix was live-probed with two real concurrent subagents: the hooks fire correctly, snapshots use the new session-scoped name, the tombstone is written and all files are cleaned up. But the ledger convergence this fix is about CANNOT be observed, because codescout loads the ledger once at server construction and the in-memory map is authoritative thereafter. The fix is correct file-state engineering whose in-session effect is nil. Separately still true: the fix is PARTIAL by construction (a parent mark landing after ALL live agents started is unattributable and still removed).'
 ---
 
 ---
@@ -244,7 +244,7 @@ parent `get_guide` between the two dispatches — the Variant 1 interleaving, fo
 Not because the hooks failed — because codescout loads the guide ledger once at server
 construction and the in-memory map is authoritative for the process's life. The hooks edit
 a file the running server neither re-reads nor consults. Filed as
-`docs/issues/2026-08-27-guide-ledger-bracket-is-inert-within-its-own-session.md`.
+`docs/issues/archive/2026-08-27-guide-ledger-bracket-is-inert-within-its-own-session.md`.
 
 A first attempt at that conclusion was **confounded and wrong**: this session's server had
 been rekeyed to a test fixture's session id by the repo's own test suite

@@ -1,7 +1,7 @@
 ---
-id: f9cb185adaa8fc5b
+id: 6aa4e517791a1e55
 kind: bug
-status: open
+status: wontfix
 title: The guide-ledger snapshot/restore bracket cannot affect the session it runs in
 tags:
 - codescout-companion
@@ -9,6 +9,8 @@ tags:
 - guide-ledger
 - subagent
 - design-defect
+closed: 2026-08-27
+unverified: 'The retained cross-restart benefit is REASONED, not measured: it follows from GuideLedger::load reading the file at server construction, but no probe has watched a reconnect inherit a cleaned ledger end to end. If that benefit is ever the thing being relied on, measure it rather than citing this file.'
 ---
 
 ---
@@ -94,20 +96,42 @@ assertion scope: a check that is green in both the working and the broken world.
 
 ## Fix directions (none implemented — this needs a decision, not a patch)
 
-1. **Accept the narrower scope.** Keep the bracket for its cross-restart value, and correct
-   every claim attached to it. Cheapest, honest, loses the in-session goal.
-2. **Add a reload path to codescout** — e.g. re-stat the ledger and merge on change. Runs
-   straight into the reason `persist` is not read-modify-write: a merge would resurrect
-   topics `re_arm`/`expire_idle` deliberately dropped. Would need a real design, not a flag.
-3. **Move the mechanism server-side.** The parent/subagent distinction the hooks are trying
-   to reconstruct from outside is one codescout could hold directly — but MCP gives it no
-   subagent identity, which is the upstream bug
+**Decision, 2026-08-27: option 1 — accept the narrower scope and correct the claims.**
+Options 2 and 3 stay recorded below so the next reader does not have to rediscover why
+they are hard.
+
+1. **Accept the narrower scope.** ✅ **Taken.** The bracket is kept for its cross-restart
+   value, and every claim attached to it now says so. Swept:
+   - `codescout-companion/hooks/agent-guide-snapshot.mjs` — SCOPE block after the
+     starvation rationale.
+   - `codescout-companion/hooks/agent-guide-restore.mjs` — SCOPE block; its existing
+     unattributable-key note became the *second* known limit.
+   - `codescout-companion/hooks/lib.mjs` — SCOPE note on the shared snapshot helpers.
+   - `codescout-companion/hooks/agent-guide-snapshot.test.sh` — stated where the feature
+     looks healthiest, naming that every assertion in the suite is about file state.
+   - `.codescout/memories/agent-dispatch-hooks.md` — new section, including the
+     measurement trap that confounded the first probe.
+   - `docs/trackers/version-bump-checklist.md` — History entry, so a reader working back
+     through three releases of this feature does not inherit the overstatement.
+
+   `CLAUDE.md` needed no change: checked, it never described the bracket.
+
+2. **Add a reload path to codescout.** Not taken. It runs straight into the reason
+   `persist` is not read-modify-write — merging the on-disk set back in would resurrect
+   exactly the topics `re_arm` and `expire_idle` just removed. A real design, not a flag.
+3. **Move the mechanism server-side.** Not taken. The parent/subagent distinction the
+   hooks reconstruct from outside is one codescout could hold directly, but MCP gives it
+   no subagent identity — the upstream bug
    (`codescout:docs/issues/archive/2026-08-26-subagent-guide-fetch-starves-parent.md`)
    this bracket was a workaround for in the first place.
 
-Option 1 is the recommendation; 2 and 3 are recorded so the next reader does not have to
-rediscover why they are hard.
+## Why `wontfix` and not `fixed`
 
+The root cause — the running server never re-reads the ledger — is untouched and will
+stay untouched. Nothing was repaired; the claims were brought into line with what the
+mechanism does. `fixed` would assert a repair that did not happen, and `mitigated` would
+imply a workaround is carrying the load. Neither is true: the in-session goal is
+abandoned, deliberately, and the cross-restart benefit was always working.
 ## References
 
 - `codescout:src/tools/guide_ledger.rs` — `load`, `persist`, `rekey`

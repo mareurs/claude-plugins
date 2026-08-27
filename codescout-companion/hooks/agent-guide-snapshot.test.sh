@@ -7,6 +7,18 @@
 #
 # codescout:docs/issues/archive/2026-08-26-subagent-guide-fetch-starves-parent.md
 #
+# SCOPE, measured 2026-08-27 and stated here because this suite is where the
+# feature looks healthiest: the bracket does NOT undo that starvation within the
+# session it runs in. codescout loads the ledger once at server construction and
+# the in-memory map is authoritative thereafter, so every assertion below is
+# about FILE STATE — which was always the part that worked. The benefit is the
+# NEXT server, which loads the cleaned file on a reconnect.
+#
+# No assertion here can reach the question that matters ("does the parent get
+# its guide back?"), because the subject of this suite is the wrong layer. That
+# is not a gap to close with more shell assertions; it needs a live session.
+# docs/issues/archive/2026-08-27-guide-ledger-bracket-is-inert-within-its-own-session.md
+#
 # Ledger path mirrors src/tools/guide_ledger.rs's own resolution exactly:
 # <XDG_STATE_HOME>/codescout/guide_hints/<sanitize(session_id)>.json, where
 # sanitize maps anything outside [A-Za-z0-9_-] to '_'. Both sides must agree

@@ -10,6 +10,16 @@
 // starving the parent of guidance the server believes it already handed
 // over. codescout:docs/issues/archive/2026-08-26-subagent-guide-fetch-starves-parent.md
 //
+// SCOPE — what this actually buys, measured 2026-08-27. It does NOT undo that
+// starvation within the session it runs in. codescout loads the ledger once, at
+// server construction, and the in-memory map is authoritative for the process's
+// life (`persist` is deliberately not read-modify-write), so a hook's file edit
+// is invisible to the running server and the next mark overwrites it from
+// memory. What the bracket buys is the NEXT server: a reconnect loads the file,
+// and a cleaned one starts without the subagent's marks where an uncleaned one
+// would carry them forward. Kept for that; do not re-broaden the claim.
+// docs/issues/archive/2026-08-27-guide-ledger-bracket-is-inert-within-its-own-session.md
+//
 // Why SubagentStart and not PreToolUse:Agent — which is where this lived until
 // 2026-08-27, doing nothing: Agent dispatch is ASYNCHRONOUS. The tool call
 // returns as soon as the agent is launched, so its PostToolUse fires in the same

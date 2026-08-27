@@ -90,6 +90,38 @@ POSITIVE CONTROL and require the control's line before reading anything into a m
 `/reload-plugins` reports the hook count — it went 24 -> 26 when two registrations landed,
 which is a cheap independent confirmation.
 
+
+## The guide-ledger bracket: what it does and does NOT do (measured 2026-08-27)
+
+`agent-guide-snapshot.mjs` (SubagentStart) + `agent-guide-restore.mjs` (SubagentStop)
+snapshot and subtractively restore codescout's guide-hints ledger around a subagent's
+lifetime. Read the scope before reasoning about it, because two sessions have now
+over-claimed it:
+
+**It does NOT stop a subagent starving its parent within the running session.**
+codescout calls `GuideLedger::load` exactly once, at server construction
+(`src/server.rs`, the sole production call site). The in-memory map is authoritative
+for the process's life, and `persist` is *deliberately* not read-modify-write — its
+own doc comment says so. A hook's edit to the ledger FILE is therefore invisible to
+the running server, and the next mark overwrites the file from memory.
+
+Confirmed at runtime, not inferred: remove a topic from the live ledger file, re-fetch
+it, and `get_guide` still answers *"You already fetched … earlier this session"* — then
+the key reappears in the file, re-persisted from memory.
+
+**What it does buy** is the NEXT server. A reconnect loads from disk, so a cleaned
+ledger starts without the subagent's marks where an uncleaned one would carry them
+forward and starve the parent *then*. Real, and much narrower than the feature's first
+three rounds of work assumed.
+
+**Watch for the measurement trap.** The first attempt at the test above was confounded:
+this machine's server had been rekeyed to a test fixture's session id by the repo's own
+suite, so the probe edited a file the server had abandoned. Before trusting any ledger
+measurement, check which file the server is actually writing —
+`ls -lt ~/.local/state/codescout/guide_hints/` and compare against the real session id.
+
+`docs/issues/archive/2026-08-27-guide-ledger-bracket-is-inert-within-its-own-session.md`
+`docs/issues/archive/2026-08-27-test-suite-rekeys-live-codescout-server.md`
 ## Design implication (for the explore bootstrap injector)
 - `explore-project` skill: 0 invocations across all 3 profiles, ever. Models instead
   hand-roll its bootstrap (absolute path + "use codescout not native Read/Grep") into

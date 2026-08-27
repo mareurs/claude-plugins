@@ -29,7 +29,17 @@
 // deleting the ledger outright. Now it removes only the keys that appeared
 // during this agent's lifetime AND that no sibling snapshot vouches for.
 //
-// Known limit, stated rather than left to be found: a key added while EVERY
+// SCOPE — what this actually buys, measured 2026-08-27. The bracket does NOT
+// undo that starvation within the session it runs in. codescout loads the
+// ledger once, at server construction, and the in-memory map is authoritative
+// for the process's life (`persist` is deliberately not read-modify-write), so
+// this file edit is invisible to the running server and the next mark
+// overwrites it from memory. What it buys is the NEXT server: a reconnect loads
+// the file, and a cleaned one starts without the subagent's marks where an
+// uncleaned one would carry them forward. Kept for that; do not re-broaden it.
+// docs/issues/archive/2026-08-27-guide-ledger-bracket-is-inert-within-its-own-session.md
+//
+// Second known limit, stated rather than left to be found: a key added while EVERY
 // live agent was already running is unattributable — no sibling snapshot
 // predates it — so a parent mark landing in that window is still removed.
 // Ledger keys carry no author, so no inspection of the ledger can fix this;

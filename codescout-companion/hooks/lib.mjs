@@ -155,6 +155,16 @@ export function guideLedgerPath(sessionId, home) {
 // guidance the server believes it already handed over.
 // codescout:docs/issues/archive/2026-08-26-subagent-guide-fetch-starves-parent.md
 //
+// SCOPE, measured 2026-08-27: the bracket these helpers serve does NOT undo
+// that starvation within the session it runs in. codescout loads the ledger
+// once, at server construction, and the in-memory map is authoritative for the
+// process's life — `persist` is deliberately not read-modify-write — so a hook's
+// file edit is invisible to the running server. The bracket's real benefit is
+// the NEXT server: a reconnect loads the file, and a cleaned one starts without
+// the subagent's marks. Everything below is correct file-state engineering for
+// that narrower purpose.
+// docs/issues/archive/2026-08-27-guide-ledger-bracket-is-inert-within-its-own-session.md
+//
 // Keyed by BOTH session_id and agent_id: concurrent subagent dispatches
 // share one session_id, so session_id alone (like breakerFile above) would
 // let siblings clobber each other's snapshot.
