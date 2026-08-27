@@ -178,7 +178,7 @@ export function guideLedgerPath(sessionId, home) {
 // interval: measured 2026-08-27, PostToolUse:Agent fires in the SAME
 // MILLISECOND as SubagentStart, ~17s before the subagent finishes, because
 // Agent dispatch is asynchronous and the tool call returns at launch.
-// docs/issues/2026-08-27-agent-guide-restore-fires-at-launch-not-completion.md
+// docs/issues/archive/2026-08-27-agent-guide-restore-fires-at-launch-not-completion.md
 export function agentGuideSnapshotFile(sessionId, agentId) {
   if (!sessionId || !agentId) return null;
   const key = createHash('sha256')
@@ -208,7 +208,7 @@ export const MISWIRED_MARKER = 'cs-guide-bracket-miswired';
 // So: refuse to guess, and say so on stderr. Still fail-open — a hook that
 // blocked a dispatch over its own misconfiguration would be a worse bug than the
 // one it guards.
-// docs/issues/2026-08-27-agent-guide-restore-fires-at-launch-not-completion.md
+// docs/issues/archive/2026-08-27-agent-guide-restore-fires-at-launch-not-completion.md
 export function agentIdOrComplain(input, hookName) {
   const agentId = input.agent_id || '';
   if (!agentId) {

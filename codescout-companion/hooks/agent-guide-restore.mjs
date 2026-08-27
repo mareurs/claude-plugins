@@ -10,7 +10,7 @@
 // and 17.2s before SubagentStop. Every mark the subagent made landed after the
 // restore meant to undo it. SubagentStop is the real completion signal; it
 // carries agent_id and no tool_use_id, which is why the snapshot key moved too.
-// docs/issues/2026-08-27-agent-guide-restore-fires-at-launch-not-completion.md
+// docs/issues/archive/2026-08-27-agent-guide-restore-fires-at-launch-not-completion.md
 //
 // Degrades safely in every direction:
 //  - a missing snapshot (SubagentStart never ran, e.g. hooks updated

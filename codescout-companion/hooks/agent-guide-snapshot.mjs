@@ -17,7 +17,7 @@
 // the tool call therefore closes before the subagent has run a single tool. The
 // agent lifecycle is the right interval, and its two ends share agent_id — the
 // tool lifecycle's tool_use_id appears on neither.
-// docs/issues/2026-08-27-agent-guide-restore-fires-at-launch-not-completion.md
+// docs/issues/archive/2026-08-27-agent-guide-restore-fires-at-launch-not-completion.md
 //
 // SubagentStart fires before the subagent's first tool call (measured: 3.4s
 // ahead in one run, 8s in another), so the ledger here is still pre-subagent.

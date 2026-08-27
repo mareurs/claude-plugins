@@ -30,7 +30,7 @@ Measured across three dispatches (CC 2.1.247), in-hook timestamps:
 **Any hook that needs "the subagent is done" must use `SubagentStop`.** This cost a
 shipped no-op: `codescout-companion` 1.18.0 bracketed a guide-ledger snapshot on
 `PreToolUse`/`PostToolUse:Agent` and the bracket closed before the subagent ran.
-`docs/issues/2026-08-27-agent-guide-restore-fires-at-launch-not-completion.md`
+`docs/issues/archive/2026-08-27-agent-guide-restore-fires-at-launch-not-completion.md`
 
 ## Payload key sets (MEASURED 2026-08-27, not read from docs)
 

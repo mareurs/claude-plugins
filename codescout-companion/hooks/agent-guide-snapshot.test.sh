@@ -32,7 +32,7 @@
 # tool-lifecycle payload and requires a diagnostic + a no-op. Re-wire either
 # hook back to a tool event and it fails at runtime, loudly, instead of
 # silently doing nothing for a week.
-# docs/issues/2026-08-27-agent-guide-restore-fires-at-launch-not-completion.md
+# docs/issues/archive/2026-08-27-agent-guide-restore-fires-at-launch-not-completion.md
 
 set -uo pipefail
 

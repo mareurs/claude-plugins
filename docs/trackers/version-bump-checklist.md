@@ -32,7 +32,7 @@ and were a no-op there — Agent dispatch is async, so the tool call returns at 
 the bracket closed before the subagent ran. They now sit on `SubagentStart` /
 `SubagentStop`, keyed by `agent_id`. The registration point below is unchanged and is
 exactly why the correction needs a reload too.
-docs/issues/2026-08-27-agent-guide-restore-fires-at-launch-not-completion.md)*
+docs/issues/archive/2026-08-27-agent-guide-restore-fires-at-launch-not-completion.md)*
 Which hooks *exist* is resolved by Claude Code at process launch, so the working-tree
 load path does **not** rescue this one: until a profile re-reads them, the guide-ledger
 snapshot/restore around subagent dispatch does not run there. `~/.claude` reloaded at

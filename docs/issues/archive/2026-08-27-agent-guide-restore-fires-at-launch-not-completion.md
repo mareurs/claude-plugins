@@ -1,7 +1,7 @@
 ---
-id: bf528f91450857a4
+id: a73b93536ed0e29a
 kind: bug
-status: investigating
+status: fixed
 title: 'Agent-dispatch guide-ledger guard is a no-op: PostToolUse fires at launch, not at completion'
 tags:
 - codescout-companion
@@ -190,6 +190,71 @@ Rejected, and why:
 self-sequenced pair of hook invocations. A test that calls Pre then Post itself can never
 fail this bug — that is precisely why `hooks/agent-guide-snapshot.test.sh` stayed green
 through it.
+## Fixed and verified live — 2026-08-27
+
+**Fix:** `ba2d214` (`main`), patch-id `2e9c082fb34c06d51c9be686e3aa019938cf3d56`.
+Snapshot `PreToolUse:Agent` → `SubagentStart`; restore `PostToolUse:Agent` →
+`SubagentStop`; key `tool_use_id` → `agent_id`. `hooks.json` diff is exactly 20/20,
+semantically verified against HEAD as the two moves and nothing else.
+
+**Test hygiene fix found while setting up the live check:** `991a419`, patch-id
+`d7bf6a6226ca2e6a17cdfcb82279a154df80448c`. The suite sandboxed `XDG_STATE_HOME` (the
+ledger) but `agentGuideSnapshotFile()` writes to `os.tmpdir()`, which it never covered —
+so Case 3's deliberately-unconsumed snapshot wrote a real file into the real `/tmp` on
+every run since the feature landed. Pre-existing; the old `tool_use_id`-keyed suite
+leaked the equivalent.
+
+### The structural gate, and its mutation proof
+
+No shell test can assert *when* Claude Code invokes a hook — that needs a live session,
+which is exactly why the old suite stayed green through this bug. So the regression gate
+is a **payload contract** instead: both hooks refuse to act without `agent_id` and write
+`cs-guide-bracket-miswired` to stderr. Re-wire either to a tool event and it fails loudly
+at runtime rather than silently doing nothing.
+
+Every gate verified by mutation, each failing exit 1:
+
+| mutation | what fails |
+|---|---|
+| re-wire `hooks.json` back to the tool events | 2 wiring assertions |
+| silence the diagnostic, wiring left correct | 2 payload-contract assertions |
+| drop the `TMPDIR` sandbox (all three vars) | the sandbox-effectiveness assertion |
+
+That third row is why the suite has two tmpdir assertions rather than one. The obvious
+check — "no snapshot files leak out of the suite" — is blind alone: remove the sandbox
+and it scans an empty dir and passes green *while* writing to the real `/tmp`, which is
+precisely the regression it exists to catch. (First attempt at that mutation also passed,
+because node's `os.tmpdir()` falls back `TMPDIR` → `TMP` → `TEMP` and only the first had
+been unexported — the mutation was ineffective, not the check sound.)
+
+### Live verification
+
+After `/reload-plugins`, one real dispatch, observed independently from the parent and
+from inside the subagent:
+
+| observer | t (UTC) | snapshot file |
+|---|---|---|
+| subagent, its own first command | `09:00:22.183` | `cs-guide-snapshot-cdb2b1fad3c8761c` present |
+| parent poller, 1 Hz, continuous | `09:00:22` → `09:00:49` | present throughout, **byte-identical to the parent ledger** (218 B) |
+| subagent, after its `sleep 15` | ~`09:00:46` | same file still present |
+| subagent ends | `09:00:46.848` | — |
+| parent poller | `09:01:00` | **gone** — `SubagentStop` consumed it |
+
+Under the old wiring the poller would have read `snapshots=0` for the whole window: the
+file was created and deleted within 2 ms at launch. The bracket now spans the subagent's
+entire lifetime, which is the thing this bug said it did not.
+
+**Limit, stated rather than glossed:** this run verified the bracket's *timing*, not its
+*undo*. The subagent marked no new guide topic (it was briefed with the delivered list,
+and an explicit `get_guide` does not write the ledger — only auto-injection does), so the
+ledger was unchanged at 218 B across the dispatch and the restore had nothing to revert.
+The undo semantics — restore-to-content, restore-to-absence, no-collision between
+concurrent dispatches — are covered by suite Cases 1–3.
+
+An incidental measurement worth keeping: an explicit `get_guide(topic)` call does **not**
+mark `guide_hints_emitted`; only auto-injection does. A ledger-based observable would
+therefore have been non-discriminating here, which is why the snapshot file was used
+instead.
 ## Note on scope
 
 `1.18.0` is otherwise fine and does not need reverting: the hooks are fail-open, so the

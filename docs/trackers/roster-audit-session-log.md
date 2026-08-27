@@ -1331,7 +1331,7 @@ only.
 
 **Valid:** dated 2026-08-27
 
-**8. The `SubagentStop` lifecycle probe.** Bug `bf528f91450857a4` exists because
+**8. The `SubagentStop` lifecycle probe.** Bug `a73b93536ed0e29a` exists because
 "no snapshot file" is one reading for six causes. To settle its last open question —
 does this harness emit a subagent-*completion* event — I registered a probe on
 `SubagentStop` and dispatched a real agent.
