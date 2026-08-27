@@ -25,7 +25,7 @@ This is a cross-repo initiative (llm-proxy + buddy plugin + the 3 CC profiles). 
 | Tool-def stripping (15 tools) | done, live | llm-proxy `.env` `STRIP_TOOLS` |
 | Per-session re-enable (`/proxy allow…`) | done, merged | llm-proxy `master` @ f8ace1b |
 | Langfuse measurement stack | done, committed | llm-proxy `docker-compose.langfuse.yml` |
-| pika tool-call audit | done | codescout U-28 |
+| pika tool-call audit | done | `codescout:U-28` |
 | Message-side **profiling** | done, 2026-06-22 | see "Message-side composition" below |
 | skill_load reduction (18.7%/~27K tok) | **NEXT — big lever** | Skill-tool bodies persist full-text |
 | SessionStart superpowers inject (8.7K tok) | candidate | superpowers plugin SessionStart |
@@ -51,7 +51,7 @@ Merged to `master` (f8ace1b; feature commits f9990df..b82cff8, 7 commits). Lets 
 Local Langfuse v3 stack (`docker-compose.langfuse.yml`, owned by llm-proxy, committed f8ace1b). UI at http://localhost:3000. Proxy logs each request's token usage and, when enabled, tool definitions. Real seed secrets live in gitignored `.env.langfuse-init`; compose file has dev-only inline creds.
 
 ### 4. pika audit
-codescout-pika audited tool-call hygiene against `.codescout/usage.db`; persisted observations + U-28 (read_markdown untagged errors) in codescout `docs/trackers/codescout-usage-frictions.md`.
+codescout-pika audited tool-call hygiene against `.codescout/usage.db`; persisted observations + `codescout:U-28` (read_markdown untagged errors) in codescout `docs/trackers/codescout-usage-frictions.md`.
 
 ## Measurements / findings
 

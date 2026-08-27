@@ -152,7 +152,7 @@ Codified so the Index column means the same thing across sessions.
 
 **Got (scouted reality):** PreToolUse/PostToolUse do **not** fire for Skill invocations — the Skill tool is handled as prompt expansion and bypasses the tool-hook pipeline entirely. Open feature request anthropics/claude-code#43630; related #22655 (skill_name in hook payloads). A secondary brainstorm claim also degraded under scout: "no frontmatter → skill not registered" is docs-silent (#25834 documents silent failure in agent contexts only) — the prescription (add `name`+`description` frontmatter) stands, but the claim was inference presented as fact.
 
-**Probable cause:** Hook-channel assumption pattern-matched from PreToolUse firing for ordinary tools; never verified against docs before being named in a recommendation (R-19 class: checkable fact asserted unread).
+**Probable cause:** Hook-channel assumption pattern-matched from PreToolUse firing for ordinary tools; never verified against docs before being named in a recommendation (`codescout:R-19` class: checkable fact asserted unread).
 
 **Workaround:** Rebase the binder design on **UserPromptSubmit** (verified: fires on slash-command submissions with the raw text in `prompt`; plain stdout on exit 0 injects context) and/or SessionStart. Also surfaced: a `UserPromptExpansion` hook event exists for command expansion — evaluate as a candidate channel in the spec.
 

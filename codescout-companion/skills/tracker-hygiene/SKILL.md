@@ -197,8 +197,7 @@ leaves the lesson absent.
    representative observer, being the only one reading the write-side copy.
 3. **Prefer a back-citation to a verbatim quote.** A quote goes red when the promoted rule is
    legitimately reworded — a false positive produced by the promotion working as intended.
-   The durable anchor is the promoted text citing its own entry id — *"(R-1 + R-7 in
-   codescout's `docs/trackers/reconnaissance-patterns.md`.)"* — which survives every rewrite,
+   The durable anchor is the promoted text citing its own entry id — *"(`codescout:R-1` + `codescout:R-7`.)"* — which survives every rewrite,
    so verification is a `grep` for the id.
 
 Evidence base: **HY-11** in codescout's `docs/trackers/tracker-hygiene-log.md` — the spec,

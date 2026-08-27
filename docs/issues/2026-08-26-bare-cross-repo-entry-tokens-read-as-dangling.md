@@ -151,6 +151,56 @@ librarian(action="link_scan", scope="project")   # write=false; read dangling_by
 
 ## Fix
 
+> **Item 4 done — the shipped prompt surface, 2026-08-27. Dangling 55 → 31, and the
+> finding array is UN-TRUNCATED for the first time** (it fits under the 50-item cap, so
+> that count is now a total rather than a floor). `reconnaissance/SKILL.md` 21 → 0,
+> `tracker-hygiene/SKILL.md` 1 → 0, `skill-loading-session-log` 1 → 0,
+> `headroom-optimization` 1 → 0. `cross_repo` 61 → 90 — declared, not silent. Suite
+> green; buddy pytest 502.
+>
+> **A measured ceiling turned the judgement into arithmetic.** Every local ledger's max
+> definition, across the whole repo: `R-6`, `W-5`, `U-5`. So any `R-N` above 6, `W-N`
+> above 5, or `U-N` above 5 **cannot** be local — no reading required. That is what made
+> the largest file in this issue the most mechanical one.
+>
+> **`reconnaissance/SKILL.md`'s convention was inverted in BOTH directions**, which is
+> why it held the biggest concentration. codescout's entries were written bare (21
+> dangling) while *this repo's own* entries were written `claude-plugins:R-4` /
+> `claude-plugins:R-5` — a self-repo qualifier that names no local file, so it scored
+> `cross_repo` and earned no edge, when the bare form would have resolved. Both halves
+> were fixed: prefix the codescout ones, strip the self-repo one.
+>
+> **A SECOND wrong edge pruned, and this repo had already diagnosed it.**
+> `tracker-hygiene/SKILL.md` quoted the reconnaissance line *"(R-1 + R-7 in codescout's
+> …)"*; bare `R-1` bound to this repo's `R-1` and produced a real
+> `tracker-hygiene/SKILL.md → reconnaissance-patterns` edge.
+> `roster-audit-session-log:F-13` had already measured exactly this — *"one
+> wrong-resolution (`R-1` binding to an unrelated local entry) … per fresh copy, in every
+> repo that follows the skill"*, severity med — and prescribed the `codescout:` form as
+> the remedy. Applying it is what pruned the edge. **Note this defeats the ceiling rule:
+> `R-1` is *below* the ceiling and still not local.** The rule proves a token is foreign;
+> it can never prove one is native. Only the prose settles that direction.
+>
+> **Style, chosen with the user:** qualify and drop the now-redundant
+> *"in codescout's `docs/trackers/…`"* pointer, since the qualifier carries it — ~45
+> characters back per citation on an always-on prompt surface. Kept where a following
+> clause needs the antecedent (the `codescout:R-3` chain, whose next words are *"the
+> ledger's most-repeated law"*) and where the ledger differs from the default
+> (`codescout:W-36` is in `bug-fix-session-log.md`).
+>
+> **Left, deliberately — both are subclass 1, verified by reading:**
+> `codescout-pika/SKILL.md`'s `U-7` is a generic *"allocate the next ID"* placeholder,
+> not a citation. `roster-audit-session-log`'s 13 are specimens: that file is the one
+> that **documents this defect class**, and its `U-28` is its deliberate
+> known-undefined probe token (*"expect dangling"*). Qualifying either would destroy the
+> thing being demonstrated.
+>
+> **This file's own residue, honestly.** These notes are themselves subclass 1 and
+> introduced tokens. Two were neutralised with the non-matching `W-<n>` placeholder shape
+> that `repo-hygiene-session-log:F-2` prescribes; one `R-104` remains dangling because
+> the specific number is the point of the sentence. The canonical document about
+> unresolvable citations will always contain some.
+
 > **The four judgement-call files, 2026-08-27 — ambiguous 65 → 54, dangling 59 → 55,
 > cross_repo 46 → 61, and ONE WRONG EDGE PRUNED.** `version-bump-checklist` 6 → 0,
 > `buddy-introspection` 2 → 0, `prompt-hamsa-audit-log` 1 → 0,
@@ -182,8 +232,10 @@ librarian(action="link_scan", scope="project")   # write=false; read dangling_by
 > **What was left, and why it should stay.** The 2 remaining in `repo-hygiene-session-log`
 > are **subclass 1**, and they are the purest instance of it in the repo: the entry is a
 > bug report about the allocator counting *example* `PREFIX-N` text as claimed ids, so its
-> prose necessarily contains `W-1`/`F-1` as **subject matter, not citations** — one of
-> them inside a literal `| W-1 | YYYY-MM-DD | … |` template row. Qualifying them would
+> prose necessarily contains `W-<n>`/`F-<n>` as **subject matter, not citations** — one
+> of them inside a literal `| W-<n> | YYYY-MM-DD | … |` template row. (Written in the
+> non-matching placeholder shape that entry's own *Fix idea* prescribes, because the
+> real tokens here would be exactly the false claim this paragraph is about.) Qualifying them would
 > assert a citation the author never made, and the entry's own `Severity` is *"low — no
 > data loss, no broken citation"*. They need the fenced-block remedy or nothing, and
 > nothing is the better trade here.
