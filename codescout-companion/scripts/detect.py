@@ -102,7 +102,7 @@ def _collect_memory_topics(directory, prefix=""):
     not merely under-count namespaced topics, it makes them unreachable through every
     surface fed by CS_MEMORY_NAMES: the SessionStart banner, and the subagent Phase 0
     block, which substitutes this list FOR the memory(action="list") call.
-    docs/issues/2026-08-27-cs-memory-names-skips-namespaced-memories.md
+    docs/issues/archive/2026-08-27-cs-memory-names-skips-namespaced-memories.md
 
     Recurses where the directory appears in sorted order rather than after all files, so
     the emitted order matches detect.mjs's walk exactly. The two are twins and nothing

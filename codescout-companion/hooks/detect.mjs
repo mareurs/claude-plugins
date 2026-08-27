@@ -172,7 +172,7 @@ export function detect(cwd, home, claudeConfigDir) {
     // here does not merely under-report, it makes those topics unreachable through
     // every surface fed by CS_MEMORY_NAMES: the SessionStart banner, and the subagent
     // Phase 0 block, which substitutes this list FOR the memory(action="list") call.
-    // docs/issues/2026-08-27-cs-memory-names-skips-namespaced-memories.md
+    // docs/issues/archive/2026-08-27-cs-memory-names-skips-namespaced-memories.md
     //
     // withFileTypes, not statSync: Dirent's isFile()/isDirectory() are lstat-based and
     // BOTH false for a symlink, which reproduces walkdir's no-follow default and makes

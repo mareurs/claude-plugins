@@ -1,14 +1,14 @@
 ---
-id: '38a6b165e6ab7578'
+id: 1a7795fef9df3084
 kind: bug
-status: open
+status: fixed
 title: 'BUG: CS_MEMORY_NAMES enumerates only the top level, so every namespaced memory is invisible to the SessionStart banner and to every dispatched subagent'
 tags:
 - codescout-companion
 - session-start
 - subagent-dispatch
 - memory
-closed: null
+closed: 2026-08-27
 opened: 2026-08-27
 owner: marius
 severity: med
@@ -135,51 +135,68 @@ defect; here the dispatch surface makes it undiscoverable.
 
 ## Fix
 
-Not implemented. Recurse one level and join with `/`, in both twins, so the name matches the
-topic key `memory(action="read", topic=…)` expects:
+**LANDED 2026-08-27** — `b305b1b5` / patch-id `8ad092d340072855b0175f82bb2d6d05b223c655`.
 
-```js
-// detect.mjs — namespaced topics live one directory down and are addressed "ns/name"
-for (const name of readdirSync(memoriesDir).sort()) {
-    const p = join(memoriesDir, name);
-    if (isFile(p) && name.endsWith('.md') && name.length > 3) {
-        memoryNames += `${name.slice(0, -3)} `;
-    } else if (isDir(p)) {
-        for (const sub of readdirSync(p).sort()) {
-            if (isFile(join(p, sub)) && sub.endsWith('.md') && sub.length > 3) {
-                memoryNames += `${name}/${sub.slice(0, -3)} `;
-            }
-        }
-    }
-}
-```
+Both twins now recurse and name each topic by its path. **The two "decisions" this issue
+flagged were not decisions**, and posing them as such was the filing's own error:
 
-Two things to decide rather than assume, and neither is obvious from here:
+- **Depth.** This section proposed one level and asked someone to "check what `memory()`
+  accepts before going deeper". Checked: `MemoryStore::list` (codescout
+  `src/memory/mod.rs:114`) walks with `walkdir` at **arbitrary** depth and keys each topic
+  by its relative path with the extension stripped and separators normalised to `/`. That
+  string is the topic key, so any depth short of walkdir's advertises nothing for topics
+  that exist. Matching the server exactly is the only shape correct by construction — and
+  it is *simpler* than the one-level special case this issue drafted.
+- **Budget.** Measured instead of weighed: **+161 bytes** on this project (496 total, 23
+  topics). Negligible against the SessionStart injection budget. A project would need
+  hundreds of namespaced memories to approach it.
 
-- **Depth.** One level matches every namespace in use today. Arbitrary depth is barely more
-  code but changes what a "topic" is; check what `memory()` itself accepts before going
-  deeper than the observed shape.
-- **Budget.** These names ship in the SessionStart injection, whose size is governed by
-  `docs/superpowers/specs/2026-05-19-injection-budget-design.md`. Five extra names is
-  ~150 bytes here, but a project with many namespaced memories could move a budget the
-  design pins — worth a number before merging, not after.
+Two implementation points that are load-bearing rather than incidental:
 
-Fix SHA + `git patch-id --stable`: *not yet fixed.*
+- **`withFileTypes`/`Dirent` in JS, an explicit `is_symlink()` skip in Python.** `statSync`
+  and pathlib's `is_dir()` both FOLLOW symlinks, so the obvious recursion written with the
+  existing `isFile`/`isDir` helpers can loop — in the SessionStart hook, where a hang costs
+  the whole session. `Dirent.isFile()`/`isDirectory()` are lstat-based and both false for a
+  symlink, so skipping is free and reproduces `walkdir`'s no-follow default. Parity, not a
+  divergence.
+- **Recursion happens where the directory sorts, not after all files.** Both twins emit the
+  same interleaved order. This is precisely the rule that agrees on flat fixtures and
+  diverges the moment a namespace appears — i.e. it would have drifted silently.
 
+Fail-open is now **per directory** on both sides: one unreadable subdirectory hides itself,
+never its siblings. The previous shape wrapped the whole scan, so a single failure reported
+zero memories.
 ## Tests added
 
-None — not fixed. `tests/test_detect.py::test_memories_collected_with_trailing_space` and
-`tests/test-detect-tools.sh` both exercise the flat case only; a fixture with
-`memories/ns/topic.md` asserting `ns/topic ∈ CS_MEMORY_NAMES` fails today. Add it to **both**
-suites — a fix landing in one twin and not the other is the failure mode the parity comment
-exists to prevent, and no test currently compares them.
+Three behaviour tests plus the parity test that did not exist, all in
+`tests/test_detect.py`:
 
+- `test_namespaced_memories_are_collected_as_paths` — the defect. Asserts the full
+  **ordered** list, not just membership, because ordering is the half that drifts silently.
+- `test_a_namespace_holding_no_markdown_advertises_nothing` — widening the walk creates a
+  way to invent a topic for a directory; the pre-fix guard was wrong but never could.
+- `test_a_symlinked_namespace_is_skipped_not_followed` — a test rather than a comment,
+  because the failure mode is a hung session rather than a wrong value.
+- `test_the_two_detect_twins_agree_on_memory_names` — **the gap this issue named.**
+  `detect.mjs` carried a comment asserting "parity with detect.py" and nothing executed it,
+  which is how this defect could have been half-fixed. Shells out to the real
+  `node detect.mjs` and compares the field. Scoped to `CS_MEMORY_NAMES` deliberately: the
+  twins emit different formats on purpose (JSON vs shell `KEY=VALUE` for
+  `detect-tools.sh`), so a whole-output diff compares serialisation and reads as a failure
+  when nothing is wrong — confirmed by doing exactly that during the fix and briefly
+  believing the twins had diverged.
+
+It names the expected string explicitly as well as comparing the twins, so a failure says
+*which* side is wrong rather than only that they disagree.
+
+Suites: `test_detect.py` 23, `detect-tools` 20, `session-start` 13,
+`session-start-payload` 7, `subagent-guidance` 34 — all green. Live check on the real
+project: both twins byte-identical at 23 topics, 5 namespaced, 496 bytes.
 ## Workarounds
 
-- Call `memory(action="list")` explicitly rather than trusting the banner; it returns all 23.
-- When dispatching a subagent that may need project memory, name the namespaced topics in
-  the prompt — the injected list will not mention them.
-
+None needed — fixed. Previously: call `memory(action="list")` rather than trusting the
+banner, and name namespaced topics explicitly when dispatching a subagent. Both are now
+unnecessary; the banner and the subagent Phase 0 block carry the full set.
 ## References
 
 - `codescout-companion/hooks/detect.mjs:164-178`
@@ -187,4 +204,3 @@ exists to prevent, and no test currently compares them.
 - `codescout-companion/hooks/session-start.mjs:192` — the banner
 - `codescout-companion/hooks/subagent-guidance.mjs:29-35` — the subagent channel
 - `codescout:docs/trackers/reconnaissance-patterns.md` — `R-119`
-
