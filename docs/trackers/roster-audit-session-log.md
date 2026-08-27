@@ -9,7 +9,7 @@ tags:
 entry_prefix:
 - F
 - W
-entry_high_water_F: 13
+entry_high_water_F: 14
 entry_high_water_W: 5
 ---
 
@@ -81,6 +81,7 @@ entry_high_water_W: 5
 | F-11 | 2026-08-26 | med | eval-design | fixed-verified | The scenario built to score `R-4` measured **tautological** (treat 3/3, ctrl 3/3, Δ+0.00) — naming the instrument by path let base competence read the script instead of probing it. Records corrected same evening |
 | F-13 | 2026-08-26 | high | eval-design | **The skill never loaded in three of four instrument scenarios**, so their "treatment" arms were controls. Adding the clause that activates it flips the *control* 0/3 → 3/3 — activation IS the treatment, and this harness cannot separate them. Corrects `F-11`, `F-12`, `W-3` |
 | F-12 | 2026-08-26 | high | eval-design | fixed-verified | **Second design also tautological — and the control arm probed unprompted.** All 3 no-skill runs built a known-answer probe. Two designs, six control runs: the behaviour `R-4` teaches is base competence, so this harness cannot measure it |
+| F-14 | 2026-08-27 | med | codescout-tool | open | `unfiltered_output_lines` counts the SOURCE, not the buffer (said `624`/`20000` over buffers holding ~231/238 lines). A grep past the cut returns 0, reading identically to "absent" — I concluded `run-all.sh` skips `hooks/*.test.sh`; it runs all 39. Upstream cause was mine: an IL-3 pipe-to-trimmer |
 ## Wins Index
 
 | ID | Date | Impact | Pattern | Counterfactual | Status |
@@ -1506,6 +1507,85 @@ anecdotes, arriving a third time in one night in a third namespace.
 Symmetry under both readings is the evidence a criterion sits in the right place.
 A promote-when that would have let through the conclusion its author was hoping
 for has not been set; it has been decorated.
+## F-14 — `unfiltered_output_lines` counts the source, not the buffer — a truncated tee answered a grep partially and I read it as complete
+
+**Valid:** dated 2026-08-27
+
+**Status:** fixed-at-source pending — mechanism measured, codescout-side bug filed
+
+**Observed:** I ran `./tests/run-all.sh 2>&1 | tail -30`, grepped the returned
+`unfiltered_output` handle, and concluded from `grep "▶" @cmd_…` → 17 suites and
+`grep "agent-guide" @cmd_…` → one line that `run-all.sh` does not execute
+`codescout-companion/hooks/*.test.sh`. **False.** Line 12 of `run-all.sh` globs them
+explicitly; a clean run reports **39** suites, and the agent-guide suite is one of them.
+
+**The mechanism, measured 2026-08-27 with a synthetic generator:**
+
+`run_command` on a pipeline tees the output of the pipeline **minus its final stage**
+into `unfiltered_output`. Confirmed on two shapes: `seq 1 1000 | awk '{…}'` put
+`seq`'s `1..1000` there while `output_id` held the awk result; `seq 1 20000 | awk |
+tail -5` put the *awk* rows there. The LHS is tee'd, not re-executed — a side effect
+on it fires exactly once, so there is no double-execution hazard.
+
+That buffer is **capped, and the response reports the wrong number for it:**
+
+| field | says | truth |
+|---|---|---|
+| `unfiltered_output_lines` | `20000` | buffer holds **238** lines |
+| `unfiltered_truncated` | `true` | the only accurate signal |
+| `output_id` | *absent* | the 5-line result fit inline, so no complete handle was offered at all |
+
+`unfiltered_output_lines` reports the **source** line count, not the **buffered**
+one. It reads as a description of the buffer and is not one. In the real incident it
+said `624` over a buffer holding ~231 lines.
+
+**Why it produced a confident wrong answer rather than a visible failure.** A `grep -c`
+over a truncated buffer returns `0` for anything past the cut, and `0` is the identical
+reading to *genuinely absent*. `grep "▶"` returning 17 of 39 suites looks exactly like a
+complete list of 17 suites — nothing in the result says "this is a prefix". One reading,
+two causes. That is `W-4` again, and it landed **in the same hour** I was writing up
+`W-4` addendum 3 and fixing a bug whose headline finding is that exact shape.
+
+**The tell was present and I skimmed it.** `unfiltered_truncated: true` sat in the same
+response object as the handle I then grepped. Nothing was hidden; the flag is adjacent
+to the count that contradicts it, and I read the count.
+
+**Root cause is mine, one level up: this was an Iron Law 3 violation.** IL-3 forbids
+piping unbounded `run_command` output to a trimmer, and exists precisely to prevent
+this. Both IL-3-compliant paths give a complete answer, and I used one later in the
+same session without incident: redirect to a file (`./tests/run-all.sh > "$OUT" 2>&1`,
+then grep the file), or run bare and grep `output_id`, which is **not** subject to this
+cap — verified at 1000/1000 lines.
+
+**But the guard could not have caught it, and that changes where the fix belongs.**
+Measured after the fact: the IL-3 gate classifies the LHS against a **name list**
+(`cargo/npm/pytest/go/rg/fd`, recursive `grep`, bare `find`, `git` without a limiter).
+A local script is on no list, so it is treated as bounded:
+
+| command | verdict |
+|---|---|
+| `git log --oneline \| head -5` | **BLOCKED** |
+| `./scripts/check-versions.sh \| tail -3` | **allowed** |
+| `./tests/run-all.sh 2>&1 \| tail -30` | **allowed** — this incident |
+
+The guard blocks a screenful of `git log` and waves through a script that runs 39 test
+suites. A name list cannot know what `./tests/run-all.sh` does, so this is its inherent
+limit rather than a missing entry. Which means the caller gets **no** signal they are on
+the lossy-tee path — the first hint is a field reporting a count the buffer does not
+have. Filed as `codescout:docs/issues/2026-08-27-unfiltered-output-lines-counts-the-source-not-the-buffer.md`
+(`f3451bda`), where that argument makes the read-time truncation echo the load-bearing
+fix rather than a nicety.
+
+**Corollary worth keeping separate from the cap:** when a pipeline's *final* output is
+small, no `output_id` is minted, so the truncated handle is the **only** handle in the
+response. The trimmer that made the output small is the same thing that removed the
+reliable way to inspect it.
+
+**Promote-when:** an instance where the wrong conclusion is drawn from a truncated
+buffer *without* an IL-3 violation upstream — i.e. from a bare `run_command` whose
+`output_id` was itself capped. That would separate "the tool's reporting is unsafe"
+from "I broke the law that protects me from it", which this instance cannot.
+
 ## Template for new entries
 
 <!-- New F-N / W-N entries land above this line. This heading is the anchor:
