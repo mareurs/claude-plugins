@@ -1,7 +1,7 @@
 // PostToolUse hook on Agent — the other half of agent-guide-snapshot.mjs.
 // Restores codescout's guide-hints ledger to its pre-dispatch snapshot,
 // undoing whatever the just-finished subagent's own tool calls marked
-// delivered. codescout:docs/issues/2026-08-26-subagent-guide-fetch-starves-parent.md
+// delivered. codescout:docs/issues/archive/2026-08-26-subagent-guide-fetch-starves-parent.md
 //
 // Degrades safely in every direction:
 //  - a missing snapshot (Pre never ran, e.g. hooks updated mid-session, or

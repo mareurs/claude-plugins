@@ -8,7 +8,7 @@
 // identity exists for it. A subagent's first get_guide-triggering tool call
 // therefore marks that topic delivered FOR THE WHOLE SESSION, silently
 // starving the parent of guidance the server believes it already handed
-// over. codescout:docs/issues/2026-08-26-subagent-guide-fetch-starves-parent.md
+// over. codescout:docs/issues/archive/2026-08-26-subagent-guide-fetch-starves-parent.md
 //
 // Fail-open, matching every other hook in this file: any error here degrades
 // to "no protection for this dispatch", never to blocking the dispatch or

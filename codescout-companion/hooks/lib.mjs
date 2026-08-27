@@ -157,7 +157,7 @@ export function guideLedgerPath(sessionId, home) {
 // because concurrent subagent dispatches share one session_id but each gets
 // its own tool_use_id — matching PreToolUse/PostToolUse pairs for the SAME
 // dispatch without colliding with a sibling dispatch's own snapshot.
-// codescout:docs/issues/2026-08-26-subagent-guide-fetch-starves-parent.md
+// codescout:docs/issues/archive/2026-08-26-subagent-guide-fetch-starves-parent.md
 export function agentGuideSnapshotFile(sessionId, toolUseId) {
   if (!sessionId || !toolUseId) return null;
   const key = createHash('sha256')
