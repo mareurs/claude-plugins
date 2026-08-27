@@ -23,5 +23,6 @@ __pycache__/
 *.pyc
 .fastembed_cache/
 .claude/*.log
+.claude/codescout-companion.json
 .vscode/
 .codescout/private-memories/
