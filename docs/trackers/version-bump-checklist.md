@@ -94,6 +94,34 @@ release's commit (`019bae5`, 2026-08-26 23:33), the most recent during this sess
 The log is repo-local and shared across profiles, so it proves cold starts happened
 but does not attribute them per profile — recorded as measured, not inflated to
 "all three confirmed."
+### Registration — `~/.claude` CONFIRMED by positive control, 2026-08-27
+
+`/reload-plugins` in `~/.claude` after the 0.10.0 release: *3 plugins · 45 skills ·
+6 agents · 24 hooks*. That output is a claim about what the reloader loaded, not
+evidence that a specific hook fires, so it was checked.
+
+**The check that was refused first.** `1.17.0`'s `cs-liveness.mjs` clears a breaker
+file at `$TMPDIR/cs-redirect-<sha256(sid)[:12]>` on every codescout tool answer. The
+file was **absent** — which reads identically whether the hook cleared it or the
+breaker never armed. Absence proves nothing here (`claude-plugins:W-4`).
+
+**The check that discriminates.** Arm it by hand, then make one codescout call:
+
+```
+SID=<session id>; KEY=$(printf '%s' "$SID" | sha256sum | cut -c1-12)
+printf '1' > "/tmp/cs-redirect-$KEY"     # arm
+<any codescout tool call>                 # PostToolUse fires
+[ -f "/tmp/cs-redirect-$KEY" ] && echo NOT-FIRING || echo FIRING
+```
+
+Result: **CLEARED — firing.** So `~/.claude` is confirmed at the level of "this hook
+executed," not merely "a cold start happened."
+
+**`~/.claude-sdd` and `~/.claude-kat` remain unconfirmed.** They are separate
+processes with their own session ids; this probe cannot reach them and the shared
+trace log does not attribute startups per profile. A session in either profile can
+run the four lines above to close it. Until then the honest state is one profile
+measured, two inferred.
 ## History
 ### 2026-08-27 — buddy 0.9.2 → 0.10.0, closing the drift the parity checks structurally could not see
 
