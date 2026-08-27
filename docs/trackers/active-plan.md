@@ -661,7 +661,8 @@ Warn if any SKILL.md mtime > 90 days AND no eval run in that window.
 So the loop can be re-derived without re-summoning hamsa from scratch.
 #### T-39 — Implement the specialist graph — advisors + fragments over the existing binding layer
 
-**Status:** open — design approved-pending-review, no implementation started
+**Status:** SHIPPED to main 2026-08-27 (`ea5f68c`..`77d3a03`, 8 commits, fast-forward).
+Two decisions remain open — see *Open after shipping* below.
 **Valid:** conditional — the design spec is superseded or withdrawn
 **Rests on:** `docs/superpowers/specs/2026-08-27-buddy-specialist-graph-design.md`
 
@@ -694,6 +695,57 @@ A three-arm behavioural eval is specified but not gating. It is possible here in
 way `roster-audit-session-log:F-13` was not: summon injects via a
 `UserPromptSubmit` hook, so activation is guaranteed by the substrate rather than
 chosen by the model, and the lever is finally separable from the treatment.
+
+### Open after shipping
+
+**1. The release is parked, deliberately.** `buddy/.claude-plugin/plugin.json` still
+reads `0.9.2` and no README row was added. `release.sh` is publish-class — it seeds
+versioned caches and repoints `installPath` in all three profiles, then pushes — so it
+was not run from an unmerged branch. **Now that this is on main it must be booked**,
+because this marketplace loads plugins from the repo *working tree*: the code is
+already live in all three profiles while the install records claim 0.9.2.
+`./scripts/release.sh buddy minor`, then the two steps the script cannot do (tracker
+refresh `cc8cb9e23ab5cc67`, cold-restart all three instances).
+
+**2. The untested premise, with a closing window.** See the spec's *§ The window
+closes, and one of the two remedies closes it permanently*. Either run the eval while
+the baseline is clean, or add the payload-header clause and amend the spec to say the
+premise was **insured, not verified**. Doing neither is not defensible; doing the
+second *by accident* destroys the measurement permanently. Trigger fires before any
+shipped specialist declares either key, or before any edit to the payload header
+string.
+
+### Deferred findings, triaged by the whole-branch review
+
+Recorded here because the SDD ledger was gitignored scratch and is now deleted; the
+git history holds the code but not this list.
+
+**Genuinely deferrable (10):** test-file and constant placement; the golden pins only
+the degenerate branch (`lens=None`, memories empty, bindings empty — pinning the other
+three `parts` appends is a real test-design job, not polish); unknown fragment renders
+its raw slug as an h2; no line cap on fragments while `collect_bindings` truncates at
+`BINDING_LINE_CAP`; fragment names interpolated into paths unvalidated (pre-existing
+trust model, worth one hardening pass covering `collect_bindings` too); missing blank
+lines before `def spill_payload`; global-scope assertion gap and the `except Exception`
+at `resolve_fragment`; advisor scope precedence untested (forced by the fixture stubbing
+`discover`); no advisor-count cap (measured 45-119 projected lines each).
+
+**Closed as non-issues (2):** the two malformed-input *directions* — fail-open for
+`fragments:` preserves `gates.md`, fail-closed for `advisors:` is the only sane default
+with no default advisor set. Correct as designed; do not unify. And the missing blank
+lines are pre-existing formatting.
+
+**Worth doing when someone next touches this file:** extract
+`collect_advisors(meta, project_root, index)` to match the file's `collect_*`
+convention and thread `bootstrap`'s already-computed index through, instead of
+`build_payload` re-running `discover()` per summon. One production caller. That single
+change also fixes the duplicate filesystem scan and unblocks testing advisor scope
+precedence without stubbing.
+
+**Latent, not live:** `project_advisor`'s scanner is fence-unaware — a fenced `## Heuristics`
+example inside a non-projected section would open a kept block. Measured zero fenced h2
+lines across all 12 shipped specialists, so this is a property of the current corpus
+rather than of the code.
 
 ## Open decisions
 
