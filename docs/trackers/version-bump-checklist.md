@@ -167,12 +167,37 @@ because they compare records to records and never read bytes.
 Verified after 1.19.3: `diff=0`, `leaks=0`, `il3-deny-hook.sh` md5 identical in all three
 caches and the tree; both parity gates OK; 41 suites green.
 
-**Do not read this release as closing the IL-3 friction.** The companion mirror is parked
-and does not run; the guard that actually fires is codescout's own, and the running MCP
-binary is `~/.cargo/bin/codescout` dated **2026-06-02**. `18f8f9d1` landed 2026-08-27
-12:55 and is built at `target/release/codescout` (14:11), but was never installed over the
-cargo-bin copy. Probed at 14:2x: `git rev-parse HEAD | head -1` is still refused. Fixed in
-source, not in the process answering calls — needs an install plus an MCP reconnect.
+**Do not read this release as closing the IL-3 friction** — and see the correction below,
+because the first version of this paragraph diagnosed it wrongly.
+
+The companion mirror is parked and does not run; the guard that actually fires is
+codescout's own. `18f8f9d1` ("IL3 stops refusing pipelines that already collapsed") landed
+2026-08-27 12:55 and was built to `target/release/codescout` at 14:11. Probed at 14:2x,
+`git rev-parse HEAD | head -1` was still refused.
+
+**CORRECTED 14:38, after the rebuild + `/mcp` reconnect.** The friction is now GONE — same
+probe returns the hash. Two errors in the paragraph above as first written:
+
+- It claimed the build "was never installed over the cargo-bin copy", inferred from
+  `stat -c %y ~/.cargo/bin/codescout` reading **2026-06-02**. That path is a **symlink** to
+  `target/release/codescout`, and GNU `stat` without `-L` reports the *link's* own mtime —
+  the day it was created — not the target's. The binary was current all along.
+  `readlink -f /proc/<pid>/exe` is what actually answers this.
+- It therefore prescribed "needs an install plus an MCP reconnect." Only the **reconnect**
+  was needed. A running process keeps its executable image, so the server answering calls
+  at 14:2x had been launched at 12:40, before the 14:11 build. Nothing was mis-installed;
+  the process was simply older than the binary on disk.
+
+The observation was right and the explanation was wrong, which is the more dangerous
+shape: the remedy it prescribed would have been busywork. Rule worth keeping — **to learn
+which binary a server is running, resolve `/proc/<pid>/exe`, never `stat` the path in the
+config.**
+
+**Bonus verification the reconnect made possible.** The new server (pid 1118970) is keyed
+to the real session id `f6ae2d77-…` and writes that ledger file. Before the test-isolation
+fix it would have been `sid-recon-marker-test`. That is `d7fb976c` confirmed at a *fresh
+server construction* — the strongest test available for it, and one only a reconnect
+could run.
 
 ### 2026-08-27 — codescout-companion 1.19.2, a DOCUMENTATION-only release
 
