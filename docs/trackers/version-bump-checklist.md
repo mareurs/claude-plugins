@@ -13,15 +13,24 @@ Release readiness across plugins × profiles. See
 
 ## State
 
-_Last refresh: buddy 0.10.0, 2026-08-27._
+_Last refresh: codescout-companion 1.18.0 + buddy 0.10.0, 2026-08-27._
 
-**codescout-companion** — canonical `1.17.0` · readme `1.17.0` · marketplace clean ✅
+**codescout-companion** — canonical `1.18.0` · readme `1.18.0` · marketplace clean ✅
 
-| profile | installed | cache dir | install_path ok | all entries |
-|---|---|---|---|---|
-| `~/.claude` | 1.17.0 ✅ | ✅ | ✅ | `1.17.0` ✅ |
-| `~/.claude-sdd` | 1.17.0 ✅ | ✅ | ✅ | `1.17.0` ✅ |
-| `~/.claude-kat` | 1.17.0 ✅ | ✅ | ✅ | `1.17.0` ✅ |
+| profile | installed | cache dir | install_path ok | all entries | cache = working tree |
+|---|---|---|---|---|---|
+| `~/.claude` | 1.18.0 ✅ | ✅ | ✅ | `1.18.0` ✅ | ✅ |
+| `~/.claude-sdd` | 1.18.0 ✅ | ✅ | ✅ | `1.18.0` ✅ | ✅ |
+| `~/.claude-kat` | 1.18.0 ✅ | ✅ | ✅ | `1.18.0` ✅ | ✅ |
+
+**⚠ Registration IS load-bearing for 1.18.0** — unlike buddy 0.10.0. It adds two NEW
+hook files (`agent-guide-snapshot.mjs` on `PreToolUse:Agent`,
+`agent-guide-restore.mjs` on `PostToolUse:Agent`) with two new `hooks.json` entries.
+Which hooks *exist* is resolved by Claude Code at process launch, so the working-tree
+load path does **not** rescue this one: until a profile re-reads them, the guide-ledger
+snapshot/restore around subagent dispatch does not run there. `~/.claude` reloaded at
+~08:40, after `d47dea4` landed at 08:11, so it has them. `~/.claude-sdd` and
+`~/.claude-kat` have **not** — they need `/reload-plugins` or a cold start.
 
 **buddy** — canonical `0.10.0` · readme `0.10.0` · marketplace clean ✅ — **the
 unreleased-code drift recorded here on 2026-08-27 is CLOSED.**
@@ -123,6 +132,36 @@ trace log does not attribute startups per profile. A session in either profile c
 run the four lines above to close it. Until then the honest state is one profile
 measured, two inferred.
 ## History
+### 2026-08-27 — codescout-companion 1.17.0 → 1.18.0, and the drift recurred within nine hours
+
+`NO_PUSH=1 ./scripts/release.sh codescout-companion minor`. Suite green, three caches
+seeded, three records repointed, parity clean, committed locally and not pushed.
+
+**The finding is the recurrence, not the release.** The entry below this one describes
+unreleased code going live because a directory-source marketplace serves the working
+tree. Nine hours later the same thing had happened again, to the other plugin, from a
+concurrent session: `d47dea4` (08:11) landed **two new hooks** —
+`agent-guide-snapshot.mjs` and `agent-guide-restore.mjs`, plus two `hooks.json`
+entries and a `lib.mjs` change — with `plugin.json` still reading `1.17.0`. Nobody did
+anything wrong; merging is simply not releasing, and nothing connected the two.
+
+**The new column caught it on its second outing**, naming the three missing files in
+all three profiles. It was added *for* the buddy case and found the companion case
+without being pointed at it — which is the difference between a check and an anecdote.
+
+**Minor, not patch.** `1.17.0` was itself a minor for adding one hook (`cs-liveness`);
+this adds two. The commit calls itself `fix(hooks)`, and the message's verb is not the
+semver class — new registered components are a minor.
+
+**And registration is load-bearing here, unlike buddy 0.10.0.** New hook *files* only
+exist for Claude Code once it re-reads them at launch, so the working-tree load path
+does not rescue this one. `~/.claude` reloaded after the commit landed and has them;
+the other two do not.
+
+**Post-release verification** (measured, not assumed): all three records `1.18.0` with
+own-profile `installPath` and the cache dir on disk; `cache = working tree` identical
+in all three; both new hook files present in all three snapshots.
+
 ### 2026-08-27 — buddy 0.9.2 → 0.10.0, closing the drift the parity checks structurally could not see
 
 The release owed since the specialist graph merged. `NO_PUSH=1 ./scripts/release.sh
