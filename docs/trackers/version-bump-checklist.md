@@ -27,13 +27,34 @@ _Last refresh: `27ac0ab`_
 | `~/.claude-sdd` | 1.17.0 ✅ | ✅ | ✅ | `1.17.0` ✅ |
 | `~/.claude-kat` | 1.17.0 ✅ | ✅ | ✅ | `1.17.0` ✅ |
 
-**buddy** — canonical `0.9.2` · readme `0.9.2` · marketplace clean ✅
+**buddy** — canonical `0.9.2` · readme `0.9.2` · marketplace clean ✅ — **but the
+version is now a LIE about what is running. See the warning below the table.**
 
 | profile | installed | cache dir | install_path ok | all entries |
 |---|---|---|---|---|
-| `~/.claude` | 0.9.2 ✅ | ✅ | ✅ | `0.9.2` ✅ |
-| `~/.claude-sdd` | 0.9.2 ✅ | ✅ | ✅ | `0.9.2` ✅ |
-| `~/.claude-kat` | 0.9.2 ✅ | ✅ | ✅ | `0.9.2` ✅ |
+| `~/.claude` | 0.9.2 ⚠ | ✅ | ✅ | `0.9.2` ⚠ |
+| `~/.claude-sdd` | 0.9.2 ⚠ | ✅ | ✅ | `0.9.2` ⚠ |
+| `~/.claude-kat` | 0.9.2 ⚠ | ✅ | ✅ | `0.9.2` ⚠ |
+
+**⚠ UNRELEASED CODE IS LIVE IN ALL THREE PROFILES (2026-08-27).** The specialist
+graph merged to main (`ea5f68c`..`77d3a03`) adding the `advisors:` and `fragments:`
+frontmatter keys and a rewritten `build_payload`. `release.sh` was **not** run —
+deliberately, because it is publish-class and the branch was unmerged at the time.
+
+Every ✅ in the rows above is still literally true and that is precisely the problem:
+the records agree with `plugin.json`, and both now describe code that no longer
+matches what is executing. This marketplace is a **directory source loading from the
+repo working tree** (CLAUDE.md § *Plugin Install Path*, verified in
+`.buddy/.session-start-trace.log`), so the merge made the new assembler live in all
+three profiles immediately. The version number did not follow it.
+
+This is the one drift class the parity checks cannot see, because every check
+compares records to records and to cache dirs — none compares any of them to the
+*working tree*, which is what actually serves. `check-profile-parity.sh` will report
+clean.
+
+**Owed:** `./scripts/release.sh buddy minor`, then this tracker's refresh and a cold
+restart of all three instances. Tracked as `active-plan:T-39` § *Open after shipping*.
 
 **claude-statusline** — canonical `1.1.7` · readme `1.1.7` · marketplace clean ✅
 
