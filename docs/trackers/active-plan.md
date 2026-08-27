@@ -437,7 +437,7 @@ is documented so this plan can be re-derived without re-summoning hamsa from scr
 > being reported as neither dangling nor ambiguous, because a prefix with zero definers is
 > never a resolution candidate. The same file defined `D-1`..`D-7` as headings all along, so
 > `D` was citable and `T` was not, in one document. See `roster-audit-session-log:F-4` and
-> `docs/issues/2026-08-26-active-plan-t-n-row-only-uncitable.md`.
+> `docs/issues/archive/2026-08-26-active-plan-t-n-row-only-uncitable.md`.
 >
 > **All 38 were converted in a single commit, deliberately.** The conversion is
 > all-or-nothing: the first `T-N` heading makes `T` a live namespace, which flips every

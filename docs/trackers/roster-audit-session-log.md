@@ -405,7 +405,7 @@ Measured across the four namespaces in play:
 | `S` | `#### S-1..S-6 — …` in `buddy-introspection.md` | live, all defined → `S-5` **resolves** |
 | `T` | **none, at any heading level** | **inert** — citation invisible |
 
-Two independent confirmations: `docs/issues/2026-08-26-active-plan-t-n-row-only-uncitable.md`
+Two independent confirmations: `docs/issues/archive/2026-08-26-active-plan-t-n-row-only-uncitable.md`
 cites eleven `T-N` tokens and reports exactly **1** dangling (`R-91`, quoted from the
 guide's own example table); this log cites `T-35` nine times and its 4 dangling are
 precisely `R-7`, `R-89`, `W-3`, `W-4`.
@@ -779,7 +779,7 @@ HEAD skew`, which now means something.
 
 **Fix idea / Pointer:** `scripts/check-profile-parity.sh` classes 5–7 + `MARKETPLACE
 MISMATCH`; `CLAUDE.md` § *This Machine* and § *Plugin Install Path*; issue
-`docs/issues/2026-08-26-marketplace-registration-cross-profile-drift.md`.
+`docs/issues/archive/2026-08-26-marketplace-registration-cross-profile-drift.md`.
 
 ---
 ## F-11 — The scenario written to measure `R-4` measured nothing: naming the instrument by path let base competence solve it
@@ -1447,7 +1447,7 @@ Credit to session `77c6f4ae`; without it this is a resolution to try harder.
 
 ### Four instances in one night, two of them mine
 
-1. **This session, `docs/issues/2026-08-26-companion-blocks-bash-after-codescout-disconnect.md`.**
+1. **This session, `docs/issues/archive/2026-08-26-companion-blocks-bash-after-codescout-disconnect.md`.**
    Filed fix (c) as *"needs a PostToolUse path that sees MCP transport errors —
    **not confirmed to exist**."* That names a checkable premise and I did not
    check it. When the user said "go", `hooks.json` turned out to have carried

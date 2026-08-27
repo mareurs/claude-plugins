@@ -1,5 +1,5 @@
 ---
-id: e51ea9ef00e3739e
+id: d931727c2fa8ccf9
 kind: bug
 status: fixed
 title: reconnaissance SKILL.md's worked exemplars use a `**Valid:** dated … — <prose>` form that `append_entry` hard-rejects — a regression from the 2026-08-20 fix
@@ -23,8 +23,8 @@ new entries on these, not the bare template"* and then supplies two worked exemp
 the same skill prescribes as the only append path.
 
 This is a **regression introduced by the fix for
-`docs/issues/2026-08-20-reconnaissance-skill-prescribes-hand-allocated-edit-markdown-appends.md`**
-(artifact `a6e798348cba963e`), whose own Fix section records: *"Added `**Valid:**` and
+`docs/issues/archive/2026-08-20-reconnaissance-skill-prescribes-hand-allocated-edit-markdown-appends.md`**
+(artifact `440736f75f20112a`), whose own Fix section records: *"Added `**Valid:**` and
 `**Rests on:**` to both worked exemplars (F-3, W-2)."* The added form does not parse.
 
 That bug's `unverified:` note predicted exactly this: *"No automated check that a skill's
@@ -156,8 +156,8 @@ throughout `docs/trackers/roster-audit-session-log.md`.
 ## References
 
 - `codescout-companion/skills/reconnaissance/SKILL.md` L168, L212 — the two bad exemplars
-- `docs/issues/2026-08-20-reconnaissance-skill-prescribes-hand-allocated-edit-markdown-appends.md`
-  (artifact `a6e798348cba963e`) — **the fix that introduced this**, and whose `unverified:`
+- `docs/issues/archive/2026-08-20-reconnaissance-skill-prescribes-hand-allocated-edit-markdown-appends.md`
+  (artifact `440736f75f20112a`) — **the fix that introduced this**, and whose `unverified:`
   note predicted it
 - codescout `get_guide("tracker-conventions")` § *Required fields* — the three-form grammar
 - `roster-audit-session-log:F-3` — the reconnaissance entry this issue is filed from

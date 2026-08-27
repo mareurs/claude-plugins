@@ -93,7 +93,7 @@ Security-ibex was either designed later or by someone with stronger prompt-engin
 > empty `specialists_pending: []` reported the audit as complete. A complete-looking
 > fraction with a stale denominator is the failure mode; both fields are now corrected.
 > Filed as `roster-audit-session-log` `F-2`; issue
-> `docs/issues/2026-08-26-buddy-introspection-scope-stale-10-of-12-specialists.md`.
+> `docs/issues/archive/2026-08-26-buddy-introspection-scope-stale-10-of-12-specialists.md`.
 
 Hamsa-lens introspection of all 10 buddy specialists under `buddy/skills/`. Each
 SKILL.md (and lens addendums for pheasant) was read as a stranger would read it, then
@@ -412,7 +412,7 @@ finished measuring.
 not necessarily the verdict — and the verdict cannot be re-derived without auditing
 `codescout-pika` first, since "is this length justified?" is a question about rank.
 
-Filed as `roster-audit-session-log` `F-1`; issue `docs/issues/2026-08-26-buddy-introspection-20-outlier-comparison-falsified.md`.
+Filed as `roster-audit-session-log` `F-1`; issue `docs/issues/archive/2026-08-26-buddy-introspection-20-outlier-comparison-falsified.md`.
 The stale line count alone is also `VG-8` in `validation-domain-coverage.md`.
 
 #### #21 — security-ibex — OWASP-2017-flavored taxonomy; LLM threats absent

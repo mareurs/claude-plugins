@@ -1,5 +1,5 @@
 ---
-id: a6e798348cba963e
+id: 440736f75f20112a
 kind: bug
 status: fixed
 title: reconnaissance SKILL.md prescribes hand-allocated edit_markdown appends, which race, teach nothing, and stop working once the ledger is guarded

@@ -55,7 +55,7 @@ export function contextPreToolUse(context) {
 // every codescout tool from the tool list while leaving the guard armed, so the
 // deny reason names tools that cannot be called and the session loses every
 // route to a shell at once — including the ones needed to diagnose it.
-// See docs/issues/2026-08-26-companion-blocks-bash-after-codescout-disconnect.md.
+// See docs/issues/archive/2026-08-26-companion-blocks-bash-after-codescout-disconnect.md.
 //
 // Detection is by PROOF OF LIFE, not by polling the server: cs-liveness.mjs
 // (PostToolUse on the codescout tool names) clears the counter whenever any

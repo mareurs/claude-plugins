@@ -1,5 +1,5 @@
 ---
-id: '350a804417d008ce'
+id: efebf92ab1801b4d
 kind: bug
 status: fixed
 title: Marketplace registrations drifted cross-profile in two files the parity gate never read, and the pointer hid a three-month-stale clone of an enabled plugin

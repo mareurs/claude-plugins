@@ -1,5 +1,5 @@
 ---
-id: '795cb91f2bb14aaa'
+id: 4737da88bd13012e
 kind: bug
 status: fixed
 title: 'buddy-introspection reports `specialists_scanned: 10/10` against a roster that has grown to 12 — two specialists have never been audited'
@@ -77,7 +77,7 @@ Specialists present in `buddy/skills/` but absent from `specialists_scanned`:
 | `prompt-hamsa` | 158 | never |
 
 For context, the ten that *were* audited measure 118–136 lines
-(see `docs/issues/2026-08-26-buddy-introspection-20-outlier-comparison-falsified.md`).
+(see `docs/issues/archive/2026-08-26-buddy-introspection-20-outlier-comparison-falsified.md`).
 
 ## Fix
 
@@ -138,4 +138,4 @@ None. Readers must recount `buddy/skills/` by hand to learn the tracker's scope.
 - `docs/trackers/validation-domain-coverage.md` `VG-7` — nominates an unaudited specialist
 - `roster-audit-session-log:F-2` — the reconnaissance entry this issue is filed from
 - `reconnaissance-patterns:R-3` — the promoted cross-cutting lesson
-- `docs/issues/2026-08-26-buddy-introspection-20-outlier-comparison-falsified.md` — sibling staleness in the same tracker
+- `docs/issues/archive/2026-08-26-buddy-introspection-20-outlier-comparison-falsified.md` — sibling staleness in the same tracker

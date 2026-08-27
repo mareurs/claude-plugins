@@ -1,5 +1,5 @@
 ---
-id: b86bd10b9a5da5cc
+id: 4990ecde42781343
 kind: bug
 status: fixed
 title: codescout-companion keeps hard-blocking Bash after the MCP server disconnects, redirecting to tools that no longer exist — the session loses every shell capability at once
@@ -8,6 +8,7 @@ tags:
 - hooks
 - availability
 - fail-open
+closed: 2026-08-26
 ---
 
 ## Symptom
@@ -120,3 +121,29 @@ file — `hooks.json` has carried PostToolUse matchers on MCP tools
 
 The deferral rationale inflated the cost of the work, in the direction the
 reconnaissance skill predicts a deferral rationale always inflates it.
+
+
+## Fix
+
+Landed `b0db2d1` on `main`, 2026-08-26 — *fix(companion): stand the tool guard down
+when codescout stops answering*.
+patch-id `97c1a4369e23add25e3d724e4d4c1799831a95ed` (rebase-survivable anchor; the
+SHA above is on `main` and this repo has no `experiments` branch).
+
+Six files: `cs-liveness.mjs` (new), `hooks.json`, `lib.mjs`, `pre-tool-guard.mjs`,
+`pre-tool-guard.test.sh`, and this file.
+
+**Shape of the fix — (a) + (c) together**, as § *Candidate fixes* records. The guard
+reads **proof-of-life**, not transport errors: any codescout tool that answers —
+success *or* error payload — refreshes liveness via the PostToolUse `mcp__.*__workspace`
+matchers that `hooks.json` already carried. Silence is the only negative signal, and
+consecutive unanswered denies are how it is read; past that threshold the guard stands
+down and native `Bash`/`Read`/`Grep`/`Glob`/`Edit` pass through rather than being
+redirected at tools that no longer exist.
+
+Regression test in `pre-tool-guard.test.sh` (+94 lines).
+
+*(This section was missing until 2026-08-27. Two sections above it pointed at "see
+*Fix* below" and there was no such section — the fix had landed, but the file never
+recorded it. The stale headings § *Candidate fixes — not yet chosen* and § *Not yet
+done* are left as written; each self-corrects in its own first line.)*

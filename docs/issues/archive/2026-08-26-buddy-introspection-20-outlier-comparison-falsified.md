@@ -1,5 +1,5 @@
 ---
-id: a4dbafccf02bc14c
+id: 218fa3ca8f62b18a
 kind: bug
 status: fixed
 title: 'buddy-introspection #20''s "3× baseline / highest length" comparison is falsified, so its `Fix: Accept` disposition rests on arithmetic that no longer holds'
@@ -145,4 +145,4 @@ the next reader, and by `active-plan.md`'s `T-35` quarterly sweep.
 - `roster-audit-session-log:F-1` — the reconnaissance entry this issue is filed from
 - `roster-audit-session-log:W-1` — the pattern that surfaced it
 - `reconnaissance-patterns:R-3` — the promoted cross-cutting lesson
-- `docs/issues/2026-08-26-buddy-introspection-scope-stale-10-of-12-specialists.md` — sibling staleness in the same tracker
+- `docs/issues/archive/2026-08-26-buddy-introspection-scope-stale-10-of-12-specialists.md` — sibling staleness in the same tracker

@@ -1,17 +1,15 @@
 ---
-id: '4c3331864bcf8d9f'
+id: 6a0a74627fc66478
 kind: bug
 status: fixed
 title: Verify codescout still uses `server_instructions` for the system-prompt (not replaced by memories/guides)
-owners: []
 tags:
 - codescout
 - server_instructions
 - system-prompt
 - doc-staleness
 - verify
-topic: null
-time_scope: null
+closed: 2026-07-13
 ---
 
 ## Summary

@@ -156,7 +156,7 @@ assert_tool "glob-any"  "Glob" '{"pattern":"**/*.py"}'                          
 # from the tool list, that redirect points at nothing and every route to a shell
 # closes at once. After BREAKER_THRESHOLD consecutive denies with no codescout
 # tool answering, the guard stands down.
-# See docs/issues/2026-08-26-companion-blocks-bash-after-codescout-disconnect.md
+# See docs/issues/archive/2026-08-26-companion-blocks-bash-after-codescout-disconnect.md
 LIVENESS="$(cd "$(dirname "$0")" && pwd)/cs-liveness.mjs"
 
 check() {  # <label> <got> <expected>

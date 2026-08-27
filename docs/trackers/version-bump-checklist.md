@@ -441,7 +441,7 @@ validate every element.
 
 ### 2026-08-21 — codescout-companion 1.16.15 → 1.16.16
 
-Fixed `docs/issues/2026-08-21-zero-law-does-not-cover-wrong-answer-instruments.md`:
+Fixed `docs/issues/archive/2026-08-21-zero-law-does-not-cover-wrong-answer-instruments.md`:
 reconnaissance Phase 1's promoted search-zero law (chain `R-3 → R-113 → R-77 → R-79` in codescout's ledger) is built
 entirely around absence, so an instrument returning a complete, plausible, WRONG answer
 trips none of its three arms. Reported against a session where a lexical `sort -r` on
@@ -458,7 +458,7 @@ rule unchanged.
 
 ### 2026-08-20 — codescout-companion 1.16.14 → 1.16.15
 
-Fixed `docs/issues/2026-08-20-reconnaissance-skill-prescribes-hand-allocated-edit-markdown-appends.md`:
+Fixed `docs/issues/archive/2026-08-20-reconnaissance-skill-prescribes-hand-allocated-edit-markdown-appends.md`:
 reconnaissance's Phase 3 taught hand-grepping the next F-N/W-N id and appending via
 `edit_markdown`, which races peer sessions and breaks outright once the ledger it drives
 is guarded (`entry_prefix` declared) — codescout's librarian then refuses direct edits and

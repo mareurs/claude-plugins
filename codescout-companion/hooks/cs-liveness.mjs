@@ -15,7 +15,7 @@
 // treating it as such would reset the counter and re-create the deadlock this
 // exists to break.
 //
-// See docs/issues/2026-08-26-companion-blocks-bash-after-codescout-disconnect.md.
+// See docs/issues/archive/2026-08-26-companion-blocks-bash-after-codescout-disconnect.md.
 import { unlinkSync } from 'node:fs';
 import { readInput, breakerFile } from './lib.mjs';
 

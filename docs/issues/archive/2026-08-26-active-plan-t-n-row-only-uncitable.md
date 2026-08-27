@@ -1,5 +1,5 @@
 ---
-id: a1bbcbff8e035b6c
+id: c5655a4b108b6a9a
 kind: bug
 status: fixed
 title: '`T-N` is not a live namespace, so active-plan.md''s ~60 incoming citations are silently inert — invisible to link_scan and to doctor'

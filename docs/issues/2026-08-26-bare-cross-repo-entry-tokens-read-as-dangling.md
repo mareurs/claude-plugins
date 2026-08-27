@@ -56,8 +56,8 @@ The fix is `codescout:R-89` — same meaning, one token, correctly reported as `
 | `codescout-companion/skills/reconnaissance/SKILL.md` | **21** | 3 | **shipped prompt surface** |
 | `docs/trackers/version-bump-checklist.md` | **15** | 6 | historical release log |
 | `docs/trackers/roster-audit-session-log.md` | 7 | — | session log |
-| `docs/issues/2026-08-26-active-plan-t-n-row-only-uncitable.md` | 6 | — | self-referential (see below) |
-| `docs/issues/2026-08-21-zero-law-does-not-cover-wrong-answer-instruments.md` | 5 | — | self-referential |
+| `docs/issues/archive/2026-08-26-active-plan-t-n-row-only-uncitable.md` | 6 | — | self-referential (see below) |
+| `docs/issues/archive/2026-08-21-zero-law-does-not-cover-wrong-answer-instruments.md` | 5 | — | self-referential |
 | `docs/trackers/INDEX.md` | — | 6 | `F-N`/`W-N` across many session logs |
 | `docs/trackers/passover-roster-audit-release-integrity-2026-08-26.md` | — | 7 | `F-N`/`W-N` |
 | 20 further files | 1–3 each | 1–5 each | mixed |
@@ -115,7 +115,7 @@ This is the same conclusion `prompt-engineering:tracker-hygiene-log` `HY-2` reac
 sweep had recorded the collisions as "expected shape, not drift".
 
 **3. The stem qualifier can point at the WRONG REPO's file of the same name — and this one
-the naive fix CREATES.** Measured: `docs/issues/2026-08-21-zero-law-does-not-cover-wrong-answer-instruments.md`
+the naive fix CREATES.** Measured: `docs/issues/archive/2026-08-21-zero-law-does-not-cover-wrong-answer-instruments.md`
 carries a stem-qualified citation of the zero-law entry, and it is reported **dangling**, not
 `cross_repo`:
 
@@ -150,6 +150,15 @@ librarian(action="link_scan", scope="project")   # write=false; read dangling_by
 ```
 
 ## Fix
+
+> **Baseline moved, 2026-08-27 — not by working this issue.** An archive sweep moved ten
+> terminal bug files into `docs/issues/archive/` and re-pointed their 22 citations (paths
+> and 16-hex ids) across 14 files. A `link_scan(write=true)` after it reads **dangling 59,
+> ambiguous 84**, 246 artifacts scanned, 14 edges added, 0 stale, 0 pruned. Both counts are
+> **floors** — the per-`(source, token)` reporting described below still applies, and both
+> arrays came back `truncated: true` at the 50-item cap. Item 3 below ("the self-referential
+> `docs/issues/` files") is now partly moot: seven of those eleven files are archived, so
+> their example tokens sit in historical snapshots that `archive_drop` already exempts.
 
 > **Progress, 2026-08-26.** Items 1 and the durable-ledger half of 2 are done. Repo totals
 > moved **dangling 82 → 66**, **ambiguous 93 → 86**, edges 101 → 106. Per file:
@@ -209,7 +218,7 @@ Ordered by cost-to-benefit, none of it urgent:
 ## Upstream
 
 The generalising half is a **codescout** concern and is already named as unfixed in
-`docs/issues/2026-08-26-active-plan-t-n-row-only-uncitable.md`'s `unverified:` field: the
+`docs/issues/archive/2026-08-26-active-plan-t-n-row-only-uncitable.md`'s `unverified:` field: the
 `doctor` check `cited_prefix_with_no_definer`. A prefix with zero definers in the repo is
 currently **inert** — neither resolved nor reported — so a bare `OP-13` or `VG-9` written here
 is silent rather than dangling, and no count moves at all. That state is invisible to this

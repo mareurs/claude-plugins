@@ -1,5 +1,5 @@
 ---
-id: '5e6f46db24cdcae9'
+id: b3c2188f189efe98
 kind: bug
 status: fixed
 title: reconnaissance Phase 1's search-zero law does not reach an instrument that returns a WRONG answer rather than no answer

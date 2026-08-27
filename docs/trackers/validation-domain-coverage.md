@@ -560,7 +560,7 @@ comparison and reporting it green is the exact failure this entry committed.
 Corrected in `d334a50`: `#20` re-opened with the measured distribution, the audit re-scoped
 from `10/10` to `10/12`, and `S-5` closed as falsified. Full detail in
 `roster-audit-session-log:F-1` / `roster-audit-session-log:F-2` and
-`docs/issues/2026-08-26-buddy-introspection-20-outlier-comparison-falsified.md`.
+`docs/issues/archive/2026-08-26-buddy-introspection-20-outlier-comparison-falsified.md`.
 
 **Still owed:** `#20`'s *verdict* is not re-derived, only its evidence retracted. "Is 181
 lines justified?" is a question about rank, so it cannot be answered until
