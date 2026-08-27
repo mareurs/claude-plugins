@@ -1,4 +1,25 @@
 #!/bin/bash
+# STATUS: PARKED AND UNWIRED since companion 1.16.9. This file does NOT run.
+#
+# It was wired as a deny hook in 4923f62, downgraded to warn-only in 50282a8 at
+# the user's request (deny was high-friction), and kept in-repo deliberately for
+# possible re-promotion; the warn hook that replaced it was later deleted
+# outright (a989d73), leaving the `mcp__.*__run_command` matcher carrying nothing.
+# See claude-plugins:docs/trackers/version-bump-checklist.md and codescout's
+# docs/architecture/companion-plugin.md. Parked is not abandoned -- bb85c55 and
+# 5f6b336 both synced this file to server-side changes while it was already
+# unwired, and this header exists so that practice stays visible rather than
+# being rediscovered as an oversight.
+#
+# KNOWN DIVERGENCE FROM THE SERVER, as of codescout 18f8f9d1:
+#   * No `;` / `&&` / newline segment splitting. PRE_PIPE is everything before
+#     the FIRST pipe in the whole command, so `cargo --version; ls | head -3`
+#     reads as an unbounded LHS here and is allowed server-side. This gap
+#     PREDATES 18f8f9d1 and is the one thing a re-promotion must fix first.
+# Anything else here should match src/util/path_security.rs. If you re-promote
+# this hook, diff it against that file before wiring it -- an unsynced mirror is
+# what produced U-22 and U-44.
+#
 # PreToolUse hook — IL3 deny guard on mcp__codescout__run_command.
 #
 # IL3 (Iron Law 3): never pipe **live, unbounded** `run_command` output to
@@ -52,17 +73,27 @@ CMD=$(echo "$INPUT" | jq -r '.tool_input.command // empty' 2>/dev/null)
 # practice; better than the U-22 false positive shape).
 DEQUOTED=$(echo "$CMD" | sed -E "s/'[^']*'//g; s/\"[^\"]*\"//g")
 
-DENY_PIPE='(tail|head|grep|less|sed|awk|cut|sort|uniq|tr|fmt)'
+# `cut` and `tr` are deliberately NOT in this list: they are 1:1 on records and
+# cannot hide one, which is the information loss IL3 guards against. `sed`, `awk`
+# and `sort` stay, drawn on capability rather than typical use -- `sed -n 1,10p`,
+# `awk NR<10` and `sort -u` each drop records. Mirrors `stage_trims`.
+DENY_PIPE='(tail|head|grep|less|sed|awk|sort|uniq|fmt)'
 if ! echo "$DEQUOTED" | grep -qE "\\|[[:space:]]*${DENY_PIPE}\\b"; then
   exit 0
 fi
 
-# Pure aggregators on the RHS SAVE context (collapse output to a count) rather
-# than trim it — allowed even from an unbounded LHS. `wc` is dropped from
-# DENY_PIPE above; exempt a counting `grep -c`/`--count` when grep is the only
-# trimmer target (mirrors stage_trims in path_security.rs).
-if ! echo "$DEQUOTED" | grep -qE "\\|[[:space:]]*(tail|head|less|sed|awk|cut|sort|uniq|tr|fmt)\\b" \
-   && echo "$DEQUOTED" | grep -qE "\\|[[:space:]]*grep\\b[^|]*(--count|-[A-Za-z]*c[A-Za-z]*)"; then
+# A stage that COLLAPSES the stream anywhere bounds the whole pipeline: nothing
+# downstream can re-expand it, so a trimmer after it has nothing left to trim and
+# the agent receives a count, a digest or one summary line either way. Mirrors
+# `stage_collapses`.
+#
+# This subsumes the older, narrower rule that exempted a counting `grep -c` only
+# when grep was the SOLE trimmer target -- and which therefore blocked
+# `git log | grep fix | wc -l` while allowing `git log | grep -c fix`, the same
+# single number reaching the agent by a different spelling.
+if echo "$DEQUOTED" | grep -qE "\\|[[:space:]]*(wc|sha1sum|sha224sum|sha256sum|sha384sum|sha512sum|md5sum|b2sum|cksum|sum)\\b" \
+   || echo "$DEQUOTED" | grep -qE "\\|[[:space:]]*grep\\b[^|]*(--count|-[A-Za-z]*c[A-Za-z]*)" \
+   || echo "$DEQUOTED" | grep -qE "\\|[[:space:]]*git[[:space:]]+patch-id\\b"; then
   exit 0
 fi
 
@@ -93,7 +124,20 @@ case "$HEAD" in
     # `--oneline` is deliberately absent: it bounds line WIDTH, not line
     # COUNT, so `git log --oneline` still emits one line per commit for
     # every commit.
-    if ! echo "$PRE_PIPE" | grep -qE '(^|[[:space:]])(-n|--max-count(=[0-9]+)?|--show-current|--porcelain|--short|-s|--stat|--name-only|--name-status|-[0-9]+)([[:space:]]|$)'; then
+    # Checked FIRST: single-line plumbing emits O(1) lines by construction and so
+    # carries no limiter flag for the test below to find, which is how
+    # `git rev-parse HEAD | head -1` -- 40 characters -- came to be refused as a
+    # context-flooding risk. Mirrors `git_subcommand_is_single_line`. rev-parse
+    # and config are excluded on their enumerating flags rather than dropped.
+    if echo "$PRE_PIPE" | grep -qE '(^|[[:space:]])git[[:space:]]+(patch-id|merge-base|symbolic-ref|describe|hash-object)([[:space:]]|$)'; then
+      :
+    elif echo "$PRE_PIPE" | grep -qE '(^|[[:space:]])git[[:space:]]+rev-parse([[:space:]]|$)' \
+         && ! echo "$PRE_PIPE" | grep -qE '(^|[[:space:]])(--all|--branches|--tags|--remotes|--glob|--exclude)'; then
+      :
+    elif echo "$PRE_PIPE" | grep -qE '(^|[[:space:]])git[[:space:]]+config([[:space:]]|$)' \
+         && ! echo "$PRE_PIPE" | grep -qE '(^|[[:space:]])(--list|-l|--get-all|--get-regexp)([[:space:]]|$)'; then
+      :
+    elif ! echo "$PRE_PIPE" | grep -qE '(^|[[:space:]])(-n|--max-count(=[0-9]+)?|--show-current|--porcelain|--short|-s|--stat|--name-only|--name-status|-[0-9]+)([[:space:]]|$)'; then
       is_unbounded=1
     fi
     ;;
@@ -124,8 +168,11 @@ The @cmd_* buffer system saves context tokens:
 
 Bounded LHS (ls, cat, stat, du, diff, awk, sed, non-recursive grep, find -maxdepth) is allowed —
 only unbounded LHS (cargo, npm, pytest, rg, fd, grep -r, bare find, ...) is blocked.
+A pipeline that collapses ANYWHERE (wc, grep -c, sha256sum, git patch-id) is allowed whatever
+follows it, and field selectors (cut, tr) are 1:1 on records so they never trim.
 \`git\` is unbounded ONLY without an output limiter: \`git log -3\`, \`git status --short\`,
 \`git show --stat\` are bounded and may be piped; \`--oneline\` is not a limiter.
+Single-line plumbing (rev-parse, patch-id, merge-base, describe) is always bounded.
 
 Rerun the command bare and query the returned @cmd_* buffer."
 

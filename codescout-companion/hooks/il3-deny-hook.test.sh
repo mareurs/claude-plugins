@@ -181,6 +181,37 @@ assert "unbounded-git-oneline-no-count" "$(mkinput 'git log --oneline | head -40
 #     measurement from 24% to 30%.
 assert "git-limiter-not-read-from-trimmer" "$(mkinput 'git diff | head -20')" "deny"
 
+# ── synced with codescout 18f8f9d1 ────────────────────────────────────────────
+# Each pair is a new ALLOW plus the control that must still DENY, so the
+# loosening is a measured line rather than a claim. Mirrors the Rust suite in
+# src/util/path_security.rs.
+
+# Field selectors are 1:1 on records and cannot hide one.
+assert "field-selector-cut"          "$(mkinput "git show abc123 | cut -d' ' -f1")"        "allow"
+assert "field-selector-tr"           "$(mkinput 'git branch -r --contains abc | tr -d " "')" "allow"
+assert "sed-can-select-records"      "$(mkinput "git show abc123 | sed -n '1,10p'")"       "deny"
+assert "awk-can-select-records"      "$(mkinput "cargo test | awk 'NR<10'")"               "deny"
+
+# A collapsing stage anywhere bounds the whole pipeline.
+assert "collapse-trim-then-wc"       "$(mkinput 'git log | grep fix | wc -l')"             "allow"
+assert "collapse-trim-after-patchid" "$(mkinput 'git show abc | git patch-id --stable | head -1')" "allow"
+assert "collapse-digest"             "$(mkinput 'git show abc | sha256sum | cut -c1-8')"   "allow"
+assert "no-collapse-still-denies"    "$(mkinput 'cargo test | grep FAILED | sort -u')"     "deny"
+
+# Single-line git plumbing carries no limiter flag because it has nothing to limit.
+assert "plumbing-rev-parse"          "$(mkinput 'git rev-parse HEAD | head -1')"           "allow"
+assert "plumbing-merge-base"         "$(mkinput 'git merge-base master experiments | head -1')" "allow"
+assert "plumbing-describe"           "$(mkinput 'git describe --tags | head -1')"          "allow"
+assert "rev-parse-all-enumerates"    "$(mkinput 'git rev-parse --all | head -20')"         "deny"
+assert "config-get-is-one-value"     "$(mkinput 'git config --get user.email | head -1')"  "allow"
+assert "config-list-dumps-the-file"  "$(mkinput 'git config --list | grep user')"          "deny"
+
+# The reported workflow, end to end: get_guide("tracker-conventions") mandates
+# recording a patch-id beside a fix SHA, and every spelling of it was refused.
+assert "patch-id-workflow-1"         "$(mkinput 'git show abc123 | git patch-id --stable')" "allow"
+assert "patch-id-workflow-2"         "$(mkinput "git show abc123 | git patch-id --stable | cut -d' ' -f1")" "allow"
+assert "patch-id-workflow-3"         "$(mkinput "git show abc123 | cut -d' ' -f1 | wc -l")" "allow"
+
 echo
 echo "Passed: $PASS   Failed: $FAIL"
 [[ $FAIL -eq 0 ]]
