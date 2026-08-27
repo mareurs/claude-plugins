@@ -124,9 +124,29 @@
             "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/pre-edit-hint.mjs"]
           }
         ]
+      },
+      {
+        "matcher": "Agent",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node",
+            "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/agent-guide-snapshot.mjs"]
+          }
+        ]
       }
     ],
     "PostToolUse": [
+      {
+        "matcher": "Agent",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node",
+            "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/agent-guide-restore.mjs"]
+          }
+        ]
+      },
       {
         "matcher": "EnterWorktree",
         "hooks": [

@@ -7,7 +7,7 @@
 // Copilot). A non-zero exit is never used to deny — on Copilot CLI a non-zero
 // PreToolUse exit is itself a deny, so a crash would block the user's tool.
 import { readFileSync, existsSync, mkdirSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { join, isAbsolute } from 'node:path';
 import { homedir, tmpdir } from 'node:os';
 import { createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
@@ -122,4 +122,47 @@ export function emitSkillHint(cwd, sessionId, topic, hint) {
     /* best-effort */
   }
   emit({ hookSpecificOutput: { additionalContext: hint } });
+}
+
+// --- Guide-hints ledger path: mirrors codescout's own resolution --------
+//
+// codescout's src/tools/guide_ledger.rs persists the get_guide auto-inject
+// ledger at <state_dir>/codescout/guide_hints/<sanitize(session_id)>.json.
+// Both sides MUST agree on this path, or a snapshot/restore hook silently
+// operates on the wrong file. `sanitizeSessionId` mirrors guide_ledger.rs's
+// `sanitize()` char-for-char: anything outside [A-Za-z0-9_-] becomes '_'.
+export function sanitizeSessionId(sessionId) {
+  return String(sessionId).replace(/[^A-Za-z0-9_-]/g, '_');
+}
+
+// XDG basedir spec: a relative XDG_STATE_HOME must be treated as unset —
+// mirrors src/util/fs.rs's state_dir_from() (see session-start.mjs's
+// identical rendezvous-dir resolution), so both sides agree on which
+// directory they mean rather than silently looking in different places.
+export function guideLedgerPath(sessionId, home) {
+  if (!sessionId) return null;
+  const xdgStateHome = process.env.XDG_STATE_HOME;
+  const stateHome = xdgStateHome && isAbsolute(xdgStateHome) ? xdgStateHome : join(home, '.local', 'state');
+  return join(stateHome, 'codescout', 'guide_hints', `${sanitizeSessionId(sessionId)}.json`);
+}
+
+// --- Agent-dispatch guide-ledger snapshot: shared state key -------------
+//
+// A subagent shares its parent's Claude Code session_id (no separate MCP
+// identity exists for it), so the guide_hints ledger above is one keyspace
+// for both. A subagent's own first get_guide-triggering tool call marks a
+// topic delivered FOR THE WHOLE SESSION, silently starving the parent of
+// guidance the server believes it already handed over. Keyed by BOTH
+// session_id and tool_use_id (not session_id alone, like breakerFile above)
+// because concurrent subagent dispatches share one session_id but each gets
+// its own tool_use_id — matching PreToolUse/PostToolUse pairs for the SAME
+// dispatch without colliding with a sibling dispatch's own snapshot.
+// codescout:docs/issues/2026-08-26-subagent-guide-fetch-starves-parent.md
+export function agentGuideSnapshotFile(sessionId, toolUseId) {
+  if (!sessionId || !toolUseId) return null;
+  const key = createHash('sha256')
+    .update(`${sessionId}:${toolUseId}`)
+    .digest('hex')
+    .slice(0, 16);
+  return join(tmpdir(), `cs-guide-snapshot-${key}`);
 }
