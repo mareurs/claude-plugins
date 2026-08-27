@@ -5,6 +5,37 @@
 # Hook directory (relative to this file: tests/lib/ → ../../codescout-companion/hooks)
 HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../codescout-companion/hooks" && pwd)"
 
+# --- Test isolation: never reach the user's real codescout state dir --------
+#
+# The hooks resolve codescout's rendezvous and guide-ledger directories from
+# XDG_STATE_HOME (mirroring src/util/fs.rs's state_dir_from). Several tests pipe
+# a synthetic session_id into session-start.mjs, which stamps every rendezvous
+# slot whose ppid is in its own process ancestry — and a suite run through
+# codescout's run_command IS a genuine descendant of the live codescout server,
+# so that ancestry guard passes and the fixture id lands in the live server's
+# own slot. codescout then rekeys its guide ledger onto that fixture id,
+# abandoning the developer's real session ledger mid-session and re-arming every
+# guide topic.
+# docs/issues/2026-08-27-test-suite-rekeys-live-codescout-server.md
+#
+# run-all.sh exports one sandbox for the whole suite and removes it afterwards.
+# This block is the standalone path: `bash tests/test-session-start.sh` on its
+# own must be exactly as safe as running it through the suite.
+if [ -z "${CS_TEST_STATE_SANDBOX:-}" ]; then
+  CS_TEST_STATE_SANDBOX="$(mktemp -d "${TMPDIR:-/tmp}/cs-test-state-XXXXXX")"
+  export CS_TEST_STATE_SANDBOX
+  # A standalone run cannot trap its own cleanup from here: every test script
+  # installs `trap ... EXIT` for its own tempdir, which replaces anything set at
+  # source time. Sweep stale ones instead — the same approach the guide-snapshot
+  # hook uses for debris from a SubagentStop that never fired. An hour is a wide
+  # margin: the whole suite runs in well under a minute, so this can never race
+  # a live run, and it keeps standalone litter bounded to the last hour rather
+  # than the last day.
+  find "${TMPDIR:-/tmp}" -maxdepth 1 -name 'cs-test-state-*' -type d -mmin +60 \
+    -exec rm -rf {} + 2>/dev/null || true
+fi
+export XDG_STATE_HOME="$CS_TEST_STATE_SANDBOX"
+
 # --- Result tracking ---
 PASS_COUNT=0
 FAIL_COUNT=0

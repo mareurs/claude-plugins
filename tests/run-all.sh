@@ -6,6 +6,17 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 FAILED=()
 
+# Test isolation: one codescout state sandbox for the whole suite, removed on
+# exit. Without it, any test piping a synthetic session_id into
+# session-start.mjs stamps the LIVE codescout server's rendezvous slot — see
+# tests/lib/fixtures.sh for the mechanism, and
+# docs/issues/2026-08-27-test-suite-rekeys-live-codescout-server.md. Exported
+# here as well as in fixtures.sh because not every suite sources fixtures.sh.
+CS_TEST_STATE_SANDBOX="$(mktemp -d "${TMPDIR:-/tmp}/cs-test-state-XXXXXX")"
+export CS_TEST_STATE_SANDBOX
+export XDG_STATE_HOME="$CS_TEST_STATE_SANDBOX"
+trap 'rm -rf "$CS_TEST_STATE_SANDBOX"' EXIT
+
 # tests/test-*.sh plus colocated hook tests (codescout-companion/hooks/*.test.sh)
 HOOK_TESTS_DIR="$SCRIPT_DIR/../codescout-companion/hooks"
 
