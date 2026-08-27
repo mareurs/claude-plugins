@@ -17,7 +17,7 @@
 //
 // See docs/issues/archive/2026-08-26-companion-blocks-bash-after-codescout-disconnect.md.
 import { unlinkSync } from 'node:fs';
-import { readInput, breakerFile } from './lib.mjs';
+import { readInput, breakerFile, refreshLivenessStamp } from './lib.mjs';
 
 const input = readInput();
 if (!input) process.exit(0);
@@ -31,5 +31,12 @@ if (f) {
     // Either way there is nothing to reset and nothing worth reporting.
   }
 }
+
+// Proof of life for the COMPANION, recorded beside the proof of life for the
+// tool surface above. Instrumentation only — nothing gates on it yet; it exists
+// so the rendezvous latch's frequency question can be answered with data rather
+// than argument. Never opens the gate and never writes `session`; see
+// `refreshLivenessStamp` in lib.mjs.
+refreshLivenessStamp();
 
 process.exit(0);

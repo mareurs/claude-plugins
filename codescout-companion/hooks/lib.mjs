@@ -6,7 +6,7 @@
 // through the JSON `permissionDecision` field (honored by Claude Code AND
 // Copilot). A non-zero exit is never used to deny — on Copilot CLI a non-zero
 // PreToolUse exit is itself a deny, so a crash would block the user's tool.
-import { readFileSync, existsSync, mkdirSync, writeFileSync, readdirSync, statSync, unlinkSync } from 'node:fs';
+import { readFileSync, existsSync, mkdirSync, writeFileSync, readdirSync, statSync, unlinkSync, renameSync } from 'node:fs';
 import { join, isAbsolute } from 'node:path';
 import { homedir, tmpdir } from 'node:os';
 import { createHash } from 'node:crypto';
@@ -321,4 +321,116 @@ export function agentIdOrComplain(input, hookName) {
     );
   }
   return agentId;
+}
+
+// ── Rendezvous liveness stamp ────────────────────────────────────────────────
+//
+// INSTRUMENTATION ONLY. Nothing in codescout gates on this yet, deliberately.
+//
+// The server's `/clear`-detection gate latches open on the first SessionStart
+// stamp and never closes, so a companion that goes quiet mid-process leaves a
+// conversation change invisible. The obvious remedy — expire the gate when
+// `hook_at` gets old — was refuted by measurement: the companion stamps ONLY on
+// SessionStart, so `hook_at` records "when did this conversation last start or
+// resume", not "is the hook still answering". Measured 2026-08-27 across four
+// healthy stamped slots, `hook_at` predated its own server's start by 5.9-10.0
+// hours in every case (an `/mcp` reconnect inherits the predecessor's stamp), so
+// no threshold on it can separate a dead hook from a long conversation.
+//
+// This creates the missing quantity and gates nothing on it. After it has been
+// deployed a while, `hook_at` age becomes time-since-last-proof-of-life, and the
+// frequency question ("does a hook ever actually go quiet?") becomes answerable
+// with data instead of argument.
+//
+// codescout:docs/issues/2026-08-19-rendezvous-gate-latches-open-when-the-hook-goes-quiet.md
+const LIVENESS_THROTTLE_MS = 60_000;
+
+/// Refresh `hook_at` on rendezvous slots owned by our own process ancestry.
+///
+/// Two invariants make this a no-op for behaviour, and both are load-bearing:
+///
+/// 1. **Never opens the gate.** A slot with `hook_at: null` is skipped. The
+///    server reads any non-null `hook_at` as "a companion is present"
+///    (`Rendezvous::poll` sets `active = true` on it), so stamping an unstamped
+///    slot would flip a session from the blunt-clear path to the surgical one —
+///    a real behaviour change. Measured 2026-08-27: 3 of 7 live slots were
+///    unstamped, so that is not a hypothetical population. Opening the gate
+///    stays SessionStart's job.
+/// 2. **Never writes `session`.** Doing so would make a `/clear` visible without
+///    a SessionStart, which would FIX the latch bug rather than measure it —
+///    out of scope until the frequency data says it is worth the change.
+///
+/// Throttled to one write per minute per slot: the server's `poll()` skips
+/// read+parse on an unchanged mtime, so an unthrottled stamp would turn a
+/// metadata-only check into a parse on every tool call. A repeated stamp of the
+/// same session is already silent server-side
+/// (`poll_ignores_a_stamp_repeating_the_session_we_already_have`), which is what
+/// makes the extra writes safe.
+export function refreshLivenessStamp(now = Date.now()) {
+  try {
+    const home = process.env.HOME || process.env.USERPROFILE || homedir();
+    const xdgStateHome = process.env.XDG_STATE_HOME;
+    const stateHome = xdgStateHome && isAbsolute(xdgStateHome)
+      ? xdgStateHome
+      : join(home, '.local', 'state');
+    const rvDir = join(stateHome, 'codescout', 'servers');
+    if (!existsSync(rvDir)) return;
+    const ancestry = ownAncestry();
+    for (const name of readdirSync(rvDir)) {
+      if (!name.endsWith('.json')) continue;
+      const f = join(rvDir, name);
+      try {
+        const e = JSON.parse(readFileSync(f, 'utf8'));
+        if (!ancestry.has(e.ppid)) continue;
+        if (!e.hook_at) continue;            // invariant 1 — never open the gate
+        const age = now - Date.parse(e.hook_at);
+        if (age >= 0 && age < LIVENESS_THROTTLE_MS) continue;
+        e.hook_at = new Date(now).toISOString();
+        // Atomic: stage beside the target, then rename. A bare write let the
+        // server's poll land mid-write and read truncated JSON.
+        const tmp = `${f}.tmp`;
+        writeFileSync(tmp, JSON.stringify(e));
+        renameSync(tmp, f);
+      } catch {
+        /* skip unreadable, unparseable, or concurrently-removed slots */
+      }
+    }
+  } catch {
+    /* best-effort — never let the rendezvous break a hook */
+  }
+}
+
+// Our own pid chain, capped at 10 hops: a corrupt or cyclic chain must not spin
+// inside a hook. Mirrors session-start.mjs's copy; kept separate so the
+// load-bearing SessionStart path is untouched by this instrumentation.
+function ownAncestry() {
+  const seen = new Set();
+  let pid = process.pid;
+  for (let hop = 0; hop < 10; hop++) {
+    if (pid <= 1 || seen.has(pid)) break;
+    seen.add(pid);
+    const parent = parentOf(pid);
+    if (parent === null) break;
+    pid = parent;
+  }
+  return seen;
+}
+
+function parentOf(pid) {
+  try {
+    if (process.platform === 'linux') {
+      const stat = readFileSync(`/proc/${pid}/stat`, 'utf8');
+      const rest = stat.slice(stat.lastIndexOf(')') + 2).split(' ');
+      const ppid = Number.parseInt(rest[1], 10);
+      return Number.isNaN(ppid) ? null : ppid;
+    }
+    const out = execFileSync('ps', ['-o', 'ppid=', '-p', String(pid)], {
+      encoding: 'utf8',
+      timeout: 2000,
+    });
+    const ppid = Number.parseInt(out.trim(), 10);
+    return Number.isNaN(ppid) ? null : ppid;
+  } catch {
+    return null;
+  }
 }
