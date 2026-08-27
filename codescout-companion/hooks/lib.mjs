@@ -171,7 +171,7 @@ export function guideLedgerPath(sessionId, home) {
 // The session hash and the agent hash are SEPARATE segments, rather than one
 // hash of "session:agent" as shipped in 1.19.0, because restore has to consult
 // its live SIBLINGS and a single combined hash cannot be globbed by session.
-// docs/issues/2026-08-27-concurrent-subagent-restores-discard-parent-guide-marks.md
+// docs/issues/archive/2026-08-27-concurrent-subagent-restores-discard-parent-guide-marks.md
 const SNAP_PREFIX = 'cs-guide-snapshot-';
 
 // Debris from a crashed session: the only deleter is a SubagentStop that may

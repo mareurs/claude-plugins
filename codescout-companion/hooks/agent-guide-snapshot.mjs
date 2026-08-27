@@ -64,7 +64,7 @@ if (ledgerPath && snapPath) {
     // this hook wrote until 1.19.0 existed only because restore-by-overwrite
     // had no way to express "and there was no file", and its restore path
     // (unlinkSync) is what deleted a whole ledger out from under the parent.
-    // docs/issues/2026-08-27-concurrent-subagent-restores-discard-parent-guide-marks.md
+    // docs/issues/archive/2026-08-27-concurrent-subagent-restores-discard-parent-guide-marks.md
     const keys = existsSync(ledgerPath) ? guideLedgerKeys(readFileSync(ledgerPath, 'utf8')) : [];
     writeFileSync(snapPath, encodeGuideSnapshot(keys, false));
   } catch {

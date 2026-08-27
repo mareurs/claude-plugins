@@ -36,7 +36,7 @@
 // it needs per-tool-call attribution. The cost is one re-injected guide body,
 // and removal is the correct side to err on: keeping an unattributable key
 // risks the starvation this whole bracket exists to stop.
-// docs/issues/2026-08-27-concurrent-subagent-restores-discard-parent-guide-marks.md
+// docs/issues/archive/2026-08-27-concurrent-subagent-restores-discard-parent-guide-marks.md
 import { readFileSync, existsSync, writeFileSync, unlinkSync, renameSync } from 'node:fs';
 import { homedir } from 'node:os';
 import {

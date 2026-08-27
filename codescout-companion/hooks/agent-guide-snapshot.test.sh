@@ -142,7 +142,7 @@ fi
 #     and so is not 3a's to remove. Until 1.19.0 restore overwrote the ledger
 #     wholesale, so 3a replayed its own start-view and discarded `b` -- and
 #     this case asserted that discard as if it were the correct answer.
-#     docs/issues/2026-08-27-concurrent-subagent-restores-discard-parent-guide-marks.md
+#     docs/issues/archive/2026-08-27-concurrent-subagent-restores-discard-parent-guide-marks.md
 echo '{"a":"2026-08-01T00:00:00Z"}' > "$LEDGER_FILE"
 run_start "$SESSION" "agent_3a" > /dev/null
 echo '{"a":"2026-08-01T00:00:00Z","b":"2026-08-01T00:01:00Z"}' > "$LEDGER_FILE"
