@@ -192,6 +192,12 @@ with no Voice, still adopts the advisor's voice or emits its output format, then
 projection-by-omission is insufficient and the payload needs an explicit
 instruction in its header.
 
+**The eval was RUN on 2026-08-27 and the falsifier did not fire.** See
+*§ Resolved* below; full results and limits in
+`buddy/tests/advisor-projection-eval/RESULTS.md`. The heading of this section
+still reads "specified, not gating" because that describes the spec's stance at
+authoring time — it is history, not current state.
+
 #### The window closes, and one of the two remedies closes it permanently
 
 Added 2026-08-27, from the whole-branch review. This section previously said
@@ -235,6 +241,38 @@ still measurable" and "unverified and no longer measurable."
 
 **Owner:** whoever takes `T-39`. The obligation is discharged by *recording which
 path was taken*, not by taking a particular one.
+#### Resolved 2026-08-27 — path 1 was taken, and the premise is verified
+
+The obligation above is discharged here: **path 1.** The eval was run while the
+baseline arm was still clean, and the header clause was **not** added. The premise
+is verified by measurement rather than insured by a clause, and the falsifier is
+retired.
+
+Pre-registered in `buddy/tests/advisor-projection-eval/PRE-REGISTRATION.md`,
+amended twice before and during the run (`AMENDMENT-1` fixed an observable that
+pointed at strings projection removes; `AMENDMENT-2` stopped a 0-byte run being
+scored as a negative). Results in `RESULTS.md`.
+
+N = 5 valid runs per arm, one stimulus. A1 RETAIN 5/5 cleared the positive control,
+so the instrument had power. A2 scored RETAIN 5/5 and behavioural leak **0/5** —
+the pre-registered *premise holds* cell. The behavioural read was blinded, which the
+pre-registration did not require.
+
+**What actually carries the result is an observable nobody registered:** which
+responses cite the advisor by name. A2 5/5, A1 0/5, A3 0/5 — two of them quoting
+the `advisor: security-ibex` tag `project_advisor()` appends. This matters because
+a behavioural leak of 0 reads *identically* in the world where projection works and
+in the world where the advisor was never attended to at all. The pre-registered rule
+cannot separate those and would have returned *premise holds* in both — one more
+`claude-plugins:W-4` non-discrimination, this time in the eval's own decision rule,
+caught by an unregistered read rather than by the design. It came out positive, so
+the verdict stands as written.
+
+**The trigger conditions above are now spent, and deliberately so.** A shipped
+specialist may declare `advisors:` freely; the baseline arm no longer needs
+protecting. Re-open only on a genuinely new premise: **two or more advisors
+projected together**, which this eval did not test and which is where crowding-out
+would plausibly first appear.
 ## Cut from v1, and what brings each back
 
 **`guides:`** — cannot deliver. Three routes, all closed: emitting

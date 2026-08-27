@@ -20,49 +20,50 @@ fast-forward, 605 insertions). Specialists are composable as **primary + advisor
 buddy pytest 502. Design `docs/superpowers/specs/2026-08-27-buddy-specialist-graph-design.md`,
 plan `docs/superpowers/plans/2026-08-27-buddy-specialist-graph.md`, task `active-plan:T-39`.
 
-**An eval is mid-flight.** It measures the spec's one untested premise: that omitting
-an advisor's `Voice` and output contract is *sufficient* for the model to behave as
-though they are absent. Everything shipped asserts on the payload **string**; nothing
-observed a model until now.
+**The eval is DONE and the premise HELD.** It measured the spec's one untested
+premise — that omitting an advisor's `Voice` and output contract is *sufficient* for
+the model to behave as though they are absent. Everything shipped asserts on the
+payload **string**; this is the only thing that observed a model.
 
-| arm | payload | state |
-|---|---|---|
-| **A1** primary alone | 24,079 chars | done — RETAIN **5/5** valid. Instrument control PASSED; eval not void |
-| **A2** + `security-ibex` | 28,446 chars | RETAIN **4/4 valid**; run-5 came back 0-byte and needs re-running |
-| **A3** + `planning-crane` (size-matched irrelevant) | 28,383 chars | running at handoff |
+| arm | valid n | RETAIN | behavioural leak | cites advisor by name |
+|---|---|---|---|---|
+| **A1** primary alone | 5 | 5/5 | 0/5 | 0/5 |
+| **A2** + `security-ibex` | 5 | 5/5 | **0/5** | **5/5** |
+| **A3** + `planning-crane` (size-matched irrelevant) | 5 | 5/5 | 0/5 | 0/5 |
 
-**No verdict has been declared and none may be** until (a) A2 reaches 5 valid runs,
-(b) A3 completes, and (c) the behavioural-leak read is done by hand. The numeric half
-alone is not the rule.
+A1 5/5 cleared the positive control, so the instrument had power. A2 hit the
+pre-registered *premise holds* cell — **the header clause is no-shipped**, path 1 of
+the one-way door, and the spec now records the premise **verified rather than
+insured**. The behavioural read was blinded (deterministic shuffle, key unread until
+the last score landed); all 15 responses kept the primary's voice and Test Format and
+none presented as a security finding.
 
-**Early signal, not a conclusion:** A2 runs 1–4 carry security terms (1–3 per
-response) *while retaining* the primary's Test Format at high test-term density
-(10–17). That is the advisor contributing judgment without displacing the contract —
-what the design wants. It is 4 runs, unreplicated, and the behavioural read is not done.
+**The result actually rests on an unregistered observable.** A behavioural leak of 0
+reads identically in the world where projection works and in the world where the
+advisor text was never attended to at all — the pre-registered rule cannot separate
+those. The advisor-citation count can: A2 5/5 against 0/5 in both other arms, two of
+them quoting the `advisor: security-ibex` tag verbatim. It came out positive so the
+verdict stands, but the rule as written would not have flagged an uninformative eval.
+Written up as `roster-audit-session-log:W-4` addendum 2.
 
+Full results and the limits that bind the claim (N=5, one stimulus, one advisor,
+user-turn delivery): `buddy/tests/advisor-projection-eval/RESULTS.md`.
 ## Next actions
 
-1. **Verify state first.** `git -C /home/marius/work/claude/claude-plugins log --oneline -3`
-   should show `main` at or after `cc4a64e`. Confirm `buddy pytest` still 502.
-2. **Re-run A2's failed run and finish A3.**
-   `bash <scratch>/run_arm.sh A2-plus-security 5` (it re-runs 0-byte files
-   automatically) then `A3-plus-irrelevant 5`. Scratch dir:
-   `/tmp/claude-1000/-home-marius-work-claude-claude-plugins/f6ae2d77-.../scratchpad/`.
-   **If that tmp dir is gone, regenerate with `gen_arms.py` — it rebuilds the arms from
-   the real `build_payload`, so nothing is lost but the responses.**
-3. **Do the behavioural-leak read by hand.** All valid responses, bound to their arm,
-   recorded per-run *before* any tally. The question: does the response present as a
-   *security finding* (severity framing, vulnerability-first structure) rather than a
-   *test review*? This is the gating half the automated score cannot reach.
-4. **Apply the pre-registered rule** in `buddy/tests/advisor-projection-eval/`
-   (`PRE-REGISTRATION.md` + `AMENDMENT-1` + `AMENDMENT-2`). Do not re-derive it.
-5. **Fill the outcome.** `artifact(action="update_entry", id="720408ecd2391251",
-   entry_collection="audits", entry_id="A-2", fields={"outcome": "held|partial|failed"})`
-   and amend the spec section *§ The window closes…* to record **which path was taken**.
-   That is what discharges the obligation — not taking a particular path.
-6. **Then the parked release.** `./scripts/release.sh buddy minor`, the tracker refresh
-   (`cc8cb9e23ab5cc67`), and a cold restart of all three instances.
+The eval work is closed. What remains is the parked release and the push.
 
+1. **Verify state first.** `git -C /home/marius/work/claude/claude-plugins log --oneline -3`
+   and confirm `buddy pytest` still 502.
+2. **The parked buddy release.** `./scripts/release.sh buddy minor`, then the two
+   steps the script cannot do: refresh the `version-bump-checklist` tracker
+   (`cc8cb9e23ab5cc67`, needs the MCP tool) and verify every row ✅, then
+   **cold-restart all three instances** — a `resume` is not enough.
+3. **Decide on pushing.** 12+ commits are unpushed to `origin/main`; the merge was
+   Option 1 (local). This is the user's call, not a cleanup step.
+4. **Optional, and genuinely open:** the eval tested **one** advisor. Two or more
+   projected together is untested and is where crowding-out would plausibly first
+   appear. The spec's § *Resolved* names this as the only condition that re-opens the
+   question.
 ## Working state
 
 - **Branch `main`, clean.** `feat/buddy-specialist-graph` merged and deleted. The SDD
@@ -81,28 +82,43 @@ what the design wants. It is 4 runs, unreplicated, and the behavioural read is n
 
 ## Anti-goals
 
-- **Do not add the payload-header clause before the eval concludes.** It pre-empts
-  exactly what the eval measures. Insurance and measurement are mutually exclusive
-  here, and doing it accidentally destroys the measurement permanently while leaving
-  the spec reading as though the premise were open.
-- **Do not declare a verdict on the RETAIN numbers alone.** The rule requires the
-  behavioural read too.
+- ~~**Do not add the payload-header clause before the eval concludes.**~~
+  **Resolved 2026-08-27.** The eval concluded and the clause is **no-shipped**. The
+  standing form of this anti-goal now: do not add it *at all* without new evidence —
+  the premise is measured, and adding the clause anyway would be insurance against a
+  failure that did not occur, i.e. exactly the dead rule `prompt-hamsa` H12 exists to
+  prevent.
+- **Do not re-run the eval to "confirm" it.** N=5 with one stimulus is what it is;
+  a second identical run adds nothing the stated limits do not already concede. If
+  more power is wanted, change the design — more arms, a second stimulus, two
+  advisors — not the sample size alone.
 - **Do not treat a 0-byte run as a negative result.** See `AMENDMENT-2`.
-- **Do not run `release.sh` before deciding on the eval** — it cold-restarts all three
-  profiles, and a restart mid-eval changes nothing about the isolated runs but does
-  change what is live underneath.
 - Do not re-litigate the 10 deferred minors in `T-39`; they were triaged by the
   whole-branch review.
-
 ## One thing worth knowing about this session
 
 Seven separate instances of a single defect shape appeared — a check that returns the
 same value whether or not the thing it checks is true. In a plan assertion, in a test
 docstring's own claim, in an eval's decision rule, in a `grep` collecting rulings for
-the human, and in the eval's scorer. **Every one was caught by a review, a re-read or
-a spot-check of an anomalous number. None by the pass that authored it.** Recorded as
-`roster-audit-session-log:W-4` and its 2026-08-27 addendum; the promote-when is
-deliberately **not** fired, because six of the seven came from one session explicitly
-hunting the mechanism, and instances collected while hunting are a fact about the
-hunting.
+the human, in the eval's scorer, and finally in the eval's **verdict rule itself**.
 
+The first six were each caught by a review, a re-read, or a spot-check of an anomalous
+number — none by the pass that authored them. **The seventh is worse, and it is the
+one worth carrying forward.** `PRE-REGISTRATION.md` was written and then *twice
+deliberately re-reviewed for exactly this defect class* — `AMENDMENT-1` and
+`AMENDMENT-2` are both fixes of this shape to that document — and the hole in its
+verdict rule survived both. It was caught only by contact with data, by noticing a
+signal the design never asked for.
+
+So "add a checking step at authoring time" is the weaker reading. Two dedicated review
+passes over a two-page document, by a reader holding the law and looking for it, did
+not surface it. The sharper hypothesis, recorded for later test: for any eval whose
+failure signal is an **absence**, pre-register a **treatment-side positive control** —
+a second signal that goes to zero when the intervention is inert — and check it first.
+`prompt-hamsa` H12 asks this of the base arm only.
+
+Recorded as `roster-audit-session-log:W-4` with two addenda. The promote-when is still
+deliberately **not** fired: all seven came from one session, and instances collected
+while hunting are a fact about the hunting. Instance 7 is the first that was not
+produced by the hunt — which is the direction the criterion cares about, but "different
+task, same conversation" is not an independent work stream.

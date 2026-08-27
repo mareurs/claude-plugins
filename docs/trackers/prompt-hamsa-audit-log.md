@@ -54,7 +54,7 @@ This is how *"unverified, N=0"* stops being a permanent flag and becomes a hold-
   hold-rate = `held` ÷ (high-confidence rows with a non-empty `outcome`).
 
 ## History
-### 2026-08-27 — advisor projection rule: base arm first, eval RUNNING (row `A-2`)
+### 2026-08-27 — advisor projection rule: base arm first, eval HELD, clause no-shipped (row `A-2`)
 
 **Artifact:** `buddy/scripts/summon_bootstrap.py::build_payload` — the advisor
 projection rule as assembled into a summon payload.
@@ -94,9 +94,36 @@ reproduction. RETAIN became load-bearing; verbatim leak demoted to expected-0.
 **Instrument positive control: A1 RETAIN 5/5.** The primary emits its own contract
 unaided, so a drop in A2 would mean something. Eval not void.
 
-**Outcome: pending** — A2/A3 running at time of writing. Row `A-2`'s `outcome` stays
-`null` until they land. Prediction on record: A2 RETAIN ≥ 4/5 and behavioural leak
-≤ 1/5 → no-ship the clause.
+**Amendment 2, mid-run.** A2's fifth run returned 0 bytes and the scorer read that as
+`retain=False` — the same value it assigns when the model *answered and displaced the
+contract*. Missing data scored as negative data, biased against the premise. Invalid
+runs are now excluded and the pre-registered `n` means *n valid runs*; "n=5" had
+silently meant "5 attempts".
+
+**Outcome: HELD.** A2 RETAIN 5/5, behavioural leak 0/5 — the predicted cell, so the
+clause is **no-ship** and the spec records the premise verified rather than insured.
+The behavioural read was blinded (deterministic shuffle, key unread until the last
+score landed), which the pre-registration did not require; all 15 responses kept the
+primary's voice and Test Format, and none presented as a security finding.
+
+**What the audit did NOT predict, and what actually carries the result.** An
+unregistered observable read during the blind pass: which responses cite the advisor
+by name. A2 **5/5**, A1 0/5, A3 0/5 — perfect separation, two of them quoting the
+`advisor: security-ibex` tag verbatim. This matters because a behavioural leak of 0
+reads *identically* in the world where projection works and in the world where the
+advisor text was never attended to at all. The pre-registered rule cannot separate
+those and would have returned *premise holds* in both. That is `claude-plugins:W-4`
+firing a second time inside the same eval — the first was caught before the run by
+Amendment 1, this one only by an unregistered read, and only after the fact.
+
+**Standing lesson for this ledger:** H12 says the base arm proves the deficit exists.
+It does not say the *treatment* arm proves the treatment was received. An eval whose
+failure observable is an absence needs a positive control on the treatment too — a
+signal that goes to zero when the intervention is inert. Pre-register that alongside
+the base arm, not after.
+
+**Score.** H12's running rate becomes **7 of 10** codescout/buddy intervention audits
+landing no-ship. Full results: `buddy/tests/advisor-projection-eval/RESULTS.md`.
 
 ### 2026-06-13 — created
 

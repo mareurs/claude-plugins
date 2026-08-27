@@ -1283,6 +1283,48 @@ and not one by the authoring pass that produced it. If that holds up, the remedy
 checking step at authoring time, not a better-informed author. Knowing the law did not
 install the check; six times.
 
+### W-4 addendum 2 — instance 7, and it survived both of its own amendments
+
+**Valid:** dated 2026-08-27
+
+**7. The advisor-projection eval's own decision rule.** The pre-registered verdict
+turns on *behavioural leak ≤ 1/5* — an **absence**. A leak of 0 is what you observe
+when projection works. It is also exactly what you observe when the advisor text was
+never attended to at all: an inert 4 KB block produces no leak by producing nothing.
+The rule returns *premise holds* in both worlds and cannot separate them.
+
+The eval came out positive on an observable nobody registered — A2 cited the advisor
+by name 5/5, A1 and A3 0/5 — so the verdict stands. But the rule as written would not
+have reported the eval uninformative had that count been zero.
+
+**What makes this one different from 3–6.** Provenance: instances 3–6 were found while
+working *on* W-4 or while auditing text with W-4 in hand. This one was found by
+reading eval output for an unrelated purpose. It is still the same session and the
+same night, so **the promote-when remains unfired** — "independent work stream" is
+not satisfied by "different task, same conversation." But it is the first instance
+not produced by the hunt, which is the direction the criterion actually cares about.
+
+**And it sharpens the method note, in a way that costs the previous one.** The
+addendum above concluded *"every one of the six was caught by review, not by the
+authoring pass."* Instance 7 is worse than that. `PRE-REGISTRATION.md` was written,
+then **twice deliberately re-reviewed for exactly this defect class** — `AMENDMENT-1`
+is a W-4 fix to its observables, `AMENDMENT-2` a W-4-adjacent fix to its scorer — and
+this hole survived both. It was caught only by contact with data.
+
+So *"a checking step at authoring time"* is now the weaker reading. Two dedicated
+review passes over a two-page document, by a reader holding the law and actively
+looking for it, did not surface it. What surfaced it was running the thing and
+noticing a signal the design never asked for.
+
+**The sharper hypothesis to test later:** a non-discriminating check is easiest to see
+from the *result*, not from the rule — because the rule reads correct in isolation and
+only the data shows both worlds landing in the same cell. If that holds, the remedy is
+not a better review checklist but a required **treatment-side positive control**: for
+any eval whose failure signal is an absence, pre-register a second signal that goes to
+zero when the intervention is inert, and check it first. That is `R-5`'s
+positive-control neighbour, applied to the treatment arm instead of the instrument —
+and `prompt-hamsa` H12 does not currently ask for it, since it governs the base arm
+only.
 ## W-5 — Writing the caveat discharges the obligation to close it — and the tell is whether it names a next action
 
 **Status:** candidate — recorded, NOT promoted. Same selection defect as its own evidence; see *Promote-when*.
