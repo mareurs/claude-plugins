@@ -13,15 +13,15 @@ Release readiness across plugins × profiles. See
 
 ## State
 
-_Last refresh: codescout-companion 1.19.1 + buddy 0.10.0, 2026-08-27._
+_Last refresh: codescout-companion 1.19.2 + buddy 0.10.0, 2026-08-27._
 
-**codescout-companion** — canonical `1.19.1` · readme `1.19.1` · marketplace clean ✅
+**codescout-companion** — canonical `1.19.2` · readme `1.19.2` · marketplace clean ✅
 
 | profile | installed | cache dir | install_path ok | all entries | cache = working tree |
 |---|---|---|---|---|---|
-| `~/.claude` | 1.19.1 ✅ | ✅ | ✅ | `1.19.1` ✅ | ✅ |
-| `~/.claude-sdd` | 1.19.1 ✅ | ✅ | ✅ | `1.19.1` ✅ | ✅ |
-| `~/.claude-kat` | 1.19.1 ✅ | ✅ | ✅ | `1.19.1` ✅ | ✅ |
+| `~/.claude` | 1.19.2 ✅ | ✅ | ✅ | `1.19.2` ✅ | ✅ |
+| `~/.claude-sdd` | 1.19.2 ✅ | ✅ | ✅ | `1.19.2` ✅ | ✅ |
+| `~/.claude-kat` | 1.19.2 ✅ | ✅ | ✅ | `1.19.2` ✅ | ✅ |
 
 **Registration is NOT load-bearing for 1.19.1.** It changes hook *content* only —
 `lib.mjs`, `agent-guide-snapshot.mjs`, `agent-guide-restore.mjs` — and touches no
@@ -144,6 +144,27 @@ trace log does not attribute startups per profile. A session in either profile c
 run the four lines above to close it. Until then the honest state is one profile
 measured, two inferred.
 ## History
+
+### 2026-08-27 — codescout-companion 1.19.2, a DOCUMENTATION-only release
+
+No behaviour changed. The diff is comment blocks in `lib.mjs`,
+`agent-guide-snapshot.mjs`, `agent-guide-restore.mjs` and the guide-snapshot suite,
+scoping the guide-ledger bracket to what it actually does (see the scope-correction entry
+below). Recorded because "why is there a release with no code in it?" is a fair question
+and the answer is a rule worth keeping.
+
+**A comment-only change still drifts the caches.** Before this release, all three profiles'
+1.19.1 caches differed from the working tree in **4 files** each. Functionally that is
+nothing — this marketplace serves from the working tree, so the comments were already
+"live". But `cache = working tree` is a column in the table above, and leaving it silently
+false is exactly the class of drift `d6ba54b` was written to end. The bump is what keeps
+the claim true, not what deploys the change.
+
+So the rule this entry exists to record: **release on content, not on behaviour.** Asking
+"did behaviour change?" is the wrong gate for this repo, because the load path makes the
+answer irrelevant; asking "do the caches still match the tree?" is the right one.
+
+Verified after: `diff=0`, `leaks=0` on all three profiles, both parity gates OK.
 
 ### 2026-08-27 — scope correction: what the 1.18.0–1.19.1 guide-ledger work actually bought
 
