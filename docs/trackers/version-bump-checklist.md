@@ -13,31 +13,36 @@ Release readiness across plugins × profiles. See
 
 ## State
 
-_Last refresh: codescout-companion 1.18.0 + buddy 0.10.0, 2026-08-27._
+_Last refresh: codescout-companion 1.19.1 + buddy 0.10.0, 2026-08-27._
 
-**codescout-companion** — canonical `1.18.0` · readme `1.18.0` · marketplace clean ✅
+**codescout-companion** — canonical `1.19.1` · readme `1.19.1` · marketplace clean ✅
 
 | profile | installed | cache dir | install_path ok | all entries | cache = working tree |
 |---|---|---|---|---|---|
-| `~/.claude` | 1.18.0 ✅ | ✅ | ✅ | `1.18.0` ✅ | ✅ |
-| `~/.claude-sdd` | 1.18.0 ✅ | ✅ | ✅ | `1.18.0` ✅ | ✅ |
-| `~/.claude-kat` | 1.18.0 ✅ | ✅ | ✅ | `1.18.0` ✅ | ✅ |
+| `~/.claude` | 1.19.1 ✅ | ✅ | ✅ | `1.19.1` ✅ | ✅ |
+| `~/.claude-sdd` | 1.19.1 ✅ | ✅ | ✅ | `1.19.1` ✅ | ✅ |
+| `~/.claude-kat` | 1.19.1 ✅ | ✅ | ✅ | `1.19.1` ✅ | ✅ |
 
-**⚠ Registration IS load-bearing for 1.18.0** — unlike buddy 0.10.0. It adds two NEW
-hook files (`agent-guide-snapshot.mjs`, `agent-guide-restore.mjs`) with two new
-`hooks.json` entries.
+**Registration is NOT load-bearing for 1.19.1.** It changes hook *content* only —
+`lib.mjs`, `agent-guide-snapshot.mjs`, `agent-guide-restore.mjs` — and touches no
+`hooks.json` entry. On this directory-source marketplace content loads from the working
+tree on every invocation, so the subtractive-restore fix
+(`docs/issues/archive/2026-08-27-concurrent-subagent-restores-discard-parent-guide-marks.md`)
+was live in all three profiles the moment it was written. This release did not deploy it;
+it made the version number stop lying about it.
 
-*(Wiring corrected 2026-08-27: they shipped on `PreToolUse:Agent` / `PostToolUse:Agent`
-and were a no-op there — Agent dispatch is async, so the tool call returns at launch and
-the bracket closed before the subagent ran. They now sit on `SubagentStart` /
-`SubagentStop`, keyed by `agent_id`. The registration point below is unchanged and is
-exactly why the correction needs a reload too.
-docs/issues/archive/2026-08-27-agent-guide-restore-fires-at-launch-not-completion.md)*
-Which hooks *exist* is resolved by Claude Code at process launch, so the working-tree
-load path does **not** rescue this one: until a profile re-reads them, the guide-ledger
-snapshot/restore around subagent dispatch does not run there. `~/.claude` reloaded at
-~08:40, after `d47dea4` landed at 08:11, so it has them. `~/.claude-sdd` and
-`~/.claude-kat` have **not** — they need `/reload-plugins` or a cold start.
+**The 1.18.0 registration debt recorded here is now closed, and the measurement is the
+reason.** That entry said `~/.claude-sdd` and `~/.claude-kat` had not re-read the
+`SubagentStart` / `SubagentStop` move and still needed a reload. Counting `source=startup`
+events in `.buddy/.session-start-trace.log` strictly after `ba2d214` (2026-08-27 11:42:13,
+the commit that moved them): **8 cold starts**, from 11:45 to 12:58.
+
+The honest limit is unchanged and worth restating rather than quietly dropping: that log
+is repo-local and shared across profiles, and its `sid=` field is empty on these lines, so
+**8 startups happened but none is attributable to a named profile**. Eight is far more
+than one profile's session churn in 76 minutes, which makes broad coverage likely — it does
+not make it measured. A session in `~/.claude-sdd` or `~/.claude-kat` can settle it with the
+four-line breaker probe under *Registration — `~/.claude` CONFIRMED* below.
 
 **buddy** — canonical `0.10.0` · readme `0.10.0` · marketplace clean ✅ — **the
 unreleased-code drift recorded here on 2026-08-27 is CLOSED.**
@@ -139,6 +144,31 @@ trace log does not attribute startups per profile. A session in either profile c
 run the four lines above to close it. Until then the honest state is one profile
 measured, two inferred.
 ## History
+
+### 2026-08-27 — codescout-companion 1.19.0 → 1.19.1, the first release with nothing to deploy
+
+A clean run: every gate green, no drift found, no new failure class. Recorded because
+*that* is the novelty — five of the last six releases here surfaced a defect, and this is
+what the checklist looks like when the seeder fixes from `d6ba54b` hold.
+
+Content verified the way the 2026-08-27 drift proved was necessary, and **the two checks
+are kept separate on purpose**: `diff -rq` against the working tree returned 0 for all
+three profiles, and an independent `find` for the seeder's seven excluded names returned
+0 leaks. A leak that is also on the diff's exclude list is invisible to the diff by
+construction, so one check can never stand in for the other. Byte-level spot check too:
+`agent-guide-restore.mjs` md5 `96ec647d…` identical in all three caches and the tree.
+
+**What this release actually carried, and why it needed no reload.** Content-only changes
+to three hook files. On a directory-source marketplace content is read from the working
+tree per invocation, so the fix was live before the release ran. The version bump exists
+to keep the caches from drifting away from a tree that has moved — which is the whole
+failure class `d6ba54b` addressed, and leaving it unbumped would have re-created it.
+
+**One piece of debt closed by measurement rather than by action:** the 1.18.0 entry's
+claim that two profiles still owed a reload for the `SubagentStart`/`SubagentStop` move.
+Eight `source=startup` events landed after `ba2d214`. Still not attributable per profile —
+the shared log's `sid=` is empty on those lines — so the entry is closed as *likely
+covered, not confirmed*, with the discriminating probe left in place.
 ### 2026-08-27 — codescout-companion 1.17.0 → 1.18.0, and the drift recurred within nine hours
 
 `NO_PUSH=1 ./scripts/release.sh codescout-companion minor`. Suite green, three caches
