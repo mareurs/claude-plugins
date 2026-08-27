@@ -92,6 +92,45 @@ def _extract_command(cfg: dict[str, Any], server_name: str) -> str:
     return cmd if isinstance(cmd, str) else ""
 
 
+def _collect_memory_topics(directory, prefix=""):
+    """Memory topics under `directory`, depth-first, as `ns/name` paths.
+
+    Mirrors codescout's MemoryStore::list (src/memory/mod.rs:114), which walks with
+    walkdir at arbitrary depth and names each topic by its path relative to the memories
+    dir with the extension stripped. That string IS the topic key — a caller writes
+    memory(action="read", topic="infra/friction-measurement") — so a one-level scan does
+    not merely under-count namespaced topics, it makes them unreachable through every
+    surface fed by CS_MEMORY_NAMES: the SessionStart banner, and the subagent Phase 0
+    block, which substitutes this list FOR the memory(action="list") call.
+    docs/issues/2026-08-27-cs-memory-names-skips-namespaced-memories.md
+
+    Recurses where the directory appears in sorted order rather than after all files, so
+    the emitted order matches detect.mjs's walk exactly. The two are twins and nothing
+    compares them automatically; the ordering is the part that would drift silently.
+
+    Symlinks are skipped, on both sides. walkdir does not follow them by default, so
+    skipping matches the server — and it makes a symlink cycle under memories/ unable to
+    hang the SessionStart hook this feeds.
+    """
+    topics = []
+    try:
+        entries = sorted(directory.iterdir())
+    except OSError:
+        # fail-open PER DIRECTORY: one unreadable subdirectory hides itself, never its
+        # siblings. The pre-recursion version wrapped the whole scan, so a single
+        # failure reported zero memories.
+        return topics
+    for entry in entries:
+        if entry.is_symlink():
+            continue
+        if entry.is_file() and entry.suffix == ".md":
+            topics.append(f"{prefix}{entry.stem}")
+        elif entry.is_dir():
+            topics.extend(_collect_memory_topics(entry, f"{prefix}{entry.name}/"))
+    return topics
+
+
+
 def detect(cwd: str, home: str, claude_config_dir: str | None) -> dict[str, str]:
     cwd_path = Path(cwd)
 
@@ -173,10 +212,12 @@ def detect(cwd: str, home: str, claude_config_dir: str | None) -> dict[str, str]
     has_memories = "false"
     memory_names = ""
     if memories_dir.is_dir():
-        for entry in sorted(memories_dir.iterdir()):
-            if entry.is_file() and entry.suffix == ".md":
-                memory_names += f"{entry.stem} "
-                has_memories = "true"
+        topics = _collect_memory_topics(memories_dir)
+        if topics:
+            has_memories = "true"
+            # Trailing space preserved deliberately — every consumer trims it, and
+            # test_memories_collected_with_trailing_space pins it as the contract.
+            memory_names = "".join(f"{t} " for t in topics)
 
     has_system_prompt = "false"
     system_prompt = ""

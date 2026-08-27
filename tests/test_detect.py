@@ -12,6 +12,7 @@ Run with:
 from __future__ import annotations
 
 import json
+import os
 import shlex
 import subprocess
 import sys
@@ -124,6 +125,123 @@ def test_memories_collected_with_trailing_space(tmp_path: Path) -> None:
     assert out["CS_MEMORY_NAMES"].endswith(" ")
     names = out["CS_MEMORY_NAMES"].split()
     assert set(names) == {"alpha", "beta"}
+
+
+def test_namespaced_memories_are_collected_as_paths(tmp_path: Path) -> None:
+    """A memory in a subdirectory is a topic named by its PATH, and must be advertised.
+
+    codescout's MemoryStore::list walks at arbitrary depth and keys each topic by its
+    path relative to the memories dir, so `memory(action="read",
+    topic="infra/friction-measurement")` is how a caller reaches one. A one-level scan
+    here did not merely under-count them: CS_MEMORY_NAMES feeds the SessionStart banner
+    AND the subagent Phase 0 block, which substitutes this list for the
+    memory(action="list") call — so a namespaced memory was unreachable by any route
+    from a subagent. Ordering is asserted too, because detect.mjs is a hand-maintained
+    twin and the interleave (recurse where the directory sorts, not after all files) is
+    the part that would drift silently.
+    """
+    mem_dir = tmp_path / ".codescout" / "memories"
+    _write(mem_dir / "alpha.md", "")
+    _write(mem_dir / "infra" / "friction.md", "")
+    _write(mem_dir / "infra" / "headroom.md", "")
+    _write(mem_dir / "research" / "agents.md", "")
+    _write(mem_dir / "zeta.md", "")
+
+    out = _detect(tmp_path)
+
+    assert out["HAS_CS_MEMORIES"] == "true"
+    assert out["CS_MEMORY_NAMES"].split() == [
+        "alpha",
+        "infra/friction",
+        "infra/headroom",
+        "research/agents",
+        "zeta",
+    ]
+    assert out["CS_MEMORY_NAMES"].endswith(" ")
+
+
+def test_a_namespace_holding_no_markdown_advertises_nothing(tmp_path: Path) -> None:
+    """Recursing must not invent a topic for the directory itself.
+
+    The pre-fix guard skipped directories wholesale, which was wrong but never produced
+    a bogus name. Widening the walk creates that possibility, so it is pinned: an empty
+    namespace, and one holding only non-markdown, both contribute zero.
+    """
+    mem_dir = tmp_path / ".codescout" / "memories"
+    _write(mem_dir / "alpha.md", "")
+    _write(mem_dir / "infra" / "notes.txt", "")
+    _write(mem_dir / "infra" / "friction.anchors.toml", "")
+    (mem_dir / "empty-ns").mkdir(parents=True, exist_ok=True)
+
+    out = _detect(tmp_path)
+
+    assert out["CS_MEMORY_NAMES"].split() == ["alpha"]
+
+
+def test_a_symlinked_namespace_is_skipped_not_followed(tmp_path: Path) -> None:
+    """Symlinks are skipped, matching walkdir's no-follow default.
+
+    Not a style choice: detect runs in the SessionStart hook, and a symlink cycle under
+    memories/ would hang the session before it starts. Skipping makes the cycle
+    unreachable rather than merely unlikely, which is why it is a test and not a comment.
+    """
+    mem_dir = tmp_path / ".codescout" / "memories"
+    _write(mem_dir / "alpha.md", "")
+    real = tmp_path / "elsewhere"
+    _write(real / "ghost.md", "")
+    try:
+        (mem_dir / "linked").symlink_to(real, target_is_directory=True)
+    except (OSError, NotImplementedError):  # pragma: no cover - platform without symlinks
+        pytest.skip("symlinks unavailable on this platform")
+
+    out = _detect(tmp_path)
+
+    assert out["CS_MEMORY_NAMES"].split() == ["alpha"]
+
+
+def test_the_two_detect_twins_agree_on_memory_names(tmp_path: Path) -> None:
+    """detect.mjs and detect.py are hand-maintained twins and NOTHING compared them.
+
+    detect.mjs carries a comment asserting "parity with detect.py". That assertion was
+    never executed, so the two could drift and only a live session would notice — which
+    is how the namespaced-memory gap survived: the fix has to land in both, and the
+    ordering rule (recurse where the directory sorts, not after all files) is expressible
+    two ways that agree on flat fixtures and disagree the moment a namespace appears.
+
+    Scoped deliberately to CS_MEMORY_NAMES rather than the whole payload: the two emit
+    different formats on purpose (JSON vs shell KEY=VALUE for detect-tools.sh), so a
+    whole-output diff compares serialisation, not behaviour, and reads as a failure when
+    nothing is wrong.
+    """
+    mem_dir = tmp_path / ".codescout" / "memories"
+    _write(mem_dir / "alpha.md", "")
+    _write(mem_dir / "infra" / "friction.md", "")
+    _write(mem_dir / "infra" / "nested" / "deep.md", "")
+    _write(mem_dir / "research" / "agents.md", "")
+    _write(mem_dir / "zeta.md", "")
+
+    detect_mjs = REPO_ROOT / "codescout-companion" / "hooks" / "detect.mjs"
+    fake_home = tmp_path / "_home"
+    fake_home.mkdir(exist_ok=True)
+    try:
+        proc = subprocess.run(
+            ["node", str(detect_mjs)],
+            env={"PATH": os.environ.get("PATH", ""), "CWD": str(tmp_path), "HOME": str(fake_home)},
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+    except (FileNotFoundError, subprocess.TimeoutExpired):  # pragma: no cover
+        pytest.skip("node unavailable")
+
+    assert proc.returncode == 0, f"detect.mjs failed: {proc.stderr}"
+    js = json.loads(proc.stdout)["CS_MEMORY_NAMES"]
+    py = _detect(tmp_path, home=fake_home)["CS_MEMORY_NAMES"]
+
+    # Named explicitly rather than only compared, so a failure says WHICH shape is right.
+    expected = "alpha infra/friction infra/nested/deep research/agents zeta "
+    assert py == expected
+    assert js == py
 
 
 def test_system_prompt_multiline_unicode(tmp_path: Path) -> None:

@@ -164,18 +164,45 @@ export function detect(cwd, home, claudeConfigDir) {
   let hasMemories = 'false';
   let memoryNames = '';
   if (isDir(memoriesDir)) {
-    try {
-      for (const name of readdirSync(memoriesDir).sort()) {
+    // Recurses, because a memory topic is a PATH. The server's authority is
+    // MemoryStore::list (codescout src/memory/mod.rs:114): it walks with walkdir at
+    // arbitrary depth and names each topic by its path relative to the memories dir,
+    // extension stripped, separators normalised to '/'. That string is the topic key —
+    // memory(action="read", topic="infra/friction-measurement") — so a shallower scan
+    // here does not merely under-report, it makes those topics unreachable through
+    // every surface fed by CS_MEMORY_NAMES: the SessionStart banner, and the subagent
+    // Phase 0 block, which substitutes this list FOR the memory(action="list") call.
+    // docs/issues/2026-08-27-cs-memory-names-skips-namespaced-memories.md
+    //
+    // withFileTypes, not statSync: Dirent's isFile()/isDirectory() are lstat-based and
+    // BOTH false for a symlink, which reproduces walkdir's no-follow default and makes
+    // a symlink cycle under memories/ unable to hang this hook. statSync follows links,
+    // so the obvious recursion written with the isFile/isDir helpers above can loop —
+    // and this runs at SessionStart, where a hang costs the whole session.
+    const walk = (dir, prefix) => {
+      let entries;
+      try {
+        entries = readdirSync(dir, { withFileTypes: true });
+      } catch {
+        // fail-open PER DIRECTORY: one unreadable subdirectory hides itself, never its
+        // siblings. The pre-recursion version wrapped the whole scan, so a single
+        // failure reported zero memories.
+        return;
+      }
+      entries.sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
+      for (const e of entries) {
+        const name = e.name;
         // name.length > 3 excludes a file literally named ".md" (parity with
         // detect.py, where Path(".md").suffix == "" so it is not a memory).
-        if (isFile(join(memoriesDir, name)) && name.endsWith('.md') && name.length > 3) {
-          memoryNames += `${name.slice(0, -3)} `;
+        if (e.isFile() && name.endsWith('.md') && name.length > 3) {
+          memoryNames += `${prefix}${name.slice(0, -3)} `;
           hasMemories = 'true';
+        } else if (e.isDirectory()) {
+          walk(join(dir, name), `${prefix}${name}/`);
         }
       }
-    } catch {
-      /* fail-open: unreadable memories dir → treat as no memories, never throw */
-    }
+    };
+    walk(memoriesDir, '');
   }
 
   let hasSystemPrompt = 'false';
