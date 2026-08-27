@@ -40,8 +40,9 @@ entry_high_water_F: 2
 > take the number between your scan and your write. Pre-written rows are
 > worse: the allocator counts an id claimed by an index row, so rows
 > written ahead of their sections consume the ids they name — which is why
-> codescout's `statement-validity-session-log` starts at `F-2`/`W-3`
-> rather than `F-1`/`W-1` (see `F-3` there).
+> codescout's `statement-validity-session-log` starts at `statement-validity-session-log:F-2`/`statement-validity-session-log:W-3`
+> rather than `statement-validity-session-log:F-1`/`statement-validity-session-log:W-1`
+> (see `statement-validity-session-log:F-3` there).
 >
 > **`edit_markdown` is not the append path**, though it works at first.
 > This file ships without `entry_prefix` declared, so it is directly
@@ -218,7 +219,7 @@ Codified so the Index column means the same thing across sessions.
 
 **Pattern:** Before concluding a security-tagged file's disappearance was a deliberate scrub (and before either declining to investigate further out of caution, or acting on that belief), scout the actual git shape: `git cat-file -e HEAD:<path>` to confirm true absence, `git log --all --follow -- <path>` to find every commit that ever touched it, then `git merge-base --is-ancestor <last-touching-sha> HEAD` to check whether that history is even reachable from the current branch. If unreachable, `git diff --stat <merge-base> <last-touching-sha>` scopes whether it was an isolated file or part of a larger dropped batch — the discriminator between "one orphaned commit" and "a rewrite that scrubbed a set." Finally, run `librarian(doctor)` (machine-wide, not just the active project) to check whether the same `missing_file` defect recurs anywhere else, before generalizing a single incident into a claimed pattern.
 
-**Counterfactual:** Without this scout, the tags alone (`security`, `exfiltration`) plus the file's total absence from git would have supported either a false "deliberately scrubbed for security reasons" claim reported to the user, or a premature `artifact(delete)` on the stale catalog row without checking whether the underlying content was actually preserved elsewhere. The actual shape was mundane: two commits (`8fc78c9f`, `e8d208aa`) on a short branch tip off `b9625ac` that never got carried into `main` — diffing the tip against the merge-base showed exactly one file changed, ruling out a batch scrub — and the substantive content (the PR #9 bypass findings) was independently intact in codescout's own `docs/trackers/pr-review-session-log.md` (F-4/W-3, 2026-08-07), so nothing was actually lost. `librarian(doctor)` confirmed the `missing_file` check fired exactly once across every repo in the catalog, turning "maybe this happens elsewhere" into a measured negative rather than a guess.
+**Counterfactual:** Without this scout, the tags alone (`security`, `exfiltration`) plus the file's total absence from git would have supported either a false "deliberately scrubbed for security reasons" claim reported to the user, or a premature `artifact(delete)` on the stale catalog row without checking whether the underlying content was actually preserved elsewhere. The actual shape was mundane: two commits (`8fc78c9f`, `e8d208aa`) on a short branch tip off `b9625ac` that never got carried into `main` — diffing the tip against the merge-base showed exactly one file changed, ruling out a batch scrub — and the substantive content (the PR #9 bypass findings) was independently intact in codescout's own `docs/trackers/pr-review-session-log.md` (`pr-review-session-log:F-4`/`pr-review-session-log:W-3`, 2026-08-07), so nothing was actually lost. `librarian(doctor)` confirmed the `missing_file` check fired exactly once across every repo in the catalog, turning "maybe this happens elsewhere" into a measured negative rather than a guess.
 
 **Confirming data points:**
 1. This session — `git merge-base --is-ancestor` returned false for the last commit touching the file, which is what made "history was rewritten, not just deleted" checkable rather than assumed.
@@ -226,7 +227,7 @@ Codified so the Index column means the same thing across sessions.
 
 **Impact:** med — prevented a wrong claim (deliberate security scrub) from reaching the user, and avoided a catalog-repair action before the underlying git shape was actually understood.
 
-**Promote-when:** A second incident where a catalog row's target file is genuinely absent from `git ls-files` prompts checking `merge-base --is-ancestor` before characterizing why. At 2 datapoints, promote to reconnaissance `SKILL.md` Phase 1 as a named check under the existing "search that finds nothing" law (R-3 → ... → R-104 family) — this is that law's git-specific instance: a file's absence is evidence about which history you're looking at, not necessarily about the file's fate.
+**Promote-when:** A second incident where a catalog row's target file is genuinely absent from `git ls-files` prompts checking `merge-base --is-ancestor` before characterizing why. At 2 datapoints, promote to reconnaissance `SKILL.md` Phase 1 as a named check under the existing "search that finds nothing" law (`codescout:R-3` → ... → `codescout:R-104` family) — this is that law's git-specific instance: a file's absence is evidence about which history you're looking at, not necessarily about the file's fate.
 
 **Status:** validated — single datapoint, scout ran and the conclusion it produced (isolated orphaned commit, content preserved elsewhere) was independently corroborated by the doctor scan and the codescout tracker.
 

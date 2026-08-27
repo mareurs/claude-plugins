@@ -92,7 +92,7 @@ Security-ibex was either designed later or by someone with stronger prompt-engin
 > after this sweep and have never been audited, while `specialists_scanned: 10/10` and an
 > empty `specialists_pending: []` reported the audit as complete. A complete-looking
 > fraction with a stale denominator is the failure mode; both fields are now corrected.
-> Filed as `roster-audit-session-log` `F-2`; issue
+> Filed as `roster-audit-session-log:F-2`; issue
 > `docs/issues/archive/2026-08-26-buddy-introspection-scope-stale-10-of-12-specialists.md`.
 
 Hamsa-lens introspection of all 10 buddy specialists under `buddy/skills/`. Each
@@ -205,7 +205,7 @@ when no Reaction matches, derive response from Method + Heuristics."*
 > implied — `security-ibex-eval`'s two scenarios (`idor`, `precision-clean`) do not touch
 > the LLM taxonomy, and `testing-snow-leopard-eval`'s do not touch the new property
 > vocabulary. That distinction is what the `Field semantics` table means by
-> `eval_status: passing`, and it is the trap behind `roster-audit-session-log` `F-9`:
+> `eval_status: passing`, and it is the trap behind `roster-audit-session-log:F-9`:
 > a specialist having *an* eval does not make any given finding eval-confirmed.
 
 **Symptom:** Zero graded examples per specialist. Every claim that a persona "works"
@@ -412,7 +412,7 @@ finished measuring.
 not necessarily the verdict — and the verdict cannot be re-derived without auditing
 `codescout-pika` first, since "is this length justified?" is a question about rank.
 
-Filed as `roster-audit-session-log` `F-1`; issue `docs/issues/archive/2026-08-26-buddy-introspection-20-outlier-comparison-falsified.md`.
+Filed as `roster-audit-session-log:F-1`; issue `docs/issues/archive/2026-08-26-buddy-introspection-20-outlier-comparison-falsified.md`.
 The stale line count alone is also `VG-8` in `validation-domain-coverage.md`.
 
 #### #21 — security-ibex — OWASP-2017-flavored taxonomy; LLM threats absent
@@ -452,7 +452,7 @@ confirmation is still owed, which is what `Eval: none` means here.
 **Why this sat unnoticed.** The row's own `Status: open` was read as current state by a
 later session and copied into a handoff as pending work, which would have produced a
 *second* LLM sub-section had anyone executed it. A status field is a claim about the
-substrate like any other — see `roster-audit-session-log` `F-9`, and `R-3` in
+substrate like any other — see `roster-audit-session-log:F-9`, and `R-3` in
 `reconnaissance-patterns.md`.
 
 #### #13 — ml-training-takin — No unique gaps recorded

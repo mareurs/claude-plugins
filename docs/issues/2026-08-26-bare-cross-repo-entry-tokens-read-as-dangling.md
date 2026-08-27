@@ -151,6 +151,43 @@ librarian(action="link_scan", scope="project")   # write=false; read dangling_by
 
 ## Fix
 
+> **The four judgement-call files, 2026-08-27 — ambiguous 65 → 54, dangling 59 → 55,
+> cross_repo 46 → 61, and ONE WRONG EDGE PRUNED.** `version-bump-checklist` 6 → 0,
+> `buddy-introspection` 2 → 0, `prompt-hamsa-audit-log` 1 → 0,
+> `repo-hygiene-session-log` 4 → 2 (residue is deliberate, below). Suite green.
+>
+> **`cross_repo` going UP is the result, not a regression.** These files cite codescout,
+> `prompt-engineering` and two codescout-only session logs. Those citations were being
+> counted as local ambiguity or local dangle; they are now *declared* cross-repo, which
+> earns no edge by design but stops them masquerading as local debt.
+>
+> **A bare token that RESOLVES can be wrong, and neither count can see it.** This is the
+> find worth keeping. `repo-hygiene-session-log` cited the search-zero law as
+> `(R-3 → ... → R-104 family)`. `R-104` cannot be local — this repo's `R-N` stops at
+> `R-6` — so the family is codescout's and `R-3` means codescout's `R-3`. But bare `R-3`
+> **bound to this repo's `R-3`**, which is *"Re-measuring a drift finding's quoted number
+> is not auditing it"* — a different law entirely — and produced a real
+> `repo-hygiene-session-log → reconnaissance-patterns` edge. `link_scan` reported it as
+> neither ambiguous nor dangling, because it resolved. Fixing it shows up as
+> `edges_pruned: 1`, and that pruned edge is the proof.
+>
+> **The `R-1`/`R-3` call this issue flagged as unsettleable IS settleable — just not by
+> dates.** § *Fix* item 1 said *"the sentence does not say and the dates do not settle
+> it"*. The company the tokens keep does: the same sentence's three sibling citations are
+> already written `codescout:R-89` / `codescout:R-49` / `codescout:W-36`, and the claim is
+> that these bullets now back-cite *"as `R-1` and `R-3` have since May"* — while this
+> repo's `R-1` dates from 2026-07-28 and so cannot have been doing anything in May. Both
+> are codescout's. Two independent lines, no judgement left over.
+>
+> **What was left, and why it should stay.** The 2 remaining in `repo-hygiene-session-log`
+> are **subclass 1**, and they are the purest instance of it in the repo: the entry is a
+> bug report about the allocator counting *example* `PREFIX-N` text as claimed ids, so its
+> prose necessarily contains `W-1`/`F-1` as **subject matter, not citations** — one of
+> them inside a literal `| W-1 | YYYY-MM-DD | … |` template row. Qualifying them would
+> assert a citation the author never made, and the entry's own `Severity` is *"low — no
+> data loss, no broken citation"*. They need the fenced-block remedy or nothing, and
+> nothing is the better trade here.
+
 > **Item 2 done for four files, 2026-08-27 — ambiguous 84 → 65.** `INDEX.md` (6 → 0),
 > `passover-roster-audit-release-integrity-2026-08-26` (7 → 0),
 > `passover-session-passover-tracker-2026-06-18` (4 → 0),

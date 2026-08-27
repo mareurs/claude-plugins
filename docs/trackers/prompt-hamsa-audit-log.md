@@ -296,7 +296,7 @@ it catches a future precision regression the recall assertions cannot.
 `claude-haiku-4-5`):** real precise transcript → **1.00 PASS**; blatant 4-row
 over-flag → **0.00**; subtle single meta-file FP (`README`) → **0.00**; subtle single
 mapped-tracker FP (`beta`) → **0.00** (4/4). End-to-end `prompt-tdd run` on a fresh
-sonnet generation: **1/1 PASS** (recall + precision), shipped-string confirmed, F-2
+sonnet generation: **1/1 PASS** (recall + precision), shipped-string confirmed, `prompt-engineering:F-2`
 preflight now guards this scenario.
 
 **Outcome: `held`** — the gate is proven to have power (fails on over-flagging) AND the

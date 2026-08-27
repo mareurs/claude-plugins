@@ -365,7 +365,7 @@ actual structures (`jq 'to_entries[0]'`, `head`) instead of re-guessing —
 
 The tables above were then rebuilt from a direct measurement of all 12 records
 (3 profiles × 4 installed plugins), every array element rather than `[0]` alone —
-each array holds exactly one element today, so `F-7`'s element-`[0]` blind spot has
+each array holds exactly one element today, so `roster-audit-session-log:F-7`'s element-`[0]` blind spot has
 nothing to hide behind this time — plus a `-d` existence test per cache dir and a
 per-snapshot probe that `cs-liveness.mjs` is present AND registered in that
 snapshot's own `hooks.json`.
@@ -391,7 +391,7 @@ This is the same defect as the `[0]`-only reads fixed on 2026-08-21, one level u
 record element the checks skipped*, but *a plugin the enumeration skipped*. Both are a
 complete-looking green over an incomplete domain. It is also, exactly, the defect this
 session spent the day fixing in `buddy-introspection` — `specialists_scanned: 10/10` against
-a roster of 12 (`roster-audit-session-log` `F-2`). A fixed enumeration of the things you
+a roster of 12 (`roster-audit-session-log:F-2`). A fixed enumeration of the things you
 audit is a stale denominator wearing different clothes.
 
 Also cleared since the last refresh: `.claude-kat`'s `codescout-companion` stale sibling
@@ -442,7 +442,7 @@ validate every element.
 ### 2026-08-21 — codescout-companion 1.16.15 → 1.16.16
 
 Fixed `docs/issues/archive/2026-08-21-zero-law-does-not-cover-wrong-answer-instruments.md`:
-reconnaissance Phase 1's promoted search-zero law (chain `R-3 → R-113 → R-77 → R-79` in codescout's ledger) is built
+reconnaissance Phase 1's promoted search-zero law (chain `codescout:R-3 → codescout:R-113 → codescout:R-77 → codescout:R-79` in codescout's ledger) is built
 entirely around absence, so an instrument returning a complete, plausible, WRONG answer
 trips none of its three arms. Reported against a session where a lexical `sort -r` on
 `ps lstart` timestamps ordered by weekday name instead of time, reporting two-day-old
@@ -522,7 +522,7 @@ the **serving** copy; and prefer a back-citation to a verbatim quote, since a qu
 when the rule is legitimately reworded.
 
 Applying that third rule in the same commit: the `codescout:R-89` / `codescout:R-49` / `codescout:W-36` bullets added in
-`23a11c3` now back-cite their own entry ids, as `R-1` and `R-3` have since May. Before this,
+`23a11c3` now back-cite their own entry ids, as `codescout:R-1` and `codescout:R-3` have since May. Before this,
 none of the three cited themselves.
 
 The prerequisite shipped on the codescout side — a `**Promoted-to:**` field in the wins
@@ -545,12 +545,12 @@ bump `plugin.json`. The cache is keyed on that version, so all three profiles ke
 serving the pre-edit copy: committed, reviewed, in force nowhere, with no error and
 nothing in `git status` to suggest it. `23ca288` + `dbc8982` shipped it as `1.16.11`.
 
-That omission then recurred one of the very rules it was shipping. R-89's promoted
+That omission then recurred one of the very rules it was shipping. `codescout:R-89`'s promoted
 wording was *"build freshness and process freshness are two separate facts"*; this
 was a **third** axis — distribution — since the artifact was committed and neither a
 build nor a process was involved. Per the reconnaissance skill's own audit rule (a
 recurrence of an already-promoted law is a defect in the promoted text, not a new
-entry) R-89 was rewritten rather than supplemented: `a5df5bd`, shipped as `1.16.12`
+entry) `codescout:R-89` was rewritten rather than supplemented: `a5df5bd`, shipped as `1.16.12`
 (`a526f3f`) via `scripts/release.sh`.
 
 `run-all.sh` green. Cache seeded and install records repointed across all three
@@ -560,7 +560,7 @@ identical to source. NO_PUSH — `a5df5bd` and `a526f3f` are local on `main`, no
 pushed. Cold restart / `/reload-plugins` still required per instance to bind the
 `1.16.12` cache.
 
-Closes codescout `docs/trackers/prompt-surface-compaction-session-log.md` F-9.
+Closes codescout `docs/trackers/prompt-surface-compaction-session-log.md` `prompt-surface-compaction-session-log:F-9`.
 
 ### 2026-08-17 — codescout-companion 1.16.8 → 1.16.9
 
@@ -629,7 +629,7 @@ Cold restart / `/reload-plugins` per instance still required to bind the 1.16.4 
 
 Subagent bootstrap injection (`f1488c2` carries the merge of 13 commits). `subagent-guidance.mjs` now prepends a `PROJECT BOOTSTRAP` paragraph — `workspace(action="activate", path=<root>)` resolved via `git rev-parse --show-toplevel` with a raw-cwd fallback — and Phase 0's first bullet lists the project's memory topics inline instead of instructing a `memory(action="list")` discovery call, falling back to the original wording when a project has no memories. Root resolution uses the toplevel because `worktree-write-guard.mjs` places `.cs-worktree-pending` there and `cs-activate-project.mjs` releases it via a literal `join(tool_input.path, …)`, so activating a subdirectory path would leave codescout writes blocked.
 
-Execution was rougher than the diff suggests. `tests/test-subagent-guidance.sh` grew 4 → 34 assertions across three hardening rounds and a final fix wave, all driven by one recurring defect class: assertions that read correct while proving nothing. A whole task was reverted after review found the plan rested on two false premises — that this hook had no test suite (it did, in `tests/`, never searched) and that no fixture could control the `HAS_CODESCOUT` gate (`write_routing_config` does; `write_mcp_json` is a trap that leaves it closed, because `detect.mjs` matches `/codescout/` against the server `command`/`args`, not its key). Every non-obvious assertion is now mutation-proven. Recorded as F-1…F-5/W-1 in `docs/trackers/subagent-bootstrap-session-log.md` and R-1 (hit) / R-2 (miss) in `docs/trackers/reconnaissance-patterns.md`.
+Execution was rougher than the diff suggests. `tests/test-subagent-guidance.sh` grew 4 → 34 assertions across three hardening rounds and a final fix wave, all driven by one recurring defect class: assertions that read correct while proving nothing. A whole task was reverted after review found the plan rested on two false premises — that this hook had no test suite (it did, in `tests/`, never searched) and that no fixture could control the `HAS_CODESCOUT` gate (`write_routing_config` does; `write_mcp_json` is a trap that leaves it closed, because `detect.mjs` matches `/codescout/` against the server `command`/`args`, not its key). Every non-obvious assertion is now mutation-proven. Recorded as `subagent-bootstrap-session-log:F-1`…`subagent-bootstrap-session-log:F-5`/`subagent-bootstrap-session-log:W-1` in `docs/trackers/subagent-bootstrap-session-log.md` and R-1 (hit) / R-2 (miss) in `docs/trackers/reconnaissance-patterns.md`.
 
 Ran `release.sh codescout-companion patch` (→1.16.3): `run-all.sh` green (16 suites, 491 PASS, 0 FAIL), buddy pytest green, caches seeded + install records repointed across all three profiles, sanity loop all ✅. Verified independently rather than trusting the script's printout: all three records → `1.16.3` with same-profile `installPath`s, the `1.16.3` cache dir present in each, and the deployed `subagent-guidance.mjs` byte-identical to the repo copy in all three (4949 bytes) carrying the bootstrap paragraph, the inline memory bullet, and no `CS_SUBAGENT_GUIDANCE_FORCE` residue. `check-versions.sh` clean across all five plugins. Pushed to origin/main (`f1488c2`).
 
@@ -734,7 +734,7 @@ Stale-tool-name drift swept out of buddy + two robustness fixes (fix commit `044
 
 ### 2026-06-14 — codescout-companion 1.11.12 → 1.11.13, buddy 0.7.23 → 0.7.24
 
-Three fixes shipped (commits `38987dc`/`dd38543`/`f3538d7`/`20f7fd2`; bumps in the `cfef899` chain). **companion 1.11.13**: `pre-tool-guard.sh` gains `is_harness_output` (`*/tool-results/*`) so an over-cap summon payload persisted by CC's persisted-output mechanism is readable back (F-3; Edit/Write stay blocked, +4 guard tests); `session-start.sh` nudges `workspace(action="activate", path=cwd)` as the first action to bootstrap the project (LSP prewarm, dep register, project_hints), gated non-worktree/non-compact, and its onboarding MSG block now appends instead of resetting (new `session-start.test.sh`, 4 cases). **buddy 0.7.24**: over-cap summon payload now spills to a guard-exempt `.buddy/<sid>/summon-payload-<dir>.md` with a compact `payload-file=` pointer (F-4 / A2 — mirrors codescout's own "always buffer, return a pointer" fix); codescout-pika gains a silent param-drop detector (heuristic 11 + param-surface query). Canonical/readme → 1.11.13 / 0.7.24; cache seeded + install records repointed across all three profiles; sanity loop all ✅ (cache + installPath, no cross-profile drift). Pre-bump `run-all.sh` all suites green; buddy pytest 455 (via uv). NO_PUSH (committed locally, not pushed); cold restart pending to bind the new caches. codescout-companion re-enters the tracker (the prior refresh tracked buddy only).
+Three fixes shipped (commits `38987dc`/`dd38543`/`f3538d7`/`20f7fd2`; bumps in the `cfef899` chain). **companion 1.11.13**: `pre-tool-guard.sh` gains `is_harness_output` (`*/tool-results/*`) so an over-cap summon payload persisted by CC's persisted-output mechanism is readable back (`skill-loading-session-log:F-3`; Edit/Write stay blocked, +4 guard tests); `session-start.sh` nudges `workspace(action="activate", path=cwd)` as the first action to bootstrap the project (LSP prewarm, dep register, project_hints), gated non-worktree/non-compact, and its onboarding MSG block now appends instead of resetting (new `session-start.test.sh`, 4 cases). **buddy 0.7.24**: over-cap summon payload now spills to a guard-exempt `.buddy/<sid>/summon-payload-<dir>.md` with a compact `payload-file=` pointer (`skill-loading-session-log:F-4` / A2 — mirrors codescout's own "always buffer, return a pointer" fix); codescout-pika gains a silent param-drop detector (heuristic 11 + param-surface query). Canonical/readme → 1.11.13 / 0.7.24; cache seeded + install records repointed across all three profiles; sanity loop all ✅ (cache + installPath, no cross-profile drift). Pre-bump `run-all.sh` all suites green; buddy pytest 455 (via uv). NO_PUSH (committed locally, not pushed); cold restart pending to bind the new caches. codescout-companion re-enters the tracker (the prior refresh tracked buddy only).
 
 ### 2026-06-14 — buddy 0.7.22 → 0.7.23
 
@@ -778,10 +778,10 @@ copies pruned in all three profiles. Commit 6ec9ae6.
 
 ### 2026-06-13 — buddy 0.7.18 → 0.7.19
 
-Skill-ledger hardening from the first live probe (F-2 in `docs/trackers/skill-loading-session-log.md`): compact replays echo `<command-name>` tags (one recon load → two transcript occurrences), so count-threshold advisories would fire falsely after every compact; and `Skill(buddy:summon)` leaked into the ledger because the `buddy:*` exclusion only guarded the command-name path. Fix: advisories require the skill to pre-exist the scan chunk (from-zero scans can never advise), `type ∈ {user, assistant}` + not `isCompactSummary`/`isMeta` filtering, uniform `buddy:*` exclusion, per-chunk advisory dedup. Bonus empirical: `/reload-skills` "+12" confirmed persona frontmatter registers buddy skills with the Skill tool (settles F-1's Q4 docs-silent gap). Ledger tests 12/12, buddy pytest 451 green, hook integration 9/9. Cache seeded + install records updated across 3 profiles; sanity loop all ✅.
+Skill-ledger hardening from the first live probe (`skill-loading-session-log:F-2` in `docs/trackers/skill-loading-session-log.md`): compact replays echo `<command-name>` tags (one recon load → two transcript occurrences), so count-threshold advisories would fire falsely after every compact; and `Skill(buddy:summon)` leaked into the ledger because the `buddy:*` exclusion only guarded the command-name path. Fix: advisories require the skill to pre-exist the scan chunk (from-zero scans can never advise), `type ∈ {user, assistant}` + not `isCompactSummary`/`isMeta` filtering, uniform `buddy:*` exclusion, per-chunk advisory dedup. Bonus empirical: `/reload-skills` "+12" confirmed persona frontmatter registers buddy skills with the Skill tool (settles `skill-loading-session-log:F-1`'s Q4 docs-silent gap). Ledger tests 12/12, buddy pytest 451 green, hook integration 9/9. Cache seeded + install records updated across 3 profiles; sanity loop all ✅.
 ### 2026-06-12 — codescout-companion 1.11.11 → 1.11.12, buddy 0.7.17 → 0.7.18
 
-Skill-loading bootstrap (spec `2026-06-12-skill-loading-bootstrap-design.md`; F-1/W-1 evidence in `docs/trackers/skill-loading-session-log.md`). **companion 1.11.12**: `is_skill_payload()` joins `is_binary_image()` as a native-Read exemption (SKILL.md / lens addenda / `references/`, plugin cache, `.buddy/` trees — verbatim fidelity required, codescout has no index over plugin payloads); guard matrix 32/32, repo suite 23/23 (test 8c intentionally flipped deny→allow). **buddy 0.7.18**: UserPromptSubmit summon bootstrap (`summon_bootstrap.py` — cold `/buddy:summon` costs zero model tool calls; tracking happens hook-side at injection time, making the statusline specialist line a certain record); skill ledger (`skill_ledger.py` — transcript scan is the only ground truth for Skill-tool loads since no hook fires for Skill, claude-code#43630; repeat loads emit do-not-reinvoke advisories; statusline gains a skills slot); frontmatter on all 12 personas (consumed by `specialist_labels`) + flat `inject_trackers`/`inject_memory_topics` bindings (planning-crane ← `docs/trackers/active-plan.md`; codescout-pika ← codescout memories gotchas+conventions); reload blocks strip frontmatter. buddy pytest 448 green; `run-all.sh` all suites; `check-versions.sh` clean. Cache seeded + install records updated across 3 profiles; sanity loop all ✅. sdd remains uninstalled in all profiles (standing baseline).
+Skill-loading bootstrap (spec `2026-06-12-skill-loading-bootstrap-design.md`; `skill-loading-session-log:F-1`/`skill-loading-session-log:W-1` evidence in `docs/trackers/skill-loading-session-log.md`). **companion 1.11.12**: `is_skill_payload()` joins `is_binary_image()` as a native-Read exemption (SKILL.md / lens addenda / `references/`, plugin cache, `.buddy/` trees — verbatim fidelity required, codescout has no index over plugin payloads); guard matrix 32/32, repo suite 23/23 (test 8c intentionally flipped deny→allow). **buddy 0.7.18**: UserPromptSubmit summon bootstrap (`summon_bootstrap.py` — cold `/buddy:summon` costs zero model tool calls; tracking happens hook-side at injection time, making the statusline specialist line a certain record); skill ledger (`skill_ledger.py` — transcript scan is the only ground truth for Skill-tool loads since no hook fires for Skill, claude-code#43630; repeat loads emit do-not-reinvoke advisories; statusline gains a skills slot); frontmatter on all 12 personas (consumed by `specialist_labels`) + flat `inject_trackers`/`inject_memory_topics` bindings (planning-crane ← `docs/trackers/active-plan.md`; codescout-pika ← codescout memories gotchas+conventions); reload blocks strip frontmatter. buddy pytest 448 green; `run-all.sh` all suites; `check-versions.sh` clean. Cache seeded + install records updated across 3 profiles; sanity loop all ✅. sdd remains uninstalled in all profiles (standing baseline).
 ### 2026-06-12 — codescout-companion 1.11.10 → 1.11.11
 
 Removed the redundant SessionStart system-prompt pointer (`memory(action="read", topic="system-prompt")`). codescout injects the root `.codescout/system-prompt.md` into the **main agent** via `server_instructions` (`## Custom Instructions`), so the companion pointer was a duplicate — and it aimed at the `system-prompt` *memory topic* that codescout's onboarding fix (issue `e492592986c67138`) just disowned. **Subagents** do NOT receive `server_instructions` (`claude-code#29655`), so `subagent-guidance.sh`'s verbatim injection is the sole delivery path to them — kept and comment-pinned. Two SessionStart tests flipped to assert pointer absence; the `subagent-guidance` verbatim test is unchanged and green. Spec + plan: `2026-06-12-system-prompt-source-consolidation-design.md`. Pre-bump `run-all.sh` all suites green; `check-versions.sh` clean. Cache seeded + install records updated across 3 profiles; sanity loop all ✅ (cache + installPath, no cross-profile drift). buddy (`0.7.17`) + sdd (uninstalled) unchanged.
@@ -818,7 +818,7 @@ Downgraded IL3 run_command pipe guard from deny to warn-only (user request: deny
 
 ### 2026-05-24 — codescout-companion 1.11.3 → 1.11.4
 
-Covers the IL4 deny hook (`il4-deny-hook.sh` — blocks `read_file`/`Read` on `.md` paths, routes to `read_markdown`) and the recon SKILL.md R-3 grep-scope sentence, both committed on top of 1.11.3 without a bump. Pre-bump gate fixed a stale test: `run-all.sh` now also globs colocated `codescout-companion/hooks/*.test.sh`, so the new `il4-deny-hook.test.sh` and the modern `worktree-write-guard.test.sh` execute in the suite; the obsolete `tests/test-worktree-write-guard.sh` (asserted `replace_symbol → deny`, contradicting the modern `edit_code/edit_file/edit_markdown/create_file` matcher) was deleted. Cache seeded + install records updated across 3 profiles, all green.
+Covers the IL4 deny hook (`il4-deny-hook.sh` — blocks `read_file`/`Read` on `.md` paths, routes to `read_markdown`) and the recon SKILL.md `codescout:R-3` grep-scope sentence, both committed on top of 1.11.3 without a bump. Pre-bump gate fixed a stale test: `run-all.sh` now also globs colocated `codescout-companion/hooks/*.test.sh`, so the new `il4-deny-hook.test.sh` and the modern `worktree-write-guard.test.sh` execute in the suite; the obsolete `tests/test-worktree-write-guard.sh` (asserted `replace_symbol → deny`, contradicting the modern `edit_code/edit_file/edit_markdown/create_file` matcher) was deleted. Cache seeded + install records updated across 3 profiles, all green.
 
 ### 2026-05-23 — buddy 0.7.14 → 0.7.15
 
