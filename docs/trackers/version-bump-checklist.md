@@ -13,15 +13,35 @@ Release readiness across plugins × profiles. See
 
 ## State
 
-_Last refresh: codescout-companion 1.19.3 + buddy 0.10.0, 2026-08-27._
+_Last refresh: codescout-companion 1.19.4 + buddy 0.10.0, 2026-08-27._
 
-**codescout-companion** — canonical `1.19.3` · readme `1.19.3` · marketplace clean ✅
+**codescout-companion** — canonical `1.19.4` · readme `1.19.4` · marketplace clean ✅
 
 | profile | installed | cache dir | install_path ok | all entries | cache = working tree |
 |---|---|---|---|---|---|
-| `~/.claude` | 1.19.3 ✅ | ✅ | ✅ | `1.19.3` ✅ | ✅ |
-| `~/.claude-sdd` | 1.19.3 ✅ | ✅ | ✅ | `1.19.3` ✅ | ✅ |
-| `~/.claude-kat` | 1.19.3 ✅ | ✅ | ✅ | `1.19.3` ✅ | ✅ |
+| `~/.claude` | 1.19.4 ✅ | ✅ | ✅ | `1.19.4` ✅ | ✅ |
+| `~/.claude-sdd` | 1.19.4 ✅ | ✅ | ✅ | `1.19.4` ✅ | ✅ |
+| `~/.claude-kat` | 1.19.4 ✅ | ✅ | ✅ | `1.19.4` ✅ | ✅ |
+
+**1.19.4 is a prompt-surface content release, and `cache = working tree` was verified on
+the SERVED bytes rather than inferred.** It carries the cross-repo citation qualifiers on
+`skills/reconnaissance/SKILL.md` (21 dangling → 0) and `skills/tracker-hygiene/SKILL.md`.
+Each profile's cached `SKILL.md` was `diff`-ed against the working-tree copy — identical in
+all three — and the served copy in `~/.claude` greps **16** `codescout:R-` qualified
+citations, so the content is provably in the cache and not merely recorded as installed.
+That is `codescout:R-89`'s own law applied to the release that shipped it: probe the copy
+the consumer loads, because commit, install record and directory listing all read green in
+the broken world.
+
+**Registration is NOT load-bearing for 1.19.4.** No `hooks.json` entry changes — the diff
+is skill markdown and trackers only. On this directory-source marketplace content loads
+from the working tree on every invocation, so the qualifiers were live here the moment
+they were written; the bump is what makes the version number stop lying about it, and what
+carries them to any other install path.
+
+**Also pushed with this release: the 55-commit backlog.** `origin/main` had been 55 behind
+since before this session; `dfd6fdf..525d60d` cleared it. `git rev-list --count
+origin/main..main` is now **0**.
 
 **Registration is NOT load-bearing for 1.19.1.** It changes hook *content* only —
 `lib.mjs`, `agent-guide-snapshot.mjs`, `agent-guide-restore.mjs` — and touches no
@@ -144,6 +164,31 @@ trace log does not attribute startups per profile. A session in either profile c
 run the four lines above to close it. Until then the honest state is one profile
 measured, two inferred.
 ## History
+
+### 2026-08-27 — 1.19.4, a citation-qualifier release, and the backlog finally pushed
+
+Content release: cross-repo citation qualifiers on the shipped prompt surface.
+`skills/reconnaissance/SKILL.md` went **21 dangling → 0**, `skills/tracker-hygiene/SKILL.md`
+**1 → 0**. Repo-wide dangling **55 → 31**, and `link_scan`'s finding array came back
+**un-truncated for the first time** — 31 is a total, not a 50-capped floor.
+
+`release.sh codescout-companion patch` ran clean end to end: pre-flight suites green,
+`check-versions.sh` ✅, cache seeded in all three profiles, records repointed,
+sanity loop ✅, `check-profile-parity.sh` ✅ across 4 plugins, pushed.
+
+**Two wrong edges were pruned across the work behind this release**, both invisible to the
+counts a reviewer checks. A bare token that *resolves* is worse than one that dangles:
+`R-1` and `R-3` in citations that meant **codescout's** ledger bound to *this* repo's
+entries and produced real `cites` edges to unrelated laws.
+`roster-audit-session-log:F-13` had already measured this exact failure — *"one
+wrong-resolution … per fresh copy, in every repo that follows the skill"* — and prescribed
+the `codescout:` form. This release is that remedy shipping.
+
+**The verification worth copying forward:** `diff` the cached `SKILL.md` against the
+working tree per profile, then grep the served copy for a string the release introduced.
+The install record saying `1.19.4` proves only that a *number* moved.
+
+Backlog: `origin/main` was 55 commits behind at session start and is now level.
 
 ### 2026-08-27 — 1.19.3, and the shortest a `cache = working tree ✅` has ever stayed true
 
