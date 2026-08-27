@@ -1,7 +1,7 @@
 ---
-id: '776d382dec61da41'
+id: 1012db2a6c0e4d7b
 kind: bug
-status: open
+status: fixed
 title: tests/run-all.sh rekeys the LIVE codescout server to a test fixture's session id
 tags:
 - codescout-companion
@@ -9,6 +9,8 @@ tags:
 - test-isolation
 - rendezvous
 - guide-ledger
+closed: 2026-08-27
+unverified: The leak-outcome assertions (Tests 3 and 4) only discriminate when the suite runs with a live codescout server in its process ancestry — i.e. under run_command. In CI or a plain terminal they pass green either way; Tests 1 and 2 are what hold the line there. Measured by mutation, not assumed.
 ---
 
 ---
@@ -93,17 +95,55 @@ would most naturally look for it.
 
 ## Fix directions (none implemented)
 
-- **Sandbox `XDG_STATE_HOME` in the suite.** Smallest change, kills the whole class:
-  no test can reach the real rendezvous dir. This is the same fix already applied to
-  `TMPDIR` in `agent-guide-snapshot.test.sh` on 2026-08-27, for the same reason — and that
-  precedent is the argument for doing it suite-wide rather than per-test.
-- **Have the hook refuse obviously-synthetic session ids.** Rejected as primary: it
-  encodes a fixture-naming convention into production code, and any test using a
-  realistic-looking uuid slips straight through.
-- **Add a leak assertion** — after the suite, no rendezvous slot may carry a session id
-  the suite invented. This is the regression gate regardless of which fix lands, and it is
-  the piece that would have caught it.
+- **Sandbox `XDG_STATE_HOME` in the suite.** ✅ **Done** — see *Fixed* below.
+- **Have the hook refuse obviously-synthetic session ids.** Rejected: it encodes a
+  fixture-naming convention into production code, and any test using a realistic-looking
+  uuid slips straight through.
+- **Add a leak assertion.** ✅ **Done** — `tests/test-rendezvous-isolation.sh`.
 
+## Fixed — 2026-08-27
+
+**Fix:** `d7fb976c` on `main` (patch-id `b36a1d76e0af80625aca73d5d97e85d610533bc3`).
+
+One sandbox in two places, because neither alone is sufficient:
+
+- `tests/lib/fixtures.sh` — sourced by 20 of 26 suites, so it also covers a **standalone**
+  `bash tests/test-session-start.sh`, which must be exactly as safe as running via the suite.
+- `tests/run-all.sh` — covers suites that do *not* source `fixtures.sh`, and owns cleanup
+  via `trap`. `fixtures.sh` cannot trap: every test script installs its own `trap … EXIT`
+  for its tempdir, which replaces anything set at source time. Standalone leftovers are
+  swept on the next run at `-mmin +60` instead.
+
+`tests/test-rendezvous-isolation.sh` is the gate — 4 assertions, listed in *Fix directions*
+above.
+
+**Scope correction found while fixing:** the exposure was wider than filed. Four suites
+invoke `session-start.mjs` and **zero** sandboxed `XDG_STATE_HOME`, so the fix had to be
+suite-level rather than a patch to Test 13. `test-sdd-hooks.sh` turned out **not** to be an
+offender — it passes only `cwd`, never a `session_id`, so the hook's `if (sessionId)` guard
+means it never reaches the rendezvous block at all.
+
+**End-to-end evidence.** Before: a suite run left the live server's slot
+(`servers/3826646.json`) reading `sid-recon-marker-test`. After: the slot still reads the
+real session id across a full run. 41 suites green, 0 sandbox dirs left behind.
+
+**Reproduced live while fixing**, which is the strongest evidence in this file: running the
+new gate *before* the sandbox landed stamped the live server's slot with the probe's own
+fixture id and planted a stray slot in the real dir — and `project-activation-bootstrap`
+re-injected on the very next tool call, the re-arm symptom this file predicted. Both
+artifacts were cleaned and the live slot repointed to the real session id.
+
+### Two W-4 results, recorded rather than smoothed over
+
+- **Test 2's first draft was non-discriminating.** It read the *ambient* `XDG_STATE_HOME`,
+  fell back to the real dir when unset, and so passed green against the unfixed suite. It
+  now sets the variable explicitly, which discriminates whether or not the sandbox exists.
+  Caught only by running the gate red first.
+- **Tests 3 and 4 stay GREEN against the broken suite** in an environment with no codescout
+  ancestor. Mutation-tested by deleting the sandbox and running under a throwaway `HOME`:
+  Test 1 failed, 3 and 4 passed. That is not a flaw to fix — it is the honest scope of an
+  outcome check for a bug that only fires under `run_command` — but it means **Tests 1 and
+  2 are the gate and 3 and 4 are corroboration**, and the file says so.
 ## Not to be confused with
 
 `docs/issues/archive/2026-08-27-concurrent-subagent-restores-discard-parent-guide-marks.md`
@@ -116,4 +156,3 @@ and much broader: it corrupts *which file* the whole mechanism operates on.
 - `tests/test-session-start.sh` — Test 13, the fixture id
 - `codescout:src/tools/rendezvous.rs`, `codescout:src/tools/guide_ledger.rs` — `rekey`
 - CLAUDE.md § Testing — *"Test isolation: always clean up mutated state."*
-

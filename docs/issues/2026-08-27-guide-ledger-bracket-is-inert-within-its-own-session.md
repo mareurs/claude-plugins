@@ -43,7 +43,7 @@ session*. That is precisely what it cannot do.
 
 The first attempt at this test was **confounded and its conclusion was wrong**: it removed
 a key from `<real-session-id>.json`, but this server was writing to a different file
-entirely (see `docs/issues/2026-08-27-test-suite-rekeys-live-codescout-server.md`).
+entirely (see `docs/issues/archive/2026-08-27-test-suite-rekeys-live-codescout-server.md`).
 Removing a key from a file the server never reads proves nothing. Redone against the file
 the server actually writes:
 
@@ -115,6 +115,5 @@ rediscover why they are hard.
 - `codescout-companion/hooks/agent-guide-restore.mjs`
 - `docs/issues/archive/2026-08-27-agent-guide-restore-fires-at-launch-not-completion.md`
 - `docs/issues/archive/2026-08-27-concurrent-subagent-restores-discard-parent-guide-marks.md`
-- `docs/issues/2026-08-27-test-suite-rekeys-live-codescout-server.md` — what confounded
+- `docs/issues/archive/2026-08-27-test-suite-rekeys-live-codescout-server.md` — what confounded
   the first attempt at the test above
-

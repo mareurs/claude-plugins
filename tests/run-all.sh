@@ -10,7 +10,7 @@ FAILED=()
 # exit. Without it, any test piping a synthetic session_id into
 # session-start.mjs stamps the LIVE codescout server's rendezvous slot — see
 # tests/lib/fixtures.sh for the mechanism, and
-# docs/issues/2026-08-27-test-suite-rekeys-live-codescout-server.md. Exported
+# docs/issues/archive/2026-08-27-test-suite-rekeys-live-codescout-server.md. Exported
 # here as well as in fixtures.sh because not every suite sources fixtures.sh.
 CS_TEST_STATE_SANDBOX="$(mktemp -d "${TMPDIR:-/tmp}/cs-test-state-XXXXXX")"
 export CS_TEST_STATE_SANDBOX

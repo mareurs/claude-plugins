@@ -16,7 +16,7 @@ HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../codescout-companion/hooks" 
 # own slot. codescout then rekeys its guide ledger onto that fixture id,
 # abandoning the developer's real session ledger mid-session and re-arming every
 # guide topic.
-# docs/issues/2026-08-27-test-suite-rekeys-live-codescout-server.md
+# docs/issues/archive/2026-08-27-test-suite-rekeys-live-codescout-server.md
 #
 # run-all.sh exports one sandbox for the whole suite and removes it afterwards.
 # This block is the standalone path: `bash tests/test-session-start.sh` on its

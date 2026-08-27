@@ -248,7 +248,7 @@ a file the running server neither re-reads nor consults. Filed as
 
 A first attempt at that conclusion was **confounded and wrong**: this session's server had
 been rekeyed to a test fixture's session id by the repo's own test suite
-(`docs/issues/2026-08-27-test-suite-rekeys-live-codescout-server.md`), so the first probe
+(`docs/issues/archive/2026-08-27-test-suite-rekeys-live-codescout-server.md`), so the first probe
 removed a key from a file the server had abandoned. Redone against the file the server
 actually writes, the result held — and only then.
 

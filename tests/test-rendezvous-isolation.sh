@@ -12,7 +12,7 @@
 # ledger onto that fixture id: the developer's own session silently starts
 # recording guide deliveries under `sid-recon-marker-test.json`, and every guide
 # topic re-arms and re-injects.
-# docs/issues/2026-08-27-test-suite-rekeys-live-codescout-server.md
+# docs/issues/archive/2026-08-27-test-suite-rekeys-live-codescout-server.md
 source "$(dirname "${BASH_SOURCE[0]}")/lib/fixtures.sh"
 
 echo "── rendezvous isolation ──"
