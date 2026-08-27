@@ -1,17 +1,16 @@
 ---
-id: 2646bba03b528020
+id: '2646bba03b528020'
 kind: bug
-status: open
-title: "`tests/run-all.sh` has ~16 pre-existing failing suites, unrelated to session-start.mjs bootstrap fix"
-owners: []
+status: zombie
+title: '`tests/run-all.sh` has ~16 pre-existing failing suites, unrelated to session-start.mjs bootstrap fix'
 tags:
 - tests
 - hooks.json
 - wsl
 - node
 - pre-existing-debt
-topic: null
-time_scope: null
+last_observed: 2026-08-05
+unverified: Green on ONE machine only (Arch Linux workstation, 2026-08-27, 41 suites, 0 FAILs). The 16 failures were never root-caused — the diagnosis recorded in this file is refuted, not replaced — and CI runs 1 of 41 suites, so a recurrence would be unobserved on every OS.
 ---
 
 ## Summary
@@ -24,6 +23,42 @@ Node locally (`~/.local/node`, no sudo), re-run dropped to **16 failing
 suites** — none of which touch the bootstrap-nudge logic that was actually
 changed this session.
 
+
+## Re-checked 2026-08-27 — all 16 suites green here, and the stated root cause is refuted
+
+Re-ran the suite on the Linux workstation (Arch, native — **not** WSL):
+`./tests/run-all.sh` exits **0** with **0 FAILs** across **41 suites**. All sixteen
+suites named above exist, and all sixteen ran in that pass.
+
+**The diagnosis in § *Evidence* does not survive checking.** Both stated causes rest
+on a `.cmd` wrapper scheme that is not in this repo and never was:
+
+- `grep -c '\.cmd'` → **0** in both `codescout-companion/hooks/hooks.json` and
+  `buddy/hooks/hooks.json`; `git log -S'.cmd'` over both files across all history
+  returns **no commit**. The string has never been in either file.
+- No `*.cmd` file exists anywhere in the tree. `.cmd` appears in exactly three files,
+  all prose: this bug (5 occurrences), the Copilot porting **design spec**
+  `docs/superpowers/specs/2026-07-13-cross-platform-windows-copilot-porting-design.md`
+  (4), and `docs/trackers/pi-agent-integration-session-log.md` (3). It was a design
+  proposal that did not ship.
+- The commit named as the trigger — *"fix(buddy,codescout-companion): restore
+  single-command hook wrappers for Copilot CLI compatibility"* — **is not in this
+  repo's history**; `git log --grep` finds nothing for either that subject or
+  "restore single-command hook wrappers".
+
+The 33→16 measurement was real. The explanation attached to it was not, so the
+failures are **unexplained**, not fixed.
+
+**Follow-up idea 1 is already resolved.** `tests/test-session-start.sh:6` reads
+`HOOK="$HOOK_DIR/session-start.mjs"` — the test was ported and is not exercising a
+dead code path. `session-start.sh` no longer exists, and `hooks.json` invokes only
+the `.mjs`.
+
+**Follow-up idea 3 is the one still live, and it is wider than it was written.** CI
+(`.github/workflows/cross-platform-hooks.yml`) *does* run a
+ubuntu/macos/windows matrix — but its only test step is
+`bash tests/test-cross-platform-hooks.sh`. **One suite of 41.** So a recurrence of
+this would be unobserved by CI on every OS, not just under WSL.
 ## Evidence the fix itself is not implicated
 
 - `session-start.test.sh` (the one test that exercises the changed
@@ -77,3 +112,15 @@ unrelated.
 - Either make `tests/run-all.sh` skip/soft-fail suites whose hooks require
   `.cmd` execution when run under a non-Windows shell, or provide a
   `.sh`/direct-node fallback so the suite is meaningful from WSL/Linux CI.
+
+
+## Re-open trigger
+
+Re-open if `./tests/run-all.sh` reports failures on any environment that is not this
+Arch workstation — a fresh WSL/Ubuntu checkout, another contributor's machine, or a
+CI job if the matrix is ever widened past its single smoke test.
+
+The green run recorded above is **one machine**. Per `CLAUDE.md` § *The Windows work
+box*, the host where the 16 failures were observed no longer runs Claude Code at all
+(plugins load there through Copilot's own loader), so the original environment cannot
+be re-measured as it stood.
