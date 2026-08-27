@@ -41,12 +41,12 @@ origin_session_id: f8faad8d-37ec-40c6-a9dd-fe3ecec9ec5f
 ## Open threads
 
 - claude-plugins push + release-dance (D2) — awaiting user go-ahead.
-- `reconnaissance-patterns.md` R-N ledger not updated this session; recon findings were captured as F-1/F-2 in the work-stream session log instead (acceptable — R-N is the optional cross-cutting skill ledger).
+- `reconnaissance-patterns.md` R-N ledger not updated this session; recon findings were captured as research-skills-refactor-session-log:F-1/research-skills-refactor-session-log:F-2 in the work-stream session log instead (acceptable — R-N is the optional cross-cutting skill ledger).
 
 ## Pointers
 
 - Plan: `~/.claude-sdd/plans/zany-soaring-key.md`
-- Work-stream log: `docs/trackers/research-skills-refactor-session-log.md` (F-1 = pi surfaces; F-2 = L-7 / eval, fixed-verified)
+- Work-stream log: `docs/trackers/research-skills-refactor-session-log.md` (research-skills-refactor-session-log:F-1 = pi surfaces; research-skills-refactor-session-log:F-2 = L-7 / eval, fixed-verified)
 - Hamsa audit-log: `prompt-hamsa-audit-log` (id `720408ecd2391251`), row `date=2026-07-04`, `outcome=held`
 - Eval: prompt-engineering `scenarios/skills/researcher-tool-dialect/` + `docs/trackers/skill-eval-log.md` § research-subagent
 - Back-link: `.buddy/f8faad8d-37ec-40c6-a9dd-fe3ecec9ec5f/` + the session transcript

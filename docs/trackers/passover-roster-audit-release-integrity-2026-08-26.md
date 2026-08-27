@@ -18,9 +18,9 @@ origin_session_id: f6ae2d77-3ee3-46f9-ab0d-270afd61c592
 
 ## State
 
-Two threads, both at a clean stopping point. **(1) Roster audit:** a cross-repo research handoff proposing `validation-domain-coverage.md` was verified against `buddy/skills/` source — every quantitative claim held, and six frictions came out of the surrounding trackers and tooling (`roster-audit-session-log` `F-1`..`F-8`, `W-1`, `W-2`). Four issues filed in this repo, two in codescout. **(2) Release integrity:** `codescout-companion` **1.16.17 is released and pushed**; the release exposed a three-way blind spot in the release gate, now fixed and shipped as `scripts/check-profile-parity.sh`. `VG-7` (pheasant lens re-extraction) is **done and committed but NOT released** — it changes shipped `buddy` content and needs a `buddy` version bump.
+Two threads, both at a clean stopping point. **(1) Roster audit:** a cross-repo research handoff proposing `validation-domain-coverage.md` was verified against `buddy/skills/` source — every quantitative claim held, and six frictions came out of the surrounding trackers and tooling (`roster-audit-session-log` `roster-audit-session-log:F-1`..`roster-audit-session-log:F-8`, `roster-audit-session-log:W-1`, `roster-audit-session-log:W-2`). Four issues filed in this repo, two in codescout. **(2) Release integrity:** `codescout-companion` **1.16.17 is released and pushed**; the release exposed a three-way blind spot in the release gate, now fixed and shipped as `scripts/check-profile-parity.sh`. `VG-7` (pheasant lens re-extraction) is **done and committed but NOT released** — it changes shipped `buddy` content and needs a `buddy` version bump.
 
-Two of this session's own findings were **filed wrong and corrected the same day** — `F-4` (claimed dangling where the truth was "inert") and the `VG-7` metric. Both corrections are recorded in place rather than overwritten, because the mechanism is the reusable part. Read `W-2` before trusting any instrument in this repo.
+Two of this session's own findings were **filed wrong and corrected the same day** — `roster-audit-session-log:F-4` (claimed dangling where the truth was "inert") and the `VG-7` metric. Both corrections are recorded in place rather than overwritten, because the mechanism is the reusable part. Read `roster-audit-session-log:W-2` before trusting any instrument in this repo.
 
 **Update 2026-08-26, post-compaction.** `VG-6` is **closed** — `testing-snow-leopard`
 gained a `## Properties and Invariants` section (125 → 148 lines) plus a `**Properties:**`
@@ -33,10 +33,10 @@ references. Both recorded under `VG-6`.
 `#21` needed **no work at all** — it shipped 2026-05-15 in `f97f2a4` and has been live
 through ~44 buddy bumps. It appeared in this passover's own action list as pending because
 the queue was built from `buddy-introspection`'s `Status` column, where `open` encodes
-*"not eval-confirmed"* rather than *"not done"*. That is `F-9`, and it is why every Next
+*"not eval-confirmed"* rather than *"not done"*. That is `roster-audit-session-log:F-9`, and it is why every Next
 action now states how it was verified. A third of this thread's findings are now about
-reading a tracker's own field as ground truth — `F-1`, `F-4`, `F-9`, and the stale
-"not yet shipped" note on `F-3`'s own Index row, corrected in the same pass.
+reading a tracker's own field as ground truth — `roster-audit-session-log:F-1`, `roster-audit-session-log:F-4`, `roster-audit-session-log:F-9`, and the stale
+"not yet shipped" note on `roster-audit-session-log:F-3`'s own Index row, corrected in the same pass.
 
 ## Next actions
 
@@ -53,10 +53,10 @@ the original seven-item list is outstanding:
 |---|---|
 | push | done — `ce83dfd → 31d1486 → 5c379a0` |
 | `VG-6` | done — `## Properties and Invariants` in `testing-snow-leopard` (125 → 148 lines), `452496b` |
-| `#21` | **needed no work** — shipped 2026-05-15 in `f97f2a4`. This item was the bug; `F-9` |
+| `#21` | **needed no work** — shipped 2026-05-15 in `f97f2a4`. This item was the bug; `roster-audit-session-log:F-9` |
 | release | done — **buddy 0.9.2**, carrying `VG-7` + `VG-6`. Parity green across 3 profiles |
-| `F-1`/`F-2` | done — `#20` re-opened with the measured distribution, audit re-scoped `10/10 → 10/12`, `d334a50` |
-| `F-4` | done — all 38 `T-N` defined in one commit, resolution proven by edges, `5c379a0` |
+| `roster-audit-session-log:F-1`/`roster-audit-session-log:F-2` | done — `#20` re-opened with the measured distribution, audit re-scoped `10/10 → 10/12`, `d334a50` |
+| `roster-audit-session-log:F-4` | done — all 38 `T-N` defined in one commit, resolution proven by edges, `5c379a0` |
 | version-bump tracker | refreshed for 0.9.2; its plugin set now **derived**, not hardcoded, `c1155e8` |
 
 ### Still open — nothing blocking, in rough priority order
@@ -100,11 +100,11 @@ the original seven-item list is outstanding:
    `[verified 2026-08-26 — link_scan ambiguous 93, prefix_conflicts 0, edges_missing 0]`
 
 7. **`VG-1`–`VG-5`** — unblocked now that `VG-6`/`VG-7`/`VG-8` are closed. Clone `VG-7`'s
-   *question*, not its ratio: `F-8` established that metric is algebraically invariant under
+   *question*, not its ratio: `roster-audit-session-log:F-8` established that metric is algebraically invariant under
    the fix it prescribes.
-   `[verified 2026-08-26 — F-8 arithmetic recorded in the entry]`
+   `[verified 2026-08-26 — roster-audit-session-log:F-8 arithmetic recorded in the entry]`
 
-8. **Marketplace clones have no sync mechanism.** `F-10` was repaired by a one-time
+8. **Marketplace clones have no sync mechanism.** `roster-audit-session-log:F-10` was repaired by a one-time
    `rsync` from `~/.claude`; nothing keeps the three profiles' marketplace clones current,
    so HEAD skew reappears whenever one profile auto-updates and another does not. The gate
    now **detects** it (class 7) and never repairs it — deliberately, since choosing which
@@ -113,9 +113,9 @@ the original seven-item list is outstanding:
    plugins against `.claude`'s 289 before the sync, visible only as a file count).
    `[verified 2026-08-26 — parity green after the fix; positive control fired all four new classes]`
 
-9. **Two codescout upstream fixes, filed not applied** — `F-5` (the session-log template
-   cites its own ledger ids bare, so every copy imports dangling citations) and `F-6` (a
-   `doctor` check `cited_prefix_with_no_definer`; `F-4` is the instance, this is the class).
+9. **Two codescout upstream fixes, filed not applied** — `roster-audit-session-log:F-5` (the session-log template
+   cites its own ledger ids bare, so every copy imports dangling citations) and `roster-audit-session-log:F-6` (a
+   `doctor` check `cited_prefix_with_no_definer`; `roster-audit-session-log:F-4` is the instance, this is the class).
    Both are issues on codescout's `experiments` branch.
    `[verified 2026-08-26 — both issue files exist; neither fix applied]`
 ## Working state
@@ -129,7 +129,7 @@ the original seven-item list is outstanding:
 
 ## Anti-goals
 
-- **Do not measure lens-split quality with `(base + lens) / monolith`.** It is invariant under relocation — the exact fix it prescribes cannot move it (`F-8`). Use absolute lines per summon. And do not clone `VG-7`'s "addendum approaching base size" rule to `VG-1`/`VG-5` as a numeric gate: post-extraction `_llm.md` is 118 vs a 141-line base and every remaining line is legitimately LLM-specific. It is a smell, not a law.
+- **Do not measure lens-split quality with `(base + lens) / monolith`.** It is invariant under relocation — the exact fix it prescribes cannot move it (`roster-audit-session-log:F-8`). Use absolute lines per summon. And do not clone `VG-7`'s "addendum approaching base size" rule to `VG-1`/`VG-5` as a numeric gate: post-extraction `_llm.md` is 118 vs a 141-line base and every remaining line is legitimately LLM-specific. It is a smell, not a law.
 - **Do not treat `T-N` citations as dangling.** They are inert — prefix `T` has zero definers, so `link_scan` never considers the token. `dangling_by_source` will not show them. This was filed wrong once already.
 - **Do not read `link_scan`'s `ambiguous` / `dangling` arrays as a census.** Capped at 50 against populations of 70–81, with no `truncated` flag. Use `*_by_source`.
 - **Do not auto-repoint every install-record element in `release.sh` step 5.** A project-scope pin may be deliberate elsewhere; `check-profile-parity.sh` deliberately detects and fails rather than rewriting.
@@ -138,15 +138,15 @@ the original seven-item list is outstanding:
 
 ## Open threads
 
-- `F-5` / `F-6` — both filed as codescout issues; upstream fixes not applied. `F-6` proposes a `doctor` check, `cited_prefix_with_no_definer`.
-- `F-3`'s owed regression: parse every `**Valid:**` / `**Rests on:**` line in `codescout-companion/skills/**` against the documented grammar. No MCP server needed; would have caught the 2026-08-20 regression at its own commit.
+- `roster-audit-session-log:F-5` / `roster-audit-session-log:F-6` — both filed as codescout issues; upstream fixes not applied. `roster-audit-session-log:F-6` proposes a `doctor` check, `cited_prefix_with_no_definer`.
+- `roster-audit-session-log:F-3`'s owed regression: parse every `**Valid:**` / `**Rests on:**` line in `codescout-companion/skills/**` against the documented grammar. No MCP server needed; would have caught the 2026-08-20 regression at its own commit.
 - `R-4` effect unmeasured — establishing the `reconnaissance-eval` baseline is the work it generates.
 - `caveman@caveman` is still a registered marketplace in `~/.claude` and `~/.claude-kat` with nothing installed from it. Cosmetic; outside the agreed parity scope (our 4 plugins).
 - `sdd` 2.4.1 is installed in no profile, and § Installing documents marketplace `claude-plugins` while everything real uses `sdd-misc-plugins`.
 
 ## Pointers
 
-- Specs / plans / related trackers: `docs/trackers/roster-audit-session-log.md` (this session's ledger, `F-1`..`F-8`, `W-1`, `W-2`), `docs/trackers/reconnaissance-patterns.md` (`R-3`, `R-4`, `R-5`), `docs/trackers/validation-domain-coverage.md` (`VG-1`..`VG-10`), `docs/trackers/buddy-introspection.md` (`#20`, `#21`, `S-5`), `docs/trackers/active-plan.md` (`T-35`, `T-37`, `D-6`), `buddy/docs/trackers/headroom-optimization.md` (backlog 2b, re-scoped), `docs/trackers/version-bump-checklist.md` (`cc8cb9e23ab5cc67`).
+- Specs / plans / related trackers: `docs/trackers/roster-audit-session-log.md` (this session's ledger, `roster-audit-session-log:F-1`..`roster-audit-session-log:F-8`, `roster-audit-session-log:W-1`, `roster-audit-session-log:W-2`), `docs/trackers/reconnaissance-patterns.md` (`R-3`, `R-4`, `R-5`), `docs/trackers/validation-domain-coverage.md` (`VG-1`..`VG-10`), `docs/trackers/buddy-introspection.md` (`#20`, `#21`, `S-5`), `docs/trackers/active-plan.md` (`T-35`, `T-37`, `D-6`), `buddy/docs/trackers/headroom-optimization.md` (backlog 2b, re-scoped), `docs/trackers/version-bump-checklist.md` (`cc8cb9e23ab5cc67`).
 - Sibling thread: `docs/trackers/passover-validation-spine-2026-08-26.md` — concurrent session, VG-9 spine measurement. Different thread; its anti-goals are its own.
 - Key commits: `f53aaea` (recon SKILL fix), `448a1b8` (1.16.17 bump), `cb7d3f4` (tracker refresh), `ce83dfd` (parity check + CLAUDE.md), `0fd8eb1` (VG-7).
 - Back-link: `.buddy/f6ae2d77-3ee3-46f9-ab0d-270afd61c592/` and the session transcript.

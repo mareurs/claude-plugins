@@ -151,6 +151,38 @@ librarian(action="link_scan", scope="project")   # write=false; read dangling_by
 
 ## Fix
 
+> **Item 2 done for four files, 2026-08-27 — ambiguous 84 → 65.** `INDEX.md` (6 → 0),
+> `passover-roster-audit-release-integrity-2026-08-26` (7 → 0),
+> `passover-session-passover-tracker-2026-06-18` (4 → 0),
+> `passover-research-skills-refactor-2026-07-04` (2 → 0). Two edges added, none stale,
+> none pruned; `run-all.sh` green.
+>
+> **The floor effect is larger than the § mechanics note suggests, and grepping first
+> beat it in one pass.** `link_scan` reported 6 tokens for `INDEX.md` and 7 for the
+> roster-audit passover; the greps found **15** and **30**. Fixing only what the scan
+> named would have taken four more scan-fix rounds per file. `INDEX.md` went to zero in
+> a single pass and did not reappear on the next scan — the grep is not just faster
+> sizing, it is what makes one pass sufficient.
+>
+> **`INDEX.md` was the easy shape and is worth naming as such:** every row already links
+> the tracker its tokens belong to, so the qualifier is derivable from the row with no
+> judgement at all. The passovers were nearly as clean — each names its work-stream log
+> outright ("Work-stream log: `…`"), and in all four cases the named ledger was checked
+> to define every token before anything was written, per § *Two subclasses* item 3.
+>
+> **What is left is NOT mechanical, which is why it stopped here:**
+>
+> | File | ambig | why it needs a human |
+> |---|---|---|
+> | `version-bump-checklist` | 6 | the `R-1`/`R-3` call this issue already flags — dates do not settle whose ledger |
+> | `repo-hygiene-session-log` | 4 | cites four tokens it does not define, plus `R-104` — the exact subclass-3 landmine |
+> | `buddy-introspection` | 2 | unread |
+> | `prompt-hamsa-audit-log` | 1 | cites `A-N`/`P-N`/`G-N`/`L-N` across repos |
+>
+> The `docs/superpowers/plans/` + `specs/` entries (~26) are finished design documents
+> — historical snapshots, and arguably out of scope by the same reasoning that exempts
+> `archive/`.
+
 > **Baseline moved, 2026-08-27 — not by working this issue.** An archive sweep moved ten
 > terminal bug files into `docs/issues/archive/` and re-pointed their 22 citations (paths
 > and 16-hex ids) across 14 files. A `link_scan(write=true)` after it reads **dangling 59,
