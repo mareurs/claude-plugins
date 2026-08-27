@@ -3,10 +3,6 @@ id: cc8cb9e23ab5cc67
 kind: tracker
 status: draft
 title: Version-bump checklist
-owners: []
-tags: []
-topic: null
-time_scope: null
 ---
 
 
@@ -17,7 +13,7 @@ Release readiness across plugins × profiles. See
 
 ## State
 
-_Last refresh: `27ac0ab`_
+_Last refresh: buddy 0.10.0, 2026-08-27._
 
 **codescout-companion** — canonical `1.17.0` · readme `1.17.0` · marketplace clean ✅
 
@@ -27,34 +23,14 @@ _Last refresh: `27ac0ab`_
 | `~/.claude-sdd` | 1.17.0 ✅ | ✅ | ✅ | `1.17.0` ✅ |
 | `~/.claude-kat` | 1.17.0 ✅ | ✅ | ✅ | `1.17.0` ✅ |
 
-**buddy** — canonical `0.9.2` · readme `0.9.2` · marketplace clean ✅ — **but the
-version is now a LIE about what is running. See the warning below the table.**
+**buddy** — canonical `0.10.0` · readme `0.10.0` · marketplace clean ✅ — **the
+unreleased-code drift recorded here on 2026-08-27 is CLOSED.**
 
-| profile | installed | cache dir | install_path ok | all entries |
-|---|---|---|---|---|
-| `~/.claude` | 0.9.2 ⚠ | ✅ | ✅ | `0.9.2` ⚠ |
-| `~/.claude-sdd` | 0.9.2 ⚠ | ✅ | ✅ | `0.9.2` ⚠ |
-| `~/.claude-kat` | 0.9.2 ⚠ | ✅ | ✅ | `0.9.2` ⚠ |
-
-**⚠ UNRELEASED CODE IS LIVE IN ALL THREE PROFILES (2026-08-27).** The specialist
-graph merged to main (`ea5f68c`..`77d3a03`) adding the `advisors:` and `fragments:`
-frontmatter keys and a rewritten `build_payload`. `release.sh` was **not** run —
-deliberately, because it is publish-class and the branch was unmerged at the time.
-
-Every ✅ in the rows above is still literally true and that is precisely the problem:
-the records agree with `plugin.json`, and both now describe code that no longer
-matches what is executing. This marketplace is a **directory source loading from the
-repo working tree** (CLAUDE.md § *Plugin Install Path*, verified in
-`.buddy/.session-start-trace.log`), so the merge made the new assembler live in all
-three profiles immediately. The version number did not follow it.
-
-This is the one drift class the parity checks cannot see, because every check
-compares records to records and to cache dirs — none compares any of them to the
-*working tree*, which is what actually serves. `check-profile-parity.sh` will report
-clean.
-
-**Owed:** `./scripts/release.sh buddy minor`, then this tracker's refresh and a cold
-restart of all three instances. Tracked as `active-plan:T-39` § *Open after shipping*.
+| profile | installed | cache dir | install_path ok | all entries | cache = working tree |
+|---|---|---|---|---|---|
+| `~/.claude` | 0.10.0 ✅ | ✅ | ✅ | `0.10.0` ✅ | ✅ (one note below) |
+| `~/.claude-sdd` | 0.10.0 ✅ | ✅ | ✅ | `0.10.0` ✅ | ✅ |
+| `~/.claude-kat` | 0.10.0 ✅ | ✅ | ✅ | `0.10.0` ✅ | ✅ |
 
 **claude-statusline** — canonical `1.1.7` · readme `1.1.7` · marketplace clean ✅
 
@@ -80,17 +56,80 @@ profile.** Stable and uninstalled by design; omitted from `params` because a `nu
 a pi-harness extension with its own `install.sh`), so it is outside the discovered plugin
 set and has no install record. Not a gap.
 
-**⚠ Registration is outstanding for 1.17.0 — the ✅ above do NOT cover it.** Every column
-in these tables is a fact about files on disk. `1.17.0` adds a NEW hook
-(`hooks/cs-liveness.mjs`, PostToolUse), and which hooks *exist* is resolved by Claude Code
-at process launch. Verified present and registered in all three seeded snapshots —
-`cs-liveness.mjs` on disk, 1 matching PostToolUse entry in each `hooks/hooks.json` — but no
-running instance has re-read them. Until all three cold-restart (a `resume` does NOT
-suffice), the liveness hook does not fire, and the redirect circuit breaker it feeds will
-trip once and never re-arm: the session recovers its shell and silently loses the guard for
-its remainder. That degrades safe, but it does degrade. Confirm a true cold start via the
-SessionStart payload reporting `source=startup`, not `source=resume`.
+### The new column, and why it exists
+
+`cache = working tree` is measured for the first time this refresh, because it is the
+exact axis the 2026-08-27 drift proved nothing was checking. Every other column
+compares records to records or records to cache dirs; on a **directory-source**
+marketplace the thing that actually serves is the **repo working tree**, and no check
+touched it. Method — `diff -rq --exclude=__pycache__ --exclude=.pytest_cache
+--exclude=.venv buddy <cache>`; the three exclusions are build artifacts that exist
+only in the tree and are correctly absent from a seeded snapshot.
+
+**Note on `~/.claude`.** One real difference, and it is not a release fault:
+`buddy/.orphaned_at` (13 bytes, epoch `1776502775928` → 2026-04-18) exists in the
+working tree and in the other two caches, and is missing from `~/.claude`'s — the
+profile this session ran under most likely cleared its own orphan marker on
+re-registration. **The finding worth acting on is upstream of that: the file is
+TRACKED IN GIT and is not ignored.** A Claude Code runtime marker was committed in
+April and has been shipping in every cache snapshot since. It should be `git rm`'d and
+added to `.gitignore`; left alone, it will keep producing exactly this false positive
+on the new column.
+
+### Registration — not load-bearing for 0.10.0
+
+Unlike `1.17.0`, this release adds **no new registered component**. The merge
+(`ea5f68c`..`77d3a03`) touched four files: `buddy/commands/summon.md` (modified),
+`buddy/scripts/summon_bootstrap.py`, and two test files. No new hook, command, or
+skill — so nothing needs a launch-time re-read to become visible.
+
+And because this marketplace serves from the working tree, **the specialist-graph
+feature was already live in all three profiles from the moment it merged.** This
+release did not deploy it. It made the version number stop lying about it — which is
+the whole of what was owed.
+
+**The `1.17.0` registration warning previously recorded here is now stale.**
+`.buddy/.session-start-trace.log` records five `source=startup` events after that
+release's commit (`019bae5`, 2026-08-26 23:33), the most recent during this session.
+The log is repo-local and shared across profiles, so it proves cold starts happened
+but does not attribute them per profile — recorded as measured, not inflated to
+"all three confirmed."
 ## History
+### 2026-08-27 — buddy 0.9.2 → 0.10.0, closing the drift the parity checks structurally could not see
+
+The release owed since the specialist graph merged. `NO_PUSH=1 ./scripts/release.sh
+buddy minor` — suite green, all three caches seeded, all three install records
+repointed, `check-profile-parity.sh` clean, committed locally and **not pushed**
+(the publish decision kept separate on purpose).
+
+**What the drift actually was.** Between the merge and this release, `plugin.json`
+said `0.9.2`, all three install records said `0.9.2`, and every parity check reported
+clean — while the new `build_payload` ran in all three profiles. Every ✅ was
+literally true. The records agreed with each other and with the caches, and all of
+them described code that was not what executed, because a **directory-source**
+marketplace serves the repo working tree and nothing compared anything to it.
+
+**Fixed by measurement, not by assertion.** This refresh adds a `cache = working
+tree` column — the first check on that axis. All three profiles pass.
+
+**Two findings the new column produced immediately:**
+
+1. **`buddy/.orphaned_at` is tracked in git.** A Claude Code runtime orphan marker
+   (epoch `1776502775928` → 2026-04-18) was committed in April and has shipped in
+   every cache snapshot since. It is present in the tree and in two caches, absent
+   from `~/.claude`'s — which reads as a cache defect and is not one. `git rm` +
+   `.gitignore`, or the new column will keep flagging it.
+2. **Registration is NOT load-bearing for this release**, unlike `1.17.0`. The merge
+   added no hook, command, or skill — only a modified `commands/summon.md` and
+   `scripts/summon_bootstrap.py`. The feature was live from the working tree the
+   moment it merged; the release made the version honest, it did not deploy
+   anything. The cold restart is hygiene here, not a correctness gate.
+
+**And the `1.17.0` registration warning is retired** — five `source=startup` events
+in `.buddy/.session-start-trace.log` post-date `019bae5`. The log does not attribute
+startups per profile, so this is recorded as "cold starts happened," not "all three
+confirmed."
+
 ### 2026-08-26 — codescout-companion 1.16.17 → 1.17.0, and the first release where registration is the load-bearing step
 
 Minor rather than the default patch, deliberately: this is the first bump in a long
