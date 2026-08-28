@@ -35,7 +35,7 @@ entry_high_water_F: 3
 |----|------|---------:|----------|--------|-------|
 | F-1 | 2026-05-21 | med | architectural | fixed-verified | Cross-repo escape lives in md/Bash branches, not is_in_workspace |
 | F-2 | 2026-08-27 | med | stale-memory | fixed-verified | 3 advertised memory surfaces say boolean `block_reads: false` is ignored — both forms work |
-| F-3 | 2026-08-28 | med | release-pipeline | open | The `block_reads` opt-out turns the guard suite red (21/55) — suite hardcodes both live repos as dispatch CWDs; blocks `release.sh` pre-flight on this machine only |
+| F-3 | 2026-08-28 | med | release-pipeline | fixed-verified | The `block_reads` opt-out turned the guard suite red (21/55) — suite hardcoded both live repos as dispatch CWDs. Hermetic escape hatch; 58/58 with the opt-out live |
 
 ## Wins Index
 
@@ -311,8 +311,25 @@ Cheapest seam is an escape hatch in `findRoutingConfig` —
 `scripts/detect.py` for parity, with the test exporting it once at the top. Two
 lines of hook code and one of test code, and it fixes the class rather than this
 instance: a guard suite should never depend on the config of the machine running
-it. **Not implemented — this is a change to shipped hook code and wants a
-decision, not a drive-by.**
+it. **Implemented 2026-08-28** on the user's go-ahead, exactly as sketched.
+
+**Status:** fixed-verified — suite now **58/58 with both opt-out configs still in
+place** (was 21/55). `CS_COMPANION_IGNORE_PROJECT_CONFIG` is honoured by
+`detect.mjs findRoutingConfig` and mirrored in `detect.py _find_routing_config`,
+exported once at the top of `pre-tool-guard.test.sh`.
+
+Three new cases cover the hatch, control first: `cfg-hatch-off-plain-denies`
+proves the temp cwd *can* produce a deny — without it `cfg-hatch-off-optout-allows`
+would be a false pass on a cwd that could never deny — then
+`cfg-hatch-off-optout-allows` (real config still honoured with the hatch off) and
+`cfg-hatch-on-ignores-optout`. They use a `mktemp -d` cwd rather than a real repo,
+so they are immune to the very defect this entry records.
+
+Detector parity was probed **directly**, because the existing parity suite never
+sets the env var and so could not have caught a one-sided implementation: hatch
+off → both report `false`, hatch on → both report `true`. Full `run-all.sh` green;
+`detect.test.sh` Case C (which already asserted boolean `block_reads: false`
+works — a pre-existing regression test for F-2's claim) still passes.
 
 **Valid:** dated 2026-08-28
 

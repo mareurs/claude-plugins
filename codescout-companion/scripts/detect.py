@@ -49,6 +49,12 @@ def _expand_home(value: str, home: str) -> str:
 
 
 def _find_routing_config(cwd: Path) -> Path | None:
+    # Hermetic escape hatch — mirrors detect.mjs findRoutingConfig. A test harness
+    # announcing a real repo path as its cwd would otherwise inherit that repo's
+    # live `.claude/` opt-out. Set only by test harnesses; never in normal
+    # operation. See `guard-hardening-session-log:F-3`.
+    if os.environ.get("CS_COMPANION_IGNORE_PROJECT_CONFIG"):
+        return None
     candidates = [
         cwd / ".claude" / "codescout-companion.json",
         cwd / ".claude" / "codescout-routing.json",

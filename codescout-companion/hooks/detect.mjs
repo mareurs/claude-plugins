@@ -46,6 +46,13 @@ function expandHome(value, home) {
 }
 
 function findRoutingConfig(cwd) {
+  // Hermetic escape hatch. A test harness announcing a real repo path as its cwd
+  // would otherwise inherit that repo's live `.claude/` opt-out — so a developer
+  // exercising the documented `block_reads: false` silently turns the guard's own
+  // suite red (34 false failures, every one deny->allow) and blocks release.sh
+  // pre-flight. Set only by test harnesses; never in normal operation.
+  // See `guard-hardening-session-log:F-3`.
+  if (process.env.CS_COMPANION_IGNORE_PROJECT_CONFIG) return null;
   const candidates = [
     join(cwd, '.claude', 'codescout-companion.json'),
     join(cwd, '.claude', 'codescout-routing.json'),

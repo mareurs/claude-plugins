@@ -18,6 +18,16 @@ set -uo pipefail
 HOOK="$(cd "$(dirname "$0")" && pwd)/pre-tool-guard.mjs"
 ACTIVE_CWD="/home/marius/work/claude/codescout"
 SIBLING_CWD="/home/marius/work/claude/claude-plugins"
+
+# The two CWDs above are REAL repos, and either may carry a developer's
+# `.claude/codescout-companion.json` opt-out (`block_reads: false`). That makes
+# pre-tool-guard.mjs:32 exit before any dispatch, turning every deny assertion
+# into a false allow — measured 2026-08-28 as 21/55, which also blocks
+# release.sh pre-flight. Make the suite hermetic; the hatch is honoured by
+# detect.mjs findRoutingConfig + its detect.py mirror, and is unset again by the
+# config cases at the bottom of this file. See `guard-hardening-session-log:F-3`.
+export CS_COMPANION_IGNORE_PROJECT_CONFIG=1
+
 PASS=0
 FAIL=0
 
@@ -237,6 +247,40 @@ case "$OUT" in
     *"codescout-companion.json"*) check "escape-footer-avoids-unreachable-config" "no"  "yes" ;;
     *)                            check "escape-footer-avoids-unreachable-config" "yes" "yes" ;;
 esac
+
+# --- Project-config resolution: the escape hatch must not disable it globally ---
+# Uses a temp cwd rather than a real repo, so these cases are independent of any
+# developer's own opt-out — the defect this block exists to catch.
+CFG_TMP="$(mktemp -d)"
+mkdir -p "$CFG_TMP/optout/.claude" "$CFG_TMP/plain/.claude"
+printf '{"block_reads": false}\n' > "$CFG_TMP/optout/.claude/codescout-companion.json"
+printf '{}\n'                     > "$CFG_TMP/plain/.claude/codescout-companion.json"
+
+assert_cfg() {  # <label> <cwd> <expected> <hatch: on|off>
+    clean
+    local payload got
+    payload=$(jq -n --arg cwd "$2" \
+        '{tool_name:"Read", cwd:$cwd, tool_input:{file_path:($cwd+"/src/main.rs")}}')
+    if [[ "$4" == "off" ]]; then
+        got=$(verdict "$(echo "$payload" | env -u CS_COMPANION_IGNORE_PROJECT_CONFIG node "$HOOK")")
+    else
+        got=$(verdict "$(echo "$payload" | node "$HOOK")")
+    fi
+    if [[ "$got" == "$3" ]]; then
+        echo "PASS [$1]"; PASS=$((PASS+1))
+    else
+        echo "FAIL [$1]: expected=$3 got=$got (hatch=$4)"; FAIL=$((FAIL+1))
+    fi
+}
+
+# Positive control FIRST. Without it, "optout allows" proves nothing: a temp cwd
+# that could never produce a deny would pass that case for the wrong reason.
+assert_cfg "cfg-hatch-off-plain-denies"  "$CFG_TMP/plain"  "deny"  "off"
+assert_cfg "cfg-hatch-off-optout-allows" "$CFG_TMP/optout" "allow" "off"
+# And the hatch does what it claims: same cwd, config ignored.
+assert_cfg "cfg-hatch-on-ignores-optout" "$CFG_TMP/optout" "deny"  "on"
+
+/bin/rm -rf "$CFG_TMP"
 
 clean
 echo "---"
