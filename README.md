@@ -169,6 +169,19 @@ Add to your project's `.claude/settings.json` so all team members get the plugin
 
 When team members trust the repository folder, Claude Code automatically installs the marketplace and plugins.
 
+## Contributing
+
+Working on this repo? Install the local git hooks once per clone:
+
+```bash
+./scripts/install-hooks.sh
+```
+
+They are not synced by git (nothing is, in `.git/hooks/`), so a fresh clone has none. The
+`pre-push` shim carries force-push protection on `main` and a version-bump parity check
+that stops a hand-bumped version reaching `main` while the installed profiles still
+disagree about it. `./tests/run-all.sh` warns when they are absent.
+
 ## License
 
 MIT

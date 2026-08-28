@@ -30,6 +30,11 @@ for f in "$SCRIPT_DIR"/test-*.sh "$HOOK_TESTS_DIR"/*.test.sh; do
   echo ""
 done
 
+# Local git hooks are opt-in per clone (never synced by git), so the pre-push
+# guards can be silently absent — and absence reads exactly like "nothing to
+# report". Notice only; never affects the exit code.
+bash "$SCRIPT_DIR/../scripts/check-hooks-installed.sh" || true
+
 if [ "${#FAILED[@]}" -eq 0 ]; then
   echo "✓ All suites passed."
   exit 0

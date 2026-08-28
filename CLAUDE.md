@@ -231,6 +231,19 @@ It deliberately does **not** live in `tests/run-all.sh`: `release.sh` runs that 
 exactly the drift the release exists to repair.
 ## Development
 
+**First thing in a fresh clone — install the local git hooks:**
+
+```bash
+./scripts/install-hooks.sh
+```
+
+Git hooks live in `.git/hooks/` and are never cloned or synced, so this is opt-in per
+clone. It installs a `pre-push` shim carrying two guards: force-push protection on `main`,
+and version-bump parity (a bump that skipped `release.sh` cannot reach `main` while the
+three profiles disagree about it). `./tests/run-all.sh` prints a notice when they are
+missing — a guard that is not installed is otherwise indistinguishable from a guard
+finding nothing wrong.
+
 - Hooks use `jq` for JSON parsing — required dependency
 - Hook scripts use `${CLAUDE_PLUGIN_ROOT}` to reference files within the plugin install directory
 - Test hooks locally: `echo '{"cwd":"/some/path"}' | bash codescout-companion/hooks/session-start.sh`

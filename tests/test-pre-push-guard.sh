@@ -169,4 +169,52 @@ else
   fail "install-hooks: installed hook tracks source edits (not a stale copy)" "got: $OUT"
 fi
 
+# --- The absent guard must announce itself ------------------------------------
+# install-hooks.sh is opt-in per clone, so the guards above can simply not exist
+# — and a guard that is not there is indistinguishable from a guard finding
+# nothing wrong. check-hooks-installed.sh exists to break that tie.
+CHECK="$REPO_ROOT/scripts/check-hooks-installed.sh"
+HR="$T/hookrepo"
+mkdir -p "$HR/scripts"
+git -C "$HR" init -q 2>/dev/null
+cp "$REPO_ROOT/scripts/install-hooks.sh" "$CHECK" "$HR/scripts/"
+printf '#!/usr/bin/env bash\nexit 0\n' > "$HR/scripts/pre-push-guard.sh"
+chmod +x "$HR/scripts/pre-push-guard.sh"
+
+# Missing entirely.
+OUT=$(cd "$HR" && bash scripts/check-hooks-installed.sh 2>&1); EC=$?
+if [ "$EC" -eq 0 ] && echo "$OUT" | grep -q 'NOT installed'; then
+  pass "hooks-installed: missing hook warns, exit 0"
+else
+  fail "hooks-installed: missing hook warns, exit 0" "ec=$EC out=$OUT"
+fi
+
+# A foreign pre-push hook is NOT our guard — distinct message, still exit 0.
+printf '#!/usr/bin/env bash\nexit 0\n' > "$HR/.git/hooks/pre-push"
+chmod +x "$HR/.git/hooks/pre-push"
+OUT=$(cd "$HR" && bash scripts/check-hooks-installed.sh 2>&1); EC=$?
+if [ "$EC" -eq 0 ] && echo "$OUT" | grep -q 'not this repo'; then
+  pass "hooks-installed: foreign hook warns, exit 0"
+else
+  fail "hooks-installed: foreign hook warns, exit 0" "ec=$EC out=$OUT"
+fi
+
+# Properly installed — must be SILENT. This is the discriminator: a check that
+# warned unconditionally would pass both cases above and still be useless.
+(cd "$HR" && ./scripts/install-hooks.sh >/dev/null 2>&1)
+OUT=$(cd "$HR" && bash scripts/check-hooks-installed.sh 2>&1); EC=$?
+if [ "$EC" -eq 0 ] && [ -z "$OUT" ]; then
+  pass "hooks-installed: installed hook is silent"
+else
+  fail "hooks-installed: installed hook is silent" "ec=$EC out=$OUT"
+fi
+
+# Outside a git checkout there is nothing to install into: silent, exit 0.
+OUT=$(cd "$T" && bash "$CHECK" 2>&1); EC=$?
+if [ "$EC" -eq 0 ] && [ -z "$OUT" ]; then
+  pass "hooks-installed: non-git dir is silent"
+else
+  fail "hooks-installed: non-git dir is silent" "ec=$EC out=$OUT"
+fi
+
 print_summary
