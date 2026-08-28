@@ -17,7 +17,7 @@
 | Term | Definition |
 |---|---|
 | `HAS_CODESCOUT` | Detection flag: true if codescout MCP server is configured in this session |
-| `BLOCK_READS` | Config flag; string `"false"` to disable Read/Grep/Glob blocking (boolean false silently ignored) |
+| `BLOCK_READS` | Config flag; set `block_reads` to boolean `false` or string `"false"` in `.claude/codescout-companion.json` to disable Read/Grep/Glob/Bash/Edit/Write blocking. Both forms work; absent → `true` |
 | `detect-tools.sh` | Shared detection library sourced by every codescout-companion hook |
 | worktree state machine | 3-hook sequence (worktree-activate → worktree-write-guard → cs-activate-project) using `.cs-worktree-pending` marker |
 | drift warning | Session-start surface of high-drift files from codescout's `drift_report` SQLite table |

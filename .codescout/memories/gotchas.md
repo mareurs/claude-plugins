@@ -20,7 +20,7 @@ While verifying three new `codescout-companion` PreToolUse hooks live (constitut
 
 ## codescout-companion Specific
 
-- **`block_reads` must be string `"false"`, not boolean.** jq `// empty` treats boolean `false` as absent, so the boolean form is silently ignored and reads stay blocked. Set `"block_reads": "false"` (quoted string) in `.claude/codescout-companion.json`.
+- **`block_reads` accepts BOTH boolean `false` and string `"false"`.** Measured 2026-08-27 through `detectFor()` — the entry point `pre-tool-guard.mjs:30` calls: either form yields `BLOCK_READS=false`, an absent key yields `true`. `detect.mjs:157` and `detect.py:204` both test the two forms. This bullet previously claimed the boolean was silently ignored by a jq `// empty`; that code was never shipped — it exists only in `docs/plans/2026-02-26-plugin-refactor-plan.md:78`, and `detect-tools.sh` is a thin shim over `detect.py` that parses no config at all. See `guard-hardening-session-log:F-2`.
 - **`marketplace.json` must have NO version fields.** Claude Code reads version from `plugin.json` at install time; duplicating in marketplace causes silent drift.
 - **Always exit 0 in codescout-companion hooks.** Exit 2 ignores stdout — `permissionDecisionReason` never reaches Claude. Use `permissionDecision: "deny"` in JSON output instead.
 

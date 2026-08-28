@@ -61,7 +61,7 @@ Avoid: "task" (renamed to "Agent"), "sdd-misc-plugins" (old repo name — now "c
 ## Project Rules
 
 - codescout-companion hooks always exit 0; buddy allows exit 2 only for hard judge block (`BUDDY_JUDGE_BLOCK=true`)
-- `block_reads` config must be string `"false"`, not boolean — jq `// empty` silently ignores boolean false
+- `block_reads` accepts boolean `false` OR string `"false"` (either → `BLOCK_READS=false`); absent → `true`. Measured 2026-08-27 — see `guard-hardening-session-log:F-2`
 - `marketplace.json` must never contain `version` fields
 - All 3 `installed_plugins.json` files (`~/.claude/`, `~/.claude-sdd/`, `~/.claude-kat/`) updated on every version bump; `installPath` must start with the owning profile root
 - PreToolUse matchers for subagent dispatch use `"matcher": "Agent"`, NOT `"Task"` (CC renamed Task→Agent)
