@@ -31,6 +31,10 @@ jobs:
         with:
           python-version: '3.13'
 
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'   # >= 23.6 for native .ts type-stripping (pi/tests/test-secret-guard.mjs)
+
       - name: Install jq (macOS)
         if: runner.os == 'macOS'
         run: brew install jq
@@ -42,6 +46,10 @@ jobs:
           echo "python:  $(command -v python || echo 'absent')"
           echo "cygpath: $(command -v cygpath || echo 'absent')"
           echo "jq:      $(command -v jq || echo 'absent')"
+          echo "node:    $(node --version || echo 'absent')"
 
       - name: Cross-platform hook smoke test
         run: bash tests/test-cross-platform-hooks.sh
+
+      - name: secret-guard adversarial test suite
+        run: node pi/tests/test-secret-guard.mjs

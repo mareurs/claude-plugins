@@ -9,8 +9,8 @@ tags:
 - wsl
 - node
 - pre-existing-debt
-last_observed: 2026-08-05
-unverified: Green on ONE machine only (Arch Linux workstation, 2026-08-27, 41 suites, 0 FAILs). The 16 failures were never root-caused — the diagnosis recorded in this file is refuted, not replaced — and CI runs 1 of 41 suites, so a recurrence would be unobserved on every OS.
+last_observed: 2026-08-28
+unverified: 'Green on ONE machine only (Arch Linux workstation, `archlinux` host, re-confirmed 2026-08-28: 43 suites, 0 FAILs — suite count grew from 41 since the last check). The 16 originally-failing suites were never root-caused. CI still runs 1 of 43 suites, so a recurrence would be unobserved on every OS.'
 ---
 
 ## Summary
@@ -59,6 +59,15 @@ the `.mjs`.
 ubuntu/macos/windows matrix — but its only test step is
 `bash tests/test-cross-platform-hooks.sh`. **One suite of 41.** So a recurrence of
 this would be unobserved by CI on every OS, not just under WSL.
+## Re-checked 2026-08-28 — still green, one more machine-run, same caveat
+
+`./tests/run-all.sh` on this same Arch Linux workstation (host `archlinux`): exit 0,
+**43 suites, 0 FAILs** (suite count grew from 41 to 43 since 2026-08-27 — new suites
+added, not a shrinking denominator). No recurrence of the original 16-failure signature.
+
+This is the same single machine as the 2026-08-27 check, so it does not add
+cross-environment evidence — the re-open trigger (any non-Arch-workstation failure)
+is unchanged and still unfalsified. Left as `zombie`.
 ## Evidence the fix itself is not implicated
 
 - `session-start.test.sh` (the one test that exercises the changed

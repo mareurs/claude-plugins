@@ -1,7 +1,7 @@
 ---
 id: e01357bc2898153f
 kind: bug
-status: open
+status: fixed
 title: 'Build secret-guard here, rebuilt fail-closed — codescout PR #9 is the wrong repo and the control has 10+ bypasses'
 owners:
 - marius
@@ -109,7 +109,7 @@ if (badHosts.length > 0 || !mentionsAllowed) { /* block */ }
    `git push --force`) — no egress patterns at all. Identical payload, ungated end to end,
    against the very keys `mcp.json` holds.
    **This repo already wrote that lesson down:** `contrib/pi/codescout-mode.ts:13-17` carries the
-   pi-integration F-3 post-mortem — MCP tools register **prefixed** (`codescout_run_command`),
+   pi-integration `codescout:F-3` post-mortem — MCP tools register **prefixed** (`codescout_run_command`),
    and an earlier revision assuming unprefixed names *"silently no-op'd every session — native
    edit/write/read/bash were never blocked."*
 
@@ -213,6 +213,83 @@ With the override out of band, **no `AGENTS.md` change is needed at all**. PR #9
 gone, that prompt-surface edit disappears with it. Nothing needs to be said to the model about a
 gate it cannot talk its way past.
 
+## Fixed, 2026-08-28 — built per § Files to land here
+
+Shipped exactly the five files the table below names:
+
+- `pi/extensions/secret-guard.ts` — the six-step design, built to spec: tool gate by
+  suffix/allowlist (not `=== "bash"`), out-of-band-only override, per-segment egress
+  detection (`;`/`&&`/`||`/`|`/newline splitting plus `$(...)`/backtick recursion),
+  full destination parsing (userinfo-stripped schemed URLs, scheme-less first-arg),
+  fail-closed on anything unparsed, host/subdomain allowlist. No secret reading of any
+  kind — `models.json`/`mcp.json`/`envFiles` are gone.
+- `pi/tests/test-secret-guard.mjs` — 23 cases: all 11 documented adversarial findings
+  (including the prefixed-tool-name substitution and the in-command-marker-must-not-
+  bypass case), the 4 documented false positives, a dedicated control case, the two
+  "once allowlisted" conditional-allow cases as a config-extension test, the
+  `SECRET_GUARD_OVERRIDE` env-only override, and an `extraToolNames` config case.
+  Every case invokes `handlers.tool_call` for real; event names are asserted against
+  the harness before any case runs.
+- `pi/install.sh` — symlinks `secret-guard.ts` alongside `codescout-companion.ts`.
+- `pi/README.md` — new § *Extension: secret-guard.ts*, plus a summary paragraph in
+  § *What you get* and the Step 2 file list.
+- `.github/workflows/cross-platform-hooks.yml` — `actions/setup-node@v4` (node 24,
+  ≥ the 23.6 floor native `.ts` stripping needs) + `node pi/tests/test-secret-guard.mjs`,
+  added last, after the extension and its tests existed — per § *Resume*'s own ordering.
+
+**Empirically closed the loop, not just by re-reading the design:** fetched PR #9's
+exact file at its (unchanged since 2026-08-08) head SHA, pointed this same 23-case
+suite at it, and ran both. **8/23 pass against PR #9** (only the two coincidental
+"once allowlisted" cases and 2 already-fine allows) vs **23/23 against this
+implementation** — every one of the 11 adversarial findings and both
+false-positive-repro cases flips from FAIL to PASS, confirming the new suite actually
+discriminates rather than just running green by construction.
+
+`./tests/run-all.sh` still green (this doesn't touch that harness — the new suite is
+Node-based and wired only into CI, matching the file table).
+
+**Not yet committed or pushed** — left for review before landing. Once committed with
+a green CI run, this can move to `docs/issues/archive/` per the archive trigger (fix
+verified + regression test in place); no `experiments` branch gate applies to this repo.
+
+## Hold lifted, 2026-08-28 — re-verified against the live PR
+
+PR #9 is still **OPEN**, head SHA `09170aeba5d9d683305c4ef8371a23eb66d3d14e`, `updatedAt`
+**2026-08-08** — identical to when this doc was drafted, so nothing to re-diagnose from drift.
+Fetched `contrib/pi/secret-guard.ts` at that exact SHA from `mic-urs/codescout` (the PR's head
+repo, not `mareurs/codescout` — the branch doesn't resolve on the base repo) and read it in full.
+
+**Every bypass and false positive documented above reproduces at the exact same regex, byte for
+byte:**
+
+- `SCHEMED_HOST = /https?:\/\/([A-Za-z0-9.-]+)/g` — still excludes `@`, userinfo confusion intact.
+- `if (badHosts.length > 0 || !mentionsAllowed)` — `mentionsAllowed` is still OR'd in as a
+  pure escape; a scheme-less destination plus the literal allowlisted string anywhere still opens
+  the gate.
+- `hasSecretValue \|\| hasSecretRef` still gates on the secret appearing as *text* in the command
+  — `env | curl`, `cat models.json | curl`, `jq`-extraction, lowercase var names all still return
+  `undefined` before the egress check runs.
+- `OVERRIDE = /#\s*secret-guard-override\b/` still matched against the model-authored command
+  string.
+- `if (event.toolName !== "bash") return undefined;` — still one literal name; a prefixed MCP
+  tool (`codescout_run_command`) is still ungated end to end.
+- `EGRESS`'s bare-word classes (`\bnc\b`, `\bssh\b`, `\bhttp\b`, `\bhttps\b`) and `SECRET_NAME`'s
+  anywhere-in-string `*KEY|TOKEN|...` still produce the same false positives
+  (`grep -nc "API_KEY" .env`, `grep API_KEY ~/.ssh/config`, etc).
+- `agentDir()` still reads `process.env.HOME` directly, not `os.homedir()`.
+
+**New, minor, not previously documented:** `MIN_SECRET_LEN = 20` — secrets shorter than 20
+chars are never loaded into the `hasSecretValue` set at all. Doesn't change any bypass class
+already listed (the literal-match path was already shown bypassable by several other routes),
+noted for completeness of the re-verification rather than as a new finding.
+
+**Second look at the allow-list design, as the hold asked:** step 4 (`DESTINATIONS`) in
+§ *The design to build* below already specifies *"strip `userinfo@` BEFORE taking the host"*
+as an explicit sub-step — the exact class of confusion that broke PR #9 is named and guarded
+in the replacement design, not just implicitly avoided.
+
+**Hold cleared.** Proceeding to build per § *Resume*: tests first (against a stub that allows
+everything), then the real extension to the six-step shape, CI wired last.
 ## Files to land here
 
 | path | action |
@@ -274,7 +351,7 @@ curl https://api.kimi.com/v1/usages -H "Authorization: Bearer $KEY"
   - review 1 (mine, incomplete) — `issuecomment-5225590151`
   - review 2 (the correction, carrying the two findings mine missed) — `issuecomment-5226112670`
 - The earlier and better review, 2026-08-07: codescout `docs/trackers/pr-review-session-log.md`
-  **F-4** and **W-3**, committed in codescout `ec034a46`. F-4 carries the 10-of-11 probe run; W-3
+  **`codescout:F-4`** and **`codescout:W-3`**, committed in codescout `ec034a46`. `codescout:F-4` carries the 10-of-11 probe run; `codescout:W-3`
   is the pattern — *execute a security control against adversarial inputs, do not read its
   patterns*.
 - Adversarial probe from review 1, runnable: `probe.mjs` written to the codescout session

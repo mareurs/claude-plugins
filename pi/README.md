@@ -39,6 +39,16 @@ Codescout source-reading/search path. It leaves shell commands for tests, Git, a
 process tasks available. Add `# codescout-override` to an intentionally raw source
 shell command.
 
+**secret-guard extension** — a hard, deny-by-default gate against credential
+exfiltration through shell egress (the payload prompt injection wants most). Any
+recognized egress tool (`curl`, `ssh`, a Python one-liner, an MCP-prefixed
+`*_run_command`, …) must have every destination it can parse allowlisted, or the call
+is blocked — including when the destination can't be confidently parsed at all. It
+does not read or track secrets; unlike a secret-detecting guard, it can't be bypassed
+by keeping the secret out of the command text. Override is out of band only
+(`SECRET_GUARD_OVERRIDE=1` in the agent process's own environment, never a marker in
+the command). See § *Extension: secret-guard.ts* below.
+
 ## Prerequisites
 
 - [pi](https://github.com/earendil-works/pi-mono) installed (`npm install -g --ignore-scripts @earendil-works/pi-coding-agent`)
@@ -70,6 +80,7 @@ cd claude-plugins/pi
 
 The script:
 - Symlinks `pi/extensions/codescout-companion.ts` → `~/.pi/agent/extensions/codescout-companion.ts`
+- Symlinks `pi/extensions/secret-guard.ts` → `~/.pi/agent/extensions/secret-guard.ts`
 - Adds `codescout-companion/skills`, `buddy/skills`, and `sdd/skills` to `~/.pi/agent/settings.json`
 
 ### Step 3 — codescout-mode extension (from the codescout repo)
@@ -277,6 +288,57 @@ commands. Tests, Git, and process-management shell commands remain available.
 
 The behavior is defined by `codescout-mode.ts`; keep this description aligned with that
 source when changing its blocking rules.
+## Extension: secret-guard.ts
+
+Shipped here at `pi/extensions/secret-guard.ts` — built after two independent reviews
+found codescout PR #9's secret-*detecting* guard bypassable on 10 of 11 adversarial
+exfiltration probes (full analysis:
+`docs/issues/2026-08-08-build-secret-guard-fail-closed.md`). This version inverts the
+trigger instead of patching the old one: it never reads or tracks secret values at
+all, so there is no "the secret wasn't in the command text" bypass class to have.
+
+**The rule:** any recognized egress utility (`curl`, `wget`, `nc`, `ssh`, `scp`,
+`sftp`, `ftp`, `telnet`, or a `python`/`node`/`deno`/`bun` one-liner using an HTTP
+module) must have every destination it parses out of the command allowlisted, or the
+call is blocked. A destination that can't be confidently parsed is also a block, not
+an allow — deny-by-default, restrictive on purpose. `ssh some-host …` stays blocked
+until `some-host` is allowlisted; that is the intended posture, not a bug.
+
+**Tool gate covers prefixed MCP tools, not just literal `bash`.** MCP tools register
+prefixed by server name (codescout's `run_command` surfaces as
+`codescout_run_command` — see § *What you get* above); matching only `toolName ===
+"bash"` is exactly the gap that let PR #9's guard be bypassed end to end by calling
+the same shell functionality through a different tool name.
+
+**Override is out of band only** — set `SECRET_GUARD_OVERRIDE=1` in the agent
+process's own environment before running, never a marker inside the command. An
+in-command marker is written by the model, so it inherits the same
+talk-around-it weakness as the `AGENTS.md` soft rules the hard gate exists to
+back up.
+
+**Config** (`~/.pi/agent/secret-guard.json`, all fields optional):
+
+```json
+{
+  "allowedHosts": ["internal.corp.example", ".corp.example"],
+  "extraToolNames": ["shell"]
+}
+```
+
+`allowedHosts` extends the default list (provider APIs, GitHub, npm/PyPI/crates.io,
+Brave Search, localhost); a leading `.` allowlists a domain and its subdomains.
+`extraToolNames` extends the tool gate for shell-equivalent tools this file doesn't
+already recognize by name or suffix.
+
+**Honest limitation:** this is defense in depth, not a sandbox. Exfiltration through
+an already-allowlisted host is out of scope — allowlist only hosts you trust with
+whatever an agent session might send them.
+
+Tests: `pi/tests/test-secret-guard.mjs` — every adversarial case is required to fail
+against PR #9's implementation and pass against this one (verified; see the bug doc's
+history). Run: `node pi/tests/test-secret-guard.mjs` (Node ≥ 23.6 for native `.ts`
+type-stripping).
+
 ## Skill usage in pi
 
 Skills from all three directories are available as `/skill:<name>` or load automatically

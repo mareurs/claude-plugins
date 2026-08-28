@@ -24,6 +24,12 @@ EXT_DEST="$EXT_DIR/codescout-companion.ts"
 ln -s "$EXT_SRC" "$EXT_DEST"
 info "linked extension → $EXT_SRC"
 
+GUARD_SRC="$REPO_DIR/pi/extensions/secret-guard.ts"
+GUARD_DEST="$EXT_DIR/secret-guard.ts"
+[ -e "$GUARD_DEST" ] && rm "$GUARD_DEST"
+ln -s "$GUARD_SRC" "$GUARD_DEST"
+info "linked extension → $GUARD_SRC"
+
 # ── settings.json — skill dirs ─────────────────────────────────────────────
 
 [ -f "$SETTINGS" ] || echo '{}' > "$SETTINGS"

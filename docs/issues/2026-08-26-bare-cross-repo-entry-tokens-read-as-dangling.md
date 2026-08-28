@@ -150,6 +150,40 @@ librarian(action="link_scan", scope="project")   # write=false; read dangling_by
 ```
 
 ## Fix
+> **2026-08-28 — fresh `link_scan` baseline, and the remediable core is now empty.**
+> `dangling 32` (untruncated total), `ambiguous 54` (truncated — more exist), `cross_repo 93`.
+> Resolved every dangling `EntryToken` source by id. Result: **zero actionable dangling
+> EntryToken citations remain** — every one of the 18 is deliberate subclass-1 residue
+> already named in this doc (this file's own `U-7`/`U-28`/`R-104`, `codescout-pika/SKILL.md`'s
+> `U-7` placeholder, `roster-audit-session-log.md`'s specimens) or lives in `docs/issues/archive/**`
+> / `docs/superpowers/{plans,specs}/**`, both exempt by the conventions this doc itself cites.
+> The remaining 14 dangling entries are `ArtifactId`-kind (stale 16-hex ids after a move) —
+> a **different defect class**, out of this issue's scope; worth its own issue if it recurs.
+>
+> **Two genuinely-actionable ambiguous citations found and fixed**, both in this bug's sibling
+> `docs/issues/2026-08-08-build-secret-guard-fail-closed.md`: `F-3` → `codescout:F-3` (the
+> pi-integration post-mortem), and `F-4`/`W-3` → `codescout:F-4`/`codescout:W-3` (the
+> `pr-review-session-log` citations in its References section). Verified `codescout:F-3`
+> etc. don't collide with a local definer first (no local `F-3` anywhere under `pi/` or
+> `docs/trackers/pi-agent-integration-session-log.md`).
+>
+> **`buddy/tests/{BENCHMARK.md,prompt-hamsa-eval/INTEGRATION.md,reconnaissance-eval/README.md}`
+> read, not swept — confirmed subclass 1.** `reconnaissance-eval/README.md`'s `F-3`/`R-4`/`R-5`/`R-6`
+> are eval-fixture prose describing what a *test subject* should produce, not citations.
+> `BENCHMARK.md`'s `L-7`/`G-4`/`L-2`/`L-10` are this repo's own eval-taxonomy labels, mostly
+> matching no ledger prefix at all (inert per the `cited_prefix_with_no_definer` state).
+> `INTEGRATION.md`'s `F-1`/`F-2`/`W-1` are that file's *own* headings. None of this is
+> remediable by qualification — confirms the doc's own prediction rather than adding new work.
+>
+> **What's left is exactly the shipped-surface judgement call this doc already flagged, not
+> new debt.** `codescout-companion/skills/reconnaissance/SKILL.md` (3 ambiguous) and
+> `codescout-companion/skills/tracker-hygiene/SKILL.md` (2 ambiguous) still carry a handful
+> of unqualified tokens outside their fenced exemplar blocks. **Not touched this pass**: a
+> concurrent local session (unpushed commit `fedd7bc`) edited `tracker-hygiene/SKILL.md`
+> minutes before this check, and shipping either file means the version-bump + cache-reseed
+> + install-record-repoint dance this doc itself says to fold into a real content bump rather
+> than pay for alone — both reasons to hold rather than edit live plugin source out from under
+> another in-flight session. Left `open`, not `fixed`: this is the one remaining item.
 
 > **Item 4 done — the shipped prompt surface, 2026-08-27. Dangling 55 → 31, and the
 > finding array is UN-TRUNCATED for the first time** (it fits under the 50-item cap, so
