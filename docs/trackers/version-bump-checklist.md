@@ -127,15 +127,28 @@ printf '1' > "/tmp/cs-redirect-$KEY"     # arm
 Result: **CLEARED — firing.** So `~/.claude` is confirmed at the level of "this hook
 executed," not merely "a cold start happened."
 
-**`~/.claude-sdd` and `~/.claude-kat` remain unconfirmed.** They are separate
-processes with their own session ids; this probe cannot reach them and the shared
-trace log does not attribute startups per profile. A session in either profile can
-run the four lines above to close it. Until then the honest state is one profile
-measured, two inferred.
+**`~/.claude-kat` CONFIRMED at 1.19.6, 2026-08-28 — by the same control, run from a
+session in that profile**, which is exactly the close this section invited.
+`/reload-plugins` reported *3 plugins · 45 skills · 6 agents · 24 hooks*, and
+`.buddy/.session-start-trace.log` carries three `source=startup` events (07:57, 08:04,
+08:08). Those establish registration, not execution, so the marker was armed at
+`/tmp/cs-redirect-473bde717fdf` and one codescout call made: **CLEARED**. A negative
+control confirmed no stray `cs-redirect-*` markers remained, so the check was reading
+the path it meant to.
 
-**1.19.6 does not change this.** `release.sh` repointed all three records, but a
-repointed record is not a re-read; the cold restart it prints as step 2 is still owed,
-and this refresh was written before it happened.
+**`~/.claude-sdd` remains unconfirmed** — separate process, own session id, unreachable
+from here. `~/.claude`'s confirmation above predates 1.19.6 and was not re-run.
+
+**What the control does and does not prove.** `cs-liveness` is a `1.17.0`-era hook, so
+its firing proves *a companion PostToolUse hook executes in this profile* — not that
+1.19.6's own change runs. That change is an env-var escape hatch never set in normal
+operation, so it has **no observable runtime behaviour by design** and no behavioural
+probe for it exists. "1.19.6 is live here" therefore rests on byte-identity, which was
+measured on both candidate load paths rather than argued: the record points at kat's own
+`cache/.../1.19.6`, that cache is byte-identical to the working tree, and
+`installLocation` for this `source=directory` marketplace is the repo. Whichever of the
+two actually serves, they carry the same bytes — so the question CLAUDE.md flags as
+unsettled does not need settling for this release.
 ## History
 
 ### 2026-08-28 — 1.19.6, and the drift a bump FOUND rather than caused
