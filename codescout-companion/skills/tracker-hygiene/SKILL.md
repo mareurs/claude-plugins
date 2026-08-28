@@ -32,6 +32,108 @@ drift-catching; this skill is the corpus-wide periodic sweep).
 - Mid-task single-tracker updates — that's normal editing.
 - Single-bug archive moves — the project's ship sequence covers those.
 - Anything in `docs/issues/` — bug-file discipline is v2 (D8), not yet here.
+- **On a catalog that was not built on this machine** — every detector reads the
+  catalog, so a fresh checkout makes them report the machine rather than the corpus.
+  Run the precondition check below first; it is a gate, not a detector.
+
+## Precondition — is this catalog even this machine's?
+
+**Run this check before Phase 1. If it fires, STOP: repair the catalog, then
+sweep.** Not a detector — a gate. Every detector below reads the catalog, and on
+a catalog that was never built here they report facts about the *machine* while
+sounding like facts about the *corpus*.
+
+The librarian catalog is machine-local and git-ignored. A checkout that has not
+been indexed on this host arrives missing its semantic index, its `cites` edges,
+and every artifact augmentation — while the markdown bodies look perfect, because
+those are the half that travels.
+
+**Detect it — three cheap reads:**
+
+```
+librarian(action="doctor")     → summary.by_check.augmentation_declared_but_absent
+index(action="verify")         → git_sync.behind_commits, memories.missing_count
+librarian(action="link_scan")  → counts.edges_missing   (report mode)
+```
+
+Any of `augmentation_declared_but_absent > 0`, `memories.missing_count > 0`, or an
+`edges_missing` in the hundreds means the catalog is unrepaired. Repair first, then
+start Phase 1.
+
+### Why the sweep is invalid until then
+
+Two reasons, both measured on codescout 2026-08-28 after pulling 437 commits onto a
+laptop that had never built the project.
+
+**1. D9's signal is inverted, not merely noisy.** `artifact_refresh(list_stale)`
+enumerates only artifacts that *have* an augmentation. Mid-repair, with 19 trackers
+carrying none at all, it returned exactly **two** — the two that had just been
+correctly restored, each with `last_refreshed_at: null`, `refresh_count: 0`,
+`age_hours: null`. So D9 fires on the healthiest trackers in the corpus and is blind
+to every broken one. Acting on it would propose refreshing the only two that need
+nothing, while 19 genuinely-empty augmentations generate no finding at all.
+
+`age_hours: null` is the tell: those artifacts are not stale-by-age, they have
+*never been refreshed*. Treat a `list_stale` hit with a null age as a
+never-augmented-here signal, not a staleness one.
+
+**2. The ledger is in git; the catalog is not.** Phase 2 records `link_scan`'s
+`counts.edges_missing` / `counts.dangling` into the sweep entry, and treats a jump
+versus the previous sweep as worth an HY-N note. On the unrepaired laptop those read
+**697 missing and 597 dangling** — numbers that describe a machine with no catalog,
+not a corpus that decayed. Writing them into `tracker-hygiene-log.md` commits a
+machine-local artifact into a repo-wide record, where it becomes a permanent false
+baseline that every other checkout inherits and that the next sweep will "improve"
+against.
+
+D1 and D4 fail the same way for the same reason: an artifact with no catalog row is
+indistinguishable from one whose row drifted.
+
+### Repairing it
+
+Ordered, because later steps read what earlier ones write:
+
+1. `librarian(action="reindex")` — rows first; every `artifact(find)` before this
+   returns a confidently wrong empty set.
+2. `index(action="verify")`, then repair memories server-side (for codescout:
+   `codescout migrate-memories --in-place`). Check `skipped` in the result.
+3. `index(action="build")` — background; poll `index(action="status")`.
+4. `librarian(action="link_scan", write=true)`, then **run it once more**. A second
+   scan reaching `edges_missing[0]` / `edges_stale[0]` is the proof it landed — the
+   write reporting success is not.
+5. Restore augmentations. No automated path exists: augmentation is the one artifact
+   state with no on-disk form, so `expects_augmentation: true` records *that* one
+   should exist and nothing records *what*.
+
+**On step 5, two rules that decide whether the result is trustworthy:**
+
+- **Mine the archive for quoted live calls before deriving anything from body prose.**
+  Bug files quote the original calls verbatim, so they are the repo's accidental
+  augmentation-shape store. On codescout this recovered an `entry_collection` name
+  that prose would have gotten wrong, and a whole row field the body never mentions.
+  Grep the artifact's id across `docs/issues/archive/` and read every hit showing an
+  `artifact_augment` / `append_entry` / `update_entry` call or a `changed_fields`
+  echo.
+- **A field whose values are unrecoverable goes in the schema with no row carrying
+  it,** stated in your report and in the augmentation `prompt`. Never fabricate to
+  fill a column.
+
+And do not read a prior restore as a checklist: codescout's archived restore recorded
+10 rows for a tracker that had since grown to **30**. Re-derive the count from the
+body every time.
+
+**`index(verify)` and `index(status)` answer different questions.** `status` reports
+freshness (`git_sync.behind_commits`); `verify` reports coverage. They genuinely
+disagree — post-build the laptop showed `up_to_date, behind_commits: 0` *and*
+`verdict: "incomplete"` with four eligible files unindexed. Check `verify` before
+declaring the index repaired.
+
+Verify the whole repair the same way: `doctor` shows
+`augmentation_declared_but_absent: 0`, `link_scan` is at its fixpoint, and an
+`entry_filter` query the project's own docs prescribe actually returns rows.
+
+*(codescout's full write-up, with the measured numbers:
+`codescout:docs/conventions/cross-machine-catalog-resume.md`.)*
 
 ## The loop — five phases
 
