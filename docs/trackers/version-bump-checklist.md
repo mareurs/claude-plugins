@@ -199,6 +199,46 @@ the suite is 58/58 with both opt-out configs still in place.
 codescout-companion's three changed files are byte-identical in all three caches and the
 new env hatch greps present in each served `detect.mjs`.
 
+### 2026-08-28 — a fourth profile set, `archlinux`, found stranded far below this table's claims
+
+A session on host `archlinux` (`uname -sr` → `Linux 7.1.5-arch1-2`, distinct from the
+`7.1.9-zen1-2-zen` box CLAUDE.md's machine section describes) ran
+`./scripts/check-profile-parity.sh` after a routine `git pull` and got STALE on all
+three profiles for both plugins this table lists green:
+
+| profile | codescout-companion record | buddy record |
+|---|---|---|
+| `~/.claude` | `1.16.3` | `0.9.1` |
+| `~/.claude-sdd` | `1.16.3` | `0.9.1` |
+| `~/.claude-kat` | `1.16.3` | `0.9.1` |
+
+No `1.19.x`/`0.10.0` cache dir existed in any of the three — confirmed by `ls`, not
+inferred from the record. This is well past the nine-hour partial-propagation window
+the entry above documents; these records had not moved since `1.16.3` shipped, so
+whatever release ran the cache-seed + repoint steps for every version after it never
+touched this host. The State table above and its "CONFIRMED by positive control"
+sections describe a different set of profiles — do not read them as claims about this
+host.
+
+**Not load-bearing at runtime, because this marketplace is `source: directory`.**
+Per CLAUDE.md, `installLocation` for `sdd-misc-plugins` points straight at the repo
+working tree, so hooks/skills/commands were already serving current bytes regardless
+of what the stale record said — this was a bookkeeping gap, not a broken plugin.
+
+**Fix applied, not a release:** `./scripts/bump-cache.sh codescout-companion 1.19.6`,
+`./scripts/bump-cache.sh buddy 0.10.0`, then the same `jq` repoint `release.sh` step 5
+uses, run by hand for both plugins across all three profiles (no version bump, so
+`release.sh` itself was not invoked). `check-profile-parity.sh` re-run clean for all
+five discovered plugins afterward; the only remaining FAILED lines are pre-existing
+third-party marketplace cross-profile/symlink/skew findings for `~/.claude-kat` and
+`~/.claude-sdd` (`caveman`, `claude-plugins-official`, `superpowers-marketplace`,
+`anthropic-agent-skills`, `karpathy-skills`), unrelated to this repo's own plugins and
+not touched here.
+
+**Open question, recorded rather than guessed at:** why this host's records sat frozen
+at `1.16.3`/`0.9.1` through several releases that (per the entries below) successfully
+propagated to at least `~/.claude` and `~/.claude-sdd` elsewhere. No cold-restart or
+profile-reset event was found to explain it from this session alone.
 ### 2026-08-27 — 1.19.4, a citation-qualifier release, and the backlog finally pushed
 
 Content release: cross-repo citation qualifiers on the shipped prompt surface.
