@@ -131,4 +131,42 @@ OUT=$(printf 'refs/heads/main %s refs/heads/main %s\n' "$ZERO" "$BUMP_SHA" \
       | env HOME="$T/clean" bash "$HOOK" origin git@example.com:x/y.git 2>&1); EC=$?
 check "force-push: branch deletion → allow" allow "$OUT" $EC
 
+# --- The installed hook must not be a stale snapshot ---------------------------
+# install-hooks.sh used to `cp` the script into .git/hooks/. That silently froze
+# the hook at install time: every later edit to scripts/pre-push-guard.sh failed
+# to reach the installed copy, and nothing anywhere reported the divergence. Same
+# freshness trap as a plugin cache serving pre-edit bytes. Assert the installed
+# hook tracks the source instead of snapshotting it.
+GR="$T/clone"
+mkdir -p "$GR/scripts"
+git -C "$GR" init -q 2>/dev/null
+cp "$REPO_ROOT/scripts/install-hooks.sh" "$GR/scripts/"
+printf '#!/usr/bin/env bash\necho ORIGINAL\n' > "$GR/scripts/pre-push-guard.sh"
+chmod +x "$GR/scripts/pre-push-guard.sh"
+(cd "$GR" && ./scripts/install-hooks.sh >/dev/null 2>&1)
+
+if [ -x "$GR/.git/hooks/pre-push" ]; then
+  pass "install-hooks: pre-push installed"
+else
+  fail "install-hooks: pre-push installed" "missing or not executable"
+fi
+
+# Positive control: the freshly installed hook answers with the CURRENT script.
+OUT=$(cd "$GR" && echo | ./.git/hooks/pre-push origin url 2>&1 || true)
+if echo "$OUT" | grep -q ORIGINAL; then
+  pass "install-hooks: installed hook runs the script"
+else
+  fail "install-hooks: installed hook runs the script" "got: $OUT"
+fi
+
+# The real assertion: edit the source, do NOT re-install, and the hook must
+# follow. A `cp` install fails here and keeps printing ORIGINAL.
+printf '#!/usr/bin/env bash\necho EDITED\n' > "$GR/scripts/pre-push-guard.sh"
+OUT=$(cd "$GR" && echo | ./.git/hooks/pre-push origin url 2>&1 || true)
+if echo "$OUT" | grep -q EDITED; then
+  pass "install-hooks: installed hook tracks source edits (not a stale copy)"
+else
+  fail "install-hooks: installed hook tracks source edits (not a stale copy)" "got: $OUT"
+fi
+
 print_summary
