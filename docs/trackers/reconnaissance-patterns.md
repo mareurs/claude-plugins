@@ -9,7 +9,7 @@ tags:
 - scout
 topic: reconnaissance
 entry_prefix: R
-entry_high_water_R: 6
+entry_high_water_R: 7
 ---
 
 # Reconnaissance patterns
@@ -51,6 +51,7 @@ end-to-end stdin drivers), which is the local hazard R-1 records.
 | R-4 | 2026-08-26 | promoted | Positive-control law was loaded and still missed — framed for searches, instrument was a report. 6th recurrence; placement fix applied `f53aaea`; **TWO** scenarios were built to score it, both **measured tautological** (treat 3/3, ctrl 3/3, Δ+0.00 each), and all six control runs probed unprompted — the behaviour is base competence, so this harness cannot measure the effect at all | `roster-audit-session-log:F-4` `roster-audit-session-log:F-6` |
 | R-5 | 2026-08-26 | promoted | A check that reads where the writer wrote, or is computed from what it judges, cannot fail — four instruments in one session. **PROMOTED 2026-08-26 on evidence**, shipped in the Phase 1 bullet adjacent to the positive-control law. The unprimed control measured 0/3 — the behaviour is absent by default — but per `roster-audit-session-log:F-13` the harness cannot validate the promotion itself | `roster-audit-session-log:F-6` `roster-audit-session-log:F-7` `roster-audit-session-log:F-8` `roster-audit-session-log:W-2` |
 | R-6 | 2026-08-26 | miss | "That tool persists nothing" asserted from four absences; the `When NOT to Use` carve-out's exemplars are all source-shape, so a runtime-behaviour claim walks the gate. 7th recurrence, but the law was never loaded. **SCREENED 2026-08-26: control 3/3 PASS — the behaviour is base competence, so the proposal is redundant. Do NOT promote.** The observation stands; the proposed clauses do not | no session log (see entry) — `passover-validation-spine-2026-08-26.md` + `validation-domain-coverage.md` VG-9 |
+| R-7 | 2026-08-27 | hit | A memory in the *advertised* channel is a claim about current state — the promoted "a fix asserts a population" bullet fired, on a surface its examples (plans, proposals) don't cover. Boolean `block_reads` gotcha measured **false**, not stale; prescribed remedy targets zero configs. Outgrown-axis candidate recorded, **not** proposed — 1 datapoint, no base arm | `guard-hardening-session-log:F-2` |
 
 ## Status vocabulary
 
@@ -723,6 +724,59 @@ rule that *the bias on a promoted set should be subtraction*, `R-4`'s widening i
 subtraction candidate rather than a precedent. Not acted on here — it edits shipped content.
 
 **Status:** screened — do not promote
+## R-7 — A memory in the advertised channel is a claim about current state — the promoted bullet fired, on a surface its examples don't cover
+
+**Verdict:** hit
+
+**Observed:** 2026-08-27, codescout issue triage → shell-gating opt-out follow-up.
+
+**Source session log:** `guard-hardening-session-log:F-2`.
+
+**Pattern:** The scout fired on the Phase 1 bullet *"A proposed fix — and equally a
+prohibition — is a claim about CURRENT STATE. Verify it before designing around
+it."* The pending item was "the `block_reads` gotcha is stale, fix it" — which
+asserts both that the gotcha's mechanism is real and that a population of configs
+needs converting. Probing `detectFor()` directly, rather than editing the doc,
+showed the claim is not stale but **false**: boolean and string forms both
+resolve to `BLOCK_READS=false`, and the jq `// empty` code the gotcha blames was
+never shipped — it exists only in a February 2026 plan document. The prescribed
+remedy targets zero configs, which is the bullet's own population form.
+
+Two things made this catchable rather than lucky. The claim was about
+*configuration*, which the bullet flags as reading like a fact rather than an
+assertion. And the probe carried a positive control for each reportable state —
+absent-key and a real repo with no config both returned `true` — so the `false`
+readings could not be a stuck instrument.
+
+**Evidence:** Three surfaces carry the false rule (`gotchas.md:23`,
+`system-prompt.md:64`, `domain-glossary.md:20`), all served through the
+**advertised** SessionStart memory channel. Without the probe the likely outcome
+was a no-op edit converting a working boolean config to a string in two repos,
+reported as a fix; the worse branch was concluding that the `block_reads` opt-out
+shipped earlier the same day had been silently inert, and re-opening settled work.
+
+**Pattern proposal (if any):** None yet — deliberately. The observation is that
+the promoted bullet's examples are all *plans and proposals*, artifacts read once
+at implementation time, while this instance was an **advertised memory**, re-served
+every session with nothing that re-checks it. That is a candidate *Outgrown* axis
+per SKILL.md § *Every promotion audits the promoted set* — but one datapoint, and
+this ledger has twice built a scenario for a proposal and measured base competence
+(`R-4`, `R-6`). Recording the shape, not proposing the edit.
+
+**Promote-when:** A second datapoint where a false claim in a *re-served* channel
+(codescout memory, system-prompt, CLAUDE.md) survives because nothing re-reads it —
+**and** a base arm showing an unaided agent edits such a surface without probing
+it. Both required. Absent the base arm this is an addition with no shown deficit,
+which is the accretion that section exists to prevent.
+
+**Valid:** dated 2026-08-27
+
+The hit is a fact about this session; the Outgrown proposal is explicitly unproven
+and gated on the two conditions above.
+
+**Rests on:** `guard-hardening-session-log:F-2` for the measurement — this entry is
+its cross-cutting lesson, not independent evidence.
+
 ## Template for new entries
 
 <!-- Insert new R-N entries above this line via:

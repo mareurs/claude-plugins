@@ -1,3 +1,9 @@
+---
+entry_prefix:
+- F
+- W
+entry_high_water_F: 3
+---
 # Session Log — Guard Hardening (pre-tool-guard cross-repo escapes)
 
 > **Purpose:** Two-sided observation log for a multi-session work stream.
@@ -28,6 +34,8 @@
 | ID | Date | Severity | Category | Status | Title |
 |----|------|---------:|----------|--------|-------|
 | F-1 | 2026-05-21 | med | architectural | fixed-verified | Cross-repo escape lives in md/Bash branches, not is_in_workspace |
+| F-2 | 2026-08-27 | med | stale-memory | fixed-verified | 3 advertised memory surfaces say boolean `block_reads: false` is ignored — both forms work |
+| F-3 | 2026-08-28 | med | release-pipeline | open | The `block_reads` opt-out turns the guard suite red (21/55) — suite hardcodes both live repos as dispatch CWDs; blocks `release.sh` pre-flight on this machine only |
 
 ## Wins Index
 
@@ -159,6 +167,161 @@ Codified so the Index column means the same thing across sessions.
 **Fix idea / Pointer:** Implemented by `ad9073d` (hook hardening) + `e70d783` (legacy test migration). Verified 2026-05-21: `tests/run-all.sh` green (pre-tool-guard.test.sh 25/25); manual cross-repo Read of `/home/marius/work/claude/codescout/README.md` from this repo's CWD returns `permissionDecision: deny` with `read_markdown` guidance, where pre-`ad9073d` the same call exited silent-allow. Design doc: `docs/superpowers/specs/2026-05-21-guard-cross-repo-hardening-design.md`.
 
 ---
+## F-2 — Three advertised memory surfaces say boolean `block_reads: false` is silently ignored — both forms work, and the jq code they describe was never shipped
+
+**Observed:** 2026-08-27, reconnaissance scout during codescout issue triage,
+after five commits landed in the sibling codescout repo correcting *its* own
+shell-gating docs.
+
+**When:** About to re-surface "the stale `block_reads` gotcha" as a pending item,
+having written `{"block_reads": false}` — the **boolean** form — into
+`.claude/codescout-companion.json` in both this repo and codescout earlier the
+same session.
+
+**Expected (memory + system-prompt):** three surfaces in this repo assert the
+boolean form does not work and prescribe the quoted string:
+
+- `.codescout/memories/gotchas.md:23` — "jq `// empty` treats boolean `false` as
+  absent, so the boolean form is silently ignored and reads stay blocked. Set
+  `"block_reads": "false"` (quoted string)"
+- `.codescout/system-prompt.md:64` — same claim, one line
+- `.codescout/memories/domain-glossary.md:20` — "string `"false"` to disable
+  Read/Grep/Glob blocking (boolean false silently ignored)"
+
+**Got (scouted reality):** both forms work, and the jq code described does not
+exist anywhere in the shipped hooks.
+
+- `codescout-companion/hooks/detect.mjs:157` —
+  `if (blockVal === false || blockVal === 'false') blockReads = 'false';`
+- `codescout-companion/scripts/detect.py:204` —
+  `if block_val is False or (isinstance(block_val, str) and block_val == "false"):`
+- `codescout-companion/hooks/detect-tools.sh:3` — "Thin shim around
+  `scripts/detect.py`". It contains no `jq` and no `block_reads` parsing at all.
+- Every wired hook in `hooks.json` runs on `node`, i.e. `detect.mjs`.
+
+Live probe through `detectFor()` — the exact entry point `pre-tool-guard.mjs:30`
+calls — with a positive control for **each** state the detector can report:
+
+| cwd | `BLOCK_READS` |
+|---|---|
+| `{"block_reads": false}` (boolean) | `false` |
+| `{"block_reads": "false"}` (string) | `false` |
+| `{}` (key absent) | `true` |
+| claude-plugins (live, boolean config) | `false` |
+| codescout (live, boolean config) | `false` |
+| mirela (no config) | `true` |
+
+The absent-key and `mirela` rows are the control: the detector *does* still
+report `true`, so the `false` rows are a real reading rather than a stuck
+instrument. Corroborated end-to-end — every native `Bash` call in this session
+ran under the boolean config the gotcha calls inert.
+
+**Probable cause:** the jq `// empty` snippet is real, but it lives in
+`codescout-companion/docs/plans/2026-02-26-plugin-refactor-plan.md:78` — a design
+plan, not shipped code. Detection later moved to `scripts/detect.py` +
+`hooks/detect.mjs`, both of which accept the boolean. The memory was written
+against the plan and never re-probed after the port. Nothing re-reads a memory to
+check that it still holds, so a claim promoted into the advertised channel decays
+in place, silently and indefinitely.
+
+**Workaround:** none needed for the config — the boolean form already live in both
+repos is correct. The three doc surfaces are what need correcting.
+
+**Severity:** med — the false rule is served through the *advertised* SessionStart
+memory channel (`CS_MEMORY_NAMES`), so every session in this repo is offered it.
+Acting on it means a no-op edit converting a working boolean to a string over a
+population of **zero**, and it invites the worse reading: that a `block_reads`
+opt-out which is in fact live had been "silently ignored" all along. This session
+was one unprobed step from carrying the false mechanism into a fourth surface.
+
+**Status:** fixed-verified — all three surfaces corrected 2026-08-28. Repo swept
+afterwards: no other instance of the claim survives outside the trackers (which
+record it) and `docs/plans/2026-02-26-plugin-refactor-plan.md` (history, left
+alone). Sibling repo checked too — codescout's own memories never carried it.
+
+**Valid:** dated 2026-08-27
+
+True of `detect.mjs` / `detect.py` at `995cb90`; re-probe if detection is ever
+re-ported to a shell/jq path.
+
+**Rests on:** `detect.mjs:157` and `detect.py:204` accepting both forms, and
+`detect-tools.sh` remaining a thin shim over `detect.py` rather than parsing
+config itself.
+
+**Fix idea / Pointer:** rewrite all three surfaces to "either boolean `false` or
+string `"false"` works". Note the general shape for the recon ledger: this is the
+skill's own *"a proposed fix asserts a non-empty population"* law firing on a
+**memory** rather than on a plan — and memories are the harder case, because a
+plan is read once at implementation time while an advertised memory is re-served
+every session with nothing that ever re-checks it.
+
+## F-3 — The documented `block_reads` opt-out turns the guard's own test suite red — the suite hardcodes both live repos as its dispatch CWDs
+
+**Observed:** 2026-08-28, running `./tests/run-all.sh` before committing the F-2
+doc fixes.
+
+**When:** Pre-commit gate. The suite reported `✗ Failed suites:
+pre-tool-guard.test.sh` — 34 failures, every one `expected=deny got=allow`.
+
+**Expected:** 55/55, as the suite has always run.
+
+**Got (measured):** 21/55. Cause proven by removing the two opt-out configs and
+re-running — **55/55 green, then 21/55 again on restore.** Not inferred: the
+suite hardcodes its two dispatch CWDs at
+`codescout-companion/hooks/pre-tool-guard.test.sh:19-20` —
+
+```
+ACTIVE_CWD="/home/marius/work/claude/codescout"
+SIBLING_CWD="/home/marius/work/claude/claude-plugins"
+```
+
+— and **both** of those repos received `{"block_reads": false}` earlier in the
+same session, as the deliberate guard opt-out. `pre-tool-guard.mjs:32`
+(`if (d.BLOCK_READS === 'false') process.exit(0);`) is the second line of the
+hook, so it exits before any tool dispatch and every deny-expecting case allows.
+
+**Probable cause:** the suite reads the developer's **live ambient config**. It is
+not hermetic. `detect.mjs findRoutingConfig(cwd)` resolves purely from `cwd`
+(`join(cwd, '.claude', 'codescout-companion.json')`) with no env seam, so any
+developer who exercises the documented opt-out in either repo turns their own
+guard suite red. The opt-out and the suite were each correct in isolation; nothing
+connected them.
+
+**Blast radius — local only, and that is measured, not assumed.**
+`.claude/codescout-companion.json` is gitignored (`.gitignore:26`) and untracked
+(`git ls-files` does not know it), so CI and every other clone stay green. What it
+*does* block is this machine's `./scripts/release.sh`, whose pre-flight runs
+`run-all.sh` and aborts on first failure — **no release can be cut here while the
+opt-out exists.**
+
+**Workaround:** move both configs aside for the duration of a suite run or a
+release, then restore. Ugly and forgettable, which is why it is a workaround and
+not the fix.
+
+**Severity:** med — it fails loudly rather than green, so it cannot pass a broken
+guard off as working, and nothing downstream of the repo is affected. Rated no
+higher for that reason. But it silently converts the project's mandated pre-release
+gate into a permanent red on any machine using the documented opt-out, and the
+failure text (`expected=deny got=allow`, 34×) points at the guard rather than at
+the config, so the next person to hit it will debug the wrong file.
+
+**Fix idea / Pointer:** make the suite hermetic rather than deleting the opt-out.
+Cheapest seam is an escape hatch in `findRoutingConfig` —
+`if (process.env.CS_COMPANION_IGNORE_PROJECT_CONFIG) return null;` — mirrored in
+`scripts/detect.py` for parity, with the test exporting it once at the top. Two
+lines of hook code and one of test code, and it fixes the class rather than this
+instance: a guard suite should never depend on the config of the machine running
+it. **Not implemented — this is a change to shipped hook code and wants a
+decision, not a drive-by.**
+
+**Valid:** dated 2026-08-28
+
+True of the suite and both repo configs at `80ed23f`; re-measure if the harness
+stops hardcoding real repo paths.
+
+**Rests on:** `pre-tool-guard.test.sh:19-20` naming the two live repos, and
+`pre-tool-guard.mjs:32` gating before dispatch. Either change alone dissolves it.
+
 ## Template for new entries
 
 <!-- Insert new F-N / W-N entries above this line via:
