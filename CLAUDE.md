@@ -207,6 +207,28 @@ whose `installPath` points at another profile's cache).
    Confirm via the SessionStart payload: a true cold start reports `source=startup`, a
    re-attach reports `source=resume`. (This is the trap behind "I bumped + restarted but the
    fix still isn't live.")
+
+**Never bump a version inline in a feature commit — use `release.sh`.** Doing it by hand
+gets you the *number* without any of the machinery the number promises, and nothing
+outside a release notices: `check-versions.sh` compares `plugin.json` to the README and
+never reads an install record, and `check-profile-parity.sh` runs only *inside*
+`release.sh`. Measured 2026-08-28 — `1.19.5` was bumped this way inside `80ed23f`
+(a `feat(hooks)` commit), and `~/.claude-kat` sat stranded at `1.19.4` with no cache dir
+for nine hours while every automated gate stayed green. The drift was invisible precisely
+because the step that catches it is the step that was skipped.
+
+Closed 2026-08-28 by a second guard in `scripts/pre-push-guard.sh`: when a pushed range
+touches a `<plugin>/.claude-plugin/plugin.json`, parity must pass for that plugin.
+**Opt-in per clone — `./scripts/install-hooks.sh`** (git hooks are local, never synced).
+It fires only on a version change, so ordinary pushes are never gated on local profile
+state; it is a no-op during a real release, which has already repaired and verified parity
+at step 6.5 before it pushes at step 7; and a machine with no profiles passes, because
+`check-profile-parity.sh` reports "not installed in any profile" and exits 0. Override
+with `SKIP_PARITY_CHECK=1`. Covered by `tests/test-pre-push-guard.sh`.
+
+It deliberately does **not** live in `tests/run-all.sh`: `release.sh` runs that at step 0,
+*before* seeding caches and repointing records, so gating there would abort the release on
+exactly the drift the release exists to repair.
 ## Development
 
 - Hooks use `jq` for JSON parsing — required dependency
