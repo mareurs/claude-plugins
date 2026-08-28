@@ -13,59 +13,9 @@ Release readiness across plugins × profiles. See
 
 ## State
 
-_Last refresh: codescout-companion 1.19.4 + buddy 0.10.0, 2026-08-27._
+_Last refresh: `fee1b19`, 2026-08-28._
 
-**codescout-companion** — canonical `1.19.4` · readme `1.19.4` · marketplace clean ✅
-
-| profile | installed | cache dir | install_path ok | all entries | cache = working tree |
-|---|---|---|---|---|---|
-| `~/.claude` | 1.19.4 ✅ | ✅ | ✅ | `1.19.4` ✅ | ✅ |
-| `~/.claude-sdd` | 1.19.4 ✅ | ✅ | ✅ | `1.19.4` ✅ | ✅ |
-| `~/.claude-kat` | 1.19.4 ✅ | ✅ | ✅ | `1.19.4` ✅ | ✅ |
-
-**1.19.4 is a prompt-surface content release, and `cache = working tree` was verified on
-the SERVED bytes rather than inferred.** It carries the cross-repo citation qualifiers on
-`skills/reconnaissance/SKILL.md` (21 dangling → 0) and `skills/tracker-hygiene/SKILL.md`.
-Each profile's cached `SKILL.md` was `diff`-ed against the working-tree copy — identical in
-all three — and the served copy in `~/.claude` greps **16** `codescout:R-` qualified
-citations, so the content is provably in the cache and not merely recorded as installed.
-That is `codescout:R-89`'s own law applied to the release that shipped it: probe the copy
-the consumer loads, because commit, install record and directory listing all read green in
-the broken world.
-
-**Registration is NOT load-bearing for 1.19.4.** No `hooks.json` entry changes — the diff
-is skill markdown and trackers only. On this directory-source marketplace content loads
-from the working tree on every invocation, so the qualifiers were live here the moment
-they were written; the bump is what makes the version number stop lying about it, and what
-carries them to any other install path.
-
-**Also pushed with this release: the 55-commit backlog.** `origin/main` had been 55 behind
-since before this session; `dfd6fdf..525d60d` cleared it. `git rev-list --count
-origin/main..main` is now **0**.
-
-**Registration is NOT load-bearing for 1.19.1.** It changes hook *content* only —
-`lib.mjs`, `agent-guide-snapshot.mjs`, `agent-guide-restore.mjs` — and touches no
-`hooks.json` entry. On this directory-source marketplace content loads from the working
-tree on every invocation, so the subtractive-restore fix
-(`docs/issues/archive/2026-08-27-concurrent-subagent-restores-discard-parent-guide-marks.md`)
-was live in all three profiles the moment it was written. This release did not deploy it;
-it made the version number stop lying about it.
-
-**The 1.18.0 registration debt recorded here is now closed, and the measurement is the
-reason.** That entry said `~/.claude-sdd` and `~/.claude-kat` had not re-read the
-`SubagentStart` / `SubagentStop` move and still needed a reload. Counting `source=startup`
-events in `.buddy/.session-start-trace.log` strictly after `ba2d214` (2026-08-27 11:42:13,
-the commit that moved them): **8 cold starts**, from 11:45 to 12:58.
-
-The honest limit is unchanged and worth restating rather than quietly dropping: that log
-is repo-local and shared across profiles, and its `sid=` field is empty on these lines, so
-**8 startups happened but none is attributable to a named profile**. Eight is far more
-than one profile's session churn in 76 minutes, which makes broad coverage likely — it does
-not make it measured. A session in `~/.claude-sdd` or `~/.claude-kat` can settle it with the
-four-line breaker probe under *Registration — `~/.claude` CONFIRMED* below.
-
-**buddy** — canonical `0.10.0` · readme `0.10.0` · marketplace clean ✅ — **the
-unreleased-code drift recorded here on 2026-08-27 is CLOSED.**
+**buddy** — canonical `0.10.0` · readme `0.10.0` · marketplace clean ✅
 
 | profile | installed | cache dir | install_path ok | all entries | cache = working tree |
 |---|---|---|---|---|---|
@@ -73,44 +23,36 @@ unreleased-code drift recorded here on 2026-08-27 is CLOSED.**
 | `~/.claude-sdd` | 0.10.0 ✅ | ✅ | ✅ | `0.10.0` ✅ | ⚠ 1 doc — see below |
 | `~/.claude-kat` | 0.10.0 ✅ | ✅ | ✅ | `0.10.0` ✅ | ⚠ 1 doc — see below |
 
-**The buddy ⚠ is one file, named, and deliberately not repaired.** Measured 2026-08-27:
-`diff -rq` of each profile's `buddy/0.10.0` cache against the working tree reports exactly
-one differing file in all three — `docs/trackers/headroom-optimization.md` — plus `.venv`,
-which is local-only and never seeded. The delta was introduced *after* the 0.10.0 release
-by `da4cd36`, which qualified two `codescout:U-28` citations in that tracker.
-
-**Nothing loads that file** — no hook, skill, command or statusline reads
-`buddy/docs/`, so no behaviour differs between cache and tree.
-
-**Not repaired by re-seeding, on purpose.** Re-running `bump-cache.sh buddy 0.10.0` would
-turn the column green, and would make the string `0.10.0` denote two different byte sets
-depending on when a profile was seeded. A version that is not a stable name for a
-specific set of bytes defeats the whole point of this tracker. An annotated delta is worth
-more than a manufactured ✅. It clears on buddy's next real bump.
-
-**This row was ✅ for both profiles until it was checked.** It is recorded here because
-the tracker's own field had become a claim that no longer held — the
-`roster-audit-session-log:F-9` shape, found by re-measuring rather than re-reading.
-
 **claude-statusline** — canonical `1.1.7` · readme `1.1.7` · marketplace clean ✅
 
-| profile | installed | cache dir | install_path ok | all entries |
-|---|---|---|---|---|
-| `~/.claude` | 1.1.7 ✅ | ✅ | ✅ | `1.1.7` ✅ |
-| `~/.claude-sdd` | 1.1.7 ✅ | ✅ | ✅ | `1.1.7` ✅ |
-| `~/.claude-kat` | 1.1.7 ✅ | ✅ | ✅ | `1.1.7` ✅ |
+| profile | installed | cache dir | install_path ok | all entries | cache = working tree |
+|---|---|---|---|---|---|
+| `~/.claude` | 1.1.7 ✅ | ✅ | ✅ | `1.1.7` ✅ | ✅ |
+| `~/.claude-sdd` | 1.1.7 ✅ | ✅ | ✅ | `1.1.7` ✅ | ✅ |
+| `~/.claude-kat` | 1.1.7 ✅ | ✅ | ✅ | `1.1.7` ✅ | ✅ |
+
+**codescout-companion** — canonical `1.19.6` · readme `1.19.6` · marketplace clean ✅
+
+| profile | installed | cache dir | install_path ok | all entries | cache = working tree |
+|---|---|---|---|---|---|
+| `~/.claude` | 1.19.6 ✅ | ✅ | ✅ | `1.19.6` ✅ | ✅ |
+| `~/.claude-sdd` | 1.19.6 ✅ | ✅ | ✅ | `1.19.6` ✅ | ✅ |
+| `~/.claude-kat` | 1.19.6 ✅ | ✅ | ✅ | `1.19.6` ✅ | ✅ |
 
 **session-bridge** — canonical `0.1.0` · readme `0.1.0` · marketplace clean ✅
 
-| profile | installed | cache dir | install_path ok | all entries |
-|---|---|---|---|---|
-| `~/.claude` | 0.1.0 ✅ | ✅ | ✅ | `0.1.0` ✅ |
-| `~/.claude-sdd` | 0.1.0 ✅ | ✅ | ✅ | `0.1.0` ✅ |
-| `~/.claude-kat` | 0.1.0 ✅ | ✅ | ✅ | `0.1.0` ✅ |
+| profile | installed | cache dir | install_path ok | all entries | cache = working tree |
+|---|---|---|---|---|---|
+| `~/.claude` | 0.1.0 ✅ | ✅ | ✅ | `0.1.0` ✅ | ✅ |
+| `~/.claude-sdd` | 0.1.0 ✅ | ✅ | ✅ | `0.1.0` ✅ | ✅ |
+| `~/.claude-kat` | 0.1.0 ✅ | ✅ | ✅ | `0.1.0` ✅ | ✅ |
 
-`sdd` — canonical `2.4.1`, readme `2.4.1`, marketplace clean ✅ — **not installed in any
-profile.** Stable and uninstalled by design; omitted from `params` because a `null`
-`installed` would be read as a key deletion by RFC 7396 and fail the schema's `required`.
+**All four plugins are green on every records-side column, and `~/.claude-kat` is green
+for the first time in three releases** — see the 1.19.6 History entry for the drift this
+refresh closed and, more importantly, for the one it only *found* because a bump was run
+at all.
+
+`sdd` — discovered in the repo but installed in no profile. Stable by design; never a gap.
 
 `pi` — README lists it at `0.1.0`, but `pi/` carries no `.claude-plugin/plugin.json` (it is
 a pi-harness extension with its own `install.sh`), so it is outside the discovered plugin
@@ -118,23 +60,30 @@ set and has no install record. Not a gap.
 
 ### The new column, and why it exists
 
-`cache = working tree` is measured for the first time this refresh, because it is the
-exact axis the 2026-08-27 drift proved nothing was checking. Every other column
-compares records to records or records to cache dirs; on a **directory-source**
-marketplace the thing that actually serves is the **repo working tree**, and no check
-touched it. Method — `diff -rq --exclude=__pycache__ --exclude=.pytest_cache
---exclude=.venv buddy <cache>`; the three exclusions are build artifacts that exist
-only in the tree and are correctly absent from a seeded snapshot.
+`cache = working tree` exists because it is the exact axis the 2026-08-27 drift proved
+nothing was checking. Every other column compares records to records or records to cache
+dirs; on a **directory-source** marketplace the thing that actually serves is the **repo
+working tree**, and no check touches it. Method — `diff -rq` with `__pycache__`,
+`.pytest_cache`, `.venv`, `target`, `.buddy` and `.orphaned_at` excluded; all six are
+build or runtime artifacts that exist only in the tree and are correctly absent from a
+seeded snapshot.
 
-**Note on `~/.claude`.** One real difference, and it is not a release fault:
-`buddy/.orphaned_at` (13 bytes, epoch `1776502775928` → 2026-04-18) exists in the
-working tree and in the other two caches, and is missing from `~/.claude`'s — the
-profile this session ran under most likely cleared its own orphan marker on
-re-registration. **The finding worth acting on is upstream of that: the file is
-TRACKED IN GIT and is not ignored.** A Claude Code runtime marker was committed in
-April and has been shipping in every cache snapshot since. It should be `git rm`'d and
-added to `.gitignore`; left alone, it will keep producing exactly this false positive
-on the new column.
+**Two exclusions were added this refresh, and both were false positives on the first
+run.** `session-bridge` carries a Rust `mcp-server/target/` tree, and `codescout-companion`
+an `.orphaned_at` runtime marker; without the excludes each reported a difference that is
+not drift. Naming them here matters more than the fix: a column whose method quietly
+grows exclusions can be tuned until it always reads green, so every exclusion should be
+justified as an artifact class, not as a file that happened to differ.
+
+**buddy's ⚠ is real and is the same one recorded at 1.19.3.** `docs/trackers/headroom-optimization.md`
+differs from all three caches, because it was edited after 0.10.0 shipped. Deliberately
+not re-seeded: re-seeding would make `0.10.0` denote two different byte sets. It clears on
+buddy's next version bump.
+
+**The April `.orphaned_at` finding recorded here previously is now CLOSED.** It is
+untracked in git and ignored in both plugins that carry one (`codescout-companion/.gitignore:2`),
+so it no longer ships in cache snapshots. Verified 2026-08-28 by `git ls-files | grep
+orphaned_at` returning empty.
 
 ### Registration — not load-bearing for 0.10.0
 
@@ -154,6 +103,7 @@ release's commit (`019bae5`, 2026-08-26 23:33), the most recent during this sess
 The log is repo-local and shared across profiles, so it proves cold starts happened
 but does not attribute them per profile — recorded as measured, not inflated to
 "all three confirmed."
+
 ### Registration — `~/.claude` CONFIRMED by positive control, 2026-08-27
 
 `/reload-plugins` in `~/.claude` after the 0.10.0 release: *3 plugins · 45 skills ·
@@ -182,7 +132,59 @@ processes with their own session ids; this probe cannot reach them and the share
 trace log does not attribute startups per profile. A session in either profile can
 run the four lines above to close it. Until then the honest state is one profile
 measured, two inferred.
+
+**1.19.6 does not change this.** `release.sh` repointed all three records, but a
+repointed record is not a re-read; the cold restart it prints as step 2 is still owed,
+and this refresh was written before it happened.
 ## History
+
+### 2026-08-28 — 1.19.6, and the drift a bump FOUND rather than caused
+
+**Delta since the 1.19.4 refresh:** codescout-companion `1.19.4` → `1.19.6` across all
+three profiles; `~/.claude-kat` moved from **stranded** to green.
+
+The release itself was routine — `release.sh codescout-companion patch`, all gates green,
+58/58 guard suite, 502 buddy pytest, parity check clean, pushed as `fee1b19`. What is
+worth recording is the state it walked into.
+
+**`1.19.5` never went through `release.sh`.** There is no `chore: bump ... 1.19.5`
+commit — `git log --all --grep='1\.19\.5'` returns only `80ed23f`, a
+`feat(hooks): stamp rendezvous liveness` commit that carried the version bump inline.
+This tracker has no 1.19.5 entry either, which is the same fact from the other side.
+
+**Propagation was therefore partial, and the profiles disagreed for roughly nine hours.**
+Measured at 1.19.6 release time, before anything was changed:
+
+| profile | record | 1.19.5 cache dir |
+|---|---|---|
+| `~/.claude` | 1.19.5 | present |
+| `~/.claude-sdd` | 1.19.5 | present |
+| `~/.claude-kat` | **1.19.4** | **absent** |
+
+So two profiles somehow carried a 1.19.5 record *and* a seeded cache while kat had
+neither. **The mechanism that seeded those two is not established** — no release commit
+explains it, and the records were overwritten by 1.19.6 before the timestamps could be
+read. Recorded as an open question rather than guessed at.
+
+**The point worth keeping.** Every automated gate this repo owns was green throughout.
+`check-versions.sh` compares plugin.json to README, not to install records.
+`check-profile-parity.sh` runs *inside* `release.sh` — so it never ran, because no
+release ran. The drift was invisible precisely because the step that would have caught
+it is the step that was skipped, and it surfaced only when a later bump forced all three
+profiles to be touched at once. A version bumped inline in a feature commit gets the
+number without any of the machinery the number is supposed to promise.
+
+**What 1.19.6 actually ships** is `guard-hardening-session-log:F-3`'s fix: the guard test
+suite is now hermetic against project config. `pre-tool-guard.test.sh` hardcodes the two
+live repo checkouts as its dispatch CWDs, so a developer using the documented
+`block_reads: false` opt-out silently turned the suite red — 21/55, all 34 failures
+reading `expected=deny got=allow`, which also blocked `release.sh` pre-flight.
+`CS_COMPANION_IGNORE_PROJECT_CONFIG` (in `detect.mjs`, mirrored in `detect.py`) fixes it;
+the suite is 58/58 with both opt-out configs still in place.
+
+`cache = working tree` verified on the served bytes for all four plugins, not inferred —
+codescout-companion's three changed files are byte-identical in all three caches and the
+new env hatch greps present in each served `detect.mjs`.
 
 ### 2026-08-27 — 1.19.4, a citation-qualifier release, and the backlog finally pushed
 
