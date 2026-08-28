@@ -4,7 +4,7 @@
 
 | Term | Definition |
 |---|---|
-| hook | Bash script triggered by Claude Code events (SessionStart, PreToolUse, PostToolUse, etc.) |
+| hook | Executable triggered by a Claude Code event (SessionStart, PreToolUse, PostToolUse, …). **All 18 wired codescout-companion hooks are node (`.mjs`)** — verified 2026-08-28 from `hooks.json`, where every `command` starts with `node`. The `*.test.sh` files are bash test drivers, not hooks |
 | `hookSpecificOutput` | JSON key in hook stdout used to inject context or deny tools |
 | `additionalContext` | Injects guidance text into the active Claude session |
 | `permissionDecision: "deny"` | Hard-blocks a tool call; reason shown to Claude |
@@ -18,7 +18,7 @@
 |---|---|
 | `HAS_CODESCOUT` | Detection flag: true if codescout MCP server is configured in this session |
 | `BLOCK_READS` | Config flag; set `block_reads` to boolean `false` or string `"false"` in `.claude/codescout-companion.json` to disable Read/Grep/Glob/Bash/Edit/Write blocking. Both forms work; absent → `true` |
-| `detect-tools.sh` | Shared detection library sourced by every codescout-companion hook |
+| `detect-tools.sh` | Thin bash shim over `scripts/detect.py`, kept for the historical sourcing pattern. **Not the live path** — the 19 `.mjs` hooks import `lib.mjs` → `detect.mjs` instead. Sourced only by itself and `pre-tool-guard.test.sh` (verified 2026-08-28) |
 | worktree state machine | 3-hook sequence (worktree-activate → worktree-write-guard → cs-activate-project) using `.cs-worktree-pending` marker |
 | drift warning | Session-start surface of high-drift files from codescout's `drift_report` SQLite table |
 
