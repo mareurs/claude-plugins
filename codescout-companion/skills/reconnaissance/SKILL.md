@@ -84,6 +84,10 @@ State what the plan / docs said vs. what reality holds. Three outcomes:
 
 Findings go into `docs/trackers/<topic>-session-log.md` in the active project.
 
+**Before you cite a confirming result as evidence, name the proposition it proves — then ask whether a broken world produces the same result.** An uncontended 10/10 is the output a still-racy test also gives. A green suite is the output a never-called guard also gives. A match count measures a text, never a cause. If the check cannot *express* the failure, its result is not evidence about the failure: write down what you actually established, and leave the rest as a thing to check rather than a thing concluded.
+
+This is a check on the sentence you are about to write, not on your choice of tool — which is why it lives here and not in Phase 1. Both recorded failures happened in sessions that had already invoked this skill, while writing up a result (`codescout:R-125`, `codescout:bug-fix-session-log:F-78`).
+
 **Topic naming.** Pick a topic from the work stream, not the seam: `bug-fix`, `auth-refactor`, `jsonpath-impl`, `migration-2026-q2`. One topic = one work stream across sessions. If the right topic file already exists, append; if not, copy the template:
 
 ```bash
