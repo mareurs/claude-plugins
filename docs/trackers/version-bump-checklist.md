@@ -13,7 +13,7 @@ Release readiness across plugins × profiles. See
 
 ## State
 
-_Last refresh: `fee1b19`, 2026-08-28._
+_Last refresh: `a6e7640`, 2026-08-30._
 
 **buddy** — canonical `0.10.0` · readme `0.10.0` · marketplace clean ✅
 
@@ -31,13 +31,13 @@ _Last refresh: `fee1b19`, 2026-08-28._
 | `~/.claude-sdd` | 1.1.7 ✅ | ✅ | ✅ | `1.1.7` ✅ | ✅ |
 | `~/.claude-kat` | 1.1.7 ✅ | ✅ | ✅ | `1.1.7` ✅ | ✅ |
 
-**codescout-companion** — canonical `1.19.6` · readme `1.19.6` · marketplace clean ✅
+**codescout-companion** — canonical `1.19.8` · readme `1.19.8` · marketplace clean ✅
 
 | profile | installed | cache dir | install_path ok | all entries | cache = working tree |
 |---|---|---|---|---|---|
-| `~/.claude` | 1.19.6 ✅ | ✅ | ✅ | `1.19.6` ✅ | ✅ |
-| `~/.claude-sdd` | 1.19.6 ✅ | ✅ | ✅ | `1.19.6` ✅ | ✅ |
-| `~/.claude-kat` | 1.19.6 ✅ | ✅ | ✅ | `1.19.6` ✅ | ✅ |
+| `~/.claude` | 1.19.8 ✅ | ✅ | ✅ | `1.19.8` ✅ | ✅ |
+| `~/.claude-sdd` | 1.19.8 ✅ | ✅ | ✅ | `1.19.8` ✅ | ✅ |
+| `~/.claude-kat` | 1.19.8 ✅ | ✅ | ✅ | `1.19.8` ✅ | ✅ |
 
 **session-bridge** — canonical `0.1.0` · readme `0.1.0` · marketplace clean ✅
 
@@ -150,6 +150,62 @@ measured on both candidate load paths rather than argued: the record points at k
 two actually serves, they carry the same bytes — so the question CLAUDE.md flags as
 unsettled does not need settling for this release.
 ## History
+### 2026-08-30 — 1.19.8, and the first push the parity gate actually stopped
+
+Shipped `ea90d80` (a four-line placement fix to `reconnaissance/SKILL.md`) via `release.sh`
+patch → `a6e7640`. Records, caches and `cache = working tree` measured green on all three
+profiles; the 1.19.8 caches carry the new clause (`grep -c` → 1 in each).
+
+**`check-versions.sh` was RED on `main` before this release, and had been for two days.**
+`1.19.7` was bumped **inline inside `fedd7bc`**, a `feat(tracker-hygiene)` commit, so
+`plugin.json` read `1.19.7` while the README table still read `1.19.6`. This is the third
+recorded instance of the inline-bump failure class (`1.19.5` in `80ed23f` is the one
+CLAUDE.md documents). Caches and records had been hand-seeded to 1.19.7 and were
+consistent, so the damage was confined to the README — but the gate that would have said
+so was the gate that was skipped. Running `release.sh` fixed it as a side effect.
+
+**Step 6.5 refused to push — and every failure was in a marketplace this repo does not
+publish.** `codescout-companion 1.19.8` itself reported
+`OK … one canonical version, caches present`. The four failures were classes 6 and 7 on
+third-party clones, all pre-existing:
+
+| marketplace | enabled anywhere | drift |
+|---|---|---|
+| `superpowers-marketplace` | **yes — all 3 profiles** | kat `91cb319` (2026-05-06) vs `1ab7b8e` (2026-08-12) |
+| `anthropic-agent-skills` | no | kat `5128e18` (2026-04-23) vs `3b3fad9` (2026-08-21) |
+| `caveman` | no | kat `63e797c` (2026-04-12) vs `0d95a81`; **and sdd was a symlink into `~/.claude`** |
+
+Only the first row was load-bearing: `superpowers` is enabled in all three profiles, so
+`~/.claude-kat` had been running a **three-month-old** copy. This is the same class-7 fault
+CLAUDE.md records as fixed on 2026-08-26 — the sdd `caveman` symlink was back, and kat's
+clones had rotted again. **The gate found it; nothing else did**, and it was invisible to
+every per-plugin column in the table above, because those only ever look at plugins this
+repo publishes.
+
+**Repair, in the order the checker prescribes — refresh first, never repoint first.** kat's
+two live clones were `rsync -a --delete`'d from `~/.claude` (verified real dirs, not
+symlinks, before being used as a source) and now match at `1ab7b8e` / `3b3fad9`. `caveman`
+was retired instead of refreshed — no `installed_plugins.json` record in any profile
+references it — by removing kat's stale clone and sdd's symlink (the link, never its
+target) and dropping both now-dangling `known_marketplaces.json` registrations. `~/.claude`
+keeps its copy, which is why no SKEW remains: the check only compares profiles that hold
+the directory.
+
+**`release.sh` is not resumable, and that matters after a step-6.5 abort.** It derives the
+next version from the *current* `plugin.json`, so re-running it after fixing parity would
+have bumped `1.19.8 → 1.19.9` rather than retrying the push. The commit, caches and records
+were already correct and consistent; the only outstanding step was step 7, so the finish
+was a plain `git push`.
+
+**Working-tree serving re-confirmed, this time by a discriminating probe rather than by
+citation.** Before the release, the working tree and the `1.19.7` cache differed in exactly
+one file — the new clause — which made invoking the skill a clean A/B between the two
+candidate load paths. The served body **contained** the clause the cache lacked, and the
+skill reported its base directory as the repo. So the *content* edit was live in this
+profile before any cache was seeded, and `installPath` did not describe the load path. Note
+the scope: measured in `~/.claude-sdd` only, for a skill **body**. It says nothing about
+whether a *new* component would register without a reload, which is still resolved at
+launch.
 
 ### 2026-08-28 — 1.19.6, and the drift a bump FOUND rather than caused
 
