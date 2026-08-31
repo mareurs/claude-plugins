@@ -1,0 +1,56 @@
+schema_version: 1
+prompt: 'Maintain the Prompt Hamsa''s audit log. Each object in `params.audits` is one completed prompt-audit. RULES: (1) Append-only — when the Hamsa finishes an audit, add a new row; never delete rows. Because params is merge-patched (RFC 7396 replaces arrays wholesale), append by reading the current `audits` array, adding the row, and writing the full array back. (2) Outcomes are filled later — when evidence arrives about a row''s `prediction`, set that row''s `outcome` (match on `date`+`artifact`); leave `outcome` empty/null until then. (3) Params hold mechanical row state only — methodology and narrative belong in the body. (4) Keep rows flat; keep field values short (one phrase each), since they render into a scannable table. Conflict resolution: a later write of the same `date`+`artifact` row supersedes the earlier one (this is how outcomes land).'
+entry_collection: audits
+params_schema:
+  type: object
+  properties:
+    audits:
+      type: array
+      items:
+        type: object
+        required:
+        - date
+        - artifact
+        - gap
+        - move
+        - prediction
+        properties:
+          date:
+            type: string
+          artifact:
+            type: string
+          symptom:
+            type: string
+          gap:
+            type: string
+          move:
+            type: string
+          prediction:
+            type: string
+          eval_status:
+            type: string
+          confidence:
+            type: string
+            enum:
+            - high
+            - medium
+            - low
+          outcome:
+            type:
+            - string
+            - 'null'
+            enum:
+            - held
+            - partial
+            - failed
+            - unobserved
+            - null
+        additionalProperties: true
+  additionalProperties: true
+render_template: |-
+  **Audits:** {{ audits|length }} · **measured:** {{ audits|selectattr("outcome")|list|length }} · **held (high-conf):** {{ audits|selectattr("confidence","equalto","high")|selectattr("outcome","equalto","held")|list|length }}
+
+  | Date | Artifact | Gap | Move | Prediction | Conf | Outcome |
+  |---|---|---|---|---|:--:|:--:|
+  {% for a in audits %}| {{ a.date }} | {{ a.artifact }} | {{ a.gap }} | {{ a.move }} | {{ a.prediction }} | {{ a.confidence or "—" }} | {{ a.outcome or "·" }} |
+  {% endfor %}

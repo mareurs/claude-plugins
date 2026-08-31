@@ -11,8 +11,7 @@ tags:
 - audit-log
 - self-reflection
 - eval
-topic: null
-time_scope: null
+expects_augmentation: docs/augmentations/docs-trackers-prompt-hamsa-audit-log.yaml
 ---
 
 # Prompt Hamsa — Audit & Self-Reflection Log

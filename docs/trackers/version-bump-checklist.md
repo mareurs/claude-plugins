@@ -3,6 +3,7 @@ id: cc8cb9e23ab5cc67
 kind: tracker
 status: draft
 title: Version-bump checklist
+expects_augmentation: docs/augmentations/docs-trackers-version-bump-checklist.yaml
 ---
 
 

@@ -1,0 +1,143 @@
+schema_version: 1
+prompt: |-
+  On each refresh:
+
+  PHASE A — Gather state.
+
+  **Discover the plugin set; never hardcode it.** The set is every directory in the repo root
+  with a `.claude-plugin/plugin.json`:
+
+      for pj in */.claude-plugin/plugin.json; do basename "$(dirname "$(dirname "$pj")")"; done
+
+  This replaced a hardcoded `{codescout-companion, buddy, claude-statusline, sdd}` on
+  2026-08-26. That list had gone stale: `session-bridge` was published by this repo and
+  installed in **all three** profiles while the tracker reported fully green without ever
+  looking at it. A fixed enumeration of the things you audit is the same defect as a stale
+  denominator — see `buddy-introspection`'s `specialists_scanned: 10/10` over a roster of 12,
+  and `roster-audit-session-log` `F-2`. `scripts/check-profile-parity.sh` already
+  auto-discovers this way (its lines 44–48); this prompt now matches it, so the two gates
+  cannot disagree about scope.
+
+  For each discovered plugin:
+  - canonical: read `<plugin>/.claude-plugin/plugin.json` :: `.version`
+  - readme: parse the version table rows in README.md. Rows are `| **[<plugin>](./<plugin>/)** | <version> | …`
+    — match on the bracketed link text, NOT a bare or backticked name. A grep for
+    `` | `<plugin>` | `` returns zero against this table and that zero is evidence about the
+    pattern, not the README. null if the plugin is not listed.
+  - marketplace_clean: true iff `[.plugins[] | objects | select(has("version"))] | length` on
+    `.claude-plugin/marketplace.json` is 0. The catalog-level `.metadata.version` does NOT count.
+
+  For each (plugin, profile) where profile in {.claude, .claude-sdd, .claude-kat}:
+  - The record `.plugins["<plugin>@sdd-misc-plugins"]` is an ARRAY, one element per install
+    scope (`user`, plus one per `project` install). **READ EVERY ELEMENT.** Do not index `[0]`
+    and stop.
+  - installed: `[0].version` (null if absent) — the user-scope entry, kept for continuity with
+    prior refreshes
+  - all_versions: EVERY element's `.version`, in order, as an array
+  - stale_sibling: true iff any element's version != canonical. **This is a THIRD failure
+    class, added 2026-08-26, and the one the other two checks structurally cannot see.**
+    `release.sh` step 5 repoints the user entry, step 6 validates the entry it just wrote, and
+    this prompt used to read `[0]` — all three read the same element, so a sibling pinned to a
+    superseded version was invisible to every one of them. Measured that day: `.claude-kat`
+    carried `codescout-companion` `[0]=1.16.17` and `[1]=1.16.16` (scope=project,
+    projectPath=/home/marius) while the release reported fully green, and the 1.16.16 cache dir
+    still existed — so the stale record resolves to real bytes and serves pre-fix code rather
+    than erroring.
+  - install_path_matches_profile: EVERY element's installPath starts with $HOME/<profile>/
+    (catches the 2026-05-16 cross-profile drift class)
+  - cache_dir_exists: directory $HOME/<profile>/plugins/cache/sdd-misc-plugins/<plugin>/<installed>/ exists on disk (catches the missing cache-dir class — #1 cause of "plugin appears installed but hook never fires")
+
+  **A plugin absent from every profile is NOT a failure — OMIT it from `params` entirely and
+  record it in the body's State section as "not installed in any profile".** Do not try to
+  represent it as `installed: null`: `params` is merged RFC 7396, which reads a `null` value as
+  *delete the key*, and the schema requires `installed` — so a null write fails validation.
+  `sdd` is stable and uninstalled by design; never flag it. Same for any repo plugin that has
+  a `plugin.json` but no install record (e.g. `pi`, whose README row exists under a different
+  directory layout).
+
+  last_refresh_commit = `git rev-parse --short HEAD`
+
+  Write gathered values into `params` (mechanical only).
+
+  PHASE B — Rewrite body.
+
+  Replace the body verbatim with this template, filling values from params:
+
+  ```
+  ## What this tracks
+
+  Release readiness across plugins × profiles. See
+  `docs/superpowers/specs/2026-05-18-version-bump-checklist-tracker-design.md`.
+
+  ## State
+
+  _Last refresh: `<last_refresh_commit>`_
+
+  <for each plugin in params.plugins, in order>
+  **<name>** — canonical `<canonical>` · readme `<readme or —>` · marketplace clean <✅ if marketplace_clean else ❌>
+
+  | profile | installed | cache dir | install_path ok | all entries |
+  |---|---|---|---|---|
+  <for each profile row>| `~/<profile>` | <installed or —> <✅ if installed == canonical else ❌> | <✅ if cache_dir_exists else ❌> | <✅ if install_path_matches_profile else ❌> | `<all_versions joined>` <❌ STALE SIBLING if stale_sibling else ✅> |
+  </for>
+
+  </for>
+
+  <one line per plugin discovered but omitted from params because it is installed nowhere>
+
+  ## History
+
+  <preserve existing ## History section verbatim; if any ## History content exists below this line, keep it. Append a new dated entry under ## History ONLY when a value in the State section changed since the previous refresh — quote the specific delta. No entry on green-to-green refreshes.>
+  ```
+
+  Body is the live render. Params is the cache.
+params_schema:
+  properties:
+    last_refresh_commit:
+      type:
+      - string
+      - 'null'
+    plugins:
+      additionalProperties:
+        properties:
+          canonical:
+            type: string
+          marketplace_clean:
+            type: boolean
+          profiles:
+            additionalProperties:
+              properties:
+                cache_dir_exists:
+                  type: boolean
+                install_path_matches_profile:
+                  type: boolean
+                installed:
+                  type:
+                  - string
+                  - 'null'
+                all_versions:
+                  type: array
+                  items:
+                    type: string
+                stale_sibling:
+                  type: boolean
+              required:
+              - installed
+              - cache_dir_exists
+              - install_path_matches_profile
+              type: object
+            type: object
+          readme:
+            type:
+            - string
+            - 'null'
+        required:
+        - canonical
+        - readme
+        - marketplace_clean
+        - profiles
+        type: object
+      type: object
+  required:
+  - plugins
+  type: object
