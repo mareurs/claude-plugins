@@ -218,6 +218,50 @@ else
 fi
 rm -f "$LEDGER"
 
+# --- Post-compact injection: names the cost, the condition, and the remedy ---
+# The assertions are PAIRED on purpose. A negative-only guard ("no disruption" is
+# absent) is monotone under REMOVAL: delete the whole `source === 'compact'` block
+# and it still passes, reporting green on a hook that injects nothing at all. The
+# positives are what make a deletion fail. Both directions, or the guard is
+# decoration.
+COMPACT=$(ctx compact)
+
+echo "$COMPACT" | grep -q "POST-COMPACT: Context was just compacted." \
+  && pass "compact → post-compact block is injected" \
+  || fail "compact injected no POST-COMPACT block (a negative-only guard would pass here)"
+
+echo "$COMPACT" | grep -q "workspace(post_compact=true)" \
+  && pass "post-compact names the remedy" \
+  || fail "post-compact block does not name the remedy"
+
+echo "$COMPACT" | grep -q "pays the language-server" \
+  && pass "post-compact names the cost (first nav call pays the LSP start)" \
+  || fail "post-compact block does not name the cost"
+
+echo "$COMPACT" | grep -q "shared per workspace, not per session" \
+  && pass "post-compact names the condition that removes the cost" \
+  || fail "post-compact block does not name the warm-server condition"
+
+# The regression this exists to catch: the block used to end "LSP clients restart
+# lazily — no disruption to the session." The restart is lazy, so the first nav
+# call pays the start; on a large crate that has exceeded the 60s tool timeout.
+# "No disruption" is the costly half — it rules out the real cause, so the search
+# for it ends.
+if echo "$COMPACT" | grep -q "no disruption"; then
+  fail "post-compact must not promise 'no disruption' — the LSP start is not free"
+else
+  pass "post-compact does not promise 'no disruption'"
+fi
+
+# Non-vacuity: the block is gated on source=compact. Without this, the negative
+# above could be passing merely because the harness never renders the block at all.
+COMPACT_GATE=$(ctx startup)
+if echo "$COMPACT_GATE" | grep -q "POST-COMPACT"; then
+  fail "startup must not carry the post-compact block"
+else
+  pass "startup → no post-compact block (gate exercised)"
+fi
+
 echo
 echo "Total: $((PASS+FAIL))  Pass: $PASS  Fail: $FAIL"
 [ "$FAIL" -eq 0 ]
