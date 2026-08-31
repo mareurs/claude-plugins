@@ -336,7 +336,10 @@ If tools are unavailable, the MCP server failed to connect (check \`claude mcp l
 if (source === 'compact') {
   msg += `POST-COMPACT: Context was just compacted.
 → Call workspace(post_compact=true) as your FIRST action to flush stale LSP position caches.
-   LSP clients restart lazily — no disruption to the session.
+   The first navigation call after it (symbol_at, references) pays the language-server
+   start, unless another session in this workspace is already holding it warm — the
+   server is shared per workspace, not per session. If that call stalls or times out,
+   re-run it.
 
 `;
 }
