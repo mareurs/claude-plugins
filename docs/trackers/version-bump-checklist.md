@@ -13,7 +13,7 @@ Release readiness across plugins × profiles. See
 
 ## State
 
-_Last refresh: `a6e7640`, 2026-08-30._
+_Last refresh: `30f8fd8`, 2026-08-31._
 
 **buddy** — canonical `0.10.0` · readme `0.10.0` · marketplace clean ✅
 
@@ -31,13 +31,13 @@ _Last refresh: `a6e7640`, 2026-08-30._
 | `~/.claude-sdd` | 1.1.7 ✅ | ✅ | ✅ | `1.1.7` ✅ | ✅ |
 | `~/.claude-kat` | 1.1.7 ✅ | ✅ | ✅ | `1.1.7` ✅ | ✅ |
 
-**codescout-companion** — canonical `1.19.8` · readme `1.19.8` · marketplace clean ✅
+**codescout-companion** — canonical `1.19.9` · readme `1.19.9` · marketplace clean ✅
 
 | profile | installed | cache dir | install_path ok | all entries | cache = working tree |
 |---|---|---|---|---|---|
-| `~/.claude` | 1.19.8 ✅ | ✅ | ✅ | `1.19.8` ✅ | ✅ |
-| `~/.claude-sdd` | 1.19.8 ✅ | ✅ | ✅ | `1.19.8` ✅ | ✅ |
-| `~/.claude-kat` | 1.19.8 ✅ | ✅ | ✅ | `1.19.8` ✅ | ✅ |
+| `~/.claude` | 1.19.9 ✅ | ✅ | ✅ | `1.19.9` ✅ | ✅ |
+| `~/.claude-sdd` | 1.19.9 ✅ | ✅ | ✅ | `1.19.9` ✅ | ✅ |
+| `~/.claude-kat` | 1.19.9 ✅ | ✅ | ✅ | `1.19.9` ✅ | ✅ |
 
 **session-bridge** — canonical `0.1.0` · readme `0.1.0` · marketplace clean ✅
 
@@ -150,6 +150,44 @@ measured on both candidate load paths rather than argued: the record points at k
 two actually serves, they carry the same bytes — so the question CLAUDE.md flags as
 unsettled does not need settling for this release.
 ## History
+### 2026-08-31 — 1.19.9, and the `cache = working tree ✅` that lasted under a day
+
+Shipped `02ac8f3` (post-compact LSP wording) as `30f8fd8`. Every gate green first time:
+tests, `check-versions`, caches seeded ×3, and — the part that failed yesterday —
+`marketplace registrations … no symlinks, no HEAD skew`. The kat repair held.
+
+**The column called it again.** Yesterday's refresh recorded `cache = working tree ✅` for
+1.19.8 on all three profiles, measured. A peer session edited `hooks/session-start.mjs`
+the next morning and the column was ⚠ on all three within the day — the second time this
+tracker has recorded that specific claim expiring almost immediately (see the 2026-08-27
+1.19.3 entry). **The column is not wrong and does not need loosening.** It is measuring a
+quantity that is only true between an edit and the next one, and its value is precisely
+that it goes ⚠ the moment someone touches the tree. Read it as a freshness timestamp, not
+as a health check that ought to stay green.
+
+**A live disagreement about the load path, recorded rather than resolved.** `02ac8f3`'s
+message states the fix is "NOT YET LIVE", reasoning that the plugin cache is version-keyed
+so every session keeps receiving the old sentence until a bump and reinstall, and cites
+`codescout:reconnaissance-patterns:R-89` (the distribution axis). That is the belief this
+tracker and CLAUDE.md have both recorded as **false for this marketplace** since
+2026-08-26: `sdd-misc-plugins` is a `source=directory` registration whose `installLocation`
+is the repo, and `CLAUDE_PLUGIN_ROOT` resolves to the working tree at runtime.
+
+It was measured directly on 2026-08-30, one release earlier, by the only clean experiment
+this setup ever offers: the working tree and the 1.19.8-predecessor cache differed in
+**exactly one file**, so invoking the skill discriminated between the two candidate load
+paths. The served body carried the clause the cache lacked, and the skill reported its base
+directory as the repo. Scope, stated honestly: that was a **skill body** in `~/.claude-sdd`.
+`02ac8f3` is a **hook**, and no equivalent probe was run on it before this bump — the
+supporting evidence for hooks is `plugin_root_env=Y` with
+`plugin_root=<repo>/buddy` in `.buddy/.session-start-trace.log`, which is Claude Code's own
+value and points at the repo, but is buddy's hook rather than this one.
+
+**And the window has now closed.** Seeding 1.19.9 made both copies byte-identical, so the
+discriminating A/B no longer exists for this change. Whoever wants to settle the hook axis
+must catch the next content edit *before* its bump — which is the same reason the
+`cache = working tree` column above is worth keeping: the ⚠ window is the only interval in
+which the question is answerable at all.
 ### 2026-08-30 — 1.19.8, and the first push the parity gate actually stopped
 
 Shipped `ea90d80` (a four-line placement fix to `reconnaissance/SKILL.md`) via `release.sh`
