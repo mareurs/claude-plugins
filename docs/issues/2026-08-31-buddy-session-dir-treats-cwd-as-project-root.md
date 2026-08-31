@@ -116,7 +116,51 @@ construction.
 ## References
 
 - `codescout:R-150` — the deletion that removed this bug's own mtime evidence, and why the
-  "interleaving or abandoned?" question is unanswerable.
+  "interleaving or abandoned?" question was unanswerable. **Answered since — see the live
+  reproduction below; it is interleaving.**
 - `docs/issues/2026-08-31-judge-worker-reads-codescout-memory-not-memories.md` — filed
   alongside. `judge_worker.py:92` also has the directory name wrong, so the constraints
   block is dead on *every* cwd. Fixing this bug alone does not restore it.
+
+## Live reproduction, 2026-08-31 22:39 — and it is wider than one hook
+
+About an hour after this file was written, the same peer session recreated the same nested
+directory in the same repo. Read this time, not removed:
+
+```text
+codescout/docs/issues/.buddy/<peer-sid>/
+    active_plan.json      22:13
+    cs_tool_log.jsonl     22:39   9724 bytes
+    loaded_skills.json    22:35
+    narrative.jsonl       22:39   6680 bytes
+    state.json            22:39
+codescout/docs/issues/.buddy/by-ppid/983773/{session_id,started_at}   22:35
+codescout/docs/issues/.codescout/constitution-seen/<peer-sid>.json   22:35
+```
+
+**Two findings, and the second is the reason this section exists.**
+
+1. **The split is real.** Both logs were being written seconds before the listing, while the
+   same session's canonical `codescout/.buddy/<sid>/` was also live. So the judge's narrative
+   is genuinely divided across two directories, and whichever one a judge worker reads holds
+   part of the timeline. This upgrades Consequence 2: the judge does not merely get a wrong
+   `project_root`, it can get an incomplete narrative.
+
+2. **`hook_helpers.py:469` is not the only writer.** Two more cwd-relative planters, one of
+   them in a different plugin:
+   - `.buddy/by-ppid/<ppid>/` — the ppid-keyed rendezvous slot.
+   - `.codescout/constitution-seen/<sid>.json` — **codescout-companion**, not buddy.
+
+   So the fix cannot be a single call site. Whatever resolver the fix introduces has to be
+   shared, or each writer will be corrected separately and at different times.
+
+**Why the `.codescout/` one deserves its own look.** `.codescout/` is the directory name the
+whole ecosystem treats as a project marker. It does not misfire *today* —
+`detect.py::_find_project_dir` returns `cwd / ".codescout"` and callers test for
+`project.toml` inside it, which this stray does not have. But the failure mode is one file
+away: any writer that puts a `project.toml`-shaped file under a stray `.codescout/` makes a
+subdirectory answer yes to "is this a project root?", and the detection is what several
+hooks branch on.
+
+Not cleaned up. The peer session is live, the directories are its state, and removing them
+is what produced `codescout:R-150`.
