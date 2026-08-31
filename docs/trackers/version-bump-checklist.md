@@ -35,9 +35,9 @@ _Last refresh: `30f8fd8`, 2026-08-31._
 
 | profile | installed | cache dir | install_path ok | all entries | cache = working tree |
 |---|---|---|---|---|---|
-| `~/.claude` | 1.19.9 ✅ | ✅ | ✅ | `1.19.9` ✅ | ✅ |
-| `~/.claude-sdd` | 1.19.9 ✅ | ✅ | ✅ | `1.19.9` ✅ | ✅ |
-| `~/.claude-kat` | 1.19.9 ✅ | ✅ | ✅ | `1.19.9` ✅ | ✅ |
+| `~/.claude` | 1.19.9 ✅ | ✅ | ✅ | `1.19.9` ✅ | ⚠ 1 test — see below |
+| `~/.claude-sdd` | 1.19.9 ✅ | ✅ | ✅ | `1.19.9` ✅ | ⚠ 1 test — see below |
+| `~/.claude-kat` | 1.19.9 ✅ | ✅ | ✅ | `1.19.9` ✅ | ⚠ 1 test — see below |
 
 **session-bridge** — canonical `0.1.0` · readme `0.1.0` · marketplace clean ✅
 
@@ -79,6 +79,13 @@ justified as an artifact class, not as a file that happened to differ.
 differs from all three caches, because it was edited after 0.10.0 shipped. Deliberately
 not re-seeded: re-seeding would make `0.10.0` denote two different byte sets. It clears on
 buddy's next version bump.
+
+**codescout-companion's ⚠ is `hooks/session-start.test.sh`, added after 1.19.9 shipped.**
+Deliberately not re-seeded and deliberately not bumped: a `.test.sh` is copied into the
+cache but is **never executed from it** — `tests/run-all.sh` runs the repo's copy — so a
+bump would buy distribution that nothing consumes, and would make `1.19.10` denote a
+release with no behavioural change. Same disposition, and the same reasoning, as buddy's
+doc ⚠ above. It clears on the next real bump.
 
 **The April `.orphaned_at` finding recorded here previously is now CLOSED.** It is
 untracked in git and ignored in both plugins that carry one (`codescout-companion/.gitignore:2`),
@@ -182,6 +189,32 @@ directory as the repo. Scope, stated honestly: that was a **skill body** in `~/.
 supporting evidence for hooks is `plugin_root_env=Y` with
 `plugin_root=<repo>/buddy` in `.buddy/.session-start-trace.log`, which is Claude Code's own
 value and points at the repo, but is buddy's hook rather than this one.
+
+**Postscript, same day — the hook axis was settled from the other side, and the gap it
+exposed is now guarded.** A peer session probed the *served* hook copy after this bump
+rather than the source, on the grounds that commit, install record and directory listing
+all read green in the broken world: `"no disruption to the session"` → **0** occurrences
+served, `"pays the language-server"` → **1**, and all three install records at 1.19.9 with
+each `installPath` under its own profile root — that last row because this machine has
+carried a kat record pointing into `~/.claude`'s cache before, so *the cache holds 1.19.9*
+and *this profile loads 1.19.9* are two claims. They also noted the md5 row (source and all
+three caches identical) proves nothing on its own: four copies agreeing is equally
+consistent with four stale copies. The content check against the claim is the
+discriminating half.
+
+That probe confirms the shipped text is served; it does **not** re-open the load-path
+question, because after seeding, source and caches are byte-identical and nothing can tell
+them apart.
+
+**The real find was that nothing tested the injected text at all** — the wrong sentence
+lived there long enough to cost an investigation its diagnosis, and only a human reading a
+post-compaction banner would have caught a regression. Guarded now in
+`hooks/session-start.test.sh` (6 assertions), built to the peer's structural point:
+a negative-only assertion is **monotone under removal**. Verified by mutation rather than
+asserted — deleting the whole `source === 'compact'` block leaves a negative-only guard
+**green on a hook that injects nothing**, while the paired guard reports 4 failures;
+restoring the pre-fix sentence trips 3. Both mutations were run on a scratch copy, never
+the working tree, precisely because the tree is the load path.
 
 **And the window has now closed.** Seeding 1.19.9 made both copies byte-identical, so the
 discriminating A/B no longer exists for this change. Whoever wants to settle the hook axis
