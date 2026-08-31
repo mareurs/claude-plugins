@@ -36,7 +36,7 @@ being written, holding the three files the stray copy lacked (`verdicts.json`,
 
 Whether writes were *interleaving* between the two, or the stray copy was created once and
 abandoned, is unknown: I deleted it before reading its mtimes. That mistake is recorded as
-`codescout:R-148`, and it is why this file cannot state which of the two it was.
+`codescout:R-150`, and it is why this file cannot state which of the two it was.
 
 ### Consequence 1 — the stray directory is not ignored
 
@@ -104,7 +104,7 @@ tool call; an ancestor walk for two marker names is cheaper and has no dependenc
 
 **Migration:** existing stray directories are debris, not state worth moving — a session
 whose state is split has already lost the ordering. Leave them; they stop being created.
-Do not sweep them from other repos automatically, for the reason in `codescout:R-148`.
+Do not sweep them from other repos automatically, for the reason in `codescout:R-150`.
 
 ## Tests added
 
@@ -115,7 +115,7 @@ construction.
 
 ## References
 
-- `codescout:R-148` — the deletion that removed this bug's own mtime evidence, and why the
+- `codescout:R-150` — the deletion that removed this bug's own mtime evidence, and why the
   "interleaving or abandoned?" question is unanswerable.
 - `docs/issues/2026-08-31-judge-worker-reads-codescout-memory-not-memories.md` — filed
   alongside. `judge_worker.py:92` also has the directory name wrong, so the constraints
