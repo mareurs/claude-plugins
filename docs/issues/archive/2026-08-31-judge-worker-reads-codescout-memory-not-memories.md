@@ -23,7 +23,7 @@ narrative with an empty constraints list.
 
 This is independent of cwd. It fails on a correctly-resolved project root too, so it is
 **not** fixed by
-`docs/issues/2026-08-31-buddy-session-dir-treats-cwd-as-project-root.md`.
+`docs/issues/archive/2026-08-31-buddy-session-dir-treats-cwd-as-project-root.md`.
 
 
 ## Fix provenance
@@ -113,7 +113,7 @@ and should not be done.
 
 ## References
 
-- `docs/issues/2026-08-31-buddy-session-dir-treats-cwd-as-project-root.md` — the other half
+- `docs/issues/archive/2026-08-31-buddy-session-dir-treats-cwd-as-project-root.md` — the other half
   of the same silent-degradation surface, found in the same scout. That one gives the judge a
   wrong root; this one means the constraints were never loading regardless.
 - `codescout-companion/scripts/detect.py:145` — the correct name, in the sibling plugin.

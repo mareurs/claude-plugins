@@ -410,7 +410,7 @@ def test_session_start_compact_releases_active_specialists(tmp_path):
 def test_session_start_compact_from_subagent_leaves_parent_state_alone(tmp_path, capsys):
     """A SUBAGENT's compaction must not touch the parent's state.
 
-    Measured 2026-09-01 (docs/issues/2026-09-01-subagent-compaction-fires-parent-
+    Measured 2026-09-01 (docs/issues/archive/2026-09-01-subagent-compaction-fires-parent-
     session-compact.md): when a subagent runs out of context, Claude Code fires
     SessionStart source="compact" carrying the PARENT's session_id. The
     `is_subagent` heuristic cannot catch it — it requires source=="startup" AND a
@@ -466,7 +466,7 @@ def test_session_start_fork_behaves_like_resume(tmp_path):
     being a guess: `seconds_since_last_response` and `context_tokens` are both
     documented as "resume/fork: ... the resumed transcript's last response",
     i.e. a fork has a restored transcript, so the persona bodies are present.
-    See docs/issues/2026-09-01-subagent-compaction-fires-parent-session-compact.md
+    See docs/issues/archive/2026-09-01-subagent-compaction-fires-parent-session-compact.md
     """
     import os
     from scripts.hook_helpers import handle_session_start

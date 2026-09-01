@@ -244,7 +244,7 @@ else fail "non-git cwd: names the cwd itself" "$OUT"; fi
 # --- If this fails: shrink .codescout/system-prompt.md, or port the spill pattern
 # --- from buddy/scripts/buddy_paths.py::spill_to_session_dir. Do NOT just raise the
 # --- number — the cap is CC's, not ours.
-# --- See docs/issues/2026-09-01-reload-block-inlines-45kb-over-the-hook-stdout-cap.md
+# --- See docs/issues/archive/2026-09-01-reload-block-inlines-45kb-over-the-hook-stdout-cap.md
 SP="$T/proj/.codescout/system-prompt.md"
 mkdir -p "$(dirname "$SP")"
 # A realistic system-prompt, sized to the live one (4,869 B on 2026-09-01).

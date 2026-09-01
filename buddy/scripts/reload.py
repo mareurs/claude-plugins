@@ -36,7 +36,7 @@ from scripts import buddy_paths
 # costs one `Read` and guarantees arrival, which is the right direction to err when
 # the alternative fails silently.
 #
-# See docs/issues/2026-09-01-reload-block-inlines-45kb-over-the-hook-stdout-cap.md
+# See docs/issues/archive/2026-09-01-reload-block-inlines-45kb-over-the-hook-stdout-cap.md
 # and docs/trackers/skill-loading-session-log.md F-4.
 INLINE_CAP = 12000
 

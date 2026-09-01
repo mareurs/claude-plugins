@@ -50,7 +50,7 @@ fi
 # not-installed branch, exited 0, and the deny assertion became unreachable —
 # green to red on nothing but which plugin was released last, and it would have
 # gone green again on the next codescout-companion bump with nothing fixed.
-# docs/issues/2026-09-01-pre-push-guard-test-drifts-a-different-plugin-than-the-guard-checks.md
+# docs/issues/archive/2026-09-01-pre-push-guard-test-drifts-a-different-plugin-than-the-guard-checks.md
 BUMP_PLUGINS=$(git -C "$REPO_ROOT" diff --name-only "$BUMP_PARENT" "$BUMP_SHA" \
   | grep -E '^[^/]+/\.claude-plugin/plugin\.json$' | cut -d/ -f1 | sort -u)
 

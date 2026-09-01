@@ -230,7 +230,7 @@ def handle_session_start(
         # Verified against the 2.1.252 dispatcher, which gates the compact-time
         # SessionStart only on `agentType==="subagent" && delegatedObservation`, so
         # an ordinary subagent falls through and fires it.
-        # See docs/issues/2026-09-01-subagent-compaction-fires-parent-session-compact.md
+        # See docs/issues/archive/2026-09-01-subagent-compaction-fires-parent-session-compact.md
         #
         # `startup` is deliberately excluded: a subagent startup carries its OWN
         # session_id, and the heuristic below is meant to clear that subagent's own

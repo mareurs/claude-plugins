@@ -93,7 +93,7 @@ def test_assemble_context_loads_codescout_memories(tmp_path):
     a project with no memories, so nothing ever failed. The assertion here is that
     constraints are NON-EMPTY — the shape that fails in the broken world and cannot
     be satisfied by a guard that skips.
-    See docs/issues/2026-08-31-judge-worker-reads-codescout-memory-not-memories.md
+    See docs/issues/archive/2026-08-31-judge-worker-reads-codescout-memory-not-memories.md
     """
     from scripts.judge_worker import assemble_context
 

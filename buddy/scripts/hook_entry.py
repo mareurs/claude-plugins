@@ -27,7 +27,7 @@ def _project_root(event: dict) -> Path:
     root — a session started in a subdirectory used to plant `.buddy/<sid>/`
     there. Resolution lives in buddy_paths so the several cwd-relative planters
     share one answer.
-    See docs/issues/2026-08-31-buddy-session-dir-treats-cwd-as-project-root.md
+    See docs/issues/archive/2026-08-31-buddy-session-dir-treats-cwd-as-project-root.md
     """
     from scripts.buddy_paths import resolve_project_root
 

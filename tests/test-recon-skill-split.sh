@@ -8,7 +8,7 @@
 # buddy's reload block inlines skill bodies into hook stdout, and CC's
 # tool-result persistence path truncates hook stdout over its inline cap to a
 # ~2 KB preview: measured 2026-09-01, 44,702 B emitted and 1,789 B delivered
-# (4.0%). See docs/issues/2026-09-01-reload-block-inlines-45kb-over-the-hook-stdout-cap.md.
+# (4.0%). See docs/issues/archive/2026-09-01-reload-block-inlines-45kb-over-the-hook-stdout-cap.md.
 #
 # The fix was to split the case law out to references/ and keep the METHOD in
 # the core, per the injection-budget design's principle: "inject pointers, not

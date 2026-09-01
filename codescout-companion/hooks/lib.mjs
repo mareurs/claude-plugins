@@ -105,7 +105,7 @@ export function detectFor(cwd) {
 // the starting directory when neither is found — so a non-repo cwd behaves
 // exactly as before.
 //
-// docs/issues/2026-08-31-buddy-session-dir-treats-cwd-as-project-root.md
+// docs/issues/archive/2026-08-31-buddy-session-dir-treats-cwd-as-project-root.md
 export function resolveProjectRoot(cwd) {
   let dir;
   try {

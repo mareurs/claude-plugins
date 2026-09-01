@@ -14,7 +14,7 @@ owner: marius
 partially_fixed: 2026-09-01 — state clobber only, with regression test
 related: []
 severity: high
-spawned: docs/issues/2026-09-01-reload-block-inlines-45kb-over-the-hook-stdout-cap.md
+spawned: docs/issues/archive/2026-09-01-reload-block-inlines-45kb-over-the-hook-stdout-cap.md
 unverified: 'The subagent-compaction case has a regression test but has NOT been observed live since the fix: `SKIPPED=subagent-scoped-event` count is still 0 across the whole trace log, so the early return has never fired in production. The main-session case IS now measured end-to-end (see § Verified). Spawned defect: the reload payload is truncated to 4% in transit — filed separately, NOT a routing fault.'
 ---
 
@@ -349,4 +349,4 @@ the same breath notes `reload.py` took only the **frontmatter-hygiene** half of 
 
 So the recon reload has been delivering ~4% of its body on **every** compaction since it
 was written. It is not a routing fault and does not belong to this bug — filed as
-`docs/issues/2026-09-01-reload-block-inlines-45kb-over-the-hook-stdout-cap.md`.
+`docs/issues/archive/2026-09-01-reload-block-inlines-45kb-over-the-hook-stdout-cap.md`.

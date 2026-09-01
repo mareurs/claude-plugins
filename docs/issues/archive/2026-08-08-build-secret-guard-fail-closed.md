@@ -1,5 +1,5 @@
 ---
-id: e01357bc2898153f
+id: 9e436ab5d85e553a
 kind: bug
 status: fixed
 title: 'Build secret-guard here, rebuilt fail-closed — codescout PR #9 is the wrong repo and the control has 10+ bypasses'

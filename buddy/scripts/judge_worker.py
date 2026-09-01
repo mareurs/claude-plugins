@@ -94,7 +94,7 @@ def assemble_context(
     # cwd; the exists() guard below made that indistinguishable from a project
     # with no memories, and the judge returned plausible verdicts made without
     # the three documents most likely to change them.
-    # See docs/issues/2026-08-31-judge-worker-reads-codescout-memory-not-memories.md
+    # See docs/issues/archive/2026-08-31-judge-worker-reads-codescout-memory-not-memories.md
     constraints_parts = []
     memory_dir = project_root / ".codescout" / "memories"
     for name in ("conventions", "gotchas", "architecture"):

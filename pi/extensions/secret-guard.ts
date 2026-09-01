@@ -3,7 +3,7 @@
  *
  * Rebuilt here from scratch after two independent reviews found codescout PR #9's
  * implementation bypassable on 10 of 11 adversarial probes (see
- * docs/issues/2026-08-08-build-secret-guard-fail-closed.md for the full analysis).
+ * docs/issues/archive/2026-08-08-build-secret-guard-fail-closed.md for the full analysis).
  * That version tried to detect *secrets* in the command text; every bypass was a gap
  * between its regex-over-text model and what curl/ssh/the shell actually do with the
  * bytes. This version inverts the trigger instead: it does not read or track secrets

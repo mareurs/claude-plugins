@@ -1,5 +1,5 @@
 ---
-id: '65b3320219a8e9c1'
+id: c76fc7a183ce0f85
 kind: bug
 status: fixed
 title: '76 dangling + 93 ambiguous citations are one remediable class, not a baseline — and the biggest concentration is shipped prompt surface'
@@ -200,7 +200,7 @@ librarian(action="link_scan", scope="project")   # write=false; read dangling_by
 > a **different defect class**, out of this issue's scope; worth its own issue if it recurs.
 >
 > **Two genuinely-actionable ambiguous citations found and fixed**, both in this bug's sibling
-> `docs/issues/2026-08-08-build-secret-guard-fail-closed.md`: `F-3` → `codescout:F-3` (the
+> `docs/issues/archive/2026-08-08-build-secret-guard-fail-closed.md`: `F-3` → `codescout:F-3` (the
 > pi-integration post-mortem), and `F-4`/`W-3` → `codescout:F-4`/`codescout:W-3` (the
 > `pr-review-session-log` citations in its References section). Verified `codescout:F-3`
 > etc. don't collide with a local definer first (no local `F-3` anywhere under `pi/` or

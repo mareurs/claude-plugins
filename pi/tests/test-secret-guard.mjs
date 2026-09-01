@@ -2,7 +2,7 @@
  * test-secret-guard.mjs — adversarial + functional tests for secret-guard.ts.
  *
  * Every BLOCK case here is drawn from the two independent reviews of codescout
- * PR #9 (see docs/issues/2026-08-08-build-secret-guard-fail-closed.md) and is
+ * PR #9 (see docs/issues/archive/2026-08-08-build-secret-guard-fail-closed.md) and is
  * required to FAIL against that PR's implementation and PASS against this one.
  *
  * Harness requirements this file honors (the PR's own suite violated all three):

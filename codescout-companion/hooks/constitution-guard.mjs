@@ -44,7 +44,7 @@ if (!Array.isArray(matches) || matches.length === 0) process.exit(0);
 
 // Resolve cwd to the project root: a session started in a subdirectory used to
 // plant a stray .codescout/constitution-seen/ there, invisible to the root one.
-// docs/issues/2026-08-31-buddy-session-dir-treats-cwd-as-project-root.md
+// docs/issues/archive/2026-08-31-buddy-session-dir-treats-cwd-as-project-root.md
 const stateFile = join(resolveProjectRoot(cwd), '.codescout', 'constitution-seen', `${sessionId}.json`);
 let state = { ...DEFAULT_STATE };
 if (existsSync(stateFile)) {

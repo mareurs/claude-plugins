@@ -100,8 +100,8 @@ Checked what consumes the file before editing, as this entry asked: `eval/prompt
 
 ## RM-3 — Discharge the stale half of the reload-cap bug's `unverified:` field
 
-`docs/issues/2026-09-01-reload-block-inlines-45kb-over-the-hook-stdout-cap.md`
-(`bc8ffc160e077cc2`) carries `status: fixed` while its `unverified:` field still opens
+`docs/issues/archive/2026-09-01-reload-block-inlines-45kb-over-the-hook-stdout-cap.md`
+(`3f3f739030789f54`, re-keyed when `RM-12` archived it) carries `status: fixed` while its `unverified:` field still opens
 with **"Not fixed — filed only."** The two contradict each other, and the field is what
 the canonical triage query reads.
 
@@ -297,8 +297,19 @@ Drop the `--include` filters when sweeping for citations, or read the extension 
 — a filter that misses a file type returns a clean zero that reads exactly like "no
 citations".
 
-**Status:** blocked — on `RM-7`. The convention requires the fix anchor *at* archive time,
-so archiving first would bake in the gap it exists to prevent.
+**Status:** fixed-verified 2026-09-01 — **9, not 7** (the count in this entry's title predated two files closed later the same day, one of them `RM-21`'s). `docs/issues/` now holds one file: the `zombie`. All nine went through `artifact(action="move")`, each re-keying its id and grafting events/links; `archived_fix_sha_unresolvable` is **0**, which is `RM-7` paying off — that check only becomes reachable once a file is in `archive/`.
+
+**26 live citations repointed** across `buddy/scripts/`, `buddy/tests/`, `codescout-companion/hooks/`, `pi/`, `tests/`, plus this backlog and six sibling cross-references between the archived files themselves. Shell rewriting is blocked on source files here, so each went through `edit_file`/`edit_markdown` individually; the hook's *"serialize write tool calls"* warning arrived mid-batch and the rest were serialized.
+
+**Three instrument failures on the way, each of which would have left silent breakage:**
+
+1. **Two citations were line-wrapped mid-path** (`…fires-parent-` / `…the-whole-command-`). A replace keyed on the full filename would have missed both and reported success. Keying on an unambiguous *path prefix* caught them — the encoding failure mode, where the artifact's own line wrapping defeats the literal.
+2. **`git grep` could not see the moved files at all.** After `artifact(action="move")` the new paths are untracked, so `git grep` — which reads tracked content — was blind to precisely the nine files most likely to cite one another. The residual sweep came back clean while six stale sibling refs sat in them. Found by a direct `grep` against the archive dir. **After an unstaged move, `git grep` is the wrong instrument.**
+3. **My own filter matched the path instead of the payload — twice.** `git grep … | grep -v 'archive/2026'` drops every line whose *filename* contains `archive/2026`, which is now all nine. Both times the wrong answer was a reassuring empty result. Fixed by testing the match field (`awk -F: '$3 !~ …'`).
+
+**Deliberately not repointed:** `repo-hygiene-session-log:W-2`'s observation, which records the id and path `artifact(find)` returned on 2026-08-21. That is the measurement, not a pointer; rewriting it would falsify the record. It is now annotated in place so a future sweep subtracts it by inspection, and it is the **one net new dangling citation** (33 → 34) — unavoidable, because codescout has an open issue for the underlying limitation: an id cannot be *mentioned* without the scanner reading it as a citation.
+
+`run-all.sh` exit 0, zero `FAIL` lines, buddy pytest **527 passed**, `prefix_conflicts` 0, `doctor` 36 (unchanged by the moves).
 
 **Valid:** dated 2026-09-01
 
@@ -446,7 +457,7 @@ codescout-companion bump flips it green with nothing fixed.
 
 Full analysis, both measurements, and the fix (parameterise the fixture from
 `bumped_plugins`, and assert the two sets are equal) in
-`docs/issues/2026-09-01-pre-push-guard-test-drifts-a-different-plugin-than-the-guard-checks.md`.
+`docs/issues/archive/2026-09-01-pre-push-guard-test-drifts-a-different-plugin-than-the-guard-checks.md`.
 
 **Priority: highest in this backlog.** Everything else here is a record-integrity or
 hygiene item; this one is a red suite gating a guard that exists to stop a bad version

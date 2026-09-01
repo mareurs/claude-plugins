@@ -63,7 +63,7 @@ def resolve_project_root(cwd: "str | os.PathLike | None") -> Path:
     starting directory when neither is found anywhere above — documented, so a
     non-repo cwd behaves exactly as it did before.
 
-    See docs/issues/2026-08-31-buddy-session-dir-treats-cwd-as-project-root.md
+    See docs/issues/archive/2026-08-31-buddy-session-dir-treats-cwd-as-project-root.md
     """
     start = Path(cwd) if cwd else Path(os.getcwd())
     try:

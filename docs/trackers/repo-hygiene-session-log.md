@@ -217,6 +217,15 @@ Codified so the Index column means the same thing across sessions.
 
 **Observed:** 2026-08-21, auditing open bugs in `claude-plugins`. `artifact(find, kind="bug", status in [open, investigating])` surfaced `e01357bc2898153f` (`docs/issues/2026-08-08-build-secret-guard-fail-closed.md`) — tags included `security`, `exfiltration`, `prompt-injection`. `artifact(get)` on it returned `body_error: No such file or directory`, and the file was absent from the working tree and from `git ls-files`.
 
+> **Note added 2026-09-01, so a future sweep subtracts this by inspection rather than
+> re-litigating it.** The id and path above are **deliberately left stale**. They record what
+> `artifact(find)` actually returned that day — they are the observation, not a pointer, and
+> rewriting them would falsify the record. That bug file has since been archived under
+> `repo-remediation-backlog` `RM-12`, which re-keyed it, so the id no longer resolves and
+> `link_scan` counts it as one dangling `ArtifactId`. Expected residue: codescout carries an
+> open issue for the underlying limitation — there is currently no way to *mention* an id
+> without the scanner reading it as a citation.
+
 **Pattern:** Before concluding a security-tagged file's disappearance was a deliberate scrub (and before either declining to investigate further out of caution, or acting on that belief), scout the actual git shape: `git cat-file -e HEAD:<path>` to confirm true absence, `git log --all --follow -- <path>` to find every commit that ever touched it, then `git merge-base --is-ancestor <last-touching-sha> HEAD` to check whether that history is even reachable from the current branch. If unreachable, `git diff --stat <merge-base> <last-touching-sha>` scopes whether it was an isolated file or part of a larger dropped batch — the discriminator between "one orphaned commit" and "a rewrite that scrubbed a set." Finally, run `librarian(doctor)` (machine-wide, not just the active project) to check whether the same `missing_file` defect recurs anywhere else, before generalizing a single incident into a claimed pattern.
 
 **Counterfactual:** Without this scout, the tags alone (`security`, `exfiltration`) plus the file's total absence from git would have supported either a false "deliberately scrubbed for security reasons" claim reported to the user, or a premature `artifact(delete)` on the stale catalog row without checking whether the underlying content was actually preserved elsewhere. The actual shape was mundane: two commits (`8fc78c9f`, `e8d208aa`) on a short branch tip off `b9625ac` that never got carried into `main` — diffing the tip against the merge-base showed exactly one file changed, ruling out a batch scrub — and the substantive content (the PR #9 bypass findings) was independently intact in codescout's own `docs/trackers/pr-review-session-log.md` (`pr-review-session-log:F-4`/`pr-review-session-log:W-3`, 2026-08-07), so nothing was actually lost. `librarian(doctor)` confirmed the `missing_file` check fired exactly once across every repo in the catalog, turning "maybe this happens elsewhere" into a measured negative rather than a guess.

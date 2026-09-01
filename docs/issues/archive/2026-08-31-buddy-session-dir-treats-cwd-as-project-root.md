@@ -168,7 +168,7 @@ construction.
 - `codescout:R-150` — the deletion that removed this bug's own mtime evidence, and why the
   "interleaving or abandoned?" question was unanswerable. **Answered since — see the live
   reproduction below; it is interleaving.**
-- `docs/issues/2026-08-31-judge-worker-reads-codescout-memory-not-memories.md` — filed
+- `docs/issues/archive/2026-08-31-judge-worker-reads-codescout-memory-not-memories.md` — filed
   alongside. `judge_worker.py:92` also has the directory name wrong, so the constraints
   block is dead on *every* cwd. Fixing this bug alone does not restore it.
 

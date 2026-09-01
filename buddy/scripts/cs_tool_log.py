@@ -97,7 +97,7 @@ def summarize_args(tool_input: dict) -> str:
     exist on disk — well-formed prefixes like `src/serve`, unmarked, which a
     consumer will happily match. A path is now either verbatim or explicitly
     marked, never silently a prefix.
-    See docs/issues/2026-09-01-summarize-args-destroys-the-path-it-documents-preserving.md
+    See docs/issues/archive/2026-09-01-summarize-args-destroys-the-path-it-documents-preserving.md
     """
     if not isinstance(tool_input, dict):
         return str(tool_input)[:100]

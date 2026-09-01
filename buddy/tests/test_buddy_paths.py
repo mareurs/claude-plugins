@@ -31,7 +31,7 @@ def test_accessors_compose_on_root(monkeypatch, tmp_path):
 
 
 # --- resolve_project_root: a cwd is not a project root -----------------------
-# docs/issues/2026-08-31-buddy-session-dir-treats-cwd-as-project-root.md
+# docs/issues/archive/2026-08-31-buddy-session-dir-treats-cwd-as-project-root.md
 
 def test_resolve_project_root_walks_up_to_the_git_marker(tmp_path):
     """A session started in a subdirectory must resolve to the repo root.

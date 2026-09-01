@@ -10,7 +10,7 @@
 // not syntax), and — worse — any substring matching the `git -C <path> <verb>`
 // escape exited the hook 0 for the ENTIRE call, so a bare `git commit` alongside
 // it ran unguarded. A mere mention inside an `echo` string was enough to disarm
-// the guard. See docs/issues/2026-09-01-worktree-guard-scans-the-whole-command-
+// the guard. See docs/issues/archive/2026-09-01-worktree-guard-scans-the-whole-command-
 // so-a-heredoc-blocks-and-a-mention-disarms.md
 import { readInput, git, denyPreToolUse } from './lib.mjs';
 

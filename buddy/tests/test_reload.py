@@ -370,7 +370,7 @@ def test_render_dismissal_notice_empty_returns_empty():
 # CC truncates SessionStart hook stdout over its inline cap to a ~2 KB preview with
 # no @ref handle. Measured on a real compaction: 44,702 B emitted, 1,789 B delivered
 # (4.0%), behind a marker reading `buddy:reloaded`. These pin the mitigation.
-# See docs/issues/2026-09-01-reload-block-inlines-45kb-over-the-hook-stdout-cap.md.
+# See docs/issues/archive/2026-09-01-reload-block-inlines-45kb-over-the-hook-stdout-cap.md.
 
 
 def _big_skill(plug, directory, size=30000):

@@ -62,7 +62,7 @@ def test_summarize_args_preserves_path_when_it_is_the_last_key():
     fixture put `path` FIRST — the one ordering where the bug cannot fire — and
     asserted only `len(result) <= 200`, which is equally satisfied by returning "",
     by dropping the path, or by cutting it mid-token.
-    See docs/issues/2026-09-01-summarize-args-destroys-the-path-it-documents-preserving.md
+    See docs/issues/archive/2026-09-01-summarize-args-destroys-the-path-it-documents-preserving.md
     """
     from scripts.cs_tool_log import summarize_args
 

@@ -140,7 +140,7 @@ else
 fi
 
 # === SEGMENTATION: a heredoc body is DATA, not command text ===
-# docs/issues/2026-09-01-worktree-guard-scans-the-whole-command-so-a-heredoc-blocks-and-a-mention-disarms.md
+# docs/issues/archive/2026-09-01-worktree-guard-scans-the-whole-command-so-a-heredoc-blocks-and-a-mention-disarms.md
 # Half (a): the guard used to scan the whole command string, so writing a test
 # fixture that CONTAINS `git commit` was unwritable through Bash.
 

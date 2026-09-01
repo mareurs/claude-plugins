@@ -293,7 +293,7 @@ source when changing its blocking rules.
 Shipped here at `pi/extensions/secret-guard.ts` — built after two independent reviews
 found codescout PR #9's secret-*detecting* guard bypassable on 10 of 11 adversarial
 exfiltration probes (full analysis:
-`docs/issues/2026-08-08-build-secret-guard-fail-closed.md`). This version inverts the
+`docs/issues/archive/2026-08-08-build-secret-guard-fail-closed.md`). This version inverts the
 trigger instead of patching the old one: it never reads or tracks secret values at
 all, so there is no "the secret wasn't in the command text" bypass class to have.
 
