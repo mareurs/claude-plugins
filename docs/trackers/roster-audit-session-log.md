@@ -363,7 +363,7 @@ Observed against the codescout build serving this session.
 
 **Impact:** med — converts a one-integer cleanup into two re-opened findings, and prevents a stale audit from being re-blessed by the check that was supposed to test it.
 
-**Promote-when:** a third instance where auditing a drift finding's *context* rather than its *quoted datum* changes the disposition, ideally outside this repo's tracker family. At three datapoints this is craft-shaped, not project-shaped — the routing test in the skill's *Promotion routing* section sends it to `SKILL.md` Phase 1, alongside the existing "a proposed fix — and equally a prohibition — is a claim about CURRENT STATE" bullet, which it generalises from *proposals* to *filed findings*.
+**Promote-when:** a third instance where auditing a drift finding's *context* rather than its *quoted datum* changes the disposition, ideally outside this repo's tracker family. At three datapoints this is craft-shaped, not project-shaped — the routing test — now in `references/patterns-tracker.md` § Promotion routing, split out of `SKILL.md` on 2026-09-01 — sends it to `references/seam-classes.md`, alongside the existing "a proposed fix — and equally a prohibition — is a claim about CURRENT STATE" bullet, which it generalises from *proposals* to *filed findings*.
 
 **Status:** validated — two datapoints this session; promote-when threshold not yet reached.
 

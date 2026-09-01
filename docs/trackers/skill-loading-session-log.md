@@ -1,3 +1,9 @@
+---
+entry_prefix:
+- F
+- W
+entry_high_water_F: 5
+---
 # Session Log — skill-loading
 
 > **Purpose:** Two-sided observation log for a multi-session work stream.
@@ -31,6 +37,7 @@
 | F-2 | 2026-06-12 | med | architectural | fixed-verified | Live ledger probe: compact replay inflates counts (false-advisory risk) + tool_use path missed buddy:* exclusion |
 | F-3 | 2026-06-14 | med | cc-hooks | fixed-verified | codescout-companion read-guard blocks reading back the persisted summon payload |
 | F-4 | 2026-06-14 | high | architectural | fixed-verified | Summon payload overflows the CC hook-output cap; the "fully-loaded" marker is false for all 14 personas |
+| F-5 | 2026-09-01 | high | doc-vs-reality | open | CLAUDE.md says plugin edits are live from the working tree; skills load from `installPath`'s cache dir, so the split shipped to nobody |
 
 ## Wins Index
 
@@ -265,6 +272,34 @@ Codified so the Index column means the same thing across sessions.
 **Status:** validated — single datapoint, drift caught before any one-off fix shipped.
 
 ---
+## F-5 — CLAUDE.md says plugin edits are live from the working tree; skills load from `installPath`'s cache dir, so the split shipped to nobody
+
+**Observed:** 2026-09-01, immediately after splitting `reconnaissance/SKILL.md` from 44,375 B to 13,680 B. The user invoked `/codescout-companion:reconnaissance` and CC injected the **pre-split** body — full Phase 1 case law, both worked exemplars, the whole Promotion routing section.
+
+**When:** First invocation of the skill after editing it, in the same session that made the edit.
+
+**Expected (CLAUDE.md § "This Machine — Linux workstation (verified 2026-08-26)"):** *"Our plugins load from the REPO WORKING TREE, not from a versioned cache dir… **So an edit to `buddy/` or `codescout-companion/` is live in the working tree immediately;** `bump-cache.sh` seeding and the `installPath` repointing are belt-and-braces for this marketplace, not the load path."*
+
+**Got (measured):** the injected body came from the **versioned cache dir**. Working tree held 13,680 B with zero occurrences of `from a downstream project's R-N ledger` or `Promotion routing`; `~/.claude-kat/plugins/cache/sdd-misc-plugins/codescout-companion/1.19.11/skills/reconnaissance/SKILL.md` held **44,673 B** — byte-identical to the pre-split file — and this profile's install record points at exactly that directory (`version=1.19.11`, `installPath=…/codescout-companion/1.19.11`). The injected text contained content the working tree no longer has, so it cannot have been served from the working tree.
+
+**Probable cause:** the CLAUDE.md claim was established from `plugin_root` entries in `.buddy/.session-start-trace.log`, which record how **hooks** resolve `CLAUDE_PLUGIN_ROOT` — and hooks do resolve to the repo. **Skills** are read from `installPath`. One execution path was measured and the conclusion was stated for the plugin as a whole. This is the skill's own *"a green result certifies the path that actually EXECUTED"* law firing on the documentation that describes it: the trace log is real evidence, about hooks.
+
+Note the two channels differ for the *same file*: `reload.py::find_skill_md` scope 5 (`<repo>/<other-plugin>/skills/<dir>/SKILL.md`) reads the working tree per invocation, so buddy's compact-reload block serves the **new** copy while CC's Skill tool serves the **cached** one. Same path, two freshnesses.
+
+**Workaround:** none available in-session. A release (`release.sh`) is what seeds a new cache dir and repoints `installPath`, so the split cannot take effect on any profile until one runs. The release was already owed for `b93b612`; this makes it **load-bearing for the refactor**, not follow-up polish.
+
+**Severity:** high — it inverts the shipping model for skills and commands. Acting on it, a session edits a skill, sees green tests, and reports the change as live to a user while all three profiles keep serving the old bytes. It also masks its own falsity: the editing session is the least representative observer, and the doc labels the claim *verified 2026-08-26* with a real measurement attached.
+
+**Status:** open — measurement recorded; CLAUDE.md not yet corrected. The correction must scope the existing claim to hooks and state the skill/command path separately, rather than reversing it wholesale: the hook half is verified and still true.
+
+**Valid:** dated 2026-09-01
+
+Measured against CC 2.1.252 with `sdd-misc-plugins` registered as a `directory` source. Re-verify if the marketplace source type or CC's skill resolution changes.
+
+**Rests on:** three byte counts taken in the same minute (working tree 13,680, cache 1.19.11 44,673, injected body containing strings absent from the working tree) plus the install record's `installPath`. Not on inference about caching mechanics — the served bytes were matched to a file on disk.
+
+**Fix idea / Pointer:** `CLAUDE.md` § *This Machine — Linux workstation*, the paragraph beginning *"Our plugins load from the REPO WORKING TREE"*, and its restatement in § *Plugin Install Path (directory-source gotcha)* which carries the same over-generalised correction. Same class as `F-4` (this log) — a claim that is true of the channel someone measured and false of the channel that matters.
+
 ## Template for new entries
 
 <!-- Insert new F-N / W-N entries above this line via:
