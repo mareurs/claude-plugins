@@ -547,3 +547,91 @@ def test_spill_to_session_dir_returns_none_on_failure(tmp_path):
     proj.mkdir()
     (proj / ".buddy").write_text("not a directory")
     assert buddy_paths.spill_to_session_dir("x", "y.md", proj, "sid-6") is None
+
+
+def test_render_reload_block_reserved_shrinks_the_budget(tmp_path):
+    """`reserved` accounts for what the CALLER also writes to the same stdout.
+
+    CC caps a hook's TOTAL stdout, not this block. handle_session_start writes a
+    dismissal notice alongside the reload block, so a block sized against the bare
+    cap could still push the sum over it. A body that fits with reserved=0 must
+    spill once the sibling output is declared.
+    """
+    from scripts.reload import INLINE_CAP, render_reload_block
+    plug = tmp_path / "plug"
+    proj = tmp_path / "proj"
+    proj.mkdir()
+    # Sized to land just UNDER the bare cap, so `reserved` is the only thing
+    # that can push it over — absolute, never derived from INLINE_CAP.
+    body = "x" * (INLINE_CAP - 1200)
+    p = plug / "skills" / "mid" / "SKILL.md"
+    p.parent.mkdir(parents=True)
+    p.write_text("# Mid\n" + body)
+
+    common = dict(
+        specialists=["mid"], new_sid="sid-r", prev_sid="p", source="compact",
+        plugin_root=plug, project_root=proj,
+    )
+    inline = render_reload_block(**common, reserved=0)
+    assert "payload-file=" not in inline, "should fit with nothing reserved"
+
+    spilled = render_reload_block(**common, reserved=5000)
+    assert "payload-file=" in spilled, "reserving 5000 must push it over budget"
+    assert len(spilled) < len(inline)
+
+
+def test_render_reload_block_reserved_defaults_to_zero_and_ignores_negatives(tmp_path):
+    """Default is unchanged behaviour; a negative reserve cannot widen the budget."""
+    from scripts.reload import INLINE_CAP, render_reload_block
+    plug = tmp_path / "plug"
+    proj = tmp_path / "proj"
+    proj.mkdir()
+    _big_skill(plug, "prompt-hamsa")
+    common = dict(
+        specialists=["prompt-hamsa"], new_sid="sid-n", prev_sid="p", source="compact",
+        plugin_root=plug, project_root=proj,
+    )
+    assert "payload-file=" in render_reload_block(**common)
+    # a negative reserve must not raise the cap above INLINE_CAP
+    assert "payload-file=" in render_reload_block(**common, reserved=-INLINE_CAP * 10)
+
+
+def test_session_start_total_stdout_stays_under_the_cap(tmp_path, capsys):
+    """The bound that actually matters: the whole hook's stdout, not one message.
+
+    Exercises the real handle_session_start, which resolves `reconnaissance` through
+    find_skill_md's sibling-repo scope and so reloads the ACTUAL skill — the case the
+    per-block cap could not see, since the hook has five stdout writers.
+
+    The non-emptiness assertions are load-bearing: `len(out) < INLINE_CAP` is also
+    true of no output at all, so without them this passes in a world where the reload
+    silently never fires. Measured 2026-09-01 on the live hook: 1,046 B total stdout,
+    13,427 B spilled.
+    """
+    from scripts import hook_helpers
+    from scripts.reload import INLINE_CAP
+    proj = tmp_path / "proj"
+    (proj / ".codescout").mkdir(parents=True)
+    (proj / ".codescout" / "project.toml").write_text('[project]\nname="probe"\n')
+    (proj / ".git").mkdir()
+
+    hook_helpers.handle_session_start(
+        {
+            "cwd": str(proj),
+            "session_id": "sid-total",
+            "source": "compact",
+            "timestamp": 1788280000,
+        },
+        tmp_path / "state.json",
+    )
+    out = capsys.readouterr().out
+    # the reload actually happened...
+    assert out, "no stdout at all — the reload never fired, so the bound proves nothing"
+    assert "buddy:reloaded" in out
+    assert "payload-file=" in out, "the real recon body is over budget; it must spill"
+    # ...and the WHOLE hook's output stayed inside the budget
+    assert len(out) < INLINE_CAP, f"total hook stdout {len(out)} B exceeds the budget"
+    # the spilled body is on disk, in full, and is the part that was too big
+    spilled = proj / ".buddy" / "sid-total" / "reload-payload-compact.md"
+    assert spilled.is_file()
+    assert len(spilled.read_text()) > len(out)

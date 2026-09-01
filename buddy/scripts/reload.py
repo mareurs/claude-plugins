@@ -227,6 +227,7 @@ def render_reload_block(
     source: str,
     plugin_root: Path,
     project_root: Path,
+    reserved: int = 0,
 ) -> str:
     """Render the reload block injected into the new session's context.
 
@@ -235,9 +236,16 @@ def render_reload_block(
     and the arrival-line instruction — the model must never be told to
     announce an arrival for something it has no reloaded content for.
 
-    Over INLINE_CAP the bodies are spilled to a file and replaced by a pointer;
+    Over the budget the bodies are spilled to a file and replaced by a pointer;
     the marker and the arrival-line instruction always stay inline. See
     INLINE_CAP for why, and for why "just inline it" was never safe here.
+
+    `reserved` is how many characters the CALLER will also write to the same
+    hook's stdout, subtracted from the budget. CC's cap applies to the hook's
+    total stdout, not to this block — `handle_session_start` writes a dismissal
+    notice alongside this, so a block sized against the bare cap could still
+    push the total over it. Pass the sibling output's length and the two are
+    bounded together.
     """
     if not specialists:
         return ""
@@ -276,10 +284,10 @@ def render_reload_block(
     body_text = "\n\n".join(bodies)
     inline = "\n\n".join([marker, instruction, body_text])
 
-    if len(inline) <= INLINE_CAP:
+    if len(inline) <= max(INLINE_CAP - max(reserved, 0), 0):
         return inline
 
-    # Over the cap: spill the bodies, keep the marker and instruction inline.
+    # Over budget: spill the bodies, keep the marker and instruction inline.
     rel = (
         buddy_paths.spill_to_session_dir(
             body_text, f"reload-payload-{source}.md", project_root, new_sid,

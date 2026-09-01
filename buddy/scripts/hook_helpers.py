@@ -424,6 +424,19 @@ def handle_session_start(
                 # hook_helpers.py is reliably at <plugin_root>/scripts/.
                 plugin_root = Path(__file__).resolve().parent.parent
                 project_root = buddy_paths.resolve_project_root(event.get("cwd"))
+                # The dismissal notice is rendered FIRST so its length can be
+                # reserved out of the reload block's budget. CC caps a hook's
+                # TOTAL stdout, not either message, so sizing the block against
+                # the bare cap while also writing this could push the sum over.
+                # Output order is unchanged: block, then notice.
+                notice = ""
+                if dismissed_specialists:
+                    notice = render_dismissal_notice(
+                        dismissed_specialists,
+                        new_sid=incoming_sid,
+                        prev_sid=prev_sid,
+                        source=source,
+                    )
                 if recon_reload:
                     block = render_reload_block(
                         ["reconnaissance"],
@@ -432,18 +445,12 @@ def handle_session_start(
                         source=source,
                         plugin_root=plugin_root,
                         project_root=project_root,
+                        reserved=len(notice) + 1,  # +1 for the trailing newline
                     )
                     if block:
                         _sys.stdout.write(block + "\n")
-                if dismissed_specialists:
-                    notice = render_dismissal_notice(
-                        dismissed_specialists,
-                        new_sid=incoming_sid,
-                        prev_sid=prev_sid,
-                        source=source,
-                    )
-                    if notice:
-                        _sys.stdout.write(notice + "\n")
+                if notice:
+                    _sys.stdout.write(notice + "\n")
             except Exception:
                 pass
 

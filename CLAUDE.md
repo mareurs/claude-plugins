@@ -50,18 +50,27 @@ For `.claude.json` (the file): single-profile users have it at `~/.claude.json`;
   verifies every *array element* of each record **and** every marketplace registration
   (see its header for the seven drift classes and why `[0]`-only checks missed one).
   `release.sh` runs it at step 6.5 and refuses to push on failure.
-- **Our plugins load from the REPO WORKING TREE, not from a versioned cache dir.**
+- **Our HOOKS load from the REPO WORKING TREE, not from a versioned cache dir.**
   `known_marketplaces.json` records `sdd-misc-plugins` as
   `{"source": "directory", "path": "/home/marius/work/claude/claude-plugins"}` with
   `installLocation` set to that same repo path. Confirmed at runtime, not inferred:
   `.buddy/.session-start-trace.log` shows every hook invocation resolving
   `plugin_root=/home/marius/work/claude/claude-plugins/buddy`, including entries written
-  after a release repointed `installPath` at a cache dir. **So an edit to `buddy/` or
-  `codescout-companion/` is live in the working tree immediately; `bump-cache.sh` seeding
-  and the `installPath` repointing are belt-and-braces for this marketplace, not the load
-  path.** What a restart/reload still buys you is *registration* — which hooks, skills and
-  commands exist — because that is resolved at process launch. Third-party github-source
-  marketplaces are the opposite: those genuinely load from `<profile>/plugins/marketplaces/…`.
+  after a release repointed `installPath` at a cache dir. **So a HOOK edit in `buddy/` or
+  `codescout-companion/` is live in the working tree immediately.**
+  **This holds for hooks and is FALSE for skills and commands** — those are read from
+  `installPath`, the versioned cache dir, so a skill edit reaches nobody until a release
+  seeds a new cache and repoints the records. Measured 2026-09-01: a skill cut 44,375 →
+  13,680 B was still served at its old 44,673 B from
+  `…/codescout-companion/1.19.11/skills/reconnaissance/SKILL.md`, exactly where that
+  profile's `installPath` points. **So `bump-cache.sh` seeding and the `installPath`
+  repointing are the load path for skills and commands, and belt-and-braces only for
+  hooks** — and a skill edit is `committed`, not `live`, until a release runs. The editing
+  session is the least representative observer of that. What a restart/reload buys you on
+  top is *registration* — which hooks, skills and commands exist — resolved at process
+  launch. See § *Plugin Install Path* for the per-channel table, and
+  `docs/trackers/skill-loading-session-log.md` F-5 for the measurement. Third-party
+  github-source marketplaces load everything from `<profile>/plugins/marketplaces/…`.
 - **Marketplace registrations drifted for months in two files nothing checked** (fixed
   2026-08-26). `~/.claude-kat/plugins/known_marketplaces.json` pointed five of six
   marketplaces at `~/.claude/plugins/marketplaces/…`, and
@@ -302,17 +311,39 @@ Always run Next-actions step 1 (verify state) before acting.
 
 ## Plugin Install Path (directory-source gotcha)
 
-> **Measured correction, 2026-08-26.** The rest of this section describes the general
-> mechanism, but for **this** repo's marketplace it is not what happens. `sdd-misc-plugins`
-> is registered as a `directory` source whose `installLocation` is the repo itself, and
-> `CLAUDE_PLUGIN_ROOT` resolves to `<repo>/<plugin>` at runtime — verified in
-> `.buddy/.session-start-trace.log`, where every entry reads
+> **Measured correction, 2026-08-26 — then narrowed 2026-09-01. Read both halves.**
+> `sdd-misc-plugins` is registered as a `directory` source whose `installLocation` is the
+> repo itself, and **for hooks** `CLAUDE_PLUGIN_ROOT` resolves to `<repo>/<plugin>` at
+> runtime — verified in `.buddy/.session-start-trace.log`, where every entry reads
 > `plugin_root=/home/marius/work/claude/claude-plugins/buddy`, including ones written after
-> `installPath` had been repointed at a cache dir. **Content is therefore served from the
-> working tree, and the cache snapshot is not the load path.** New components still need a
-> reload or restart, but because *registration* is resolved at launch — not because the
-> bytes are stale. Do not reason about content freshness from `installPath` here; probe
-> `plugin_root` in the trace log instead.
+> `installPath` had been repointed at a cache dir. That measurement stands, and it is
+> **about hooks**.
+>
+> **It does NOT generalise to skills, and the 2026-08-26 wording that said "content is
+> served from the working tree" was wrong for them.** Measured 2026-09-01: after splitting
+> `reconnaissance/SKILL.md` from 44,375 B to 13,680 B, an invocation in the editing session
+> was served **44,673 B** — byte-identical to
+> `~/.claude-kat/plugins/cache/sdd-misc-plugins/codescout-companion/1.19.11/skills/reconnaissance/SKILL.md`,
+> which is exactly where that profile's `installPath` points. The injected text contained
+> strings the working tree no longer held, so it cannot have come from the working tree.
+>
+> So, per channel:
+>
+> | what | resolves via | freshness |
+> |---|---|---|
+> | hooks | `CLAUDE_PLUGIN_ROOT` → repo working tree | edit is live immediately |
+> | skills / commands | `installPath` → versioned cache dir | needs a release + restart |
+>
+> Same file, two channels: `buddy/scripts/reload.py::find_skill_md` scope 5 reads
+> `<repo>/<other-plugin>/skills/<dir>/SKILL.md` per invocation, so buddy's compact-reload
+> block serves the **new** copy of a skill while CC's Skill tool serves the **cached** one.
+>
+> Practical consequence: **a skill or command edit is `committed`, not `live`, until
+> `release.sh` seeds a new cache dir and repoints the three install records.** The editing
+> session is the least representative observer of this — it is the one most likely to
+> believe the edit shipped. Probe `plugin_root` in the trace log for hook freshness; probe
+> the served bytes against `installPath` for skill freshness.
+> (`docs/trackers/skill-loading-session-log.md` F-5.)
 
 Claude Code freezes `installPath` + `version` in `~/.claude/plugins/installed_plugins.json`
 at install time. For directory-source plugins (marketplace `source: directory`), the

@@ -225,4 +225,48 @@ if assert_context_contains "$OUT" "path=\"$T/nogit\""; then
   pass "non-git cwd: names the cwd itself"
 else fail "non-git cwd: names the cwd itself" "$OUT"; fi
 
+# --- Output budget. The hook injects the project system-prompt VERBATIM (it is the
+# --- only channel that reaches subagents at all — server_instructions do not, per
+# --- claude-code#29655), so its payload grows with a user-editable file that
+# --- onboarding() rewrites. CC replaces hook output over its inline cap with a ~2 KB
+# --- preview and a bare filesystem path, which for a subagent brief means the
+# --- briefing silently stops arriving. Measured 2026-09-01: 7,687 B emitted against a
+# --- 4,869 B system-prompt, so roughly 2,800 B is fixed overhead and the rest tracks
+# --- the file.
+# ---
+# --- This is a TRIPWIRE, not a fix. There is no spill here on purpose: the payload
+# --- fits today, and making every subagent pay a Read round-trip to dodge a cap it
+# --- does not hit would be premature. What was missing is anything that notices the
+# --- approach. 12000 is the same budget buddy's reload path uses
+# --- (buddy/scripts/reload.py INLINE_CAP) and sits below every truncation observed
+# --- across 130,958 hook-output samples.
+# ---
+# --- If this fails: shrink .codescout/system-prompt.md, or port the spill pattern
+# --- from buddy/scripts/buddy_paths.py::spill_to_session_dir. Do NOT just raise the
+# --- number — the cap is CC's, not ours.
+# --- See docs/issues/2026-09-01-reload-block-inlines-45kb-over-the-hook-stdout-cap.md
+SP="$T/proj/.codescout/system-prompt.md"
+mkdir -p "$(dirname "$SP")"
+# A realistic system-prompt, sized to the live one (4,869 B on 2026-09-01).
+head -c 4900 /dev/zero | tr '\0' 'x' > "$SP"
+OUT=$(run_hook "$T/proj" "general-purpose")
+BYTES=${#OUT}
+if [ "$BYTES" -gt 0 ] && [ "$BYTES" -lt 12000 ]; then
+  pass "output budget: ${BYTES} B, under the 12000 B cap"
+else
+  fail "output budget" "emitted ${BYTES} B (want 0 < n < 12000; empty means the hook went silent and the bound proves nothing)"
+fi
+
+# And the guard must actually be reachable: an oversized system-prompt has to push
+# it over. Without this, the assertion above passes in a world where the
+# system-prompt is never injected at all.
+head -c 20000 /dev/zero | tr '\0' 'y' > "$SP"
+OUT=$(run_hook "$T/proj" "general-purpose")
+if [ "${#OUT}" -gt 12000 ]; then
+  pass "output budget: tripwire is reachable (20 KB prompt -> ${#OUT} B)"
+else
+  fail "output budget tripwire" "a 20 KB system-prompt produced only ${#OUT} B — the prompt is not being injected, so the budget check above is vacuous"
+fi
+rm -f "$SP"
+
 print_summary "subagent-guidance"
