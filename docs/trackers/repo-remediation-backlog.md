@@ -136,7 +136,7 @@ still exact.
 The `skill-loading-session-log:F-5` close is committed locally and unpushed. One command;
 listed so it is not the thing that quietly stays local.
 
-**Status:** open
+**Status:** fixed-verified 2026-09-01 — pushed as part of `139a3ed..807fda1`, together with the backlog itself, the `RM-21` bug file and its test fix. `git rev-list --left-right --count origin/main...HEAD` → `0 0`. Later work through `RM-2` pushed at `807fda1..d7847ea`.
 
 **Valid:** dated 2026-09-01
 
