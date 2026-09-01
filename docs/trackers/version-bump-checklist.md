@@ -14,7 +14,7 @@ Release readiness across plugins × profiles. See
 
 ## State
 
-_Last refresh: `30f8fd8`, 2026-08-31._
+_Last refresh: `9dca042`, 2026-09-01._
 
 **buddy** — canonical `0.10.0` · readme `0.10.0` · marketplace clean ✅
 
@@ -32,13 +32,13 @@ _Last refresh: `30f8fd8`, 2026-08-31._
 | `~/.claude-sdd` | 1.1.7 ✅ | ✅ | ✅ | `1.1.7` ✅ | ✅ |
 | `~/.claude-kat` | 1.1.7 ✅ | ✅ | ✅ | `1.1.7` ✅ | ✅ |
 
-**codescout-companion** — canonical `1.19.9` · readme `1.19.9` · marketplace clean ✅
+**codescout-companion** — canonical `1.19.10` · readme `1.19.10` · marketplace clean ✅
 
 | profile | installed | cache dir | install_path ok | all entries | cache = working tree |
 |---|---|---|---|---|---|
-| `~/.claude` | 1.19.9 ✅ | ✅ | ✅ | `1.19.9` ✅ | ⚠ 1 test — see below |
-| `~/.claude-sdd` | 1.19.9 ✅ | ✅ | ✅ | `1.19.9` ✅ | ⚠ 1 test — see below |
-| `~/.claude-kat` | 1.19.9 ✅ | ✅ | ✅ | `1.19.9` ✅ | ⚠ 1 test — see below |
+| `~/.claude` | 1.19.10 ✅ | ✅ | ✅ | `1.19.10` ✅ | ✅ |
+| `~/.claude-sdd` | 1.19.10 ✅ | ✅ | ✅ | `1.19.10` ✅ | ✅ |
+| `~/.claude-kat` | 1.19.10 ✅ | ✅ | ✅ | `1.19.10` ✅ | ✅ |
 
 **session-bridge** — canonical `0.1.0` · readme `0.1.0` · marketplace clean ✅
 
@@ -48,10 +48,9 @@ _Last refresh: `30f8fd8`, 2026-08-31._
 | `~/.claude-sdd` | 0.1.0 ✅ | ✅ | ✅ | `0.1.0` ✅ | ✅ |
 | `~/.claude-kat` | 0.1.0 ✅ | ✅ | ✅ | `0.1.0` ✅ | ✅ |
 
-**All four plugins are green on every records-side column, and `~/.claude-kat` is green
-for the first time in three releases** — see the 1.19.6 History entry for the drift this
-refresh closed and, more importantly, for the one it only *found* because a bump was run
-at all.
+**All four plugins are green on every records-side column, and only buddy carries a
+`cache = working tree` ⚠.** codescout-companion's ⚠ cleared exactly as the 1.19.9 entry
+predicted it would — see the 1.19.10 History entry.
 
 `sdd` — discovered in the repo but installed in no profile. Stable by design; never a gap.
 
@@ -81,12 +80,14 @@ differs from all three caches, because it was edited after 0.10.0 shipped. Delib
 not re-seeded: re-seeding would make `0.10.0` denote two different byte sets. It clears on
 buddy's next version bump.
 
-**codescout-companion's ⚠ is `hooks/session-start.test.sh`, added after 1.19.9 shipped.**
-Deliberately not re-seeded and deliberately not bumped: a `.test.sh` is copied into the
-cache but is **never executed from it** — `tests/run-all.sh` runs the repo's copy — so a
-bump would buy distribution that nothing consumes, and would make `1.19.10` denote a
-release with no behavioural change. Same disposition, and the same reasoning, as buddy's
-doc ⚠ above. It clears on the next real bump.
+**codescout-companion's ⚠ is CLOSED as of 1.19.10.** It was
+`hooks/session-start.test.sh`, added after 1.19.9 shipped and deliberately left
+un-re-seeded on the reasoning that a `.test.sh` is copied into the cache but never
+executed from it, so a bump for it alone would denote a release with no behavioural
+change. That entry predicted it would clear on the next real bump. The next real bump was
+1.19.10 (the `reaching-peer-sessions` skill), and a `diff -rq` under the documented
+excludes now returns empty for all three profiles — so the prediction is confirmed rather
+than assumed, and the disposition it argued for is vindicated: waiting cost nothing.
 
 **The April `.orphaned_at` finding recorded here previously is now CLOSED.** It is
 untracked in git and ignored in both plugins that carry one (`codescout-companion/.gitignore:2`),
@@ -158,6 +159,31 @@ measured on both candidate load paths rather than argued: the record points at k
 two actually serves, they carry the same bytes — so the question CLAUDE.md flags as
 unsettled does not need settling for this release.
 ## History
+
+### 2026-09-01 — 1.19.10, and a ⚠ that cleared on schedule
+
+**Delta:** codescout-companion `1.19.9 → 1.19.10` across canonical, readme and all three
+profiles; its `cache = working tree` column moved `⚠ 1 test → ✅` in all three. Every
+other value unchanged.
+
+Shipped the `reaching-peer-sessions` skill — `ListAgents` renders one profile's session
+registry while `SendMessage` delivers over a per-user socket dir, so on this machine it
+reported 3 peers while 12 sessions were live across 3 profiles, 5 of them in the codescout
+checkout and none visible to it.
+
+**The interesting part for this tracker is the ⚠, not the feature.** The 1.19.9 entry
+declined to bump for `hooks/session-start.test.sh` alone, argued a `.test.sh` is cached but
+never executed from the cache, and predicted the drift would clear on the next real bump.
+It did: `diff -rq` under the documented excludes is empty for all three profiles. That is a
+prediction this ledger made and then checked, which is worth more than the green cell —
+**a `⚠` carrying a stated clearing condition is not debt, and this is the evidence for
+treating it that way.** buddy's `headroom-optimization.md` ⚠ is the same shape and still
+open; it clears on buddy's next bump, on the same reasoning.
+
+**Not re-confirmed this refresh:** hook *execution* in any profile. The records-side
+columns and byte-identity are measured; the `cs-redirect` positive control was not re-run,
+so the registration confirmations above remain as of their own dates. `~/.claude-sdd`
+stays unconfirmed.
 ### 2026-08-31 — 1.19.9, and the `cache = working tree ✅` that lasted under a day
 
 Shipped `02ac8f3` (post-compact LSP wording) as `30f8fd8`. Every gate green first time:
