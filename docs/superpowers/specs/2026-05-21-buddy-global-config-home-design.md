@@ -150,4 +150,3 @@ Global memory reads/writes go to `global_memory()` unconditionally. The
   relocating; if any does, it stays per-profile and only the global subset moves.
 - **In-flight summons.log writers** during migration: migration is a manual,
   one-shot operation; run it when no session is actively writing.
-```

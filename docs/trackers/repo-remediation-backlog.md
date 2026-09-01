@@ -9,7 +9,7 @@ tags:
 - doctor
 - remediation
 topic: repo-hygiene
-entry_high_water_RM: 21
+entry_high_water_RM: 22
 entry_prefix: RM
 ---
 
@@ -75,7 +75,9 @@ and no error is raised anywhere.
 Read the prose around line 153 before editing: a stray delimiter and a lost code block
 need opposite repairs.
 
-**Status:** open
+**Status:** fixed-verified 2026-09-01 — line 153 deleted; the file is now 152 lines with 4 fences, all paired (45/54 and 65/70). It was a **stray closer**, not a lost block: `git blame -L 153,153` dates it to `92d290a2`, the file's own creation commit and the same commit as the opener at line 45, and the `## Risks` bullets it followed end as complete prose with no sign of truncation. `doctor`'s `unterminated_fence` count is now 0.
+
+One correction to this entry's own claim: it said `**Valid:**`, `**Rests on:**` and `- **SHA:**` below the fence were being reported as *nothing declared*. Checked — this file contains none of those lines, so nothing was actually being hidden. The repair removes a trap for any future declaration and for any line-anchored scan; it did not recover lost data. `doctor`'s detail text names those fields generically, and this entry read a generic warning as a specific one.
 
 **Valid:** dated 2026-09-01
 
@@ -88,7 +90,11 @@ because a closing fence may carry no info string), 79 (closes it), 83 (opens, un
 Same silent-misparse consequence as `RM-1`. This file is a live prompt surface, so check
 whether anything asserts on its rendered form before editing.
 
-**Status:** open
+**Status:** fixed-verified 2026-09-01 — **and it was not a stray fence.** Line 9 opens the prompt template; line 63's ` ```json ` sits *inside* that block, and since a closing fence may carry no info string, line 79 — evidently meant to close the nested JSON example — closed the outer template instead, leaving line 83 (the template's real end, immediately before `## Notes on this prompt`) to open a block that never closed. Deleting 83, the obvious repair, would have left the template silently truncated at line 79, dropping its own *"The JSON block must be the LAST thing in your response"* instruction from the template body.
+
+Fixed by nesting instead: the outer fences at 9 and 83 are now four backticks, leaving the inner ` ```json `/` ``` ` pair at 63/79 intact. All three fences date to `7606bce7`, the file's creation commit.
+
+Checked what consumes the file before editing, as this entry asked: `eval/promptfoo.yaml:59` loads it as an `llm-rubric` rubric via `file://`, which reads raw contents — so the fences are **not** functional there and this was a parse-level fix only. That check is what surfaced `RM-22`, which is the more interesting question.
 
 **Valid:** dated 2026-09-01
 
@@ -415,6 +421,48 @@ hygiene item; this one is a red suite gating a guard that exists to stop a bad v
 bump reaching `main`.
 
 **Status:** fixed-verified 2026-09-01 — `0495357` (patch-id `d2d3c39398b2cca7c731cbf2bf2934f29e053721`). `make_profiles` now derives its plugin set from the same expression `bumped_plugins` uses, so the fixture cannot name a plugin the guard does not check. Two assertions added and deliberately labelled apart: a fixture write-through (both sides derive from `BUMP_PLUGINS`, so it checks the writer only) and the real tie, which reads the plugin out of the guard's own stderr — the first draft of this fix had only the former and presented it as the tie, which would have been another check computed from the thing it judges. **Verified by mutation:** reintroducing the original defect turns the control and the real tie red (`guard=[] fixture=[codescout-companion]`) while the write-through stays green. `run-all.sh` exits 0, `✓ All suites passed.`, zero `FAIL` lines — read from the exit code, not the trailing tally.
+
+**Valid:** dated 2026-09-01
+
+## RM-22 — Does the judge rubric include the file's own methodology notes?
+
+Found while checking what consumes `eval/judge/prompt.md` before editing it (`RM-2`).
+
+`eval/promptfoo.yaml:59` wires the file in as the rubric for the `llm-rubric`
+assertion:
+
+```yaml
+      rubric:
+        file: file://./judge/prompt.md
+```
+
+A `file://` rubric is loaded as **raw file contents** — promptfoo does not extract
+fenced blocks or strip markdown. So the judge appears to receive all 142 lines,
+including the `## Notes on this prompt` section: the decompose-not-holistic rationale,
+the CoT-before-JSON rationale, and their academic citations (FActScore, RAGAS, MT-Bench).
+That material is *about* the prompt, addressed to whoever maintains it, not to the judge.
+
+**This is a question, not a filed defect.** Two things need establishing before anything
+is changed, and neither is knowable from the YAML alone:
+
+1. Whether promptfoo really passes the whole file through here, or does something with the
+   fenced template. Verify by running one case and reading the rendered rubric the provider
+   actually received — not by reading promptfoo's docs, and not by reading this entry.
+2. Whether it matters. The notes are coherent prose about evaluation methodology; a strong
+   judge may simply ignore them. The frozen baselines under `eval/baselines/frozen/`
+   (`ml-training-takin@v1..v3`) were all produced with the notes present, so if the rubric
+   text changes, those baselines describe a different rubric than the live one — that
+   coupling is the reason not to "tidy" this without measuring.
+
+If it does matter, the fix is to split the methodology notes into a sibling file rather
+than delete them, and to re-freeze a baseline deliberately.
+
+Note the shape: `RM-2` was a parse-level defect in this file and turned out to be
+cosmetic, since the fences are not functional for promptfoo. Checking *why* they might be
+functional is what surfaced this, which is the more interesting question. The scout was
+worth more than the repair it authorised.
+
+**Status:** open
 
 **Valid:** dated 2026-09-01
 

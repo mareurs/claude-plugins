@@ -6,7 +6,7 @@ for every specialist; rubric semantics come from `rubrics/<specialist>.md`.
 
 ## Prompt template
 
-```
+````
 You are evaluating an AI persona named {{specialist}} against a per-case rubric.
 
 [INPUTS]
@@ -80,7 +80,7 @@ After your CoT reasoning, output a single fenced JSON block:
 
 The JSON block must be the LAST thing in your response. Anything after it is
 discarded by the harness.
-```
+````
 
 ## Notes on this prompt
 
