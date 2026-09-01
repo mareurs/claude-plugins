@@ -37,7 +37,7 @@ entry_high_water_F: 5
 | F-2 | 2026-06-12 | med | architectural | fixed-verified | Live ledger probe: compact replay inflates counts (false-advisory risk) + tool_use path missed buddy:* exclusion |
 | F-3 | 2026-06-14 | med | cc-hooks | fixed-verified | codescout-companion read-guard blocks reading back the persisted summon payload |
 | F-4 | 2026-06-14 | high | architectural | fixed-verified | Summon payload overflows the CC hook-output cap; the "fully-loaded" marker is false for all 14 personas |
-| F-5 | 2026-09-01 | high | doc-vs-reality | open | CLAUDE.md says plugin edits are live from the working tree; skills load from `installPath`'s cache dir, so the split shipped to nobody |
+| F-5 | 2026-09-01 | high | doc-vs-reality | fixed-verified | CLAUDE.md says plugin edits are live from the working tree; skills load from `installPath`'s cache dir, so the split shipped to nobody |
 
 ## Wins Index
 
@@ -290,7 +290,7 @@ Note the two channels differ for the *same file*: `reload.py::find_skill_md` sco
 
 **Severity:** high — it inverts the shipping model for skills and commands. Acting on it, a session edits a skill, sees green tests, and reports the change as live to a user while all three profiles keep serving the old bytes. It also masks its own falsity: the editing session is the least representative observer, and the doc labels the claim *verified 2026-08-26* with a real measurement attached.
 
-**Status:** open — measurement recorded; CLAUDE.md not yet corrected. The correction must scope the existing claim to hooks and state the skill/command path separately, rather than reversing it wholesale: the hook half is verified and still true.
+**Status:** fixed-verified 2026-09-01 — both places named in *Fix idea* below are corrected in `8c6711c`, and scoped rather than reversed as this entry required. § *This Machine* now reads *"So a **HOOK** edit in `buddy/` or `codescout-companion/` is live in the working tree immediately"* followed by *"**This holds for hooks and is FALSE for skills and commands**"*; § *Plugin Install Path* carries a two-row per-channel table (hooks → `CLAUDE_PLUGIN_ROOT` → working tree, live immediately; skills/commands → `installPath` → versioned cache dir, needs a release + restart). The hook half is left standing. The load-bearing release ran the same day — `codescout-companion 1.20.0` (`6b700e7`) — and the probe this entry prescribes was re-run against it rather than trusted: all three profile caches now hold the 13,680 B skill and its 4 `references/` files.
 
 **Valid:** dated 2026-09-01
 
