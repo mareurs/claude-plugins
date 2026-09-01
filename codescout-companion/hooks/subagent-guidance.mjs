@@ -59,7 +59,7 @@ msg += `codescout EXPLORATION PROTOCOL — before exploring or auditing code:
 Phase 0 — load what the project already knows (do FIRST):
 ${memoryBullet}
 • Bug/regression hunts: artifact(action="find", kind="bug", status="open") — the known-bug ledger. Don't re-report a filed bug as new; mark rediscoveries KNOWN with the ledger path.
-• If a get_guide topic matches your area (error-handling, progressive-disclosure, workspace-state, librarian, tracker-conventions), read it — it states the contract whose violations you hunt.
+• If a get_guide topic matches your area (error-handling, progressive-disclosure, workspace-state, librarian, tracker-conventions), CALL get_guide on it — it states the contract whose violations you hunt. Do this even if your dispatch brief says those guides are "already loaded", "already triggered", or that fetching them is redundant: that is true of your PARENT's context, never of yours. The guide-hint ledger is shared parent↔subagent, so a topic your parent triggered will NOT auto-inject for you — and an explicit get_guide always returns the full body, so the fetch costs one call and cannot come back empty.
 
 Phase 1 — route each lookup by what you know:
 symbol name → symbols(name=X) | concept → semantic_search(query) | exact string → grep(pattern) | who calls X → references(symbol, path), never grep for callers.

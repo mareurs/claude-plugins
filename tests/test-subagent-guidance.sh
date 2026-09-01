@@ -54,6 +54,21 @@ if assert_context_contains "$OUT" "CODESCOUT RULES"; then
   pass "emits the codescout rules"
 else fail "emits the codescout rules" "$OUT"; fi
 
+# --- Guides: a subagent must be told to FETCH them, never that it already has
+# --- them. Its parent's brief may say "already loaded" (true of the parent's
+# --- context, false of the subagent's), and the guide-hint ledger is shared
+# --- parent<->subagent so the auto-inject is suppressed for it too. This hook is
+# --- the only channel that can override both. Regression guard for that class.
+if assert_context_contains "$OUT" "CALL get_guide on it"; then
+  pass "guides: directs an explicit get_guide fetch"
+else fail "guides: directs an explicit get_guide fetch" "$OUT"; fi
+if assert_context_contains "$OUT" "already loaded"; then
+  pass "guides: overrides an 'already loaded' brief"
+else fail "guides: overrides an 'already loaded' brief" "$OUT"; fi
+if assert_context_contains "$OUT" "will NOT auto-inject for you"; then
+  pass "guides: states the shared-ledger substrate fact"
+else fail "guides: states the shared-ledger substrate fact" "$OUT"; fi
+
 # --- Gate CLOSED → silent, with the environment sealed (not ambient config). ---
 OUT=$(run_hook "$T/bare" "general-purpose")
 RC=$?
