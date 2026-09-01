@@ -217,6 +217,38 @@ def handle_session_start(
         stored_sid = state.get("current_session_id", "")
         prev_start_ts = int(state["signals"].get("session_start_ts", 0))
 
+        # A subagent's own lifecycle event — mutate nothing belonging to the parent.
+        #
+        # `agent_id` is present ONLY when the hook fires from inside a subagent, and
+        # CC's hook input schema is explicit that it is the discriminator: "Use this
+        # field (not agent_type) to distinguish subagents." It is also
+        # source-independent, which the `is_subagent` heuristic below is not: a
+        # subagent's COMPACTION arrives as source="compact" carrying the PARENT's
+        # session_id, so every id and timing check below reads it as the parent
+        # compacting its own session and performs a full signal reset plus a
+        # specialist release — with a dismissal notice the user never earned.
+        # Verified against the 2.1.252 dispatcher, which gates the compact-time
+        # SessionStart only on `agentType==="subagent" && delegatedObservation`, so
+        # an ordinary subagent falls through and fires it.
+        # See docs/issues/2026-09-01-subagent-compaction-fires-parent-session-compact.md
+        #
+        # `startup` is deliberately excluded: a subagent startup carries its OWN
+        # session_id, and the heuristic below is meant to clear that subagent's own
+        # narrative/verdict files. Routing startup here would leak those.
+        if str(event.get("agent_id") or "").strip() and source != "startup":
+            try:
+                trace_root = Path(event.get("cwd") or os.getcwd()) / ".buddy"
+                trace_root.mkdir(parents=True, exist_ok=True)
+                with (trace_root / ".session-start-trace.log").open("a") as f:
+                    f.write(
+                        f"{ts}\tsource={source}\tsid={incoming_sid}"
+                        f"\tagent_id={event.get('agent_id')}"
+                        f"\tSKIPPED=subagent-scoped-event\n"
+                    )
+            except Exception:
+                pass
+            return
+
         # Subagent guard: a "startup" from a different session_id while the
         # current session started <600s ago is a spawned subagent.
         # Only clear the subagent's own session files; leave parent signals alone.

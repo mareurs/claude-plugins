@@ -407,6 +407,52 @@ def test_session_start_compact_releases_active_specialists(tmp_path):
     result = load_state(new_path)
     assert result["active_specialists"] == []
     assert result["parent_sid"] == prev_sid
+def test_session_start_compact_from_subagent_leaves_parent_state_alone(tmp_path, capsys):
+    """A SUBAGENT's compaction must not touch the parent's state.
+
+    Measured 2026-09-01 (docs/issues/2026-09-01-subagent-compaction-fires-parent-
+    session-compact.md): when a subagent runs out of context, Claude Code fires
+    SessionStart source="compact" carrying the PARENT's session_id. The
+    `is_subagent` heuristic cannot catch it — it requires source=="startup" AND a
+    differing sid, and a subagent compact has neither — so the event falls through
+    to the full-signal-reset path and wipes state that is not its own.
+
+    `agent_id` is the documented discriminator. CC's hook input schema:
+    "Subagent identifier. Present only when the hook fires from within a subagent
+    ... Use this field (not agent_type) to distinguish subagents."
+    """
+    from scripts.hook_helpers import handle_session_start
+    from scripts.state import load_state, save_state, default_state
+
+    project = tmp_path
+    sid = "parent-sid"
+
+    parent = default_state()
+    parent["current_session_id"] = sid
+    parent["active_specialists"] = ["debugging-yeti", "prompt-hamsa"]
+    parent["signals"]["cs_active_project"] = "/some/proj"
+    parent["signals"]["root_cwd"] = "/some/proj"
+    parent["signals"]["session_start_ts"] = 1700000000
+    state_path = project / ".buddy" / sid / "state.json"
+    save_state(state_path, parent)
+
+    # A subagent inside this session compacts: source="compact", PARENT's sid,
+    # plus agent_id identifying the subagent.
+    handle_session_start(
+        {"timestamp": 1700000900, "session_id": sid, "source": "compact",
+         "cwd": str(project), "agent_id": "agent-abc123"},
+        path=state_path,
+    )
+
+    result = load_state(state_path)
+    assert result["active_specialists"] == ["debugging-yeti", "prompt-hamsa"], \
+        "a subagent's compaction released the PARENT's specialists"
+    assert result["signals"]["cs_active_project"] == "/some/proj", \
+        "a subagent's compaction reset the PARENT's cs_active_project"
+    assert result["signals"]["root_cwd"] == "/some/proj", \
+        "a subagent's compaction reset the PARENT's root_cwd"
+    assert "buddy:reloaded" not in capsys.readouterr().out, \
+        "a subagent's compaction emitted a reload block into the parent's context"
 
 
 def test_session_start_startup_does_not_carry_active_specialists(tmp_path):
