@@ -148,6 +148,12 @@ Method/Reactions.
 **Predicted impact:** ~−80 tokens × 9 = −720 tokens total; lower risk of degradation;
 same or better tone fidelity. Untested until S-5 is solved.
 
+
+**Valid:** dated 2026-05-15
+
+Measured against the ten-specialist roster of that sweep (~900 tokens across 9 specialists,
+ibex excepted). The roster is now twelve, so the aggregate figure is a lower bound and the
+"except ibex" carve-out has not been re-checked against the two later additions.
 #### S-2 — No I/O contract
 
 **Symptom:** 9 of 10 specialists declare no input shape, no output shape, no escape
@@ -176,6 +182,11 @@ a more apt specialist (e.g. `/buddy:summon <name>`)."*
 
 **Predicted impact:** Cleaner hand-offs, less off-domain hallucination.
 
+
+**Valid:** dated 2026-05-15
+
+"8 of 10" is a count taken at that sweep. Two specialists have been added since, neither
+audited for a soft-scope rule, so the ratio is unknown today — not 8 of 12.
 #### S-4 — Closed-set Reactions without trigger-rationale
 
 **Symptom:** Every specialist closes with ~5 Reactions formatted `trigger→response`.
@@ -191,6 +202,11 @@ when no Reaction matches, derive response from Method + Heuristics."*
 
 **Predicted impact:** Less surface shoehorning on novel inputs. Token cost ~40/specialist.
 
+
+**Valid:** dated 2026-05-15
+
+"Every specialist" meant the ten scanned. Whether the two later additions follow the same
+closed-set Reactions shape is unverified.
 #### S-5 — No eval set (systemic across all 10)
 
 > **CLOSED 2026-08-26 — falsified as stated.** Every specialist now has an eval set:
@@ -235,6 +251,12 @@ Per LLM-lens research, use a 3-judge PoLL panel.
 **Predicted impact:** Unblocks all other fixes. Without eval, every rewrite — including
 S-1, S-2, S-3, S-4, S-6 — is a guess. **This is the highest-leverage single action.**
 
+
+**Valid:** dated 2026-05-15
+
+Declared `dated` rather than left blank precisely because the claim is **falsified** — see the
+CLOSED note above. `dated` is the honest class for a statement that was true of an instant and
+is not true now; it is not a weaker form of `invariant`.
 #### S-6 — Declarative vs interview-style
 
 **Symptom:** All 10 specialists use declarative third-person Voice ("The Snow Lion
@@ -251,6 +273,12 @@ where eval shows measurable improvement.
 **Predicted impact:** Unknown per-specialist; literature suggests a small-but-real
 delta. Strictly gated on S-5.
 
+
+**Valid:** dated 2026-05-15
+
+"All 10" was the roster then. The disposition is `wontfix-with-data`, so this entry is kept as
+a measured negative rather than as pending work — but the measurement itself is of ten
+specialists, not twelve.
 ### Per-specialist unique details
 
 #### #6 — architecture-snow-lion — Heuristic 7 references action with no tool affordance

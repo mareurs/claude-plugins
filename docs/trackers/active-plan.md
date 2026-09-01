@@ -153,6 +153,17 @@ Append-only. Each entry: date, decision-id, what, why, who. Reversals get a new 
 
 **Resolves.** T-37.
 
+
+**Valid:** conditional — `VG-10`'s model-release amendment is applied to this decision
+
+The decision is **in force**, so `invariant` would be wrong in a specific way: `VG-10` in
+`validation-domain-coverage.md` argues the premise is mis-framed — *prompt artifacts decay on
+model release, not on a 90-day clock* — and its replacement text is already drafted and
+waiting on a `D-N` allocation that belongs to this file's owner. So this is true until that
+lands, which is exactly what `conditional` declares.
+
+Note the coupling the *Why* rests on: 90 days was chosen to match `T-35`'s quarterly cadence.
+`T-35` is overdue, so the justification for the number is currently unexercised.
 ### D-7 — 2026-05-15 — Calibration target: strong-panel labels (degraded substitute for human labels)
 
 **Decision.** Substitute the human-label calibration set (originally specified in T-7) with **strong-panel labels**: run a separate, premium-model panel (Opus 4.7 / GPT-5 Pro / Gemini 3.1 Pro Preview) on the same candidate responses and treat the strong panel's majority vote as the gold label. Compute Cohen's κ between the cheap judge panel and the strong panel.
@@ -646,6 +657,19 @@ written for ten specialists and the roster is twelve
 (`roster-audit-session-log:F-2`), and it inherits `#20`'s re-opened length finding
 (`roster-audit-session-log:F-1`).
 
+
+**Valid:** conditional — the widened quarterly hamsa sweep runs
+
+Declared `conditional` rather than `dated` deliberately: this entry is a **standing
+commitment**, and it is already past its cadence date (next due 2026-08-15, overdue as of
+2026-08-26). `librarian(action="doctor")` will therefore surface it under
+`entry_conditional_past_due` — which is the correct outcome, not a false positive. An overdue
+commitment belongs on a worklist; that is what the class is for.
+
+The event is the **widened** sweep, not any sweep: running it at its original scope would
+re-measure ten specialists against a roster of twelve and produce another complete-looking
+audit with a stale denominator (`roster-audit-session-log:F-2`), and it still inherits `#20`'s
+re-opened length finding (`roster-audit-session-log:F-1`).
 #### T-36 — Schedule annual researcher MCP lit refresh
 
 **Cadence:** next 2027-05-15 · **Phase:** 4

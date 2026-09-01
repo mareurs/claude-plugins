@@ -231,7 +231,21 @@ state the class that is actually true — `invariant`, `dated YYYY-MM-DD`, or
 `conditional — <event>`. The check names an entry load-bearing, never "promoted" — that
 judgement is the author's.
 
-**Status:** open
+**Status:** fixed-verified 2026-09-01 — all 7 declared; `entry_cited_from_outside_but_undeclared` is **0**. Each class was chosen from the entry's own content, not stamped uniformly:
+
+| entry | class | why |
+|---|---|---|
+| `S-1` `S-3` `S-4` `S-5` `S-6` | `dated 2026-05-15` | every one is a **count over the roster** — *"8 of 10"*, *"all 10"*, *"~900 tokens across 9 specialists"*. The sweep date is the file's git birth, and the file already says *"All 10 was true when written and is not true now"*. The roster is twelve. |
+| `D-6` | `conditional — VG-10's model-release amendment is applied` | the decision is **in force**, so `invariant` would be wrong in a specific way: `VG-10` argues the premise is mis-framed (artifacts decay on model release, not a 90-day clock) and its replacement text is drafted, waiting on a `D-N` allocation. |
+| `T-35` | `conditional — the widened quarterly hamsa sweep runs` | a standing commitment, already past its cadence date. |
+
+`S-5` is declared `dated` **because it is falsified** — it carries a `CLOSED 2026-08-26` note. `dated` is the honest class for a claim that was true of an instant and is not true now; it is not a weaker `invariant`.
+
+**This did not reduce the violation count, and was not supposed to.** 34 before, 34 after: 7 undeclared became 5 `entry_dated_stale` + 2 `entry_conditional_past_due`. That is the intended direction — a meta-complaint (*"load-bearing and undeclared"*) became specific, actionable worklists (*"these five claims are stale"*, *"these two conditions may have fired"*). Reporting this as "7 violations fixed" would have been the more flattering and less true summary.
+
+The five stale entries are also **coherently downstream of `T-35`**: they are stale *because* they measure ten specialists against a roster of twelve, and re-measuring is precisely what the widened sweep does. One piece of work discharges all five.
+
+`S-2` was deliberately left undeclared — it sits below the citation-exposure threshold, and the guide's own rule is that an entry nothing rests on generates no work.
 
 **Valid:** dated 2026-09-01
 
@@ -402,7 +416,9 @@ the scanner reads a description as a citation, so describing the defect reproduc
 you need the exact string, read it from `librarian(action="doctor")` rather than pasting
 it back in here.
 
-**Status:** open
+**Status:** fixed-verified 2026-09-01 — **resolved from the other end, not by this repo.** Re-checked while closing `RM-9`: `doctor`'s `premature_archive_citation` count fell 1 → 0, and the reason is that codescout's bug file **has since been archived**. `docs/issues/archive/2026-09-01-a-scoped-read-is-billed-the-full-heading-map.md` now exists and the un-archived path does not, so the six citations in `request-aware-response-envelopes.md` that were premature are simply correct.
+
+Worth recording the shape rather than just the outcome: the finding was **legitimate when filed** — a citation naming a path that held no artifact — and it resolved because the *target* moved to meet it, not because anyone repaired the citation. That is the good case of this defect class and also the reason it is dangerous: had the archive never happened, nothing would ever have fired, because the repair sweep is triggered *by* an archive move. Nothing to do here.
 
 **Valid:** dated 2026-09-01
 
