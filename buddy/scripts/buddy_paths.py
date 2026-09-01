@@ -76,3 +76,38 @@ def resolve_project_root(cwd: "str | os.PathLike | None") -> Path:
         if (cand / ".codescout" / "project.toml").is_file():
             return cand
     return start
+
+
+def spill_to_session_dir(
+    payload: str,
+    name: str,
+    project_root: Path,
+    sid: str,
+) -> str | None:
+    """Write a payload to the guard-exempt `.buddy/<sid>/` tree; return its rel path.
+
+    CC's tool-result persistence path truncates hook stdout over its inline cap to a
+    ~2 KB preview with **no `@ref` handle** — measured 2026-09-01 on the compact
+    reload block: 44,702 B emitted, 1,789 B delivered (4.0%), the rest written to a
+    file nothing in context invites the model to fetch. Mirror codescout's core
+    principle — *always buffer, return a compact pointer*: keep stdout tiny, spill the
+    body to a path the read guard already exempts (`*/.buddy/*` in pre-tool-guard),
+    and let the model pull it in one native `Read`.
+
+    Extracted from `summon_bootstrap.spill_payload`, which hit this wall first as F-4
+    on 2026-06-14 and fixed it the same way. The two call sites differ only in
+    filename; keeping one implementation is what stops the atomic-write discipline
+    below drifting between them.
+
+    Returns the project-relative path, or None if the write failed — callers fall back
+    to inlining, because a truncated body still beats no body.
+    """
+    try:
+        out_dir = project_root / ".buddy" / sid
+        out_dir.mkdir(parents=True, exist_ok=True)
+        tmp = out_dir / f".{name}.tmp"
+        tmp.write_text(payload, encoding="utf-8")
+        os.replace(tmp, out_dir / name)
+        return f".buddy/{sid}/{name}"
+    except OSError:
+        return None

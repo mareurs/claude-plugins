@@ -1,7 +1,7 @@
 ---
 id: bc8ffc160e077cc2
 kind: bug
-status: open
+status: fixed
 title: The reload block inlines 45 KB of skill bodies into hook stdout, so CC truncates 96% of it away behind a marker that says it reloaded
 tags:
 - buddy
@@ -150,3 +150,47 @@ line it was asked for — from an instruction that lands in the first 2 KB — a
 
 The one honest signal, `Output too large (43.7KB)`, sits in the model's context and reads
 as routine harness plumbing rather than as a 96% content loss.
+
+
+## Fixed 2026-09-01
+
+`reload.py` gained `INLINE_CAP = 12000` and an over-cap spill; the mechanism was
+extracted from `summon_bootstrap.spill_payload` into
+`buddy_paths.spill_to_session_dir(payload, name, project_root, sid)`, which both paths
+now share. `spill_payload` survives as a thin wrapper because it owns the summon
+*filename* — the two must not write to the same file — and because its signature is what
+its caller and tests use.
+
+The marker and the arrival-line instruction always stay inline; only the bodies spill.
+That split is deliberate and pinned by a test: if the instruction spilled with the bodies,
+a truncated payload would take the arrival line with it and the reload would become
+invisible again — the exact silent failure this closes.
+
+Measured after the fix, via the real `render_reload_block`:
+
+| reloaded | stdout | |
+|---|---|---|
+| reconnaissance | 1,046 B | spilled |
+| prompt-hamsa | 1,044 B | spilled |
+| codescout-pika | 1,046 B | spilled |
+| reconnaissance + debugging-yeti | 1,062 B | spilled |
+| debugging-yeti | 10,339 B | inline |
+
+End-to-end check: 23,297 B written to `.buddy/<sid>/reload-payload-compact.md` while
+stdout carried 1,062 B.
+
+**Cap rationale, and why it is 12,000 rather than 14,056.** The earlier figure came from
+a JSON `additionalContext` PreToolUse hook — a different event and output shape. On *this*
+channel (plain stdout, SessionStart) the only datapoints are 444 B delivered and 21,327 B
+truncated; everything between is unmeasured. 12,000 sits below every observed truncation
+and below the largest observed delivery on any channel. Raising it needs a measurement of
+this channel, not an argument — and `test_inline_cap_stays_within_the_measured_bounds`
+asserts `444 < INLINE_CAP < 21327` so the value cannot drift on reasoning alone.
+
+**Tests: 8 new in `buddy/tests/test_reload.py`** (33 in that file, 524 pytest total,
+`run-all.sh` green). One of them was wrong when written and is worth recording: the spill
+fixtures were sized `INLINE_CAP * 2`, so they scaled with the constant and **all four
+spill tests passed at a cap of 99,999,999**. Fixed by making the fixture size absolute
+(30,000) and adding the cap-bounds test; re-running the same probe now fails three tests,
+which is the discrimination the suite needed. A green test whose fixture is derived from
+the thing it judges is the `R-5` self-validating-gate shape, reproduced here by accident.

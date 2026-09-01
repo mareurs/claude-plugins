@@ -363,3 +363,187 @@ def test_render_dismissal_notice_lists_names_and_instruction():
 def test_render_dismissal_notice_empty_returns_empty():
     from scripts.reload import render_dismissal_notice
     assert render_dismissal_notice([], new_sid="n", prev_sid="p", source="compact") == ""
+
+
+# ── over-cap spill (2026-09-01) ─────────────────────────────────────────────────
+#
+# CC truncates SessionStart hook stdout over its inline cap to a ~2 KB preview with
+# no @ref handle. Measured on a real compaction: 44,702 B emitted, 1,789 B delivered
+# (4.0%), behind a marker reading `buddy:reloaded`. These pin the mitigation.
+# See docs/issues/2026-09-01-reload-block-inlines-45kb-over-the-hook-stdout-cap.md.
+
+
+def _big_skill(plug, directory, size=30000):
+    """A specialist whose body exceeds `size` characters.
+
+    `size` is ABSOLUTE on purpose — never `INLINE_CAP * n`. A fixture sized relative
+    to the constant scales with it, so the spill tests below stay green even if the
+    cap is raised to a value that would re-inline everything in production. Measured
+    2026-09-01: with a relative fixture, all four spill tests passed at a cap of
+    99,999,999. 30,000 sits above the largest real specialist (prompt-hamsa, ~22 KB)
+    and above every plausible cap.
+    """
+    p = plug / "skills" / directory / "SKILL.md"
+    p.parent.mkdir(parents=True, exist_ok=True)
+    p.write_text("# Big\n" + ("filler line to pad the body out.\n" * (size // 33)))
+    return p
+
+
+def test_inline_cap_stays_within_the_measured_bounds():
+    """Pin the cap's VALUE, not just the spill mechanism.
+
+    The spill tests use an absolute fixture, so they prove spilling works — they
+    cannot prove the cap is set anywhere sensible. This does.
+
+    Bounds are the measurements, not preferences (2,369 transcripts / 130,958
+    hook-output samples): on this exact channel — plain stdout, SessionStart — 444 B
+    was observed delivered intact and the smallest truncated sample was 21,327 B.
+    A cap outside that interval is either uselessly small or demonstrably unsafe.
+    Raising it needs a measurement of THIS channel, not an argument.
+    """
+    from scripts.reload import INLINE_CAP
+    assert 444 < INLINE_CAP < 21327, (
+        f"INLINE_CAP={INLINE_CAP} is outside the measured-safe interval (444, 21327)"
+    )
+
+
+def test_render_reload_block_spills_when_over_cap(tmp_path):
+    from scripts.reload import INLINE_CAP, render_reload_block
+    plug = tmp_path / "plug"
+    proj = tmp_path / "proj"
+    proj.mkdir()
+    _big_skill(plug, "prompt-hamsa")
+
+    block = render_reload_block(
+        specialists=["prompt-hamsa"],
+        new_sid="sid-1", prev_sid="prev", source="compact",
+        plugin_root=plug, project_root=proj,
+    )
+    # stdout stays small — this is the whole point
+    assert len(block) < INLINE_CAP
+    assert "payload-file=.buddy/sid-1/reload-payload-compact.md" in block
+    # the body is NOT inline
+    assert "filler line to pad the body out." not in block
+    # ...but it IS on disk, in full, under the guard-exempt path
+    spilled = proj / ".buddy" / "sid-1" / "reload-payload-compact.md"
+    assert spilled.is_file()
+    assert "filler line to pad the body out." in spilled.read_text()
+    assert len(spilled.read_text()) > INLINE_CAP
+    # no leftover temp file
+    assert not list((proj / ".buddy" / "sid-1").glob(".*.tmp"))
+
+
+def test_render_reload_block_spilled_form_keeps_the_arrival_instruction(tmp_path):
+    """The instruction is what makes a reload observable; it must survive the spill.
+
+    If it were spilled with the bodies, a truncated payload would take the arrival
+    line with it and the reload would become invisible — the exact silent failure
+    this mitigation exists to remove.
+    """
+    from scripts.reload import INLINE_CAP, render_reload_block
+    plug = tmp_path / "plug"
+    proj = tmp_path / "proj"
+    proj.mkdir()
+    _big_skill(plug, "prompt-hamsa")
+
+    block = render_reload_block(
+        specialists=["prompt-hamsa"],
+        new_sid="sid-2", prev_sid="prev", source="compact",
+        plugin_root=plug, project_root=proj,
+    )
+    assert "arrives" in block.lower()
+    assert "prompt-hamsa" in block
+    assert "buddy:reloaded" in block
+    assert "sid-2" in block and "prev" in block and "compact" in block
+    # and it tells the model to use native Read, not read_markdown
+    assert "`Read`" in block
+    assert "read_markdown" in block
+
+
+def test_render_reload_block_inlines_when_under_cap(tmp_path):
+    """Under the cap, behaviour is unchanged — no pointer, no file written."""
+    from scripts.reload import render_reload_block
+    plug = tmp_path / "plug"
+    proj = tmp_path / "proj"
+    proj.mkdir()
+    yeti = plug / "skills" / "debugging-yeti" / "SKILL.md"
+    yeti.parent.mkdir(parents=True)
+    yeti.write_text("# Debugging Yeti\nPatient. Methodical.")
+
+    block = render_reload_block(
+        specialists=["debugging-yeti"],
+        new_sid="sid-3", prev_sid="prev", source="compact",
+        plugin_root=plug, project_root=proj,
+    )
+    assert "Patient. Methodical." in block
+    assert "payload-file=" not in block
+    assert not (proj / ".buddy" / "sid-3").exists()
+
+
+def test_render_reload_block_falls_back_to_inline_when_spill_fails(tmp_path):
+    """A failed spill must inline, not drop.
+
+    Truncated-to-2KB is bad; silently emitting nothing after the instruction has
+    promised the user an arrival line is worse.
+    """
+    from scripts.reload import INLINE_CAP, render_reload_block
+    plug = tmp_path / "plug"
+    proj = tmp_path / "proj"
+    proj.mkdir()
+    _big_skill(plug, "prompt-hamsa")
+    # .buddy exists as a FILE, so mkdir of .buddy/<sid> raises OSError
+    (proj / ".buddy").write_text("not a directory")
+
+    block = render_reload_block(
+        specialists=["prompt-hamsa"],
+        new_sid="sid-4", prev_sid="prev", source="compact",
+        plugin_root=plug, project_root=proj,
+    )
+    assert "payload-file=" not in block
+    assert "filler line to pad the body out." in block  # inlined
+    assert "arrives" in block.lower()
+
+
+def test_render_reload_block_no_sid_inlines_rather_than_spilling(tmp_path):
+    """With no session id there is no .buddy/<sid>/ to spill into."""
+    from scripts.reload import INLINE_CAP, render_reload_block
+    plug = tmp_path / "plug"
+    proj = tmp_path / "proj"
+    proj.mkdir()
+    _big_skill(plug, "prompt-hamsa")
+
+    block = render_reload_block(
+        specialists=["prompt-hamsa"],
+        new_sid="", prev_sid="prev", source="compact",
+        plugin_root=plug, project_root=proj,
+    )
+    assert "payload-file=" not in block
+    assert "filler line to pad the body out." in block
+
+
+def test_spill_to_session_dir_is_shared_by_summon_and_reload(tmp_path):
+    """One implementation, two filenames — the two paths must not collide.
+
+    summon_bootstrap.spill_payload delegates here; a second copy of the atomic-write
+    discipline is how the two would drift.
+    """
+    from scripts import buddy_paths
+    from scripts.summon_bootstrap import spill_payload
+    proj = tmp_path / "proj"
+    proj.mkdir()
+
+    a = spill_payload("summon body", "prompt-hamsa", proj, "sid-5")
+    b = buddy_paths.spill_to_session_dir("reload body", "reload-payload-compact.md", proj, "sid-5")
+    assert a == ".buddy/sid-5/summon-payload-prompt-hamsa.md"
+    assert b == ".buddy/sid-5/reload-payload-compact.md"
+    assert a != b
+    assert (proj / a).read_text() == "summon body"
+    assert (proj / b).read_text() == "reload body"
+
+
+def test_spill_to_session_dir_returns_none_on_failure(tmp_path):
+    from scripts import buddy_paths
+    proj = tmp_path / "proj"
+    proj.mkdir()
+    (proj / ".buddy").write_text("not a directory")
+    assert buddy_paths.spill_to_session_dir("x", "y.md", proj, "sid-6") is None

@@ -370,28 +370,24 @@ def build_payload(
         parts.append(bindings)
     return "\n\n".join(parts)
 def spill_payload(payload: str, directory: str, project_root: Path, sid: str) -> str | None:
-    """Write the full payload to the guard-exempt `.buddy/<sid>/` tree.
+    """Write the full summon payload to the guard-exempt `.buddy/<sid>/` tree.
 
-    CC's persisted-output mechanism truncates any hook stdout over its inline
-    cap to a ~2KB preview with NO @ref handle (documented in codescout's
-    docs/superpowers/specs/2026-03-29-onboarding-buffered-output-design.md —
-    codescout hit the identical wall and fixed it the same way). Personas
-    assemble to 18-48KB, so inlining always truncates behind a "fully-loaded"
-    marker. Mirror codescout's core principle — always buffer, return a compact
-    pointer: keep stdout tiny, spill the body to a file the guard already
-    exempts (`*/.buddy/*` in pre-tool-guard.sh), and let the model pull it in
-    one Read. Returns the project-relative path, or None if the write failed.
+    Personas assemble to 18-48KB and CC truncates hook stdout over its inline cap, so
+    inlining always truncates behind a "fully-loaded" marker (F-4, 2026-06-14). Keep
+    stdout tiny and spill the body instead.
+
+    The mechanism now lives in `buddy_paths.spill_to_session_dir`, shared with the
+    compact reload path, which hit the identical wall on 2026-09-01. This wrapper stays
+    because it owns the summon *filename* — the two paths must not write to the same
+    file — and because its signature is what summon_bootstrap's caller and tests use.
+    Returns the project-relative path, or None if the write failed.
     """
-    try:
-        out_dir = project_root / ".buddy" / sid
-        out_dir.mkdir(parents=True, exist_ok=True)
-        name = f"summon-payload-{directory}.md"
-        tmp = out_dir / f".{name}.tmp"
-        tmp.write_text(payload, encoding="utf-8")
-        os.replace(tmp, out_dir / name)
-        return f".buddy/{sid}/{name}"
-    except OSError:
-        return None
+    return buddy_paths.spill_to_session_dir(
+        payload,
+        f"summon-payload-{directory}.md",
+        project_root,
+        sid,
+    )
 
 
 # ---------------------------------------------------------------- tracking

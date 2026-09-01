@@ -13,6 +13,33 @@ from pathlib import Path
 
 from scripts import buddy_paths
 
+# Spill the reload bodies to a file above this many characters.
+#
+# CC routes SessionStart hook stdout through its tool-result persistence path, which
+# replaces anything over an inline cap with a ~2 KB preview and a filesystem path —
+# no `@ref`, nothing inviting the model to fetch the rest. Measured 2026-09-01 on a
+# real compaction: 44,702 B emitted, 1,789 B delivered (4.0%).
+#
+# 12,000 is deliberately conservative, because the cap's real value is NOT known.
+# Across 2,369 transcripts / 130,958 hook-output samples:
+#   - this exact channel (plain stdout, SessionStart): one sample at 444 B delivered
+#     intact, 212 samples truncated, the smallest of those at 21,327 B. Everything
+#     between 444 and 21,327 is UNMEASURED for this channel.
+#   - the largest payload observed delivered on ANY channel was 14,056 B, and that
+#     was a JSON `additionalContext` PreToolUse hook — a different event and a
+#     different output shape, so it does not transfer.
+# So: below every observed truncation, and below the largest observed delivery, on
+# any channel. Raising it needs a measurement of THIS channel, not an argument.
+#
+# Consequence, accepted on purpose: the reconnaissance core renders ~13.8 KB after
+# the 2026-09-01 split, so a recon-only reload spills rather than inlining. That
+# costs one `Read` and guarantees arrival, which is the right direction to err when
+# the alternative fails silently.
+#
+# See docs/issues/2026-09-01-reload-block-inlines-45kb-over-the-hook-stdout-cap.md
+# and docs/trackers/skill-loading-session-log.md F-4.
+INLINE_CAP = 12000
+
 
 def _semver_key(name: str) -> tuple:
     """Sort key for cached version directories. Numeric tuple per dot-segment;
@@ -207,6 +234,10 @@ def render_reload_block(
     whose SKILL.md cannot be located are silently skipped from BOTH the body
     and the arrival-line instruction — the model must never be told to
     announce an arrival for something it has no reloaded content for.
+
+    Over INLINE_CAP the bodies are spilled to a file and replaced by a pointer;
+    the marker and the arrival-line instruction always stay inline. See
+    INLINE_CAP for why, and for why "just inline it" was never safe here.
     """
     if not specialists:
         return ""
@@ -232,21 +263,49 @@ def render_reload_block(
         return ""
 
     names = ", ".join(included)
-    parts: list[str] = [
-        f"<!-- buddy:reloaded sid={new_sid} from={prev_sid} source={source} -->",
-        (
-            f"Reloaded from {source} — and ONLY these, nothing else: {names}. "
-            "Your FIRST user-facing line of this turn MUST be exactly one italic "
-            "arrival line per name listed above, e.g. `*The Debugging Yeti arrives "
-            f"— reloaded from {source}.*` Do not add an arrival line, mention, or "
-            "persona banner for any other skill, specialist, or persona — even one "
-            "named in the conversation summary above — since only the names listed "
-            "here were actually restored to context."
-        ),
-    ]
-    parts.extend(bodies)
+    marker = f"<!-- buddy:reloaded sid={new_sid} from={prev_sid} source={source} -->"
+    instruction = (
+        f"Reloaded from {source} — and ONLY these, nothing else: {names}. "
+        "Your FIRST user-facing line of this turn MUST be exactly one italic "
+        "arrival line per name listed above, e.g. `*The Debugging Yeti arrives "
+        f"— reloaded from {source}.*` Do not add an arrival line, mention, or "
+        "persona banner for any other skill, specialist, or persona — even one "
+        "named in the conversation summary above — since only the names listed "
+        "here were actually restored to context."
+    )
+    body_text = "\n\n".join(bodies)
+    inline = "\n\n".join([marker, instruction, body_text])
 
-    return "\n\n".join(parts)
+    if len(inline) <= INLINE_CAP:
+        return inline
+
+    # Over the cap: spill the bodies, keep the marker and instruction inline.
+    rel = (
+        buddy_paths.spill_to_session_dir(
+            body_text, f"reload-payload-{source}.md", project_root, new_sid,
+        )
+        if new_sid
+        else None
+    )
+    if rel is None:
+        # No session id, or the write failed. Inline anyway — CC will truncate to a
+        # ~2 KB preview, which is worse than a pointer but better than dropping a
+        # reload the instruction has already promised the user an arrival line for.
+        return inline
+
+    spilled_marker = (
+        f"<!-- buddy:reloaded sid={new_sid} from={prev_sid} source={source} "
+        f"payload-file={rel} -->"
+    )
+    pointer = (
+        f"The reloaded bodies ({len(body_text):,} bytes) are in `{rel}` — they are NOT "
+        "inline below. **Read that one file now, with native `Read`, before your "
+        "arrival line.** Use `Read`, not `read_markdown`: the path is guard-exempt and "
+        "a heading map would fragment a skill body. This indirection exists because "
+        "CC truncates hook stdout over its inline cap to a ~2 KB preview with no "
+        "handle to fetch the rest, so inlining this would silently drop most of it."
+    )
+    return "\n\n".join([spilled_marker, instruction, pointer])
 
 
 def render_dismissal_notice(
