@@ -30,6 +30,16 @@ The second is the serious one: the guard's own documented workaround, appearing 
 a command, silently turns the guard off for everything else in that command.
 
 
+## Fix provenance
+
+- **SHA:** `b93b612` — `fix: four open bugs — a cwd is not a project root, a string is not a command`
+- **patch-id:** `10a66d7d19fc493936d28005ad09e9dde8bdf534`
+
+Shared with three sibling bug files closed by the same commit — see
+`buddy-session-dir-treats-cwd-as-project-root` for the note on why the same patch-id appears
+four times. Single parent, so the patch-id is real; it is what still finds the change after
+the SHA orphans on a rebase.
+
 ## Fixed 2026-09-01
 
 The guard now judges **commands**, not the command string. Heredoc bodies are stripped

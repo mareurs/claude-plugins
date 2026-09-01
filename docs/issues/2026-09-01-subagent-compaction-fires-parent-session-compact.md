@@ -48,6 +48,23 @@ exception: re-injected when codescout is the backend"* — so this is a delivery
 not a missing feature.
 
 
+## Fix provenance
+
+- **SHA:** `c982825` — `fix(buddy): a subagent's compaction no longer wipes the parent's session state`
+- **patch-id:** `dd0fa7d04a69a2e43e0b370f69a6a47b5c6e938e`
+
+**This anchor covers consequence 2 (the state clobber) only** — which is exactly the scope
+this file declares, and the reason `## Next — the routing half, deliberately NOT fixed here`
+exists. Do not read the anchor as closing the whole document.
+
+The routing half was later **verified rather than fixed** (`## Verified 2026-09-01`, recorded
+in `2919de0`): routing works, and the payload loss it exposed turned out to be a separate,
+pre-existing delivery defect with its own bug file and its own anchor
+(`reload-block-inlines-45kb-over-the-hook-stdout-cap`, `584d804` + `8c6711c`). Two documents,
+two fixes, one shared symptom — which is why neither anchor belongs in the other file.
+
+Single parent, so the patch-id is real; it is what survives a rebase.
+
 ## Fixed 2026-09-01 — consequence 2 only (the state clobber)
 
 `handle_session_start` now returns immediately, mutating nothing, when the event

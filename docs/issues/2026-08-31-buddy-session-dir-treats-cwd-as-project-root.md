@@ -21,6 +21,21 @@ Both downstream failures are guarded by `exists()` / `except`, so nothing raises
 judge degrades silently.
 
 
+## Fix provenance
+
+- **SHA:** `b93b612` — `fix: four open bugs — a cwd is not a project root, a string is not a command`
+- **patch-id:** `10a66d7d19fc493936d28005ad09e9dde8bdf534`
+
+One commit closed four bugs, so **three sibling bug files carry this same SHA and patch-id**
+(`judge-worker-reads-codescout-memory-not-memories`,
+`summarize-args-destroys-the-path-it-documents-preserving`,
+`worktree-guard-scans-the-whole-command…`). A repeated patch-id across those four is expected,
+not a copy-paste error — it is one change with four consumers.
+
+Recorded as a pair because the patch-id survives a rebase where the SHA does not; measured
+recovery for an orphaned SHA ran 2–153 ambiguous candidates. `b93b612` has one parent, so its
+patch-id is real.
+
 ## Fixed 2026-09-01
 
 A shared resolver, because this file's own warning was that a single call site would not

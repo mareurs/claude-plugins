@@ -345,6 +345,22 @@ curl https://api.kimi.com/v1/usages -H "Authorization: Bearer $KEY"
   `ExtensionAPI`. The PR's harness builds its own handler map, so a wrong event name would leave
   the guard inert with 12/12 green.
 
+## Fix provenance
+
+- **SHA:** `e2d7c48` — `feat(pi): rebuild secret-guard fail-closed; close out citation + zombie-test bugs`
+- **patch-id:** `d611c283317d92e3001bf37b4d5cf3d50bf3f1d7`
+
+**Two SHAs elsewhere in this file are NOT the fix, and should not be mistaken for it.**
+`09170aeba5d9d683305c4ef8371a23eb66d3d14e` is the *head SHA of PR #9 in `mic-urs/codescout`*
+— the artifact under review, not a repair. `ec034a46` is a **codescout-repo** commit carrying
+the earlier `pr-review-session-log` entries (`codescout:F-4`, `codescout:W-3`). Neither is
+resolvable in this repo, and neither closes this bug.
+
+The patch-id is recorded because it survives a rebase where the SHA does not; measured
+recovery for an orphaned SHA ran 2–153 ambiguous candidates. `e2d7c48` has one parent, so it
+has a real patch-id — a merge commit would have none, and `git patch-id` reports that by
+printing nothing and exiting 0.
+
 ## References
 
 - codescout PR #9 — https://github.com/mareurs/codescout/pull/9

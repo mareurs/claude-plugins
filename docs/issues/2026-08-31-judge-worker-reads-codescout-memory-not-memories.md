@@ -26,6 +26,16 @@ This is independent of cwd. It fails on a correctly-resolved project root too, s
 `docs/issues/2026-08-31-buddy-session-dir-treats-cwd-as-project-root.md`.
 
 
+## Fix provenance
+
+- **SHA:** `b93b612` — `fix: four open bugs — a cwd is not a project root, a string is not a command`
+- **patch-id:** `10a66d7d19fc493936d28005ad09e9dde8bdf534`
+
+Shared with three sibling bug files closed by the same commit — see
+`buddy-session-dir-treats-cwd-as-project-root` for the note on why the same patch-id appears
+four times. Single parent, so the patch-id is real; it is what still finds the change after
+the SHA orphans on a rebase.
+
 ## Fixed 2026-09-01
 
 `judge_worker.py` now reads `.codescout/memories` (plural), matching what codescout

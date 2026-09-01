@@ -409,6 +409,34 @@ Ordered by cost-to-benefit, none of it urgent:
   reviewer would check stay flat, so this form is
   invisible in every existing signal.
 
+## Fix provenance
+
+- **SHA:** `d4c31ea` — the close; status flipped to `fixed` here
+- **patch-id:** `02903433a56f8ce31ec7c29cc5bd505f52e0ddd8`
+
+**This was a campaign, not a commit.** The pair above is the close, which is what a sweep
+needs to resolve; the five commits that did the work are below, each with its own patch-id
+so none of them is lost either.
+
+| SHA | patch-id | what |
+|---|---|---|
+| `6e4188c` | `bc0c7ad96d3d60fc3d727d7e28fa003dfd0b7b40` | correct the F-11 transcript figures; land the concurrent session's cross-repo citation work |
+| `e4c16c5` | `79d715f198e023b8a2d8058f036db4237f75c3e3` | archive ten terminal bug files; re-point their 22 citations |
+| `55b284b` | `0300aedef58ed1c06e6bf714b954ea62e0e752ad` | qualify F-N/W-N citations in INDEX + three passovers (84 → 65) |
+| `1e198ed` | `ea3c17c3a9d2d53512a9eae3e0a4f0d1ecd4c04d` | qualify the four judgement-call files; prune one wrong edge |
+| `da4cd36` | `79bd41ecb37cc4ca98c904dfc47071d24ba2ab67` | qualify cross-repo citations on the shipped prompt surface |
+| `d4c31ea` | `02903433a56f8ce31ec7c29cc5bd505f52e0ddd8` | **the close** — status flipped to `fixed` here |
+
+**Two SHAs in the notes above are NOT part of the fix.** `b93b612` appears only because this
+file records that *four other* bug files fixed there introduced no new dangling citations —
+it is a control observation. `fedd7bc` is a concurrent session's then-unpushed commit, named
+as a reason to *hold* an edit rather than as work done. Each is cited for what it tells you
+about the sweep, not as a repair.
+
+Every commit above has one parent, so each patch-id is real. Patch-ids are recorded because
+they survive a rebase where the SHA does not — measured recovery for an orphaned SHA ran
+2–153 ambiguous candidates.
+
 ## Upstream
 
 The generalising half is a **codescout** concern and is already named as unfixed in

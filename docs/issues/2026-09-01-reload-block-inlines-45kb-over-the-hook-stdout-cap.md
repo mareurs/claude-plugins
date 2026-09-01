@@ -9,12 +9,13 @@ tags:
 - reload
 - hook-output-cap
 - silent-degradation
+closed: 2026-09-01
 opened: 2026-09-01
 owner: marius
 related:
 - cefcf09cdccb6f32
 severity: high
-unverified: 'Not fixed — filed only. The proposed 12,000-byte inline cap is derived from a measured bound of (14,056 … 21,327], not from the constant itself: `maxResultSizeChars`/`persistenceThresholdCeiling` were located in the 2.1.252 bundle but their numeric values were not read. Whether JSON `additionalContext` escapes the cap is UNKNOWN and must not be assumed — no JSON sample above the cap exists in 130,958 observations, so shape and size are confounded.'
+unverified: 'The 12,000-byte inline cap is derived from a measured bound of (14,056 … 21,327], not from the constant itself: `maxResultSizeChars`/`persistenceThresholdCeiling` were located in the 2.1.252 bundle but their numeric values were not read. Whether JSON `additionalContext` escapes the cap is UNKNOWN and must not be assumed — no JSON sample above the cap exists in 130,958 observations, so shape and size are confounded. (Discharged 2026-09-01: this field used to open with ''Not fixed — filed only'', which contradicted `status: fixed`. The fix shipped in `584d804` + `8c6711c` and is now verified live end-to-end — see `## Verified live 2026-09-01`. The two clauses above still stand, which is why the field is narrowed rather than cleared.)'
 ---
 
 
@@ -152,6 +153,28 @@ The one honest signal, `Output too large (43.7KB)`, sits in the model's context 
 as routine harness plumbing rather than as a 96% content loss.
 
 
+## Fix provenance
+
+- **SHA:** `8c6711c` — the commit that completed the fix
+- **patch-id:** `491dbf64684d3a420b04d1ab8e47a30e1b10b41c`
+
+Two commits, because the first was scoped to one message and the cap applies to the hook's
+whole stdout. `8c6711c` is the anchor above because it is the one that makes the fix true;
+`584d804` alone was a half-fix.
+
+| SHA | patch-id | what |
+|---|---|---|
+| `584d804` | `7a6daae386fd335c59aace1613cd13d16643b35d` | spill over-cap reload payloads to a file instead of losing 96% |
+| `8c6711c` | `491dbf64684d3a420b04d1ab8e47a30e1b10b41c` | bound the hook's **TOTAL** stdout, not one message; audit the rest |
+
+`584d804` alone was insufficient and its own author said so on re-reading: it checked one
+block's size against the cap, while `handle_session_start` has five writers. `8c6711c` added
+the `reserved` parameter and made the caller render the dismissal notice first so its length
+could be reserved. Recording only the first would anchor to a half-fix.
+
+Both single-parent, so both patch-ids are real. They are recorded because a SHA orphans on a
+rebase and keyword recovery from a subject line measured 2–153 ambiguous candidates.
+
 ## Fixed 2026-09-01
 
 `reload.py` gained `INLINE_CAP = 12000` and an over-cap spill; the mechanism was
@@ -194,3 +217,37 @@ spill tests passed at a cap of 99,999,999**. Fixed by making the fixture size ab
 (30,000) and adding the cap-bounds test; re-running the same probe now fails three tests,
 which is the discrimination the suite needed. A green test whose fixture is derived from
 the thing it judges is the `R-5` self-validating-gate shape, reproduced here by accident.
+
+
+## Verified live 2026-09-01
+
+The fix is now confirmed **end-to-end in production**, on a real main-session `/compact` —
+not a fixture, not a unit test.
+
+Observed in the receiving session's own context:
+
+```
+SessionStart:compact hook success: <!-- buddy:reloaded sid=8232b1a0-… from=unknown
+  source=compact payload-file=.buddy/8232b1a0-…/reload-payload-compact.md -->
+```
+
+followed by the pointer text instructing a native `Read`, and then a successful read of
+**13,335 bytes** of reconnaissance skill body out of that file.
+
+Why this is the observation the record was missing, and not just another green test:
+
+- **It exercised the spill branch, not the inline branch.** 13,335 B exceeds the 12,000 B
+  `INLINE_CAP`, so `render_reload_block` took the path that writes a file and emits a
+  pointer. Pre-fix, a payload this size was truncated to a ~2 KB preview with **no handle to
+  fetch the rest** — roughly 96% dropped behind a marker that claimed a successful reload.
+- **The whole chain ran in a real profile**: hook fired on a genuine `/compact`, wrote to
+  `.buddy/<sid>/`, the pointer survived into the model's context, and the guard-exempt path
+  let the file be read back. Each link had failed at least once during development.
+- **The total-stdout bound held.** The reload block plus the arrival-line instruction plus
+  whatever else `handle_session_start` wrote all fit under the cap together, which is
+  precisely what `8c6711c` added `reserved` for and what `584d804` alone did not do.
+
+**What this does NOT establish**, kept explicit so the record is not read as broader than it
+is: the two caveats in `unverified:` are untouched. The cap is still an empirically bounded
+value rather than a constant read from the bundle, and whether JSON `additionalContext`
+escapes the cap is still unknown and still must not be assumed.

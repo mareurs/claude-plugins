@@ -112,7 +112,9 @@ from a measured bound of (14,056 … 21,327], not from reading `maxResultSizeCha
 evaluated. That half is still exactly true and is the reason the field should not simply
 be cleared.
 
-**Status:** open
+**Status:** fixed-verified 2026-09-01 — the field no longer opens with *"Not fixed — filed only"*, which had contradicted its own `status: fixed`. Narrowed, not cleared: both surviving clauses are still exactly true and are the reason the caveat stays — the cap is an empirically bounded value, not a constant read from the bundle, and whether JSON `additionalContext` escapes the cap remains unknown with shape and size confounded across 130,958 observations. `closed: 2026-09-01` added.
+
+Edited through `artifact(action="update", extra=…)`, not `edit_markdown`'s `frontmatter` param — the file carries a librarian `id:`, so its frontmatter is catalog-indexed and the direct edit is refused. Done before `RM-12` deliberately: archiving a record that says *"Not fixed"* under `status: fixed` would have baked the contradiction into the archive, where nothing re-reads it.
 
 **Valid:** dated 2026-09-01
 
@@ -127,7 +129,9 @@ This is the production observation the record's own caveat says it lacks. Write 
 the bug file (and `skill-loading-session-log` if it belongs there) while the numbers are
 still exact.
 
-**Status:** open
+**Status:** fixed-verified 2026-09-01 — written into the bug file as `## Verified live 2026-09-01`, with the marker line, the pointer, and the 13,335-byte read quoted from the receiving session's own context.
+
+The write-up names what the observation proves and what it does not, because the number alone would over-claim: it establishes that the **spill branch** ran (13,335 B exceeds the 12,000 B `INLINE_CAP`), that the whole chain held in a real profile on a genuine `/compact`, and that the total-stdout bound `8c6711c` added worked — while leaving both `unverified:` caveats explicitly untouched.
 
 **Valid:** dated 2026-09-01
 
@@ -180,7 +184,14 @@ commit at all, say so in `no_fix_commit:` rather than leaving it ambiguous.
 
 Both 2026-09-01 bug files are in this set.
 
-**Status:** open
+**Status:** fixed-verified 2026-09-01 — all 8 anchored; `doctor`'s `terminal_status_without_fix_anchor` is **0** (44 → 36 violations overall). Each fix commit was identified from the bug file's **own git history** (`git log -- <file>`), not guessed from a subject line. Four share `b93b612` (*"fix: four open bugs"*), and that repetition is annotated in place so it does not read as a copy-paste error. Two were campaigns rather than commits and carry every constituent SHA with its own patch-id: the citations bug (six commits, `6e4188c` → `d4c31ea`) and the reload-cap bug (`584d804` was a half-fix, `8c6711c` completed it, so `8c6711c` is the anchor). Every commit is single-parent, so every patch-id is real — a merge would have none and `git patch-id` reports that by printing nothing and exiting 0.
+
+**Three SHAs already in those files were explicitly marked NOT the fix**, because a hash in prose reads as an anchor: `09170aeb…` is the head SHA of a PR in *another* repo (`mic-urs/codescout` #9 — the artifact under review), `ec034a46` is a codescout-repo commit, and `fedd7bc` was a concurrent session's unpushed commit named as a reason to *hold* an edit. `doctor`'s own detail text flags this shape: *"it does not merely lack an anchor, it READS as anchored."*
+
+**Two lessons from doing it, both worth more than the anchors:**
+
+1. **The check reads structure, not the heading.** My first pass gave the two campaign records a `## Fix provenance` section containing a markdown *table*. Both still counted as missing — detection is line-anchored on `- **SHA:**`, so the prettier form was invisible to it. Had I reported from the heading count (`grep -c '^## Fix provenance'` → 1 in every file) I would have claimed 8 of 8 while `doctor` still said 2. Both now lead with the bullet pair and keep the table below it.
+2. **Verify the recorded id resolves, with a negative control.** Built the resolver the convention prescribes (`git log --all -p` → `git patch-id --stable`, via redirects because Iron Law 3 blocks the pipe) and looked up all six: 6/6 found, `deadbeef…` → 0. One lookup first returned 0 — **my grep prefix was mistyped** (`646843` for `64684d`), not the record. Worth noting as the shape it is: a transcription slip in the *check* that would have been read as a defect in the *thing checked*.
 
 **Valid:** dated 2026-09-01
 
