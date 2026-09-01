@@ -1,20 +1,21 @@
 ---
-id:
 kind: bug
-status: open
+status: fixed
 title: A subagent's compaction fires SessionStart source=compact under the PARENT's session id — wiping the parent's session state and routing the recon reload into the subagent
+tags:
+- cluster/shared-resource-carries-no-owner
+- buddy
+- compaction
+- subagents
+- session-state
+closed: 2026-09-01
 opened: 2026-09-01
 owner: marius
-severity: high
-tags:
-  - cluster/shared-resource-carries-no-owner
-  - buddy
-  - compaction
-  - subagents
-  - session-state
-related: []
-unverified: "one thread open and BLOCKED ON A HUMAN: a genuine main-session compaction has never been observed delivering the recon reload end-to-end (needs a real /compact, which a session cannot trigger); restored hookResults are unconfirmed as reaching the model. `fork` handling and agent_id-based subagent detection are both closed."
 partially_fixed: 2026-09-01 — state clobber only, with regression test
+related: []
+severity: high
+spawned: docs/issues/2026-09-01-reload-block-inlines-45kb-over-the-hook-stdout-cap.md
+unverified: 'The subagent-compaction case has a regression test but has NOT been observed live since the fix: `SKIPPED=subagent-scoped-event` count is still 0 across the whole trace log, so the early return has never fired in production. The main-session case IS now measured end-to-end (see § Verified). Spawned defect: the reload payload is truncated to 4% in transit — filed separately, NOT a routing fault.'
 ---
 
 # A subagent's compaction fires `SessionStart source=compact` under the PARENT's session id
@@ -246,3 +247,89 @@ Every layer reads healthy. The hook runs, the trace logs a resolved recon path,
 records that the bytes had no reader. The only way to see it is to compare the trace
 log's compact events against `isCompactSummary` in the transcripts — two files that no
 check joins.
+
+
+## Verified 2026-09-01 — routing CONFIRMED; delivery is a different, pre-existing defect
+
+A genuine main-session `/compact` was run (the one thing a session cannot trigger for
+itself, which is why this thread sat open). Baseline was captured before it.
+
+**Valid:** dated 2026-09-01
+
+**Rests on:** the trace log, the session transcript's own attachment record, and the
+2.1.252 bundle — not on correlation.
+
+### The routing half works
+
+Trace line written by the compaction:
+
+```
+1788265628	source=compact	sid=8232b1a0-…	prev=8232b1a0-…
+            event_cwd=…/codescout-companion/hooks	cs_toml=True
+```
+
+- `source=compact`, `sid` = the **parent's own** id, **no `agent_id` field** → the new
+  early return correctly did NOT fire. `SKIPPED=subagent-scoped-event` count across the
+  entire log: **0**.
+- `cs_toml=True` → `recon_reload` true, block rendered.
+- `isCompactSummary` as a real JSON field: **0 → 1**. Transcript 1356 → 1404 lines.
+- The block reached the **main conversation** — confirmed by the only instrument that
+  can confirm it, the model reading its own context. The earlier worry that restored
+  `hookResults` might reach nothing is refuted.
+
+Incidental first: `event_cwd` was the `codescout-companion/hooks` **subdirectory** while
+`cs_dir` and the trace file resolved to the repo root. That is `resolve_project_root`
+working in production for the first time — the previous compaction had `event_cwd` = repo
+root and never exercised it.
+
+### But only 4% of the payload arrived
+
+From the transcript's own attachment record for the hook (`type: attachment`, line 1380):
+
+| field | value |
+|---|---|
+| `stdout` | **44,702** bytes — what buddy emitted |
+| `content` | **2,080** bytes — what entered the model's context |
+| body after stripping CC's wrapper | **1,789** bytes, a strict prefix of `stdout` |
+| never delivered | **42,913** bytes = **96.0%** |
+
+The preview stops mid-`## When NOT to Use`. Phases 1–4, Stop Conditions, the worked
+exemplars (`F-3`, `W-2`) and the whole recon-patterns tracker protocol never arrived —
+behind a marker that says `buddy:reloaded`.
+
+### Mechanism, read from the bundle
+
+CC's **tool-result persistence** path, not anything hook-specific:
+
+```js
+var O0e = 2000;                          // preview chars
+var Gte = "<persisted-output>";
+function Qce(t) { … `Output too large (${Nt(t.originalSize)}). Full output saved to: …` }
+function N9e(t, e, r = T9) { … return Math.min(e, r) }   // maxResultSizeChars ⊓ ceiling
+```
+
+Scope measured across **2,369 transcripts / 130,958 hook-output samples**:
+
+| hook output shape | n | truncated | max bytes seen |
+|---|---|---|---|
+| JSON (`hookSpecificOutput.additionalContext`) | 122,640 | **0** | 14,056 |
+| plain stdout, SessionStart | 213 | **212** | 44,702 (min truncated 21,327) |
+
+The cap therefore sits in **(14,056 … 21,327]**. Shape alone is not the trigger — one
+444-byte plain-stdout sample passed through untouched.
+
+### This defect was already known, and already fixed on the sibling path
+
+F-4, measured 2026-06-14 and shipped in buddy 0.7.24: `summon_bootstrap.py` gained
+`spill_payload()`, which writes an over-cap payload to guard-exempt
+`.buddy/<sid>/summon-payload-<dir>.md` and emits a compact `payload-file=` pointer —
+codescout's *always buffer, return a pointer* principle.
+`docs/superpowers/specs/2026-06-12-skill-loading-bootstrap-design.md` records it, and in
+the same breath notes `reload.py` took only the **frontmatter-hygiene** half of that work.
+
+`spill_payload` has exactly one call site (`summon_bootstrap.py:469`).
+`hook_helpers.py:437` still does `_sys.stdout.write(block + "\n")`.
+
+So the recon reload has been delivering ~4% of its body on **every** compaction since it
+was written. It is not a routing fault and does not belong to this bug — filed as
+`docs/issues/2026-09-01-reload-block-inlines-45kb-over-the-hook-stdout-cap.md`.
