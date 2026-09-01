@@ -1,7 +1,7 @@
 ---
 id: '65b3320219a8e9c1'
 kind: bug
-status: open
+status: fixed
 title: '76 dangling + 93 ambiguous citations are one remediable class, not a baseline — and the biggest concentration is shipped prompt surface'
 tags:
 - link-graph
@@ -150,6 +150,45 @@ librarian(action="link_scan", scope="project")   # write=false; read dangling_by
 ```
 
 ## Fix
+
+> **2026-09-01 — closed. The remediable class is empty, and the residual 5 are by-design,
+> not debt.** Fresh `link_scan`: dangling **33**, ambiguous **57**, cross_repo **103**
+> (truncated at 60). The counts moved slightly from 32/54/93 because two new bug files and
+> a reconnaissance edit landed from a peer in between — not because anything regressed.
+>
+> **The one item this doc left open was the 5 ambiguous tokens in two shipped SKILL.md
+> files. All five were read in context, and only TWO are citations:**
+>
+> | site | token | disposition |
+> |---|---|---|
+> | `reconnaissance/SKILL.md:100` | `F-2` / `W-3` | **real** cross-repo citation to codescout's `statement-validity-session-log` |
+> | `reconnaissance/SKILL.md:182` | `F-3` | exemplar — "the win that the F-3 scout produced", pointing at the worked example directly above it |
+> | `reconnaissance/SKILL.md:234` | `W-2` | exemplar — inside a sample announcement string, `captured as W-2.` |
+> | `tracker-hygiene/SKILL.md:220` | `F-1` / `W-1` | **generic**, not a citation — "its per-file F-1/W-1 numbering pollutes citation resolution". A sentence about citation pollution, counted as pollution. |
+>
+> Three of five are subclass 1, which this doc's own § *Two subclasses that must NOT be
+> "fixed" the same way* forbids sweeping. They will read ambiguous forever, and that is
+> correct.
+>
+> **The remaining two were deliberately NOT qualified**, and that is a decision rather than
+> an omission. The only correct form for them is `<repo>:<file-stem>:<TOKEN>`, which
+> `get_guide("tracker-conventions")` states has *no supported grammar*: it is "prose only,
+> permanently, not a gap waiting to be filled", retracted and reported, never an edge. So
+> qualifying them moves two findings from the `ambiguous` bucket to the
+> `cross_repo_file_qualified` bucket and produces no link, at a cost of ~90 characters of
+> qualifier in a file that is **loaded into every agent's context** as shipped prompt
+> surface. Bloating a prompt to move a report-only counter is the wrong trade, and that
+> counter was never the thing this doc set out to fix.
+>
+> **The thesis is satisfied regardless**: the claim was that the bulk was one remediable
+> class rather than a baseline, and that a high floor hides a new genuine dangling.
+> Actionable dangling `EntryToken` citations are **zero**. What remains is enumerated here
+> and in the 2026-08-28 note, so a future sweep subtracts it by inspection instead of
+> re-litigating it.
+>
+> Checked while here: none of this session's new files — the `reaching-peer-sessions`
+> skill, the compaction bug, or the four bug files fixed in `b93b612` — appear in
+> `dangling_by_source` or `ambiguous_by_source` at all. The floor did not rise.
 > **2026-08-28 — fresh `link_scan` baseline, and the remediable core is now empty.**
 > `dangling 32` (untruncated total), `ambiguous 54` (truncated — more exist), `cross_repo 93`.
 > Resolved every dangling `EntryToken` source by id. Result: **zero actionable dangling

@@ -9,11 +9,34 @@ tags:
 - wsl
 - node
 - pre-existing-debt
-last_observed: 2026-08-28
+last_observed: 2026-09-01
 unverified: 'Green on ONE machine only (Arch Linux workstation, `archlinux` host, re-confirmed 2026-08-28: 43 suites, 0 FAILs — suite count grew from 41 since the last check). The 16 originally-failing suites were never root-caused. CI still runs 1 of 43 suites, so a recurrence would be unobserved on every OS.'
 ---
 
 ## Summary
+
+> **Re-checked 2026-09-01 on `ripper` — still green. Third consecutive clean
+> observation; kept `zombie`, deliberately not closed.**
+>
+> `./tests/run-all.sh`: **43 suites executed, 0 FAILs** (`grep -c FAIL` over the full run
+> = 0), plus buddy pytest 516 passed. Suite count matches the 2026-08-28 re-check exactly,
+> so nothing was silently dropped from the runner between then and now.
+>
+> **This is a recurrence check, not a fix, and the distinction is the point.** Per
+> `get_guide("tracker-conventions")`, a `zombie` hit in the triage query is a "has this
+> come back?" question rather than a task to pick up — there is no available work here.
+> The 16 originally-failing suites were never root-caused, and they cannot be root-caused
+> from this machine because the failure was environmental: a **fresh Ubuntu WSL** box
+> missing Node. This host is native Arch (`Linux 7.1.9-zen1-2-zen`, hostname `ripper`),
+> which is not the environment in question.
+>
+> **The `unverified:` caveat therefore stands unchanged and must not be softened by this
+> entry.** Green on this machine class is not evidence about WSL, and CI still runs a
+> small fraction of the suites, so a recurrence would remain unobserved on every OS.
+> Closing this on three same-machine greens would be exactly the "negative result that
+> does not name its scope" the ecosystem's own ADR forbids.
+>
+> Re-open trigger unchanged: a non-Arch host, or CI widened to the full suite set.
 
 While releasing the `session-start.mjs` PROJECT BOOTSTRAP nudge fix, ran
 `./tests/run-all.sh` for the first time in a fresh Ubuntu WSL environment.
