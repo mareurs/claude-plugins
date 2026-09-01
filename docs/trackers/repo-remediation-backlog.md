@@ -414,7 +414,7 @@ Full analysis, both measurements, and the fix (parameterise the fixture from
 hygiene item; this one is a red suite gating a guard that exists to stop a bad version
 bump reaching `main`.
 
-**Status:** open
+**Status:** fixed-verified 2026-09-01 — `0495357` (patch-id `d2d3c39398b2cca7c731cbf2bf2934f29e053721`). `make_profiles` now derives its plugin set from the same expression `bumped_plugins` uses, so the fixture cannot name a plugin the guard does not check. Two assertions added and deliberately labelled apart: a fixture write-through (both sides derive from `BUMP_PLUGINS`, so it checks the writer only) and the real tie, which reads the plugin out of the guard's own stderr — the first draft of this fix had only the former and presented it as the tie, which would have been another check computed from the thing it judges. **Verified by mutation:** reintroducing the original defect turns the control and the real tie red (`guard=[] fixture=[codescout-companion]`) while the write-through stays green. `run-all.sh` exits 0, `✓ All suites passed.`, zero `FAIL` lines — read from the exit code, not the trailing tally.
 
 **Valid:** dated 2026-09-01
 

@@ -1,6 +1,6 @@
 ---
 kind: bug
-status: open
+status: fixed
 title: 'pre-push-guard test drifts a different plugin than the guard checks, so its positive control silently went green-to-red'
 tags:
   - tests
@@ -9,6 +9,7 @@ tags:
   - fixture-unreachable
   - positive-control
 last_observed: 2026-09-01
+closed: 2026-09-01
 ---
 
 # `test-pre-push-guard.sh`'s parity fixture drifts one plugin while the guard checks another
@@ -108,6 +109,53 @@ divergence is silent in exactly this way.
 Consider also whether `run-all.sh`'s final line should be harder to misread — see
 *Related* below.
 
+## Fix provenance
+
+- **SHA:** `049535752c9fea41a7cf7aacc6b58e7200b6a589` (`main`)
+- **patch-id:** `d2d3c39398b2cca7c731cbf2bf2934f29e053721` (`git show <sha> | git patch-id --stable`)
+
+The patch-id is recorded alongside the SHA because the SHA orphans on a rebase and
+keyword recovery from a subject line measured 2–153 ambiguous candidates. Resolve it with
+redirects rather than pipes:
+
+```
+git log --all -p > /tmp/all.patch
+git patch-id --stable < /tmp/all.patch > /tmp/patch-ids.txt
+grep d2d3c39398b2 /tmp/patch-ids.txt
+```
+
+## Fixed 2026-09-01
+
+`make_profiles` now takes a mode (`stale` | `canonical`) and writes a record for **every**
+plugin in `BUMP_PLUGINS`, derived with the same expression `bumped_plugins` uses, at each
+plugin's own canonical version. The fixture can no longer name a different plugin than the
+guard checks.
+
+Two assertions were added, deliberately separate:
+
+- **fixture write-through** — a record exists for every plugin in `BUMP_PLUGINS`. Both
+  sides derive from `BUMP_PLUGINS`, so this checks the fixture *writer* and nothing more.
+  It is labelled that way in the file: the first version of this fix presented it as *the*
+  tie, which would have been a check computed from the thing it judges — the very class
+  this file now guards.
+- **the real tie** — the plugin named in the guard's own stderr must equal the set the
+  fixture drifted. Left side from executing the hook, right side from the test's own
+  derivation, so a future divergence fails and names both.
+
+**Verified by mutation, not by the green alone.** Forcing `BUMP_PLUGINS=codescout-companion`
+after derivation reintroduces the exact original defect; the control and the real tie both
+go red (`guard=[] fixture=[codescout-companion]`) while the write-through check stays
+green, confirming the labelling is accurate.
+
+`bash tests/test-pre-push-guard.sh` → **19 passed, 0 failed**. `./tests/run-all.sh` →
+**exit 0**, `✓ All suites passed.`, zero `FAIL` lines — checked by exit code, which is the
+only unambiguous signal here (see *Related*).
+
+**Not addressed, deliberately:** `release.sh` still runs the suite at step 0, before its
+own bump commit, so a release still cannot observe the state it creates. That ordering is
+correct for its own reasons — gating after the bump would abort a release on the drift the
+release repairs. The fixture no longer depends on it, so the hazard is closed at the fixture
+rather than at the ordering.
 ## Related
 
 - **`roster-audit-session-log:F-14`** — same session, same reporting hazard: I first read
