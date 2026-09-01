@@ -1,10 +1,11 @@
 ---
 kind: bug
-status: open
+status: fixed
 title: summarize_args destroys the path it documents preserving, because a blind 200-char tail cut lands on whichever key the caller happened to put last
 opened: 2026-09-01
 owner: marius
 severity: med
+closed: 2026-09-01
 ---
 
 ## Summary
@@ -26,6 +27,28 @@ Whether `path` survives is therefore decided by **where the caller's JSON happen
 it**. An `edit_file` call written as `{path, old_string, new_string}` keeps its path; the
 same call written as `{new_string, old_string, path}` loses it.
 
+
+## Fixed 2026-09-01
+
+`summarize_args` now emits `path` / `file_path` **first**, so the record-level cut is
+structurally out of reach of them, and that cut carries the same `...` marker the
+per-value cut always had. A path is therefore either verbatim or explicitly marked —
+never silently a prefix.
+
+Three regression tests, and the first two exist because the old fixture could not reach
+the defect:
+
+- `test_summarize_args_preserves_path_when_it_is_the_last_key` — key order is annotated
+  in the docstring as the point of the test, since the pre-existing fixture put `path`
+  first, the one ordering under which the bug cannot fire.
+- `test_summarize_args_protects_file_path_spelling_too` — **this one was wrong when
+  first written**: with a single long value the record stayed under 200 chars, so it
+  passed without exercising any protection. It now puts three long values ahead of
+  `file_path` so the budget is exhausted before reaching it.
+- `test_summarize_args_record_truncation_carries_a_marker` — asserts both directions, so
+  "cut" and "short" are distinguishable.
+
+As this file notes, the fix is forward-only: the 297 logs on disk stay as measured.
 ## Symptom (Effect)
 
 Measured across this machine's 297 `cs_tool_log.jsonl` files, over the **1,920** records

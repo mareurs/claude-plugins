@@ -7,7 +7,7 @@
 // Copilot). A non-zero exit is never used to deny — on Copilot CLI a non-zero
 // PreToolUse exit is itself a deny, so a crash would block the user's tool.
 import { readFileSync, existsSync, mkdirSync, writeFileSync, readdirSync, statSync, unlinkSync, renameSync } from 'node:fs';
-import { join, isAbsolute } from 'node:path';
+import { join, isAbsolute, dirname, resolve as resolvePath } from 'node:path';
 import { homedir, tmpdir } from 'node:os';
 import { createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
@@ -88,6 +88,48 @@ export function detectFor(cwd) {
     return { HAS_CODESCOUT: 'false', BLOCK_READS: 'false' };
   }
 }
+// Resolve a session cwd UP to the nearest enclosing project root.
+//
+// A cwd is not a project root. Hooks that build state paths as `join(cwd, …)`
+// plant that state in whatever subdirectory the session happened to start in —
+// observed live as `codescout/docs/issues/.codescout/constitution-seen/<sid>.json`
+// and a sibling stray `.buddy/<sid>/`, while the same session's canonical
+// directories at the repo root were also being written. One session, state split
+// across two places.
+//
+// This is the Node twin of buddy_paths.resolve_project_root; the two MUST agree,
+// because they resolve the same event["cwd"] for the same session and a
+// disagreement puts one plugin's markers where the other cannot see them.
+// Markers, nearest ancestor wins: `.git` (a FILE in a linked worktree, so
+// existsSync, not a directory test) or `.codescout/project.toml`. Falls back to
+// the starting directory when neither is found — so a non-repo cwd behaves
+// exactly as before.
+//
+// docs/issues/2026-08-31-buddy-session-dir-treats-cwd-as-project-root.md
+export function resolveProjectRoot(cwd) {
+  let dir;
+  try {
+    dir = resolvePath(cwd || process.cwd());
+  } catch {
+    return cwd || process.cwd();
+  }
+  for (;;) {
+    try {
+      if (existsSync(join(dir, '.git'))) return dir;
+      if (existsSync(join(dir, '.codescout', 'project.toml'))) return dir;
+    } catch {
+      return dir;
+    }
+    const parent = dirname(dir);
+    if (parent === dir) break; // filesystem root
+    dir = parent;
+  }
+  try {
+    return resolvePath(cwd || process.cwd());
+  } catch {
+    return cwd || process.cwd();
+  }
+}
 
 // `git -C <cwd> <args...>` → trimmed stdout, or null on error / non-zero exit.
 export function git(cwd, args) {
@@ -109,7 +151,7 @@ export function emitSkillHint(cwd, sessionId, topic, hint) {
     emit({});
     return;
   }
-  const markerDir = join(cwd, '.buddy', sessionId);
+  const markerDir = join(resolveProjectRoot(cwd), '.buddy', sessionId);
   const marker = join(markerDir, `hint-emitted-${topic}`);
   if (existsSync(marker)) {
     emit({});

@@ -1,10 +1,11 @@
 ---
 kind: bug
-status: open
+status: fixed
 title: git-worktree-guard regexes the whole command string, so a heredoc body blocks and a mentioned escape disarms
 opened: 2026-09-01
 owner: marius
 severity: med
+closed: 2026-09-01
 ---
 
 ## Summary
@@ -28,6 +29,34 @@ the real hook:
 The second is the serious one: the guard's own documented workaround, appearing anywhere in
 a command, silently turns the guard off for everything else in that command.
 
+
+## Fixed 2026-09-01
+
+The guard now judges **commands**, not the command string. Heredoc bodies are stripped
+first (`<<`, `<<-`, quoted or bare delimiters), then the remainder is split on `;`, `&&`,
+`||`, `|` and newlines, and trigger plus exemptions are evaluated per segment.
+
+Two deliberate choices, both departures from this file's fix sketch:
+
+- **Splitting is quote-naive on purpose.** A mis-split only ever produces *smaller*
+  segments, which makes an exemption less likely to co-occur with a trigger — it fails
+  toward blocking, never toward allowing. Full quote parsing would buy precision in the
+  direction that does not matter.
+- **`cd` sets state for LATER segments, rather than being an adjacency rule.** The naive
+  reading of "apply per segment" breaks the guard's own documented workaround, because
+  `&&` is itself a split point: `cd /p && git commit && git push` would have blocked on
+  `git push`. A `cd` persists for the rest of the shell invocation, so it exempts
+  everything after it — and nothing before it, since `git commit && cd /p` really did run
+  the commit in the ambiguous cwd. Both directions are pinned by tests.
+
+Eight cases added to `tests/test-git-worktree-guard.sh` (32 passing, 24 pre-existing).
+All assert on stdout, per this file's warning that the hook always exits 0 — including
+the three the file asked for and five it did not: a `<<-` body, a real mutation
+*following* a heredoc (so the strip cannot become a blanket escape), a quoted mention of
+the `cd` escape, and the two `cd`-ordering directions above.
+
+The deny message now names the offending segment, so a block says which command it
+judged.
 ## Symptom (Effect)
 
 Blocked while writing a test file for `codescout:tests/hooks-discrimination.sh` — a suite

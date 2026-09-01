@@ -139,4 +139,87 @@ else
   fail "regression: MRV-poc commit-on-wrong-branch denied" "$OUT"
 fi
 
+# === SEGMENTATION: a heredoc body is DATA, not command text ===
+# docs/issues/2026-09-01-worktree-guard-scans-the-whole-command-so-a-heredoc-blocks-and-a-mention-disarms.md
+# Half (a): the guard used to scan the whole command string, so writing a test
+# fixture that CONTAINS `git commit` was unwritable through Bash.
+
+HEREDOC_CMD="cat > $TMP/fixture.sh <<'OUTER'
+git commit -qm base
+git add -A
+git reset --hard HEAD~1
+OUTER"
+OUT=$(guard_input "Bash" "$MAIN" "$HEREDOC_CMD" | node "$HOOK" 2>/dev/null)
+if ! assert_denied "$OUT"; then
+  pass "allows: git verbs inside a heredoc body (data, not command)"
+else
+  fail "allows: git verbs inside a heredoc body" "$OUT"
+fi
+
+# Unquoted and tab-indented (<<-) delimiters strip too.
+HEREDOC_CMD2="cat > $TMP/f2.sh <<-EOF
+	git push origin main
+	EOF"
+OUT=$(guard_input "Bash" "$MAIN" "$HEREDOC_CMD2" | node "$HOOK" 2>/dev/null)
+if ! assert_denied "$OUT"; then
+  pass "allows: git verbs inside a <<- heredoc body"
+else
+  fail "allows: git verbs inside a <<- heredoc body" "$OUT"
+fi
+
+# A heredoc must not become a blanket escape: a REAL bare mutation after the
+# body still blocks.
+HEREDOC_THEN_COMMIT="cat > $TMP/f3.sh <<'EOF'
+git commit -qm data
+EOF
+git commit -m real"
+OUT=$(guard_input "Bash" "$MAIN" "$HEREDOC_THEN_COMMIT" | node "$HOOK" 2>/dev/null)
+if assert_denied "$OUT"; then
+  pass "denies: bare mutation following a heredoc body"
+else
+  fail "denies: bare mutation following a heredoc body" "$OUT"
+fi
+
+# === SEGMENTATION: the escape must not travel between commands ===
+# Half (b)/(c) — the serious half. The guard's own documented workaround used to
+# disarm it for everything else in the same call, and a quoted MENTION sufficed.
+
+OUT=$(guard_input "Bash" "$MAIN" "git -C $MAIN/.worktrees/feature commit -m a && git commit -m b" | node "$HOOK" 2>/dev/null)
+if assert_denied "$OUT"; then
+  pass "denies: bare commit chained after an explicit -C commit"
+else
+  fail "denies: bare commit chained after an explicit -C commit" "$OUT"
+fi
+
+OUT=$(guard_input "Bash" "$MAIN" "echo 'see git -C x commit' ; git commit -m b" | node "$HOOK" 2>/dev/null)
+if assert_denied "$OUT"; then
+  pass "denies: a quoted mention of the -C escape does not disarm the guard"
+else
+  fail "denies: a quoted mention of the -C escape does not disarm the guard" "$OUT"
+fi
+
+OUT=$(guard_input "Bash" "$MAIN" "echo 'cd /somewhere && git commit' ; git commit -m b" | node "$HOOK" 2>/dev/null)
+if assert_denied "$OUT"; then
+  pass "denies: a quoted mention of the cd escape does not disarm the guard"
+else
+  fail "denies: a quoted mention of the cd escape does not disarm the guard" "$OUT"
+fi
+
+# A cd persists for the rest of the invocation, so LATER verbs stay exempt —
+# an adjacency-only rule would have regressed this.
+OUT=$(guard_input "Bash" "$MAIN" "cd $MAIN/.worktrees/feature && git commit -m a && git push" | node "$HOOK" 2>/dev/null)
+if ! assert_denied "$OUT"; then
+  pass "allows: every verb after a chained cd, not just the adjacent one"
+else
+  fail "allows: every verb after a chained cd, not just the adjacent one" "$OUT"
+fi
+
+# ...but a verb BEFORE the cd really did run in the ambiguous cwd.
+OUT=$(guard_input "Bash" "$MAIN" "git commit -m a && cd $MAIN/.worktrees/feature" | node "$HOOK" 2>/dev/null)
+if assert_denied "$OUT"; then
+  pass "denies: a mutation preceding the cd it appears to be paired with"
+else
+  fail "denies: a mutation preceding the cd it appears to be paired with" "$OUT"
+fi
+
 print_summary "git-worktree-guard"

@@ -3,7 +3,7 @@
 // compaction. Port of constitution-epoch-bump.sh. No-op if no state file exists.
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { readInput } from './lib.mjs';
+import { readInput, resolveProjectRoot } from './lib.mjs';
 
 const input = readInput();
 if (!input) process.exit(0);
@@ -12,7 +12,10 @@ const sessionId = input.session_id || '';
 if (!sessionId) process.exit(0);
 
 const cwd = input.cwd || process.cwd();
-const stateFile = join(cwd, '.codescout', 'constitution-seen', `${sessionId}.json`);
+// Resolve cwd to the project root: a session started in a subdirectory used to
+// plant a stray .codescout/constitution-seen/ there, invisible to the root one.
+// docs/issues/2026-08-31-buddy-session-dir-treats-cwd-as-project-root.md
+const stateFile = join(resolveProjectRoot(cwd), '.codescout', 'constitution-seen', `${sessionId}.json`);
 if (!existsSync(stateFile)) process.exit(0); // nothing has fired this session
 
 let state;

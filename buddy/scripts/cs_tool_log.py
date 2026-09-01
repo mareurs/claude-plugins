@@ -88,13 +88,35 @@ def summarize_args(tool_input: dict) -> str:
 
     Keeps the log token-efficient: file paths preserved, large string
     values truncated.
+
+    `path` / `file_path` are emitted FIRST, and the record-level cut carries a
+    marker. Both matter, and neither used to hold: the cut was a blind `[:200]`
+    on the joined string, so whether the path survived was decided by where the
+    caller's JSON happened to put it. Measured over 1,920 write records on this
+    machine, 11.5% carried no `path=` at all and 147 named a path that does not
+    exist on disk — well-formed prefixes like `src/serve`, unmarked, which a
+    consumer will happily match. A path is now either verbatim or explicitly
+    marked, never silently a prefix.
+    See docs/issues/2026-09-01-summarize-args-destroys-the-path-it-documents-preserving.md
     """
     if not isinstance(tool_input, dict):
         return str(tool_input)[:100]
 
-    parts = []
-    for key, val in tool_input.items():
+    PATH_KEYS = ("path", "file_path")
+
+    def render(key, val):
         if isinstance(val, str) and len(val) > 80:
             val = val[:77] + "..."
-        parts.append(f"{key}={val}")
-    return ", ".join(parts)[:200]
+        return f"{key}={val}"
+
+    # Path keys first: the record-level cut below trims the tail, so anything
+    # placed first is structurally out of its reach.
+    parts = [render(k, tool_input[k]) for k in PATH_KEYS if k in tool_input]
+    parts += [render(k, v) for k, v in tool_input.items() if k not in PATH_KEYS]
+
+    out = ", ".join(parts)
+    if len(out) > 200:
+        # Same self-marking contract the per-value cut above has, so a consumer
+        # can tell "this record was cut" from "this value was short".
+        out = out[:197] + "..."
+    return out

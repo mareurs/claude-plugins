@@ -13,7 +13,7 @@ tags:
   - subagents
   - session-state
 related: []
-unverified: "the routing half is unfixed: a genuine main-session compaction has never been observed delivering the recon reload end-to-end; `fork` is unhandled; restored hookResults are unconfirmed as reaching the model"
+unverified: "one thread open and BLOCKED ON A HUMAN: a genuine main-session compaction has never been observed delivering the recon reload end-to-end (needs a real /compact, which a session cannot trigger); restored hookResults are unconfirmed as reaching the model. `fork` handling and agent_id-based subagent detection are both closed."
 partially_fixed: 2026-09-01 — state clobber only, with regression test
 ---
 
@@ -82,37 +82,44 @@ Suites after the fix: buddy pytest **503 passed** (502 + this one), `tests/run-a
 
 ## Next — the routing half, deliberately NOT fixed here
 
-The fix above stops a subagent's compaction from damaging the parent. It does **not**
-address where a reconnaissance reload should go, and after the fix the situation is
-narrower than this file originally described:
+The state clobber is fixed above. Of the three follow-up threads this section originally
+listed, **two are now closed** and one remains.
 
-- **Subagent compaction:** nothing is emitted now. Correct — a subagent that just ran
-  out of context is the last place to inject a 45 KB skill body, and the parent did not
+**Closed 2026-09-01 — `fork` is handled.** The enum is
+`["startup","resume","clear","compact","fork"]`; buddy knew four. `fork` now takes
+**resume** semantics — carry specialists forward, emit nothing — and the schema decides
+that rather than taste: `seconds_since_last_response` and `context_tokens` are both
+documented *"resume/fork: … the resumed transcript's last response"*, so a fork has a
+restored transcript and the persona bodies are already present. Pinned by
+`test_session_start_fork_behaves_like_resume`.
+
+**Closed 2026-09-01 — `agent_id` is now the primary subagent test, and it caught a
+second defect.** The old heuristic required `ts - prev_start_ts < 600`, so a subagent
+dispatched **more than ten minutes into a session** was read as a brand-new top-level
+session and reset the parent's signals — a live bug in its own right, not merely an
+inelegance, and one this file did not predict. `agent_id` carries no time bound. The
+timing heuristic is retained as a fallback for builds that do not send the field. Pinned
+by `test_session_start_subagent_startup_detected_by_agent_id_beyond_the_600s_window`.
+
+**Still open — where a reload should route on a GENUINE main-session compaction.**
+
+- Subagent compaction now emits nothing, which is correct: a subagent that just ran out
+  of context is the last place to inject a 45 KB skill body, and the parent did not
   compact, so it needs no reload.
-- **Genuine main-session compaction:** the existing path is *believed* to work. The
-  emit is proven (44,964 bytes) and `hookResults` are proven to be restored into the
-  compacted context by the dispatcher. **It has never been observed end-to-end**,
-  because no genuine main-session compaction occurred in the measured window — the
-  only `source=compact` event in 24 h was subagent-induced. That is the gap to close
-  next, and it needs a real `/compact` in a session with codescout as the backend,
-  then a transcript check for `buddy:reloaded`.
+- The main-session path is *believed* to work. The emit is proven (44,964 bytes) and the
+  dispatcher provably restores `hookResults` into the compacted context. **It has never
+  been observed end-to-end**, because no genuine main-session compaction occurred in the
+  measured window — every `source=compact` event in 24 h was subagent-induced.
 
-Three further threads, each independent and each unverified:
+Closing it needs a real `/compact` in a session with codescout as the backend, followed
+by a transcript check for `buddy:reloaded`. **That cannot be triggered from inside a
+session** — `/compact` is the user's command — so this thread is blocked on a human, not
+on analysis.
 
-1. **`fork` is unhandled.** The 2.1.252 schema enum is
-   `["startup","resume","clear","compact","fork"]`. buddy's comment and code both
-   speak of four values; `fork` falls through to the full-signal-reset path with no
-   specialist handling and no reload. Nobody has looked at what a fork should do.
-2. **The `is_subagent` startup heuristic is now known to be second-best.** It infers a
-   subagent from `source == "startup"` + a differing sid + `ts - prev_start_ts < 600`.
-   `agent_id` is authoritative and would replace all three conjuncts. Not changed here
-   because that branch has tested behaviour (it clears the subagent's own files) and
-   swapping its predicate is a separate change with its own regression surface.
-3. **Whether restored `hookResults` actually reach the model is unconfirmed.** They are
-   folded into the compaction result, but they appear in no transcript — so the
-   delivery claim rests on the code path. Any work on item 1 above should settle this
-   first, since a reload that is generated and silently dropped looks identical to one
-   that worked.
+Settle this first while doing it: restored `hookResults` appear in **no** transcript, so
+"the reload reached the model" currently rests on the code path alone. A reload that is
+generated and silently dropped looks identical to one that worked, which is the same
+class of silence as the original defect.
 ## Measured 2026-09-01
 
 Session `8232b1a0-0e5f-4a61-bb44-805ec8190b81` (`~/.claude-kat`), which spawned five

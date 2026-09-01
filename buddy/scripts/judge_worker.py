@@ -87,9 +87,16 @@ def assemble_context(
     except Exception:
         plan_content = None
 
-    # Load project constraints from codescout memories
+    # Load project constraints from codescout memories.
+    # `memories`, PLURAL — codescout writes `.codescout/memories/` and
+    # codescout-companion's detect.py:145 agrees. This read said `memory` until
+    # 2026-09-01, so the constraints list was empty on every machine and every
+    # cwd; the exists() guard below made that indistinguishable from a project
+    # with no memories, and the judge returned plausible verdicts made without
+    # the three documents most likely to change them.
+    # See docs/issues/2026-08-31-judge-worker-reads-codescout-memory-not-memories.md
     constraints_parts = []
-    memory_dir = project_root / ".codescout" / "memory"
+    memory_dir = project_root / ".codescout" / "memories"
     for name in ("conventions", "gotchas", "architecture"):
         mem_file = memory_dir / f"{name}.md"
         if mem_file.exists():

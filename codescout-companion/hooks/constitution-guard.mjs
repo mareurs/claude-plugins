@@ -7,7 +7,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { execFileSync } from 'node:child_process';
-import { readInput, denyPreToolUse } from './lib.mjs';
+import { readInput, denyPreToolUse, resolveProjectRoot } from './lib.mjs';
 
 const DEFAULT_STATE = { epoch: 0, seen_path_rules: [], global_surfaced_epoch: -1 };
 
@@ -42,7 +42,10 @@ try {
 }
 if (!Array.isArray(matches) || matches.length === 0) process.exit(0);
 
-const stateFile = join(cwd, '.codescout', 'constitution-seen', `${sessionId}.json`);
+// Resolve cwd to the project root: a session started in a subdirectory used to
+// plant a stray .codescout/constitution-seen/ there, invisible to the root one.
+// docs/issues/2026-08-31-buddy-session-dir-treats-cwd-as-project-root.md
+const stateFile = join(resolveProjectRoot(cwd), '.codescout', 'constitution-seen', `${sessionId}.json`);
 let state = { ...DEFAULT_STATE };
 if (existsSync(stateFile)) {
   try {

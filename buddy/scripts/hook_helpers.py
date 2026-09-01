@@ -237,7 +237,7 @@ def handle_session_start(
         # narrative/verdict files. Routing startup here would leak those.
         if str(event.get("agent_id") or "").strip() and source != "startup":
             try:
-                trace_root = Path(event.get("cwd") or os.getcwd()) / ".buddy"
+                trace_root = buddy_paths.resolve_project_root(event.get("cwd")) / ".buddy"
                 trace_root.mkdir(parents=True, exist_ok=True)
                 with (trace_root / ".session-start-trace.log").open("a") as f:
                     f.write(
@@ -249,15 +249,24 @@ def handle_session_start(
                 pass
             return
 
-        # Subagent guard: a "startup" from a different session_id while the
-        # current session started <600s ago is a spawned subagent.
+        # Subagent guard. `agent_id` is authoritative and unbounded in time — CC's
+        # hook schema: "Present only when the hook fires from within a subagent".
+        # The timing heuristic below remains as the FALLBACK for builds that do not
+        # send the field, but it cannot stand alone: it requires
+        # `ts - prev_start_ts < 600`, so a subagent dispatched eleven minutes into a
+        # long session was read as a brand-new top-level session and reset the
+        # parent's signals.
         # Only clear the subagent's own session files; leave parent signals alone.
+        from_subagent = bool(str(event.get("agent_id") or "").strip())
         is_subagent = (
-            source == "startup"
-            and stored_sid
-            and incoming_sid
-            and incoming_sid != stored_sid
-            and ts - prev_start_ts < 600
+            (from_subagent and source == "startup")
+            or (
+                source == "startup"
+                and stored_sid
+                and incoming_sid
+                and incoming_sid != stored_sid
+                and ts - prev_start_ts < 600
+            )
         )
         if is_subagent:
             if narrative_path:
@@ -309,9 +318,12 @@ def handle_session_start(
         # Specialist handling on resume/compact. Specialists are persona
         # instructions the model loaded via `Read` of SKILL.md, so they live in
         # the conversation transcript — NOT as Skill-tool skills.
-        #   - resume: `claude --resume` restores the full transcript, so the
-        #     bodies are already present. Re-injecting would duplicate them.
-        #     Carry active_specialists forward (statusline continuity), emit nothing.
+        #   - resume / fork: the transcript is restored, so the bodies are already
+        #     present. Re-injecting would duplicate them. Carry active_specialists
+        #     forward (statusline continuity), emit nothing. `fork` belongs here on
+        #     the schema's own evidence: `seconds_since_last_response` and
+        #     `context_tokens` are both documented "resume/fork: ... the resumed
+        #     transcript's last response", so a fork has one.
         #   - compact: history is summarized, so the verbatim bodies are gone.
         #     Release the specialists (drop from active_specialists → statusline)
         #     and tell the user to re-summon manually. Reconnaissance is the one
@@ -320,12 +332,12 @@ def handle_session_start(
         dismissed_specialists: list[str] = []
         recon_reload = False
         prev_sid = os.environ.get("BUDDY_PREV_SID", "").strip()
-        if source in ("resume", "compact"):
+        if source in ("resume", "compact", "fork"):
             # event.cwd may be missing on some CC builds; fall back to the
             # process cwd (bash hook inherits it from CC's launch dir). Without
             # this, project_root collapses to Path("") and the .codescout
             # detect below resolves relative to whatever cwd python landed in.
-            project_root = Path(event.get("cwd") or os.getcwd())
+            project_root = buddy_paths.resolve_project_root(event.get("cwd"))
             if prev_sid and prev_sid != incoming_sid:
                 prev_state_path = project_root / ".buddy" / prev_sid / "state.json"
                 if prev_state_path.is_file():
@@ -361,10 +373,10 @@ def handle_session_start(
         # failures where the reload block omits expected specialists.
         # Truncate file when it grows past 200 lines so it stays small.
         try:
-            trace_root = Path(event.get("cwd") or os.getcwd()) / ".buddy"
+            trace_root = buddy_paths.resolve_project_root(event.get("cwd")) / ".buddy"
             trace_root.mkdir(parents=True, exist_ok=True)
             trace_path = trace_root / ".session-start-trace.log"
-            cs_dir = Path(event.get("cwd") or os.getcwd()) / ".codescout"
+            cs_dir = buddy_paths.resolve_project_root(event.get("cwd")) / ".codescout"
             plugin_root_env_dbg = os.environ.get("CLAUDE_PLUGIN_ROOT") or ""
             plugin_root_dbg = Path(__file__).resolve().parent.parent
             recon_skill_dbg = "-"
@@ -373,7 +385,7 @@ def handle_session_start(
                 hit = _fsm(
                     "reconnaissance",
                     plugin_root=plugin_root_dbg,
-                    project_root=Path(event.get("cwd") or os.getcwd()),
+                    project_root=buddy_paths.resolve_project_root(event.get("cwd")),
                 )
                 recon_skill_dbg = str(hit) if hit else "NONE"
             except Exception as e:
@@ -411,7 +423,7 @@ def handle_session_start(
                 # _sister_plugin_candidates which needs an absolute cache path.
                 # hook_helpers.py is reliably at <plugin_root>/scripts/.
                 plugin_root = Path(__file__).resolve().parent.parent
-                project_root = Path(event.get("cwd") or os.getcwd())
+                project_root = buddy_paths.resolve_project_root(event.get("cwd"))
                 if recon_reload:
                     block = render_reload_block(
                         ["reconnaissance"],
@@ -498,7 +510,7 @@ def handle_post_tool_use(event: dict, path: Path) -> None:
             # session; using it here causes cross-session path corruption.
             # pre-tool-use.sh and session-start.sh both use event["cwd"], so
             # using the same source here keeps all three hooks on the same path.
-            session_dir = Path(event.get("cwd") or os.getcwd()) / ".buddy" / session_id
+            session_dir = buddy_paths.resolve_project_root(event.get("cwd")) / ".buddy" / session_id
             handle_cs_tool_use(event, session_dir, path, session_id)
     except Exception:
         pass

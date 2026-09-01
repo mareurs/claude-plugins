@@ -1,10 +1,11 @@
 ---
 kind: bug
-status: open
+status: fixed
 title: judge_worker reads .codescout/memory but the directory is .codescout/memories, so the judge's project constraints are empty on every machine
 opened: 2026-08-31
 owner: marius
 severity: med
+closed: 2026-09-01
 ---
 
 ## Summary
@@ -24,6 +25,17 @@ This is independent of cwd. It fails on a correctly-resolved project root too, s
 **not** fixed by
 `docs/issues/2026-08-31-buddy-session-dir-treats-cwd-as-project-root.md`.
 
+
+## Fixed 2026-09-01
+
+`judge_worker.py` now reads `.codescout/memories` (plural), matching what codescout
+writes and what `detect.py:145` already said.
+
+Per this file's own instruction that *"the test matters more than the fix"*, the
+regression test asserts constraints are **non-empty** for a fixture that has all three
+topics — `test_assemble_context_loads_codescout_memories`. It fails on the pre-fix code
+because the singular path yields `""`, which is the shape an `exists()`-guarded read can
+never distinguish from "this project has no memories".
 ## Symptom (Effect)
 
 Nothing. That is the whole problem — the loop is

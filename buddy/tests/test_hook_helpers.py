@@ -453,6 +453,87 @@ def test_session_start_compact_from_subagent_leaves_parent_state_alone(tmp_path,
         "a subagent's compaction reset the PARENT's root_cwd"
     assert "buddy:reloaded" not in capsys.readouterr().out, \
         "a subagent's compaction emitted a reload block into the parent's context"
+def test_session_start_fork_behaves_like_resume(tmp_path):
+    """`fork` restores a transcript, so it must NOT release specialists.
+
+    The SessionStart source enum in CC 2.1.252 is
+    ["startup","resume","clear","compact","fork"] — five values. buddy handled
+    four; `fork` fell through to the full-signal-reset path with no specialist
+    handling at all, so it neither carried them (like resume) nor released them
+    with a notice (like compact) — the statusline simply disagreed with context.
+
+    Resume semantics are the right ones, and the schema says so rather than it
+    being a guess: `seconds_since_last_response` and `context_tokens` are both
+    documented as "resume/fork: ... the resumed transcript's last response",
+    i.e. a fork has a restored transcript, so the persona bodies are present.
+    See docs/issues/2026-09-01-subagent-compaction-fires-parent-session-compact.md
+    """
+    import os
+    from scripts.hook_helpers import handle_session_start
+    from scripts.state import load_state, save_state, default_state
+
+    project = tmp_path
+    (project / ".git").mkdir()
+    prev_sid = "prev-sid"
+    new_sid = "forked-sid"
+
+    prev = default_state()
+    prev["active_specialists"] = ["testing-snow-leopard"]
+    save_state(project / ".buddy" / prev_sid / "state.json", prev)
+
+    new_path = project / ".buddy" / new_sid / "state.json"
+    os.environ["BUDDY_PREV_SID"] = prev_sid
+    try:
+        handle_session_start(
+            {"timestamp": 1700000000, "session_id": new_sid,
+             "source": "fork", "cwd": str(project)},
+            path=new_path,
+        )
+    finally:
+        del os.environ["BUDDY_PREV_SID"]
+
+    result = load_state(new_path)
+    assert result["active_specialists"] == ["testing-snow-leopard"], \
+        "fork dropped the specialists whose bodies the restored transcript still holds"
+    assert result["parent_sid"] == prev_sid
+
+
+def test_session_start_subagent_startup_detected_by_agent_id_beyond_the_600s_window(tmp_path):
+    """A subagent spawned >600s into a session must still be recognised.
+
+    The `is_subagent` heuristic requires `ts - prev_start_ts < 600`, so a subagent
+    dispatched eleven minutes into a long session was read as a brand-new
+    top-level session and reset the parent's signals. `agent_id` is present
+    whenever the hook fires from inside a subagent and carries no time bound, so
+    it catches this; the timing heuristic stays as the fallback for builds that
+    do not send the field.
+    """
+    from scripts.hook_helpers import handle_session_start
+    from scripts.state import load_state, save_state, default_state
+
+    project = tmp_path
+    (project / ".git").mkdir()
+    sid = "parent-sid"
+
+    parent = default_state()
+    parent["current_session_id"] = sid
+    parent["signals"]["session_start_ts"] = 1700000000
+    parent["signals"]["cs_active_project"] = "/some/proj"
+    parent["active_specialists"] = ["debugging-yeti"]
+    state_path = project / ".buddy" / sid / "state.json"
+    save_state(state_path, parent)
+
+    # 1800s later — well outside the 600s window the heuristic can see.
+    handle_session_start(
+        {"timestamp": 1700001800, "session_id": "subagent-own-sid",
+         "source": "startup", "cwd": str(project), "agent_id": "agent-xyz"},
+        path=state_path,
+    )
+
+    result = load_state(state_path)
+    assert result["signals"]["cs_active_project"] == "/some/proj", \
+        "a late subagent startup reset the parent's signals"
+    assert result["active_specialists"] == ["debugging-yeti"]
 
 
 def test_session_start_startup_does_not_carry_active_specialists(tmp_path):

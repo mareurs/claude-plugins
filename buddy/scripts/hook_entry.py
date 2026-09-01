@@ -20,8 +20,18 @@ from pathlib import Path
 
 
 def _project_root(event: dict) -> Path:
-    cwd = event.get("cwd") or ""
-    return Path(cwd) if cwd else Path(os.getcwd())
+    """Resolve the session's cwd to the enclosing project root.
+
+    `event["cwd"]` is the right per-session SOURCE (state.signals.root_cwd is a
+    shared global that concurrent sessions overwrite), but it is not itself a
+    root — a session started in a subdirectory used to plant `.buddy/<sid>/`
+    there. Resolution lives in buddy_paths so the several cwd-relative planters
+    share one answer.
+    See docs/issues/2026-08-31-buddy-session-dir-treats-cwd-as-project-root.md
+    """
+    from scripts.buddy_paths import resolve_project_root
+
+    return resolve_project_root(event.get("cwd") or None)
 
 
 def _session_id(event: dict) -> str:

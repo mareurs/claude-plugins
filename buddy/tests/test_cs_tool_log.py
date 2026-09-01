@@ -53,6 +53,56 @@ def test_summarize_args_truncates_long_values():
 
 def test_summarize_args_non_dict():
     assert len(summarize_args("just a string")) <= 100
+def test_summarize_args_preserves_path_when_it_is_the_last_key():
+    """KEY ORDER IS THE POINT OF THIS TEST — do not tidy it.
+
+    `path` is written LAST here deliberately: that is the ordering under which the
+    old blind `[:200]` tail cut mutilated it, yielding a well-formed prefix like
+    `src/serve` that a consumer would happily match against disk. The pre-existing
+    fixture put `path` FIRST — the one ordering where the bug cannot fire — and
+    asserted only `len(result) <= 200`, which is equally satisfied by returning "",
+    by dropping the path, or by cutting it mid-token.
+    See docs/issues/2026-09-01-summarize-args-destroys-the-path-it-documents-preserving.md
+    """
+    from scripts.cs_tool_log import summarize_args
+
+    long = "x" * 300
+    out = summarize_args({"new_string": long, "old_string": long, "path": "src/server.rs"})
+    assert "path=src/server.rs" in out, f"path lost or truncated: {out!r}"
+
+
+def test_summarize_args_protects_file_path_spelling_too():
+    """Both spellings have downstream consumers; both must survive.
+
+    Two long values precede `file_path` on purpose: the record must exceed the
+    200-char budget BEFORE reaching it, or the test passes trivially without
+    exercising any protection (it did, at first writing).
+    """
+    from scripts.cs_tool_log import summarize_args
+
+    long = "y" * 300
+    out = summarize_args(
+        {"content": long, "old_string": long, "new_string": long,
+         "file_path": "docs/a/very/deep/file.md"}
+    )
+    assert "file_path=docs/a/very/deep/file.md" in out, f"file_path lost: {out!r}"
+
+
+def test_summarize_args_record_truncation_carries_a_marker():
+    """A record-level cut must be distinguishable from a genuinely short record.
+
+    The value-level cut always marked itself (`val[:77] + "..."`); the record-level
+    cut did not, so `path=src/serve` was indistinguishable from a real short path.
+    """
+    from scripts.cs_tool_log import summarize_args
+
+    cut = summarize_args({"path": "p.rs", "a": "A" * 90, "b": "B" * 90, "c": "C" * 90})
+    assert len(cut) <= 200
+    assert cut.endswith("..."), f"record cut left no marker: {cut!r}"
+
+    whole = summarize_args({"path": "p.rs", "a": "A"})
+    assert not whole.endswith("..."), \
+        f"an untruncated record must not look truncated: {whole!r}"
 
 
 def test_append_creates_parent_dirs(tmp_path):

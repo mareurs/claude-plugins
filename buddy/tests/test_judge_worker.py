@@ -84,6 +84,42 @@ def test_assemble_context_no_plan(tmp_path):
         state_path=tmp_path / "state.json",
     )
     assert ctx["plan_content"] is None
+def test_assemble_context_loads_codescout_memories(tmp_path):
+    """Project constraints must actually load — the directory is `memories`, PLURAL.
+
+    judge_worker read `.codescout/memory` (singular) while codescout writes
+    `.codescout/memories`, so the constraints list was empty on every machine and
+    every cwd. An `exists()` guard made a missing directory indistinguishable from
+    a project with no memories, so nothing ever failed. The assertion here is that
+    constraints are NON-EMPTY — the shape that fails in the broken world and cannot
+    be satisfied by a guard that skips.
+    See docs/issues/2026-08-31-judge-worker-reads-codescout-memory-not-memories.md
+    """
+    from scripts.judge_worker import assemble_context
+
+    project = tmp_path
+    mem = project / ".codescout" / "memories"
+    mem.mkdir(parents=True)
+    (mem / "conventions.md").write_text("always scout the seam", encoding="utf-8")
+    (mem / "gotchas.md").write_text("beware the shared checkout", encoding="utf-8")
+    (mem / "architecture.md").write_text("three profiles, one socket dir", encoding="utf-8")
+
+    session = project / ".buddy" / "sid"
+    session.mkdir(parents=True)
+    narrative = session / "narrative.jsonl"
+    narrative.write_text("", encoding="utf-8")
+
+    ctx = assemble_context(narrative, project, session / "state.json")
+
+    assert ctx["project_constraints"], \
+        "project_constraints is empty — the memories directory was not read"
+    for name, body in (
+        ("conventions", "always scout the seam"),
+        ("gotchas", "beware the shared checkout"),
+        ("architecture", "three profiles, one socket dir"),
+    ):
+        assert f"### {name}" in ctx["project_constraints"]
+        assert body in ctx["project_constraints"]
 
 
 def test_assemble_context_reads_session_active_plan(tmp_path):

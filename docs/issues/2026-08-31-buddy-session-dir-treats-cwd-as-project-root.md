@@ -1,10 +1,11 @@
 ---
 kind: bug
-status: open
+status: fixed
 title: buddy's session dir treats event["cwd"] as the project root, so a session started in a subdirectory plants .buddy/ there and hands the judge a wrong root
 opened: 2026-08-31
 owner: marius
 severity: med
+closed: 2026-09-01
 ---
 
 ## Summary
@@ -19,6 +20,40 @@ resolves against the subdirectory instead of the repo.
 Both downstream failures are guarded by `exists()` / `except`, so nothing raises and the
 judge degrades silently.
 
+
+## Fixed 2026-09-01
+
+A shared resolver, because this file's own warning was that a single call site would not
+be enough: `buddy_paths.resolve_project_root(cwd)` and its Node twin
+`codescout-companion/hooks/lib.mjs::resolveProjectRoot(cwd)`. Both walk up to the nearest
+ancestor holding `.git` or `.codescout/project.toml`, with a documented fallback to the
+starting directory. `.git` is tested with `exists()`, not a directory test, so a **linked
+worktree's gitfile** resolves — pinned by a test.
+
+`event["cwd"]` is kept as the per-session source, exactly as this file argued.
+
+Seven call sites in buddy, all previously `Path(event.get("cwd") or os.getcwd())`:
+`hook_entry._project_root` (the choke point feeding every `.buddy/<sid>` and `by-ppid`
+path), `hook_helpers` session_dir, both trace roots, the `.codescout` detect for
+`recon_reload`, the `find_skill_md` project_root, and the resume/compact project_root.
+
+Four in codescout-companion — the three `constitution-seen` writers this file named, plus
+**a fourth it did not**: `lib.mjs::emitSkillHint`, which planted
+`<cwd>/.buddy/<sid>/hint-emitted-<topic>`.
+
+The two resolvers must agree, and the comment in each says so: they resolve the same
+`event["cwd"]` for the same session, so a disagreement puts one plugin's markers where
+the other cannot see them.
+
+Tests: 7 in `test_buddy_paths.py` — subdirectory walk, gitfile worktree,
+`.codescout/project.toml`, unmarked fallback, nearest-marker-wins for a nested repo, the
+`_project_root` choke point, and an end-to-end assertion that a subdirectory session
+plants **no** stray `.buddy` beside itself. Per this file's instruction, each names the
+expected absolute root rather than re-deriving it from the result — re-deriving passes in
+the broken world by construction.
+
+Migration is unchanged from this file's decision: existing strays are debris and are left
+alone; they stop being created.
 ## Symptom (Effect)
 
 Observed 2026-08-31 in the **codescout** checkout, not this one:
