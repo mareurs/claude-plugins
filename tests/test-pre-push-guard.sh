@@ -41,24 +41,49 @@ if [ -z "$BUMP_SHA" ] || [ -z "$NOBUMP_SHA" ]; then
   print_summary; exit 1
 fi
 
-# Build a fake HOME with three profiles. `state` picks whether the record for
-# codescout-companion matches the repo's canonical version.
-make_profiles() {  # <home> <recorded-version>
-  local home="$1" ver="$2" canon
-  canon=$(jq -r .version "$REPO_ROOT/codescout-companion/.claude-plugin/plugin.json")
+# Which plugins does the guard actually check for this range? Derived with the
+# SAME expression scripts/pre-push-guard.sh::bumped_plugins uses, because the
+# fixture must drift the plugin the guard will look at. Hardcoding one plugin
+# here is what made the positive control below unable to fire: on 2026-09-01 the
+# discovered commit bumped `buddy` while the fixture drifted
+# `codescout-companion`, so check-profile-parity.sh took its deliberate
+# not-installed branch, exited 0, and the deny assertion became unreachable —
+# green to red on nothing but which plugin was released last, and it would have
+# gone green again on the next codescout-companion bump with nothing fixed.
+# docs/issues/2026-09-01-pre-push-guard-test-drifts-a-different-plugin-than-the-guard-checks.md
+BUMP_PLUGINS=$(git -C "$REPO_ROOT" diff --name-only "$BUMP_PARENT" "$BUMP_SHA" \
+  | grep -E '^[^/]+/\.claude-plugin/plugin\.json$' | cut -d/ -f1 | sort -u)
+
+if [ -z "$BUMP_PLUGINS" ]; then
+  fail "fixture discovery" "range ${BUMP_PARENT:0:8}..${BUMP_SHA:0:8} touches no <plugin>/.claude-plugin/plugin.json"
+  print_summary; exit 1
+fi
+
+# Build a fake HOME with three profiles. `mode` picks whether the records match
+# each plugin's canonical version (`canonical`) or lag it (`stale`).
+make_profiles() {  # <home> <stale|canonical>
+  local home="$1" mode="$2" plugin ver entries
   for p in .claude .claude-sdd .claude-kat; do
-    mkdir -p "$home/$p/plugins/cache/sdd-misc-plugins/codescout-companion/$ver"
     mkdir -p "$home/$p/plugins"
-    cat > "$home/$p/plugins/installed_plugins.json" <<JSON
-{"plugins":{"codescout-companion@sdd-misc-plugins":[{"scope":"user","version":"$ver",
-"installPath":"$home/$p/plugins/cache/sdd-misc-plugins/codescout-companion/$ver"}]}}
-JSON
+    entries=""
+    # A record for EVERY plugin the guard will check for this range — see
+    # BUMP_PLUGINS above. Writing one hardcoded plugin here is the defect that
+    # made the positive control unreachable.
+    for plugin in $BUMP_PLUGINS; do
+      if [ "$mode" = stale ]; then
+        ver="0.0.1-stale"
+      else
+        ver=$(jq -r .version "$REPO_ROOT/$plugin/.claude-plugin/plugin.json")
+      fi
+      mkdir -p "$home/$p/plugins/cache/sdd-misc-plugins/$plugin/$ver"
+      entries="$entries${entries:+,}\"$plugin@sdd-misc-plugins\":[{\"scope\":\"user\",\"version\":\"$ver\",\"installPath\":\"$home/$p/plugins/cache/sdd-misc-plugins/$plugin/$ver\"}]"
+    done
+    printf '{"plugins":{%s}}\n' "$entries" > "$home/$p/plugins/installed_plugins.json"
     cat > "$home/$p/plugins/known_marketplaces.json" <<JSON
 {"sdd-misc-plugins":{"source":{"source":"directory","path":"$REPO_ROOT"},
 "installLocation":"$REPO_ROOT"}}
 JSON
   done
-  echo "$canon"
 }
 
 run_hook() {  # <home> <from-sha> <to-sha> [env assignments...]
@@ -82,7 +107,23 @@ check() {  # <label> <expected: allow|deny> <output> <exit-code>
 # POSITIVE CONTROL FIRST. If a drifted profile set does not produce a deny, then
 # every "allow" below is uninformative — it would read the same in a world where
 # the parity check never runs at all.
-CANON=$(make_profiles "$T/drift" "0.0.1-stale")
+make_profiles "$T/drift" stale
+
+# FIXTURE WRITE-THROUGH. Confirms make_profiles actually wrote a record for every
+# plugin in BUMP_PLUGINS. Note honestly what this does NOT prove: both sides derive
+# from BUMP_PLUGINS, so it is a check on the fixture writer (empty entries, broken
+# printf/jq shape), not an independent tie to the guard. The real tie is below, and
+# it reads the guard's own output — a check computed from the thing it judges cannot
+# fail, which is the defect class this whole file is now guarding against.
+fixture_plugins=$(jq -r '.plugins | keys[]' "$T/drift/.claude/plugins/installed_plugins.json" \
+  | sed 's/@sdd-misc-plugins$//' | sort -u)
+if [ "$fixture_plugins" = "$BUMP_PLUGINS" ]; then
+  pass "fixture: a record was written for every plugin the guard checks ($(echo $BUMP_PLUGINS))"
+else
+  fail "fixture: a record was written for every plugin the guard checks" \
+       "fixture=[$(echo $fixture_plugins)] derived=[$(echo $BUMP_PLUGINS)]"
+fi
+
 OUT=$(run_hook "$T/drift" "$BUMP_PARENT" "$BUMP_SHA"); EC=$?
 check "parity: drifted profiles + version bump → deny" deny "$OUT" $EC
 
@@ -92,13 +133,26 @@ else
   fail "parity: deny message names the repair" "$(echo "$OUT" | tail -2)"
 fi
 
+# THE REAL TIE. The plugin the guard says it refused, read out of the guard's own
+# stderr, must be exactly the set the fixture drifted. Independently sourced: the
+# left side is produced by executing the hook, the right side by the test's own
+# derivation. If those two ever diverge again, this fails and names both.
+guard_plugins=$(printf '%s\n' "$OUT" \
+  | sed -n "s/.*pre-push-guard: '\([^']*\)' version changed.*/\1/p" | sort -u)
+if [ -n "$guard_plugins" ] && [ "$guard_plugins" = "$BUMP_PLUGINS" ]; then
+  pass "parity: the plugin the guard refused == the plugin the fixture drifted"
+else
+  fail "parity: the plugin the guard refused == the plugin the fixture drifted" \
+       "guard=[$(echo $guard_plugins)] fixture=[$(echo $BUMP_PLUGINS)]"
+fi
+
 # Same drifted profiles, but the pushed range touches no plugin.json. Ordinary
 # work must never be gated on local profile state.
 OUT=$(run_hook "$T/drift" "$NOBUMP_PARENT" "$NOBUMP_SHA"); EC=$?
 check "parity: drifted profiles + NO version bump → allow" allow "$OUT" $EC
 
-# Profiles that agree with the repo's canonical version.
-make_profiles "$T/clean" "$CANON" >/dev/null
+# Profiles that agree with each plugin's canonical version.
+make_profiles "$T/clean" canonical
 OUT=$(run_hook "$T/clean" "$BUMP_PARENT" "$BUMP_SHA"); EC=$?
 check "parity: in-parity profiles + version bump → allow" allow "$OUT" $EC
 
