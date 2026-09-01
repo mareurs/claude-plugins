@@ -14,7 +14,7 @@ Release readiness across plugins × profiles. See
 
 ## State
 
-_Last refresh: `9dca042`, 2026-09-01._
+_Last refresh: `3e65211`, 2026-09-01._
 
 **buddy** — canonical `0.10.0` · readme `0.10.0` · marketplace clean ✅
 
@@ -32,13 +32,13 @@ _Last refresh: `9dca042`, 2026-09-01._
 | `~/.claude-sdd` | 1.1.7 ✅ | ✅ | ✅ | `1.1.7` ✅ | ✅ |
 | `~/.claude-kat` | 1.1.7 ✅ | ✅ | ✅ | `1.1.7` ✅ | ✅ |
 
-**codescout-companion** — canonical `1.19.10` · readme `1.19.10` · marketplace clean ✅
+**codescout-companion** — canonical `1.19.11` · readme `1.19.11` · marketplace clean ✅
 
 | profile | installed | cache dir | install_path ok | all entries | cache = working tree |
 |---|---|---|---|---|---|
-| `~/.claude` | 1.19.10 ✅ | ✅ | ✅ | `1.19.10` ✅ | ✅ |
-| `~/.claude-sdd` | 1.19.10 ✅ | ✅ | ✅ | `1.19.10` ✅ | ✅ |
-| `~/.claude-kat` | 1.19.10 ✅ | ✅ | ✅ | `1.19.10` ✅ | ✅ |
+| `~/.claude` | 1.19.11 ✅ | ✅ | ✅ | `1.19.11` ✅ | ✅ |
+| `~/.claude-sdd` | 1.19.11 ✅ | ✅ | ✅ | `1.19.11` ✅ | ✅ |
+| `~/.claude-kat` | 1.19.11 ✅ | ✅ | ✅ | `1.19.11` ✅ | ✅ |
 
 **session-bridge** — canonical `0.1.0` · readme `0.1.0` · marketplace clean ✅
 
@@ -160,6 +160,37 @@ two actually serves, they carry the same bytes — so the question CLAUDE.md fla
 unsettled does not need settling for this release.
 ## History
 
+### 2026-09-01 — 1.19.11, a documentation-only release that closes a tracker's promote-when
+
+**Delta:** codescout-companion `1.19.10 → 1.19.11` across canonical, readme and all three
+profiles. Every other value unchanged; `cache = working tree` stays ✅ on all three —
+`diff -rq` under the documented excludes, measured after seeding rather than assumed.
+
+Content is **one line** of `skills/reconnaissance/SKILL.md`, the Phase 1 current-state
+bullet. `codescout:W-91` fired its own `Promote-when` the same day it was written and asked
+for that bullet to name filed defect records explicitly. Reading the bullet first showed it
+already does — *"it can travel into a filed defect entry and into a question put to a
+human"* — but hangs the clause off the **prohibition** form alone, so the edit detaches the
+surface rather than adding it, and is narrower than the tracker proposed. Second release in
+this ledger under the 1.19.2 rule: **release on content, not on behaviour.**
+
+**The pre-flight gate was bypassed, deliberately and narrowly — recorded because a silent
+bypass is the thing this ledger exists to prevent.** `release.sh` step 0 refuses a dirty
+tree via `git status --porcelain`, which counts untracked files, and a peer session had an
+uncommitted bug file at repo-root `docs/issues/`. `bump-cache.sh` sets
+`SRC="$REPO_ROOT/$PLUGIN"` and copies that and nothing else, so the file is outside the
+release payload by construction — read at the script, not assumed. Steps 1–6.5 were then
+run individually in release.sh's own order, all green: `tests/run-all.sh` 16/16,
+`check-versions` OK, caches seeded ×3, sanity ×3, `check-profile-parity` OK. The peer's file
+was **neither stashed nor committed**; someone else's uncommitted work in a shared checkout
+is not the releaser's to move.
+
+**Not pushed.** `NO_PUSH` semantics by choice — two commits (`b74c730` content, `3e65211`
+bump) are local on `main`, for the owner to push.
+
+**Probed the served copy, not the repo copy** (`R-89`): the new sentence is present in all
+three profiles' `1.19.11/skills/reconnaissance/SKILL.md`. That is what makes it *shipped*;
+a cold restart or `/reload-plugins` is still what makes a running session read it.
 ### 2026-09-01 — 1.19.10, and a ⚠ that cleared on schedule
 
 **Delta:** codescout-companion `1.19.9 → 1.19.10` across canonical, readme and all three
