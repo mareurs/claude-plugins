@@ -1,7 +1,7 @@
 ---
-id: '0b2fa528c269d3f6'
+id: 9db93cbb2089daab
 kind: tracker
-status: active
+status: archived
 title: Passover — research-skills-dialect-refactor — 2026-07-04
 owners: []
 tags:
@@ -51,3 +51,32 @@ origin_session_id: f8faad8d-37ec-40c6-a9dd-fe3ecec9ec5f
 - Eval: prompt-engineering `scenarios/skills/researcher-tool-dialect/` + `docs/trackers/skill-eval-log.md` § research-subagent
 - Back-link: `.buddy/f8faad8d-37ec-40c6-a9dd-fe3ecec9ec5f/` + the session transcript
 
+
+
+## Consumed
+
+Consumed 2026-09-01. Every Next action and Open thread is discharged, checked rather than
+assumed:
+
+1. **Git state** — the handoff recorded claude-plugins as *"ahead of `origin/main` by 5,
+   KEEP; not pushed"* with this thread's commit `32facf9`. `git merge-base --is-ancestor
+   32facf9 HEAD` → true, and `origin/main...HEAD` is `0 0`. Pushed and reconciled.
+2. **Ship (release.sh + cold restart)** — done many times over since; codescout-companion
+   is at **1.20.0**, so the corrected research skills in `32facf9` have long been seeded
+   into the versioned caches all three profiles load from. This was the action the
+   handoff called load-bearing, and the reason it was: a skill edit is `committed`, not
+   `live`, until a release runs — the same law later measured as
+   `skill-loading-session-log:F-5`.
+3. **Optional push** — done.
+
+Open threads: the release dance (D2) is closed by (2). The note that
+`reconnaissance-patterns.md`'s R-N ledger went un-updated was explicitly marked acceptable
+at write time — the findings live in
+`research-skills-refactor-session-log:F-1`/`research-skills-refactor-session-log:F-2` — so
+it is not outstanding work.
+
+**prompt-engineering is deliberately untouched.** That repo is local-only with no remote by
+the user's confirmation, and this file's anti-goals forbid adding one. Nothing was done
+there.
+
+Archived via `artifact(action="move")`, not `git mv`.

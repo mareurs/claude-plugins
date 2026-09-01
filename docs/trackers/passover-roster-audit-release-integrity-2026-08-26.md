@@ -16,6 +16,39 @@ origin_session_id: f6ae2d77-3ee3-46f9-ab0d-270afd61c592
 
 # Passover — roster-audit + release-integrity — 2026-08-26
 
+> **Reviewed 2026-09-01 and DELIBERATELY KEPT ACTIVE.** The four sibling passovers were
+> archived that day; this one was not, because its `### Still open` list holds nine live
+> items and archiving it would retire a thread rather than finish it. What changed since
+> 2026-08-26, measured rather than assumed:
+>
+> - **Item 1, cold restart:** `/reload-plugins` was run in one instance. Inherently
+>   per-instance — still the queue item a session cannot do for itself.
+> - **Item 2, `R-4` eval baseline:** **still n=0.** Confirmed from the reconnaissance
+>   skill's own § *Skill maintenance*, which reads *"Bootstrap: cases pinned, baseline not
+>   yet run (n=0)."* Note the sequencing advice here — *"do not promote a third law first"*
+>   — was partly overtaken: `R-5` was promoted 2026-08-26 on a **targeted screen**
+>   (control 0/3 and the skill 0/3 on `reconnaissance-eval/scenarios/instrument/self-validating-gate`),
+>   not on this baseline. So the gate held for `R-6` but not for `R-5`, and the list's
+>   stated ordering no longer describes what happened.
+> - **Item 6, ambiguous citations:** this file records **93** on 2026-08-26. Now **64** —
+>   but not from the sweep it prescribes. A `T` prefix collision, introduced and fixed on
+>   2026-09-01, was breaking ~31 pre-existing `T-N` citations across `INDEX.md` and two
+>   passovers; removing it did the arithmetic. **The bare-`F-N`/`W-N` sweep this item asks
+>   for is still entirely undone**, and the improved number must not be read as progress on
+>   it. `prefix_conflicts` is back to 0.
+> - **Release state:** the machine-state line below says `buddy 0.9.1` and
+>   `codescout-companion 1.16.17`. Both are stale — now **0.11.0** and **1.20.0**, parity
+>   green across three profiles.
+> - **Uncommitted files** in § *Working state*: both long since committed. `origin/main` is
+>   level with `HEAD`.
+> - **Item 9, the two codescout upstream fixes:** `roster-audit-session-log:F-6`'s proposed
+>   `doctor` check `cited_prefix_with_no_definer` **now exists and runs** — it appears in
+>   `librarian(action="doctor")`'s `by_check` map (currently 0). So that half is applied
+>   upstream, not merely filed.
+>
+> Items 3, 4, 5, 7 and 8 are unchanged and unverified as of this review — they were not
+> re-measured, only left alone. Do not read this note as clearing them.
+
 ## State
 
 Two threads, both at a clean stopping point. **(1) Roster audit:** a cross-repo research handoff proposing `validation-domain-coverage.md` was verified against `buddy/skills/` source — every quantitative claim held, and six frictions came out of the surrounding trackers and tooling (`roster-audit-session-log` `roster-audit-session-log:F-1`..`roster-audit-session-log:F-8`, `roster-audit-session-log:W-1`, `roster-audit-session-log:W-2`). Four issues filed in this repo, two in codescout. **(2) Release integrity:** `codescout-companion` **1.16.17 is released and pushed**; the release exposed a three-way blind spot in the release gate, now fixed and shipped as `scripts/check-profile-parity.sh`. `VG-7` (pheasant lens re-extraction) is **done and committed but NOT released** — it changes shipped `buddy` content and needs a `buddy` version bump.
@@ -147,6 +180,6 @@ the original seven-item list is outstanding:
 ## Pointers
 
 - Specs / plans / related trackers: `docs/trackers/roster-audit-session-log.md` (this session's ledger, `roster-audit-session-log:F-1`..`roster-audit-session-log:F-8`, `roster-audit-session-log:W-1`, `roster-audit-session-log:W-2`), `docs/trackers/reconnaissance-patterns.md` (`R-3`, `R-4`, `R-5`), `docs/trackers/validation-domain-coverage.md` (`VG-1`..`VG-10`), `docs/trackers/buddy-introspection.md` (`#20`, `#21`, `S-5`), `docs/trackers/active-plan.md` (`T-35`, `T-37`, `D-6`), `buddy/docs/trackers/headroom-optimization.md` (backlog 2b, re-scoped), `docs/trackers/version-bump-checklist.md` (`cc8cb9e23ab5cc67`).
-- Sibling thread: `docs/trackers/passover-validation-spine-2026-08-26.md` — concurrent session, VG-9 spine measurement. Different thread; its anti-goals are its own.
+- Sibling thread: `docs/trackers/archive/passover-validation-spine-2026-08-26.md` — concurrent session, VG-9 spine measurement; **archived 2026-09-01**, its one open action now tracked as `repo-remediation-backlog` `RM-10`. Different thread; its anti-goals are its own.
 - Key commits: `f53aaea` (recon SKILL fix), `448a1b8` (1.16.17 bump), `cb7d3f4` (tracker refresh), `ce83dfd` (parity check + CLAUDE.md), `0fd8eb1` (VG-7).
 - Back-link: `.buddy/f6ae2d77-3ee3-46f9-ab0d-270afd61c592/` and the session transcript.

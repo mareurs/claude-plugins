@@ -9,7 +9,7 @@ tags:
 - doctor
 - remediation
 topic: repo-hygiene
-entry_high_water_RM: 22
+entry_high_water_RM: 24
 entry_prefix: RM
 ---
 
@@ -228,11 +228,20 @@ Check whether each happened. These are worklist items, not verdicts — the tool
 know, and "not yet" is a legitimate outcome that should be recorded rather than left
 looking overdue.
 
-**`VG-5` only became visible because this backlog was written.** The check is gated on
-cross-file citation exposure, so an entry nothing depends on never generates work; the
-`RM-15` citations pushed `VG-5` over the threshold and `VG-9` from 14 to 15. Worth knowing
-as a property of the instrument: filing a pointer can *reveal* a dormant finding, so a
-first scan after adding citations is expected to grow, and that growth is not a regression.
+**`VG-9` is a live work thread, not just an overdue flag — and its method notes are load-bearing.** Its condition *is* the one open action of the archived `docs/trackers/archive/passover-validation-spine-2026-08-26.md`: *"Rebuild the stimulus above the unaided floor, and run the CONTROL FIRST."* The old stimulus was **retired, not merely underpowered** — six no-skill control runs were recovered from transcripts, three read in full, and all three clear both judge rubrics unaided, so the pass bar sits below Opus 5's floor and neither variant ever had headroom. About **$5.30** of real API spend went in before that was known.
+
+Read the archived passover before spending anything further. Its hard-won anti-goals, repeated here so they survive the link:
+
+- **Do not use `--paired`** — it discards both arms' per-run results, a partly-errored arm silently depresses its own rate while the delta prints clean, `power_margin` is hard-wired at 0.5, and it always exits 0. `skill-eval-playbook:L-15` still prescribes it; that recommendation predates the findings.
+- **Do not run `prompt-tdd report`** — it re-executes the whole suite at full cost despite a docstring saying "from the last run". To re-read a finished run, read `~/.claude-test/projects/-tmp-prompt-test-*/*.jsonl`, correlatable by mtime only.
+- **Do not trust `max_cost_per_run`** — dead key; a config setting it is unguarded.
+- **Do not re-run the old fixture at any n.**
+
+**`VG-5` appeared and then disappeared from the report inside one session — and it is still past due.** The check is gated on cross-file citation exposure from **live** artifacts, so an entry nothing depends on never generates work. Writing `RM-15` pushed `VG-5` over the threshold and `VG-9` from 14 to 15; then archiving four passovers under `RM-11` removed live citers and dropped `VG-5` back below the gate, with `VG-9` returning to 14. A `doctor` run today reports **one** past-due conditional, not two.
+
+Do not read that as `VG-5` being resolved. Nothing about its condition changed — only the number of live files pointing at it. This is the *"a green result certifies the path that actually executed"* law applied to a worklist: the report going quiet is a fact about exposure, not about the condition. **Both entries stay in scope for this task**, and `VG-5`'s condition is quoted above so it survives its own invisibility.
+
+A property of the instrument worth carrying: citation churn moves these counts in both directions, so a `by_check` delta across a session that archived or created trackers is not evidence of work done or undone.
 
 **Status:** open
 
@@ -252,7 +261,19 @@ orphans the catalog row. Note `docs/trackers/archive/` does not exist yet.
 
 Widest blast radius per unit of effort of anything in this backlog.
 
-**Status:** open
+**Status:** fixed-verified 2026-09-01 — **4 of 5 archived, 1 deliberately kept active.** This entry's premise was that all five were unconsumed; adjudicating each against its own Next actions showed that was wrong, and force-archiving the fifth would have retired a live thread.
+
+| passover | outcome |
+|---|---|
+| session-passover-tracker 2026-06-18 | archived — actions 1-4 discharged (Task 4's `## Trackers as cross-session behavior` section verified present at `librarian-runtime.md:193`, with the cross-ref from `tracker-conventions`); action 5 carried to `RM-23` |
+| research-skills-refactor 2026-07-04 | archived — fully discharged; `32facf9` verified an ancestor of `HEAD`, and the release it was blocked on has shipped many times over |
+| advisor-projection-eval 2026-08-27 | archived — the parked buddy release is done (**0.11.0**, tracker all-green); the open two-advisor question carried to `RM-24` |
+| validation-spine 2026-08-26 | archived — its one open action *is* `VG-9`'s condition, already tracked by `RM-10`, which now repeats its four costly anti-goals inline |
+| roster-audit + release-integrity 2026-08-26 | **KEPT ACTIVE** — nine live items in its `### Still open` list |
+
+The kept one now carries a dated review note correcting its stale figures rather than leaving them to mislead: `buddy 0.9.1`/`cc 1.16.17` → `0.11.0`/`1.20.0`; ambiguous citations 93 → 64, **but not by the sweep it prescribes** (a `T` prefix collision fixed the same day did the arithmetic, and the bare-`F-N`/`W-N` sweep is still entirely undone); `R-4`'s eval baseline still **n=0**, while `R-5` was nonetheless promoted on a separate targeted screen, so its stated "do not promote a third law first" ordering no longer describes what happened. Items 3, 4, 5, 7 and 8 were left alone, not cleared — the note says so.
+
+Each archive move went through `artifact(action="move")`, which re-keyed the id and grafted events/links. Citations of the old paths and ids were swept with `git grep` and no `--include` filters: seven hits, one live (`RM-23`, repointed), six historical — a `fixed` bug file's measurement quote, plan steps explicitly marked *"superseded, kept for history"*, and a `fixed-verified` session-log entry. Those were left as written; rewriting them would falsify records of what was true at the time.
 
 **Valid:** dated 2026-09-01
 
@@ -461,6 +482,90 @@ Note the shape: `RM-2` was a parse-level defect in this file and turned out to b
 cosmetic, since the fences are not functional for promptfoo. Checking *why* they might be
 functional is what surfaced this, which is the more interesting question. The scout was
 worth more than the repair it authorised.
+
+**Status:** open
+
+**Valid:** dated 2026-09-01
+
+## RM-23 — Adjudicate the passover promote-when, whose counter its own failure mode made unincrementable
+
+Carried forward from `docs/trackers/archive/passover-session-passover-tracker-2026-06-18.md`
+(archived 2026-09-01; the move re-keyed it, so cite the path rather than the old id) so that
+archiving it does not drop the one live thing in it. That passover's Next action 5 read:
+
+> **Promote-when watch:** if a future session MISSES an active passover (≥2 occurrences),
+> promote discovery from the CLAUDE.md convention to a SessionStart hook (plan §2
+> non-goal). Record each miss in the session-log.
+
+**The criterion appears to have fired, and its own recording mechanism is why nobody
+noticed.** `CLAUDE.md` § *Session Passover* records that the documented discovery query
+carried `{"tags":{"in":["passover"]}}` — the wrong operator — from the day it was written,
+and that on 2026-08-27 it returned **0 against 5 live tagged passovers**, where `contains`
+returned all of them. So every session that ran the documented query before that fix saw
+"no handoffs" and proceeded normally. That is a miss, it happened more than twice, and it
+was systemic rather than a lapse of attention.
+
+The instruction was *"record each miss in the session-log."* No miss was ever recorded —
+because a session that gets a clean zero has no signal that it missed anything. The
+promote-when was gated on a counter that the failure mode it watches for makes
+unincrementable. Worth noting as a defect in the criterion, not only in the query.
+
+**What is owed is a decision, not an implementation.** The plan listed a SessionStart
+auto-surface hook as a §2 **non-goal**, and the passover's own anti-goals say *"Do NOT add
+a SessionStart auto-surface hook yet."* Options, roughly in increasing cost:
+
+1. Treat the operator fix as the repair and close the promote-when — the misses had one
+   cause, it is fixed, and the convention now works as designed.
+2. Keep the convention but make a zero result legible: have the discovery step assert a
+   positive control (query a tag known to exist) so an empty answer is distinguishable
+   from a broken query.
+3. Build the SessionStart hook, overriding the recorded non-goal.
+
+Option 2 is the one that addresses what actually went wrong, since the failure was an
+instrument reporting emptiness rather than a human forgetting to look. But this is the
+user's call — the anti-goal is explicit and was written deliberately.
+
+**Status:** open
+
+**Valid:** conditional — a decision is recorded on options 1-3 above
+
+## RM-24 — Two or more advisors projected together is untested — the one condition the spec says re-opens the premise
+
+Carried forward from `docs/trackers/archive/passover-advisor-projection-eval-2026-08-27.md`
+(archived 2026-09-01) — the one item in it that was open rather than merely unpushed.
+
+The advisor-projection eval established that omitting an advisor's `Voice` and output
+contract is sufficient for the model to behave as though they are absent: three arms, n=5
+each, behavioural leak 0/5, and the positive control (A1 5/5) cleared so the instrument had
+power. **It tested exactly one advisor.** The design spec's § *Resolved* names two or more
+advisors projected together as the only condition that re-opens the question, and the
+passover calls that *"where crowding-out would plausibly first appear."*
+
+So this is not a gap in the shipped feature — `advisors:` / `fragments:` work, and the
+premise is verified rather than insured, which is why the payload-header clause was
+deliberately **no-shipped**. It is an untested region of the same premise, named by the
+spec itself.
+
+**Two constraints the passover records, both worth honouring:**
+
+- **Do not re-run the existing eval to add power.** N=5 with one stimulus is what it is;
+  a second identical run adds nothing its stated limits do not already concede. More power
+  means a changed design — more arms, a second stimulus, two advisors — not a bigger n.
+- **Eval isolation is load-bearing.** Runs use `CLAUDE_CONFIG_DIR=~/.claude-test`
+  (credentials, no plugins dir) with `--strict-mcp-config` and the model pinned to
+  `sonnet`. Running in a real profile loads buddy through the plugin channel and
+  contaminates every arm.
+
+And the methodological lesson that thread ended on, which applies directly to designing
+this one: **for any eval whose failure signal is an absence, pre-register a
+treatment-side positive control** — a second signal that goes to zero when the
+intervention is inert — and check it first. The one-advisor result technically rests on
+an unregistered observable (advisor-citation count, 5/5 in A2 against 0/5 in both other
+arms); it came out positive so the verdict stands, but the rule as written could not have
+flagged an uninformative eval. A two-advisor design should register that observable up
+front. Written up as `roster-audit-session-log:W-4` addendum 2.
+
+Prior results and the limits binding the claim: `buddy/tests/advisor-projection-eval/RESULTS.md`.
 
 **Status:** open
 

@@ -1,7 +1,7 @@
 ---
-id: e39560f84d888091
+id: 1ccde24ea18b6138
 kind: tracker
-status: active
+status: archived
 title: Passover — validation-spine measurement — 2026-08-26
 tags:
 - passover
@@ -159,3 +159,23 @@ them wasted on an accidental `report` re-execution).
 - Adjacent initiative, different axis: `docs/trackers/buddy-introspection.md` audits how
   specialists are *written*; this one audits what the roster does not *cover*. `active-plan.md`
   owns the `T-N` namespace — file work there, not here.
+
+
+## Consumed
+
+Consumed 2026-09-01. Actions 1, 2 and 4 were already marked done in this file. Action 3 —
+*"Rebuild the stimulus above the unaided floor, and run the CONTROL FIRST"* — is **still
+open**, and is not lost by archiving: it is the same condition `VG-9` carries in
+`docs/trackers/validation-domain-coverage.md`, which `librarian(action="doctor")` now
+reports as `entry_conditional_past_due` (exposure 15), and it is tracked as
+`docs/trackers/repo-remediation-backlog.md` `RM-10`.
+
+`RM-10` repeats this file's four hard anti-goals inline rather than only linking here —
+`--paired`, `prompt-tdd report`, `max_cost_per_run`, and re-running the old fixture —
+because they are the part that cost real money to learn and a link is easy not to follow.
+The rest of the method detail (confound controls, plugin-free profile, both configs, the
+marker-per-arm attribution technique, and the recovered-controls story) stays here and is
+still reachable: an archived artifact is not a deleted one, and a uniquely-defined citation
+resolves into it normally.
+
+Archived via `artifact(action="move")`, not `git mv`.

@@ -1,7 +1,7 @@
 ---
-id: ba7c40f2987e6924
+id: c4bff3d602a9465c
 kind: tracker
-status: active
+status: archived
 title: Passover — advisor-projection eval + parked buddy release — 2026-08-27
 tags:
 - passover
@@ -122,3 +122,36 @@ deliberately **not** fired: all seven came from one session, and instances colle
 while hunting are a fact about the hunting. Instance 7 is the first that was not
 produced by the hunt — which is the direction the criterion cares about, but "different
 task, same conversation" is not an independent work stream.
+
+
+## Consumed
+
+Consumed 2026-09-01. Each Next action checked, not recalled:
+
+1. **Verify state** — done.
+2. **The parked buddy release** — **done.** `./scripts/release.sh buddy minor` → **0.11.0**
+   (`30fd8dd`), and both steps the script cannot do: the `version-bump-checklist` tracker
+   (`cc8cb9e23ab5cc67`) was refreshed with `commit_refresh=true` and verified row-by-row
+   — `grep '^|.*[⚠❌]'` returns empty, the first all-green refresh (`139a3ed`).
+   This closes the state this file flagged as *"buddy is running UNRELEASED code in all
+   three profiles"*: `plugin.json` said `0.9.2` against a working tree nothing compared
+   it to. Probed directly rather than inferred from the release output — all three profile
+   caches now hold the released bytes.
+3. **Decide on pushing** — done; `origin/main...HEAD` is `0 0`.
+4. **Two-or-more advisors projected together** — **still open, and carried forward** to
+   `docs/trackers/repo-remediation-backlog.md` `RM-24` with both of this file's binding
+   constraints (do not re-run for power; eval isolation via `~/.claude-test`) and the
+   treatment-side-positive-control lesson the thread ended on.
+
+**One nuance on the cold restart**, which this file and the sibling roster-audit passover
+both list: `/reload-plugins` was run in **this** instance (reported `3 plugins · 46 skills
+· 6 agents · 24 hooks`). The other two instances are unverified from here — a session can
+only observe its own process. That item is inherently per-instance and cannot be discharged
+by any single session, which is why the sibling passover tags it
+`[the one queue item a session cannot do for itself]`.
+
+The `roster-audit-session-log:W-4` promote-when remains deliberately unfired — all seven
+instances came from one session, and instances collected while hunting are a fact about the
+hunting. That judgement is untouched here.
+
+Archived via `artifact(action="move")`, not `git mv`.

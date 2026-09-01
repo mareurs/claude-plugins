@@ -50,7 +50,7 @@ end-to-end stdin drivers), which is the local hazard R-1 records.
 | R-3 | 2026-08-26 | hit | A filed drift finding is a claim about current state — scout the claim the number supports and the tracker's live state, not the quoted number | `roster-audit-session-log:F-1` `roster-audit-session-log:F-2` `roster-audit-session-log:W-1` |
 | R-4 | 2026-08-26 | promoted | Positive-control law was loaded and still missed — framed for searches, instrument was a report. 6th recurrence; placement fix applied `f53aaea`; **TWO** scenarios were built to score it, both **measured tautological** (treat 3/3, ctrl 3/3, Δ+0.00 each), and all six control runs probed unprompted — the behaviour is base competence, so this harness cannot measure the effect at all | `roster-audit-session-log:F-4` `roster-audit-session-log:F-6` |
 | R-5 | 2026-08-26 | promoted | A check that reads where the writer wrote, or is computed from what it judges, cannot fail — four instruments in one session. **PROMOTED 2026-08-26 on evidence**, shipped in the Phase 1 bullet adjacent to the positive-control law. The unprimed control measured 0/3 — the behaviour is absent by default — but per `roster-audit-session-log:F-13` the harness cannot validate the promotion itself | `roster-audit-session-log:F-6` `roster-audit-session-log:F-7` `roster-audit-session-log:F-8` `roster-audit-session-log:W-2` |
-| R-6 | 2026-08-26 | miss | "That tool persists nothing" asserted from four absences; the `When NOT to Use` carve-out's exemplars are all source-shape, so a runtime-behaviour claim walks the gate. 7th recurrence, but the law was never loaded. **SCREENED 2026-08-26: control 3/3 PASS — the behaviour is base competence, so the proposal is redundant. Do NOT promote.** The observation stands; the proposed clauses do not | no session log (see entry) — `passover-validation-spine-2026-08-26.md` + `validation-domain-coverage.md` VG-9 |
+| R-6 | 2026-08-26 | miss | "That tool persists nothing" asserted from four absences; the `When NOT to Use` carve-out's exemplars are all source-shape, so a runtime-behaviour claim walks the gate. 7th recurrence, but the law was never loaded. **SCREENED 2026-08-26: control 3/3 PASS — the behaviour is base competence, so the proposal is redundant. Do NOT promote.** The observation stands; the proposed clauses do not | no session log (see entry) — `archive/passover-validation-spine-2026-08-26.md` + `validation-domain-coverage.md` VG-9 |
 | R-7 | 2026-08-27 | hit | A memory in the *advertised* channel is a claim about current state — the promoted "a fix asserts a population" bullet fired, on a surface its examples (plans, proposals) don't cover. Boolean `block_reads` gotcha measured **false**, not stale; prescribed remedy targets zero configs. Outgrown-axis candidate recorded, **not** proposed — 1 datapoint, no base arm | `guard-hardening-session-log:F-2` |
 
 ## Status vocabulary
@@ -536,7 +536,7 @@ skill A/B on the `prompt-tdd` harness in the sibling `prompt-engineering` repo.
 
 **Source session log:** none — this work stream never opened one, which is
 itself the small finding at the end of this entry. Evidence lives in
-`passover-validation-spine-2026-08-26.md` (Open threads) and `VG-9` in
+`archive/passover-validation-spine-2026-08-26.md` (Open threads) and `VG-9` in
 `validation-domain-coverage.md` (History).
 
 **Pattern (or pattern that failed):** I told the user that a `$1.32` harness run

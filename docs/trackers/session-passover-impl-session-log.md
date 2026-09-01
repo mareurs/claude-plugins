@@ -210,7 +210,7 @@ Codified so the Index column means the same thing across sessions.
 
 **Expected:** `artifact(create)` would persist the template's frontmatter as written — including `origin_session_id`, `branch`, `topic`, `time_scope`.
 
-**Got:** `artifact(create)` accepts only `kind`/`status`/`title`/`tags`/`owners`/`topic`/`body`. `topic` IS settable (real frontmatter); `origin_session_id`, `branch`, `time_scope` are custom keys it cannot set. Created `cada4e50e6b3cfba` with those correlation keys carried in the body instead.
+**Got:** `artifact(create)` accepts only `kind`/`status`/`title`/`tags`/`owners`/`topic`/`body`. `topic` IS settable (real frontmatter); `origin_session_id`, `branch`, `time_scope` are custom keys it cannot set. Created `d12969fff8a557d6` with those correlation keys carried in the body instead.
 
 **Probable cause:** The template (`docs/templates/passover-template.md`) was authored as a copy-and-fill skeleton; the create-API path can't round-trip arbitrary frontmatter, so template and canonical-creation mechanism disagree.
 
@@ -220,7 +220,7 @@ Codified so the Index column means the same thing across sessions.
 
 **Status:** fixed-verified
 
-**Fix idea / Pointer:** Filed as codescout bug `13164fb35d6f71ed` (`docs/issues/2026-06-18-artifact-create-no-custom-frontmatter.md`) — source-verified: `time_scope` is a recognized field hardcoded to `None` in `create::call` and absent from `UpdatePatch` (bug); `origin_session_id`/`branch` aren't modeled at all (enhancement, needs passthrough-vs-indexing design). **Fixed + live-verified 2026-06-19** (codescout `8f26a2d4` wired `time_scope` into create/update; `752febb5` added the `extra` custom-frontmatter passthrough). Verified this session: `time_scope` + `extra` both accepted by `artifact(update)`; passover `cada4e50e6b3cfba` migrated to real frontmatter. CLAUDE.md author step updated to use the new params; no body-level workaround needed on current codescout.
+**Fix idea / Pointer:** Filed as codescout bug `13164fb35d6f71ed` (`docs/issues/2026-06-18-artifact-create-no-custom-frontmatter.md`) — source-verified: `time_scope` is a recognized field hardcoded to `None` in `create::call` and absent from `UpdatePatch` (bug); `origin_session_id`/`branch` aren't modeled at all (enhancement, needs passthrough-vs-indexing design). **Fixed + live-verified 2026-06-19** (codescout `8f26a2d4` wired `time_scope` into create/update; `752febb5` added the `extra` custom-frontmatter passthrough). Verified this session: `time_scope` + `extra` both accepted by `artifact(update)`; passover `d12969fff8a557d6` migrated to real frontmatter. CLAUDE.md author step updated to use the new params; no body-level workaround needed on current codescout.
 
 ---
 ## Template for new entries

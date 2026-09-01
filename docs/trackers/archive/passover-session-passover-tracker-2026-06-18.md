@@ -1,7 +1,7 @@
 ---
-id: cada4e50e6b3cfba
+id: d12969fff8a557d6
 kind: tracker
-status: active
+status: archived
 title: Passover — session-passover-tracker — 2026-06-18
 owners: []
 tags:
@@ -61,4 +61,24 @@ Feature **B** (the session-passover tracker pattern: template + discovery conven
 
 ## Consumed
 
-<!-- When you finish acting on this passover: flip status to archived, add a one-line note here, and artifact(action="move", …) this file into docs/trackers/archive/. Never bare git mv. -->
+Consumed 2026-09-01. All five Next actions adjudicated, each against a check rather than a
+recollection:
+
+1. **Git state** — the handoff expected "ahead 8 / behind 4". `origin/main...HEAD` is now
+   `0 0`. Long reconciled.
+2. **Reconcile with origin** — done; nothing outstanding.
+3. **Task 4 (deferred, external to this repo)** — **done.** codescout's
+   `src/prompts/guides/librarian-runtime.md:193` carries `## Trackers as cross-session
+   behavior`, and `tracker-conventions.md` cross-references it by name (*"including the
+   session-passover pattern"*) — both halves of what Task 4 asked for.
+4. **session-passover-impl-session-log:F-3** — resolved 2026-06-19 per this file's own Open
+   threads (codescout `13164fb35d6f71ed`), and `CLAUDE.md` § *Session Passover* now
+   documents the author step with native `time_scope` + the `extra` passthrough, so the
+   template and the create API agree. No body-level workaround remains.
+5. **Promote-when watch** — the only live item, and **not discharged**. Carried forward to
+   `docs/trackers/repo-remediation-backlog.md` `RM-23` rather than archived away: the
+   criterion looks fired (the documented discovery query used the wrong tag operator and
+   returned 0 against 5 live passovers on 2026-08-27), and what is owed is a decision
+   against this file's own recorded anti-goal, not an implementation.
+
+Archived via `artifact(action="move")`, not `git mv`.
