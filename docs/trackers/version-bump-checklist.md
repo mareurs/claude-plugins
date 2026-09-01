@@ -14,15 +14,15 @@ Release readiness across plugins × profiles. See
 
 ## State
 
-_Last refresh: `3e65211`, 2026-09-01._
+_Last refresh: `30fd8dd`, 2026-09-01._
 
-**buddy** — canonical `0.10.0` · readme `0.10.0` · marketplace clean ✅
+**buddy** — canonical `0.11.0` · readme `0.11.0` · marketplace clean ✅
 
 | profile | installed | cache dir | install_path ok | all entries | cache = working tree |
 |---|---|---|---|---|---|
-| `~/.claude` | 0.10.0 ✅ | ✅ | ✅ | `0.10.0` ✅ | ⚠ 1 doc — see below |
-| `~/.claude-sdd` | 0.10.0 ✅ | ✅ | ✅ | `0.10.0` ✅ | ⚠ 1 doc — see below |
-| `~/.claude-kat` | 0.10.0 ✅ | ✅ | ✅ | `0.10.0` ✅ | ⚠ 1 doc — see below |
+| `~/.claude` | 0.11.0 ✅ | ✅ | ✅ | `0.11.0` ✅ | ✅ |
+| `~/.claude-sdd` | 0.11.0 ✅ | ✅ | ✅ | `0.11.0` ✅ | ✅ |
+| `~/.claude-kat` | 0.11.0 ✅ | ✅ | ✅ | `0.11.0` ✅ | ✅ |
 
 **claude-statusline** — canonical `1.1.7` · readme `1.1.7` · marketplace clean ✅
 
@@ -32,13 +32,13 @@ _Last refresh: `3e65211`, 2026-09-01._
 | `~/.claude-sdd` | 1.1.7 ✅ | ✅ | ✅ | `1.1.7` ✅ | ✅ |
 | `~/.claude-kat` | 1.1.7 ✅ | ✅ | ✅ | `1.1.7` ✅ | ✅ |
 
-**codescout-companion** — canonical `1.19.11` · readme `1.19.11` · marketplace clean ✅
+**codescout-companion** — canonical `1.20.0` · readme `1.20.0` · marketplace clean ✅
 
 | profile | installed | cache dir | install_path ok | all entries | cache = working tree |
 |---|---|---|---|---|---|
-| `~/.claude` | 1.19.11 ✅ | ✅ | ✅ | `1.19.11` ✅ | ✅ |
-| `~/.claude-sdd` | 1.19.11 ✅ | ✅ | ✅ | `1.19.11` ✅ | ✅ |
-| `~/.claude-kat` | 1.19.11 ✅ | ✅ | ✅ | `1.19.11` ✅ | ✅ |
+| `~/.claude` | 1.20.0 ✅ | ✅ | ✅ | `1.20.0` ✅ | ✅ |
+| `~/.claude-sdd` | 1.20.0 ✅ | ✅ | ✅ | `1.20.0` ✅ | ✅ |
+| `~/.claude-kat` | 1.20.0 ✅ | ✅ | ✅ | `1.20.0` ✅ | ✅ |
 
 **session-bridge** — canonical `0.1.0` · readme `0.1.0` · marketplace clean ✅
 
@@ -48,9 +48,12 @@ _Last refresh: `3e65211`, 2026-09-01._
 | `~/.claude-sdd` | 0.1.0 ✅ | ✅ | ✅ | `0.1.0` ✅ | ✅ |
 | `~/.claude-kat` | 0.1.0 ✅ | ✅ | ✅ | `0.1.0` ✅ | ✅ |
 
-**All four plugins are green on every records-side column, and only buddy carries a
-`cache = working tree` ⚠.** codescout-companion's ⚠ cleared exactly as the 1.19.9 entry
-predicted it would — see the 1.19.10 History entry.
+**All four plugins are green on every column, including `cache = working tree` — the
+first refresh with no ⚠ anywhere.** buddy's ⚠ cleared on this bump exactly as the 0.10.0
+entry predicted, which is the second prediction this tracker has made and had confirmed
+rather than assumed (codescout-companion's cleared at 1.19.10 the same way). Measured, not
+inferred: `diff -rq` under the documented excludes returns empty for all **six**
+plugin×profile pairs.
 
 `sdd` — discovered in the repo but installed in no profile. Stable by design; never a gap.
 
@@ -75,10 +78,13 @@ not drift. Naming them here matters more than the fix: a column whose method qui
 grows exclusions can be tuned until it always reads green, so every exclusion should be
 justified as an artifact class, not as a file that happened to differ.
 
-**buddy's ⚠ is real and is the same one recorded at 1.19.3.** `docs/trackers/headroom-optimization.md`
-differs from all three caches, because it was edited after 0.10.0 shipped. Deliberately
-not re-seeded: re-seeding would make `0.10.0` denote two different byte sets. It clears on
-buddy's next version bump.
+**buddy's ⚠ is CLOSED as of 0.11.0.** It was `docs/trackers/headroom-optimization.md`,
+edited after 0.10.0 shipped and deliberately not re-seeded — re-seeding would have made
+`0.10.0` denote two different byte sets. The 0.10.0 entry predicted it would clear on the
+next version bump; the next bump was 0.11.0 (the reload-payload spill), and `diff -rq`
+under the documented excludes now returns empty for all three profiles. Prediction
+confirmed by measurement, and the disposition it argued for vindicated: waiting cost
+nothing.
 
 **codescout-companion's ⚠ is CLOSED as of 1.19.10.** It was
 `hooks/session-start.test.sh`, added after 1.19.9 shipped and deliberately left
@@ -160,6 +166,47 @@ two actually serves, they carry the same bytes — so the question CLAUDE.md fla
 unsettled does not need settling for this release.
 ## History
 
+### 2026-09-01 — 1.20.0 + 0.11.0, and the release that a documentation error made load-bearing
+
+Two releases, back to back, both carrying fixes for the same defect class: hook output
+over CC's inline cap being replaced by a ~2 KB preview.
+
+**codescout-companion 1.20.0** — `reconnaissance/SKILL.md` split 44,375 → 13,680 B
+(−69.2%), its accumulated seam-class case law, promotion workflow and worked exemplars
+moved byte-identical into `skills/reconnaissance/references/`. 28 structural assertions in
+a new `tests/test-recon-skill-split.sh`.
+
+**buddy 0.11.0** — the compact reload block now spills over-budget bodies to
+`.buddy/<sid>/reload-payload-<source>.md` and emits a pointer. The mechanism was extracted
+from `summon_bootstrap.spill_payload` into `buddy_paths.spill_to_session_dir`, shared by
+both paths. Measured before: 44,702 B emitted, 1,789 B delivered (4.0%). After: 1,046 B
+stdout, 13,427 B on disk.
+
+**This release was the first one this tracker's own subject matter made mandatory rather
+than hygienic.** A doc-vs-reality defect found the same day (`skill-loading-session-log:F-5`)
+showed that CLAUDE.md's "our plugins load from the REPO WORKING TREE … an edit is live
+immediately" is true of **hooks** and false of **skills and commands**, which resolve
+through `installPath`. Evidence: the session that had just cut the skill to 13,680 B
+invoked it and was served **44,673 B** — byte-identical to
+`…/codescout-companion/1.19.11/skills/reconnaissance/SKILL.md`, exactly where that
+profile's record pointed. So the split reached nobody until this release seeded new caches.
+The `cache = working tree` column has always been the right axis; what F-5 adds is that for
+skills it is the **only** axis, because there the cache *is* the load path.
+
+Post-release probe, run rather than assumed: all three profiles now carry the 13,680 B
+skill and its 4 reference files, and buddy's `INLINE_CAP = 12000` is present in all three
+caches.
+
+**First all-green refresh.** buddy's `cache = working tree` ⚠ cleared on this bump as the
+0.10.0 entry predicted — the second such prediction confirmed by measurement, not
+assumption. Zero ⚠ across all four plugins and six plugin×profile pairs.
+
+`check-versions.sh` all consistent; `check-profile-parity.sh` green across 4 plugins plus
+marketplace registrations. Pre-flight `run-all.sh` 16/16 and buddy pytest 527 on both runs.
+Both pushed (`6b700e7`, `30fd8dd`).
+
+**Cold restart still owed** — and per F-5 it is now the step that makes the skill split
+visible in-session, not merely the step that rebinds hooks.
 ### 2026-09-01 — 1.19.11, a documentation-only release that closes a tracker's promote-when
 
 **Delta:** codescout-companion `1.19.10 → 1.19.11` across canonical, readme and all three
