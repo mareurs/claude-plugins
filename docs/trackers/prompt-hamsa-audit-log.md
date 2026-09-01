@@ -11,6 +11,8 @@ tags:
 - audit-log
 - self-reflection
 - eval
+entry_high_water_A: 3
+entry_prefix: A
 expects_augmentation: docs/augmentations/docs-trackers-prompt-hamsa-audit-log.yaml
 ---
 
@@ -52,6 +54,91 @@ This is how *"unverified, N=0"* stops being a permanent flag and becomes a hold-
 - **Measure:** `artifact(action="get", id=<this>, entry_filter={"confidence":{"eq":"high"}})`;
   hold-rate = `held` ÷ (high-confidence rows with a non-empty `outcome`).
 
+
+
+> **Prefix hazard — read before allocating `A-4`.** This ledger declares `entry_prefix: A`
+> and its namespace is **A-1..A-3** (`entry_high_water_A: 3`). **codescout's own
+> `prompt-hamsa-audit-log` uses the same `A` prefix**, and this repo cites *its* entries
+> **bare** in at least three places — `buddy/skills/prompt-hamsa/SKILL.md` (8 tokens, most
+> written as *"codescout A-9"* in prose), `codescout-companion/README.md` (`A-15`, `A-16`,
+> explicitly attributed to codescout's file), and this file's own History sections
+> (`A-4`/`A-5`/`A-6`/`A-8`/`A-9`/`A-10`/`A-11`/`A-14`).
+>
+> Those bare tokens resolve to **nothing** today, which is merely untidy. The hazard is
+> what happens next: allocate a local `A-4` and every bare citation of *codescout's* `A-4`
+> in this repo silently re-points to it, because the resolver binds a token to its sole
+> active definer. Nothing raises — no dangling count moves, no check fires.
+>
+> So: **qualify those citations to `codescout:A-N` before any local `A-4` is issued.**
+> Tracked as `repo-remediation-backlog` `RM-25`. Do not raise
+> `entry_high_water_A` to dodge it — that would misstate the counter and waste thirteen ids
+> to paper over a citation-shape problem.
+## A-1 — data-contract-marmot: run the base arm first, and unaided Opus 5 already separates the layers
+
+**Audited:** a drafted `data-contract-marmot` specialist (`SKILL.md` + `_schema.md` + `_drift.md`), previewed and deliberately never written to disk. **2026-08-26.**
+
+The premise was **imported, not observed** — a claim from ML-ops literature about *human*
+practice (one `validate()` mixing schema and distribution checks, so a seasonal shift and a
+renamed column raise the same alarm and it gets muted). No local failure had been seen. The
+gap found was that the defining principle carried **no decision procedure**: a stranger could
+satisfy *"sort every check out loud"* by asserting a sort they could not justify.
+
+Move: **H12 — base arm before writing any file.** Outcome **held** — the prediction was that
+unaided Opus 5 separates structural from statistical, and it did, so the Marmot was
+**no-shipped** as a loaded prompt and kept as tracker documentation. Eval present: n=10, 3
+rubrics, pinned Opus 5, plugin-free profile, $5.89.
+
+Structured fields for this entry live in `params.audits` and are authoritative; this section
+exists to make `A-1` a citable token.
+
+## A-2 — the advisor projection rule: omission alone suffices, so the header clause was no-shipped
+
+**Audited:** `buddy/scripts/summon_bootstrap.py::build_payload` — the advisor projection rule
+as assembled into a summon payload. **2026-08-27.**
+
+No observable failure; the audit was of a *requested behaviour*. An advisor's `Voice` and
+output contract are omitted from the payload, and the spec's premise was that omission alone
+suffices. The gap: the rule is **negation-only and the negation is implicit** — nothing tells
+the model what to do with an advisor's heuristics, so it must infer the constraint from
+absence, which is weaker than a stated *don't*, and a stated *don't* is already the weak form.
+
+The move turned on a genuine conflict: the spec's own cheap remedy — one clause in the payload
+header — **pre-empts exactly what the eval measures**, so insurance and measurement were
+mutually exclusive and the measurement had to go first or never. Outcome **held**: base arm at
+ceiling, header clause **no-shipped**. Six of nine codescout intervention audits have landed
+no-ship.
+
+Structured fields live in `params.audits`; this section exists to make `A-2` citable.
+
+## A-3 — the law was stated in three places that were all in context, and still did not fire
+
+**Audited:** prompt-hamsa's own craft surface — H12 and codescout P-6 — immediately after
+`A-2`'s eval concluded. **2026-08-27.** Observed, local, n=1.
+
+`A-2`'s pre-registration shipped a verdict rule whose failure signal was an **absence**
+(behavioural leak ≤ 1/5). That observable reads 0 both when projection works and when the
+advisor text was never attended to at all, so the rule returns *premise holds* in both worlds.
+The eval was rescued only by an **unregistered** observable — advisor-citation count, 5/5
+against 0/5 and 0/5 — noticed while reading blinded responses.
+
+**The finding is not a missing rule.** The law was stated in three places, all in context when
+the pre-registration was written: P-6's three-way checker split, a global memory saying
+outright that *only a positive control separates "the treatment does nothing" from "the
+treatment never reached the model"*, and H9. The absent-behaviour trace was even already in the
+design as arm A1 — collected, scored, printed in the same table — but A1 had been designated
+the instrument control for RETAIN, so its leak column was never read as the absent-behaviour
+trace for LEAK.
+
+Move: **no-ship a fourth statement of the law.** Instead promote P-6's three-way split from a
+protocol bullet to a **required, pre-filled field** — a three-row table (treatment works /
+fails / absent) whose predicted values the author writes before running, with the stop rule
+*two rows holding the same value means the observable is dead*.
+
+**Outcome: still null, and deliberately so.** `eval_status` is *absent* — a form field is not
+cheaply A/B-able, so the verdict lands on the next absence-shaped eval rather than on a
+schedulable run. `RM-24` is a candidate for exactly that test.
+
+Structured fields live in `params.audits`; this section exists to make `A-3` citable.
 ## History
 ### 2026-08-27 — self-audit: the rule was present three times and still did not fire (row `A-3`)
 

@@ -9,7 +9,7 @@ tags:
 - doctor
 - remediation
 topic: repo-hygiene
-entry_high_water_RM: 24
+entry_high_water_RM: 25
 entry_prefix: RM
 ---
 
@@ -205,7 +205,17 @@ not one row's omission.
 Fix by giving each entry its own heading of the exact defining shape — token, whitespace,
 em-dash, title. Rows and rendered tables define nothing.
 
-**Status:** open
+**Status:** fixed-verified 2026-09-01 — `A-1`, `A-2` and `A-3` now have `## A-N — <title>` sections, so `doctor`'s `ledger_defines_nothing` and `entry_without_definition` are both **0** (violations 36 → 34). The sections are deliberately thin — what was audited, the move, the outcome — and each says the `params.audits` row is authoritative for the structured fields, so there is one place to change a value and one place that makes the token citable.
+
+Also declared `entry_prefix: A` + `entry_high_water_A: 3`, which the ledger had never carried despite owning the namespace. Without it `append_entry` cannot allocate at all.
+
+**The scout paid for itself twice, and the second time saved a silent id collision.**
+
+First: the tracker holds **20 `audits` rows but only 3 with an `id`**. `doctor`'s "all 3 entries" was exact, not a sample — the other 17 predate the namespace.
+
+Second, and the real find: declaring the prefix moved `link_scan` dangling **34 → 54**. I set `entry_high_water_A: 16` to avoid what looked like a collision with `A-4`..`A-16` tokens already in prose — then read the citing text instead of the token list, and **every one of them is codescout's ledger cited bare**: *"codescout A-4/A-5/A-8/A-9"*, *"codescout A-10"*, and a README line reading *"Provenance: codescout `docs/trackers/prompt-hamsa-audit-log.md` A-16 … + A-15"*. The local namespace really is A-1..A-3, so **16 was wrong and was reverted**. Had it stayed, the counter would have misstated the ledger and burned thirteen ids to paper over a citation-shape problem.
+
+The +20 dangling is **pre-existing breakage made legible**, not damage: those tokens never resolved. Carried to `RM-25`, along with the hazard that matters — allocate a local `A-4` and every bare citation of codescout's `A-4` silently re-points to it, with no count moving and no check firing. That warning now sits in the audit log's own `## How to maintain`, where an allocator will meet it.
 
 **Valid:** dated 2026-09-01
 
@@ -588,6 +598,45 @@ flagged an uninformative eval. A two-advisor design should register that observa
 front. Written up as `roster-audit-session-log:W-4` addendum 2.
 
 Prior results and the limits binding the claim: `buddy/tests/advisor-projection-eval/RESULTS.md`.
+
+**Status:** open
+
+**Valid:** dated 2026-09-01
+
+## RM-25 — ~20 bare `A-N` tokens are codescout's ledger, and a local `A-4` would silently capture them
+
+Surfaced by `RM-8`, which declared `entry_prefix: A` on
+`docs/trackers/prompt-hamsa-audit-log.md`. That declaration made the `A` prefix *known* to
+the resolver, and ~20 `A-N` tokens across three files went from inert prose noise to
+reported **dangling** — `link_scan` dangling 34 → 54.
+
+**None of that is new breakage.** Every one of those tokens is a citation of **codescout's**
+own `prompt-hamsa-audit-log`, which uses the same `A` prefix. Verified by reading the citing
+text, not inferred: `buddy/skills/prompt-hamsa/SKILL.md` (8, most written *"codescout
+A-9"*/*"codescout A-4/A-5/A-8/A-9"* in prose), `codescout-companion/README.md` (2, prefaced
+*"Provenance: codescout `docs/trackers/prompt-hamsa-audit-log.md` A-16 … + A-15"*), and the
+audit log's own History sections (`A-4`/`A-5`/`A-6`/`A-8`/`A-9`/`A-10`/`A-11`/`A-14`). They
+were always unresolvable; the declaration only made them legible.
+
+The fix is qualification — `codescout:A-9` — the same remedy the archived
+`bare-cross-repo-entry-tokens-read-as-dangling` bug applied elsewhere. **That bug explicitly
+predicted and deferred this residue**, on two grounds still true today: the biggest
+concentration sits on *shipped prompt surface* (`buddy/skills/…`), and shipping a skill edit
+costs the version-bump + cache-reseed + install-record dance, which it said to fold into a
+real content bump rather than pay for alone. So this is documented deferral, not oversight.
+
+**The reason it is worth doing rather than leaving:** a bare token is not merely untidy here,
+it is a loaded gun. The moment a local `A-4` is allocated, every bare citation of codescout's
+`A-4` in this repo silently re-points to it — the resolver binds a token to its sole active
+definer, and no dangling count moves, no check fires. The hazard is recorded in the audit
+log's own `## How to maintain` so an allocator meets it before issuing an id.
+
+**Do not "fix" this by raising `entry_high_water_A`.** That misstates the counter and burns
+thirteen local ids to paper over a citation-shape problem. It was tried and reverted in the
+same session that found this.
+
+Scope: ~20 tokens, 3 files, one of them shipped plugin surface. Batch the skill edit with the
+next codescout-companion or buddy content release.
 
 **Status:** open
 
