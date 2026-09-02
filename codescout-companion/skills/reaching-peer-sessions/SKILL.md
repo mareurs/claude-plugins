@@ -20,23 +20,43 @@ count as the whole population, with nothing marking it as a subset.
 ## Step 1 — enumerate the real population
 
 ```bash
-u=$(id -u); me=$$
-while [ "$me" -gt 1 ] && [ "$(cat /proc/$me/comm 2>/dev/null)" != claude ]; do
-  me=$(awk '/^PPid:/{print $2}' /proc/$me/status 2>/dev/null) || break
+u=$(id -u)
+# Your own row: walk up from this shell to the first ancestor holding a socket in
+# cc-socks. That IS what "a claude server" means here, and it is deliberately NOT a
+# `comm` test — `comm` is the executable BASENAME, and a version-pinned install names
+# the binary after its version, so those processes report `comm=2.1.258`. A
+# comm=claude walk passes its own server and terminates at PID 1. Measured
+# 2026-09-02: 3 of 21 socket-bound sessions on this machine were version-pinned.
+me=$$
+while [ -n "$me" ] && [ "$me" -gt 1 ] 2>/dev/null && [ ! -S "/run/user/$u/cc-socks/$me.sock" ]; do
+  me=$(awk '/^PPid:/{print $2}' "/proc/$me/status" 2>/dev/null)
 done
+[ -n "$me" ] && [ -S "/run/user/$u/cc-socks/$me.sock" ] || me=""
 rows=$(for s in /run/user/$u/cc-socks/*.sock; do
   p=${s##*/}; p=${p%.sock}; [ -r "/proc/$p/environ" ] || continue
   d=$(tr '\0' '\n' <"/proc/$p/environ" | sed -n 's/^CLAUDE_CONFIG_DIR=//p'); d=${d:-$HOME/.claude}
-  j=$(cat "$d/sessions/$p.json" 2>/dev/null)
-  n=$(printf '%s' "$j" | sed -n 's/.*"name":"\([^"]*\)".*/\1/p')
-  st=$(printf '%s' "$j" | sed -n 's/.*"status":"\([^"]*\)".*/\1/p')
-  printf '%s\t%s\t%s\t%s\t%s%s\n' "$p" "$(basename "$d")" "${n:-?}" "${st:-?}" \
+  # Structural read, never a regex. `name` is a TOP-LEVEL key; `formerNames` is a list
+  # of objects each carrying its own `name`, so `sed 's/.*"name":"\(...\)".*/\1/'`
+  # binds its greedy `.*` to the LAST match and prints the FORMER name — silently, and
+  # only for sessions that have been renamed. `status` has the identical shape and is
+  # safe today only because no nested object currently carries that key.
+  nm=$(python3 -c 'import json,sys;d=json.load(open(sys.argv[1]));print((d.get("status") or "?")+"|"+(d.get("name") or "?"))' "$d/sessions/$p.json" 2>/dev/null)
+  st=${nm%%|*}; n=${nm#*|}; [ -n "$nm" ] || { st='?'; n='?'; }
+  printf '%s\t%s\t%s\t%s\t%s%s\n' "$p" "$(basename "$d")" "$n" "$st" \
     "$(readlink "/proc/$p/cwd")" "$([ "$p" = "$me" ] && echo '  <-- you')"
 done | sort -k2,2 -k5,5)
 [ -z "$rows" ] && { echo "no live sessions found"; exit; }
 printf 'PID\tPROFILE\tNAME\tSTATUS\tCWD\n%s\n' "$rows"
-printf -- '-- %s live sessions across %s profile(s)\n' \
-  "$(printf '%s\n' "$rows" | wc -l)" "$(printf '%s\n' "$rows" | cut -f2 | sort -u | wc -l)"
+n_rows=$(printf '%s\n' "$rows" | wc -l)
+n_prof=$(printf '%s\n' "$rows" | cut -f2 | sort -u | wc -l)
+if [ -n "$me" ]; then
+  printf -- '-- %s live sessions (%s peers plus you) across %s profile(s)\n' \
+    "$n_rows" "$((n_rows - 1))" "$n_prof"
+else
+  printf -- '-- %s live sessions across %s profile(s)\n' "$n_rows" "$n_prof"
+  printf -- '-- WARNING: your own row was NOT identified — no "<-- you" marker below.\n'
+  printf -- '--          Do NOT report a peer count from this run: you cannot subtract yourself.\n'
+fi
 printf -- '-- outside your profile, address by: uds:/run/user/%s/cc-socks/<PID>.sock\n' "$u"
 ```
 
@@ -46,8 +66,24 @@ A socket with no live `/proc/<pid>` is a stale leftover and is skipped;
 `STATUS` is the peer's own last-reported `idle`/`busy`. The `<-- you` row is
 found by walking up from this shell, which is a child of your own server by
 construction — do **not** identify yourself with `pgrep … | head -1`, which
-samples arbitrarily among several running servers.
+samples arbitrarily among several running servers, and do not filter on `comm`,
+which is the binary's basename rather than its identity.
 
+**A failed self-identification is LOUD, and that is load-bearing.** When the walk
+finds no socket-bearing ancestor, `me` is empty, no row is marked, and the table
+still renders perfectly — identical to a correct run except for one missing
+annotation nobody is looking for. A reader who cannot find themselves assumes they
+misread. So the summary drops the peer figure entirely and says why, rather than
+printing a session count a reader will silently use as a peer count.
+
+**Both defects were shipped and both were self-concealing.** A stale name makes
+`SendMessage` answer `No agent named 'X' is reachable`, which is byte-identical to
+a cross-profile refusal — and Step 3 tells you to answer that by switching to the
+`uds:` form, which works. So a wrong name never surfaces as wrong. A version-pinned
+session, meanwhile, saw a correct table with no `<-- you` row. Neither produced an
+error; both produced a plausible answer. Recorded in codescout as
+`docs/issues/2026-09-02-greedy-name-regex-reads-a-former-session-name-as-the-current-one.md`
+and `docs/issues/2026-09-02-comm-filter-misses-version-pinned-claude-processes.md`.
 ## Step 2 — branch on the last count
 
 **`across 1 profile(s)`** — `ListAgents` is complete on this machine. Address
