@@ -32,9 +32,9 @@ Design spec: `docs/superpowers/specs/2026-07-28-subagent-bootstrap-injection-des
 | F-4 | Scout concluded "no test file exists" from a one-directory search | high | fixed-verified |
 | F-5 | `write_mcp_json` does not open the codescout gate; existing suite partly vacuous | med | fixed-verified |
 | F-6 | explore-project skill and explore-inject hook both inject, and contradict on write permission | med | fixed-verified |
-| F-7 | SKILL.md cites `explore-inject.sh`; only `.mjs` exists (rediscovery of the 1.14.0 port drift) | low | fixed-verified (SKILL.md; buddy docs still open) |
-| F-8 | PreToolUse-on-Agent does not fire for nested (subagent-issued) dispatches — 0 of 15 marked | med | open — **evidence retracted**, instrument could not discriminate (2% recorded-rate on the control path) |
-| F-9 | extractPaths swallows trailing punctuation, silently skipping injection (2 real misses in 1,564) | low | open |
+| F-7 | SKILL.md cites `explore-inject.sh`; only `.mjs` exists (rediscovery of the 1.14.0 port drift) | low | fixed-verified (6 surfaces + system-prompt hook map) |
+| F-8 | PreToolUse-on-Agent does not fire for nested (subagent-issued) dispatches — 0 of 15 marked | med | **wontfix-false-alarm** — title is false; hook DOES fire, measured end-to-end |
+| F-9 | extractPaths swallows trailing punctuation, silently skipping injection (2 real misses in 1,564) | low | fixed-verified |
 
 ## Wins Index
 
@@ -381,13 +381,25 @@ Two surfaces are **correct** and should not be swept: `.codescout/memories/archi
 
 **Severity:** low — three stale pointers in a `See also` and two test-doc surfaces. It cost this session one failed `grep` on a nonexistent path (0 matches, which reads identically to "the hook says nothing about writes" — the shape of a silently-wrong negative) before `tree` showed the real filename.
 
-**Status:** fixed-verified for `SKILL.md` (2026-09-02) — three pointers repointed to `.mjs` (lines 10, 83, 98), plus the header comment of `hooks/explore-inject.test.sh`, which this entry's original `**/*.md` grep had missed because it is a `.sh` file. Guarded by `hooks/explore-inject.compose.test.sh`. **Still open elsewhere:** `buddy/tests/explore-project-eval/README.md` (17, 66, 86) and `buddy/tests/BENCHMARK.md` (218) — a different plugin, left for a deliberate sweep. The design doc's `.sh` remains correct as a design-time working name.
+**Status:** fixed-verified (2026-09-02) — swept beyond the original scope. `SKILL.md` (3), `hooks/explore-inject.test.sh` header, `tests/test-hooks-json-registration.sh` (3 stale assertion labels), `buddy/tests/explore-project-eval/README.md` (3), `buddy/tests/BENCHMARK.md` (1), and `buddy/tests/explore-project-eval/prompt_tdd.yaml` (1) — the last a **fifth surface this entry's original `**/*.md` grep could not see**, which is the reusable lesson: the glob was a hypothesis about where citations live, and it returned a clean zero for the `.yaml`. Also corrected `.codescout/system-prompt.md`'s hook map (the always-on subagent channel flagged at `version-bump-checklist.md:1039`): six `.sh`→`.mjs`, plus `il3-warn-hook.sh` → `il3-deny-hook.sh`, which is **not** a `.sh`→`.mjs` rename — the file is genuinely `.sh`, the basename was wrong, and it is registered in **no** `hooks.json` event, so the map presented an inert file as an active hook. Deliberately left: the design doc's two `.sh` mentions (design-time working name, historically accurate) and this entry's own description of the bug.
 
 **Valid:** conditional — the `.sh` → `.mjs` rename is swept through the five live citation lines above
 
 **Fix idea / Pointer:** cheap to fix alongside the F-6 edit, since it touches the same file. Worth running `librarian(action="audit_doc_refs")` once to find the rest of the 1.14.0 port's stale hook paths repo-wide rather than fixing these five by hand and re-discovering the next set later.
 
 ## F-8 — PreToolUse-on-Agent does not fire for nested (subagent-issued) dispatches — 0 of 15 marked
+
+> **RESOLVED 2026-09-02 — FALSE ALARM. The hook DOES fire for nested dispatches.** Settled by direct measurement, not transcripts. The title is kept for citation stability and is **false as written**.
+>
+> Method: instrumented `explore-inject.mjs` to append one line per invocation *before every early exit*, with the instrument's positive control established first (a synthetic payload produced a log line) — the step whose absence caused the retraction below. Then dispatched a subagent instructed to dispatch a nested subagent whose prompt named a foreign repo.
+>
+> Result — three log lines, in order: the synthetic selftest, the outer main-agent dispatch, and **the nested subagent-issued dispatch** (`head: "Report back the first 200 characters of your own prompt…"`, 8s after the outer). The grandchild independently reported its received prompt beginning `[[cs-explore-bootstrap]] This task targets a FOREIGN project at /home/marius/work/claude/codescout…`, `MARKER_PRESENT: yes`. So the hook fires **and** the injection reaches the grandchild end-to-end.
+>
+> This also explains the 0/15: the hook was firing the whole time and the transcript simply records the original `tool_input`, at a 2% rate on the control path. Instrumentation removed after capture.
+>
+> **Consequence for the F-6 fix:** the skill's `Rules:` duplication is **redundant on the subagent path**, not essential — the guard makes it a no-op there. It is retained as the fallback for hook-*absent* environments (the prompt-tdd eval profile, non-Claude-Code harnesses), which is what `SKILL.md`'s note now says. The fix itself needed no change; its rationale was wrong twice before landing here.
+>
+> **Lesson, twice over:** the first claim inverted the truth because its instrument could not express the failure; the second ("unresolved") was honest but still cost a round. A direct probe with its own positive control took one dispatch and ~18 seconds, and was available from the start.
 
 > **RETRACTED 2026-09-02, same day, by its own missing control.** The conclusion below is **not supported** and the title overstates what was shown. Read this banner first; the measurement is kept because the instrument's failure is the lesson.
 >
@@ -439,9 +451,9 @@ So the skill's conditional fallback ("If a foreign-project bootstrap directive w
 
 **Severity:** med — no live failure (the skill has 0 lifetime invocations per `.codescout/memories/agent-dispatch-hooks.md`, so the subagent path has never actually run), but it was one step from being designed into a silent regression, and it redirects the write-mode feature from the skill to the hook.
 
-**Status:** open — **evidence retracted, question unresolved** (see banner). The F-6 fix it informed is unaffected: keeping the skill's fallback is correct whether or not the hook fires there (no-op if it does, essential if it does not).
+**Status:** wontfix-false-alarm — the claimed defect does not exist; the hook fires for nested dispatches and the injection reaches the grandchild (see RESOLVED banner). No code change was warranted. The F-6 fix stands on a corrected rationale.
 
-**Valid:** conditional — a live nested dispatch at a foreign path is observed via the child's received prompt or a hook-side invocation log
+**Valid:** invariant — measured directly end-to-end; supersedes both the original conditional and the retraction's
 
 **Valid (superseded — see Status):** conditional — a live nested dispatch at a foreign path is observed, confirming or refuting non-firing
 
@@ -469,7 +481,7 @@ The headline 125 (8% of dispatches) is an **upper bound, not an impact count** �
 
 **Severity:** low — 2 misses in 1,564 dispatches (0.13%), and the failure mode is a *missing* bootstrap (subagent works without foreign context) rather than a wrong one. But it is silent and its likeliest trigger is the most natural way to write a prompt: ending a sentence with the path.
 
-**Status:** open — not fixed; B′'s scope was agent-type branching, and expanding it uninvited was declined. The test now documents the constraint in a comment so the next author does not re-hit it.
+**Status:** fixed-verified (2026-09-02) — `extractPaths` now also offers the dot-stripped candidate; `firstForeignRoot`'s real-dir + different-repo checks still gate it, so nothing new can be invented. Four assertions added to `explore-inject.test.sh` (period-terminated foreign path injects; directive names the dir not the captured period; stripped-local and stripped-nonexistent still skip). Verified to discriminate: reverting the two-line fix fails exactly the two injection assertions and nothing else.
 
 **Valid:** conditional — `extractPaths` is changed to consider punctuation-stripped candidates
 

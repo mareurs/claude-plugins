@@ -15,7 +15,7 @@
 #
 # L-7 PARTIAL-CONTROL CAVEAT (read before trusting the delta): the skill's full
 # capability — auto-bootstrapping the foreign project's CLAUDE.md + codescout
-# memories — comes from the `explore-inject.sh` PreToolUse-on-Agent hook, a
+# memories — comes from the `explore-inject.mjs` PreToolUse-on-Agent hook, a
 # PLUGIN hook that is NOT copied by setup.skills and is absent from the isolated
 # ~/.claude-test profile. So neither arm exercises the hook. What this eval
 # measures is the SKILL.md-content floor: does the prose payload alone change the

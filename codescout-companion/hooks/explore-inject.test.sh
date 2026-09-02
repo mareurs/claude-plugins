@@ -87,6 +87,37 @@ ABS_D=$(dir_for "")
 case "$ABS_D" in *edit_code*) ok "agent-type: absent defaults to write-capable" yes yes ;;
                  *)           ok "agent-type: absent defaults to write-capable" no  yes ;; esac
 
+# ---------- 2c. F-9: a path ending a sentence still injects ----------
+# '.' is a path character, so "…/repoB." used to capture the period, name no real
+# dir, and skip silently. extractPaths now also offers the dot-stripped candidate.
+IN_DOT=$(jq -nc --arg cwd "$SB/repoA" --arg p "Investigate the failure in $SB/repoB." \
+  '{tool_name:"Agent",cwd:$cwd,tool_input:{subagent_type:"general-purpose",prompt:$p}}')
+DOT_OUT=$(run "$IN_DOT" | jq -r '.hookSpecificOutput.updatedInput.prompt // ""')
+case "$DOT_OUT" in
+  *"[[cs-explore-bootstrap]]"*) ok "F-9: period-terminated path injects" yes yes ;;
+  *)                            ok "F-9: period-terminated path injects" no  yes ;;
+esac
+# Scope this to the DIRECTIVE only: the original task is appended verbatim, so the
+# composed prompt always contains "repoB." regardless of what the directive resolved.
+DOT_DIR=${DOT_OUT%%--- original task ---*}
+case "$DOT_DIR" in
+  *"$SB/repoB."*) ok "F-9: directive names the dir, not the captured period" no  yes ;;
+  *"$SB/repoB"*)  ok "F-9: directive names the dir, not the captured period" yes yes ;;
+  *)              ok "F-9: directive names the dir, not the captured period" no  yes ;;
+esac
+
+# A trailing period must not invent a foreign root where none exists: the
+# stripped candidate is still subject to the real-dir + different-repo checks.
+IN_DOTL=$(jq -nc --arg cwd "$SB/repoA" --arg p "Check $SB/repoA/sub." \
+  '{tool_name:"Agent",cwd:$cwd,tool_input:{prompt:$p}}')
+[ -z "$(run "$IN_DOTL")" ] && ok "F-9: stripped local path still skips" skip skip \
+                           || ok "F-9: stripped local path still skips" inject skip
+
+IN_DOTX=$(jq -nc --arg cwd "$SB/repoA" --arg p "See $SB/nope-not-a-dir." \
+  '{tool_name:"Agent",cwd:$cwd,tool_input:{prompt:$p}}')
+[ -z "$(run "$IN_DOTX")" ] && ok "F-9: stripped nonexistent path still skips" skip skip \
+                           || ok "F-9: stripped nonexistent path still skips" inject skip
+
 IN_L=$(jq -nc --arg cwd "$SB/repoA" --arg p "Fix bug in $SB/repoA/sub/main.rs; shebang /usr/bin/env bash." \
   '{tool_name:"Agent",cwd:$cwd,tool_input:{subagent_type:"Explore",prompt:$p}}')
 [ -z "$(run "$IN_L")" ] && ok "e2e: skip local-only + shebang" skip skip || ok "e2e: skip local-only + shebang" inject skip

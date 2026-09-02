@@ -22,13 +22,13 @@ else
   fail "Agent matcher → pre-task-hint.sh" "got: $MATCH"
 fi
 
-# Test 2b: Agent matcher also registered to explore-inject.sh (foreign-project
+# Test 2b: Agent matcher also registered to explore-inject.mjs (foreign-project
 # bootstrap injector — a second Agent hook alongside pre-task-hint.sh)
 MATCH=$(jq -r '.hooks.PreToolUse[] | select(.matcher == "Agent") | .hooks[] | (.command + " " + ((.args // []) | join(" ")))' "$HOOKS_JSON")
 if echo "$MATCH" | grep -q "explore-inject.mjs"; then
-  pass "Agent matcher → explore-inject.sh"
+  pass "Agent matcher → explore-inject.mjs"
 else
-  fail "Agent matcher → explore-inject.sh" "got: $MATCH"
+  fail "Agent matcher → explore-inject.mjs" "got: $MATCH"
 fi
 
 # Test 3: edit_code|replace_symbol matcher registered to pre-edit-hint.sh

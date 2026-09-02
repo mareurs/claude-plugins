@@ -51,9 +51,20 @@ function isForeign(cwd, p) {
 }
 
 // extract_paths(prompt) → absolute-ish paths named in the prompt, deduped+sorted.
+// extract_paths(prompt) → absolute-ish paths named in the prompt, deduped+sorted.
 function extractPaths(prompt) {
   const re = /(~|\/(home|tmp|etc|data|mnt|opt|usr|var|root))(\/[A-Za-z0-9._-]+)+\/?/g;
-  return [...new Set(prompt.match(re) || [])].sort();
+  const out = new Set();
+  for (const m of prompt.match(re) || []) {
+    out.add(m);
+    // '.' is a path character, so a path ending a sentence ("…/repo.") is captured
+    // WITH the period, names no real dir, and the hook skips silently (F-9). Offer
+    // the dot-stripped form as an extra candidate: firstForeignRoot discards
+    // candidates that aren't real dirs, so this can only add hits, never lose one.
+    const stripped = m.replace(/\.+\/?$/, '');
+    if (stripped && stripped !== m) out.add(stripped);
+  }
+  return [...out].sort();
 }
 
 // first_foreign_root(cwd, prompt) → worktree root of the first foreign repo named

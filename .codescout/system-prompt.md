@@ -5,14 +5,14 @@
 ### root (codescout-companion)
 - `codescout-companion/hooks/detect-tools.sh` — detection library sourced by every hook; sets HAS_CODESCOUT, BLOCK_READS, WORKSPACE_ROOT
 - `codescout-companion/hooks/hooks.json` — event → script mapping (authoritative wiring; start here for any hook question)
-- `codescout-companion/hooks/session-start.sh` — SessionStart orchestrator (injection budget, drift warnings, auto-reindex)
-- `codescout-companion/hooks/pre-tool-guard.sh` — PreToolUse hard-blocker for native Read/Grep/Glob/Edit/Bash on source
-- `codescout-companion/hooks/subagent-guidance.sh` — SubagentStart: injects system-prompt verbatim + codescout routing (subagents don't get `server_instructions`)
-- `codescout-companion/hooks/pre-task-hint.sh` — PreToolUse `Agent`: recon nudge (matcher `"Agent"`, NOT `"Task"`)
-- `codescout-companion/hooks/explore-inject.sh` — PreToolUse `Agent`: bootstrap injector — rewrites dispatch prompt via `updatedInput.prompt` (abs path + codescout routing)
-- `codescout-companion/hooks/il3-warn-hook.sh` — PreToolUse `run_command`: IL3 warn for unbounded-LHS pipe
-- `codescout-companion/hooks/il4-deny-hook.sh` — PreToolUse `read_file`: IL4 deny where a better tool fits
-- `codescout-companion/hooks/goal-stop-hook.sh` — Stop gate: goal check
+- `codescout-companion/hooks/session-start.mjs` — SessionStart orchestrator (injection budget, drift warnings, auto-reindex)
+- `codescout-companion/hooks/pre-tool-guard.mjs` — PreToolUse hard-blocker for native Read/Grep/Glob/Edit/Bash on source
+- `codescout-companion/hooks/subagent-guidance.mjs` — SubagentStart: injects system-prompt verbatim + codescout routing (subagents don't get `server_instructions`)
+- `codescout-companion/hooks/pre-task-hint.mjs` — PreToolUse `Agent`: recon nudge (matcher `"Agent"`, NOT `"Task"`)
+- `codescout-companion/hooks/explore-inject.mjs` — PreToolUse `Agent`: bootstrap injector — rewrites dispatch prompt via `updatedInput.prompt` (abs path + codescout routing; read-only tool list for `Explore`/`Plan`)
+- `codescout-companion/hooks/il3-deny-hook.sh` — IL3 unbounded-LHS pipe guard. **Present but NOT registered in `hooks.json`** — codescout enforces IL-3 server-side, so this file is currently inert
+- `codescout-companion/hooks/il4-deny-hook.mjs` — PreToolUse `read_file`: IL4 deny where a better tool fits
+- `codescout-companion/hooks/goal-stop-hook.mjs` — Stop gate: goal check
 - `tests/lib/fixtures.sh` — test helpers (assert_denied, assert_reason_contains, make_git_repo)
 - `scripts/check-versions.sh` — version consistency validator
 
