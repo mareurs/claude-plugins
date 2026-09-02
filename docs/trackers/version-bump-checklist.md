@@ -14,16 +14,16 @@ Release readiness across plugins × profiles. See
 
 ## State
 
-_Last refresh: `4c7c6ef`, 2026-09-02 — **all four plugins measured this pass**, none carried.
+_Last refresh: `0b8a507`, 2026-09-03 — **all four plugins measured this pass**, none carried.
 Every cell below, including `cache = working tree`, was re-derived from disk._
 
-**buddy** — canonical `0.11.0` · readme `0.11.0` · marketplace clean ✅
+**buddy** — canonical `0.11.1` · readme `0.11.1` · marketplace clean ✅
 
 | profile | installed | cache dir | install_path ok | all entries | cache = working tree |
 |---|---|---|---|---|---|
-| `~/.claude` | 0.11.0 ✅ | ✅ | ✅ | `0.11.0` ✅ | ❌ 14 files |
-| `~/.claude-sdd` | 0.11.0 ✅ | ✅ | ✅ | `0.11.0` ✅ | ❌ 14 files |
-| `~/.claude-kat` | 0.11.0 ✅ | ✅ | ✅ | `0.11.0` ✅ | ❌ 14 files |
+| `~/.claude` | 0.11.1 ✅ | ✅ | ✅ | `0.11.1` ✅ | ✅ |
+| `~/.claude-sdd` | 0.11.1 ✅ | ✅ | ✅ | `0.11.1` ✅ | ✅ |
+| `~/.claude-kat` | 0.11.1 ✅ | ✅ | ✅ | `0.11.1` ✅ | ✅ |
 
 **claude-statusline** — canonical `1.1.7` · readme `1.1.7` · marketplace clean ✅
 
@@ -33,13 +33,13 @@ Every cell below, including `cache = working tree`, was re-derived from disk._
 | `~/.claude-sdd` | 1.1.7 ✅ | ✅ | ✅ | `1.1.7` ✅ | ✅ |
 | `~/.claude-kat` | 1.1.7 ✅ | ✅ | ✅ | `1.1.7` ✅ | ✅ |
 
-**codescout-companion** — canonical `1.20.2` · readme `1.20.2` · marketplace clean ✅
+**codescout-companion** — canonical `1.20.3` · readme `1.20.3` · marketplace clean ✅
 
 | profile | installed | cache dir | install_path ok | all entries | cache = working tree |
 |---|---|---|---|---|---|
-| `~/.claude` | 1.20.2 ✅ | ✅ | ✅ | `1.20.2` ✅ | ✅ |
-| `~/.claude-sdd` | 1.20.2 ✅ | ✅ | ✅ | `1.20.2` ✅ | ✅ |
-| `~/.claude-kat` | 1.20.2 ✅ | ✅ | ✅ | `1.20.2` ✅ | ✅ |
+| `~/.claude` | 1.20.3 ✅ | ✅ | ✅ | `1.20.3` ✅ | ✅ |
+| `~/.claude-sdd` | 1.20.3 ✅ | ✅ | ✅ | `1.20.3` ✅ | ✅ |
+| `~/.claude-kat` | 1.20.3 ✅ | ✅ | ✅ | `1.20.3` ✅ | ✅ |
 
 **session-bridge** — canonical `0.1.0` · readme `0.1.0` · marketplace clean ✅
 
@@ -49,29 +49,19 @@ Every cell below, including `cache = working tree`, was re-derived from disk._
 | `~/.claude-sdd` | 0.1.0 ✅ | ✅ | ✅ | `0.1.0` ✅ | ✅ |
 | `~/.claude-kat` | 0.1.0 ✅ | ✅ | ✅ | `0.1.0` ✅ | ✅ |
 
-**9 of 12 plugin×profile pairs are byte-identical; buddy is ❌ on all three.** This is the
-first time this column has read anything but green, and it read green last refresh only
-because buddy's rows were carried forward unmeasured — the previous entry said so
-explicitly. The drift is real and predates this release.
+**All 12 plugin×profile pairs byte-identical — and this time measured for all four
+plugins rather than carried.** The distinction matters: the previous refresh also read
+green on this column for three of the four, but only because those rows were copied
+forward. Two bumps got here — `buddy 0.11.1` closed the 14-file drift the last refresh
+opened, and `codescout-companion 1.20.3` closed a 1-file drift that this same measurement
+caught *between* the two releases (see the 2026-09-03 History entry).
 
-**⚠ buddy — 14 files differ from its 0.11.0 snapshot, in every profile.** `0.11.0` was
-bumped at `30fd8dd` (2026-09-01); afterwards `913365e` (*"archive all 9 terminal bug
-files; repoint 26 citations"*) rewrote citations inside 6 `buddy/scripts/*.py` and 5
-`buddy/tests/*`, and `eee3d8c` (this session) corrected stale `explore-inject.sh` pointers
-in 3 more `buddy/tests/` docs. Content changed after the version shipped, without a bump —
-the same class as the two ⚠s this tracker has already opened and closed.
-
-**Runtime impact: none, and the reason is structural rather than lucky.** The differing
-set is exactly `scripts/` + `tests/`. **No skill and no command differs** — so the one
-channel that is served from `installPath` carries identical bytes. `scripts/` is invoked
-by buddy's hooks, which resolve through `CLAUDE_PLUGIN_ROOT` to the repo working tree and
-therefore already run the new code; `tests/` is copied into a snapshot but never executed
-from it. Both halves of that are this tracker's own per-channel table, applied.
-
-**Disposition: leave it.** Re-seeding now would make `0.11.0` denote two different byte
-sets, which is the reasoning both prior ⚠s were resolved on, and both cleared on the next
-real bump exactly as predicted. Prediction, to be checked rather than assumed: buddy's
-next version bump clears all three cells.
+**⚠ Registration NOT confirmed for either release, in any profile.** The cold restart
+`release.sh` names as step 2 has not happened. All six ✅ columns are statements about
+records, caches and bytes; none is a statement about execution. For `codescout-companion
+1.20.3` specifically this is the load-bearing gap, because its whole content is a **skill**
+fix — the one channel that is served from `installPath` and therefore cannot be live
+without the restart.
 
 `sdd` — discovered in the repo but installed in no profile. Stable by design; never a gap.
 
@@ -183,6 +173,45 @@ measured on both candidate load paths rather than argued: the record points at k
 two actually serves, they carry the same bytes — so the question CLAUDE.md flags as
 unsettled does not need settling for this release.
 ## History
+
+### 2026-09-03 — buddy 0.11.1 and codescout-companion 1.20.3: the column's first ❌ closed, and a second one it caught inside the hour
+
+**buddy 0.11.1 (`049f6c3`) cleared all 14 files in all three profiles.** The prediction the
+previous entry wrote down — *"buddy's next version bump clears all three cells"* — is
+confirmed by measurement, the third time this tracker has predicted a ⚠ clearing and then
+checked rather than assumed it. Re-seeding at `0.11.0` was rejected for the stated reason:
+it would have made one version denote two byte sets.
+
+**Then the same measurement caught codescout-companion ❌ 1 file, and that one was the kind
+that matters.** `bb14719` (23:55) rewrote `skills/reaching-peer-sessions/SKILL.md` after
+`1.20.2` was seeded at 22:57. So a peer-enumeration *fix* was committed, pushed, and running
+in **no** profile. `1.20.3` (`0b8a507`) makes it live. 12 of 12 pairs now byte-identical.
+
+**Two ❌s, one column, opposite consequences — and the discriminator is worth stating
+plainly, because the table cannot show it.** buddy's 14 files were `scripts/` + `tests/`:
+`scripts/` resolves through `CLAUDE_PLUGIN_ROOT` to the working tree and was already running,
+`tests/` never executes from a snapshot, so the ❌ was true and inert. codescout-companion's
+single file was a `skills/` file: that channel is served from `installPath`, so the ❌ meant
+not-live. **A ❌ in this column is not one finding — read which channel the differing files
+belong to before deciding whether it is urgent.** Same cell, same shape, and the right
+response differed.
+
+**The timing is structural, not a slip, and it will recur.** `1.20.2` seeded at 22:57; the
+commit landed at 23:55; the buddy release at 00:13 measured codescout-companion green at
+~23:0x, before the commit existed. Any commit touching a plugin's `skills/` or `commands/`
+after its bump leaves that content committed-not-live until the next bump — no gate reports
+it, because every other column compares records to records. This column is the only one that
+sees it, and it saw it here within the hour.
+
+**Params rewritten again**, per the previous entry's correction: the `CLAUDE.md` prohibition
+cited to avoid doing so does not exist in any of the three `CLAUDE.md` files.
+
+**⚠ Registration NOT confirmed for either release.** No cold restart has happened, so both
+releases are green on records/caches/bytes and unverified on execution. This is the fourth
+consecutive entry to record that axis, and for `1.20.3` it is the whole of what the release
+was for — a skill fix cannot run from a cache the process has not re-read.
+
+**Valid:** dated 2026-09-03
 
 ### 2026-09-02 — 1.20.2, params rewritten after a misattributed prohibition, and buddy's first ❌ on the cache column
 
