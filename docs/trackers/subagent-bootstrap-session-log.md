@@ -1,7 +1,7 @@
 ---
 id: '9ea452e9cf4d9fbe'
 kind: tracker
-status: draft
+status: active
 title: Subagent bootstrap injection — session log
 tags:
 - session-log

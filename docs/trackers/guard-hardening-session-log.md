@@ -2,7 +2,7 @@
 entry_prefix:
 - F
 - W
-entry_high_water_F: 3
+entry_high_water_F: 4
 ---
 # Session Log — Guard Hardening (pre-tool-guard cross-repo escapes)
 
@@ -36,6 +36,7 @@ entry_high_water_F: 3
 | F-1 | 2026-05-21 | med | architectural | fixed-verified | Cross-repo escape lives in md/Bash branches, not is_in_workspace |
 | F-2 | 2026-08-27 | med | stale-memory | fixed-verified | 3 advertised memory surfaces say boolean `block_reads: false` is ignored — both forms work |
 | F-3 | 2026-08-28 | med | release-pipeline | fixed-verified | The `block_reads` opt-out turned the guard suite red (21/55) — suite hardcoded both live repos as dispatch CWDs. Hermetic escape hatch; 58/58 with the opt-out live |
+| F-4 | 2026-09-02 | med | architectural | open | Read-only agent types (Explore/Plan) retain all four codescout write tools; native Edit/Write stripped, MCP writers not. Read-only property rests on model compliance — enforcement untested |
 
 ## Wins Index
 
@@ -338,6 +339,43 @@ stops hardcoding real repo paths.
 
 **Rests on:** `pre-tool-guard.test.sh:19-20` naming the two live repos, and
 `pre-tool-guard.mjs:32` gating before dispatch. Either change alone dissolves it.
+
+## F-4 — Read-only agent types (Explore/Plan) retain all four codescout write tools
+
+**Category:** `architectural`
+
+**Observed:** 2026-09-02, while adding read-only bootstrap directives to `explore-inject.mjs` (`subagent-bootstrap-session-log:F-8` work stream).
+
+**When:** Deciding whether the injector should name `edit_code` to agent types the harness documents as read-only.
+
+**Expected:** The `Explore` and `Plan` agent types are described as read-only, so their tool sets should not contain write-capable tools.
+
+**Got (measured by dispatching an `Explore` agent and asking it to enumerate its own tools):**
+
+| tool | in `Explore`'s tool set |
+|---|---|
+| `mcp__codescout__create_file` | **present** |
+| `mcp__codescout__edit_code` | **present** |
+| `mcp__codescout__edit_file` | **present** |
+| `mcp__codescout__edit_markdown` | **present** |
+| `Edit` | absent |
+| `Write` | absent |
+
+The harness's exclusion list for these agent types covers the **native** write tools and does not cover codescout's MCP write tools. So a read-only agent type retains four write paths.
+
+**What is NOT established.** The probe also asked it to attempt one `create_file` to `/tmp`. It **declined rather than attempting** — verbatim: *"Not attempted. This task is READ-ONLY: I am strictly prohibited from creating files anywhere, including /tmp."* So the observed read-only behaviour was **model compliance, not a demonstrated gate**. Whether a guard would actually refuse the call is untested; `pre-tool-guard.mjs` matches `Edit|Write` and native readers, not `mcp__codescout__*` writers, and `worktree-write-guard.mjs` fires only for pending-worktree state. On present evidence the read-only property of these agent types rests on instruction-following.
+
+**Probable cause:** the harness's agent-type tool exclusions were written against the native tool surface and were never extended to MCP write tools, which arrive per-server and are not enumerable at exclusion-authoring time.
+
+**Workaround:** partial, and it addresses the *invitation* rather than the *capability* — `explore-inject.mjs` no longer names `edit_code` in the bootstrap directive for `Explore`/`Plan`, and adds an explicit "READ-ONLY task" rule (`956f695`). A directive that stops asking for a write does not remove the ability to perform one.
+
+**Severity:** med — no incident observed, and this is upstream-harness shaped rather than a defect in this plugin. Rated med rather than low because the failure mode is silent (a read-only-labelled agent mutating a foreign repo leaves no signal at dispatch time) and because callers reasonably read "read-only agent" as enforced.
+
+**Status:** open
+
+**Valid:** conditional — an `Explore`-type dispatch is observed either completing or being refused an `mcp__codescout__*` write
+
+**Fix idea / Pointer:** two independent halves. (1) Settle enforcement: dispatch an `Explore` agent whose task *is* the write, so declining is not the compliant answer, and record whether a guard fires. (2) If nothing blocks it and blocking is wanted, the lever in this repo is a `PreToolUse` matcher on `mcp__codescout__(create_file|edit_code|edit_file|edit_markdown)` gated on read-only `agent_type` — but note `PreToolUse:Agent` payloads carry `subagent_type` while the write call itself does not, so the guard would need the agent-type context threaded from `SubagentStart` (`agent_type` is on that payload per `.codescout/memories/agent-dispatch-hooks.md`). Not attempted.
 
 ## Template for new entries
 

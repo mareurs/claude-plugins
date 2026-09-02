@@ -9,7 +9,7 @@ tags:
 - doctor
 - remediation
 topic: repo-hygiene
-entry_high_water_RM: 25
+entry_high_water_RM: 27
 entry_prefix: RM
 ---
 
@@ -657,6 +657,40 @@ next codescout-companion or buddy content release.
 **Status:** open
 
 **Valid:** dated 2026-09-01
+
+## RM-26 — version-bump-checklist:1039 prescribes `refresh_prompt`, which would likely flatten the curated system-prompt hook map
+
+`docs/trackers/version-bump-checklist.md:1039` prescribes `onboarding(action="refresh_prompt")` as the fix for the stale hook map in the root `.codescout/system-prompt.md` — the file `codescout-companion/hooks/subagent-guidance.mjs` injects **verbatim into every subagent**, i.e. the always-on channel. The prescription is probably wrong, and following it could lose content rather than repair it.
+
+`refresh_prompt` regenerates the system prompt *from templates*. This file's content is project-curated, not template-derived: measured 2026-09-02, grepping codescout's own source for the file's distinctive prose — `"detection library sourced by every hook"` and `"SessionStart orchestrator (injection budget"` — returns **0 matches**, so no codescout template emits it. Running `refresh_prompt` would therefore likely replace a hand-written hook map with generic content instead of correcting eight filenames.
+
+The stale map itself was fixed surgically instead (`eee3d8c`): six `.sh` → `.mjs`, plus `il3-warn-hook.sh` → `il3-deny-hook.sh`, which is **not** a `.sh` → `.mjs` rename (see the sibling RM entry on the unregistered IL-3 hook). A blind sweep would have produced `il3-warn-hook.mjs`, a filename that has never existed.
+
+**Caveat on the measurement:** the grep skipped hidden directories in the codescout repo, so a template living under one is not excluded. Cheap way to settle it: run `refresh_prompt` against a *copy* of the file and diff, rather than against the live always-on channel.
+
+**Repair:** correct or annotate the advice at `version-bump-checklist.md:1039` so a future session does not run `refresh_prompt` expecting a repair and silently flatten the curated map.
+
+**Status:** open
+
+**Valid:** dated 2026-09-02
+
+## RM-27 — `il3-deny-hook.sh` is registered in no hooks.json event — dead file or lost registration
+
+`codescout-companion/hooks/il3-deny-hook.sh` and its `il3-deny-hook.test.sh` exist on disk, but the hook is registered in **no** `hooks.json` event. Measured 2026-09-02: grepping `codescout-companion/hooks/hooks.json` for `il3|il4` returns exactly one line — the `il4-deny-hook.mjs` registration. So the IL-3 hook is inert.
+
+IL-3 *is* enforced, but server-side by codescout, not by this hook: a `run_command` naming a source file inside the project returns `"shell access to source files is blocked"` with an `acknowledge_risk` hint, which is the server's own gate (observed repeatedly this session), not hook output.
+
+This also made the root `.codescout/system-prompt.md` doubly wrong before `eee3d8c`: it named the file `il3-warn-hook.sh` (wrong basename — the real file says `deny`, not `warn`) **and** described it as an active `PreToolUse run_command` hook. That entry now reads "present but NOT registered".
+
+**Repair — a judgement call deliberately not made here.** Either:
+- delete the file and its test as superseded by server-side enforcement, or
+- restore the missing registration, if a hook-side *warning* was intended to complement the server's hard deny (the old system-prompt text said "IL3 **warn** for unbounded-LHS pipe", which suggests a warn-tier that the server's deny does not provide).
+
+Deciding needs to know whether the warn-tier behaviour is still wanted; the test file's expectations are the place to look first.
+
+**Status:** open
+
+**Valid:** conditional — `hooks.json` gains an `il3` registration, or the file and its test are deleted
 
 ## Template for new entries
 
