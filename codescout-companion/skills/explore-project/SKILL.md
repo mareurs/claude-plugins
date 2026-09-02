@@ -87,10 +87,11 @@ Do not include raw symbol dumps, full file listings, or meta-commentary.
 - **Asking more than one clarifying question.** Infer aggressively from context.
 - **Re-synthesizing the subagent output.** Present the `## Exploration` block verbatim.
 - **Using it for routine cross-repo dispatches.** Those are auto-bootstrapped — skip the skill.
-- **Don't de-duplicate the `Rules:` block against the hook.** `PreToolUse:Agent` does not
-  fire for subagent-issued dispatches (`subagent-bootstrap-session-log:F-8`), so on that
-  path this block is the only bootstrap the subagent gets. The overlap with
-  `explore-inject.mjs` is deliberate; the `READ-ONLY` precedence line is what keeps the two
+- **Don't de-duplicate the `Rules:` block against the hook.** Whether `PreToolUse:Agent`
+  fires for subagent-issued dispatches is **unresolved**
+  (`subagent-bootstrap-session-log:F-8`). If it does not, this block is the only bootstrap
+  that path gets; if it does, the guard above makes the overlap a harmless no-op. Keeping
+  it is correct either way. The `READ-ONLY` precedence line is what keeps the two texts
   from contradicting each other (`subagent-bootstrap-session-log:F-6`).
 
 ## See also

@@ -33,7 +33,7 @@ Design spec: `docs/superpowers/specs/2026-07-28-subagent-bootstrap-injection-des
 | F-5 | `write_mcp_json` does not open the codescout gate; existing suite partly vacuous | med | fixed-verified |
 | F-6 | explore-project skill and explore-inject hook both inject, and contradict on write permission | med | fixed-verified |
 | F-7 | SKILL.md cites `explore-inject.sh`; only `.mjs` exists (rediscovery of the 1.14.0 port drift) | low | fixed-verified (SKILL.md; buddy docs still open) |
-| F-8 | PreToolUse-on-Agent does not fire for nested (subagent-issued) dispatches — 0 of 15 marked | med | open |
+| F-8 | PreToolUse-on-Agent does not fire for nested (subagent-issued) dispatches — 0 of 15 marked | med | open — **evidence retracted**, instrument could not discriminate (2% recorded-rate on the control path) |
 
 ## Wins Index
 
@@ -388,6 +388,23 @@ Two surfaces are **correct** and should not be swept: `.codescout/memories/archi
 
 ## F-8 — PreToolUse-on-Agent does not fire for nested (subagent-issued) dispatches — 0 of 15 marked
 
+> **RETRACTED 2026-09-02, same day, by its own missing control.** The conclusion below is **not supported** and the title overstates what was shown. Read this banner first; the measurement is kept because the instrument's failure is the lesson.
+>
+> The claim rested on "the positive control matters: rewritten input **is** recorded when injection happens" — asserted from **2** marked main-agent dispatches without ever computing the denominator. Replaying every post-2026-06-14 dispatch through the hook:
+>
+> | origin | marked | would-inject-but-unmarked | recorded-rate |
+> |---|---|---|---|
+> | main (hook demonstrably fires) | 2 | 92 | **2%** |
+> | sidechain | 0 | 15 | 0% |
+>
+> Identical with the codescout gate live and bypassed. On the path where the hook **does** fire, the marker is absent 98% of the time — transcripts predominantly record the *original* `tool_input`, not `updatedInput`. So marker-absence cannot distinguish "hook did not fire" from "hook fired, rewrite not recorded", and 0/15 is uninformative rather than evidence.
+>
+> **Seam class: an instrument that cannot express the failure it is used to detect.** A broken world — hook firing normally, transcripts simply not recording rewrites — produces exactly the observed 0/15. Phase 3 of the reconnaissance skill names this check, and it was run on the sidechain number while the control that mattered went unexamined.
+>
+> **Still true and unaffected:** subagents do issue nested `Agent` dispatches (75) and do invoke `Skill` (5), so the path exists; 15 of those nested dispatches named a foreign path the hook would target. **Now unknown:** whether the hook fires there.
+>
+> **How to actually settle it:** one live nested dispatch at a foreign path, reading the *child's* received prompt (or a hook-side log written at invocation), never the parent transcript's recorded input.
+
 **Observed:** 2026-09-02, answering "if someone launches the explorer in a subagent, do both get triggered?" during the F-6 design discussion.
 
 **When:** Before designing the de-duplication fix for F-6 — which is what makes this load-bearing rather than trivia.
@@ -421,9 +438,11 @@ So the skill's conditional fallback ("If a foreign-project bootstrap directive w
 
 **Severity:** med — no live failure (the skill has 0 lifetime invocations per `.codescout/memories/agent-dispatch-hooks.md`, so the subagent path has never actually run), but it was one step from being designed into a silent regression, and it redirects the write-mode feature from the skill to the hook.
 
-**Status:** open
+**Status:** open — **evidence retracted, question unresolved** (see banner). The F-6 fix it informed is unaffected: keeping the skill's fallback is correct whether or not the hook fires there (no-op if it does, essential if it does not).
 
-**Valid:** conditional — a live nested dispatch at a foreign path is observed, confirming or refuting non-firing
+**Valid:** conditional — a live nested dispatch at a foreign path is observed via the child's received prompt or a hook-side invocation log
+
+**Valid (superseded — see Status):** conditional — a live nested dispatch at a foreign path is observed, confirming or refuting non-firing
 
 **Fix idea / Pointer:** nothing to fix in the hook — this is a harness constraint to design around. Record it where a future session will hit it: the skill's duplication must be labelled *deliberate* so nobody "cleans it up". Blocks any plan that assumes hook coverage of nested dispatches.
 
