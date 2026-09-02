@@ -55,9 +55,13 @@ migration ordering, instruments that write into what they measure). Use native
 **Statusline marker (recommended).** Touch `.buddy/$SID/recon-active` once at scout start so the user's statusline shows `[recon]` for 30 minutes. The badge signals scout-in-progress; the user knows not to redirect mid-scout, which prevents abort-and-restart cost:
 
 ```bash
-SID=$(cat .buddy/.current_session_id 2>/dev/null) && \
+SID="${CLAUDE_CODE_SESSION_ID:-$(cat .buddy/.current_session_id 2>/dev/null)}" && \
   [ -n "$SID" ] && mkdir -p ".buddy/$SID" && touch ".buddy/$SID/recon-active"
 ```
+
+**`$CLAUDE_CODE_SESSION_ID` first — the order is load-bearing**, because the statusline
+resolves the sid from the harness while `.current_session_id` is last-writer and can name a
+peer. Case law: `references/seam-classes.md`; guard: `tests/test-recon-count.sh` § 7.
 
 Skip silently if the marker dir is unavailable. The skill works without the badge; the badge does not work without the skill.
 

@@ -2,9 +2,10 @@
 """Session-scoped reconnaissance F/W counter.
 
 Maintains <root>/.buddy/<sid>/recon-counts.json = {"F": int, "W": int}, where
-<sid> comes from <root>/.buddy/.current_session_id (same source the recon
-SKILL.md Phase-1 marker touch uses). The buddy statusline reads this file to
-append an F<n>/W<n> suffix to the [recon] badge.
+<sid> is this session's id, preferring $CLAUDE_CODE_SESSION_ID and falling back
+to <root>/.buddy/.current_session_id (same order the recon SKILL.md Phase-1
+marker touch uses). The buddy statusline reads this file to append an F<n>/W<n>
+suffix to the [recon] badge.
 
 CLI:
   recon_count.py bump F [--root DIR]   # +1 friction
@@ -24,12 +25,44 @@ import tempfile
 from pathlib import Path
 
 
-def _counts_path(root: Path) -> Path | None:
-    sid_file = root / ".buddy" / ".current_session_id"
+def _session_id(root: Path) -> str | None:
+    """This session's id, preferring the PROCESS-scoped source over the shared file.
+
+    `$CLAUDE_CODE_SESSION_ID` is set per session by the harness and is the same id
+    Claude Code hands the statusline on stdin — which is what
+    `buddy/scripts/statusline.py` reads (`parse_stdin_session`) to locate
+    `.buddy/<sid>/`. Preferring it aligns this writer with that reader.
+
+    `.buddy/.current_session_id` is a documented **last-writer pointer** (see
+    `buddy/docs/superpowers/specs/2026-04-27-per-session-statusline-isolation-design.md`,
+    which lists it as the *fallback* below a process-derived lookup). On a checkout
+    with concurrent sessions it names whoever wrote it most recently, which need not
+    be the caller. Measured 2026-09-02 on a nine-session codescout checkout: the
+    pointer named a peer session at the moment recon ran, so the `recon-active`
+    marker and these counts landed under a sid the statusline never reads — the
+    badge simply never appeared, with no error anywhere.
+
+    It is **volatile rather than consistently wrong**, which is why it went
+    unnoticed: minutes later the same file held the caller's own id. A source that
+    is usually right produces no reproducible symptom, so the failure reads as "the
+    badge is flaky" rather than as a resolution bug.
+
+    The pointer stays as a fallback — it is correct whenever the caller is the only
+    writer, which covers single-session checkouts and any non-CC invocation where
+    the env var is absent.
+    """
+    sid = os.environ.get("CLAUDE_CODE_SESSION_ID", "").strip()
+    if sid:
+        return sid
     try:
-        sid = sid_file.read_text().strip()
+        sid = (root / ".buddy" / ".current_session_id").read_text().strip()
     except OSError:
         return None
+    return sid or None
+
+
+def _counts_path(root: Path) -> Path | None:
+    sid = _session_id(root)
     if not sid:
         return None
     return root / ".buddy" / sid / "recon-counts.json"
