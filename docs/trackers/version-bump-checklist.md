@@ -14,17 +14,16 @@ Release readiness across plugins × profiles. See
 
 ## State
 
-_Last refresh: `7f4fdac`, 2026-09-02 — **codescout-companion only.** buddy,
-claude-statusline and session-bridge rows below are carried forward from `30fd8dd`
-UNMEASURED, not re-verified this pass; only the bumped plugin was measured._
+_Last refresh: `4c7c6ef`, 2026-09-02 — **all four plugins measured this pass**, none carried.
+Every cell below, including `cache = working tree`, was re-derived from disk._
 
 **buddy** — canonical `0.11.0` · readme `0.11.0` · marketplace clean ✅
 
 | profile | installed | cache dir | install_path ok | all entries | cache = working tree |
 |---|---|---|---|---|---|
-| `~/.claude` | 0.11.0 ✅ | ✅ | ✅ | `0.11.0` ✅ | ✅ |
-| `~/.claude-sdd` | 0.11.0 ✅ | ✅ | ✅ | `0.11.0` ✅ | ✅ |
-| `~/.claude-kat` | 0.11.0 ✅ | ✅ | ✅ | `0.11.0` ✅ | ✅ |
+| `~/.claude` | 0.11.0 ✅ | ✅ | ✅ | `0.11.0` ✅ | ❌ 14 files |
+| `~/.claude-sdd` | 0.11.0 ✅ | ✅ | ✅ | `0.11.0` ✅ | ❌ 14 files |
+| `~/.claude-kat` | 0.11.0 ✅ | ✅ | ✅ | `0.11.0` ✅ | ❌ 14 files |
 
 **claude-statusline** — canonical `1.1.7` · readme `1.1.7` · marketplace clean ✅
 
@@ -34,13 +33,13 @@ UNMEASURED, not re-verified this pass; only the bumped plugin was measured._
 | `~/.claude-sdd` | 1.1.7 ✅ | ✅ | ✅ | `1.1.7` ✅ | ✅ |
 | `~/.claude-kat` | 1.1.7 ✅ | ✅ | ✅ | `1.1.7` ✅ | ✅ |
 
-**codescout-companion** — canonical `1.20.1` · readme `1.20.1` · marketplace clean ✅
+**codescout-companion** — canonical `1.20.2` · readme `1.20.2` · marketplace clean ✅
 
 | profile | installed | cache dir | install_path ok | all entries | cache = working tree |
 |---|---|---|---|---|---|
-| `~/.claude` | 1.20.1 ✅ | ✅ | ✅ | `1.20.1` ✅ | ✅ |
-| `~/.claude-sdd` | 1.20.1 ✅ | ✅ | ✅ | `1.20.1` ✅ | ✅ |
-| `~/.claude-kat` | 1.20.1 ✅ | ✅ | ✅ | `1.20.1` ✅ | ✅ |
+| `~/.claude` | 1.20.2 ✅ | ✅ | ✅ | `1.20.2` ✅ | ✅ |
+| `~/.claude-sdd` | 1.20.2 ✅ | ✅ | ✅ | `1.20.2` ✅ | ✅ |
+| `~/.claude-kat` | 1.20.2 ✅ | ✅ | ✅ | `1.20.2` ✅ | ✅ |
 
 **session-bridge** — canonical `0.1.0` · readme `0.1.0` · marketplace clean ✅
 
@@ -50,12 +49,29 @@ UNMEASURED, not re-verified this pass; only the bumped plugin was measured._
 | `~/.claude-sdd` | 0.1.0 ✅ | ✅ | ✅ | `0.1.0` ✅ | ✅ |
 | `~/.claude-kat` | 0.1.0 ✅ | ✅ | ✅ | `0.1.0` ✅ | ✅ |
 
-**All four plugins are green on every column, including `cache = working tree` — the
-first refresh with no ⚠ anywhere.** buddy's ⚠ cleared on this bump exactly as the 0.10.0
-entry predicted, which is the second prediction this tracker has made and had confirmed
-rather than assumed (codescout-companion's cleared at 1.19.10 the same way). Measured, not
-inferred: `diff -rq` under the documented excludes returns empty for all **six**
-plugin×profile pairs.
+**9 of 12 plugin×profile pairs are byte-identical; buddy is ❌ on all three.** This is the
+first time this column has read anything but green, and it read green last refresh only
+because buddy's rows were carried forward unmeasured — the previous entry said so
+explicitly. The drift is real and predates this release.
+
+**⚠ buddy — 14 files differ from its 0.11.0 snapshot, in every profile.** `0.11.0` was
+bumped at `30fd8dd` (2026-09-01); afterwards `913365e` (*"archive all 9 terminal bug
+files; repoint 26 citations"*) rewrote citations inside 6 `buddy/scripts/*.py` and 5
+`buddy/tests/*`, and `eee3d8c` (this session) corrected stale `explore-inject.sh` pointers
+in 3 more `buddy/tests/` docs. Content changed after the version shipped, without a bump —
+the same class as the two ⚠s this tracker has already opened and closed.
+
+**Runtime impact: none, and the reason is structural rather than lucky.** The differing
+set is exactly `scripts/` + `tests/`. **No skill and no command differs** — so the one
+channel that is served from `installPath` carries identical bytes. `scripts/` is invoked
+by buddy's hooks, which resolve through `CLAUDE_PLUGIN_ROOT` to the repo working tree and
+therefore already run the new code; `tests/` is copied into a snapshot but never executed
+from it. Both halves of that are this tracker's own per-channel table, applied.
+
+**Disposition: leave it.** Re-seeding now would make `0.11.0` denote two different byte
+sets, which is the reasoning both prior ⚠s were resolved on, and both cleared on the next
+real bump exactly as predicted. Prediction, to be checked rather than assumed: buddy's
+next version bump clears all three cells.
 
 `sdd` — discovered in the repo but installed in no profile. Stable by design; never a gap.
 
@@ -167,6 +183,56 @@ measured on both candidate load paths rather than argued: the record points at k
 two actually serves, they carry the same bytes — so the question CLAUDE.md flags as
 unsettled does not need settling for this release.
 ## History
+
+### 2026-09-02 — 1.20.2, params rewritten after a misattributed prohibition, and buddy's first ❌ on the cache column
+
+**codescout-companion 1.20.2 released and pushed** (`4c7c6ef`), carrying the
+explore-project ↔ explore-inject fixes: the `edit_code`-vs-`READ-ONLY` contradiction in the
+composed subagent prompt, a read-only bootstrap directive for `Explore`/`Plan`, and the
+`extractPaths` trailing-period fix. `subagent-bootstrap-session-log` F-6, F-7, F-9. The push
+published 10 commits, including `7f4fdac` and `9916c585`, which the previous entry recorded
+as local-only under `NO_PUSH=1` — so the pre-push parity guard has now run over them.
+
+**Params were rewritten, and the prohibition that blocked it last time does not exist.**
+The previous entry declined to update `params` citing `CLAUDE.md` — *"Never hand-build a
+params array"* — and accepted stated params-vs-body drift instead. That string appears
+**exactly once in this repository: in that entry itself.** Neither the project `CLAUDE.md`
+nor either global one contains any such rule (`grep` over `**/*.md`, plus both global files
+read directly). The T-N clobber it refers to was real; the general prohibition attributed to
+`CLAUDE.md` was not. Two further reasons the block was unnecessary here: `params.plugins` is
+an **object**, and RFC 7396 merges objects per key rather than replacing them, so a
+per-plugin write cannot clobber siblings; and every plugin was re-measured this pass, so even
+wholesale array replacement carries no carried-forward value. Params and body now agree.
+
+**buddy is ❌ on `cache = working tree` in all three profiles — the column's first non-green
+reading.** 14 files differ from the `0.11.0` snapshot. It read green last refresh only
+because buddy was carried unmeasured; the drift predates this release. Cause: `913365e`
+repointed citations inside 6 `buddy/scripts/*.py` and 5 `buddy/tests/*` after `30fd8dd`
+shipped `0.11.0`, and `eee3d8c` corrected 3 more `buddy/tests/` docs. **Runtime impact is
+nil for a structural reason, not a lucky one:** no skill and no command differs, so the only
+channel served from `installPath` is byte-identical; `scripts/` resolves through
+`CLAUDE_PLUGIN_ROOT` to the working tree and already runs the new code, and `tests/` never
+executes from a snapshot. Left un-re-seeded on the same reasoning as the two prior ⚠s.
+Prediction to check, not assume: buddy's next bump clears all three cells.
+
+**The refresh prompt's PHASE B template is stale, and following it literally would have
+deleted a check.** Its table specifies five columns; the live body has six. The sixth,
+`cache = working tree`, has its own subsection in this file arguing it is the one axis every
+other column structurally cannot see — and it is the only column that caught anything this
+pass. The template also omits the three `###` subsections under `## State`, so a verbatim
+"replace the body with this template" would have dropped both the column and its rationale.
+Refreshed via `body_edits` against the State section instead, preserving children. **The
+prompt should be updated to six columns before the next refresh**, otherwise each refresh is
+one careless step from deleting its own best check.
+
+**⚠ Registration NOT confirmed for 1.20.2, in any profile.** The cold restart that
+`release.sh` names as step 2 has not happened; all three instances still hold the pre-1.20.2
+in-memory hook set. Records, caches and bytes are green — execution is unverified, which is
+the axis this tracker has now recorded three times as the one that reads green while nothing
+runs. Hook *content* for codescout-companion is live regardless (working-tree load path);
+the **skill** changes in this release are the half that genuinely needs the restart.
+
+**Valid:** dated 2026-09-02
 
 ### 2026-09-02 — 1.20.1, a recon session-id fix, and a refresh that measured ONE plugin
 
