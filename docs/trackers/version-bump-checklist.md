@@ -14,7 +14,9 @@ Release readiness across plugins × profiles. See
 
 ## State
 
-_Last refresh: `30fd8dd`, 2026-09-01._
+_Last refresh: `7f4fdac`, 2026-09-02 — **codescout-companion only.** buddy,
+claude-statusline and session-bridge rows below are carried forward from `30fd8dd`
+UNMEASURED, not re-verified this pass; only the bumped plugin was measured._
 
 **buddy** — canonical `0.11.0` · readme `0.11.0` · marketplace clean ✅
 
@@ -32,13 +34,13 @@ _Last refresh: `30fd8dd`, 2026-09-01._
 | `~/.claude-sdd` | 1.1.7 ✅ | ✅ | ✅ | `1.1.7` ✅ | ✅ |
 | `~/.claude-kat` | 1.1.7 ✅ | ✅ | ✅ | `1.1.7` ✅ | ✅ |
 
-**codescout-companion** — canonical `1.20.0` · readme `1.20.0` · marketplace clean ✅
+**codescout-companion** — canonical `1.20.1` · readme `1.20.1` · marketplace clean ✅
 
 | profile | installed | cache dir | install_path ok | all entries | cache = working tree |
 |---|---|---|---|---|---|
-| `~/.claude` | 1.20.0 ✅ | ✅ | ✅ | `1.20.0` ✅ | ✅ |
-| `~/.claude-sdd` | 1.20.0 ✅ | ✅ | ✅ | `1.20.0` ✅ | ✅ |
-| `~/.claude-kat` | 1.20.0 ✅ | ✅ | ✅ | `1.20.0` ✅ | ✅ |
+| `~/.claude` | 1.20.1 ✅ | ✅ | ✅ | `1.20.1` ✅ | ✅ |
+| `~/.claude-sdd` | 1.20.1 ✅ | ✅ | ✅ | `1.20.1` ✅ | ✅ |
+| `~/.claude-kat` | 1.20.1 ✅ | ✅ | ✅ | `1.20.1` ✅ | ✅ |
 
 **session-bridge** — canonical `0.1.0` · readme `0.1.0` · marketplace clean ✅
 
@@ -165,6 +167,56 @@ measured on both candidate load paths rather than argued: the record points at k
 two actually serves, they carry the same bytes — so the question CLAUDE.md flags as
 unsettled does not need settling for this release.
 ## History
+
+### 2026-09-02 — 1.20.1, a recon session-id fix, and a refresh that measured ONE plugin
+
+**All six codescout-companion columns green, measured rather than carried.** canonical
+`1.20.1` · readme `1.20.1` · marketplace clean; and per profile the install record reads
+`1.20.1`, its `installPath` points inside its **own** profile root, the cache dir exists,
+and `diff -rq` under the documented excludes (`__pycache__`, `.pytest_cache`, `.venv`,
+`target`, `.buddy`, `.orphaned_at`) returns empty — `cache = working tree` ✅ for all three.
+
+**Scope of this refresh is one plugin, and the State header now says so.** buddy,
+claude-statusline and session-bridge were NOT re-measured; their rows are carried forward
+from `30fd8dd` verbatim. The previous entry's headline — *"All four plugins are green on
+every column"* — is a claim about that refresh and not about this one, and restating it
+here would have been four rows of fabricated measurement for the price of one true
+sentence. A carried row and a measured row are indistinguishable in the table, which is
+exactly why the header has to carry the scope.
+
+**Params were deliberately NOT rewritten.** The augmentation declares no
+`entry_collection`, so there is no `update_entry` path to patch one plugin's row, and the
+only alternative is supplying the whole `plugins` array — which `CLAUDE.md` forbids
+outright (*"Never hand-build a params array"*; that call took the T-N queue from 19
+entries to 1 on 2026-08-16). So the body is current and `params` still describe `1.20.0`.
+That is params-vs-body drift, stated rather than hidden: the trade was a known, written
+staleness against a 12-row clobber, and the prohibition is unambiguous. **Retrofitting an
+`entry_collection` keyed per plugin would close it** and is the actual fix.
+
+**What the release was for.** `codescout-companion` 1.20.1 fixes the recon skill resolving
+its session id from `.buddy/.current_session_id` — a documented last-writer pointer. On a
+nine-session checkout it named a peer mid-recon, so the `recon-active` marker and the F/W
+counts landed under a sid `buddy/scripts/statusline.py` never reads (it resolves from the
+harness's stdin `session_id`), and the `[recon]` badge silently never appeared. Both
+writers now prefer `$CLAUDE_CODE_SESSION_ID`. Fixed at `claude-plugins:9916c585`
+(patch-id `f04552b2e06abe3e6e7f67f597d26ea973d7ba76`), bumped at `claude-plugins:7f4fdac`,
+guarded by `tests/test-recon-count.sh` § 7 with its RED observed against the pre-fix
+resolution. Case law in the skill's `references/seam-classes.md`.
+
+**Two process notes this release paid for.** A hand version-bump was tried first and
+reverted: it broke `check-versions.sh` within seconds (plugin.json=1.20.1 vs
+README.md=1.20.0), which is precisely `CLAUDE.md` § *Never bump a version inline in a
+feature commit* — the number without the machinery. And `NO_PUSH=1` was used, so
+`7f4fdac` and `9916c585` are **local only**; the pre-push parity guard has not run.
+
+**⚠ Registration NOT confirmed for this release, in any profile.** The release script's
+step 2 — cold-restart all three instances, a `resume` being insufficient — has not
+happened. Every instance still holds the pre-1.20.1 in-memory hook set, so the fix is
+installed and not yet running. Nothing above claims otherwise: the six ✅ are about
+records, caches and bytes, not about execution. This is the axis this tracker has twice
+recorded as the one that reads green while nothing runs.
+
+**Valid:** dated 2026-09-02
 
 ### 2026-09-01 — 1.20.0 + 0.11.0, and the release that a documentation error made load-bearing
 
