@@ -82,8 +82,8 @@ a cross-profile refusal — and Step 3 tells you to answer that by switching to 
 `uds:` form, which works. So a wrong name never surfaces as wrong. A version-pinned
 session, meanwhile, saw a correct table with no `<-- you` row. Neither produced an
 error; both produced a plausible answer. Recorded in codescout as
-`docs/issues/2026-09-02-greedy-name-regex-reads-a-former-session-name-as-the-current-one.md`
-and `docs/issues/2026-09-02-comm-filter-misses-version-pinned-claude-processes.md`.
+`docs/issues/archive/2026-09-02-greedy-name-regex-reads-a-former-session-name-as-the-current-one.md`
+and `docs/issues/archive/2026-09-02-comm-filter-misses-version-pinned-claude-processes.md`.
 ## Step 2 — branch on the last count
 
 **`across 1 profile(s)`** — `ListAgents` is complete on this machine. Address

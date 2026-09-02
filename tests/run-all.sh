@@ -17,10 +17,28 @@ export CS_TEST_STATE_SANDBOX
 export XDG_STATE_HOME="$CS_TEST_STATE_SANDBOX"
 trap 'rm -rf "$CS_TEST_STATE_SANDBOX"' EXIT
 
-# tests/test-*.sh plus colocated hook tests (codescout-companion/hooks/*.test.sh)
+# tests/test-*.sh plus colocated tests: hooks (codescout-companion/hooks/*.test.sh)
+# and skills (codescout-companion/skills/<skill>/*.test.sh). The skill glob is one
+# level deeper because a skill is a DIRECTORY, not a file — and until 2026-09-03 it
+# was absent, so a test colocated with a skill was never run and its suite reported
+# "All suites passed" exactly as if it had.
 HOOK_TESTS_DIR="$SCRIPT_DIR/../codescout-companion/hooks"
+SKILL_TESTS_DIR="$SCRIPT_DIR/../codescout-companion/skills"
 
-for f in "$SCRIPT_DIR"/test-*.sh "$HOOK_TESTS_DIR"/*.test.sh; do
+shopt -s nullglob
+SUITES=("$SCRIPT_DIR"/test-*.sh "$HOOK_TESTS_DIR"/*.test.sh "$SKILL_TESTS_DIR"/*/*.test.sh)
+shopt -u nullglob
+
+# LOAD-BEARING. Without nullglob a non-matching glob survives as a literal path and
+# `bash <literal>` fails loudly; with it, the list silently empties and the summary
+# below prints "All suites passed" over zero suites — the one outcome this runner
+# cannot otherwise report. Assert the population, never the globs.
+if [ "${#SUITES[@]}" -eq 0 ]; then
+  echo "✗ no test suites discovered — the globs in $0 match nothing" >&2
+  exit 1
+fi
+
+for f in "${SUITES[@]}"; do
   echo "▶ $(basename "$f")"
   if bash "$f"; then
     :
