@@ -9,6 +9,10 @@ tags:
 - codescout-companion
 - hooks
 topic: subagent-bootstrap
+entry_prefix:
+- F
+- W
+entry_high_water_F: 8
 ---
 
 # Subagent bootstrap injection — session log
@@ -27,6 +31,9 @@ Design spec: `docs/superpowers/specs/2026-07-28-subagent-bootstrap-injection-des
 | F-3 | Machine-dependence strategy undecided; hook has no test seam | med | mitigated (real gap, wrong prescription — superseded by F-4) |
 | F-4 | Scout concluded "no test file exists" from a one-directory search | high | fixed-verified |
 | F-5 | `write_mcp_json` does not open the codescout gate; existing suite partly vacuous | med | fixed-verified |
+| F-6 | explore-project skill and explore-inject hook both inject, and contradict on write permission | med | fixed-verified |
+| F-7 | SKILL.md cites `explore-inject.sh`; only `.mjs` exists (rediscovery of the 1.14.0 port drift) | low | fixed-verified (SKILL.md; buddy docs still open) |
+| F-8 | PreToolUse-on-Agent does not fire for nested (subagent-issued) dispatches — 0 of 15 marked | med | open |
 
 ## Wins Index
 
@@ -315,6 +322,110 @@ mutation checks added.
 **Fix idea / Pointer:** `write_mcp_json` remains a trap for any future suite. Worth
 either fixing the fixture (name the dummy binary so it matches `/codescout/`) or
 renaming it to state what it actually does. Not in this work stream's scope.
+
+## F-6 — explore-project skill and explore-inject hook both inject, and contradict on write permission
+
+**Observed:** 2026-09-02, scouting the `explore-project` ↔ `explore-inject` seam before designing a read-write parameter for the skill.
+
+**When:** The user asked whether the hook and the skill duplicate each other — before any design was presented.
+
+**Expected:** The skill's conditional guard ("If a foreign-project bootstrap directive was not already prepended above this line") implies the two compose cleanly: the hook supplies the bootstrap, the skill's copy no-ops.
+
+**Got (verified by running the hook on the skill's own template, `CS_EXPLORE_INJECT_FORCE=1`, cwd=claude-plugins, foreign path=backend-kotlin):** the hook injects. Its idempotency guard (`explore-inject.mjs:101`) trips only on `[[cs-explore-bootstrap]]` or `workspace(action="activate"`, and the skill template contains neither — so the subagent receives hook directive **+** skill template. Counts in the composed prompt:
+
+| instruction | occurrences |
+|---|---|
+| target `CLAUDE.md` read | 2 |
+| `memory(action="list", workspace=…)` | 2 |
+| "not native Read/Grep/Bash on source" | 2 |
+| `workspace=` pinning | 4 |
+
+The same prompt carries both `edit_code` (hook, `explore-inject.mjs:76`) and `READ-ONLY. Do not write or modify any file.` (`skills/explore-project/SKILL.md:56`) — a direct contradiction on write permission. The tool lists also disagree in both directions: the hook names `edit_code` but not `tree`; the skill names `tree` but not `edit_code`.
+
+**Probable cause:** the skill's guard covers its *context-loading* half only. Its `Rules:` block repeats the tool-routing unconditionally, and the two texts were maintained independently — the hook grew `edit_code` while the skill kept `READ-ONLY`.
+
+**Workaround:** none applied. Whether the later, more specific `READ-ONLY` block reliably wins over the hook's earlier `edit_code` mention is **not measured** — no dispatch was run to observe subagent behaviour, so the practical impact on read-only use is unestablished, not established-benign.
+
+**Severity:** med — no failure observed, but it is a contradictory instruction pair delivered on *every* skill dispatch, and `SKILL.md:56` is the only text making exploration read-only anywhere in the plugin, so it is precisely what a write parameter must modify. The duplication also spends prompt budget that the injection-budget redesign exists to conserve.
+
+**Status:** fixed-verified — resolved by **precedence, not de-duplication** (2026-09-02). `SKILL.md`'s `Rules:` block now reads "If a directive above this line named an editing tool (`edit_code`), it does not apply to this task", so the later, more specific block explicitly retires the hook's earlier mention. The duplication itself is retained deliberately and labelled as such in `## Common Mistakes` — see F-8 for why removing it would have been a silent regression. Regression test: `hooks/explore-inject.compose.test.sh`, which runs the hook over the skill's own extracted template and asserts `edit_code`-implies-precedence-clause; verified to discriminate by temporary mutation (dropping the clause fails exactly that assertion).
+
+**Valid:** conditional — the skill's `Rules:` block is de-duplicated against the hook, or either text stops naming write tools
+
+**Fix idea / Pointer:** when the RW parameter lands, guard the skill's `Rules:` block the way its bootstrap half already is, so write permission is stated in exactly one place instead of two that can disagree. Design pending in this session.
+
+## F-7 — SKILL.md cites `explore-inject.sh`; only `.mjs` exists (rediscovery of the 1.14.0 port drift)
+
+**Observed:** 2026-09-02, while reading `skills/explore-project/SKILL.md` during the F-6 scout.
+
+**KNOWN — rediscovery, not a new defect.** The root cause is already filed at `docs/trackers/version-bump-checklist.md:1039`: the hooks became `.mjs` in the 1.14.0 cross-platform port, and `.codescout/system-prompt.md` still lists them as `.sh`. This entry extends the **scope** of that finding rather than re-reporting it; the fix named there (`onboarding(action="refresh_prompt")`) does not reach the surfaces below.
+
+**When:** Following the skill's own "See also" pointer to the hook it composes with.
+
+**Expected:** `codescout-companion/hooks/explore-inject.sh` exists, as three separate lines of `SKILL.md` assert.
+
+**Got:** only `explore-inject.mjs` (plus `.fixtures.jsonl` and `.test.sh`) exists — no `explore-inject.sh`. Live surfaces still naming the nonexistent `.sh`:
+
+| file | lines |
+|---|---|
+| `codescout-companion/skills/explore-project/SKILL.md` | 10, 81, 91 |
+| `buddy/tests/explore-project-eval/README.md` | 17, 66, 86 |
+| `buddy/tests/BENCHMARK.md` | 218 |
+
+Two surfaces are **correct** and should not be swept: `.codescout/memories/architecture.md:40` already says `.mjs`, and `codescout-companion/docs/plans/2026-06-13-explore-bootstrap-injector-design.md` (lines 49, 106) says `.sh` as a *design-time working name* — historically accurate, so rewriting it would falsify the record.
+
+**Probable cause:** the 1.14.0 `.sh` → `.mjs` port updated the files but not the prose citing them. The skill's pointer is a `See also` line, which no test or gate reads — `audit_doc_refs` is the check that would catch it, and it is manual (`librarian(action="audit_doc_refs")`), not run on this repo's default path.
+
+**Workaround:** none needed — a reader who follows the pointer finds `.mjs` adjacent and infers the rename. Cost is a wrong-path grep, not a wrong action.
+
+**Severity:** low — three stale pointers in a `See also` and two test-doc surfaces. It cost this session one failed `grep` on a nonexistent path (0 matches, which reads identically to "the hook says nothing about writes" — the shape of a silently-wrong negative) before `tree` showed the real filename.
+
+**Status:** fixed-verified for `SKILL.md` (2026-09-02) — three pointers repointed to `.mjs` (lines 10, 83, 98), plus the header comment of `hooks/explore-inject.test.sh`, which this entry's original `**/*.md` grep had missed because it is a `.sh` file. Guarded by `hooks/explore-inject.compose.test.sh`. **Still open elsewhere:** `buddy/tests/explore-project-eval/README.md` (17, 66, 86) and `buddy/tests/BENCHMARK.md` (218) — a different plugin, left for a deliberate sweep. The design doc's `.sh` remains correct as a design-time working name.
+
+**Valid:** conditional — the `.sh` → `.mjs` rename is swept through the five live citation lines above
+
+**Fix idea / Pointer:** cheap to fix alongside the F-6 edit, since it touches the same file. Worth running `librarian(action="audit_doc_refs")` once to find the rest of the 1.14.0 port's stale hook paths repo-wide rather than fixing these five by hand and re-discovering the next set later.
+
+## F-8 — PreToolUse-on-Agent does not fire for nested (subagent-issued) dispatches — 0 of 15 marked
+
+**Observed:** 2026-09-02, answering "if someone launches the explorer in a subagent, do both get triggered?" during the F-6 design discussion.
+
+**When:** Before designing the de-duplication fix for F-6 — which is what makes this load-bearing rather than trivia.
+
+**Expected:** `PreToolUse` with `"matcher": "Agent"` is registered unscoped in `hooks/hooks.json`, so it should fire on any `Agent` tool call, including one issued by a subagent (nested dispatch).
+
+**Got (measured across 2,527 transcripts in all three profiles):**
+
+| quantity | count |
+|---|---|
+| nested (`isSidechain: true`) `Agent` dispatches | 75 |
+| …dated after the hook shipped (2026-06-13) | 75 |
+| …where the hook itself, replayed offline, says it **would** inject (foreign path named) | 15 |
+| …of those 15, carrying `[[cs-explore-bootstrap]]` live | **0** |
+| main-agent dispatches carrying the marker (positive control) | 2 |
+
+The positive control matters: rewritten input **is** recorded in transcripts when injection happens, so the 0/15 is not an artefact of the marker being unobservable. Conclusion: **PreToolUse-on-`Agent` does not fire for `Agent` calls issued by a subagent** — the hook is main-agent-only in practice.
+
+Subagents also invoke `Skill` (5 sidechain occurrences), so "subagent runs the explore-project skill" is a real path, not hypothetical.
+
+**Residual confound — this is strong evidence, not proof.** Two alternatives are not excluded from transcript data alone: (1) sidechain entries may record *pre*-rewrite input while main entries record post-rewrite; (2) the codescout gate (`HAS_CODESCOUT`) may have been closed in those particular sessions, since the offline replay used `CS_EXPLORE_INJECT_FORCE=1` to bypass it. One live nested dispatch at a foreign path would settle it.
+
+**Probable cause:** unestablished — plausibly the harness does not run PreToolUse hooks for subagent-issued tool calls at all, which would also explain why `pre-task-hint.mjs` (same matcher) has no observed nested effect. Not confirmed against harness behaviour.
+
+**Consequence — inverts the obvious F-6 fix.** The two compositions differ:
+
+- main agent → hook + skill both reach the subagent (F-6: duplication + `edit_code` vs `READ-ONLY` contradiction)
+- subagent → skill text only; **nothing else supplies the bootstrap**
+
+So the skill's conditional fallback ("If a foreign-project bootstrap directive was not already prepended above this line") is not defensive boilerplate — it is the sole bootstrap on the subagent path. De-duplicating F-6 by *deleting* the skill's copy as redundant would have silently broken that path, with no test and no error to reveal it.
+
+**Severity:** med — no live failure (the skill has 0 lifetime invocations per `.codescout/memories/agent-dispatch-hooks.md`, so the subagent path has never actually run), but it was one step from being designed into a silent regression, and it redirects the write-mode feature from the skill to the hook.
+
+**Status:** open
+
+**Valid:** conditional — a live nested dispatch at a foreign path is observed, confirming or refuting non-firing
+
+**Fix idea / Pointer:** nothing to fix in the hook — this is a harness constraint to design around. Record it where a future session will hit it: the skill's duplication must be labelled *deliberate* so nobody "cleans it up". Blocks any plan that assumes hook coverage of nested dispatches.
 
 ## Template for new entries
 

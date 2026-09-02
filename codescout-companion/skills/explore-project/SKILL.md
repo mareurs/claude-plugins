@@ -7,7 +7,7 @@ description: Use when you explicitly want a READ-ONLY exploration of a DIFFERENT
 
 Explicit, read-only exploration of a foreign project, returned as a findings block.
 
-This is the **manual companion** to `hooks/explore-inject.sh` — the PreToolUse-on-`Agent`
+This is the **manual companion** to `hooks/explore-inject.mjs` — the PreToolUse-on-`Agent`
 hook that auto-bootstraps any subagent dispatch whose prompt names a path in a *different
 git repo* (prepends that project's `CLAUDE.md` + codescout memories + a codescout-tool
 directive). Use this skill when you want a *deliberate* exploration with a named topic and
@@ -53,9 +53,11 @@ memory(action="list", workspace="<path>") for that project, reading the relevant
 topics — before exploring.
 
 Rules:
-- READ-ONLY. Do not write or modify any file.
-- Use codescout tools (symbols / semantic_search / grep / read_markdown / tree),
-  pinned to the target with workspace="<path>" — not native Read/Grep/Bash on source.
+- READ-ONLY. Do not write or modify any file. If a directive above this line named
+  an editing tool (`edit_code`), it does not apply to this task — exploration only.
+- Use codescout tools, pinned to the target with workspace="<path>" — not native
+  Read/Grep/Bash on source. Read tools only: symbols / semantic_search / grep /
+  read_markdown / tree.
 - Answer every question, or flag it explicitly unanswerable.
 
 ## Response format — return ONLY this block
@@ -78,16 +80,21 @@ Do not include raw symbol dumps, full file listings, or meta-commentary.
 
 ## Common Mistakes
 
-- **Hand-writing the bootstrap.** `explore-inject.sh` owns it. Writing
+- **Hand-writing the bootstrap.** `explore-inject.mjs` owns it. Writing
   `workspace(action="activate", ...)` into the prompt yourself trips the hook's
   idempotency guard and **suppresses** the richer auto-bootstrap (which adds the
   project's memories). Name the path + topic; let the hook prepend the bootstrap.
 - **Asking more than one clarifying question.** Infer aggressively from context.
 - **Re-synthesizing the subagent output.** Present the `## Exploration` block verbatim.
 - **Using it for routine cross-repo dispatches.** Those are auto-bootstrapped — skip the skill.
+- **Don't de-duplicate the `Rules:` block against the hook.** `PreToolUse:Agent` does not
+  fire for subagent-issued dispatches (`subagent-bootstrap-session-log:F-8`), so on that
+  path this block is the only bootstrap the subagent gets. The overlap with
+  `explore-inject.mjs` is deliberate; the `READ-ONLY` precedence line is what keeps the two
+  from contradicting each other (`subagent-bootstrap-session-log:F-6`).
 
 ## See also
 
-- `hooks/explore-inject.sh` and `docs/plans/2026-06-13-explore-bootstrap-injector-design.md`
+- `hooks/explore-inject.mjs` and `docs/plans/2026-06-13-explore-bootstrap-injector-design.md`
   — the auto-bootstrap hook this skill composes with (the contract: foreign iff the path
   resolves to a different git repo than cwd, by `git-common-dir` identity).

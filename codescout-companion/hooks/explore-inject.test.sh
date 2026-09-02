@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Tests for explore-inject.sh — the foreign-project bootstrap injector.
+# Tests for explore-inject.mjs — the foreign-project bootstrap injector.
 #
 # Two layers:
 #  1. Portable unit tests of the detector against a temp git sandbox (two repos
