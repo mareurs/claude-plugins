@@ -17,17 +17,60 @@ Phase 3 — its scope is the **skill itself**, not any one task. Entries
 describe when recon helped (hit), when it missed (miss), and what
 should change in `SKILL.md` next (proposal).
 
-**Bootstrap (first use per project):**
+**Bootstrap (first use per project).** Read
+`references/reconnaissance-patterns-template.md` for the body, then create the
+ledger through the catalog — which registers it in the same call:
 
-```bash
-cp <skill-dir>/references/reconnaissance-patterns-template.md \
-   docs/trackers/reconnaissance-patterns.md
+```python
+artifact(action="create", kind="tracker", title="Reconnaissance patterns",
+         rel_path="docs/trackers/reconnaissance-patterns.md",
+         topic="reconnaissance", tags=["reconnaissance", "skill-meta", "scout"],
+         body="<the template body, below its fenced frontmatter block>")
 ```
 
-Where `<skill-dir>` resolves to the cached skill location — typically
+`<skill-dir>` resolves to the cached skill location — typically
 `~/.claude/plugins/cache/.../codescout-companion/skills/reconnaissance/`.
 Verify the path with `claude plugin list` or read the skill's own
 `base directory` line.
+
+**Do not `cp` the template.** Its frontmatter is fenced so the template itself is
+not classified as an artifact, so a literal copy yields a ledger with no
+frontmatter at all — no `kind`, no `status`, no librarian row.
+
+### Bootstrap wakes a whole namespace — scout the prefix first
+
+**Before claiming `R-`, check whether the project already writes it:**
+`grep -rnE '\bR-[0-9]+\b' docs/`. If another artifact uses it, take a free prefix
+(`RP-`) and say so at the top of the ledger.
+
+This is not a tidiness rule. `link_scan` binds a token to its **defining heading**,
+so a prefix with no definer anywhere is inert — every `R-N` in the corpus is read as
+prose noise, the same gate that keeps `UTF-8` and `SHA-256` silent. A ledger whose
+entries *are* proper `## R-N — title` headings gives the prefix its first definer,
+and in that one write **every bare `R-N` in the project becomes a live citation** —
+resolving wherever a number happens to match, dangling where it does not.
+Bootstrapping a ledger is a corpus-wide reclassification of one namespace, not a
+local act.
+
+Measured on a first bootstrap, three `link_scan` runs over one corpus: dangling
+citations **5 → 17** on creating an `R-` ledger of four entries, and back to **5** on
+renaming it to `RP-`. The `+12` were mentions in six other files that had been
+silent for months. Worse than the count: one *shipping* document's back-reference to
+its own item 4 stopped dangling because it had been **captured** — bound to the new
+ledger's unrelated entry 4. A dangling citation is visibly broken; a captured one
+reads as healthy, and the ledger would have captured five more as it grew.
+
+The incumbent there defined its items as **table rows**, which define no token — so
+the collision was invisible to `link_scan` right up until the moment it was created.
+A `grep` finds it; a link check cannot.
+
+**So, immediately after bootstrap:** run `librarian(action="link_scan")` and compare
+corpus dangling against a pre-bootstrap run. A **drop** anywhere is a captured
+citation, not a repair. Prefer yielding the prefix to renumbering the incumbent —
+especially if the incumbent ships; a four-entry ledger costs one line to rename.
+
+Generalises past this skill: it applies to any new ledger in a corpus that already
+writes `PREFIX-N` in prose.
 
 **When to append an R-N entry.** After a recon scout completes:
 

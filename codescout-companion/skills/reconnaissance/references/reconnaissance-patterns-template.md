@@ -1,11 +1,32 @@
 # Reconnaissance patterns — template
 
-> **Bootstrap:** Copy this file to `docs/trackers/reconnaissance-patterns.md`
-> in the active project on first recon use. The local copy then becomes
-> the project's R-N ledger for the `codescout-companion:reconnaissance`
-> skill. Sync mature proposals back into `SKILL.md` (see § How to sync).
+> **Bootstrap:** create `docs/trackers/reconnaissance-patterns.md` in the active
+> project on first recon use, using the body below. It becomes that project's R-N
+> ledger for the `codescout-companion:reconnaissance` skill. Sync mature proposals
+> back into `SKILL.md` (see § How to sync).
+>
+> **Do not `cp` this file.** The frontmatter below is fenced so this template is
+> not itself classified as an artifact — a literal copy therefore produces a
+> ledger with *no* frontmatter: no `kind`, no `status`, and no librarian row.
+> Create it through the catalog instead, which registers it in the same call:
+>
+> ```python
+> artifact(action="create", kind="tracker", title="Reconnaissance patterns",
+>          rel_path="docs/trackers/reconnaissance-patterns.md",
+>          topic="reconnaissance", tags=["reconnaissance", "skill-meta", "scout"],
+>          body="<everything below the frontmatter block>")
+> ```
+>
+> **Check the prefix is free before you claim it.** `grep -rnE '\bR-[0-9]+\b' docs/`.
+> If another artifact already writes `R-N` — even in table rows, which define no
+> citable token and are therefore *invisible* to `link_scan` until you make the
+> prefix live — take a free prefix (`RP-`) and say so at the top of the ledger.
+> See § *Bootstrap wakes a whole namespace* in `patterns-tracker.md`.
 
 ---
+
+The frontmatter for the new ledger — pass these as `artifact(action="create")`
+parameters rather than copying the block:
 
 ```yaml
 ---
@@ -48,7 +69,13 @@ produced them. Cross-project lessons graduate via the sync flow.
 
 | ID | Date | Verdict | Pattern | Evidence (session-log) |
 |----|------|---------|---------|------------------------|
-| R-<n> | YYYY-MM-DD | hit / miss / proposal | <one-line pattern> | `<topic>-session-log.md` F-N + W-N |
+| R-<n> | YYYY-MM-DD | hit / miss / proposal | <one-line pattern> | <topic>-session-log:F-<n>, <topic>-session-log:W-<n> |
+
+**Cite session-log entries in the qualified form** — `<file-stem>:F-<n>`, colon, no
+space, no `.md`. A bare `F-<n>` is resolved against the whole workspace, and F/W
+counters are per-work-stream, so every session log in the project defines the same
+low numbers: the citation comes back ambiguous and resolves to nothing. A filename
+and a token separated by whitespace is prose, not a citation.
 
 ## Status vocabulary
 
@@ -105,7 +132,8 @@ substrate that earns its way in.
 
 **Observed:** <date, work-stream name>
 
-**Source session log:** <path or topic>, citing F-N / W-N entries.
+**Source session log:** <topic>-session-log:F-<n> (qualified — a bare token is
+ambiguous across work streams).
 
 **Pattern (or pattern that failed):** <one paragraph — what the scout
 did / didn't do, and why the outcome happened>.
