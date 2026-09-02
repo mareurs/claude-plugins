@@ -13,6 +13,9 @@ import { homedir } from 'node:os';
 import { readInput, detectFor, git, emit } from './lib.mjs';
 
 const MARKER = '[[cs-explore-bootstrap]]';
+// Agent types dedicated to read-only work. Their native Edit/Write are stripped by
+// the harness, but codescout's edit_code is not — so the directive must not name it.
+const READ_ONLY_AGENTS = new Set(['Explore', 'Plan']);
 const HOME = process.env.HOME || process.env.USERPROFILE || homedir();
 
 function isDir(p) {
@@ -72,8 +75,18 @@ function firstForeignRoot(cwd, prompt) {
   return '';
 }
 
-function buildDirective(root) {
-  return `${MARKER} This task targets a FOREIGN project at ${root} (a different git repo than the session cwd). Before the task below, load its context: read_markdown("${root}/CLAUDE.md") if present, and memory(action="list", workspace="${root}") then read the relevant topics. Pin every codescout call to it with workspace="${root}". Use codescout tools (symbols/semantic_search/grep/read_markdown/edit_code) — not native Read/Grep/Bash on source.
+function buildDirective(root, agentType) {
+  // Read-only agent types get a read-only tool list. Claude Code strips native
+  // Edit/Write from these, but NOT codescout's edit_code — so naming an editing
+  // tool here would invite a write the dispatcher never asked for.
+  const readOnly = READ_ONLY_AGENTS.has(agentType || '');
+  const tools = readOnly
+    ? 'symbols/semantic_search/grep/read_markdown/tree'
+    : 'symbols/semantic_search/grep/read_markdown/edit_code';
+  const rule = readOnly
+    ? ' READ-ONLY task: do not write or modify any file in that project.'
+    : '';
+  return `${MARKER} This task targets a FOREIGN project at ${root} (a different git repo than the session cwd). Before the task below, load its context: read_markdown("${root}/CLAUDE.md") if present, and memory(action="list", workspace="${root}") then read the relevant topics. Pin every codescout call to it with workspace="${root}". Use codescout tools (${tools}) — not native Read/Grep/Bash on source.${rule}
 
 --- original task ---`;
 }
@@ -103,7 +116,7 @@ if (prompt.includes(MARKER) || prompt.includes('workspace(action="activate"')) p
 const root = firstForeignRoot(cwd, prompt);
 if (!root) process.exit(0);
 
-const updated = { ...(input.tool_input || {}), prompt: `${buildDirective(root)}\n${prompt}` };
+const updated = { ...(input.tool_input || {}), prompt: `${buildDirective(root, (input.tool_input || {}).subagent_type)}\n${prompt}` };
 emit({
   hookSpecificOutput: {
     hookEventName: 'PreToolUse',

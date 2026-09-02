@@ -12,7 +12,7 @@ topic: subagent-bootstrap
 entry_prefix:
 - F
 - W
-entry_high_water_F: 8
+entry_high_water_F: 9
 ---
 
 # Subagent bootstrap injection — session log
@@ -34,6 +34,7 @@ Design spec: `docs/superpowers/specs/2026-07-28-subagent-bootstrap-injection-des
 | F-6 | explore-project skill and explore-inject hook both inject, and contradict on write permission | med | fixed-verified |
 | F-7 | SKILL.md cites `explore-inject.sh`; only `.mjs` exists (rediscovery of the 1.14.0 port drift) | low | fixed-verified (SKILL.md; buddy docs still open) |
 | F-8 | PreToolUse-on-Agent does not fire for nested (subagent-issued) dispatches — 0 of 15 marked | med | open — **evidence retracted**, instrument could not discriminate (2% recorded-rate on the control path) |
+| F-9 | extractPaths swallows trailing punctuation, silently skipping injection (2 real misses in 1,564) | low | open |
 
 ## Wins Index
 
@@ -445,6 +446,34 @@ So the skill's conditional fallback ("If a foreign-project bootstrap directive w
 **Valid (superseded — see Status):** conditional — a live nested dispatch at a foreign path is observed, confirming or refuting non-firing
 
 **Fix idea / Pointer:** nothing to fix in the hook — this is a harness constraint to design around. Record it where a future session will hit it: the skill's duplication must be labelled *deliberate* so nobody "cleans it up". Blocks any plan that assumes hook coverage of nested dispatches.
+
+## F-9 — extractPaths swallows trailing punctuation, silently skipping injection (2 real misses in 1,564)
+
+**Observed:** 2026-09-02, as a *test* failure while adding agent-type branching (B′) to the hook — every new assertion returned an empty directive.
+
+**When:** First run of new `dir_for()` cases in `explore-inject.test.sh`, whose probe prompt was `"Work in $SB/repoB."` — path immediately followed by a sentence-ending period.
+
+**Root cause (hook, not test):** `extractPaths`'s character class is `[A-Za-z0-9._-]`, which **includes `.`**. So `…/repoB.` is captured *with* the period, `isDir` fails on it, `firstForeignRoot` finds no foreign root, and the hook exits 0 — silently, indistinguishable from "no foreign path named". The pre-existing tests never caught this because every one of them happens to follow the path with a space (`"…in $SB/repoB per the spec."`).
+
+**Measured real-world frequency — and why the first number was wrong.** Across 1,564 post-2026-06-14 `Agent` dispatches:
+
+| quantity | count |
+|---|---|
+| prompts containing a punctuation-truncated path whose stripped form is a real dir | 125 |
+| …where the truncated dir was **not** foreign to cwd (harmless) | 119 |
+| …where it **was** foreign | 6 |
+| …of those, hook still injected via another well-formed path in the same prompt | 4 |
+| **genuine missed injections** | **2** |
+
+The headline 125 (8% of dispatches) is an **upper bound, not an impact count** — the hook takes the first foreign root among *all* extracted paths, so one broken path does not imply a miss. Reporting 125 would have repeated the F-8 error in the same session; the decomposition is the finding.
+
+**Severity:** low — 2 misses in 1,564 dispatches (0.13%), and the failure mode is a *missing* bootstrap (subagent works without foreign context) rather than a wrong one. But it is silent and its likeliest trigger is the most natural way to write a prompt: ending a sentence with the path.
+
+**Status:** open — not fixed; B′'s scope was agent-type branching, and expanding it uninvited was declined. The test now documents the constraint in a comment so the next author does not re-hit it.
+
+**Valid:** conditional — `extractPaths` is changed to consider punctuation-stripped candidates
+
+**Fix idea / Pointer:** additive and low-risk — have `extractPaths` emit both the raw match and, when the match ends in `[.,;:)]`, the stripped variant. Both go into the same dedup set, so no currently-detected path can be lost; `firstForeignRoot` already discards candidates that aren't real dirs. Roughly a two-line change in `codescout-companion/hooks/explore-inject.mjs:51-54` plus a case in `explore-inject.test.sh` asserting a period-terminated foreign path still injects.
 
 ## Template for new entries
 

@@ -48,6 +48,45 @@ echo "$OUT" | jq -e '.hookSpecificOutput.updatedInput.prompt | contains("Impleme
 echo "$OUT" | jq -e '.hookSpecificOutput.updatedInput.subagent_type=="general-purpose"' >/dev/null 2>&1 \
   && ok "e2e: preserves subagent_type" yes yes || ok "e2e: preserves subagent_type" no yes
 
+# ---------- 2b. Read-only agent types get a read-only tool list ----------
+# Explore/Plan have native Edit/Write stripped by the harness but NOT codescout's
+# edit_code, so a directive naming it would invite an unasked-for write.
+dir_for() {  # $1 = subagent_type ("" = key absent) -> the injected prompt
+  # NB: keep a space after the path. extractPaths treats '.' as a path character,
+  # so "…/repoB." captures a nonexistent dir and the hook correctly skips.
+  local st="$1" pay
+  if [ -n "$st" ]; then
+    pay=$(jq -nc --arg cwd "$SB/repoA" --arg p "Work in $SB/repoB on the task." --arg st "$st" \
+      '{tool_name:"Agent",cwd:$cwd,tool_input:{subagent_type:$st,prompt:$p}}')
+  else
+    pay=$(jq -nc --arg cwd "$SB/repoA" --arg p "Work in $SB/repoB on the task." \
+      '{tool_name:"Agent",cwd:$cwd,tool_input:{prompt:$p}}')
+  fi
+  run "$pay" | jq -r '.hookSpecificOutput.updatedInput.prompt // ""'
+}
+
+for ro in Explore Plan; do
+  RO_D=$(dir_for "$ro")
+  case "$RO_D" in *edit_code*) ok "agent-type: $ro omits edit_code" no  yes ;;
+                  *)            ok "agent-type: $ro omits edit_code" yes yes ;; esac
+  case "$RO_D" in *"READ-ONLY task"*) ok "agent-type: $ro states READ-ONLY" yes yes ;;
+                  *)                  ok "agent-type: $ro states READ-ONLY" no  yes ;; esac
+  case "$RO_D" in *read_markdown/tree*) ok "agent-type: $ro names tree" yes yes ;;
+                  *)                    ok "agent-type: $ro names tree" no  yes ;; esac
+done
+
+for rw in general-purpose claude; do
+  RW_D=$(dir_for "$rw")
+  case "$RW_D" in *edit_code*) ok "agent-type: $rw stays write-capable" yes yes ;;
+                  *)           ok "agent-type: $rw stays write-capable" no  yes ;; esac
+  case "$RW_D" in *"READ-ONLY task"*) ok "agent-type: $rw has no READ-ONLY rule" no  yes ;;
+                  *)                  ok "agent-type: $rw has no READ-ONLY rule" yes yes ;; esac
+done
+
+ABS_D=$(dir_for "")
+case "$ABS_D" in *edit_code*) ok "agent-type: absent defaults to write-capable" yes yes ;;
+                 *)           ok "agent-type: absent defaults to write-capable" no  yes ;; esac
+
 IN_L=$(jq -nc --arg cwd "$SB/repoA" --arg p "Fix bug in $SB/repoA/sub/main.rs; shebang /usr/bin/env bash." \
   '{tool_name:"Agent",cwd:$cwd,tool_input:{subagent_type:"Explore",prompt:$p}}')
 [ -z "$(run "$IN_L")" ] && ok "e2e: skip local-only + shebang" skip skip || ok "e2e: skip local-only + shebang" inject skip
