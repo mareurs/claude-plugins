@@ -11,7 +11,7 @@ if (!input) process.exit(0);
 
 const toolName = input.tool_name || '';
 // Only act on codescout write tools (mcp__<server>__<tool>).
-if (!/__(edit_code|edit_file|edit_markdown|create_file)$/.test(toolName)) process.exit(0);
+if (!/__(edit_code|edit_file|create_file)$/.test(toolName)) process.exit(0);
 
 const cwd = input.cwd || '';
 if (!cwd) process.exit(0);

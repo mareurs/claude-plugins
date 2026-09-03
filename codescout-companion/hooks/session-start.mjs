@@ -398,7 +398,7 @@ msg += `CODESCOUT RULES (compression-resilient reminder):
 • Source code: symbols (list + find), NOT read_file/Read
 • Code edits: edit_code (LSP-aware; action=replace/insert/remove/rename), NOT edit_file/Edit for structural changes
 • Shell commands: run_command, NOT Bash — output buffers save tokens
-• Markdown: read_markdown/edit_markdown, NOT read_file/edit_file
+• Markdown: read_file returns the heading map (heading= for a section); edit_file edits by heading — managed trackers go through doc
 • Never pipe unbounded run_command output — run bare, query @cmd_* buffer (bounded LHS like ls, cat, awk, sed, find -maxdepth N is OK)
 
 `;

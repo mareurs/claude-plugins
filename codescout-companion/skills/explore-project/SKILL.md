@@ -48,7 +48,7 @@ Questions to answer:
 - <Q2>
 
 If a foreign-project bootstrap directive was not already prepended above this line,
-first read_markdown("<path>/CLAUDE.md") (if present) and check
+first read_file("<path>/CLAUDE.md") (if present) and check
 memory(action="list", workspace="<path>") for that project, reading the relevant
 topics — before exploring.
 
@@ -57,7 +57,7 @@ Rules:
   an editing tool (`edit_code`), it does not apply to this task — exploration only.
 - Use codescout tools, pinned to the target with workspace="<path>" — not native
   Read/Grep/Bash on source. Read tools only: symbols / semantic_search / grep /
-  read_markdown / tree.
+  read_file / tree.
 - Answer every question, or flag it explicitly unanswerable.
 
 ## Response format — return ONLY this block

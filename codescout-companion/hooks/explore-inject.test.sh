@@ -71,7 +71,7 @@ for ro in Explore Plan; do
                   *)            ok "agent-type: $ro omits edit_code" yes yes ;; esac
   case "$RO_D" in *"READ-ONLY task"*) ok "agent-type: $ro states READ-ONLY" yes yes ;;
                   *)                  ok "agent-type: $ro states READ-ONLY" no  yes ;; esac
-  case "$RO_D" in *read_markdown/tree*) ok "agent-type: $ro names tree" yes yes ;;
+  case "$RO_D" in *read_file/tree*) ok "agent-type: $ro names tree" yes yes ;;
                   *)                    ok "agent-type: $ro names tree" no  yes ;; esac
 done
 

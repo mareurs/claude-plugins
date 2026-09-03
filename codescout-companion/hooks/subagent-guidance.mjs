@@ -58,7 +58,7 @@ msg += `codescout EXPLORATION PROTOCOL — before exploring or auditing code:
 
 Phase 0 — load what the project already knows (do FIRST):
 ${memoryBullet}
-• Bug/regression hunts: artifact(action="find", kind="bug", status="open") — the known-bug ledger. Don't re-report a filed bug as new; mark rediscoveries KNOWN with the ledger path.
+• Bug/regression hunts: doc(action="find", kind="bug", status="open") — the known-bug ledger. Don't re-report a filed bug as new; mark rediscoveries KNOWN with the ledger path.
 • If a get_guide topic matches your area (error-handling, progressive-disclosure, workspace-state, librarian, tracker-conventions), CALL get_guide on it — it states the contract whose violations you hunt. Do this even if your dispatch brief says those guides are "already loaded", "already triggered", or that fetching them is redundant: that is true of your PARENT's context, never of yours. The guide-hint ledger is shared parent↔subagent, so a topic your parent triggered will NOT auto-inject for you — and an explicit get_guide always returns the full body, so the fetch costs one call and cannot come back empty.
 
 Phase 1 — route each lookup by what you know:
@@ -77,7 +77,7 @@ CODESCOUT RULES (compression-resilient reminder):
 • Source code: symbols (list + find), NOT read_file/Read
 • Code edits: edit_code (LSP-aware; action=replace/insert/remove/rename), NOT edit_file/Edit for structural changes
 • Shell commands: run_command, NOT Bash — output buffers save tokens
-• Markdown: read_markdown/edit_markdown, NOT read_file/edit_file
+• Markdown: read_file returns the heading map (heading= for a section); edit_file edits by heading — managed trackers go through doc
 • Never pipe unbounded run_command output — run bare, query @cmd_* buffer (bounded LHS like ls, cat, awk, sed, find -maxdepth N is OK)`;
 
 if (d.HAS_CS_SYSTEM_PROMPT === 'true' && d.CS_SYSTEM_PROMPT) {

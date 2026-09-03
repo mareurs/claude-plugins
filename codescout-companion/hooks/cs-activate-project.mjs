@@ -48,7 +48,7 @@ if (existsSync(marker)) {
   emit({
     hookSpecificOutput: {
       hookEventName: 'PostToolUse',
-      additionalContext: `✓ codescout switched to: ${activatedPath}\nWrite tools (edit_code, edit_file, edit_markdown, create_file) are now unblocked for this worktree.`,
+      additionalContext: `✓ codescout switched to: ${activatedPath}\nWrite tools (edit_code, edit_file, create_file) are now unblocked for this worktree.`,
     },
   });
 }

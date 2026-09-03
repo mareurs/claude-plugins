@@ -73,7 +73,7 @@ emit({
     hookEventName: 'PostToolUse',
     additionalContext: `WORKTREE DETECTED: codescout must switch to the worktree.
 Call workspace(action="activate", path="${worktreePath}") NOW as your next action.
-MCP write tools (edit_code, edit_file, edit_markdown, create_file) are BLOCKED
+MCP write tools (edit_code, edit_file, create_file) are BLOCKED
 until workspace is called — they would otherwise silently write to the wrong repo.
 After workspace() succeeds, call index(action="build") in the worktree to build
 its per-worktree delta index — only files that differ from main get embedded.

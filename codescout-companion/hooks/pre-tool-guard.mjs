@@ -245,14 +245,14 @@ if (toolName === 'Read') {
 
 File: ${filePath}
 
-Reading a full markdown file dumps everything into context. read_markdown is size-adaptive (full content for small files, heading map + slice recipe for large):
+Reading a full markdown file dumps everything into context. read_file is size-adaptive on markdown (full content for small files, heading map + slice recipe for large):
 
-  read_markdown(path="${relPath}")                            — adaptive output (start here)
-  read_markdown(path="${relPath}", heading="## Section")     — one section
-  read_markdown(path="${relPath}", headings=["## A", "## B"]) — multiple sections
+  read_file(path="${relPath}")                            — adaptive output (start here)
+  read_file(path="${relPath}", heading="## Section")     — one section
+  read_file(path="${relPath}", headings=["## A", "## B"]) — multiple sections
   grep(pattern="pattern", path="${relPath}")                 — content search
 
-read_markdown works on absolute cross-repo paths too. Native Read of markdown is blocked regardless of which repo the file lives in.`);
+read_file works on absolute cross-repo paths too. Native Read of markdown is blocked regardless of which repo the file lives in.`);
   }
 
   if (SOURCE_RE.test(filePath)) {

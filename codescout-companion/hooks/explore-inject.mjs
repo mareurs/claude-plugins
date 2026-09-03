@@ -92,12 +92,12 @@ function buildDirective(root, agentType) {
   // tool here would invite a write the dispatcher never asked for.
   const readOnly = READ_ONLY_AGENTS.has(agentType || '');
   const tools = readOnly
-    ? 'symbols/semantic_search/grep/read_markdown/tree'
-    : 'symbols/semantic_search/grep/read_markdown/edit_code';
+    ? 'symbols/semantic_search/grep/read_file/tree'
+    : 'symbols/semantic_search/grep/read_file/edit_code';
   const rule = readOnly
     ? ' READ-ONLY task: do not write or modify any file in that project.'
     : '';
-  return `${MARKER} This task targets a FOREIGN project at ${root} (a different git repo than the session cwd). Before the task below, load its context: read_markdown("${root}/CLAUDE.md") if present, and memory(action="list", workspace="${root}") then read the relevant topics. Pin every codescout call to it with workspace="${root}". Use codescout tools (${tools}) — not native Read/Grep/Bash on source.${rule}
+  return `${MARKER} This task targets a FOREIGN project at ${root} (a different git repo than the session cwd). Before the task below, load its context: read_file("${root}/CLAUDE.md") if present, and memory(action="list", workspace="${root}") then read the relevant topics. Pin every codescout call to it with workspace="${root}". Use codescout tools (${tools}) — not native Read/Grep/Bash on source.${rule}
 
 --- original task ---`;
 }

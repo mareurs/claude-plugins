@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Test for worktree-write-guard.sh — verifies coverage of modern codescout
-# write tools (edit_code, edit_file, edit_markdown, create_file) and that
+# write tools (edit_code, edit_file, create_file) and that
 # stale handles (replace_symbol, insert_code, edit_lines,
 # create_or_update_file) are correctly filtered OUT by the case statement.
 # Closes U-14 (matcher drift) and pins the stale-name absence so a future
@@ -58,7 +58,7 @@ assert() {
 # --- Modern write tools in pending worktree → DENY ---
 assert "edit_code-pending"     "mcp__codescout__edit_code"     "$PENDING_WT" "deny"
 assert "edit_file-pending"     "mcp__codescout__edit_file"     "$PENDING_WT" "deny"
-assert "edit_markdown-pending" "mcp__codescout__edit_markdown" "$PENDING_WT" "deny"
+assert "edit_file-pending" "mcp__codescout__edit_file" "$PENDING_WT" "deny"
 assert "create_file-pending"   "mcp__codescout__create_file"   "$PENDING_WT" "deny"
 
 # --- Read-only tools in pending worktree → ALLOW (case filters out) ---

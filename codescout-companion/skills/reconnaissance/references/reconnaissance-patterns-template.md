@@ -70,13 +70,13 @@ Let the server allocate the id and write the section in the same call — do not
 
 ```python
 # Cite session-log evidence; don't duplicate prose.
-artifact(action="append_entry", id="<tracker artifact id>", id_prefix="R",
+doc(action="append_entry", id="<tracker artifact id>", id_prefix="R",
          anchor_heading="## Template for new entries",
          title="<title>", body="**Verdict:** hit | miss | proposal\n...")
 # Add a matching row to the Index table, using the id the call returned.
 ```
 
-`edit_markdown` is not the append path, though it works at first: this template ships without `entry_prefix`, so a fresh copy is directly editable — but once `entry_prefix` is declared to guard the ledger (`get_guide("tracker-conventions")` § *Make the tracker guarded*), the librarian guard refuses direct edits and only `append_entry` writes. Reach for `edit_markdown` for the prose sections and the Index table, never for allocating an entry.
+`edit_file` is not the append path, though it works at first: this template ships without `entry_prefix`, so a fresh copy is directly editable — but once `entry_prefix` is declared to guard the ledger (`get_guide("tracker-conventions")` § *Make the tracker guarded*), the librarian guard refuses direct edits and only `append_entry` writes. Reach for `edit_file` for the prose sections and the Index table, never for allocating an entry.
 
 ## How to sync
 
@@ -125,9 +125,9 @@ shape; can be 1 if the proposal is cheap and clearly correct>.
 ## Template for new entries
 
 <!-- Insert new R-N entries above this line via:
-     artifact(action="append_entry", id="<tracker artifact id>", id_prefix="R",
+     doc(action="append_entry", id="<tracker artifact id>", id_prefix="R",
               anchor_heading="## Template for new entries",
               title="title", body="**Verdict:** ...\n...")
      Also update the Index table row at the top, using the id the call
-     returned. `edit_markdown` is refused once entry_prefix guards the
+     returned. `edit_file` is refused once entry_prefix guards the
      ledger — it only works on an unguarded fresh copy. -->

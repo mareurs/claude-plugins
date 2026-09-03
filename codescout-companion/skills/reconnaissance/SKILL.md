@@ -93,14 +93,14 @@ Resolve `<codescout-repo>` from `claude mcp list` (the codescout server's source
 **ID + append — one call.** Do not hand-allocate the ID by grepping the tracker, and do not pre-write the Index row before the section exists — both race a peer session, and a pre-written row consumes the id it names (this is why codescout's own `statement-validity-session-log` starts at `F-2`/`W-3`). Let the server allocate and write the section in the same call:
 
 ```python
-artifact(action="append_entry", id="<tracker artifact id>", id_prefix="F",
+doc(action="append_entry", id="<tracker artifact id>", id_prefix="F",
          anchor_heading="## Template for new entries",
          title="<one-line title>", body="**Observed:** ...")
 ```
 
 One write: the server allocates the next `F-N` / `W-N` id (separate counters), writes `## F-N — <title>` at the ledger's own level — the only heading shape `link_scan` accepts as a definition — records the high-water mark, and stamps `**Valid:** dated <today>` unless the body declares a class. **`dated` takes no trailing text.** Put any qualifier on a following line — `**Valid:** dated 2026-05-18` then a blank line then the prose. An em-dash tail after `dated` is rejected outright (`is not an ISO date`), and the two branches of the grammar differ here: only `conditional — <event>` carries one. **Then** add the Index / Wins Index row using the id the call returned.
 
-`edit_markdown` is not the append path, though it works at first: a fresh copy of the template ships without `entry_prefix`, so it's directly editable — but once `entry_prefix` is declared to guard the ledger (which `get_guide("tracker-conventions")` instructs), the librarian guard refuses direct edits and only `append_entry` writes. Reach for `edit_markdown` for prose sections and index-table touch-ups, never for allocating an entry.
+`edit_file` is not the append path, though it works at first: a fresh copy of the template ships without `entry_prefix`, so it's directly editable — but once `entry_prefix` is declared to guard the ledger (which `get_guide("tracker-conventions")` instructs), the librarian guard refuses direct edits and only `append_entry` writes. Reach for `edit_file` for prose sections and index-table touch-ups, never for allocating an entry.
 
 Never reuse an ID. Never skip an ID. Entries without IDs cannot be cited in commits and do not compound.
 
