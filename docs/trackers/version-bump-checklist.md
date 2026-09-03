@@ -70,13 +70,30 @@ prove nothing, which is the trap the 2026-08-27 attempt fell into. The next code
 found it **cleared**, and a negative control confirmed no stray `cs-redirect-*` markers, so
 the check read the path it meant to.
 
-**What this does and does not establish.** `cs-liveness` is a 1.17.0-era hook, so its firing
-proves *a companion PostToolUse hook executes in this profile* — combined with the 24→23
-count, the new hook set is registered and hooks execute. The **skill** channel is inferred
-rather than observed: `installPath` points at the `1.20.4` cache, that cache is
-byte-identical to the working tree, and `/reload-plugins` re-reads `installPath` — a chain,
-not a direct byte-level observation of a served skill. `~/.claude` and `~/.claude-sdd` are
-separate processes with their own session ids and are **not** reached from here.
+**What this does and does not establish.** `cs-liveness` is a 1.17.0-era hook, so its
+firing alone would prove only *a companion PostToolUse hook executes in this profile*. The
+hook **count** is what makes the evidence release-specific, and it is arithmetic rather than
+inference: the `1.20.3` cache still carries `il4-deny-hook.mjs` **and registers it** (18
+hook entries for this plugin, 1 naming `il4`), while `1.20.4` has it absent (17 entries, 0
+naming `il4`). A `1.20.3` manifest read would therefore have reported **24** hooks; the
+reloader reported **23**. So the process read the **`1.20.4`** manifest.
+
+**That reaches the skill channel too, by shared read.** Skills and hooks are registered from
+the same plugin manifest at the same `installPath`, so a demonstrated `1.20.4` manifest read
+is a `1.20.4` skill registration — and that cache is byte-identical to the working tree (12
+of 12 pairs). The residual is narrow: no *injected skill body* was read back byte-for-byte,
+so the claim rests on which directory the process demonstrably read, not on observing one
+skill's served text.
+
+**A count that was NOT used as evidence.** The reloader also reported *46 skills* against 45
+in earlier entries, which is tempting and wrong to cite: this repo tracks **21** `SKILL.md`
+files at `1.20.3`, at `34f5da6` and at `HEAD` — an identical set, verified by diffing
+`git ls-tree` at each revision. The +1 came from outside this repo, so it says nothing about
+this release. Recorded because the hook count and the skill count look equally citable and
+only one of them is.
+
+`~/.claude` and `~/.claude-sdd` are separate processes with their own session ids and are
+**not** reached from here.
 
 `sdd` — discovered in the repo but installed in no profile. Stable by design; never a gap.
 
