@@ -14,7 +14,7 @@ Release readiness across plugins × profiles. See
 
 ## State
 
-_Last refresh: `0b8a507`, 2026-09-03 — **all four plugins measured this pass**, none carried.
+_Last refresh: `34f5da6`, 2026-09-03 — **all four plugins measured this pass**, none carried.
 Every cell below, including `cache = working tree`, was re-derived from disk._
 
 **buddy** — canonical `0.11.1` · readme `0.11.1` · marketplace clean ✅
@@ -33,13 +33,13 @@ Every cell below, including `cache = working tree`, was re-derived from disk._
 | `~/.claude-sdd` | 1.1.7 ✅ | ✅ | ✅ | `1.1.7` ✅ | ✅ |
 | `~/.claude-kat` | 1.1.7 ✅ | ✅ | ✅ | `1.1.7` ✅ | ✅ |
 
-**codescout-companion** — canonical `1.20.3` · readme `1.20.3` · marketplace clean ✅
+**codescout-companion** — canonical `1.20.4` · readme `1.20.4` · marketplace clean ✅
 
 | profile | installed | cache dir | install_path ok | all entries | cache = working tree |
 |---|---|---|---|---|---|
-| `~/.claude` | 1.20.3 ✅ | ✅ | ✅ | `1.20.3` ✅ | ✅ |
-| `~/.claude-sdd` | 1.20.3 ✅ | ✅ | ✅ | `1.20.3` ✅ | ✅ |
-| `~/.claude-kat` | 1.20.3 ✅ | ✅ | ✅ | `1.20.3` ✅ | ✅ |
+| `~/.claude` | 1.20.4 ✅ | ✅ | ✅ | `1.20.4` ✅ | ✅ |
+| `~/.claude-sdd` | 1.20.4 ✅ | ✅ | ✅ | `1.20.4` ✅ | ✅ |
+| `~/.claude-kat` | 1.20.4 ✅ | ✅ | ✅ | `1.20.4` ✅ | ✅ |
 
 **session-bridge** — canonical `0.1.0` · readme `0.1.0` · marketplace clean ✅
 
@@ -49,19 +49,20 @@ Every cell below, including `cache = working tree`, was re-derived from disk._
 | `~/.claude-sdd` | 0.1.0 ✅ | ✅ | ✅ | `0.1.0` ✅ | ✅ |
 | `~/.claude-kat` | 0.1.0 ✅ | ✅ | ✅ | `0.1.0` ✅ | ✅ |
 
-**All 12 plugin×profile pairs byte-identical — and this time measured for all four
-plugins rather than carried.** The distinction matters: the previous refresh also read
-green on this column for three of the four, but only because those rows were copied
-forward. Two bumps got here — `buddy 0.11.1` closed the 14-file drift the last refresh
-opened, and `codescout-companion 1.20.3` closed a 1-file drift that this same measurement
-caught *between* the two releases (see the 2026-09-03 History entry).
+**All 12 plugin×profile pairs byte-identical — and measured for all four plugins rather
+than carried.** The distinction matters: an earlier refresh also read green on this column
+for three of the four, but only because those rows were copied forward. Three bumps in
+succession got here — `buddy 0.11.1` closed the 14-file drift, `codescout-companion 1.20.3`
+closed a 1-file skill drift caught between releases, and `1.20.4` closed a 19-file drift
+from the tool-collapse work (see the three 2026-09-03 History entries).
 
-**⚠ Registration NOT confirmed for either release, in any profile.** The cold restart
-`release.sh` names as step 2 has not happened. All six ✅ columns are statements about
-records, caches and bytes; none is a statement about execution. For `codescout-companion
-1.20.3` specifically this is the load-bearing gap, because its whole content is a **skill**
-fix — the one channel that is served from `installPath` and therefore cannot be live
-without the restart.
+**⚠ Registration NOT confirmed for `1.20.4`, in any profile.** The cold restart
+`release.sh` names as step 2 has not happened for it. All six ✅ columns are statements
+about records, caches and bytes; none is a statement about execution. The codescout **MCP
+server** was restarted this session (which is what makes `doc`/`read_file` live as tools),
+but that is a different process from Claude Code — plugin `installPath` and the hook set
+resolve at *Claude Code* launch, so `1.20.4`'s **skills** are seeded and not yet loaded.
+Its hooks are live regardless, via the working-tree load path.
 
 `sdd` — discovered in the repo but installed in no profile. Stable by design; never a gap.
 
@@ -173,6 +174,50 @@ measured on both candidate load paths rather than argued: the record points at k
 two actually serves, they carry the same bytes — so the question CLAUDE.md flags as
 unsettled does not need settling for this release.
 ## History
+
+### 2026-09-03 — 1.20.4: the tool collapse, a red suite on an unpushed HEAD, and 111 stale tool references
+
+**codescout-companion 1.20.4 (`34f5da6`)** picks up two peer commits that landed after
+`1.20.3` was seeded: `7aa8a6e` (peer-enumeration test hardening) and `bb24b7f` (*"follow
+codescout's tool collapse — doc replaces artifact, IL-4 retired, read_file/edit_file handle
+markdown"*). 19 files were stale across all three profiles, four of them **skills**, so the
+collapse-following content was committed and loaded nowhere. 12 of 12 pairs identical after.
+
+**The suite was RED on that unpushed HEAD, and `release.sh` step 0 would have refused.**
+`bb24b7f` switched `pre-tool-guard`'s markdown redirect to recommend `read_file`, and updated
+`worktree-write-guard.test.sh` and `explore-inject.test.sh` — but two assertions in
+`tests/test-pre-tool-guard.sh` still grepped the deny reason for the literal
+`read_markdown`, leaving `24 passed, 2 failed`. Both denies were firing correctly the whole
+time (`assert_denied` passed in both); only the recommended-tool string had moved. So the
+stale thing was the expectation, and the expectation was fixed (`a1f3bd0`-class change,
+committed ahead of the bump). Verified to discriminate rather than merely pass: reverting the
+hook's wording fails exactly those two assertions and nothing else.
+
+**Worth noting about the ordering.** A version bump cannot be the thing that discovers a red
+suite, because `release.sh` runs the suite *before* it bumps — which is the gate working. But
+nothing runs the suite when a commit merely lands, so between `bb24b7f` (08:40) and the next
+release attempt the repo sat red and pushed-clean for hours with no signal. That is the same
+shape as this tracker's recurring theme: the check exists, and nothing invokes it at the
+moment the fault is introduced.
+
+**The collapse is only partly swept: 111 references to retired tool names remain across 46
+files** (`artifact(action=`, `artifact_augment(`, `artifact_refresh(`, `read_markdown(`,
+`edit_markdown(`). Most are correctly historical — `docs/issues/archive/**`, superseded
+plans, closed session-log entries — and rewriting those would falsify the record. But the
+**live instruction surfaces** are affected: `CLAUDE.md` (5), `AGENTS.md` (4),
+`.codescout/system-prompt.md` (1, the always-on subagent channel),
+`.codescout/memories/development-commands.md` (1), `buddy/data/cs_rules.md` (3, the judge's
+reference), `buddy/scripts/summon_bootstrap.py` (1, code), `codescout-companion/README.md`
+(1), and **`scripts/release.sh` (1) — whose own post-release instruction printed
+`artifact(action="update", …)` at the end of this very release**, naming a tool that no
+longer exists. Not swept here; that is a scoped follow-up, and the live/historical split
+above is the part worth keeping.
+
+**Params rewritten again** (no `CLAUDE.md` prohibition exists — see the first 2026-09-03
+entry), this time through `doc(action="augment", merge=true, params_path=…)`, the collapsed
+tool's equivalent of the retired `artifact_augment`.
+
+**Valid:** dated 2026-09-03
 
 ### 2026-09-03 — buddy 0.11.1 and codescout-companion 1.20.3: the column's first ❌ closed, and a second one it caught inside the hour
 
