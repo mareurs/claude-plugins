@@ -56,13 +56,27 @@ succession got here — `buddy 0.11.1` closed the 14-file drift, `codescout-comp
 closed a 1-file skill drift caught between releases, and `1.20.4` closed a 19-file drift
 from the tool-collapse work (see the three 2026-09-03 History entries).
 
-**⚠ Registration NOT confirmed for `1.20.4`, in any profile.** The cold restart
-`release.sh` names as step 2 has not happened for it. All six ✅ columns are statements
-about records, caches and bytes; none is a statement about execution. The codescout **MCP
-server** was restarted this session (which is what makes `doc`/`read_file` live as tools),
-but that is a different process from Claude Code — plugin `installPath` and the hook set
-resolve at *Claude Code* launch, so `1.20.4`'s **skills** are seeded and not yet loaded.
-Its hooks are live regardless, via the working-tree load path.
+**Registration — `~/.claude-kat` CONFIRMED for `1.20.4` by positive control; the other two
+unconfirmed.** `/reload-plugins` reported *3 plugins · 46 skills · 6 agents · **23 hooks***.
+The hook count is the release-specific part: every prior entry in this file recorded **24**,
+and `bb24b7f` deleted `il4-deny-hook`, so 23 is evidence that the **new** `hooks.json` is
+registered rather than merely that a reload happened.
+
+Execution was then checked rather than inferred, by the control this file documents below.
+The marker was armed at `/tmp/cs-redirect-958fb49b6ba3` and **its presence verified inside
+the same call** — necessary because `run_command` is itself a codescout tool, so its own
+`PostToolUse` clears the marker; without that in-call confirmation a later absence would
+prove nothing, which is the trap the 2026-08-27 attempt fell into. The next codescout call
+found it **cleared**, and a negative control confirmed no stray `cs-redirect-*` markers, so
+the check read the path it meant to.
+
+**What this does and does not establish.** `cs-liveness` is a 1.17.0-era hook, so its firing
+proves *a companion PostToolUse hook executes in this profile* — combined with the 24→23
+count, the new hook set is registered and hooks execute. The **skill** channel is inferred
+rather than observed: `installPath` points at the `1.20.4` cache, that cache is
+byte-identical to the working tree, and `/reload-plugins` re-reads `installPath` — a chain,
+not a direct byte-level observation of a served skill. `~/.claude` and `~/.claude-sdd` are
+separate processes with their own session ids and are **not** reached from here.
 
 `sdd` — discovered in the repo but installed in no profile. Stable by design; never a gap.
 
@@ -218,6 +232,16 @@ entry), this time through `doc(action="augment", merge=true, params_path=…)`, 
 tool's equivalent of the retired `artifact_augment`.
 
 **Valid:** dated 2026-09-03
+
+**Addendum, same day — registration CLOSED for `~/.claude-kat`.** `/reload-plugins` reported
+**23 hooks** against the 24 every prior entry recorded, matching `il4-deny-hook`'s deletion
+in `bb24b7f` — so the new hook set is registered, and that evidence is specific to this
+release rather than generic. Execution then confirmed by the documented breaker control,
+with the arm's success verified *in-call* because `run_command` is itself a codescout tool
+and clears the marker on its own `PostToolUse`. This is the first entry in four to close
+this axis rather than carry it forward; the State section states the residual, which is that
+the skill channel is inferred through `installPath` and byte-identity rather than observed
+directly, and that the other two profiles are unreached.
 
 ### 2026-09-03 — buddy 0.11.1 and codescout-companion 1.20.3: the column's first ❌ closed, and a second one it caught inside the hour
 
