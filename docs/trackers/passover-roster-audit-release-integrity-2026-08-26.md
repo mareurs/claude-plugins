@@ -49,6 +49,53 @@ origin_session_id: f6ae2d77-3ee3-46f9-ab0d-270afd61c592
 > Items 3, 4, 5, 7 and 8 are unchanged and unverified as of this review — they were not
 > re-measured, only left alone. Do not read this note as clearing them.
 
+> **Reviewed 2026-09-04 — ITEM 2 IS CORRECTED, and the correction is not "here are the
+> numbers".** The 2026-09-01 note above records item 2 as *"still n=0"* and cites, as its
+> evidence, the reconnaissance skill's § *Skill maintenance* sentence. That confirmation
+> fails twice over, and both failures are worth naming because each is a reusable shape.
+>
+> - **It was circular, and about a different eval.** That sentence names
+>   `codescout:docs/evals/reconnaissance-output.md`. Item 2 is about
+>   `buddy/tests/reconnaissance-eval`. Two different suites, two different harnesses
+>   (`registry: anthropic-mcp` vs `claude-code`), and the sentence never mentioned the one
+>   item 2 is asking about. It was also **already stale when quoted** — authored
+>   2026-06-11 20:49:02, two seconds after that eval doc was created and ~7 minutes before
+>   its first baseline row landed. So the note confirmed a claim about suite B by quoting a
+>   stale sentence about suite A. Corrected in `583bd9d`/`b0060a0`.
+> - **The gate it prescribes cannot open, and that was already known on the day this
+>   passover was written.** Item 2 says *"run the baseline → score `R-4` → then adjudicate
+>   `R-5`/`R-6`"*. But `c303b61` (2026-08-26, filed as `F-12`) concluded the opposite from
+>   two independent scenario designs and six control runs: `treat 3/3 · ctrl 3/3 · Δ+0.00`
+>   twice, **with positive evidence the control performs the behaviour under test** — all
+>   three no-skill runs re-invoked the instrument on other input unprompted, constructing a
+>   known-answer probe with no skill loaded. Its verdict: *"This harness cannot measure
+>   R-4"*, because the behaviour is base competence on tasks of that shape (load-bearing
+>   verdict, reachable ground truth, one focused objective). That commit even flagged the
+>   consequence — *"Three entries are parked on a gate that cannot open"* — and explicitly
+>   left the call to a human. **So running the buddy suite would not have answered item 2;
+>   it would have re-measured two scenarios already labelled regression guards, and at
+>   `runs:` defaulting to 1 it would have produced n=1 noise.** That is why no run was made
+>   here.
+>
+> **R-4 now has a real measurement — from the other suite.** `codescout 6ac368a5`
+> (2026-09-04) records a `--paired` n=3 sweep of `reconnaissance-output.md`, whose **C2 is
+> the R-4 case** (*"grep undercounts construction sites (MISS, R-4)"*). It is **not**
+> tautological, and the result is **negative: Δ−0.67**, treatment 0/3 against control 2/3,
+> with all three treatment runs at 0.3 partial credit — a consistent partial-miss rather
+> than one bad run. C2 escapes `F-12`'s tautology precisely because its shape differs: the
+> task is *"add a field to a struct and fix every place that constructs it"*, so the model
+> must enumerate construction sites, rather than decide whether to trust an instrument's
+> verdict.
+>
+> **Net for the three parked laws.** `R-4`'s effect is measured and points the wrong way on
+> the one scenario that can measure it, so `R-5`/`R-6` are no longer waiting on an
+> unobtainable baseline — they are waiting on a judgement about a law with negative
+> measured effect. That is a decision for Marius, not a run to schedule, and it is the only
+> live part of item 2. The C2 result is also why `codescout:docs/evals/reconnaissance-output.md`
+> now records the ship gate as **NOT met**.
+>
+> Items 1, 3, 4, 5, 7, 8 and 9 were **not** re-measured in this pass and are unchanged.
+> Item 6's bare-`F-N`/`W-N` sweep is still undone.
 ## State
 
 Two threads, both at a clean stopping point. **(1) Roster audit:** a cross-repo research handoff proposing `validation-domain-coverage.md` was verified against `buddy/skills/` source — every quantitative claim held, and six frictions came out of the surrounding trackers and tooling (`roster-audit-session-log` `roster-audit-session-log:F-1`..`roster-audit-session-log:F-8`, `roster-audit-session-log:W-1`, `roster-audit-session-log:W-2`). Four issues filed in this repo, two in codescout. **(2) Release integrity:** `codescout-companion` **1.16.17 is released and pushed**; the release exposed a three-way blind spot in the release gate, now fixed and shipped as `scripts/check-profile-parity.sh`. `VG-7` (pheasant lens re-extraction) is **done and committed but NOT released** — it changes shipped `buddy` content and needs a `buddy` version bump.
@@ -106,6 +153,10 @@ the original seven-item list is outstanding:
    that. Sequence: run the baseline → score `R-4` → then adjudicate `R-5`/`R-6`. Do not
    promote a third law first.
    `[verified 2026-08-26 — both entries read as held; R-4 reads promoted, effect unmeasured]`
+   `[CORRECTED 2026-09-04 — read the dated note at the top of this file before acting on
+   this item. The prescribed sequence cannot be run: c303b61/F-12 established on 2026-08-26
+   that this harness cannot measure R-4. R-4 now HAS a measurement, from the other suite
+   (reconnaissance-output C2, Δ−0.67, codescout 6ac368a5) — negative, not absent.]`
 
 3. **`T-14` — a task recorded as shipped that is not in the skill.** `f97f2a4`'s subject
    names "T-12..T-22", but `testing-snow-leopard` Method step 4 still reads *"One arrange /

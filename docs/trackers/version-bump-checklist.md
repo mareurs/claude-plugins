@@ -14,7 +14,7 @@ Release readiness across plugins × profiles. See
 
 ## State
 
-_Last refresh: `34f5da6`, 2026-09-03 — **all four plugins measured this pass**, none carried.
+_Last refresh: `6bd288b`, 2026-09-04 — **all four plugins measured this pass**, none carried.
 Every cell below, including `cache = working tree`, was re-derived from disk._
 
 **buddy** — canonical `0.11.1` · readme `0.11.1` · marketplace clean ✅
@@ -33,13 +33,13 @@ Every cell below, including `cache = working tree`, was re-derived from disk._
 | `~/.claude-sdd` | 1.1.7 ✅ | ✅ | ✅ | `1.1.7` ✅ | ✅ |
 | `~/.claude-kat` | 1.1.7 ✅ | ✅ | ✅ | `1.1.7` ✅ | ✅ |
 
-**codescout-companion** — canonical `1.20.4` · readme `1.20.4` · marketplace clean ✅
+**codescout-companion** — canonical `1.20.5` · readme `1.20.5` · marketplace clean ✅
 
 | profile | installed | cache dir | install_path ok | all entries | cache = working tree |
 |---|---|---|---|---|---|
-| `~/.claude` | 1.20.4 ✅ | ✅ | ✅ | `1.20.4` ✅ | ✅ |
-| `~/.claude-sdd` | 1.20.4 ✅ | ✅ | ✅ | `1.20.4` ✅ | ✅ |
-| `~/.claude-kat` | 1.20.4 ✅ | ✅ | ✅ | `1.20.4` ✅ | ✅ |
+| `~/.claude` | 1.20.5 ✅ | ✅ | ✅ | `1.20.5` ✅ | ✅ |
+| `~/.claude-sdd` | 1.20.5 ✅ | ✅ | ✅ | `1.20.5` ✅ | ✅ |
+| `~/.claude-kat` | 1.20.5 ✅ | ✅ | ✅ | `1.20.5` ✅ | ✅ |
 
 **session-bridge** — canonical `0.1.0` · readme `0.1.0` · marketplace clean ✅
 
@@ -205,6 +205,47 @@ measured on both candidate load paths rather than argued: the record points at k
 two actually serves, they carry the same bytes — so the question CLAUDE.md flags as
 unsettled does not need settling for this release.
 ## History
+
+### 2026-09-04 — 1.20.5: the size cap caught a pushed-red suite, and an unenabled marketplace blocked the push
+
+**Delta:** `codescout-companion` 1.20.4 → **1.20.5** in all three profiles (canonical,
+readme, installed, all_versions), caches seeded, installPaths own their profiles, no stale
+siblings. All 12 plugin×profile pairs green; `cache = working tree` measured, not carried —
+for 1.20.5 the only `diff -rq` output is three **gitignored** working-tree artifacts
+(`hooks/.buddy`, `.orphaned_at`, `scripts/__pycache__`) correctly absent from the cache, so
+no shipped file differs. `sdd` still installed nowhere, by design.
+
+**The release aborted twice, and both aborts were the gates working.**
+
+First at step 0. An earlier commit (`583bd9d`) grew the reconnaissance core SKILL.md
+13,966 → 14,359 B against `test-recon-skill-split.sh`'s 14,056 B cap, whose failure text
+reads *"move new case law into references/, do not raise CAP"*. That commit had already
+been **pushed to `main` with the suite red**, and nothing in between caught it: the
+pre-push guard gates version-bump parity, not tests, and it only fires when a pushed range
+touches a `plugin.json` — which `583bd9d` did not. `release.sh` running `run-all.sh` at
+step 0 is the only gate that saw it, and it aborted before bumping anything. Fixed in
+`b0060a0` by trimming to 14,013 B rather than raising the cap: the verbose text was
+duplicating a record that already exists in full in `docs/evals/reconnaissance-output.md`'s
+Iteration log, so the core keeps the headline, the gate verdict and the method instruction
+and nothing was lost. **The generalisable bit: a size cap is a content-budget gate that a
+docs-only commit can break, and docs-only commits are exactly the ones nobody expects to
+need a test run.**
+
+Second at step 6.5, on a plugin this release does not touch. `check-profile-parity.sh`
+reported `MARKETPLACE SKEW: anthropic-agent-skills — different git HEADs across profiles`
+(`.claude`/`.claude-sdd` at `41bbe19`, `.claude-kat` at `5304866`, two days behind) and
+refused to push. codescout-companion itself had already passed parity in the same run. The
+skew was benign — **not enabled in any profile**, so nothing loads from it, no symlinks
+involved — and resolved by a clean fast-forward of kat's clone to the commit the other two
+already ran, per the script's own *refresh the local copy first* remedy rather than an
+`rsync --delete`. Then parity green across 4 plugins and the push went out
+(`583bd9d..6bd288b`).
+
+**Worth keeping about the second abort:** parity is repo-wide, so an unrelated, unenabled,
+nothing-loads-it marketplace can block a release that is itself fully green. That is the
+gate being correctly conservative rather than a false positive — the same pointer class
+that once hid a three-month-rotted `superpowers` clone — but it means "my plugin is green"
+is not sufficient to predict a successful push.
 
 ### 2026-09-03 — 1.20.4: the tool collapse, a red suite on an unpushed HEAD, and 111 stale tool references
 
