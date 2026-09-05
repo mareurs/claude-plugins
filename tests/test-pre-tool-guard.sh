@@ -80,10 +80,10 @@ fi
 # Test 8b: Read on .md outside project → deny (path-agnostic)
 clear_dedup
 OUT=$(guard_input "Read" '"file_path":"/tmp/some-skill/SKILL.md"' | node "$HOOK" 2>/dev/null)
-if assert_denied "$OUT" && echo "$OUT" | grep -q "read_file"; then
-  pass "Read .md outside project: deny with read_file guidance"
+if assert_denied "$OUT" && assert_reason_contains "$OUT" 'read_file(path="/tmp/some-skill/SKILL.md")'; then
+  pass "Read .md outside project: deny, guidance keeps the absolute path"
 else
-  fail "Read .md outside project: deny with read_file guidance" "$OUT"
+  fail "Read .md outside project: deny, guidance keeps the absolute path" "$OUT"
 fi
 
 # Test 8c: Read on skill SKILL.md inside project → ALLOW (skill-payload exemption,
@@ -99,7 +99,7 @@ fi
 # Test 8d: Read on .md in skills/ subdir inside project → deny (no skills/ exemption)
 clear_dedup
 OUT=$(guard_input "Read" '"file_path":"'"$T/proj/myplugin/skills/foo/guide.md"'"' | node "$HOOK" 2>/dev/null)
-if assert_denied "$OUT" && echo "$OUT" | grep -q "read_file"; then
+if assert_denied "$OUT" && assert_reason_contains "$OUT" 'read_file(path="myplugin/skills/foo/guide.md")'; then
   pass "Read .md in skills/ dir: deny (no skills/ exemption)"
 else
   fail "Read .md in skills/ dir: deny (no skills/ exemption)" "$OUT"
