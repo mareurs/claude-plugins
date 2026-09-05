@@ -164,8 +164,8 @@ exactly the drift the release exists to repair.
 1. **Refresh the codescout `version-bump-checklist` tracker** (needs the MCP tool, not bash),
    then verify every row is ✅ — any ❌ is real drift:
    ```
-   artifact(action="update", id="cc8cb9e23ab5cc67", commit_refresh=true)   # update params + body for the new version
-   artifact(action="get",    id="cc8cb9e23ab5cc67", full=true)
+   doc(action="update", id="cc8cb9e23ab5cc67", commit_refresh=true)   # update params + body for the new version
+   doc(action="get",    id="cc8cb9e23ab5cc67", full=true)
    ```
    It is the richer cross-check of the same two failure classes the bash sanity loop covers;
    design in `docs/superpowers/specs/2026-05-18-version-bump-checklist-tracker-design.md`.
@@ -227,8 +227,8 @@ Anti-goals. Get `origin_session_id` from `cat .codescout/cc_session_id` (or
 
 **Discover (incoming session):** run, early in the session —
 
-    artifact(action="find", kind="tracker",
-             filter={"and":[{"tags":{"contains":"passover"}}, {"status":{"eq":"active"}}]})
+    doc(action="find", kind="tracker",
+        filter={"and":[{"tags":{"contains":"passover"}}, {"status":{"eq":"active"}}]})
 
 **`contains`, not `in`** — `in` on a tag array matches nothing and returns a clean zero, which
 reads exactly like "no handoffs". Measured 2026-08-27: the `in` form returned 0 against 5 live
@@ -239,7 +239,7 @@ Zero results → proceed normally. One → resume it (auto-confirm if your own s
 Always run Next-actions step 1 (verify state) before acting.
 
 **Consume:** when done, flip `status: archived`, append `## Consumed — YYYY-MM-DD`, and
-`artifact(action="move", …)` into `docs/trackers/archive/` (never bare `git mv`).
+`doc(action="move", …)` into `docs/trackers/archive/` (never bare `git mv`).
 
 ## Plugin Install Path (directory-source gotcha)
 

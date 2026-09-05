@@ -130,7 +130,7 @@ cat <<EOF
 
 Two steps remain — a bash script can't do them:
   1. codescout tracker — refresh version-bump-checklist (needs the MCP tool), then verify all ✅:
-       artifact(action="update", id="cc8cb9e23ab5cc67", commit_refresh=true)   # update params/body for $PLUGIN $VERSION
+       doc(action="update", id="cc8cb9e23ab5cc67", commit_refresh=true)   # update params/body for $PLUGIN $VERSION
   2. COLD-RESTART all three Claude Code instances — a resume is NOT enough (hooks
      resolve installPath at launch). Fully quit + relaunch, or run /reload-plugins.
 EOF
