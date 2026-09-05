@@ -1,3 +1,9 @@
+---
+kind: tracker
+status: active
+title: Session Log — codescout-usage-audit
+---
+
 # Session Log — codescout-usage-audit
 
 > **Purpose:** Two-sided observation log for the codescout tool-call usage
@@ -12,6 +18,17 @@
 ---
 
 ## Recorder reliability caveat (read before trusting any query)
+> **UPDATE 2026-09-05 — U-2 and U-3's prescribed tools no longer exist.** The
+> 2026-09-02 tool collapse (`bb24b7f`) retired `read_markdown` and `edit_markdown`;
+> `read_file`/`edit_file` now handle markdown directly (heading-aware, size-adaptive).
+> U-2 and U-3 below are kept verbatim as the historical evidence they measured —
+> the `read_file`/`edit_file` call *counts* they recorded are real — but their
+> "Should have called" cells are stale and **U-1/U-2/U-3's `status: open` needs a
+> fresh audit against current tool names before any of them can close.** Do not
+> re-open U-2/U-3 as new findings against `read_file`/`edit_file` on markdown
+> without first checking whether the call was routed correctly under the
+> *current* tool surface.
+
 
 `.codescout/usage.db` `tool_calls` has 17 columns, but four diagnostic
 ones are **un-backfilled** and near-useless on this DB (captured as F-1):

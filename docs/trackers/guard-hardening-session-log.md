@@ -1,8 +1,10 @@
 ---
+kind: tracker
+status: active
+entry_high_water_F: 4
 entry_prefix:
 - F
 - W
-entry_high_water_F: 4
 ---
 # Session Log — Guard Hardening (pre-tool-guard cross-repo escapes)
 

@@ -1,3 +1,9 @@
+---
+kind: tracker
+status: active
+title: Buddy Eval Harness — Bringup Tracker
+---
+
 # Buddy Eval Harness — Bringup Tracker
 
 > **Scope:** runtime execution of the eval harness — env setup, first script

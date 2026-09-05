@@ -1,3 +1,9 @@
+---
+kind: tracker
+status: active
+title: Session Log — Session-Passover Implementation
+---
+
 # Session Log — Session-Passover Implementation
 
 > **Purpose:** Two-sided observation log for a multi-session work stream.

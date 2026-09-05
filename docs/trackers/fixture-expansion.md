@@ -1,3 +1,9 @@
+---
+kind: tracker
+status: active
+title: "Tracker: Fixture Expansion"
+---
+
 # Tracker: Fixture Expansion
 
 ```yaml

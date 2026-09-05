@@ -9,7 +9,7 @@ tags:
 - doctor
 - remediation
 topic: repo-hygiene
-entry_high_water_RM: 27
+entry_high_water_RM: 28
 entry_prefix: RM
 ---
 
@@ -691,6 +691,28 @@ Deciding needs to know whether the warn-tier behaviour is still wanted; the test
 **Status:** open
 
 **Valid:** conditional — `hooks.json` gains an `il3` registration, or the file and its test are deleted
+
+## RM-28 — codescout-usage-audit-session-log's U-2/U-3 prescribe retired tools
+
+**Valid:** dated 2026-09-05
+
+**Status:** open
+
+`docs/trackers/codescout-usage-audit-session-log.md` U-2 and U-3 (both `status: open`)
+recommend routing markdown reads/edits to `read_markdown`/`edit_markdown`. The
+2026-09-02 tool collapse (`bb24b7f`) retired both — `read_file`/`edit_file` handle
+markdown directly now. The recorded call counts (39×, 29×) are real historical
+evidence and untouched; only the "should have called" prescription is stale.
+
+Needs a fresh audit against `.codescout/usage.db` under current tool names before
+U-1/U-2/U-3 can close — not a same-day fix, a full re-run of the Pika/Dzo-style
+audit this tracker documents. Caveat added at the tracker's top (2026-09-05) so
+nobody re-opens U-2/U-3 as new findings against the current tool surface without
+first checking whether recent calls were actually mis-routed.
+
+Surfaced during the `codescout-companion:tracker-hygiene` sweep that migrated this
+tracker family from plain-markdown to librarian frontmatter — see
+`docs/trackers/tracker-hygiene-log.md` Sweep 2026-09-05.
 
 ## Template for new entries
 

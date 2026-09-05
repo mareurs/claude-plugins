@@ -1,4 +1,6 @@
 ---
+kind: tracker
+status: active
 entry_high_water_T: 39
 entry_prefix: T
 ---

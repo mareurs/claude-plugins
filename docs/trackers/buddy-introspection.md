@@ -1,3 +1,9 @@
+---
+kind: tracker
+status: active
+title: Buddy Specialists — Hamsa Introspection Audit
+---
+
 # Buddy Specialists — Hamsa Introspection Audit
 
 > **Tracker schema:** audit_issues archetype (extended). Designed via `librarian(tracker_design)`.
