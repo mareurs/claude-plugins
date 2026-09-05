@@ -1,8 +1,11 @@
 #!/usr/bin/env bash
 # Test for worktree-write-guard.sh — verifies coverage of modern codescout
-# write tools (edit_code, edit_file, create_file) and that
-# stale handles (replace_symbol, insert_code, edit_lines,
+# write tools (edit_code, edit_file, create_file) and that stale handles
+# (edit_markdown, replace_symbol, insert_code, edit_lines,
 # create_or_update_file) are correctly filtered OUT by the case statement.
+# edit_markdown was folded into edit_file by the 2026-09-02 collapse; it sits
+# in the stale-sentinel block precisely so re-adding it to the matcher — which
+# would read as coverage of a tool that cannot exist — flips a visible test.
 # Closes U-14 (matcher drift) and pins the stale-name absence so a future
 # regression flips a visible test.
 
@@ -58,7 +61,6 @@ assert() {
 # --- Modern write tools in pending worktree → DENY ---
 assert "edit_code-pending"     "mcp__codescout__edit_code"     "$PENDING_WT" "deny"
 assert "edit_file-pending"     "mcp__codescout__edit_file"     "$PENDING_WT" "deny"
-assert "edit_file-pending" "mcp__codescout__edit_file" "$PENDING_WT" "deny"
 assert "create_file-pending"   "mcp__codescout__create_file"   "$PENDING_WT" "deny"
 
 # --- Read-only tools in pending worktree → ALLOW (case filters out) ---
@@ -80,6 +82,7 @@ assert "edit_code-no-git"    "mcp__codescout__edit_code"   "$SANDBOX" "allow"
 # --- Stale handles in pending worktree → ALLOW (case filters; pinned as
 #     regression sentinel — if any of these flip to deny, the matcher or case
 #     statement has re-acquired a stale handle and the substrate broke) ---
+assert "stale-edit_markdown"    "mcp__codescout__edit_markdown"    "$PENDING_WT" "allow"
 assert "stale-replace_symbol"   "mcp__codescout__replace_symbol"   "$PENDING_WT" "allow"
 assert "stale-insert_code"      "mcp__codescout__insert_code"      "$PENDING_WT" "allow"
 assert "stale-edit_lines"       "mcp__codescout__edit_lines"       "$PENDING_WT" "allow"
