@@ -101,6 +101,27 @@ for cmd in \
   fi
 done
 
+# === ALLOWS: hyphenated read-only plumbing that shares a prefix with a
+#     destructive verb. Pinned because \b matches between a word character and
+#     a hyphen, so `merge\b` caught `merge-base` and `commit\b` caught
+#     `commit-tree` — six read-only commands refused as destructive mutations.
+#     The anchor is (\s|$); if it regresses to \b, every case here flips. ===
+
+for cmd in \
+  "git merge-base main feature" \
+  "git merge-file a b c" \
+  "git merge-tree main feature" \
+  "git merge-index cat-file -p" \
+  "git commit-tree HEAD^{tree}" \
+  "git commit-graph write"; do
+  OUT=$(guard_input "Bash" "$MAIN" "$cmd" | node "$HOOK" 2>/dev/null)
+  if ! assert_denied "$OUT"; then
+    pass "allows read-only plumbing: $cmd"
+  else
+    fail "allows read-only plumbing: $cmd" "$OUT"
+  fi
+done
+
 # === ALLOWS: non-Bash tools (skip entirely) ===
 
 OUT=$(guard_input "Read" "$MAIN" "git commit -m 'x'" | node "$HOOK" 2>/dev/null)

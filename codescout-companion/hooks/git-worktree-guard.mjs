@@ -62,7 +62,10 @@ const cwd = input.cwd || '';
 if (!cwd) process.exit(0);
 
 // Destructive git verbs (bare `git checkout <ref>` is read-mostly, skipped).
-const TRIGGER = /git\s+(commit|push|reset\s+--hard|rebase|merge|checkout\s+-b)\b/;
+// Boundary is whitespace-or-end, not \b: a hyphen is a non-word character, so
+// \b let `merge-base`/`commit-tree`-style read-only plumbing match a bare verb
+// stem and be refused as a destructive mutation.
+const TRIGGER = /git\s+(commit|push|reset\s+--hard|rebase|merge|checkout\s+-b)(\s|$)/;
 // Allow: explicit `git -C <path> <verb>` — in THIS segment only.
 const EXPLICIT_C = /git\s+-C\s+\S+\s+(commit|push|reset|rebase|merge|checkout)\b/;
 // Allow: a segment that is exactly `cd <path>`. Quote-naive like the original
