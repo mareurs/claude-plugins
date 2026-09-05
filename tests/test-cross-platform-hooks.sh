@@ -128,6 +128,26 @@ if command -v node >/dev/null 2>&1; then
   else
     skip "no real \`python\` besides python3 — stub-fallthrough check skipped"
   fi
+
+  # (e) a missing PyYAML must NOT disable SessionStart. consolidate.py imports
+  #     yaml at module level; hook_entry.run_session_start now guards that
+  #     import separately from its other, unrelated setup (PPID index, core
+  #     state write) so an ImportError there costs only consolidation nudges.
+  #     Regression pin: for two months (2026-07-09 .. 2026-09-05) this guard
+  #     was absent, hook_dispatch.main()'s blanket except swallowed the
+  #     ImportError, and SessionStart silently wrote nothing on any CI runner
+  #     whose bare `setup-python` never installs PyYAML — no test failed.
+  yaml_stub="$(mktemp -d 2>/dev/null || mktemp -d -t cpyaml)"
+  printf 'raise ImportError("no module named yaml")\n' > "$yaml_stub/yaml.py"
+  t5="$(mktemp -d 2>/dev/null || mktemp -d -t cphooks)"
+  printf '%s' '{"session_id":"cp-noyaml","cwd":"'"$t5"'"}' \
+    | PYTHONPATH="$yaml_stub" node "$LAUNCH" session-start >/dev/null 2>&1
+  if [ "$(cat "$t5/.buddy/.current_session_id" 2>/dev/null)" = "cp-noyaml" ]; then
+    ok "launcher: SessionStart survives a missing PyYAML"
+  else
+    bad "launcher: missing PyYAML silently disabled SessionStart"
+  fi
+  rm -rf "$yaml_stub" "$t5" 2>/dev/null || true
 else
   skip "node absent — launcher exit-code/probe checks require Node"
 fi

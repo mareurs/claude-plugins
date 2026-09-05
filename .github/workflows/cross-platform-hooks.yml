@@ -31,6 +31,14 @@ jobs:
         with:
           python-version: '3.13'
 
+      # buddy's one third-party runtime dependency (scripts/consolidate.py
+      # imports yaml at module level). Its absence was undetected here for two
+      # months: hook_dispatch.main() catches every exception and returns 0, so
+      # a missing PyYAML made SessionStart a silent no-op with no test failing
+      # loudly — see CLAUDE.md § buddy, measured 2026-09-05.
+      - name: Install PyYAML
+        run: pip install --quiet pyyaml
+
       - uses: actions/setup-node@v4
         with:
           node-version: '24'   # >= 23.6 for native .ts type-stripping (pi/tests/test-secret-guard.mjs)

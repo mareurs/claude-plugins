@@ -165,7 +165,18 @@ Lives at `buddy/` in this repo. Provides mood-reactive statusline, 12 specialist
 - PreToolUse: reads judge verdicts, optionally hard-blocks (`exit 2`) when `BUDDY_JUDGE_BLOCK=true`
 - Statusline: mood-reactive ASCII spirit animal with specialist eye expressions
 
-**Dependencies:** `jq`, `python3` (3.13+), `requests` (lazy, for judge only)
+**Dependencies:** `jq`, `python3` (3.13+), `PyYAML` (hard dependency — `consolidate.py` imports it
+at module level and `hook_entry.run_session_start` imports from that module unguarded, so a missing
+`yaml` makes SessionStart a *silent* no-op: `hook_dispatch.main()` catches the ImportError and
+returns 0, so nothing crashes and nothing is logged), `requests` (lazy, for judge only)
+
+Measured 2026-09-05: this is why `.github/workflows/cross-platform-hooks.yml` has failed on every
+push since 2026-07-09 — its bare `actions/setup-python@v5` never installs PyYAML, so SessionStart's
+side effect (writing `.buddy/.current_session_id`) never happens on CI, while it passes locally on
+any machine whose system `python3` happens to have PyYAML already. Reproduced by forcing `import
+yaml` to fail via `PYTHONPATH` shadowing: pointer unwritten, no error surfaced. Fix is two-sided —
+guard the import in `run_session_start` (matching every other block there) AND add PyYAML to CI —
+neither alone closes the gap.
 
 **Judge config:** `buddy/hooks/judge.env` is the authoritative source — do NOT put judge config in settings.json.
 ## Version Management
@@ -203,8 +214,8 @@ whose `installPath` points at another profile's cache).
 1. **Refresh the codescout `version-bump-checklist` tracker** (needs the MCP tool, not bash),
    then verify every row is ✅ — any ❌ is real drift:
    ```
-   artifact(action="update", id="cc8cb9e23ab5cc67", commit_refresh=true)   # update params + body for the new version
-   artifact(action="get",    id="cc8cb9e23ab5cc67", full=true)
+   doc(action="update", id="cc8cb9e23ab5cc67", commit_refresh=true)   # update params + body for the new version
+   doc(action="get",    id="cc8cb9e23ab5cc67", full=true)
    ```
    It is the richer cross-check of the same two failure classes the bash sanity loop covers;
    design in `docs/superpowers/specs/2026-05-18-version-bump-checklist-tracker-design.md`.
@@ -282,7 +293,7 @@ parallel threads on this repo). **Manual and selective** — write one only when
 worth resuming; a finished session needs none.
 
 **Author (outgoing session):** create it as a catalog artifact so the discovery query finds it —
-`artifact(action="create", kind="tracker", tags=["passover"], topic="<thread>", time_scope="dated:YYYY-MM-DD", extra={"origin_session_id":"<id>","branch":"<branch>"}, title=…, rel_path="docs/trackers/passover-<topic>-YYYY-MM-DD.md", body=…)`,
+`doc(action="create", kind="tracker", tags=["passover"], topic="<thread>", time_scope="dated:YYYY-MM-DD", extra={"origin_session_id":"<id>","branch":"<branch>"}, title=…, rel_path="docs/trackers/passover-<topic>-YYYY-MM-DD.md", body=…)`,
 filling State / Next actions / Working state / Anti-goals from the `docs/templates/passover-template.md`
 skeleton. Get the session id from `cat .codescout/cc_session_id` (or `.buddy/.current_session_id`);
 omit `extra`/`origin_session_id` if absent. (`time_scope` + the `extra` custom-frontmatter passthrough
@@ -291,8 +302,8 @@ body-level block.)
 
 **Discover (incoming session):** run, early in the session —
 
-    artifact(action="find", kind="tracker",
-             filter={"and":[{"tags":{"contains":"passover"}}, {"status":{"eq":"active"}}]})
+    doc(action="find", kind="tracker",
+        filter={"and":[{"tags":{"contains":"passover"}}, {"status":{"eq":"active"}}]})
 
 **`contains`, not `in` — `in` on a tag array silently matches nothing.** Measured 2026-08-27:
 `{"tags":{"in":["passover"]}}` returned 0 against 5 live tagged passovers; swapping the op to
@@ -307,7 +318,7 @@ Zero results → proceed normally. One → resume it (auto-confirm if your own s
 Always run Next-actions step 1 (verify state) before acting.
 
 **Consume:** when done, flip `status: archived`, append `## Consumed — YYYY-MM-DD`, and
-`artifact(action="move", …)` into `docs/trackers/archive/` (never bare `git mv`).
+`doc(action="move", …)` into `docs/trackers/archive/` (never bare `git mv`).
 
 ## Plugin Install Path (directory-source gotcha)
 

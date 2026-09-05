@@ -45,12 +45,21 @@ def _ensure_timestamp(event: dict) -> None:
 
 def run_session_start(event: dict, plugin_root: Path, ppid: int) -> int:
     from scripts import buddy_paths, state
-    from scripts.consolidate import (
-        auto_dry_run_eligible,
-        read_auto_trigger_config,
-        session_start_nudges,
-    )
     from scripts.hook_helpers import auto_migrate_if_needed, handle_session_start
+
+    # consolidate.py imports PyYAML at module level (an undeclared hard
+    # dependency — see CLAUDE.md § buddy). Guarded separately from the rest of
+    # this function's unguarded imports: an ImportError here must cost only the
+    # consolidation-nudge feature, not the PPID index update and core
+    # session-start state handling below, which have nothing to do with yaml.
+    try:
+        from scripts.consolidate import (
+            auto_dry_run_eligible,
+            read_auto_trigger_config,
+            session_start_nudges,
+        )
+    except Exception:
+        auto_dry_run_eligible = read_auto_trigger_config = session_start_nudges = None
 
     project_root = _project_root(event)
     sid = _session_id(event)
@@ -97,26 +106,28 @@ def run_session_start(event: dict, plugin_root: Path, ppid: int) -> int:
         roots.append(proj_mem)
 
     # Consolidation nudges.
-    for r in roots:
-        try:
-            for line in session_start_nudges(r):
-                print(line)
-        except Exception:
-            pass
+    if session_start_nudges is not None:
+        for r in roots:
+            try:
+                for line in session_start_nudges(r):
+                    print(line)
+            except Exception:
+                pass
 
     # Optional auto-dry-run (opt-in via .claude/buddy.json).
-    try:
-        cfg = read_auto_trigger_config(project_root)
-        for r in roots:
-            target = auto_dry_run_eligible(r, cfg)
-            if target:
-                print(
-                    f"→ memory: auto-trigger enabled — most-overdue: {r}\t{target}. "
-                    "Run /buddy:consolidate to start the dry-run."
-                )
-                break
-    except Exception:
-        pass
+    if read_auto_trigger_config is not None and auto_dry_run_eligible is not None:
+        try:
+            cfg = read_auto_trigger_config(project_root)
+            for r in roots:
+                target = auto_dry_run_eligible(r, cfg)
+                if target:
+                    print(
+                        f"→ memory: auto-trigger enabled — most-overdue: {r}\t{target}. "
+                        "Run /buddy:consolidate to start the dry-run."
+                    )
+                    break
+        except Exception:
+            pass
 
     # Core session-start state handling.
     _ensure_timestamp(event)
