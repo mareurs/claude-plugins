@@ -2,7 +2,7 @@
 # T2e — 9-branch decision matrix test for goal-stop-hook.sh.
 #
 # Mocks the `codescout` binary by prepending a stub directory to PATH that
-# answers `artifact find`, `artifact get`, and `artifact-event list` with
+# answers `doc find`, `doc get`, and `doc event list` with
 # canned JSON, then asserts the hook's stdout matches the expected verdict
 # for each branch.
 #
@@ -27,7 +27,7 @@ mkdir -p "$WORK/bin"
 mkdir -p "$WORK/project/.claude"
 ORIG_PATH="$PATH"
 
-# Helper: install a `codescout` stub whose body branches on the artifact subcommand
+# Helper: install a `codescout` stub whose body branches on the doc subcommand
 # ($1) — the function body to evaluate as bash inside the stub.
 install_stub_body() {
     local body="$1"
@@ -48,12 +48,21 @@ install_find_get_stub() {
     cat > "$WORK/bin/codescout" <<EOF
 #!/usr/bin/env bash
 set -e
-sub="\$1"; verb="\$2"
+sub="\$1"; verb="\$2"; obj="\${3:-}"
+# \`doc event list\` is a three-word subcommand; find/get are two.
+if [ "\$sub \$verb \$obj" = "doc event list" ]; then
+    echo '$event_json'
+    exit 0
+fi
 case "\$sub \$verb" in
-    "artifact find") echo '$find_json' ;;
-    "artifact get")  echo '$get_json' ;;
-    "artifact-event list") echo '$event_json' ;;
-    *) echo "{}" ;;
+    "doc find") echo '$find_json' ;;
+    "doc get")  echo '$get_json' ;;
+    # Mimic the real CLI (measured: \`codescout artifact find\` exits 2) rather
+    # than echoing "{}". A silent empty answer let the artifact->doc rename go
+    # unnoticed: every case degraded to the fail-open "no active goal" verdict,
+    # which is itself a valid expectation elsewhere in this matrix, so the
+    # suite stayed green-ish while testing nothing.
+    *) echo "error: unrecognized subcommand '\$sub \$verb'" >&2; exit 2 ;;
 esac
 EOF
     chmod +x "$WORK/bin/codescout"

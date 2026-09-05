@@ -1,5 +1,5 @@
 // Stop hook for codescout goal-trackers. Port of goal-stop-hook.sh.
-// Queries the active goal-tracker via `codescout artifact find/get` and emits
+// Queries the active goal-tracker via `codescout doc find/get` and emits
 // {continue: bool, reason|reason_to_continue}. Fail-open on every error path so
 // the hook never deadlocks the agent loop. Disable via
 // .claude/codescout-companion.json {"goal_stop_hook": false}.
@@ -85,9 +85,9 @@ function parseJson(s) {
 }
 
 // 3. Find active goal(s).
-const findRaw = run(['artifact', 'find', '--kind', 'tracker', '--tag', 'goal', '--status', 'active', '--project', cwd, '--limit', '5', '--json']);
+const findRaw = run(['doc', 'find', '--kind', 'tracker', '--tag', 'goal', '--status', 'active', '--project', cwd, '--limit', '5', '--json']);
 if (!findRaw) {
-  log('codescout artifact find failed or returned empty');
+  log('codescout doc find failed or returned empty');
   emit({ continue: true, reason: 'codescout query failed — fail-open' });
   process.exit(0);
 }
@@ -113,9 +113,9 @@ if (!goalId) {
   emit({ continue: true, reason: 'goal id missing — fail-open' });
   process.exit(0);
 }
-const getOut = parseJson(run(['artifact', 'get', goalId, '--full', '--project', cwd, '--json']));
+const getOut = parseJson(run(['doc', 'get', goalId, '--full', '--project', cwd, '--json']));
 if (!getOut) {
-  log(`codescout artifact get ${goalId} failed`);
+  log(`codescout doc get ${goalId} failed`);
   emit({ continue: true, reason: 'codescout get failed — fail-open' });
   process.exit(0);
 }
@@ -133,7 +133,7 @@ const lastRefreshed = (getOut.augmentation && getOut.augmentation.last_refreshed
 
 switch (status) {
   case 'done': {
-    const gateOut = parseJson(run(['artifact-event', 'list', '--artifact-id', goalId, '--kinds', 'note', '--limit', '20', '--project', cwd, '--json']));
+    const gateOut = parseJson(run(['doc', 'event', 'list', '--id', goalId, '--kinds', 'note', '--limit', '20', '--project', cwd, '--json']));
     let gateText = '';
     if (Array.isArray(gateOut)) {
       const ev = gateOut.find((e) => e && e.payload && e.payload.tag === 'gate_check' && e.payload.gate_passed === true);
