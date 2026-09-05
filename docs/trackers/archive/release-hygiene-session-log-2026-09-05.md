@@ -1,3 +1,9 @@
+---
+kind: tracker
+status: archived
+title: Session Log — Release Hygiene
+---
+
 # Session Log — Release Hygiene
 
 > **Purpose:** Reconnaissance ledger for the plugin **publishing / release-hygiene**

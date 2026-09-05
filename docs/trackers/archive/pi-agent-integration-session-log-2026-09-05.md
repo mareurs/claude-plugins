@@ -1,3 +1,9 @@
+---
+kind: tracker
+status: archived
+title: Session Log — pi-agent-integration
+---
+
 # Session Log — pi-agent-integration
 
 Work-stream session log for the pi.dev / pi-agent integration effort (the

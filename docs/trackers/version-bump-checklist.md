@@ -14,7 +14,7 @@ Release readiness across plugins × profiles. See
 
 ## State
 
-_Last refresh: `6bd288b`, 2026-09-04 — **all four plugins measured this pass**, none carried.
+_Last refresh: `b51718c`, 2026-09-05 — **all four plugins measured this pass**, none carried.
 Every cell below, including `cache = working tree`, was re-derived from disk._
 
 **buddy** — canonical `0.11.1` · readme `0.11.1` · marketplace clean ✅
@@ -33,13 +33,13 @@ Every cell below, including `cache = working tree`, was re-derived from disk._
 | `~/.claude-sdd` | 1.1.7 ✅ | ✅ | ✅ | `1.1.7` ✅ | ✅ |
 | `~/.claude-kat` | 1.1.7 ✅ | ✅ | ✅ | `1.1.7` ✅ | ✅ |
 
-**codescout-companion** — canonical `1.20.5` · readme `1.20.5` · marketplace clean ✅
+**codescout-companion** — canonical `1.20.6` · readme `1.20.6` · marketplace clean ✅
 
 | profile | installed | cache dir | install_path ok | all entries | cache = working tree |
 |---|---|---|---|---|---|
-| `~/.claude` | 1.20.5 ✅ | ✅ | ✅ | `1.20.5` ✅ | ✅ |
-| `~/.claude-sdd` | 1.20.5 ✅ | ✅ | ✅ | `1.20.5` ✅ | ✅ |
-| `~/.claude-kat` | 1.20.5 ✅ | ✅ | ✅ | `1.20.5` ✅ | ✅ |
+| `~/.claude` | 1.20.6 ✅ | ✅ | ✅ | `1.20.6` ✅ | ✅ |
+| `~/.claude-sdd` | 1.20.6 ✅ | ✅ | ✅ | `1.20.6` ✅ | ✅ |
+| `~/.claude-kat` | 1.20.6 ✅ | ✅ | ✅ | `1.20.6` ✅ | ✅ |
 
 **session-bridge** — canonical `0.1.0` · readme `0.1.0` · marketplace clean ✅
 

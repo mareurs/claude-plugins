@@ -1,4 +1,10 @@
-# Session Log — Template
+---
+kind: tracker
+status: archived
+title: Session Log — Injection Budget
+---
+
+# Session Log — Injection Budget
 
 > **Purpose:** Two-sided observation log for a multi-session work stream.
 > Captures frictions (F-N) and wins (W-N) that the session producing it

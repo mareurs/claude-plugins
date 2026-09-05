@@ -1,3 +1,9 @@
+---
+kind: tracker
+status: archived
+title: Session Log — Research Skills Refactor
+---
+
 # Session Log — Research Skills Refactor
 
 > **Purpose:** Two-sided observation log for the research-skills dialect
