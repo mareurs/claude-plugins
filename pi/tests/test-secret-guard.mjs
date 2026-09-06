@@ -239,4 +239,10 @@ await expect(
 fs.rmSync(home, { recursive: true, force: true });
 
 console.log(`\n${pass}/${total} tests passed`);
-process.exit(pass === total ? 0 : 1);
+// Not process.exit(): this test dynamically imports the same ES module ~9
+// times with cache-busting query strings (see loadGuard), and forcing an
+// immediate exit races Node's ESM loader teardown — on windows-latest CI
+// this crashes libuv with "Assertion failed: !(handle->flags &
+// UV_HANDLE_CLOSING)" even after every assertion above has passed. Setting
+// exitCode and returning lets the event loop drain normally instead.
+process.exitCode = pass === total ? 0 : 1;
