@@ -9,7 +9,7 @@ tags:
 - doctor
 - remediation
 topic: repo-hygiene
-entry_high_water_RM: 28
+entry_high_water_RM: 29
 entry_prefix: RM
 ---
 
@@ -725,6 +725,49 @@ Full findings + the caveat banner are at the tracker's top (`UPDATE 2026-09-06`)
 Surfaced during the `codescout-companion:tracker-hygiene` sweep that migrated this
 tracker family from plain-markdown to librarian frontmatter — see
 `docs/trackers/tracker-hygiene-log.md` Sweep 2026-09-05.
+
+## RM-29 — Windows-only CI failures in `cross-platform hooks`, both test-harness bugs
+
+`.github/workflows/cross-platform-hooks.yml` had been red on `windows-latest` since
+~2026-08-30, while `ubuntu-latest`/`macos-latest` stayed green. Root-caused via a
+diagnostic CI run (branch `diag/windows-ci-traceback`, then `diag/secret-guard-windows-fix`)
+rather than guessed — two independent, unrelated test-harness bugs, no real product
+defect in either `buddy` or `pi`'s hook code:
+
+1. **`tests/test-cross-platform-hooks.sh`** — built `cwd` via bash's `mktemp -d`,
+   producing a Git-Bash/MSYS-style path (`/tmp/tmp.XXXXXX`) understood only by Git
+   Bash, then embedded it straight into JSON handed to the node launcher. Native
+   Windows Node/Python resolved that path differently than the bash test later
+   checked, so buddy's SessionStart writes silently landed nowhere the test could
+   see. The file already had a `winpath()` helper (`cygpath -m`) for exactly this,
+   used elsewhere in the same file — just never applied to the 5 `mktemp`-derived
+   `cwd` values. Fixed in `d0683bb`.
+2. **`pi/tests/test-secret-guard.mjs`** — two bugs, found in sequence:
+   a. `loadGuard()` redirected `process.env.HOME` to a scratch dir so the guard would
+      read a test config instead of the real one, but `secret-guard.ts`'s `agentDir()`
+      reads via `os.homedir()`, which on Windows reads `USERPROFILE` and never `HOME`.
+      So on Windows the guard kept reading the real
+      `C:\Users\runneradmin\.pi\agent\secret-guard.json`, and the two "allow once
+      configured" cases (ssh/curl to a host after allowlisting it) saw none of the
+      test's added hosts and stayed blocked. Fixed by also setting/restoring
+      `USERPROFILE` in `loadGuard()`.
+   b. With (a) fixed, all 23 assertions passed but the process then crashed on exit:
+      `Assertion failed: !(handle->flags & UV_HANDLE_CLOSING), file src\win\async.c`.
+      The test dynamically `import()`s the same ES module ~9 times with cache-busting
+      query strings (to bust Node's module cache between config reloads); calling
+      `process.exit()` right after the last assertion raced Node's ESM loader
+      teardown, and only Windows's libuv hit the assertion. Fixed by setting
+      `process.exitCode` instead of forcing `process.exit()`.
+   Both fixed in `c69f016` + `2eb8ec6`.
+
+Verified via three separate live Windows CI runs (not just locally, where `winpath()`
+is a no-op and the libuv race doesn't reproduce): diagnostic branch runs
+`34030571173`/`34045068747`/`34045174452`, and the real push-triggered run on `main`
+(`34045266513`) — `cross-platform hooks`: **3/3 jobs green** (ubuntu/macos/windows).
+
+**Status:** fixed
+
+**Valid:** dated 2026-09-06
 
 ## Template for new entries
 
