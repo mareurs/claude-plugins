@@ -29,9 +29,13 @@ function makeHome() {
 
 async function loadGuard(home, extraConfig) {
 	const prevHome = process.env.HOME;
+	const prevUserProfile = process.env.USERPROFILE;
 	const prevOverride = process.env.SECRET_GUARD_OVERRIDE;
 	delete process.env.SECRET_GUARD_OVERRIDE;
+	// os.homedir() reads HOME on POSIX but USERPROFILE on Windows (never HOME
+	// there) — set both so the redirect works on every platform this test runs.
 	process.env.HOME = home;
+	process.env.USERPROFILE = home;
 
 	if (extraConfig) {
 		const agent = path.join(home, ".pi", "agent");
@@ -58,6 +62,8 @@ async function loadGuard(home, extraConfig) {
 
 	await handlers.session_start();
 	process.env.HOME = prevHome;
+	if (prevUserProfile === undefined) delete process.env.USERPROFILE;
+	else process.env.USERPROFILE = prevUserProfile;
 	if (prevOverride === undefined) delete process.env.SECRET_GUARD_OVERRIDE;
 	else process.env.SECRET_GUARD_OVERRIDE = prevOverride;
 
