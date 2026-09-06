@@ -69,7 +69,7 @@ fi
 #    `from scripts...` imports resolve. Node is guaranteed wherever Claude Code
 #    runs; if absent here we skip rather than fail.
 tmp="$(mktemp -d 2>/dev/null || mktemp -d -t cphooks)"
-ev='{"session_id":"ci-smoke","cwd":"'"$tmp"'","tool_name":"Read","tool_input":{},"prompt":"hi"}'
+ev='{"session_id":"ci-smoke","cwd":"'"$(winpath "$tmp")"'","tool_name":"Read","tool_input":{},"prompt":"hi"}'
 if ! command -v node >/dev/null 2>&1; then
   skip "node absent — buddy launcher end-to-end check requires Node (Claude Code ships it)"
 elif printf '%s' "$ev" | HOME="$tmp" node "$ROOT/buddy/hooks/run.mjs" post-tool-use >/dev/null 2>&1; then
@@ -80,12 +80,23 @@ fi
 rm -rf "$tmp" 2>/dev/null || true
 
 # 5b. launcher exit-code + interpreter-probe semantics (all require node).
+#     Every `cwd` below goes through `winpath()` before it's embedded in JSON —
+#     Claude Code itself hands hooks a native Windows path on Windows, never a
+#     raw Git-Bash `/tmp/...` one, so feeding the launcher a raw `mktemp -d`
+#     path was testing a shape that never occurs in production. Measured
+#     2026-09-06: a raw path silently fails to write `.buddy/.current_session_id`
+#     (buddy still creates the `.buddy` dir, just not the file inside it, at
+#     whatever location Windows-native Python resolves the un-translated path
+#     to); the same event with `cygpath -m` applied writes correctly. Bash-side
+#     reads (`cat "$t2/..."`) keep the untranslated var — bash understands its
+#     own mktemp path natively; only the JSON handed to node/python needs the
+#     translation.
 if command -v node >/dev/null 2>&1; then
   LAUNCH="$ROOT/buddy/hooks/run.mjs"
 
   # (a) the dispatcher actually RAN (side effect written) — not a silent no-op.
   t2="$(mktemp -d 2>/dev/null || mktemp -d -t cphooks)"
-  printf '%s' '{"session_id":"cp-se","cwd":"'"$t2"'"}' | node "$LAUNCH" session-start >/dev/null 2>&1
+  printf '%s' '{"session_id":"cp-se","cwd":"'"$(winpath "$t2")"'"}' | node "$LAUNCH" session-start >/dev/null 2>&1
   if [ "$(cat "$t2/.buddy/.current_session_id" 2>/dev/null)" = "cp-se" ]; then
     ok "launcher: dispatcher ran (pointer written)"
   else
@@ -99,7 +110,7 @@ if command -v node >/dev/null 2>&1; then
   now="$(date +%s)"  # verdict must be fresh — should_block filters by a TTL
   printf '{"session_id":"blk","last_updated":%s,"active_verdicts":[{"ts":%s,"verdict":"cs-misuse","severity":"blocking","evidence":"e","correction":"c","affected_tools":["read_file"],"acknowledged":false}]}' "$now" "$now" > "$sd/cs_verdicts.json"
   rc=0
-  printf '%s' '{"session_id":"blk","cwd":"'"$t3"'","tool_name":"Read"}' \
+  printf '%s' '{"session_id":"blk","cwd":"'"$(winpath "$t3")"'","tool_name":"Read"}' \
     | BUDDY_CS_JUDGE_ENABLED=true BUDDY_JUDGE_BLOCK=true node "$LAUNCH" pre-tool-use >/dev/null 2>&1 || rc=$?
   [ "$rc" -eq 2 ] && ok "launcher: forwards intentional block (exit 2)" \
     || bad "launcher: intentional block not forwarded (rc=$rc)"
@@ -117,7 +128,7 @@ if command -v node >/dev/null 2>&1; then
     stub="$(mktemp -d 2>/dev/null || mktemp -d -t cpstub)"
     printf '#!/bin/sh\nexit 9009\n' > "$stub/python3"; chmod +x "$stub/python3"
     t4="$(mktemp -d 2>/dev/null || mktemp -d -t cphooks)"
-    printf '%s' '{"session_id":"cp-stub","cwd":"'"$t4"'"}' \
+    printf '%s' '{"session_id":"cp-stub","cwd":"'"$(winpath "$t4")"'"}' \
       | PATH="$stub:$PATH" node "$LAUNCH" session-start >/dev/null 2>&1
     if [ "$(cat "$t4/.buddy/.current_session_id" 2>/dev/null)" = "cp-stub" ]; then
       ok "launcher: skips a nonzero-exiting python3 stub, uses real python"
@@ -140,7 +151,7 @@ if command -v node >/dev/null 2>&1; then
   yaml_stub="$(mktemp -d 2>/dev/null || mktemp -d -t cpyaml)"
   printf 'raise ImportError("no module named yaml")\n' > "$yaml_stub/yaml.py"
   t5="$(mktemp -d 2>/dev/null || mktemp -d -t cphooks)"
-  printf '%s' '{"session_id":"cp-noyaml","cwd":"'"$t5"'"}' \
+  printf '%s' '{"session_id":"cp-noyaml","cwd":"'"$(winpath "$t5")"'"}' \
     | PYTHONPATH="$yaml_stub" node "$LAUNCH" session-start >/dev/null 2>&1
   if [ "$(cat "$t5/.buddy/.current_session_id" 2>/dev/null)" = "cp-noyaml" ]; then
     ok "launcher: SessionStart survives a missing PyYAML"
