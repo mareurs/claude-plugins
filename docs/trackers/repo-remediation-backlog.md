@@ -694,21 +694,33 @@ Deciding needs to know whether the warn-tier behaviour is still wanted; the test
 
 ## RM-28 — codescout-usage-audit-session-log's U-2/U-3 prescribe retired tools
 
-**Valid:** dated 2026-09-05
+**Valid:** dated 2026-09-06
 
-**Status:** open
+**Status:** fixed
 
-`docs/trackers/codescout-usage-audit-session-log.md` U-2 and U-3 (both `status: open`)
-recommend routing markdown reads/edits to `read_markdown`/`edit_markdown`. The
-2026-09-02 tool collapse (`bb24b7f`) retired both — `read_file`/`edit_file` handle
-markdown directly now. The recorded call counts (39×, 29×) are real historical
-evidence and untouched; only the "should have called" prescription is stale.
+`docs/trackers/codescout-usage-audit-session-log.md` U-2 and U-3 recommended routing
+markdown reads/edits to `read_markdown`/`edit_markdown`. The 2026-09-02 tool collapse
+(`bb24b7f`) retired both — `read_file`/`edit_file` handle markdown directly now.
 
-Needs a fresh audit against `.codescout/usage.db` under current tool names before
-U-1/U-2/U-3 can close — not a same-day fix, a full re-run of the Pika/Dzo-style
-audit this tracker documents. Caveat added at the tracker's top (2026-09-05) so
-nobody re-opens U-2/U-3 as new findings against the current tool surface without
-first checking whether recent calls were actually mis-routed.
+**Re-audited 2026-09-06 against `.codescout/usage.db`, scoped to calls since
+2026-09-03** (the day after the collapse, to avoid mixing regimes):
+
+- U-2/U-3: zero `read_markdown`/`edit_markdown` calls anywhere after 2026-09-02
+  19:17 — marked `dead-tool, superseded` in the U-N table rather than left `open`.
+  Recorded call counts (39×, 29×) kept as historical evidence.
+- U-1: still recurs, same Iron Law — 1 of 72 `read_file` calls since 09-03 hit the
+  server's symbol-overlap rejection. Window sizes aren't comparable to the original
+  month-long audit; kept `open` with the fresh count attached.
+- U-4: 0 occurrences in the same window (3 `recoverable_error`s since 09-03, none an
+  `edit_code` routing rejection) — downgraded to `open, re-check next audit` rather
+  than closed outright on a 3-day sample.
+- U-5: cannot be measured by rejection count at all — every `grep` call since 09-03
+  (28/28) succeeded; the server doesn't hard-block concept-style queries the way it
+  hard-blocks IL1/IL4/IL5. A real re-audit needs reading each call's query text, a
+  different method than the count query used for U-1–U-4. Left as its original
+  `low` severity, noted unenforced rather than re-measured.
+
+Full findings + the caveat banner are at the tracker's top (`UPDATE 2026-09-06`).
 
 Surfaced during the `codescout-companion:tracker-hygiene` sweep that migrated this
 tracker family from plain-markdown to librarian frontmatter — see

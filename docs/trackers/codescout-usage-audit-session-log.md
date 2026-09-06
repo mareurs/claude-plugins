@@ -18,6 +18,30 @@ title: Session Log — codescout-usage-audit
 ---
 
 ## Recorder reliability caveat (read before trusting any query)
+> **UPDATE 2026-09-06 — re-audit of U-1..U-5 against the post-collapse tool surface,
+> per `repo-remediation-backlog:RM-28`.** Scoped to `.codescout/usage.db` rows since
+> 2026-09-03 (the day after the tool collapse; 2026-09-02 itself still carries live
+> `read_markdown`/`edit_markdown` calls, so excluded to avoid mixing regimes).
+>
+> - **U-2/U-3 are dead, not open.** Zero `read_markdown`/`edit_markdown` calls appear
+>   anywhere after 2026-09-02 19:17 — the tools stopped existing and nobody has tried
+>   them since. Their "should have called" cells describe tools that cannot be called.
+>   Recorded call counts (39×, 29×) remain real historical evidence of the *volume* of
+>   markdown read/edit friction at the time; the specific remedy is retired.
+> - **U-1 still recurs, same Iron Law, much lower rate.** 1 of 72 `read_file` calls
+>   since 09-03 hit `"source range overlaps named symbol(s)"` (server-enforced,
+>   self-correcting). Down from the original window's 45-of-91, but the window sizes
+>   aren't comparable (3 days vs. the original month-long audit) — kept `open`.
+> - **U-4 shows zero occurrences** in the same 72-call `edit_file` sample (3
+>   `recoverable_error`s since 09-03, none an `edit_code` routing rejection). Small
+>   sample — not closed on this alone, but worth re-checking at the next audit before
+>   assuming it's still a live pattern.
+> - **U-5 cannot be measured by rejection count at all.** Every `grep` call since
+>   09-03 (28/28) returned `success` — the server does not hard-block a concept-style
+>   query the way it hard-blocks IL1/IL4/IL5 violations. Re-auditing this one for real
+>   needs reading each call's query text to judge whether `semantic_search` would have
+>   fit better, not a count query — out of scope for this pass.
+
 > **UPDATE 2026-09-05 — U-2 and U-3's prescribed tools no longer exist.** The
 > 2026-09-02 tool collapse (`bb24b7f`) retired `read_markdown` and `edit_markdown`;
 > `read_file`/`edit_file` now handle markdown directly (heading-aware, size-adaptive).
@@ -58,11 +82,11 @@ is sourced from those, not the dead columns.
 
 | ID | Iron Law | Tool called | Should have called | Count (lifetime) | Severity | Status |
 |----|----------|-------------|--------------------|-----------------:|----------|--------|
-| U-1 | IL1 | `read_file` on source | `symbols(name=…, include_body=true)` | 45 rejections | med | open |
-| U-2 | IL4 | `read_file` on markdown | `read_markdown` | 39 rejections | med | open |
-| U-3 | IL5 | `edit_file` on markdown | `edit_markdown` | 29 rejections | med | open |
-| U-4 | IL2 | `edit_file` with `def`/structural | `edit_code` | 22 rejections | med | open |
-| U-5 | (search routing) | `grep` for concept lookup | `semantic_search` | 355 : 6 lifetime (156 : 3 last 7d) | low | open |
+| U-1 | IL1 | `read_file` on source | `symbols(name=…, include_body=true)` | 45 rejections (+1 since 09-03) | med | open |
+| U-2 | IL4 | `read_file` on markdown | ~~`read_markdown`~~ tool retired 2026-09-02; `read_file` now handles markdown directly | 39 rejections | med | dead-tool, superseded |
+| U-3 | IL5 | `edit_file` on markdown | ~~`edit_markdown`~~ tool retired 2026-09-02; `edit_file` now handles markdown directly | 29 rejections | med | dead-tool, superseded |
+| U-4 | IL2 | `edit_file` with `def`/structural | `edit_code` | 22 rejections (0 since 09-03, n=54) | med | open, re-check next audit |
+| U-5 | (search routing) | `grep` for concept lookup | `semantic_search` | 355 : 6 lifetime (156 : 3 last 7d) | low | unenforced — not measurable by rejection count |
 
 ## Reconnaissance Frictions Index (F-N)
 
