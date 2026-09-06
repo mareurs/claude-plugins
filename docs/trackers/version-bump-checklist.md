@@ -14,16 +14,16 @@ Release readiness across plugins × profiles. See
 
 ## State
 
-_Last refresh: `b51718c`, 2026-09-05 — **all four plugins measured this pass**, none carried.
+_Last refresh: `f6d618d`, 2026-09-06 — **all four plugins measured this pass**, none carried.
 Every cell below, including `cache = working tree`, was re-derived from disk._
 
-**buddy** — canonical `0.11.1` · readme `0.11.1` · marketplace clean ✅
+**buddy** — canonical `0.11.2` · readme `0.11.2` · marketplace clean ✅
 
 | profile | installed | cache dir | install_path ok | all entries | cache = working tree |
 |---|---|---|---|---|---|
-| `~/.claude` | 0.11.1 ✅ | ✅ | ✅ | `0.11.1` ✅ | ✅ |
-| `~/.claude-sdd` | 0.11.1 ✅ | ✅ | ✅ | `0.11.1` ✅ | ✅ |
-| `~/.claude-kat` | 0.11.1 ✅ | ✅ | ✅ | `0.11.1` ✅ | ✅ |
+| `~/.claude` | 0.11.2 ✅ | ✅ | ✅ | `0.11.2` ✅ | ✅ |
+| `~/.claude-sdd` | 0.11.2 ✅ | ✅ | ✅ | `0.11.2` ✅ | ✅ |
+| `~/.claude-kat` | 0.11.2 ✅ | ✅ | ✅ | `0.11.2` ✅ | ✅ |
 
 **claude-statusline** — canonical `1.1.7` · readme `1.1.7` · marketplace clean ✅
 
