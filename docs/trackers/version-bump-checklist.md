@@ -14,16 +14,19 @@ Release readiness across plugins × profiles. See
 
 ## State
 
-_Last refresh: `f6d618d`, 2026-09-06 — **all four plugins measured this pass**, none carried.
-Every cell below, including `cache = working tree`, was re-derived from disk._
+_Last refresh: `9503c54`, 2026-09-07 — buddy measured this pass (0.11.2→0.11.3); the other
+three carried unchanged from the `f6d618d` pass, no bump landed for them since.
+Every buddy cell below was re-derived from disk: `installed_plugins.json`'s `.plugins`
+map (top-level shape is `{plugins, version}`, not a flat map — corrected query this pass),
+cache dir listing, and `diff -rq` against the working tree._
 
-**buddy** — canonical `0.11.2` · readme `0.11.2` · marketplace clean ✅
+**buddy** — canonical `0.11.3` · readme `0.11.3` · marketplace clean ✅
 
 | profile | installed | cache dir | install_path ok | all entries | cache = working tree |
 |---|---|---|---|---|---|
-| `~/.claude` | 0.11.2 ✅ | ✅ | ✅ | `0.11.2` ✅ | ✅ |
-| `~/.claude-sdd` | 0.11.2 ✅ | ✅ | ✅ | `0.11.2` ✅ | ✅ |
-| `~/.claude-kat` | 0.11.2 ✅ | ✅ | ✅ | `0.11.2` ✅ | ✅ |
+| `~/.claude` | 0.11.3 ✅ | ✅ | ✅ | `0.11.3` ✅ | ✅ |
+| `~/.claude-sdd` | 0.11.3 ✅ | ✅ | ✅ | `0.11.3` ✅ | ✅ |
+| `~/.claude-kat` | 0.11.3 ✅ | ✅ | ✅ | `0.11.3` ✅ | ✅ |
 
 **claude-statusline** — canonical `1.1.7` · readme `1.1.7` · marketplace clean ✅
 
