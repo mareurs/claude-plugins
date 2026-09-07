@@ -27,7 +27,7 @@ unverified: 'Green on ONE machine only (Arch Linux workstation, `archlinux` host
 > come back?" question rather than a task to pick up — there is no available work here.
 > The 16 originally-failing suites were never root-caused, and they cannot be root-caused
 > from this machine because the failure was environmental: a **fresh Ubuntu WSL** box
-> missing Node. This host is native Arch (`Linux 7.1.9-zen1-2-zen`, hostname `ripper`),
+> missing Node. This host is native Arch (`Linux 7.1.9-zen1-2-zen`, hostname `archlinux`),
 > which is not the environment in question.
 >
 > **The `unverified:` caveat therefore stands unchanged and must not be softened by this
@@ -151,6 +151,13 @@ unrelated.
 Re-open if `./tests/run-all.sh` reports failures on any environment that is not this
 Arch workstation — a fresh WSL/Ubuntu checkout, another contributor's machine, or a
 CI job if the matrix is ever widened past its single smoke test.
+
+**Unrelated recurrence, not this bug:** `run-all.sh` went briefly red again on
+2026-09-01 for a completely different reason — `RM-21` (the pre-push guard's positive
+control), fixed-verified the same day in `0495357`. Anyone following this entry's
+re-check protocol ("run `run-all.sh`, count FAILs") between the two events would have
+seen `1 FAIL` and every reason to misread it as this zombie recurring; it was not — see
+`repo-remediation-backlog.md:RM-21` for that incident.
 
 The green run recorded above is **one machine**. Per `CLAUDE.md` § *The Windows work
 box*, the host where the 16 failures were observed no longer runs Claude Code at all

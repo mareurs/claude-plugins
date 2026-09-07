@@ -277,7 +277,13 @@ Codified so the Index column means the same thing across sessions.
 
 **Severity:** med — as filed, `VG-8` closes by editing one integer, leaving an `Accept` disposition standing on arithmetic now wrong by a factor of two. The next reader inherits a live wrong conclusion from an entry marked resolved. Not high: nothing ships from `#20`, and the roster is not load-bearing code.
 
-**Status:** open — `VG-8` not yet widened; `#20` not yet re-opened.
+**Status:** fixed-verified — stale status field; the work itself landed same-day. `VG-8`
+was widened and closed 2026-08-26 (its own "Widened and closed" section), and `#20` in
+`buddy-introspection.md` carries a full `RE-OPENED 2026-08-26` section with the measured
+distribution. Re-verified 2026-09-07 (`RM-14`): `wc -l buddy/skills/*/SKILL.md` today
+still shows `codescout-pika` at 316 (highest) and `security-ibex` at 181 (second), median
+123 across the other 11 — the correction has held for 12 days. `codescout-pika`'s own
+audit (the "still owed" item both `VG-8` and `#20` name) remains a separate open item.
 
 **Valid:** dated 2026-08-26
 
@@ -303,7 +309,11 @@ True of `buddy/skills/` at plugin version 0.9.1; re-verify after any specialist 
 
 **Severity:** med — every `S-N` row's `Applies to (N/10)` count understates by an unknown amount, `VG-7` nominates the roster's largest file for a trim without noting it is also unaudited, and `active-plan.md` `T-35` (quarterly hamsa sweep, due 2026-08-15, eleven days overdue at time of writing) has no signal that its scope grew by two.
 
-**Status:** open
+**Status:** fixed-verified — same-day fix, stale status field. `buddy-introspection.md`
+line 16 now reads `specialists_scanned: 10/12  # roster grew to 12 AFTER this sweep`,
+with an explanatory line at 98 spelling out which two are unaudited. Re-verified
+2026-09-07 (`RM-14`): still reads `10/12` today, matching the 12 directories under
+`buddy/skills/`.
 
 **Valid:** dated 2026-08-26
 
@@ -513,7 +523,16 @@ Bare tokens resolve against the *copying* repo. Here `R-1` happens to hit this p
 
 **Severity:** med — one wrong-resolution (`R-1` binding to an unrelated local entry) plus three dangling and two ambiguous, per fresh copy, in every repo that follows the skill. The wrong resolution is the bad one: it produces a `cites` edge that is confidently incorrect rather than reported as broken.
 
-**Status:** open — needs a template-side fix.
+**Status:** fixed-verified 2026-09-07 (`RM-14`) — upstream, in codescout itself, not in
+this repo (this tracker only ever cited codescout's copy). Read
+`/home/marius/work/claude/codescout/docs/templates/session-log.md` directly today: all
+four citations this entry named are now qualified —
+`statement-validity-session-log:F-2`/`statement-validity-session-log:W-3` (line 29),
+`codescout:R-89` (line 105), `codescout:R-1 + codescout:R-7` (line 108), and
+`calendar-insight-panel-session-log-2026-08-18:W-4` (line 116). This tracker's own copy
+predates the fix and still carries the bare forms in its boilerplate — harmless, since
+those sit in prose quoted from the old template, not live citations from this repo's own
+work.
 
 **Valid:** dated 2026-08-26
 
@@ -550,7 +569,13 @@ The result is a namespace that reads healthy from every angle while carrying zer
 
 **Severity:** med — no silent data loss, but it produced two confidently wrong findings in one day on one namespace, and one of them was filed as an issue before correction. Not high: the fix is additive and nothing depends on the inert citations today.
 
-**Status:** open — filed upstream as a codescout issue; see Fix idea.
+**Status:** fixed-verified 2026-09-07 (`RM-14`) — both upstream fixes have landed. `doctor`'s
+`by_check` now includes `cited_prefix_with_no_definer` (ran it this session: `0` on this
+repo). `link_scan`'s envelope now leads with an explicit
+`"TRUNCATED: ambiguous[50 of 74], dangling[50 of 71], cross_repo[50 of 117] — absence from
+a cut list is not evidence"` summary line rather than the oblique `arrays: ambiguous[50]`
+vs `counts.ambiguous: 81` mismatch this entry described — the disclosure is now
+impossible to miss rather than merely present.
 
 **Valid:** dated 2026-08-26
 

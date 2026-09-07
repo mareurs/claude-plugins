@@ -163,7 +163,7 @@ trigger does **not** fire and the record should stay `zombie`. But the next pers
 following the protocol sees `1 FAIL` and has every reason to read it as a recurrence.
 Name the other bug there so that reading is closed off before it happens.
 
-**Status:** open
+**Status:** fixed-verified 2026-09-07 — **not a rename, not a second machine: the original `ripper` mention was simply wrong.** Verified via `hostnamectl` + `last reboot`: this machine's hostname has been `archlinux` continuously since its last reboot (2026-08-29 18:16, stable `Machine ID`), spanning every check in the bug file including the 2026-09-01 one that named it `ripper`. Corrected both occurrences in `2646bba03b528020` to `archlinux`, matching the `unverified:` field, which was already correct — only the 2026-09-01 prose section was wrong. Also added the `RM-21` disambiguation note to `## Re-open trigger`, naming the unrelated same-day `run-all.sh` red as `RM-21`'s incident so a future reader following the re-check protocol doesn't misattribute it.
 
 **Valid:** dated 2026-09-01
 
@@ -278,7 +278,22 @@ Do not read that as `VG-5` being resolved. Nothing about its condition changed �
 
 A property of the instrument worth carrying: citation churn moves these counts in both directions, so a `by_check` delta across a session that archived or created trackers is not evidence of work done or undone.
 
-**Status:** open
+**Status:** mitigated 2026-09-07 — both adjudicated, neither resolved, and that's the
+legitimate outcome the entry itself allows.
+
+- **`VG-9`:** unchanged — stimulus still retired, a discriminating one still owed. No new
+  work landed since 2026-09-01; recorded as "not yet," not attempted (real API spend,
+  `--paired` and other traps explicitly off-limits per the archived validation-spine
+  passover).
+- **`VG-5`:** step 1 ("a trigger, not a body") DONE — `prompt-hamsa`'s `SKILL.md` § Harness
+  now routes general eval-harness-construction requests to
+  `prompt-engineering:skill-eval-playbook`, distinct from Operating Principle 3's ad-hoc
+  five-input check. Step 2 (base-arm measurement of whether more than the trigger is
+  needed) is real eval spend, same posture as `VG-9` — stays open.
+
+Both conditionals remain past-due in `doctor`'s eyes because their conditions are still
+unmet, not because they were misfiled — the fix that was cheap (routing) is done; the fix
+that costs real money (eval baselines) is correctly deferred, not silently dropped.
 
 **Valid:** dated 2026-09-01
 
@@ -351,7 +366,14 @@ the *entry*, then close the pointer.
 `edit_file` carrying a definition (22×), `grep` used where `semantic_search` was meant.
 `U-1` already carries a Hookify assessment concluding no client hook is warranted.
 
-**Status:** open
+**Status:** superseded — `RM-28` (2026-09-06) already did exactly this triage, against
+real post-collapse evidence rather than by inspection: U-1 re-measured and still open
+(1/72 since), U-2/U-3 marked `dead-tool, superseded` (both tools retired in the
+2026-09-02 collapse `bb24b7f`), U-4 downgraded to `open, re-check next audit` (0/54
+since), U-5 noted unenforced-by-rejection-count rather than re-measured. No further
+action here — see `RM-28` for the adjudication and
+`docs/trackers/codescout-usage-audit-session-log.md`'s `UPDATE 2026-09-06` banner for
+the full evidence.
 
 **Valid:** dated 2026-09-01
 
@@ -365,7 +387,31 @@ so every fresh copy injects cross-repo dangling citations — needs a template-s
 `roster-audit-session-log:F-6` (filed upstream as a codescout issue), and
 `roster-audit-session-log:W-4` addendum 2 (both promotion criteria unfired).
 
-**Status:** open
+**Status:** mitigated 2026-09-07 — all five adjudicated.
+
+- **`F-1`** (VG-8 not yet widened / #20 not yet re-opened): stale status field only —
+  both actions landed same-day, 2026-08-26, in `d334a50`. Re-verified today: `wc -l
+  buddy/skills/*/SKILL.md` still shows `codescout-pika` at 316 (highest) and
+  `security-ibex` at 181 (second). Flipped to fixed-verified.
+- **`F-2`** (`specialists_scanned: 10/10` stale denominator): same — already fixed
+  same-day, `buddy-introspection.md` line 16 reads `10/12` with an explanatory comment.
+  Flipped to fixed-verified.
+- **`F-5`** (template cites bare ids): upstream fix confirmed landed — read
+  `/home/marius/work/claude/codescout/docs/templates/session-log.md` directly today;
+  all four citations this entry named are now qualified
+  (`statement-validity-session-log:F-2`, `codescout:R-89`, `codescout:R-1 +
+  codescout:R-7`, `calendar-insight-panel-session-log-2026-08-18:W-4`). Flipped to
+  fixed-verified.
+- **`F-6`** (link_scan's unreported inert-citation state + silent array truncation):
+  both upstream fixes confirmed — `doctor`'s `by_check` now includes
+  `cited_prefix_with_no_definer` (0 on this repo, ran this session), and `link_scan`'s
+  envelope now leads with an explicit `"TRUNCATED: ambiguous[50 of 74], ..."` summary
+  line instead of the oblique array/counts mismatch. Flipped to fixed-verified.
+- **`W-4` addendum 2** (both promotion criteria unfired): genuinely still unfired, and
+  that's the honest answer, not a gap in this triage. No `W-4 addendum 4` exists in the
+  log (`addendum 3` at instance 8, dated 2026-08-27, is the latest) — no ninth instance
+  has been recorded since, so "an instance from an independent work stream" has not yet
+  happened. Left `open`, recorded as checked-and-not-yet rather than silently re-dated.
 
 **Valid:** dated 2026-09-01
 
@@ -378,7 +424,16 @@ hatch rests on a false premise so a `wontfix` has to be argued on merit), `VG-5`
 is a trigger, not a specialist), `VG-10` (decision text drafted; the `D-N` allocation
 belongs to `active-plan.md`'s owner).
 
-**Status:** open
+**Status:** mitigated 2026-09-07 — all four adjudicated.
+
+- **`VG-3`** (model-release-gating owner): correctly stays open — base arm owed before any
+  prose, and that base arm is real API spend, same posture as `VG-9`. Not attempted inline.
+- **`VG-4`** (EDA/feature-engineering owner): correctly stays open — its own text says this
+  is "a scope call for the roster owner, not a measurement question." Not mine to decide.
+- **`VG-5`**: adjudicated under `RM-10` (step 1 done — `prompt-hamsa` now routes
+  eval-construction requests to `skill-eval-playbook`; step 2 real-eval-spend, deferred).
+- **`VG-10`**: fixed — its ready-to-paste decision landed as `active-plan.md`'s `D-8`
+  (confirmed `D-7` was the prior max before writing).
 
 **Valid:** dated 2026-09-01
 
@@ -389,7 +444,12 @@ Index/Wins-Index row burns the id it displays, on the very first bootstrap. Rela
 `roster-audit-session-log:F-5`: both are defects in the *template*, so both ship into
 every fresh copy.
 
-**Status:** open
+**Status:** fixed-verified 2026-09-07 (`RM-16`) — upstream, confirmed by direct read of
+`/home/marius/work/claude/codescout/docs/templates/session-log.md` today. The Index /
+Wins Index example rows now use placeholder tokens (`F-<n>`, `W-<n>`), not concrete
+`F-1`/`W-1` — a fresh bootstrap copy no longer burns a real id on its first example row.
+Same fix as `roster-audit-session-log:F-5`'s citation-qualification, same template,
+confirmed together this session.
 
 **Valid:** dated 2026-09-01
 
@@ -531,7 +591,12 @@ cosmetic, since the fences are not functional for promptfoo. Checking *why* they
 functional is what surfaced this, which is the more interesting question. The scout was
 worth more than the repair it authorised.
 
-**Status:** open
+**Status:** open — checked 2026-09-07 (`RM-22`), correctly not attempted. The entry's own
+verification method is "run one case and read the rendered rubric the provider actually
+received" — explicitly not promptfoo's docs, not this entry. `OPENROUTER_API_KEY` is unset
+on this machine and `promptfoo` is not installed (`which promptfoo` → nothing), so a real
+run would fail on auth before answering the question. Same posture as `VG-3`/`VG-9`: real
+infra/API spend, deferred rather than guessed at.
 
 **Valid:** dated 2026-09-01
 
@@ -573,7 +638,13 @@ Option 2 is the one that addresses what actually went wrong, since the failure w
 instrument reporting emptiness rather than a human forgetting to look. But this is the
 user's call — the anti-goal is explicit and was written deliberately.
 
-**Status:** open
+**Status:** fixed 2026-09-07 — user chose option 2 (positive control) over the operator-fix-
+alone and SessionStart-hook options. `CLAUDE.md` § Session Passover's "Discover" step now
+requires re-running the same query shape against a known-existing tag
+(`{"tags":{"contains":"session-log"}}`) before trusting a zero on the passover query; if the
+control also returns zero, the mechanism itself is suspect rather than the corpus being
+empty. Dogfooded immediately: the control query returned 3 rows this session, confirming
+the query mechanism is currently healthy.
 
 **Valid:** conditional — a decision is recorded on options 1-3 above
 
@@ -615,7 +686,10 @@ front. Written up as `roster-audit-session-log:W-4` addendum 2.
 
 Prior results and the limits binding the claim: `buddy/tests/advisor-projection-eval/RESULTS.md`.
 
-**Status:** open
+**Status:** open — checked 2026-09-07 (`RM-24`), correctly not attempted. This is a new
+eval design (two-advisor arm, registered treatment-side observable), not a re-run — real
+API spend, and `OPENROUTER_API_KEY` is unset on this machine. Same posture as
+`VG-3`/`VG-9`/`RM-22`: deferred, not guessed at.
 
 **Valid:** dated 2026-09-01
 
@@ -654,7 +728,25 @@ same session that found this.
 Scope: ~20 tokens, 3 files, one of them shipped plugin surface. Batch the skill edit with the
 next codescout-companion or buddy content release.
 
-**Status:** open
+**Status:** fixed 2026-09-07 (`RM-25`) — batched with this session's other shipped-surface
+content edit to the same file (`prompt-hamsa/SKILL.md`'s `VG-5` routing paragraph), so the
+next `buddy` release picks up both. Qualified every unambiguous bare `A-N` citing
+codescout's ledger (all already prose-adjacent to the word "codescout") to `codescout:A-N`
+across the three named files: `buddy/skills/prompt-hamsa/SKILL.md` (10 tokens),
+`codescout-companion/README.md` (2), and `prompt-hamsa-audit-log.md`'s own History section
+(remainder). Left the local ledger's own two rows (`A-2`, `A-3`, defined by this file's
+`entry_prefix: A`) untouched — correctly bare, they resolve locally. **Residual, deliberately
+not touched:** three ambiguous mentions in the `A-11` History section ("the A-5 protocol
+held", "our own shipped A-5 rule", "our own A-10 finding") lack the adjacent word
+"codescout" and could plausibly be citing a locally-promoted heuristic rather than
+codescout's ledger directly — guessing wrong here would misqualify a citation, so left for
+the file's own owner to disambiguate. Also left alone: the `A-11` heading itself
+(`### 2026-07-05 — A-11: ...`), which collides in form with codescout's `A-11` but carries
+no `(row A-N)` marker the other two local headings use — a naming-collision worth a
+separate look, not folded into this fix. Verified via `librarian(link_scan)`: dangling
+71→61, cross_repo 117→142, consistent with the qualified tokens now resolving as
+cross-repo citations instead of dangling. Did NOT raise `entry_high_water_A` (the fix this
+entry explicitly forbids).
 
 **Valid:** dated 2026-09-01
 

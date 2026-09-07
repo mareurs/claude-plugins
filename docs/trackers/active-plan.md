@@ -209,6 +209,47 @@ All run at temperature 0, max_tokens 8000 (premium models often produce more ver
 **Resolves.** T-7 + T-8 (degraded substitute path). Original T-7 (hand-label 15 cases) remains a TODO in `eval-bringup.md`.
 
 **Revert trigger.** When a human annotator is available, re-run κ vs human on the same 3 cases and record both numbers side by side. If κ-vs-human < 0.6 while κ-vs-strong-panel ≥ 0.7, that gap is the bias estimate.
+### D-8 — 2026-08-27 — Prompt-surface staleness is model-release-triggered, not calendar-triggered
+
+**Decision.** Supersedes `D-6` for prompt-surface artifacts only (`buddy/skills/**/SKILL.md`,
+lens addenda, tool descriptions, the spine in `validation-domain-coverage.md`). `T-37`'s
+detector warns when **either** holds:
+- the artifact's recorded audit generation differs from the current default model, **or**
+- mtime > 90 days AND no eval run in that window — `D-6`'s existing conjunction, retained
+  as a floor.
+
+Non-prompt artifacts keep `D-6` unchanged.
+
+**Why.** A prompt is a per-model artifact. `shared/prompt-audit.md` Step 7 states it
+directly — *"a line that is load-bearing on one generation is cruft on the next"* — and its
+Step 0 already establishes a target model before reading a file, so the audit is
+parameterised by generation while nothing notices the parameter changed. `VG-9` (in
+`validation-domain-coverage.md`) is the worked case: a spine written and invalidated inside
+one session, on evidence about the current generation, with **zero** time elapsed. No
+clock could have caught it. The disjunction adds the missing trigger without weakening the
+one that exists.
+
+**Granularity — the one real choice.** Per-specialist is correct (specialists are audited
+at different times) but means a frontmatter field on twelve `SKILL.md` files, which is a
+prompt-surface change and therefore a version bump plus a three-profile cache reseed. A
+single roster-wide field in this file's § Live state costs nothing and is wrong the moment
+two specialists diverge. **Recommendation: start roster-wide, split per-specialist the
+first time a partial audit happens** — the same wait-for-the-second-instance rule
+`architecture-snow-lion` applies to abstractions, and it avoids a twelve-file bump for a
+field with one writer.
+
+**Resolves.** `validation-domain-coverage:VG-10`. Related: `validation-domain-coverage:VG-8`
+is the same class on a different surface — an audit finding whose invalidating event fires
+no trigger.
+
+**Revisit-when.** Two specialists carry different audit generations; or the default model
+changes more than once inside a 90-day window, which would make the floor redundant rather
+than complementary.
+
+**Landed 2026-09-07 (`RM-15`):** allocated as `D-8` (`D-7` was the prior max, confirmed by
+direct read before writing). Text is verbatim from `VG-10`'s "ready to paste" draft, which
+deliberately deferred the `D-N` number to this file's own owner rather than hand-allocating
+from outside.
 ## Self-Inspection Grounds
 
 The conditions under which the buddy suite gets re-audited. Without these, the introspection sweep we just finished is a one-shot ritual that drifts the moment lit changes or someone edits a SKILL.md.

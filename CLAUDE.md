@@ -313,7 +313,16 @@ librarian guide's own leaf example (`{"tags": {"in": ["foo","bar"]}}` — wrong 
 zero here reads exactly like "no handoffs", so the broken op hid every live thread instead of
 failing loudly.
 
-Zero results → proceed normally. One → resume it (auto-confirm if your own session id equals
+**Zero results → run a positive control before proceeding, not instead of it.** The `in`-vs-
+`contains` bug above is exactly the failure mode a zero result cannot distinguish from "no
+handoffs": a silently-broken query and a genuinely empty corpus read identically. Re-run the
+same query shape against a tag known to exist in this repo's trackers (e.g.
+`{"tags":{"contains":"session-log"}}` — this repo always has several) with no status filter.
+If THAT also returns zero, the query mechanism itself is broken — stop and investigate before
+trusting any "no handoffs" result. If it returns rows, the passover zero was a real zero;
+proceed normally. (`repo-remediation-backlog:RM-23`.)
+
+One → resume it (auto-confirm if your own session id equals
 `origin_session_id`, which holds on `--resume`). Multiple → pick by `topic`/`branch`.
 Always run Next-actions step 1 (verify state) before acting.
 

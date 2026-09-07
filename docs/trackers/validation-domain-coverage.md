@@ -493,6 +493,14 @@ Writing a specialist here would be duplicating the text.
    no specialist is warranted and this closes like `VG-1`. Prior: control-first is the
    deficit — it is the step this session got wrong twice.
 
+**Step 1 done 2026-09-07 (RM-10):** added a routing paragraph to `prompt-hamsa`'s
+`SKILL.md` § Harness — a request to build a general eval harness (not score an
+existing CC prompt) now routes to `prompt-engineering:skill-eval-playbook`
+(`L-1`..`L-17`), distinguished from Operating Principle 3's quick ad-hoc
+five-input/five-output check. **Step 2 (base-arm measurement of whether more than a
+trigger is needed) is real eval spend and stays open** — same posture as `VG-9`:
+recorded as "not yet," not attempted inline during this triage pass.
+
 **Non-negotiable if a body is ever written:** no eval is trusted until its judge has been
 scored against human labels — the `human_anchor_TODO` this repo already carries.
 
@@ -871,7 +879,8 @@ subject; if it does not, the spine is redundant on this axis too and should clos
 `VG-1`. Either way the closing condition above is unchanged — controls first, before any arm.
 ## VG-10 — Prompt artifacts decay on model release, not on the 90-day clock
 
-**Status:** open — decision text drafted and ready to paste (below); the `D-N` allocation belongs to `active-plan.md`'s owner
+**Status:** fixed 2026-09-07 (`RM-15`) — pasted verbatim into `active-plan.md` as `D-8`
+(`D-7` confirmed the prior max by direct read first).
 **Valid:** conditional — a decision superseding `D-6`'s trigger for prompt-surface artifacts is recorded in `active-plan.md`
 **Rests on:** `shared/prompt-audit.md` Step 7 — "Re-audit at every model release. Prompts are per-model artifacts; a line that is load-bearing on one generation is cruft on the next" — read against `active-plan.md` `D-6`.
 

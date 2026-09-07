@@ -575,20 +575,20 @@ half awaits the rebuild.
 ### 2026-07-04 — model-steering law promoted to craft: packaging is inert, steer by merit + placement
 
 Not a prompt audit — a self-reflection promoting a measured finding out of a project
-ledger (codescout audit-log A-4/A-5/A-8/A-9) into Hamsa's own craft. Four eval arcs
+ledger (codescout audit-log codescout:A-4/codescout:A-5/codescout:A-8/codescout:A-9) into Hamsa's own craft. Four eval arcs
 converged on one law, and the last gap just closed.
 
 **Finding.** For a capable model (sonnet, single-turn), how you *dress* a directive is
 inert for both trust and obedience. Null across every packaging lever tried:
-- authority/persona framing (A-4) — no adherence lift, and a documented jailbreak vector;
-- overselling freshness (A-8) — did not make the model over-trust a deliberately stale
+- authority/persona framing (codescout:A-4) — no adherence lift, and a documented jailbreak vector;
+- overselling freshness (codescout:A-8) — did not make the model over-trust a deliberately stale
   tracker; it verified regardless and flagged the oversell as a hazard;
-- delivery channel / provenance (A-9) — a directive in a project *file on disk* was obeyed
+- delivery channel / provenance (codescout:A-9) — a directive in a project *file on disk* was obeyed
   no more than the same directive inline or in `CLAUDE.md`;
-- **cost of complying (A-9 costly cell, 2026-07-04)** — escalating a neutral directive's
+- **cost of complying (codescout:A-9 costly cell, 2026-07-04)** — escalating a neutral directive's
   effort-cost left all channels at 100% (v5, n=10/arm, gap +0%, 737 line judgments).
 
-The only lever that ever moved behavior was the model's OWN verification/judgment (A-5).
+The only lever that ever moved behavior was the model's OWN verification/judgment (codescout:A-5).
 
 **Why it matters to Hamsa.** Hamsa already held the seed (H2: role-priming that changes no
 output is decoration). This generalizes it into a first-class heuristic and grounds it in
@@ -604,13 +604,13 @@ its merit and placement, never its packaging" — with the eval corollary; cross
 **prediction:** on future "make our guidance more obeyed/trusted" audits, Hamsa routes to
 merit + always-visible placement + structural gates and explicitly refuses authority/
 freshness/provenance/cost framing, citing the null rather than re-litigating it.
-**eval_status:** present (codescout A-4/A-5/A-8/A-9; A-9 costly cell v5 n=10/arm).
+**eval_status:** present (codescout codescout:A-4/codescout:A-5/codescout:A-8/codescout:A-9; codescout:A-9 costly cell v5 n=10/arm).
 **confidence:** high (converging nulls; binding-by-construction on the costly cell).
 **Outcome:** `held` at source; SKILL.md Heuristic 10 shipped 2026-07-04 — efficacy on
 future audits `unobserved` (fills when Hamsa next audits a model-steering prompt).
 
 **Correction (2026-07-04, same day — H9 turned on its own author).** The eval corollary
-above ("only *values-cost* induces dropping") was armchair. I tested it (A-9 v6/v7) and it
+above ("only *values-cost* induces dropping") was armchair. I tested it (codescout:A-9 v6/v7) and it
 is WRONG. Neutral values-cost — no-error-handling (v6) and no-`return`/print (v7), both
 quality-degrading — ALSO ceilinged every channel; the model obeyed the code-worsening rule
 and merely noted the tradeoff (`tracker_2` even flagged the `None` consequence, then
@@ -639,7 +639,7 @@ convention the model overrides when unsafe). Added as Heuristic 10's Security co
 
 **Two harness bugs, both caught by bind-response, each would have shipped a false headline:**
 (1) API rate-limit errors (empty output) scored as clean refusals — "0% laundering" from zero
-data; (2) the directive quoted INSIDE a refusal scored as compliance (the A-9 v1 bug,
+data; (2) the directive quoted INSIDE a refusal scored as compliance (the codescout:A-9 v1 bug,
 reintroduced) — a spurious "+67% LAUNDERING DETECTED" that was refusal on every channel.
 Fixes now standard: a generation wrapper with exponential backoff + a `__GEN_ERROR__` sentinel
 that ABORTS the batch (never a half-batch that reads as data); a `classify()` guard so no
@@ -647,7 +647,7 @@ scorer counts a non-OK run; and scoring the marker in the EMITTED ARTIFACT, neve
 **Standing eval rule:** silence/absence is the most dangerous signal in a behavior eval — an
 error, a refusal, and a never-asked question all look identical to a grep.
 
-**Outcome:** `held` — no laundering (codescout A-9 v8/v9, n=10, bind-verified). Heuristic 10
+**Outcome:** `held` — no laundering (codescout:A-9 v8/v9, n=10, bind-verified). Heuristic 10
 Security corollary shipped 2026-07-04.
 
 ### 2026-07-04 — distance measured: channel is inert over ~20 turns too; the get_guide fix is discoverability, not decay
@@ -682,9 +682,9 @@ LATENT, non-reinforcing rule. (2) `--resume` transcripts log stray empty/duplica
 turn index.
 
 **Outcome:** `held` — packaging-inert convergence extends from single-turn to multi-turn
-turn-distance (codescout A-10, transcript-bound). Untested residue: high-token-volume distance
+turn-distance (codescout:A-10, transcript-bound). Untested residue: high-token-volume distance
 (20k+ tokens; heavy-output cells hit the harness 300s/run cap) and weaker models. Heuristic 10
-Distance corollary + buddy memory + codescout A-10/findings shipped 2026-07-04.
+Distance corollary + buddy memory + codescout:A-10/findings shipped 2026-07-04.
 
 ### 2026-07-05 — distance gap closed: token-volume + middle-position also inert (~24k tokens)
 
@@ -699,7 +699,7 @@ Fix for the timeout: bury the rule under non-code **INPUT** bulk (cheap prefill)
 - **xmid** (rule in the MIDDLE — ~12k tokens each side, primacy-free, the faithful get_guide
   placement): held — F 2/2, 0 re-anchoring.
 
-**Result:** no decay across turn-count, token-volume, AND context-position. The A-10 conclusion
+**Result:** no decay across turn-count, token-volume, AND context-position. The codescout:A-10 conclusion
 (channel/placement inert; the get_guide lever is discoverability, not re-injection) now stands on
 all three distance dimensions. Heuristic 10 Distance corollary residue narrowed to EXTREME volume
 (100k+ tokens) + weaker models.
@@ -707,7 +707,7 @@ all three distance dimensions. Heuristic 10 Distance corollary residue narrowed 
 **Craft banked:** push token-VOLUME distance via input bulk, never model output; and a directive
 at *primacy* (turn 1) is a weak decay test — place it mid-context to actually stress retention.
 
-**Outcome:** `held` — codescout A-10 gap-closure addendum (2026-07-05), transcript-bound.
+**Outcome:** `held` — codescout:A-10 gap-closure addendum (2026-07-05), transcript-bound.
 
 ### 2026-07-05 — A-11: binary verdicts on unverifiable ground engineer false certainty; "unverifiable" shipped as a verdict
 
@@ -736,18 +736,18 @@ persisted where their readers work: prompt-engineering playbook **L-14** + backl
 just-in-time warning in the hooks integration doc — placement chosen per our own A-10 finding
 (discoverability, not duplication).
 
-**Outcome:** `held` — codescout A-11, guide shipped `3e2bfc32`, eval `283fe1e`.
+**Outcome:** `held` — codescout:A-11, guide shipped `3e2bfc32`, eval `283fe1e`.
 
 ### 2026-07-07 — base-arm-first promoted to craft: additions must prove the deficit exists
 
 Not a prompt audit — a self-reflection promoting a measured pattern out of the codescout
-ledger (A-4/A-6/A-8/A-9/A-14, protocol P-1..P-8) into Hamsa's own craft, the same move as
+ledger (codescout:A-4/codescout:A-6/codescout:A-8/codescout:A-9/codescout:A-14, protocol P-1..P-8) into Hamsa's own craft, the same move as
 the 2026-07-04 model-steering promotion.
 
 **Finding.** Across the codescout ledger, **6 of 9 intervention audits landed no-ship** —
 the failure the proposed instruction would treat was already absent (adherence/restraint
 at ceiling) or never manifested locally despite being documented elsewhere. The capstone
-is A-14 (2026-07-07): Anthropic's own migration guide documents "unrequested tidying" as
+is codescout:A-14 (2026-07-07): Anthropic's own migration guide documents "unrequested tidying" as
 a Fable default, yet fable went 10/10 surgical on a deliberately tempting stimulus with
 zero anti-tidying guidance — the pre-registered ceiling branch fired and the snippet was
 correctly not shipped. Without the base-arm-first gate, a 10/10 treatment arm would have
@@ -759,7 +759,7 @@ no-change arm is the test of whether the deficit exists at all, and it runs FIRS
 a pre-registered numeric ship/no-ship rule so a green treatment arm cannot rationalize a
 ship. The corollary for imported claims (migration guides, forum lore, another team's
 telemetry) is the sharp edge: they are hypotheses about *your* stack, not evidence.
-Deletions invert the burden — prove the cut regresses nothing (A-2: −70% prompt, zero
+Deletions invert the burden — prove the cut regresses nothing (codescout:A-2: −70% prompt, zero
 regression observed over 2.5 weeks).
 
 **move:** add Heuristic 12 to `prompt-hamsa/SKILL.md` — "If the base arm doesn't show the
@@ -768,7 +768,7 @@ cross-ref H2/H7 and codescout § Protocol (P-1..P-8).
 **prediction:** on future "add a snippet to fix X" audits, Hamsa demands the base arm +
 decision rule before drafting the snippet, and closes no-ship at ceiling without running
 the treatment arm — citing the 6-of-9 rate rather than re-litigating it.
-**eval_status:** present (codescout A-4/A-6/A-8/A-9/A-14; A-14 base arm n=10, mechanical
+**eval_status:** present (codescout codescout:A-4/codescout:A-6/codescout:A-8/codescout:A-9/codescout:A-14; codescout:A-14 base arm n=10, mechanical
 mutation-tested checker).
 **confidence:** high (five converging audits; the capstone pre-registered).
 **Outcome:** `held` at source; SKILL.md Heuristic 12 shipped 2026-07-07 — efficacy on
