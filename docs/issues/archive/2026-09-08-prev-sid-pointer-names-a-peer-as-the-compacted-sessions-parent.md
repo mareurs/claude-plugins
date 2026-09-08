@@ -1,6 +1,6 @@
 ---
 kind: bug
-status: open
+status: wontfix
 title: On a shared checkout, BUDDY_PREV_SID reads a last-writer pointer, so a compacted session records a live PEER as its parent
 tags:
 - cluster/shared-resource-carries-no-owner
@@ -8,6 +8,7 @@ tags:
 - compaction
 - session-state
 - shared-checkout
+closed: 2026-09-08
 opened: 2026-09-08
 owner: marius
 related: []
@@ -16,6 +17,14 @@ severity: medium
 
 # On a shared checkout, `BUDDY_PREV_SID` names a live PEER as the compacted session's parent
 
+> **Duplicate — closed 2026-09-08.** Already filed and open in codescout as
+> `docs/issues/2026-09-03-buddy-reload-payload-authorship-can-name-a-peer-session.md`
+> (dated 2026-09-03, five days before this one). Filed here independently, before
+> discovering the codescout entry — confirmed by a peer session (`codescout-92`) that
+> hit the same defect and cross-checked. The codescout file is canonical; this one is kept
+> only as a duplicate record, not as an open item. The peer independently verified root
+> cause at the bytes (`hook_entry.py`/`hook_helpers.py` line numbers, `source=compact`
+> preserving the session id) — matches the root-cause section below line for line.
 ## Summary
 
 `buddy/scripts/hook_entry.py` derives the previous session id from the `.current_session_id`
