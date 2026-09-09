@@ -48,6 +48,18 @@ export function contextPreToolUse(context) {
   });
 }
 
+// PostToolUse advisory context injection. The call has already run, so this can
+// reason about the RESULT — the one thing a PreToolUse hook structurally cannot
+// see. There is no permissionDecision at this event: it informs, it cannot gate.
+export function contextPostToolUse(context) {
+  emit({
+    hookSpecificOutput: {
+      hookEventName: 'PostToolUse',
+      additionalContext: context,
+    },
+  });
+}
+
 // --- Redirect circuit breaker: shared state key -------------------------
 //
 // pre-tool-guard's whole contract is "don't use X, use codescout Y instead".

@@ -52,6 +52,17 @@ else
   fail "Edit|Write matcher → pre-edit-dirty-check.mjs" "got: $MATCH"
 fi
 
+# Test 3c: the suspicious-zero hint is registered on PostToolUse/Bash. It has to
+# be PostToolUse specifically -- the predicate reads the tool RESULT, which a
+# PreToolUse hook structurally cannot see -- so the EVENT is asserted, not just
+# the presence of the hook somewhere in the file.
+MATCH=$(jq -r '.hooks.PostToolUse[] | select(.matcher == "Bash") | .hooks[] | ((.args // []) | join(" "))' "$HOOKS_JSON")
+if echo "$MATCH" | grep -q "suspicious-zero-hint.mjs"; then
+  pass "PostToolUse/Bash matcher -> suspicious-zero-hint.mjs"
+else
+  fail "PostToolUse/Bash matcher -> suspicious-zero-hint.mjs" "got: $MATCH"
+fi
+
 # Test 4: existing matchers preserved
 for keep in "pre-tool-guard.mjs" "worktree-write-guard.mjs"; do
   if grep -q "$keep" "$HOOKS_JSON"; then
