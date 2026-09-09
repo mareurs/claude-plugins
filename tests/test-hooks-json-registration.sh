@@ -39,6 +39,19 @@ else
   fail "edit_code|replace_symbol matcher → pre-edit-hint.sh" "got: $MATCH"
 fi
 
+# Test 3b: the dirty-check hook is registered on a matcher covering the NATIVE
+# Edit/Write tools, not only the MCP ones. Asserted through jq on the
+# matcher->hook mapping rather than `grep hooks.json`: a bare string grep passes
+# on a file that merely MENTIONS the hook, including under a matcher that could
+# never fire. The claim being made is about coverage, so coverage is what is
+# tested -- assert on the thing, not on a proxy for it.
+MATCH=$(jq -r '.hooks.PreToolUse[] | select((.matcher | test("Edit")) and (.matcher | test("Write"))) | .hooks[] | ((.args // []) | join(" "))' "$HOOKS_JSON")
+if echo "$MATCH" | grep -q "pre-edit-dirty-check.mjs"; then
+  pass "Edit|Write matcher → pre-edit-dirty-check.mjs"
+else
+  fail "Edit|Write matcher → pre-edit-dirty-check.mjs" "got: $MATCH"
+fi
+
 # Test 4: existing matchers preserved
 for keep in "pre-tool-guard.mjs" "worktree-write-guard.mjs"; do
   if grep -q "$keep" "$HOOKS_JSON"; then
