@@ -38,15 +38,52 @@ if [ "${#SUITES[@]}" -eq 0 ]; then
   exit 1
 fi
 
+# CS_TEST_SKIP — space-separated suite basenames to skip. A DENY-list on purpose:
+# discovery stays glob-driven, so a suite added tomorrow runs by default and only
+# the names written here are excluded. An allow-list would silently un-cover every
+# new suite, which is the failure the nullglob guard above exists to prevent one
+# layer down.
+SKIPPED=()
+UNMATCHED=()
+for name in ${CS_TEST_SKIP:-}; do
+  found=""
+  for f in "${SUITES[@]}"; do
+    [ "$(basename "$f")" = "$name" ] && { found=1; break; }
+  done
+  [ -n "$found" ] || UNMATCHED+=("$name")
+done
+# A skip naming no discovered suite is an ERROR, not a no-op. Renaming a suite
+# would otherwise leave a stale entry here that silently stops excluding anything
+# — or worse, reads as coverage that a name in the list is being handled.
+if [ "${#UNMATCHED[@]}" -ne 0 ]; then
+  echo "✗ CS_TEST_SKIP names suites that do not exist: ${UNMATCHED[*]}" >&2
+  echo "  Discovery is by glob; a renamed or deleted suite must be removed here too." >&2
+  exit 1
+fi
+
 for f in "${SUITES[@]}"; do
-  echo "▶ $(basename "$f")"
+  base="$(basename "$f")"
+  if [[ " ${CS_TEST_SKIP:-} " == *" $base "* ]]; then
+    echo "▷ $base — SKIPPED via CS_TEST_SKIP"
+    SKIPPED+=("$base")
+    echo ""
+    continue
+  fi
+  echo "▶ $base"
   if bash "$f"; then
     :
   else
-    FAILED+=("$(basename "$f")")
+    FAILED+=("$base")
   fi
   echo ""
 done
+
+# Printed unconditionally when non-empty: an exclusion nobody sees is
+# indistinguishable from coverage.
+if [ "${#SKIPPED[@]}" -ne 0 ]; then
+  echo "▷ ${#SKIPPED[@]} suite(s) SKIPPED, not passed: ${SKIPPED[*]}"
+  echo ""
+fi
 
 # Local git hooks are opt-in per clone (never synced by git), so the pre-push
 # guards can be silently absent — and absence reads exactly like "nothing to

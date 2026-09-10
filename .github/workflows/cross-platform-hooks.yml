@@ -61,3 +61,50 @@ jobs:
 
       - name: secret-guard adversarial test suite
         run: node pi/tests/test-secret-guard.mjs
+
+  full-suite:
+    name: full hook + skill suite (linux)
+    runs-on: ubuntu-latest
+    # The smoke job above runs TWO suites on three OSes. tests/run-all.sh runs
+    # every suite in the repo — hooks, skills, registration — and until now ran
+    # nowhere except a developer's laptop and scripts/release.sh's pre-flight.
+    # A suite no CI reaches is green on the author's machine and silent on
+    # everyone else's change, which is a different property from correctness.
+    # Linux-only on purpose: the cross-OS question is already answered by the
+    # smoke job, and running the whole suite three times would buy little for
+    # the added minutes.
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Install PyYAML
+        run: pip install --quiet pyyaml
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      - name: Full suite
+        env:
+          # These five read ambient ~/.claude* configuration, so they fail on a
+          # fresh runner where no profile exists — measured 2026-09-10 by running
+          # the suite under an empty HOME. They are NOT known-broken: they pass
+          # locally, and non-hermeticity is its own defect. Tracked in
+          # docs/issues/2026-08-05-test-run-all-pre-existing-failures-under-fresh-wsl.md,
+          # whose re-open trigger this job fires ("CI widened to the full suite
+          # set") and for which this measurement root-causes 5 of its 16.
+          #
+          # A DENY-list, so every other suite — including any added after this
+          # line was written — runs here by default. run-all.sh prints what it
+          # skipped and FAILS if a name here matches no discovered suite, so this
+          # list cannot rot into silence.
+          CS_TEST_SKIP: >-
+            test-pre-tool-guard.sh
+            test-rendezvous-isolation.sh
+            test-session-start.sh
+            test-worktree-activate.sh
+            pre-tool-guard.test.sh
+        run: bash tests/run-all.sh

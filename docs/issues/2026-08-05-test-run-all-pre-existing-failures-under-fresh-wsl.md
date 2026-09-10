@@ -1,7 +1,7 @@
 ---
 id: '2646bba03b528020'
 kind: bug
-status: zombie
+status: open
 title: '`tests/run-all.sh` has ~16 pre-existing failing suites, unrelated to session-start.mjs bootstrap fix'
 tags:
 - tests
@@ -10,7 +10,7 @@ tags:
 - node
 - pre-existing-debt
 last_observed: 2026-09-01
-unverified: 'Green on ONE machine only (Arch Linux workstation, `archlinux` host, re-confirmed 2026-08-28: 43 suites, 0 FAILs — suite count grew from 41 since the last check). The 16 originally-failing suites were never root-caused. CI still runs 1 of 43 suites, so a recurrence would be unobserved on every OS.'
+unverified: 'WSL remains unobserved, and the five ambient-config suites remain uncovered by CI (explicit CS_TEST_SKIP deny-list). What is no longer true is "CI runs 1 of 43": as of 2026-09-10 a full-suite job runs 38 of 43 on ubuntu-latest for every PR. The other 11 of the original 16 are still not root-caused.'
 ---
 
 ## Summary
@@ -47,6 +47,37 @@ suites** — none of which touch the bootstrap-nudge logic that was actually
 changed this session.
 
 
+
+> **RE-OPENED 2026-09-10 by this file's own trigger — CI has been widened to the full
+> suite set.** `.github/workflows/cross-platform-hooks.yml` gained a `full-suite` job
+> running `tests/run-all.sh` on ubuntu-latest. `zombie` no longer describes this: there
+> is available work, named below.
+>
+> **5 of the 16 are now root-caused, on a host that is neither WSL nor missing Node.**
+> Measured by running the suite under an empty `HOME` on the same Arch machine class
+> whose three green runs this file correctly refused to read as evidence — which is the
+> point: the variable was never the OS, it was the ambient profile.
+>
+>     test-pre-tool-guard.sh   test-rendezvous-isolation.sh   test-session-start.sh
+>     test-worktree-activate.sh   pre-tool-guard.test.sh
+>
+> They read ambient `~/.claude*` configuration. `detect.mjs` resolves `HOME` /
+> `CLAUDE_CONFIG_DIR`, so with no profile present detection returns "no codescout" and
+> every hint assertion fails. Real `HOME` → all pass; empty `HOME` → exactly these five
+> fail and the other 38 pass. **That is a hermeticity defect in the tests, not a defect
+> in the hooks** — they are not known-broken, and must not be read as such.
+>
+> **What the job buys and what it does not.** 38 of 43 suites on every PR, against 1 of
+> 43 before. It does **not** cover the five: they are excluded by an explicit
+> `CS_TEST_SKIP` deny-list. A deny-list rather than an allow-list so a suite added
+> tomorrow is covered by default; `run-all.sh` prints what it skipped, and **exits
+> non-zero if a name in that list matches no discovered suite**, so a rename cannot turn
+> the exclusion into silence.
+>
+> **Available work, in order:** make the five hermetic by pinning `HOME` per run —
+> `tests/test-pre-edit-hint.sh` already does exactly this — then delete each from the
+> deny-list. The remaining 11 of the original 16 stay un-root-caused and still require a
+> WSL host to observe.
 ## Re-checked 2026-08-27 — all 16 suites green here, and the stated root cause is refuted
 
 Re-ran the suite on the Linux workstation (Arch, native — **not** WSL):
