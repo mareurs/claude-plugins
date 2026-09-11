@@ -14,11 +14,19 @@ Release readiness across plugins × profiles. See
 
 ## State
 
-_Last refresh: `9503c54`, 2026-09-07 — buddy measured this pass (0.11.2→0.11.3); the other
-three carried unchanged from the `f6d618d` pass, no bump landed for them since.
-Every buddy cell below was re-derived from disk: `installed_plugins.json`'s `.plugins`
-map (top-level shape is `{plugins, version}`, not a flat map — corrected query this pass),
-cache dir listing, and `diff -rq` against the working tree._
+_Last refresh: `2183dc3`, 2026-09-07 — real drift found and fixed this pass, correcting
+the prior `9503c54` entry below, which read green on both codescout-companion and buddy
+without actually being green. Before this pass, `installed_plugins.json` in all three
+profiles pointed at codescout-companion `1.20.5` (canonical was already `1.20.6`, commit
+`38f26f3`) and buddy `0.11.1` (canonical was already `0.11.3`, commit `9503c54`) — both
+cache dirs and install records were two bumps stale, verified by reading
+`installed_plugins.json`'s `.plugins` map directly with `jq` in all three profiles before
+touching anything. Fixed via `scripts/bump-cache.sh codescout-companion 1.20.6` and
+`scripts/bump-cache.sh buddy 0.11.3`, then repointing `version`+`installPath` for both
+records in all three profiles. `scripts/check-profile-parity.sh` now reports OK for all
+four tracked plugins. The prior entry's per-profile ✅ tables below are retained for
+history but were not actually true at the time they were written for these two plugins —
+see History for how this was caught.__
 
 **buddy** — canonical `0.11.3` · readme `0.11.3` · marketplace clean ✅
 
