@@ -200,6 +200,63 @@ export function guideLedgerPath(sessionId, home) {
   return join(stateHome, 'codescout', 'guide_hints', `${sanitizeSessionId(sessionId)}.json`);
 }
 
+// --- Live in-session guide re-arm ----------------------------------------
+//
+// The snapshot/restore bracket below only edits the ON-DISK ledger file, which
+// codescout:src/tools/guide_ledger.rs's own doc comment confirms the ALREADY
+// RUNNING server never re-reads (in-memory state is authoritative for the
+// process's life). So that bracket fixes only the NEXT reconnect — it is
+// inert for the live session, which is exactly where a fresh (non-`fork`)
+// subagent can be silently starved of a guide the parent already received.
+// codescout:docs/issues/2026-08-31-subagents-receive-guides-their-parent-already-holds.md
+//
+// These helpers instead write a one-shot request file the running server
+// polls on its very next request (`CodeScoutServer::poll_guide_rearm`,
+// alongside `poll_rendezvous`), reaching the live ledger. One file per
+// `(server_pid, agent_id)` — not a shared per-pid slot — for the same reason
+// the snapshot files above are keyed by both ids: concurrent dispatches must
+// not clobber each other's request.
+function stateHomeDir(home) {
+  const xdgStateHome = process.env.XDG_STATE_HOME;
+  return xdgStateHome && isAbsolute(xdgStateHome) ? xdgStateHome : join(home, '.local', 'state');
+}
+
+export function serversDir(home) {
+  return join(stateHomeDir(home), 'codescout', 'servers');
+}
+
+export function guideRearmDir(home) {
+  return join(stateHomeDir(home), 'codescout', 'guide_rearm');
+}
+
+export function guideRearmFile(dir, pid, agentId) {
+  return join(dir, `${pid}-${shortHash(agentId)}.json`);
+}
+
+// Which server pid(s), among the ones this machine has published rendezvous
+// slots for, belong to OUR OWN process tree — i.e. were spawned by the same
+// Claude Code session this hook is running for. Mirrors
+// `refreshLivenessStamp`'s own ppid-in-ancestry match, which is the
+// established way this codebase already answers "which running server is
+// mine" without a dispatch-time identity the MCP protocol does not carry.
+export function resolveOwnServerPids(rvDir) {
+  const pids = [];
+  if (!existsSync(rvDir)) return pids;
+  const ancestry = ownAncestry();
+  for (const name of readdirSync(rvDir)) {
+    if (!name.endsWith('.json')) continue;
+    const pid = Number.parseInt(name.slice(0, -5), 10);
+    if (Number.isNaN(pid)) continue;
+    try {
+      const e = JSON.parse(readFileSync(join(rvDir, name), 'utf8'));
+      if (ancestry.has(e.ppid)) pids.push(pid);
+    } catch {
+      /* skip unreadable, unparseable, or concurrently-removed slots */
+    }
+  }
+  return pids;
+}
+
 // --- Agent-dispatch guide-ledger snapshot: shared state key -------------
 //
 // A subagent shares its parent's Claude Code session_id (no separate MCP
@@ -242,7 +299,7 @@ const SNAP_PREFIX = 'cs-guide-snapshot-';
 // never have fired, so nothing else ever collects these.
 const SNAP_MAX_AGE_MS = 24 * 60 * 60 * 1000;
 
-function shortHash(s) {
+export function shortHash(s) {
   return createHash('sha256').update(String(s)).digest('hex').slice(0, 16);
 }
 
@@ -457,7 +514,7 @@ export function refreshLivenessStamp(now = Date.now()) {
 // Our own pid chain, capped at 10 hops: a corrupt or cyclic chain must not spin
 // inside a hook. Mirrors session-start.mjs's copy; kept separate so the
 // load-bearing SessionStart path is untouched by this instrumentation.
-function ownAncestry() {
+export function ownAncestry() {
   const seen = new Set();
   let pid = process.pid;
   for (let hop = 0; hop < 10; hop++) {
@@ -470,7 +527,7 @@ function ownAncestry() {
   return seen;
 }
 
-function parentOf(pid) {
+export function parentOf(pid) {
   try {
     if (process.platform === 'linux') {
       const stat = readFileSync(`/proc/${pid}/stat`, 'utf8');

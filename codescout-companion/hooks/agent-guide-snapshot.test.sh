@@ -113,6 +113,11 @@ run_stop() {  # <session_id> <agent_id>
       hook_event_name:"SubagentStop", stop_hook_active:false}' \
     | node "$RESTORE_HOOK" 2>"$STDERR_FILE"
 }
+run_start_typed() {  # <session_id> <agent_id> <agent_type>
+  jq -n --arg s "$1" --arg a "$2" --arg c "$PROJECT" --arg t "$3" \
+    '{session_id:$s, agent_id:$a, agent_type:$t, cwd:$c,
+      hook_event_name:"SubagentStart"}' | node "$SNAPSHOT_HOOK" 2>"$STDERR_FILE"
+}
 
 # --- Case 1: ledger pre-exists with a parent-delivered topic; a subagent's
 #     own fetch adds a new one; restore must bring back exactly the original,
@@ -281,6 +286,57 @@ fi
 GOT=$(cat "$LEDGER_FILE" | jq -S .)
 WANT=$(echo '{"parent":"2026-08-01T00:00:00Z","subagent":"2026-08-01T00:05:00Z"}' | jq -S .)
 check "tool-lifecycle payload leaves the ledger untouched" "$GOT" "$WANT"
+
+# --- Case 7: LIVE RE-ARM REQUEST — a fresh (non-fork) dispatch with a
+#     non-empty ledger must write a one-shot re-arm request file for each of
+#     THIS process's own running codescout server(s), so the ALREADY RUNNING
+#     server can re-arm those topics on its next request instead of only the
+#     dead-for-this-session on-disk ledger file the rest of this suite
+#     exercises. codescout:docs/issues/2026-08-31-subagents-receive-guides-their-parent-already-holds.md
+REARM_DIR="$STATE_HOME/codescout/guide_rearm"
+SERVERS_DIR="$STATE_HOME/codescout/servers"
+mkdir -p "$REARM_DIR" "$SERVERS_DIR"
+
+# A server slot whose ppid is THIS TEST SCRIPT's own pid ($$) — one hop up
+# from the node hook process each `run_start*` call spawns via the pipeline
+# above, so `resolveOwnServerPids` matches it via `ownAncestry()` exactly the
+# way it would match a real codescout server spawned by the same Claude Code
+# process tree as the hook.
+FAKE_SERVER_PID=999001
+cat > "$SERVERS_DIR/$FAKE_SERVER_PID.json" <<EOF
+{"pid":$FAKE_SERVER_PID,"ppid":$$,"started_at":"2026-08-01T00:00:00Z","cwd":"$PROJECT","session":"$SESSION","hook_at":"2026-08-01T00:00:00Z"}
+EOF
+rearm_requests() { find "$REARM_DIR" -maxdepth 1 -name "${FAKE_SERVER_PID}-*.json" 2>/dev/null; }
+rearm_count() { rearm_requests | grep -c . || true; }
+
+echo '{"librarian":"2026-08-01T00:00:00Z"}' > "$LEDGER_FILE"
+run_start "$SESSION" "agent_rearm_a" > /dev/null
+check "non-fork dispatch with topics writes exactly one re-arm request" "$(rearm_count)" "1"
+GOT=$(cat $(rearm_requests) | jq -S '.topics')
+WANT=$(echo '["librarian"]' | jq -S .)
+check "re-arm request names the ledger's current topics" "$GOT" "$WANT"
+rm -f $(rearm_requests)
+
+echo '{"librarian":"2026-08-01T00:00:00Z"}' > "$LEDGER_FILE"
+run_start_typed "$SESSION" "agent_rearm_fork" "fork" > /dev/null
+check "fork dispatch writes no re-arm request (it already inherited the content)" "$(rearm_count)" "0"
+
+rm -f "$LEDGER_FILE"
+run_start "$SESSION" "agent_rearm_empty" > /dev/null
+check "an empty ledger writes no re-arm request (nothing to re-arm)" "$(rearm_count)" "0"
+
+echo '{"librarian":"2026-08-01T00:00:00Z"}' > "$LEDGER_FILE"
+run_start "$SESSION" "agent_rearm_c1" > /dev/null
+run_start "$SESSION" "agent_rearm_c2" > /dev/null
+check "two concurrently-dispatched agents write two distinct re-arm requests, neither clobbering the other" \
+  "$(rearm_count)" "2"
+rm -f $(rearm_requests)
+# This block only ever calls run_start*, never run_stop, for 5 fresh agent_ids
+# above — clean up their TMPDIR snapshot files directly rather than pairing
+# each with a run_stop, so the hygiene check at the end of this suite (a
+# DIFFERENT mechanism, the snapshot files, not the re-arm requests above)
+# is not tripped by debris this block alone introduced.
+rm -f "$TMPDIR"/cs-guide-snapshot-* 2>/dev/null
 
 # --- Wiring: the bracket must sit on the AGENT lifecycle, both ends. ---
 hook_events() {  # <script basename> -> newline-separated event names
