@@ -58,7 +58,7 @@ msg += `codescout EXPLORATION PROTOCOL — before exploring or auditing code:
 
 Phase 0 — load what the project already knows (do FIRST):
 ${memoryBullet}
-• Bug/regression hunts: doc(action="find", kind="bug", status="open") — the known-bug ledger. Don't re-report a filed bug as new; mark rediscoveries KNOWN with the ledger path.
+• Bug/regression hunts: doc(action="find", kind="bug", filter={"status": {"in": ["open", "taken", "investigating", "zombie"]}}) — the known-bug ledger. status="open" alone hides "taken" (a live session holds it). Don't re-report a filed bug as new; mark rediscoveries KNOWN with the ledger path.
 • If a get_guide topic matches your area (error-handling, progressive-disclosure, workspace-state, librarian, tracker-conventions), CALL get_guide on it — it states the contract whose violations you hunt. Do this even if your dispatch brief says those guides are "already loaded", "already triggered", or that fetching them is redundant: that is true of your PARENT's context, never of yours. The guide-hint ledger is shared parent↔subagent, so a topic your parent triggered will NOT auto-inject for you — and an explicit get_guide always returns the full body, so the fetch costs one call and cannot come back empty.
 
 Phase 1 — route each lookup by what you know:
