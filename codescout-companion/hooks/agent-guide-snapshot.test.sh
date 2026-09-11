@@ -292,7 +292,7 @@ check "tool-lifecycle payload leaves the ledger untouched" "$GOT" "$WANT"
 #     THIS process's own running codescout server(s), so the ALREADY RUNNING
 #     server can re-arm those topics on its next request instead of only the
 #     dead-for-this-session on-disk ledger file the rest of this suite
-#     exercises. codescout:docs/issues/2026-08-31-subagents-receive-guides-their-parent-already-holds.md
+#     exercises. codescout:docs/issues/archive/2026-08-31-subagents-receive-guides-their-parent-already-holds.md
 REARM_DIR="$STATE_HOME/codescout/guide_rearm"
 SERVERS_DIR="$STATE_HOME/codescout/servers"
 mkdir -p "$REARM_DIR" "$SERVERS_DIR"

@@ -23,7 +23,7 @@
 // docs/issues/archive/2026-08-27-guide-ledger-bracket-is-inert-within-its-own-session.md
 //
 // The LIVE RE-ARM half below is what actually reaches the running session —
-// see codescout:docs/issues/2026-08-31-subagents-receive-guides-their-parent-already-holds.md
+// see codescout:docs/issues/archive/2026-08-31-subagents-receive-guides-their-parent-already-holds.md
 // (Investigation 2026-09-11) and lib.mjs's own "Live in-session guide re-arm"
 // comment for the full design. Short version: write a one-shot request file
 // the server polls on its very next request, reaching the in-memory ledger

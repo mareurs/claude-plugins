@@ -208,7 +208,7 @@ export function guideLedgerPath(sessionId, home) {
 // process's life). So that bracket fixes only the NEXT reconnect — it is
 // inert for the live session, which is exactly where a fresh (non-`fork`)
 // subagent can be silently starved of a guide the parent already received.
-// codescout:docs/issues/2026-08-31-subagents-receive-guides-their-parent-already-holds.md
+// codescout:docs/issues/archive/2026-08-31-subagents-receive-guides-their-parent-already-holds.md
 //
 // These helpers instead write a one-shot request file the running server
 // polls on its very next request (`CodeScoutServer::poll_guide_rearm`,
