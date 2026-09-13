@@ -5,8 +5,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node",
-            "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/session-start.mjs"]
+            "command": "node ${CLAUDE_PLUGIN_ROOT}/hooks/session-start.mjs"
           }
         ]
       }
@@ -16,8 +15,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node",
-            "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/subagent-guidance.mjs"]
+            "command": "node ${CLAUDE_PLUGIN_ROOT}/hooks/subagent-guidance.mjs"
           }
         ]
       },
@@ -25,8 +23,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node",
-            "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/agent-guide-snapshot.mjs"]
+            "command": "node ${CLAUDE_PLUGIN_ROOT}/hooks/agent-guide-snapshot.mjs"
           }
         ]
       }
@@ -36,8 +33,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node",
-            "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/constitution-brief.mjs"]
+            "command": "node ${CLAUDE_PLUGIN_ROOT}/hooks/constitution-brief.mjs"
           }
         ]
       }
@@ -47,8 +43,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node",
-            "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/constitution-epoch-bump.mjs"]
+            "command": "node ${CLAUDE_PLUGIN_ROOT}/hooks/constitution-epoch-bump.mjs"
           }
         ]
       }
@@ -59,8 +54,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node",
-            "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/worktree-write-guard.mjs"]
+            "command": "node ${CLAUDE_PLUGIN_ROOT}/hooks/worktree-write-guard.mjs"
           }
         ]
       },
@@ -69,8 +63,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node",
-            "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/constitution-guard.mjs"]
+            "command": "node ${CLAUDE_PLUGIN_ROOT}/hooks/constitution-guard.mjs"
           }
         ]
       },
@@ -79,8 +72,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node",
-            "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/pre-edit-dirty-check.mjs"]
+            "command": "node ${CLAUDE_PLUGIN_ROOT}/hooks/pre-edit-dirty-check.mjs"
           }
         ]
       },
@@ -89,8 +81,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node",
-            "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/pre-tool-guard.mjs"]
+            "command": "node ${CLAUDE_PLUGIN_ROOT}/hooks/pre-tool-guard.mjs"
           }
         ]
       },
@@ -99,8 +90,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node",
-            "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/git-worktree-guard.mjs"]
+            "command": "node ${CLAUDE_PLUGIN_ROOT}/hooks/git-worktree-guard.mjs"
           }
         ]
       },
@@ -109,8 +99,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node",
-            "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/pre-task-hint.mjs"]
+            "command": "node ${CLAUDE_PLUGIN_ROOT}/hooks/pre-task-hint.mjs"
           }
         ]
       },
@@ -119,8 +108,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node",
-            "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/explore-inject.mjs"]
+            "command": "node ${CLAUDE_PLUGIN_ROOT}/hooks/explore-inject.mjs"
           }
         ]
       },
@@ -129,8 +117,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node",
-            "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/pre-edit-hint.mjs"]
+            "command": "node ${CLAUDE_PLUGIN_ROOT}/hooks/pre-edit-hint.mjs"
           }
         ]
       }
@@ -141,8 +128,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node",
-            "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/suspicious-zero-hint.mjs"]
+            "command": "node ${CLAUDE_PLUGIN_ROOT}/hooks/suspicious-zero-hint.mjs"
           }
         ]
       },
@@ -151,8 +137,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node",
-            "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/worktree-activate.mjs"]
+            "command": "node ${CLAUDE_PLUGIN_ROOT}/hooks/worktree-activate.mjs"
           }
         ]
       },
@@ -161,8 +146,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node",
-            "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/cs-activate-project.mjs"]
+            "command": "node ${CLAUDE_PLUGIN_ROOT}/hooks/cs-activate-project.mjs"
           }
         ]
       },
@@ -171,8 +155,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node",
-            "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/cs-liveness.mjs"]
+            "command": "node ${CLAUDE_PLUGIN_ROOT}/hooks/cs-liveness.mjs"
           }
         ]
       }
@@ -182,8 +165,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node",
-            "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/goal-stop-hook.mjs"]
+            "command": "node ${CLAUDE_PLUGIN_ROOT}/hooks/goal-stop-hook.mjs"
           }
         ]
       }
@@ -193,8 +175,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node",
-            "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/agent-guide-restore.mjs"]
+            "command": "node ${CLAUDE_PLUGIN_ROOT}/hooks/agent-guide-restore.mjs"
           }
         ]
       }

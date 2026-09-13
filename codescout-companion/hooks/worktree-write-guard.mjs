@@ -4,14 +4,13 @@
 // deleted by cs-activate-project).
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
-import { readInput, git, denyPreToolUse } from './lib.mjs';
+import { readInput, git, denyPreToolUse, isCodescoutTool } from './lib.mjs';
 
 const input = readInput();
 if (!input) process.exit(0);
 
-const toolName = input.tool_name || '';
-// Only act on codescout write tools (mcp__<server>__<tool>).
-if (!/__(edit_code|edit_file|create_file)$/.test(toolName)) process.exit(0);
+// Only act on codescout write tools, regardless of the host's MCP naming.
+if (!isCodescoutTool(input, ['edit_code', 'edit_file', 'create_file'])) process.exit(0);
 
 const cwd = input.cwd || '';
 if (!cwd) process.exit(0);

@@ -2,9 +2,11 @@
 
 Companion plugin for [codescout](https://github.com/mareurs/codescout) MCP server.
 
-Routes Claude Code agents to use codescout's symbol-aware tools instead of
-falling back to Read/Grep/Glob on source files. Auto-detects codescout from
-`.mcp.json`, `~/.claude/.claude.json`, or `~/.claude/settings.json`.
+Routes Claude Code, VS Code/Copilot, and Pi agents to use codescout's
+symbol-aware tools instead of falling back to native source inspection. The
+portable skills live in `skills/`; host-specific routing lives in the hook and
+Pi adapters. Auto-detects codescout from `.mcp.json`, `~/.claude/.claude.json`,
+or `~/.claude/settings.json`.
 
 ## Quick Install
 
@@ -48,6 +50,32 @@ Or add to project `.claude/settings.json`:
   }
 }
 ```
+
+### VS Code and GitHub Copilot
+
+VS Code recognizes this package's Claude plugin format directly, including its
+skills, commands, and hooks. Enable agent plugins and register a local checkout
+in user `settings.json`:
+
+```jsonc
+{
+  "chat.plugins.enabled": true,
+  "chat.pluginLocations": {
+    "/path/to/claude-plugins/codescout-companion": true
+  }
+}
+```
+
+Keep the `codescout` MCP server registered in VS Code `mcp.json`. VS Code
+currently ignores Claude hook matchers, so the hooks filter the host tool names
+and camelCase input paths themselves.
+
+### Pi
+
+Use the repository installer in `pi/install.sh`, which links the Pi routing
+adapter and exposes this package's canonical `skills/` directory. Configure the
+codescout MCP server through `pi-mcp-adapter` with its codescout tools listed as
+`directTools`.
 
 ## Configuration
 

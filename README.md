@@ -44,7 +44,7 @@ For [pi](https://github.com/earendil-works/pi-mono) users, this repo ships a com
 
 1. **pi-mcp-adapter** (pi package) — connects MCP servers to pi
 2. **claude-plugins/pi companion** — widget extension + skill dirs wired into pi
-3. **codescout/contrib/pi** (from the codescout repo) — `codescout-mode.ts` extension + `AGENTS.md` + `mcp.json.example`
+3. **codescout-companion Pi adapter** — routing extension + canonical skills, packaged with this repository
 
 Quick install (claude-plugins part):
 
@@ -55,8 +55,7 @@ cd claude-plugins/pi
 ./install.sh
 ```
 
-Then configure `~/.pi/agent/mcp.json` with your codescout binary path and any API keys.
-Run `/mcp reconnect codescout` once in pi to warm the directTools cache.
+Then configure `~/.pi/agent/mcp.json` with your codescout binary path and any API keys, and run `/mcp reconnect codescout` once in pi to warm the directTools cache.
 
 What you get:
 - Widget below the editor: `cs: reconnaissance  [recon F2/W1]`, `skills: debugging-yeti, pdf …`, `MCP: 2/2  codescout ●  researcher ●`
@@ -137,7 +136,7 @@ Companion for [pi](https://github.com/earendil-works/pi-mono). Two TypeScript ex
 
 **Extensions:**
 - `codescout-companion.ts` (this repo) — widget below editor: skill-load tracker, recon badge, MCP server status
-- `codescout-mode.ts` (codescout repo, `contrib/pi/`) — drops pi's native `edit`, activates codescout hot-set on session start, bash source-search nudge
+- `codescout-mode.ts` (`codescout-companion/.pi/`) — routes Pi's native read/edit/write and redundant source shell commands to codescout when the replacement tools are available
 
 **Skills wired into pi:** reconnaissance, explore-project, 12 buddy specialists, sdd-flow, researcher-mcp, research-web, research-subagent, tracker-hygiene
 

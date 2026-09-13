@@ -31,12 +31,13 @@
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join, relative, dirname } from 'node:path';
 import { createHash } from 'node:crypto';
-import { readInput, contextPreToolUse, resolveProjectRoot, git } from './lib.mjs';
+import { readInput, contextPreToolUse, inputPath, isWriteOperation, resolveProjectRoot, git } from './lib.mjs';
 
 const input = readInput();
 if (!input) process.exit(0);
+if (!isWriteOperation(input)) process.exit(0);
 
-const targetPath = (input.tool_input && (input.tool_input.path || input.tool_input.file_path)) || '';
+const targetPath = inputPath(input);
 if (!targetPath) process.exit(0);
 
 const sessionId = input.session_id || '';

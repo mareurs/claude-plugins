@@ -280,6 +280,11 @@ assert_cfg "cfg-hatch-off-optout-allows" "$CFG_TMP/optout" "allow" "off"
 # And the hatch does what it claims: same cwd, config ignored.
 assert_cfg "cfg-hatch-on-ignores-optout" "$CFG_TMP/optout" "deny"  "on"
 
+# VS Code/Copilot reports a lower-case read tool with a camelCase path key.
+# This must reach the same denial branch as Claude Code's Read/file_path form.
+assert_tool "copilot-read-file-path-deny" "read_file" \
+    "$(jq -nc --arg p "$ACTIVE_CWD/src/main.rs" '{filePath:$p}')" "deny"
+
 /bin/rm -rf "$CFG_TMP"
 
 clean

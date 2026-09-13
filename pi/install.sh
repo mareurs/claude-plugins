@@ -24,6 +24,12 @@ EXT_DEST="$EXT_DIR/codescout-companion.ts"
 ln -s "$EXT_SRC" "$EXT_DEST"
 info "linked extension → $EXT_SRC"
 
+MODE_SRC="$REPO_DIR/codescout-companion/.pi/extensions/codescout-mode.ts"
+MODE_DEST="$EXT_DIR/codescout-mode.ts"
+[ -e "$MODE_DEST" ] && rm "$MODE_DEST"
+ln -s "$MODE_SRC" "$MODE_DEST"
+info "linked extension → $MODE_SRC"
+
 GUARD_SRC="$REPO_DIR/pi/extensions/secret-guard.ts"
 GUARD_DEST="$EXT_DIR/secret-guard.ts"
 [ -e "$GUARD_DEST" ] && rm "$GUARD_DEST"

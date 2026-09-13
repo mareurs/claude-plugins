@@ -23,10 +23,11 @@ trap 'rm -rf "$CS_TEST_STATE_SANDBOX"' EXIT
 # was absent, so a test colocated with a skill was never run and its suite reported
 # "All suites passed" exactly as if it had.
 HOOK_TESTS_DIR="$SCRIPT_DIR/../codescout-companion/hooks"
+PI_EXTENSION_TESTS_DIR="$SCRIPT_DIR/../codescout-companion/.pi/extensions"
 SKILL_TESTS_DIR="$SCRIPT_DIR/../codescout-companion/skills"
 
 shopt -s nullglob
-SUITES=("$SCRIPT_DIR"/test-*.sh "$HOOK_TESTS_DIR"/*.test.sh "$SKILL_TESTS_DIR"/*/*.test.sh)
+SUITES=("$SCRIPT_DIR"/test-*.sh "$HOOK_TESTS_DIR"/*.test.sh "$SKILL_TESTS_DIR"/*/*.test.sh "$HOOK_TESTS_DIR"/*.test.mjs "$PI_EXTENSION_TESTS_DIR"/*.test.mjs)
 shopt -u nullglob
 
 # LOAD-BEARING. Without nullglob a non-matching glob survives as a literal path and
@@ -70,7 +71,11 @@ for f in "${SUITES[@]}"; do
     continue
   fi
   echo "▶ $base"
-  if bash "$f"; then
+  if case "$f" in
+    *.mjs) node --experimental-strip-types "$f" ;;
+    *) bash "$f" ;;
+  esac
+  then
     :
   else
     FAILED+=("$base")

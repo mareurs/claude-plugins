@@ -41,6 +41,7 @@ BUMP="${2:-patch}"
 MARKETPLACE="${MARKETPLACE:-sdd-misc-plugins}"
 PROFILES=("$HOME/.claude" "$HOME/.claude-sdd" "$HOME/.claude-kat")
 PLUGIN_JSON="$PLUGIN/.claude-plugin/plugin.json"
+PACKAGE_JSON="$PLUGIN/package.json"
 
 [ -f "$PLUGIN_JSON" ] || { echo "✗ no $PLUGIN_JSON — unknown plugin '$PLUGIN'"; exit 1; }
 
@@ -72,6 +73,9 @@ fi
 
 # 1. bump version sources ------------------------------------------------------
 tmp="$(mktemp)"; jq --arg v "$VERSION" '.version = $v' "$PLUGIN_JSON" > "$tmp" && mv "$tmp" "$PLUGIN_JSON"
+if [ -f "$PACKAGE_JSON" ]; then
+  tmp="$(mktemp)"; jq --arg v "$VERSION" '.version = $v' "$PACKAGE_JSON" > "$tmp" && mv "$tmp" "$PACKAGE_JSON"
+fi
 # README version-table row:  | **[<plugin>](./<plugin>/)** | <ver> | <desc> |
 sed -i -E "s#(\*\*\[$PLUGIN\]\(\./$PLUGIN/\)\*\* [|] )[^ |]+( [|])#\1$VERSION\2#" README.md
 
@@ -80,6 +84,7 @@ sed -i -E "s#(\*\*\[$PLUGIN\]\(\./$PLUGIN/\)\*\* [|] )[^ |]+( [|])#\1$VERSION\2#
 
 # 3. commit the bump -----------------------------------------------------------
 git add "$PLUGIN_JSON" README.md
+[ -f "$PACKAGE_JSON" ] && git add "$PACKAGE_JSON"
 git commit -m "chore: bump $PLUGIN to $VERSION" \
            -m "Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 

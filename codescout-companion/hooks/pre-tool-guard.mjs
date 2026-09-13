@@ -12,6 +12,8 @@ import {
   denyPreToolUse,
   contextPreToolUse,
   breakerFile,
+  normalizedToolName,
+  inputPath,
 } from './lib.mjs';
 import { SOURCE_EXT_PATTERN } from './detect.mjs';
 
@@ -24,7 +26,7 @@ if (!input) process.exit(0);
 // and cwd-relative logic below (all written with `/`) match on Windows too.
 const norm = (p) => (p || '').replace(/\\/g, '/');
 
-const toolName = input.tool_name || '';
+const toolName = normalizedToolName(input);
 const cwd = norm(input.cwd || '');
 
 const d = detectFor(cwd);
@@ -232,7 +234,7 @@ codescout already knows every file in the project. Use the index directly:
 }
 
 if (toolName === 'Read') {
-  const filePath = norm((input.tool_input && input.tool_input.file_path) || '');
+  const filePath = norm(inputPath(input));
   if (isBinaryImage(filePath)) process.exit(0);
   if (isSkillPayload(filePath)) process.exit(0);
   if (isHarnessOutput(filePath)) process.exit(0);
@@ -305,7 +307,7 @@ read_file works on absolute cross-repo paths. Exempt from this block: binary ima
 }
 
 if (toolName === 'Edit') {
-  const filePath = norm((input.tool_input && input.tool_input.file_path) || '');
+  const filePath = norm(inputPath(input));
   if (isBinaryImage(filePath)) process.exit(0);
   enforce(`This call is blocked because codescout's edit_code is the safer path for structural source edits.
 
@@ -324,7 +326,7 @@ Suggested flow: symbols(name=NAME, include_body=true) to inspect the current bod
 }
 
 if (toolName === 'Write') {
-  const filePath = norm((input.tool_input && input.tool_input.file_path) || '');
+  const filePath = norm(inputPath(input));
   if (isBinaryImage(filePath)) process.exit(0);
   enforce(`This call is blocked because codescout's create_file is the tracked path for new source files.
 

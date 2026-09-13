@@ -31,6 +31,21 @@ for plugin_json in "$REPO_ROOT"/*/.claude-plugin/plugin.json; do
   fi
 done
 
+# Pi loads codescout-companion as an npm-style package, so its manifest must
+# track the canonical Claude plugin version used by the release workflow.
+companion_plugin="$REPO_ROOT/codescout-companion/.claude-plugin/plugin.json"
+companion_package="$REPO_ROOT/codescout-companion/package.json"
+if [ -f "$companion_plugin" ] && [ -f "$companion_package" ]; then
+  plugin_version="$(jq -r '.version' "$companion_plugin")"
+  package_version="$(jq -r '.version' "$companion_package")"
+  if [ "$package_version" != "$plugin_version" ]; then
+    echo "MISMATCH: codescout-companion package.json=${package_version}, plugin.json=${plugin_version}"
+    errors=$((errors + 1))
+  else
+    echo "OK: codescout-companion package.json ${package_version}"
+  fi
+fi
+
 # Check marketplace.json has no version fields in plugin entries
 marketplace="$REPO_ROOT/.claude-plugin/marketplace.json"
 if [ -f "$marketplace" ]; then

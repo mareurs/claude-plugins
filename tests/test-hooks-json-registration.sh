@@ -12,6 +12,18 @@ else
   fail "hooks.json is valid JSON"
 fi
 
+# VS Code invokes the command field but ignores Claude Code's separate args
+# field. Every Node hook must therefore name its script directly in command.
+PORTABLE=$(jq -r '[.hooks[][]?.hooks[]
+  | select(.type == "command")
+  | (.args == null and (.command | test("^node \\${CLAUDE_PLUGIN_ROOT}/hooks/.+\\.mjs$")))]
+  | all' "$HOOKS_JSON")
+if [[ "$PORTABLE" == "true" ]]; then
+  pass "all Node hooks use portable command strings"
+else
+  fail "all Node hooks use portable command strings"
+fi
+
 # Test 2: Agent matcher registered to pre-task-hint.sh
 # (subagent-dispatch tool was renamed Task -> Agent, 2026-06-13; matching the
 # old name silently disabled this hook — see pre-task-hint.test.sh)
@@ -45,7 +57,7 @@ fi
 # on a file that merely MENTIONS the hook, including under a matcher that could
 # never fire. The claim being made is about coverage, so coverage is what is
 # tested -- assert on the thing, not on a proxy for it.
-MATCH=$(jq -r '.hooks.PreToolUse[] | select((.matcher | test("Edit")) and (.matcher | test("Write"))) | .hooks[] | ((.args // []) | join(" "))' "$HOOKS_JSON")
+MATCH=$(jq -r '.hooks.PreToolUse[] | select((.matcher | test("Edit")) and (.matcher | test("Write"))) | .hooks[] | .command' "$HOOKS_JSON")
 if echo "$MATCH" | grep -q "pre-edit-dirty-check.mjs"; then
   pass "Edit|Write matcher → pre-edit-dirty-check.mjs"
 else
@@ -56,7 +68,7 @@ fi
 # be PostToolUse specifically -- the predicate reads the tool RESULT, which a
 # PreToolUse hook structurally cannot see -- so the EVENT is asserted, not just
 # the presence of the hook somewhere in the file.
-MATCH=$(jq -r '.hooks.PostToolUse[] | select(.matcher == "Bash") | .hooks[] | ((.args // []) | join(" "))' "$HOOKS_JSON")
+MATCH=$(jq -r '.hooks.PostToolUse[] | select(.matcher == "Bash") | .hooks[] | .command' "$HOOKS_JSON")
 if echo "$MATCH" | grep -q "suspicious-zero-hint.mjs"; then
   pass "PostToolUse/Bash matcher -> suspicious-zero-hint.mjs"
 else

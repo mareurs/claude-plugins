@@ -80,23 +80,11 @@ cd claude-plugins/pi
 
 The script:
 - Symlinks `pi/extensions/codescout-companion.ts` → `~/.pi/agent/extensions/codescout-companion.ts`
+- Symlinks `codescout-companion/.pi/extensions/codescout-mode.ts` → `~/.pi/agent/extensions/codescout-mode.ts`
 - Symlinks `pi/extensions/secret-guard.ts` → `~/.pi/agent/extensions/secret-guard.ts`
 - Adds `codescout-companion/skills`, `buddy/skills`, and `sdd/skills` to `~/.pi/agent/settings.json`
 
-### Step 3 — codescout-mode extension (from the codescout repo)
-
-If you have the codescout repo checked out, run its install script too:
-
-```bash
-cd /path/to/codescout/contrib/pi
-cp mcp.json.example mcp.json    # create your personal mcp.json (gitignored)
-bash install.sh
-```
-
-This symlinks `codescout-mode.ts` → `~/.pi/agent/extensions/codescout-mode.ts`
-and `AGENTS.md` → `~/.pi/agent/AGENTS.md` (the tool-routing guidance the model reads).
-
-### Step 4 — MCP configuration
+### Step 3 — MCP configuration
 
 Create or edit `~/.pi/agent/mcp.json`. This file is personal — keep it out of git
 (it holds your API keys).
@@ -175,7 +163,7 @@ Create or edit `~/.pi/agent/mcp.json`. This file is personal — keep it out of 
 }
 ```
 
-### Step 5 — warm the directTools cache
+### Step 4 — warm the directTools cache
 
 On the very first launch, pi needs one reconnect to register the codescout tools
 as direct (non-proxied) tools. In pi, run:
@@ -186,7 +174,7 @@ as direct (non-proxied) tools. In pi, run:
 
 After that, every session auto-connects codescout on first tool use (`lifecycle: lazy`).
 
-### Step 6 — reload
+### Step 5 — reload
 
 ```
 /reload
@@ -201,7 +189,7 @@ Start a fresh Pi session in a project directory. Its startup summary should list
 `codescout-companion.ts`, `codescout-mode.ts`, and `pi-mcp-adapter` under
 **[Extensions]**. The companion widget should appear below the editor.
 
-The companion widget and the adapter footer report different state. The widget
+The companion widget, routing adapter, and MCP adapter report different state. The widget
 counts MCP tools registered in Pi (`pi.getAllTools()`); the adapter footer counts
 live MCP connections. With lazy servers, a fresh session can legitimately show a
 registered Codescout tool in the widget while the footer remains `MCP: 0/2 servers`.
@@ -277,7 +265,7 @@ connected. Pick a tool that is always present when the server is up.
 
 ## Extension: codescout-mode.ts
 
-Shipped in the codescout repo at `contrib/pi/codescout-mode.ts`. It is intentionally
+Shipped in this package at `codescout-companion/.pi/extensions/codescout-mode.ts`. It is intentionally
 a policy layer rather than a replacement for general shell access.
 
 At `session_start`, it removes native `edit` and `write` only if the corresponding

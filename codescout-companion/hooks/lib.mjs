@@ -545,3 +545,41 @@ export function parentOf(pid) {
     return null;
   }
 }
+
+
+// Normalize host-specific names and input keys at the hook boundary. Claude
+// Code uses PascalCase tools and snake_case paths; Copilot/VS Code use
+// lower-case tools and camelCase paths.
+export function normalizedToolName(input) {
+  const name = input && input.tool_name;
+  if (name === 'read_file' || name === 'readFile') return 'Read';
+  if (name === 'search' || name === 'search_codebase' || name === 'grep') return 'Grep';
+  if (name === 'find_files' || name === 'glob') return 'Glob';
+  if (name === 'run_in_terminal' || name === 'run_command' || name === 'terminal') return 'Bash';
+  if (name === 'replace_string_in_file' || name === 'replace_file_content') return 'Edit';
+  if (name === 'create_file' || name === 'write_file') return 'Write';
+  return name || '';
+}
+
+export function inputPath(input) {
+  const toolInput = (input && input.tool_input) || {};
+  return toolInput.path || toolInput.file_path || toolInput.filePath || toolInput.uri || '';
+}
+
+
+export function isCodescoutTool(input, toolNames) {
+  const toolName = (input && input.tool_name) || '';
+  return toolNames.some((name) =>
+    toolName === name ||
+    toolName.endsWith(`__${name}`) ||
+    toolName === `codescout_${name}` ||
+    toolName === `codescout/${name}`,
+  );
+}
+
+export function isWriteOperation(input) {
+  const nativeTool = normalizedToolName(input);
+  return nativeTool === 'Edit' ||
+    nativeTool === 'Write' ||
+    isCodescoutTool(input, ['edit_code', 'edit_file', 'create_file']);
+}

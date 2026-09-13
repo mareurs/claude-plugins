@@ -7,17 +7,18 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { execFileSync } from 'node:child_process';
-import { readInput, denyPreToolUse, resolveProjectRoot } from './lib.mjs';
+import { readInput, denyPreToolUse, inputPath, isWriteOperation, resolveProjectRoot } from './lib.mjs';
 
 const DEFAULT_STATE = { epoch: 0, seen_path_rules: [], global_surfaced_epoch: -1 };
 
 const input = readInput();
 if (!input) process.exit(0);
+if (!isWriteOperation(input)) process.exit(0);
 
 const sessionId = input.session_id || '';
 if (!sessionId) process.exit(0);
 
-const targetPath = (input.tool_input && (input.tool_input.path || input.tool_input.file_path)) || '';
+const targetPath = inputPath(input);
 if (!targetPath) process.exit(0);
 
 const cwd = input.cwd || process.cwd();

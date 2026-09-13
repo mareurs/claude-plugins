@@ -343,7 +343,7 @@ hook_events() {  # <script basename> -> newline-separated event names
   jq -r --arg s "$1" '
     .hooks | to_entries[]
     | .key as $ev | .value[]
-    | select(any(.hooks[]?; ((.args // []) | join(" ")) | test($s)))
+    | select(any(.hooks[]?; .command | test($s)))
     | $ev' "$HOOKS_JSON" | sort -u
 }
 
