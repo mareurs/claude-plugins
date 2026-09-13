@@ -13,17 +13,24 @@ TMPD=$(node -e 'process.stdout.write(require("os").tmpdir())')
 clear_dedup() { [ -n "$TMPD" ] && rm -f "$TMPD"/cs-block-* 2>/dev/null; return 0; }
 
 make_git_repo "$T/proj"
-write_mcp_json "$T/proj"
 
 # --- Helper ---
 guard_input() {
   printf '{"cwd":"%s","tool_name":"%s","tool_input":{%s}}' "$T/proj" "$1" "$2"
 }
 
-# Test 1: no CE → allow
+# Test 1: no CE → allow (project has no .mcp.json at all yet)
 OUT=$(guard_input "Read" '"file_path":"'"$T/proj/foo.ts"'"' | CLAUDE_CONFIG_DIR="$T/empty" node "$HOOK" 2>/dev/null)
 EC=$?
 if [ $EC -eq 0 ] && ! assert_denied "$OUT"; then pass "no CE: allow"; else fail "no CE: allow" "exit=$EC out=$OUT"; fi
+
+# From here on, $T/proj is codescout-enabled for every remaining test.
+# write_mcp_json fixture uses fake-ce which doesn't match detect.mjs's
+# /codescout/ regex; write directly with a matching command so HAS_CODESCOUT
+# resolves from the project alone, not from an ambient ~/.claude* profile.
+cat > "$T/proj/.mcp.json" <<'MCP'
+{"mcpServers":{"codescout":{"command":"/usr/local/bin/codescout","args":["serve"]}}}
+MCP
 
 # Test 2: Bash tool → deny with run_command
 clear_dedup

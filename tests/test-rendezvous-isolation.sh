@@ -59,7 +59,12 @@ ISO="$T/iso-state"
 mkdir -p "$ISO/codescout/servers"
 printf '{"pid":999999,"ppid":%s,"cwd":"%s"}' "$$" "$T" > "$ISO/codescout/servers/999999.json"
 make_git_repo "$T/p"
-write_mcp_json "$T/p"
+# write_mcp_json fixture uses fake-ce which doesn't match detect.mjs's
+# /codescout/ regex; write directly with a matching command so HAS_CODESCOUT
+# resolves from this project alone, not from an ambient ~/.claude* profile.
+cat > "$T/p/.mcp.json" <<'MCP'
+{"mcpServers":{"codescout":{"command":"/usr/local/bin/codescout","args":["serve"]}}}
+MCP
 make_ce_dir "$T/p"
 printf '{"session_id":"%s","cwd":"%s"}' "$FIXTURE_SID" "$T/p" \
   | XDG_STATE_HOME="$ISO" node "$HOOK" >/dev/null 2>&1

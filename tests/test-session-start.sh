@@ -6,6 +6,27 @@ echo "── session-start ──"
 HOOK="$HOOK_DIR/session-start.mjs"
 T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
 
+# write_mcp_json fixture uses fake-ce which doesn't match detect.mjs's
+# /codescout/ regex; write directly with a matching command (a real, exec-able
+# dummy binary — the auto-reindex block in session-start.mjs additionally
+# requires CS_BINARY to statSync as a real file, not just resolve a path).
+write_ce_mcp_json() {
+  local dir="$1"
+  local dummy_bin="$dir/fake-codescout"
+  printf '#!/bin/bash\nexit 0\n' > "$dummy_bin"
+  chmod +x "$dummy_bin"
+  cat > "$dir/.mcp.json" <<EOF
+{
+  "mcpServers": {
+    "codescout": {
+      "command": "$dummy_bin",
+      "args": ["serve"]
+    }
+  }
+}
+EOF
+}
+
 # --- Test 1: no CE → silent exit ---
 make_git_repo "$T/t1"
 OUT=$(printf '{"cwd":"%s"}' "$T/t1" | CLAUDE_CONFIG_DIR="$T/empty" node "$HOOK" 2>/dev/null)
@@ -13,7 +34,7 @@ if assert_no_output "$OUT"; then pass "no CE: silent exit"; else fail "no CE: si
 
 # --- Test 2: CE configured, not onboarded (no project.toml) ---
 make_git_repo "$T/t2"
-write_mcp_json "$T/t2"
+write_ce_mcp_json "$T/t2"
 OUT=$(printf '{"cwd":"%s"}' "$T/t2" | node "$HOOK" 2>/dev/null)
 if assert_context_contains "$OUT" "not yet onboarded"; then
   pass "not onboarded: hint shown"
@@ -23,7 +44,7 @@ fi
 
 # --- Test 3: has memories → CE MEMORIES: shown ---
 make_git_repo "$T/t3"
-write_mcp_json "$T/t3"
+write_ce_mcp_json "$T/t3"
 make_ce_dir "$T/t3"
 make_memories "$T/t3"
 OUT=$(printf '{"cwd":"%s"}' "$T/t3" | node "$HOOK" 2>/dev/null)
@@ -37,7 +58,7 @@ fi
 # ## Custom Instructions; subagents via subagent-guidance.sh — claude-code#29655).
 # See docs/superpowers/specs/2026-06-12-system-prompt-source-consolidation-design.md. ---
 make_git_repo "$T/t4"
-write_mcp_json "$T/t4"
+write_ce_mcp_json "$T/t4"
 make_ce_dir "$T/t4"
 make_system_prompt "$T/t4"
 OUT=$(printf '{"cwd":"%s"}' "$T/t4" | node "$HOOK" 2>/dev/null)
@@ -51,7 +72,7 @@ fi
 
 # --- Test 5: index stale → INDEX: Refreshing message ---
 make_git_repo "$T/t5"
-write_mcp_json "$T/t5"
+write_ce_mcp_json "$T/t5"
 make_ce_dir "$T/t5"
 seed_index_state "$T/t5" "deadbeef0000000000000000000000000000000000"
 OUT=$(printf '{"cwd":"%s"}' "$T/t5" | node "$HOOK" 2>/dev/null)
@@ -63,7 +84,7 @@ fi
 
 # --- Test 6: index current → no INDEX message ---
 make_git_repo "$T/t6"
-write_mcp_json "$T/t6"
+write_ce_mcp_json "$T/t6"
 make_ce_dir "$T/t6"
 HEAD=$(git -C "$T/t6" rev-parse HEAD)
 seed_index_state "$T/t6" "$HEAD"
@@ -76,12 +97,12 @@ fi
 
 # --- Test 7: inside worktree → WORKTREE SESSION, no INDEX ---
 make_git_repo "$T/t7main"
-write_mcp_json "$T/t7main"
+write_ce_mcp_json "$T/t7main"
 make_ce_dir "$T/t7main"
 seed_index_state "$T/t7main" "deadbeef0000000000000000000000000000000000"
 make_worktree "$T/t7main" "$T/t7wt"
 cp "$T/t7main/.mcp.json" "$T/t7wt/.mcp.json"
-cp "$T/t7main/fake-ce" "$T/t7wt/fake-ce" 2>/dev/null || true
+cp "$T/t7main/fake-codescout" "$T/t7wt/fake-codescout" 2>/dev/null || true
 ln -s "$T/t7main/.codescout" "$T/t7wt/.codescout"
 OUT=$(printf '{"cwd":"%s"}' "$T/t7wt" | node "$HOOK" 2>/dev/null)
 if assert_context_contains "$OUT" "WORKTREE SESSION" && ! assert_context_contains "$OUT" "INDEX:"; then
@@ -92,7 +113,7 @@ fi
 
 # --- Test 8: drift warnings ---
 make_git_repo "$T/t8"
-write_mcp_json "$T/t8"
+write_ce_mcp_json "$T/t8"
 make_ce_dir "$T/t8" "true"
 HEAD=$(git -C "$T/t8" rev-parse HEAD)
 seed_drift_db "$T/t8" "$HEAD"
@@ -107,9 +128,9 @@ fi
 make_git_repo "$T/t9main"
 make_codescout_dir "$T/t9main"
 make_embeddings_dir "$T/t9main"
-write_mcp_json "$T/t9main"
+write_ce_mcp_json "$T/t9main"
 make_worktree "$T/t9main" "$T/t9wt"
-write_mcp_json "$T/t9wt"
+write_ce_mcp_json "$T/t9wt"
 mkdir -p "$T/t9wt/.codescout"
 echo '[project]' > "$T/t9wt/.codescout/project.toml"
 OUT=$(printf '{"cwd":"%s"}' "$T/t9wt" | node "$HOOK" 2>/dev/null)
@@ -124,9 +145,9 @@ fi
 make_git_repo "$T/t10main"
 make_codescout_dir "$T/t10main"
 # intentionally no make_embeddings_dir
-write_mcp_json "$T/t10main"
+write_ce_mcp_json "$T/t10main"
 make_worktree "$T/t10main" "$T/t10wt"
-write_mcp_json "$T/t10wt"
+write_ce_mcp_json "$T/t10wt"
 mkdir -p "$T/t10wt/.codescout"
 echo '[project]' > "$T/t10wt/.codescout/project.toml"
 OUT=$(printf '{"cwd":"%s"}' "$T/t10wt" | node "$HOOK" 2>/dev/null)
@@ -141,9 +162,9 @@ fi
 make_git_repo "$T/t11main"
 make_codescout_dir "$T/t11main"
 make_embeddings_dir "$T/t11main"
-write_mcp_json "$T/t11main"
+write_ce_mcp_json "$T/t11main"
 make_worktree "$T/t11main" "$T/t11wt"
-write_mcp_json "$T/t11wt"
+write_ce_mcp_json "$T/t11wt"
 mkdir -p "$T/t11wt/.codescout/embeddings"
 echo "local" > "$T/t11wt/.codescout/embeddings/local.db"
 OUT=$(printf '{"cwd":"%s"}' "$T/t11wt" | node "$HOOK" 2>/dev/null)
@@ -158,7 +179,7 @@ fi
 # Verbatim SKILL.md body no longer injected (injection-budget redesign).
 # Full body now loads via Skill('codescout-companion:reconnaissance') on demand.
 make_git_repo "$T/t12"
-write_mcp_json "$T/t12"
+write_ce_mcp_json "$T/t12"
 make_ce_dir "$T/t12"
 OUT=$(printf '{"cwd":"%s"}' "$T/t12" | node "$HOOK" 2>/dev/null)
 if assert_context_contains "$OUT" "codescout-companion:reconnaissance"; then
@@ -169,7 +190,7 @@ fi
 
 # --- Test 13: reconnaissance recon-loaded marker is dropped at SessionStart ---
 make_git_repo "$T/t13"
-write_mcp_json "$T/t13"
+write_ce_mcp_json "$T/t13"
 make_ce_dir "$T/t13"
 SID_T13="sid-recon-marker-test"
 OUT=$(printf '{"session_id":"%s","cwd":"%s"}' "$SID_T13" "$T/t13" | node "$HOOK" 2>/dev/null)
