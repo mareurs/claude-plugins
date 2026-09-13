@@ -1,7 +1,7 @@
 ---
 id: cc8cb9e23ab5cc67
 kind: tracker
-status: draft
+status: active
 title: Version-bump checklist
 expects_augmentation: docs/augmentations/docs-trackers-version-bump-checklist.yaml
 ---
@@ -14,27 +14,22 @@ Release readiness across plugins × profiles. See
 
 ## State
 
-_Last refresh: `2183dc3`, 2026-09-07 — real drift found and fixed this pass, correcting
-the prior `9503c54` entry below, which read green on both codescout-companion and buddy
-without actually being green. Before this pass, `installed_plugins.json` in all three
-profiles pointed at codescout-companion `1.20.5` (canonical was already `1.20.6`, commit
-`38f26f3`) and buddy `0.11.1` (canonical was already `0.11.3`, commit `9503c54`) — both
-cache dirs and install records were two bumps stale, verified by reading
-`installed_plugins.json`'s `.plugins` map directly with `jq` in all three profiles before
-touching anything. Fixed via `scripts/bump-cache.sh codescout-companion 1.20.6` and
-`scripts/bump-cache.sh buddy 0.11.3`, then repointing `version`+`installPath` for both
-records in all three profiles. `scripts/check-profile-parity.sh` now reports OK for all
-four tracked plugins. The prior entry's per-profile ✅ tables below are retained for
-history but were not actually true at the time they were written for these two plugins —
-see History for how this was caught.__
+_Last refresh: `2c1c800`, 2026-09-13 — refreshed after releasing three plugins in one
+session via `scripts/release.sh <plugin> patch`, in order: `codescout-companion`
+1.20.6→1.20.7, `buddy` 0.11.3→0.11.4, `sdd` 2.4.1→2.4.2. Every value below was
+re-derived from disk (each profile's `installed_plugins.json` `.plugins` map — every
+array element, not just `[0]` — plus cache-dir presence and README.md's version table),
+not carried forward. `scripts/check-profile-parity.sh` reports OK for all four
+cache-based plugins (`sdd` correctly excluded — see its own note below, now stale, see
+History)._
 
-**buddy** — canonical `0.11.3` · readme `0.11.3` · marketplace clean ✅
+**buddy** — canonical `0.11.4` · readme `0.11.4` · marketplace clean ✅
 
-| profile | installed | cache dir | install_path ok | all entries | cache = working tree |
-|---|---|---|---|---|---|
-| `~/.claude` | 0.11.3 ✅ | ✅ | ✅ | `0.11.3` ✅ | ✅ |
-| `~/.claude-sdd` | 0.11.3 ✅ | ✅ | ✅ | `0.11.3` ✅ | ✅ |
-| `~/.claude-kat` | 0.11.3 ✅ | ✅ | ✅ | `0.11.3` ✅ | ✅ |
+| profile | installed | cache dir | install_path ok | all entries |
+|---|---|---|---|---|
+| `~/.claude` | 0.11.4 ✅ | ✅ | ✅ | `0.11.4` ✅ |
+| `~/.claude-sdd` | 0.11.4 ✅ | ✅ | ✅ | `0.11.4` ✅ |
+| `~/.claude-kat` | 0.11.4 ✅ | ✅ | ✅ | `0.11.4` ✅ |
 
 **claude-statusline** — canonical `1.1.7` · readme `1.1.7` · marketplace clean ✅
 
@@ -44,13 +39,23 @@ see History for how this was caught.__
 | `~/.claude-sdd` | 1.1.7 ✅ | ✅ | ✅ | `1.1.7` ✅ | ✅ |
 | `~/.claude-kat` | 1.1.7 ✅ | ✅ | ✅ | `1.1.7` ✅ | ✅ |
 
-**codescout-companion** — canonical `1.20.6` · readme `1.20.6` · marketplace clean ✅
+**codescout-companion** — canonical `1.20.7` · readme `1.20.7` · marketplace clean ✅
 
-| profile | installed | cache dir | install_path ok | all entries | cache = working tree |
-|---|---|---|---|---|---|
-| `~/.claude` | 1.20.6 ✅ | ✅ | ✅ | `1.20.6` ✅ | ✅ |
-| `~/.claude-sdd` | 1.20.6 ✅ | ✅ | ✅ | `1.20.6` ✅ | ✅ |
-| `~/.claude-kat` | 1.20.6 ✅ | ✅ | ✅ | `1.20.6` ✅ | ✅ |
+| profile | installed | cache dir | install_path ok | all entries |
+|---|---|---|---|---|
+| `~/.claude` | 1.20.7 ✅ | ✅ | ✅ | `1.20.7` ✅ |
+| `~/.claude-sdd` | 1.20.7 ✅ | ✅ | ✅ | `1.20.7` ✅ |
+| `~/.claude-kat` | 1.20.7 ✅ | ✅ | ✅ | `1.20.7` ✅ |
+
+**sdd** — canonical `2.4.2` · readme `2.4.2` · marketplace clean ✅ — newly tracked this
+refresh: previously installed nowhere (see the now-superseded note below), `release.sh sdd
+patch` seeded it into all three profiles for the first time.
+
+| profile | installed | cache dir | install_path ok | all entries |
+|---|---|---|---|---|
+| `~/.claude` | 2.4.2 ✅ | ✅ | ✅ | `2.4.2` ✅ |
+| `~/.claude-sdd` | 2.4.2 ✅ | ✅ | ✅ | `2.4.2` ✅ |
+| `~/.claude-kat` | 2.4.2 ✅ | ✅ | ✅ | `2.4.2` ✅ |
 
 **session-bridge** — canonical `0.1.0` · readme `0.1.0` · marketplace clean ✅
 
@@ -106,7 +111,11 @@ only one of them is.
 `~/.claude` and `~/.claude-sdd` are separate processes with their own session ids and are
 **not** reached from here.
 
-`sdd` — discovered in the repo but installed in no profile. Stable by design; never a gap.
+`sdd` — **superseded 2026-09-13**: now installed in all three profiles (table above).
+Was previously stable-and-uninstalled by design; the Codex hook-manifest fix
+(docs/issues/archive/2026-09-12-codex-plugin-runner-drops-buddy-hook-args.md) touched
+`sdd/hooks/hooks.json` too, so it got its first real release alongside `buddy` and
+`codescout-companion`.
 
 `pi` — README lists it at `0.1.0`, but `pi/` carries no `.claude-plugin/plugin.json` (it is
 a pi-harness extension with its own `install.sh`), so it is outside the discovered plugin
@@ -216,6 +225,24 @@ measured on both candidate load paths rather than argued: the record points at k
 two actually serves, they carry the same bytes — so the question CLAUDE.md flags as
 unsettled does not need settling for this release.
 ## History
+### 2026-09-13 — three plugins released in one session (Codex hook-manifest fix)
+
+**Delta:** `codescout-companion` 1.20.6→1.20.7, `buddy` 0.11.3→0.11.4, `sdd` 2.4.1→2.4.2 —
+all three canonical, readme, and every profile's installed/all_versions/cache_dir/
+install_path changed together, cleanly, via `release.sh <plugin> patch` (one invocation
+per plugin, in that order: codescout-companion, buddy, sdd). `sdd` went from installed-
+nowhere to installed-everywhere in the same pass — its first real release via this
+machinery. No drift found or left behind: `check-profile-parity.sh` and this refresh both
+read fully green immediately after.
+
+**Why:** closed `docs/issues/archive/2026-09-12-codex-plugin-runner-drops-buddy-hook-args.md`
+— Codex's plugin runner invokes a hook's `command` field but drops the separate `args`
+array, so `buddy`'s 5 hooks and `sdd`'s 4 hooks (both `{command:"node", args:[...]}`) ran a
+bare `node` with no script path and failed. Folded `command`+`args` into one string for
+both plugins, matching `codescout-companion`'s already-fixed form, and added
+`tests/test-all-plugins-hooks-json-portable.sh` to catch a regression in any plugin,
+present or future.
+
 
 ### 2026-09-04 — 1.20.5: the size cap caught a pushed-red suite, and an unenabled marketplace blocked the push
 
