@@ -1,10 +1,17 @@
 {
   "name": "sdd",
   "description": "Specification-Driven Development: governance, workflow commands, and enforcement hooks for Claude Code projects",
-  "version": "2.4.1",
+  "version": "2.4.2",
   "author": {
     "name": "Marius"
   },
   "license": "MIT",
-  "keywords": ["sdd", "specification", "governance", "workflow", "tdd", "constitution"]
+  "keywords": [
+    "sdd",
+    "specification",
+    "governance",
+    "workflow",
+    "tdd",
+    "constitution"
+  ]
 }
