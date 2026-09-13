@@ -29,7 +29,7 @@
 //
 // It warns; it never denies. Fail-open per lib.mjs: exit 0 on every path.
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
-import { join, relative, dirname } from 'node:path';
+import { join, relative, dirname, isAbsolute } from 'node:path';
 import { createHash } from 'node:crypto';
 import { readInput, contextPreToolUse, inputPath, isWriteOperation, resolveProjectRoot, git } from './lib.mjs';
 
@@ -46,13 +46,21 @@ if (!sessionId) process.exit(0);
 const cwd = input.cwd || process.cwd();
 const projectRoot = resolveProjectRoot(cwd);
 
+// Resolved ONCE, immediately, so every downstream use agrees. `targetPath` is
+// frequently project-relative, and `path.relative()` resolves a relative
+// argument against `process.cwd()` -- the session's cwd, not `projectRoot` --
+// so a session working from a subdirectory (e.g. this plugin's own `.buddy`)
+// printed a path with a spurious cwd-offset prefix and hashed a different
+// marker key per spelling of the same file (bare path vs. after a rename).
+const absTargetPath = isAbsolute(targetPath) ? targetPath : join(projectRoot, targetPath);
+
 // One marker per (session, path). Read BEFORE writing, or the first edit of a
 // contested file would mark it and then find itself already marked.
 const marker = join(
   projectRoot,
   '.buddy',
   sessionId,
-  `edited-${createHash('sha256').update(targetPath).digest('hex').slice(0, 16)}`,
+  `edited-${createHash('sha256').update(absTargetPath).digest('hex').slice(0, 16)}`,
 );
 const alreadySeen = existsSync(marker);
 
@@ -76,7 +84,7 @@ if (alreadySeen) process.exit(0);
 const status = git(projectRoot, ['status', '--porcelain', '--', targetPath]);
 if (status === null || status === '') process.exit(0);
 
-const rel = relative(projectRoot, targetPath) || targetPath;
+const rel = relative(projectRoot, absTargetPath) || targetPath;
 
 // Claim only what the check proves. `git status` establishes that the content is
 // uncommitted and that this session recorded no write to it. It does NOT
