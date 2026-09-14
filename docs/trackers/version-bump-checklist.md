@@ -14,14 +14,14 @@ Release readiness across plugins × profiles. See
 
 ## State
 
-_Last refresh: `2c1c800`, 2026-09-13 — refreshed after releasing three plugins in one
-session via `scripts/release.sh <plugin> patch`, in order: `codescout-companion`
-1.20.6→1.20.7, `buddy` 0.11.3→0.11.4, `sdd` 2.4.1→2.4.2. Every value below was
-re-derived from disk (each profile's `installed_plugins.json` `.plugins` map — every
-array element, not just `[0]` — plus cache-dir presence and README.md's version table),
-not carried forward. `scripts/check-profile-parity.sh` reports OK for all four
-cache-based plugins (`sdd` correctly excluded — see its own note below, now stale, see
-History)._
+_Last refresh: `a468a84`, 2026-09-14 — refreshed after releasing `codescout-companion`
+1.20.7→1.20.8 via `scripts/release.sh codescout-companion patch` (fix: tracker-hygiene
+SKILL.md `supersedes` edge-direction correction, plus the already-committed
+`pre-edit-dirty-check.mjs` path-resolution fix). Re-derived from disk (each profile's
+`installed_plugins.json` `.plugins` map — every array element — plus cache-dir presence
+and README.md's version table), not carried forward. `scripts/check-profile-parity.sh`
+reports OK for all four cache-based plugins (`sdd` correctly excluded — see its own note
+below)._
 
 **buddy** — canonical `0.11.4` · readme `0.11.4` · marketplace clean ✅
 
@@ -39,13 +39,13 @@ History)._
 | `~/.claude-sdd` | 1.1.7 ✅ | ✅ | ✅ | `1.1.7` ✅ | ✅ |
 | `~/.claude-kat` | 1.1.7 ✅ | ✅ | ✅ | `1.1.7` ✅ | ✅ |
 
-**codescout-companion** — canonical `1.20.7` · readme `1.20.7` · marketplace clean ✅
+**codescout-companion** — canonical `1.20.8` · readme `1.20.8` · marketplace clean ✅
 
 | profile | installed | cache dir | install_path ok | all entries |
 |---|---|---|---|---|
-| `~/.claude` | 1.20.7 ✅ | ✅ | ✅ | `1.20.7` ✅ |
-| `~/.claude-sdd` | 1.20.7 ✅ | ✅ | ✅ | `1.20.7` ✅ |
-| `~/.claude-kat` | 1.20.7 ✅ | ✅ | ✅ | `1.20.7` ✅ |
+| `~/.claude` | 1.20.8 ✅ | ✅ | ✅ | `1.20.8` ✅ |
+| `~/.claude-sdd` | 1.20.8 ✅ | ✅ | ✅ | `1.20.8` ✅ |
+| `~/.claude-kat` | 1.20.8 ✅ | ✅ | ✅ | `1.20.8` ✅ |
 
 **sdd** — canonical `2.4.2` · readme `2.4.2` · marketplace clean ✅ — newly tracked this
 refresh: previously installed nowhere (see the now-superseded note below), `release.sh sdd
