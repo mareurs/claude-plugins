@@ -116,16 +116,26 @@ Create `.claude/codescout-companion.json` (or `codescout-routing.json`) in your 
 
 ## Hooks
 
+**This table is a selection, not an inventory — 8 of the 20 registrations in
+`hooks/hooks.json`.** Derive the real figure rather than trusting this sentence:
+
+```bash
+jq '[.hooks[][].hooks[]] | length' codescout-companion/hooks/hooks.json
+```
+
+`hooks.json` is the only authority on what is wired. A hook absent from the rows
+below is not thereby inactive.
+
 | Event | Hook | Purpose |
 |---|---|---|
-| `SessionStart` | `session-start.sh` | Tool guide + memory hints + onboarding nudge |
-| `SubagentStart` | `subagent-guidance.sh` | Compact guidance for all subagents |
-| `PreToolUse` (Grep/Glob/Read/Bash) | `pre-tool-guard.sh` | Hard-block Read/Edit/Write/Grep/Glob/Bash on source files (path-agnostic), redirect to codescout. Native Read of binary images/PDF is the sole exemption. |
-| `PostToolUse` (EnterWorktree) | `worktree-activate.sh` | Symlink .codescout/ and inject workspace guidance |
-| `PreToolUse` (Edit/Write/edit_code/edit_file/create_file) | `constitution-guard.sh` | Deny-once-per-epoch enforcement of path-scoped "constitution" tracker rules — shells into `codescout constitution-check --path` |
-| `UserPromptSubmit` | `constitution-brief.sh` | Surface global (path-less) "constitution" tracker rules once per epoch via `additionalContext` |
-| `PreCompact` | `constitution-epoch-bump.sh` | Bump the per-session constitution "epoch" so rules re-surface after compaction |
-
+| `SessionStart` | `session-start.mjs` | Tool guide + memory hints + onboarding nudge |
+| `SubagentStart` | `subagent-guidance.mjs` | Compact guidance for all subagents |
+| `PreToolUse` (Grep/Glob/Read/Bash) | `pre-tool-guard.mjs` | Hard-block Read/Edit/Write/Grep/Glob/Bash on source files (path-agnostic), redirect to codescout. Native Read of binary images/PDF is the sole exemption. |
+| `PreToolUse` (`mcp__codescout__.*`) | `principal-stamp.mjs` | Stamp the calling principal (`session_id/agent_id`) into codescout tool arguments, so the server can tell a subagent's call from its parent's — the one thing the MCP wire cannot carry. Silent for parent calls, by design. Emits **no** `permissionDecision`. |
+| `PostToolUse` (EnterWorktree) | `worktree-activate.mjs` | Symlink .codescout/ and inject workspace guidance |
+| `PreToolUse` (Edit/Write/edit_code/edit_file/create_file) | `constitution-guard.mjs` | Deny-once-per-epoch enforcement of path-scoped "constitution" tracker rules — shells into `codescout constitution-check --path` |
+| `UserPromptSubmit` | `constitution-brief.mjs` | Surface global (path-less) "constitution" tracker rules once per epoch via `additionalContext` |
+| `PreCompact` | `constitution-epoch-bump.mjs` | Bump the per-session constitution "epoch" so rules re-surface after compaction |
 ## Ollama Setup
 
 Semantic search (`semantic_search`, `index`) requires an embedding backend.
@@ -256,6 +266,26 @@ codescout's SQLite DB, calls its CLI binary, and references its internal
 schema. It should be updated whenever codescout adds features that affect
 exploration workflows.
 
+### `principal-stamp.mjs` and the server version
+
+`principal-stamp.mjs` writes an argument key (`dev.codescout.mcp/agentId`) that
+only a codescout server carrying `session_key::principal_from_arguments` reads
+and strips. The two halves ship from different repos and update independently, so
+the pairing matters:
+
+- **New hook, old server** — safe. The key reaches the tool's argument parsing,
+  where it is ignored. Measured 2026-09-14 at the live tool surface; an earlier
+  draft of the server's own doc comment asserted the opposite (that
+  `deny_unknown_fields` would refuse it) and was corrected against the
+  measurement. Not exhaustively proven for every tool, so treat it as "no
+  observed rejection" rather than a guarantee — the cost of being wrong is one
+  failed call, not corruption.
+- **New server, old hook (or no plugin)** — safe and is the default everywhere
+  else. Absent key means "this session's own parent", which is exactly right for
+  a session that spawns no subagents.
+
+Neither half is load-bearing for correctness: without the stamp the server
+over-delivers guides it already sent, which costs context and nothing else.
 ## Changelog
 ### 1.13.1
 

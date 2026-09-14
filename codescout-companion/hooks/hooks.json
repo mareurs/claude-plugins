@@ -120,6 +120,15 @@
             "command": "node ${CLAUDE_PLUGIN_ROOT}/hooks/pre-edit-hint.mjs"
           }
         ]
+      },
+      {
+        "matcher": "mcp__codescout__.*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node ${CLAUDE_PLUGIN_ROOT}/hooks/principal-stamp.mjs"
+          }
+        ]
       }
     ],
     "PostToolUse": [
