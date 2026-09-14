@@ -95,10 +95,14 @@ Resolve `<codescout-repo>` from `claude mcp list` (the codescout server's source
 ```python
 doc(action="append_entry", id="<tracker artifact id>", id_prefix="F",
          anchor_heading="## Template for new entries",
-         title="<one-line title>", body="**Observed:** ...")
+         title="<one-line title>", body="**Observed:** ...",
+         index_row="| {id} | <date> | <sev> | <cat> | open | **<title>** — … |",
+         index_after_line="<the table line your row follows>")
 ```
 
-One write: the server allocates the next `F-N` / `W-N` id (separate counters), writes `## F-N — <title>` at the ledger's own level — the only heading shape `link_scan` accepts as a definition — records the high-water mark, and stamps `**Valid:** dated <today>` unless the body declares a class. **`dated` takes no trailing text.** Put any qualifier on a following line — `**Valid:** dated 2026-05-18` then a blank line then the prose. An em-dash tail after `dated` is rejected outright (`is not an ISO date`), and the two branches of the grammar differ here: only `conditional — <event>` carries one. **Then** add the Index / Wins Index row using the id the call returned.
+One write: the server allocates the next `F-N` / `W-N` id (separate counters), writes `## F-N — <title>` at the ledger's own level — the only heading shape `link_scan` accepts as a definition — records the high-water mark, and stamps `**Valid:** dated <today>` unless the body declares a class. **`dated` takes no trailing text.** Put any qualifier on a following line — `**Valid:** dated 2026-05-18` then a blank line then the prose. An em-dash tail after `dated` is rejected outright (`is not an ISO date`), and the two branches of the grammar differ here: only `conditional — <event>` carries one. `index_row` is written in that same `fs::write` with `{id}` replaced by the id just allocated, so the section, the high-water mark and the Index row land together — **this is what "one call" means, and omitting the two parameters silently gives you the two-call form instead.**
+
+**`index_after_line` fails silently in both directions, so read the table before choosing the anchor.** It inserts after the **first** line equal to what you pass: a line that is not unique writes your row into the wrong table, and a line that does not exist writes nothing at all and allocates no id. Neither raises an error — and `index_row`/`index_after_line` are **both-or-neither**. Prefer the target table's **last existing row** (unique by construction, since ids are) over the `|---|---|` separator, which anchors to the table's top and is repeated 9 times in one live codescout ledger. Top is right for a newest-first ledger and wrong for an oldest-first one; that corpus does not agree, so the ledger you are writing decides.
 
 `edit_file` is not the append path, though it works at first: a fresh copy of the template ships without `entry_prefix`, so it's directly editable — but once `entry_prefix` is declared to guard the ledger (which `get_guide("tracker-conventions")` instructs), the librarian guard refuses direct edits and only `append_entry` writes. Reach for `edit_file` for prose sections and index-table touch-ups, never for allocating an entry.
 
