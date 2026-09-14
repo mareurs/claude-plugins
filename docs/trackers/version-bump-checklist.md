@@ -14,13 +14,16 @@ Release readiness across plugins × profiles. See
 
 ## State
 
-_Last refresh: `b2cb78e`, 2026-09-14 — refreshed after releasing `codescout-companion`
-1.20.8→1.20.9 via `NO_PUSH=1 scripts/release.sh codescout-companion patch` (feat: the new
-`principal-stamp.mjs` PreToolUse hook, `de7d16a`, patch-id
-`3d651075ea8daa4901b31c425467d47960992989`). **Committed locally and deliberately NOT
-pushed** — the operator holds the push. Re-derived from disk (each profile's
-`installed_plugins.json` `.plugins` map — every array element — plus cache-dir presence
-and README.md's version table), not carried forward. `scripts/check-profile-parity.sh`
+_Last refresh: `0a10a5b`, 2026-09-14 — refreshed after releasing `codescout-companion`
+1.20.9→1.20.10 via `scripts/release.sh codescout-companion patch` (fix:
+`pre-edit-dirty-check.mjs` restates its authorship claim as an observation about its own
+marker set, `9169527`; corrected the this-machine-only "hooks need no release" assumption
+before releasing — hooks resolve through the versioned cache for any install that isn't
+this exact directory checkout, same as skills/commands). **Pushed** — both this commit
+and the prior `de7d16a`/`b2cb78e`/`3c45d76` (1.20.9) release, which a previous refresh
+noted as held back by the operator, are now on `origin/main`. Re-derived from disk (each
+profile's `installed_plugins.json` `.plugins` map — every array element — plus cache-dir
+presence and README.md's version table), not carried forward. `scripts/check-profile-parity.sh`
 reports OK for all four cache-based plugins (`sdd` correctly excluded — see its own note
 below)._
 
@@ -40,13 +43,13 @@ below)._
 | `~/.claude-sdd` | 1.1.7 ✅ | ✅ | ✅ | `1.1.7` ✅ | ✅ |
 | `~/.claude-kat` | 1.1.7 ✅ | ✅ | ✅ | `1.1.7` ✅ | ✅ |
 
-**codescout-companion** — canonical `1.20.9` · readme `1.20.9` · marketplace clean ✅
+**codescout-companion** — canonical `1.20.10` · readme `1.20.10` · marketplace clean ✅
 
 | profile | installed | cache dir | install_path ok | all entries |
 |---|---|---|---|---|
-| `~/.claude` | 1.20.9 ✅ | ✅ | ✅ | `1.20.9` ✅ |
-| `~/.claude-sdd` | 1.20.9 ✅ | ✅ | ✅ | `1.20.9` ✅ |
-| `~/.claude-kat` | 1.20.9 ✅ | ✅ | ✅ | `1.20.9` ✅ |
+| `~/.claude` | 1.20.10 ✅ | ✅ | ✅ | `1.20.10` ✅ |
+| `~/.claude-sdd` | 1.20.10 ✅ | ✅ | ✅ | `1.20.10` ✅ |
+| `~/.claude-kat` | 1.20.10 ✅ | ✅ | ✅ | `1.20.10` ✅ |
 
 **Cached ≠ registered, and this release is the case where the gap bites.** 1.20.9 adds a
 NEW `hooks.json` registration (`principal-stamp.mjs`), and a hook file present in the
