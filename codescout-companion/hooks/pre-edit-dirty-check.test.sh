@@ -87,5 +87,57 @@ else
     "got non-empty output: $out_second"
 fi
 
+# 4. The headline must claim only what the hook can OBSERVE.
+#
+#    docs/issues/2026-09-14-the-dirty-check-reports-any-write-it-did-not-mediate-as-another-sessions.md:
+#    the old headline read "...that this session did not write", a negative authorship fact
+#    no PreToolUse payload can establish. It fired on the session's OWN work whenever the
+#    write bypassed this hook -- edit_code's LSP rename touching files the call never names,
+#    and (the higher-volume route on a docs session) a librarian `doc(...)` write, which
+#    happens server-side with no payload at all.
+#
+#    These assert the ABSENCE of the authorship claim and the PRESENCE of the observable
+#    one. Absence is the load-bearing half and the reason this block exists: every other
+#    assertion in this file is about the predicate, which was correct throughout and stayed
+#    correct through the defect. A suite of predicate tests cannot see a headline that
+#    over-claims, so nothing here would have reddened. Pinning the two phrases rather than
+#    the whole sentence keeps a rewording free while making the regression itself red.
+#
+#    Not asserted: that the advisory stays SILENT after a librarian write. That was the
+#    original acceptance criterion and it is not achievable here -- `doc()` addresses
+#    artifacts by ID, not path, so this hook has nothing to hash a marker from without
+#    catalog access. Left unasserted deliberately rather than weakened into something
+#    passable.
+case "$ctx_root" in
+  *'this session did not write'*)
+    fail "headline claims only what the hook observes" \
+      "the unobservable authorship claim is back: $ctx_root" ;;
+  *)
+    pass "headline claims only what the hook observes (no authorship assertion)" ;;
+esac
+case "$ctx_root" in
+  *'no edit through this hook accounts for'*)
+    pass "headline states the observable fact (this hook's own records)" ;;
+  *)
+    fail "headline states the observable fact (this hook's own records)" "got: $ctx_root" ;;
+esac
+
+# 5. The body must keep telling the reader the claim is about the hook, not about
+#    authorship -- and must keep naming the instrument that CAN answer authorship.
+#    CLAUDE.md § Testing Discipline: a guard's predicate is routinely tested and its
+#    remedy text never is, so assert the shape (both parties still named), not the prose.
+case "$ctx_root" in
+  *'file-provenance.py'*)
+    pass "body still names the instrument that can answer authorship" ;;
+  *)
+    fail "body still names the instrument that can answer authorship" "got: $ctx_root" ;;
+esac
+case "$ctx_root" in
+  *"THIS HOOK'S RECORDS"*)
+    pass "body still says whose records the claim is about" ;;
+  *)
+    fail "body still says whose records the claim is about" "got: $ctx_root" ;;
+esac
+
 echo; echo "pre-edit-dirty-check: $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]

@@ -1,5 +1,5 @@
-// PreToolUse hook — warn before editing a file that already carries
-// uncommitted changes this session did not write.
+// PreToolUse hook — warn before editing a file that carries uncommitted
+// changes no edit through this hook accounts for.
 //
 // WHY, AND WHY AT EDIT TIME
 // -------------------------
@@ -86,20 +86,40 @@ if (status === null || status === '') process.exit(0);
 
 const rel = relative(projectRoot, absTargetPath) || targetPath;
 
-// Claim only what the check proves. `git status` establishes that the content is
-// uncommitted and that this session recorded no write to it. It does NOT
-// establish a peer — a previous session of your own leaves an identical trace —
-// and naming an unchecked cause ends the search for the real one.
+// Claim only what the check can observe, and note that those are two different
+// scopes. `git status` proves the content is uncommitted. The MARKER set proves
+// something narrower and about ourselves: no write THROUGH THIS HOOK was
+// recorded. Authorship is neither, and is not observable from a PreToolUse
+// payload at all -- so the headline states the hook's own records and leaves the
+// world alone.
+//
+// The earlier headline read "...that this session did not write", which fires on
+// the session's OWN work whenever the write bypassed this hook: edit_code's LSP
+// rename touches files the call never names, and a librarian `doc(...)` write
+// happens server-side with no PreToolUse payload at all. On a docs-heavy session
+// the librarian route dominates by call volume.
+// codescout:docs/issues/2026-09-14-the-dirty-check-reports-any-write-it-did-not-mediate-as-another-sessions.md
+//
+// Why the wording is fixed here rather than the detection widened: marking the
+// librarian route is not available to this hook. `doc()` addresses artifacts by
+// ID, not by path -- `doc(action="update", id="dd98...")` carries no path to hash
+// a marker from -- so mediating it needs catalog access the hook does not have.
+// Softening the claim needs none of that and cannot be reopened by a write path
+// nobody has invented yet.
 contextPreToolUse(
-  `[cs-hint] \`${rel}\` already has uncommitted changes that this session did not write.\n` +
+  `[cs-hint] \`${rel}\` has uncommitted changes that no edit through this hook accounts for.\n` +
     `\n` +
-    `On a shared checkout \`git commit -- <path>\` commits the WORKING TREE there, so your\n` +
-    `edit and the existing change would land together under your message. Four such\n` +
+    `That is a statement about THIS HOOK'S RECORDS, not about who wrote the file. It sees\n` +
+    `Edit, Write, edit_code, edit_file and create_file, and nothing else. Your own writes via\n` +
+    `a librarian \`doc(...)\` call, an edit_code rename touching files it did not name, or a\n` +
+    `native \`sed\`/\`tee\`, all leave exactly this trace.\n` +
+    `\n` +
+    `Why it is worth a line anyway: on a shared checkout \`git commit -- <path>\` commits the\n` +
+    `WORKING TREE there, so if the change IS a peer's, it lands under your message. Four such\n` +
     `captures are recorded in codescout's\n` +
     `docs/issues/2026-08-31-peer-commit-captures-another-sessions-working-tree.md.\n` +
     `\n` +
-    `This states only what \`git status --porcelain\` proves. It does NOT establish a peer:\n` +
-    `an earlier session of your own leaves the same trace. To find out whose:\n` +
+    `To find out whose — worth doing only if you do not already recognise the change as yours:\n` +
     `\n` +
     `    ./scripts/file-provenance.py ${rel}    # codescout repo; ~7s, scans transcripts\n` +
     `\n` +

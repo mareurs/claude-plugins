@@ -114,16 +114,35 @@ check "alt-server-stamped-via-env" "s/a" \
        | jq -r '.hookSpecificOutput.updatedInput["dev.codescout.mcp/agentId"] // "none"')"
 
 # --- The key must stay byte-identical to the server's PRINCIPAL_ARG_KEY ---
-# Drift here is silent: the server ignores an unknown argument key, so a typo
-# costs the whole feature and reds nothing. Checked only when the sibling
-# checkout is present, and skipped rather than failed when it is not.
+# Drift here is silent in the worst direction: the server ignores an unknown argument
+# key, so a typo costs the whole feature and reds nothing at runtime.
+#
+# TWO checks, because they fail in different places and only one of them runs in CI.
+HOOK_KEY=$(grep -o "const KEY = '[^']*'" "$HOOK" | sed "s/.*'\(.*\)'/\1/")
+
+# (a) Pinned literal. Unconditional, so it runs in CI, where no codescout checkout
+#     exists. Catches HOOK-SIDE drift only -- editing this literal to match a hook typo
+#     is possible, which is exactly why (b) exists and why this is not the whole guard.
+check "key-matches-pinned-literal" "dev.codescout.mcp/agentId" "$HOOK_KEY"
+
+# (b) Cross-repo agreement, when the sibling checkout is present. This is the real
+#     contract: it reads the Rust constant and so cannot be satisfied by editing this
+#     file alone.
+#
+#     KNOWN CEILING, stated here rather than in a doc nobody opens: (b) SKIPS in CI,
+#     and a skip is not a pass. So a change made in the codescout repo that renames
+#     PRINCIPAL_ARG_KEY is caught on a developer machine holding both repos and NOWHERE
+#     ELSE -- no automated gate in either repository sees both halves. That is the same
+#     two-repositories-one-contract shape as the IL-4 hook incident
+#     (codescout:docs/issues/archive/2026-09-03-il4-deny-hook-will-deadlock-markdown-reads-after-the-fold.md),
+#     which is why it is written down instead of assumed away.
 RS="$(cd "$(dirname "$0")" && pwd)/../../../codescout/src/tools/session_key.rs"
 if [ -f "$RS" ]; then
     SERVER_KEY=$(grep -o 'PRINCIPAL_ARG_KEY: &str = "[^"]*"' "$RS" | sed 's/.*"\(.*\)"/\1/')
-    HOOK_KEY=$(grep -o "const KEY = '[^']*'" "$HOOK" | sed "s/.*'\(.*\)'/\1/")
     check "key-matches-server" "$SERVER_KEY" "$HOOK_KEY"
 else
-    echo "SKIP [key-matches-server]: codescout checkout not found at $RS"
+    echo "SKIP [key-matches-server]: no codescout checkout at $RS — hook-side drift is still"
+    echo "     covered by key-matches-pinned-literal above; SERVER-side drift is NOT covered here."
 fi
 
 echo "---"

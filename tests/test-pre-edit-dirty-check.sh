@@ -35,13 +35,33 @@ else
   fail "dirty + unmarked: warns and names the path" "$OUT"
 fi
 
-# --- 2. Claim only what is proven (ADR clause 3). `git status` establishes that
-#        the content is uncommitted and unmarked. It does NOT establish a peer.
-#        Naming an unchecked cause ends the search for the real one.
-if assert_context_contains "$OUT" "this session did not"; then
-  pass "message claims only what git proves (no invented peer)"
+# --- 2. Claim only what is proven (ADR clause 3). The hook can observe two things:
+#        `git status` says the content is uncommitted, and the MARKER SET says no write
+#        through this hook was recorded. It cannot observe AUTHORSHIP at all, and
+#        naming an unchecked cause ends the search for the real one.
+#
+#        This assertion used to pin the phrase "this session did not", which was the old
+#        headline's way of disclaiming a peer. That phrasing was itself the defect: it
+#        asserted a negative authorship fact, and so fired on the session's OWN work
+#        whenever the write bypassed this hook -- an edit_code rename touching files the
+#        call never named, or a librarian `doc(...)` write, which happens server-side with
+#        no PreToolUse payload at all.
+#        codescout:docs/issues/2026-09-14-the-dirty-check-reports-any-write-it-did-not-mediate-as-another-sessions.md
+#
+#        So the assertion now tests the INTENT its own comment always stated -- no invented
+#        cause -- instead of the sentence that used to carry it. Both directions are
+#        checked, because each is monotone the other way: the absence half alone passes on
+#        an empty message, and the presence half alone passes on a message that scopes the
+#        claim and then asserts authorship anyway.
+if ! assert_context_contains "$OUT" "this session did not"; then
+  pass "message asserts no authorship fact (the claim the hook cannot observe)"
 else
-  fail "message claims only what git proves" "$OUT"
+  fail "message asserts no authorship fact" "authorship claim is back: $OUT"
+fi
+if assert_context_contains "$OUT" "THIS HOOK'S RECORDS"; then
+  pass "message scopes its claim to what the hook actually holds"
+else
+  fail "message scopes its claim to what the hook actually holds" "$OUT"
 fi
 
 # --- 3. The remedy names an action its addressee can actually perform.
