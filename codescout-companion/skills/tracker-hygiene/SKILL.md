@@ -209,9 +209,19 @@ registry is the worst outcome; deferring a mechanical one only costs a re-run.
 **`supersedes` is an edge, not a status (D2/D5).** When a tracker is terminal
 because a *successor* replaced it, do NOT `doc(update,
 patch={status:"superseded"})`. Create the edge — `doc(action="link",
-src_id=<old>, dst_id=<successor>, rel="supersedes")` — which flips the old
+src_id=<successor>, dst_id=<old>, rel="supersedes")` — which flips the old
 tracker's status to `superseded` **and** emits the event; a bare status patch
-leaves the graph and event log wrong. No successor → a plain `status: archived`
+leaves the graph and event log wrong.
+
+> **The direction is the trap, and this page had it backwards until 2026-09-14.**
+> Read the edge as a sentence: **src supersedes dst**, so the DST is the one that
+> gets marked `superseded`. `link.rs` takes `previous_status` from `dst` and its
+> test `supersedes_transitions_dst_status` asserts `dst` becomes `superseded`.
+> The earlier form here said `src_id=<old>, dst_id=<successor>` — which marks the
+> SUCCESSOR superseded, the exact inverse of the intent, and does it silently:
+> the call returns `ok` and reports the transition it caused, so the only way to
+> notice is to read that field. Measured live that day on two codescout bug
+> records, following this page verbatim. No successor → a plain `status: archived`
 patch. Genuinely forked with no clear canonical → a D5 judgment, not an archive.
 (`get_guide("tracker-conventions")` § Cross-linking.)
 
@@ -347,9 +357,10 @@ Nothing is edited before its verdict.
   `doc(move)` — never bare `git mv`, which orphans the catalog row
   (`id = sha256(abs_path)`).
 - For a tracker superseded **by a successor**, archive via a `supersedes` edge —
-  `doc(action="link", src_id=<old>, dst_id=<successor>, rel="supersedes")` —
+  `doc(action="link", src_id=<successor>, dst_id=<old>, rel="supersedes")` —
   never a `status:"superseded"` patch: the edge flips status and emits the event
-  (see the supersedes note in Phase 3).
+  (see the supersedes note in Phase 3, including the direction warning — **src
+  supersedes dst**, so the DST is the one marked `superseded`).
 - After applying **any** `doc(move)`, run `librarian(action="link_scan",
   write=true)` once — a move churns the `id` and the reindex cascade-drops the
   artifact's `cites` edges; `link_scan` heals them (idempotent, scanner-owned,
