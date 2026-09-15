@@ -28,8 +28,15 @@ u=$(id -u)
 # comm=claude walk passes its own server and terminates at PID 1. Measured
 # 2026-09-02: 3 of 21 socket-bound sessions on this machine were version-pinned.
 me=$$
+# Field read is sed, NOT `awk '/^PPid:/{print <dollar>2}'`. A skill body is
+# argument-substituted before delivery: a `$` followed by a digit is replaced by a
+# word of the CALLER's `args` string, inside fenced code blocks too. Measured
+# 2026-09-15 on CLI 2.1.272 — two sessions invoking this skill minutes apart were
+# delivered `{print garaj-96}` and `{print terrace}`, each the third word of its own
+# args, and out-of-range indexes pass through untouched, so short args look clean.
+# sed's substitution form carries no positional token and cannot be rewritten.
 while [ -n "$me" ] && [ "$me" -gt 1 ] 2>/dev/null && [ ! -S "/run/user/$u/cc-socks/$me.sock" ]; do
-  me=$(awk '/^PPid:/{print $2}' "/proc/$me/status" 2>/dev/null)
+  me=$(sed -n 's/^PPid:[[:space:]]*//p' "/proc/$me/status" 2>/dev/null)
 done
 [ -n "$me" ] && [ -S "/run/user/$u/cc-socks/$me.sock" ] || me=""
 rows=$(for s in /run/user/$u/cc-socks/*.sock; do
@@ -84,6 +91,18 @@ session, meanwhile, saw a correct table with no `<-- you` row. Neither produced 
 error; both produced a plausible answer. Recorded in codescout as
 `docs/issues/archive/2026-09-02-greedy-name-regex-reads-a-former-session-name-as-the-current-one.md`
 and `docs/issues/archive/2026-09-02-comm-filter-misses-version-pinned-claude-processes.md`.
+
+**A third shipped in the same self-concealing shape, and it was never this skill's
+bug.** Until 2026-09-15 the walk read `awk '/^PPid:/{print <dollar>2}'`, and the
+harness rewrote that token with a word of the caller's own `args` on the way in, so
+the block a session executed was not the block on disk. Sessions that noticed filed
+it as a typo here; the file was correct every time. Two things follow. If a
+delivered block ever again disagrees with this file, suspect substitution before
+suspecting the skill — diff the two rather than hand-patching what you were handed.
+And if you edit this skill, never write `$` immediately followed by a digit
+anywhere in it. Named variables (`$me`, `$u`, `$p`) and `$$` are untouched; only
+`$`-plus-digit is rewritten, and only when the caller's args run that long, which
+is why a short-args test looks clean.
 ## Step 2 — branch on the last count
 
 **`across 1 profile(s)`** — `ListAgents` is complete on this machine. Address

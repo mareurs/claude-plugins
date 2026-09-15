@@ -98,5 +98,46 @@ else
   fail "nested status does not displace the top-level one" "got '$got'"
 fi
 
+# 5. NO `$`-PLUS-DIGIT ANYWHERE IN THE BODY. A skill body is argument-substituted
+#    before delivery, so a `$2` sitting in a fenced code block is rewritten with a
+#    word of the CALLER's args -- the block that runs is not the block on disk.
+#    Shipped until 2026-09-15 as `awk '/^PPid:/{print $2}'` and reproduced on CLI
+#    2.1.272: two sessions minutes apart were delivered `{print garaj-96}` and
+#    `{print terrace}`, each the third word of its own args. This is the same
+#    self-concealing class as the other two -- a rewritten walk finds no socket,
+#    prints no `<-- you`, and renders a table that looks right. Worse, an
+#    out-of-range index passes through untouched, so short args look clean and no
+#    runtime signal exists at all. This check is the only guard.
+#    Deliberately the WHOLE file, not just the code block: prose is substituted
+#    too, where a literal cost like `$4.20` would silently become `.20`.
+hits=$(grep -n '\$[0-9]' "$SKILL" || true)
+if [ -z "$hits" ]; then
+  pass "no \$-plus-digit token survives in the skill body"
+else
+  fail "no \$-plus-digit token survives in the skill body" "arg-substituted on delivery: $hits"
+fi
+
+# 6. THE CHECK IS DISCRIMINATING -- an observed RED, not an assertion's existence.
+#    Case 5 alone would pass forever against a grep that matches nothing at all
+#    (a typo'd pattern, a moved $SKILL). Run it against the exact line that
+#    shipped and REQUIRE a hit.
+printf '%s\n' "  me=\$(awk '/^PPid:/{print \$2}' \"/proc/\$me/status\")" > "$TMP/probe.md"
+if grep -q '\$[0-9]' "$TMP/probe.md"; then
+  pass "guard still catches the form that shipped"
+else
+  fail "guard still catches the form that shipped" "grep missed the known-bad line"
+fi
+
+# 7. The replacement reads the SAME field the old awk did. Extracted from
+#    SKILL.md, never re-typed, for the reason given at PROG above.
+SEDPROG=$(grep -m1 "me=\$(sed -n" "$SKILL" | sed -n "s/.*sed -n '\([^']*\)'.*/\1/p")
+printf 'Name:\tbash\nPPid:\t4124418\nPPid2:\t9\n' > "$TMP/status"
+got=$(sed -n "$SEDPROG" "$TMP/status" 2>/dev/null)
+if [ "$got" = "4124418" ]; then
+  pass "sed field read returns the PPid value"
+else
+  fail "sed field read returns the PPid value" "got '$got', expected 4124418"
+fi
+
 echo "-- $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]
