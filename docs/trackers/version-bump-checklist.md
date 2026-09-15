@@ -14,122 +14,70 @@ Release readiness across plugins × profiles. See
 
 ## State
 
-_Last refresh: `0a10a5b`, 2026-09-14 — refreshed after releasing `codescout-companion`
-1.20.9→1.20.10 via `scripts/release.sh codescout-companion patch` (fix:
-`pre-edit-dirty-check.mjs` restates its authorship claim as an observation about its own
-marker set, `9169527`; corrected the this-machine-only "hooks need no release" assumption
-before releasing — hooks resolve through the versioned cache for any install that isn't
-this exact directory checkout, same as skills/commands). **Pushed** — both this commit
-and the prior `de7d16a`/`b2cb78e`/`3c45d76` (1.20.9) release, which a previous refresh
-noted as held back by the operator, are now on `origin/main`. Re-derived from disk (each
-profile's `installed_plugins.json` `.plugins` map — every array element — plus cache-dir
-presence and README.md's version table), not carried forward. `scripts/check-profile-parity.sh`
-reports OK for all four cache-based plugins (`sdd` correctly excluded — see its own note
-below)._
+_Last refresh: `6a874c4`, 2026-09-15 — refreshed after releasing **two** plugins in one
+session: `codescout-companion` 1.20.10→1.20.11 and `buddy` 0.11.4→0.11.5, both via
+`scripts/release.sh <plugin> patch`, both **pushed**. Content was prompt-surface
+corrections, not code: `5fa6f92` retired the collapsed tool names from the always-on
+surfaces, `e00ae86` corrected three wrong `append_entry` contract claims in the recon
+skill. Re-derived from disk — each profile's `installed_plugins.json` `.plugins` map,
+**every array element**, plus cache-dir presence and README.md's version table._
 
-**buddy** — canonical `0.11.4` · readme `0.11.4` · marketplace clean ✅
+**⚠ The tracked set shrank from five plugins to two, and that is the finding of this
+refresh.** `claude-statusline`, `sdd` and `session-bridge` have **no install record in any
+of the three profiles**. The previous refresh (`0a10a5b`, 2026-09-14) rendered all three as
+installed and fully green — `1.1.7`, `2.4.2`, `0.1.0` across 9 plugin×profile pairs. Per
+this tracker's own prompt a plugin installed nowhere is not a failure and is omitted from
+`params`, so they are dropped here rather than flagged red — which is exactly why the drop
+is easy to miss.
 
-| profile | installed | cache dir | install_path ok | all entries |
-|---|---|---|---|---|
-| `~/.claude` | 0.11.4 ✅ | ✅ | ✅ | `0.11.4` ✅ |
-| `~/.claude-sdd` | 0.11.4 ✅ | ✅ | ✅ | `0.11.4` ✅ |
-| `~/.claude-kat` | 0.11.4 ✅ | ✅ | ✅ | `0.11.4` ✅ |
+**`release.sh` did not remove them.** Step 5 is a surgical `jq` assignment —
+`.plugins["<plugin>@<marketplace>"][0].version` and `.installPath` only
+(`release.sh:104-107`) — leaving every sibling key untouched. Today's two releases rewrote
+all three record files (mtime `2026-09-15 09:07:23`) but could not have dropped another
+plugin's key. The records were already absent before this session. **Undetermined from
+here:** whether the three were uninstalled after 2026-09-14, or the 09-14 refresh recorded
+state that was never on disk. This tracker's own prompt says "`sdd` is stable and
+uninstalled by design; never flag it", which the 09-14 params contradicted by listing `sdd`
+as installed everywhere — that favours the second reading. All three cache dirs still exist
+in all three profiles, so the absence is in the *records*, not the bytes.
 
-**claude-statusline** — canonical `1.1.7` · readme `1.1.7` · marketplace clean ✅
+**None of the three is enabled anywhere**, so nothing was loading them regardless:
+`enabledPlugins` is `superpowers` + `codescout-companion` + `buddy` in all three profiles
+(plus `andrej-karpathy-skills` + `hookify` in `~/.claude-sdd`), matching CLAUDE.md.
 
-| profile | installed | cache dir | install_path ok | all entries | cache = working tree |
-|---|---|---|---|---|---|
-| `~/.claude` | 1.1.7 ✅ | ✅ | ✅ | `1.1.7` ✅ | ✅ |
-| `~/.claude-sdd` | 1.1.7 ✅ | ✅ | ✅ | `1.1.7` ✅ | ✅ |
-| `~/.claude-kat` | 1.1.7 ✅ | ✅ | ✅ | `1.1.7` ✅ | ✅ |
-
-**codescout-companion** — canonical `1.20.10` · readme `1.20.10` · marketplace clean ✅
-
-| profile | installed | cache dir | install_path ok | all entries |
-|---|---|---|---|---|
-| `~/.claude` | 1.20.10 ✅ | ✅ | ✅ | `1.20.10` ✅ |
-| `~/.claude-sdd` | 1.20.10 ✅ | ✅ | ✅ | `1.20.10` ✅ |
-| `~/.claude-kat` | 1.20.10 ✅ | ✅ | ✅ | `1.20.10` ✅ |
-
-**Cached ≠ registered, and this release is the case where the gap bites.** 1.20.9 adds a
-NEW `hooks.json` registration (`principal-stamp.mjs`), and a hook file present in the
-cache is not a hook Claude Code has wired — that resolves at launch. The rows above are
-evidence of the COPY only; registration needs `/reload-plugins` or a cold restart per
-instance, and is unconfirmed for all three at this refresh.
-
-**sdd** — canonical `2.4.2` · readme `2.4.2` · marketplace clean ✅ — newly tracked this
-refresh: previously installed nowhere (see the now-superseded note below), `release.sh sdd
-patch` seeded it into all three profiles for the first time.
-
-| profile | installed | cache dir | install_path ok | all entries |
-|---|---|---|---|---|
-| `~/.claude` | 2.4.2 ✅ | ✅ | ✅ | `2.4.2` ✅ |
-| `~/.claude-sdd` | 2.4.2 ✅ | ✅ | ✅ | `2.4.2` ✅ |
-| `~/.claude-kat` | 2.4.2 ✅ | ✅ | ✅ | `2.4.2` ✅ |
-
-**session-bridge** — canonical `0.1.0` · readme `0.1.0` · marketplace clean ✅
+**buddy** — canonical `0.11.5` · readme `0.11.5` · marketplace clean ✅
 
 | profile | installed | cache dir | install_path ok | all entries | cache = working tree |
 |---|---|---|---|---|---|
-| `~/.claude` | 0.1.0 ✅ | ✅ | ✅ | `0.1.0` ✅ | ✅ |
-| `~/.claude-sdd` | 0.1.0 ✅ | ✅ | ✅ | `0.1.0` ✅ | ✅ |
-| `~/.claude-kat` | 0.1.0 ✅ | ✅ | ✅ | `0.1.0` ✅ | ✅ |
+| `~/.claude` | 0.11.5 ✅ | ✅ | ✅ | `0.11.5` ✅ | ✅ |
+| `~/.claude-sdd` | 0.11.5 ✅ | ✅ | ✅ | `0.11.5` ✅ | ✅ |
+| `~/.claude-kat` | 0.11.5 ✅ | ✅ | ✅ | `0.11.5` ✅ | ✅ |
 
-**All 12 plugin×profile pairs byte-identical — and measured for all four plugins rather
-than carried.** The distinction matters: an earlier refresh also read green on this column
-for three of the four, but only because those rows were copied forward. Three bumps in
-succession got here — `buddy 0.11.1` closed the 14-file drift, `codescout-companion 1.20.3`
-closed a 1-file skill drift caught between releases, and `1.20.4` closed a 19-file drift
-from the tool-collapse work (see the three 2026-09-03 History entries).
+**codescout-companion** — canonical `1.20.11` · readme `1.20.11` · marketplace clean ✅
 
-**Registration — `~/.claude-kat` CONFIRMED for `1.20.4` by positive control; the other two
-unconfirmed.** `/reload-plugins` reported *3 plugins · 46 skills · 6 agents · **23 hooks***.
-The hook count is the release-specific part: every prior entry in this file recorded **24**,
-and `bb24b7f` deleted `il4-deny-hook`, so 23 is evidence that the **new** `hooks.json` is
-registered rather than merely that a reload happened.
+| profile | installed | cache dir | install_path ok | all entries | cache = working tree |
+|---|---|---|---|---|---|
+| `~/.claude` | 1.20.11 ✅ | ✅ | ✅ | `1.20.11` ✅ | ✅ |
+| `~/.claude-sdd` | 1.20.11 ✅ | ✅ | ✅ | `1.20.11` ✅ | ✅ |
+| `~/.claude-kat` | 1.20.11 ✅ | ✅ | ✅ | `1.20.11` ✅ | ✅ |
 
-Execution was then checked rather than inferred, by the control this file documents below.
-The marker was armed at `/tmp/cs-redirect-958fb49b6ba3` and **its presence verified inside
-the same call** — necessary because `run_command` is itself a codescout tool, so its own
-`PostToolUse` clears the marker; without that in-call confirmation a later absence would
-prove nothing, which is the trap the 2026-08-27 attempt fell into. The next codescout call
-found it **cleared**, and a negative control confirmed no stray `cs-redirect-*` markers, so
-the check read the path it meant to.
+All 6 plugin×profile pairs measured, not carried: `diff -rq` under the documented excludes
+returned empty for every pair. The two changed skill files were additionally byte-checked
+(`SKILL.md` 14,036 B, `references/append-entry-anchoring.md` 5,383 B, `data/gates.md`
+4,780 B), and the cached `gates.md` was read back to confirm it carries the *corrected*
+Iron-Law list — a `grep` for `read_markdown` still hits it, because the rewrite deliberately
+names the retired tools in its explanatory parentheticals, so the grep alone would have been
+a false positive in either direction.
 
-**What this does and does not establish.** `cs-liveness` is a 1.17.0-era hook, so its
-firing alone would prove only *a companion PostToolUse hook executes in this profile*. The
-hook **count** is what makes the evidence release-specific, and it is arithmetic rather than
-inference: the `1.20.3` cache still carries `il4-deny-hook.mjs` **and registers it** (18
-hook entries for this plugin, 1 naming `il4`), while `1.20.4` has it absent (17 entries, 0
-naming `il4`). A `1.20.3` manifest read would therefore have reported **24** hooks; the
-reloader reported **23**. So the process read the **`1.20.4`** manifest.
+**Registration is NOT established by any row above.** Neither release adds a registered
+component — no new `hooks.json` entries, one new *reference* file which is read by path
+rather than registered — so nothing needs a launch-time re-read to become reachable. But
+the skill body itself is served from `installPath`, and the rows above are evidence of the
+COPY only. A cold restart or `/reload-plugins` per instance remains outstanding and
+unconfirmed for all three at this refresh.
 
-**That reaches the skill channel too, by shared read.** Skills and hooks are registered from
-the same plugin manifest at the same `installPath`, so a demonstrated `1.20.4` manifest read
-is a `1.20.4` skill registration — and that cache is byte-identical to the working tree (12
-of 12 pairs). The residual is narrow: no *injected skill body* was read back byte-for-byte,
-so the claim rests on which directory the process demonstrably read, not on observing one
-skill's served text.
-
-**A count that was NOT used as evidence.** The reloader also reported *46 skills* against 45
-in earlier entries, which is tempting and wrong to cite: this repo tracks **21** `SKILL.md`
-files at `1.20.3`, at `34f5da6` and at `HEAD` — an identical set, verified by diffing
-`git ls-tree` at each revision. The +1 came from outside this repo, so it says nothing about
-this release. Recorded because the hook count and the skill count look equally citable and
-only one of them is.
-
-`~/.claude` and `~/.claude-sdd` are separate processes with their own session ids and are
-**not** reached from here.
-
-`sdd` — **superseded 2026-09-13**: now installed in all three profiles (table above).
-Was previously stable-and-uninstalled by design; the Codex hook-manifest fix
-(docs/issues/archive/2026-09-12-codex-plugin-runner-drops-buddy-hook-args.md) touched
-`sdd/hooks/hooks.json` too, so it got its first real release alongside `buddy` and
-`codescout-companion`.
-
-`pi` — README lists it at `0.1.0`, but `pi/` carries no `.claude-plugin/plugin.json` (it is
-a pi-harness extension with its own `install.sh`), so it is outside the discovered plugin
-set and has no install record. Not a gap.
+**Not installed in any profile** (discovered in the repo, omitted from `params`):
+`claude-statusline`, `sdd`, `session-bridge`.
 
 ### The new column, and why it exists
 
@@ -235,6 +183,40 @@ measured on both candidate load paths rather than argued: the record points at k
 two actually serves, they carry the same bytes — so the question CLAUDE.md flags as
 unsettled does not need settling for this release.
 ## History
+
+### 2026-09-15 — two releases, and three plugins that quietly left the tracked set
+
+`codescout-companion` 1.20.10→1.20.11 and `buddy` 0.11.4→0.11.5, released back-to-back and
+pushed (`d00a65e`, `6a874c4`). Both carry prompt-surface corrections rather than code:
+`5fa6f92` retired the collapsed tool names from `.codescout/system-prompt.md` (served as
+`server_instructions` **and** pushed verbatim to every subagent), `buddy/data/gates.md`
+(injected on every `/buddy:summon`) and three codescout memories; `e00ae86` corrected three
+factually wrong `append_entry` contract claims in the recon skill and moved the case law to
+`references/append-entry-anchoring.md`, which also cleared the size cap that had left
+`tests/run-all.sh` red since `e827162`.
+
+**The delta this refresh records is a shrinking denominator, not a red cell.**
+`claude-statusline`, `sdd` and `session-bridge` went from "installed and green in all three
+profiles" (`0a10a5b`, one day earlier) to **no install record in any profile**. Nine
+plugin×profile pairs stopped existing between two refreshes without any red appearing —
+because a plugin installed nowhere is legitimately omitted, so a shrinking set reads exactly
+like a smaller green set. That is the same defect class this tracker's prompt was hardened
+against on 2026-08-26 (the hardcoded plugin list that hid `session-bridge`), now running in
+the opposite direction: auto-discovery correctly found five plugins in the repo, and three
+of them silently left `params`.
+
+Ruled out by reading the script rather than assuming: `release.sh` cannot have caused it.
+Step 5 assigns only `.plugins["<plugin>@<marketplace>"][0].version` and `.installPath`
+(`release.sh:104-107`), leaving sibling keys untouched, so today's two releases rewrote the
+record files without dropping anything. Undetermined: whether the three were uninstalled
+after 2026-09-14 or the 09-14 refresh recorded what was never on disk. The prompt's own
+"`sdd` is stable and uninstalled by design; never flag it" favours the latter. All three
+cache dirs survive in all three profiles, and none of the three appears in `enabledPlugins`
+anywhere, so nothing was loading them either way.
+
+**Promote-when:** if a later refresh finds any of the three back in `params`, record what
+re-installed them. If they stay absent, this `params` shape is correct and the 09-14 rows
+should be treated as unreliable rather than as a regression to repair.
 ### 2026-09-13 — three plugins released in one session (Codex hook-manifest fix)
 
 **Delta:** `codescout-companion` 1.20.6→1.20.7, `buddy` 0.11.3→0.11.4, `sdd` 2.4.1→2.4.2 —
