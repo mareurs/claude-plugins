@@ -7,7 +7,7 @@ description: Use before subagent dispatch, before editing code that changes a st
 
 A **seam** is a place where your next action depends on the current shape of code you have not read this session: a struct's fields, a function's signature, an API's response, a tool's actual output. Scout the seam before you act. When plan and reality disagree, externalize the gap as a session-log entry with a monotonic ID — IDs make lessons portable across sessions; entries without IDs don't compound.
 
-**REQUIRED SUB-SKILL:** None. Composes with `subagent-driven-development`, `writing-plans`, and `verification-before-completion`.
+**REQUIRED SUB-SKILL:** None. See § *Composition with other skills*.
 
 ## When to Use
 
@@ -63,15 +63,11 @@ SID="${CLAUDE_CODE_SESSION_ID:-$(cat .buddy/.current_session_id 2>/dev/null)}" &
 resolves the sid from the harness while `.current_session_id` is last-writer and can name a
 peer. Case law: `references/seam-classes.md`; guard: `tests/test-recon-count.sh` § 7.
 
-Skip silently if the marker dir is unavailable. The skill works without the badge; the badge does not work without the skill.
+Skip silently if the marker dir is unavailable — the skill works without the badge.
 
 ### Phase 2 — Compare
 
-State what the plan / docs said vs. what reality holds. Three outcomes:
-
-- **Match** → scout passed; resume task. No entry.
-- **Gap** → continue to Phase 3 (F-N).
-- **Match, and the scout was non-trivial** (multiple files read, hidden contract surfaced, non-obvious shape) → Phase 3 (W-N). A pre-dispatch scout that prevented a subagent slip is a W-N event even though nothing broke.
+State what the plan / docs said vs. what reality holds. **Match** → resume, no entry. **Gap** → Phase 3 (F-N). **Match, but the scout was non-trivial** (multiple files read, hidden contract surfaced, non-obvious shape) → Phase 3 (W-N): a pre-dispatch scout that prevented a subagent slip is a win even though nothing broke.
 
 ### Phase 3 — Externalize
 
@@ -100,15 +96,13 @@ doc(action="append_entry", id="<tracker artifact id>", id_prefix="F",
          index_after_line="<the table line your row follows>")
 ```
 
-One write: the server allocates the next `F-N` / `W-N` id (separate counters), writes `## F-N — <title>` at the ledger's own level — the only heading shape `link_scan` accepts as a definition — records the high-water mark, and stamps `**Valid:** dated <today>` unless the body declares a class. **`dated` takes no trailing text.** Put any qualifier on a following line — `**Valid:** dated 2026-05-18` then a blank line then the prose. An em-dash tail after `dated` is rejected outright (`is not an ISO date`), and the two branches of the grammar differ here: only `conditional — <event>` carries one. `index_row` is written in that same `fs::write` with `{id}` replaced by the id just allocated, so the section, the high-water mark and the Index row land together — **this is what "one call" means, and omitting the two parameters silently gives you the two-call form instead.**
+One write: the server allocates the next `F-N` / `W-N` id (separate counters), writes `## F-N — <title>` at the ledger's own level (`link_scan` defines on the `<ID> — <title>` shape as a heading's first inline text, at any depth), records the high-water mark, and stamps `**Valid:** dated <today>` unless the body declares a class. **`dated` takes no trailing text.** Put any qualifier on a following line — `**Valid:** dated 2026-05-18` then a blank line then the prose. An em-dash tail after `dated` is rejected outright (`is not an ISO date`), and the two branches of the grammar differ here: only `conditional — <event>` carries one. `index_row` rides the same `fs::write` with `{id}` replaced by the id just allocated, so section, high-water mark and Index row land together — **this is what "one call" means, and omitting the two parameters silently gives you the two-call form instead.**
 
-**`index_after_line` fails silently in both directions, so read the table before choosing the anchor.** It inserts after the **first** line equal to what you pass: a line that is not unique writes your row into the wrong table, and a line that does not exist writes nothing at all and allocates no id. Neither raises an error. Prefer the target table's **last existing row** (unique by construction, since ids are) over the `|---|---|` separator, which anchors to the table's top and is repeated 9 times in one live codescout ledger.
+**The Index row needs a placement anchor, and one of its failure modes is silent.** A declared `snapshot_anchor` is the safer source — a duplicate is refused by name — while a per-call `index_after_line` wins when passed but takes the **first** trimmed match, so a non-unique line (never the `|---|---|` separator) files your row under the wrong table with no error. A line matching *nothing* is the loud case: refused by name, ledger byte-identical, no id consumed. The refusals, what `entry_prefix` actually locks, and the definition-heading shape are in `references/append-entry-anchoring.md` — read it once before your first entry in an unfamiliar ledger.
 
-**Better still, stop choosing an anchor at all.** A row needs one from SOMEWHERE, and the per-call parameter is only one source: declare `snapshot_anchor` once in the ledger's own frontmatter, naming the index table's header line verbatim — `doc(action="update", id=…, patch={"extra": {"snapshot_anchor": "| ID | Date | … |"}})` — and from then on `index_row` **alone** lands every row at the block's **TAIL**, which is where a newest-last ledger wants it. `index_after_line` stays available and WINS when passed. The two are **not** symmetric: `index_after_line` with no `index_row` is refused, and a row with neither anchor source is refused by name. Top is right for a newest-first ledger and wrong for an oldest-first one; that corpus does not agree, so the ledger you are writing decides.
+`edit_file` is not the append path, though it works at first — a fresh template ships without `entry_prefix`, so it is directly editable until the ledger is guarded. After that, `append_entry` is the sole **id allocator** (not the sole writer: `doc(action="update", patch={body_edits: […]})` writes sections and prose). See the reference above.
 
-`edit_file` is not the append path, though it works at first: a fresh copy of the template ships without `entry_prefix`, so it's directly editable — but once `entry_prefix` is declared to guard the ledger (which `get_guide("tracker-conventions")` instructs), the librarian guard refuses direct edits and only `append_entry` writes. Reach for `edit_file` for prose sections and index-table touch-ups, never for allocating an entry.
-
-Never reuse an ID. Never skip an ID. Entries without IDs cannot be cited in commits and do not compound.
+Never reuse an ID. Never skip an ID.
 
 **Severity rubric (F-N).**
 
@@ -145,7 +139,7 @@ With verified context, return to the original task. Announce the scout outcome t
 - F-N written: `Recon: gap captured as F-7 (plan cited .hint field; type has no such field). Proceeding with workaround.`
 - W-N written: `Recon: scout prevented Task 2 test-shape slip; captured as W-2.`
 
-Cite the ID in the next subagent dispatch prompt and in the commit message of any change that closes the gap. IDs persist; the lesson compounds.
+Cite the ID in the next subagent dispatch prompt and in the commit message of any change that closes the gap.
 
 ## Stop Conditions
 
@@ -155,16 +149,12 @@ Reconnaissance is done when **any one** of:
 - The gap is captured as an F-N entry with an ID.
 - The decision is made to revise the plan rather than the code (the plan owns the drift, not the substrate).
 
-Do NOT loop reconnaissance. One pass per seam per session. If the same seam needs scouting again later in the session, the substrate has moved — capture that as a separate F-N entry (`category: architectural` or similar) rather than re-running this flow.
+Do NOT loop. If the same seam needs scouting again later in the session, the substrate has moved — capture that as a separate F-N entry (`category: architectural` or similar) rather than re-running this flow.
 
 ## Common Mistakes
 
 - **Scouting after dispatching.** The subagent has already started; drift now lives in two contexts. Scout BEFORE dispatch.
-- **Externalizing without an ID.** Entries without F-N / W-N IDs can't be cited and don't compound. Always allocate the next ID.
 - **Skipping the counterfactual on W-N.** A win without a counterfactual reads as marketing. Name what would have happened without the pattern, with concrete evidence (round-trips saved, tests that would have failed, files that would have been wrongly edited).
-- **Treating reconnaissance as verification.** Verification gates completion claims; reconnaissance gates seam contact. Different skills, different timing.
-- **Re-scouting the same seam twice.** If the shape didn't change, re-reading is noise. If it did change, that's a new F-N entry.
-- **Pad-filling severity / status.** `med` / `open` as defaults are fine; `med` / `open` with no concrete cost statement is slop. The status enum is in the template — use the specific value that matches.
 
 ## Composition with other skills
 
