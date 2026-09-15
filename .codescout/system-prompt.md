@@ -3,7 +3,7 @@
 ## Entry Points
 
 ### root (codescout-companion)
-- `codescout-companion/hooks/detect-tools.sh` — detection library sourced by every hook; sets HAS_CODESCOUT, BLOCK_READS, WORKSPACE_ROOT
+- `codescout-companion/hooks/detect.mjs` — detection library; sets HAS_CODESCOUT, BLOCK_READS, WORKSPACE_ROOT. Hooks reach it via `lib.mjs`'s `detectFor()`, not directly (`detect-tools.sh` is a legacy bash shim over `detect.py`, sourced only by its own test — not the live path)
 - `codescout-companion/hooks/hooks.json` — event → script mapping (authoritative wiring; start here for any hook question)
 - `codescout-companion/hooks/session-start.mjs` — SessionStart orchestrator (injection budget, drift warnings, auto-reindex)
 - `codescout-companion/hooks/pre-tool-guard.mjs` — PreToolUse hard-blocker for native Read/Grep/Glob/Edit/Bash on source
@@ -11,7 +11,6 @@
 - `codescout-companion/hooks/pre-task-hint.mjs` — PreToolUse `Agent`: recon nudge (matcher `"Agent"`, NOT `"Task"`)
 - `codescout-companion/hooks/explore-inject.mjs` — PreToolUse `Agent`: bootstrap injector — rewrites dispatch prompt via `updatedInput.prompt` (abs path + codescout routing; read-only tool list for `Explore`/`Plan`)
 - `codescout-companion/hooks/il3-deny-hook.sh` — IL3 unbounded-LHS pipe guard. **Present but NOT registered in `hooks.json`** — codescout enforces IL-3 server-side, so this file is currently inert
-- `codescout-companion/hooks/il4-deny-hook.mjs` — PreToolUse `read_file`: IL4 deny where a better tool fits
 - `codescout-companion/hooks/goal-stop-hook.mjs` — Stop gate: goal check
 - `tests/lib/fixtures.sh` — test helpers (assert_denied, assert_reason_contains, make_git_repo)
 - `scripts/check-versions.sh` — version consistency validator
@@ -25,7 +24,7 @@
 
 ## Key Abstractions
 
-- `detect-tools.sh` (`codescout-companion/hooks/`) — shared detection library: sets HAS_CODESCOUT, BLOCK_READS; sourced by all companion hooks
+- `detectFor()` (`codescout-companion/hooks/lib.mjs:91`) — the detection entry point 21 of 23 `.mjs` hooks call; wraps `detect.mjs`, sets HAS_CODESCOUT / BLOCK_READS, and fails open (codescout treated as absent) if detection throws
 - `hook_helpers.py` (`buddy/scripts/`) — buddy event dispatch hub; routes SessionStart / PostToolUse / CSToolUse
 - `derive_mood()` (`buddy/scripts/buddha.py`) — 12-priority mood chain driving statusline + specialist eye expressions
 - `hookSpecificOutput` — shared CC hook protocol: `additionalContext` to inject, `permissionDecision:"deny"` to block
@@ -55,7 +54,7 @@ Avoid: "task" (renamed to "Agent"), "sdd-misc-plugins" (old repo name — now "c
 3. Blast-radius before editing a shared function → `call_graph(symbol, path, direction="callers")`
 4. Trace data/control flow through a function → `call_graph(symbol, path, direction="callees")`
 5. Find who calls a specific hook script → `references(symbol, path)` on the function name
-6. Version/release work → `symbols(path="<plugin>/.claude-plugin/plugin.json")` → `read_markdown("README.md")` → run `check-versions.sh`
+6. Version/release work → `symbols(path="<plugin>/.claude-plugin/plugin.json")` → `read_file("README.md")` → run `check-versions.sh`
 7. buddy mood/judge issue → `symbols(name="derive_mood", include_body=true)` in `buddha.py` + `symbols(path="buddy/scripts/hook_helpers.py")`
 
 ## Project Rules

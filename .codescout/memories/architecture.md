@@ -29,12 +29,12 @@ Authoritative wiring is `codescout-companion/hooks/hooks.json`. `detect-tools.sh
 | SubagentStart | `subagent-guidance.mjs` | inject system-prompt verbatim + codescout routing (subagents don't get `server_instructions`, #29655) |
 | UserPromptSubmit | `constitution-brief.mjs` | buddy-constitution brief; also resolves `/buddy:summon` before the slash command runs, spilling an oversized persona payload to a guard-exempt file under `.buddy/<sid>/` and injecting a pointer |
 | PreCompact | `constitution-epoch-bump.mjs` | bumps the constitution epoch across a compaction |
-| PreToolUse `Edit\|Write\|mcp__codescout__(edit_code\|edit_file\|create_file)` | `constitution-guard.mjs` | buddy-constitution write guard. The matcher is deliberately NOT `worktree-write-guard`'s set: it adds native `Edit`/`Write` and omits `edit_markdown` |
+| PreToolUse `Edit\|Write\|mcp__codescout__(edit_code\|edit_file\|create_file)` | `constitution-guard.mjs` | buddy-constitution write guard. The matcher is deliberately NOT `worktree-write-guard`'s set: it adds native `Edit`/`Write` |
 | PreToolUse `Grep\|Glob\|Read\|Bash\|Edit\|Write` | `pre-tool-guard.mjs` | hard-block native reads/edits on source files |
 | PreToolUse `Bash` | `git-worktree-guard.mjs` | guard git ops under worktrees |
 | PreToolUse `mcp__.*__run_command` | **none since 1.16.9** | `il3-warn-hook.mjs` deleted (`a989d73`). A `contextPreToolUse` advisory can never block, so it was redundant when the server refused and wrong when the server allowed; its hand-copied regex called `ls`/`cat`/`find`/`grep`/`git` unbounded, which its own message called bounded. **Do not re-add a mirror of a server-side predicate.** |
-| PreToolUse `mcp__.*__read_file` | `il4-deny-hook.mjs` | IL4 deny: `read_file` where a better tool fits (markdown/source) |
-| PreToolUse `mcp__codescout__(edit_code\|edit_file\|edit_markdown\|create_file)` | `worktree-write-guard.mjs` | guard codescout writes under worktrees |
+| PreToolUse `mcp__.*__read_file` | **none since 1.20.4** | `il4-deny-hook.mjs` deleted (`bb24b7f`). IL-4 was retired when `read_markdown` folded into `read_file`: the hook denied the only tool that could still serve a markdown read and redirected to one the server no longer registers, deadlocking every such read. Same lesson as the row above — **do not re-add a hook that mirrors a rule the server no longer enforces.** Post-mortem: codescout `docs/issues/archive/2026-09-03-il4-deny-hook-will-deadlock-markdown-reads-after-the-fold.md`. |
+| PreToolUse `mcp__codescout__(edit_code\|edit_file\|create_file)` | `worktree-write-guard.mjs` | guard codescout writes under worktrees |
 | PreToolUse `mcp__codescout__edit_code` | `pre-edit-hint.mjs` | edit_code usage hint |
 | PreToolUse `Agent` | `pre-task-hint.mjs` | per-dispatch recon nudge (matcher `Agent`, NOT `Task` — see `agent-dispatch-hooks`) |
 | PreToolUse `Agent` | `explore-inject.mjs` | explore bootstrap injector — rewrites the dispatch prompt via `updatedInput.prompt` (abs path + codescout routing) |

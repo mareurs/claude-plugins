@@ -64,7 +64,7 @@ install records → `check-profile-parity.sh` → sanity loop → push. `NO_PUSH
 Two steps it cannot do, both required afterwards:
 
 1. Refresh the codescout `version-bump-checklist` tracker (needs the MCP tool):
-   `artifact(action="update", id="cc8cb9e23ab5cc67", commit_refresh=true)`, then verify
+   `doc(action="update", id="cc8cb9e23ab5cc67", commit_refresh=true)`, then verify
    every row — any ❌ is real drift.
 2. **Cold-restart all three Claude Code instances**; a `resume` is not enough, since hook
    registration resolves at process launch. `/reload-plugins` works.
