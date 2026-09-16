@@ -834,7 +834,7 @@ defect in either `buddy` or `pi`'s hook code:
    see. The file already had a `winpath()` helper (`cygpath -m`) for exactly this,
    used elsewhere in the same file — just never applied to the 5 `mktemp`-derived
    `cwd` values. Fixed in `d0683bb`.
-2. **`pi/tests/test-secret-guard.mjs`** — two bugs, found in sequence:
+2. **`harnesses/pi/tests/test-secret-guard.mjs`** — two bugs, found in sequence:
    a. `loadGuard()` redirected `process.env.HOME` to a scratch dir so the guard would
       read a test config instead of the real one, but `secret-guard.ts`'s `agentDir()`
       reads via `os.homedir()`, which on Windows reads `USERPROFILE` and never `HOME`.

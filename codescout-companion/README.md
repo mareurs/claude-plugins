@@ -72,7 +72,7 @@ and camelCase input paths themselves.
 
 ### Pi
 
-Use the repository installer in `pi/install.sh`, which links the Pi routing
+Use the repository installer in `harnesses/pi/install.sh`, which links the Pi routing
 adapter and exposes this package's canonical `skills/` directory. Configure the
 codescout MCP server through `pi-mcp-adapter` with its codescout tools listed as
 `directTools`.

@@ -2,6 +2,8 @@
 kind: tracker
 status: active
 title: Session Log — Session-Passover Implementation
+entry_prefix: F
+entry_high_water_F: 4
 ---
 
 # Session Log — Session-Passover Implementation
@@ -36,6 +38,7 @@ title: Session Log — Session-Passover Implementation
 | F-1 | 2026-06-18 | med | architectural | fixed-verified | "MCPs support agent sessionId" assumption is false for codescout |
 | F-2 | 2026-06-18 | low | plan-prose | mitigated | Template-placement convention contradicted the spec |
 | F-3 | 2026-06-18 | med | tooling-contract | fixed-verified | artifact(create) cannot set the passover template's custom frontmatter keys |
+| F-4 | 2026-09-16 | med | tooling-contract | fixed-verified | Pi rejects the assumed --fork + --no-session isolation form |
 
 ## Wins Index
 
@@ -229,6 +232,12 @@ Codified so the Index column means the same thing across sessions.
 **Fix idea / Pointer:** Filed as codescout bug `13164fb35d6f71ed` (`docs/issues/2026-06-18-artifact-create-no-custom-frontmatter.md`) — source-verified: `time_scope` is a recognized field hardcoded to `None` in `create::call` and absent from `UpdatePatch` (bug); `origin_session_id`/`branch` aren't modeled at all (enhancement, needs passthrough-vs-indexing design). **Fixed + live-verified 2026-06-19** (codescout `8f26a2d4` wired `time_scope` into create/update; `752febb5` added the `extra` custom-frontmatter passthrough). Verified this session: `time_scope` + `extra` both accepted by `artifact(update)`; passover `d12969fff8a557d6` migrated to real frontmatter. CLAUDE.md author step updated to use the new params; no body-level workaround needed on current codescout.
 
 ---
+## F-4 — Pi rejects the assumed --fork + --no-session isolation form
+
+**Valid:** dated 2026-09-16
+
+**Observed:** A real Pi 0.85.1 probe rejected `--fork` combined with `--no-session` (`--fork cannot be combined with --no-session`). The safe working form is `--fork <producer-jsonl> --session-dir <fresh-private-temp-dir>` followed by deleting that child directory after exit.\n\n**Impact:** Planning a direct Claude-to-Pi flag translation would have blocked the snapshot bridge or caused it to persist child sessions into the normal Pi store.\n\n**Resolution:** The Pi extension uses a private temporary `--session-dir`, `--no-extensions`, and a fixed read-only tool allowlist; the probe verified the producer JSONL hash was unchanged.
+
 ## Template for new entries
 
 <!-- Insert new F-N / W-N entries above this line via:

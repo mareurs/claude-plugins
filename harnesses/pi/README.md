@@ -1,6 +1,6 @@
-# pi companion
+# Pi harness
 
-Companion extensions for [pi](https://github.com/earendil-works/pi-mono).
+The Pi member of this repository's [other-harness adapters](../README.md). Companion extensions for [pi](https://github.com/earendil-works/pi-mono).
 Wires all skills from this repo into pi, adds an editor widget for MCP and skill status,
 and connects codescout's code-intelligence tools as first-class pi tools.
 
@@ -74,14 +74,15 @@ This adds `"packages": ["npm:pi-mcp-adapter"]` to `~/.pi/agent/settings.json`.
 
 ```bash
 git clone https://github.com/mareurs/claude-plugins
-cd claude-plugins/pi
+cd claude-plugins/harnesses/pi
 ./install.sh
 ```
 
 The script:
-- Symlinks `pi/extensions/codescout-companion.ts` → `~/.pi/agent/extensions/codescout-companion.ts`
+- Symlinks `harnesses/pi/extensions/codescout-companion.ts` → `~/.pi/agent/extensions/codescout-companion.ts`
+- Symlinks `harnesses/pi/extensions/session-bridge.ts` → `~/.pi/agent/extensions/session-bridge.ts`
 - Symlinks `codescout-companion/.pi/extensions/codescout-mode.ts` → `~/.pi/agent/extensions/codescout-mode.ts`
-- Symlinks `pi/extensions/secret-guard.ts` → `~/.pi/agent/extensions/secret-guard.ts`
+- Symlinks `harnesses/pi/extensions/secret-guard.ts` → `~/.pi/agent/extensions/secret-guard.ts`
 - Adds `codescout-companion/skills`, `buddy/skills`, and `sdd/skills` to `~/.pi/agent/settings.json`
 
 ### Step 3 — MCP configuration
@@ -186,8 +187,8 @@ the servers have not connected yet — they connect lazily on first use.
 ## Verify and troubleshoot
 
 Start a fresh Pi session in a project directory. Its startup summary should list
-`codescout-companion.ts`, `codescout-mode.ts`, and `pi-mcp-adapter` under
-**[Extensions]**. The companion widget should appear below the editor.
+`codescout-companion.ts`, `session-bridge.ts`, `codescout-mode.ts`, and
+`pi-mcp-adapter` under **[Extensions]**. The companion widget should appear below the editor.
 
 The companion widget, routing adapter, and MCP adapter report different state. The widget
 counts MCP tools registered in Pi (`pi.getAllTools()`); the adapter footer counts
@@ -203,7 +204,8 @@ for path in \
   ~/.pi/agent/AGENTS.md \
   ~/.pi/agent/mcp.json \
   ~/.pi/agent/extensions/codescout-mode.ts \
-  ~/.pi/agent/extensions/codescout-companion.ts; do
+  ~/.pi/agent/extensions/codescout-companion.ts \
+  ~/.pi/agent/extensions/session-bridge.ts; do
   test -e "$path" && printf 'OK %s\n' "$path" || printf 'MISSING %s\n' "$path"
 done
 pi list
@@ -237,7 +239,7 @@ Thinking level can also be changed interactively with **Shift+Tab** or via `/set
 
 ## Extension: codescout-companion.ts
 
-The widget extension in `pi/extensions/codescout-companion.ts`.
+The widget extension in `harnesses/pi/extensions/codescout-companion.ts`.
 
 **What it tracks:**
 
@@ -263,6 +265,23 @@ const MCP_SERVERS: { name: string; indicatorTool: string }[] = [
 Each `indicatorTool` is a tool name that is only registered when that server is
 connected. Pick a tool that is always present when the server is up.
 
+## Extension: session-bridge.ts
+
+`harnesses/pi/extensions/session-bridge.ts` provides a local-machine bridge for Pi sessions:
+
+- `session_bridge_list` lists live, persisted Pi sessions that have loaded the extension.
+- `session_bridge_ask` starts a **read-only snapshot fork** of one registered session.
+  It uses a separate temporary session directory and allows only `read`, `grep`, `find`,
+  and `ls`; the producer session file is not modified.
+- `session_bridge_set_alias` assigns a stable local alias to an exact session ID.
+
+This is deliberately snapshot-only. Pi has no supported API for injecting a turn into an
+arbitrary live session, so there is no equivalent to Claude's bridge `bidirectional` mode.
+A snapshot can miss a turn still being written when the question starts. The registry is
+local to the OS user at `~/.pi/agent/session-bridge/active.json`; sessions launched with
+`--no-session` are not registered. Set `PI_SESSION_BRIDGE_PI_BIN` only when the `pi`
+binary is not on `PATH`.
+
 ## Extension: codescout-mode.ts
 
 Shipped in this package at `codescout-companion/.pi/extensions/codescout-mode.ts`. It is intentionally
@@ -278,7 +297,7 @@ The behavior is defined by `codescout-mode.ts`; keep this description aligned wi
 source when changing its blocking rules.
 ## Extension: secret-guard.ts
 
-Shipped here at `pi/extensions/secret-guard.ts` — built after two independent reviews
+Shipped here at `harnesses/pi/extensions/secret-guard.ts` — built after two independent reviews
 found codescout PR #9's secret-*detecting* guard bypassable on 10 of 11 adversarial
 exfiltration probes (full analysis:
 `docs/issues/archive/2026-08-08-build-secret-guard-fail-closed.md`). This version inverts the
