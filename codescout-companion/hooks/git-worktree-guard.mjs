@@ -32,10 +32,41 @@ function stripHeredocs(s) {
   return out.join('\n');
 }
 
+// Quoted spans are DATA, not syntax — the same claim stripHeredocs makes about
+// heredoc bodies, and the half it left uncovered. Each COMPLETE '...' or "..."
+// span collapses to one inert token, so a `|` inside a regex alternation cannot
+// split the command and a verb inside a pattern cannot be read as one.
+//
+// A TOKEN rather than a deletion, and that is load-bearing: `git -C "<path>"
+// commit` and `cd "<path>"` both need the path to survive as a single `\S+`
+// word, or EXPLICIT_C and CD_TO_PATH stop matching and the escapes break.
+//
+// An UNTERMINATED quote is left as ordinary text rather than blanking to
+// end-of-string. Blanking would hide a real mutation sitting after a stray
+// delimiter, and that is the one direction this guard must never fail in.
+function stripQuoted(s) {
+  let out = '';
+  for (let i = 0; i < s.length; ) {
+    const q = s[i];
+    if (q === "'" || q === '"') {
+      let j = i + 1;
+      while (j < s.length && s[j] !== q) j += (q === '"' && s[j] === '\\') ? 2 : 1;
+      if (j < s.length) { out += 'Q'; i = j + 1; continue; }
+    }
+    out += s[i];
+    i += 1;
+  }
+  return out;
+}
+
 // Split on shell command separators, keeping the separator that PRECEDED each
-// segment. Splitting is quote-naive on purpose: a mis-split only ever produces
-// SMALLER segments, which makes an exemption less likely to co-occur with a
-// trigger — i.e. it fails toward blocking, never toward allowing.
+// segment. Splitting is naive about every construct EXCEPT quotes and heredocs,
+// which are stripped first. The original rationale for being naive about quotes
+// too — "a mis-split only ever produces SMALLER segments … it fails toward
+// blocking, never toward allowing" — was true as written and still wrong: it
+// prices a false refusal at zero, and the mis-split does not merely narrow a
+// segment, it MANUFACTURES the end-of-segment boundary TRIGGER requires. See
+// docs/issues/2026-09-16-worktree-guard-reads-a-quoted-regex-alternation-as-a-bare-git-verb.md
 function segments(s) {
   const parts = [];
   const re = /(\|\||&&|;|\||\n)/;
@@ -79,7 +110,7 @@ const CD_TO_PATH = /^\s*cd\s+\S+\s*$/;
 // ambiguous cwd.
 let violating = null;
 let cdApplied = false;
-for (const seg of segments(stripHeredocs(cmd))) {
+for (const seg of segments(stripQuoted(stripHeredocs(cmd)))) {
   if (CD_TO_PATH.test(seg.text)) { cdApplied = true; continue; }
   if (!TRIGGER.test(seg.text)) continue;
   if (EXPLICIT_C.test(seg.text)) continue;

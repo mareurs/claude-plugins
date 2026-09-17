@@ -243,4 +243,74 @@ else
   fail "denies: a mutation preceding the cd it appears to be paired with" "$OUT"
 fi
 
+# === SEGMENTATION: a QUOTED span is DATA, not command text ===
+# docs/issues/2026-09-16-worktree-guard-reads-a-quoted-regex-alternation-as-a-bare-git-verb.md
+# The mirror of the quoted-mention cases above, and the direction they left
+# uncovered: those assert a mention must not DISARM the guard; these assert it
+# must not TRIGGER it. `segments()` split on `|` quote-naively, so a regex
+# alternation inside a quoted argument broke the command mid-token and the left
+# fragment ended in a git verb — satisfying TRIGGER's `(\s|$)` through `$`. The
+# split did not merely narrow the segment, it MANUFACTURED the boundary the
+# match needs. A read-only grep was refused as a destructive mutation, and
+# neither escape in the refusal applies, because the command is not a git
+# command at all.
+
+ALT_DQ='grep -rn -E "git push|peter-evans" .github/workflows/'
+OUT=$(guard_input "Bash" "$MAIN" "$ALT_DQ" | node "$HOOK" 2>/dev/null)
+if ! assert_denied "$OUT"; then
+  pass "allows: a git verb inside a double-quoted regex alternation"
+else
+  fail "allows: a git verb inside a double-quoted regex alternation" "$OUT"
+fi
+
+ALT_SQ="grep -rn -E 'git commit|create-pull-request' docs/"
+OUT=$(guard_input "Bash" "$MAIN" "$ALT_SQ" | node "$HOOK" 2>/dev/null)
+if ! assert_denied "$OUT"; then
+  pass "allows: a git verb inside a single-quoted regex alternation"
+else
+  fail "allows: a git verb inside a single-quoted regex alternation" "$OUT"
+fi
+
+# The control, and the reason this fix cannot be "ignore anything quoted":
+# stripping quoted spans must not become a blanket escape. A REAL bare mutation
+# outside the quotes still blocks. Without this, the fix above would trade a
+# false refusal for a missed mutation — the direction that actually matters.
+ALT_THEN_COMMIT='grep -E "git push|x" . ; git commit -m real'
+OUT=$(guard_input "Bash" "$MAIN" "$ALT_THEN_COMMIT" | node "$HOOK" 2>/dev/null)
+if assert_denied "$OUT"; then
+  pass "denies: bare mutation following a quoted alternation"
+else
+  fail "denies: bare mutation following a quoted alternation" "$OUT"
+fi
+
+# An UNTERMINATED quote must not swallow the rest of the command. If a lone `"`
+# blanked everything after it, a real mutation would ride through unexamined —
+# so the odd delimiter is left as ordinary text and the verb is still caught.
+UNTERMINATED='echo "unclosed ; git commit -m real'
+OUT=$(guard_input "Bash" "$MAIN" "$UNTERMINATED" | node "$HOOK" 2>/dev/null)
+if assert_denied "$OUT"; then
+  pass "denies: bare mutation after an unterminated quote"
+else
+  fail "denies: bare mutation after an unterminated quote" "$OUT"
+fi
+
+# A consequence of the fix above, pinned because it is a real behaviour change
+# and an unpinned one is indistinguishable from an accident. The source used to
+# note `cd "/path with space"` was unrecognised — "parity, not an improvement".
+# Replacing a quoted span with a single inert TOKEN (rather than deleting it)
+# keeps the path one `\S+` word, so CD_TO_PATH now matches and the gap closes.
+# If a future change deletes spans instead of tokenising them, this test reds.
+#
+# The path MUST contain a space and that is the whole point of the fixture: an
+# unspaced quoted path already satisfies `\S+` quotes-and-all, so this case
+# passed before the fix and proved nothing. CD_TO_PATH never stats the path, so
+# a non-existent directory exercises the regex exactly as a real one would.
+CD_QUOTED="cd '/tmp/some dir/with space' && git commit -m x"
+OUT=$(guard_input "Bash" "$MAIN" "$CD_QUOTED" | node "$HOOK" 2>/dev/null)
+if ! assert_denied "$OUT"; then
+  pass "allows: chained cd whose quoted path contains a space"
+else
+  fail "allows: chained cd whose quoted path contains a space" "$OUT"
+fi
+
 print_summary "git-worktree-guard"
