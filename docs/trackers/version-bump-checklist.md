@@ -14,22 +14,30 @@ Release readiness across plugins × profiles. See
 
 ## State
 
-_Last refresh: `c769ea4`, 2026-09-17 — refreshed after releasing `codescout-companion`
-1.20.11→1.20.12 via `scripts/release.sh codescout-companion patch`, **pushed**. Unlike the
-previous two refreshes this one carries a **code** change rather than a prompt surface:
-`579b9c1` fixes `git-worktree-guard.mjs`, which split a command on `|` quote-naively and so
-read a regex alternation inside a quoted argument as a bare git verb — refusing read-only
-`grep`s as destructive mutations. `buddy` unchanged at 0.11.5. Re-derived from disk — each
-profile's `installed_plugins.json` `.plugins` map, **every array element**, plus cache-dir
-presence and README.md's version table._
+_Last refresh: `1352bc1`, 2026-09-17 — the **second** release today: `codescout-companion`
+1.20.12→1.20.13 via `scripts/release.sh codescout-companion patch`, **pushed**. Content is
+two documentation commits against the recon skill's `references/seam-classes.md`
+(`2b7c70d`, `ea6eb36`), widening the Encoding sub-case of the "a search that finds nothing
+is evidence about the search" law: a zero that confirms what a reliable peer just told you
+is the one to distrust, because reliability is what installs the prior. Both commit messages
+correctly flagged themselves "NOT released" — this release is what makes them live. `buddy`
+unchanged at 0.11.5 and correctly NOT released: nothing under `buddy/` has changed since its
+bump. Re-derived from disk — each profile's `installed_plugins.json` `.plugins` map, **every
+array element**, plus cache-dir presence and README.md's version table._
 
-**⚠ The tracked set shrank from five plugins to two — the finding of the 2026-09-15
-refresh, re-measured today and unchanged.** `claude-statusline`, `sdd` and `session-bridge` have **no install record in any
-of the three profiles**. The previous refresh (`0a10a5b`, 2026-09-14) rendered all three as
-installed and fully green — `1.1.7`, `2.4.2`, `0.1.0` across 9 plugin×profile pairs. Per
-this tracker's own prompt a plugin installed nowhere is not a failure and is omitted from
-`params`, so they are dropped here rather than flagged red — which is exactly why the drop
-is easy to miss.
+**The tracked set is two plugins, not five — and as of this refresh that is SETTLED, not a
+pending anomaly.** `claude-statusline`, `sdd` and `session-bridge` have **no install record
+in any of the three profiles**. This is now the **third consecutive independent measurement**
+saying so — 2026-09-15 (`92483f7`), 2026-09-17 (`4400b92`, a different session), and this
+one — against a single 2026-09-14 refresh (`0a10a5b`) that rendered all three as installed
+and green across 9 plugin×profile pairs.
+
+**That resolves the promote-when left on 2026-09-15**, which said: *if they stay absent, the
+`params` shape is correct and the 09-14 rows should be treated as unreliable rather than as a
+regression to repair.* They stayed absent across two further refreshes. **Verdict: the 09-14
+rows were unreliable; there is nothing here to repair.** Do not re-open this as drift unless
+a future refresh finds one of the three back in `params` — at which point record what
+re-installed it.
 
 **`release.sh` did not remove them.** Step 5 is a surgical `jq` assignment —
 `.plugins["<plugin>@<marketplace>"][0].version` and `.installPath` only
@@ -54,37 +62,40 @@ in all three profiles, so the absence is in the *records*, not the bytes.
 | `~/.claude-sdd` | 0.11.5 ✅ | ✅ | ✅ | `0.11.5` ✅ | ✅ |
 | `~/.claude-kat` | 0.11.5 ✅ | ✅ | ✅ | `0.11.5` ✅ | ✅ |
 
-**codescout-companion** — canonical `1.20.12` · readme `1.20.12` · marketplace clean ✅
+**codescout-companion** — canonical `1.20.13` · readme `1.20.13` · marketplace clean ✅
 
 | profile | installed | cache dir | install_path ok | all entries | cache = working tree |
 |---|---|---|---|---|---|
-| `~/.claude` | 1.20.12 ✅ | ✅ | ✅ | `1.20.12` ✅ | ✅ |
-| `~/.claude-sdd` | 1.20.12 ✅ | ✅ | ✅ | `1.20.12` ✅ | ✅ |
-| `~/.claude-kat` | 1.20.12 ✅ | ✅ | ✅ | `1.20.12` ✅ | ✅ |
+| `~/.claude` | 1.20.13 ✅ | ✅ | ✅ | `1.20.13` ✅ | ✅ |
+| `~/.claude-sdd` | 1.20.13 ✅ | ✅ | ✅ | `1.20.13` ✅ | ✅ |
+| `~/.claude-kat` | 1.20.13 ✅ | ✅ | ✅ | `1.20.13` ✅ | ✅ |
 
 All 6 plugin×profile pairs measured, not carried: `diff -rq` under the documented excludes
-returned empty for every pair, and **no exclusion was added this refresh** — the first,
-unexcluded run differed only by `.buddy`, `.pytest_cache`, `__pycache__` and `.orphaned_at`,
-every one already on the documented list. That matters because of the warning below: a
-column whose method grows an exclusion per refresh can be tuned until it always reads green.
+returned empty for every pair, and **no exclusion was added this refresh** — the second
+consecutive refresh able to say that. It matters because of the warning below: a column
+whose method grows an exclusion per refresh can be tuned until it always reads green.
 
-The changed hook was additionally checked by a control PAIR rather than a single grep, since
-a lone presence check cannot report both states and would read the same on a cache that
-never updated: `function stripQuoted` occurs **1×** in each profile's `1.20.12` cache and
-**0×** in the `1.20.11` cache still sitting beside it. So the cache carries the fix, and the
-check is demonstrably able to say otherwise.
+The changed file was checked by a control PAIR rather than a single grep, keeping the
+standard the `1.20.12` refresh set — a lone presence check cannot report both states and
+would read identically on a cache that never updated. The new clause `installs the prior`
+occurs **1×** in each profile's `1.20.13` cache and **0×** in the `1.20.12` cache still
+sitting beside it. So the cache carries the change, and the check is demonstrably able to
+say otherwise.
 
-**Registration is NOT established by any row above, and this release needs more from the
-restart than the previous two did.** It adds no new registered component —
-`git-worktree-guard.mjs` was already in `hooks.json` — so nothing needs a launch-time
-re-read to become *reachable*. But its BODY changed, and CC resolves hook commands at
-process launch and caches them, so every running instance keeps executing the pre-fix
-`1.20.11` copy. The rows above are evidence of the COPY only.
+**Registration is NOT established by any row above, and the restart debt is now CUMULATIVE
+across two releases.** This release adds no registered component and changes no hook body —
+it is documentation inside a skill reference, read on demand by path. But that path resolves
+under `installPath`, so a session still pinned to `1.20.12` reads the old copy of
+`seam-classes.md`. The rows above are evidence of the COPY only.
 
-A cold restart or `/reload-plugins` per instance is outstanding and unconfirmed for all
-three at this refresh — and here the gap is **behavioural, not cosmetic**: until it closes,
-the guard in every live session still refuses a read-only `grep` whose quoted pattern
-contains a git verb, which is the exact defect this release fixes.
+The more urgent half is inherited and **still open**: `1.20.12`'s `git-worktree-guard.mjs`
+fix changed a hook BODY, and CC resolves hook commands at process launch and caches them, so
+every instance that has not cold-restarted since `1.20.12` is still executing the pre-fix
+`1.20.11` guard — refusing read-only `grep`s whose quoted pattern contains a git verb. That
+gap is **behavioural, not cosmetic**, it was already outstanding at the previous refresh, and
+nothing in this release closes it.
+
+One cold restart or `/reload-plugins` per instance clears both. Unconfirmed for all three.
 
 **Not installed in any profile** (discovered in the repo, omitted from `params`):
 `claude-statusline`, `sdd`, `session-bridge`.
@@ -193,6 +204,35 @@ measured on both candidate load paths rather than argued: the record points at k
 two actually serves, they carry the same bytes — so the question CLAUDE.md flags as
 unsettled does not need settling for this release.
 ## History
+
+### 2026-09-17 — 1.20.13, and the 09-14 anomaly closes as a bad row rather than a regression
+
+Second release of the day: `codescout-companion` 1.20.12→1.20.13 (`1352bc1`), carrying two
+documentation commits against `references/seam-classes.md` (`2b7c70d`, `ea6eb36`) that widen
+the Encoding sub-case of the "a search that finds nothing is evidence about the search" law.
+Both commit messages had correctly flagged themselves as `committed`, not `live` — the skill
+reference resolves under `installPath`, so the release is what makes them reachable. `buddy`
+correctly NOT released: nothing under `buddy/` has changed since 0.11.5, verified by diffing
+the path against its own bump commit rather than assuming.
+
+**The 2026-09-15 promote-when is discharged.** It asked whether `claude-statusline`, `sdd`
+and `session-bridge` — which vanished from every profile's install records between the 09-14
+and 09-15 refreshes — would come back. They have not, across two further independent
+measurements (`4400b92` by another session, and this one). Three refreshes now agree against
+one. Recorded as **settled**: the 09-14 rows were unreliable, and this is not drift to
+repair. The State section no longer carries it as a ⚠ anomaly.
+
+Worth keeping for the method rather than the outcome: the thing that made it resolvable was
+writing the promote-when with both branches named in advance — *back in params → record what
+re-installed it; still absent → the old rows were wrong*. A finding logged without its
+disconfirming branch tends to get re-litigated at every refresh, because nothing says what
+would settle it.
+
+**Restart debt is now cumulative and is the only open item.** `1.20.12` changed a hook BODY
+(`git-worktree-guard.mjs`); hook commands resolve at launch, so any instance not cold-started
+since then still runs the pre-fix guard that refuses read-only `grep`s containing a quoted git
+verb. This release adds a documentation delta on top. One `/reload-plugins` per instance
+clears both; unconfirmed for all three.
 
 ### 2026-09-17 — a code fix, and the first refresh whose restart gap is behavioural
 
