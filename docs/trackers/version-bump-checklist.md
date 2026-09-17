@@ -82,18 +82,47 @@ occurs **1×** in each profile's `1.20.13` cache and **0×** in the `1.20.12` ca
 sitting beside it. So the cache carries the change, and the check is demonstrably able to
 say otherwise.
 
-**Registration is NOT established by any row above, and the restart debt is now CUMULATIVE
-across two releases.** This release adds no registered component and changes no hook body —
-it is documentation inside a skill reference, read on demand by path. But that path resolves
-under `installPath`, so a session still pinned to `1.20.12` reads the old copy of
-`seam-classes.md`. The rows above are evidence of the COPY only.
+**Registration CONFIRMED for this instance on 2026-09-17, and the "behavioural restart
+debt" recorded above it was WRONG on two independent grounds.** Both corrections are
+measurements, and both were made by the session that had propagated the error an hour
+earlier.
 
-The more urgent half is inherited and **still open**: `1.20.12`'s `git-worktree-guard.mjs`
-fix changed a hook BODY, and CC resolves hook commands at process launch and caches them, so
-every instance that has not cold-restarted since `1.20.12` is still executing the pre-fix
-`1.20.11` guard — refusing read-only `grep`s whose quoted pattern contains a git verb. That
-gap is **behavioural, not cosmetic**, it was already outstanding at the previous refresh, and
-nothing in this release closes it.
+*Registration + execution, this instance.* `/reload-plugins` reported **26 hooks**, which is
+exact manifest arithmetic — `codescout-companion` 20 + `buddy` 5 + `superpowers` 1 — and
+`.buddy/.session-start-trace.log` carries three `source=startup` events, the newest after this
+refresh's own commit. Registration is not execution, so the documented positive control was
+run: the marker was armed at `/tmp/cs-redirect-a3f330723187` **and its presence verified
+inside the same call** (necessary — `run_command` is itself a codescout tool, so its own
+PostToolUse clears it; without the in-call check a later absence proves nothing). The next
+call found it **CLEARED**, with a negative control showing no stray markers. So: *this hook
+executed*, not merely *a reload happened*. `~/.claude-sdd` and `~/.claude-kat` remain
+unconfirmed — separate processes, unreachable from here.
+
+*Correction 1 — the hook count does NOT discriminate this release.* `1.20.12` and `1.20.13`
+have **byte-identical** `hooks.json` (sha `89f9a128ee60`, 20 entries each), because 1.20.13 is
+documentation-only. 26 would have read the same on a process that never picked up 1.20.13. It
+evidences a manifest read, not a version — recorded here so the next refresh does not reuse it
+as release-specific the way the `1.20.12` entry legitimately could.
+
+*Correction 2 — the hook-body gap does not exist on this machine.* The previous entry said a
+non-restarted instance "keeps executing the pre-fix `1.20.11` copy." Measured: hooks resolve
+via `CLAUDE_PLUGIN_ROOT` to the **repo working tree**, not a cache dir —
+`.buddy/.session-start-trace.log` records `plugin_root=/home/marius/work/claude/claude-plugins/buddy`
+as the **only** value it has ever logged (`sort -u` → one line), with `plugin_root_env=N`. So a
+hook-body edit is live at commit; `579b9c1`'s fix needed no release and no restart. This is
+direct measurement for `buddy`'s hooks and same-marketplace inference for
+`codescout-companion`'s — both are `sdd-misc-plugins`, a `directory` source whose
+`installLocation` is this repo.
+
+*And independently:* `git-worktree-guard.mjs` has a **single-worktree carve-out** —
+`if (wtCount < 2) process.exit(0)` at lines 126-129, verified in code rather than from its
+header comment — and `git worktree list` here returns exactly **1**. The guard cannot deny
+anything in this repo whatever version is loaded. The claim that it "still refuses a read-only
+`grep` in every live session" was false here on both counts.
+
+**What the restart is still genuinely for: skills and commands.** Those resolve under
+`installPath`, so `seam-classes.md` is the real beneficiary — and it is now served from
+`1.20.13`. That half was correct.
 
 One cold restart or `/reload-plugins` per instance clears both. Unconfirmed for all three.
 
@@ -204,6 +233,40 @@ measured on both candidate load paths rather than argued: the record points at k
 two actually serves, they carry the same bytes — so the question CLAUDE.md flags as
 unsettled does not need settling for this release.
 ## History
+
+### 2026-09-17 — reload confirmed, and the restart-urgency claim refuted twice over
+
+`/reload-plugins` run in `~/.claude`. Registration confirmed by arithmetic (26 hooks =
+20 + 5 + 1, matching the manifests) plus three `source=startup` events; execution confirmed
+by the documented armed-marker control, armed and verified in-call, then found CLEARED with a
+clean negative control. So this instance is live at `1.20.13` at the level of "this hook
+executed."
+
+**Two corrections to the entry written one hour earlier in this same file, both measured.**
+
+1. **The hook count does not discriminate 1.20.13.** `1.20.12` and `1.20.13` ship a
+   byte-identical `hooks.json` (sha `89f9a128ee60`), because 1.20.13 is documentation-only.
+   The `1.20.12` refresh could legitimately use the count as release-specific evidence; this
+   one cannot, and saying so is the point — an inherited method is not automatically valid for
+   the next release.
+
+2. **The "behavioural, not cosmetic" restart gap does not exist on this machine.** Refuted on
+   two independent grounds. *Load path:* hooks resolve through `CLAUDE_PLUGIN_ROOT` to the
+   **repo working tree** — `plugin_root=<repo>/buddy` is the only value the trace log has ever
+   recorded, `plugin_root_env=N` — so `579b9c1`'s hook-body fix was live at commit and needed
+   neither release nor restart. *Carve-out:* `git-worktree-guard.mjs:126-129` exits 0 when the
+   repo has fewer than 2 worktrees, and this repo has 1, so the guard cannot fire here at all.
+   Either ground alone is sufficient.
+
+The mechanism worth keeping: the false claim entered this file by **inheritance**, not by
+measurement. The 1.20.12 entry asserted it, the 1.20.13 refresh carried it forward and
+sharpened it into "cumulative debt," and it was never checked against `CLAUDE.md`'s own
+measured per-channel table — which says the opposite for hooks, and had said so since
+2026-09-01. A restated claim reads as corroborated when it is only repeated.
+
+**Net:** the restart matters for **skills and commands** (`installPath`), which is why
+`seam-classes.md` needed 1.20.13 — that half was right. It does not matter for hook bodies
+here. `~/.claude-sdd` and `~/.claude-kat` remain unconfirmed: separate processes.
 
 ### 2026-09-17 — 1.20.13, and the 09-14 anomaly closes as a bad row rather than a regression
 
