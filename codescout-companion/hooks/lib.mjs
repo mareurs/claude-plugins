@@ -534,17 +534,47 @@ export function refreshLivenessStamp(now = Date.now()) {
 // Our own pid chain, capped at 10 hops: a corrupt or cyclic chain must not spin
 // inside a hook. Mirrors session-start.mjs's copy; kept separate so the
 // load-bearing SessionStart path is untouched by this instrumentation.
+//
+// The walk ENDS at the nearest Claude Code process. That process spawned our
+// servers, so they are all its children. Every ancestor above it belongs to
+// another session, one that started ours from inside a tool call (`claude -p`
+// via run_command/Bash). Matching those stamped that session's server with our id.
+// codescout:docs/issues/2026-09-24-a-nested-claude-session-hijacks-its-ancestor-sessions-codescout-server.md
 export function ownAncestry() {
   const seen = new Set();
   let pid = process.pid;
   for (let hop = 0; hop < 10; hop++) {
     if (pid <= 1 || seen.has(pid)) break;
     seen.add(pid);
+    if (isClaudeProcess(pid)) break;
     const parent = parentOf(pid);
     if (parent === null) break;
     pid = parent;
   }
   return seen;
+}
+
+// Is `pid` a Claude Code process? Two signals, because each covers the other's gap:
+// - a registry row, `$CLAUDE_CONFIG_DIR/sessions/<pid>.json`. Claude Code writes
+//   one for interactive and `claude -p` sessions alike, on any platform. But it
+//   is written at startup, racing the hooks: measured once, 65 ms before the
+//   SessionStart stamp.
+// - comm `claude`, which is set at exec, so it wins that race. It is Linux-only,
+//   though, and only true of the native binary (an npm install runs as `node`).
+// Residual: a stale row, left by a Claude that died without cleanup, whose pid
+// was reused by a process in our chain, ends the walk early. That leaves our own
+// server unstamped, the pre-rendezvous state. The row's `procStart` equals
+// /proc/<pid>/stat field 22 (verified 2026-09-24), which could discriminate it.
+export function isClaudeProcess(pid) {
+  const home = process.env.HOME || process.env.USERPROFILE || homedir();
+  const configDir = process.env.CLAUDE_CONFIG_DIR || join(home, '.claude');
+  if (existsSync(join(configDir, 'sessions', `${pid}.json`))) return true;
+  if (process.platform !== 'linux') return false;
+  try {
+    return readFileSync(`/proc/${pid}/comm`, 'utf8').trim() === 'claude';
+  } catch {
+    return false;
+  }
 }
 
 export function parentOf(pid) {

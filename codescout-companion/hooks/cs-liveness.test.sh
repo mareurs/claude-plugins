@@ -72,5 +72,32 @@ got=$(field "$SLOTS/mine.json" session)
   && pass "session is never rewritten (this measures, it does not fix)" \
   || fail "session is never rewritten" "session became $got"
 
+# 5. A NESTED session's hook must not touch its ancestor session's slot.
+# codescout:docs/issues/2026-09-24-a-nested-claude-session-hijacks-its-ancestor-sessions-codescout-server.md
+# This is lib.mjs's own copy of the ancestry walk (session-start.mjs keeps a
+# separate copy, tested in session-start.test.sh), so it needs its own case.
+# An intermediate bash plays the nested claude. It is identified by a registry
+# row in a private CLAUDE_CONFIG_DIR, and it owns the inner slot. The outer
+# slot's ppid is this test script, one hop further up. Both start stale, so
+# before the fix the refresher touched both. The inner refresh is the positive
+# control: it proves the hook ran.
+NEST_CFG="$TMP/nest-cfg"; mkdir -p "$NEST_CFG/sessions"
+write_slot "$SLOTS/outer.json" "$$" "$OLD" "conv-outer"
+NEST_CFG="$NEST_CFG" SLOTS="$SLOTS" TMP="$TMP" HOOK="$HOOK" OLD="$OLD" bash -c '
+  printf "{\"pid\":999998,\"ppid\":%s,\"started_at\":\"2026-01-01T00:00:00Z\",\"cwd\":\"/tmp\",\"session\":\"conv-inner\",\"hook_at\":\"%s\"}" "$$" "$OLD" > "$SLOTS/inner.json"
+  printf "{\"pid\":%s,\"sessionId\":\"conv-inner\"}" "$$" > "$NEST_CFG/sessions/$$.json"
+  echo "{\"session_id\":\"conv-inner\",\"tool_name\":\"mcp__codescout__symbols\"}" \
+    | CLAUDE_CONFIG_DIR="$NEST_CFG" XDG_STATE_HOME="$TMP" node "$HOOK" >/dev/null 2>&1
+  rc=$?  # a command after the pipeline keeps this shell alive as the parent of the hook
+'
+got=$(field "$SLOTS/inner.json" hook_at)
+[ "$got" != "$OLD" ] && [ "$got" != "None" ] \
+  && pass "nested: the nested session refreshes its own slot" \
+  || fail "nested: the nested session refreshes its own slot" "hook_at still $got"
+got=$(field "$SLOTS/outer.json" hook_at)
+[ "$got" = "$OLD" ] \
+  && pass "nested: the ancestor session's slot is untouched" \
+  || fail "nested: the ancestor session's slot is untouched" "hook_at became $got"
+
 echo; echo "cs-liveness: $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]

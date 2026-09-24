@@ -181,6 +181,65 @@ jq -e '.hook_source_at | test("^[0-9]{4}-.*(Z|[+-][0-9]{2}:[0-9]{2})$")' "$SRC_E
   && pass "rendezvous: hook_source_at is an RFC3339 string" \
   || fail "rendezvous: hook_source_at is not RFC3339 — the server would fail to parse the slot"
 
+# --- rendezvous: a NESTED session must not stamp its ancestor session's server ---
+# codescout:docs/issues/2026-09-24-a-nested-claude-session-hijacks-its-ancestor-sessions-codescout-server.md
+# A `claude -p` started from inside another session's tool call has the OUTER
+# Claude in its ancestry, so "ppid anywhere up the chain" matched the outer
+# session's server and rewrote its session id. The walk must stop at the NEAREST
+# Claude process. Each case fabricates one: an intermediate process plays the
+# nested claude. It publishes its own server slot (ppid = itself) and runs the
+# hook as its child. The OUTER slot's ppid is this test script, one hop further
+# up. Two signals identify a Claude process, and each case lets exactly one of
+# them fire:
+#   (A) a registry row, on a plain bash;
+#   (B) comm "claude", with no row.
+# The positive control in each (the inner slot IS stamped) keeps the outer
+# slot's silence from passing when the hook never ran.
+NEST_CFG="$TMP/nest-cfg"; mkdir -p "$NEST_CFG/sessions"
+# Load-bearing: detect() reads this profile config. With no codescout server
+# declared here, the hook exits before it stamps anything.
+printf '{"mcpServers":{"codescout":{"command":"codescout"}}}' > "$NEST_CFG/.claude.json"
+nested_hook() {  # <launcher> <inner-slot> <registry-row:yes|no> <session-id> <comm-out>
+  NEST_CFG="$NEST_CFG" TMP="$TMP" HOOK="$HOOK" "$1" -c '
+    printf "{\"pid\":999100,\"ppid\":%s,\"started_at\":\"2026-01-01T00:00:00Z\",\"cwd\":\"/\",\"session\":null,\"hook_at\":null}" "$$" > "$1"
+    if [ "$2" = yes ]; then printf "{\"pid\":%s,\"sessionId\":\"%s\"}" "$$" "$3" > "$NEST_CFG/sessions/$$.json"; fi
+    cat "/proc/$$/comm" > "$4" 2>/dev/null
+    printf "{\"cwd\":\"%s\",\"source\":\"startup\",\"session_id\":\"%s\"}" "$TMP" "$3" \
+      | CLAUDE_CONFIG_DIR="$NEST_CFG" XDG_STATE_HOME="$TMP/state" node "$HOOK" >/dev/null 2>&1
+    rc=$?  # a command after the pipeline keeps this shell alive as the parent of the hook
+  ' nested "$2" "$3" "$4" "$5"
+}
+outer_slot() {  # <file> <session>: an already-stamped server of the ANCESTOR session
+  printf '{"pid":999101,"ppid":%s,"started_at":"2026-01-01T00:00:00Z","cwd":"/","session":"%s","hook_at":"2026-01-01T00:00:00Z"}' "$$" "$2" > "$1"
+}
+
+outer_slot "$RV/999110.json" outer-a
+nested_hook bash "$RV/999111.json" yes sst-nested-a "$TMP/comm-a"
+jq -e '.session == "sst-nested-a" and .hook_at != null' "$RV/999111.json" >/dev/null \
+  && pass "rendezvous (nested, registry row): the nested session stamps its own server" \
+  || fail "rendezvous (nested, registry row): the nested session's own server was not stamped"
+jq -e '.session == "outer-a"' "$RV/999110.json" >/dev/null \
+  && pass "rendezvous (nested, registry row): the ancestor session's server keeps its session" \
+  || fail "rendezvous (nested, registry row): a nested session hijacked its ancestor's server ($(jq -r .session "$RV/999110.json"))"
+
+if [ "$(uname)" = "Linux" ]; then
+  # Load-bearing, and checked rather than assumed: the kernel names a process
+  # after the file it was exec'd through, so this bash runs with comm "claude".
+  mkdir -p "$TMP/bin"; ln -sf "$(command -v bash)" "$TMP/bin/claude"
+  outer_slot "$RV/999120.json" outer-b
+  nested_hook "$TMP/bin/claude" "$RV/999121.json" no sst-nested-b "$TMP/comm-b"
+  [ "$(cat "$TMP/comm-b")" = claude ] \
+    || fail "rendezvous (nested, comm): fixture precondition — the launcher's comm was '$(cat "$TMP/comm-b")', not 'claude'"
+  jq -e '.session == "sst-nested-b" and .hook_at != null' "$RV/999121.json" >/dev/null \
+    && pass "rendezvous (nested, comm): the nested session stamps its own server" \
+    || fail "rendezvous (nested, comm): the nested session's own server was not stamped"
+  jq -e '.session == "outer-b"' "$RV/999120.json" >/dev/null \
+    && pass "rendezvous (nested, comm): the ancestor session's server keeps its session" \
+    || fail "rendezvous (nested, comm): a nested session hijacked its ancestor's server ($(jq -r .session "$RV/999120.json"))"
+else
+  pass "rendezvous (nested, comm): N/A (comm is read from /proc)"
+fi
+
 # --- Tracker-hygiene overdue nudge ---
 # Ledger absent (all earlier ctx calls ran without it): no nudge.
 if echo "$STARTUP" | grep -q "TRACKER HYGIENE"; then

@@ -12,7 +12,7 @@ import {
 import { join, dirname, isAbsolute } from 'node:path';
 import { homedir } from 'node:os';
 import { spawn, execFileSync } from 'node:child_process';
-import { readInput, detectFor, git, emit } from './lib.mjs';
+import { readInput, detectFor, git, emit, isClaudeProcess } from './lib.mjs';
 
 const input = readInput();
 if (!input) process.exit(0);
@@ -138,6 +138,11 @@ function ownAncestry() {
   for (let hop = 0; hop < 10; hop++) {
     if (pid <= 1 || seen.has(pid)) break;
     seen.add(pid);
+    // Stop at the NEAREST Claude process: our servers are its children, and every
+    // ancestor above it belongs to a session that started ours from a tool call.
+    // Why two signals identify one: `isClaudeProcess` in lib.mjs.
+    // codescout:docs/issues/2026-09-24-a-nested-claude-session-hijacks-its-ancestor-sessions-codescout-server.md
+    if (isClaudeProcess(pid)) break;
     const parent = parentOf(pid);
     if (parent === null) break;
     pid = parent;
