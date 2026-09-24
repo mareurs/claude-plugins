@@ -346,7 +346,7 @@ rm -f "$TMPDIR"/cs-guide-snapshot-* 2>/dev/null
 #     parent already held. A per-agent ledger for this session is the observable
 #     proof; with none (Case 1) the old subtraction still runs, as the fallback
 #     for an unstamped subagent.
-#     codescout:docs/issues/2026-09-24-subagent-stop-restore-strips-the-parents-own-guide-marks.md
+#     codescout:docs/issues/archive/2026-09-24-subagent-stop-restore-strips-the-parents-own-guide-marks.md
 # Load-bearing name: <session>_<agent> is the server's sanitize() of the
 # principal "<session>/<agent>" ('/' -> '_'). A name the server would never
 # write would pass this case while testing nothing real.

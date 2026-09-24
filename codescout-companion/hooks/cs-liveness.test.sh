@@ -73,7 +73,7 @@ got=$(field "$SLOTS/mine.json" session)
   || fail "session is never rewritten" "session became $got"
 
 # 5. A NESTED session's hook must not touch its ancestor session's slot.
-# codescout:docs/issues/2026-09-24-a-nested-claude-session-hijacks-its-ancestor-sessions-codescout-server.md
+# codescout:docs/issues/archive/2026-09-24-a-nested-claude-session-hijacks-its-ancestor-sessions-codescout-server.md
 # This is lib.mjs's own copy of the ancestry walk (session-start.mjs keeps a
 # separate copy, tested in session-start.test.sh), so it needs its own case.
 # An intermediate bash plays the nested claude. It is identified by a registry

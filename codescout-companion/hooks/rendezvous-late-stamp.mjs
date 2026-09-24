@@ -10,7 +10,7 @@
 // rather than walking its own ancestry, because a detached process is
 // reparented and has none left to walk. The deadline bounds the process if no
 // server ever publishes, for example when codescout fails to start.
-// codescout:docs/issues/2026-09-24-sessionstart-can-run-before-the-resumed-servers-slot-exists.md
+// codescout:docs/issues/archive/2026-09-24-sessionstart-can-run-before-the-resumed-servers-slot-exists.md
 //
 // argv: <claudePid> <sessionId> <source> <rvDir> <stampedAt>
 import { existsSync, readdirSync, readFileSync } from 'node:fs';

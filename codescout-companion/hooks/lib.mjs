@@ -539,7 +539,7 @@ export function refreshLivenessStamp(now = Date.now()) {
 // servers, so they are all its children. Every ancestor above it belongs to
 // another session, one that started ours from inside a tool call (`claude -p`
 // via run_command/Bash). Matching those stamped that session's server with our id.
-// codescout:docs/issues/2026-09-24-a-nested-claude-session-hijacks-its-ancestor-sessions-codescout-server.md
+// codescout:docs/issues/archive/2026-09-24-a-nested-claude-session-hijacks-its-ancestor-sessions-codescout-server.md
 export function ownAncestry() {
   const seen = new Set();
   let pid = process.pid;
@@ -586,7 +586,7 @@ export function stampSlotIfStale(f, e, sessionId, source, stampedAt) {
   // its next call for no change. The SOURCE is part of "current": a compaction
   // keeps the session id, and codescout's post_compact gate needs to see that
   // the last SessionStart was one.
-  // codescout:docs/issues/2026-08-31-post-compact-clears-the-ledger-with-no-compaction-check.md
+  // codescout:docs/issues/archive/2026-08-31-post-compact-clears-the-ledger-with-no-compaction-check.md
   if (e.session === sessionId && e.hook_at && (!source || e.hook_source === source)) return false;
   e.session = sessionId;
   e.hook_at = stampedAt;

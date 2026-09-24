@@ -82,7 +82,7 @@ if (sessionId) {
     // slot at +982 ms). Hand it to a detached stamper that waits for our Claude's
     // server. It gets the Claude pid — the process the walk ended at — because a
     // detached process is reparented and cannot walk our ancestry itself.
-    // codescout:docs/issues/2026-09-24-sessionstart-can-run-before-the-resumed-servers-slot-exists.md
+    // codescout:docs/issues/archive/2026-09-24-sessionstart-can-run-before-the-resumed-servers-slot-exists.md
     const claudePid = [...ancestry].pop();
     if (ownSlots === 0 && claudePid !== undefined && isClaudeProcess(claudePid)) {
       const stamper = fileURLToPath(new URL('./rendezvous-late-stamp.mjs', import.meta.url));
@@ -137,7 +137,7 @@ function ownAncestry() {
     // Stop at the NEAREST Claude process: our servers are its children, and every
     // ancestor above it belongs to a session that started ours from a tool call.
     // Why two signals identify one: `isClaudeProcess` in lib.mjs.
-    // codescout:docs/issues/2026-09-24-a-nested-claude-session-hijacks-its-ancestor-sessions-codescout-server.md
+    // codescout:docs/issues/archive/2026-09-24-a-nested-claude-session-hijacks-its-ancestor-sessions-codescout-server.md
     if (isClaudeProcess(pid)) break;
     const parent = parentOf(pid);
     if (parent === null) break;

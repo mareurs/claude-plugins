@@ -161,7 +161,7 @@ fi
 # server can only tell the two apart if the last SessionStart's `source` reaches
 # it. A compaction keeps the session id, and the "already current" skip above
 # used to swallow exactly that stamp, so the source must be part of "current".
-# codescout:docs/issues/2026-08-31-post-compact-clears-the-ledger-with-no-compaction-check.md
+# codescout:docs/issues/archive/2026-08-31-post-compact-clears-the-ledger-with-no-compaction-check.md
 SRC_ENTRY="$RV/999005.json"
 printf '{"pid":999005,"ppid":%s,"started_at":"2026-01-01T00:00:00Z","cwd":"/","session":null,"hook_at":null}' "$MYPPID" > "$SRC_ENTRY"
 start_as() {  # <source> -- ONE session id for every source, unlike ctx()
@@ -182,7 +182,7 @@ jq -e '.hook_source_at | test("^[0-9]{4}-.*(Z|[+-][0-9]{2}:[0-9]{2})$")' "$SRC_E
   || fail "rendezvous: hook_source_at is not RFC3339 — the server would fail to parse the slot"
 
 # --- rendezvous: a NESTED session must not stamp its ancestor session's server ---
-# codescout:docs/issues/2026-09-24-a-nested-claude-session-hijacks-its-ancestor-sessions-codescout-server.md
+# codescout:docs/issues/archive/2026-09-24-a-nested-claude-session-hijacks-its-ancestor-sessions-codescout-server.md
 # A `claude -p` started from inside another session's tool call has the OUTER
 # Claude in its ancestry, so "ppid anywhere up the chain" matched the outer
 # session's server and rewrote its session id. The walk must stop at the NEAREST
@@ -241,7 +241,7 @@ else
 fi
 
 # --- rendezvous: a server that publishes AFTER SessionStart still gets stamped ---
-# codescout:docs/issues/2026-09-24-sessionstart-can-run-before-the-resumed-servers-slot-exists.md
+# codescout:docs/issues/archive/2026-09-24-sessionstart-can-run-before-the-resumed-servers-slot-exists.md
 # Interactive Claude Code fires SessionStart about 220 ms BEFORE its codescout
 # server publishes its slot (measured 2026-09-24: hook at +763 ms, slot at
 # +982 ms), so the scan finds nothing to stamp, and the refresher never opens a

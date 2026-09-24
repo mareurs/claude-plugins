@@ -98,7 +98,7 @@ if (ledgerPath && snapPath && existsSync(snapPath)) {
     // PARENT's own; subtracting it made the next /mcp re-deliver a guide the
     // parent already held. Skip only the ledger rewrite — the snapshot/tombstone
     // bookkeeping below still runs, so siblings and cleanup are unaffected.
-    // codescout:docs/issues/2026-09-24-subagent-stop-restore-strips-the-parents-own-guide-marks.md
+    // codescout:docs/issues/archive/2026-09-24-subagent-stop-restore-strips-the-parents-own-guide-marks.md
     if (self && existsSync(ledgerPath) && !sessionHasPrincipalLedgers(ledgerPath, sessionId)) {
       let ledger = null;
       try {
