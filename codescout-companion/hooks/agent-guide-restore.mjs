@@ -47,12 +47,21 @@
 // and removal is the correct side to err on: keeping an unattributable key
 // risks the starvation this whole bracket exists to stop.
 // docs/issues/archive/2026-08-27-concurrent-subagent-restores-discard-parent-guide-marks.md
+//
+// PRINCIPAL-SERVED SESSIONS — where the trade above inverts. Since codescout's
+// ADR 2026-09-14 (a subagent is a principal), a stamped subagent's marks persist
+// to its own `<session>_<agent>.json` and never touch the parent's file, so there
+// is no subagent mark left here to remove and every removal is a parent mark. The
+// ledger rewrite is therefore skipped whenever this session has any per-agent
+// ledger (`sessionHasPrincipalLedgers`); the subtraction above remains only as
+// the fallback for an unstamped subagent sharing its parent's ledger.
 import { readFileSync, existsSync, writeFileSync, unlinkSync, renameSync } from 'node:fs';
 import { homedir } from 'node:os';
 import {
   readInput,
   detectFor,
   guideLedgerPath,
+  sessionHasPrincipalLedgers,
   agentGuideSnapshotFile,
   agentIdOrComplain,
   listSiblingGuideSnapshots,
@@ -84,7 +93,13 @@ if (ledgerPath && snapPath && existsSync(snapPath)) {
     const self = decodeGuideSnapshot(readFileSync(snapPath, 'utf8'));
     const siblings = listSiblingGuideSnapshots(sessionId, snapPath);
 
-    if (self && existsSync(ledgerPath)) {
+    // A principal-served session writes no subagent marks into the parent's
+    // file, so every key that appeared there during this agent's lifetime is the
+    // PARENT's own; subtracting it made the next /mcp re-deliver a guide the
+    // parent already held. Skip only the ledger rewrite — the snapshot/tombstone
+    // bookkeeping below still runs, so siblings and cleanup are unaffected.
+    // codescout:docs/issues/2026-09-24-subagent-stop-restore-strips-the-parents-own-guide-marks.md
+    if (self && existsSync(ledgerPath) && !sessionHasPrincipalLedgers(ledgerPath, sessionId)) {
       let ledger = null;
       try {
         ledger = JSON.parse(readFileSync(ledgerPath, 'utf8'));

@@ -70,10 +70,17 @@ if (sessionId) {
           const e = JSON.parse(readFileSync(f, 'utf8'));
           if (!ancestry.has(e.ppid)) continue;
           // Already current: rewriting would bump mtime and cost the server a
-          // parse on its next call for no change.
-          if (e.session === sessionId && e.hook_at) continue;
+          // parse on its next call for no change. The SOURCE is part of "current":
+          // a compaction keeps the session id, and codescout's post_compact gate
+          // needs to see that the last SessionStart was one.
+          // codescout:docs/issues/2026-08-31-post-compact-clears-the-ledger-with-no-compaction-check.md
+          if (e.session === sessionId && e.hook_at && (!source || e.hook_source === source)) continue;
           e.session = sessionId;
           e.hook_at = stampedAt;
+          if (source) {
+            e.hook_source = source;
+            e.hook_source_at = stampedAt;
+          }
           // Atomic write: stage to a sibling tmp file in the SAME directory,
           // then rename over the target — rename is only atomic within one
           // filesystem. A bare writeFileSync here let a poll on the server

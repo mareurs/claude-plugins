@@ -154,6 +154,33 @@ else
   pass "temp project already onboarded — append-guard N/A"
 fi
 
+# --- rendezvous: the SessionStart SOURCE is recorded, and a compaction re-stamps
+#     even though the session id is unchanged ---
+# codescout's workspace(post_compact=true) clears the whole guide ledger, and a
+# call made after a plain /mcp reconnect (no compaction) re-delivered ~49 KB. The
+# server can only tell the two apart if the last SessionStart's `source` reaches
+# it. A compaction keeps the session id, and the "already current" skip above
+# used to swallow exactly that stamp, so the source must be part of "current".
+# codescout:docs/issues/2026-08-31-post-compact-clears-the-ledger-with-no-compaction-check.md
+SRC_ENTRY="$RV/999005.json"
+printf '{"pid":999005,"ppid":%s,"started_at":"2026-01-01T00:00:00Z","cwd":"/","session":null,"hook_at":null}' "$MYPPID" > "$SRC_ENTRY"
+start_as() {  # <source> -- ONE session id for every source, unlike ctx()
+  printf '{"cwd":"%s","source":"%s","session_id":"sst-same"}' "$TMP" "$1" \
+    | XDG_STATE_HOME="$TMP/state" node "$HOOK" >/dev/null 2>&1
+}
+start_as startup
+jq -e '.session == "sst-same" and .hook_source == "startup"' "$SRC_ENTRY" >/dev/null \
+  && pass "rendezvous: the SessionStart source is recorded beside the session" \
+  || fail "rendezvous: the SessionStart source was not recorded"
+start_as compact
+jq -e '.session == "sst-same" and .hook_source == "compact"' "$SRC_ENTRY" >/dev/null \
+  && pass "rendezvous: a compaction re-stamps the source though the session is unchanged" \
+  || fail "rendezvous: a compaction on an already-stamped session left the old source"
+# Same wire shape as hook_at: the server parses it as Option<DateTime<Utc>>.
+jq -e '.hook_source_at | test("^[0-9]{4}-.*(Z|[+-][0-9]{2}:[0-9]{2})$")' "$SRC_ENTRY" >/dev/null \
+  && pass "rendezvous: hook_source_at is an RFC3339 string" \
+  || fail "rendezvous: hook_source_at is not RFC3339 — the server would fail to parse the slot"
+
 # --- Tracker-hygiene overdue nudge ---
 # Ledger absent (all earlier ctx calls ran without it): no nudge.
 if echo "$STARTUP" | grep -q "TRACKER HYGIENE"; then

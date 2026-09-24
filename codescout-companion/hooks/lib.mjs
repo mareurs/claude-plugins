@@ -200,6 +200,26 @@ export function guideLedgerPath(sessionId, home) {
   return join(stateHome, 'codescout', 'guide_hints', `${sanitizeSessionId(sessionId)}.json`);
 }
 
+// True when this session has at least one PER-AGENT ledger beside the parent's —
+// `<session>_<agent>.json`, the codescout server's sanitize() of the principal
+// "<session>/<agent>" ('/' -> '_', exactly as sanitizeSessionId maps it). Such a
+// file exists only once the server has served one of this session's subagents as
+// its OWN principal (principal-stamp.mjs + a principal-aware server), and then no
+// subagent's marks reach the parent's file at all.
+// codescout:docs/adrs/2026-09-14-a-subagent-is-a-principal.md
+// Session-wide rather than per-agent on purpose: a subagent that never calls
+// codescout gets no file of its own, and keying on that alone let the restore
+// strip the parent's marks for exactly that subagent.
+export function sessionHasPrincipalLedgers(ledgerPath, sessionId) {
+  if (!ledgerPath || !sessionId) return false;
+  const prefix = `${sanitizeSessionId(sessionId)}_`;
+  try {
+    return readdirSync(dirname(ledgerPath)).some((n) => n.startsWith(prefix) && n.endsWith('.json'));
+  } catch {
+    return false;
+  }
+}
+
 // --- Live in-session guide re-arm ----------------------------------------
 //
 // The snapshot/restore bracket below only edits the ON-DISK ledger file, which

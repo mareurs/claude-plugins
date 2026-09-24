@@ -338,6 +338,44 @@ rm -f $(rearm_requests)
 # is not tripped by debris this block alone introduced.
 rm -f "$TMPDIR"/cs-guide-snapshot-* 2>/dev/null
 
+# --- Case 8: a subagent served as its OWN PRINCIPAL never writes the parent's
+#     file -- the server persists its marks to <session>_<agent>.json
+#     (codescout:docs/adrs/2026-09-14-a-subagent-is-a-principal.md). Every key
+#     that appears in the parent's file during its lifetime is therefore the
+#     PARENT's own, and subtracting it made the next /mcp re-deliver a guide the
+#     parent already held. A per-agent ledger for this session is the observable
+#     proof; with none (Case 1) the old subtraction still runs, as the fallback
+#     for an unstamped subagent.
+#     codescout:docs/issues/2026-09-24-subagent-stop-restore-strips-the-parents-own-guide-marks.md
+# Load-bearing name: <session>_<agent> is the server's sanitize() of the
+# principal "<session>/<agent>" ('/' -> '_'). A name the server would never
+# write would pass this case while testing nothing real.
+AGENT_LEDGER="$LEDGER_DIR/${SESSION}_agent_principal.json"
+echo '{"librarian":"2026-08-01T00:00:00Z"}' > "$LEDGER_FILE"
+run_start "$SESSION" "agent_principal" > /dev/null
+echo '{"project-activation-bootstrap":"2026-08-01T00:20:00Z"}' > "$AGENT_LEDGER"
+echo '{"librarian":"2026-08-01T00:00:00Z","progressive-disclosure":"2026-08-01T00:21:00Z"}' > "$LEDGER_FILE"
+run_stop "$SESSION" "agent_principal" > /dev/null
+GOT=$(jq -S . "$LEDGER_FILE")
+WANT=$(echo '{"librarian":"2026-08-01T00:00:00Z","progressive-disclosure":"2026-08-01T00:21:00Z"}' | jq -S .)
+check "a subagent served as its own principal leaves the parent's own mark" "$GOT" "$WANT"
+
+# 8b: THIS agent made no codescout call, so no ledger of its own exists -- but a
+#     sibling's per-agent ledger proves the server serves this session's
+#     subagents as principals, so nothing this agent did can be in the parent's
+#     file. Keying on the agent's OWN file alone missed exactly this case.
+echo '{"librarian":"2026-08-01T00:00:00Z"}' > "$LEDGER_FILE"
+run_start "$SESSION" "agent_silent" > /dev/null
+echo '{"librarian":"2026-08-01T00:00:00Z","workspace-state":"2026-08-01T00:22:00Z"}' > "$LEDGER_FILE"
+run_stop "$SESSION" "agent_silent" > /dev/null
+GOT=$(jq -S . "$LEDGER_FILE")
+WANT=$(echo '{"librarian":"2026-08-01T00:00:00Z","workspace-state":"2026-08-01T00:22:00Z"}' | jq -S .)
+check "a call-less subagent in a principal-served session leaves the parent's own mark" "$GOT" "$WANT"
+rm -f "$AGENT_LEDGER"
+# Case 7's fake server slot is still present, so each run_start above wrote a
+# re-arm request; they are not what this case measures.
+rm -f $(rearm_requests)
+
 # --- Wiring: the bracket must sit on the AGENT lifecycle, both ends. ---
 hook_events() {  # <script basename> -> newline-separated event names
   jq -r --arg s "$1" '
