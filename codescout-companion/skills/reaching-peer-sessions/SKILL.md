@@ -53,7 +53,7 @@ rows=$(for s in /run/user/$u/cc-socks/*.sock; do
     "$(readlink "/proc/$p/cwd")" "$([ "$p" = "$me" ] && echo '  <-- you')"
 done | sort -k2,2 -k5,5)
 [ -z "$rows" ] && { echo "no live sessions found"; exit; }
-printf 'PID\tPROFILE\tNAME\tSTATUS\tCWD\n%s\n' "$rows"
+printf 'PID\tPROFILE\tNAME\tSTATUS\tLAUNCH-CWD\n%s\n' "$rows"
 n_rows=$(printf '%s\n' "$rows" | wc -l)
 n_prof=$(printf '%s\n' "$rows" | cut -f2 | sort -u | wc -l)
 if [ -n "$me" ]; then
@@ -75,6 +75,9 @@ found by walking up from this shell, which is a child of your own server by
 construction — do **not** identify yourself with `pgrep … | head -1`, which
 samples arbitrarily among several running servers, and do not filter on `comm`,
 which is the binary's basename rather than its identity.
+
+`LAUNCH-CWD` is `/proc/<pid>/cwd`: where the process was **started**, not where
+the session is **working**. Never read occupancy off it — see Step 4.
 
 **A failed self-identification is LOUD, and that is load-bearing.** When the walk
 finds no socket-bearing ancestor, `me` is empty, no row is marked, and the table
@@ -119,6 +122,27 @@ reachable.
 | same `PROFILE` as your `<-- you` row | `"<NAME>"` |
 | any other `PROFILE` | `"uds:/run/user/<uid>/cc-socks/<PID>.sock"` |
 | replying to a message you received | copy its `from=` attribute verbatim |
+
+## Step 4 — before acting on where a peer is WORKING, ask
+
+`LAUNCH-CWD` answers *where this process was started*. It does not answer *where
+this session is working*: codescout's `workspace(action="activate")` moves a
+session's active project without changing its process cwd, so a session editing a
+worktree can show the main checkout here — and its registry row
+(`sessions/<pid>.json`) carries no active-project field to correct that. A session
+launched *inside* a worktree does show it, which is exactly why the column looks
+trustworthy.
+
+So before any action whose safety depends on occupancy — `git worktree remove`,
+deleting or resetting a directory, a campaign that assumes a tree is idle — send
+the session one question over its socket (Step 3's address) and act on the reply:
+
+    are you working in <path> right now?
+
+Do not infer "unoccupied" from a table that lists nobody there. Measured
+2026-09-09: that inference was one message away from licensing
+`git worktree remove` on an occupied worktree (codescout bug
+`2026-09-09-cwd-answers-who-is-alive-and-is-read-as-who-is-working-where`).
 
 ## Two readings to get right
 
