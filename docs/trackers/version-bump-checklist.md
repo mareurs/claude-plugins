@@ -14,45 +14,23 @@ Release readiness across plugins × profiles. See
 
 ## State
 
-_Last refresh: `1352bc1`, 2026-09-17 — the **second** release today: `codescout-companion`
-1.20.12→1.20.13 via `scripts/release.sh codescout-companion patch`, **pushed**. Content is
-two documentation commits against the recon skill's `references/seam-classes.md`
-(`2b7c70d`, `ea6eb36`), widening the Encoding sub-case of the "a search that finds nothing
-is evidence about the search" law: a zero that confirms what a reliable peer just told you
-is the one to distrust, because reliability is what installs the prior. Both commit messages
-correctly flagged themselves "NOT released" — this release is what makes them live. `buddy`
-unchanged at 0.11.5 and correctly NOT released: nothing under `buddy/` has changed since its
-bump. Re-derived from disk — each profile's `installed_plugins.json` `.plugins` map, **every
-array element**, plus cache-dir presence and README.md's version table._
+_Last refresh: `0916e0f`, 2026-09-24 — `codescout-companion` 1.20.13→1.20.14 via
+`scripts/release.sh codescout-companion patch`, **pushed** (`main` `4984aa8..0916e0f`).
+Delta from the previous refresh: canonical, readme and all three profiles' installed
+versions move 1.20.13→1.20.14; `last_refresh_commit` `1352bc1`→`0916e0f`; `buddy` unchanged
+at 0.11.5 and correctly NOT released. Re-derived from disk — each profile's
+`installed_plugins.json` `.plugins` map, **every array element**, plus cache-dir presence
+and README.md's version table._
 
-**The tracked set is two plugins, not five — and as of this refresh that is SETTLED, not a
-pending anomaly.** `claude-statusline`, `sdd` and `session-bridge` have **no install record
-in any of the three profiles**. This is now the **third consecutive independent measurement**
-saying so — 2026-09-15 (`92483f7`), 2026-09-17 (`4400b92`, a different session), and this
-one — against a single 2026-09-14 refresh (`0a10a5b`) that rendered all three as installed
-and green across 9 plugin×profile pairs.
+**This is a code release, not doc-only.** The one commit since the last bump, `cf5ea29`,
+fixes two hooks: `agent-guide-restore.mjs` (a stamped subagent's own guide-ledger marks were
+being stripped as if they belonged to the parent) and `session-start.mjs` (records
+`hook_source`/`hook_source_at` so a post-compact `/mcp` reconnect isn't mistaken for a fresh
+restart). `tests/run-all.sh` was green pre-flight, before the bump.
 
-**That resolves the promote-when left on 2026-09-15**, which said: *if they stay absent, the
-`params` shape is correct and the 09-14 rows should be treated as unreliable rather than as a
-regression to repair.* They stayed absent across two further refreshes. **Verdict: the 09-14
-rows were unreliable; there is nothing here to repair.** Do not re-open this as drift unless
-a future refresh finds one of the three back in `params` — at which point record what
-re-installed it.
-
-**`release.sh` did not remove them.** Step 5 is a surgical `jq` assignment —
-`.plugins["<plugin>@<marketplace>"][0].version` and `.installPath` only
-(`release.sh:104-107`) — leaving every sibling key untouched. Today's two releases rewrote
-all three record files (mtime `2026-09-15 09:07:23`) but could not have dropped another
-plugin's key. The records were already absent before this session. **Undetermined from
-here:** whether the three were uninstalled after 2026-09-14, or the 09-14 refresh recorded
-state that was never on disk. This tracker's own prompt says "`sdd` is stable and
-uninstalled by design; never flag it", which the 09-14 params contradicted by listing `sdd`
-as installed everywhere — that favours the second reading. All three cache dirs still exist
-in all three profiles, so the absence is in the *records*, not the bytes.
-
-**None of the three is enabled anywhere**, so nothing was loading them regardless:
-`enabledPlugins` is `superpowers` + `codescout-companion` + `buddy` in all three profiles
-(plus `andrej-karpathy-skills` + `hookify` in `~/.claude-sdd`), matching CLAUDE.md.
+**The tracked set is two plugins, not five** (settled 2026-09-17 across three independent
+refreshes, unchanged this one): `claude-statusline`, `sdd` and `session-bridge` remain
+absent from every profile's install record, none enabled anywhere.
 
 **buddy** — canonical `0.11.5` · readme `0.11.5` · marketplace clean ✅
 
@@ -62,69 +40,31 @@ in all three profiles, so the absence is in the *records*, not the bytes.
 | `~/.claude-sdd` | 0.11.5 ✅ | ✅ | ✅ | `0.11.5` ✅ | ✅ |
 | `~/.claude-kat` | 0.11.5 ✅ | ✅ | ✅ | `0.11.5` ✅ | ✅ |
 
-**codescout-companion** — canonical `1.20.13` · readme `1.20.13` · marketplace clean ✅
+**codescout-companion** — canonical `1.20.14` · readme `1.20.14` · marketplace clean ✅
 
 | profile | installed | cache dir | install_path ok | all entries | cache = working tree |
 |---|---|---|---|---|---|
-| `~/.claude` | 1.20.13 ✅ | ✅ | ✅ | `1.20.13` ✅ | ✅ |
-| `~/.claude-sdd` | 1.20.13 ✅ | ✅ | ✅ | `1.20.13` ✅ | ✅ |
-| `~/.claude-kat` | 1.20.13 ✅ | ✅ | ✅ | `1.20.13` ✅ | ✅ |
+| `~/.claude` | 1.20.14 ✅ | ✅ | ✅ | `1.20.14` ✅ | ✅ |
+| `~/.claude-sdd` | 1.20.14 ✅ | ✅ | ✅ | `1.20.14` ✅ | ✅ |
+| `~/.claude-kat` | 1.20.14 ✅ | ✅ | ✅ | `1.20.14` ✅ | ✅ |
 
 All 6 plugin×profile pairs measured, not carried: `diff -rq` under the documented excludes
-returned empty for every pair, and **no exclusion was added this refresh** — the second
-consecutive refresh able to say that. It matters because of the warning below: a column
-whose method grows an exclusion per refresh can be tuned until it always reads green.
+(`__pycache__`, `.pytest_cache`, `.venv`, `target`, `.buddy`, `.orphaned_at`) returned empty
+for every codescout-companion pair, no new exclusion added this refresh. The 1.20.13 cache
+dirs have since been pruned in all three profiles, so the usual old-vs-new control pair
+couldn't be run against them directly; instead, `hook_source_at` (new in `cf5ea29`) was
+confirmed present **1×** in each profile's `1.20.14` `session-start.mjs`, combined with the
+clean `diff -rq` against the working tree — together these establish the cache carries the
+new bytes, not merely that a directory named `1.20.14` exists.
 
-The changed file was checked by a control PAIR rather than a single grep, keeping the
-standard the `1.20.12` refresh set — a lone presence check cannot report both states and
-would read identically on a cache that never updated. The new clause `installs the prior`
-occurs **1×** in each profile's `1.20.13` cache and **0×** in the `1.20.12` cache still
-sitting beside it. So the cache carries the change, and the check is demonstrably able to
-say otherwise.
-
-**Registration CONFIRMED for this instance on 2026-09-17, and the "behavioural restart
-debt" recorded above it was WRONG on two independent grounds.** Both corrections are
-measurements, and both were made by the session that had propagated the error an hour
-earlier.
-
-*Registration + execution, this instance.* `/reload-plugins` reported **26 hooks**, which is
-exact manifest arithmetic — `codescout-companion` 20 + `buddy` 5 + `superpowers` 1 — and
-`.buddy/.session-start-trace.log` carries three `source=startup` events, the newest after this
-refresh's own commit. Registration is not execution, so the documented positive control was
-run: the marker was armed at `/tmp/cs-redirect-a3f330723187` **and its presence verified
-inside the same call** (necessary — `run_command` is itself a codescout tool, so its own
-PostToolUse clears it; without the in-call check a later absence proves nothing). The next
-call found it **CLEARED**, with a negative control showing no stray markers. So: *this hook
-executed*, not merely *a reload happened*. `~/.claude-sdd` and `~/.claude-kat` remain
-unconfirmed — separate processes, unreachable from here.
-
-*Correction 1 — the hook count does NOT discriminate this release.* `1.20.12` and `1.20.13`
-have **byte-identical** `hooks.json` (sha `89f9a128ee60`, 20 entries each), because 1.20.13 is
-documentation-only. 26 would have read the same on a process that never picked up 1.20.13. It
-evidences a manifest read, not a version — recorded here so the next refresh does not reuse it
-as release-specific the way the `1.20.12` entry legitimately could.
-
-*Correction 2 — the hook-body gap does not exist on this machine.* The previous entry said a
-non-restarted instance "keeps executing the pre-fix `1.20.11` copy." Measured: hooks resolve
-via `CLAUDE_PLUGIN_ROOT` to the **repo working tree**, not a cache dir —
-`.buddy/.session-start-trace.log` records `plugin_root=/home/marius/work/claude/claude-plugins/buddy`
-as the **only** value it has ever logged (`sort -u` → one line), with `plugin_root_env=N`. So a
-hook-body edit is live at commit; `579b9c1`'s fix needed no release and no restart. This is
-direct measurement for `buddy`'s hooks and same-marketplace inference for
-`codescout-companion`'s — both are `sdd-misc-plugins`, a `directory` source whose
-`installLocation` is this repo.
-
-*And independently:* `git-worktree-guard.mjs` has a **single-worktree carve-out** —
-`if (wtCount < 2) process.exit(0)` at lines 126-129, verified in code rather than from its
-header comment — and `git worktree list` here returns exactly **1**. The guard cannot deny
-anything in this repo whatever version is loaded. The claim that it "still refuses a read-only
-`grep` in every live session" was false here on both counts.
-
-**What the restart is still genuinely for: skills and commands.** Those resolve under
-`installPath`, so `seam-classes.md` is the real beneficiary — and it is now served from
-`1.20.13`. That half was correct.
-
-One cold restart or `/reload-plugins` per instance clears both. Unconfirmed for all three.
+**Registration probed this refresh, in `~/.claude-kat` only (the profile that authored the
+fix).** After `/mcp` reconnect + `/reload-plugins`, a native `Bash` call returned "No such
+tool available" and a native `Read` of a markdown file was denied by `pre-tool-guard.mjs` —
+both consistent with the reload having taken effect. This is a registration/general-hook
+probe, **not** a targeted positive control for `cf5ea29`'s own behaviour (no
+subagent-guide-ledger or post-compact-reconnect scenario was exercised). `~/.claude` and
+`~/.claude-sdd` remain unconfirmed — separate processes, unreachable from here. One cold
+restart or `/reload-plugins` per instance is what would clear that; unconfirmed for those two.
 
 **Not installed in any profile** (discovered in the repo, omitted from `params`):
 `claude-statusline`, `sdd`, `session-bridge`.
@@ -233,6 +173,33 @@ measured on both candidate load paths rather than argued: the record points at k
 two actually serves, they carry the same bytes — so the question CLAUDE.md flags as
 unsettled does not need settling for this release.
 ## History
+### 2026-09-24 — 1.20.14, a two-hook fix, restart probed in one profile only
+
+`codescout-companion` 1.20.13→1.20.14, released via `scripts/release.sh codescout-companion
+patch` and pushed (`0916e0f`, `main` `4984aa8..0916e0f`). Delta: canonical/readme/all three
+profiles' installed versions 1.20.13→1.20.14; `buddy` unchanged at 0.11.5;
+`last_refresh_commit` `1352bc1`→`0916e0f`. All 12 checked cells green, no stale siblings
+(every profile's install array has exactly one element), no cross-profile `installPath`
+drift, all cache dirs present, `diff -rq` clean against the working tree for every profile.
+
+Delta is **code**: `cf5ea29` fixes `agent-guide-restore.mjs` (stamped-subagent marks no
+longer read as the parent's own) and `session-start.mjs` (records
+`hook_source`/`hook_source_at` so a post-compact `/mcp` reconnect isn't read as a fresh
+restart). Cache-carries-the-change was checked via `hook_source_at` (new in this commit),
+found 1× in each profile's `1.20.14` cache — the usual old-cache-absent control pair wasn't
+available since the `1.20.13` cache dirs have since been pruned.
+
+Restart was probed in `~/.claude-kat` (the profile that authored the fix): after `/mcp`
+reconnect + `/reload-plugins`, native `Bash` returned "No such tool available" and native
+`Read` of a `.md` file was denied by `pre-tool-guard.mjs` — evidence the reload took effect,
+but **not** a targeted probe of this specific fix's own behaviour. `~/.claude` and
+`~/.claude-sdd` remain unconfirmed.
+
+Separately in the same session (out of this tracker's scope; recorded in
+`shell-gating-session-log.md` instead): `permissions.deny` for `Bash`/`Write`/`Edit` was
+added across all three profiles' `settings.json`, and this repo's own stray
+`.claude/codescout-companion.json` `block_reads: false` opt-out was deleted. Neither is
+plugin code and neither shows up in the table above.
 
 ### 2026-09-17 — reload confirmed, and the restart-urgency claim refuted twice over
 
