@@ -240,6 +240,37 @@ else
   pass "rendezvous (nested, comm): N/A (comm is read from /proc)"
 fi
 
+# --- rendezvous: a server that publishes AFTER SessionStart still gets stamped ---
+# codescout:docs/issues/2026-09-24-sessionstart-can-run-before-the-resumed-servers-slot-exists.md
+# Interactive Claude Code fires SessionStart about 220 ms BEFORE its codescout
+# server publishes its slot (measured 2026-09-24: hook at +763 ms, slot at
+# +982 ms), so the scan finds nothing to stamp, and the refresher never opens a
+# null gate. This fabricates that order. An intermediate bash plays the Claude
+# (registry row) and runs the hook while NO slot of its own exists. Only after
+# the hook has returned does its "server" publish. Load-bearing: the OTHER
+# Claude's late slot is written FIRST, so a stamper that matched any ppid would
+# reach it in the same scan that finds ours. The positive assertion is awaited
+# first, so the negative one cannot pass merely because nothing has run yet.
+LATE_STATE="$TMP/late-state"; LATE_RV="$LATE_STATE/codescout/servers"; mkdir -p "$LATE_RV"
+NEST_CFG="$NEST_CFG" TMP="$TMP" HOOK="$HOOK" LATE_STATE="$LATE_STATE" bash -c '
+  printf "{\"pid\":%s,\"sessionId\":\"sst-late\"}" "$$" > "$NEST_CFG/sessions/$$.json"
+  echo "$$" > "$1"
+  printf "{\"cwd\":\"%s\",\"source\":\"startup\",\"session_id\":\"sst-late\"}" "$TMP" \
+    | CLAUDE_CONFIG_DIR="$NEST_CFG" XDG_STATE_HOME="$LATE_STATE" node "$HOOK" >/dev/null 2>&1
+  rc=$?  # a command after the pipeline keeps this shell alive as the parent of the hook
+' late "$TMP/late-claude.pid"
+LATE_CLAUDE=$(cat "$TMP/late-claude.pid")
+# Both servers publish only now, after SessionStart has returned.
+printf '{"pid":999131,"ppid":%s,"started_at":"2026-01-01T00:00:00Z","cwd":"/","session":null,"hook_at":null}' "$$" > "$LATE_RV/999131.json"
+printf '{"pid":999130,"ppid":%s,"started_at":"2026-01-01T00:00:00Z","cwd":"/","session":null,"hook_at":null}' "$LATE_CLAUDE" > "$LATE_RV/999130.json"
+for _ in $(seq 1 60); do jq -e '.hook_at != null' "$LATE_RV/999130.json" >/dev/null 2>&1 && break; sleep 0.1; done
+jq -e '.session == "sst-late" and .hook_at != null and .hook_source == "startup"' "$LATE_RV/999130.json" >/dev/null \
+  && pass "rendezvous (late slot): a server that publishes after SessionStart is still stamped, with its source" \
+  || fail "rendezvous (late slot): a server that published after SessionStart was never stamped ($(cat "$LATE_RV/999130.json"))"
+jq -e '.session == null and .hook_at == null' "$LATE_RV/999131.json" >/dev/null \
+  && pass "rendezvous (late slot): another Claude's late server is left alone" \
+  || fail "rendezvous (late slot): the late stamper stamped another Claude's server"
+
 # --- Tracker-hygiene overdue nudge ---
 # Ledger absent (all earlier ctx calls ran without it): no nudge.
 if echo "$STARTUP" | grep -q "TRACKER HYGIENE"; then

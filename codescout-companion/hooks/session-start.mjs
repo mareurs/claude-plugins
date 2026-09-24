@@ -12,7 +12,8 @@ import {
 import { join, dirname, isAbsolute } from 'node:path';
 import { homedir } from 'node:os';
 import { spawn, execFileSync } from 'node:child_process';
-import { readInput, detectFor, git, emit, isClaudeProcess } from './lib.mjs';
+import { readInput, detectFor, git, emit, isClaudeProcess, stampSlotIfStale } from './lib.mjs';
+import { fileURLToPath } from 'node:url';
 
 const input = readInput();
 if (!input) process.exit(0);
@@ -48,8 +49,7 @@ const home = process.env.HOME || process.env.USERPROFILE || homedir();
 const csActiveDir = join(process.env.CLAUDE_CONFIG_DIR || join(home, '.claude'), 'codescout-active');
 
 // Stamp codescout rendezvous slots belonging to our own process ancestry.
-// The server publishes <pid>.json at construction (it cannot learn the session
-// id at startup: MCP initialize runs before SessionStart), and this writes the
+// The server publishes <pid>.json at construction and this writes the session
 // id into it. Matching on ppid-within-our-ancestry is what keeps two concurrent
 // windows on one repo from stamping each other's servers.
 if (sessionId) {
@@ -60,40 +60,36 @@ if (sessionId) {
     const xdgStateHome = process.env.XDG_STATE_HOME;
     const stateHome = xdgStateHome && isAbsolute(xdgStateHome) ? xdgStateHome : join(home, '.local', 'state');
     const rvDir = join(stateHome, 'codescout', 'servers');
+    const ancestry = ownAncestry();
+    const stampedAt = new Date().toISOString();
+    let ownSlots = 0;
     if (existsSync(rvDir)) {
-      const ancestry = ownAncestry();
-      const stampedAt = new Date().toISOString();
       for (const name of readdirSync(rvDir)) {
         if (!name.endsWith('.json')) continue;
         const f = join(rvDir, name);
         try {
           const e = JSON.parse(readFileSync(f, 'utf8'));
           if (!ancestry.has(e.ppid)) continue;
-          // Already current: rewriting would bump mtime and cost the server a
-          // parse on its next call for no change. The SOURCE is part of "current":
-          // a compaction keeps the session id, and codescout's post_compact gate
-          // needs to see that the last SessionStart was one.
-          // codescout:docs/issues/2026-08-31-post-compact-clears-the-ledger-with-no-compaction-check.md
-          if (e.session === sessionId && e.hook_at && (!source || e.hook_source === source)) continue;
-          e.session = sessionId;
-          e.hook_at = stampedAt;
-          if (source) {
-            e.hook_source = source;
-            e.hook_source_at = stampedAt;
-          }
-          // Atomic write: stage to a sibling tmp file in the SAME directory,
-          // then rename over the target — rename is only atomic within one
-          // filesystem. A bare writeFileSync here let a poll on the server
-          // side land mid-write and see truncated JSON (see poll() in
-          // src/tools/rendezvous.rs, which now tolerates that too, but the
-          // torn write itself is fixed here, at the source).
-          const tmp = `${f}.tmp`;
-          writeFileSync(tmp, JSON.stringify(e));
-          renameSync(tmp, f);
+          ownSlots++;
+          stampSlotIfStale(f, e, sessionId, source, stampedAt);
         } catch {
           /* skip unreadable, unparseable, or concurrently-removed slots */
         }
       }
+    }
+    // None of ours yet is the NORMAL case in an interactive session: SessionStart
+    // fires before the MCP servers publish (measured 2026-09-24: hook at +763 ms,
+    // slot at +982 ms). Hand it to a detached stamper that waits for our Claude's
+    // server. It gets the Claude pid — the process the walk ended at — because a
+    // detached process is reparented and cannot walk our ancestry itself.
+    // codescout:docs/issues/2026-09-24-sessionstart-can-run-before-the-resumed-servers-slot-exists.md
+    const claudePid = [...ancestry].pop();
+    if (ownSlots === 0 && claudePid !== undefined && isClaudeProcess(claudePid)) {
+      const stamper = fileURLToPath(new URL('./rendezvous-late-stamp.mjs', import.meta.url));
+      spawn(process.execPath, [stamper, String(claudePid), sessionId, source, rvDir, stampedAt], {
+        detached: true,
+        stdio: 'ignore',
+      }).unref();
     }
   } catch {
     /* best-effort — never let the rendezvous break the hook */

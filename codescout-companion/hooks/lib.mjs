@@ -577,6 +577,34 @@ export function isClaudeProcess(pid) {
   }
 }
 
+// Stamp one rendezvous slot with a SessionStart's session id and source, unless
+// it already carries them. Returns whether it wrote. Shared by session-start.mjs's
+// scan and by rendezvous-late-stamp.mjs, so a slot stamped late obeys the same
+// rules as one stamped on time.
+export function stampSlotIfStale(f, e, sessionId, source, stampedAt) {
+  // Already current: rewriting would bump mtime and cost the server a parse on
+  // its next call for no change. The SOURCE is part of "current": a compaction
+  // keeps the session id, and codescout's post_compact gate needs to see that
+  // the last SessionStart was one.
+  // codescout:docs/issues/2026-08-31-post-compact-clears-the-ledger-with-no-compaction-check.md
+  if (e.session === sessionId && e.hook_at && (!source || e.hook_source === source)) return false;
+  e.session = sessionId;
+  e.hook_at = stampedAt;
+  if (source) {
+    e.hook_source = source;
+    e.hook_source_at = stampedAt;
+  }
+  // Atomic write: stage to a sibling tmp file in the SAME directory, then rename
+  // over the target — rename is only atomic within one filesystem. A bare
+  // writeFileSync let a poll on the server side land mid-write and see truncated
+  // JSON (see poll() in src/tools/rendezvous.rs, which now tolerates that too,
+  // but the torn write itself is fixed here, at the source).
+  const tmp = `${f}.tmp`;
+  writeFileSync(tmp, JSON.stringify(e));
+  renameSync(tmp, f);
+  return true;
+}
+
 export function parentOf(pid) {
   try {
     if (process.platform === 'linux') {
