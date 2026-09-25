@@ -14,7 +14,21 @@ Release readiness across plugins × profiles. See
 
 ## State
 
-_Last refresh: `953167a`, 2026-09-25 — `buddy` 0.11.5→0.11.6 via
+_Last refresh: `3d0c53a`, 2026-09-25 — `buddy` 0.11.6→0.11.7 via
+`NO_PUSH=1 scripts/release.sh buddy patch`, **committed locally, not pushed** (`71f9041` the
+skill change, `3d0c53a` the bump). `codescout-companion` unchanged at 1.20.15. Every value
+re-derived from disk: each profile's `installed_plugins.json` (every array element; one per
+plugin in all three), cache-dir presence, README's version table, `marketplace.json` (0 plugin
+entries with a `version` key), and `diff -rq` of each cache against the working tree under the
+documented excludes — **empty for all six plugin×profile pairs**._
+
+**This buddy release is skill content only.** The one commit since 0.11.6, `71f9041`, edits the
+ML Training Takin specialist (`skills/ml-training-takin/SKILL.md`). No hook or script changed.
+`tests/run-all.sh` and the buddy pytest suite were green pre-flight. A probe string from the
+change occurs **1×** in all three profiles' `0.11.7` copies and **0×** in their `0.11.6` copies,
+so the caches carry the new bytes. **Restart not probed.**
+
+_Previous refresh: `953167a`, 2026-09-25 — `buddy` 0.11.5→0.11.6 via
 `NO_PUSH=1 scripts/release.sh buddy patch`, **committed locally, not pushed** (`e60952a` the
 skill change, `953167a` the bump). The same refresh is the first to record `codescout-companion`
 at **1.20.15**, released by `60495ca` after the 2026-09-24 refresh. Every value re-derived from
@@ -23,7 +37,7 @@ three), cache-dir presence, README's version table, `marketplace.json` (0 plugin
 `version` key), and `diff -rq` of each cache against the working tree under the documented
 excludes — **empty for all six plugin×profile pairs**._
 
-**This buddy release is skill content only.** The one commit since 0.11.5, `e60952a`, edits the
+**That 0.11.6 release was skill content only.** The one commit since 0.11.5, `e60952a`, edits the
 Snow Pheasant specialist (`skills/data-leakage-snow-pheasant/SKILL.md` and `_llm.md`). No hook or
 script changed. `tests/run-all.sh` and the buddy pytest suite were green pre-flight. The new bytes
 are confirmed in the caches, not only the directory names: two probe strings from the change occur
@@ -49,13 +63,13 @@ restart). `tests/run-all.sh` was green pre-flight, before the bump.
 refreshes, unchanged this one): `claude-statusline`, `sdd` and `session-bridge` remain
 absent from every profile's install record, none enabled anywhere.
 
-**buddy** — canonical `0.11.6` · readme `0.11.6` · marketplace clean ✅
+**buddy** — canonical `0.11.7` · readme `0.11.7` · marketplace clean ✅
 
 | profile | installed | cache dir | install_path ok | all entries | cache = working tree |
 |---|---|---|---|---|---|
-| `~/.claude` | 0.11.6 ✅ | ✅ | ✅ | `0.11.6` ✅ | ✅ |
-| `~/.claude-sdd` | 0.11.6 ✅ | ✅ | ✅ | `0.11.6` ✅ | ✅ |
-| `~/.claude-kat` | 0.11.6 ✅ | ✅ | ✅ | `0.11.6` ✅ | ✅ |
+| `~/.claude` | 0.11.7 ✅ | ✅ | ✅ | `0.11.7` ✅ | ✅ |
+| `~/.claude-sdd` | 0.11.7 ✅ | ✅ | ✅ | `0.11.7` ✅ | ✅ |
+| `~/.claude-kat` | 0.11.7 ✅ | ✅ | ✅ | `0.11.7` ✅ | ✅ |
 
 **codescout-companion** — canonical `1.20.15` · readme `1.20.15` · marketplace clean ✅
 
@@ -190,6 +204,14 @@ measured on both candidate load paths rather than argued: the record points at k
 two actually serves, they carry the same bytes — so the question CLAUDE.md flags as
 unsettled does not need settling for this release.
 ## History
+### 2026-09-25 — buddy 0.11.7 (ML Training Takin skill content), local
+
+**Deltas, all measured:**
+- `buddy`: canonical, readme and all three profiles' installed `0.11.6→0.11.7`, via `NO_PUSH=1 scripts/release.sh buddy patch`. Committed locally (`71f9041`, `3d0c53a`) and **not pushed**.
+- `codescout-companion`: unchanged at 1.20.15. `diff -rq` against the working tree is empty in all three profiles.
+- `last_refresh_commit` `953167a→3d0c53a`.
+
+A second buddy release the same day. `0.11.6` taught the Snow Pheasant to diagnose a bad training recipe and refer it on; this one teaches the Takin, the specialist it refers to. **Not probed:** registration after restart.
 ### 2026-09-25 — buddy 0.11.6 (Snow Pheasant skill content), local; companion 1.20.15 recorded late
 
 **Deltas, all measured:**
