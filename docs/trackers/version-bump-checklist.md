@@ -14,7 +14,24 @@ Release readiness across plugins × profiles. See
 
 ## State
 
-_Last refresh: `0916e0f`, 2026-09-24 — `codescout-companion` 1.20.13→1.20.14 via
+_Last refresh: `953167a`, 2026-09-25 — `buddy` 0.11.5→0.11.6 via
+`NO_PUSH=1 scripts/release.sh buddy patch`, **committed locally, not pushed** (`e60952a` the
+skill change, `953167a` the bump). The same refresh is the first to record `codescout-companion`
+at **1.20.15**, released by `60495ca` after the 2026-09-24 refresh. Every value re-derived from
+disk: each profile's `installed_plugins.json` (every array element; one element per plugin in all
+three), cache-dir presence, README's version table, `marketplace.json` (0 plugin entries with a
+`version` key), and `diff -rq` of each cache against the working tree under the documented
+excludes — **empty for all six plugin×profile pairs**._
+
+**This buddy release is skill content only.** The one commit since 0.11.5, `e60952a`, edits the
+Snow Pheasant specialist (`skills/data-leakage-snow-pheasant/SKILL.md` and `_llm.md`). No hook or
+script changed. `tests/run-all.sh` and the buddy pytest suite were green pre-flight. The new bytes
+are confirmed in the caches, not only the directory names: two probe strings from the change occur
+**1×** each in all three profiles' `0.11.6` copies, and 0× in the `0.11.5` copies measured just
+before the release. **Restart not probed** — no instance was restarted from this session; each needs
+a cold restart or `/reload-plugins` to load 0.11.6.
+
+_Previous refresh: `0916e0f`, 2026-09-24 — `codescout-companion` 1.20.13→1.20.14 via
 `scripts/release.sh codescout-companion patch`, **pushed** (`main` `4984aa8..0916e0f`).
 Delta from the previous refresh: canonical, readme and all three profiles' installed
 versions move 1.20.13→1.20.14; `last_refresh_commit` `1352bc1`→`0916e0f`; `buddy` unchanged
@@ -22,7 +39,7 @@ at 0.11.5 and correctly NOT released. Re-derived from disk — each profile's
 `installed_plugins.json` `.plugins` map, **every array element**, plus cache-dir presence
 and README.md's version table._
 
-**This is a code release, not doc-only.** The one commit since the last bump, `cf5ea29`,
+**That 09-24 release (companion 1.20.14) was a code release, not doc-only.** The one commit since the bump before it, `cf5ea29`,
 fixes two hooks: `agent-guide-restore.mjs` (a stamped subagent's own guide-ledger marks were
 being stripped as if they belonged to the parent) and `session-start.mjs` (records
 `hook_source`/`hook_source_at` so a post-compact `/mcp` reconnect isn't mistaken for a fresh
@@ -32,21 +49,21 @@ restart). `tests/run-all.sh` was green pre-flight, before the bump.
 refreshes, unchanged this one): `claude-statusline`, `sdd` and `session-bridge` remain
 absent from every profile's install record, none enabled anywhere.
 
-**buddy** — canonical `0.11.5` · readme `0.11.5` · marketplace clean ✅
+**buddy** — canonical `0.11.6` · readme `0.11.6` · marketplace clean ✅
 
 | profile | installed | cache dir | install_path ok | all entries | cache = working tree |
 |---|---|---|---|---|---|
-| `~/.claude` | 0.11.5 ✅ | ✅ | ✅ | `0.11.5` ✅ | ✅ |
-| `~/.claude-sdd` | 0.11.5 ✅ | ✅ | ✅ | `0.11.5` ✅ | ✅ |
-| `~/.claude-kat` | 0.11.5 ✅ | ✅ | ✅ | `0.11.5` ✅ | ✅ |
+| `~/.claude` | 0.11.6 ✅ | ✅ | ✅ | `0.11.6` ✅ | ✅ |
+| `~/.claude-sdd` | 0.11.6 ✅ | ✅ | ✅ | `0.11.6` ✅ | ✅ |
+| `~/.claude-kat` | 0.11.6 ✅ | ✅ | ✅ | `0.11.6` ✅ | ✅ |
 
-**codescout-companion** — canonical `1.20.14` · readme `1.20.14` · marketplace clean ✅
+**codescout-companion** — canonical `1.20.15` · readme `1.20.15` · marketplace clean ✅
 
 | profile | installed | cache dir | install_path ok | all entries | cache = working tree |
 |---|---|---|---|---|---|
-| `~/.claude` | 1.20.14 ✅ | ✅ | ✅ | `1.20.14` ✅ | ✅ |
-| `~/.claude-sdd` | 1.20.14 ✅ | ✅ | ✅ | `1.20.14` ✅ | ✅ |
-| `~/.claude-kat` | 1.20.14 ✅ | ✅ | ✅ | `1.20.14` ✅ | ✅ |
+| `~/.claude` | 1.20.15 ✅ | ✅ | ✅ | `1.20.15` ✅ | ✅ |
+| `~/.claude-sdd` | 1.20.15 ✅ | ✅ | ✅ | `1.20.15` ✅ | ✅ |
+| `~/.claude-kat` | 1.20.15 ✅ | ✅ | ✅ | `1.20.15` ✅ | ✅ |
 
 All 6 plugin×profile pairs measured, not carried: `diff -rq` under the documented excludes
 (`__pycache__`, `.pytest_cache`, `.venv`, `target`, `.buddy`, `.orphaned_at`) returned empty
@@ -173,6 +190,14 @@ measured on both candidate load paths rather than argued: the record points at k
 two actually serves, they carry the same bytes — so the question CLAUDE.md flags as
 unsettled does not need settling for this release.
 ## History
+### 2026-09-25 — buddy 0.11.6 (Snow Pheasant skill content), local; companion 1.20.15 recorded late
+
+**Deltas, all measured:**
+- `buddy`: canonical, readme and all three profiles' installed `0.11.5→0.11.6`, via `NO_PUSH=1 scripts/release.sh buddy patch`. Committed locally (`e60952a`, `953167a`) and **not pushed**; pushing waits on the operator.
+- `codescout-companion`: canonical, readme and all three installed `1.20.14→1.20.15`. **No refresh recorded that release** (`60495ca`, "chore: bump codescout-companion to 1.20.15"). This refresh found it by measuring, not from any note: the 09-24 State still read 1.20.14 while every install record and the README read 1.20.15. The caches are verified clean against the working tree (`diff -rq` empty in all three profiles).
+- `last_refresh_commit` `0916e0f→953167a`.
+
+**Not probed:** registration after restart, in any profile. No instance was restarted from this session.
 ### 2026-09-24 — 1.20.14, a two-hook fix, restart probed in one profile only
 
 `codescout-companion` 1.20.13→1.20.14, released via `scripts/release.sh codescout-companion
