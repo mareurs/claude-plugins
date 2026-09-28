@@ -14,7 +14,33 @@ Release readiness across plugins × profiles. See
 
 ## State
 
-_Last refresh: `3d0c53a`, 2026-09-25 — `buddy` 0.11.6→0.11.7 via
+_Last refresh: `b325f4c`, 2026-09-28 — `buddy` 0.11.7→0.11.8 via
+`scripts/release.sh buddy patch`, **pushed** (`main` `20a8eed..b325f4c`; `289c389` the fix,
+`b325f4c` the bump). `codescout-companion` unchanged at 1.20.15. Every value re-derived from
+disk: each profile's `installed_plugins.json` (every array element; one per plugin in all
+three), cache-dir presence, README's version table, `marketplace.json` (0 plugin entries with a
+`version` key), and `diff -rq` of each cache against the working tree under the documented
+excludes — **empty for 5 of 6 pairs; the sixth differs only by a runtime marker** (below)._
+
+**This buddy release is a script fix, not skill content.** The one commit since 0.11.7,
+`289c389`, changes `buddy/scripts/statusline-composed.sh`: `resolve_primary` now finds
+`claude-statusline` in the same checkout before the plugin cache — CC's orphan sweep had deleted
+the unrecorded `claude-statusline` cache dir from `~/.claude-sdd`, dropping statusline row 1 —
+and the rate-limits fallback reads `used_percentage` (it printed `100%/100%`).
+`tests/run-all.sh` was green pre-flight. **The buddy pytest pre-flight step did not run:**
+`release.sh` gates it on `buddy/.venv/bin/pytest`, absent on this machine, and skips without a
+line of output. Run afterwards with system `python3 -m pytest tests -q`: 527 passed.
+`statusline-composed.sh` in all three profiles' `0.11.8` caches is byte-identical to the working
+tree. **Restart not probed** — but every profile's `statusLine` command points at the repo
+working tree, so on this machine the fix renders without one.
+
+**A new runtime-marker class, named rather than silently excluded.** `diff -rq` for
+`codescout-companion` 1.20.15 in `~/.claude` reports one line: `Only in` the cache: `.in_use`.
+It is a marker CC writes into a loaded cache dir (same class as `.orphaned_at`: runtime, written
+after seeding, never in the tree), not content drift — so the pair reads ✅ below. Not added to
+the copy excludes: `lib-copy-plugin.sh` never sees it, the tree has none.
+
+_Previous refresh: `3d0c53a`, 2026-09-25 — `buddy` 0.11.6→0.11.7 via
 `NO_PUSH=1 scripts/release.sh buddy patch`, **committed locally, not pushed** (`71f9041` the
 skill change, `3d0c53a` the bump). `codescout-companion` unchanged at 1.20.15. Every value
 re-derived from disk: each profile's `installed_plugins.json` (every array element; one per
@@ -22,7 +48,7 @@ plugin in all three), cache-dir presence, README's version table, `marketplace.j
 entries with a `version` key), and `diff -rq` of each cache against the working tree under the
 documented excludes — **empty for all six plugin×profile pairs**._
 
-**This buddy release is skill content only.** The one commit since 0.11.6, `71f9041`, edits the
+**That 0.11.7 release was skill content only.** The one commit since 0.11.6, `71f9041`, edits the
 ML Training Takin specialist (`skills/ml-training-takin/SKILL.md`). No hook or script changed.
 `tests/run-all.sh` and the buddy pytest suite were green pre-flight. A probe string from the
 change occurs **1×** in all three profiles' `0.11.7` copies and **0×** in their `0.11.6` copies,
@@ -63,13 +89,13 @@ restart). `tests/run-all.sh` was green pre-flight, before the bump.
 refreshes, unchanged this one): `claude-statusline`, `sdd` and `session-bridge` remain
 absent from every profile's install record, none enabled anywhere.
 
-**buddy** — canonical `0.11.7` · readme `0.11.7` · marketplace clean ✅
+**buddy** — canonical `0.11.8` · readme `0.11.8` · marketplace clean ✅
 
 | profile | installed | cache dir | install_path ok | all entries | cache = working tree |
 |---|---|---|---|---|---|
-| `~/.claude` | 0.11.7 ✅ | ✅ | ✅ | `0.11.7` ✅ | ✅ |
-| `~/.claude-sdd` | 0.11.7 ✅ | ✅ | ✅ | `0.11.7` ✅ | ✅ |
-| `~/.claude-kat` | 0.11.7 ✅ | ✅ | ✅ | `0.11.7` ✅ | ✅ |
+| `~/.claude` | 0.11.8 ✅ | ✅ | ✅ | `0.11.8` ✅ | ✅ |
+| `~/.claude-sdd` | 0.11.8 ✅ | ✅ | ✅ | `0.11.8` ✅ | ✅ |
+| `~/.claude-kat` | 0.11.8 ✅ | ✅ | ✅ | `0.11.8` ✅ | ✅ |
 
 **codescout-companion** — canonical `1.20.15` · readme `1.20.15` · marketplace clean ✅
 
@@ -98,7 +124,9 @@ subagent-guide-ledger or post-compact-reconnect scenario was exercised). `~/.cla
 restart or `/reload-plugins` per instance is what would clear that; unconfirmed for those two.
 
 **Not installed in any profile** (discovered in the repo, omitted from `params`):
-`claude-statusline`, `sdd`, `session-bridge`.
+`claude-statusline`, `sdd`, `session-bridge`. `claude-statusline` is consumed as buddy's
+statusline row 1, and since `289c389` it resolves from the checkout, not from a cache dir —
+so having no install record is no longer a latent outage.
 
 ### The new column, and why it exists
 
@@ -204,6 +232,14 @@ measured on both candidate load paths rather than argued: the record points at k
 two actually serves, they carry the same bytes — so the question CLAUDE.md flags as
 unsettled does not need settling for this release.
 ## History
+### 2026-09-28 — buddy 0.11.8 (statusline row-1 resolution + fallback percentages), pushed
+
+**Deltas, all measured:**
+- `buddy`: canonical, readme and all three profiles' installed `0.11.7→0.11.8`, via `scripts/release.sh buddy patch`. Pushed (`main` `20a8eed..b325f4c`; `289c389` the fix, `b325f4c` the bump).
+- `codescout-companion`: unchanged at 1.20.15. `diff -rq` against the working tree is empty in `~/.claude-sdd` and `~/.claude-kat`; in `~/.claude` it differs only by `.in_use`, a CC runtime marker (named in State, not excluded).
+- `last_refresh_commit` `3d0c53a→b325f4c`.
+
+**Gate hole found:** `release.sh` step 0 runs buddy pytest only `if [ -x buddy/.venv/bin/pytest ]`, and there is no venv here, so the step skipped silently — the release log carries no pytest line at all. Suite run by hand afterwards: 527 passed. Earlier entries' "buddy pytest green pre-flight" may rest on the same silent skip; not re-checked. **Not probed:** registration after restart.
 ### 2026-09-25 — buddy 0.11.7 (ML Training Takin skill content), local
 
 **Deltas, all measured:**
