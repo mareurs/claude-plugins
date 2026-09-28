@@ -3,11 +3,18 @@
 source "$(dirname "${BASH_SOURCE[0]}")/lib/fixtures.sh"
 
 echo "── statusline-cache ──"
-COMPOSED="$(dirname "${BASH_SOURCE[0]}")/../buddy/scripts/statusline-composed.sh"
 
 # Isolated CLAUDE_CONFIG_DIR — no creds → no background fetch race
 export CLAUDE_CONFIG_DIR="$(mktemp -d)"
-trap 'rm -rf "$CLAUDE_CONFIG_DIR"' EXIT
+# Run a copy of the composed script from a sandbox with no claude-statusline
+# beside it, so resolve_primary finds nothing and these tests exercise the
+# rate-limits fallback. Run from the repo, the sibling lookup would find the
+# real claude-statusline and the fallback would be tested nowhere.
+SANDBOX="$(mktemp -d)"
+mkdir -p "$SANDBOX/buddy/scripts"
+cp "$(dirname "${BASH_SOURCE[0]}")/../buddy/scripts/statusline-composed.sh" "$SANDBOX/buddy/scripts/"
+COMPOSED="$SANDBOX/buddy/scripts/statusline-composed.sh"
+trap 'rm -rf "$CLAUDE_CONFIG_DIR" "$SANDBOX"' EXIT
 CACHE_FILE="$CLAUDE_CONFIG_DIR/statusline-usage-cache.json"
 LOCK_FILE="$CLAUDE_CONFIG_DIR/statusline-usage-cache.lock"
 
@@ -36,6 +43,32 @@ if echo "$OUT" | grep -q "5h"; then
   pass "fresh cache: rate limits displayed"
 else
   fail "fresh cache: rate limits displayed"
+fi
+# The values, not just the labels: _merge_cache renames utilization to
+# used_percentage, and a fallback reading the old key printed 100%/100%.
+PLAIN=$(echo "$OUT" | sed 's/\x1b\[[0-9;]*m//g')
+if echo "$PLAIN" | grep -qF "5h 42%/7d 17%"; then
+  pass "fresh cache: fallback shows cached percentages"
+else
+  fail "fresh cache: fallback shows cached percentages" "got: $PLAIN"
+fi
+
+# ── Test 1b: 0% utilization renders as 0%, not 100% ──
+cleanup
+cat > "$CACHE_FILE" <<EOF
+{
+  "five_hour":   {"utilization": 0.0, "resets_at": "2099-01-01T00:00:00.000000+00:00"},
+  "seven_day":   {"utilization": 49.0, "resets_at": "2099-01-01T00:00:00.000000+00:00"},
+  "fetched_at":  $FRESH_TS,
+  "stale":       false,
+  "retry_after": 0
+}
+EOF
+PLAIN=$(echo "$BASE_INPUT" | BUDDY_SKIP_SELF=1 bash "$COMPOSED" 2>/dev/null | sed 's/\x1b\[[0-9;]*m//g')
+if echo "$PLAIN" | grep -qF "5h 0%/7d 49%"; then
+  pass "zero utilization: fallback shows 0%"
+else
+  fail "zero utilization: fallback shows 0%" "got: $PLAIN"
 fi
 if echo "$OUT" | grep -qP "\x1b\[90m~"; then
   fail "fresh cache: no ~ prefix"

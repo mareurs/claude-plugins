@@ -9,9 +9,10 @@
 #
 # Configuration (all optional):
 #   BUDDY_PRIMARY_STATUSLINE  Path to a primary statusline command. If unset,
-#                             the script tries to find claude-statusline from
-#                             the sdd-misc-plugins cache, then falls back to
-#                             $HOME/.claude/statusline.sh, then to nothing.
+#                             the script tries the sibling claude-statusline in
+#                             the same checkout, then the sdd-misc-plugins
+#                             cache, then $CLAUDE_CONFIG_DIR/statusline.sh,
+#                             then nothing.
 #   BUDDY_SKIP_PRIMARY=1      Skip the primary entirely (buddy only).
 #   BUDDY_SKIP_SELF=1         Skip the buddy row (primary only — rarely useful).
 
@@ -162,6 +163,18 @@ resolve_primary() {
     return
   fi
 
+  # Sibling claude-statusline in the same checkout (buddy/scripts/ → ../..).
+  # Tried before the plugin cache: claude-statusline has no install record in
+  # any profile, so CC's orphan sweep deletes its cache dir — which silently
+  # dropped row 1 from ~/.claude-sdd. Absent for cache installs
+  # (cache/…/buddy/<ver>/), where the lookups below still apply.
+  local checkout
+  checkout="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." 2>/dev/null && pwd)"
+  if [[ -n "$checkout" ]] && [[ -x "$checkout/claude-statusline/bin/statusline.sh" ]]; then
+    printf '%s' "$checkout/claude-statusline/bin/statusline.sh"
+    return
+  fi
+
   local cfg="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
   local base="$cfg/plugins/cache/sdd-misc-plugins/claude-statusline"
   # Glob returns versions alphabetically; sort -V picks the newest semver.
@@ -188,15 +201,16 @@ resolve_primary() {
 _render_rate_limits_fallback() {
   # Minimal rate-limits line for when no primary statusline is installed.
   # Emits "5h <pct>%/7d <pct>%" with a leading "~" (dim) prefix when stale.
-  # Schema accepts either {utilization, resets_at} or {remaining_pct, resets_at}.
+  # Reads used_percentage — the key both _merge_cache and CC's own stdin carry;
+  # {utilization} and {remaining_pct} are accepted as legacy shapes.
   local stale
   stale=$(printf '%s' "$INPUT" | jq -r '.rate_limits_stale // false' 2>/dev/null)
   printf '%s' "$INPUT" | jq -r '
     .rate_limits as $r |
     if ($r == null) then empty
     else
-      ($r.five_hour.utilization // (100 - ($r.five_hour.remaining_pct // 0))) as $h |
-      ($r.seven_day.utilization // (100 - ($r.seven_day.remaining_pct // 0))) as $w |
+      ($r.five_hour.used_percentage // $r.five_hour.utilization // (100 - ($r.five_hour.remaining_pct // 0))) as $h |
+      ($r.seven_day.used_percentage // $r.seven_day.utilization // (100 - ($r.seven_day.remaining_pct // 0))) as $w |
       [$h, $w] | @tsv
     end
   ' 2>/dev/null | while IFS=$'\t' read -r h w; do
