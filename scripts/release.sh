@@ -16,6 +16,8 @@
 #
 # Steps (each gated; aborts on first failure):
 #   0. pre-flight  — working tree clean; run-all.sh + buddy pytest green
+#                    (buddy/.venv pytest, else the system python's; prints a
+#                    SKIPPED line if neither — scripts/lib-buddy-pytest.sh)
 #   1. version     — bump <plugin>/.claude-plugin/plugin.json + README.md table
 #   2. consistency — scripts/check-versions.sh
 #   3. commit      — "chore: bump <plugin> to <version>"
@@ -66,9 +68,8 @@ if [ -n "$(git status --porcelain)" ]; then
 fi
 if [ "${SKIP_TESTS:-0}" != "1" ]; then
   echo "▶ tests: ./tests/run-all.sh"; ./tests/run-all.sh
-  if [ -x buddy/.venv/bin/pytest ]; then
-    echo "▶ tests: buddy pytest"; ( cd buddy && .venv/bin/pytest tests -q )
-  fi
+  source "$REPO_ROOT/scripts/lib-buddy-pytest.sh"
+  run_buddy_pytest buddy
 fi
 
 # 1. bump version sources ------------------------------------------------------
