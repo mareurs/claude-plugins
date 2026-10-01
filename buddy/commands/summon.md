@@ -18,13 +18,15 @@ context:
 
 - `<!-- buddy:summon-payload specialist=<dir> … payload-file=<path> -->` —
   the full payload was spilled to `<path>` (under `.buddy/<sid>/`, which the
-  codescout guard exempts). **Read that one file first with native `Read`**
-  — it contains SKILL.md + lens + memories + protocol + gates verbatim. Use
-  native `Read`, not `read_markdown`: the `.buddy/` path is guard-exempt, and
-  `read_markdown` would fragment a persona-sized file into a heading map. Then
-  skip Steps 1–2.6 and 5–6 entirely and go straight to Step 3 (announce) and
-  Step 4 (adopt) — resolution, tracking, and logging are already done
-  hook-side.
+  codescout guard exempts). **Read that one file first** — it contains SKILL.md
+  + lens + memories + protocol + gates verbatim. In Codex, call
+  `mcp__codescout__read_file(path="<path>", start_line=1, end_line=200,
+  force=true)`, then follow its buffered-output or range continuation until EOF;
+  do not use a shell to load it. In Claude Code, use `Read`, not
+  `read_markdown`: the `.buddy/` path is guard-exempt, and `read_markdown`
+  would fragment a persona-sized file into a heading map. Then skip Steps
+  1–2.6 and 5–6 entirely and go straight to Step 3 (announce) and Step 4
+  (adopt) — resolution, tracking, and logging are already done hook-side.
 - `<!-- buddy:summon-payload specialist=<dir> … -->` *(no `payload-file`)* —
   a small payload was inlined directly; everything is already in context.
   Skip Steps 1–2.6 and 5–6 and go straight to Step 3 and Step 4. Do not
