@@ -91,6 +91,18 @@ Initial release. Supersedes tool-infra for projects using codescout.
 
 ---
 
+## legible
+
+Output styles that make Claude's prose easier for a person to read and check.
+
+### [0.1.0] — 2026-10-04
+
+- **New plugin.** Output style `Explanatory STE`: the built-in Explanatory text (★ Insight blocks) plus 8 structure rules from ASD-STE100 Issue 9 at about 80% strength. It keeps the precise modals and drops the approved dictionary.
+- Guard rails: keep every fact and hedge, never change code or quoted output, and a more specific instruction takes precedence.
+- Select it as `legible:Explanatory STE` (namespaced plugin style).
+
+---
+
 ## sdd
 
 Specification-Driven Development: governance, workflow commands, and enforcement hooks.
