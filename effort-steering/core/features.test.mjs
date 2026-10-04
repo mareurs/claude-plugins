@@ -30,6 +30,16 @@ t('hasStackTrace', () => {
   assert.equal(extractFeatures(py).hasStackTrace, true);
   assert.equal(extractFeatures('Error: boom\n    at run (/a/b.js:1:2)\n').hasStackTrace, true);
   assert.equal(extractFeatures('meet me at noon').hasStackTrace, false);
+  // Leading whitespace plus `at`, but no :line:col, must not look like a frame.
+  assert.equal(extractFeatures('  at the office').hasStackTrace, false);
+  assert.equal(extractFeatures('    at run (foo)').hasStackTrace, false);
+  // :line:col present, but `at` does not start a line.
+  assert.equal(extractFeatures('look at foo.js:1:2').hasStackTrace, false);
+  // :line:col shape, `at` at line start, but not indented: a clock time, not a frame.
+  assert.equal(extractFeatures('at 10:30:45 the deploy failed').hasStackTrace, false);
+  assert.equal(extractFeatures('done\nat 10:30:45 it broke').hasStackTrace, false);
+  // Indented `at` without :line:col on a later line is still prose.
+  assert.equal(extractFeatures('boom\n  at the office').hasStackTrace, false);
 });
 
 t('startsWithSlash', () => {
