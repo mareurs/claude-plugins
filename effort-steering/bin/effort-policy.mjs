@@ -106,9 +106,15 @@ function runDecide(argv) {
   // CLI reasons, appended in the order they happen.
   const cli = [];
 
+  // A rules file that cannot be USED is unreadable, not merely empty: a read or
+  // parse failure, or a value compileRules reports as invalid_rules_file (not an
+  // object, or no usable `rules` array). Its own version must never reach the log.
+  // A file with some bad RULES is still usable. The check is on the error code,
+  // because a rule may legitimately be named "(file)".
   let compiled;
   try {
     compiled = compileRules(readJson(flags.rules));
+    if (compiled.skipped.some((s) => s.error === 'invalid_rules_file')) throw new TypeError('rules file has no usable rules array');
   } catch {
     cli.push('rules_unreadable');
     compiled = { version: 0, rules: [], skipped: [] };
@@ -117,10 +123,11 @@ function runDecide(argv) {
     process.stderr.write(`effort-policy: rule skipped: ${String(s.id)}: ${String(s.error)}\n`);
   }
 
+  // The same for the table: it must be an object holding a `phrases` object.
   let table = null;
   try {
     const parsed = readJson(flags.table);
-    if (!isPlainObject(parsed)) throw new TypeError('table must be an object');
+    if (!isPlainObject(parsed) || !isPlainObject(parsed.phrases)) throw new TypeError('table must be an object with a phrases object');
     table = parsed;
   } catch {
     cli.push('table_unreadable');

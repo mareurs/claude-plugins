@@ -178,10 +178,13 @@ t('a treated turn with nothing to say logs steered:false', () => {
   assert.equal(logLines(state, 's1')[0].steered, false);
 });
 
-t('--holdout-rate 0 is never a holdout; rate 1 without ids stays treated', () => {
-  assert.equal(decide(['--holdout-rate', '0'], CTX).out.arm, 'treated');
-  const { out } = decide(['--holdout-rate', '1'], { prompt: 'x' });
-  assert.equal(out.arm, 'treated');
+t('--holdout-rate 0 is never a holdout and is a valid rate (no reason); rate 1 without ids stays treated with no log reason', () => {
+  const zero = decide(['--holdout-rate', '0'], CTX).out;
+  assert.equal(zero.arm, 'treated');
+  assert.deepEqual(zero.reasons, ['no_rule'], '0 is inside [0, 1]');
+  const one = decide(['--holdout-rate', '1'], { prompt: 'x' }).out;
+  assert.equal(one.arm, 'treated');
+  assert.deepEqual(one.reasons, ['no_rule'], 'no --log, so no log_skipped_no_ids');
 });
 
 t('a valid fractional rate adds no reason', () => {
@@ -277,6 +280,7 @@ t('an unreadable --rules path gives rules_unreadable and default, logged with ru
   assert.equal(out.level, 'default');
   assert.deepEqual(out.reasons, ['no_rule', 'rules_unreadable']);
   assert.equal(logLines(state, 's1')[0].rules_version, 0);
+  assert.deepEqual(logLines(state, 's1')[0].reasons, out.reasons, 'the log holds the final reasons array');
 });
 
 t('a rules file that is not JSON gives rules_unreadable', () => {
@@ -307,6 +311,12 @@ t('R15c: an unreadable table gives table_unreadable, null steer, steer_version 0
   assert.equal(rec.steered, false);
 });
 
+t('R15c: an unreadable table: the logged reasons are the final reasons array', () => {
+  const state = freshState();
+  const { out } = decide(['--rules', rulesFile([rule()]), '--table', path.join(WORK, 'nope.json'), '--log'], CTX, { state });
+  assert.deepEqual(logLines(state, 's1')[0].reasons, out.reasons);
+});
+
 t('R15c: a table that is not JSON, or not an object, gives table_unreadable', () => {
   for (const content of ['{{{', '[]', 'null']) {
     const { out } = decide(['--rules', rulesFile([rule()]), '--table', writeJson('table.json', content)], CTX);
@@ -329,9 +339,62 @@ t('a custom --table changes the phrase', () => {
   assert.equal(logLines(state, 's1')[0].steer_version, 3);
 });
 
-t('the rules file may be valid JSON of the wrong shape: default, no crash', () => {
-  const { out } = decide(['--rules', writeJson('shape.json', '{"version":2,"rules":"x"}')], CTX);
-  assert.equal(out.level, 'default');
+// R17: a file that cannot be USED is unreadable, whatever the cause. Its own
+// version must never reach the log, or the experiment would attribute "no
+// steering" to rules version N while every rule was dropped.
+for (const content of ['{"version":2,"rules":"x"}', '{"version":3}', '{"version":4,"rules":{}}', '[]', 'null', '42', '"text"']) {
+  t(`R17: rules file ${content} is rules_unreadable, logged with rules_version 0`, () => {
+    const state = freshState();
+    const { out } = decide(['--rules', writeJson('shape.json', content), '--log'], CTX, { state });
+    assert.equal(out.level, 'default');
+    assert.equal(out.steer, null);
+    assert.deepEqual(out.reasons, ['no_rule', 'rules_unreadable']);
+    const [rec] = logLines(state, 's1');
+    assert.equal(rec.rules_version, 0);
+    assert.deepEqual(rec.reasons, out.reasons);
+  });
+}
+
+t('R17: a rules file with some bad rules is NOT unreadable: good rule applies, file version logged', () => {
+  const state = freshState();
+  // The bad rule is named "(file)" on purpose: the check is on the error code, not on that id.
+  const bad = rule({ id: '(file)', when: { matchesAny: ['('] } });
+  const { out } = decide(['--rules', rulesFile([bad, rule()], 7), '--log'], CTX, { state });
+  assert.equal(out.level, 'shallow');
+  assert.equal(out.steer, SHALLOW);
+  assert.deepEqual(out.reasons, ['r-shallow']);
+  const [rec] = logLines(state, 's1');
+  assert.equal(rec.rules_version, 7);
+  assert.deepEqual(rec.reasons, out.reasons);
+});
+
+t('R17: a valid rules file with an empty rules array is usable and keeps its version', () => {
+  const state = freshState();
+  const { out } = decide(['--rules', rulesFile([], 9), '--log'], CTX, { state });
+  assert.deepEqual(out.reasons, ['no_rule']);
+  assert.equal(logLines(state, 's1')[0].rules_version, 9);
+});
+
+for (const content of ['{"version":2,"phrases":"x"}', '{"version":2}', '{"version":2,"phrases":[]}', '{"version":2,"phrases":null}', '[]', 'null', '42']) {
+  t(`R17: table ${content} is table_unreadable: null steer, steer_version 0, reasons logged`, () => {
+    const state = freshState();
+    const { out } = decide(['--rules', rulesFile([rule()]), '--table', writeJson('table.json', content), '--log'], CTX, { state });
+    assert.equal(out.level, 'shallow');
+    assert.equal(out.steer, null);
+    assert.deepEqual(out.reasons, ['r-shallow', 'table_unreadable']);
+    const [rec] = logLines(state, 's1');
+    assert.equal(rec.steer_version, 0);
+    assert.equal(rec.steered, false);
+    assert.deepEqual(rec.reasons, out.reasons);
+  });
+}
+
+t('R17: a table with an empty phrases object is usable (it just has no phrase) and keeps its version', () => {
+  const state = freshState();
+  const { out } = decide(['--rules', rulesFile([rule()]), '--table', writeJson('table.json', { version: 5, phrases: {} }), '--log'], CTX, { state });
+  assert.deepEqual(out.reasons, ['r-shallow']);
+  assert.equal(out.steer, null);
+  assert.equal(logLines(state, 's1')[0].steer_version, 5);
 });
 
 // ---- flags and subcommands --------------------------------------------------
