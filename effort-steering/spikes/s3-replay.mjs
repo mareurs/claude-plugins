@@ -91,7 +91,9 @@ function nz(v) {
 // A trigger record (see turnTrigger) ends the open turn: assistant messages that
 // follow it answer the trigger, not the human prompt, so they are dropped from
 // every turn and tallied in dropped() instead. Dropping continues until the next
-// real prompt. Tool results do not end a turn.
+// real prompt. Tool results do not end a turn. Exception (R9): a command echo
+// while the open turn has no assistant message yet is the typed prompt's own
+// expansion and does not end the turn.
 export function createTurnCollector(dedupeKey, opts = {}) {
   const turns = [];
   const seen = opts.seen || new Set();
@@ -127,6 +129,9 @@ export function createTurnCollector(dedupeKey, opts = {}) {
       }
       const trigger = turnTrigger(obj);
       if (trigger !== null) {
+        // R9: a command echo directly after a typed prompt (no reply yet) is that
+        // prompt's own expansion. Keep the turn open; the replies are its replies.
+        if (trigger === 'command' && cur !== null && cur.messages === 0) return;
         if (cur !== null) sinkTurn = cur;
         cur = null;
         sink = trigger;

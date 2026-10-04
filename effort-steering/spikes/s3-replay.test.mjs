@@ -307,3 +307,76 @@ await ta('replay shares one message.id seen-set across files and profiles, and r
     fs.rmSync(root, { recursive: true, force: true });
   }
 });
+
+// ---- Round 2 (R9): a command echo that directly follows a typed prompt is that
+// prompt's own expansion, not a new trigger.
+
+const ECHO = () => user('<command-message>PLACEHOLDER</command-message><command-name>/PLACEHOLDER</command-name>', { origin: undefined });
+const CAVEAT = () => user('<local-command-caveat>PLACEHOLDER</local-command-caveat>', { isMeta: true, origin: undefined });
+
+t('a typed slash prompt followed by its command echo keeps the turn open and owns the replies', () => {
+  const c = createTurnCollector('message.id');
+  for (const l of [
+    user('/PLACEHOLDER-SLASH arg'),
+    CAVEAT(),
+    ECHO(),
+    assistant({ mid: 'xa', thinking: 500, out: 50, cache: 5, effort: 'high' }),
+    assistant({ mid: 'xb', thinking: 20, out: 2, cache: 2 }),
+  ]) c.push(l);
+  assert.equal(c.turns().length, 1);
+  const x = c.turns()[0];
+  assert.equal(x.features.startsWithSlash, true);
+  assert.equal(x.messages, 2);
+  assert.equal(x.thinkingTokens, 520);
+  assert.equal(x.effort, 'high');
+  assert.deepEqual(c.dropped(), {}); // an absorbed echo is not a drop
+});
+
+t('a command echo after the turn already has a reply terminates it; later replies are dropped for command', () => {
+  const c = createTurnCollector('message.id');
+  for (const l of [
+    user(P1),
+    assistant({ mid: 'ya', thinking: 10, out: 1, cache: 1 }),
+    ECHO(),
+    assistant({ mid: 'yb', thinking: 700, out: 1, cache: 1 }),
+  ]) c.push(l);
+  assert.equal(c.turns()[0].thinkingTokens, 10);
+  assert.equal(c.turns()[0].messages, 1);
+  assert.deepEqual(c.dropped().command, { messages: 1, thinkingTokens: 700, turns: 1 });
+});
+
+t('a command echo with no open turn opens nothing and attributes nothing', () => {
+  const c = createTurnCollector('message.id');
+  for (const l of [
+    ECHO(),
+    assistant({ mid: 'za', thinking: 900, out: 1, cache: 1 }),
+  ]) c.push(l);
+  assert.equal(c.turns().length, 0);
+});
+
+t('an echo that follows a typed prompt does not shield a later echo: the second one terminates', () => {
+  const c = createTurnCollector('message.id');
+  for (const l of [
+    user('/PLACEHOLDER-SLASH'),
+    ECHO(), // absorbed: no reply yet
+    assistant({ mid: 'qa', thinking: 5, out: 1, cache: 1 }),
+    ECHO(), // terminates: the turn has a reply
+    assistant({ mid: 'qb', thinking: 800, out: 1, cache: 1 }),
+  ]) c.push(l);
+  assert.equal(c.turns()[0].thinkingTokens, 5);
+  assert.deepEqual(c.dropped().command, { messages: 1, thinkingTokens: 800, turns: 1 });
+});
+
+for (const name of ['peer', 'task-notification']) {
+  t(`a ${name} record right after a prompt with no reply still terminates the turn (R9 covers command echoes only)`, () => {
+    const c = createTurnCollector('message.id');
+    for (const l of [
+      user(P1),
+      TRIGGERS[name](),
+      assistant({ mid: 'ra', thinking: 900, out: 1, cache: 1 }),
+    ]) c.push(l);
+    assert.equal(c.turns()[0].messages, 0);
+    assert.equal(c.turns()[0].thinkingTokens, 0);
+    assert.deepEqual(c.dropped()[name], { messages: 1, thinkingTokens: 900, turns: 1 });
+  });
+}
