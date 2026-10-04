@@ -52,6 +52,9 @@ t('explicitDeep', () => {
   assert.equal(extractFeatures('ultrathink about this').explicitDeep, true);
   assert.equal(extractFeatures('ULTRATHINK').explicitDeep, true);
   assert.equal(extractFeatures('ultrathinking').explicitDeep, false);
+  // The leading word boundary: the word must not sit inside a longer word.
+  assert.equal(extractFeatures('superultrathink').explicitDeep, false);
+  assert.equal(extractFeatures('xultrathink').explicitDeep, false);
 });
 
 t('linear time', () => {
