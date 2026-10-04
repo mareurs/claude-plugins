@@ -95,6 +95,12 @@ Initial release. Supersedes tool-infra for projects using codescout.
 
 Output styles that make Claude's prose easier for a person to read and check.
 
+### [0.2.0] — 2026-10-04
+
+- **New skill `/legible:explain [ste|page]`.** It re-explains the previous answer. `ste` (the default) rewrites it in chat with STE structure rules and ends with a fixed "STE-inspired" label line. `page` writes one self-contained HTML file with one inline SVG diagram to `/tmp/legible/`, opens it, and checks one headless screenshot.
+- Both forms copy the hedge words (*may*, *might*, *could*, *should*, *would*, *probably*, *likely*) and every "not measured / not verified" statement unchanged. A suspected error in the source becomes a `Possible error:` line; the original text stays.
+- Tested against a no-skill baseline (`claude -p` + `claude -c -p`, 6 baseline runs, 13 runs with the skill over three rounds). Fixed: strict STE dropped or weakened hedges (*might* → *can*), a rewrite grew into new research (up to 31 turns), pages were written into the working directory, and a page could overwrite an earlier page with the same name.
+
 ### [0.1.0] — 2026-10-04
 
 - **New plugin.** Output style `Explanatory STE`: the built-in Explanatory text (★ Insight blocks) plus 8 structure rules from ASD-STE100 Issue 9 at about 80% strength. It keeps the precise modals and drops the approved dictionary.
