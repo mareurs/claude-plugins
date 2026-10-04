@@ -14,15 +14,18 @@ Release readiness across plugins × profiles. See
 
 ## State
 
-_Last refresh: `b325f4c`, 2026-09-28 — `buddy` 0.11.7→0.11.8 via
-`scripts/release.sh buddy patch`, **pushed** (`main` `20a8eed..b325f4c`; `289c389` the fix,
-`b325f4c` the bump). `codescout-companion` unchanged at 1.20.15. Every value re-derived from
-disk: each profile's `installed_plugins.json` (every array element; one per plugin in all
-three), cache-dir presence, README's version table, `marketplace.json` (0 plugin entries with a
-`version` key), and `diff -rq` of each cache against the working tree under the documented
-excludes — **empty for 5 of 6 pairs; the sixth differs only by a runtime marker** (below)._
+_Last refresh: `39b214a`, 2026-10-04 — `legible` is new: installed at 0.1.0 in all three
+profiles (`415cdb0`), then 0.1.0→0.2.0 via `NO_PUSH=1 scripts/release.sh legible minor`
+(`74950cf` the skill, `39b214a` the bump), **not pushed**. `buddy` 0.11.8→0.11.9 (`e4fed80`,
+on `origin/main`) was released after the previous refresh and is caught up here.
+`codescout-companion` unchanged at 1.20.15. Every value re-derived from disk: each profile's
+`installed_plugins.json` (every array element; one per plugin in all three), cache-dir
+presence, README's version table, `marketplace.json` (0 plugin entries with a `version` key),
+and `diff -rq` of each cache against the working tree under the documented excludes —
+**empty for 6 of 9 pairs; the three codescout-companion pairs differ only by runtime files**
+(below)._
 
-**This buddy release is a script fix, not skill content.** The one commit since 0.11.7,
+**The 0.11.8 buddy release was a script fix, not skill content.** The one commit since 0.11.7,
 `289c389`, changes `buddy/scripts/statusline-composed.sh`: `resolve_primary` now finds
 `claude-statusline` in the same checkout before the plugin cache — CC's orphan sweep had deleted
 the unrecorded `claude-statusline` cache dir from `~/.claude-sdd`, dropping statusline row 1 —
@@ -85,25 +88,39 @@ being stripped as if they belonged to the parent) and `session-start.mjs` (recor
 `hook_source`/`hook_source_at` so a post-compact `/mcp` reconnect isn't mistaken for a fresh
 restart). `tests/run-all.sh` was green pre-flight, before the bump.
 
-**The tracked set is two plugins, not five** (settled 2026-09-17 across three independent
-refreshes, unchanged this one): `claude-statusline`, `sdd` and `session-bridge` remain
+**The tracked set is three plugins** (`legible` joined 2026-10-04; the two-plugin set before it
+was settled 2026-09-17 across three independent refreshes): `claude-statusline`, `sdd` and `session-bridge` remain
 absent from every profile's install record, none enabled anywhere.
 
-**buddy** — canonical `0.11.8` · readme `0.11.8` · marketplace clean ✅
+**buddy** — canonical `0.11.9` · readme `0.11.9` · marketplace clean ✅
 
 | profile | installed | cache dir | install_path ok | all entries | cache = working tree |
 |---|---|---|---|---|---|
-| `~/.claude` | 0.11.8 ✅ | ✅ | ✅ | `0.11.8` ✅ | ✅ |
-| `~/.claude-sdd` | 0.11.8 ✅ | ✅ | ✅ | `0.11.8` ✅ | ✅ |
-| `~/.claude-kat` | 0.11.8 ✅ | ✅ | ✅ | `0.11.8` ✅ | ✅ |
+| `~/.claude` | 0.11.9 ✅ | ✅ | ✅ | `0.11.9` ✅ | ✅ |
+| `~/.claude-sdd` | 0.11.9 ✅ | ✅ | ✅ | `0.11.9` ✅ | ✅ |
+| `~/.claude-kat` | 0.11.9 ✅ | ✅ | ✅ | `0.11.9` ✅ | ✅ |
 
 **codescout-companion** — canonical `1.20.15` · readme `1.20.15` · marketplace clean ✅
 
 | profile | installed | cache dir | install_path ok | all entries | cache = working tree |
 |---|---|---|---|---|---|
-| `~/.claude` | 1.20.15 ✅ | ✅ | ✅ | `1.20.15` ✅ | ✅ |
-| `~/.claude-sdd` | 1.20.15 ✅ | ✅ | ✅ | `1.20.15` ✅ | ✅ |
-| `~/.claude-kat` | 1.20.15 ✅ | ✅ | ✅ | `1.20.15` ✅ | ✅ |
+| `~/.claude` | 1.20.15 ✅ | ✅ | ✅ | `1.20.15` ✅ | ✅ runtime files only |
+| `~/.claude-sdd` | 1.20.15 ✅ | ✅ | ✅ | `1.20.15` ✅ | ✅ runtime files only |
+| `~/.claude-kat` | 1.20.15 ✅ | ✅ | ✅ | `1.20.15` ✅ | ✅ runtime files only |
+
+**legible** — canonical `0.2.0` · readme `0.2.0` · marketplace clean ✅
+
+| profile | installed | cache dir | install_path ok | all entries | cache = working tree |
+|---|---|---|---|---|---|
+| `~/.claude` | 0.2.0 ✅ | ✅ | ✅ | `0.2.0` ✅ | ✅ |
+| `~/.claude-sdd` | 0.2.0 ✅ | ✅ | ✅ | `0.2.0` ✅ | ✅ |
+| `~/.claude-kat` | 0.2.0 ✅ | ✅ | ✅ | `0.2.0` ✅ | ✅ |
+
+**Runtime files in the codescout-companion pairs, 2026-10-04 — named, not excluded.** `diff -rq`
+under the six documented excludes shows `.codescout/usage.db-shm` and `.codescout/usage.db-wal`
+only in the working tree, in all three pairs. These are the SQLite write-ahead files of
+codescout's own `usage.db`, which exist while a session works in that tree. `~/.claude`'s cache
+also holds an `.in_use` marker. No source file differs. No exclusion was added.
 
 All 6 plugin×profile pairs measured, not carried: `diff -rq` under the documented excludes
 (`__pycache__`, `.pytest_cache`, `.venv`, `target`, `.buddy`, `.orphaned_at`) returned empty
@@ -232,6 +249,24 @@ measured on both candidate load paths rather than argued: the record points at k
 two actually serves, they carry the same bytes — so the question CLAUDE.md flags as
 unsettled does not need settling for this release.
 ## History
+### 2026-10-04 — legible new (0.1.0 → 0.2.0), not pushed; buddy 0.11.9 caught up
+
+**Deltas, all measured:**
+- `legible`: new plugin. Installed at user scope at `0.1.0` in all three profiles with
+  `CLAUDE_CONFIG_DIR=<profile> claude plugin install legible@sdd-misc-plugins --scope user`
+  (`415cdb0`), then `0.1.0→0.2.0` via `NO_PUSH=1 scripts/release.sh legible minor` (`74950cf` the
+  skill, `39b214a` the bump). canonical, readme and all three profiles' installed = `0.2.0`, one
+  array element each, `diff -rq` cache vs tree empty ×3.
+- `buddy`: `0.11.8→0.11.9` (`e4fed80`, on `origin/main`). Released after the previous refresh
+  and not refreshed then. All three profiles installed `0.11.9`, `diff -rq` empty ×3.
+- `codescout-companion`: unchanged at 1.20.15. New in `diff -rq`: `.codescout/usage.db-shm` and
+  `usage.db-wal` only in the working tree (×3), and `.in_use` only in `~/.claude`'s cache. Runtime
+  files, named in State, no exclusion added.
+- Push state: `origin/main..HEAD` = `415cdb0`, `206a03a`, `74950cf`, `39b214a` — not pushed.
+- Pre-flight: `release.sh` requires a clean tree. An untracked file from another session
+  (`docs/issues/2026-09-27-native-task-tool-absent-from-claude-kat-session.md`) was moved aside for
+  the run and restored byte-identical (sha256 `4a0c4c26…`), on the operator's choice.
+
 ### 2026-09-28 — buddy 0.11.8 (statusline row-1 resolution + fallback percentages), pushed
 
 **Deltas, all measured:**
