@@ -1,7 +1,7 @@
 ---
 id: b11c9b68622f7884
 kind: bug
-status: open
+status: wontfix
 title: Claude Code's native task tool (TaskCreate/TodoWrite) is absent from a ~/.claude-kat session's tool list, even after /reload-plugins
 tags:
 - claude-code
@@ -49,3 +49,14 @@ Checked twice, including after `/reload-plugins` ("Reloaded: 5 plugins · 58 ski
 ## Impact
 
 The model cannot keep a native task list, so plans fall back to ledgers, trackers or Jira. In the MRV session that meant a round trip to explain the tool was absent.
+
+## Resolution — not a bug (2026-10-04)
+
+The absence is intentional. `CLAUDE_CODE_ENABLE_TODO_TOOLS` is `"0"` in the `env` block of `~/.claude/settings.json`, `~/.claude-sdd/settings.json` and `~/.claude-kat/settings.json`. The user set it on purpose: the task tools add a lot of context and are not required.
+
+- **Scope:** all three profiles, not only `~/.claude-kat`. A `~/.claude-sdd` session on CC 2.1.289 shows the same tool list.
+- **Not from this repo:** `grep` for `ENABLE_TODO_TOOLS` over the repo working tree (hidden paths excluded) finds no match. No plugin sets it.
+- **Not verified:** nobody removed the variable to confirm that the tools come back. The link rests on the variable's name and on the user's statement of intent.
+- **Open detail:** `TaskStop` is still in the tool list. It may not fall under this variable. Removing it would need a separate mechanism, which has not been investigated.
+
+Hypothesis 1 (plugin hook) and hypothesis 3 (profile drift) are ruled out.
