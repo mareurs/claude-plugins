@@ -276,8 +276,8 @@ t('compileRules and decide never throw', () => {
   Object.defineProperty(evilCtx, 'prompt', { get() { throw new Error('nope'); } });
   const evilSignals = { prompt: 'marker' };
   Object.defineProperty(evilSignals, 'signals', { get() { throw new Error('nope'); } });
-  // The fail-open guarantee: an error inside decide gives exactly default, low, ['error'].
-  const failOpen = { level: 'default', confidence: 'low', reasons: ['error'] };
+  // The fail-open guarantee: an error inside decide gives exactly default, low, ['internal_error'].
+  const failOpen = { level: 'default', confidence: 'low', reasons: ['internal_error'] };
   assert.deepEqual(decide(evilCtx, c), failOpen);
   assert.deepEqual(decide(evilSignals, c), failOpen);
   for (const ctx of [undefined, null, 42, 'x', {}, evilCtx, evilSignals, { prompt: 'marker', signals: null }, { prompt: 'marker', signals: 5 }]) {
@@ -336,4 +336,63 @@ t('1 MB prompt with safe rules finishes fast', () => {
     assert.ok(ms < 2000, `took ${ms} ms`);
     assert.equal(d.level, 'default');
   }
+});
+
+// R20: prevTurnFailed counts as a failure unless it is undefined or false. A
+// non-JS harness may send 1, 'true' or null, and the shallow guard must fail
+// unsafe (block shallow), never open.
+const FAILURE_VALUES = [true, 1, 'true', 'false', null, {}, [], 0, '', NaN, 'yes'];
+const NO_FAILURE_VALUES = [false, undefined];
+
+t('R20: any prevTurnFailed value except undefined and false blocks a high shallow rule', () => {
+  const sh = compile(rule('s', 'shallow', 'high', M));
+  const blocked = { level: 'default', confidence: 'low', reasons: ['guard_shallow', 's'] };
+  for (const v of FAILURE_VALUES) {
+    assert.deepEqual(run('marker', sh, { prevTurnFailed: v }), blocked, `prevTurnFailed=${String(v)} (${typeof v})`);
+  }
+});
+
+t('R20: prevTurnFailed false, undefined, absent or unreadable signals allow a high shallow rule', () => {
+  const sh = compile(rule('s', 'shallow', 'high', M));
+  const allowed = { level: 'shallow', confidence: 'high', reasons: ['s'] };
+  for (const v of NO_FAILURE_VALUES) {
+    assert.deepEqual(run('marker', sh, { prevTurnFailed: v }), allowed, String(v));
+  }
+  assert.deepEqual(run('marker', sh, {}), allowed);
+  assert.deepEqual(run('marker', sh), allowed);
+  assert.deepEqual(run('marker', sh, null), allowed);
+  assert.deepEqual(run('marker', sh, 5), allowed);
+});
+
+t('R20: a when condition on prevTurnFailed agrees with the guard for every value', () => {
+  const sh = compile(rule('s', 'shallow', 'high', M));
+  for (const v of [...FAILURE_VALUES, ...NO_FAILURE_VALUES]) {
+    const failed = !(v === undefined || v === false);
+    const signals = { prevTurnFailed: v };
+    const guardBlocks = run('marker', sh, signals).level === 'default';
+    assert.equal(guardBlocks, failed, `guard for ${String(v)}`);
+    assert.equal(fires({ ...M, prevTurnFailed: true }, 'marker', signals), failed, `when true for ${String(v)}`);
+    assert.equal(fires({ ...M, prevTurnFailed: false }, 'marker', signals), !failed, `when false for ${String(v)}`);
+    // The two can never disagree: a rule that needs "no failure" fires exactly when the guard lets shallow through.
+    assert.equal(fires({ ...M, prevTurnFailed: false }, 'marker', signals), !guardBlocks, `agreement for ${String(v)}`);
+  }
+});
+
+// A raw, uncompiled rule list must not be able to break the decision vocabulary.
+t('decide ignores raw rules whose level or confidence is outside the vocabulary', () => {
+  const noRule = { level: 'default', confidence: 'low', reasons: ['no_rule'] };
+  const raw = (over) => ({ rules: [{ id: 'a', level: 'deep', confidence: 'high', when: {}, ...over }] });
+  for (const level of ['bogus', 'default', '', undefined, null, 3, 'constructor', '__proto__']) {
+    assert.deepEqual(decide({ prompt: 'x' }, raw({ level })), noRule, `level ${String(level)}`);
+  }
+  for (const confidence of ['bogus', '', undefined, null, 3, 'constructor', 'toString', '__proto__']) {
+    assert.deepEqual(decide({ prompt: 'x' }, raw({ confidence })), noRule, `confidence ${String(confidence)}`);
+  }
+  // The same raw rule with a valid level and confidence does fire, so the ignores above are the filter's doing.
+  assert.deepEqual(decide({ prompt: 'x' }, raw({})), { level: 'deep', confidence: 'high', reasons: ['a'] });
+  // A bogus rule next to a good one never reaches the decision.
+  const mixed = { rules: [{ id: 'bad', level: 'bogus', confidence: 'high', when: {} }, { id: 'ok', level: 'deep', confidence: 'medium', when: {} }] };
+  assert.deepEqual(decide({ prompt: 'x' }, mixed), { level: 'deep', confidence: 'medium', reasons: ['ok'] });
+  const mixedConf = { rules: [{ id: 'bad', level: 'deep', confidence: 'bogus', when: {} }, { id: 'ok', level: 'deep', confidence: 'low', when: {} }] };
+  assert.deepEqual(decide({ prompt: 'x' }, mixedConf), { level: 'default', confidence: 'low', reasons: ['low_confidence', 'ok'] });
 });

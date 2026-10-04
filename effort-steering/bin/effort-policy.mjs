@@ -9,7 +9,43 @@
 // `decide` is FAIL-OPEN: whatever goes wrong (bad input, unreadable file, bad flag,
 // failing log, a bug here) it still prints one valid result line and exits 0.
 // Diagnostics go to stderr and never carry prompt text. Only an unknown or missing
-// subcommand is an error: usage on stderr, nothing on stdout, exit 2.
+// subcommand is an error: usage on stderr, nothing on stdout, exit 64 (EX_USAGE).
+// It is 64 and not 2 on purpose: exit 2 from a Claude Code UserPromptSubmit hook
+// blocks the prompt and erases it, so an adapter that passes our exit code through
+// must never be handed a 2.
+//
+// Flags: value flags accept `--flag V` and `--flag=V` (split at the first `=`). Any
+// argv token after `decide` that is not consumed adds the reason `unknown_arg`.
+//
+// REASONS. `reasons` is the list of strings below. `decide` emits the first group,
+// then the CLI appends its own, in the order given in the second group.
+//
+// From `decide` (core/decide.mjs):
+//   user_override       the prompt holds an explicit "ultrathink"; deep wins, no steering added
+//   no_rule             no rule matched (this is also the answer of the shipped, empty rules)
+//   tie_shallow_deep    shallow and deep rules tie at the top confidence class: default
+//                       (the tied rule ids follow)
+//   guard_shallow       a shallow rule won but is blocked, because its confidence is below
+//                       high or the previous turn failed: default (the rule ids follow)
+//   low_confidence      a deep rule won at low confidence: default (the rule ids follow)
+//   <rule id>           a rule at the winning confidence class and level fired; each such
+//                       rule's id is a reason
+//   internal_error      an unexpected error inside decide: default, low confidence
+//
+// From the CLI, in this order (after the decide reasons):
+//   unknown_arg         an argv token was not recognized or consumed; added once per run
+//   rules_unreadable    the rules file could not be read, parsed or used (not an object with a
+//                       `rules` array); no rules apply and rules_version is 0
+//   table_unreadable    the steering table could not be read, parsed or used (not an object
+//                       with a `phrases` object); steer is null and steer_version is 0
+//   bad_holdout_rate    --holdout-rate is not a decimal in [0, 1]; rate 0 is used
+//   log_skipped_no_ids  --log was given but session_id or turn_id is missing, or present
+//                       but not a string; nothing is written
+//   log_failed          --log was given and writing the record failed; stderr has the cause
+//
+// Alone in the line (the only reason; no flag was read and nothing is logged):
+//   bad_input           stdin is not one JSON object
+//   internal_error      the CLI itself failed unexpectedly; this is its fail-open line
 
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
@@ -26,7 +62,7 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
 const DEFAULT_RULES = path.join(HERE, '..', 'core', 'rules.json');
 const DEFAULT_TABLE = path.join(HERE, '..', 'core', 'steer.table.json');
 
-const USAGE = 'usage: effort-policy decide [--rules <file>] [--table <file>] [--holdout-rate <0..1>] [--log]';
+const USAGE = 'usage: effort-policy decide [--rules <file>] [--table <file>] [--holdout-rate <0..1>] [--log]  (--flag=value also works)';
 
 const isPlainObject = (v) => typeof v === 'object' && v !== null && !Array.isArray(v);
 const isString = (v) => typeof v === 'string';
@@ -34,26 +70,47 @@ const isString = (v) => typeof v === 'string';
 // A strict decimal. Number() alone would accept '', ' ', '0x1' and 'Infinity'.
 const DECIMAL = /^[+-]?(\d+\.?\d*|\.\d+)(e[+-]?\d+)?$/i;
 
-// Flag parsing never throws and never rejects: an unknown flag or a flag with no
-// value is ignored. A value that starts with `--` is the next flag, not a value.
+// Flag parsing never throws. Value flags take their value in two forms: spaced
+// (`--rules F`) or joined (`--rules=F`, split at the FIRST `=`, so the value may
+// contain `=`). In the spaced form a value that starts with `--` is the next flag,
+// not a value. An empty joined value (`--rules=`) is a missing value. Any token
+// that is not consumed (an unknown flag, `--log=x`, a stray positional) sets
+// `unknown`, which runDecide reports once as the reason `unknown_arg`.
+const VALUE_FLAGS = { '--rules': 'rules', '--table': 'table', '--holdout-rate': 'holdoutRate' };
+
 function parseFlags(argv) {
-  const flags = { rules: DEFAULT_RULES, table: DEFAULT_TABLE, holdoutRate: undefined, log: false };
+  const flags = { rules: DEFAULT_RULES, table: DEFAULT_TABLE, holdoutRate: undefined, log: false, unknown: false };
   for (let i = 0; i < argv.length; i += 1) {
     const arg = argv[i];
-    const next = argv[i + 1];
-    const hasValue = next !== undefined && !next.startsWith('--');
     if (arg === '--log') {
       flags.log = true;
-    } else if (arg === '--rules' || arg === '--table') {
-      const key = arg === '--rules' ? 'rules' : 'table';
-      // A missing value is an unreadable file: the empty path cannot be opened.
-      flags[key] = hasValue ? next : '';
-      if (hasValue) i += 1;
-    } else if (arg === '--holdout-rate') {
-      if (hasValue) {
-        flags.holdoutRate = next;
+      continue;
+    }
+    const eq = arg.indexOf('=');
+    const name = eq === -1 ? arg : arg.slice(0, eq);
+    // hasOwn: a token such as `--constructor` must not resolve through the prototype.
+    if (!Object.hasOwn(VALUE_FLAGS, name)) {
+      flags.unknown = true;
+      continue;
+    }
+    const key = VALUE_FLAGS[name];
+    let value;
+    if (eq !== -1) {
+      value = arg.slice(eq + 1);
+    } else {
+      const next = argv[i + 1];
+      if (next !== undefined && !next.startsWith('--')) {
+        value = next;
         i += 1;
       }
+    }
+    if (key === 'holdoutRate') {
+      // A bare `--holdout-rate` with no value at all is ignored; an empty or bad
+      // value is reported by resolveRate.
+      if (value !== undefined) flags.holdoutRate = value;
+    } else {
+      // A missing value is an unreadable file: the empty path cannot be opened.
+      flags[key] = value ?? '';
     }
   }
   return flags;
@@ -105,6 +162,8 @@ function runDecide(argv) {
   const flags = parseFlags(argv);
   // CLI reasons, appended in the order they happen.
   const cli = [];
+  // Args are parsed first, so this is the first CLI reason.
+  if (flags.unknown) cli.push('unknown_arg');
 
   // A rules file that cannot be USED is unreadable, not merely empty: a read or
   // parse failure, or a value compileRules reports as invalid_rules_file (not an
@@ -179,7 +238,8 @@ function runDecide(argv) {
 function main(argv) {
   if (argv[0] !== 'decide') {
     process.stderr.write(`${USAGE}\n`);
-    process.exitCode = 2;
+    // 64 (EX_USAGE), never 2: see the header.
+    process.exitCode = 64;
     return;
   }
   try {

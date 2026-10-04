@@ -34,8 +34,21 @@ export function stateDirFor(env) {
   return path.join(base, 'effort-steering');
 }
 
-// The keys are written out one by one on purpose: a record is exactly these
-// fields, so nothing derived from the prompt can ride along by accident.
+// The record is exactly these fields, written out one by one, so nothing derived
+// from the prompt can ride along by accident. The one pass-through is `features`,
+// and it is filtered by VALUE TYPE: only a finite number or a boolean is kept. A
+// string (or an object, array, null) could carry prompt text, so it is dropped,
+// whatever key it has. The filter, not the current shape of extractFeatures, is
+// what keeps prompt text out of the log.
+function safeFeatures(features) {
+  const out = {};
+  if (typeof features !== 'object' || features === null || Array.isArray(features)) return out;
+  for (const [key, value] of Object.entries(features)) {
+    if (typeof value === 'boolean' || (typeof value === 'number' && Number.isFinite(value))) out[key] = value;
+  }
+  return out;
+}
+
 export function buildRecord(a) {
   return {
     ts: (a.now ?? new Date()).toISOString(),
@@ -48,7 +61,7 @@ export function buildRecord(a) {
     level: a.decision.level,
     confidence: a.decision.confidence,
     reasons: [...a.decision.reasons],
-    features: { ...a.features },
+    features: safeFeatures(a.features),
     prompt_sha256: hashPrompt(a.prompt),
     arm: a.arm,
     steered: a.steered,

@@ -133,17 +133,23 @@ function matches(when, features, signals, text) {
   return true;
 }
 
+// A failure signal is anything but an absent or an explicit `false`: a non-JS
+// harness may send 1, 'true' or null, and the guard must then fail unsafe. This is
+// the ONE place the value is normalized to a boolean. Both the shallow guard and a
+// rule's `when.prevTurnFailed` read it, so the two cannot disagree.
+const isFailure = (v) => !(v === undefined || v === false);
+
 function readSignals(raw) {
   const s = isPlainObject(raw) ? raw : {};
   return {
-    prevTurnFailed: s.prevTurnFailed === true,
+    prevTurnFailed: isFailure(s.prevTurnFailed),
     retryCount: typeof s.retryCount === 'number' && Number.isFinite(s.retryCount) ? s.retryCount : 0,
     planMode: s.planMode === true,
   };
 }
 
 const result = (level, confidence, reasons) => ({ level, confidence, reasons });
-const FALLBACK_ERROR = () => result('default', 'low', ['error']);
+const FALLBACK_ERROR = () => result('default', 'low', ['internal_error']);
 
 export function decide(ctx, rules) {
   try {
@@ -155,8 +161,15 @@ export function decide(ctx, rules) {
     if (features.explicitDeep) return result('deep', 'high', ['user_override']);
 
     const text = typeof prompt === 'string' ? prompt.slice(0, SCAN_LIMIT) : '';
-    // Only entries shaped like compiled rules take part; anything else is ignored.
-    const list = isPlainObject(rules) && Array.isArray(rules.rules) ? rules.rules.filter((r) => isPlainObject(r) && isPlainObject(r.when)) : [];
+    // Only entries that look like compiled rules take part: an object with a `when`
+    // object, a level in the vocabulary and a known confidence class. Anything else is
+    // ignored, so a raw rule cannot put a level or class outside the vocabulary into a
+    // decision. This is not a validator: the id and the inside of `when` are not
+    // checked here. compileRules does that, and its output is what belongs here.
+    const list =
+      isPlainObject(rules) && Array.isArray(rules.rules)
+        ? rules.rules.filter((r) => isPlainObject(r) && isPlainObject(r.when) && LEVELS.has(r.level) && isRank(r.confidence))
+        : [];
     const matched = list.filter((r) => matches(r.when, features, signals, text));
 
     // 2. No rule matched.

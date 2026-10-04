@@ -141,6 +141,47 @@ t('every LogRecord key carries the right value and type', () => {
   assert.equal(holdout.steered, false);
 });
 
+t('features keeps only finite numbers and booleans; everything else is dropped (privacy)', () => {
+  // A string feature could carry prompt text, so the log filters by value type.
+  const features = {
+    chars: 12,
+    slashName: 'deploy-secret-project',
+    isQuestion: false,
+    nan: NaN,
+    inf: Infinity,
+    negInf: -Infinity,
+    nested: { leak: 'deploy-secret-project' },
+    list: ['deploy-secret-project', 1],
+    nothing: null,
+    missing: undefined,
+    retries: 0,
+    hasStackTrace: true,
+    boxed: new String('deploy-secret-project'),
+    fn: () => 'deploy-secret-project',
+  };
+  const rec = buildRecord(args({ features }));
+  assert.deepEqual(rec.features, { chars: 12, isQuestion: false, retries: 0, hasStackTrace: true });
+  // Original key order is kept.
+  assert.deepEqual(Object.keys(rec.features), ['chars', 'isQuestion', 'retries', 'hasStackTrace']);
+  const line = JSON.stringify(rec);
+  assert.ok(!line.includes('deploy-secret-project'), 'a dropped feature value reached the record');
+  assert.ok(!line.includes('slashName'), 'a dropped feature key reached the record');
+});
+
+t('features that are all numbers and booleans pass through unchanged, key order included', () => {
+  const features = extractFeatures('is this ok?');
+  const rec = buildRecord(args({ features }));
+  assert.deepEqual(rec.features, features);
+  assert.deepEqual(Object.keys(rec.features), Object.keys(features));
+});
+
+t('a non-object features value gives an empty features object and does not throw', () => {
+  for (const bad of [undefined, null, 5, 'abc', true]) {
+    const rec = buildRecord(args({ features: bad }));
+    assert.deepEqual(rec.features, {}, String(bad));
+  }
+});
+
 t('ts defaults to the current time as an ISO string', () => {
   const before = Date.now();
   const rec = buildRecord(args({ now: undefined }));

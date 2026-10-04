@@ -228,6 +228,22 @@ t('--log with ids writes one file with one line, with the right keys, and no pro
   assert.deepEqual(rec.reasons, out.reasons);
 });
 
+t('a slash-prefixed secret prompt never reaches the log or stdout (R: log holds no prompt text)', () => {
+  const state = freshState();
+  const prompt = '/deploy-secret-project now';
+  const { out, stdout, stderr } = decide(['--rules', rulesFile([rule()]), '--log'], { ...CTX, prompt }, { state });
+  assert.equal(out.level, 'shallow', 'the rule ran, so the whole path was exercised');
+  const raw = readFileSync(path.join(state, 'effort-steering', 's1.jsonl'), 'utf8');
+  for (const [where, text] of [['log', raw], ['stdout', stdout], ['stderr', stderr]]) {
+    assert.ok(!text.includes('deploy-secret-project'), `${where} holds prompt text`);
+  }
+  // Every logged feature is a finite number or a boolean.
+  const [rec] = logLines(state, 's1');
+  for (const [k, v] of Object.entries(rec.features)) {
+    assert.ok(typeof v === 'boolean' || (typeof v === 'number' && Number.isFinite(v)), `feature ${k} is ${typeof v}`);
+  }
+});
+
 t('a second --log call appends a second line to the same session file', () => {
   const state = freshState();
   decide(['--log'], CTX, { state });
@@ -399,10 +415,108 @@ t('R17: a table with an empty phrases object is usable (it just has no phrase) a
 
 // ---- flags and subcommands --------------------------------------------------
 
-t('unknown flags and a trailing --holdout-rate with no value are ignored', () => {
+// R19: an unknown flag no longer vanishes silently. It adds unknown_arg once. A
+// trailing --holdout-rate with no value at all is still just ignored.
+t('unknown flags add unknown_arg; a trailing --holdout-rate with no value is ignored', () => {
   const { out } = decide(['--bogus', '--holdout-rate'], CTX);
-  assert.deepEqual(out.reasons, ['no_rule']);
+  assert.deepEqual(out.reasons, ['no_rule', 'unknown_arg']);
   assert.equal(out.arm, 'treated');
+});
+
+// ---- R19: --flag=value ------------------------------------------------------
+
+t('R19: --holdout-rate=1 is a holdout, exactly like the spaced form', () => {
+  const rules = rulesFile([rule()]);
+  const eq = decide(['--rules', rules, '--holdout-rate=1'], CTX).out;
+  assert.equal(eq.arm, 'holdout');
+  assert.equal(eq.steer, null);
+  assert.equal(eq.level, 'shallow');
+  assert.deepEqual(eq.reasons, ['r-shallow']);
+  assert.deepEqual(eq, decide(['--rules', rules, '--holdout-rate', '1'], CTX).out);
+});
+
+t('R19: --holdout-rate=0 and a fractional =0.25 are valid rates with no reason', () => {
+  assert.deepEqual(decide(['--holdout-rate=0'], CTX).out.reasons, ['no_rule']);
+  assert.deepEqual(decide(['--holdout-rate=0.25'], CTX).out.reasons, ['no_rule']);
+});
+
+t('R19: --holdout-rate= (empty) and --holdout-rate=abc are bad_holdout_rate with rate 0', () => {
+  for (const flag of ['--holdout-rate=', '--holdout-rate=abc', '--holdout-rate=2', '--holdout-rate=-1']) {
+    const { out } = decide(['--rules', rulesFile([rule()]), flag], CTX);
+    assert.equal(out.arm, 'treated', flag);
+    assert.equal(out.steer, SHALLOW, flag);
+    assert.deepEqual(out.reasons, ['r-shallow', 'bad_holdout_rate'], flag);
+  }
+});
+
+t('R19: --rules=<file> and --table=<file> work like the spaced forms', () => {
+  const table = writeJson('table.json', { version: 3, phrases: { shallow: 'Be brief.', deep: 'Think.' } });
+  const state = freshState();
+  const { out } = decide([`--rules=${rulesFile([rule()], 5)}`, `--table=${table}`, '--log'], CTX, { state });
+  assert.equal(out.level, 'shallow');
+  assert.equal(out.steer, 'Be brief.');
+  assert.deepEqual(out.reasons, ['r-shallow']);
+  const [rec] = logLines(state, 's1');
+  assert.equal(rec.rules_version, 5);
+  assert.equal(rec.steer_version, 3);
+});
+
+t('R19: --rules= and --table= (empty value) are an unreadable file, not the default', () => {
+  const a = decide(['--rules='], CTX).out;
+  assert.deepEqual(a.reasons, ['no_rule', 'rules_unreadable']);
+  const b = decide(['--rules', rulesFile([rule()]), '--table='], CTX).out;
+  assert.equal(b.steer, null);
+  assert.deepEqual(b.reasons, ['r-shallow', 'table_unreadable']);
+});
+
+t('R19: --rules=/nonexistent is rules_unreadable, not a silent fallback to the shipped rules', () => {
+  const { out } = decide([`--rules=${path.join(WORK, 'nonexistent.json')}`], CTX);
+  assert.deepEqual(out.reasons, ['no_rule', 'rules_unreadable']);
+});
+
+t('R19: the value is everything after the FIRST =, so a path may contain =', () => {
+  const dir = path.join(WORK, 'a=b');
+  mkdirSync(dir, { recursive: true });
+  const file = path.join(dir, 'rules=1.json');
+  writeFileSync(file, JSON.stringify({ version: 7, rules: [rule()] }));
+  const { out } = decide([`--rules=${file}`], CTX);
+  assert.equal(out.level, 'shallow');
+  assert.deepEqual(out.reasons, ['r-shallow']);
+});
+
+t('R19: an unconsumed --log=x adds unknown_arg and writes NO log', () => {
+  const state = freshState();
+  const { out } = decide(['--log=x'], CTX, { state });
+  assert.deepEqual(out.reasons, ['no_rule', 'unknown_arg']);
+  assert.deepEqual(allFiles(state), []);
+  const real = freshState();
+  const both = decide(['--log=true', '--log'], CTX, { state: real }).out;
+  assert.deepEqual(both.reasons, ['no_rule', 'unknown_arg']);
+  assert.equal(allFiles(real).length, 1, 'the exact --log still logs');
+});
+
+t('R19: an unknown flag and a stray positional each add unknown_arg, and only once per run', () => {
+  assert.deepEqual(decide(['--foo'], CTX).out.reasons, ['no_rule', 'unknown_arg']);
+  assert.deepEqual(decide(['stray'], CTX).out.reasons, ['no_rule', 'unknown_arg']);
+  assert.deepEqual(decide(['--foo', 'stray', '--bar=1'], CTX).out.reasons, ['no_rule', 'unknown_arg']);
+  // A name that is only a prototype key is unknown too.
+  assert.deepEqual(decide(['--constructor', '--__proto__=x'], CTX).out.reasons, ['no_rule', 'unknown_arg']);
+});
+
+t('R19: unknown_arg is the first CLI reason, ahead of the file and rate reasons', () => {
+  const { out } = decide(['--bogus', '--rules=', '--table', path.join(WORK, 'nope.json'), '--holdout-rate=abc', '--log'], { prompt: 'x' });
+  assert.deepEqual(out.reasons, ['no_rule', 'unknown_arg', 'rules_unreadable', 'table_unreadable', 'bad_holdout_rate', 'log_skipped_no_ids']);
+});
+
+t('R19: unknown_arg is in the logged reasons too', () => {
+  const state = freshState();
+  const { out } = decide(['--nope', '--log'], CTX, { state });
+  assert.deepEqual(logLines(state, 's1')[0].reasons, out.reasons);
+  assert.ok(out.reasons.includes('unknown_arg'));
+});
+
+t('R19: a bad stdin is still bad_input, with no unknown_arg (args are not parsed yet)', () => {
+  assert.deepEqual(decide(['--bogus'], '{oops').out, BAD_INPUT);
 });
 
 t('--holdout-rate followed by another flag does not swallow it', () => {
@@ -412,16 +526,19 @@ t('--holdout-rate followed by another flag does not swallow it', () => {
   assert.equal(allFiles(state).length, 1);
 });
 
-t('R15a: no subcommand: usage on stderr, nothing on stdout, exit 2', () => {
+// R18: exit 2 from a UserPromptSubmit hook blocks and erases the user's prompt in
+// Claude Code, so an adapter that passes our exit code through must never see 2.
+// Usage errors exit 64 (EX_USAGE).
+t('R18: no subcommand: usage on stderr, nothing on stdout, exit 64', () => {
   const res = run([], '{}');
-  assert.equal(res.status, 2);
+  assert.equal(res.status, 64);
   assert.equal(res.stdout, '');
   assert.match(res.stderr, /usage/i);
 });
 
-t('R15a: unknown subcommand: usage on stderr, nothing on stdout, exit 2', () => {
+t('R18: unknown subcommand: usage on stderr, nothing on stdout, exit 64', () => {
   const res = run(['bogus'], JSON.stringify(CTX));
-  assert.equal(res.status, 2);
+  assert.equal(res.status, 64);
   assert.equal(res.stdout, '');
   assert.match(res.stderr, /usage/i);
 });

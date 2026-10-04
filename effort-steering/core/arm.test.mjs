@@ -97,7 +97,8 @@ t("('a:b', i) and ('a', 'b:' + i) do not collide (no plain ':' join)", () => {
 t('the comparison is strict: a rate equal to the unit value gives treated, one step above gives holdout', () => {
   // Recompute the unit value independently, then use it as the rate. This pins
   // `<` against `<=`, `>` and `>=`, which rates 0 and 1 cannot separate
-  // because a unit value of exactly 0 or 1 never occurs.
+  // because a unit value of exactly 1 is impossible and exactly 0 is vanishingly
+  // rare (it needs the digest prefix 00000000, about 2^-32 per turn).
   const unit = (session, turn) =>
     parseInt(createHash('sha256').update(JSON.stringify([session, turn])).digest('hex').slice(0, 8), 16) /
     2 ** 32;

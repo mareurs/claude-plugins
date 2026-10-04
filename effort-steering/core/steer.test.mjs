@@ -70,6 +70,8 @@ t('render never throws and returns null on malformed input', () => {
     [{ level: 'deep', confidence: 'high', reasons: null }, table],
     [{ level: 'deep', confidence: 'high', reasons: 'user_override' }, table], // not an array
     [{ level: 'deep', confidence: 'high', reasons: {} }, table],
+    // A string has .includes, so only the Array.isArray check keeps it from passing.
+    [{ level: 'deep', confidence: 'high', reasons: 'abc' }, table],
     [dec('deep'), null],
     [dec('deep'), undefined],
     [dec('deep'), 'table'],
