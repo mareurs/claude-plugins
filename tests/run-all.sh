@@ -25,9 +25,12 @@ trap 'rm -rf "$CS_TEST_STATE_SANDBOX"' EXIT
 HOOK_TESTS_DIR="$SCRIPT_DIR/../codescout-companion/hooks"
 PI_EXTENSION_TESTS_DIR="$SCRIPT_DIR/../codescout-companion/.pi/extensions"
 SKILL_TESTS_DIR="$SCRIPT_DIR/../codescout-companion/skills"
+# effort-steering/<module>/*.test.mjs — a new top-level plugin directory is
+# otherwise never scanned, and the runner would still print "All suites passed".
+EFFORT_TESTS_DIR="$SCRIPT_DIR/../effort-steering"
 
 shopt -s nullglob
-SUITES=("$SCRIPT_DIR"/test-*.sh "$HOOK_TESTS_DIR"/*.test.sh "$SKILL_TESTS_DIR"/*/*.test.sh "$HOOK_TESTS_DIR"/*.test.mjs "$PI_EXTENSION_TESTS_DIR"/*.test.mjs)
+SUITES=("$SCRIPT_DIR"/test-*.sh "$HOOK_TESTS_DIR"/*.test.sh "$SKILL_TESTS_DIR"/*/*.test.sh "$HOOK_TESTS_DIR"/*.test.mjs "$PI_EXTENSION_TESTS_DIR"/*.test.mjs "$EFFORT_TESTS_DIR"/*/*.test.mjs)
 shopt -u nullglob
 
 # LOAD-BEARING. Without nullglob a non-matching glob survives as a literal path and
