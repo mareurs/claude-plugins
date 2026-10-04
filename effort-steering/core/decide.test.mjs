@@ -276,6 +276,10 @@ t('compileRules and decide never throw', () => {
   Object.defineProperty(evilCtx, 'prompt', { get() { throw new Error('nope'); } });
   const evilSignals = { prompt: 'marker' };
   Object.defineProperty(evilSignals, 'signals', { get() { throw new Error('nope'); } });
+  // The fail-open guarantee: an error inside decide gives exactly default, low, ['error'].
+  const failOpen = { level: 'default', confidence: 'low', reasons: ['error'] };
+  assert.deepEqual(decide(evilCtx, c), failOpen);
+  assert.deepEqual(decide(evilSignals, c), failOpen);
   for (const ctx of [undefined, null, 42, 'x', {}, evilCtx, evilSignals, { prompt: 'marker', signals: null }, { prompt: 'marker', signals: 5 }]) {
     const d = decide(ctx, c);
     assert.equal(d.level === 'default' || d.level === 'shallow', true);
@@ -304,6 +308,20 @@ t('slow regex', () => {
   const start = Date.now();
   run('a'.repeat(40) + '!', compiled);
   assert.ok(Date.now() - start < 2000);
+});
+
+t('long prompts: features and the override see the whole prompt', () => {
+  const hiShallow = rule('hs', 'shallow', 'high', M);
+  // A pasted 30 KB log that ends in ultrathink still gets the override: only rule regexes are cut at 20000.
+  assert.deepEqual(run('x'.repeat(30000) + ' ultrathink', compile(hiShallow)), { level: 'deep', confidence: 'high', reasons: ['user_override'] });
+  assert.deepEqual(run('x'.repeat(30000) + ' ultrathink', compile()), { level: 'deep', confidence: 'high', reasons: ['user_override'] });
+  // Length features count the whole prompt, not the first 20000 characters.
+  assert.equal(fires({ minChars: 25000 }, 'x'.repeat(30000)), true);
+  assert.equal(fires({ minChars: 35000 }, 'x'.repeat(30000)), false);
+  assert.equal(fires({ maxChars: 25000 }, 'x'.repeat(30000)), false);
+  assert.equal(fires({ maxChars: 35000 }, 'x'.repeat(30000)), true);
+  // A question mark past the cut still makes it a question.
+  assert.equal(fires({ isQuestion: true }, 'x'.repeat(30000) + '?'), true);
 });
 
 t('1 MB prompt with safe rules finishes fast', () => {
