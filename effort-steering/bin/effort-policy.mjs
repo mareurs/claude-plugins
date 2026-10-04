@@ -38,7 +38,8 @@
 //                       `rules` array); no rules apply and rules_version is 0
 //   table_unreadable    the steering table could not be read, parsed or used (not an object
 //                       with a `phrases` object); steer is null and steer_version is 0
-//   bad_holdout_rate    --holdout-rate is not a decimal in [0, 1]; rate 0 is used
+//   bad_holdout_rate    --holdout-rate is missing its value or is not a decimal in [0, 1];
+//                       rate 0 is used
 //   log_skipped_no_ids  --log was given but session_id or turn_id is missing, or present
 //                       but not a string; nothing is written
 //   log_failed          --log was given and writing the record failed; stderr has the cause
@@ -73,8 +74,11 @@ const DECIMAL = /^[+-]?(\d+\.?\d*|\.\d+)(e[+-]?\d+)?$/i;
 // Flag parsing never throws. Value flags take their value in two forms: spaced
 // (`--rules F`) or joined (`--rules=F`, split at the FIRST `=`, so the value may
 // contain `=`). In the spaced form a value that starts with `--` is the next flag,
-// not a value. An empty joined value (`--rules=`) is a missing value. Any token
-// that is not consumed (an unknown flag, `--log=x`, a stray positional) sets
+// not a value. An empty or missing value (`--rules=`, or `--rules` last or before
+// another flag) is the empty string, which each flag reports as its own reason.
+// In the joined form the value is whatever follows the `=`, even if it starts
+// with `--`. Any token that is not consumed (an unknown flag, `--log=x`, a stray
+// positional) sets
 // `unknown`, which runDecide reports once as the reason `unknown_arg`.
 const VALUE_FLAGS = { '--rules': 'rules', '--table': 'table', '--holdout-rate': 'holdoutRate' };
 
@@ -104,14 +108,10 @@ function parseFlags(argv) {
         i += 1;
       }
     }
-    if (key === 'holdoutRate') {
-      // A bare `--holdout-rate` with no value at all is ignored; an empty or bad
-      // value is reported by resolveRate.
-      if (value !== undefined) flags.holdoutRate = value;
-    } else {
-      // A missing value is an unreadable file: the empty path cannot be opened.
-      flags[key] = value ?? '';
-    }
+    // A value flag with no usable value is visible, never silent (R22). A missing
+    // value is the empty string: an empty path cannot be opened (rules_unreadable,
+    // table_unreadable) and an empty rate is not a decimal (bad_holdout_rate).
+    flags[key] = value ?? '';
   }
   return flags;
 }

@@ -417,10 +417,57 @@ t('R17: a table with an empty phrases object is usable (it just has no phrase) a
 
 // R19: an unknown flag no longer vanishes silently. It adds unknown_arg once. A
 // trailing --holdout-rate with no value at all is still just ignored.
-t('unknown flags add unknown_arg; a trailing --holdout-rate with no value is ignored', () => {
+// R19: an unknown flag no longer vanishes silently. It adds unknown_arg once.
+// R22: a trailing --holdout-rate with no value is bad_holdout_rate, not ignored.
+t('unknown flags add unknown_arg; a trailing --holdout-rate with no value is bad_holdout_rate', () => {
   const { out } = decide(['--bogus', '--holdout-rate'], CTX);
-  assert.deepEqual(out.reasons, ['no_rule', 'unknown_arg']);
+  assert.deepEqual(out.reasons, ['no_rule', 'unknown_arg', 'bad_holdout_rate']);
   assert.equal(out.arm, 'treated');
+});
+
+// ---- R22: a value flag with no usable value is visible ----------------------
+
+t('R22: --holdout-rate as the last token is bad_holdout_rate, treated, exit 0', () => {
+  const { out } = decide(['--rules', rulesFile([rule()]), '--holdout-rate'], CTX);
+  assert.equal(out.arm, 'treated');
+  assert.equal(out.steer, SHALLOW);
+  assert.deepEqual(out.reasons, ['r-shallow', 'bad_holdout_rate']);
+});
+
+t('R22: --holdout-rate followed by --log still turns logging on and adds bad_holdout_rate', () => {
+  const state = freshState();
+  const { out } = decide(['--holdout-rate', '--log'], CTX, { state });
+  assert.equal(out.arm, 'treated');
+  assert.deepEqual(out.reasons, ['no_rule', 'bad_holdout_rate']);
+  const lines = logLines(state, 's1');
+  assert.equal(lines.length, 1, 'a log line was written');
+  assert.deepEqual(lines[0].reasons, out.reasons);
+  assert.equal(lines[0].arm, 'treated');
+});
+
+t('R22: --rules as the last token is rules_unreadable, not the shipped rules', () => {
+  const { out } = decide(['--rules'], CTX);
+  assert.equal(out.arm, 'treated');
+  assert.deepEqual(out.reasons, ['no_rule', 'rules_unreadable']);
+});
+
+t('R22: --table followed by --log is table_unreadable, and the log is still written', () => {
+  const state = freshState();
+  const { out } = decide(['--rules', rulesFile([rule()]), '--table', '--log'], CTX, { state });
+  assert.equal(out.arm, 'treated');
+  assert.equal(out.steer, null);
+  assert.deepEqual(out.reasons, ['r-shallow', 'table_unreadable']);
+  const lines = logLines(state, 's1');
+  assert.equal(lines.length, 1, 'a log line was written');
+  assert.deepEqual(lines[0].reasons, out.reasons);
+  assert.equal(lines[0].steer_version, 0);
+});
+
+t('R22: the = form is explicit: --rules=--x takes --x as the file name', () => {
+  const { out } = decide(['--rules=--x', '--log'], CTX, { state: freshState() });
+  assert.deepEqual(out.reasons, ['no_rule', 'rules_unreadable'], 'no unknown_arg: --x was consumed as the value');
+  const holdout = decide(['--holdout-rate=--x'], CTX).out;
+  assert.deepEqual(holdout.reasons, ['no_rule', 'bad_holdout_rate']);
 });
 
 // ---- R19: --flag=value ------------------------------------------------------
@@ -519,10 +566,10 @@ t('R19: a bad stdin is still bad_input, with no unknown_arg (args are not parsed
   assert.deepEqual(decide(['--bogus'], '{oops').out, BAD_INPUT);
 });
 
-t('--holdout-rate followed by another flag does not swallow it', () => {
+t('--holdout-rate followed by another flag does not swallow it (and is bad_holdout_rate, R22)', () => {
   const state = freshState();
   const { out } = decide(['--holdout-rate', '--log'], CTX, { state });
-  assert.deepEqual(out.reasons, ['no_rule']);
+  assert.deepEqual(out.reasons, ['no_rule', 'bad_holdout_rate']);
   assert.equal(allFiles(state).length, 1);
 });
 
