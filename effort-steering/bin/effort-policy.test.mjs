@@ -1,0 +1,406 @@
+// Tests for the effort-policy CLI. Every case runs the real script in a child
+// process, because the contract is the process boundary: one JSON line on stdout,
+// exit 0 from `decide`, diagnostics on stderr only.
+//
+// The CLI under test is the sibling file, resolved through import.meta.url. That
+// is deliberate: a copy of the whole effort-steering/ tree (for a mutation probe)
+// then tests its own CLI copy, never the real one.
+
+import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
+import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { spawnSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
+import { t } from '../core/testkit.mjs';
+
+const CLI = fileURLToPath(new URL('./effort-policy.mjs', import.meta.url));
+const SHALLOW = 'Answer directly without deliberating.';
+const DEEP = 'Please think hard before responding.';
+
+// One sandbox per run: root/state is XDG_STATE_HOME, root/work holds rules files
+// and is the neutral cwd. A write outside root/state shows up as an extra file.
+const ROOT = mkdtempSync(path.join(os.tmpdir(), 'effort-policy-test-'));
+const STATE = path.join(ROOT, 'state');
+const WORK = path.join(ROOT, 'work');
+mkdirSync(STATE);
+mkdirSync(WORK);
+process.on('exit', () => rmSync(ROOT, { recursive: true, force: true }));
+
+function run(args, input, opts = {}) {
+  const res = spawnSync(process.execPath, [CLI, ...args], {
+    input,
+    cwd: opts.cwd ?? WORK,
+    env: { ...process.env, XDG_STATE_HOME: opts.state ?? STATE },
+    encoding: 'utf8',
+    maxBuffer: 16 * 1024 * 1024,
+  });
+  return { status: res.status, stdout: res.stdout, stderr: res.stderr };
+}
+
+// stdout must be exactly one line of JSON ending in a newline.
+function decide(args, ctx, opts) {
+  const input = typeof ctx === 'string' ? ctx : JSON.stringify(ctx);
+  const res = run(['decide', ...args], input, opts);
+  assert.equal(res.status, 0, `exit status; stderr: ${res.stderr}`);
+  assert.match(res.stdout, /^[^\n]*\n$/, 'stdout is exactly one newline-terminated line');
+  return { ...res, out: JSON.parse(res.stdout) };
+}
+
+let n = 0;
+function writeJson(name, value) {
+  const file = path.join(WORK, `${++n}-${name}`);
+  writeFileSync(file, typeof value === 'string' ? value : JSON.stringify(value));
+  return file;
+}
+
+const rule = (over = {}) => ({ id: 'r-shallow', level: 'shallow', confidence: 'high', reason: 'test', when: { minChars: 0 }, ...over });
+const rulesFile = (rules, version = 7) => writeJson('rules.json', { version, rules });
+const freshState = () => mkdtempSync(path.join(ROOT, 'st-'));
+const logLines = (state, session) => {
+  const file = path.join(state, 'effort-steering', `${session}.jsonl`);
+  return readFileSync(file, 'utf8').split('\n').filter(Boolean).map((l) => JSON.parse(l));
+};
+const allFiles = (dir) =>
+  readdirSync(dir, { withFileTypes: true }).flatMap((e) => (e.isDirectory() ? allFiles(path.join(dir, e.name)) : [path.join(dir, e.name)]));
+
+const CTX = { prompt: 'rename foo to bar', session_id: 's1', turn_id: 'u1', harness: 'claude-code' };
+
+t('shipped empty rules: default with no_rule, no steer, treated', () => {
+  const { out } = decide([], CTX);
+  assert.deepEqual(out, { level: 'default', confidence: 'low', reasons: ['no_rule'], steer: null, arm: 'treated' });
+});
+
+t('output has exactly the five keys, in order', () => {
+  const { out } = decide([], CTX);
+  assert.deepEqual(Object.keys(out), ['level', 'confidence', 'reasons', 'steer', 'arm']);
+});
+
+t('a high shallow rule gives shallow with the exact phrase', () => {
+  const { out } = decide(['--rules', rulesFile([rule()])], CTX);
+  assert.equal(out.level, 'shallow');
+  assert.equal(out.confidence, 'high');
+  assert.equal(out.steer, SHALLOW);
+  assert.equal(out.arm, 'treated');
+  assert.deepEqual(out.reasons, ['r-shallow']);
+});
+
+t('a medium deep rule gives deep with the exact phrase', () => {
+  const { out } = decide(['--rules', rulesFile([rule({ id: 'r-deep', level: 'deep', confidence: 'medium' })])], CTX);
+  assert.equal(out.level, 'deep');
+  assert.equal(out.steer, DEEP);
+});
+
+t('explicit ultrathink beats a shallow rule: deep, user_override, no second sentence', () => {
+  const { out } = decide(['--rules', rulesFile([rule()])], { ...CTX, prompt: 'ultrathink about the cache design' });
+  assert.equal(out.level, 'deep');
+  assert.deepEqual(out.reasons, ['user_override']);
+  assert.equal(out.steer, null);
+});
+
+t('a failing previous turn blocks shallow (signals reach decide)', () => {
+  const { out } = decide(['--rules', rulesFile([rule()])], { ...CTX, signals: { prevTurnFailed: true } });
+  assert.equal(out.level, 'default');
+  assert.equal(out.steer, null);
+});
+
+t('an invalid-regex rule is skipped and the valid rule still applies', () => {
+  const bad = rule({ id: 'bad', when: { matchesAny: ['('] } });
+  const { out, stderr } = decide(['--rules', rulesFile([bad, rule()])], CTX);
+  assert.equal(out.level, 'shallow');
+  assert.equal(out.steer, SHALLOW);
+  assert.ok(!stderr.includes('rename foo'), 'stderr never carries prompt text');
+});
+
+// ---- bad input -------------------------------------------------------------
+
+const BAD_INPUT = { level: 'default', confidence: 'low', reasons: ['bad_input'], steer: null, arm: 'treated' };
+
+for (const [name, input] of [
+  ['invalid JSON', '{not json'],
+  ['empty stdin', ''],
+  ['whitespace only', '  \n'],
+  ['a JSON array', '[1,2]'],
+  ['a JSON string', '"hello"'],
+  ['a JSON number', '42'],
+  ['JSON null', 'null'],
+]) {
+  t(`stdin ${name}: bad_input, exit 0, one line`, () => {
+    const { out } = decide([], input);
+    assert.deepEqual(out, BAD_INPUT);
+  });
+}
+
+t('bad input with --log writes nothing', () => {
+  const state = freshState();
+  decide(['--log'], '{oops', { state });
+  assert.deepEqual(allFiles(state), []);
+});
+
+t('a 1 MB prompt still works', () => {
+  const { out } = decide([], { ...CTX, prompt: 'a'.repeat(1_000_000) });
+  assert.deepEqual(out.reasons, ['no_rule']);
+});
+
+t('a non-string prompt does not crash and logs the hash of the empty prompt', () => {
+  const state = freshState();
+  const { out } = decide(['--log'], { ...CTX, prompt: 42 }, { state });
+  assert.equal(out.level, 'default');
+  const [rec] = logLines(state, 's1');
+  assert.equal(rec.prompt_sha256, createHash('sha256').update('', 'utf8').digest('hex'));
+});
+
+// ---- holdout ---------------------------------------------------------------
+
+t('--holdout-rate 1 gives holdout and null steer even though a rule says shallow', () => {
+  const { out } = decide(['--rules', rulesFile([rule()]), '--holdout-rate', '1'], CTX);
+  assert.equal(out.arm, 'holdout');
+  assert.equal(out.level, 'shallow');
+  assert.equal(out.steer, null);
+});
+
+t('holdout logs steered:false, treated logs steered:true', () => {
+  const rules = rulesFile([rule()]);
+  const a = freshState();
+  decide(['--rules', rules, '--holdout-rate', '1', '--log'], CTX, { state: a });
+  assert.equal(logLines(a, 's1')[0].arm, 'holdout');
+  assert.equal(logLines(a, 's1')[0].steered, false);
+  const b = freshState();
+  decide(['--rules', rules, '--log'], CTX, { state: b });
+  assert.equal(logLines(b, 's1')[0].arm, 'treated');
+  assert.equal(logLines(b, 's1')[0].steered, true);
+});
+
+t('a treated turn with nothing to say logs steered:false', () => {
+  const state = freshState();
+  decide(['--log'], CTX, { state });
+  assert.equal(logLines(state, 's1')[0].steered, false);
+});
+
+t('--holdout-rate 0 is never a holdout; rate 1 without ids stays treated', () => {
+  assert.equal(decide(['--holdout-rate', '0'], CTX).out.arm, 'treated');
+  const { out } = decide(['--holdout-rate', '1'], { prompt: 'x' });
+  assert.equal(out.arm, 'treated');
+});
+
+t('a valid fractional rate adds no reason', () => {
+  const { out } = decide(['--holdout-rate', '0.25'], CTX);
+  assert.deepEqual(out.reasons, ['no_rule']);
+});
+
+for (const bad of ['abc', '-1', '2', '1.0001', '', 'NaN', 'Infinity', '0x1', '1,5']) {
+  t(`R3: invalid --holdout-rate ${JSON.stringify(bad)} is rate 0 with bad_holdout_rate`, () => {
+    const { out } = decide(['--rules', rulesFile([rule()]), '--holdout-rate', bad], CTX);
+    assert.equal(out.arm, 'treated');
+    assert.equal(out.steer, SHALLOW);
+    assert.deepEqual(out.reasons, ['r-shallow', 'bad_holdout_rate']);
+  });
+}
+
+// ---- logging ---------------------------------------------------------------
+
+t('--log with ids writes one file with one line, with the right keys, and no prompt text', () => {
+  const state = freshState();
+  const prompt = 'SECRETPROMPT-9f3a rename foo to bar';
+  const { out } = decide(['--rules', rulesFile([rule()]), '--log'], { ...CTX, prompt }, { state });
+  const files = allFiles(state);
+  assert.equal(files.length, 1);
+  assert.equal(files[0], path.join(state, 'effort-steering', 's1.jsonl'));
+  const raw = readFileSync(files[0], 'utf8');
+  assert.equal(raw.split('\n').filter(Boolean).length, 1);
+  assert.ok(!raw.includes('SECRETPROMPT'), 'the log never holds prompt text');
+  const [rec] = logLines(state, 's1');
+  assert.deepEqual(Object.keys(rec).sort(), [
+    'arm', 'confidence', 'features', 'harness', 'level', 'policy_version', 'prompt_sha256', 'reasons',
+    'rules_version', 'session_id', 'steer_version', 'steered', 'ts', 'turn_id',
+  ]);
+  assert.equal(rec.prompt_sha256, createHash('sha256').update(prompt, 'utf8').digest('hex'));
+  assert.equal(rec.session_id, 's1');
+  assert.equal(rec.turn_id, 'u1');
+  assert.equal(rec.harness, 'claude-code');
+  assert.equal(rec.rules_version, 7);
+  assert.equal(rec.steer_version, 1);
+  assert.equal(rec.level, 'shallow');
+  assert.deepEqual(rec.reasons, out.reasons);
+});
+
+t('a second --log call appends a second line to the same session file', () => {
+  const state = freshState();
+  decide(['--log'], CTX, { state });
+  decide(['--log'], { ...CTX, turn_id: 'u2' }, { state });
+  assert.equal(logLines(state, 's1').length, 2);
+});
+
+t('--log without ids creates no file and adds log_skipped_no_ids', () => {
+  const state = freshState();
+  const { out } = decide(['--log'], { prompt: 'x' }, { state });
+  assert.deepEqual(out.reasons, ['no_rule', 'log_skipped_no_ids']);
+  assert.deepEqual(allFiles(state), []);
+  const half = decide(['--log'], { prompt: 'x', session_id: 's1' }, { state });
+  assert.deepEqual(half.out.reasons, ['no_rule', 'log_skipped_no_ids']);
+  const num = decide(['--log'], { prompt: 'x', session_id: 5, turn_id: 6 }, { state });
+  assert.deepEqual(num.out.reasons, ['no_rule', 'log_skipped_no_ids']);
+  assert.deepEqual(allFiles(state), []);
+});
+
+t('without --log nothing is written', () => {
+  const state = freshState();
+  decide([], CTX, { state });
+  assert.deepEqual(allFiles(state), []);
+});
+
+t("--log with session_id '../x' exits 0, writes nothing, adds log_failed, stderr has no prompt", () => {
+  const root = freshState();
+  const state = path.join(root, 'state');
+  mkdirSync(state);
+  const { out, stderr } = decide(['--log'], { ...CTX, session_id: '../x', prompt: 'SECRETPROMPT-77 hi' }, { state });
+  assert.deepEqual(out.reasons, ['no_rule', 'log_failed']);
+  assert.equal(out.level, 'default');
+  assert.deepEqual(allFiles(root), [], 'no file anywhere under the sandbox');
+  assert.ok(stderr.length > 0, 'the error goes to stderr');
+  assert.ok(!stderr.includes('SECRETPROMPT'));
+});
+
+t('--log into an unwritable state dir exits 0 with log_failed', () => {
+  const blocker = path.join(ROOT, 'a-file');
+  writeFileSync(blocker, 'x');
+  const { out } = decide(['--log'], CTX, { state: blocker });
+  assert.ok(out.reasons.includes('log_failed'));
+});
+
+// ---- fail-open on the config files ------------------------------------------
+
+t('an unreadable --rules path gives rules_unreadable and default, logged with rules_version 0', () => {
+  const state = freshState();
+  const { out } = decide(['--rules', path.join(WORK, 'does-not-exist.json'), '--log'], CTX, { state });
+  assert.equal(out.level, 'default');
+  assert.deepEqual(out.reasons, ['no_rule', 'rules_unreadable']);
+  assert.equal(logLines(state, 's1')[0].rules_version, 0);
+});
+
+t('a rules file that is not JSON gives rules_unreadable', () => {
+  const { out } = decide(['--rules', writeJson('garbage.json', '{{{')], CTX);
+  assert.deepEqual(out.reasons, ['no_rule', 'rules_unreadable']);
+});
+
+t('--rules with no value counts as an unreadable rules file', () => {
+  const { out } = decide(['--rules'], CTX);
+  assert.deepEqual(out.reasons, ['no_rule', 'rules_unreadable']);
+});
+
+t('--rules followed by another flag does not swallow the flag', () => {
+  const state = freshState();
+  const { out } = decide(['--rules', '--log'], CTX, { state });
+  assert.deepEqual(out.reasons, ['no_rule', 'rules_unreadable']);
+  assert.equal(allFiles(state).length, 1, '--log still took effect');
+});
+
+t('R15c: an unreadable table gives table_unreadable, null steer, steer_version 0', () => {
+  const state = freshState();
+  const { out } = decide(['--rules', rulesFile([rule()]), '--table', path.join(WORK, 'nope.json'), '--log'], CTX, { state });
+  assert.equal(out.level, 'shallow');
+  assert.equal(out.steer, null);
+  assert.deepEqual(out.reasons, ['r-shallow', 'table_unreadable']);
+  const [rec] = logLines(state, 's1');
+  assert.equal(rec.steer_version, 0);
+  assert.equal(rec.steered, false);
+});
+
+t('R15c: a table that is not JSON, or not an object, gives table_unreadable', () => {
+  for (const content of ['{{{', '[]', 'null']) {
+    const { out } = decide(['--rules', rulesFile([rule()]), '--table', writeJson('table.json', content)], CTX);
+    assert.equal(out.steer, null, content);
+    assert.ok(out.reasons.includes('table_unreadable'), content);
+  }
+});
+
+t('--table with no value counts as an unreadable table', () => {
+  const { out } = decide(['--rules', rulesFile([rule()]), '--table'], CTX);
+  assert.equal(out.steer, null);
+  assert.ok(out.reasons.includes('table_unreadable'));
+});
+
+t('a custom --table changes the phrase', () => {
+  const table = writeJson('table.json', { version: 3, phrases: { shallow: 'Be brief.', deep: 'Think.' } });
+  const state = freshState();
+  const { out } = decide(['--rules', rulesFile([rule()]), '--table', table, '--log'], CTX, { state });
+  assert.equal(out.steer, 'Be brief.');
+  assert.equal(logLines(state, 's1')[0].steer_version, 3);
+});
+
+t('the rules file may be valid JSON of the wrong shape: default, no crash', () => {
+  const { out } = decide(['--rules', writeJson('shape.json', '{"version":2,"rules":"x"}')], CTX);
+  assert.equal(out.level, 'default');
+});
+
+// ---- flags and subcommands --------------------------------------------------
+
+t('unknown flags and a trailing --holdout-rate with no value are ignored', () => {
+  const { out } = decide(['--bogus', '--holdout-rate'], CTX);
+  assert.deepEqual(out.reasons, ['no_rule']);
+  assert.equal(out.arm, 'treated');
+});
+
+t('--holdout-rate followed by another flag does not swallow it', () => {
+  const state = freshState();
+  const { out } = decide(['--holdout-rate', '--log'], CTX, { state });
+  assert.deepEqual(out.reasons, ['no_rule']);
+  assert.equal(allFiles(state).length, 1);
+});
+
+t('R15a: no subcommand: usage on stderr, nothing on stdout, exit 2', () => {
+  const res = run([], '{}');
+  assert.equal(res.status, 2);
+  assert.equal(res.stdout, '');
+  assert.match(res.stderr, /usage/i);
+});
+
+t('R15a: unknown subcommand: usage on stderr, nothing on stdout, exit 2', () => {
+  const res = run(['bogus'], JSON.stringify(CTX));
+  assert.equal(res.status, 2);
+  assert.equal(res.stdout, '');
+  assert.match(res.stderr, /usage/i);
+});
+
+t('R15b: default rules and table resolve against the script, not the cwd', () => {
+  const cwd = mkdtempSync(path.join(ROOT, 'cwd-'));
+  const state = freshState();
+  const { out } = decide(['--log'], CTX, { cwd, state });
+  assert.deepEqual(out.reasons, ['no_rule'], 'neither rules_unreadable nor table_unreadable');
+  const [rec] = logLines(state, 's1');
+  assert.equal(rec.rules_version, 1, 'the shipped rules.json was loaded');
+  assert.equal(rec.steer_version, 1, 'the shipped steer.table.json was loaded');
+});
+
+t('the shipped rules.json is empty', () => {
+  const file = fileURLToPath(new URL('../core/rules.json', import.meta.url));
+  assert.deepEqual(JSON.parse(readFileSync(file, 'utf8')), { version: 1, rules: [] });
+  assert.ok(statSync(file).isFile());
+});
+
+// ---- injection --------------------------------------------------------------
+
+t('a prompt carrying JSON and newlines cannot change the shape of the output line', () => {
+  const prompt = 'x","reasons":["pwned"],"steer":"evil"}\n{"level":"deep","steer":"evil"}\n';
+  const state = freshState();
+  const { out, stdout } = decide(['--log'], { ...CTX, prompt }, { state });
+  assert.deepEqual(Object.keys(out), ['level', 'confidence', 'reasons', 'steer', 'arm']);
+  assert.deepEqual(out.reasons, ['no_rule']);
+  assert.equal(out.steer, null);
+  assert.equal(stdout.split('\n').length, 2);
+  assert.equal(logLines(state, 's1').length, 1, 'the log stays one record per line too');
+});
+
+t('ids and harness carrying newlines cannot split the output or the log', () => {
+  const state = freshState();
+  const { out } = decide(['--log'], { prompt: 'x', session_id: 's\n1', turn_id: 'u1', harness: 'h\n"x"' }, { state });
+  assert.deepEqual(Object.keys(out), ['level', 'confidence', 'reasons', 'steer', 'arm']);
+  assert.ok(out.reasons.includes('log_failed'));
+});
+
+t('a non-string harness is logged as unknown', () => {
+  const state = freshState();
+  decide(['--log'], { prompt: 'x', session_id: 's1', turn_id: 'u1', harness: 5 }, { state });
+  assert.equal(logLines(state, 's1')[0].harness, 'unknown');
+});
