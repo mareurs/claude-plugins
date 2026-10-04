@@ -1,7 +1,10 @@
 import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import { t } from '../core/testkit.mjs';
-import { turnsFromTranscript, bucketReport, byEffort, median, p90 } from './s3-replay.mjs';
+import { turnsFromTranscript, bucketReport, byEffort, median, p90, createTurnCollector, measuredTurns, replay, profileName } from './s3-replay.mjs';
 
 // Placeholder fixture. Shapes follow real Claude Code records (fields found in
 // Step 1 of the S3 brief); every text value is a placeholder, never transcript content.
@@ -78,6 +81,8 @@ t('a duplicated assistant message counts once in the sums', () => {
   assert.equal(a.thinkingTokens, 140); // 100 once + 40
   assert.equal(a.outputTokens, 210);
   assert.equal(a.cacheCreation, 1500);
+  assert.equal(a.messages, 2); // m1 once + m2
+  assert.equal(b.messages, 1);
   assert.equal(b.thinkingTokens, 0);
   assert.equal(b.outputTokens, 10);
   assert.equal(b.cacheCreation, 20);
@@ -168,4 +173,137 @@ t('byEffort groups by effort and puts null under unknown', () => {
   assert.equal(g.high.length, 2);
   assert.equal(g.unknown.length, 1);
   assert.equal(g.unknown[0].thinkingTokens, 3);
+});
+
+// ---- Round 1: turn terminators, measuredTurns, multi-directory replay.
+
+const P1 = 'PLACEHOLDER-A';
+const P2 = 'PLACEHOLDER-B';
+
+// Records that start an assistant response on their own, so replies after them
+// belong to no human prompt. name -> a record builder.
+const TRIGGERS = {
+  peer: () => user('PLACEHOLDER-PEER', { isMeta: true, origin: { kind: 'peer', from: 'x' } }),
+  'task-notification': () => user('<task-notification>PLACEHOLDER</task-notification>', { origin: { kind: 'task-notification' } }),
+  command: () => user('<command-name>/PLACEHOLDER</command-name>', { origin: undefined }),
+  'command (message tag, human origin)': () => user('<command-message>PLACEHOLDER</command-message>', { origin: { kind: 'human' } }),
+};
+
+for (const [name, build] of Object.entries(TRIGGERS)) {
+  t(`a ${name} record ends the turn: its replies are not folded into the previous prompt`, () => {
+    const c = createTurnCollector('message.id');
+    for (const l of [
+      user(P1),
+      assistant({ mid: 'ta', thinking: 10, out: 1, cache: 1 }),
+      build(),
+      assistant({ mid: 'tb', thinking: 5000, out: 500, cache: 50 }),
+      assistant({ mid: 'tc', thinking: 600, out: 60, cache: 6 }),
+      user(P2),
+      assistant({ mid: 'td', thinking: 3, out: 1, cache: 1 }),
+    ]) c.push(l);
+    const [a, b] = c.turns();
+    assert.equal(c.turns().length, 2);
+    assert.equal(a.thinkingTokens, 10);
+    assert.equal(a.outputTokens, 1);
+    assert.equal(a.messages, 1);
+    assert.equal(b.thinkingTokens, 3);
+    assert.equal(b.messages, 1);
+    const key = name.startsWith('command') ? 'command' : name;
+    const d = c.dropped()[key];
+    assert.deepEqual(d, { messages: 2, thinkingTokens: 5600, turns: 1 });
+  });
+}
+
+t('replies dropped after a trigger stay dropped until the next real prompt, across a tool result and a second trigger', () => {
+  const c = createTurnCollector('message.id');
+  for (const l of [
+    user(P1),
+    assistant({ mid: 'ua', thinking: 1, out: 1, cache: 1 }),
+    TRIGGERS.peer(),
+    assistant({ mid: 'ub', thinking: 100, out: 1, cache: 1 }),
+    user([{ type: 'tool_result', tool_use_id: 'toolu_x', content: 'PLACEHOLDER' }], { toolUseResult: { stdout: 'PLACEHOLDER' }, origin: undefined }),
+    assistant({ mid: 'uc', thinking: 200, out: 1, cache: 1 }),
+    TRIGGERS.command(),
+    assistant({ mid: 'ud', thinking: 400, out: 1, cache: 1 }),
+  ]) c.push(l);
+  assert.equal(c.turns()[0].thinkingTokens, 1);
+  assert.deepEqual(c.dropped().peer, { messages: 2, thinkingTokens: 300, turns: 1 });
+  assert.deepEqual(c.dropped().command, { messages: 1, thinkingTokens: 400, turns: 1 });
+});
+
+t('a tool result and a local command output do not end the turn', () => {
+  const c = createTurnCollector('message.id');
+  for (const l of [
+    user(P1),
+    assistant({ mid: 'va', thinking: 10, out: 1, cache: 1 }),
+    user([{ type: 'tool_result', tool_use_id: 'toolu_x', content: 'PLACEHOLDER' }], { toolUseResult: { stdout: 'PLACEHOLDER' }, origin: undefined }),
+    assistant({ mid: 'vb', thinking: 20, out: 1, cache: 1 }),
+    user('<local-command-stdout>PLACEHOLDER</local-command-stdout>', { origin: undefined }),
+    assistant({ mid: 'vc', thinking: 30, out: 1, cache: 1 }),
+  ]) c.push(l);
+  assert.equal(c.turns()[0].thinkingTokens, 60);
+  assert.equal(c.turns()[0].messages, 3);
+  assert.deepEqual(c.dropped(), {});
+});
+
+t('measuredTurns drops a prompt with no reply and keeps a reply with zero thinking', () => {
+  const turns = turnsFromTranscript([
+    user(P1), // no reply
+    user(P2),
+    assistant({ mid: 'w1', thinking: 0, out: 5, cache: 1 }),
+  ], 'message.id');
+  assert.deepEqual(turns.map((x) => x.messages), [0, 1]);
+  const m = measuredTurns(turns);
+  assert.equal(m.length, 1);
+  assert.equal(m[0].messages, 1);
+  assert.equal(m[0].thinkingTokens, 0);
+  assert.equal(measuredTurns([]).length, 0);
+});
+
+t('profileName is the .claude* folder of the path, never a full path', () => {
+  assert.equal(profileName('/home/u/.claude-sdd/projects/-some-project'), '.claude-sdd');
+  assert.equal(profileName('/home/u/.claude/projects/-some-project/'), '.claude');
+  assert.equal(profileName('/tmp/other/dir'), 'dir');
+});
+
+async function ta(name, fn) {
+  try {
+    await fn();
+    console.log(`ok - ${name}`);
+  } catch (err) {
+    console.log(`not ok - ${name}`);
+    console.log(String(err && err.stack ? err.stack : err));
+    process.exitCode = 1;
+  }
+}
+
+await ta('replay shares one message.id seen-set across files and profiles, and reads only top-level *.jsonl', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 's3-replay-'));
+  try {
+    const a = path.join(root, '.claude-a', 'projects', 'proj');
+    const b = path.join(root, '.claude-b', 'projects', 'proj');
+    const missing = path.join(root, '.claude-c', 'projects', 'proj');
+    fs.mkdirSync(path.join(a, 'subagents'), { recursive: true });
+    fs.mkdirSync(b, { recursive: true });
+    const w = (p, ls) => fs.writeFileSync(p, ls.join('\n') + '\n');
+    const m1 = assistant({ mid: 'shared-1', thinking: 100, out: 1, cache: 1, effort: 'high' });
+    w(path.join(a, 's1.jsonl'), [user(P1), m1, user(P2), assistant({ mid: 'only-a', thinking: 40, out: 1, cache: 1 })]);
+    // Ignored: backup copy and subagent transcript, both holding unique, heavy messages.
+    w(path.join(a, 's1.jsonl.bak-1'), [user(P1), assistant({ mid: 'bak', thinking: 9999, out: 1, cache: 1 })]);
+    w(path.join(a, 'subagents', 'x.jsonl'), [user(P1), assistant({ mid: 'sub', thinking: 8888, out: 1, cache: 1 })]);
+    // Resumed session in another profile: carries a copy of the first prompt and message.
+    w(path.join(b, 's2.jsonl'), [user(P1), m1, user('PLACEHOLDER-C'), assistant({ mid: 'only-b', thinking: 7, out: 1, cache: 1 })]);
+
+    const r = await replay([a, b, missing], 'message.id');
+    assert.deepEqual(r.profiles, {
+      '.claude-a': { files: 1, turns: 2, measured: 2 },
+      '.claude-b': { files: 1, turns: 2, measured: 1 }, // the copied prompt has no counted reply
+      '.claude-c': { files: 0, turns: 0, measured: 0 },
+    });
+    const total = measuredTurns(r.turns).reduce((s, x) => s + x.thinkingTokens, 0);
+    assert.equal(total, 147); // 100 once + 40 + 7; the bak and subagent files are not read
+    assert.equal(r.turns.length, 4);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
 });
