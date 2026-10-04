@@ -106,5 +106,17 @@ t('the comparison is strict: a rate equal to the unit value gives treated, one s
     assert.equal(assignArm('s1', turn, u), 'treated', `rate == unit for turn ${turn}`);
     assert.equal(assignArm('s1', turn, Math.min(1, u + 2 ** -32)), 'holdout', `rate > unit for turn ${turn}`);
     if (u > 0) assert.equal(assignArm('s1', turn, u - 2 ** -32), 'treated', `rate < unit for turn ${turn}`);
+    // A rate inside the window [u, u + 2**-32) must give holdout. The window is
+    // only reached by probing at u + u * 2**-33, which separates the divisor
+    // 2**32 from 2**32 - 1 (whose unit is about u + u * 2**-32).
+    if (u > 0) assert.equal(assignArm('s1', turn, u + u * 2 ** -33), 'holdout', `rate in window above unit for turn ${turn}`);
   }
 });
+
+t('literal vector: the hash, key order and slice are pinned without the test recipe', () => {
+  // sha256(JSON.stringify(['s1','1'])) starts with 050894fb. The prefix is
+  // written as a literal on purpose: it does not depend on a copy of the recipe.
+  assert.equal(assignArm('s1', '1', 0x050894fb / 2 ** 32), 'treated');
+  assert.equal(assignArm('s1', '1', (0x050894fb + 1) / 2 ** 32), 'holdout');
+});
+
