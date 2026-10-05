@@ -54,7 +54,7 @@ The design and every constraint are already written. Start from the spec section
 
 ## ES-3 — Claude Code adapter (a `UserPromptSubmit` hook)
 
-**Status:** open — blocked by ES-2 and ES-7.
+**Status:** built 2026-10-05 on branch `feat/effort-steering-adapter` (worktree `/home/marius/work/claude/claude-plugins-effort-steering-adapter`, base `6a92fe2`, head `a2f1f6f`; NOT merged, NOT pushed). Plan Tasks 2 to 4: `adapter/claude-code/build-context.mjs`, `run-policy.mjs`, `user-prompt-submit.mjs`, each with Opus-reviewed tests (mutation lens) and one fix round. The final whole-branch review says the adapter can merge once one test lands (ids absent + hostile prompt, FINAL I-5). Still open from it: `latencyBudgetMs` must be an integer and `runPolicy` must guard `timeoutMs` (FINAL I-3), and the planned `hooks.json` must set `EFFORT_STEERING_HOLDOUT_RATE` or production has no holdout (route to ES-10).
 **Done when:** a hook script under `effort-steering/` reads the hook input, calls `bin/effort-policy.mjs decide` and emits `additionalContext` only when `steer` is not null, with tests.
 
 Facts from spike S1: the hook input has `session_id`, `transcript_path`, `cwd`, `prompt_id`, `permission_mode`, `hook_event_name` and `prompt` (all strings) and no effort level. Use `prompt_id` as `turn_id`. Constraints:
@@ -79,7 +79,7 @@ Spike S1 ran with user-level plugin hooks switched off (`--setting-sources local
 
 ## ES-5 — Spikes S4 and S5: does steering text move thinking depth?
 
-**Status:** open — blocked by ES-3 and ES-4. It costs model calls, so ask the operator first.
+**Status:** code built 2026-10-05, run NOT started. Branch `feat/effort-steering-adapter` (plan Tasks 5 to 7): `spikes/s4-prereg.mjs` (+ null template `s4-prereg.json`), `s4-analyze.mjs`, `s4-rows.mjs`, `s4-run.mjs`. The preregistration loader compares the file's bytes to the HEAD blob (blocks assume-unchanged, skip-worktree, symlinks, filters, git replace, env tricks); the runner refuses to spawn unless the prereg is committed and byte-identical AND `--confirm` is exact. BLOCKED by two operator gates and one open Critical finding: (1) **ES-12** (the experiment can return a GO by chance alone: 22 to 40 percent under no true effect) needs a ruling BEFORE the numbers are registered; (2) G2: the operator registers the gate numbers; (3) G3: the operator approves the model-call run. Also open before G3: FINAL I-1, I-2, I-3, I-4 (see ES-12 and the SDD ledger).
 **Done when:** the gate numbers are registered BEFORE any run (effect size on `thinking_tokens`, latency budget, holdout rate), the experiment is run with the holdout arm, and the result is written down.
 
 Stop rule from the spec: if steering text moves nothing against the holdout, actuation A fails. Then stop, or reopen the opt-in settings write (a shared-state hazard, because `settings.local.json` is per project). Measurement comes from transcripts: `usage.output_tokens_details.thinking_tokens`, the cache fields and the top-level `effort` field, deduped by `message.id`. The replay scripts in `effort-steering/spikes/` show how.
@@ -88,7 +88,7 @@ Stop rule from the spec: if steering text moves nothing against the holdout, act
 
 ## ES-6 — Session-signal replay (S3b)
 
-**Status:** open — read-only and cheap; it can run at any time.
+**Status:** done 2026-10-05 (branch `feat/effort-steering-adapter`, plan Task 8, `spikes/s3-replay.mjs` extended, counts only). Plan mode is the top-level `permissionMode` on user records (values `auto`, `default`, `plan`). Over 3,562 turns (2,792 measured): `prevTurnFailed` true n=400 (median 5,947.5, p90 19,809) against false n=2,392 (median 5,332, p90 21,506). By effort level the direction is unstable (xhigh +7 percent, high -30 percent, medium +150 percent at n=20), so this is a weak association at best and not a basis for a rule. `planMode` true n=4 (median 8,247.5): far too few to conclude; false n=2,778; null n=10. `retryCount` was not measured (the spec gives no mechanical definition). Consequence for ES-9: the session signals do NOT give a basis for first rules either.
 **Done when:** a replay of past sessions shows whether a failure in the previous turn, a retry count or plan mode (`permission_mode`) separates thinking depth, and the result is recorded here.
 
 S3 tested prompt features only. The only feature that separated depth was `isQuestion` (lower at every effort level); length did not. The session signals are the likeliest escalation levers, and nothing measures them yet. This feeds ES-9.
@@ -144,6 +144,19 @@ Never bump a version inline in a feature commit. The spikes hard-code machine-sp
 Removing the worktree deletes its gitignored scratch workspace (`.superpowers/sdd/`), which holds the first phase's task reports. Remove the worktree first (`git worktree remove`), then the branch (`git branch -d feat/effort-steering-core`).
 
 **Source:** handover message of 2026-10-05; codescout review notes.
+
+## ES-12 — Fix the S4 method: a GO can come from chance alone
+
+**Status:** open — needs the operator. Found by the final whole-branch review of `feat/effort-steering-adapter` (2026-10-05).
+**Done when:** the operator chooses the method, the code and tests follow it, and the registered statistic and alpha are in `s4-prereg.json` before any run.
+
+`analyzeArms` pools every prompt's thinking tokens into two medians. Arms come from a hash of (session id, Claude Code's `prompt_id`), so the runner cannot balance them within a prompt, and prompts differ a lot in baseline thinking. Simulated with the real `analyzeArms` and `assignArm` and NO true effect: 4 prompts with different thinking levels x 3 repeats and effect size 150 gave `mechanism_pass` in 40.4 percent of runs; 4 similar prompts with more noise 28.7 percent; 5 to 10 repeats with effect size 300 gave 22 to 30 percent. With the cold-cache coin flip (FINAL I-4) a full GO under no effect is plausible in 10 to 20 percent of runs.
+
+Options: (a) let the runner assign arms itself, balanced within each prompt (registered holdout rate 0 or 1 per run, shuffled run order), then compare within each prompt (paired differences) with a permutation test and a registered alpha; (b) keep the hash assignment but carry the prompt index in every row and register a per-prompt statistic plus a permutation test. The recommendation is (a): it removes the chance imbalance by design and keeps the analysis simple. It changes what G2 registers (the statistic and alpha), so the operator decides first.
+
+Bundled in the same fix wave (all from the final review): FINAL I-1 (treated runs that were not steered dilute the effect; preflight every registered prompt and exclude `not_steered` / `steered_holdout` rows), I-2 (the children inherit the environment, here `ANTHROPIC_BASE_URL` points at llm-proxy; build the child env explicitly), I-3 (the latency gate cannot see a hook that falls back on every call), I-4 (warm-up run and shuffled order), I-5 (a test), the claude-subcommand-name prompt risk, M-1 (the treatment is not pinned to a commit) and M-2 (prompt guards).
+
+**Source:** final whole-branch review, SDD ledger `progress.md` (git-ignored, in the worktree), plan `docs/superpowers/plans/2026-10-05-effort-steering-adapter-and-experiment.md` on the branch.
 
 ## Template for new entries
 

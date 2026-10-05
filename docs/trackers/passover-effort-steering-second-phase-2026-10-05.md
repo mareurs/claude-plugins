@@ -15,13 +15,15 @@ origin_session_id: 16bc6017-d129-44f7-91e5-43b0afad5ea9
 
 ## State
 
-The first phase is done and merged locally into `main` (`7475f6d`, fast-forward, full suite green: 65 suites). Nothing is pushed. The second phase is NOT started: nothing in it is in progress. Its work list is the tracker `effort-steering-second-phase` (id `af4ccc8b94a95c91`, entries ES-1 to ES-11). The first steps are a decision from the operator (ES-1, ruling R3) and writing the second plan (ES-2).
+UPDATE 2026-10-05 (later): the plan was approved (ES-2 done) and executed with subagent-driven development up to the first operator gates. ES-1, ES-6, ES-7, ES-8 are done on `main`/the branch; ES-3, ES-4 (read-only half) and the code of ES-5 are built on the branch `feat/effort-steering-adapter` (worktree `/home/marius/work/claude/claude-plugins-effort-steering-adapter`, base `6a92fe2`, head `a2f1f6f`, 17 commits, NOT merged, NOT pushed). The final whole-branch review found one CRITICAL issue (ES-12: the S4 method can return a GO by chance alone, 22 to 40 percent under no true effect) that needs the operator's ruling BEFORE the gate numbers are registered. The SDD ledger with all rulings R1 to R23 is `.superpowers/sdd/2026-10-05-effort-steering-adapter-and-experiment/progress.md` in the worktree (git-ignored: keep the worktree).
+
+Original state at the first handover: the first phase is done and merged locally into `main` (`7475f6d`, fast-forward, full suite green: 65 suites). Nothing is pushed. Its work list is the tracker `effort-steering-second-phase` (id `af4ccc8b94a95c91`).
 
 ## Next actions
 
 1. Read this doc, then **VERIFY** the working state below still holds: `git status` (expect clean), `git log --oneline -3` (expect `7475f6d` on `main`, plus the commit that added this tracker and passover, unless the ceremony session changed more), and `./tests/run-all.sh` (65 suites, all passing). The handoff may be stale.
 2. Read the work list: `doc(action="get", id="af4ccc8b94a95c91")`. Start with the entries whose **Status** is `open`.
-3. ES-1 (R3), ES-7 and ES-8 are done (2026-10-05). Start ES-2: write the second plan with the writing-plans skill. The spec and the review notes are in the codescout repo (see Pointers).
+3. **Ask the operator to rule on ES-12** (the S4 method; recommendation: the runner assigns arms itself, balanced within each prompt, analysed per prompt with a permutation test and a registered alpha). Then run ONE fix wave on the branch for ES-12 plus FINAL I-1 to I-5, the claude-subcommand-name prompt risk, M-1 and M-2 (details in tracker ES-12 and the SDD ledger), with a scoped Opus re-review. Then merge the branch (the operator decides) and continue with the gates: G2 (operator registers the numbers, replaces the null-template test, sets `POLICY_TIMEOUT_MS` to the registered latency budget), G3 (operator approves the model-call run; first read the G3 caveats in the ledger), then ES-9 and ES-10 only if the S4 `stop` list is empty.
 4. ES-6 (replay of session signals) is read-only and cheap. It can run at any time if the operator wants evidence early. ES-7 (recursive test glob) is a small prerequisite for ES-3.
 5. Do not push or release unless the operator says so. ES-11 belongs to the "Push and deploy ceremony" session.
 
