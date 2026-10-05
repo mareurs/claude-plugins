@@ -1,0 +1,14 @@
+{
+  "direction": null,
+  "effectSizeThinkingTokens": null,
+  "latencyBudgetMs": null,
+  "holdoutRate": null,
+  "repeats": null,
+  "minPerArm": null,
+  "model": null,
+  "prompts": [],
+  "steerLevel": null,
+  "alpha": null,
+  "permutations": null,
+  "seed": null
+}

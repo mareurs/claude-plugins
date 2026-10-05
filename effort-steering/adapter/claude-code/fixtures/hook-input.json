@@ -1,0 +1,9 @@
+{
+  "session_id": "fixture-session-1",
+  "transcript_path": "/tmp/fixture-transcript.jsonl",
+  "cwd": "/work/fixture",
+  "prompt_id": "fixture-prompt-1",
+  "permission_mode": "default",
+  "hook_event_name": "UserPromptSubmit",
+  "prompt": "rename the helper to something clearer"
+}
