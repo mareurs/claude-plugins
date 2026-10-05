@@ -483,6 +483,16 @@ t('the effect-size gate holds: alpha alone never passes a tiny effect', () => {
   assert.equal(analyzeArms(data, prereg({ alpha: 0.05, permutations: 500, effectSizeThinkingTokens: 3.0001 })).verdict, 'mechanism_fail');
 });
 
+t('a registered seed reproduces the same p on any machine (pinned: 150/1001)', () => {
+  // Recorded 2026-10-05. The permutation draws come from stream 1 of the seed (the plan uses
+  // stream 0); changing the stream, the PRNG or the draw order after registration would
+  // silently change a registered result.
+  const data = [...rows([10, 20], [30, 40], 0), ...rows([100], [130, 90], 1)];
+  const r = analyzeArms(data, P({ permutations: 1000, seed: 42, effectSizeThinkingTokens: 1 }));
+  assert.equal(r.signedDelta, 15);
+  assert.equal(r.pValue, 150 / 1001);
+});
+
 t('the permutation draws follow the registered seed: same seed same p, other seeds other p', () => {
   const data = rows([10, 20], [30, 40]);
   const pOf = (seed) => analyzeArms(data, P({ permutations: 500, seed, effectSizeThinkingTokens: 1 })).pValue;

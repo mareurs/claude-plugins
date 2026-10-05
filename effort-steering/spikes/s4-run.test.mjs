@@ -667,6 +667,19 @@ await ta('the preflight runs the COPY: a copy whose table is unreadable steers n
   assert.equal(total(f), 0);
 });
 
+await ta('the preflight refuses an empty steer too (the hook treats "" as no steering)', async () => {
+  const emptySteer = makeTree((es, repo) => {
+    writeFileSync(path.join(es, 'bin', 'effort-policy.mjs'), `process.stdout.write(${JSON.stringify(`${JSON.stringify({ level: 'shallow', confidence: 'high', reasons: ['s4-all'], steer: '', arm: 'treated' })}\n`)});\n`);
+    git(repo, 'commit', '-q', '-a', '-m', 'empty steer');
+  });
+  const configDir = tmp();
+  const f = fakeEnv({ configDir });
+  const result = await runExperiment(put(prereg()), { spawn: f.spawn, confirm: true, configDir, now: f.now, out: silent, esRoot: emptySteer });
+  assert.deepEqual(result.stop, ['prompt_not_steerable']);
+  assert.deepEqual(result.notSteerable, [0, 1, 2, 3]);
+  assert.equal(total(f), 0);
+});
+
 // ---- M-1: the copied tree must equal its commit -------------------------------------------
 
 await ta('a dirty tree (modified, untracked or ignored file) refuses with dirty_tree and ZERO spawns, with or without confirm', async () => {
