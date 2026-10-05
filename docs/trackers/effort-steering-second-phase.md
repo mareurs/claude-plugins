@@ -44,7 +44,8 @@ A bad rate (not a number, below 0, above 1) was treated as rate 0, so every turn
 
 ## ES-2 — Write the second plan
 
-**Status:** open.
+**Status:** written 2026-10-05, committed, waiting for the operator's approval (gate G1). Not done until approved.
+**Plan:** `docs/superpowers/plans/2026-10-05-effort-steering-adapter-and-experiment.md` in THIS repo, not in the codescout repo. The codescout checkout was dirty with unrelated work and its own convention document warns about shared-checkout commits, so the plan sits next to the code it describes. Move it if the operator prefers.
 **Done when:** a plan for ES-3 to ES-10 is written with the writing-plans skill, committed and approved by the operator.
 
 The design and every constraint are already written. Start from the spec section "Constraints carried into the second plan" and the review notes. Plan documents live in the codescout repo (`docs/superpowers/plans/`), as the first plan does. This tracker is the work list.
