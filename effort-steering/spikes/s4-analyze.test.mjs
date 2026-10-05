@@ -203,6 +203,82 @@ t('a clean input reports nIgnored 0', () => {
   assert.equal(analyzeArms(rows([1, 1, 1], [2, 2, 2]), prereg()).nIgnored, 0);
 });
 
+t('unbalanced arms: 5 treated vs 2 holdout is insufficient, not a pass (no pooled count)', () => {
+  const r = analyzeArms(rows([100, 100, 100, 100, 100], [300, 300]), prereg());
+  assert.equal(r.verdict, 'insufficient_data');
+  assert.equal(r.delta, null);
+  assert.equal(r.nTreated, 5);
+  assert.equal(r.nHoldout, 2);
+});
+
+t('unbalanced arms: 2 treated vs 5 holdout is insufficient', () => {
+  const r = analyzeArms(rows([100, 100], [300, 300, 300, 300, 300]), prereg());
+  assert.equal(r.verdict, 'insufficient_data');
+  assert.equal(r.delta, null);
+});
+
+t('short but non-empty arms: cacheOk null, shares still reported', () => {
+  const r = analyzeArms([row('treated', 1, 10, 100), row('holdout', 1, 50, 100)], prereg());
+  assert.equal(r.verdict, 'insufficient_data');
+  assert.equal(r.cacheOk, null);
+  assert.equal(r.cacheShareTreated, 0.1);
+  assert.equal(r.cacheShareHoldout, 0.5);
+});
+
+t('only the treated arm short: cacheOk null', () => {
+  const r = analyzeArms(rows([1], [2, 2, 2]), prereg());
+  assert.equal(r.cacheOk, null);
+});
+
+t('only the holdout arm short: cacheOk null', () => {
+  const r = analyzeArms(rows([1, 1, 1], [2]), prereg());
+  assert.equal(r.cacheOk, null);
+});
+
+t('fractional threshold, down: delta -149.5', () => {
+  const data = rows([150, 151], [300, 300]);
+  const p = (e) => prereg({ minPerArm: 2, effectSizeThinkingTokens: e });
+  assert.equal(analyzeArms(data, p(150)).verdict, 'mechanism_fail');
+  assert.equal(analyzeArms(data, p(149.5)).verdict, 'mechanism_pass');
+  assert.equal(analyzeArms(data, p(149.6)).verdict, 'mechanism_fail');
+  assert.equal(analyzeArms(data, p(150)).delta, -149.5);
+});
+
+t('fractional threshold, up: delta 150.5', () => {
+  const data = rows([450, 451], [300, 300]);
+  const p = (e) => prereg({ direction: 'up', minPerArm: 2, effectSizeThinkingTokens: e });
+  assert.equal(analyzeArms(data, p(151)).verdict, 'mechanism_fail');
+  assert.equal(analyzeArms(data, p(150.5)).verdict, 'mechanism_pass');
+  assert.equal(analyzeArms(data, p(150.6)).verdict, 'mechanism_fail');
+  assert.equal(analyzeArms(data, p(150)).delta, 150.5);
+});
+
+t('a hand-built prereg cannot pass with an empty arm or a non-positive effect', () => {
+  const data = rows([100, 100, 100], [300, 300, 300]);
+  assert.throws(() => analyzeArms([], prereg({ minPerArm: 0 })), TypeError);
+  assert.throws(() => analyzeArms(arm('treated', [1]), prereg({ minPerArm: 0 })), TypeError);
+  assert.throws(() => analyzeArms(data, prereg({ minPerArm: 2.5 })), TypeError);
+  assert.throws(() => analyzeArms(data, prereg({ minPerArm: -1 })), TypeError);
+  assert.throws(() => analyzeArms(data, prereg({ effectSizeThinkingTokens: 0 })), TypeError);
+  assert.throws(() => analyzeArms(data, prereg({ effectSizeThinkingTokens: -10 })), TypeError);
+  assert.throws(() => analyzeArms(data, prereg({ effectSizeThinkingTokens: Infinity })), TypeError);
+});
+
+t('a row with cache_creation > input_total is invalid: ignored and counted', () => {
+  const data = [...rows([100, 100], [300, 300, 300]), row('treated', 100, 50, 0), row('treated', 100, 101, 100)];
+  const r = analyzeArms(data, prereg());
+  assert.equal(r.nTreated, 2);
+  assert.equal(r.nIgnored, 2);
+  assert.equal(r.verdict, 'insufficient_data');
+});
+
+t('cache_creation equal to input_total is valid', () => {
+  const r = analyzeArms([row('treated', 1, 100, 100), row('holdout', 1, 0, 100)], prereg({ minPerArm: 1 }));
+  assert.equal(r.nIgnored, 0);
+  assert.equal(r.cacheShareTreated, 1);
+  assert.equal(r.cacheOk, false);
+});
+
 t('a malformed prereg throws a TypeError', () => {
   const data = rows([1, 1, 1], [2, 2, 2]);
   assert.throws(() => analyzeArms(data, prereg({ direction: 'sideways' })), TypeError);

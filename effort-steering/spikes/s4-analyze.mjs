@@ -1,10 +1,11 @@
 // s4-analyze.mjs — turns S4 experiment rows into the verdict that decides whether
 // steering continues. Pure: the caller loads the prereg and builds the rows.
 //
-// Rows that cannot be trusted (unknown arm, or a number that is not finite and
-// >= 0) are excluded from both arms and counted in nIgnored; they never count
+// Rows that cannot be trusted (unknown arm, a number that is not finite and
+// >= 0, or cache_creation > input_total, which the definition of input_total
+// forbids) are excluded from both arms and counted in nIgnored; they never count
 // toward minPerArm. A number that cannot be computed honestly (an empty arm, a
-// short arm for delta) is null, never a zero that looks like a measurement.
+// short arm for delta or cacheOk) is null, never a zero that looks like a measurement.
 
 import { median } from './s3-replay.mjs';
 
@@ -13,18 +14,20 @@ const isCount = (v) => typeof v === 'number' && Number.isFinite(v) && v >= 0;
 
 function isValidRow(r) {
   return r !== null && typeof r === 'object' && ARMS.has(r.arm)
-    && isCount(r.thinking_tokens) && isCount(r.cache_creation) && isCount(r.input_total);
+    && isCount(r.thinking_tokens) && isCount(r.cache_creation) && isCount(r.input_total)
+    && r.cache_creation <= r.input_total;
 }
 
 // Reads exactly the three prereg fields it uses; anything else is the loader's job.
 function checkPrereg(p) {
   if (p === null || typeof p !== 'object') throw new TypeError('prereg must be an object');
   if (p.direction !== 'down' && p.direction !== 'up') throw new TypeError("prereg.direction must be 'down' or 'up'");
-  if (typeof p.effectSizeThinkingTokens !== 'number' || !Number.isFinite(p.effectSizeThinkingTokens)) {
-    throw new TypeError('prereg.effectSizeThinkingTokens must be a finite number');
+  // A zero/negative effect or a zero floor would let an empty or null-effect arm pass.
+  if (typeof p.effectSizeThinkingTokens !== 'number' || !Number.isFinite(p.effectSizeThinkingTokens) || !(p.effectSizeThinkingTokens > 0)) {
+    throw new TypeError('prereg.effectSizeThinkingTokens must be a finite number > 0');
   }
-  if (typeof p.minPerArm !== 'number' || !Number.isFinite(p.minPerArm)) {
-    throw new TypeError('prereg.minPerArm must be a finite number');
+  if (!Number.isInteger(p.minPerArm) || p.minPerArm < 1) {
+    throw new TypeError('prereg.minPerArm must be an integer >= 1');
   }
 }
 
@@ -49,11 +52,11 @@ export function analyzeArms(rows, prereg) {
   const medianHoldout = holdout.length ? median(holdout.map((r) => r.thinking_tokens)) : null;
   const cacheShareTreated = cacheShare(treated);
   const cacheShareHoldout = cacheShare(holdout);
-  const cacheOk = cacheShareTreated === null || cacheShareHoldout === null
-    ? null
-    : cacheShareTreated <= cacheShareHoldout;
 
+  // Per arm, never pooled: arms are unbalanced by design.
   const enough = treated.length >= prereg.minPerArm && holdout.length >= prereg.minPerArm;
+  // A registered gate below the sample floor is unknown, not true.
+  const cacheOk = enough ? cacheShareTreated <= cacheShareHoldout : null;
   const delta = enough ? medianTreated - medianHoldout : null;
 
   let verdict = 'insufficient_data';
