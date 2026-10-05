@@ -10,7 +10,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { stateDirFor } from '../core/log.mjs';
 import { t } from '../core/testkit.mjs';
-import { main, measureHookLatency, planRuns, runExperiment, stopReasons } from './s4-run.mjs';
+import { holdoutCountFor, main, measureHookLatency, planRuns, runExperiment, stopReasons } from './s4-run.mjs';
 
 const ROOT = realpathSync(mkdtempSync(path.join(os.tmpdir(), 's4-run-test-')));
 process.on('exit', () => rmSync(ROOT, { recursive: true, force: true }));
@@ -69,7 +69,10 @@ const prereg = (over = {}) => ({
   model: 'm-test',
   prompts: ['p one', 'p two', 'p three', 'p four'],
   steerLevel: 'shallow',
-  alpha: 0.05,
+  // alpha 0.2: the end-to-end vectors here (1 treated + 2 holdout per prompt) have an exact
+  // p of 1/81 when nothing is excluded and about 1/36 with two holdout runs excluded; the
+  // statistic's own calibration lives in s4-analyze.test.mjs.
+  alpha: 0.2,
   permutations: 500,
   seed: 7,
   ...over,
@@ -91,6 +94,12 @@ const apiErrorTranscript = (kind) =>
 
 // A fake that stands in for `claude` and for the hook. Never touches a real binary.
 // plan(index) -> { arm, thinking, cc, nolog, notranscript, spawn: 'status'|'signal'|'error', apierr: 'flag'|'model', dup }
+// A fake that stands in for `claude` and for the hook. Never touches a real binary.
+// Like the real hook, it reads the arm from the run's EFFORT_STEERING_HOLDOUT_RATE ('1' is
+// holdout, '0' treated) and logs steered = (arm === 'treated'). A test's plan(index, ctx)
+// can override any of: { arm, steered, thinking, cc, nolog, notranscript,
+// spawn: 'status'|'signal'|'error', apierr: 'flag'|'model', dup }; ctx is
+// { planned, prompt, sid }. index counts claude calls from 0.
 function fakeEnv({ plan, configDir, durations, hookResult, execHook } = {}) {
   const calls = { claude: [], hook: [] };
   let claudeIndex = 0;
@@ -118,17 +127,20 @@ function fakeEnv({ plan, configDir, durations, hookResult, execHook } = {}) {
       copyHasTable: existsSync(path.join(copyRoot, 'core', 'steer.table.json')),
       copyHasBin: existsSync(path.join(copyRoot, 'bin', 'effort-policy.mjs')),
     });
-    const p = plan ? plan(claudeIndex) : { arm: claudeIndex % 2 === 0 ? 'treated' : 'holdout', thinking: claudeIndex % 2 === 0 ? 80 : 400 };
-    claudeIndex++;
     const sid = sidOf(args);
+    const planned = opts.env.EFFORT_STEERING_HOLDOUT_RATE === '1' ? 'holdout' : 'treated';
+    const base = { arm: planned, thinking: planned === 'treated' ? 80 : 400 };
+    const p = { ...base, ...(plan ? plan(claudeIndex, { planned, prompt: args.at(-1), sid }) : {}) };
+    if (p.steered === undefined) p.steered = p.arm === 'treated';
+    claudeIndex++;
     if (!p.nolog) {
       // Where log.mjs would put it: a relative or unset XDG_STATE_HOME falls back to ~/.local/state.
       const dir = stateDirFor(opts.env);
       mkdirSync(dir, { recursive: true });
-      writeFileSync(path.join(dir, `${sid}.jsonl`), `${JSON.stringify({ session_id: sid, arm: p.arm, steered: p.arm === 'treated' })}\n`);
+      writeFileSync(path.join(dir, `${sid}.jsonl`), `${JSON.stringify({ session_id: sid, arm: p.arm, steered: p.steered })}\n`);
     }
     if (!p.notranscript) {
-      const text = p.apierr ? apiErrorTranscript(p.apierr) : transcript(p.thinking ?? 80, p.cc ?? 20);
+      const text = p.apierr ? apiErrorTranscript(p.apierr) : transcript(p.thinking, p.cc ?? 20);
       for (const slug of p.dup ? ['slug', 'slug2'] : ['slug']) {
         mkdirSync(path.join(configDir, 'projects', slug), { recursive: true });
         writeFileSync(path.join(configDir, 'projects', slug, `${sid}.jsonl`), text);
@@ -161,16 +173,65 @@ const run = (over, envOpts, extra = {}) => {
   const p = prereg(over);
   return runExperiment(put(p), { spawn: f.spawn, confirm: true, configDir, now: f.now, out: silent, ...extra }).then((result) => ({ result, f, p }));
 };
-const std = (i) => ({ arm: i % 2 === 0 ? 'treated' : 'holdout', thinking: i % 2 === 0 ? 80 : 400 });
 const total = (f) => f.calls.claude.length + f.calls.hook.length;
+// The planned arm of a call, as the hook would read it from the child env.
+const plannedOf = (c) => (c.opts.env.EFFORT_STEERING_HOLDOUT_RATE === '1' ? 'holdout' : 'treated');
+// Exclude the first `n` planned-`arm` calls with the given plan fields.
+const firstOf = (arm, n, fields) => {
+  let seen = 0;
+  return (i, c) => (c.planned === arm && seen++ < n ? fields : {});
+};
+// (promptIndex, arm) of a plan, without the random session ids.
+const shape = (runs) => runs.map((r) => [r.promptIndex, r.arm]);
+const reasons = (over) => ({ no_log: 0, arm_mismatch: 0, not_steered: 0, steered_holdout: 0, no_transcript: 0, ambiguous_transcript: 0, spawn_failed: 0, api_error: 0, no_thinking_field: 0, ...over });
 
-t('planRuns: prompts x repeats entries, distinct UUID session ids, each prompt repeated', () => {
+t('planRuns: prompts x repeats entries, distinct UUID session ids, each prompt repeated, promptIndex matches', () => {
   const p = prereg();
   const runs = planRuns(p);
   assert.equal(runs.length, 12);
   assert.equal(new Set(runs.map((r) => r.sessionId)).size, 12);
   assert.ok(runs.every((r) => UUID.test(r.sessionId)));
   for (const prompt of p.prompts) assert.equal(runs.filter((r) => r.prompt === prompt).length, 3);
+  assert.ok(runs.every((r) => p.prompts[r.promptIndex] === r.prompt));
+  assert.deepEqual(Object.keys(runs[0]).sort(), ['arm', 'prompt', 'promptIndex', 'sessionId']);
+});
+
+t('holdoutCountFor: round(repeats x rate), clamped to [1, repeats - 1]', () => {
+  const cases = [[3, 0.5, 2], [3, 0.9, 2], [3, 0.1, 1], [3, 0.34, 1], [4, 0.5, 2], [5, 0.4, 2], [5, 0.5, 3], [7, 0.3, 2], [10, 0.25, 3], [10, 0.95, 9], [10, 0.01, 1]];
+  for (const [repeats, rate, want] of cases) assert.equal(holdoutCountFor(repeats, rate), want, `${repeats} x ${rate}`);
+});
+
+t('planRuns balances the arms WITHIN every prompt, for several (repeats, holdoutRate) pairs', () => {
+  const cases = [[3, 0.5, 2], [3, 0.9, 2], [3, 0.1, 1], [5, 0.4, 2], [10, 0.25, 3], [6, 0.5, 3]];
+  for (const [repeats, holdoutRate, want] of cases) {
+    for (const seed of [1, 2, 3]) {
+      const p = prereg({ repeats, holdoutRate, seed, prompts: ['w a', 'w b', 'w c', 'w d', 'w e'] });
+      const runs = planRuns(p);
+      assert.equal(runs.length, 5 * repeats);
+      for (let i = 0; i < 5; i++) {
+        const mine = runs.filter((r) => r.promptIndex === i);
+        assert.equal(mine.length, repeats, `prompt ${i}`);
+        assert.equal(mine.filter((r) => r.arm === 'holdout').length, want, `${repeats} x ${holdoutRate} seed ${seed} prompt ${i}`);
+        assert.equal(mine.filter((r) => r.arm === 'treated').length, repeats - want);
+      }
+    }
+  }
+});
+
+t('planRuns: the same seed gives the same plan, other seeds give other plans', () => {
+  const p = prereg({ repeats: 5, holdoutRate: 0.4 });
+  assert.deepEqual(shape(planRuns(p)), shape(planRuns(p)));
+  assert.deepEqual(shape(planRuns({ ...p })), shape(planRuns(p)));
+  const shapes = new Set([1, 2, 3, 4, 5, 6].map((seed) => JSON.stringify(shape(planRuns({ ...p, seed })))));
+  assert.equal(shapes.size, 6);
+  // the arms alone (which repeats are held out) also follow the seed, not only the order
+  const armsOf = (seed) => JSON.stringify([0, 1, 2, 3].map((i) => planRuns({ ...p, seed }).filter((r) => r.promptIndex === i).map((r) => r.arm)));
+  assert.ok(new Set([1, 2, 3, 4, 5, 6].map(armsOf)).size > 1);
+});
+
+t('planRuns interleaves prompts and arms instead of running prompt by prompt', () => {
+  const order = planRuns(prereg({ repeats: 5, holdoutRate: 0.4 })).map((r) => r.promptIndex);
+  assert.notDeepEqual(order, [...order].sort((a, b) => a - b));
 });
 
 // ---- R21: runExperiment itself is gated by loadPrereg ----------------------------------
@@ -299,10 +360,14 @@ await ta('the copy holds exactly the one rule, medium for deep', async () => {
   assert.deepEqual(f.calls.claude[0].rules, { version: 1, rules: [{ id: 's4-all', level: 'deep', confidence: 'medium', reason: 's4', when: { minChars: 0 } }] });
 });
 
-await ta('child env carries the holdout rate and a temp XDG_STATE_HOME, not the real state dir; temp root is removed', async () => {
-  const { f } = await run({ holdoutRate: 0.25 });
-  const c = f.calls.claude[0];
-  assert.equal(c.opts.env.EFFORT_STEERING_HOLDOUT_RATE, '0.25');
+await ta('each run reaches the hook as rate "1" (holdout) or "0" (treated), in the seeded plan order; temp root is removed', async () => {
+  const { f, p } = await run({ holdoutRate: 0.25, repeats: 4 });
+  const calls = f.calls.claude;
+  assert.ok(calls.every((c) => ['0', '1'].includes(c.opts.env.EFFORT_STEERING_HOLDOUT_RATE)));
+  // the calls follow planRuns(prereg) exactly: same prompts, same arms, same order
+  assert.deepEqual(calls.map((c) => [p.prompts.indexOf(c.args.at(-1)), plannedOf(c)]), shape(planRuns(p)));
+  for (let i = 0; i < 4; i++) assert.equal(calls.filter((c) => c.args.at(-1) === p.prompts[i] && plannedOf(c) === 'holdout').length, 1);
+  const c = calls[0];
   const xdg = c.opts.env.XDG_STATE_HOME;
   assert.ok(xdg.startsWith(realpathSync(os.tmpdir())));
   assert.notEqual(xdg, process.env.XDG_STATE_HOME);
@@ -340,69 +405,93 @@ await ta('a relative TMPDIR still yields an absolute XDG_STATE_HOME, and nothing
 
 // ---- rows and exclusions ------------------------------------------------------------------
 
-await ta('rows join arm with deduped transcript tokens (R3)', async () => {
+await ta('rows join arm with deduped transcript tokens (R3) and carry the prompt index', async () => {
   const { result } = await run();
   const a = result.analysis;
-  assert.equal(a.nTreated, 6);
-  assert.equal(a.nHoldout, 6);
+  assert.equal(a.nTreated, 4); // 1 treated + 2 holdout per prompt (holdoutRate 0.5 of 3)
+  assert.equal(a.nHoldout, 8);
+  assert.equal(a.nPrompts, 4);
+  assert.deepEqual(a.perPrompt.map((g) => [g.promptIndex, g.nTreated, g.nHoldout]), [[0, 1, 2], [1, 1, 2], [2, 1, 2], [3, 1, 2]]);
   assert.equal(a.medianTreated, 80); // 50 + 30; an un-deduped A would give 130
   assert.equal(a.medianHoldout, 400);
+  assert.equal(a.signedDelta, 320);
   assert.equal(a.cacheShareTreated, 20 / 165); // cache_creation 20 over input_total 60 + 105
   assert.equal(result.excluded, 0);
-  assert.deepEqual(result.excludedByReason, { no_log: 0, no_transcript: 0, ambiguous_transcript: 0, spawn_failed: 0, api_error: 0 });
+  assert.deepEqual(result.excludedByReason, reasons());
 });
 
-const reasons = (over) => ({ no_log: 0, no_transcript: 0, ambiguous_transcript: 0, spawn_failed: 0, api_error: 0, ...over });
-
 await ta('runs with no log file are excluded and counted, never treated as holdout; stop has runs_excluded', async () => {
-  const { result } = await run({}, { plan: (i) => (i < 6 && i % 2 === 0 ? { nolog: true, arm: 'treated' } : std(i)) });
-  assert.equal(result.excluded, 3);
-  assert.deepEqual(result.excludedByReason, reasons({ no_log: 3 }));
-  assert.equal(result.analysis.nTreated, 3);
+  const { result } = await run({}, { plan: firstOf('holdout', 2, { nolog: true }) });
+  assert.equal(result.excluded, 2);
+  assert.deepEqual(result.excludedByReason, reasons({ no_log: 2 }));
+  assert.equal(result.analysis.nTreated, 4);
   assert.equal(result.analysis.nHoldout, 6);
+  assert.equal(result.verdict, 'mechanism_pass');
   assert.deepEqual(result.stop, ['runs_excluded']);
 });
 
 await ta('runs with no transcript are excluded and counted', async () => {
-  const { result } = await run({}, { plan: (i) => ({ ...std(i), notranscript: i === 1 || i === 3 }) });
+  const { result } = await run({}, { plan: firstOf('holdout', 2, { notranscript: true }) });
   assert.equal(result.excluded, 2);
   assert.deepEqual(result.excludedByReason, reasons({ no_transcript: 2 }));
-  assert.equal(result.analysis.nTreated, 6);
-  assert.equal(result.analysis.nHoldout, 4);
+  assert.equal(result.analysis.nTreated, 4);
+  assert.equal(result.analysis.nHoldout, 6);
 });
 
 await ta('a transcript found in two project dirs is excluded as ambiguous_transcript', async () => {
-  const { result } = await run({}, { plan: (i) => ({ ...std(i), dup: i === 1 || i === 3 }) });
+  const { result } = await run({}, { plan: firstOf('holdout', 2, { dup: true }) });
   assert.deepEqual(result.excludedByReason, reasons({ ambiguous_transcript: 2 }));
-  assert.equal(result.analysis.nHoldout, 4);
+  assert.equal(result.analysis.nHoldout, 6);
 });
 
 await ta('a failed claude run (error, signal or non-zero status) is excluded as spawn_failed even with a log and transcript', async () => {
-  const kinds = { 1: 'status', 3: 'signal', 5: 'error' };
-  const { result } = await run({}, { plan: (i) => ({ ...std(i), spawn: kinds[i] }) });
+  const kinds = ['status', 'signal', 'error'];
+  let n = 0;
+  const { result } = await run({}, { plan: (i, c) => (c.planned === 'holdout' && n < 3 ? { spawn: kinds[n++] } : {}) });
   assert.deepEqual(result.excludedByReason, reasons({ spawn_failed: 3 }));
-  assert.equal(result.analysis.nHoldout, 3);
-  assert.equal(result.analysis.nTreated, 6);
+  assert.equal(result.analysis.nHoldout, 5);
+  assert.equal(result.analysis.nTreated, 4);
   assert.ok(result.stop.includes('runs_excluded'));
 });
 
 await ta('API-error transcripts (flag only, or synthetic model only) are excluded as api_error', async () => {
-  const { result } = await run({}, { plan: (i) => ({ ...std(i), apierr: i === 1 ? 'flag' : i === 3 ? 'model' : undefined }) });
+  const kinds = ['flag', 'model'];
+  let n = 0;
+  const { result } = await run({}, { plan: (i, c) => (c.planned === 'holdout' && n < 2 ? { apierr: kinds[n++] } : {}) });
   assert.deepEqual(result.excludedByReason, reasons({ api_error: 2 }));
-  assert.equal(result.analysis.nHoldout, 4);
+  assert.equal(result.analysis.nHoldout, 6);
 });
 
-await ta('FALSE-GO scenario: 4 of 6 treated runs fail with API-error records -> excluded, insufficient_data, runs_excluded', async () => {
-  const { result } = await run({}, { plan: (i) => (i % 2 === 0 && i < 8 ? { arm: 'treated', apierr: 'model', spawn: 'status' } : std(i)) });
-  assert.equal(result.excluded, 4);
-  assert.equal(result.analysis.nTreated, 2);
+await ta('FALSE-GO scenario: 3 of 4 treated runs fail with API-error records -> excluded, insufficient_data, runs_excluded', async () => {
+  const { result } = await run({}, { plan: firstOf('treated', 3, { apierr: 'model', spawn: 'status' }) });
+  assert.equal(result.excluded, 3);
+  assert.equal(result.analysis.nTreated, 1);
   assert.equal(result.verdict, 'insufficient_data');
   assert.ok(result.stop.includes('insufficient_data'));
   assert.ok(result.stop.includes('runs_excluded'));
   // the same failures with a successful exit code still never become zero-thinking rows
-  const again = await run({}, { plan: (i) => (i % 2 === 0 && i < 8 ? { arm: 'treated', apierr: 'model' } : std(i)) });
-  assert.equal(again.result.excludedByReason.api_error, 4);
+  const again = await run({}, { plan: firstOf('treated', 3, { apierr: 'model' }) });
+  assert.equal(again.result.excludedByReason.api_error, 3);
   assert.equal(again.result.verdict, 'insufficient_data');
+});
+
+// ---- R24 / I-1: the logged arm and steering must match the plan ---------------------------
+
+await ta('a run whose logged arm differs from the planned arm is excluded as arm_mismatch', async () => {
+  const { result } = await run({}, { plan: firstOf('holdout', 2, { arm: 'treated' }) });
+  assert.deepEqual(result.excludedByReason, reasons({ arm_mismatch: 2 }));
+  assert.equal(result.analysis.nTreated, 4, 'a mislabelled run must not join the treated arm');
+  assert.equal(result.analysis.nHoldout, 6);
+  assert.ok(result.stop.includes('runs_excluded'));
+});
+
+await ta('a treated run that was not steered is excluded as not_steered; a steered holdout as steered_holdout', async () => {
+  const a = await run({}, { plan: firstOf('treated', 1, { steered: false }) });
+  assert.deepEqual(a.result.excludedByReason, reasons({ not_steered: 1 }));
+  assert.equal(a.result.analysis.nTreated, 3);
+  const b = await run({}, { plan: firstOf('holdout', 1, { steered: true }) });
+  assert.deepEqual(b.result.excludedByReason, reasons({ steered_holdout: 1 }));
+  assert.equal(b.result.analysis.nHoldout, 7);
 });
 
 // ---- confirm gate -------------------------------------------------------------------------
@@ -518,20 +607,22 @@ await ta('end to end: pass + cache ok + latency ok gives an empty stop', async (
 });
 
 await ta('end to end: cache_creation higher on treated gives cache_not_ok', async () => {
-  const { result } = await run({}, { plan: (i) => ({ ...std(i), cc: i % 2 === 0 ? 90 : 5 }) });
+  const { result } = await run({}, { plan: (i, c) => ({ cc: c.planned === 'treated' ? 90 : 5 }) });
   assert.equal(result.verdict, 'mechanism_pass');
   assert.equal(result.analysis.cacheOk, false);
   assert.deepEqual(result.stop, ['cache_not_ok']);
 });
 
-await ta('end to end: short arms give insufficient_data', async () => {
-  const { result } = await run({}, { plan: (i) => ({ arm: i === 0 ? 'holdout' : 'treated', thinking: 80 }) });
+await ta('end to end: short arms give insufficient_data (4 treated runs against minPerArm 5)', async () => {
+  const { result } = await run({ minPerArm: 5 });
+  assert.equal(result.excluded, 0);
+  assert.equal(result.analysis.nTreated, 4);
   assert.equal(result.verdict, 'insufficient_data');
   assert.ok(result.stop.includes('insufficient_data'));
 });
 
 await ta('end to end: no effect gives mechanism_fail', async () => {
-  const { result } = await run({}, { plan: (i) => ({ arm: i % 2 === 0 ? 'treated' : 'holdout', thinking: 100 }) });
+  const { result } = await run({}, { plan: () => ({ thinking: 100 }) });
   assert.equal(result.verdict, 'mechanism_fail');
   assert.ok(result.stop.includes('mechanism_fail'));
 });

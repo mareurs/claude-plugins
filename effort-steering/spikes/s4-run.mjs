@@ -32,6 +32,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { analyzeArms } from './s4-analyze.mjs';
 import { loadPrereg, runGit } from './s4-prereg.mjs';
+import { makeRng, shuffle } from './s4-prng.mjs';
 import { buildRow } from './s4-rows.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -40,7 +41,10 @@ const HOOK_REL = path.join('adapter', 'claude-code', 'user-prompt-submit.mjs');
 const DEFAULT_PREREG = path.join(HERE, 's4-prereg.json');
 const RUN_TIMEOUT_MS = 10 * 60 * 1000;
 const HOOK_TIMEOUT_MS = 30 * 1000;
-const REASONS = ['no_log', 'no_transcript', 'ambiguous_transcript', 'spawn_failed', 'api_error'];
+const REASONS = ['no_log', 'arm_mismatch', 'not_steered', 'steered_holdout', 'no_transcript', 'ambiguous_transcript', 'spawn_failed', 'api_error', 'no_thinking_field'];
+const PLAN_STREAM = 0;
+// The holdout rate a run's hook reads: '1' always holds the turn out, '0' always steers it.
+const RATE_FOR = { holdout: '1', treated: '0' };
 
 const defaultSpawn = (cmd, args, opts) => spawnSync(cmd, args, opts);
 const failed = (res) => !res || Boolean(res.error) || Boolean(res.signal) || res.status !== 0;
@@ -53,12 +57,26 @@ function makeRoot(prefix, base) {
   return dir;
 }
 
+// Ruling R24: the RUNNER assigns the arms, balanced within each prompt. Per prompt,
+// holdoutCountFor(repeats, holdoutRate) of the repeats are holdout; which ones, and the
+// global run order (prompts and arms interleaved), come from the registered seed (stream 0;
+// the permutation test uses stream 1). Session ids are fresh UUIDs, never derived from the
+// seed: a re-run must not collide with an earlier run's transcript.
+export function holdoutCountFor(repeats, holdoutRate) {
+  return Math.min(repeats - 1, Math.max(1, Math.round(repeats * holdoutRate)));
+}
+
 export function planRuns(prereg) {
+  const rng = makeRng(prereg.seed, PLAN_STREAM);
+  const holdoutCount = holdoutCountFor(prereg.repeats, prereg.holdoutRate);
   const runs = [];
-  for (const prompt of prereg.prompts) {
-    for (let i = 0; i < prereg.repeats; i++) runs.push({ sessionId: randomUUID(), prompt });
-  }
-  return runs;
+  prereg.prompts.forEach((prompt, promptIndex) => {
+    const held = new Set(shuffle([...Array(prereg.repeats).keys()], rng).slice(0, holdoutCount));
+    for (let r = 0; r < prereg.repeats; r++) {
+      runs.push({ sessionId: randomUUID(), promptIndex, prompt, arm: held.has(r) ? 'holdout' : 'treated' });
+    }
+  });
+  return shuffle(runs, rng);
 }
 
 // Nearest rank: sorted[ceil(0.95 * n) - 1]. A hook run that errors, is killed or exits
@@ -71,7 +89,7 @@ export function measureHookLatency(prereg, opts = {}) {
   let failures = 0;
   try {
     const hook = path.join(ES_ROOT, HOOK_REL);
-    const env = { ...process.env, XDG_STATE_HOME: path.join(root, 'state'), EFFORT_STEERING_HOLDOUT_RATE: String(prereg.holdoutRate) };
+    const env = { ...process.env, XDG_STATE_HOME: path.join(root, 'state'), EFFORT_STEERING_HOLDOUT_RATE: RATE_FOR.treated };
     for (const prompt of prereg.prompts) {
       for (let i = 0; i < prereg.repeats; i++) {
         const input = JSON.stringify({
@@ -169,9 +187,10 @@ export async function runExperiment(preregFile, opts = {}) {
     const cwd = path.join(root, 'work');
     mkdirSync(cwd, { recursive: true });
     mkdirSync(stateHome, { recursive: true });
-    const env = { ...process.env, EFFORT_STEERING_HOLDOUT_RATE: String(prereg.holdoutRate), XDG_STATE_HOME: stateHome };
     const spawnFailed = new Set();
     for (const run of runs) {
+      // R24: the planned arm reaches the hook as a rate it cannot misread, '1' or '0'.
+      const env = { ...process.env, EFFORT_STEERING_HOLDOUT_RATE: RATE_FOR[run.arm], XDG_STATE_HOME: stateHome };
       // `--` ends option parsing: a prompt that starts with `-` is still a prompt.
       const args = ['-p', '--model', prereg.model, '--session-id', run.sessionId, '--setting-sources', 'local', '--settings', settings, '--strict-mcp-config', '--', run.prompt];
       const res = await spawn('claude', args, { cwd, env, encoding: 'utf8', timeout: RUN_TIMEOUT_MS, killSignal: 'SIGKILL' });
@@ -183,7 +202,7 @@ export async function runExperiment(preregFile, opts = {}) {
     for (const run of runs) {
       const built = spawnFailed.has(run.sessionId)
         ? { reason: 'spawn_failed' }
-        : buildRow(run.sessionId, { stateDir: path.join(stateHome, 'effort-steering'), configDir: opts.configDir });
+        : buildRow(run.sessionId, { stateDir: path.join(stateHome, 'effort-steering'), configDir: opts.configDir, plannedArm: run.arm, promptIndex: run.promptIndex });
       if (built.row) {
         rows.push(built.row);
       } else {
