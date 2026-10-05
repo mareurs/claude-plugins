@@ -53,14 +53,14 @@ Tasks 1 to 4 and 8 need no model calls. Gates are the operator's: **G1** approve
 
 ### Task 1: Replay what transcripts record for `UserPromptSubmit`
 
-Answers two unverified claims without a model call: how several hooks' `additionalContext` is ordered, and whether the hook fires for peer-message, task-notification and slash-command turns. Transcripts hold `attachment` records `{type:"hook_additional_context", content:[...], hookName, hookEvent}`; `hookEvent:"UserPromptSubmit"` appears in 41 transcript files across the three profiles.
+Answers two unverified claims without a model call: how several hooks' `additionalContext` is ordered, and whether the hook fires for peer-message, task-notification and slash-command turns. Correction, measured while executing: `UserPromptSubmit` output is recorded as `attachment` records of type `hook_success` (`{type:"hook_success", hookName, hookEvent:"UserPromptSubmit", content}`, 35 transcript files), not `hook_additional_context`, which transcripts use for the other events. `hookName` is always the literal `UserPromptSubmit`, so the order of several hooks cannot be read from a transcript; only the live check of Task 7 Step 7 can answer the ordering question.
 
 **Files:**
 - Create: `effort-steering/spikes/s4a-hook-context-replay.mjs`
 - Test: `effort-steering/spikes/s4a-hook-context-replay.test.mjs`
 
 **Interfaces:**
-- Consumes: `turnTrigger(obj)` and `createTurnCollector(dedupeKey, opts)` from `effort-steering/spikes/s3-replay.mjs`, which already export the turn-boundary and trigger logic. Reuse them; do not copy them.
+- Consumes: `turnTrigger(obj)` and `realPromptText(obj)` from `effort-steering/spikes/s3-replay.mjs` (the turn collector there discards attachments, so the command-echo rule R9 is applied inside the replay).
 - Produces: `export function replayHookContext(lines: string[]): { turns: number, withAttachment: number, multiHookTurns: number, orders: Record<string, number>, nonHumanWithAttachment: Record<'peer'|'task-notification'|'command', number> }`. `orders` maps a joined hook-name sequence such as `"A>B"` to its count.
 
 - [ ] **Step 1: Write the failing test** with a synthetic jsonl (no real prompt text): one human prompt followed by two `UserPromptSubmit` attachments (`hookName` `A` then `B`), one peer-triggered record followed by a `UserPromptSubmit` attachment, one prompt with none. Assert `orders` equals `{ 'A>B': 1 }`, `multiHookTurns` equals 1, `nonHumanWithAttachment.peer` equals 1, `withAttachment` equals 2, and that a `PostToolUse` attachment is never counted.
