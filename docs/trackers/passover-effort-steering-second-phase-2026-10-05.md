@@ -21,7 +21,7 @@ The first phase is done and merged locally into `main` (`7475f6d`, fast-forward,
 
 1. Read this doc, then **VERIFY** the working state below still holds: `git status` (expect clean), `git log --oneline -3` (expect `7475f6d` on `main`, plus the commit that added this tracker and passover, unless the ceremony session changed more), and `./tests/run-all.sh` (65 suites, all passing). The handoff may be stale.
 2. Read the work list: `doc(action="get", id="af4ccc8b94a95c91")`. Start with the entries whose **Status** is `open`.
-3. Ask the operator to settle ES-1 (what a bad `--holdout-rate` does). Then start ES-2: write the second plan with the writing-plans skill. The spec and the review notes are in the codescout repo (see Pointers).
+3. ES-1 (R3), ES-7 and ES-8 are done (2026-10-05). Start ES-2: write the second plan with the writing-plans skill. The spec and the review notes are in the codescout repo (see Pointers).
 4. ES-6 (replay of session signals) is read-only and cheap. It can run at any time if the operator wants evidence early. ES-7 (recursive test glob) is a small prerequisite for ES-3.
 5. Do not push or release unless the operator says so. ES-11 belongs to the "Push and deploy ceremony" session.
 
@@ -44,7 +44,7 @@ The first phase is done and merged locally into `main` (`7475f6d`, fast-forward,
 
 ## Open threads
 
-- Ruling R3 (ES-1): a bad `--holdout-rate` becomes rate 0 (steered) or rate 1 (not steered). The operator has not chosen.
+- Ruling R3 (ES-1): settled 2026-10-05. A bad `--holdout-rate` is rate 1 (held out, not steered). Do not ask again.
 - Five parked residual findings from the final re-review (three test-hygiene items, one note about filtering features by key, one wording nit). They are listed in the codescout review notes.
 - The ceremony session owns the push decision and the cleanup of the branch and worktree (ES-11).
 

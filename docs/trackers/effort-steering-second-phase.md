@@ -35,10 +35,10 @@ Work list for the second phase of the `effort-steering` plugin in this repo. The
 
 ## ES-1 — Settle ruling R3: what a bad `--holdout-rate` does
 
-**Status:** open — needs the operator.
+**Status:** done — 2026-10-05. The operator ruled rate 1: a bad `--holdout-rate` holds the turn out and does not steer it. `resolveRate` returns the constant `BAD_RATE = 1`. An absent flag is still rate 0. A bad rate with no `session_id` or `turn_id` is still `treated`, because `assignArm` needs both ids; that was true before the ruling and is pinned by a test. The decision itself is unchanged, only the steering text is withheld. 14 tests failed first. The full run is 66 suites, all passing.
 **Done when:** the operator chooses, and the CLI and its tests follow the choice.
 
-A bad rate (not a number, below 0, above 1) is now treated as rate 0, so every turn is steered. The final reviewer preferred rate 1 (no steering on a configuration error). Both choices lose those rows from the experiment, and the reason `bad_holdout_rate` is logged either way. The change is one constant and its tests in `effort-steering/bin/effort-policy.mjs`.
+A bad rate (not a number, below 0, above 1) was treated as rate 0, so every turn was steered. The final reviewer preferred rate 1 (no steering on a configuration error), and the operator chose it. Both choices lose those rows from the experiment, and the reason `bad_holdout_rate` is logged either way. The change was one constant and its tests in `effort-steering/bin/effort-policy.mjs`.
 
 **Source:** codescout review notes, ruling R3.
 

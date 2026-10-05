@@ -193,10 +193,11 @@ t('a valid fractional rate adds no reason', () => {
 });
 
 for (const bad of ['abc', '-1', '2', '1.0001', '', 'NaN', 'Infinity', '0x1', '1,5']) {
-  t(`R3: invalid --holdout-rate ${JSON.stringify(bad)} is rate 0 with bad_holdout_rate`, () => {
+  t(`R3: invalid --holdout-rate ${JSON.stringify(bad)} is rate 1 (held out, not steered) with bad_holdout_rate`, () => {
     const { out } = decide(['--rules', rulesFile([rule()]), '--holdout-rate', bad], CTX);
-    assert.equal(out.arm, 'treated');
-    assert.equal(out.steer, SHALLOW);
+    assert.equal(out.arm, 'holdout');
+    assert.equal(out.steer, null);
+    assert.equal(out.level, 'shallow', 'the decision itself is unchanged; only the steering text is withheld');
     assert.deepEqual(out.reasons, ['r-shallow', 'bad_holdout_rate']);
   });
 }
@@ -422,27 +423,27 @@ t('R17: a table with an empty phrases object is usable (it just has no phrase) a
 t('unknown flags add unknown_arg; a trailing --holdout-rate with no value is bad_holdout_rate', () => {
   const { out } = decide(['--bogus', '--holdout-rate'], CTX);
   assert.deepEqual(out.reasons, ['no_rule', 'unknown_arg', 'bad_holdout_rate']);
-  assert.equal(out.arm, 'treated');
+  assert.equal(out.arm, 'holdout');
 });
 
 // ---- R22: a value flag with no usable value is visible ----------------------
 
-t('R22: --holdout-rate as the last token is bad_holdout_rate, treated, exit 0', () => {
+t('R22: --holdout-rate as the last token is bad_holdout_rate, held out, exit 0', () => {
   const { out } = decide(['--rules', rulesFile([rule()]), '--holdout-rate'], CTX);
-  assert.equal(out.arm, 'treated');
-  assert.equal(out.steer, SHALLOW);
+  assert.equal(out.arm, 'holdout');
+  assert.equal(out.steer, null);
   assert.deepEqual(out.reasons, ['r-shallow', 'bad_holdout_rate']);
 });
 
 t('R22: --holdout-rate followed by --log still turns logging on and adds bad_holdout_rate', () => {
   const state = freshState();
   const { out } = decide(['--holdout-rate', '--log'], CTX, { state });
-  assert.equal(out.arm, 'treated');
+  assert.equal(out.arm, 'holdout');
   assert.deepEqual(out.reasons, ['no_rule', 'bad_holdout_rate']);
   const lines = logLines(state, 's1');
   assert.equal(lines.length, 1, 'a log line was written');
+  assert.equal(lines[0].arm, 'holdout', 'the log holds the arm that was used');
   assert.deepEqual(lines[0].reasons, out.reasons);
-  assert.equal(lines[0].arm, 'treated');
 });
 
 t('R22: --rules as the last token is rules_unreadable, not the shipped rules', () => {
@@ -487,11 +488,11 @@ t('R19: --holdout-rate=0 and a fractional =0.25 are valid rates with no reason',
   assert.deepEqual(decide(['--holdout-rate=0.25'], CTX).out.reasons, ['no_rule']);
 });
 
-t('R19: --holdout-rate= (empty) and --holdout-rate=abc are bad_holdout_rate with rate 0', () => {
+t('R19: --holdout-rate= (empty) and --holdout-rate=abc are bad_holdout_rate with rate 1', () => {
   for (const flag of ['--holdout-rate=', '--holdout-rate=abc', '--holdout-rate=2', '--holdout-rate=-1']) {
     const { out } = decide(['--rules', rulesFile([rule()]), flag], CTX);
-    assert.equal(out.arm, 'treated', flag);
-    assert.equal(out.steer, SHALLOW, flag);
+    assert.equal(out.arm, 'holdout', flag);
+    assert.equal(out.steer, null, flag);
     assert.deepEqual(out.reasons, ['r-shallow', 'bad_holdout_rate'], flag);
   }
 });
@@ -689,4 +690,23 @@ t('ES-8: the DEFAULT rules file is loaded without the wall-clock probe, a --rule
   assert.deepEqual(copy([]).reasons, ['no_rule'], 'default file: the slow rule loaded, so nothing was skipped');
   assert.deepEqual(copy(['--rules', path.join(tree, 'core', 'rules.json')]).reasons, ['no_rule'], 'the same path, spelled out, is still the default file');
   assert.deepEqual(copy(['--rules', rulesFile([slow])]).reasons, ['no_rule', 'rules_skipped:slow:slow_regex'], 'an override is probed');
+});
+
+t('R3 (ruled 2026-10-05): a bad rate withholds steering; an ABSENT rate still steers; a good rate is unchanged', () => {
+  const rules = rulesFile([rule()]);
+  assert.equal(decide(['--rules', rules], CTX).out.arm, 'treated', 'no flag is rate 0, not a bad rate');
+  assert.equal(decide(['--rules', rules, '--holdout-rate', '0'], CTX).out.arm, 'treated', 'rate 0 is a valid rate');
+  assert.equal(decide(['--rules', rules, '--holdout-rate', '1'], CTX).out.arm, 'holdout', 'rate 1 is a valid rate');
+  const bad = decide(['--rules', rules, '--holdout-rate', 'abc'], CTX).out;
+  assert.equal(bad.arm, 'holdout');
+  assert.ok(bad.reasons.includes('bad_holdout_rate'), 'and it is visible');
+});
+
+t('R3: a bad rate with no session or turn id is still treated (no id means no arm to assign)', () => {
+  // Pins an existing rule so the R3 ruling is not read as wider than it is: assignArm needs
+  // both ids, so without them every rate gives 'treated'. This was true before R3.
+  const { out } = decide(['--rules', rulesFile([rule()]), '--holdout-rate', 'abc'], { prompt: 'rename foo to bar' });
+  assert.equal(out.arm, 'treated');
+  assert.equal(out.steer, SHALLOW);
+  assert.deepEqual(out.reasons, ['r-shallow', 'bad_holdout_rate']);
 });

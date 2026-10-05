@@ -45,7 +45,7 @@
 //   table_unreadable    the steering table could not be read, parsed or used (not an object
 //                       with a `phrases` object); steer is null and steer_version is 0
 //   bad_holdout_rate    --holdout-rate is missing its value or is not a decimal in [0, 1];
-//                       rate 0 is used
+//                       rate 1 is used, so the turn is held out and not steered (ruling R3)
 //   log_skipped_no_ids  --log was given but session_id or turn_id is missing, or present
 //                       but not a string; nothing is written
 //   log_failed          --log was given and writing the record failed; stderr has the cause
@@ -76,6 +76,13 @@ const isString = (v) => typeof v === 'string';
 
 // A strict decimal. Number() alone would accept '', ' ', '0x1' and 'Infinity'.
 const DECIMAL = /^[+-]?(\d+\.?\d*|\.\d+)(e[+-]?\d+)?$/i;
+
+// Ruling R3 (2026-10-05): a bad --holdout-rate is rate 1, so the turn is held out and not
+// steered. Steering is an intervention; a setting that cannot be read must not intervene.
+// An ABSENT flag is still rate 0 (a valid setting). A turn with a bad rate has no valid
+// control split either way, so `bad_holdout_rate` in the log is what marks it for filtering.
+const BAD_RATE = 1;
+
 
 // Flag parsing never throws. Value flags take their value in two forms: spaced
 // (`--rules F`) or joined (`--rules=F`, split at the FIRST `=`, so the value may
@@ -143,14 +150,14 @@ function readJson(file) {
   return JSON.parse(readFileSync(file, 'utf8'));
 }
 
-// Returns a rate in [0, 1] and whether the flag was bad. A bad rate is rate 0.
+// Returns a rate in [0, 1] and whether the flag was bad. A bad rate is BAD_RATE (1).
 function resolveRate(raw) {
   if (raw === undefined) return { rate: 0, bad: false };
   if (DECIMAL.test(raw)) {
     const rate = Number(raw);
     if (Number.isFinite(rate) && rate >= 0 && rate <= 1) return { rate, bad: false };
   }
-  return { rate: 0, bad: true };
+  return { rate: BAD_RATE, bad: true };
 }
 
 function emit(result) {
