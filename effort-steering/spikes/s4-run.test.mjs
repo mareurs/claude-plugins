@@ -1,13 +1,19 @@
-// s4-run.test.mjs — vectors for the S4 runner. EVERY test injects a fake `spawn`; nothing
-// here (or in the module under these tests) ever executes the real `claude` binary.
-// The only real child processes are `git` (temp repos, so the REAL loadPrereg decides) and,
-// in one test, `sh -c <hook command>` to prove the scratch hook command survives odd paths.
+// s4-run.test.mjs — vectors for the S4 runner. EVERY test injects a fake `spawn` for the
+// `claude` runs; nothing here (or in the module under these tests) ever executes the real
+// `claude` binary. Real child processes: `git` (temp repos, so the REAL loadPrereg and the
+// REAL dirty-tree check decide), the copied effort-policy CLI (the steerability preflight
+// runs it through runPolicy, as in production), `sh -c <hook command>` in one test, and
+// the real copied hook in the latency tests that pass no `spawn`.
+//
+// The scratch copy and the dirty-tree check read a committed COPY of effort-steering/ in a
+// temp repo (`esRoot`), never this checkout, which is dirty while it is being edited.
 
 import assert from 'node:assert/strict';
 import { execFileSync, spawnSync } from 'node:child_process';
-import { appendFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { appendFileSync, cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { stateDirFor } from '../core/log.mjs';
 import { t } from '../core/testkit.mjs';
 import { holdoutCountFor, main, measureHookLatency, planRuns, runExperiment, stopReasons } from './s4-run.mjs';
@@ -46,6 +52,36 @@ mkdirSync(REPO);
 git(REPO, 'init', '-q');
 git(REPO, 'commit', '-q', '--allow-empty', '-m', 'init');
 const head = () => git(REPO, 'rev-parse', 'HEAD').trim();
+
+// A committed copy of effort-steering/{bin,core,adapter} in its own temp repo; `edit` runs
+// on the copy AFTER the commit (to dirty it or to break its CLI).
+const ES_REAL = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+let treeN = 0;
+const makeTree = (edit) => {
+  const repo = path.join(ROOT, `tree-${treeN++}`);
+  const es = path.join(repo, 'effort-steering');
+  for (const dir of ['bin', 'core', 'adapter']) {
+    cpSync(path.join(ES_REAL, dir), path.join(es, dir), { recursive: true, filter: (src) => !src.endsWith('.test.mjs') });
+  }
+  git(repo, 'init', '-q');
+  git(repo, 'add', '-A');
+  git(repo, 'commit', '-q', '-m', 'tree');
+  if (edit) edit(es, repo);
+  return es;
+};
+const CLEAN_ES = makeTree();
+const treeHead = (es) => git(path.dirname(es), 'rev-parse', 'HEAD').trim();
+// The fake hook's log line, where the real one would put it.
+const writeHookLog = (opts, fields = {}) => {
+  const sid = JSON.parse(opts.input).session_id;
+  const dir = stateDirFor(opts.env);
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(path.join(dir, `${sid}.jsonl`), `${JSON.stringify({ session_id: sid, arm: 'treated', steered: true, ...fields })}\n`);
+};
+const okHook = (cmd, args, opts) => {
+  writeHookLog(opts);
+  return { status: 0, stdout: '', stderr: '' };
+};
 
 let fileN = 0;
 function put(obj, { commit = true } = {}) {
@@ -107,7 +143,11 @@ function fakeEnv({ plan, configDir, durations, hookResult, execHook } = {}) {
   const spawn = (cmd, args, opts) => {
     if (cmd !== 'claude') {
       calls.hook.push({ cmd, args, opts });
-      return hookResult ? hookResult(hookIndex++) : { status: 0, stdout: '', stderr: '' };
+      // hookResult(i) -> { status, signal, error, stderr, nolog }; by default the hook logs and exits 0.
+      const r = hookResult ? hookResult(hookIndex++) ?? {} : {};
+      if (!r.nolog) writeHookLog(opts);
+      const { nolog, ...res } = r;
+      return { status: 0, stdout: '', stderr: '', ...res };
     }
     const settingsFile = args[args.indexOf('--settings') + 1];
     const rootDir = path.dirname(settingsFile);
@@ -171,15 +211,15 @@ const run = (over, envOpts, extra = {}) => {
   const configDir = tmp();
   const f = fakeEnv({ configDir, ...envOpts });
   const p = prereg(over);
-  return runExperiment(put(p), { spawn: f.spawn, confirm: true, configDir, now: f.now, out: silent, ...extra }).then((result) => ({ result, f, p }));
+  return runExperiment(put(p), { spawn: f.spawn, confirm: true, configDir, now: f.now, out: silent, esRoot: CLEAN_ES, ...extra }).then((result) => ({ result, f, p }));
 };
 const total = (f) => f.calls.claude.length + f.calls.hook.length;
 // The planned arm of a call, as the hook would read it from the child env.
 const plannedOf = (c) => (c.opts.env.EFFORT_STEERING_HOLDOUT_RATE === '1' ? 'holdout' : 'treated');
-// Exclude the first `n` planned-`arm` calls with the given plan fields.
+// Give the first `n` planned-`arm` MAIN runs the given plan fields (call 0 is the canary).
 const firstOf = (arm, n, fields) => {
   let seen = 0;
-  return (i, c) => (c.planned === arm && seen++ < n ? fields : {});
+  return (i, c) => (i > 0 && c.planned === arm && seen++ < n ? fields : {});
 };
 // (promptIndex, arm) of a plan, without the random session ids.
 const shape = (runs) => runs.map((r) => [r.promptIndex, r.arm]);
@@ -245,21 +285,32 @@ await ta('runExperiment throws with ZERO spawn calls for an uncommitted, edited,
   for (const file of [uncommitted, edited, invalid, incomplete, path.join(REPO, 'no-such-file.json')]) {
     for (const confirm of [true, false, undefined]) {
       const f = fakeEnv({ configDir: tmp() });
-      await assert.rejects(runExperiment(file, { spawn: f.spawn, confirm, out: silent, now: f.now }), /prereg/, `${file} confirm=${confirm}`);
+      await assert.rejects(runExperiment(file, { spawn: f.spawn, confirm, out: silent, now: f.now, esRoot: CLEAN_ES }), /prereg/, `${file} confirm=${confirm}`);
       assert.equal(total(f), 0, `${file} confirm=${confirm}`);
     }
   }
 });
 
-await ta('runExperiment records the prereg commit, with GIT_* env vars scrubbed', async () => {
+await ta('runExperiment records treeCommit (HEAD of the copied tree) and preregCommit (last commit of the prereg file), with GIT_* env vars scrubbed', async () => {
   const other = tmp();
   git(other, 'init', '-q');
   const saved = process.env.GIT_DIR;
   process.env.GIT_DIR = path.join(other, '.git');
   try {
-    const { result } = await run();
-    assert.equal(result.gitCommit, head());
-    assert.match(result.gitCommit, /^[0-9a-f]{40}$/);
+    const file = put(prereg());
+    const registering = head();
+    git(REPO, 'commit', '-q', '--allow-empty', '-m', 'a later, unrelated commit');
+    assert.notEqual(head(), registering);
+    const configDir = tmp();
+    const f = fakeEnv({ configDir });
+    const result = await runExperiment(file, { spawn: f.spawn, confirm: true, configDir, now: f.now, out: silent, esRoot: CLEAN_ES });
+    assert.equal(result.preregCommit, registering, 'the registering commit, not the repo HEAD');
+    assert.equal(result.treeCommit, treeHead(CLEAN_ES));
+    assert.match(result.treeCommit, /^[0-9a-f]{40}$/);
+    assert.ok(!('gitCommit' in result));
+    const dry = await runExperiment(file, { spawn: f.spawn, out: silent, esRoot: CLEAN_ES });
+    assert.equal(dry.preregCommit, registering);
+    assert.equal(dry.treeCommit, treeHead(CLEAN_ES));
   } finally {
     if (saved === undefined) delete process.env.GIT_DIR;
     else process.env.GIT_DIR = saved;
@@ -270,7 +321,7 @@ await ta('runExperiment records the prereg commit, with GIT_* env vars scrubbed'
 
 await ta('each claude call carries the registered args and never --no-session-persistence', async () => {
   const { f, p } = await run();
-  assert.equal(f.calls.claude.length, 12);
+  assert.equal(f.calls.claude.length, 13); // 1 canary + 12 planned runs
   const sids = new Set();
   for (const c of f.calls.claude) {
     assert.equal(c.cmd, 'claude');
@@ -285,12 +336,12 @@ await ta('each claude call carries the registered args and never --no-session-pe
     assert.ok(a[a.indexOf('--settings') + 1].endsWith('settings.json'));
     assert.ok(!a.includes('--no-session-persistence'));
   }
-  assert.equal(sids.size, 12);
+  assert.equal(sids.size, 13);
 });
 
 await ta('the prompt is the LAST argv element, after `--`', async () => {
   const { f, p } = await run();
-  assert.equal(f.calls.claude.length, 12);
+  assert.equal(f.calls.claude.length, 13);
   for (const c of f.calls.claude) {
     const a = c.args;
     assert.equal(a.at(-2), '--');
@@ -305,7 +356,7 @@ await ta('a dash-led, slash-led or one-word prompt is refused by loadPrereg with
   for (const bad of ['--settings x', '-c', '--help', '/ultrareview now', 'update']) {
     const f = fakeEnv({ configDir: tmp() });
     const file = put(prereg({ prompts: ['p one', 'p two', 'p three', bad] }));
-    await assert.rejects(runExperiment(file, { spawn: f.spawn, confirm: true, out: silent, now: f.now }), /prompts\[3\]/, bad);
+    await assert.rejects(runExperiment(file, { spawn: f.spawn, confirm: true, out: silent, now: f.now, esRoot: CLEAN_ES }), /prompts\[3\]/, bad);
     assert.equal(total(f), 0, bad);
   }
 });
@@ -362,8 +413,8 @@ await ta('the copy holds exactly the one rule, medium for deep', async () => {
 
 await ta('each run reaches the hook as rate "1" (holdout) or "0" (treated), in the seeded plan order; temp root is removed', async () => {
   const { f, p } = await run({ holdoutRate: 0.25, repeats: 4 });
-  const calls = f.calls.claude;
-  assert.ok(calls.every((c) => ['0', '1'].includes(c.opts.env.EFFORT_STEERING_HOLDOUT_RATE)));
+  const calls = f.calls.claude.slice(1); // call 0 is the canary
+  assert.ok(f.calls.claude.every((c) => ['0', '1'].includes(c.opts.env.EFFORT_STEERING_HOLDOUT_RATE)));
   // the calls follow planRuns(prereg) exactly: same prompts, same arms, same order
   assert.deepEqual(calls.map((c) => [p.prompts.indexOf(c.args.at(-1)), plannedOf(c)]), shape(planRuns(p)));
   for (let i = 0; i < 4; i++) assert.equal(calls.filter((c) => c.args.at(-1) === p.prompts[i] && plannedOf(c) === 'holdout').length, 1);
@@ -390,9 +441,11 @@ await ta('a relative TMPDIR still yields an absolute XDG_STATE_HOME, and nothing
     process.chdir(base);
     process.env.TMPDIR = 'rel';
     process.env.HOME = home;
-    const result = await runExperiment(file, { spawn: f.spawn, confirm: true, configDir, now: f.now, out: silent });
+    const result = await runExperiment(file, { spawn: f.spawn, confirm: true, configDir, now: f.now, out: silent, esRoot: CLEAN_ES });
     assert.ok(path.isAbsolute(f.calls.claude[0].opts.env.XDG_STATE_HOME));
     assert.ok(path.isAbsolute(f.calls.claude[0].opts.cwd));
+    assert.ok(path.isAbsolute(f.calls.claude[0].opts.env.TMPDIR), 'the child TMPDIR is resolved');
+    assert.equal(f.calls.claude[0].opts.env.TMPDIR, path.join(base, 'rel'));
     assert.equal(result.excluded, 0);
     assert.ok(!existsSync(path.join(home, '.local')), 'a record landed under HOME/.local');
   } finally {
@@ -496,18 +549,19 @@ await ta('a treated run that was not steered is excluded as not_steered; a steer
 
 // ---- confirm gate -------------------------------------------------------------------------
 
-await ta('without confirm: prints the call count and spawns nothing (not even the hook)', async () => {
+await ta('without confirm: prints the call count (runs + canary) and spawns no hook and no claude', async () => {
   const f = fakeEnv({ configDir: tmp() });
   const lines = [];
   const file = put(prereg());
-  const result = await runExperiment(file, { spawn: f.spawn, out: (s) => lines.push(s) });
+  const result = await runExperiment(file, { spawn: f.spawn, out: (s) => lines.push(s), esRoot: CLEAN_ES });
   assert.equal(total(f), 0);
   assert.equal(result.verdict, 'not_run');
-  assert.equal(result.calls, 12);
-  assert.ok(result.stop.length > 0);
-  assert.match(lines.join('\n'), /12 model calls/);
+  assert.deepEqual(result.stop, ['not_confirmed']);
+  assert.equal(result.plannedCalls, 13);
+  assert.equal(result.claudeCalls, 0);
+  assert.match(lines.join('\n'), /13 model calls \(12 runs \+ 1 canary/);
   for (const bad of [undefined, false, 'true', 1]) {
-    await runExperiment(file, { spawn: f.spawn, confirm: bad, out: silent });
+    await runExperiment(file, { spawn: f.spawn, confirm: bad, out: silent, esRoot: CLEAN_ES });
   }
   assert.equal(total(f), 0);
 });
@@ -526,13 +580,281 @@ await ta('a hook that exits non-zero stops the run before any claude call', asyn
   assert.deepEqual(result.stop, ['latency_not_ok']);
 });
 
+// ---- I-3c: the latency gate sees a hook that falls back or does not log -----------------
+
+await ta('a hook that alerts on stderr (falls back on every call) fails the latency gate: ZERO claude calls', async () => {
+  const { result, f } = await run({}, { hookResult: () => ({ status: 0, stderr: 'effort-steering: adapter_cli_failed\n' }) });
+  assert.equal(f.calls.claude.length, 0);
+  assert.deepEqual(result.stop, ['latency_not_ok']);
+  assert.equal(result.latency.failures, 12);
+  // one alert among quiet runs is enough
+  const one = await run({}, { hookResult: (i) => (i === 7 ? { stderr: 'x\neffort-steering: adapter_timeout\n' } : {}) });
+  assert.equal(one.result.latency.failures, 1);
+  assert.deepEqual(one.result.stop, ['latency_not_ok']);
+});
+
+await ta('a hook that writes no log line for its session fails the latency gate: ZERO claude calls', async () => {
+  const { result, f } = await run({}, { hookResult: (i) => (i === 3 ? { nolog: true } : {}) });
+  assert.equal(f.calls.claude.length, 0);
+  assert.equal(result.latency.failures, 1);
+  assert.deepEqual(result.stop, ['latency_not_ok']);
+});
+
+t('measureHookLatency: a log line for ANOTHER session does not count as this run logging', () => {
+  // in another session's file
+  const elsewhere = (cmd, args, opts) => {
+    writeHookLog({ ...opts, input: JSON.stringify({ session_id: 'someone-else' }) });
+    return { status: 0, stdout: '', stderr: '' };
+  };
+  // in this session's file, but naming another session
+  const misnamed = (cmd, args, opts) => {
+    const sid = JSON.parse(opts.input).session_id;
+    const dir = stateDirFor(opts.env);
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(path.join(dir, `${sid}.jsonl`), `not json\n${JSON.stringify({ session_id: 'someone-else', arm: 'treated' })}\n`);
+    return { status: 0, stdout: '', stderr: '' };
+  };
+  for (const spawn of [elsewhere, misnamed]) {
+    const r = measureHookLatency(prereg(), { spawn, now: clockOf(new Array(12).fill(1)) });
+    assert.equal(r.failures, 12);
+    assert.equal(r.ok, false);
+  }
+});
+
+t('measureHookLatency with the REAL copied hook and CLI: every run logs, nothing alerts, the gate holds', () => {
+  const r = measureHookLatency(prereg({ latencyBudgetMs: 20000 }), { esRoot: CLEAN_ES });
+  assert.equal(r.n, 12);
+  assert.equal(r.failures, 0);
+  assert.equal(r.ok, true);
+});
+
+t('measureHookLatency with a REAL hook whose CLI always fails: the hook still exits 0, but the gate fails', () => {
+  const broken = makeTree((es) => writeFileSync(path.join(es, 'bin', 'effort-policy.mjs'), 'process.exit(1);\n'));
+  const r = measureHookLatency(prereg({ latencyBudgetMs: 20000 }), { esRoot: broken });
+  assert.equal(r.failures, 12);
+  assert.equal(r.ok, false);
+});
+
+// ---- I-1: steerability preflight ---------------------------------------------------------
+
+await ta('a prompt that does not steer (ultrathink: user_override) refuses with its INDEX and ZERO hook or claude calls', async () => {
+  for (const confirm of [true, false]) {
+    const configDir = tmp();
+    const f = fakeEnv({ configDir });
+    const lines = [];
+    const file = put(prereg({ prompts: ['p one', 'p two', 'please ultrathink this', 'p four'] }));
+    const result = await runExperiment(file, { spawn: f.spawn, confirm, configDir, now: f.now, out: (s) => lines.push(s), esRoot: CLEAN_ES });
+    assert.equal(total(f), 0, `confirm ${confirm}`);
+    assert.equal(result.verdict, 'not_run');
+    assert.deepEqual(result.stop, ['prompt_not_steerable']);
+    assert.deepEqual(result.notSteerable, [2]);
+    assert.equal(result.claudeCalls, 0);
+    assert.ok(!JSON.stringify(result).includes('ultrathink'), 'prompt text must not reach the result');
+    assert.ok(!lines.join('\n').includes('ultrathink'), 'prompt text must not be printed');
+  }
+});
+
+await ta('the preflight runs the COPY: a copy whose table is unreadable steers nothing and is refused', async () => {
+  const noTable = makeTree((es, repo) => {
+    rmSync(path.join(es, 'core', 'steer.table.json'));
+    git(repo, 'commit', '-q', '-a', '-m', 'drop the table');
+  });
+  const configDir = tmp();
+  const f = fakeEnv({ configDir });
+  const result = await runExperiment(put(prereg()), { spawn: f.spawn, confirm: true, configDir, now: f.now, out: silent, esRoot: noTable });
+  assert.deepEqual(result.stop, ['prompt_not_steerable']);
+  assert.deepEqual(result.notSteerable, [0, 1, 2, 3]);
+  assert.equal(total(f), 0);
+});
+
+// ---- M-1: the copied tree must equal its commit -------------------------------------------
+
+await ta('a dirty tree (modified, untracked or ignored file) refuses with dirty_tree and ZERO spawns, with or without confirm', async () => {
+  const dirty = [
+    makeTree((es) => appendFileSync(path.join(es, 'core', 'rules.json'), ' ')),
+    makeTree((es) => writeFileSync(path.join(es, 'adapter', 'new.mjs'), '')),
+    makeTree((es, repo) => {
+      writeFileSync(path.join(repo, '.gitignore'), '*.local\n');
+      git(repo, 'add', '.gitignore');
+      git(repo, 'commit', '-q', '-m', 'ignore');
+      writeFileSync(path.join(es, 'core', 'x.local'), '');
+    }),
+  ];
+  for (const es of dirty) {
+    for (const confirm of [true, false]) {
+      const configDir = tmp();
+      const f = fakeEnv({ configDir });
+      const result = await runExperiment(put(prereg()), { spawn: f.spawn, confirm, configDir, now: f.now, out: silent, esRoot: es });
+      assert.deepEqual(result.stop, ['dirty_tree'], `${es} confirm ${confirm}`);
+      assert.equal(result.verdict, 'not_run');
+      assert.equal(total(f), 0);
+      assert.equal(result.treeCommit, treeHead(es));
+    }
+  }
+  // a change OUTSIDE effort-steering/ does not count
+  const outside = makeTree((es, repo) => writeFileSync(path.join(repo, 'unrelated.txt'), 'x'));
+  const { result } = await run({}, {}, { esRoot: outside });
+  assert.notDeepEqual(result.stop, ['dirty_tree']);
+  assert.equal(result.verdict, 'mechanism_pass');
+});
+
+await ta('an inherited GIT_DIR cannot vouch for a dirty tree (the status runs with the GIT_* scrub)', async () => {
+  // A second repo whose committed effort-steering/ equals the DIRTY content: an unscrubbed
+  // `git status` pointed at it by GIT_DIR would call the dirty tree clean.
+  const dirtyEs = makeTree((es) => appendFileSync(path.join(es, 'core', 'rules.json'), ' '));
+  const forger = path.join(ROOT, 'forger');
+  cpSync(dirtyEs, path.join(forger, 'effort-steering'), { recursive: true });
+  git(forger, 'init', '-q');
+  git(forger, 'add', '-A');
+  git(forger, 'commit', '-q', '-m', 'forged');
+  const saved = process.env.GIT_DIR;
+  process.env.GIT_DIR = path.join(forger, '.git');
+  try {
+    const configDir = tmp();
+    const f = fakeEnv({ configDir });
+    const result = await runExperiment(put(prereg()), { spawn: f.spawn, confirm: true, configDir, now: f.now, out: silent, esRoot: dirtyEs });
+    assert.deepEqual(result.stop, ['dirty_tree']);
+    assert.equal(total(f), 0);
+  } finally {
+    if (saved === undefined) delete process.env.GIT_DIR;
+    else process.env.GIT_DIR = saved;
+  }
+});
+
+await ta('a tree that is not in a git repository refuses with dirty_tree', async () => {
+  const loose = path.join(tmp(), 'effort-steering');
+  for (const dir of ['bin', 'core', 'adapter']) cpSync(path.join(CLEAN_ES, dir), path.join(loose, dir), { recursive: true });
+  const configDir = tmp();
+  const f = fakeEnv({ configDir });
+  const result = await runExperiment(put(prereg()), { spawn: f.spawn, confirm: true, configDir, now: f.now, out: silent, esRoot: loose });
+  assert.deepEqual(result.stop, ['dirty_tree']);
+  assert.equal(result.treeCommit, null);
+  assert.equal(total(f), 0);
+});
+
+// ---- E (I-4): one excluded canary run before the planned runs ----------------------------
+
+await ta('the canary is the FIRST claude call: prompt 0, treated, a fresh session id; it is not a row', async () => {
+  const { result, f, p } = await run();
+  const [canary, ...rest] = f.calls.claude;
+  assert.equal(canary.args.at(-1), p.prompts[0]);
+  assert.equal(canary.opts.env.EFFORT_STEERING_HOLDOUT_RATE, '0');
+  assert.ok(!rest.some((c) => sidOf(c.args) === sidOf(canary.args)));
+  assert.equal(rest.length, 12);
+  assert.deepEqual(result.canary, { ok: true });
+  assert.equal(result.claudeCalls, 13);
+  // the planned plan has 4 treated runs; the canary would make it 5
+  assert.equal(result.analysis.nTreated, 4);
+  assert.equal(result.analysis.perPrompt[0].nTreated, 1);
+});
+
+await ta('a failed canary stops after exactly ONE claude call, whatever failed', async () => {
+  const kinds = [
+    [{ nolog: true }, 'no_log'],
+    [{ spawn: 'status' }, 'spawn_failed'],
+    [{ spawn: 'signal' }, 'spawn_failed'],
+    [{ notranscript: true }, 'no_transcript'],
+    [{ apierr: 'model' }, 'api_error'],
+    [{ steered: false }, 'not_steered'],
+    [{ arm: 'holdout', steered: false }, 'arm_mismatch'],
+    [{ dup: true }, 'ambiguous_transcript'],
+  ];
+  for (const [fields, reason] of kinds) {
+    const { result, f } = await run({}, { plan: (i) => (i === 0 ? fields : {}) });
+    assert.equal(f.calls.claude.length, 1, reason);
+    assert.equal(result.verdict, 'not_run');
+    assert.deepEqual(result.stop, ['canary_failed']);
+    assert.deepEqual(result.canary, { ok: false, reason });
+    assert.equal(result.claudeCalls, 1);
+    assert.equal(result.latency.ok, true);
+  }
+});
+
+// ---- C (I-2): the claude children get a whitelisted environment ---------------------------
+
+const withParentEnv = async (vars, fn) => {
+  const saved = {};
+  for (const k of Object.keys(vars)) saved[k] = process.env[k];
+  for (const [k, v] of Object.entries(vars)) {
+    if (v === undefined) delete process.env[k];
+    else process.env[k] = v;
+  }
+  try {
+    return await fn();
+  } finally {
+    for (const [k, v] of Object.entries(saved)) {
+      if (v === undefined) delete process.env[k];
+      else process.env[k] = v;
+    }
+  }
+};
+const LEAKY = {
+  ANTHROPIC_BASE_URL: 'http://localhost:8082',
+  ANTHROPIC_API_KEY: 'sk-test-not-real',
+  ANTHROPIC_MODEL: 'x',
+  CLAUDECODE: '1',
+  CLAUDE_CODE_SESSION_ID: 'parent-session',
+  CLAUDE_CODE_ENTRYPOINT: 'cli',
+  CLAUDE_PROJECT_DIR: '/work',
+  NODE_OPTIONS: '--require /tmp/x.js',
+  OTHER_SECRET: 'y',
+};
+const KEPT = { USER: 'u', LANG: 'C.UTF-8', LC_ALL: 'C.UTF-8', LC_CTYPE: 'C.UTF-8', TERM: 'dumb', SHELL: '/bin/sh', CLAUDE_CONFIG_DIR: '/cfg/profile' };
+
+await ta('the claude child env is a whitelist: no ANTHROPIC_*, CLAUDECODE, CLAUDE_CODE_*, CLAUDE_PROJECT_DIR or anything else', async () => {
+  await withParentEnv({ ...LEAKY, ...KEPT }, async () => {
+    const { result, f } = await run();
+    const want = ['CLAUDE_CONFIG_DIR', 'EFFORT_STEERING_HOLDOUT_RATE', 'HOME', 'LANG', 'LC_ALL', 'LC_CTYPE', 'PATH', 'SHELL', 'TERM', 'TMPDIR', 'USER', 'XDG_STATE_HOME'];
+    assert.equal(f.calls.claude.length, 13);
+    for (const c of f.calls.claude) {
+      assert.deepEqual(Object.keys(c.opts.env).sort(), want);
+      for (const k of Object.keys(LEAKY)) assert.ok(!(k in c.opts.env), k);
+      for (const [k, v] of Object.entries(KEPT)) assert.equal(c.opts.env[k], v, k);
+      assert.equal(c.opts.env.PATH, process.env.PATH);
+      assert.equal(c.opts.env.HOME, process.env.HOME);
+    }
+    assert.deepEqual(result.childEnvKeys, want);
+    assert.equal(result.endpoint, 'default');
+    assert.ok(!JSON.stringify(result).includes('sk-test-not-real') && !JSON.stringify(result).includes('/cfg/profile'), 'names only, never values');
+  });
+});
+
+await ta('CLAUDE_CONFIG_DIR is passed only when set and non-empty', async () => {
+  for (const value of [undefined, '']) {
+    await withParentEnv({ CLAUDE_CONFIG_DIR: value }, async () => {
+      const { result, f } = await run();
+      assert.ok(f.calls.claude.every((c) => !('CLAUDE_CONFIG_DIR' in c.opts.env)), JSON.stringify(value));
+      assert.ok(!result.childEnvKeys.includes('CLAUDE_CONFIG_DIR'));
+    });
+  }
+});
+
+await ta('the latency hook env is PATH, HOME, the temp XDG_STATE_HOME and rate 0, nothing else', async () => {
+  await withParentEnv(LEAKY, async () => {
+    const { f } = await run();
+    assert.equal(f.calls.hook.length, 12);
+    for (const c of f.calls.hook) {
+      assert.deepEqual(Object.keys(c.opts.env).sort(), ['EFFORT_STEERING_HOLDOUT_RATE', 'HOME', 'PATH', 'XDG_STATE_HOME']);
+      assert.equal(c.opts.env.EFFORT_STEERING_HOLDOUT_RATE, '0');
+    }
+  });
+});
+
+await ta('every not_run result still names the endpoint and the env keys, and the commits', async () => {
+  const dry = await runExperiment(put(prereg()), { spawn: fakeEnv({ configDir: tmp() }).spawn, out: silent, esRoot: CLEAN_ES });
+  assert.equal(dry.endpoint, 'default');
+  assert.ok(Array.isArray(dry.childEnvKeys) && dry.childEnvKeys.includes('PATH'));
+  assert.ok(!dry.childEnvKeys.some((k) => k.startsWith('ANTHROPIC_')));
+  assert.match(dry.preregCommit, /^[0-9a-f]{40}$/);
+});
+
 // ---- main: exact --confirm ----------------------------------------------------------------
 
 const mainWith = async (argv, deps = {}) => {
   const configDir = tmp();
   const f = fakeEnv({ configDir });
   const file = put(prereg());
-  const result = await main(argv, { spawn: f.spawn, preregFile: file, out: silent, configDir, now: f.now, ...deps });
+  const result = await main(argv, { spawn: f.spawn, preregFile: file, out: silent, configDir, now: f.now, esRoot: CLEAN_ES, ...deps });
   return { f, result };
 };
 
@@ -550,17 +872,17 @@ await ta('main spawns nothing unless argv holds exactly "--confirm"', async () =
 await ta('main runs for --confirm and for a repeated --confirm; a non-array argv throws', async () => {
   for (const argv of [['--confirm'], ['--confirm', '--confirm']]) {
     const { f, result } = await mainWith(argv);
-    assert.equal(f.calls.claude.length, 12, JSON.stringify(argv));
+    assert.equal(f.calls.claude.length, 13, JSON.stringify(argv));
     assert.equal(result.verdict, 'mechanism_pass');
   }
   for (const bad of ['--confirm', undefined, null, { includes: () => true }]) {
-    await assert.rejects(main(bad, { spawn: fakeEnv({ configDir: tmp() }).spawn, preregFile: put(prereg()), out: silent }), TypeError);
+    await assert.rejects(main(bad, { spawn: fakeEnv({ configDir: tmp() }).spawn, preregFile: put(prereg()), out: silent, esRoot: CLEAN_ES }), TypeError);
   }
 });
 
 await ta('main with an uncommitted prereg throws before any spawn', async () => {
   const f = fakeEnv({ configDir: tmp() });
-  await assert.rejects(main(['--confirm'], { spawn: f.spawn, preregFile: put(prereg(), { commit: false }), out: silent }), /prereg/);
+  await assert.rejects(main(['--confirm'], { spawn: f.spawn, preregFile: put(prereg(), { commit: false }), out: silent, esRoot: CLEAN_ES }), /prereg/);
   assert.equal(total(f), 0);
 });
 
@@ -649,7 +971,7 @@ t('measureHookLatency: n=20 takes sorted index 18 (nearest rank), not 17 or 19',
   const calls = [];
   const spawn = (cmd, args, opts) => {
     calls.push({ cmd, args, opts });
-    return { status: 0 };
+    return okHook(cmd, args, opts);
   };
   const r = measureHookLatency(p, { spawn, now: clockOf(durs) });
   assert.deepEqual(r, { n: 20, p95Ms: 19, failures: 0, ok: true });
@@ -659,8 +981,7 @@ t('measureHookLatency: n=20 takes sorted index 18 (nearest rank), not 17 or 19',
 
 t('measureHookLatency: n=12 rounds the rank UP (ceil 11.4 = 12, index 11), not down', () => {
   const durs = Array.from({ length: 12 }, (_, i) => ((i * 5) % 12) + 1); // a permutation of 1..12
-  const spawn = () => ({ status: 0 });
-  const r = measureHookLatency(prereg({ latencyBudgetMs: 12 }), { spawn, now: clockOf(durs) });
+  const r = measureHookLatency(prereg({ latencyBudgetMs: 12 }), { spawn: okHook, now: clockOf(durs) });
   assert.equal(r.p95Ms, 12);
   assert.equal(r.ok, true);
 });
@@ -668,7 +989,7 @@ t('measureHookLatency: n=12 rounds the rank UP (ceil 11.4 = 12, index 11), not d
 t('measureHookLatency: a hook run that exits non-zero, is killed or errors fails the gate even when fast', () => {
   for (const bad of [{ status: 1 }, { status: 0, signal: 'SIGKILL' }, { status: 0, error: new Error('ETIMEDOUT') }, undefined]) {
     let i = 0;
-    const spawn = () => (i++ === 5 ? bad : { status: 0 });
+    const spawn = (cmd, args, opts) => (i++ === 5 ? bad : okHook(cmd, args, opts));
     const r = measureHookLatency(prereg(), { spawn, now: clockOf(new Array(12).fill(1)) });
     assert.equal(r.ok, false, JSON.stringify(bad));
     assert.equal(r.failures, 1);
@@ -676,16 +997,20 @@ t('measureHookLatency: a hook run that exits non-zero, is killed or errors fails
   }
 });
 
-t('measureHookLatency runs the hook script once per (prompt, repeat) with hook JSON on stdin and a temp state dir; the root is removed', () => {
+t('measureHookLatency runs the COPIED steering hook once per (prompt, repeat) with hook JSON on stdin and a temp state dir; the root is removed', () => {
   const p = prereg();
   const calls = [];
   const spawn = (cmd, args, opts) => {
-    calls.push({ cmd, args, opts });
-    return { status: 0 };
+    // read the copy's rules while it still exists (M-5: the measured path is the steering path)
+    calls.push({ cmd, args, opts, rules: JSON.parse(readFileSync(path.join(path.dirname(args[0]), '..', '..', 'core', 'rules.json'), 'utf8')) });
+    return okHook(cmd, args, opts);
   };
   measureHookLatency(p, { spawn, now: clockOf(new Array(12).fill(1)) });
   assert.equal(calls.length, 12);
   assert.ok(calls.every((c) => c.cmd === process.execPath && c.args[0].endsWith(path.join('adapter', 'claude-code', 'user-prompt-submit.mjs'))));
+  assert.ok(calls.every((c) => !c.args[0].startsWith(ES_REAL) && c.args[0].startsWith(realpathSync(os.tmpdir()))), 'the hook is the scratch copy');
+  assert.ok(calls.every((c) => c.rules.rules.length === 1 && c.rules.rules[0].id === 's4-all'));
+  assert.ok(calls.every((c) => c.opts.env.EFFORT_STEERING_HOLDOUT_RATE === '0'));
   assert.ok(calls.every((c) => c.opts.killSignal === 'SIGKILL'));
   for (const prompt of p.prompts) assert.equal(calls.filter((c) => JSON.parse(c.opts.input).prompt === prompt).length, 3);
   const input = JSON.parse(calls[0].opts.input);

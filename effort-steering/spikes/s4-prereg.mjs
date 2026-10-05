@@ -26,6 +26,7 @@ function validate(p) {
   need(isNum(p.effectSizeThinkingTokens) && p.effectSizeThinkingTokens > 0, 'effectSizeThinkingTokens', 'must be a finite number > 0');
   // An integer: run-policy's timeout must be one, or spawnSync throws and every hook call fails open.
   need(isInt(p.latencyBudgetMs) && p.latencyBudgetMs > 0, 'latencyBudgetMs', 'must be a safe integer > 0');
+  // R24: the fraction of each prompt's repeats the RUNNER withholds (holdout arm).
   need(isNum(p.holdoutRate) && p.holdoutRate > 0 && p.holdoutRate < 1, 'holdoutRate', 'must be a number strictly between 0 and 1');
   need(isInt(p.repeats) && p.repeats >= 3, 'repeats', 'must be an integer >= 3');
   need(isInt(p.minPerArm) && p.minPerArm >= 3, 'minPerArm', 'must be an integer >= 3');
