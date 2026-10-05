@@ -26,6 +26,13 @@ const failOpen = (reason) => ({
   arm: 'treated',
 });
 
+// Only a positive safe integer is a timeout. 0 would disable spawnSync's timeout, and a
+// negative, fractional, string, Infinity or NaN value makes spawnSync throw, so every call
+// would fail open as adapter_cli_failed. Anything else means the default.
+export function effectiveTimeoutMs(t) {
+  return Number.isSafeInteger(t) && t > 0 ? t : POLICY_TIMEOUT_MS;
+}
+
 function parseOutput(stdout) {
   if (typeof stdout !== 'string' || !stdout.endsWith('\n')) return null;
   const lines = stdout.slice(0, -1).split('\n');
@@ -45,7 +52,7 @@ function parseOutput(stdout) {
 export function runPolicy(ctx, opts = {}) {
   try {
     const cliPath = opts.cliPath ?? DEFAULT_CLI;
-    const timeout = opts.timeoutMs ?? POLICY_TIMEOUT_MS;
+    const timeout = effectiveTimeoutMs(opts.timeoutMs);
     const args = Array.isArray(opts.args) ? opts.args : [];
     const input = JSON.stringify(ctx);
     if (typeof input !== 'string') return failOpen('adapter_cli_failed');

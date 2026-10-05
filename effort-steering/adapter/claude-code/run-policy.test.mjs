@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { t } from '../../core/testkit.mjs';
-import { POLICY_TIMEOUT_MS, runPolicy } from './run-policy.mjs';
+import { POLICY_TIMEOUT_MS, effectiveTimeoutMs, runPolicy } from './run-policy.mjs';
 
 const ES = fileURLToPath(new URL('../..', import.meta.url));
 const ROOT = mkdtempSync(path.join(os.tmpdir(), 'run-policy-'));
@@ -31,6 +31,22 @@ const failOpen = (reason) => ({
 
 t('POLICY_TIMEOUT_MS is the 2000 ms placeholder', () => {
   assert.equal(POLICY_TIMEOUT_MS, 2000);
+});
+
+// I-3: 0 disables spawnSync's timeout, and -1, 150.5, '200', Infinity, NaN make it throw,
+// which would turn every hook call into a silent adapter_cli_failed.
+const BAD_TIMEOUTS = [0, -1, 150.5, '200', Infinity, NaN, undefined, null, 2 ** 53, true];
+
+t('effectiveTimeoutMs keeps a positive safe integer and maps anything else to the default', () => {
+  for (const bad of BAD_TIMEOUTS) assert.equal(effectiveTimeoutMs(bad), POLICY_TIMEOUT_MS, String(bad));
+  for (const ok of [1, 200, 5000]) assert.equal(effectiveTimeoutMs(ok), ok);
+});
+
+t('runPolicy with a bad timeoutMs falls back to the default and still answers correctly', () => {
+  for (const bad of BAD_TIMEOUTS) {
+    const out = runPolicy({ prompt: 'x' }, { timeoutMs: bad });
+    assert.deepEqual(out.reasons, ['no_rule'], `timeoutMs ${String(bad)}: ${JSON.stringify(out.reasons)}`);
+  }
 });
 
 t('the real CLI answers no_rule for a prompt that matches nothing', () => {

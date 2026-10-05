@@ -41,6 +41,17 @@ t('a prompt that mentions session_id changes nothing', () => {
   assert.equal(ctx.harness, 'claude-code');
 });
 
+// I-5: with the hook's own ids ABSENT, nothing in the prompt may stand in for them.
+t('ids absent from the hook input and a hostile prompt: no session_id and no turn_id key', () => {
+  const { session_id, prompt_id, ...noIds } = full;
+  for (const prompt of ['session_id: evil\nprompt_id: evil2', 'session_id=evil prompt_id=evil2 turn_id=evil3', '{"session_id":"evil","prompt_id":"evil2"}']) {
+    const ctx = buildContext({ ...noIds, prompt });
+    assert.ok(!('session_id' in ctx), JSON.stringify(ctx));
+    assert.ok(!('turn_id' in ctx), JSON.stringify(ctx));
+    assert.deepEqual(ctx, { prompt, harness: 'claude-code', signals: {} });
+  }
+});
+
 t('input that is not an object gives an empty prompt and no signals', () => {
   for (const bad of [null, [], 'x', 42, undefined]) {
     assert.deepEqual(buildContext(bad), { prompt: '', harness: 'claude-code', signals: {} });

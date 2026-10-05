@@ -12,7 +12,9 @@ import { buildContext } from './build-context.mjs';
 import { runPolicy } from './run-policy.mjs';
 
 // Reasons worth a stderr line. Decision reasons (no_rule, rule ids, user_override, ...) are not.
-// bad_input and internal_error are the CLI's own failure lines.
+// bad_input is the CLI's own failure line (stdin not a JSON object). internal_error is BOTH
+// the CLI's crash line and a decide() reason (decide fails closed with it); either way it is
+// an alert.
 const ALERT_REASONS = new Set([
   'unknown_arg',
   'bad_holdout_rate',
