@@ -54,7 +54,7 @@ The design and every constraint are already written. Start from the spec section
 
 ## ES-3 — Claude Code adapter (a `UserPromptSubmit` hook)
 
-**Status:** built 2026-10-05 on branch `feat/effort-steering-adapter` (worktree `/home/marius/work/claude/claude-plugins-effort-steering-adapter`, base `6a92fe2`, head `a2f1f6f`; NOT merged, NOT pushed). Plan Tasks 2 to 4: `adapter/claude-code/build-context.mjs`, `run-policy.mjs`, `user-prompt-submit.mjs`, each with Opus-reviewed tests (mutation lens) and one fix round. The final whole-branch review says the adapter can merge once one test lands (ids absent + hostile prompt, FINAL I-5). Still open from it: `latencyBudgetMs` must be an integer and `runPolicy` must guard `timeoutMs` (FINAL I-3), and the planned `hooks.json` must set `EFFORT_STEERING_HOLDOUT_RATE` or production has no holdout (route to ES-10).
+**Status:** done in code 2026-10-05 and MERGED into local `main` (merge commit `586367e`; not pushed). Plan Tasks 2 to 4 plus the final fix wave: `adapter/claude-code/build-context.mjs`, `run-policy.mjs`, `user-prompt-submit.mjs`, each with Opus-reviewed tests (mutation lens). Still open from the final review: the planned `hooks.json` must set `EFFORT_STEERING_HOLDOUT_RATE` or production has no holdout (route to ES-10), and a stdin that never closes needs a `timeout` in `hooks.json` (ES-10).
 **Done when:** a hook script under `effort-steering/` reads the hook input, calls `bin/effort-policy.mjs decide` and emits `additionalContext` only when `steer` is not null, with tests.
 
 Facts from spike S1: the hook input has `session_id`, `transcript_path`, `cwd`, `prompt_id`, `permission_mode`, `hook_event_name` and `prompt` (all strings) and no effort level. Use `prompt_id` as `turn_id`. Constraints:
@@ -138,7 +138,7 @@ Never bump a version inline in a feature commit. The spikes hard-code machine-sp
 
 ## ES-11 — Push, and remove the branch and worktree
 
-**Status:** with the "Push and deploy ceremony" session.
+**Status:** open — the operator decides (the "Push and deploy ceremony" session has no further work until then). Update 2026-10-05: `main` is now 53 commits ahead of `origin/main` (the first-phase work, the issue-file commits, the plan, the adapter branch merge `586367e` and the tracker commits). Three worktrees exist: the old `claude-plugins-effort-steering` (branch `feat/effort-steering-core`, clean, holds the first phase's scratch reports) and `claude-plugins-effort-steering-adapter` (branch `feat/effort-steering-adapter`, merged, holds the SDD ledger with rulings R1 to R25), plus an unrelated prunable `/tmp/claude-plugins-buddy-codex-summon`. Removing a worktree deletes its git-ignored scratch; remove each only on the operator's word.
 **Done when:** the operator decides whether and when `main` is pushed (local `main` is 19 commits ahead of `origin/main`: 17 are the effort-steering commits, 2 were there before), and the branch `feat/effort-steering-core` and the worktree `/home/marius/work/claude/claude-plugins-effort-steering` are removed.
 
 Removing the worktree deletes its gitignored scratch workspace (`.superpowers/sdd/`), which holds the first phase's task reports. Remove the worktree first (`git worktree remove`), then the branch (`git branch -d feat/effort-steering-core`).
