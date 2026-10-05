@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { cpSync, mkdtempSync, readFileSync, writeFileSync, readdirSync } from 'node:fs';
+import { cpSync, mkdtempSync, readFileSync, writeFileSync, readdirSync, rmSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import os from 'node:os';
 import path from 'node:path';
@@ -9,6 +9,7 @@ import { POLICY_TIMEOUT_MS, runPolicy } from './run-policy.mjs';
 
 const ES = fileURLToPath(new URL('../..', import.meta.url));
 const ROOT = mkdtempSync(path.join(os.tmpdir(), 'run-policy-'));
+process.on('exit', () => rmSync(ROOT, { recursive: true, force: true }));
 
 // A copy of bin/ and core/ whose CLI is replaced by `source`.
 function copyTree(source) {
@@ -39,7 +40,8 @@ t('the real CLI answers no_rule for a prompt that matches nothing', () => {
 });
 
 t('a CLI that sleeps is killed at the timeout and the result fails open', () => {
-  const { tree, cli } = copyTree('setTimeout(() => {}, 5000);\n');
+  // The stub traps SIGTERM: only SIGKILL ends it early, so this pins killSignal.
+  const { tree, cli } = copyTree("process.on('SIGTERM', () => {}); setTimeout(() => {}, 5000);\n");
   const start = Date.now();
   const out = runPolicy({ prompt: 'x' }, { cliPath: cli, timeoutMs: 200 });
   const elapsed = Date.now() - start;
@@ -48,6 +50,12 @@ t('a CLI that sleeps is killed at the timeout and the result fails open', () => 
   // No orphan: nothing run from this tree is still alive.
   const ps = spawnSync('pgrep', ['-f', tree], { encoding: 'utf8' });
   assert.equal(ps.stdout.trim(), '', `orphan process: ${ps.stdout}`);
+});
+
+t('a valid line with non-default values in every field passes through whole', () => {
+  const want = { level: 'deep', confidence: 'high', reasons: ['r1'], steer: 'STEER TEXT', arm: 'holdout' };
+  const { cli } = copyTree(`console.log(${JSON.stringify(JSON.stringify(want))});\n`);
+  assert.deepEqual(runPolicy({ prompt: 'x' }, { cliPath: cli }), want);
 });
 
 t('a CLI that exits 64 fails open as adapter_cli_failed', () => {
