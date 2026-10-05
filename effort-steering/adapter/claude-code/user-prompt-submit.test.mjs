@@ -5,7 +5,7 @@
 // stray stdout is read as hook output. Both are pinned here.
 
 import assert from 'node:assert/strict';
-import { closeSync, cpSync, mkdirSync, mkdtempSync, openSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { closeSync, cpSync, mkdirSync, mkdtempSync, openSync, readdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import os from 'node:os';
 import path from 'node:path';
@@ -22,6 +22,10 @@ const SHALLOW = 'Answer directly without deliberating.';
 
 const ROOT = mkdtempSync(path.join(os.tmpdir(), 'ups-test-'));
 process.on('exit', () => rmSync(ROOT, { recursive: true, force: true }));
+// Handle-level tests run the real CLI with --log; the child inherits process.env, so without
+// this the records would land in the user's real ~/.local/state/effort-steering. Set it
+// before any handle call.
+process.env.XDG_STATE_HOME = mkdtempSync(path.join(ROOT, 'xdg-'));
 
 const rule = (over = {}) => ({ id: 'r-shallow', level: 'shallow', confidence: 'high', reason: 'test', when: { minChars: 0 }, ...over });
 const freshState = () => mkdtempSync(path.join(ROOT, 'state-'));
@@ -40,10 +44,13 @@ function runHook(hook, input, { env = {}, stdio } = {}) {
   const res = spawnSync(process.execPath, [hook], {
     input: stdio ? undefined : input,
     stdio,
-    env: { ...process.env, ...env },
+    // An explicit state dir on every call, so no process-level run can reach the real one.
+    env: { ...process.env, XDG_STATE_HOME: freshState(), ...env },
     encoding: 'utf8',
     maxBuffer: 16 * 1024 * 1024,
+    timeout: 15000,
   });
+  assert.ok(!res.error, `hook did not finish: ${res.error}`);
   return { status: res.status, stdout: res.stdout, stderr: res.stderr };
 }
 
@@ -80,7 +87,8 @@ t('bad stdin (broken JSON, empty, an array, a string, null): stdout empty, exit 
     const res = runHook(ALL_FOR_SHALLOW.hook, input, { env: { XDG_STATE_HOME: freshState() } });
     assert.equal(res.status, 0, `${JSON.stringify(input)}: ${res.stderr}`);
     assert.equal(res.stdout, '', JSON.stringify(input));
-    assert.deepEqual(handle(input, {}), { output: null, alerts: [] }, JSON.stringify(input));
+    assert.deepEqual(handle(input, {}), { output: null, alerts: ['adapter_bad_input'] }, JSON.stringify(input));
+    assert.equal(res.stderr, 'effort-steering: adapter_bad_input\n', JSON.stringify(input));
   }
 });
 
@@ -165,7 +173,9 @@ t('two concurrent runs with different session_id make two files, one line each',
   });
   const node = JSON.stringify(process.execPath);
   const hook = JSON.stringify(ALL_FOR_SHALLOW.hook);
-  const script = files.map((f) => `${node} ${hook} < ${JSON.stringify(f)} > /dev/null &`).join('\n') + '\nwait\n';
+  // Each PID is waited on by itself: a bare `wait` always returns 0 and would hide a failed hook.
+  const script = files.map((f, i) => `${node} ${hook} < ${JSON.stringify(f)} > /dev/null & p${i}=$!`).join('\n')
+    + '\nwait $p0; s0=$?\nwait $p1; s1=$?\nexit $((s0 + s1))\n';
   const res = spawnSync('sh', ['-c', script], { env: { ...process.env, XDG_STATE_HOME: state }, encoding: 'utf8' });
   assert.equal(res.status, 0, res.stderr);
   const dir = path.join(state, 'effort-steering');
@@ -242,11 +252,12 @@ t('alerts: exactly the alert reasons, in order; decision reasons are not alerts'
     'log_skipped_no_ids', 'log_failed', 'adapter_timeout', 'adapter_cli_failed', 'adapter_bad_output',
     'bad_input', 'internal_error',
   ];
-  const { cli } = copyTree({ cliSource: stub(result({ reasons })) });
-  assert.deepEqual(handle(FIXTURE_TEXT, {}, { cliPath: cli }).alerts, [
+  const expectedAlerts = [
     'unknown_arg', 'bad_holdout_rate', 'rules_unreadable', 'rules_skipped:x:invalid_regex', 'table_unreadable',
-    'log_skipped_no_ids', 'log_failed', 'adapter_timeout', 'adapter_cli_failed', 'adapter_bad_output',
-  ]);
+    'log_skipped_no_ids', 'log_failed', 'adapter_timeout', 'adapter_cli_failed', 'adapter_bad_output', 'bad_input', 'internal_error',
+  ];
+  const { cli } = copyTree({ cliSource: stub(result({ reasons })) });
+  assert.deepEqual(handle(FIXTURE_TEXT, {}, { cliPath: cli }).alerts, expectedAlerts);
 });
 
 t('the holdout rate env reaches the CLI as --holdout-rate; absent, no flag is passed', () => {
@@ -265,14 +276,93 @@ t('the CLI is called with --log and nothing else when no env is set', () => {
   const { cli } = copyTree({ cliSource: echo });
   assert.equal(handle(FIXTURE_TEXT, {}, { cliPath: cli }).output.hookSpecificOutput.additionalContext, 'decide --log');
   const withRate = handle(FIXTURE_TEXT, { EFFORT_STEERING_HOLDOUT_RATE: '0.25' }, { cliPath: cli });
-  assert.equal(withRate.output.hookSpecificOutput.additionalContext, 'decide --log --holdout-rate 0.25');
+  assert.equal(withRate.output.hookSpecificOutput.additionalContext, 'decide --log --holdout-rate=0.25');
 });
 
 t('R8: handle never throws, whatever the pipeline does', () => {
   const hostile = { toString() { throw new Error('boom'); } };
   const internal = { output: null, alerts: ['adapter_internal_error'] };
-  assert.deepEqual(handle(hostile, {}), { output: null, alerts: [] }, 'unparseable stdin is silent, not an internal error');
+  assert.deepEqual(handle(hostile, {}), { output: null, alerts: ['adapter_bad_input'] }, 'unparseable stdin is bad input, not an internal error');
   assert.deepEqual(handle(FIXTURE_TEXT, null), internal);
   const throwingEnv = { get EFFORT_STEERING_HOLDOUT_RATE() { throw new Error('boom'); } };
   assert.deepEqual(handle(FIXTURE_TEXT, throwingEnv), internal);
+});
+
+t('production holdout wiring: EFFORT_STEERING_HOLDOUT_RATE=1 in the hook env holds the turn out and logs arm holdout', () => {
+  const state = freshState();
+  const res = runHook(ALL_FOR_SHALLOW.hook, FIXTURE_TEXT, { env: { XDG_STATE_HOME: state, EFFORT_STEERING_HOLDOUT_RATE: '1' } });
+  assert.equal(res.status, 0, res.stderr);
+  assert.equal(res.stdout, '');
+  assert.equal(res.stderr, '');
+  const line = readFileSync(path.join(state, 'effort-steering', `${FIXTURE.session_id}.jsonl`), 'utf8').trim();
+  assert.equal(JSON.parse(line).arm, 'holdout');
+});
+
+t('production holdout wiring: an EMPTY EFFORT_STEERING_HOLDOUT_RATE is a bad rate, not an absent one', () => {
+  const res = runHook(ALL_FOR_SHALLOW.hook, FIXTURE_TEXT, { env: { EFFORT_STEERING_HOLDOUT_RATE: '' } });
+  assert.equal(res.status, 0, res.stderr);
+  assert.equal(res.stdout, '');
+  assert.equal(res.stderr, 'effort-steering: bad_holdout_rate\n');
+});
+
+t('R11: a rate value that looks like a flag stays one argv element and loads no override file', () => {
+  const badRules = path.join(ROOT, 'override-rules.json');
+  writeFileSync(badRules, JSON.stringify({ version: 9, rules: [rule({ id: 'ovr', when: { matchesAny: ['('] } })] }));
+  const value = `--rules=${badRules}`;
+  const echo = "console.log(JSON.stringify({level:'default',confidence:'low',reasons:[],steer:JSON.stringify(process.argv.slice(2)),arm:'treated'}));\n";
+  const { cli: echoCli } = copyTree({ cliSource: echo });
+  const argv = JSON.parse(handle(FIXTURE_TEXT, { EFFORT_STEERING_HOLDOUT_RATE: value }, { cliPath: echoCli }).output.hookSpecificOutput.additionalContext);
+  assert.deepEqual(argv, ['decide', '--log', `--holdout-rate=${value}`]);
+  // Against the real CLI: only bad_holdout_rate; a loaded override would add rules_skipped:ovr:invalid_regex.
+  const { cli } = copyTree({ rules: [rule()] });
+  assert.deepEqual(handle(FIXTURE_TEXT, { EFFORT_STEERING_HOLDOUT_RATE: value }, { cliPath: cli }), { output: null, alerts: ['bad_holdout_rate'] });
+});
+
+t('R12: unusable stdin gives adapter_bad_input and never calls the CLI; CLI bad_input/internal_error are alerts', () => {
+  const marker = path.join(ROOT, 'cli-was-called');
+  const { cli } = copyTree({ cliSource: `import { writeFileSync } from 'node:fs'; writeFileSync(${JSON.stringify(marker)}, 'x');\n` });
+  for (const input of ['{oops', '', '[]', 'null', '"x"']) {
+    assert.deepEqual(handle(input, {}, { cliPath: cli }), { output: null, alerts: ['adapter_bad_input'] }, JSON.stringify(input));
+  }
+  assert.throws(() => readFileSync(marker), /ENOENT/);
+  const { cli: c2 } = copyTree({ cliSource: stub(result({ reasons: ['bad_input'] })) });
+  assert.deepEqual(handle(FIXTURE_TEXT, {}, { cliPath: c2 }).alerts, ['bad_input']);
+  const { cli: c3 } = copyTree({ cliSource: stub(result({ reasons: ['internal_error'] })) });
+  assert.deepEqual(handle(FIXTURE_TEXT, {}, { cliPath: c3 }).alerts, ['internal_error']);
+});
+
+t('R13: a steer over 4096 chars is refused with adapter_bad_output; exactly 4096 is emitted whole', () => {
+  const big = copyTree({ cliSource: stub(result({ steer: 'x'.repeat(5000) })) });
+  assert.deepEqual(handle(FIXTURE_TEXT, {}, { cliPath: big.cli }), { output: null, alerts: ['adapter_bad_output'] });
+  const res = runHook(big.hook, FIXTURE_TEXT);
+  assert.equal(res.stdout, '');
+  assert.equal(res.stderr, 'effort-steering: adapter_bad_output\n');
+  const edge = copyTree({ cliSource: stub(result({ steer: 'y'.repeat(4096) })) });
+  const out = handle(FIXTURE_TEXT, {}, { cliPath: edge.cli });
+  assert.equal(out.output.hookSpecificOutput.additionalContext, 'y'.repeat(4096));
+  const run = runHook(edge.hook, FIXTURE_TEXT);
+  assert.equal(JSON.parse(run.stdout).hookSpecificOutput.additionalContext.length, 4096);
+});
+
+t('R14a: a reason holding a newline cannot forge a second stderr line', () => {
+  const { hook } = copyTree({ cliSource: stub(result({ reasons: ['rules_skipped:bad\neffort-steering: FORGED_LINE:invalid_regex'] })) });
+  const res = runHook(hook, FIXTURE_TEXT);
+  assert.equal(res.status, 0);
+  assert.equal(res.stderr.split('\n').length, 2, res.stderr);
+  assert.ok(res.stderr.endsWith('\n'));
+});
+
+t('R14b: the hook runs when started through a symlinked directory', () => {
+  const link = path.join(ROOT, 'link-to-tree');
+  symlinkSync(ALL_FOR_SHALLOW.tree, link, 'dir');
+  const res = runHook(path.join(link, HOOK_REL), FIXTURE_TEXT);
+  assert.equal(res.status, 0, res.stderr);
+  assert.equal(JSON.parse(res.stdout).hookSpecificOutput.additionalContext, SHALLOW);
+});
+
+t('a CLI line whose reasons is not an array of strings: no output, adapter_bad_output, no internal error', () => {
+  for (const reasons of ['x', null, {}, [1], ['ok', null]]) {
+    const { cli } = copyTree({ cliSource: stub(result({ reasons, steer: 'S' })) });
+    assert.deepEqual(handle(FIXTURE_TEXT, {}, { cliPath: cli }), { output: null, alerts: ['adapter_bad_output'] }, JSON.stringify(reasons));
+  }
 });
