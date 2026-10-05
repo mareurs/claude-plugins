@@ -1,13 +1,19 @@
 import { spawnSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import { readFileSync, lstatSync } from 'node:fs';
 import { basename, dirname, resolve } from 'node:path';
 
 // S4 preregistration loader. The S4 runner calls this FIRST and spawns nothing
 // if it throws: a gate number may not be changed after it was registered.
 // Reads and runs read-only git queries only; never calls a model, never writes.
+//
+// Authority for "unchanged since registration" (ruling R15): the bytes read here
+// must equal the HEAD blob byte for byte. git's own change detection (index
+// flags, mtimes, filters, textconv) is never trusted. Those bytes are then the
+// ones parsed.
 
 const isNum = (v) => typeof v === 'number' && Number.isFinite(v);
-const isInt = (v) => Number.isInteger(v);
+const isInt = (v) => Number.isSafeInteger(v);
+const blank = (s) => typeof s !== 'string' || s.trim().length === 0;
 
 function validate(p) {
   if (p === null || typeof p !== 'object' || Array.isArray(p)) throw new Error('prereg: file must hold a JSON object');
@@ -22,45 +28,62 @@ function validate(p) {
   need(isNum(p.holdoutRate) && p.holdoutRate > 0 && p.holdoutRate < 1, 'holdoutRate', 'must be a number strictly between 0 and 1');
   need(isInt(p.repeats) && p.repeats >= 3, 'repeats', 'must be an integer >= 3');
   need(isInt(p.minPerArm) && p.minPerArm >= 3, 'minPerArm', 'must be an integer >= 3');
-  need(typeof p.model === 'string' && p.model.length > 0, 'model', 'must be a non-empty string');
+  need(!blank(p.model), 'model', 'must be a non-blank string');
   need(
-    Array.isArray(p.prompts) && p.prompts.length >= 4 && p.prompts.every((s) => typeof s === 'string' && s.length > 0),
+    Array.isArray(p.prompts) && p.prompts.every((s) => !blank(s)) && new Set(p.prompts.map((s) => s.trim())).size >= 4 && new Set(p.prompts.map((s) => s.trim())).size === p.prompts.length,
     'prompts',
-    'must be an array of at least 4 non-empty strings',
+    'must be an array of at least 4 distinct, non-blank strings',
   );
   need(p.steerLevel === 'shallow' || p.steerLevel === 'deep', 'steerLevel', "must be 'shallow' or 'deep'");
   need(p.direction === 'down' || p.direction === 'up', 'direction', "must be 'down' or 'up'");
   need(p.direction === (p.steerLevel === 'shallow' ? 'down' : 'up'), 'direction', `'${p.direction}' does not match steerLevel '${p.steerLevel}' (shallow is down, deep is up)`);
 }
 
-// Git runs in the file's own directory, never the process cwd. The environment
-// is cleaned so a hook's GIT_DIR/GIT_WORK_TREE/GIT_INDEX_FILE cannot redirect it.
+// Git runs in the file's own directory, never the process cwd. EVERY GIT_*
+// variable is dropped (GIT_DIR, GIT_CONFIG_COUNT/KEY/VALUE injection, ...) and
+// global/system config is switched off, so nothing outside the repo steers it.
 function runGit(file, args) {
-  const env = { ...process.env };
-  for (const k of ['GIT_DIR', 'GIT_WORK_TREE', 'GIT_INDEX_FILE']) delete env[k];
-  return spawnSync('git', ['-C', dirname(file), ...args, '--', basename(file)], { env, encoding: 'utf8' });
+  const env = {};
+  for (const [k, v] of Object.entries(process.env)) if (!k.startsWith('GIT_')) env[k] = v;
+  env.HOME = '/nonexistent';
+  env.XDG_CONFIG_HOME = '/nonexistent';
+  env.GIT_CONFIG_GLOBAL = '/dev/null';
+  env.GIT_CONFIG_NOSYSTEM = '1';
+  return spawnSync('git', ['--literal-pathspecs', '-C', dirname(file), ...args], { env, maxBuffer: 64 * 1024 * 1024 });
 }
 
-function requireCommitted(file) {
-  const tracked = runGit(file, ['ls-files', '--error-unmatch']);
+function requireCommitted(file, bytes) {
+  const name = basename(file);
+  const tracked = runGit(file, ['ls-files', '--error-unmatch', '--', name]);
   if (tracked.error || tracked.status !== 0) {
     throw new Error(`prereg: ${file} is not committed (not tracked by git, or not in a git repository)`);
   }
-  const diff = runGit(file, ['diff', '--quiet', 'HEAD']);
-  if (diff.error) throw new Error(`prereg: ${file} is not committed (git failed: ${diff.error.message})`);
-  if (diff.status === 1) throw new Error(`prereg: ${file} differs from HEAD (a registered value was changed after commit)`);
-  if (diff.status !== 0) throw new Error(`prereg: ${file} is not committed (git diff exited ${diff.status}: ${String(diff.stderr).trim()})`);
+  const blob = runGit(file, ['cat-file', 'blob', `HEAD:./${name}`]);
+  if (blob.error || blob.status !== 0) {
+    throw new Error(`prereg: ${file} is not committed (no HEAD version: ${blob.error ? blob.error.message : String(blob.stderr).trim()})`);
+  }
+  if (!bytes.equals(blob.stdout)) {
+    throw new Error(`prereg: ${file} differs from HEAD (a registered value was changed after commit)`);
+  }
 }
 
 export function loadPrereg(file) {
   const abs = resolve(file);
+  let bytes;
+  try {
+    if (lstatSync(abs).isSymbolicLink()) throw new Error(`prereg: ${abs} is not committed: it is a symlink`);
+    bytes = readFileSync(abs);
+  } catch (err) {
+    if (/not committed/.test(err.message)) throw err;
+    throw new Error(`prereg: cannot read ${abs}: ${err.message}`);
+  }
   let parsed;
   try {
-    parsed = JSON.parse(readFileSync(abs, 'utf8'));
+    parsed = JSON.parse(bytes.toString('utf8'));
   } catch (err) {
-    throw new Error(`prereg: cannot read ${abs} as JSON: ${err.message}`);
+    throw new Error(`prereg: ${abs} is not valid JSON: ${err.message}`);
   }
   validate(parsed);
-  requireCommitted(abs);
+  requireCommitted(abs, bytes);
   return parsed;
 }
