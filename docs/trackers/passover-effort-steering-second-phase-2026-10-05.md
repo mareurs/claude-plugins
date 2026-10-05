@@ -34,6 +34,13 @@ Original state at the first handover: the first phase is done and merged locally
 - Temp files: `/tmp/effort-steering-spikes/` holds aggregate reports from spikes S2 and S3. They hold no prompt text and are safe to delete.
 - No process needs to run.
 
+
+## Local deployment (2026-10-05, operator-approved)
+
+The adapter hook is wired into the MAIN profile only, as a logging-only trial: `~/.claude/settings.json` has `hooks.UserPromptSubmit = [{hooks:[{type:"command", command:"node /home/marius/work/claude/claude-plugins/effort-steering/adapter/claude-code/user-prompt-submit.mjs", timeout:5}]}]`. `~/.claude-sdd` and `~/.claude-kat` are NOT wired (the operator chose one profile first). It points at the working tree of `main`, so a later change to those files is live at once. The shipped `core/rules.json` is empty, so the hook never steers: it writes one decision record per prompt (a prompt hash and numeric features, no prompt text) to `~/.local/state/effort-steering/<session_id>.jsonl`, costs about 90 ms wall time per prompt (two node starts) and cannot block a prompt (it always exits 0). A session picks the entry up at its next start or after `/hooks`. This is NOT the S4 experiment: S4 runs in temp directories and never reads this log. The planned `hooks.json` for the packaged plugin still has to set `EFFORT_STEERING_HOLDOUT_RATE` (ES-10).
+
+**To undo:** `jq 'del(.hooks.UserPromptSubmit)' ~/.claude/settings.json > /tmp/s.json && mv /tmp/s.json ~/.claude/settings.json` (the file had `"hooks": {}` before; `del(.hooks.UserPromptSubmit)` leaves exactly that). Delete the logs with `rm -r ~/.local/state/effort-steering`. Moving or renaming the repo makes the hook exit 1 (a visible, non-blocking error), so update or remove the entry then.
+
 ## Anti-goals
 
 - Do not add `plugin.json`, a marketplace entry or a README row before the adapter works and the gate of ES-5 passes (ES-10). That would ship an empty plugin.
