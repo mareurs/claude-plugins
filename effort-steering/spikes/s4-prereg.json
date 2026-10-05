@@ -7,5 +7,8 @@
   "minPerArm": null,
   "model": null,
   "prompts": [],
-  "steerLevel": null
+  "steerLevel": null,
+  "alpha": null,
+  "permutations": null,
+  "seed": null
 }

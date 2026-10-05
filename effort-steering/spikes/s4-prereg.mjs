@@ -20,11 +20,12 @@ function validate(p) {
   const need = (cond, field, why) => {
     if (!cond) throw new Error(`prereg: field ${field} ${why}`);
   };
-  for (const k of ['direction', 'effectSizeThinkingTokens', 'latencyBudgetMs', 'holdoutRate', 'repeats', 'minPerArm', 'model', 'prompts', 'steerLevel']) {
+  for (const k of ['direction', 'effectSizeThinkingTokens', 'latencyBudgetMs', 'holdoutRate', 'repeats', 'minPerArm', 'model', 'prompts', 'steerLevel', 'alpha', 'permutations', 'seed']) {
     need(p[k] !== undefined && p[k] !== null, k, 'is required and must not be null');
   }
   need(isNum(p.effectSizeThinkingTokens) && p.effectSizeThinkingTokens > 0, 'effectSizeThinkingTokens', 'must be a finite number > 0');
-  need(isNum(p.latencyBudgetMs) && p.latencyBudgetMs > 0, 'latencyBudgetMs', 'must be a finite number > 0');
+  // An integer: run-policy's timeout must be one, or spawnSync throws and every hook call fails open.
+  need(isInt(p.latencyBudgetMs) && p.latencyBudgetMs > 0, 'latencyBudgetMs', 'must be a safe integer > 0');
   need(isNum(p.holdoutRate) && p.holdoutRate > 0 && p.holdoutRate < 1, 'holdoutRate', 'must be a number strictly between 0 and 1');
   need(isInt(p.repeats) && p.repeats >= 3, 'repeats', 'must be an integer >= 3');
   need(isInt(p.minPerArm) && p.minPerArm >= 3, 'minPerArm', 'must be an integer >= 3');
@@ -34,9 +35,21 @@ function validate(p) {
     'prompts',
     'must be an array of at least 4 distinct, non-blank strings',
   );
+  // Each prompt is the last argv element of `claude -p`: a bare word can equal a claude
+  // subcommand (`update`, `install`, `purge`, `ultrareview`; `--` does not stop subcommand
+  // dispatch), a leading `-` parses as a flag, a leading `/` is a slash command.
+  p.prompts.forEach((s, i) => {
+    const lead = s.trimStart();
+    need(lead.trim().split(/\s+/).length >= 2, `prompts[${i}]`, 'must be at least two whitespace-separated words');
+    need(!lead.startsWith('-') && !lead.startsWith('/'), `prompts[${i}]`, "must not start with '-' or '/'");
+  });
   need(p.steerLevel === 'shallow' || p.steerLevel === 'deep', 'steerLevel', "must be 'shallow' or 'deep'");
   need(p.direction === 'down' || p.direction === 'up', 'direction', "must be 'down' or 'up'");
   need(p.direction === (p.steerLevel === 'shallow' ? 'down' : 'up'), 'direction', `'${p.direction}' does not match steerLevel '${p.steerLevel}' (shallow is down, deep is up)`);
+  // R24: the one-sided permutation test and the seeded arm plan.
+  need(isNum(p.alpha) && p.alpha > 0 && p.alpha < 1, 'alpha', 'must be a finite number strictly between 0 and 1');
+  need(isInt(p.permutations) && p.permutations >= 1, 'permutations', 'must be a safe integer >= 1');
+  need(isInt(p.seed), 'seed', 'must be a safe integer');
 }
 
 // Git runs in the file's own directory, never the process cwd. EVERY GIT_*

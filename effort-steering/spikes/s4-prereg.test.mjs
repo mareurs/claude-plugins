@@ -31,11 +31,19 @@ const VALID = {
   repeats: 5,
   minPerArm: 4,
   model: 'm-test',
-  prompts: ['p1', 'p2', 'p3', 'p4'],
+  prompts: ['prompt one', 'prompt two', 'prompt three', 'prompt four'],
   steerLevel: 'shallow',
+  alpha: 0.05,
+  permutations: 1000,
+  seed: 12345,
 };
 
-const RAW = (eff, lat) => `{"direction":"down","effectSizeThinkingTokens":${eff},"latencyBudgetMs":${lat},"holdoutRate":0.25,"repeats":5,"minPerArm":4,"model":"m","prompts":["a","b","c","d"],"steerLevel":"shallow"}`;
+// Raw text, for numbers JSON.stringify cannot write (1e999, 2^53 + 1). The last three
+// arguments are the R24 fields, raw too.
+const RAW = (eff, lat, alpha = '0.05', perms = '1000', seed = '12345') =>
+  `{"direction":"down","effectSizeThinkingTokens":${eff},"latencyBudgetMs":${lat},"holdoutRate":0.25,"repeats":5,"minPerArm":4,"model":"m","prompts":["a a","b b","c c","d d"],"steerLevel":"shallow","alpha":${alpha},"permutations":${perms},"seed":${seed}}`;
+// Four distinct two-word prompts, with `p` substituted at index i.
+const promptsWith = (i, p) => ['w a', 'w b', 'w c', 'w d'].map((s, k) => (k === i ? p : s));
 
 let n = 0;
 // Write a prereg file in the repo; commit it unless told otherwise.
@@ -93,6 +101,44 @@ t('effectSizeThinkingTokens must be a positive finite number', () => {
 t('latencyBudgetMs must be a positive finite number', () => {
   for (const bad of [0, -5, '100']) throwsNaming({ ...VALID, latencyBudgetMs: bad }, 'latencyBudgetMs');
   throwsNaming(RAW(500, '1e999'), 'latencyBudgetMs');
+});
+
+t('latencyBudgetMs must be a safe integer: 150.5 throws naming the field, 1 loads', () => {
+  throwsNaming({ ...VALID, latencyBudgetMs: 150.5 }, 'latencyBudgetMs');
+  throwsNaming(RAW(500, '9007199254740993'), 'latencyBudgetMs');
+  assert.equal(loadPrereg(put({ ...VALID, latencyBudgetMs: 1 })).latencyBudgetMs, 1);
+});
+
+// ---- R24: the registered permutation test ----
+
+t('alpha must be a finite number strictly between 0 and 1', () => {
+  for (const bad of [0, 1, -0.1, 1.5, '0.05', true]) throwsNaming({ ...VALID, alpha: bad }, 'alpha');
+  throwsNaming(RAW(500, 2000, '1e999'), 'alpha');
+  for (const ok of [0.0001, 0.05, 0.9999]) assert.equal(loadPrereg(put({ ...VALID, alpha: ok })).alpha, ok);
+});
+
+t('permutations must be a safe integer >= 1', () => {
+  for (const bad of [0, -1, 1.5, '100', true]) throwsNaming({ ...VALID, permutations: bad }, 'permutations');
+  throwsNaming(RAW(500, 2000, '0.05', '1e300'), 'permutations');
+  assert.equal(loadPrereg(put({ ...VALID, permutations: 1 })).permutations, 1);
+});
+
+t('seed must be a safe integer (negative and zero allowed)', () => {
+  for (const bad of [1.5, '1', true, [1]]) throwsNaming({ ...VALID, seed: bad }, 'seed');
+  throwsNaming(RAW(500, 2000, '0.05', '1000', '9007199254740993'), 'seed');
+  throwsNaming(RAW(500, 2000, '0.05', '1000', '1e300'), 'seed');
+  for (const ok of [0, -5, Number.MAX_SAFE_INTEGER]) assert.equal(loadPrereg(put({ ...VALID, seed: ok })).seed, ok);
+});
+
+t('a missing or null R24 field is reported as required, like every other field', () => {
+  for (const k of ['alpha', 'permutations', 'seed']) {
+    const missing = { ...VALID };
+    delete missing[k];
+    for (const obj of [missing, { ...VALID, [k]: null }]) {
+      const f = put(obj);
+      assert.throws(() => loadPrereg(f), new RegExp(`field ${k} is required and must not be null`), k);
+    }
+  }
 });
 
 t('holdoutRate must be strictly inside (0, 1)', () => {
@@ -186,6 +232,38 @@ t('loadPrereg does not modify the file or the repo', () => {
 t('the real committed template throws: its numbers are null', () => {
   const real = fileURLToPath(new URL('./s4-prereg.json', import.meta.url));
   assert.throws(() => loadPrereg(real), /field \w+ is required and must not be null/);
+});
+
+t('the real template lists every registered field, the R24 fields last and null', () => {
+  const real = JSON.parse(readFileSync(fileURLToPath(new URL('./s4-prereg.json', import.meta.url)), 'utf8'));
+  assert.deepEqual(Object.keys(real), ['direction', 'effectSizeThinkingTokens', 'latencyBudgetMs', 'holdoutRate', 'repeats', 'minPerArm', 'model', 'prompts', 'steerLevel', 'alpha', 'permutations', 'seed']);
+  for (const k of ['alpha', 'permutations', 'seed']) assert.equal(real[k], null, k);
+});
+
+// ---- prompt guards (final review M-2): a prompt is the last argv element of `claude -p` ----
+
+const throwsAt = (prompts, index) => {
+  const f = put({ ...VALID, prompts });
+  assert.throws(() => loadPrereg(f), (e) => e instanceof Error && e.message.includes(`prompts[${index}]`), `expected an error naming prompts[${index}]`);
+};
+
+t('a bare one-word prompt is rejected naming its index (a claude subcommand name could dispatch)', () => {
+  for (const word of ['update', 'install', 'purge', 'ultrareview', 'doctor', 'x']) throwsAt(promptsWith(2, word), 2);
+  throwsAt(promptsWith(0, 'update '), 0); // one word after trimming
+  throwsAt(promptsWith(3, '  install\n'), 3);
+});
+
+t('a prompt starting with - is rejected naming its index (it would parse as a flag)', () => {
+  for (const p of ['-c and more', '--settings x', '--help me', '- dash then words', '  -c leading space']) throwsAt(promptsWith(1, p), 1);
+});
+
+t('a prompt starting with / is rejected naming its index (a slash command)', () => {
+  for (const p of ['/ultrareview now', '/help me', '  /compact this']) throwsAt(promptsWith(3, p), 3);
+});
+
+t('valid multi-word prompts load, including a tab and an inner dash or slash', () => {
+  const prompts = ['fix the bug', 'explain\tthis', 'a-b c', 'path a/b please'];
+  assert.deepEqual(loadPrereg(put({ ...VALID, prompts })).prompts, prompts);
 });
 
 // ---- registration bypasses (ruling R15): an edited, unregistered value must not load ----
@@ -283,11 +361,18 @@ t('a repo with no commits and the file staged throws', () => {
 
 // ---- stricter field rules ----
 
+// Two-word prompts, so the duplicate rule (not the one-word rule) is what throws.
+const DISTINCT = /at least 4 distinct, non-blank strings/;
+const throwsDistinct = (prompts) => {
+  const f = put({ ...VALID, prompts });
+  assert.throws(() => loadPrereg(f), DISTINCT, JSON.stringify(prompts));
+};
+
 t('duplicate, blank and whitespace-only prompts are rejected', () => {
-  throwsNaming({ ...VALID, prompts: ['a', 'b', 'c', 'a'] }, 'prompts');
-  throwsNaming({ ...VALID, prompts: ['a', 'b', 'c', ' a '] }, 'prompts');
-  throwsNaming({ ...VALID, prompts: ['a', 'b', 'c', '   '] }, 'prompts');
-  throwsNaming({ ...VALID, prompts: ['a', 'b', 'c', 'd', 'a'] }, 'prompts');
+  throwsDistinct(['w a', 'w b', 'w c', 'w a']);
+  throwsDistinct(['w a', 'w b', 'w c', ' w a ']);
+  throwsDistinct(['w a', 'w b', 'w c', '   ']);
+  throwsDistinct(['w a', 'w b', 'w c', 'w d', 'w a']);
 });
 
 t('a whitespace-only model is rejected', () => {
@@ -467,5 +552,5 @@ t('a repo-local core.fsmonitor hook does not run', () => {
 });
 
 t('prompt duplicates that differ only in whitespace are rejected', () => {
-  throwsNaming({ ...VALID, prompts: ['a', 'b', 'c', 'd', ' a '] }, 'prompts');
+  throwsDistinct(['w a', 'w b', 'w c', 'w d', ' w a ']);
 });

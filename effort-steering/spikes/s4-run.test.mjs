@@ -69,6 +69,9 @@ const prereg = (over = {}) => ({
   model: 'm-test',
   prompts: ['p one', 'p two', 'p three', 'p four'],
   steerLevel: 'shallow',
+  alpha: 0.05,
+  permutations: 500,
+  seed: 7,
   ...over,
 });
 const silent = () => {};
@@ -224,18 +227,26 @@ await ta('each claude call carries the registered args and never --no-session-pe
   assert.equal(sids.size, 12);
 });
 
-await ta('the prompt is the LAST argv element, after `--`, so a prompt starting with - is never a flag', async () => {
-  const prompts = ['--settings x', '-c', '--help', 'plain'];
-  const { f } = await run({ prompts });
+await ta('the prompt is the LAST argv element, after `--`', async () => {
+  const { f, p } = await run();
   assert.equal(f.calls.claude.length, 12);
   for (const c of f.calls.claude) {
     const a = c.args;
     assert.equal(a.at(-2), '--');
-    assert.ok(prompts.includes(a.at(-1)));
+    assert.ok(p.prompts.includes(a.at(-1)));
     assert.equal(a.indexOf('--'), a.length - 2);
     assert.ok(!a.slice(0, -1).includes(a.at(-1)), 'the prompt text must not appear before `--`');
   }
-  assert.deepEqual(new Set(f.calls.claude.map((c) => c.args.at(-1))), new Set(prompts));
+  assert.deepEqual(new Set(f.calls.claude.map((c) => c.args.at(-1))), new Set(p.prompts));
+});
+
+await ta('a dash-led, slash-led or one-word prompt is refused by loadPrereg with ZERO spawns', async () => {
+  for (const bad of ['--settings x', '-c', '--help', '/ultrareview now', 'update']) {
+    const f = fakeEnv({ configDir: tmp() });
+    const file = put(prereg({ prompts: ['p one', 'p two', 'p three', bad] }));
+    await assert.rejects(runExperiment(file, { spawn: f.spawn, confirm: true, out: silent, now: f.now }), /prompts\[3\]/, bad);
+    assert.equal(total(f), 0, bad);
+  }
 });
 
 await ta('--strict-mcp-config is passed, before `--`', async () => {
