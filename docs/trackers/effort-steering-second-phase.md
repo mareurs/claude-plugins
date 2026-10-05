@@ -94,7 +94,7 @@ S3 tested prompt features only. The only feature that separated depth was `isQue
 
 ## ES-7 — Make the `run-all.sh` glob recursive
 
-**Status:** open — a prerequisite for the tests of ES-3.
+**Status:** done — 2026-10-05. `tests/run-all.sh` now finds `effort-steering/**/*.test.mjs` at any depth with `find` (sorted, `node_modules` pruned). `tests/test-run-all-effort-discovery.sh` plants suites at depths 1 to 3, checks that a failing depth-3 suite fails the run, and checks that the empty-population guard still trips. It failed on the old glob (a failing depth-3 suite gave exit 0) and passes now. The full run lists 66 suites (65 plus the new test), all passing.
 **Done when:** `tests/run-all.sh` finds `effort-steering/**/*.test.mjs` at any depth, the population is asserted, and a test shows that a suite two levels deep is run.
 
 Today the glob reaches one level (`effort-steering/*/*.test.mjs`). A test under `effort-steering/adapter/claude-code/` would never run, and the runner would still print "All suites passed". `CS_TEST_SKIP` is keyed by file basename, so generic names such as `log.test.mjs` can collide.

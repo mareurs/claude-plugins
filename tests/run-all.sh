@@ -25,12 +25,20 @@ trap 'rm -rf "$CS_TEST_STATE_SANDBOX"' EXIT
 HOOK_TESTS_DIR="$SCRIPT_DIR/../codescout-companion/hooks"
 PI_EXTENSION_TESTS_DIR="$SCRIPT_DIR/../codescout-companion/.pi/extensions"
 SKILL_TESTS_DIR="$SCRIPT_DIR/../codescout-companion/skills"
-# effort-steering/<module>/*.test.mjs — a new top-level plugin directory is
-# otherwise never scanned, and the runner would still print "All suites passed".
+# effort-steering/**/*.test.mjs at ANY depth — a new top-level plugin directory is
+# otherwise never scanned, and a one-level glob misses the adapter's tests two levels
+# down (effort-steering/adapter/claude-code/); the runner would still print
+# "All suites passed". `find` rather than globstar so node_modules can be pruned.
 EFFORT_TESTS_DIR="$SCRIPT_DIR/../effort-steering"
+EFFORT_SUITES=()
+if [ -d "$EFFORT_TESTS_DIR" ]; then
+  while IFS= read -r -d '' f; do EFFORT_SUITES+=("$f"); done < <(
+    find "$EFFORT_TESTS_DIR" -name node_modules -prune -o -type f -name '*.test.mjs' -print0 | sort -z
+  )
+fi
 
 shopt -s nullglob
-SUITES=("$SCRIPT_DIR"/test-*.sh "$HOOK_TESTS_DIR"/*.test.sh "$SKILL_TESTS_DIR"/*/*.test.sh "$HOOK_TESTS_DIR"/*.test.mjs "$PI_EXTENSION_TESTS_DIR"/*.test.mjs "$EFFORT_TESTS_DIR"/*/*.test.mjs)
+SUITES=("$SCRIPT_DIR"/test-*.sh "$HOOK_TESTS_DIR"/*.test.sh "$SKILL_TESTS_DIR"/*/*.test.sh "$HOOK_TESTS_DIR"/*.test.mjs "$PI_EXTENSION_TESTS_DIR"/*.test.mjs ${EFFORT_SUITES[@]+"${EFFORT_SUITES[@]}"})
 shopt -u nullglob
 
 # LOAD-BEARING. Without nullglob a non-matching glob survives as a literal path and
