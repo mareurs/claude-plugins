@@ -68,7 +68,9 @@ Facts from spike S1: the hook input has `session_id`, `transcript_path`, `cwd`, 
 
 ## ES-4 — Check how Claude Code merges `additionalContext` from several hooks
 
-**Status:** open — unverified.
+**Status:** partly answered 2026-10-05 (read-only half, plan Task 1, branch `feat/effort-steering-adapter` commit `8b2642c`). The live merge check (plan Task 7 Step 7) is still open and needs the operator's approval for one model call.
+
+**Read-only findings** (counts from the implementer's run over the three profiles; the total drifts by about 1 because live sessions append): 943 transcript files, 6,013 turns, 69 contexts with a `UserPromptSubmit` record. `UserPromptSubmit` output is recorded as `attachment` type `hook_success` (71 records in 35 files, checked by the controller), NOT `hook_additional_context`. The hook fired on non-human turns: peer 7, task-notification 6, command 24. So `UserPromptSubmit` does fire for those triggers, which answers that unverified claim in the affirmative for these three kinds. `hookName` is always the literal `UserPromptSubmit`, so the ORDER of several hooks cannot be read from a transcript (`orders` shows only `UserPromptSubmit>UserPromptSubmit`, 2 turns). The ordering and the cache-neutrality questions remain open.
 **Done when:** a scratch run shows the order and the merge of `additionalContext` when `codescout-companion`'s `constitution-brief.mjs` and the new hook both fire, and the result is recorded here.
 
 Spike S1 ran with user-level plugin hooks switched off (`--setting-sources local`), so it says nothing about this. Also check whether hook-injected steering text is cache-neutral. That feeds ES-5.
