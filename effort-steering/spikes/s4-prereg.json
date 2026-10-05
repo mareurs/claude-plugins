@@ -1,0 +1,11 @@
+{
+  "direction": null,
+  "effectSizeThinkingTokens": null,
+  "latencyBudgetMs": null,
+  "holdoutRate": null,
+  "repeats": null,
+  "minPerArm": null,
+  "model": null,
+  "prompts": [],
+  "steerLevel": null
+}
