@@ -3,11 +3,24 @@
 // decision-log arm with its transcript tokens (s4-rows.mjs), calls analyzeArms, and returns
 // a verdict plus a `stop` list.
 //
-// SAFETY GATES. `main` calls loadPrereg FIRST, so an incomplete, uncommitted or edited
-// prereg stops everything before any spawn. runExperiment spawns nothing unless
-// confirm === true. Every run is isolated: the scratch settings register one hook that
-// points at a COPY of effort-steering/ (one rule that matches every prompt), and the child
-// gets its own XDG_STATE_HOME, so nothing lands in the real ~/.local/state.
+// SAFETY GATES. runExperiment takes the prereg FILE PATH and calls loadPrereg on it FIRST
+// (ruling R21), so an incomplete, uncommitted or edited prereg stops everything before any
+// spawn, whoever the caller is. Nothing spawns unless confirm === true, and the hook
+// latency gate (no model call) runs before the first `claude` call: a slow hook costs
+// nothing. Every run is isolated: the scratch settings register one hook that points at a
+// COPY of effort-steering/ (one rule that matches every prompt), the child gets its own
+// XDG_STATE_HOME, and every temp directory is resolved to an absolute real path (a relative
+// TMPDIR would make log.mjs ignore the state dir and write to the real ~/.local/state).
+//
+// KNOWN RESIDUE: each run leaves its transcript in the REAL config dir,
+// <CLAUDE_CONFIG_DIR or ~/.claude>/projects/<slug of the temp cwd>/<sessionId>.jsonl.
+// That is how the tokens are measured (no --no-session-persistence), and nothing here
+// cleans it up.
+//
+// Failed runs never become measurements (R22): a spawn error, signal or non-zero exit, a
+// missing log/transcript, an ambiguous transcript, or an API-error transcript EXCLUDES the
+// run; `excluded` counts them, `excludedByReason` splits them, and any exclusion puts
+// `runs_excluded` in `stop`.
 //
 // Tests inject `spawn`; the default is the real thing. Nothing here runs at import.
 
@@ -18,7 +31,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { analyzeArms } from './s4-analyze.mjs';
-import { loadPrereg } from './s4-prereg.mjs';
+import { loadPrereg, runGit } from './s4-prereg.mjs';
 import { buildRow } from './s4-rows.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -26,8 +39,19 @@ const ES_ROOT = path.join(HERE, '..');
 const HOOK_REL = path.join('adapter', 'claude-code', 'user-prompt-submit.mjs');
 const DEFAULT_PREREG = path.join(HERE, 's4-prereg.json');
 const RUN_TIMEOUT_MS = 10 * 60 * 1000;
+const HOOK_TIMEOUT_MS = 30 * 1000;
+const REASONS = ['no_log', 'no_transcript', 'ambiguous_transcript', 'spawn_failed', 'api_error'];
 
 const defaultSpawn = (cmd, args, opts) => spawnSync(cmd, args, opts);
+const failed = (res) => !res || Boolean(res.error) || Boolean(res.signal) || res.status !== 0;
+const shellQuote = (s) => `'${String(s).replace(/'/g, `'\\''`)}'`;
+
+// An absolute, symlink-resolved temp dir; a relative TMPDIR cannot leak through.
+function makeRoot(prefix, base) {
+  const dir = realpathSync(mkdtempSync(path.join(base ?? os.tmpdir(), prefix)));
+  if (!path.isAbsolute(dir)) throw new Error(`s4-run: temp dir ${dir} is not absolute`);
+  return dir;
+}
 
 export function planRuns(prereg) {
   const runs = [];
@@ -37,12 +61,14 @@ export function planRuns(prereg) {
   return runs;
 }
 
-// Nearest rank: sorted[ceil(0.95 * n) - 1].
+// Nearest rank: sorted[ceil(0.95 * n) - 1]. A hook run that errors, is killed or exits
+// non-zero fails the gate whatever its time.
 export function measureHookLatency(prereg, opts = {}) {
   const spawn = opts.spawn ?? defaultSpawn;
   const now = opts.now ?? (() => performance.now());
-  const root = mkdtempSync(path.join(os.tmpdir(), 's4-latency-'));
+  const root = makeRoot('s4-latency-', opts.tmpDir);
   const times = [];
+  let failures = 0;
   try {
     const hook = path.join(ES_ROOT, HOOK_REL);
     const env = { ...process.env, XDG_STATE_HOME: path.join(root, 'state'), EFFORT_STEERING_HOLDOUT_RATE: String(prereg.holdoutRate) };
@@ -58,8 +84,9 @@ export function measureHookLatency(prereg, opts = {}) {
           permission_mode: 'default',
         });
         const t0 = now();
-        spawn(process.execPath, [hook], { input, env, cwd: root, encoding: 'utf8', timeout: 30000 });
+        const res = spawn(process.execPath, [hook], { input, env, cwd: root, encoding: 'utf8', timeout: HOOK_TIMEOUT_MS, killSignal: 'SIGKILL' });
         times.push(now() - t0);
+        if (failed(res)) failures++;
       }
     }
   } finally {
@@ -68,7 +95,7 @@ export function measureHookLatency(prereg, opts = {}) {
   const sorted = [...times].sort((a, b) => a - b);
   const n = sorted.length;
   const p95Ms = n === 0 ? null : sorted[Math.ceil(0.95 * n) - 1];
-  return { n, p95Ms, ok: p95Ms !== null && p95Ms <= prereg.latencyBudgetMs };
+  return { n, p95Ms, failures, ok: p95Ms !== null && failures === 0 && p95Ms <= prereg.latencyBudgetMs };
 }
 
 // Copy bin/, core/, adapter/ into the scratch root, give the copy a one-rule rules.json,
@@ -87,39 +114,55 @@ function writeScratch(prereg, root) {
   };
   writeFileSync(path.join(copy, 'core', 'rules.json'), `${JSON.stringify({ version: 1, rules: [rule] })}\n`);
   const hook = path.join(copy, HOOK_REL);
-  const settings = { hooks: { UserPromptSubmit: [{ hooks: [{ type: 'command', command: `"${process.execPath}" "${hook}"` }] }] } };
+  const settings = { hooks: { UserPromptSubmit: [{ hooks: [{ type: 'command', command: `${shellQuote(process.execPath)} ${shellQuote(hook)}` }] }] } };
   const file = path.join(root, 'settings.json');
   writeFileSync(file, `${JSON.stringify(settings, null, 2)}\n`);
   return file;
 }
 
+// The prereg's repo HEAD, through loadPrereg's own git runner (every GIT_* variable dropped).
 function gitHead(file) {
-  const r = spawnSync('git', ['rev-parse', 'HEAD'], { cwd: path.dirname(file), encoding: 'utf8' });
-  return r.status === 0 ? String(r.stdout).trim() : null;
+  const r = runGit(path.resolve(file), ['rev-parse', 'HEAD']);
+  return !r.error && r.status === 0 ? String(r.stdout).trim() : null;
 }
 
-export function stopReasons(analysis, latency) {
+// Gate on "is a clean pass" rather than listing the bad verdicts: an unknown verdict stops.
+export function stopReasons(analysis, latency, excluded = 0) {
   const stop = [];
-  if (analysis.verdict === 'mechanism_fail') stop.push('mechanism_fail');
-  if (analysis.verdict === 'insufficient_data') stop.push('insufficient_data');
+  const v = analysis.verdict;
+  if (v !== 'mechanism_pass') {
+    if (v === 'mechanism_fail') stop.push('mechanism_fail');
+    else if (v === 'insufficient_data') stop.push('insufficient_data');
+    else stop.push('verdict_unknown');
+  }
   if (analysis.cacheOk !== true) stop.push('cache_not_ok');
   if (latency.ok !== true) stop.push('latency_not_ok');
+  if (excluded > 0) stop.push('runs_excluded');
   return stop;
 }
 
-// deps (tests): spawn, confirm, configDir, now, out, preregFile, gitCommit.
-export async function runExperiment(prereg, opts = {}) {
+const zeroReasons = () => Object.fromEntries(REASONS.map((r) => [r, 0]));
+
+// opts (tests): spawn, confirm, configDir, now, out, tmpDir.
+export async function runExperiment(preregFile, opts = {}) {
+  // R21: the registration gate comes before planning, latency or any spawn.
+  const prereg = loadPrereg(preregFile);
   const spawn = opts.spawn ?? defaultSpawn;
   const out = opts.out ?? ((s) => console.log(s));
-  const preregFile = opts.preregFile ?? DEFAULT_PREREG;
   const runs = planRuns(prereg);
-  const gitCommit = opts.gitCommit ?? gitHead(preregFile);
+  const gitCommit = gitHead(preregFile);
   if (opts.confirm !== true) {
     out(`s4-run: ${runs.length} model calls (model ${prereg.model}); nothing spawned, pass --confirm to run`);
-    return { verdict: 'not_run', analysis: null, latency: null, excluded: 0, stop: ['not_confirmed'], calls: runs.length, gitCommit };
+    return { verdict: 'not_run', analysis: null, latency: null, excluded: 0, excludedByReason: zeroReasons(), stop: ['not_confirmed'], calls: runs.length, gitCommit };
   }
 
-  const root = mkdtempSync(path.join(os.tmpdir(), 's4-run-'));
+  // The latency gate costs no model call: a slow hook stops here, before any claude call.
+  const latency = measureHookLatency(prereg, { spawn, now: opts.now, tmpDir: opts.tmpDir });
+  if (latency.ok !== true) {
+    return { verdict: 'not_run', analysis: null, latency, excluded: 0, excludedByReason: zeroReasons(), stop: ['latency_not_ok'], calls: 0, gitCommit };
+  }
+
+  const root = makeRoot('s4-run-', opts.tmpDir);
   try {
     const settings = writeScratch(prereg, root);
     const stateHome = path.join(root, 'state');
@@ -127,29 +170,38 @@ export async function runExperiment(prereg, opts = {}) {
     mkdirSync(cwd, { recursive: true });
     mkdirSync(stateHome, { recursive: true });
     const env = { ...process.env, EFFORT_STEERING_HOLDOUT_RATE: String(prereg.holdoutRate), XDG_STATE_HOME: stateHome };
+    const spawnFailed = new Set();
     for (const run of runs) {
-      const args = ['-p', run.prompt, '--model', prereg.model, '--session-id', run.sessionId, '--setting-sources', 'local', '--settings', settings];
-      await spawn('claude', args, { cwd, env, encoding: 'utf8', timeout: RUN_TIMEOUT_MS });
+      // `--` ends option parsing: a prompt that starts with `-` is still a prompt.
+      const args = ['-p', '--model', prereg.model, '--session-id', run.sessionId, '--setting-sources', 'local', '--settings', settings, '--strict-mcp-config', '--', run.prompt];
+      const res = await spawn('claude', args, { cwd, env, encoding: 'utf8', timeout: RUN_TIMEOUT_MS, killSignal: 'SIGKILL' });
+      if (failed(res)) spawnFailed.add(run.sessionId);
     }
     const rows = [];
+    const byReason = zeroReasons();
     let excluded = 0;
     for (const run of runs) {
-      const row = buildRow(run.sessionId, { stateDir: path.join(stateHome, 'effort-steering'), configDir: opts.configDir });
-      if (row === null) excluded++;
-      else rows.push(row);
+      const built = spawnFailed.has(run.sessionId)
+        ? { reason: 'spawn_failed' }
+        : buildRow(run.sessionId, { stateDir: path.join(stateHome, 'effort-steering'), configDir: opts.configDir });
+      if (built.row) {
+        rows.push(built.row);
+      } else {
+        excluded++;
+        byReason[built.reason]++;
+      }
     }
     const analysis = analyzeArms(rows, prereg);
-    const latency = measureHookLatency(prereg, { spawn, now: opts.now });
-    return { verdict: analysis.verdict, analysis, latency, excluded, stop: stopReasons(analysis, latency), gitCommit };
+    return { verdict: analysis.verdict, analysis, latency, excluded, excludedByReason: byReason, stop: stopReasons(analysis, latency, excluded), gitCommit };
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
 }
 
-// The entry point: loadPrereg runs BEFORE anything can spawn.
+// The entry point. The only flag is the exact string --confirm; deps.confirm is ignored.
 export async function main(argv, deps = {}) {
-  const prereg = loadPrereg(deps.preregFile ?? DEFAULT_PREREG);
-  return runExperiment(prereg, { ...deps, confirm: argv.includes('--confirm') });
+  if (!Array.isArray(argv)) throw new TypeError('s4-run: argv must be an array');
+  return runExperiment(deps.preregFile ?? DEFAULT_PREREG, { ...deps, confirm: argv.includes('--confirm') });
 }
 
 function isMainModule() {

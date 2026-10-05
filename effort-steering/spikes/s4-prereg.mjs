@@ -42,7 +42,7 @@ function validate(p) {
 // Git runs in the file's own directory, never the process cwd. EVERY GIT_*
 // variable is dropped (GIT_DIR, GIT_CONFIG_COUNT/KEY/VALUE injection, ...) and
 // global/system config is switched off, so nothing outside the repo steers it.
-function runGit(file, args) {
+export function runGit(file, args) {
   const env = {};
   for (const [k, v] of Object.entries(process.env)) if (!k.startsWith('GIT_')) env[k] = v;
   env.HOME = '/nonexistent';
