@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { t } from '../core/testkit.mjs';
-import { turnsFromTranscript, bucketReport, byEffort, median, p90, createTurnCollector, measuredTurns, replay, profileName } from './s3-replay.mjs';
+import { turnsFromTranscript, bucketReport, byEffort, median, p90, createTurnCollector, measuredTurns, replay, profileName, signalReport, formatTable } from './s3-replay.mjs';
 
 // Placeholder fixture. Shapes follow real Claude Code records (fields found in
 // Step 1 of the S3 brief); every text value is a placeholder, never transcript content.
@@ -380,3 +380,110 @@ for (const name of ['peer', 'task-notification']) {
     assert.deepEqual(c.dropped()[name], { messages: 1, thinkingTokens: 900, turns: 1 });
   });
 }
+
+// ---- Task 8 (ES-6): session signals prevTurnFailed and planMode.
+
+const rec = (isError, extra = {}) =>
+  user([{ type: 'tool_result', tool_use_id: 'toolu_e', is_error: isError, content: 'PLACEHOLDER' }], { toolUseResult: 'PLACEHOLDER', origin: undefined, ...extra });
+const collect = (ls) => {
+  const c = createTurnCollector('message.id');
+  for (const l of ls) c.push(l);
+  return c.turns();
+};
+const reply = (mid) => assistant({ mid, thinking: 1, out: 1, cache: 1 });
+
+t('a turn after a turn with an is_error tool_result has prevTurnFailed true; the first turn is false', () => {
+  const [a, b, c] = collect([
+    user('PLACEHOLDER-A'), reply('e1'), rec(true), reply('e2'),
+    user('PLACEHOLDER-B'), reply('e3'),
+    user('PLACEHOLDER-C'), reply('e4'),
+  ]);
+  assert.equal(a.prevTurnFailed, false);
+  assert.equal(b.prevTurnFailed, true);
+  assert.equal(c.prevTurnFailed, false); // B had no error: the flag does not stick
+});
+
+t('prevTurnFailed uses the previous turn, not the current one', () => {
+  const [a, b] = collect([user('PLACEHOLDER-A'), reply('f1'), user('PLACEHOLDER-B'), reply('f2'), rec(true)]);
+  assert.equal(a.prevTurnFailed, false);
+  assert.equal(b.prevTurnFailed, false);
+  assert.equal(b.toolErrors, 1);
+});
+
+t('is_error false, absent, or a non-tool_result block is not a failure', () => {
+  const [, b, , d] = collect([
+    user('PLACEHOLDER-A'), reply('g1'), rec(false),
+    user('PLACEHOLDER-B'), reply('g2'),
+    user([{ type: 'tool_result', tool_use_id: 'x', content: 'PLACEHOLDER' }], { toolUseResult: 'P', origin: undefined }),
+    user('PLACEHOLDER-C'), reply('g3'),
+    user('PLACEHOLDER-D'), reply('g4'),
+  ]);
+  assert.equal(b.prevTurnFailed, false);
+  assert.equal(d.prevTurnFailed, false);
+});
+
+t('prevTurnFailed does not leak between sessions in one stream', () => {
+  const s = (sid, extra = {}) => ({ sessionId: sid, ...extra });
+  const [, b, c] = collect([
+    user('PLACEHOLDER-A', s('s1')), reply('h1'), rec(true, s('s1')),
+    user('PLACEHOLDER-B', s('s2')), reply('h2'), // first turn of session s2
+    user('PLACEHOLDER-C', s('s2')), reply('h3'),
+  ]);
+  assert.equal(b.prevTurnFailed, false);
+  assert.equal(c.prevTurnFailed, false);
+});
+
+t('prevTurnFailed skips an unmeasured turn (no reply) back to the last measured one', () => {
+  const [, , c] = collect([
+    user('PLACEHOLDER-A'), reply('i1'), rec(true),
+    user('PLACEHOLDER-B'), // no reply: not measured
+    user('PLACEHOLDER-C'), reply('i2'),
+  ]);
+  assert.equal(c.prevTurnFailed, true);
+});
+
+t('an error result from a sidechain record is not the main turn failure; one after a dropped trigger is not either', () => {
+  const [, b, c, d] = collect([
+    user('PLACEHOLDER-A'), reply('j1'), rec(true, { isSidechain: true }),
+    user('PLACEHOLDER-B'), reply('j2'), TRIGGERS.peer(), rec(true), // belongs to a dropped reply
+    user('PLACEHOLDER-C'), reply('j3'),
+    user('PLACEHOLDER-D'), reply('j4'),
+  ]);
+  assert.equal(b.prevTurnFailed, false);
+  assert.equal(c.prevTurnFailed, false); // B's only error came after the trigger
+  assert.equal(d.prevTurnFailed, false);
+});
+
+t('two collectors (two files) do not share previous-turn memory', () => {
+  const x = collect([user('PLACEHOLDER-A'), reply('k1'), rec(true)]);
+  const y = collect([user('PLACEHOLDER-B'), reply('k2')]);
+  assert.equal(x[0].toolErrors, 1);
+  assert.equal(y[0].prevTurnFailed, false);
+});
+
+t('planMode comes from the top-level permissionMode of the prompt record, null when absent', () => {
+  const [a, b, c, d] = collect([
+    user('PLACEHOLDER-A', { permissionMode: 'plan' }), reply('l1'),
+    user('PLACEHOLDER-B', { permissionMode: 'auto' }), reply('l2'),
+    user('PLACEHOLDER-C'), reply('l3'),
+    user('PLACEHOLDER-D', { permissionMode: 'default' }), reply('l4'),
+  ]);
+  assert.deepEqual([a.planMode, b.planMode, c.planMode, d.planMode], [true, false, null, false]);
+});
+
+t('signalReport groups thinking tokens by prevTurnFailed and planMode, with n; empty group prints no data', () => {
+  const mk = (th, f, p) => ({ ...turn(1, th), prevTurnFailed: f, planMode: p });
+  const turns = [mk(10, false, null), mk(20, false, null), mk(30, true, null), mk(50, true, null), mk(70, true, null)];
+  const rows = signalReport(turns);
+  const by = Object.fromEntries(rows.map((r) => [r.name, r]));
+  assert.equal(by['prevTurnFailed=true'].n, 3);
+  assert.equal(by['prevTurnFailed=true'].median, 50);
+  assert.equal(by['prevTurnFailed=false'].n, 2);
+  assert.equal(by['prevTurnFailed=false'].median, 15);
+  assert.equal(by['planMode=true'].n, 0);
+  assert.equal(by['planMode=null'].n, 5);
+  const text = formatTable('T', rows).join('\n');
+  assert.match(text, /prevTurnFailed=true\s+3\s+50\s+70/);
+  assert.match(text, /planMode=true\s+0\s+no data/);
+  assert.ok(!/planMode=true\s+0\s+0/.test(text));
+});

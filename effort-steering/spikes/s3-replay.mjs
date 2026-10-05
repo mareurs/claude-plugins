@@ -99,9 +99,22 @@ export function createTurnCollector(dedupeKey, opts = {}) {
   const seen = opts.seen || new Set();
   const dropped = {};
   const droppedTurns = {}; // trigger -> Set of human turns that lost replies
+  const sessionOf = new Map(); // turn -> sessionId of its prompt record (never exposed on the turn)
   let cur = null; // the open measured turn, or null
   let sink = null; // trigger label while replies are being dropped
   let sinkTurn = null; // the last human turn open when the trigger fired
+  // Session signals (ES-6). prevTurnFailed: the previous MEASURED turn (one with a
+  // counted reply) of the same session held a tool_result with is_error === true;
+  // false for the first turn of a session. Error results count only for the open
+  // turn from non-sidechain records, mirroring how replies are attributed: a result
+  // after a trigger (dropped replies) or from a sidechain belongs to no turn.
+  const prevFailed = (sid) => {
+    for (let i = turns.length - 1; i >= 0; i--) {
+      if (sessionOf.get(turns[i]) !== sid) return false;
+      if (turns[i].messages > 0) return turns[i].toolErrors > 0;
+    }
+    return false;
+  };
   return {
     push(text) {
       if (!text.includes('"user"') && !text.includes('"assistant"')) return;
@@ -113,6 +126,7 @@ export function createTurnCollector(dedupeKey, opts = {}) {
       }
       const prompt = realPromptText(obj);
       if (prompt !== null) {
+        const sid = typeof obj.sessionId === 'string' ? obj.sessionId : null;
         cur = {
           promptSha256: crypto.createHash('sha256').update(prompt).digest('hex'),
           features: extractFeatures(prompt),
@@ -121,7 +135,11 @@ export function createTurnCollector(dedupeKey, opts = {}) {
           cacheCreation: 0,
           effort: null,
           messages: 0,
+          toolErrors: 0,
+          prevTurnFailed: prevFailed(sid),
+          planMode: typeof obj.permissionMode === 'string' ? obj.permissionMode === 'plan' : null,
         };
+        sessionOf.set(cur, sid);
         turns.push(cur);
         sink = null;
         sinkTurn = null;
@@ -135,6 +153,10 @@ export function createTurnCollector(dedupeKey, opts = {}) {
         if (cur !== null) sinkTurn = cur;
         cur = null;
         sink = trigger;
+        return;
+      }
+      if (obj && obj.type === 'user' && obj.isSidechain !== true) {
+        if (cur !== null) cur.toolErrors += countErrorResults(obj);
         return;
       }
       if (!obj || obj.type !== 'assistant' || obj.isSidechain === true) return;
@@ -174,6 +196,14 @@ export function createTurnCollector(dedupeKey, opts = {}) {
       return dropped;
     },
   };
+}
+
+// Number of tool_result blocks with is_error === true in a user record (strictly
+// the boolean true; false, absent or a string does not count).
+function countErrorResults(obj) {
+  const content = obj.message && obj.message.content;
+  if (!Array.isArray(content)) return 0;
+  return content.filter((b) => b && b.type === 'tool_result' && b.is_error === true).length;
 }
 
 // A turn starts at a real user prompt and ends at the next one. Assistant messages
@@ -236,10 +266,44 @@ const CONFOUNDERS = [
   'Buckets overlap (one turn can be in several) and the features are weak labels; a bucket median is not a causal effect of the prompt.',
 ];
 
+function countBy(items, keyFn) {
+  const out = {};
+  for (const x of items) {
+    const k = keyFn(x);
+    out[k] = (out[k] || 0) + 1;
+  }
+  return out;
+}
+
+// Lines of a bucket table. An empty bucket prints `no data`, not 0.
+export function formatTable(title, rows) {
+  const out = [`\n${title}`, 'bucket'.padEnd(18) + 'n'.padStart(7) + 'median'.padStart(9) + 'p90'.padStart(9)];
+  for (const r of rows) {
+    const stats = r.n === 0 ? 'no data'.padStart(18) : String(r.median).padStart(9) + String(r.p90).padStart(9);
+    out.push(r.name.padEnd(18) + String(r.n).padStart(7) + stats);
+  }
+  return out;
+}
+
 function table(title, rows) {
-  console.log(`\n${title}`);
-  console.log('bucket'.padEnd(18) + 'n'.padStart(7) + 'median'.padStart(9) + 'p90'.padStart(9));
-  for (const r of rows) console.log(r.name.padEnd(18) + String(r.n).padStart(7) + String(r.median).padStart(9) + String(r.p90).padStart(9));
+  for (const l of formatTable(title, rows)) console.log(l);
+}
+
+// Thinking-token statistics grouped by the session signals (ES-6). planMode has
+// three groups because null (no field in the transcript) is not false.
+const SIGNAL_GROUPS = [
+  ['prevTurnFailed=true', (x) => x.prevTurnFailed === true],
+  ['prevTurnFailed=false', (x) => x.prevTurnFailed === false],
+  ['planMode=true', (x) => x.planMode === true],
+  ['planMode=false', (x) => x.planMode === false],
+  ['planMode=null', (x) => x.planMode === null || x.planMode === undefined],
+];
+
+export function signalReport(turns) {
+  return SIGNAL_GROUPS.map(([name, pred]) => {
+    const vals = turns.filter(pred).map((x) => x.thinkingTokens);
+    return { name, n: vals.length, median: median(vals), p90: p90(vals) };
+  });
 }
 
 // Profile folder name of a project directory (".claude", ".claude-sdd", ...), never
@@ -305,6 +369,9 @@ async function main() {
     droppedAfterTriggers: dropped,
     effortCounts: Object.fromEntries(Object.entries(groups).map(([k, v]) => [k, v.length])),
     statistic: 'thinkingTokens per turn (sum over deduped assistant messages); replies to peer / task-notification / command records are dropped, not attributed to the previous prompt',
+    signals: signalReport(measured),
+    signalsByEffort: Object.fromEntries(Object.entries(groups).map(([k, v]) => [k, signalReport(v)])),
+    permissionModeCounts: countBy(all, (x) => (x.planMode === null ? 'absent' : x.planMode ? 'plan' : 'not-plan')),
     buckets: { all: bucketReport(measured), byEffort: Object.fromEntries(Object.entries(groups).map(([k, v]) => [k, bucketReport(v)])) },
     confounders: CONFOUNDERS,
   };
@@ -319,6 +386,9 @@ async function main() {
   console.log(`effort counts: ${JSON.stringify(report.effortCounts)}`);
   table('ALL EFFORT LEVELS (thinking tokens per turn)', report.buckets.all);
   for (const [k, rows] of Object.entries(report.buckets.byEffort)) table(`effort=${k}`, rows);
+  console.log(`\nplanMode over all turns: ${JSON.stringify(report.permissionModeCounts)}`);
+  table('SESSION SIGNALS (all effort levels; association, not cause)', report.signals);
+  for (const [k, rows] of Object.entries(report.signalsByEffort)) table(`signals, effort=${k}`, rows);
   console.log('\nCONFOUNDERS');
   for (const c of CONFOUNDERS) console.log(`- ${c}`);
   console.log(`\nwrote ${outFile}`);
