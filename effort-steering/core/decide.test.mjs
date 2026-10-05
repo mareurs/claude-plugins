@@ -1,4 +1,6 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { t } from './testkit.mjs';
 import { POLICY_VERSION, compileRules, decide } from './decide.mjs';
 
@@ -395,4 +397,34 @@ t('decide ignores raw rules whose level or confidence is outside the vocabulary'
   assert.deepEqual(decide({ prompt: 'x' }, mixed), { level: 'deep', confidence: 'medium', reasons: ['ok'] });
   const mixedConf = { rules: [{ id: 'bad', level: 'deep', confidence: 'bogus', when: {} }, { id: 'ok', level: 'deep', confidence: 'low', when: {} }] };
   assert.deepEqual(decide({ prompt: 'x' }, mixedConf), { level: 'default', confidence: 'low', reasons: ['low_confidence', 'ok'] });
+});
+
+// ES-8. The probe measures wall-clock time, so under CPU starvation it skipped benign
+// regexes and decisions differed between runs. The probe is therefore an option: a
+// caller that loads untrusted rules keeps it, and the shipped file is checked at test time.
+t('probe option: probe:false compiles a slow regex that the default probe skips', () => {
+  const raw = { version: 1, rules: [rule('slow', 'deep', 'high', { matchesAny: ['(a+)+$'] })] };
+  assert.deepEqual(compileRules(raw).skipped, [{ id: 'slow', error: 'slow_regex' }], 'the default still probes');
+  assert.deepEqual(compileRules(raw, { probe: true }).skipped, [{ id: 'slow', error: 'slow_regex' }]);
+  const off = compileRules(raw, { probe: false });
+  assert.deepEqual(off.skipped, []);
+  assert.equal(off.rules.length, 1);
+});
+
+t('probe option: probe:false still rejects a regex that does not compile', () => {
+  const raw = { version: 1, rules: [rule('bad', 'deep', 'high', { matchesAny: ['('] })] };
+  assert.deepEqual(compileRules(raw, { probe: false }).skipped, [{ id: 'bad', error: 'invalid_regex' }]);
+});
+
+t('probe option: a garbled options argument means the default probe', () => {
+  const raw = { version: 1, rules: [rule('slow', 'deep', 'high', { matchesAny: ['(a+)+$'] })] };
+  for (const opts of [null, 42, 'off', { probe: 'no' }, { probe: 0 }]) {
+    assert.deepEqual(compileRules(raw, opts).skipped, [{ id: 'slow', error: 'slow_regex' }], `opts ${JSON.stringify(opts)}`);
+  }
+});
+
+t('the shipped rules.json compiles with the probe ON and skips no rule', () => {
+  const file = fileURLToPath(new URL('./rules.json', import.meta.url));
+  const compiled = compileRules(JSON.parse(readFileSync(file, 'utf8')));
+  assert.deepEqual(compiled.skipped, [], 'a shipped rule that the probe skips would make decisions nondeterministic');
 });

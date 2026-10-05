@@ -36,6 +36,12 @@
 //   unknown_arg         an argv token was not recognized or consumed; added once per run
 //   rules_unreadable    the rules file could not be read, parsed or used (not an object with a
 //                       `rules` array); no rules apply and rules_version is 0
+//   rules_skipped:<id>:<error>
+//                       one reason per rule that was not loaded, in file order, so the file's
+//                       rules_version in the log is known to name a partly loaded file. <error>
+//                       is the compile error code (invalid_regex, slow_regex, invalid_level, ...).
+//                       slow_regex comes from a wall-clock probe that runs for a --rules
+//                       override only, never for the shipped file. Not alongside rules_unreadable.
 //   table_unreadable    the steering table could not be read, parsed or used (not an object
 //                       with a `phrases` object); steer is null and steer_version is 0
 //   bad_holdout_rate    --holdout-rate is missing its value or is not a decimal in [0, 1];
@@ -170,15 +176,22 @@ function runDecide(argv) {
   // object, or no usable `rules` array). Its own version must never reach the log.
   // A file with some bad RULES is still usable. The check is on the error code,
   // because a rule may legitimately be named "(file)".
+  //
+  // The slow-regex probe runs only for a --rules override. It measures wall-clock
+  // time, so on the shipped file it could skip a rule under CPU load and make runs
+  // differ; the shipped file is checked at test time instead (decide.test.mjs).
   let compiled;
   try {
-    compiled = compileRules(readJson(flags.rules));
+    compiled = compileRules(readJson(flags.rules), { probe: flags.rules !== DEFAULT_RULES });
     if (compiled.skipped.some((s) => s.error === 'invalid_rules_file')) throw new TypeError('rules file has no usable rules array');
   } catch {
     cli.push('rules_unreadable');
     compiled = { version: 0, rules: [], skipped: [] };
   }
+  // One reason per skipped rule, so a partly skipped file cannot pass for a whole one:
+  // the log still holds the file's version, which names rules that did not all load.
   for (const s of compiled.skipped) {
+    cli.push(`rules_skipped:${String(s.id)}:${String(s.error)}`);
     process.stderr.write(`effort-policy: rule skipped: ${String(s.id)}: ${String(s.error)}\n`);
   }
 

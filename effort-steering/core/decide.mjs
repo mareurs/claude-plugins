@@ -27,8 +27,10 @@ const reject = (code) => {
   throw new RuleError(code);
 };
 
-// Compile one regex source. Returns a plain RegExp reused at decision time.
-function compileRegex(src) {
+// Compile one regex source. Returns a plain RegExp reused at decision time. The slow-regex
+// probe runs only when `probe` is true: it measures wall-clock time, so it is the one
+// non-deterministic step in compiling (see compileRules).
+function compileRegex(src, probe) {
   if (typeof src !== 'string') reject('invalid_when_value');
   let re;
   try {
@@ -36,6 +38,7 @@ function compileRegex(src) {
   } catch {
     reject('invalid_regex');
   }
+  if (!probe) return re;
   try {
     vm.runInNewContext('new RegExp(src, "i").test(s)', { src, s: SLOW_REGEX_PROBE }, { timeout: SLOW_REGEX_MS });
   } catch (err) {
@@ -44,7 +47,7 @@ function compileRegex(src) {
   return re;
 }
 
-function compileWhen(when) {
+function compileWhen(when, probe) {
   if (!isPlainObject(when)) reject('invalid_when');
   const keys = Object.keys(when);
   if (keys.length === 0) reject('empty_when');
@@ -64,13 +67,13 @@ function compileWhen(when) {
       // An empty list is refused: an empty matchesAny never matches and an
       // empty matchesNone always does, and both hide a mistake.
       if (!Array.isArray(value) || value.length === 0) reject('invalid_when_value');
-      out[key] = value.map(compileRegex);
+      out[key] = value.map((src) => compileRegex(src, probe));
     }
   }
   return out;
 }
 
-function compileRule(raw) {
+function compileRule(raw, probe) {
   if (!isPlainObject(raw)) reject('invalid_rule');
   if (typeof raw.id !== 'string') reject('invalid_id');
   if (!LEVELS.has(raw.level)) reject('invalid_level');
@@ -80,7 +83,7 @@ function compileRule(raw) {
     level: raw.level,
     confidence: raw.confidence,
     reason: typeof raw.reason === 'string' ? raw.reason : '',
-    when: compileWhen(raw.when),
+    when: compileWhen(raw.when, probe),
   };
 }
 
@@ -93,7 +96,13 @@ function ruleLabel(raw, index) {
   return `#${index}`;
 }
 
-export function compileRules(raw) {
+// `options.probe` (default true) turns the slow-regex probe off. The probe uses wall-clock
+// time, so under CPU starvation it skipped benign regexes and the same rules compiled
+// differently between runs (27 of 1,500 in a measured run). Pass `{ probe: false }` only for
+// a file that is checked at test time, such as the shipped rules.json. Only a strict `false`
+// turns it off, so a garbled options argument keeps the probe on.
+export function compileRules(raw, options) {
+  const probe = !(isPlainObject(options) && options.probe === false);
   try {
     if (!isPlainObject(raw)) {
       return { version: 0, rules: [], skipped: [{ id: '(file)', error: 'invalid_rules_file' }] };
@@ -107,7 +116,7 @@ export function compileRules(raw) {
     const skipped = [];
     list.forEach((entry, index) => {
       try {
-        rules.push(compileRule(entry));
+        rules.push(compileRule(entry, probe));
       } catch (err) {
         const error = err instanceof RuleError ? err.message : 'invalid_rule';
         skipped.push({ id: ruleLabel(entry, index), error });

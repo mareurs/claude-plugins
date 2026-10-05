@@ -103,7 +103,12 @@ Today the glob reaches one level (`effort-steering/*/*.test.mjs`). A test under 
 
 ## ES-8 — Make skipped rules visible and decisions deterministic
 
-**Status:** open — before ES-9.
+**Status:** done — 2026-10-05. Three changes, each with a test that failed first:
+- **Visible:** the CLI adds one reason `rules_skipped:<id>:<error>` per skipped rule, in file order, after `unknown_arg` and before `table_unreadable`. The log record is unchanged (it carries the reasons). It never appears with `rules_unreadable`.
+- **Checked at test time:** `decide.test.mjs` compiles the shipped `rules.json` with the probe on and asserts `skipped` is empty.
+- **Deterministic:** `compileRules(raw, { probe })` takes an option; only a strict `false` turns the probe off. The CLI passes `probe: false` for the shipped default file and keeps it on for a `--rules` override. A mutation (probe always on) fails exactly the new default-path test.
+
+**Residual risk:** the shipped file now has no runtime probe, so a catastrophic regex there is caught only by the test-time probe and by review. The probe misses some (`(b+)+c` passes it and took 11.5 s on a 30-character prompt), so review every regex in a future `rules.json` for nested quantifiers (ES-9).
 **Done when:** a skipped rule shows in the decision log (for example a `rules_skipped` reason with the ids), the shipped `rules.json` is checked at test time (no skipped rule), and the runtime slow-regex probe applies to `--rules` overrides only.
 
 The probe uses wall-clock time. Under CPU starvation 27 of 1,500 benign regexes were skipped as `slow_regex`, so decisions could differ between runs once rules ship. A partly skipped file also logs the whole file's version. Also review every regex in a future `rules.json` for nested quantifiers: `(b+)+c` passes the probe and took 11.5 s on a 30-character prompt.

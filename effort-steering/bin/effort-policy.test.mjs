@@ -8,7 +8,7 @@
 
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
-import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { cpSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
@@ -378,7 +378,7 @@ t('R17: a rules file with some bad rules is NOT unreadable: good rule applies, f
   const { out } = decide(['--rules', rulesFile([bad, rule()], 7), '--log'], CTX, { state });
   assert.equal(out.level, 'shallow');
   assert.equal(out.steer, SHALLOW);
-  assert.deepEqual(out.reasons, ['r-shallow']);
+  assert.deepEqual(out.reasons, ['r-shallow', 'rules_skipped:(file):invalid_regex'], 'the skipped rule is visible (ES-8), and its id "(file)" is kept verbatim');
   const [rec] = logLines(state, 's1');
   assert.equal(rec.rules_version, 7);
   assert.deepEqual(rec.reasons, out.reasons);
@@ -630,4 +630,63 @@ t('a non-string harness is logged as unknown', () => {
   const state = freshState();
   decide(['--log'], { prompt: 'x', session_id: 's1', turn_id: 'u1', harness: 5 }, { state });
   assert.equal(logLines(state, 's1')[0].harness, 'unknown');
+});
+
+// ---- ES-8: skipped rules are visible ----------------------------------------
+
+t('ES-8: a skipped rule adds rules_skipped:<id>:<error>, and the valid rule still applies', () => {
+  const state = freshState();
+  const bad = rule({ id: 'bad', when: { matchesAny: ['('] } });
+  const { out } = decide(['--rules', rulesFile([bad, rule()]), '--log'], CTX, { state });
+  assert.equal(out.level, 'shallow');
+  assert.deepEqual(out.reasons, ['r-shallow', 'rules_skipped:bad:invalid_regex']);
+  assert.deepEqual(logLines(state, 's1')[0].reasons, out.reasons, 'the log holds the same reasons');
+});
+
+t('ES-8: one rules_skipped reason per skipped rule, in file order', () => {
+  const a = rule({ id: 'a', when: { matchesAny: ['('] } });
+  const b = rule({ id: 'b', level: 'sideways' });
+  const { out } = decide(['--rules', rulesFile([a, rule(), b])], CTX);
+  assert.deepEqual(out.reasons, ['r-shallow', 'rules_skipped:a:invalid_regex', 'rules_skipped:b:invalid_level']);
+});
+
+t('ES-8: a slow regex in a --rules file is still skipped, and says slow_regex', () => {
+  const slow = rule({ id: 'slow', when: { matchesAny: ['(a+)+$'] } });
+  const { out } = decide(['--rules', rulesFile([slow])], CTX);
+  assert.deepEqual(out.reasons, ['no_rule', 'rules_skipped:slow:slow_regex']);
+});
+
+t('ES-8: rules_skipped sits after unknown_arg and before table_unreadable', () => {
+  const bad = rule({ id: 'bad', when: { matchesAny: ['('] } });
+  const { out } = decide(['--bogus', '--rules', rulesFile([bad]), '--table', path.join(WORK, 'nope.json')], { prompt: 'x' });
+  assert.deepEqual(out.reasons, ['no_rule', 'unknown_arg', 'rules_skipped:bad:invalid_regex', 'table_unreadable']);
+});
+
+t('ES-8: a file with no skipped rule adds no rules_skipped reason', () => {
+  const { out } = decide(['--rules', rulesFile([rule()])], CTX);
+  assert.deepEqual(out.reasons, ['r-shallow']);
+});
+
+t('ES-8: the DEFAULT rules file is loaded without the wall-clock probe, a --rules file with it', () => {
+  // The shipped rules.json is empty, so the default path cannot be observed on the real
+  // tree. Copy bin/ and core/, give the copy a slow regex as its default rules file, and
+  // run the copy's CLI (it resolves its own rules.json through import.meta.url).
+  const tree = mkdtempSync(path.join(ROOT, 'tree-'));
+  cpSync(fileURLToPath(new URL('../bin', import.meta.url)), path.join(tree, 'bin'), { recursive: true });
+  cpSync(fileURLToPath(new URL('../core', import.meta.url)), path.join(tree, 'core'), { recursive: true });
+  const slow = rule({ id: 'slow', when: { matchesAny: ['(a+)+$'] } });
+  writeFileSync(path.join(tree, 'core', 'rules.json'), JSON.stringify({ version: 3, rules: [slow] }));
+  const copy = (args) => {
+    const res = spawnSync(process.execPath, [path.join(tree, 'bin', 'effort-policy.mjs'), 'decide', ...args], {
+      input: JSON.stringify({ prompt: 'x' }),
+      cwd: WORK,
+      env: { ...process.env, XDG_STATE_HOME: STATE },
+      encoding: 'utf8',
+    });
+    assert.equal(res.status, 0, res.stderr);
+    return JSON.parse(res.stdout);
+  };
+  assert.deepEqual(copy([]).reasons, ['no_rule'], 'default file: the slow rule loaded, so nothing was skipped');
+  assert.deepEqual(copy(['--rules', path.join(tree, 'core', 'rules.json')]).reasons, ['no_rule'], 'the same path, spelled out, is still the default file');
+  assert.deepEqual(copy(['--rules', rulesFile([slow])]).reasons, ['no_rule', 'rules_skipped:slow:slow_regex'], 'an override is probed');
 });
