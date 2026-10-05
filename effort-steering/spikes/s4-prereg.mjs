@@ -49,7 +49,14 @@ function runGit(file, args) {
   env.XDG_CONFIG_HOME = '/nonexistent';
   env.GIT_CONFIG_GLOBAL = '/dev/null';
   env.GIT_CONFIG_NOSYSTEM = '1';
-  return spawnSync('git', ['--literal-pathspecs', '-C', dirname(file), ...args], { env, maxBuffer: 64 * 1024 * 1024 });
+  // Set AFTER the scrub: never prompt for credentials, never lazy-fetch a missing
+  // object (a partial clone would otherwise hang, then write into .git/objects).
+  env.GIT_TERMINAL_PROMPT = '0';
+  env.GIT_NO_LAZY_FETCH = '1';
+  // --no-replace-objects: `git replace` must not be able to forge the HEAD blob.
+  // core.fsmonitor=false: a repo-local fsmonitor hook must not run commands.
+  const argv = ['--no-replace-objects', '--literal-pathspecs', '-c', 'core.fsmonitor=false', '-C', dirname(file), ...args];
+  return spawnSync('git', argv, { env, maxBuffer: 64 * 1024 * 1024 });
 }
 
 function requireCommitted(file, bytes) {

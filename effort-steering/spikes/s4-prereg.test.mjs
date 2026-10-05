@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync, readFileSync, symlinkSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync, readFileSync, symlinkSync, utimesSync, statSync, chmodSync, existsSync, appendFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -303,4 +303,169 @@ t('a file removed from the index (still in HEAD, same bytes) throws "not committ
   const f = put(VALID);
   git(REPO, 'rm', '-q', '--cached', '--', f);
   assert.throws(() => loadPrereg(f), /not committed/);
+});
+
+// ---- fix round 2 ----
+
+const newRepo = (name) => {
+  const repo = join(ROOT, name);
+  mkdirSync(repo);
+  git(repo, 'init', '-q');
+  git(repo, 'commit', '-q', '--allow-empty', '-m', 'init');
+  return repo;
+};
+const commitFile = (repo, name, obj) => {
+  const f = join(repo, name);
+  writeFileSync(f, JSON.stringify(obj, null, 2));
+  git(repo, 'add', '--', f);
+  git(repo, 'commit', '-q', '-m', name);
+  return f;
+};
+const withEnv = (vars, fn) => {
+  const saved = {};
+  for (const k of Object.keys(vars)) saved[k] = process.env[k];
+  Object.assign(process.env, vars);
+  try {
+    return fn();
+  } finally {
+    for (const k of Object.keys(vars)) {
+      if (saved[k] === undefined) delete process.env[k];
+      else process.env[k] = saved[k];
+    }
+  }
+};
+
+t('git replace of the HEAD blob cannot forge the registered bytes', () => {
+  const repo = newRepo('replace-blob');
+  const f = commitFile(repo, 'p.json', VALID);
+  const old = git(repo, 'rev-parse', 'HEAD:./p.json').trim();
+  edit(f);
+  const forged = git(repo, 'hash-object', '-w', '--', f).trim();
+  git(repo, 'replace', old, forged);
+  assert.throws(() => loadPrereg(f), /differs from HEAD/);
+});
+
+t('git replace of the HEAD commit cannot forge the registered bytes', () => {
+  const repo = newRepo('replace-commit');
+  const f = commitFile(repo, 'p.json', VALID);
+  const c1 = git(repo, 'rev-parse', 'HEAD').trim();
+  edit(f);
+  git(repo, 'commit', '-q', '-a', '-m', 'fake');
+  const c2 = git(repo, 'rev-parse', 'HEAD').trim();
+  git(repo, 'reset', '-q', '--hard', c1);
+  git(repo, 'replace', c1, c2); // HEAD now resolves to the fake tree
+  edit(f);
+  assert.throws(() => loadPrereg(f), /differs from HEAD/);
+});
+
+t('a clean filter that normalises the edit back to the HEAD blob cannot hide it', () => {
+  const repo = newRepo('clean-filter');
+  const f = commitFile(repo, 'p.json', VALID);
+  const keep = join(ROOT, 'committed.bin');
+  writeFileSync(keep, readFileSync(f));
+  writeFileSync(join(repo, '.gitattributes'), '*.json filter=f\n');
+  git(repo, 'add', '.gitattributes');
+  git(repo, 'commit', '-q', '-m', 'attrs');
+  git(repo, 'config', 'filter.f.clean', `cat ${keep}`);
+  edit(f);
+  // the filter makes git believe the file is unchanged
+  assert.equal(git(repo, 'hash-object', '--', f).trim(), git(repo, 'rev-parse', 'HEAD:./p.json').trim());
+  assert.throws(() => loadPrereg(f), /differs from HEAD/);
+});
+
+t('a same-size edit with the mtime restored throws', () => {
+  const f = put(VALID);
+  const st = statSync(f);
+  const same = JSON.stringify({ ...VALID, effectSizeThinkingTokens: 501 }, null, 2);
+  assert.equal(same.length, readFileSync(f).length);
+  writeFileSync(f, same);
+  utimesSync(f, st.atime, st.mtime);
+  assert.throws(() => loadPrereg(f), /differs from HEAD/);
+});
+
+t('textconv from GLOBAL attributes and config cannot hide an edit', () => {
+  const home = join(ROOT, 'fakehome');
+  mkdirSync(join(home, '.config', 'git'), { recursive: true });
+  writeFileSync(join(home, '.config', 'git', 'attributes'), '*.json diff=x\n');
+  writeFileSync(join(home, '.gitconfig'), '[diff "x"]\n\ttextconv = true\n');
+  const repo = newRepo('global-textconv');
+  const f = commitFile(repo, 'p.json', VALID);
+  edit(f);
+  withEnv({ HOME: home, XDG_CONFIG_HOME: join(home, '.config') }, () => {
+    assert.throws(() => loadPrereg(f), /differs from HEAD/);
+  });
+});
+
+t('a committed symlink to an IGNORED untracked file in the repo throws', () => {
+  const repo = newRepo('ignored-link');
+  appendFileSync(join(repo, '.git', 'info', 'exclude'), 'ignored-*.json\n');
+  writeFileSync(join(repo, 'ignored-t.json'), JSON.stringify(EDITED));
+  const link = join(repo, 'p.json');
+  symlinkSync(join(repo, 'ignored-t.json'), link);
+  git(repo, 'add', '--', link);
+  git(repo, 'commit', '-q', '-m', 'link');
+  assert.throws(() => loadPrereg(link), /symlink/);
+});
+
+// ---- git child environment and argv, observed through a stub `git` ----
+
+const REAL_GIT = execFileSync('sh', ['-c', 'command -v git'], { env: ENV, encoding: 'utf8' }).trim();
+const STUB = join(ROOT, 'stub');
+mkdirSync(STUB);
+writeFileSync(
+  join(STUB, 'git'),
+  `#!/bin/sh\nenv > "$STUB_ENV"\nprintf '%s\\n' "$*" >> "$STUB_ARGS"\nexec ${REAL_GIT} "$@"\n`,
+);
+chmodSync(join(STUB, 'git'), 0o755);
+
+function viaStub(extra, fn) {
+  const envFile = join(ROOT, `stub-env-${n}`);
+  const argsFile = join(ROOT, `stub-args-${n++}`);
+  writeFileSync(argsFile, '');
+  withEnv({ PATH: `${STUB}:${process.env.PATH}`, STUB_ENV: envFile, STUB_ARGS: argsFile, ...extra }, fn);
+  return {
+    env: Object.fromEntries(readFileSync(envFile, 'utf8').split('\n').filter(Boolean).map((l) => [l.slice(0, l.indexOf('=')), l.slice(l.indexOf('=') + 1)])),
+    calls: readFileSync(argsFile, 'utf8').split('\n').filter(Boolean),
+  };
+}
+
+t('the git child gets no GIT_* variable except the fixed safe ones, and never prompts or lazy-fetches', () => {
+  const f = put(VALID);
+  const { env, calls } = viaStub(
+    { GIT_TERMINAL_PROMPT: '1', GIT_NO_LAZY_FETCH: '0', GIT_OBJECT_DIRECTORY: '/nonexistent', GIT_ALTERNATE_OBJECT_DIRECTORIES: '/x', GIT_REPLACE_REF_BASE: 'refs/x/', GIT_CEILING_DIRECTORIES: '/', GIT_EXTERNAL_DIFF: 'true', GIT_FOO: '1' },
+    () => loadPrereg(f),
+  );
+  assert.equal(env.GIT_TERMINAL_PROMPT, '0');
+  assert.equal(env.GIT_NO_LAZY_FETCH, '1');
+  const allowed = new Set(['GIT_TERMINAL_PROMPT', 'GIT_NO_LAZY_FETCH', 'GIT_CONFIG_GLOBAL', 'GIT_CONFIG_NOSYSTEM']);
+  assert.deepEqual(Object.keys(env).filter((k) => k.startsWith('GIT_') && !allowed.has(k)), []);
+  assert.ok(calls.length >= 2);
+  for (const c of calls) {
+    assert.match(c, /--no-replace-objects/);
+    assert.match(c, /core\.fsmonitor=false/);
+    assert.match(c, /--literal-pathspecs/);
+  }
+});
+
+t('GIT_OBJECT_DIRECTORY pointing at an empty store does not change the answer', () => {
+  const f = put(VALID);
+  const empty = join(ROOT, `empty-objects-${n++}`);
+  mkdirSync(empty);
+  withEnv({ GIT_OBJECT_DIRECTORY: empty }, () => assert.deepEqual(loadPrereg(f), VALID));
+});
+
+t('a repo-local core.fsmonitor hook does not run', () => {
+  const repo = newRepo('fsmonitor');
+  const f = commitFile(repo, 'p.json', VALID);
+  const marker = join(ROOT, 'fsmonitor-ran');
+  const hook = join(ROOT, 'fsmonitor-hook.sh');
+  writeFileSync(hook, `#!/bin/sh\ntouch ${marker}\n`);
+  chmodSync(hook, 0o755);
+  git(repo, 'config', 'core.fsmonitor', hook);
+  loadPrereg(f);
+  assert.equal(existsSync(marker), false);
+});
+
+t('prompt duplicates that differ only in whitespace are rejected', () => {
+  throwsNaming({ ...VALID, prompts: ['a', 'b', 'c', 'd', ' a '] }, 'prompts');
 });
