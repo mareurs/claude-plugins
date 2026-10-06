@@ -112,5 +112,4 @@ jobs:
           # list cannot rot into silence.
           CS_TEST_SKIP: >-
             pre-tool-guard.test.sh
-            pre-tool-guard.test.sh
         run: bash tests/run-all.sh

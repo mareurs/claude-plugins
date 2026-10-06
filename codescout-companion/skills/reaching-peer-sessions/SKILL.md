@@ -21,6 +21,11 @@ count as the whole population, with nothing marking it as a subset.
 
 ```bash
 u=$(id -u)
+# The two roots this block reads. Leave them unset: they default to the real `/proc`
+# and `/run/user/<uid>/cc-socks`. They exist so a test can point the walk below at a
+# fixture tree and observe where it stops, instead of asserting about its source text.
+proc=${CS_PEERS_PROC:-/proc}
+socks=${CS_PEERS_SOCKS:-/run/user/$u/cc-socks}
 # Your own row: walk up from this shell to the first ancestor holding a socket in
 # cc-socks. That IS what "a claude server" means here, and it is deliberately NOT a
 # `comm` test — `comm` is the executable BASENAME, and a version-pinned install names
@@ -35,13 +40,13 @@ me=$$
 # delivered `{print garaj-96}` and `{print terrace}`, each the third word of its own
 # args, and out-of-range indexes pass through untouched, so short args look clean.
 # sed's substitution form carries no positional token and cannot be rewritten.
-while [ -n "$me" ] && [ "$me" -gt 1 ] 2>/dev/null && [ ! -S "/run/user/$u/cc-socks/$me.sock" ]; do
-  me=$(sed -n 's/^PPid:[[:space:]]*//p' "/proc/$me/status" 2>/dev/null)
+while [ -n "$me" ] && [ "$me" -gt 1 ] 2>/dev/null && [ ! -S "$socks/$me.sock" ]; do
+  me=$(sed -n 's/^PPid:[[:space:]]*//p' "$proc/$me/status" 2>/dev/null)
 done
-[ -n "$me" ] && [ -S "/run/user/$u/cc-socks/$me.sock" ] || me=""
-rows=$(for s in /run/user/$u/cc-socks/*.sock; do
-  p=${s##*/}; p=${p%.sock}; [ -r "/proc/$p/environ" ] || continue
-  d=$(tr '\0' '\n' <"/proc/$p/environ" | sed -n 's/^CLAUDE_CONFIG_DIR=//p'); d=${d:-$HOME/.claude}
+[ -n "$me" ] && [ -S "$socks/$me.sock" ] || me=""
+rows=$(for s in "$socks"/*.sock; do
+  p=${s##*/}; p=${p%.sock}; [ -r "$proc/$p/environ" ] || continue
+  d=$(tr '\0' '\n' <"$proc/$p/environ" | sed -n 's/^CLAUDE_CONFIG_DIR=//p'); d=${d:-$HOME/.claude}
   # Structural read, never a regex. `name` is a TOP-LEVEL key; `formerNames` is a list
   # of objects each carrying its own `name`, so `sed 's/.*"name":"\(...\)".*/\1/'`
   # binds its greedy `.*` to the LAST match and prints the FORMER name — silently, and
@@ -50,7 +55,7 @@ rows=$(for s in /run/user/$u/cc-socks/*.sock; do
   nm=$(python3 -c 'import json,sys;d=json.load(open(sys.argv[1]));print((d.get("status") or "?")+"|"+(d.get("name") or "?"))' "$d/sessions/$p.json" 2>/dev/null)
   st=${nm%%|*}; n=${nm#*|}; [ -n "$nm" ] || { st='?'; n='?'; }
   printf '%s\t%s\t%s\t%s\t%s%s\n' "$p" "$(basename "$d")" "$n" "$st" \
-    "$(readlink "/proc/$p/cwd")" "$([ "$p" = "$me" ] && echo '  <-- you')"
+    "$(readlink "$proc/$p/cwd")" "$([ "$p" = "$me" ] && echo '  <-- you')"
 done | sort -k2,2 -k5,5)
 [ -z "$rows" ] && { echo "no live sessions found"; exit; }
 printf 'PID\tPROFILE\tNAME\tSTATUS\tLAUNCH-CWD\n%s\n' "$rows"
