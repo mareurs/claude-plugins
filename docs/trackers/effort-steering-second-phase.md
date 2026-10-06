@@ -8,7 +8,7 @@ tags:
 - second-phase
 topic: effort-steering second phase
 time_scope: dated:2026-10-05
-entry_high_water_ES: 11
+entry_high_water_ES: 13
 entry_prefix: ES
 origin_session_id: 16bc6017-d129-44f7-91e5-43b0afad5ea9
 ---
@@ -157,6 +157,30 @@ Options: (a) let the runner assign arms itself, balanced within each prompt (reg
 Bundled in the same fix wave (all from the final review): FINAL I-1 (treated runs that were not steered dilute the effect; preflight every registered prompt and exclude `not_steered` / `steered_holdout` rows), I-2 (the children inherit the environment, here `ANTHROPIC_BASE_URL` points at llm-proxy; build the child env explicitly), I-3 (the latency gate cannot see a hook that falls back on every call), I-4 (warm-up run and shuffled order), I-5 (a test), the claude-subcommand-name prompt risk, M-1 (the treatment is not pinned to a commit) and M-2 (prompt guards).
 
 **Source:** final whole-branch review, SDD ledger `progress.md` (git-ignored, in the worktree), plan `docs/superpowers/plans/2026-10-05-effort-steering-adapter-and-experiment.md` on the branch.
+
+## ES-13 — The hook's `turn_id` is a turn, not a prompt: key the log and the arm on it with care
+
+**Valid:** dated 2026-10-06
+
+**Status:** open, found 2026-10-06 in the live decision logs (hook wired in `~/.claude` and `~/.claude-sdd`). Nothing is changed in code. The operator has not yet decided the key or the arm unit.
+**Done when:** the operator rules on the arm unit (per turn or per prompt) and on the log's join key; the ruling is written into ES-9 and ES-10 before the packaged `hooks.json` sets `EFFORT_STEERING_HOLDOUT_RATE`; and the log-versus-transcript coverage check below is either run on the other sessions or declined.
+
+**Observed.** The adapter sets `turn_id` from the hook input's `prompt_id` (`buildContext`). The 417 records in `~/.local/state/effort-steering` (18 sessions, 2026-10-05 15:36 to 2026-10-06 16:32 local) hold only 392 distinct `turn_id` values: 23 ids appear twice and 2 appear three times. Every duplicate is inside one session, the prompt hashes differ, and the records are seconds to minutes apart.
+
+**Verified in one case.** Turn `5370ba54` in session `e1cb2369` has records at 11:50:55 and 11:51:04 (UTC). In that session's transcript, the message typed at 11:50:55 and the next ten tool-result entries all carry `promptId` `5370ba54`. At 11:51:04.863 the transcript has a `queue-operation` `enqueue` and a `queued_command` attachment, and the second record follows 82 ms later. So `prompt_id` names the whole agent turn, and a message sent while Claude is still working gets its own record under the running turn's id. The other 24 duplicates fit the same pattern, but only this one was traced in the transcript.
+
+**What it affects.**
+- The log itself: nothing. Each record is still one distinct prompt (distinct `prompt_sha256`), and in the session `a615adc6` the three records match the three messages sent after wiring (12, 27 and 43 characters).
+- `assignArm` hashes `[session_id, turn_id]`, so a queued message gets the same arm as the message that started the turn. With a holdout rate strictly between 0 and 1 the arm is therefore per turn. This may be the right unit, because `thinking_tokens` belong to the model calls inside a turn, but it is a decision, not an accident.
+- Any join of the log to transcript `thinking_tokens` by `turn_id` alone is one-to-many. A key of `session_id` + `turn_id` + `prompt_sha256` is unique in these logs.
+- S4 is NOT affected: the S4 runner sets the holdout rate to '1' or '0' per run, and `assignArm` returns `holdout` for every id at rate 1 and `treated` at rate 0.
+
+**Not checked (do not treat as findings).**
+- Coverage on the other sessions. A hook timeout or crash writes no record, so a missed prompt leaves no trace. Only `a615adc6` was compared with its transcript (3 of 3).
+- Prompt size. The median is 1568 characters and the maximum is 20558, which is high for typed messages. Some records may come from injected messages (peer sessions, agents). Whether the hook fires for them was not checked.
+- Local commands (`/reload-plugins`, `/mcp`, `/compact`) wrote no records in `a615adc6`, so they do not fire the hook. Two slash-prefixed prompts in the other sessions were logged.
+
+**Source:** live logs `~/.local/state/effort-steering/*.jsonl`; transcript `~/.claude/projects/-home-marius-work-claude-codescout/e1cb2369-1071-450c-a3e0-5634a7d447e0.jsonl`; `effort-steering/adapter/claude-code/build-context.mjs`, `effort-steering/core/arm.mjs`; passover `b2838d56206e8d62` ("Local deployment").
 
 ## Template for new entries
 
