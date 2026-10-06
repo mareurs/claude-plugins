@@ -143,4 +143,32 @@ else
   pass "never denies (advisory only)"
 fi
 
+# --- 11. The advisory states no COUNT of captures. A count written into served
+#         prose decays silently and nothing here reads it: the sentence once said
+#         "Four such captures" against a corpus that had reached fourteen, and it
+#         was wrong on the day it was written (both strings arrived in one commit).
+#         codescout:docs/issues/2026-09-14-a-served-advisory-hardcodes-a-capture-count-that-has-decayed-by-ten.md
+#
+#         Both directions, because each alone is monotone the wrong way. The absence
+#         half is a floor, not a proof: any word or number directly before "such
+#         captures" is read as a quantifier (the sentence legitimately opens after a
+#         full stop), so "Four", "Fourteen" and "14" are all caught, but a rewording
+#         that hides the count ("a dozen of these") is not. The presence half pins the
+#         citation the sentence exists to carry, so deleting the count by deleting the
+#         sentence is caught too.
+OUT=$(hook_input "sid-11" "$T/proj/shared.txt" | run_hook)
+FLAT=$(echo "$OUT" | jq -r '.hookSpecificOutput.additionalContext // empty' 2>/dev/null | tr '\n' ' ')
+if [ -z "$FLAT" ]; then
+  fail "advisory states no capture count" "no advisory was produced: $OUT"
+elif grep -Eiq '[[:alnum:]-][[:space:]]+such[[:space:]]+captures?' <<<"$FLAT"; then
+  fail "advisory states no capture count" "a count precedes 'such captures': $FLAT"
+else
+  pass "advisory states no capture count"
+fi
+if grep -qF "Such captures are recorded in codescout's docs/issues/2026-08-31-peer-commit-captures-another-sessions-working-tree.md" <<<"$FLAT"; then
+  pass "advisory still cites the capture ledger it points at"
+else
+  fail "advisory still cites the capture ledger it points at" "$FLAT"
+fi
+
 print_summary "pre-edit-dirty-check"

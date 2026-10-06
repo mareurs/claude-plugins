@@ -13,16 +13,20 @@
 # and exactly that one mismatched. The population grows monotonically, because
 # a rename appends rather than rotates.
 #
-# WHAT IS NOT COVERED, so nobody credits this file with it. The other half of
-# bb14719 -- the self-identification walk terminating on socket-presence rather
-# than on `comm == claude` -- is NOT tested here. That walk reads `/proc` and
-# `/run/user/<uid>/cc-socks` by hardcoded absolute path, so it cannot be pointed
-# at a fixture without editing the skill, and a source-text assertion ("the
-# block contains no comm test") is a proxy for the behaviour rather than the
-# behaviour. It was verified by hand on 2026-09-03 against live pid 985365
-# (`comm=2.1.258`, exe `~/.local/share/claude/versions/2.1.258`): the old walk
-# passes over it to PID 1 and prints no `<-- you`; the new one terminates there.
-# That verification is not repeatable and this file does not pretend otherwise.
+# SELF-IDENTIFICATION. The other half of bb14719 -- the self-identification walk
+# terminating on socket-presence rather than on `comm == claude` -- is covered by
+# cases 8-11 below. It used to be disclaimed here: the walk read `/proc` and
+# `/run/user/<uid>/cc-socks` by hardcoded absolute path, so it could not be pointed
+# at a fixture, and a source-text assertion ("the block contains no comm test") is
+# a proxy for the behaviour rather than the behaviour. SKILL.md now reads both
+# roots from CS_PEERS_PROC / CS_PEERS_SOCKS (defaults unchanged), and the cases run
+# the EXTRACTED block against a fixture tree. The 2026-09-03 hand verification
+# against live pid 985365 (`comm=2.1.258`) is no longer the only evidence.
+#
+# WHAT IS STILL NOT COVERED. The fixture is a model of /proc, not /proc: it has no
+# real process tree, so it proves the walk's TERMINATION RULE and nothing about how
+# a particular kernel or Claude Code build lays out `status`. Case 11 is what keeps
+# the fixture honest about the one property that matters -- that the old rule fails it.
 set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SKILL="$SCRIPT_DIR/SKILL.md"
@@ -137,6 +141,116 @@ if [ "$got" = "4124418" ]; then
   pass "sed field read returns the PPid value"
 else
   fail "sed field read returns the PPid value" "got '$got', expected 4124418"
+fi
+
+# 8-11. THE SELF-IDENTIFICATION WALK, run for real against a fixture tree.
+#    The block is EXTRACTED from SKILL.md (the first ```bash fence under Step 1),
+#    never re-typed, for the reason given at PROG above. The fixture is the shape
+#    the bug was measured on 2026-09-02: the shell's ancestor that owns the socket
+#    is a VERSION-PINNED install, so its `comm` is `2.1.258`, not `claude`.
+#      $$ (bash) -> 910001 (node, no socket) -> 910002 (comm 2.1.258, HAS socket) -> 1
+#    plus an unrelated peer 910003 (comm claude, has a socket, not an ancestor).
+BLOCK=$(awk '/^## Step 1/{s=1} s && /^```bash/{b=1; next} b && /^```/{exit} b{print}' "$SKILL")
+if [ -z "$BLOCK" ] || ! grep -q 'me=\$\$' <<<"$BLOCK"; then
+  fail "extract walk block" "no bash fence containing 'me=\$\$' under '## Step 1' in $SKILL"
+  echo "-- $PASS passed, $FAIL failed"; exit 1
+fi
+
+mk_proc() { # mk_proc <fx> <pid> <comm> <ppid>
+  mkdir -p "$1/proc/$2"
+  printf 'Name:\t%s\nPPid:\t%s\n' "$3" "$4" > "$1/proc/$2/status"
+  printf '%s\n' "$3" > "$1/proc/$2/comm"
+}
+mk_peer() { # mk_peer <fx> <pid> <comm> <ppid> <name> -- a socket-bound session
+  mk_proc "$1" "$2" "$3" "$4"
+  python3 -c 'import socket,sys; socket.socket(socket.AF_UNIX).bind(sys.argv[1])' "$1/socks/$2.sock" 2>/dev/null
+  printf 'CLAUDE_CONFIG_DIR=%s\0' "$1/profile" > "$1/proc/$2/environ"
+  ln -s "/work/$5" "$1/proc/$2/cwd"
+  printf '{"pid":%s,"name":"%s","status":"idle"}' "$2" "$5" > "$1/profile/sessions/$2.json"
+}
+mk_fixture() { # mk_fixture <fx>
+  mkdir -p "$1/proc" "$1/socks" "$1/profile/sessions" "$1/home"
+}
+# run_walk <fx> <parent-of-the-running-shell> <block> -- the running shell's own
+# status row is written under ITS pid, which is only known once it is running, so
+# the wrapper creates it before evaluating the block.
+run_walk() {
+  CS_PEERS_PROC="$1/proc" CS_PEERS_SOCKS="$1/socks" HOME="$1/home" \
+  START_PARENT="$2" BLOCK_UNDER_TEST="$3" bash -c '
+    mkdir -p "$CS_PEERS_PROC/$$"
+    printf "Name:\tbash\nPPid:\t%s\n" "$START_PARENT" > "$CS_PEERS_PROC/$$/status"
+    eval "$BLOCK_UNDER_TEST"' 2>&1
+}
+marked() { # marked <pid> <output> -- is <pid>'s row the one tagged "<-- you"?
+  awk -F'\t' -v p="$1" '$1==p && $5 ~ /<-- you$/ {f=1} END{exit !f}' <<<"$2"
+}
+
+FXA="$TMP/fx-pinned"; mk_fixture "$FXA"
+mk_proc "$FXA" 910001 node 910002
+mk_peer "$FXA" 910002 2.1.258 1 pinned-server
+mk_peer "$FXA" 910003 claude 1 other-peer
+if [ ! -S "$FXA/socks/910002.sock" ] || [ ! -S "$FXA/socks/910003.sock" ]; then
+  fail "fixture sockets" "could not bind unix sockets under $FXA (path too long, or python3 missing)"
+  echo "-- $PASS passed, $FAIL failed"; exit 1
+fi
+
+# 8. The walk stops at the socket-owning ancestor even though its `comm` is a
+#    version string, and marks exactly that row.
+outA=$(run_walk "$FXA" 910001 "$BLOCK")
+if marked 910002 "$outA" && ! marked 910003 "$outA" && ! grep -q 'WARNING' <<<"$outA" \
+   && grep -qF '(1 peers plus you)' <<<"$outA"; then
+  pass "walk terminates on the socket-bearing ancestor despite comm=2.1.258"
+else
+  fail "walk terminates on the socket-bearing ancestor despite comm=2.1.258" "$outA"
+fi
+
+# 9. No socket-bearing ancestor: the failure is LOUD. This is the property the
+#    skill calls load-bearing -- an unidentified self still renders a correct-looking
+#    table, so the warning is the only signal -- and it must not mark an innocent row.
+FXB="$TMP/fx-orphan"; mk_fixture "$FXB"
+mk_proc "$FXB" 910001 node 1
+mk_peer "$FXB" 910003 claude 1 other-peer
+outB=$(run_walk "$FXB" 910001 "$BLOCK")
+if grep -q 'WARNING: your own row was NOT identified' <<<"$outB" && ! marked 910003 "$outB"; then
+  pass "no socket-bearing ancestor: loud warning, no row marked"
+else
+  fail "no socket-bearing ancestor: loud warning, no row marked" "$outB"
+fi
+
+# 10. The walk does not stop at the first ancestor merely because a DIFFERENT
+#     socket exists. Here 910002's socket is absent and only the grandparent has
+#     one, so the correct answer is the grandparent.
+FXC="$TMP/fx-grandparent"; mk_fixture "$FXC"
+mk_proc "$FXC" 910001 node 910002
+mk_proc "$FXC" 910002 bash 910004
+mk_peer "$FXC" 910004 2.1.258 1 grand-server
+mk_peer "$FXC" 910003 claude 1 other-peer
+outC=$(run_walk "$FXC" 910001 "$BLOCK")
+if marked 910004 "$outC" && ! marked 910003 "$outC"; then
+  pass "walk climbs past socket-less ancestors to the first one that owns a socket"
+else
+  fail "walk climbs past socket-less ancestors to the first one that owns a socket" "$outC"
+fi
+
+# 11. THE FIXTURE IS DISCRIMINATING -- an observed RED, not an assertion's existence.
+#     Cases 8-10 alone would pass against a fixture the old rule also satisfies.
+#     Swap ONLY the loop condition for the rule that shipped before bb14719 (stop
+#     at the first ancestor whose `comm` is `claude`) and require the version-pinned
+#     fixture to FAIL: the old walk passes over comm=2.1.258 to PID 1 and prints no
+#     `<-- you`. If the substitution does not apply (the skill was reworded), say so
+#     rather than passing vacuously.
+OLD_COND='[ ! -S "$socks/$me.sock" ]'
+NEW_COND='[ "$(cat "$proc/$me/comm" 2>/dev/null)" != claude ]'
+MUT=${BLOCK//"$OLD_COND"/"$NEW_COND"}
+if [ "$MUT" = "$BLOCK" ]; then
+  fail "old comm-keyed walk still fails the fixture" "the loop condition '$OLD_COND' was not found in the block; update OLD_COND with the skill"
+else
+  outM=$(run_walk "$FXA" 910001 "$MUT")
+  if grep -q "^910002$(printf '\t')" <<<"$outM" && ! marked 910002 "$outM"; then
+    pass "old comm-keyed walk still fails the fixture (the fixture discriminates)"
+  else
+    fail "old comm-keyed walk still fails the fixture" "expected the table to render with 910002 unmarked; the comm rule either identified the pinned server (cases 8-10 prove nothing) or the block did not run: $outM"
+  fi
 fi
 
 echo "-- $PASS passed, $FAIL failed"
