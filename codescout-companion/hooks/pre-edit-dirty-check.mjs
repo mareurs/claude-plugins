@@ -5,7 +5,7 @@
 // -------------------------
 // `git commit -- <paths>` commits the WORKING TREE at those paths, not the
 // index. On a shared checkout your edit and whatever a concurrent session
-// already wrote to the same file land together, under your message. Four such
+// already wrote to the same file land together, under your message. Such
 // captures are recorded in codescout's
 // docs/issues/2026-08-31-peer-commit-captures-another-sessions-working-tree.md,
 // and its remedy table shows explicit pathspecs do NOT defeat the co-edited-file
@@ -115,7 +115,7 @@ contextPreToolUse(
     `native \`sed\`/\`tee\`, all leave exactly this trace.\n` +
     `\n` +
     `Why it is worth a line anyway: on a shared checkout \`git commit -- <path>\` commits the\n` +
-    `WORKING TREE there, so if the change IS a peer's, it lands under your message. Four such\n` +
+    `WORKING TREE there, so if the change IS a peer's, it lands under your message. Such\n` +
     `captures are recorded in codescout's\n` +
     `docs/issues/2026-08-31-peer-commit-captures-another-sessions-working-tree.md.\n` +
     `\n` +
