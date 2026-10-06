@@ -8,7 +8,7 @@ tags:
 - second-phase
 topic: effort-steering second phase
 time_scope: dated:2026-10-05
-entry_high_water_ES: 13
+entry_high_water_ES: 15
 entry_prefix: ES
 origin_session_id: 16bc6017-d129-44f7-91e5-43b0afad5ea9
 ---
@@ -187,6 +187,53 @@ Bundled in the same fix wave (all from the final review): FINAL I-1 (treated run
 **Decision for the operator (add to Done when).** Should the adapter skip or tag injected messages, and by what test? Candidates: a prefix test on the prompt (`<task-notification`, `Another Claude session sent a message`, `<agent-message`), or a field of the real hook input if one exists. The first step is to log one real hook payload (all keys, no prompt text) to see which fields exist.
 
 **Source:** live logs `~/.local/state/effort-steering/*.jsonl`; transcript `~/.claude/projects/-home-marius-work-claude-codescout/e1cb2369-1071-450c-a3e0-5634a7d447e0.jsonl`; `effort-steering/adapter/claude-code/build-context.mjs`, `effort-steering/core/arm.mjs`; passover `b2838d56206e8d62` ("Local deployment").
+
+## ES-14 — Research landscape recorded; the decisions it forces (D-1 to D-5)
+
+**Valid:** dated 2026-10-06
+
+**Status:** open. The research is recorded in the tracker `docs/trackers/effort-steering-research-2026-10-06.md` (id `8ad5f00472dc1e42`). Nothing is changed in code, and the operator has not ruled on D-1 to D-5.
+**Done when:** the operator rules on D-1 to D-5, and each ruling is written into ES-9, ES-12 or ES-13 where it applies.
+
+**What the research shows (details and sources in the research tracker).** No source measures steering text against billed `thinking_tokens` under adaptive thinking on real coding turns, so S4 would be new. Claude evidence for steering text is small: `ultrathink` +27 percent median thinking on Opus 5.5 (45 runs, 3 of 5 problems below 300 reasoning tokens); "deep thinking" wording 1.25 to 1.30 times output tokens on Sonnet 5 with no success gain. Learned per-step routers save about 20 to 45 percent of tokens, but not on coding in a repository, and no source tests rules against them. Prompt text alone predicts needed effort weakly (about AUC 0.6 for coding-agent success). A `UserPromptSubmit` hook can return only `additionalContext` (plus block and session title); it cannot set effort and cannot see an origin field.
+
+**Decisions.** Each item gives the recommended answer, with the reason.
+- **D-1, actuation.** Steer with `additionalContext` only; do not write settings. Reason: a settings write is racy across sessions, its effect on a running session is contested between sources, and text on the newest user message keeps the cache.
+- **D-2, injected messages (ES-13).** Add a content-shape guard in one swappable function: skip a prompt that contains `<task-notification`, `<agent-message` or `<cross-session-message`, or that starts with `<`, `[` or a slash command. Reason: no hook field tells typed from injected (issue #94675); the transcript fields `promptSource` and `isMeta` do not reach the hook. The guard is brittle by the issue's own account, so keep it replaceable.
+- **D-3, S4 changes (for G2, ES-12).** Record `output_tokens` as well as `thinking_tokens`, and report first-request thinking apart from tool-result requests. Add a neutral-length control sentence arm. Stratify by difficulty, because a turn near 0 thinking cannot show a shallow effect. Add a quality check besides tokens. Add a lower-effort comparison arm. Plan the test for modest effects. Do not test "Answer directly without deliberating." while the `between_tools` thinking setting is in use (documented XML-tag leak); first find out whether Claude Code uses that setting.
+- **D-4, first rules (ES-9).** Treat a short prompt ("go", "5", "ok, go") as "unknown, inherit the previous turn's state", not as shallow. Use loop state (previous tool error, step index) before prompt length. No model call in the hook: the Haiku-based hooks add 4 to 12 s, and the rules-only Qcko router is about 150 to 300 ms (README, not measured here).
+- **D-5, golden set.** Treat the 50 labels as a calibration set: keep the design weights, keep `unclear`, write the guidelines before labelling, define levels by what was needed and not by what was spent, re-label 10 to 15 turns after a few days. Do not use thinking-token spend as the label. Optionally read the `totally-tim/effort-router` README and code for its label protocol.
+
+**Unverified (do not treat as findings).** Whether Claude Code sends `between_tools`. Whether hook-injected text triggers the `ultrathink` recognition. Whether a settings write changes effort on the current Claude Code version. All numbers come from agent summaries of pages and were not re-checked. One report was flagged by the harness for instruction-shaped text (it quotes tags and settings names); no action was taken on it.
+
+**Source:** six subagent reports, 2026-10-06; research tracker `8ad5f00472dc1e42`; ES-12, ES-13.
+
+## ES-15 — What the traces can measure: Langfuse via llm-proxy and usage.db, and the first probes
+
+**Valid:** dated 2026-10-06
+
+**Status:** probed 2026-10-06 (read-only; no code changed). The operator picks which measurements go into S4 and the analysis.
+**Done when:** the operator chooses the measurements and join keys for S4 and for the first-rules analysis, and the follow-up probes below are run or declined.
+
+**Sources found.**
+- **Langfuse via `llm-proxy`.** All three profiles send API traffic to `http://localhost:8082` (each profile's `settings.json` env block). The proxy and Langfuse are running. This session has 1,865 traces; the golden-sample sessions are covered (G-08 537 traces, G-04 784, G-07 49, G-01 746). Per API call it holds input, output and total tokens (no thinking split), cache read and write, latency, TTFT, served model, stop reason, tool calls with arguments (from 2026-08-27), the full `input.messages` and the reasoning text. It does NOT store the request's `thinking` object, the `stream` flag or the `anthropic-beta` header (the proxy's own notes say so; `modelParameters` is null). Capturing those needs `scripts/record_shim.py` in `~/agents/llm-proxy`.
+- **Effort pins are visible in the requests.** Messages like `{"role":"system","content":[],"output_config":{"effort":"medium"}}` appear inside `input.messages`. In 30 sampled calls, 23 carried at least one pin (medium 5, high 16, xhigh 4); the August traces (Opus 5) carry none. A pin sits at the position where the effort changed and stays there in later requests, so the effort in force is the last pin. This session: pins at message index 1 (medium) and 4 (high), even in a 271-message request. The transcript `effort` field agrees: medium from 2026-10-04 09:30 to 2026-10-05 12:37 UTC, high from 2026-10-06 12:03 on, and the trace at 12:03:34 holds both pins. Subagent requests are separate short conversations with their own pin (Opus 5.5 xhigh and Sonnet 5.5 medium were seen). So Claude Code sends effort per message in the wire format, but in the sample the value changed only when the session setting changed.
+- **Reasoning text.** 16 of 18 calls with a thinking block had readable text (186 to 2,156 characters per call). 12 of 30 sampled calls had no thinking block at all.
+- **Hook output reaches the request.** Hook output and system reminders appear in `input.messages` (65 mentions of `UserPromptSubmit` in one request). When steering is on, delivery can be checked in the trace. Not tested with a real steer yet, because the hook emits nothing today.
+- **`usage.db`** (`~/work/claude/codescout/.codescout/usage.db`, codescout tool telemetry, not LLM calls): 66,629 rows from 2026-09-07 to 2026-10-06 over 461 sessions. `tool_use_id` is set on 20,760 rows (almost all rows since 2026-09-30, about half on 2026-10-02), so rows join exactly to transcript tool-use ids. `agent_id` is set on 17,381 rows (237 agents). Outcomes: success 63,523, recoverable_error 3,073, error 33. `effect_class`: read 8,394, write 5,015, unset 53,220. Top error families are policy-guard blocks (il3_pipe_to_trimmer 668, il3_shell_on_source 416, il1_read_overlaps_symbol 313, librarian_managed_artifact 303, worktree_activate_required 219, il2_structural_edit 176). It covers only codescout MCP calls, not the built-in Read, Bash or Edit.
+
+**Probe result: where thinking happens inside a turn** (transcripts, 2,583 measured turns, billed `thinking_tokens` per message). The first assistant message holds 9.4 percent of all thinking tokens (median share 0.11); it holds at least half in only 13.5 percent of turns. The share of messages with any thinking falls from 88.5 percent (1st) to 77.2 percent (2nd) and 61.0 percent (13th and later). Median thinking per message: 421 (1st), 244 (2nd), 128 (7th and later). So the first message is the heaviest single message, but most of a turn's thinking comes later in the tool loop. This does NOT match the Anthropic docs' remark that the first request carries most of the reasoning, at least for long Claude Code agent turns, and it undercuts the research tracker's inference that a hook injection acts mainly on the first request. A steer stays in the context for the later requests of the turn. S4 must therefore sum thinking over every request in the turn and report it by position.
+
+**What can be measured.**
+- Per turn: billed thinking and output tokens, steps, tool errors, duration (transcript); effort in force (transcript `effort` and the proxy pins); cache read and write and TTFT per call (proxy); codescout call counts, guard blocks and write effects (`usage.db`).
+- Join keys: transcript and `usage.db` by `tool_use_id` (exact since 2026-09-30); transcript and proxy by session id and timestamp (no shared id was found); hook log and transcript by `session_id` plus `prompt_sha256`.
+- Not available: billed thinking tokens per call in Langfuse; the request `thinking` object and beta header (needs `record_shim.py`); a success label per turn.
+
+**Follow-up probes (not run).** (a) Agreement of pins and transcript effort across many sessions. (b) Whether a changed pin changes `cache_creation_tokens` in the next call. (c) One `record_shim.py` capture to see the `thinking` object and the betas, and whether Claude Code uses `between_tools` (this decides part of D-3). (d) A steer smoke test in a scratch session: emit a harmless context line from the hook and confirm it appears in `input.messages` and in the transcript. (e) Per-turn friction from `usage.db` as a context field for the golden set.
+
+**Privacy.** Langfuse and the transcripts hold full prompts, system text and reasoning. The probes printed only key names, counts and numbers.
+
+**Source:** probes of 2026-10-06 (scripts in the session scratchpad under `/tmp`, so not durable); `~/agents/llm-proxy/CLAUDE.md` and `docs/trackers/observability-instruments.md`; ES-13, ES-14; research tracker `8ad5f00472dc1e42`.
 
 ## Template for new entries
 
