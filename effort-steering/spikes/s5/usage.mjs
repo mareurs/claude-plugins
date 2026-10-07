@@ -12,17 +12,16 @@
 // id; S5 must not copy that. Which records count is S4's own filter (countedAssistantRecords).
 //
 // Subagents. Claude Code writes each subagent's transcript to
-// <config>/projects/<slug>/<sessionId>/subagents/agent-<id>.jsonl, next to <sessionId>.jsonl. Their
-// usage is a run's usage too: `main` and `subagents` are kept apart, `total` is their sum.
+// <config>/projects/<slug>/<sessionId>/subagents/agent-<id>.jsonl, next to <sessionId>.jsonl, and a
+// Workflow tool run writes its subagents below that, at subagents/workflows/<id>/agent-<id>.jsonl.
+// Every agent-*.jsonl at any depth under subagents/ is read (*.meta.json and the like are not).
+// Their usage is a run's usage too: `main` and `subagents` are kept apart, `total` is their sum.
 //
 // A forked subagent (agentType "fork") starts from a copy of its parent's history, so its file
 // repeats the parent's message ids and usage. On 2026-10-07, across 131 real sessions and 2,644
 // subagent files, 63 (id, subagent file) pairs repeated an id of the main transcript, every one in a
 // fork. A message is one billed API call however many files repeat it, so an id already counted in
 // the main transcript, or in an earlier subagent file, is not counted again.
-//
-// Not read: transcripts below subagents/ (subagents/workflows/<id>/agent-*.jsonl, which a Workflow
-// tool run writes; 1 of those 131 sessions had one). The S5 runs do not use that tool.
 
 import { readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
@@ -87,20 +86,32 @@ export function totals(usages) {
 
 const addTotals = (a, b) => Object.fromEntries(Object.keys(ZERO).map((k) => [k, a[k] + b[k]]));
 
-// Every agent-*.jsonl directly in `dir`, sorted. A missing directory is no subagents; any other
-// read failure is not silently read as zero usage.
+// Every agent-*.jsonl at any depth under `dir`, sorted by its path relative to `dir`. A Workflow
+// tool run writes its subagents at subagents/workflows/<id>/agent-*.jsonl, below the flat ones.
+// A missing `dir` is no subagents; any other read failure, at any depth, is not silently read as
+// zero usage.
 function subagentTranscripts(dir) {
-  let entries;
-  try {
-    entries = readdirSync(dir, { withFileTypes: true });
-  } catch (err) {
-    if (err && (err.code === 'ENOENT' || err.code === 'ENOTDIR')) return [];
-    throw err;
-  }
-  return entries
-    .filter((e) => e.isFile() && e.name.startsWith('agent-') && e.name.endsWith('.jsonl'))
-    .map((e) => path.join(dir, e.name))
-    .sort();
+  const found = [];
+  const walk = (current) => {
+    let entries;
+    try {
+      entries = readdirSync(current, { withFileTypes: true });
+    } catch (err) {
+      if (current === dir && err && (err.code === 'ENOENT' || err.code === 'ENOTDIR')) return;
+      throw err;
+    }
+    for (const e of entries) {
+      const full = path.join(current, e.name);
+      if (e.isDirectory()) walk(full);
+      else if (e.isFile() && e.name.startsWith('agent-') && e.name.endsWith('.jsonl')) found.push(full);
+    }
+  };
+  walk(dir);
+  return found.sort((a, b) => {
+    const ra = path.relative(dir, a);
+    const rb = path.relative(dir, b);
+    return ra < rb ? -1 : ra > rb ? 1 : 0;
+  });
 }
 
 function noRun(reason) {
@@ -166,8 +177,10 @@ export function readRunUsage(configDir, sessionId) {
 
 const isTextBlock = (b) => b.type === 'text' && typeof b.text === 'string';
 
-// The content blocks of an assistant record that holds model output. An API-error record is an
-// assistant record whose text is Claude Code's error message, not the model's, so it holds none.
+// The content blocks of an assistant record that holds model output. Two kinds of record are not
+// that: an API-error record (an assistant record whose text is Claude Code's error message), and a
+// user record, which can also hold text blocks (headless runs write isMeta user records such as a
+// Skill body or "Continue from where you left off.").
 function assistantBlocks(obj) {
   if (!isObject(obj) || obj.type !== 'assistant' || isApiError(obj) || !isObject(obj.message)) return [];
   const content = obj.message.content;

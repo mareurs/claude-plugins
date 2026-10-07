@@ -76,9 +76,9 @@ function put(cfg, slug, sid, main, subs = {}) {
   mkdirSync(dir, { recursive: true });
   if (main !== null) writeFileSync(path.join(dir, `${sid}.jsonl`), main);
   for (const [name, content] of Object.entries(subs)) {
-    const sub = path.join(dir, sid, 'subagents');
-    mkdirSync(sub, { recursive: true });
-    writeFileSync(path.join(sub, name), content);
+    const file = path.join(dir, sid, 'subagents', name); // `name` may hold directories, e.g. workflows/wf_1/agent-x.jsonl
+    mkdirSync(path.dirname(file), { recursive: true });
+    writeFileSync(file, content);
   }
   return path.join(dir, `${sid}.jsonl`);
 }
@@ -304,6 +304,55 @@ t("only agent-*.jsonl in this session's own subagents directory are read", () =>
   assert.equal(r.total.output, 101);
 });
 
+t('subagent transcripts below subagents/ (a Workflow run) add to subagents and total, with the flat ones, in path order', () => {
+  const cfg = tmp();
+  const rec = (id, out, thinking, input, cc, cr, effort) => lines(asst(id, { out, thinking, input, cc, cr, effort }));
+  const mainPath = put(cfg, 's', 'sid-1', rec('m1', 1000, 5, 1, 10, 100), {
+    'agent-z.jsonl': rec('s1', 2000, 6, 2, 20, 200, 'low'), // flat
+    'workflows/wf_1/agent-a.jsonl': rec('w1', 4000, 8, 4, 40, 400, 'medium') + lines(apiErr('e1')), // nested one level
+    'workflows/wf_1/inner/agent-b.jsonl': rec('w2', 8000, 9, 8, 80, 800), // nested two levels
+    'workflows/wf_1/agent-a.meta.json': rec('meta', 99999, 1, 1, 1, 1), // ignored, as at the top level
+    'workflows/wf_1/notes.jsonl': rec('notes', 88888, 1, 1, 1, 1), // not an agent transcript
+    'workflows/wf_1/inner/agent-b.jsonl.bak': rec('bak', 77777, 1, 1, 1, 1),
+  });
+  const r = readRunUsage(cfg, 'sid-1');
+  assert.deepEqual(r.main, { input_total: 111, cache_creation: 10, cache_read: 100, output: 1000, thinking: 5, messages: 1, thinkingFieldMissing: 0 });
+  assert.deepEqual(r.subagents, { input_total: 222 + 444 + 888, cache_creation: 140, cache_read: 1400, output: 14000, thinking: 23, messages: 3, thinkingFieldMissing: 0 });
+  assert.deepEqual(r.total, { input_total: 111 + 1554, cache_creation: 150, cache_read: 1500, output: 15000, thinking: 28, messages: 4, thinkingFieldMissing: 0 });
+  // sorted by the path below subagents/, not by file name and not by walk order
+  const dir = path.join(path.dirname(mainPath), 'sid-1', 'subagents');
+  assert.deepEqual(r.subagentFiles, ['agent-z.jsonl', 'workflows/wf_1/agent-a.jsonl', 'workflows/wf_1/inner/agent-b.jsonl'].map((n) => path.join(dir, ...n.split('/'))));
+  // the nested files feed the other subagent fields too
+  assert.deepEqual(r.subagentEfforts, ['low', 'medium', null]);
+  assert.equal(r.subagentApiErrors, 1);
+  assert.deepEqual(r.efforts, [null]);
+});
+
+t('a message id repeated in a nested transcript is counted once, like one repeated in a flat one', () => {
+  const cfg = tmp();
+  const parent = asst('m1', { out: 100, thinking: 10 });
+  const s1 = asst('s1', { out: 50, thinking: 5 });
+  put(cfg, 's', 'sid-1', lines(parent), {
+    'agent-a.jsonl': lines(parent, s1),
+    'workflows/wf_1/agent-b.jsonl': lines(parent, s1, asst('w1', { out: 20, thinking: 2 })),
+  });
+  const r = readRunUsage(cfg, 'sid-1');
+  assert.equal(r.main.messages, 1);
+  assert.equal(r.subagents.messages, 2);
+  assert.equal(r.subagents.output, 70);
+  assert.equal(r.total.output, 170);
+  assert.equal(r.total.messages, 3);
+});
+
+t('a subagents tree with no transcripts in it is zero subagents', () => {
+  const cfg = tmp();
+  put(cfg, 's', 'sid-1', lines(asst('m1', { out: 40 })), { 'agent-a.meta.json': '{}', 'workflows/wf_1/agent-b.meta.json': '{}' });
+  const r = readRunUsage(cfg, 'sid-1');
+  assert.deepEqual(r.subagents, ZERO);
+  assert.deepEqual(r.subagentFiles, []);
+  assert.equal(r.total.output, 40);
+});
+
 t('efforts come from the main transcript only; subagentEfforts are the union over subagent files', () => {
   const cfg = tmp();
   put(cfg, 's', 'sid-1', lines(asst('m1', { out: 1, effort: 'xhigh' }), asst('m2', { out: 1, effort: 'xhigh' })), {
@@ -326,6 +375,16 @@ t('subagentFiles are sorted by name, and subagentEfforts follow that order, what
   const dir = path.join(path.dirname(mainPath), 'sid-1', 'subagents');
   assert.deepEqual(r.subagentFiles, ['agent-a.jsonl', 'agent-b.jsonl', 'agent-c.jsonl'].map((n) => path.join(dir, n)));
   assert.deepEqual(r.subagentEfforts, ['low', 'medium', 'high']);
+});
+
+t('subagentFiles follow the string order of the path below subagents/, not the order a directory walk meets them', () => {
+  const cfg = tmp();
+  const mainPath = put(cfg, 's', 'sid-1', lines(asst('m1', { out: 1 })), {
+    'agent-x/agent-c.jsonl': lines(asst('s1', { out: 1 })), // a directory walk visits agent-x/ before agent-x.jsonl; '.' sorts before '/'
+    'agent-x.jsonl': lines(asst('s2', { out: 1 })),
+  });
+  const dir = path.join(path.dirname(mainPath), 'sid-1', 'subagents');
+  assert.deepEqual(readRunUsage(cfg, 'sid-1').subagentFiles, [path.join(dir, 'agent-x.jsonl'), path.join(dir, 'agent-x', 'agent-c.jsonl')]);
 });
 
 t('efforts keep a null for a main record that records none, so a guard sees it', () => {
@@ -360,14 +419,19 @@ if (process.getuid?.() === 0) {
   console.log('skip - an unreadable subagents directory is an error (running as root)');
 } else {
   t('an unreadable subagents directory is an error, not zero subagents', () => {
-    const cfg = tmp();
-    const mainPath = put(cfg, 's', 'sid-1', lines(asst('m1', { out: 1 })), { 'agent-a.jsonl': lines(asst('s1', { out: 1 })) });
-    const subDir = path.join(path.dirname(mainPath), 'sid-1', 'subagents');
-    chmodSync(subDir, 0o000);
-    try {
-      assert.throws(() => readRunUsage(cfg, 'sid-1'), /EACCES/);
-    } finally {
-      chmodSync(subDir, 0o755);
+    for (const unreadable of ['subagents', 'subagents/workflows/wf_1']) {
+      const cfg = tmp();
+      const mainPath = put(cfg, 's', 'sid-1', lines(asst('m1', { out: 1 })), {
+        'agent-a.jsonl': lines(asst('s1', { out: 1 })),
+        'workflows/wf_1/agent-b.jsonl': lines(asst('s2', { out: 1 })),
+      });
+      const dir = path.join(path.dirname(mainPath), 'sid-1', ...unreadable.split('/'));
+      chmodSync(dir, 0o000);
+      try {
+        assert.throws(() => readRunUsage(cfg, 'sid-1'), /EACCES/, unreadable);
+      } finally {
+        chmodSync(dir, 0o755);
+      }
     }
   });
 }
@@ -518,6 +582,22 @@ t('testsRunBeforeDone: the text of an API-error record is not the final text', (
 });
 
 // ---- finalTextTail -----------------------------------------------------------------------------------
+
+t('a user record that holds text blocks is not assistant text: isMeta user records after the answer change neither flag nor tail', () => {
+  // Headless runs write user records such as "Continue from where you left off." or a Skill body.
+  const meta = (s) => ({ ...user([txt(s)]), isMeta: true });
+  const after = lines(say('done'), run('cargo test'), meta('Continue from where you left off.'), meta('Base directory for this skill: /skills/x'), user('a plain user prompt'));
+  // the tests ran after the model's last text; the user records after them are not "done"
+  assert.equal(testsRunBeforeDone(after, ['cargo test']), false);
+  assert.equal(finalTextTail(after), 'done');
+  // the same records before a real final text change nothing either way
+  const before = lines(run('cargo test'), meta('Continue from where you left off.'), say('all done'));
+  assert.equal(testsRunBeforeDone(before, ['cargo test']), true);
+  assert.equal(finalTextTail(before), 'all done');
+  // and a transcript whose only text is in user records has no assistant text at all
+  assert.equal(finalTextTail(lines(meta('Continue from where you left off.'))), '');
+  assert.equal(testsRunBeforeDone(lines(meta('Continue from where you left off.'), run('cargo test')), ['cargo test']), true);
+});
 
 t('finalTextTail is the last 300 characters of the last assistant text block', () => {
   const text = lines(say('z'.repeat(400), 'a'), run('ls', 'b'), say('a'.repeat(50) + 'b'.repeat(300), 'c'), user('a user message after the last assistant text'), toolResult());
