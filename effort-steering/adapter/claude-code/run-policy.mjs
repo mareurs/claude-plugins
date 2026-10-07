@@ -10,8 +10,9 @@ import { spawnSync } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-// Placeholder. The latency budget registered in a later task replaces it.
-export const POLICY_TIMEOUT_MS = 2000;
+// The latency budget registered in spikes/s4-prereg.json (G2). run-policy.test.mjs loads that
+// file and fails if the two differ, so the hook cannot run on a budget nobody registered.
+export const POLICY_TIMEOUT_MS = 500;
 
 // Resolved from this file, never from CLAUDE_PLUGIN_ROOT: scratch runs do not set it.
 const DEFAULT_CLI = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', '..', 'bin', 'effort-policy.mjs');

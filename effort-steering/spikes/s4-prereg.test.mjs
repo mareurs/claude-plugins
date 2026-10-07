@@ -298,15 +298,44 @@ t('loadPrereg does not modify the file or the repo', () => {
   assert.equal(readFileSync(f, 'utf8'), bytes);
 });
 
-t('the real committed template throws: its numbers are null', () => {
-  const real = fileURLToPath(new URL('./s4-prereg.json', import.meta.url));
-  assert.throws(() => loadPrereg(real), /field \w+ is required and must not be null/);
+// The file the operator registered at G2. loadPrereg only accepts it once it is committed and
+// equals its HEAD blob, so this test is green from the registration commit on.
+const REAL = fileURLToPath(new URL('./s4-prereg.json', import.meta.url));
+const REGISTERED = {
+  direction: 'down',
+  effectSizeThinkingTokens: 60,
+  latencyBudgetMs: 500,
+  holdoutRate: 0.5,
+  repeats: 4,
+  minPerArm: 24,
+  model: 'claude-sonnet-5-5',
+  prompts: [
+    'What does the HTTP status code 404 mean?',
+    'Convert 72 degrees Fahrenheit to Celsius.',
+    'Write a Python one-liner that reverses a string.',
+    'What is the difference between a list and a tuple in Python?',
+    'Write a JavaScript function that debounces another function, and explain how it works.',
+    'Explain why a SQL query with a LEFT JOIN and a WHERE filter on the right table can behave like an INNER JOIN.',
+    'Implement binary search in Rust and state its loop invariant.',
+    'Compare optimistic and pessimistic locking for a ticket booking system.',
+    'Design a rate limiter that works across three application servers and survives a Redis failover. Compare two approaches and recommend one.',
+    'A Python service leaks memory only under high load. List the five most likely causes in order and name the check that separates each.',
+    'Prove that the sum of the first n odd numbers is n squared, then write a test that checks it for n up to 1000.',
+    "Write a function that finds the longest palindromic substring in linear time and explain why Manacher's algorithm works.",
+  ],
+  steerLevel: 'shallow',
+  alpha: 0.05,
+  permutations: 10000,
+  seed: 20261007,
+};
+
+t('the registered file loads (it is committed, equals its HEAD blob) and holds the G2 numbers', () => {
+  assert.deepEqual(loadPrereg(REAL), REGISTERED);
 });
 
-t('the real template lists every registered field, the R24 fields last and null', () => {
-  const real = JSON.parse(readFileSync(fileURLToPath(new URL('./s4-prereg.json', import.meta.url)), 'utf8'));
+t('the registered file lists every registered field in the template order', () => {
+  const real = JSON.parse(readFileSync(REAL, 'utf8'));
   assert.deepEqual(Object.keys(real), ['direction', 'effectSizeThinkingTokens', 'latencyBudgetMs', 'holdoutRate', 'repeats', 'minPerArm', 'model', 'prompts', 'steerLevel', 'alpha', 'permutations', 'seed']);
-  for (const k of ['alpha', 'permutations', 'seed']) assert.equal(real[k], null, k);
 });
 
 // ---- prompt guards (final review M-2): a prompt is the last argv element of `claude -p` ----

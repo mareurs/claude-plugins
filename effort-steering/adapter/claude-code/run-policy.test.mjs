@@ -5,6 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { t } from '../../core/testkit.mjs';
+import { loadPrereg } from '../../spikes/s4-prereg.mjs';
 import { POLICY_TIMEOUT_MS, effectiveTimeoutMs, runPolicy } from './run-policy.mjs';
 
 const ES = fileURLToPath(new URL('../..', import.meta.url));
@@ -29,8 +30,10 @@ const failOpen = (reason) => ({
   arm: 'treated',
 });
 
-t('POLICY_TIMEOUT_MS is the 2000 ms placeholder', () => {
-  assert.equal(POLICY_TIMEOUT_MS, 2000);
+t('POLICY_TIMEOUT_MS is the registered latency budget', () => {
+  // loadPrereg needs the file committed and equal to HEAD: green from the registration commit on.
+  const prereg = loadPrereg(fileURLToPath(new URL('../../spikes/s4-prereg.json', import.meta.url)));
+  assert.equal(POLICY_TIMEOUT_MS, prereg.latencyBudgetMs);
 });
 
 // I-3: 0 disables spawnSync's timeout, and -1, 150.5, '200', Infinity, NaN make it throw,
