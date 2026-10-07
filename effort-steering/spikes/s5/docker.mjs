@@ -4,23 +4,30 @@
 //
 //   * a run that hit the wall clock (timedOut: a MODEL failure) versus one the kernel
 //     killed for memory (oomKilled: an INFRASTRUCTURE failure). Both are reported, never
-//     merged, and OOMKilled is read from `docker inspect` after EVERY run, because a timed-out
-//     container can also have been OOM-killed;
+//     merged, and OOMKilled is read from `docker container inspect` after EVERY run that
+//     created a container, because a timed-out container can also have been OOM-killed. When
+//     docker could not answer, the answer is null and `inspectOk` is false: "unknown" is never
+//     reported as "no OOM";
 //   * that a secret never appears in argv. A secret is passed as `-e NAME`, and its value
 //     lives only in the environment of the `docker run` process.
 //
-// The host runs about 20 unrelated containers. Every container started here carries the label
-// s5=1 (and s5.run=<name>), and removeLabeled refuses a label outside s5, so the runner has a
-// way to find and remove its own containers and no way to sweep anyone else's. The kill,
-// inspect and rm that follow a run address the container by NAME, which docker resolves across
-// every tenant: a caller must pick names that no other tenant can hold, because a name collision
-// would send the kill and the rm to that other container.
+// The host runs about 20 unrelated containers, so this file never addresses a container by
+// NAME after the run has started. Docker resolves a name across every tenant (and a name that
+// matches nothing is tried as an ID prefix), so a kill, inspect or rm by name can reach a
+// container that is not ours. Instead the container is looked up by its label,
+// `docker ps -aq --no-trunc --filter label=s5.run=<name>`, and everything after that acts on
+// the full IDs that lookup returned. A name that docker refused because another tenant holds
+// it finds no labelled container, so nothing is inspected, killed or removed.
+// Every container started here carries the label s5=1, and removeLabeled refuses a label
+// outside s5.
 //
 // Nothing here is shell-parsed: docker is spawned with an argv array.
 
 import { spawn, spawnSync } from 'node:child_process';
 
-const NAME_RE = /^[a-zA-Z0-9][a-zA-Z0-9_.-]*$/;
+// The `s5-` prefix keeps a name from being read as a hex ID prefix of someone else's container.
+const NAME_RE = /^s5-[a-zA-Z0-9_.-]+$/;
+const LABEL_KEY_RE = /^[a-zA-Z0-9][a-zA-Z0-9_.-]*$/;
 const ENV_KEY_RE = /^[A-Z_][A-Z0-9_]*$/;
 // `s5`, `s5.<anything>`, either optionally followed by =<value>. Not `s50`, not `s5x`.
 const LABEL_SCOPE_RE = /^s5([.=]|$)/;
@@ -28,6 +35,7 @@ const RESERVED_LABEL_KEYS = new Set(['s5', 's5.run']);
 // The only variables a docker process inherits from this one.
 const PASSTHROUGH = ['PATH', 'HOME', 'DOCKER_HOST', 'DOCKER_CONFIG', 'DOCKER_CONTEXT', 'DOCKER_CERT_PATH', 'DOCKER_TLS_VERIFY'];
 const KILL_GRACE_MS = 30_000;
+const HELPER_TIMEOUT_MS = 60_000;
 
 // docker's own environment: the whitelist and nothing else (no ANTHROPIC_*, no CLAUDE_*).
 function baseEnv() {
@@ -58,11 +66,13 @@ function plan(o) {
   optionalText('user', user);
   if (!Array.isArray(cmd) || !cmd.every((c) => typeof c === 'string')) throw new TypeError('dockerRun: cmd must be an array of strings');
 
-  const argv = ['run', '--name', name, '--label', 's5=1', '--label', `s5.run=${name}`];
+  // --pull=never: the timeout window must not include a pull, and a missing image must fail
+  // fast (exit 125, no container) instead of fetching one. Images are built locally.
+  const argv = ['run', '--pull=never', '--name', name, '--label', 's5=1', '--label', `s5.run=${name}`];
   for (const [k, v] of Object.entries(labels)) {
     // The key may not contain `=` (it would split into another key) and may not be one of
     // ours: a later --label overrides an earlier one, which would undo s5=1.
-    if (!NAME_RE.test(k) || RESERVED_LABEL_KEYS.has(k)) throw new TypeError(`dockerRun: label key ${JSON.stringify(k)} is invalid or reserved`);
+    if (!LABEL_KEY_RE.test(k) || RESERVED_LABEL_KEYS.has(k)) throw new TypeError(`dockerRun: label key ${JSON.stringify(k)} is invalid or reserved`);
     if (typeof v !== 'string') throw new TypeError(`dockerRun: label ${k} must be a string`);
     argv.push('--label', `${k}=${v}`);
   }
@@ -80,9 +90,13 @@ function plan(o) {
   }
   const runEnv = baseEnv();
   for (const [k, v] of Object.entries(env)) {
+    // Every message below names the KEY only: an env value is a secret, and no error, log or
+    // row may carry it.
     if (!ENV_KEY_RE.test(k)) throw new TypeError(`dockerRun: env key must match ${ENV_KEY_RE}, got ${JSON.stringify(k)}`);
     // An undefined value would make `-e NAME` forward nothing, and the secret would vanish.
     if (typeof v !== 'string') throw new TypeError(`dockerRun: env ${k} must be a string`);
+    // spawn() refuses a NUL byte, and its error message quotes the whole value.
+    if (v.includes('\0')) throw new TypeError(`dockerRun: env ${k} must not contain a NUL byte`);
     argv.push('-e', k);
     runEnv[k] = v;
   }
@@ -90,31 +104,72 @@ function plan(o) {
   return { argv, name, timeoutMs, runEnv };
 }
 
-// `docker <args>` with the base environment only (the secrets stay with `docker run`).
-// Never rejects: a docker that cannot start comes back as `error`.
-function dockerCmd(bin, args) {
+// `docker <args>` with the base environment only (the secrets stay with `docker run`), and a
+// timeout of its own: a helper that does not answer within timeoutMs is SIGKILLed and counts
+// as failed (status null, timedOut true). Never rejects: a docker that cannot start comes
+// back as `error`.
+function dockerCmd(bin, args, timeoutMs) {
   return new Promise((resolve) => {
-    const child = spawn(bin, args, { env: baseEnv(), stdio: ['ignore', 'pipe', 'ignore'] });
+    let settled = false;
+    let timedOut = false;
+    let timer;
     const out = [];
+    const finish = (r) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      resolve({ ...r, timedOut });
+    };
+    let child;
+    try {
+      child = spawn(bin, args, { env: baseEnv(), stdio: ['ignore', 'pipe', 'ignore'] });
+    } catch (error) {
+      finish({ status: null, stdout: '', error });
+      return;
+    }
+    timer = setTimeout(() => {
+      timedOut = true;
+      child.kill('SIGKILL');
+    }, timeoutMs);
     child.stdout.on('data', (c) => out.push(c));
-    child.once('error', (error) => resolve({ status: null, stdout: '', error }));
-    child.once('close', (status) => resolve({ status, stdout: Buffer.concat(out).toString('utf8'), error: null }));
+    child.once('error', (error) => finish({ status: null, stdout: '', error }));
+    child.once('close', (status) => finish({ status, stdout: Buffer.concat(out).toString('utf8'), error: null }));
   });
 }
 
-// dockerRun(options, { dockerBin, killGraceMs }) -> { status, stdout, stderr, timedOut, oomKilled, wallMs }
-// (killGraceMs is a seam for tests, so the SIGKILL fallback need not wait 30 s.)
+// Our container, found by its label and nothing else. { ok, ids }: ok is false when docker did
+// not answer (failed, hung, could not start), which is not the same as "no container".
+async function findOurs(bin, name, timeoutMs) {
+  const r = await dockerCmd(bin, ['ps', '-aq', '--no-trunc', '--filter', `label=s5.run=${name}`], timeoutMs);
+  if (r.status !== 0) return { ok: false, ids: [] };
+  return { ok: true, ids: r.stdout.split(/\s+/).filter(Boolean) };
+}
+
+// dockerRun(options, { dockerBin, killGraceMs, helperTimeoutMs })
+//   -> { status, stdout, stderr, timedOut, created, oomKilled, inspectOk, rmOk, wallMs }
+// (killGraceMs and helperTimeoutMs are seams for tests, so they need not wait 30 s and 60 s.)
 //
-// Runs `docker run` in the foreground (no --rm, -d, -i or -t, stdin /dev/null) and waits for it.
-//   status    the container's exit status, or null when the docker process ended on a signal
-//   timedOut  the run hit timeoutMs and was `docker kill`ed by name. If the docker process is
-//             still alive killGraceMs (30 s) after the kill it is SIGKILLed, so a wedged
-//             client cannot hold the harness.
-//   oomKilled `docker inspect` said .State.OOMKilled is true (read after every run)
-//   wallMs    start of the run to its end, kill included; the cleanup is not counted
-// The container is always removed afterwards (`docker rm -f`), whatever happened.
+// Runs `docker run --pull=never` in the foreground (no --rm, -d, -i or -t, stdin /dev/null) and
+// waits for it.
+//   status      the container's exit status, or null when the docker process ended on a signal.
+//               125 is docker's own failure (no image, name taken, bad flag): see `created`.
+//   timedOut    the run hit timeoutMs. Our container is looked up by label and `docker kill`ed
+//               by ID (nothing is killed when it is not found). If the docker process is still
+//               alive killGraceMs (30 s) after the timeout it is SIGKILLed, so a wedged client
+//               cannot hold the harness.
+//   created     after the run, a container carrying our label s5.run=<name> existed. False when
+//               docker refused to create one (125), and also when the lookup itself failed.
+//   oomKilled   true | false from `docker container inspect` (.State.OOMKilled), read after every
+//               run that created a container, whatever the exit; null when no container was
+//               created or the inspect failed. null is "unknown", never "no".
+//   inspectOk   the inspect ran and exited 0
+//   rmOk        nothing of ours is left behind: either no container needed removing, or
+//               `docker rm -f` exited 0. False when the lookup, or the rm, failed.
+//   wallMs      start of the run to its end, the lookup and kill included; the inspect and rm
+//               are not counted
+// Every helper (ps, kill, inspect, rm) has its own helperTimeoutMs, 60 s by default.
 // Rejects (TypeError) on bad options before anything runs, and (Error) when docker cannot start.
-export async function dockerRun(options, { dockerBin = 'docker', killGraceMs = KILL_GRACE_MS } = {}) {
+export async function dockerRun(options, { dockerBin = 'docker', killGraceMs = KILL_GRACE_MS, helperTimeoutMs = HELPER_TIMEOUT_MS } = {}) {
   const { argv, name, timeoutMs, runEnv } = plan(options);
   const started = performance.now();
   const child = spawn(dockerBin, argv, { env: runEnv, stdio: ['ignore', 'pipe', 'pipe'] });
@@ -132,8 +187,11 @@ export async function dockerRun(options, { dockerBin = 'docker', killGraceMs = K
   let graceTimer;
   const timer = setTimeout(() => {
     timedOut = true;
-    killed = dockerCmd(dockerBin, ['kill', name]);
     graceTimer = setTimeout(() => child.kill('SIGKILL'), killGraceMs);
+    killed = (async () => {
+      const found = await findOurs(dockerBin, name, helperTimeoutMs);
+      if (found.ids.length > 0) await dockerCmd(dockerBin, ['kill', ...found.ids], helperTimeoutMs);
+    })();
   }, timeoutMs);
 
   let status;
@@ -148,34 +206,49 @@ export async function dockerRun(options, { dockerBin = 'docker', killGraceMs = K
   const wallMs = Math.round(performance.now() - started);
 
   await killed;
-  const inspect = await dockerCmd(dockerBin, ['inspect', '--format', '{{.State.OOMKilled}}', name]);
-  await dockerCmd(dockerBin, ['rm', '-f', name]);
+  const found = await findOurs(dockerBin, name, helperTimeoutMs);
+  const created = found.ids.length > 0;
+  let oomKilled = null;
+  let inspectOk = false;
+  let rmOk = found.ok;
+  if (created) {
+    const inspect = await dockerCmd(dockerBin, ['container', 'inspect', '--format', '{{.State.OOMKilled}}', ...found.ids], helperTimeoutMs);
+    inspectOk = inspect.status === 0;
+    if (inspectOk) oomKilled = inspect.stdout.split('\n').some((line) => line.trim() === 'true');
+    const rm = await dockerCmd(dockerBin, ['rm', '-f', ...found.ids], helperTimeoutMs);
+    rmOk = rm.status === 0;
+  }
   return {
     status,
     stdout: Buffer.concat(out).toString('utf8'),
     stderr: Buffer.concat(err).toString('utf8'),
     timedOut,
-    oomKilled: inspect.stdout.trim() === 'true',
+    created,
+    oomKilled,
+    inspectOk,
+    rmOk,
     wallMs,
   };
 }
 
-function runSync(bin, args) {
-  const r = spawnSync(bin, args, { env: baseEnv(), encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
+function runSync(bin, args, timeoutMs) {
+  const r = spawnSync(bin, args, { env: baseEnv(), encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], timeout: timeoutMs, killSignal: 'SIGKILL' });
+  if (r.error?.code === 'ETIMEDOUT') throw new Error(`${bin} ${args[0]} timed out after ${timeoutMs} ms`);
   if (r.error) throw new Error(`${bin} ${args[0]} could not run: ${r.error.message}`);
   if (r.status !== 0) throw new Error(`${bin} ${args[0]} failed (${r.status === null ? `signal ${r.signal}` : `exit ${r.status}`}): ${r.stderr.trim()}`);
   return r.stdout;
 }
 
-// removeLabeled(label = 's5=1', { dockerBin }) -> the number of containers removed.
+// removeLabeled(label = 's5=1', { dockerBin, helperTimeoutMs }) -> the number of containers removed.
 // Removes every container (running or not) that carries the label. The label must be an s5
-// label: this host runs other people's containers, and nothing here may touch them.
-export function removeLabeled(label = 's5=1', { dockerBin = 'docker' } = {}) {
+// label: this host runs other people's containers, and nothing here may touch them. Each of the
+// two docker calls has its own helperTimeoutMs (60 s) and throws when it is exceeded.
+export function removeLabeled(label = 's5=1', { dockerBin = 'docker', helperTimeoutMs = HELPER_TIMEOUT_MS } = {}) {
   if (typeof label !== 'string' || !LABEL_SCOPE_RE.test(label)) {
     throw new TypeError(`removeLabeled: label must be s5 or s5.<name>, optionally =<value>, got ${JSON.stringify(label)}`);
   }
-  const ids = runSync(dockerBin, ['ps', '-aq', '--filter', `label=${label}`]).split(/\s+/).filter(Boolean);
+  const ids = runSync(dockerBin, ['ps', '-aq', '--filter', `label=${label}`], helperTimeoutMs).split(/\s+/).filter(Boolean);
   if (ids.length === 0) return 0;
-  runSync(dockerBin, ['rm', '-f', ...ids]);
+  runSync(dockerBin, ['rm', '-f', ...ids], helperTimeoutMs);
   return ids.length;
 }
