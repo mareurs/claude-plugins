@@ -333,8 +333,13 @@ export async function runExperiment(preregFile, opts = {}) {
     let claudeCalls = 0;
     const runClaude = async (sessionId, prompt, arm) => {
       claudeCalls++;
+      // `--thinking-display summarized`: without it a headless run under these settings sends
+      // `display: "omitted"` and the transcript keeps signed thinking blocks with no text. The flag
+      // changes visibility only; Anthropic's docs say the billed thinking tokens are the same either
+      // way. Direct runs on Sonnet 5.5 and Opus 5.5 (2026-10-07, ES-16) showed text with the flag and
+      // none without. Both arms get it, so it is not a confound.
       // `--` ends option parsing (loadPrereg also refuses a prompt that starts with - or /).
-      const args = ['-p', '--model', prereg.model, '--session-id', sessionId, '--setting-sources', 'local', '--settings', scratch.settings, '--strict-mcp-config', '--', prompt];
+      const args = ['-p', '--model', prereg.model, '--session-id', sessionId, '--setting-sources', 'local', '--settings', scratch.settings, '--strict-mcp-config', '--thinking-display', 'summarized', '--', prompt];
       const env = childEnv(process.env, { holdoutRate: RATE_FOR[arm], stateHome, tmpDir });
       return spawn('claude', args, { cwd, env, encoding: 'utf8', timeout: RUN_TIMEOUT_MS, killSignal: 'SIGKILL' });
     };

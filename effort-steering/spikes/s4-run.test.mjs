@@ -369,6 +369,18 @@ await ta('--strict-mcp-config is passed, before `--`', async () => {
   }
 });
 
+await ta('`--thinking-display summarized` is passed once, before `--`, on every call (canary and both arms)', async () => {
+  const { f } = await run();
+  assert.equal(f.calls.claude.length, 13);
+  for (const c of f.calls.claude) {
+    const a = c.args;
+    assert.equal(a.filter((x) => x === '--thinking-display').length, 1);
+    const i = a.indexOf('--thinking-display');
+    assert.equal(a[i + 1], 'summarized');
+    assert.ok(i + 1 < a.indexOf('--'), 'the flag and its value must come before `--`');
+  }
+});
+
 await ta('claude and hook spawns use killSignal SIGKILL', async () => {
   const { f } = await run();
   assert.ok(f.calls.claude.every((c) => c.opts.killSignal === 'SIGKILL'));
