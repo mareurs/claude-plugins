@@ -15,6 +15,39 @@ const isNum = (v) => typeof v === 'number' && Number.isFinite(v);
 const isInt = (v) => Number.isSafeInteger(v);
 const blank = (s) => typeof s !== 'string' || s.trim().length === 0;
 
+// The runner's arm count (ruling R24), kept here so the loader and the runner cannot disagree:
+// per prompt, round(repeats x holdoutRate) of the repeats are holdout, clamped so that both
+// arms keep at least one run. s4-run.mjs imports this.
+export function holdoutCountFor(repeats, holdoutRate) {
+  return Math.min(repeats - 1, Math.max(1, Math.round(repeats * holdoutRate)));
+}
+
+// Is alpha above the permutation floor 1 / C(repeats, h)^k, the smallest p an exact test over
+// k prompts with h holdout runs in each of `repeats` can report? Exact, in BigInt: a float
+// binomial overflows to Infinity (and its ratio to NaN) long before this registry is large.
+// alpha is read as the double it is, m x 2^-s, so the test is m x C^k > 2^s.
+function floorBelow(alpha, repeats, h, k) {
+  // Past 2^1075 the floor is under every positive double (the smallest is 2^-1074): stop
+  // building C, so a huge `repeats` ends after about a thousand steps, not never.
+  const HUGE_BITS = 1075;
+  let c = 1n;
+  for (let i = 1; i <= Math.min(h, repeats - h); i++) {
+    c = (c * BigInt(repeats - i + 1)) / BigInt(i);
+    if (c.toString(2).length > HUGE_BITS) return true;
+  }
+  const bits = c.toString(2).length;
+  if ((bits - 1) * k >= HUGE_BITS) return true; // C^k >= 2^((bits - 1) k)
+  const view = new DataView(new ArrayBuffer(8));
+  view.setFloat64(0, alpha);
+  const raw = view.getBigUint64(0);
+  const exp = Number((raw >> 52n) & 0x7ffn);
+  const frac = raw & ((1n << 52n) - 1n);
+  const m = exp === 0 ? frac : frac | (1n << 52n); // alpha is in (0, 1): finite, positive, and below 1
+  const s = BigInt(exp === 0 ? 1074 : 1075 - exp);
+  return m * c ** BigInt(k) > 1n << s;
+}
+
+
 function validate(p) {
   if (p === null || typeof p !== 'object' || Array.isArray(p)) throw new Error('prereg: file must hold a JSON object');
   const need = (cond, field, why) => {
@@ -51,6 +84,15 @@ function validate(p) {
   need(isNum(p.alpha) && p.alpha > 0 && p.alpha < 1, 'alpha', 'must be a finite number strictly between 0 and 1');
   need(isInt(p.permutations) && p.permutations >= 1, 'permutations', 'must be a safe integer >= 1');
   need(isInt(p.seed), 'seed', 'must be a safe integer');
+  // R25: feasibility. Every check below reads the arm count the runner will plan, so a
+  // registered number that no run could satisfy never loads.
+  const k = p.prompts.length;
+  const h = holdoutCountFor(p.repeats, p.holdoutRate);
+  // The smallest p the test can report is 1 / (1 + permutations), compared as the analysis does.
+  need(1 / (p.permutations + 1) <= p.alpha, 'permutations', `${p.permutations} cannot reach alpha ${p.alpha}: it needs at least ${Math.ceil(1 / p.alpha) - 1}`);
+  need(floorBelow(p.alpha, p.repeats, h, k), 'alpha', `${p.alpha} is not above the exact permutation floor 1 / C(${p.repeats}, ${h})^${k}`);
+  need(p.minPerArm <= k * (p.repeats - h), 'minPerArm', `${p.minPerArm} exceeds the ${k * (p.repeats - h)} treated runs planned (${k} prompts x ${p.repeats - h})`);
+  need(p.minPerArm <= k * h, 'minPerArm', `${p.minPerArm} exceeds the ${k * h} holdout runs planned (${k} prompts x ${h})`);
 }
 
 // Git runs in the file's own directory, never the process cwd. EVERY GIT_*

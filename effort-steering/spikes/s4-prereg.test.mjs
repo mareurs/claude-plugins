@@ -114,13 +114,82 @@ t('latencyBudgetMs must be a safe integer: 150.5 throws naming the field, 1 load
 t('alpha must be a finite number strictly between 0 and 1', () => {
   for (const bad of [0, 1, -0.1, 1.5, '0.05', true]) throwsNaming({ ...VALID, alpha: bad }, 'alpha');
   throwsNaming(RAW(500, 2000, '1e999'), 'alpha');
-  for (const ok of [0.0001, 0.05, 0.9999]) assert.equal(loadPrereg(put({ ...VALID, alpha: ok })).alpha, ok);
+  // 10 repeats at rate 0.25 is 3 holdout runs per prompt: 120^4 labelings, so even 0.0001 is reachable.
+  for (const ok of [0.0001, 0.05, 0.9999]) assert.equal(loadPrereg(put({ ...VALID, repeats: 10, permutations: 20000, alpha: ok })).alpha, ok);
 });
 
 t('permutations must be a safe integer >= 1', () => {
   for (const bad of [0, -1, 1.5, '100', true]) throwsNaming({ ...VALID, permutations: bad }, 'permutations');
   throwsNaming(RAW(500, 2000, '0.05', '1e300'), 'permutations');
-  assert.equal(loadPrereg(put({ ...VALID, permutations: 1 })).permutations, 1);
+  assert.equal(loadPrereg(put({ ...VALID, alpha: 0.5, permutations: 1 })).permutations, 1);
+});
+
+// ---- R25: feasibility. A registered number the runner could never satisfy must not load. ----
+
+t('permutations must reach the alpha grain: permutations >= ceil(1 / alpha) - 1', () => {
+  // alpha 0.05: the smallest p is 1 / (1 + permutations), so 19 draws reach 0.05 and 18 stop at 1/19.
+  assert.equal(loadPrereg(put({ ...VALID, alpha: 0.05, permutations: 19 })).permutations, 19);
+  throwsNaming({ ...VALID, alpha: 0.05, permutations: 18 }, 'permutations');
+  // alpha 0.25 is exact in binary: 3 draws reach it, 2 do not.
+  assert.equal(loadPrereg(put({ ...VALID, alpha: 0.25, permutations: 3 })).permutations, 3);
+  throwsNaming({ ...VALID, alpha: 0.25, permutations: 2 }, 'permutations');
+  // the registered 10000 reaches any alpha down to 1 / 10001
+  assert.equal(loadPrereg(put({ ...VALID, repeats: 10, alpha: 0.0001, permutations: 9999 })).permutations, 9999);
+  throwsNaming({ ...VALID, repeats: 10, alpha: 0.0001, permutations: 9998 }, 'permutations');
+});
+
+// 4 prompts x 4 repeats at rate 0.25 is 1 holdout run per prompt: C(4, 1) = 4 labelings each,
+// 4^4 = 256 = 2^8 in all, so 1 / 256 is exact in binary and ulp(1 / 256) is 2^-60.
+const EXACT = { ...VALID, repeats: 4, minPerArm: 3, permutations: 100000 };
+
+t('alpha must exceed the exact permutation floor 1 / C(repeats, h)^k', () => {
+  throwsNaming({ ...EXACT, alpha: 1 / 256 }, 'alpha'); // exactly at the floor: not above it
+  throwsNaming({ ...EXACT, alpha: 1 / 256 - 2 ** -61 }, 'alpha'); // the double just below
+  assert.equal(loadPrereg(put({ ...EXACT, alpha: 1 / 256 + 2 ** -60 })).alpha, 1 / 256 + 2 ** -60); // the double just above
+  throwsNaming({ ...EXACT, alpha: 0.003 }, 'alpha');
+  assert.equal(loadPrereg(put({ ...EXACT, alpha: 0.004 })).alpha, 0.004);
+});
+
+t('the floor follows the runner arm count: 4 prompts x 3 repeats at rate 0.4 is 1 / 3^4', () => {
+  const v = { ...VALID, repeats: 3, holdoutRate: 0.4, minPerArm: 3 }; // round(1.2) = 1 holdout run per prompt
+  throwsNaming({ ...v, alpha: 0.012 }, 'alpha'); // below 1/81 = 0.012346
+  throwsNaming({ ...v, alpha: 1 / 81 }, 'alpha'); // the double nearest 1/81 lies just below 1/81
+  assert.equal(loadPrereg(put({ ...v, alpha: 0.0124 })).alpha, 0.0124);
+});
+
+t('the floor is reachable for the registered shape: 12 prompts x 4 repeats at rate 0.5 is 1 / 6^12', () => {
+  const prompts = Array.from({ length: 12 }, (_, i) => `prompt number ${i}`);
+  const v = { ...VALID, prompts, repeats: 4, holdoutRate: 0.5, minPerArm: 24, permutations: 10000 };
+  assert.equal(loadPrereg(put(v)).alpha, 0.05);
+});
+
+t('the floor does not overflow or hang: a huge repeats or many prompts load, they are not read as a zero floor', () => {
+  const many = Array.from({ length: 300 }, (_, i) => `prompt number ${i}`);
+  // C(5000, 2500) is about 10^1503: a float product is Infinity, a float ratio NaN.
+  assert.equal(loadPrereg(put({ ...VALID, repeats: 5000, holdoutRate: 0.5, prompts: many })).repeats, 5000);
+  // C(10^15, h) has as many digits as no machine can build; the loader must stop early.
+  assert.equal(loadPrereg(put({ ...VALID, repeats: 10 ** 15 })).repeats, 10 ** 15);
+});
+
+t('minPerArm must fit both planned arm totals: k x (repeats - h) treated and k x h holdout', () => {
+  // VALID: 4 prompts x 5 repeats at rate 0.25 is h = 1, so 16 treated and 4 holdout runs.
+  assert.equal(loadPrereg(put({ ...VALID, minPerArm: 4 })).minPerArm, 4); // exactly the holdout total
+  throwsNaming({ ...VALID, minPerArm: 5 }, 'minPerArm'); // one past it
+  // 4 prompts x 3 repeats at rate 0.5 is h = 2, so 4 treated and 8 holdout runs.
+  const v = { ...VALID, repeats: 3, holdoutRate: 0.5 };
+  assert.equal(loadPrereg(put({ ...v, minPerArm: 4 })).minPerArm, 4); // exactly the treated total
+  throwsNaming({ ...v, minPerArm: 5 }, 'minPerArm'); // one past it; the holdout total (8) would allow it
+});
+
+t('minPerArm uses the clamped arm count: rate 0.1 still holds out one run, rate 0.99 still treats one', () => {
+  // 4 prompts x 4 repeats at rate 0.1: round(0.4) = 0 is clamped to 1, so 12 treated and 4 holdout runs.
+  const low = { ...VALID, repeats: 4, holdoutRate: 0.1 };
+  assert.equal(loadPrereg(put({ ...low, minPerArm: 4 })).minPerArm, 4);
+  throwsNaming({ ...low, minPerArm: 5 }, 'minPerArm');
+  // rate 0.99: round(3.96) = 4 is clamped to 3, so 4 treated and 12 holdout runs.
+  const high = { ...VALID, repeats: 4, holdoutRate: 0.99 };
+  assert.equal(loadPrereg(put({ ...high, minPerArm: 4 })).minPerArm, 4);
+  throwsNaming({ ...high, minPerArm: 5 }, 'minPerArm');
 });
 
 t('seed must be a safe integer (negative and zero allowed)', () => {

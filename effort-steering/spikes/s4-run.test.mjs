@@ -17,6 +17,7 @@ import { fileURLToPath } from 'node:url';
 import { stateDirFor } from '../core/log.mjs';
 import { t } from '../core/testkit.mjs';
 import { holdoutCountFor, main, measureHookLatency, planRuns, runExperiment, stopReasons } from './s4-run.mjs';
+import { holdoutCountFor as loadedHoldoutCountFor } from './s4-prereg.mjs';
 
 const ROOT = realpathSync(mkdtempSync(path.join(os.tmpdir(), 's4-run-test-')));
 process.on('exit', () => rmSync(ROOT, { recursive: true, force: true }));
@@ -239,6 +240,10 @@ t('planRuns: prompts x repeats entries, distinct UUID session ids, each prompt r
 t('holdoutCountFor: round(repeats x rate), clamped to [1, repeats - 1]', () => {
   const cases = [[3, 0.5, 2], [3, 0.9, 2], [3, 0.1, 1], [3, 0.34, 1], [4, 0.5, 2], [5, 0.4, 2], [5, 0.5, 3], [7, 0.3, 2], [10, 0.25, 3], [10, 0.95, 9], [10, 0.01, 1]];
   for (const [repeats, rate, want] of cases) assert.equal(holdoutCountFor(repeats, rate), want, `${repeats} x ${rate}`);
+});
+
+t('the runner and the loader share one holdoutCountFor, not two copies', () => {
+  assert.equal(holdoutCountFor, loadedHoldoutCountFor);
 });
 
 t('planRuns balances the arms WITHIN every prompt, for several (repeats, holdoutRate) pairs', () => {
@@ -960,10 +965,11 @@ await ta('end to end: cache_creation higher on treated gives cache_not_ok', asyn
   assert.deepEqual(result.stop, ['cache_not_ok']);
 });
 
-await ta('end to end: short arms give insufficient_data (4 treated runs against minPerArm 5)', async () => {
-  const { result } = await run({ minPerArm: 5 });
-  assert.equal(result.excluded, 0);
-  assert.equal(result.analysis.nTreated, 4);
+await ta('end to end: short arms give insufficient_data (one treated run excluded against minPerArm 4)', async () => {
+  // minPerArm 5 would not load: the plan holds only 4 treated runs (R25). The shortfall comes from an exclusion.
+  const { result } = await run({ minPerArm: 4 }, { plan: firstOf('treated', 1, { spawn: 'status' }) });
+  assert.equal(result.excluded, 1);
+  assert.equal(result.analysis.nTreated, 3);
   assert.equal(result.verdict, 'insufficient_data');
   assert.ok(result.stop.includes('insufficient_data'));
 });

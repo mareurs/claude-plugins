@@ -69,7 +69,7 @@ import { buildContext } from '../adapter/claude-code/build-context.mjs';
 import { runPolicy } from '../adapter/claude-code/run-policy.mjs';
 import { stateDirFor } from '../core/log.mjs';
 import { analyzeArms } from './s4-analyze.mjs';
-import { loadPrereg, runGit } from './s4-prereg.mjs';
+import { holdoutCountFor, loadPrereg, runGit } from './s4-prereg.mjs';
 import { makeRng, shuffle } from './s4-prng.mjs';
 import { buildRow } from './s4-rows.mjs';
 
@@ -101,13 +101,12 @@ function makeRoot(prefix, base) {
 }
 
 // Ruling R24: the RUNNER assigns the arms, balanced within each prompt. Per prompt,
-// holdoutCountFor(repeats, holdoutRate) of the repeats are holdout; which ones, and the
+// holdoutCountFor(repeats, holdoutRate) of the repeats are holdout (the rule lives in
+// s4-prereg.mjs, where the loader's feasibility checks read it too); which ones, and the
 // global run order (prompts and arms interleaved), come from the registered seed (stream 0;
 // the permutation test uses stream 1). Session ids are fresh UUIDs, never derived from the
 // seed: a re-run must not collide with an earlier run's transcript.
-export function holdoutCountFor(repeats, holdoutRate) {
-  return Math.min(repeats - 1, Math.max(1, Math.round(repeats * holdoutRate)));
-}
+export { holdoutCountFor };
 
 export function planRuns(prereg) {
   const rng = makeRng(prereg.seed, PLAN_STREAM);
