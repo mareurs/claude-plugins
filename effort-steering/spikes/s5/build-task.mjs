@@ -7,8 +7,8 @@
 // caller removes an old one on purpose):
 //
 //   tree/           the repository at P as ONE fresh commit `task <id>` (s5 <s5@localhost>), no remote,
-//                   no history. CLAUDE.md, AGENTS.md, .claude/ and .codescout/ are gone at every depth
-//                   and replaced by a short task CLAUDE.md; TASK.md sits at the root.
+//                   no history. CLAUDE.md, AGENTS.md, .claude/, .codescout/ and .buddy/ are gone at
+//                   every depth and replaced by a short task CLAUDE.md; TASK.md sits at the root.
 //   hidden/         the fix commit's version of each hidden.files path, plus each hidden.extra file
 //                   from <taskDir>/extra-tests/, each at its relative path.
 //   manifest.json   { id, repo, fix, parent, treeHash, hiddenHash, promptHash, taskMdHash, def }
@@ -22,9 +22,11 @@
 //   promptHash  sha256 of prompt.txt's bytes.   taskMdHash  sha256 of TASK.md's bytes.
 //
 // Leak paths this closes (spec "Building a task"): history (one commit, and the new repository holds
-// neither P nor C as an object), a remote, the repo's own CLAUDE.md/AGENTS.md/.claude/.codescout, the
-// paths named in scrub.removePaths, and any scrub term left in any file or symlink target (the check
-// runs on the final tree, task CLAUDE.md and TASK.md included, and the build is removed on a hit).
+// neither P nor C as an object), a remote, the repo's own CLAUDE.md/AGENTS.md/.claude/.codescout/
+// .buddy, the paths named in scrub.removePaths, and every scrub term in every channel the agent
+// reads: file bytes, symlink target strings, file, directory and symlink NAMES (the whole relative
+// path), the task id (it is in the commit message) and prompt.txt (it is the first user message).
+// The tree check runs on the final tree, task CLAUDE.md and TASK.md included. A hit removes the build.
 //
 // The source repository is the operator's live checkout. It is read only through git on committed
 // objects (rev-parse, archive, cat-file): never its working tree, index or refs, and never a command
@@ -43,10 +45,12 @@ const TEMPLATE = new URL('./task-claude.md.tmpl', import.meta.url);
 const IDENTITY = ['-c', 'user.name=s5', '-c', 'user.email=s5@localhost'];
 // Fixed, so that a rebuild writes the same author date; only treeHash matters, not the commit id.
 const AUTHOR_DATE = '2026-01-01T00:00:00Z';
-// An entry with one of these names is removed wherever it is, whatever its type.
-const DROP_NAMES = new Set(['CLAUDE.md', 'AGENTS.md', '.claude', '.codescout']);
+// An entry with one of these names is removed wherever it is, whatever its type. .buddy/ holds
+// specialist notes about the codebase (codescout tracks .buddy/memory/; ruling R24).
+const DROP_NAMES = new Set(['CLAUDE.md', 'AGENTS.md', '.claude', '.codescout', '.buddy']);
 const MAX_HITS_SHOWN = 20;
-// tar and cp get PATH and nothing else (no TAR_OPTIONS, no POSIXLY_CORRECT, no locale surprises).
+// tar and cp get PATH and nothing else: no TAR_OPTIONS (it can exclude files from the tree), no
+// POSIXLY_CORRECT, no locale surprises.
 const toolEnv = () => ({ PATH: process.env.PATH });
 
 const byteCmp = (a, b) => Buffer.compare(Buffer.from(a), Buffer.from(b));
@@ -81,22 +85,26 @@ export function renderTaskClaudeMd(def) {
 
 // ---- walking and hashing a tree ----
 
-// Every file and symlink under root (directories are not entries), byte-sorted. A symlink to a
-// directory is an entry and is not entered. Only the top-level .git is skipped, and only on request.
-function listEntries(root, { skipRootGit = false } = {}) {
-  const out = [];
+// Every directory, and every file or symlink, under root, each list byte-sorted. A symlink to a
+// directory is a file entry and is not entered. Only the top-level .git is skipped, and only on request.
+function walkTree(root, { skipRootGit = false } = {}) {
+  const files = [];
+  const dirs = [];
   const rec = (rel) => {
     for (const e of readdirSync(join(root, rel), { withFileTypes: true })) {
       const r = rel === '' ? e.name : `${rel}/${e.name}`;
       if (skipRootGit && r === '.git') continue;
-      if (e.isDirectory()) rec(r);
-      else if (e.isFile() || e.isSymbolicLink()) out.push(r);
+      if (e.isDirectory()) {
+        dirs.push(r);
+        rec(r);
+      } else if (e.isFile() || e.isSymbolicLink()) files.push(r);
       else throw new Error(`buildTask: ${r} is neither a regular file, a directory nor a symlink`);
     }
   };
   rec('');
-  return out.sort(byteCmp);
+  return { files: files.sort(byteCmp), dirs: dirs.sort(byteCmp) };
 }
+const listEntries = (root, opts) => walkTree(root, opts).files;
 // A file's bytes, or a symlink's target string. Never follows a link.
 function entryBytes(abs) {
   return lstatSync(abs).isSymbolicLink() ? readlinkSync(abs, { encoding: 'buffer' }) : readFileSync(abs);
@@ -105,6 +113,33 @@ function hashEntries(root, rels) {
   const h = createHash('sha256');
   for (const rel of rels) h.update(`${rel}\0${sha256(entryBytes(join(root, rel)))}\n`);
   return h.digest('hex');
+}
+
+// ---- the scrub ----
+
+const needlesOf = (terms) => terms.map((term) => [term, Buffer.from(term, 'utf8')]);
+// One line per scrub term found in `bytes`; `where` says which channel it was found in.
+function hitsIn(needles, where, bytes) {
+  return needles.filter(([, needle]) => bytes.includes(needle)).map(([term]) => `scrub term ${JSON.stringify(term)} found in ${where}`);
+}
+function throwHits(hits) {
+  if (hits.length === 0) return;
+  const shown = hits.slice(0, MAX_HITS_SHOWN);
+  if (hits.length > shown.length) shown.push(`... and ${hits.length - shown.length} more`);
+  throw new Error(`buildTask: ${hits.length} scrub hit(s):\n${shown.join('\n')}`);
+}
+// The tree's channels: the bytes of every file and the target string of every symlink, and the whole
+// relative path of every file, symlink and directory (so a file, a directory or a link NAMED after the
+// fix is found even when its body is clean). Never follows a link.
+function scrubTree(tree, needles) {
+  const { files, dirs } = walkTree(tree);
+  const hits = [];
+  for (const rel of files) {
+    hits.push(...hitsIn(needles, rel, entryBytes(join(tree, rel))));
+    hits.push(...hitsIn(needles, `the path ${rel}`, Buffer.from(rel)));
+  }
+  for (const rel of dirs) hits.push(...hitsIn(needles, `the directory path ${rel}`, Buffer.from(rel)));
+  throwHits(hits);
 }
 
 // ---- steps ----
@@ -166,17 +201,13 @@ function removeNamed(tree) {
   rec('');
 }
 
-function scrubCheck(tree, terms) {
-  const needles = terms.map((term) => [term, Buffer.from(term, 'utf8')]);
-  const hits = [];
-  for (const rel of listEntries(tree)) {
-    const bytes = entryBytes(join(tree, rel));
-    for (const [term, needle] of needles) if (bytes.includes(needle)) hits.push(`scrub term ${JSON.stringify(term)} found in ${rel}`);
-  }
-  if (hits.length === 0) return;
-  const shown = hits.slice(0, MAX_HITS_SHOWN);
-  if (hits.length > shown.length) shown.push(`... and ${hits.length - shown.length} more`);
-  throw new Error(`buildTask: ${hits.length} scrub hit(s) left in the tree:\n${shown.join('\n')}`);
+// The two files the builder writes at the tree root. Whatever the repo tracks under the same name (a
+// symlink out of the tree, say) goes first, and the write is exclusive, so it can never go THROUGH a
+// link: a write that finds anything there fails.
+function writeTaskFiles(tree, def, taskMd) {
+  for (const name of ['CLAUDE.md', 'TASK.md']) rmSync(join(tree, name), { recursive: true, force: true });
+  writeFileSync(join(tree, 'CLAUDE.md'), renderTaskClaudeMd(def), { flag: 'wx' });
+  writeFileSync(join(tree, 'TASK.md'), taskMd, { flag: 'wx' });
 }
 
 function commitTree(tree, id) {
@@ -225,6 +256,10 @@ export function buildTask(taskDir, { workRoot } = {}) {
   const taskMd = readFileSync(join(taskDir, 'TASK.md'));
   const prompt = readFileSync(join(taskDir, 'prompt.txt'));
   requireFirstParent(def);
+  // Two channels to the agent that are not tree files: the prompt is its first message, and the id is
+  // in the commit message. Checked before anything is written.
+  const needles = needlesOf(def.scrub.terms);
+  throwHits([...hitsIn(needles, 'prompt.txt', prompt), ...hitsIn(needles, 'the task id', Buffer.from(def.id))]);
 
   const tasksDir = join(resolve(workRoot), 'tasks');
   const out = join(tasksDir, def.id);
@@ -241,9 +276,8 @@ export function buildTask(taskDir, { workRoot } = {}) {
     extractTree(def, treeDir);
     for (const rel of def.scrub.removePaths) removeListed(treeDir, rel);
     removeNamed(treeDir);
-    writeFileSync(join(treeDir, 'CLAUDE.md'), renderTaskClaudeMd(def));
-    writeFileSync(join(treeDir, 'TASK.md'), taskMd);
-    scrubCheck(treeDir, def.scrub.terms);
+    writeTaskFiles(treeDir, def, taskMd);
+    scrubTree(treeDir, needles);
     commitTree(treeDir, def.id);
     writeHidden(def, taskDir, hiddenDir);
 
@@ -268,14 +302,15 @@ export function buildTask(taskDir, { workRoot } = {}) {
 
 // `cp -a --reflink=always`: it fails where the filesystem cannot clone, and never falls back to a
 // full copy (a copy that silently costs the whole tree would hide a misplaced work directory).
-// -T makes dst THE copy: with plain `cp -a src dst`, an existing dst directory would get src
-// nested inside it. A dst this call created is removed again on failure, so a partial copy cannot
-// be mistaken for a copy.
+// ANY existing dst is refused, an empty directory included: a copy into a leftover directory would
+// merge, and a stale file (a previous run's solution) would survive into the next run's tree. The
+// caller chooses a fresh path. A dst this call created is removed again on failure, so a partial
+// copy cannot be mistaken for a copy.
 export function reflinkCopy(src, dst) {
-  const existed = lstatOrNull(dst) !== null;
-  const r = spawnSync('cp', ['-a', '--reflink=always', '-T', '--', src, dst], { env: toolEnv(), encoding: 'utf8' });
+  if (lstatOrNull(dst) !== null) throw new Error(`reflinkCopy: ${dst} already exists; it is never merged into (choose a fresh path)`);
+  const r = spawnSync('cp', ['-a', '--reflink=always', '--', src, dst], { env: toolEnv(), encoding: 'utf8' });
   const failure = r.error ? `cp could not run: ${r.error.message}` : r.status !== 0 ? `cp exited ${r.status}: ${String(r.stderr).trim()}` : '';
   if (failure === '') return;
-  if (!existed) rmSync(dst, { recursive: true, force: true });
+  rmSync(dst, { recursive: true, force: true });
   throw new Error(`reflinkCopy: cannot reflink ${src} to ${dst} (there is no fallback to a full copy): ${failure}`);
 }

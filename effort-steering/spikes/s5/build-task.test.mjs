@@ -97,12 +97,18 @@ const BASE_FILES = {
   'sub/.claude/commands/x.md': 'x\n',
   '.codescout/memories/notes.md': 'notes\n',
   'sub/deep/.codescout/m.md': 'm\n',
+  '.buddy/memory/INDEX.md': 'specialist notes\n',
+  'sub/.buddy/memory/n.md': 'nested specialist notes\n',
   // Decoys: a name that only STARTS like a removed one must stay.
   '.claude-plugin/plugin.json': '{"keep":true}\n',
   'docs/CLAUDE.md.bak': 'decoy\n',
+  '.buddy-notes.md': 'decoy\n',
   [ISSUE]: `# bug ${SLUG}\n`,
   'ignored.txt': 'tracked at the parent, matched by .gitignore\n',
   'data/blob.bin': BLOB,
+  // Names that carry a scrub term while the bodies are clean (see the scrub tests).
+  'docs/notes/name-leak-widget.md': 'a clean body\n',
+  'name-leak-dir/keep.txt': 'a clean body\n',
   // Sort-order probes: byte order puts B.txt first and a-b.txt, a.txt, a/x.txt in that order.
   'B.txt': 'upper\n',
   'a.txt': 'lower\n',
@@ -114,8 +120,9 @@ const BASE_FILES = {
   'u/\u{10000}.txt': 'astral\n',
 };
 const EXPECT_TREE = [
-  '.claude-plugin/plugin.json', '.gitignore', 'B.txt', 'CLAUDE.md', 'README.md', 'TASK.md', 'a-b.txt', 'a.txt', 'a/x.txt',
-  'data/blob.bin', 'docs/CLAUDE.md.bak', 'ignored.txt', 'src/lib.rs', 'tests/hidden_a.rs', 'tests/old.rs', 'u/～.txt', 'u/\u{10000}.txt',
+  '.buddy-notes.md', '.claude-plugin/plugin.json', '.gitignore', 'B.txt', 'CLAUDE.md', 'README.md', 'TASK.md', 'a-b.txt', 'a.txt', 'a/x.txt',
+  'data/blob.bin', 'docs/CLAUDE.md.bak', 'docs/notes/name-leak-widget.md', 'ignored.txt', 'name-leak-dir/keep.txt', 'src/lib.rs',
+  'tests/hidden_a.rs', 'tests/old.rs', 'u/～.txt', 'u/\u{10000}.txt',
 ].sort(byteCmp);
 
 function makeSrc({ hiddenASuffix = '' } = {}) {
@@ -136,8 +143,14 @@ function makeSrc({ hiddenASuffix = '' } = {}) {
   return { dir, shas };
 }
 
-// One more commit on the fixture, by plain git calls (makeRepo cannot write symlinks).
-function addCommit(dir, { files = {}, links = {}, subject }) {
+// One more commit on the fixture, by plain git calls (makeRepo cannot write symlinks or gitlinks).
+// A gitlink (a submodule entry) comes out of `git archive` as an EMPTY DIRECTORY.
+function addCommit(dir, { files = {}, links = {}, gitlinks = {}, subject }) {
+  const id = ['-c', 'user.name=s5', '-c', 'user.email=s5@localhost'];
+  const ok = (args) => {
+    const r = git(dir, [...id, ...args]);
+    assert.equal(r.status, 0, r.stderr.toString());
+  };
   for (const [p, c] of Object.entries(files)) {
     mkdirSync(dirname(join(dir, p)), { recursive: true });
     writeFileSync(join(dir, p), c);
@@ -147,16 +160,17 @@ function addCommit(dir, { files = {}, links = {}, subject }) {
     rmSync(join(dir, p), { force: true });
     symlinkSync(target, join(dir, p));
   }
-  const id = ['-c', 'user.name=s5', '-c', 'user.email=s5@localhost'];
-  for (const args of [['add', '-A'], ['commit', '-q', '--no-verify', '--no-gpg-sign', '-m', subject, '--date', '2026-10-02T10:00:00+00:00']]) {
-    const r = git(dir, [...id, ...args]);
-    assert.equal(r.status, 0, r.stderr.toString());
-  }
+  ok(['add', '-A']);
+  // After `add -A`, which would drop an entry that has no working-tree path.
+  for (const [p, sha] of Object.entries(gitlinks)) ok(['update-index', '--add', '--cacheinfo', `160000,${sha},${p}`]);
+  ok(['commit', '-q', '--no-verify', '--no-gpg-sign', '-m', subject, '--date', '2026-10-02T10:00:00+00:00']);
   return git(dir, ['rev-parse', 'HEAD']).stdout.toString().trim();
 }
 
-// A source with symlinks at the parent: one to a sibling file, one dangling, and three that leave
-// the tree (a file, a directory, and one named .claude). `linkTarget` is what `link` points to.
+// A source with symlinks at the parent: one to a sibling file, one dangling, three that leave the
+// tree (a file, a directory, and one named .claude), one named like a scrub term, TASK.md and
+// CLAUDE.md as links out of the tree, and a gitlink (an empty directory once archived).
+// `linkTarget` is what `link` points to.
 function makeLinkSrc(outside, linkTarget) {
   const { dir, shas } = makeRepo([
     { label: 'base', subject: 'chore: base', date: '2026-10-01T10:00:00+00:00', files: { 'a.txt': 'same\n', 'b.txt': 'same\n' } },
@@ -164,14 +178,28 @@ function makeLinkSrc(outside, linkTarget) {
   made.push(dir);
   const parent = addCommit(dir, {
     subject: 'chore: links',
-    links: { link: linkTarget, gone: 'does-not-exist', outlink: join(outside, 'secret.txt'), outdir: outside, '.claude': outside },
+    links: {
+      link: linkTarget,
+      gone: 'does-not-exist',
+      outlink: join(outside, 'secret.txt'),
+      outdir: outside,
+      '.claude': outside,
+      'name-leak-link': 'a.txt',
+      'TASK.md': join(outside, 'task-target.txt'),
+      'CLAUDE.md': join(outside, 'claude-target.txt'),
+    },
+    gitlinks: { 'name-leak-submod': 'a'.repeat(40) },
   });
   const fix = addCommit(dir, { subject: 'fix: x', files: { 'tests/h.txt': 'fixed\n' } });
   return { dir, shas: { base: shas.base, parent, fix } };
 }
+const TASK_TARGET = 'ORIGINAL task target\n';
+const CLAUDE_TARGET = 'ORIGINAL claude target\n';
 function makeOutside() {
   const outside = tmp('s5-outside-');
   writeFileSync(join(outside, 'secret.txt'), 'LEAKMARK\n');
+  writeFileSync(join(outside, 'task-target.txt'), TASK_TARGET);
+  writeFileSync(join(outside, 'claude-target.txt'), CLAUDE_TARGET);
   return outside;
 }
 // For a link source: the files the task lists are the ones the link fixture has, and LEAKMARK
@@ -229,7 +257,8 @@ function build(src, opts = {}) {
   const out = join(workRoot, 'tasks', manifest.id);
   return { manifest, taskDir, workRoot, out, treeDir: join(out, 'tree'), hiddenDir: join(out, 'hidden') };
 }
-// The build of this definition must throw an Error that matches every pattern, and leave no task dir.
+// The build of this definition must throw an Error that matches every pattern, and leave no task dir
+// (whatever its id) behind.
 function refuses(src, label, opts, ...patterns) {
   const workRoot = tmp('s5-work-');
   let err;
@@ -240,7 +269,8 @@ function refuses(src, label, opts, ...patterns) {
   }
   assert.ok(err instanceof Error, `${label}: must throw`);
   for (const p of patterns) assert.match(err.message, p, label);
-  assert.ok(!existsSync(join(workRoot, 'tasks', 'fix-add')), `${label}: the task dir must not exist`);
+  const tasks = join(workRoot, 'tasks');
+  assert.ok(!existsSync(tasks) || readdirSync(tasks).length === 0, `${label}: no task dir may remain`);
 }
 
 const src = makeSrc();
@@ -409,9 +439,33 @@ t('an invalid definition is refused before anything is written', () => {
   assert.ok(!existsSync(join(workRoot, 'tasks')));
 });
 
+t('the tar environment is a whitelist: TAR_OPTIONS in the parent environment cannot drop a file from the tree', () => {
+  const hazard = '--exclude=README.md';
+  // The control: the hazard is live on this machine. Plain tar with the variable leaves README.md out.
+  const archive = git(src.dir, ['archive', '--format=tar', src.shas.parent]).stdout;
+  const plain = tmp('s5-tarctl-');
+  const r = spawnSync('tar', ['-x', '-C', plain], { input: archive, env: { ...process.env, TAR_OPTIONS: hazard } });
+  assert.equal(r.status, 0, String(r.stderr));
+  assert.ok(existsSync(join(plain, 'src', 'lib.rs')), 'control: the rest of the archive was extracted');
+  assert.ok(!existsSync(join(plain, 'README.md')), 'control: TAR_OPTIONS made plain tar skip README.md, so this test proves something');
+
+  const clean = build(src).manifest.treeHash;
+  const saved = process.env.TAR_OPTIONS;
+  process.env.TAR_OPTIONS = hazard;
+  let b;
+  try {
+    b = build(src);
+  } finally {
+    if (saved === undefined) delete process.env.TAR_OPTIONS;
+    else process.env.TAR_OPTIONS = saved;
+  }
+  assert.equal(readFileSync(join(b.treeDir, 'README.md'), 'utf8'), 'abc readme v2\n', 'README.md is in the tree');
+  assert.equal(b.manifest.treeHash, clean, 'the tree is the same with and without the variable');
+});
+
 // ---- scrubbing ----
 
-t('CLAUDE.md, AGENTS.md, .claude/ and .codescout/ are removed and the task CLAUDE.md is written', () => {
+t('CLAUDE.md, AGENTS.md, .claude/, .codescout/ and .buddy/ are removed and the task CLAUDE.md is written', () => {
   const b = build(src);
   const files = walk(b.treeDir, { skipGit: true });
   const dirs = [];
@@ -430,9 +484,11 @@ t('CLAUDE.md, AGENTS.md, .claude/ and .codescout/ are removed and the task CLAUD
   assert.deepEqual(named('AGENTS.md'), [], 'AGENTS.md at any depth');
   assert.deepEqual(named('.claude'), [], '.claude/ at any depth');
   assert.deepEqual(named('.codescout'), [], '.codescout/ at any depth');
+  assert.deepEqual(named('.buddy'), [], '.buddy/ at any depth');
   assert.ok(!existsSync(join(b.treeDir, ISSUE)), 'scrub.removePaths');
   assert.ok(existsSync(join(b.treeDir, '.claude-plugin/plugin.json')), 'a name that only starts like .claude stays');
   assert.ok(existsSync(join(b.treeDir, 'docs/CLAUDE.md.bak')), 'a name that only starts like CLAUDE.md stays');
+  assert.ok(existsSync(join(b.treeDir, '.buddy-notes.md')), 'a name that only starts like .buddy stays');
 
   const claude = readFileSync(join(b.treeDir, 'CLAUDE.md'), 'utf8');
   assert.ok(!claude.includes('the repo claude file'), 'it is the task file, not the repo file');
@@ -455,6 +511,21 @@ t('removal never follows a symlink: a link named .claude goes and its target sta
   assert.equal(readFileSync(join(outside, 'secret.txt'), 'utf8'), 'LEAKMARK\n', 'a path through a link deletes nothing');
 });
 
+t('the task files are written fresh: a TASK.md or CLAUDE.md the parent tracks as a symlink out of the tree is replaced, never written through', () => {
+  const outside = makeOutside();
+  const link = makeLinkSrc(outside, 'a.txt');
+  // The control: the fixture really tracks both as symlinks (mode 120000) at the parent.
+  for (const name of ['TASK.md', 'CLAUDE.md']) {
+    assert.match(git(link.dir, ['ls-tree', link.shas.parent, name]).stdout.toString(), /^120000 blob /, `control: ${name} is a tracked symlink`);
+  }
+  const b = build(link, { edit: forLinks });
+  for (const name of ['TASK.md', 'CLAUDE.md']) assert.ok(lstatSync(join(b.treeDir, name)).isFile(), `${name} in the tree is a regular file, not a link`);
+  assert.deepEqual(readFileSync(join(b.treeDir, 'TASK.md')), Buffer.from(TASK_MD));
+  assert.equal(readFileSync(join(b.treeDir, 'CLAUDE.md'), 'utf8'), renderTaskClaudeMd(b.manifest.def));
+  assert.equal(readFileSync(join(outside, 'task-target.txt'), 'utf8'), TASK_TARGET, 'the file TASK.md pointed to is unchanged');
+  assert.equal(readFileSync(join(outside, 'claude-target.txt'), 'utf8'), CLAUDE_TARGET, 'the file CLAUDE.md pointed to is unchanged');
+});
+
 t('a removePaths entry the tree does not have is refused', () => {
   refuses(src, 'a missing removePaths entry', { edit: (d) => { d.scrub.removePaths = [ISSUE, 'docs/issues/not-there.md']; } }, /not-there\.md/);
 });
@@ -470,6 +541,24 @@ t('a scrub term left in the tree throws, names the term and the file, and remove
   refuses(src, 'the task CLAUDE.md', { edit: (d) => { d.scrub.terms = ['--no-run']; } }, /"--no-run".*CLAUDE\.md/s);
   // every hit is reported
   refuses(src, 'two terms', { edit: (d) => { d.scrub.removePaths = []; d.scrub.terms = [SLUG, 'BINLEAK']; } }, new RegExp(`"${SLUG}"`), /"BINLEAK"/);
+});
+
+t('the scrub also covers the prompt, the task id, and file, directory and symlink names, not only file bytes', () => {
+  // The prompt is the agent's first message.
+  refuses(src, 'the prompt', { prompt: `The ${SLUG} case: add returns the wrong value.\n` }, new RegExp(`"${SLUG}".*prompt\\.txt`, 's'));
+  // The id is in the commit message (`task <id>`), which `git log` shows.
+  refuses(src, 'the task id', { edit: (d) => { d.id = SLUG; } }, new RegExp(`"${SLUG}".*the task id`, 's'));
+  // A file NAMED after the fix, with a clean body.
+  assert.ok(!BASE_FILES['docs/notes/name-leak-widget.md'].includes('name-leak-widget'), 'control: only the name carries the term');
+  refuses(src, 'a file name', { edit: (d) => { d.scrub.terms = ['name-leak-widget']; } }, /"name-leak-widget".*docs\/notes\/name-leak-widget\.md/s);
+  // A term that spans two path components.
+  refuses(src, 'a term across components', { edit: (d) => { d.scrub.terms = ['notes/name-leak']; } }, /"notes\/name-leak".*docs\/notes\/name-leak-widget\.md/s);
+  // A directory NAMED after the fix: the file inside it has a clean name.
+  refuses(src, 'a directory name', { edit: (d) => { d.scrub.terms = ['name-leak-dir']; } }, /"name-leak-dir".*name-leak-dir\/keep\.txt/s);
+  // A symlink NAMED after the fix, with a clean target, and an EMPTY directory (a gitlink) so named.
+  const link = makeLinkSrc(makeOutside(), 'a.txt');
+  refuses(link, 'a symlink name', { edit: (d) => { forLinks(d); d.scrub.terms = ['name-leak-link']; } }, /"name-leak-link".*the path name-leak-link/s);
+  refuses(link, 'an empty directory name', { edit: (d) => { forLinks(d); d.scrub.terms = ['name-leak-submod']; } }, /"name-leak-submod".*the directory path name-leak-submod/s);
 });
 
 t('a scrub term is a fixed byte string: case counts and no pattern is expanded', () => {
@@ -606,45 +695,73 @@ function tIf(name, skipReason, fn) {
 }
 
 const WORK = join(homedir(), 'work', 'claude', 's5-work');
-tIf(
-  'reflinkCopy copies a tree by reflink: bytes equal, the copy is independent, links stay links, an existing empty dir is filled',
-  !existsSync(WORK) ? `${WORK} does not exist` : !REFLINK_FS.includes(fsType(WORK)) ? `${WORK} is on ${fsType(WORK)}, which cannot reflink` : '',
-  () => {
-    const base = join(WORK, 'tmp-tests');
-    mkdirSync(base, { recursive: true });
-    const d = mkdtempSync(join(base, 'reflink-'));
+const NO_REFLINK_HERE = !existsSync(WORK) ? `${WORK} does not exist` : !REFLINK_FS.includes(fsType(WORK)) ? `${WORK} is on ${fsType(WORK)}, which cannot reflink` : '';
+// A scratch directory on the work filesystem (btrfs), removed afterwards.
+function onWorkFs(fn) {
+  const base = join(WORK, 'tmp-tests');
+  mkdirSync(base, { recursive: true });
+  const d = mkdtempSync(join(base, 'reflink-'));
+  try {
+    fn(d);
+  } finally {
+    rmSync(d, { recursive: true, force: true });
     try {
-      const from = join(d, 'from');
-      mkdirSync(join(from, 'sub'), { recursive: true });
-      writeFileSync(join(from, 'a.txt'), 'alpha\n');
-      writeFileSync(join(from, 'sub', 'b.bin'), DATA_BIN);
-      symlinkSync('a.txt', join(from, 'l'));
-
-      const to = join(d, 'to');
-      reflinkCopy(from, to);
-      assert.deepEqual(walk(to), ['a.txt', 'l', 'sub/b.bin']);
-      assert.equal(readFileSync(join(to, 'a.txt'), 'utf8'), 'alpha\n');
-      assert.deepEqual(readFileSync(join(to, 'sub', 'b.bin')), DATA_BIN);
-      assert.ok(lstatSync(join(to, 'l')).isSymbolicLink());
-      assert.equal(readlinkSync(join(to, 'l')), 'a.txt');
-      writeFileSync(join(to, 'a.txt'), 'changed\n');
-      assert.equal(readFileSync(join(from, 'a.txt'), 'utf8'), 'alpha\n', 'writing the copy does not touch the source');
-
-      // An existing empty directory is filled, not nested into (`cp -a from into` would make into/from).
-      const into = join(d, 'into');
-      mkdirSync(into);
-      reflinkCopy(from, into);
-      assert.deepEqual(walk(into), ['a.txt', 'l', 'sub/b.bin']);
-    } finally {
-      rmSync(d, { recursive: true, force: true });
-      try {
-        rmdirSync(base);
-      } catch {
-        // other test dirs are in it
-      }
+      rmdirSync(base);
+    } catch {
+      // other test dirs are in it
     }
-  },
-);
+  }
+}
+
+tIf('reflinkCopy copies a tree by reflink: bytes equal, the copy is independent, links stay links', NO_REFLINK_HERE, () => {
+  onWorkFs((d) => {
+    const from = join(d, 'from');
+    mkdirSync(join(from, 'sub'), { recursive: true });
+    writeFileSync(join(from, 'a.txt'), 'alpha\n');
+    writeFileSync(join(from, 'sub', 'b.bin'), DATA_BIN);
+    symlinkSync('a.txt', join(from, 'l'));
+
+    const to = join(d, 'to');
+    reflinkCopy(from, to);
+    assert.deepEqual(walk(to), ['a.txt', 'l', 'sub/b.bin']);
+    assert.equal(readFileSync(join(to, 'a.txt'), 'utf8'), 'alpha\n');
+    assert.deepEqual(readFileSync(join(to, 'sub', 'b.bin')), DATA_BIN);
+    assert.ok(lstatSync(join(to, 'l')).isSymbolicLink());
+    assert.equal(readlinkSync(join(to, 'l')), 'a.txt');
+    writeFileSync(join(to, 'a.txt'), 'changed\n');
+    assert.equal(readFileSync(join(from, 'a.txt'), 'utf8'), 'alpha\n', 'writing the copy does not touch the source');
+  });
+});
+
+tIf('reflinkCopy refuses ANY existing destination, empty or not, and leaves it untouched', NO_REFLINK_HERE, () => {
+  onWorkFs((d) => {
+    const from = join(d, 'from');
+    mkdirSync(from);
+    writeFileSync(join(from, 'a.txt'), 'alpha\n');
+    // control: a fresh destination on this filesystem does copy, so a refusal below is the refusal and not a reflink error
+    reflinkCopy(from, join(d, 'fresh'));
+    assert.equal(readFileSync(join(d, 'fresh', 'a.txt'), 'utf8'), 'alpha\n');
+
+    const empty = join(d, 'empty');
+    mkdirSync(empty);
+    assert.throws(() => reflinkCopy(from, empty), /already exists/);
+    assert.deepEqual(readdirSync(empty), [], 'an empty destination stays empty');
+
+    // A leftover work dir holding a previous run's solution must not leak into the next run's tree.
+    const stale = join(d, 'stale');
+    mkdirSync(stale);
+    writeFileSync(join(stale, 'STALE-SOLUTION.rs'), 'fn solved() {}\n');
+    assert.throws(() => reflinkCopy(from, stale), /already exists/);
+    assert.deepEqual(readdirSync(stale), ['STALE-SOLUTION.rs'], 'a non-empty destination is untouched and nothing was merged into it');
+    assert.equal(readFileSync(join(stale, 'STALE-SOLUTION.rs'), 'utf8'), 'fn solved() {}\n');
+
+    // A dangling symlink is an existing destination too: cp would write through it.
+    const aim = join(d, 'aim');
+    symlinkSync(aim, join(d, 'dangling'));
+    assert.throws(() => reflinkCopy(from, join(d, 'dangling')), /already exists/);
+    assert.equal(lstatOrNull(aim), null, 'nothing was created where the link points');
+  });
+});
 
 tIf(
   'reflinkCopy throws where the filesystem cannot reflink, and does not fall back to a full copy',
