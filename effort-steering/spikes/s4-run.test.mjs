@@ -104,6 +104,7 @@ const prereg = (over = {}) => ({
   repeats: 3,
   minPerArm: 3,
   model: 'm-test',
+  effort: 'high',
   prompts: ['p one', 'p two', 'p three', 'p four'],
   steerLevel: 'shallow',
   // alpha 0.2: the end-to-end vectors here (1 treated + 2 holdout per prompt) have an exact
@@ -384,6 +385,23 @@ await ta('`--thinking-display summarized` is passed once, before `--`, on every 
     assert.equal(a[i + 1], 'summarized');
     assert.ok(i + 1 < a.indexOf('--'), 'the flag and its value must come before `--`');
   }
+});
+
+await ta('`--effort <registered level>` is passed once, before `--`, on every call (canary and both arms)', async () => {
+  const { f } = await run();
+  assert.equal(f.calls.claude.length, 13);
+  for (const c of f.calls.claude) {
+    const a = c.args;
+    assert.equal(a.filter((x) => x === '--effort').length, 1);
+    const i = a.indexOf('--effort');
+    assert.equal(a[i + 1], 'high', 'the value must be the registered effort, not a default');
+    assert.ok(i + 1 < a.indexOf('--'), 'the flag and its value must come before `--`');
+  }
+});
+
+await ta('the registered effort is what reaches the argv: another registered level changes it', async () => {
+  const { f } = await run({ effort: 'xhigh' });
+  for (const c of f.calls.claude) assert.equal(c.args[c.args.indexOf('--effort') + 1], 'xhigh');
 });
 
 await ta('claude and hook spawns use killSignal SIGKILL', async () => {

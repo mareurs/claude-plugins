@@ -337,8 +337,11 @@ export async function runExperiment(preregFile, opts = {}) {
       // changes visibility only; Anthropic's docs say the billed thinking tokens are the same either
       // way. Direct runs on Sonnet 5.5 and Opus 5.5 (2026-10-07, ES-16) showed text with the flag and
       // none without. Both arms get it, so it is not a confound.
+      // `--effort <registered>`: a saved /model or settings default never reaches a
+      // `--setting-sources local` child, so without it every run uses the default `medium`, where
+      // Sonnet 5.5 thinks 0 tokens on most prompts (ES-18). The registered level is what the arms differ from.
       // `--` ends option parsing (loadPrereg also refuses a prompt that starts with - or /).
-      const args = ['-p', '--model', prereg.model, '--session-id', sessionId, '--setting-sources', 'local', '--settings', scratch.settings, '--strict-mcp-config', '--thinking-display', 'summarized', '--', prompt];
+      const args = ['-p', '--model', prereg.model, '--session-id', sessionId, '--setting-sources', 'local', '--settings', scratch.settings, '--strict-mcp-config', '--thinking-display', 'summarized', '--effort', prereg.effort, '--', prompt];
       const env = childEnv(process.env, { holdoutRate: RATE_FOR[arm], stateHome, tmpDir });
       return spawn('claude', args, { cwd, env, encoding: 'utf8', timeout: RUN_TIMEOUT_MS, killSignal: 'SIGKILL' });
     };

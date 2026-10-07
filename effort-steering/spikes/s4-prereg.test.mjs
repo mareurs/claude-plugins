@@ -31,6 +31,7 @@ const VALID = {
   repeats: 5,
   minPerArm: 4,
   model: 'm-test',
+  effort: 'xhigh',
   prompts: ['prompt one', 'prompt two', 'prompt three', 'prompt four'],
   steerLevel: 'shallow',
   alpha: 0.05,
@@ -41,7 +42,7 @@ const VALID = {
 // Raw text, for numbers JSON.stringify cannot write (1e999, 2^53 + 1). The last three
 // arguments are the R24 fields, raw too.
 const RAW = (eff, lat, alpha = '0.05', perms = '1000', seed = '12345') =>
-  `{"direction":"down","effectSizeThinkingTokens":${eff},"latencyBudgetMs":${lat},"holdoutRate":0.25,"repeats":5,"minPerArm":4,"model":"m","prompts":["a a","b b","c c","d d"],"steerLevel":"shallow","alpha":${alpha},"permutations":${perms},"seed":${seed}}`;
+  `{"direction":"down","effectSizeThinkingTokens":${eff},"latencyBudgetMs":${lat},"holdoutRate":0.25,"repeats":5,"minPerArm":4,"model":"m","effort":"xhigh","prompts":["a a","b b","c c","d d"],"steerLevel":"shallow","alpha":${alpha},"permutations":${perms},"seed":${seed}}`;
 // Four distinct two-word prompts, with `p` substituted at index i.
 const promptsWith = (i, p) => ['w a', 'w b', 'w c', 'w d'].map((s, k) => (k === i ? p : s));
 
@@ -316,31 +317,33 @@ t('loadPrereg does not modify the file or the repo', () => {
 const REAL = fileURLToPath(new URL('./s4-prereg.json', import.meta.url));
 const REGISTERED = {
   direction: 'down',
-  effectSizeThinkingTokens: 60,
+  effectSizeThinkingTokens: 400,
   latencyBudgetMs: 500,
   holdoutRate: 0.5,
   repeats: 4,
-  minPerArm: 21,
+  minPerArm: 13,
   model: 'claude-sonnet-5-5',
+  effort: 'xhigh',
   prompts: [
-    'What does the HTTP status code 404 mean?',
-    'Convert 72 degrees Fahrenheit to Celsius.',
-    'Write a Python one-liner that reverses a string.',
-    'What is the difference between a list and a tuple in Python?',
-    'Write a JavaScript function that debounces another function, and explain how it works.',
-    'Explain why a SQL query with a LEFT JOIN and a WHERE filter on the right table can behave like an INNER JOIN.',
-    'Implement binary search in Rust and state its loop invariant.',
-    'Compare optimistic and pessimistic locking for a ticket booking system.',
     'Design a rate limiter that works across three application servers and survives a Redis failover. Compare two approaches and recommend one.',
     'A Python service leaks memory only under high load. List the five most likely causes in order and name the check that separates each.',
-    'Prove that the sum of the first n odd numbers is n squared, then write a test that checks it for n up to 1000.',
     "Write a function that finds the longest palindromic substring in linear time and explain why Manacher's algorithm works.",
+    'Count the ways to tile a 3 by 10 grid with 1 by 2 dominoes, and show the recurrence you used.',
+    'Build the minimal DFA that accepts binary strings representing multiples of 3, then derive a regular expression from it.',
+    'A Go service doubles its p99 latency after gzip is enabled on responses. List the five most likely causes in order and name the check that separates each.',
+    'Find every bug in this Python function and explain how each one fails: def bsearch(a, x): lo, hi = 0, len(a); while lo < hi: mid = (lo + hi) // 2; if a[mid] < x: lo = mid; else: hi = mid - 1; return lo if a and a[lo] == x else -1',
+    'Implement an LRU cache with O(1) get and put in Python without using OrderedDict, then explain how you would make it thread-safe.',
   ],
   steerLevel: 'shallow',
-  alpha: 0.05,
-  permutations: 10000,
-  seed: 20261007,
+  alpha: 0.01,
+  permutations: 20000,
+  seed: 20261008,
 };
+
+t('effort must be one of low, medium, high, xhigh, max', () => {
+  for (const ok of ['low', 'medium', 'high', 'xhigh', 'max']) assert.equal(loadPrereg(put({ ...VALID, effort: ok })).effort, ok);
+  for (const bad of ['extreme', 'XHIGH', 'x-high', '', ' xhigh', 5, true, ['xhigh']]) throwsNaming({ ...VALID, effort: bad }, 'effort');
+});
 
 t('the registered file loads (it is committed, equals its HEAD blob) and holds the G2 numbers', () => {
   assert.deepEqual(loadPrereg(REAL), REGISTERED);
@@ -348,7 +351,7 @@ t('the registered file loads (it is committed, equals its HEAD blob) and holds t
 
 t('the registered file lists every registered field in the template order', () => {
   const real = JSON.parse(readFileSync(REAL, 'utf8'));
-  assert.deepEqual(Object.keys(real), ['direction', 'effectSizeThinkingTokens', 'latencyBudgetMs', 'holdoutRate', 'repeats', 'minPerArm', 'model', 'prompts', 'steerLevel', 'alpha', 'permutations', 'seed']);
+  assert.deepEqual(Object.keys(real), ['direction', 'effectSizeThinkingTokens', 'latencyBudgetMs', 'holdoutRate', 'repeats', 'minPerArm', 'model', 'effort', 'prompts', 'steerLevel', 'alpha', 'permutations', 'seed']);
 });
 
 // ---- prompt guards (final review M-2): a prompt is the last argv element of `claude -p` ----

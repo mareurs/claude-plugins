@@ -14,6 +14,7 @@ import { basename, dirname, resolve } from 'node:path';
 const isNum = (v) => typeof v === 'number' && Number.isFinite(v);
 const isInt = (v) => Number.isSafeInteger(v);
 const blank = (s) => typeof s !== 'string' || s.trim().length === 0;
+const EFFORTS = ['low', 'medium', 'high', 'xhigh', 'max'];
 
 // The runner's arm count (ruling R24), kept here so the loader and the runner cannot disagree:
 // per prompt, round(repeats x holdoutRate) of the repeats are holdout, clamped so that both
@@ -53,7 +54,7 @@ function validate(p) {
   const need = (cond, field, why) => {
     if (!cond) throw new Error(`prereg: field ${field} ${why}`);
   };
-  for (const k of ['direction', 'effectSizeThinkingTokens', 'latencyBudgetMs', 'holdoutRate', 'repeats', 'minPerArm', 'model', 'prompts', 'steerLevel', 'alpha', 'permutations', 'seed']) {
+  for (const k of ['direction', 'effectSizeThinkingTokens', 'latencyBudgetMs', 'holdoutRate', 'repeats', 'minPerArm', 'model', 'effort', 'prompts', 'steerLevel', 'alpha', 'permutations', 'seed']) {
     need(p[k] !== undefined && p[k] !== null, k, 'is required and must not be null');
   }
   need(isNum(p.effectSizeThinkingTokens) && p.effectSizeThinkingTokens > 0, 'effectSizeThinkingTokens', 'must be a finite number > 0');
@@ -64,6 +65,10 @@ function validate(p) {
   need(isInt(p.repeats) && p.repeats >= 3, 'repeats', 'must be an integer >= 3');
   need(isInt(p.minPerArm) && p.minPerArm >= 3, 'minPerArm', 'must be an integer >= 3');
   need(!blank(p.model), 'model', 'must be a non-blank string');
+  // The effort level every run is started at (`claude -p --effort <level>`). A saved settings or
+  // /model default never reaches a `--setting-sources local` child, so the level is registered:
+  // at `medium` Sonnet 5.5 thinks 0 tokens on most prompts and a steer has nothing to cut (ES-18).
+  need(EFFORTS.includes(p.effort), 'effort', `must be one of ${EFFORTS.join(', ')}`);
   need(
     Array.isArray(p.prompts) && p.prompts.every((s) => !blank(s)) && new Set(p.prompts.map((s) => s.trim())).size >= 4 && new Set(p.prompts.map((s) => s.trim())).size === p.prompts.length,
     'prompts',
