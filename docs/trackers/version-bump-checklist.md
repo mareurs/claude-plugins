@@ -31,10 +31,13 @@ files this time. The `legible` 0.2.0 bump `39b214a`, recorded below as not pushe
 count. `ffe67e5` edits `skills/reaching-peer-sessions/SKILL.md` and its `.test.sh`, which now runs
 the self-identification walk against a fixture tree. `tests/run-all.sh` ended `All suites passed`
 pre-flight, and **the buddy pytest step ran this time**: `528 passed` under the system-`python3`
-fallback. The silent skip recorded on 2026-09-28 did not recur. **Restart not probed** — no instance
-was restarted from this session. The hook edit serves from the working tree already; the skill edit
-reaches a profile only through the seeded `1.20.16` cache, so it needs a cold restart or
-`/reload-plugins` there.
+fallback. The silent skip recorded on 2026-09-28 did not recur. **Restart probed 2026-10-07, `~/.claude-kat` only, by `/reload-plugins`** (output: `Reloaded: 5
+plugins · 48 skills · 6 agents · 26 hooks`, then `codescout-companion@sdd-misc-plugins re-read from its
+folder`). The served `reaching-peer-sessions` text carries the `CS_PEERS_PROC` lines from `ffe67e5`;
+the `1.20.13`, `.14` and `.15` caches have **0** such lines, so the old caches are excluded. **This
+cannot tell the `1.20.16` cache from the working tree** — the two are byte-identical — so it does
+not settle which path serves a skill. `~/.claude` and `~/.claude-sdd` are not probed; each needs its
+own reload or cold restart. The hook edit serves from the working tree and was not exercised.
 
 _Previous refresh: `39b214a`, 2026-10-04 — `legible` is new: installed at 0.1.0 in all three
 profiles (`415cdb0`), then 0.1.0→0.2.0 via `NO_PUSH=1 scripts/release.sh legible minor`
@@ -281,7 +284,10 @@ unsettled does not need settling for this release.
 - Gate: buddy pytest ran under the system-`python3` fallback, `528 passed`. The 2026-09-28 silent skip did not recur.
 - Runtime files: none appeared in `diff -rq` this time (the 2026-10-04 `usage.db-shm`, `usage.db-wal` and `.in_use` lines are absent). Measured, not explained.
 
-**Not probed:** registration after restart.
+**Probed after the release, `~/.claude-kat` only:** `/reload-plugins` served the `1.20.16` skill text
+(`CS_PEERS_PROC` present; 0 in the `1.20.13`–`.15` caches). That excludes the old caches but cannot
+separate the `1.20.16` cache from the working tree, since they are byte-identical. `~/.claude` and
+`~/.claude-sdd` not probed.
 ### 2026-10-04 — legible new (0.1.0 → 0.2.0), not pushed; buddy 0.11.9 caught up
 
 **Deltas, all measured:**

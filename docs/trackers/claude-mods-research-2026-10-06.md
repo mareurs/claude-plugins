@@ -94,6 +94,11 @@ SessionStart/UserPromptSubmit): those ratings are `[inferred]`.
 - **MQ-4 — does `$.ui.status` coexist with a `statusLine` command?** Needed for buddy.
 - **MQ-5 — does `prompt.compose` reach subagents?** Needed to replace `subagent-guidance`.
 - **MQ-6 — is a `tool.call` hook on the Agent tool invoked?** `agent.spawn` is the verified route.
+- **MQ-7 — does `/reload-plugins` re-run a dev-mods mod's `session.start`?** One observation says no
+  (log unchanged). Untested otherwise: a second reload, or an edit to the mod file, would show it.
+- **MQ-8 — which path serves a skill from this directory marketplace?** Settle it by editing a
+  skill in the working tree only (no release), reloading, and checking the served bytes: tree and
+  cache then differ. The `re-read from its folder` message suggests the folder.
 
 ## Probe: `mods-probe`
 
@@ -110,6 +115,14 @@ loaded and wrote one line to `mods-probe.log` (read back by the main session, no
 `session=91f1bb54-…`. This confirms that a mod loads in this build and that `$.plugin`,
 `$.fs` (`exists`/`read`/`write`), `$.session.id` and `$.clock.now` work as the type file
 says. The root is the dev-mods folder itself, so the run says nothing about MQ-1.
+
+**Side observation, 2026-10-07 (`/reload-plugins` in this session).** Output: `Reloaded: 5 plugins ·
+48 skills · 6 agents · 26 hooks`, then ``codescout-companion@sdd-misc-plugins re-read from its
+folder``. After it, `mods-probe.log` still held one line, so the reload did **not** re-fire
+`session.start` for the dev-mods mod. The skill text served after the reload carried the
+`1.20.16` bytes, but the cache and the working tree were identical then, so that does not
+separate the two load paths. The `re-read from its folder` wording points to in-place loading for
+this directory marketplace; it is a message, not a measurement of which path serves what.
 
 **What the probe can and cannot settle.** Loaded from the dev-mods folder it proves that a
 mod loads here and that `$.plugin`, `$.fs`, `$.session`, `$.clock`, `$.ui.toast` behave as
