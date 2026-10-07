@@ -8,7 +8,7 @@ tags:
 - second-phase
 topic: effort-steering second phase
 time_scope: dated:2026-10-05
-entry_high_water_ES: 19
+entry_high_water_ES: 20
 entry_prefix: ES
 origin_session_id: 16bc6017-d129-44f7-91e5-43b0afad5ea9
 ---
@@ -375,6 +375,31 @@ At `xhigh`, per-prompt means: p1 to p3 0; p4 16; p5 63; p6 28; p7 162; p8 85; p9
 **Before G3.** (a) `effort-steering/spikes/probes/` is untracked; the runner refuses with `dirty_tree` while any untracked or ignored file is under `effort-steering/`. The owner of the probes must commit or remove them. (b) The runner does not yet check that each transcript records the registered effort. One verification call with the same argv shape recorded `effort: xhigh`; a per-run check would make a silent mismatch visible before the budget is spent. (c) A pass would show that steering lowers thinking where there is much to lower; it would not show the same for light turns. Opus 5.5 and the other effort levels are untested.
 
 **Source:** commit `c018c8b`; ES-5, ES-16, ES-18; clean candidate runs of 2026-10-07 (outputs under the llm-proxy session scratchpad in `/tmp`, not durable).
+
+## ES-20 — Effort dose-response experiment (design): does the effort lever save cost and keep quality?
+
+**Valid:** dated 2026-10-07
+
+**Status:** DESIGN proposed 2026-10-07; nothing is registered, no run has happened, no model call was made for it. The operator ruled on two points (below). The candidate tasks are committed for review; the registration numbers, the plan and the runner variant wait for the operator's approval of this design.
+**Done when:** the operator approves the task set and the gate proposals (or changes them); a plan exists; a calibration pilot has chosen the final tasks; the registration is committed BEFORE the first measured call; the run is done once and its verdict written down.
+
+**Why this experiment.** ES-17 shows a mod can set the request's effort per request, mid-turn or at a turn boundary, with no cache miss (Sonnet 5.5, CLI 2.1.292). For a policy to be worth building the lever must deliver: less cost on easy turns, better answers on hard turns. ES-19 (the peer's second S4 registration) tests whether a steering SENTENCE cuts thinking at xhigh; this entry tests the effort PARAMETER itself, which is the stronger lever and needs no sentence and no settings write. The two do not conflict: text steering stays the portable actuator for harnesses without an effort control; the effort lever is the Claude Code actuator.
+
+**Operator rulings (2026-10-07).** (1) Baseline effort `high` (what the operator's sessions run now: transcripts show medium 2026-10-04 to 05, high from 2026-10-06), four levels low, medium, high, xhigh; savings are measured against `high` and quality gains are xhigh against `high`. (2) Quality is measured with CHECKABLE tasks (an exact answer graded by a script), not with an LLM judge.
+
+**Proposed design (all numbers below are proposals, not registered).**
+- Manipulation: `claude -p --effort <level>` (works for a child, ES-18; ES-19's loader and runner change already registers and passes it), levels low, medium, high, xhigh, one model (Sonnet 5.5), the DIRECT path (not the wire recorder: ES-17 probe 4 found the recorder path changes how much the model thinks), stdin from /dev/null, tools off for these text tasks (check that `--tools ""` disables all tools before use), and a check that every first user message is one line.
+- Tasks: `effort-steering/spikes/dose/tasks.candidates.json`, 21 candidates (6 easy, 7 medium, 8 hard), each with an exact answer COMPUTED by `make-tasks.py` (a literal that disagreed with the computation aborts the script; it was run and regenerates the file byte for byte). The prompt ends with `End your reply with one final line of the form "ANSWER: <value>".` Grading: take the last `ANSWER:` line, normalise (trim, case, thousands separators) and compare exactly; a fraction is compared as reduced a/b; a two-digit value keeps its leading zero. No model-written code is executed (so no sandbox is needed); the realism limit is that these are single-turn exact-answer tasks, not tool-loop coding turns (that is S5).
+- Calibration pilot (before registering): each candidate three times at `medium` (about 63 calls, a few dollars). Keep the medium and hard tasks that medium solves neither 0 of 3 nor 3 of 3 (a quality effect cannot show on the others); keep the easy tasks that medium always solves. Target after calibration: up to 4 easy, 4 medium, 6 to 8 hard.
+- Main run: kept tasks x 4 levels x 3 repeats, order interleaved and shuffled with a registered seed (about 190 calls). Cost is an extrapolation, NOT measured for these tasks: ES-18 measured about $0.018 per call at medium and about $0.039 at xhigh for the open-ended prompts, so about $4 to $6.
+- Outcomes per run: `output_tokens` (includes thinking), `thinking_tokens`, cost, correct (0 or 1). Per-stratum within-task paired differences against `high`, tested with the within-task permutation test the first S4 already has (`analyzeArms` style, arms relabelled).
+- Gate proposals (to be fixed after the calibration shows the output scale, before the main run): (A) saving: on the easy stratum, `low` cuts mean `output_tokens` against `high` by at least a registered fraction (proposal 25 percent) AND at least a registered absolute amount, one-sided p at most 0.01, with accuracy at `low` not below accuracy at `high` by more than a registered margin (proposal one run in 15). (B) quality: on the hard stratum report accuracy of xhigh minus `high` with an exact paired test; with about 20 to 24 hard runs per level a gain below about 20 percentage points cannot be shown, so B is DESCRIPTIVE and not a gate unless the calibration leaves enough discriminating hard tasks. (C) a mid-level reading (`medium` against `high`) is reported, not gated.
+
+**Known weaknesses stated before the run.** Accuracy has low power at this size; token effects should have good power (the effort effect on output was 26 percent down at low and 50 percent up at high on one prompt, n=2, ES-17 probe 1, noise about 20 to 35 percent CV on thinking tokens). The tasks are easier and shorter than real coding turns; a result here says the lever works on exact-answer tasks and nothing yet about tool-loop turns. Single model. A calibration that selects tasks on medium accuracy cannot be used as evidence about medium.
+
+**Review of ES-19 while preparing this (for the record).** The loader and runner change in `c018c8b` is minimal and correct (one required field, `--effort <registered>` on every call). Power of the ES-19 registration, from the real `analyzeArms`, 400 trials per cell, alpha 0.01, gate 400, 8 prompts with the three known xhigh means (3,148, 1,355, 5,472) and the other five ASSUMED at 2,000: false pass 1 to 2 percent; at noise CV 0.3 a 30 percent cut passes 0.71 and a 50 percent cut 1.00; at CV 0.7 they pass 0.18 and 0.59; at CV 1.0 0.12 and 0.35. Observed CV of thinking tokens at one prompt and effort: about 0.2 to 0.35 (ES-17 probes 1 and 4, n=2), so the first reading is the likelier one, but the five baselines are unknown. Suggested guard, not added: exclude a run whose transcript `effort` differs from the registered level (the transcript records it in every assistant record).
+
+**Source:** operator rulings of 2026-10-07; ES-17, ES-18, ES-19; `effort-steering/spikes/dose/`.
 
 ## Template for new entries
 
