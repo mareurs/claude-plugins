@@ -44,12 +44,15 @@
 //   `sleepMs` and creates `<FAKE_DOCKER_LOG>.finished.kill` as its last act, so a test can tell
 //   whether the caller waited for it. `run.tailAfterExit` { text, delayMs } leaves a detached
 //   grandchild holding the stdout pipe, which writes `text` after `delayMs`, so that `run` has
-//   EXITED while its stdout is still open. `ps.answers` is a list of ID lists: the i-th `ps` call
+//   EXITED while its stdout is still open. `run.results` { "<file>": "<text>" } writes each file into the host
+//   directory bound at /results (the `--mount ...,target=/results` argument), and `run.resultLinks`
+//   { "<file>": "<target>" } makes a symlink there, so a test can script what a container's driver left
+//   behind without starting one. `ps.answers` is a list of ID lists: the i-th `ps` call
 //   prints answers[i] (the last answer repeats) whatever its filters say, so a test can make a
 //   container appear, or vanish, between two lookups. A first word with no known behaviour exits 99.
 
 import { spawn } from 'node:child_process';
-import { appendFileSync, existsSync, fstatSync, readFileSync, statSync, writeFileSync, writeSync } from 'node:fs';
+import { appendFileSync, existsSync, fstatSync, readFileSync, statSync, symlinkSync, writeFileSync, writeSync } from 'node:fs';
 
 const LOG = process.env.FAKE_DOCKER_LOG;
 const CONFIG = process.env.FAKE_DOCKER_CONFIG;
@@ -148,6 +151,16 @@ if (op === 'kill') {
 if (op === 'ps' || op === 'inspect' || op === 'rm') sleep(spec.sleepMs ?? 0);
 
 if (op === 'run') {
+  if (spec.results || spec.resultLinks) {
+    const mount = argv.find((a) => a.startsWith('type=bind,') && a.split(',').includes('target=/results'));
+    const source = mount?.split(',').find((f) => f.startsWith('source='))?.slice('source='.length);
+    if (!source) {
+      process.stderr.write('fake-docker: run.results needs a --mount with target=/results\n');
+      process.exit(97);
+    }
+    for (const [name, content] of Object.entries(spec.results ?? {})) writeFileSync(`${source}/${name}`, content);
+    for (const [name, target] of Object.entries(spec.resultLinks ?? {})) symlinkSync(target, `${source}/${name}`);
+  }
   if (spec.gen) {
     const bytes = Buffer.from(spec.gen.unit.repeat(spec.gen.repeat), 'utf8');
     for (let off = 0; off < bytes.length; off += spec.gen.chunkBytes) {

@@ -1,0 +1,51 @@
+TAP version 13
+# Subtest: suite one
+    # Subtest: adds two numbers
+    ok 1 - adds two numbers
+      ---
+      duration_ms: 0.4
+      ...
+    # Subtest: subtracts
+    not ok 2 - subtracts
+      ---
+      duration_ms: 1.2
+      failureType: 'testCodeFailed'
+      error: 'Expected values to be strictly equal'
+      code: 'ERR_ASSERTION'
+      ...
+    1..2
+not ok 1 - suite one
+  ---
+  duration_ms: 3.1
+  failureType: 'subtestsFailed'
+  error: '1 subtest failed'
+  code: 'ERR_TEST_FAILURE'
+  ...
+# Subtest: needs a missing export
+not ok 2 - needs a missing export
+  ---
+  duration_ms: 0.9
+  failureType: 'testCodeFailed'
+  error: 'helper is not defined'
+  code: 'ERR_TEST_FAILURE'
+  name: 'ReferenceError'
+  ...
+# Subtest: waits for the network
+ok 3 - waits for the network # SKIP no network here
+  ---
+  duration_ms: 0.1
+  ...
+# Subtest: not done yet
+not ok 4 - not done yet # TODO later
+  ---
+  duration_ms: 0.1
+  ...
+# Subtest: parses
+ok 5 - parses
+  ---
+  duration_ms: 0.2
+  ...
+1..5
+# tests 7
+# pass 3
+# fail 3
