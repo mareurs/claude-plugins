@@ -4,7 +4,7 @@
   "latencyBudgetMs": 500,
   "holdoutRate": 0.5,
   "repeats": 4,
-  "minPerArm": 24,
+  "minPerArm": 21,
   "model": "claude-sonnet-5-5",
   "prompts": [
     "What does the HTTP status code 404 mean?",

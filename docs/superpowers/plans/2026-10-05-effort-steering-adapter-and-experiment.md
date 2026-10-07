@@ -104,10 +104,10 @@ Answers two unverified claims without a model call: how several hooks' `addition
 
 **Interfaces:**
 - Consumes: `buildContext` output; the CLI `effort-steering/bin/effort-policy.mjs` (`decide`, one JSON line on stdout, keys `level, confidence, reasons, steer, arm`).
-- Produces: `export const POLICY_TIMEOUT_MS = 2000` and `export function runPolicy(ctx: object, opts?: { cliPath?: string, timeoutMs?: number, args?: string[], env?: Record<string,string|undefined> }): { level: string, confidence: string, reasons: string[], steer: string | null, arm: string }`. It never throws. The default `cliPath` resolves from `import.meta.url` (`../../bin/effort-policy.mjs`), never from `CLAUDE_PLUGIN_ROOT`, because the scratch runs of Task 7 do not set it.
+- Produces: `export const POLICY_TIMEOUT_MS = 500` (as registered at G2, 2026-10-07; a test pins it to `latencyBudgetMs` of `s4-prereg.json`) and `export function runPolicy(ctx: object, opts?: { cliPath?: string, timeoutMs?: number, args?: string[], env?: Record<string,string|undefined> }): { level: string, confidence: string, reasons: string[], steer: string | null, arm: string }`. It never throws. The default `cliPath` resolves from `import.meta.url` (`../../bin/effort-policy.mjs`), never from `CLAUDE_PLUGIN_ROOT`, because the scratch runs of Task 7 do not set it.
 - Fail-open results all have `level:'default'`, `confidence:'low'`, `steer:null`, `arm:'treated'`, and one reason: `adapter_timeout` (killed at the timeout), `adapter_cli_failed` (spawn error or non-zero exit), `adapter_bad_output` (stdout is not exactly one JSON object line with the five keys).
 
-`POLICY_TIMEOUT_MS = 2000` is a placeholder. The latency budget registered in Task 5 replaces it.
+`POLICY_TIMEOUT_MS` was a 2000 ms placeholder in this task. G2 (Task 5) replaced it with the registered latency budget, 500 ms.
 
 - [ ] **Step 1: Write the failing tests.** Use the copy-tree pattern of `effort-steering/bin/effort-policy.test.mjs` (copy `bin/` and `core/` into a temp dir, overwrite the copy's CLI). (a) Real CLI, `{prompt:'x'}`: result reasons `['no_rule']`. (b) Copy CLI that sleeps 5 s, `timeoutMs:200`: reasons `['adapter_timeout']`, elapsed under 1500 ms. (c) Copy CLI that exits 64: `['adapter_cli_failed']`. (d) Copy CLI that prints two lines, and one that prints `[1]`: `['adapter_bad_output']`. (e) After (b) the child process is gone (no orphan) and a log file written by a real `--log` run holds only whole JSON lines.
 - [ ] **Step 2: Run: FAIL.**
@@ -137,7 +137,7 @@ Answers two unverified claims without a model call: how several hooks' `addition
 ### Task 5: Register the S4 gate numbers (needs G2)
 
 **Files:**
-- Create: `effort-steering/spikes/s4-prereg.json` (committed with `null` numbers)
+- Create: `effort-steering/spikes/s4-prereg.json` (committed with `null` numbers; registered at G2 with the operator's numbers: 12 prompts x 4 repeats, holdout rate 0.5, `minPerArm` 21, alpha 0.05, 10000 permutations, latency budget 500 ms)
 - Create: `effort-steering/spikes/s4-prereg.mjs`
 - Test: `effort-steering/spikes/s4-prereg.test.mjs`
 
@@ -148,7 +148,7 @@ Answers two unverified claims without a model call: how several hooks' `addition
 - [ ] **Step 2: Run: FAIL.**
 - [ ] **Step 3: Implement `loadPrereg`** (`git ls-files --error-unmatch`, `git diff --quiet HEAD -- <file>`).
 - [ ] **Step 4: Run: PASS.** Commit the template with `null` numbers: `docs(effort-steering): S4 preregistration template`.
-- [ ] **Step 5: STOP for G2.** Ask the operator for: the effect size in `thinking_tokens`, the latency budget in ms, the holdout rate, repeats, `minPerArm`, the model, the prompt set and the steer level to test. Fill the file, commit it (`docs(effort-steering): register S4 gates`), and only then continue. Set `POLICY_TIMEOUT_MS` in Task 3's file to the registered latency budget in the same commit.
+- [ ] **Step 5: STOP for G2.** Ask the operator for: the effect size in `thinking_tokens`, the latency budget in ms, the holdout rate, repeats, `minPerArm`, the model, the prompt set and the steer level to test. Fill the file, commit it (`docs(effort-steering): register S4 gates`), and only then continue. Set `POLICY_TIMEOUT_MS` in Task 3's file to the registered latency budget in the same commit. Done at G2 (2026-10-07): the file is registered (`minPerArm` 21, latency budget 500 ms), `POLICY_TIMEOUT_MS` is 500, the loader carries the three R25 feasibility checks, and the null-template test is replaced by one that loads the registered file.
 
 ### Task 6: Analyze the arms
 

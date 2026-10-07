@@ -159,7 +159,7 @@ t('the floor follows the runner arm count: 4 prompts x 3 repeats at rate 0.4 is 
 
 t('the floor is reachable for the registered shape: 12 prompts x 4 repeats at rate 0.5 is 1 / 6^12', () => {
   const prompts = Array.from({ length: 12 }, (_, i) => `prompt number ${i}`);
-  const v = { ...VALID, prompts, repeats: 4, holdoutRate: 0.5, minPerArm: 24, permutations: 10000 };
+  const v = { ...VALID, prompts, repeats: 4, holdoutRate: 0.5, minPerArm: 21, permutations: 10000 };
   assert.equal(loadPrereg(put(v)).alpha, 0.05);
 });
 
@@ -169,6 +169,19 @@ t('the floor does not overflow or hang: a huge repeats or many prompts load, the
   assert.equal(loadPrereg(put({ ...VALID, repeats: 5000, holdoutRate: 0.5, prompts: many })).repeats, 5000);
   // C(10^15, h) has as many digits as no machine can build; the loader must stop early.
   assert.equal(loadPrereg(put({ ...VALID, repeats: 10 ** 15 })).repeats, 10 ** 15);
+});
+
+t('the floor shortcut for a large C^k loads: 160 prompts x 10 repeats at rate 0.5 is C = 252, 7 bits x 160 >= 1075', () => {
+  // C(10, 5) passes no in-loop exit, so only the (bits - 1) * k shortcut can end this check early.
+  const prompts = Array.from({ length: 160 }, (_, i) => `prompt number ${i}`);
+  assert.equal(loadPrereg(put({ ...VALID, repeats: 10, holdoutRate: 0.5, prompts })).prompts.length, 160);
+});
+
+t('permutations is compared as the analysis does: alpha 1/49 is reached at 48 permutations (p = 1/49), not 49', () => {
+  // The literal rule ceil(1 / alpha) - 1 reads 1 / (1/49) as 49.00000000000001 and would ask for 49.
+  assert.equal(1 / (1 / 49) > 49, true);
+  assert.equal(loadPrereg(put({ ...VALID, alpha: 1 / 49, permutations: 48 })).permutations, 48);
+  throwsNaming({ ...VALID, alpha: 1 / 49, permutations: 47 }, 'permutations');
 });
 
 t('minPerArm must fit both planned arm totals: k x (repeats - h) treated and k x h holdout', () => {
@@ -307,7 +320,7 @@ const REGISTERED = {
   latencyBudgetMs: 500,
   holdoutRate: 0.5,
   repeats: 4,
-  minPerArm: 24,
+  minPerArm: 21,
   model: 'claude-sonnet-5-5',
   prompts: [
     'What does the HTTP status code 404 mean?',
