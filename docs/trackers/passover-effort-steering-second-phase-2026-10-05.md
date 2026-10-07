@@ -1,7 +1,7 @@
 ---
 id: b2838d56206e8d62
 kind: tracker
-status: active
+status: superseded
 title: Passover — effort-steering second phase — 2026-10-05
 tags:
 - passover
@@ -12,6 +12,8 @@ origin_session_id: 16bc6017-d129-44f7-91e5-43b0afad5ea9
 ---
 
 # Passover — effort-steering second phase — 2026-10-05
+
+> **SUPERSEDED 2026-10-07** by the passover `ec8f1f91d436b653` (`docs/trackers/passover-effort-steering-2026-10-07.md`). This document describes the state at 2026-10-05 and is kept for history. Its section "Local deployment" is carried forward, with the undo commands, in the new passover.
 
 ## State
 
