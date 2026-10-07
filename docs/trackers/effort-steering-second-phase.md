@@ -8,7 +8,7 @@ tags:
 - second-phase
 topic: effort-steering second phase
 time_scope: dated:2026-10-05
-entry_high_water_ES: 17
+entry_high_water_ES: 18
 entry_prefix: ES
 origin_session_id: 16bc6017-d129-44f7-91e5-43b0afad5ea9
 ---
@@ -313,6 +313,32 @@ NOT established after probes 2 and 3: (a) a change at a TURN boundary (a new use
 **Not known.** Whether a rewritten effort reaches the wire request and is kept in the transcript (`effort` / `perTurnEffort` fields exist on assistant records); whether a mid-turn change is accepted by the API under adaptive thinking or invalidates the prompt cache (research tracker section 8 cites contested measurements: partial miss on Sonnet 5, full rewrite on Opus 5, none on Fable 5.1); whether a mod loads under `--setting-sources local --settings` and `--strict-mcp-config`; whether the hot-reload folder or `--plugin-dir` is the right load path (MQ-1); the budget of a streaming hook. Mods are unsandboxed and see every prompt. Portability: a mod is Claude Code only, so the harness-neutral core stays and a mod would be a second adapter (shallow / default / deep mapped to `low` / unchanged / `high`).
 
 **Source:** `types/claude-code.d.ts` of the `plugin-authoring` skill, lines 4288 to 4301, 12768 to 12830, 793 to 797, 5946 to 5956; `docs/trackers/claude-mods-research-2026-10-06.md`; ES-14 (D-1), ES-5, ES-16; explorer digest of 2026-10-07.
+
+## ES-18 — Clean baselines at medium and xhigh, and the stdin pitfall that voided three pilots
+
+**Valid:** dated 2026-10-07
+
+**Status:** measured 2026-10-07; findings only. No code, registration or `effort-steering/` file was changed by this entry. The registered S4 run (verdict `mechanism_fail`, ES-5) used the default effort `medium`. A second registration is the operator's decision.
+**Done when:** the operator decides whether to re-register S4 at `xhigh` (option A) or with reweighted prompts (option B), and the decision is written down.
+
+**Correction first.** Three earlier pilots by the llm-proxy session were INVALID and are discarded. Their loop was `while read -r P; do claude -p ... -- "$P"; done < prompts.txt`, and `claude -p` also read the loop's stdin file, so every call saw the whole prompt file appended. The first user message of those transcripts had 8, 8 and 14 lines instead of 1. Rule for every harness script: redirect stdin (`< /dev/null`) on each `claude -p` call, or read the prompts on another file descriptor, and check `first user message lines == 1` in the transcript. The ES-16 runs were checked and are clean.
+
+**Clean baselines** (Sonnet 5.5, no steering hook, no proxy, `claude -p --setting-sources local --settings '{}' --strict-mcp-config --thinking-display summarized`, stdin from `/dev/null`, the 12 registered prompts, 2 runs each, 24 calls per level; every transcript has a one-line first user message and the recorded `effort`).
+
+| effort | zero-thinking runs | mean `thinking_tokens` | max | cost |
+|---|---|---|---|---|
+| `medium` | 23 of 24 | 1.0 | 23 | $0.44 |
+| `xhigh` | 6 of 24 | 883 | 5,928 | $0.93 |
+
+At `xhigh`, per-prompt means: p1 to p3 0; p4 16; p5 63; p6 28; p7 162; p8 85; p9 (rate limiter) 3,148; p10 (memory leak) 1,355; p11 264; p12 (palindrome) 5,472. Prompts 9, 10 and 12 hold about 94 percent of all thinking. The two runs of one prompt differ by 177 tokens on average (rough, n=2). This agrees with the peer's S4 holdout arm: 0 thinking tokens in 22 of 24 runs at `medium`.
+
+**What follows.** (1) The `mechanism_fail` of the registered run is expected: at `medium` the baseline has almost no thinking to cut, so the 60-token gate on the mean over prompts cannot be met by any steer. It does not show that steering text fails. (2) At `xhigh` a steer has room: a 30 percent cut of the overall mean would be about 265 tokens (arithmetic, not a power calculation). (3) Prompts 1 to 3 never think at either level, so they add a delta of 0 and dilute the mean. (4) Direction `up` at `medium` is untested.
+
+**How to set effort for a child run.** `claude -p --effort <level>` works (the flag is listed in `claude --help`); `CLAUDE_CODE_EFFORT_LEVEL` also exists in the binary. A saved `/model` or settings default does not reach a child started with `--setting-sources local`. The S4 runner passes no `--effort`, so its runs use the default. One verification call with `--effort xhigh` recorded `effort: xhigh` in the transcript.
+
+**Not established.** One model (Sonnet 5.5), two runs per prompt; Opus 5.5, `high` and `max` untested; the S4 cost at `xhigh` is an estimate (perhaps $2 to $3 for 49 calls, most of it in the heavy prompts).
+
+**Source:** clean baseline runs of 2026-10-07 (outputs under the llm-proxy session scratchpad in `/tmp`, not durable); peer message from the S4 session (holdout 0 in 22 of 24, all 49 transcripts clean); ES-5, ES-16; `~/agents/llm-proxy/docs/trackers/observability-instruments.md`.
 
 ## Template for new entries
 
