@@ -162,7 +162,7 @@ Bundled in the same fix wave (all from the final review): FINAL I-1 (treated run
 
 **Valid:** dated 2026-10-06
 
-**Status:** open, found 2026-10-06 in the live decision logs (hook wired in `~/.claude` and `~/.claude-sdd`). Nothing is changed in code. The operator has not yet decided the key or the arm unit.
+**Status:** open, found 2026-10-06 in the live decision logs (hook wired in `~/.claude` and `~/.claude-sdd`). Nothing is changed in code. RULED 2026-10-07 (operator, "accept all as recommended"): the arm unit is the turn; the log's join key is `session_id` + `turn_id` + `prompt_sha256`; injected messages are handled by the D-2 content-shape guard (ES-14), as its own later task and not part of S4. Still open: inspect one real hook payload for an origin field before the guard is built.
 **Done when:** the operator rules on the arm unit (per turn or per prompt) and on the log's join key; the ruling is written into ES-9 and ES-10 before the packaged `hooks.json` sets `EFFORT_STEERING_HOLDOUT_RATE`; and the operator decides how the adapter treats injected messages (task notifications, peer and agent messages), after one real hook payload has been inspected for an origin field. The coverage check is done (below).
 
 **Observed.** The adapter sets `turn_id` from the hook input's `prompt_id` (`buildContext`). The 417 records in `~/.local/state/effort-steering` (18 sessions, 2026-10-05 15:36 to 2026-10-06 16:32 local) hold only 392 distinct `turn_id` values: 23 ids appear twice and 2 appear three times. Every duplicate is inside one session, the prompt hashes differ, and the records are seconds to minutes apart.
@@ -192,7 +192,7 @@ Bundled in the same fix wave (all from the final review): FINAL I-1 (treated run
 
 **Valid:** dated 2026-10-06
 
-**Status:** open. The research is recorded in the tracker `docs/trackers/effort-steering-research-2026-10-06.md` (id `8ad5f00472dc1e42`). Nothing is changed in code, and the operator has not ruled on D-1 to D-5.
+**Status:** open. The research is recorded in the tracker `docs/trackers/effort-steering-research-2026-10-06.md` (id `8ad5f00472dc1e42`). Nothing is changed in code. RULED 2026-10-07 (operator, "accept all as recommended"): D-1, D-2, D-3, D-4 and D-5 stand as written below. For D-3 this means S4 stays two-arm; the neutral-length control arm and the quality check are added only if S4 passes. Each ruling still has to be written into ES-9, ES-12 or ES-13 where it applies.
 **Done when:** the operator rules on D-1 to D-5, and each ruling is written into ES-9, ES-12 or ES-13 where it applies.
 
 **What the research shows (details and sources in the research tracker).** No source measures steering text against billed `thinking_tokens` under adaptive thinking on real coding turns, so S4 would be new. Claude evidence for steering text is small: `ultrathink` +27 percent median thinking on Opus 5.5 (45 runs, 3 of 5 problems below 300 reasoning tokens); "deep thinking" wording 1.25 to 1.30 times output tokens on Sonnet 5 with no success gain. Learned per-step routers save about 20 to 45 percent of tokens, but not on coding in a repository, and no source tests rules against them. Prompt text alone predicts needed effort weakly (about AUC 0.6 for coding-agent success). A `UserPromptSubmit` hook can return only `additionalContext` (plus block and session title); it cannot set effort and cannot see an origin field.
