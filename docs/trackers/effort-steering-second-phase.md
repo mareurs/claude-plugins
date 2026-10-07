@@ -8,7 +8,7 @@ tags:
 - second-phase
 topic: effort-steering second phase
 time_scope: dated:2026-10-05
-entry_high_water_ES: 18
+entry_high_water_ES: 19
 entry_prefix: ES
 origin_session_id: 16bc6017-d129-44f7-91e5-43b0afad5ea9
 ---
@@ -358,6 +358,23 @@ At `xhigh`, per-prompt means: p1 to p3 0; p4 16; p5 63; p6 28; p7 162; p8 85; p9
 **Not established.** One model (Sonnet 5.5), two runs per prompt; Opus 5.5, `high` and `max` untested; the S4 cost at `xhigh` is an estimate (perhaps $2 to $3 for 49 calls, most of it in the heavy prompts).
 
 **Source:** clean baseline runs of 2026-10-07 (outputs under the llm-proxy session scratchpad in `/tmp`, not durable); peer message from the S4 session (holdout 0 in 22 of 24, all 49 transcripts clean); ES-5, ES-16; `~/agents/llm-proxy/docs/trackers/observability-instruments.md`.
+
+## ES-19 — Second S4 registration at xhigh on 8 prompts that think (G3 pending)
+
+**Valid:** dated 2026-10-07
+
+**Status:** second S4 registration committed as `c018c8b` (suite green, 514 ok). NO run has happened. G3 (the model-call run, 33 calls with the canary) waits for the operator. The first registration (`5077dc4`, 12 prompts at the default `medium` effort, verdict `mechanism_fail`) stays in history.
+**Done when:** the operator approves or declines G3, the run is made once, and the verdict is written down.
+
+**What changed.** (1) `loadPrereg` has a required `effort` field (`low`, `medium`, `high`, `xhigh`, `max`); the runner passes `--effort <registered>` on every call, canary included; two runner tests and one loader test pin it. (2) `s4-prereg.json` registers: direction `down`, steerLevel `shallow`, model `claude-sonnet-5-5`, effort `xhigh`, 8 prompts, 4 repeats at holdout 0.5 (2 treated and 2 holdout per prompt), effect gate 400 `thinking_tokens` on the mean signed delta, alpha 0.01, 20,000 permutations, `minPerArm` 13 (planned arm totals are 16, so 3 runs of slack), latency budget 500 ms (unchanged, `POLICY_TIMEOUT_MS` still 500), seed 20261008.
+
+**Why these prompts.** Chosen from the clean `xhigh` baselines of ES-18 and a second clean candidate round (20 calls, 10 candidates, 2 runs each): rate limiter (mean 3,148), memory leak (1,355), palindromic substring (5,472), 3x10 tiling (1,268), minimal DFA (705), Go gzip latency (1,482), bug hunt (2,012), LRU cache (1,286). Left out on purpose: the schema migration (mean 7,372, runs 5,531 and 9,214) and the SPSC ring buffer (4,530, runs 3,170 and 5,891), because their spread would add more noise than signal to a mean of absolute deltas; the n^5 - n proof (222) is below the floor of about 300; the first 12 prompts p1 to p8 and p11 think 0 to about 260 tokens at `xhigh`. The choice used only those baseline runs, never the registered run.
+
+**Rough expectation, not a simulation.** From two runs per prompt, the standard error of the mean delta is near 120 tokens against a 30 percent cut of about 630. Spreads rest on n=2 and a tight pair may be luck, so this is optimistic. A cost estimate of $2 to $3 for 33 calls is an estimate from the baseline cost per call.
+
+**Before G3.** (a) `effort-steering/spikes/probes/` is untracked; the runner refuses with `dirty_tree` while any untracked or ignored file is under `effort-steering/`. The owner of the probes must commit or remove them. (b) The runner does not yet check that each transcript records the registered effort. One verification call with the same argv shape recorded `effort: xhigh`; a per-run check would make a silent mismatch visible before the budget is spent. (c) A pass would show that steering lowers thinking where there is much to lower; it would not show the same for light turns. Opus 5.5 and the other effort levels are untested.
+
+**Source:** commit `c018c8b`; ES-5, ES-16, ES-18; clean candidate runs of 2026-10-07 (outputs under the llm-proxy session scratchpad in `/tmp`, not durable).
 
 ## Template for new entries
 
