@@ -8,7 +8,7 @@ tags:
 - second-phase
 topic: effort-steering second phase
 time_scope: dated:2026-10-05
-entry_high_water_ES: 16
+entry_high_water_ES: 17
 entry_prefix: ES
 origin_session_id: 16bc6017-d129-44f7-91e5-43b0afad5ea9
 ---
@@ -269,6 +269,21 @@ The token gaps between arms are noise at one run per arm. They are not an effect
 **Not established.** (a) Whether the flag changes how much the model thinks: the docs say it does not, and n=1 per arm cannot show it. (b) Behaviour on Fable 5.1, which also needs 30-day retention. (c) Whether a full S4 run keeps text in every transcript. The canary does not check for text.
 
 **Source:** direct and shim runs of 2026-10-07 (outputs under the session scratchpad in `/tmp`, so not durable); `~/agents/llm-proxy/docs/trackers/observability-instruments.md`; research tracker `8ad5f00472dc1e42`; ES-5, ES-15.
+
+## ES-17 — Mods expose `turn.step` with a rewritable `effort`: the actuation lever the research missed
+
+**Valid:** dated 2026-10-07
+
+**Status:** found 2026-10-07 by reading the mods type declarations first-hand. Nothing is tested yet; no mod was written or loaded. The operator decides whether to probe.
+**Done when:** a probe shows, in a transcript or on the wire, whether `next({ ...e, effort })` in a `turn.step` hook changes the effort of that request, whether a mod loads in a headless `claude -p --setting-sources local --settings ...` run (`--plugin-dir`), and what a changed effort does to the cache; then ES-5's second registration is chosen with this lever in view.
+
+**Finding (read, not tested).** The `plugin-authoring` skill of this session writes this build's API to `types/claude-code.d.ts` (path `/tmp/claude-1000/bundled-skills/2.1.289/<hash>/plugin-authoring/types/`, not durable; the skill says 2.1.289 while ES-16 records the installed CLI as 2.1.292, so the builds may differ). It declares the event `turn.step` (lines 4293 to 4301 and 12768 to 12830): it fires when the engine is about to send ONE model request of a turn, main or subagent (`e.agentId`), `next(e)` resolves to the whole response, and `next({ ...e, model })` or `next({ ...e, effort })` sends another. Fields: `turnId` and `index` (the step's position in the turn, from 0) and `messageCount` are pinned; `model` and `effort` (`'low' | 'medium' | 'high' | 'xhigh' | 'max' | number`, absent for a model without effort) are rewritable. `$.session.messages()` reads the conversation. A hook that answers without `next` sends no request. Other declared items: `turn.start` and `turn.complete`, `prompt.submit` (`next({ ...e, text })`), `prompt.compose` (system prompt sections), `$.model.complete({ model, prompt, effort })`, `$.process.run(argv)` (a mod could call `effort-policy decide`), and the classic hook input's `effort` (BaseHookInput line 793: effort in force, also the env var `CLAUDE_EFFORT`).
+
+**Why it matters.** (1) The first-phase conclusion "a hook cannot set effort" (ES-14) is true of classic `UserPromptSubmit` hooks only. A mod can set effort per request, with the step index, and so per turn or per step, without a settings write (D-1's shared-state hazard) and without steering text. (2) `claude-mods-research-2026-10-06.md` never mentions effort or thinking (grep: only `$.model.complete` and MQ-5 match), so this route is in no research file. (3) It changes the measurement: S4 could compare effort levels directly (a lever with an expected large effect and, at high effort, no floor) before steering text is tested at all.
+
+**Not known.** Whether a rewritten effort reaches the wire request and is kept in the transcript (`effort` / `perTurnEffort` fields exist on assistant records); whether a mid-turn change is accepted by the API under adaptive thinking or invalidates the prompt cache (research tracker section 8 cites contested measurements: partial miss on Sonnet 5, full rewrite on Opus 5, none on Fable 5.1); whether a mod loads under `--setting-sources local --settings` and `--strict-mcp-config`; whether the hot-reload folder or `--plugin-dir` is the right load path (MQ-1); the budget of a streaming hook. Mods are unsandboxed and see every prompt. Portability: a mod is Claude Code only, so the harness-neutral core stays and a mod would be a second adapter (shallow / default / deep mapped to `low` / unchanged / `high`).
+
+**Source:** `types/claude-code.d.ts` of the `plugin-authoring` skill, lines 4288 to 4301, 12768 to 12830, 793 to 797, 5946 to 5956; `docs/trackers/claude-mods-research-2026-10-06.md`; ES-14 (D-1), ES-5, ES-16; explorer digest of 2026-10-07.
 
 ## Template for new entries
 
