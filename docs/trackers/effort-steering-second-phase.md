@@ -8,7 +8,7 @@ tags:
 - second-phase
 topic: effort-steering second phase
 time_scope: dated:2026-10-05
-entry_high_water_ES: 20
+entry_high_water_ES: 21
 entry_prefix: ES
 origin_session_id: 16bc6017-d129-44f7-91e5-43b0afad5ea9
 ---
@@ -402,6 +402,36 @@ At `xhigh`, per-prompt means: p1 to p3 0; p4 16; p5 63; p6 28; p7 162; p8 85; p9
 **Review of ES-19 while preparing this (for the record).** The loader and runner change in `c018c8b` is minimal and correct (one required field, `--effort <registered>` on every call). Power of the ES-19 registration, from the real `analyzeArms`, 400 trials per cell, alpha 0.01, gate 400, 8 prompts with the three known xhigh means (3,148, 1,355, 5,472) and the other five ASSUMED at 2,000: false pass 1 to 2 percent; at noise CV 0.3 a 30 percent cut passes 0.71 and a 50 percent cut 1.00; at CV 0.7 they pass 0.18 and 0.59; at CV 1.0 0.12 and 0.35. Observed CV of thinking tokens at one prompt and effort: about 0.2 to 0.35 (ES-17 probes 1 and 4, n=2), so the first reading is the likelier one, but the five baselines are unknown. Suggested guard, not added: exclude a run whose transcript `effort` differs from the registered level (the transcript records it in every assistant record).
 
 **Source:** operator rulings of 2026-10-07; ES-17, ES-18, ES-19; `effort-steering/spikes/dose/`.
+
+## ES-21 — S4 second registration run: mechanism_pass (thinking -37%, answers also shorter)
+
+**Valid:** dated 2026-10-07
+
+**Status:** the second registered S4 run was made ONCE on 2026-10-07 and the verdict is `mechanism_pass`. The S4 verdict gate (G4) and what to do with it are the operator's.
+**Done when:** the operator rules on the verdict (G4) and the next step (a quality check, S5, or the actuation work) is chosen.
+
+**Run.** Registration `c018c8b` (ES-19), code at `2682f46` (the effort guard), run from a clean detached worktree because an untracked file in the main checkout would have made the runner refuse with `dirty_tree`. 33 calls (32 runs and 1 canary) on `claude-sonnet-5-5` at `xhigh`, direct to Anthropic (`endpoint: default`), exit 0 with an empty `stop` list. Canary ok. Zero exclusions in every reason, including the new `effort_mismatch`. Hook latency p95 119 ms over 32 runs against the 500 ms budget, 0 failures.
+
+**Result.** 16 treated and 16 holdout runs over 8 prompts (2 and 2 per prompt). Median thinking 963.5 treated against 1,533.5 holdout. The statistic, the mean over prompts of the signed within-prompt reduction, is 688.75 `thinking_tokens` against the gate of 400. One-sided permutation p = 9.9995e-5 (20,000 permutations, alpha 0.01). Cache-creation share 10.4 percent treated against 12.2 percent holdout, so the cache gate holds.
+
+| prompt | holdout | treated | change |
+|---|---|---|---|
+| rate limiter | 3,909 | 2,891 | -26% |
+| memory leak | 1,534 | 940 | -39% |
+| palindromic substring | 2,132 | 962 | -55% |
+| 3x10 tiling | 569 | 396 | -30% |
+| minimal DFA | 793 | 792 | 0% |
+| Go gzip latency | 1,599 | 1,340 | -16% |
+| bug hunt | 2,934 | 1,600 | -45% |
+| LRU cache | 1,330 | 370 | -72% |
+
+(Per-prompt medians of 2 runs per arm.) Seven of eight prompts fell; the DFA prompt did not move.
+
+**Read from the transcripts afterwards (not part of the runner's verdict).** Mean over runs, treated against holdout: thinking 1,161 against 1,850 (-37 percent) and total `output_tokens` 2,892 against 3,954 (-27 percent). Output tokens fell on all 8 prompts and by more than thinking did, so the visible answers also became shorter. The steer did not move reasoning into visible text. A first attempt to measure visible text length was invalid (it kept only the first record of each message) and is discarded.
+
+**What this does and does not show.** It shows that the hook's steering text ("Answer directly without deliberating.") lowers billed thinking on prompts where the model thinks a lot: the mechanism works for Sonnet 5.5 at `xhigh` on these 8 prompts. It does NOT show that the shorter answers are as good: no quality measure exists here, and the answers got shorter. Other limits: 2 runs per arm per prompt and one registered run; prompts were chosen because they think; no light turns; only Sonnet 5.5 at `xhigh`; Opus 5.5 and other levels untested; cost was not recorded by the runner (estimate $2 to $3). The effort guard was added after the registration; with 0 exclusions it changed no data.
+
+**Source:** run output `s4-result.txt` (llm-proxy session scratchpad in `/tmp`, not durable; the numbers above are copied from it); transcripts under `~/.claude-kat/projects/-tmp-s4-run-XmzuHv-work`; ES-5, ES-18, ES-19, ES-20.
 
 ## Template for new entries
 
