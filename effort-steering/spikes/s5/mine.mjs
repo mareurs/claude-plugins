@@ -20,7 +20,8 @@
 // comparison is on the instant, so an offset cannot move a commit across it.
 //
 // Candidate = { repo, fix, parent, subject, date, subsystem, patchId, testFiles, sourceFiles,
-// sourceLinesChanged }. `repo` is the basename of repoDir. `date` is the author date in UTC to
+// sourceLinesChanged }. `repo` is the `repo` option, default the basename of repoDir (a checkout
+// named otherwise, such as a worktree, must pass it). `date` is the author date in UTC to
 // the second (`2026-10-01T10:00:00Z`), the same on every git version. `parent` is the first
 // parent, the tree a task is built from.
 //
@@ -58,10 +59,16 @@ function gitOut(dir, args, opts) {
   return r.stdout;
 }
 
-function resolveOptions(options) {
+function resolveOptions(repoDir, options) {
   const o = options ?? {};
   const out = {};
   for (const key of Object.keys(DEFAULTS)) out[key] = o[key] ?? DEFAULTS[key];
+  // The value written into every candidate. Default: the checkout's directory name, which only
+  // equals the repo's own name when the checkout is named after it, so a caller says it.
+  out.repo = o.repo === undefined ? basename(resolve(repoDir)) : o.repo;
+  if (typeof out.repo !== 'string' || out.repo === '') {
+    throw new TypeError(`mineCommits: repo must be a non-empty string when given, got ${JSON.stringify(out.repo)}`);
+  }
   if (typeof o.since !== 'string' || Number.isNaN(Date.parse(o.since))) {
     throw new TypeError(`mineCommits: since must be a date string Date.parse understands, got ${JSON.stringify(o.since)}`);
   }
@@ -134,8 +141,7 @@ const byDateThenSha = (x, y) => x.authoredMs - y.authoredMs || (x.sha < y.sha ? 
 
 export function mineCommits(repoDir, options) {
   if (typeof repoDir !== 'string' || repoDir === '') throw new TypeError(`mineCommits: repoDir must be a non-empty string, got ${JSON.stringify(repoDir)}`);
-  const { sinceMs, refs, excludePrefixes, maxPerSubsystem, minFiles, minLines } = resolveOptions(options);
-  const repo = basename(resolve(repoDir));
+  const { sinceMs, refs, excludePrefixes, maxPerSubsystem, minFiles, minLines, repo } = resolveOptions(repoDir, options);
 
   // 1. Cheap rules first: a diff is read only for a commit that survives them.
   const qualified = [];

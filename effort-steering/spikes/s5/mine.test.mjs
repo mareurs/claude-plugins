@@ -61,6 +61,16 @@ t('keeps a fix that changes 2 source files and 1 test file', () => {
   assert.equal(patchId, expected);
 });
 
+t("the repo option names the repo in every candidate; without it the directory's name does", () => {
+  const r = repo([base, qual('f1', 'fix(x): one', day('01')), qual('f2', 'fix(x): two', day('02'))]);
+  const name = basename(r.dir);
+  // The checkout is not called claude-plugins (a worktree never is), so the default is wrong for the caller.
+  assert.notEqual(name, 'claude-plugins');
+  assert.deepEqual(mine(r).map((c) => c.repo), [name, name]);
+  assert.deepEqual(mine(r, { repo: undefined }).map((c) => c.repo), [name, name]);
+  assert.deepEqual(mine(r, { repo: 'claude-plugins' }).map((c) => c.repo), ['claude-plugins', 'claude-plugins']);
+});
+
 t("drops: a merge; a root commit; a 'feat' subject; docs only; tests only; source only; 1 source file with 39 lines", () => {
   const r = repo([
     // The first commit has no parent, so there is no tree "at P" to build a task from.
@@ -126,26 +136,54 @@ t('a test file never counts toward the source line total', () => {
   assert.deepEqual(mine(r), []);
 });
 
-t('drops a commit that touches effort-steering/ even when its other files qualify', () => {
+t('drops a commit that touches effort-steering/ whichever position the path has in the diff', () => {
   const r = repo([
     base,
-    qual('insrc', 'fix(x): effort-steering source path', day('01'), { 'effort-steering/spikes/s5/x.mjs': 'x\n' }),
-    qual('intest', 'fix(x): effort-steering test path', day('02'), { 'effort-steering/foo.test.mjs': 'x\n' }),
+    // Git lists a diff in path order. The excluded path comes FIRST in the next two (effort-steering/
+    // sorts before src/ and tests/), in the MIDDLE of the third and LAST in the fourth and fifth, so a
+    // check that looks at one position of the list lets one of them through.
+    qual('insrc', 'fix(x): effort-steering source path first', day('01'), { 'effort-steering/spikes/s5/x.mjs': 'x\n' }),
+    qual('intest', 'fix(x): effort-steering test path first', day('02'), { 'effort-steering/foo.test.mjs': 'x\n' }),
     // "starts with", not "contains": these paths do not start with the prefix.
     qual('nested', 'fix(x): a path that only contains effort-steering/', day('03'), { 'docs/effort-steering/notes.md': 'x\n' }),
     qual('sibling', 'fix(x): a sibling directory with the same stem', day('04'), { 'effort-steering-notes/a.md': 'x\n' }),
+    { label: 'middle', subject: 'fix(x): effort-steering source path in the middle', date: day('05'), files: { 'a/mid-one.rs': 'x\n', 'a/mid-two.rs': 'x\n', 'effort-steering/mid.mjs': 'x\n', 'tests/mid.rs': 'x\n' } },
+    { label: 'last', subject: 'fix(x): effort-steering source path last', date: day('06'), files: { 'a/last-one.rs': 'x\n', 'a/last-two.rs': 'x\n', 'a/last.test.mjs': 'x\n', 'effort-steering/last.mjs': 'x\n' } },
+    { label: 'lasttest', subject: 'fix(x): effort-steering test path last', date: day('07'), files: { 'a/lt-one.rs': 'x\n', 'a/lt-two.rs': 'x\n', 'effort-steering/lt.test.mjs': 'x\n' } },
   ]);
-  assert.deepEqual(subjects(mine(r)), [
+  // Guard the fixture: where the excluded path really sits in each diff, as [index, length].
+  const position = (label) => {
+    const sha = r.shas[label];
+    const names = git(r.dir, ['diff-tree', '-r', '--name-only', '-z', `${sha}^`, sha]).stdout.toString().split('\0').filter(Boolean);
+    return [names.findIndex((p) => p.startsWith('effort-steering/')), names.length];
+  };
+  assert.deepEqual(
+    ['insrc', 'intest', 'middle', 'last', 'lasttest'].map(position),
+    [[0, 4], [0, 4], [2, 4], [3, 4], [2, 3]],
+  );
+  // All seven share one subsystem, so lift the cap: this test is about the exclusion rule.
+  const wide = { maxPerSubsystem: 10 };
+  assert.deepEqual(subjects(mine(r, wide)), [
     'fix(x): a path that only contains effort-steering/',
     'fix(x): a sibling directory with the same stem',
   ]);
-  // The option is wired: no prefixes keeps all four; another prefix drops its own commit.
-  assert.equal(mine(r, { excludePrefixes: [] }).length, 4);
-  assert.deepEqual(subjects(mine(r, { excludePrefixes: ['docs/'] })), [
-    'fix(x): effort-steering source path',
-    'fix(x): effort-steering test path',
+  // The option is wired: no prefixes keeps all seven; another prefix drops its own commit.
+  assert.equal(mine(r, { ...wide, excludePrefixes: [] }).length, 7);
+  assert.deepEqual(subjects(mine(r, { ...wide, excludePrefixes: ['docs/'] })), [
+    'fix(x): effort-steering source path first',
+    'fix(x): effort-steering test path first',
     'fix(x): a sibling directory with the same stem',
+    'fix(x): effort-steering source path in the middle',
+    'fix(x): effort-steering source path last',
+    'fix(x): effort-steering test path last',
   ]);
+  // Any of several prefixes excludes, not only the first or the last one listed.
+  for (const prefixes of [['nothing-here/', 'effort-steering/'], ['effort-steering/', 'nothing-here/']]) {
+    assert.deepEqual(subjects(mine(r, { ...wide, excludePrefixes: prefixes })), [
+      'fix(x): a path that only contains effort-steering/',
+      'fix(x): a sibling directory with the same stem',
+    ]);
+  }
 });
 
 t('dedupes a cherry-pick by patch-id and keeps the earliest', () => {
@@ -323,6 +361,10 @@ t('a bad option is a TypeError, not an empty result', () => {
     { ...ok, excludePrefixes: 'effort-steering/' },
     { ...ok, refs: [] },
     { ...ok, refs: [1] },
+    { ...ok, repo: '' },
+    { ...ok, repo: null },
+    { ...ok, repo: 5 },
+    { ...ok, repo: ['claude-plugins'] },
   ]) {
     assert.throws(() => mineCommits(r.dir, bad), TypeError, JSON.stringify(bad));
   }
