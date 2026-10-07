@@ -319,6 +319,24 @@ await ta('a timeout while no container of ours exists kills nothing: there is no
   }
 });
 
+await ta('a container that appears after the timeout lookup is found by the lookup after the run, and removed by its ID', async () => {
+  // The race: the timeout fires before the container exists, so the first lookup is empty and
+  // nothing is killed; the client is SIGKILLed after the grace; by then docker has created the
+  // container, and only a FRESH lookup after the run can find it. Reusing the first answer
+  // would leave it behind, running, with no rm.
+  const f = fakeDocker({ containers: [ours()], ps: { answers: [[], [OURS_ID]] }, run: { sleepMs: 20_000 } });
+  const r = await dockerRun(base({ timeoutMs: 500 }), { dockerBin: f.bin, killGraceMs: 300 });
+  assert.equal(r.timedOut, true);
+  assert.equal(r.status, null, 'the client was SIGKILLed after the grace period');
+  assert.deepEqual(subs(f), ['run', 'ps', 'ps', 'container inspect', 'rm'], 'nothing was found at the timeout, so no kill');
+  const [, ps1, ps2, inspect, rm] = f.calls();
+  assert.deepEqual(ps2.argv, ps1.argv, 'the same lookup, asked again');
+  assert.deepEqual(inspect.argv, ['container', 'inspect', '--format', '{{.State.OOMKilled}}', OURS_ID]);
+  assert.deepEqual(rm.argv, ['rm', '-f', OURS_ID]);
+  assert.deepEqual(touchedBy(f), [OURS_ID, OURS_ID], 'the container found by the second lookup was inspected and removed, by its full ID');
+  assert.deepEqual(OUTCOME(r), { created: true, oomKilled: false, inspectOk: true, rmOk: true });
+});
+
 await ta('every container carrying our label is killed, inspected and removed, each by its own ID', async () => {
   const twin = { id: TWIN_ID, name: `${NAME}-twin`, labels: { s5: '1', 's5.run': NAME }, oomKilled: true };
   const f = fakeDocker({ containers: [ours(NAME, { oomKilled: false }), twin], run: { sleepMs: 20_000 } });

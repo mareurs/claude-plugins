@@ -24,7 +24,7 @@
 //       "inspect": { "status": 0, "stdout": null, "sleepMs": 0 },
 //       "kill":    { "status": 0, "sleepMs": 0 },
 //       "rm":      { "status": 0, "stderr": "", "sleepMs": 0 },
-//       "ps":      { "status": 0, "stderr": "", "sleepMs": 0 } }
+//       "ps":      { "status": 0, "stderr": "", "sleepMs": 0, "answers": [["<id>"], []] } }
 //
 //   The key under the top level is the first argv word (`docker container inspect` is
 //   `inspect`). `status` is the exit status (default 0); `stdout` and `stderr` are printed.
@@ -44,7 +44,9 @@
 //   `sleepMs` and creates `<FAKE_DOCKER_LOG>.finished.kill` as its last act, so a test can tell
 //   whether the caller waited for it. `run.tailAfterExit` { text, delayMs } leaves a detached
 //   grandchild holding the stdout pipe, which writes `text` after `delayMs`, so that `run` has
-//   EXITED while its stdout is still open. A first word with no known behaviour exits 99.
+//   EXITED while its stdout is still open. `ps.answers` is a list of ID lists: the i-th `ps` call
+//   prints answers[i] (the last answer repeats) whatever its filters say, so a test can make a
+//   container appear, or vanish, between two lookups. A first word with no known behaviour exits 99.
 
 import { spawn } from 'node:child_process';
 import { appendFileSync, existsSync, fstatSync, readFileSync, statSync, writeFileSync, writeSync } from 'node:fs';
@@ -97,6 +99,11 @@ function refsOf() {
 }
 
 function psIds() {
+  const full = rest.includes('--no-trunc');
+  const shown = (ids) => ids.map((id) => (full ? id : id.slice(0, 12)));
+  // A scripted answer: the i-th `ps` call gets answers[i] (the last one repeats), whatever the
+  // filters say. This is how a test makes a container APPEAR between two lookups.
+  if (spec.answers) return shown(spec.answers[Math.min(psIndex, spec.answers.length - 1)]);
   const filters = rest.flatMap((a, i) => (a === '--filter' ? [rest[i + 1]] : []));
   const matches = (c, f) => {
     const [kind, key, ...value] = f.split('=');
@@ -104,12 +111,17 @@ function psIds() {
     const labels = c.labels ?? {};
     return Object.hasOwn(labels, key) && (value.length === 0 || labels[key] === value.join('='));
   };
-  const full = rest.includes('--no-trunc');
-  return containers.filter((c) => filters.every((f) => matches(c, f))).map((c) => (full ? c.id : c.id.slice(0, 12)));
+  return shown(containers.filter((c) => filters.every((f) => matches(c, f))).map((c) => c.id));
 }
 
+// How many `ps` calls came before this one, read from the log BEFORE this call is appended.
+function priorPsCalls() {
+  if (!existsSync(LOG)) return 0;
+  return readFileSync(LOG, 'utf8').split('\n').filter(Boolean).filter((l) => JSON.parse(l).argv[0] === 'ps').length;
+}
 
 const refs = refsOf();
+const psIndex = op === 'ps' ? priorPsCalls() : 0;
 const touched = refs.map(resolveRef).filter(Boolean);
 const missing = refs.filter((r) => !resolveRef(r));
 const envMatches = Object.fromEntries(Object.entries(config.expectEnv ?? {}).map(([k, v]) => [k, process.env[k] === v]));
