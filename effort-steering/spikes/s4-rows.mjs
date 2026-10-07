@@ -23,6 +23,13 @@
 //
 // buildRow returns { row } or { reason }; a reason means the run is EXCLUDED and counted.
 // It is never treated as holdout.
+//
+// Effort guard: a run must have been made at the REGISTERED effort. A saved settings or
+// /model default never reaches a `--setting-sources local` child, so a run that silently fell
+// back to `medium` would measure nothing (Sonnet 5.5 thinks 0 tokens on most prompts there,
+// ES-18). Claude Code records the effort of each request as a top-level `effort` on the
+// assistant record. Every counted assistant message must record exactly the registered effort;
+// a different or absent value excludes the run (effort_mismatch).
 
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import path from 'node:path';
@@ -67,10 +74,10 @@ export function hasApiError(text) {
   return parseLines(text).some(isApiError);
 }
 
-// Assistant usage objects deduped by message.id, API-error records left out. A record
-// without a message.id cannot be deduped and is not counted.
-function assistantUsages(text) {
-  const seen = new Map();
+// The assistant records that count as usage: not an API error, a string message.id, an
+// assistant role (or none), a usage object. One place, so tokens and effort read the same set.
+function countedAssistantRecords(text) {
+  const out = [];
   for (const obj of parseLines(text)) {
     if (isApiError(obj)) continue;
     const msg = obj && obj.message;
@@ -78,9 +85,28 @@ function assistantUsages(text) {
     if (msg.role !== undefined && msg.role !== 'assistant') continue;
     const usage = msg.usage;
     if (usage === null || typeof usage !== 'object' || Array.isArray(usage)) continue;
+    out.push({ obj, msg, usage });
+  }
+  return out;
+}
+
+// Assistant usage objects deduped by message.id, API-error records left out. A record
+// without a message.id cannot be deduped and is not counted.
+function assistantUsages(text) {
+  const seen = new Map();
+  for (const { msg, usage } of countedAssistantRecords(text)) {
     if (!seen.has(msg.id)) seen.set(msg.id, usage);
   }
   return [...seen.values()];
+}
+
+// The distinct `effort` values recorded on the counted assistant records, as strings; a record
+// that records none (or a non-string) contributes null. A child started with `--effort xhigh`
+// records only 'xhigh'. Empty when no assistant record counts.
+export function effortsFromTranscript(text) {
+  const seen = new Set();
+  for (const { obj } of countedAssistantRecords(text)) seen.add(typeof obj.effort === 'string' ? obj.effort : null);
+  return [...seen];
 }
 
 // Token sums over assistant messages deduped by message.id; null when none were found.
@@ -129,9 +155,10 @@ export function findTranscripts(sessionId, configDir) {
 
 // { row } for analyzeArms, or { reason } when the run must be excluded. plannedArm and
 // promptIndex come from the runner's plan; a caller that omits them is a bug, not a run.
-export function buildRow(sessionId, { stateDir, configDir, plannedArm, promptIndex }) {
+export function buildRow(sessionId, { stateDir, configDir, plannedArm, promptIndex, effort }) {
   if (!ARMS.has(plannedArm)) throw new TypeError(`buildRow: plannedArm must be 'treated' or 'holdout', got ${String(plannedArm)}`);
   if (!Number.isSafeInteger(promptIndex) || promptIndex < 0) throw new TypeError(`buildRow: promptIndex must be a safe integer >= 0, got ${String(promptIndex)}`);
+  if (typeof effort !== 'string' || effort.trim() === '') throw new TypeError(`buildRow: effort must be the registered effort level, got ${String(effort)}`);
   const logFile = path.join(stateDir, `${sessionId}.jsonl`);
   if (!existsSync(logFile)) return { reason: 'no_log' };
   const decision = decisionFromLog(readFileSync(logFile, 'utf8'));
@@ -152,5 +179,7 @@ export function buildRow(sessionId, { stateDir, configDir, plannedArm, promptInd
   const tokens = tokensFromTranscript(text);
   if (tokens === null) return { reason: 'no_transcript' };
   if (!reportsThinkingTokens(text)) return { reason: 'no_thinking_field' };
+  const efforts = effortsFromTranscript(text);
+  if (efforts.length !== 1 || efforts[0] !== effort) return { reason: 'effort_mismatch' };
   return { row: { promptIndex, arm: decision.arm, ...tokens } };
 }

@@ -118,10 +118,11 @@ const prereg = (over = {}) => ({
 const silent = () => {};
 const sidOf = (args) => args[args.indexOf('--session-id') + 1];
 
-const tline = (id, input, cc, cr, thinking) =>
-  JSON.stringify({ type: 'assistant', message: { id, role: 'assistant', usage: { input_tokens: input, cache_creation_input_tokens: cc, cache_read_input_tokens: cr, output_tokens_details: { thinking_tokens: thinking } } } });
+const tline = (id, input, cc, cr, thinking, effort) =>
+  JSON.stringify({ type: 'assistant', effort, message: { id, role: 'assistant', usage: { input_tokens: input, cache_creation_input_tokens: cc, cache_read_input_tokens: cr, output_tokens_details: { thinking_tokens: thinking } } } });
 // Message A is streamed twice: deduped, thinking 80 total and cache_creation 20, input_total 165.
-const transcript = (thinking, cc = 20) => `${tline('A', 10, cc, 30, thinking - 30)}\n${tline('A', 10, cc, 30, thinking - 30)}\n${tline('B', 5, 0, 100, 30)}\n`;
+// `effort` is what Claude Code records on each assistant record: the level the child was started at.
+const transcript = (thinking, cc = 20, effort = 'high') => `${tline('A', 10, cc, 30, thinking - 30, effort)}\n${tline('A', 10, cc, 30, thinking - 30, effort)}\n${tline('B', 5, 0, 100, 30, effort)}\n`;
 const ZERO_USAGE = { input_tokens: 0, cache_creation_input_tokens: 0, cache_read_input_tokens: 0, output_tokens_details: { thinking_tokens: 0 } };
 const apiErrorTranscript = (kind) =>
   `${JSON.stringify(
@@ -136,7 +137,9 @@ const apiErrorTranscript = (kind) =>
 // Like the real hook, it reads the arm from the run's EFFORT_STEERING_HOLDOUT_RATE ('1' is
 // holdout, '0' treated) and logs steered = (arm === 'treated'). A test's plan(index, ctx)
 // can override any of: { arm, steered, thinking, cc, nolog, notranscript,
-// spawn: 'status'|'signal'|'error', apierr: 'flag'|'model', dup }; ctx is
+// spawn: 'status'|'signal'|'error', apierr: 'flag'|'model', dup, effort }; `effort` is what the
+// child's transcript records (by default the `--effort` it was started with; null records none);
+// ctx is
 // { planned, prompt, sid }. index counts claude calls from 0.
 function fakeEnv({ plan, configDir, durations, hookResult, execHook } = {}) {
   const calls = { claude: [], hook: [] };
@@ -182,7 +185,7 @@ function fakeEnv({ plan, configDir, durations, hookResult, execHook } = {}) {
       writeFileSync(path.join(dir, `${sid}.jsonl`), `${JSON.stringify({ session_id: sid, arm: p.arm, steered: p.steered })}\n`);
     }
     if (!p.notranscript) {
-      const text = p.apierr ? apiErrorTranscript(p.apierr) : transcript(p.thinking, p.cc ?? 20);
+      const text = p.apierr ? apiErrorTranscript(p.apierr) : transcript(p.thinking, p.cc ?? 20, 'effort' in p ? p.effort : args[args.indexOf('--effort') + 1]);
       for (const slug of p.dup ? ['slug', 'slug2'] : ['slug']) {
         mkdirSync(path.join(configDir, 'projects', slug), { recursive: true });
         writeFileSync(path.join(configDir, 'projects', slug, `${sid}.jsonl`), text);
@@ -225,7 +228,7 @@ const firstOf = (arm, n, fields) => {
 };
 // (promptIndex, arm) of a plan, without the random session ids.
 const shape = (runs) => runs.map((r) => [r.promptIndex, r.arm]);
-const reasons = (over) => ({ no_log: 0, arm_mismatch: 0, not_steered: 0, steered_holdout: 0, no_transcript: 0, ambiguous_transcript: 0, spawn_failed: 0, api_error: 0, no_thinking_field: 0, ...over });
+const reasons = (over) => ({ no_log: 0, arm_mismatch: 0, not_steered: 0, steered_holdout: 0, no_transcript: 0, ambiguous_transcript: 0, spawn_failed: 0, api_error: 0, no_thinking_field: 0, effort_mismatch: 0, ...over });
 
 t('planRuns: prompts x repeats entries, distinct UUID session ids, each prompt repeated, promptIndex matches', () => {
   const p = prereg();
@@ -532,6 +535,15 @@ await ta('a transcript found in two project dirs is excluded as ambiguous_transc
   assert.equal(result.analysis.nHoldout, 6);
 });
 
+await ta('runs recorded at another effort than the registered one are excluded as effort_mismatch and counted; stop has runs_excluded', async () => {
+  const { result } = await run({}, { plan: firstOf('holdout', 2, { effort: 'medium' }) });
+  assert.equal(result.excluded, 2);
+  assert.deepEqual(result.excludedByReason, reasons({ effort_mismatch: 2 }));
+  assert.equal(result.analysis.nTreated, 4);
+  assert.equal(result.analysis.nHoldout, 6);
+  assert.deepEqual(result.stop, ['runs_excluded']);
+});
+
 await ta('a failed claude run (error, signal or non-zero status) is excluded as spawn_failed even with a log and transcript', async () => {
   const kinds = ['status', 'signal', 'error'];
   let n = 0;
@@ -806,6 +818,8 @@ await ta('a failed canary stops after exactly ONE claude call, whatever failed',
     [{ steered: false }, 'not_steered'],
     [{ arm: 'holdout', steered: false }, 'arm_mismatch'],
     [{ dup: true }, 'ambiguous_transcript'],
+    [{ effort: 'medium' }, 'effort_mismatch'],
+    [{ effort: null }, 'effort_mismatch'],
   ];
   for (const [fields, reason] of kinds) {
     const { result, f } = await run({}, { plan: (i) => (i === 0 ? fields : {}) });

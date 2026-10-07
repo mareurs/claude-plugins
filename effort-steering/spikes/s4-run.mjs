@@ -20,8 +20,8 @@
 //      CLI with node in a temp dir; they never run the hook and never call a model.
 //   5. The hook latency gate on the scratch copy's hook (no model call): latency_not_ok.
 //   6. ONE canary `claude` run: prompt 0, treated, a fresh session id, EXCLUDED from the
-//      rows. It must leave a log line (treated, steered), exactly one transcript and a
-//      usable row; anything else refuses with canary_failed and NO further claude call.
+//      rows. It must leave a log line (treated, steered), exactly one transcript, a usable row
+//      and the REGISTERED effort on every assistant record (effort_mismatch); anything else refuses with canary_failed and NO further claude call.
 //   7. The planned runs, in the seeded order (prompts and arms interleaved); the analysis.
 //
 // STOP REASONS. A not_run result holds one of: dirty_tree, prompt_not_steerable,
@@ -80,7 +80,7 @@ const CLI_REL = path.join('bin', 'effort-policy.mjs');
 const DEFAULT_PREREG = path.join(HERE, 's4-prereg.json');
 const RUN_TIMEOUT_MS = 10 * 60 * 1000;
 const HOOK_TIMEOUT_MS = 30 * 1000;
-const REASONS = ['no_log', 'arm_mismatch', 'not_steered', 'steered_holdout', 'no_transcript', 'ambiguous_transcript', 'spawn_failed', 'api_error', 'no_thinking_field'];
+const REASONS = ['no_log', 'arm_mismatch', 'not_steered', 'steered_holdout', 'no_transcript', 'ambiguous_transcript', 'spawn_failed', 'api_error', 'no_thinking_field', 'effort_mismatch'];
 const PLAN_STREAM = 0;
 // The holdout rate a run's hook reads: '1' always holds the turn out, '0' always steers it.
 const RATE_FOR = { holdout: '1', treated: '0' };
@@ -346,7 +346,7 @@ export async function runExperiment(preregFile, opts = {}) {
       return spawn('claude', args, { cwd, env, encoding: 'utf8', timeout: RUN_TIMEOUT_MS, killSignal: 'SIGKILL' });
     };
     const rowOf = (res, sessionId, arm, promptIndex) =>
-      failed(res) ? { reason: 'spawn_failed' } : buildRow(sessionId, { stateDir, configDir: opts.configDir, plannedArm: arm, promptIndex });
+      failed(res) ? { reason: 'spawn_failed' } : buildRow(sessionId, { stateDir, configDir: opts.configDir, plannedArm: arm, promptIndex, effort: prereg.effort });
 
     // I-4: one canary, excluded from the rows; it proves the log, the transcript and the join.
     const canaryId = randomUUID();

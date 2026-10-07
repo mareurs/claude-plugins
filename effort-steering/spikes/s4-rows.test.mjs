@@ -5,7 +5,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { t } from '../core/testkit.mjs';
-import { armFromLog, buildRow, decisionFromLog, findTranscripts, hasApiError, reportsThinkingTokens, tokensFromTranscript } from './s4-rows.mjs';
+import { armFromLog, buildRow, decisionFromLog, effortsFromTranscript, findTranscripts, hasApiError, reportsThinkingTokens, tokensFromTranscript } from './s4-rows.mjs';
 
 const roots = [];
 process.on('exit', () => roots.forEach((r) => rmSync(r, { recursive: true, force: true })));
@@ -15,7 +15,9 @@ const tmp = () => {
   return d;
 };
 
-const msg = (id, u, role = 'assistant') => JSON.stringify({ type: role, message: { id, role, usage: u } });
+// The registered effort the fixtures run at. Claude Code writes it as a top-level `effort` on each assistant record.
+const EFFORT = 'xhigh';
+const msg = (id, u, role = 'assistant') => JSON.stringify({ type: role, ...(role === 'assistant' ? { effort: EFFORT } : {}), message: { id, role, usage: u } });
 const usage = (input, cc, cr, thinking) => ({
   input_tokens: input,
   cache_creation_input_tokens: cc,
@@ -114,7 +116,7 @@ t('buildRow joins arm and tokens; each exclusion has its own reason, never holdo
   mkdirSync(path.join(cfg, 'projects', 'p'), { recursive: true });
   mkdirSync(path.join(cfg, 'projects', 'q'), { recursive: true });
   const tr = (id, text) => writeFileSync(path.join(cfg, 'projects', 'p', `${id}.jsonl`), text);
-  const base = { stateDir: state, configDir: cfg };
+  const base = { stateDir: state, configDir: cfg, effort: EFFORT };
   const ctx = { ...base, plannedArm: 'treated', promptIndex: 0 };
   writeFileSync(path.join(state, 'ok.jsonl'), '{"arm":"holdout","steered":false}\n');
   tr('ok', `${msg('A', usage(1, 2, 3, 4))}\n`);
@@ -151,7 +153,7 @@ function fixture() {
     if (log !== null) writeFileSync(path.join(state, `${id}.jsonl`), log);
     if (transcript !== null) writeFileSync(path.join(cfg, 'projects', 'p', `${id}.jsonl`), transcript);
   };
-  return { put, ctx: (plannedArm, promptIndex = 0) => ({ stateDir: state, configDir: cfg, plannedArm, promptIndex }) };
+  return { put, ctx: (plannedArm, promptIndex = 0) => ({ stateDir: state, configDir: cfg, plannedArm, promptIndex, effort: EFFORT }) };
 }
 
 t('decisionFromLog returns the arm and steered flag of the first line with a valid arm', () => {
@@ -205,4 +207,58 @@ t('buildRow refuses a missing or unknown planned arm and a bad promptIndex', () 
   f.put('x', '{"arm":"treated","steered":true}\n');
   for (const plannedArm of [undefined, 'Treated', 'control', null]) assert.throws(() => buildRow('x', f.ctx(plannedArm)), TypeError);
   for (const promptIndex of [-1, 1.5, '0', null]) assert.throws(() => buildRow('x', f.ctx('treated', promptIndex)), TypeError);
+});
+
+// ---- effort guard: a run must have been made at the REGISTERED effort ----------------------
+
+const rec = (id, effort, extra = {}) =>
+  JSON.stringify({ type: 'assistant', ...(effort === undefined ? {} : { effort }), message: { id, role: 'assistant', usage: usage(1, 2, 3, 4) }, ...extra });
+
+t('effortsFromTranscript lists the distinct efforts of the counted assistant records, null for a missing or non-string one', () => {
+  assert.deepEqual(effortsFromTranscript(`${rec('A', 'xhigh')}\n${rec('A', 'xhigh')}\n${rec('B', 'xhigh')}\n`), ['xhigh']);
+  assert.deepEqual(effortsFromTranscript(`${rec('A', 'xhigh')}\n${rec('B', 'medium')}\n`).sort(), ['medium', 'xhigh']);
+  assert.deepEqual(effortsFromTranscript(`${rec('A', undefined)}\n`), [null]);
+  assert.deepEqual(effortsFromTranscript(`${rec('A', 5)}\n`), [null]);
+  assert.deepEqual(effortsFromTranscript(''), []);
+});
+
+t('effortsFromTranscript reads the same records tokensFromTranscript counts: user records, API errors and records without an id are ignored', () => {
+  const user = JSON.stringify({ type: 'user', effort: 'low', message: { id: 'U', role: 'user', usage: usage(1, 1, 1, 1) } });
+  const noId = JSON.stringify({ type: 'assistant', effort: 'low', message: { role: 'assistant', usage: usage(1, 1, 1, 1) } });
+  assert.deepEqual(effortsFromTranscript(`${user}\n${noId}\n${apiErr({ effort: 'low' })}\n${rec('A', 'xhigh')}\n`), ['xhigh']);
+});
+
+t('a run recorded at another effort is excluded as effort_mismatch; one at the registered effort is a row', () => {
+  const f = fixture();
+  f.put('m', '{"arm":"treated","steered":true}\n', `${rec('A', 'medium')}\n`);
+  assert.deepEqual(buildRow('m', f.ctx('treated')), { reason: 'effort_mismatch' });
+  f.put('ok', '{"arm":"treated","steered":true}\n', `${rec('A', EFFORT)}\n`);
+  assert.equal(buildRow('ok', f.ctx('treated')).row.thinking_tokens, 4);
+});
+
+t('a counted assistant record with no effort, or one deviating record among matching ones, excludes the run', () => {
+  const f = fixture();
+  f.put('none', '{"arm":"treated","steered":true}\n', `${rec('A', undefined)}\n`);
+  assert.deepEqual(buildRow('none', f.ctx('treated')), { reason: 'effort_mismatch' });
+  f.put('mixed', '{"arm":"treated","steered":true}\n', `${rec('A', EFFORT)}\n${rec('B', 'high')}\n`);
+  assert.deepEqual(buildRow('mixed', f.ctx('treated')), { reason: 'effort_mismatch' });
+  f.put('partial', '{"arm":"treated","steered":true}\n', `${rec('A', EFFORT)}\n${rec('B', undefined)}\n`);
+  assert.deepEqual(buildRow('partial', f.ctx('treated')), { reason: 'effort_mismatch' });
+  // a streamed duplicate of one message is not a deviation
+  f.put('ok', '{"arm":"treated","steered":true}\n', `${rec('A', EFFORT)}\n${rec('A', EFFORT)}\n${rec('B', EFFORT)}\n`);
+  assert.equal(buildRow('ok', f.ctx('treated')).row.arm, 'treated');
+});
+
+t('the effort is compared exactly: case, spaces and a prefix do not match', () => {
+  const f = fixture();
+  ['XHIGH', ' xhigh', 'xhigh ', 'xhig'].forEach((bad, i) => {
+    f.put(`e${i}`, '{"arm":"treated","steered":true}\n', `${rec('A', bad)}\n`);
+    assert.deepEqual(buildRow(`e${i}`, f.ctx('treated')), { reason: 'effort_mismatch' }, JSON.stringify(bad));
+  });
+});
+
+t('buildRow refuses a missing or blank effort, like a missing planned arm', () => {
+  const f = fixture();
+  f.put('x', '{"arm":"treated","steered":true}\n');
+  for (const effort of [undefined, null, '', '  ', 5, ['xhigh']]) assert.throws(() => buildRow('x', { ...f.ctx('treated'), effort }), TypeError, String(effort));
 });
