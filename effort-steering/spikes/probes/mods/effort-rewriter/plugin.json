@@ -1,0 +1,1 @@
+{ "name": "effort-rewriter", "version": "0.1.0", "description": "Throwaway headless probe: rewrites the effort of every turn.step to the level named in .effort-probe of the working directory, and logs before and after." }

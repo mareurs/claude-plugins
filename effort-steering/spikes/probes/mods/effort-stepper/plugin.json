@@ -1,0 +1,1 @@
+{ "name": "effort-stepper", "version": "0.1.0", "description": "Throwaway headless probe: rewrites the effort of turn.step by step index from the comma list in .effort-probe of the working directory, and logs before and after." }
