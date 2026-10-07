@@ -8,7 +8,7 @@ tags:
 - second-phase
 topic: effort-steering second phase
 time_scope: dated:2026-10-05
-entry_high_water_ES: 15
+entry_high_water_ES: 16
 entry_prefix: ES
 origin_session_id: 16bc6017-d129-44f7-91e5-43b0afad5ea9
 ---
@@ -234,6 +234,40 @@ Bundled in the same fix wave (all from the final review): FINAL I-1 (treated run
 **Privacy.** Langfuse and the transcripts hold full prompts, system text and reasoning. The probes printed only key names, counts and numbers.
 
 **Source:** probes of 2026-10-06 (scripts in the session scratchpad under `/tmp`, so not durable); `~/agents/llm-proxy/CLAUDE.md` and `docs/trackers/observability-instruments.md`; ES-13, ES-14; research tracker `8ad5f00472dc1e42`.
+
+## ES-16 — Thinking text in S4 runs: `--thinking-display summarized`
+
+**Valid:** dated 2026-10-07
+
+**Status:** tested 2026-10-07. The S4 runner now passes `--thinking-display summarized` (`spikes/s4-run.mjs`, test in `s4-run.test.mjs`). The change is in the working tree and NOT committed. Fable 5.1 is untested.
+**Done when:** the runner change is committed, Fable 5.1 is tested or declined, and G2 and G3 have run.
+
+**Finding.** An S4-shaped call (`claude -p --setting-sources local --settings <file> --strict-mcp-config`) sends `thinking: {"type":"adaptive","display":"omitted"}`. The transcript then holds thinking blocks that are signed and empty. Adding `--thinking-display summarized` changes the request to `display: "summarized"` and the transcript gets readable text. This answers probe (c) of ES-15 for the S4 shape only: that shape does not use `between_tools`. An interactive session was not captured.
+
+**Evidence.** One call per arm, same prompt, run direct to Anthropic with no `ANTHROPIC_BASE_URL`. Langfuse showed `traces=0` for those sessions, twice, about 30 s apart. That is strong evidence of a direct path, not proof, because ingestion lags.
+
+| model | arm | `thinking_tokens` | transcript thinking text |
+|---|---|---|---|
+| Sonnet 5.5 | S4 as built | 121 | 1 block, 0 chars |
+| Sonnet 5.5 | plus flag | 55 | 1 block, 193 chars |
+| Opus 5.5 | S4 as built | 333 | 2 blocks, 0 chars each |
+| Opus 5.5 | plus flag | 770 | 2 blocks, 118 and 718 chars |
+
+The token gaps between arms are noise at one run per arm. They are not an effect of the flag.
+
+**Why the first capture misled.** A first pair went through `scripts/record_shim.py` and the proxy. The shim logged what the client sent: `omitted` for the plain arm and `summarized` for the flag arm. Both transcripts held text, because `FORCE_THINKING_DISPLAY=1` in the proxy rewrote `omitted` after the shim. So a transcript is empty only without the flag AND without the proxy rewrite. The statement in `observability-instruments.md` that transcripts are empty needs that qualifier.
+
+**What the docs say (read by a research agent, not re-read by the author).**
+- `display` has three values: `summarized`, `omitted` and `updates` (beta, header `thinking-display-updates-2026-08-18`). Sonnet 5.5, Opus 5.5 and Fable 5.1 default to `omitted`.
+- The text is a summary written by a different model. No setting returns the raw chain of thought.
+- Billing is the same for every `display` value. `usage.output_tokens_details.thinking_tokens` is the billed count, and summary length is not.
+- The installed CLI (2.1.292) has `--thinking-display`, hidden from `--help`. Its text also names a value `highlights`, which the API accepts only from Anthropic-hosted sessions.
+- `showThinkingSummaries` applies to interactive sessions only. OpenTelemetry redacts thinking. No hook field carries thinking text.
+- anthropics/claude-code#78200 reports empty text from Sonnet 5 and Opus 4.8 even with the flag. It did not reproduce on Sonnet 5.5 or Opus 5.5.
+
+**Not established.** (a) Whether the flag changes how much the model thinks: the docs say it does not, and n=1 per arm cannot show it. (b) Behaviour on Fable 5.1, which also needs 30-day retention. (c) Whether a full S4 run keeps text in every transcript. The canary does not check for text.
+
+**Source:** direct and shim runs of 2026-10-07 (outputs under the session scratchpad in `/tmp`, so not durable); `~/agents/llm-proxy/docs/trackers/observability-instruments.md`; research tracker `8ad5f00472dc1e42`; ES-5, ES-15.
 
 ## Template for new entries
 
