@@ -14,7 +14,29 @@ Release readiness across plugins × profiles. See
 
 ## State
 
-_Last refresh: `39b214a`, 2026-10-04 — `legible` is new: installed at 0.1.0 in all three
+_Last refresh: `8ce6a8e`, 2026-10-07 — `codescout-companion` 1.20.15→1.20.16 via
+`scripts/release.sh codescout-companion patch`, **pushed** (`main` `50752fc..aadbbeb`; `949c85e` the
+hook fix, `ffe67e5` the skill edit and its test, `aadbbeb` the bump). `buddy` unchanged at 0.11.9,
+`legible` unchanged at 0.2.0. `HEAD` is one docs commit past the bump. Every value re-derived from
+disk by a script (`refresh_params.py`, this session's scratchpad, not committed): each profile's
+`installed_plugins.json` (every array element; one per plugin in all three), cache-dir presence,
+README's version table, `marketplace.json`, and `diff -rq` of each cache against the working tree
+under the six documented excludes — **empty for all nine plugin×profile pairs**, with no runtime
+files this time. The `legible` 0.2.0 bump `39b214a`, recorded below as not pushed, reached
+`origin/main` in the push before this release (`e247b42..50752fc`, 63 commits) — checked with
+`git merge-base --is-ancestor 39b214a origin/main`._
+
+**That 1.20.16 release was a hook fix plus skill content.** `949c85e` edits
+`hooks/pre-edit-dirty-check.mjs` (2 lines): the advisory no longer states a hardcoded capture
+count. `ffe67e5` edits `skills/reaching-peer-sessions/SKILL.md` and its `.test.sh`, which now runs
+the self-identification walk against a fixture tree. `tests/run-all.sh` ended `All suites passed`
+pre-flight, and **the buddy pytest step ran this time**: `528 passed` under the system-`python3`
+fallback. The silent skip recorded on 2026-09-28 did not recur. **Restart not probed** — no instance
+was restarted from this session. The hook edit serves from the working tree already; the skill edit
+reaches a profile only through the seeded `1.20.16` cache, so it needs a cold restart or
+`/reload-plugins` there.
+
+_Previous refresh: `39b214a`, 2026-10-04 — `legible` is new: installed at 0.1.0 in all three
 profiles (`415cdb0`), then 0.1.0→0.2.0 via `NO_PUSH=1 scripts/release.sh legible minor`
 (`74950cf` the skill, `39b214a` the bump), **not pushed**. `buddy` 0.11.8→0.11.9 (`e4fed80`,
 on `origin/main`) was released after the previous refresh and is caught up here.
@@ -100,13 +122,13 @@ absent from every profile's install record, none enabled anywhere.
 | `~/.claude-sdd` | 0.11.9 ✅ | ✅ | ✅ | `0.11.9` ✅ | ✅ |
 | `~/.claude-kat` | 0.11.9 ✅ | ✅ | ✅ | `0.11.9` ✅ | ✅ |
 
-**codescout-companion** — canonical `1.20.15` · readme `1.20.15` · marketplace clean ✅
+**codescout-companion** — canonical `1.20.16` · readme `1.20.16` · marketplace clean ✅
 
 | profile | installed | cache dir | install_path ok | all entries | cache = working tree |
 |---|---|---|---|---|---|
-| `~/.claude` | 1.20.15 ✅ | ✅ | ✅ | `1.20.15` ✅ | ✅ runtime files only |
-| `~/.claude-sdd` | 1.20.15 ✅ | ✅ | ✅ | `1.20.15` ✅ | ✅ runtime files only |
-| `~/.claude-kat` | 1.20.15 ✅ | ✅ | ✅ | `1.20.15` ✅ | ✅ runtime files only |
+| `~/.claude` | 1.20.16 ✅ | ✅ | ✅ | `1.20.16` ✅ | ✅ |
+| `~/.claude-sdd` | 1.20.16 ✅ | ✅ | ✅ | `1.20.16` ✅ | ✅ |
+| `~/.claude-kat` | 1.20.16 ✅ | ✅ | ✅ | `1.20.16` ✅ | ✅ |
 
 **legible** — canonical `0.2.0` · readme `0.2.0` · marketplace clean ✅
 
@@ -249,6 +271,17 @@ measured on both candidate load paths rather than argued: the record points at k
 two actually serves, they carry the same bytes — so the question CLAUDE.md flags as
 unsettled does not need settling for this release.
 ## History
+### 2026-10-07 — codescout-companion 1.20.16 (dirty-check advisory fix + peer-sessions skill), pushed
+
+**Deltas, all measured:**
+- `codescout-companion`: canonical, readme and all three profiles' installed `1.20.15→1.20.16`, via `scripts/release.sh codescout-companion patch`. Pushed (`main` `50752fc..aadbbeb`; `949c85e` the fix, `ffe67e5` the skill and test, `aadbbeb` the bump). One array element per profile, `diff -rq` cache vs tree empty ×3.
+- `buddy` 0.11.9 and `legible` 0.2.0: unchanged. `diff -rq` empty ×3 each, so all nine pairs are clean.
+- Push state: the push before the release moved `origin/main` `e247b42→50752fc` (63 commits). It carried `39b214a`, so the 2026-10-04 entry's "not pushed" no longer holds.
+- `last_refresh_commit` `39b214a→8ce6a8e`.
+- Gate: buddy pytest ran under the system-`python3` fallback, `528 passed`. The 2026-09-28 silent skip did not recur.
+- Runtime files: none appeared in `diff -rq` this time (the 2026-10-04 `usage.db-shm`, `usage.db-wal` and `.in_use` lines are absent). Measured, not explained.
+
+**Not probed:** registration after restart.
 ### 2026-10-04 — legible new (0.1.0 → 0.2.0), not pushed; buddy 0.11.9 caught up
 
 **Deltas, all measured:**
