@@ -8,7 +8,7 @@
 // Fixtures live under one mkdtemp directory in os.tmpdir(), removed on process exit (also after a failed test).
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -72,10 +72,11 @@ class Raw {
     this.text = text;
   }
 }
-// Number text JSON.stringify cannot write: 1e999 (Infinity), 2^53 + 1, the double just above 0.1.
+// Number text JSON.stringify cannot write, or writes differently: 2^53 is canonical but not a safe integer; 1e999, 1e-999 and 2^53 + 1
+// parse to Infinity, 0 and 2^53, which the canonical form writes back as null, 0 and 9007199254740992 (see NOT_CANONICAL below).
 const raw = (text) => new Raw(text);
-const UNSAFE = raw('9007199254740993'); // parses to 2^53, which is not a safe integer
-const INFINITY = raw('1e999');
+const UNSAFE = raw('9007199254740992');
+const NOT_CANONICAL = [raw('1e999'), raw('-1e999'), raw('1e-999'), raw('9007199254740993')];
 
 const keysOf = (path) => path.replace(/\[(\d+)\]/g, '.$1').split('.');
 // VALID with each [path, value] applied; MISSING removes the key.
@@ -91,9 +92,10 @@ function variant(changes, base = VALID) {
   }
   return v;
 }
+// The canonical form (R65): what JSON.stringify(parsed, null, 2) plus a newline writes. A registration is only loaded in this form.
 function serialize(obj) {
   const text = JSON.stringify(obj, (k, v) => (v instanceof Raw ? `@@RAW@@${v.text}@@` : v), 2);
-  return text.replace(/"@@RAW@@(.*?)@@"/g, '$1');
+  return `${text.replace(/"@@RAW@@(.*?)@@"/g, '$1')}\n`;
 }
 const show = (v) => (v === MISSING ? '(missing)' : v instanceof Raw ? v.text : (JSON.stringify(v) ?? String(v)));
 
@@ -213,10 +215,14 @@ t('a valid file that differs from HEAD is refused', () => {
   assert.equal(loadS5Config(f, { mode: 'pilot' }).margin, 0.2, 'the config loader does not look at git');
 });
 
-t('a valid file that differs from HEAD by one trailing newline is refused: the bytes are compared, not the parse', () => {
+t('a valid file that differs from HEAD only in key order is refused: the bytes are compared, not the parse', () => {
   const f = committed(VALID);
-  writeFileSync(f, `${serialize(VALID)}\n`);
+  const { model, ...rest } = VALID;
+  const reordered = serialize({ ...rest, model }); // canonical, the same registration, other bytes
+  assert.notEqual(reordered, serialize(VALID));
+  writeFileSync(f, reordered);
   assert.throws(() => loadS5Prereg(f), /differs from HEAD/);
+  assert.deepEqual(loadS5Config(f, { mode: 'pilot' }), { ...VALID, registered: false });
 });
 
 t('a valid file that git does not track is refused as not committed, and loadS5Config loads it', () => {
@@ -231,13 +237,53 @@ t('a valid file outside any git repository is refused as not committed, and load
   assert.deepEqual(loadS5Config(f, { mode: 'smoke' }), { ...VALID, registered: false });
 });
 
-t('a symlink is refused even when git holds it', () => {
+t('a symlink is refused naming the cause even when git holds it: to a file, to a directory, dangling', () => {
   const target = committed(VALID);
-  const link = join(REPO, `link-${fileNo++}.json`);
-  symlinkSync(target, link);
-  git(REPO, 'add', '--', link);
-  git(REPO, 'commit', '-q', '-m', 'link');
-  assert.throws(() => loadS5Prereg(link), /symlink/);
+  const dir = join(REPO, `dir-${fileNo++}`);
+  mkdirSync(dir);
+  const links = [[target, 'a file'], [dir, 'a directory'], [join(REPO, 'no-such-target.json'), 'nothing']].map(([to, what]) => {
+    const link = join(REPO, `link-${fileNo++}.json`);
+    symlinkSync(to, link);
+    return [link, what];
+  });
+  git(REPO, 'add', '--', ...links.map(([link]) => link));
+  git(REPO, 'commit', '-q', '-m', 'links');
+  for (const [link, what] of links) assert.throws(() => loadS5Prereg(link), (e) => e.message.includes(`${link} is not committed: it is a symlink`), `a link to ${what}`);
+});
+
+t('loadS5Config reads through a symlink to a file, and says it cannot read a dangling one', () => {
+  const dir = join(PLAIN, `links-${fileNo++}`);
+  mkdirSync(dir);
+  symlinkSync(loose(VALID, PLAIN), join(dir, 'ok.json'));
+  symlinkSync(join(dir, 'no-such-target.json'), join(dir, 'dangling.json'));
+  assert.deepEqual(loadS5Config(join(dir, 'ok.json'), { mode: 'pilot' }), { ...VALID, registered: false });
+  assert.throws(() => loadS5Config(join(dir, 'dangling.json'), { mode: 'pilot' }), /cannot read/);
+  // A loop of links is an unreadable file to the config loader, not a refused symlink: only the measured loader refuses links.
+  symlinkSync(join(dir, 'b.json'), join(dir, 'a.json'));
+  symlinkSync(join(dir, 'a.json'), join(dir, 'b.json'));
+  assert.throws(() => loadS5Config(join(dir, 'a.json'), { mode: 'pilot' }), (e) => /cannot read/.test(e.message) && !/not committed/.test(e.message));
+});
+
+t('the loaders close the file they read: no descriptor is left open after a read that succeeds, fails after the open, or is refused', () => {
+  if (!existsSync('/proc/self/fd')) {
+    console.log('skip - the descriptor check: /proc/self/fd is not here');
+    return;
+  }
+  const open = () => readdirSync('/proc/self/fd').length;
+  const ok = committed(VALID);
+  const dir = join(REPO, `fd-dir-${fileNo++}`);
+  mkdirSync(dir);
+  const link = join(REPO, `fd-link-${fileNo++}.json`);
+  symlinkSync(ok, link);
+  const before = open();
+  for (let i = 0; i < 50; i++) {
+    loadS5Prereg(ok);
+    loadS5Config(ok, { mode: 'pilot' });
+    assert.throws(() => loadS5Prereg(dir), /cannot read/); // opens, then reading a directory fails
+    assert.throws(() => loadS5Config(dir, { mode: 'pilot' }), /cannot read/);
+    assert.throws(() => loadS5Prereg(link), /symlink/);
+  }
+  assert.equal(open(), before);
 });
 
 t('validation runs before the committed check: an invalid file git does not track is refused naming the field', () => {
@@ -277,12 +323,6 @@ t('loadS5Config refuses every mode but smoke, pilot and calibrate, naming the mo
   for (const options of [undefined, {}, null]) assert.throws(() => loadS5Config(f, options), (e) => e.message.includes(MODE_RULE), `options ${String(options)}`);
 });
 
-t('loadS5Config reads through a symlink: only the measured registration has to be the committed bytes', () => {
-  const link = join(PLAIN, `link-${fileNo++}.json`);
-  symlinkSync(loose(VALID, PLAIN), link);
-  assert.deepEqual(loadS5Config(link, { mode: 'pilot' }), { ...VALID, registered: false });
-});
-
 t('every mode runs the same checks: smoke and calibrate refuse a bad margin and accept zero runs', () => {
   const bad = loose(variant([['margin', 0]]));
   const zero = loose(variant([['arms.A.runs', 0], ['arms.B.runs', 0], ['arms.C.runs', 0]]));
@@ -299,12 +339,153 @@ t('a file that cannot be read, is not JSON, or is not a JSON object is refused b
   const notJson = committed('{ "model": ');
   assert.throws(() => loadS5Prereg(notJson), /not valid JSON/);
   assert.throws(() => loadS5Config(notJson, { mode: 'pilot' }), /not valid JSON/);
-  for (const text of ['', '[]', 'null', '3', '"s"', '[{"model":"m"}]']) {
-    const f = committed(text);
-    const wanted = text === '' ? /not valid JSON/ : /JSON object/;
-    assert.throws(() => loadS5Prereg(f), wanted, JSON.stringify(text));
-    assert.throws(() => loadS5Config(f, { mode: 'pilot' }), wanted, JSON.stringify(text));
+  const empty = committed('');
+  assert.throws(() => loadS5Prereg(empty), /not valid JSON/);
+  assert.throws(() => loadS5Config(empty, { mode: 'pilot' }), /not valid JSON/);
+  // Canonical text of values that parse but are not an object.
+  for (const value of [[], null, 3, 's', [{ model: 'm' }]]) {
+    const f = committed(`${JSON.stringify(value, null, 2)}\n`);
+    assert.throws(() => loadS5Prereg(f), /JSON object/, JSON.stringify(value));
+    assert.throws(() => loadS5Config(f, { mode: 'pilot' }), /JSON object/, JSON.stringify(value));
   }
+});
+
+// =====================================================================================================
+// the canonical form (R65): a key written twice, or a value written other than JSON.stringify writes it
+// =====================================================================================================
+
+const CANON = serialize(VALID);
+// `base` with the one occurrence of `needle` replaced by `replacement`.
+const edited = (needle, replacement, base = CANON) => {
+  assert.equal(base.split(needle).length - 1, 1, `${JSON.stringify(needle)} occurs once in the text`);
+  return base.replace(needle, () => replacement);
+};
+const rewriteCommandOf = (message) => message.split('Rewrite it with: ')[1];
+
+// Each [label, text] is written to a committed file; both loaders must refuse it, naming the file, saying what is wrong and
+// giving a one-line rewrite command (returned per case, for the caller to run).
+const refuseNotCanonical = (cases) => {
+  const files = cases.map(([, text]) => put(text));
+  commitQueued();
+  return cases.map(([label], i) => {
+    const commands = [];
+    for (const name of BOTH) {
+      assert.throws(
+        () => LOADERS[name](files[i]),
+        (e) => {
+          assert.ok(e instanceof Error, `${label}: ${name} threw a non-Error`);
+          assert.ok(e.message.includes(files[i]), `${label}: ${name} must name the file, got: ${e.message}`);
+          assert.ok(e.message.includes('repeated key or a value that is not in canonical form'), `${label}: ${name} must say what is wrong, got: ${e.message}`);
+          const command = rewriteCommandOf(e.message);
+          assert.ok(typeof command === 'string' && command.startsWith('node -e ') && !command.includes('\n'), `${label}: ${name} must end in a one-line rewrite command, got: ${e.message}`);
+          commands.push(command);
+          return true;
+        },
+        `${label}: ${name} must refuse`,
+      );
+    }
+    assert.equal(commands[0], commands[1], `${label}: both loaders give the same command`);
+    return { label, file: files[i], command: commands[0] };
+  });
+};
+
+t('a key written twice at the top level is refused by both loaders, though JSON.parse keeps the last value (R65)', () => {
+  const text = edited('"margin": 0.15,', '"margin": 0.15,\n  "margin": 0.9,');
+  assert.equal(JSON.parse(text).margin, 0.9, 'what loading it would have registered');
+  refuseNotCanonical([['top-level repeat', text]]);
+});
+
+t('a key written twice inside a nested object is refused: arms.B.effort and arms.B.runs', () => {
+  const sameValue = edited('"effort": "xhigh",\n      "steer": true,', '"effort": "xhigh",\n      "effort": "xhigh",\n      "steer": true,');
+  const otherValue = edited('"steer": true,', '"steer": true,\n      "runs": 5,');
+  assert.equal(JSON.parse(otherValue).arms.B.runs, 3, 'the later value wins, the first is hidden');
+  refuseNotCanonical([['arms.B.effort repeated', sameValue], ['arms.B.runs repeated with another value', otherValue]]);
+});
+
+t('a key written twice inside a task is refused: tasks[3].id', () => {
+  const text = edited('"id": "task-4",', '"id": "task-44",\n      "id": "task-4",');
+  assert.equal(JSON.parse(text).tasks[3].id, 'task-4');
+  refuseNotCanonical([['tasks[3].id repeated', text]]);
+});
+
+t('a key written twice once escaped is still a repeat: "margin" and "m\\u0061rgin"', () => {
+  const text = edited('"margin": 0.15,', '"margin": 0.15,\n  "m\\u0061rgin": 0.9,');
+  assert.equal(JSON.parse(text).margin, 0.9, 'JSON.parse decodes the escape, so it is the same key');
+  refuseNotCanonical([['escaped repeat', text]]);
+});
+
+t('a repeated __proto__ key is refused as a repeat', () => {
+  const text = `{\n  "__proto__": 1,\n  "__proto__": 2,${CANON.slice(1)}`;
+  assert.ok(Object.hasOwn(JSON.parse(text), '__proto__'));
+  refuseNotCanonical([['__proto__ repeated', text]]);
+});
+
+t('an unambiguous file that is not in canonical form is refused: 0.10, no trailing newline, other indents, escapes, number spellings', () => {
+  const alphaTenth = serialize(variant([['alpha', 0.1]]));
+  const cases = [
+    ['0.10 for 0.1', edited('"alpha": 0.1,', '"alpha": 0.10,', alphaTenth), variant([['alpha', 0.1]])],
+    ['0.150 for 0.15', edited('"margin": 0.15,', '"margin": 0.150,'), VALID],
+    ['1.1e1 for 11', edited('"orderSeed": 11,', '"orderSeed": 1.1e1,'), VALID],
+    ['no trailing newline', CANON.slice(0, -1), VALID],
+    ['two trailing newlines', `${CANON}\n`, VALID],
+    ['four-space indent', `${JSON.stringify(VALID, null, 4)}\n`, VALID],
+    ['tab indent', `${JSON.stringify(VALID, null, '\t')}\n`, VALID],
+    ['compact', `${JSON.stringify(VALID)}\n`, VALID],
+    ['CRLF line ends', CANON.replaceAll('\n', '\r\n'), VALID],
+    ['\\u0035 for 5 in a string', edited('"claude-sonnet-5-5"', '"claude-sonnet-\\u0035-5"'), VALID],
+    ['leading blank line', `\n${CANON}`, VALID],
+  ];
+  for (const [label, text, registration] of cases) assert.deepEqual(JSON.parse(text), registration, `${label} is the same registration`);
+  refuseNotCanonical(cases);
+});
+
+t('a number the canonical form writes differently (1e999, -1e999, 1e-999, 2^53 + 1) is refused as not canonical', () => {
+  refuseNotCanonical(NOT_CANONICAL.map((value) => [`margin = ${value.text}`, serialize(variant([['margin', value]]))]));
+});
+
+t('the canonical check is on the bytes: a byte that is not UTF-8 is refused though it decodes to the character JSON.stringify writes back', () => {
+  // 0xFF decodes to U+FFFD, which JSON.stringify writes back as itself, EF BF BD: the decoded texts agree, the bytes do not.
+  const good = Buffer.from(CANON, 'utf8');
+  const model = Buffer.from('claude-sonnet-5-5', 'utf8');
+  const at = good.indexOf(model);
+  const bad = Buffer.concat([good.subarray(0, at), Buffer.from([0xff]), good.subarray(at + model.length)]);
+  assert.equal(bad.toString('utf8'), `${JSON.stringify(JSON.parse(bad.toString('utf8')), null, 2)}\n`, 'as text it is canonical');
+  const f = put('');
+  writeFileSync(f, bad);
+  commitQueued();
+  for (const name of BOTH) assert.throws(() => LOADERS[name](f), (e) => e.message.includes('canonical form'), name);
+});
+
+t('the canonical check comes before validation: an invalid file in another form is refused as not canonical, an invalid canonical file by its field', () => {
+  const invalid = variant([['margin', 0]]);
+  refuseNotCanonical([['invalid and 4-space indent', `${JSON.stringify(invalid, null, 4)}\n`]]);
+  const f = committed(invalid);
+  for (const name of BOTH) assert.throws(() => LOADERS[name](f), (e) => e.message.includes('field margin ') && !e.message.includes('canonical form'), name);
+});
+
+t('the rewrite command in the refusal works: it collapses a repeat to its last value, and the result loads', () => {
+  const [{ file, command }] = refuseNotCanonical([['top-level repeat', edited('"margin": 0.15,', '"margin": 0.15,\n  "margin": 0.9,')]]);
+  execFileSync('sh', ['-c', command], { encoding: 'utf8' });
+  assert.equal(readFileSync(file, 'utf8'), serialize(variant([['margin', 0.9]])), 'the rewrite is the canonical form of what JSON.parse read');
+  assert.throws(() => loadS5Prereg(file), /differs from HEAD/, 'the registration commit has to show the change');
+  assert.equal(loadS5Config(file, { mode: 'pilot' }).margin, 0.9);
+  git(REPO, 'add', '--', file);
+  git(REPO, 'commit', '-q', '-m', 'rewrite');
+  assert.equal(loadS5Prereg(file).margin, 0.9);
+});
+
+t('the rewrite command quotes a path that holds a space and a quote', () => {
+  const dir = join(ROOT, "a b'c");
+  mkdirSync(dir);
+  const file = loose(`${JSON.stringify(VALID, null, 4)}\n`, dir);
+  let command;
+  assert.throws(() => loadS5Config(file, { mode: 'pilot' }), (e) => {
+    command = rewriteCommandOf(e.message);
+    return e.message.includes(file);
+  });
+  execFileSync('sh', ['-c', command], { encoding: 'utf8' });
+  assert.equal(readFileSync(file, 'utf8'), CANON);
+  assert.deepEqual(loadS5Config(file, { mode: 'pilot' }), { ...VALID, registered: false });
 });
 
 // =====================================================================================================
@@ -354,6 +535,33 @@ t('a field the registration does not define is refused naming its path, at every
     refuse(path, [1, null, 'x', false]);
   }
   refuse('arms.D', [{ effort: 'low', steer: false, runs: 1 }]);
+});
+
+t('__proto__ and constructor keys are refused as unknown fields, at the top level and nested', () => {
+  // JSON.parse makes `__proto__` an own property and JSON.stringify writes it back, so a file holding one IS in canonical form
+  // (R65 does not refuse it): what refuses it is the unknown-key check, which names the key. `constructor` is an ordinary key.
+  const canonicalOf = (text) => `${JSON.stringify(JSON.parse(text), null, 2)}\n`;
+  const places = [
+    ['{\n  "model"', '{\n  "KEY": 1,\n  "model"', 'KEY'],
+    ['"arms": {', '"arms": {\n    "KEY": 1,', 'arms.KEY'],
+    ['"A": {', '"A": {\n      "KEY": 1,', 'arms.A.KEY'],
+    ['"tasks": [\n    {', '"tasks": [\n    {\n      "KEY": 1,', 'tasks[0].KEY'],
+    ['"images": {', '"images": {\n    "KEY": 1,', 'images.KEY'],
+  ];
+  const cases = [];
+  for (const key of ['__proto__', 'constructor']) {
+    for (const [needle, replacement, path] of places) {
+      const text = canonicalOf(edited(needle, replacement.replace('KEY', key)));
+      assert.ok(text.includes(`"${key}": 1`), 'the key is in the file');
+      cases.push({ text, say: `field ${path.replace('KEY', key)} is not a known field` });
+    }
+  }
+  const files = cases.map(({ text }) => put(text));
+  commitQueued();
+  cases.forEach(({ text, say }, i) => {
+    assert.equal(canonicalOf(text), text, 'the file is in canonical form, so the refusal below is the unknown-key one');
+    for (const name of BOTH) assert.throws(() => LOADERS[name](files[i]), (e) => e.message.includes(say) && !e.message.includes('canonical form'), `${name}: wanted "${say}"`);
+  });
 });
 
 // =====================================================================================================
@@ -418,7 +626,7 @@ t('measured runs: A and B at least 2, C at least 1 (loadS5Prereg)', () => {
 
 t('runs are safe integers in both loaders: a fraction, a string, an unsafe integer and Infinity are refused', () => {
   for (const arm of ['A', 'B', 'C']) {
-    refuse(`arms.${arm}.runs`, [2.5, '3', UNSAFE, INFINITY, true]);
+    refuse(`arms.${arm}.runs`, [2.5, '3', UNSAFE, true]);
     refuse(`arms.${arm}.runs`, [-1], { only: ['config'] });
   }
 });
@@ -476,12 +684,12 @@ t('cli.version is a non-blank string', () => {
 });
 
 t('margin lies strictly between 0 and 1', () => {
-  refuse('margin', [0, 1, -0.15, 1.5, '0.15', INFINITY, raw('-1e999')]);
+  refuse('margin', [0, 1, -0.15, 1.5, '0.15']);
   accept('margin', [0.0001, 0.15, 0.9999]);
 });
 
 t('alpha lies in (0, 0.1]: 0.1 loads, the next double above it is refused', () => {
-  refuse('alpha', [0, -0.05, 0.11, 0.5, 1, '0.05', raw('0.10000000000000002'), INFINITY]);
+  refuse('alpha', [0, -0.05, 0.11, 0.5, 1, '0.05', raw('0.10000000000000002')]);
   accept('alpha', [0.1, 0.05, 0.001, 1e-9]);
 });
 
@@ -491,25 +699,25 @@ t('bound.method is percentile or paired-t', () => {
 });
 
 t('percentile needs at least 2000 resamples: 1999 refused, 2000 loads', () => {
-  refuse('bound.resamples', [1999, 1000, 1, 0, -2000, 2000.5, '2000', UNSAFE, INFINITY]);
+  refuse('bound.resamples', [1999, 1000, 1, 0, -2000, 2000.5, '2000', UNSAFE]);
   accept('bound.resamples', [2000, 2001, 10000]);
 });
 
 t('paired-t sets no resample floor but still wants a non-negative safe integer', () => {
   const paired = [['bound.method', 'paired-t']];
   accept('bound.resamples', [0, 1, 1999, 2000, 10000], { extra: paired });
-  refuse('bound.resamples', [-1, 1.5, '1999', UNSAFE, INFINITY, true], { extra: paired });
+  refuse('bound.resamples', [-1, 1.5, '1999', UNSAFE, true], { extra: paired });
 });
 
 t('every seed is a safe integer, negative included (makeRng takes any)', () => {
   for (const path of ['bound.seed', 'orderSeed', 'mechanism.seed']) {
-    refuse(path, [1.5, '7', UNSAFE, INFINITY, true]);
+    refuse(path, [1.5, '7', UNSAFE, true]);
     accept(path, [0, 7, -7, Number.MAX_SAFE_INTEGER, -Number.MAX_SAFE_INTEGER]);
   }
 });
 
 t('mechanism.alpha lies strictly between 0 and 1', () => {
-  refuse('mechanism.alpha', [0, 1, -0.05, 1.5, '0.05', INFINITY, raw('1e-999')]);
+  refuse('mechanism.alpha', [0, 1, -0.05, 1.5, '0.05']);
   accept('mechanism.alpha', [0.05, 0.5, 0.001, 0.9]);
 });
 
@@ -522,7 +730,7 @@ t('mechanism.permutations is at least ceil(1 / alpha) - 1: the floor loads, one 
 });
 
 t('mechanism.permutations is a safe integer', () => {
-  refuse('mechanism.permutations', [19.5, 1000.5, '1000', UNSAFE, INFINITY, -1, 0, true]);
+  refuse('mechanism.permutations', [19.5, 1000.5, '1000', UNSAFE, -1, 0, true]);
   accept('mechanism.permutations', [19, 20, 1000]);
 });
 
@@ -531,34 +739,34 @@ t('mechanism.alpha so small that no safe integer reaches the floor is refused', 
 });
 
 t('mechanism.effectSizeThinkingTokens is a finite number above 0', () => {
-  refuse('mechanism.effectSizeThinkingTokens', [0, -1, -0.5, '500', INFINITY, true]);
+  refuse('mechanism.effectSizeThinkingTokens', [0, -1, -0.5, '500', true]);
   accept('mechanism.effectSizeThinkingTokens', [0.5, 500, 1e6]);
 });
 
 t('limits.timeoutMinutes is a safe integer from 1 to 240', () => {
-  refuse('limits.timeoutMinutes', [0, -1, 241, 1000, 0.5, 1.5, 240.5, '90', UNSAFE, INFINITY]);
+  refuse('limits.timeoutMinutes', [0, -1, 241, 1000, 0.5, 1.5, 240.5, '90', UNSAFE]);
   accept('limits.timeoutMinutes', [1, 2, 90, 239, 240]);
 });
 
 t('limits.cpus and limits.memoryGb are finite numbers above 0', () => {
   for (const path of ['limits.cpus', 'limits.memoryGb']) {
-    refuse(path, [0, -1, -0.5, '4', INFINITY, true]);
+    refuse(path, [0, -1, -0.5, '4', true]);
     accept(path, [0.5, 1, 4, 64]);
   }
 });
 
 t('limits.concurrency is a safe integer of at least 1', () => {
-  refuse('limits.concurrency', [0, -1, 1.5, '2', UNSAFE, INFINITY, true]);
+  refuse('limits.concurrency', [0, -1, 1.5, '2', UNSAFE, true]);
   accept('limits.concurrency', [1, 2, 16]);
 });
 
 t('limits.infraRetries is a safe integer from 0 to 5: 0 and 5 load, -1 and 6 are refused', () => {
-  refuse('limits.infraRetries', [-1, 6, 7, 100, 2.5, '2', UNSAFE, INFINITY, true]);
+  refuse('limits.infraRetries', [-1, 6, 7, 100, 2.5, '2', UNSAFE, true]);
   accept('limits.infraRetries', [0, 1, 4, 5]);
 });
 
 t('stopAtCostUsd is a finite number above 0', () => {
-  refuse('stopAtCostUsd', [0, -1, -0.01, '100', INFINITY, true]);
+  refuse('stopAtCostUsd', [0, -1, -0.01, '100', true]);
   accept('stopAtCostUsd', [0.01, 1, 100, 1e6]);
 });
 

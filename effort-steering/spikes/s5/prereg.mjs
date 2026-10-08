@@ -11,6 +11,10 @@
 // registration" is s4-prereg's requireCommitted: the bytes read here must equal the HEAD blob byte for byte, and
 // those same bytes are the ones parsed.
 //
+// The file is exactly the text JSON.stringify(parsed, null, 2) + '\n' writes (ruling R65), compared on the bytes in parse(), before
+// validation, in both loaders: a repeated key (JSON.parse keeps the last, so the committed text would read two ways) and any value
+// not written canonically (0.10 for 0.1, another indent, no final newline) are refused, with a one-line command that rewrites it.
+//
 // The file is exactly this object. A key that is not listed is refused, as is a missing, null or wrong-typed one;
 // a refusal names the field path (`arms.C.effort`, `tasks[3].id`, `proxyAllowlist[1]`):
 //
@@ -42,7 +46,7 @@
 // returns `registered: true`, loadS5Config `registered: false`, and Task 10's measure refusal trusts that. The returned
 // object is plain data, frozen at every depth.
 
-import { lstatSync, readFileSync } from 'node:fs';
+import { closeSync, constants, openSync, readFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { EFFORTS, requireCommitted } from '../s4-prereg.mjs';
 import { hostPattern } from './proxy.mjs';
@@ -186,29 +190,46 @@ function validate(p, { minTasks, minRuns }) {
 
 // ---- reading ----
 
+const shellQuote = (s) => `'${s.replaceAll("'", "'\\''")}'`;
+// The one-line command that rewrites `abs` in canonical form. A repeated key collapses to its last value, the value JSON.parse read,
+// which the registration commit then shows.
+const rewriteCommand = (abs) =>
+  `node -e "const fs=require('fs'),f=process.argv[1];fs.writeFileSync(f,JSON.stringify(JSON.parse(fs.readFileSync(f,'utf8')),null,2)+'\\n')" ${shellQuote(abs)}`;
+
 function readBytes(abs, { refuseSymlink }) {
   const cannotRead = (err) => new Error(`prereg: cannot read ${abs}: ${err.message}`);
-  let stat;
+  let fd;
   try {
-    stat = lstatSync(abs);
+    // One fd, opened with O_NOFOLLOW where a link is refused: the open itself fails (ELOOP) on a symlink, so the bytes read are
+    // the bytes of the file that was judged, not of whatever a link swapped in after a separate lstat would point at. git holds
+    // a symlink as its target's name, so a link could never be the committed bytes it appears to be.
+    fd = openSync(abs, refuseSymlink ? constants.O_RDONLY | constants.O_NOFOLLOW : constants.O_RDONLY);
+    return readFileSync(fd);
   } catch (err) {
+    if (refuseSymlink && err.code === 'ELOOP') throw new Error(`prereg: ${abs} is not committed: it is a symlink`);
     throw cannotRead(err);
-  }
-  // git holds a symlink as its target's name, so a link could never be the committed bytes it appears to be.
-  if (refuseSymlink && stat.isSymbolicLink()) throw new Error(`prereg: ${abs} is not committed: it is a symlink`);
-  try {
-    return readFileSync(abs);
-  } catch (err) {
-    throw cannotRead(err);
+  } finally {
+    if (fd !== undefined) closeSync(fd);
   }
 }
 
+// The one text a registration may have is the text JSON.stringify writes (ruling R65). JSON.parse keeps the last of a repeated key
+// ("margin" twice, or once escaped), so a committed file could read two ways: a reviewer of the commit sees one number, the runner
+// and the analysis use the other. One comparison refuses every such file, and every value not written canonically (0.10 for 0.1,
+// another indent, no final newline), in both loaders, without a hand-written JSON tokenizer. The check is on the bytes, not the text.
 function parse(abs, bytes) {
+  let parsed;
   try {
-    return JSON.parse(bytes.toString('utf8'));
+    parsed = JSON.parse(bytes.toString('utf8'));
   } catch (err) {
     throw new Error(`prereg: ${abs} is not valid JSON: ${err.message}`);
   }
+  if (!bytes.equals(Buffer.from(`${JSON.stringify(parsed, null, 2)}\n`, 'utf8'))) {
+    throw new Error(
+      `prereg: ${abs} holds a repeated key or a value that is not in canonical form (a registration is exactly JSON.stringify(parsed, null, 2) and a newline, so that the committed text reads one way). Rewrite it with: ${rewriteCommand(abs)}`,
+    );
+  }
+  return parsed;
 }
 
 const deepFreeze = (v) => {
