@@ -1,4 +1,8 @@
 ok - parses a plain version
+not ok - exports the helper
+ReferenceError: helper is not defined
+    at file:///work/tests/count.test.mjs:20:3
+    at node:internal/test_runner/test:1010:15
 not ok - rejects a negative count
 AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
 
@@ -6,12 +10,9 @@ AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
 
     at TestContext.<anonymous> (file:///work/tests/count.test.mjs:12:10)
     at node:internal/test_runner/test:1010:15
-not ok - exports the helper
-ReferenceError: helper is not defined
-    at file:///work/tests/count.test.mjs:20:3
-    at node:internal/test_runner/test:1010:15
 ok - handles an empty list
 not ok - needs the new option
 TypeError: Cannot read properties of undefined (reading 'mode')
     at file:///work/tests/count.test.mjs:27:21
 ok - parses a plain version
+ok - a \#1 stays as the helper printed it

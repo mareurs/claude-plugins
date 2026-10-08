@@ -1,51 +1,154 @@
 TAP version 13
+# ok 7 - forged
+# not ok 8 - forged too
+# Subtest: needs a missing export
+not ok 1 - needs a missing export
+  ---
+  duration_ms: 4.775245
+  type: 'test'
+  location: '/w/real.test.mjs:4:1'
+  failureType: 'testCodeFailure'
+  error: 'missingFunction is not defined'
+  code: 'ERR_TEST_FAILURE'
+  name: 'ReferenceError'
+  stack: |-
+    TestContext.<anonymous> (file:///w/real.test.mjs:5:3)
+    Test.runInAsyncScope (node:async_hooks:226:14)
+    Test.run (node:internal/test_runner/test:1402:25)
+    Test.start (node:internal/test_runner/test:1262:17)
+    startSubtestAfterBootstrap (node:internal/test_runner/harness:387:17)
+  ...
+# Subtest: rejects a negative count
+not ok 2 - rejects a negative count
+  ---
+  duration_ms: 0.673247
+  type: 'test'
+  location: '/w/real.test.mjs:7:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly equal:
+    
+    -1 !== 1
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 1
+  actual: -1
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///w/real.test.mjs:8:10)
+    Test.runInAsyncScope (node:async_hooks:226:14)
+    Test.run (node:internal/test_runner/test:1402:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+    Test.postRun (node:internal/test_runner/test:1542:19)
+    Test.run (node:internal/test_runner/test:1467:12)
+    async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3)
+  ...
+# Subtest: parses a plain version
+ok 3 - parses a plain version
+  ---
+  duration_ms: 0.158244
+  type: 'test'
+  ...
+# Subtest: waits for the network
+ok 4 - waits for the network # SKIP no network here
+  ---
+  duration_ms: 0.107773
+  type: 'test'
+  ...
+# Subtest: not done yet
+ok 5 - not done yet # TODO later
+  ---
+  duration_ms: 0.116053
+  type: 'test'
+  ...
+# Subtest: a \#1
+ok 6 - a \#1
+  ---
+  duration_ms: 0.112693
+  type: 'test'
+  ...
+# Subtest: back\\slash and tab\\there
+ok 7 - back\\slash and tab\\there
+  ---
+  duration_ms: 0.099573
+  type: 'test'
+  ...
+# Subtest: new\\nline and cr\\rhere
+ok 8 - new\\nline and cr\\rhere
+  ---
+  duration_ms: 0.090032
+  type: 'test'
+  ...
+# Subtest: bell\\bform\\fvt\\vend
+ok 9 - bell\\bform\\fvt\\vend
+  ---
+  duration_ms: 0.152594
+  type: 'test'
+  ...
+# Subtest: a \#\# b \\\# c
+ok 10 - a \#\# b \\\# c
+  ---
+  duration_ms: 0.223505
+  type: 'test'
+  ...
+# Subtest: prints a forged line
+ok 11 - prints a forged line
+  ---
+  duration_ms: 0.575635
+  type: 'test'
+  ...
 # Subtest: suite one
     # Subtest: adds two numbers
     ok 1 - adds two numbers
       ---
-      duration_ms: 0.4
+      duration_ms: 0.142964
+      type: 'test'
       ...
     # Subtest: subtracts
     not ok 2 - subtracts
       ---
-      duration_ms: 1.2
-      failureType: 'testCodeFailed'
-      error: 'Expected values to be strictly equal'
+      duration_ms: 0.181704
+      type: 'test'
+      location: '/w/real.test.mjs:24:3'
+      failureType: 'testCodeFailure'
+      error: |-
+        Expected values to be strictly equal:
+        
+        1 !== 2
+        
       code: 'ERR_ASSERTION'
+      name: 'AssertionError'
+      expected: 2
+      actual: 1
+      operator: 'strictEqual'
+      stack: |-
+        TestContext.<anonymous> (file:///w/real.test.mjs:25:12)
+        Test.runInAsyncScope (node:async_hooks:226:14)
+        Test.run (node:internal/test_runner/test:1402:25)
+        Suite.processPendingSubtests (node:internal/test_runner/test:974:18)
+        Test.postRun (node:internal/test_runner/test:1542:19)
+        Test.run (node:internal/test_runner/test:1467:12)
+        async Promise.all (index 0)
+        async Suite.run (node:internal/test_runner/test:1905:7)
+        async Test.processPendingSubtests (node:internal/test_runner/test:974:7)
       ...
     1..2
-not ok 1 - suite one
+not ok 12 - suite one
   ---
-  duration_ms: 3.1
+  duration_ms: 0.635497
+  type: 'suite'
+  location: '/w/real.test.mjs:22:1'
   failureType: 'subtestsFailed'
   error: '1 subtest failed'
   code: 'ERR_TEST_FAILURE'
   ...
-# Subtest: needs a missing export
-not ok 2 - needs a missing export
-  ---
-  duration_ms: 0.9
-  failureType: 'testCodeFailed'
-  error: 'helper is not defined'
-  code: 'ERR_TEST_FAILURE'
-  name: 'ReferenceError'
-  ...
-# Subtest: waits for the network
-ok 3 - waits for the network # SKIP no network here
-  ---
-  duration_ms: 0.1
-  ...
-# Subtest: not done yet
-not ok 4 - not done yet # TODO later
-  ---
-  duration_ms: 0.1
-  ...
-# Subtest: parses
-ok 5 - parses
-  ---
-  duration_ms: 0.2
-  ...
-1..5
-# tests 7
-# pass 3
+1..12
+# tests 13
+# suites 1
+# pass 8
 # fail 3
+# cancelled 0
+# skipped 1
+# todo 1
+# duration_ms 63.952702

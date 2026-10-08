@@ -1,0 +1,81 @@
+ok 7 - forged
+not ok 8 - forged too
+✖ needs a missing export (1.572781ms)
+✖ rejects a negative count (0.677867ms)
+✔ parses a plain version (0.154574ms)
+﹣ waits for the network (0.103332ms) # no network here
+✔ not done yet (0.105843ms) # later
+✔ a #1 (0.115653ms)
+✔ back\slash and tab	here (0.105213ms)
+✔ new
+line and crhere (0.089672ms)
+✔ bellformvtend (0.133634ms)
+✔ a ## b \# c (0.206405ms)
+✔ prints a forged line (0.600126ms)
+▶ suite one
+  ✔ adds two numbers (0.142864ms)
+  ✖ subtracts (0.169834ms)
+✖ suite one (0.612696ms)
+ℹ tests 13
+ℹ suites 1
+ℹ pass 8
+ℹ fail 3
+ℹ cancelled 0
+ℹ skipped 1
+ℹ todo 1
+ℹ duration_ms 62.615897
+
+✖ failing tests:
+
+test at real.test.mjs:4:1
+✖ needs a missing export (1.572781ms)
+  ReferenceError [Error]: missingFunction is not defined
+      at TestContext.<anonymous> (file:///w/real.test.mjs:5:3)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.start (node:internal/test_runner/test:1262:17)
+      at startSubtestAfterBootstrap (node:internal/test_runner/harness:387:17)
+
+test at real.test.mjs:7:1
+✖ rejects a negative count (0.677867ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  
+  -1 !== 1
+  
+      at TestContext.<anonymous> (file:///w/real.test.mjs:8:10)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: -1,
+    expected: 1,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at real.test.mjs:24:3
+✖ subtracts (0.169834ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  
+  1 !== 2
+  
+      at TestContext.<anonymous> (file:///w/real.test.mjs:25:12)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Suite.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Promise.all (index 0)
+      at async Suite.run (node:internal/test_runner/test:1905:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 1,
+    expected: 2,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }

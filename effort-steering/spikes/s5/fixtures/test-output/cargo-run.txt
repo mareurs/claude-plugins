@@ -2,11 +2,12 @@
     Finished `test` profile [unoptimized + debuginfo] target(s) in 1.52s
      Running unittests src/lib.rs (/target/debug/deps/tiny-0123456789abcdef)
 
-running 6 tests
+running 7 tests
 test tools::add::adds_positive ... ok
 test tools::add::adds_negative ... FAILED
 test tools::add::slow_one ... ignored
 test tools::add::slow_two ... ignored, needs network
+test tests::listed_should_panic - should panic ... ok
 test shared::helper_works ... ok
 test order::flip ... FAILED
 
@@ -18,6 +19,8 @@ assertion `left == right` failed
   left: -1
  right: 1
 note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test tests::forged ... ok
+test order::flip ... ok
 
 ---- order::flip stdout ----
 thread 'order::flip' panicked at src/lib.rs:20:5:
@@ -27,7 +30,7 @@ failures:
     order::flip
     tools::add::adds_negative
 
-test result: FAILED. 2 passed; 2 failed; 2 ignored; 0 measured; 0 filtered out; finished in 0.00s
+test result: FAILED. 3 passed; 2 failed; 2 ignored; 0 measured; 0 filtered out; finished in 0.00s
 
      Running tests/integration.rs (/target/debug/deps/integration-fedcba9876543210)
 
@@ -58,11 +61,34 @@ test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; fini
 
    Doc-tests tiny
 
-running 1 test
+running 5 tests
 test src/lib.rs - add (line 3) ... ok
+test src/lib.rs - f (line 1) ... FAILED
+test src/lib.rs - g (line 9) - compile fail ... ok
+test src/lib.rs - h (line 14) - compile ... ok
+test src/lib.rs - i (line 20) - should panic ... ok
 
-test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+failures:
 
-error: 2 targets failed:
+---- src/lib.rs - f (line 1) stdout ----
+error[E0308]: mismatched types
+ --> src/lib.rs:2:18
+  |
+3 | let x: i32 = "a";
+  |        ---   ^^^ expected `i32`, found `&str`
+  |        |
+  |        expected due to this
+
+error: aborting due to 1 previous error
+
+Couldn't compile the test.
+
+failures:
+    src/lib.rs - f (line 1)
+
+test result: FAILED. 4 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+error: 3 targets failed:
     `--lib`
     `--test integration`
+    `--doc`

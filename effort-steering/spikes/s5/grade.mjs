@@ -17,18 +17,21 @@
 //   /cargo    cargo tasks, when <workRoot>/cargo-home exists (ro)
 //   /results  a fresh host directory (rw): the driver's status and output files
 //
-// The container runs a generated `sh` driver (driverScript) that, in order: (1) records the diff stats
-// (`git add -A`, `git diff --cached --shortstat HEAD`) BEFORE anything is grafted, so the hidden tests are
-// not in them; (2) grafts the hidden tests (graftScript); (3) runs buildCommand; (4) if the build succeeded,
-// runs f2p.command and p2p.command. Every command runs as argv, under `timeout -k 10 <seconds>`, with its
-// stdin from /dev/null and its output in /results. The host then parses /results. NOTHING of the agent's
-// is read, written, built or run on the host: no git on its tree, no graft, no model-written code.
+// The container runs a generated `sh` driver (driverScript) that, in order: (1) records the diff stats of the
+// agent's change against manifest.baseCommit, the task's one commit (`git add -A`, then
+// `git diff --cached --shortstat <baseCommit>`; HEAD would read zero for an agent that commits), BEFORE
+// anything is grafted, so the hidden tests are not in them; (2) grafts the hidden tests (graftScript);
+// (3) runs buildCommand; (4) if the build succeeded, runs f2p.command and p2p.command. Every step runs as
+// argv under `timeout -k 10 <seconds>` (the diff and the graft under the test limit), with its stdin from
+// /dev/null and its output in /results. The host then parses /results. NOTHING of the agent's is read,
+// written, built or run on the host: no git on its tree, no graft, no model-written code.
 //
 // Pass = infra null AND graft ok AND build ok AND every f2p.names and p2p.names entry is reported ok
 // (cargo, node) or its step exits 0 (sh), and at least one F2P name passed. A name that is absent from the
 // output, or reported `ignored`, is `notRun`, and a name not run is a failure. A name reported by several
-// test binaries passes only if every report is ok. A `cargo test` whose output shows a compile error counts
-// as having run nothing. When the build did not succeed no test step ran, and every name is notRun.
+// test binaries passes only if every report is ok. Each name counts by its own report: a compile error does
+// not void a step (cargo runs no test when the build fails, so those names are simply absent). When the build
+// did not succeed no test step ran, and every name is notRun.
 //
 //   infra  null, or why this outcome is the harness's and not the model's, so it is never scored and the
 //          caller re-runs it:  create_failed (no container was created), oom (the kernel killed it),
@@ -40,7 +43,8 @@
 //   graft  'ok' | 'failed' | 'not_run'
 //   build  'ok' | 'failed' | 'timeout' (the driver's `timeout` exit, 124) | 'not_run'
 //   f2p, p2p  { passed, failed, notRun }: name lists, in the order the task def gives them
-//   diff   { files, insertions, deletions } of the agent's own change, or null when git could not say
+//   diff   { files, insertions, deletions } of the agent's own change against manifest.baseCommit, or null when
+//          git could not say (a base it cannot resolve, a failure, a timeout): never zeros for "unknown"
 //   detail a short text about the docker run when infra is set, else null
 //   kept   the grade directory when S5_KEEP_GRADES=1 (the copies and the results, for debugging), else null
 //   leftover  the grade directory when it could not be removed, else null
@@ -80,26 +84,49 @@ function record(results, name, result) {
 }
 
 const CARGO_REPORT = /^test (.+?) \.\.\. (ok|FAILED|ignored)(?:[ ,].*)?$/;
+// libtest appends the test's kind to its name: ` - should panic` for #[should_panic], ` - compile fail` and
+// ` - compile` for doc-tests. The name a task lists is the plain one.
+const CARGO_NAME_SUFFIX = / - (?:should panic|compile fail|compile)$/;
+// `failures:` (exactly) opens the section that prints each failed test's captured output; it runs until the
+// next test binary starts (`running N tests`). Nothing in it is a report: a failed test's own stdout can hold
+// a line that looks like one, and a failed doc-test prints the compiler's errors there.
+const CARGO_FAILURES = 'failures:';
+const CARGO_RUNNING = /^running \d+ tests?$/;
 // `error: could not compile` ends every failed build; `error[E....]` is the same failure, named. NOT
 // `error: test failed` or `error: N targets failed`, which are tests that ran and failed.
 const CARGO_COMPILE_ERROR = /^(?:error\[E\d+\]|error: could not compile)/;
 
 // parseCargo(stdout) -> { results: Map<name, 'ok'|'FAILED'|'ignored'>, compileError }
+// compileError is informative: the build step reports the build, and cargo runs no test when a build fails,
+// so the names of such a run are simply absent.
 export function parseCargo(stdout) {
   const results = new Map();
   let compileError = false;
+  let inFailures = false;
   for (const line of linesOf(stdout)) {
-    const m = CARGO_REPORT.exec(line);
-    if (m) record(results, m[1], m[2]);
-    else if (CARGO_COMPILE_ERROR.test(line)) compileError = true;
+    if (CARGO_RUNNING.test(line)) inFailures = false;
+    else if (line === CARGO_FAILURES) inFailures = true;
+    else if (!inFailures) {
+      const m = CARGO_REPORT.exec(line);
+      if (m) record(results, m[1].replace(CARGO_NAME_SUFFIX, ''), m[2]);
+      else if (CARGO_COMPILE_ERROR.test(line)) compileError = true;
+    }
   }
   return { results, compileError };
 }
 
 // `ok - name` / `not ok - name` (the plain node scripts' helper) and TAP `ok 1 - name` / `not ok 1 - name`
-// (node --test), indented when nested. A `# SKIP` or `# TODO` directive means the test did not verify anything.
-const NODE_REPORT = /^\s*(not ok|ok)(?: \d+)? - (.+)$/;
+// (node --test --test-reporter=tap), indented when nested. A `# SKIP` or `# TODO` directive means the test did
+// not verify anything. Node v26 prints a test's own stdout as a `# ` comment in TAP, so a raw `ok 7 - x` that
+// a test prints is not a report there; without --test-reporter=tap node writes the spec format, which this
+// parser does not read (the task def must say --test-reporter=tap).
+const NODE_REPORT = /^\s*(not ok|ok)(?: (\d+))? - (.+)$/;
 const NODE_DIRECTIVE = / # (?:SKIP|TODO)\b.*$/i;
+// A numbered TAP name is escaped by node (checked in node v26.10.0): control characters become `\t`, `\n`, `\r`,
+// `\b`, `\f`, `\v`, then every `\` becomes `\\` and every `#` becomes `\#`. One left-to-right pass undoes the
+// last two, which is exact for any name without control characters; a control character comes back as its
+// backslash-letter form (it cannot be told from a literal backslash and letter).
+const unescapeTap = (name) => name.replace(/\\([\\#])/g, '$1');
 
 // What a failed test printed after its `not ok` line, up to the next report: an assertion (the code under
 // test behaved differently), a parent whose subtests failed, or anything else (ReferenceError, TypeError, a
@@ -125,8 +152,12 @@ export function parseNodeTest(stdout) {
   lines.forEach((line, i) => {
     const m = NODE_REPORT.exec(line);
     if (!m) return;
-    const name = m[2].replace(NODE_DIRECTIVE, '');
-    const result = NODE_DIRECTIVE.test(m[2]) ? 'ignored' : m[1] === 'ok' ? 'ok' : 'FAILED';
+    const [, status, number, text] = m;
+    // The directive is looked for in the raw text: an escaped `\# SKIP` inside a numbered name is not one.
+    const directive = NODE_DIRECTIVE.test(text);
+    const bare = text.replace(NODE_DIRECTIVE, '');
+    const name = number === undefined ? bare : unescapeTap(bare);
+    const result = directive ? 'ignored' : status === 'ok' ? 'ok' : 'FAILED';
     record(results, name, result);
     if (result === 'FAILED' && failureKind(lines, i + 1) === 'other' && !nonAssertionFailures.includes(name)) nonAssertionFailures.push(name);
   });
@@ -149,9 +180,10 @@ export function judgeNames(runner, names, step) {
   let report = () => undefined;
   if (step !== null && step !== undefined) {
     if (runner === 'cargo') {
-      const run = parseCargo(step.stdout);
-      // cargo runs no test when anything fails to compile, so a report next to a compile error is not one.
-      if (!run.compileError) report = (name) => run.results.get(name);
+      // Each name counts by its own report. (Cargo runs no test when anything fails to compile, so the names
+      // of such a run are absent; a compile error printed in a failed doc-test's section is not one.)
+      const { results } = parseCargo(step.stdout);
+      report = (name) => results.get(name);
     } else if (runner === 'node') {
       const { results } = parseNodeTest(step.stdout);
       report = (name) => results.get(name);
@@ -231,12 +263,28 @@ function ensureDirs(work, rel) {
   return lines;
 }
 
+// A graftLines line declares exactly one Rust module: `mod NAME;`, with attributes and visibility on the same
+// line allowed. (The grafted line is how a hidden test file becomes part of the crate.)
+const MOD_LINE = /^(?:#\[[^\]\r\n]*\]\s*)*(?:pub(?:\s*\([^)\r\n]*\))?\s+)?mod\s+([A-Za-z_][A-Za-z0-9_]*)\s*;\s*$/;
+// moduleOf(line) -> the module's name. Throws TypeError for a line that is not one module declaration.
+export const moduleOf = (line) => {
+  const m = typeof line === 'string' ? MOD_LINE.exec(line) : null;
+  if (m === null) throw new TypeError(`a graftLines line must declare exactly one Rust module (\`mod NAME;\`, attributes and visibility allowed), got ${JSON.stringify(line)}`);
+  return m[1];
+};
+
 // graftScript(manifest, { work = '/work', hidden = '/hidden' }) -> an sh script. For each hidden file (the
 // def's hidden.files and hidden.extra): repair the parent directories, remove whatever is at the target
 // without following a link, and copy the hidden version in. Then each graftLines line is appended to its
-// file unless that exact line is already in it. It runs INSIDE the grade container: the agent controls its
-// tree, so a hidden path, or a directory above it, can be a symlink to anywhere, and a host-side write
+// file unless the file already declares that module. It runs INSIDE the grade container: the agent controls
+// its tree, so a hidden path, or a directory above it, can be a symlink to anywhere, and a host-side write
 // would land outside the tree. (The roots are parameters so the tests can run the script on fixtures.)
+//
+// "Already declares the module" is a line that starts (column 0) with optional attributes, an optional
+// visibility, `mod NAME` and then `;` or `{`: so an agent's own `pub mod NAME;`, rustfmt's `#[cfg(test)]`
+// newline `mod NAME;`, a CRLF file or an inline `mod NAME {` all count, and a `//` comment, an indented line or
+// a different name do not. A second `mod NAME` would be E0428. (An inline `mod NAME { .. }` of the agent's
+// keeps its module and the hidden file is then not compiled: its names are not run, which is a failure.)
 export function graftScript(manifest, { work = '/work', hidden = '/hidden' } = {}) {
   const lines = [];
   for (const rel of hiddenPaths(manifest.def)) {
@@ -248,8 +296,9 @@ export function graftScript(manifest, { work = '/work', hidden = '/hidden' } = {
   for (const { file, line } of manifest.def.hidden.graftLines ?? []) {
     const target = sq(`${work}/${file}`);
     const text = sq(line);
+    const declared = `^(#\\[[^]]*\\][[:space:]]*)*(pub([[:space:]]*\\([^)]*\\))?[[:space:]]+)?mod[[:space:]]+${moduleOf(line)}[[:space:]]*[;{]`;
     lines.push(...ensureDirs(work, file));
-    lines.push(`if [ -f ${target} ] && grep -qxF -- ${text} ${target}; then :; else`);
+    lines.push(`if grep -Eq -- ${sq(declared)} ${target}; then :; else`);
     // A file that does not end in a newline would swallow the appended line.
     lines.push(`  if [ -s ${target} ] && [ -n "$(tail -c 1 ${target})" ]; then printf '\\n' >> ${target} || exit 1; fi`);
     lines.push(`  printf '%s\\n' ${text} >> ${target} || exit 1`);
@@ -259,22 +308,35 @@ export function graftScript(manifest, { work = '/work', hidden = '/hidden' } = {
   return `${lines.join('\n')}\n`;
 }
 
+const BASE_COMMIT_RE = /^[0-9a-f]{40}$/;
+const GRAFT_EOF = 'S5_GRAFT_EOF';
+// git in the grade container: the agent's own tree supplies the repository, so its config may not run a
+// filesystem monitor hook for us, and a directory owned by another uid is fine.
+const GIT = "git -c safe.directory='*' -c core.fsmonitor=false";
+
 // driverScript(manifest, { buildSec, testSec, work, hidden, results }) -> the sh script the grade container runs.
+// Every step is under `timeout -k`: the diff and the graft under the test limit (only the agent's tree can make
+// them hang, e.g. a FIFO where a graftLines file should be), the build under the build limit, the tests under
+// the test limit. An unbounded step would reach the container's own clock and be scored as infrastructure.
+// The diff is against manifest.baseCommit, the task's one commit, because an agent that commits moves HEAD.
 export function driverScript(manifest, { buildSec, testSec, work = '/work', hidden = '/hidden', results = '/results' } = {}) {
-  const { def } = manifest;
+  const { def, baseCommit } = manifest;
+  if (typeof baseCommit !== 'string' || !BASE_COMMIT_RE.test(baseCommit)) throw new TypeError(`driverScript: manifest.baseCommit must be a 40-hex commit id, got ${JSON.stringify(baseCommit)}`);
   const buildLimit = buildSec ?? def.timeoutsSec.build;
   const testLimit = testSec ?? def.timeoutsSec.test;
   const file = (name) => sq(`${results}/${name}`);
   const run = (limit, argv, name) => `timeout -k ${KILL_AFTER_SEC} ${limit} ${argv.map(sq).join(' ')} < /dev/null > ${file(`${name}.out`)} 2>&1`;
+  const graft = graftScript(manifest, { work, hidden }).trimEnd();
+  if (graft.split('\n').includes(GRAFT_EOF)) throw new Error('driverScript: the graft script contains its own here-document delimiter');
   return [
     `cd ${sq(work)} || exit 1`,
-    '# (1) the diff stats of the agent\'s own change: BEFORE the graft, so the hidden tests are not in them',
-    `git -c safe.directory='*' add -A > ${file('diff.log')} 2>&1 && git -c safe.directory='*' diff --cached --shortstat HEAD > ${file('diff.txt')} 2>> ${file('diff.log')}`,
+    '# (1) the diff stats of the agent\'s own change against the task commit: BEFORE the graft, so the hidden tests are not in them',
+    `timeout -k ${KILL_AFTER_SEC} ${testLimit} ${GIT} add -A > ${file('diff.log')} 2>&1 && timeout -k ${KILL_AFTER_SEC} ${testLimit} ${GIT} diff --cached --shortstat ${sq(baseCommit)} > ${file('diff.txt')} 2>> ${file('diff.log')}`,
     `echo $? > ${file('diff.status')}`,
-    '# (2) the graft',
-    '(',
-    graftScript(manifest, { work, hidden }).trimEnd(),
-    `) > ${file('graft.log')} 2>&1`,
+    '# (2) the graft, as its own shell, read from the here-document',
+    `timeout -k ${KILL_AFTER_SEC} ${testLimit} sh -s > ${file('graft.log')} 2>&1 <<'${GRAFT_EOF}'`,
+    graft,
+    GRAFT_EOF,
     'gs=$?',
     `echo $gs > ${file('graft.status')}`,
     'if [ $gs -eq 0 ]; then',
@@ -393,6 +455,14 @@ function requireManifest(manifest) {
   for (const g of hidden.graftLines ?? []) {
     relativePath('a graftLines file', g?.file);
     if (typeof g.line !== 'string' || g.line === '' || /[\r\n\0]/.test(g.line)) throw new TypeError('gradeTree: a graftLines line must be one non-empty line');
+    try {
+      moduleOf(g.line);
+    } catch (err) {
+      throw new TypeError(`gradeTree: ${err.message}`);
+    }
+  }
+  if (typeof manifest.baseCommit !== 'string' || !BASE_COMMIT_RE.test(manifest.baseCommit)) {
+    throw new TypeError(`gradeTree: manifest.baseCommit must be the task commit's 40-hex id (build-task records it), got ${JSON.stringify(manifest.baseCommit)}`);
   }
   if (def.timeoutsSec === null || typeof def.timeoutsSec !== 'object') throw new TypeError('gradeTree: the def has no timeoutsSec');
 }

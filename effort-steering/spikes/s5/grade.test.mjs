@@ -17,7 +17,7 @@ import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import {
-  chmodSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, readlinkSync, rmdirSync, rmSync, symlinkSync, writeFileSync,
+  chmodSync, cpSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, readlinkSync, rmdirSync, rmSync, symlinkSync, writeFileSync,
 } from 'node:fs';
 import { homedir, tmpdir } from 'node:os';
 import { delimiter, dirname, join } from 'node:path';
@@ -26,7 +26,7 @@ import { t } from '../../core/testkit.mjs';
 import { ta } from './fixtures/testkit-async.mjs';
 import { git } from './git.mjs';
 import {
-  driverScript, gradeTree, graftScript, infraOf, judgeNames, limitsOf, parseCargo, parseNodeTest, parseSh, parseShortstat, readResultFile, removeGradeDir, SH_RESULT, verdict,
+  driverScript, gradeTree, graftScript, infraOf, judgeNames, limitsOf, moduleOf, parseCargo, parseNodeTest, parseSh, parseShortstat, readResultFile, removeGradeDir, SH_RESULT, verdict,
 } from './grade.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -54,6 +54,7 @@ const put = (root, rel, content = '') => {
 };
 const readOr = (p, fallback = null) => (existsSync(p) ? readFileSync(p, 'utf8') : fallback);
 const sha256 = (bytes) => createHash('sha256').update(bytes).digest('hex');
+const shq = (s) => `'${String(s).replaceAll("'", `'\\''`)}'`;
 
 // ---- manifests ----
 
@@ -66,13 +67,14 @@ const defOf = (over = {}) => ({
   timeoutsSec: { build: 600, test: 300 },
   ...over,
 });
-const manifestOf = (over = {}) => ({ id: 'task-one', repo: 'codescout', def: defOf(over) });
+const BASE = 'b'.repeat(40);
+const manifestOf = (over = {}) => ({ id: 'task-one', repo: 'codescout', baseCommit: BASE, def: defOf(over) });
 
 // =====================================================================================
 // parsers
 // =====================================================================================
 
-t('parseCargo reads ok, FAILED and ignored lines, and flags error[E0425] as a compile error', () => {
+t('parseCargo reads ok, FAILED and ignored lines; a failed doc-test\'s compile error is not a compile error', () => {
   const run = parseCargo(fixture('cargo-run.txt'));
   assert.equal(run.results.get('tools::add::adds_positive'), 'ok');
   assert.equal(run.results.get('tools::add::adds_negative'), 'FAILED');
@@ -80,12 +82,63 @@ t('parseCargo reads ok, FAILED and ignored lines, and flags error[E0425] as a co
   assert.equal(run.results.get('tools::add::slow_two'), 'ignored', 'an ignore reason does not hide the report');
   assert.equal(run.results.get('src/lib.rs - add (line 3)'), 'ok', 'a doc-test name holds spaces');
   assert.equal(run.results.get('only_in_other'), 'ok');
-  assert.equal(run.compileError, false, '"error: 2 targets failed" is a test failure, not a compile error');
-  assert.equal(run.results.size, 10);
+  assert.equal(run.results.get('src/lib.rs - f (line 1)'), 'FAILED', 'a doc-test that does not compile is a failed test');
+  assert.equal(run.compileError, false, 'error[E0308] in a failed doc-test\'s section, and "error: 3 targets failed", are test failures, not a build failure');
+  assert.equal(run.results.size, 15);
 
   const broken = parseCargo(fixture('cargo-compile-error.txt'));
   assert.equal(broken.compileError, true);
   assert.equal(broken.results.size, 0);
+});
+
+t('parseCargo strips libtest\'s kind suffix from a name: " - should panic", " - compile fail", " - compile"', () => {
+  const run = parseCargo(fixture('cargo-run.txt'));
+  assert.equal(run.results.get('tests::listed_should_panic'), 'ok', 'real libtest output: "test tests::listed_should_panic - should panic ... ok"');
+  assert.equal(run.results.get('src/lib.rs - g (line 9)'), 'ok');
+  assert.equal(run.results.get('src/lib.rs - h (line 14)'), 'ok');
+  assert.equal(run.results.get('src/lib.rs - i (line 20)'), 'ok');
+  assert.ok(![...run.results.keys()].some((k) => / - (should panic|compile fail|compile)$/.test(k)), 'no suffix survives');
+  const inline = parseCargo('test a - should panic ... FAILED\ntest b - compile fail ... ignored\ntest c - compile ... ok\ntest d - compile_more ... ok\ntest e - should panic - should panic ... ok\n');
+  assert.deepEqual([...inline.results], [['a', 'FAILED'], ['b', 'ignored'], ['c', 'ok'], ['d - compile_more', 'ok'], ['e - should panic', 'ok']], 'only a TRAILING suffix, once');
+});
+
+t('parseCargo ignores every line from "failures:" to the next "running N tests": a failed test\'s own output cannot report', () => {
+  const run = parseCargo(fixture('cargo-run.txt'));
+  assert.equal(run.results.has('tests::forged'), false, 'a forged "test tests::forged ... ok" in a failure section is not a report');
+
+  const forged = [
+    'running 2 tests',
+    'test real::one ... FAILED',
+    'test real::two ... ok',
+    '',
+    'failures:',
+    '',
+    '---- real::one stdout ----',
+    'test real::forged ... ok',
+    'test real::one ... ok',
+    'error[E0308]: mismatched types',
+    'error: could not compile `x` (lib) due to 1 previous error',
+    '',
+    'failures:',
+    '    real::one',
+    '',
+    'test result: FAILED. 1 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s',
+    '',
+    'running 1 test',
+    'test later::binary ... ok',
+    '',
+  ].join('\n');
+  const run2 = parseCargo(forged);
+  assert.deepEqual([...run2.results], [['real::one', 'FAILED'], ['real::two', 'ok'], ['later::binary', 'ok']], 'reports resume at the next "running N tests"');
+  assert.equal(run2.compileError, false);
+  // only the exact line opens the section
+  for (const notOpening of ['  failures:', 'failures: ', 'failures', 'failures:x']) {
+    assert.equal(parseCargo(`${notOpening}\ntest a ... ok\n`).results.get('a'), 'ok', JSON.stringify(notOpening));
+  }
+  // only "running N test(s)" closes it
+  assert.equal(parseCargo('failures:\nrunning soon\ntest a ... ok\n').results.has('a'), false);
+  assert.equal(parseCargo('failures:\nrunning 0 tests\ntest a ... ok\n').results.get('a'), 'ok');
+  assert.equal(parseCargo('failures:\nrunning 1 test\ntest a ... ok\n').results.get('a'), 'ok');
 });
 
 t('parseCargo: a compile error without an error code is still a compile error; a test failure and prose are not', () => {
@@ -129,26 +182,55 @@ t('parseNodeTest separates assertion failures from a ReferenceError', () => {
   const run = parseNodeTest(fixture('node-plain.txt'));
   assert.deepEqual([...run.results], [
     ['parses a plain version', 'ok'],
-    ['rejects a negative count', 'FAILED'],
     ['exports the helper', 'FAILED'],
+    ['rejects a negative count', 'FAILED'],
     ['handles an empty list', 'ok'],
     ['needs the new option', 'FAILED'],
+    ['a \\#1 stays as the helper printed it', 'ok'],
   ]);
-  assert.deepEqual(run.nonAssertionFailures, ['exports the helper', 'needs the new option'], 'the AssertionError is a behaviour failure; ReferenceError and TypeError are not');
+  assert.deepEqual(run.nonAssertionFailures, ['exports the helper', 'needs the new option'], 'the AssertionError is a behaviour failure; ReferenceError and TypeError are not, and a ReferenceError BEFORE an assertion stays one');
 });
 
-t('parseNodeTest accepts node --test TAP lines: numbering, nesting, SKIP and TODO', () => {
+t('parseNodeTest reads node v26 --test-reporter=tap output: numbering, nesting, SKIP and TODO, escaped names, a test\'s own prints in comments', () => {
   const run = parseNodeTest(fixture('node-tap.txt'));
   assert.deepEqual([...run.results], [
+    ['needs a missing export', 'FAILED'],
+    ['rejects a negative count', 'FAILED'],
+    ['parses a plain version', 'ok'],
+    ['waits for the network', 'ignored'],
+    ['not done yet', 'ignored'],
+    ['a #1', 'ok'],
+    ['back\\slash and tab\\there', 'ok'],
+    ['new\\nline and cr\\rhere', 'ok'],
+    ['bell\\bform\\fvt\\vend', 'ok'],
+    ['a ## b \\# c', 'ok'],
+    ['prints a forged line', 'ok'],
     ['adds two numbers', 'ok'],
     ['subtracts', 'FAILED'],
     ['suite one', 'FAILED'],
-    ['needs a missing export', 'FAILED'],
-    ['waits for the network', 'ignored'],
-    ['not done yet', 'ignored'],
-    ['parses', 'ok'],
   ]);
-  assert.deepEqual(run.nonAssertionFailures, ['needs a missing export'], 'an ERR_ASSERTION is an assertion; a parent whose subtests failed is not a failure of its own');
+  assert.equal(run.results.has('forged'), false, 'a test\'s own print of "ok 7 - forged" lands in a "# " comment and is not a report');
+  assert.equal(run.results.has('forged too'), false);
+  // The ReferenceError comes BEFORE the assertion failures: a failure's block ends at the next report.
+  assert.deepEqual(run.nonAssertionFailures, ['needs a missing export'], 'ERR_ASSERTION is an assertion; a parent whose subtests failed is not a failure of its own');
+});
+
+t('parseNodeTest un-escapes a numbered TAP name (node escapes \\ and #), and leaves the helper\'s plain names alone', () => {
+  const one = (text) => [...parseNodeTest(text).results];
+  assert.deepEqual(one('ok 1 - a \\#1\n'), [['a #1', 'ok']]);
+  assert.deepEqual(one('ok 1 - a \\\\\\# b\n'), [['a \\# b', 'ok']], 'backslash, backslash, backslash, hash: an escaped backslash then an escaped hash');
+  assert.deepEqual(one('ok 1 - C:\\\\temp\\\\new\n'), [['C:\\temp\\new', 'ok']], 'a path with a backslash-t is a backslash and a t');
+  assert.deepEqual(one('ok - a \\#1\n'), [['a \\#1', 'ok']], 'no number: the plain helper does not escape, so nothing is undone');
+  assert.deepEqual(one('ok 1 - x \\# SKIP y\n'), [['x # SKIP y', 'ok']], 'an escaped # is part of the name, not a directive');
+  assert.deepEqual(one('ok 2 - x # SKIP y\n'), [['x', 'ignored']]);
+  assert.deepEqual(one('not ok 3 - tab\\\\there\n'), [['tab\\there', 'FAILED']], 'a control character comes back as its backslash-letter form');
+  assert.deepEqual(one('ok 4 - \\\\\n'), [['\\', 'ok']]);
+});
+
+t('parseNodeTest on node\'s default spec format reads only a test\'s own raw prints: every listed name is not run', () => {
+  const spec = parseNodeTest(fixture('node-spec.txt'));
+  assert.deepEqual([...spec.results].map(([name]) => name).sort(), ['forged', 'forged too'], 'the check marks are not reports; a raw print is, which is why the task def must say --test-reporter=tap');
+  assert.deepEqual(judgeNames('node', ['adds two numbers', 'parses a plain version'], { status: 1, stdout: fixture('node-spec.txt') }), { passed: [], failed: [], notRun: ['adds two numbers', 'parses a plain version'] });
 });
 
 t('parseNodeTest: a name reported twice is its worst report; prose and stack lines are not reports', () => {
@@ -185,9 +267,18 @@ t('judgeNames (cargo): a name reported by two binaries passes only if both repor
   });
 });
 
-t('judgeNames (cargo): a compile error makes every name not run, even a name that shows ok', () => {
-  const out = `test a ... ok\n${fixture('cargo-compile-error.txt')}`;
-  assert.deepEqual(judgeNames('cargo', ['a', 'b'], { status: 101, stdout: out }), { passed: [], failed: [], notRun: ['a', 'b'] });
+t('judgeNames (cargo): each listed name counts by its own report; a compile error voids nothing and a failed doc-test\'s section reports nothing', () => {
+  // (the old rule voided the whole step next to any `error[E…]`: a failed doc-test prints one in its own section)
+  const names = ['tests::listed_should_panic', 'src/lib.rs - f (line 1)', 'src/lib.rs - g (line 9)', 'tests::forged', 'checks_ok'];
+  assert.deepEqual(judgeNames('cargo', names, { status: 101, stdout: fixture('cargo-run.txt') }), {
+    passed: ['tests::listed_should_panic', 'src/lib.rs - g (line 9)', 'checks_ok'],
+    failed: ['src/lib.rs - f (line 1)'],
+    notRun: ['tests::forged'],
+  });
+  // a name that reported ok next to a real compile error counts as ok: it ran, by its own report
+  assert.deepEqual(judgeNames('cargo', ['a', 'b'], { status: 101, stdout: `test a ... ok\n${fixture('cargo-compile-error.txt')}` }), { passed: ['a'], failed: [], notRun: ['b'] });
+  // cargo runs nothing when the build fails: the compile error alone leaves every name absent
+  assert.deepEqual(judgeNames('cargo', ['a', 'b'], { status: 101, stdout: fixture('cargo-compile-error.txt') }), { passed: [], failed: [], notRun: ['a', 'b'] });
 });
 
 t('judgeNames: a step that never ran leaves every name not run', () => {
@@ -317,12 +408,22 @@ t('graftScript names hidden files from files and extra once each, and honours th
 
 t('graftScript quotes a hostile path and a hostile line; neither can end its quote', () => {
   const rel = 'tests/it\'s a $(id) `id` "q";x.rs';
-  const line = 'x\'; echo pwned; \'$HOME';
+  const line = '#[path = "it\'s $(id) %s.rs"] mod hostile_mod;';
   const script = graftScript(manifestOf({ hidden: { files: [rel], extra: [], graftLines: [{ file: 'src/lib.rs', line }] } }));
   const q = (s) => `'${s.replaceAll("'", "'\\''")}'`;
   idx(script, `rm -rf -- ${q(`/work/${rel}`)}`);
   idx(script, `printf '%s\\n' ${q(line)} >>`);
-  idx(script, `grep -qxF -- ${q(line)}`);
+  idx(script, 'mod[[:space:]]+hostile_mod[[:space:]]*[;{]');
+});
+
+t('graftScript refuses a graftLines line that is not exactly one module declaration', () => {
+  const bad = ['fn main() {}', 'mod a; mod b;', 'mod a; // comment', 'use crate::a;', 'mod a {}', 'mod 1a;', 'mod a', 'pub mod a; \nmod b;', '', 'mod a;;', 'extern crate x;'];
+  for (const line of bad) {
+    assert.throws(() => moduleOf(line), TypeError, JSON.stringify(line));
+    assert.throws(() => graftScript(manifestOf({ hidden: { files: ['tests/a.rs'], graftLines: [{ file: 'src/lib.rs', line }] } })), TypeError, JSON.stringify(line));
+  }
+  const good = { 'mod a;': 'a', 'pub mod a_1;': 'a_1', 'pub(crate) mod _x;': '_x', 'pub(in crate::a) mod b;': 'b', '#[cfg(test)] mod t;': 't', '#[cfg(test)]#[allow(dead_code)] pub mod u;': 'u', 'mod   a  ;  ': 'a', '#[path = "x/y.rs"] mod z;': 'z' };
+  for (const [line, name] of Object.entries(good)) assert.equal(moduleOf(line), name, JSON.stringify(line));
 });
 
 // =====================================================================================
@@ -433,7 +534,7 @@ t('graft fails, and does not copy NEXT TO the old entry, when the old entry cann
   }
 });
 
-t('graftLines: a line is appended once, a second graft adds nothing, and only a whole-line match counts as present', () => {
+t('graftLines: a line is appended once, a second graft adds nothing, and a comment, an indented line or another name is not the declaration', () => {
   const s = graftScene({ 'src/lib.rs': 'pub fn a() {}' }, { 'tests/a.rs': 'A\n' });
   const lines = [{ file: 'src/lib.rs', line: 'mod hidden_support;' }];
   assert.equal(runGraft(s, { files: ['tests/a.rs'], graftLines: lines }).status, 0);
@@ -442,23 +543,56 @@ t('graftLines: a line is appended once, a second graft adds nothing, and only a 
   assert.equal(runGraft(s, { files: ['tests/a.rs'], graftLines: lines }).status, 0);
   assert.equal(readFileSync(join(s.work, 'src/lib.rs'), 'utf8'), 'pub fn a() {}\nmod hidden_support;\n', 'three grafts, one line');
 
-  const near = graftScene({ 'src/lib.rs': 'mod hidden_support; // later\n  mod hidden_support;\nxmod hidden_support;\n' }, { 'tests/a.rs': 'A\n' });
+  const near = graftScene({ 'src/lib.rs': '// mod hidden_support;\n  mod hidden_support;\nxmod hidden_support;\nmod hidden_support2;\nmod hidden_supportx {\nmod other;\nmodule hidden_support;\nuse hidden_support;\n' }, { 'tests/a.rs': 'A\n' });
   assert.equal(runGraft(near, { files: ['tests/a.rs'], graftLines: lines }).status, 0);
-  assert.equal(readFileSync(join(near.work, 'src/lib.rs'), 'utf8').split('\n').filter((l) => l === 'mod hidden_support;').length, 1, 'a line that merely contains the text is not the line');
+  assert.equal(readFileSync(join(near.work, 'src/lib.rs'), 'utf8').split('\n').filter((l) => l === 'mod hidden_support;').length, 1, 'a comment, an indented line, another name and prose do not declare the module: the line is appended');
 });
 
-t('graftLines: two lines in one file, hostile text kept verbatim, and an absent file or directory is created', () => {
+t('graftLines: a file that already declares the module (any visibility, attribute, form or line ending) is left byte for byte as it is', () => {
+  const lines = [{ file: 'src/lib.rs', line: 'mod hidden_support;' }];
+  const declared = {
+    'file form': 'pub fn a() {}\nmod hidden_support;\n',
+    'pub': 'pub mod hidden_support;\n',
+    'pub(crate)': 'pub(crate) mod hidden_support;\n',
+    'pub(in path)': 'pub(in crate::a) mod hidden_support;\n',
+    'attribute on the line': '#[cfg(test)] mod hidden_support;\n',
+    'rustfmt two-line form': '#[cfg(test)]\nmod hidden_support;\n',
+    'two attributes': '#[cfg(test)]\n#[allow(dead_code)]\npub mod hidden_support;\n',
+    'inline module': 'mod hidden_support {\n    pub fn x() {}\n}\n',
+    'inline, brace glued': 'mod hidden_support{\n}\n',
+    'space before the semicolon': 'mod hidden_support ;\n',
+    'CRLF file': 'pub fn a() {}\r\nmod hidden_support;\r\n',
+    'CRLF two-line form': '#[cfg(test)]\r\nmod hidden_support;\r\n',
+    'trailing comment': 'mod hidden_support; // the hidden tests\n',
+    'no final newline': 'mod hidden_support;',
+  };
+  for (const [what, content] of Object.entries(declared)) {
+    const s = graftScene({ 'src/lib.rs': content }, { 'tests/a.rs': 'A\n' });
+    assert.equal(runGraft(s, { files: ['tests/a.rs'], graftLines: lines }).status, 0, what);
+    assert.equal(readFileSync(join(s.work, 'src/lib.rs'), 'utf8'), content, `${what}: nothing appended`);
+  }
+  // the attribute-carrying line itself is idempotent, and is skipped when the agent has the plain form
+  const attr = [{ file: 'src/lib.rs', line: '#[cfg(test)] mod hidden_support;' }];
+  const s = graftScene({ 'src/lib.rs': 'pub fn a() {}\n' }, { 'tests/a.rs': 'A\n' });
+  for (let i = 0; i < 3; i++) assert.equal(runGraft(s, { files: ['tests/a.rs'], graftLines: attr }).status, 0);
+  assert.equal(readFileSync(join(s.work, 'src/lib.rs'), 'utf8'), 'pub fn a() {}\n#[cfg(test)] mod hidden_support;\n');
+  const plain = graftScene({ 'src/lib.rs': 'mod hidden_support;\n' }, { 'tests/a.rs': 'A\n' });
+  assert.equal(runGraft(plain, { files: ['tests/a.rs'], graftLines: attr }).status, 0);
+  assert.equal(readFileSync(join(plain.work, 'src/lib.rs'), 'utf8'), 'mod hidden_support;\n');
+});
+
+t('graftLines: two modules in one file, a hostile attribute kept verbatim, and an absent file or directory is created', () => {
   const s = graftScene({ 'src/lib.rs': 'x\n' }, { 'tests/a.rs': 'A\n' });
   const lines = [
-    { file: 'src/lib.rs', line: '--not-an-option' },
-    { file: 'src/lib.rs', line: 'a\\tb %s $HOME `id` \'q\' "d" *' },
+    { file: 'src/lib.rs', line: 'mod first;' },
+    { file: 'src/lib.rs', line: '#[path = "it\'s $HOME `id` %s \\t.rs"] pub mod second;' },
     { file: 'gen/new/mod.rs', line: 'pub mod hidden;' },
   ];
   assert.equal(runGraft(s, { files: ['tests/a.rs'], graftLines: lines }).status, 0);
-  assert.equal(readFileSync(join(s.work, 'src/lib.rs'), 'utf8'), 'x\n--not-an-option\na\\tb %s $HOME `id` \'q\' "d" *\n');
+  assert.equal(readFileSync(join(s.work, 'src/lib.rs'), 'utf8'), 'x\nmod first;\n#[path = "it\'s $HOME `id` %s \\t.rs"] pub mod second;\n');
   assert.equal(readFileSync(join(s.work, 'gen/new/mod.rs'), 'utf8'), 'pub mod hidden;\n');
   assert.equal(runGraft(s, { files: ['tests/a.rs'], graftLines: lines }).status, 0);
-  assert.equal(readFileSync(join(s.work, 'src/lib.rs'), 'utf8'), 'x\n--not-an-option\na\\tb %s $HOME `id` \'q\' "d" *\n', 'idempotent for hostile text too');
+  assert.equal(readFileSync(join(s.work, 'src/lib.rs'), 'utf8'), 'x\nmod first;\n#[path = "it\'s $HOME `id` %s \\t.rs"] pub mod second;\n', 'idempotent for hostile text too');
 });
 
 t('graftLines: a graftLines file behind a symlinked parent is repaired too, and nothing is appended through the link', () => {
@@ -474,23 +608,43 @@ t('graftLines: a graftLines file behind a symlinked parent is repaired too, and 
 // driverScript: text, then run with sh on fixture directories
 // =====================================================================================
 
+const GIT_TEXT = "git -c safe.directory='*' -c core.fsmonitor=false";
+
 t('driverScript: the diff stats come before the graft, the graft before the build, the build before the tests', () => {
   const script = driverScript(manifestOf());
-  const add = idx(script, "git -c safe.directory='*' add -A");
-  const diff = idx(script, "git -c safe.directory='*' diff --cached --shortstat HEAD");
+  const add = idx(script, `timeout -k 10 300 ${GIT_TEXT} add -A`);
+  const diff = idx(script, `timeout -k 10 300 ${GIT_TEXT} diff --cached --shortstat '${BASE}'`);
+  const graftStart = idx(script, "timeout -k 10 300 sh -s > '/results/graft.log' 2>&1 <<'S5_GRAFT_EOF'");
   const graft = idx(script, "rm -rf -- '/work/tests/hidden.rs'");
+  const graftEnd = idx(script, '\nS5_GRAFT_EOF\n');
   const build = idx(script, "'cargo' 'test' '--no-run' '--no-default-features'");
   const f2p = idx(script, "'hidden'");
   const p2p = idx(script, "'--no-default-features' < /dev/null", f2p);
-  assert.ok(add < diff && diff < graft && graft < build && build < f2p && f2p < p2p, 'order');
+  assert.ok(add < diff && diff < graftStart && graftStart < graft && graft < graftEnd && graftEnd < build && build < f2p && f2p < p2p, 'order');
   assert.match(script, /timeout -k 10 600 'cargo'/, 'the build limit');
   assert.match(script, /timeout -k 10 300 'cargo'/, 'the test limit');
+  assert.ok(!script.includes('HEAD'), 'the diff base is the task commit, never HEAD');
 });
 
-t('driverScript takes the step limits from its options', () => {
+t('driverScript takes the step limits from its options: the build limit on the build, the test limit on the diff, the graft and both test steps', () => {
   const script = driverScript(manifestOf(), { buildSec: 7, testSec: 9 });
-  assert.match(script, /timeout -k 10 7 'cargo'/);
-  assert.equal(script.split('timeout -k 10 9 ').length - 1, 2, 'both test steps');
+  const lineWith = (needle) => {
+    const hits = script.split('\n').filter((l) => l.includes(needle));
+    assert.equal(hits.length, 1, `${needle} is on one line`);
+    return hits[0];
+  };
+  assert.match(lineWith('/results/build.out'), /^ *timeout -k 10 7 'cargo'/);
+  assert.match(lineWith('/results/f2p.out'), /^ *timeout -k 10 9 'cargo'/);
+  assert.match(lineWith('/results/p2p.out'), /^ *timeout -k 10 9 'cargo'/);
+  assert.match(lineWith('/results/graft.log'), /^timeout -k 10 9 sh -s /);
+  assert.match(lineWith('/results/diff.txt'), /^timeout -k 10 9 git .* && timeout -k 10 9 git /);
+  assert.equal(script.split('timeout -k 10 7 ').length - 1, 1, 'nothing else runs under the build limit');
+});
+
+t('driverScript refuses a manifest without a 40-hex baseCommit', () => {
+  for (const baseCommit of [undefined, '', 'HEAD', 'b'.repeat(39), 'B'.repeat(40), `${'b'.repeat(40)}\n`, 7]) {
+    assert.throws(() => driverScript({ ...manifestOf(), baseCommit }), TypeError, JSON.stringify(baseCommit));
+  }
 });
 
 function driverScene(workFiles = {}, hiddenFiles = {}) {
@@ -502,31 +656,119 @@ function driverScene(workFiles = {}, hiddenFiles = {}) {
   return s;
 }
 const IDENT = ['-c', 'user.name=s5', '-c', 'user.email=s5@localhost'];
+const gitOk = (dir, args) => {
+  const r = git(dir, args);
+  assert.equal(r.status, 0, `git ${args.join(' ')}: ${r.stderr}`);
+  return r.stdout.toString().trim();
+};
+// Make the directory a repository with ONE commit and return that commit's id (the task's baseCommit).
 function commitAll(dir) {
-  for (const args of [['init', '-q', '-b', 'main'], ['add', '-A'], [...IDENT, 'commit', '-q', '--no-verify', '--no-gpg-sign', '-m', 'task']]) {
-    const r = git(dir, args);
-    assert.equal(r.status, 0, `git ${args.join(' ')}: ${r.stderr}`);
-  }
+  for (const args of [['init', '-q', '-b', 'main'], ['add', '-A'], [...IDENT, 'commit', '-q', '--no-verify', '--no-gpg-sign', '-m', 'task']]) gitOk(dir, args);
+  return gitOk(dir, ['rev-parse', 'HEAD']);
 }
+// What an agent does when it commits its own work: HEAD moves.
+function agentCommits(dir) {
+  gitOk(dir, ['add', '-A']);
+  gitOk(dir, [...IDENT, 'commit', '-q', '--no-verify', '--no-gpg-sign', '-m', 'the agent\'s own commit']);
+  return gitOk(dir, ['rev-parse', 'HEAD']);
+}
+
 function runDriver(s, manifest, opts = {}) {
   const script = driverScript(manifest, { work: s.work, hidden: s.hidden, results: s.results, ...opts.driver });
-  const env = { PATH: process.env.PATH, HOME: s.dir, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1' };
+  const env = { PATH: opts.path ?? process.env.PATH, HOME: s.dir, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1' };
   return spawnSync('sh', ['-c', script], { cwd: s.dir, encoding: 'utf8', env, input: opts.input ?? '', timeout: 60_000 });
 }
 const res = (s, name) => readOr(join(s.results, name));
 const sh = (script) => ['sh', '-c', script];
 
+const TRIVIAL = { buildCommand: ['true'], f2p: { command: ['true'], names: ['x'] }, p2p: { command: ['true'], names: [] } };
+
 t('the diff stats are taken BEFORE the hidden tests are grafted, new files included', () => {
   const s = driverScene({ 'src/lib.rs': 'a\n' }, { 'tests/h.rs': '1\n2\n3\n4\n5\n' });
-  commitAll(s.work);
+  const baseCommit = commitAll(s.work);
   put(s.work, 'src/lib.rs', 'a\nb\n');
   put(s.work, 'src/new.rs', 'n1\nn2\n');
-  const m = manifestOf({ hidden: { files: ['tests/h.rs'] }, buildCommand: ['true'], f2p: { command: ['true'], names: ['x'] }, p2p: { command: ['true'], names: [] } });
+  const m = { ...manifestOf({ hidden: { files: ['tests/h.rs'] }, ...TRIVIAL }), baseCommit };
   const r = runDriver(s, m);
   assert.equal(r.status, 0, r.stderr);
   assert.equal(res(s, 'diff.status').trim(), '0');
   assert.deepEqual(parseShortstat(res(s, 'diff.txt')), { files: 2, insertions: 3, deletions: 0 }, 'the grafted tests/h.rs (5 lines) is not in the stats');
   assert.equal(readFileSync(join(s.work, 'tests/h.rs'), 'utf8'), '1\n2\n3\n4\n5\n', 'and it was grafted afterwards');
+});
+
+t('an agent that COMMITS its change still shows its real stats: the diff is against the task commit, not HEAD', () => {
+  const s = driverScene({ 'src/lib.rs': 'a\n' }, { 'tests/h.rs': 'h\n' });
+  const baseCommit = commitAll(s.work);
+  put(s.work, 'src/lib.rs', 'a\nb\n');
+  put(s.work, 'src/new.rs', 'n1\nn2\n');
+  const head = agentCommits(s.work);
+  assert.notEqual(head, baseCommit);
+  const hiddenDef = { hidden: { files: ['tests/h.rs'] }, ...TRIVIAL };
+  const again = driverScene({}, { 'tests/h.rs': 'h\n' });
+  cpSync(s.work, again.work, { recursive: true });
+  assert.equal(runDriver(s, { ...manifestOf(hiddenDef), baseCommit }).status, 0);
+  assert.equal(res(s, 'diff.status').trim(), '0');
+  assert.deepEqual(parseShortstat(res(s, 'diff.txt')), { files: 2, insertions: 3, deletions: 0 }, 'the committed change is counted');
+
+  // the same tree measured against HEAD (what the old driver did) reads zero
+  assert.equal(runDriver(again, { ...manifestOf(hiddenDef), baseCommit: head }).status, 0);
+  assert.deepEqual(parseShortstat(res(again, 'diff.txt')), { files: 0, insertions: 0, deletions: 0 }, 'against HEAD the committed work is invisible');
+});
+
+t('a base commit git cannot resolve fails only the diff step: the status is non-zero and the grade goes on', () => {
+  const s = driverScene({ 'src/lib.rs': 'a\n' }, { 'tests/h.rs': 'h\n' });
+  commitAll(s.work);
+  put(s.work, 'src/lib.rs', 'a\nb\n');
+  assert.equal(runDriver(s, { ...manifestOf({ hidden: { files: ['tests/h.rs'] }, ...TRIVIAL }), baseCommit: 'f'.repeat(40) }).status, 0);
+  assert.notEqual(res(s, 'diff.status').trim(), '0');
+  assert.equal(res(s, 'graft.status').trim(), '0');
+  assert.equal(res(s, 'build.status').trim(), '0');
+  assert.ok(res(s, 'done') !== null);
+});
+
+t('git in the driver runs with core.fsmonitor=false: a hook in the agent\'s .git/config does not run', () => {
+  const s = driverScene({ 'src/lib.rs': 'a\n' }, { 'tests/h.rs': 'h\n' });
+  const baseCommit = commitAll(s.work);
+  const marker = join(s.dir, 'fsmonitor-ran');
+  const hook = join(s.dir, 'hook.sh');
+  writeFileSync(hook, `#!/bin/sh\necho ran >> ${shq(marker)}\nprintf '\\0'\n`);
+  chmodSync(hook, 0o755);
+  gitOk(s.work, ['config', 'core.fsmonitor', hook]);
+  put(s.work, 'src/lib.rs', 'a\nchanged\n');
+  // control: without the override git runs the hook on `git add -A`
+  spawnSync('git', ['-C', s.work, '-c', 'safe.directory=*', 'add', '-A'], { env: { PATH: process.env.PATH, HOME: s.dir, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1' } });
+  assert.ok(existsSync(marker), 'control: the hook is live when nothing overrides it');
+  writeFileSync(marker, '');
+  put(s.work, 'src/lib.rs', 'a\nchanged again\n');
+  assert.equal(runDriver(s, { ...manifestOf({ hidden: { files: ['tests/h.rs'] }, ...TRIVIAL }), baseCommit }).status, 0);
+  assert.equal(readFileSync(marker, 'utf8'), '', 'the driver\'s git did not run the hook');
+  assert.equal(res(s, 'diff.status').trim(), '0');
+});
+
+t('a diff that hangs is cut off with status 124 and the grade goes on', () => {
+  const s = driverScene({ 'src/lib.rs': 'a\n' }, { 'tests/h.rs': 'h\n' });
+  const shim = tmp('s5-grade-hanggit-');
+  writeFileSync(join(shim, 'git'), '#!/bin/sh\nsleep 30\n');
+  chmodSync(join(shim, 'git'), 0o755);
+  const started = Date.now();
+  runDriver(s, manifestOf({ hidden: { files: ['tests/h.rs'] }, ...TRIVIAL }), { path: `${shim}${delimiter}${process.env.PATH}`, driver: { testSec: 1 } });
+  assert.equal(res(s, 'diff.status').trim(), '124');
+  assert.equal(res(s, 'graft.status').trim(), '0');
+  assert.equal(res(s, 'build.status').trim(), '0');
+  assert.ok(Date.now() - started < 20_000);
+});
+
+t('a graft that hangs (a FIFO where a graftLines file belongs) is cut off with status 124: the build does not run', () => {
+  const s = driverScene({}, { 'tests/h.rs': 'h\n' });
+  mkdirSync(join(s.work, 'src'));
+  assert.equal(spawnSync('mkfifo', [join(s.work, 'src/lib.rs')]).status, 0);
+  const m = manifestOf({ hidden: { files: ['tests/h.rs'], graftLines: [{ file: 'src/lib.rs', line: 'mod hidden_support;' }] }, ...TRIVIAL });
+  const started = Date.now();
+  runDriver(s, m, { driver: { testSec: 1 } });
+  assert.equal(res(s, 'graft.status').trim(), '124');
+  assert.equal(res(s, 'build.status'), null);
+  assert.ok(res(s, 'done') !== null);
+  assert.ok(Date.now() - started < 20_000);
 });
 
 t('the driver records each step\'s status and output, merges stderr, and writes done last', () => {
@@ -619,7 +861,6 @@ async function taIf(name, skipReason, fn) {
   else await ta(name, fn);
 }
 
-const shq = (s) => `'${String(s).replaceAll("'", `'\\''`)}'`;
 // A wrapper that exports the fake's two control variables (dockerRun hands docker a whitelisted
 // environment, so a test cannot set them any other way) and execs fixtures/fake-docker.mjs.
 function fakeDocker(config = {}) {
@@ -795,6 +1036,28 @@ await taIf('cpus and memory reach docker when given', NO_REFLINK_HERE, async () 
   assert.equal(flagValue(argv, '--memory'), '6g');
 });
 
+await taIf('the step limits reach the script: build limit on the build, test limit on the diff, the graft and both test steps', NO_REFLINK_HERE, async () => {
+  const sc = makeScene();
+  const { f } = await grade(sc, { opts: { timeouts: { build: 7, test: 9 } } });
+  const script = runCall(f).argv.at(-1);
+  const lineWith = (needle) => script.split('\n').find((l) => l.includes(needle));
+  assert.match(lineWith('/results/build.out'), /^ *timeout -k 10 7 'cargo'/);
+  assert.match(lineWith('/results/f2p.out'), /^ *timeout -k 10 9 'cargo'/);
+  assert.match(lineWith('/results/p2p.out'), /^ *timeout -k 10 9 'cargo'/);
+  assert.match(lineWith('/results/graft.log'), /^timeout -k 10 9 sh -s /);
+  assert.match(lineWith('/results/diff.txt'), /^timeout -k 10 9 git .* && timeout -k 10 9 git /);
+  assert.equal(script.split('timeout -k 10 7 ').length - 1, 1);
+  const defaults = runCall((await grade(makeScene(), { runId: 'r2' })).f).argv.at(-1);
+  assert.match(defaults, /timeout -k 10 600 'cargo'/, 'the task def\'s own limits when none are given');
+  assert.match(defaults, /timeout -k 10 300 'cargo'/);
+});
+
+await taIf('the container limit is in seconds: 3 s is not 3 ms, and a 1.5 s run under it is not a timeout', NO_REFLINK_HERE, async () => {
+  const { r } = await grade(makeScene(), { config: { run: { sleepMs: 1500 } }, opts: { timeouts: { container: 3 } } });
+  assert.equal(r.infra, null);
+  assert.equal(r.pass, true);
+});
+
 await taIf('the diff runs in the container before the graft; no host git runs; the agent tree is byte-identical afterwards', NO_REFLINK_HERE, async () => {
   const sc = makeScene();
   const before = snapshot(sc.agent);
@@ -809,8 +1072,8 @@ await taIf('the diff runs in the container before the graft; no host git runs; t
   assert.deepEqual(snapshot(sc.agent), before, 'the agent tree is untouched');
 
   const script = runCall(f).argv.at(-1);
-  const add = idx(script, "git -c safe.directory='*' add -A");
-  const diff = idx(script, "git -c safe.directory='*' diff --cached --shortstat HEAD");
+  const add = idx(script, `${GIT_TEXT} add -A`);
+  const diff = idx(script, `${GIT_TEXT} diff --cached --shortstat '${BASE}'`);
   const graft = idx(script, "cp -- '/hidden/tests/hidden.rs'");
   assert.ok(add < diff && diff < graft, 'the diff stats are taken before the graft');
   assert.ok(!f.calls().some((c) => c.argv[0] === 'git'));
@@ -883,8 +1146,13 @@ const NOT_PASSED = [
   ['an F2P name reported ok in one binary and FAILED in another', { 'f2p.out': 'test hidden::it_works ... ok\ntest hidden::it_works ... FAILED\n' }, (r) => assert.deepEqual(r.f2p.failed, NAMES.f2p)],
   ['a P2P name absent from the output', { 'p2p.out': 'running 0 tests\n' }, (r) => assert.deepEqual(r.p2p.notRun, NAMES.p2p)],
   ['a P2P name reported FAILED', { 'p2p.out': 'test existing::stays ... FAILED\n' }, (r) => assert.deepEqual(r.p2p.failed, NAMES.p2p)],
-  ['a compile error in the F2P step after a build step that succeeded', { 'f2p.out': `test hidden::it_works ... ok\n${fixture('cargo-compile-error.txt')}`, 'f2p.status': '101\n' }, (r) => assert.deepEqual(r.f2p.notRun, NAMES.f2p)],
-  ['a compile error in the P2P step', { 'p2p.out': `test existing::stays ... ok\n${fixture('cargo-compile-error.txt')}` }, (r) => assert.deepEqual(r.p2p.notRun, NAMES.p2p)],
+  ['a compile error in the F2P step: cargo ran no test, every name is absent', { 'f2p.out': fixture('cargo-compile-error.txt'), 'f2p.status': '101\n' }, (r) => assert.deepEqual(r.f2p.notRun, NAMES.f2p)],
+  ['a compile error in the P2P step: cargo ran no test, every name is absent', { 'p2p.out': fixture('cargo-compile-error.txt'), 'p2p.status': '101\n' }, (r) => assert.deepEqual(r.p2p.notRun, NAMES.p2p)],
+  ['an F2P name reported only inside a failed test\'s failure section', { 'f2p.out': 'running 1 test\ntest other ... FAILED\n\nfailures:\n\n---- other stdout ----\ntest hidden::it_works ... ok\n\nfailures:\n    other\n' }, (r) => assert.deepEqual(r.f2p.notRun, NAMES.f2p)],
+  ['a graft that timed out (exit 124), although the build and tests say ok', { 'graft.status': '124\n' }, (r) => {
+    assert.equal(r.graft, 'failed');
+    assert.equal(r.build, 'not_run');
+  }],
   ['an F2P step that never ran', { 'f2p.status': null, 'f2p.out': null }, (r) => assert.deepEqual(r.f2p.notRun, NAMES.f2p)],
   ['a P2P step that never ran', { 'p2p.status': null, 'p2p.out': null }, (r) => assert.deepEqual(r.p2p.notRun, NAMES.p2p)],
   ['a failed build, although every test output says ok', { 'build.status': '101\n' }, (r) => {
@@ -983,8 +1251,18 @@ await taIf('gradeTree refuses what it cannot grade honestly, before anything is 
     ['a P2P list that is not a list', manifestOf({ p2p: { command: ['true'], names: 'x' } })],
     ['a hidden file the task does not hold', manifestOf({ hidden: { files: ['tests/not-there.rs'] } })],
     ['no hidden files at all', manifestOf({ hidden: { files: [] } })],
+    ['no baseCommit', { ...sc.manifest, baseCommit: undefined }],
+    ['a baseCommit that is not 40 lower-case hex', { ...sc.manifest, baseCommit: 'HEAD' }],
+    ['a short baseCommit', { ...sc.manifest, baseCommit: 'b'.repeat(39) }],
+    ['an upper-case baseCommit', { ...sc.manifest, baseCommit: 'B'.repeat(40) }],
+    ['a graftLines line that is code, not a module', manifestOf({ hidden: { files: ['tests/hidden.rs'], graftLines: [{ file: 'src/lib.rs', line: 'fn main() {}' }] } })],
+    ['a graftLines line with two modules', manifestOf({ hidden: { files: ['tests/hidden.rs'], graftLines: [{ file: 'src/lib.rs', line: 'mod a; mod b;' }] } })],
+    ['a graftLines line with a trailing comment', manifestOf({ hidden: { files: ['tests/hidden.rs'], graftLines: [{ file: 'src/lib.rs', line: 'mod a; // c' }] } })],
+    ['a graftLines inline module', manifestOf({ hidden: { files: ['tests/hidden.rs'], graftLines: [{ file: 'src/lib.rs', line: 'mod a {}' }] } })],
   ];
   for (const [what, manifest] of bad) await assert.rejects(call(manifest), (e) => e instanceof Error, what);
+  await assert.rejects(call({ ...sc.manifest, baseCommit: undefined }), /baseCommit/);
+  await assert.rejects(call(manifestOf({ hidden: { files: ['tests/hidden.rs'], graftLines: [{ file: 'src/lib.rs', line: 'use x;' }] } })), /exactly one Rust module/);
   await assert.rejects(call(sc.manifest, join(sc.dir, 'no-such-agent-tree')), /agent tree/i, 'a missing agent tree');
   await assert.rejects(call(sc.manifest, join(sc.agent, 'link-to-lib')), /agent tree/i, 'a link is not a tree');
   for (const runId of ['', '..', 'a/b', '.hidden', 'x y', 'a'.repeat(200)]) await assert.rejects(call(sc.manifest, sc.agent, { runId }), TypeError, `runId ${JSON.stringify(runId)}`);
@@ -992,7 +1270,7 @@ await taIf('gradeTree refuses what it cannot grade honestly, before anything is 
   await assert.rejects(call(sc.manifest, sc.agent, { workRoot: '' }), TypeError);
   await assert.rejects(call(sc.manifest, sc.agent, { timeouts: { build: -1 } }), TypeError);
   assert.equal(f.calls().length, 0, 'docker was never called');
-  assert.ok(noGrades(sc), 'nothing was left behind');
+  assert.equal(existsSync(gradesDir(sc)), false, 'every one of these was refused before anything was created: not even the grades directory');
   await assert.rejects(call(sc.manifest, sc.agent, { dockerBin: join(sc.dir, 'no-such-docker') }), /could not start/);
   assert.ok(noGrades(sc), 'a docker that cannot start still leaves no grade directory');
 });
@@ -1097,11 +1375,11 @@ async function dockerTests() {
   function dockerScene({ id, runner = 'cargo', def, base, hiddenFiles, edits = {}, prepare = () => {} }) {
     const dir = tmp('grade-docker-', TMP_BASE);
     const workRoot = join(dir, 'work-root');
-    const manifest = { id, repo: runner === 'cargo' ? 'codescout' : 'claude-plugins', def };
+    const manifest = { id, repo: runner === 'cargo' ? 'codescout' : 'claude-plugins', baseCommit: null, def };
     for (const [rel, c] of Object.entries(hiddenFiles)) put(join(workRoot, 'tasks', id, 'hidden'), rel, c);
     const agent = join(dir, 'agent');
     for (const [rel, c] of Object.entries(base)) put(agent, rel, c);
-    commitAll(agent);
+    manifest.baseCommit = commitAll(agent);
     for (const [rel, c] of Object.entries(edits)) {
       if (c === null) rmSync(join(agent, rel), { recursive: true, force: true });
       else put(agent, rel, c);
@@ -1147,6 +1425,37 @@ async function dockerTests() {
     model(r, 'fail-fast');
     assert.deepEqual(r.f2p, { passed: [], failed: ['hidden_support::support_works'], notRun: ['add_works'] });
     assert.equal(r.pass, false);
+  });
+
+  await ta('docker: an agent that COMMITS its fix still has real diff stats (against the task commit), and an unresolvable base is a null diff, not a zero one', async () => {
+    const committed = await gradeReal(crate({ 'src/lib.rs': lib('a + b'), 'src/extra.rs': 'pub fn extra() {}\n' }, { prepare: (agent) => agentCommits(agent) }));
+    model(committed, 'committed fix');
+    assert.equal(committed.pass, true);
+    assert.deepEqual(committed.diff, { files: 2, insertions: 2, deletions: 1 }, 'HEAD moved, the stats did not read zero');
+
+    const lost = crate({ 'src/lib.rs': lib('a + b') });
+    lost.manifest.baseCommit = 'f'.repeat(40);
+    const r = await gradeReal(lost);
+    model(r, 'unresolvable base');
+    assert.equal(r.diff, null);
+    assert.equal(r.pass, true, 'the diff never decides the verdict');
+  });
+
+  await ta('docker: an agent\'s own declaration of the grafted module (any visibility, rustfmt\'s two-line form, a CRLF file) is not declared twice: no E0428', async () => {
+    const right = 'pub fn add(a: i32, b: i32) -> i32 {\n    a + b\n}\n';
+    const variants = {
+      'pub mod': `${right}pub mod hidden_support;\n`,
+      'rustfmt two-line form': `${right}#[cfg(test)]\nmod hidden_support;\n`,
+      'CRLF file with the declaration': `${right.replaceAll('\n', '\r\n')}mod hidden_support;\r\n`,
+      'CRLF file without it': right.replaceAll('\n', '\r\n'),
+    };
+    for (const [what, libText] of Object.entries(variants)) {
+      const r = await gradeReal(crate({ 'src/lib.rs': libText }));
+      model(r, what);
+      assert.equal(r.build, 'ok', `${what}: the crate compiles`);
+      assert.deepEqual(r.f2p, { passed: F2P_NAMES, failed: [], notRun: [] }, `${what}: the module's test ran`);
+      assert.equal(r.pass, true, what);
+    }
   });
 
   await ta('docker: no fix at all fails, and the diff is empty', async () => {
@@ -1320,6 +1629,32 @@ async function dockerTests() {
     model(syntax, 'node syntax');
     assert.equal(syntax.build, 'failed');
     assert.equal(syntax.pass, false);
+  });
+
+  await ta('docker (plugins image, node --test --test-reporter=tap): a name with # and \\ is un-escaped and matched; a wrong fix fails; a test\'s own raw "ok" print is only a comment', async () => {
+    const hiddenTest = "import test from 'node:test';\nimport assert from 'node:assert/strict';\nimport { add } from '../lib.mjs';\n\n"
+      + "test('adds #1 and a \\\\ backslash', () => {\n  assert.equal(add(2, 3), 5);\n});\n"
+      + "test('prints a forged report', () => {\n  console.log('ok 99 - the forged name');\n});\n";
+    const scene = (libBody) => dockerScene({
+      id: 'tiny-node',
+      runner: 'node',
+      def: {
+        ...nodeDef,
+        f2p: { command: ['node', '--test', '--test-reporter=tap', 'tests/hidden.test.mjs'], names: ['adds #1 and a \\ backslash'] },
+        p2p: { command: ['node', 'tests/visible.test.mjs'], names: ['existing'] },
+      },
+      base: { 'lib.mjs': 'export const add = (a, b) => a - b;\n', 'tests/visible.test.mjs': `${NODE_HEAD}t('existing', () => assert.equal(add(0, 0), 0));\n` },
+      hiddenFiles: { 'tests/hidden.test.mjs': hiddenTest },
+      edits: { 'lib.mjs': libBody },
+    });
+    const right = await gradeReal(scene('export const add = (a, b) => a + b;\n'), { image: 's5/plugins' });
+    model(right, 'tap right');
+    assert.deepEqual(right.f2p, { passed: ['adds #1 and a \\ backslash'], failed: [], notRun: [] });
+    assert.equal(right.pass, true);
+    const wrong = await gradeReal(scene('export const add = (a, b) => a * b;\n'), { image: 's5/plugins' });
+    model(wrong, 'tap wrong');
+    assert.deepEqual(wrong.f2p, { passed: [], failed: ['adds #1 and a \\ backslash'], notRun: [] });
+    assert.equal(wrong.pass, false);
   });
 
   // ---- sh (plugins image) ----

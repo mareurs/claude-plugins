@@ -595,11 +595,15 @@ t('a hidden file the fix does not have is refused, naming the path, and the part
 t('the manifest holds the ids, the hashes of the bytes and the definition, and is written to disk', () => {
   const b = build(src);
   const m = b.manifest;
-  assert.deepEqual(Object.keys(m), ['id', 'repo', 'fix', 'parent', 'treeHash', 'hiddenHash', 'promptHash', 'taskMdHash', 'def']);
+  assert.deepEqual(Object.keys(m), ['id', 'repo', 'fix', 'parent', 'baseCommit', 'treeHash', 'hiddenHash', 'promptHash', 'taskMdHash', 'def']);
   assert.equal(m.id, 'fix-add');
   assert.equal(m.repo, 'codescout');
   assert.equal(m.fix, src.shas.fix);
   assert.equal(m.parent, src.shas.parent);
+  assert.match(m.baseCommit, /^[0-9a-f]{40}$/);
+  assert.equal(m.baseCommit, git(b.treeDir, ['rev-parse', 'HEAD']).stdout.toString().trim(), 'baseCommit is the one commit of the tree');
+  assert.notEqual(m.baseCommit, m.parent, 'the task commit is a new commit, not the parent');
+  assert.notEqual(m.baseCommit, m.fix);
   assert.equal(m.promptHash, sha256(Buffer.from(PROMPT)));
   assert.equal(m.taskMdHash, sha256(Buffer.from(TASK_MD)));
   assert.deepEqual(m.def, JSON.parse(readFileSync(join(b.taskDir, 'task.json'), 'utf8')));

@@ -11,9 +11,11 @@
 //                   every depth and replaced by a short task CLAUDE.md; TASK.md sits at the root.
 //   hidden/         the fix commit's version of each hidden.files path, plus each hidden.extra file
 //                   from <taskDir>/extra-tests/, each at its relative path.
-//   manifest.json   { id, repo, fix, parent, treeHash, hiddenHash, promptHash, taskMdHash, def }
+//   manifest.json   { id, repo, fix, parent, baseCommit, treeHash, hiddenHash, promptHash, taskMdHash, def }
 //
 // Hashes are sha256 hex.
+//   baseCommit  the 40-hex id of the tree's one commit, read right after it is made. The grader diffs an
+//               agent's change against it: HEAD moves when the agent commits.
 //   treeHash    over every file of tree/ except the top-level .git: for each file, in BYTE-order of its
 //               relative path (UTF-8, '/'-separated), feed  path + '\0' + sha256(bytes) + '\n'  into one
 //               sha256. A symlink contributes the sha256 of its target STRING; it is never followed.
@@ -230,6 +232,9 @@ function commitTree(tree, id) {
   if (missing.length > 0 || extra.length > 0) {
     throw new Error(`buildTask: the commit and the tree differ; not committed: ${JSON.stringify(missing.slice(0, 5))}, committed but not on disk: ${JSON.stringify(extra.slice(0, 5))}`);
   }
+  // The task's one commit, read while the tree is still ours: the grader diffs an agent's change against
+  // THIS commit, not against HEAD (an agent that commits moves HEAD, and `git diff HEAD` then reads zero).
+  return run('rev-parse', 'HEAD').toString().trim();
 }
 
 function put(dir, rel, bytes) {
@@ -278,7 +283,7 @@ export function buildTask(taskDir, { workRoot } = {}) {
     removeNamed(treeDir);
     writeTaskFiles(treeDir, def, taskMd);
     scrubTree(treeDir, needles);
-    commitTree(treeDir, def.id);
+    const baseCommit = commitTree(treeDir, def.id);
     writeHidden(def, taskDir, hiddenDir);
 
     const manifest = {
@@ -286,6 +291,7 @@ export function buildTask(taskDir, { workRoot } = {}) {
       repo: def.repo,
       fix: def.fix,
       parent: def.parent,
+      baseCommit,
       treeHash: hashEntries(treeDir, listEntries(treeDir, { skipRootGit: true })),
       hiddenHash: hashEntries(hiddenDir, listEntries(hiddenDir)),
       promptHash: sha256(prompt),
