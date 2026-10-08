@@ -1,9 +1,11 @@
-// analyze.test.mjs — the S5 analysis (Task 9, rulings R3, R62, R63, R64, R68, R69, R70, R71, R72).
+// analyze.test.mjs — the S5 analysis (Task 9, rulings R3, R62, R63, R64, R68, R69, R70, R71, R72, R76 to R81).
 //
-// The verdict this module computes IS the experiment's result, so each decision in it has a test that fails when the
-// decision flips (the diff directions, task means against pooled runs, the quantile index, the strict comparisons in
-// verdict, the infra/final filter, the t quantile, the RNG stream, the mechanism's field mapping and population,
-// pass^3's n >= 3 rule, simulate's clamping). Every flip was tried on a scratch copy; see the task report.
+// The verdict this module computes IS the experiment's result, so the decisions in it are pinned by tests meant to fail when a
+// decision flips (the diff directions, task means against pooled runs, the quantile index, the strict comparisons in verdict,
+// the infra/final filter, the t quantile, the RNG stream, the mechanism's field mapping and population, pass^3's n >= 3 rule,
+// simulate's clamping, the one-row-per-run guard, the secondaries' population, the sign test, the medians). The evidence is the
+// mutant counts in the task report (144 single-text mutants in the first round, a focused set in fix round 1), not a claim that
+// every possible flip has a test.
 //
 // Fixtures follow Task 10's Row verbatim (ruling R3): { runId, taskId, taskIndex, arm, effort, rep, round, sessionId,
 // startedAt, wallMs, exit, infra, final, decision, usage, efforts, costUsd, numTurns, firstUserTextOk,
@@ -22,11 +24,13 @@ import {
   isCounted,
   isPass,
   mechanism,
+  medianOrNull,
   pairedLowerBound,
   perTaskScores,
   quantile1,
   secondaries,
   selectCalibrated,
+  signTest,
   simulate,
   tQuantile,
   verdict,
@@ -66,7 +70,7 @@ function row(o) {
     round: o.round ?? 0,
     sessionId: `session-${seq}`,
     startedAt: '2026-10-08T00:00:00.000Z',
-    wallMs: 60000,
+    wallMs: o.wallMs ?? 60000,
     exit: { code: o.timedOut ? null : 0, signal: o.timedOut ? 'SIGKILL' : null, timedOut: o.timedOut ?? false },
     infra: o.infra ?? null,
     final: o.final ?? true,
@@ -81,6 +85,12 @@ function row(o) {
     grade: o.grade === undefined ? { pass: o.pass ?? true } : o.grade,
   };
 }
+// A grade as gradeTree returns it, down to the fields the analysis reads: pass, diff (parseShortstat's shape, or null) and p2p.
+const gradeOf = (o = {}) => ({
+  pass: o.pass ?? true,
+  diff: o.diff === undefined ? { files: 1, insertions: 1, deletions: 1 } : o.diff,
+  p2p: { passed: [], failed: o.p2pFailed ?? [], notRun: o.p2pNotRun ?? [] },
+});
 // '1' passes, '0' fails: runs('t0', 'A', '110') is three counted rows.
 const runs = (task, arm, marks, o = {}) => [...marks].map((m) => row({ task, arm, pass: m === '1', ...o }));
 // One task's rows: tk('t0', { A: '110', B: '10', C: '0' }).
@@ -462,9 +472,10 @@ t('selectCalibrated drops A 0/2 as never_solved and A 2/2 with C 1/1 as effort_i
     // c9: a B row never matters in calibration.
     ...tk('c9', { A: '11', B: '0', C: '1' }),
     ...tk('c10', { A: '1', C: '1' }), // one run each: A passes every run, C passes every run
+    ...tk('c11', { A: '11', C: '10' }), // kept: A passes every run but C does not (a C that passes any run is not idle)
   ];
   const { kept, dropped } = selectCalibrated(rows);
-  assert.deepEqual(kept, ['c2', 'c3', 'c4']);
+  assert.deepEqual(kept, ['c11', 'c2', 'c3', 'c4']);
   assert.deepEqual(dropped, [
     { taskId: 'c0', reason: 'never_solved' },
     { taskId: 'c1', reason: 'effort_idle' },
@@ -599,36 +610,55 @@ t('mechanism with no included task reports insufficient_data instead of throwing
   assert.equal(none.thinking.nTreated, 0);
 });
 
-t('mechanism: a counted row that lacks the usage fields is ignored in the open, never read as zero', () => {
+t('mechanism: a counted row that lacks the usage fields is ignored in the open, never read as zero, and the floor is tasks not rows', () => {
   const rows = mechRows();
-  const broken = rows.map((r, i) => (i === 0 ? { ...r, usage: { main: { thinking: 1 }, total: r.usage.total } } : r));
-  const m = mechanism(broken, prereg(MECH_IDS));
-  assert.equal(m.thinking.nIgnored, 1);
-  assert.equal(m.output.nIgnored, 1);
-  assert.equal(m.total.nIgnored, 0, 'its total part is intact');
+  // Index 0 is a holdout (A) row of m0, index 3 a treated (B) row of m0.
+  for (const [index, arm] of [[0, 'A'], [3, 'B']]) {
+    const broken = rows.map((r, i) => (i === index ? { ...r, usage: { main: { thinking: 1 }, total: r.usage.total } } : r));
+    assert.equal(broken[index].arm, arm);
+    const m = mechanism(broken, prereg(MECH_IDS));
+    assert.equal(m.thinking.nIgnored, 1, arm);
+    assert.equal(m.output.nIgnored, 1, arm);
+    assert.equal(m.total.nIgnored, 0, `${arm}: its total part is intact`);
+    // 17 rows in the short arm against a floor of 6 tasks: the test still runs. A floor of 18 (the rows of an arm) would make it
+    // insufficient_data on one malformed row.
+    assert.equal(m.thinking.nTreated + m.thinking.nHoldout, 35, arm);
+    assert.equal(m.thinking.verdict, 'mechanism_pass', `${arm}: thinking`);
+    assert.equal(m.output.verdict, 'mechanism_pass', `${arm}: output`);
+  }
 });
 
 // ---- secondaries ----
 
 const SEC_PREREG = prereg(['s0', 's1'], { bound: { method: 'paired-t', resamples: 2000, seed: 31 } });
 
-t('secondaries: cost per resolved task per arm counts failures, not infrastructure rows; null when none pass', () => {
+t('secondaries: cost per resolved task per arm counts failures, not infrastructure rows nor excluded tasks; null when none pass', () => {
   const rows = [
     row({ task: 's0', arm: 'A', pass: true, cost: 1 }), row({ task: 's0', arm: 'A', pass: false, cost: 2 }), row({ task: 's0', arm: 'A', pass: false, cost: 3 }),
     row({ task: 's0', arm: 'A', infra: 'infra_exhausted', grade: null, cost: 100 }), row({ task: 's0', arm: 'A', final: false, cost: 100 }),
     row({ task: 's0', arm: 'B', pass: true, cost: 4 }), row({ task: 's0', arm: 'B', pass: true, cost: 4 }),
     row({ task: 's0', arm: 'C', pass: false, cost: 1 }), row({ task: 's0', arm: 'C', pass: false, cost: null }),
     row({ task: 's0', arm: 'C', pass: false, cost: -2 }), row({ task: 's0', arm: 'C', pass: false, cost: 'n/a' }),
+    // x0 is excluded (no counted B run): its counted A and C rows enter no arm's cost (ruling R79, spec: dropped from all arms).
+    row({ task: 'x0', arm: 'A', pass: true, cost: 100 }), row({ task: 'x0', arm: 'A', pass: true, cost: 100 }),
+    row({ task: 'x0', arm: 'B', infra: 'infra_exhausted', grade: null, cost: 100 }),
+    row({ task: 'x0', arm: 'C', pass: true, cost: 50 }),
   ];
-  const { cost } = secondaries(rows, SEC_PREREG);
+  const { cost, excludedTasks } = secondaries(rows, SEC_PREREG);
   assert.deepEqual(cost.A, { usd: 6, runs: 3, resolved: 1, missing: 0, perResolved: 6 });
   assert.deepEqual(cost.B, { usd: 8, runs: 2, resolved: 2, missing: 0, perResolved: 4 });
   assert.deepEqual(cost.C, { usd: 1, runs: 4, resolved: 0, missing: 3, perResolved: null }, 'a null, negative or non-number cost is a missing reading');
+  assert.equal(excludedTasks, 1);
 });
 
 t('secondaries: counts of timeouts, testsRunBeforeDone === false, infrastructure rows and thinkingFieldMissing per arm', () => {
   const rows = [
-    row({ task: 's0', arm: 'A', timedOut: true, grade: null, cost: null }),
+    // Timeouts are read from exit.timedOut, not from a missing grade: timed-out rows with a grade that says fail, one without a
+    // grade, and a run that did not time out and has no grade.
+    row({ task: 's0', arm: 'A', timedOut: true, grade: gradeOf({ pass: false }), cost: null }),
+    row({ task: 's0', arm: 'A', timedOut: true, grade: gradeOf({ pass: false }) }),
+    row({ task: 's0', arm: 'A', timedOut: true, grade: null }),
+    row({ task: 's0', arm: 'A', timedOut: false, grade: null }),
     row({ task: 's0', arm: 'A', tests: false }),
     row({ task: 's0', arm: 'A', tests: null }), // unknown is not false
     row({ task: 's0', arm: 'A' }),
@@ -641,18 +671,68 @@ t('secondaries: counts of timeouts, testsRunBeforeDone === false, infrastructure
     row({ task: 's0', arm: 'B', infra: 'api_error', final: false, grade: null, main: { missing: 5 } }),
     row({ task: 's0', arm: 'C', timedOut: true, grade: null, tests: false }),
     row({ task: 's0', arm: 'C', timedOut: true, grade: null, tests: false }),
+    // x0 is excluded (no counted B run): its counted rows enter no count, but its infrastructure row is an infrastructure row.
+    row({ task: 'x0', arm: 'A', timedOut: true, tests: false, main: { missing: 4 } }), row({ task: 'x0', arm: 'A', timedOut: true, tests: false, main: { missing: 4 } }),
+    row({ task: 'x0', arm: 'B', infra: 'infra_exhausted', final: true, grade: null }),
+    row({ task: 'x0', arm: 'C', timedOut: true, tests: false, main: { missing: 4 } }),
   ];
-  const { counts } = secondaries(rows, SEC_PREREG);
-  assert.deepEqual(counts.A, { counted: 4, timeouts: 1, testsNotRun: 1, infraRows: 2, thinkingFieldMissing: 0 });
-  assert.deepEqual(counts.B, { counted: 3, timeouts: 0, testsNotRun: 0, infraRows: 1, thinkingFieldMissing: 2 });
-  assert.deepEqual(counts.C, { counted: 2, timeouts: 2, testsNotRun: 2, infraRows: 0, thinkingFieldMissing: 0 });
+  const { counts, excludedTasks } = secondaries(rows, SEC_PREREG);
+  assert.deepEqual(counts.A, { counted: 7, timeouts: 3, testsNotRun: 1, infraRows: 2, thinkingFieldMissing: 0, p2pRegressions: 0 });
+  assert.deepEqual(counts.B, { counted: 3, timeouts: 0, testsNotRun: 0, infraRows: 2, thinkingFieldMissing: 2, p2pRegressions: 0 });
+  assert.deepEqual(counts.C, { counted: 2, timeouts: 2, testsNotRun: 2, infraRows: 0, thinkingFieldMissing: 0, p2pRegressions: 0 });
+  assert.equal(excludedTasks, 1);
+});
+
+t('median: the middle value, the mean of the two middle values for an even count, null for none (ruling R80)', () => {
+  assert.equal(medianOrNull([]), null);
+  assert.equal(medianOrNull([7]), 7);
+  assert.equal(medianOrNull([3, 1, 2]), 2);
+  assert.equal(medianOrNull([4, 1, 3, 2]), 2.5, 'even count: (2 + 3) / 2, not the lower or the upper middle');
+  assert.equal(medianOrNull([1, 100]), 50.5);
+  assert.equal(medianOrNull([2, 2, 2, 4]), 2);
+  assert.equal(medianOrNull([5, 1, 9, 100, 3]), 5, 'the median, not the mean (23.6)');
+  assert.equal(medianOrNull([0, 0, 0]), 0);
+  const frozen = Object.freeze([3, 1, 2]);
+  assert.doesNotThrow(() => medianOrNull(frozen), 'the input is not sorted in place');
+  assert.deepEqual(frozen, [3, 1, 2]);
+});
+
+t('secondaries: median wall time, median diff size and p2p regressions per arm, over the counted rows of included tasks (ruling R80)', () => {
+  const diff = (insertions, deletions) => ({ files: 1, insertions, deletions });
+  const rows = [
+    // r0 and r1 are included. A: wall 1000, 3000, 2000, 9000 -> median 2500 (mean 3750); diff sizes 5 and 15 -> 10; the run with
+    // no grade and the run whose grade has no diff have no diff size; one run regressed an existing test, the one with only a
+    // notRun name did not.
+    row({ task: 'r0', arm: 'A', wallMs: 1000, grade: gradeOf({ diff: diff(3, 2), p2pFailed: ['t::a'] }) }),
+    row({ task: 'r0', arm: 'A', wallMs: 3000, grade: gradeOf({ diff: diff(10, 5) }) }),
+    row({ task: 'r1', arm: 'A', wallMs: 2000, timedOut: true, grade: null }),
+    row({ task: 'r1', arm: 'A', wallMs: 9000, grade: gradeOf({ diff: null, p2pNotRun: ['t::b'] }) }),
+    // B: wall 1000, 2000, 6000 -> 2000; diff sizes 9, 0 (an empty diff is a diff), 2 -> median 2 (mean 3.67); one run has a p2p name
+    // that did not run, which is not a regression.
+    row({ task: 'r0', arm: 'B', wallMs: 1000, grade: gradeOf({ diff: diff(9, 0) }) }),
+    row({ task: 'r0', arm: 'B', wallMs: 2000, grade: gradeOf({ diff: diff(0, 0) }) }),
+    row({ task: 'r1', arm: 'B', wallMs: 6000, grade: gradeOf({ diff: diff(1, 1), p2pNotRun: ['t::n'] }) }),
+    // C: wall 500 and 700 -> 600; no grade anywhere, so no diff size.
+    row({ task: 'r0', arm: 'C', wallMs: 500, grade: null }),
+    row({ task: 'r1', arm: 'C', wallMs: 700, grade: null }),
+    // An infrastructure row of an included task and every row of an excluded task (x0 has no counted C run) count for none of them.
+    row({ task: 'r0', arm: 'A', wallMs: 777777, infra: 'infra_exhausted', grade: gradeOf({ diff: diff(400, 400), p2pFailed: ['t::z'] }) }),
+    row({ task: 'x0', arm: 'A', wallMs: 999999, grade: gradeOf({ diff: diff(500, 500), p2pFailed: ['t::y'] }) }),
+    row({ task: 'x0', arm: 'B', wallMs: 999999, grade: gradeOf({ diff: diff(500, 500), p2pFailed: ['t::y'] }) }),
+  ];
+  const { medians, counts } = secondaries(rows, SEC_PREREG);
+  assert.deepEqual(medians.wallMs, { A: 2500, B: 2000, C: 600 });
+  assert.deepEqual(medians.diffSize, { A: 10, B: 2, C: null });
+  assert.deepEqual([counts.A.p2pRegressions, counts.B.p2pRegressions, counts.C.p2pRegressions], [1, 0, 0]);
+  assert.deepEqual(secondaries([], SEC_PREREG).medians, { wallMs: { A: null, B: null, C: null }, diffSize: { A: null, B: null, C: null } }, 'no rows, no median');
 });
 
 t('pass^3: 2 of 3 gives 0, 3 of 3 gives 1', () => {
-  const two = secondaries(tk('s0', { A: '110', B: '110', C: '1' }), SEC_PREREG).pass3;
+  const excluded = tk('sx', { A: '000', B: '000' }); // no C run: not included, so its A and B runs are not in the arm means
+  const two = secondaries([...tk('s0', { A: '110', B: '110', C: '1' }), ...excluded], SEC_PREREG).pass3;
   assert.equal(two.A.value, 0, '2 of 3: C(2,3) / C(3,3)');
   assert.equal(two.B.value, 0);
-  const three = secondaries(tk('s0', { A: '111', B: '111', C: '1' }), SEC_PREREG).pass3;
+  const three = secondaries([...tk('s0', { A: '111', B: '111', C: '1' }), ...tk('sx', { A: '000', B: '000' })], SEC_PREREG).pass3;
   assert.equal(three.A.value, 1, '3 of 3');
   assert.equal(three.B.value, 1);
   // C has one run here: below 3, so it is left out and counted, and the arm has no value.
@@ -691,7 +771,8 @@ t('secondaries: discordant tasks are the included tasks whose A and B scores dif
     ...tk('s5', { A: '1', B: '0' }), // discordant but not included (no C run)
     ...tk('s6', { A: '11', B: '00', C: '0' }), // B - A = -1 as well: ties go by task id
   ];
-  const { discordant } = secondaries(rows, prereg(['s0', 's1', 's2', 's3', 's4', 's5', 's6']));
+  const { discordant, excludedTasks } = secondaries(rows, prereg(['s0', 's1', 's2', 's3', 's4', 's5', 's6']));
+  assert.equal(excludedTasks, 2, 's4 and s5 have no counted C run');
   assert.deepEqual(discordant, [
     { taskId: 's1', A: 1, B: 0 },
     { taskId: 's6', A: 1, B: 0 },
@@ -738,11 +819,18 @@ t('secondaries: log ratio of B over A for output and thinking, with a percentile
   const logsOut = RATIO_OUT.map(Math.log);
   const logsThink = RATIO_THINK.map(Math.log);
   const mean = (xs) => xs.reduce((a, b) => a + b, 0) / xs.length;
-  for (const [bound, R] of [[{ method: 'paired-t', resamples: 0, seed: 5 }, 2000], [{ method: 'percentile', resamples: 3000, seed: -7 }, 3000]]) {
-    const { logRatio } = secondaries(lrRows(), prereg(LR_IDS, { bound }));
-    const [oLo, oHi] = interval(logsOut, 8, bound.seed, R, 0.05);
-    const [tLo, tHi] = interval(logsThink, 9, bound.seed, R, 0.05);
-    const what = `${bound.method} / ${R}`;
+  // lx is excluded (no counted C run); its wild outputs must not reach the ratios.
+  const excluded = [...runs('lx', 'A', '11', { main: { out: 1e6, think: 1e6 } }), ...runs('lx', 'B', '11', { main: { out: 1, think: 1 } })];
+  const cases = [
+    [{ method: 'paired-t', resamples: 0, seed: 5 }, 2000, 0.05],
+    [{ method: 'percentile', resamples: 3000, seed: -7 }, 3000, 0.05],
+    [{ method: 'percentile', resamples: 2500, seed: 3 }, 2500, 0.1], // the interval is [alpha, 1 - alpha] of the registered alpha
+  ];
+  for (const [bound, R, alpha] of cases) {
+    const { logRatio } = secondaries([...lrRows(), ...excluded], prereg(LR_IDS, { bound, alpha }));
+    const [oLo, oHi] = interval(logsOut, 8, bound.seed, R, alpha);
+    const [tLo, tHi] = interval(logsThink, 9, bound.seed, R, alpha);
+    const what = `${bound.method} / ${R} / alpha ${alpha}`;
     assert.equal(logRatio.output.n, 8);
     assert.equal(logRatio.output.nSkipped, 0);
     closeTo(logRatio.output.meanLogRatio, mean(logsOut), 1e-12, `${what}: output mean`);
@@ -884,6 +972,79 @@ t('analyzeS5: rows of a task the prereg does not list, and rows that are not obj
   assert.equal(rep.mechanism.thinking.nTreated, 24, 'the unregistered task is not in the mechanism either');
   assert.equal(rep.secondaries.counts.A.counted, 24, 'nor in the secondaries');
   assert.equal(rep.secondaries.cost.C.runs, 16);
+});
+
+t('analyzeS5 throws when two counted rows share a runId, naming it; a retry or infrastructure row sharing it is not a second count (ruling R78)', () => {
+  const rows = fill(ids8, { A: '111', B: '111', C: '00' });
+  const p = prereg(ids8);
+  const named = (id) => (e) => e instanceof Error && e.message.includes(id) && e.message.includes('runId');
+  assert.throws(() => analyzeS5([...rows, { ...rows[5] }], p), named(rows[5].runId), 'a counted row written twice');
+  assert.throws(() => analyzeS5([...rows, { ...rows[5], taskId: 't7', arm: 'C' }], p), named(rows[5].runId), 'the same run on another task and arm');
+  assert.throws(() => analyzeS5([{ ...rows[0] }, ...rows], p), named(rows[0].runId), 'wherever the copy sits');
+  // Not a second count: an infrastructure row, a non-final row, a pair of uncounted rows.
+  const retry = { ...rows[3], infra: 'effort_mismatch', final: false, grade: null };
+  const exhausted = { ...rows[3], infra: 'infra_exhausted', grade: null };
+  assert.doesNotThrow(() => analyzeS5([...rows, retry], p));
+  assert.doesNotThrow(() => analyzeS5([...rows, exhausted], p));
+  assert.doesNotThrow(() => analyzeS5([...rows, { ...rows[3], final: false }], p));
+  assert.doesNotThrow(() => analyzeS5([...rows, retry, { ...retry }], p));
+  assert.equal(analyzeS5([...rows, retry, exhausted], p).verdict, analyzeS5(rows, p).verdict);
+  // A row of an unregistered task is ignored, so a copy of one is not a double count.
+  const zz = tk('zz', { A: '1', B: '1', C: '1' });
+  assert.doesNotThrow(() => analyzeS5([...rows, ...zz, ...zz], p));
+  assert.doesNotThrow(() => analyzeS5(rows, p), 'the clean rows file is fine');
+});
+
+t('analyzeS5 reports the exact sign test on the included tasks\' B - A: counts and the two-sided binomial p over the non-tied (ruling R80)', () => {
+  // MIXED, by hand: B - A is -1/3 on t0, t2, t4, t7 (A better), +1/3 on t1, t6 (B better), 0 on t3, t5 (ties). Six non-tied, the
+  // smaller side 2: p = 2 * (1 + 6 + 15) / 64 = 0.6875. tz is excluded (no counted C run) and would be a seventh A-better task.
+  const rows = [...tasksOf(MIXED), ...tk('tz', { A: '111', B: '000' })];
+  const ids = [...ids8, 'tz'];
+  const rep = analyzeS5(rows, prereg(ids));
+  assert.deepEqual(rep.signTest, { bBetter: 2, aBetter: 4, ties: 2, p: 0.6875 });
+  const swap = (r) => (r.arm === 'A' ? { ...r, arm: 'B' } : r.arm === 'B' ? { ...r, arm: 'A' } : r);
+  assert.deepEqual(analyzeS5(rows.map(swap), prereg(ids)).signTest, { bBetter: 4, aBetter: 2, ties: 2, p: 0.6875 }, 'B - A, not A - B');
+  // Seven tasks where B is better and one where A is: p = 2 * (1 + 8) / 256 = 0.0703125. zz is not registered, so its (B better)
+  // task does not enter the test.
+  const spec = { A: '10', B: '11', C: '0' };
+  const seven = [...fill(['t0', 't1', 't2', 't3', 't4', 't5', 't6'], spec), ...tk('t7', { A: '11', B: '10', C: '0' }), ...tk('zz', { A: '000', B: '111', C: '0' })];
+  assert.deepEqual(analyzeS5(seven, prereg(ids8)).signTest, { bBetter: 7, aBetter: 1, ties: 0, p: 0.0703125 });
+  // Every task a tie: nothing to test, p is 1.
+  assert.deepEqual(rep8({ A: '111', B: '111', C: '00' }).signTest, { bBetter: 0, aBetter: 0, ties: 8, p: 1 });
+  // Too few tasks for a bound still has its counts (here one tie).
+  assert.deepEqual(analyzeS5([...tk('t0', { A: '11', B: '11', C: '0' }), ...tk('t1', { A: '1', B: '1' })], prereg(['t0', 't1'])).signTest, { bBetter: 0, aBetter: 0, ties: 1, p: 1 });
+  assert.deepEqual(analyzeS5([], prereg(['t0'])).signTest, { bBetter: 0, aBetter: 0, ties: 0, p: 1 });
+});
+
+t('signTest: B better is a positive diff, a zero is a tie, p is the exact two-sided binomial capped at 1', () => {
+  const diffs = (b, a, ties = 0) => [...Array(b).fill(0.25), ...Array(a).fill(-0.25), ...Array(ties).fill(0)];
+  const cases = [
+    // [B better, A better, ties, p by hand]
+    [7, 1, 0, 18 / 256], // 2 * (1 + 8) / 2^8 = 0.0703125
+    [1, 7, 0, 18 / 256], // symmetric
+    [8, 0, 0, 2 / 256], // 0.0078125
+    [0, 5, 0, 2 / 32], // 0.0625
+    [6, 0, 0, 2 / 64], // 0.03125: two-sided, a one-sided 0.015625 is not it
+    [3, 5, 0, 186 / 256], // 2 * (1 + 8 + 28 + 56) / 2^8
+    [4, 4, 0, 1], // 2 * 163 / 256 = 1.27, capped
+    [1, 1, 0, 1], // 2 * 3 / 4 = 1.5, capped
+    [1, 0, 0, 1], // 2 * 1 / 2 = 1
+    [15, 5, 0, 43400 / 1048576], // 2 * (1 + 20 + 190 + 1140 + 4845 + 15504) / 2^20
+    [7, 1, 5, 18 / 256], // ties do not enter the test
+    [3, 5, 9, 186 / 256],
+    [0, 0, 4, 1], // all ties
+    [0, 0, 0, 1], // no tasks
+  ];
+  for (const [b, a, ties, p] of cases) {
+    const r = signTest(diffs(b, a, ties));
+    assert.equal(r.bBetter, b, `${b}/${a}/${ties}: bBetter`);
+    assert.equal(r.aBetter, a, `${b}/${a}/${ties}: aBetter`);
+    assert.equal(r.ties, ties, `${b}/${a}/${ties}: ties`);
+    closeTo(r.p, p, 1e-15, `${b}/${a}/${ties}: p`);
+  }
+  assert.deepEqual(signTest([0.5, -0.5, 0, 1e-17, -1e-17]), { bBetter: 2, aBetter: 2, ties: 1, p: 1 }, 'only an exact zero is a tie');
+  assert.throws(() => signTest('ab'), TypeError);
+  assert.throws(() => signTest([1, NaN]), TypeError);
 });
 
 t('analyzeS5 does not depend on the order of the rows', () => {

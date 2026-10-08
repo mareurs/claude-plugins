@@ -21,19 +21,33 @@
 //   paired-t    mean - t(1 - alpha, n - 1) * sd / sqrt(n), with the sample sd (n - 1) and the Student-t quantile computed
 //               numerically (t(0.95, 31) = 1.6955, checked against the t density).
 // Both need at least 2 diffs (RangeError otherwise). DEFAULT_METHOD is the method simulate and pairedLowerBound use when none
-// is named; analyzeS5 always uses the registered one (prereg.bound.method).
+// is named; analyzeS5 always uses the registered one (prereg.bound.method). The default is 'paired-t' (ruling R76), against the
+// brief's tie rule: both methods pass the brief's three simulation assertions at the registered seed, but over seeds 1 to 40 the
+// percentile bootstrap's false non-inferiority rate at a true Delta of -0.15 averaged 0.0594 (anti-conservative at N = 32, about 8
+// standard errors above 0.05) against 0.0482 for paired-t, and the spec's criterion (l.185) is about 5 percent. The percentile's
+// seed-20261008 pass (0.063) is luck. Both stay selectable by the registration (see analyze.sim.test.mjs).
 //
 // THE VERDICT (ruling R68d). 'uninformative' unless gateLower > 0; then 'non_inferior' iff niLower > -margin, else
 // 'not_shown_safe'. Both comparisons are strict.
 //
 // THE MECHANISM (ruling R62). B is `treated`, A is `holdout`, taskIndex is `promptIndex`, and analyzeArms runs with direction
-// 'down', the registered effect, alpha, permutations and seed, and minPerArm the included task count. Three analyses, each
+// 'down', the registered effect, alpha, permutations and seed, and minPerArm the included TASK count (not a row count: analyzeArms
+// counts rows per arm, and one ignored row must not turn a met floor into insufficient_data). Three analyses, each
 // reading its measured count and cache_creation and input_total from the SAME usage part (analyzeArms ignores a row without
 // them, silently except for nIgnored): `thinking` (usage.main.thinking, the registered test), `output` (usage.main.output) and
 // `total` (usage.total.thinking, descriptive). The population is the counted rows of the included tasks, arms A and B.
 //
-// SECONDARIES (rulings R64, R70) are descriptive: cost per resolved task, pass^3, counts, discordant tasks, the log ratio of
-// B over A for output and thinking.
+// ONE RUN COUNTS ONCE (ruling R78). analyzeS5 throws when two counted rows share a runId. Rows of a task the prereg does not list
+// are ignored and counted in `ignoredRows`.
+//
+// SECONDARIES (rulings R64, R70, R79, R80) are descriptive. Every one reads the counted rows of the INCLUDED tasks only (an excluded
+// task is dropped from all arms, never from one), except `infraRows` and `excludedTasks`, which are about exclusion. They are:
+// cost per resolved task, pass^3, counts (counted, timeouts, testsNotRun, infraRows, thinkingFieldMissing, p2pRegressions), the
+// median wall time and diff size per arm (the median of an even count is the mean of the two middle values; null for none),
+// discordant tasks, and the log ratio of B over A for output and thinking.
+//
+// THE SIGN TEST (ruling R80). `signTest` is the exact sign test on the included tasks' B - A: counts of B better, A better and
+// ties, and the exact two-sided binomial p over the non-tied tasks (1 when none is non-tied). A descriptive robustness check.
 //
 // THE REPORT (ruling R72). analyzeS5 returns a plain JSON-serializable object (no undefined, NaN, Map):
 //   { margin, alpha, method,                    the registered values read
@@ -42,9 +56,10 @@
 //     ignoredRows,                              rows that are not objects or name a task the prereg does not list
 //     ni: { mean, lower } | null,               B - A; null when fewer than 2 tasks are included
 //     gate: { mean, lower } | null,             A - C
+//     signTest: { bBetter, aBetter, ties, p },  B - A on the included tasks
 //     verdict, reason,                          reason null, 'too_few_tasks' or 'gate_failed' (when uninformative)
 //     mechanism: { thinking, output, total },
-//     secondaries }
+//     secondaries: { excludedTasks, cost, counts, medians: { wallMs, diffSize }, pass3, discordant, logRatio } }
 // The report holds no input row. The rows' order does not matter: tasks are taken in registered order (analyzeS5) or id order
 // (the other functions), so one rows file always gives one report.
 
@@ -53,7 +68,7 @@ import { makeRng } from '../s4-prng.mjs';
 
 export const ARMS = Object.freeze(['A', 'B', 'C']);
 export const METHODS = Object.freeze(['percentile', 'paired-t']);
-export const DEFAULT_METHOD = 'percentile';
+export const DEFAULT_METHOD = 'paired-t';
 
 const BOUND_STREAM = 7; // pairedLowerBound's resampling
 const LOG_RATIO_STREAM = Object.freeze({ output: 8, thinking: 9 }); // ruling R70
@@ -221,6 +236,39 @@ export function pairedLowerBound(diffs, { method = DEFAULT_METHOD, resamples, se
   return { mean: m, lower: quantile1(sortedResampleMeans(diffs, resamples, makeRng(seed, BOUND_STREAM)), alpha) };
 }
 
+// ---- the sign test and the median (ruling R80) ----
+
+// The exact sign test on per-task differences (B - A): a positive difference is B better, a negative one A better, an exact zero a
+// tie. p is the exact two-sided binomial p over the non-tied tasks, min(1, 2 * P(X <= the smaller side)), and 1 when none is
+// non-tied (there is no evidence either way). Descriptive robustness check (spec l.181, ruling R80), not the registered test.
+export function signTest(diffs) {
+  if (!Array.isArray(diffs) || !diffs.every(isFiniteNumber)) throw new TypeError('signTest: diffs must be an array of finite numbers');
+  const bBetter = diffs.filter((d) => d > 0).length;
+  const aBetter = diffs.filter((d) => d < 0).length;
+  const decided = bBetter + aBetter;
+  const p = decided === 0 ? 1 : Math.min(1, 2 * binomialHalfCdf(Math.min(bBetter, aBetter), decided));
+  return { bBetter, aBetter, ties: diffs.length - decided, p };
+}
+
+// The median; the mean of the two middle values for an even count; null for no values (never a 0 that looks like a measurement).
+export function medianOrNull(values) {
+  if (values.length === 0) return null;
+  const sorted = Float64Array.from(values).sort();
+  const mid = sorted.length >> 1;
+  return sorted.length % 2 === 1 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
+}
+
+// P(X <= k) for X ~ Binomial(m, 1/2), by the term recurrence (m is a task count, far below the 0.5 ** m underflow at 1074).
+function binomialHalfCdf(k, m) {
+  let term = 0.5 ** m;
+  let cdf = term;
+  for (let i = 0; i < k; i++) {
+    term = (term * (m - i)) / (i + 1);
+    cdf += term;
+  }
+  return cdf;
+}
+
 // ---- the verdict ----
 
 export function verdict({ gateLower, niLower, margin } = {}) {
@@ -287,6 +335,13 @@ export function mechanism(rows, prereg) {
 
 // ---- secondaries ----
 
+// The size of a row's diff, insertions + deletions, or null when it has no usable one (no grade, or a grade whose diff is null).
+function diffSize(r) {
+  const diff = r.grade?.diff;
+  if (!isObject(diff) || !isFiniteNumber(diff.insertions) || !isFiniteNumber(diff.deletions) || diff.insertions < 0 || diff.deletions < 0) return null;
+  return diff.insertions + diff.deletions;
+}
+
 // The mean of usage.main[field] over the rows, or null when a row has no usable count.
 function usageMean(rs, field) {
   const values = rs.map((r) => r.usage?.main?.[field]);
@@ -321,9 +376,12 @@ const passCaret3 = (c, n) => (c < 3 ? 0 : (c * (c - 1) * (c - 2)) / (n * (n - 1)
 
 export function secondaries(rows, prereg) {
   const all = (Array.isArray(rows) ? rows : []).filter((r) => isObject(r) && ARMS.includes(r.arm));
-  const counted = perArm((arm) => all.filter((r) => r.arm === arm && isCounted(r)));
-  const { scores } = perTaskScores(all);
+  const { scores, excluded } = perTaskScores(all);
   const byTask = countedByTask(all);
+  // Ruling R79 (spec: a task with a persistent infrastructure failure "is dropped from all arms, never from one"): every secondary
+  // reads the counted rows of the INCLUDED tasks only, so an excluded task adds nothing to one arm and not to another. The two
+  // exceptions are `infraRows` and `excludedTasks`, which are about exclusion and read every row given.
+  const counted = perArm((arm) => [...scores.keys()].flatMap((taskId) => byTask.get(taskId)[arm]));
 
   // Cost per resolved task (failures counted): the cost of every counted run over the number of passing counted runs. A run with
   // no cost reading (a timeout may leave no JSON) adds nothing and is counted in `missing`.
@@ -334,13 +392,23 @@ export function secondaries(rows, prereg) {
     return { usd, runs: rs.length, resolved, missing: rs.filter((r) => !isCost(r.costUsd)).length, perResolved: resolved > 0 ? usd / resolved : null };
   });
 
+  // A timeout is read from exit.timedOut, never inferred from a missing grade. p2pRegressions is the number of counted runs whose
+  // grade names a pass-to-pass test that FAILED (notRun is not a failure here).
   const counts = perArm((arm) => ({
     counted: counted[arm].length,
     timeouts: counted[arm].filter((r) => r.exit?.timedOut === true).length,
     testsNotRun: counted[arm].filter((r) => r.testsRunBeforeDone === false).length,
     infraRows: all.filter((r) => r.arm === arm && r.infra !== null && r.infra !== undefined).length,
     thinkingFieldMissing: counted[arm].filter((r) => r.usage?.main?.thinkingFieldMissing > 0).length,
+    p2pRegressions: counted[arm].filter((r) => Array.isArray(r.grade?.p2p?.failed) && r.grade.p2p.failed.length > 0).length,
   }));
+
+  // Medians over the counted rows of the included tasks (ruling R80): the run's wall time, and the size of its diff (insertions +
+  // deletions) over the rows whose grade has a diff.
+  const medians = {
+    wallMs: perArm((arm) => medianOrNull(counted[arm].map((r) => r.wallMs).filter((v) => isFiniteNumber(v) && v >= 0))),
+    diffSize: perArm((arm) => medianOrNull(counted[arm].map(diffSize).filter((v) => v !== null))),
+  };
 
   // pass^3 per included task is C(c, 3) / C(n, 3) over its n counted runs, c of them passing; a task with n < 3 is left out and counted.
   const pass3 = perArm((arm) => {
@@ -360,8 +428,10 @@ export function secondaries(rows, prereg) {
     .sort((x, y) => x.B - x.A - (y.B - y.A)); // the sort is stable and `scores` is by id, so equal differences stay in id order
 
   return {
+    excludedTasks: excluded.length,
     cost,
     counts,
+    medians,
     pass3,
     discordant,
     logRatio: { output: logRatioSummary(scores, byTask, 'output', prereg), thinking: logRatioSummary(scores, byTask, 'thinking', prereg) },
@@ -370,11 +440,25 @@ export function secondaries(rows, prereg) {
 
 // ---- the report ----
 
+// One run must never count twice (ruling R78): Task 10's resume skips a final run, so two counted rows with one runId mean a
+// corrupted rows file, and a silent double count would weight one run twice. A retry or infrastructure row shares its run's id
+// legitimately and is not counted, so only counted rows are compared.
+function assertOneRowPerRun(rows) {
+  const seen = new Set();
+  for (const r of rows) {
+    if (!isCounted(r)) continue;
+    if (seen.has(r.runId)) throw new Error(`analyzeS5: two counted rows share runId ${String(r.runId)}: one run must never count twice`);
+    seen.add(r.runId);
+  }
+}
+
+
 export function analyzeS5(rows, prereg) {
   const all = Array.isArray(rows) ? rows : [];
   const registered = prereg.tasks.map((task) => task.id);
   const known = new Set(registered);
   const mine = all.filter((r) => isObject(r) && known.has(r.taskId));
+  assertOneRowPerRun(mine);
   const { scores, excluded: unscored } = perTaskScores(mine);
   const reasons = new Map(unscored.map((e) => [e.taskId, e.reason]));
 
@@ -406,6 +490,7 @@ export function analyzeS5(rows, prereg) {
     ignoredRows: all.length - mine.length,
     ni,
     gate,
+    signTest: signTest(included.map((s) => s.B - s.A)),
     verdict: outcome,
     reason,
     mechanism: mechanism(mine, prereg),
