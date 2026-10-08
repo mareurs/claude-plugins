@@ -166,7 +166,6 @@ function requireFirstParent(def) {
   }
 }
 
-// `sha` is def.parent for the task tree and def.fix for the gate's fix tree.
 // `sha` is def.parent for the task tree and def.fix for the gate's fix tree. `treeDir` exists and is empty.
 function extractTree(def, sha, treeDir) {
   const archive = git(def.repoPath, ['archive', '--format=tar', sha]);

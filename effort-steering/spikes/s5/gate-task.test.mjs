@@ -25,6 +25,7 @@ import { makeRepo } from './fixtures/make-repo.mjs';
 import { ta } from './fixtures/testkit-async.mjs';
 import { FIX_RUNS, gateReasons, gateTask, GATE_REASONS, MAX_ATTEMPTS, warmTask } from './gate-task.mjs';
 import { git } from './git.mjs';
+import { gradeTree } from './grade.mjs';
 import { IMAGE_FOR_REPO } from './task-def.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -117,6 +118,8 @@ const CASES = [
   ['flaky_at_fix: nor is a truthy pass flag that is not the boolean true', 'cargo', atParentGood(), [result(), result({ pass: 'yes' }), result()], ['flaky_at_fix']],
   ['infra at the parent: the gate cannot judge, and says only that', 'cargo', atParentGood({ infra: 'oom', ...noBuild('not_run') }), [], ['infra']],
   ['infra in a fix run: the series stopped, so there is no flaky or fails reason', 'cargo', atParentGood(), [failsAtFix(), result({ infra: 'timeout' })], ['infra']],
+  ['infra in the third fix run, after a failing run: fails/flaky are only told from three judged runs', 'cargo', atParentGood(), [failsAtFix(), result(), result({ infra: 'oom' })], ['infra']],
+  ['infra in the third fix run, after two failing runs', 'cargo', atParentGood(), [failsAtFix(), failsAtFix(), result({ infra: 'oom' })], ['infra']],
   ['an infra run does not count as a pass either: the other runs\' reasons stand', 'cargo', atParentGood(), [result(), result(), result({ infra: 'rm_failed' })], ['infra']],
   ['infra undefined is not "no infra"', 'cargo', atParentGood({ infra: undefined }), green3(), ['infra']],
   ['sh: manual_review_needed is added and does not fail the gate', 'sh', atParentGood(), green3(), ['manual_review_needed']],
@@ -264,7 +267,8 @@ await ta('gateTask, the ok case: one grade at the parent, three at the fix tree,
   assert.equal(r.hiddenHash, sc.manifest.hiddenHash);
   assert.ok(Date.parse(r.gatedAt) >= before - 1000 && Date.parse(r.gatedAt) <= Date.now() + 1000, r.gatedAt);
   assert.equal(new Date(r.gatedAt).toISOString(), r.gatedAt);
-  assert.deepEqual(Object.keys(r).sort(), ['atFix', 'atParent', 'gatedAt', 'hiddenHash', 'ok', 'reasons', 'treeHash']);
+  assert.deepEqual(Object.keys(r).sort(), ['atFix', 'atParent', 'gatedAt', 'hiddenHash', 'leftover', 'ok', 'reasons', 'treeHash']);
+  assert.equal(r.leftover, null, 'the fix tree was removed');
   const onDisk = JSON.parse(readFileSync(join(sc.taskDir, 'gate.json'), 'utf8'));
   assert.deepEqual(onDisk, JSON.parse(JSON.stringify(r)), 'gate.json is the returned object');
   assert.deepEqual(readdirSync(sc.taskDir).sort(), ['gate.json', 'hidden', 'manifest.json', 'tree'], 'no temp file is left');
@@ -304,11 +308,23 @@ await ta('gateTask runs all three fix grades even after one fails (that is how f
   assert.equal(r.ok, false);
 });
 
-await ta('gateTask, sh runner: manual_review_needed does not fail the gate', async () => {
-  const sc = makeScene({ defOver: { testRunner: 'sh', f2p: { command: ['sh', 'tests/hidden.sh'], names: ['tests/hidden.sh'] }, p2p: { command: ['true'], names: [] }, buildCommand: ['true'], hidden: { files: ['tests/hidden.rs'] } } });
+await ta('gateTask, sh runner: manual_review_needed does not fail the gate on its own, and never admits a task a failing reason drops', async () => {
+  const sh = { testRunner: 'sh', f2p: { command: ['sh', 'tests/hidden.sh'], names: ['tests/hidden.sh'] }, p2p: { command: ['true'], names: [] }, buildCommand: ['true'], hidden: { files: ['tests/hidden.rs'] } };
+  const sc = makeScene({ defOver: sh });
   const { r } = await gate(sc, OK_SERIES());
   assert.deepEqual(r.reasons, ['manual_review_needed']);
   assert.equal(r.ok, true);
+  assert.equal(JSON.parse(readFileSync(join(sc.taskDir, 'gate.json'), 'utf8')).ok, true);
+
+  // the F2P script already passes at the parent: a failing reason next to manual_review_needed is a failing gate
+  const dropped = await gate(sc, [atParentGood({ f2p: phase(F2P), pass: true }), result(), result(), result()]);
+  assert.deepEqual(dropped.r.reasons, ['f2p_passes_at_parent', 'manual_review_needed']);
+  assert.equal(dropped.r.ok, false, 'a task a failing reason drops is not admitted because a person must also read it');
+  assert.equal(JSON.parse(readFileSync(join(sc.taskDir, 'gate.json'), 'utf8')).ok, false, 'and gate.json says so');
+
+  const flaky = await gate(sc, [atParentGood(), result(), failsAtFix(), result()]);
+  assert.deepEqual(flaky.r.reasons, ['flaky_at_fix', 'manual_review_needed']);
+  assert.equal(flaky.r.ok, false);
 });
 
 await ta('gateTask retries a grade that ended in infrastructure, up to two more times, with a fresh run id each time', async () => {
@@ -369,7 +385,7 @@ await ta('gateTask: a grade that throws counts as infrastructure (retried), and 
 
 await ta('gateTask: a grade result that is not the shape of one fails closed as infrastructure', async () => {
   const sc = makeScene();
-  for (const bad of [undefined, null, {}, { ...atParentGood(), nonAssertion: undefined }, { ...atParentGood(), f2p: undefined }]) {
+  for (const bad of [undefined, null, {}, { ...atParentGood(), nonAssertion: undefined }, { ...atParentGood(), f2p: undefined }, { ...atParentGood(), p2p: undefined }, { ...atParentGood(), build: undefined }, { ...atParentGood(), build: 3 }, { ...atParentGood(), infra: undefined, build: undefined }]) {
     const { r } = await gate(sc, [bad]);
     assert.deepEqual(r.reasons, ['infra'], JSON.stringify(bad));
     assert.equal(r.atParent.infra, 'bad_grade_result');
@@ -384,12 +400,36 @@ await ta('gateTask removes the fix tree after every outcome, and keeps it under 
   assert.deepEqual(gateDirs(sc), [], 'removed after throws');
 
   await withEnv({ S5_KEEP_GRADES: '1' }, async () => {
-    await gate(sc, OK_SERIES());
+    const kept1 = await gate(sc, OK_SERIES());
+    assert.equal(kept1.r.leftover, null, 'a tree kept on purpose is not a leftover');
   });
   const kept = gateDirs(sc);
   assert.equal(kept.length, 1);
   assert.ok(existsSync(join(sc.workRoot, 'gate', kept[0], 'tree', 'src', 'lib.rs')), 'the tree is there to look at');
   assert.ok(lstatSync(join(sc.workRoot, 'gate', kept[0])).isDirectory());
+});
+
+await ta('gateTask surfaces a fix tree it could not remove: leftover is its path, in the result and in gate.json, and is not a verdict (R54 M4)', async () => {
+  const sc = makeScene();
+  const gateParent = join(sc.workRoot, 'gate');
+  // a read-only parent: the fix tree cannot be unlinked (removeGradeDir's chmod retry only opens the tree itself)
+  const seam = scripted((i) => {
+    if (i === 1) chmodSync(gateParent, 0o555);
+    return OK_SERIES()[i];
+  });
+  try {
+    const r = await gateTask(sc.manifest, { workRoot: sc.workRoot, grade: seam.grade });
+    const left = readdirSync(gateParent);
+    assert.equal(left.length, 1, 'the control: the tree really is still there');
+    const stuck = join(gateParent, left[0]);
+    assert.equal(r.leftover, stuck);
+    assert.equal(r.ok, true);
+    assert.deepEqual(r.reasons, []);
+    assert.equal(JSON.parse(readFileSync(join(sc.taskDir, 'gate.json'), 'utf8')).leftover, stuck);
+  } finally {
+    chmodSync(gateParent, 0o755);
+  }
+  assert.equal(readdirSync(gateParent).length, 1);
 });
 
 await ta('gateTask: a fix tree that cannot be built throws, writes no gate.json and leaves nothing', async () => {
@@ -449,6 +489,16 @@ await ta('gateTask refuses bad inputs before grading anything', async () => {
   await assert.rejects(go(sc.manifest, { workRoot: undefined }), TypeError);
   await assert.rejects(go(sc.manifest, { image: '' }), TypeError);
   await assert.rejects(go(sc.manifest, { grade: 'no' }), TypeError);
+  // R54 M5: a caller's mistake in the resource options is a TypeError, not three infra attempts and a durable gate.json
+  for (const bad of [
+    { cpus: 0 }, { cpus: -1 }, { cpus: '2' }, { memoryGb: 0 }, { memoryGb: Number.NaN }, { memoryGb: Infinity },
+    { timeouts: { build: -1 } }, { timeouts: { test: 0 } }, { timeouts: { build: 1.5 } }, { timeouts: { container: 0 } }, { timeouts: { build: '5' } }, { timeouts: 5 }, { timeouts: null }, { timeouts: 'x' },
+  ]) {
+    await assert.rejects(go(sc.manifest, bad), (e) => e instanceof TypeError, `${String(bad.cpus ?? bad.memoryGb ?? JSON.stringify(bad))}`);
+  }
+  for (const timeouts of [5, null, 'x']) {
+    await assert.rejects(go(sc.manifest, { timeouts }), (e) => e instanceof TypeError && /timeouts must be an object/.test(e.message), String(timeouts));
+  }
   await assert.rejects(go({ ...sc.manifest, id: 'no-such-task' }), /tree/, 'a task that was never built');
   assert.equal(seam.calls.length, 0, 'nothing was graded');
   assert.ok(!existsSync(join(sc.taskDir, 'gate.json')));
@@ -572,6 +622,37 @@ await taIf('warmTask: cpus and memory limits reach both containers when given', 
   }
 });
 
+await taIf('warmTask and gradeTree against ONE fake docker: the warm build and a grade run with the same network, user, workdir, environment and mounts (R54 M3)', NO_REFLINK_HERE, async () => {
+  const sc = makeScene();
+  const GRADE_ID = 'ef'.repeat(32);
+  const f = warmDocker({
+    containers: [oursOf(FETCH_ID, 's5-warm-fetch-w1'), oursOf(BUILD_ID, 's5-warm-build-w1'), oursOf(GRADE_ID, 's5-grade-par1')],
+    run: { calls: [{ status: 0 }, { status: 0 }, { status: 0, results: { done: 'done\n' } }] },
+  });
+  const w = await warm(sc, f);
+  assert.equal(w.ok, true);
+  await gradeTree(sc.manifest, join(sc.taskDir, 'tree'), { workRoot: sc.workRoot, image: 's5/codescout', runId: 'par1', dockerBin: f.bin });
+  const runs = runCalls(f);
+  assert.equal(runs.length, 3, 'fetch, build, grade');
+  const [, build, grade] = runs;
+  assert.equal(flagValue(grade.argv, '--name'), 's5-grade-par1', 'the third call is the grade');
+
+  const shape = ({ argv }) => ({
+    network: flagValue(argv, '--network'), user: flagValue(argv, '--user'), workdir: flagValue(argv, '--workdir'), env: envNamesOf(argv), image: argv.find((a) => a.startsWith('s5/')),
+  });
+  assert.deepEqual(shape(build), shape(grade), 'a change to either side that makes them differ makes every grade a cold build');
+  assert.deepEqual(build.envMatches, grade.envMatches, 'the same values for CARGO_NET_OFFLINE, CARGO_HOME and CARGO_TARGET_DIR');
+  assert.equal(grade.envMatches.CARGO_TARGET_DIR, true);
+  // every mount of the warm build is a mount of the grade, in the same mode; the grade adds only /hidden and /results
+  for (const m of mountsOf(build.argv)) {
+    const g = mountAt(grade.argv, m.target);
+    assert.ok(g, `${m.target} is mounted in the grade`);
+    assert.equal(g.readonly, m.readonly, `${m.target}: the same mode`);
+  }
+  assert.deepEqual(mountsOf(grade.argv).map((m) => m.target).filter((x) => x !== '/hidden' && x !== '/results').sort(), mountsOf(build.argv).map((m) => m.target).sort());
+  assert.equal(mountAt(grade.argv, '/cargo').source, mountAt(build.argv, '/cargo').source, 'the same cargo home');
+});
+
 await taIf('warmTask: a build failure is returned, not thrown, and the half-built target is not left as a warm one; the fetch failing does not stop the build', NO_REFLINK_HERE, async () => {
   const sc = makeScene();
   const f = warmDocker({ run: { calls: [{ status: 101, stderr: 'error: failed to get `x`\n' }, { status: 101, stderr: `error: could not compile \`tiny\`\n${'x'.repeat(5000)}END\n` }] } });
@@ -659,12 +740,14 @@ await taIf('warmTask: image defaults to IMAGE_FOR_REPO and an image option wins;
 
   const sc3 = makeScene();
   const none = warmDocker();
-  for (const bad of [{ workRoot: '' }, { image: '' }, { runId: 'a b' }, { timeouts: { fetch: 0 } }, { timeouts: { build: 'x' } }, { cpus: 0 }]) {
+  for (const bad of [{ workRoot: '' }, { image: '' }, { runId: 'a b' }, { timeouts: { fetch: 0 } }, { timeouts: { build: 'x' } }, { cpus: 0 }, { memoryGb: 0 }, { memoryGb: -2 }, { cpus: 'x' }]) {
     await assert.rejects(warm(sc3, none, bad), TypeError, JSON.stringify(bad));
   }
   await assert.rejects(warmTask(null, { workRoot: sc3.workRoot, dockerBin: none.bin }), TypeError);
   await assert.rejects(warm({ ...sc3, manifest: { ...sc3.manifest, id: 'no-such-task' } }, none), /tree/);
   assert.equal(none.calls().length, 0);
+  assert.ok(!existsSync(join(sc3.workRoot, 'cargo-home')), 'refused before anything is made: not even the cargo home');
+  assert.deepEqual(warmDirs(sc3), []);
   assert.ok(!existsSync(join(sc3.taskDir, 'target')));
 });
 
@@ -683,7 +766,12 @@ if (process.env.S5_DOCKER_TESTS !== '1') {
 
 async function dockerTests() {
   let seq = 0;
-  const idOf = (what) => `t7-${process.pid}-${what}-${++seq}`;
+  const usedIds = [];
+  const idOf = (what) => {
+    const id = `t7-${process.pid}-${what}-${++seq}`;
+    usedIds.push(id);
+    return id;
+  };
   const CARGO_LOCK = '# This file is automatically @generated by Cargo.\n# It is not intended for manual editing.\nversion = 4\n\n[[package]]\nname = "tiny"\nversion = "0.1.0"\n';
   const cratePlain = { 'Cargo.toml': CARGO_TOML, 'Cargo.lock': CARGO_LOCK, 'tests/visible.rs': VISIBLE_RS };
   const leftover = (id) => {
@@ -698,11 +786,17 @@ async function dockerTests() {
     defOver: { id, ...defOver },
   });
 
-  await ta('docker, cargo: the gate passes a task whose test fails by assertion at the parent and passes three times at the fix; the warm target is used', async () => {
+  // A build script that takes 10 s, and only reruns when build.rs changes: a grade that reuses the warm target never
+  // runs it, a cold one always does. The one piece of evidence a grade exposes of a warm hit is its wall time.
+  const BUILD_RS = 'fn main() {\n    println!("cargo:rerun-if-changed=build.rs");\n    std::thread::sleep(std::time::Duration::from_secs(10));\n}\n';
+  const SLEEP_MS = 10_000;
+
+  await ta('docker, cargo: the gate passes a task whose test fails by assertion at the parent and passes three times at the fix, and no grade re-runs the 10 s build script the warm target already ran', async () => {
     const id = idOf('ok');
-    const sc = crate({ id, parent: { 'src/lib.rs': LIB_P }, fix: { 'src/lib.rs': LIB_FIX } });
+    const sc = crate({ id, parent: { 'src/lib.rs': LIB_P, 'build.rs': BUILD_RS }, fix: { 'src/lib.rs': LIB_FIX } });
     const w = await warmTask(sc.manifest, { workRoot: sc.workRoot, cpus: 2, memoryGb: 4 });
     assert.equal(w.ok, true, JSON.stringify(w));
+    assert.ok(w.build.wallMs >= SLEEP_MS - 500, `the control: a cold build runs the build script and takes at least ${SLEEP_MS} ms, it took ${w.build.wallMs}`);
     assert.ok(lstatSync(join(sc.taskDir, 'target')).isDirectory());
     assert.ok(existsSync(join(sc.taskDir, 'target', 'debug')), 'the build container wrote the warm target');
     assert.ok(existsSync(join(sc.workRoot, 'cargo-home')));
@@ -717,6 +811,10 @@ async function dockerTests() {
     for (const run of g.atFix) {
       assert.equal(run.pass, true);
       assert.deepEqual(run.f2p, phase(F2P));
+    }
+    // the warm hit: the parent's grade and each fix grade (the fix changes lib.rs, not build.rs) did not run the build script
+    for (const [what, run] of [['the parent', g.atParent], ...g.atFix.map((x, i) => [`fix run ${i + 1}`, x])]) {
+      assert.ok(run.wallMs < SLEEP_MS - 2000, `${what}: the grade took ${run.wallMs} ms; it re-ran the build script, so the warm target was not used`);
     }
     assert.deepEqual(JSON.parse(readFileSync(join(sc.taskDir, 'gate.json'), 'utf8')).reasons, []);
     assert.deepEqual(gateDirs(sc), []);
@@ -803,9 +901,19 @@ async function dockerTests() {
     assert.equal(leftover(id), '');
   });
 
-  await ta('docker: no container of these tests is left behind', async () => {
-    const r = spawnSync('docker', ['ps', '-aq', '--filter', 'label=s5=1', '--filter', `name=${process.pid}`], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], timeout: 60_000 });
-    assert.equal(r.status, 0, r.stderr);
-    assert.equal(r.stdout.trim(), '');
+  await ta('docker: no container of any task these tests used is left behind, and the check can see a container that is', async () => {
+    assert.ok(usedIds.length >= 6, `${usedIds.length} task ids: the sweep below must have something to sweep`);
+    for (const id of usedIds) assert.equal(leftover(id), '', `a container of ${id} is left`);
+    // the control: the same filter finds a container that carries the label (one we create here, by our own name, and remove)
+    const name = `s5-t7-ctl-${process.pid}`;
+    const ctl = idOf('control');
+    const made = spawnSync('docker', ['create', '--pull=never', '--name', name, '--label', 's5=1', '--label', `s5.task=${ctl}`, 's5/plugins', 'true'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], timeout: 60_000 });
+    assert.equal(made.status, 0, made.stderr);
+    try {
+      assert.notEqual(leftover(ctl), '', 'the filter sees a container that carries the label');
+    } finally {
+      spawnSync('docker', ['rm', '-f', name], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], timeout: 60_000 });
+    }
+    assert.equal(leftover(ctl), '');
   });
 }

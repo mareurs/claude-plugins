@@ -3,7 +3,7 @@
 //   warmTask(manifest, { workRoot, baseTarget, image, dockerBin, cpus, memoryGb, timeouts, runId })
 //     -> Promise<{ skipped: 'not cargo' } | { ok, fetch, build, buildCommand, target, leftover }>
 //   gateTask(manifest, { workRoot, image, dockerBin, cpus, memoryGb, timeouts, grade })
-//     -> Promise<{ ok, reasons, atParent, atFix, treeHash, hiddenHash, gatedAt }>
+//     -> Promise<{ ok, reasons, atParent, atFix, treeHash, hiddenHash, gatedAt, leftover }>
 //   gateReasons(runner, atParent, atFix) -> string[]       (the mapping, a pure function)
 //
 // `image` defaults to IMAGE_FOR_REPO[manifest.repo] (a caller that pins image ids passes its own). Every function
@@ -33,8 +33,9 @@
 // being gradeTree's one container, so the gate and the measured run share one grader. The fix tree is built by
 // treeAtFix under <workRoot>/gate/<id>-<12 hex>/ and removed afterwards (kept under S5_KEEP_GRADES=1); the files the
 // fix changes are stamped as new as the call, or cargo would call them fresh against the warm target built from the
-// P tree and grade the parent's artifacts. A grade that
-// ends in infrastructure (or throws) is retried up to twice, with a fresh run id; one that still does is `infra`.
+// P tree and grade the parent's artifacts. A grade that ends in infrastructure (or throws) is retried up to twice, with
+// a fresh run id; one that still does is `infra`. cpus, memoryGb and timeouts are checked before any grade: a mistake
+// of the caller's is a TypeError, never an infra record.
 // The series stops at the first grade that stays infra: the gate cannot judge, and says so.
 //
 // Reasons (a fixed order, each once). The gate is ok when none but `manual_review_needed` is present.
@@ -50,9 +51,10 @@
 //   flaky_at_fix           one or two of the three runs fail
 //   manual_review_needed   (sh) an sh test cannot tell an assertion from another failure: a person reads it
 //
-// gate.json, <workRoot>/tasks/<id>/gate.json = { ok, reasons, atParent, atFix, treeHash, hiddenHash, gatedAt }, is
+// gate.json, <workRoot>/tasks/<id>/gate.json = { ok, reasons, atParent, atFix, treeHash, hiddenHash, gatedAt, leftover }, is
 // written atomically (a temp file, then rename over the old one) and is also what gateTask returns. atParent and each
-// atFix entry are gradeTree's result plus `attempts`. The hashes are the manifest's: a runner refuses a task whose
+// atFix entry are gradeTree's result plus `attempts`. `leftover` is the fix tree's directory when it could not be
+// removed (it is not a verdict), else null. The hashes are the manifest's: a runner refuses a task whose
 // gate.json is missing, not ok, or whose hashes differ from the manifest's. Each fix run's wallMs is the whole grade
 // (graft, build, tests), the warm-hit check: a cold build would show as minutes.
 
@@ -63,7 +65,7 @@ import {
 import { join, resolve } from 'node:path';
 import { reflinkCopy, treeAtFix } from './build-task.mjs';
 import { dockerRun } from './docker.mjs';
-import { gradeTree, infraOf, removeGradeDir } from './grade.mjs';
+import { gradeTree, infraOf, limitsOf, removeGradeDir } from './grade.mjs';
 import { IMAGE_FOR_REPO } from './task-def.mjs';
 
 const ID_RE = /^[a-z0-9-]+$/;
@@ -88,6 +90,12 @@ const lstatOrNull = (p) => {
 };
 const isDir = (p) => lstatOrNull(p)?.isDirectory() === true;
 const positive = (n) => typeof n === 'number' && Number.isFinite(n) && n > 0;
+// Each [name, value] is a positive number when given (dockerRun's own rule for cpus and memoryGb).
+const requirePositive = (who, pairs) => {
+  for (const [what, value] of pairs) {
+    if (value !== undefined && !positive(value)) throw new TypeError(`${who}: ${what} must be a positive number when given, got ${JSON.stringify(value)}`);
+  }
+};
 
 // ---- the reasons ----
 
@@ -229,6 +237,11 @@ export async function gateTask(manifest, options = {}) {
   }
   const root = requireWorkRoot('gateTask', workRoot);
   if (typeof grade !== 'function') throw new TypeError('gateTask: the grade option must be a function');
+  // A caller's mistake in the resource options is a TypeError here, before anything is graded: left to the grade it would
+  // be three infrastructure attempts and a durable gate.json that says infra. limitsOf is gradeTree's own rule for timeouts.
+  requirePositive('gateTask', [['cpus', cpus], ['memoryGb', memoryGb]]);
+  if (timeouts !== undefined && (timeouts === null || typeof timeouts !== 'object')) throw new TypeError('gateTask: timeouts must be an object when given');
+  limitsOf(manifest.def, timeouts);
   const image = imageFor('gateTask', manifest, imageOption);
   const taskDir = join(root, 'tasks', manifest.id);
   const tree = join(taskDir, 'tree');
@@ -239,6 +252,7 @@ export async function gateTask(manifest, options = {}) {
   const ctx = { grade, gateId: randomBytes(6).toString('hex'), options: passed({ workRoot: root, image, dockerBin, cpus, memoryGb, timeouts }) };
   const atParent = await gradeWithRetries(ctx, manifest, tree, 'p');
   const atFix = [];
+  let leftover = null;
   if (atParent.infra === null) {
     const gateDir = join(root, 'gate', `${manifest.id}-${ctx.gateId}`);
     mkdirSync(gateDir, { recursive: true });
@@ -252,7 +266,7 @@ export async function gateTask(manifest, options = {}) {
         if (run.infra !== null) break;
       }
     } finally {
-      if (process.env.S5_KEEP_GRADES !== '1') removeGradeDir(gateDir);
+      if (process.env.S5_KEEP_GRADES !== '1') leftover = removeGradeDir(gateDir).leftover;
     }
   }
 
@@ -265,6 +279,7 @@ export async function gateTask(manifest, options = {}) {
     treeHash: manifest.treeHash,
     hiddenHash: manifest.hiddenHash,
     gatedAt: new Date().toISOString(),
+    leftover,
   };
   writeGateJson(taskDir, result);
   return result;
@@ -277,9 +292,7 @@ export async function warmTask(manifest, options = {}) {
   requireManifest('warmTask', manifest);
   const root = requireWorkRoot('warmTask', workRoot);
   if (runId !== undefined && (typeof runId !== 'string' || !RUN_ID_RE.test(runId))) throw new TypeError(`warmTask: runId must match ${RUN_ID_RE}, got ${JSON.stringify(runId)}`);
-  for (const [what, value] of [['timeouts.fetch', timeouts?.fetch], ['timeouts.build', timeouts?.build], ['cpus', cpus], ['memoryGb', memoryGb]]) {
-    if (value !== undefined && !positive(value)) throw new TypeError(`warmTask: ${what} must be a positive number when given, got ${JSON.stringify(value)}`);
-  }
+  requirePositive('warmTask', [['timeouts.fetch', timeouts?.fetch], ['timeouts.build', timeouts?.build], ['cpus', cpus], ['memoryGb', memoryGb]]);
   const { def } = manifest;
   if (def.testRunner !== 'cargo') return { skipped: 'not cargo' };
   if (!Array.isArray(def.buildCommand) || def.buildCommand.length === 0 || def.buildCommand.some((a) => typeof a !== 'string' || a === '')) {

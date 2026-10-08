@@ -292,6 +292,15 @@ function rejects(label, edit, ...patterns) {
   for (const p of patterns) assert.match(err.message, p, label);
 }
 
+// A benign, valid command for each runner: a test replaces the one phase it is about and leaves the other valid.
+const BENIGN = { cargo: ['cargo', 'test', '--no-fail-fast'], node: ['node', 'tests/ok.test.mjs'], sh: ['sh', 'tests/ok.sh'] };
+const withCommand = (phase, command, runner) => (d) => {
+  d.testRunner = runner;
+  d.f2p.command = BENIGN[runner];
+  d.p2p.command = BENIGN[runner];
+  d[phase].command = command;
+};
+
 t('loadTaskDef returns the validated definition; hidden.extra and hidden.graftLines are optional', () => {
   assert.deepEqual(loadTaskDef(makeTaskDir(src)), baseDef(src));
   const bare = baseDef(src);
@@ -299,7 +308,7 @@ t('loadTaskDef returns the validated definition; hidden.extra and hidden.graftLi
   delete bare.hidden.graftLines;
   assert.deepEqual(loadTaskDef(makeTaskDir(src, { def: bare })), bare);
   for (const repo of ['codescout', 'claude-plugins']) assert.equal(loadTaskDef(makeTaskDir(src, { edit: (d) => { d.repo = repo; } })).repo, repo);
-  for (const runner of ['cargo', 'node', 'sh']) assert.equal(loadTaskDef(makeTaskDir(src, { edit: (d) => { d.testRunner = runner; } })).testRunner, runner);
+  for (const runner of ['cargo', 'node', 'sh']) assert.equal(loadTaskDef(makeTaskDir(src, { edit: (d) => { d.testRunner = runner; d.f2p.command = BENIGN[runner]; d.p2p.command = BENIGN[runner]; } })).testRunner, runner);
 });
 
 t("loadTaskDef rejects an absolute hidden path, a '..' path, empty f2p.names and runner 'pytest', each by name", () => {
@@ -372,7 +381,7 @@ const loads = (label, edit) => {
 t('R30: a cargo task\'s f2p and p2p commands that run `cargo test` carry --no-fail-fast before any "--"', () => {
   for (const phase of ['f2p', 'p2p']) {
     const field = new RegExp(`${phase}\\.command`);
-    const set = (command, runner = 'cargo') => (d) => { d[phase].command = command; d.testRunner = runner; };
+    const set = (command) => withCommand(phase, command, 'cargo');
     rejects(`${phase} without it`, set(['cargo', 'test', '--test', 'x']), field, /--no-fail-fast/);
     rejects(`${phase}: after "--" it is a libtest argument, not cargo's`, set(['cargo', 'test', '--', '--no-fail-fast']), field, /--no-fail-fast/);
     rejects(`${phase}: a toolchain override before test`, set(['cargo', '+nightly', 'test', '--lib']), field, /--no-fail-fast/);
@@ -385,24 +394,71 @@ t('R30: a cargo task\'s f2p and p2p commands that run `cargo test` carry --no-fa
     // Not `cargo test`: nothing to check.
     loads(`${phase}: cargo build`, set(['cargo', 'build', '--tests']));
     loads(`${phase}: an external subcommand named like test`, set(['cargo', 'test-x']));
-    loads(`${phase}: another program's test target`, set(['make', 'test']));
-    // The ruling is about a cargo task.
-    loads(`${phase}: a node task's command is not checked`, set(['cargo', 'test'], 'node'));
   }
 });
 
-t('R41: every f2p and p2p command that runs `node --test` carries --test-reporter=tap', () => {
+t('R53: in a cargo task every f2p and p2p command starts with cargo (no env, sh -c or other wrapper hides `cargo test` from R30); in a node task with node; the sh runner is unchanged', () => {
   for (const phase of ['f2p', 'p2p']) {
     const field = new RegExp(`${phase}\\.command`);
-    const set = (command, runner = 'node') => (d) => { d[phase].command = command; d.testRunner = runner; };
-    rejects(`${phase} without a reporter`, set(['node', '--test', 'tests/a.test.mjs']), field, /--test-reporter=tap/);
-    rejects(`${phase} with another reporter`, set(['node', '--test', '--test-reporter=spec', 'tests/a.test.mjs']), field, /--test-reporter=tap/);
-    rejects(`${phase}: in a task of another runner too`, set(['node', '--test', 'tests/a.test.mjs'], 'sh'), field, /--test-reporter=tap/);
-    loads(`${phase} with tap`, set(['node', '--test', '--test-reporter=tap', 'tests/a.test.mjs']));
-    loads(`${phase} with tap given first`, set(['node', '--test-reporter=tap', '--test', 'tests/a.test.mjs']));
+    const as = (runner) => (command) => withCommand(phase, command, runner);
+    // cargo task: the bypass shapes, none of which carries --no-fail-fast
+    for (const wrapped of [
+      ['env', 'RUST_BACKTRACE=1', 'cargo', 'test', '--workspace'],
+      ['sh', '-c', 'cargo test --workspace'],
+      ['bash', '-c', 'cargo test --no-fail-fast'], // even with the flag: the loader cannot see inside
+      ['make', 'test'],
+      ['/usr/local/bin/cargo', 'test', '--no-fail-fast'],
+      ['timeout', '60', 'cargo', 'test'],
+    ]) {
+      rejects(`${phase} in a cargo task: ${wrapped.join(' ')}`, as('cargo')(wrapped), field, /cargo task/, /start with cargo/);
+    }
+    loads(`${phase}: cargo in a cargo task`, as('cargo')(['cargo', 'build']));
+    // node task
+    for (const wrapped of [['env', 'NODE_ENV=test', 'node', '--test', '--test-reporter=tap', 'tests/a.test.mjs'], ['sh', '-c', 'node tests/a.mjs'], ['cargo', 'test']]) {
+      rejects(`${phase} in a node task: ${wrapped.join(' ')}`, as('node')(wrapped), field, /node task/, /start with node/);
+    }
+    loads(`${phase}: node in a node task`, as('node')(['node', 'tests/hidden.test.mjs']));
+    // sh task: unchanged, any program
+    for (const free of [['sh', 'tests/a.sh'], ['env', 'X=1', 'sh', 'tests/a.sh'], ['cargo', 'test'], ['make', 'test']]) {
+      loads(`${phase} in an sh task: ${free.join(' ')}`, as('sh')(free));
+    }
+  }
+});
+
+t('R52: a command that runs `node --test` has --test and --test-reporter=tap before its first positional argument, and no other reporter or destination', () => {
+  const TEST = 'tests/a.test.mjs';
+  for (const phase of ['f2p', 'p2p']) {
+    const field = new RegExp(`${phase}\\.command`);
+    const set = (command, runner = 'node') => withCommand(phase, command, runner);
+    const refused = [
+      ['without a reporter', ['node', '--test', TEST], /--test-reporter=tap/],
+      ['with spec', ['node', '--test', '--test-reporter=spec', TEST], /--test-reporter=tap/],
+      ['the reporter AFTER the file: node ignores it there (verified on v26.10.0) and prints spec', ['node', '--test', TEST, '--test-reporter=tap'], /before the first positional/],
+      ['--test after the file too', ['node', '--test-reporter=tap', TEST, '--test'], /before the first positional/],
+      ['--test behind an option value', ['node', '--foo', 'bar', '--test', '--test-reporter=tap', TEST], /--opt=value/],
+      ['a second reporter', ['node', '--test', '--test-reporter=tap', '--test-reporter=spec', TEST], /another reporter/],
+      ['a second reporter after the file', ['node', '--test', '--test-reporter=tap', TEST, '--test-reporter=spec'], /another reporter/],
+      ['a reporter destination', ['node', '--test', '--test-reporter=tap', '--test-reporter-destination=stderr', TEST], /destination/],
+      ['a space-separated reporter destination', ['node', '--test', '--test-reporter=tap', '--test-reporter-destination', 'stderr', TEST], /destination/],
+      ['a space-separated reporter: tap is then a positional argument', ['node', '--test', '--test-reporter', 'tap', TEST], /--opt=value/],
+      ['a space-separated reporter next to tap', ['node', '--test', '--test-reporter=tap', '--test-reporter', 'spec', TEST], /--opt=value/],
+      ['a space-separated value before the reporter counts as the first positional', ['node', '--test', '--test-name-pattern', 'alpha', '--test-reporter=tap', TEST], /--opt=value/],
+      ['a late --test cannot be told from a script argument: refused, fail closed', ['node', TEST, '--test'], /before the first positional/],
+    ];
+    for (const [what, command, ...patterns] of refused) {
+      rejects(`${phase}: ${what}`, set(command), field, ...patterns);
+    }
+    rejects(`${phase}: in a task of another runner too`, set(['node', '--test', TEST], 'sh'), field, /--test-reporter=tap/);
+    rejects(`${phase}: the late reporter in an sh task`, set(['node', '--test', TEST, '--test-reporter=tap'], 'sh'), field, /before the first positional/);
+
+    loads(`${phase} with tap`, set(['node', '--test', '--test-reporter=tap', TEST]));
+    loads(`${phase} with tap given first`, set(['node', '--test-reporter=tap', '--test', TEST]));
+    loads(`${phase} with another option in --opt=value form`, set(['node', '--test', '--test-reporter=tap', '--test-name-pattern=x', TEST]));
+    loads(`${phase} with several files`, set(['node', '--test', '--test-reporter=tap', TEST, 'tests/b.test.mjs']));
+    loads(`${phase} with no file at all`, set(['node', '--test', '--test-reporter=tap']));
     loads(`${phase}: a plain node script`, set(['node', 'tests/hidden.test.mjs']));
-    loads(`${phase}: a node option that only starts like --test`, set(['node', '--test-name-pattern=x', 'tests/a.test.mjs']));
-    loads(`${phase}: some other program`, set(['sh', 'tests/a.sh']));
+    loads(`${phase}: a node option that only starts like --test`, set(['node', '--test-name-pattern=x', TEST]));
+    loads(`${phase}: a script that is given a reporter-like argument is not a test run`, set(['node', 'tests/a.mjs', '--test-reporter=spec']));
   }
 });
 

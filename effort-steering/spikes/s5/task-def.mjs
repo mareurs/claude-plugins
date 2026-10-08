@@ -24,8 +24,11 @@
 //   p2p         { command, names }   names: array of non-empty strings
 //                 A command that runs `cargo test` in a cargo task carries --no-fail-fast before any `--` (plain
 //                 cargo stops at the first failing test binary, and every listed name behind it would be not run).
-//                 A command that runs `node --test` carries --test-reporter=tap (the grader reads TAP and nothing else).
-//                 Only an argv that starts with `cargo` or `node` is looked at: a shell wrapper hides its commands.
+//                 A command that runs `node --test` has --test and --test-reporter=tap before its first positional
+//                 argument (the first word that does not start with '-'; node ignores options after a file) and no
+//                 other reporter or reporter destination: the grader reads TAP and nothing else.
+//                 The runner binds the program: in a cargo task every command starts with `cargo`, in a node task with
+//                 `node` (no env, sh -c or other wrapper: it would hide the commands above). The sh runner is free.
 //   testPatterns string[]
 //   scrub       { removePaths: string[], terms: string[] }   terms: non-empty strings
 //   timeoutsSec { build, test }      positive integers
@@ -110,13 +113,29 @@ function seconds(field, value) {
   if (!Number.isSafeInteger(value) || value <= 0) fail(field, `must be a positive integer, got ${show(value)}`);
 }
 
-// What a test command runs, read from its argv alone. A shell wrapper (`sh -c '...'`) hides its program and is not looked
-// at. The reading fails closed: any word `test` (or cargo's alias `t`) before the first `--` counts as the subcommand,
-// so `cargo --locked test` and `cargo +nightly test` are seen, and a package that happens to be called `test` is
-// refused too (the author then adds the flag).
+// What a test command runs, read from its argv alone. The runner binds the program (R53: a cargo task's commands start
+// with `cargo`, a node task's with `node`; there is no `env`, `sh -c` or other wrapper to hide `cargo test` or `node --test`
+// in), and the reading fails closed.
+//   cargo: any word `test` (or cargo's alias `t`) before the first `--` is the subcommand, so `cargo --locked test` and
+//   `cargo +nightly test` are seen, and a package that happens to be called `test` is refused too (the author then adds the flag).
+//   node (R52): `--test` anywhere in argv makes it a test run. Node reads its options only up to the first positional
+//   argument (the first word after `node` that does not start with '-': a file, or the value of an option written
+//   with a space, which counts as one), and ignores them after it: on node v26.10.0 `node --test a.test.mjs
+//   --test-reporter=tap` prints spec output, which the grader cannot read. So --test and --test-reporter=tap must both
+//   come before it, and no other reporter or reporter destination may appear anywhere.
 const beforeDashDash = (argv) => (argv.includes('--') ? argv.slice(0, argv.indexOf('--')) : argv);
-const runsCargoTest = (argv) => argv[0] === 'cargo' && beforeDashDash(argv).slice(1).some((a) => a === 'test' || a === 't');
-const runsNodeTest = (argv) => argv[0] === 'node' && argv.includes('--test');
+const runsCargoTest = (argv) => beforeDashDash(argv).slice(1).some((a) => a === 'test' || a === 't');
+const NODE_FLAGS_RULE = "put --test and --test-reporter=tap before the first positional argument (the first word that does not start with '-'), each option in --opt=value form: node ignores them after a file, and a space-separated option value counts as that positional argument";
+// -> why `argv` is not a valid node test command, or null
+const nodeTestProblem = (argv) => {
+  if (argv[0] !== 'node' || !argv.includes('--test')) return null;
+  if (argv.includes('--test-reporter')) return `writes --test-reporter and its value as two words, so it must ${NODE_FLAGS_RULE}`;
+  const other = argv.find((a) => (a.startsWith('--test-reporter=') && a !== '--test-reporter=tap') || a.startsWith('--test-reporter-destination'));
+  if (other !== undefined) return `uses another reporter or a reporter destination (${show(other)}): the grader reads TAP on stdout and nothing else, so only --test-reporter=tap is allowed`;
+  const first = argv.findIndex((a, i) => i > 0 && !a.startsWith('-'));
+  const options = first === -1 ? argv.slice(1) : argv.slice(1, first);
+  return options.includes('--test') && options.includes('--test-reporter=tap') ? null : `must ${NODE_FLAGS_RULE}`;
+};
 
 function readRequired(taskDir, name) {
   let bytes;
@@ -192,12 +211,20 @@ export function loadTaskDef(taskDir) {
   texts('p2p.names', def.p2p.names);
   for (const phase of ['f2p', 'p2p']) {
     const argv = def[phase].command;
-    if (def.testRunner === 'cargo' && runsCargoTest(argv) && !beforeDashDash(argv).includes('--no-fail-fast')) {
-      fail(`${phase}.command`, `runs cargo test without --no-fail-fast before any '--': cargo would stop at the first failing test binary and every listed name behind it would be not run, got ${show(argv)}`);
+    const field = `${phase}.command`;
+    if (def.testRunner === 'cargo') {
+      if (argv[0] !== 'cargo') {
+        fail(field, `must start with cargo in a cargo task: an env, sh -c or other wrapper hides \`cargo test\` from the --no-fail-fast check, got ${show(argv)}`);
+      }
+      if (runsCargoTest(argv) && !beforeDashDash(argv).includes('--no-fail-fast')) {
+        fail(field, `runs cargo test without --no-fail-fast before any '--': cargo would stop at the first failing test binary and every listed name behind it would be not run, got ${show(argv)}`);
+      }
     }
-    if (runsNodeTest(argv) && !argv.includes('--test-reporter=tap')) {
-      fail(`${phase}.command`, `runs node --test without --test-reporter=tap: the grader reads TAP and no other format, got ${show(argv)}`);
+    if (def.testRunner === 'node' && argv[0] !== 'node') {
+      fail(field, `must start with node in a node task: an env, sh -c or other wrapper hides \`node --test\` from the reporter check, got ${show(argv)}`);
     }
+    const problem = nodeTestProblem(argv);
+    if (problem !== null) fail(field, `runs node --test and ${problem}, got ${show(argv)}`);
   }
   texts('testPatterns', def.testPatterns);
 
