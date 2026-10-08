@@ -8,7 +8,8 @@
 // task.json is exactly this object; a key that is not listed is refused, because a misspelled
 // `scrub.terms` would otherwise silently switch the leak check off:
 //
-//   id          /^[a-z0-9-]+$/
+//   id          /^[a-z0-9][a-z0-9-]{0,47}$/              (ruling R92: a letter or digit first, 48 characters at most, so that
+//                                                        <id>.<arm>.<rep> and an attempt suffix fit a 64-character run id)
 //   repo        'codescout' | 'claude-plugins'          (named, never derived from a directory)
 //   repoPath    absolute path of the operator's checkout (only read, through git)
 //   fix, parent full 40-hex shas; parent must differ from fix (build-task.mjs checks it is fix's first parent)
@@ -46,7 +47,11 @@ import { lstatSync, readFileSync } from 'node:fs';
 import { isAbsolute, join } from 'node:path';
 
 // Exported (ruling R51): a task id becomes a path segment under <workRoot>/tasks/, so the prereg loader applies this same rule.
-export const TASK_ID_RE = /^[a-z0-9-]+$/;
+// Ruling R92: it starts with a letter or digit (never '-', which a command line would read as an option) and has at most 48
+// characters, so the run id `<id>.<arm>.<rep>`, an attempt suffix such as `-a9` and the container names `s5-<run id>-a<n>` and
+// `s5-grade-<run id>` all fit grade.mjs's RUN_ID_RE (64 characters) and docker.mjs's NAME_RE. A legal task would otherwise plan
+// and then fail in gradeTree.
+export const TASK_ID_RE = /^[a-z0-9][a-z0-9-]{0,47}$/;
 const ID_RE = TASK_ID_RE;
 const SHA_RE = /^[0-9a-f]{40}$/;
 const REPOS = ['codescout', 'claude-plugins'];

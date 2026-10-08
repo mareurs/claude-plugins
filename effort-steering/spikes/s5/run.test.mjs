@@ -9,13 +9,14 @@
 // them: a planner that wrote to one would throw here. One test builds its object with the real loadS5Config.
 // Fixtures live under one mkdtemp directory in os.tmpdir(), removed on process exit.
 import assert from 'node:assert/strict';
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { t } from '../../core/testkit.mjs';
 import { makeRng } from '../s4-prng.mjs';
 import { loadS5Config } from './prereg.mjs';
 import { planRunsS5 } from './run.mjs';
+import { TASK_ID_RE } from './task-def.mjs';
 
 const ROOT = mkdtempSync(path.join(os.tmpdir(), 's5-run-'));
 process.on('exit', () => rmSync(ROOT, { recursive: true, force: true }));
@@ -224,7 +225,7 @@ t('measure refuses an object that is not a registration (registered must be true
   assert.throws(() => planRunsS5(p, { mode: 'measure', taskIds: ['not-a-task'] }), (e) => e instanceof Error && /taskIds/.test(e.message));
 });
 
-t('smoke plans one run, rep 0, per arm with runs, on one task: the first registered one, or taskIds[0]', () => {
+t('smoke plans one run, rep 0, per arm with runs, on one task: the first registered one, or the one taskId given', () => {
   const p = prereg();
   const first = planRunsS5(p, { mode: 'smoke' });
   assert.deepEqual(first, oracle(p, { only: ['task-1'], cap: 1 }));
@@ -235,8 +236,8 @@ t('smoke plans one run, rep 0, per arm with runs, on one task: the first registe
   const chosen = planRunsS5(p, { mode: 'smoke', taskIds: ['task-4'] });
   assert.deepEqual(chosen, oracle(p, { only: ['task-4'], cap: 1 }));
   assert.ok(chosen.every((r) => r.taskId === 'task-4' && r.taskIndex === 3 && r.rep === 0));
-  assert.deepEqual(planRunsS5(p, { mode: 'smoke', taskIds: ['task-4', 'task-2'] }), chosen, 'only taskIds[0] is planned');
-  assert.deepEqual(planRunsS5(p, { mode: 'smoke', taskIds: ['task-2', 'task-4'] }), oracle(p, { only: ['task-2'], cap: 1 }), 'and the first one is the one given first, not the registered first');
+  assert.deepEqual(planRunsS5(p, { mode: 'smoke', taskIds: ['task-4', 'task-4'] }), chosen, 'a repeated id is still one task');
+  assert.deepEqual(planRunsS5(p, { mode: 'smoke', taskIds: ['task-2'] }), oracle(p, { only: ['task-2'], cap: 1 }), 'the task given, not the registered first');
 
   // An arm without runs has no smoke run; an arm with many runs has one.
   const calib = prereg({ runs: { A: 4, B: 0, C: 1 }, taskIds: ids(3), registered: false });
@@ -245,16 +246,35 @@ t('smoke plans one run, rep 0, per arm with runs, on one task: the first registe
   assert.deepEqual(planRunsS5(prereg({ runs: { A: 0, B: 3, C: 0 }, taskIds: ids(2), registered: false }), { mode: 'smoke' }).map((r) => r.runId), ['task-1.B.0']);
 });
 
+t('smoke refuses more than one taskId, naming every one of them (R94); pilot and calibrate take several', () => {
+  const p = prereg();
+  for (const taskIds of [['task-4', 'task-2'], ['task-2', 'task-4'], ['task-1', 'task-2', 'task-3'], ids(8)]) {
+    assert.throws(
+      () => planRunsS5(p, { mode: 'smoke', taskIds }),
+      (e) => e instanceof Error && /smoke/.test(e.message) && taskIds.every((id) => e.message.includes(JSON.stringify(id))),
+      taskIds.join(),
+    );
+  }
+  // The refusal is smoke's alone: the other modes plan several tasks from the same list.
+  for (const mode of ['pilot', 'calibrate']) assert.deepEqual(planRunsS5(p, { mode, taskIds: ['task-4', 'task-2'] }), oracle(p, { only: ['task-4', 'task-2'] }), mode);
+});
+
 t('an unknown taskId is refused by name in every mode that takes ids, wherever it sits in the list', () => {
   const p = prereg();
+  const named = (...gone) => (e) => e instanceof Error && gone.every((id) => e.message.includes(id));
   for (const mode of ['smoke', 'pilot', 'calibrate']) {
-    assert.throws(() => planRunsS5(p, { mode, taskIds: ['no-such-task'] }), (e) => e instanceof Error && e.message.includes('no-such-task'), `${mode} first`);
-    assert.throws(() => planRunsS5(p, { mode, taskIds: ['task-1', 'no-such-task'] }), (e) => e instanceof Error && e.message.includes('no-such-task'), `${mode} second`);
-    assert.throws(() => planRunsS5(p, { mode, taskIds: ['gone-a', 'task-2', 'gone-b'] }), (e) => e instanceof Error && e.message.includes('gone-a') && e.message.includes('gone-b'), `${mode} two`);
+    assert.throws(() => planRunsS5(p, { mode, taskIds: ['no-such-task'] }), named('no-such-task'), `${mode} alone`);
+  }
+  // Several ids: smoke refuses those (R94) before it can look for an unknown one.
+  for (const mode of ['pilot', 'calibrate']) {
+    assert.throws(() => planRunsS5(p, { mode, taskIds: ['task-1', 'no-such-task'] }), named('no-such-task'), `${mode} second`);
+    assert.throws(() => planRunsS5(p, { mode, taskIds: ['gone-a', 'task-2', 'gone-b'] }), named('gone-a', 'gone-b'), `${mode} two`);
   }
   // A task id is matched exactly: a prefix, another case and a padded id are other ids.
-  for (const id of ['task-', 'TASK-1', ' task-1', 'task-1 ', 'task-10']) {
-    assert.throws(() => planRunsS5(p, { mode: 'pilot', taskIds: [id] }), (e) => e instanceof Error && e.message.includes(JSON.stringify(id)), JSON.stringify(id));
+  for (const mode of ['smoke', 'pilot']) {
+    for (const id of ['task-', 'TASK-1', ' task-1', 'task-1 ', 'task-10']) {
+      assert.throws(() => planRunsS5(p, { mode, taskIds: [id] }), (e) => e instanceof Error && e.message.includes(JSON.stringify(id)), `${mode} ${JSON.stringify(id)}`);
+    }
   }
 });
 
@@ -286,4 +306,44 @@ t('planRunsS5 plans what loadS5Config returns, a frozen object with registered f
   assert.ok(plan.every((r) => r.arm !== 'B'));
   assert.deepEqual(planRunsS5(config, { mode: 'smoke', taskIds: ['task-3'] }), oracle(config, { only: ['task-3'], cap: 1 }));
   assert.throws(() => planRunsS5(config, { mode: 'measure' }), /registered/, 'a config is never a registration');
+});
+
+// ---- R92: the longest legal task id still plans run ids the rest of the harness accepts ----
+
+// grade.mjs's RUN_ID_RE and docker.mjs's NAME_RE are private, so the test reads each regex literal out of its module's source:
+// it follows them when they change and fails (not passes) if the line moves away.
+function regexIn(file, name) {
+  const text = readFileSync(new URL(file, import.meta.url), 'utf8');
+  const m = text.match(new RegExp(`^const ${name} = /(.+)/([a-z]*);$`, 'm'));
+  assert.ok(m, `${file} must define ${name} as a regex literal on one line`);
+  return new RegExp(m[1], m[2]);
+}
+
+t('the longest legal task id plans run ids that gradeTree and docker accept, with an attempt suffix (R92)', () => {
+  const RUN_ID_RE = regexIn('./grade.mjs', 'RUN_ID_RE');
+  const NAME_RE = regexIn('./docker.mjs', 'NAME_RE');
+  assert.ok(RUN_ID_RE.test('a'.repeat(64)) && !RUN_ID_RE.test('a'.repeat(65)), 'the regex read is the 64-character one');
+  assert.ok(NAME_RE.test('s5-a.b_c-1') && !NAME_RE.test('a-s5-x'), 'the regex read is the s5- container name one');
+
+  const longest = 'a1b2'.repeat(12);
+  assert.equal(longest.length, 48);
+  assert.ok(TASK_ID_RE.test(longest) && !TASK_ID_RE.test(`${longest}c`), '48 characters is the longest legal id');
+
+  // Two-digit reps: the longest run id is 48 + '.A.' + 2 digits.
+  const file = path.join(ROOT, 'longest.json');
+  writeFileSync(file, `${JSON.stringify(prereg({ runs: { A: 12, B: 3, C: 2 }, taskIds: [longest, 'x-y'], registered: NO_MARKER }), null, 2)}\n`);
+  const config = loadS5Config(file, { mode: 'pilot' });
+  const plan = planRunsS5(config, { mode: 'pilot' });
+  assert.equal(plan.length, 2 * 17);
+  assert.equal(Math.max(...plan.map((r) => r.runId.length)), 48 + 3 + 2);
+  for (const { runId } of plan) {
+    assert.match(runId, RUN_ID_RE);
+    assert.match(`${runId}-a9`, RUN_ID_RE, 'with an attempt suffix');
+    assert.match(`s5-${runId}-a9`, NAME_RE, 'the run container');
+    assert.match(`s5-grade-${runId}`, NAME_RE, "gradeTree's container");
+  }
+
+  // A 49-character id never reaches the planner: the loader refuses it, naming the field.
+  writeFileSync(file, `${JSON.stringify(prereg({ taskIds: [`${longest}c`], registered: NO_MARKER }), null, 2)}\n`);
+  assert.throws(() => loadS5Config(file, { mode: 'pilot' }), /tasks\[0\]\.id/);
 });

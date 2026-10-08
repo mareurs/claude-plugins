@@ -3,17 +3,19 @@
 //   writeHookCopy(root, esRoot) -> { copyDir, settingsFile }
 //
 // Copies bin/, core/ and adapter/ of `esRoot` (the effort-steering/ directory) into <root>/es, without any *.test.mjs, gives the
-// copy a one-rule core/rules.json, and writes <root>/settings.json, which registers the copy's hook for UserPromptSubmit. The
+// copy a one-rule core/rules.json, and writes <root>/es/settings.json, which registers the copy's hook for UserPromptSubmit. The
 // formats are s4-run.mjs's writeScratch (ruling R83), with two differences: the rule is the fixed shallow one, and the hook's
 // path is the CONTAINER's, not the copy's on the host.
 //
-// A container mounts `copyDir` read-only at /opt/es and runs the container's node on it; `settingsFile` is outside `copyDir` so
-// that mount holds nothing but the hook. All three arms run this one copy. Which arm a run is in comes from the environment, not
-// from the copy: EFFORT_STEERING_HOLDOUT_RATE '0' steers every prompt (B), '1' holds every prompt out (A and C), and in both the
-// hook leaves one decision-log line per prompt.
+// A container mounts `copyDir` read-only at /opt/es and runs the container's node on it. The settings file is INSIDE the copy
+// (ruling R93), so that one mount carries the hook and its settings, and the invocation passes `--settings /opt/es/settings.json`.
+// The copy's top level is therefore bin/, core/, adapter/ and settings.json, and nothing else. All three arms run this one copy.
+// Which arm a run is in comes from the environment, not from the copy: EFFORT_STEERING_HOLDOUT_RATE '0' steers every prompt (B),
+// '1' holds every prompt out (A and C), and in both the hook leaves one decision-log line per prompt.
 //
-// The copy is rebuilt from nothing on every call (`copyDir` is removed first), so a file a former call left there is gone, and
-// the source tree is only read. Every argument and source directory is checked before anything is removed or written.
+// The copy is rebuilt from nothing on every call (`copyDir` is removed first, and only `copyDir`: whatever else `root` holds, a
+// rows file or run directories, is not touched), so a file a former call left there is gone, and the source tree is only read.
+// Every argument and source directory is checked before anything is removed or written.
 // Never runs the hook, never calls a model, never touches Docker.
 
 import { cpSync, mkdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
@@ -45,7 +47,7 @@ export function writeHookCopy(root, esRoot) {
 
   const base = path.resolve(root);
   const copyDir = path.join(base, 'es');
-  const settingsFile = path.join(base, 'settings.json');
+  const settingsFile = path.join(copyDir, 'settings.json');
   mkdirSync(base, { recursive: true });
   rmSync(copyDir, { recursive: true, force: true });
   for (const dir of HOOK_DIRS) {

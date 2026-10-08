@@ -1,5 +1,7 @@
 // hook-copy.test.mjs — writeHookCopy (Task 10a, rulings R83 and R86).
 //
+// The settings file sits INSIDE the copy (R93), so the one read-only mount of copyDir at /opt/es carries the hook and its settings.
+//
 // Two kinds of test. The structural ones run on a small fixture tree, so every boundary of the copy is a file
 // the test chose: which files are dropped, which are kept, what is overwritten, and that the source is untouched.
 // The behavioural ones run on THIS checkout's effort-steering/ and execute the COPIED hook with the host node, the
@@ -44,6 +46,7 @@ const bytesOf = (dir) => Object.fromEntries(listFiles(dir).map((f) => [f, readFi
 const HOOK_DIRS = ['bin', 'core', 'adapter'];
 const isTestFile = (f) => f.endsWith('.test.mjs');
 const RULES_JSON = 'core/rules.json';
+const SETTINGS_JSON = 'settings.json';
 
 const THE_RULE = { id: 's5-all', level: 'shallow', confidence: 'high', reason: 's5', when: { minChars: 0 } };
 const THE_SETTINGS = {
@@ -82,10 +85,11 @@ function fixtureTree() {
 t('writeHookCopy: the settings command uses /opt/es; rules.json holds the one shallow rule; no *.test.mjs is copied', () => {
   const { copyDir, settingsFile } = writeHookCopy(fresh('root'), ES);
 
+  assert.equal(settingsFile, path.join(copyDir, SETTINGS_JSON));
   assert.deepEqual(JSON.parse(readFileSync(settingsFile, 'utf8')), THE_SETTINGS);
   assert.deepEqual(JSON.parse(readFileSync(path.join(copyDir, RULES_JSON), 'utf8')), { version: 1, rules: [THE_RULE] });
 
-  // The copy is exactly the source's bin/, core/ and adapter/ without *.test.mjs, plus the one rewritten file.
+  // The copy is exactly the source's bin/, core/ and adapter/ without *.test.mjs, plus the one rewritten file and the settings file.
   const source = Object.fromEntries(HOOK_DIRS.flatMap((d) => Object.entries(bytesOf(path.join(ES, d))).map(([f, b]) => [`${d}/${f}`, b])));
   const testFiles = Object.keys(source).filter(isTestFile);
   assert.ok(testFiles.length >= 5, `the source has test files to leave out (found ${testFiles.length})`);
@@ -94,20 +98,22 @@ t('writeHookCopy: the settings command uses /opt/es; rules.json holds the one sh
   assert.deepEqual(Object.keys(copy).filter(isTestFile), [], 'no *.test.mjs in the copy');
   const expected = Object.fromEntries(Object.entries(source).filter(([f]) => !isTestFile(f)));
   expected[RULES_JSON] = copy[RULES_JSON];
+  expected[SETTINGS_JSON] = copy[SETTINGS_JSON];
   assert.deepEqual(copy, expected, 'every other file is copied byte for byte');
 });
 
 t('writeHookCopy: on a fixture tree, only *.test.mjs files are dropped, only bin/ core/ adapter/ are copied, and rules.json is replaced', () => {
   const es = fixtureTree();
-  const { copyDir } = writeHookCopy(fresh('root'), es);
+  const { copyDir, settingsFile } = writeHookCopy(fresh('root'), es);
 
-  assert.deepEqual(readdirSync(copyDir).sort(), ['adapter', 'bin', 'core']);
+  assert.deepEqual(readdirSync(copyDir).sort(), ['adapter', 'bin', 'core', 'settings.json']);
   const expected = {};
   for (const [rel, content] of Object.entries(FIXTURE_FILES)) {
     if (!HOOK_DIRS.some((d) => rel.startsWith(`${d}/`)) || isTestFile(rel)) continue;
     expected[rel] = Buffer.from(content);
   }
   expected[RULES_JSON] = Buffer.from(`${JSON.stringify({ version: 1, rules: [THE_RULE] })}\n`);
+  expected[SETTINGS_JSON] = readFileSync(settingsFile);
   assert.deepEqual(Object.keys(expected).sort(), [
     'adapter/claude-code/d.mjs',
     'adapter/claude-code/fixtures/in.json',
@@ -118,6 +124,7 @@ t('writeHookCopy: on a fixture tree, only *.test.mjs files are dropped, only bin
     'core/rules.json',
     'core/test.mjs',
     'core/testkit.mjs',
+    'settings.json',
   ]);
   assert.deepEqual(bytesOf(copyDir), expected);
 });
@@ -130,7 +137,7 @@ t('writeHookCopy: the source tree is not touched (its shipped rules.json stays, 
   assert.equal(readFileSync(path.join(es, RULES_JSON), 'utf8'), FIXTURE_FILES[RULES_JSON]);
 });
 
-t('writeHookCopy: the paths returned are absolute and exist; the settings file is outside the copy that is mounted at /opt/es', () => {
+t('writeHookCopy: the paths returned are absolute and exist; the settings file is inside the copy that is mounted at /opt/es, and nothing else is new', () => {
   const root = fresh('root');
   // A relative root is resolved: docker -v needs absolute paths, and the caller's cwd may change.
   const { copyDir, settingsFile } = writeHookCopy(path.relative(process.cwd(), root), path.relative(process.cwd(), ES));
@@ -138,23 +145,33 @@ t('writeHookCopy: the paths returned are absolute and exist; the settings file i
   assert.ok(statSync(copyDir).isDirectory());
   assert.ok(statSync(settingsFile).isFile());
   assert.equal(copyDir, path.join(root, 'es'));
-  assert.equal(settingsFile, path.join(root, 'settings.json'));
-  assert.ok(!settingsFile.startsWith(`${copyDir}${path.sep}`), 'the settings file is not inside the copy');
-  assert.ok(!listFiles(copyDir).includes('settings.json'), 'the copy holds no settings file');
+  // R93: one read-only mount of copyDir carries the hook and its settings.
+  assert.equal(settingsFile, path.join(copyDir, 'settings.json'));
+  assert.ok(settingsFile.startsWith(`${copyDir}${path.sep}`), 'the settings file is inside the copy');
+  // The copy gains that one top-level file and no other; root gains nothing beside the copy.
+  assert.deepEqual(readdirSync(copyDir).sort(), ['adapter', 'bin', 'core', 'settings.json']);
+  assert.deepEqual(readdirSync(root), ['es']);
 });
 
-t('writeHookCopy: a second call into the same root rebuilds the copy: a stale file is gone, a changed file is back', () => {
+t('writeHookCopy: a second call into the same root rebuilds the copy: a stale file is gone, a changed file is back, and nothing beside the copy is touched', () => {
   const es = fixtureTree();
   const root = fresh('root');
   const first = writeHookCopy(root, es);
   writeFileSync(path.join(first.copyDir, 'core', 'stale.mjs'), 'left over');
   writeFileSync(path.join(first.copyDir, 'bin', 'a.mjs'), 'edited in the copy');
   writeFileSync(first.settingsFile, '{}');
+  // What a resumed batch keeps beside the copy: a file, and a directory with a file in it (R95).
+  writeFileSync(path.join(root, 'rows.jsonl'), '{"runId":"x"}\n');
+  mkdirSync(path.join(root, 'runs', 'r1'), { recursive: true });
+  writeFileSync(path.join(root, 'runs', 'r1', 'row.json'), '{}');
   const second = writeHookCopy(root, es);
   assert.deepEqual(second, first);
   assert.ok(!existsSync(path.join(second.copyDir, 'core', 'stale.mjs')));
   assert.equal(readFileSync(path.join(second.copyDir, 'bin', 'a.mjs'), 'utf8'), 'a');
   assert.deepEqual(JSON.parse(readFileSync(second.settingsFile, 'utf8')), THE_SETTINGS);
+  assert.equal(readFileSync(path.join(root, 'rows.jsonl'), 'utf8'), '{"runId":"x"}\n', 'a sibling file survives');
+  assert.equal(readFileSync(path.join(root, 'runs', 'r1', 'row.json'), 'utf8'), '{}', 'a sibling directory and its file survive');
+  assert.deepEqual(readdirSync(root).sort(), ['es', 'rows.jsonl', 'runs']);
 });
 
 t('writeHookCopy: a source directory that is missing is refused by name before anything is written', () => {

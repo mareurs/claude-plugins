@@ -650,10 +650,10 @@ t('loadS5Config (R2) needs at least 1 task: none refused, 1 and 7 load', () => {
   acceptCases([[['tasks', VALID.tasks.slice(0, 1)]], [['tasks', VALID.tasks.slice(0, 7)]], [['tasks', VALID.tasks]]], { only: ['config'] });
 });
 
-t('a task id follows the task-def id rule, and must be a string', () => {
+t('a task id follows the task-def id rule (R92: a letter or digit first, then letters, digits and dashes, 48 characters at most), and must be a string', () => {
   assert.ok(TASK_ID_RE.test('task-1') && !TASK_ID_RE.test('Task-1'), 'the rule this test assumes');
-  refuse('tasks[3].id', ['Task-1', 'task_1', 'task 1', 'a/b', '../x', '', '.', '..', 'tâsk', 'task-1\n', 5, true, ['task-x']]);
-  accept('tasks[3].id', ['a', '0', 'a-b-0', '-', 'task-99', 'x'.repeat(200)]);
+  refuse('tasks[3].id', ['Task-1', 'task_1', 'task 1', 'a/b', '../x', '', '.', '..', 'tâsk', 'task-1\n', 5, true, ['task-x'], '-', '-x', '--', '-task-1', 'x'.repeat(49), `1${'-'.repeat(48)}`, 'x'.repeat(62), 'x'.repeat(200)]);
+  accept('tasks[3].id', ['a', '0', 'a-b-0', 'a-', '9-', 'task-99', 'x'.repeat(47), 'x'.repeat(48), `1${'-'.repeat(47)}`]);
 });
 
 t('task ids are unique: a repeat is refused naming the second one', () => {

@@ -6,9 +6,11 @@
 // The order is what the batch runner executes and resumes from (ruling R84), and it is a function of the registration alone, so a
 // resumed batch plans the same runs in the same order and matches its rows by runId.
 //
-//   runId      `<taskId>.<arm>.<rep>`: deterministic, so a row on disk names the run it belongs to. A task id is [a-z0-9-]+ (it is a
-//              path segment) and an arm is one capital letter, so the id reads back unambiguously from its right end. The id of one
-//              ATTEMPT (the session id of a re-run) is a fresh UUID the runner chooses; it is not part of a Run.
+//   runId      `<taskId>.<arm>.<rep>`: deterministic, so a row on disk names the run it belongs to. A task id is a letter or digit
+//              and then letters, digits and dashes, 48 characters at most (task-def's TASK_ID_RE, ruling R92: it is a path segment,
+//              and the run id with an attempt suffix must fit grade.mjs's 64-character run id), and an arm is one capital letter,
+//              so the id reads back unambiguously from its right end. The id of one ATTEMPT (the session id of a re-run) is a
+//              fresh UUID the runner chooses; it is not part of a Run.
 //   taskIndex  the task's index in prereg.tasks, the registered order. A taskIds filter never renumbers it.
 //   arm/effort/steer   A, B or C, and that arm's registered effort and steer.
 //   rep        0-based, within the task and arm.   round   0-based position in the task's own order.
@@ -23,8 +25,9 @@
 //              and refused with taskIds.
 //   pilot, calibrate   the same plan for the given arms, on prereg.tasks or the tasks named in taskIds (ids unique, order of the
 //              registration). They accept what loadS5Prereg or loadS5Config returns.
-//   smoke      one run, rep 0, per arm with runs > 0, on ONE task: taskIds[0] (any further id is checked and ignored), else the
-//              first registered task. It is ordered by the same shuffle as the other modes.
+//   smoke      one run, rep 0, per arm with runs > 0, on ONE task: the one task named in taskIds, else the first registered task.
+//              More than one distinct id in taskIds is refused, naming them (ruling R94: whoever passes two expects two); a repeated
+//              id is one task. It is ordered by the same shuffle as the other modes.
 // An id in taskIds that prereg.tasks does not list is refused by name, in every mode that takes ids.
 //
 // `prereg` is trusted to be what a loader returns (shape and numbers are checked there); it is never written to: the loaders
@@ -64,6 +67,10 @@ export function planRunsS5(prereg, options) {
   if (taskIds !== undefined) {
     if (!Array.isArray(taskIds) || taskIds.length === 0 || !taskIds.every((id) => typeof id === 'string')) {
       throw new TypeError(`planRunsS5: taskIds must be a non-empty array of task ids, got ${show(taskIds)}`);
+    }
+    const distinct = [...new Set(taskIds)];
+    if (mode === 'smoke' && distinct.length > 1) {
+      throw new Error(`planRunsS5: mode smoke plans one task, but taskIds names ${distinct.length}: ${distinct.map(show).join(', ')}`);
     }
     const registered = new Set(prereg.tasks.map((task) => task.id));
     const unknown = taskIds.filter((id) => !registered.has(id));

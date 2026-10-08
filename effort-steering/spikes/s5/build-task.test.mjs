@@ -311,6 +311,12 @@ t('loadTaskDef returns the validated definition; hidden.extra and hidden.graftLi
   for (const runner of ['cargo', 'node', 'sh']) assert.equal(loadTaskDef(makeTaskDir(src, { edit: (d) => { d.testRunner = runner; d.f2p.command = BENIGN[runner]; d.p2p.command = BENIGN[runner]; } })).testRunner, runner);
 });
 
+t('loadTaskDef accepts an id of 1 to 48 characters that starts with a letter or digit (R92)', () => {
+  for (const id of ['a', '0', '9-', 'a-b-0', '0-', 'x'.repeat(48), `1${'-'.repeat(47)}`, 'a1b2'.repeat(12)]) {
+    assert.equal(loadTaskDef(makeTaskDir(src, { edit: (d) => { d.id = id; } })).id, id, JSON.stringify(id));
+  }
+});
+
 t("loadTaskDef rejects an absolute hidden path, a '..' path, empty f2p.names and runner 'pytest', each by name", () => {
   rejects('an absolute hidden path', (d) => { d.hidden.files = ['/etc/passwd']; }, /hidden\.files/, /absolute/);
   rejects("a '..' path", (d) => { d.hidden.files = ['tests/../../x']; }, /hidden\.files/, /\.\./);
@@ -336,6 +342,10 @@ t('loadTaskDef rejects every other malformed field by name', () => {
   rejects('id with a capital', (d) => { d.id = 'Bad_Id'; }, /\bid\b/);
   rejects('id with a space', (d) => { d.id = 'a b'; }, /\bid\b/);
   rejects('empty id', (d) => { d.id = ''; }, /\bid\b/);
+  rejects('id with a leading dash (R92: it would start a run id, and a docker name, with "-")', (d) => { d.id = '-x'; }, /\bid\b/, /-x/);
+  rejects('a lone dash as an id', (d) => { d.id = '-'; }, /\bid\b/);
+  rejects('a 49-character id (R92: at most 48, so <id>.<arm>.<rep> and an attempt suffix fit a 64-character run id)', (d) => { d.id = 'a'.repeat(49); }, /\bid\b/);
+  rejects('a 62-character id', (d) => { d.id = 'a'.repeat(62); }, /\bid\b/);
   rejects('unknown repo', (d) => { d.repo = 'github'; }, /\brepo\b/, /github/);
   rejects('no repo', (d) => { delete d.repo; }, /\brepo\b/);
   rejects('relative repoPath', (d) => { d.repoPath = 'work/codescout'; }, /repoPath/);
