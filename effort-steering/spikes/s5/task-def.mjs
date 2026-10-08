@@ -45,7 +45,9 @@
 import { lstatSync, readFileSync } from 'node:fs';
 import { isAbsolute, join } from 'node:path';
 
-const ID_RE = /^[a-z0-9-]+$/;
+// Exported (ruling R51): a task id becomes a path segment under <workRoot>/tasks/, so the prereg loader applies this same rule.
+export const TASK_ID_RE = /^[a-z0-9-]+$/;
+const ID_RE = TASK_ID_RE;
 const SHA_RE = /^[0-9a-f]{40}$/;
 const REPOS = ['codescout', 'claude-plugins'];
 const RUNNERS = ['cargo', 'node', 'sh'];

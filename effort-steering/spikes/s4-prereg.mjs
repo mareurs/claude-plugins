@@ -14,7 +14,8 @@ import { basename, dirname, resolve } from 'node:path';
 const isNum = (v) => typeof v === 'number' && Number.isFinite(v);
 const isInt = (v) => Number.isSafeInteger(v);
 const blank = (s) => typeof s !== 'string' || s.trim().length === 0;
-const EFFORTS = ['low', 'medium', 'high', 'xhigh', 'max'];
+// Exported so S5's loader shares the one effort order (low < medium < high < xhigh < max).
+export const EFFORTS = ['low', 'medium', 'high', 'xhigh', 'max'];
 
 // The runner's arm count (ruling R24), kept here so the loader and the runner cannot disagree:
 // per prompt, round(repeats x holdoutRate) of the repeats are holdout, clamped so that both
@@ -120,7 +121,7 @@ export function runGit(file, args) {
   return spawnSync('git', argv, { env, maxBuffer: 64 * 1024 * 1024 });
 }
 
-function requireCommitted(file, bytes) {
+export function requireCommitted(file, bytes) {
   const name = basename(file);
   const tracked = runGit(file, ['ls-files', '--error-unmatch', '--', name]);
   if (tracked.error || tracked.status !== 0) {
