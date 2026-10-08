@@ -1233,6 +1233,45 @@ await taIf('node runner: ok and not ok lines decide, a ReferenceError is a failu
   assert.deepEqual(skipped.r.f2p.notRun, ['adds']);
 });
 
+await taIf('nonAssertion (R32): the listed node names that failed by something other than an assertion, F2P then P2P; [] for every other outcome', NO_REFLINK_HERE, async () => {
+  const node = {
+    testRunner: 'node',
+    f2p: { command: ['node', 'tests/hidden.test.mjs'], names: ['adds', 'subtracts', 'skipped'] },
+    p2p: { command: ['node', 'tests/old.test.mjs'], names: ['existing', 'old one'] },
+    hidden: { files: ['tests/hidden.test.mjs'] },
+  };
+  const f2pOut = 'not ok - adds\nReferenceError: add is not defined\n    at x\nnot ok - subtracts\nAssertionError [ERR_ASSERTION]: 1 !== 2\n    at y\n'
+    + 'not ok - unlisted\nReferenceError: z is not defined\n    at z\nok - skipped # SKIP later\n';
+  const p2pOut = 'ok - existing\nnot ok - old one\nTypeError: cannot read\n    at w\n';
+  const mixed = await grade(makeScene(node), { results: results({ 'f2p.out': f2pOut, 'f2p.status': '1\n', 'p2p.out': p2pOut, 'p2p.status': '1\n' }), image: 's5/plugins' });
+  assert.deepEqual(mixed.r.nonAssertion, ['adds', 'old one'], 'the ReferenceError in F2P, then the TypeError in P2P; not the assertion, not the unlisted name, not the skipped one');
+  assert.deepEqual(mixed.r.f2p.failed, ['adds', 'subtracts']);
+  assert.deepEqual(mixed.r.f2p.notRun, ['skipped']);
+
+  const behaviour = await grade(makeScene(node), { results: results({ 'f2p.out': 'not ok - adds\nAssertionError [ERR_ASSERTION]: no\n    at y\nok - subtracts\nok - skipped\n', 'p2p.out': 'ok - existing\nok - old one\n' }), image: 's5/plugins' });
+  assert.deepEqual(behaviour.r.nonAssertion, [], 'an assertion is a behaviour failure');
+
+  const both = await grade(makeScene({ ...node, p2p: { command: node.p2p.command, names: ['adds'] } }), { results: results({ 'f2p.out': 'not ok - adds\nReferenceError: q\n', 'p2p.out': 'not ok - adds\nReferenceError: q\n' }), image: 's5/plugins' });
+  assert.deepEqual(both.r.nonAssertion, ['adds'], 'a name listed in both phases is named once');
+
+  const noBuild = await grade(makeScene(node), { results: results({ 'build.status': '1\n', 'f2p.out': f2pOut, 'p2p.out': p2pOut }), image: 's5/plugins' });
+  assert.equal(noBuild.r.build, 'failed');
+  assert.deepEqual(noBuild.r.nonAssertion, [], 'no test step ran: nothing failed by any reason');
+
+  const cargo = await grade(makeScene(), { results: results({ 'f2p.out': 'running 1 test\ntest hidden::it_works ... FAILED\n\nfailures:\n\n---- hidden::it_works stdout ----\nthread panicked at src/lib.rs:1:1:\nboom\n', 'f2p.status': '101\n' }) });
+  assert.deepEqual(cargo.r.f2p.failed, ['hidden::it_works']);
+  assert.deepEqual(cargo.r.nonAssertion, [], 'cargo has no classifier: a panic is a behaviour failure');
+
+  const sh = { testRunner: 'sh', f2p: { command: ['sh', 'tests/hidden.sh'], names: ['tests/hidden.sh'] }, p2p: { command: ['true'], names: [] }, hidden: { files: ['tests/hidden.sh'] } };
+  const shRun = await grade(makeScene(sh), { results: results({ 'f2p.out': 'not ok - tests/hidden.sh\nReferenceError: x\n', 'f2p.status': '1\n' }), image: 's5/plugins' });
+  assert.deepEqual(shRun.r.f2p.failed, ['tests/hidden.sh']);
+  assert.deepEqual(shRun.r.nonAssertion, [], 'sh cannot tell');
+
+  const incomplete = await grade(makeScene(node), { results: results({ done: null, 'f2p.out': f2pOut, 'p2p.out': p2pOut }), image: 's5/plugins' });
+  assert.equal(incomplete.r.infra, 'incomplete');
+  assert.ok(Array.isArray(incomplete.r.nonAssertion), 'the field is always an array');
+});
+
 await taIf('a result file left as a symlink is never followed: the names behind it are not run', NO_REFLINK_HERE, async () => {
   const sc = makeScene();
   const secret = join(sc.dir, 'forged-f2p.txt');

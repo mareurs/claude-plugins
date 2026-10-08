@@ -47,7 +47,9 @@
 //   EXITED while its stdout is still open. `run.results` { "<file>": "<text>" } writes each file into the host
 //   directory bound at /results (the `--mount ...,target=/results` argument), and `run.resultLinks`
 //   { "<file>": "<target>" } makes a symlink there, so a test can script what a container's driver left
-//   behind without starting one. `ps.answers` is a list of ID lists: the i-th `ps` call
+//   behind without starting one. `run.calls` is a list of per-call overrides: the i-th `run` call (the last entry
+//   repeats) takes that entry's keys (status, stdout, stderr, sleepMs, results, ...) over `run`'s own, so a test can make
+//   one container of two fail. `ps.answers` is a list of ID lists: the i-th `ps` call
 //   prints answers[i] (the last answer repeats) whatever its filters say, so a test can make a
 //   container appear, or vanish, between two lookups. A first word with no known behaviour exits 99.
 
@@ -66,7 +68,7 @@ const isContainerGroup = argv[0] === 'container';
 const op = isContainerGroup ? argv[1] : argv[0];
 const rest = argv.slice(isContainerGroup ? 2 : 1);
 const config = JSON.parse(readFileSync(CONFIG, 'utf8'));
-const spec = config[op] ?? {};
+const baseSpec = config[op] ?? {};
 const containers = config.containers ?? [];
 const killMarker = (id) => `${LOG}.killed.${id}`;
 const sleeper = new Int32Array(new SharedArrayBuffer(4));
@@ -122,9 +124,16 @@ function priorPsCalls() {
   if (!existsSync(LOG)) return 0;
   return readFileSync(LOG, 'utf8').split('\n').filter(Boolean).filter((l) => JSON.parse(l).argv[0] === 'ps').length;
 }
+// The same for `run` calls: how many came before this one.
+function priorRunCalls() {
+  if (!existsSync(LOG)) return 0;
+  return readFileSync(LOG, 'utf8').split('\n').filter(Boolean).filter((l) => JSON.parse(l).argv[0] === 'run').length;
+}
 
 const refs = refsOf();
 const psIndex = op === 'ps' ? priorPsCalls() : 0;
+// `run.calls` scripts the i-th `run` call: its keys are laid over `run` (the last entry repeats).
+const spec = op === 'run' && baseSpec.calls ? { ...baseSpec, ...baseSpec.calls[Math.min(priorRunCalls(), baseSpec.calls.length - 1)] } : baseSpec;
 const touched = refs.map(resolveRef).filter(Boolean);
 const missing = refs.filter((r) => !resolveRef(r));
 const envMatches = Object.fromEntries(Object.entries(config.expectEnv ?? {}).map(([k, v]) => [k, process.env[k] === v]));

@@ -17,16 +17,27 @@
 //   hidden      { files: string[], extra?: string[], graftLines?: [{ file, line }] }
 //                 files       paths whose FIX version becomes hidden tests
 //                 extra       paths relative to <taskDir>/extra-tests/ (authored tests); each must be a file there
-//                 graftLines  `line` (one non-empty line) is appended to `file` when the hidden tests are grafted in
+//                 graftLines  `line` is appended to `file` when the hidden tests are grafted in, and declares exactly
+//                             one Rust module (`mod NAME;`, attributes and visibility on the same line allowed): see moduleOf
 //   buildCommand, f2p.command, p2p.command   non-empty string arrays
 //   f2p         { command, names }   names: non-empty array of non-empty strings
 //   p2p         { command, names }   names: array of non-empty strings
+//                 A command that runs `cargo test` in a cargo task carries --no-fail-fast before any `--` (plain
+//                 cargo stops at the first failing test binary, and every listed name behind it would be not run).
+//                 A command that runs `node --test` carries --test-reporter=tap (the grader reads TAP and nothing else).
+//                 Only an argv that starts with `cargo` or `node` is looked at: a shell wrapper hides its commands.
 //   testPatterns string[]
 //   scrub       { removePaths: string[], terms: string[] }   terms: non-empty strings
 //   timeoutsSec { build, test }      positive integers
 //
 // Every path (hidden.files, hidden.extra, hidden.graftLines[].file, scrub.removePaths) is relative:
-// no leading '/', no '..', '.' or empty segment. A violation is a TypeError that names the field.
+// no leading '/', no '..', '.' or empty segment. No path field, repoPath included, holds a control character:
+// a path is written into shell scripts (the graft), and a newline in one could end a here-document.
+// A violation is a TypeError that names the field.
+//
+// IMAGE_FOR_REPO maps `repo` to the image its tasks are built, gated and run in.
+// moduleOf is the one module-line rule: the loader refuses a graftLines line it rejects, and the grader
+// (grade.mjs re-exports it) refuses the same lines. It lives here, the leaf both import, so there is no cycle.
 
 import { lstatSync, readFileSync } from 'node:fs';
 import { isAbsolute, join } from 'node:path';
@@ -35,6 +46,20 @@ const ID_RE = /^[a-z0-9-]+$/;
 const SHA_RE = /^[0-9a-f]{40}$/;
 const REPOS = ['codescout', 'claude-plugins'];
 const RUNNERS = ['cargo', 'node', 'sh'];
+// Ruling R37. The images are built by images/build.sh; a caller that pins an image by digest passes `image`.
+export const IMAGE_FOR_REPO = Object.freeze({ codescout: 's5/codescout', 'claude-plugins': 's5/plugins' });
+// A control character (C0, DEL): NUL, newline, tab, escape, ...
+const CONTROL = /[\x00-\x1f\x7f]/;
+
+// A graftLines line declares exactly one Rust module: `mod NAME;`, with attributes and visibility on the same
+// line allowed. (The grafted line is how a hidden test file becomes part of the crate.)
+const MOD_LINE = /^(?:#\[[^\]\r\n]*\]\s*)*(?:pub(?:\s*\([^)\r\n]*\))?\s+)?mod\s+([A-Za-z_][A-Za-z0-9_]*)\s*;\s*$/;
+// moduleOf(line) -> the module's name. Throws TypeError for a line that is not one module declaration.
+export const moduleOf = (line) => {
+  const m = typeof line === 'string' ? MOD_LINE.exec(line) : null;
+  if (m === null) throw new TypeError(`a graftLines line must declare exactly one Rust module (\`mod NAME;\`, attributes and visibility allowed), got ${JSON.stringify(line)}`);
+  return m[1];
+};
 
 const fail = (field, why) => {
   throw new TypeError(`loadTaskDef: ${field} ${why}`);
@@ -70,7 +95,7 @@ function command(field, value) {
 }
 function relPath(field, value) {
   if (typeof value !== 'string' || value === '') fail(field, `must be a non-empty relative path, got ${show(value)}`);
-  if (value.includes('\0')) fail(field, 'must not contain a NUL byte');
+  if (CONTROL.test(value)) fail(field, `must not contain a control character (a newline, a NUL byte, ...), got ${show(value)}`);
   if (isAbsolute(value)) fail(field, `must be relative, but ${show(value)} is an absolute path`);
   for (const seg of value.split('/')) {
     if (seg === '..') fail(field, `must not contain a '..' segment, got ${show(value)}`);
@@ -84,6 +109,14 @@ function relPaths(field, value) {
 function seconds(field, value) {
   if (!Number.isSafeInteger(value) || value <= 0) fail(field, `must be a positive integer, got ${show(value)}`);
 }
+
+// What a test command runs, read from its argv alone. A shell wrapper (`sh -c '...'`) hides its program and is not looked
+// at. The reading fails closed: any word `test` (or cargo's alias `t`) before the first `--` counts as the subcommand,
+// so `cargo --locked test` and `cargo +nightly test` are seen, and a package that happens to be called `test` is
+// refused too (the author then adds the flag).
+const beforeDashDash = (argv) => (argv.includes('--') ? argv.slice(0, argv.indexOf('--')) : argv);
+const runsCargoTest = (argv) => argv[0] === 'cargo' && beforeDashDash(argv).slice(1).some((a) => a === 'test' || a === 't');
+const runsNodeTest = (argv) => argv[0] === 'node' && argv.includes('--test');
 
 function readRequired(taskDir, name) {
   let bytes;
@@ -111,8 +144,8 @@ export function loadTaskDef(taskDir) {
   });
   if (typeof def.id !== 'string' || !ID_RE.test(def.id)) fail('id', `must match ${ID_RE}, got ${show(def.id)}`);
   if (!REPOS.includes(def.repo)) fail('repo', `must be one of ${REPOS.join(', ')}, got ${show(def.repo)}`);
-  if (typeof def.repoPath !== 'string' || !isAbsolute(def.repoPath) || def.repoPath.includes('\0')) {
-    fail('repoPath', `must be an absolute path, got ${show(def.repoPath)}`);
+  if (typeof def.repoPath !== 'string' || !isAbsolute(def.repoPath) || CONTROL.test(def.repoPath)) {
+    fail('repoPath', `must be an absolute path without a control character, got ${show(def.repoPath)}`);
   }
   if (typeof def.fix !== 'string' || !SHA_RE.test(def.fix)) fail('fix', `must be a full 40-hex lower-case sha, got ${show(def.fix)}`);
   if (typeof def.parent !== 'string' || !SHA_RE.test(def.parent)) fail('parent', `must be a full 40-hex lower-case sha, got ${show(def.parent)}`);
@@ -142,6 +175,11 @@ export function loadTaskDef(taskDir) {
       object(f, g, { file: true, line: true });
       relPath(`${f}.file`, g.file);
       if (typeof g.line !== 'string' || g.line === '' || /[\r\n]/.test(g.line)) fail(`${f}.line`, `must be one non-empty line, got ${show(g.line)}`);
+      try {
+        moduleOf(g.line);
+      } catch (err) {
+        fail(`${f}.line`, err.message);
+      }
     });
   }
 
@@ -152,6 +190,15 @@ export function loadTaskDef(taskDir) {
   object('p2p', def.p2p, { command: true, names: true });
   command('p2p.command', def.p2p.command);
   texts('p2p.names', def.p2p.names);
+  for (const phase of ['f2p', 'p2p']) {
+    const argv = def[phase].command;
+    if (def.testRunner === 'cargo' && runsCargoTest(argv) && !beforeDashDash(argv).includes('--no-fail-fast')) {
+      fail(`${phase}.command`, `runs cargo test without --no-fail-fast before any '--': cargo would stop at the first failing test binary and every listed name behind it would be not run, got ${show(argv)}`);
+    }
+    if (runsNodeTest(argv) && !argv.includes('--test-reporter=tap')) {
+      fail(`${phase}.command`, `runs node --test without --test-reporter=tap: the grader reads TAP and no other format, got ${show(argv)}`);
+    }
+  }
   texts('testPatterns', def.testPatterns);
 
   object('scrub', def.scrub, { removePaths: true, terms: true });

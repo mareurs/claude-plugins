@@ -4,7 +4,7 @@
 // about the model is never scored.
 //
 //   gradeTree(manifest, agentTreeDir, { workRoot, image, timeouts, dockerBin, runId, cpus, memoryGb })
-//     -> Promise<{ infra, graft, build, f2p, p2p, pass, diff, wallMs, detail, kept, leftover }>
+//     -> Promise<{ infra, graft, build, f2p, p2p, nonAssertion, pass, diff, wallMs, detail, kept, leftover }>
 //
 // ONE grade is ONE container (s5-grade-<runId>, network none, the repo's image, user agent, workdir /work).
 // Its mounts, all of them built from reflink copies, so the agent's own tree and the task's warm target are
@@ -44,6 +44,10 @@
 //   graft  'ok' | 'failed' | 'not_run'
 //   build  'ok' | 'failed' | 'timeout' (the driver's `timeout` exit, 124) | 'not_run'
 //   f2p, p2p  { passed, failed, notRun }: name lists, in the order the task def gives them
+//   nonAssertion  the listed F2P and P2P names (each once) that failed by something other than an assertion: a
+//          ReferenceError, a TypeError, a missing export. The node parser alone can tell; it is always [] for cargo
+//          and sh. The task gate reads it: a fail-to-pass test that fails like this at the parent names a symbol the
+//          parent lacks, and tests nothing about the fix.
 //   diff   { files, insertions, deletions } of the agent's own change against manifest.baseCommit, or null when
 //          git could not say (a base it cannot resolve, a failure, a timeout): never zeros for "unknown"
 //   detail a short text about the docker run when infra is set, else null
@@ -61,6 +65,7 @@ import {
 import { join, resolve } from 'node:path';
 import { reflinkCopy } from './build-task.mjs';
 import { dockerRun } from './docker.mjs';
+import { moduleOf } from './task-def.mjs';
 
 const RUNNERS = ['cargo', 'node', 'sh'];
 const ID_RE = /^[a-z0-9-]+$/;
@@ -209,6 +214,14 @@ export function judgeNames(runner, names, step) {
   }
   return out;
 }
+// nonAssertionNames(runner, phase, step) -> the phase's names that FAILED by something other than an assertion (a
+// ReferenceError, a TypeError, a missing export: the test could not exercise the code). Only node reports it: the
+// cargo parser has no classifier (Rust prints a custom assert message without the word "assertion", so a panic
+// cannot be told from one) and an sh step has no names. `phase` is judgeNames' result for the same step.
+function nonAssertionNames(runner, phase, step) {
+  if (runner !== 'node' || step === null || step === undefined) return [];
+  return parseNodeTest(step.stdout).nonAssertionFailures.filter((name) => phase.failed.includes(name));
+}
 
 // verdict({ infra, graft, build, f2p, p2p }) -> boolean. Fails closed: anything other than the exact green
 // values is false (an undefined infra is not "no infra").
@@ -272,15 +285,9 @@ function ensureDirs(work, rel) {
   return lines;
 }
 
-// A graftLines line declares exactly one Rust module: `mod NAME;`, with attributes and visibility on the same
-// line allowed. (The grafted line is how a hidden test file becomes part of the crate.)
-const MOD_LINE = /^(?:#\[[^\]\r\n]*\]\s*)*(?:pub(?:\s*\([^)\r\n]*\))?\s+)?mod\s+([A-Za-z_][A-Za-z0-9_]*)\s*;\s*$/;
-// moduleOf(line) -> the module's name. Throws TypeError for a line that is not one module declaration.
-export const moduleOf = (line) => {
-  const m = typeof line === 'string' ? MOD_LINE.exec(line) : null;
-  if (m === null) throw new TypeError(`a graftLines line must declare exactly one Rust module (\`mod NAME;\`, attributes and visibility allowed), got ${JSON.stringify(line)}`);
-  return m[1];
-};
+// A graftLines line declares exactly one Rust module: see moduleOf in task-def.mjs, the one rule the loader and this
+// grader share. It is re-exported here, where the graft and its tests have always found it.
+export { moduleOf };
 
 // graftScript(manifest, { work = '/work', hidden = '/hidden' }) -> an sh script. For each hidden file (the
 // def's hidden.files and hidden.extra): repair the parent directories, remove whatever is at the target
@@ -411,8 +418,11 @@ function summarise(def, docker, resultsDir) {
     const status = number(`${name}.status`);
     return status === null ? null : { status, stdout: read(`${name}.out`) ?? '' };
   };
-  const f2p = judgeNames(def.testRunner, def.f2p.names, step('f2p'));
-  const p2p = judgeNames(def.testRunner, def.p2p.names, step('p2p'));
+  const f2pStep = step('f2p');
+  const p2pStep = step('p2p');
+  const f2p = judgeNames(def.testRunner, def.f2p.names, f2pStep);
+  const p2p = judgeNames(def.testRunner, def.p2p.names, p2pStep);
+  const nonAssertion = [...new Set([nonAssertionNames(def.testRunner, f2p, f2pStep), nonAssertionNames(def.testRunner, p2p, p2pStep)].flat())];
 
   let infra = infraOf(docker);
   if (infra === null && read('done') === null) infra = 'incomplete';
@@ -425,6 +435,7 @@ function summarise(def, docker, resultsDir) {
     build,
     f2p,
     p2p,
+    nonAssertion,
     pass: verdict({ infra, graft, build, f2p, p2p }),
     diff: diffStatus === 0 && diffText !== null ? parseShortstat(diffText) : null,
     wallMs: docker.wallMs,

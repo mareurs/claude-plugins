@@ -16,8 +16,9 @@ import { dirname, join } from 'node:path';
 import { t } from '../../core/testkit.mjs';
 import { git } from './git.mjs';
 import { makeRepo } from './fixtures/make-repo.mjs';
-import { buildTask, reflinkCopy, renderTaskClaudeMd, shellQuote } from './build-task.mjs';
-import { loadTaskDef } from './task-def.mjs';
+import { buildTask, reflinkCopy, renderTaskClaudeMd, shellQuote, treeAtFix } from './build-task.mjs';
+import { moduleOf } from './grade.mjs';
+import { IMAGE_FOR_REPO, loadTaskDef, moduleOf as loaderModuleOf } from './task-def.mjs';
 
 const made = [];
 function tmp(prefix) {
@@ -230,8 +231,8 @@ function baseDef(src) {
       graftLines: [{ file: 'src/lib.rs', line: 'mod new_hidden;' }],
     },
     buildCommand: ['cargo', 'test', '--no-run', '--no-default-features'],
-    f2p: { command: ['cargo', 'test', '--test', 'hidden_a'], names: ['hidden_a::adds'] },
-    p2p: { command: ['cargo', 'test', '--test', 'old', '--', "it's a filter"], names: ['old::keeps'] },
+    f2p: { command: ['cargo', 'test', '--no-fail-fast', '--test', 'hidden_a'], names: ['hidden_a::adds'] },
+    p2p: { command: ['cargo', 'test', '--no-fail-fast', '--test', 'old', '--', "it's a filter"], names: ['old::keeps'] },
     testPatterns: ['tests/'],
     scrub: { removePaths: [ISSUE], terms: [SLUG] },
     timeoutsSec: { build: 600, test: 300 },
@@ -359,6 +360,101 @@ t('loadTaskDef rejects every other malformed field by name', () => {
   rejects('timeoutsSec.test a string', (d) => { d.timeoutsSec.test = '300'; }, /timeoutsSec\.test/);
   rejects('an unknown top-level key', (d) => { d.feature = 1; }, /unknown/, /feature/);
   rejects('a misspelled nested key (scrub.term would silently disable the scrub)', (d) => { d.scrub.term = ['x']; }, /scrub/, /unknown/, /\bterm\b/);
+});
+
+// ---- loadTaskDef: the checks the gate and the grader rely on ----
+
+// A definition edited by `edit` must load.
+const loads = (label, edit) => {
+  assert.doesNotThrow(() => loadTaskDef(makeTaskDir(src, { edit })), label);
+};
+
+t('R30: a cargo task\'s f2p and p2p commands that run `cargo test` carry --no-fail-fast before any "--"', () => {
+  for (const phase of ['f2p', 'p2p']) {
+    const field = new RegExp(`${phase}\\.command`);
+    const set = (command, runner = 'cargo') => (d) => { d[phase].command = command; d.testRunner = runner; };
+    rejects(`${phase} without it`, set(['cargo', 'test', '--test', 'x']), field, /--no-fail-fast/);
+    rejects(`${phase}: after "--" it is a libtest argument, not cargo's`, set(['cargo', 'test', '--', '--no-fail-fast']), field, /--no-fail-fast/);
+    rejects(`${phase}: a toolchain override before test`, set(['cargo', '+nightly', 'test', '--lib']), field, /--no-fail-fast/);
+    rejects(`${phase}: a global option before test`, set(['cargo', '--locked', 'test', '--lib']), field, /--no-fail-fast/);
+    rejects(`${phase}: the alias`, set(['cargo', 't', '--lib']), field, /--no-fail-fast/);
+    rejects(`${phase}: a near miss is not the flag`, set(['cargo', 'test', '--no-fail-fast=1']), field);
+    loads(`${phase} with the flag first`, set(['cargo', 'test', '--no-fail-fast']));
+    loads(`${phase} with the flag among the options`, set(['cargo', 'test', '--lib', '--no-fail-fast', '--', 'filter']));
+    loads(`${phase} with a toolchain override and the flag`, set(['cargo', '+nightly', 'test', '--no-fail-fast']));
+    // Not `cargo test`: nothing to check.
+    loads(`${phase}: cargo build`, set(['cargo', 'build', '--tests']));
+    loads(`${phase}: an external subcommand named like test`, set(['cargo', 'test-x']));
+    loads(`${phase}: another program's test target`, set(['make', 'test']));
+    // The ruling is about a cargo task.
+    loads(`${phase}: a node task's command is not checked`, set(['cargo', 'test'], 'node'));
+  }
+});
+
+t('R41: every f2p and p2p command that runs `node --test` carries --test-reporter=tap', () => {
+  for (const phase of ['f2p', 'p2p']) {
+    const field = new RegExp(`${phase}\\.command`);
+    const set = (command, runner = 'node') => (d) => { d[phase].command = command; d.testRunner = runner; };
+    rejects(`${phase} without a reporter`, set(['node', '--test', 'tests/a.test.mjs']), field, /--test-reporter=tap/);
+    rejects(`${phase} with another reporter`, set(['node', '--test', '--test-reporter=spec', 'tests/a.test.mjs']), field, /--test-reporter=tap/);
+    rejects(`${phase}: in a task of another runner too`, set(['node', '--test', 'tests/a.test.mjs'], 'sh'), field, /--test-reporter=tap/);
+    loads(`${phase} with tap`, set(['node', '--test', '--test-reporter=tap', 'tests/a.test.mjs']));
+    loads(`${phase} with tap given first`, set(['node', '--test-reporter=tap', '--test', 'tests/a.test.mjs']));
+    loads(`${phase}: a plain node script`, set(['node', 'tests/hidden.test.mjs']));
+    loads(`${phase}: a node option that only starts like --test`, set(['node', '--test-name-pattern=x', 'tests/a.test.mjs']));
+    loads(`${phase}: some other program`, set(['sh', 'tests/a.sh']));
+  }
+});
+
+// What gradeTree's own predicate says about each line; the loader must say the same.
+const GRAFT_LINES_GOOD = [
+  'mod x;', 'pub mod x;', 'pub(crate) mod x;', 'pub(in crate::a) mod x;', '#[cfg(test)] mod x;', 'mod x ;',
+  '#[cfg(test)] #[allow(dead_code)] pub(super) mod hidden_support_2;',
+];
+const GRAFT_LINES_BAD = [
+  // the two lines the grader's mutation probe found a looser pattern accepting
+  '#[a] fn main() {} #[b] mod x;', 'pub(crate) fn f() {} pub(x) mod y;',
+  'mod x { }', 'mod x', 'mod x; mod y;', 'use a::b;', '// mod x;', ' mod x;', 'fn f() {}', 'mod x; // c', 'extern crate x;', 'mod ;', 'mod 1x;', 'mod x;\rmod y;', 'pub pub mod x;',
+];
+
+t('R40: a graftLines line declares exactly one Rust module, and the loader asks gradeTree\'s own predicate', () => {
+  const lineOf = (line) => (d) => { d.hidden.graftLines = [{ file: 'src/lib.rs', line }]; };
+  assert.equal(loaderModuleOf, moduleOf, 'one predicate, not two copies of a regex');
+  for (const good of GRAFT_LINES_GOOD) {
+    loads(`graftLines.line ${JSON.stringify(good)}`, lineOf(good));
+    assert.doesNotThrow(() => moduleOf(good), good);
+  }
+  for (const bad of GRAFT_LINES_BAD) {
+    rejects(`graftLines.line ${JSON.stringify(bad)}`, lineOf(bad), /hidden\.graftLines\[0\]\.line/);
+    assert.throws(() => moduleOf(bad), TypeError, bad);
+  }
+  rejects('the second of two lines', (d) => { d.hidden.graftLines = [{ file: 'src/lib.rs', line: 'mod a;' }, { file: 'src/lib.rs', line: 'use b::c;' }]; }, /hidden\.graftLines\[1\]\.line/, /module/);
+});
+
+t('every path field refuses a control character (a newline included) by its own name, and so does repoPath', () => {
+  const fields = [
+    ['hidden.files', (d, v) => { d.hidden.files = [v]; }],
+    ['hidden.extra', (d, v) => { d.hidden.extra = [v]; }],
+    ['hidden.graftLines', (d, v) => { d.hidden.graftLines = [{ file: v, line: 'mod x;' }]; }],
+    ['scrub.removePaths', (d, v) => { d.scrub.removePaths = [v]; }],
+    ['repoPath', (d, v) => { d.repoPath = `/tmp/${v}`; }],
+  ];
+  for (const [name, set] of fields) {
+    for (const bad of ['a\nb', 'a\rb', 'a\tb', 'a\x1bb', 'a\x7fb', 'a\x01', 'a\x00b', 'tests/x\nS5_GRAFT_EOF\ny', '\n']) {
+      rejects(`${name} ${JSON.stringify(bad)}`, (d) => set(d, bad), new RegExp(name.replace('.', '\\.')), /control|NUL/);
+    }
+    // the control: a plain name with a space and a non-ASCII letter is a path (an extra file must also exist, so not that field)
+    if (name !== 'repoPath' && name !== 'hidden.extra') loads(`${name} with a space`, (d) => set(d, 'tests/a b/é.rs'));
+  }
+});
+
+t('IMAGE_FOR_REPO names the image of every repo the loader accepts (R37)', () => {
+  assert.deepEqual(IMAGE_FOR_REPO, { codescout: 's5/codescout', 'claude-plugins': 's5/plugins' });
+  assert.ok(Object.isFrozen(IMAGE_FOR_REPO));
+  for (const repo of ['codescout', 'claude-plugins']) {
+    loads(`repo ${repo}`, (d) => { d.repo = repo; });
+    assert.equal(typeof IMAGE_FOR_REPO[repo], 'string');
+  }
 });
 
 t('loadTaskDef needs task.json, TASK.md and prompt.txt, all non-empty and readable', () => {
@@ -494,7 +590,7 @@ t('CLAUDE.md, AGENTS.md, .claude/, .codescout/ and .buddy/ are removed and the t
   assert.ok(!claude.includes('the repo claude file'), 'it is the task file, not the repo file');
   assert.equal(claude, renderTaskClaudeMd(b.manifest.def));
   assert.ok(claude.includes('cargo test --no-run --no-default-features'), 'names the build command');
-  assert.ok(claude.includes("cargo test --test old -- 'it'\\''s a filter'"), 'names the test command, shell-quoted');
+  assert.ok(claude.includes("cargo test --no-fail-fast --test old -- 'it'\\''s a filter'"), 'names the test command, shell-quoted');
   assert.ok(!claude.includes('hidden_a'), 'does not name the fail-to-pass command or its tests');
   assert.ok(!claude.includes('{{'), 'no placeholder is left');
   assert.deepEqual(readFileSync(join(b.treeDir, 'TASK.md')), Buffer.from(TASK_MD));
@@ -669,6 +765,188 @@ t('a symlink is hashed by its target string, never followed', () => {
 });
 
 // ---- the task CLAUDE.md template ----
+
+// ---- treeAtFix (the gate's fix tree, R33) ----
+
+const fixTreeDir = () => join(tmp('s5-fixtree-'), 'tree');
+
+t("treeAtFix: the fix commit's tree with the same removals, the P tree's own TASK.md and CLAUDE.md, one commit and no remote", () => {
+  const b = build(src);
+  // the root files are the P tree's own bytes, not re-rendered: edit them there first
+  writeFileSync(join(b.treeDir, 'CLAUDE.md'), "# the P tree's own CLAUDE.md, edited\n");
+  writeFileSync(join(b.treeDir, 'TASK.md'), 'TASK.md as the P tree has it, edited\n');
+  const dst = fixTreeDir();
+  const commit = treeAtFix(b.manifest, b.treeDir, dst);
+  assert.deepEqual(walk(dst, { skipGit: true }), [...EXPECT_TREE, 'tests/data.bin', 'tests/new_hidden.rs'].sort(byteCmp), 'the parent\'s tree plus what the fix adds');
+  assert.equal(readFileSync(join(dst, 'src/lib.rs'), 'utf8'), 'pub fn add(a: i32, b: i32) -> i32 { a + b }\n', 'the fix, not the parent');
+  assert.equal(readFileSync(join(dst, 'tests/hidden_a.rs'), 'utf8'), FIX_HIDDEN_A, 'the fix version of a hidden file: the fix tree holds the tests');
+  assert.equal(readFileSync(join(dst, 'tests/new_hidden.rs'), 'utf8'), NEW_HIDDEN);
+  assert.deepEqual(readFileSync(join(dst, 'tests/data.bin')), DATA_BIN, 'binary content is byte-exact');
+  assert.equal(readFileSync(join(dst, 'README.md'), 'utf8'), 'abc readme v2\n');
+  assert.ok(!existsSync(join(dst, ISSUE)), 'scrub.removePaths');
+  for (const name of ['TASK.md', 'CLAUDE.md']) {
+    assert.deepEqual(readFileSync(join(dst, name)), readFileSync(join(b.treeDir, name)), `${name} is the P tree's, byte for byte`);
+    assert.ok(lstatSync(join(dst, name)).isFile());
+  }
+  assert.ok(!readFileSync(join(dst, 'CLAUDE.md'), 'utf8').includes('the repo claude file'));
+  assert.equal(readFileSync(join(dst, 'CLAUDE.md'), 'utf8'), "# the P tree's own CLAUDE.md, edited\n");
+
+  const g = (...args) => git(dst, args);
+  assert.equal(commit, g('rev-parse', 'HEAD').stdout.toString().trim(), 'it returns the one commit');
+  assert.match(commit, /^[0-9a-f]{40}$/);
+  assert.equal(g('rev-list', '--count', 'HEAD').stdout.toString().trim(), '1');
+  assert.equal(g('log', '-1', '--format=%an|%ae|%s').stdout.toString().trim(), 's5|s5@localhost|task fix-add');
+  assert.equal(g('remote').stdout.length, 0, 'no remote');
+  assert.equal(g('status', '--porcelain', '--ignored').stdout.length, 0, 'the commit holds the whole tree');
+  assert.deepEqual(g('ls-files', '-z').stdout.toString().split('\0').filter(Boolean).sort(byteCmp), walk(dst, { skipGit: true }), 'committed files = files on disk');
+  for (const sha of [src.shas.fix, src.shas.parent, src.shas.base]) assert.notEqual(g('cat-file', '-e', sha).status, 0, `commit ${sha} is not an object of the fix tree`);
+  assert.notEqual(commit, b.manifest.baseCommit, 'a different tree is a different commit');
+});
+
+// The finding of the first real-Docker gate run: git archive stamps every file with the fix commit's time, which is
+// older than a warm target built from the P tree, and cargo calls a source file fresh unless it is NEWER than the
+// artifact. The fix's changes were never compiled, the fix tests failed, and a good task was dropped as fails_at_fix.
+t('treeAtFix: a file the fix changes or adds is as new as the call; one the fix leaves alone keeps the commit\'s time', () => {
+  const b = build(src);
+  const start = Date.now();
+  const dst = fixTreeDir();
+  treeAtFix(b.manifest, b.treeDir, dst);
+  const mtime = (rel) => lstatSync(join(dst, rel)).mtimeMs;
+  for (const rel of ['src/lib.rs', 'tests/hidden_a.rs', 'tests/new_hidden.rs', 'tests/data.bin']) {
+    assert.ok(mtime(rel) >= start - 1, `${rel} is changed by the fix, so it is newer than any build of the parent`);
+  }
+  for (const rel of ['README.md', 'tests/old.rs', 'a.txt', 'B.txt', 'data/blob.bin', '.gitignore']) {
+    assert.ok(mtime(rel) <= start, `${rel} is not changed by the fix, so it keeps the time git archive gave it`);
+  }
+  // the control: the two trees really differ in exactly those files, by bytes
+  for (const rel of ['src/lib.rs', 'tests/hidden_a.rs']) assert.notDeepEqual(readFileSync(join(dst, rel)), readFileSync(join(b.treeDir, rel)));
+  assert.deepEqual(readFileSync(join(dst, 'README.md')), readFileSync(join(b.treeDir, 'README.md')));
+});
+
+t('treeAtFix: a path that is a directory at the parent and a file at the fix is a changed file, not a crash', () => {
+  const { dir, shas } = makeRepo([{ label: 'parent', subject: 'chore: parent', date: '2026-10-02T10:00:00+00:00', files: { 'x/y.txt': 'in a directory\n', 'src/lib.rs': '// p\n' } }]);
+  made.push(dir);
+  rmSync(join(dir, 'x'), { recursive: true });
+  const fix = addCommit(dir, { subject: 'fix: x becomes a file', files: { x: 'now a file\n' } });
+  const b = build({ dir, shas: { parent: shas.parent, fix } }, { edit: (d) => { d.hidden = { files: ['x'] }; d.scrub = { removePaths: [], terms: [] }; } });
+  assert.ok(lstatSync(join(b.treeDir, 'x')).isDirectory(), 'control: the parent has a directory there');
+  const start = Date.now();
+  const dst = fixTreeDir();
+  treeAtFix(b.manifest, b.treeDir, dst);
+  assert.equal(readFileSync(join(dst, 'x'), 'utf8'), 'now a file\n');
+  assert.ok(lstatSync(join(dst, 'x')).mtimeMs >= start - 1, 'it is a changed file');
+});
+
+t('treeAtFix does not scrub: the fix holds the fix by design, so a scrub term in it is no error', () => {
+  const b = build(src);
+  const def = { ...b.manifest.def, scrub: { ...b.manifest.def.scrub, terms: [SLUG, 'FIX hidden_a'] } };
+  const dst = fixTreeDir();
+  treeAtFix({ ...b.manifest, def }, b.treeDir, dst);
+  assert.equal(readFileSync(join(dst, 'tests/hidden_a.rs'), 'utf8'), FIX_HIDDEN_A);
+});
+
+t('the source repository is only read by treeAtFix too', () => {
+  const b = build(src);
+  const before = snapshot(src.dir);
+  treeAtFix(b.manifest, b.treeDir, fixTreeDir());
+  assert.deepEqual(snapshot(src.dir), before);
+});
+
+// A source whose fix ADDS removable names (a nested AGENTS.md, a .claude/), rewrites the repo CLAUDE.md and
+// DELETES the issue file the scrub removes at the parent.
+const makeFixSrc = () => {
+  const { dir, shas } = makeRepo([
+    {
+      label: 'parent', subject: 'chore: parent', date: '2026-10-02T10:00:00+00:00',
+      files: { 'src/lib.rs': 'pub fn add(a: i32, b: i32) -> i32 { a - b }\n', 'tests/old.rs': '// old\n', 'CLAUDE.md': '# repo claude P\n', 'AGENTS.md': '# agents P\n', '.codescout/memories/n.md': 'n\n', [ISSUE]: `# bug ${SLUG}\n` },
+    },
+    {
+      label: 'fix', subject: 'fix: add', date: '2026-10-03T10:00:00+00:00',
+      files: { 'src/lib.rs': 'pub fn add(a: i32, b: i32) -> i32 { a + b }\n', 'tests/new_hidden.rs': NEW_HIDDEN, 'CLAUDE.md': '# repo claude FIX\n', 'contrib/AGENTS.md': '# nested agents FIX\n', '.claude/settings.json': '{}\n', [ISSUE]: null },
+    },
+  ]);
+  made.push(dir);
+  return { dir, shas };
+};
+const forFixSrc = (d) => { d.hidden = { files: ['tests/new_hidden.rs'] }; };
+
+t('treeAtFix removes the same names from the fix tree, even ones the fix adds, and tolerates a removePaths entry the fix deleted', () => {
+  const fsrc = makeFixSrc();
+  assert.equal(git(fsrc.dir, ['cat-file', '-e', `${fsrc.shas.parent}:${ISSUE}`]).status, 0, 'control: the parent has the issue file');
+  assert.notEqual(git(fsrc.dir, ['cat-file', '-e', `${fsrc.shas.fix}:${ISSUE}`]).status, 0, 'control: the fix deleted it');
+  assert.equal(git(fsrc.dir, ['cat-file', '-e', `${fsrc.shas.fix}:contrib/AGENTS.md`]).status, 0, 'control: the fix adds a nested AGENTS.md');
+  const b = build(fsrc, { edit: forFixSrc });
+  assert.throws(() => buildTask(makeTaskDir(fsrc, { edit: (d) => { forFixSrc(d); d.scrub.removePaths = [ISSUE, 'docs/issues/not-there.md']; } }), { workRoot: tmp('s5-work-') }), /not-there\.md/, 'control: the builder still refuses a removePaths entry the PARENT lacks');
+  const dst = fixTreeDir();
+  treeAtFix(b.manifest, b.treeDir, dst);
+  assert.deepEqual(walk(dst, { skipGit: true }), ['CLAUDE.md', 'TASK.md', 'src/lib.rs', 'tests/new_hidden.rs', 'tests/old.rs']);
+  assert.equal(readFileSync(join(dst, 'CLAUDE.md'), 'utf8'), renderTaskClaudeMd(b.manifest.def), 'the task CLAUDE.md, not the repo\'s FIX one');
+  assert.equal(readFileSync(join(dst, 'src/lib.rs'), 'utf8'), 'pub fn add(a: i32, b: i32) -> i32 { a + b }\n');
+});
+
+t('treeAtFix replaces a TASK.md or CLAUDE.md the fix tracks as a symlink out of the tree, and never writes through it', () => {
+  const outside = makeOutside();
+  const link = makeLinkSrc(outside, 'a.txt');
+  const b = build(link, { edit: forLinks });
+  const dst = fixTreeDir();
+  treeAtFix(b.manifest, b.treeDir, dst);
+  for (const name of ['TASK.md', 'CLAUDE.md']) {
+    assert.match(git(link.dir, ['ls-tree', link.shas.fix, name]).stdout.toString(), /^120000 blob /, `control: ${name} is a tracked symlink at the fix`);
+    assert.ok(lstatSync(join(dst, name)).isFile(), `${name} in the fix tree is a regular file`);
+  }
+  assert.deepEqual(readFileSync(join(dst, 'TASK.md')), Buffer.from(TASK_MD));
+  assert.equal(readFileSync(join(outside, 'task-target.txt'), 'utf8'), TASK_TARGET);
+  assert.equal(readFileSync(join(outside, 'claude-target.txt'), 'utf8'), CLAUDE_TARGET);
+});
+
+t('treeAtFix refuses an existing destination and leaves it alone; on a failure it removes what it made', () => {
+  const b = build(src);
+  const taken = tmp('s5-fixtree-taken-');
+  writeFileSync(join(taken, 'MARKER'), 'keep');
+  assert.throws(() => treeAtFix(b.manifest, b.treeDir, taken), /already exists/);
+  assert.deepEqual(readdirSync(taken), ['MARKER'], 'nothing was added to it');
+  assert.equal(readFileSync(join(taken, 'MARKER'), 'utf8'), 'keep');
+
+  const noTask = tmp('s5-fixtree-src-');
+  writeFileSync(join(noTask, 'CLAUDE.md'), 'x');
+  const dst = fixTreeDir();
+  assert.throws(() => treeAtFix(b.manifest, noTask, dst), /TASK\.md/);
+  assert.ok(!existsSync(dst), 'a partial fix tree is removed');
+
+  // a root file that is a link in the P tree is refused: it is read, never followed
+  const linked = tmp('s5-fixtree-link-');
+  writeFileSync(join(linked, 'CLAUDE.md'), 'x');
+  writeFileSync(join(linked, 'elsewhere.md'), 'x');
+  symlinkSync('elsewhere.md', join(linked, 'TASK.md'));
+  const dstLink = fixTreeDir();
+  assert.throws(() => treeAtFix(b.manifest, linked, dstLink), /regular file/);
+  assert.ok(!existsSync(dstLink));
+
+  // A failure AFTER the archive was extracted: a removePaths entry through a symlink. The tree is gone again.
+  const outside = makeOutside();
+  const link = makeLinkSrc(outside, 'a.txt');
+  const lb = build(link, { edit: forLinks });
+  const bad = { ...lb.manifest, def: { ...lb.manifest.def, scrub: { ...lb.manifest.def.scrub, removePaths: ['outdir/secret.txt'] } } };
+  const dst2 = fixTreeDir();
+  assert.throws(() => treeAtFix(bad, lb.treeDir, dst2), /symlink/);
+  assert.ok(!existsSync(dst2), 'what the failed call made is removed');
+  assert.equal(readFileSync(join(outside, 'secret.txt'), 'utf8'), 'LEAKMARK\n', 'and nothing behind the link was deleted');
+  assert.throws(() => treeAtFix({ ...lb.manifest, def: { ...lb.manifest.def, scrub: { ...lb.manifest.def.scrub, removePaths: ['../x'] } } }, lb.treeDir, fixTreeDir()), /relative path/);
+});
+
+t('treeAtFix refuses a fix that is not a child of the parent, a bad manifest and a src tree that is not a directory', () => {
+  const b = build(src);
+  const wrong = { ...b.manifest, def: { ...b.manifest.def, parent: src.shas.base } };
+  const dst = fixTreeDir();
+  assert.throws(() => treeAtFix(wrong, b.treeDir, dst), /first parent/);
+  assert.ok(!existsSync(dst));
+  assert.throws(() => treeAtFix(null, b.treeDir, dst), TypeError);
+  assert.throws(() => treeAtFix({ ...b.manifest, def: null }, b.treeDir, dst), TypeError);
+  assert.throws(() => treeAtFix(b.manifest, '', dst), TypeError);
+  assert.throws(() => treeAtFix(b.manifest, b.treeDir, ''), TypeError);
+  assert.throws(() => treeAtFix(b.manifest, join(b.treeDir, 'does-not-exist'), dst), /TASK\.md|not a directory/);
+  assert.ok(!existsSync(dst));
+});
 
 t('the template says nothing about effort, thinking or steering', () => {
   const tmpl = readFileSync(new URL('./task-claude.md.tmpl', import.meta.url), 'utf8');

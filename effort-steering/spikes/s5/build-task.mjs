@@ -1,6 +1,7 @@
 // build-task.mjs — build one S5 task from a fix commit C and its parent P.
 //
 //   buildTask(taskDir, { workRoot }) -> Manifest      (synchronous; no model, no Docker)
+//   treeAtFix(manifest, srcTreeDir, dstDir) -> the fix tree's commit id      (the task gate's fix tree)
 //   reflinkCopy(src, dst)
 //
 // Output, under <workRoot>/tasks/<id>/ (which must not exist: a build is never overwritten, the
@@ -37,7 +38,7 @@
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import {
-  lstatSync, mkdirSync, readdirSync, readFileSync, readlinkSync, realpathSync, rmSync, writeFileSync,
+  lstatSync, mkdirSync, readdirSync, readFileSync, readlinkSync, realpathSync, rmSync, utimesSync, writeFileSync,
 } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { git } from './git.mjs';
@@ -165,10 +166,11 @@ function requireFirstParent(def) {
   }
 }
 
-function extractTree(def, treeDir) {
-  const archive = git(def.repoPath, ['archive', '--format=tar', def.parent]);
-  if (archive.status !== 0) throw new Error(`buildTask: git archive ${def.parent} failed in ${def.repoPath}: ${archive.stderr.toString().trim()}`);
-  mkdirSync(treeDir);
+// `sha` is def.parent for the task tree and def.fix for the gate's fix tree.
+// `sha` is def.parent for the task tree and def.fix for the gate's fix tree. `treeDir` exists and is empty.
+function extractTree(def, sha, treeDir) {
+  const archive = git(def.repoPath, ['archive', '--format=tar', sha]);
+  if (archive.status !== 0) throw new Error(`buildTask: git archive ${sha} failed in ${def.repoPath}: ${archive.stderr.toString().trim()}`);
   const tar = spawnSync('tar', ['-x', '--no-same-owner', '-C', treeDir], { input: archive.stdout, env: toolEnv() });
   if (tar.error) throw new Error(`buildTask: tar could not run: ${tar.error.message}`);
   if (tar.status !== 0) throw new Error(`buildTask: tar -x failed (exit ${tar.status}): ${tar.stderr.toString().trim()}`);
@@ -177,13 +179,21 @@ function extractTree(def, treeDir) {
 // One scrub.removePaths entry. Every directory above it must be a real directory in the tree: a
 // symlink there could lead the removal outside the tree. The entry itself may be a link (it goes,
 // its target stays). A path the tree does not have is refused: it is a typo that leaves a leak.
-function removeListed(tree, rel) {
+// `allowMissing` is for the gate's fix tree, where a fix that deleted or moved the file leaves nothing to remove.
+function removeListed(tree, rel, { allowMissing = false } = {}) {
   const segs = rel.split('/');
+  // The loader refuses these in task.json; a manifest is read back from disk, so the removal checks it again.
+  if (rel === '' || rel.startsWith('/') || segs.some((s) => s === '' || s === '.' || s === '..')) {
+    throw new TypeError(`buildTask: scrub.removePaths entry ${JSON.stringify(rel)} must be a relative path without '.', '..' or empty segments`);
+  }
   let cur = tree;
   for (let i = 0; i < segs.length; i++) {
     cur = join(cur, segs[i]);
     const st = lstatOrNull(cur);
-    if (st === null) throw new Error(`buildTask: scrub.removePaths entry ${rel} does not exist in the tree`);
+    if (st === null) {
+      if (allowMissing) return;
+      throw new Error(`buildTask: scrub.removePaths entry ${rel} does not exist in the tree`);
+    }
     if (st.isSymbolicLink() && i < segs.length - 1) {
       throw new Error(`buildTask: scrub.removePaths entry ${rel} goes through the symlink ${segs.slice(0, i + 1).join('/')}; it is refused`);
     }
@@ -206,9 +216,9 @@ function removeNamed(tree) {
 // The two files the builder writes at the tree root. Whatever the repo tracks under the same name (a
 // symlink out of the tree, say) goes first, and the write is exclusive, so it can never go THROUGH a
 // link: a write that finds anything there fails.
-function writeTaskFiles(tree, def, taskMd) {
+function writeTaskFiles(tree, claudeMd, taskMd) {
   for (const name of ['CLAUDE.md', 'TASK.md']) rmSync(join(tree, name), { recursive: true, force: true });
-  writeFileSync(join(tree, 'CLAUDE.md'), renderTaskClaudeMd(def), { flag: 'wx' });
+  writeFileSync(join(tree, 'CLAUDE.md'), claudeMd, { flag: 'wx' });
   writeFileSync(join(tree, 'TASK.md'), taskMd, { flag: 'wx' });
 }
 
@@ -278,10 +288,11 @@ export function buildTask(taskDir, { workRoot } = {}) {
   try {
     const treeDir = join(out, 'tree');
     const hiddenDir = join(out, 'hidden');
-    extractTree(def, treeDir);
+    mkdirSync(treeDir);
+    extractTree(def, def.parent, treeDir);
     for (const rel of def.scrub.removePaths) removeListed(treeDir, rel);
     removeNamed(treeDir);
-    writeTaskFiles(treeDir, def, taskMd);
+    writeTaskFiles(treeDir, renderTaskClaudeMd(def), taskMd);
     scrubTree(treeDir, needles);
     const baseCommit = commitTree(treeDir, def.id);
     writeHidden(def, taskDir, hiddenDir);
@@ -302,6 +313,73 @@ export function buildTask(taskDir, { workRoot } = {}) {
     return manifest;
   } catch (err) {
     rmSync(out, { recursive: true, force: true });
+    throw err;
+  }
+}
+// The task CLAUDE.md and TASK.md as the P tree holds them: regular files, never a link.
+function readRootFile(dir, name) {
+  const p = join(dir, name);
+  const st = lstatOrNull(p);
+  if (st === null || !st.isFile()) throw new Error(`treeAtFix: ${p} is not a regular file (the fix tree takes the P tree's CLAUDE.md and TASK.md byte for byte)`);
+  return readFileSync(p);
+}
+// A regular file of `tree` that `base` lacks, or holds with other bytes, gets the modification time of now.
+//
+// Why: `git archive` stamps every file with the fix commit's time, which is older than a warm target built from the P
+// tree, and cargo calls a source file fresh unless it is NEWER than the artifact built from it. Left alone, the fix's
+// changes would never be compiled: the fix tests would fail against the parent's artifacts and a good task would be
+// dropped as fails_at_fix (the first real-Docker gate run found exactly this). A file an agent edits is newer than the
+// warm target, and so is a file here, so the fix tree builds like an agent's tree that applied the fix. A file the fix
+// leaves alone keeps its time: its artifact is current. (A symlink is skipped: cargo reads its target's time.)
+function freshenChanged(tree, base) {
+  const now = new Date();
+  for (const rel of listEntries(tree)) {
+    const abs = join(tree, rel);
+    if (lstatSync(abs).isSymbolicLink()) continue;
+    const other = lstatOrNull(join(base, rel));
+    if (other !== null && other.isFile() && readFileSync(abs).equals(readFileSync(join(base, rel)))) continue;
+    utimesSync(abs, now, now);
+  }
+}
+
+// treeAtFix(manifest, srcTreeDir, dstDir) -> the commit id of the fix tree      (synchronous; no model, no Docker)
+//
+// The gate's fix tree (ruling R33): the repository at def.fix, shaped exactly like the tree an agent gets, so that
+// whatever the removals break (a test that reads a removed AGENTS.md or .codescout/ file) breaks here too, and the
+// gate drops the task instead of the measured run finding it. It is built like the task tree, with the sha a
+// parameter: git archive of def.fix, scrub.removePaths and then the default named removals (a path the fix deleted or
+// moved is skipped, where buildTask refuses a path the PARENT lacks), the root CLAUDE.md and TASK.md copied byte for
+// byte from srcTreeDir (the built P tree), the files the fix changed stamped as new as the call (see
+// freshenChanged), then the same one-commit git init. NO scrub scan: the fix tree is never
+// shown to a model and holds the fix by design. `dstDir` must not exist (its parent must); a failure removes it.
+export function treeAtFix(manifest, srcTreeDir, dstDir) {
+  const def = manifest?.def;
+  if (def === null || typeof def !== 'object') throw new TypeError('treeAtFix: the manifest has no def');
+  for (const key of ['id', 'repoPath', 'fix', 'parent']) {
+    if (typeof def[key] !== 'string' || def[key] === '') throw new TypeError(`treeAtFix: def.${key} must be a non-empty string`);
+  }
+  if (!Array.isArray(def.scrub?.removePaths)) throw new TypeError('treeAtFix: def.scrub.removePaths must be an array');
+  for (const [what, dir] of [['srcTreeDir', srcTreeDir], ['dstDir', dstDir]]) {
+    if (typeof dir !== 'string' || dir === '') throw new TypeError(`treeAtFix: ${what} must be a non-empty string`);
+  }
+  requireFirstParent(def);
+  const claudeMd = readRootFile(srcTreeDir, 'CLAUDE.md');
+  const taskMd = readRootFile(srcTreeDir, 'TASK.md');
+  try {
+    mkdirSync(dstDir); // atomic: a directory that exists is never merged into and never removed
+  } catch (err) {
+    if (err.code === 'EEXIST') throw new Error(`treeAtFix: ${dstDir} already exists; it is never merged into (choose a fresh path)`);
+    throw err;
+  }
+  try {
+    extractTree(def, def.fix, dstDir);
+    for (const rel of def.scrub.removePaths) removeListed(dstDir, rel, { allowMissing: true });
+    removeNamed(dstDir);
+    writeTaskFiles(dstDir, claudeMd, taskMd);
+    freshenChanged(dstDir, srcTreeDir);
+    return commitTree(dstDir, def.id);
+  } catch (err) {
+    rmSync(dstDir, { recursive: true, force: true });
     throw err;
   }
 }
