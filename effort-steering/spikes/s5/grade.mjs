@@ -22,7 +22,8 @@
 // `git diff --cached --shortstat <baseCommit>`; HEAD would read zero for an agent that commits), BEFORE
 // anything is grafted, so the hidden tests are not in them; (2) grafts the hidden tests (graftScript);
 // (3) runs buildCommand; (4) if the build succeeded, runs f2p.command and p2p.command. Every step runs as
-// argv under `timeout -k 10 <seconds>` (the diff and the graft under the test limit), with its stdin from
+// argv under `timeout -k 10 <seconds>` (the two git calls of the diff and the graft under 120 s each, the
+// build under the build limit, each test step under the test limit), with its stdin from
 // /dev/null and its output in /results. The host then parses /results. NOTHING of the agent's is read,
 // written, built or run on the host: no git on its tree, no graft, no model-written code.
 //
@@ -67,7 +68,12 @@ const RUN_ID_RE = /^[a-zA-Z0-9_][a-zA-Z0-9_.-]{0,63}$/;
 // `timeout -k`: a command that ignores SIGTERM is killed this many seconds later, so a hang that is the
 // agent's code's is cut off INSIDE the container (a model failure) and never reaches the harness's clock.
 const KILL_AFTER_SEC = 10;
-// The grade container's own limit is the step limits plus this, so every inner limit fires first.
+// The diff's two git calls and the graft each get this limit: on a real tree they take seconds, and only the
+// agent's tree can make them hang (a git hook, a FIFO where a graftLines file belongs). Not the test limit:
+// a long test limit must not stretch a hang in a step that is not a test.
+const PREP_SEC = 120;
+// The grade container's own limit is the sum of every step's limit and its kill-after (limitsOf), plus this
+// for the container's start and the driver's own bookkeeping, so every inner limit fires first.
 const SLACK_SEC = 300;
 const MAX_OUTPUT_BYTES = 64 * 1024 * 1024;
 const DETAIL_BYTES = 500;
@@ -225,12 +231,15 @@ export function infraOf(r) {
   return null;
 }
 
-// limitsOf(def, timeouts) -> { build, test, container } in seconds. The container's own limit outlasts
-// every step: the build, both test steps, and slack for the diff, the graft and the container's start.
+// limitsOf(def, timeouts) -> { build, test, container } in seconds. The container's own limit outlasts the
+// worst serial path through the driver: the diff's two git calls and the graft (PREP_SEC each), the build, and
+// both test steps, every one with its kill-after, plus SLACK_SEC. `timeouts.container` overrides it. (The
+// prep limit is fixed; it is not an option.)
 export function limitsOf(def, timeouts = {}) {
   const build = timeouts.build ?? def.timeoutsSec.build;
   const test = timeouts.test ?? def.timeoutsSec.test;
-  const container = timeouts.container ?? build + 2 * test + SLACK_SEC;
+  const serial = 3 * (PREP_SEC + KILL_AFTER_SEC) + (build + KILL_AFTER_SEC) + 2 * (test + KILL_AFTER_SEC);
+  const container = timeouts.container ?? serial + SLACK_SEC;
   for (const [what, value, whole] of [['build', build, true], ['test', test, true], ['container', container, false]]) {
     if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0 || (whole && !Number.isInteger(value))) {
       throw new TypeError(`gradeTree: timeouts.${what} must be a positive ${whole ? 'integer' : 'number'} of seconds, got ${JSON.stringify(value)}`);
@@ -314,12 +323,13 @@ const GRAFT_EOF = 'S5_GRAFT_EOF';
 // filesystem monitor hook for us, and a directory owned by another uid is fine.
 const GIT = "git -c safe.directory='*' -c core.fsmonitor=false";
 
-// driverScript(manifest, { buildSec, testSec, work, hidden, results }) -> the sh script the grade container runs.
-// Every step is under `timeout -k`: the diff and the graft under the test limit (only the agent's tree can make
-// them hang, e.g. a FIFO where a graftLines file should be), the build under the build limit, the tests under
-// the test limit. An unbounded step would reach the container's own clock and be scored as infrastructure.
+// driverScript(manifest, { buildSec, testSec, prepSec, work, hidden, results }) -> the sh script the grade container runs.
+// Every step is under `timeout -k`: the diff's two git calls and the graft under prepSec (PREP_SEC; only the
+// agent's tree can make them hang, e.g. a FIFO where a graftLines file should be; the option is a seam for
+// tests), the build under the build limit, the tests under the test limit. An unbounded step would reach the
+// container's own clock and be scored as infrastructure.
 // The diff is against manifest.baseCommit, the task's one commit, because an agent that commits moves HEAD.
-export function driverScript(manifest, { buildSec, testSec, work = '/work', hidden = '/hidden', results = '/results' } = {}) {
+export function driverScript(manifest, { buildSec, testSec, prepSec = PREP_SEC, work = '/work', hidden = '/hidden', results = '/results' } = {}) {
   const { def, baseCommit } = manifest;
   if (typeof baseCommit !== 'string' || !BASE_COMMIT_RE.test(baseCommit)) throw new TypeError(`driverScript: manifest.baseCommit must be a 40-hex commit id, got ${JSON.stringify(baseCommit)}`);
   const buildLimit = buildSec ?? def.timeoutsSec.build;
@@ -331,10 +341,10 @@ export function driverScript(manifest, { buildSec, testSec, work = '/work', hidd
   return [
     `cd ${sq(work)} || exit 1`,
     '# (1) the diff stats of the agent\'s own change against the task commit: BEFORE the graft, so the hidden tests are not in them',
-    `timeout -k ${KILL_AFTER_SEC} ${testLimit} ${GIT} add -A > ${file('diff.log')} 2>&1 && timeout -k ${KILL_AFTER_SEC} ${testLimit} ${GIT} diff --cached --shortstat ${sq(baseCommit)} > ${file('diff.txt')} 2>> ${file('diff.log')}`,
+    `timeout -k ${KILL_AFTER_SEC} ${prepSec} ${GIT} add -A > ${file('diff.log')} 2>&1 && timeout -k ${KILL_AFTER_SEC} ${prepSec} ${GIT} diff --cached --shortstat ${sq(baseCommit)} > ${file('diff.txt')} 2>> ${file('diff.log')}`,
     `echo $? > ${file('diff.status')}`,
     '# (2) the graft, as its own shell, read from the here-document',
-    `timeout -k ${KILL_AFTER_SEC} ${testLimit} sh -s > ${file('graft.log')} 2>&1 <<'${GRAFT_EOF}'`,
+    `timeout -k ${KILL_AFTER_SEC} ${prepSec} sh -s > ${file('graft.log')} 2>&1 <<'${GRAFT_EOF}'`,
     graft,
     GRAFT_EOF,
     'gs=$?',

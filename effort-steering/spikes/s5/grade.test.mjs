@@ -139,6 +139,13 @@ t('parseCargo ignores every line from "failures:" to the next "running N tests":
   assert.equal(parseCargo('failures:\nrunning soon\ntest a ... ok\n').results.has('a'), false);
   assert.equal(parseCargo('failures:\nrunning 0 tests\ntest a ... ok\n').results.get('a'), 'ok');
   assert.equal(parseCargo('failures:\nrunning 1 test\ntest a ... ok\n').results.get('a'), 'ok');
+  // and only the WHOLE line does: a captured line that merely ends with it, starts with it, is indented or padded
+  // does not reopen reporting, so a forged report behind it stays ignored
+  for (const captured of ['note: running 2 tests', 'running 2 tests later', '  running 2 tests', 'running 2 tests ', 'running 2 test cases', 'xrunning 2 tests']) {
+    const out = parseCargo(`failures:\n${captured}\ntest x ... ok\nrunning 2 tests\ntest y ... ok\n`);
+    assert.equal(out.results.has('x'), false, `after ${JSON.stringify(captured)} the section is still open`);
+    assert.equal(out.results.get('y'), 'ok', 'and the real "running 2 tests" line still closes it');
+  }
 });
 
 t('parseCargo: a compile error without an error code is still a compile error; a test failure and prose are not', () => {
@@ -188,7 +195,7 @@ t('parseNodeTest separates assertion failures from a ReferenceError', () => {
     ['needs the new option', 'FAILED'],
     ['a \\#1 stays as the helper printed it', 'ok'],
   ]);
-  assert.deepEqual(run.nonAssertionFailures, ['exports the helper', 'needs the new option'], 'the AssertionError is a behaviour failure; ReferenceError and TypeError are not, and a ReferenceError BEFORE an assertion stays one');
+  assert.deepEqual(run.nonAssertionFailures, ['exports the helper', 'needs the new option'], 'the AssertionError is a behaviour failure; ReferenceError and TypeError are not');
 });
 
 t('parseNodeTest reads node v26 --test-reporter=tap output: numbering, nesting, SKIP and TODO, escaped names, a test\'s own prints in comments', () => {
@@ -332,10 +339,20 @@ t('infraOf maps each docker outcome, and "no container" is never read as "inspec
   assert.equal(infraOf({ ...ok, timedOut: true, oomKilled: true }), 'oom', 'a timed-out container that was also OOM-killed is reported as OOM');
 });
 
-t('limitsOf: the task defaults, the overrides, and a container limit that outlasts every step', () => {
-  assert.deepEqual(limitsOf({ timeoutsSec: { build: 600, test: 300 } }, {}), { build: 600, test: 300, container: 600 + 2 * 300 + 300 });
-  assert.deepEqual(limitsOf({ timeoutsSec: { build: 600, test: 300 } }, { build: 7, test: 9 }), { build: 7, test: 9, container: 7 + 2 * 9 + 300 });
-  assert.deepEqual(limitsOf({ timeoutsSec: { build: 600, test: 300 } }, { container: 0.5 }), { build: 600, test: 300, container: 0.5 });
+t('limitsOf: the task defaults, the overrides, and a container limit that outlasts the worst serial path through the driver', () => {
+  // the worst path, written out from the driver's own steps: the diff's two git calls and the graft at 120 s,
+  // the build, and both test steps, each followed by its 10 s kill-after
+  const worst = (build, test) => 3 * (120 + 10) + (build + 10) + 2 * (test + 10);
+  assert.deepEqual(limitsOf({ timeoutsSec: { build: 600, test: 300 } }, {}), { build: 600, test: 300, container: worst(600, 300) + 300 });
+  assert.deepEqual(limitsOf({ timeoutsSec: { build: 600, test: 300 } }, { build: 7, test: 9 }), { build: 7, test: 9, container: worst(7, 9) + 300 });
+  assert.equal(limitsOf({ timeoutsSec: { build: 600, test: 300 } }, { build: 7, test: 9 }).container, 745, 'the number, for {build 7, test 9}');
+  for (const [build, test] of [[7, 9], [600, 300], [7, 261], [7, 1000], [3600, 3600], [1, 1]]) {
+    const { container } = limitsOf({ timeoutsSec: { build: 1, test: 1 } }, { build, test });
+    assert.ok(container > worst(build, test), `build ${build}, test ${test}: ${container} must exceed the worst serial path ${worst(build, test)}`);
+    assert.equal(container - worst(build, test), 300, 'by exactly the slack');
+  }
+  assert.deepEqual(limitsOf({ timeoutsSec: { build: 600, test: 300 } }, { container: 0.5 }), { build: 600, test: 300, container: 0.5 }, 'an explicit container limit wins');
+  assert.equal(limitsOf({ timeoutsSec: { build: 600, test: 300 } }, { build: 7, test: 9, container: 5000 }).container, 5000);
   for (const bad of [{ build: 0 }, { build: 1.5 }, { test: -1 }, { test: '5' }, { container: 0 }, { container: Number.NaN }]) {
     assert.throws(() => limitsOf({ timeoutsSec: { build: 600, test: 300 } }, bad), TypeError, JSON.stringify(bad));
   }
@@ -612,9 +629,9 @@ const GIT_TEXT = "git -c safe.directory='*' -c core.fsmonitor=false";
 
 t('driverScript: the diff stats come before the graft, the graft before the build, the build before the tests', () => {
   const script = driverScript(manifestOf());
-  const add = idx(script, `timeout -k 10 300 ${GIT_TEXT} add -A`);
-  const diff = idx(script, `timeout -k 10 300 ${GIT_TEXT} diff --cached --shortstat '${BASE}'`);
-  const graftStart = idx(script, "timeout -k 10 300 sh -s > '/results/graft.log' 2>&1 <<'S5_GRAFT_EOF'");
+  const add = idx(script, `timeout -k 10 120 ${GIT_TEXT} add -A`);
+  const diff = idx(script, `timeout -k 10 120 ${GIT_TEXT} diff --cached --shortstat '${BASE}'`);
+  const graftStart = idx(script, "timeout -k 10 120 sh -s > '/results/graft.log' 2>&1 <<'S5_GRAFT_EOF'");
   const graft = idx(script, "rm -rf -- '/work/tests/hidden.rs'");
   const graftEnd = idx(script, '\nS5_GRAFT_EOF\n');
   const build = idx(script, "'cargo' 'test' '--no-run' '--no-default-features'");
@@ -626,19 +643,26 @@ t('driverScript: the diff stats come before the graft, the graft before the buil
   assert.ok(!script.includes('HEAD'), 'the diff base is the task commit, never HEAD');
 });
 
-t('driverScript takes the step limits from its options: the build limit on the build, the test limit on the diff, the graft and both test steps', () => {
-  const script = driverScript(manifestOf(), { buildSec: 7, testSec: 9 });
-  const lineWith = (needle) => {
+t('driverScript takes the build and test limits from its options; the diff and the graft always run under the fixed 120 s, whatever the test limit', () => {
+  const lineIn = (script, needle) => {
     const hits = script.split('\n').filter((l) => l.includes(needle));
     assert.equal(hits.length, 1, `${needle} is on one line`);
     return hits[0];
   };
-  assert.match(lineWith('/results/build.out'), /^ *timeout -k 10 7 'cargo'/);
-  assert.match(lineWith('/results/f2p.out'), /^ *timeout -k 10 9 'cargo'/);
-  assert.match(lineWith('/results/p2p.out'), /^ *timeout -k 10 9 'cargo'/);
-  assert.match(lineWith('/results/graft.log'), /^timeout -k 10 9 sh -s /);
-  assert.match(lineWith('/results/diff.txt'), /^timeout -k 10 9 git .* && timeout -k 10 9 git /);
-  assert.equal(script.split('timeout -k 10 7 ').length - 1, 1, 'nothing else runs under the build limit');
+  for (const testSec of [9, 400]) {
+    const script = driverScript(manifestOf(), { buildSec: 7, testSec });
+    assert.match(lineIn(script, '/results/build.out'), /^ *timeout -k 10 7 'cargo'/);
+    assert.match(lineIn(script, '/results/f2p.out'), new RegExp(`^ *timeout -k 10 ${testSec} 'cargo'`));
+    assert.match(lineIn(script, '/results/p2p.out'), new RegExp(`^ *timeout -k 10 ${testSec} 'cargo'`));
+    assert.match(lineIn(script, '/results/graft.log'), /^timeout -k 10 120 sh -s /, `graft, test limit ${testSec}`);
+    assert.match(lineIn(script, '/results/diff.txt'), /^timeout -k 10 120 git .*add -A .* && timeout -k 10 120 git .*diff --cached/, `diff, test limit ${testSec}`);
+    assert.equal(script.split('timeout -k 10 7 ').length - 1, 1, 'nothing else runs under the build limit');
+    assert.equal(script.split('timeout -k 10 120 ').length - 1, 3, 'add, diff and graft, and nothing else, run under 120 s');
+  }
+  // the seam the host-run tests use
+  const quick = driverScript(manifestOf(), { buildSec: 7, testSec: 9, prepSec: 5 });
+  assert.equal(quick.split('timeout -k 10 5 ').length - 1, 3);
+  assert.ok(!quick.includes('timeout -k 10 120 '));
 });
 
 t('driverScript refuses a manifest without a 40-hex baseCommit', () => {
@@ -751,7 +775,7 @@ t('a diff that hangs is cut off with status 124 and the grade goes on', () => {
   writeFileSync(join(shim, 'git'), '#!/bin/sh\nsleep 30\n');
   chmodSync(join(shim, 'git'), 0o755);
   const started = Date.now();
-  runDriver(s, manifestOf({ hidden: { files: ['tests/h.rs'] }, ...TRIVIAL }), { path: `${shim}${delimiter}${process.env.PATH}`, driver: { testSec: 1 } });
+  runDriver(s, manifestOf({ hidden: { files: ['tests/h.rs'] }, ...TRIVIAL }), { path: `${shim}${delimiter}${process.env.PATH}`, driver: { prepSec: 1 } });
   assert.equal(res(s, 'diff.status').trim(), '124');
   assert.equal(res(s, 'graft.status').trim(), '0');
   assert.equal(res(s, 'build.status').trim(), '0');
@@ -764,7 +788,7 @@ t('a graft that hangs (a FIFO where a graftLines file belongs) is cut off with s
   assert.equal(spawnSync('mkfifo', [join(s.work, 'src/lib.rs')]).status, 0);
   const m = manifestOf({ hidden: { files: ['tests/h.rs'], graftLines: [{ file: 'src/lib.rs', line: 'mod hidden_support;' }] }, ...TRIVIAL });
   const started = Date.now();
-  runDriver(s, m, { driver: { testSec: 1 } });
+  runDriver(s, m, { driver: { prepSec: 1 } });
   assert.equal(res(s, 'graft.status').trim(), '124');
   assert.equal(res(s, 'build.status'), null);
   assert.ok(res(s, 'done') !== null);
@@ -1036,7 +1060,7 @@ await taIf('cpus and memory reach docker when given', NO_REFLINK_HERE, async () 
   assert.equal(flagValue(argv, '--memory'), '6g');
 });
 
-await taIf('the step limits reach the script: build limit on the build, test limit on the diff, the graft and both test steps', NO_REFLINK_HERE, async () => {
+await taIf('the step limits reach the script: build limit on the build, test limit on both test steps, the fixed 120 s on the diff and the graft', NO_REFLINK_HERE, async () => {
   const sc = makeScene();
   const { f } = await grade(sc, { opts: { timeouts: { build: 7, test: 9 } } });
   const script = runCall(f).argv.at(-1);
@@ -1044,12 +1068,14 @@ await taIf('the step limits reach the script: build limit on the build, test lim
   assert.match(lineWith('/results/build.out'), /^ *timeout -k 10 7 'cargo'/);
   assert.match(lineWith('/results/f2p.out'), /^ *timeout -k 10 9 'cargo'/);
   assert.match(lineWith('/results/p2p.out'), /^ *timeout -k 10 9 'cargo'/);
-  assert.match(lineWith('/results/graft.log'), /^timeout -k 10 9 sh -s /);
-  assert.match(lineWith('/results/diff.txt'), /^timeout -k 10 9 git .* && timeout -k 10 9 git /);
+  assert.match(lineWith('/results/graft.log'), /^timeout -k 10 120 sh -s /);
+  assert.match(lineWith('/results/diff.txt'), /^timeout -k 10 120 git .*add -A .* && timeout -k 10 120 git .*diff --cached/);
   assert.equal(script.split('timeout -k 10 7 ').length - 1, 1);
+  assert.equal(script.split('timeout -k 10 9 ').length - 1, 2);
   const defaults = runCall((await grade(makeScene(), { runId: 'r2' })).f).argv.at(-1);
   assert.match(defaults, /timeout -k 10 600 'cargo'/, 'the task def\'s own limits when none are given');
   assert.match(defaults, /timeout -k 10 300 'cargo'/);
+  assert.match(defaults, /^timeout -k 10 120 sh -s /m, 'and 120 s for the graft however long the tests may run');
 });
 
 await taIf('the container limit is in seconds: 3 s is not 3 ms, and a 1.5 s run under it is not a timeout', NO_REFLINK_HERE, async () => {
