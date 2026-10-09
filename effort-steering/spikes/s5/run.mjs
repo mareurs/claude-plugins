@@ -203,8 +203,8 @@ export function planRunsS5(prereg, options) {
 // (step 5), and a row that would still hold it is never returned (runOne throws, after the cleanup). The row guard sees a WHOLE,
 // contiguous token only: a token split over two text blocks could leave a fragment in finalTextTail (R113).
 //
-// WHAT runs/ HOLDS AFTERWARDS (R116). After a run that reached the container, `config` and `state` hold no whole token. They are NOT
-// scrubbed, so a whole token may still be on disk, in four cases:
+// WHAT runs/ HOLDS AFTERWARDS (R116). When runOne returns a row, `config` and `state` hold no whole token. These are NOT scrubbed, so a
+// whole token can be on disk in four cases:
 //   1. `work` and `target` kept by keepRunDirs (the agent can write the token into /work; they are the operator's debugging copies);
 //   2. a `work` or `target` that could not be removed (the Row's `leftover`);
 //   3. a file the scrub could not rewrite (the row is then not returned, and the thrown error names the count and the first path);
@@ -368,7 +368,6 @@ function resultOf(stdout) {
 // from a grader that finished.
 const isGrade = (g) => isObject(g) && (g.infra === null || (typeof g.infra === 'string' && g.infra !== '')) && typeof g.pass === 'boolean';
 
-// R87 steps (1) to (6): the infrastructure value of a run that ended in a container, or null. First match wins.
 // R87 steps (3) to (6), what the run left behind: the infrastructure value, or null. First match wins. (The container's own state, steps
 // (1) and (2), is grade.mjs's infraOf, called on the dockerRun result: R105.)
 function evidenceInfra(run, evidence) {

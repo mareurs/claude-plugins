@@ -382,6 +382,8 @@ const WORK = path.join(os.homedir(), 'work', 'claude', 's5-work');
 const TMP_BASE = path.join(WORK, 'tmp-tests-t10b');
 const fsType = (p) => spawnSync('stat', ['-f', '-c', '%T', p], { encoding: 'utf8' }).stdout.trim();
 const NO_REFLINK_HERE = !existsSync(WORK) ? `${WORK} does not exist` : !['btrfs', 'xfs'].includes(fsType(WORK)) ? `${WORK} is on ${fsType(WORK)}, which cannot reflink` : '';
+// A mode (chmod) does not stop root; the tests that rely on one are skipped for root.
+const IS_ROOT = typeof process.getuid === 'function' && process.getuid() === 0;
 // A skip is printed as a skip, never as a pass.
 async function taIf(name, skipReason, fn) {
   if (skipReason) console.log(`ok - ${name} # SKIP ${skipReason}`);
@@ -694,9 +696,12 @@ async function go(scene, run, o = {}) {
   assert.ok(!JSON.stringify(p.f.calls()).includes(SENTINEL), 'nor does the docker log');
   return { ...p, row };
 }
-// Runs it and expects a refusal (a throw, so no row): no token in the message, no run directory made, no docker call.
+// Runs it and expects a refusal (a throw, so no row): no token in the message, no run directory made, no docker call. A refusal of step 0
+// happens before `<workRoot>/runs` is made, so when the scene had no runs/ directory it still has none afterwards (R121: this is what a
+// step-0 check that slipped to after mkdir of the runs directory, or after the copies, would break).
 async function refused(scene, run, o, pattern, label) {
   const p = prepare(scene, run, o);
+  const hadRuns = existsSync(scene.runsDir);
   let err;
   try {
     await p.exec();
@@ -707,6 +712,7 @@ async function refused(scene, run, o, pattern, label) {
   assert.match(err.message, pattern, label);
   assert.ok(!err.message.includes(SENTINEL) && !String(err.stack).includes(SENTINEL), `${label}: the error never holds the token`);
   assert.ok(!existsSync(p.runDir), `${label}: no run directory was made`);
+  if (!hadRuns) assert.ok(!existsSync(scene.runsDir), `${label}: nor the runs directory (the refusal came before anything was made)`);
   assert.equal(p.f.calls().length, 0, `${label}: docker was never called`);
   assert.equal(p.seam.calls.length, 0, `${label}: nothing was graded`);
   return err;
@@ -728,6 +734,8 @@ const ROW_KEYS = [
 // ---- refusals: before anything is made ----
 
 await taIf('runOne refuses before anything is made: no token, a prompt.txt that is not the manifest\'s (R99), an existing run directory, inputs it cannot use', NO_REFLINK_HERE, async () => {
+  // R121: no refusal below may have made `<workRoot>/runs` (refused() asserts it for a scene that starts without one).
+  assert.ok(!existsSync(node.runsDir), 'precondition: the shared node scene has no runs/ directory yet');
   await refused(node, mkRun(node), { token: undefined }, /CLAUDE_CODE_OAUTH_TOKEN/, 'no token');
   await refused(node, mkRun(node), { token: '' }, /CLAUDE_CODE_OAUTH_TOKEN/, 'an empty token');
   // ctx.tokenEnv names the variable that is read: the default one is set (the sentinel) and does not stand in for it.
@@ -778,9 +786,11 @@ await taIf('runOne refuses before anything is made: no token, a prompt.txt that 
   const other = mkRun(node, 'B', { taskId: 'fix-add' });
   await refused(node, other, {}, /manifest\.json/, 'a task id of another work root');
 
-  // An existing run directory is refused and left alone.
-  const run = mkRun(node);
-  const p = prepare(node, run, {});
+  // An existing run directory is refused and left alone. (A scene of its own: this makes `runs/`, and the refusals below must be
+  // able to assert that theirs did not.)
+  const holder = buildScene('node');
+  const run = mkRun(holder);
+  const p = prepare(holder, run, {});
   mkdirSync(p.runDir, { recursive: true });
   writeFileSync(path.join(p.runDir, 'earlier.txt'), 'a previous attempt\n');
   const before = snapshot(p.runDir);
@@ -1131,6 +1141,28 @@ await taIf('R108: the scrub also runs when runOne throws after the container, an
   assert.deepEqual(readdirSync(both.runDir).sort(), ['config', 'state'], 'work is removed all the same');
 });
 
+// R121 (C): a runOne that throws BEFORE the container (here reflinkCopy fails on an unreadable file of the task's tree) has nothing to
+// scrub, so the error it throws does not talk about a scrub: the scrub is gated on `state.ran`, not run for every throw.
+await taIf('R121 (C): when reflinkCopy fails before the container, the thrown message does not mention a scrub, docker is never called and the run directory is gone', NO_REFLINK_HERE || (IS_ROOT ? 'running as root: a mode does not stop root' : ''), async () => {
+  const sc = buildScene('node');
+  const unreadable = path.join(sc.taskDir, 'tree', 'lib.mjs');
+  const mode = statSync(unreadable).mode & 0o777;
+  const p = prepare(sc, mkRun(sc), {});
+  let err;
+  try {
+    chmodSync(unreadable, 0o000);
+    err = await p.exec().then(() => null, (e) => e);
+  } finally {
+    chmodSync(unreadable, mode);
+  }
+  assert.ok(err instanceof Error, 'runOne threw');
+  assert.match(err.message, /reflinkCopy/, 'it is the copy that failed');
+  assert.doesNotMatch(err.message, /scrub/i, 'a run that never reached the container has no scrub to fail');
+  assert.ok(!err.message.includes(SENTINEL) && !String(err.stack).includes(SENTINEL));
+  assert.equal(p.f.calls().length, 0, 'docker was never called');
+  assert.ok(!existsSync(p.runDir), 'the run directory is removed, so the same attempt can be made again');
+});
+
 // ---- R117: scrubRunDirs, the same scrub over the run directories an interrupted batch left behind ----
 
 await ta('R117: scrubRunDirs(runsRoot, token) scrubs config/ and state/ of every run directory directly under runsRoot, with the scrub runOne uses, and returns { dirs, files, failed } without throwing', async () => {
@@ -1196,6 +1228,45 @@ await ta('R117: scrubRunDirs(runsRoot, token) scrubs config/ and state/ of every
   // Its inputs: an empty token would match everywhere, so it is refused.
   assert.throws(() => scrubRunDirs(runsRoot, ''), TypeError);
   assert.throws(() => scrubRunDirs('', SENTINEL), TypeError);
+});
+
+// R121 (B): a run directory or a config/ / state/ the scrub cannot enter is reported in `failed` (the batch then refuses to start), not
+// skipped. A chmod stops a user, not root, so the test is skipped for root. The modes are restored on every path.
+await taIf('R121 (B): scrubRunDirs reports in `failed` a run directory it cannot enter (its config/ and state/) and a config/ it cannot list (state/ is still scrubbed)', IS_ROOT ? 'running as root: a mode does not stop root' : '', async () => {
+  const makeRoot = (name) => {
+    const runsRoot = mkdtempSync(path.join(ROOT, `${name}-`));
+    for (const rel of ['t.H.0-a1/config/a.txt', 't.H.0-a1/state/b.txt']) {
+      mkdirSync(path.dirname(path.join(runsRoot, rel)), { recursive: true });
+      writeFileSync(path.join(runsRoot, rel), `x${SENTINEL}y`);
+    }
+    return runsRoot;
+  };
+  const runDir = (runsRoot) => path.join(runsRoot, 't.H.0-a1');
+
+  // (1) The run directory itself is closed (chmod 000): lstat of its config/ and of its state/ fails with EACCES, which is not ENOENT.
+  const closed = makeRoot('runs-closed');
+  try {
+    chmodSync(runDir(closed), 0o000);
+    const r = scrubRunDirs(closed, SENTINEL);
+    assert.deepEqual({ ...r, failed: [...r.failed].sort() }, { dirs: 0, files: 0, failed: [path.join(runDir(closed), 'config'), path.join(runDir(closed), 'state')].sort() }, 'both roots of the closed run directory are reported');
+  } finally {
+    chmodSync(runDir(closed), 0o755);
+  }
+  // Nothing was scrubbed in it, and once it is open again the same call does the work: the report was about access, not about content.
+  assert.equal(readFileSync(path.join(runDir(closed), 'config', 'a.txt'), 'utf8'), `x${SENTINEL}y`, 'a closed directory is not scrubbed');
+  assert.deepEqual(scrubRunDirs(closed, SENTINEL), { dirs: 1, files: 2, failed: [] }, 'open again: both files held the token');
+
+  // (2) config/ cannot be listed (chmod 000 on config/ only): config/ is reported, state/ is scrubbed all the same.
+  const half = makeRoot('runs-half');
+  const config = path.join(runDir(half), 'config');
+  try {
+    chmodSync(config, 0o000);
+    assert.deepEqual(scrubRunDirs(half, SENTINEL), { dirs: 1, files: 1, failed: [config] }, 'config/ is reported; state/ is scrubbed and counted');
+    assert.equal(readFileSync(path.join(runDir(half), 'state', 'b.txt'), 'utf8'), 'x[REDACTED]y', 'state/ is scrubbed although config/ was not');
+  } finally {
+    chmodSync(config, 0o755);
+  }
+  assert.equal(readFileSync(path.join(config, 'a.txt'), 'utf8'), `x${SENTINEL}y`, 'config/ was not touched');
 });
 
 // ---- R87: the classification, in its fixed order, first match wins ----
