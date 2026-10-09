@@ -65,11 +65,9 @@ import {
 import { join, resolve } from 'node:path';
 import { reflinkCopy, treeAtFix } from './build-task.mjs';
 import { dockerRun } from './docker.mjs';
-import { gradeTree, infraOf, limitsOf, removeGradeDir } from './grade.mjs';
-import { IMAGE_FOR_REPO } from './task-def.mjs';
+import { gradeTree, infraOf, limitsOf, removeGradeDir, RUN_ID_RE } from './grade.mjs';
+import { IMAGE_FOR_REPO, TASK_ID_RE } from './task-def.mjs';
 
-const ID_RE = /^[a-z0-9-]+$/;
-const RUN_ID_RE = /^[a-zA-Z0-9_][a-zA-Z0-9_.-]{0,63}$/;
 export const FIX_RUNS = 3;
 // A grade, and up to two more when it ends in infrastructure.
 export const MAX_ATTEMPTS = 3;
@@ -145,7 +143,7 @@ export function gateReasons(runner, atParent, atFix) {
 
 function requireManifest(who, manifest) {
   if (manifest === null || typeof manifest !== 'object') throw new TypeError(`${who}: the manifest must be an object`);
-  if (typeof manifest.id !== 'string' || !ID_RE.test(manifest.id)) throw new TypeError(`${who}: manifest.id must match ${ID_RE}, got ${JSON.stringify(manifest.id)}`);
+  if (typeof manifest.id !== 'string' || !TASK_ID_RE.test(manifest.id)) throw new TypeError(`${who}: manifest.id must match ${TASK_ID_RE}, got ${JSON.stringify(manifest.id)}`);
   const { def } = manifest;
   if (def === null || typeof def !== 'object') throw new TypeError(`${who}: the manifest has no def`);
   if (typeof def.testRunner !== 'string') throw new TypeError(`${who}: def.testRunner must be a string`);

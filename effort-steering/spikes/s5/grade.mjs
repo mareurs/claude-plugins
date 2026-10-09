@@ -65,11 +65,12 @@ import {
 import { join, resolve } from 'node:path';
 import { reflinkCopy } from './build-task.mjs';
 import { dockerRun } from './docker.mjs';
-import { moduleOf } from './task-def.mjs';
+import { moduleOf, TASK_ID_RE } from './task-def.mjs';
 
 const RUNNERS = ['cargo', 'node', 'sh'];
-const ID_RE = /^[a-z0-9-]+$/;
-const RUN_ID_RE = /^[a-zA-Z0-9_][a-zA-Z0-9_.-]{0,63}$/;
+// The one run-id rule of the harness (ruling R96): gate-task.mjs imports it, and the runner's `<taskId>.<arm>.<rep>` fits it by
+// task-def's TASK_ID_RE (48 characters at most, ruling R92). It becomes a container name suffix, so it starts with a letter, digit or '_'.
+export const RUN_ID_RE = /^[a-zA-Z0-9_][a-zA-Z0-9_.-]{0,63}$/;
 // `timeout -k`: a command that ignores SIGTERM is killed this many seconds later, so a hang that is the
 // agent's code's is cut off INSIDE the container (a model failure) and never reaches the harness's clock.
 const KILL_AFTER_SEC = 10;
@@ -454,7 +455,7 @@ function relativePath(what, p) {
 }
 function requireManifest(manifest) {
   if (manifest === null || typeof manifest !== 'object') throw new TypeError('gradeTree: the manifest must be an object');
-  if (typeof manifest.id !== 'string' || !ID_RE.test(manifest.id)) throw new TypeError(`gradeTree: manifest.id must match ${ID_RE}, got ${JSON.stringify(manifest.id)}`);
+  if (typeof manifest.id !== 'string' || !TASK_ID_RE.test(manifest.id)) throw new TypeError(`gradeTree: manifest.id must match ${TASK_ID_RE}, got ${JSON.stringify(manifest.id)}`);
   const { def } = manifest;
   if (def === null || typeof def !== 'object') throw new TypeError('gradeTree: the manifest has no def');
   if (!RUNNERS.includes(def.testRunner)) throw new TypeError(`gradeTree: def.testRunner must be one of ${RUNNERS.join(', ')}, got ${JSON.stringify(def.testRunner)}`);

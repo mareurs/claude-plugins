@@ -26,7 +26,7 @@ import { t } from '../../core/testkit.mjs';
 import { ta } from './fixtures/testkit-async.mjs';
 import { git } from './git.mjs';
 import {
-  driverScript, gradeTree, graftScript, infraOf, judgeNames, limitsOf, moduleOf, parseCargo, parseNodeTest, parseSh, parseShortstat, readResultFile, removeGradeDir, SH_RESULT, verdict,
+  driverScript, gradeTree, graftScript, infraOf, judgeNames, limitsOf, moduleOf, parseCargo, parseNodeTest, parseSh, parseShortstat, readResultFile, removeGradeDir, RUN_ID_RE, SH_RESULT, verdict,
 } from './grade.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -1301,6 +1301,11 @@ await taIf('diff stats: git\'s forms are read, an empty diff is zero changes, an
 
 // ---- inputs ----
 
+// R96: the one run-id rule of the harness (gate-task.mjs and the runner import it from here).
+t('RUN_ID_RE: 1 to 64 characters, a letter, digit or underscore first, then letters, digits, _, . and -', () => {
+  for (const ok of ['a', '_', '0', 'A', 'a'.repeat(64), 'task-1.A.0', 'gate-0a1b2c-p-1', 'a.b-c_d', `${'a'.repeat(48)}.C.11-a9`]) assert.ok(RUN_ID_RE.test(ok), ok);
+  for (const bad of ['', '-x', '.x', 'a'.repeat(65), 'a b', 'a/b', 'a\n', 'ä', '..']) assert.ok(!RUN_ID_RE.test(bad), JSON.stringify(bad));
+});
 await taIf('gradeTree refuses what it cannot grade honestly, before anything is copied or started', NO_REFLINK_HERE, async () => {
   const sc = makeScene();
   const f = fakeDocker({});
@@ -1330,7 +1335,14 @@ await taIf('gradeTree refuses what it cannot grade honestly, before anything is 
   await assert.rejects(call(manifestOf({ hidden: { files: ['tests/hidden.rs'], graftLines: [{ file: 'src/lib.rs', line: 'use x;' }] } })), /exactly one Rust module/);
   await assert.rejects(call(sc.manifest, join(sc.dir, 'no-such-agent-tree')), /agent tree/i, 'a missing agent tree');
   await assert.rejects(call(sc.manifest, join(sc.agent, 'link-to-lib')), /agent tree/i, 'a link is not a tree');
-  for (const runId of ['', '..', 'a/b', '.hidden', 'x y', 'a'.repeat(200)]) await assert.rejects(call(sc.manifest, sc.agent, { runId }), TypeError, `runId ${JSON.stringify(runId)}`);
+  for (const runId of ['', '..', 'a/b', '.hidden', 'x y', 'a'.repeat(200), '-x', 'a'.repeat(65)]) await assert.rejects(call(sc.manifest, sc.agent, { runId }), TypeError, `runId ${JSON.stringify(runId)}`);
+  // R96: the id rule is task-def's TASK_ID_RE, not a private copy of the rule it replaced (that one accepted '-x' and any length).
+  for (const id of ['-x', '-', 'a'.repeat(49), 'a'.repeat(62)]) {
+    await assert.rejects(call({ ...sc.manifest, id }), (e) => e instanceof TypeError && /manifest\.id/.test(e.message), `id ${JSON.stringify(id)}`);
+  }
+  for (const id of ['a', '0', '9-', 'a'.repeat(48)]) {
+    await assert.rejects(call({ ...sc.manifest, id }), (e) => !/manifest\.id/.test(e.message) && /hidden file/.test(e.message), `id ${JSON.stringify(id)} passes the id rule and is refused later, for the hidden file it does not hold`);
+  }
   await assert.rejects(call(sc.manifest, sc.agent, { image: '' }), TypeError);
   await assert.rejects(call(sc.manifest, sc.agent, { workRoot: '' }), TypeError);
   await assert.rejects(call(sc.manifest, sc.agent, { timeouts: { build: -1 } }), TypeError);

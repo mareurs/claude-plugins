@@ -25,7 +25,7 @@ import { makeRepo } from './fixtures/make-repo.mjs';
 import { ta } from './fixtures/testkit-async.mjs';
 import { FIX_RUNS, gateReasons, gateTask, GATE_REASONS, MAX_ATTEMPTS, warmTask } from './gate-task.mjs';
 import { git } from './git.mjs';
-import { gradeTree } from './grade.mjs';
+import { gradeTree, RUN_ID_RE } from './grade.mjs';
 import { IMAGE_FOR_REPO } from './task-def.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -153,7 +153,6 @@ t('GATE_REASONS is the fixed order, and the cases above cover every reason in it
 // gateTask through its grade seam, against a real built task
 // =====================================================================================
 
-const ID_RE = /^[a-zA-Z0-9_][a-zA-Z0-9_.-]{0,63}$/;
 const LIB_P = 'pub fn add(a: i32, b: i32) -> i32 {\n    a - b\n}\n';
 const LIB_FIX = 'pub fn add(a: i32, b: i32) -> i32 {\n    a + b\n}\n';
 const CARGO_TOML = '[package]\nname = "tiny"\nversion = "0.1.0"\nedition = "2021"\n';
@@ -249,7 +248,7 @@ await ta('gateTask, the ok case: one grade at the parent, three at the fix tree,
   // how it was graded
   const runIds = calls.map((c) => c.options.runId);
   assert.equal(new Set(runIds).size, runIds.length, 'every grade has its own run id');
-  for (const id of runIds) assert.match(id, ID_RE);
+  for (const id of runIds) assert.match(id, RUN_ID_RE);
   for (const c of calls) {
     assert.equal(c.options.workRoot, resolve(sc.workRoot));
     assert.equal(c.options.image, 's5/codescout', 'IMAGE_FOR_REPO[codescout]');
@@ -482,6 +481,13 @@ await ta('gateTask refuses bad inputs before grading anything', async () => {
   const go = (manifest, opts = {}) => gateTask(manifest, { workRoot: sc.workRoot, grade: seam.grade, ...opts });
   await assert.rejects(go(null), TypeError);
   await assert.rejects(go({ ...sc.manifest, id: 'Bad Id' }), TypeError);
+  // R96: the id rule is task-def's TASK_ID_RE, not a private copy of the rule it replaced (that one accepted '-x' and any length).
+  for (const id of ['-x', '-', 'a'.repeat(49), 'a'.repeat(62)]) {
+    await assert.rejects(go({ ...sc.manifest, id }), (e) => e instanceof TypeError && /gateTask/.test(e.message) && /manifest\.id/.test(e.message), `id ${JSON.stringify(id)}`);
+  }
+  for (const id of ['a', '0', '9-', 'a'.repeat(48)]) {
+    await assert.rejects(go({ ...sc.manifest, id }), (e) => !/manifest\.id/.test(e.message) && /tree/.test(e.message), `id ${JSON.stringify(id)} passes the id rule and is refused later, as a task that was never built`);
+  }
   await assert.rejects(go({ ...sc.manifest, def: null }), TypeError);
   await assert.rejects(go({ ...sc.manifest, treeHash: undefined }), TypeError);
   await assert.rejects(go({ ...sc.manifest, hiddenHash: '' }), TypeError);
@@ -745,6 +751,21 @@ await taIf('warmTask: image defaults to IMAGE_FOR_REPO and an image option wins;
   }
   await assert.rejects(warmTask(null, { workRoot: sc3.workRoot, dockerBin: none.bin }), TypeError);
   await assert.rejects(warm({ ...sc3, manifest: { ...sc3.manifest, id: 'no-such-task' } }, none), /tree/);
+  // R96: warmTask takes the id rule from task-def (TASK_ID_RE) and the run id rule from grade.mjs (RUN_ID_RE): it refuses and accepts exactly
+  // what those do. A run id that passes the rule goes on to the next check (the task was never built); one that fails it is a TypeError.
+  for (const id of ['-x', '-', 'a'.repeat(49), 'a'.repeat(62)]) {
+    await assert.rejects(warm({ ...sc3, manifest: { ...sc3.manifest, id } }, none), (e) => e instanceof TypeError && /warmTask/.test(e.message) && /manifest\.id/.test(e.message), `id ${JSON.stringify(id)}`);
+  }
+  const unbuilt = { ...sc3, manifest: { ...sc3.manifest, id: 'never-built' } };
+  const runIds = ['a', '_', '0', 'a'.repeat(63), 'a'.repeat(64), 'w1.x-y_z', '', '-x', '.x', 'a'.repeat(65), 'a'.repeat(200), 'a b', 'a/b', 'a\n', '..'];
+  assert.ok(runIds.some((r) => RUN_ID_RE.test(r)) && runIds.some((r) => !RUN_ID_RE.test(r)), 'both sides of the rule are tried');
+  for (const runId of runIds) {
+    await assert.rejects(
+      warm(unbuilt, none, { runId }),
+      RUN_ID_RE.test(runId) ? (e) => !(e instanceof TypeError) && /tree/.test(e.message) : (e) => e instanceof TypeError && /runId must match/.test(e.message),
+      `runId ${JSON.stringify(runId)}`,
+    );
+  }
   assert.equal(none.calls().length, 0);
   assert.ok(!existsSync(join(sc3.workRoot, 'cargo-home')), 'refused before anything is made: not even the cargo home');
   assert.deepEqual(warmDirs(sc3), []);

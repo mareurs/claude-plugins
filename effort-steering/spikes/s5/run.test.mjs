@@ -14,6 +14,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { t } from '../../core/testkit.mjs';
 import { makeRng } from '../s4-prng.mjs';
+import { RUN_ID_RE } from './grade.mjs';
 import { loadS5Config } from './prereg.mjs';
 import { planRunsS5 } from './run.mjs';
 import { TASK_ID_RE } from './task-def.mjs';
@@ -310,8 +311,8 @@ t('planRunsS5 plans what loadS5Config returns, a frozen object with registered f
 
 // ---- R92: the longest legal task id still plans run ids the rest of the harness accepts ----
 
-// grade.mjs's RUN_ID_RE and docker.mjs's NAME_RE are private, so the test reads each regex literal out of its module's source:
-// it follows them when they change and fails (not passes) if the line moves away.
+// docker.mjs's NAME_RE is private, so the test reads its regex literal out of that module's source: it follows it when it changes
+// and fails (not passes) if the line moves away. grade.mjs's RUN_ID_RE is exported (R96) and imported above.
 function regexIn(file, name) {
   const text = readFileSync(new URL(file, import.meta.url), 'utf8');
   const m = text.match(new RegExp(`^const ${name} = /(.+)/([a-z]*);$`, 'm'));
@@ -320,9 +321,8 @@ function regexIn(file, name) {
 }
 
 t('the longest legal task id plans run ids that gradeTree and docker accept, with an attempt suffix (R92)', () => {
-  const RUN_ID_RE = regexIn('./grade.mjs', 'RUN_ID_RE');
   const NAME_RE = regexIn('./docker.mjs', 'NAME_RE');
-  assert.ok(RUN_ID_RE.test('a'.repeat(64)) && !RUN_ID_RE.test('a'.repeat(65)), 'the regex read is the 64-character one');
+  assert.ok(RUN_ID_RE.test('a'.repeat(64)) && !RUN_ID_RE.test('a'.repeat(65)), 'the regex imported is the 64-character one');
   assert.ok(NAME_RE.test('s5-a.b_c-1') && !NAME_RE.test('a-s5-x'), 'the regex read is the s5- container name one');
 
   const longest = 'a1b2'.repeat(12);
