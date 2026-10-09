@@ -848,6 +848,21 @@ t('R111: a prompt that is not valid UTF-8 is refused by name, and nothing is bui
   }
 });
 
+t('R118: a prompt with a NUL byte is refused by name, without printing the prompt, and nothing is built (it is valid UTF-8, but it cannot be ONE argv element)', () => {
+  const text = 'add returns the difference of its arguments';
+  for (const [label, prompt] of [['in the middle', Buffer.from(`${text}\0 and more\n`)], ['at the end', Buffer.from(`${text}\n\0`)], ['alone after text', Buffer.concat([Buffer.from(text), Buffer.from([0])])]]) {
+    refuses(src, `a NUL byte ${label}`, { prompt }, /prompt\.txt/, /NUL/);
+    let err;
+    try {
+      buildTask(makeTaskDir(src, { prompt }), { workRoot: tmp('s5-work-') });
+    } catch (e) {
+      err = e;
+    }
+    assert.ok(err instanceof Error);
+    assert.ok(!err.message.includes(text), `a NUL byte ${label}: the prompt is not printed`);
+  }
+});
+
 t("R109: hashHidden(out) is the hidden/ part of hashBuiltTask, one definition; it reads nothing outside hidden/", () => {
   const b = build(src);
   assert.equal(hashHidden(b.out), b.manifest.hiddenHash);

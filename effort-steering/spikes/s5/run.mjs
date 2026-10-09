@@ -2,6 +2,7 @@
 //
 //   planRunsS5(prereg, { mode, taskIds? }) -> Run[]            (below, ruling R84)
 //   runOne(run, ctx) -> Promise<Row>                           (one agent run in a container, classified and graded: see "runOne")
+//   scrubRunDirs(runsRoot, token) -> { dirs, files, failed }   (the scrub of runOne's step 5 over the run directories of earlier batches, R117)
 //
 // The plan:
 //
@@ -148,9 +149,9 @@ export function planRunsS5(prereg, options) {
 //     keepRunDirs  keep the copies of the tree and the target after the run (debugging). Default false.
 //
 // BEFORE anything is made, runOne throws (no row, no run directory, no container) on: inputs it cannot use, a token variable that is
-// not set (the message names the variable, never a value), a prompt.txt whose sha256 is not the manifest's promptHash (R99) or that is
-// not valid UTF-8 (R111), and a run directory that already exists (it is never reused). A docker that cannot start also throws, after
-// the cleanup below.
+// not set (the message names the variable, never a value), a prompt.txt whose sha256 is not the manifest's promptHash (R99), that is not
+// valid UTF-8 (R111) or that holds a NUL byte (R118: a process argument cannot), and a run directory that already exists (it is never
+// reused). A docker that cannot start also throws, after the cleanup below.
 //
 // WHAT IT DOES, in this order.
 //   1. The run directory: `work` and, when the task has a warm target, `target` are reflink copies of tasks/<id>/tree and
@@ -200,8 +201,15 @@ export function planRunsS5(prereg, options) {
 //   grade    the grade that stood, or null (a timeout, R90, or any infrastructure row).
 // A row never holds the token. The transcript text is scrubbed of it before finalTextTail is cut, config/ and state/ are scrubbed in place
 // (step 5), and a row that would still hold it is never returned (runOne throws, after the cleanup). The row guard sees a WHOLE,
-// contiguous token only: a token split over two text blocks could leave a fragment in finalTextTail (R113). runs/ is therefore scrubbed
-// of the whole token, not guaranteed free of every fragment of it.
+// contiguous token only: a token split over two text blocks could leave a fragment in finalTextTail (R113).
+//
+// WHAT runs/ HOLDS AFTERWARDS (R116). After a run that reached the container, `config` and `state` hold no whole token. They are NOT
+// scrubbed, so a whole token may still be on disk, in four cases:
+//   1. `work` and `target` kept by keepRunDirs (the agent can write the token into /work; they are the operator's debugging copies);
+//   2. a `work` or `target` that could not be removed (the Row's `leftover`);
+//   3. a file the scrub could not rewrite (the row is then not returned, and the thrown error names the count and the first path);
+//   4. an attempt that was interrupted (a signal, a crash during the container or the grade): it never reached the scrub and has no row.
+// For case 4 the batch calls scrubRunDirs (below, R117) at its start, before the first run, and refuses to start when it returns `failed`.
 
 const AGENT_USER = 'agent';
 const WORKDIR = '/work';
@@ -318,6 +326,8 @@ function loadTask(taskDir, run) {
   // and firstUserTextOk would compare against the decoded text. buildTask refuses such a prompt; this is the defence for a task built before.
   const prompt = bytes.toString('utf8');
   if (!Buffer.from(prompt, 'utf8').equals(bytes)) throw new Error(`runOne: ${promptFile} is not valid UTF-8; the prompt must reach the CLI byte for byte (R111)`);
+  // R118: a NUL byte is valid UTF-8, but a process argument cannot hold one: spawn would throw after the run directory and the copies exist.
+  if (bytes.includes(0)) throw new Error(`runOne: ${promptFile} contains a NUL byte; the prompt is passed to the CLI as one process argument, which cannot hold one (R118)`);
   // Copies are made of tree/ and target/ with cp -a, which would copy a link as a link: they are real directories or nothing.
   const tree = statOrNull(path.join(taskDir, 'tree'), lstatSync);
   if (tree === null || !tree.isDirectory()) throw new Error(`runOne: ${path.join(taskDir, 'tree')} is not a directory (a link is not a tree)`);
@@ -448,8 +458,50 @@ function scrubTree(roots, token) {
 }
 
 
-// R87 step (8): the hidden dir is what the manifest hashed (R101), then the grade, re-graded on the same tree while it ends in
-// infrastructure of its own. -> { infra, grade }: grade is the one that stood, null on any infrastructure.
+// scrubRunDirs(runsRoot, token) -> { dirs, files, failed }      (R117)
+//
+// The scrub of step 5, over the run directories an earlier batch left behind: scrubTree over config/ and state/ of every directory
+// DIRECTLY under runsRoot (<workRoot>/runs). An attempt that was interrupted (a signal, a crash of the harness, during the container or the
+// grade) never reached runOne's own scrub and left its config/ and state/ as the container wrote them, with no row; Task 10c calls this at
+// the start of every batch, after the preflight and before the first run, and refuses to start when `failed` is not empty (the token would
+// stay on disk). It is the same scrub, idempotent, never follows a link (not a link to a run directory, not a config/ or state/ that is a
+// link, not a link inside them), never throws for a file it cannot rewrite (that file is returned in `failed`), and leaves work/ and
+// target/ alone: those of a keepRunDirs run are the operator's debugging copies.
+//   dirs     how many run directories had at least one file that held the token
+//   files    how many files held it, in all of them
+//   failed   the paths it could not list or rewrite (the first reason is not kept; the paths are the diagnosis)
+// A runsRoot that does not exist is nothing to scrub: { dirs: 0, files: 0, failed: [] }.
+export function scrubRunDirs(runsRoot, token) {
+  if (typeof runsRoot !== 'string' || runsRoot === '') throw new TypeError(`scrubRunDirs: runsRoot must be a non-empty string, got ${show(runsRoot)}`);
+  if (typeof token !== 'string' || token === '') throw new TypeError('scrubRunDirs: token must be a non-empty string');
+  let entries;
+  try {
+    entries = readdirSync(runsRoot, { withFileTypes: true });
+  } catch (err) {
+    return { dirs: 0, files: 0, failed: err.code === 'ENOENT' || err.code === 'ENOTDIR' ? [] : [runsRoot] };
+  }
+  let dirs = 0;
+  let files = 0;
+  const failed = [];
+  for (const entry of entries) {
+    if (!entry.isDirectory()) continue; // a file, or a link (a link to a directory is not a run directory)
+    const roots = [];
+    for (const name of ['config', 'state']) {
+      const root = path.join(runsRoot, entry.name, name);
+      try {
+        if (lstatSync(root).isDirectory()) roots.push(root); // a real directory: a link is not followed
+      } catch (err) {
+        if (err.code !== 'ENOENT') failed.push(root);
+      }
+    }
+    const scrubbed = scrubTree(roots, token);
+    if (scrubbed.files > 0) dirs += 1;
+    files += scrubbed.files;
+    failed.push(...scrubbed.failed);
+  }
+  return { dirs, files, failed };
+}
+
 // R87 step (8): the hidden dir is what the manifest hashed (R101, through hashHidden: a run does not read the whole tree, R109), then the
 // grade, re-graded on the same tree while it ends in infrastructure of its own.
 // -> { infra, grade, detail }: grade is the one that stood, null on any infrastructure; detail is what a caught error said (R110), else null.
@@ -622,26 +674,28 @@ export async function runOne(run, ctx) {
       finalTextTail: text === null ? '' : finalTextTail(text, FINAL_TEXT_CHARS),
       grade,
       tokenScrubbed: 0, // set below, after the scrub of config/ and state/
-      };
-      } catch (err) {
-      failure = err;
-      }
-      // R108: whatever the container wrote under config/ and state/ is scrubbed of the token in place, on EVERY path that reached the
-      // container (a throw included), after the usage was read and before the row guard. A file that cannot be scrubbed leaves the
-      // token in the kept evidence, so it stops the row.
-      if (state.ran) {
-      const scrubbed = scrubTree([dir.config, dir.state], o.token);
-      if (failure === null) {
-      if (scrubbed.failed.length > 0) {
-        const first = scrubbed.failed[0].split(o.token).join(REDACTED); // a file NAME can hold the token too
-        failure = new Error(`runOne: could not scrub the token from ${scrubbed.failed.length} file(s) of ${runDir} (the first: ${first}); the row of ${o.attemptId} is not returned`);
-      } else row.tokenScrubbed = scrubbed.files;
-      }
-      }
-      // The last line of defence: whatever else was stored, the token is not in the row (a whole, contiguous token; R113).
-      if (failure === null && JSON.stringify(row).includes(o.token)) {
-      failure = new Error(`runOne: the row of ${o.attemptId} would hold the token (the value of ${o.tokenEnv}); it is not returned`);
-      }
+    };
+  } catch (err) {
+    failure = err;
+  }
+  // R108: whatever the container wrote under config/ and state/ is scrubbed of the token in place, on EVERY path that reached the
+  // container (a throw included), after the usage was read and before the row guard. A file that cannot be scrubbed leaves the
+  // token in the kept evidence, so it stops the row.
+  if (state.ran) {
+    const scrubbed = scrubTree([dir.config, dir.state], o.token);
+    if (scrubbed.failed.length > 0) {
+      // R116: a file that kept the token is said in the error that is thrown, whether or not another failure was already set (then that
+      // one comes first and stays the cause). The first path is named with any token in it redacted: a file NAME can hold the token too.
+      const said = `could not scrub the token from ${scrubbed.failed.length} file(s) of ${runDir} (the first: ${scrubbed.failed[0]})`;
+      failure = failure === null
+        ? new Error(`runOne: ${said.split(o.token).join(REDACTED)}; the row of ${o.attemptId} is not returned`)
+        : new Error(`${failure instanceof Error ? failure.message : String(failure)} (and ${said})`.split(o.token).join(REDACTED), { cause: failure });
+    } else if (failure === null) row.tokenScrubbed = scrubbed.files;
+  }
+  // The last line of defence: whatever else was stored, the token is not in the row (a whole, contiguous token; R113).
+  if (failure === null && JSON.stringify(row).includes(o.token)) {
+    failure = new Error(`runOne: the row of ${o.attemptId} would hold the token (the value of ${o.tokenEnv}); it is not returned`);
+  }
   const leftover = o.keepRunDirs ? [] : dispose(runDir, { ran: state.ran, threw: failure !== null });
   if (failure !== null) throw failure;
   return leftover.length === 0 ? row : { ...row, leftover };

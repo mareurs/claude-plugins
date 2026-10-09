@@ -19,7 +19,7 @@ import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import {
-  chmodSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, readlinkSync, rmdirSync, rmSync, statSync, symlinkSync, writeFileSync,
+  chmodSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, readlinkSync, rmdirSync, rmSync, statSync, symlinkSync, utimesSync, writeFileSync,
 } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -34,7 +34,7 @@ import { RUN_ID_RE } from './grade.mjs';
 import { writeHookCopy } from './hook-copy.mjs';
 import { loadS5Config } from './prereg.mjs';
 import { NETWORK, PROXY_URL } from './proxy.mjs';
-import { planRunsS5, runOne } from './run.mjs';
+import { planRunsS5, runOne, scrubRunDirs } from './run.mjs';
 import { IMAGE_FOR_REPO, TASK_ID_RE } from './task-def.mjs';
 import { readRunUsage } from './usage.mjs';
 
@@ -764,6 +764,16 @@ await taIf('runOne refuses before anything is made: no token, a prompt.txt that 
   assert.match(utf8Err.message, /prompt\.txt/);
   writeFileSync(promptFile, original);
   writeFileSync(manifestFile, manifestText);
+  // R118: a prompt with a NUL byte is valid UTF-8 but cannot be ONE argv element (spawn throws after the copies exist): refused at step 0,
+  // by name, without printing the prompt.
+  const withNul = Buffer.concat([original, Buffer.from([0x00, 0x0a])]);
+  writeFileSync(promptFile, withNul);
+  writeFileSync(manifestFile, manifestText.replace(/"promptHash": "[0-9a-f]{64}"/, `"promptHash": "${createHash('sha256').update(withNul).digest('hex')}"`));
+  const nulErr = await refused(sc, mkRun(sc), {}, /NUL/, 'a prompt.txt with a NUL byte although it hashes right');
+  assert.match(nulErr.message, /prompt\.txt/);
+  assert.ok(!nulErr.message.includes('Fix `add`'), 'the prompt is not printed');
+  writeFileSync(promptFile, original);
+  writeFileSync(manifestFile, manifestText);
   await refused(node, mkRun(node, 'B', { taskId: 'no-such-task' }), {}, /manifest\.json/, 'no manifest');
   const other = mkRun(node, 'B', { taskId: 'fix-add' });
   await refused(node, other, {}, /manifest\.json/, 'a task id of another work root');
@@ -1104,6 +1114,88 @@ await taIf('R108: the scrub also runs when runOne throws after the container, an
   assert.match(stuck.message, /locked-\[REDACTED\]\.txt/, 'the file is named, with the token in its name redacted');
   assert.ok(!stuck.message.includes(SENTINEL) && !String(stuck.stack).includes(SENTINEL));
   assert.deepEqual(readdirSync(locked.runDir).sort(), ['config', 'state'], 'work is removed all the same');
+
+  // R116: a file that kept the token is named in the error that is thrown even when ANOTHER failure was already set (here the grade
+  // result that explodes): the count and the first path (token-redacted), after the failure that came first. Two such files: count 2.
+  const both = prepare(node, mkRun(node), {
+    scenario: { configFiles: { 'also-locked-{{TOKEN}}.txt': { text: '{{TOKEN}}', mode: 0o400 } }, stateFiles: { 'second-locked.txt': { text: '{{TOKEN}}', mode: 0o400 } } },
+    grade: [exploding],
+  });
+  const bothErr = await both.exec().then(() => null, (e) => e);
+  assert.ok(bothErr instanceof Error);
+  assert.match(bothErr.message, /exploded/, 'the failure that was already set is still said');
+  assert.match(bothErr.message, /could not scrub the token from 2 file\(s\)/, 'and the number of files that kept the token');
+  assert.match(bothErr.message, /\[REDACTED\]/, 'with the first path, the token in its name redacted');
+  assert.ok(!bothErr.message.includes(SENTINEL) && !String(bothErr.stack).includes(SENTINEL));
+  assert.match(bothErr.cause?.message ?? '', /exploded/, 'the failure that was already set is the cause');
+  assert.deepEqual(readdirSync(both.runDir).sort(), ['config', 'state'], 'work is removed all the same');
+});
+
+// ---- R117: scrubRunDirs, the same scrub over the run directories an interrupted batch left behind ----
+
+await ta('R117: scrubRunDirs(runsRoot, token) scrubs config/ and state/ of every run directory directly under runsRoot, with the scrub runOne uses, and returns { dirs, files, failed } without throwing', async () => {
+  const runsRoot = mkdtempSync(path.join(ROOT, 'runs-'));
+  const put = (rel, text, mtime) => {
+    const f = path.join(runsRoot, rel);
+    mkdirSync(path.dirname(f), { recursive: true });
+    writeFileSync(f, text);
+    if (mtime !== undefined) utimesSync(f, new Date(mtime), new Date(mtime));
+  };
+  // Three run directories hold the token, in four files (nested ones included, and only state/ in one).
+  put('t.A.0-a1/config/projects/-work/s.jsonl', `x ${SENTINEL} y ${SENTINEL}\n`);
+  put('t.A.0-a1/config/clean.txt', 'nothing here\n', OLD_DATE);
+  put('t.A.0-a1/state/effort-steering/s.jsonl', SENTINEL);
+  put('t.B.0-a1/state/dump.txt', `before${SENTINEL}after`);
+  put('t.C.0-a2/config/deep/er/file.txt', `a${SENTINEL}b`);
+  // One with nothing to scrub; one whose work/ and target/ hold the token (a keepRunDirs run: the operator's own copies, left alone).
+  put('t.E.0-a1/config/ok.txt', 'ok\n', OLD_DATE);
+  put('t.D.0-a1/work/lib.mjs', SENTINEL);
+  put('t.D.0-a1/target/debug/x.o', SENTINEL);
+  put('t.D.0-a1/config/quiet.txt', 'quiet\n', OLD_DATE);
+  // A non-directory entry in runsRoot is no run directory.
+  put('stray.txt', SENTINEL);
+  // Links are never followed: a link to a run directory, a state/ that is a link, and a link inside config/.
+  const outside = mkdtempSync(path.join(ROOT, 'outside-'));
+  for (const rel of ['run/config/a.txt', 'run/state/b.txt', 'state-target/c.txt', 'file-target.txt']) {
+    mkdirSync(path.dirname(path.join(outside, rel)), { recursive: true });
+    writeFileSync(path.join(outside, rel), `outside ${SENTINEL}\n`);
+  }
+  symlinkSync(path.join(outside, 'run'), path.join(runsRoot, 'linked-run-a1'));
+  mkdirSync(path.join(runsRoot, 't.F.0-a1', 'config'), { recursive: true });
+  symlinkSync(path.join(outside, 'state-target'), path.join(runsRoot, 't.F.0-a1', 'state'));
+  symlinkSync(path.join(outside, 'file-target.txt'), path.join(runsRoot, 't.F.0-a1', 'config', 'link.txt'));
+
+  const r = scrubRunDirs(runsRoot, SENTINEL);
+  assert.deepEqual(r, { dirs: 3, files: 4, failed: [] }, 'three directories and four files held the token');
+  assert.deepEqual([...filesHolding(path.join(runsRoot, 't.A.0-a1', 'config'), SENTINEL), ...filesHolding(path.join(runsRoot, 't.A.0-a1', 'state'), SENTINEL)], []);
+  assert.equal(readFileSync(path.join(runsRoot, 't.A.0-a1', 'config', 'projects', '-work', 's.jsonl'), 'utf8'), 'x [REDACTED] y [REDACTED]\n', 'every occurrence');
+  assert.equal(readFileSync(path.join(runsRoot, 't.A.0-a1', 'state', 'effort-steering', 's.jsonl'), 'utf8'), '[REDACTED]', 'state/ too');
+  assert.equal(readFileSync(path.join(runsRoot, 't.B.0-a1', 'state', 'dump.txt'), 'utf8'), 'before[REDACTED]after', 'a directory with state/ only');
+  assert.equal(readFileSync(path.join(runsRoot, 't.C.0-a2', 'config', 'deep', 'er', 'file.txt'), 'utf8'), 'a[REDACTED]b', 'nested');
+  // Left alone: files without the token (not rewritten: their time is the one they had), work/ and target/, a stray file.
+  for (const rel of ['t.A.0-a1/config/clean.txt', 't.E.0-a1/config/ok.txt', 't.D.0-a1/config/quiet.txt']) assert.equal(statSync(path.join(runsRoot, rel)).mtime.toISOString(), OLD_DATE, rel);
+  for (const rel of ['t.D.0-a1/work/lib.mjs', 't.D.0-a1/target/debug/x.o', 'stray.txt']) assert.equal(readFileSync(path.join(runsRoot, rel), 'utf8'), SENTINEL, `${rel} is not touched`);
+  // Links: untouched, and still links.
+  for (const rel of ['run/config/a.txt', 'run/state/b.txt', 'state-target/c.txt', 'file-target.txt']) assert.equal(readFileSync(path.join(outside, rel), 'utf8'), `outside ${SENTINEL}\n`, `${rel} was not followed`);
+  assert.ok(lstatSync(path.join(runsRoot, 'linked-run-a1')).isSymbolicLink() && lstatSync(path.join(runsRoot, 't.F.0-a1', 'state')).isSymbolicLink());
+  // Idempotent: a second pass finds nothing.
+  assert.deepEqual(scrubRunDirs(runsRoot, SENTINEL), { dirs: 0, files: 0, failed: [] });
+
+  // A file it cannot rewrite is returned in `failed`, not thrown, and the others are still scrubbed.
+  put('t.G.0-a1/config/locked.txt', SENTINEL);
+  chmodSync(path.join(runsRoot, 't.G.0-a1', 'config', 'locked.txt'), 0o400);
+  put('t.G.0-a1/state/fine.txt', `x${SENTINEL}`);
+  const stuck = scrubRunDirs(runsRoot, SENTINEL);
+  assert.deepEqual(stuck, { dirs: 1, files: 1, failed: [path.join(runsRoot, 't.G.0-a1', 'config', 'locked.txt')] }, 'the unrewritable file is reported');
+  assert.equal(readFileSync(path.join(runsRoot, 't.G.0-a1', 'state', 'fine.txt'), 'utf8'), 'x[REDACTED]');
+
+  // No runs directory at all is nothing to scrub; so is one that is empty or is not a directory.
+  assert.deepEqual(scrubRunDirs(path.join(runsRoot, 'no-such-dir'), SENTINEL), { dirs: 0, files: 0, failed: [] });
+  assert.deepEqual(scrubRunDirs(path.join(runsRoot, 'stray.txt'), SENTINEL), { dirs: 0, files: 0, failed: [] });
+  assert.deepEqual(scrubRunDirs(mkdtempSync(path.join(ROOT, 'empty-runs-')), SENTINEL), { dirs: 0, files: 0, failed: [] });
+  // Its inputs: an empty token would match everywhere, so it is refused.
+  assert.throws(() => scrubRunDirs(runsRoot, ''), TypeError);
+  assert.throws(() => scrubRunDirs('', SENTINEL), TypeError);
 });
 
 // ---- R87: the classification, in its fixed order, first match wins ----
