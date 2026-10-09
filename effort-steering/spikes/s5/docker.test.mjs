@@ -17,12 +17,12 @@
 // default 'docker' still resolves to a fake and never to the real binary.
 
 import assert from 'node:assert/strict';
-import { spawnSync } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { chmodSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { delimiter, dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { dockerRun, removeLabeled } from './docker.mjs';
+import { DOCKER_PASSTHROUGH, dockerRun, removeLabeled } from './docker.mjs';
 import { ta } from './fixtures/testkit-async.mjs';
 
 const FAKE = join(dirname(fileURLToPath(import.meta.url)), 'fixtures', 'fake-docker.mjs');
@@ -633,4 +633,90 @@ await ta('removeLabeled throws when the docker binary cannot run', async () => {
   const dir = mkdtempSync(join(tmpdir(), 's5-docker-test-'));
   made.push(dir);
   assert.throws(() => removeLabeled('s5=1', { dockerBin: join(dir, 'no-such-docker') }), /ps could not run: .*ENOENT/);
+});
+
+// ---- R134 (c): removeLabeled takes more than one label ----------------------------------------------------------------
+
+const TASKED = { id: 'ee'.repeat(32), name: 's5-t', labels: { s5: '1', 's5.task': 'x' } };
+const TASK_ONLY = { id: 'ff'.repeat(32), name: 's5-u', labels: { 's5.task': 'y' } };
+
+await ta('R134 (c): removeLabeled takes a label or a non-empty array of labels as repeated --filter label=, which docker ANDs: a container must carry every one', async () => {
+  const f = fakeDocker({ containers: [S5A, S5B, TASKED, TASK_ONLY, OTHER] });
+  assert.equal(removeLabeled(['s5=1', 's5.task'], { dockerBin: f.bin }), 1);
+  assert.deepEqual(f.calls().map((c) => c.argv), [
+    ['ps', '-aq', '--filter', 'label=s5=1', '--filter', 'label=s5.task'],
+    ['rm', '-f', 'eeeeeeeeeeee'],
+  ]);
+  assert.deepEqual(touchedBy(f), [TASKED.id], 'only the container with BOTH labels: not s5=1 alone, not s5.task alone, not a foreign one');
+
+  // One label in an array is the string; a string is still one filter.
+  const g = fakeDocker({ containers: [S5A, S5B, OTHER] });
+  assert.equal(removeLabeled(['s5.run=s5-b'], { dockerBin: g.bin }), 1);
+  assert.deepEqual(g.calls()[0].argv, ['ps', '-aq', '--filter', 'label=s5.run=s5-b']);
+
+  // Every label of the array must be an s5 label, and the array must not be empty; nothing is called for a refusal.
+  const h = fakeDocker({ containers: [S5A] });
+  for (const bad of [[], [''], ['s5=1', 'com.example.owner=x'], ['s5=1', 7], ['s5=1', ['s5.task']], [undefined], ['s50=1']]) {
+    assert.throws(() => removeLabeled(bad, { dockerBin: h.bin }), TypeError, JSON.stringify(bad));
+  }
+  assert.deepEqual(h.calls(), [], 'docker was never called');
+});
+
+await ta('R134 (e): DOCKER_PASSTHROUGH is exported: the one list of the variables a docker process inherits', async () => {
+  assert.deepEqual([...DOCKER_PASSTHROUGH], WHITELIST);
+});
+
+// ---- R131: the docker client has a process group of its own -------------------------------------------------------------
+
+await ta('R131: dockerRun spawns the docker client in its OWN process group: a SIGINT to the harness\' process group (a terminal\'s Ctrl+C) reaches the harness and not the client, and dockerRun resolves normally', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 's5-docker-pg-'));
+  made.push(dir);
+  const signals = join(dir, 'signals.txt');
+  const started = join(dir, 'started');
+  // The "docker client": `run` records every signal it receives and exits 0 after 1.5 s; the helpers answer what dockerRun asks.
+  const stub = join(dir, 'stub.cjs');
+  writeFileSync(stub, `const { appendFileSync, writeFileSync } = require('node:fs');
+const [op] = process.argv.slice(2);
+if (op === 'run') {
+  for (const s of ['SIGINT', 'SIGTERM', 'SIGHUP']) process.on(s, () => appendFileSync(${JSON.stringify(signals)}, s + '\\n'));
+  writeFileSync(${JSON.stringify(started)}, 'x');
+  setTimeout(() => process.exit(0), 1500);
+} else if (op === 'ps') {
+  process.stdout.write(${JSON.stringify(OURS_ID)} + '\\n');
+} else if (op === 'container') {
+  process.stdout.write('false\\n');
+}
+`);
+  const bin = join(dir, 'docker');
+  writeFileSync(bin, `#!/bin/sh\nexec ${shq(process.execPath)} ${shq(stub)} "$@"\n`);
+  chmodSync(bin, 0o755);
+  // The harness: a script that has a SIGINT handler of its own, so the signal does not end it, and runs dockerRun.
+  const caller = join(dir, 'caller.mjs');
+  writeFileSync(caller, `import { dockerRun } from ${JSON.stringify(join(dirname(fileURLToPath(import.meta.url)), 'docker.mjs'))};
+process.on('SIGINT', () => process.stdout.write('HARNESS-GOT-SIGINT\\n'));
+const r = await dockerRun({ image: 'img', name: 's5-pg-1', timeoutMs: 20000, stdin: 'null' }, { dockerBin: process.argv[2] });
+process.stdout.write('RESULT ' + JSON.stringify({ status: r.status, created: r.created, timedOut: r.timedOut, oomKilled: r.oomKilled }) + '\\n');
+`);
+  // The harness runs in a process group of its own (detached), as a foreground job of a terminal does: its pid is the group id.
+  const child = spawn(process.execPath, [caller, bin], { detached: true, stdio: ['ignore', 'pipe', 'pipe'] });
+  let out = '';
+  let err = '';
+  child.stdout.on('data', (c) => { out += c; });
+  child.stderr.on('data', (c) => { err += c; });
+  const closed = new Promise((resolve) => { child.once('close', (code, signal) => resolve({ code, signal })); });
+  try {
+    for (let waited = 0; !existsSync(started); waited += 20) {
+      assert.ok(waited < 10_000, `the docker client never started (stderr: ${err})`);
+      await new Promise((resolve) => { setTimeout(resolve, 20); });
+    }
+    process.kill(-child.pid, 'SIGINT'); // what a terminal does to the foreground group
+    const end = await Promise.race([closed, new Promise((resolve) => { setTimeout(() => resolve('timeout'), 15_000); })]);
+    assert.notEqual(end, 'timeout', 'the harness ended');
+    assert.deepEqual(end, { code: 0, signal: null }, `the harness survived its handler and ended normally (stderr: ${err})`);
+  } finally {
+    if (child.exitCode === null && child.signalCode === null) child.kill('SIGKILL');
+  }
+  assert.ok(out.includes('HARNESS-GOT-SIGINT'), 'the signal did reach the harness');
+  assert.ok(out.includes('RESULT {"status":0,"created":true,"timedOut":false,"oomKilled":false}'), `dockerRun resolved normally: ${out}`);
+  assert.equal(existsSync(signals) ? readFileSync(signals, 'utf8') : '', '', 'the docker client received no signal at all');
 });

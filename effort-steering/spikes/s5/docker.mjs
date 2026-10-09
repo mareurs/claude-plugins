@@ -32,15 +32,15 @@ const ENV_KEY_RE = /^[A-Z_][A-Z0-9_]*$/;
 // `s5`, `s5.<anything>`, either optionally followed by =<value>. Not `s50`, not `s5x`.
 const LABEL_SCOPE_RE = /^s5([.=]|$)/;
 const RESERVED_LABEL_KEYS = new Set(['s5', 's5.run']);
-// The only variables a docker process inherits from this one.
-const PASSTHROUGH = ['PATH', 'HOME', 'DOCKER_HOST', 'DOCKER_CONFIG', 'DOCKER_CONTEXT', 'DOCKER_CERT_PATH', 'DOCKER_TLS_VERIFY'];
+// The only variables a docker process inherits from this one (exported: run.mjs's batch preflight runs docker too, with the same list).
+export const DOCKER_PASSTHROUGH = Object.freeze(['PATH', 'HOME', 'DOCKER_HOST', 'DOCKER_CONFIG', 'DOCKER_CONTEXT', 'DOCKER_CERT_PATH', 'DOCKER_TLS_VERIFY']);
 const KILL_GRACE_MS = 30_000;
 const HELPER_TIMEOUT_MS = 60_000;
 
 // docker's own environment: the whitelist and nothing else (no ANTHROPIC_*, no CLAUDE_*).
 function baseEnv() {
   const env = {};
-  for (const k of PASSTHROUGH) if (process.env[k] !== undefined) env[k] = process.env[k];
+  for (const k of DOCKER_PASSTHROUGH) if (process.env[k] !== undefined) env[k] = process.env[k];
   return env;
 }
 
@@ -172,7 +172,11 @@ async function findOurs(bin, name, timeoutMs) {
 export async function dockerRun(options, { dockerBin = 'docker', killGraceMs = KILL_GRACE_MS, helperTimeoutMs = HELPER_TIMEOUT_MS } = {}) {
   const { argv, name, timeoutMs, runEnv } = plan(options);
   const started = performance.now();
-  const child = spawn(dockerBin, argv, { env: runEnv, stdio: ['ignore', 'pipe', 'pipe'] });
+  // detached: the client gets a process group of its own (R131). A terminal's Ctrl+C goes to the whole foreground group; the harness
+  // takes it as "stop starting runs, let the ones in flight finish" (R119), and an agent container that received the same signal through
+  // `docker run`'s default --sig-proxy would be cut off mid-run. --sig-proxy=false is not the cure: a container would keep running when
+  // its client died. A second signal ends the harness only; the clients and containers left are swept by the next batch (R122).
+  const child = spawn(dockerBin, argv, { env: runEnv, stdio: ['ignore', 'pipe', 'pipe'], detached: true });
   const out = [];
   const err = [];
   child.stdout.on('data', (c) => out.push(c));
@@ -243,11 +247,17 @@ function runSync(bin, args, timeoutMs) {
 // Removes every container (running or not) that carries the label. The label must be an s5
 // label: this host runs other people's containers, and nothing here may touch them. Each of the
 // two docker calls has its own helperTimeoutMs (60 s) and throws when it is exceeded.
-export function removeLabeled(label = 's5=1', { dockerBin = 'docker', helperTimeoutMs = HELPER_TIMEOUT_MS } = {}) {
-  if (typeof label !== 'string' || !LABEL_SCOPE_RE.test(label)) {
-    throw new TypeError(`removeLabeled: label must be s5 or s5.<name>, optionally =<value>, got ${JSON.stringify(label)}`);
+// removeLabeled(labels = 's5=1', { dockerBin, helperTimeoutMs }) -> the number of containers removed.
+// Removes every container (running or not) that carries the label, or ALL of the labels when an array is given (each becomes its own
+// `--filter label=`, which docker ANDs). Every label must be an s5 label: this host runs other people's containers, and nothing here
+// may touch them. Each of the two docker calls has its own helperTimeoutMs (60 s) and throws when it is exceeded.
+export function removeLabeled(labels = 's5=1', { dockerBin = 'docker', helperTimeoutMs = HELPER_TIMEOUT_MS } = {}) {
+  const list = Array.isArray(labels) ? labels : [labels];
+  if (list.length === 0 || !list.every((label) => typeof label === 'string' && LABEL_SCOPE_RE.test(label))) {
+    throw new TypeError(`removeLabeled: a label must be s5 or s5.<name>, optionally =<value> (or a non-empty array of them), got ${JSON.stringify(labels)}`);
   }
-  const ids = runSync(dockerBin, ['ps', '-aq', '--filter', `label=${label}`], helperTimeoutMs).split(/\s+/).filter(Boolean);
+  const filters = list.flatMap((label) => ['--filter', `label=${label}`]);
+  const ids = runSync(dockerBin, ['ps', '-aq', ...filters], helperTimeoutMs).split(/\s+/).filter(Boolean);
   if (ids.length === 0) return 0;
   runSync(dockerBin, ['rm', '-f', ...ids], helperTimeoutMs);
   return ids.length;
