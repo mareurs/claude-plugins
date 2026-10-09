@@ -709,7 +709,7 @@ export async function runOne(run, ctx) {
 
 // ---- runBatch ----
 //
-//   runBatch(prereg, { mode, workRoot, rowsFile, concurrency, stopAtCostUsd, taskIds, ctx }) -> Promise<Summary>
+//   runBatch(prereg, { mode, workRoot, rowsFile, concurrency, stopAtCostUsd, taskIds, retryExhausted, ctx }) -> Promise<Summary>
 //
 // The batch layer. It decides which runs start, in what order, how often an infrastructure failure is re-run, when the batch stops to save
 // money, and what is written. The ROWS FILE is the study's only memory (R100): every rule below is recomputed from it, so a batch that was
@@ -717,6 +717,7 @@ export async function runOne(run, ctx) {
 //
 //   prereg        what loadS5Prereg (mode measure) or loadS5Config (smoke, pilot, calibrate) returned. Read, never written.
 //   concurrency   runOne calls in flight at most; default prereg.limits.concurrency.   stopAtCostUsd   default prereg.stopAtCostUsd.
+//   retryExhausted   boolean, default false (R125): see "THE ROWS FILE".
 //   ctx           runOne's ctx (claudeBin, dockerBin, network, proxyUrl, tokenEnv, keepRunDirs, grade, ...), passed on with prereg, workRoot,
 //                 hookCopy, attempt, claudeBin and images added. Batch seams, optional, real by default, never passed on: runOne;
 //                 imageIdOf(ref) -> id (`docker image inspect --format {{.Id}}`); sha256File(path) -> hex; proxyRunning() -> boolean (a
@@ -750,7 +751,8 @@ export async function runOne(run, ctx) {
 //
 // THE ROWS FILE (R100): JSONL, appended to, one line per ATTEMPT (open, write, fsync, close). A line with a `type` key is not a Row (the stopped
 // line); a line without a runId is none either. A final row (final === true) makes its run done. attemptsUsed = the rows with that runId and
-// final === false; 1 + prereg.limits.infraRetries attempts are allowed. A run with no row starts at attemptsUsed 0.
+// final === false AFTER its last final row (R125: for a run that was never final, all of them); 1 + prereg.limits.infraRetries attempts are
+// allowed. A run with no row starts at attemptsUsed 0.
 //   infra null               the row is appended as it is, final: true.
 //   infra, attempts left     appended with final: false; the next attempt of that run starts at once.
 //   infra, the last attempt  appended as ONE line { ...row, final: true, infra: 'infra_exhausted', lastInfra: <the reason> }.
@@ -759,6 +761,11 @@ export async function runOne(run, ctx) {
 //   message, the token redacted, at most 300 characters) and a Row of the Row's keys with null / empty values where nothing is known.
 //   earlier attempts already used the allowance (the file says so): the exhausted line is appended without a new attempt, with costUsd null so
 //   that the cost of that attempt, which its own line already holds, is not summed twice.
+//   retryExhausted (R125): a run whose LATEST final row is infra_exhausted is planned again (Summary.retriedExhausted counts them) with a fresh
+//   allowance, counted from the non-final rows after that last exhausted row; the exhausted row stays in the file as evidence, the rule above
+//   about an allowance already used applies to the rows after it, and a later counted row makes the run final. Without the option an exhausted
+//   row is final like any other: an outage is recovered by this explicit act, never by editing the rows file. analyze.mjs never counts an
+//   infra_exhausted row and drops a task with no counted run in an arm, so a lost run that is not recovered shrinks the task set.
 // The attempt number is 1 + the highest N of the existing runs/<runId>-aN entries (0 when none), chosen per attempt, never reused (R106a).
 // A torn LAST line (a crash during an append) is ignored (Summary.tornLine) and cut off before the first append; a bad line anywhere else
 // refuses the batch. This cut is the only write that is not an append.
@@ -770,16 +777,24 @@ export async function runOne(run, ctx) {
 // and says so; a batch with nothing left to start says nothing. The first SIGINT or SIGTERM is such a stop; the second removes the handlers and
 // raises that signal on the process, so the default action ends it at once (a hard kill mid-run loses that paid run without a row, and the
 // container it leaves is swept by the next batch).
+// THE CIRCUIT BREAKER (R124). An outage fails attempt after attempt of run after run, and an exhausted line is final: left alone it would turn the
+// plan into infra_exhausted lines in seconds. The infrastructure attempts are counted in completion order across all workers (a thrown runOne
+// is one; an attempt with infra null resets the count to 0); at 2 * (1 + infraRetries) in a row the batch stops with reason 'infra_streak' and
+// the line is { type: 'stopped', at, reason: 'infra_streak', streak, lastInfra, costUsd, limit: null } (streak: the count that tripped it).
+// After ANY stop (cost, hidden_changed, signal, infra_streak) a run in flight finishes its CURRENT attempt and starts no retry: with attempts
+// left it stays non-final and a resume continues it; on its last allowed attempt it is still written infra_exhausted. At most about two runs
+// are falsely exhausted by an outage, and retryExhausted recovers them.
 //
 // SMOKE: Summary.smoke = { ok, checks: { firstUserText, decisionLogs, bSteered }, rows } from the FINAL rows of the planned runs (one rep-0 run
 // per arm on one task): firstUserTextOk === true in every arm; a decision in every arm; the decision's steered true in B and false in A and C
 // (a missing decision is the decisionLogs check's, not this one's). A planned run without a final row makes every check false. ok also needs
 // that no run ended infra_exhausted.
 //
-// Summary { mode, planned, skippedFinal, ran, attempts, infraAttempts, exhausted, costUsd, stopped, rowsFile, smoke, scrubbed, tornLine }:
+// Summary { mode, planned, skippedFinal, ran, attempts, infraAttempts, exhausted, retriedExhausted, costUsd, stopped, rowsFile, smoke, scrubbed, tornLine }:
 //   ran   runs that got a final row in this batch (counted rows and exhausted lines)   attempts   runOne calls made   infraAttempts   attempts that
-//   ended in infrastructure   exhausted   runs that ended infra_exhausted   costUsd   the sum over the whole file at the end
-//   stopped   null or { reason, costUsd, limit }   scrubbed   { dirs, files } of the start-of-batch scrub   tornLine   a torn last line was ignored.
+//   ended in infrastructure   exhausted   runs that ended infra_exhausted   retriedExhausted   runs re-opened by retryExhausted   costUsd   the sum
+//   over the whole file at the end   stopped   null or { reason, costUsd, limit } (reason 'infra_streak': { reason, streak, lastInfra, costUsd,
+//   limit: null })   scrubbed   { dirs, files } of the start-of-batch scrub   tornLine   a torn last line was ignored.
 // Nothing is printed. The batch never starts a model itself: runOne starts the agent container, with the real Claude binary mounted.
 
 // R122: every container runOne, gradeTree and warmTask start carries s5.task; the proxy container does not (it carries s5=1 and s5.run=s5-proxy).
@@ -825,8 +840,10 @@ function resolveBatch(prereg, options) {
   if (typeof tokenEnv !== 'string' || !ENV_NAME_RE.test(tokenEnv) || OWN_ENV.includes(tokenEnv)) {
     throw batchInput(`ctx.tokenEnv must be an environment variable name that runOne does not set itself, got ${show(tokenEnv)}`);
   }
+  const retryExhausted = options.retryExhausted === undefined ? false : options.retryExhausted;
+  if (typeof retryExhausted !== 'boolean') throw batchInput(`retryExhausted must be a boolean when given, got ${show(options.retryExhausted)}`);
   return {
-    mode, taskIds, workRoot: path.resolve(workRoot), rowsFile: path.resolve(rowsFile), concurrency, stopAtCostUsd, infraRetries, ctx, tokenEnv, esRoot: ctx.esRoot ?? ES_ROOT,
+    mode, taskIds, workRoot: path.resolve(workRoot), rowsFile: path.resolve(rowsFile), concurrency, stopAtCostUsd, infraRetries, retryExhausted, ctx, tokenEnv, esRoot: ctx.esRoot ?? ES_ROOT,
     kill: ctx.kill ?? ((pid, signal) => process.kill(pid, signal)),
   };
 }
@@ -1181,8 +1198,9 @@ export async function runBatch(prereg, options) {
   let removeHandlers = () => {};
   try {
     const stop = { reason: null };
-    const requestStop = (reason) => {
-      if (stop.reason === null) stop.reason = reason;
+    // The first reason wins. `detail` is what a reason adds to the stopped line (the infra_streak's streak and lastInfra).
+    const requestStop = (reason, detail = {}) => {
+      if (stop.reason === null) Object.assign(stop, detail, { reason });
     };
     removeHandlers = stopOnSignals(() => requestStop('signal'), o.kill);
 
@@ -1205,15 +1223,28 @@ export async function runBatch(prereg, options) {
       rows.push(row);
     };
     const allowed = 1 + o.infraRetries;
+    // R124: this many infrastructure attempts in a row, across all runs, in completion order, stop the batch.
+    const streakLimit = 2 * allowed;
     const spent = () => rows.reduce((sum, row) => sum + rowCost(row), 0);
-    const attemptsUsed = (runId) => rows.filter((row) => row.runId === runId && row.final === false).length;
-    const counts = { skippedFinal: 0, ran: 0, attempts: 0, infraAttempts: 0, exhausted: 0 };
+    // The attempts a run has used UP: its non-final rows after its last final row. A run that was never final has all of its non-final rows
+    // counted; a run that retryExhausted re-opened has a fresh allowance, counted after its last infra_exhausted row (R125).
+    const attemptsUsed = (runId) => {
+      const from = rows.findLastIndex((row) => row.runId === runId && row.final === true);
+      return rows.filter((row, i) => i > from && row.runId === runId && row.final === false).length;
+    };
+    const counts = { skippedFinal: 0, ran: 0, attempts: 0, infraAttempts: 0, exhausted: 0, retriedExhausted: 0 };
 
     const queue = [];
     for (const run of plan) {
-      if (rows.some((row) => row.runId === run.runId && row.final === true)) {
+      const latestFinal = rows.findLast((row) => row.runId === run.runId && row.final === true);
+      // R125: only an infra_exhausted latest final row can be re-opened, and only on request. A counted row is final for good.
+      const reopen = o.retryExhausted && latestFinal?.infra === 'infra_exhausted';
+      if (latestFinal !== undefined && !reopen) {
         counts.skippedFinal += 1;
-      } else if (attemptsUsed(run.runId) >= allowed) {
+        continue;
+      }
+      if (reopen) counts.retriedExhausted += 1;
+      if (attemptsUsed(run.runId) >= allowed) {
         // The earlier attempts used up the allowance: the exhausted line, without a new attempt. Its cost is already in its own line.
         const last = rows.findLast((row) => row.runId === run.runId && row.final === false);
         append({ ...last, final: true, infra: 'infra_exhausted', lastInfra: last.infra, costUsd: null });
@@ -1259,21 +1290,26 @@ export async function runBatch(prereg, options) {
         return failedAttemptRow(run, startedAt, err, checked.token);
       }
     };
+    let streak = 0; // consecutive infrastructure attempts, in completion order, across all workers
     const runToEnd = async (run) => {
       for (let first = true; ; first = false) {
-        if (!first && !mayStart()) return; // the retry is a start like any other
+        if (!first && !mayStart()) return; // the retry is a start like any other, and after ANY stop none starts (R124)
         const row = await attempt(run);
         if (row.infra === null) {
+          streak = 0;
           append({ ...row, final: true });
           counts.ran += 1;
           return;
         }
         counts.infraAttempts += 1;
+        streak += 1;
         if (row.infra === 'hidden_changed') {
           append({ ...row, final: false }); // every later grade would fail the same way: not retried, and the batch stops (R101)
           requestStop('hidden_changed');
           return;
         }
+        // R124: an outage fails attempt after attempt of run after run. Without this the whole plan would end as final infra_exhausted lines.
+        if (streak >= streakLimit) requestStop('infra_streak', { streak, lastInfra: row.infra });
         if (attemptsUsed(run.runId) + 1 < allowed) {
           append({ ...row, final: false });
           continue;
@@ -1300,8 +1336,11 @@ export async function runBatch(prereg, options) {
     let stopped = null;
     if (stop.reason !== null) {
       const costUsd = spent();
-      appendLine({ type: 'stopped', at: new Date().toISOString(), reason: stop.reason, costUsd, limit: o.stopAtCostUsd });
-      stopped = { reason: stop.reason, costUsd, limit: o.stopAtCostUsd };
+      // The infra_streak line says what tripped it and has no cost limit (limit null); the others carry the cost limit they were run with.
+      const detail = stop.reason === 'infra_streak' ? { streak: stop.streak, lastInfra: stop.lastInfra } : {};
+      const limit = stop.reason === 'infra_streak' ? null : o.stopAtCostUsd;
+      appendLine({ type: 'stopped', at: new Date().toISOString(), reason: stop.reason, ...detail, costUsd, limit });
+      stopped = { reason: stop.reason, ...detail, costUsd, limit };
     }
     return {
       mode: o.mode,
@@ -1311,6 +1350,7 @@ export async function runBatch(prereg, options) {
       attempts: counts.attempts,
       infraAttempts: counts.infraAttempts,
       exhausted: counts.exhausted,
+      retriedExhausted: counts.retriedExhausted,
       costUsd: spent(),
       stopped,
       rowsFile: o.rowsFile,

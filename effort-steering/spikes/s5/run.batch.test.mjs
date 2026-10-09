@@ -19,6 +19,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { buildTask } from './build-task.mjs';
+import { perTaskScores } from './analyze.mjs';
 import { makeWorld } from './fixtures/batch-world.mjs';
 import { makeRepo } from './fixtures/make-repo.mjs';
 import { ta } from './fixtures/testkit-async.mjs';
@@ -306,9 +307,9 @@ await ta('a clean batch: every planned run runs once in the order of planRunsS5,
   const before = JSON.stringify(b.prereg);
   const summary = await b.run();
   assert.deepEqual(b.starts(), plan.map((r) => r.runId), 'the runs start in the order of the plan');
-  assert.deepEqual(Object.keys(summary).sort(), ['attempts', 'costUsd', 'exhausted', 'infraAttempts', 'mode', 'planned', 'ran', 'rowsFile', 'scrubbed', 'skippedFinal', 'smoke', 'stopped', 'tornLine']);
+  assert.deepEqual(Object.keys(summary).sort(), ['attempts', 'costUsd', 'exhausted', 'infraAttempts', 'mode', 'planned', 'ran', 'retriedExhausted', 'rowsFile', 'scrubbed', 'skippedFinal', 'smoke', 'stopped', 'tornLine']);
   assert.deepEqual(summary, {
-    mode: 'pilot', planned: 10, skippedFinal: 0, ran: 10, attempts: 10, infraAttempts: 0, exhausted: 0, costUsd: 10, stopped: null, rowsFile: b.rowsFile, smoke: null, scrubbed: { dirs: 0, files: 0 }, tornLine: false,
+    mode: 'pilot', planned: 10, skippedFinal: 0, ran: 10, attempts: 10, infraAttempts: 0, exhausted: 0, retriedExhausted: 0, costUsd: 10, stopped: null, rowsFile: b.rowsFile, smoke: null, scrubbed: { dirs: 0, files: 0 }, tornLine: false,
   });
   const rows = b.rows();
   assert.equal(b.lines().length, 10, 'one line per attempt, nothing else');
@@ -1423,6 +1424,230 @@ await (NO_REFLINK_HERE ? Promise.resolve(console.log(`ok - integration (unit mod
   for (const call of agentRuns) assert.ok(call.argv.includes(IMAGES['claude-plugins']), 'the image id the registration pins, not the tag');
   assert.ok(!JSON.stringify(calls).includes(SENTINEL), 'the token is in no docker argv');
 }));
+
+// =====================================================================================================================
+// R124 (the circuit breaker), what a stop leaves behind, and R125 (retryExhausted)
+// =====================================================================================================================
+
+await ta('R124: the breaker trips at exactly 2 * (1 + infraRetries) consecutive infrastructure attempts, not one earlier and not one later; the stopped line and Summary.stopped have the exact shape', async () => {
+  for (const retries of [0, 1, 2]) {
+    const limit = 2 * (1 + retries);
+    const b = bench({ runs: { A: 3, B: 3, C: 3 }, limits: { infraRetries: retries, concurrency: 1 }, script: ({ run }) => infraRow(run, 'api_error', { costUsd: 0.25 }) });
+    const summary = await b.run();
+    assert.equal(b.calls.length, limit, `infraRetries ${retries}: exactly ${limit} attempts, then nothing more starts`);
+    const lines = stoppedIn(b.rowsFile);
+    assert.equal(lines.length, 1);
+    assert.deepEqual(Object.keys(lines[0]).sort(), ['at', 'costUsd', 'lastInfra', 'limit', 'reason', 'streak', 'type']);
+    assert.deepEqual({ ...lines[0], at: null }, { type: 'stopped', at: null, reason: 'infra_streak', streak: limit, lastInfra: 'api_error', costUsd: 0.25 * limit, limit: null });
+    assert.equal(b.lines().at(-1).type, 'stopped', 'written after the rows');
+    assert.deepEqual(summary.stopped, { reason: 'infra_streak', streak: limit, lastInfra: 'api_error', costUsd: 0.25 * limit, limit: null });
+    assert.deepEqual({ attempts: summary.attempts, infraAttempts: summary.infraAttempts, exhausted: summary.exhausted, ran: summary.ran }, { attempts: limit, infraAttempts: limit, exhausted: 2, ran: 2 }, 'the attempt that trips it is the last allowed one of its run, so it is still written infra_exhausted');
+  }
+  // A thrown runOne is an infrastructure attempt like any other, and says so in lastInfra.
+  const thrown = bench({ runs: { A: 3, B: 3, C: 3 }, limits: { infraRetries: 0, concurrency: 1 }, script: () => { throw new Error('boom'); } });
+  const summary = await thrown.run();
+  assert.deepEqual([summary.stopped.reason, summary.stopped.streak, summary.stopped.lastInfra], ['infra_streak', 2, 'run_failed']);
+});
+
+await ta('R124: an attempt with infra null resets the streak, whichever run it belongs to', async () => {
+  const b = bench({ runs: { A: 2, B: 2, C: 2 }, limits: { infraRetries: 1, concurrency: 1 }, script: ({ run, n }) => (n % 4 === 3 ? okRow(run) : infraRow(run, 'api_error')) });
+  const summary = await b.run();
+  assert.equal(summary.stopped, null, 'at most three infrastructure attempts in a row, the limit is four');
+  assert.deepEqual({ attempts: summary.attempts, infraAttempts: summary.infraAttempts, exhausted: summary.exhausted, ran: summary.ran }, { attempts: 12, infraAttempts: 9, exhausted: 3, ran: 6 });
+});
+
+await ta('R124: the streak counts the attempts of DIFFERENT runs, in completion order, under concurrency 2', async () => {
+  const b = bench({
+    runs: { A: 3, B: 3, C: 3 },
+    limits: { infraRetries: 1, concurrency: 2 },
+    script: async ({ run }) => {
+      await sleep(15);
+      return infraRow(run, 'api_error');
+    },
+  });
+  const summary = await b.run();
+  assert.deepEqual([summary.stopped.reason, summary.stopped.streak], ['infra_streak', 4], 'no run had more than two attempts, so only a count across runs reaches four');
+  assert.ok(b.calls.length <= 5, `two runs of two attempts, and the third run that was already in flight: ${b.calls.length} attempts`);
+  assert.ok(new Set(b.starts()).size <= 3, 'no fourth run was started');
+});
+
+// ---- after ANY stop: the run in flight finishes its attempt and starts no retry (R124) ----
+
+const outcomeOf = (b, run) => b.rows().filter((r) => r.runId === run.runId).map((r) => [r.final, r.infra]);
+
+await ta('R124: after a stop (cost, hidden_changed, signal, infra_streak) an in-flight run finishes its attempt but starts no retry: it stays non-final, and a resume continues it with the attempts it had left', async () => {
+  for (const reason of ['cost', 'hidden_changed', 'signal', 'infra_streak']) {
+    const gate = deferred();
+    const b = bench({
+      runs: reason === 'infra_streak' ? { A: 2, B: 2, C: 2 } : { A: 1, B: 1, C: 0 },
+      limits: { infraRetries: 2, concurrency: 2 },
+      script: async ({ run, n }) => {
+        if (n === 0) {
+          await gate.promise; // X, the first run: held in flight while the stop happens
+          return infraRow(run, 'api_error');
+        }
+        if (reason === 'cost') return okRow(run, { costUsd: 100 });
+        if (reason === 'hidden_changed') return infraRow(run, 'hidden_changed');
+        if (reason === 'signal') {
+          await gate.promise;
+          return okRow(run);
+        }
+        return infraRow(run, 'api_error'); // infra_streak: every other attempt fails at once
+      },
+    });
+    const [x] = b.plan();
+    const done = b.run();
+    try {
+      if (reason === 'signal') {
+        await until(() => b.calls.length >= 2, 'both runs in flight');
+        process.emit('SIGINT');
+      } else {
+        await until(() => b.rows().length >= (reason === 'infra_streak' ? 6 : 1), `the rows that bring the stop (${reason})`);
+      }
+    } finally {
+      gate.resolve();
+    }
+    const summary = await done;
+    assert.equal(summary.stopped.reason, reason, reason);
+    assert.equal(b.calls.filter((c) => c.run.runId === x.runId).length, 1, `${reason}: X's attempt finished and no retry of it started`);
+    assert.deepEqual(outcomeOf(b, x), [[false, 'api_error']], `${reason}: X's row is written, non-final`);
+    assert.equal(b.lines().at(-1).type, 'stopped');
+
+    // The resume: X has two attempts left of three, and takes exactly those.
+    const firstBatch = b.calls.length;
+    b.script = ({ run }) => (run.runId === x.runId ? infraRow(run, 'api_error') : okRow(run));
+    const resumed = await b.run({ stopAtCostUsd: 1000 });
+    const again = b.calls.slice(firstBatch).filter((c) => c.run.runId === x.runId);
+    assert.deepEqual(again.map((c) => c.attempt), [2, 3], `${reason}: the resume continues X with the two attempts it had left`);
+    assert.deepEqual(outcomeOf(b, x), [[false, 'api_error'], [false, 'api_error'], [true, 'infra_exhausted']], reason);
+    assert.equal(resumed.stopped, null, reason);
+  }
+});
+
+await ta('R124: a run on its LAST allowed attempt is still written infra_exhausted after a stop (R100)', async () => {
+  for (const reason of ['hidden_changed', 'signal']) {
+    const gate = deferred();
+    const b = bench({
+      runs: { A: 1, B: 1, C: 0 },
+      limits: { infraRetries: 1, concurrency: 2 },
+      script: async ({ run, n }) => {
+        if (n === 0) {
+          await gate.promise;
+          return infraRow(run, 'oom');
+        }
+        if (reason === 'hidden_changed') return infraRow(run, 'hidden_changed');
+        await gate.promise;
+        return okRow(run);
+      },
+    });
+    const [x] = b.plan();
+    writeFileSync(b.rowsFile, `${JSON.stringify(infraRow(x, 'api_error'))}\n`); // X has used one of its two attempts
+    const done = b.run();
+    try {
+      if (reason === 'signal') {
+        await until(() => b.calls.length >= 2, 'both runs in flight');
+        process.emit('SIGINT');
+      } else {
+        await until(() => b.rows().length >= 2, 'the row that brings the stop');
+      }
+    } finally {
+      gate.resolve();
+    }
+    const summary = await done;
+    assert.equal(summary.stopped.reason, reason);
+    const last = b.rows().filter((r) => r.runId === x.runId).at(-1);
+    assert.deepEqual([last.final, last.infra, last.lastInfra], [true, 'infra_exhausted', 'oom'], `${reason}: the stop does not keep the last allowed attempt from being exhausted`);
+    assert.equal(summary.exhausted, 1);
+  }
+});
+
+// ---- R125: retryExhausted ----
+
+const exhaustedRow = (run, over = {}) => infraRow(run, 'infra_exhausted', { final: true, lastInfra: 'api_error', ...over });
+const seedRows = (b, rows) => writeFileSync(b.rowsFile, `${rows.map((r) => JSON.stringify(r)).join('\n')}\n`);
+
+await ta('R125: without retryExhausted an exhausted run is final and skipped; with it the run is planned again with a fresh allowance counted AFTER its last exhausted row, the old exhausted row stays, and a later good row makes the run final', async () => {
+  const b = bench({ runs: { A: 1, B: 0, C: 0 }, limits: { infraRetries: 2 }, script: ({ run }) => infraRow(run, 'api_error') });
+  const [x] = b.plan();
+  const seed = [infraRow(x, 'api_error'), infraRow(x, 'api_error'), exhaustedRow(x)];
+  seedRows(b, seed);
+  const before = readFileSync(b.rowsFile, 'utf8');
+
+  const skipped = await b.run();
+  assert.deepEqual([b.calls.length, skipped.skippedFinal, skipped.retriedExhausted, skipped.ran], [0, 1, 0, 0], 'the default: an exhausted row is final');
+  assert.equal(readFileSync(b.rowsFile, 'utf8'), before);
+
+  const reopened = await b.run({ retryExhausted: true });
+  assert.equal(b.calls.length, 3, 'a fresh allowance of 1 + infraRetries: the two non-final rows BEFORE the exhausted row are not counted against it');
+  assert.deepEqual(b.calls.map((c) => c.attempt), [1, 2, 3]);
+  assert.deepEqual({ retriedExhausted: reopened.retriedExhausted, skippedFinal: reopened.skippedFinal, attempts: reopened.attempts, exhausted: reopened.exhausted, ran: reopened.ran }, { retriedExhausted: 1, skippedFinal: 0, attempts: 3, exhausted: 1, ran: 1 });
+  const text = readFileSync(b.rowsFile, 'utf8');
+  assert.ok(text.startsWith(before), 'the old rows, the exhausted one included, stay in the file byte for byte');
+  assert.deepEqual(outcomeOf(b, x), [[false, 'api_error'], [false, 'api_error'], [true, 'infra_exhausted'], [false, 'api_error'], [false, 'api_error'], [true, 'infra_exhausted']]);
+
+  // Exhausted again, and no flag: still final.
+  const flagless = await b.run();
+  assert.deepEqual([flagless.skippedFinal, flagless.retriedExhausted, b.calls.length], [1, 0, 3]);
+
+  // A good attempt after the exhausted row makes the run final; a later batch, flag or not, leaves it alone.
+  b.script = ({ run }) => okRow(run);
+  const recovered = await b.run({ retryExhausted: true });
+  assert.deepEqual({ retriedExhausted: recovered.retriedExhausted, attempts: recovered.attempts, exhausted: recovered.exhausted, ran: recovered.ran }, { retriedExhausted: 1, attempts: 1, exhausted: 0, ran: 1 });
+  assert.deepEqual(outcomeOf(b, x).slice(-2), [[true, 'infra_exhausted'], [true, null]]);
+  const done = await b.run({ retryExhausted: true });
+  assert.deepEqual([done.skippedFinal, done.retriedExhausted, done.attempts], [1, 0, 0], 'the latest final row is a counted one: the run is done');
+});
+
+await ta('R125: the crash-before-exhausted rule (R100) applies to the rows AFTER the last exhausted row', async () => {
+  // Two attempts after the exhausted row, of three allowed: one more attempt, not none (the four non-final rows in the file are not the count).
+  const one = bench({ runs: { A: 1, B: 0, C: 0 }, limits: { infraRetries: 2 }, script: ({ run }) => infraRow(run, 'oom') });
+  const [x] = one.plan();
+  seedRows(one, [infraRow(x, 'api_error'), infraRow(x, 'api_error'), exhaustedRow(x), infraRow(x, 'api_error'), infraRow(x, 'api_error')]);
+  const s1 = await one.run({ retryExhausted: true });
+  assert.equal(one.calls.length, 1, 'a third attempt of the new allowance');
+  assert.deepEqual(outcomeOf(one, x).slice(-2), [[false, 'api_error'], [true, 'infra_exhausted']]);
+  assert.deepEqual([s1.retriedExhausted, s1.exhausted], [1, 1]);
+  // Three attempts after the exhausted row: the exhausted line without a new attempt, costUsd null.
+  const none = bench({ runs: { A: 1, B: 0, C: 0 }, limits: { infraRetries: 2 } });
+  const rows = [infraRow(x, 'api_error'), exhaustedRow(x), infraRow(x, 'api_error', { costUsd: 2, sessionId: 'S-1' }), infraRow(x, 'api_error', { costUsd: 2, sessionId: 'S-2' }), infraRow(x, 'oom', { costUsd: 2, sessionId: 'S-3' })];
+  seedRows(none, rows);
+  const s2 = await none.run({ retryExhausted: true });
+  assert.equal(none.calls.length, 0);
+  assert.deepEqual(none.rows().at(-1), { ...rows[4], final: true, infra: 'infra_exhausted', lastInfra: 'oom', costUsd: null });
+  assert.deepEqual([s2.retriedExhausted, s2.exhausted, s2.attempts], [1, 1, 0]);
+  // Exhausted TWICE in the file: only the rows after the LAST exhausted row are the new allowance's (one of three here, so two attempts are left).
+  const twice = bench({ runs: { A: 1, B: 0, C: 0 }, limits: { infraRetries: 2 }, script: ({ run }) => infraRow(run, 'oom') });
+  seedRows(twice, [infraRow(x, 'api_error'), infraRow(x, 'api_error'), exhaustedRow(x), infraRow(x, 'api_error'), infraRow(x, 'api_error'), exhaustedRow(x), infraRow(x, 'api_error')]);
+  await twice.run({ retryExhausted: true });
+  assert.equal(twice.calls.length, 2, 'two attempts left of the allowance that began after the second exhausted row');
+  // Without the flag the run is final already (its latest final row is the exhausted one), whatever follows it.
+  const flagless = bench({ runs: { A: 1, B: 0, C: 0 }, limits: { infraRetries: 2 } });
+  seedRows(flagless, rows);
+  const s3 = await flagless.run();
+  assert.deepEqual([flagless.calls.length, s3.skippedFinal, flagless.lines().length], [0, 1, rows.length]);
+});
+
+await ta('R125: retryExhausted must be a boolean; a run that was never exhausted is not "retried"; the counted rows of a recovered run are exactly one per run for analyze.mjs (perTaskScores)', async () => {
+  await assert.rejects(bench().run({ retryExhausted: 'yes' }), (e) => e instanceof TypeError && /retryExhausted/.test(e.message));
+  await assert.rejects(bench().run({ retryExhausted: 1 }), (e) => e instanceof TypeError && /retryExhausted/.test(e.message));
+
+  const b = bench({ runs: { A: 1, B: 1, C: 1 }, limits: { infraRetries: 1 }, script: ({ run }) => (run.arm === 'B' ? infraRow(run, 'api_error') : okRow(run)) });
+  const first = await b.run({ retryExhausted: true });
+  assert.deepEqual([first.retriedExhausted, first.exhausted, first.skippedFinal], [0, 1, 0], 'nothing was exhausted yet, so nothing is re-opened');
+  // The outage left the task without a counted B run: analyze.mjs excludes it, silently shrinking the task set.
+  const lost = perTaskScores(b.rows());
+  assert.deepEqual([[...lost.scores.keys()], lost.excluded], [[], [{ taskId: 'ta', reason: 'no_counted_run_in_B' }]]);
+
+  b.script = ({ run }) => okRow(run);
+  const recovered = await b.run({ retryExhausted: true });
+  assert.deepEqual([recovered.retriedExhausted, recovered.skippedFinal, recovered.attempts, recovered.ran], [1, 2, 1, 1]);
+  const rows = b.rows();
+  for (const run of b.plan()) assert.equal(rows.filter((r) => r.runId === run.runId && r.final === true && r.infra === null).length, 1, `${run.runId}: exactly one counted row`);
+  assert.equal(rows.filter((r) => r.infra === 'infra_exhausted').length, 1, 'and the exhausted row is still there as evidence');
+  const found = perTaskScores(b.rows());
+  assert.deepEqual(found.excluded, []);
+  assert.deepEqual(found.scores.get('ta'), { A: 1, B: 1, C: 1, nA: 1, nB: 1, nC: 1 }, 'one counted row per arm: the recovered run counts once');
+});
 
 // =====================================================================================================================
 // real Docker (S5_DOCKER_TESTS=1): the same smoke batch against the real s5/plugins image with a shell script for the Claude binary
