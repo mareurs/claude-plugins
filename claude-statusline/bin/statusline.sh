@@ -33,13 +33,14 @@ jq_out="$(echo "$input" | jq -r '
   ((try .workspace.git_worktree.branch) // ""),
   (if .rate_limits_stale == true then "true" else "false" end),
   (.session_id // ""),
+  (.effort.level // ""),
   "END"
 ' 2>/dev/null)" || exit 0
 
 readarray -t F <<< "$jq_out"
 
-# Bail if jq produced insufficient output (17 fields: 16 data + sentinel)
-[[ ${#F[@]} -ge 17 ]] || exit 0
+# Bail if jq produced insufficient output (18 fields: 17 data + sentinel)
+[[ ${#F[@]} -ge 18 ]] || exit 0
 
 MODEL="${F[0]}"
 CTX_PCT="${F[1]}"
@@ -57,6 +58,7 @@ WT_NAME="${F[12]}"
 WT_BRANCH="${F[13]}"
 RATE_STALE="${F[14]}"
 SESSION_ID="${F[15]}"
+EFFORT="${F[16]}"   # absent for models without an effort setting
 
 # -- ANSI codes --
 RST='\033[0m'
@@ -67,6 +69,7 @@ CYAN='\033[36m'
 GREEN='\033[32m'
 RED='\033[31m'
 MODEL_BG='\033[48;5;53m\033[38;5;177m'
+EFFORT_FG='\033[38;5;225m'   # lighter than the model name, same badge background
 AGENT_BG='\033[48;5;24m\033[38;5;75m'
 
 # -- Truncate float to int --
@@ -138,10 +141,13 @@ SEP=" \\033[90m|\\033[0m "
 out=""
 
 # Model badge
+# Effort rides inside the badge, after the model name; nothing when the field is absent.
+effort_sfx=""
+[[ -n "$EFFORT" ]] && effort_sfx=" ${EFFORT_FG}· ${EFFORT}"
 if [[ -n "$MODEL" ]]; then
-  out+="${MODEL_BG} ${MODEL} ${RST}"
+  out+="${MODEL_BG} ${MODEL}${effort_sfx} ${RST}"
 else
-  out+="${MODEL_BG} -- ${RST}"
+  out+="${MODEL_BG} --${effort_sfx} ${RST}"
 fi
 
 # Agent badge (conditional)

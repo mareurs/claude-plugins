@@ -6,7 +6,7 @@ Rich, color-coded terminal status line for Claude Code.
 
 | Field | Description |
 |-------|-------------|
-| Model | Current model name (purple badge) |
+| Model | Current model name (purple badge), followed by `· <effort>` (`low` to `max`) when the model has an effort setting |
 | Agent | Subagent name when active (blue badge) |
 | Context % | Context window usage (green → yellow → orange → red) |
 | Rate limits | 5-hour and 7-day usage percentages |
