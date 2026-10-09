@@ -760,8 +760,9 @@ export async function runOne(run, ctx) {
 //   batch, naming the count and the first path with the token redacted; writeHookCopy(<workRoot>/hook, esRoot): once, for every run; then,
 //   when the real runOne is used, runOne's own checks of its ctx on the first run (an unusable ctx is refused once, instead of making every
 //   runOne throw: each throw is an attempt, and the whole plan would end as final infra_exhausted lines).
-//   Before the workers start the batch yields once (setImmediate): the start-up above is synchronous, so a signal that arrived during it is only
-//   queued, and without the yield the first `concurrency` runs would start before the stop is seen (R129).
+//   Before the workers start the batch yields TWICE (setImmediate, R136): the start-up above is synchronous, so a signal that arrived during it is
+//   only queued, and without the yield the first `concurrency` runs would start before the stop is seen (R129). One yield is not enough when the
+//   start-up ends inside a poll-phase callback (an fs callback, the default sha256File's stream): libuv reads the signal pipe in the poll phase.
 //
 // THE ROWS FILE (R100): JSONL, appended to, one line per ATTEMPT (open, write, fsync, close). A line with a `type` key is not a Row (the stopped
 // line). Every other line must be a Row (R134 b: runId a string, final a boolean, infra null or a string) with the `mode` of THIS batch (R133),
@@ -777,7 +778,8 @@ export async function runOne(run, ctx) {
 //   a thrown runOne (R114), a result that is no Row of that run, or a Row that holds the token: an attempt `run_failed` with infraDetail (the
 //   message, the token redacted, at most 300 characters) and a Row of the Row's keys with null / empty values where nothing is known.
 //   earlier attempts already used the allowance (the file says so): the exhausted line is appended without a new attempt, with costUsd null so
-//   that the cost of that attempt, which its own line already holds, is not summed twice.
+//   that the cost of that attempt, which its own line already holds, is not summed twice, and with noAttempt: true (R137 c) so that the
+//   streak seed of the next batch does not count it as an attempt.
 //   retryExhausted (R125): a run whose LATEST final row is infra_exhausted is planned again (Summary.retriedExhausted counts them) with a fresh
 //   allowance, counted from the non-final rows after that last exhausted row; the exhausted row stays in the file as evidence, the rule above
 //   about an allowance already used applies to the rows after it, and a later counted row makes the run final. Without the option an exhausted
@@ -789,21 +791,23 @@ export async function runOne(run, ctx) {
 // A write that fails part-way (R128) is rolled back: the size is recorded after the open and on any failure of the write or the fsync the file is
 // cut back to it and the error rethrown; if that cut fails too, the appender is broken for good (every later append throws the first error at
 // once and writes nothing, so nothing is glued to the fragment, which the next batch cuts as a torn tail). The state changes only after a
-// successful append. A rows-file write failure makes runBatch throw after the runs in flight have finished.
+// successful append (updated right after the fsync, before the close; a close error after a durable write is ignored, R137 a). A rows-file write
+// failure makes runBatch throw after the runs in flight have finished.
 //
 // ORDER, THE STOP RULE, SIGNALS. Runs start in the order of planRunsS5, at most `concurrency` at a time. Before every start, a retry included,
 // the costUsd of EVERY Row of the file (null adds 0; a typed line is no Row) is summed; when the sum is >= stopAtCostUsd nothing starts, the
 // runs in flight finish and are recorded, and ONE line { type: 'stopped', at, reason: 'cost' | 'hidden_changed' | 'signal', costUsd, limit, mode } is
-// appended after them (the first reason wins). The sum is read from the file at start, so a resumed batch with the limit reached starts nothing
-// and says so; a batch with nothing left to start says nothing. The first SIGINT or SIGTERM is such a stop; the second removes the handlers and
-// raises that signal on the process, so the default action ends it at once (a hard kill mid-run loses that paid run without a row, and the
+// appended after them (the first reason wins; a 'signal' line also carries signalName, R138). The sum is read from the file at start, so a resumed
+// batch with the limit reached starts nothing and says so; a batch with nothing left to start says nothing. The first SIGINT, SIGTERM or SIGHUP is
+// such a stop (SIGHUP because a closed terminal would otherwise leave the detached containers to run on unread); the second removes the handlers
+// and raises that signal on the process, so the default action ends it at once (a hard kill mid-run loses that paid run without a row, and the
 // container it leaves is swept by the next batch). dockerRun spawns every agent and grade docker client in a process group of its own (R131), so
 // a terminal's Ctrl+C reaches the harness only: the first signal really lets the containers in flight finish. A container that is cut off all the
 // same (exit 130, 137 or 143 without a timeout) is infra `interrupted` in runOne (R132), never a graded model failure.
 // THE CIRCUIT BREAKER (R124, R127). An outage fails attempt after attempt of run after run, and an exhausted line is final: left alone it would turn the
 // plan into infra_exhausted lines in seconds. The infrastructure attempts are counted in completion order across all workers (a thrown runOne
 // is one; an attempt with infra null resets the count to 0), and the count STARTS from the rows file (R127): the number of consecutive trailing
-// attempt rows with an infrastructure value (typed lines skipped, an exhausted row counts), so a resume while the outage persists stops at its
+// attempt rows with an infrastructure value (typed lines and noAttempt lines skipped, an exhausted row counts), so a resume while the outage persists stops at its
 // first further failure; at 2 * (1 + infraRetries) in a row the batch stops with reason 'infra_streak' and
 // the line is { type: 'stopped', at, reason: 'infra_streak', streak, lastInfra, costUsd, limit: null, mode } (streak: the count that tripped it).
 // After ANY stop (cost, hidden_changed, signal, infra_streak) a run in flight finishes its CURRENT attempt and starts no retry: with attempts
@@ -818,8 +822,8 @@ export async function runOne(run, ctx) {
 // Summary { mode, planned, skippedFinal, ran, attempts, infraAttempts, exhausted, retriedExhausted, costUsd, stopped, rowsFile, smoke, scrubbed, tornLine }:
 //   ran   runs that got a final row in this batch (counted rows and exhausted lines)   attempts   runOne calls made   infraAttempts   attempts that
 //   ended in infrastructure   exhausted   runs that ended infra_exhausted   retriedExhausted   runs re-opened by retryExhausted   costUsd   the sum
-//   over the whole file at the end   stopped   null or { reason, costUsd, limit } (reason 'infra_streak': { reason, streak, lastInfra, costUsd,
-//   limit: null })   scrubbed   { dirs, files } of the start-of-batch scrub   tornLine   a torn last line was ignored.
+//   over the whole file at the end   stopped   null or { reason, costUsd, limit } (reason 'signal': plus signalName; reason 'infra_streak':
+//   { reason, streak, lastInfra, costUsd, limit: null })   scrubbed   { dirs, files } of the start-of-batch scrub   tornLine   a torn last line was ignored.
 // Nothing is printed. The batch never starts a model itself: runOne starts the agent container, with the real Claude binary mounted.
 
 // R122, R134 (c): every container runOne, gradeTree and warmTask start carries s5=1 AND s5.task; the proxy container carries s5=1 and s5.run=s5-proxy
@@ -829,7 +833,7 @@ const LOCK_FILE = 'batch.lock';
 const LOCK_TRIES = 3;
 const DEFAULT_TOKEN_ENV = 'CLAUDE_CODE_OAUTH_TOKEN';
 const DOCKER_HELPER_TIMEOUT_MS = 60_000;
-const STOP_SIGNALS = ['SIGINT', 'SIGTERM'];
+const STOP_SIGNALS = ['SIGINT', 'SIGTERM', 'SIGHUP'];
 const BATCH_SEAMS = ['runOne', 'imageIdOf', 'sha256File', 'proxyRunning', 'esRoot', 'kill'];
 const SEAM_FUNCTIONS = ['runOne', 'imageIdOf', 'sha256File', 'proxyRunning', 'kill'];
 // The effort-steering directory this file lives under: the hook copy is made from it.
@@ -991,8 +995,6 @@ async function batchPreflight(prereg, o, plan) {
 
 // ---- the rows file ----
 
-// -> { rows, tornLine, tornAt, needsNewline }. rows: the Rows of the file, in order (a line with a `type` key, or without a runId, is none).
-// An unparsable last line is torn (tornAt: where it starts); an unparsable line anywhere else throws, naming the line.
 // -> { rows, tornLine, tornAt, needsNewline }. rows: the Rows of the file, in order (a line with a `type` key is none). An unparsable last line is
 // torn (tornAt: where it starts); an unparsable line anywhere else throws, naming the line. Every other line must be a Row (R134 b: runId a
 // string, final a boolean, infra null or a string) of THIS batch's mode (R133: run ids are the same in every mode, so a measure batch on a
@@ -1049,14 +1051,14 @@ function readRowsFile(file, mode) {
 
 // The writer of the rows file: one line per call, one open-write-fsync-close. The first call cuts a torn last line off (and a last line
 // that lacks its newline gets one in front of the new line), so the file always parses completely afterwards.
-// The writer of the rows file: one line per call, one open-write-fsync-close. The first call cuts a torn last line off (and a last line
-// that lacks its newline gets one in front of the new line), so the file always parses completely afterwards.
 //
 // R128: a write that fails part-way (ENOSPC on the disk that also holds every run's work/ and target/) must not leave a fragment for the
 // next append to glue a complete, paid row onto. The size is recorded after the open; on ANY failure of the write or the fsync the file is
 // cut back to it and the error rethrown. If that cut fails too the appender is broken for good: every later call throws the FIRST error at
 // once and writes nothing (a fragment left alone is a torn tail, which the next batch cuts; a row glued after it is a lost row). The state
-// (the torn tail to cut, the missing newline) changes only after a successful append.
+// (the torn tail to cut, the missing newline) changes only after a successful append: it is updated right after the fsync succeeded,
+// BEFORE the close, and a close error after that is ignored (R137 a): the line is durable, and a thrown close would leave the state
+// stale, so that the next append cut a complete, paid row off the front of the file.
 function rowsAppender(file, state) {
   const pending = { tornAt: state.tornAt, needsNewline: state.needsNewline };
   let broken = null;
@@ -1078,11 +1080,15 @@ function rowsAppender(file, state) {
         }
         throw err;
       }
+      pending.tornAt = null;
+      pending.needsNewline = false;
     } finally {
-      closeSync(fd);
+      try {
+        closeSync(fd);
+      } catch {
+        // After a durable write the line is there whatever the close says; after a failure the error in flight is the one that matters.
+      }
     }
-    pending.tornAt = null;
-    pending.needsNewline = false;
   };
 }
 
@@ -1239,6 +1245,16 @@ function stopOnSignals(onFirst, kill) {
   return remove;
 }
 
+// R136: yields to the event loop twice, so that a signal that arrived while the code was busy has had its handler run when this resolves.
+// Why TWO: libuv reads the signal pipe in the POLL phase of the loop, and a setImmediate callback runs in the CHECK phase that follows it.
+// An immediate scheduled from inside a poll-phase callback (any fs callback, a for-await over a stream: the default sha256File leaves the
+// start-up there) runs in that same iteration, BEFORE the next poll has read the pipe; an immediate scheduled from inside the check phase
+// runs in the next iteration, after a poll. From a timer or an immediate one yield is enough; from a poll-phase callback it is not.
+async function yieldToSignals() {
+  await new Promise((resolve) => { setImmediate(resolve); });
+  await new Promise((resolve) => { setImmediate(resolve); });
+}
+
 // ---- smoke ----
 
 function smokeSummary(plan, rows) {
@@ -1267,7 +1283,7 @@ export async function runBatch(prereg, options) {
     const requestStop = (reason, detail = {}) => {
       if (stop.reason === null) Object.assign(stop, detail, { reason });
     };
-    removeHandlers = stopOnSignals(() => requestStop('signal'), o.kill);
+    removeHandlers = stopOnSignals((signalName) => requestStop('signal', { signalName }), o.kill);
 
     mkdirSync(path.dirname(o.rowsFile), { recursive: true });
     const file = readRowsFile(o.rowsFile, o.mode);
@@ -1291,9 +1307,13 @@ export async function runBatch(prereg, options) {
     };
     // R127: the streak does not restart from 0 at a resume. It starts at the number of consecutive trailing attempt rows of the file with an
     // infrastructure value (typed lines are not in `rows`; an exhausted row counts), so a resume while the outage persists stops at its first
-    // further failure, and a first good attempt resets it.
+    // further failure, and a first good attempt resets it. A line written WITHOUT an attempt (noAttempt, R137 c) is no attempt: skipped.
     let streak = 0;
-    for (let i = rows.length - 1; i >= 0 && rows[i].infra !== null; i -= 1) streak += 1;
+    for (let i = rows.length - 1; i >= 0; i -= 1) {
+      if (rows[i].noAttempt === true) continue;
+      if (rows[i].infra === null) break;
+      streak += 1;
+    }
     const allowed = 1 + o.infraRetries;
     // R124: this many infrastructure attempts in a row, across all runs, in completion order, stop the batch.
     const streakLimit = 2 * allowed;
@@ -1317,9 +1337,10 @@ export async function runBatch(prereg, options) {
       }
       if (reopen) counts.retriedExhausted += 1;
       if (attemptsUsed(run.runId) >= allowed) {
-        // The earlier attempts used up the allowance: the exhausted line, without a new attempt. Its cost is already in its own line.
+        // The earlier attempts used up the allowance: the exhausted line, without a new attempt. Its cost is already in its own line, and it
+        // says it is no attempt (noAttempt), so that the streak seed of the next batch does not count it as one.
         const last = rows.findLast((row) => row.runId === run.runId && row.final === false);
-        append({ ...last, final: true, infra: 'infra_exhausted', lastInfra: last.infra, costUsd: null });
+        append({ ...last, final: true, infra: 'infra_exhausted', lastInfra: last.infra, costUsd: null, noAttempt: true });
         counts.ran += 1;
         counts.exhausted += 1;
       } else {
@@ -1401,9 +1422,9 @@ export async function runBatch(prereg, options) {
         fatal ??= err; // the others start nothing more; the first failure is thrown once they have finished
       }
     };
-    // R129: the start-up above is synchronous (the sweep is a spawnSync), so a signal that arrived during it is only queued. Yield once so that
+    // R129, R136: the start-up above is synchronous (the sweep is a spawnSync), so a signal that arrived during it is only queued. Yield so that
     // its handler runs and mayStart sees the stop BEFORE the first `concurrency` runs start (each of which is paid for and may last 90 minutes).
-    await new Promise((resolve) => { setImmediate(resolve); });
+    await yieldToSignals();
     await Promise.all(Array.from({ length: Math.min(o.concurrency, queue.length) }, () => worker()));
     if (fatal !== null) throw fatal;
 
@@ -1411,7 +1432,7 @@ export async function runBatch(prereg, options) {
     if (stop.reason !== null) {
       const costUsd = spent();
       // The infra_streak line says what tripped it and has no cost limit (limit null); the others carry the cost limit they were run with.
-      const detail = stop.reason === 'infra_streak' ? { streak: stop.streak, lastInfra: stop.lastInfra } : {};
+      const detail = { infra_streak: { streak: stop.streak, lastInfra: stop.lastInfra }, signal: { signalName: stop.signalName } }[stop.reason] ?? {};
       const limit = stop.reason === 'infra_streak' ? null : o.stopAtCostUsd;
       appendLine({ type: 'stopped', at: new Date().toISOString(), reason: stop.reason, ...detail, costUsd, limit, mode: o.mode });
       stopped = { reason: stop.reason, ...detail, costUsd, limit };

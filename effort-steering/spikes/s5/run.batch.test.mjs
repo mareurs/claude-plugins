@@ -95,8 +95,8 @@ const taIf = async (name, skipReason, fn) => {
   if (skipReason) console.log(`ok - ${name} # SKIP ${skipReason}`);
   else await ta(name, fn);
 };
-// How many SIGINT and SIGTERM listeners the process has: a batch installs one of each while it runs and removes both on every path.
-const listeners = () => [process.listenerCount('SIGINT'), process.listenerCount('SIGTERM')];
+// How many SIGINT, SIGTERM and SIGHUP listeners the process has: a batch installs one of each while it runs and removes all three on every path.
+const listeners = () => [process.listenerCount('SIGINT'), process.listenerCount('SIGTERM'), process.listenerCount('SIGHUP')];
 
 // ---- the registrations under test ----
 
@@ -264,7 +264,7 @@ function bench(o = {}) {
       return b.proxyUp;
     },
     kill: (pid, signal) => {
-      b.kills.push({ pid, signal, sigintListeners: process.listenerCount('SIGINT'), sigtermListeners: process.listenerCount('SIGTERM') });
+      b.kills.push({ pid, signal, handlers: listeners() });
     },
     esRoot: ES_ROOT,
     claudeBin,
@@ -446,7 +446,7 @@ await ta('a run whose earlier attempts already used up the allowance gets the ex
   assert.equal(b.calls.length, 0, 'no new attempt');
   const lines = b.rows();
   assert.equal(lines.length, 4);
-  assert.deepEqual(lines[3], { ...earlier[2], final: true, infra: 'infra_exhausted', lastInfra: 'oom', costUsd: null }, 'the last attempt\'s row, exhausted, its cost left to its own line');
+  assert.deepEqual(lines[3], { ...earlier[2], final: true, infra: 'infra_exhausted', lastInfra: 'oom', costUsd: null, noAttempt: true }, 'the last attempt\'s row, exhausted, its cost left to its own line, marked as no attempt');
   assert.deepEqual({ attempts: summary.attempts, exhausted: summary.exhausted, ran: summary.ran, costUsd: summary.costUsd }, { attempts: 0, exhausted: 1, ran: 1, costUsd: 6 });
   const again = await b.run();
   assert.equal(again.skippedFinal, 1);
@@ -1168,14 +1168,14 @@ await ta('the hook copy is built once, from nothing, before the first run: a sta
 // R119: signals
 // =====================================================================================================================
 
-await ta('R119: the first SIGINT or SIGTERM is a stop: nothing new starts, in-flight runs finish, one stopped line with reason signal, Summary.stopped set; the handlers exist only while the batch runs', async () => {
-  for (const signal of ['SIGINT', 'SIGTERM']) {
+await ta('R119, R138: the first SIGINT, SIGTERM or SIGHUP is a stop: nothing new starts, in-flight runs finish, one stopped line with reason signal that names the signal, Summary.stopped set; the handlers exist only while the batch runs', async () => {
+  for (const signal of ['SIGINT', 'SIGTERM', 'SIGHUP']) {
     const before = listeners();
     const gate = deferred();
     const b = bench({ runs: { A: 2, B: 2, C: 2 }, script: async ({ run }) => { await gate.promise; return okRow(run); } });
     const done = b.run({ concurrency: 2 });
     await until(() => b.calls.length >= 2, 'two runs in flight');
-    assert.deepEqual(listeners().map((n, i) => n - before[i]), [1, 1], `${signal}: one handler per signal while the batch runs`);
+    assert.deepEqual(listeners().map((n, i) => n - before[i]), [1, 1, 1], `${signal}: one handler per signal while the batch runs`);
     process.emit(signal);
     await sleep(30);
     assert.equal(b.kills.length, 0, 'the first signal does not kill');
@@ -1184,8 +1184,8 @@ await ta('R119: the first SIGINT or SIGTERM is a stop: nothing new starts, in-fl
     assert.equal(b.calls.length, 2, `${signal}: nothing new started after the signal, though 4 runs were left`);
     assert.deepEqual(b.lines().map((l) => l.type ?? 'row'), ['row', 'row', 'stopped'], 'the in-flight runs finished and were recorded; then exactly one stopped line');
     const line = stoppedIn(b.rowsFile)[0];
-    assert.deepEqual({ ...line, at: null }, { type: 'stopped', at: null, reason: 'signal', costUsd: 2, limit: 100, mode: 'pilot' });
-    assert.deepEqual(summary.stopped, { reason: 'signal', costUsd: 2, limit: 100 });
+    assert.deepEqual({ ...line, at: null }, { type: 'stopped', at: null, reason: 'signal', signalName: signal, costUsd: 2, limit: 100, mode: 'pilot' });
+    assert.deepEqual(summary.stopped, { reason: 'signal', signalName: signal, costUsd: 2, limit: 100 });
     assert.deepEqual({ planned: summary.planned, ran: summary.ran }, { planned: 6, ran: 2 });
     assert.deepEqual(listeners(), before, `${signal}: the handlers are gone after the batch`);
     assert.ok(!existsSync(b.lockFile), 'and so is the lock');
@@ -1205,7 +1205,7 @@ await ta('R119: the second signal removes the handlers and re-raises that signal
   process.emit('SIGINT');
   assert.equal(b.kills.length, 1, 'the second signal is re-raised');
   assert.deepEqual({ pid: b.kills[0].pid, signal: b.kills[0].signal }, { pid: process.pid, signal: 'SIGINT' }, 'that signal, on this process');
-  assert.deepEqual([b.kills[0].sigintListeners, b.kills[0].sigtermListeners], before, 'the handlers were removed BEFORE it was raised, or the default action would not run');
+  assert.deepEqual(b.kills[0].handlers, before, 'the handlers were removed BEFORE it was raised, or the default action would not run');
   assert.deepEqual(listeners(), before);
   process.emit('SIGINT'); // a third: no handler, so nothing
   assert.equal(b.kills.length, 1);
@@ -1218,7 +1218,8 @@ await ta('R119: the second signal removes the handlers and re-raises that signal
   assert.equal(b.kills.length, 1);
 });
 
-await ta('R119, for real: a child process running a batch survives the first SIGINT (it stops starting runs), and the second SIGINT ends it at once with the signal, mid-run; the next batch replaces the dead holder\'s lock', async () => {
+for (const signal of ['SIGINT', 'SIGHUP']) {
+  await ta(`R119, R138, for real: a child process running a batch survives the first ${signal} (it stops starting runs), and the second ${signal} ends it at once with the signal, mid-run; the next batch replaces the dead holder's lock`, async () => {
   const b = bench({ runs: { A: 2, B: 2, C: 2 } });
   const preregFile = path.join(b.dir, 'prereg.json');
   writeFileSync(preregFile, JSON.stringify(b.prereg));
@@ -1244,15 +1245,15 @@ process.stdout.write('DONE ' + JSON.stringify(summary.stopped) + '\\n');
   const closed = new Promise((resolve) => { child.once('close', (code, signal) => resolve({ code, signal })); });
   try {
     await until(() => out.includes('STARTED'), `the child to start its run (stderr: ${err})`);
-    child.kill('SIGINT');
+    child.kill(signal);
     await sleep(400);
-    assert.equal(child.exitCode, null, `the first SIGINT does not end the child (${err})`);
+    assert.equal(child.exitCode, null, `the first ${signal} does not end the child (${err})`);
     assert.equal(child.signalCode, null);
     assert.ok(!out.includes('DONE'), 'the in-flight run is still running');
-    child.kill('SIGINT');
+    child.kill(signal);
     const end = await Promise.race([closed, sleep(5000).then(() => 'timeout')]);
-    assert.notEqual(end, 'timeout', 'the second SIGINT ends the child at once');
-    assert.equal(end.signal, 'SIGINT', `it died of the signal it was sent (code ${end.code}, stderr ${err})`);
+    assert.notEqual(end, 'timeout', `the second ${signal} ends the child at once`);
+    assert.equal(end.signal, signal, `it died of the signal it was sent (code ${end.code}, stderr ${err})`);
   } finally {
     if (child.exitCode === null && child.signalCode === null) child.kill('SIGKILL');
   }
@@ -1261,7 +1262,8 @@ process.stdout.write('DONE ' + JSON.stringify(summary.stopped) + '\\n');
   const next = await b.run({ concurrency: 3 });
   assert.equal(next.ran, 6, 'the dead holder\'s lock is stale: the next batch takes over and runs everything');
   assert.ok(!existsSync(b.lockFile));
-});
+  });
+}
 
 // =====================================================================================================================
 // smoke mode (R94): one run per arm on one task, then { ok, checks, rows } from the FINAL rows
@@ -1637,7 +1639,7 @@ await ta('R125: the crash-before-exhausted rule (R100) applies to the rows AFTER
   seedRows(none, rows);
   const s2 = await none.run({ retryExhausted: true });
   assert.equal(none.calls.length, 0);
-  assert.deepEqual(none.rows().at(-1), { ...rows[4], final: true, infra: 'infra_exhausted', lastInfra: 'oom', costUsd: null });
+  assert.deepEqual(none.rows().at(-1), { ...rows[4], final: true, infra: 'infra_exhausted', lastInfra: 'oom', costUsd: null, noAttempt: true });
   assert.deepEqual([s2.retriedExhausted, s2.exhausted, s2.attempts], [1, 1, 0]);
   // Exhausted TWICE in the file: only the rows after the LAST exhausted row are the new allowance's (one of three here, so two attempts are left).
   const twice = bench({ runs: { A: 1, B: 0, C: 0 }, limits: { infraRetries: 2 }, script: ({ run }) => infraRow(run, 'oom') });
@@ -1679,6 +1681,8 @@ await ta('R125: retryExhausted must be a boolean; a run that was never exhausted
 // =====================================================================================================================
 
 const realWriteSync = fs.writeSync;
+const realCloseSync = fs.closeSync;
+const realFsyncSync = fs.fsyncSync;
 const enospc = () => Object.assign(new Error('ENOSPC: no space left on device, write'), { code: 'ENOSPC', errno: -28, syscall: 'write' });
 const eio = () => Object.assign(new Error('EIO: i/o error, ftruncate'), { code: 'EIO', errno: -5, syscall: 'ftruncate' });
 // Replaces members of node:fs for the body. run.mjs imports writeSync and ftruncateSync by name, and syncBuiltinESMExports updates those bindings.
@@ -1862,6 +1866,183 @@ await ta('R129: a REAL SIGINT that arrives during the synchronous start-up (here
   assert.deepEqual([summary.stopped.reason, summary.attempts, summary.ran], ['signal', 0, 0]);
   assert.equal(stoppedIn(b.rowsFile).length, 1);
   assert.deepEqual(listeners(), before);
+});
+
+await ta('R136 (a): a first signal queued during the synchronous start-up is seen before the first run starts ALSO when runBatch was entered from a callback of the poll phase (an fs callback): there one setImmediate is not enough, because the immediate runs before the next poll reads the signal, and two are', async () => {
+  const before = listeners();
+  const b = bench({ runs: { A: 1, B: 1, C: 1 }, limits: { concurrency: 2 }, dockerConfig: { ps: { sleepMs: 1500 } } });
+  const killer = spawn('sh', ['-c', `sleep 0.5; kill -INT ${process.pid}`], { stdio: 'ignore', detached: true });
+  let summary;
+  try {
+    summary = await new Promise((resolve, reject) => {
+      fs.readFile(fileURLToPath(import.meta.url), () => { b.run().then(resolve, reject); });
+    });
+  } finally {
+    killer.kill();
+  }
+  assert.equal(b.calls.length, 0, 'two slots were free and no run was started');
+  assert.deepEqual([summary.stopped.reason, summary.stopped.signalName, summary.attempts], ['signal', 'SIGINT', 0]);
+  assert.deepEqual(listeners(), before);
+});
+
+await ta('R136 (b): the same with the DEFAULT sha256File (a for-await over createReadStream leaves the start-up in the poll phase): no run starts', async () => {
+  const before = listeners();
+  const dir = fresh('sha-default');
+  const claudeBin = path.join(dir, 'claude-bin');
+  const bytes = Buffer.from('not a real claude binary, only bytes to hash\n');
+  writeFileSync(claudeBin, bytes);
+  const b = bench({
+    cli: `sha256:${createHash('sha256').update(bytes).digest('hex')}`,
+    runs: { A: 1, B: 1, C: 1 },
+    limits: { concurrency: 2 },
+    dockerConfig: { ps: { sleepMs: 1500 } },
+    ctx: { claudeBin, sha256File: undefined },
+  });
+  const killer = spawn('sh', ['-c', `sleep 0.5; kill -INT ${process.pid}`], { stdio: 'ignore', detached: true });
+  let summary;
+  try {
+    summary = await b.run();
+  } finally {
+    killer.kill();
+  }
+  assert.equal(b.calls.length, 0, 'two slots were free and no run was started');
+  assert.deepEqual([summary.stopped.reason, summary.attempts, summary.ran], ['signal', 0, 0]);
+  assert.deepEqual(listeners(), before);
+});
+
+await ta('R138: SIGHUP is a stop signal like SIGINT and SIGTERM: as the SECOND signal it removes all three handlers and is the one re-raised; the stopped line names the FIRST signal', async () => {
+  const before = listeners();
+  const gate = deferred();
+  const b = bench({ runs: { A: 2, B: 2, C: 2 }, script: async ({ run }) => { await gate.promise; return okRow(run); } });
+  const done = b.run({ concurrency: 2 });
+  await until(() => b.calls.length >= 2, 'two runs in flight');
+  process.emit('SIGINT');
+  assert.equal(b.kills.length, 0);
+  process.emit('SIGHUP');
+  assert.equal(b.kills.length, 1);
+  assert.deepEqual({ pid: b.kills[0].pid, signal: b.kills[0].signal }, { pid: process.pid, signal: 'SIGHUP' });
+  assert.deepEqual(b.kills[0].handlers, before, 'all three handlers were removed before the signal was raised');
+  gate.resolve();
+  const summary = await done;
+  assert.deepEqual([summary.stopped.reason, summary.stopped.signalName], ['signal', 'SIGINT']);
+  assert.deepEqual(listeners(), before);
+  // A stop that is not a signal names no signal.
+  const cost = bench({ runs: { A: 1, B: 1, C: 0 }, stopAtCostUsd: 1, script: ({ run }) => okRow(run) });
+  const s = await cost.run({ concurrency: 1 });
+  assert.deepEqual([s.stopped.reason, Object.hasOwn(s.stopped, 'signalName'), Object.hasOwn(stoppedIn(cost.rowsFile)[0], 'signalName')], ['cost', false, false]);
+});
+
+await ta('R137 (a): once fsync succeeded the row is durable: a close error is ignored and the state is updated before the close, so the next append (here after a torn tail at the start of the file) does not cut a complete, paid row', async () => {
+  const gateX = deferred();
+  const gateY = deferred();
+  const b = bench({
+    runs: { A: 1, B: 1, C: 0 },
+    limits: { concurrency: 2 },
+    script: async ({ run, n }) => {
+      if (n === 0) {
+        await gateX.promise;
+        return okRow(run, { costUsd: 3, finalTextTail: 'CLOSE-FAIL' });
+      }
+      await gateY.promise;
+      return okRow(run, { costUsd: 4 });
+    },
+  });
+  const [x, y] = b.plan();
+  writeFileSync(b.rowsFile, `${JSON.stringify(oldRow('s', 2))}\n{"runId":"torn`); // an old row, then a torn tail the first append cuts
+  let marked = null;
+  let closed = false;
+  const summary = await patchFs({
+    writeSync: (fd, data, ...rest) => {
+      if (Buffer.isBuffer(data) && data.includes('CLOSE-FAIL')) marked = fd;
+      return realWriteSync(fd, data, ...rest);
+    },
+    closeSync: (fd) => {
+      realCloseSync(fd);
+      if (fd === marked) {
+        marked = null;
+        closed = true;
+        throw eio(); // the line is on disk (fsync said so) and the close fails
+      }
+    },
+  }, async () => {
+    const outcome = b.run();
+    await until(() => b.calls.length >= 2, 'both runs in flight');
+    gateX.resolve();
+    await until(() => closed, 'the failing close');
+    gateY.resolve();
+    return outcome;
+  });
+  assert.equal(summary.tornLine, true);
+  assert.deepEqual(b.lines().map((l) => l.runId), ['old.s.0', x.runId, y.runId], 'the paid row of X is in the file, and the next append did not cut it');
+  assert.equal(summary.costUsd, 2 + 3 + 4);
+  assert.deepEqual(summary.ran, 2);
+});
+
+await ta('R137 (b): an fsync that fails is rolled back like a failed write: the complete line that may not be durable is cut off, the in-flight run\'s row is not affected, the batch throws, and the next batch finds a clean file', async () => {
+  const gateX = deferred();
+  const gateY = deferred();
+  const b = bench({
+    runs: { A: 1, B: 1, C: 0 },
+    limits: { concurrency: 2 },
+    script: async ({ run, n }) => {
+      if (n === 0) {
+        await gateX.promise;
+        return okRow(run, { costUsd: 3, finalTextTail: 'FSYNC-FAIL' });
+      }
+      await gateY.promise;
+      return okRow(run, { costUsd: 4 });
+    },
+  });
+  const [x, y] = b.plan();
+  const seed = JSON.stringify(oldRow('s', 2));
+  writeFileSync(b.rowsFile, `${seed}\n`);
+  let marked = null;
+  let failed = false;
+  const err = await patchFs({
+    writeSync: (fd, data, ...rest) => {
+      if (Buffer.isBuffer(data) && data.includes('FSYNC-FAIL')) marked = fd;
+      return realWriteSync(fd, data, ...rest);
+    },
+    fsyncSync: (fd) => {
+      if (fd === marked) {
+        marked = null; // fd numbers are reused: Y's append may get the same one
+        failed = true;
+        throw eio();
+      }
+      return realFsyncSync(fd);
+    },
+  }, async () => {
+    const outcome = b.run().then(() => null, (e) => e);
+    await until(() => b.calls.length >= 2, 'both runs in flight');
+    gateX.resolve();
+    await until(() => failed, 'the failing fsync');
+    gateY.resolve();
+    return outcome;
+  });
+  assert.equal(err?.code, 'EIO');
+  assert.deepEqual(b.lines().map((l) => l.runId), ['old.s.0', y.runId], 'X\'s line, complete but not known to be durable, was cut back; Y\'s row is there once');
+  b.script = ({ run }) => okRow(run, { costUsd: 5 });
+  const next = await b.run();
+  assert.deepEqual([next.tornLine, next.skippedFinal, next.ran, next.costUsd], [false, 1, 1, 2 + 4 + 5]);
+  assert.ok(b.rows().some((r) => r.runId === x.runId));
+});
+
+await ta('R137 (c): the exhausted line written without a new attempt carries noAttempt: true, and the streak seed does not count it (it is not an attempt)', async () => {
+  const mk = () => bench({ runs: { A: 1, B: 1, C: 0 }, limits: { infraRetries: 2, concurrency: 1 }, stopAtCostUsd: 3, script: ({ run }) => infraRow(run, 'api_error') });
+  const b = mk();
+  const [x] = b.plan();
+  // X has used its three attempts (the batch crashed before the exhausted line). The cost limit (3) is reached by those rows, so nothing starts.
+  seedRows(b, [infraRow(x, 'api_error'), infraRow(x, 'api_error'), infraRow(x, 'api_error')]);
+  const first = await b.run();
+  assert.deepEqual([b.calls.length, first.exhausted, first.stopped.reason], [0, 1, 'cost']);
+  const rows = b.rows();
+  assert.equal(rows.length, 4);
+  assert.deepEqual([rows[3].final, rows[3].infra, rows[3].noAttempt, rows[3].costUsd], [true, 'infra_exhausted', true, null]);
+  assert.ok(rows.slice(0, 3).every((r) => !Object.hasOwn(r, 'noAttempt')), 'a real attempt carries no such key');
+  // The resume: Y fails every time. Three real attempts precede (X's); the limit is six, so Y's third failure trips it. Counted with the copy line it would trip at the second.
+  const second = await b.run({ stopAtCostUsd: 1000 });
+  assert.equal(b.calls.length, 3, 'three attempts of Y, not two');
+  assert.deepEqual([second.stopped.reason, second.stopped.streak], ['infra_streak', 6]);
 });
 
 await ta('R130: the breaker trips at the attempt that makes the count, whichever attempt of its run it is: with completions P0a1, P1a1, P0a2, P2a1 the fourth (a FIRST attempt of P2) stops the batch and P2 is neither retried nor exhausted', async () => {

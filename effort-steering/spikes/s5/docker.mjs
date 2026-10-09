@@ -243,10 +243,6 @@ function runSync(bin, args, timeoutMs) {
   return r.stdout;
 }
 
-// removeLabeled(label = 's5=1', { dockerBin, helperTimeoutMs }) -> the number of containers removed.
-// Removes every container (running or not) that carries the label. The label must be an s5
-// label: this host runs other people's containers, and nothing here may touch them. Each of the
-// two docker calls has its own helperTimeoutMs (60 s) and throws when it is exceeded.
 // removeLabeled(labels = 's5=1', { dockerBin, helperTimeoutMs }) -> the number of containers removed.
 // Removes every container (running or not) that carries the label, or ALL of the labels when an array is given (each becomes its own
 // `--filter label=`, which docker ANDs). Every label must be an s5 label: this host runs other people's containers, and nothing here
