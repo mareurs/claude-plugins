@@ -1,8 +1,9 @@
-// run.mjs — the S5 runner. This file holds the PLAN and the ONE RUN:
+// run.mjs — the S5 runner. This file holds the PLAN, the ONE RUN and the BATCH:
 //
 //   planRunsS5(prereg, { mode, taskIds? }) -> Run[]            (below, ruling R84)
 //   runOne(run, ctx) -> Promise<Row>                           (one agent run in a container, classified and graded: see "runOne")
 //   scrubRunDirs(runsRoot, token) -> { dirs, files, failed }   (the scrub of runOne's step 5 over the run directories of earlier batches, R117)
+//   runBatch(prereg, { mode, workRoot, rowsFile, ... }) -> Promise<Summary>   (the batch layer: preflight, the rows file, resume, retries, the cost stop rule, signals, smoke; see "runBatch")
 //
 // The plan:
 //
@@ -39,20 +40,26 @@
 // `prereg` is trusted to be what a loader returns (shape and numbers are checked there); it is never written to: the loaders
 // freeze it at every depth. planRunsS5 reads no file, runs no process and calls no model.
 
+import { spawnSync } from 'node:child_process';
 import { createHash, randomUUID } from 'node:crypto';
 import {
-  closeSync, constants, fstatSync, lstatSync, mkdirSync, openSync, readdirSync, readFileSync, statSync, writeFileSync,
+  closeSync, constants, createReadStream, fstatSync, fsyncSync, lstatSync, mkdirSync, openSync, readdirSync, readFileSync, statSync, truncateSync, unlinkSync, writeFileSync, writeSync,
 } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { makeRng, shuffle } from '../s4-prng.mjs';
 import { decisionFromLog } from '../s4-rows.mjs';
-import { hashHidden, reflinkCopy } from './build-task.mjs';
-import { dockerRun } from './docker.mjs';
+import { hashBuiltTask, hashHidden, reflinkCopy } from './build-task.mjs';
+import { dockerRun, removeLabeled } from './docker.mjs';
 import {
   gradeTree, infraOf, readResultFile, removeGradeDir, RUN_ID_RE,
 } from './grade.mjs';
-import { NETWORK, PROXY_URL } from './proxy.mjs';
+import { writeHookCopy } from './hook-copy.mjs';
+import { checkTasksMatch } from './prereg.mjs';
+import {
+  NETWORK, PROXY_IMAGE, PROXY_NAME, PROXY_URL,
+} from './proxy.mjs';
 import { IMAGE_FOR_REPO, TASK_ID_RE } from './task-def.mjs';
 import {
   finalTextTail, firstUserText, readRunUsage, testsRunBeforeDone,
@@ -698,4 +705,615 @@ export async function runOne(run, ctx) {
   const leftover = o.keepRunDirs ? [] : dispose(runDir, { ran: state.ran, threw: failure !== null });
   if (failure !== null) throw failure;
   return leftover.length === 0 ? row : { ...row, leftover };
+}
+
+// ---- runBatch ----
+//
+//   runBatch(prereg, { mode, workRoot, rowsFile, concurrency, stopAtCostUsd, taskIds, ctx }) -> Promise<Summary>
+//
+// The batch layer. It decides which runs start, in what order, how often an infrastructure failure is re-run, when the batch stops to save
+// money, and what is written. The ROWS FILE is the study's only memory (R100): every rule below is recomputed from it, so a batch that was
+// stopped, killed or resumed finds where it was and plans the same runs (planRunsS5 is a function of the registration alone).
+//
+//   prereg        what loadS5Prereg (mode measure) or loadS5Config (smoke, pilot, calibrate) returned. Read, never written.
+//   concurrency   runOne calls in flight at most; default prereg.limits.concurrency.   stopAtCostUsd   default prereg.stopAtCostUsd.
+//   ctx           runOne's ctx (claudeBin, dockerBin, network, proxyUrl, tokenEnv, keepRunDirs, grade, ...), passed on with prereg, workRoot,
+//                 hookCopy, attempt, claudeBin and images added. Batch seams, optional, real by default, never passed on: runOne;
+//                 imageIdOf(ref) -> id (`docker image inspect --format {{.Id}}`); sha256File(path) -> hex; proxyRunning() -> boolean (a
+//                 running container labelled s5=1 and s5.run=s5-proxy); esRoot (the effort-steering directory the hook copy is made from);
+//                 kill(pid, signal) (process.kill). A ctx.images of the caller is replaced by the ids below.
+//   images        the ids the registration pins, for the repos of the planned tasks: after the preflight proved the images hold them, runOne
+//                 runs ON the id (docker run sha256:...), so a tag moved during a 90-minute run changes nothing (R112 is why runOne takes it).
+//
+// BEFORE ANYTHING IS TOUCHED (read-only; a failure throws, names the item or the task, and writes nothing, not even the lock):
+//   1  planRunsS5 owns the mode rules (R2, R59): measure needs prereg.registered === true and refuses taskIds.
+//   2  each planned task (R91, R35, R101): gate.json exists, has ok === true and the manifest's treeHash and hiddenHash; tree/ (all but the
+//      top-level .git), hidden/ and prompt.txt hash, through hashBuiltTask, to the manifest's treeHash, hiddenHash and promptHash.
+//   3  checkTasksMatch is empty for the planned tasks; the id of each planned repo's image (IMAGE_FOR_REPO) and, on the default proxy network,
+//      of the proxy image equal prereg.images; 'sha256:' + the Claude binary's hex equals prereg.cli.sha256 (R49, R75), hashed once.
+//   4  <workRoot>/cargo-home is a directory when a planned task is a cargo task (R106b).   5  the proxy is running, when ctx.proxyUrl is not
+//      null and ctx.network is the default.   6  the token variable (ctx.tokenEnv) is set and not empty.
+//   The rows file is parsed once here as well: a damaged one refuses before the lock, the sweep or the scrub.
+//
+// THEN, IN THIS ORDER (R123, R122, R117, R93):
+//   the lock <workRoot>/batch.lock ({ pid, startedAt, mode, rowsFile }, taken with O_EXCL; a live holder, or one the batch cannot read,
+//   refuses; a dead holder's lock is stale and replaced; released in a finally, only if it still names us). The sweep and the scrub both
+//   destroy a LIVE batch's work (its containers, the token in its config/ and state/), hence one batch per work root.
+//   the signal handlers (R119; installed here, so that a signal during the read-only preflight, which has written nothing, keeps its default
+//   action); the rows file read again (the lock makes this read the true one);
+//   the sweep: removeLabeled('s5.task'). NOT 's5=1': the proxy container carries s5=1 and s5.run=s5-proxy, and sweeping s5=1 would remove
+//   the proxy the preflight just found running. Every container runOne, gradeTree and warmTask start carries s5.task (R122);
+//   scrubRunDirs(<workRoot>/runs, token): the token an interrupted attempt left in config/ or state/ (R117); a path it cannot clean refuses the
+//   batch, naming the count and the first path with the token redacted; writeHookCopy(<workRoot>/hook, esRoot): once, for every run.
+//
+// THE ROWS FILE (R100): JSONL, appended to, one line per ATTEMPT (open, write, fsync, close). A line with a `type` key is not a Row (the stopped
+// line); a line without a runId is none either. A final row (final === true) makes its run done. attemptsUsed = the rows with that runId and
+// final === false; 1 + prereg.limits.infraRetries attempts are allowed. A run with no row starts at attemptsUsed 0.
+//   infra null               the row is appended as it is, final: true.
+//   infra, attempts left     appended with final: false; the next attempt of that run starts at once.
+//   infra, the last attempt  appended as ONE line { ...row, final: true, infra: 'infra_exhausted', lastInfra: <the reason> }.
+//   hidden_changed (R101)    appended final: false, never re-run, and it stops the batch.
+//   a thrown runOne (R114), a result that is no Row of that run, or a Row that holds the token: an attempt `run_failed` with infraDetail (the
+//   message, the token redacted, at most 300 characters) and a Row of the Row's keys with null / empty values where nothing is known.
+//   earlier attempts already used the allowance (the file says so): the exhausted line is appended without a new attempt, with costUsd null so
+//   that the cost of that attempt, which its own line already holds, is not summed twice.
+// The attempt number is 1 + the highest N of the existing runs/<runId>-aN entries (0 when none), chosen per attempt, never reused (R106a).
+// A torn LAST line (a crash during an append) is ignored (Summary.tornLine) and cut off before the first append; a bad line anywhere else
+// refuses the batch. This cut is the only write that is not an append.
+//
+// ORDER, THE STOP RULE, SIGNALS. Runs start in the order of planRunsS5, at most `concurrency` at a time. Before every start, a retry included,
+// the costUsd of EVERY Row of the file (null adds 0; a typed line is no Row) is summed; when the sum is >= stopAtCostUsd nothing starts, the
+// runs in flight finish and are recorded, and ONE line { type: 'stopped', at, reason: 'cost' | 'hidden_changed' | 'signal', costUsd, limit } is
+// appended after them (the first reason wins). The sum is read from the file at start, so a resumed batch with the limit reached starts nothing
+// and says so; a batch with nothing left to start says nothing. The first SIGINT or SIGTERM is such a stop; the second removes the handlers and
+// raises that signal on the process, so the default action ends it at once (a hard kill mid-run loses that paid run without a row, and the
+// container it leaves is swept by the next batch).
+//
+// SMOKE: Summary.smoke = { ok, checks: { firstUserText, decisionLogs, bSteered }, rows } from the FINAL rows of the planned runs (one rep-0 run
+// per arm on one task): firstUserTextOk === true in every arm; a decision in every arm; the decision's steered true in B and false in A and C
+// (a missing decision is the decisionLogs check's, not this one's). A planned run without a final row makes every check false. ok also needs
+// that no run ended infra_exhausted.
+//
+// Summary { mode, planned, skippedFinal, ran, attempts, infraAttempts, exhausted, costUsd, stopped, rowsFile, smoke, scrubbed, tornLine }:
+//   ran   runs that got a final row in this batch (counted rows and exhausted lines)   attempts   runOne calls made   infraAttempts   attempts that
+//   ended in infrastructure   exhausted   runs that ended infra_exhausted   costUsd   the sum over the whole file at the end
+//   stopped   null or { reason, costUsd, limit }   scrubbed   { dirs, files } of the start-of-batch scrub   tornLine   a torn last line was ignored.
+// Nothing is printed. The batch never starts a model itself: runOne starts the agent container, with the real Claude binary mounted.
+
+// R122: every container runOne, gradeTree and warmTask start carries s5.task; the proxy container does not (it carries s5=1 and s5.run=s5-proxy).
+const SWEEP_LABEL = 's5.task';
+const LOCK_FILE = 'batch.lock';
+const LOCK_TRIES = 3;
+const DEFAULT_TOKEN_ENV = 'CLAUDE_CODE_OAUTH_TOKEN';
+const DOCKER_HELPER_TIMEOUT_MS = 60_000;
+// docker.mjs's list: the only variables a docker process inherits from this one.
+const DOCKER_PASSTHROUGH = ['PATH', 'HOME', 'DOCKER_HOST', 'DOCKER_CONFIG', 'DOCKER_CONTEXT', 'DOCKER_CERT_PATH', 'DOCKER_TLS_VERIFY'];
+const STOP_SIGNALS = ['SIGINT', 'SIGTERM'];
+const BATCH_SEAMS = ['runOne', 'imageIdOf', 'sha256File', 'proxyRunning', 'esRoot', 'kill'];
+const SEAM_FUNCTIONS = ['runOne', 'imageIdOf', 'sha256File', 'proxyRunning', 'kill'];
+// The effort-steering directory this file lives under: the hook copy is made from it.
+const ES_ROOT = fileURLToPath(new URL('../..', import.meta.url));
+
+const batchInput = (message) => new TypeError(`runBatch: ${message}`);
+const preflightFailure = (item, message) => new Error(`runBatch: preflight item ${item}: ${message}`);
+
+// The arguments, checked before anything is read. Throws a TypeError.
+function resolveBatch(prereg, options) {
+  if (!isObject(prereg)) throw batchInput(`prereg must be the object loadS5Prereg or loadS5Config returns, got ${show(prereg)}`);
+  if (!isObject(options)) throw batchInput(`options must be an object, got ${show(options)}`);
+  const { mode, workRoot, rowsFile, taskIds } = options;
+  for (const [what, value] of [['workRoot', workRoot], ['rowsFile', rowsFile]]) {
+    if (typeof value !== 'string' || value === '') throw batchInput(`${what} must be a non-empty string, got ${show(value)}`);
+  }
+  const { limits } = prereg;
+  if (!isObject(limits)) throw batchInput('prereg.limits must be an object');
+  const concurrency = options.concurrency ?? limits.concurrency;
+  if (!Number.isSafeInteger(concurrency) || concurrency < 1) throw batchInput(`concurrency must be a positive integer, got ${show(concurrency)}`);
+  const stopAtCostUsd = options.stopAtCostUsd ?? prereg.stopAtCostUsd;
+  if (typeof stopAtCostUsd !== 'number' || !(stopAtCostUsd > 0)) throw batchInput(`stopAtCostUsd must be a number above 0, got ${show(stopAtCostUsd)}`);
+  const { infraRetries } = limits;
+  if (!Number.isSafeInteger(infraRetries) || infraRetries < 0) throw batchInput(`prereg.limits.infraRetries must be a non-negative integer, got ${show(infraRetries)}`);
+  const ctx = options.ctx === undefined ? {} : options.ctx;
+  if (!isObject(ctx)) throw batchInput(`ctx must be an object when given, got ${show(ctx)}`);
+  for (const name of SEAM_FUNCTIONS) {
+    if (ctx[name] !== undefined && typeof ctx[name] !== 'function') throw batchInput(`ctx.${name} must be a function when given, got ${show(ctx[name])}`);
+  }
+  if (ctx.esRoot !== undefined && (typeof ctx.esRoot !== 'string' || ctx.esRoot === '')) throw batchInput(`ctx.esRoot must be a non-empty string when given, got ${show(ctx.esRoot)}`);
+  const tokenEnv = ctx.tokenEnv ?? DEFAULT_TOKEN_ENV;
+  if (typeof tokenEnv !== 'string' || !ENV_NAME_RE.test(tokenEnv) || OWN_ENV.includes(tokenEnv)) {
+    throw batchInput(`ctx.tokenEnv must be an environment variable name that runOne does not set itself, got ${show(tokenEnv)}`);
+  }
+  return {
+    mode, taskIds, workRoot: path.resolve(workRoot), rowsFile: path.resolve(rowsFile), concurrency, stopAtCostUsd, infraRetries, ctx, tokenEnv, esRoot: ctx.esRoot ?? ES_ROOT,
+    kill: ctx.kill ?? ((pid, signal) => process.kill(pid, signal)),
+  };
+}
+
+// `docker <args>` with docker's own environment only; its stdout. Throws on a docker that cannot run or exits non-zero.
+function dockerText(dockerBin, args) {
+  const bin = dockerBin ?? 'docker';
+  const env = {};
+  for (const key of DOCKER_PASSTHROUGH) if (process.env[key] !== undefined) env[key] = process.env[key];
+  const r = spawnSync(bin, args, { env, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], timeout: DOCKER_HELPER_TIMEOUT_MS, killSignal: 'SIGKILL' });
+  if (r.error) throw new Error(`${bin} ${args[0]} could not run: ${r.error.message}`);
+  if (r.status !== 0) throw new Error(`${bin} ${args.join(' ')} failed (${r.status === null ? `signal ${r.signal}` : `exit ${r.status}`}): ${String(r.stderr).trim()}`);
+  return r.stdout;
+}
+
+const defaultImageIdOf = (dockerBin) => async (ref) => {
+  if (typeof ref !== 'string' || ref === '' || ref.startsWith('-')) throw new TypeError(`not an image reference: ${show(ref)}`);
+  return dockerText(dockerBin, ['image', 'inspect', '--format', '{{.Id}}', ref]).trim();
+};
+// `docker ps` without -a lists running containers only.
+const defaultProxyRunning = (dockerBin) => async () => dockerText(dockerBin, ['ps', '-q', '--no-trunc', '--filter', 'label=s5=1', '--filter', `label=s5.run=${PROXY_NAME}`]).trim() !== '';
+const defaultSha256File = async (file) => {
+  const hash = createHash('sha256');
+  for await (const chunk of createReadStream(file)) hash.update(chunk);
+  return hash.digest('hex');
+};
+
+// Preflight item 2 for one task: -> its manifest.
+function checkBuiltTask(workRoot, id) {
+  const taskDir = path.join(workRoot, 'tasks', id);
+  const fail = (message) => preflightFailure(2, `task ${id}: ${message}`);
+  let manifest;
+  try {
+    manifest = JSON.parse(readFileSync(path.join(taskDir, 'manifest.json'), 'utf8'));
+  } catch (err) {
+    throw fail(`cannot read manifest.json (the task is not built, or the file is damaged): ${err.message}`);
+  }
+  if (!isObject(manifest) || manifest.id !== id || ['repo', 'treeHash', 'hiddenHash', 'promptHash'].some((key) => typeof manifest[key] !== 'string')
+    || !isObject(manifest.def) || typeof manifest.def.testRunner !== 'string') {
+    throw fail('manifest.json is not the manifest of this task that buildTask writes');
+  }
+  let gate;
+  try {
+    gate = JSON.parse(readFileSync(path.join(taskDir, 'gate.json'), 'utf8'));
+  } catch (err) {
+    throw fail(err.code === 'ENOENT' ? 'gate.json is missing: run the gate first, only gated tasks run (R91)' : `gate.json cannot be read: ${err.message}`);
+  }
+  if (!isObject(gate) || gate.ok !== true) throw fail(`gate.json is not ok (ok: ${show(gate?.ok)}, reasons: ${show(gate?.reasons)}): the task did not pass its gate (R91)`);
+  for (const key of ['treeHash', 'hiddenHash']) {
+    if (gate[key] !== manifest[key]) throw fail(`gate.json says ${key} ${show(gate[key])}, manifest.json says ${manifest[key]}: the task was changed after it was gated (R35)`);
+  }
+  let actual;
+  try {
+    actual = hashBuiltTask(taskDir);
+  } catch (err) {
+    throw fail(`cannot hash the built task: ${err.message}`);
+  }
+  for (const [key, part] of [['treeHash', 'tree/'], ['hiddenHash', 'hidden/'], ['promptHash', 'prompt.txt']]) {
+    if (actual[key] !== manifest[key]) throw fail(`${part} hashes to ${actual[key]}, not to the manifest's ${key} ${manifest[key]} (R101): it was changed after the task was built`);
+  }
+  return manifest;
+}
+
+// Preflight items 2 to 6, for the tasks of the plan. -> { claudeBin, images, token }
+async function batchPreflight(prereg, o, plan) {
+  const { workRoot, ctx, tokenEnv } = o;
+  const manifests = new Map();
+  for (const id of new Set(plan.map((run) => run.taskId))) manifests.set(id, checkBuiltTask(workRoot, id));
+
+  const mismatched = checkTasksMatch(prereg, workRoot).filter((id) => manifests.has(id));
+  if (mismatched.length > 0) {
+    throw preflightFailure(3, `the built manifest of task${mismatched.length === 1 ? '' : 's'} ${mismatched.join(', ')} is not the registered one (checkTasksMatch: a hash of the registration differs from manifest.json)`);
+  }
+  const network = ctx.network ?? NETWORK;
+  const proxyUrl = ctx.proxyUrl === undefined ? PROXY_URL : ctx.proxyUrl;
+  const usesProxy = proxyUrl !== null && network === NETWORK;
+  const imageIdOf = ctx.imageIdOf ?? defaultImageIdOf(ctx.dockerBin);
+  const checkImage = async (name, ref, pinned) => {
+    let actual;
+    try {
+      actual = await imageIdOf(ref);
+    } catch (err) {
+      throw preflightFailure(3, `the image ${ref} (${name}) cannot be inspected: ${err.message}`);
+    }
+    if (actual !== pinned) throw preflightFailure(3, `the image ${ref} (${name}) is ${show(actual)}, the registration pins images.${name} ${show(pinned)}`);
+    return actual;
+  };
+  const images = {};
+  for (const repo of new Set([...manifests.values()].map((manifest) => manifest.repo))) {
+    if (!Object.hasOwn(IMAGE_FOR_REPO, repo)) throw preflightFailure(3, `no image for repo ${show(repo)}: IMAGE_FOR_REPO has none`);
+    images[repo] = await checkImage(repo, IMAGE_FOR_REPO[repo], prereg.images?.[repo]);
+  }
+  if (usesProxy) await checkImage('proxy', PROXY_IMAGE, prereg.images?.proxy);
+
+  const claudeBin = ctx.claudeBin ?? path.join(os.homedir(), '.local', 'share', 'claude', 'versions', String(prereg.cli?.version));
+  let hash;
+  try {
+    hash = `sha256:${await (ctx.sha256File ?? defaultSha256File)(claudeBin)}`;
+  } catch (err) {
+    throw preflightFailure(3, `cannot hash the Claude binary ${claudeBin}: ${err.message}`);
+  }
+  if (hash !== prereg.cli?.sha256) throw preflightFailure(3, `the Claude binary ${claudeBin} hashes to ${hash}, the registration pins cli.sha256 ${show(prereg.cli?.sha256)}`);
+
+  const cargoTasks = [...manifests.values()].filter((manifest) => manifest.def.testRunner === 'cargo').map((manifest) => manifest.id);
+  if (cargoTasks.length > 0 && statOrNull(path.join(workRoot, 'cargo-home'))?.isDirectory() !== true) {
+    throw preflightFailure(4, `${path.join(workRoot, 'cargo-home')} is not a directory, and ${cargoTasks.join(', ')} ${cargoTasks.length === 1 ? 'is a cargo task' : 'are cargo tasks'} (runOne mounts it read-only at /cargo, for grader parity, R106)`);
+  }
+  if (usesProxy) {
+    let up;
+    try {
+      up = await (ctx.proxyRunning ?? defaultProxyRunning(ctx.dockerBin))();
+    } catch (err) {
+      throw preflightFailure(5, `cannot tell whether the proxy container ${PROXY_NAME} is running: ${err.message}`);
+    }
+    if (up !== true) throw preflightFailure(5, `the proxy container ${PROXY_NAME} is not running (the agent containers reach the API only through it): start it with the proxy control first`);
+  }
+  const token = process.env[tokenEnv];
+  if (typeof token !== 'string' || token === '') throw preflightFailure(6, `the environment variable ${tokenEnv} is not set (it holds the Claude Code OAuth token)`);
+  return { claudeBin, images, token };
+}
+
+// ---- the rows file ----
+
+// -> { rows, tornLine, tornAt, needsNewline }. rows: the Rows of the file, in order (a line with a `type` key, or without a runId, is none).
+// An unparsable last line is torn (tornAt: where it starts); an unparsable line anywhere else throws, naming the line.
+function readRowsFile(file) {
+  let buf;
+  try {
+    buf = readFileSync(file);
+  } catch (err) {
+    if (err.code === 'ENOENT') return { rows: [], tornLine: false, tornAt: null, needsNewline: false };
+    throw new Error(`runBatch: cannot read the rows file ${file}: ${err.message}`);
+  }
+  const lines = [];
+  let no = 0;
+  for (let start = 0; start < buf.length;) {
+    const newline = buf.indexOf(0x0a, start);
+    const end = newline === -1 ? buf.length : newline;
+    no += 1;
+    const text = buf.toString('utf8', start, end);
+    if (text.trim() !== '') {
+      let value;
+      try {
+        value = JSON.parse(text);
+      } catch {
+        value = undefined;
+      }
+      lines.push({ no, start, value: isObject(value) ? value : undefined });
+    }
+    start = newline === -1 ? buf.length : newline + 1;
+  }
+  const bad = lines.filter((line) => line.value === undefined);
+  const torn = bad.length === 1 && bad[0] === lines.at(-1) ? bad[0] : null;
+  for (const line of bad) {
+    if (line !== torn) throw new Error(`runBatch: the rows file ${file} line ${line.no} is not a JSON object; only the LAST line can be a torn write, so the file is damaged and the batch does not start`);
+  }
+  return {
+    rows: lines.filter((line) => line.value !== undefined && !Object.hasOwn(line.value, 'type') && typeof line.value.runId === 'string').map((line) => line.value),
+    tornLine: torn !== null,
+    tornAt: torn === null ? null : torn.start,
+    needsNewline: torn === null && buf.length > 0 && buf[buf.length - 1] !== 0x0a,
+  };
+}
+
+// The writer of the rows file: one line per call, one open-write-fsync-close. The first call cuts a torn last line off (and a last line
+// that lacks its newline gets one in front of the new line), so the file always parses completely afterwards.
+function rowsAppender(file, state) {
+  const pending = { tornAt: state.tornAt, needsNewline: state.needsNewline };
+  return (value) => {
+    if (pending.tornAt !== null) {
+      truncateSync(file, pending.tornAt);
+      pending.tornAt = null;
+    }
+    const bytes = Buffer.from(`${pending.needsNewline ? '\n' : ''}${JSON.stringify(value)}\n`);
+    pending.needsNewline = false;
+    const fd = openSync(file, 'a');
+    try {
+      for (let off = 0; off < bytes.length;) off += writeSync(fd, bytes, off);
+      fsyncSync(fd);
+    } finally {
+      closeSync(fd);
+    }
+  };
+}
+
+const rowCost = (row) => (Number.isFinite(row.costUsd) && row.costUsd > 0 ? row.costUsd : 0);
+const isRowOf = (row, run) => isObject(row) && row.runId === run.runId && (row.infra === null || (typeof row.infra === 'string' && row.infra !== ''));
+
+// 1 + the highest N of the entries named `<runId>-aN` in runsDir (0 when there are none).
+function nextAttemptNumber(runsDir, runId) {
+  let names;
+  try {
+    names = readdirSync(runsDir);
+  } catch (err) {
+    if (err.code === 'ENOENT') return 1;
+    throw err;
+  }
+  const own = new RegExp(`^${runId.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}-a(\\d{1,9})$`);
+  let highest = 0;
+  for (const name of names) {
+    const match = own.exec(name);
+    if (match) highest = Math.max(highest, Number(match[1]));
+  }
+  return highest + 1;
+}
+
+// R114: the Row of an attempt whose runOne threw (or returned no Row): the Row's keys, null / empty where nothing is known.
+function failedAttemptRow(run, startedAt, err, token) {
+  return {
+    runId: run.runId,
+    taskId: run.taskId,
+    taskIndex: run.taskIndex,
+    arm: run.arm,
+    effort: run.effort,
+    rep: run.rep,
+    round: run.round,
+    sessionId: null,
+    startedAt,
+    wallMs: null,
+    exit: null,
+    infra: 'run_failed',
+    final: false,
+    infraDetail: detailOf(err, token),
+    decision: null,
+    usage: null,
+    efforts: [],
+    costUsd: null,
+    numTurns: null,
+    isError: null,
+    tokenScrubbed: null,
+    firstUserTextOk: null,
+    testsRunBeforeDone: null,
+    finalTextTail: '',
+    grade: null,
+  };
+}
+
+// ---- the lock (R123) ----
+
+const pidAlive = (pid) => {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (err) {
+    return err.code !== 'ESRCH'; // EPERM: it exists, we may not signal it
+  }
+};
+
+// -> the holder { pid, ... }; null when the file is gone; undefined when it cannot be read as a lock.
+function readLock(file) {
+  let text;
+  try {
+    text = readFileSync(file, 'utf8');
+  } catch (err) {
+    if (err.code === 'ENOENT') return null;
+    throw err;
+  }
+  let holder;
+  try {
+    holder = JSON.parse(text);
+  } catch {
+    return undefined;
+  }
+  return isObject(holder) && Number.isSafeInteger(holder.pid) && holder.pid > 0 ? holder : undefined;
+}
+
+function acquireLock(workRoot, info) {
+  const file = path.join(workRoot, LOCK_FILE);
+  for (let tries = 0; tries < LOCK_TRIES; tries += 1) {
+    let fd;
+    try {
+      fd = openSync(file, 'wx');
+    } catch (err) {
+      if (err.code !== 'EEXIST') throw err;
+      const holder = readLock(file);
+      if (holder === undefined) throw new Error(`runBatch: ${file} exists and cannot be read as a lock ({ pid, startedAt, mode, rowsFile }); if no batch is running on ${workRoot}, remove it`);
+      if (holder !== null && pidAlive(holder.pid)) {
+        throw new Error(`runBatch: another batch holds ${file} (pid ${holder.pid}, mode ${show(holder.mode)}, started ${show(holder.startedAt)}, rows file ${show(holder.rowsFile)}); one batch at a time per work root (R123)`);
+      }
+      if (holder !== null) {
+        try {
+          unlinkSync(file); // a dead holder: its lock is stale
+        } catch (e) {
+          if (e.code !== 'ENOENT') throw e;
+        }
+      }
+      continue;
+    }
+    try {
+      writeSync(fd, `${JSON.stringify(info)}\n`);
+      fsyncSync(fd);
+    } finally {
+      closeSync(fd);
+    }
+    return { file, info };
+  }
+  throw new Error(`runBatch: could not take ${file}: another batch is taking it at the same time`);
+}
+
+// Only a lock that still names us is removed; a failure to remove it is not worth masking the batch's own outcome (the next batch finds the pid dead).
+function releaseLock({ file, info }) {
+  try {
+    const holder = readLock(file);
+    if (holder && holder.pid === info.pid && holder.startedAt === info.startedAt) unlinkSync(file);
+  } catch {
+    // stale by pid
+  }
+}
+
+// ---- signals (R119) ----
+
+// The first signal calls onFirst(signal); the second removes the handlers and raises that signal on the process. -> remove().
+function stopOnSignals(onFirst, kill) {
+  let seen = 0;
+  const handlers = STOP_SIGNALS.map((signal) => [signal, () => {
+    seen += 1;
+    if (seen === 1) {
+      onFirst(signal);
+      return;
+    }
+    remove();
+    kill(process.pid, signal);
+  }]);
+  const remove = () => {
+    for (const [signal, handler] of handlers) process.off(signal, handler);
+  };
+  for (const [signal, handler] of handlers) process.on(signal, handler);
+  return remove;
+}
+
+// ---- smoke ----
+
+function smokeSummary(plan, rows) {
+  const finals = plan.map((run) => rows.findLast((row) => row.runId === run.runId && row.final === true) ?? null);
+  const complete = plan.length > 0 && finals.every((row) => row !== null);
+  const checks = {
+    firstUserText: complete && finals.every((row) => row.firstUserTextOk === true),
+    decisionLogs: complete && finals.every((row) => isObject(row.decision)),
+    bSteered: complete && plan.every((run, i) => !isObject(finals[i].decision) || finals[i].decision.steered === (run.arm === 'B')),
+  };
+  const exhausted = finals.some((row) => row !== null && row.infra === 'infra_exhausted');
+  return { ok: checks.firstUserText && checks.decisionLogs && checks.bSteered && !exhausted, checks, rows: finals.filter((row) => row !== null).length };
+}
+
+export async function runBatch(prereg, options) {
+  const o = resolveBatch(prereg, options);
+  const plan = planRunsS5(prereg, { mode: o.mode, taskIds: o.taskIds }); // item 1: the planner owns the mode rules
+  const checked = await batchPreflight(prereg, o, plan);
+  readRowsFile(o.rowsFile); // a damaged rows file refuses before the lock, the sweep and the scrub
+
+  const lock = acquireLock(o.workRoot, { pid: process.pid, startedAt: new Date().toISOString(), mode: o.mode, rowsFile: o.rowsFile });
+  let removeHandlers = () => {};
+  try {
+    const stop = { reason: null };
+    const requestStop = (reason) => {
+      if (stop.reason === null) stop.reason = reason;
+    };
+    removeHandlers = stopOnSignals(() => requestStop('signal'), o.kill);
+
+    mkdirSync(path.dirname(o.rowsFile), { recursive: true });
+    const file = readRowsFile(o.rowsFile);
+    removeLabeled(SWEEP_LABEL, { dockerBin: o.ctx.dockerBin });
+    const runsDir = path.join(o.workRoot, 'runs');
+    const scrubbed = scrubRunDirs(runsDir, checked.token);
+    if (scrubbed.failed.length > 0) {
+      const said = `the start-of-batch scrub could not clean ${scrubbed.failed.length} path(s) under ${runsDir} (the first: ${scrubbed.failed[0]}); the token could stay on disk there, so the batch does not start (R117)`;
+      throw new Error(`runBatch: ${said}`.split(checked.token).join(REDACTED));
+    }
+    const hookCopy = writeHookCopy(path.join(o.workRoot, 'hook'), o.esRoot);
+
+    // ---- the runs ----
+    const appendLine = rowsAppender(o.rowsFile, file);
+    const rows = file.rows; // every Row of the file; each Row appended by this batch is pushed
+    const append = (row) => {
+      appendLine(row);
+      rows.push(row);
+    };
+    const allowed = 1 + o.infraRetries;
+    const spent = () => rows.reduce((sum, row) => sum + rowCost(row), 0);
+    const attemptsUsed = (runId) => rows.filter((row) => row.runId === runId && row.final === false).length;
+    const counts = { skippedFinal: 0, ran: 0, attempts: 0, infraAttempts: 0, exhausted: 0 };
+
+    const queue = [];
+    for (const run of plan) {
+      if (rows.some((row) => row.runId === run.runId && row.final === true)) {
+        counts.skippedFinal += 1;
+      } else if (attemptsUsed(run.runId) >= allowed) {
+        // The earlier attempts used up the allowance: the exhausted line, without a new attempt. Its cost is already in its own line.
+        const last = rows.findLast((row) => row.runId === run.runId && row.final === false);
+        append({ ...last, final: true, infra: 'infra_exhausted', lastInfra: last.infra, costUsd: null });
+        counts.ran += 1;
+        counts.exhausted += 1;
+      } else {
+        queue.push(run);
+      }
+    }
+
+    const runOneFn = o.ctx.runOne ?? runOne;
+    const runCtx = {
+      ...Object.fromEntries(Object.entries(o.ctx).filter(([key]) => !BATCH_SEAMS.includes(key))),
+      prereg,
+      workRoot: o.workRoot,
+      hookCopy,
+      claudeBin: checked.claudeBin,
+      images: checked.images,
+    };
+    let fatal = null;
+    // A start, a retry included, needs no stop requested and a summed cost below the limit.
+    const mayStart = () => {
+      if (stop.reason !== null || fatal !== null) return false;
+      if (spent() >= o.stopAtCostUsd) {
+        requestStop('cost');
+        return false;
+      }
+      return true;
+    };
+    const attempt = async (run) => {
+      const startedAt = new Date().toISOString();
+      counts.attempts += 1;
+      try {
+        const row = await runOneFn(run, { ...runCtx, attempt: nextAttemptNumber(runsDir, run.runId) });
+        if (!isRowOf(row, run)) throw new Error(`runOne returned something that is no Row of run ${run.runId} (an object with this runId and an infra that is null or a reason)`);
+        if (JSON.stringify(row).includes(checked.token)) throw new Error(`runOne returned a row that holds the token (the value of ${o.tokenEnv}); it is not stored`);
+        return row;
+      } catch (err) {
+        return failedAttemptRow(run, startedAt, err, checked.token);
+      }
+    };
+    const runToEnd = async (run) => {
+      for (let first = true; ; first = false) {
+        if (!first && !mayStart()) return; // the retry is a start like any other
+        const row = await attempt(run);
+        if (row.infra === null) {
+          append({ ...row, final: true });
+          counts.ran += 1;
+          return;
+        }
+        counts.infraAttempts += 1;
+        if (row.infra === 'hidden_changed') {
+          append({ ...row, final: false }); // every later grade would fail the same way: not retried, and the batch stops (R101)
+          requestStop('hidden_changed');
+          return;
+        }
+        if (attemptsUsed(run.runId) + 1 < allowed) {
+          append({ ...row, final: false });
+          continue;
+        }
+        append({ ...row, final: true, infra: 'infra_exhausted', lastInfra: row.infra });
+        counts.ran += 1;
+        counts.exhausted += 1;
+        return;
+      }
+    };
+    const worker = async () => {
+      try {
+        while (queue.length > 0) {
+          if (!mayStart()) return;
+          await runToEnd(queue.shift());
+        }
+      } catch (err) {
+        fatal ??= err; // the others start nothing more; the first failure is thrown once they have finished
+      }
+    };
+    await Promise.all(Array.from({ length: Math.min(o.concurrency, queue.length) }, () => worker()));
+    if (fatal !== null) throw fatal;
+
+    let stopped = null;
+    if (stop.reason !== null) {
+      const costUsd = spent();
+      appendLine({ type: 'stopped', at: new Date().toISOString(), reason: stop.reason, costUsd, limit: o.stopAtCostUsd });
+      stopped = { reason: stop.reason, costUsd, limit: o.stopAtCostUsd };
+    }
+    return {
+      mode: o.mode,
+      planned: plan.length,
+      skippedFinal: counts.skippedFinal,
+      ran: counts.ran,
+      attempts: counts.attempts,
+      infraAttempts: counts.infraAttempts,
+      exhausted: counts.exhausted,
+      costUsd: spent(),
+      stopped,
+      rowsFile: o.rowsFile,
+      smoke: o.mode === 'smoke' ? smokeSummary(plan, rows) : null,
+      scrubbed: { dirs: scrubbed.dirs, files: scrubbed.files },
+      tornLine: file.tornLine,
+    };
+  } finally {
+    removeHandlers();
+    releaseLock(lock);
+  }
 }
