@@ -478,12 +478,27 @@ await ta('token: a file with mode 0600 works; the value reaches runBatch through
   assert.deepEqual(filesHolding(SENTINEL), []);
 });
 
-await ta('token: mode 0400 works; exactly one trailing newline is stripped (a second one stays); a file without one is read as it is', async () => {
-  for (const [content, mode, value] of [[`${SENTINEL}\n`, 0o400, SENTINEL], [SENTINEL, 0o600, SENTINEL], [`${SENTINEL}\n\n`, 0o600, `${SENTINEL}\n`]]) {
+await ta('token: mode 0400 works; ALL trailing whitespace is dropped (1, 2 and 3 newlines, a trailing space, CRLF, two spaces); a file without any is read as it is', async () => {
+  const cases = [[`${SENTINEL}\n`, 0o400], [SENTINEL, 0o600], [`${SENTINEL}\n\n`, 0o600], [`${SENTINEL}\n\n\n`, 0o600], [`${SENTINEL} \n`, 0o600], [`${SENTINEL}\r\n`, 0o600], [`${SENTINEL}  `, 0o600]];
+  for (const [content, mode] of cases) {
     const { home } = tokenHome(content, mode);
     const r = await runWithToken(home);
-    assert.equal(r.code, 0, r.stderr);
-    assert.equal(r.f.of('runBatch')[0][3], value, JSON.stringify(content));
+    assert.equal(r.code, 0, `${JSON.stringify(content)}: ${r.stderr}`);
+    assert.equal(r.f.of('runBatch')[0][3], SENTINEL, JSON.stringify(content));
+  }
+});
+
+await ta('token: whitespace or a control character INSIDE the value is refused, naming the path and never the value (R143)', async () => {
+  for (const content of [`${SENTINEL} x`, `${SENTINEL}\nx`, `${SENTINEL}\tx`, `${SENTINEL}\u0000x`, `${SENTINEL}\u0007`, `x\n${SENTINEL}\n`]) {
+    const { home, file } = tokenHome(content, 0o600);
+    const r = await runWithToken(home);
+    assert.equal(r.code, 1, JSON.stringify(content));
+    noStdout(r);
+    assert.ok(r.stderr.includes(file), r.stderr);
+    assert.match(r.stderr, /whitespace|control/i);
+    assert.equal(r.stderr.includes(SENTINEL), false, JSON.stringify(content));
+    assert.equal(r.f.of('runBatch').length, 0);
+    assert.equal(TOKEN_ENV in r.env, false);
   }
 });
 
@@ -578,7 +593,7 @@ await ta('token: the variable is removed when runBatch throws, and no output car
   assert.equal(TOKEN_ENV in e, false);
 });
 
-await ta('token: a Summary that would carry the value is printed redacted (also when the file ended in two newlines, so the value kept one)', async () => {
+await ta('token: a Summary that would carry the value is printed redacted (also when the file ended in newlines)', async () => {
   for (const content of [SENTINEL, `${SENTINEL}\n\n`]) {
     const { home } = tokenHome(content, 0o600);
     const e = {};
@@ -588,6 +603,14 @@ await ta('token: a Summary that would carry the value is printed redacted (also 
     assert.equal(r.stdout.includes(SENTINEL), false, JSON.stringify(content));
     assert.match(r.stdout, /\[REDACTED\]/);
   }
+});
+
+await ta('token: an environment token that ends in a newline is redacted without it as well', async () => {
+  const e = { [TOKEN_ENV]: `${SENTINEL}\n` };
+  const f = fakes(e, { summary: { ...SUMMARY, note: `leaked ${SENTINEL} here` } });
+  const r = await cli(['run', '--mode', 'calibrate', '--prereg', 'p.json', '--work-root', freshDir('w')], { env: e, modules: f.modules });
+  assert.equal(r.code, 0);
+  assert.equal(r.stdout.includes(SENTINEL), false);
 });
 
 await ta('token: no other subcommand reads the token file (a bad one in the default place changes nothing)', async () => {
@@ -862,18 +885,20 @@ await ta('images: a build.sh that fails is exit 1 with its status, and digests.j
 
 // ---- select ----
 
-const row = (taskId, arm, rep, pass, extra = {}) => ({ runId: `${taskId}.${arm}.${rep}`, taskId, arm, final: true, infra: null, grade: { pass }, ...extra });
+// Rows carry their mode (R133): `row` is a measured row, `crow` a calibration row; extra may override the mode or (with undefined) drop it.
+const row = (taskId, arm, rep, pass, extra = {}) => ({ runId: `${taskId}.${arm}.${rep}`, taskId, arm, final: true, infra: null, grade: { pass }, mode: 'measure', ...extra });
+const crow = (taskId, arm, rep, pass, extra = {}) => row(taskId, arm, rep, pass, { mode: 'calibrate', ...extra });
 const jsonl = (lines) => `${lines.map((l) => (typeof l === 'string' ? l : JSON.stringify(l))).join('\n')}\n`;
 
 await ta('select applies selectCalibrated to the rows (typed lines and lines without a runId are not rows) and prints kept and dropped with reasons', async () => {
   const file = join(freshDir('r'), 'rows-calibrate.jsonl');
   writeFileSync(file, jsonl([
     { type: 'stopped', reason: 'cost', mode: 'calibrate' },
-    row('hard', 'A', 0, false), row('hard', 'A', 1, false), row('hard', 'C', 0, false),
-    row('easy', 'A', 0, true), row('easy', 'A', 1, true), row('easy', 'C', 0, true),
-    row('mid', 'A', 0, true), row('mid', 'A', 1, false), row('mid', 'C', 0, false),
-    row('lonely', 'A', 0, true), row('lonely', 'A', 1, true),
-    { note: 'a line without a run id', taskId: 'mid', arm: 'A', final: true, infra: null, grade: { pass: false } },
+    crow('hard', 'A', 0, false), crow('hard', 'A', 1, false), crow('hard', 'C', 0, false),
+    crow('easy', 'A', 0, true), crow('easy', 'A', 1, true), crow('easy', 'C', 0, true),
+    crow('mid', 'A', 0, true), crow('mid', 'A', 1, false), crow('mid', 'C', 0, false),
+    crow('lonely', 'A', 0, true), crow('lonely', 'A', 1, true),
+    { note: 'a line without a run id', taskId: 'mid', arm: 'A', final: true, infra: null, grade: { pass: false }, mode: 'pilot' },
   ]));
   const r = await cli(['select', '--rows', file], { modules: { selectCalibrated } });
   assert.equal(r.code, 0, r.stderr);
@@ -893,18 +918,51 @@ await ta('select: a missing rows file and a damaged one (a bad line that is not 
   assert.equal(missing.code, 1);
   noStdout(missing);
   const damaged = join(dir, 'damaged.jsonl');
-  writeFileSync(damaged, jsonl([row('a', 'A', 0, true), '{"runId": oops', row('a', 'C', 0, true)]));
+  writeFileSync(damaged, jsonl([crow('a', 'A', 0, true), '{"runId": oops', crow('a', 'C', 0, true)]));
   const d = await cli(['select', '--rows', damaged], { modules: { selectCalibrated } });
   assert.equal(d.code, 1);
   noStdout(d);
   assert.match(d.stderr, /line 2/);
   const torn = join(dir, 'torn.jsonl');
-  writeFileSync(torn, `${jsonl([row('a', 'A', 0, true), row('a', 'A', 1, false), row('a', 'C', 0, false)])}{"runId":"a.C.1","tas`);
+  writeFileSync(torn, `${jsonl([crow('a', 'A', 0, true), crow('a', 'A', 1, false), crow('a', 'C', 0, false)])}{"runId":"a.C.1","tas`);
   const seen = [];
   const t2 = await cli(['select', '--rows', torn], { modules: { selectCalibrated: (rows) => { seen.push(rows); return { kept: [], dropped: [] }; } } });
   assert.equal(t2.code, 0, t2.stderr);
   assert.equal(seen[0].length, 3);
   assert.match(t2.stderr, /torn/i);
+});
+
+await ta('select: a row whose mode is not calibrate (a measure row, a row with no mode) is refused with the line and the mode; a typed line of another mode is not a row (R142)', async () => {
+  const dir = freshDir('r');
+  const mk = (lines) => {
+    const f = join(dir, `m${dirNo++}.jsonl`);
+    writeFileSync(f, jsonl(lines));
+    return f;
+  };
+  let called = 0;
+  const modules = { selectCalibrated: () => { called += 1; return { kept: [], dropped: [] }; } };
+  const mixed = await cli(['select', '--rows', mk([crow('a', 'A', 0, true), { type: 'stopped', mode: 'pilot', reason: 'cost' }, row('a', 'C', 0, true)])], { modules });
+  assert.equal(mixed.code, 1);
+  noStdout(mixed);
+  assert.match(mixed.stderr, /line 3/);
+  assert.match(mixed.stderr, /measure/);
+  const none = await cli(['select', '--rows', mk([crow('a', 'A', 0, true), crow('a', 'C', 0, true, { mode: undefined })])], { modules });
+  assert.equal(none.code, 1);
+  noStdout(none);
+  assert.match(none.stderr, /line 2/);
+  assert.match(none.stderr, /no mode/);
+  assert.equal(called, 0, 'selectCalibrated is not reached');
+  const ok = await cli(['select', '--rows', mk([{ type: 'stopped', mode: 'pilot', reason: 'cost' }, crow('a', 'A', 0, true), crow('a', 'C', 0, true)])], { modules });
+  assert.equal(ok.code, 0, ok.stderr);
+  assert.equal(called, 1);
+});
+
+await ta('select: a torn last line is ignored and said', async () => {
+  const torn = join(freshDir('r'), 'torn2.jsonl');
+  writeFileSync(torn, `${jsonl([crow('a', 'A', 0, true)])}{"runId":"a.C.1","mode":"pil`);
+  const r = await cli(['select', '--rows', torn], { modules: { selectCalibrated: () => ({ kept: [], dropped: [] }) } });
+  assert.equal(r.code, 0, r.stderr);
+  assert.match(r.stderr, /torn/i);
 });
 
 // ---- analyze ----
@@ -974,6 +1032,32 @@ await ta('analyze: a loader refusal, an unreadable rows file and a damaged one a
   const ok = await cli(['analyze', '--prereg', 'p', '--rows', torn], { modules: m });
   assert.equal(ok.code, 0, ok.stderr);
   assert.match(ok.stderr, /torn/i);
+});
+
+await ta('analyze: a row whose mode is not measure (a pilot row in the middle, a row with no mode) is refused with the line and the mode; a typed line of another mode is not a row (R142)', async () => {
+  const dir = freshDir('r');
+  const mk = (lines) => {
+    const f = join(dir, `m${dirNo++}.jsonl`);
+    writeFileSync(f, jsonl(lines));
+    return f;
+  };
+  const f = fakes({});
+  let called = 0;
+  const modules = { ...f.modules, analyzeS5: () => { called += 1; return { excluded: [], mechanism: {} }; } };
+  const mixed = await cli(['analyze', '--prereg', 'p', '--rows', mk([row('a', 'A', 0, true), { type: 'stopped', mode: 'pilot', reason: 'cost' }, row('a', 'B', 0, true, { mode: 'pilot' }), row('b', 'C', 0, false)])], { modules });
+  assert.equal(mixed.code, 1);
+  noStdout(mixed);
+  assert.match(mixed.stderr, /line 3/);
+  assert.match(mixed.stderr, /pilot/);
+  const none = await cli(['analyze', '--prereg', 'p', '--rows', mk([row('a', 'A', 0, true), row('a', 'B', 0, true, { mode: undefined })])], { modules });
+  assert.equal(none.code, 1);
+  noStdout(none);
+  assert.match(none.stderr, /line 2/);
+  assert.match(none.stderr, /no mode/);
+  assert.equal(called, 0, 'analyzeS5 is not reached');
+  const ok = await cli(['analyze', '--prereg', 'p', '--rows', mk([{ type: 'stopped', mode: 'pilot', reason: 'cost' }, row('a', 'A', 0, true), row('a', 'B', 0, true)])], { modules });
+  assert.equal(ok.code, 0, ok.stderr);
+  assert.equal(called, 1);
 });
 
 // ---- simulate ----

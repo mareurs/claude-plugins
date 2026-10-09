@@ -24,8 +24,8 @@
 //
 // THE TOKEN (`run` only; no other subcommand reads it). An already-set CLAUDE_CODE_OAUTH_TOKEN (not empty) is used and the file is not
 // touched. Otherwise ~/.config/s5/token (or --token-file) is opened with O_NOFOLLOW and judged on the open descriptor: a symlink, anything
-// that is not a regular file, a mode with a group or other permission bit (mode & 0o077), a missing file and an empty one (after one trailing
-// newline is dropped) are refused, with a message that names the path (and the mode) and never a value; the mode is checked BEFORE the bytes
+// that is not a regular file, a mode with a group or other permission bit (mode & 0o077), a missing file and an empty one (after ALL trailing whitespace is dropped, R143) are refused, and so is a value with whitespace or a
+// control character inside; each with a message that names the path (and the mode) and never a value; the mode is checked BEFORE the bytes
 // are read. The value goes into io.env for the duration of runBatch and is put back (removed, or restored) afterwards; it is never in an
 // argument list, an option, a file, or the printed Summary: everything `run` writes after the token is known passes through a redaction
 // of its bytes (`[REDACTED]`) as a last line of defence.
@@ -34,7 +34,8 @@
 // picks its loader the same way (--mode, default measure). The rows file of `run` is <workRoot>/rows-<mode>.jsonl unless --rows (one file per
 // mode, R133). select and analyze read a rows file line by line: a blank line is skipped, a line with a `type` key is not a Row, a line without a
 // string runId is not a Row, an unparsable LAST line is torn (ignored, said on stderr, as runBatch ignores it), an unparsable line anywhere else
-// is an error naming the line.
+// is an error naming the line. A Row of another mode than the command reads (analyze: measure, select: calibrate) or with none is an error
+// naming the line and the mode (R142).
 
 import { spawn } from 'node:child_process';
 import {
@@ -177,8 +178,10 @@ function loadManifest(workRoot, taskId) {
 // The registration (measure) or a config (the other modes): the same choice for `run` and for `proxy up`.
 const loadPrereg = (m, io, mode, file) => (mode === 'measure' ? m.loadS5Prereg(abs(io, file)) : m.loadS5Config(abs(io, file), { mode }));
 
-// -> { rows, typed, noRunId, torn }
-function readRows(io, file) {
+// -> { rows, typed, noRunId, torn }. `mode` is the one mode the caller reads (R142: analyze reads 'measure', select 'calibrate'): a row of another
+// mode, or with none, is refused naming the line, because run ids are the same in every mode and a pilot row counted as a measured one would
+// corrupt the Report.
+function readRows(io, file, mode) {
   const p = abs(io, file);
   let text;
   try {
@@ -203,11 +206,13 @@ function readRows(io, file) {
   const rows = [];
   let typed = 0;
   let noRunId = 0;
-  for (const { value } of entries) {
+  for (const { no, value } of entries) {
     if (value === undefined) continue;
     if (Object.hasOwn(value, 'type')) typed += 1;
     else if (typeof value.runId !== 'string') noRunId += 1;
-    else rows.push(value);
+    else if (value.mode !== mode) {
+      throw new Error(`the rows file ${p} line ${no} holds ${value.mode === undefined ? 'a row with no mode' : `a row of mode ${JSON.stringify(value.mode)}`}, but this command reads ${mode} rows only (R142); to use rows of another mode on purpose, copy them into a new file with the mode changed (see the README)`);
+    } else rows.push(value);
   }
   return {
     rows, typed, noRunId, torn,
@@ -235,8 +240,11 @@ function readTokenFile(file) {
       throw new Error(`token file ${file} has mode ${(st.mode & 0o777).toString(8).padStart(4, '0')}: a group or other permission bit is set; run chmod 600 on it`);
     }
     const text = readFileSync(fd, 'utf8');
-    const value = text.endsWith('\n') ? text.slice(0, -1) : text;
+    // R143: ALL trailing whitespace goes (a pasted token ends in newlines, CRLF or a space); a token never holds whitespace or a control
+    // character, and one that does would fail authentication in every run, looking like infrastructure: refused, the path named, the value never.
+    const value = text.trimEnd();
     if (value === '') throw new Error(`token file ${file} is empty`);
+    if (/[\s\p{Cc}]/u.test(value)) throw new Error(`token file ${file} holds whitespace or a control character inside the value (a token has none); check what was pasted`);
     return value;
   } finally {
     closeSync(fd);
@@ -417,7 +425,7 @@ async function cmdGrade({ io, m, flags, positionals }) {
 }
 
 async function cmdSelect({ io, m, flags }) {
-  const read = readRows(io, need(flags, 'rows'));
+  const read = readRows(io, need(flags, 'rows'), 'calibrate');
   io.stderr.write(rowsNote('select', flags.rows, read));
   const { kept, dropped } = await m.selectCalibrated(read.rows);
   printJson(io, { kept, dropped });
@@ -432,7 +440,7 @@ async function cmdAnalyze({ io, m, flags }) {
   const prereg = need(flags, 'prereg');
   const rowsFile = need(flags, 'rows');
   const registration = m.loadS5Prereg(abs(io, prereg));
-  const read = readRows(io, rowsFile);
+  const read = readRows(io, rowsFile, 'measure');
   io.stderr.write(rowsNote('analyze', rowsFile, read));
   const report = await m.analyzeS5(read.rows, registration);
   printJson(io, {
