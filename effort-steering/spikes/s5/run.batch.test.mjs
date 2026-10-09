@@ -12,10 +12,11 @@
 import assert from 'node:assert/strict';
 import { spawn, spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import {
+import fs, {
   chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, rmdirSync, statSync, writeFileSync,
 } from 'node:fs';
 import os from 'node:os';
+import { syncBuiltinESMExports } from 'node:module';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { buildTask } from './build-task.mjs';
@@ -143,10 +144,14 @@ const ROW_KEYS = [
   'runId', 'taskId', 'taskIndex', 'arm', 'effort', 'rep', 'round', 'sessionId', 'startedAt', 'wallMs', 'exit', 'infra', 'final', 'decision', 'usage', 'efforts', 'costUsd', 'numTurns', 'isError', 'tokenScrubbed',
   'firstUserTextOk', 'testsRunBeforeDone', 'finalTextTail', 'grade',
 ];
+// What a line of the rows file holds: the keys of a Row, and the `mode` of the batch that appended it (R133).
+const ROW_KEYS_IN_FILE = [...ROW_KEYS, 'mode'];
 let sessionSeq = 0;
-// A counted Row as runOne returns it: infra null, final true.
+// A counted Row as runOne returns it: infra null, final true. It carries mode 'pilot' because it is also what seeds the file of a pilot
+// bench; the real runOne's Row has no mode, the batch sets it on every line it appends (a test strips it where that is the point).
 function okRow(run, over = {}) {
   return {
+    mode: 'pilot',
     runId: run.runId,
     taskId: run.taskId,
     taskIndex: run.taskIndex,
@@ -176,6 +181,8 @@ function okRow(run, over = {}) {
 }
 // An infrastructure Row as runOne returns it: non-final, no grade.
 const infraRow = (run, infra, over = {}) => okRow(run, { infra, final: false, grade: null, ...over });
+// A Row as the real runOne returns it: it has no `mode`; the batch sets it on every line it appends (R133).
+const stripMode = ({ mode, ...row }) => row;
 
 const readLines = (file) => (existsSync(file) ? readFileSync(file, 'utf8').split('\n').filter(Boolean).map((l) => JSON.parse(l)) : []);
 const isTyped = (o) => Object.hasOwn(o, 'type');
@@ -217,7 +224,7 @@ function bench(o = {}) {
   const rowsFile = path.join(dir, 'rows.jsonl');
   const claudeBin = path.join(dir, 'claude-bin');
   const b = {
-    dir, world, prereg, docker, rowsFile, lockFile, claudeBin, calls: [], kills: [], imageAsked: [], shaAsked: [], proxyAsked: 0, proxyUp: true, inFlight: 0, maxInFlight: 0, script: script ?? (({ run }) => okRow(run)),
+    dir, world, prereg, docker, rowsFile, lockFile, claudeBin, calls: [], kills: [], imageAsked: [], listenersSeen: [], shaAsked: [], proxyAsked: 0, proxyUp: true, inFlight: 0, maxInFlight: 0, script: script ?? (({ run }) => okRow(run)),
   };
   const runOne = async (run, runCtx) => {
     const copyDir = runCtx.hookCopy?.copyDir;
@@ -244,6 +251,7 @@ function bench(o = {}) {
     runOne,
     imageIdOf: async (ref) => {
       b.imageAsked.push(ref);
+      b.listenersSeen.push(listeners()); // R126/R134 (a): nothing is installed while the read-only preflight runs
       if (!Object.hasOwn(IMAGE_ID_OF_REF, ref)) throw new Error(`No such image: ${ref}`);
       return IMAGE_ID_OF_REF[ref];
     },
@@ -277,6 +285,7 @@ function bench(o = {}) {
 async function refuses(b, pattern, label, over, prereg = b.prereg) {
   const rowsBefore = existsSync(b.rowsFile) ? readFileSync(b.rowsFile) : null;
   const dockerBefore = b.docker.calls().length;
+  const handlersBefore = listeners();
   const runsDir = path.join(b.world.workRoot, 'runs');
   const hadRuns = existsSync(runsDir);
   let err;
@@ -291,6 +300,7 @@ async function refuses(b, pattern, label, over, prereg = b.prereg) {
   assert.deepEqual(existsSync(b.rowsFile) ? readFileSync(b.rowsFile) : null, rowsBefore, `${label}: the rows file is as it was`);
   assert.equal(b.calls.length, 0, `${label}: no run started`);
   assert.equal(b.docker.calls().length, dockerBefore, `${label}: the sweep never ran`);
+  assert.deepEqual(listeners(), handlersBefore, `${label}: no signal handler is left behind (R134 a)`);
   for (const rel of ['hook', 'batch.lock']) assert.ok(!existsSync(path.join(b.world.workRoot, rel)), `${label}: no ${rel}`);
   if (!hadRuns) assert.ok(!existsSync(runsDir), `${label}: no runs/`);
   return err;
@@ -315,7 +325,7 @@ await ta('a clean batch: every planned run runs once in the order of planRunsS5,
   assert.equal(b.lines().length, 10, 'one line per attempt, nothing else');
   assert.deepEqual(rows.map((r) => r.runId).sort(), plan.map((r) => r.runId).sort());
   for (const r of rows) {
-    assert.deepEqual(Object.keys(r).sort(), [...ROW_KEYS].sort());
+    assert.deepEqual(Object.keys(r).sort(), [...ROW_KEYS_IN_FILE].sort());
     assert.equal(r.final, true);
     assert.equal(r.infra, null);
   }
@@ -456,12 +466,12 @@ await ta('a runOne that throws is an infrastructure attempt run_failed (R114): i
   const aRows = b.rows().filter((r) => r.arm === 'A');
   assert.equal(aRows.length, 2, '1 + infraRetries attempts');
   const [first, last] = aRows;
-  assert.deepEqual(Object.keys(first).sort(), [...ROW_KEYS, 'infraDetail'].sort());
+  assert.deepEqual(Object.keys(first).sort(), [...ROW_KEYS_IN_FILE, 'infraDetail'].sort());
   assert.equal(first.infraDetail, `${'y'.repeat(290)}[REDACTED]`, 'redacted, THEN cut to 300 characters (a cut first would leave a fragment of the token)');
   assert.deepEqual(
     { ...first, startedAt: null },
     {
-      runId: 'ta.A.0', taskId: 'ta', taskIndex: 0, arm: 'A', effort: 'xhigh', rep: 0, round: first.round, sessionId: null, startedAt: null, wallMs: null, exit: null, infra: 'run_failed', final: false,
+      runId: 'ta.A.0', taskId: 'ta', taskIndex: 0, arm: 'A', effort: 'xhigh', rep: 0, round: first.round, sessionId: null, startedAt: null, wallMs: null, exit: null, infra: 'run_failed', final: false, mode: 'pilot',
       infraDetail: first.infraDetail, decision: null, usage: null, efforts: [], costUsd: null, numTurns: null, isError: null, tokenScrubbed: null, firstUserTextOk: null, testsRunBeforeDone: null, finalTextTail: '', grade: null,
     },
   );
@@ -506,6 +516,8 @@ await ta('the attempt number is 1 + the highest N among the existing runs/<runId
 // =====================================================================================================================
 
 const oldRow = (id, costUsd) => okRow({ runId: `old.${id}.0`, taskId: 'old', taskIndex: 9, arm: 'A', effort: 'xhigh', rep: 0, round: 0 }, { costUsd });
+// A run that is in no plan: the rows of other runs in a rows file.
+const ghost = (i) => ({ runId: `old.g${i}.0`, taskId: 'old', taskIndex: 9, arm: 'A', effort: 'xhigh', rep: 0, round: 0 });
 
 await ta('the stop rule: when the sum of EVERY row in the file is >= the limit nothing starts and one stopped line is appended; equal stops, just below does not; a null cost adds 0', async () => {
   const rows = [oldRow('x', 4), oldRow('y', 6), oldRow('z', null)];
@@ -517,8 +529,8 @@ await ta('the stop rule: when the sum of EVERY row in the file is >= the limit n
   assert.equal(stops.calls.length, 0, 'the sum is exactly the limit: nothing starts');
   const lines = stoppedIn(stops.rowsFile);
   assert.equal(lines.length, 1);
-  assert.deepEqual(Object.keys(lines[0]).sort(), ['at', 'costUsd', 'limit', 'reason', 'type']);
-  assert.deepEqual({ ...lines[0], at: null }, { type: 'stopped', at: null, reason: 'cost', costUsd: 10, limit: 10 });
+  assert.deepEqual(Object.keys(lines[0]).sort(), ['at', 'costUsd', 'limit', 'mode', 'reason', 'type']);
+  assert.deepEqual({ ...lines[0], at: null }, { type: 'stopped', at: null, reason: 'cost', costUsd: 10, limit: 10, mode: 'pilot' });
   assert.match(lines[0].at, /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/);
   assert.deepEqual(summary.stopped, { reason: 'cost', costUsd: 10, limit: 10 });
   assert.deepEqual({ planned: summary.planned, ran: summary.ran, attempts: summary.attempts, costUsd: summary.costUsd }, { planned: 2, ran: 0, attempts: 0, costUsd: 10 });
@@ -850,7 +862,7 @@ await ta('the default seams: imageIdOf is `docker image inspect --format {{.Id}}
   assert.ok(psProxy[0].includes('label=s5=1') && psProxy[0].includes('label=s5.run=s5-proxy'), psProxy[0]);
   assert.ok(!psProxy[0].split(' ').some((word) => /^-[A-Za-z]*a[A-Za-z]*$/.test(word)), `running containers only (no -a): ${psProxy[0]}`);
   // The sweep went through the same dockerBin: a `ps` for label s5.task.
-  assert.ok(argvs.some((a) => a.startsWith('ps') && a.includes('label=s5.task')));
+  assert.ok(argvs.some((a) => a.startsWith('ps') && a.includes('label=s5=1') && a.includes('label=s5.task')));
 
   // Not running, an unknown image, a different file: each refuses.
   await refuses(real(stubDocker({ images, proxy: false })), /preflight item 5/, 'the stub proxy is not running');
@@ -887,19 +899,20 @@ await ta('a damaged rows file refuses before the lock is touched: the stale lock
 
 await ta('an unparsable LAST line is a torn write: it is ignored (tornLine true), cut off before the first append, and the file parses completely afterwards; a second batch accepts it', async () => {
   for (const terminated of [false, true]) {
-    const b = bench({ runs: { A: 1, B: 1, C: 0 } });
-    const [r0, r1] = b.plan();
+    const b = bench({ runs: { A: 1, B: 1, C: 1 } });
+    const [r0, r1, r2] = b.plan();
     const good = `${JSON.stringify(okRow(r0))}\n`;
     writeFileSync(b.rowsFile, `${good}{"runId":"${r1.runId}","torn-marker":tr${terminated ? '\n' : ''}`);
     const summary = await b.run();
     assert.equal(summary.tornLine, true, `terminated ${terminated}`);
-    assert.deepEqual(b.calls.map((c) => c.run.runId), [r1.runId], 'the run of the torn line starts again; the good line before it is a final row');
+    assert.deepEqual(b.calls.map((c) => c.run.runId), [r1.runId, r2.runId], 'the run of the torn line starts again; the good line before it is a final row');
     const text = readFileSync(b.rowsFile, 'utf8');
     assert.ok(text.startsWith(good) && !text.includes('torn-marker'), 'the torn fragment is gone and the good line is untouched');
-    assert.equal(b.lines().length, 2, 'every line parses');
+    assert.equal(b.lines().length, 3, 'every line parses: the cut was made ONCE (a second append did not cut the first one off again)');
+    assert.ok(!text.includes('\n\n'), 'no blank line');
     const second = await b.run();
     assert.equal(second.tornLine, false, 'the next resume has nothing torn to ignore');
-    assert.equal(second.skippedFinal, 2);
+    assert.equal(second.skippedFinal, 3);
   }
   // A torn line and nothing appended (nothing to run): the file is left as it was.
   const idle = bench({ runs: { A: 1, B: 0, C: 0 } });
@@ -911,21 +924,22 @@ await ta('an unparsable LAST line is a torn write: it is ignored (tornLine true)
   assert.equal(readFileSync(idle.rowsFile, 'utf8'), before, 'no append, no cut');
 });
 
-await ta('a last line that parses but has no final newline gets one before the next line, so two lines never run together', async () => {
-  const b = bench({ runs: { A: 1, B: 1, C: 0 } });
+await ta('a last line that parses but has no final newline gets one before the next line, so two lines never run together (and only before the FIRST: no blank line between the rows after it)', async () => {
+  const b = bench({ runs: { A: 1, B: 1, C: 1 } });
   const [r0] = b.plan();
   writeFileSync(b.rowsFile, JSON.stringify(okRow(r0)));
   await b.run();
-  assert.equal(b.lines().length, 2);
-  assert.equal(b.calls.length, 1);
+  assert.equal(b.lines().length, 3);
+  assert.equal(b.calls.length, 2);
+  assert.ok(!readFileSync(b.rowsFile, 'utf8').includes('\n\n'), 'no blank line');
 });
 
-await ta('a line with a `type` key is not a Row: it counts for nothing, not as a final row and not in the cost; a line with no runId is no Row either', async () => {
+await ta('a line with a `type` key is not a Row: it counts for nothing, not as a final row and not in the cost, and carries no mode', async () => {
   const b = bench({ runs: { A: 1, B: 0, C: 0 } });
   const [r0] = b.plan();
-  writeFileSync(b.rowsFile, `${JSON.stringify({ type: 'stopped', runId: r0.runId, final: true, costUsd: 999, at: 'x', reason: 'cost', limit: 1 })}\n${JSON.stringify({ final: true, costUsd: 999 })}\n`);
+  writeFileSync(b.rowsFile, `${JSON.stringify({ type: 'stopped', runId: r0.runId, final: true, costUsd: 999, at: 'x', reason: 'cost', limit: 1 })}\n`);
   const summary = await b.run();
-  assert.equal(b.calls.length, 1, 'neither line makes the run final or stops the batch');
+  assert.equal(b.calls.length, 1, 'the line makes neither the run final nor the batch stop');
   assert.deepEqual({ skippedFinal: summary.skippedFinal, stopped: summary.stopped, costUsd: summary.costUsd }, { skippedFinal: 0, stopped: null, costUsd: 1 });
 });
 
@@ -960,9 +974,11 @@ await ta('R123: a second batch on the same work root is refused while the first 
   const first = b.run();
   await until(() => b.calls.length >= 1, 'the first batch to start a run');
   const dockerCalls = b.docker.calls().length;
+  const during = listeners(); // the first batch's own handlers
   const other = path.join(b.dir, 'other-rows.jsonl');
   const err = await b.run({ rowsFile: other, mode: 'smoke' }).then(() => null, (e) => e);
   assert.ok(err instanceof Error, 'refused');
+  assert.deepEqual(listeners(), during, 'the refused batch installed no handler (R134 a), and removed none of the first\'s');
   assert.match(err.message, /batch\.lock/);
   assert.ok(err.message.includes(String(process.pid)) && err.message.includes('pilot') && err.message.includes(b.rowsFile), `names the pid, the mode and the rows file of the holder: ${err.message}`);
   assert.ok(!err.message.includes(SENTINEL));
@@ -991,11 +1007,13 @@ await ta('R123: a lock whose pid is dead is stale and replaced by ours', async (
 });
 
 await ta('R123: a lock whose pid is alive refuses (pid 1 exists and a user may not signal it: EPERM is alive), naming the holder, and is left alone; an unreadable lock refuses, naming the file', async () => {
+  const before = listeners();
   const alive = bench();
   const text = `${JSON.stringify({ pid: 1, startedAt: '2026-10-09T00:00:00.000Z', mode: 'measure', rowsFile: '/other/rows.jsonl' })}\n`;
   writeFileSync(alive.lockFile, text);
   const err = await alive.run().then(() => null, (e) => e);
   assert.ok(err instanceof Error);
+  assert.deepEqual(listeners(), before, 'a refusal by a live lock leaves no signal handler (R134 a)');
   assert.ok(err.message.includes('1') && err.message.includes('measure') && err.message.includes('/other/rows.jsonl'), err.message);
   assert.equal(readFileSync(alive.lockFile, 'utf8'), text, 'a live holder\'s lock is left alone');
   assert.equal(alive.calls.length, 0);
@@ -1009,6 +1027,7 @@ await ta('R123: a lock whose pid is alive refuses (pid 1 exists and a user may n
     assert.ok(e.message.includes('batch.lock'), e.message);
     assert.equal(readFileSync(b.lockFile, 'utf8'), garbage, 'left for the operator');
     assert.equal(b.calls.length + b.docker.calls().length, 0);
+    assert.deepEqual(listeners(), before, 'nor does an unreadable lock (R134 a)');
   }
 });
 
@@ -1039,12 +1058,14 @@ const STALE = 'a1'.repeat(32);
 const WARM = 'd4'.repeat(32);
 const PROXY_CONTAINER = 'b2'.repeat(32);
 const FOREIGN = 'c3'.repeat(32);
+const TASK_ONLY = 'e5'.repeat(32);
 
-await ta('R122: the sweep removes the containers that carry s5.task (stale runs, grades, warm builds) once before the first run, and leaves the s5-proxy container and foreign containers alone', async () => {
+await ta('R122, R134 (c): the sweep removes the containers that carry BOTH s5=1 and s5.task (stale runs, grades, warm builds) once before the first run, and leaves the s5-proxy container, a container with s5.task alone and foreign containers alone', async () => {
   const containers = [
     { id: STALE, name: 's5-old.A.0-a1', labels: { s5: '1', 's5.run': 's5-old.A.0-a1', 's5.task': 'old', 's5.arm': 'A' } },
     { id: WARM, name: 's5-warm-build-old', labels: { s5: '1', 's5.run': 's5-warm-build-old', 's5.task': 'old' } },
     { id: PROXY_CONTAINER, name: 's5-proxy', labels: { s5: '1', 's5.run': 's5-proxy' } },
+    { id: TASK_ONLY, name: 'not-ours-but-labelled', labels: { 's5.task': 'old' } },
     { id: FOREIGN, name: 'someone-elses', labels: {} },
   ];
   let seenAtFirst = null;
@@ -1054,13 +1075,13 @@ await ta('R122: the sweep removes the containers that carry s5.task (stale runs,
   const ps = calls.filter((c) => c.argv[0] === 'ps');
   const rm = calls.filter((c) => c.argv[0] === 'rm');
   assert.equal(ps.length, 1, 'one sweep for the whole batch, not one per run');
-  assert.ok(ps[0].argv.includes('label=s5.task') && !ps[0].argv.includes('label=s5=1'), `the sweep label is s5.task: ${ps[0].argv.join(' ')}`);
+  assert.deepEqual(ps[0].argv, ['ps', '-aq', '--filter', 'label=s5=1', '--filter', 'label=s5.task'], 'both filters, which docker ANDs: only containers that are ours (s5=1) AND a run, grade or warm container (s5.task)');
   assert.equal(rm.length, 1);
   assert.deepEqual(rm[0].touched.sort(), [STALE, WARM].sort(), 'only the stale run and the warm container were removed');
-  assert.ok(!calls.some((c) => (c.touched ?? []).some((id) => id === PROXY_CONTAINER || id === FOREIGN)), 'the proxy and the foreign container were never touched');
+  assert.ok(!calls.some((c) => (c.touched ?? []).some((id) => id === PROXY_CONTAINER || id === FOREIGN || id === TASK_ONLY)), 'the proxy, the s5.task-only container and the foreign one were never touched');
   assert.deepEqual(seenAtFirst, ['ps', 'rm'], 'the sweep was finished before the first run started');
   // Nothing stale: only the listing, no rm.
-  const clean = bench({ dockerConfig: { containers: containers.filter((c) => !c.labels['s5.task']) } });
+  const clean = bench({ dockerConfig: { containers: containers.filter((c) => !(c.labels.s5 === '1' && c.labels['s5.task'])) } });
   await clean.run();
   assert.deepEqual(clean.docker.calls().map((c) => c.argv[0]), ['ps']);
 });
@@ -1163,7 +1184,7 @@ await ta('R119: the first SIGINT or SIGTERM is a stop: nothing new starts, in-fl
     assert.equal(b.calls.length, 2, `${signal}: nothing new started after the signal, though 4 runs were left`);
     assert.deepEqual(b.lines().map((l) => l.type ?? 'row'), ['row', 'row', 'stopped'], 'the in-flight runs finished and were recorded; then exactly one stopped line');
     const line = stoppedIn(b.rowsFile)[0];
-    assert.deepEqual({ ...line, at: null }, { type: 'stopped', at: null, reason: 'signal', costUsd: 2, limit: 100 });
+    assert.deepEqual({ ...line, at: null }, { type: 'stopped', at: null, reason: 'signal', costUsd: 2, limit: 100, mode: 'pilot' });
     assert.deepEqual(summary.stopped, { reason: 'signal', costUsd: 2, limit: 100 });
     assert.deepEqual({ planned: summary.planned, ran: summary.ran }, { planned: 6, ran: 2 });
     assert.deepEqual(listeners(), before, `${signal}: the handlers are gone after the batch`);
@@ -1297,7 +1318,7 @@ await ta('smoke: the checks come from the FINAL rows of the planned runs, across
   assert.deepEqual(second.smoke, { ok: true, checks: { firstUserText: true, decisionLogs: true, bSteered: true }, rows: 3 });
   assert.equal(second.skippedFinal, 1);
   const stopped = smokeBench();
-  writeFileSync(stopped.rowsFile, `${JSON.stringify(oldRow('z', 9))}\n`);
+  writeFileSync(stopped.rowsFile, `${JSON.stringify({ ...oldRow('z', 9), mode: 'smoke' })}\n`);
   assert.deepEqual((await stopped.run({ stopAtCostUsd: 9 })).smoke, { ok: false, checks: { firstUserText: false, decisionLogs: false, bSteered: false }, rows: 0 });
 });
 
@@ -1405,7 +1426,8 @@ await (NO_REFLINK_HERE ? Promise.resolve(console.log(`ok - integration (unit mod
   const rows = rowsIn(rowsFile);
   assert.equal(readLines(rowsFile).length, 3);
   for (const r of rows) {
-    assert.deepEqual(Object.keys(r).filter((k) => ROW_KEYS.includes(k)).sort(), [...ROW_KEYS].sort(), 'every key of a Row');
+    assert.deepEqual(Object.keys(r).filter((k) => ROW_KEYS_IN_FILE.includes(k)).sort(), [...ROW_KEYS_IN_FILE].sort(), 'every key of a Row, and the mode of the batch');
+    assert.equal(r.mode, 'smoke');
     assert.deepEqual([r.infra, r.final, r.grade.pass], [null, true, true]);
     assert.deepEqual([r.decision.steered, r.firstUserTextOk], [r.arm === 'B', true]);
     assert.ok(!JSON.stringify(r).includes(SENTINEL));
@@ -1418,7 +1440,7 @@ await (NO_REFLINK_HERE ? Promise.resolve(console.log(`ok - integration (unit mod
   // Docker: the sweep first, then the three agent containers, each on the image id the preflight verified.
   const calls = docker.calls();
   assert.equal(calls[0].argv[0], 'ps');
-  assert.ok(calls[0].argv.includes('label=s5.task'));
+  assert.ok(calls[0].argv.includes('label=s5.task') && calls[0].argv.includes('label=s5=1'));
   const agentRuns = calls.filter((c) => c.argv[0] === 'run');
   assert.equal(agentRuns.length, 3);
   for (const call of agentRuns) assert.ok(call.argv.includes(IMAGES['claude-plugins']), 'the image id the registration pins, not the tag');
@@ -1437,8 +1459,8 @@ await ta('R124: the breaker trips at exactly 2 * (1 + infraRetries) consecutive 
     assert.equal(b.calls.length, limit, `infraRetries ${retries}: exactly ${limit} attempts, then nothing more starts`);
     const lines = stoppedIn(b.rowsFile);
     assert.equal(lines.length, 1);
-    assert.deepEqual(Object.keys(lines[0]).sort(), ['at', 'costUsd', 'lastInfra', 'limit', 'reason', 'streak', 'type']);
-    assert.deepEqual({ ...lines[0], at: null }, { type: 'stopped', at: null, reason: 'infra_streak', streak: limit, lastInfra: 'api_error', costUsd: 0.25 * limit, limit: null });
+    assert.deepEqual(Object.keys(lines[0]).sort(), ['at', 'costUsd', 'lastInfra', 'limit', 'mode', 'reason', 'streak', 'type']);
+    assert.deepEqual({ ...lines[0], at: null }, { type: 'stopped', at: null, reason: 'infra_streak', streak: limit, lastInfra: 'api_error', costUsd: 0.25 * limit, limit: null, mode: 'pilot' });
     assert.equal(b.lines().at(-1).type, 'stopped', 'written after the rows');
     assert.deepEqual(summary.stopped, { reason: 'infra_streak', streak: limit, lastInfra: 'api_error', costUsd: 0.25 * limit, limit: null });
     assert.deepEqual({ attempts: summary.attempts, infraAttempts: summary.infraAttempts, exhausted: summary.exhausted, ran: summary.ran }, { attempts: limit, infraAttempts: limit, exhausted: 2, ran: 2 }, 'the attempt that trips it is the last allowed one of its run, so it is still written infra_exhausted');
@@ -1513,13 +1535,15 @@ await ta('R124: after a stop (cost, hidden_changed, signal, infra_streak) an in-
     assert.deepEqual(outcomeOf(b, x), [[false, 'api_error']], `${reason}: X's row is written, non-final`);
     assert.equal(b.lines().at(-1).type, 'stopped');
 
-    // The resume: X has two attempts left of three, and takes exactly those.
+    // The resume: X has two attempts left of three, and takes exactly those. After an infra_streak stop the outage is, by R127, still counted
+    // (the streak starts from the rows file), so there X's next attempt is the one that ends the outage: any failure would trip the breaker again.
     const firstBatch = b.calls.length;
-    b.script = ({ run }) => (run.runId === x.runId ? infraRow(run, 'api_error') : okRow(run));
+    const outage = reason === 'infra_streak';
+    b.script = ({ run }) => (run.runId === x.runId && !outage ? infraRow(run, 'api_error') : okRow(run));
     const resumed = await b.run({ stopAtCostUsd: 1000 });
     const again = b.calls.slice(firstBatch).filter((c) => c.run.runId === x.runId);
-    assert.deepEqual(again.map((c) => c.attempt), [2, 3], `${reason}: the resume continues X with the two attempts it had left`);
-    assert.deepEqual(outcomeOf(b, x), [[false, 'api_error'], [false, 'api_error'], [true, 'infra_exhausted']], reason);
+    assert.deepEqual(again.map((c) => c.attempt), outage ? [2] : [2, 3], `${reason}: the resume continues X with the attempts it had left`);
+    assert.deepEqual(outcomeOf(b, x), outage ? [[false, 'api_error'], [true, null]] : [[false, 'api_error'], [false, 'api_error'], [true, 'infra_exhausted']], reason);
     assert.equal(resumed.stopped, null, reason);
   }
 });
@@ -1617,7 +1641,7 @@ await ta('R125: the crash-before-exhausted rule (R100) applies to the rows AFTER
   assert.deepEqual([s2.retriedExhausted, s2.exhausted, s2.attempts], [1, 1, 0]);
   // Exhausted TWICE in the file: only the rows after the LAST exhausted row are the new allowance's (one of three here, so two attempts are left).
   const twice = bench({ runs: { A: 1, B: 0, C: 0 }, limits: { infraRetries: 2 }, script: ({ run }) => infraRow(run, 'oom') });
-  seedRows(twice, [infraRow(x, 'api_error'), infraRow(x, 'api_error'), exhaustedRow(x), infraRow(x, 'api_error'), infraRow(x, 'api_error'), exhaustedRow(x), infraRow(x, 'api_error')]);
+  seedRows(twice, [infraRow(x, 'api_error'), infraRow(x, 'api_error'), exhaustedRow(x), infraRow(x, 'api_error'), infraRow(x, 'api_error'), exhaustedRow(x), infraRow(x, 'api_error'), okRow(ghost(8))]);
   await twice.run({ retryExhausted: true });
   assert.equal(twice.calls.length, 2, 'two attempts left of the allowance that began after the second exhausted row');
   // Without the flag the run is final already (its latest final row is the exhausted one), whatever follows it.
@@ -1647,6 +1671,350 @@ await ta('R125: retryExhausted must be a boolean; a run that was never exhausted
   const found = perTaskScores(b.rows());
   assert.deepEqual(found.excluded, []);
   assert.deepEqual(found.scores.get('ta'), { A: 1, B: 1, C: 1, nA: 1, nB: 1, nC: 1 }, 'one counted row per arm: the recovered run counts once');
+});
+
+// =====================================================================================================================
+// fix round 1: the streak from the file (R127), a failed append is rolled back (R128), a signal during the start-up (R129), the breaker's
+// exact trip point (R130), `mode` on every line (R133), the minors (R134)
+// =====================================================================================================================
+
+const realWriteSync = fs.writeSync;
+const enospc = () => Object.assign(new Error('ENOSPC: no space left on device, write'), { code: 'ENOSPC', errno: -28, syscall: 'write' });
+const eio = () => Object.assign(new Error('EIO: i/o error, ftruncate'), { code: 'EIO', errno: -5, syscall: 'ftruncate' });
+// Replaces members of node:fs for the body. run.mjs imports writeSync and ftruncateSync by name, and syncBuiltinESMExports updates those bindings.
+const patchFs = async (patches, fn) => {
+  const saved = Object.fromEntries(Object.keys(patches).map((k) => [k, fs[k]]));
+  Object.assign(fs, patches);
+  syncBuiltinESMExports();
+  try {
+    return await fn();
+  } finally {
+    Object.assign(fs, saved);
+    syncBuiltinESMExports();
+  }
+};
+const stoppedLine = (over = {}) => ({ type: 'stopped', at: '2026-10-09T00:00:00.000Z', reason: 'infra_streak', streak: 4, lastInfra: 'api_error', costUsd: 4, limit: null, mode: 'pilot', ...over });
+
+await ta('R127 (a): the infrastructure streak starts from the trailing attempt rows of the rows file: a resume while the outage persists trips on its FIRST further failure, a typed line is skipped, an exhausted row counts, a counted row ends the chain, a good first attempt resets', async () => {
+  // After an infra_streak stop the outage is still on: the resumed batch stops at the first further failure, not four failures later.
+  const b = bench({ runs: { A: 3, B: 3, C: 3 }, limits: { infraRetries: 1, concurrency: 1 }, script: ({ run }) => infraRow(run, 'api_error') });
+  const first = await b.run();
+  assert.equal(first.stopped.streak, 4);
+  const calls1 = b.calls.length;
+  const second = await b.run();
+  assert.equal(b.calls.length - calls1, 1, 'the first further failure trips it');
+  assert.deepEqual([second.stopped.reason, second.stopped.streak, second.stopped.lastInfra], ['infra_streak', 5, 'api_error']);
+
+  const seeded = (rows, script) => {
+    const c = bench({ runs: { A: 3, B: 3, C: 3 }, limits: { infraRetries: 1, concurrency: 1 }, script: script ?? (({ run }) => infraRow(run, 'api_error')) });
+    seedRows(c, rows);
+    return c;
+  };
+  // Three trailing attempt rows, among them an exhausted one and a typed line in the middle (neither breaks the chain, neither counts): the next failure trips it.
+  const a = seeded([okRow(ghost(0)), infraRow(ghost(1), 'api_error'), exhaustedRow(ghost(2)), stoppedLine(), infraRow(ghost(3), 'oom')]);
+  const ra = await a.run();
+  assert.equal(a.calls.length, 1);
+  assert.deepEqual([ra.stopped.reason, ra.stopped.streak], ['infra_streak', 4]);
+  // The last row is a counted one: nothing is carried over, four failures are needed.
+  const c = seeded([infraRow(ghost(1), 'api_error'), infraRow(ghost(2), 'api_error'), infraRow(ghost(3), 'api_error'), okRow(ghost(4))]);
+  const rc = await c.run();
+  assert.equal(c.calls.length, 4);
+  assert.equal(rc.stopped.streak, 4);
+  // A good first attempt resets the carried-over count: three further failures do not trip it, the fourth does.
+  const d = seeded([infraRow(ghost(1), 'api_error'), infraRow(ghost(2), 'api_error'), infraRow(ghost(3), 'api_error')], ({ run, n }) => (n === 0 ? okRow(run) : infraRow(run, 'api_error')));
+  const rd = await d.run();
+  assert.equal(d.calls.length, 5, 'one good attempt, then four failures');
+  assert.equal(rd.stopped.streak, 4);
+});
+
+await ta('R127 (b): a run re-opened by retryExhausted and then stopped keeps its old exhausted row as its latest final row: a later batch WITHOUT the flag skips it, WITH the flag it continues with the allowance that remains, counted after the exhausted row', async () => {
+  const b = bench({ runs: { A: 1, B: 0, C: 0 }, limits: { infraRetries: 2, concurrency: 1 }, script: ({ run }) => infraRow(run, 'api_error', { costUsd: 60 }) });
+  const [x] = b.plan();
+  seedRows(b, [infraRow(x, 'api_error'), infraRow(x, 'api_error'), exhaustedRow(x)]);
+  // The flag re-opens X; its first fresh attempt costs 60, which reaches the cost limit, so the retry does not start.
+  const stopped = await b.run({ retryExhausted: true, stopAtCostUsd: 50 });
+  assert.equal(b.calls.length, 1);
+  assert.deepEqual([stopped.retriedExhausted, stopped.stopped.reason], [1, 'cost']);
+  assert.deepEqual(outcomeOf(b, x), [[false, 'api_error'], [false, 'api_error'], [true, 'infra_exhausted'], [false, 'api_error']]);
+  // Without the flag the run is final: its latest final row is still the exhausted one.
+  const flagless = await b.run({ stopAtCostUsd: 1000 });
+  assert.deepEqual([b.calls.length, flagless.skippedFinal, flagless.retriedExhausted], [1, 1, 0]);
+  // With the flag it continues: one of its three attempts is used (counted after the exhausted row), so two are left.
+  b.script = ({ run }) => infraRow(run, 'api_error');
+  const resumed = await b.run({ retryExhausted: true, stopAtCostUsd: 1000 });
+  assert.equal(b.calls.length - 1, 2, 'the remaining allowance, not a fresh one and not none');
+  assert.deepEqual([resumed.retriedExhausted, resumed.exhausted], [1, 1]);
+  assert.deepEqual(outcomeOf(b, x).slice(-3), [[false, 'api_error'], [false, 'api_error'], [true, 'infra_exhausted']]);
+  assert.equal(outcomeOf(b, x).length, 6);
+});
+
+await ta('R128: a write that fails part-way is rolled back at once: the fragment is cut, the in-flight run\'s row is not glued to it, a missing final newline is still put in front of the next line, the batch throws after the in-flight run finished, and the next batch finds a clean file, loses no row and sums the right cost', async () => {
+  const gateX = deferred();
+  const gateY = deferred();
+  const b = bench({
+    runs: { A: 1, B: 1, C: 0 },
+    limits: { concurrency: 2 },
+    script: async ({ run, n }) => {
+      if (n === 0) {
+        await gateX.promise;
+        return okRow(run, { costUsd: 3, finalTextTail: 'FAIL-ME' });
+      }
+      await gateY.promise;
+      return okRow(run, { costUsd: 4 });
+    },
+  });
+  const [x, y] = b.plan();
+  const seed = JSON.stringify(oldRow('s', 2)); // an old row WITHOUT its final newline
+  writeFileSync(b.rowsFile, seed);
+  let failed = false;
+  const before = listeners();
+  const err = await patchFs({
+    writeSync: (fd, data, ...rest) => {
+      if (Buffer.isBuffer(data) && data.includes('FAIL-ME')) {
+        failed = true;
+        realWriteSync(fd, data.subarray(0, Math.floor(data.length / 2))); // half of the line reaches the file ...
+        throw enospc(); // ... and then the disk is full
+      }
+      return realWriteSync(fd, data, ...rest);
+    },
+  }, async () => {
+    const outcome = b.run().then(() => null, (e) => e);
+    await until(() => b.calls.length >= 2, 'both runs in flight');
+    gateX.resolve();
+    await until(() => failed, 'the failing append');
+    gateY.resolve();
+    return outcome;
+  });
+  assert.equal(err?.code, 'ENOSPC', 'a rows-file write failure makes runBatch throw (after the in-flight run finished)');
+  assert.deepEqual(listeners(), before);
+  assert.ok(!existsSync(b.lockFile), 'the lock is released');
+  const lines = readLines(b.rowsFile); // every line parses: nothing is glued, nothing is half
+  assert.deepEqual(lines.map((l) => l.runId), ['old.s.0', y.runId], 'the in-flight run\'s row is there once; the row that failed is not');
+  assert.equal(readFileSync(b.rowsFile, 'utf8'), `${seed}\n${JSON.stringify(lines[1])}\n`, 'the newline the old last line lacked is in front of the next line');
+
+  b.script = ({ run }) => okRow(run, { costUsd: 5 });
+  const next = await b.run();
+  assert.deepEqual([next.tornLine, next.skippedFinal, next.ran], [false, 1, 1], 'no torn tail to cut, Y\'s paid row is kept, X runs again');
+  assert.equal(next.costUsd, 2 + 4 + 5, 'the cost of every row that is in the file');
+  assert.ok(b.rows().some((r) => r.runId === x.runId));
+});
+
+await ta('R128: when the rollback itself fails the appender is broken for good: every later append throws the first error at once and writes nothing, so nothing is glued to the fragment, which the next batch cuts as a torn tail', async () => {
+  const gateX = deferred();
+  const gateY = deferred();
+  const b = bench({
+    runs: { A: 1, B: 1, C: 0 },
+    limits: { concurrency: 2 },
+    script: async ({ run, n }) => {
+      if (n === 0) {
+        await gateX.promise;
+        return okRow(run, { costUsd: 3, finalTextTail: 'FAIL-ME' });
+      }
+      await gateY.promise;
+      return okRow(run, { costUsd: 4 });
+    },
+  });
+  const seed = JSON.stringify(oldRow('s', 2));
+  writeFileSync(b.rowsFile, `${seed}\n`);
+  let failed = false;
+  const err = await patchFs({
+    writeSync: (fd, data, ...rest) => {
+      if (Buffer.isBuffer(data) && data.includes('FAIL-ME')) {
+        failed = true;
+        realWriteSync(fd, data.subarray(0, Math.floor(data.length / 2)));
+        throw enospc();
+      }
+      return realWriteSync(fd, data, ...rest);
+    },
+    ftruncateSync: () => {
+      throw eio();
+    },
+  }, async () => {
+    const outcome = b.run().then(() => null, (e) => e);
+    await until(() => b.calls.length >= 2, 'both runs in flight');
+    gateX.resolve();
+    await until(() => failed, 'the failing append');
+    gateY.resolve();
+    return outcome;
+  });
+  assert.equal(err?.code, 'ENOSPC', 'the FIRST error is the one thrown, by the failed append and by the one after it');
+  const text = readFileSync(b.rowsFile, 'utf8');
+  assert.ok(text.startsWith(`${seed}\n`));
+  const tail = text.slice(seed.length + 1);
+  assert.throws(() => JSON.parse(tail), 'what is left after the old row is the half line');
+  assert.ok(!tail.includes('\n') && !tail.includes('"costUsd":4'), 'and nothing was written after it: the second run\'s row is not in the file');
+  b.script = ({ run }) => okRow(run);
+  const next = await b.run();
+  assert.deepEqual([next.tornLine, next.ran], [true, 2], 'the fragment is the torn tail of the file; both runs run again');
+});
+
+await ta('R129: a REAL SIGINT that arrives during the synchronous start-up (here a slow sweep) is seen before the first run starts: no run starts, and the stopped line says signal', async () => {
+  const before = listeners();
+  const b = bench({ runs: { A: 1, B: 1, C: 1 }, limits: { concurrency: 2 }, dockerConfig: { ps: { sleepMs: 1500 } } });
+  const killer = spawn('sh', ['-c', `sleep 0.5; kill -INT ${process.pid}`], { stdio: 'ignore', detached: true });
+  let summary;
+  try {
+    summary = await b.run();
+  } finally {
+    killer.kill();
+  }
+  assert.equal(b.calls.length, 0, 'two slots were free and no run was started');
+  assert.deepEqual([summary.stopped.reason, summary.attempts, summary.ran], ['signal', 0, 0]);
+  assert.equal(stoppedIn(b.rowsFile).length, 1);
+  assert.deepEqual(listeners(), before);
+});
+
+await ta('R130: the breaker trips at the attempt that makes the count, whichever attempt of its run it is: with completions P0a1, P1a1, P0a2, P2a1 the fourth (a FIRST attempt of P2) stops the batch and P2 is neither retried nor exhausted', async () => {
+  const gates = Array.from({ length: 6 }, () => deferred());
+  const b = bench({
+    runs: { A: 1, B: 1, C: 1 },
+    limits: { infraRetries: 1, concurrency: 2 },
+    script: async ({ run, n }) => {
+      await gates[n].promise;
+      return infraRow(run, 'api_error');
+    },
+  });
+  const [, , p2] = b.plan();
+  const done = b.run();
+  try {
+    await until(() => b.calls.length >= 2, 'P0 and P1 started');
+    gates[0].resolve(); // P0a1 completes (1); P0a2 is call 2
+    await until(() => b.calls.length >= 3, 'P0a2');
+    gates[1].resolve(); // P1a1 completes (2); P1a2 is call 3
+    await until(() => b.calls.length >= 4, 'P1a2');
+    gates[2].resolve(); // P0a2 completes (3): P0 is exhausted; P2a1 is call 4
+    await until(() => b.calls.length >= 5, 'P2a1');
+    gates[4].resolve(); // P2a1 completes (4): the breaker trips
+    await until(() => b.rows().length >= 4, 'the fourth row');
+  } finally {
+    for (const gate of gates) gate.resolve(); // P1a2 completes last (5), after the stop
+  }
+  const summary = await done;
+  assert.equal(b.calls.length, 5, 'P2 got no second attempt');
+  assert.deepEqual(outcomeOf(b, p2), [[false, 'api_error']], 'P2 is neither retried nor exhausted');
+  assert.deepEqual([summary.exhausted, summary.stopped.reason, summary.stopped.streak], [2, 'infra_streak', 4]);
+});
+
+await ta('R133: every line the batch appends, the stopped line too, carries the mode of the batch; a rows file with a row of another mode, or with none, is refused naming the line and the modes; matching modes resume normally', async () => {
+  for (const mode of ['pilot', 'smoke', 'calibrate']) {
+    const b = bench({ mode, runs: { A: 1, B: 1, C: 1 }, stopAtCostUsd: 2, script: ({ run }) => stripMode(okRow(run)) });
+    await b.run({ concurrency: 1 }); // two rows (cost 1 each), then the cost limit
+    const lines = b.lines();
+    assert.deepEqual(lines.map((l) => l.type ?? 'row'), ['row', 'row', 'stopped']);
+    assert.ok(lines.every((l) => l.mode === mode), `${mode}: every line, the stopped one too`);
+    const again = await b.run({ concurrency: 1, stopAtCostUsd: 100 });
+    assert.deepEqual([again.skippedFinal, again.ran], [2, 1], `${mode}: the same mode resumes normally`);
+    assert.ok(b.lines().every((l) => l.mode === mode));
+  }
+  // The exhausted line written without an attempt carries the mode too (it is a copy of a row of this mode).
+  const x = bench({ runs: { A: 1, B: 0, C: 0 }, limits: { infraRetries: 0 } });
+  const [run] = x.plan();
+  seedRows(x, [infraRow(run, 'oom')]);
+  await x.run();
+  assert.equal(x.lines().at(-1).mode, 'pilot');
+
+  // A smoke row in the file of a measure batch: refused (the run ids are the same in every mode).
+  const m = bench({ mode: 'measure', specs: [{ id: 'ta' }, { id: 'tb' }] });
+  const [r0] = m.plan();
+  seedRows(m, [{ ...okRow(ghost(1)), mode: 'measure' }, { ...okRow(r0), mode: 'smoke' }]);
+  await refuses(m, /rows file .* line 2 carries mode "smoke" but this batch is "measure"/, 'a smoke row in a measure batch\'s file');
+  // A row with no mode at all.
+  const n = bench();
+  seedRows(n, [okRow(ghost(1)), stripMode(okRow(ghost(2)))]);
+  await refuses(n, /rows file .* line 2 carries no mode but this batch is "pilot"/, 'a row without mode');
+  // A typed line needs none.
+  const t = bench({ runs: { A: 1, B: 0, C: 0 } });
+  writeFileSync(t.rowsFile, `${JSON.stringify({ type: 'stopped', at: 'x', reason: 'cost', costUsd: 0, limit: 1 })}\n`);
+  const ok = await t.run();
+  assert.equal(ok.ran, 1);
+});
+
+await ta('R134 (b): a line without `type` is a Row only when runId is a string, final a boolean and infra null or a string; anything else refuses the batch naming the line, in the middle and as the last line (a parsable line is not a torn write)', async () => {
+  const good = JSON.stringify(okRow(ghost(1)));
+  const row = okRow(ghost(2));
+  const without = (key) => {
+    const { [key]: gone, ...rest } = row;
+    return rest;
+  };
+  const bad = [
+    ['no runId', without('runId')],
+    ['runId a number', { ...row, runId: 5 }],
+    ['final missing', without('final')],
+    ['final a string', { ...row, final: 'true' }],
+    ['infra missing', without('infra')],
+    ['infra a number', { ...row, infra: 5 }],
+    ['infra an object', { ...row, infra: {} }],
+  ];
+  for (const [label, value] of bad) {
+    const b = bench();
+    writeFileSync(b.rowsFile, `${good}\n${JSON.stringify(value)}\n${good}\n`);
+    await refuses(b, /rows file .* line 2\b/, `${label}, in the middle`);
+    writeFileSync(b.rowsFile, `${good}\n${JSON.stringify(value)}\n`);
+    await refuses(b, /rows file .* line 2\b/, `${label}, as the last line`);
+  }
+  // A line that is a valid Row passes: infra a string (an infrastructure row) and null.
+  const ok = bench({ runs: { A: 1, B: 0, C: 0 } });
+  seedRows(ok, [infraRow(ghost(1), 'api_error'), okRow(ghost(2))]);
+  assert.equal((await ok.run()).ran, 1);
+});
+
+await ta('R126, R134 (a): no signal handler exists while the read-only preflight runs (so a Ctrl+C there keeps its default action), and exactly one pair exists afterwards', async () => {
+  const before = listeners();
+  const b = bench();
+  let during = null;
+  b.script = ({ run }) => {
+    during ??= listeners();
+    return okRow(run);
+  };
+  await b.run();
+  assert.ok(b.listenersSeen.length >= 2, 'the preflight asked docker (the seam) about the images');
+  for (const seen of b.listenersSeen) assert.deepEqual(seen, before, 'nothing was installed yet');
+  assert.deepEqual(during, before.map((n) => n + 1), 'one handler per signal while the runs go');
+  assert.deepEqual(listeners(), before);
+});
+
+await ta('R134 (d): when the write after the O_EXCL create fails, the empty lock file is removed and the error is rethrown: no later batch is refused by an unreadable lock', async () => {
+  const b = bench();
+  const err = await patchFs({
+    writeSync: (fd, data, ...rest) => {
+      if (typeof data === 'string' && data.includes('"startedAt"')) throw enospc();
+      return realWriteSync(fd, data, ...rest);
+    },
+  }, () => b.run().then(() => null, (e) => e));
+  assert.equal(err?.code, 'ENOSPC');
+  assert.ok(!existsSync(b.lockFile), 'no empty lock is left');
+  assert.deepEqual([b.calls.length, b.docker.calls().length], [0, 0], 'and nothing else happened');
+  const ok = await b.run();
+  assert.equal(ok.ran, 3, 'the next batch is not refused');
+});
+
+await ta('R134 (e): the docker calls of the batch run with docker.mjs\'s DOCKER_PASSTHROUGH environment and nothing else: DOCKER_HOST reaches docker, the token and any other variable do not', async () => {
+  const dir = fresh('envstub');
+  const log = path.join(dir, 'env.log');
+  const bin = path.join(dir, 'docker');
+  writeFileSync(bin, `#!/bin/sh
+printf '%s\\t' "$*" >> ${shq(log)}
+env | cut -d= -f1 | sort | tr '\\n' ' ' >> ${shq(log)}
+echo >> ${shq(log)}
+case "$1" in
+  image) case "$5" in ${shq(IMAGE_FOR_REPO['claude-plugins'])}) echo ${shq(IMAGES['claude-plugins'])} ;; ${shq(PROXY_IMAGE)}) echo ${shq(IMAGES.proxy)} ;; esac ;;
+  ps) case "$*" in *label=s5.run=s5-proxy*) echo 0123456789ab ;; esac ;;
+esac
+`);
+  chmodSync(bin, 0o755);
+  await withEnv({ DOCKER_HOST: 'unix:///nonexistent-s5-test.sock', S5_BATCH_OTHER_SECRET: 'not-for-docker' }, async () => {
+    const b = bench({ ctx: { dockerBin: bin, imageIdOf: undefined, proxyRunning: undefined } });
+    const summary = await b.run();
+    assert.equal(summary.ran, 3);
+  });
+  // Two callers run docker here: the preflight (run.mjs's own helper: `image inspect`, `ps -q`) and the sweep (docker.mjs). Only the first is under test.
+  const calls = readFileSync(log, 'utf8').split('\n').filter((l) => l.startsWith('image inspect') || l.startsWith('ps -q'));
+  assert.ok(calls.length >= 3, `the preflight's docker calls were logged: ${calls.length}`);
+  for (const call of calls) {
+    const names = new Set(call.split('\t')[1].split(' ').filter(Boolean));
+    assert.ok(names.has('PATH') && names.has('DOCKER_HOST'), `the whitelisted variables reach docker: ${[...names].join(' ')}`);
+    assert.ok(!names.has('CLAUDE_CODE_OAUTH_TOKEN') && !names.has('S5_BATCH_OTHER_SECRET'), 'nothing else does');
+  }
 });
 
 // =====================================================================================================================
@@ -1694,12 +2062,14 @@ const dockerTest = async () => {
   const prereg = smokePrereg(scene, { cli: { version: '2.1.292', sha256: `sha256:${createHash('sha256').update(CLAUDE_SH).digest('hex')}` }, images: { ...IMAGES, 'claude-plugins': imageId } });
   const keep = `s5-ctl-keep-${process.pid}`;
   const sweep = `s5-ctl-sweep-${process.pid}`;
+  const taskOnly = `s5-ctl-taskonly-${process.pid}`;
   const exists = (name) => docker('ps', '-aq', '--filter', `name=^/${name}$`) !== '';
   try {
-    // R122's control: two stopped containers of ours, one with s5=1 only (the proxy looks like this), one that also carries s5.task.
+    // R122/R134 (c)'s control: three stopped containers, one with s5=1 only (the proxy looks like this), one with s5.task only, one with both.
     docker('create', '--name', keep, '--label', 's5=1', imageRef, 'true');
+    docker('create', '--name', taskOnly, '--label', `s5.task=ctl-taskonly-${process.pid}`, imageRef, 'true');
     docker('create', '--name', sweep, '--label', 's5=1', '--label', `s5.task=ctl-${process.pid}`, imageRef, 'true');
-    assert.ok(exists(keep) && exists(sweep));
+    assert.ok(exists(keep) && exists(sweep) && exists(taskOnly));
 
     await ta('docker: a smoke batch through the real agent and grade containers, on the pinned image id, with every default seam real; the sweep removes the s5.task container and keeps the s5=1-only one', async () => {
       const rowsFile = path.join(scene.workRoot, '..', `rows-docker-${process.pid}.jsonl`);
@@ -1712,13 +2082,14 @@ const dockerTest = async () => {
         assert.ok(!JSON.stringify(r).includes(SENTINEL));
       }
       assert.ok(!readFileSync(rowsFile, 'utf8').includes(SENTINEL));
-      assert.equal(exists(sweep), false, 'the stale s5.task container was swept');
+      assert.equal(exists(sweep), false, 'the stale container with s5=1 and s5.task was swept');
       assert.equal(exists(keep), true, 'a container with s5=1 only (like the proxy) was not');
+      assert.equal(exists(taskOnly), true, 'nor one with s5.task only (the runner removes only s5=1 containers)');
       assert.equal(docker('ps', '-aq', '--filter', `label=s5.task=${id}`), '', 'no container of this task is left, the agent\'s or the grader\'s');
       assert.ok(!existsSync(path.join(scene.workRoot, 'batch.lock')));
     });
   } finally {
-    for (const name of [keep, sweep]) spawnSync('docker', ['rm', '-f', name], { stdio: 'ignore', timeout: 120_000 });
+    for (const name of [keep, sweep, taskOnly]) spawnSync('docker', ['rm', '-f', name], { stdio: 'ignore', timeout: 120_000 });
   }
 };
 

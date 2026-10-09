@@ -43,7 +43,7 @@
 import { spawnSync } from 'node:child_process';
 import { createHash, randomUUID } from 'node:crypto';
 import {
-  closeSync, constants, createReadStream, fstatSync, fsyncSync, lstatSync, mkdirSync, openSync, readdirSync, readFileSync, statSync, truncateSync, unlinkSync, writeFileSync, writeSync,
+  closeSync, constants, createReadStream, fstatSync, fsyncSync, ftruncateSync, lstatSync, mkdirSync, openSync, readdirSync, readFileSync, statSync, truncateSync, unlinkSync, writeFileSync, writeSync,
 } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -51,7 +51,7 @@ import { fileURLToPath } from 'node:url';
 import { makeRng, shuffle } from '../s4-prng.mjs';
 import { decisionFromLog } from '../s4-rows.mjs';
 import { hashBuiltTask, hashHidden, reflinkCopy } from './build-task.mjs';
-import { dockerRun, removeLabeled } from './docker.mjs';
+import { DOCKER_PASSTHROUGH, dockerRun, removeLabeled } from './docker.mjs';
 import {
   gradeTree, infraOf, readResultFile, removeGradeDir, RUN_ID_RE,
 } from './grade.mjs';
@@ -743,23 +743,31 @@ export async function runOne(run, ctx) {
 //      of the proxy image equal prereg.images; 'sha256:' + the Claude binary's hex equals prereg.cli.sha256 (R49, R75), hashed once.
 //   4  <workRoot>/cargo-home is a directory when a planned task is a cargo task (R106b).   5  the proxy is running, when ctx.proxyUrl is not
 //      null and ctx.network is the default.   6  the token variable (ctx.tokenEnv) is set and not empty.
-//   The rows file is parsed once here as well: a damaged one refuses before the lock, the sweep or the scrub.
+//   The rows file is parsed once here as well: a damaged one, or one that holds a row of another mode (R133), refuses before the lock, the
+//   sweep or the scrub.
 //
 // THEN, IN THIS ORDER (R123, R122, R117, R93):
 //   the lock <workRoot>/batch.lock ({ pid, startedAt, mode, rowsFile }, taken with O_EXCL; a live holder, or one the batch cannot read,
-//   refuses; a dead holder's lock is stale and replaced; released in a finally, only if it still names us). The sweep and the scrub both
+//   refuses; a dead holder's lock is stale and replaced; a write that fails after the create removes the empty file (R134 d); released in a
+//   finally, only if it still names us). The sweep and the scrub both
 //   destroy a LIVE batch's work (its containers, the token in its config/ and state/), hence one batch per work root.
 //   the signal handlers (R119; installed here, so that a signal during the read-only preflight, which has written nothing, keeps its default
 //   action); the rows file read again (the lock makes this read the true one);
-//   the sweep: removeLabeled('s5.task'). NOT 's5=1': the proxy container carries s5=1 and s5.run=s5-proxy, and sweeping s5=1 would remove
-//   the proxy the preflight just found running. Every container runOne, gradeTree and warmTask start carries s5.task (R122);
+//   the sweep: removeLabeled(['s5=1', 's5.task']), both labels, which docker ANDs (R122, R134 c). NOT s5=1 alone: the proxy container carries
+//   s5=1 and s5.run=s5-proxy, and sweeping s5=1 would remove the proxy the preflight just found running; NOT s5.task alone: the runner removes
+//   only s5=1 containers. Every container runOne, gradeTree and warmTask start carries both;
 //   scrubRunDirs(<workRoot>/runs, token): the token an interrupted attempt left in config/ or state/ (R117); a path it cannot clean refuses the
 //   batch, naming the count and the first path with the token redacted; writeHookCopy(<workRoot>/hook, esRoot): once, for every run; then,
 //   when the real runOne is used, runOne's own checks of its ctx on the first run (an unusable ctx is refused once, instead of making every
 //   runOne throw: each throw is an attempt, and the whole plan would end as final infra_exhausted lines).
+//   Before the workers start the batch yields once (setImmediate): the start-up above is synchronous, so a signal that arrived during it is only
+//   queued, and without the yield the first `concurrency` runs would start before the stop is seen (R129).
 //
 // THE ROWS FILE (R100): JSONL, appended to, one line per ATTEMPT (open, write, fsync, close). A line with a `type` key is not a Row (the stopped
-// line); a line without a runId is none either. A final row (final === true) makes its run done. attemptsUsed = the rows with that runId and
+// line). Every other line must be a Row (R134 b: runId a string, final a boolean, infra null or a string) with the `mode` of THIS batch (R133),
+// else the batch refuses, naming the line: run ids are the same in smoke, pilot, calibrate and measure, so a measure batch on a file with smoke
+// rows would skip them as final and the analysis would count them. Every line the batch appends, the stopped line too, carries `mode`.
+// A final row (final === true) makes its run done. attemptsUsed = the rows with that runId and
 // final === false AFTER its last final row (R125: for a run that was never final, all of them); 1 + prereg.limits.infraRetries attempts are
 // allowed. A run with no row starts at attemptsUsed 0.
 //   infra null               the row is appended as it is, final: true.
@@ -778,18 +786,26 @@ export async function runOne(run, ctx) {
 // The attempt number is 1 + the highest N of the existing runs/<runId>-aN entries (0 when none), chosen per attempt, never reused (R106a).
 // A torn LAST line (a crash during an append) is ignored (Summary.tornLine) and cut off before the first append; a bad line anywhere else
 // refuses the batch. This cut is the only write that is not an append.
+// A write that fails part-way (R128) is rolled back: the size is recorded after the open and on any failure of the write or the fsync the file is
+// cut back to it and the error rethrown; if that cut fails too, the appender is broken for good (every later append throws the first error at
+// once and writes nothing, so nothing is glued to the fragment, which the next batch cuts as a torn tail). The state changes only after a
+// successful append. A rows-file write failure makes runBatch throw after the runs in flight have finished.
 //
 // ORDER, THE STOP RULE, SIGNALS. Runs start in the order of planRunsS5, at most `concurrency` at a time. Before every start, a retry included,
 // the costUsd of EVERY Row of the file (null adds 0; a typed line is no Row) is summed; when the sum is >= stopAtCostUsd nothing starts, the
-// runs in flight finish and are recorded, and ONE line { type: 'stopped', at, reason: 'cost' | 'hidden_changed' | 'signal', costUsd, limit } is
+// runs in flight finish and are recorded, and ONE line { type: 'stopped', at, reason: 'cost' | 'hidden_changed' | 'signal', costUsd, limit, mode } is
 // appended after them (the first reason wins). The sum is read from the file at start, so a resumed batch with the limit reached starts nothing
 // and says so; a batch with nothing left to start says nothing. The first SIGINT or SIGTERM is such a stop; the second removes the handlers and
 // raises that signal on the process, so the default action ends it at once (a hard kill mid-run loses that paid run without a row, and the
-// container it leaves is swept by the next batch).
-// THE CIRCUIT BREAKER (R124). An outage fails attempt after attempt of run after run, and an exhausted line is final: left alone it would turn the
+// container it leaves is swept by the next batch). dockerRun spawns every agent and grade docker client in a process group of its own (R131), so
+// a terminal's Ctrl+C reaches the harness only: the first signal really lets the containers in flight finish. A container that is cut off all the
+// same (exit 130, 137 or 143 without a timeout) is infra `interrupted` in runOne (R132), never a graded model failure.
+// THE CIRCUIT BREAKER (R124, R127). An outage fails attempt after attempt of run after run, and an exhausted line is final: left alone it would turn the
 // plan into infra_exhausted lines in seconds. The infrastructure attempts are counted in completion order across all workers (a thrown runOne
-// is one; an attempt with infra null resets the count to 0); at 2 * (1 + infraRetries) in a row the batch stops with reason 'infra_streak' and
-// the line is { type: 'stopped', at, reason: 'infra_streak', streak, lastInfra, costUsd, limit: null } (streak: the count that tripped it).
+// is one; an attempt with infra null resets the count to 0), and the count STARTS from the rows file (R127): the number of consecutive trailing
+// attempt rows with an infrastructure value (typed lines skipped, an exhausted row counts), so a resume while the outage persists stops at its
+// first further failure; at 2 * (1 + infraRetries) in a row the batch stops with reason 'infra_streak' and
+// the line is { type: 'stopped', at, reason: 'infra_streak', streak, lastInfra, costUsd, limit: null, mode } (streak: the count that tripped it).
 // After ANY stop (cost, hidden_changed, signal, infra_streak) a run in flight finishes its CURRENT attempt and starts no retry: with attempts
 // left it stays non-final and a resume continues it; on its last allowed attempt it is still written infra_exhausted. At most about two runs
 // are falsely exhausted by an outage, and retryExhausted recovers them.
@@ -806,14 +822,13 @@ export async function runOne(run, ctx) {
 //   limit: null })   scrubbed   { dirs, files } of the start-of-batch scrub   tornLine   a torn last line was ignored.
 // Nothing is printed. The batch never starts a model itself: runOne starts the agent container, with the real Claude binary mounted.
 
-// R122: every container runOne, gradeTree and warmTask start carries s5.task; the proxy container does not (it carries s5=1 and s5.run=s5-proxy).
-const SWEEP_LABEL = 's5.task';
+// R122, R134 (c): every container runOne, gradeTree and warmTask start carries s5=1 AND s5.task; the proxy container carries s5=1 and s5.run=s5-proxy
+// but not s5.task, so it is not swept. Both labels are filtered on (docker ANDs them): the runner removes only s5=1 containers (the global constraint).
+const SWEEP_LABELS = Object.freeze(['s5=1', 's5.task']);
 const LOCK_FILE = 'batch.lock';
 const LOCK_TRIES = 3;
 const DEFAULT_TOKEN_ENV = 'CLAUDE_CODE_OAUTH_TOKEN';
 const DOCKER_HELPER_TIMEOUT_MS = 60_000;
-// docker.mjs's list: the only variables a docker process inherits from this one.
-const DOCKER_PASSTHROUGH = ['PATH', 'HOME', 'DOCKER_HOST', 'DOCKER_CONFIG', 'DOCKER_CONTEXT', 'DOCKER_CERT_PATH', 'DOCKER_TLS_VERIFY'];
 const STOP_SIGNALS = ['SIGINT', 'SIGTERM'];
 const BATCH_SEAMS = ['runOne', 'imageIdOf', 'sha256File', 'proxyRunning', 'esRoot', 'kill'];
 const SEAM_FUNCTIONS = ['runOne', 'imageIdOf', 'sha256File', 'proxyRunning', 'kill'];
@@ -978,7 +993,11 @@ async function batchPreflight(prereg, o, plan) {
 
 // -> { rows, tornLine, tornAt, needsNewline }. rows: the Rows of the file, in order (a line with a `type` key, or without a runId, is none).
 // An unparsable last line is torn (tornAt: where it starts); an unparsable line anywhere else throws, naming the line.
-function readRowsFile(file) {
+// -> { rows, tornLine, tornAt, needsNewline }. rows: the Rows of the file, in order (a line with a `type` key is none). An unparsable last line is
+// torn (tornAt: where it starts); an unparsable line anywhere else throws, naming the line. Every other line must be a Row (R134 b: runId a
+// string, final a boolean, infra null or a string) of THIS batch's mode (R133: run ids are the same in every mode, so a measure batch on a
+// file with smoke rows would skip them as final and the analysis would count them), else the batch refuses, naming the line.
+function readRowsFile(file, mode) {
   let buf;
   try {
     buf = readFileSync(file);
@@ -1009,8 +1028,19 @@ function readRowsFile(file) {
   for (const line of bad) {
     if (line !== torn) throw new Error(`runBatch: the rows file ${file} line ${line.no} is not a JSON object; only the LAST line can be a torn write, so the file is damaged and the batch does not start`);
   }
+  const rows = [];
+  for (const { no: lineNo, value } of lines) {
+    if (value === undefined || Object.hasOwn(value, 'type')) continue;
+    if (typeof value.runId !== 'string' || typeof value.final !== 'boolean' || !(value.infra === null || typeof value.infra === 'string')) {
+      throw new Error(`runBatch: the rows file ${file} line ${lineNo} is not a Row (runId a string, final a boolean, infra null or a string), so the file is damaged and the batch does not start`);
+    }
+    if (value.mode !== mode) {
+      throw new Error(`runBatch: the rows file ${file} line ${lineNo} carries ${value.mode === undefined ? 'no mode' : `mode ${show(value.mode)}`} but this batch is ${show(mode)}: a rows file belongs to one mode (R133), because the same run id exists in every mode`);
+    }
+    rows.push(value);
+  }
   return {
-    rows: lines.filter((line) => line.value !== undefined && !Object.hasOwn(line.value, 'type') && typeof line.value.runId === 'string').map((line) => line.value),
+    rows,
     tornLine: torn !== null,
     tornAt: torn === null ? null : torn.start,
     needsNewline: torn === null && buf.length > 0 && buf[buf.length - 1] !== 0x0a,
@@ -1019,22 +1049,40 @@ function readRowsFile(file) {
 
 // The writer of the rows file: one line per call, one open-write-fsync-close. The first call cuts a torn last line off (and a last line
 // that lacks its newline gets one in front of the new line), so the file always parses completely afterwards.
+// The writer of the rows file: one line per call, one open-write-fsync-close. The first call cuts a torn last line off (and a last line
+// that lacks its newline gets one in front of the new line), so the file always parses completely afterwards.
+//
+// R128: a write that fails part-way (ENOSPC on the disk that also holds every run's work/ and target/) must not leave a fragment for the
+// next append to glue a complete, paid row onto. The size is recorded after the open; on ANY failure of the write or the fsync the file is
+// cut back to it and the error rethrown. If that cut fails too the appender is broken for good: every later call throws the FIRST error at
+// once and writes nothing (a fragment left alone is a torn tail, which the next batch cuts; a row glued after it is a lost row). The state
+// (the torn tail to cut, the missing newline) changes only after a successful append.
 function rowsAppender(file, state) {
   const pending = { tornAt: state.tornAt, needsNewline: state.needsNewline };
+  let broken = null;
   return (value) => {
-    if (pending.tornAt !== null) {
-      truncateSync(file, pending.tornAt);
-      pending.tornAt = null;
-    }
+    if (broken !== null) throw broken;
+    if (pending.tornAt !== null) truncateSync(file, pending.tornAt);
     const bytes = Buffer.from(`${pending.needsNewline ? '\n' : ''}${JSON.stringify(value)}\n`);
-    pending.needsNewline = false;
     const fd = openSync(file, 'a');
     try {
-      for (let off = 0; off < bytes.length;) off += writeSync(fd, bytes, off);
-      fsyncSync(fd);
+      const size = fstatSync(fd).size;
+      try {
+        for (let off = 0; off < bytes.length;) off += writeSync(fd, bytes, off);
+        fsyncSync(fd);
+      } catch (err) {
+        try {
+          ftruncateSync(fd, size);
+        } catch {
+          broken = err;
+        }
+        throw err;
+      }
     } finally {
       closeSync(fd);
     }
+    pending.tornAt = null;
+    pending.needsNewline = false;
   };
 }
 
@@ -1144,6 +1192,14 @@ function acquireLock(workRoot, info) {
     try {
       writeSync(fd, `${JSON.stringify(info)}\n`);
       fsyncSync(fd);
+    } catch (err) {
+      // R134 (d): an empty or half lock would refuse every later batch as unreadable until someone removes it by hand.
+      try {
+        unlinkSync(file);
+      } catch {
+        // the original error is the one that matters
+      }
+      throw err;
     } finally {
       closeSync(fd);
     }
@@ -1201,7 +1257,7 @@ export async function runBatch(prereg, options) {
   const o = resolveBatch(prereg, options);
   const plan = planRunsS5(prereg, { mode: o.mode, taskIds: o.taskIds }); // item 1: the planner owns the mode rules
   const checked = await batchPreflight(prereg, o, plan);
-  readRowsFile(o.rowsFile); // a damaged rows file refuses before the lock, the sweep and the scrub
+  readRowsFile(o.rowsFile, o.mode); // a damaged rows file, or one of another mode, refuses before the lock, the sweep and the scrub
 
   const lock = acquireLock(o.workRoot, { pid: process.pid, startedAt: new Date().toISOString(), mode: o.mode, rowsFile: o.rowsFile });
   let removeHandlers = () => {};
@@ -1214,8 +1270,8 @@ export async function runBatch(prereg, options) {
     removeHandlers = stopOnSignals(() => requestStop('signal'), o.kill);
 
     mkdirSync(path.dirname(o.rowsFile), { recursive: true });
-    const file = readRowsFile(o.rowsFile);
-    removeLabeled(SWEEP_LABEL, { dockerBin: o.ctx.dockerBin });
+    const file = readRowsFile(o.rowsFile, o.mode);
+    removeLabeled([...SWEEP_LABELS], { dockerBin: o.ctx.dockerBin });
     const runsDir = path.join(o.workRoot, 'runs');
     const scrubbed = scrubRunDirs(runsDir, checked.token);
     if (scrubbed.failed.length > 0) {
@@ -1227,10 +1283,17 @@ export async function runBatch(prereg, options) {
     // ---- the runs ----
     const appendLine = rowsAppender(o.rowsFile, file);
     const rows = file.rows; // every Row of the file; each Row appended by this batch is pushed
+    // R133: every line carries the mode of the batch (run ids are the same in every mode, so a line must say which study it belongs to).
     const append = (row) => {
-      appendLine(row);
-      rows.push(row);
+      const line = { ...row, mode: o.mode };
+      appendLine(line);
+      rows.push(line);
     };
+    // R127: the streak does not restart from 0 at a resume. It starts at the number of consecutive trailing attempt rows of the file with an
+    // infrastructure value (typed lines are not in `rows`; an exhausted row counts), so a resume while the outage persists stops at its first
+    // further failure, and a first good attempt resets it.
+    let streak = 0;
+    for (let i = rows.length - 1; i >= 0 && rows[i].infra !== null; i -= 1) streak += 1;
     const allowed = 1 + o.infraRetries;
     // R124: this many infrastructure attempts in a row, across all runs, in completion order, stop the batch.
     const streakLimit = 2 * allowed;
@@ -1299,7 +1362,6 @@ export async function runBatch(prereg, options) {
         return failedAttemptRow(run, startedAt, err, checked.token);
       }
     };
-    let streak = 0; // consecutive infrastructure attempts, in completion order, across all workers
     const runToEnd = async (run) => {
       for (let first = true; ; first = false) {
         if (!first && !mayStart()) return; // the retry is a start like any other, and after ANY stop none starts (R124)
@@ -1339,6 +1401,9 @@ export async function runBatch(prereg, options) {
         fatal ??= err; // the others start nothing more; the first failure is thrown once they have finished
       }
     };
+    // R129: the start-up above is synchronous (the sweep is a spawnSync), so a signal that arrived during it is only queued. Yield once so that
+    // its handler runs and mayStart sees the stop BEFORE the first `concurrency` runs start (each of which is paid for and may last 90 minutes).
+    await new Promise((resolve) => { setImmediate(resolve); });
     await Promise.all(Array.from({ length: Math.min(o.concurrency, queue.length) }, () => worker()));
     if (fatal !== null) throw fatal;
 
@@ -1348,7 +1413,7 @@ export async function runBatch(prereg, options) {
       // The infra_streak line says what tripped it and has no cost limit (limit null); the others carry the cost limit they were run with.
       const detail = stop.reason === 'infra_streak' ? { streak: stop.streak, lastInfra: stop.lastInfra } : {};
       const limit = stop.reason === 'infra_streak' ? null : o.stopAtCostUsd;
-      appendLine({ type: 'stopped', at: new Date().toISOString(), reason: stop.reason, ...detail, costUsd, limit });
+      appendLine({ type: 'stopped', at: new Date().toISOString(), reason: stop.reason, ...detail, costUsd, limit, mode: o.mode });
       stopped = { reason: stop.reason, ...detail, costUsd, limit };
     }
     return {
