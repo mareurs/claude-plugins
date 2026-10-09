@@ -1,6 +1,7 @@
 // build-task.mjs — build one S5 task from a fix commit C and its parent P.
 //
 //   buildTask(taskDir, { workRoot }) -> Manifest      (synchronous; no model, no Docker)
+//   hashBuiltTask(taskOutDir) -> { treeHash, hiddenHash, promptHash }      (the one definition of the three hashes, ruling R103)
 //   treeAtFix(manifest, srcTreeDir, dstDir) -> the fix tree's commit id      (the task gate's fix tree)
 //   reflinkCopy(src, dst)
 //
@@ -12,6 +13,8 @@
 //                   every depth and replaced by a short task CLAUDE.md; TASK.md sits at the root.
 //   hidden/         the fix commit's version of each hidden.files path, plus each hidden.extra file
 //                   from <taskDir>/extra-tests/, each at its relative path.
+//   prompt.txt      the task's prompt.txt, byte for byte (ruling R98). It sits beside manifest.json and NEVER inside tree/:
+//                   the agent must not see the file, and treeHash must not move. A run reads its first message from here.
 //   manifest.json   { id, repo, fix, parent, baseCommit, treeHash, hiddenHash, promptHash, taskMdHash, def }
 //
 // Hashes are sha256 hex.
@@ -295,16 +298,21 @@ export function buildTask(taskDir, { workRoot } = {}) {
     scrubTree(treeDir, needles);
     const baseCommit = commitTree(treeDir, def.id);
     writeHidden(def, taskDir, hiddenDir);
+    // The prompt's bytes, unchanged, beside manifest.json and never inside tree/ (ruling R98): the agent must not see the file,
+    // and the run reads its first message from here, verified against promptHash.
+    writeFileSync(join(out, 'prompt.txt'), prompt, { flag: 'wx' });
 
+    // The three hashes come from the one function everyone else uses (ruling R103), after everything they cover is on disk.
+    const { treeHash, hiddenHash, promptHash } = hashBuiltTask(out);
     const manifest = {
       id: def.id,
       repo: def.repo,
       fix: def.fix,
       parent: def.parent,
       baseCommit,
-      treeHash: hashEntries(treeDir, listEntries(treeDir, { skipRootGit: true })),
-      hiddenHash: hashEntries(hiddenDir, listEntries(hiddenDir)),
-      promptHash: sha256(prompt),
+      treeHash,
+      hiddenHash,
+      promptHash,
       taskMdHash: sha256(taskMd),
       def,
     };
@@ -315,6 +323,22 @@ export function buildTask(taskDir, { workRoot } = {}) {
     throw err;
   }
 }
+// hashBuiltTask(taskOutDir) -> { treeHash, hiddenHash, promptHash }      (synchronous; reads files only)
+//
+// The ONE definition of the three hashes of a built task (ruling R103). taskOutDir is <workRoot>/tasks/<id>. buildTask fills its
+// manifest through this function, and whoever checks a built task later calls it too (the batch's preflight, runOne's per-run
+// check of hidden/), so a hash is never defined twice. treeHash is over every file of tree/ except the top-level .git, hiddenHash
+// over hidden/, promptHash is the sha256 of prompt.txt's bytes; see the header for the exact definition.
+export function hashBuiltTask(taskOutDir) {
+  const tree = join(taskOutDir, 'tree');
+  const hidden = join(taskOutDir, 'hidden');
+  return {
+    treeHash: hashEntries(tree, listEntries(tree, { skipRootGit: true })),
+    hiddenHash: hashEntries(hidden, listEntries(hidden)),
+    promptHash: sha256(readFileSync(join(taskOutDir, 'prompt.txt'))),
+  };
+}
+
 // The task CLAUDE.md and TASK.md as the P tree holds them: regular files, never a link.
 function readRootFile(dir, name) {
   const p = join(dir, name);

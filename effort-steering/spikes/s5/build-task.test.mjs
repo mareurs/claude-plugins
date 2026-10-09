@@ -16,7 +16,7 @@ import { dirname, join } from 'node:path';
 import { t } from '../../core/testkit.mjs';
 import { git } from './git.mjs';
 import { makeRepo } from './fixtures/make-repo.mjs';
-import { buildTask, reflinkCopy, renderTaskClaudeMd, shellQuote, treeAtFix } from './build-task.mjs';
+import { buildTask, hashBuiltTask, reflinkCopy, renderTaskClaudeMd, shellQuote, treeAtFix } from './build-task.mjs';
 import { moduleOf } from './grade.mjs';
 import { IMAGE_FOR_REPO, loadTaskDef, moduleOf as loaderModuleOf } from './task-def.mjs';
 
@@ -809,6 +809,78 @@ t('promptHash changes when prompt.txt changes by one byte, and nothing else does
   assert.equal(p.treeHash, a.treeHash);
   assert.equal(p.hiddenHash, a.hiddenHash);
   assert.equal(p.taskMdHash, a.taskMdHash);
+});
+
+// ---- prompt.txt in the built task (R98) and the one definition of the three hashes (R103) ----
+
+t("R98: buildTask writes the prompt's bytes, unchanged, to <out>/prompt.txt beside manifest.json, and never into tree/", () => {
+  // Bytes a text round trip would change: CRLF, multibyte characters, trailing spaces, no final newline, a lone 0xff (not UTF-8).
+  const bytes = Buffer.concat([Buffer.from('add returns the difference\r\nof its arguments é \u{1F600}  '), Buffer.from([0xff])]);
+  const b = build(src, { prompt: bytes });
+  assert.deepEqual(readFileSync(join(b.out, 'prompt.txt')), bytes, 'the bytes, as they are');
+  assert.ok(lstatSync(join(b.out, 'prompt.txt')).isFile());
+  assert.equal(b.manifest.promptHash, sha256(bytes));
+  assert.deepEqual(readdirSync(b.out).sort(), ['hidden', 'manifest.json', 'prompt.txt', 'tree'], 'prompt.txt sits beside manifest.json');
+  assert.ok(!walk(b.treeDir, { skipGit: true }).some((p) => p.split('/').pop() === 'prompt.txt'), 'the agent must not see the file: no prompt.txt anywhere in tree/');
+  assert.ok(!existsSync(join(b.treeDir, 'prompt.txt')));
+  // The tree is the tree it was: the prompt is not part of it.
+  assert.equal(build(src, { prompt: `${PROMPT}.` }).manifest.treeHash, build(src).manifest.treeHash);
+});
+
+t('R98: a refused build leaves no task dir, so no prompt.txt either', () => {
+  refuses(src, 'a scrub term in the prompt', { prompt: `${PROMPT}${SLUG}\n` }, /prompt\.txt/);
+  refuses(src, 'a missing hidden file', { edit: (d) => { d.hidden.files = ['tests/nope.rs']; } }, /tests\/nope\.rs/);
+});
+
+t("R103: hashBuiltTask(out) returns exactly the manifest's treeHash, hiddenHash and promptHash, and buildTask fills its manifest through it", () => {
+  const b = build(src);
+  const h = hashBuiltTask(b.out);
+  assert.deepEqual(Object.keys(h), ['treeHash', 'hiddenHash', 'promptHash']);
+  assert.equal(h.treeHash, b.manifest.treeHash);
+  assert.equal(h.hiddenHash, b.manifest.hiddenHash);
+  assert.equal(h.promptHash, b.manifest.promptHash);
+  // Against the independent oracle too, so that the function and the manifest cannot agree on a wrong definition.
+  assert.equal(h.treeHash, expectedHash(b.treeDir, walk(b.treeDir, { skipGit: true })));
+  assert.equal(h.hiddenHash, expectedHash(b.hiddenDir, walk(b.hiddenDir)));
+  assert.equal(h.promptHash, sha256(Buffer.from(PROMPT)));
+  // A second build of the same task, elsewhere, hashes the same.
+  assert.deepEqual(hashBuiltTask(build(src).out), h);
+});
+
+t('R103: hashBuiltTask changes exactly one hash when one byte of tree/, hidden/ or prompt.txt changes', () => {
+  const b = build(src);
+  const base = hashBuiltTask(b.out);
+  const append = (file) => {
+    const bytes = readFileSync(file);
+    writeFileSync(file, Buffer.concat([bytes, Buffer.from('x')]));
+    return () => writeFileSync(file, bytes);
+  };
+  const changed = (before, after) => Object.keys(before).filter((k) => before[k] !== after[k]);
+
+  let undo = append(join(b.treeDir, 'src/lib.rs'));
+  assert.deepEqual(changed(base, hashBuiltTask(b.out)), ['treeHash'], 'one byte of tree/');
+  undo();
+  undo = append(join(b.hiddenDir, 'tests/hidden_a.rs'));
+  assert.deepEqual(changed(base, hashBuiltTask(b.out)), ['hiddenHash'], 'one byte of hidden/');
+  undo();
+  undo = append(join(b.out, 'prompt.txt'));
+  assert.deepEqual(changed(base, hashBuiltTask(b.out)), ['promptHash'], 'one byte of prompt.txt');
+  undo();
+  assert.deepEqual(hashBuiltTask(b.out), base, 'restored, the same hashes again');
+
+  // The top-level .git is not part of the tree hash (the agent commits there); a nested .git is.
+  writeFileSync(join(b.treeDir, '.git', 'agent-was-here'), 'x');
+  assert.equal(hashBuiltTask(b.out).treeHash, base.treeHash, 'the top-level .git is left out');
+  mkdirSync(join(b.treeDir, 'sub', '.git'), { recursive: true });
+  writeFileSync(join(b.treeDir, 'sub', '.git', 'x'), 'x');
+  assert.notEqual(hashBuiltTask(b.out).treeHash, base.treeHash, 'a nested .git is a file of the tree');
+});
+
+t('R103: hashBuiltTask refuses a task dir that is not a built task, naming what is missing', () => {
+  const b = build(src);
+  rmSync(join(b.out, 'prompt.txt'));
+  assert.throws(() => hashBuiltTask(b.out), /prompt\.txt/);
+  assert.throws(() => hashBuiltTask(join(b.out, 'nope')), /nope/);
 });
 
 t('treeHash covers the task CLAUDE.md: a different build command changes it', () => {

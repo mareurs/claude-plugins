@@ -270,7 +270,7 @@ await ta('gateTask, the ok case: one grade at the parent, three at the fix tree,
   assert.equal(r.leftover, null, 'the fix tree was removed');
   const onDisk = JSON.parse(readFileSync(join(sc.taskDir, 'gate.json'), 'utf8'));
   assert.deepEqual(onDisk, JSON.parse(JSON.stringify(r)), 'gate.json is the returned object');
-  assert.deepEqual(readdirSync(sc.taskDir).sort(), ['gate.json', 'hidden', 'manifest.json', 'tree'], 'no temp file is left');
+  assert.deepEqual(readdirSync(sc.taskDir).sort(), ['gate.json', 'hidden', 'manifest.json', 'prompt.txt', 'tree'], 'no temp file is left');
   assert.deepEqual(gateDirs(sc), [], 'the fix tree is removed afterwards');
 });
 
@@ -462,7 +462,7 @@ await ta('gateTask: gate.json replaces an older one atomically (tmp + rename), a
   assert.equal(readFileSync(outside, 'utf8'), 'ORIGINAL\n');
   assert.ok(lstatSync(gatePath).isFile());
   assert.equal(JSON.parse(readFileSync(gatePath, 'utf8')).ok, true);
-  assert.deepEqual(readdirSync(sc.taskDir).sort(), ['gate.json', 'hidden', 'manifest.json', 'tree']);
+  assert.deepEqual(readdirSync(sc.taskDir).sort(), ['gate.json', 'hidden', 'manifest.json', 'prompt.txt', 'tree']);
 });
 
 await ta('gateTask: a gate.json that cannot be written throws, leaves the old one and no temp file', async () => {
@@ -472,7 +472,7 @@ await ta('gateTask: a gate.json that cannot be written throws, leaves the old on
   writeFileSync(join(gatePath, 'keep'), 'x');
   await assert.rejects(gateTask(sc.manifest, { workRoot: sc.workRoot, grade: scripted(OK_SERIES()).grade }));
   assert.ok(lstatSync(gatePath).isDirectory());
-  assert.deepEqual(readdirSync(sc.taskDir).sort(), ['gate.json', 'hidden', 'manifest.json', 'tree'], 'the temp file is removed');
+  assert.deepEqual(readdirSync(sc.taskDir).sort(), ['gate.json', 'hidden', 'manifest.json', 'prompt.txt', 'tree'], 'the temp file is removed');
 });
 
 await ta('gateTask refuses bad inputs before grading anything', async () => {
