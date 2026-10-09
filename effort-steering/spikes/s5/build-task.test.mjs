@@ -16,7 +16,7 @@ import { dirname, join } from 'node:path';
 import { t } from '../../core/testkit.mjs';
 import { git } from './git.mjs';
 import { makeRepo } from './fixtures/make-repo.mjs';
-import { buildTask, hashBuiltTask, reflinkCopy, renderTaskClaudeMd, shellQuote, treeAtFix } from './build-task.mjs';
+import { buildTask, hashBuiltTask, hashHidden, reflinkCopy, renderTaskClaudeMd, shellQuote, treeAtFix } from './build-task.mjs';
 import { moduleOf } from './grade.mjs';
 import { IMAGE_FOR_REPO, loadTaskDef, moduleOf as loaderModuleOf } from './task-def.mjs';
 
@@ -814,8 +814,8 @@ t('promptHash changes when prompt.txt changes by one byte, and nothing else does
 // ---- prompt.txt in the built task (R98) and the one definition of the three hashes (R103) ----
 
 t("R98: buildTask writes the prompt's bytes, unchanged, to <out>/prompt.txt beside manifest.json, and never into tree/", () => {
-  // Bytes a text round trip would change: CRLF, multibyte characters, trailing spaces, no final newline, a lone 0xff (not UTF-8).
-  const bytes = Buffer.concat([Buffer.from('add returns the difference\r\nof its arguments é \u{1F600}  '), Buffer.from([0xff])]);
+  // Bytes a text round trip would change: CRLF, multibyte characters, trailing spaces, no final newline (all valid UTF-8, R111).
+  const bytes = Buffer.from('add returns the difference\r\nof its arguments é \u{1F600}  ');
   const b = build(src, { prompt: bytes });
   assert.deepEqual(readFileSync(join(b.out, 'prompt.txt')), bytes, 'the bytes, as they are');
   assert.ok(lstatSync(join(b.out, 'prompt.txt')).isFile());
@@ -830,6 +830,47 @@ t("R98: buildTask writes the prompt's bytes, unchanged, to <out>/prompt.txt besi
 t('R98: a refused build leaves no task dir, so no prompt.txt either', () => {
   refuses(src, 'a scrub term in the prompt', { prompt: `${PROMPT}${SLUG}\n` }, /prompt\.txt/);
   refuses(src, 'a missing hidden file', { edit: (d) => { d.hidden.files = ['tests/nope.rs']; } }, /tests\/nope\.rs/);
+});
+
+t('R111: a prompt that is not valid UTF-8 is refused by name, and nothing is built; valid UTF-8 (a BOM, an astral character) is accepted', () => {
+  // The CLI receives the prompt as text on argv: a prompt whose bytes are not UTF-8 could not reach it byte for byte, and
+  // firstUserTextOk would compare against a decoded text with U+FFFD in it.
+  const bad = [
+    ['a lone 0xff', Buffer.concat([Buffer.from('add returns the difference'), Buffer.from([0xff]), Buffer.from('\n')])],
+    ['a truncated two-byte sequence', Buffer.concat([Buffer.from('add'), Buffer.from([0xc3])])],
+    ['an overlong encoding of "/"', Buffer.concat([Buffer.from('add'), Buffer.from([0xc0, 0xaf]), Buffer.from('\n')])],
+    ['a UTF-16 surrogate encoded as UTF-8', Buffer.concat([Buffer.from('add'), Buffer.from([0xed, 0xa0, 0x80]), Buffer.from('\n')])],
+  ];
+  for (const [label, prompt] of bad) refuses(src, label, { prompt }, /prompt\.txt/, /UTF-8/);
+  for (const [label, prompt] of [['a BOM', Buffer.concat([Buffer.from([0xef, 0xbb, 0xbf]), Buffer.from(PROMPT)])], ['an astral character', Buffer.from(`${PROMPT}\u{1F600}\n`)]]) {
+    const b = build(src, { prompt });
+    assert.deepEqual(readFileSync(join(b.out, 'prompt.txt')), prompt, label);
+  }
+});
+
+t("R109: hashHidden(out) is the hidden/ part of hashBuiltTask, one definition; it reads nothing outside hidden/", () => {
+  const b = build(src);
+  assert.equal(hashHidden(b.out), b.manifest.hiddenHash);
+  assert.equal(hashHidden(b.out), hashBuiltTask(b.out).hiddenHash);
+  assert.equal(hashHidden(b.out), expectedHash(b.hiddenDir, walk(b.hiddenDir)), 'against the independent oracle');
+  const before = hashHidden(b.out);
+  // A byte of hidden/ moves it...
+  const hiddenFile = join(b.hiddenDir, 'tests/hidden_a.rs');
+  const bytes = readFileSync(hiddenFile);
+  writeFileSync(hiddenFile, Buffer.concat([bytes, Buffer.from('x')]));
+  assert.notEqual(hashHidden(b.out), before);
+  writeFileSync(hiddenFile, bytes);
+  assert.equal(hashHidden(b.out), before);
+  // ...and nothing else does: not the tree, not the prompt, not their presence.
+  writeFileSync(join(b.treeDir, 'src/lib.rs'), 'changed\n');
+  writeFileSync(join(b.out, 'prompt.txt'), 'another prompt\n');
+  assert.equal(hashHidden(b.out), before, 'tree/ and prompt.txt are not read');
+  rmSync(join(b.out, 'prompt.txt'));
+  rmSync(b.treeDir, { recursive: true });
+  assert.equal(hashHidden(b.out), before, 'they may even be gone');
+  assert.throws(() => hashBuiltTask(b.out), 'whereas hashBuiltTask needs all three');
+  rmSync(b.hiddenDir, { recursive: true });
+  assert.throws(() => hashHidden(b.out), /hidden/);
 });
 
 t("R103: hashBuiltTask(out) returns exactly the manifest's treeHash, hiddenHash and promptHash, and buildTask fills its manifest through it", () => {
