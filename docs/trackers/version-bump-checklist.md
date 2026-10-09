@@ -14,7 +14,17 @@ Release readiness across plugins × profiles. See
 
 ## State
 
-_Last refresh: `8ce6a8e`, 2026-10-07 — `codescout-companion` 1.20.15→1.20.16 via
+_Last refresh: `e3745ba`, 2026-10-09 — `claude-statusline` 1.1.7→1.2.0 via
+`scripts/release.sh claude-statusline minor`, **pushed** (`main` `bcb1d3a..e3745ba`; `1850c2c` the
+feature, `e3745ba` the bump). `codescout-companion` unchanged at 1.20.16, `buddy` at 0.11.9, `legible`
+at 0.2.0. **`claude-statusline` is now installed in all three profiles** — see the note below the
+last table. Every value re-derived from disk by `refresh_params.py` (this session's scratchpad, not
+committed): each profile's `installed_plugins.json` (every array element; one per plugin in all
+three), cache-dir presence, README's version table, `marketplace.json`, and `diff -rq` of each cache
+against the working tree under the six documented excludes — **empty for all twelve plugin×profile
+pairs**._
+
+_Previous refresh: `8ce6a8e`, 2026-10-07 — `codescout-companion` 1.20.15→1.20.16 via
 `scripts/release.sh codescout-companion patch`, **pushed** (`main` `50752fc..aadbbeb`; `949c85e` the
 hook fix, `ffe67e5` the skill edit and its test, `aadbbeb` the bump). `buddy` unchanged at 0.11.9,
 `legible` unchanged at 0.2.0. `HEAD` is one docs commit past the bump. Every value re-derived from
@@ -113,9 +123,9 @@ being stripped as if they belonged to the parent) and `session-start.mjs` (recor
 `hook_source`/`hook_source_at` so a post-compact `/mcp` reconnect isn't mistaken for a fresh
 restart). `tests/run-all.sh` was green pre-flight, before the bump.
 
-**The tracked set is three plugins** (`legible` joined 2026-10-04; the two-plugin set before it
-was settled 2026-09-17 across three independent refreshes): `claude-statusline`, `sdd` and `session-bridge` remain
-absent from every profile's install record, none enabled anywhere.
+**The tracked set is four plugins** (`claude-statusline` joined 2026-10-09 as a side effect of its
+first release since the set was settled; `legible` joined 2026-10-04): `sdd` and `session-bridge`
+remain absent from every profile's install record, none enabled anywhere.
 
 **buddy** — canonical `0.11.9` · readme `0.11.9` · marketplace clean ✅
 
@@ -140,6 +150,23 @@ absent from every profile's install record, none enabled anywhere.
 | `~/.claude` | 0.2.0 ✅ | ✅ | ✅ | `0.2.0` ✅ | ✅ |
 | `~/.claude-sdd` | 0.2.0 ✅ | ✅ | ✅ | `0.2.0` ✅ | ✅ |
 | `~/.claude-kat` | 0.2.0 ✅ | ✅ | ✅ | `0.2.0` ✅ | ✅ |
+
+**claude-statusline** — canonical `1.2.0` · readme `1.2.0` · marketplace clean ✅
+
+| profile | installed | cache dir | install_path ok | all entries | cache = working tree |
+|---|---|---|---|---|---|
+| `~/.claude` | 1.2.0 ✅ | ✅ | ✅ | `1.2.0` ✅ | ✅ |
+| `~/.claude-sdd` | 1.2.0 ✅ | ✅ | ✅ | `1.2.0` ✅ | ✅ |
+| `~/.claude-kat` | 1.2.0 ✅ | ✅ | ✅ | `1.2.0` ✅ | ✅ |
+
+**`release.sh` created these records; nobody ran `claude plugin install`.** Before this release
+`claude-statusline` had no install record in any profile. The script's output read
+`claude-statusline 1.2.0 installing` for all three, and afterwards each profile holds one user-scope
+element pointing at its own `cache/.../claude-statusline/1.2.0`. `enabledPlugins` in all three
+`settings.json` files has **no** `claude-statusline` entry, so the plugin is installed but loads
+nothing (its hooks stay off). Buddy still resolves the script from the checkout, so the effort
+badge does not depend on these records. Whether this is wanted is the operator's call; it is
+recorded here because the previous refresh described the plugin as absent from every profile.
 
 **Runtime files in the codescout-companion pairs, 2026-10-04 — named, not excluded.** `diff -rq`
 under the six documented excludes shows `.codescout/usage.db-shm` and `.codescout/usage.db-wal`
@@ -166,9 +193,8 @@ subagent-guide-ledger or post-compact-reconnect scenario was exercised). `~/.cla
 restart or `/reload-plugins` per instance is what would clear that; unconfirmed for those two.
 
 **Not installed in any profile** (discovered in the repo, omitted from `params`):
-`claude-statusline`, `sdd`, `session-bridge`. `claude-statusline` is consumed as buddy's
-statusline row 1, and since `289c389` it resolves from the checkout, not from a cache dir —
-so having no install record is no longer a latent outage.
+`sdd`, `session-bridge`. `claude-statusline` was in this list until 2026-10-09; it is consumed as
+buddy's statusline row 1 and resolves from the checkout, not from a cache dir.
 
 ### The new column, and why it exists
 
@@ -274,6 +300,16 @@ measured on both candidate load paths rather than argued: the record points at k
 two actually serves, they carry the same bytes — so the question CLAUDE.md flags as
 unsettled does not need settling for this release.
 ## History
+### 2026-10-09 — claude-statusline 1.2.0 (effort badge), pushed; first install records for it
+
+**Deltas, all measured:**
+- `claude-statusline`: canonical, readme and installed `1.1.7→1.2.0`, via `scripts/release.sh claude-statusline minor`. Pushed (`main` `bcb1d3a..e3745ba`; `1850c2c` the feature, `e3745ba` the bump). **New in the tracked set:** all three profiles gained a user-scope install record and a seeded `1.2.0` cache from this release (previously none). `enabledPlugins` unchanged: not enabled anywhere.
+- `codescout-companion` 1.20.16, `buddy` 0.11.9, `legible` 0.2.0: unchanged. `diff -rq` empty ×3 each, so all twelve pairs are clean.
+- Push state: the release's own push carried the whole backlog, 24 commits before the bump, including other sessions' docs commits.
+- Gate: `tests/run-all.sh` green after the feature, before the bump; `tests/test-statusline.sh` 28 passed.
+- `last_refresh_commit` `8ce6a8e→e3745ba`.
+
+**Not probed:** registration after restart; that the live statusline shows the effort badge (checked only through `statusline-composed.sh` with a sample payload).
 ### 2026-10-07 — codescout-companion 1.20.16 (dirty-check advisory fix + peer-sessions skill), pushed
 
 **Deltas, all measured:**
