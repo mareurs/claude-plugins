@@ -40,16 +40,16 @@
 
 import { createHash, randomUUID } from 'node:crypto';
 import {
-  lstatSync, mkdirSync, readFileSync, statSync,
+  closeSync, constants, fstatSync, lstatSync, mkdirSync, openSync, readdirSync, readFileSync, statSync, writeFileSync,
 } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { makeRng, shuffle } from '../s4-prng.mjs';
 import { decisionFromLog } from '../s4-rows.mjs';
-import { hashBuiltTask, reflinkCopy } from './build-task.mjs';
+import { hashHidden, reflinkCopy } from './build-task.mjs';
 import { dockerRun } from './docker.mjs';
 import {
-  gradeTree, readResultFile, removeGradeDir, RUN_ID_RE,
+  gradeTree, infraOf, readResultFile, removeGradeDir, RUN_ID_RE,
 } from './grade.mjs';
 import { NETWORK, PROXY_URL } from './proxy.mjs';
 import { IMAGE_FOR_REPO, TASK_ID_RE } from './task-def.mjs';
@@ -142,13 +142,15 @@ export function planRunsS5(prereg, options) {
 //     dockerBin    the docker executable (a seam for tests).        grade   the grader (a seam), default gradeTree.
 //     network      default NETWORK (the proxy network); the proxy control passes 'bridge'.
 //     proxyUrl     default PROXY_URL; null means no HTTPS_PROXY variable at all.
-//     images       { repo: image reference }, default IMAGE_FOR_REPO[manifest.repo]. The grade runs in the same image.
+//     images       { repo: image reference }, default IMAGE_FOR_REPO[manifest.repo]. When it is given it must name the task's repo (R112:
+//                  a TypeError otherwise, no fall back to IMAGE_FOR_REPO). The grade runs in the same image.
 //     tokenEnv     the variable of THIS process that holds the OAuth token, default CLAUDE_CODE_OAUTH_TOKEN.
 //     keepRunDirs  keep the copies of the tree and the target after the run (debugging). Default false.
 //
 // BEFORE anything is made, runOne throws (no row, no run directory, no container) on: inputs it cannot use, a token variable that is
-// not set (the message names the variable, never a value), a prompt.txt whose sha256 is not the manifest's promptHash (R99), and a run
-// directory that already exists (it is never reused). A docker that cannot start also throws, after the cleanup below.
+// not set (the message names the variable, never a value), a prompt.txt whose sha256 is not the manifest's promptHash (R99) or that is
+// not valid UTF-8 (R111), and a run directory that already exists (it is never reused). A docker that cannot start also throws, after
+// the cleanup below.
 //
 // WHAT IT DOES, in this order.
 //   1. The run directory: `work` and, when the task has a warm target, `target` are reflink copies of tasks/<id>/tree and
@@ -158,25 +160,37 @@ export function planRunsS5(prereg, options) {
 //      agent. The Claude binary, the hook copy and the cargo home are read-only; config and state are /run/config and /run/state. Every
 //      environment variable goes by NAME (the value lives only in the docker process's environment, never in argv).
 //   3. The invocation (R93, R75), with the prompt as ONE argv element after `--`, the exact text of prompt.txt (R99).
-//   4. The classification, FIRST MATCH WINS (R87); every infrastructure value gives a non-final row without a grade:
-//        (1) create_failed | inspect_failed | rm_failed     what dockerRun reports about the container
-//        (2) oom                                            OOMKilled, whatever the exit status
+//   4. The classification, FIRST MATCH WINS; every infrastructure value gives a non-final row without a grade:
+//        (1) (2) the container, by grade.mjs's infraOf on the dockerRun result with timedOut forced false (R105, which revises R87's
+//            order): create_failed, then oom (OOMKilled, whatever the exit status), then inspect_failed, then rm_failed, so a failed
+//            removal never hides an OOM kill
 //        (3) transcript_unreadable (readRunUsage threw) | no_transcript | ambiguous_transcript
 //        (4) api_error                                      an API-error record in the MAIN transcript (a subagent's is recorded only)
 //        (5) no_log | arm_mismatch                          the decision log (R89): B must be treated and steered, A and C held out
 //        (6) effort_mismatch                                the transcript's efforts are not exactly [run.effort]
 //        (7) a timeout is a FINAL model failure (R90): infra null, grade null, never graded, whatever its tree would score
-//        (8) hidden_changed                                 the hidden dir no longer hashes to manifest.hiddenHash (R101)
+//        (8) hidden_changed                                 the hidden dir no longer hashes to manifest.hiddenHash (R101), through
+//                                                           hashHidden: a run does not read the whole tree (R109); the tree and the prompt
+//                                                           are the batch preflight's business
 //            grade_failed                                   gradeTree threw, or returned something that is no grade
 //            grade_<infra>                                  the grade's own infra, after the grade and two re-grades on the SAME tree
-//   5. The cleanup, on EVERY path including a throw: `work` and `target` are removed (removeGradeDir handles a directory the container
+//   5. The scrub (R108), on every path that reached the container, a throw included, after the usage was read and before the row guard:
+//      every regular file under `config` and `state` (never following a link) has every occurrence of the token's bytes replaced by
+//      [REDACTED]; a file that does not hold the token is not rewritten. The Row's `tokenScrubbed` counts the files that held it: 0
+//      normally, and above 0 in the pilot it is the measurement that the CLI exposes the token to its tools. A file that cannot be
+//      rewritten stops the row. runOne never sets CLAUDE_CODE_SUBPROCESS_ENV_SCRUB (the CLI's opt-in scrub of its subprocess
+//      environment: it switches off --dangerously-skip-permissions and needs bubblewrap in the image, a different instrument) nor
+//      GITHUB_ACTIONS; the exact list of the container's variables is pinned by a test.
+//   6. The cleanup, on EVERY path including a throw: `work` and `target` are removed (removeGradeDir handles a directory the container
 //      made read-only) unless keepRunDirs; `config` and `state` stay, the transcript is the evidence. A directory that could not be
 //      removed is reported as the Row's `leftover` (a list). When docker never ran the container, the run directory is removed
 //      altogether, so the same attempt can be made again.
 //
 // THE ROW. The brief's Row { runId, taskId, taskIndex, arm, effort, rep, round, sessionId, startedAt, wallMs, exit, infra, final,
 // decision, usage, efforts, costUsd, numTurns, firstUserTextOk, testsRunBeforeDone, finalTextTail, grade }, plus `isError` (R88, from
-// the stdout JSON) and, only when something is left over, `leftover`.
+// the stdout JSON), `tokenScrubbed` (R108), `infraDetail` (R110: only on an infrastructure row a caught error made, that is
+// transcript_unreadable, grade_failed and a hidden_changed whose hash threw: the error's message, the token redacted before the line is
+// cut to 300 characters) and, only when something is left over, `leftover`.
 //   exit     { code: dockerRun's status, timedOut, oomKilled }.         final   infra === null (R100: the batch decides exhaustion).
 //   usage    what readRunUsage returned, with transcriptPath and every subagentFiles entry RELATIVE to the run directory; null when it
 //            threw. costUsd, numTurns, isError: the stdout JSON's total_cost_usd, num_turns and is_error (R88); null when stdout is not
@@ -184,8 +198,10 @@ export function planRunsS5(prereg, options) {
 //   firstUserTextOk   the transcript's first user message equals the prompt after trimEnd() on both sides (R99); null without a transcript.
 //   testsRunBeforeDone, finalTextTail   from the transcript, with the task's testPatterns and the last 300 characters; null / '' without one.
 //   grade    the grade that stood, or null (a timeout, R90, or any infrastructure row).
-// A row never holds the token. The transcript text is scrubbed of it before finalTextTail is cut, and a row that would still hold it is
-// never returned (runOne throws, after the cleanup).
+// A row never holds the token. The transcript text is scrubbed of it before finalTextTail is cut, config/ and state/ are scrubbed in place
+// (step 5), and a row that would still hold it is never returned (runOne throws, after the cleanup). The row guard sees a WHOLE,
+// contiguous token only: a token split over two text blocks could leave a fragment in finalTextTail (R113). runs/ is therefore scrubbed
+// of the whole token, not guaranteed free of every fragment of it.
 
 const AGENT_USER = 'agent';
 const WORKDIR = '/work';
@@ -193,7 +209,11 @@ const WORKDIR = '/work';
 const GRADE_ATTEMPTS = 3;
 const FINAL_TEXT_CHARS = 300;
 const MAX_LOG_BYTES = 1024 * 1024;
-const REDACTED = '[redacted]';
+const REDACTED = '[REDACTED]';
+// A caught error's message in a row (infraDetail, R110) is cut to this many characters.
+const MAX_DETAIL_CHARS = 300;
+// A transcript or a log larger than this is not read into memory to be scrubbed (it is reported as a file the scrub failed on).
+const MAX_SCRUB_BYTES = 1 << 30;
 // docker.mjs's rule for an environment variable name.
 const ENV_NAME_RE = /^[A-Z_][A-Z0-9_]*$/;
 // The variables runOne sets itself; the token's variable may not be one of them.
@@ -294,20 +314,27 @@ function loadTask(taskDir, run) {
   if (actual !== manifest.promptHash) {
     throw new Error(`runOne: ${promptFile} hashes to ${actual}, not to the manifest's promptHash ${manifest.promptHash} (R99): the task is not the one that was built`);
   }
+  // R111: the prompt reaches the CLI as text on argv. Bytes that are not UTF-8 would come out as U+FFFD, the argv would not be the file,
+  // and firstUserTextOk would compare against the decoded text. buildTask refuses such a prompt; this is the defence for a task built before.
+  const prompt = bytes.toString('utf8');
+  if (!Buffer.from(prompt, 'utf8').equals(bytes)) throw new Error(`runOne: ${promptFile} is not valid UTF-8; the prompt must reach the CLI byte for byte (R111)`);
   // Copies are made of tree/ and target/ with cp -a, which would copy a link as a link: they are real directories or nothing.
   const tree = statOrNull(path.join(taskDir, 'tree'), lstatSync);
   if (tree === null || !tree.isDirectory()) throw new Error(`runOne: ${path.join(taskDir, 'tree')} is not a directory (a link is not a tree)`);
   const target = statOrNull(path.join(taskDir, 'target'), lstatSync);
   if (target !== null && !target.isDirectory()) throw new Error(`runOne: ${path.join(taskDir, 'target')} exists but is not a directory`);
-  return { manifest, prompt: bytes.toString('utf8'), hasTarget: target !== null };
+  return { manifest, prompt, hasTarget: target !== null };
 }
 
+// The image of the task's repo: ctx.images when it is given (and then it must name the repo, R112: a registration that pins images does
+// not silently run a repo in the tag IMAGE_FOR_REPO happens to hold), else IMAGE_FOR_REPO.
 function imageFor(repo, images) {
-  const own = (map) => (map !== undefined && Object.hasOwn(map, repo) ? map[repo] : undefined);
-  const chosen = own(images) ?? own(IMAGE_FOR_REPO);
-  if (typeof chosen !== 'string' || chosen === '') {
-    throw refuse(`no image for repo ${show(repo)}: IMAGE_FOR_REPO has none and ctx.images gives ${show(chosen)}`);
+  const table = images === undefined ? IMAGE_FOR_REPO : images;
+  if (!Object.hasOwn(table, repo)) {
+    throw refuse(`no image for repo ${show(repo)}: ${images === undefined ? 'IMAGE_FOR_REPO has none' : `ctx.images is given and has no entry for it (it has ${show(Object.keys(images))})`}`);
   }
+  const chosen = table[repo];
+  if (typeof chosen !== 'string' || chosen === '') throw refuse(`the image for repo ${show(repo)} must be a non-empty string, got ${show(chosen)}`);
   return chosen;
 }
 
@@ -332,11 +359,9 @@ function resultOf(stdout) {
 const isGrade = (g) => isObject(g) && (g.infra === null || (typeof g.infra === 'string' && g.infra !== '')) && typeof g.pass === 'boolean';
 
 // R87 steps (1) to (6): the infrastructure value of a run that ended in a container, or null. First match wins.
-function infraOf(run, docker, evidence) {
-  if (!docker.created) return 'create_failed';
-  if (!docker.inspectOk) return 'inspect_failed'; // dockerRun: oomKilled is null exactly when the inspect did not answer (or no container)
-  if (!docker.rmOk) return 'rm_failed';
-  if (docker.oomKilled === true) return 'oom';
+// R87 steps (3) to (6), what the run left behind: the infrastructure value, or null. First match wins. (The container's own state, steps
+// (1) and (2), is grade.mjs's infraOf, called on the dockerRun result: R105.)
+function evidenceInfra(run, evidence) {
   if (evidence.usage === null) return 'transcript_unreadable';
   if (evidence.usage.reason !== null) return evidence.usage.reason;
   if (evidence.usage.apiError) return 'api_error';
@@ -348,29 +373,108 @@ function infraOf(run, docker, evidence) {
   return null;
 }
 
+// An error as one short line for a row (infraDetail, R110): its message, else its code, else its name. The token is redacted FIRST, so that
+// the cut cannot leave the front of one behind, and the line is then cut to MAX_DETAIL_CHARS.
+function detailOf(err, token) {
+  const said = err instanceof Error ? (err.message || err.code || err.name) : err;
+  return String(said).split(token).join(REDACTED).slice(0, MAX_DETAIL_CHARS);
+}
+
+// R108: one file of config/ or state/, scrubbed in place. A regular file only (opened with O_NOFOLLOW: a link is skipped, never followed);
+// every occurrence of the token's bytes becomes [REDACTED]; a file that does not hold the token is only read, never rewritten, so its
+// time and its inode stay. -> true when it held the token. Throws when it held it and could not be rewritten.
+function scrubFile(file, tokenBytes) {
+  let fd;
+  try {
+    fd = openSync(file, constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK);
+  } catch (err) {
+    if (err.code === 'ELOOP' || err.code === 'ENOENT') return false;
+    throw err;
+  }
+  let bytes;
+  try {
+    const st = fstatSync(fd);
+    if (!st.isFile()) return false;
+    if (st.size > MAX_SCRUB_BYTES) throw new Error(`${file} is larger than ${MAX_SCRUB_BYTES} bytes`);
+    bytes = readFileSync(fd);
+  } finally {
+    closeSync(fd);
+  }
+  if (!bytes.includes(tokenBytes)) return false;
+  const parts = [];
+  let from = 0;
+  for (let at = bytes.indexOf(tokenBytes); at !== -1; at = bytes.indexOf(tokenBytes, from)) {
+    parts.push(bytes.subarray(from, at), Buffer.from(REDACTED));
+    from = at + tokenBytes.length;
+  }
+  parts.push(bytes.subarray(from));
+  const out = openSync(file, constants.O_WRONLY | constants.O_TRUNC | constants.O_NOFOLLOW);
+  try {
+    if (!fstatSync(out).isFile()) throw new Error(`${file} is no longer a regular file`);
+    writeFileSync(out, Buffer.concat(parts));
+  } finally {
+    closeSync(out);
+  }
+  return true;
+}
+
+// R108: scrubFile over every regular file below each root. -> { files: how many held the token, failed: the paths it could not handle }.
+function scrubTree(roots, token) {
+  const tokenBytes = Buffer.from(token, 'utf8');
+  let files = 0;
+  const failed = [];
+  const walk = (dir) => {
+    let entries;
+    try {
+      entries = readdirSync(dir, { withFileTypes: true });
+    } catch {
+      failed.push(dir);
+      return;
+    }
+    for (const e of entries) {
+      const p = path.join(dir, e.name);
+      if (e.isDirectory()) walk(p);
+      else if (e.isFile()) {
+        try {
+          if (scrubFile(p, tokenBytes)) files += 1;
+        } catch {
+          failed.push(p);
+        }
+      }
+    }
+  };
+  for (const root of roots) walk(root);
+  return { files, failed };
+}
+
+
 // R87 step (8): the hidden dir is what the manifest hashed (R101), then the grade, re-graded on the same tree while it ends in
 // infrastructure of its own. -> { infra, grade }: grade is the one that stood, null on any infrastructure.
+// R87 step (8): the hidden dir is what the manifest hashed (R101, through hashHidden: a run does not read the whole tree, R109), then the
+// grade, re-graded on the same tree while it ends in infrastructure of its own.
+// -> { infra, grade, detail }: grade is the one that stood, null on any infrastructure; detail is what a caught error said (R110), else null.
 async function gradeRun(o) {
   let hiddenHash = null;
+  let hashError = null;
   try {
-    hiddenHash = hashBuiltTask(o.taskDir).hiddenHash;
-  } catch {
-    // a built task that cannot be hashed (hidden/ is gone) is not the one that was built
+    hiddenHash = hashHidden(o.taskDir);
+  } catch (err) {
+    hashError = err; // hidden/ is gone or unreadable: not the one that was built
   }
-  if (hiddenHash !== o.manifest.hiddenHash) return { infra: 'hidden_changed', grade: null };
+  if (hiddenHash !== o.manifest.hiddenHash) return { infra: 'hidden_changed', grade: null, detail: hashError === null ? null : detailOf(hashError, o.token) };
   let last = null;
   for (let n = 1; n <= GRADE_ATTEMPTS; n += 1) {
     let g;
     try {
       g = await o.grade(o.manifest, o.workDir, { ...o.gradeOptions, runId: `${o.attemptId}-g${n}` });
-    } catch {
-      return { infra: 'grade_failed', grade: null };
+    } catch (err) {
+      return { infra: 'grade_failed', grade: null, detail: detailOf(err, o.token) };
     }
-    if (!isGrade(g)) return { infra: 'grade_failed', grade: null };
-    if (g.infra === null) return { infra: null, grade: g };
+    if (!isGrade(g)) return { infra: 'grade_failed', grade: null, detail: 'the grader returned something that is no grade (an object with infra null or a reason, and a boolean pass)' };
+    if (g.infra === null) return { infra: null, grade: g, detail: null };
     last = g;
   }
-  return { infra: `grade_${last.infra}`, grade: null };
+  return { infra: `grade_${last.infra}`, grade: null, detail: null };
 }
 
 // The cleanup of a run directory. -> the directories that could not be removed.
@@ -460,22 +564,29 @@ export async function runOne(run, ctx) {
     const decision = logText === null ? null : decisionFromLog(logText);
     let usage = null;
     let text = null;
+    let usageError = null;
     try {
       usage = readRunUsage(dir.config, sessionId);
       // The agent's words can hold anything it printed, the token included. It is scrubbed here, before any of it is cut or stored.
       if (usage.transcriptPath !== null) text = readFileSync(usage.transcriptPath, 'utf8').split(o.token).join(REDACTED);
-    } catch {
+    } catch (err) {
       usage = null;
       text = null;
+      usageError = err;
     }
-    let infra = infraOf(run, docker, { usage, decision });
+    // R87 (1), (2): the container, by grade.mjs's infraOf (R105: created, oom, inspect_failed, rm_failed, in that order, so a failed
+    // removal never hides an OOM kill). timedOut is forced false: for the agent container a timeout is the model's failure (R90), not
+    // the harness's. Then (3) to (6): what the run left behind.
+    let infra = infraOf({ ...docker, timedOut: false }) ?? evidenceInfra(run, { usage, decision });
+    let detail = infra === 'transcript_unreadable' ? detailOf(usageError, o.token) : null;
     let grade = null;
     // R90: a timed-out run is the model's failure and is not graded. R87 puts every infrastructure step before this one.
     if (infra === null && !docker.timedOut) {
-      ({ infra, grade } = await gradeRun({
+      ({ infra, grade, detail } = await gradeRun({
         taskDir,
         manifest,
         grade: o.grade,
+        token: o.token,
         workDir: dir.work,
         attemptId: o.attemptId,
         gradeOptions: { workRoot: o.workRoot, image, ...(o.dockerBin === undefined ? {} : { dockerBin: o.dockerBin }), cpus: limits.cpus, memoryGb: limits.memoryGb },
@@ -497,6 +608,7 @@ export async function runOne(run, ctx) {
       exit: { code: docker.status, timedOut: docker.timedOut, oomKilled: docker.oomKilled },
       infra,
       final: infra === null,
+      ...(detail === null ? {} : { infraDetail: detail }),
       decision,
       usage: usage === null ? null : {
         ...usage,
@@ -509,12 +621,27 @@ export async function runOne(run, ctx) {
       testsRunBeforeDone: text === null ? null : testsRunBeforeDone(text, manifest.def.testPatterns),
       finalTextTail: text === null ? '' : finalTextTail(text, FINAL_TEXT_CHARS),
       grade,
-    };
-    // The last line of defence: whatever else was stored, the token is not in the row.
-    if (JSON.stringify(row).includes(o.token)) throw new Error(`runOne: the row of ${o.attemptId} would hold the token (the value of ${o.tokenEnv}); it is not returned`);
-  } catch (err) {
-    failure = err;
-  }
+      tokenScrubbed: 0, // set below, after the scrub of config/ and state/
+      };
+      } catch (err) {
+      failure = err;
+      }
+      // R108: whatever the container wrote under config/ and state/ is scrubbed of the token in place, on EVERY path that reached the
+      // container (a throw included), after the usage was read and before the row guard. A file that cannot be scrubbed leaves the
+      // token in the kept evidence, so it stops the row.
+      if (state.ran) {
+      const scrubbed = scrubTree([dir.config, dir.state], o.token);
+      if (failure === null) {
+      if (scrubbed.failed.length > 0) {
+        const first = scrubbed.failed[0].split(o.token).join(REDACTED); // a file NAME can hold the token too
+        failure = new Error(`runOne: could not scrub the token from ${scrubbed.failed.length} file(s) of ${runDir} (the first: ${first}); the row of ${o.attemptId} is not returned`);
+      } else row.tokenScrubbed = scrubbed.files;
+      }
+      }
+      // The last line of defence: whatever else was stored, the token is not in the row (a whole, contiguous token; R113).
+      if (failure === null && JSON.stringify(row).includes(o.token)) {
+      failure = new Error(`runOne: the row of ${o.attemptId} would hold the token (the value of ${o.tokenEnv}); it is not returned`);
+      }
   const leftover = o.keepRunDirs ? [] : dispose(runDir, { ran: state.ran, threw: failure !== null });
   if (failure !== null) throw failure;
   return leftover.length === 0 ? row : { ...row, leftover };

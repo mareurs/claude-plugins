@@ -19,7 +19,7 @@ import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import {
-  chmodSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, readlinkSync, rmdirSync, rmSync, symlinkSync, writeFileSync,
+  chmodSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, readlinkSync, rmdirSync, rmSync, statSync, symlinkSync, writeFileSync,
 } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -569,6 +569,8 @@ await ta('fixtures/fake-docker.mjs run.exec runs the mounted program on the host
 const PREREG = deepFreeze({ ...prereg(), model: 'test-model-x1', limits: { timeoutMinutes: 90, cpus: 4, memoryGb: 16, concurrency: 2, infraRetries: 2 } });
 // A 3-second wall clock (the loaders want whole minutes; runOne trusts its prereg): the fake container sleeps past it and is killed.
 const SHORT = deepFreeze({ ...PREREG, limits: { ...PREREG.limits, timeoutMinutes: 0.05 } });
+// And 6 s, so that the SCALE of timeoutMinutes is pinned by two points: a factor other than 60 000 misses one window of the test below.
+const SHORT2 = deepFreeze({ ...PREREG, limits: { ...PREREG.limits, timeoutMinutes: 0.1 } });
 
 let repSeq = 100;
 // A Run as planRunsS5 makes it, for `scene`'s task, with a rep no other test uses (a run directory is never reused).
@@ -715,10 +717,11 @@ function assertInfra(r, infra, label = infra) {
   assert.equal(r.row.final, false, `${label}: an infrastructure row is not final`);
   assert.equal(r.row.grade, null, `${label}: an infrastructure row has no grade`);
   assert.equal(r.seam.calls.length, 0, `${label}: nothing was graded`);
+  assert.equal(r.row.tokenScrubbed, 0, `${label}: no file held the token`);
 }
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 const ROW_KEYS = [
-  'runId', 'taskId', 'taskIndex', 'arm', 'effort', 'rep', 'round', 'sessionId', 'startedAt', 'wallMs', 'exit', 'infra', 'final', 'decision', 'usage', 'efforts', 'costUsd', 'numTurns', 'isError',
+  'runId', 'taskId', 'taskIndex', 'arm', 'effort', 'rep', 'round', 'sessionId', 'startedAt', 'wallMs', 'exit', 'infra', 'final', 'decision', 'usage', 'efforts', 'costUsd', 'numTurns', 'isError', 'tokenScrubbed',
   'firstUserTextOk', 'testsRunBeforeDone', 'finalTextTail', 'grade',
 ];
 
@@ -751,6 +754,15 @@ await taIf('runOne refuses before anything is made: no token, a prompt.txt that 
   assert.ok(manifestText.includes('"id": "fix-plus"'));
   writeFileSync(manifestFile, manifestText.replace('"id": "fix-plus"', '"id": "fix-other"'));
   await refused(sc, mkRun(sc), {}, /manifest\.json/, 'a manifest of another task');
+  writeFileSync(manifestFile, manifestText);
+  // R111, as a defence: a prompt.txt that is not valid UTF-8 is refused even when its hash is the manifest's (the manifest is rewritten
+  // to match here, as a build that predates R111 would have left it). The bytes could not reach the CLI as they are.
+  const notUtf8 = Buffer.concat([original, Buffer.from([0xff, 0x0a])]);
+  writeFileSync(promptFile, notUtf8);
+  writeFileSync(manifestFile, manifestText.replace(/"promptHash": "[0-9a-f]{64}"/, `"promptHash": "${createHash('sha256').update(notUtf8).digest('hex')}"`));
+  const utf8Err = await refused(sc, mkRun(sc), {}, /UTF-8/, 'a prompt.txt that is not UTF-8 although it hashes right');
+  assert.match(utf8Err.message, /prompt\.txt/);
+  writeFileSync(promptFile, original);
   writeFileSync(manifestFile, manifestText);
   await refused(node, mkRun(node, 'B', { taskId: 'no-such-task' }), {}, /manifest\.json/, 'no manifest');
   const other = mkRun(node, 'B', { taskId: 'fix-add' });
@@ -786,6 +798,11 @@ await taIf('runOne refuses before anything is made: no token, a prompt.txt that 
   await refused(node, mkRun(node), { ctx: { claudeBin: path.join(node.workRoot, 'no-such-claude') } }, /claudeBin|claude/, 'a Claude binary that is not there');
   await refused(node, mkRun(node), { ctx: { hookCopy: { copyDir: path.join(node.workRoot, 'no-such-copy'), settingsFile: 'x' } } }, /hookCopy|copyDir/, 'a hook copy that is not there');
   await refused(node, mkRun(node), { ctx: { images: { 'claude-plugins': 5 } } }, /image/, 'an image that is not a string');
+  // R112: a ctx.images that is given must name the task's repo; there is no silent fall back to IMAGE_FOR_REPO for a missing key.
+  for (const [label, images] of [['another repo only', { codescout: 's5/codescout' }], ['empty', {}]]) {
+    const e = await refused(node, mkRun(node), { ctx: { images } }, /claude-plugins/, `ctx.images ${label}`);
+    assert.ok(e instanceof TypeError, `ctx.images ${label}: a TypeError`);
+  }
   // The task's tree is a directory, not a link; its warm target (when it has one) too.
   const linked = buildScene('node');
   rmSync(path.join(linked.taskDir, 'tree'), { recursive: true });
@@ -826,6 +843,8 @@ await taIf('runOne, a B run that goes well: every field of the Row holds the val
   assert.equal(row.finalTextTail, tail.slice(-300), 'the last 300 characters of the final text');
   assert.deepEqual(row.grade, OK_GRADE);
   assert.ok(!('leftover' in row), 'no leftover key when nothing is left over');
+  assert.equal(row.tokenScrubbed, 0, 'no file of the run held the token (R108)');
+  assert.ok(!('infraDetail' in row), 'no infraDetail on a row no caught error made infrastructure (R110)');
 
   // usage is what readRunUsage returns, with the paths relative to the run directory.
   const u = readRunUsage(path.join(runDir, 'config'), row.sessionId);
@@ -951,6 +970,17 @@ await taIf('runOne\'s environment, all passed by NAME: the config and state dire
   const own = await go(node, mkRun(node), { ctx: { proxyUrl: 'http://proxy.example:3128' }, docker: { expectEnv: { HTTPS_PROXY: 'http://proxy.example:3128' } } });
   assert.deepEqual(agentCall(own.f).envMatches, { HTTPS_PROXY: true });
   assert.equal(flagValue(agentCall(noTarget.f).argv, '--network'), NETWORK, 'the default network is the proxy network');
+
+  // R108: the container NEVER gets CLAUDE_CODE_SUBPROCESS_ENV_SCRUB (the CLI's opt-in scrub of its subprocess environment: it switches
+  // off --dangerously-skip-permissions and needs bubblewrap in the image, a different instrument) nor GITHUB_ACTIONS (which the CLI also
+  // reads). Not even when this process has them set: runOne passes the names it lists and nothing from its own environment.
+  const ambient = await withEnv({ CLAUDE_CODE_SUBPROCESS_ENV_SCRUB: '1', GITHUB_ACTIONS: 'true' }, () => go(cargo, mkRun(cargo), {}));
+  const ambientCall = agentCall(ambient.f);
+  for (const name of ['CLAUDE_CODE_SUBPROCESS_ENV_SCRUB', 'GITHUB_ACTIONS']) {
+    assert.ok(!envNamesOf(ambientCall.argv).includes(name), `${name} is not an -e variable of the container`);
+    assert.ok(!ambientCall.envNames.includes(name), `${name} is not even in the environment of the docker process`);
+  }
+  assert.deepEqual(envNamesOf(ambientCall.argv), ['CARGO_TARGET_DIR', 'CLAUDE_CODE_OAUTH_TOKEN', 'CLAUDE_CONFIG_DIR', 'EFFORT_STEERING_HOLDOUT_RATE', 'HTTPS_PROXY', 'XDG_STATE_HOME']);
 });
 
 await taIf('the token value appears in neither argv nor any row; ctx.tokenEnv renames the variable; a token in the agent\'s final text is redacted, and a row that would still hold it is never returned', NO_REFLINK_HERE, async () => {
@@ -972,7 +1002,7 @@ await taIf('the token value appears in neither argv nor any row; ctx.tokenEnv re
   // The agent's final text can hold anything it printed. The token never reaches the row through it.
   const leaky = await go(node, mkRun(node), { scenario: { finalText: `the token is ${SENTINEL}` } });
   assert.equal(leaky.row.infra, null);
-  assert.match(leaky.row.finalTextTail, /the token is \[redacted\]$/);
+  assert.match(leaky.row.finalTextTail, /the token is \[REDACTED\]$/);
 
   // Defence in depth: a token anywhere else in the row (here in the name of a subagent transcript) stops the row. runOne throws, the
   // message does not hold the token, and the large directories are gone while the evidence stays.
@@ -983,6 +1013,97 @@ await taIf('the token value appears in neither argv nor any row; ctx.tokenEnv re
   assert.match(err.message, /token/);
   assert.ok(!err.message.includes(SENTINEL) && !String(err.stack).includes(SENTINEL));
   assert.deepEqual(readdirSync(p.runDir).sort(), ['config', 'state'], 'work is gone, the transcripts stay');
+});
+
+// ---- R108: the kept evidence is scrubbed of the token ----
+
+// The regular files under dir (links are not followed, not listed) whose bytes hold `needle`.
+const filesHolding = (dir, needle) => {
+  const found = [];
+  const rec = (rel) => {
+    for (const e of readdirSync(path.join(dir, rel), { withFileTypes: true })) {
+      const r = rel === '' ? e.name : `${rel}/${e.name}`;
+      if (e.isDirectory()) rec(r);
+      else if (e.isFile() && readFileSync(path.join(dir, r)).includes(needle)) found.push(r);
+    }
+  };
+  rec('');
+  return found;
+};
+const OLD_DATE = '2020-01-02T03:04:05.000Z';
+
+await taIf('R108: after the container exits, config/ and state/ are scrubbed in place: every occurrence of the token becomes [REDACTED] in every regular file, a file without it is not rewritten, links are not followed, and the row counts the files that held it', NO_REFLINK_HERE, async () => {
+  const outside = mkdtempSync(path.join(ROOT, 'outside-'));
+  const outsideFile = path.join(outside, 'secret.txt');
+  writeFileSync(outsideFile, `outside ${SENTINEL}\n`);
+  mkdirSync(path.join(outside, 'sub'));
+  writeFileSync(path.join(outside, 'sub', 'deep.txt'), SENTINEL);
+
+  // The control: the same run with nothing leaked.
+  const control = await go(node, mkRun(node), { scenario: { subagents: [{}] } });
+  assert.equal(control.row.tokenScrubbed, 0);
+
+  const scenario = {
+    leak: true, // the transcript holds an `env` printout, as the CLI would write it if it exposed the token to its tools
+    subagents: [{}],
+    configFiles: { 'extra/notes.txt': 'a {{TOKEN}} b {{TOKEN}} c\n', 'clean.txt': { text: 'nothing secret here\n', mtime: OLD_DATE } },
+    stateFiles: { 'dump.txt': 'x{{TOKEN}}', 'quiet.txt': { text: 'quiet\n', mtime: OLD_DATE } },
+    configLinks: { 'link-to-file.txt': outsideFile, 'link-to-dir': path.join(outside, 'sub') },
+  };
+  const r = await go(node, mkRun(node), { scenario });
+  const cfg = path.join(r.runDir, 'config');
+  const st = path.join(r.runDir, 'state');
+  assert.equal(r.row.infra, null);
+  assert.equal(r.row.tokenScrubbed, 3, 'the transcript, notes.txt and dump.txt held it; the links and the clean files did not count');
+  assert.deepEqual([...filesHolding(cfg, SENTINEL), ...filesHolding(st, SENTINEL)], [], 'no regular file under config/ or state/ holds the token any more');
+  assert.equal(readFileSync(path.join(cfg, 'extra', 'notes.txt'), 'utf8'), 'a [REDACTED] b [REDACTED] c\n', 'every occurrence, not the first');
+  assert.equal(readFileSync(path.join(st, 'dump.txt'), 'utf8'), 'x[REDACTED]');
+  const transcript = readFileSync(path.join(cfg, 'projects', '-work', `${r.row.sessionId}.jsonl`), 'utf8');
+  assert.ok(transcript.includes('CLAUDE_CODE_OAUTH_TOKEN=[REDACTED]'));
+  for (const line of transcript.trim().split('\n')) JSON.parse(line); // still a transcript
+
+  // A file without the token is not rewritten: its time is the one it was given.
+  assert.equal(statSync(path.join(cfg, 'clean.txt')).mtime.toISOString(), OLD_DATE);
+  assert.equal(statSync(path.join(st, 'quiet.txt')).mtime.toISOString(), OLD_DATE);
+  assert.equal(readFileSync(path.join(cfg, 'clean.txt'), 'utf8'), 'nothing secret here\n');
+
+  // Links are never followed: they are still links, and what they point to is as it was.
+  assert.ok(lstatSync(path.join(cfg, 'link-to-file.txt')).isSymbolicLink() && lstatSync(path.join(cfg, 'link-to-dir')).isSymbolicLink());
+  assert.equal(readFileSync(outsideFile, 'utf8'), `outside ${SENTINEL}\n`, 'the file a link pointed at was not scrubbed');
+  assert.equal(readFileSync(path.join(outside, 'sub', 'deep.txt'), 'utf8'), SENTINEL, 'nor the directory a link pointed at');
+
+  // The numbers in the row were read before the scrub and the scrub does not change them: the leaky run and the control agree, and
+  // the scrubbed transcript still reads as the row says.
+  for (const k of ['main', 'subagents', 'total']) assert.deepEqual(r.row.usage[k], control.row.usage[k], k);
+  const again = readRunUsage(cfg, r.row.sessionId);
+  for (const k of ['main', 'subagents', 'total', 'efforts']) assert.deepEqual(again[k], r.row.usage[k], `after the scrub: ${k}`);
+});
+
+await taIf('R108: the scrub also runs when runOne throws after the container, and a file it cannot rewrite stops the row instead of leaving the token behind', NO_REFLINK_HERE, async () => {
+  const scenario = { leak: true, configFiles: { 'extra/notes.txt': 'a {{TOKEN}}\n' }, stateFiles: { 'dump.txt': '{{TOKEN}}' } };
+  // A grade result that throws when it is read: the one way to make runOne throw after the container without a bug in runOne.
+  const exploding = { get infra() { throw new Error('the grade result exploded'); }, pass: true };
+  const p = prepare(node, mkRun(node), { scenario, grade: [exploding] });
+  const err = await p.exec().then(() => null, (e) => e);
+  assert.ok(err instanceof Error && /exploded/.test(err.message), 'runOne threw');
+  assert.deepEqual(readdirSync(p.runDir).sort(), ['config', 'state'], 'the cleanup ran');
+  assert.deepEqual([...filesHolding(path.join(p.runDir, 'config'), SENTINEL), ...filesHolding(path.join(p.runDir, 'state'), SENTINEL)], [], 'and so did the scrub');
+
+  // The guard throw (the token in a file NAME, which a scrub of contents cannot fix) scrubs the contents all the same.
+  const q = prepare(node, mkRun(node), { scenario: { ...scenario, subagents: [{ name: `agent-${SENTINEL}` }] } });
+  const guarded = await q.exec().then(() => null, (e) => e);
+  assert.match(guarded.message, /token/);
+  assert.deepEqual(filesHolding(path.join(q.runDir, 'config'), SENTINEL), [], 'the contents are clean although the row was refused');
+
+  // A file the scrub cannot rewrite (read-only): the token would stay in the kept evidence, so there is no row. Its NAME holds the
+  // token here, and the error message that names the file must not.
+  const locked = prepare(node, mkRun(node), { scenario: { configFiles: { 'locked-{{TOKEN}}.txt': { text: '{{TOKEN}}', mode: 0o400 } } } });
+  const stuck = await locked.exec().then(() => null, (e) => e);
+  assert.ok(stuck instanceof Error);
+  assert.match(stuck.message, /scrub/);
+  assert.match(stuck.message, /locked-\[REDACTED\]\.txt/, 'the file is named, with the token in its name redacted');
+  assert.ok(!stuck.message.includes(SENTINEL) && !String(stuck.stack).includes(SENTINEL));
+  assert.deepEqual(readdirSync(locked.runDir).sort(), ['config', 'state'], 'work is removed all the same');
 });
 
 // ---- R87: the classification, in its fixed order, first match wins ----
@@ -1015,16 +1136,30 @@ const CASES = [
   ['(1) inspect_failed before rm_failed', { docker: { inspect: { status: 1 }, rm: { status: 1 } } }, 'inspect_failed'],
   ['(2) oom: OOM-killed although the run ended with status 0', { container: { oomKilled: true } }, 'oom', (r) => assert.deepEqual(r.row.exit, { code: 0, timedOut: false, oomKilled: true })],
   ['(2) oom whatever the exit status', { container: { oomKilled: true }, scenario: { exit: 3 } }, 'oom', (r) => assert.equal(r.row.exit.code, 3)],
-  ['(1) before (2): rm_failed before oom', { container: { oomKilled: true }, docker: { rm: { status: 1 } } }, 'rm_failed'],
+  ['(1)/(2) R105: oom before rm_failed (a failed removal never hides an OOM kill)', { container: { oomKilled: true }, docker: { rm: { status: 1 } } }, 'oom', (r) => assert.equal(r.row.exit.oomKilled, true)],
+  ['(1)/(2) R105: oom before rm_failed, with a non-zero exit too', { container: { oomKilled: true }, docker: { rm: { status: 1 } }, scenario: { exit: 137 } }, 'oom'],
+  ['(1)/(2) R105: create_failed before everything (no container, nothing to inspect)', { noContainer: true, docker: { rm: { status: 1 } } }, 'create_failed'],
+  ['(1)/(2) R105: an OOM kill docker could not report is inspect_failed (unknown is never "no OOM", and never "oom")', { container: { oomKilled: true }, docker: { inspect: { status: 1 } } }, 'inspect_failed', (r) => assert.equal(r.row.exit.oomKilled, null)],
   ['(2) before (3): oom before a missing transcript', { container: { oomKilled: true }, scenario: { transcript: false } }, 'oom'],
   ['(2) before (3): oom before an unreadable transcript', { container: { oomKilled: true }, scenario: { transcript: 'directory' } }, 'oom'],
   ['(2) before (3): oom before two transcripts', { container: { oomKilled: true }, scenario: { transcript: 'twice' } }, 'oom'],
   ['(3) transcript_unreadable: readRunUsage throws', { scenario: { transcript: 'directory' } }, 'transcript_unreadable', (r) => {
     assert.equal(r.row.usage, null, 'it returned nothing');
     noTranscript(null)(r);
+    // R110: the cause of a caught error is kept, short, so that a deterministic bug does not show as the same bare label on every run.
+    assert.equal(typeof r.row.infraDetail, 'string');
+    assert.match(r.row.infraDetail, /EISDIR/);
+    assert.ok(r.row.infraDetail.length <= 300);
   }],
   ['(3) no_transcript', { scenario: { transcript: false } }, 'no_transcript', noTranscript('no_transcript')],
   ['(3) ambiguous_transcript: two transcripts of one session', { scenario: { transcript: 'twice' } }, 'ambiguous_transcript', noTranscript('ambiguous_transcript')],
+  // The review's P1: a claude that dies at startup writes neither a transcript nor a decision log, and the label that names the
+  // cause is the transcript's (step 3), not the log's (step 5). Moving step 3 after step 5 must fail here.
+  ['(3) before (5): no_transcript before no_log', { scenario: { transcript: false, decision: null } }, 'no_transcript', noTranscript('no_transcript')],
+  ['(3) before (5): transcript_unreadable before no_log', { scenario: { transcript: 'directory', decision: null } }, 'transcript_unreadable'],
+  ['(3) before (5): ambiguous_transcript before no_log', { scenario: { transcript: 'twice', decision: null } }, 'ambiguous_transcript'],
+  ['(3) before (5): no_transcript before arm_mismatch', { scenario: { transcript: false, decision: holdout } }, 'no_transcript'],
+  ['(3) before (5): transcript_unreadable before arm_mismatch', { scenario: { transcript: 'directory', decision: holdout } }, 'transcript_unreadable'],
   ['(4) api_error: an API-error record in the main transcript', { scenario: { apiError: true } }, 'api_error', (r) => assert.equal(r.row.usage.apiError, true)],
   ['(4) before (5): api_error before no_log', { scenario: { apiError: true, decision: null } }, 'api_error'],
   ['(5) no_log: the hook left no decision log', { scenario: { decision: null } }, 'no_log', (r) => assert.equal(r.row.decision, null)],
@@ -1073,6 +1208,8 @@ await taIf('R87: runOne classifies in a fixed order, first match wins; every inf
       assertInfra(r, infra, label);
     }
     assertCleaned(r, label);
+    // R110: only a row a caught error made infrastructure carries infraDetail (here: the unreadable transcript).
+    assert.equal('infraDetail' in r.row, infra === 'transcript_unreadable', `${label}: infraDetail`);
     check?.(r);
   });
 });
@@ -1096,7 +1233,7 @@ await taIf('R90: a run that hits the wall clock is a FINAL model failure with no
     assert.equal(r.row.exit.timedOut, true, label);
     assert.equal(r.row.exit.code, 137, `${label}: killed`);
     assert.ok(r.f.calls().some((c) => c.argv[0] === 'kill'), `${label}: our container was killed by docker`);
-    assert.ok(r.row.wallMs >= 2900 && r.row.wallMs < 15_000, `${label}: it took the 3 s of the limit, not the 20 s of the sleep: ${r.row.wallMs}`);
+    assert.ok(r.row.wallMs >= 2900 && r.row.wallMs < 4200, `${label}: it took the 3 s of the limit (within 1.2 s after it), not the 20 s of the sleep: ${r.row.wallMs}`);
     assertCleaned(r, label);
     if (infra !== null) {
       assertInfra(r, infra, label);
@@ -1113,6 +1250,33 @@ await taIf('R90: a run that hits the wall clock is a FINAL model failure with no
   });
 });
 
+await taIf('R90: the agent container\'s wall clock is prereg.limits.timeoutMinutes * 60 000 ms, pinned at two limits (3 s and 6 s): it is killed within 1.2 s after each, so no other scale passes', NO_REFLINK_HERE, async () => {
+  const points = [[SHORT, 3000], [SHORT2, 6000]];
+  const runs = await Promise.all(points.map(([prereg, limitMs]) => go(node, mkRun(node), { prereg, runCfg: { sleepMs: 40_000 } }).then((r) => [r, limitMs])));
+  for (const [r, limitMs] of runs) {
+    assert.equal(r.row.exit.timedOut, true, `${limitMs} ms`);
+    // The container is killed when the limit is up (a run took limit + 0.1 s, measured), not before, and not a 1.5x limit later.
+    assert.ok(r.row.wallMs >= limitMs - 100 && r.row.wallMs < limitMs + 1200, `limit ${limitMs} ms: the run took ${r.row.wallMs} ms`);
+  }
+  assert.ok(runs[1][0].row.wallMs - runs[0][0].row.wallMs > 2000, 'doubling the limit doubles the wait');
+});
+
+await taIf('a fresh session id per attempt: two runs, and attempts 1 and 2 of one run, have different ids, each the --session-id its own container was given', NO_REFLINK_HERE, async () => {
+  const run = mkRun(node);
+  const first = await go(node, run, { attempt: 1 });
+  const second = await go(node, run, { attempt: 2 });
+  const other = await go(node, mkRun(node), {});
+  const ids = [first, second, other].map((r) => r.row.sessionId);
+  assert.equal(new Set(ids).size, 3, `three runs, three session ids: ${ids.join(' ')}`);
+  for (const r of [first, second, other]) {
+    assert.match(r.row.sessionId, UUID_RE);
+    assert.equal(flagValue(commandOf(agentCall(r.f), node), '--session-id'), r.row.sessionId, 'the row names the session its own container ran');
+    assert.ok(existsSync(path.join(r.runDir, 'config', 'projects', '-work', `${r.row.sessionId}.jsonl`)), 'and that is the transcript on disk');
+  }
+  assert.notEqual(first.runDir, second.runDir);
+  assert.equal(first.row.runId, second.row.runId);
+});
+
 await taIf('R90 with R101: a timed-out run does not reach the hidden check (it is not graded), and a run that did reach it with a changed hidden dir is hidden_changed', NO_REFLINK_HERE, async () => {
   const sc = buildScene('node');
   const hiddenFile = path.join(sc.taskDir, 'hidden', 'tests', 'hidden.test.mjs');
@@ -1125,6 +1289,7 @@ await taIf('R90 with R101: a timed-out run does not reach the hidden check (it i
 
   const changed = await go(sc, mkRun(sc), {});
   assertInfra(changed, 'hidden_changed');
+  assert.ok(!('infraDetail' in changed.row), 'a hash that differs is no caught error: no infraDetail (R110)');
   assert.ok(agentCall(changed.f), 'the container did run: the check is after it, before the grade');
   assertCleaned(changed, 'hidden_changed');
   // A hidden dir that has an extra file, a missing file or is gone is changed too.
@@ -1135,13 +1300,32 @@ await taIf('R90 with R101: a timed-out run does not reach the hidden check (it i
   rmSync(hiddenFile);
   assertInfra(await go(sc, mkRun(sc), {}), 'hidden_changed', 'a missing file');
   rmSync(path.join(sc.taskDir, 'hidden'), { recursive: true });
-  assertInfra(await go(sc, mkRun(sc), {}), 'hidden_changed', 'no hidden dir');
+  const gone = await go(sc, mkRun(sc), {});
+  assertInfra(gone, 'hidden_changed', 'no hidden dir');
+  assert.match(gone.row.infraDetail, /ENOENT/, 'a hidden dir that cannot be hashed says why (R110)');
   // Restored, it is graded again.
   mkdirSync(path.dirname(hiddenFile), { recursive: true });
   writeFileSync(hiddenFile, original);
   const ok = await go(sc, mkRun(sc), {});
   assert.equal(ok.row.infra, null);
   assert.equal(ok.seam.calls.length, 1);
+
+  // R109: the per-run check reads hidden/ and nothing else. A byte of tasks/<id>/tree changed after the build, and an entry in it that
+  // hashBuiltTask could not even walk (a FIFO), are the preflight's business, not a changed hidden dir.
+  const treeFile = path.join(sc.taskDir, 'tree', 'lib.mjs');
+  const treeBytes = readFileSync(treeFile);
+  writeFileSync(treeFile, Buffer.concat([treeBytes, Buffer.from('// changed after the build\n')]));
+  const treeChanged = await go(sc, mkRun(sc), {});
+  assert.equal(treeChanged.row.infra, null, 'one byte of tree/ is no hidden_changed');
+  assert.equal(treeChanged.seam.calls.length, 1);
+  writeFileSync(treeFile, treeBytes);
+  const fifo = path.join(sc.taskDir, 'tree', 'a-fifo');
+  assert.equal(spawnSync('mkfifo', [fifo]).status, 0);
+  const withFifo = await go(sc, mkRun(sc), {});
+  assert.equal(withFifo.row.infra, null, 'a tree/ that hashBuiltTask cannot walk is no hidden_changed either');
+  assert.equal(withFifo.seam.calls.length, 1);
+  rmSync(fifo);
+
   // The effort mismatch comes before the hidden check (R87: 6 before 8).
   writeFileSync(hiddenFile, Buffer.concat([original, Buffer.from('x')]));
   assertInfra(await go(sc, mkRun(sc), { scenario: { effort: 'medium' } }), 'effort_mismatch');
@@ -1178,13 +1362,26 @@ await taIf('R87 step 8: a run is graded once on its own tree; a grade with an in
   const thrown = await go(node, mkRun(node), { grade: [new Error('the grade directory already exists')] });
   assertInfra({ ...thrown, seam: { calls: [] } }, 'grade_failed');
   assert.equal(thrown.seam.calls.length, 1, 'a throw is not re-graded');
-  assert.ok(!JSON.stringify(thrown.row).includes('already exists'), 'the error text is not in the row');
+  // R110: what a caught error said is kept in infraDetail, redacted and at most 300 characters; no other row has the field.
+  assert.equal(thrown.row.infraDetail, 'the grade directory already exists');
+  const long = await go(node, mkRun(node), { grade: [new Error(`prefix ${SENTINEL} ${'x'.repeat(600)}`)] });
+  assert.equal(long.row.infraDetail.length, 300, 'cut at 300 characters');
+  assert.ok(long.row.infraDetail.startsWith('prefix [REDACTED] xxx'), 'the token redacted');
+  // The token is redacted BEFORE the cut: a token that straddles character 300 must not leave its first characters behind.
+  const straddle = await go(node, mkRun(node), { grade: [new Error(`${'y'.repeat(295)}${SENTINEL}`)] });
+  assert.equal(straddle.row.infraDetail, `${'y'.repeat(295)}[REDA`, 'redacted, then cut');
+  assert.ok(!straddle.row.infraDetail.includes(SENTINEL.slice(0, 4)), 'no first characters of the token survive the cut');
   const late = await go(node, mkRun(node), { grade: [infraGrade('oom'), new Error('boom')] });
   assert.equal(late.row.infra, 'grade_failed', 'a throw on a re-grade');
+  assert.equal(late.row.infraDetail, 'boom');
   assert.equal(late.seam.calls.length, 2);
+  const noDetail = await go(node, mkRun(node), { grade: [infraGrade('oom')] });
+  assert.equal(noDetail.row.infra, 'grade_oom');
+  assert.ok(!('infraDetail' in noDetail.row), 'a grade that ended in infrastructure of its own is no caught error');
   for (const [label, bad] of [['undefined', undefined], ['a string', 'pass'], ['null', null], ['no infra key', { pass: true }], ['pass not a boolean', gradeWith({ pass: 'yes' })], ['infra undefined', gradeWith({ infra: undefined })], ['infra an empty string', gradeWith({ infra: '' })], ['infra a number', gradeWith({ infra: 3 })]]) {
     const r = await go(node, mkRun(node), { grade: [bad] });
     assert.equal(r.row.infra, 'grade_failed', label);
+    assert.equal(typeof r.row.infraDetail, 'string', `${label}: a result that is no grade says so`);
     assert.equal(r.row.final, false, label);
     assert.equal(r.row.grade, null, label);
     assert.equal(r.seam.calls.length, 1, label);
@@ -1432,6 +1629,8 @@ printf 'export const add = (a, b) => a + b;\nexport const plus = add;\n' > /work
   if [ -n "$CLAUDE_CODE_OAUTH_TOKEN" ]; then echo token=set; else echo token=unset; fi
   if [ -n "$HTTPS_PROXY" ]; then echo proxy=set; else echo proxy=unset; fi
 } > "$XDG_STATE_HOME/probe.txt"
+# What the env command would have printed: a file the host must find scrubbed afterwards (R108).
+printf '%s\n' "$CLAUDE_CODE_OAUTH_TOKEN" > "$XDG_STATE_HOME/leak.txt"
 printf '{"type":"result","subtype":"success","is_error":false,"num_turns":3,"total_cost_usd":0.25,"session_id":"%s","result":"Fixed it."}\n' "$sid"
 `;
   const id = `t10b-${process.pid}-plus`;
@@ -1472,6 +1671,8 @@ printf '{"type":"result","subtype":"success","is_error":false,"num_turns":3,"tot
 
       const runDir = path.join(sc.workRoot, 'runs', `${run.runId}-a1`);
       assert.deepEqual(readdirSync(runDir).sort(), ['config', 'state'], 'work is removed');
+      assert.equal(row.tokenScrubbed, 1, 'the one file the container made with the token in it was scrubbed on the host');
+      assert.equal(readFileSync(path.join(runDir, 'state', 'leak.txt'), 'utf8'), '[REDACTED]\n');
       assert.deepEqual(probeOf(runDir), {
         user: 'agent',
         pwd: '/work',
