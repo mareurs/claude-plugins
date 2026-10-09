@@ -20,7 +20,8 @@
 //     { "expectEnv": { "NAME": "value" },
 //       "containers": [ { "id": "<64 hex>", "name": "s5-x", "labels": { "s5": "1" }, "oomKilled": false } ],
 //       "run":     { "status": 0, "sleepMs": 0, "stdout": "", "stderr": "", "ignoreKill": false,
-//                    "gen": { "unit": "...", "repeat": 1, "chunkBytes": 65536, "pauseMs": 0 } },
+//                    "gen": { "unit": "...", "repeat": 1, "chunkBytes": 65536, "pauseMs": 0 },
+//                    "exec": { "env": { "NAME": "value" } } },
 //       "inspect": { "status": 0, "stdout": null, "sleepMs": 0 },
 //       "kill":    { "status": 0, "sleepMs": 0 },
 //       "rm":      { "status": 0, "stderr": "", "sleepMs": 0 },
@@ -47,13 +48,21 @@
 //   EXITED while its stdout is still open. `run.results` { "<file>": "<text>" } writes each file into the host
 //   directory bound at /results (the `--mount ...,target=/results` argument), and `run.resultLinks`
 //   { "<file>": "<target>" } makes a symlink there, so a test can script what a container's driver left
-//   behind without starting one. `run.calls` is a list of per-call overrides: the i-th `run` call (the last entry
+//   behind without starting one. `run.exec` { "env": { "NAME": "value" } } (TEST-ONLY, added for the S5 agent run) makes `run`
+//   EXECUTE the program the command names, on the host: the command's first word is a path inside the container, and the bind
+//   mounts (`--mount type=bind,source=S,target=T`) say which host path it is, so `/opt/claude/claude` runs the file mounted there.
+//   The program gets the container's view mapped to the host: its working directory is the host directory bound at `--workdir`
+//   (or one below it), its argv is the command's remaining words untouched, and its environment is PATH, every variable the run
+//   forwards with `-e NAME` (a value that is a container path under a mount, such as CLAUDE_CONFIG_DIR=/run/config, becomes the
+//   bound host path) and `exec.env`. Nothing else of this process's environment reaches it, as in a container. Its stdout and
+//   stderr become the run's, and its exit status the run's unless `run.status` is given. A `run` without `exec` behaves as
+//   before; put `exec` in `run.calls[i]` to give it to one container of several. `run.calls` is a list of per-call overrides: the i-th `run` call (the last entry
 //   repeats) takes that entry's keys (status, stdout, stderr, sleepMs, results, ...) over `run`'s own, so a test can make
 //   one container of two fail. `ps.answers` is a list of ID lists: the i-th `ps` call
 //   prints answers[i] (the last answer repeats) whatever its filters say, so a test can make a
 //   container appear, or vanish, between two lookups. A first word with no known behaviour exits 99.
 
-import { spawn } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { appendFileSync, existsSync, fstatSync, readFileSync, statSync, symlinkSync, writeFileSync, writeSync } from 'node:fs';
 
 const LOG = process.env.FAKE_DOCKER_LOG;
@@ -130,6 +139,57 @@ function priorRunCalls() {
   return readFileSync(LOG, 'utf8').split('\n').filter(Boolean).filter((l) => JSON.parse(l).argv[0] === 'run').length;
 }
 
+// ---- run.exec: run the mounted program on the host, with the container's paths mapped to the bound host directories ----
+
+// The `docker run` argv, read the way docker reads it: [options, image, command...]. Every option this fake's callers pass takes a
+// value except `--pull=never` (one word); the first word that is not an option is the image.
+function dockerRunParts() {
+  const mounts = [];
+  const envNames = [];
+  let workdir;
+  let i = 1;
+  for (; i < argv.length && argv[i].startsWith('-'); i++) {
+    const flag = argv[i];
+    if (flag.includes('=')) continue;
+    const value = argv[++i];
+    if (flag === '-e') envNames.push(value);
+    else if (flag === '--workdir') workdir = value;
+    else if (flag === '--mount') {
+      const fields = Object.fromEntries(value.split(',').map((f) => [f.split('=')[0], f.split('=').slice(1).join('=')]));
+      mounts.push({ source: fields.source, target: fields.target });
+    }
+  }
+  return { mounts, envNames, workdir, command: argv.slice(i + 1) };
+}
+
+// A container path as the host path it is bound to: the longest mount target that is the path or a parent of it.
+function hostPath(mounts, p) {
+  const parents = mounts.filter((m) => p === m.target || p.startsWith(`${m.target}/`)).sort((a, b) => b.target.length - a.target.length);
+  return parents.length === 0 ? p : parents[0].source + p.slice(parents[0].target.length);
+}
+
+// Executes the command's program; returns its exit status. Its output goes out as this process's.
+function execMounted(exec) {
+  const { mounts, envNames, workdir, command } = dockerRunParts();
+  const program = command.length === 0 ? undefined : hostPath(mounts, command[0]);
+  if (program === undefined || program === command[0]) {
+    process.stderr.write(`fake-docker: run.exec needs a command whose program is a mounted file, got ${JSON.stringify(command[0])}\n`);
+    process.exit(96);
+  }
+  const env = { PATH: process.env.PATH };
+  for (const name of envNames) if (process.env[name] !== undefined) env[name] = hostPath(mounts, process.env[name]);
+  Object.assign(env, exec.env ?? {});
+  const r = spawnSync(program, command.slice(1), { cwd: workdir ? hostPath(mounts, workdir) : undefined, env, maxBuffer: 256 * 1024 * 1024 });
+  if (r.error) {
+    process.stderr.write(`fake-docker: run.exec could not run ${program}: ${r.error.message}\n`);
+    process.exit(95);
+  }
+  if (r.stdout.length > 0) writeAll(1, r.stdout);
+  if (r.stderr.length > 0) writeAll(2, r.stderr);
+  return r.status ?? 137;
+}
+let execStatus;
+
 const refs = refsOf();
 const psIndex = op === 'ps' ? priorPsCalls() : 0;
 // `run.calls` scripts the i-th `run` call: its keys are laid over `run` (the last entry repeats).
@@ -170,6 +230,7 @@ if (op === 'run') {
     for (const [name, content] of Object.entries(spec.results ?? {})) writeFileSync(`${source}/${name}`, content);
     for (const [name, target] of Object.entries(spec.resultLinks ?? {})) symlinkSync(target, `${source}/${name}`);
   }
+  if (spec.exec) execStatus = execMounted(spec.exec);
   if (spec.gen) {
     const bytes = Buffer.from(spec.gen.unit.repeat(spec.gen.repeat), 'utf8');
     for (let off = 0; off < bytes.length; off += spec.gen.chunkBytes) {
@@ -190,4 +251,4 @@ if (op === 'run') {
   }
 }
 
-process.exit(missing.length > 0 ? 1 : (spec.status ?? 0));
+process.exit(missing.length > 0 ? 1 : (spec.status ?? execStatus ?? 0));
