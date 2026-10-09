@@ -93,6 +93,8 @@ const taIf = async (name, skipReason, fn) => {
   if (skipReason) console.log(`ok - ${name} # SKIP ${skipReason}`);
   else await ta(name, fn);
 };
+// How many SIGINT and SIGTERM listeners the process has: a batch installs one of each while it runs and removes both on every path.
+const listeners = () => [process.listenerCount('SIGINT'), process.listenerCount('SIGTERM')];
 
 // ---- the registrations under test ----
 
@@ -780,6 +782,25 @@ await ta('the arguments: a TypeError, before anything is read or written, for an
   assert.ok(!existsSync(b.rowsFile) && !existsSync(path.join(b.world.workRoot, 'hook')) && b.docker.calls().length === 0);
 });
 
+await ta('a ctx the real runOne cannot use is refused once, before the first start, instead of turning every run into an infra_exhausted line (R114); an injected runOne is the caller\'s own business', async () => {
+  const before = listeners();
+  for (const [label, ctx, pattern] of [
+    ['an empty network name', { network: '' }, /ctx\.network/],
+    ['a grade that is not a function', { grade: 'x' }, /ctx\.grade/],
+    ['a Claude binary that is not a file', {}, /Claude binary/],
+  ]) {
+    const b = bench({ ctx: { runOne: undefined, ...ctx } });
+    const err = await b.run().then(() => null, (e) => e);
+    assert.ok(err instanceof TypeError && pattern.test(err.message), `${label}: ${err?.message}`);
+    assert.equal(b.lines().length, 0, `${label}: no row at all, not even a run_failed`);
+    assert.ok(!existsSync(b.lockFile), `${label}: the lock is released`);
+    assert.deepEqual(listeners(), before);
+  }
+  const injected = bench({ ctx: { network: '' } });
+  await injected.run();
+  assert.equal(injected.calls.length, 3, 'the injected runOne is not asked to validate anything');
+});
+
 // ---- the default seams: imageIdOf, proxyRunning, sha256File, through a docker stub that only answers `image inspect` and `ps` ----
 
 const stubDocker = (opts) => {
@@ -912,7 +933,6 @@ await ta('a line with a `type` key is not a Row: it counts for nothing, not as a
 // =====================================================================================================================
 
 const lockOf = (b) => JSON.parse(readFileSync(b.lockFile, 'utf8'));
-const listeners = () => [process.listenerCount('SIGINT'), process.listenerCount('SIGTERM')];
 
 await ta('R123: the lock is taken before the sweep and held while runs go; it holds { pid, startedAt, mode, rowsFile } and no token; it is gone after the batch', async () => {
   const b = bench();

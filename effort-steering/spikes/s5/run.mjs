@@ -744,7 +744,9 @@ export async function runOne(run, ctx) {
 //   the sweep: removeLabeled('s5.task'). NOT 's5=1': the proxy container carries s5=1 and s5.run=s5-proxy, and sweeping s5=1 would remove
 //   the proxy the preflight just found running. Every container runOne, gradeTree and warmTask start carries s5.task (R122);
 //   scrubRunDirs(<workRoot>/runs, token): the token an interrupted attempt left in config/ or state/ (R117); a path it cannot clean refuses the
-//   batch, naming the count and the first path with the token redacted; writeHookCopy(<workRoot>/hook, esRoot): once, for every run.
+//   batch, naming the count and the first path with the token redacted; writeHookCopy(<workRoot>/hook, esRoot): once, for every run; then,
+//   when the real runOne is used, runOne's own checks of its ctx on the first run (an unusable ctx is refused once, instead of making every
+//   runOne throw: each throw is an attempt, and the whole plan would end as final infra_exhausted lines).
 //
 // THE ROWS FILE (R100): JSONL, appended to, one line per ATTEMPT (open, write, fsync, close). A line with a `type` key is not a Row (the stopped
 // line); a line without a runId is none either. A final row (final === true) makes its run done. attemptsUsed = the rows with that runId and
@@ -1231,6 +1233,10 @@ export async function runBatch(prereg, options) {
       claudeBin: checked.claudeBin,
       images: checked.images,
     };
+    // runOne's own checks of its ctx, once, before the first start. A ctx it cannot use would make EVERY runOne throw, and each throw is an
+    // infrastructure attempt (R114): the whole plan would end as infra_exhausted lines, which are final, before anyone noticed. An injected
+    // runOne is the caller's own business.
+    if (o.ctx.runOne === undefined && plan.length > 0) resolveInputs(plan[0], { ...runCtx, attempt: 1 });
     let fatal = null;
     // A start, a retry included, needs no stop requested and a summed cost below the limit.
     const mayStart = () => {
