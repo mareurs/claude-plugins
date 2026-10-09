@@ -1306,6 +1306,30 @@ const CASES = [
   ['(2) before (3): oom before a missing transcript', { container: { oomKilled: true }, scenario: { transcript: false } }, 'oom'],
   ['(2) before (3): oom before an unreadable transcript', { container: { oomKilled: true }, scenario: { transcript: 'directory' } }, 'oom'],
   ['(2) before (3): oom before two transcripts', { container: { oomKilled: true }, scenario: { transcript: 'twice' } }, 'oom'],
+  // R132: a container cut off by a signal that was NOT the harness's own timeout (a Ctrl+C that reached it, a kill from outside) is
+  // never the model's failure: infra `interrupted`, non-final, no grade, whatever its partial transcript and decision log look like.
+  ['(2b) R132 interrupted: exit 130 (SIGINT)', { scenario: { exit: 130 } }, 'interrupted', (r) => assert.deepEqual(r.row.exit, { code: 130, timedOut: false, oomKilled: false })],
+  ['(2b) R132 interrupted: exit 137 (SIGKILL) without a timeout', { scenario: { exit: 137 } }, 'interrupted', (r) => assert.deepEqual(r.row.exit, { code: 137, timedOut: false, oomKilled: false })],
+  ['(2b) R132 interrupted: exit 143 (SIGTERM)', { scenario: { exit: 143 } }, 'interrupted', (r) => assert.deepEqual(r.row.exit, { code: 143, timedOut: false, oomKilled: false })],
+  ['(2b) R132: exit 1 is the agent\'s own failure and is graded as before', { scenario: { exit: 1 } }, null],
+  ['(2b) R132: exit 2 is graded as before', { scenario: { exit: 2 } }, null],
+  ['(2b) R132: 129 is graded as before', { scenario: { exit: 129 } }, null],
+  ['(2b) R132: 131 is graded as before', { scenario: { exit: 131 } }, null],
+  ['(2b) R132: 136 is graded as before', { scenario: { exit: 136 } }, null],
+  ['(2b) R132: 138 is graded as before', { scenario: { exit: 138 } }, null],
+  ['(2b) R132: 142 is graded as before', { scenario: { exit: 142 } }, null],
+  ['(2b) R132: 144 is graded as before', { scenario: { exit: 144 } }, null],
+  ['(2) before (2b): oom with exit 137 is oom', { container: { oomKilled: true }, scenario: { exit: 137 } }, 'oom'],
+  ['(1) before (2b): create_failed with exit 130', { noContainer: true, scenario: { exit: 130 } }, 'create_failed'],
+  ['(1) before (2b): inspect_failed with exit 143', { docker: { inspect: { status: 1 } }, scenario: { exit: 143 } }, 'inspect_failed'],
+  ['(1) before (2b): rm_failed with exit 137', { docker: { rm: { status: 1 } }, scenario: { exit: 137 } }, 'rm_failed'],
+  ['(2b) before (3): interrupted before a missing transcript', { scenario: { exit: 130, transcript: false } }, 'interrupted'],
+  ['(2b) before (3): interrupted before an unreadable transcript (no infraDetail: it was never read)', { scenario: { exit: 143, transcript: 'directory' } }, 'interrupted'],
+  ['(2b) before (3): interrupted before two transcripts', { scenario: { exit: 137, transcript: 'twice' } }, 'interrupted'],
+  ['(2b) before (4): interrupted before an API error', { scenario: { exit: 130, apiError: true } }, 'interrupted'],
+  ['(2b) before (5): interrupted before no_log', { scenario: { exit: 130, decision: null } }, 'interrupted'],
+  ['(2b) before (5): interrupted before arm_mismatch', { scenario: { exit: 143, decision: holdout } }, 'interrupted'],
+  ['(2b) before (6): interrupted before effort_mismatch', { scenario: { exit: 137, effort: 'medium' } }, 'interrupted'],
   ['(3) transcript_unreadable: readRunUsage throws', { scenario: { transcript: 'directory' } }, 'transcript_unreadable', (r) => {
     assert.equal(r.row.usage, null, 'it returned nothing');
     noTranscript(null)(r);

@@ -172,6 +172,8 @@ export function planRunsS5(prereg, options) {
 //        (1) (2) the container, by grade.mjs's infraOf on the dockerRun result with timedOut forced false (R105, which revises R87's
 //            order): create_failed, then oom (OOMKilled, whatever the exit status), then inspect_failed, then rm_failed, so a failed
 //            removal never hides an OOM kill
+//        (2b) interrupted                                   the container's exit status is 130, 137 or 143 and it did not time out (R132): cut off by a
+//                                                           signal that was not the harness's own timeout, a partial run, never graded
 //        (3) transcript_unreadable (readRunUsage threw) | no_transcript | ambiguous_transcript
 //        (4) api_error                                      an API-error record in the MAIN transcript (a subagent's is recorded only)
 //        (5) no_log | arm_mismatch                          the decision log (R89): B must be treated and steered, A and C held out
@@ -219,6 +221,8 @@ export function planRunsS5(prereg, options) {
 // For case 4 the batch calls scrubRunDirs (below, R117) at its start, before the first run, and refuses to start when it returns `failed`.
 
 const AGENT_USER = 'agent';
+// R132: the exit statuses of a container cut off by SIGINT, SIGKILL and SIGTERM (128 + the signal).
+const INTERRUPTED_EXITS = Object.freeze([130, 137, 143]);
 const WORKDIR = '/work';
 // A grade, and up to two re-grades on the same tree when the grade itself ends in infrastructure (R87).
 const GRADE_ATTEMPTS = 3;
@@ -634,8 +638,13 @@ export async function runOne(run, ctx) {
     }
     // R87 (1), (2): the container, by grade.mjs's infraOf (R105: created, oom, inspect_failed, rm_failed, in that order, so a failed
     // removal never hides an OOM kill). timedOut is forced false: for the agent container a timeout is the model's failure (R90), not
-    // the harness's. Then (3) to (6): what the run left behind.
-    let infra = infraOf({ ...docker, timedOut: false }) ?? evidenceInfra(run, { usage, decision });
+    // the harness's. Then (2b) R132, and (3) to (6): what the run left behind.
+    let infra = infraOf({ ...docker, timedOut: false });
+    // (2b) R132: a container cut off by a signal that was not the harness's own timeout (SIGINT, SIGKILL, SIGTERM: 130, 137, 143) left a
+    // partial run, whatever its transcript and decision log look like: never graded, never the model's failure. A timeout (137 with
+    // timedOut) stays R90's.
+    if (infra === null && !docker.timedOut && INTERRUPTED_EXITS.includes(docker.status)) infra = 'interrupted';
+    infra ??= evidenceInfra(run, { usage, decision });
     let detail = infra === 'transcript_unreadable' ? detailOf(usageError, o.token) : null;
     let grade = null;
     // R90: a timed-out run is the model's failure and is not graded. R87 puts every infrastructure step before this one.
