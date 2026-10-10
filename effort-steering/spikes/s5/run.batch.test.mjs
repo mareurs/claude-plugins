@@ -311,6 +311,17 @@ async function refuses(b, pattern, label, over, prereg = b.prereg) {
 // the run loop: order, concurrency, the rows file, resume, retries, the exhausted row, a thrown runOne, attempt numbers
 // =====================================================================================================================
 
+await ta('R153: the Summary records the concurrency and the stop limit the batch ACTUALLY used: the registered ones by default, the options when they override', async () => {
+  const registered = bench({ runs: { A: 1, B: 0, C: 0 } });
+  const base = await registered.run();
+  assert.deepEqual([base.concurrency, base.stopAtCostUsd], [registered.prereg.limits.concurrency, registered.prereg.stopAtCostUsd]);
+  const overridden = bench({ runs: { A: 1, B: 0, C: 0 } });
+  const s = await overridden.run({ concurrency: 1, stopAtCostUsd: 7.5 });
+  assert.deepEqual([s.concurrency, s.stopAtCostUsd], [1, 7.5]);
+  assert.notEqual(overridden.prereg.limits.concurrency, 1, 'the override differs from the registration, so the pair above is not the default');
+  assert.notEqual(overridden.prereg.stopAtCostUsd, 7.5);
+});
+
 await ta('a clean batch: every planned run runs once in the order of planRunsS5, one final line per run is appended, the Summary has the keys of the brief, and the prereg is never mutated', async () => {
   const b = bench({ specs: [{ id: 'ta' }, { id: 'tb' }], runs: { A: 2, B: 2, C: 1 } });
   const plan = b.plan();
@@ -318,9 +329,9 @@ await ta('a clean batch: every planned run runs once in the order of planRunsS5,
   const before = JSON.stringify(b.prereg);
   const summary = await b.run();
   assert.deepEqual(b.starts(), plan.map((r) => r.runId), 'the runs start in the order of the plan');
-  assert.deepEqual(Object.keys(summary).sort(), ['attempts', 'costUsd', 'exhausted', 'infraAttempts', 'mode', 'planned', 'ran', 'retriedExhausted', 'rowsFile', 'scrubbed', 'skippedFinal', 'smoke', 'stopped', 'tornLine']);
+  assert.deepEqual(Object.keys(summary).sort(), ['attempts', 'concurrency', 'costEstimatedRows', 'costUsd', 'exhausted', 'infraAttempts', 'mode', 'planned', 'ran', 'retriedExhausted', 'rowsFile', 'scrubbed', 'skippedFinal', 'smoke', 'stopAtCostUsd', 'stopped', 'tornLine']);
   assert.deepEqual(summary, {
-    mode: 'pilot', planned: 10, skippedFinal: 0, ran: 10, attempts: 10, infraAttempts: 0, exhausted: 0, retriedExhausted: 0, costUsd: 10, stopped: null, rowsFile: b.rowsFile, smoke: null, scrubbed: { dirs: 0, files: 0 }, tornLine: false,
+    mode: 'pilot', planned: 10, skippedFinal: 0, ran: 10, attempts: 10, infraAttempts: 0, exhausted: 0, retriedExhausted: 0, costUsd: 10, costEstimatedRows: 0, concurrency: b.prereg.limits.concurrency, stopAtCostUsd: b.prereg.stopAtCostUsd, stopped: null, rowsFile: b.rowsFile, smoke: null, scrubbed: { dirs: 0, files: 0 }, tornLine: false,
   });
   const rows = b.rows();
   assert.equal(b.lines().length, 10, 'one line per attempt, nothing else');
@@ -571,6 +582,75 @@ await ta('the stop rule also blocks a retry: an infrastructure row that reaches 
   assert.deepEqual(b.rows().map((r) => [r.final, r.infra]), [[false, 'api_error']]);
   assert.deepEqual(summary.stopped, { reason: 'cost', costUsd: 5, limit: 5 });
   assert.deepEqual({ ran: summary.ran, exhausted: summary.exhausted, infraAttempts: summary.infraAttempts }, { ran: 0, exhausted: 0, infraAttempts: 1 });
+});
+
+// ---- R148: the runs that cost the most print no JSON, so their cost is estimated ----
+//
+// A timed-out run is SIGKILLed with its container: no stdout JSON, costUsd null, yet it used the whole wall clock at the highest effort.
+// An interrupted run is the same. Summed as 0 they hide the most expensive runs from the stop rule. Ruling R148: such a row counts, in the
+// stop rule's sum, as the LARGEST costUsd known in the file (0 when none is known); no price table is invented.
+const timedOutRow = (id, over = {}) => okRow({ runId: `old.${id}.0`, taskId: 'old', taskIndex: 9, arm: 'A', effort: 'xhigh', rep: 0, round: 0 }, { costUsd: null, numTurns: null, isError: null, exit: { code: 137, timedOut: true, oomKilled: false }, grade: null, ...over });
+const seedFile = (b, rows) => writeFileSync(b.rowsFile, `${rows.map((r) => JSON.stringify(r)).join('\n')}\n`);
+
+await ta('R148: a final row with no cost that timed out counts as the largest cost known in the file; the Summary says how many rows were estimated; equal to the limit stops, just below does not', async () => {
+  const rows = [oldRow('x', 4), oldRow('y', 6), timedOutRow('t')];
+  const stops = bench({ runs: { A: 1, B: 1, C: 0 } });
+  seedFile(stops, rows);
+  const summary = await stops.run({ stopAtCostUsd: 16 });
+  assert.equal(stops.calls.length, 0, '4 + 6 + the largest known (6) = 16 reaches the limit');
+  assert.deepEqual(summary.stopped, { reason: 'cost', costUsd: 16, limit: 16 });
+  assert.deepEqual([summary.costUsd, summary.costEstimatedRows], [16, 1]);
+  assert.equal(stoppedIn(stops.rowsFile)[0].costUsd, 16, 'the stopped line carries the sum that stopped it');
+
+  const below = bench({ runs: { A: 1, B: 1, C: 0 } });
+  seedFile(below, rows);
+  const ok = await below.run({ stopAtCostUsd: 16.01, concurrency: 1 });
+  assert.equal(below.calls.length, 1, 'just below the limit a run starts');
+  assert.deepEqual([ok.costUsd, ok.costEstimatedRows], [17, 1]);
+});
+
+await ta('R148: the estimate is the LARGEST known cost (not the first, the last or the mean), it is added once per estimated row, and it is 0 while no cost is known', async () => {
+  const largest = bench({ runs: { A: 1, B: 1, C: 0 } });
+  seedFile(largest, [oldRow('a', 9), oldRow('b', 2), timedOutRow('t1'), oldRow('c', 3), timedOutRow('t2')]);
+  const s = await largest.run({ stopAtCostUsd: 1000 });
+  assert.equal(s.costEstimatedRows, 2);
+  // 9 + 2 + 3 known, two estimated rows at 9 each. The two runs then add 1 each (okRow).
+  assert.equal(s.costUsd, 14 + 18 + 2);
+
+  const none = bench({ runs: { A: 1, B: 0, C: 0 }, script: ({ run }) => okRow(run, { costUsd: 0 }) });
+  seedFile(none, [timedOutRow('t1'), timedOutRow('t2')]);
+  const zero = await none.run({ stopAtCostUsd: 0.5 });
+  assert.equal(none.calls.length, 1, 'nothing is known when the file starts: the two estimated rows add 0 (not NaN, not -Infinity), so the run starts');
+  assert.deepEqual([zero.costEstimatedRows, zero.costUsd, zero.stopped], [2, 0, null]);
+});
+
+await ta('R148: which rows are estimated: a null cost with exit.timedOut or infra interrupted (also as the last infrastructure of an exhausted line); not a run_failed row (it never reached a container), not a null-cost row that did not time out, not the noAttempt exhausted line (its cost is in its own line), not a row whose cost is known', async () => {
+  const b = bench({ runs: { A: 1, B: 0, C: 0 }, script: ({ run }) => okRow(run, { costUsd: 0 }) });
+  seedFile(b, [
+    oldRow('known', 5),
+    timedOutRow('timeout-nonfinal-infra', { infra: 'no_log', final: false }), // timed out, then an infrastructure value of the evidence: estimated
+    timedOutRow('interrupted', { exit: { code: 130, timedOut: false, oomKilled: false }, infra: 'interrupted', final: false }), // estimated
+    timedOutRow('exhausted-last-interrupted', { exit: { code: 143, timedOut: false, oomKilled: false }, infra: 'infra_exhausted', lastInfra: 'interrupted', final: true }), // estimated
+    timedOutRow('noattempt', { infra: 'infra_exhausted', lastInfra: 'interrupted', final: true, noAttempt: true }), // NOT: its attempt's own line holds the cost
+    timedOutRow('run-failed', { exit: null, infra: 'run_failed', final: false }), // NOT: never reached a container
+    timedOutRow('nojson', { exit: { code: 1, timedOut: false, oomKilled: false } }), // NOT: no timeout, no signal: a null cost adds 0
+    timedOutRow('known-timeout', { costUsd: 2 }), // NOT estimated: its cost is known and is summed as it is
+    timedOutRow('known-zero-timeout', { costUsd: 0 }), // NOT estimated: a known cost of 0 is a measurement, not a missing one
+  ]);
+  const s = await b.run({ stopAtCostUsd: 1000 });
+  assert.equal(s.costEstimatedRows, 3);
+  assert.equal(s.costUsd, 5 + 2 + 3 * 5, 'the known 5 and 2, and three rows at the largest known cost (5)');
+});
+
+await ta('R148: inside one batch a timed-out run counts at once, as the largest cost known so far, so the stop rule sees it before the next start', async () => {
+  const b = bench({
+    runs: { A: 1, B: 1, C: 1 },
+    script: ({ run, n }) => (n === 0 ? okRow(run, { costUsd: 5 }) : timedOutRow(`in-batch-${n}`, { runId: run.runId, taskId: run.taskId, taskIndex: run.taskIndex, arm: run.arm, effort: run.effort, rep: run.rep, round: run.round })),
+  });
+  const s = await b.run({ stopAtCostUsd: 10, concurrency: 1 });
+  assert.equal(b.calls.length, 2, 'the first run costs 5, the second times out (estimated at 5): the sum is 10, so the third never starts');
+  assert.deepEqual(s.stopped, { reason: 'cost', costUsd: 10, limit: 10 });
+  assert.deepEqual([s.costUsd, s.costEstimatedRows], [10, 1]);
 });
 
 await ta('the stop rule survives a resume: the sum is read from the file; a batch with the limit already reached starts nothing and appends a stopped line; the stopped lines\' costUsd is never summed', async () => {

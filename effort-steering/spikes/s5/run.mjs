@@ -827,7 +827,10 @@ export async function runOne(run, ctx) {
 // failure makes runBatch throw after the runs in flight have finished.
 //
 // ORDER, THE STOP RULE, SIGNALS. Runs start in the order of planRunsS5, at most `concurrency` at a time. Before every start, a retry included,
-// the costUsd of EVERY Row of the file (null adds 0; a typed line is no Row) is summed; when the sum is >= stopAtCostUsd nothing starts, the
+// the costUsd of EVERY Row of the file (a typed line is no Row) is summed, a null one adding 0 EXCEPT a row that reached the container and timed out
+// (exit.timedOut) or ended infra `interrupted`, which prints no JSON and is among the most expensive runs: it counts as the LARGEST costUsd known in the
+// file (0 when none; R148, no price table; Summary.costEstimatedRows counts them, the stopped line carries the sum). When the sum is >= stopAtCostUsd
+// nothing starts, the
 // runs in flight finish and are recorded, and ONE line { type: 'stopped', at, reason: 'cost' | 'hidden_changed' | 'signal', costUsd, limit, mode } is
 // appended after them (the first reason wins; a 'signal' line also carries signalName, R138). The sum is read from the file at start, so a resumed
 // batch with the limit reached starts nothing and says so; a batch with nothing left to start says nothing. The first SIGINT, SIGTERM or SIGHUP is
@@ -851,10 +854,11 @@ export async function runOne(run, ctx) {
 // decision is the decisionLogs check's, not this one's); steerContexts (R147, counted in the transcript) 1 in B and 0 in A and C. A planned run without a
 // final row makes every check false. ok also needs that no run ended infra_exhausted.
 //
-// Summary { mode, planned, skippedFinal, ran, attempts, infraAttempts, exhausted, retriedExhausted, costUsd, stopped, rowsFile, smoke, scrubbed, tornLine }:
+// Summary { mode, planned, skippedFinal, ran, attempts, infraAttempts, exhausted, retriedExhausted, costUsd, costEstimatedRows, concurrency, stopAtCostUsd, stopped, rowsFile, smoke, scrubbed, tornLine }:
 //   ran   runs that got a final row in this batch (counted rows and exhausted lines)   attempts   runOne calls made   infraAttempts   attempts that
 //   ended in infrastructure   exhausted   runs that ended infra_exhausted   retriedExhausted   runs re-opened by retryExhausted   costUsd   the sum
-//   over the whole file at the end   stopped   null or { reason, costUsd, limit } (reason 'signal': plus signalName; reason 'infra_streak':
+//   over the whole file at the end, the estimate of R148 included   costEstimatedRows   how many rows of the file are estimated (no JSON: a timeout, an
+//   interruption)   concurrency, stopAtCostUsd   the values the batch ACTUALLY used (the registered ones, or the options that override them)   stopped   null or { reason, costUsd, limit } (reason 'signal': plus signalName; reason 'infra_streak':
 //   { reason, streak, lastInfra, costUsd, limit: null })   scrubbed   { dirs, files } of the start-of-batch scrub   tornLine   a torn last line was ignored.
 // Nothing is printed. The batch never starts a model itself: runOne starts the agent container, with the real Claude binary mounted.
 
@@ -1124,7 +1128,32 @@ function rowsAppender(file, state) {
   };
 }
 
-const rowCost = (row) => (Number.isFinite(row.costUsd) && row.costUsd > 0 ? row.costUsd : 0);
+// R148: the cost of one Row that is KNOWN: the stdout JSON's total_cost_usd, a number >= 0; null otherwise.
+const knownCost = (row) => (Number.isFinite(row.costUsd) && row.costUsd >= 0 ? row.costUsd : null);
+// R148: a Row with no known cost whose run used a container to the end of its time or until a signal cut it off. A timed-out agent is SIGKILLed
+// with its container and prints no JSON, so its cost is null although it used the whole wall clock, and an interrupted one is the same; both
+// are among the most expensive runs of the study. Not estimated: a run_failed row (exit null: it never reached a container), a null cost
+// without a timeout or a signal, and the exhausted line written WITHOUT an attempt (noAttempt: the cost of that attempt is in its own line).
+// An exhausted line that is an attempt's own line (lastInfra interrupted) is estimated like the attempt's row would be.
+const isEstimated = (row) => knownCost(row) === null && row.noAttempt !== true
+  && (row.exit?.timedOut === true || row.infra === 'interrupted' || row.lastInfra === 'interrupted');
+// R148: the cost the stop rule sees over `rows`: the known costs, plus, for each estimated row, the LARGEST known cost in the rows (0 when none
+// is known). No price table is invented. -> { costUsd, estimatedRows }.
+const costOf = (rows) => {
+  let known = 0;
+  let largest = 0;
+  let estimatedRows = 0;
+  for (const row of rows) {
+    const cost = knownCost(row);
+    if (cost !== null) {
+      known += cost;
+      largest = Math.max(largest, cost);
+    } else if (isEstimated(row)) {
+      estimatedRows += 1;
+    }
+  }
+  return { costUsd: known + estimatedRows * largest, estimatedRows };
+};
 const isRowOf = (row, run) => isObject(row) && row.runId === run.runId && (row.infra === null || (typeof row.infra === 'string' && row.infra !== ''));
 
 // 1 + the highest N of the entries named `<runId>-aN` in runsDir (0 when there are none).
@@ -1352,7 +1381,7 @@ export async function runBatch(prereg, options) {
     const allowed = 1 + o.infraRetries;
     // R124: this many infrastructure attempts in a row, across all runs, in completion order, stop the batch.
     const streakLimit = 2 * allowed;
-    const spent = () => rows.reduce((sum, row) => sum + rowCost(row), 0);
+    const spent = () => costOf(rows).costUsd;
     // The attempts a run has used UP: its non-final rows after its last final row. A run that was never final has all of its non-final rows
     // counted; a run that retryExhausted re-opened has a fresh allowance, counted after its last infra_exhausted row (R125).
     const attemptsUsed = (runId) => {
@@ -1482,6 +1511,9 @@ export async function runBatch(prereg, options) {
       exhausted: counts.exhausted,
       retriedExhausted: counts.retriedExhausted,
       costUsd: spent(),
+      costEstimatedRows: costOf(rows).estimatedRows,
+      concurrency: o.concurrency,
+      stopAtCostUsd: o.stopAtCostUsd,
       stopped,
       rowsFile: o.rowsFile,
       smoke: o.mode === 'smoke' ? smokeSummary(plan, rows) : null,
