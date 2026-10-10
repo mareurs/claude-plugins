@@ -760,9 +760,9 @@ t('limits.concurrency is a safe integer of at least 1', () => {
   accept('limits.concurrency', [1, 2, 16]);
 });
 
-t('limits.infraRetries is a safe integer from 0 to 5: 0 and 5 load, -1 and 6 are refused', () => {
-  refuse('limits.infraRetries', [-1, 6, 7, 100, 2.5, '2', UNSAFE, true]);
-  accept('limits.infraRetries', [0, 1, 4, 5]);
+t('R153: limits.infraRetries is a safe integer from 0 to 2 (spec l.94: an infrastructure failure is re-run at most twice): 0, 1 and 2 load, -1, 3 and 5 are refused', () => {
+  refuse('limits.infraRetries', [-1, 3, 4, 5, 6, 7, 100, 2.5, '2', UNSAFE, true]);
+  accept('limits.infraRetries', [0, 1, 2]);
 });
 
 t('stopAtCostUsd is a finite number above 0', () => {

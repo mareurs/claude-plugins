@@ -35,7 +35,7 @@
 //                    permutations a safe integer >= ceil(1 / alpha) - 1 (the smallest p an exact test can report is
 //                    1 / (permutations + 1), which must reach alpha); seed a safe integer; effectSizeThinkingTokens > 0
 //   limits           { timeoutMinutes: safe integer 1..240, cpus: > 0, memoryGb: > 0, concurrency: safe integer >= 1,
-//                      infraRetries: safe integer 0..5 }
+//                      infraRetries: safe integer 0..2 (spec l.94: an infrastructure failure is re-run at most twice) }
 //   images           { codescout, 'claude-plugins', proxy }: each 'sha256:<64 lowercase hex>'; the keys are task-def's
 //                    IMAGE_FOR_REPO keys plus proxy (ruling R22: copied from images/digests.json, whose keys are the
 //                    image names s5/codescout, s5/plugins and s5/proxy)
@@ -144,7 +144,7 @@ function checkLimits(l) {
   positive('limits.cpus', l.cpus);
   positive('limits.memoryGb', l.memoryGb);
   safeInt('limits.concurrency', l.concurrency, 1);
-  safeInt('limits.infraRetries', l.infraRetries, 0, 5);
+  safeInt('limits.infraRetries', l.infraRetries, 0, 2); // spec l.94: "re-run, at most twice" (R153; the plan's 0..5 was wider than the spec)
 }
 
 // One predicate, the proxy's own: the loader accepts exactly the entries proxy.mjs's hostPattern accepts (ruling R50).

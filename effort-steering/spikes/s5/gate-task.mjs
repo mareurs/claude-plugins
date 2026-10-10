@@ -12,11 +12,13 @@
 // ---- warmTask: the first build of a cargo task, so that no grade pays for a cold one ----
 //
 // Cargo fingerprints are path-sensitive, so the warm target is built in the same image, as the same user, with the tree
-// at /work and CARGO_TARGET_DIR=/target: the paths a grade has. Two containers, both labelled s5=1 and s5.task=<id>:
-//   (1) fetch  s5-warm-fetch-<id>: the default bridge network (the only container with a route out), CARGO_NET_OFFLINE=false,
-//              `cargo fetch --locked` in a reflink copy of the task tree at /work, <workRoot>/cargo-home rw at /cargo
-//              (CARGO_HOME=/cargo). No model and no build script runs here.
-//   (2) build  s5-warm-build-<id>: network none, a fresh reflink copy of the P tree at /work (no graft), the task's target
+// at /work and CARGO_TARGET_DIR=/target: the paths a grade has. Two containers, both labelled s5=1 and s5.task=<id>, both named with a
+// warm id (`runId` when the caller gives one, else 12 random hex characters: a warm in progress is never merged into):
+//   (1) fetch  s5-warm-fetch-<warmId>: the default bridge network, CARGO_NET_OFFLINE=false, `cargo fetch --locked` in a reflink copy of the
+//              task tree at /work, <workRoot>/cargo-home rw at /cargo (CARGO_HOME=/cargo). No model and no build script runs here. It is
+//              the one warm or grade container with a route out; it is not the only container of the study with one: the proxy container
+//              has one by design, and so has the agent container of the pilot's `--open-network` proxy control.
+//   (2) build  s5-warm-build-<warmId>: network none, a fresh reflink copy of the P tree at /work (no graft), the task's target
 //              <workRoot>/tasks/<id>/target rw at /target (CARGO_TARGET_DIR=/target; reflinked from `baseTarget` when
 //              given, and refused if it already exists), /cargo read-only, and def.buildCommand.
 // The build runs whatever the fetch did: a failed fetch leaves the build to say what is missing. warmTask RETURNS on a
