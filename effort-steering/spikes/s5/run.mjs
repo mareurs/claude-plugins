@@ -62,7 +62,7 @@ import {
 } from './proxy.mjs';
 import { IMAGE_FOR_REPO, TASK_ID_RE } from './task-def.mjs';
 import {
-  finalTextTail, firstUserText, readRunUsage, testsRunBeforeDone,
+  finalTextTail, firstUserText, hookContexts, readRunUsage, testsRunBeforeDone,
 } from './usage.mjs';
 
 const MODES = ['measure', 'calibrate', 'pilot', 'smoke'];
@@ -178,6 +178,11 @@ export function planRunsS5(prereg, options) {
 //        (4) api_error                                      an API-error record in the MAIN transcript (a subagent's is recorded only)
 //        (5) no_log | arm_mismatch                          the decision log (R89): B must be treated and steered, A and C held out
 //        (6) effort_mismatch                                the transcript's efforts are not exactly [run.effort]
+//        (6b) steer_mismatch                                (R147) the steer did not reach the model as the arm says: the UserPromptSubmit hook contexts of the main
+//                                                           transcript (hookContexts) are not exactly [the shallow sentence] for B, or are not none for A and C. The sentence
+//                                                           is phrases.shallow of the hook copy's core/steer.table.json, read when the run starts. The decision log (5) is
+//                                                           written BEFORE the policy CLI prints, and the hook kills the CLI after 500 ms and fails open, so it cannot show
+//                                                           that the steer arrived; the transcript can.
 //        (7) a timeout is a FINAL model failure (R90): infra null, grade null, never graded, whatever its tree would score
 //        (8) hidden_changed                                 the hidden dir no longer hashes to manifest.hiddenHash (R101), through
 //                                                           hashHidden: a run does not read the whole tree (R109); the tree and the prompt
@@ -198,7 +203,8 @@ export function planRunsS5(prereg, options) {
 //
 // THE ROW. The brief's Row { runId, taskId, taskIndex, arm, effort, rep, round, sessionId, startedAt, wallMs, exit, infra, final,
 // decision, usage, efforts, costUsd, numTurns, firstUserTextOk, testsRunBeforeDone, finalTextTail, grade }, plus `isError` (R88, from
-// the stdout JSON), `tokenScrubbed` (R108), `infraDetail` (R110: only on an infrastructure row a caught error made, that is
+// the stdout JSON), `steerContexts` (R147: how many UserPromptSubmit hook contexts the main transcript holds; null without a transcript),
+// `tokenScrubbed` (R108), `infraDetail` (R110: only on an infrastructure row a caught error made, that is
 // transcript_unreadable, grade_failed and a hidden_changed whose hash threw: the error's message, the token redacted before the line is
 // cut to 300 characters) and, only when something is left over, `leftover`.
 //   exit     { code: dockerRun's status, timedOut, oomKilled }.         final   infra === null (R100: the batch decides exhaustion).
@@ -251,6 +257,22 @@ function statOrNull(p, stat = statSync) {
     throw err;
   }
 }
+// R147: the sentence arm B must have been given, as the hook is told to say it: phrases.shallow of the steer table in the hook copy (the
+// copy of effort-steering/core/steer.table.json the container mounts at /opt/es), read when the run starts and never written in this file.
+// A copy whose table cannot give one refuses the run before anything is made.
+function steerPhraseOf(hookCopyDir) {
+  const file = path.join(hookCopyDir, 'core', 'steer.table.json');
+  let table;
+  try {
+    table = JSON.parse(readFileSync(file, 'utf8'));
+  } catch (err) {
+    throw refuse(`cannot read ${file}, the steer table of the hook copy (R147: the sentence B must have been given is read from it): ${err.message}`);
+  }
+  const phrase = isObject(table) && isObject(table.phrases) ? table.phrases.shallow : undefined;
+  if (typeof phrase !== 'string' || phrase === '') throw refuse(`${file} has no non-empty phrases.shallow (R147: it is the sentence B must have been given)`);
+  return phrase;
+}
+
 
 // Everything runOne needs from its two arguments, checked before anything is made. Throws a TypeError (an input) or an Error (the
 // world is not ready: no token, no binary).
@@ -290,6 +312,7 @@ function resolveInputs(run, ctx) {
   if (!isObject(hookCopy) || typeof hookCopy.copyDir !== 'string' || statOrNull(hookCopy.copyDir)?.isDirectory() !== true) {
     throw refuse(`ctx.hookCopy.copyDir must be the directory writeHookCopy made, got ${show(hookCopy?.copyDir)}`);
   }
+  const steerPhrase = steerPhraseOf(hookCopy.copyDir);
   const claudeBin = ctx.claudeBin ?? path.join(os.homedir(), '.local', 'share', 'claude', 'versions', String(prereg.cli?.version));
   if (typeof claudeBin !== 'string' || statOrNull(claudeBin)?.isFile() !== true) {
     throw refuse(`the Claude binary ${show(claudeBin)} is not a file (ctx.claudeBin, or <HOME>/.local/share/claude/versions/<prereg.cli.version>)`);
@@ -304,7 +327,7 @@ function resolveInputs(run, ctx) {
   if (typeof token !== 'string' || token === '') throw new Error(`runOne: the environment variable ${tokenEnv} is not set (it holds the Claude Code OAuth token)`);
 
   return {
-    attemptId, prereg, workRoot: path.resolve(ctx.workRoot), hookCopy, claudeBin, tokenEnv, token, network, proxyUrl, images: ctx.images,
+    attemptId, prereg, workRoot: path.resolve(ctx.workRoot), hookCopy, steerPhrase, claudeBin, tokenEnv, token, network, proxyUrl, images: ctx.images,
     dockerBin: ctx.dockerBin, grade: ctx.grade ?? gradeTree, keepRunDirs: ctx.keepRunDirs === true, attempt: ctx.attempt,
   };
 }
@@ -379,7 +402,7 @@ function resultOf(stdout) {
 // from a grader that finished.
 const isGrade = (g) => isObject(g) && (g.infra === null || (typeof g.infra === 'string' && g.infra !== '')) && typeof g.pass === 'boolean';
 
-// R87 steps (3) to (6), what the run left behind: the infrastructure value, or null. First match wins. (The container's own state, steps
+// R87 steps (3) to (6b), what the run left behind: the infrastructure value, or null. First match wins. (The container's own state, steps
 // (1) and (2), is grade.mjs's infraOf, called on the dockerRun result: R105.)
 function evidenceInfra(run, evidence) {
   if (evidence.usage === null) return 'transcript_unreadable';
@@ -390,6 +413,12 @@ function evidenceInfra(run, evidence) {
   if (evidence.decision.arm !== want.arm || evidence.decision.steered !== want.steered) return 'arm_mismatch';
   const { efforts } = evidence.usage;
   if (efforts.length !== 1 || efforts[0] !== run.effort) return 'effort_mismatch';
+  // (6b) R147: the steer must have REACHED the model. The decision log is written before the policy CLI prints its result, and the hook kills
+  // the CLI after 500 ms and then fails open with no steer, so a log that says steered proves nothing about the transcript. B: exactly one
+  // UserPromptSubmit hook context, equal to the shallow sentence; A and C: none. A context of any other shape is a mismatch too.
+  const wantSteer = run.arm === 'B' ? [evidence.steerPhrase] : [];
+  const { contexts } = evidence;
+  if (contexts.length !== wantSteer.length || contexts.some((context, i) => context !== wantSteer[i])) return 'steer_mismatch';
   return null;
 }
 
@@ -636,6 +665,8 @@ export async function runOne(run, ctx) {
       text = null;
       usageError = err;
     }
+    // R147: the UserPromptSubmit hook contexts of the MAIN transcript; null without one.
+    const contexts = text === null ? null : hookContexts(text);
     // R87 (1), (2): the container, by grade.mjs's infraOf (R105: created, oom, inspect_failed, rm_failed, in that order, so a failed
     // removal never hides an OOM kill). timedOut is forced false: for the agent container a timeout is the model's failure (R90), not
     // the harness's. Then (2b) R132, and (3) to (6): what the run left behind.
@@ -644,7 +675,7 @@ export async function runOne(run, ctx) {
     // partial run, whatever its transcript and decision log look like: never graded, never the model's failure. A timeout (137 with
     // timedOut) stays R90's.
     if (infra === null && !docker.timedOut && INTERRUPTED_EXITS.includes(docker.status)) infra = 'interrupted';
-    infra ??= evidenceInfra(run, { usage, decision });
+    infra ??= evidenceInfra(run, { usage, decision, contexts, steerPhrase: o.steerPhrase });
     let detail = infra === 'transcript_unreadable' ? detailOf(usageError, o.token) : null;
     let grade = null;
     // R90: a timed-out run is the model's failure and is not graded. R87 puts every infrastructure step before this one.
@@ -688,6 +719,7 @@ export async function runOne(run, ctx) {
       testsRunBeforeDone: text === null ? null : testsRunBeforeDone(text, manifest.def.testPatterns),
       finalTextTail: text === null ? '' : finalTextTail(text, FINAL_TEXT_CHARS),
       grade,
+      steerContexts: contexts === null ? null : contexts.length,
       tokenScrubbed: 0, // set below, after the scrub of config/ and state/
     };
   } catch (err) {
@@ -814,10 +846,10 @@ export async function runOne(run, ctx) {
 // left it stays non-final and a resume continues it; on its last allowed attempt it is still written infra_exhausted. At most about two runs
 // are falsely exhausted by an outage, and retryExhausted recovers them.
 //
-// SMOKE: Summary.smoke = { ok, checks: { firstUserText, decisionLogs, bSteered }, rows } from the FINAL rows of the planned runs (one rep-0 run
-// per arm on one task): firstUserTextOk === true in every arm; a decision in every arm; the decision's steered true in B and false in A and C
-// (a missing decision is the decisionLogs check's, not this one's). A planned run without a final row makes every check false. ok also needs
-// that no run ended infra_exhausted.
+// SMOKE: Summary.smoke = { ok, checks: { firstUserText, decisionLogs, bSteered, steerDelivered }, rows } from the FINAL rows of the planned runs (one rep-0 run
+// per arm on one task): firstUserTextOk === true in every arm; a decision in every arm; the decision's steered true in B and false in A and C (a missing
+// decision is the decisionLogs check's, not this one's); steerContexts (R147, counted in the transcript) 1 in B and 0 in A and C. A planned run without a
+// final row makes every check false. ok also needs that no run ended infra_exhausted.
 //
 // Summary { mode, planned, skippedFinal, ran, attempts, infraAttempts, exhausted, retriedExhausted, costUsd, stopped, rowsFile, smoke, scrubbed, tornLine }:
 //   ran   runs that got a final row in this batch (counted rows and exhausted lines)   attempts   runOne calls made   infraAttempts   attempts that
@@ -1141,6 +1173,7 @@ function failedAttemptRow(run, startedAt, err, token) {
     testsRunBeforeDone: null,
     finalTextTail: '',
     grade: null,
+    steerContexts: null,
   };
 }
 
@@ -1264,9 +1297,11 @@ function smokeSummary(plan, rows) {
     firstUserText: complete && finals.every((row) => row.firstUserTextOk === true),
     decisionLogs: complete && finals.every((row) => isObject(row.decision)),
     bSteered: complete && plan.every((run, i) => !isObject(finals[i].decision) || finals[i].decision.steered === (run.arm === 'B')),
+    // R147: the steer reached the model as the arm says, counted in the transcript: one hook context in B, none in A and C.
+    steerDelivered: complete && plan.every((run, i) => finals[i].steerContexts === (run.arm === 'B' ? 1 : 0)),
   };
   const exhausted = finals.some((row) => row !== null && row.infra === 'infra_exhausted');
-  return { ok: checks.firstUserText && checks.decisionLogs && checks.bSteered && !exhausted, checks, rows: finals.filter((row) => row !== null).length };
+  return { ok: checks.firstUserText && checks.decisionLogs && checks.bSteered && checks.steerDelivered && !exhausted, checks, rows: finals.filter((row) => row !== null).length };
 }
 
 export async function runBatch(prereg, options) {

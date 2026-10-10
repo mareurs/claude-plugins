@@ -46,8 +46,13 @@ import {
   lstatSync, mkdirSync, readdirSync, readFileSync, readlinkSync, realpathSync, rmSync, utimesSync, writeFileSync,
 } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
+import { compileRules, decide } from '../../core/decide.mjs';
 import { git } from './git.mjs';
+import { HOOK_RULES } from './hook-copy.mjs';
 import { loadTaskDef } from './task-def.mjs';
+
+// The rules of the hook copy, compiled once (R147). probe false: the slow-regex probe measures wall-clock time and this rule has no regex.
+const HOOK_RULE_SET = compileRules(HOOK_RULES, { probe: false });
 
 const TEMPLATE = new URL('./task-claude.md.tmpl', import.meta.url);
 const IDENTITY = ['-c', 'user.name=s5', '-c', 'user.email=s5@localhost'];
@@ -283,6 +288,13 @@ export function buildTask(taskDir, { workRoot } = {}) {
   }
   // R118: a NUL byte is valid UTF-8, but a process argument cannot hold one (spawn throws), so the prompt could not be ONE argv element.
   if (prompt.includes(0)) throw new Error(`buildTask: ${join(taskDir, 'prompt.txt')} contains a NUL byte; the prompt is passed to the CLI as one process argument, which cannot hold one`);
+  // R147: ask the policy itself, with the rules the containers' hook copy holds, what the hook would decide for this prompt. Every prompt gets the
+  // shallow level from the one S5 rule EXCEPT one with an explicit "ultrathink", which wins over every rule (decide: user_override, level deep).
+  // That prompt would raise the thinking of EVERY arm, the steered one included, and B would get no shallow sentence: it cannot be measured.
+  const hook = decide({ prompt: prompt.toString('utf8') }, HOOK_RULE_SET);
+  if (hook.level !== 'shallow') {
+    throw new Error(`buildTask: ${join(taskDir, 'prompt.txt')} would make the steering hook choose the ${hook.level} level (${hook.reasons.join(', ')}) instead of the shallow one: the prompt holds an explicit "ultrathink", which raises the thinking of every arm; take it out`);
+  }
   requireFirstParent(def);
   // Two channels to the agent that are not tree files: the prompt is its first message, and the id is
   // in the commit message. Checked before anything is written.

@@ -25,6 +25,9 @@
 //   finalText    the final assistant text (default "Done.")
 //   apiError     true: an API-error record in the main transcript
 //   subagents    [{ "name": "agent-x", "apiError": false, "effort": ".." }]   subagent transcripts
+//   steer        "auto" (default: arm B, EFFORT_STEERING_HOLDOUT_RATE '0', gets ONE UserPromptSubmit hook context holding the shipped shallow phrase
+//                of core/steer.table.json, as the real hook writes it; A and C get none) | null (none) | a list, one hook context each: a string
+//                (content a string), a list of strings (content a list, the real shape) or an object { attachment } (written as it is)
 //   decision     "auto" (default) | null (no log) | an object | a list of objects and raw strings, one log line each
 //   decisionSession   the session id in the log's file name (default: the session id)
 //   decisionLink      true: the log is a symlink to a file that holds the line
@@ -37,7 +40,7 @@
 //   configLinks  { "<path under $CLAUDE_CONFIG_DIR>": "<target>" } symlinks (to a file or a directory anywhere)
 
 import {
-  chmodSync, mkdirSync, symlinkSync, utimesSync, writeFileSync,
+  chmodSync, mkdirSync, readFileSync, symlinkSync, utimesSync, writeFileSync,
 } from 'node:fs';
 import { dirname, join } from 'node:path';
 
@@ -59,6 +62,7 @@ if (!sessionId || !effortArg || prompt === undefined || !configDir || !stateHome
 }
 const scenario = JSON.parse(process.env.FAKE_CLAUDE ?? '{}');
 const has = (key) => Object.hasOwn(scenario, key);
+const isPlainObject = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
 const write = (file, text) => {
   mkdirSync(dirname(file), { recursive: true });
   writeFileSync(file, text);
@@ -90,6 +94,19 @@ const apiErrorRecord = () => ({
 
 const records = [{ type: 'user', message: { role: 'user', content: has('firstUser') ? scenario.firstUser : prompt }, sessionId }];
 const TOKEN = process.env.CLAUDE_CODE_OAUTH_TOKEN ?? '';
+// The hook's context as Claude Code 2.1.292 records it (measured on real S4 transcripts): an attachment record of type hook_additional_context,
+// hookEvent UserPromptSubmit, content a list holding the steer. The auto value is the shipped shallow phrase, read from the table.
+const shipped = JSON.parse(readFileSync(new URL('../../../core/steer.table.json', import.meta.url), 'utf8')).phrases.shallow;
+const steerContexts = has('steer') && scenario.steer !== 'auto' ? (scenario.steer ?? []) : (process.env.EFFORT_STEERING_HOLDOUT_RATE === '0' ? [[shipped]] : []);
+steerContexts.forEach((content, i) => {
+  records.push({
+    type: 'attachment',
+    attachment: isPlainObject(content)
+      ? content.attachment
+      : { type: 'hook_additional_context', hookEvent: 'UserPromptSubmit', hookName: 'UserPromptSubmit:steer', toolUseID: `toolu_hook_${i + 1}`, content },
+    sessionId,
+  });
+});
 if (scenario.leak === true) {
   records.push({ type: 'user', message: { role: 'user', content: [{ type: 'tool_result', tool_use_id: 'toolu_env', content: `CLAUDE_CODE_OAUTH_TOKEN=${TOKEN}` }] }, sessionId });
 }

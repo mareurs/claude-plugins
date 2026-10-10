@@ -863,6 +863,26 @@ t('R118: a prompt with a NUL byte is refused by name, without printing the promp
   }
 });
 
+t('R147: a prompt that would make the steering hook choose the DEEP level (it holds "ultrathink", any case, as a word) is refused by name, without printing the prompt, and nothing is built; a prompt that merely contains the letters is built', () => {
+  const text = 'add returns the difference of its arguments';
+  for (const [label, prompt] of [['lower case', `${text}; ultrathink about it\n`], ['upper case', `ULTRATHINK: ${text}\n`], ['mixed case at the end', `${text} UltraThink`], ['on a line of its own', `${text}\n\nultrathink\n`]]) {
+    refuses(src, label, { prompt }, /prompt\.txt/, /ultrathink/i, /deep/);
+    let err;
+    try {
+      buildTask(makeTaskDir(src, { prompt }), { workRoot: tmp('s5-work-') });
+    } catch (e) {
+      err = e;
+    }
+    assert.ok(err instanceof Error);
+    assert.ok(!err.message.includes(text), `${label}: the prompt is not printed`);
+  }
+  // The hook's own test is a word: these do not trigger it, so they are built.
+  for (const [label, prompt] of [['a longer word', `${text} (ultrathinking is not the keyword)\n`], ['a prefix', `${text} (not-ultrathinker)\n`]]) {
+    const b = build(src, { prompt });
+    assert.deepEqual(readFileSync(join(b.out, 'prompt.txt')), Buffer.from(prompt), label);
+  }
+});
+
 t("R109: hashHidden(out) is the hidden/ part of hashBuiltTask, one definition; it reads nothing outside hidden/", () => {
   const b = build(src);
   assert.equal(hashHidden(b.out), b.manifest.hiddenHash);

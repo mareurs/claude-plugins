@@ -142,7 +142,7 @@ function makePrereg(world, { runs, limits = {}, stopAtCostUsd = 100, registered 
 
 const ROW_KEYS = [
   'runId', 'taskId', 'taskIndex', 'arm', 'effort', 'rep', 'round', 'sessionId', 'startedAt', 'wallMs', 'exit', 'infra', 'final', 'decision', 'usage', 'efforts', 'costUsd', 'numTurns', 'isError', 'tokenScrubbed',
-  'firstUserTextOk', 'testsRunBeforeDone', 'finalTextTail', 'grade',
+  'firstUserTextOk', 'testsRunBeforeDone', 'finalTextTail', 'grade', 'steerContexts',
 ];
 // What a line of the rows file holds: the keys of a Row, and the `mode` of the batch that appended it (R133).
 const ROW_KEYS_IN_FILE = [...ROW_KEYS, 'mode'];
@@ -176,6 +176,7 @@ function okRow(run, over = {}) {
     testsRunBeforeDone: true,
     finalTextTail: 'Done.',
     grade: { infra: null, pass: true },
+    steerContexts: run.arm === 'B' ? 1 : 0,
     ...over,
   };
 }
@@ -472,7 +473,7 @@ await ta('a runOne that throws is an infrastructure attempt run_failed (R114): i
     { ...first, startedAt: null },
     {
       runId: 'ta.A.0', taskId: 'ta', taskIndex: 0, arm: 'A', effort: 'xhigh', rep: 0, round: first.round, sessionId: null, startedAt: null, wallMs: null, exit: null, infra: 'run_failed', final: false, mode: 'pilot',
-      infraDetail: first.infraDetail, decision: null, usage: null, efforts: [], costUsd: null, numTurns: null, isError: null, tokenScrubbed: null, firstUserTextOk: null, testsRunBeforeDone: null, finalTextTail: '', grade: null,
+      infraDetail: first.infraDetail, decision: null, usage: null, efforts: [], costUsd: null, numTurns: null, isError: null, tokenScrubbed: null, firstUserTextOk: null, testsRunBeforeDone: null, finalTextTail: '', grade: null, steerContexts: null,
     },
   );
   assert.match(first.startedAt, /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/);
@@ -1271,14 +1272,14 @@ process.stdout.write('DONE ' + JSON.stringify(summary.stopped) + '\\n');
 
 const smokeBench = (over = {}) => bench({ mode: 'smoke', specs: [{ id: 'ta' }, { id: 'tb' }], runs: { A: 3, B: 3, C: 3 }, ...over });
 
-await ta('smoke: one rep-0 run per arm on one task, the same retry and stop machinery, and Summary.smoke = { ok, checks: { firstUserText, decisionLogs, bSteered }, rows } from the final rows', async () => {
+await ta('smoke: one rep-0 run per arm on one task, the same retry and stop machinery, and Summary.smoke = { ok, checks: { firstUserText, decisionLogs, bSteered, steerDelivered }, rows } from the final rows', async () => {
   const b = smokeBench();
   const summary = await b.run();
   assert.equal(summary.mode, 'smoke');
   assert.deepEqual([summary.planned, b.calls.length], [3, 3], 'three runs although the registration has nine per task and two tasks');
   assert.deepEqual(b.calls.map((c) => [c.run.taskId, c.run.rep]).sort(), [['ta', 0], ['ta', 0], ['ta', 0]]);
   assert.deepEqual(b.calls.map((c) => c.run.arm).sort(), ['A', 'B', 'C']);
-  assert.deepEqual(summary.smoke, { ok: true, checks: { firstUserText: true, decisionLogs: true, bSteered: true }, rows: 3 });
+  assert.deepEqual(summary.smoke, { ok: true, checks: { firstUserText: true, decisionLogs: true, bSteered: true, steerDelivered: true }, rows: 3 });
   // The same retry machinery: an infrastructure row is re-run.
   let n = 0;
   const retry = smokeBench({ script: ({ run }) => (run.arm === 'B' && n++ === 0 ? infraRow(run, 'api_error') : okRow(run)) });
@@ -1289,15 +1290,22 @@ await ta('smoke: one rep-0 run per arm on one task, the same retry and stop mach
   assert.equal((await pilot.run()).smoke, null);
 });
 
-await ta('smoke: each of the three checks fails alone, and a run that ended infra_exhausted makes ok false although the checks hold', async () => {
+await ta('smoke: each of the four checks fails alone, and a run that ended infra_exhausted makes ok false although the checks hold', async () => {
   const cases = [
-    ['arm C: the first user text is not the prompt', (run) => (run.arm === 'C' ? { firstUserTextOk: false } : {}), { firstUserText: false, decisionLogs: true, bSteered: true }],
-    ['arm A: no transcript, so firstUserTextOk is null', (run) => (run.arm === 'A' ? { firstUserTextOk: null } : {}), { firstUserText: false, decisionLogs: true, bSteered: true }],
-    ['arm A: no decision-log line', (run) => (run.arm === 'A' ? { decision: null } : {}), { firstUserText: true, decisionLogs: false, bSteered: true }],
-    ['arm B: no decision-log line', (run) => (run.arm === 'B' ? { decision: null } : {}), { firstUserText: true, decisionLogs: false, bSteered: true }],
-    ['arm B is not steered', (run) => (run.arm === 'B' ? { decision: { arm: 'holdout', steered: false } } : {}), { firstUserText: true, decisionLogs: true, bSteered: false }],
-    ['arm A is steered', (run) => (run.arm === 'A' ? { decision: { arm: 'treated', steered: true } } : {}), { firstUserText: true, decisionLogs: true, bSteered: false }],
-    ['arm C is steered', (run) => (run.arm === 'C' ? { decision: { arm: 'treated', steered: true } } : {}), { firstUserText: true, decisionLogs: true, bSteered: false }],
+    // R147: the steer counted in the transcript. One hook context in B, none in A and C; null (no count) is not 0.
+    ['arm B: no steer reached the transcript', (run) => (run.arm === 'B' ? { steerContexts: 0 } : {}), { firstUserText: true, decisionLogs: true, bSteered: true, steerDelivered: false }],
+    ['arm B: two steers', (run) => (run.arm === 'B' ? { steerContexts: 2 } : {}), { firstUserText: true, decisionLogs: true, bSteered: true, steerDelivered: false }],
+    ['arm B: no count (null)', (run) => (run.arm === 'B' ? { steerContexts: null } : {}), { firstUserText: true, decisionLogs: true, bSteered: true, steerDelivered: false }],
+    ['arm A: a steer reached the transcript', (run) => (run.arm === 'A' ? { steerContexts: 1 } : {}), { firstUserText: true, decisionLogs: true, bSteered: true, steerDelivered: false }],
+    ['arm C: a steer reached the transcript', (run) => (run.arm === 'C' ? { steerContexts: 1 } : {}), { firstUserText: true, decisionLogs: true, bSteered: true, steerDelivered: false }],
+    ['arm C: no count (null)', (run) => (run.arm === 'C' ? { steerContexts: null } : {}), { firstUserText: true, decisionLogs: true, bSteered: true, steerDelivered: false }],
+    ['arm C: the first user text is not the prompt', (run) => (run.arm === 'C' ? { firstUserTextOk: false } : {}), { firstUserText: false, decisionLogs: true, bSteered: true, steerDelivered: true }],
+    ['arm A: no transcript, so firstUserTextOk is null', (run) => (run.arm === 'A' ? { firstUserTextOk: null } : {}), { firstUserText: false, decisionLogs: true, bSteered: true, steerDelivered: true }],
+    ['arm A: no decision-log line', (run) => (run.arm === 'A' ? { decision: null } : {}), { firstUserText: true, decisionLogs: false, bSteered: true, steerDelivered: true }],
+    ['arm B: no decision-log line', (run) => (run.arm === 'B' ? { decision: null } : {}), { firstUserText: true, decisionLogs: false, bSteered: true, steerDelivered: true }],
+    ['arm B is not steered', (run) => (run.arm === 'B' ? { decision: { arm: 'holdout', steered: false } } : {}), { firstUserText: true, decisionLogs: true, bSteered: false, steerDelivered: true }],
+    ['arm A is steered', (run) => (run.arm === 'A' ? { decision: { arm: 'treated', steered: true } } : {}), { firstUserText: true, decisionLogs: true, bSteered: false, steerDelivered: true }],
+    ['arm C is steered', (run) => (run.arm === 'C' ? { decision: { arm: 'treated', steered: true } } : {}), { firstUserText: true, decisionLogs: true, bSteered: false, steerDelivered: true }],
   ];
   for (const [label, over, checks] of cases) {
     const b = smokeBench({ script: ({ run }) => okRow(run, over(run)) });
@@ -1307,7 +1315,7 @@ await ta('smoke: each of the three checks fails alone, and a run that ended infr
   // Exhausted: arm C never gets a good attempt. Its last row still carries a decision and a good first user text, so only the clause "no run ended infra_exhausted" fails.
   const exhausted = smokeBench({ limits: { infraRetries: 1 }, script: ({ run }) => (run.arm === 'C' ? infraRow(run, 'api_error') : okRow(run)) });
   const summary = await exhausted.run();
-  assert.deepEqual(summary.smoke, { ok: false, checks: { firstUserText: true, decisionLogs: true, bSteered: true }, rows: 3 });
+  assert.deepEqual(summary.smoke, { ok: false, checks: { firstUserText: true, decisionLogs: true, bSteered: true, steerDelivered: true }, rows: 3 });
   assert.equal(summary.exhausted, 1);
 });
 
@@ -1315,13 +1323,13 @@ await ta('smoke: the checks come from the FINAL rows of the planned runs, across
   // First batch: the cost limit stops it after one run; second batch: finishes the other two, and the summary covers all three.
   const b = smokeBench({ script: ({ run }) => okRow(run, { costUsd: 5 }) });
   const first = await b.run({ stopAtCostUsd: 5, concurrency: 1 });
-  assert.deepEqual(first.smoke, { ok: false, checks: { firstUserText: false, decisionLogs: false, bSteered: false }, rows: 1 }, 'a run is missing, so nothing is verified');
+  assert.deepEqual(first.smoke, { ok: false, checks: { firstUserText: false, decisionLogs: false, bSteered: false, steerDelivered: false }, rows: 1 }, 'a run is missing, so nothing is verified');
   const second = await b.run({ stopAtCostUsd: 100, concurrency: 1 });
-  assert.deepEqual(second.smoke, { ok: true, checks: { firstUserText: true, decisionLogs: true, bSteered: true }, rows: 3 });
+  assert.deepEqual(second.smoke, { ok: true, checks: { firstUserText: true, decisionLogs: true, bSteered: true, steerDelivered: true }, rows: 3 });
   assert.equal(second.skippedFinal, 1);
   const stopped = smokeBench();
   writeFileSync(stopped.rowsFile, `${JSON.stringify({ ...oldRow('z', 9), mode: 'smoke' })}\n`);
-  assert.deepEqual((await stopped.run({ stopAtCostUsd: 9 })).smoke, { ok: false, checks: { firstUserText: false, decisionLogs: false, bSteered: false }, rows: 0 });
+  assert.deepEqual((await stopped.run({ stopAtCostUsd: 9 })).smoke, { ok: false, checks: { firstUserText: false, decisionLogs: false, bSteered: false, steerDelivered: false }, rows: 0 });
 });
 
 // =====================================================================================================================
@@ -1423,7 +1431,7 @@ await (NO_REFLINK_HERE ? Promise.resolve(console.log(`ok - integration (unit mod
       grade: async () => OK_GRADE,
     },
   });
-  assert.deepEqual(summary.smoke, { ok: true, checks: { firstUserText: true, decisionLogs: true, bSteered: true }, rows: 3 });
+  assert.deepEqual(summary.smoke, { ok: true, checks: { firstUserText: true, decisionLogs: true, bSteered: true, steerDelivered: true }, rows: 3 });
   assert.deepEqual({ planned: summary.planned, ran: summary.ran, attempts: summary.attempts, exhausted: summary.exhausted, stopped: summary.stopped }, { planned: 3, ran: 3, attempts: 3, exhausted: 0, stopped: null });
   const rows = rowsIn(rowsFile);
   assert.equal(readLines(rowsFile).length, 3);
@@ -2256,7 +2264,7 @@ const dockerTest = async () => {
       const rowsFile = path.join(scene.workRoot, '..', `rows-docker-${process.pid}.jsonl`);
       sceneDirs.push(rowsFile);
       const summary = await runBatch(prereg, { mode: 'smoke', workRoot: scene.workRoot, rowsFile, ctx: { claudeBin: script, esRoot: ES_ROOT, network: 'none', proxyUrl: null } });
-      assert.deepEqual(summary.smoke, { ok: true, checks: { firstUserText: true, decisionLogs: true, bSteered: true }, rows: 3 }, JSON.stringify(rowsIn(rowsFile).map((r) => [r.arm, r.infra, r.infraDetail])));
+      assert.deepEqual(summary.smoke, { ok: true, checks: { firstUserText: true, decisionLogs: true, bSteered: true, steerDelivered: true }, rows: 3 }, JSON.stringify(rowsIn(rowsFile).map((r) => [r.arm, r.infra, r.infraDetail])));
       assert.deepEqual({ ran: summary.ran, attempts: summary.attempts, exhausted: summary.exhausted, stopped: summary.stopped }, { ran: 3, attempts: 3, exhausted: 0, stopped: null });
       for (const r of rowsIn(rowsFile)) {
         assert.deepEqual([r.infra, r.final, r.grade.pass, r.costUsd, r.tokenScrubbed], [null, true, true, 0.25, 1], `${r.runId}: ${JSON.stringify(r.grade)}`);

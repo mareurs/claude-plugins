@@ -728,8 +728,11 @@ function assertInfra(r, infra, label = infra) {
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 const ROW_KEYS = [
   'runId', 'taskId', 'taskIndex', 'arm', 'effort', 'rep', 'round', 'sessionId', 'startedAt', 'wallMs', 'exit', 'infra', 'final', 'decision', 'usage', 'efforts', 'costUsd', 'numTurns', 'isError', 'tokenScrubbed',
-  'firstUserTextOk', 'testsRunBeforeDone', 'finalTextTail', 'grade',
+  'firstUserTextOk', 'testsRunBeforeDone', 'finalTextTail', 'grade', 'steerContexts',
 ];
+// The sentence the shipped table gives the shallow level (R147): read from the table, never copied here.
+const SHALLOW = JSON.parse(readFileSync(path.join(ES_ROOT, 'core', 'steer.table.json'), 'utf8')).phrases.shallow;
+const DEEP = JSON.parse(readFileSync(path.join(ES_ROOT, 'core', 'steer.table.json'), 'utf8')).phrases.deep;
 
 // ---- refusals: before anything is made ----
 
@@ -853,6 +856,7 @@ await taIf('runOne, a B run that goes well: every field of the Row holds the val
   assert.equal(row.infra, null);
   assert.equal(row.final, true);
   assert.deepEqual(row.decision, { arm: 'treated', steered: true });
+  assert.equal(row.steerContexts, 1, 'R147: B was given exactly one hook context, and the Row counts it');
   assert.deepEqual(row.efforts, ['xhigh']);
   assert.deepEqual(row.efforts, row.usage.efforts);
   assert.equal(row.costUsd, 0.4321);
@@ -898,6 +902,7 @@ await taIf('runOne\'s Row for arms A and C: the effort is the run\'s, the decisi
     assert.equal(row.effort, arm === 'C' ? 'low' : 'xhigh');
     assert.deepEqual(row.efforts, [row.effort]);
     assert.deepEqual(row.decision, { arm: 'holdout', steered: false });
+    assert.equal(row.steerContexts, 0, `R147: arm ${arm} was given no hook context`);
     const cmd = commandOf(agentCall(f), node);
     assert.equal(flagValue(cmd, '--effort'), row.effort);
     assert.ok(agentCall(f).argv.includes(`s5.arm=${arm}`));
@@ -1377,6 +1382,32 @@ const CASES = [
   ['(5) before (6): no_log before effort_mismatch', { scenario: { decision: null, effort: 'medium' } }, 'no_log'],
   ['(5) before (6): arm_mismatch before effort_mismatch', { scenario: { decision: holdout, effort: 'medium' } }, 'arm_mismatch'],
   ['(4) before (6): api_error before effort_mismatch', { scenario: { apiError: true, effort: 'medium' } }, 'api_error'],
+  // R147: the steer must have REACHED the model. B: exactly one UserPromptSubmit hook context, equal to the shipped shallow sentence; A and C: none.
+  // steer_mismatch comes directly after effort_mismatch (6) and before the timeout (7).
+  ['(6b) steer_mismatch: B was steered in the log but no hook context reached the transcript (the policy CLI was killed after it logged)', { scenario: { steer: null } }, 'steer_mismatch', (r) => {
+    assert.deepEqual(r.row.decision, treated, 'the log alone says steered: that is the blind spot');
+    assert.equal(r.row.steerContexts, 0);
+  }],
+  ['(6b) steer_mismatch: B got two hook contexts', { scenario: { steer: [[SHALLOW], [SHALLOW]] } }, 'steer_mismatch', (r) => assert.equal(r.row.steerContexts, 2)],
+  ['(6b) steer_mismatch: B got the DEEP sentence (what an ULTRATHINK prompt would earn)', { scenario: { steer: [[DEEP]] } }, 'steer_mismatch', (r) => assert.equal(r.row.steerContexts, 1)],
+  ['(6b) steer_mismatch: B got the sentence with a trailing space (equality is exact)', { scenario: { steer: [[`${SHALLOW} `]] } }, 'steer_mismatch'],
+  ['(6b) steer_mismatch: B got the sentence in front of another line', { scenario: { steer: [['Note.', SHALLOW]] } }, 'steer_mismatch'],
+  ['(6b) B got the sentence as a string content: the same text, so it is delivered', { scenario: { steer: [SHALLOW] } }, null, (r) => assert.equal(r.row.steerContexts, 1)],
+  ['(6b) steer_mismatch: B got an empty hook context', { scenario: { steer: [''] } }, 'steer_mismatch', (r) => assert.equal(r.row.steerContexts, 1)],
+  ['(6b) steer_mismatch: A was given the sentence', { arm: 'A', scenario: { steer: [[SHALLOW]] } }, 'steer_mismatch', (r) => assert.equal(r.row.steerContexts, 1)],
+  ['(6b) steer_mismatch: C was given the sentence', { arm: 'C', scenario: { steer: [[SHALLOW]] } }, 'steer_mismatch', (r) => assert.equal(r.row.steerContexts, 1)],
+  ['(6b) steer_mismatch: A was given another sentence', { arm: 'A', scenario: { steer: [['something else']] } }, 'steer_mismatch'],
+  ['(6b) after (6): effort_mismatch before steer_mismatch', { scenario: { effort: 'medium', steer: null } }, 'effort_mismatch', (r) => assert.equal(r.row.steerContexts, 0, 'the count is recorded on every row that has a transcript')],
+  ['(6b) after (5): arm_mismatch before steer_mismatch', { scenario: { decision: holdout, steer: null } }, 'arm_mismatch'],
+  ['(6b) after (5): no_log before steer_mismatch', { scenario: { decision: null, steer: null } }, 'no_log'],
+  ['(6b) after (4): api_error before steer_mismatch', { scenario: { apiError: true, steer: null } }, 'api_error'],
+  ['(6b) after (3): no_transcript before steer_mismatch, and the count is null (there is no transcript to count in)', { scenario: { transcript: false, steer: null } }, 'no_transcript', (r) => assert.equal(r.row.steerContexts, null)],
+  ['(6b) after (2b): interrupted before steer_mismatch', { scenario: { exit: 130, steer: null } }, 'interrupted'],
+  ['(6b) after (2): oom before steer_mismatch', { container: { oomKilled: true }, scenario: { steer: null } }, 'oom'],
+  ['(6b) hooks of other events and other attachment types are not steers: they neither count nor spoil a good run', { scenario: { steer: [[SHALLOW], { attachment: { type: 'hook_additional_context', hookEvent: 'SessionStart', content: ['x'] } }, { attachment: { type: 'hook_success', hookEvent: 'UserPromptSubmit', content: 'y' } }] } }, null, (r) => assert.equal(r.row.steerContexts, 1)],
+  ['(6b) steer_mismatch: the sentence only as another attachment type is not delivered (the shape R147 assumes is hook_additional_context)', { scenario: { steer: [{ attachment: { type: 'hook_success', hookEvent: 'UserPromptSubmit', content: SHALLOW } }] } }, 'steer_mismatch', (r) => assert.equal(r.row.steerContexts, 0)],
+  ['a good arm B run records steerContexts 1', {}, null, (r) => assert.equal(r.row.steerContexts, 1)],
+  ['a good arm A run records steerContexts 0', { arm: 'A' }, null, (r) => assert.equal(r.row.steerContexts, 0)],
   ['a subagent\'s API error is recorded, not infrastructure (the main agent saw it and went on)', { scenario: { subagents: [{ apiError: true }, {}] } }, null, (r) => {
     assert.equal(r.row.usage.subagentApiErrors, 1);
     assert.equal(r.row.usage.apiError, false);
@@ -1403,6 +1434,43 @@ await taIf('R87: runOne classifies in a fixed order, first match wins; every inf
 
 // ---- R90: a timed-out run is not graded; R87 puts every infrastructure step before the timeout ----
 
+// A hook copy of its own whose steer table says `table` (a string is written as the file's text; undefined removes the file).
+const hookCopyWithTable = (table) => {
+  const hook = writeHookCopy(mkdtempSync(path.join(ROOT, 'hook-table-')), ES_ROOT);
+  const file = path.join(hook.copyDir, 'core', 'steer.table.json');
+  if (table === undefined) rmSync(file);
+  else writeFileSync(file, typeof table === 'string' ? table : JSON.stringify(table));
+  return hook;
+};
+
+await taIf('R147: the sentence B must have been given is read from the steer table of the hook copy when the run starts, not written in the runner; a table that cannot give it refuses the run before anything is made', NO_REFLINK_HERE, async () => {
+  const brief = hookCopyWithTable({ version: 1, phrases: { shallow: 'Be brief.', deep: 'Think.' } });
+  // The fake delivers the SHIPPED sentence by default: the table says another one, so B did not get what the hook is told to say.
+  const stale = await go(node, mkRun(node), { ctx: { hookCopy: brief } });
+  assertInfra(stale, 'steer_mismatch');
+  assert.equal(stale.row.steerContexts, 1);
+  // ...and the sentence the table says is the one that passes.
+  const fresh = await go(node, mkRun(node), { ctx: { hookCopy: brief }, scenario: { steer: [['Be brief.']] } });
+  assert.equal(fresh.row.infra, null);
+  assert.equal(fresh.row.steerContexts, 1);
+  // The deep sentence is not what B is steered with, whatever the table holds.
+  assertInfra(await go(node, mkRun(node), { ctx: { hookCopy: brief }, scenario: { steer: [['Think.']] } }), 'steer_mismatch');
+  // A table that cannot give a shallow sentence: refused with the file named, nothing made.
+  const bad = [
+    ['no table', undefined],
+    ['not JSON', '{ nope'],
+    ['not an object', '[]'],
+    ['no phrases', { version: 1 }],
+    ['no shallow phrase', { version: 1, phrases: { deep: 'Think.' } }],
+    ['an empty shallow phrase', { version: 1, phrases: { shallow: '' } }],
+    ['a shallow phrase that is no string', { version: 1, phrases: { shallow: 5 } }],
+  ];
+  for (const [label, table] of bad) {
+    const e = await refused(node, mkRun(node), { ctx: { hookCopy: hookCopyWithTable(table) } }, /steer\.table\.json/, label);
+    assert.ok(!e.message.includes(SENTINEL), label);
+  }
+});
+
 await taIf('R90: a run that hits the wall clock is a FINAL model failure with no grade, whatever its tree would score; every infrastructure step of R87 comes before it', NO_REFLINK_HERE, async () => {
   const cases = [
     ['a timeout and nothing else', {}, null],
@@ -1413,6 +1481,7 @@ await taIf('R90: a run that hits the wall clock is a FINAL model failure with no
     ['timeout and no decision log', { scenario: { decision: null } }, 'no_log'],
     ['timeout and an arm mismatch', { scenario: { decision: holdout } }, 'arm_mismatch'],
     ['timeout and an effort mismatch', { scenario: { effort: 'medium' } }, 'effort_mismatch'],
+    ['timeout and a steer mismatch (R147: before the timeout)', { scenario: { steer: null } }, 'steer_mismatch'],
   ];
   await inChunks(cases, 8, async ([label, extra, infra]) => {
     // The fake container sleeps for 20 s after the fake claude is done; SHORT gives it 3 s, and docker kills it.

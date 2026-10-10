@@ -26,8 +26,11 @@ const HOOK_DIRS = ['bin', 'core', 'adapter'];
 // Where a container sees the copy.
 const CONTAINER_ROOT = '/opt/es';
 const HOOK_COMMAND = `node ${CONTAINER_ROOT}/adapter/claude-code/user-prompt-submit.mjs`;
-// One rule that matches every prompt: the steer is a function of the arm alone, never of the prompt.
+// One rule that matches every prompt: the steer is a function of the arm alone, never of the prompt. (One exception that is not the
+// rule's: an explicit "ultrathink" in a prompt wins over every rule, core/decide.mjs, and buildTask refuses such a prompt, R147.)
 const RULE = { id: 's5-all', level: 'shallow', confidence: 'high', reason: 's5', when: { minChars: 0 } };
+// The rules file the copy holds, and what buildTask asks decide() about a prompt.
+export const HOOK_RULES = Object.freeze({ version: 1, rules: Object.freeze([Object.freeze(RULE)]) });
 const SETTINGS = { hooks: { UserPromptSubmit: [{ hooks: [{ type: 'command', command: HOOK_COMMAND }] }] } };
 
 const isDirectory = (dir) => statSync(dir, { throwIfNoEntry: false })?.isDirectory() === true;
@@ -53,7 +56,7 @@ export function writeHookCopy(root, esRoot) {
   for (const dir of HOOK_DIRS) {
     cpSync(path.join(source, dir), path.join(copyDir, dir), { recursive: true, filter: (src) => !src.endsWith('.test.mjs') });
   }
-  writeFileSync(path.join(copyDir, 'core', 'rules.json'), `${JSON.stringify({ version: 1, rules: [RULE] })}\n`);
+  writeFileSync(path.join(copyDir, 'core', 'rules.json'), `${JSON.stringify(HOOK_RULES)}\n`);
   writeFileSync(settingsFile, `${JSON.stringify(SETTINGS, null, 2)}\n`);
   return { copyDir, settingsFile };
 }
