@@ -34,13 +34,13 @@ S5="node effort-steering/spikes/s5/s5.mjs"
 | `analyze --prereg <file> --rows <file>` | `analyzeS5` | the Report |
 | `simulate [...]` | the planted-truth simulation | `{ params, scenarios }` |
 
-**Exit codes** (same for every subcommand). `0`: it did what it was asked; for `run` that includes a batch that **stopped by a rule** (cost, signal, `infra_streak`, `hidden_changed`): read `stopped` in the Summary, and for a smoke run `smoke.ok`. `1`: a module threw or refused, a file or manifest could not be read, the token file was refused, or the answer is no (`gate` not ok; `warm` whose build failed). `64`: a malformed command line (usage on stderr, nothing on stdout), as `effort-policy` does. Errors are one line `s5: <subcommand>: <message>` on stderr.
+**Exit codes** (same for every subcommand). `0`: it did what it was asked; for `run` that includes a batch that **stopped by a rule** (cost, signal, `infra_streak`, `hidden_changed`): read `stopped` in the Summary, and for a smoke run `smoke.ok`. `1`: a module threw or refused, a file or manifest could not be read, the token file was refused, or the answer is no (`gate` not ok; `warm` whose build failed). `64`: a malformed command line (usage on stderr, nothing on stdout), as `effort-policy` does. Errors start with `s5: <subcommand>: <message>` on stderr (a module's own message can span several lines).
 
 **Work root.** Every subcommand that touches built tasks takes `--work-root <dir>`, default `~/work/claude/s5-work` (`DEFAULT_WORK_ROOT` in `proxy.mjs`). Never `/tmp`: it is a 24 GB tmpfs. The work root holds `tasks/<id>/{tree,hidden,prompt.txt,manifest.json,gate.json,target}`, `runs/<runId>-a<N>/{config,state[,work,target]}`, `cargo-home/`, `proxy/`, `hook/`, `grades/`, `gate/`, `warm/`, `rows-<mode>.jsonl` and, while a batch runs, `batch.lock`.
 
 **Which loader.** `run --mode measure` loads the file with `loadS5Prereg` (the committed registration: bytes equal to the HEAD blob, at least 8 tasks, A >= 2, B >= 2, C >= 1 runs). `smoke`, `pilot` and `calibrate` load it with `loadS5Config(file, { mode })`: the same shape, no commit needed, an arm may have `runs: 0`, one task is enough. A config is never accepted as a registration, and neither loader accepts a `registered` key in the file (R2, R59). `proxy up --prereg` chooses the loader the same way (`--mode`, default `measure`); `analyze` always uses `loadS5Prereg`.
 
-**The token** (`run` only; no other subcommand reads it; R108). The OAuth token from `claude setup-token` is read from `~/.config/s5/token` (override `--token-file`), unless `CLAUDE_CODE_OAUTH_TOKEN` is already set and not empty in the environment (then the file is not touched). The CLI **refuses** a file that is a symlink, that is not a regular file, that has any group or other permission bit (`mode & 0o077`), that is missing, or that is empty; the message names the path (and the mode) and never a value, and the mode is checked before the bytes are read. All trailing whitespace of the value is dropped (newlines, CRLF, spaces), and a value that still holds whitespace or a control character inside is refused too (R143: a token has none, and a newline in it would fail authentication in every run, looking like infrastructure); the message names the path, never the value. The value is put into the process environment for the duration of `runBatch` only and taken out again; it is never in an argument list, an option, a file or the printed Summary, and everything `run` prints is passed through a redaction of the value as a last line of defence. Create the file without leaving the value in your shell history: see gate 0.
+**The token** (`run` only; no other subcommand reads it; R108). The OAuth token from `claude setup-token` is read from `~/.config/s5/token` (override `--token-file`), unless `CLAUDE_CODE_OAUTH_TOKEN` is already set and not empty in the environment (then the file is not touched, but the **same value check** applies to that value, R145, and the message names the variable; `runBatch` gets the validated value and your own variable is put back untouched afterwards). The CLI **refuses** a file that is a symlink, that is not a regular file (a FIFO is refused, the open does not wait for a writer), that has any group or other permission bit (`mode & 0o077`), that is missing, or that is empty; the message names the path (and the mode) and never a value, and the mode is checked before the bytes are read. All trailing whitespace of the value is dropped (newlines, CRLF, spaces), and a value that still holds whitespace or a control character inside is refused too (R143: a token has none, and a newline in it would fail authentication in every run, looking like infrastructure); the message names the path, never the value. The value is put into the process environment for the duration of `runBatch` only and taken out again; it is never in an argument list, an option, a file or the printed Summary, and everything `run` prints is passed through a redaction of the value as a last line of defence. Create the file without leaving the value in your shell history: see gate 0.
 
 ## 2. Runbook
 
@@ -51,19 +51,19 @@ Eight gates; gates 3, 5, 6 and 7 need the operator's approval before anything ru
 | 0 | token | operator does it | 0 | none |
 | 1 | mine | no | 0 | none |
 | 2 | pilot tasks | no | 0 (Docker builds and test runs, no model) | none |
-| 3 | pilot (smoke first) | **yes** | about 13 (+3 smoke) | about $22 to $52 (10 at `xhigh`, 3 at `low`) |
+| 3 | pilot (smoke first) | **yes** | about 16 (13 + 3 smoke) | $27.2 to $63.2 (12 at `xhigh`, 4 at `low`) |
 | 4 | author the rest | no | 0 | none |
-| 5 | calibration | **yes** | about 150 | about $240 to $540 (100 at `xhigh`, 50 at `low`) |
+| 5 | calibration | **yes** | about 150 | $240 to $540 (100 at `xhigh`, 50 at `low`) |
 | 6 | registration | **yes** | 0 | none |
-| 7 | measured run | **yes** | about 256 | about $435 to $1,010 (192 at `xhigh`, 64 at `low`) |
+| 7 | measured run | **yes** | about 256 | $435.2 to $1,011.2 (192 at `xhigh`, 64 at `low`) |
 | 8 | analyze, rule on G4 | operator rules | 0 | none |
 
-The 13 pilot runs are the proxy control (arm A, two runs on the open bridge network and two through the proxy in log-all mode) and 3 tasks times A, B, C times 1 run; the spec says "about 12". The 3 smoke runs (one per arm) are a separate model call and are not in that count. Calibration is about 50 candidate tasks times (A twice + C once); the measured run is 32 tasks times (3 + 3 + 2).
+The 13 pilot runs are the proxy control (arm A, two runs on the open bridge network and two through the proxy in log-all mode) and 3 tasks times A, B, C times 1 run; the spec says "about 12". The 3 smoke runs (one per arm, so 2 at `xhigh` and 1 at `low`) are a separate model call and are not in that 13; the table counts them (16 runs: 12 at `xhigh`, 4 at `low`: 12 x $2 + 4 x $0.8 = $27.2, 12 x $5 + 4 x $0.8 = $63.2). The gate 7 figures are 192 x $2 + 64 x $0.8 and 192 x $5 + 64 x $0.8. Calibration is about 50 candidate tasks times (A twice + C once); the measured run is 32 tasks times (3 + 3 + 2).
 
 ### Gate 0 — token
 
 ```
-claude setup-token        # prints the token
+claude setup-token        # prints the token; the second line is for bash (zsh's `read -p` means something else)
 mkdir -p ~/.config/s5 && ( umask 077 && read -rs -p 'token: ' T && printf '%s\n' "$T" > ~/.config/s5/token ) && chmod 600 ~/.config/s5/token
 ```
 
@@ -84,7 +84,7 @@ A Sonnet subagent drafts about 8 task definitions under `effort-steering/spikes/
 ```
 $S5 images                       # builds s5/codescout, s5/plugins, s5/proxy; prints the image ids (needs the network for base images and apt)
 $S5 build effort-steering/spikes/s5/tasks/<id>
-$S5 warm <id>                    # cargo tasks: cargo fetch --locked on the bridge network, then a cold build; the only container with a route out
+$S5 warm <id>                    # cargo tasks: cargo fetch --locked in a container on the default bridge network (it has a route out; so does the proxy, and the pilot's --open-network runs), then a cold build with no network
 $S5 gate <id>                    # exit 0 only when ok; the reasons are printed, the detail is in <work-root>/tasks/<id>/gate.json
 ```
 
@@ -92,29 +92,30 @@ $S5 gate <id>                    # exit 0 only when ok; the reasons are printed,
 
 ### Gate 3 — pilot (operator approval)
 
-Prepare two configs (any canonical JSON file outside `/tmp`; `proxyAllowlist` must be non-empty even in log-all mode): `pilot-control.json` with `arms.A.runs: 2`, `B.runs: 0`, `C.runs: 0` and one task; `pilot.json` with runs `1, 1, 1` and 3 tasks. Fill every field from the list in "What the registration holds". Rewrite each file canonical first (rule 2).
+Prepare two configs (any canonical JSON file outside `/tmp`; `proxyAllowlist` must be non-empty even in log-all mode, so put a placeholder such as `api.anthropic.com` in it for now): `pilot-control.json` with `arms.A.runs: 2`, `B.runs: 0`, `C.runs: 0` and one task; `pilot.json` with runs `1, 1, 1` and 3 tasks. Fill every field from the list in "What the registration holds". Rewrite each file canonical first (rule 2). Every run on the default network goes through the proxy, so the proxy must be up first (`runBatch` refuses a batch whose proxy container is not running, preflight item 5), and the batch also checks the id of the proxy image against the config's `images.proxy` (preflight item 3): that field must be the `s5/proxy` id of `$S5 images`.
 
-Smoke first (one rep-0 run per arm, on one task; this calls the model):
+Start the proxy in discovery mode, then the smoke (one rep-0 run per arm, on one task; this calls the model):
 
 ```
+$S5 proxy up --log-all
 $S5 run --mode smoke --prereg <work-root>/configs/pilot.json --tasks <id>
 ```
 
-`smoke.ok` in the Summary must be true: the first user text equals `prompt.txt`, a decision log exists in every arm, and B is steered while A and C are not (`run.mjs`, "SMOKE").
+`smoke.ok` in the Summary must be true: the first user text equals `prompt.txt`, a decision log exists in every arm, B is steered while A and C are not, and no run ended `infra_exhausted` (`run.mjs`, "SMOKE"). A smoke run whose checks fail still exits 0: read `smoke.ok`.
 
 Proxy control. The input size of the **first request** must match exactly between the open-network runs and the proxied runs (the wire recorder doubled it once), and thinking and output must agree within the run-to-run spread:
 
 ```
 $S5 run --mode pilot --prereg <work-root>/configs/pilot-control.json --tasks <id> --open-network --rows <work-root>/rows-pilot-open.jsonl
-$S5 proxy up --log-all
 $S5 run --mode pilot --prereg <work-root>/configs/pilot-control.json --tasks <id> --rows <work-root>/rows-pilot-proxy.jsonl
 $S5 proxy log                    # the hosts Claude Code needed: this is the allowlist
 $S5 proxy down
+# put those hosts into proxyAllowlist of pilot.json (and of the later configs), re-canonicalise the file (rule 2), then:
 $S5 proxy up --prereg <work-root>/configs/pilot.json --mode pilot        # now with the allowlist from the config
 $S5 run --mode pilot --prereg <work-root>/configs/pilot.json --keep-run-dirs
 ```
 
-Two rows files are used for the control because a run id (`<task>.A.0`) is the same in both and a final row makes a run done; `--open-network` is accepted for `--mode pilot` only. Measure and write down: the client cost estimate per run, the plan usage (the operator reads the usage page before and after), the run wall time (it sets the limit T: about 3 times the median A run, with a cap, per the spec), the grade time (`grade.wallMs`) and the disk per run (`du -s` on a kept run directory; `--keep-run-dirs` is what keeps `work/` and `target/`, which `runOne` removes after every run). Check the pilot items in rule 9.
+Two rows files are used for the control because a run id (`<task>.A.0`) is the same in both and a final row makes a run done; `--open-network` is accepted for `--mode pilot` only. The log-all proxy stays up from the first command to `proxy down`, so `proxy log` also shows the hosts of the smoke runs; it is the list of hosts, not a count of requests per arm. Measure and write down: the client cost estimate per run, the plan usage (the operator reads the usage page before and after), the run wall time (it sets the limit T: about 3 times the median A run, with a cap, per the spec), the grade time (`grade.wallMs`) and the disk per run (`du -s` on a kept run directory; `--keep-run-dirs` is what keeps `work/` and `target/`, which `runOne` removes after every run). Check the pilot items in rule 9.
 
 ### Gate 4 — author the rest
 
@@ -125,6 +126,7 @@ The same as gate 2 for the remaining candidates of gate 1's file, to about 50 in
 The config has `A.runs: 2`, `B.runs: 0`, `C.runs: 1` and all candidate tasks (calibration has no B arm). Calibration rows are never reused for measurement (spec): they live in their own file.
 
 ```
+$S5 proxy down                  # the pilot's proxy is still up; proxyUp refuses while a container s5-proxy exists
 $S5 proxy up --prereg <work-root>/configs/calibrate.json --mode calibrate
 tmux new -s s5-calibrate      # then, inside tmux:
 $S5 run --mode calibrate --prereg <work-root>/configs/calibrate.json     # rows: <work-root>/rows-calibrate.jsonl
@@ -146,6 +148,7 @@ $S5 simulate --method <bound.method> --resamples <bound.resamples> --seed <bound
 ### Gate 7 — measured run (operator approval)
 
 ```
+$S5 proxy down                  # the calibration proxy is still up
 $S5 proxy up --prereg effort-steering/spikes/s5/s5-prereg.json
 tmux new -s s5-measure        # then, inside tmux:
 $S5 run --mode measure --prereg effort-steering/spikes/s5/s5-prereg.json --stop-at-cost <usd>
@@ -200,10 +203,10 @@ Short, one per paragraph, each with its source. Where the code enforces a rule, 
 6. **Task commands** (R30, R53; `task-def.mjs`). `loadTaskDef` refuses a command that breaks these: in a cargo task every `f2p`/`p2p` command starts with `cargo` (no `env`, no `sh -c`) and a `cargo test` carries `--no-fail-fast` before any `--` (the gate cannot see a missing one: every test passes at the fix); in a node task it starts with `node` and runs `node --test --test-reporter=tap <file>`, both options **before** the first positional argument and in `--opt=value` form (on node v26.10.0 `node --test a.test.mjs --test-reporter=tap`, or a plain `node a.test.mjs`, prints spec output that the grader cannot read, and the gate drops the task). The `sh` runner is free.
 7. **Fixes that change `Cargo.lock` are dropped** (R47). The grade has no network and the agent no route to the internet, so no agent fix can add a dependency; the gate reports such a task as `fails_at_fix` and `hidden_test_not_run`. The task set is biased away from dependency-adding fixes, and that bias is the cost of the design. This is a ruling, not code: `mine` does not pre-filter it.
 8. **An early stop or check-in is judged by hand** (spec "failure modes"). The row keeps only `finalTextTail` (the last 300 characters of the agent's final text) and `testsRunBeforeDone`; read the failed runs' `finalTextTail` to tell a run that stopped to ask from one that finished wrong. Nothing in `analyze` decides it.
-9. **What the pilot must confirm** (R88, R108, R139). (a) The stdout field names `total_cost_usd`, `num_turns` and `is_error` of the pinned CLI: if they differ, `costUsd` and `numTurns` are `null` in the rows until the names are fixed. (b) `exit.code` over the pilot's rows: whether 130, 137 or 143 ever occur in a normal run (they are classified `interrupted`, infra). (c) `tokenScrubbed`: above 0 in any row means the CLI exposed the token to its tools (the files holding it were redacted in place). (d) Stdout that holds no JSON result with exit 0 (R139 b): no rule covers it yet; if the pilot shows one, add `exit 0 with no JSON result = infra no_result`. (e) Whether the CLI honours `HTTPS_PROXY`: the log-all control shows it. (f) The first-request input size (rule in gate 3).
+9. **What the pilot must confirm** (R88, R108, R139). (a) The stdout field names `total_cost_usd`, `num_turns` and `is_error` of the pinned CLI: if they differ, `costUsd` and `numTurns` are `null` in the rows until the names are fixed. (b) `exit.code` over the pilot's rows: whether 130, 137 or 143 ever occur in a normal run (without a timeout they are classified `interrupted`, infra; a 137 with `timedOut` true is the harness's own timeout kill and stays a final model failure, R90, R132). (c) `tokenScrubbed`: above 0 in any row means the CLI exposed the token to its tools (the files holding it were redacted in place). (d) Stdout that holds no JSON result with exit 0 (R139 b): no rule covers it yet; if the pilot shows one, add `exit 0 with no JSON result = infra no_result`. (e) Whether the CLI honours `HTTPS_PROXY`: the log-all control shows it. (f) The first-request input size (rule in gate 3).
 10. **Watch `arm_mismatch` (and `no_log`)** (R89; `run.mjs`, `effort-steering/adapter/claude-code/run-policy.mjs`). The hook gives the policy CLI 500 ms (`POLICY_TIMEOUT_MS`), kills it at the limit and fails open with no steer; under container CPU limits that could leave a B run unsteered (Task 10a's note). `runOne` compares the CLI's decision log with what the arm must have been given (B treated and steered; A and C held out): a missing log is infra `no_log`, a log that differs is infra `arm_mismatch`; both are re-run and never scored. A rate of such rows in the smoke or the pilot is the sign.
 11. **Never mount `<work-root>/tasks/<id>/` read-write** (Task 8 carry; `prereg.mjs` `checkTasksMatch`). A run mounts reflink copies of the tree and the target (`work`, `target`); a grade mounts those copies and `hidden/` read-only; `checkTasksMatch` follows a symlink planted in that directory. The one rw mount under `tasks/<id>/` is `warmTask`'s `target/` (a sub-directory, created fresh).
-12. **One thing at a time** (R122, R123; `run.mjs`). At its start a batch removes every container that carries **both** labels `s5=1` and `s5.task`, whichever work root it belongs to; `warm`, `gate`, `grade` and the Docker-mode test suites (`S5_DOCKER_TESTS=1`) start containers with those labels too. So run **one** batch, gate, warm or Docker-mode suite at a time, and do not start `warm`, `gate` or `grade` while a batch runs. The proxy (`s5=1`, `s5.run=s5-proxy`, no `s5.task`) survives the sweep. About 20 unrelated containers run on this host: only `s5=1` containers are ever touched and nothing is pruned.
+12. **One thing at a time** (R122, R134 c, R123; `run.mjs`). At its start a batch removes every container that carries **both** labels `s5=1` and `s5.task`, whichever work root it belongs to; `warm`, `gate`, `grade` and the Docker-mode test suites (`S5_DOCKER_TESTS=1`) start containers with those labels too. So run **one** batch, gate, warm or Docker-mode suite at a time, and do not start `warm`, `gate` or `grade` while a batch runs. The proxy (`s5=1`, `s5.run=s5-proxy`, no `s5.task`) survives the sweep. About 20 unrelated containers run on this host: only `s5=1` containers are ever touched and nothing is pruned.
 13. **`infra_streak`** (R124, R125). When `2 * (1 + limits.infraRetries)` infrastructure attempts follow each other, the batch stops with reason `infra_streak`. Look at Docker, the proxy (`docker ps --filter label=s5=1`) and the disk first, then resume with the same command, adding `--retry-exhausted` if runs were exhausted: a run whose latest final row is `infra_exhausted` is then planned again with a fresh allowance; the exhausted row stays in the file as evidence. An outage is recovered by that act, never by editing the rows file. `interrupted` rows are infrastructure and are re-run.
 14. **Run batches under tmux** (R139 c, R141). A closed terminal is then a graceful stop through the SIGHUP handler; do not rely on `nohup`. The **first** Ctrl+C (SIGINT, SIGTERM or SIGHUP) is a graceful stop: nothing new starts and the runs in flight finish, which can take as long as the longest run needs (up to `limits.timeoutMinutes`; the ledger's figure is 90 minutes, plus the run's grade). The **second** signal ends the harness at once and leaves the clients and containers, which the next batch's sweep removes; the paid run in flight has no row. A `gate` or `warm` interrupted by Ctrl+C also leaves its container running (it carries `s5=1` and `s5.task`; the next batch sweeps it).
 15. **`CLAUDE_CODE_SUBPROCESS_ENV_SCRUB` is never set** (R108). It would switch off `--dangerously-skip-permissions` and need bubblewrap in the image: a different instrument. Neither this CLI nor `runOne` sets it (nor `GITHUB_ACTIONS`); a value in the operator's environment does not reach the container (the container's variable list is pinned by a test in `run.test.mjs`). To keep the token out of the transcripts anyway, `runOne` redacts it in `config/` and `state/` after every run (`tokenScrubbed` counts the files that held it).
