@@ -18,7 +18,7 @@ import {
   chmodSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, symlinkSync, writeFileSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { t } from '../../core/testkit.mjs';
 import { ta } from './fixtures/testkit-async.mjs';
 import { selectCalibrated, simulate as realSimulate } from './analyze.mjs';
@@ -613,6 +613,47 @@ await ta('token: an environment token that ends in a newline is redacted without
   assert.equal(r.stdout.includes(SENTINEL), false);
 });
 
+await ta('token: an environment token gets the same check (R145): trailing whitespace is dropped and runBatch sees the trimmed value; inner whitespace, a control character and whitespace only are refused naming the variable, never the value', async () => {
+  const { home } = tokenHome(null, 0);
+  for (const content of [`${SENTINEL}\n`, `${SENTINEL}\n\n\n`, `${SENTINEL} `, `${SENTINEL}\r\n`]) {
+    const r = await runWithToken(home, { env: { [TOKEN_ENV]: content } });
+    assert.equal(r.code, 0, `${JSON.stringify(content)}: ${r.stderr}`);
+    assert.equal(r.f.of('runBatch')[0][3], SENTINEL, `runBatch sees the validated value: ${JSON.stringify(content)}`);
+    assert.equal(r.env[TOKEN_ENV], content, 'the operator\'s own value is put back');
+    assert.equal(r.stdout.includes(SENTINEL), false);
+  }
+  for (const content of [`${SENTINEL} x`, `${SENTINEL}\nx`, `${SENTINEL}\tx`, `${SENTINEL}\u0000x`, `${SENTINEL}\u0007`, ' \n', '\n\n']) {
+    const r = await runWithToken(home, { env: { [TOKEN_ENV]: content } });
+    assert.equal(r.code, 1, JSON.stringify(content));
+    noStdout(r);
+    assert.ok(r.stderr.includes(TOKEN_ENV), r.stderr);
+    assert.equal(r.stderr.includes(SENTINEL), false, JSON.stringify(content));
+    assert.equal(r.f.of('runBatch').length, 0);
+    assert.equal(r.env[TOKEN_ENV], content, 'untouched');
+  }
+});
+
+await ta('token: a FIFO at the token path is refused as not a regular file, and the open does not block (O_NONBLOCK)', async () => {
+  const { home, file } = tokenHome(null, 0);
+  execFileSync('mkfifo', [file]);
+  const code = `
+import { main } from ${JSON.stringify(pathToFileURL(S5).href)};
+const out = [];
+const err = [];
+const reached = () => { throw new Error('a module was reached'); };
+const io = { stdout: { write: (s) => out.push(s) }, stderr: { write: (s) => err.push(s) }, env: {}, cwd: ${JSON.stringify(ROOT)}, home: ${JSON.stringify(home)}, modules: { loadS5Config: () => ({ registered: false }), runBatch: reached } };
+const c = await main(['run', '--mode', 'pilot', '--prereg', 'p.json'], io);
+console.log(JSON.stringify({ c, out: out.join(''), err: err.join('') }));
+`;
+  const r = spawnSync(process.execPath, ['--input-type=module', '-e', code], { encoding: 'utf8', timeout: 15000, env: { PATH: process.env.PATH } });
+  assert.equal(r.error, undefined, `the CLI blocked on the FIFO: ${r.error}`);
+  const result = JSON.parse(r.stdout);
+  assert.equal(result.c, 1);
+  assert.equal(result.out, '');
+  assert.ok(result.err.includes(file));
+  assert.match(result.err, /regular file/);
+});
+
 await ta('token: no other subcommand reads the token file (a bad one in the default place changes nothing)', async () => {
   const { home } = tokenHome(SENTINEL, 0o666);
   const work = freshDir('w');
@@ -712,6 +753,27 @@ await ta('grade refuses and names --keep-run-dirs when no attempt has a work dir
     assert.match(r.stderr, /--keep-run-dirs/);
     assert.equal(called, 0);
   }
+});
+
+await ta('grade does not follow a symlinked work dir: the highest REAL work dir is used, and a run with only a symlinked one is refused', async () => {
+  const { work } = gradeWorld();
+  makeRunDir(work, 't1.A.0-a1');
+  const elsewhere = join(freshDir('o'), 'work');
+  mkdirSync(elsewhere);
+  writeFileSync(join(elsewhere, 'marker.txt'), 'planted');
+  const linked = makeRunDir(work, 't1.A.0-a2', { withWork: false });
+  symlinkSync(elsewhere, join(linked, 'work'));
+  const calls = [];
+  const modules = { gradeTree: async (...a) => { calls.push(a); return {}; } };
+  const r = await cli(['grade', 't1.A.0', '--work-root', work], { modules });
+  assert.equal(r.code, 0, r.stderr);
+  assert.equal(calls[0][1], join(work, 'runs', 't1.A.0-a1', 'work'));
+  const onlyLinked = makeRunDir(work, 't1.B.0-a1', { withWork: false });
+  symlinkSync(elsewhere, join(onlyLinked, 'work'));
+  const refused = await cli(['grade', 't1.B.0', '--work-root', work], { modules });
+  assert.equal(refused.code, 1);
+  assert.match(refused.stderr, /--keep-run-dirs/);
+  assert.equal(calls.length, 1);
 });
 
 await ta('grade: a missing manifest and a throwing grader are exit 1', async () => {
@@ -955,6 +1017,20 @@ await ta('select: a row whose mode is not calibrate (a measure row, a row with n
   const ok = await cli(['select', '--rows', mk([{ type: 'stopped', mode: 'pilot', reason: 'cost' }, crow('a', 'A', 0, true), crow('a', 'C', 0, true)])], { modules });
   assert.equal(ok.code, 0, ok.stderr);
   assert.equal(called, 1);
+});
+
+await ta('select and analyze: a damaged middle line plus a torn last line is refused (only ONE bad line, the last, can be torn)', async () => {
+  const dir = freshDir('r');
+  const file = join(dir, 'two-bad.jsonl');
+  writeFileSync(file, `${jsonl([crow('a', 'A', 0, true), '{"runId": oops', crow('a', 'C', 0, true)])}{"runId":"a.C.1","tas`);
+  const f = fakes({});
+  const modules = { ...f.modules, selectCalibrated: () => ({ kept: [], dropped: [] }), analyzeS5: () => ({ excluded: [], mechanism: {} }) };
+  for (const argv of [['select', '--rows', file], ['analyze', '--prereg', 'p', '--rows', file]]) {
+    const r = await cli(argv, { modules });
+    assert.equal(r.code, 1, argv[0]);
+    noStdout(r);
+    assert.match(r.stderr, /line 2/);
+  }
 });
 
 await ta('select: a torn last line is ignored and said', async () => {

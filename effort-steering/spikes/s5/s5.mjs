@@ -22,8 +22,9 @@
 // any of MODULES by name (a name that is not one is a TypeError, so a typo cannot fall back to a real module, and with it to Docker).
 // The file starts main() only when it is the entry point (realpath of argv[1], as s4-run.mjs does), so importing it runs nothing.
 //
-// THE TOKEN (`run` only; no other subcommand reads it). An already-set CLAUDE_CODE_OAUTH_TOKEN (not empty) is used and the file is not
-// touched. Otherwise ~/.config/s5/token (or --token-file) is opened with O_NOFOLLOW and judged on the open descriptor: a symlink, anything
+// THE TOKEN (`run` only; no other subcommand reads it). An already-set CLAUDE_CODE_OAUTH_TOKEN (not empty) is used, after the same value check as
+// the file's (R145: trimEnd, no inner whitespace or control character; the message names the variable), and the file is not touched; runBatch gets the
+// validated value. Otherwise ~/.config/s5/token (or --token-file) is opened with O_NOFOLLOW and O_NONBLOCK (a FIFO is refused, not waited on) and judged on the open descriptor: a symlink, anything
 // that is not a regular file, a mode with a group or other permission bit (mode & 0o077), a missing file and an empty one (after ALL trailing whitespace is dropped, R143) are refused, and so is a value with whitespace or a
 // control character inside; each with a message that names the path (and the mode) and never a value; the mode is checked BEFORE the bytes
 // are read. The value goes into io.env for the duration of runBatch and is put back (removed, or restored) afterwards; it is never in an
@@ -223,11 +224,23 @@ const rowsNote = (label, file, r) => `s5: ${label}: read ${r.rows.length} row(s)
 
 // ---- the token ----
 
+// R143, R145: the one check of a token value, for the file and for the environment. ALL trailing whitespace goes (a pasted token ends in newlines,
+// CRLF or a space); a token never holds whitespace or a control character, and one that does would fail authentication in every run, looking like
+// infrastructure: refused, `what` named (a path or a variable), the value never. -> the validated value.
+function checkTokenValue(raw, what) {
+  const value = raw.trimEnd();
+  if (value === '') throw new Error(`${what} is empty`);
+  if (/[\s\p{Cc}]/u.test(value)) throw new Error(`${what} holds whitespace or a control character inside the value (a token has none); check what was pasted`);
+  return value;
+}
+
+
 // -> the token, from the file. Throws an Error that names the path (and the mode) and never a value.
 function readTokenFile(file) {
   let fd;
   try {
-    fd = openSync(file, constants.O_RDONLY | constants.O_NOFOLLOW);
+    // O_NONBLOCK: opening a FIFO for reading would otherwise block until a writer comes; the isFile check below then refuses it.
+    fd = openSync(file, constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK);
   } catch (err) {
     if (err.code === 'ELOOP') throw new Error(`token file ${file} is a symlink; refusing to follow it`);
     if (err.code === 'ENOENT') throw new Error(`token file ${file} does not exist (run \`claude setup-token\` and store the token there with mode 600)`);
@@ -239,13 +252,7 @@ function readTokenFile(file) {
     if ((st.mode & 0o077) !== 0) {
       throw new Error(`token file ${file} has mode ${(st.mode & 0o777).toString(8).padStart(4, '0')}: a group or other permission bit is set; run chmod 600 on it`);
     }
-    const text = readFileSync(fd, 'utf8');
-    // R143: ALL trailing whitespace goes (a pasted token ends in newlines, CRLF or a space); a token never holds whitespace or a control
-    // character, and one that does would fail authentication in every run, looking like infrastructure: refused, the path named, the value never.
-    const value = text.trimEnd();
-    if (value === '') throw new Error(`token file ${file} is empty`);
-    if (/[\s\p{Cc}]/u.test(value)) throw new Error(`token file ${file} holds whitespace or a control character inside the value (a token has none); check what was pasted`);
-    return value;
+    return checkTokenValue(readFileSync(fd, 'utf8'), `token file ${file}`);
   } finally {
     closeSync(fd);
   }
@@ -358,8 +365,9 @@ async function cmdRun({ io, m, flags }) {
   // The token: the environment first, then the file. Nothing else in this process reads it.
   const previous = io.env[TOKEN_ENV];
   const fromEnv = typeof previous === 'string' && previous !== '';
-  const token = fromEnv ? previous : readTokenFile(abs(io, flags['token-file'] ?? path.join(io.home, '.config', 's5', 'token')));
-  const redact = (text) => [...new Set([token, token.trim()])].filter((s) => s !== '').reduce((out, s) => out.replaceAll(s, REDACTED), text);
+  const token = fromEnv ? checkTokenValue(previous, `environment variable ${TOKEN_ENV}`) : readTokenFile(abs(io, flags['token-file'] ?? path.join(io.home, '.config', 's5', 'token')));
+  // The validated value is a substring of the operator's raw one, so redacting it covers both.
+  const redact = (text) => text.replaceAll(token, REDACTED);
 
   const options = {
     mode,
@@ -371,7 +379,7 @@ async function cmdRun({ io, m, flags }) {
     retryExhausted: flags['retry-exhausted'] === true,
     ctx: { keepRunDirs: flags['keep-run-dirs'] === true, ...(flags['open-network'] === true ? { network: 'bridge', proxyUrl: null } : {}) },
   };
-  if (!fromEnv) io.env[TOKEN_ENV] = token;
+  io.env[TOKEN_ENV] = token;
   try {
     const summary = await m.runBatch(prereg, options);
     io.stdout.write(redact(`${JSON.stringify(summary, null, 2)}\n`));
