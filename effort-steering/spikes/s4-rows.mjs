@@ -51,7 +51,7 @@ function parseLines(text) {
   return out;
 }
 
-const isApiError = (obj) =>
+export const isApiError = (obj) =>
   obj !== null && typeof obj === 'object' && (obj.isApiErrorMessage === true || (obj.message && obj.message.model === '<synthetic>'));
 
 // { arm, steered } of a session's decision log; null when there is no usable line. One
@@ -76,7 +76,7 @@ export function hasApiError(text) {
 
 // The assistant records that count as usage: not an API error, a string message.id, an
 // assistant role (or none), a usage object. One place, so tokens and effort read the same set.
-function countedAssistantRecords(text) {
+export function countedAssistantRecords(text) {
   const out = [];
   for (const obj of parseLines(text)) {
     if (isApiError(obj)) continue;

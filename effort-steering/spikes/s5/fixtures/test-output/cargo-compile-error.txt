@@ -1,0 +1,9 @@
+   Compiling tiny v0.1.0 (/work)
+error[E0425]: cannot find value `total` in this scope
+ --> src/lib.rs:4:5
+  |
+4 |     total
+  |     ^^^^^ not found in this scope
+
+For more information about this error, try `rustc --explain E0425`.
+error: could not compile `tiny` (lib) due to 1 previous error
