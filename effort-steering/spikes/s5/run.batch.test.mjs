@@ -2309,6 +2309,10 @@ proj="$CLAUDE_CONFIG_DIR/projects/-work"
 log="$XDG_STATE_HOME/effort-steering"
 mkdir -p "$proj" "$log" || exit 70
 jq -cn --arg p "$prompt" --arg s "$sid" '{type:"user",message:{role:"user",content:$p},sessionId:$s}' > "$proj/$sid.jsonl"
+if [ "$EFFORT_STEERING_HOLDOUT_RATE" = "0" ]; then
+  # R147: the hook's context as the transcript records it, the sentence read from the table of the mounted hook copy.
+  jq -cn --arg s "$sid" --slurpfile t /opt/es/core/steer.table.json '{type:"attachment",attachment:{type:"hook_additional_context",hookEvent:"UserPromptSubmit",hookName:"UserPromptSubmit:steer",content:[$t[0].phrases.shallow]},sessionId:$s}' >> "$proj/$sid.jsonl"
+fi
 jq -cn --arg s "$sid" --arg e "$effort" '{type:"assistant",effort:$e,message:{id:"msg_1",role:"assistant",model:"fake",content:[{type:"text",text:"Fixed it."}],usage:{input_tokens:10,output_tokens:50,cache_creation_input_tokens:0,cache_read_input_tokens:100,output_tokens_details:{thinking_tokens:7}}},sessionId:$s}' >> "$proj/$sid.jsonl"
 if [ "$EFFORT_STEERING_HOLDOUT_RATE" = "0" ]; then arm=treated; steered=true; else arm=holdout; steered=false; fi
 printf '{"session_id":"%s","turn_id":"t1","arm":"%s","steered":%s}\n' "$sid" "$arm" "$steered" > "$log/$sid.jsonl"
