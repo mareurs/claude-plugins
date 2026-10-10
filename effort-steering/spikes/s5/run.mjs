@@ -51,6 +51,7 @@ import { fileURLToPath } from 'node:url';
 import { makeRng, shuffle } from '../s4-prng.mjs';
 import { decisionFromLog } from '../s4-rows.mjs';
 import { hashBuiltTask, hashHidden, reflinkCopy } from './build-task.mjs';
+import { costOf } from './cost.mjs';
 import { DOCKER_PASSTHROUGH, dockerRun, removeLabeled } from './docker.mjs';
 import {
   gradeTree, infraOf, readResultFile, removeGradeDir, RUN_ID_RE,
@@ -1128,32 +1129,8 @@ function rowsAppender(file, state) {
   };
 }
 
-// R148: the cost of one Row that is KNOWN: the stdout JSON's total_cost_usd, a number >= 0; null otherwise.
-const knownCost = (row) => (Number.isFinite(row.costUsd) && row.costUsd >= 0 ? row.costUsd : null);
-// R148: a Row with no known cost whose run used a container to the end of its time or until a signal cut it off. A timed-out agent is SIGKILLed
-// with its container and prints no JSON, so its cost is null although it used the whole wall clock, and an interrupted one is the same; both
-// are among the most expensive runs of the study. Not estimated: a run_failed row (exit null: it never reached a container), a null cost
-// without a timeout or a signal, and the exhausted line written WITHOUT an attempt (noAttempt: the cost of that attempt is in its own line).
-// An exhausted line that is an attempt's own line (lastInfra interrupted) is estimated like the attempt's row would be.
-const isEstimated = (row) => knownCost(row) === null && row.noAttempt !== true
-  && (row.exit?.timedOut === true || row.infra === 'interrupted' || row.lastInfra === 'interrupted');
-// R148: the cost the stop rule sees over `rows`: the known costs, plus, for each estimated row, the LARGEST known cost in the rows (0 when none
-// is known). No price table is invented. -> { costUsd, estimatedRows }.
-const costOf = (rows) => {
-  let known = 0;
-  let largest = 0;
-  let estimatedRows = 0;
-  for (const row of rows) {
-    const cost = knownCost(row);
-    if (cost !== null) {
-      known += cost;
-      largest = Math.max(largest, cost);
-    } else if (isEstimated(row)) {
-      estimatedRows += 1;
-    }
-  }
-  return { costUsd: known + estimatedRows * largest, estimatedRows };
-};
+// R148: the cost the stop rule sees is cost.mjs's costOf (shared with the analysis): the known costs of the rows, plus, for each row that
+// printed none because it timed out or was interrupted, the LARGEST known cost (0 when none; no price table).
 const isRowOf = (row, run) => isObject(row) && row.runId === run.runId && (row.infra === null || (typeof row.infra === 'string' && row.infra !== ''));
 
 // 1 + the highest N of the entries named `<runId>-aN` in runsDir (0 when there are none).

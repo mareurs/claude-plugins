@@ -10,7 +10,10 @@
 // grade.pass === true`: a timeout is a counted failure.
 //
 // THE UNIT IS THE TASK (ruling R68a). Per task, an arm's score is the mean pass over that arm's counted runs, never the
-// pooled runs of all tasks. A task with no counted run in every arm is excluded and listed; the rest are included. The paired
+// pooled runs of all tasks. A task is excluded from ALL arms, and listed, when (R149, spec l.95: "a task with a persistent infrastructure
+// failure is dropped from all arms, never from one") any run of it ended infra_exhausted and was never recovered, or when an arm has no
+// counted run. A run is recovered when a counted row has its runId: `--retry-exhausted` re-opens an exhausted run, the exhausted row stays in
+// the file as evidence and the counted row that follows makes the run count once. The rest are included. The paired
 // differences are B - A (non-inferiority) and A - C (the validity gate), one per included task.
 //
 // THE BOUND (ruling R68b, c). pairedLowerBound(diffs, { method, resamples, seed, alpha }) -> { mean, lower }; `mean` is the
@@ -42,7 +45,10 @@
 //
 // SECONDARIES (rulings R64, R70, R79, R80) are descriptive. Every one reads the counted rows of the INCLUDED tasks only (an excluded
 // task is dropped from all arms, never from one), except `infraRows` and `excludedTasks`, which are about exclusion. They are:
-// cost per resolved task, pass^3, counts (counted, timeouts, testsNotRun, infraRows, thinkingFieldMissing, p2pRegressions), the
+// cost per resolved task (R148: also with each counted run that timed out and printed no cost read at the largest cost known), pass^3, counts
+// (counted, timeouts, testsNotRun, infraRows [attempts: an exhausted line written without an attempt is none], thinkingFieldMissing,
+// p2pRegressions), per-arm token totals (R153: main and total sums of input_total, cache_creation, cache_read, output and thinking over the
+// counted rows of the included tasks), the
 // median wall time and diff size per arm (the median of an even count is the mean of the two middle values; null for none),
 // discordant tasks, and the log ratio of B over A for output and thinking.
 //
@@ -52,19 +58,21 @@
 // THE REPORT (ruling R72). analyzeS5 returns a plain JSON-serializable object (no undefined, NaN, Map):
 //   { margin, alpha, method,                    the registered values read
 //     included: [{ taskId, A, B, C, nA, nB, nC }],  registered order
-//     excluded: [{ taskId, reason }],           registered order; reason 'no_counted_run_in_<arms>' (e.g. 'no_counted_run_in_C')
+//     excluded: [{ taskId, reason }],           registered order; reason 'infra_exhausted_in_<arms>' (e.g. 'infra_exhausted_in_A_C', R149) or
+//                                               'no_counted_run_in_<arms>' (e.g. 'no_counted_run_in_C'); the first when both hold
 //     ignoredRows,                              rows that are not objects or name a task the prereg does not list
 //     ni: { mean, lower } | null,               B - A; null when fewer than 2 tasks are included
 //     gate: { mean, lower } | null,             A - C
 //     signTest: { bBetter, aBetter, ties, p },  B - A on the included tasks
 //     verdict, reason,                          reason null, 'too_few_tasks' or 'gate_failed' (when uninformative)
 //     mechanism: { thinking, output, total },
-//     secondaries: { excludedTasks, cost, counts, medians: { wallMs, diffSize }, pass3, discordant, logRatio } }
+//     secondaries: { excludedTasks, cost, tokens, counts, medians: { wallMs, diffSize }, pass3, discordant, logRatio } }
 // The report holds no input row. The rows' order does not matter: tasks are taken in registered order (analyzeS5) or id order
 // (the other functions), so one rows file always gives one report.
 
 import { analyzeArms } from '../s4-analyze.mjs';
 import { makeRng } from '../s4-prng.mjs';
+import { isEstimated, largestKnownCost } from './cost.mjs';
 
 export const ARMS = Object.freeze(['A', 'B', 'C']);
 export const METHODS = Object.freeze(['percentile', 'paired-t']);
@@ -108,13 +116,45 @@ function countedByTask(rows) {
 
 const passShare = (rs) => rs.filter(isPass).length / rs.length;
 
+// R149 (spec l.95: "a task with a persistent infrastructure failure is dropped from all arms, never from one"): the arms in which a task
+// has a LOST run, a run that ended infra_exhausted and was never recovered. -> Map<taskId, Set<arm>>. A run is its runId; a row without a
+// string runId is a run of its own. A final infra_exhausted row loses the run unless a counted row (final, infra null) has the same runId:
+// --retry-exhausted re-opens an exhausted run and its recovery is a later counted row, while the exhausted row stays in the file as evidence.
+// So the test is on the rows of a run, not on their order. A retry (final false) and every other infrastructure value lose nothing.
+function lostRunArms(rows) {
+  const runs = new Map(); // runId (or a fresh object for a row without one) -> { taskId, arm, exhausted, counted }
+  for (const r of Array.isArray(rows) ? rows : []) {
+    if (!isObject(r) || typeof r.taskId !== 'string') continue;
+    const key = typeof r.runId === 'string' ? r.runId : Symbol('row without a runId');
+    if (!runs.has(key)) runs.set(key, { taskId: r.taskId, arm: r.arm, exhausted: false, counted: false });
+    const run = runs.get(key);
+    if (isCounted(r)) run.counted = true;
+    if (r.final === true && r.infra === 'infra_exhausted') run.exhausted = true;
+  }
+  const lost = new Map();
+  for (const { taskId, arm, exhausted, counted } of runs.values()) {
+    if (!exhausted || counted) continue;
+    if (!lost.has(taskId)) lost.set(taskId, new Set());
+    lost.get(taskId).add(arm);
+  }
+  return lost;
+}
+
 // scores: Map<taskId, { A, B, C, nA, nB, nC }> of the included tasks, by id; excluded: [{ taskId, reason }], by id.
+// A task is excluded (from ALL arms) when a run of it was lost (R149, reason 'infra_exhausted_in_<arms>', A_B_C order) or, failing that,
+// when an arm has no counted run at all (reason 'no_counted_run_in_<arms>'). The lost run is named first: it is the cause.
 export function perTaskScores(rows) {
   const scores = new Map();
   const excluded = [];
   const byTask = countedByTask(rows);
+  const lost = lostRunArms(rows);
   for (const taskId of [...byTask.keys()].sort(byString)) {
     const arms = byTask.get(taskId);
+    const lostArms = ARMS.filter((arm) => lost.get(taskId)?.has(arm));
+    if (lostArms.length > 0) {
+      excluded.push({ taskId, reason: `infra_exhausted_in_${lostArms.join('_')}` });
+      continue;
+    }
     const missing = ARMS.filter((arm) => arms[arm].length === 0);
     if (missing.length > 0) {
       excluded.push({ taskId, reason: `no_counted_run_in_${missing.join('_')}` });
@@ -384,12 +424,26 @@ export function secondaries(rows, prereg) {
   const counted = perArm((arm) => [...scores.keys()].flatMap((taskId) => byTask.get(taskId)[arm]));
 
   // Cost per resolved task (failures counted): the cost of every counted run over the number of passing counted runs. A run with
-  // no cost reading (a timeout may leave no JSON) adds nothing and is counted in `missing`.
+  // no cost reading (a timeout may leave no JSON) adds nothing and is counted in `missing`. R148: a counted run with no reading that TIMED OUT
+  // is also `costEstimated`, and `usdWithEstimate` / `perResolvedWithEstimate` count each such run at the LARGEST cost known in the rows given
+  // (cost.mjs: the rule the batch's stop rule uses; 0 when none is known), beside `usd` / `perResolved`, which leave it out.
+  const largestCost = largestKnownCost(all);
   const cost = perArm((arm) => {
     const rs = counted[arm];
     const usd = sum(rs.map((r) => r.costUsd).filter(isCost));
     const resolved = rs.filter(isPass).length;
-    return { usd, runs: rs.length, resolved, missing: rs.filter((r) => !isCost(r.costUsd)).length, perResolved: resolved > 0 ? usd / resolved : null };
+    const costEstimated = rs.filter(isEstimated).length;
+    const usdWithEstimate = usd + costEstimated * largestCost;
+    return {
+      usd,
+      runs: rs.length,
+      resolved,
+      missing: rs.filter((r) => !isCost(r.costUsd)).length,
+      perResolved: resolved > 0 ? usd / resolved : null,
+      costEstimated,
+      usdWithEstimate,
+      perResolvedWithEstimate: resolved > 0 ? usdWithEstimate / resolved : null,
+    };
   });
 
   // A timeout is read from exit.timedOut, never inferred from a missing grade. p2pRegressions is the number of counted runs whose
@@ -398,7 +452,8 @@ export function secondaries(rows, prereg) {
     counted: counted[arm].length,
     timeouts: counted[arm].filter((r) => r.exit?.timedOut === true).length,
     testsNotRun: counted[arm].filter((r) => r.testsRunBeforeDone === false).length,
-    infraRows: all.filter((r) => r.arm === arm && r.infra !== null && r.infra !== undefined).length,
+    // R153: an attempt is a row; the exhausted line written WITHOUT an attempt (noAttempt) repeats the last attempt's row and is not one.
+    infraRows: all.filter((r) => r.arm === arm && r.infra !== null && r.infra !== undefined && r.noAttempt !== true).length,
     thinkingFieldMissing: counted[arm].filter((r) => r.usage?.main?.thinkingFieldMissing > 0).length,
     p2pRegressions: counted[arm].filter((r) => Array.isArray(r.grade?.p2p?.failed) && r.grade.p2p.failed.length > 0).length,
   }));
@@ -427,9 +482,22 @@ export function secondaries(rows, prereg) {
     .map(([taskId, s]) => ({ taskId, A: s.A, B: s.B }))
     .sort((x, y) => x.B - x.A - (y.B - y.A)); // the sort is stable and `scores` is by id, so equal differences stay in id order
 
+  // R153 (spec l.76: "the full token breakdown"): per arm, the sums of the usage parts over the counted rows of the included tasks, `main` (the
+  // agent) and `total` (agent and subagents). A field that is not a count >= 0 adds nothing. `rows` counts the rows, `withUsage` those that
+  // have a usage object (a run with none adds nothing and shows here).
+  const TOKEN_FIELDS = ['input_total', 'cache_creation', 'cache_read', 'output', 'thinking'];
+  const tokenSums = (rs, part) => Object.fromEntries(TOKEN_FIELDS.map((field) => [field, sum(rs.map((r) => r.usage?.[part]?.[field]).filter((v) => isFiniteNumber(v) && v >= 0))]));
+  const tokens = perArm((arm) => ({
+    rows: counted[arm].length,
+    withUsage: counted[arm].filter((r) => isObject(r.usage)).length,
+    main: tokenSums(counted[arm], 'main'),
+    total: tokenSums(counted[arm], 'total'),
+  }));
+
   return {
     excludedTasks: excluded.length,
     cost,
+    tokens,
     counts,
     medians,
     pass3,

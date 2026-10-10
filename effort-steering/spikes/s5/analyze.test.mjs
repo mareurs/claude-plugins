@@ -373,12 +373,16 @@ t('isPass: a row passes iff grade.pass === true; no grade is a counted fail (rul
 
 // ---- perTaskScores ----
 
-t('infrastructure rows never count; a task with no counted C run is excluded and listed', () => {
+t('infrastructure rows never count; a task with a run that ended infra_exhausted is excluded, with the reason naming the arm (R149)', () => {
   const infraFinal = (task, arm, o = {}) => row({ task, arm, infra: 'infra_exhausted', final: true, grade: null, ...o });
+  // R149: before this, an infra_exhausted row of a run without a counted row left its task IN (scored on the runs that survived); the spec's
+  // "a task with a persistent infrastructure failure is dropped from all arms" excludes it. So the passing exhausted row of t0 below belongs
+  // to a run that was recovered (a counted row of the same runId): it never counts, and it excludes nothing.
+  const t0A = runs('t0', 'A', '110');
   const rows = [
     // t0: A passes 2 of 3, B 1 of 3, C 0 of 2; a passing infra_exhausted A row and a passing non-final A row must not count.
-    ...runs('t0', 'A', '110'), ...runs('t0', 'B', '100'), ...runs('t0', 'C', '00'),
-    infraFinal('t0', 'A', { grade: { pass: true } }),
+    ...t0A, ...runs('t0', 'B', '100'), ...runs('t0', 'C', '00'),
+    infraFinal('t0', 'A', { grade: { pass: true }, runId: t0A[0].runId }),
     row({ task: 't0', arm: 'A', final: false, infra: 'api_error', pass: true }),
     row({ task: 't0', arm: 'A', final: false, pass: true }),
     // t1: no counted C run, only an infra_exhausted row.
@@ -392,10 +396,88 @@ t('infrastructure rows never count; a task with no counted C run is excluded and
   assert.deepEqual([...scores.keys()], ['t0']);
   assert.deepEqual(scores.get('t0'), { A: 2 / 3, B: 1 / 3, C: 0, nA: 3, nB: 3, nC: 2 });
   assert.deepEqual(excluded, [
-    { taskId: 't1', reason: 'no_counted_run_in_C' },
-    { taskId: 't2', reason: 'no_counted_run_in_A_B_C' },
+    { taskId: 't1', reason: 'infra_exhausted_in_C' },
+    { taskId: 't2', reason: 'infra_exhausted_in_A_B_C' },
     { taskId: 't3', reason: 'no_counted_run_in_A' },
   ]);
+});
+
+// ---- R149: a persistent infrastructure failure drops the task from ALL arms ----
+
+const lostRun = (task, arm, o = {}) => row({ task, arm, infra: 'infra_exhausted', final: true, grade: null, cost: null, ...o });
+
+t('R149: the reviewer\'s case: A = pass, fail, infra_exhausted; B = 3 passes; C = 2 fails -> the task is excluded from every arm, not scored on 2 A runs', () => {
+  const rows = [...runs('t1', 'A', '10'), lostRun('t1', 'A'), ...runs('t1', 'B', '111'), ...runs('t1', 'C', '00'), ...tk('t0', { A: '11', B: '11', C: '00' })];
+  const { scores, excluded } = perTaskScores(rows);
+  assert.deepEqual([...scores.keys()], ['t0']);
+  assert.deepEqual(excluded, [{ taskId: 't1', reason: 'infra_exhausted_in_A' }]);
+});
+
+t('R149: the reason names every arm that lost a run, in the order A, B, C; one lost run among many is enough; a task without one is untouched', () => {
+  const base = (id) => [...runs(id, 'A', '11'), ...runs(id, 'B', '11'), ...runs(id, 'C', '00')];
+  const rows = [
+    ...base('ta'), lostRun('ta', 'C'), lostRun('ta', 'A'), // written out of order on purpose
+    ...base('tb'), lostRun('tb', 'B'),
+    ...base('tc'), lostRun('tc', 'A'), lostRun('tc', 'B'), lostRun('tc', 'C'),
+    ...base('td'),
+  ];
+  const { scores, excluded } = perTaskScores(rows);
+  assert.deepEqual([...scores.keys()], ['td']);
+  assert.deepEqual(excluded, [
+    { taskId: 'ta', reason: 'infra_exhausted_in_A_C' },
+    { taskId: 'tb', reason: 'infra_exhausted_in_B' },
+    { taskId: 'tc', reason: 'infra_exhausted_in_A_B_C' },
+  ]);
+});
+
+t('R149: a run recovered with --retry-exhausted (a counted row of the same runId, in either order in the array) does not exclude, and is scored once', () => {
+  for (const exhaustedFirst of [true, false]) {
+    const lost = lostRun('t1', 'A', { runId: 'r-recovered' });
+    const found = row({ task: 't1', arm: 'A', runId: 'r-recovered', pass: true });
+    const rows = [...runs('t1', 'A', '10'), ...(exhaustedFirst ? [lost, found] : [found, lost]), ...runs('t1', 'B', '111'), ...runs('t1', 'C', '00')];
+    const { scores, excluded } = perTaskScores(rows);
+    assert.deepEqual(excluded, [], `exhaustedFirst ${exhaustedFirst}`);
+    assert.deepEqual(scores.get('t1'), { A: 2 / 3, B: 1, C: 0, nA: 3, nB: 3, nC: 2 }, `exhaustedFirst ${exhaustedFirst}`);
+  }
+  // Recovered twice over (exhausted again in a second batch, then counted) is still recovered; a recovery of ANOTHER run does not cover this one.
+  const twice = [lostRun('t1', 'A', { runId: 'r1' }), lostRun('t1', 'A', { runId: 'r1' }), row({ task: 't1', arm: 'A', runId: 'r1' }), ...runs('t1', 'B', '1'), ...runs('t1', 'C', '0')];
+  assert.deepEqual(perTaskScores(twice).excluded, []);
+  const other = [lostRun('t1', 'A', { runId: 'r1' }), row({ task: 't1', arm: 'A', runId: 'r2' }), ...runs('t1', 'B', '1'), ...runs('t1', 'C', '0')];
+  assert.deepEqual(perTaskScores(other).excluded, [{ taskId: 't1', reason: 'infra_exhausted_in_A' }]);
+});
+
+t('R149: only a FINAL infra_exhausted row loses a run: a retry (non-final infrastructure), another infrastructure value or a non-final exhausted line do not', () => {
+  const rows = [
+    ...tk('t1', { A: '11', B: '11', C: '00' }),
+    row({ task: 't1', arm: 'A', infra: 'api_error', final: false, grade: null }),
+    row({ task: 't1', arm: 'B', infra: 'infra_exhausted', final: false, grade: null }),
+    row({ task: 't1', arm: 'C', infra: 'oom', final: true, grade: null }),
+  ];
+  const { scores, excluded } = perTaskScores(rows);
+  assert.deepEqual([...scores.keys()], ['t1']);
+  assert.deepEqual(excluded, []);
+});
+
+t('R149: a lost run takes precedence over an arm that has no counted run at all (the cause is named, not the symptom); a row without a runId is a run of its own', () => {
+  const rows = [...runs('t1', 'A', '1'), lostRun('t1', 'A'), ...runs('t1', 'B', '1')]; // C has no row at all
+  assert.deepEqual(perTaskScores(rows).excluded, [{ taskId: 't1', reason: 'infra_exhausted_in_A' }]);
+  const noId = [...tk('t1', { A: '1', B: '1', C: '0' }), { ...lostRun('t1', 'B'), runId: undefined }];
+  assert.deepEqual(perTaskScores(noId).excluded, [{ taskId: 't1', reason: 'infra_exhausted_in_B' }]);
+  const twoNoId = [...tk('t1', { A: '1', B: '1', C: '0' }), { ...lostRun('t1', 'A'), runId: undefined }, { ...lostRun('t1', 'C'), runId: undefined }];
+  assert.deepEqual(perTaskScores(twoNoId).excluded, [{ taskId: 't1', reason: 'infra_exhausted_in_A_C' }], 'two rows without a runId are two runs, not one');
+});
+
+t('R149 in the Report: analyzeS5 lists the task in excluded with the reason, scores nothing of it, and the secondaries read the included tasks only', () => {
+  const p = prereg(['t0', 't1', 't2']);
+  const rows = [...tk('t0', { A: '11', B: '11', C: '00' }), ...tk('t2', { A: '11', B: '10', C: '00' }), ...runs('t1', 'A', '10'), lostRun('t1', 'A'), ...runs('t1', 'B', '111'), ...runs('t1', 'C', '00')];
+  const rep = analyzeS5(rows, p);
+  assert.deepEqual(rep.included.map((s) => s.taskId), ['t0', 't2']);
+  assert.deepEqual(rep.excluded, [{ taskId: 't1', reason: 'infra_exhausted_in_A' }]);
+  assert.equal(rep.secondaries.excludedTasks, 1);
+  // t1's counted runs are in no arm's secondaries: the counted runs are those of t0 and t2 (2 + 2 in A, 2 + 2 in B, 2 + 2 in C).
+  assert.deepEqual(ARMS.map((arm) => rep.secondaries.counts[arm].counted), [4, 4, 4]);
+  // ...while infraRows is about exclusion and still counts the exhausted line.
+  assert.equal(rep.secondaries.counts.A.infraRows, 1);
 });
 
 t('perTaskScores: a timeout is a counted failure; the arm score is the mean pass over its counted runs', () => {
@@ -572,10 +654,13 @@ t('mechanism hands analyzeArms the registered seed, permutations and an effect i
 
 t('mechanism counts only counted rows of included tasks, arms A and B', () => {
   const wild = { think: 99999, out: 99999, input: 1000, cc: 0 };
+  const base = mechRows();
+  const m0Holdout = base.find((r) => r.taskId === 'm0' && r.arm === 'A');
   const rows = [
-    ...mechRows(),
-    // An infrastructure row, a non-final row, and a C row with wild numbers: none may reach the test.
-    row({ task: 'm0', arm: 'A', infra: 'infra_exhausted', grade: null, usage: usageOf(wild) }),
+    ...base,
+    // An infrastructure row, a non-final row, and a C row with wild numbers: none may reach the test. (R149: the exhausted row is the line
+    // of a run that was recovered, the counted m0 A row with the same runId; an exhausted run with no counted row would exclude m0.)
+    row({ task: 'm0', arm: 'A', infra: 'infra_exhausted', grade: null, usage: usageOf(wild), runId: m0Holdout.runId }),
     row({ task: 'm1', arm: 'B', final: false, usage: usageOf(wild) }),
     row({ task: 'm2', arm: 'C', usage: usageOf(wild) }),
     // A task with no counted C run is not included, so its A and B rows are left out.
@@ -634,8 +719,9 @@ const SEC_PREREG = prereg(['s0', 's1'], { bound: { method: 'paired-t', resamples
 
 t('secondaries: cost per resolved task per arm counts failures, not infrastructure rows nor excluded tasks; null when none pass', () => {
   const rows = [
-    row({ task: 's0', arm: 'A', pass: true, cost: 1 }), row({ task: 's0', arm: 'A', pass: false, cost: 2 }), row({ task: 's0', arm: 'A', pass: false, cost: 3 }),
-    row({ task: 's0', arm: 'A', infra: 'infra_exhausted', grade: null, cost: 100 }), row({ task: 's0', arm: 'A', final: false, cost: 100 }),
+    row({ task: 's0', arm: 'A', pass: true, cost: 1, runId: 's0-A-recovered' }), row({ task: 's0', arm: 'A', pass: false, cost: 2 }), row({ task: 's0', arm: 'A', pass: false, cost: 3 }),
+    // (R149: an exhausted line of a run that was recovered, the counted row above with the same runId; it never counts and excludes nothing.)
+    row({ task: 's0', arm: 'A', infra: 'infra_exhausted', grade: null, cost: 100, runId: 's0-A-recovered' }), row({ task: 's0', arm: 'A', final: false, cost: 100 }),
     row({ task: 's0', arm: 'B', pass: true, cost: 4 }), row({ task: 's0', arm: 'B', pass: true, cost: 4 }),
     row({ task: 's0', arm: 'C', pass: false, cost: 1 }), row({ task: 's0', arm: 'C', pass: false, cost: null }),
     row({ task: 's0', arm: 'C', pass: false, cost: -2 }), row({ task: 's0', arm: 'C', pass: false, cost: 'n/a' }),
@@ -645,10 +731,73 @@ t('secondaries: cost per resolved task per arm counts failures, not infrastructu
     row({ task: 'x0', arm: 'C', pass: true, cost: 50 }),
   ];
   const { cost, excludedTasks } = secondaries(rows, SEC_PREREG);
-  assert.deepEqual(cost.A, { usd: 6, runs: 3, resolved: 1, missing: 0, perResolved: 6 });
-  assert.deepEqual(cost.B, { usd: 8, runs: 2, resolved: 2, missing: 0, perResolved: 4 });
-  assert.deepEqual(cost.C, { usd: 1, runs: 4, resolved: 0, missing: 3, perResolved: null }, 'a null, negative or non-number cost is a missing reading');
+  assert.deepEqual(cost.A, { usd: 6, runs: 3, resolved: 1, missing: 0, perResolved: 6, costEstimated: 0, usdWithEstimate: 6, perResolvedWithEstimate: 6 });
+  assert.deepEqual(cost.B, { usd: 8, runs: 2, resolved: 2, missing: 0, perResolved: 4, costEstimated: 0, usdWithEstimate: 8, perResolvedWithEstimate: 4 });
+  assert.deepEqual(cost.C, { usd: 1, runs: 4, resolved: 0, missing: 3, perResolved: null, costEstimated: 0, usdWithEstimate: 1, perResolvedWithEstimate: null }, 'a null, negative or non-number cost is a missing reading');
   assert.equal(excludedTasks, 1);
+});
+
+t('R148: a counted run that timed out has no cost reading; beside the figures that leave it out, the secondaries report costEstimated and the same figures with each such run at the largest cost known in the rows given', () => {
+  const rows = [
+    row({ task: 's0', arm: 'A', pass: true, cost: 1 }), row({ task: 's0', arm: 'A', timedOut: true, grade: null, cost: null }),
+    row({ task: 's0', arm: 'B', pass: true, cost: 4 }), row({ task: 's0', arm: 'B', timedOut: true, grade: null, cost: null }),
+    row({ task: 's0', arm: 'B', pass: false, cost: null }), // no reading and no timeout: missing, NOT estimated
+    row({ task: 's0', arm: 'C', pass: false, cost: 2 }),
+    // The largest known cost is read over EVERY row given, as the stop rule reads the file: here an infrastructure row of an excluded task.
+    row({ task: 'x0', arm: 'A', infra: 'oom', final: false, grade: null, cost: 6 }),
+    row({ task: 'x0', arm: 'B', infra: 'infra_exhausted', final: true, grade: null, cost: null }),
+  ];
+  const { cost } = secondaries(rows, SEC_PREREG);
+  assert.deepEqual(cost.A, { usd: 1, runs: 2, resolved: 1, missing: 1, perResolved: 1, costEstimated: 1, usdWithEstimate: 7, perResolvedWithEstimate: 7 });
+  assert.deepEqual(cost.B, { usd: 4, runs: 3, resolved: 1, missing: 2, perResolved: 4, costEstimated: 1, usdWithEstimate: 10, perResolvedWithEstimate: 10 });
+  assert.deepEqual(cost.C, { usd: 2, runs: 1, resolved: 0, missing: 0, perResolved: null, costEstimated: 0, usdWithEstimate: 2, perResolvedWithEstimate: null });
+  // With no known cost at all the estimate is 0 (not NaN, not -Infinity).
+  const none = secondaries([row({ task: 's0', arm: 'A', timedOut: true, grade: null, cost: null }), ...tk('s0', { B: '1', C: '0' }, { B: { cost: null }, C: { cost: null } })], SEC_PREREG);
+  assert.deepEqual([none.cost.A.costEstimated, none.cost.A.usdWithEstimate, none.cost.A.perResolvedWithEstimate], [1, 0, null]);
+});
+
+t('R153: infraRows counts attempts: an exhausted line written without an attempt (noAttempt) is not one', () => {
+  const rows = [
+    ...tk('s0', { A: '1', B: '1', C: '0' }),
+    row({ task: 's0', arm: 'A', infra: 'api_error', final: false, grade: null }),
+    { ...row({ task: 's0', arm: 'A', infra: 'infra_exhausted', final: true, grade: null, runId: 'gone' }), noAttempt: true }, // R149: this lost run excludes s0 ...
+    row({ task: 's1', arm: 'B', infra: 'api_error', final: false, grade: null }),
+    row({ task: 's1', arm: 'B', infra: 'infra_exhausted', final: true, grade: null, runId: 'gone2' }),
+  ];
+  const { counts } = secondaries(rows, SEC_PREREG);
+  // ... and infraRows is about exclusion: A has the api_error attempt only (the noAttempt line is no attempt); B has the api_error attempt and the exhausted attempt.
+  assert.equal(counts.A.infraRows, 1);
+  assert.equal(counts.B.infraRows, 2);
+});
+
+t('R153: per-arm token totals over the counted rows of the included tasks, main and total, from the usage parts; a row without a usage object adds nothing and is counted apart', () => {
+  const U = (main, total) => ({ main: { input: main[0], cc: main[1], cr: main[2], out: main[3], think: main[4] }, total: { input: total[0], cc: total[1], cr: total[2], out: total[3], think: total[4] } });
+  const rows = [
+    row({ task: 's0', arm: 'A', usage: usageOf(U([100, 10, 20, 50, 30], [150, 15, 30, 80, 45]).main, U([100, 10, 20, 50, 30], [150, 15, 30, 80, 45]).total) }),
+    row({ task: 's0', arm: 'A', usage: usageOf({ input: 1, cc: 2, cr: 3, out: 4, think: 5 }, { input: 10, cc: 20, cr: 30, out: 40, think: 50 }) }),
+    { ...row({ task: 's0', arm: 'A', timedOut: true, grade: null }), usage: null },
+    row({ task: 's0', arm: 'B', usage: usageOf({ input: 7, cc: 7, cr: 7, out: 7, think: 7 }) }),
+    row({ task: 's0', arm: 'C', usage: { main: { input_total: 'x', cache_creation: -1, cache_read: 4, output: Infinity, thinking: 2 }, total: {} } }),
+    // not counted: an infrastructure row, and a counted row of an excluded task
+    row({ task: 's0', arm: 'A', infra: 'oom', final: false, grade: null, usage: usageOf({ input: 1000 }) }),
+    row({ task: 'x0', arm: 'A', usage: usageOf({ input: 5000 }) }), row({ task: 'x0', arm: 'B', infra: 'infra_exhausted', final: true, grade: null }),
+  ];
+  const { tokens } = secondaries(rows, SEC_PREREG);
+  const zero = { input_total: 0, cache_creation: 0, cache_read: 0, output: 0, thinking: 0 };
+  assert.deepEqual(tokens.A, {
+    rows: 3,
+    withUsage: 2,
+    main: { input_total: 101, cache_creation: 12, cache_read: 23, output: 54, thinking: 35 },
+    total: { input_total: 160, cache_creation: 35, cache_read: 60, output: 120, thinking: 95 },
+  });
+  assert.deepEqual(tokens.B, { rows: 1, withUsage: 1, main: { input_total: 7, cache_creation: 7, cache_read: 7, output: 7, thinking: 7 }, total: { input_total: 7, cache_creation: 7, cache_read: 7, output: 7, thinking: 7 } });
+  assert.deepEqual(tokens.C, { rows: 1, withUsage: 1, main: { ...zero, cache_read: 4, thinking: 2 }, total: zero }, 'a field that is not a count >= 0 adds nothing');
+  assert.deepEqual(Object.keys(tokens), ['A', 'B', 'C']);
+});
+
+t('secondaries: a task with no counted run in B and C is excluded, and is counted in excludedTasks', () => {
+  const rows = [row({ task: 's0', arm: 'A' })];
+  assert.equal(secondaries(rows, SEC_PREREG).excludedTasks, 1, 'a task with no counted run in B and C is excluded');
 });
 
 t('secondaries: counts of timeouts, testsRunBeforeDone === false, infrastructure rows and thinkingFieldMissing per arm', () => {
@@ -661,9 +810,9 @@ t('secondaries: counts of timeouts, testsRunBeforeDone === false, infrastructure
     row({ task: 's0', arm: 'A', timedOut: false, grade: null }),
     row({ task: 's0', arm: 'A', tests: false }),
     row({ task: 's0', arm: 'A', tests: null }), // unknown is not false
-    row({ task: 's0', arm: 'A' }),
+    row({ task: 's0', arm: 'A', runId: 's0-A-recovered' }),
     row({ task: 's0', arm: 'A', infra: 'effort_mismatch', final: false, grade: null, timedOut: true, tests: false }), // not counted: counts only as an infra row
-    row({ task: 's0', arm: 'A', infra: 'infra_exhausted', final: true, grade: null }),
+    row({ task: 's0', arm: 'A', infra: 'infra_exhausted', final: true, grade: null, runId: 's0-A-recovered' }), // (R149: a recovered run: a counted row has its runId)
     { ...row({ task: 's0', arm: 'A' }), infra: undefined }, // does not say whether it is clean: neither counted nor an infrastructure row
     row({ task: 's0', arm: 'B', main: { missing: 3 } }), // 3 messages without thinking: one row
     row({ task: 's0', arm: 'B', main: { missing: 1 } }),
@@ -703,7 +852,7 @@ t('secondaries: median wall time, median diff size and p2p regressions per arm, 
     // r0 and r1 are included. A: wall 1000, 3000, 2000, 9000 -> median 2500 (mean 3750); diff sizes 5 and 15 -> 10; the run with
     // no grade and the run whose grade has no diff have no diff size; one run regressed an existing test, the one with only a
     // notRun name did not.
-    row({ task: 'r0', arm: 'A', wallMs: 1000, grade: gradeOf({ diff: diff(3, 2), p2pFailed: ['t::a'] }) }),
+    row({ task: 'r0', arm: 'A', wallMs: 1000, grade: gradeOf({ diff: diff(3, 2), p2pFailed: ['t::a'] }), runId: 'r0-A-recovered' }),
     row({ task: 'r0', arm: 'A', wallMs: 3000, grade: gradeOf({ diff: diff(10, 5) }) }),
     row({ task: 'r1', arm: 'A', wallMs: 2000, timedOut: true, grade: null }),
     row({ task: 'r1', arm: 'A', wallMs: 9000, grade: gradeOf({ diff: null, p2pNotRun: ['t::b'] }) }),
@@ -716,7 +865,8 @@ t('secondaries: median wall time, median diff size and p2p regressions per arm, 
     row({ task: 'r0', arm: 'C', wallMs: 500, grade: null }),
     row({ task: 'r1', arm: 'C', wallMs: 700, grade: null }),
     // An infrastructure row of an included task and every row of an excluded task (x0 has no counted C run) count for none of them.
-    row({ task: 'r0', arm: 'A', wallMs: 777777, infra: 'infra_exhausted', grade: gradeOf({ diff: diff(400, 400), p2pFailed: ['t::z'] }) }),
+    // (R149: the exhausted row is the line of a run that was recovered, the first r0 A row; an unrecovered one would exclude r0.)
+    row({ task: 'r0', arm: 'A', wallMs: 777777, infra: 'infra_exhausted', grade: gradeOf({ diff: diff(400, 400), p2pFailed: ['t::z'] }), runId: 'r0-A-recovered' }),
     row({ task: 'x0', arm: 'A', wallMs: 999999, grade: gradeOf({ diff: diff(500, 500), p2pFailed: ['t::y'] }) }),
     row({ task: 'x0', arm: 'B', wallMs: 999999, grade: gradeOf({ diff: diff(500, 500), p2pFailed: ['t::y'] }) }),
   ];
@@ -934,13 +1084,13 @@ t('analyzeS5: the Report names the registered margin, alpha and method, the incl
   assert.equal(rep.margin, 0.2);
   assert.equal(rep.alpha, 0.1);
   assert.equal(rep.method, 'paired-t');
-  // Registered order (t3, t0, t1), not id order; a registered task with no row at all is excluded and listed.
+  // Registered order (t3, t0), not id order. R149 changed this test: t1 has a run that ended infra_exhausted and was never recovered, so it
+  // is dropped from ALL arms (it used to stay in, scored on the runs that survived). A registered task with no row at all is excluded too.
   assert.deepEqual(rep.included, [
     { taskId: 't3', A: 1, B: 0.5, C: 1, nA: 2, nB: 2, nC: 1 },
     { taskId: 't0', A: 2 / 3, B: 1, C: 0, nA: 3, nB: 1, nC: 1 },
-    { taskId: 't1', A: 1, B: 1, C: 1, nA: 1, nB: 2, nC: 1 },
   ]);
-  assert.deepEqual(rep.excluded, [{ taskId: 'tx', reason: 'no_counted_run_in_A_B_C' }]);
+  assert.deepEqual(rep.excluded, [{ taskId: 't1', reason: 'infra_exhausted_in_A' }, { taskId: 'tx', reason: 'no_counted_run_in_A_B_C' }]);
   assert.equal(rep.ignoredRows, 0);
   assert.deepEqual(Object.keys(rep.mechanism), ['thinking', 'output', 'total']);
   assert.ok(rep.secondaries && typeof rep.secondaries === 'object');

@@ -1748,9 +1748,10 @@ await ta('R125: retryExhausted must be a boolean; a run that was never exhausted
   const b = bench({ runs: { A: 1, B: 1, C: 1 }, limits: { infraRetries: 1 }, script: ({ run }) => (run.arm === 'B' ? infraRow(run, 'api_error') : okRow(run)) });
   const first = await b.run({ retryExhausted: true });
   assert.deepEqual([first.retriedExhausted, first.exhausted, first.skippedFinal], [0, 1, 0], 'nothing was exhausted yet, so nothing is re-opened');
-  // The outage left the task without a counted B run: analyze.mjs excludes it, silently shrinking the task set.
+  // The outage left the task without a counted B run: analyze.mjs excludes it, silently shrinking the task set. (R149: the reason names the
+  // lost run, 'infra_exhausted_in_B'; it used to be 'no_counted_run_in_B', and a lost run in an arm that still had counted runs stayed in.)
   const lost = perTaskScores(b.rows());
-  assert.deepEqual([[...lost.scores.keys()], lost.excluded], [[], [{ taskId: 'ta', reason: 'no_counted_run_in_B' }]]);
+  assert.deepEqual([[...lost.scores.keys()], lost.excluded], [[], [{ taskId: 'ta', reason: 'infra_exhausted_in_B' }]]);
 
   b.script = ({ run }) => okRow(run);
   const recovered = await b.run({ retryExhausted: true });
