@@ -23,6 +23,14 @@
 //   buildCommand, f2p.command, p2p.command   non-empty string arrays
 //   f2p         { command, names }   names: non-empty array of non-empty strings
 //   p2p         { command, names }   names: array of non-empty strings
+//                 AUTHORING RULE (R151): every file that holds a pass-to-pass name must be listed in hidden.files. The grader
+//                 replaces the paths of hidden.files and hidden.extra in the agent's tree with the fix commit's version (for a
+//                 test file the fix did not change that is the version at P), and no other file; a p2p name in a file that is
+//                 not listed runs in the agent's own, possibly edited, version, and an agent that weakened or deleted an
+//                 assertion to get green passes it. Nothing here checks it (a test name does not map to a file); the Opus
+//                 task review does (README, gate 2). Residual: a file the agent must itself edit, such as a source file that
+//                 holds the fix and inline unit tests, cannot be listed (the graft would overwrite the agent's work with the
+//                 fix), so its p2p names stay exposed; the review decides whether to accept that for the task.
 //                 A command that runs `cargo test` in a cargo task carries --no-fail-fast before any `--` (plain
 //                 cargo stops at the first failing test binary, and every listed name behind it would be not run).
 //                 A command that runs `node --test` has --test and --test-reporter=tap before its first positional
