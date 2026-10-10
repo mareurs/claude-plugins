@@ -261,7 +261,7 @@ await ta('a normal exit reports the container status, then looks the container u
   assert.equal(timersLeft(), 0, 'the timeout timer is cleared when the run ends in time');
   assert.deepEqual(subs(f), NORMAL);
   const [, ps, inspect, rm] = f.calls();
-  assert.deepEqual(ps.argv, ['ps', '-aq', '--no-trunc', '--filter', `label=s5.run=${NAME}`]);
+  assert.deepEqual(ps.argv, ['ps', '-aq', '--no-trunc', '--filter', 'label=s5=1', '--filter', `label=s5.run=${NAME}`]);
   assert.deepEqual(inspect.argv, ['container', 'inspect', '--format', '{{.State.OOMKilled}}', OURS_ID]);
   assert.deepEqual(rm.argv, ['rm', '-f', OURS_ID]);
   assert.deepEqual(touchedBy(f), [OURS_ID, OURS_ID], 'by ID, the same container both times');
@@ -280,7 +280,7 @@ await ta('a timeout looks the container up by label, kills it by ID, and reports
   assert.equal(timersLeft(), 0, 'the grace timer is cleared once the run has exited');
   assert.deepEqual(subs(f), TIMEOUT);
   const [, ps1, kill, ps2, inspect, rm] = f.calls();
-  assert.deepEqual(ps1.argv, ['ps', '-aq', '--no-trunc', '--filter', `label=s5.run=${name}`], 'the lookup comes before the kill');
+  assert.deepEqual(ps1.argv, ['ps', '-aq', '--no-trunc', '--filter', 'label=s5=1', '--filter', `label=s5.run=${name}`], 'the lookup comes before the kill');
   assert.deepEqual(kill.argv, ['kill', OURS_ID]);
   assert.deepEqual(ps2.argv, ps1.argv);
   assert.deepEqual(inspect.argv, ['container', 'inspect', '--format', '{{.State.OOMKilled}}', OURS_ID]);
@@ -517,7 +517,7 @@ await ta('dockerBin defaults to docker, found on PATH, which the whitelist passe
   await withEnv({ PATH: `${f.dir}${delimiter}${process.env.PATH}` }, async () => {
     await dockerRun(base());
     assert.deepEqual(subs(f), NORMAL);
-    assert.equal(removeLabeled(), 1, 'the default ps answers with the one s5=1 container');
+    assert.equal(removeLabeled('s5=1'), 1, 'the ps answers with the one s5=1 container');
   });
   assert.deepEqual(subs(f), [...NORMAL, 'ps', 'rm']);
 });
@@ -570,22 +570,46 @@ const RUN_ONLY = { id: 'dd'.repeat(32), name: 's5-d', labels: { 's5.run': 'zzz' 
 await ta('removeLabeled filters on the label s5=1 only', async () => {
   const f = fakeDocker({ containers: [S5A, S5B, OTHER, RUN_ONLY] });
   assert.equal(removeLabeled('s5=1', { dockerBin: f.bin }), 2);
+  // R152: the ids are listed in full (--no-trunc) and removed by those: `docker rm -f <12 hex>` would resolve a container NAMED like that first.
   assert.deepEqual(f.calls().map((c) => c.argv), [
-    ['ps', '-aq', '--filter', 'label=s5=1'],
-    ['rm', '-f', 'aaaaaaaaaaaa', 'bbbbbbbbbbbb'],
+    ['ps', '-aq', '--no-trunc', '--filter', 'label=s5=1'],
+    ['rm', '-f', S5A.id, S5B.id],
   ]);
   assert.deepEqual(touchedBy(f), [S5A.id, S5B.id], 'the foreign and the s5.run-only containers were not reached');
-
-  const g = fakeDocker({ containers: [S5A, OTHER] });
-  assert.equal(removeLabeled(undefined, { dockerBin: g.bin }), 1);
-  assert.deepEqual(g.calls()[0].argv, ['ps', '-aq', '--filter', 'label=s5=1'], 's5=1 is the default');
 
   const h = fakeDocker({ containers: [S5A, S5B, OTHER] });
   assert.equal(removeLabeled('s5.run=s5-b', { dockerBin: h.bin }), 1);
   assert.deepEqual(h.calls().map((c) => c.argv), [
-    ['ps', '-aq', '--filter', 'label=s5.run=s5-b'],
-    ['rm', '-f', 'bbbbbbbbbbbb'],
+    ['ps', '-aq', '--no-trunc', '--filter', 'label=s5.run=s5-b'],
+    ['rm', '-f', S5B.id],
   ]);
+});
+
+await ta('R152: removeLabeled has NO default label: a caller that names none is refused before docker is called (a default of s5=1 would also sweep the proxy)', async () => {
+  const f = fakeDocker({ containers: [S5A, S5B, OTHER] });
+  for (const none of [undefined, null]) {
+    assert.throws(() => removeLabeled(none, { dockerBin: f.bin }), (e) => e instanceof TypeError && /label/.test(e.message), String(none));
+  }
+  assert.throws(() => removeLabeled(undefined, { dockerBin: f.bin }), TypeError);
+  assert.throws(() => removeLabeled(), TypeError, 'and no argument at all');
+  assert.deepEqual(f.calls(), [], 'docker was never called');
+  assert.deepEqual(touchedBy(f), []);
+});
+
+await ta('R152: a foreign container NAMED like the first 12 characters of one of our ids is not removed (rm goes by the full id, which docker resolves before any name)', async () => {
+  const decoy = { id: 'ee'.repeat(32), name: S5A.id.slice(0, 12), labels: { 'com.example.owner': 'someone-else' } };
+  const f = fakeDocker({ containers: [S5A, decoy] });
+  assert.equal(removeLabeled('s5=1', { dockerBin: f.bin }), 1);
+  assert.deepEqual(touchedBy(f), [S5A.id], 'only ours; with 12-character ids the decoy would have been found first by its name');
+});
+
+await ta('R152: dockerRun finds its container by s5=1 AND s5.run=<name>: a foreign container that carries only the s5.run label is neither inspected, killed nor removed', async () => {
+  const decoy = { id: FOREIGN_ID, name: 'someone-elses', labels: { 's5.run': NAME } };
+  const f = fakeDocker({ containers: [decoy] });
+  const r = await dockerRun(base(), { dockerBin: f.bin });
+  assert.equal(r.created, false, 'not ours: no s5=1');
+  assert.deepEqual(touchedBy(f), [], 'nothing was reached');
+  assert.deepEqual(subs(f), ['run', 'ps']);
 });
 
 await ta('removeLabeled removes nothing and returns 0 when no container carries the label', async () => {
@@ -644,15 +668,15 @@ await ta('R134 (c): removeLabeled takes a label or a non-empty array of labels a
   const f = fakeDocker({ containers: [S5A, S5B, TASKED, TASK_ONLY, OTHER] });
   assert.equal(removeLabeled(['s5=1', 's5.task'], { dockerBin: f.bin }), 1);
   assert.deepEqual(f.calls().map((c) => c.argv), [
-    ['ps', '-aq', '--filter', 'label=s5=1', '--filter', 'label=s5.task'],
-    ['rm', '-f', 'eeeeeeeeeeee'],
+    ['ps', '-aq', '--no-trunc', '--filter', 'label=s5=1', '--filter', 'label=s5.task'],
+    ['rm', '-f', TASKED.id],
   ]);
   assert.deepEqual(touchedBy(f), [TASKED.id], 'only the container with BOTH labels: not s5=1 alone, not s5.task alone, not a foreign one');
 
   // One label in an array is the string; a string is still one filter.
   const g = fakeDocker({ containers: [S5A, S5B, OTHER] });
   assert.equal(removeLabeled(['s5.run=s5-b'], { dockerBin: g.bin }), 1);
-  assert.deepEqual(g.calls()[0].argv, ['ps', '-aq', '--filter', 'label=s5.run=s5-b']);
+  assert.deepEqual(g.calls()[0].argv, ['ps', '-aq', '--no-trunc', '--filter', 'label=s5.run=s5-b']);
 
   // Every label of the array must be an s5 label, and the array must not be empty; nothing is called for a refusal.
   const h = fakeDocker({ containers: [S5A] });

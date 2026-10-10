@@ -1156,8 +1156,10 @@ await ta('R122, R134 (c): the sweep removes the containers that carry BOTH s5=1 
   const ps = calls.filter((c) => c.argv[0] === 'ps');
   const rm = calls.filter((c) => c.argv[0] === 'rm');
   assert.equal(ps.length, 1, 'one sweep for the whole batch, not one per run');
-  assert.deepEqual(ps[0].argv, ['ps', '-aq', '--filter', 'label=s5=1', '--filter', 'label=s5.task'], 'both filters, which docker ANDs: only containers that are ours (s5=1) AND a run, grade or warm container (s5.task)');
+  assert.deepEqual(ps[0].argv, ['ps', '-aq', '--no-trunc', '--filter', 'label=s5=1', '--filter', 'label=s5.task'], 'both filters, which docker ANDs: only containers that are ours (s5=1) AND a run, grade or warm container (s5.task); full ids (R152)');
   assert.equal(rm.length, 1);
+  assert.deepEqual(rm[0].argv.slice(0, 2), ['rm', '-f']);
+  assert.deepEqual(rm[0].argv.slice(2).sort(), [STALE, WARM].sort(), 'removed by their FULL ids (R152), not 12-character prefixes');
   assert.deepEqual(rm[0].touched.sort(), [STALE, WARM].sort(), 'only the stale run and the warm container were removed');
   assert.ok(!calls.some((c) => (c.touched ?? []).some((id) => id === PROXY_CONTAINER || id === FOREIGN || id === TASK_ONLY)), 'the proxy, the s5.task-only container and the foreign one were never touched');
   assert.deepEqual(seenAtFirst, ['ps', 'rm'], 'the sweep was finished before the first run started');

@@ -12,6 +12,7 @@ import { chmodSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { t } from '../../core/testkit.mjs';
+import { DOCKER_PASSTHROUGH } from './docker.mjs';
 import { ta } from './fixtures/testkit-async.mjs';
 import { hostPattern, proxyDown, proxyLog, proxyUp, renderProxyConfig } from './proxy.mjs';
 
@@ -29,6 +30,7 @@ const CFG = process.env.FAKE_CFG;
 const argv = process.argv.slice(2);
 const st = JSON.parse(readFileSync(CFG, 'utf8'));
 appendFileSync(LOG, JSON.stringify(argv) + '\\n');
+appendFileSync(LOG + '.env', JSON.stringify(Object.keys(process.env).sort()) + '\\n');
 const save = () => writeFileSync(CFG, JSON.stringify(st));
 const out = (s) => process.stdout.write(s);
 const isId = (a) => /^[0-9a-f]{64}$/.test(a);
@@ -90,7 +92,8 @@ function fakeDocker(world = {}) {
   writeFileSync(bin, `#!/bin/sh\nexport FAKE_LOG=${shq(log)} FAKE_CFG=${shq(cfg)}\nexec ${shq(process.execPath)} ${shq(script)} "$@"\n`);
   chmodSync(bin, 0o755);
   const calls = () => (existsSync(log) ? readFileSync(log, 'utf8').split('\n').filter(Boolean).map((l) => JSON.parse(l)) : []);
-  return { bin, dir, calls, world: () => JSON.parse(readFileSync(cfg, 'utf8')) };
+  const envNames = () => (existsSync(`${log}.env`) ? readFileSync(`${log}.env`, 'utf8').split('\n').filter(Boolean).map((l) => JSON.parse(l)) : []);
+  return { bin, dir, calls, envNames, world: () => JSON.parse(readFileSync(cfg, 'utf8')) };
 }
 
 const OURS_ID = 'ab'.repeat(32);
@@ -271,4 +274,32 @@ await ta('proxyLog: returns the log of our proxy; with none, or with two, it thr
   await assert.rejects(() => proxyLog({ dockerBin: fakeDocker().bin }), /found 0/);
   const two = fakeDocker({ containers: [oursProxy(), { ...oursProxy(), id: '12'.repeat(32) }] });
   await assert.rejects(() => proxyLog({ dockerBin: two.bin }), /found 2/);
+});
+
+await ta('R152: the docker process inherits exactly docker.mjs\'s DOCKER_PASSTHROUGH from this one (one list, not a copy): each name of it that is set reaches docker, and a variable outside it, the token among them, does not', async () => {
+  const vars = Object.fromEntries(DOCKER_PASSTHROUGH.map((name) => [name, process.env[name] ?? `s5-test-${name}`]));
+  const saved = Object.fromEntries(Object.keys({ ...vars, CLAUDE_CODE_OAUTH_TOKEN: 1, S5_PROXY_TEST_OTHER: 1 }).map((k) => [k, process.env[k]]));
+  Object.assign(process.env, vars, { CLAUDE_CODE_OAUTH_TOKEN: 'sentinel-token-not-real', S5_PROXY_TEST_OTHER: 'x' });
+  try {
+    const f = fakeDocker();
+    await proxyDown({ dockerBin: f.bin });
+    const seen = f.envNames();
+    assert.ok(seen.length > 0, 'docker was called');
+    for (const names of seen) {
+      for (const name of DOCKER_PASSTHROUGH) assert.ok(names.includes(name), `${name} reaches docker`);
+      assert.ok(!names.includes('CLAUDE_CODE_OAUTH_TOKEN') && !names.includes('S5_PROXY_TEST_OTHER'), 'nothing outside the list reaches docker');
+    }
+  } finally {
+    for (const [k, v] of Object.entries(saved)) {
+      if (v === undefined) delete process.env[k];
+      else process.env[k] = v;
+    }
+  }
+});
+
+t('R152: proxy.mjs holds no list of its own: it imports DOCKER_PASSTHROUGH from docker.mjs', () => {
+  const source = readFileSync(new URL('./proxy.mjs', import.meta.url), 'utf8');
+  assert.match(source, /import \{[^}]*\bDOCKER_PASSTHROUGH\b[^}]*\} from '\.\/docker\.mjs'/);
+  assert.doesNotMatch(source, /^const PASSTHROUGH\b/m, 'the copy is gone');
+  assert.doesNotMatch(source, /'DOCKER_TLS_VERIFY'/, 'and so is every variable name it held');
 });

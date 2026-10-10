@@ -27,6 +27,7 @@ import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { DOCKER_PASSTHROUGH } from './docker.mjs';
 
 export const PROXY_NAME = 's5-proxy';
 export const NETWORK = 's5-internal';
@@ -45,12 +46,11 @@ const READY_TIMEOUT_MS = 20_000;
 const HOST_RE = /^(?=.{1,253}$)[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?(\.[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)*$/;
 const SUBNET_RE = /^\d{1,3}(\.\d{1,3}){3}\/\d{1,2}$/;
 const ID_RE = /^[0-9a-f]{64}$/;
-// The only variables a docker process inherits from this one (the same list as docker.mjs).
-const PASSTHROUGH = ['PATH', 'HOME', 'DOCKER_HOST', 'DOCKER_CONFIG', 'DOCKER_CONTEXT', 'DOCKER_CERT_PATH', 'DOCKER_TLS_VERIFY'];
+// The only variables a docker process inherits from this one: docker.mjs's list (one definition, R152).
 
 function baseEnv() {
   const env = {};
-  for (const k of PASSTHROUGH) if (process.env[k] !== undefined) env[k] = process.env[k];
+  for (const k of DOCKER_PASSTHROUGH) if (process.env[k] !== undefined) env[k] = process.env[k];
   return env;
 }
 

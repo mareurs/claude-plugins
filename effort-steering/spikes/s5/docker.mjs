@@ -137,10 +137,11 @@ function dockerCmd(bin, args, timeoutMs) {
   });
 }
 
-// Our container, found by its label and nothing else. { ok, ids }: ok is false when docker did
+// Our container, found by its label and nothing else: BOTH s5=1 and s5.run=<name> (R152: a foreign container that merely carries an s5.run
+// label is not ours). { ok, ids }: ok is false when docker did
 // not answer (failed, hung, could not start), which is not the same as "no container".
 async function findOurs(bin, name, timeoutMs) {
-  const r = await dockerCmd(bin, ['ps', '-aq', '--no-trunc', '--filter', `label=s5.run=${name}`], timeoutMs);
+  const r = await dockerCmd(bin, ['ps', '-aq', '--no-trunc', '--filter', 'label=s5=1', '--filter', `label=s5.run=${name}`], timeoutMs);
   if (r.status !== 0) return { ok: false, ids: [] };
   return { ok: true, ids: r.stdout.split(/\s+/).filter(Boolean) };
 }
@@ -243,17 +244,19 @@ function runSync(bin, args, timeoutMs) {
   return r.stdout;
 }
 
-// removeLabeled(labels = 's5=1', { dockerBin, helperTimeoutMs }) -> the number of containers removed.
+// removeLabeled(labels, { dockerBin, helperTimeoutMs }) -> the number of containers removed.
 // Removes every container (running or not) that carries the label, or ALL of the labels when an array is given (each becomes its own
-// `--filter label=`, which docker ANDs). Every label must be an s5 label: this host runs other people's containers, and nothing here
-// may touch them. Each of the two docker calls has its own helperTimeoutMs (60 s) and throws when it is exceeded.
-export function removeLabeled(labels = 's5=1', { dockerBin = 'docker', helperTimeoutMs = HELPER_TIMEOUT_MS } = {}) {
+// `--filter label=`, which docker ANDs). The caller NAMES the labels (R152): there is no default, because the obvious one, s5=1, would
+// also sweep the proxy container. Every label must be an s5 label: this host runs other people's containers, and nothing here
+// may touch them. The ids are listed in full (--no-trunc) and removed by those (R152): `docker rm -f <12 hex>` resolves a container NAMED
+// like that before it tries an id prefix. Each of the two docker calls has its own helperTimeoutMs (60 s) and throws when it is exceeded.
+export function removeLabeled(labels, { dockerBin = 'docker', helperTimeoutMs = HELPER_TIMEOUT_MS } = {}) {
   const list = Array.isArray(labels) ? labels : [labels];
   if (list.length === 0 || !list.every((label) => typeof label === 'string' && LABEL_SCOPE_RE.test(label))) {
-    throw new TypeError(`removeLabeled: a label must be s5 or s5.<name>, optionally =<value> (or a non-empty array of them), got ${JSON.stringify(labels)}`);
+    throw new TypeError(`removeLabeled: a label must be given, s5 or s5.<name>, optionally =<value> (or a non-empty array of them; there is no default), got ${JSON.stringify(labels)}`);
   }
   const filters = list.flatMap((label) => ['--filter', `label=${label}`]);
-  const ids = runSync(dockerBin, ['ps', '-aq', ...filters], helperTimeoutMs).split(/\s+/).filter(Boolean);
+  const ids = runSync(dockerBin, ['ps', '-aq', '--no-trunc', ...filters], helperTimeoutMs).split(/\s+/).filter(Boolean);
   if (ids.length === 0) return 0;
   runSync(dockerBin, ['rm', '-f', ...ids], helperTimeoutMs);
   return ids.length;
