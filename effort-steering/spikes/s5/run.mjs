@@ -320,7 +320,7 @@ function resolveInputs(run, ctx) {
   }
 
   // The token: its VALUE is read here and goes nowhere but dockerRun's env option. No message below names it.
-  const tokenEnv = ctx.tokenEnv ?? 'CLAUDE_CODE_OAUTH_TOKEN';
+  const tokenEnv = ctx.tokenEnv ?? TOKEN_ENV;
   if (typeof tokenEnv !== 'string' || !ENV_NAME_RE.test(tokenEnv) || OWN_ENV.includes(tokenEnv)) {
     throw refuse(`ctx.tokenEnv must be an environment variable name that runOne does not set itself, got ${show(tokenEnv)}`);
   }
@@ -868,7 +868,7 @@ export async function runOne(run, ctx) {
 const SWEEP_LABELS = Object.freeze(['s5=1', 's5.task']);
 const LOCK_FILE = 'batch.lock';
 const LOCK_TRIES = 3;
-const DEFAULT_TOKEN_ENV = 'CLAUDE_CODE_OAUTH_TOKEN';
+export const TOKEN_ENV = 'CLAUDE_CODE_OAUTH_TOKEN';
 const DOCKER_HELPER_TIMEOUT_MS = 60_000;
 const STOP_SIGNALS = ['SIGINT', 'SIGTERM', 'SIGHUP'];
 const BATCH_SEAMS = ['runOne', 'imageIdOf', 'sha256File', 'proxyRunning', 'esRoot', 'kill'];
@@ -901,7 +901,7 @@ function resolveBatch(prereg, options) {
     if (ctx[name] !== undefined && typeof ctx[name] !== 'function') throw batchInput(`ctx.${name} must be a function when given, got ${show(ctx[name])}`);
   }
   if (ctx.esRoot !== undefined && (typeof ctx.esRoot !== 'string' || ctx.esRoot === '')) throw batchInput(`ctx.esRoot must be a non-empty string when given, got ${show(ctx.esRoot)}`);
-  const tokenEnv = ctx.tokenEnv ?? DEFAULT_TOKEN_ENV;
+  const tokenEnv = ctx.tokenEnv ?? TOKEN_ENV;
   if (typeof tokenEnv !== 'string' || !ENV_NAME_RE.test(tokenEnv) || OWN_ENV.includes(tokenEnv)) {
     throw batchInput(`ctx.tokenEnv must be an environment variable name that runOne does not set itself, got ${show(tokenEnv)}`);
   }

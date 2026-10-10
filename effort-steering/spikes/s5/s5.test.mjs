@@ -24,6 +24,7 @@ import { ta } from './fixtures/testkit-async.mjs';
 import { selectCalibrated, simulate as realSimulate } from './analyze.mjs';
 import { DEFAULT_WORK_ROOT } from './proxy.mjs';
 import { loadS5Config, loadS5Prereg } from './prereg.mjs';
+import { TOKEN_ENV as RUN_TOKEN_ENV } from './run.mjs';
 import { main } from './s5.mjs';
 
 const HERE = fileURLToPath(new URL('.', import.meta.url));
@@ -844,6 +845,105 @@ await ta('warm: ok and "not cargo" exit 0, a failed warm build exits 1; the resu
   assert.deepEqual(seen[0], [manifest, { workRoot: work }]);
 });
 
+// ---- R150: warm, gate and grade run under the same CPU and memory limits as the measured runs ----
+//
+// The gate's flaky filter (3 x at C) and its build-timeout check, and the warm build, are measurements. On an unconstrained host they are
+// a different instrument from the grades that run with `--cpus` and `--memory`. `--prereg <file> [--mode <m>]` reads the limits from the
+// registration or config (loaded the way `run` does), `--cpus <n>` and `--memory-gb <n>` give them directly, and an explicit flag wins.
+
+const LIMITS_PREREG = { ...PREREG_STUB, limits: { timeoutMinutes: 90, cpus: 4, memoryGb: 16, concurrency: 2, infraRetries: 2 } };
+const limitFakes = (prereg = LIMITS_PREREG) => {
+  const f = fakes({});
+  f.modules.loadS5Prereg = (file) => { f.calls.push(['loadS5Prereg', file]); return { ...prereg, registered: true }; };
+  f.modules.loadS5Config = (file, options) => { f.calls.push(['loadS5Config', file, options]); return { ...prereg, registered: false }; };
+  f.modules.gateTask = async (...a) => { f.calls.push(['gateTask', ...a]); return { ok: true, reasons: [], gatedAt: 'now', leftover: null }; };
+  f.modules.warmTask = async (...a) => { f.calls.push(['warmTask', ...a]); return { ok: true, target: '/t' }; };
+  f.modules.gradeTree = async (...a) => { f.calls.push(['gradeTree', ...a]); return { pass: true, infra: null }; };
+  return f;
+};
+
+await ta('R150: gate, warm and grade pass the limits of --prereg (the registration, or a config with --mode) to gateTask, warmTask and gradeTree', async () => {
+  const { work, manifest } = gradeWorld();
+  makeRunDir(work, 't1.A.0-a1');
+  const f = limitFakes();
+  const reg = resolve(ROOT, 'reg.json');
+  const cfg = resolve(ROOT, 'cfg.json');
+  for (const [argv, loaded] of [
+    [['--prereg', 'reg.json'], ['loadS5Prereg', reg]],
+    [['--prereg', 'cfg.json', '--mode', 'pilot'], ['loadS5Config', cfg, { mode: 'pilot' }]],
+    [['--prereg', 'cfg.json', '--mode', 'calibrate'], ['loadS5Config', cfg, { mode: 'calibrate' }]],
+  ]) {
+    f.calls.length = 0;
+    const g = await cli(['gate', 't1', ...argv, '--work-root', work], { modules: f.modules });
+    assert.equal(g.code, 0, g.stderr);
+    assert.deepEqual(f.calls, [loaded, ['gateTask', manifest, { workRoot: work, cpus: 4, memoryGb: 16 }]], `gate ${argv.join(' ')}`);
+    f.calls.length = 0;
+    const w = await cli(['warm', 't1', ...argv, '--work-root', work], { modules: f.modules });
+    assert.equal(w.code, 0, w.stderr);
+    assert.deepEqual(f.calls, [loaded, ['warmTask', manifest, { workRoot: work, cpus: 4, memoryGb: 16 }]], `warm ${argv.join(' ')}`);
+    f.calls.length = 0;
+    const r = await cli(['grade', 't1.A.0', ...argv, '--work-root', work], { modules: f.modules });
+    assert.equal(r.code, 0, r.stderr);
+    assert.deepEqual(f.calls, [loaded, ['gradeTree', manifest, join(work, 'runs', 't1.A.0-a1', 'work'), { workRoot: work, image: 's5/codescout', cpus: 4, memoryGb: 16 }]], `grade ${argv.join(' ')}`);
+  }
+});
+
+await ta('R150: --cpus and --memory-gb give the limits directly, each one alone too, and an explicit flag wins over the registration; with none, nothing is passed', async () => {
+  const { work, manifest } = gradeWorld();
+  makeRunDir(work, 't1.A.0-a1');
+  const f = limitFakes();
+  const tree = join(work, 'runs', 't1.A.0-a1', 'work');
+  const cases = [
+    [['--cpus', '2', '--memory-gb', '8'], { cpus: 2, memoryGb: 8 }, false],
+    [['--cpus', '0.5'], { cpus: 0.5 }, false],
+    [['--memory-gb', '12'], { memoryGb: 12 }, false],
+    [['--prereg', 'reg.json', '--cpus', '2'], { cpus: 2, memoryGb: 16 }, true],
+    [['--prereg', 'reg.json', '--memory-gb', '8'], { cpus: 4, memoryGb: 8 }, true],
+    [['--prereg', 'reg.json', '--cpus', '2', '--memory-gb', '8'], { cpus: 2, memoryGb: 8 }, true],
+    [[], {}, false],
+  ];
+  for (const [argv, limits, loads] of cases) {
+    for (const [command, id, expected] of [
+      ['gate', 't1', (opts) => ['gateTask', manifest, { workRoot: work, ...opts }]],
+      ['warm', 't1', (opts) => ['warmTask', manifest, { workRoot: work, ...opts }]],
+      ['grade', 't1.A.0', (opts) => ['gradeTree', manifest, tree, { workRoot: work, image: 's5/codescout', ...opts }]],
+    ]) {
+      f.calls.length = 0;
+      const r = await cli([command, id, ...argv, '--work-root', work], { modules: f.modules });
+      assert.equal(r.code, 0, `${command} ${argv.join(' ')}: ${r.stderr}`);
+      assert.equal(f.of('loadS5Prereg').length, loads ? 1 : 0, `${command} ${argv.join(' ')}: the registration is loaded only when --prereg is given`);
+      assert.deepEqual(f.calls.at(-1), expected(limits), `${command} ${argv.join(' ')}`);
+    }
+  }
+});
+
+await ta('R150: a malformed limit, --mode without --prereg, an unknown mode and a registration without limits are refused before the manifest is read or any module runs', async () => {
+  const { work } = gradeWorld();
+  makeRunDir(work, 't1.A.0-a1');
+  const f = limitFakes();
+  const bad = [
+    ['--cpus', '0'], ['--cpus', '-1'], ['--cpus', 'many'], ['--cpus', '1e999'], ['--memory-gb', '0'], ['--memory-gb', '0x10'], ['--memory-gb', 'lots'],
+    ['--mode', 'pilot'], ['--prereg', 'reg.json', '--mode', 'bogus'],
+  ];
+  for (const command of [['gate', 't1'], ['warm', 't1'], ['grade', 't1.A.0']]) {
+    for (const argv of bad) {
+      f.calls.length = 0;
+      const r = await cli([...command, ...argv, '--work-root', work], { modules: f.modules });
+      assert.equal(r.code, 64, `${command[0]} ${argv.join(' ')}`);
+      noStdout(r);
+      assert.deepEqual(f.calls, [], `${command[0]} ${argv.join(' ')}: no module was called`);
+    }
+    // A registration that carries no usable limits is not guessed at: exit 1, nothing run.
+    for (const limits of [undefined, {}, { cpus: 4 }, { memoryGb: 16 }, { cpus: 0, memoryGb: 16 }, { cpus: 4, memoryGb: '16' }]) {
+      const g = limitFakes({ ...PREREG_STUB, limits });
+      const r = await cli([...command, '--prereg', 'reg.json', '--work-root', work], { modules: g.modules });
+      assert.equal(r.code, 1, `${command[0]} limits ${JSON.stringify(limits)}`);
+      assert.match(r.stderr, /limits/);
+      assert.deepEqual(g.calls.map((c) => c[0]), ['loadS5Prereg'], 'loaded, then refused: the gate, the warm build and the grade never ran');
+    }
+  }
+});
+
 // ---- proxy ----
 
 await ta('proxy up --log-all starts the proxy in log-all mode with no allowlist and prints the result', async () => {
@@ -1183,4 +1283,16 @@ await ta('simulate: a module refusal (--n-tasks 1) is exit 1 with an empty stdou
 
 t('the sentinel is on disk only in the token files these tests wrote on purpose', () => {
   assert.deepEqual(filesHolding(SENTINEL), []);
+});
+
+// ---- R153: the name of the token variable is defined once ----
+
+t('R153: the token variable name is one exported constant, run.mjs\'s TOKEN_ENV, which s5.mjs imports: the literal is written once in the code of the two files', () => {
+  assert.equal(RUN_TOKEN_ENV, 'CLAUDE_CODE_OAUTH_TOKEN');
+  const code = (file) => readFileSync(new URL(file, import.meta.url), 'utf8').split('\n').filter((line) => !/^\s*\/\//.test(line)).join('\n');
+  const literal = /['"`]CLAUDE_CODE_OAUTH_TOKEN['"`]/g;
+  assert.equal((code('./run.mjs').match(literal) ?? []).length, 1, 'run.mjs: the definition, nothing else');
+  assert.equal((code('./s5.mjs').match(literal) ?? []).length, 0, 's5.mjs: none, it imports the constant');
+  assert.match(code('./s5.mjs'), /import \{[^}]*\bTOKEN_ENV\b[^}]*\} from '\.\/run\.mjs'/);
+  assert.match(code('./run.mjs'), /export const TOKEN_ENV = /);
 });

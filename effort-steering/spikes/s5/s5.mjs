@@ -4,12 +4,18 @@
 //   node effort-steering/spikes/s5/s5.mjs <subcommand> [options]
 //
 //   mine --repo <name>=<dir> ... [--since <date>] [--out <file>]    mineCommits over each repo -> tasks/candidates.json
-//   build <taskDir> | warm <taskId> | gate <taskId>                 buildTask | warmTask | gateTask   (all take --work-root)
+//   build <taskDir> | warm <taskId> | gate <taskId>                 buildTask | warmTask | gateTask   (all take --work-root; warm and gate also
+//       [--prereg <file> [--mode <m>]] [--cpus <n>] [--memory-gb <n>]: the limits they run under, R150)
 //   images                                                          images/build.sh, then prints images/digests.json
 //   proxy up (--log-all | --prereg <file> [--mode <m>]) | down | log
 //   run --mode <measure|pilot|calibrate|smoke> --prereg <file> [--tasks <ids>] [--rows <file>] [--concurrency <n>] [--stop-at-cost <usd>]
 //       [--retry-exhausted] [--keep-run-dirs] [--open-network] [--token-file <file>]
-//   grade <runId> | select --rows <file> | analyze --prereg <file> --rows <file> | simulate [...]
+//   grade <runId> [--prereg <file> [--mode <m>]] [--cpus <n>] [--memory-gb <n>] | select --rows <file> | analyze --prereg <file> --rows <file> | simulate [...]
+//
+// LIMITS (R150). `warm`, `gate` and `grade` run their containers under the CPU and memory limits of the measured runs when given: --prereg loads the
+// registration (default mode measure) or, with --mode, a config, and takes limits.cpus and limits.memoryGb from it; --cpus and --memory-gb give them
+// directly and win over the registration; with none of them nothing is passed (an unconstrained container). The gate of a task is measured under the
+// limits the pilot has not yet fixed, so tasks are re-gated after the pilot (README).
 //
 // EXIT CODES. 0 the command did what it was asked (for `run`: the batch ran to its end or stopped by a rule; Summary.stopped and Summary.smoke say
 // which and how it went); 1 a module threw or refused, a file or manifest could not be read, the token file was refused, or the answer was no (a
@@ -57,7 +63,7 @@ import { loadS5Config, loadS5Prereg } from './prereg.mjs';
 import {
   DEFAULT_WORK_ROOT, proxyDown, proxyLog, proxyUp,
 } from './proxy.mjs';
-import { runBatch } from './run.mjs';
+import { runBatch, TOKEN_ENV } from './run.mjs';
 import { IMAGE_FOR_REPO, TASK_ID_RE } from './task-def.mjs';
 
 const HERE = fileURLToPath(new URL('.', import.meta.url));
@@ -68,7 +74,6 @@ const MODULES = Object.freeze({
 });
 
 const MODES = ['measure', 'pilot', 'calibrate', 'smoke'];
-const TOKEN_ENV = 'CLAUDE_CODE_OAUTH_TOKEN';
 const DEFAULT_SINCE = '2026-09-28';
 const REGISTERED_SIM_SEED = 20261008;
 const REDACTED = '[REDACTED]';
@@ -260,6 +265,32 @@ function readTokenFile(file) {
 
 // ---- subcommands ----
 
+// R150: the CPU and memory limits of `warm`, `gate` and `grade`. The measured runs and their grades run under the registered limits, and the
+// gate's flaky filter, its build-timeout check and the warm build are measurements too: on an unconstrained host they are another instrument.
+// `--prereg <file> [--mode <m>]` reads the limits from the registration (measure) or the config (the other modes), loaded as `run` loads it;
+// `--cpus <n>` and `--memory-gb <n>` give them directly, and an explicit flag wins. With none of them nothing is passed (the old behaviour).
+// -> { cpus?, memoryGb? }. Every flag is checked before a module is called (a usage error reaches no module); a registration without positive
+// numbers for both limits is an error (exit 1), not a guess.
+const LIMIT_FLAGS = { cpus: 'string', 'memory-gb': 'string', prereg: 'string', mode: 'string' };
+const limitsFromFlags = (io, m, flags) => {
+  const cpus = numberFlag(flags, 'cpus', undefined, { above: 0 });
+  const memoryGb = numberFlag(flags, 'memory-gb', undefined, { above: 0 });
+  if (flags.prereg === undefined && flags.mode !== undefined) throw usage('--mode goes with --prereg');
+  let registered = {};
+  if (flags.prereg !== undefined) {
+    const mode = modeFlag(flags, 'measure');
+    const limits = loadPrereg(m, io, mode, flags.prereg).limits;
+    for (const name of ['cpus', 'memoryGb']) {
+      if (typeof limits?.[name] !== 'number' || !Number.isFinite(limits[name]) || !(limits[name] > 0)) {
+        throw new Error(`${flags.prereg} has no usable limits.${name} (a positive number): the gate, the warm build and the grade run under the limits of the registration`);
+      }
+    }
+    registered = { cpus: limits.cpus, memoryGb: limits.memoryGb };
+  }
+  return { ...registered, ...(cpus === undefined ? {} : { cpus }), ...(memoryGb === undefined ? {} : { memoryGb }) };
+};
+
+
 async function cmdMine({ io, m, flags }) {
   const repos = [];
   for (const entry of flags.repo ?? []) {
@@ -293,7 +324,9 @@ async function cmdBuild({ io, m, flags, positionals }) {
 
 async function cmdWarm({ io, m, flags, positionals }) {
   const workRoot = workRootOf(io, flags);
-  const result = await m.warmTask(loadManifest(workRoot, taskIdArg(positionals[0])), { workRoot });
+  const taskId = taskIdArg(positionals[0]);
+  const limits = limitsFromFlags(io, m, flags);
+  const result = await m.warmTask(loadManifest(workRoot, taskId), { workRoot, ...limits });
   printJson(io, result);
   return result.skipped !== undefined || result.ok === true ? 0 : 1;
 }
@@ -301,7 +334,8 @@ async function cmdWarm({ io, m, flags, positionals }) {
 async function cmdGate({ io, m, flags, positionals }) {
   const workRoot = workRootOf(io, flags);
   const taskId = taskIdArg(positionals[0]);
-  const result = await m.gateTask(loadManifest(workRoot, taskId), { workRoot });
+  const limits = limitsFromFlags(io, m, flags);
+  const result = await m.gateTask(loadManifest(workRoot, taskId), { workRoot, ...limits });
   printJson(io, {
     taskId, ok: result.ok, reasons: result.reasons, gatedAt: result.gatedAt, leftover: result.leftover,
   });
@@ -398,6 +432,7 @@ async function cmdGrade({ io, m, flags, positionals }) {
   const parts = /^(.+)\.[ABC]\.\d+$/.exec(runId);
   if (parts === null || !RUN_ID_RE.test(runId) || !TASK_ID_RE.test(parts[1])) throw usage(`<runId> must read <taskId>.<arm>.<rep> (arm A, B or C), got ${runId}`);
   const workRoot = workRootOf(io, flags);
+  const limits = limitsFromFlags(io, m, flags);
   const manifest = loadManifest(workRoot, parts[1]);
   const runsDir = path.join(workRoot, 'runs');
   let names = [];
@@ -428,7 +463,7 @@ async function cmdGrade({ io, m, flags, positionals }) {
   if (workDir === null) {
     throw new Error(`no work directory is left for run ${runId} under ${runsDir}: runOne removes it after every run, so a run to be re-graded must have been started with \`run --keep-run-dirs\``);
   }
-  printJson(io, await m.gradeTree(manifest, workDir, { workRoot, image: IMAGE_FOR_REPO[manifest.repo] }));
+  printJson(io, await m.gradeTree(manifest, workDir, { workRoot, image: IMAGE_FOR_REPO[manifest.repo], ...limits }));
   return 0;
 }
 
@@ -501,17 +536,17 @@ const COMMANDS = Object.freeze({
     run: cmdBuild,
   },
   warm: {
-    summary: 'First (cold) cargo build of a built task: the warm target every grade and run starts from',
-    synopsis: 'warm <taskId> [--work-root <dir>]',
+    summary: 'First (cold) cargo build of a built task: the warm target every grade and run starts from (under the limits of --prereg or --cpus/--memory-gb)',
+    synopsis: 'warm <taskId> [--prereg <file> [--mode <m>]] [--cpus <n>] [--memory-gb <n>] [--work-root <dir>]',
     positionals: ['taskId'],
-    flags: WORK_ROOT,
+    flags: { ...LIMIT_FLAGS, ...WORK_ROOT },
     run: cmdWarm,
   },
   gate: {
-    summary: 'Run the task gate (hidden tests fail at the parent, pass at the fix three times); exit 0 when ok',
-    synopsis: 'gate <taskId> [--work-root <dir>]',
+    summary: 'Run the task gate (hidden tests fail at the parent, pass at the fix three times); exit 0 when ok (under the limits of --prereg or --cpus/--memory-gb)',
+    synopsis: 'gate <taskId> [--prereg <file> [--mode <m>]] [--cpus <n>] [--memory-gb <n>] [--work-root <dir>]',
     positionals: ['taskId'],
-    flags: WORK_ROOT,
+    flags: { ...LIMIT_FLAGS, ...WORK_ROOT },
     run: cmdGate,
   },
   images: {
@@ -552,10 +587,10 @@ const COMMANDS = Object.freeze({
     run: cmdRun,
   },
   grade: {
-    summary: 'Re-grade a kept run directory (needs `run --keep-run-dirs`); writes no rows',
-    synopsis: 'grade <runId> [--work-root <dir>]',
+    summary: 'Re-grade a kept run directory (needs `run --keep-run-dirs`); writes no rows (under the limits of --prereg or --cpus/--memory-gb)',
+    synopsis: 'grade <runId> [--prereg <file> [--mode <m>]] [--cpus <n>] [--memory-gb <n>] [--work-root <dir>]',
     positionals: ['runId'],
-    flags: WORK_ROOT,
+    flags: { ...LIMIT_FLAGS, ...WORK_ROOT },
     run: cmdGrade,
   },
   select: {
