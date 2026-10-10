@@ -15,7 +15,7 @@
 // NAME after the run has started. Docker resolves a name across every tenant (and a name that
 // matches nothing is tried as an ID prefix), so a kill, inspect or rm by name can reach a
 // container that is not ours. Instead the container is looked up by its label,
-// `docker ps -aq --no-trunc --filter label=s5.run=<name>`, and everything after that acts on
+// `docker ps -aq --no-trunc --filter label=s5=1 --filter label=s5.run=<name>`, and everything after that acts on
 // the full IDs that lookup returned. A name that docker refused because another tenant holds
 // it finds no labelled container, so nothing is inspected, killed or removed.
 // Every container started here carries the label s5=1, and removeLabeled refuses a label
@@ -158,7 +158,7 @@ async function findOurs(bin, name, timeoutMs) {
 //               by ID (nothing is killed when it is not found). If the docker process is still
 //               alive killGraceMs (30 s) after the timeout it is SIGKILLed, so a wedged client
 //               cannot hold the harness.
-//   created     after the run, a container carrying our label s5.run=<name> existed. False when
+//   created     after the run, a container carrying our labels s5=1 and s5.run=<name> existed. False when
 //               docker refused to create one (125), and also when the lookup itself failed.
 //   oomKilled   true | false from `docker container inspect` (.State.OOMKilled), read after every
 //               run that created a container, whatever the exit; null when no container was
