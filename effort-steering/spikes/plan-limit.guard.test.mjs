@@ -3,8 +3,8 @@
 // spent subscription's refusal (`You've hit your limit · resets 3pm`) would be graded as a model failure, which is the defect plan-limit.mjs exists to stop.
 //
 // WHAT THE SCANNER DOES. It walks effort-steering/ (a superset of A4's spikes/, adapter/ and bin/; core/ and the root are walked too), skipping directories
-// named node_modules, tasks, fixtures and .git, and every *.test.mjs. It reads files by extension: .mjs .js .cjs .ts .mts (kind js), .sh .bash (kind sh),
-// .py (kind py). A line whose first non-blank characters are a comment marker (// * /* for js; # for sh and py) is dropped before anything is matched, so
+// named node_modules, tasks, fixtures and .git, and every *.test.mjs. It reads files by extension: .mjs .js .cjs .jsx .ts .tsx .mts .cts (kind js), .sh .bash
+// .zsh (kind sh), .py (kind py), and extensionless files under a bin/ directory by their shebang (node/bun/deno/tsx: js, python: py, anything else: sh). A line whose first non-blank characters are a comment marker (// * /* for js; # for sh and py) is dropped before anything is matched, so
 // prose about `claude -p` is never a launch. A file is a LAUNCHER when one of its kind's LAUNCH patterns matches (the patterns are below, each with samples
 // that it matches and samples that it must not).
 //
@@ -12,9 +12,15 @@
 // claude BINARY NAME to a child-process call (`spawn('claude', …)`, which s4-run.mjs does through its injected `spawn`), or a variable named like it, or
 // writes the container command line `'/opt/claude/claude', '-p'` (s5/run.mjs does: it hands the array to `docker run`), or holds a command string that
 // starts `claude -p`. s5/docker.mjs also spawns, but its first argument is `bin` / `dockerBin`: it launches DOCKER, never claude, so no pattern matches it
-// (pinned below with the real file). A sh file launches claude when `claude` stands in command position (line start, after ; & | ( (so $( too) or a backtick, or after
-// timeout N / exec / env VAR=x / nohup / sudo / time / xargs). A py file launches it when an argv list starts with 'claude', a call's first argument is
-// 'claude', or a string starts `claude -p`.
+// (pinned below with the real file). M1 (final review): the call patterns miss a launcher that keeps the binary and the flag apart, so a js or py file is ALSO a
+// launcher when it holds the binary as a string literal (exactly `claude`, a path ending /claude or /claude/versions/<v>, or @anthropic-ai/claude-code) and a
+// literal with the print flag as a word (`-p`, `--print`, `${bin} -p`): an argv array indexed or destructured, a bin in a variable, an absolute path, execa,
+// Bun.spawn, npx. The call patterns stay (they also see `spawn('claude', buildArgs())`, where the flag is nowhere in the file); the cost is the pinned false
+// alarms below. A sh file launches claude when the command token (`claude`, a path ending /claude, either quoted, @anthropic-ai/claude-code, or a variable
+// named like it: "$CLAUDE", ${CLAUDE_BIN:-claude}) stands in command position: at line start, after ; & | ( { ! or a backtick, after if/then/do/else/elif/while/until,
+// or after a wrapper (exec nohup sudo time xargs stdbuf nice timeout env npx, and `command` unless it is `command -v`) with its option, number and VAR=x arguments.
+// A py file launches it when an argv list starts with 'claude', a call's first argument is 'claude' (or a path to it), a string starts `claude -p`, or the
+// literal rule above holds.
 //
 // WHAT A GUARDED LAUNCHER IS (js kinds only; a shell or python file cannot import the module). It has a static `import … from '<…/>plan-limit.mjs'` at the
 // start of a line (the basename is exactly plan-limit.mjs, not my-plan-limit.mjs), the import brings in detectPlanLimit or assertNoPlanLimit, and the file
@@ -56,16 +62,33 @@ const UNGUARDED = {
 // ---- the scanner ---------------------------------------------------------------------------------------------------------------------------------
 
 const SKIP_DIRS = new Set(['node_modules', 'tasks', 'fixtures', '.git']);
-const KIND_OF = { '.mjs': 'js', '.js': 'js', '.cjs': 'js', '.ts': 'js', '.mts': 'js', '.sh': 'sh', '.bash': 'sh', '.py': 'py' };
+const KIND_OF = {
+  '.mjs': 'js', '.js': 'js', '.cjs': 'js', '.jsx': 'js', '.ts': 'js', '.tsx': 'js', '.mts': 'js', '.cts': 'js', '.sh': 'sh', '.bash': 'sh', '.zsh': 'sh', '.py': 'py',
+};
 const COMMENT_PREFIXES = { js: ['//', '*', '/*'], sh: ['#'], py: ['#'] };
 
 // rel: a posix path relative to effort-steering/.
-const kindOf = (rel) => KIND_OF[path.posix.extname(rel)] ?? null;
+const extKind = (rel) => KIND_OF[path.posix.extname(rel)] ?? null;
+// An extensionless file is a script (bin/run-claude): scanned when it lies under a bin/ directory, and read by its shebang (node/bun/deno/tsx: js; python: py;
+// anything else, or none: sh).
+const isExtensionlessScript = (rel) => {
+  const parts = rel.split('/');
+  return !parts.at(-1).includes('.') && parts.slice(0, -1).includes('bin');
+};
+const kindOf = (rel, source = '') => {
+  const byExt = extKind(rel);
+  if (byExt !== null) return byExt;
+  if (!isExtensionlessScript(rel)) return null;
+  const shebang = source.split('\n', 1)[0];
+  if (/^#!.*\b(?:node|bun|deno|tsx)\b/.test(shebang)) return 'js';
+  if (/^#!.*\bpython/.test(shebang)) return 'py';
+  return 'sh';
+};
 const isScanned = (rel) => {
   const parts = rel.split('/');
   if (parts.slice(0, -1).some((dir) => SKIP_DIRS.has(dir))) return false;
   if (parts.at(-1).endsWith('.test.mjs')) return false;
-  return kindOf(rel) !== null;
+  return extKind(rel) !== null || isExtensionlessScript(rel);
 };
 
 function walk(dir, rel = '') {
@@ -95,45 +118,66 @@ const stripComments = (source, kind) => {
     .join('\n');
 };
 
+// M1 (review 3). js and py: a file holds the claude binary as a string literal (exactly `claude`, a path ending /claude or /claude/versions/<v>, or the npx
+// package @anthropic-ai/claude-code) AND the print flag as a word of a string literal (`-p`, `--print`, or inside `${bin} -p`). Comments are dropped first; a
+// literal is read on one line. Evidence from the real tree: this alone flags exactly s4-run.mjs, s5/run.mjs and dose/run-calibration.py.
+const STRING_LITERAL = /(['"`])((?:\\.|(?!\1)[^\\\n])*)\1/g;
+const CLAUDE_LITERAL = /^(?:\S*\/)?claude$|^@anthropic-ai\/claude-code$|\/claude\/versions\/[\w.-]+$/;
+const PRINT_FLAG_LITERAL = /(?:^|\s)(?:-p|--print)(?:\s|$)/;
+const hasClaudeAndPrintFlagLiterals = (code) => {
+  const values = [...code.matchAll(STRING_LITERAL)].map((match) => match[2]);
+  return values.some((value) => CLAUDE_LITERAL.test(value)) && values.some((value) => PRINT_FLAG_LITERAL.test(value));
+};
+
+// sh: claude in command position. The command token is `claude`, a path ending /claude, either quoted, the npx package, or a variable named like it
+// ("$CLAUDE", ${CLAUDE_BIN:-claude}). It is in command position at line start, after ; & | ( { ! or a backtick, after if/then/do/else/elif/while/until, or after
+// a wrapper (exec nohup sudo time xargs stdbuf nice timeout env npx; `command` unless `command -v`) with its option, number and VAR=x arguments.
+const SH_CLAUDE = String.raw`(?:["']?(?:[^\s"'\x60;&|()]*\/)?claude["']?|["']?@anthropic-ai\/claude-code["']?|["']?\$\{?(?:CLAUDE|claude)(?:_(?:BIN|CMD|CLI|PATH|EXE|bin|cmd|cli|path|exe))?(?::?-[^}"'\s]*)?\}?["']?)`;
+const SH_WRAPPER_ARGS = String.raw`(?:[ \t]+(?:-\S+|\d+\S*|[A-Za-z_]\w*=\S*)){0,6}`;
+const SH_PREFIX = String.raw`(?:^[ \t]*|[;&|({!][ \t]*|\x60[ \t]*|\b(?:if|then|do|else|elif|while|until)[ \t]+|\b(?:exec|nohup|sudo|time|xargs|stdbuf|nice|timeout|env|npx)${SH_WRAPPER_ARGS}[ \t]+|\bcommand(?![ \t]+-[vV])${SH_WRAPPER_ARGS}[ \t]+)`;
+const SH_COMMAND_POSITION = new RegExp(`${SH_PREFIX}${SH_CLAUDE}(?=[ \\t;&|)]|$)`, 'm');
+
+
 // The LAUNCH patterns, per kind. `name` is what a failure message and the real-file pins use.
 const LAUNCH = {
   js: [
-    // spawn('claude', …), execFileSync("claude", …), exec(`claude`) …: the binary name is the call's first argument.
-    { name: 'spawn-claude', re: /\b(?:spawn|spawnSync|execFile|execFileSync|exec|execSync|fork)\s*\(\s*(['"`])claude\1/ },
+    // spawn('claude', …), execFileSync("claude", …), exec(`claude`), spawn('/home/u/.local/bin/claude', …) …: the binary is the call's first argument.
+    { name: 'spawn-claude', re: /\b(?:spawn|spawnSync|execFile|execFileSync|exec|execSync|fork)\s*\(\s*(['"`])(?:[^'"`]*\/)?claude\1/ },
     // spawn(claudeBin, …), spawnSync(opts.claudeCmd, …): a variable named like the binary is the first argument.
     { name: 'spawn-claude-variable', re: /\b(?:spawn|spawnSync|execFile|execFileSync|fork)\s*\(\s*[\w$.]*claude[\w$.]*\s*[,)]/i },
     // ['/opt/claude/claude', '-p', …]: the command line S5 hands to `docker run`.
     { name: 'container-claude-p', re: /(['"`])\/opt\/claude\/claude\1\s*,\s*(['"`])-p\2/ },
-    // 'claude -p …': a command string (exec, sh -c).
-    { name: 'claude-p-command-string', re: /(['"`])claude\s+(?:-p|--print)\b/ },
+    // 'claude -p …', '/opt/claude/claude --print …': a command string (exec, sh -c).
+    { name: 'claude-p-command-string', re: /(['"`])(?:[^'"`\s]*\/)?claude\s+(?:-p|--print)\b/ },
+    // M1 (review 3): the binary and the print flag as separate string literals, however the call is spelled (a bin in a variable, an argv array indexed or
+    // destructured, execa, Bun.spawn, npx, an absolute path).
+    { name: 'claude-literal-with-print-flag', test: hasClaudeAndPrintFlagLiterals },
   ],
   sh: [
-    {
-      name: 'claude-in-command-position',
-      re: /(?:^[ \t]*|[;&|(][ \t]*|`[ \t]*|\b(?:exec|command|nohup|sudo|time|xargs)[ \t]+|\btimeout(?:[ \t]+\S+){1,4}[ \t]+|\benv(?:[ \t]+\S+=\S*)*[ \t]+)claude(?=[ \t]|$)/m,
-    },
-    { name: 'claude-p-command-string', re: /(['"])claude[ \t]+(?:-p|--print)\b/ },
+    { name: 'claude-in-command-position', re: SH_COMMAND_POSITION },
+    { name: 'claude-p-command-string', re: /(['"])(?:[^'"\s]*\/)?claude[ \t]+(?:-p|--print)\b/ },
   ],
   py: [
     { name: 'argv-list-starts-claude', re: /\[\s*(['"])claude\1\s*[,\]]/ },
-    { name: 'call-first-argument-claude', re: /\(\s*f?(['"])claude\1/ },
-    { name: 'claude-p-command-string', re: /(['"])claude\s+(?:-p|--print)\b/ },
+    { name: 'call-first-argument-claude', re: /\(\s*f?(['"])(?:[^'"]*\/)?claude\1/ },
+    { name: 'claude-p-command-string', re: /(['"])(?:[^'"\s]*\/)?claude\s+(?:-p|--print)\b/ },
+    { name: 'claude-literal-with-print-flag', test: hasClaudeAndPrintFlagLiterals },
   ],
 };
 
 // -> the names of the LAUNCH patterns that match the file (empty: not a launcher).
 function launchKinds(rel, source) {
-  const kind = kindOf(rel);
+  const kind = kindOf(rel, source);
   if (kind === null) return [];
   const code = stripComments(source, kind);
-  return LAUNCH[kind].filter(({ re }) => re.test(code)).map(({ name }) => name);
+  return LAUNCH[kind].filter((pattern) => (pattern.re ? pattern.re.test(code) : pattern.test(code))).map(({ name }) => name);
 }
 
 const DETECTOR_NAMES = ['detectPlanLimit', 'assertNoPlanLimit'];
 // A static import at the start of a line from a path whose basename is plan-limit.mjs, bringing in a detector function that the file then calls.
 const IMPORT_RE = /^[ \t]*import\b([^;'"]*?)\bfrom\s*(['"])(?:[^'"\n]*\/)?plan-limit\.mjs\2/gm;
 function importsDetector(rel, source) {
-  if (kindOf(rel) !== 'js') return false;
+  if (kindOf(rel, source) !== 'js') return false;
   const code = stripComments(source, 'js');
   const imported = [];
   for (const match of code.matchAll(IMPORT_RE)) {
@@ -183,7 +227,7 @@ t('R-PL8 guard: the scan reaches the files it is meant to guard, and none of the
   for (const rel of REAL.keys()) {
     assert.ok(!rel.endsWith('.test.mjs'), `${rel}: a test file is not scanned`);
     assert.ok(!rel.split('/').some((part) => SKIP_DIRS.has(part)), `${rel}: lies in a skipped directory`);
-    assert.ok(kindOf(rel) !== null, `${rel}: has a scanned extension`);
+    assert.ok(isScanned(rel), `${rel}: is a scanned file`);
   }
   // the skipped places exist on disk, so the absence above is the rule's doing and not an empty directory
   assert.ok(readdirSync(path.join(ES, 'spikes', 's5')).includes('fixtures'), 'spikes/s5/fixtures exists');
@@ -192,8 +236,8 @@ t('R-PL8 guard: the scan reaches the files it is meant to guard, and none of the
 });
 
 t('R-PL8 guard: the two real launchers are launchers, each by the pattern that fits it, and both are guarded', () => {
-  assert.deepEqual(launchKinds('spikes/s4-run.mjs', REAL.get('spikes/s4-run.mjs')), ['spawn-claude']);
-  assert.deepEqual(launchKinds('spikes/s5/run.mjs', REAL.get('spikes/s5/run.mjs')), ['container-claude-p']);
+  assert.deepEqual(launchKinds('spikes/s4-run.mjs', REAL.get('spikes/s4-run.mjs')), ['spawn-claude', 'claude-literal-with-print-flag']);
+  assert.deepEqual(launchKinds('spikes/s5/run.mjs', REAL.get('spikes/s5/run.mjs')).sort(), ['claude-literal-with-print-flag', 'container-claude-p']);
   assert.equal(importsDetector('spikes/s4-run.mjs', REAL.get('spikes/s4-run.mjs')), true);
   assert.equal(importsDetector('spikes/s5/run.mjs', REAL.get('spikes/s5/run.mjs')), true);
   // and neither is exempted
@@ -223,21 +267,37 @@ t('R-PL8 guard: files that only MENTION claude, or spawn something else, are not
 
 t('R-PL8 guard: the 8 shell/python launchers in UNGUARDED are launchers, from a real grep (each file, with the pattern that fires)', () => {
   const expected = {
-    'spikes/probes/run-probe1.sh': 'claude-in-command-position',
-    'spikes/probes/run-probe2.sh': 'claude-in-command-position',
-    'spikes/probes/run-probe3.sh': 'claude-in-command-position',
-    'spikes/probes/run-i1.sh': 'claude-in-command-position',
-    'spikes/probes/run-i1b.sh': 'claude-in-command-position',
-    'spikes/probes/run-i2.sh': 'claude-in-command-position',
-    'spikes/probes/run-boundary.sh': 'claude-in-command-position',
-    'spikes/dose/run-calibration.py': 'argv-list-starts-claude',
+    'spikes/probes/run-probe1.sh': ['claude-in-command-position'],
+    'spikes/probes/run-probe2.sh': ['claude-in-command-position'],
+    'spikes/probes/run-probe3.sh': ['claude-in-command-position'],
+    'spikes/probes/run-i1.sh': ['claude-in-command-position'],
+    'spikes/probes/run-i1b.sh': ['claude-in-command-position'],
+    'spikes/probes/run-i2.sh': ['claude-in-command-position'],
+    'spikes/probes/run-boundary.sh': ['claude-in-command-position'],
+    'spikes/dose/run-calibration.py': ['argv-list-starts-claude', 'claude-literal-with-print-flag'],
   };
   assert.deepEqual(Object.keys(expected).sort(), Object.keys(UNGUARDED).sort(), 'the table and UNGUARDED name the same files');
-  for (const [rel, name] of Object.entries(expected)) assert.deepEqual(launchKinds(rel, REAL.get(rel)), [name], rel);
+  for (const [rel, names] of Object.entries(expected)) assert.deepEqual(launchKinds(rel, REAL.get(rel)), names, rel);
   for (const [rel, reason] of Object.entries(UNGUARDED)) {
     assert.ok(!rel.startsWith('/') && !rel.includes('\\') && !rel.startsWith('effort-steering/'), `${rel}: a posix path relative to effort-steering/`);
     assert.ok(reason.includes('R-PL8') && reason.length > 40, `${rel}: carries the ruling and a reason`);
   }
+});
+
+t('R-PL8 guard: on the real tree the launchers are exactly these 10 files: no other file is flagged (M1: the token rule has no false positive here)', () => {
+  const found = [...REAL].filter(([rel, source]) => launchKinds(rel, source).length > 0).map(([rel]) => rel).sort();
+  assert.deepEqual(found, [
+    'spikes/dose/run-calibration.py',
+    'spikes/probes/run-boundary.sh',
+    'spikes/probes/run-i1.sh',
+    'spikes/probes/run-i1b.sh',
+    'spikes/probes/run-i2.sh',
+    'spikes/probes/run-probe1.sh',
+    'spikes/probes/run-probe2.sh',
+    'spikes/probes/run-probe3.sh',
+    'spikes/s4-run.mjs',
+    'spikes/s5/run.mjs',
+  ]);
 });
 
 // ---- the patterns: what each must and must not match ---------------------------------------------------------------------------------------------
@@ -280,6 +340,11 @@ t('R-PL8 guard, js: calls that launch something else, mounts, names and prose ar
     "import { spawn } from 'node:child_process';",
     "const claudeBin = path.join(os.homedir(), '.local', 'share', 'claude', 'versions', v);",
     "respawn('claude', [])",
+    "exec('claude --printer x')", // the flag must end at a boundary (-p, --print), not be a prefix of a longer word
+    "exec('claude -pfoo x')",
+    "execFileSync('mkdir', ['--parents', path.join(dir, 'claude')])", // a claude path literal but no print flag
+    "const bin = 'claude'; spawn(bin, ['--version']);",
+    "execSync('which claude')",
   ];
   for (const code of notLaunches) assert.deepEqual(launchKinds('x.mjs', code), [], code);
 });
@@ -371,7 +436,7 @@ t('R-PL8 guard, py: model names, the config dir, headers, prose and comments are
 });
 
 t('R-PL8 guard: only the scanned extensions are read, test files and skipped directories are not (isScanned)', () => {
-  for (const rel of ['spikes/s4-run.mjs', 'a/b.js', 'a/b.cjs', 'a/b.ts', 'a/b.mts', 'a/b.sh', 'a/b.bash', 'a/b.py', 'bin/effort-policy.mjs', 'spikes/probes/mods/x/register.ts']) {
+  for (const rel of ['spikes/s4-run.mjs', 'a/b.js', 'a/b.cjs', 'a/b.jsx', 'a/b.ts', 'a/b.tsx', 'a/b.mts', 'a/b.cts', 'a/b.sh', 'a/b.bash', 'a/b.zsh', 'a/b.py', 'bin/effort-policy.mjs', 'spikes/probes/mods/x/register.ts']) {
     assert.equal(isScanned(rel), true, rel);
   }
   for (const rel of [
@@ -396,6 +461,191 @@ t('R-PL8 guard: only the scanned extensions are read, test files and skipped dir
   // a directory is skipped by its exact name, not by a substring
   assert.equal(isScanned('spikes/my-tasks/x.mjs'), true);
   assert.equal(isScanned('spikes/fixtures-extra/x.mjs'), true);
+  // M1: an extensionless file is a script when it lies under a bin/ directory (at any depth); elsewhere it is not read, and a dotted name is not extensionless
+  for (const rel of ['bin/run-claude', 'spikes/bin/run-claude', 'bin/sub/launch']) assert.equal(isScanned(rel), true, rel);
+  for (const rel of ['spikes/probes/run-claude', 'run-claude', 'bin/.hidden', 'bin/notes.txt', 'bin/data.json', 'tasks/bin/run-claude', 'bin/fixtures/run-claude']) assert.equal(isScanned(rel), false, rel);
+});
+
+t('R-PL8 guard (M1): an extensionless script is read by its shebang: node/bun/deno/tsx as js, python as py, anything else or none as sh', () => {
+  assert.equal(kindOf('bin/x', '#!/usr/bin/env node\nspawn(1)'), 'js');
+  assert.equal(kindOf('bin/x', '#!/usr/bin/env bun\n'), 'js');
+  assert.equal(kindOf('bin/x', '#!/usr/bin/env -S deno run\n'), 'js');
+  assert.equal(kindOf('bin/x', '#!/usr/bin/env tsx\n'), 'js');
+  assert.equal(kindOf('bin/x', '#!/usr/bin/env python3\n'), 'py');
+  assert.equal(kindOf('bin/x', '#!/bin/sh\n'), 'sh');
+  assert.equal(kindOf('bin/x', '#!/bin/bash\n'), 'sh');
+  assert.equal(kindOf('bin/x', 'claude -p x\n'), 'sh');
+  assert.equal(kindOf('bin/x'), 'sh');
+  // an extension wins over the shebang, and a file outside bin/ with no extension has no kind
+  assert.equal(kindOf('bin/x.py', '#!/bin/sh\n'), 'py');
+  assert.equal(kindOf('spikes/x', '#!/bin/sh\n'), null);
+  for (const [ext, kind] of [['.jsx', 'js'], ['.tsx', 'js'], ['.cts', 'js'], ['.zsh', 'sh']]) assert.equal(kindOf(`a/b${ext}`), kind, ext);
+});
+
+// ---- M1 (review 3): realistic launcher forms the first version of the guard stayed green on -------------------------------------------------------
+
+// Each form is [path, source]: a launcher the guard MUST see. The js ones also carry a guarded twin below. Forms 1-14 and the shell forms come from the
+// review's guard-defeat table (each was run through the first guard and passed it).
+const DEFEAT_JS = [
+  ['spikes/s6/run.mjs', "const cmd = ['claude', '-p', '--output-format', 'json'];\nspawnSync(cmd[0], cmd.slice(1));"],
+  ['spikes/s6/destructured.mjs', "const [bin, ...args] = ['claude', '-p'];\nspawn(bin, args);"],
+  ['spikes/s6/neutral-var.mjs', "const bin = 'claude';\nspawn(bin, ['-p', prompt]);"],
+  ['spikes/s6/cfg.mjs', "const cfg = { cli: 'claude' };\nspawn(cfg.cli, ['-p', prompt]);"],
+  ['spikes/s6/template.mjs', "const bin = 'claude';\nexecSync(`${bin} -p ${q}`);"],
+  ['spikes/s6/env-fallback.mjs', "spawn(process.env.CLAUDE_BIN ?? 'claude', ['-p', x]);"],
+  ['spikes/s6/abs-path.mjs', "spawn('/home/u/.local/bin/claude', ['-p', x]);"],
+  ['spikes/s6/versions-path.mjs', "spawn(path.join(os.homedir(), '.local/share/claude/versions/2.1.292'), ['-p']);"],
+  ['spikes/s6/container-print.mjs', "const argv = ['/opt/claude/claude', '--print', '--model', m];"],
+  ['spikes/s6/container-flag-first.mjs', "const argv = ['/opt/claude/claude', '--model', m, '-p'];"],
+  ['spikes/s6/sh-c.mjs', "spawn('sh', ['-c', '/opt/claude/claude -p x']);"],
+  ['spikes/s6/npx.mjs', "spawn('npx', ['@anthropic-ai/claude-code', '-p', x]);"],
+  ['spikes/s6/execa.mjs', "await execa('claude', ['-p', x]);"],
+  ['spikes/s6/bun.mjs', "Bun.spawn(['claude', '-p', x]);"],
+  ['spikes/s6/abs-no-flag.mjs', "spawn('/usr/local/bin/claude', args);"],
+  ['spikes/s6/a.jsx', "spawn('claude', ['-p']);"],
+  ['spikes/s6/a.tsx', "spawn(bin, ['-p']); const bin = 'claude';"],
+  ['spikes/s6/a.cts', "spawn('claude', ['-p']);"],
+  ['bin/run-claude', "#!/usr/bin/env node\nspawn('claude', ['-p', x]);"],
+  ['adapter/new-launch.mjs', "const bin = 'claude'; spawnSync(bin, ['--print', x]);"],
+];
+const DEFEAT_SH = [
+  ['spikes/probes/else.sh', 'if x; then echo a; else claude -p x; fi'],
+  ['spikes/probes/elif.sh', 'if a; then b; elif claude -p x; then c; fi'],
+  ['spikes/probes/until.sh', 'until claude -p x; do sleep 1; done'],
+  ['spikes/probes/bare-semicolon.sh', 'claude; echo done'],
+  ['spikes/probes/bare-brace.sh', '{ claude; }'],
+  ['spikes/probes/bare-paren.sh', 'x=$(claude)'],
+  ['spikes/probes/bare-amp.sh', 'claude&'],
+  ['spikes/probes/bare-pipe.sh', 'claude|tee out'],
+  ['spikes/probes/sh-c-abs.sh', 'sh -c "/usr/local/bin/claude -p x"'],
+  ['spikes/probes/if.sh', 'if claude -p "$x"; then echo ok; fi'],
+  ['spikes/probes/then.sh', 'if true\nthen claude -p "$x"\nfi'],
+  ['spikes/probes/for-do.sh', 'for p in a b; do claude -p "$p"; done'],
+  ['spikes/probes/while.sh', 'while claude -p x; do :; done'],
+  ['spikes/probes/bang.sh', '! claude -p x'],
+  ['spikes/probes/brace.sh', '{ claude -p x; }'],
+  ['spikes/probes/abs-path.sh', '/usr/local/bin/claude -p x'],
+  ['spikes/probes/home-path.sh', '"$HOME/.local/bin/claude" -p x'],
+  ['spikes/probes/var.sh', '"$CLAUDE" -p x'],
+  ['spikes/probes/var-default.sh', '${CLAUDE_BIN:-claude} -p x'],
+  ['spikes/probes/var-bare.sh', '$CLAUDE_BIN --print x'],
+  ['spikes/probes/quoted.sh', '"claude" -p x'],
+  ['spikes/probes/stdbuf.sh', 'stdbuf -oL claude -p x'],
+  ['spikes/probes/nice.sh', 'nice -n 5 claude -p x'],
+  ['spikes/probes/npx.sh', 'npx -y @anthropic-ai/claude-code -p x'],
+  ['spikes/probes/print.sh', 'timeout 900 claude --print x'],
+  ['spikes/probes/command.sh', 'command claude -p x'],
+  ['spikes/probes/env.sh', 'env A=1 "$CLAUDE" -p x'],
+  ['spikes/probes/a.zsh', 'claude -p x'],
+  ['bin/run-claude', '#!/bin/sh\nclaude -p "$1"'],
+  ['bin/run-claude-nobang', 'exec claude -p "$1"'],
+  ['bin/new.sh', 'cd /x && claude -p y'],
+];
+const DEFEAT_PY = [
+  ['spikes/dose/var.py', "CLAUDE = 'claude'\nsubprocess.run([CLAUDE, '-p', x])"],
+  ['spikes/dose/abs.py', "subprocess.run(['/usr/local/bin/claude', '-p', x])"],
+  ['spikes/dose/print.py', "cmd = ['claude', '--print', x]"],
+  ['spikes/dose/os-system-abs.py', "os.system('/usr/local/bin/claude -p x')"],
+  ['spikes/dose/run-abs.py', "subprocess.run('/usr/local/bin/claude', shell=True)"],
+  ['bin/run-claude', "#!/usr/bin/env python3\nimport subprocess\nsubprocess.run(['claude', '-p'])"],
+];
+const GUARD_PREFIX = "import { detectPlanLimit } from './plan-limit.mjs';\n";
+const GUARD_SUFFIX = '\ndetectPlanLimit({ stdout });\n';
+
+t('R-PL8 guard SELF-TEST (M1): every realistic launcher form from the review is seen as a launcher and FAILS the check unless guarded or listed', () => {
+  for (const [rel, source] of [...DEFEAT_JS, ...DEFEAT_SH, ...DEFEAT_PY]) {
+    assert.ok(launchKinds(rel, source).length > 0, `${rel}: seen as a launcher: ${source}`);
+    const problems = check(new Map([[rel, source]]), {});
+    assert.equal(problems.length, 1, `${rel}: ${source}`);
+    assert.ok(problems[0].startsWith(`${rel}: launches claude (`), problems[0]);
+    assert.deepEqual(check(new Map([[rel, source]]), { [rel]: 'a reason' }), [], `${rel}: accepted once listed`);
+  }
+  // a js form is accepted once it imports and calls the detector (an extensionless node script included); a form in another kind never is
+  for (const [rel, source] of DEFEAT_JS) {
+    const guarded = rel === 'bin/run-claude' ? source.replace('\n', `\n${GUARD_PREFIX}`) + GUARD_SUFFIX : GUARD_PREFIX + source + GUARD_SUFFIX;
+    assert.deepEqual(check(new Map([[rel, guarded]]), {}), [], `${rel}: guarded`);
+  }
+  // the same, all at once on top of the real tree: one problem per new file (the real tree stays clean)
+  const many = new Map(REAL);
+  const forms = new Map([...DEFEAT_JS, ...DEFEAT_SH, ...DEFEAT_PY].filter(([rel]) => !REAL.has(rel)));
+  for (const [rel, source] of forms) many.set(rel, source);
+  assert.equal(check(many, UNGUARDED).length, forms.size);
+});
+
+t('R-PL8 guard (M1): each defeat form is found by the rule meant for it (not by a lucky other one)', () => {
+  const has = (rel, source, name) => assert.ok(launchKinds(rel, source).includes(name), `${name}: ${source}`);
+  has('x.mjs', "const cmd = ['claude', '-p']; spawnSync(cmd[0], cmd.slice(1));", 'claude-literal-with-print-flag');
+  assert.deepEqual(launchKinds('x.mjs', "const cmd = ['claude', '-p']; spawnSync(cmd[0], cmd.slice(1));"), ['claude-literal-with-print-flag'], 'the call patterns do not see this one');
+  assert.deepEqual(launchKinds('x.mjs', "execSync(`${bin} -p ${q}`); const bin = 'claude';"), ['claude-literal-with-print-flag']);
+  assert.deepEqual(launchKinds('x.mjs', "spawn('sh', ['-c', '/opt/claude/claude -p x']);"), ['claude-p-command-string']);
+  assert.deepEqual(launchKinds('x.py', "CLAUDE = 'claude'\nsubprocess.run([CLAUDE, '-p', x])"), ['claude-literal-with-print-flag']);
+  assert.deepEqual(launchKinds('x.sh', '"$CLAUDE" -p x'), ['claude-in-command-position']);
+});
+
+t('R-PL8 guard (M1): the literal rule needs BOTH halves: the binary alone, or a print flag alone, is no launch', () => {
+  const only = [
+    "const bin = 'claude'; log(bin);",
+    "const p = ['-p', x]; run(p);",
+    "const p = ['--print', x]; run(p);",
+    "const name = '/usr/local/bin/claude'; const flags = ['--model', m];",
+    "const a = 'claude-code'; const b = ['-p'];", // the package name needs its scope
+    "const a = 'claude.md'; const b = ['-p'];",
+    "const a = 'myclaude'; const b = ['-p'];",
+    "const a = 'claude'; const b = ['-pp', '-print', 'p'];",
+    "const a = 'claude'; const b = ['--model-p', 'x'];", // the flag is a word of its own, not the end of another one
+    'const a = `claude`; const b = `--model`;',
+  ];
+  for (const code of only) assert.deepEqual(launchKinds('x.mjs', code), [], code);
+  // both halves in a comment are no launch, and the print flag can be a word inside a longer literal
+  assert.deepEqual(launchKinds('x.mjs', "// const bin = 'claude'; const f = '-p';"), []);
+  assert.deepEqual(launchKinds('x.mjs', "const bin = 'claude'; const f = 'x -p y';"), ['claude-literal-with-print-flag']);
+  assert.deepEqual(launchKinds('x.mjs', 'const bin = "claude"; const f = "--print";'), ['claude-literal-with-print-flag']);
+  assert.deepEqual(launchKinds('x.mjs', 'const bin = `claude`; const f = `-p`;'), ['claude-literal-with-print-flag']);
+  assert.deepEqual(launchKinds('x.py', "b = 'claude'\nf = '-p'"), ['claude-literal-with-print-flag']);
+});
+
+t('R-PL8 guard (M1): shell innocents stay innocent under the widened wrapper list', () => {
+  const notLaunches = [
+    'command -v claude',
+    'command -V claude >/dev/null',
+    'which claude',
+    'type claude',
+    'claude_call() {',
+    'echo "$CLAUDE_CONFIG_DIR"',
+    '"$CLAUDE_CONFIG_DIR/projects" ',
+    'cp x /opt/claude/claude.bak',
+    'sudo cp a /opt/claude/claude',
+    'ln -s a /usr/local/bin/claude',
+    'cd ~/work/claude',
+    'todo claude -p x',
+    'doc claude -p x',
+    'exec_claude -p x',
+    'git log --grep claude',
+    'timeout 900 claude-code -p x',
+    'npx some-other-tool -p x',
+    'nice -n 5 make',
+    '"$CLAUDE_CONFIG_DIR" x',
+    'bash -c "claude --printer x"',
+    'bash -c "claude -pfoo x"',
+    'if a; then b; else c; fi',
+    'until true; do :; done',
+  ];
+  for (const line of notLaunches) assert.deepEqual(launchKinds('x.sh', line), [], line);
+});
+
+t('R-PL8 guard: KNOWN false alarms, pinned (visible and cheap: an UNGUARDED entry or a rewording fixes each; a missed launcher is neither)', () => {
+  // the call patterns do not require the print flag, so a probe of the binary is a launch
+  assert.deepEqual(launchKinds('x.mjs', "execFileSync('claude', ['--version'])"), ['spawn-claude']);
+  assert.deepEqual(launchKinds('x.sh', 'claude --version'), ['claude-in-command-position']);
+  assert.deepEqual(launchKinds('x.py', "shutil.which('claude')"), ['call-first-argument-claude']);
+  // a quoted string that starts `claude -p` is a command string (bash -c "claude -p x" is real), so an echo of it matches
+  assert.deepEqual(launchKinds('x.sh', 'echo "claude -p is slow"'), ['claude-p-command-string']);
+  // the literal rule cannot tell mkdir -p from claude -p when the file also names a claude path
+  assert.deepEqual(launchKinds('x.mjs', "execFileSync('mkdir', ['-p', path.join(dir, 'claude')])"), ['claude-literal-with-print-flag']);
+  // a block-comment line that does not start with * is code to the scanner
+  assert.deepEqual(launchKinds('x.mjs', "/* \n   spawn('claude', args)\n*/"), ['spawn-claude']);
+  // a docstring line that looks like an argv list
+  assert.deepEqual(launchKinds('x.py', "\"\"\"\n['claude', '-p']\n\"\"\""), ['argv-list-starts-claude', 'claude-literal-with-print-flag']);
 });
 
 // ---- the import check ----------------------------------------------------------------------------------------------------------------------------
