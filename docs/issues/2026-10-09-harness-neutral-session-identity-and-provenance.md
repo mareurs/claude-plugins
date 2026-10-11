@@ -15,17 +15,26 @@ design_approved_on: 2026-10-10
 implementation_review_id: 2185a218fbd18b7f
 implementation_review_pending: false
 last_observed: 2026-10-11
-native_acceptance: limited; installed paired host cold-loaded and native approval write verified; authored/mixed-host/lifecycle provenance pending
+native_acceptance: limited; approval accept/decline, Codex resume/compact/fork transport and fresh main-profile Claude owned formatting passed; Codex authored/mixed-host/root-child provenance pending
+native_claude_child: 'Native Claude main-profile child/root smoke passed: parent af8d2e22-9029-42c5-9257-d4fe124b1a43, distinct agent a21ddf668790f255e, actual child MCP writer and same-parent formatter exit 0; exact bytes, source helper bytes/modes and independent cargo fmt --check passed. Initial fixture/capture failure preserved as F-18.'
+native_claude_fork: 'F-17 fixed and committed locally in original Codescout 6eb585ef9161b858316fc9ef95270b8ccaeede2e: conservative enqueue boundary, 99 focused tests, canonical leased gate all five exits 0, actual same-fork safe refusal/no false credit/unchanged bytes and independent nine-mutation review with zero final survivors. All four files match reviewed source bytes and only those four paths were committed; index empty.'
+native_context_transport: 'Native Codex MCP auto context is missing; F-16. Context derived from actual thread/start and confirmed by resume passed the explicit fallback: UNKNOWN retains known Claude owner and history gaps, formatter refuses with exit 1 and exact byte equality.'
 opened: 2026-10-09
 owner: marius
 plan_approved_on: 2026-10-10
 plan_id: 3252b9f3f104ea25
 plan_review_pending: false
 severity: medium
-source_implementation: complete and source-verified; original plugin, Codescout and Codex working-file deliveries applied
+source_commits:
+  plugin_feature: '4ce5432'
+  plugin_release: f8a73ee
+  codex: '5eedcdc543'
+  codescout: eed25579
+  codescout_fork_followup: '6eb585ef9161b858316fc9ef95270b8ccaeede2e'
+source_implementation: Reviewed source and F-17 conservative native-fork correction are committed locally in their original repositories; source, independent mutation and measured native checks pass. Complete native Codex coverage and Kat authenticated smoke remain pending.
 spec_approved_on: 2026-10-10
 spec_id: c67a8d68e01c6cf4
-unverified: Shared daemon/helper now run byte-verified 0.160.0. Native protected Git write and ordinary routing were observed; rejection probe was approved. Authored-formatting, mixed-host peer refusal, root/child and inherited-history continuity, and cold Claude profile smoke remain pending.
+unverified: Automatic Codex MCP root-context transport is missing (F-16), and actual durable Codex histories retain opaque-wrapper/token-usage/external-prefix gaps; complete Codex owned/child/inherited-history acceptance pending. Observed Claude owned, resume, child/root and corrected fork-safe checks pass. All three fresh Claude processes load 1.20.17 startup; main/SDD turns pass, while Kat authenticated smoke remains pending because reauthentication is unavailable.
 ---
 
 ## Summary
@@ -132,6 +141,30 @@ All 98 companion source files compare equal in the measured existing lowercase C
 The corrected public installer selected/pinned the GNU/Linux 0.160.0 paired host. Both live daemon/helper paths belong to the installed candidate; all six package files match the versioned digest manifest. The root session resumed after the cold load and survived a subsequent daemon recovery. Native require_escalated wrote a temporary ref in the protected canonical .git directory; its value was observed and cleanup verified. Ordinary shell work still redirects through the installed hook. The requested interactive rejection probe was approved and executed, so rejection is not inferred from it. Evidence is .codescout/native-approval-live-check-20261011.json.
 
 These are host installation/routing observations. They do not establish authored formatting, mixed-host peer refusal or parent/child and inherited-history provenance. The issue remains investigating with those real-host criteria pending.
+
+## Original integration and cold profiles — 2026-10-11
+
+All reviewed original source files are now committed locally through native escalation: plugin feature 4ce5432 and separate real-release-output commit f8a73ee; Codex 5eedcdc543; Codescout eed25579 on experiments. Source bytes match the reviewed copies. Explicit task pathspecs preserve unrelated work. Original indexes were empty after integration and no push occurred. The Codescout pre-commit checks passed.
+
+The installed native app-server accept/decline smoke passed with independent marker existence/absence. Resume across a new process, remote compaction, a following turn and fork transport passed. Running the actual source decoder against those durable histories returned no operations and explicit gaps for opaque wrappers, token-usage envelopes and external fork history; this is a limited provenance result.
+
+Fresh Claude Code 2.1.296 processes observed startup and companion 1.20.17 in every existing profile. Each own-root install record/cache passed, and the runtime loaded the byte-matching canonical directory source. Main/SDD model turns passed; Kat failed with expired OAuth that could not refresh. Its authenticated smoke remains pending. Evidence: .codescout/source-integration-result-20261011.json, .codescout/native-history-decoder-20261011.json and .codescout/cold-claude-profile-assessment-20261011.json.
+
+## Native owned-formatting checkpoint — 2026-10-11
+
+Main-profile native Claude session 761aa55b-cc78-4d4d-b452-85c384949f52 wrote a Rust file through the actual Codescout MCP writer and formatted it with bash scripts/fmt-mine.sh. The formatter exited 0 and the independently read final bytes match the expected formatted file. All eight scratch helpers match the reviewed source; cargo fmt --check exited 0. No synthetic identity/history/context override or permission bypass was used. Evidence: .codescout/native-claude-authored-v2-result-20261011.json and verification 2185a218fbd18b7f.
+
+This establishes native main-profile Claude owned formatting. Claude then resumed the same root and wrote an unformatted edit for a mixed-host probe. Native Codex ran the actual formatter, which safely refused with exit 2 because no root context reached the MCP command; the file remained byte-identical. Peer classification was not reached. F-16 records the missing automatic transport. The native-derived explicit-context fallback then reached provenance and safely refused with exit 1, preserving the known Claude owner, UNKNOWN coverage gaps and exact file bytes. Codex owned formatting and complete child/inherited-history provenance remain pending. Kat's authenticated turn remains blocked by its expired OAuth. The user clarified that reauthentication is unavailable now, so this profile remains pending without another login attempt.
+
+## Native fork follow-up — 2026-10-11
+
+The real Claude fork smoke exposed an attribution bug, F-17. The fork called only the formatter, yet inherited create_file calls were attributed to its new root. Live peer/gap evidence kept bytes safe; an isolated fork-only regression then reproduced MINE clearance and actual formatter writes. Native records preserve copied UUID/call IDs/timestamps but rewrite sessionId.
+
+The isolated fix marks calls older than a native root's first enqueue as unverified inherited history, with explicit coverage gaps rather than invented original ownership. Decoder, CLI and formatter regressions were observed failing before implementation; the final focused suite passes 99 tests, and the actual native fork decoder no longer credits either copied write to the fork. Independent review applied nine mutations; two initially surviving mutations were killed after three new CLI cases, leaving zero survivors. The same real native fork's corrected formatter refuses with unchanged bytes, the original owner and inherited gaps, without crediting copied writes to the fork. The canonical leased gate passed all five lanes with exit 0, and original Codescout commit 6eb585ef9161b858316fc9ef95270b8ccaeede2e contains exactly the four reviewed paths. Committed bytes match the reviewed source and the shared index is empty. Evidence: .codescout/native-fork-gate-result-20261011.json and .codescout/native-fork-integration-result-20261011.json. See verification 2185a218fbd18b7f and .codescout/native-claude-fork-decoder-after-20261011.json. This issue remains investigating.
+
+## Native Claude child/root checkpoint — 2026-10-11
+
+Main-profile native parent af8d2e22-9029-42c5-9257-d4fe124b1a43 spawned one general-purpose Sonnet child, which wrote valid unformatted Rust through the actual Codescout MCP writer. Its saved native history retains that root principal and distinct agent a21ddf668790f255e. After restoring helper executable bits lost by the test fixture, the same parent formatted the child-authored file with exit 0. Exact formatted bytes, source helper bytes/modes and independent cargo fmt --check passed. F-18 preserves the initial fixture/capture error; it is not counted as a product failure. Evidence: .codescout/native-claude-child-fixed-result-20261011.json and verification 2185a218fbd18b7f. This is an observed Claude child/root result; complete Codex child/inherited-history coverage remains pending.
 
 ## Architectural design review — 2026-10-10
 

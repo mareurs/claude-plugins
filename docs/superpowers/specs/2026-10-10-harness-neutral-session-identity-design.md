@@ -13,9 +13,17 @@ topic: harness-neutral-session-identity
 approved_on: 2026-10-10
 implementation_plan_id: 3252b9f3f104ea25
 implementation_review_id: 2185a218fbd18b7f
-native_acceptance: limited captures; authored/lifecycle/installed acceptance pending
+native_acceptance: limited; installed 0.160.0 native approval/lifecycle transport pass; main Claude owned formatting, same-root resume and observed child/root attribution/parent formatting pass; corrected Claude fork safe refusal/no false inherited credit passes. Codex automatic MCP root-context transport and opaque/inherited/child durable coverage remain limited. Kat reauthentication unavailable; authenticated smoke pending.
+native_claude_child: 'Native Claude main-profile child/root smoke passed: parent af8d2e22-9029-42c5-9257-d4fe124b1a43, distinct agent a21ddf668790f255e, actual child MCP writer and same-parent formatter exit 0; exact bytes, source helper bytes/modes and independent cargo fmt --check passed. Initial fixture/capture failure preserved as F-18.'
+native_claude_fork_followup: 'F-17 fixed and committed locally in original Codescout 6eb585ef9161b858316fc9ef95270b8ccaeede2e: conservative enqueue boundary, 99 focused tests, canonical leased gate all five exits 0, actual same-fork safe refusal/no false credit/unchanged bytes and independent nine-mutation review with zero final survivors. All four files match reviewed source bytes and only those four paths were committed; index empty.'
 plan_review_pending: false
-source_implementation: complete and source-verified; plugin applied, Codescout checked patch unapplied
+source_commits:
+  plugin_feature: '4ce5432'
+  plugin_release: f8a73ee
+  codex: '5eedcdc543'
+  codescout: eed25579
+  codescout_fork_followup: '6eb585ef9161b858316fc9ef95270b8ccaeede2e'
+source_implementation: Complete initial source and F-17 follow-up are reviewed, source-verified and committed locally in original repositories. Native acceptance remains limited as recorded; approved design contract unchanged.
 ---
 
 # Harness-neutral session identity and write provenance

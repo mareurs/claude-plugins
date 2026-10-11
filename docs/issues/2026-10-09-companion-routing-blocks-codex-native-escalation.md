@@ -9,13 +9,16 @@ tags:
 - hooks
 - permissions
 - tool-routing
+codex_source_commit: 5eedcdc5439da3a57516196df386fc2db7ffa288
 fixed_on: 2026-10-11
 last_observed: 2026-10-11
 native_acceptance: passed; canonical protected Git write, ordinary routing, actual native RPC accept/decline with marker equality
 opened: 2026-10-09
 owner: marius
+plugin_feature_commit: 4ce5432
+plugin_release_delivery_commit: f8a73ee616414b2d83c7dde069dcb403c3321248
 severity: medium
-unverified: 'None for native routing: installed paired host/guard acceptance and rejection observed. Authored and mixed-host/lifecycle provenance remain pending in issue 33de9ea8980e85c9.'
+unverified: 'None for native routing: installed paired host/guard acceptance and rejection observed. Remaining Codex automatic context/durable history and Kat authenticated acceptance are tracked in issue 33de9ea8980e85c9; observed Claude owned/child/fork-safe and explicit mixed-host refusal checks pass.'
 ---
 
 ## Summary
@@ -205,7 +208,7 @@ A native require_escalated Git command created a temporary ref in the protected 
 
 The interactive rejection probe was approved and executed, so it is not evidence of rejection. The resulting empty marker was removed through native escalation and absence verified after recovery. The native app-server smoke completed successfully in disposable scratch state using the existing authenticated profile, without copying credentials or changing permissions. The accepted request completed with exit 0 and created its marker. The declined request completed with status declined, no exit code, and no marker. These real request/response and filesystem observations satisfy routing acceptance and rejection. Successful authored-formatting and mixed-host/lifecycle provenance remain the separate harness-neutral issue's acceptance work.
 
-Evidence: .codescout/native-approval-live-check-20261011.json and the versioned installer/version/provenance manifests. Original task-owned source integration remains pending; preserve unrelated changes and do not push.
+Evidence: .codescout/native-approval-live-check-20261011.json and the versioned installer/version/provenance manifests. Original task-owned source integration is complete through legitimate native escalation: plugin feature 4ce5432, separate delivery of actual release-script outputs f8a73ee, Codex 5eedcdc543 and Codescout eed25579. Explicit pathspec commits preserved unrelated work. No push occurred.
 
 ### Installation attempt — 2026-10-11
 

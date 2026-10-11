@@ -1,7 +1,7 @@
 ---
 kind: tracker
 status: active
-entry_high_water_F: 15
+entry_high_water_F: 19
 entry_prefix:
 - F
 - W
@@ -40,7 +40,7 @@ entry_prefix:
 | F-3 | 2026-08-28 | med | release-pipeline | fixed-verified | The `block_reads` opt-out turned the guard suite red (21/55) — suite hardcoded both live repos as dispatch CWDs. Hermetic escape hatch; 58/58 with the opt-out live |
 | F-4 | 2026-09-02 | med | architectural | open | Read-only agent types (Explore/Plan) retain all four codescout write tools; native Edit/Write stripped, MCP writers not. Read-only property rests on model compliance — enforcement untested |
 | F-5 | 2026-10-10 | med | architectural | fixed-verified | Paired source repair installed; native accept/decline and ordinary routing verified |
-| F-6 | 2026-10-10 | med | architectural | mitigated | Capture process success does not establish required native tool execution or provenance coverage |
+| F-6 | 2026-10-10 | med | architectural | mitigated | Native execution and lifecycle transport now pass; actual history decoder still reports coverage gaps |
 | F-7 | 2026-10-10 | med | architectural | fixed-verified | Gate mode documentation exceeded CLAUDE.md's resident byte budget; move detail behind its pointer, retain the unchanged cap |
 | F-8 | 2026-10-10 | med | architectural | fixed-verified | New policy call site omitted legacy-name markers required by the Rust registry guard |
 | F-9 | 2026-10-10 | med | tooling | mitigated | JavaScript callback insertion anchor refused after refresh; ordinary constant anchor worked |
@@ -50,6 +50,10 @@ entry_prefix:
 | F-13 | 2026-10-11 | med | release-pipeline | fixed-verified | Companion 1.20.17 seeded; final gate stopped on three unrelated marketplace revisions |
 | F-14 | 2026-10-11 | high | release-pipeline | fixed-verified | Correctly stamped 0.160.0 package cold-loaded; shared model turn and native lifecycle transport pass |
 | F-15 | 2026-10-11 | high | release-pipeline | fixed-verified | Explicit GNU/Linux target repairs public-installer acceptance; disposable upgrade and remote compaction pass |
+| F-16 | 2026-10-11 | med | architectural | mitigated | Codex MCP lacks automatic root context; native-derived explicit fallback safely refuses with the known Claude owner and coverage gaps |
+| F-17 | 2026-10-11 | high | architectural | fixed-verified | Conservative native enqueue guard prevents inherited fork credit; 99 tests, nine killed mutations, native refusal and full gate pass; original commit 6eb585ef |
+| F-18 | 2026-10-11 | med | test-harness | fixed-verified | Native child smoke loses helper execute bits and miscounts aliased/interleaved calls; same-root corrected fixture passes |
+| F-19 | 2026-10-11 | med | commit-workflow | fixed-verified | Unstaged pathspec commit refused; separate stage/index/content review and scoped commit succeed |
 
 ## Wins Index
 
@@ -424,7 +428,7 @@ The harness's exclusion list for these agent types covers the **native** write t
 
 **Mitigation:** Keep capture-backed root context and refused-wrapper fixtures distinct from synthetic contract cases. Treat opaque orchestration as a coverage gap. Continue source implementation and read-only gate work; leave authored rollout, live smoke and installation pending.
 
-**Extended native observation — 2026-10-11:** Native requests now execute: accept created a marker and decline created none; native resume, compaction and fork transport completed. The real Codescout decoder was then run on both actual durable histories, recovering zero operations in each. Root history reports opaque custom-tool wrappers and unsupported rollout envelopes (token_usage_record); the fork also reports an unverified external history prefix. One durable CommandExecution event was observed, but the current decoder does not consume it, and its existence does not prove complete wrapper-effect coverage. Preserve those explicit gaps; do not claim authored/lifecycle provenance from transport success. Evidence: .codescout/native-runtime-smoke-20261011.json and .codescout/native-history-decoder-20261011.json. Authored/mixed-host/root-child acceptance remains pending.
+**Extended native observation — 2026-10-11:** Native requests now execute: accept created a marker and decline created none; native resume, compaction and fork transport completed. The real Codescout decoder was then run on both actual durable histories, recovering zero operations in each. Root history reports opaque custom-tool wrappers and unsupported rollout envelopes (token_usage_record); the fork also reports an unverified external history prefix. One durable CommandExecution event was observed, but the current decoder does not consume it, and its existence does not prove complete wrapper-effect coverage. Preserve those explicit gaps; do not claim authored/lifecycle provenance from transport success. Evidence: .codescout/native-runtime-smoke-20261011.json and .codescout/native-history-decoder-20261011.json. A subsequent fresh main-profile Claude session wrote and formatted an owned Rust file through actual Codescout MCP calls; independent final bytes and cargo fmt --check passed (.codescout/native-claude-authored-v2-result-20261011.json). This closes the main-profile Claude owned-formatting scenario only. Codex authored, mixed-host, root-child and inherited-history acceptance remain pending.
 
 ## F-7 — Gate documentation addition exceeded the resident CLAUDE prompt byte budget
 
@@ -557,6 +561,62 @@ The harness's exclusion list for these agent types covers the **native** write t
 **Repair:** Repackaged the same rebuilt binaries using explicit --target x86_64-unknown-linux-gnu. Added a target guard regression: observed failing before the guard change, then all six guard tests passed. The public installer now upgrades a running 0.0.0 daemon to installed/running 0.160.0 in a temporary profile; cleanup stops that daemon and removes the profile. Remote compaction and a subsequent model turn also complete successfully. The cold-load launcher captures installer stderr, displays failures, and verifies the actual installed and running version before resume. The shared daemon remains 0.0.0 until the launcher runs outside the session; the installed routing hook again rejected native escalation before approval.
 
 **Lesson:** Model compatibility, package integrity, and public-installer acceptance are different predicates. Verify the full installer boundary before handing a restart command to the user.
+
+## F-16 — Native Codex MCP formatter lacks root context despite a completed tool call
+
+**Observed:** Resumed main-profile Claude session 761aa55b-cc78-4d4d-b452-85c384949f52 wrote an unformatted Rust edit through native create_file. Its returned root ID matched the original. Native Codex root 01a129e4-2c5a-7833-9026-e4eb799753bf completed MCP run_command item exec-91f33162-990d-4746-9994-27494a6e3111, executing bash scripts/fmt-mine.sh. The command exited 2 with missing context and no native root identity. Before/after SHA-256 both equal 1e61cb3ed6c4c9bbb2da35a61cb32527f1361ede32419af9fd0dfb29d25536ed.
+
+**Severity:** med
+**Category:** architectural
+**Status:** mitigated
+**Valid:** dated 2026-10-11
+**Rests on:** .codescout/native-mixed-refusal-result-20261011.json; .codescout/native-mixed-refusal-codex-events-20261011.jsonl; Codescout scripts/session_context.py::_native_context and src/tools/run_command/inner.rs::run_command_inner.
+
+**Impact:** Safe refusal and unchanged bytes are observed. Mixed-host peer classification is unproved because the formatter stopped before provenance resolution. A completed native conversation or MCP item is not successful formatting.
+
+**Evaluation:** The resolver requires CLAUDE_CODE_SESSION_ID, CODEX_SESSION_ID or validated explicit context. The inspected shell launch has no per-call root-context export. The approved contract deliberately refuses CODEX_THREAD_ID alone because it does not identify a logical root. Keep that rule; do not infer a root, borrow a marker or set synthetic identity to turn this smoke green.
+
+**Verified fallback:** A context derived from actual thread/start metadata and confirmed by thread/resume reached provenance. Native MCP item exec-5f558737-ed09-49dd-ab2b-832473ac7bf5 ran fmt-mine.sh --context and exited 1. It refused UNKNOWN src/main.rs, retaining the known Claude owner and opaque-history gaps; the file's before/after SHA-256 remained identical. Evidence: .codescout/native-mixed-explicit-context-result-20261011.json. This establishes safe mixed-host refusal through the documented explicit fallback. Automatic MCP root-context transport and complete Codex coverage remain separate pending capabilities.
+
+## F-17 — Native Claude fork rewrites inherited session IDs and falsely claims old writes
+
+**Observed:** Claude Code 2.1.296 --resume 761aa55b-cc78-4d4d-b452-85c384949f52 --fork-session created native root c54e9b99-48dd-4589-b931-b6b24066fb4e. The fork called only fmt-mine.sh. Its actual output claimed SHARED src/main.rs and "written by THIS session (claude-code:c54e9b99)", despite no new writer call. The formatter safely refused exit 1 and bytes stayed equal.
+
+**Severity:** high
+**Category:** architectural
+**Status:** fixed-verified
+**Valid:** dated 2026-10-11
+**Rests on:** .codescout/native-claude-fork-result-20261011.json; the actual root/fork JSONL histories under ~/.claude/projects/-tmp-native-claude-authored-v2-20261011-w0qmj698; Codescout scripts/claude_history.py::read_claude_history.
+
+**Evaluation:** Both inherited create_file calls preserve their native UUID, tool-use ID and timestamp in the fork, while sessionId is rewritten to the new root. No explicit fork-origin field appears among the observed top-level fields. The reader uses that rewritten sessionId both for ownership and its producer-scoped source ID, so it manufactures new authorship rather than deduplicating or reporting uncertainty. The visible first native enqueue is later than the copied calls; inspect and pin that evidence boundary before implementing a conservative guard. Do not pick an original owner from file order, mtime or input equality.
+
+**Impact:** Existing peer evidence and Codex coverage gaps prevented a write in this live scenario. Those protections do not make the new-root authorship claim true. Capture a regression that observes attribution directly, including a fork-only history population, before fixing this reader.
+
+**Resolution — 2026-10-11:** The actual decoder, fork-only CLI and real formatter byte-preservation regressions were observed failing before implementation. The guard retains an inherited-history gap instead of crediting pre-enqueue calls, uses timezone-aware earliest same-root boundaries and preserves child identity. Focused suite: 99 passed. Independent review applied nine mutations; two first survived, three new CLI cases then killed both, leaving zero survivors. The same native fork's corrected formatter refuses exit 1 with exact unchanged bytes, original owner and inherited gaps, without false THIS-session credit. Canonical gate @bg_0000001e exited 0: PYTHON_LIGHT=0, FMT=0, CLIPPY=0, LEAN=0, DEFAULT=0. Original Codescout commit 6eb585ef9161b858316fc9ef95270b8ccaeede2e contains only the four reviewed source/test paths, with byte equality and empty index verified. This guards the observed native form conservatively; it does not recover original fork ownership or establish general fork support. Evidence: .codescout/native-claude-fork-fixed-result-20261011.json, .codescout/native-fork-gate-result-20261011.json and .codescout/native-fork-integration-result-20261011.json.
+
+## F-18 — Native child smoke requires executable helper modes and producer-aware stream capture
+
+**Observed:** The first native child/root formatter fixture copied eight helper byte bodies with shutil.copyfile, losing the source file-provenance.py executable mode (0755 became 0644). The actual child wrote valid Rust through MCP and retained the parent root with a distinct agent ID, but the parent formatter exited 2 before attribution because executing the helper failed with 126/Permission denied. The startup tool list said Task while the executed spawn appeared as Agent; the stream also included child tool calls with parent_tool_use_id. A Task-only count therefore did not measure native child creation.
+
+**Severity:** med
+**Category:** test-harness
+**Status:** fixed-verified
+**Valid:** dated 2026-10-11
+**Rests on:** .codescout/native-claude-child-result-20261011.json; .codescout/assess-native-child-fixture-20261011.py; .codescout/native-claude-child-fixed-result-20261011.json.
+
+**Correction:** Restored source helper modes in only the retained scratch checkout and resumed the same native parent, without another child/write or any identity/history override. Captured root calls by parent_tool_use_id and recognized the observed Agent/Task spawn forms. The parent formatter then exited 0; exact formatted bytes and independent cargo fmt --check passed. Source bytes and modes match for every helper. The actual child write has principal claude-code:af8d2e22-9029-42c5-9257-d4fe124b1a43 and agent a21ddf668790f255e. The failed fixture/capture result remains preserved, not counted as a product failure or successful formatting.
+
+## F-19 — Unstaged pathspec commit is refused by the shared-checkout guard
+
+**Observed:** An attempted native git commit --only over the four F-17 paths was refused because they had not been staged. No commit occurred. The existing source hook printed its committed stage/read/commit sequence; this is a KNOWN workflow protection, not a new product defect.
+
+**Severity:** med
+**Category:** commit-workflow
+**Status:** fixed-verified
+**Valid:** dated 2026-10-11
+**Rests on:** Codescout docs/conventions/shared-checkout-commit-sequence.md (fa4a13f40ea82465); the native pre-commit refusal; original commit 6eb585ef9161b858316fc9ef95270b8ccaeede2e; .codescout/native-fork-integration-result-20261011.json.
+
+**Correction:** Enumerated live sessions without inferring occupancy or authorship, then ran native scoped git add, staged-path read, staged-content read, working/index equality check, and explicit-path commit in separate calls. Added the actual controller Session-Id trailer. All applicable pre-commit checks passed; exactly the four reviewed paths landed, source bytes match and the shared index is empty. No hook/permission bypass or reset/amend was used. Use this staged sequence for the remaining documentation commit as well.
 
 ## Template for new entries
 

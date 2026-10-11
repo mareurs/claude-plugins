@@ -11,8 +11,10 @@ tags:
 - harness-compatibility
 topic: harness-neutral-session-identity
 approved_on: 2026-10-10
-bootstrap_release: Companion 1.20.17 real clean-copy release/install complete; paired 0.160.0 host cold-loaded; all original patches applied; native source integration underway
+bootstrap_release: Companion 1.20.17 real release installed; paired 0.160.0 host cold-loaded, native approval accept/decline passed; all reviewed source integrated locally
+claude_owned_formatting: passed; fresh main native session 761aa55b-cc78-4d4d-b452-85c384949f52, real MCP writer/formatter, exact final bytes and independent cargo fmt --check
 codescout_source_head: 52be81ae78d963610cf88879cdbc41ed6323bfbc
+cold_profile_acceptance: Startup/companion 1.20.17 observed in all three Claude profiles; own-root records/cache bytes pass; main/SDD turns passed. Kat OAuth expired and user cannot reauthenticate now; Kat's authenticated smoke remains pending.
 completed_source_tasks:
 - 1
 - 2
@@ -28,11 +30,14 @@ implementation_review_pending: false
 installed_companion: 1.20.17, existing lowercase Codex plus all three Claude caches, 98 source files byte-verified
 installed_host: GNU/Linux 0.160.0; actual shared daemon/helper selected and six package files digest-verified
 native_approval_acceptance: passed
-native_capture_capability: limited; native accept/decline and resume/compact/fork transport pass, actual decoder reports opaque wrapper/token-usage/external-prefix gaps; F-6
+native_capture_capability: limited; main Claude owned formatting, same-root resume/write and observed child/root attribution plus parent formatting pass; corrected Claude fork safe refusal/no false inherited credit passes. Native-derived explicit Codex mixed-host refusal passes with known Claude owner and coverage gaps. Automatic Codex MCP root context missing (F-16); complete Codex opaque/inherited/child history acceptance pending.
+native_claude_child: 'Native Claude main-profile child/root smoke passed: parent af8d2e22-9029-42c5-9257-d4fe124b1a43, distinct agent a21ddf668790f255e, actual child MCP writer and same-parent formatter exit 0; exact bytes, source helper bytes/modes and independent cargo fmt --check passed. Initial fixture/capture failure preserved as F-18.'
+native_claude_fork_followup: 'F-17 fixed and committed locally in original Codescout 6eb585ef9161b858316fc9ef95270b8ccaeede2e: conservative enqueue boundary, 99 focused tests, canonical leased gate all five exits 0, actual same-fork safe refusal/no false credit/unchanged bytes and independent nine-mutation review with zero final survivors. All four files match reviewed source bytes and only those four paths were committed; index empty.'
+native_mixed_host_refusal: 'Native-derived explicit context fallback passed safe refusal: exit 1, UNKNOWN retains known Claude owner and coverage gaps, bytes unchanged. Automatic MCP context missing (F-16). Claude resume preserved its native root.'
 plan_review_pending: false
 plugin_source_head: 36cf947
 release_commit: 4fc932622753638dbfda3448d6432fd8b0563585
-source_delivery: Plugin applied; reviewed 22-file Codescout and three-file Codex patches applied on 2026-10-11, original indexes preserved
+source_delivery: 'Original local commits: plugin feature 4ce5432, generated release outputs f8a73ee; Codescout initial eed255794bfba097205bfe3970f06382141960cc and F-17 6eb585ef9161b858316fc9ef95270b8ccaeede2e on experiments; Codex 5eedcdc5439da3a57516196df386fc2db7ffa288. Eight owned capability/tracker records are updated for the scoped documentation delivery.'
 source_verification: passed
 task8_completed_steps:
 - 1

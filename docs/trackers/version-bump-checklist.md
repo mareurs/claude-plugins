@@ -14,118 +14,9 @@ Release readiness across plugins × profiles. See
 
 ## State
 
-_Last refresh: `e3745ba`, 2026-10-09 — `claude-statusline` 1.1.7→1.2.0 via
-`scripts/release.sh claude-statusline minor`, **pushed** (`main` `bcb1d3a..e3745ba`; `1850c2c` the
-feature, `e3745ba` the bump). `codescout-companion` unchanged at 1.20.16, `buddy` at 0.11.9, `legible`
-at 0.2.0. **`claude-statusline` is now installed in all three profiles** — see the note below the
-last table. Every value re-derived from disk by `refresh_params.py` (this session's scratchpad, not
-committed): each profile's `installed_plugins.json` (every array element; one per plugin in all
-three), cache-dir presence, README's version table, `marketplace.json`, and `diff -rq` of each cache
-against the working tree under the six documented excludes — **empty for all twelve plugin×profile
-pairs**._
+_Last refresh: `4fc9326`, 2026-10-11 — companion 1.20.16→1.20.17, local only. Release preflight passed all plugin suites and buddy pytest (528 passed). The release's final gate initially exited 1 on unrelated marketplace revision skew; four catalog copies were aligned with the main profile using preserved directory backups and unchanged registries. The repeated full parity gate exited 0. Generated release outputs are integrated in canonical commit f8a73ee after separate feature 4ce5432; original Codex/Codescout source commits are 5eedcdc543/eed25579. Native escalation respected the protected .git rules and preserved unrelated work._
 
-_Previous refresh: `8ce6a8e`, 2026-10-07 — `codescout-companion` 1.20.15→1.20.16 via
-`scripts/release.sh codescout-companion patch`, **pushed** (`main` `50752fc..aadbbeb`; `949c85e` the
-hook fix, `ffe67e5` the skill edit and its test, `aadbbeb` the bump). `buddy` unchanged at 0.11.9,
-`legible` unchanged at 0.2.0. `HEAD` is one docs commit past the bump. Every value re-derived from
-disk by a script (`refresh_params.py`, this session's scratchpad, not committed): each profile's
-`installed_plugins.json` (every array element; one per plugin in all three), cache-dir presence,
-README's version table, `marketplace.json`, and `diff -rq` of each cache against the working tree
-under the six documented excludes — **empty for all nine plugin×profile pairs**, with no runtime
-files this time. The `legible` 0.2.0 bump `39b214a`, recorded below as not pushed, reached
-`origin/main` in the push before this release (`e247b42..50752fc`, 63 commits) — checked with
-`git merge-base --is-ancestor 39b214a origin/main`._
-
-**That 1.20.16 release was a hook fix plus skill content.** `949c85e` edits
-`hooks/pre-edit-dirty-check.mjs` (2 lines): the advisory no longer states a hardcoded capture
-count. `ffe67e5` edits `skills/reaching-peer-sessions/SKILL.md` and its `.test.sh`, which now runs
-the self-identification walk against a fixture tree. `tests/run-all.sh` ended `All suites passed`
-pre-flight, and **the buddy pytest step ran this time**: `528 passed` under the system-`python3`
-fallback. The silent skip recorded on 2026-09-28 did not recur. **Restart probed 2026-10-07, `~/.claude-kat` only, by `/reload-plugins`** (output: `Reloaded: 5
-plugins · 48 skills · 6 agents · 26 hooks`, then `codescout-companion@sdd-misc-plugins re-read from its
-folder`). The served `reaching-peer-sessions` text carries the `CS_PEERS_PROC` lines from `ffe67e5`;
-the `1.20.13`, `.14` and `.15` caches have **0** such lines, so the old caches are excluded. **This
-cannot tell the `1.20.16` cache from the working tree** — the two are byte-identical — so it does
-not settle which path serves a skill. `~/.claude` and `~/.claude-sdd` are not probed; each needs its
-own reload or cold restart. The hook edit serves from the working tree and was not exercised.
-
-_Previous refresh: `39b214a`, 2026-10-04 — `legible` is new: installed at 0.1.0 in all three
-profiles (`415cdb0`), then 0.1.0→0.2.0 via `NO_PUSH=1 scripts/release.sh legible minor`
-(`74950cf` the skill, `39b214a` the bump), **not pushed**. `buddy` 0.11.8→0.11.9 (`e4fed80`,
-on `origin/main`) was released after the previous refresh and is caught up here.
-`codescout-companion` unchanged at 1.20.15. Every value re-derived from disk: each profile's
-`installed_plugins.json` (every array element; one per plugin in all three), cache-dir
-presence, README's version table, `marketplace.json` (0 plugin entries with a `version` key),
-and `diff -rq` of each cache against the working tree under the documented excludes —
-**empty for 6 of 9 pairs; the three codescout-companion pairs differ only by runtime files**
-(below)._
-
-**The 0.11.8 buddy release was a script fix, not skill content.** The one commit since 0.11.7,
-`289c389`, changes `buddy/scripts/statusline-composed.sh`: `resolve_primary` now finds
-`claude-statusline` in the same checkout before the plugin cache — CC's orphan sweep had deleted
-the unrecorded `claude-statusline` cache dir from `~/.claude-sdd`, dropping statusline row 1 —
-and the rate-limits fallback reads `used_percentage` (it printed `100%/100%`).
-`tests/run-all.sh` was green pre-flight. **The buddy pytest pre-flight step did not run:**
-`release.sh` gates it on `buddy/.venv/bin/pytest`, absent on this machine, and skips without a
-line of output. Run afterwards with system `python3 -m pytest tests -q`: 527 passed.
-`statusline-composed.sh` in all three profiles' `0.11.8` caches is byte-identical to the working
-tree. **Restart not probed** — but every profile's `statusLine` command points at the repo
-working tree, so on this machine the fix renders without one.
-
-**A new runtime-marker class, named rather than silently excluded.** `diff -rq` for
-`codescout-companion` 1.20.15 in `~/.claude` reports one line: `Only in` the cache: `.in_use`.
-It is a marker CC writes into a loaded cache dir (same class as `.orphaned_at`: runtime, written
-after seeding, never in the tree), not content drift — so the pair reads ✅ below. Not added to
-the copy excludes: `lib-copy-plugin.sh` never sees it, the tree has none.
-
-_Previous refresh: `3d0c53a`, 2026-09-25 — `buddy` 0.11.6→0.11.7 via
-`NO_PUSH=1 scripts/release.sh buddy patch`, **committed locally, not pushed** (`71f9041` the
-skill change, `3d0c53a` the bump). `codescout-companion` unchanged at 1.20.15. Every value
-re-derived from disk: each profile's `installed_plugins.json` (every array element; one per
-plugin in all three), cache-dir presence, README's version table, `marketplace.json` (0 plugin
-entries with a `version` key), and `diff -rq` of each cache against the working tree under the
-documented excludes — **empty for all six plugin×profile pairs**._
-
-**That 0.11.7 release was skill content only.** The one commit since 0.11.6, `71f9041`, edits the
-ML Training Takin specialist (`skills/ml-training-takin/SKILL.md`). No hook or script changed.
-`tests/run-all.sh` and the buddy pytest suite were green pre-flight. A probe string from the
-change occurs **1×** in all three profiles' `0.11.7` copies and **0×** in their `0.11.6` copies,
-so the caches carry the new bytes. **Restart not probed.**
-
-_Previous refresh: `953167a`, 2026-09-25 — `buddy` 0.11.5→0.11.6 via
-`NO_PUSH=1 scripts/release.sh buddy patch`, **committed locally, not pushed** (`e60952a` the
-skill change, `953167a` the bump). The same refresh is the first to record `codescout-companion`
-at **1.20.15**, released by `60495ca` after the 2026-09-24 refresh. Every value re-derived from
-disk: each profile's `installed_plugins.json` (every array element; one element per plugin in all
-three), cache-dir presence, README's version table, `marketplace.json` (0 plugin entries with a
-`version` key), and `diff -rq` of each cache against the working tree under the documented
-excludes — **empty for all six plugin×profile pairs**._
-
-**That 0.11.6 release was skill content only.** The one commit since 0.11.5, `e60952a`, edits the
-Snow Pheasant specialist (`skills/data-leakage-snow-pheasant/SKILL.md` and `_llm.md`). No hook or
-script changed. `tests/run-all.sh` and the buddy pytest suite were green pre-flight. The new bytes
-are confirmed in the caches, not only the directory names: two probe strings from the change occur
-**1×** each in all three profiles' `0.11.6` copies, and 0× in the `0.11.5` copies measured just
-before the release. **Restart not probed** — no instance was restarted from this session; each needs
-a cold restart or `/reload-plugins` to load 0.11.6.
-
-_Previous refresh: `0916e0f`, 2026-09-24 — `codescout-companion` 1.20.13→1.20.14 via
-`scripts/release.sh codescout-companion patch`, **pushed** (`main` `4984aa8..0916e0f`).
-Delta from the previous refresh: canonical, readme and all three profiles' installed
-versions move 1.20.13→1.20.14; `last_refresh_commit` `1352bc1`→`0916e0f`; `buddy` unchanged
-at 0.11.5 and correctly NOT released. Re-derived from disk — each profile's
-`installed_plugins.json` `.plugins` map, **every array element**, plus cache-dir presence
-and README.md's version table._
-
-**That 09-24 release (companion 1.20.14) was a code release, not doc-only.** The one commit since the bump before it, `cf5ea29`,
-fixes two hooks: `agent-guide-restore.mjs` (a stamped subagent's own guide-ledger marks were
-being stripped as if they belonged to the parent) and `session-start.mjs` (records
-`hook_source`/`hook_source_at` so a post-compact `/mcp` reconnect isn't mistaken for a fresh
-restart). `tests/run-all.sh` was green pre-flight, before the bump.
-
-**The tracked set is four plugins** (`claude-statusline` joined 2026-10-09 as a side effect of its
-first release since the set was settled; `legible` joined 2026-10-04): `sdd` and `session-bridge`
-remain absent from every profile's install record, none enabled anywhere.
+The existing lowercase Codex profile also installed companion 1.20.17 via the public plugin installer. Its cache matches the released plugin's source files; the one generated migrated-command skill was checked against the source command. Runtime .codescout databases/locks/stamps, alongside the existing build/runtime exclusions, are explicitly excluded from source-byte comparison. The verified GNU/Linux 0.160.0 host is now selected/pinned and cold-loaded; native approval accept/decline and resume/compact/fork transport passed. All three fresh Claude profiles loaded 1.20.17 startup; main/SDD turns passed, Kat's expired OAuth blocks its authenticated smoke. Runtime canonical directory-source loading and own-profile cache ownership were measured separately. Main-profile Claude owned formatting and native-derived explicit Codex mixed-host refusal passed. The native Claude fork smoke exposed a separate Codescout history-reader attribution bug (F-17); its reviewed four-file follow-up passes 99 focused tests, nine applied mutations (zero final survivors) and same-fork corrected native refusal; the canonical broad gate passed all five lanes and the original four-file Codescout follow-up is committed locally as 6eb585ef, with reviewed-byte equality and empty index verified. Native Claude child/root attribution and parent formatting also passed after repairing scratch fixture modes. These are separate Codescout reader/native acceptance observations and do not change the released companion cache bytes. Kat reauthentication is unavailable now, so its authenticated smoke stays pending. See verification artifact 2185a218fbd18b7f.
 
 **buddy** — canonical `0.11.9` · readme `0.11.9` · marketplace clean ✅
 
@@ -135,66 +26,35 @@ remain absent from every profile's install record, none enabled anywhere.
 | `~/.claude-sdd` | 0.11.9 ✅ | ✅ | ✅ | `0.11.9` ✅ | ✅ |
 | `~/.claude-kat` | 0.11.9 ✅ | ✅ | ✅ | `0.11.9` ✅ | ✅ |
 
-**codescout-companion** — canonical `1.20.16` · readme `1.20.16` · marketplace clean ✅
+**claude-statusline** — canonical `1.2.0` · readme `1.2.0` · marketplace clean ✅
 
 | profile | installed | cache dir | install_path ok | all entries | cache = working tree |
 |---|---|---|---|---|---|
-| `~/.claude` | 1.20.16 ✅ | ✅ | ✅ | `1.20.16` ✅ | ✅ |
-| `~/.claude-sdd` | 1.20.16 ✅ | ✅ | ✅ | `1.20.16` ✅ | ✅ |
-| `~/.claude-kat` | 1.20.16 ✅ | ✅ | ✅ | `1.20.16` ✅ | ✅ |
+| `~/.claude-sdd` | 1.2.0 ✅ | ✅ | ✅ | `1.2.0` ✅ | ✅ |
+| `~/.claude-kat` | 1.2.0 ✅ | ✅ | ✅ | `1.2.0` ✅ | ✅ |
+
+**codescout-companion** — canonical `1.20.17` · readme `1.20.17` · marketplace clean ✅
+
+| profile | installed | cache dir | install_path ok | all entries | cache = working tree |
+|---|---|---|---|---|---|
+| `~/.claude` | 1.20.17 ✅ | ✅ | ✅ | `1.20.17` ✅ | ✅ |
+| `~/.claude-sdd` | 1.20.17 ✅ | ✅ | ✅ | `1.20.17` ✅ | ✅ |
+| `~/.claude-kat` | 1.20.17 ✅ | ✅ | ✅ | `1.20.17` ✅ | ✅ |
 
 **legible** — canonical `0.2.0` · readme `0.2.0` · marketplace clean ✅
 
 | profile | installed | cache dir | install_path ok | all entries | cache = working tree |
 |---|---|---|---|---|---|
-| `~/.claude` | 0.2.0 ✅ | ✅ | ✅ | `0.2.0` ✅ | ✅ |
-| `~/.claude-sdd` | 0.2.0 ✅ | ✅ | ✅ | `0.2.0` ✅ | ✅ |
-| `~/.claude-kat` | 0.2.0 ✅ | ✅ | ✅ | `0.2.0` ✅ | ✅ |
+| `~/.claude` | 0.2.0 ✅ | ✅ | ✅ | `0.2.0` ✅ | ❌ |
+| `~/.claude-sdd` | 0.2.0 ✅ | ✅ | ✅ | `0.2.0` ✅ | ❌ |
+| `~/.claude-kat` | 0.2.0 ✅ | ✅ | ✅ | `0.2.0` ✅ | ❌ |
 
-**claude-statusline** — canonical `1.2.0` · readme `1.2.0` · marketplace clean ✅
+`sdd`: not installed in any Claude profile.
+`session-bridge`: not installed in any Claude profile.
 
-| profile | installed | cache dir | install_path ok | all entries | cache = working tree |
-|---|---|---|---|---|---|
-| `~/.claude` | 1.2.0 ✅ | ✅ | ✅ | `1.2.0` ✅ | ✅ |
-| `~/.claude-sdd` | 1.2.0 ✅ | ✅ | ✅ | `1.2.0` ✅ | ✅ |
-| `~/.claude-kat` | 1.2.0 ✅ | ✅ | ✅ | `1.2.0` ✅ | ✅ |
+`claude-statusline` is absent from ~/.claude; it is installed in the other two profiles. This is the measured WARN reported by the parity gate, not a fabricated all-profile installation.
 
-**`release.sh` created these records; nobody ran `claude plugin install`.** Before this release
-`claude-statusline` had no install record in any profile. The script's output read
-`claude-statusline 1.2.0 installing` for all three, and afterwards each profile holds one user-scope
-element pointing at its own `cache/.../claude-statusline/1.2.0`. `enabledPlugins` in all three
-`settings.json` files has **no** `claude-statusline` entry, so the plugin is installed but loads
-nothing (its hooks stay off). Buddy still resolves the script from the checkout, so the effort
-badge does not depend on these records. Whether this is wanted is the operator's call; it is
-recorded here because the previous refresh described the plugin as absent from every profile.
-
-**Runtime files in the codescout-companion pairs, 2026-10-04 — named, not excluded.** `diff -rq`
-under the six documented excludes shows `.codescout/usage.db-shm` and `.codescout/usage.db-wal`
-only in the working tree, in all three pairs. These are the SQLite write-ahead files of
-codescout's own `usage.db`, which exist while a session works in that tree. `~/.claude`'s cache
-also holds an `.in_use` marker. No source file differs. No exclusion was added.
-
-All 6 plugin×profile pairs measured, not carried: `diff -rq` under the documented excludes
-(`__pycache__`, `.pytest_cache`, `.venv`, `target`, `.buddy`, `.orphaned_at`) returned empty
-for every codescout-companion pair, no new exclusion added this refresh. The 1.20.13 cache
-dirs have since been pruned in all three profiles, so the usual old-vs-new control pair
-couldn't be run against them directly; instead, `hook_source_at` (new in `cf5ea29`) was
-confirmed present **1×** in each profile's `1.20.14` `session-start.mjs`, combined with the
-clean `diff -rq` against the working tree — together these establish the cache carries the
-new bytes, not merely that a directory named `1.20.14` exists.
-
-**Registration probed this refresh, in `~/.claude-kat` only (the profile that authored the
-fix).** After `/mcp` reconnect + `/reload-plugins`, a native `Bash` call returned "No such
-tool available" and a native `Read` of a markdown file was denied by `pre-tool-guard.mjs` —
-both consistent with the reload having taken effect. This is a registration/general-hook
-probe, **not** a targeted positive control for `cf5ea29`'s own behaviour (no
-subagent-guide-ledger or post-compact-reconnect scenario was exercised). `~/.claude` and
-`~/.claude-sdd` remain unconfirmed — separate processes, unreachable from here. One cold
-restart or `/reload-plugins` per instance is what would clear that; unconfirmed for those two.
-
-**Not installed in any profile** (discovered in the repo, omitted from `params`):
-`sdd`, `session-bridge`. `claude-statusline` was in this list until 2026-10-09; it is consumed as
-buddy's statusline row 1 and resolves from the checkout, not from a cache dir.
+Source/cache differences outside this release are kept visible: a new legible style-probe file was committed after legible 0.2.0. Its existing 0.2.0 cache is not re-seeded to give that version a second byte set. These rows stay ❌ until that plugin's owner releases the change.
 
 ### The new column, and why it exists
 
@@ -235,6 +95,7 @@ untracked in git and ignored in both plugins that carry one (`codescout-companio
 so it no longer ships in cache snapshots. Verified 2026-08-28 by `git ls-files | grep
 orphaned_at` returning empty.
 
+
 ### Registration — not load-bearing for 0.10.0
 
 Unlike `1.17.0`, this release adds **no new registered component**. The merge
@@ -253,6 +114,7 @@ release's commit (`019bae5`, 2026-08-26 23:33), the most recent during this sess
 The log is repo-local and shared across profiles, so it proves cold starts happened
 but does not attribute them per profile — recorded as measured, not inflated to
 "all three confirmed."
+
 
 ### Registration — `~/.claude` CONFIRMED by positive control, 2026-08-27
 
@@ -300,6 +162,21 @@ measured on both candidate load paths rather than argued: the record points at k
 two actually serves, they carry the same bytes — so the question CLAUDE.md flags as
 unsettled does not need settling for this release.
 ## History
+### 2026-10-11 — native host acceptance and original delivery
+
+The verified GNU/Linux 0.160.0 paired host is selected/pinned in the actual shared daemon. Native escalation and rejection both passed; ordinary shell routing remains active. Reviewed original local commits are plugin feature 4ce5432, separately delivered real-release outputs f8a73ee, Codex 5eedcdc543 and Codescout eed25579. No push occurred.
+
+Fresh Claude processes under all three existing profile roots loaded startup and companion 1.20.17 from the canonical directory source. InstallPath ownership and all released source/cache bytes pass separately; runtime plugin.path is not installPath. Main/SDD authenticated turns completed. Kat's OAuth expired and could not refresh, so its authenticated smoke remains pending. All-source canonical version and companion profile-parity commands both exited 0 after integration. Unreleased Legible drift remains its owner's separate row.
+
+Evidence: .codescout/native-runtime-smoke-20261011.json, .codescout/cold-claude-profile-assessment-20261011.json and verification artifact 2185a218fbd18b7f.
+
+### 2026-10-11 — companion 1.20.17, local bootstrap installation
+
+Local feature/release commits e75ce39 and 4fc9326 are preserved in .codescout/harness-neutral-release-20261011.bundle; original Git indexes remain untouched. Canonical companion/readme/package and all three Claude installed versions moved 1.20.16→1.20.17. The public Codex installer installed 1.20.17 into the measured existing lowercase profile. All 98 released companion source files compare equal across those four caches; Codex's generated command migration was checked against its source, with runtime .codescout state excluded explicitly.
+
+Release preflight passed all plugin suites and 528 buddy pytest tests. Step 6.5 first exited 1 on three unrelated marketplace revision skews; four catalog copies were aligned to the main profile with full old-directory backups and untracked-byte preservation. Registries were not repointed. Repeated full profile parity and canonical version checks exited 0. Copilot sync reported companion not installed there and skipped. NO_PUSH=1; nothing was pushed.
+
+Cold host selection/restart and real native approval/authored/lifecycle acceptance remain pending. The other active Codex task reported a safe checkpoint. Legible's README.md and scripts/style_probe.py differ from its existing 0.2.0 caches in all three Claude profiles; those real source/cache differences remain ❌ for its owner to release. claude-statusline is now absent from the main Claude record and present in the other two; this refresh removes the stale main-profile params row rather than inventing an installation.
 ### 2026-10-09 — claude-statusline 1.2.0 (effort badge), pushed; first install records for it
 
 **Deltas, all measured:**
