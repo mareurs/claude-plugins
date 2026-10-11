@@ -134,6 +134,7 @@ const apiErrorTranscript = (kind) =>
 // A fake that stands in for `claude` and for the hook. Never touches a real binary.
 // plan(index) -> { arm, thinking, cc, nolog, notranscript, spawn: 'status'|'signal'|'error', apierr: 'flag'|'model', dup }
 // A fake that stands in for `claude` and for the hook. Never touches a real binary.
+// (R-PL6: a plan can also set `stdout` and `stderr`, the text the fake CLI printed.)
 // Like the real hook, it reads the arm from the run's EFFORT_STEERING_HOLDOUT_RATE ('1' is
 // holdout, '0' treated) and logs steered = (arm === 'treated'). A test's plan(index, ctx)
 // can override any of: { arm, steered, thinking, cc, nolog, notranscript,
@@ -191,10 +192,12 @@ function fakeEnv({ plan, configDir, durations, hookResult, execHook } = {}) {
         writeFileSync(path.join(configDir, 'projects', slug, `${sid}.jsonl`), text);
       }
     }
-    if (p.spawn === 'status') return { status: 1, stdout: '', stderr: '' };
+    // `stdout` / `stderr` (R-PL6 vectors): what the fake CLI printed. The default is silence, as before.
+    const printed = { stdout: p.stdout ?? '', stderr: p.stderr ?? '' };
+    if (p.spawn === 'status') return { status: 1, ...printed };
     if (p.spawn === 'signal') return { status: 0, signal: 'SIGKILL' }; // status 0 on purpose: the signal check must stand alone
     if (p.spawn === 'error') return { status: 0, error: new Error('spawn failed') }; // status 0 on purpose: the error check must stand alone
-    return { status: 0, stdout: '', stderr: '' };
+    return { status: 0, ...printed };
   };
   // Fake clock: each measured run advances by the next duration.
   let k = 0;
@@ -830,6 +833,160 @@ await ta('a failed canary stops after exactly ONE claude call, whatever failed',
     assert.equal(result.claudeCalls, 1);
     assert.equal(result.latency.ok, true);
   }
+});
+
+// ---- R-PL6: a plan-limit refusal aborts the experiment as not_run [plan_limit] ----------------
+// The refusal is the verbatim CLI text of the brief's fact 1 (a message `claude -p` prints when the
+// subscription is spent). That a plain `-p` run prints it on stdout and not on stderr is NOT verified,
+// so the detector reads both and so do these vectors. The fake `spawn` is the only thing that runs.
+
+const REFUSAL = "You've hit your limit · resets 3pm";
+const HIT_STDOUT = { source: 'stdout', matched: REFUSAL, resetHint: 'resets 3pm', rateLimitType: null, resetsAt: null };
+const HIT_STDERR = { ...HIT_STDOUT, source: 'stderr' };
+// The plan for call `k` (call 0 is the canary): print `fields` there, behave normally elsewhere.
+const atCall = (k, fields) => (i) => (i === k ? fields : {});
+
+await ta('R-PL6: a refusal on the CANARY aborts as not_run [plan_limit] after exactly ONE claude call, with the hit and the call count', async () => {
+  const { result, f } = await run({}, { plan: atCall(0, { stdout: REFUSAL }) });
+  assert.equal(f.calls.claude.length, 1);
+  assert.equal(result.verdict, 'not_run');
+  assert.deepEqual(result.stop, ['plan_limit']);
+  assert.deepEqual(result.canary, { ok: false, reason: 'plan_limit' });
+  assert.deepEqual(result.planLimit, HIT_STDOUT);
+  assert.equal(result.claudeCalls, 1);
+  assert.equal(result.analysis, null);
+  assert.equal(result.latency.ok, true);
+  // an abort produces no excluded run: REASONS (the excluded-run reasons) is untouched
+  assert.equal(result.excluded, 0);
+  assert.deepEqual(result.excludedByReason, reasons());
+  assert.ok(!('plan_limit' in result.excludedByReason));
+});
+
+await ta('R-PL6: the canary is checked BEFORE the row is built: a refusal beats canary_failed whatever else went wrong', async () => {
+  const kinds = [
+    { nolog: true },
+    { spawn: 'status' },
+    { notranscript: true },
+    { apierr: 'model' },
+    { steered: false },
+    { dup: true },
+    { effort: 'medium' },
+  ];
+  for (const fields of kinds) {
+    const { result, f } = await run({}, { plan: atCall(0, { stdout: REFUSAL, ...fields }) });
+    assert.equal(f.calls.claude.length, 1, JSON.stringify(fields));
+    assert.deepEqual(result.stop, ['plan_limit'], JSON.stringify(fields));
+    assert.deepEqual(result.canary, { ok: false, reason: 'plan_limit' }, JSON.stringify(fields));
+  }
+});
+
+await ta('R-PL6: stderr is read too: a refusal ONLY on stderr aborts the canary, and a refusal only on stdout is not lost to an empty stderr', async () => {
+  const a = await run({}, { plan: atCall(0, { stderr: REFUSAL }) });
+  assert.equal(a.f.calls.claude.length, 1);
+  assert.deepEqual(a.result.stop, ['plan_limit']);
+  assert.deepEqual(a.result.planLimit, HIT_STDERR);
+  const b = await run({}, { plan: atCall(0, { stdout: REFUSAL, stderr: '' }) });
+  assert.deepEqual(b.result.planLimit, HIT_STDOUT);
+});
+
+await ta('R-PL6: a refusal at run k aborts there: NO claude call after it (pinned for the first, a middle and the last planned run)', async () => {
+  // call 0 is the canary; calls 1..12 are the planned runs (4 prompts x 3 repeats)
+  for (const k of [1, 5, 12]) {
+    const { result, f } = await run({}, { plan: atCall(k, { stdout: REFUSAL }) });
+    assert.equal(f.calls.claude.length, k + 1, `k=${k}`);
+    assert.equal(result.claudeCalls, k + 1, `k=${k}`);
+    assert.equal(result.verdict, 'not_run');
+    assert.deepEqual(result.stop, ['plan_limit']);
+    assert.deepEqual(result.canary, { ok: true });
+    assert.deepEqual(result.planLimit, HIT_STDOUT);
+    assert.equal(result.latency.ok, true);
+    // partial results are discarded: no analysis, no rows counted as excluded
+    assert.equal(result.analysis, null);
+    assert.equal(result.excluded, 0);
+    assert.deepEqual(result.excludedByReason, reasons());
+  }
+});
+
+await ta('R-PL6: the loop reads stderr too, and a refusal beats a failed process (a non-zero exit is not a spawn_failed exclusion)', async () => {
+  const a = await run({}, { plan: atCall(4, { stderr: REFUSAL }) });
+  assert.equal(a.f.calls.claude.length, 5);
+  assert.deepEqual(a.result.stop, ['plan_limit']);
+  assert.deepEqual(a.result.planLimit, HIT_STDERR);
+  const b = await run({}, { plan: atCall(3, { spawn: 'status', stdout: REFUSAL }) });
+  assert.equal(b.f.calls.claude.length, 4);
+  assert.deepEqual(b.result.stop, ['plan_limit']);
+  assert.equal(b.result.excluded, 0);
+});
+
+await ta('R-PL6: only the first hit counts: a run before it that printed ordinary text does not stop, and the hit carries the typed hit fields', async () => {
+  const { result, f } = await run({}, { plan: (i) => (i === 2 ? { stdout: `${REFUSAL}\nthe plan resets at 3pm` } : { stdout: `answer ${i}\n` }) });
+  assert.equal(f.calls.claude.length, 3);
+  assert.deepEqual(Object.keys(result.planLimit).sort(), ['matched', 'rateLimitType', 'resetHint', 'resetsAt', 'source']);
+  assert.equal(result.planLimit.source, 'stdout');
+});
+
+await ta('R-PL6: a clean experiment is unchanged: ordinary stdout and stderr on every call, 13 claude calls, no planLimit', async () => {
+  const { result, f } = await run({}, { plan: (i) => ({ stdout: `answer ${i}\n`, stderr: 'warning: slow network\n' }) });
+  assert.equal(f.calls.claude.length, 13);
+  assert.equal(result.claudeCalls, 13);
+  assert.equal(result.verdict, 'mechanism_pass');
+  assert.deepEqual(result.stop, []);
+  assert.deepEqual(result.canary, { ok: true });
+  assert.equal(result.planLimit, undefined);
+});
+
+await ta('R-PL2/R-PL6: a refusal-looking sentence that is NOT at the start of the output does not stop (canary and loop, stdout and stderr)', async () => {
+  const prose = [
+    `Done. ${REFUSAL}`,
+    `I fixed the limiter. ${REFUSAL}`,
+    `The CLI prints "${REFUSAL}" when the plan is spent.`,
+    `line one\n${REFUSAL}\nline three`,
+    ` x${REFUSAL}`,
+  ];
+  for (const text of prose) {
+    const { result, f } = await run({}, { plan: () => ({ stdout: text, stderr: text }) });
+    assert.equal(f.calls.claude.length, 13, text);
+    assert.deepEqual(result.stop, [], text);
+    assert.equal(result.planLimit, undefined, text);
+  }
+});
+
+await ta('R-PL6: leading whitespace before the refusal is still a hit (the detector trims it), so a CLI that pads its output cannot slip through', async () => {
+  const { result, f } = await run({}, { plan: atCall(2, { stdout: `\n  ${REFUSAL}\n` }) });
+  assert.equal(f.calls.claude.length, 3);
+  assert.deepEqual(result.stop, ['plan_limit']);
+});
+
+await ta('R-PL6/A4: the abort result holds the 200-char refusal line and nothing else the child printed (no stdout, no stderr)', async () => {
+  const tail = 'TAILMARK-model-text';
+  const stdout = `${REFUSAL}\n${'x'.repeat(250)}${tail}`;
+  const { result } = await run({}, { plan: atCall(1, { stdout, stderr: 'STDERRMARK' }) });
+  assert.deepEqual(result.stop, ['plan_limit']);
+  assert.equal(result.planLimit.matched.length, 200);
+  const json = JSON.stringify(result);
+  assert.ok(!json.includes(tail));
+  assert.ok(!json.includes('STDERRMARK'));
+  assert.ok(!('stdout' in result) && !('stderr' in result));
+});
+
+await ta('R-PL6: the operator is told, on out, which source matched and what it said; nothing is printed for a clean run', async () => {
+  const lines = [];
+  await run({}, { plan: atCall(2, { stdout: REFUSAL }) }, { out: (s) => lines.push(String(s)) });
+  assert.equal(lines.length, 1);
+  assert.ok(lines[0].includes(REFUSAL), lines[0]);
+  assert.ok(lines[0].includes('stdout'), lines[0]);
+  assert.match(lines[0], /plan limit/i);
+  const quiet = [];
+  await run({}, {}, { out: (s) => quiet.push(String(s)) });
+  assert.deepEqual(quiet, []);
+});
+
+await ta('R-PL6: the header lists plan_limit among the STOP REASONS of a not_run result', async () => {
+  const src = readFileSync(path.join(path.dirname(fileURLToPath(import.meta.url)), 's4-run.mjs'), 'utf8');
+  const para = src.match(/STOP REASONS\.[^]*?\n\/\/\n/);
+  assert.ok(para, 'STOP REASONS paragraph found');
+  assert.match(para[0], /A not_run result holds one of:[^]*\bplan_limit\b/);
+  assert.ok(para[0].indexOf('plan_limit') < para[0].indexOf('A completed run holds any of'), 'plan_limit is in the not_run list, not the completed list');
 });
 
 // ---- C (I-2): the claude children get a whitelisted environment ---------------------------

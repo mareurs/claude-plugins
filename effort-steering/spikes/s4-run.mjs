@@ -20,12 +20,22 @@
 //      CLI with node in a temp dir; they never run the hook and never call a model.
 //   5. The hook latency gate on the scratch copy's hook (no model call): latency_not_ok.
 //   6. ONE canary `claude` run: prompt 0, treated, a fresh session id, EXCLUDED from the
-//      rows. It must leave a log line (treated, steered), exactly one transcript, a usable row
+//      rows. Before a row is built from the canary's run, its stdout and stderr go through plan-limit.mjs (step 7).
+//      The canary must leave a log line (treated, steered), exactly one transcript, a usable row
 //      and the REGISTERED effort on every assistant record (effort_mismatch); anything else refuses with canary_failed and NO further claude call.
-//   7. The planned runs, in the seeded order (prompts and arms interleaved); the analysis.
+//   7. The planned runs, in the seeded order (prompts and arms interleaved); the analysis. R-PL6: after the canary and after
+//      EACH planned run, before any row is built, detectPlanLimit({ stdout, stderr }) (plan-limit.mjs) reads what the child
+//      printed. A hit (a spent subscription's refusal, e.g. `You've hit your limit · resets 3pm`) aborts the experiment at once: NO
+//      further claude call, the partial results are discarded (no rows, no analysis), and the result is not_run with stop
+//      ['plan_limit'], the hit as `planLimit` ({ source, matched, resetHint, rateLimitType, resetsAt }; `matched` is already cut to
+//      200 characters) and `claudeCalls` as made so far. A canary hit has canary { ok: false, reason: 'plan_limit' }, a hit in the
+//      loop canary { ok: true }. It is checked BEFORE rowOf, so a refusal is never reported as canary_failed or as an excluded run
+//      (spawn_failed, no_log, ...), whatever the exit code or the log say. REASONS (the list of reasons a run is EXCLUDED) is not
+//      touched: an abort produces no excluded run. S4 is one-shot (no rows file, no resume): after the reset, run it again.
+//      That a plain `-p` run prints the refusal on stdout and not on stderr is NOT verified, so both are read.
 //
 // STOP REASONS. A not_run result holds one of: dirty_tree, prompt_not_steerable,
-// not_confirmed, latency_not_ok, canary_failed. A completed run holds any of:
+// not_confirmed, latency_not_ok, canary_failed, plan_limit. A completed run holds any of:
 // mechanism_fail, insufficient_data, verdict_unknown, cache_not_ok, latency_not_ok,
 // runs_excluded. `stop` is empty only for mechanism_pass with cacheOk true, the latency
 // gate held and no run excluded.
@@ -57,7 +67,11 @@
 //
 // Tests inject `spawn` for the claude and hook runs, and `esRoot` for the tree that is
 // checked and copied; the defaults are the real thing. Nothing here runs at import. No
-// prompt text is ever printed or returned: only counts, indexes, verdicts and names.
+// prompt text is ever printed or returned: only counts, indexes, verdicts and names. The one
+// exception is the refusal line of a plan-limit hit (`planLimit.matched`, at most 200 characters
+// of what the CLI itself printed, also written to `out`): S4 prints no other model text and the
+// result never holds a run's stdout or stderr. S4 has no run token (its child environment is the
+// whitelist above), so there is nothing to redact from that line.
 
 import { spawnSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
@@ -71,6 +85,7 @@ import { stateDirFor } from '../core/log.mjs';
 import { analyzeArms } from './s4-analyze.mjs';
 import { holdoutCountFor, loadPrereg, runGit } from './s4-prereg.mjs';
 import { makeRng, shuffle } from './s4-prng.mjs';
+import { detectPlanLimit } from './plan-limit.mjs';
 import { buildRow } from './s4-rows.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -348,15 +363,33 @@ export async function runExperiment(preregFile, opts = {}) {
     const rowOf = (res, sessionId, arm, promptIndex) =>
       failed(res) ? { reason: 'spawn_failed' } : buildRow(sessionId, { stateDir, configDir: opts.configDir, plannedArm: arm, promptIndex, effort: prereg.effort });
 
+    // R-PL6: a spent subscription's refusal is a stop, not a result. It is read from the child's stdout and stderr (a plain
+    // `-p` run has no envelope; which stream the CLI uses is NOT verified), BEFORE a row is built from the run, so it is
+    // never reported as a failed canary or an excluded run. The abort discards everything gathered so far.
+    const abortOnPlanLimit = (res, canary) => {
+      const hit = detectPlanLimit({ stdout: res?.stdout, stderr: res?.stderr });
+      if (!hit) return null;
+      out(`s4-run: stopped: plan limit hit after ${claudeCalls} claude call(s), read from ${hit.source}: ${hit.matched}; partial results discarded`);
+      return notRun(['plan_limit'], { latency, canary, claudeCalls, planLimit: hit });
+    };
+
     // I-4: one canary, excluded from the rows; it proves the log, the transcript and the join.
     const canaryId = randomUUID();
-    const canaryRow = rowOf(await runClaude(canaryId, prereg.prompts[0], 'treated'), canaryId, 'treated', 0);
+    const canaryRes = await runClaude(canaryId, prereg.prompts[0], 'treated');
+    const canaryLimit = abortOnPlanLimit(canaryRes, { ok: false, reason: 'plan_limit' });
+    if (canaryLimit) return canaryLimit;
+    const canaryRow = rowOf(canaryRes, canaryId, 'treated', 0);
     if (!canaryRow.row) {
       return notRun(['canary_failed'], { latency, canary: { ok: false, reason: canaryRow.reason }, claudeCalls });
     }
 
     const results = [];
-    for (const run of runs) results.push(await runClaude(run.sessionId, run.prompt, run.arm));
+    for (const run of runs) {
+      const res = await runClaude(run.sessionId, run.prompt, run.arm);
+      const limit = abortOnPlanLimit(res, { ok: true });
+      if (limit) return limit;
+      results.push(res);
+    }
     const rows = [];
     const byReason = zeroReasons();
     let excluded = 0;
