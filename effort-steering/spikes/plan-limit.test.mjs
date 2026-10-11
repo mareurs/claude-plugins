@@ -1321,6 +1321,11 @@ const EXCLUDED_NOTE_LOCATIONS = {
   'hook attachment stdout': (text) => ({ type: 'attachment', isSidechain: false, attachment: { type: 'hook_success', content: 'ok', stdout: text } }),
   'hook attachment stderr': (text) => ({ type: 'attachment', isSidechain: false, attachment: { type: 'hook_non_blocking_error', stderr: text } }),
   'top-level stdout and stderr': (text) => ({ type: 'system', isSidechain: false, stdout: text, stderr: text }),
+  // Documented non-sources (header KNOWN GAPS; review 3, m6): places the CLI might deliver a note that the scan deliberately does not read. SYNTHETIC records.
+  'attachment.snippet (edited_text_file)': (text) => ({ type: 'attachment', isSidechain: false, attachment: { type: 'edited_text_file', filename: 'a.txt', snippet: text } }),
+  'stop_hook_summary hookAdditionalContext[]': (text) => ({ type: 'system', subtype: 'stop_hook_summary', isSidechain: false, hookAdditionalContext: [text] }),
+  'stop_hook_summary hookInfos[]': (text) => ({ type: 'system', subtype: 'stop_hook_summary', isSidechain: false, hookInfos: [text] }),
+  'stop_hook_summary hookErrors[]': (text) => ({ type: 'system', subtype: 'stop_hook_summary', isSidechain: false, hookErrors: [text] }),
 };
 
 for (const [name, build] of Object.entries(NOTE_LOCATIONS)) {
