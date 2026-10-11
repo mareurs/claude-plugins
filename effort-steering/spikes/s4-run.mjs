@@ -34,6 +34,19 @@
 //      touched: an abort produces no excluded run. S4 is one-shot (no rows file, no resume): after the reset, run it again.
 //      That a plain `-p` run prints the refusal on stdout and not on stderr is NOT verified, so both are read.
 //
+// KNOWN GAPS of the plan-limit check (ruled after the final review; none is built, each is a decision, not an oversight):
+//   - No transcript channels. S4 passes only stdout and stderr to the detector, never the run's transcript, so the typed `apiError` check and the wrap-up
+//     note (channels 5 and 6 of plan-limit.mjs) never run here. An API-error record is still excluded by buildRow as api_error (loud). A run cut short by the
+//     wrap-up or near_limit note, though, ends with normal-looking text, and S4 MEASURES it as an ordinary row with fewer thinking tokens. The wrap-up mode
+//     is flag-gated in the CLI and off by default, so this needs the flag to be on. S5 treats exactly this run as unrankable.
+//   - No CLI-version gate. S5 refuses a registration whose cli.version is not in VERIFIED_CLI_VERSIONS (R-PL7); S4 runs whatever `claude` is first on PATH
+//     (it auto-updates) and its result does not record the version, so a CLI whose refusal texts the detector has not been verified against is not noticed.
+//   - A false abort is expensive. The detector is as wide as the CLI's own classifier on purpose (a false stop is cheap, a false miss is not), and in S4's
+//     plain-text mode stdout is the model's whole answer, so an answer that STARTS with a widened prefix (`You've hit your target …`, `You've reached your
+//     goal …`, `Opus requires usage credits. …`) aborts the experiment. S4 has no resume: every run paid for so far is lost and the experiment is run again
+//     in full. `planLimit.matched` and the out line show the opening words, so the operator can tell prose from a refusal. The registered prompts are
+//     technical, so such an opening is unlikely.
+//
 // STOP REASONS. A not_run result holds one of: dirty_tree, prompt_not_steerable,
 // not_confirmed, latency_not_ok, canary_failed, plan_limit. A completed run holds any of:
 // mechanism_fail, insufficient_data, verdict_unknown, cache_not_ok, latency_not_ok,
@@ -68,8 +81,9 @@
 // Tests inject `spawn` for the claude and hook runs, and `esRoot` for the tree that is
 // checked and copied; the defaults are the real thing. Nothing here runs at import. No
 // prompt text is ever printed or returned: only counts, indexes, verdicts and names. The one
-// exception is the refusal line of a plan-limit hit (`planLimit.matched`, at most 200 characters
-// of what the CLI itself printed, also written to `out`): S4 prints no other model text and the
+// exception is the text that matched in a plan-limit hit (`planLimit.matched`, at most 200 characters
+// of what the child printed: the CLI's refusal, or, on a false positive, the model's opening words;
+// also written to `out`): S4 prints no other model text and the
 // result never holds a run's stdout or stderr. S4 has no run token (its child environment is the
 // whitelist above), so there is nothing to redact from that line.
 

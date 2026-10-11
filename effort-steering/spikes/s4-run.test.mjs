@@ -989,6 +989,17 @@ await ta('R-PL6: the header lists plan_limit among the STOP REASONS of a not_run
   assert.ok(para[0].indexOf('plan_limit') < para[0].indexOf('A completed run holds any of'), 'plan_limit is in the not_run list, not the completed list');
 });
 
+await ta('R-PL6 (review 3, m3-m5, n2): the header names the known gaps: no transcript channels, no CLI-version gate, a false abort loses the run (no resume), and `matched` is the text that matched', async () => {
+  const src = readFileSync(path.join(path.dirname(fileURLToPath(import.meta.url)), 's4-run.mjs'), 'utf8');
+  const gaps = src.match(/KNOWN GAPS of the plan-limit check[^]*?\n\/\/\n/);
+  assert.ok(gaps, 'a KNOWN GAPS paragraph is found');
+  assert.match(gaps[0], /No transcript channels[^]*never the run's transcript[^]*MEASURES it as an ordinary row/);
+  assert.match(gaps[0], /No CLI-version gate[^]*VERIFIED_CLI_VERSIONS[^]*does not record the version/);
+  assert.match(gaps[0], /false abort is expensive[^]*S4 has no resume[^]*run again\s+\/\/\s+in full/);
+  assert.match(src, /of what the child printed: the CLI's refusal, or, on a false positive, the model's opening words/);
+  assert.ok(!src.includes('what the CLI itself printed'), 'the old, too strong wording is gone');
+});
+
 // ---- C (I-2): the claude children get a whitelisted environment ---------------------------
 
 const withParentEnv = async (vars, fn) => {
