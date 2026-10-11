@@ -2,9 +2,11 @@
 // suites pin the use, this one pins the rule itself. Each test names the rule it protects: delete that rule from the module and the test fails.
 //
 // Provenance of the strings below. The message texts come from the CLI binary (versions 2.1.292 and 2.1.296; limit-strings-*.txt): where the
-// binary has a template (`You've hit your ${limitName}${suffix}`) the placeholder is replaced by a value the binary lists. The 401 record is a real
+// binary has a template (`You've hit your ${limitName}${suffix}`) the placeholder is replaced by a value the binary lists. The twelve prefixes in
+// CLI_CLASSIFIER_PREFIXES are the CLI's own list (AMENDMENT A1), copied byte for byte from the binary. The 401 record is a real
 // transcript record. The 401 ENVELOPE is reconstructed from the verified field list (no byte capture was kept). A plan-limit envelope or transcript
-// record has never been observed on this host: every one built here is SYNTHETIC and says so.
+// record has never been observed on this host: every one built here is SYNTHETIC and says so. That includes every wrap-up note record: that the
+// transcript persists `usageLimitNote`, and where the CLI delivers the `[Usage limit reached ...` marker, is NOT verified.
 import assert from 'node:assert/strict';
 import { t } from '../core/testkit.mjs';
 import {
@@ -15,6 +17,7 @@ import {
   assertNoPlanLimit,
   detectPlanLimit,
   lastAssistantRecordText,
+  usageLimitNoteIn,
 } from './plan-limit.mjs';
 
 // A REAL transcript API-error record (an authentication failure with a bad token, CLI 2.1.296): copied verbatim from
@@ -37,6 +40,13 @@ const assistant = (content, over = {}) => ({ type: 'assistant', isSidechain: fal
 const said = (text, over) => assistant([{ type: 'text', text }], over);
 const userRec = (text) => ({ type: 'user', isSidechain: false, message: { role: 'user', content: text } });
 
+// SYNTHETIC wrap-up note records (AMENDMENT A1). The marker text is the one the binary builds; that a transcript record carries it, or carries
+// `usageLimitNote`, is NOT verified.
+const NOTE_TEXT = "[Usage limit reached — grace window active. Wrap up: finish or checkpoint; don't start subagents or long work.]";
+const noteUser = (over = {}) => ({ type: 'user', isMeta: true, isSidechain: false, message: { role: 'user', content: NOTE_TEXT }, ...over });
+const noteProp = (over = {}) => ({ type: 'user', isMeta: true, isSidechain: false, usageLimitNote: 'wrap_up', message: { role: 'user', content: 'ordinary meta text' }, ...over });
+const noteAttachment = (content, over = {}) => ({ type: 'attachment', isSidechain: false, attachment: { type: 'queued_command', content }, ...over });
+
 // RECONSTRUCTED from the verified field list: the envelope of `claude -p --output-format json` on a 401 (no byte capture was kept).
 const envelope401 = () => ({
   type: 'result',
@@ -55,8 +65,8 @@ const pad = (prefix, n) => {
   return prefix + 'x'.repeat(n - prefix.length);
 };
 
-// The five channels, each with a way to put `text` into it while the other four stay clean prose. `envelope_api_error` is the typed field, so its
-// `text` argument is ignored.
+// The channels, each with a way to put `text` into it while the others stay clean prose. `envelope_api_error` is the typed field and
+// `transcript_note` the wrap-up note, so their `text` argument is ignored.
 const CLEAN_PROSE = 'I fixed the limiter and ran the suite.';
 const clean = () => ({
   envelope: { type: 'result', subtype: 'success', is_error: false, result: CLEAN_PROSE },
@@ -73,6 +83,7 @@ const TEXT_CHANNELS = {
 const ALL_CHANNELS = {
   envelope_api_error: () => ({ ...clean(), envelope: { type: 'result', is_error: true, api_error: 'usage_limit_reached' } }),
   ...TEXT_CHANNELS,
+  transcript_note: () => ({ ...clean(), transcript: jl(userRec('fix the bug'), said('Working.'), noteUser(), said(CLEAN_PROSE)) }),
 };
 
 const deepFreeze = (v) => {
@@ -102,7 +113,7 @@ t('R-PL7: VERIFIED_CLI_VERSIONS is an array of distinct, non-empty version strin
   assert.ok(VERIFIED_CLI_VERSIONS.includes('2.1.296'));
 });
 
-// ---- the five anchored patterns (R-PL2) -------------------------------------------------------------------------------------------------
+// ---- the anchored patterns (R-PL2, AMENDMENT A1) ----------------------------------------------------------------------------------------
 
 // Asserts that each text is a hit on stdout, whole, with the curly apostrophe variant too when `curly`.
 const assertHits = (texts, { curly = false } = {}) => {
@@ -120,6 +131,25 @@ const assertMisses = (texts) => {
   for (const text of texts) assert.equal(detectPlanLimit({ stdout: text }), null, `unexpected hit for: ${text}`);
 };
 
+// The CLI's own classifier of usage-limit messages (AMENDMENT A1): the twelve prefixes it tests with startsWith, in the binary's order. Copied
+// byte for byte from the list in 2.1.292 (variable syr) and 2.1.296 (qTr), which are identical; the middle dot is U+00B7. The same classifier has one regex,
+// /^(?:Fable|Haiku|Mythos|Opus|Sonnet)(?: [^·\n]{1,40})? requires usage credits\./, which the pattern-9 tests cover.
+const MIDDLE_DOT = '\u00B7';
+const CLI_CLASSIFIER_PREFIXES = [
+  "You've hit your",
+  "You've reached your",
+  "You're out of usage credits",
+  `Your org is out of usage ${MIDDLE_DOT} add funds to continue`,
+  `Your org is out of usage ${MIDDLE_DOT} contact your admin`,
+  "Your seat type doesn't include usage credits",
+  "Your seat type doesn't include usage",
+  'Your usage allocation has been disabled by your admin',
+  "Your group's usage limit is set to $0",
+  'Fable 5 requires usage credits',
+  "You're out of extra usage",
+  "Your seat type doesn't include extra usage",
+];
+
 // One representative per pattern, used by the anchoring, case and channel tests below.
 const SAMPLES = [
   "You've hit your limit · resets 3pm",
@@ -127,10 +157,16 @@ const SAMPLES = [
   "You're out of usage credits. /model to switch models.",
   'Your organization is out of usage credits. Contact your admin to add more.',
   'Usage limit reached · continuing automatically at 3pm · esc to cancel',
+  "Your seat type doesn't include extra usage",
+  'Your usage allocation has been disabled by your admin',
+  "Your group's usage limit is set to $0",
+  'Opus 4.7 requires usage credits.',
+  'Fable 5 requires usage credits',
 ];
 
-t("R-PL2 pattern 1 /^You['’]ve hit your /: the `You've hit your ${limitName}${suffix}` family, both apostrophes", () => {
+t("R-PL2 pattern 1 /^You['’]ve hit your\\b/: the `You've hit your ${limitName}${suffix}` family and the CLI's bare prefix, both apostrophes", () => {
   assertHits([
+    "You've hit your", // the CLI's own prefix, with nothing after it
     "You've hit your limit · resets 3pm",
     "You've hit your session limit · resets 3pm",
     "You've hit your weekly limit · resets Mon 9am",
@@ -143,31 +179,32 @@ t("R-PL2 pattern 1 /^You['’]ve hit your /: the `You've hit your ${limitName}${
   ], { curly: true });
 });
 
-t('R-PL2 pattern 1 needs its trailing space, its apostrophe and its exact words: near misses do not match', () => {
+t('R-PL2 pattern 1 ends at a word boundary after "your" and needs its apostrophe and its exact words: near misses do not match', () => {
   assertMisses([
-    "You've hit yourself with the wrong flag.", // the space after "your" is part of the pattern
-    "You've hit your", // nothing after "your": the CLI's own template always continues
+    "You've hit yourself with the wrong flag.", // `\b`: "yourself" is another word
+    "You've hit yours",
     'You have hit your limit', // the pattern is the contraction
     'Youxve hit your limit', // the apostrophe slot takes only the ASCII and the typographic apostrophe
     "You've hit the limit",
   ]);
 });
 
-t("R-PL2 pattern 2 /^You['’]ve reached your [^\\n]{0,60}? limit/: `You've reached your Fable limit`, both apostrophes", () => {
+t("R-PL2 pattern 2 /^You['’]ve reached your\\b/: with a qualifier, without one, or with nothing after \"your\" (the CLI's prefix), both apostrophes", () => {
   assertHits([
     "You've reached your Fable limit",
     "You've reached your Fable limit.",
+    "You've reached your limit",
+    "You've reached your",
   ], { curly: true });
 });
 
-t('R-PL2 pattern 2: the qualifier before " limit" is at most 60 characters on one line, and the word "limit" is required', () => {
-  assertHits([`You've reached your ${'a'.repeat(60)} limit`]);
+t('R-PL2 pattern 2 ends at a word boundary after "your": another word, another verb or another apostrophe is no refusal', () => {
   assertMisses([
-    `You've reached your ${'a'.repeat(61)} limit`, // 61: one over the bound
-    "You've reached your Fable\nweekly limit", // the qualifier does not cross a line (" limit" is there, on the next one)
-    "You've reached your Fable", // no "limit"
-    "You've reached your destination",
+    "You've reached yours",
+    "You've reached yourself",
     "You've reach your Fable limit",
+    'You reached your limit',
+    'Youxve reached your limit',
   ]);
 });
 
@@ -218,6 +255,128 @@ t('R-PL2 pattern 5 /^Usage limit reached/: the bare text and the suffixed forms 
 
 t('R-PL2 pattern 5: "Usage limit" without "reached", and a plural, are no refusal', () => {
   assertMisses(['Usage limit', 'Usage limits reached', 'Usage limit was reached']);
+});
+
+t("A1 pattern 6 /^Your seat type doesn['’]t include (?:extra )?usage/: the three seat-type prefixes of the CLI, both apostrophes", () => {
+  assertHits([
+    "Your seat type doesn't include usage credits",
+    "Your seat type doesn't include usage",
+    "Your seat type doesn't include extra usage",
+  ], { curly: true });
+});
+
+t('A1 pattern 6: another noun, another verb or another subject is no refusal', () => {
+  assertMisses([
+    "Your seat type doesn't include coffee",
+    "Your seat type doesn't include extra credits",
+    'Your seat type does include usage',
+    "Your seat doesn't include usage",
+    'Your seat type doesnxt include usage',
+  ]);
+});
+
+t('A1 pattern 7 /^Your usage allocation has been disabled by your admin/: the CLI prefix', () => {
+  assertHits([
+    'Your usage allocation has been disabled by your admin',
+    'Your usage allocation has been disabled by your admin. Contact them to re-enable it.',
+  ]);
+});
+
+t('A1 pattern 7: the whole phrase is required, word for word', () => {
+  assertMisses([
+    'Your usage allocation has been enabled by your admin',
+    'Your usage allocation has been disabled.',
+    'Your usage allocation has been disabled by the system',
+    'Your usage allocation has been disabled by your organization',
+    'Your allocation has been disabled by your admin',
+    'Our usage allocation has been disabled by your admin',
+  ]);
+});
+
+t("A1 pattern 8 /^Your group['’]s usage limit is set to \\$0/: the CLI prefix, both apostrophes", () => {
+  assertHits([
+    "Your group's usage limit is set to $0",
+    "Your group's usage limit is set to $0. Ask your admin to raise it.",
+  ], { curly: true });
+});
+
+t('A1 pattern 8: a different amount, a missing dollar sign, another subject or a cut-off phrase is no refusal', () => {
+  assertMisses([
+    "Your group's usage limit is set to $5",
+    "Your group's usage limit is set to 0",
+    "Your team's usage limit is set to $0",
+    'Your groups usage limit is set to $0',
+    "Your group's usage limit is set",
+  ]);
+});
+
+t('A1 pattern 9 /^(?:Fable|Haiku|Mythos|Opus|Sonnet)(?: [^\\u00B7\\n]{1,40})? requires usage credits\\./: each of the five model names, with and without a middle', () => {
+  for (const model of ['Fable', 'Haiku', 'Mythos', 'Opus', 'Sonnet']) {
+    assertHits([`${model} requires usage credits.`]);
+  }
+  assertHits([
+    'Fable 5 requires usage credits.',
+    'Opus 4.7 (1M context) requires usage credits.',
+    'Opus a b c requires usage credits.', // spaces inside the middle are fine
+    'Sonnet requires usage credits. Run /usage-credits to enable it.',
+  ]);
+});
+
+t('A1 pattern 9: the middle is 1 to 40 characters — 0 and 41 fail, 1 and 40 hold', () => {
+  assertHits(['Fable a requires usage credits.', `Fable ${'a'.repeat(40)} requires usage credits.`]);
+  assertMisses([
+    `Fable ${'a'.repeat(41)} requires usage credits.`, // one over the bound
+    'Fable  requires usage credits.', // an empty middle: two spaces
+  ]);
+});
+
+t('A1 pattern 9: a middle dot or a newline inside the middle fails', () => {
+  assertMisses([
+    `Fable 5 ${MIDDLE_DOT} beta requires usage credits.`,
+    'Fable 5\nbeta requires usage credits.',
+    `Opus ${MIDDLE_DOT} requires usage credits.`,
+  ]);
+});
+
+t('A1 pattern 9: the final period is part of it; any other model name, or a different case, is no refusal', () => {
+  assertMisses([
+    'Opus requires usage credits',
+    'Opus requires usage credits!',
+    'Sonnet requires usage credits, sorry',
+    'Sonnet requires usage credits',
+    'Fable requires usage credits', // no period and no "5": neither pattern 9 nor the Fable 5 prefix
+    'Gemini requires usage credits.',
+    'Claude requires usage credits.',
+    'fable requires usage credits.',
+    'Opus requires usage credit.',
+  ]);
+});
+
+t('A1 pattern 9: anchored at index 0 for every model name (a bare alternation would match anywhere)', () => {
+  for (const model of ['Fable', 'Haiku', 'Mythos', 'Opus', 'Sonnet']) {
+    assertMisses([`x ${model} requires usage credits.`, `The ${model} requires usage credits.`, `Done.\n${model} requires usage credits.`]);
+  }
+});
+
+t('A1 the Fable 5 prefix /^Fable 5 requires usage credits/: with or without a period or a suffix', () => {
+  assertHits([
+    'Fable 5 requires usage credits',
+    'Fable 5 requires usage credits.',
+    `Fable 5 requires usage credits ${MIDDLE_DOT} /model to switch`,
+  ]);
+  assertMisses(['Fable 6 requires usage credits', 'fable 5 requires usage credits', 'x Fable 5 requires usage credits', 'Fable 5 requires usage']);
+});
+
+t('A1 mirror: every one of the twelve prefixes of the CLI classifier is a hit, anchored and capped like the rest', () => {
+  assert.equal(CLI_CLASSIFIER_PREFIXES.length, 12);
+  assert.equal(MIDDLE_DOT.codePointAt(0), 0xb7, 'the middle dot is U+00B7');
+  assertHits(CLI_CLASSIFIER_PREFIXES);
+  for (const prefix of CLI_CLASSIFIER_PREFIXES) {
+    // padded after a space: patterns 1 and 2 end at a word boundary, and a bare prefix glued to padding would not have one
+    assert.ok(detectPlanLimit({ stdout: pad(`${prefix} `, 600) }) !== null, `600: ${prefix}`);
+    assert.equal(detectPlanLimit({ stdout: pad(`${prefix} `, 601) }), null, `601: ${prefix}`);
+    assertMisses([`x ${prefix}`, `Done.\n${prefix}`, prefix.toUpperCase()]);
+  }
 });
 
 t('R-PL2: the patterns are case-sensitive', () => {
@@ -473,6 +632,16 @@ t('negative (fact 2): the reconstructed 401 envelope is no hit, as a parsed enve
 t('negative: an agent that merely talks about a limit is no hit (the words of a refusal in the middle of its own sentence)', () => {
   assertNoHitInAnyTextChannel('The harness stops when the CLI prints "You\'ve hit your limit" because the usage limit reached state is not a model failure.');
   assertNoHitInAnyTextChannel('I added a test for the "Usage limit reached" message and for "You\'re out of usage credits".');
+});
+
+t('negative (A1): "Fast mode requires usage credits" is a mode notice, not a refusal of a model run', () => {
+  assertNoHitInAnyTextChannel('Fast mode requires usage credits');
+  assertNoHitInAnyTextChannel('Fast mode requires usage credits.');
+});
+
+t('negative (A1): a notice that starts with "Switched" and only mentions a model that requires usage credits is not a refusal', () => {
+  assertNoHitInAnyTextChannel(`Switched to Sonnet ${MIDDLE_DOT} Fable requires usage credits ${MIDDLE_DOT} /model to change`);
+  assertNoHitInAnyTextChannel('Switched to Sonnet. Fable requires usage credits.');
 });
 
 // ---- inputs (R-PL1: never throws) -------------------------------------------------------------------------------------------------------
@@ -766,6 +935,253 @@ t('lastAssistantRecordText: a multi-block refusal is joined, so the anchor sees 
   assert.equal(detectPlanLimit({ transcript: split }).matched, "You've hit your limit\n· resets 3pm");
   const prose = jl(assistant([{ type: 'text', text: 'Let me check.' }, { type: 'text', text: REFUSAL }]));
   assert.equal(detectPlanLimit({ transcript: prose }), null, 'a refusal in the second block is not at index 0 of the record text');
+});
+
+// ---- the wrap-up note: usageLimitNoteIn and channel 6, transcript_note (AMENDMENT A1) ---------------------------------------------------
+// Every record here is SYNTHETIC: that the transcript persists `usageLimitNote` on a record, and where the CLI delivers the marker text (a user
+// record, an attachment), is NOT verified. The scan therefore reads user, attachment and system records alike.
+
+t('usageLimitNoteIn: an own property usageLimitNote that is a non-empty string is returned as it is — a property-only record', () => {
+  assert.equal(usageLimitNoteIn(jl(noteProp())), 'wrap_up');
+  assert.equal(usageLimitNoteIn(jl(userRec('hi'), noteProp({ usageLimitNote: 'next_steps' }), said('done'))), 'next_steps');
+  const long = 'n'.repeat(300);
+  assert.equal(usageLimitNoteIn(jl(noteProp({ usageLimitNote: long }))), long, 'the property value is returned whole; the Hit cuts it');
+  assert.equal(usageLimitNoteIn(jl(noteProp({ usageLimitNote: ' ' }))), ' ', 'non-empty is the whole test: a blank string is still a string the CLI set');
+});
+
+t('usageLimitNoteIn: the property is read on a record of any type — user, attachment, system, assistant, or none', () => {
+  for (const type of ['user', 'attachment', 'system', 'assistant', 'progress']) {
+    assert.equal(usageLimitNoteIn(jl({ type, isSidechain: false, usageLimitNote: 'wrap_up' })), 'wrap_up', type);
+  }
+  assert.equal(usageLimitNoteIn(jl({ usageLimitNote: 'wrap_up' })), 'wrap_up', 'no type at all');
+});
+
+t('usageLimitNoteIn: a property that is empty or not a string is ignored', () => {
+  for (const value of ['', 5, 0, true, false, null, {}, [], ['wrap_up'], { kind: 'wrap_up' }]) {
+    assert.equal(usageLimitNoteIn(jl(noteProp({ usageLimitNote: value }))), null, JSON.stringify(value));
+  }
+  assert.equal(usageLimitNoteIn(jl(userRec('hi'), said('done'))), null, 'no property at all');
+});
+
+t('usageLimitNoteIn: the property must sit on the record itself — nested in message or attachment it is not read', () => {
+  assert.equal(usageLimitNoteIn(jl({ type: 'user', message: { role: 'user', content: 'x', usageLimitNote: 'wrap_up' } })), null);
+  assert.equal(usageLimitNoteIn(jl({ type: 'attachment', attachment: { type: 'queued_command', usageLimitNote: 'wrap_up' } })), null);
+});
+
+t('usageLimitNoteIn: the property must be the record\'s OWN — one inherited through Object.prototype is not read', () => {
+  Object.prototype.usageLimitNote = 'inherited';
+  try {
+    assert.equal(usageLimitNoteIn(jl(userRec('hi'), said('done'))), null);
+  } finally {
+    delete Object.prototype.usageLimitNote;
+  }
+  assert.equal(Object.hasOwn(Object.prototype, 'usageLimitNote'), false, 'test cleanup');
+});
+
+t('usageLimitNoteIn: a user record whose message.content STARTS with "[Usage limit reached" is a note, and its text is returned', () => {
+  assert.equal(usageLimitNoteIn(jl(noteUser())), NOTE_TEXT);
+  assert.equal(usageLimitNoteIn(jl(userRec('go'), noteUser(), said('done'))), NOTE_TEXT);
+  // SYNTHETIC: the "next steps" variant the binary also builds begins with the same words
+  const variant = '[Usage limit reached — grace window active. Checkpoint now: finish the current step, then list up to 3 short bullets of the most impactful remaining work.]';
+  assert.equal(usageLimitNoteIn(jl(userRec(variant))), variant);
+  // not only isMeta records: the rule is the text, not the flag
+  assert.equal(usageLimitNoteIn(jl(noteUser({ isMeta: false }))), NOTE_TEXT);
+});
+
+t('usageLimitNoteIn: whitespace before the marker is trimmed, and the returned text is the trimmed one', () => {
+  assert.equal(usageLimitNoteIn(jl(userRec(`  \n\t${NOTE_TEXT}`))), NOTE_TEXT);
+});
+
+t('usageLimitNoteIn: the marker text is cut to 200 characters; a short text is returned whole', () => {
+  const long = `[Usage limit reached ${'x'.repeat(500)}`;
+  assert.equal(usageLimitNoteIn(jl(userRec(long))).length, 200);
+  assert.equal(usageLimitNoteIn(jl(userRec(long))), long.slice(0, 200));
+  const exactly = `[Usage limit reached ${'x'.repeat(179)}`;
+  assert.equal(exactly.length, 200);
+  assert.equal(usageLimitNoteIn(jl(userRec(exactly))), exactly);
+  const oneOver = `[Usage limit reached ${'x'.repeat(180)}`;
+  assert.equal(usageLimitNoteIn(jl(userRec(oneOver))), oneOver.slice(0, 200));
+});
+
+t('usageLimitNoteIn: the marker is read from the {type:"text"} blocks of message.content, each block on its own; other block types and non-string text are not', () => {
+  const blocks = (...content) => jl({ type: 'user', isSidechain: false, message: { role: 'user', content } });
+  assert.equal(usageLimitNoteIn(blocks({ type: 'text', text: NOTE_TEXT })), NOTE_TEXT);
+  assert.equal(usageLimitNoteIn(blocks({ type: 'text', text: 'hi' }, { type: 'text', text: NOTE_TEXT })), NOTE_TEXT, 'a later block');
+  assert.equal(usageLimitNoteIn(blocks({ type: 'tool_result', tool_use_id: 't', content: NOTE_TEXT })), null, 'a tool result that prints the marker');
+  assert.equal(usageLimitNoteIn(blocks({ type: 'image', text: NOTE_TEXT })), null);
+  assert.equal(usageLimitNoteIn(blocks({ type: 'text', text: 5 }, null, 'str', [NOTE_TEXT])), null);
+  assert.equal(usageLimitNoteIn(jl({ type: 'user', message: { role: 'user', content: [] } })), null);
+});
+
+t('usageLimitNoteIn: an attachment record whose attachment.content is the marker text, or an array holding it as a string, is a note', () => {
+  assert.equal(usageLimitNoteIn(jl(noteAttachment(NOTE_TEXT))), NOTE_TEXT);
+  assert.equal(usageLimitNoteIn(jl(noteAttachment(['first', NOTE_TEXT]))), NOTE_TEXT);
+  assert.equal(usageLimitNoteIn(jl(noteAttachment(`  ${NOTE_TEXT}`))), NOTE_TEXT, 'trimmed');
+  assert.equal(usageLimitNoteIn(jl(noteAttachment([{ type: 'text', text: NOTE_TEXT }, 5, null, [NOTE_TEXT]]))), null, 'only the strings of the array count');
+  assert.equal(usageLimitNoteIn(jl(noteAttachment(5))), null);
+  assert.equal(usageLimitNoteIn(jl(noteAttachment('plain attachment text'))), null);
+  assert.equal(usageLimitNoteIn(jl({ type: 'attachment', attachment: NOTE_TEXT })), null, 'attachment is not an object');
+});
+
+t('usageLimitNoteIn: a system record is read like the others — its message.content text and its property', () => {
+  assert.equal(usageLimitNoteIn(jl({ type: 'system', subtype: 'informational', isSidechain: false, message: { role: 'system', content: NOTE_TEXT } })), NOTE_TEXT);
+  assert.equal(usageLimitNoteIn(jl({ type: 'system', subtype: 'informational', isSidechain: false, usageLimitNote: 'wrap_up' })), 'wrap_up');
+});
+
+t('usageLimitNoteIn: an assistant record is read as well — the scan is by record content, not by record type', () => {
+  assert.equal(usageLimitNoteIn(jl(said(NOTE_TEXT))), NOTE_TEXT);
+});
+
+t('usageLimitNoteIn: text that only CONTAINS the marker, or only resembles it, is not a note', () => {
+  for (const text of [
+    `Heads up: ${NOTE_TEXT}`,
+    `line one\n${NOTE_TEXT}`,
+    `- ${NOTE_TEXT}`,
+    'x [Usage limit reached',
+    'Usage limit reached',
+    '[usage limit reached — grace window active.]',
+    '(Usage limit reached — grace window active.)',
+    '[ Usage limit reached',
+    '[Usage limit',
+    'The CLI injects "[Usage limit reached — grace window active" when it wraps up.',
+  ]) {
+    assert.equal(usageLimitNoteIn(jl(userRec(text))), null, text);
+    assert.equal(usageLimitNoteIn(jl(noteAttachment(text))), null, `attachment: ${text}`);
+    assert.equal(usageLimitNoteIn(jl({ type: 'user', message: { role: 'user', content: [{ type: 'text', text }] } })), null, `block: ${text}`);
+  }
+});
+
+t('usageLimitNoteIn: a message that is not an object, or a record that is not a record, carries no note', () => {
+  assert.equal(usageLimitNoteIn(jl({ type: 'user', message: NOTE_TEXT })), null);
+  assert.equal(usageLimitNoteIn(`${JSON.stringify(NOTE_TEXT)}\n${JSON.stringify([noteProp()])}\nnull\n42\ntrue`), null);
+});
+
+t('usageLimitNoteIn: a sidechain record (a subagent\'s) is skipped, property and text alike; only the boolean true marks one', () => {
+  assert.equal(usageLimitNoteIn(jl(noteProp({ isSidechain: true }))), null);
+  assert.equal(usageLimitNoteIn(jl(noteUser({ isSidechain: true }))), null);
+  assert.equal(usageLimitNoteIn(jl(noteAttachment(NOTE_TEXT, { isSidechain: true }))), null);
+  assert.equal(usageLimitNoteIn(jl(noteProp({ isSidechain: true, usageLimitNote: 'side' }), noteProp({ usageLimitNote: 'main' }))), 'main', 'the main chain after a skipped sidechain note still decides');
+  assert.equal(usageLimitNoteIn(jl(noteUser({ isSidechain: true }), noteUser())), NOTE_TEXT);
+  assert.equal(usageLimitNoteIn(jl(noteProp({ isSidechain: 'true' }))), 'wrap_up');
+  assert.equal(usageLimitNoteIn(jl(noteProp({ isSidechain: 1 }))), 'wrap_up');
+  const noFlag = noteProp();
+  delete noFlag.isSidechain;
+  assert.equal(usageLimitNoteIn(jl(noFlag)), 'wrap_up', 'a record without the flag is the main chain');
+});
+
+t('usageLimitNoteIn: a torn or non-JSON line is skipped wherever it is; a line that parses to no record is skipped', () => {
+  const torn = '{"type":"user","isMeta":true,"usageLimitNote":"wrap_up","message":{"role":"user","content":"[Usage limit rea';
+  assert.equal(usageLimitNoteIn(torn), null);
+  assert.equal(usageLimitNoteIn(`${torn}\n${jl(noteProp({ usageLimitNote: 'later' }))}`), 'later', 'a torn line first');
+  assert.equal(usageLimitNoteIn(`${jl(noteProp({ usageLimitNote: 'earlier' }))}\n${torn}`), 'earlier', 'a torn last line');
+  assert.equal(usageLimitNoteIn(`not json\n\n${jl(noteUser())}\n{"torn`), NOTE_TEXT);
+  assert.equal(usageLimitNoteIn('garbage\n{"torn'), null);
+});
+
+t('usageLimitNoteIn: the FIRST qualifying record wins, and within a record the property comes before the text', () => {
+  assert.equal(usageLimitNoteIn(jl(noteUser(), noteProp({ usageLimitNote: 'later' }))), NOTE_TEXT);
+  assert.equal(usageLimitNoteIn(jl(noteProp({ usageLimitNote: 'first' }), noteUser())), 'first');
+  assert.equal(usageLimitNoteIn(jl(noteUser({ usageLimitNote: 'prop' }))), 'prop', 'one record with both');
+});
+
+t('usageLimitNoteIn: null for a transcript that is not a string, is empty, or holds no note', () => {
+  for (const notText of [undefined, null, 5, {}, [], [jl(noteProp())], Buffer.from(jl(noteProp()))]) {
+    assert.equal(usageLimitNoteIn(notText), null, String(notText));
+  }
+  for (const text of ['', '\n', jl(userRec('hi'), said('done')), API_ERROR_401_RECORD, jl(syntheticPlanLimitRecord())]) {
+    assert.equal(usageLimitNoteIn(text), null, text.slice(0, 60));
+  }
+});
+
+t('channel transcript_note: a NORMAL-LOOKING transcript with a note record before a clean final assistant record is a hit — the case the last-record channel cannot see', () => {
+  const normal = [userRec('fix the bug'), assistant([{ type: 'tool_use', id: 't1', name: 'Bash', input: {} }]), userRec('ok')];
+  const withNote = jl(...normal, noteUser(), said(CLEAN_PROSE));
+  assert.equal(detectPlanLimit({ transcript: jl(...normal, said(CLEAN_PROSE)) }), null, 'the same transcript without the note is clean');
+  assert.deepEqual(detectPlanLimit({ transcript: withNote }), {
+    source: 'transcript_note',
+    matched: NOTE_TEXT,
+    resetHint: null,
+    rateLimitType: null,
+    resetsAt: null,
+  });
+});
+
+t('channel transcript_note: a property-only note is a hit with the property value as `matched`; so is a note in an attachment record', () => {
+  const viaProperty = detectPlanLimit({ transcript: jl(userRec('go'), noteProp(), said(CLEAN_PROSE)) });
+  assert.equal(viaProperty.source, 'transcript_note');
+  assert.equal(viaProperty.matched, 'wrap_up');
+  const viaAttachment = detectPlanLimit({ transcript: jl(userRec('go'), noteAttachment(NOTE_TEXT), said(CLEAN_PROSE)) });
+  assert.equal(viaAttachment.source, 'transcript_note');
+  assert.equal(viaAttachment.matched, NOTE_TEXT);
+});
+
+t('channel transcript_note: not subject to the 600-character cap or the anchor, but `matched` is cut to 200 characters', () => {
+  const longProperty = detectPlanLimit({ transcript: jl(noteProp({ usageLimitNote: `wrap_up ${'n'.repeat(1500)}` }), said(CLEAN_PROSE)) });
+  assert.equal(longProperty.source, 'transcript_note');
+  assert.equal(longProperty.matched, `wrap_up ${'n'.repeat(1500)}`.slice(0, 200));
+  const longText = `[Usage limit reached ${'x'.repeat(1500)}`;
+  assert.ok(longText.length > MAX_REFUSAL_CHARS);
+  const viaText = detectPlanLimit({ transcript: jl(userRec(longText), said(CLEAN_PROSE)) });
+  assert.equal(viaText.source, 'transcript_note');
+  assert.equal(viaText.matched, longText.slice(0, 200));
+  const unanchored = detectPlanLimit({ transcript: jl(noteProp({ usageLimitNote: 'something else entirely' }), said(CLEAN_PROSE)) });
+  assert.equal(unanchored.matched, 'something else entirely');
+});
+
+t('channel transcript_note: a sidechain note, a note that only mentions the marker, a tool result printing it, and a torn line are no hit', () => {
+  assert.equal(detectPlanLimit({ transcript: jl(userRec('go'), noteProp({ isSidechain: true }), said(CLEAN_PROSE)) }), null);
+  assert.equal(detectPlanLimit({ transcript: jl(userRec(`Please read this: ${NOTE_TEXT}`), said(CLEAN_PROSE)) }), null);
+  const toolResult = { type: 'user', isSidechain: false, message: { role: 'user', content: [{ type: 'tool_result', tool_use_id: 't1', content: NOTE_TEXT }] } };
+  assert.equal(detectPlanLimit({ transcript: jl(userRec('go'), toolResult, said(CLEAN_PROSE)) }), null);
+  assert.equal(detectPlanLimit({ transcript: `${jl(userRec('go'), said(CLEAN_PROSE))}\n{"type":"user","usageLimitNote":"wrap_up` }), null);
+});
+
+t('brief "Channel order" (A1): the note channel is sixth — it loses to each of channels 1 to 5, and decides when they carry nothing', () => {
+  const input = {
+    envelope: { api_error: 'usage_limit_reached', result: "You've hit your limit (result) · resets 1pm" },
+    stdout: "You've hit your limit (stdout) · resets 2pm",
+    stderr: "You've hit your limit (stderr) · resets 3pm",
+    transcript: jl(noteUser(), said("You've hit your limit (transcript) · resets 4pm")),
+  };
+  assert.equal(detectPlanLimit(input).source, 'envelope_api_error');
+  delete input.envelope.api_error;
+  assert.equal(detectPlanLimit(input).source, 'envelope_result');
+  delete input.envelope.result;
+  assert.equal(detectPlanLimit(input).source, 'stdout');
+  delete input.stdout;
+  assert.equal(detectPlanLimit(input).source, 'stderr');
+  delete input.stderr;
+  const fifth = detectPlanLimit(input);
+  assert.equal(fifth.source, 'transcript', 'the last assistant record is a refusal: channel 5 wins over the note before it');
+  assert.equal(fifth.matched, "You've hit your limit (transcript) · resets 4pm");
+  input.transcript = jl(noteUser(), said(CLEAN_PROSE));
+  const sixth = detectPlanLimit(input);
+  assert.equal(sixth.source, 'transcript_note');
+  assert.equal(sixth.matched, NOTE_TEXT);
+  input.transcript = jl(said(CLEAN_PROSE));
+  assert.equal(detectPlanLimit(input), null);
+});
+
+t('channel transcript_note: a note record AFTER the refusal record (which is then no longer the last assistant record) is still the note that decides', () => {
+  const found = detectPlanLimit({ transcript: jl(said(REFUSAL), noteUser(), said(CLEAN_PROSE)) });
+  assert.equal(found.source, 'transcript_note');
+});
+
+t('channel transcript_note: the rate-limit info of the envelope rides on a note hit', () => {
+  const found = detectPlanLimit({
+    envelope: { api_error_params: { rate_limit_info: { rateLimitType: 'five_hour', resetsAt: 1790000000 } } },
+    transcript: jl(noteUser(), said(CLEAN_PROSE)),
+  });
+  assert.equal(found.source, 'transcript_note');
+  assert.equal(found.rateLimitType, 'five_hour');
+  assert.equal(found.resetsAt, 1790000000);
+});
+
+t('channel transcript_note: assertNoPlanLimit throws for it, with the note in the message', () => {
+  assert.throws(
+    () => assertNoPlanLimit(ALL_CHANNELS.transcript_note()),
+    (err) => err instanceof PlanLimitError && err.hit.source === 'transcript_note' && err.message.startsWith('plan limit: ') && err.message.includes(NOTE_TEXT.slice(0, 40)),
+  );
 });
 
 // ---- assertNoPlanLimit / PlanLimitError -------------------------------------------------------------------------------------------------
