@@ -26,6 +26,7 @@ import { makeRepo } from './fixtures/make-repo.mjs';
 import { ta } from './fixtures/testkit-async.mjs';
 import { writeHookCopy } from './hook-copy.mjs';
 import { PROXY_IMAGE } from './proxy.mjs';
+import { VERIFIED_CLI_VERSIONS } from '../plan-limit.mjs';
 import { planRunsS5, runBatch } from './run.mjs';
 import { IMAGE_FOR_REPO } from './task-def.mjs';
 
@@ -115,10 +116,11 @@ const IMAGE_ID_OF_REF = { [IMAGE_FOR_REPO.codescout]: IMAGES.codescout, [IMAGE_F
 const CLI_HEX = 'c1'.repeat(32);
 const CLI_SHA = `sha256:${CLI_HEX}`;
 
-function makePrereg(world, { runs, limits = {}, stopAtCostUsd = 100, registered = true, images = IMAGES, cli = CLI_SHA, orderSeed = 7 }) {
+function makePrereg(world, { runs, limits = {}, stopAtCostUsd = 100, registered = true, images = IMAGES, cli = CLI_SHA, cliVersion = '2.1.292', orderSeed = 7 }) {
   const object = {
     model: 'claude-sonnet-5-5',
-    cli: { version: '2.1.292', sha256: cli },
+    // R-PL7: `cliVersion` is the registered cli.version; NO_MARKER leaves the key out (a registration without one).
+    cli: cliVersion === NO_MARKER ? { sha256: cli } : { version: cliVersion, sha256: cli },
     arms: {
       A: { effort: 'xhigh', steer: false, runs: runs.A },
       B: { effort: 'xhigh', steer: true, runs: runs.B },
@@ -215,11 +217,11 @@ function fakeDocker(config = {}, lockFile = null) {
 function bench(o = {}) {
   const {
     specs = [{ id: 'ta' }], runs = { A: 1, B: 1, C: 1 }, limits, stopAtCostUsd, registered = true, mode = 'pilot', dockerConfig = {}, options = {}, ctx = {},
-    script, images = IMAGES, cli = CLI_SHA, orderSeed = 7, makeAttemptDir = true,
+    script, images = IMAGES, cli = CLI_SHA, cliVersion, orderSeed = 7, makeAttemptDir = true,
   } = o;
   const dir = fresh('bench');
   const world = makeWorld(dir, specs);
-  const prereg = makePrereg(world, { runs, limits, stopAtCostUsd, registered, images, cli, orderSeed });
+  const prereg = makePrereg(world, { runs, limits, stopAtCostUsd, registered, images, cli, cliVersion, orderSeed });
   const lockFile = path.join(world.workRoot, 'batch.lock');
   const docker = fakeDocker(dockerConfig, lockFile);
   const rowsFile = path.join(dir, 'rows.jsonl');
@@ -804,6 +806,67 @@ await ta('preflight 3b: the image ids of the planned tasks\' repos (and of the p
   const expected = path.join(os.homedir(), '.local', 'share', 'claude', 'versions', '2.1.292');
   assert.deepEqual(dflt.shaAsked, [expected], 'R75: <HOME>/.local/share/claude/versions/<prereg.cli.version>');
   assert.equal(dflt.calls[0].ctx.claudeBin, expected, 'and that is what runOne mounts');
+});
+
+await ta('preflight 3c (R-PL7): a registration whose cli.version the plan-limit detector was not verified against is refused, naming VERIFIED_CLI_VERSIONS, plan-limit.mjs and how to re-verify', async () => {
+  // Every verified version (taken from the module, so adding one is one edit) runs the whole batch.
+  for (const version of VERIFIED_CLI_VERSIONS) {
+    const ok = bench({ cliVersion: version });
+    const summary = await ok.run();
+    assert.equal(summary.ran, 3, `${version}: a verified version runs`);
+    assert.equal(ok.calls.length, 3, `${version}: and every planned run starts`);
+  }
+  // An unverified one: refused as preflight item 3 BEFORE anything is written or started (refuses() checks the no-side-effect rules).
+  for (const mode of ['pilot', 'measure']) {
+    const err = await refuses(bench({ cliVersion: '9.9.9', mode }), /preflight item 3: .*VERIFIED_CLI_VERSIONS.*plan-limit\.mjs/s, `9.9.9 in ${mode} mode`);
+    // the message names the offending version, the verified ones, and how to re-verify and where to add
+    assert.ok(err.message.includes('"9.9.9"'), 'the registered version is shown');
+    for (const version of VERIFIED_CLI_VERSIONS) assert.ok(err.message.includes(version), `the verified version ${version} is listed`);
+    assert.match(err.message, /cli\.version/, 'it says which registration field');
+    assert.ok(err.message.includes('effort-steering/spikes/plan-limit.mjs'), 'it names the file that holds the list, by path');
+    assert.match(err.message, /RE-VERIFY A CLI VERSION/, 'it points at the re-verification recipe in the detector header');
+    assert.match(err.message, /never run the binary/i, 'and says how to do it safely');
+    assert.match(err.message, /add the version to VERIFIED_CLI_VERSIONS/, 'and where to add the version');
+  }
+});
+
+await ta('preflight 3c (R-PL7): the version is compared as an exact STRING with the verified list: near misses, other types and a missing version are refused', async () => {
+  const [verified] = VERIFIED_CLI_VERSIONS;
+  const near = [
+    verified.slice(0, -1), // a prefix
+    `${verified}0`, // a longer version that starts with it
+    `${verified}.1`,
+    ` ${verified}`,
+    `${verified} `,
+    `${verified}\n`,
+    `v${verified}`,
+    verified.toUpperCase().replace('.', ','),
+    [verified], // String([x]) === x: a coercing comparison would let this through
+    { toString: () => verified },
+    Number(verified.split('.').slice(0, 2).join('.')), // 2.1 as a number
+    '',
+    null,
+  ];
+  for (const version of near) {
+    await refuses(bench({ cliVersion: version }), /preflight item 3: .*VERIFIED_CLI_VERSIONS/s, `cli.version ${JSON.stringify(version)} is not a verified version`);
+  }
+  await refuses(bench({ cliVersion: NO_MARKER }), /preflight item 3: .*VERIFIED_CLI_VERSIONS/s, 'a registration with no cli.version');
+});
+
+await ta('preflight 3c (R-PL7): the version gate comes right AFTER the cli.sha256 check and BEFORE items 4, 5 and 6', async () => {
+  // sha256 first: a wrong hash AND an unverified version reports the hash.
+  const both = await refuses(bench({ cliVersion: '9.9.9', cli: `sha256:${'d2'.repeat(32)}` }), /preflight item 3: .*cli.*sha256/i, 'both wrong: the hash is reported');
+  assert.ok(!both.message.includes('VERIFIED_CLI_VERSIONS'), 'the version gate did not run first');
+  // the unverified version hides nothing behind items 4 (cargo-home), 5 (proxy) and 6 (token): it is reported before them
+  const late = bench({ cliVersion: '9.9.9', specs: [{ id: 'ta' }, { id: 'tc', testRunner: 'cargo' }] });
+  late.proxyUp = false;
+  await withEnv({ CLAUDE_CODE_OAUTH_TOKEN: undefined }, async () => {
+    const err = await refuses(late, /preflight item 3: .*VERIFIED_CLI_VERSIONS/s, 'items 4, 5 and 6 would all fail too');
+    assert.ok(!/cargo-home|proxy container|CLAUDE_CODE_OAUTH_TOKEN/.test(err.message), 'only the version gate is reported');
+  });
+  // and with the version fixed, the same bench does reach item 4, so the pattern above really came from the gate
+  const fixed = bench({ cliVersion: VERIFIED_CLI_VERSIONS[0], specs: [{ id: 'ta' }, { id: 'tc', testRunner: 'cargo' }] });
+  await refuses(fixed, /preflight item 4: .*cargo-home/, 'a verified version reaches item 4');
 });
 
 await ta('preflight 4 (R106b): <workRoot>/cargo-home exists when any planned task is a cargo task, and is not needed for a node task', async () => {

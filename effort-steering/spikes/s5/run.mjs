@@ -48,7 +48,7 @@ import {
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { detectPlanLimit } from '../plan-limit.mjs';
+import { VERIFIED_CLI_VERSIONS, detectPlanLimit } from '../plan-limit.mjs';
 import { makeRng, shuffle } from '../s4-prng.mjs';
 import { decisionFromLog } from '../s4-rows.mjs';
 import { hashBuiltTask, hashHidden, reflinkCopy } from './build-task.mjs';
@@ -812,7 +812,9 @@ export async function runOne(run, ctx) {
 //   2  each planned task (R91, R35, R101): gate.json exists, has ok === true and the manifest's treeHash and hiddenHash; tree/ (all but the
 //      top-level .git), hidden/ and prompt.txt hash, through hashBuiltTask, to the manifest's treeHash, hiddenHash and promptHash.
 //   3  checkTasksMatch is empty for the planned tasks; the id of each planned repo's image (IMAGE_FOR_REPO) and, on the default proxy network,
-//      of the proxy image equal prereg.images; 'sha256:' + the Claude binary's hex equals prereg.cli.sha256 (R49, R75), hashed once.
+//      of the proxy image equal prereg.images; 'sha256:' + the Claude binary's hex equals prereg.cli.sha256 (R49, R75), hashed once; and, right
+//      after that check (R-PL7), prereg.cli.version is one of VERIFIED_CLI_VERSIONS (plan-limit.mjs): the detector's refusal texts were read from those
+//      CLI versions only, so a registration for another version is refused (the message says how to re-verify and where to add it).
 //   4  <workRoot>/cargo-home is a directory when a planned task is a cargo task (R106b).   5  the proxy is running, when ctx.proxyUrl is not
 //      null and ctx.network is the default.   6  the token variable (ctx.tokenEnv) is set and not empty.
 //   The rows file is parsed once here as well: a damaged one, or one that holds a row of another mode (R133), refuses before the lock, the
@@ -1062,6 +1064,15 @@ async function batchPreflight(prereg, o, plan) {
     throw preflightFailure(3, `cannot hash the Claude binary ${claudeBin}: ${err.message}`);
   }
   if (hash !== prereg.cli?.sha256) throw preflightFailure(3, `the Claude binary ${claudeBin} hashes to ${hash}, the registration pins cli.sha256 ${show(prereg.cli?.sha256)}`);
+  // R-PL7: the plan-limit detector's refusal texts were read from these CLI versions only. A batch on any other version could meet a
+  // refusal the detector does not know and grade it as a model failure, so the registration is refused. Compared as an exact string
+  // (Array.includes is strict: no coercion, no prefix, no trimming).
+  if (!VERIFIED_CLI_VERSIONS.includes(prereg.cli?.version)) {
+    throw preflightFailure(
+      3,
+      `the registration pins cli.version ${show(prereg.cli?.version)}, which the plan-limit detector was not verified against (VERIFIED_CLI_VERSIONS in effort-steering/spikes/plan-limit.mjs lists ${VERIFIED_CLI_VERSIONS.join(', ')}): re-verify that CLI's refusal texts by the read-only steps of RE-VERIFY A CLI VERSION in the header of plan-limit.mjs (grep the binary; never run the binary to do it), then add the version to VERIFIED_CLI_VERSIONS and to the exact-list test in plan-limit.test.mjs`,
+    );
+  }
 
   const cargoTasks = [...manifests.values()].filter((manifest) => manifest.def.testRunner === 'cargo').map((manifest) => manifest.id);
   if (cargoTasks.length > 0 && statOrNull(path.join(workRoot, 'cargo-home'))?.isDirectory() !== true) {
