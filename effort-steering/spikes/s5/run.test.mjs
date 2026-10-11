@@ -1295,6 +1295,16 @@ const noTranscript = (reason) => (r) => {
 const holdout = { arm: 'holdout', steered: false };
 const treated = { arm: 'treated', steered: true };
 
+// R-PL3 to R-PL5 (the plan limit). SYNTHETIC: no real plan-limit envelope or transcript has been observed, so every refusal below is built from the
+// CLI binary's message list (REFUSAL: the `You've hit your ${limitName}${suffix}` family) and the envelope from the verified field names of a real
+// authentication failure (`is_error`, `result`; AUTH_401 is the text of that real transcript record).
+const REFUSAL = 'You\'ve hit your limit · resets 3pm';
+const AUTH_401 = 'Failed to authenticate. API Error: 401 Invalid bearer token';
+// The `result` scenario key of the fake claude: an error envelope that carries `text`.
+const errorEnvelope = (text = REFUSAL, over = {}) => ({ is_error: true, result: text, ...over });
+// The five keys the Row's `planLimit` holds (R-PL5).
+const PLAN_LIMIT_KEYS = ['matched', 'rateLimitType', 'resetHint', 'resetsAt', 'source'];
+
 // [label, run options (arm among them), expected infra, extra checks]. Every default is a good run, so the one thing a case changes is
 // the one thing it is about; the cases whose label says "before" hold two failures at once and pin which one wins.
 const CASES = [
@@ -1413,6 +1423,37 @@ const CASES = [
     assert.equal(r.row.usage.apiError, false);
   }],
   ['a subagent\'s effort is recorded, not guarded', { scenario: { subagents: [{ effort: 'low' }] } }, null, (r) => assert.deepEqual(r.row.usage.subagentEfforts, ['low'])],
+  // R-PL3: (2c) plan_limit. A refusal of a spent plan is infrastructure, found AFTER the container steps (1), (2) and (2b) and BEFORE every step that
+  // reads the transcript, so it is never reported as api_error, no_transcript, transcript_unreadable or any later mismatch. Every case has a refusal.
+  ['(2c) plan_limit: the refusal is the envelope result of an is_error run that also left an API-error record: plan_limit, never api_error', { scenario: { apiError: true, apiErrorText: REFUSAL, result: errorEnvelope() } }, 'plan_limit', (r) => {
+    assert.equal(r.row.planLimit.source, 'envelope_result');
+    assert.equal(r.row.isError, true);
+    assert.equal(r.row.usage.apiError, true, 'step (4) would have called it api_error: the evidence is in the row');
+  }],
+  ['(2c) plan_limit: the refusal is only the last assistant record of an otherwise normal transcript, with is_error false (the OP-11 shape)', { scenario: { finalText: REFUSAL, result: { result: 'Done.' } } }, 'plan_limit', (r) => {
+    assert.equal(r.row.planLimit.source, 'transcript');
+    assert.equal(r.row.isError, false);
+    assert.equal(r.row.usage.apiError, false, 'usage.mjs does not see a refusal that is an ordinary assistant record');
+    assert.equal(r.row.finalTextTail, REFUSAL);
+  }],
+  ['(2c) before (3): plan_limit with no transcript at all, not no_transcript', { scenario: { transcript: false, result: errorEnvelope() } }, 'plan_limit', (r) => {
+    assert.equal(r.row.planLimit.source, 'envelope_result');
+    assert.equal(r.row.usage.reason, 'no_transcript', 'the evidence is in the row');
+  }],
+  ['(2c) before (3): plan_limit with an unreadable transcript, not transcript_unreadable', { scenario: { transcript: 'directory', result: errorEnvelope() } }, 'plan_limit', (r) => assert.equal(r.row.usage, null)],
+  ['(2c) before (3): plan_limit with two transcripts, not ambiguous_transcript', { scenario: { transcript: 'twice', result: errorEnvelope() } }, 'plan_limit'],
+  ['(2c) before (5): plan_limit before no_log', { scenario: { decision: null, result: errorEnvelope() } }, 'plan_limit'],
+  ['(2c) before (5): plan_limit before arm_mismatch', { scenario: { decision: holdout, result: errorEnvelope() } }, 'plan_limit'],
+  ['(2c) before (6): plan_limit before effort_mismatch', { scenario: { effort: 'medium', result: errorEnvelope() } }, 'plan_limit'],
+  ['(2c) before (6b): plan_limit before steer_mismatch', { scenario: { steer: null, result: errorEnvelope() } }, 'plan_limit'],
+  ['(1) before (2c): create_failed with a refusal is create_failed', { noContainer: true, scenario: { result: errorEnvelope() } }, 'create_failed'],
+  ['(1) before (2c): rm_failed with a refusal is rm_failed', { docker: { rm: { status: 1 } }, scenario: { result: errorEnvelope() } }, 'rm_failed'],
+  ['(2) before (2c): oom with a refusal is oom', { container: { oomKilled: true }, scenario: { result: errorEnvelope() } }, 'oom'],
+  ['(2b) before (2c): interrupted (exit 130) with a refusal is interrupted', { scenario: { exit: 130, result: errorEnvelope() } }, 'interrupted'],
+  ['(2b) before (2c): interrupted (exit 137 without a timeout) with a refusal in the last record is interrupted', { scenario: { exit: 137, finalText: REFUSAL } }, 'interrupted'],
+  ['(2c) plan_limit: the CLI\'s exit status 1 does not matter (a plan limit is not the agent\'s failure)', { scenario: { exit: 1, result: errorEnvelope() } }, 'plan_limit', (r) => assert.equal(r.row.exit.code, 1)],
+  ['(2c) the real 401 stays api_error: an authentication failure is not a plan limit, in the record and in the envelope', { scenario: { apiError: true, apiErrorText: AUTH_401, result: errorEnvelope(AUTH_401) } }, 'api_error'],
+  ['(2c) a refusal that is not at the start of the text is prose, not a plan limit: the run is graded', { scenario: { finalText: `I fixed the limiter. ${REFUSAL}`, result: { result: `I fixed the limiter. ${REFUSAL}` } } }, null],
 ];
 
 await taIf('R87: runOne classifies in a fixed order, first match wins; every infrastructure value is a non-final row without a grade, and a good run after all of them is final and graded', NO_REFLINK_HERE, async () => {
@@ -1428,7 +1469,79 @@ await taIf('R87: runOne classifies in a fixed order, first match wins; every inf
     assertCleaned(r, label);
     // R110: only a row a caught error made infrastructure carries infraDetail (here: the unreadable transcript).
     assert.equal('infraDetail' in r.row, infra === 'transcript_unreadable', `${label}: infraDetail`);
+    // R-PL5: the verdict of the detector is on a plan_limit row and on no other.
+    assert.equal('planLimit' in r.row, infra === 'plan_limit', `${label}: planLimit`);
+    if (infra === 'plan_limit') assert.deepEqual(Object.keys(r.row.planLimit).sort(), PLAN_LIMIT_KEYS, `${label}: the five keys of the verdict`);
     check?.(r);
+  });
+});
+
+// ---- R-PL3, R-PL5: the plan limit's Row and its redaction ----
+
+await taIf('R-PL3, R-PL5: a plan_limit row is infrastructure (non-final, no grade, nothing graded) and carries the detector\'s verdict in `planLimit`; the envelope\'s own numbers are still recorded', NO_REFLINK_HERE, async () => {
+  const r = await go(node, mkRun(node), { scenario: { exit: 1, result: errorEnvelope(REFUSAL, { total_cost_usd: 0.07, num_turns: 2 }) } });
+  assertInfra(r, 'plan_limit');
+  assert.deepEqual(r.row.planLimit, { source: 'envelope_result', matched: REFUSAL, resetHint: 'resets 3pm', rateLimitType: null, resetsAt: null });
+  assert.deepEqual(Object.keys(r.row).filter((k) => ROW_KEYS.includes(k)).sort(), [...ROW_KEYS].sort(), 'every key of a Row is still there');
+  assert.deepEqual([r.row.costUsd, r.row.numTurns, r.row.isError], [0.07, 2, true], 'R88: the envelope\'s numbers are recorded as for any row');
+  assert.ok(!('infraDetail' in r.row), 'no caught error made it: no infraDetail');
+  assertCleaned(r, 'plan_limit');
+});
+
+await taIf('R-PL5: the verdict names the channel that carried the refusal and the typed fields it came with: the envelope result, a typed api_error with its rate_limit_info, plain stdout, the last transcript record; `matched` is cut to 200 characters', NO_REFLINK_HERE, async () => {
+  const long = `${REFUSAL} ${'x'.repeat(300)}`;
+  const hintAt = long.indexOf('resets');
+  const nulls = { rateLimitType: null, resetsAt: null };
+  const cases = [
+    ['the envelope result', { result: errorEnvelope() }, { source: 'envelope_result', matched: REFUSAL, resetHint: 'resets 3pm', ...nulls }],
+    ['a typed api_error with rate_limit_info on the envelope', {
+      result: errorEnvelope(REFUSAL, { api_error: 'usage_limit_reached', api_error_params: { rate_limit_info: { rateLimitType: 'five_hour', resetsAt: 1790000000 } } }),
+    }, { source: 'envelope_api_error', matched: REFUSAL, resetHint: 'resets 3pm', rateLimitType: 'five_hour', resetsAt: 1790000000 }],
+    ['a typed api_error and no text: the kind is what matched', {
+      stdoutRaw: `${JSON.stringify({ type: 'result', subtype: 'success', is_error: true, api_error: 'usage_limit_reached' })}\n`,
+    }, { source: 'envelope_api_error', matched: 'usage_limit_reached', resetHint: null, ...nulls }],
+    ['plain stdout that is no JSON', { stdoutRaw: REFUSAL }, { source: 'stdout', matched: REFUSAL, resetHint: 'resets 3pm', ...nulls }],
+    ['the last transcript record, an ordinary run otherwise', { finalText: REFUSAL, result: { result: 'Done.' } }, { source: 'transcript', matched: REFUSAL, resetHint: 'resets 3pm', ...nulls }],
+    ['a long refusal: matched is the first 200 characters, the hint at most 80 after the word', { result: errorEnvelope(long) }, {
+      source: 'envelope_result', matched: long.slice(0, 200), resetHint: long.slice(hintAt, hintAt + 'resets'.length + 80), ...nulls,
+    }],
+  ];
+  await inChunks(cases, 6, async ([label, scenario, want]) => {
+    const r = await go(node, mkRun(node), { scenario });
+    assertInfra(r, 'plan_limit', label);
+    assert.deepEqual(r.row.planLimit, want, label);
+  });
+});
+
+await taIf('R-PL5: the token is redacted from the refusal BEFORE it is cut and stored, in every channel (envelope result, plain stdout, the last transcript record): `matched` and `resetHint` hold [REDACTED], and no fragment of the token is left where the 200-character cut would have split it', NO_REFLINK_HERE, async () => {
+  // {{TOKEN}} is replaced by the fake claude with the sentinel the whole process uses, so the scenario never holds it. (go() asserts the row never holds the whole
+  // token; so would runOne's own row guard, by throwing.)
+  const channels = [
+    ['the envelope result', (text) => ({ result: errorEnvelope(text) })],
+    ['plain stdout', (text) => ({ stdoutRaw: text })],
+    ['the last transcript record', (text) => ({ finalText: text, result: { result: 'Done.' } })],
+  ];
+  const lead = `${REFUSAL} ${'p'.repeat(200)}`.slice(0, 195);
+  await inChunks(channels.flatMap(([label, scenarioOf]) => [
+    [label, 'in the reset hint', scenarioOf(`${REFUSAL} {{TOKEN}}`)],
+    [label, 'across the 200-character cut', scenarioOf(`${lead}{{TOKEN}} and more`)],
+  ]), 6, async ([label, where, scenario]) => {
+    const r = await go(node, mkRun(node), { scenario });
+    const what = `${label}, token ${where}`;
+    assert.equal(r.row.infra, 'plan_limit', what);
+    assert.equal(r.row.final, false, what);
+    assert.equal(r.seam.calls.length, 0, `${what}: nothing graded`);
+    const { matched, resetHint } = r.row.planLimit;
+    assert.ok(matched.includes('[RED'), `${what}: the token was replaced before the cut: ${matched}`);
+    assert.ok(!matched.includes(SENTINEL.slice(0, 4)) && !(resetHint ?? '').includes(SENTINEL.slice(0, 4)), `${what}: not even the first characters of the token are left`);
+    if (where === 'in the reset hint') {
+      assert.equal(matched, `${REFUSAL} [REDACTED]`, what);
+      assert.equal(resetHint, 'resets 3pm [REDACTED]', what);
+    } else {
+      assert.equal(matched.length, 200, what);
+      assert.ok(matched.startsWith(lead), what);
+    }
+    assert.ok(!JSON.stringify(r.row).includes(SENTINEL.slice(0, 12)), `${what}: nothing of the token is in the row`);
   });
 });
 
@@ -1482,6 +1595,9 @@ await taIf('R90: a run that hits the wall clock is a FINAL model failure with no
     ['timeout and an arm mismatch', { scenario: { decision: holdout } }, 'arm_mismatch'],
     ['timeout and an effort mismatch', { scenario: { effort: 'medium' } }, 'effort_mismatch'],
     ['timeout and a steer mismatch (R147: before the timeout)', { scenario: { steer: null } }, 'steer_mismatch'],
+    // R-PL3: a container that timed out is still checked for a refusal, in the envelope and (a killed container prints no JSON) in the transcript.
+    ['timeout and a plan limit in the envelope (R-PL3)', { scenario: { result: errorEnvelope() } }, 'plan_limit'],
+    ['timeout and a plan limit only in the last transcript record, with no stdout at all (R-PL3)', { scenario: { stdoutRaw: '', finalText: REFUSAL } }, 'plan_limit'],
   ];
   await inChunks(cases, 8, async ([label, extra, infra]) => {
     // The fake container sleeps for 20 s after the fake claude is done; SHORT gives it 3 s, and docker kills it.

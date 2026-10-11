@@ -24,6 +24,7 @@
 //   bash         ["cargo test", ..] one Bash tool_use per command, before the final text
 //   finalText    the final assistant text (default "Done.")
 //   apiError     true: an API-error record in the main transcript
+//   apiErrorText the text of that record (default "API Error: 529 overloaded"); R-PL3's tests make it a plan-limit refusal or the real 401 text
 //   subagents    [{ "name": "agent-x", "apiError": false, "effort": ".." }]   subagent transcripts
 //   steer        "auto" (default: arm B, EFFORT_STEERING_HOLDOUT_RATE '0', gets ONE UserPromptSubmit hook context holding the shipped shallow phrase
 //                of core/steer.table.json, as the real hook writes it; A and C get none) | null (none) | a list, one hook context each: a string
@@ -33,6 +34,8 @@
 //   decisionLink      true: the log is a symlink to a file that holds the line
 //   result       an object merged over the default result { type, subtype, is_error, num_turns, total_cost_usd, session_id, result }
 //   stdoutRaw    a string printed instead of the result object
+//   {{TOKEN}}    anywhere in the scenario's text (a value or a key) is replaced by the value of CLAUDE_CODE_OAUTH_TOKEN before the scenario is read, so
+//                a test can make the "agent" print the token (in a refusal, in the result) without writing it into the scenario it passes
 //   exit         the exit status (default 0)
 //   leak         true: a tool-result record in the main transcript that prints the token, as `env` would (the file holds the token)
 //   configFiles / stateFiles   { "<path under $CLAUDE_CONFIG_DIR / $XDG_STATE_HOME>": "<text>" | { text, mtime?, mode? } } more files; the
@@ -60,7 +63,8 @@ if (!sessionId || !effortArg || prompt === undefined || !configDir || !stateHome
   process.stderr.write('fake-claude: needs --session-id, --effort, `-- <prompt>`, CLAUDE_CONFIG_DIR and XDG_STATE_HOME\n');
   process.exit(64);
 }
-const scenario = JSON.parse(process.env.FAKE_CLAUDE ?? '{}');
+const TOKEN = process.env.CLAUDE_CODE_OAUTH_TOKEN ?? '';
+const scenario = JSON.parse((process.env.FAKE_CLAUDE ?? '{}').replaceAll('{{TOKEN}}', TOKEN));
 const has = (key) => Object.hasOwn(scenario, key);
 const isPlainObject = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
 const write = (file, text) => {
@@ -88,12 +92,11 @@ function assistant(content, { prefix = 'msg', sidechain = false } = {}) {
     sessionId,
   };
 }
-const apiErrorRecord = () => ({
-  type: 'assistant', isApiErrorMessage: true, message: { id: 'msg_api_error', role: 'assistant', model: '<synthetic>', content: [{ type: 'text', text: 'API Error: 529 overloaded' }], usage: { input_tokens: 0, output_tokens: 0 } }, sessionId,
+const apiErrorRecord = (text = 'API Error: 529 overloaded') => ({
+  type: 'assistant', isApiErrorMessage: true, message: { id: 'msg_api_error', role: 'assistant', model: '<synthetic>', content: [{ type: 'text', text }], usage: { input_tokens: 0, output_tokens: 0 } }, sessionId,
 });
 
 const records = [{ type: 'user', message: { role: 'user', content: has('firstUser') ? scenario.firstUser : prompt }, sessionId }];
-const TOKEN = process.env.CLAUDE_CODE_OAUTH_TOKEN ?? '';
 // The hook's context as Claude Code 2.1.292 records it (measured on real S4 transcripts): an attachment record of type hook_additional_context,
 // hookEvent UserPromptSubmit, content a list holding the steer. The auto value is the shipped shallow phrase, read from the table.
 const shipped = JSON.parse(readFileSync(new URL('../../../core/steer.table.json', import.meta.url), 'utf8')).phrases.shallow;
@@ -116,7 +119,7 @@ if (scenario.leak === true) {
 });
 const finalText = scenario.finalText ?? 'Done.';
 records.push(assistant([{ type: 'text', text: finalText }]));
-if (scenario.apiError === true) records.push(apiErrorRecord());
+if (scenario.apiError === true) records.push(apiErrorRecord(scenario.apiErrorText));
 
 const mode = has('transcript') ? scenario.transcript : true;
 const slugDir = (slug) => join(configDir, 'projects', slug);

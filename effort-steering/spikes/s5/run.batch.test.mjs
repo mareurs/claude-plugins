@@ -1539,6 +1539,49 @@ await (NO_REFLINK_HERE ? Promise.resolve(console.log(`ok - integration (unit mod
   assert.ok(!JSON.stringify(calls).includes(SENTINEL), 'the token is in no docker argv');
 }));
 
+// R-PL3, R-PL5: the same wiring end to end. The fake claude prints an error envelope whose refusal holds the token (SYNTHETIC: no real plan-limit envelope has
+// been observed); the REAL runOne classifies it and the REAL runBatch stops on it.
+await (NO_REFLINK_HERE ? Promise.resolve(console.log(`ok - integration (unit mode): a plan limit through the real runOne # SKIP ${NO_REFLINK_HERE}`)) : ta('integration (unit mode): a refusal that holds the token, through the REAL runOne, the fake docker and the fake claude: ONE agent container runs, the row is plan_limit and non-final, and the row, the stopped line, the Summary and the rows file hold no part of the token', async () => {
+  const scene = buildNodeScene(`t10c-${process.pid}-planlimit`);
+  const prereg = smokePrereg(scene);
+  const plan = planRunsS5(prereg, { mode: 'smoke' });
+  const names = plan.map((r) => `s5-${r.runId}-a1`);
+  const refusal = { is_error: true, result: 'You\'ve hit your limit · resets 3pm {{TOKEN}}' };
+  const docker = fakeDocker({
+    containers: names.map((name) => ({ id: createHash('sha256').update(name).digest('hex'), name, labels: { s5: '1', 's5.run': name }, oomKilled: false })),
+    run: { exec: { env: { FAKE_CLAUDE: JSON.stringify({ result: refusal }) } } },
+  });
+  const rowsFile = path.join(scene.workRoot, '..', `rows-${process.pid}-planlimit.jsonl`);
+  sceneDirs.push(rowsFile);
+  const summary = await runBatch(prereg, {
+    mode: 'smoke',
+    workRoot: scene.workRoot,
+    rowsFile,
+    concurrency: 1,
+    ctx: {
+      dockerBin: docker.bin,
+      claudeBin: FAKE_CLAUDE,
+      esRoot: ES_ROOT,
+      imageIdOf: async (ref) => IMAGE_ID_OF_REF[ref],
+      sha256File: async () => CLI_HEX,
+      proxyRunning: async () => true,
+      grade: async () => { throw new Error('a plan_limit run must not be graded'); },
+    },
+  });
+  assert.equal(docker.calls().filter((c) => c.argv[0] === 'run').length, 1, 'one agent container: the batch stopped, nothing was retried or started');
+  const lines = readLines(rowsFile);
+  assert.deepEqual(lines.map((l) => l.type ?? `${l.infra}/${l.final}`), ['plan_limit/false', 'stopped']);
+  const [row, stopped] = lines;
+  const redacted = { source: 'envelope_result', matched: 'You\'ve hit your limit · resets 3pm [REDACTED]', resetHint: 'resets 3pm [REDACTED]', rateLimitType: null, resetsAt: null };
+  assert.deepEqual(row.planLimit, redacted);
+  assert.deepEqual({ ...stopped, at: null }, { type: 'stopped', at: null, reason: 'plan_limit', planLimit: redacted, costUsd: 0.4321, limit: 100, mode: 'smoke' }, 'costUsd: the envelope\'s own total_cost_usd of the fake claude, summed as for any row');
+  assert.deepEqual(summary.stopped, { reason: 'plan_limit', planLimit: redacted, costUsd: 0.4321, limit: 100 });
+  assert.deepEqual([summary.attempts, summary.infraAttempts, summary.ran, summary.exhausted], [1, 1, 0, 0]);
+  for (const [what, text] of [['the rows file', readFileSync(rowsFile, 'utf8')], ['the Summary', JSON.stringify(summary)], ['the row', JSON.stringify(row)], ['the stopped line', JSON.stringify(stopped)]]) {
+    assert.ok(!text.includes(SENTINEL.slice(0, 12)), `${what} holds no part of the token`);
+  }
+}));
+
 // =====================================================================================================================
 // R124 (the circuit breaker), what a stop leaves behind, and R125 (retryExhausted)
 // =====================================================================================================================
@@ -1764,6 +1807,138 @@ await ta('R125: retryExhausted must be a boolean; a run that was never exhausted
   const found = perTaskScores(b.rows());
   assert.deepEqual(found.excluded, []);
   assert.deepEqual(found.scores.get('ta'), { A: 1, B: 1, C: 1, nA: 1, nB: 1, nC: 1 }, 'one counted row per arm: the recovered run counts once');
+});
+
+// =====================================================================================================================
+// R-PL3, R-PL4, R-PL5, R-PL9: a plan limit stops the batch, uses no retry budget, adds to no streak, and costs what an interrupted run costs
+// =====================================================================================================================
+//
+// SYNTHETIC: no real plan-limit envelope or transcript has been observed. run.test.mjs pins what makes runOne return a plan_limit row; here the scripted
+// runOne returns one. The rows carry the verdict object (R-PL5) and no cost, as a refusal that printed no JSON does.
+
+const PLAN_LIMIT = Object.freeze({ source: 'envelope_result', matched: 'You\'ve hit your limit · resets 3pm', resetHint: 'resets 3pm', rateLimitType: null, resetsAt: null });
+const planLimitRow = (run, over = {}) => infraRow(run, 'plan_limit', { planLimit: { ...PLAN_LIMIT }, costUsd: null, numTurns: null, isError: true, ...over });
+
+await ta('R-PL3, R-PL5: a plan_limit row is appended non-final and never retried or exhausted (whatever infraRetries), nothing new starts, runs in flight finish, and ONE stopped line of the R-PL5 shape ends the batch; Summary.stopped carries the same', async () => {
+  for (const retries of [2, 0]) {
+    const b = bench({
+      runs: { A: 2, B: 2, C: 1 },
+      limits: { infraRetries: retries },
+      script: async ({ run, n }) => {
+        if (n === 0) return planLimitRow(run, { costUsd: 0.25 });
+        await sleep(60);
+        return okRow(run);
+      },
+    });
+    const summary = await b.run({ concurrency: 2 });
+    assert.equal(b.calls.length, 2, `infraRetries ${retries}: the refused run is not retried and no third run starts`);
+    const lines = b.lines();
+    assert.deepEqual(lines.map((l) => l.type ?? `${l.infra}/${l.final}`), ['plan_limit/false', 'null/true', 'stopped'], 'the row final false (never exhausted), the in-flight run\'s row, the stopped line');
+    assert.deepEqual(lines[0].planLimit, PLAN_LIMIT, 'the Row carries the verdict');
+    assert.deepEqual(Object.keys(lines[2]).sort(), ['at', 'costUsd', 'limit', 'mode', 'planLimit', 'reason', 'type']);
+    assert.deepEqual({ ...lines[2], at: null }, { type: 'stopped', at: null, reason: 'plan_limit', planLimit: PLAN_LIMIT, costUsd: 1.25, limit: 100, mode: 'pilot' });
+    assert.match(lines[2].at, /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/);
+    assert.deepEqual(summary.stopped, { reason: 'plan_limit', planLimit: PLAN_LIMIT, costUsd: 1.25, limit: 100 });
+    assert.deepEqual({ attempts: summary.attempts, infraAttempts: summary.infraAttempts, exhausted: summary.exhausted, ran: summary.ran }, { attempts: 2, infraAttempts: 1, exhausted: 0, ran: 1 }, 'the attempt is counted as an infrastructure attempt');
+  }
+  // One worker: the refused run's runOne is called ONCE, and nothing else is.
+  const one = bench({ runs: { A: 2, B: 2, C: 1 }, limits: { infraRetries: 2, concurrency: 1 }, script: ({ run }) => planLimitRow(run) });
+  const summary = await one.run();
+  assert.deepEqual(one.starts(), [one.plan()[0].runId]);
+  assert.deepEqual(one.lines().map((l) => l.type ?? `${l.infra}/${l.final}`), ['plan_limit/false', 'stopped']);
+  assert.equal(summary.stopped.reason, 'plan_limit');
+});
+
+await ta('R-PL4: a plan_limit attempt is no step of the infrastructure streak: with the streak one below the breaker it stops the batch as plan_limit, not as infra_streak', async () => {
+  // infraRetries 1: the breaker trips at 4. Three trailing real failures seed the streak at 3; one more real step would trip it.
+  const b = bench({ runs: { A: 1, B: 1, C: 1 }, limits: { infraRetries: 1, concurrency: 1 }, script: ({ run }) => planLimitRow(run) });
+  seedRows(b, [infraRow(ghost(1), 'api_error'), infraRow(ghost(2), 'api_error'), infraRow(ghost(3), 'api_error')]);
+  const summary = await b.run();
+  assert.equal(b.calls.length, 1);
+  assert.deepEqual([summary.stopped.reason, Object.hasOwn(summary.stopped, 'streak')], ['plan_limit', false]);
+  assert.deepEqual(stoppedIn(b.rowsFile).map((l) => l.reason), ['plan_limit']);
+});
+
+await ta('R-PL4: the streak seed skips plan_limit rows like noAttempt lines: six trailing ones do not trip the breaker on resume, and a real infrastructure row between them still counts and is not cut off by them', async () => {
+  const seeded = (rows) => {
+    const c = bench({ runs: { A: 3, B: 3, C: 3 }, limits: { infraRetries: 1, concurrency: 1 }, script: ({ run }) => infraRow(run, 'api_error') });
+    seedRows(c, rows);
+    return c;
+  };
+  // The breaker trips at 4. Six plan_limit rows seed 0, so four real failures are needed (counted, six would trip it at the first).
+  const six = seeded([1, 2, 3, 4, 5, 6].map((i) => planLimitRow(ghost(i))));
+  const r6 = await six.run();
+  assert.equal(six.calls.length, 4, 'four real failures');
+  assert.deepEqual([r6.stopped.reason, r6.stopped.streak], ['infra_streak', 4]);
+  // Two real failures among plan_limit rows seed 2: two more trip it. A seed that stopped counting at a plan_limit row would need four, one that counted them one.
+  const mixed = seeded([planLimitRow(ghost(1)), infraRow(ghost(2), 'api_error'), planLimitRow(ghost(3)), infraRow(ghost(4), 'api_error'), planLimitRow(ghost(5))]);
+  const rm = await mixed.run();
+  assert.equal(mixed.calls.length, 2, 'the two real failures count, the plan_limit rows around them neither count nor end the chain');
+  assert.deepEqual([rm.stopped.reason, rm.stopped.streak], ['infra_streak', 4]);
+  // A counted row still ends the chain, behind plan_limit rows too.
+  const ended = seeded([infraRow(ghost(1), 'api_error'), infraRow(ghost(2), 'api_error'), okRow(ghost(3)), planLimitRow(ghost(4))]);
+  const re = await ended.run();
+  assert.equal(ended.calls.length, 4);
+  assert.equal(re.stopped.streak, 4);
+});
+
+await ta('R-PL4: plan_limit rows are no attempts of their run: three of them do not use the allowance, a real attempt among them still counts, and three plan windows in a row (a batch each) leave the run intact', async () => {
+  // Three seeded plan_limit rows: the run is run again and ends final, not infra_exhausted (which would, by R149, drop its task from every arm).
+  const a = bench({ runs: { A: 1, B: 0, C: 0 }, limits: { infraRetries: 2, concurrency: 1 }, script: ({ run }) => okRow(run) });
+  const [x] = a.plan();
+  seedRows(a, [planLimitRow(x), planLimitRow(x), planLimitRow(x)]);
+  const sa = await a.run();
+  assert.equal(a.calls.length, 1, 'the run is run again');
+  assert.deepEqual(outcomeOf(a, x), [[false, 'plan_limit'], [false, 'plan_limit'], [false, 'plan_limit'], [true, null]]);
+  assert.deepEqual([sa.exhausted, sa.ran], [0, 1]);
+  // Two real attempts among plan_limit rows used two of three: one attempt is left, and it is the last one (had the plan_limit rows counted, none would be left and the run would not start).
+  const mixed = bench({ runs: { A: 1, B: 0, C: 0 }, limits: { infraRetries: 2, concurrency: 1 }, script: ({ run }) => infraRow(run, 'api_error') });
+  seedRows(mixed, [planLimitRow(x), infraRow(x, 'api_error'), planLimitRow(x), infraRow(x, 'api_error'), planLimitRow(x)]);
+  const sm = await mixed.run();
+  assert.equal(mixed.calls.length, 1, 'one attempt was left, and it is made');
+  const last = mixed.rows().at(-1);
+  assert.deepEqual([last.final, last.infra, last.lastInfra, sm.exhausted], [true, 'infra_exhausted', 'api_error', 1], 'that attempt is the run\'s last allowed one');
+  // Three plan windows, one batch each, then a good one.
+  const c = bench({ runs: { A: 1, B: 0, C: 0 }, limits: { infraRetries: 2, concurrency: 1 }, script: ({ run }) => planLimitRow(run) });
+  for (const window of [1, 2, 3]) assert.equal((await c.run()).stopped.reason, 'plan_limit', `window ${window}`);
+  c.script = ({ run }) => okRow(run);
+  const fourth = await c.run();
+  assert.deepEqual(c.calls.map((call) => [call.run.runId, call.attempt]), [1, 2, 3, 4].map((attempt) => [x.runId, attempt]), 'the same run, a fresh attempt each time');
+  assert.deepEqual(outcomeOf(c, x), [[false, 'plan_limit'], [false, 'plan_limit'], [false, 'plan_limit'], [true, null]]);
+  assert.deepEqual([fourth.exhausted, fourth.stopped, fourth.ran], [0, null, 1]);
+});
+
+await ta('R-PL4: the exhausted line written without a new attempt copies the last row that was an ATTEMPT: a plan_limit row after the attempts is never the `last` one', async () => {
+  const b = bench({ runs: { A: 1, B: 0, C: 0 }, limits: { infraRetries: 2, concurrency: 1 }, stopAtCostUsd: 1000 });
+  const [x] = b.plan();
+  const earlier = [1, 2, 3].map((i) => infraRow(x, 'oom', { costUsd: 2, sessionId: `S-${i}` }));
+  seedRows(b, [...earlier, planLimitRow(x)]);
+  await b.run();
+  assert.equal(b.calls.length, 0, 'the allowance is used up: no new attempt');
+  const rows = b.rows();
+  assert.equal(rows.length, 5);
+  assert.deepEqual(rows[4], { ...earlier[2], final: true, infra: 'infra_exhausted', lastInfra: 'oom', costUsd: null, noAttempt: true }, 'the last ATTEMPT\'s row, not the plan_limit row');
+  assert.ok(!Object.hasOwn(rows[4], 'planLimit'), 'and nothing of the verdict is copied into it');
+});
+
+await ta('R-PL3: analyze ignores plan_limit rows (non-final): a task whose run only hit a plan limit is not dropped as infra_exhausted, and a run that hit one and was run again counts once', async () => {
+  const b = bench({ runs: { A: 1, B: 1, C: 1 }, limits: { concurrency: 1 }, script: ({ run, n }) => (n === 0 ? planLimitRow(run) : okRow(run)) });
+  await b.run();
+  const early = perTaskScores(b.rows());
+  assert.deepEqual([...early.scores.keys()], [], 'no counted run yet');
+  assert.ok(early.excluded.length === 1 && /^no_counted_run_in_/.test(early.excluded[0].reason), `excluded for want of a counted run, not as a lost one: ${JSON.stringify(early.excluded)}`);
+  await b.run();
+  const found = perTaskScores(b.rows());
+  assert.deepEqual(found.excluded, []);
+  assert.deepEqual(found.scores.get('ta'), { A: 1, B: 1, C: 1, nA: 1, nB: 1, nC: 1 }, 'one counted row per arm: the run that hit the plan limit counts once, when it ran');
+});
+
+await ta('R-PL9: a plan_limit row that printed no cost counts as the largest known cost in the stop rule: the stopped line\'s sum, Summary.costUsd and Summary.costEstimatedRows say so', async () => {
+  const b = bench({ runs: { A: 1, B: 1, C: 0 }, limits: { concurrency: 1 }, script: ({ run }) => planLimitRow(run) });
+  seedRows(b, [oldRow('x', 4)]);
+  const summary = await b.run();
+  assert.deepEqual(summary.stopped, { reason: 'plan_limit', planLimit: PLAN_LIMIT, costUsd: 8, limit: 100 }, 'the 4 of the old row plus the estimate of 4 for the refused run');
+  assert.deepEqual([summary.costUsd, summary.costEstimatedRows], [8, 1]);
 });
 
 // =====================================================================================================================

@@ -48,6 +48,7 @@ import {
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { detectPlanLimit } from '../plan-limit.mjs';
 import { makeRng, shuffle } from '../s4-prng.mjs';
 import { decisionFromLog } from '../s4-rows.mjs';
 import { hashBuiltTask, hashHidden, reflinkCopy } from './build-task.mjs';
@@ -175,6 +176,15 @@ export function planRunsS5(prereg, options) {
 //            removal never hides an OOM kill
 //        (2b) interrupted                                   the container's exit status is 130, 137 or 143 and it did not time out (R132): cut off by a
 //                                                           signal that was not the harness's own timeout, a partial run, never graded
+//        (2c) plan_limit                                    (R-PL3) the CLI refused because the plan (a subscription's session, weekly or per-model limit, or a spend
+//                                                           cap) is spent: plan-limit.mjs's detectPlanLimit finds the refusal in the stdout envelope's typed api_error or
+//                                                           result, in stdout, or in the last main-chain assistant record of the transcript. It is checked for every run that
+//                                                           got this far, a container that TIMED OUT included, and BEFORE every step that reads the transcript, so a refusal
+//                                                           is never reported as api_error, no_transcript or transcript_unreadable; a refusal recorded as an API-error
+//                                                           record is plan_limit, the real authentication failure (401) stays api_error. The row says nothing about the
+//                                                           run: it is never graded, never retried in this batch, it uses none of the run's attempts and is no step of the
+//                                                           infrastructure streak (see runBatch), and it stops the batch. The token is redacted from what the detector
+//                                                           reads before `matched` is cut (see the row's planLimit)
 //        (3) transcript_unreadable (readRunUsage threw) | no_transcript | ambiguous_transcript
 //        (4) api_error                                      an API-error record in the MAIN transcript (a subagent's is recorded only)
 //        (5) no_log | arm_mismatch                          the decision log (R89): B must be treated and steered, A and C held out
@@ -205,7 +215,9 @@ export function planRunsS5(prereg, options) {
 // THE ROW. The brief's Row { runId, taskId, taskIndex, arm, effort, rep, round, sessionId, startedAt, wallMs, exit, infra, final,
 // decision, usage, efforts, costUsd, numTurns, firstUserTextOk, testsRunBeforeDone, finalTextTail, grade }, plus `isError` (R88, from
 // the stdout JSON), `steerContexts` (R147: how many UserPromptSubmit hook contexts the main transcript holds; null without a transcript),
-// `tokenScrubbed` (R108), `infraDetail` (R110: only on an infrastructure row a caught error made, that is
+// `tokenScrubbed` (R108), `planLimit` (R-PL5: only on a plan_limit row: { source, matched, resetHint, rateLimitType, resetsAt }, the verdict of
+// detectPlanLimit; `matched` is the refusal from its first non-blank character, at most 200 characters, `resetHint` the "resets ..." phrase in it or null,
+// the last two the typed rate-limit fields or null; the token is redacted before the cut, so no fragment of it survives), `infraDetail` (R110: only on an infrastructure row a caught error made, that is
 // transcript_unreadable, grade_failed and a hidden_changed whose hash threw: the error's message, the token redacted before the line is
 // cut to 300 characters) and, only when something is left over, `leftover`.
 //   exit     { code: dockerRun's status, timedOut, oomKilled }.         final   infra === null (R100: the batch decides exhaustion).
@@ -383,15 +395,21 @@ function imageFor(repo, images) {
   return chosen;
 }
 
-// R88: the JSON object `claude --output-format json` prints. Anything else is null, and never an infrastructure failure.
-function resultOf(stdout) {
+// R88: the JSON object `claude --output-format json` prints, or null when stdout is not exactly one JSON object.
+function parseEnvelope(stdout) {
   let obj;
   try {
     obj = JSON.parse(stdout);
   } catch {
     obj = null;
   }
-  if (!isObject(obj)) return { costUsd: null, numTurns: null, isError: null };
+  return isObject(obj) ? obj : null;
+}
+
+// R88: the numbers of that object (costUsd, numTurns, isError). Anything else is null, and never an infrastructure failure.
+function resultOf(stdout) {
+  const obj = parseEnvelope(stdout);
+  if (obj === null) return { costUsd: null, numTurns: null, isError: null };
   return {
     costUsd: Number.isFinite(obj.total_cost_usd) && obj.total_cost_usd >= 0 ? obj.total_cost_usd : null,
     numTurns: Number.isInteger(obj.num_turns) && obj.num_turns >= 0 ? obj.num_turns : null,
@@ -676,6 +694,22 @@ export async function runOne(run, ctx) {
     // partial run, whatever its transcript and decision log look like: never graded, never the model's failure. A timeout (137 with
     // timedOut) stays R90's.
     if (infra === null && !docker.timedOut && INTERRUPTED_EXITS.includes(docker.status)) infra = 'interrupted';
+    // (2c) R-PL3: a spent plan makes the CLI print a refusal that it may return as the ordinary response, and a graded run would turn that into the model's
+    // failure. The detector reads the envelope, stdout and the last assistant record of the main transcript. It runs for any run that got this far, a container
+    // that timed out included (infra is null for it here), and BEFORE step (3): a refusal with no transcript is not no_transcript, and one recorded as an API
+    // error is not api_error. The token is redacted from everything the detector reads BEFORE it cuts `matched` to 200 characters, so no fragment of it can
+    // survive the cut (`text` already is redacted; stdout and the envelope's result are not).
+    let planLimit = null;
+    if (infra === null) {
+      const redact = (value) => (typeof value === 'string' ? value.split(o.token).join(REDACTED) : value);
+      const envelope = parseEnvelope(docker.stdout);
+      planLimit = detectPlanLimit({
+        envelope: envelope === null ? null : { ...envelope, result: redact(envelope.result) },
+        stdout: redact(docker.stdout),
+        transcript: text ?? undefined,
+      });
+      if (planLimit !== null) infra = 'plan_limit';
+    }
     infra ??= evidenceInfra(run, { usage, decision, contexts, steerPhrase: o.steerPhrase });
     let detail = infra === 'transcript_unreadable' ? detailOf(usageError, o.token) : null;
     let grade = null;
@@ -708,6 +742,7 @@ export async function runOne(run, ctx) {
       infra,
       final: infra === null,
       ...(detail === null ? {} : { infraDetail: detail }),
+      ...(planLimit === null ? {} : { planLimit }),
       decision,
       usage: usage === null ? null : {
         ...usage,
@@ -801,16 +836,23 @@ export async function runOne(run, ctx) {
 // line). Every other line must be a Row (R134 b: runId a string, final a boolean, infra null or a string) with the `mode` of THIS batch (R133),
 // else the batch refuses, naming the line: run ids are the same in smoke, pilot, calibrate and measure, so a measure batch on a file with smoke
 // rows would skip them as final and the analysis would count them. Every line the batch appends, the stopped line too, carries `mode`.
-// A final row (final === true) makes its run done. attemptsUsed = the rows with that runId and
-// final === false AFTER its last final row (R125: for a run that was never final, all of them); 1 + prereg.limits.infraRetries attempts are
+// A final row (final === true) makes its run done. attemptsUsed = the rows with that runId, final === false and an infra other than plan_limit (R-PL4)
+// AFTER its last final row (R125: for a run that was never final, all of them); 1 + prereg.limits.infraRetries attempts are
 // allowed. A run with no row starts at attemptsUsed 0.
 //   infra null               the row is appended as it is, final: true.
 //   infra, attempts left     appended with final: false; the next attempt of that run starts at once.
 //   infra, the last attempt  appended as ONE line { ...row, final: true, infra: 'infra_exhausted', lastInfra: <the reason> }.
 //   hidden_changed (R101)    appended final: false, never re-run, and it stops the batch.
+//   plan_limit (R-PL3, R-PL4)  appended final: false, never re-run in this batch, and it stops the batch like hidden_changed, reason 'plan_limit' (the stopped line
+//                            carries the row's verdict, R-PL5). The plan is spent: every other attempt would meet the same wall, and the next batch, run after
+//                            the reset the verdict's resetHint names (the same command, resumed), runs that run again. The row says nothing about the run, so
+//                            it is counted in infraAttempts but uses none of the run's attempts (three plan windows in a row must not write infra_exhausted, which
+//                            by R149 would drop the task from every arm), is no step of the infrastructure streak (see the circuit breaker) and is never the
+//                            row an exhausted line is copied from. The analysis ignores it like any non-final row.
 //   a thrown runOne (R114), a result that is no Row of that run, or a Row that holds the token: an attempt `run_failed` with infraDetail (the
 //   message, the token redacted, at most 300 characters) and a Row of the Row's keys with null / empty values where nothing is known.
-//   earlier attempts already used the allowance (the file says so): the exhausted line is appended without a new attempt, with costUsd null so
+//   earlier attempts already used the allowance (the file says so): the exhausted line is appended without a new attempt, copied from the last of
+//   those attempts (a plan_limit row is not one), with costUsd null so
 //   that the cost of that attempt, which its own line already holds, is not summed twice, and with noAttempt: true (R137 c) so that the
 //   streak seed of the next batch does not count it as an attempt.
 //   retryExhausted (R125): a run whose LATEST final row is infra_exhausted is planned again (Summary.retriedExhausted counts them) with a fresh
@@ -830,10 +872,12 @@ export async function runOne(run, ctx) {
 // ORDER, THE STOP RULE, SIGNALS. Runs start in the order of planRunsS5, at most `concurrency` at a time. Before every start, a retry included,
 // the costUsd of EVERY Row of the file (a typed line is no Row) is summed, a null one adding 0 EXCEPT a row that reached the container and timed out
 // (exit.timedOut) or ended infra `interrupted`, which prints no JSON and is among the most expensive runs: it counts as the LARGEST costUsd known in the
-// file (0 when none; R148, no price table; Summary.costEstimatedRows counts them, the stopped line carries the sum). When the sum is >= stopAtCostUsd
-// nothing starts, the
-// runs in flight finish and are recorded, and ONE line { type: 'stopped', at, reason: 'cost' | 'hidden_changed' | 'signal', costUsd, limit, mode } is
-// appended after them (the first reason wins; a 'signal' line also carries signalName, R138). The sum is read from the file at start, so a resumed
+// file (0 when none; R148, no price table; Summary.costEstimatedRows counts them, the stopped line carries the sum). A plan_limit row with no known cost is
+// estimated the same way (R-PL9): the refusal can come part-way through a run and print no JSON, and the arms under test burn the most plan usage.
+// When the sum is >= stopAtCostUsd nothing starts, the
+// runs in flight finish and are recorded, and ONE line { type: 'stopped', at, reason: 'cost' | 'hidden_changed' | 'signal' | 'plan_limit', costUsd, limit, mode } is
+// appended after them (the first reason wins; a 'signal' line also carries signalName, R138; a 'plan_limit' line carries planLimit, the verdict of the row that
+// stopped the batch: { source, matched, resetHint, rateLimitType, resetsAt }, R-PL5, with `limit` the cost limit as for hidden_changed). The sum is read from the file at start, so a resumed
 // batch with the limit reached starts nothing and says so; a batch with nothing left to start says nothing. The first SIGINT, SIGTERM or SIGHUP is
 // such a stop (SIGHUP because a closed terminal would otherwise leave the detached containers to run on unread); the second removes the handlers
 // and raises that signal on the process, so the default action ends it at once (a hard kill mid-run loses that paid run without a row, and the
@@ -843,10 +887,12 @@ export async function runOne(run, ctx) {
 // THE CIRCUIT BREAKER (R124, R127). An outage fails attempt after attempt of run after run, and an exhausted line is final: left alone it would turn the
 // plan into infra_exhausted lines in seconds. The infrastructure attempts are counted in completion order across all workers (a thrown runOne
 // is one; an attempt with infra null resets the count to 0), and the count STARTS from the rows file (R127): the number of consecutive trailing
-// attempt rows with an infrastructure value (typed lines and noAttempt lines skipped, an exhausted row counts), so a resume while the outage persists stops at its
+// attempt rows with an infrastructure value (typed lines, noAttempt lines and plan_limit rows skipped, an exhausted row counts), so a resume while the outage persists stops at its
 // first further failure; at 2 * (1 + infraRetries) in a row the batch stops with reason 'infra_streak' and
 // the line is { type: 'stopped', at, reason: 'infra_streak', streak, lastInfra, costUsd, limit: null, mode } (streak: the count that tripped it).
-// After ANY stop (cost, hidden_changed, signal, infra_streak) a run in flight finishes its CURRENT attempt and starts no retry: with attempts
+// A plan_limit attempt (R-PL4) is no step of this count: the plan being spent is not an outage of the harness, and the branch that handles it comes before the
+// count and the check, so even with the streak one below the limit the batch stops with reason 'plan_limit', not 'infra_streak'. It neither adds to the count nor resets it.
+// After ANY stop (cost, hidden_changed, signal, infra_streak, plan_limit) a run in flight finishes its CURRENT attempt and starts no retry: with attempts
 // left it stays non-final and a resume continues it; on its last allowed attempt it is still written infra_exhausted. At most about two runs
 // are falsely exhausted by an outage, and retryExhausted recovers them.
 //
@@ -859,7 +905,7 @@ export async function runOne(run, ctx) {
 //   ran   runs that got a final row in this batch (counted rows and exhausted lines)   attempts   runOne calls made   infraAttempts   attempts that
 //   ended in infrastructure   exhausted   runs that ended infra_exhausted   retriedExhausted   runs re-opened by retryExhausted   costUsd   the sum
 //   over the whole file at the end, the estimate of R148 included   costEstimatedRows   how many rows of the file are estimated (no JSON: a timeout, an
-//   interruption)   concurrency, stopAtCostUsd   the values the batch ACTUALLY used (the registered ones, or the options that override them)   stopped   null or { reason, costUsd, limit } (reason 'signal': plus signalName; reason 'infra_streak':
+//   interruption, a plan limit)   concurrency, stopAtCostUsd   the values the batch ACTUALLY used (the registered ones, or the options that override them)   stopped   null or { reason, costUsd, limit } (reason 'signal': plus signalName; reason 'plan_limit': plus planLimit; reason 'infra_streak':
 //   { reason, streak, lastInfra, costUsd, limit: null })   scrubbed   { dirs, files } of the start-of-batch scrub   tornLine   a torn last line was ignored.
 // Nothing is printed. The batch never starts a model itself: runOne starts the agent container, with the real Claude binary mounted.
 
@@ -1130,7 +1176,7 @@ function rowsAppender(file, state) {
 }
 
 // R148: the cost the stop rule sees is cost.mjs's costOf (shared with the analysis): the known costs of the rows, plus, for each row that
-// printed none because it timed out or was interrupted, the LARGEST known cost (0 when none; no price table).
+// printed none because it timed out, was interrupted or hit a plan limit (R-PL9), the LARGEST known cost (0 when none; no price table).
 const isRowOf = (row, run) => isObject(row) && row.runId === run.runId && (row.infra === null || (typeof row.infra === 'string' && row.infra !== ''));
 
 // 1 + the highest N of the entries named `<runId>-aN` in runsDir (0 when there are none).
@@ -1349,9 +1395,10 @@ export async function runBatch(prereg, options) {
     // R127: the streak does not restart from 0 at a resume. It starts at the number of consecutive trailing attempt rows of the file with an
     // infrastructure value (typed lines are not in `rows`; an exhausted row counts), so a resume while the outage persists stops at its first
     // further failure, and a first good attempt resets it. A line written WITHOUT an attempt (noAttempt, R137 c) is no attempt: skipped.
+    // A plan_limit row (R-PL4) says nothing about the run: it is no attempt, so it is skipped here as a noAttempt line is.
     let streak = 0;
     for (let i = rows.length - 1; i >= 0; i -= 1) {
-      if (rows[i].noAttempt === true) continue;
+      if (rows[i].noAttempt === true || rows[i].infra === 'plan_limit') continue;
       if (rows[i].infra === null) break;
       streak += 1;
     }
@@ -1360,10 +1407,11 @@ export async function runBatch(prereg, options) {
     const streakLimit = 2 * allowed;
     const spent = () => costOf(rows).costUsd;
     // The attempts a run has used UP: its non-final rows after its last final row. A run that was never final has all of its non-final rows
-    // counted; a run that retryExhausted re-opened has a fresh allowance, counted after its last infra_exhausted row (R125).
+    // counted; a run that retryExhausted re-opened has a fresh allowance, counted after its last infra_exhausted row (R125). A plan_limit row (R-PL4) is not
+    // an attempt of the run: three plan windows in a row must not write infra_exhausted and, by R149, drop the task from every arm.
     const attemptsUsed = (runId) => {
       const from = rows.findLastIndex((row) => row.runId === runId && row.final === true);
-      return rows.filter((row, i) => i > from && row.runId === runId && row.final === false).length;
+      return rows.filter((row, i) => i > from && row.runId === runId && row.final === false && row.infra !== 'plan_limit').length;
     };
     const counts = { skippedFinal: 0, ran: 0, attempts: 0, infraAttempts: 0, exhausted: 0, retriedExhausted: 0 };
 
@@ -1379,8 +1427,9 @@ export async function runBatch(prereg, options) {
       if (reopen) counts.retriedExhausted += 1;
       if (attemptsUsed(run.runId) >= allowed) {
         // The earlier attempts used up the allowance: the exhausted line, without a new attempt. Its cost is already in its own line, and it
-        // says it is no attempt (noAttempt), so that the streak seed of the next batch does not count it as one.
-        const last = rows.findLast((row) => row.runId === run.runId && row.final === false);
+        // says it is no attempt (noAttempt), so that the streak seed of the next batch does not count it as one. A plan_limit row (R-PL4) is never the
+        // `last` one: the line would name 'plan_limit' as lastInfra and carry its verdict, although that row is not one of the attempts that used the allowance.
+        const last = rows.findLast((row) => row.runId === run.runId && row.final === false && row.infra !== 'plan_limit');
         append({ ...last, final: true, infra: 'infra_exhausted', lastInfra: last.infra, costUsd: null, noAttempt: true });
         counts.ran += 1;
         counts.exhausted += 1;
@@ -1435,6 +1484,14 @@ export async function runBatch(prereg, options) {
           return;
         }
         counts.infraAttempts += 1;
+        if (row.infra === 'plan_limit') {
+          // R-PL3, R-PL4: the plan is spent. The attempt is recorded and counted, but it is neither an attempt of the run (attemptsUsed ignores it) nor a step of
+          // the streak (this branch comes BEFORE `streak += 1` and the breaker check, so the stop reason stays plan_limit at the edge of the breaker).
+          // Never retried: every later attempt would meet the same wall, and the next batch, after the reset, runs this run again.
+          append({ ...row, final: false });
+          requestStop('plan_limit', { planLimit: row.planLimit });
+          return;
+        }
         streak += 1;
         if (row.infra === 'hidden_changed') {
           append({ ...row, final: false }); // every later grade would fail the same way: not retried, and the batch stops (R101)
@@ -1473,7 +1530,11 @@ export async function runBatch(prereg, options) {
     if (stop.reason !== null) {
       const costUsd = spent();
       // The infra_streak line says what tripped it and has no cost limit (limit null); the others carry the cost limit they were run with.
-      const detail = { infra_streak: { streak: stop.streak, lastInfra: stop.lastInfra }, signal: { signalName: stop.signalName } }[stop.reason] ?? {};
+      const detail = {
+        infra_streak: { streak: stop.streak, lastInfra: stop.lastInfra },
+        signal: { signalName: stop.signalName },
+        plan_limit: { planLimit: stop.planLimit },
+      }[stop.reason] ?? {};
       const limit = stop.reason === 'infra_streak' ? null : o.stopAtCostUsd;
       appendLine({ type: 'stopped', at: new Date().toISOString(), reason: stop.reason, ...detail, costUsd, limit, mode: o.mode });
       stopped = { reason: stop.reason, ...detail, costUsd, limit };
