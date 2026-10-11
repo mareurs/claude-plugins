@@ -1,0 +1,209 @@
+diff --git a/codex-rs/core/src/tools/handlers/unified_exec/exec_command.rs b/codex-rs/core/src/tools/handlers/unified_exec/exec_command.rs
+index 7358f1ef72..2ff55ed655 100644
+--- a/codex-rs/core/src/tools/handlers/unified_exec/exec_command.rs
++++ b/codex-rs/core/src/tools/handlers/unified_exec/exec_command.rs
+@@ -522,9 +522,24 @@ impl CoreToolRuntime for ExecCommandHandler {
+ 
+         parse_arguments::<ExecCommandArgs>(arguments)
+             .ok()
+-            .map(|args| PreToolUsePayload {
+-                tool_name: HookToolName::bash(),
+-                tool_input: serde_json::json!({ "command": args.cmd }),
++            .map(|args| {
++                let mut tool_input = serde_json::json!({ "command": args.cmd });
++                // Routing hooks must be able to distinguish a native approval request
++                // from ordinary shell work. Preserve only supplied metadata so legacy
++                // command-only hook payloads keep their shape.
++                if let Some(permissions) = args.sandbox_permissions {
++                    tool_input["sandbox_permissions"] = serde_json::json!(permissions);
++                }
++                if let Some(justification) = args.justification {
++                    tool_input["justification"] = serde_json::json!(justification);
++                }
++                if let Some(prefix_rule) = args.prefix_rule {
++                    tool_input["prefix_rule"] = serde_json::json!(prefix_rule);
++                }
++                PreToolUsePayload {
++                    tool_name: HookToolName::bash(),
++                    tool_input,
++                }
+             })
+     }
+ 
+diff --git a/codex-rs/core/src/tools/handlers/unified_exec_tests.rs b/codex-rs/core/src/tools/handlers/unified_exec_tests.rs
+index d834c24982..6f54a63d60 100644
+--- a/codex-rs/core/src/tools/handlers/unified_exec_tests.rs
++++ b/codex-rs/core/src/tools/handlers/unified_exec_tests.rs
+@@ -571,6 +571,49 @@ async fn exec_command_pre_tool_use_payload_uses_raw_command() {
+     );
+ }
+ 
++#[tokio::test]
++async fn exec_command_pre_tool_use_payload_preserves_native_approval_metadata() {
++    let (session, turn) = make_session_and_context().await;
++    let session = Arc::new(session);
++    let turn = Arc::new(turn);
++    let handler = ExecCommandHandler::default();
++
++    for sandbox_permissions in ["require_escalated", "use_default"] {
++        let payload = ToolPayload::Function {
++            arguments: serde_json::json!({
++                "cmd": "printf approval request",
++                "sandbox_permissions": sandbox_permissions,
++                "justification": "May I run this command?",
++                "prefix_rule": ["printf"],
++            })
++            .to_string(),
++        };
++        let hook_payload = handler
++            .pre_tool_use_payload(&ToolInvocation {
++                session: Arc::clone(&session).into(),
++                step_context: StepContext::for_test(Arc::clone(&turn)),
++                turn: Arc::clone(&turn),
++                cancellation_token: tokio_util::sync::CancellationToken::new(),
++                tracker: Arc::new(Mutex::new(TurnDiffTracker::new())),
++                call_id: "call-native-approval".to_string(),
++                tool_name: codex_tools::ToolName::plain("exec_command"),
++                source: crate::tools::context::ToolCallSource::Direct,
++                payload,
++            })
++            .expect("shell call should produce a hook payload");
++        assert_eq!(hook_payload.tool_name, HookToolName::bash());
++        assert_eq!(
++            hook_payload.tool_input,
++            serde_json::json!({
++                "command": "printf approval request",
++                "sandbox_permissions": sandbox_permissions,
++                "justification": "May I run this command?",
++                "prefix_rule": ["printf"],
++            })
++        );
++    }
++}
++
+ #[tokio::test]
+ async fn exec_command_pre_tool_use_payload_skips_write_stdin() {
+     let payload = ToolPayload::Function {
+diff --git a/codex-rs/core/tests/suite/hooks.rs b/codex-rs/core/tests/suite/hooks.rs
+index 274874c1af..c33b83b981 100644
+--- a/codex-rs/core/tests/suite/hooks.rs
++++ b/codex-rs/core/tests/suite/hooks.rs
+@@ -3808,6 +3808,118 @@ async fn pre_tool_use_records_additional_context_for_exec_command() -> Result<()
+     Ok(())
+ }
+ 
++#[test_case::test_case(false; "denied")]
++#[test_case::test_case(true; "approved")]
++#[tokio::test]
++async fn pre_tool_use_native_escalation_retains_host_approval(approve: bool) -> Result<()> {
++    skip_if_no_network!(Ok(()));
++    let server = start_mock_server().await;
++    let scratch = TempDir::new()?;
++    let marker = scratch.path().join("native-approval-marker");
++    let command = format!("printf native-approval > '{}'", marker.display());
++    let call_id = "pretooluse-native-approval";
++    let justification = "May I create the test marker?";
++    let args = json!({
++        "cmd": command,
++        "sandbox_permissions": "require_escalated",
++        "justification": justification,
++        "prefix_rule": ["printf"],
++    });
++    let responses = mount_sse_sequence(
++        &server,
++        vec![
++            sse(vec![
++                ev_response_created("resp-1"),
++                ev_function_call(call_id, "exec_command", &args.to_string()),
++                ev_completed("resp-1"),
++            ]),
++            sse(vec![
++                ev_response_created("resp-2"),
++                ev_assistant_message("msg-1", "approval handled"),
++                ev_completed("resp-2"),
++            ]),
++        ],
++    )
++    .await;
++    let mut builder = test_codex()
++        .with_pre_build_hook(|home| {
++            // Advisory output has no permissionDecision: routing must not grant approval.
++            write_pre_tool_use_hook(home, Some("^Bash$"), "context", "native approval required")
++                .expect("write advisory pre-tool hook");
++        })
++        .with_config(|config| {
++            trust_discovered_hooks(config);
++            config.approvals_reviewer = codex_config::types::ApprovalsReviewer::User;
++        });
++    let test = builder.build(&server).await?;
++    test.codex
++        .start_or_steer_turn(
++            TurnInputRequest::user_input(vec![UserInput::Text {
++                text: "run the native approval command".to_string(),
++                text_elements: Vec::new(),
++            }])
++            .with_thread_settings(ThreadSettingsOverrides {
++                approval_policy: Some(AskForApproval::OnRequest),
++                sandbox_policy: Some(codex_protocol::protocol::SandboxPolicy::ReadOnly {
++                    network_access: false,
++                }),
++                ..Default::default()
++            }),
++        )
++        .await?;
++    let mut approvals = 0;
++    loop {
++        match wait_for_event(&test.codex, |_| true).await {
++            EventMsg::ExecApprovalRequest(approval) => {
++                assert_eq!(approval.call_id, call_id);
++                assert!(!marker.exists(), "command must wait for the host decision");
++                approvals += 1;
++                test.codex
++                    .submit(Op::ExecApproval {
++                        id: approval.effective_approval_id(),
++                        turn_id: Some(approval.turn_id),
++                        decision: if approve {
++                            codex_protocol::protocol::ReviewDecision::Approved
++                        } else {
++                            codex_protocol::protocol::ReviewDecision::denied(
++                                "rejected by test user",
++                            )
++                        },
++                    })
++                    .await?;
++            }
++            EventMsg::TurnComplete(_) => break,
++            _ => {}
++        }
++    }
++    assert_eq!(
++        approvals, 1,
++        "advisory pre-tool hook must retain host approval"
++    );
++    assert_eq!(
++        marker.exists(),
++        approve,
++        "rejected approval must prevent execution"
++    );
++    if approve {
++        assert_eq!(fs::read_to_string(&marker)?, "native-approval");
++    }
++    let inputs = read_pre_tool_use_hook_inputs(test.codex_home_path())?;
++    assert_eq!(inputs.len(), 1);
++    assert_eq!(inputs[0]["tool_name"], "Bash");
++    assert_eq!(
++        inputs[0]["tool_input"],
++        json!({
++            "command": command,
++            "sandbox_permissions": "require_escalated",
++            "justification": justification,
++            "prefix_rule": ["printf"],
++        })
++    );
++    assert_eq!(responses.requests().len(), 2);
++    Ok(())
++}
++
+ #[tokio::test]
+ async fn blocked_pre_tool_use_records_additional_context_for_exec_command() -> Result<()> {
+     skip_if_no_network!(Ok(()));

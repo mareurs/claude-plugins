@@ -130,7 +130,7 @@ below is not thereby inactive.
 |---|---|---|
 | `SessionStart` | `session-start.mjs` | Tool guide + memory hints + onboarding nudge |
 | `SubagentStart` | `subagent-guidance.mjs` | Compact guidance for all subagents |
-| `PreToolUse` (Grep/Glob/Read/Bash) | `pre-tool-guard.mjs` | Hard-block Read/Edit/Write/Grep/Glob/Bash on source files (path-agnostic), redirect to codescout. Native Read of binary images/PDF is the sole exemption. |
+| `PreToolUse` (Grep/Glob/Read/Bash) | `pre-tool-guard.mjs` | Hard-block Read/Edit/Write/Grep/Glob/Bash on source files (path-agnostic), redirect to codescout. Native Bash escalation continues through host approval; binary images/PDF and skill payloads also have read exemptions. |
 | `PreToolUse` (`mcp__codescout__.*`) | `principal-stamp.mjs` | Stamp the calling principal (`session_id/agent_id`) into codescout tool arguments, so the server can tell a subagent's call from its parent's — the one thing the MCP wire cannot carry. Silent for parent calls, by design. Emits **no** `permissionDecision`. |
 | `PostToolUse` (EnterWorktree) | `worktree-activate.mjs` | Symlink .codescout/ and inject workspace guidance |
 | `PreToolUse` (Edit/Write/edit_code/edit_file/create_file) | `constitution-guard.mjs` | Deny-once-per-epoch enforcement of path-scoped "constitution" tracker rules — shells into `codescout constitution-check --path` |
@@ -254,11 +254,16 @@ If `codescout-companion@sdd-misc-plugins` is absent, reinstall:
 
 ### Cross-repo git ops blocked
 
-All Bash routes to `run_command`. For sibling-repo git, run from this project's root:
+Ordinary Bash calls route to `run_command`. For sibling-repo git, run from this project's root:
 
     run_command("git -C /abs/path/to/sibling <subcommand>")
 
 No `cd` and no workspace switch needed — `run_command` sandboxes cwd to the project. (Pre-1.11.3 the hook recognised a leading `cd <dir>` to a sibling repo and let the command through to native Bash; that escape was removed because it silently bypassed Read/Edit guards too.)
+
+A native Bash call with `tool_input.sandbox_permissions: "require_escalated"` continues through the host's permission flow, because `run_command` cannot carry the host's sandbox approval request. The routing hook emits advisory context, never an approval decision. Ordinary calls and native source-file reads/edits retain their routing rules.
+
+The Codex shell adapter must preserve `sandbox_permissions` in its PreToolUse payload for this exception to work. Older adapters that send only `{command}` remain routed to Codescout; installing the companion change alone does not repair those hosts.
+
 ## Coupling to codescout
 
 This plugin is **intentionally tightly coupled** to codescout. It reads
@@ -286,6 +291,10 @@ the pairing matters:
 
 Neither half is load-bearing for correctness: without the stamp the server
 over-delivers guides it already sent, which costs context and nothing else.
+
+## Session context and verification
+
+The version 1 [session context contract](docs/session-context.md) separates root identity, history coverage, lifecycle support and peer contact across Claude Code and Codex. Codescout's `gate.sh --check` needs no identity; authored formatting requires validated context and refuses uncertain ownership. Missing context blocks formatting while the leased verification lanes still run. Native captures are limited; successful authored and installed-hook acceptance remains pending. See the linked guide for exact options, environment names and observed versions.
 ## Changelog
 ### 1.13.1
 

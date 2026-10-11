@@ -1,7 +1,7 @@
 ---
 kind: tracker
 status: active
-entry_high_water_F: 4
+entry_high_water_F: 15
 entry_prefix:
 - F
 - W
@@ -39,6 +39,17 @@ entry_prefix:
 | F-2 | 2026-08-27 | med | stale-memory | fixed-verified | 3 advertised memory surfaces say boolean `block_reads: false` is ignored — both forms work |
 | F-3 | 2026-08-28 | med | release-pipeline | fixed-verified | The `block_reads` opt-out turned the guard suite red (21/55) — suite hardcoded both live repos as dispatch CWDs. Hermetic escape hatch; 58/58 with the opt-out live |
 | F-4 | 2026-09-02 | med | architectural | open | Read-only agent types (Explore/Plan) retain all four codescout write tools; native Edit/Write stripped, MCP writers not. Read-only property rests on model compliance — enforcement untested |
+| F-5 | 2026-10-10 | med | architectural | fixed-verified | Paired source repair installed; native accept/decline and ordinary routing verified |
+| F-6 | 2026-10-10 | med | architectural | mitigated | Capture process success does not establish required native tool execution or provenance coverage |
+| F-7 | 2026-10-10 | med | architectural | fixed-verified | Gate mode documentation exceeded CLAUDE.md's resident byte budget; move detail behind its pointer, retain the unchanged cap |
+| F-8 | 2026-10-10 | med | architectural | fixed-verified | New policy call site omitted legacy-name markers required by the Rust registry guard |
+| F-9 | 2026-10-10 | med | tooling | mitigated | JavaScript callback insertion anchor refused after refresh; ordinary constant anchor worked |
+| F-10 | 2026-10-10 | high | test-rigor | fixed-verified | Parent-only snapshot missed nested child mutation; observed survivor now killed by direct byte assertion |
+| F-11 | 2026-10-11 | med | environment-drift | mitigated | Supplied uppercase profiles are absent; measured existing lowercase Codex root uses config.toml plus cache |
+| F-12 | 2026-10-11 | med | build-environment | fixed-verified | Bare Cargo build received V8 404; checked pair produced both binaries, build exit 0 |
+| F-13 | 2026-10-11 | med | release-pipeline | fixed-verified | Companion 1.20.17 seeded; final gate stopped on three unrelated marketplace revisions |
+| F-14 | 2026-10-11 | high | release-pipeline | fixed-verified | Correctly stamped 0.160.0 package cold-loaded; shared model turn and native lifecycle transport pass |
+| F-15 | 2026-10-11 | high | release-pipeline | fixed-verified | Explicit GNU/Linux target repairs public-installer acceptance; disposable upgrade and remote compaction pass |
 
 ## Wins Index
 
@@ -378,6 +389,174 @@ The harness's exclusion list for these agent types covers the **native** write t
 **Valid:** conditional — an `Explore`-type dispatch is observed either completing or being refused an `mcp__codescout__*` write
 
 **Fix idea / Pointer:** two independent halves. (1) Settle enforcement: dispatch an `Explore` agent whose task *is* the write, so declining is not the compliant answer, and record whether a guard fires. (2) If nothing blocks it and blocking is wanted, the lever in this repo is a `PreToolUse` matcher on `mcp__codescout__(create_file|edit_code|edit_file|edit_markdown)` gated on read-only `agent_type` — but note `PreToolUse:Agent` payloads carry `subagent_type` while the write call itself does not, so the guard would need the agent-type context threaded from `SubagentStart` (`agent_type` is on that payload per `.codescout/memories/agent-dispatch-hooks.md`). Not attempted.
+
+## F-5 — Codex shell hook projection drops approval metadata before routing
+
+**Observed:** 2026-10-10, reconnaissance for issue cd15dd2c76c1f7eb.
+
+**Expected:** A plugin exemption inspecting tool_input.sandbox_permissions would distinguish native escalation requests from ordinary shell work.
+
+**Got:** Read this session: /home/marius/work/claude/codex/codex-rs/core/src/tools/handlers/unified_exec/exec_command.rs, impl CoreToolRuntime for ExecCommandHandler/pre_tool_use_payload (lines 518–529), serializes only {command: args.cmd}. hooks/src/events/pre_tool_use.rs command_input_json forwards that projected tool_input. The plugin pre-tool-guard.mjs Bash branch routes to enforce; enforce emits deny. The hook-only probe in a fresh HOME/config/TMPDIR observed deny and a run_command redirect for command-only, require_escalated, and use_default fixtures. Requested commands were never executed and scratch state was removed.
+
+**Impact:** A plugin-only metadata check would pass enriched fixture tests while leaving the local host's command-only path blocked. Ordinary and escalated calls are indistinguishable in this projection.
+
+**Severity:** med — risks a source-only false fix and repeated blocked authorized work.
+
+**Status:** fixed-verified — paired source repair is released as companion 1.20.17 and cold-loaded with the verified 0.160.0 host. Real native escalation wrote the protected canonical Git directory; ordinary routing still redirected. Native app-server accept created a marker and decline returned declined without creating one. See issue cd15dd2c76c1f7eb and .codescout/native-runtime-smoke-20261011.json.
+
+**Valid:** dated 2026-10-10
+
+**Evidence boundary:** Local source transport/hook tests capture metadata. Live raw hook stdin was not captured, but native host approval requests and results plus filesystem effects were observed after verifying all installed package digests. Approval routing is verified; authored provenance is separate.
+
+**Pointer:** docs/issues/2026-10-09-companion-routing-blocks-codex-native-escalation.md.
+
+## F-6 — Native capture runners return success while required tool evidence is unavailable
+
+**Observed:** Isolated Claude 2.1.296 print mode lacked Bash and its single Read was denied by the installed Codescout hook. Root PreToolUse payload and durable refusal were captured. Codex 0.160.0 exec recorded only a custom-tool exec wrapper and its hook rejection, without verified inner execution. Both CLI processes exited zero. Captures are whitelisted and sanitized in the isolated implementation's native-history fixture pack.
+
+**Severity:** med
+**Category:** architectural
+**Status:** mitigated
+**Valid:** dated 2026-10-10
+**Rests on:** `/tmp/harness-identity-20261010/claude-read-output.json`, `/tmp/harness-identity-20261010/hook-capture.jsonl`, native Codex rollout captured in `codescout-companion/contracts/fixtures/native-histories/codex-root-refused-wrapper.jsonl`.
+
+**Impact:** Process success measures conversation completion, not tool execution or provenance capability. Current captures cannot validate authored-write support, child identity or lifecycle continuity.
+
+**Mitigation:** Keep capture-backed root context and refused-wrapper fixtures distinct from synthetic contract cases. Treat opaque orchestration as a coverage gap. Continue source implementation and read-only gate work; leave authored rollout, live smoke and installation pending.
+
+**Extended native observation — 2026-10-11:** Native requests now execute: accept created a marker and decline created none; native resume, compaction and fork transport completed. The real Codescout decoder was then run on both actual durable histories, recovering zero operations in each. Root history reports opaque custom-tool wrappers and unsupported rollout envelopes (token_usage_record); the fork also reports an unverified external history prefix. One durable CommandExecution event was observed, but the current decoder does not consume it, and its existence does not prove complete wrapper-effect coverage. Preserve those explicit gaps; do not claim authored/lifecycle provenance from transport success. Evidence: .codescout/native-runtime-smoke-20261011.json and .codescout/native-history-decoder-20261011.json. Authored/mixed-host/root-child acceptance remains pending.
+
+## F-7 — Gate documentation addition exceeded the resident CLAUDE prompt byte budget
+
+**Valid:** dated 2026-10-10
+
+**Severity:** med
+**Category:** architectural
+**Status:** fixed-verified
+**Observed:** The real leased check gate failed prompts::tests::claude_md_stays_within_its_byte_budget: the edited CLAUDE.md was 6160 bytes against a 5600-byte budget, 560 over. The new mode paragraph had been added before checking the resident-doc budget seam. Focused Python/formatter tests cannot express that limit.
+**Rests on:** @bg_0000005a reports 4470 passed, 1 failed, 7 ignored in that Rust lane; inspected src/prompts/mod.rs::tests::claude_md_stays_within_its_byte_budget and the actual Development Commands section. The budget must stay unchanged.
+**Decision:** Keep detailed mode/capability prose in docs/conventions/harness-neutral-session-context.md and shorten the resident Development Commands prose to a pointer while retaining the byte-pinned gate commands, ordering, targeted lease and release invocation. Verify actual file bytes and the existing Rust prompt tests after the current lease releases.
+**Verification:** The corrected file is 5572 bytes. The byte-budget test passed in both LEAN and DEFAULT; full gate @bg_00000064 exited 0 with all lane codes 0.
+
+**Cost:** One failed full-gate lane; later lanes still ran. Add the resident-doc budget to the documentation seam check.
+
+## F-8 — Normalized policy copied legacy names without the registry-gate markers
+
+**Valid:** dated 2026-10-10
+
+**Severity:** med
+**Category:** architectural
+**Status:** fixed-verified
+**Observed:** The first full DEFAULT Rust lane failed server::tests::provenance_probes_reference_only_real_tool_names. scan_provenance copied artifact/artifact_augment matching from write_targets, but omitted the line-local legacy markers that the repository registry guard requires. The original matcher retained its markers; only the new call site drifted.
+**Rests on:** @bg_0000005a DEFAULT: 6742 passed, 2 failed, 8 ignored. Inspected src/server.rs::tests::provenance_probes_reference_only_real_tool_names and scripts/file-provenance.py::{write_targets,scan_provenance}. The second failure was the separately tracked CLAUDE byte budget (F-7).
+**Decision:** Retain native historical matching, put each old name on its own legacy-marked line, and retain live doc matching. Rerun the full leased gate @bg_00000064 and affected Python/provenance tests. Do not weaken the registry guard.
+**Verification:** The unchanged registry guard passed in both Rust lanes; full gate @bg_00000064 exited 0. Corrected Codescout source committed as 52be81ae; focused 168, legacy provenance 245 and formatter 56 checks passed.
+
+**Cost:** One failed DEFAULT lane; focused Python suites cannot express this Rust source-registry rule.
+
+## F-9 — Callback-symbol insertion was refused despite a refreshed JavaScript overview
+
+**Valid:** dated 2026-10-10
+
+**Severity:** med
+**Category:** tooling
+**Status:** mitigated
+**Observed:** After adding a Node import, edit_code twice refused insertion after the named test callback as unrelated code near line 45. An intervening symbols body refresh reported the test at lines 45–51, but the same callback anchor still failed. No insertion occurred; a filtered Node invocation therefore exercised no matching test and was not used as regression evidence.
+**Rests on:** Actual edit_code responses and refreshed body for session-context.test.mjs in /tmp/harness-identity-20261010/claude-plugins. Insertion after the ordinary expected constant succeeded; the new Windows path-dependency test then failed once before the separator fix and passed afterward in the full 11-test context suite.
+**Decision:** Use a verified ordinary AST constant as the insertion anchor for this case. Do not claim an LSP root cause from the diagnostic alone. The tool's callback-anchor refusal itself remains uncorrected.
+**Cost:** Two refused edits and an uninformative filtered test invocation before the behavioral red was established.
+
+## F-10 — Nested-checkout refusal regression omitted the nested child's bytes
+
+**Valid:** dated 2026-10-10
+
+**Severity:** high
+**Category:** test-rigor
+**Status:** fixed-verified
+**Observed:** The new nested-checkout test compared snapshot(root), whose predicate reads only root/src/*.rs. It excluded nested/child.rs while the review record described byte-preserving nested refusal. In an isolated controller copy, a mutation wrote new bytes to the rejected child immediately before raising the correct refusal; both old tests still passed (2 passed, 22 deselected).
+**Rests on:** Inspected tests/test_harness_formatter.py::{snapshot,test_nested_git_checkout_is_outside_exclusive_authorization} and scripts/fmt_paths.py::confined_path. Applied the mutation in /tmp/harness-byte-preservation-20261010 before adding the assertion. After adding an explicit child_before/read_bytes comparison, the unchanged mutation produced 2 failures at the child-byte assertion, showing the mutated branch really executed. After restoration: 2 selected cases passed; the implementation's full formatter suite passed 24/24.
+**Decision:** Keep the parent snapshot and independently compare the nested child's bytes. Count the five independent mandatory mutations separately from this additional controller mutation (initial survivor, now killed). No production change was needed; the safe Git-checkout guard was already correct.
+**Cost:** An unpinned collateral-write invariant would have allowed a future partial-write regression to pass silently. The narrowed snapshot was a proxy for all affected files, the measurement rule's failure mode.
+
+## F-11 — Configuration instructions name absent profiles on this Linux host
+
+**Valid:** dated 2026-10-11
+
+**Observed:** 2026-10-11 while resuming native-approval installation.
+
+**Expected:** The supplied personal configuration instructions name /home/marius/.Codex, .Codex-sdd and .Codex-kat and per-profile plugins/installed_plugins.json.
+
+**Got:** A read-only ls explicitly checked all three named roots: each was absent. A complete pathlib iteration over /home/marius selected existing directories whose lowercase name starts with .codex; it returned only /home/marius/.codex. That root's plugins/installed_plugins.json is absent. A section-scoped read of config.toml shows the companion enabled; the running hook reports the 1.20.16 cache path in that lowercase root.
+
+**Impact:** Applying instructions as filesystem facts would seed unused profiles and report install-record parity for a loader that uses a different record format. Check every named root, then operate only on the measured existing install; do not manufacture absent profiles.
+
+**Severity:** med — installation could appear complete while leaving the active lowercase profile unchanged.
+
+**Status:** mitigated — actual inventory is recorded in issue cd15dd2c76c1f7eb. No profile/config/cache changes made.
+
+**Rests on:** Explicit checks of the three named roots, full home-directory enumeration, the companion config.toml section, and the current native hook rejection.
+
+**Pointer:** docs/issues/2026-10-09-companion-routing-blocks-codex-native-escalation.md, Installation attempt — 2026-10-11.
+
+## F-12 — Direct offline Cargo build omitted the verified Codex V8 pair
+
+**Valid:** dated 2026-10-11
+
+**Observed:** 2026-10-11 during native-approval candidate preparation.
+
+**Expected:** Reuse the tested isolated source and default target with cargo build --offline for codex-cli and codex-code-mode-host.
+
+**Got:** The build exited 101. v8-150.4.0/build.rs attempted the default denoland/rusty_v8 ptrcomp_sandbox archive URL and received HTTP 404; --offline limits Cargo dependency resolution, not build-script network requests. The source package-builder README and symbols resolve_codex_v8_cargo_env/fetch_codex_v8_artifacts specify an OpenAI Codex release pair, including both archive and generated binding, verified against the checkout's pinned checksum manifest.
+
+**Impact:** A bare Cargo invocation cannot produce this candidate even with the ordinary crate cache available. Do not disable V8, substitute the installed older helper, compile it from source speculatively, or claim a green unit suite proves the package builds.
+
+**Severity:** med — failed build and potential incompatible-helper substitution.
+
+**Status:** fixed-verified — the corrected invocation uses the existing repository resolver to supply both overrides. @bg_00000070 reports the verified pair in /tmp/codex-package/rusty-v8-150.4.0-x86_64-unknown-linux-gnu and exited 0 after building codex-cli and codex-code-mode-host in 3m 40s. Source code was unchanged; this corrects the build invocation, not installed acceptance.
+
+**Rests on:** Actual failed @bg_0000006e exit 101 and 404 stack trace; complete bodies of both resolver functions; corrected invocation's printed overrides and subsequent compiler output.
+
+**Pointer:** docs/issues/2026-10-09-companion-routing-blocks-codex-native-escalation.md, Installation attempt — 2026-10-11.
+
+## F-13 — Release seeded companion before unrelated marketplace skew blocked the final gate
+
+**Valid:** dated 2026-10-11
+
+**Observed:** On 2026-10-11 the clean-copy release @bg_00000004 passed all plugin suites and buddy pytest (528 passed), created local release commit 4fc9326 for companion 1.20.17 and seeded/repointed all three existing Claude profiles. Step 6.5 exited 1 solely on MARKETPLACE SKEW in anthropic-agent-skills, caveman and superpowers-marketplace. The companion row itself passed. The canonical original working files received the three generated release-commit files; original indexes and unrelated effort-steering work were untouched.
+
+**Rests on:** Actual release job exit 1 and captured tail; fresh registry, HEAD, status and latest-commit reads for all nine marketplace/profile pairs. The older caveman copies contain untracked .code-explorer/ and caveman-compress/ directories, so blindly mirroring the newer copy would erase unrelated local files.
+
+**Plan vs reality:** release.sh's plugin argument narrows plugin records but not its marketplace parity checks. A failed final gate is a partial installation, not a completed release or a reason to rerun the version bump.
+
+**Resolution:** All three main-profile marketplace copies are shallow, so the local object sets cannot establish ancestry. Four unpinned same-source catalog copies were instead aligned to the already-used main-profile snapshots via independent local clones. Each old directory was retained under its profile's plugins/.harness-release-backups-20261011; untracked paths were copied only after collision checks and their bytes/links verified before and after the atomic directory switch. Registry pointers were unchanged. The exact selections and preserved file hashes are in .codescout/marketplace-parity-repair-20261011.json. Repeated companion and full profile-parity checks exited 0, as did canonical version consistency; no second version bump or push occurred. Source/live host acceptance remains distinct and pending.
+
+## F-14 — Unstamped local daemon rejects gpt-6.1-sol despite successful executable smoke checks
+
+**Valid:** dated 2026-10-11
+
+**Observed:** The public installer selected local-5963aa12… at 2026-10-11 08:10 local time. Its binary and manifest report 0.0.0; the preserved daemon reports 0.159.2 and the installed CLI reports 0.160.0. At 05:11:04 UTC the resumed native-approval thread recorded the user's exact model-not-supported 400. In disposable profiles with the same account, model, low reasoning effort, code-mode-host setting and prompt, candidate 0.0.0 exited 1 with that exact 400; installed 0.160.0 exited 0 with OK. Direct model-catalog GETs omit gpt-6.1-sol for client_version=0.0.0 and include it for 0.160.0. Supplying the correct catalog to the 0.0.0 candidate removes the fallback-metadata warning but still yields 400. Bare HTTP and WebSocket probes without the client's full tool surface succeed for either user-agent version, so the metadata omission alone does not explain the error.
+
+**Rests on:** /home/marius/.codex/app-server-daemon/daemon.pid; local package binary --version and codex-package.json; logs_2.sqlite error row for thread 01a12505-eb95-76a1-911a-4610c7b95ab3; current-turn @bg_0000000d, @bg_0000000e and @bg_0000000f.
+
+**Interpretation:** Executable loading and help checks did not express backend model compatibility. Rebuild the same patched source with the measured supported version and test a complete model turn before claiming a repair. Rebuild is underway in the pre-existing isolated /tmp copy; original source/index and account settings are untouched. A version guard now rejects an unstamped compiled binary even if only its package manifest is updated; five fixture tests pass. Shared-daemon installation remains a separate cold-load boundary.
+
+**Repair verification:** The same isolated source, with the three native-approval patch files byte-identical to the original checkout, was rebuilt after changing only its workspace version from 0.0.0 to 0.160.0 (Cargo regenerated internal package versions in the lockfile). Build exited 0 in 3m 27s. The new package's manifest and executable both report 0.160.0. The reusable full-client probe failed on the old package and completed with OK on the repaired package. A paired JSON-RPC app-server probe kept clientInfo=codex-tui/0.160.0, account, model, features and prompt constant: the old server initialized as codex-tui/0.0.0 and returned the exact 400; the rebuilt server initialized as codex-tui/0.160.0 and completed with OK. This establishes the unstamped build as the cause for this source/account/request, without attributing every part of the rejection to the catalog omission.
+
+**Artifacts:** .codescout/native-approval-candidate-versioned-20261011; .codescout/native-approval-model-after-20261011.json; .codescout/native-approval-app-server-before-20261011.json; .codescout/native-approval-app-server-after-20261011.json; .codescout/native-approval-versioned-build-provenance-20261011.json. All package files are hashed in the adjacent .sha256.json. The existing cold-load launcher now selects this package and checks the compiled version before digest verification and installation. Six package guard tests now pass, including a failing-before/passing-after target mismatch regression; launcher bash syntax passes. The package was regenerated with explicit x86_64-unknown-linux-gnu after a disposable installer probe exposed a musl/gnu manifest mismatch. The corrected package passes a real public-installer upgrade from a running 0.0.0 daemon to installed/running 0.160.0 in a disposable profile (.codescout/native-approval-upgrade-after-20261011.json). Remote compaction and a subsequent model turn also pass (.codescout/native-approval-remote-compaction-after-20261011.json). The launcher's installer failures are now captured to stderr log and shown to the user, and installed/running version assertions guard resume. The actual shared daemon still reports 0.0.0; a second native installer attempt was blocked before approval by the installed routing hook.
+
+**Live completion — 2026-10-11:** The corrected GNU/Linux package is now selected and pinned in the actual shared daemon. Actual daemon/helper executables belong to local-525877d… and all six installed files match the versioned size/SHA-256 manifest. The resumed root turn and a subsequent daemon recovery continue with gpt-6.1-sol. The native app-server probe using the installed package and existing profile completed native accepted/declined command requests, process-restart resume, remote compaction, a following turn and fork. See .codescout/native-approval-live-check-20261011.json and .codescout/native-runtime-smoke-20261011.json. **Status:** fixed-verified. Earlier installation-blocked observations above are historical.
+
+## F-15 — Package builder target default prevented the repaired daemon from being installed
+
+**Valid:** dated 2026-10-11
+
+**Observed:** After restarting, the user's daemon still reported installed/running 0.0.0. The versioned candidate manifest declared x86_64-unknown-linux-musl although the executable was built for GNU/Linux. A disposable profile starting the old daemon and invoking the candidate's public update --from-cli --yes reproduced exit 1: the CLI package does not match this platform or executable. Earlier model-turn probes and package digests had passed because neither tested installer acceptance.
+
+**Rests on:** Current-turn @bg_0000001e; old and corrected codex-package.json; prepare_install.rs prepare_from_package and platform_target; .codescout/native-approval-upgrade-after-20261011.json; .codescout/native-approval-remote-compaction-after-20261011.json.
+
+**Repair:** Repackaged the same rebuilt binaries using explicit --target x86_64-unknown-linux-gnu. Added a target guard regression: observed failing before the guard change, then all six guard tests passed. The public installer now upgrades a running 0.0.0 daemon to installed/running 0.160.0 in a temporary profile; cleanup stops that daemon and removes the profile. Remote compaction and a subsequent model turn also complete successfully. The cold-load launcher captures installer stderr, displays failures, and verifies the actual installed and running version before resume. The shared daemon remains 0.0.0 until the launcher runs outside the session; the installed routing hook again rejected native escalation before approval.
+
+**Lesson:** Model compatibility, package integrity, and public-installer acceptance are different predicates. Verify the full installer boundary before handing a restart command to the user.
 
 ## Template for new entries
 

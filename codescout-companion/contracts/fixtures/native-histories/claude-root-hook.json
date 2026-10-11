@@ -1,0 +1,11 @@
+{
+  "hook_event_name": "PreToolUse",
+  "session_id": "claude-root",
+  "cwd": "${WORKSPACE}",
+  "transcript_path": "/home/marius/.claude/projects/-tmp-harness-identity-20261010-capture/claude-root.jsonl",
+  "tool_name": "Read",
+  "tool_use_id": "claude-call",
+  "tool_input": {
+    "file_path": "${WORKSPACE}/marker.txt"
+  }
+}

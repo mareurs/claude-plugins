@@ -159,6 +159,16 @@ function enforce(reason) {
 }
 
 if (toolName === 'Bash') {
+  // Codescout cannot express the host's native sandbox approval request. Leave
+  // that decision to the host without granting approval or rewriting the input.
+  if (input.tool_input?.sandbox_permissions === 'require_escalated') {
+    contextPreToolUse(
+      'Native sandbox escalation requested. Continue through the host approval flow; ' +
+        'codescout run_command cannot carry this permission request.'
+    );
+    process.exit(0);
+  }
+
   const cmd = (input.tool_input && input.tool_input.command) || '';
   let hint;
   if (/^(grep|rg) /.test(cmd)) {

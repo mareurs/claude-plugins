@@ -16,6 +16,10 @@
 set -uo pipefail
 
 HOOK="$(cd "$(dirname "$0")" && pwd)/pre-tool-guard.mjs"
+# Never delete another session's dedup/breaker markers while testing the guard.
+GUARD_TEST_TMP="$(mktemp -d "${TMPDIR:-/tmp}/cs-guard-test-XXXXXX")" || exit 1
+export TMPDIR="$GUARD_TEST_TMP"
+trap 'rm -rf "$GUARD_TEST_TMP"' EXIT
 ACTIVE_CWD="/home/marius/work/claude/codescout"
 SIBLING_CWD="/home/marius/work/claude/claude-plugins"
 
@@ -41,11 +45,11 @@ verdict() {
 }
 
 # Clear the 3-second dedup window so each test runs with a fresh slate.
-clean_window() { /bin/rm -f /tmp/cs-block-* 2>/dev/null; }
+clean_window() { /bin/rm -f "$TMPDIR"/cs-block-* 2>/dev/null; }
 # Clear the redirect circuit-breaker strike counter (see lib.mjs breakerFile).
 # MUST be reset between tests: a leaked counter stands the guard down, which
 # turns every later "deny" assertion into a silent false PASS-as-allow.
-clean_breaker() { /bin/rm -f /tmp/cs-redirect-* 2>/dev/null; }
+clean_breaker() { /bin/rm -f "$TMPDIR"/cs-redirect-* 2>/dev/null; }
 clean() { clean_window; clean_breaker; }
 
 assert() {

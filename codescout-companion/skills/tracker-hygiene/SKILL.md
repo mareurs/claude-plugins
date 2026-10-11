@@ -244,21 +244,38 @@ sequence — each mutation is its own Phase-4 gate:
 4. **Compact.** Replace the body with an outcomes digest: the Index / Wins Index
    tables (statuses updated), one paragraph per promoted/rehomed entry naming its
    destination, and unfired Promote-when criteria. Full prose history stays in git.
-5. **Archive through the catalog, in three steps — not two.** Per
-   `archive-cadence-policy` § 3 (amended, ratified 2026-08-17):
+5. **Archive through the catalog, in three steps — not two.** Use
+   `archive-cadence-policy` § 3 (amended, ratified 2026-08-17), with the
+   stem-citation exception below to its whole-file timestamp rule:
    a. `doc(update, patch={status:"archived"})` — or a `supersedes` **edge**
       instead, when a successor replaced it (see the note above);
-   b. `doc(move, new_rel_path="docs/trackers/archive/<name>-<YYYY-MM-DD>.md")`
-      — **timestamped**, the date being the day the stream was declared wrapped in
-      step 3. The timestamp is not decoration: `doc(move)` fails if the
-      destination exists, so a stream that wraps, gets archived, is restarted at the
-      live path and wraps again could not be archived at all. It is also the only
-      surviving record of *when* it wrapped once the file leaves the live dir.
-      (A ledger's **entry-level** archive companion is the opposite case — stable
-      name, no timestamp, and check it exists before creating one, or the namespace
+   b. Choose the archive name, then `doc(move, new_rel_path=...)`:
+      - **Stem-cited log:** code or any `<stem>:TOKEN` entry citation in the corpus
+        (including archived documents) names the file stem. Keep the name:
+        `docs/trackers/archive/<name>.md`. Before moving, record the day the stream
+        was declared wrapped in step 3 with
+        `doc(update, patch={extra:{archived_on:"<YYYY-MM-DD>"}})`.
+        A timestamp rename breaks those citations; `link_scan` reports them as
+        `CrossRepoToken`, not `dangling`, so a zero dangling count misses the break.
+      - **Uncited log:** `docs/trackers/archive/<name>-<YYYY-MM-DD>.md`, the date
+        being the day the stream was declared wrapped in step 3. The timestamp
+        records when it wrapped and separates repeated wraps on different dates.
+        `doc(move)` fails if the destination exists; check it before moving.
+      - **Recheck after step 1 and immediately before the move.** Promotions can
+        write new `<stem>:TOKEN` citations after the initial dossier. Choose from
+        the current corpus, not the dossier's earlier naming decision.
+      - **If the stable destination already exists, stop and ask the owner.** Do
+        not invent a suffix: it changes the cited stem again. Do not overwrite the
+        existing archive or merge distinct entry namespaces to avoid the collision.
+      (A ledger's **entry-level** archive companion also keeps a stable name,
+      without a timestamp. Check it exists before creating one, or the namespace
       forks into ambiguous tokens.)
-   c. **Repoint citations of the old path AND the old 16-hex id, in the same commit**,
-      then verify with a scoped `audit_doc_refs` (0 high findings as the gate).
+   c. **Repoint citations of the old path AND the old 16-hex id — and, if the name
+      changed, the old file stem (`<old-stem>:TOKEN`) — in the same commit**.
+      Verify with a scoped `audit_doc_refs` (0 high findings as the gate), plus a
+      `link_scan` report with no `CrossRepoToken` whose qualifier is the old stem.
+      Read all relevant findings if the report is truncated; a cut list cannot
+      establish absence.
       `link_scan(write=true)` does not do this — markdown citations are not catalog
       edges. HY-5 § 1 measured the cost of skipping it: 24 moves broke 8 path
       references across 7 live surfaces, none caught by `link_scan`, one failing CI on
