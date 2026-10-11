@@ -809,15 +809,19 @@ await ta('preflight 3b: the image ids of the planned tasks\' repos (and of the p
 });
 
 await ta('preflight 3c (R-PL7): a registration whose cli.version the plan-limit detector was not verified against is refused, naming VERIFIED_CLI_VERSIONS, plan-limit.mjs and how to re-verify', async () => {
-  // Every verified version (taken from the module, so adding one is one edit) runs the whole batch.
-  for (const version of VERIFIED_CLI_VERSIONS) {
-    const ok = bench({ cliVersion: version });
-    const summary = await ok.run();
-    assert.equal(summary.ran, 3, `${version}: a verified version runs`);
-    assert.equal(ok.calls.length, 3, `${version}: and every planned run starts`);
+  // Every verified version (taken from the module, so adding one is one edit) runs the whole batch, in every mode (m1 of review 3: the gate is
+  // mode-independent, and `smoke` is the likeliest first paid batch).
+  const MODES = ['smoke', 'pilot', 'calibrate', 'measure'];
+  for (const mode of MODES) {
+    for (const version of VERIFIED_CLI_VERSIONS) {
+      const ok = bench({ cliVersion: version, mode });
+      const summary = await ok.run();
+      assert.equal(summary.ran, 3, `${version} in ${mode} mode: a verified version runs`);
+      assert.equal(ok.calls.length, 3, `${version} in ${mode} mode: and every planned run starts`);
+    }
   }
   // An unverified one: refused as preflight item 3 BEFORE anything is written or started (refuses() checks the no-side-effect rules).
-  for (const mode of ['pilot', 'measure']) {
+  for (const mode of MODES) {
     const err = await refuses(bench({ cliVersion: '9.9.9', mode }), /preflight item 3: .*VERIFIED_CLI_VERSIONS.*plan-limit\.mjs/s, `9.9.9 in ${mode} mode`);
     // the message names the offending version, the verified ones, and how to re-verify and where to add
     assert.ok(err.message.includes('"9.9.9"'), 'the registered version is shown');
