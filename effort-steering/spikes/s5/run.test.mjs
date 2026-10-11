@@ -1454,6 +1454,8 @@ const CASES = [
   ['(2c) plan_limit: the CLI\'s exit status 1 does not matter (a plan limit is not the agent\'s failure)', { scenario: { exit: 1, result: errorEnvelope() } }, 'plan_limit', (r) => assert.equal(r.row.exit.code, 1)],
   ['(2c) the real 401 stays api_error: an authentication failure is not a plan limit, in the record and in the envelope', { scenario: { apiError: true, apiErrorText: AUTH_401, result: errorEnvelope(AUTH_401) } }, 'api_error'],
   ['(2c) a refusal that is not at the start of the text is prose, not a plan limit: the run is graded', { scenario: { finalText: `I fixed the limiter. ${REFUSAL}`, result: { result: `I fixed the limiter. ${REFUSAL}` } } }, null],
+  // Review 2, X5: the container's stderr is not read (the brief's call shape; README "Not verified"). A refusal, and the token, only on stderr: graded, and the token reaches no row.
+  ['(2c) a refusal (and the token) only on the container\'s stderr is not read: the run is graded, not plan_limit', { scenario: { stderrRaw: `${REFUSAL} {{TOKEN}}\n` } }, null, (r) => assert.equal(r.row.tokenScrubbed, 0)],
 ];
 
 await taIf('R87: runOne classifies in a fixed order, first match wins; every infrastructure value is a non-final row without a grade, and a good run after all of them is final and graded', NO_REFLINK_HERE, async () => {
@@ -1525,6 +1527,8 @@ await taIf('R-PL5: the token is redacted from the refusal BEFORE it is cut and s
   await inChunks(channels.flatMap(([label, scenarioOf]) => [
     [label, 'in the reset hint', scenarioOf(`${REFUSAL} {{TOKEN}}`)],
     [label, 'across the 200-character cut', scenarioOf(`${lead}{{TOKEN}} and more`)],
+    // Review 2, F2/X4: twice, the second copy starting at character 195 once the first is redacted: replacing only the first occurrence leaves its front behind.
+    [label, 'twice, the second across the cut', scenarioOf(`${REFUSAL} {{TOKEN}} ${'p'.repeat(149)}{{TOKEN}} and more`)],
   ]), 6, async ([label, where, scenario]) => {
     const r = await go(node, mkRun(node), { scenario });
     const what = `${label}, token ${where}`;
@@ -1537,6 +1541,9 @@ await taIf('R-PL5: the token is redacted from the refusal BEFORE it is cut and s
     if (where === 'in the reset hint') {
       assert.equal(matched, `${REFUSAL} [REDACTED]`, what);
       assert.equal(resetHint, 'resets 3pm [REDACTED]', what);
+    } else if (where === 'twice, the second across the cut') {
+      assert.equal(matched.length, 200, what);
+      assert.ok(matched.startsWith(`${REFUSAL} [REDACTED] ${'p'.repeat(149)}[REDA`), `${what}: both copies redacted before the cut: ${matched}`);
     } else {
       assert.equal(matched.length, 200, what);
       assert.ok(matched.startsWith(lead), what);

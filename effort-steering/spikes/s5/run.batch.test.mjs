@@ -1582,6 +1582,48 @@ await (NO_REFLINK_HERE ? Promise.resolve(console.log(`ok - integration (unit mod
   }
 }));
 
+// Review 2, F2/X4: the token TWICE in the refusal, the second copy across the 200-character cut. A redaction that replaced only the first copy would leave the
+// front of the second in `matched` (a fragment, which the whole-token guards cannot see); it must be in no part of the Row, the stopped line, the Summary or the file.
+await (NO_REFLINK_HERE ? Promise.resolve(console.log(`ok - integration (unit mode): the token twice in a refusal # SKIP ${NO_REFLINK_HERE}`)) : ta('integration (unit mode): the token TWICE in the refusal, the second copy across the 200-character cut: no fragment of it in the row, the stopped line, the Summary or the rows file', async () => {
+  const scene = buildNodeScene(`t10c-${process.pid}-planlimit2`);
+  const prereg = smokePrereg(scene);
+  const plan = planRunsS5(prereg, { mode: 'smoke' });
+  const names = plan.map((r) => `s5-${r.runId}-a1`);
+  // After the first copy is redacted the second starts at character 195 (34 + 1 + 10 [REDACTED] + 1 + 149 = 195): a cut at 200 would keep 5 characters of it.
+  const text = `You've hit your limit · resets 3pm {{TOKEN}} ${'p'.repeat(149)}{{TOKEN}} and more`;
+  const docker = fakeDocker({
+    containers: names.map((name) => ({ id: createHash('sha256').update(name).digest('hex'), name, labels: { s5: '1', 's5.run': name }, oomKilled: false })),
+    run: { exec: { env: { FAKE_CLAUDE: JSON.stringify({ result: { is_error: true, result: text } }) } } },
+  });
+  const rowsFile = path.join(scene.workRoot, '..', `rows-${process.pid}-planlimit2.jsonl`);
+  sceneDirs.push(rowsFile);
+  const summary = await runBatch(prereg, {
+    mode: 'smoke',
+    workRoot: scene.workRoot,
+    rowsFile,
+    concurrency: 1,
+    ctx: {
+      dockerBin: docker.bin,
+      claudeBin: FAKE_CLAUDE,
+      esRoot: ES_ROOT,
+      imageIdOf: async (ref) => IMAGE_ID_OF_REF[ref],
+      sha256File: async () => CLI_HEX,
+      proxyRunning: async () => true,
+      grade: async () => { throw new Error('a plan_limit run must not be graded'); },
+    },
+  });
+  const lines = readLines(rowsFile);
+  assert.deepEqual(lines.map((l) => l.type ?? `${l.infra}/${l.final}`), ['plan_limit/false', 'stopped']);
+  const [row, stopped] = lines;
+  assert.equal(row.planLimit.matched.length, 200, 'the cut fell inside the second copy');
+  assert.ok(row.planLimit.matched.endsWith('[REDA'), `the second copy was redacted before the cut: ${row.planLimit.matched.slice(-12)}`);
+  assert.deepEqual(stopped.planLimit, row.planLimit);
+  assert.deepEqual(summary.stopped.planLimit, row.planLimit);
+  for (const [what, body] of [['the rows file', readFileSync(rowsFile, 'utf8')], ['the Summary', JSON.stringify(summary)], ['the row', JSON.stringify(row)], ['the stopped line', JSON.stringify(stopped)], ['matched', row.planLimit.matched], ['resetHint', String(row.planLimit.resetHint)]]) {
+    for (const n of [4, 12]) assert.ok(!body.includes(SENTINEL.slice(0, n)), `${what} holds no part of the token (first ${n} characters)`);
+  }
+}));
+
 // =====================================================================================================================
 // R124 (the circuit breaker), what a stop leaves behind, and R125 (retryExhausted)
 // =====================================================================================================================

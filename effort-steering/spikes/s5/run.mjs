@@ -178,7 +178,9 @@ export function planRunsS5(prereg, options) {
 //                                                           signal that was not the harness's own timeout, a partial run, never graded
 //        (2c) plan_limit                                    (R-PL3) the CLI refused because the plan (a subscription's session, weekly or per-model limit, or a spend
 //                                                           cap) is spent: plan-limit.mjs's detectPlanLimit finds the refusal in the stdout envelope's typed api_error or
-//                                                           result, in stdout, or in the last main-chain assistant record of the transcript. It is checked for every run that
+//                                                           result, in stdout, or in the last main-chain assistant record of the transcript, and the CLI's wrap-up note
+//                                                           (source transcript_note) ANYWHERE in the main transcript: that scan reads every main-chain record, the task
+//                                                           prompt and the hook-context attachment included. The container's stderr is NOT read. It is checked for every run that
 //                                                           got this far, a container that TIMED OUT included, and BEFORE every step that reads the transcript, so a refusal
 //                                                           is never reported as api_error, no_transcript or transcript_unreadable; a refusal recorded as an API-error
 //                                                           record is plan_limit, the real authentication failure (401) stays api_error. The row says nothing about the
@@ -216,7 +218,8 @@ export function planRunsS5(prereg, options) {
 // decision, usage, efforts, costUsd, numTurns, firstUserTextOk, testsRunBeforeDone, finalTextTail, grade }, plus `isError` (R88, from
 // the stdout JSON), `steerContexts` (R147: how many UserPromptSubmit hook contexts the main transcript holds; null without a transcript),
 // `tokenScrubbed` (R108), `planLimit` (R-PL5: only on a plan_limit row: { source, matched, resetHint, rateLimitType, resetsAt }, the verdict of
-// detectPlanLimit; `matched` is the refusal from its first non-blank character, at most 200 characters, `resetHint` the "resets ..." phrase in it or null,
+// detectPlanLimit; `matched` is the detector's own (see THE HIT in plan-limit.mjs): the refusal from its first non-blank character, the kind name for a typed
+// hit with no text, or the note value for a wrap-up note, at most 200 characters; `resetHint` the "resets ..." phrase in it or null,
 // the last two the typed rate-limit fields or null; the token is redacted before the cut, so no fragment of it survives), `infraDetail` (R110: only on an infrastructure row a caught error made, that is
 // transcript_unreadable, grade_failed and a hidden_changed whose hash threw: the error's message, the token redacted before the line is
 // cut to 300 characters) and, only when something is left over, `leftover`.
@@ -695,7 +698,8 @@ export async function runOne(run, ctx) {
     // timedOut) stays R90's.
     if (infra === null && !docker.timedOut && INTERRUPTED_EXITS.includes(docker.status)) infra = 'interrupted';
     // (2c) R-PL3: a spent plan makes the CLI print a refusal that it may return as the ordinary response, and a graded run would turn that into the model's
-    // failure. The detector reads the envelope, stdout and the last assistant record of the main transcript. It runs for any run that got this far, a container
+    // failure. The detector reads the envelope, stdout and the last assistant record of the main transcript, and the CLI's wrap-up note anywhere in the main
+    // transcript (source transcript_note; that scan reads every main-chain record, the task prompt and the hook context included). It does not read stderr. It runs for any run that got this far, a container
     // that timed out included (infra is null for it here), and BEFORE step (3): a refusal with no transcript is not no_transcript, and one recorded as an API
     // error is not api_error. The token is redacted from everything the detector reads BEFORE it cuts `matched` to 200 characters, so no fragment of it can
     // survive the cut (`text` already is redacted; stdout and the envelope's result are not).
@@ -848,7 +852,8 @@ export async function runOne(run, ctx) {
 //                            the reset the verdict's resetHint names (the same command, resumed), runs that run again. The row says nothing about the run, so
 //                            it is counted in infraAttempts but uses none of the run's attempts (three plan windows in a row must not write infra_exhausted, which
 //                            by R149 would drop the task from every arm), is no step of the infrastructure streak (see the circuit breaker) and is never the
-//                            row an exhausted line is copied from. The analysis ignores it like any non-final row.
+//                            row an exhausted line is copied from. The primary analysis ignores it like any non-final row (secondaries.counts[arm].infraRows still counts it).
+//                            A false or recurring stop is NOT capped: the run is planned first again on every resume (see README rule 19).
 //   a thrown runOne (R114), a result that is no Row of that run, or a Row that holds the token: an attempt `run_failed` with infraDetail (the
 //   message, the token redacted, at most 300 characters) and a Row of the Row's keys with null / empty values where nothing is known.
 //   earlier attempts already used the allowance (the file says so): the exhausted line is appended without a new attempt, copied from the last of

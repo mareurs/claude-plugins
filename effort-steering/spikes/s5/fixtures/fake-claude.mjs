@@ -34,12 +34,13 @@
 //   decisionLink      true: the log is a symlink to a file that holds the line
 //   result       an object merged over the default result { type, subtype, is_error, num_turns, total_cost_usd, session_id, result }
 //   stdoutRaw    a string printed instead of the result object
+//   stderrRaw    a string printed on stderr (review 2, X5: runOne does not read the container's stderr)
 //   {{TOKEN}}    anywhere in the scenario's text (a value or a key) is replaced by the value of CLAUDE_CODE_OAUTH_TOKEN before the scenario is read, so
 //                a test can make the "agent" print the token (in a refusal, in the result) without writing it into the scenario it passes
 //   exit         the exit status (default 0)
 //   leak         true: a tool-result record in the main transcript that prints the token, as `env` would (the file holds the token)
 //   configFiles / stateFiles   { "<path under $CLAUDE_CONFIG_DIR / $XDG_STATE_HOME>": "<text>" | { text, mtime?, mode? } } more files; the
-//                text, and the path, may hold {{TOKEN}}, replaced by the value of CLAUDE_CODE_OAUTH_TOKEN; mtime is an ISO date, mode a number
+//                text, and the path, may hold {{TOKEN}} (replaced for the whole scenario, above); mtime is an ISO date, mode a number
 //   configLinks  { "<path under $CLAUDE_CONFIG_DIR>": "<target>" } symlinks (to a file or a directory anywhere)
 
 import {
@@ -165,8 +166,8 @@ if (decision !== null) {
 for (const [base, files] of [[configDir, scenario.configFiles], [stateHome, scenario.stateFiles]]) {
   for (const [rel, spec] of Object.entries(files ?? {})) {
     const { text, mtime, mode } = typeof spec === 'string' ? { text: spec } : spec;
-    const file = join(base, rel.replaceAll('{{TOKEN}}', TOKEN));
-    write(file, text.replaceAll('{{TOKEN}}', TOKEN));
+    const file = join(base, rel);
+    write(file, text);
     if (mtime !== undefined) utimesSync(file, new Date(mtime), new Date(mtime));
     if (mode !== undefined) chmodSync(file, mode);
   }
@@ -191,4 +192,5 @@ if (typeof scenario.stdoutRaw === 'string') {
   };
   process.stdout.write(`${JSON.stringify(result)}\n`);
 }
+if (typeof scenario.stderrRaw === 'string') process.stderr.write(scenario.stderrRaw);
 process.exit(scenario.exit ?? 0);

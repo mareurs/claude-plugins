@@ -331,7 +331,7 @@ await ta('run prints the Summary as JSON on stdout and returns 0, also when the 
   const r = await cli(['run', '--mode', 'calibrate', '--prereg', 'p.json', '--work-root', freshDir('w')], { env, modules: f.modules });
   assert.equal(r.code, 0);
   assert.deepEqual(asJson(r), stopped);
-  for (const reason of ['infra_streak', 'signal', 'hidden_changed']) {
+  for (const reason of ['infra_streak', 'signal', 'hidden_changed', 'plan_limit']) {
     const g = fakes(env, { summary: { ...SUMMARY, stopped: { reason } } });
     const s = await cli(['run', '--mode', 'calibrate', '--prereg', 'p.json', '--work-root', freshDir('w')], { env, modules: g.modules });
     assert.equal(s.code, 0, reason);
