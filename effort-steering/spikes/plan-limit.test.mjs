@@ -6,11 +6,14 @@
 // CLI_CLASSIFIER_PREFIXES are the CLI's own list (AMENDMENT A1), copied byte for byte from the binary. The 401 record is a real
 // transcript record. The 401 ENVELOPE is reconstructed from the verified field list (no byte capture was kept). A plan-limit envelope or transcript
 // record has never been observed on this host: every one built here is SYNTHETIC and says so. That includes every wrap-up note record: that the
-// transcript persists `usageLimitNote`, and where the CLI delivers the `[Usage limit reached ...` marker, is NOT verified.
+// transcript persists `usageLimitNote`, and where the CLI delivers the `[Usage limit reached ...` / `[Usage limit approaching ...` marker, is NOT
+// verified. It also includes every record with a typed `apiError` (AMENDMENT A2, F4): that the CLI's builder sets `error: "rate_limit"`, `apiError`
+// and `apiErrorParams` is read from the binary; that the transcript persists them is not verified.
 import assert from 'node:assert/strict';
 import { t } from '../core/testkit.mjs';
 import {
   MAX_REFUSAL_CHARS,
+  PLAN_LIMIT_API_ERRORS,
   PlanLimitError,
   RATE_LIMIT_TYPES,
   VERIFIED_CLI_VERSIONS,
@@ -40,12 +43,27 @@ const assistant = (content, over = {}) => ({ type: 'assistant', isSidechain: fal
 const said = (text, over) => assistant([{ type: 'text', text }], over);
 const userRec = (text) => ({ type: 'user', isSidechain: false, message: { role: 'user', content: text } });
 
-// SYNTHETIC wrap-up note records (AMENDMENT A1). The marker text is the one the binary builds; that a transcript record carries it, or carries
-// `usageLimitNote`, is NOT verified.
+// SYNTHETIC wrap-up note records (AMENDMENTS A1, A2). The marker texts are the ones the binary builds; that a transcript record carries one, or
+// carries `usageLimitNote`, is NOT verified. The property has three values in the CLI: wrap_up, release, near_limit (A2/F1).
 const NOTE_TEXT = "[Usage limit reached — grace window active. Wrap up: finish or checkpoint; don't start subagents or long work.]";
+// The content the CLI pushes with `usageLimitNote: "near_limit"` (read from the binary, A2/F1).
+const NEAR_LIMIT_TEXT = "[Usage limit approaching. Checkpoint now: finish the current step, then list up to 3 short bullets of the most impactful remaining work. Don't start subagents or long-running work.]";
+// The visible system notice pushed together with the near_limit note: a warning, never a refusal text (fact 2).
+const NEAR_LIMIT_WARNING = 'Approaching your 5-hour usage limit — Claude will wrap up the current step.';
 const noteUser = (over = {}) => ({ type: 'user', isMeta: true, isSidechain: false, message: { role: 'user', content: NOTE_TEXT }, ...over });
 const noteProp = (over = {}) => ({ type: 'user', isMeta: true, isSidechain: false, usageLimitNote: 'wrap_up', message: { role: 'user', content: 'ordinary meta text' }, ...over });
 const noteAttachment = (content, over = {}) => ({ type: 'attachment', isSidechain: false, attachment: { type: 'queued_command', content }, ...over });
+// SYNTHETIC assistant record with the typed fields the CLI's error builder sets (A2/F4): `error: "rate_limit"`, `apiError`, `apiErrorParams`.
+const typedRecord = (text, over = {}) => ({
+  type: 'assistant',
+  isSidechain: false,
+  isApiErrorMessage: true,
+  error: 'rate_limit',
+  apiError: 'usage_limit_reached',
+  message: { role: 'assistant', model: '<synthetic>', content: [{ type: 'text', text }] },
+  ...over,
+});
+const RATE_INFO = { rate_limit_info: { rateLimitType: 'five_hour', resetsAt: 1790000000 } };
 
 // RECONSTRUCTED from the verified field list: the envelope of `claude -p --output-format json` on a 401 (no byte capture was kept).
 const envelope401 = () => ({
@@ -101,6 +119,10 @@ t('exports: MAX_REFUSAL_CHARS is 600 and RATE_LIMIT_TYPES lists the six types th
   assert.deepEqual(RATE_LIMIT_TYPES, ['five_hour', 'seven_day', 'seven_day_opus', 'seven_day_sonnet', 'seven_day_overage_included', 'overage']);
 });
 
+t('exports (A2/F5): PLAN_LIMIT_API_ERRORS holds exactly the two typed kinds that are refusals of a model run — other credit or consent kinds are not in it', () => {
+  assert.deepEqual(PLAN_LIMIT_API_ERRORS, ['usage_limit_reached', 'model_requires_usage_credits']);
+});
+
 t('R-PL7: VERIFIED_CLI_VERSIONS is an array of distinct, non-empty version strings and holds the two versions whose message text was read', () => {
   assert.ok(Array.isArray(VERIFIED_CLI_VERSIONS));
   assert.ok(VERIFIED_CLI_VERSIONS.length >= 2);
@@ -111,6 +133,10 @@ t('R-PL7: VERIFIED_CLI_VERSIONS is an array of distinct, non-empty version strin
   assert.equal(new Set(VERIFIED_CLI_VERSIONS).size, VERIFIED_CLI_VERSIONS.length, 'no duplicate');
   assert.ok(VERIFIED_CLI_VERSIONS.includes('2.1.292'));
   assert.ok(VERIFIED_CLI_VERSIONS.includes('2.1.296'));
+});
+
+t('R-PL7 (A2/F6): VERIFIED_CLI_VERSIONS is exactly the two versions whose classifier was compared — adding a version is a deliberate edit of the module AND of this test, next to the RE-VERIFY note in the module header', () => {
+  assert.deepEqual(VERIFIED_CLI_VERSIONS, ['2.1.292', '2.1.296']);
 });
 
 // ---- the anchored patterns (R-PL2, AMENDMENT A1) ----------------------------------------------------------------------------------------
@@ -306,6 +332,7 @@ t('A1 pattern 8: a different amount, a missing dollar sign, another subject or a
     "Your group's usage limit is set to 0",
     "Your team's usage limit is set to $0",
     'Your groups usage limit is set to $0',
+    'Your groupxs usage limit is set to $0', // the apostrophe slot takes only the ASCII and the typographic apostrophe (A2/F6)
     "Your group's usage limit is set",
   ]);
 });
@@ -456,7 +483,7 @@ t('R-PL2 length cap: a huge candidate is no hit and no throw', () => {
 
 // ---- the channels (R-PL1, R-PL2, brief "Channel order") ---------------------------------------------------------------------------------
 
-t('channel envelope.api_error: the typed field alone is a hit, with no text', () => {
+t('channel envelope.api_error: the typed field alone is a hit, with no text; the name of the kind is what was matched', () => {
   assert.deepEqual(detectPlanLimit(ALL_CHANNELS.envelope_api_error()), {
     source: 'envelope_api_error',
     matched: 'usage_limit_reached',
@@ -464,34 +491,50 @@ t('channel envelope.api_error: the typed field alone is a hit, with no text', ()
     rateLimitType: null,
     resetsAt: null,
   });
-  assert.deepEqual(detectPlanLimit({ envelope: { api_error: 'usage_limit_reached' } }), {
-    source: 'envelope_api_error',
-    matched: 'usage_limit_reached',
-    resetHint: null,
-    rateLimitType: null,
-    resetsAt: null,
-  });
+  for (const kind of ['usage_limit_reached', 'model_requires_usage_credits']) {
+    assert.deepEqual(detectPlanLimit({ envelope: { api_error: kind } }), {
+      source: 'envelope_api_error',
+      matched: kind,
+      resetHint: null,
+      rateLimitType: null,
+      resetsAt: null,
+    }, kind);
+  }
 });
 
-t('channel envelope.api_error: it needs neither the anchor nor the length cap of the text channels (the type is authoritative)', () => {
-  const found = detectPlanLimit({ envelope: { api_error: 'usage_limit_reached', result: `Something unrelated. ${'x'.repeat(2000)}` } });
-  assert.equal(found.source, 'envelope_api_error');
-  assert.equal(found.matched.length, 200);
+t('channel envelope.api_error: it needs neither the anchor nor the length cap of the text channels (the type is authoritative), for both kinds', () => {
+  for (const kind of ['usage_limit_reached', 'model_requires_usage_credits']) {
+    const found = detectPlanLimit({ envelope: { api_error: kind, result: `Something unrelated. ${'x'.repeat(2000)}` } });
+    assert.equal(found.source, 'envelope_api_error', kind);
+    assert.equal(found.matched.length, 200);
+  }
 });
 
-t('channel envelope.api_error: when the envelope also carries a result text, that text (cut to 200 characters) is what was matched; a blank result falls back to the type name', () => {
+t('channel envelope.api_error: when the envelope also carries a result text, that text (cut to 200 characters) is what was matched; a blank result falls back to the kind name', () => {
   const withText = detectPlanLimit({ envelope: { api_error: 'usage_limit_reached', result: "  You've hit your limit · resets 3pm" } });
   assert.equal(withText.source, 'envelope_api_error');
   assert.equal(withText.matched, REFUSAL);
   assert.equal(withText.resetHint, 'resets 3pm');
-  for (const result of ['', '   \n', 5, null, ['x']]) {
-    const found = detectPlanLimit({ envelope: { api_error: 'usage_limit_reached', result } });
-    assert.equal(found.matched, 'usage_limit_reached', JSON.stringify(result));
+  for (const kind of ['usage_limit_reached', 'model_requires_usage_credits']) {
+    for (const result of ['', '   \n', 5, null, ['x']]) {
+      const found = detectPlanLimit({ envelope: { api_error: kind, result } });
+      assert.equal(found.matched, kind, `${kind} ${JSON.stringify(result)}`);
+    }
   }
 });
 
-t('channel envelope.api_error: only the exact string "usage_limit_reached" counts', () => {
-  for (const value of ['authentication_failed', 'rate_limit', 'USAGE_LIMIT_REACHED', 'usage_limit_reached ', 'usage_limit', true, 1, ['usage_limit_reached'], { kind: 'usage_limit_reached' }, null, '']) {
+t('channel envelope.api_error (A2/F6): only the START of the result text is trimmed — trailing whitespace stays in `matched` and in `resetHint`', () => {
+  const found = detectPlanLimit({ envelope: { api_error: 'usage_limit_reached', result: "  \n You've hit your limit · resets 3pm \n" } });
+  assert.equal(found.matched, "You've hit your limit · resets 3pm \n");
+  assert.equal(found.resetHint, 'resets 3pm ');
+});
+
+t('channel envelope.api_error: only the exact strings of PLAN_LIMIT_API_ERRORS count; near names, other casings and other types do not', () => {
+  for (const value of [
+    'authentication_failed', 'rate_limit', 'USAGE_LIMIT_REACHED', 'usage_limit_reached ', 'usage_limit', true, 1, ['usage_limit_reached'], { kind: 'usage_limit_reached' }, null, '',
+    // near names (invented, not CLI kinds): the other credit or consent kinds are NOT in the list (A2/F5)
+    'model_requires_usage_credits ', 'MODEL_REQUIRES_USAGE_CREDITS', 'model_requires_usage_credit', 'usage_credits_required', 'overage_disabled', 'consent_required', ['model_requires_usage_credits'],
+  ]) {
     assert.equal(detectPlanLimit({ envelope: { api_error: value } }), null, JSON.stringify(value));
   }
 });
@@ -644,6 +687,53 @@ t('negative (A1): a notice that starts with "Switched" and only mentions a model
   assertNoHitInAnyTextChannel('Switched to Sonnet. Fable requires usage credits.');
 });
 
+t('negative (A2/F1): the near-limit WARNING is not a refusal text in any text channel; the near-limit and wrap-up note TEXTS are none in the envelope, stdout and stderr (in a transcript they are the note channel\'s)', () => {
+  assertNoHitInAnyTextChannel(NEAR_LIMIT_WARNING);
+  for (const text of [NEAR_LIMIT_TEXT, NOTE_TEXT]) {
+    for (const channel of ['envelope_result', 'stdout', 'stderr']) assert.equal(detectPlanLimit(TEXT_CHANNELS[channel](text)), null, channel);
+  }
+});
+
+// ACCEPTED FALSE POSITIVES (A2/F7, F8). A false hit stops a resumable batch; a false miss would silently corrupt the study. So short agent prose
+// at index 0 that starts with a widened prefix, and the CLI's status labels, stay hits. These tests PIN the current verdict, in all four text
+// channels; if the verdict is ever changed on purpose, change the test with it.
+t('accepted false positive (A2/F7): short agent prose that starts with "You\'ve hit your" is a hit (pinned)', () => {
+  const text = "You've hit your target of 90% coverage: the suite now covers every branch of the parser.";
+  for (const [channel, build] of Object.entries(TEXT_CHANNELS)) assert.equal(detectPlanLimit(build(text))?.source, channel, channel);
+});
+
+t('accepted false positive (A2/F7): short agent prose that starts with "You\'ve reached your" is a hit (pinned)', () => {
+  const text = "You've reached your goal: the parser handles every case in the spec.";
+  for (const [channel, build] of Object.entries(TEXT_CHANNELS)) assert.equal(detectPlanLimit(build(text))?.source, channel, channel);
+});
+
+t('accepted false positive (A2/F7): short agent prose that starts with "<Model> requires usage credits." is a hit (pinned)', () => {
+  const text = 'Opus requires usage credits. I switched the default model to Sonnet in config.ts.';
+  for (const [channel, build] of Object.entries(TEXT_CHANNELS)) assert.equal(detectPlanLimit(build(text))?.source, channel, channel);
+});
+
+t('accepted false positive (A2/F8): pattern 5 matches the CLI\'s status labels, such as the "credits_on" one that says the CLI continues on credits (pinned)', () => {
+  for (const text of [`Usage limit reached ${MIDDLE_DOT} brief included wrap-up, then usage credits`, `Usage limit reached ${MIDDLE_DOT} wrapping up`]) {
+    for (const [channel, build] of Object.entries(TEXT_CHANNELS)) assert.equal(detectPlanLimit(build(text))?.source, channel, `${channel}: ${text}`);
+  }
+});
+
+t('accepted false positive, and its limit (A2/F7): the same prose longer than 600 characters, or not at index 0, is no hit', () => {
+  const prose = "You've reached your goal: " + 'the parser handles every case in the spec. '.repeat(20);
+  assert.ok(prose.length > MAX_REFUSAL_CHARS);
+  assertNoHitInAnyTextChannel(prose);
+  assertNoHitInAnyTextChannel("Good news. You've reached your goal: the parser handles every case.");
+});
+
+// NOT MATCHED BY DECISION (A2): an ANSI-coloured refusal, an `Error: ` / `API Error: ` prefix, and a refusal longer than 600 characters. None of the
+// three is verified to occur; the header lists them as NOT verified.
+t('not matched by decision (A2): an ANSI-coloured refusal, an "Error: " or "API Error: " prefix, and a refusal over 600 characters are no hit', () => {
+  assertNoHitInAnyTextChannel(`\u001b[31m${REFUSAL}\u001b[0m`);
+  assertNoHitInAnyTextChannel(`Error: ${REFUSAL}`);
+  assertNoHitInAnyTextChannel(`API Error: ${REFUSAL}`);
+  assertNoHitInAnyTextChannel(pad(REFUSAL, 601));
+});
+
 // ---- inputs (R-PL1: never throws) -------------------------------------------------------------------------------------------------------
 
 t('R-PL1 inputs: undefined, null, primitives, arrays, empty and null-field objects give null and never throw', () => {
@@ -680,6 +770,53 @@ t('R-PL1 inputs: a transcript that is not JSON, is torn, or holds JSON values th
   assert.equal(detectPlanLimit({ transcript: '{"type":"assistant","message":{"content":[{"type":"te' }), null);
   assert.equal(detectPlanLimit({ transcript: 'null\n42\n[]\n"str"\ntrue\n{}' }), null);
   assert.equal(detectPlanLimit({ transcript: '\n\n\n' }), null);
+});
+
+// R-PL1 as the header states it (A2/F2): never throws for any JSON value, primitive or plain object — what callers pass (`JSON.parse` output and
+// strings). It does NOT promise anything for objects with throwing getters or Proxies. The generator is seeded, so the run is deterministic.
+t('R-PL1 (A2/F2): the four public readers never throw for seeded random JSON values built from the module\'s own field names; hits keep the five-key shape', () => {
+  let seed = 20261011;
+  const rnd = () => {
+    seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
+    return seed / 4294967296;
+  };
+  const pick = (list) => list[Math.floor(rnd() * list.length)];
+  const KEYS = ['envelope', 'api_error', 'result', 'api_error_params', 'rate_limit_info', 'rateLimitType', 'resetsAt', 'type', 'isSidechain', 'message', 'content', 'attachment',
+    'usageLimitNote', 'apiError', 'apiErrorParams', 'rendered', 'renderedInHumanTurn', 'text', 'prompt', 'role', 'toolUseResult', 'stdout'];
+  const STRINGS = ['usage_limit_reached', 'model_requires_usage_credits', 'five_hour', 'overage', 'assistant', 'user', 'attachment', 'system', 'text', 'tool_result', 'wrap_up',
+    '', ' ', REFUSAL, NOTE_TEXT, NEAR_LIMIT_TEXT, TEXT_401, '{', '[', 'null'];
+  const value = (depth) => {
+    const r = rnd();
+    if (depth <= 0 || r < 0.35) return pick([null, true, false, 0, -1, 5, 1.5, 1790000000, ...STRINGS]);
+    if (r < 0.6) return Array.from({ length: Math.floor(rnd() * 4) }, () => value(depth - 1));
+    const obj = {};
+    for (let i = 0, n = Math.floor(rnd() * 5); i < n; i += 1) obj[pick(KEYS)] = value(depth - 1);
+    return obj;
+  };
+  const shape = ['matched', 'rateLimitType', 'resetHint', 'resetsAt', 'source'];
+  let hits = 0;
+  for (let i = 0; i < 4000; i += 1) {
+    const lines = Array.from({ length: Math.floor(rnd() * 4) }, () => JSON.stringify(value(3)));
+    const input = { envelope: value(3), stdout: value(1), stderr: value(1), transcript: rnd() < 0.5 ? lines.join('\n') : value(2) };
+    const found = detectPlanLimit(input);
+    if (found !== null) {
+      hits += 1;
+      assert.deepEqual(Object.keys(found).sort(), shape);
+    }
+    try {
+      assertNoPlanLimit(input);
+    } catch (err) {
+      if (!(err instanceof PlanLimitError)) throw err;
+    }
+    lastAssistantRecordText(input.transcript);
+    usageLimitNoteIn(input.transcript);
+  }
+  assert.ok(hits > 0, 'the generator reaches the hit paths');
+  for (const primitive of [undefined, null, true, 0, NaN, 'text', Symbol('s'), 10n]) {
+    assert.equal(detectPlanLimit(primitive), null);
+    assert.equal(lastAssistantRecordText(primitive), null);
+    assert.equal(usageLimitNoteIn(primitive), null);
+  }
 });
 
 t('transcript rule: a transcript whose last record is a user record, or whose only refusal is in a sidechain, is no hit', () => {
@@ -719,6 +856,126 @@ t('SYNTHETIC plan-limit transcript: the 401 record with error "rate_limit" and a
   assert.equal(found.resetHint, 'resets 3pm');
   // and the same record with the 401 text is still none: it is the text, not the record shape, that decides
   assert.equal(detectPlanLimit({ transcript: JSON.stringify(syntheticPlanLimitRecord(TEXT_401)) }), null);
+});
+
+// ---- the typed transcript signal (AMENDMENT A2, F4) --------------------------------------------------------------------------------------
+// The CLI's error builder gives the transcript record of a classified refusal `error: "rate_limit"`, `apiError: "usage_limit_reached"` and
+// `apiErrorParams: {rate_limit_info}` (read from the binary). Every record below is SYNTHETIC: that the transcript persists those fields is NOT verified.
+
+t('typed transcript record (A2/F4): the last main-chain assistant record with a PLAN_LIMIT_API_ERRORS apiError is a hit even when its text matches no pattern', () => {
+  const text = 'Something the text patterns do not know';
+  for (const kind of ['usage_limit_reached', 'model_requires_usage_credits']) {
+    const found = detectPlanLimit({ transcript: jl(userRec('go'), typedRecord(text, { apiError: kind })) });
+    assert.deepEqual(found, { source: 'transcript', matched: text, resetHint: null, rateLimitType: null, resetsAt: null }, kind);
+  }
+});
+
+t('typed transcript record (A2/F4): with no text, or a blank one, the kind name is what was matched', () => {
+  for (const kind of ['usage_limit_reached', 'model_requires_usage_credits']) {
+    for (const content of [[], [{ type: 'text', text: '   \n' }], '', [{ type: 'tool_use', id: 't', name: 'Bash', input: {} }]]) {
+      const found = detectPlanLimit({ transcript: jl(typedRecord('x', { apiError: kind, message: { role: 'assistant', content } })) });
+      assert.equal(found?.source, 'transcript', `${kind} ${JSON.stringify(content)}`);
+      assert.equal(found.matched, kind);
+    }
+  }
+});
+
+t('typed transcript record (A2/F4): like channel 1 it needs neither the anchor nor the 600-character cap, and `matched` is the text from its first non-blank character, cut to 200', () => {
+  const long = `  \n Unrelated words. ${'x'.repeat(3000)}`;
+  const found = detectPlanLimit({ transcript: jl(typedRecord(long)) });
+  assert.equal(found.source, 'transcript');
+  assert.equal(found.matched, long.trimStart().slice(0, 200));
+  const trailing = detectPlanLimit({ transcript: jl(typedRecord("Unrelated words, resets 3pm \n")) });
+  assert.equal(trailing.matched, 'Unrelated words, resets 3pm \n');
+  assert.equal(trailing.resetHint, 'resets 3pm ');
+});
+
+t('typed transcript record (A2/F4): another apiError kind, another casing, another type, or none is no hit — and error "rate_limit" alone (the server-overload record) is none', () => {
+  for (const value of ['authentication_failed', 'rate_limit', 'USAGE_LIMIT_REACHED', 'usage_limit_reached ', 'invalid_request', true, 5, ['usage_limit_reached'], { kind: 'usage_limit_reached' }, null, '']) {
+    assert.equal(detectPlanLimit({ transcript: jl(typedRecord('Something unknown', { apiError: value })) }), null, JSON.stringify(value));
+  }
+  const overload = typedRecord('Server is temporarily limiting requests (not your usage limit)');
+  delete overload.apiError;
+  assert.equal(detectPlanLimit({ transcript: jl(overload) }), null, 'error rate_limit without apiError');
+  assert.equal(detectPlanLimit({ transcript: jl(typedRecord('Something unknown', { error: 'rate_limit', apiError: undefined })) }), null);
+});
+
+t('typed transcript record (A2/F4): the typed kind alone decides — isApiErrorMessage and error "rate_limit" are not required', () => {
+  const bare = { type: 'assistant', isSidechain: false, apiError: 'usage_limit_reached', message: { role: 'assistant', content: [{ type: 'text', text: 'Something unknown' }] } };
+  const found = detectPlanLimit({ transcript: jl(bare) });
+  assert.equal(found?.source, 'transcript');
+  assert.equal(found.matched, 'Something unknown');
+  assert.equal(detectPlanLimit({ transcript: jl({ ...bare, isApiErrorMessage: false, error: 'other' }) })?.source, 'transcript');
+});
+
+t('typed transcript record (A2/F4): only the LAST main-chain assistant record counts — a typed record followed by a normal answer is no hit; a sidechain or a user record never counts', () => {
+  assert.equal(detectPlanLimit({ transcript: jl(typedRecord('Something unknown'), said(CLEAN_PROSE)) }), null);
+  assert.equal(detectPlanLimit({ transcript: jl(said(CLEAN_PROSE), typedRecord('Something unknown')) })?.source, 'transcript');
+  assert.equal(detectPlanLimit({ transcript: jl(typedRecord('Something unknown'), said(CLEAN_PROSE, { isSidechain: true })) })?.source, 'transcript', 'a later sidechain record does not hide it');
+  assert.equal(detectPlanLimit({ transcript: jl(said(CLEAN_PROSE), typedRecord('Something unknown', { isSidechain: true })) }), null, 'a typed sidechain record');
+  assert.equal(detectPlanLimit({ transcript: jl(said(CLEAN_PROSE), { ...userRec('Something unknown'), apiError: 'usage_limit_reached' }) }), null, 'a typed user record');
+});
+
+t('typed transcript record (A2/F4): it is channel 5 — channels 1 to 4 beat it, and it beats the note channel', () => {
+  const typed = typedRecord('Something unknown');
+  assert.equal(detectPlanLimit({ envelope: { api_error: 'usage_limit_reached' }, transcript: jl(typed) }).source, 'envelope_api_error');
+  assert.equal(detectPlanLimit({ envelope: { result: REFUSAL }, transcript: jl(typed) }).source, 'envelope_result');
+  assert.equal(detectPlanLimit({ stdout: REFUSAL, transcript: jl(typed) }).source, 'stdout');
+  assert.equal(detectPlanLimit({ stderr: REFUSAL, transcript: jl(typed) }).source, 'stderr');
+  assert.equal(detectPlanLimit({ transcript: jl(noteUser(), typed) }).source, 'transcript');
+  assert.equal(detectPlanLimit({ transcript: jl(noteUser(), typed, said(CLEAN_PROSE)) }).source, 'transcript_note', 'typed record no longer last: the note decides');
+});
+
+t('typed transcript record (A2/F4): assertNoPlanLimit throws for it', () => {
+  assert.throws(() => assertNoPlanLimit({ transcript: jl(typedRecord('Something unknown')) }), (err) => err instanceof PlanLimitError && err.hit.source === 'transcript');
+});
+
+t('typed transcript record (A2/F4): rateLimitType and resetsAt come from the record\'s apiErrorParams.rate_limit_info, well-formed fields only', () => {
+  const found = detectPlanLimit({ transcript: jl(typedRecord('Something unknown', { apiErrorParams: RATE_INFO })) });
+  assert.equal(found.rateLimitType, 'five_hour');
+  assert.equal(found.resetsAt, 1790000000);
+  const half = detectPlanLimit({ transcript: jl(typedRecord('Something unknown', { apiErrorParams: { rate_limit_info: { rateLimitType: 'hourly', resetsAt: 7 } } })) });
+  assert.equal(half.rateLimitType, null);
+  assert.equal(half.resetsAt, 7);
+  for (const params of [undefined, null, 'x', 5, [], { rate_limit_info: null }, { rate_limit_info: 'five_hour' }, { rate_limit_info: { rateLimitType: 5, resetsAt: 'soon' } }]) {
+    const none = detectPlanLimit({ transcript: jl(typedRecord('Something unknown', { apiErrorParams: params })) });
+    assert.equal(none.rateLimitType, null, JSON.stringify(params));
+    assert.equal(none.resetsAt, null);
+  }
+});
+
+t('typed transcript record (A2/F4): a TEXT-matched transcript hit reads the rate info from the record too, typed or not', () => {
+  const plain = detectPlanLimit({ transcript: jl(said(REFUSAL, { apiErrorParams: RATE_INFO })) });
+  assert.equal(plain.source, 'transcript');
+  assert.equal(plain.matched, REFUSAL);
+  assert.equal(plain.rateLimitType, 'five_hour');
+  assert.equal(plain.resetsAt, 1790000000);
+  const typed = detectPlanLimit({ transcript: jl(typedRecord(REFUSAL, { apiErrorParams: RATE_INFO })) });
+  assert.equal(typed.rateLimitType, 'five_hour');
+});
+
+t('typed transcript record (A2/F4): the record\'s rate info wins per field; the envelope\'s fills what the record lacks', () => {
+  const envelope = { api_error_params: { rate_limit_info: { rateLimitType: 'seven_day', resetsAt: 99 } } };
+  const both = detectPlanLimit({ envelope, transcript: jl(typedRecord('Something unknown', { apiErrorParams: RATE_INFO })) });
+  assert.equal(both.rateLimitType, 'five_hour');
+  assert.equal(both.resetsAt, 1790000000);
+  const onlyEnvelope = detectPlanLimit({ envelope, transcript: jl(typedRecord('Something unknown')) });
+  assert.equal(onlyEnvelope.rateLimitType, 'seven_day');
+  assert.equal(onlyEnvelope.resetsAt, 99);
+  const mixed = detectPlanLimit({ envelope, transcript: jl(typedRecord('Something unknown', { apiErrorParams: { rate_limit_info: { rateLimitType: 'overage', resetsAt: 'soon' } } })) });
+  assert.equal(mixed.rateLimitType, 'overage', 'the record\'s good field');
+  assert.equal(mixed.resetsAt, 99, 'the envelope fills the record\'s bad field');
+  const textHit = detectPlanLimit({ envelope, transcript: jl(said(REFUSAL)) });
+  assert.equal(textHit.rateLimitType, 'seven_day', 'a text-matched transcript hit with no record info uses the envelope\'s');
+  const zero = detectPlanLimit({ envelope, transcript: jl(typedRecord('Something unknown', { apiErrorParams: { rate_limit_info: { rateLimitType: 'overage', resetsAt: 0 } } })) });
+  assert.equal(zero.resetsAt, 0, 'a resetsAt of 0 is a value, not an absence: the record\'s 0 wins over the envelope\'s 99');
+});
+
+t('typed transcript record (A2/F4): the record\'s apiErrorParams is NOT read on a hit from another channel (the stdout hit has no record behind it)', () => {
+  const found = detectPlanLimit({ stdout: REFUSAL, transcript: jl(typedRecord('x', { apiErrorParams: RATE_INFO })) });
+  assert.equal(found.source, 'stdout');
+  assert.equal(found.rateLimitType, null);
+  assert.equal(found.resetsAt, null);
 });
 
 // ---- the typed field's rate-limit info (fact 3) -----------------------------------------------------------------------------------------
@@ -829,6 +1086,15 @@ t('Hit.resetHint stops at the end of the line', () => {
   assert.equal(detectPlanLimit({ stdout: "You've hit your limit · resets 3pm\nRun /usage-credits to keep going." }).resetHint, 'resets 3pm');
 });
 
+t('Hit.resetHint (A2/F6): the line ends at "\\n" only — with CRLF line ends the carriage return is part of the hint (pinned: the regex is [^\\n], not ".")', () => {
+  assert.equal(detectPlanLimit({ stdout: "You've hit your limit · resets 3pm\r\nRun /usage-credits to keep going." }).resetHint, 'resets 3pm\r');
+});
+
+t('Hit.resetHint (A2/F6): trailing spaces after the reset phrase are part of the hint (pinned: nothing trims it)', () => {
+  assert.equal(detectPlanLimit({ stdout: "You've hit your limit · resets 3pm  " }).resetHint, 'resets 3pm  ');
+  assert.equal(detectPlanLimit({ stdout: "You've hit your limit · resets 3pm \nMore" }).resetHint, 'resets 3pm ');
+});
+
 t('Hit.resetHint: at most 80 characters follow the reset word', () => {
   const found = detectPlanLimit({ stdout: `You've hit your limit · resets ${'a'.repeat(300)}` });
   assert.equal(found.resetHint, `resets ${'a'.repeat(79)}`);
@@ -937,13 +1203,15 @@ t('lastAssistantRecordText: a multi-block refusal is joined, so the anchor sees 
   assert.equal(detectPlanLimit({ transcript: prose }), null, 'a refusal in the second block is not at index 0 of the record text');
 });
 
-// ---- the wrap-up note: usageLimitNoteIn and channel 6, transcript_note (AMENDMENT A1) ---------------------------------------------------
-// Every record here is SYNTHETIC: that the transcript persists `usageLimitNote` on a record, and where the CLI delivers the marker text (a user
-// record, an attachment), is NOT verified. The scan therefore reads user, attachment and system records alike.
+// ---- the wrap-up note: usageLimitNoteIn and channel 6, transcript_note (AMENDMENTS A1, A2) -------------------------------------------------
+// Every record here is SYNTHETIC: that the transcript persists `usageLimitNote` on a record, and where the CLI delivers the marker text, is NOT
+// verified. The scan therefore reads every location a real record keeps text in (A2, section 7), except tool and hook output.
 
-t('usageLimitNoteIn: an own property usageLimitNote that is a non-empty string is returned as it is — a property-only record', () => {
+t('usageLimitNoteIn (A2/F1): the three REAL values of the property — wrap_up, release, near_limit — are each returned as they are; a property-only record', () => {
   assert.equal(usageLimitNoteIn(jl(noteProp())), 'wrap_up');
-  assert.equal(usageLimitNoteIn(jl(userRec('hi'), noteProp({ usageLimitNote: 'next_steps' }), said('done'))), 'next_steps');
+  for (const value of ['wrap_up', 'release', 'near_limit']) {
+    assert.equal(usageLimitNoteIn(jl(userRec('hi'), noteProp({ usageLimitNote: value }), said('done'))), value, value);
+  }
   const long = 'n'.repeat(300);
   assert.equal(usageLimitNoteIn(jl(noteProp({ usageLimitNote: long }))), long, 'the property value is returned whole; the Hit cuts it');
   assert.equal(usageLimitNoteIn(jl(noteProp({ usageLimitNote: ' ' }))), ' ', 'non-empty is the whole test: a blank string is still a string the CLI set');
@@ -978,10 +1246,12 @@ t('usageLimitNoteIn: the property must be the record\'s OWN — one inherited th
   assert.equal(Object.hasOwn(Object.prototype, 'usageLimitNote'), false, 'test cleanup');
 });
 
-t('usageLimitNoteIn: a user record whose message.content STARTS with "[Usage limit reached" is a note, and its text is returned', () => {
+t('usageLimitNoteIn: a user record whose message.content STARTS with "[Usage limit reached" or "[Usage limit approaching" is a note, and its text is returned', () => {
   assert.equal(usageLimitNoteIn(jl(noteUser())), NOTE_TEXT);
   assert.equal(usageLimitNoteIn(jl(userRec('go'), noteUser(), said('done'))), NOTE_TEXT);
-  // SYNTHETIC: the "next steps" variant the binary also builds begins with the same words
+  // the REAL near_limit content (A2/F1) begins with the other marker
+  assert.equal(usageLimitNoteIn(jl(userRec(NEAR_LIMIT_TEXT))), NEAR_LIMIT_TEXT);
+  // SYNTHETIC: the "next steps" variant of the wrap-up text begins with the same words as NOTE_TEXT
   const variant = '[Usage limit reached — grace window active. Checkpoint now: finish the current step, then list up to 3 short bullets of the most impactful remaining work.]';
   assert.equal(usageLimitNoteIn(jl(userRec(variant))), variant);
   // not only isMeta records: the rule is the text, not the flag
@@ -990,6 +1260,12 @@ t('usageLimitNoteIn: a user record whose message.content STARTS with "[Usage lim
 
 t('usageLimitNoteIn: whitespace before the marker is trimmed, and the returned text is the trimmed one', () => {
   assert.equal(usageLimitNoteIn(jl(userRec(`  \n\t${NOTE_TEXT}`))), NOTE_TEXT);
+});
+
+t('usageLimitNoteIn (A2/F6): only the START is trimmed — trailing whitespace stays in the returned text, and in `matched`', () => {
+  assert.equal(usageLimitNoteIn(jl(userRec(`${NOTE_TEXT}  \n`))), `${NOTE_TEXT}  \n`);
+  assert.equal(usageLimitNoteIn(jl(userRec(`  ${NOTE_TEXT} \n`))), `${NOTE_TEXT} \n`);
+  assert.equal(detectPlanLimit({ transcript: jl(userRec(`${NOTE_TEXT}  \n`), said(CLEAN_PROSE)) }).matched, `${NOTE_TEXT}  \n`);
 });
 
 t('usageLimitNoteIn: the marker text is cut to 200 characters; a short text is returned whole', () => {
@@ -1023,6 +1299,73 @@ t('usageLimitNoteIn: an attachment record whose attachment.content is the marker
   assert.equal(usageLimitNoteIn(jl({ type: 'attachment', attachment: NOTE_TEXT })), null, 'attachment is not an object');
 });
 
+// Every location a note text is read from (A2, section 7: seen in real records): name -> a SYNTHETIC record that holds `text` there.
+const NOTE_LOCATIONS = {
+  'message.content string (user record)': (text) => ({ type: 'user', isSidechain: false, message: { role: 'user', content: text } }),
+  'message.content text block': (text) => ({ type: 'user', isSidechain: false, message: { role: 'user', content: [{ type: 'text', text: 'hi' }, { type: 'text', text }] } }),
+  'top-level content string (system record)': (text) => ({ type: 'system', subtype: 'informational', isSidechain: false, content: text }),
+  'top-level content string (queue-operation)': (text) => ({ type: 'queue-operation', operation: 'enqueue', content: text }),
+  'attachment.content string': (text) => ({ type: 'attachment', isSidechain: false, attachment: { type: 'skill_listing', content: text } }),
+  'attachment.content array of strings': (text) => ({ type: 'attachment', isSidechain: false, attachment: { type: 'hook_additional_context', content: ['hi', text] } }),
+  'attachment.text': (text) => ({ type: 'attachment', isSidechain: false, attachment: { type: 'silent_turn_reminder', text } }),
+  'attachment.prompt': (text) => ({ type: 'attachment', isSidechain: false, attachment: { type: 'queued_command', prompt: text } }),
+  'rendered[].content': (text) => ({ type: 'attachment', isSidechain: false, attachment: { type: 'date' }, renderedRole: 'system', rendered: [{ content: 'hi' }, { content: text }] }),
+  'renderedInHumanTurn[].content': (text) => ({ type: 'attachment', isSidechain: false, attachment: { type: 'queued_command' }, renderedInHumanTurn: [{ content: text }] }),
+};
+// Locations that are NOT read (A2, section 7): tool and hook output is not the CLI speaking.
+const EXCLUDED_NOTE_LOCATIONS = {
+  'toolUseResult string': (text) => ({ ...userRec('ok'), toolUseResult: text }),
+  'toolUseResult object (content and stdout)': (text) => ({ ...userRec('ok'), toolUseResult: { content: text, stdout: text, stderr: text } }),
+  'tool_result block with a string content': (text) => ({ type: 'user', isSidechain: false, message: { role: 'user', content: [{ type: 'tool_result', tool_use_id: 't', content: text }] } }),
+  'tool_result block with text blocks': (text) => ({ type: 'user', isSidechain: false, message: { role: 'user', content: [{ type: 'tool_result', tool_use_id: 't', content: [{ type: 'text', text }] }] } }),
+  'hook attachment stdout': (text) => ({ type: 'attachment', isSidechain: false, attachment: { type: 'hook_success', content: 'ok', stdout: text } }),
+  'hook attachment stderr': (text) => ({ type: 'attachment', isSidechain: false, attachment: { type: 'hook_non_blocking_error', stderr: text } }),
+  'top-level stdout and stderr': (text) => ({ type: 'system', isSidechain: false, stdout: text, stderr: text }),
+};
+
+for (const [name, build] of Object.entries(NOTE_LOCATIONS)) {
+  t(`usageLimitNoteIn location (A2): ${name} — a note starting with either marker is found (trimmed, cut to 200), a text that only contains it is not, a sidechain record is skipped`, () => {
+    assert.equal(usageLimitNoteIn(jl(build(NOTE_TEXT))), NOTE_TEXT);
+    assert.equal(usageLimitNoteIn(jl(build(NEAR_LIMIT_TEXT))), NEAR_LIMIT_TEXT);
+    assert.equal(usageLimitNoteIn(jl(build(`  \n${NOTE_TEXT}`))), NOTE_TEXT);
+    const long = `[Usage limit reached ${'x'.repeat(500)}`;
+    assert.equal(usageLimitNoteIn(jl(build(long))), long.slice(0, 200));
+    assert.equal(usageLimitNoteIn(jl(build(`Heads up: ${NOTE_TEXT}`))), null);
+    assert.equal(usageLimitNoteIn(jl(build(NEAR_LIMIT_WARNING))), null, 'the visible warning is not the note');
+    assert.equal(usageLimitNoteIn(jl({ ...build(NOTE_TEXT), isSidechain: true })), null);
+    assert.equal(detectPlanLimit({ transcript: jl(userRec('go'), build(NOTE_TEXT), said(CLEAN_PROSE)) })?.source, 'transcript_note');
+  });
+}
+
+for (const [name, build] of Object.entries(EXCLUDED_NOTE_LOCATIONS)) {
+  t(`usageLimitNoteIn excluded location (A2): ${name} — tool or hook output is not the CLI speaking, so a marker there is no note`, () => {
+    assert.equal(usageLimitNoteIn(jl(build(NOTE_TEXT))), null);
+    assert.equal(usageLimitNoteIn(jl(build(NEAR_LIMIT_TEXT))), null);
+    assert.equal(detectPlanLimit({ transcript: jl(userRec('go'), build(NOTE_TEXT), said(CLEAN_PROSE)) }), null);
+  });
+}
+
+t('usageLimitNoteIn (A2): a value of the wrong kind in a note location is ignored — numbers, arrays, objects, strings where a list is meant, items without a string `content`', () => {
+  const attach = (attachment) => ({ type: 'attachment', isSidechain: false, attachment });
+  for (const record of [
+    { type: 'system', content: 5 },
+    { type: 'system', content: [NOTE_TEXT] },
+    { type: 'system', content: { text: NOTE_TEXT } },
+    attach({ type: 'x', text: 5 }),
+    attach({ type: 'x', text: [NOTE_TEXT] }),
+    attach({ type: 'x', prompt: { text: NOTE_TEXT } }),
+    attach({ type: 'x', prompt: null }),
+    { type: 'attachment', rendered: NOTE_TEXT },
+    { type: 'attachment', rendered: { content: NOTE_TEXT } },
+    { type: 'attachment', rendered: [NOTE_TEXT] },
+    { type: 'attachment', rendered: [{ content: 5 }, { content: [NOTE_TEXT] }, { text: NOTE_TEXT }, null, 7] },
+    { type: 'attachment', renderedInHumanTurn: NOTE_TEXT },
+    { type: 'attachment', renderedInHumanTurn: [NOTE_TEXT, { content: 5 }, { body: NOTE_TEXT }, null] },
+  ]) {
+    assert.equal(usageLimitNoteIn(jl(record)), null, JSON.stringify(record).slice(0, 80));
+  }
+});
+
 t('usageLimitNoteIn: a system record is read like the others — its message.content text and its property', () => {
   assert.equal(usageLimitNoteIn(jl({ type: 'system', subtype: 'informational', isSidechain: false, message: { role: 'system', content: NOTE_TEXT } })), NOTE_TEXT);
   assert.equal(usageLimitNoteIn(jl({ type: 'system', subtype: 'informational', isSidechain: false, usageLimitNote: 'wrap_up' })), 'wrap_up');
@@ -1044,6 +1387,15 @@ t('usageLimitNoteIn: text that only CONTAINS the marker, or only resembles it, i
     '[ Usage limit reached',
     '[Usage limit',
     'The CLI injects "[Usage limit reached — grace window active" when it wraps up.',
+    // the second marker (A2/F1): same rules
+    `Heads up: ${NEAR_LIMIT_TEXT}`,
+    'x [Usage limit approaching',
+    'Usage limit approaching',
+    '[usage limit approaching. Checkpoint now.]',
+    '[Usage limit approach',
+    '[ Usage limit approaching',
+    // the visible warning the CLI pushes with the near_limit note is not the note (A2/F1)
+    NEAR_LIMIT_WARNING,
   ]) {
     assert.equal(usageLimitNoteIn(jl(userRec(text))), null, text);
     assert.equal(usageLimitNoteIn(jl(noteAttachment(text))), null, `attachment: ${text}`);
@@ -1113,6 +1465,28 @@ t('channel transcript_note: a property-only note is a hit with the property valu
   const viaAttachment = detectPlanLimit({ transcript: jl(userRec('go'), noteAttachment(NOTE_TEXT), said(CLEAN_PROSE)) });
   assert.equal(viaAttachment.source, 'transcript_note');
   assert.equal(viaAttachment.matched, NOTE_TEXT);
+});
+
+// A2/F1 RULING: every note value is a hit. The CLI injects a note only when it tells the model to wrap up or checkpoint (wrap_up, near_limit) or
+// releases that state (release, which only follows one of the others): the run is cut short by the plan, so it is not gradeable. The visible
+// warning text alone cuts nothing and stays a non-match.
+t('channel transcript_note (A2/F1): wrap_up, near_limit and release are each a hit, with the value as `matched`', () => {
+  for (const value of ['wrap_up', 'near_limit', 'release']) {
+    const found = detectPlanLimit({ transcript: jl(userRec('go'), noteProp({ usageLimitNote: value }), said(CLEAN_PROSE)) });
+    assert.deepEqual(found, { source: 'transcript_note', matched: value, resetHint: null, rateLimitType: null, resetsAt: null }, value);
+  }
+});
+
+t('channel transcript_note (A2/F1): the near_limit pair as the CLI pushes it — the visible warning (a system record) plus the note (a meta user record) — is a hit through the note; the warning alone is none', () => {
+  const warning = { type: 'system', subtype: 'informational', isSidechain: false, content: NEAR_LIMIT_WARNING };
+  const note = { type: 'user', isMeta: true, isSidechain: false, usageLimitNote: 'near_limit', message: { role: 'user', content: NEAR_LIMIT_TEXT } };
+  const pair = detectPlanLimit({ transcript: jl(userRec('go'), warning, note, said(CLEAN_PROSE)) });
+  assert.equal(pair.source, 'transcript_note');
+  assert.equal(pair.matched, 'near_limit');
+  assert.equal(detectPlanLimit({ transcript: jl(userRec('go'), warning, said(CLEAN_PROSE)) }), null, 'the warning alone');
+  const textOnly = detectPlanLimit({ transcript: jl(userRec('go'), { ...note, usageLimitNote: undefined }, said(CLEAN_PROSE)) });
+  assert.equal(textOnly.source, 'transcript_note');
+  assert.equal(textOnly.matched, NEAR_LIMIT_TEXT);
 });
 
 t('channel transcript_note: not subject to the 600-character cap or the anchor, but `matched` is cut to 200 characters', () => {
