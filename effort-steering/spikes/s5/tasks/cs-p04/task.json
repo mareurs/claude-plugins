@@ -1,0 +1,121 @@
+{
+  "id": "cs-p04",
+  "repo": "codescout",
+  "repoPath": "/home/marius/work/claude/codescout",
+  "fix": "12aaf8b4ea9400ffb5c3b3ee597a7b5579800867",
+  "parent": "2dd3e106f05e3c5e859b43c56ebab9f40555219e",
+  "subsystem": "buffer",
+  "testRunner": "cargo",
+  "hidden": {
+    "files": [
+      "src/tools/read_file_one_handle_tests.rs"
+    ],
+    "extra": [
+      "src/tools/read_file_one_handle_more_tests.rs"
+    ],
+    "graftLines": [
+      {
+        "file": "src/tools/read_file_one_handle_tests.rs",
+        "line": "#[path = \"read_file_one_handle_more_tests.rs\"] mod more;"
+      }
+    ]
+  },
+  "buildCommand": [
+    "cargo",
+    "test",
+    "--no-default-features",
+    "--lib",
+    "--no-run"
+  ],
+  "f2p": {
+    "command": [
+      "cargo",
+      "test",
+      "--no-default-features",
+      "--lib",
+      "--no-fail-fast",
+      "--",
+      "--exact",
+      "tools::read_file::one_handle_tests::a_handle_first_read_under_a_future_mtime_still_follows_an_edit",
+      "tools::read_file::one_handle_tests::more::a_path_reread_under_a_later_mtime_then_an_edit_is_followed_by_the_handle",
+      "tools::read_file::one_handle_tests::more::a_handle_refreshed_under_a_later_mtime_then_an_edit_follows_the_edit"
+    ],
+    "names": [
+      "tools::read_file::one_handle_tests::a_handle_first_read_under_a_future_mtime_still_follows_an_edit",
+      "tools::read_file::one_handle_tests::more::a_path_reread_under_a_later_mtime_then_an_edit_is_followed_by_the_handle",
+      "tools::read_file::one_handle_tests::more::a_handle_refreshed_under_a_later_mtime_then_an_edit_follows_the_edit"
+    ]
+  },
+  "p2p": {
+    "command": [
+      "cargo",
+      "test",
+      "--no-default-features",
+      "--lib",
+      "--no-fail-fast",
+      "--",
+      "tools::read_file::one_handle_tests::",
+      "tools::output_buffer::tests::"
+    ],
+    "names": [
+      "tools::read_file::one_handle_tests::an_unchanged_file_read_again_keeps_its_one_handle_and_mints_nothing",
+      "tools::read_file::one_handle_tests::two_files_with_identical_content_keep_two_handles",
+      "tools::read_file::one_handle_tests::a_changed_file_keeps_its_one_handle_and_it_holds_the_new_content",
+      "tools::read_file::one_handle_tests::an_identical_json_path_value_read_again_keeps_its_handle",
+      "tools::read_file::one_handle_tests::every_over_budget_read_of_one_file_names_its_one_handle",
+      "tools::read_file::one_handle_tests::a_section_or_range_read_first_mints_the_files_handle_once",
+      "tools::read_file::one_handle_tests::a_section_of_a_changed_file_names_the_same_handle_holding_the_new_file",
+      "tools::read_file::one_handle_tests::every_heading_route_on_the_files_handle_lands_on_its_section",
+      "tools::read_file::one_handle_tests::a_multi_heading_error_routes_every_section_even_when_its_heading_is_ambiguous",
+      "tools::read_file::one_handle_tests::a_markdown_read_of_a_snapshot_ref_names_that_ref_and_mints_nothing",
+      "tools::read_file::one_handle_tests::a_late_store_of_an_older_read_never_regresses_the_files_handle",
+      "tools::read_file::one_handle_tests::a_write_inside_the_read_window_is_repaired_by_the_next_handle_read",
+      "tools::read_file::one_handle_tests::a_holder_of_the_handle_is_told_once_when_a_path_read_changed_it",
+      "tools::read_file::one_handle_tests::a_json_path_value_never_becomes_the_files_handle",
+      "tools::read_file::one_handle_tests::every_spelling_of_one_path_names_its_one_handle",
+      "tools::read_file::one_handle_tests::the_same_relative_path_in_two_roots_keeps_two_handles",
+      "tools::read_file::one_handle_tests::a_reread_at_capacity_reuses_its_handle_and_evicts_nothing",
+      "tools::output_buffer::tests::store_file_sets_source_path",
+      "tools::output_buffer::tests::get_file_handle_refreshes_when_file_modified",
+      "tools::output_buffer::tests::excerpt_handle_does_not_refresh_into_the_whole_file",
+      "tools::output_buffer::tests::get_file_handle_returns_none_when_file_deleted",
+      "tools::output_buffer::tests::get_file_handle_unmodified_returns_cached",
+      "tools::output_buffer::tests::get_cmd_handle_not_affected_by_refresh_logic",
+      "tools::output_buffer::tests::get_with_refresh_flag_returns_true_when_file_changed",
+      "tools::output_buffer::tests::get_with_refresh_flag_returns_false_when_file_unchanged",
+      "tools::output_buffer::tests::get_with_refresh_flag_returns_false_for_cmd_entries",
+      "tools::output_buffer::tests::resolve_refs_reports_refreshed_file_handle",
+      "tools::output_buffer::tests::resolve_refs_no_refresh_for_unchanged_file",
+      "tools::output_buffer::tests::resolve_refs_no_refresh_for_cmd_handle",
+      "tools::output_buffer::tests::store_file_returns_the_live_handle_for_the_same_path_and_content",
+      "tools::output_buffer::tests::store_file_of_changed_content_updates_the_one_handle_in_place",
+      "tools::output_buffer::tests::a_store_hit_leaves_nothing_for_a_later_read_to_refresh",
+      "tools::output_buffer::tests::an_in_place_change_is_reported_once_and_only_by_the_reporting_read",
+      "tools::output_buffer::tests::a_refresh_is_stamped_with_the_mtime_it_read_not_the_clock",
+      "tools::output_buffer::tests::a_store_of_text_read_under_an_older_mtime_never_overwrites_a_newer_one",
+      "tools::output_buffer::tests::an_older_mtime_the_file_still_has_and_an_equal_mtime_both_overwrite",
+      "tools::output_buffer::tests::a_snapshot_is_reused_only_for_identical_content",
+      "tools::output_buffer::tests::a_whole_file_handle_and_a_snapshot_of_its_path_stay_apart",
+      "tools::output_buffer::tests::a_file_store_never_reuses_another_kinds_entry",
+      "tools::output_buffer::tests::a_store_file_hit_bumps_lru"
+    ]
+  },
+  "testPatterns": [
+    "cargo test"
+  ],
+  "scrub": {
+    "removePaths": [],
+    "terms": [
+      "capped_stamp",
+      "future mtime",
+      "future-mtime",
+      "future_mtime",
+      "capped at the clock",
+      "hides an edit"
+    ]
+  },
+  "timeoutsSec": {
+    "build": 1800,
+    "test": 900
+  }
+}

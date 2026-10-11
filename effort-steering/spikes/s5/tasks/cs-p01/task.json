@@ -1,0 +1,62 @@
+{
+  "id": "cs-p01",
+  "repo": "codescout",
+  "repoPath": "/home/marius/work/claude/codescout",
+  "fix": "522d2961c3dbd12fe5ffb8a6eacd800b88c98dcb",
+  "parent": "d2ef26e9b8a1762524c6222bf3b19a9d4444cefd",
+  "subsystem": "read_file",
+  "testRunner": "cargo",
+  "hidden": {
+    "files": ["src/tools/file_summary/tests.rs"],
+    "extra": ["tests/summary_inline_budget.rs"]
+  },
+  "buildCommand": ["cargo", "test", "--no-run", "--offline", "--no-default-features"],
+  "f2p": {
+    "command": ["cargo", "test", "--offline", "--no-default-features", "--no-fail-fast", "--test", "summary_inline_budget"],
+    "names": [
+      "summary_inline_wide_json_keys_one_handle_within_limit",
+      "summary_inline_few_very_wide_json_keys_one_handle_within_limit"
+    ]
+  },
+  "p2p": {
+    "command": ["cargo", "test", "--offline", "--no-default-features", "--no-fail-fast", "--lib", "--", "tools::file_summary::tests::", "tools::read_file::tests::"],
+    "names": [
+      "tools::file_summary::tests::json_summary_shows_top_level_keys",
+      "tools::file_summary::tests::json_summary_handles_root_array",
+      "tools::file_summary::tests::json_summary_handles_malformed_json",
+      "tools::file_summary::tests::json_summary_signals_truncated_keys",
+      "tools::file_summary::tests::toml_summary_signals_truncated_flat_keys",
+      "tools::file_summary::tests::toml_summary_signals_truncated_sections",
+      "tools::file_summary::tests::yaml_summary_shows_top_level_keys",
+      "tools::file_summary::tests::markdown_summary_signals_truncated_headings",
+      "tools::file_summary::tests::a_missing_heading_lists_both_ends_not_just_the_first_fifteen",
+      "tools::file_summary::tests::bound_summary_leaves_a_summary_at_the_budget_untouched",
+      "tools::file_summary::tests::bound_summary_keeps_the_head_of_a_string_when_the_rest_leaves_no_room",
+      "tools::file_summary::tests::bound_summary_shares_the_budget_equally_between_wide_strings",
+      "tools::file_summary::tests::bound_summary_cuts_several_mid_sized_strings_that_only_overflow_together",
+      "tools::file_summary::tests::bound_summary_cuts_the_largest_array_and_spares_the_small_one",
+      "tools::file_summary::tests::bound_summary_note_is_a_ready_to_run_call_naming_the_handle_and_the_gap",
+      "tools::file_summary::tests::bound_summary_keeps_the_totals_the_summarizer_already_named",
+      "tools::file_summary::tests::bound_summary_note_for_entries_with_no_line_numbers_still_says_how_to_read_more",
+      "tools::read_file::tests::a_source_file_with_many_symbols_is_summarised_inline_with_one_handle",
+      "tools::read_file::tests::a_source_file_summary_within_the_budget_is_not_cut",
+      "tools::read_file::tests::the_cut_symbol_list_shows_its_gap_between_the_two_halves",
+      "tools::read_file::tests::a_file_of_few_very_wide_lines_is_summarised_inline_with_one_handle",
+      "tools::read_file::tests::one_enormous_json_line_is_summarised_inline_with_one_handle",
+      "tools::read_file::tests::a_wide_config_preview_is_summarised_inline_with_one_handle",
+      "tools::read_file::tests::wide_yaml_keys_are_bounded_by_bytes_not_by_the_thirty_entry_count"
+    ]
+  },
+  "testPatterns": ["cargo test"],
+  "scrub": {
+    "removePaths": [],
+    "terms": [
+      "an_array_one_level_down",
+      "wide_keys_is_summarised",
+      "marks_it_beside_the_array",
+      "bound the key list",
+      "nests its key list"
+    ]
+  },
+  "timeoutsSec": { "build": 1800, "test": 900 }
+}

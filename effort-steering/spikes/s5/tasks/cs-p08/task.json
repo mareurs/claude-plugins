@@ -1,0 +1,57 @@
+{
+  "id": "cs-p08",
+  "repo": "codescout",
+  "repoPath": "/home/marius/work/claude/codescout",
+  "fix": "8bd5f6f0c0a46832f1f863c8fa7b23bb3aed23a3",
+  "parent": "fac7abcef9d28185c9795d2d18d89d03e01b21f5",
+  "subsystem": "run_command",
+  "testRunner": "cargo",
+  "hidden": {
+    "files": ["src/tools/run_command/tests.rs"],
+    "extra": ["tests/buffer_query_stderr_inline.rs"]
+  },
+  "buildCommand": ["cargo", "test", "--no-run", "--offline", "--no-default-features", "--lib", "--test", "integration"],
+  "f2p": {
+    "command": ["cargo", "test", "--offline", "--no-default-features", "--no-fail-fast", "--test", "buffer_query_stderr_inline"],
+    "names": [
+      "short_query_over_a_wide_stored_stderr_line_stays_inline",
+      "large_query_over_a_wide_stored_stderr_line_stays_inline",
+      "short_query_over_many_medium_stored_stderr_lines_stays_inline"
+    ]
+  },
+  "p2p": {
+    "command": ["cargo", "test", "--offline", "--no-default-features", "--no-fail-fast", "--lib", "--", "tools::run_command::tests::run_command_buffer", "tools::run_command::tests::buffer_query", "tools::run_command::tests::a_huge", "tools::run_command::tests::a_cut_stderr", "tools::run_command::tests::a_buffer_query"],
+    "names": [
+      "tools::run_command::tests::run_command_buffer_ref_executes_correctly",
+      "tools::run_command::tests::run_command_buffer_only_above_threshold_truncates_inline",
+      "tools::run_command::tests::run_command_buffer_only_at_threshold_returns_inline",
+      "tools::run_command::tests::run_command_buffer_only_large_single_line_does_not_rebuffer",
+      "tools::run_command::tests::run_command_buffer_only_large_output_no_new_ref",
+      "tools::run_command::tests::run_command_buffer_only_long_lines_fit_under_threshold",
+      "tools::run_command::tests::run_command_buffer_only_stderr_gets_priority",
+      "tools::run_command::tests::run_command_buffer_only_short_stderr_gives_budget_to_stdout",
+      "tools::run_command::tests::run_command_buffer_only_within_limit_no_truncation_fields",
+      "tools::run_command::tests::buffer_query_below_summary_threshold_still_surfaces_stored_stderr",
+      "tools::run_command::tests::buffer_query_returns_up_to_200_lines_inline",
+      "tools::run_command::tests::buffer_query_truncation_hint_shows_next_page",
+      "tools::run_command::tests::a_huge_stdout_line_is_summarized_inline_not_rebuffered",
+      "tools::run_command::tests::a_huge_failure_line_is_summarized_inline_not_rebuffered",
+      "tools::run_command::tests::a_huge_error_block_is_summarized_inline_not_rebuffered",
+      "tools::run_command::tests::a_buffer_query_is_never_compacted_even_when_it_names_cargo_test",
+      "tools::run_command::tests::a_cut_stderr_tail_names_the_err_handle_that_holds_the_rest"
+    ]
+  },
+  "testPatterns": ["cargo test"],
+  "scrub": {
+    "removePaths": [],
+    "terms": [
+      "bound_buffer_stderr",
+      "BUFFER_STDERR_BYTE_BUDGET",
+      "queried_ref",
+      "buffer_stderr_bytes",
+      "bounds_a_wide_stored_stderr",
+      "bounds the stored stderr"
+    ]
+  },
+  "timeoutsSec": { "build": 1800, "test": 900 }
+}

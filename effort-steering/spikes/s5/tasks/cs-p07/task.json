@@ -1,0 +1,95 @@
+{
+  "id": "cs-p07",
+  "repo": "codescout",
+  "repoPath": "/home/marius/work/claude/codescout",
+  "fix": "2ad3d950f50cde15976019fbbdc6c6d584e8aced",
+  "parent": "2aa12097a592faaa76e971bc0cde9581d08c4ef7",
+  "subsystem": "buffer",
+  "testRunner": "cargo",
+  "hidden": {
+    "files": [
+      "src/tools/read_file_one_handle_tests.rs",
+      "src/tools/run_command/tests.rs"
+    ]
+  },
+  "buildCommand": [
+    "cargo",
+    "test",
+    "--no-default-features",
+    "--lib",
+    "--no-run"
+  ],
+  "f2p": {
+    "command": [
+      "cargo",
+      "test",
+      "--no-default-features",
+      "--lib",
+      "--no-fail-fast",
+      "--",
+      "--exact",
+      "tools::read_file::one_handle_tests::a_holder_of_the_handle_is_told_once_when_a_path_read_changed_it"
+    ],
+    "names": [
+      "tools::read_file::one_handle_tests::a_holder_of_the_handle_is_told_once_when_a_path_read_changed_it"
+    ]
+  },
+  "p2p": {
+    "command": [
+      "cargo",
+      "test",
+      "--no-default-features",
+      "--lib",
+      "--no-fail-fast",
+      "--",
+      "--exact",
+      "tools::read_file::one_handle_tests::an_unchanged_file_read_again_keeps_its_one_handle_and_mints_nothing",
+      "tools::read_file::one_handle_tests::two_files_with_identical_content_keep_two_handles",
+      "tools::read_file::one_handle_tests::a_changed_file_keeps_its_one_handle_and_it_holds_the_new_content",
+      "tools::read_file::one_handle_tests::an_identical_json_path_value_read_again_keeps_its_handle",
+      "tools::read_file::one_handle_tests::every_over_budget_read_of_one_file_names_its_one_handle",
+      "tools::read_file::one_handle_tests::a_section_or_range_read_first_mints_the_files_handle_once",
+      "tools::read_file::one_handle_tests::a_section_of_a_changed_file_names_the_same_handle_holding_the_new_file",
+      "tools::read_file::one_handle_tests::every_heading_route_on_the_files_handle_lands_on_its_section",
+      "tools::read_file::one_handle_tests::a_markdown_read_of_a_snapshot_ref_names_that_ref_and_mints_nothing",
+      "tools::read_file::one_handle_tests::a_late_store_of_an_older_read_never_regresses_the_files_handle",
+      "tools::run_command::tests::run_command_prepends_refresh_indicator_for_stale_file_handle",
+      "tools::run_command::tests::a_refreshed_file_handle_prices_its_refresh_line_in_every_query",
+      "tools::run_command::tests::a_compactable_test_run_keeps_the_refresh_line_of_a_stale_handle"
+    ],
+    "names": [
+      "tools::read_file::one_handle_tests::an_unchanged_file_read_again_keeps_its_one_handle_and_mints_nothing",
+      "tools::read_file::one_handle_tests::two_files_with_identical_content_keep_two_handles",
+      "tools::read_file::one_handle_tests::a_changed_file_keeps_its_one_handle_and_it_holds_the_new_content",
+      "tools::read_file::one_handle_tests::an_identical_json_path_value_read_again_keeps_its_handle",
+      "tools::read_file::one_handle_tests::every_over_budget_read_of_one_file_names_its_one_handle",
+      "tools::read_file::one_handle_tests::a_section_or_range_read_first_mints_the_files_handle_once",
+      "tools::read_file::one_handle_tests::a_section_of_a_changed_file_names_the_same_handle_holding_the_new_file",
+      "tools::read_file::one_handle_tests::every_heading_route_on_the_files_handle_lands_on_its_section",
+      "tools::read_file::one_handle_tests::a_markdown_read_of_a_snapshot_ref_names_that_ref_and_mints_nothing",
+      "tools::read_file::one_handle_tests::a_late_store_of_an_older_read_never_regresses_the_files_handle",
+      "tools::run_command::tests::run_command_prepends_refresh_indicator_for_stale_file_handle",
+      "tools::run_command::tests::a_refreshed_file_handle_prices_its_refresh_line_in_every_query",
+      "tools::run_command::tests::a_compactable_test_run_keeps_the_refresh_line_of_a_stale_handle"
+    ]
+  },
+  "testPatterns": [
+    "cargo test"
+  ],
+  "scrub": {
+    "removePaths": [],
+    "terms": [
+      "refresh_pending",
+      "changed_in_place",
+      "a_holder_of_the_handle",
+      "an_in_place_change",
+      "holder of the handle",
+      "told once",
+      "path read changed"
+    ]
+  },
+  "timeoutsSec": {
+    "build": 1800,
+    "test": 900
+  }
+}

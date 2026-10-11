@@ -1,0 +1,98 @@
+{
+  "id": "cs-p02",
+  "repo": "codescout",
+  "repoPath": "/home/marius/work/claude/codescout",
+  "fix": "53bab8043e473b171fefc4cf216d0aca8777a5b4",
+  "parent": "5373405457184ce57f7d254947be4766d534416e",
+  "subsystem": "json_path",
+  "testRunner": "cargo",
+  "hidden": {
+    "files": [
+      "src/tools/file_summary/tests.rs"
+    ]
+  },
+  "buildCommand": [
+    "cargo",
+    "test",
+    "--no-run",
+    "--offline",
+    "--lib",
+    "--no-default-features"
+  ],
+  "f2p": {
+    "command": [
+      "cargo",
+      "test",
+      "--offline",
+      "--lib",
+      "--no-default-features",
+      "--no-fail-fast",
+      "tools::file_summary::tests::wildcard_on_a"
+    ],
+    "names": [
+      "tools::file_summary::tests::wildcard_on_an_object_names_the_keys_it_found",
+      "tools::file_summary::tests::wildcard_on_a_wide_object_states_its_elision_and_keeps_the_tail",
+      "tools::file_summary::tests::wildcard_on_a_string_says_how_big_it_is_and_that_it_is_text"
+    ]
+  },
+  "p2p": {
+    "command": [
+      "cargo",
+      "test",
+      "--offline",
+      "--lib",
+      "--no-default-features",
+      "--no-fail-fast",
+      "tools::file_summary::tests::"
+    ],
+    "names": [
+      "tools::file_summary::tests::extract_json_path_top_level_key",
+      "tools::file_summary::tests::extract_json_path_nested",
+      "tools::file_summary::tests::extract_json_path_array_index",
+      "tools::file_summary::tests::extract_json_path_not_found",
+      "tools::file_summary::tests::json_path_key_miss_hint_states_its_elision_and_keeps_the_tail",
+      "tools::file_summary::tests::extract_json_path_root",
+      "tools::file_summary::tests::extract_json_path_dotted_string_key",
+      "tools::file_summary::tests::parse_rejects_negative_zero_slice",
+      "tools::file_summary::tests::parse_rejects_positive_sign",
+      "tools::file_summary::tests::extract_root_returns_parsed",
+      "tools::file_summary::tests::extract_top_level_negative_index",
+      "tools::file_summary::tests::extract_negative_index_returns_last_element",
+      "tools::file_summary::tests::wildcard_projects_a_field_from_every_element",
+      "tools::file_summary::tests::wildcard_works_on_a_root_array",
+      "tools::file_summary::tests::trailing_wildcard_yields_the_elements_themselves",
+      "tools::file_summary::tests::nested_wildcards_project_through_both_levels",
+      "tools::file_summary::tests::wildcard_on_a_non_array_says_so",
+      "tools::file_summary::tests::wildcard_names_the_element_when_a_key_is_missing",
+      "tools::file_summary::tests::the_unsupported_segment_hint_advertises_the_wildcard",
+      "tools::file_summary::tests::extract_negative_slice_returns_tail",
+      "tools::file_summary::tests::extract_negative_index_oob_returns_clear_error",
+      "tools::file_summary::tests::extract_negative_slice_oob_returns_clear_error",
+      "tools::file_summary::tests::extract_mid_path_slice_then_index",
+      "tools::file_summary::tests::extract_unsupported_syntax_distinguished_from_not_found"
+    ]
+  },
+  "testPatterns": [
+    "cargo test"
+  ],
+  "scrub": {
+    "removePaths": [
+      "docs/issues/archive/2026-10-05-run-command-json-stdout-overflow-has-no-working-json-path-recovery.md"
+    ],
+    "terms": [
+      "describe_keys",
+      "wildcard_on_an_object_names",
+      "wildcard_on_a_wide_object",
+      "wildcard_on_a_string_says",
+      "names the type it found",
+      "shape-mismatch error",
+      "cannot learn that the data sits",
+      "Name one of them first",
+      "cannot project it"
+    ]
+  },
+  "timeoutsSec": {
+    "build": 1800,
+    "test": 900
+  }
+}

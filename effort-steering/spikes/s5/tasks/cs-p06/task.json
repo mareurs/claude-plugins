@@ -1,0 +1,79 @@
+{
+  "id": "cs-p06",
+  "repo": "codescout",
+  "repoPath": "/home/marius/work/claude/codescout",
+  "fix": "c1948fe5e6ab7fbb4b0a2bc2efe4317056da66b4",
+  "parent": "27a3a7c4d95516c757a94550de9c3c975327beee",
+  "subsystem": "file_summary",
+  "testRunner": "cargo",
+  "hidden": {
+    "files": ["src/tools/file_summary/tests.rs"],
+    "extra": ["tests/toml_key_routes.rs"]
+  },
+  "buildCommand": ["cargo", "test", "--no-run", "--offline", "--no-default-features"],
+  "f2p": {
+    "command": ["cargo", "test", "--offline", "--no-default-features", "--no-fail-fast", "--test", "toml_key_routes"],
+    "names": [
+      "a_flat_toml_written_against_its_key_order_offers_only_routes_that_can_be_read",
+      "a_flat_toml_with_a_scrambled_middle_offers_only_routes_that_return_the_omitted_keys"
+    ]
+  },
+  "p2p": {
+    "command": ["cargo", "test", "--offline", "--no-default-features", "--no-fail-fast", "--lib", "--test", "toml_key_routes", "--", "tools::file_summary::tests::", "a_flat_toml_in_line_order_keeps_an_exact_numeric_route"],
+    "names": [
+      "a_flat_toml_in_line_order_keeps_an_exact_numeric_route",
+      "tools::file_summary::tests::markdown_summary_basic_structure",
+      "tools::file_summary::tests::markdown_summary_includes_line_ranges",
+      "tools::file_summary::tests::markdown_summary_signals_truncated_headings",
+      "tools::file_summary::tests::json_summary_shows_top_level_keys",
+      "tools::file_summary::tests::json_summary_handles_root_array",
+      "tools::file_summary::tests::json_summary_handles_malformed_json",
+      "tools::file_summary::tests::json_summary_signals_truncated_keys",
+      "tools::file_summary::tests::toml_summary_shows_tables",
+      "tools::file_summary::tests::toml_summary_handles_nested_tables",
+      "tools::file_summary::tests::toml_summary_signals_truncated_flat_keys",
+      "tools::file_summary::tests::toml_summary_signals_truncated_sections",
+      "tools::file_summary::tests::toml_summary_handles_malformed",
+      "tools::file_summary::tests::yaml_summary_shows_top_level_keys",
+      "tools::file_summary::tests::yaml_summary_skips_comments_and_directives",
+      "tools::file_summary::tests::a_missing_heading_lists_both_ends_not_just_the_first_fifteen",
+      "tools::file_summary::tests::a_short_document_lists_every_heading_with_no_elision",
+      "tools::file_summary::tests::extract_toml_key_table_past_summary_cap",
+      "tools::file_summary::tests::extract_yaml_key_past_summary_cap",
+      "tools::file_summary::tests::cut_array_middle_rounds_each_half_down_not_up",
+      "tools::file_summary::tests::cut_array_middle_prices_the_comma_between_entries",
+      "tools::file_summary::tests::cut_array_middle_cuts_at_exactly_one_more_entry_than_fits_and_not_before",
+      "tools::file_summary::tests::fit_envelope_returns_an_envelope_that_fits_exactly_as_the_caller_built_it",
+      "tools::file_summary::tests::fit_envelope_cuts_only_the_excess_not_down_to_a_fixed_budget",
+      "tools::file_summary::tests::fit_envelope_prices_the_cut_notes_that_land_in_the_hint",
+      "tools::file_summary::tests::bound_summary_leaves_a_summary_at_the_budget_untouched",
+      "tools::file_summary::tests::bound_summary_cuts_a_string_to_the_room_the_fixed_part_leaves",
+      "tools::file_summary::tests::bound_summary_last_resort_drops_what_it_cannot_cut_and_says_so",
+      "tools::file_summary::tests::bound_summary_gives_the_first_of_two_arrays_the_rounded_down_share",
+      "tools::file_summary::tests::bound_summary_shares_the_budget_equally_between_wide_strings",
+      "tools::file_summary::tests::bound_summary_cuts_the_largest_array_and_spares_the_small_one",
+      "tools::file_summary::tests::bound_summary_cuts_an_array_one_level_down_and_marks_it_beside_the_array",
+      "tools::file_summary::tests::bound_summary_shares_the_budget_between_two_competing_arrays",
+      "tools::file_summary::tests::bound_summary_spares_an_array_that_fits_its_share_and_gives_its_leftover_away",
+      "tools::file_summary::tests::bound_summary_returns_an_array_whole_when_it_is_exactly_its_share",
+      "tools::file_summary::tests::bound_summary_marks_no_cut_when_the_halves_still_hold_every_entry",
+      "tools::file_summary::tests::bound_summary_note_is_a_ready_to_run_call_naming_the_handle_and_the_gap",
+      "tools::file_summary::tests::bound_summary_keeps_the_totals_the_summarizer_already_named",
+      "tools::file_summary::tests::bound_summary_note_for_entries_with_no_line_numbers_still_says_how_to_read_more"
+    ]
+  },
+  "testPatterns": ["cargo test"],
+  "scrub": {
+    "removePaths": [],
+    "terms": [
+      "keyed_lines",
+      "cut_keys",
+      "numeric_routes",
+      "gives_no_line_route",
+      "the_other_key_sources",
+      "line route",
+      "false route"
+    ]
+  },
+  "timeoutsSec": { "build": 1800, "test": 900 }
+}

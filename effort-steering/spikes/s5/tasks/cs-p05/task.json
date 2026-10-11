@@ -1,0 +1,91 @@
+{
+  "id": "cs-p05",
+  "repo": "codescout",
+  "repoPath": "/home/marius/work/claude/codescout",
+  "fix": "c410a275831f2da3f9125e2340a35e9120a66e58",
+  "parent": "8260bd300bd89b67d31ad7b86ca30c1dbb28ba84",
+  "subsystem": "run_command",
+  "testRunner": "cargo",
+  "hidden": {
+    "files": [
+      "tests/integration.rs"
+    ],
+    "extra": [
+      "tests/run_command_unusable_tmp.rs"
+    ]
+  },
+  "buildCommand": [
+    "cargo",
+    "test",
+    "--no-default-features",
+    "--test",
+    "integration",
+    "--no-run"
+  ],
+  "f2p": {
+    "command": [
+      "cargo",
+      "test",
+      "--no-default-features",
+      "--no-fail-fast",
+      "--test",
+      "run_command_unusable_tmp",
+      "--",
+      "--exact",
+      "a_filter_terminated_command_still_runs_when_the_temp_dir_is_unusable"
+    ],
+    "names": [
+      "a_filter_terminated_command_still_runs_when_the_temp_dir_is_unusable"
+    ]
+  },
+  "p2p": {
+    "command": [
+      "cargo",
+      "test",
+      "--no-default-features",
+      "--no-fail-fast",
+      "--test",
+      "integration",
+      "--test",
+      "run_command_unusable_tmp",
+      "--",
+      "--exact",
+      "integration_run_command_buffer_round_trip",
+      "integration_read_file_large_then_query_via_buffer",
+      "integration_speed_bump_two_round_trips",
+      "a_command_without_a_filter_runs_when_the_temp_dir_is_unusable",
+      "a_filter_terminated_command_with_a_usable_temp_dir_still_offers_the_unfiltered_buffer"
+    ],
+    "names": [
+      "integration_run_command_buffer_round_trip",
+      "integration_read_file_large_then_query_via_buffer",
+      "integration_speed_bump_two_round_trips",
+      "a_command_without_a_filter_runs_when_the_temp_dir_is_unusable",
+      "a_filter_terminated_command_with_a_usable_temp_dir_still_offers_the_unfiltered_buffer"
+    ]
+  },
+  "testPatterns": [
+    "cargo test"
+  ],
+  "scrub": {
+    "removePaths": [
+      "docs/issues/2026-09-24-run-command-refuses-a-filtered-command-when-tmp-is-full.md",
+      "docs/trackers/issue-clusters.md",
+      "docs/evals/data/2026-09-24-rule-tell"
+    ],
+    "terms": [
+      "run-command-refuses-a-filtered-command-when-tmp-is-full",
+      "refuses-a-filtered-command",
+      "inject_tee_in",
+      "TeeInjection",
+      "TEE_DIR_OVERRIDE",
+      "unfiltered_output_skipped",
+      "optional side channel",
+      "optional tee capture"
+    ]
+  },
+  "timeoutsSec": {
+    "build": 1800,
+    "test": 900
+  }
+}
