@@ -1,0 +1,3751 @@
+[
+  {
+    "repo": "codescout",
+    "fix": "5c666bf10623f3dccfbced6c127af174b30ca930",
+    "parent": "cdb456126d57bef388b8092747fbd869f3f67047",
+    "subject": "fix(edit_markdown): resolve batch edits against original snapshot; order-independent apply",
+    "date": "2026-07-17T08:42:34Z",
+    "subsystem": "edit_markdown",
+    "patchId": "89b665ec1a14a715ee9a1d30f71c6f1738b811f5",
+    "testFiles": [
+      "src/tools/markdown/tests.rs"
+    ],
+    "sourceFiles": [
+      "src/tools/markdown/edit_markdown.rs"
+    ],
+    "sourceLinesChanged": 148
+  },
+  {
+    "repo": "codescout",
+    "fix": "bfbdb9562a200a4447969f0aeff83003c393d0f7",
+    "parent": "f1205dcae4277751aa06fa18454310df4bdc11ec",
+    "subject": "fix(edit_markdown): add CRLF-tolerant fallback for scoped multi-line old_string",
+    "date": "2026-07-18T12:50:58Z",
+    "subsystem": "edit_markdown",
+    "patchId": "4ca0c9bc429c81e251043c9b43a0aa2605f1ef08",
+    "testFiles": [
+      "src/tools/markdown/tests.rs"
+    ],
+    "sourceFiles": [
+      "src/tools/markdown/edit_markdown.rs"
+    ],
+    "sourceLinesChanged": 69
+  },
+  {
+    "repo": "codescout",
+    "fix": "b2344aab80dcb22f518d821ff83fd1c587c7442d",
+    "parent": "bfbdb9562a200a4447969f0aeff83003c393d0f7",
+    "subject": "fix(symbols): honor explicit include_body in overview mode; fix Windows LSP range-repair test",
+    "date": "2026-07-18T14:04:11Z",
+    "subsystem": "symbols",
+    "patchId": "23f38cdf91e814d9598823b5d5bf34115796a732",
+    "testFiles": [
+      "src/tools/symbol/tests.rs"
+    ],
+    "sourceFiles": [
+      "docs/issues/2026-07-13-truncated-lsp-range-repair-test-fails-on-windows.md",
+      "docs/issues/2026-07-18-symbols-overview-include-body-ignored-and-search-flake.md",
+      "src/tools/symbol/list_overview.rs"
+    ],
+    "sourceLinesChanged": 329
+  },
+  {
+    "repo": "codescout",
+    "fix": "aa14abb72c210b3f4db1a63d5941e96b3e3a3c71",
+    "parent": "798119ad76aa787f5ee8a98a8896693e6e3b0317",
+    "subject": "fix(edit_markdown): bound old_string in miss fuzzy-pass (I1); harden hint tests + tier-gate coverage + tilde fences",
+    "date": "2026-07-19T15:23:35Z",
+    "subsystem": "edit_markdown",
+    "patchId": "e30169a78945c3ec8c3e6c7168cb02f561b69f1c",
+    "testFiles": [
+      "src/tools/markdown/tests.rs"
+    ],
+    "sourceFiles": [
+      "src/librarian/tools/update.rs",
+      "src/tools/markdown/edit_markdown.rs"
+    ],
+    "sourceLinesChanged": 66
+  },
+  {
+    "repo": "codescout",
+    "fix": "0f6815f8d25ddec03a2b72d0aef1bc3b02a6ee6a",
+    "parent": "1e7722a07ea64ce19eb1d4667a9e11ea8fe9eb43",
+    "subject": "fix(symbols): advertise a body in the overview shape, not just search mode",
+    "date": "2026-07-29T17:29:10Z",
+    "subsystem": "symbols",
+    "patchId": "8eefd2e07a74d33927a152199d5cf2878cdcca00",
+    "testFiles": [
+      "src/tools/symbol/tests.rs"
+    ],
+    "sourceFiles": [
+      ".codescout/memories/reconnaissance.anchors.toml",
+      ".codescout/memories/reconnaissance.md",
+      "docs/issues/2026-07-18-symbols-overview-include-body-ignored-and-search-flake.md",
+      "docs/trackers/bug-fix-session-log.md",
+      "docs/trackers/reconnaissance-patterns.md",
+      "src/tools/symbol/symbols.rs"
+    ],
+    "sourceLinesChanged": 270
+  },
+  {
+    "repo": "codescout",
+    "fix": "7938d68b7372817b83504c7452078e6852133ce7",
+    "parent": "1f0ad580473162eae9cd9ac3c3839f0dd8a26cbf",
+    "subject": "fix(ci): restore the two non-default feature configs and the tool-docs gate",
+    "date": "2026-08-06T07:02:03Z",
+    "subsystem": "ci",
+    "patchId": "29abeee1494bbeec1c5ece4421adf94078ce903f",
+    "testFiles": [
+      "tests/link_scan.rs"
+    ],
+    "sourceFiles": [
+      "docs/manual/src/SUMMARY.md",
+      "docs/manual/src/tools/peer.md",
+      "src/server.rs"
+    ],
+    "sourceLinesChanged": 93
+  },
+  {
+    "repo": "codescout",
+    "fix": "3bfa4025649a8296deae544b9d1b648b873694d2",
+    "parent": "f7fefa968d3e56252e13cbbdaabb20deefa2d4f3",
+    "subject": "fix(symbols): count walk errors instead of dropping them, and let a zero say if it can be trusted",
+    "date": "2026-08-07T06:53:42Z",
+    "subsystem": "symbols",
+    "patchId": "d8394178dbc6fb41f641a2cccef987304b183baf",
+    "testFiles": [
+      "src/tools/symbol/tests.rs"
+    ],
+    "sourceFiles": [
+      "docs/issues/2026-07-18-symbols-overview-include-body-ignored-and-search-flake.md",
+      "src/tools/symbol/display.rs",
+      "src/tools/symbol/symbols.rs"
+    ],
+    "sourceLinesChanged": 338
+  },
+  {
+    "repo": "codescout",
+    "fix": "176a77e5d2992314947a636801c202ff5bc2db58",
+    "parent": "ea0340b0d3c4941124304cc0e59bc20473cd3dfd",
+    "subject": "fix(tests): virtual-clock the LSP budget test; make the bg-output failure name its own cause",
+    "date": "2026-08-07T07:32:03Z",
+    "subsystem": "tests",
+    "patchId": "1fac7c17078b53ee1069aa78cd93d9d912407ce4",
+    "testFiles": [
+      "src/tools/run_command/tests.rs"
+    ],
+    "sourceFiles": [
+      ".github/workflows/ci.yml",
+      "docs/issues/2026-08-07-grep-zero-match-silent-about-hidden-skip.md",
+      "docs/issues/2026-08-07-windows-ci-timing-flakes-block-the-gate.md",
+      "docs/trackers/codescout-usage-frictions.md",
+      "docs/trackers/reconnaissance-patterns.md",
+      "docs/trackers/release-promotion-session-log.md",
+      "docs/trackers/windows-platform-support.md",
+      "src/lsp/mod.rs"
+    ],
+    "sourceLinesChanged": 578
+  },
+  {
+    "repo": "codescout",
+    "fix": "bc94e67f1e94a67ec8adcf261887b90b0cbbc6de",
+    "parent": "b142a514d74ced61b8e5d9afbb5daa8daa492172",
+    "subject": "fix(run_command): accept `~` in tee paths; the SF-4 fix in d564c9bb was incomplete",
+    "date": "2026-08-07T11:29:11Z",
+    "subsystem": "run_command",
+    "patchId": "b3babf3371b89e2e0b86b7f4ed542f0e3c6c9ae0",
+    "testFiles": [
+      "src/tools/run_command/tests.rs"
+    ],
+    "sourceFiles": [
+      "docs/issues/2026-08-07-inject-tee-sf4-allowlist-rejects-windows-paths.md",
+      "docs/trackers/windows-platform-support.md",
+      "src/server.rs",
+      "src/tools/run_command/inner.rs"
+    ],
+    "sourceLinesChanged": 92
+  },
+  {
+    "repo": "codescout",
+    "fix": "6f261da99329161011500fe3ff262af9226b2697",
+    "parent": "d8eddb7bedec1c4b422f2dbc0ff9f553ade0b39c",
+    "subject": "fix(windows,librarian): close the four review findings, and the tests that hid two of them",
+    "date": "2026-08-08T07:56:18Z",
+    "subsystem": "windows,librarian",
+    "patchId": "4323669256772174afffff114fc62c7ff0b21e4a",
+    "testFiles": [
+      "src/tools/run_command/tests.rs"
+    ],
+    "sourceFiles": [
+      ".gitignore",
+      "CHANGELOG.md",
+      "docs/issues/2026-08-07-artifact-move-cannot-resolve-source-in-subroot-workspace.md",
+      "docs/issues/2026-08-07-msys-pathconv-optout-breaks-native-exe-paths.md",
+      "docs/issues/2026-08-08-buffer-only-gate-misses-tilde-and-home.md",
+      "docs/issues/2026-08-08-security-layer-tokenizes-unlike-the-shell.md",
+      "docs/issues/archive/2026-08-07-inject-tee-sf4-allowlist-rejects-windows-paths.md",
+      "docs/trackers/windows-platform-support.md",
+      "src/librarian/tools/doctor.rs",
+      "src/platform/mod.rs",
+      "src/platform/windows.rs"
+    ],
+    "sourceLinesChanged": 595
+  },
+  {
+    "repo": "codescout",
+    "fix": "c0bdeec7678339ffae73ef5330a00facf12be4f0",
+    "parent": "8f724171321fdcec82fff0dcfa42ccd78540383a",
+    "subject": "fix(memory): reject an unknown project_id instead of inventing a directory for it",
+    "date": "2026-08-08T12:02:17Z",
+    "subsystem": "memory",
+    "patchId": "1af80c9c920430b8210502b601911fe1e0f88a49",
+    "testFiles": [
+      "src/tools/memory/tests.rs"
+    ],
+    "sourceFiles": [
+      "src/tools/memory/mod.rs",
+      "src/workspace.rs"
+    ],
+    "sourceLinesChanged": 144
+  },
+  {
+    "repo": "codescout",
+    "fix": "514348fc35917ad217ccc8178d144b9468b0e01e",
+    "parent": "ca4b7f0ddb6c743c3f418fd4de75bc89f098b63c",
+    "subject": "fix(edit_code): a rename that reached only the declaration no longer reports success",
+    "date": "2026-08-08T15:16:06Z",
+    "subsystem": "edit_code",
+    "patchId": "b1b461aab416d7388185eae6f679a06e62bd7ad1",
+    "testFiles": [
+      "src/tools/symbol/tests.rs"
+    ],
+    "sourceFiles": [
+      "CHANGELOG.md",
+      "docs/issues/2026-08-08-edit-code-rename-under-reaches-and-reports-ok.md",
+      "src/tools/symbol/display.rs",
+      "src/tools/symbol/edit_code.rs"
+    ],
+    "sourceLinesChanged": 258
+  },
+  {
+    "repo": "codescout",
+    "fix": "2bc0f9f0ccba7871f8bb13106ee8601ff577cdf1",
+    "parent": "cb96aa47bf6bda4693f02b5c8771ac46d2ed2b0b",
+    "subject": "fix(retrieval): give the embed text a named home, and let the AST header reach it",
+    "date": "2026-08-08T16:32:56Z",
+    "subsystem": "retrieval",
+    "patchId": "a5dcad60a8c13661b404e8faa664f7bf582db46b",
+    "testFiles": [
+      "tests/retrieval_unit.rs"
+    ],
+    "sourceFiles": [
+      "CHANGELOG.md",
+      "docs/issues/2026-08-08-metadata-header-computed-but-never-embedded-or-stored.md",
+      "docs/issues/2026-08-08-server-stack-gated-tests-never-compiled-by-any-lane.md",
+      "src/retrieval/code_store.rs",
+      "src/retrieval/payload.rs",
+      "src/retrieval/sqlite_code_store.rs",
+      "src/retrieval/sync.rs"
+    ],
+    "sourceLinesChanged": 442
+  },
+  {
+    "repo": "codescout",
+    "fix": "feac9539e79b057063e32d3598d17338c34502cb",
+    "parent": "e8da12e3ad941a08499640f85e02c519eb98674b",
+    "subject": "fix(retrieval): ask whether the project has chunks, instead of counting them all to find out",
+    "date": "2026-08-08T17:46:30Z",
+    "subsystem": "retrieval",
+    "patchId": "f6b23f4f1ff1f10111c838a3da1d12d58af28df0",
+    "testFiles": [
+      "src/tools/config/tests.rs"
+    ],
+    "sourceFiles": [
+      "docs/issues/2026-08-08-index-probe-scrolls-the-whole-corpus-to-answer-a-yes-no.md",
+      "src/retrieval/client.rs",
+      "src/retrieval/code_store.rs",
+      "src/retrieval/qdrant.rs",
+      "src/retrieval/sqlite_code_store.rs",
+      "src/retrieval/sync.rs",
+      "src/tools/config/mod.rs"
+    ],
+    "sourceLinesChanged": 233
+  },
+  {
+    "repo": "codescout",
+    "fix": "6bd4427432f233683f869864589b5a80afb4df72",
+    "parent": "ffe4a2855e16d52a21ecb5ad3cd0c2a8de40155e",
+    "subject": "fix(retrieval): keep qdrant-client's version probe off the CLI's stdout",
+    "date": "2026-08-08T18:35:38Z",
+    "subsystem": "retrieval",
+    "patchId": "09fbf6b2f34dde305b270548461153bc1a4896ab",
+    "testFiles": [
+      "tests/cli_artifact.rs"
+    ],
+    "sourceFiles": [
+      "CHANGELOG.md",
+      "docs/issues/2026-08-08-qdrant-compat-check-printlns-to-stdout.md",
+      "src/retrieval/client.rs",
+      "src/retrieval/qdrant.rs"
+    ],
+    "sourceLinesChanged": 274
+  },
+  {
+    "repo": "codescout",
+    "fix": "b3aaf820bfce68f3d2637b493c813298afc0edc3",
+    "parent": "bc79f98cef46126be78fca4cd5f55ef1a5f118ab",
+    "subject": "fix(retrieval): review round 2 — make the shared-embedder regression test prove instance identity",
+    "date": "2026-08-08T19:28:50Z",
+    "subsystem": "retrieval",
+    "patchId": "e2ff225aaa44cce8b52cd18b8fdcbc312c65b31c",
+    "testFiles": [
+      "src/tools/memory/tests.rs"
+    ],
+    "sourceFiles": [
+      "src/agent/mod.rs",
+      "src/retrieval/embedder.rs"
+    ],
+    "sourceLinesChanged": 81
+  },
+  {
+    "repo": "codescout",
+    "fix": "cde4286073335996519615fb355edbd248b1194a",
+    "parent": "4962126ee10947e5b874bd64949b8e75c7078ca3",
+    "subject": "fix(tests,docs): fold in review nits for local-onnx query path",
+    "date": "2026-08-11T17:18:03Z",
+    "subsystem": "tests,docs",
+    "patchId": "e16c6b62bb946f4604b6497c579573d07adc0dac",
+    "testFiles": [
+      "src/tools/config/tests.rs"
+    ],
+    "sourceFiles": [
+      "docs/issues/2026-08-11-project-status-backend-misreports-bare-model-and-lean-build.md",
+      "docs/manual/src/concepts/local-embedding-offline.md"
+    ],
+    "sourceLinesChanged": 245
+  },
+  {
+    "repo": "codescout",
+    "fix": "ffaf67a33215e80d74d1ccb25d4f332deecd4b98",
+    "parent": "6d1d1d0a7ea765fdfe0d98fdfa53b965030e6c1f",
+    "subject": "fix(edit_file): name the file a failed read could not open",
+    "date": "2026-08-14T12:31:35Z",
+    "subsystem": "edit_file",
+    "patchId": "e38a9e30e8151022e9d8c4306c1b53946825d12a",
+    "testFiles": [
+      "src/tools/edit_file/tests.rs"
+    ],
+    "sourceFiles": [
+      "docs/issues/2026-08-08-edit-file-out-of-project-ack-handle-unresolvable.md",
+      "src/tools/edit_file/mod.rs"
+    ],
+    "sourceLinesChanged": 151
+  },
+  {
+    "repo": "codescout",
+    "fix": "8ba65118050f503b775cb0740ab8c743c4ea2764",
+    "parent": "141b2cbf700ac6a6cc873413f57e2cd47bf3fed5",
+    "subject": "fix(markdown): close a fence only on a same-char run at least as long",
+    "date": "2026-08-14T15:11:25Z",
+    "subsystem": "markdown",
+    "patchId": "705a0818455bbf6e8d5970be4b3622b150bf8803",
+    "testFiles": [
+      "src/tools/file_summary/tests.rs",
+      "src/tools/markdown/tests.rs"
+    ],
+    "sourceFiles": [
+      "docs/issues/2026-08-11-artifact-nested-fence-closes-outer-fence.md",
+      "docs/issues/2026-08-14-format-hover-fence-tracking-is-dead-state.md",
+      "src/librarian/preview/headings.rs",
+      "src/librarian/preview/plan.rs",
+      "src/librarian/preview/summary.rs",
+      "src/tools/file_summary/file_summary.rs",
+      "src/tools/markdown/edit_markdown.rs",
+      "src/util/markdown_fence.rs",
+      "src/util/mod.rs"
+    ],
+    "sourceLinesChanged": 770
+  },
+  {
+    "repo": "codescout",
+    "fix": "66678f34894fa981e189462a9460e2c47ed901aa",
+    "parent": "0a3ceb717b8a069202f1d8b59ae794602837b51a",
+    "subject": "fix(memory): give the embedder a document side, and route memory writes to it",
+    "date": "2026-08-14T16:47:37Z",
+    "subsystem": "memory",
+    "patchId": "7e51dcc94193fcd735eb7051c8914ca318d1fc44",
+    "testFiles": [
+      "src/tools/memory/tests.rs"
+    ],
+    "sourceFiles": [
+      "src/migrate/memories.rs",
+      "src/retrieval/embedder.rs",
+      "src/retrieval/search.rs",
+      "src/retrieval/sync.rs",
+      "src/tools/memory/mod.rs"
+    ],
+    "sourceLinesChanged": 262
+  },
+  {
+    "repo": "codescout",
+    "fix": "138de7c5683edf33120a9a6098c89877a1fb3078",
+    "parent": "2be6e27302feee7f93811a55932631d51f17ae8c",
+    "subject": "fix(edit_file): match definition keywords at a word boundary",
+    "date": "2026-08-14T18:30:34Z",
+    "subsystem": "edit_file",
+    "patchId": "1b1ea9445b01743d677128529f094cbbf98d8d07",
+    "testFiles": [
+      "src/tools/edit_file/tests.rs"
+    ],
+    "sourceFiles": [
+      "src/tools/edit_file/mod.rs"
+    ],
+    "sourceLinesChanged": 48
+  },
+  {
+    "repo": "codescout",
+    "fix": "3baa993dfb742043972d73ecb8d63c07e5b92bc6",
+    "parent": "2065d121f8bb738b614f9aadf90a5862e3aaa87a",
+    "subject": "fix(edit_code): a removed symbol's own descendants are not dropped siblings",
+    "date": "2026-08-14T19:12:15Z",
+    "subsystem": "edit_code",
+    "patchId": "4c1fa357eb867a9c905c6af6db50dea4ea0232b7",
+    "testFiles": [
+      "src/tools/symbol/tests.rs"
+    ],
+    "sourceFiles": [
+      "src/symbol/edit.rs",
+      "src/tools/symbol/edit_code.rs"
+    ],
+    "sourceLinesChanged": 144
+  },
+  {
+    "repo": "codescout",
+    "fix": "cafa4b37e6cbaf7946900540b83c38474051992a",
+    "parent": "d8b6e45d9ac6cca7f90efd6c5da074ad5ea101f8",
+    "subject": "fix(edit_code): diagnose why insert-after refused, instead of guessing",
+    "date": "2026-08-15T05:45:27Z",
+    "subsystem": "edit_code",
+    "patchId": "ba54b316c08cd81e48d1f0c88d60800b1dd1a4fd",
+    "testFiles": [
+      "src/tools/symbol/tests.rs",
+      "tests/symbol_lsp.rs"
+    ],
+    "sourceFiles": [
+      "src/tools/symbol/edit_code.rs"
+    ],
+    "sourceLinesChanged": 46
+  },
+  {
+    "repo": "codescout",
+    "fix": "51283504ce9a131e0e0c4cf12cd62ccdc01dd2ce",
+    "parent": "8867cf512ffeca7d303b67870040251353f3d8a9",
+    "subject": "fix(scripts,hover): drop a dead corpus default and dead fence state",
+    "date": "2026-08-15T06:07:39Z",
+    "subsystem": "scripts,hover",
+    "patchId": "cd82a7219759e9d756444181c53fc43d86e7e058",
+    "testFiles": [
+      "tests/committed_paths.rs"
+    ],
+    "sourceFiles": [
+      "scripts/sweep-bm25-boost.sh",
+      "scripts/sweep-bm25-cr1200.sh",
+      "src/tools/symbol/display.rs"
+    ],
+    "sourceLinesChanged": 32
+  },
+  {
+    "repo": "codescout",
+    "fix": "80350afed3e9d9f3a00085f2573214d3d657b956",
+    "parent": "2f76136e505489d40ac99b3d1cf8ab5bf326b5a8",
+    "subject": "fix(edit_file): stop refusing pure deletions; pin the file-scope insert route",
+    "date": "2026-08-15T06:22:37Z",
+    "subsystem": "edit_file",
+    "patchId": "dd3f5bf6636ac365a11b1418eb6c3d9c35f69eaa",
+    "testFiles": [
+      "src/tools/edit_file/tests.rs",
+      "tests/symbol_lsp.rs"
+    ],
+    "sourceFiles": [
+      "docs/issues/2026-08-08-clippy-pre-existing-drift-stable-gnu-toolchain.md",
+      "docs/issues/2026-08-08-cyberark-epm-blocks-ort-sys-build-script.md",
+      "docs/issues/archive/2026-08-08-clippy-pre-existing-drift-stable-gnu-toolchain.md",
+      "docs/issues/archive/2026-08-08-cyberark-epm-blocks-ort-sys-build-script.md",
+      "src/tools/edit_file/mod.rs"
+    ],
+    "sourceLinesChanged": 544
+  },
+  {
+    "repo": "codescout",
+    "fix": "9b902e0ac0f679cfd2a0e752c7fdcb30bc52ded2",
+    "parent": "80350afed3e9d9f3a00085f2573214d3d657b956",
+    "subject": "fix(config): retire drift_detection_enabled; revert the edit_file deletion exemption",
+    "date": "2026-08-15T06:32:43Z",
+    "subsystem": "config",
+    "patchId": "1145cfce6a94b54ab69b1ee2f855355b6f256f27",
+    "testFiles": [
+      "src/tools/edit_file/tests.rs"
+    ],
+    "sourceFiles": [
+      "docs/issues/2026-08-11-edit-code-cannot-remove-nonempty-module.md",
+      "docs/issues/archive/2026-08-11-edit-code-cannot-remove-nonempty-module.md",
+      "docs/manual/src/configuration/embeddings.md",
+      "docs/manual/src/configuration/project-toml.md",
+      "docs/manual/src/tools/semantic-search.md",
+      "docs/state-protocol.md",
+      "src/config/global.rs",
+      "src/config/project.rs",
+      "src/tools/edit_file/mod.rs"
+    ],
+    "sourceLinesChanged": 564
+  },
+  {
+    "repo": "codescout",
+    "fix": "b2bc8edb04c25762026374bb0ec5cf014c22f183",
+    "parent": "130c93a5b1d53ed5b4bac0cc2971c3bb569c03f0",
+    "subject": "fix(edit_code): reconcile the two name-path producers, add at_line for true ties",
+    "date": "2026-08-15T06:55:22Z",
+    "subsystem": "edit_code",
+    "patchId": "c91b77914f97d52d6901988f024969d0c64f1245",
+    "testFiles": [
+      "src/tools/symbol/tests.rs"
+    ],
+    "sourceFiles": [
+      "docs/issues/2026-08-08-audit-doc-refs-never-scans-changelog-or-contributing.md",
+      "docs/issues/archive/2026-08-08-audit-doc-refs-never-scans-changelog-or-contributing.md",
+      "src/ast/parser.rs",
+      "src/symbol/query.rs",
+      "src/tools/symbol/edit_code.rs"
+    ],
+    "sourceLinesChanged": 664
+  },
+  {
+    "repo": "codescout",
+    "fix": "26ce904b46ec636d3117685db71c8c256af67f1b",
+    "parent": "618acd57ee3bcdb8f0a23798ab9ed65d7c295fe3",
+    "subject": "fix(guides): the session-opening guide reached only sessions that called `workspace`",
+    "date": "2026-08-16T10:20:23Z",
+    "subsystem": "guides",
+    "patchId": "42a1a8a6a68ffad62966c540febb9e28474b0afd",
+    "testFiles": [
+      "src/tools/core/tests.rs",
+      "src/tools/markdown/tests.rs"
+    ],
+    "sourceFiles": [
+      "src/prompts/mod.rs",
+      "src/server.rs",
+      "src/tools/config/mod.rs",
+      "src/tools/core/types.rs",
+      "src/tools/grep.rs",
+      "src/tools/guide_ledger.rs",
+      "src/tools/read_file.rs",
+      "src/tools/tree.rs"
+    ],
+    "sourceLinesChanged": 251
+  },
+  {
+    "repo": "codescout",
+    "fix": "47abcb6dfb33bd00065913a22fd440f9f2e260bb",
+    "parent": "eeb8fbeb174a9ef735f39683dc142e4ed85e169d",
+    "subject": "fix(edit_file): guard every write path, not the one that happened to get it",
+    "date": "2026-08-16T10:37:10Z",
+    "subsystem": "edit_file",
+    "patchId": "6183df9835d502e6d59e9b65623c1baa5d065ab2",
+    "testFiles": [
+      "src/tools/edit_file/tests.rs"
+    ],
+    "sourceFiles": [
+      "docs/issues/2026-08-16-update-entry-ignores-an-unknown-patch-param-and-reports-success.md",
+      "src/librarian/catalog/augmentation.rs",
+      "src/librarian/tools/artifact.rs",
+      "src/librarian/tools/update_entry.rs",
+      "src/prompts/guides/iron-laws-detail.md",
+      "src/prompts/guides/librarian.md",
+      "src/tools/edit_file/mod.rs"
+    ],
+    "sourceLinesChanged": 363
+  },
+  {
+    "repo": "codescout",
+    "fix": "1a54b5a62ad45bc618f90487128630785929a643",
+    "parent": "0f5e36f68b789cbf976590366868df5829238e17",
+    "subject": "fix(schema): say which actions require a param, instead of what it means",
+    "date": "2026-08-16T12:50:15Z",
+    "subsystem": "schema",
+    "patchId": "16d7a3b9a611c70f2a01bda473c8d1fe64c56150",
+    "testFiles": [
+      "src/tools/symbol/tests.rs"
+    ],
+    "sourceFiles": [
+      "src/librarian/tools/artifact.rs",
+      "src/tools/symbol/edit_code.rs"
+    ],
+    "sourceLinesChanged": 56
+  },
+  {
+    "repo": "codescout",
+    "fix": "c057ff5a97594aac58be95a25a2e79200bc086be",
+    "parent": "d4fe8375d89b9840442bd9218af2516013b84758",
+    "subject": "fix(params): make a missing-param refusal teach the call, not restate the error",
+    "date": "2026-08-16T13:14:50Z",
+    "subsystem": "params",
+    "patchId": "8db8f404cf2a9e55d4db0178b4333791fd60e03d",
+    "testFiles": [
+      "src/tools/core/tests.rs"
+    ],
+    "sourceFiles": [
+      "src/tools/approve_write.rs",
+      "src/tools/config/mod.rs",
+      "src/tools/core/params.rs",
+      "src/tools/library.rs",
+      "src/tools/memory/mod.rs",
+      "src/tools/symbol/edit_code.rs"
+    ],
+    "sourceLinesChanged": 145
+  },
+  {
+    "repo": "codescout",
+    "fix": "ab94c33f5a116828e935d44c9e6cf42bba9ea4f1",
+    "parent": "ee7418a8ddfae5468d3c34cedcc57adc2b9216cf",
+    "subject": "fix(memory): route `topic` through the shared hint table instead of past it",
+    "date": "2026-08-16T13:20:48Z",
+    "subsystem": "memory",
+    "patchId": "07626fd3e8e3dfe7deecf52ba8812858e3bf7322",
+    "testFiles": [
+      "src/tools/core/tests.rs"
+    ],
+    "sourceFiles": [
+      "src/tools/core/params.rs",
+      "src/tools/memory/mod.rs"
+    ],
+    "sourceLinesChanged": 22
+  },
+  {
+    "repo": "codescout",
+    "fix": "16a6b561b51069e1795ae77054a352d52cfc41bb",
+    "parent": "06495a8a95a529d5379103dbf77d2935bf49af23",
+    "subject": "fix(read_file): a buffered summary now says it is one, and hands back the handle",
+    "date": "2026-08-16T13:47:21Z",
+    "subsystem": "read_file",
+    "patchId": "126eb3c033f8fa97d5c3cdbb5445700ae09aa051",
+    "testFiles": [
+      "src/tools/edit_file/tests.rs"
+    ],
+    "sourceFiles": [
+      "src/tools/read_file.rs"
+    ],
+    "sourceLinesChanged": 53
+  },
+  {
+    "repo": "codescout",
+    "fix": "8b27b1ea0aee83e22cdec5d146c21ca1b82085d8",
+    "parent": "c904198b91999fd79a9dc0f873c3276d54cc1d6e",
+    "subject": "fix(tools): tell the first read which tree it answered from",
+    "date": "2026-08-16T16:32:00Z",
+    "subsystem": "tools",
+    "patchId": "51f5685a90598b6cd56bd1cee577100a9bf08de2",
+    "testFiles": [
+      "src/tools/core/tests.rs"
+    ],
+    "sourceFiles": [
+      "docs/issues/2026-08-15-worktree-guard-covers-writes-but-not-reads.md",
+      "docs/issues/2026-08-16-run-command-backticks-substituted-in-quoted-message.md",
+      "docs/issues/2026-08-16-worktree-write-guard-is-dead-code-in-production.md",
+      "docs/issues/archive/2026-08-15-worktree-guard-covers-writes-but-not-reads.md",
+      "docs/trackers/open-issue-work-queue.md",
+      "src/agent/mod.rs",
+      "src/tools/core/types.rs",
+      "src/tools/guide_ledger.rs"
+    ],
+    "sourceLinesChanged": 759
+  },
+  {
+    "repo": "codescout",
+    "fix": "391fdcdcc9a668b4cf5a25c3cbe6dc416b388224",
+    "parent": "0ecb89191b963e7ccae6b4582d22ff3ec42d4108",
+    "subject": "fix(prompts): the instructions channel is 2048 CHARACTERS — measure it, then fit it",
+    "date": "2026-08-17T04:34:27Z",
+    "subsystem": "prompts",
+    "patchId": "19967a3ec90980879c53863822b1139c9e8574cc",
+    "testFiles": [
+      "tests/fixtures/prompt_surfaces/server_instructions.md"
+    ],
+    "sourceFiles": [
+      "docs/architecture/mcp-channel-caps.md",
+      "docs/issues/2026-08-15-server-instructions-truncated-before-reaching-the-model.md",
+      "docs/issues/2026-08-16-project-status-blocks-do-not-fit-the-instructions-channel.md",
+      "docs/issues/archive/2026-08-15-server-instructions-truncated-before-reaching-the-model.md",
+      "docs/trackers/bistriceanu/index.md",
+      "docs/trackers/open-issue-work-queue.md",
+      "src/prompts/README.md",
+      "src/prompts/mod.rs",
+      "src/prompts/source.md"
+    ],
+    "sourceLinesChanged": 1058
+  },
+  {
+    "repo": "codescout",
+    "fix": "d2cf44494b57bde7b7a5f384407802728b8187ff",
+    "parent": "4f287b54d9023d465f8df1b98de899d012de72ba",
+    "subject": "fix(prompts): restore Iron Law 1s overlap condition, and guard it this time",
+    "date": "2026-08-17T08:49:08Z",
+    "subsystem": "prompts",
+    "patchId": "4168995ac7969253e4c90173bc331a65eb785154",
+    "testFiles": [
+      "tests/fixtures/prompt_surfaces/server_instructions.md"
+    ],
+    "sourceFiles": [
+      ".codescout/memories/conventions.md",
+      "docs/issues/2026-08-15-il1-always-loaded-text-omits-the-overlap-condition.md",
+      "docs/issues/2026-08-17-edit-markdown-edit-action-deletes-when-new-string-is-omitted.md",
+      "docs/issues/2026-08-17-grep-narrowing-hint-ranks-by-capped-display-count.md",
+      "docs/issues/2026-08-17-symbol-addressing-and-replacement-params-differ-across-sibling-edit-tools.md",
+      "src/librarian/prompts/companion_hint.md",
+      "src/prompts/guides/librarian-runtime.md",
+      "src/prompts/mod.rs",
+      "src/prompts/source.md"
+    ],
+    "sourceLinesChanged": 695
+  },
+  {
+    "repo": "codescout",
+    "fix": "8d44ee0896a31d6645e3e288d4da76cfff8bdec8",
+    "parent": "d2cf44494b57bde7b7a5f384407802728b8187ff",
+    "subject": "fix(tools): stop deleting text on a key typo, rank grep hints on real counts, accept the sibling tools names",
+    "date": "2026-08-17T09:10:45Z",
+    "subsystem": "tools",
+    "patchId": "89e0ef45573b05cffd17806bc91193341363c1a0",
+    "testFiles": [
+      "src/tools/markdown/tests.rs",
+      "src/tools/symbol/tests.rs"
+    ],
+    "sourceFiles": [
+      "docs/issues/2026-08-17-edit-markdown-edit-action-deletes-when-new-string-is-omitted.md",
+      "docs/issues/2026-08-17-grep-narrowing-hint-ranks-by-capped-display-count.md",
+      "docs/issues/2026-08-17-symbol-addressing-and-replacement-params-differ-across-sibling-edit-tools.md",
+      "src/librarian/tools/update.rs",
+      "src/tools/grep.rs",
+      "src/tools/markdown/edit_markdown.rs",
+      "src/tools/symbol/edit_code.rs"
+    ],
+    "sourceLinesChanged": 676
+  },
+  {
+    "repo": "codescout",
+    "fix": "4c47760a30e1eab50761448566bb371630a78699",
+    "parent": "201628f9baebdc6389d9f2413b7cb1c315b859ed",
+    "subject": "fix(run_command): name the cause when the shell substituted a backtick you meant literally",
+    "date": "2026-08-17T10:44:33Z",
+    "subsystem": "run_command",
+    "patchId": "c078a8a7c18c0446ced9e2325c333b2bbd2c4a79",
+    "testFiles": [
+      "src/tools/run_command/tests.rs"
+    ],
+    "sourceFiles": [
+      "docs/issues/2026-08-16-run-command-backticks-substituted-in-quoted-message.md",
+      "src/tools/run_command/output.rs"
+    ],
+    "sourceLinesChanged": 171
+  },
+  {
+    "repo": "codescout",
+    "fix": "90d76d8aff8af7fddf59a7a3b514a6d20bcb41ca",
+    "parent": "526f3e875175b877df67e98ffc56b07354d29e70",
+    "subject": "fix(guards): re-arm guard_worktree_write on is_project_chosen_this_session",
+    "date": "2026-08-17T12:55:20Z",
+    "subsystem": "guards",
+    "patchId": "bca1645587c94dafeda2213e51a70b5c85411fed",
+    "testFiles": [
+      "src/tools/core/tests.rs"
+    ],
+    "sourceFiles": [
+      "docs/issues/2026-08-16-worktree-write-guard-is-dead-code-in-production.md",
+      "docs/issues/archive/2026-08-16-worktree-write-guard-is-dead-code-in-production.md",
+      "docs/trackers/open-issue-work-queue.md",
+      "src/tools/core/guards.rs",
+      "src/tools/core/types.rs"
+    ],
+    "sourceLinesChanged": 342
+  },
+  {
+    "repo": "codescout",
+    "fix": "be2d7781322c2ac7374b6bc9a4d5cf42ecba2eb0",
+    "parent": "f15d5ea6a8bb569880683b07ea6848b30ce65455",
+    "subject": "fix(path-security): resolve relative source tokens against the shell's real cwd",
+    "date": "2026-08-18T05:11:27Z",
+    "subsystem": "path-security",
+    "patchId": "df2c4d130dc505918e4f8fc02282b8bfad345e3e",
+    "testFiles": [
+      "tests/cli_artifact.rs"
+    ],
+    "sourceFiles": [
+      "src/util/path_security.rs"
+    ],
+    "sourceLinesChanged": 270
+  },
+  {
+    "repo": "codescout",
+    "fix": "dd788ce1c537c9cb1cf584db301baed320a1a331",
+    "parent": "5e99f0fd37b9a505365f0277fe417f5dd43dece8",
+    "subject": "fix(tools): prefix the worktree read notice into stdout, not just a sibling field",
+    "date": "2026-08-18T05:13:36Z",
+    "subsystem": "tools",
+    "patchId": "eac05bfa5b828ca505bfcd284d8e5179ad7e62ce",
+    "testFiles": [
+      "src/tools/core/tests.rs"
+    ],
+    "sourceFiles": [
+      "docs/trackers/codescout-usage-frictions.md",
+      "src/tools/core/types.rs"
+    ],
+    "sourceLinesChanged": 15
+  },
+  {
+    "repo": "codescout",
+    "fix": "1869adcbe3400baade187ca152fa8607e7f6351d",
+    "parent": "61a1ebf31e77d2eaaf4568b6368cf601eda05140",
+    "subject": "fix(agent): inherit a worktree's discovery settings from the main checkout",
+    "date": "2026-08-18T18:32:15Z",
+    "subsystem": "agent",
+    "patchId": "31d3db2e703eb5d4bb1d407d93e2577f6b8b8a23",
+    "testFiles": [
+      "src/tools/config/tests.rs"
+    ],
+    "sourceFiles": [
+      "src/agent/mod.rs",
+      "src/tools/config/mod.rs"
+    ],
+    "sourceLinesChanged": 163
+  },
+  {
+    "repo": "codescout",
+    "fix": "b8f6200afbab97fbbb03143b22880329bf637835",
+    "parent": "e1c0e3ceab2362a8a9f1677757ef0ae99abec0e1",
+    "subject": "fix(workspace): the pin notice contradicted the hint it was appended to, and nothing guarded it",
+    "date": "2026-08-18T22:13:17Z",
+    "subsystem": "workspace",
+    "patchId": "e94187f1f63fc3b5131be87df02567d7f633b057",
+    "testFiles": [
+      "src/tools/config/tests.rs"
+    ],
+    "sourceFiles": [
+      "src/tools/config/mod.rs"
+    ],
+    "sourceLinesChanged": 66
+  },
+  {
+    "repo": "codescout",
+    "fix": "3f871c1fb36ff34400111755f568572f7ef0a8fb",
+    "parent": "d4f98485804ba066e9bcfa2594cd944d7685e8f9",
+    "subject": "fix: 6 Windows-only bugs found by the first native test run on this VDI",
+    "date": "2026-08-19T11:25:45Z",
+    "subsystem": "docs/issues",
+    "patchId": "6e260c954d65a23768c4ff625e3ea0725210463f",
+    "testFiles": [
+      "src/tools/config/tests.rs",
+      "src/tools/core/tests.rs"
+    ],
+    "sourceFiles": [
+      "Cargo.toml",
+      "docs/issues/2026-08-19-artifact-create-abs-path-missing-forward-slash-normalization.md",
+      "docs/issues/2026-08-19-doctor-outside-roots-group-rewrites-posix-paths-with-backslashes.md",
+      "docs/issues/2026-08-19-event-create-test-thread-local-missing-clippy-allow.md",
+      "docs/issues/2026-08-19-memory-embedder-test-missing-envguard-for-embedder-url.md",
+      "docs/issues/2026-08-19-rendezvous-parent-pid-stub-returns-zero-on-windows.md",
+      "docs/issues/2026-08-19-windows-native-test-suite-posix-path-assumptions.md",
+      "src/agent/mod.rs",
+      "src/config/global.rs",
+      "src/librarian/tools/create.rs",
+      "src/librarian/tools/doctor.rs",
+      "src/librarian/tools/event_create.rs",
+      "src/memory/filter.rs",
+      "src/tools/rendezvous.rs",
+      "src/util/path_security.rs"
+    ],
+    "sourceLinesChanged": 628
+  },
+  {
+    "repo": "codescout",
+    "fix": "748f34c16c6a970a252c049de4e4bbc6922a87f4",
+    "parent": "77307568e379f98939a4100f69b36abbd1f0245d",
+    "subject": "fix: 6 Windows-only bugs found by the first native test run on this VDI",
+    "date": "2026-08-19T11:25:45Z",
+    "subsystem": "docs/issues",
+    "patchId": "1b3039defd67f30ea16137f4e2964fe377bab072",
+    "testFiles": [
+      "src/tools/config/tests.rs"
+    ],
+    "sourceFiles": [
+      "Cargo.toml",
+      "docs/issues/2026-08-19-artifact-create-abs-path-missing-forward-slash-normalization.md",
+      "docs/issues/2026-08-19-doctor-outside-roots-group-rewrites-posix-paths-with-backslashes.md",
+      "docs/issues/2026-08-19-event-create-test-thread-local-missing-clippy-allow.md",
+      "docs/issues/2026-08-19-memory-embedder-test-missing-envguard-for-embedder-url.md",
+      "docs/issues/2026-08-19-rendezvous-parent-pid-stub-returns-zero-on-windows.md",
+      "docs/issues/2026-08-19-windows-native-test-suite-posix-path-assumptions.md",
+      "src/agent/mod.rs",
+      "src/config/global.rs",
+      "src/librarian/tools/create.rs",
+      "src/librarian/tools/event_create.rs",
+      "src/memory/filter.rs",
+      "src/tools/rendezvous.rs",
+      "src/util/path_security.rs"
+    ],
+    "sourceLinesChanged": 610
+  },
+  {
+    "repo": "codescout",
+    "fix": "4ea33d1568be9872f7a8dd1353c2332024722ecf",
+    "parent": "26d08f55093e180a0f18c86a9e9bc1922bdaf6b5",
+    "subject": "fix(run_command): stop tee instrumentation rewriting pipes inside heredoc bodies",
+    "date": "2026-08-19T12:56:58Z",
+    "subsystem": "run_command",
+    "patchId": "50691255eccdc8e7ebb3ce3634d3ee01a8b17a3d",
+    "testFiles": [
+      "src/tools/run_command/tests.rs"
+    ],
+    "sourceFiles": [
+      "docs/issues/2026-08-19-run-command-rewrites-pipes-inside-heredoc-content.md",
+      "src/tools/run_command/inner.rs",
+      "src/util/path_security.rs"
+    ],
+    "sourceLinesChanged": 241
+  },
+  {
+    "repo": "codescout",
+    "fix": "8814c0afb7ef974fb41333bd450706e69d31dc2c",
+    "parent": "ce48804028eec3bf7e08831206fb8d17f13392f3",
+    "subject": "fix(edit-markdown): give diagnose_scoped_miss's six bail-out causes distinct tiers",
+    "date": "2026-08-21T03:01:14Z",
+    "subsystem": "edit-markdown",
+    "patchId": "e25c6910eb007c35426379041b2750023975390b",
+    "testFiles": [
+      "src/tools/markdown/tests.rs"
+    ],
+    "sourceFiles": [
+      "src/tools/markdown/edit_markdown.rs"
+    ],
+    "sourceLinesChanged": 49
+  },
+  {
+    "repo": "codescout",
+    "fix": "4dda3c45e4bbd335a689bc2e2ab2adc2fba0ad9f",
+    "parent": "b159e5799fb2d607b95051c0643d4976300e3c94",
+    "subject": "fix(markdown): add a preamble sentinel so a guarded artifact's preamble can be edited",
+    "date": "2026-08-21T03:32:04Z",
+    "subsystem": "markdown",
+    "patchId": "5c30bf0537d6e2636721543a86ee32e5573a591a",
+    "testFiles": [
+      "src/tools/markdown/tests.rs"
+    ],
+    "sourceFiles": [
+      "src/librarian/tools/update.rs",
+      "src/tools/markdown/edit_markdown.rs"
+    ],
+    "sourceLinesChanged": 91
+  },
+  {
+    "repo": "codescout",
+    "fix": "60a7e62465e491b2e6ca4be7e2f432b955195520",
+    "parent": "1bdf63b4b89084145dbf520b7fe5cdab4a2e058c",
+    "subject": "fix(index): stop treating cross-process lock contention as a build failure",
+    "date": "2026-08-24T12:39:46Z",
+    "subsystem": "index",
+    "patchId": "40abcc0cf2f65a1895332ba7da63925d7e9700b2",
+    "testFiles": [
+      "src/tools/semantic/tests.rs"
+    ],
+    "sourceFiles": [
+      "src/retrieval/index_lock.rs",
+      "src/tools/semantic/index.rs"
+    ],
+    "sourceLinesChanged": 200
+  },
+  {
+    "repo": "codescout",
+    "fix": "7712d8e67565b90181bb215c31d48fb3b7c0e091",
+    "parent": "d87fcaf88eb60e7b1ee47cf3f0013616ea72a032",
+    "subject": "fix(read_file): resolve buffer slices to text instead of nesting envelopes",
+    "date": "2026-08-25T20:43:48Z",
+    "subsystem": "read_file",
+    "patchId": "4a8809ba4b8fd26dacedd430ae11f16d5afad348",
+    "testFiles": [
+      "src/tools/edit_file/tests.rs"
+    ],
+    "sourceFiles": [
+      "docs/issues/2026-08-25-file-slice-handle-refreshes-to-whole-file.md",
+      "docs/issues/2026-08-25-run-command-nested-buffer-recursion.md",
+      "src/tools/markdown/read_markdown.rs",
+      "src/tools/read_file.rs",
+      "src/util/text.rs"
+    ],
+    "sourceLinesChanged": 708
+  },
+  {
+    "repo": "codescout",
+    "fix": "bde47270498c17d7f1edac704dcae0e007708715",
+    "parent": "fbe5323192cfc7fea24a2f29d2c37a118e2d7b49",
+    "subject": "fix(output_buffer): an excerpt handle is a snapshot, not a window onto the file",
+    "date": "2026-08-25T20:58:42Z",
+    "subsystem": "output_buffer",
+    "patchId": "24ebd495d2f1e5e87ca8f9b4ddf211a4ae33b580",
+    "testFiles": [
+      "src/tools/markdown/tests.rs"
+    ],
+    "sourceFiles": [
+      "docs/issues/2026-08-25-file-slice-handle-refreshes-to-whole-file.md",
+      "docs/issues/2026-08-25-read-markdown-next-actions-uses-file-line-numbers.md",
+      "src/tools/markdown/read_markdown.rs",
+      "src/tools/output_buffer.rs",
+      "src/tools/read_file.rs"
+    ],
+    "sourceLinesChanged": 466
+  },
+  {
+    "repo": "codescout",
+    "fix": "01ec8a0c24eaa21db05c4246b5ab0f4681225573",
+    "parent": "252f39e525ae4915ff4d23a99fe9cf063dcd0385",
+    "subject": "fix(read_markdown): the oversized-section payload now addresses the handle it names",
+    "date": "2026-08-25T21:07:29Z",
+    "subsystem": "read_markdown",
+    "patchId": "ac6c2824c284ea92dbce9e02fa3864427fd957d1",
+    "testFiles": [
+      "src/tools/markdown/tests.rs"
+    ],
+    "sourceFiles": [
+      "docs/issues/2026-08-25-read-markdown-next-actions-uses-file-line-numbers.md",
+      "src/tools/markdown/read_markdown.rs"
+    ],
+    "sourceLinesChanged": 132
+  },
+  {
+    "repo": "codescout",
+    "fix": "2b0fcbf3f28ed07fd9a64e0a3c57fa036dafc17a",
+    "parent": "bd293162393578960a5f444e4f310f7aafc8ae46",
+    "subject": "fix(references): resolve an import alias positionally when name lookup finds none",
+    "date": "2026-08-25T21:33:20Z",
+    "subsystem": "references",
+    "patchId": "529bd116cb78e38b72956320246bb92c8a426db9",
+    "testFiles": [
+      "src/tools/symbol/tests.rs",
+      "tests/fixtures/python-extensions.toml",
+      "tests/fixtures/python-library/library/orders.py",
+      "tests/fixtures/python-library/library/pricing/__init__.py",
+      "tests/fixtures/python-library/library/pricing/duties.py"
+    ],
+    "sourceFiles": [
+      "docs/issues/2026-08-25-references-dead-ends-at-renaming-re-export.md",
+      "docs/trackers/bug-fix-session-log.md",
+      "src/tools/symbol/references.rs"
+    ],
+    "sourceLinesChanged": 371
+  },
+  {
+    "repo": "codescout",
+    "fix": "26feb1aaccb67bb5b97fab0466308436075d4632",
+    "parent": "97ca285429a0625bf891b4aa809b48ce867e1136",
+    "subject": "fix(memory): segment and mean-pool oversized memory embeds instead of losing them",
+    "date": "2026-08-26T09:24:17Z",
+    "subsystem": "memory",
+    "patchId": "97a8127b4e761e065a2a8090107473f9a1186082",
+    "testFiles": [
+      "src/tools/memory/tests.rs"
+    ],
+    "sourceFiles": [
+      "crates/codescout-embed/src/lib.rs",
+      "src/tools/memory/mod.rs"
+    ],
+    "sourceLinesChanged": 181
+  },
+  {
+    "repo": "codescout",
+    "fix": "4882552901fbbf0a8ce73d1f1f0801309ceeed01",
+    "parent": "88c097bd5aab17f2b81928f219f6f032728a2866",
+    "subject": "fix(index): stop status implying completeness, and fold in the cheap integrity check",
+    "date": "2026-08-26T10:19:23Z",
+    "subsystem": "index",
+    "patchId": "f855a10a1afca25211fb9504fba17964d6ab29a9",
+    "testFiles": [
+      "src/tools/semantic/tests.rs"
+    ],
+    "sourceFiles": [
+      "src/tools/semantic/index.rs"
+    ],
+    "sourceLinesChanged": 67
+  },
+  {
+    "repo": "codescout",
+    "fix": "9b048e1777448b05c5ca209987c3f0393b3f3d9f",
+    "parent": "2614087c869551de3927e6a42e017f50559aa4c3",
+    "subject": "fix(tests): build gitdir pointers with join, and read the worktree notice out of JSON",
+    "date": "2026-08-26T10:32:05Z",
+    "subsystem": "tests",
+    "patchId": "f42a4e9faa0aac83d8f92f1f94ee66852e1e952c",
+    "testFiles": [
+      "src/tools/config/tests.rs",
+      "src/tools/core/tests.rs"
+    ],
+    "sourceFiles": [
+      "src/librarian/current_project.rs",
+      "src/usage/mod.rs"
+    ],
+    "sourceLinesChanged": 48
+  },
+  {
+    "repo": "codescout",
+    "fix": "6546a718fb3dd9144b2100aa94b01ba4cd0bbcfe",
+    "parent": "3acdd9613720e8191d29de5191a38309e162f769",
+    "subject": "fix(migrate): give the migration path the segmentation the tool path had",
+    "date": "2026-08-26T13:59:46Z",
+    "subsystem": "migrate",
+    "patchId": "c0bc53350495aa2b00540ec3eb609a77bcc47a71",
+    "testFiles": [
+      "src/tools/memory/tests.rs"
+    ],
+    "sourceFiles": [
+      "src/embed/document.rs",
+      "src/embed/mod.rs",
+      "src/main.rs",
+      "src/migrate/memories.rs",
+      "src/tools/memory/mod.rs"
+    ],
+    "sourceLinesChanged": 456
+  },
+  {
+    "repo": "codescout",
+    "fix": "70e5d2fc01244589a48603efb26b633734197974",
+    "parent": "879cc208c1d359a3523d3f9aad526b677e936060",
+    "subject": "fix(docs): qualify session-log template's bare ledger citations",
+    "date": "2026-08-26T15:31:44Z",
+    "subsystem": "docs",
+    "patchId": "71c6bf2c1e408d936cd7e4f819e94551be6c97c9",
+    "testFiles": [
+      "tests/link_scan.rs"
+    ],
+    "sourceFiles": [
+      "docs/issues/2026-08-26-link-scan-double-qualified-citation-silently-drops-repo-prefix.md",
+      "docs/issues/2026-08-26-session-log-template-cites-own-ledger-ids-bare.md",
+      "docs/templates/session-log.md"
+    ],
+    "sourceLinesChanged": 276
+  },
+  {
+    "repo": "codescout",
+    "fix": "7884fc7bc367ed65f2499337de9f5f16b10e8aa3",
+    "parent": "2bfe4931cdd0426b460ace3252a1429a079e46e6",
+    "subject": "fix(docs): re-point 55 archive-move citations in source comments",
+    "date": "2026-08-26T15:40:15Z",
+    "subsystem": "docs",
+    "patchId": "8ec3a2cf81a80b2283145f3527ed6df6e426dc5f",
+    "testFiles": [
+      "src/tools/edit_file/tests.rs",
+      "src/tools/symbol/tests.rs",
+      "tests/cli_artifact.rs",
+      "tests/committed_paths.rs",
+      "tests/symbol_lsp.rs"
+    ],
+    "sourceFiles": [
+      "src/librarian/adapter.rs",
+      "src/librarian/catalog/artifact.rs",
+      "src/librarian/frontmatter.rs",
+      "src/librarian/tools/audit_doc_refs/mod.rs",
+      "src/librarian/tools/audit_doc_refs/parser.rs",
+      "src/librarian/tools/audit_doc_refs/resolver.rs",
+      "src/librarian/tools/audit_doc_refs/severity.rs",
+      "src/librarian/tools/create.rs",
+      "src/librarian/tools/doctor.rs",
+      "src/librarian/tools/mv.rs",
+      "src/librarian/tools/update.rs",
+      "src/lsp/manager.rs",
+      "src/prompts/mod.rs",
+      "src/server.rs",
+      "src/tools/config/mod.rs",
+      "src/tools/format.rs",
+      "src/tools/grep.rs",
+      "src/tools/read_file.rs",
+      "src/tools/rendezvous.rs",
+      "src/tools/symbol/edit_code.rs",
+      "src/tools/symbol/symbols.rs",
+      "src/usage/db.rs",
+      "src/usage/mod.rs",
+      "src/util/librarian_guard.rs",
+      "src/util/path_security.rs"
+    ],
+    "sourceLinesChanged": 94
+  },
+  {
+    "repo": "codescout",
+    "fix": "899c5212aceecfad9876ff10508173aeeace4b69",
+    "parent": "05c3dfb4f593990ea4f0ab467e18cd1ce80dfa60",
+    "subject": "fix(index): a model NAME difference is not proof of two embedding spaces",
+    "date": "2026-08-26T16:24:50Z",
+    "subsystem": "index",
+    "patchId": "4e5c9b77070f126688f750d01833131715a632c5",
+    "testFiles": [
+      "src/tools/semantic/tests.rs"
+    ],
+    "sourceFiles": [
+      "src/tools/semantic/index.rs"
+    ],
+    "sourceLinesChanged": 68
+  },
+  {
+    "repo": "codescout",
+    "fix": "c172fe100966a1c21f25ca3889468854be2bfc52",
+    "parent": "807e84f3ed97ac7f4b96aedc87b8de45bda6e0cd",
+    "subject": "fix(run-command): give unfiltered_output a size signal",
+    "date": "2026-08-26T16:28:18Z",
+    "subsystem": "run-command",
+    "patchId": "e192f49af22e1302b18473795e6d725917d989d2",
+    "testFiles": [
+      "src/tools/run_command/tests.rs"
+    ],
+    "sourceFiles": [
+      "src/tools/run_command/output.rs"
+    ],
+    "sourceLinesChanged": 90
+  },
+  {
+    "repo": "codescout",
+    "fix": "196f1b94ad324639f999453b8abcc98b750c10a3",
+    "parent": "0b11be9c1dd0e463f63de0313baf89a9def5c42d",
+    "subject": "fix(index): persist a durable last-sync-skipped marker, and read it in status",
+    "date": "2026-08-26T22:23:47Z",
+    "subsystem": "index",
+    "patchId": "2a8aa5e71f2ae98171628a665f81af7c9cfda31d",
+    "testFiles": [
+      "src/tools/semantic/tests.rs"
+    ],
+    "sourceFiles": [
+      "src/retrieval/index_state.rs",
+      "src/retrieval/sync.rs",
+      "src/tools/semantic/index.rs",
+      "src/tools/semantic/semantic_search.rs"
+    ],
+    "sourceLinesChanged": 290
+  },
+  {
+    "repo": "codescout",
+    "fix": "c1cb00225ded271df52f99684d49e4af2db3e94d",
+    "parent": "c10467e451b10f5b4eb0c9940baea91ab12ff191",
+    "subject": "fix(run_command): a truncated buffer now says so, at every read",
+    "date": "2026-08-27T10:55:01Z",
+    "subsystem": "run_command",
+    "patchId": "a7f22eb241771dcb37fba6c92aa8cba2f14b479f",
+    "testFiles": [
+      "src/tools/run_command/tests.rs"
+    ],
+    "sourceFiles": [
+      ".github/workflows/ci.yml",
+      "src/tools/output_buffer.rs",
+      "src/tools/read_file.rs",
+      "src/tools/run_command/mod.rs",
+      "src/tools/run_command/output.rs"
+    ],
+    "sourceLinesChanged": 268
+  },
+  {
+    "repo": "codescout",
+    "fix": "21507a26890abb824a58a91d23a287f2bf685693",
+    "parent": "8b6a28590b5af6ad404f098f73e82a36ef65b3c3",
+    "subject": "fix(read_file): render the truncation notice instead of merely carrying it",
+    "date": "2026-08-27T11:07:04Z",
+    "subsystem": "read_file",
+    "patchId": "1bc96ae356d6741c08dbcd5a30c462a8e87ab06b",
+    "testFiles": [
+      "src/tools/run_command/tests.rs"
+    ],
+    "sourceFiles": [
+      ".github/workflows/ci.yml",
+      "src/tools/format.rs",
+      "src/tools/read_file.rs"
+    ],
+    "sourceLinesChanged": 53
+  },
+  {
+    "repo": "codescout",
+    "fix": "fc1bbf2169a74569debe5c2d44960c51a2a42f97",
+    "parent": "9b4af7b0bdd226f466d937f8ee10df98d7f960a1",
+    "subject": "fix(workspace): activate reads sub-project memories from the write path",
+    "date": "2026-08-27T12:11:19Z",
+    "subsystem": "workspace",
+    "patchId": "f1a072d9ad760b5e57a1c867df1cc89f9bf390e4",
+    "testFiles": [
+      "src/tools/config/tests.rs"
+    ],
+    "sourceFiles": [
+      "docs/issues/2026-08-27-activate-by-path-bypasses-workspace-memory-resolution.md",
+      "src/agent/mod.rs"
+    ],
+    "sourceLinesChanged": 139
+  },
+  {
+    "repo": "codescout",
+    "fix": "76e2d6cd66950ecc5c051b9085f4210026c8d93a",
+    "parent": "302e6c5d80468659a30b94e5fe728808add6f0c5",
+    "subject": "fix(prompts): the Project Status block reports the same memories as activation",
+    "date": "2026-08-27T12:30:35Z",
+    "subsystem": "prompts",
+    "patchId": "a46d3da70ce3160a332819da32a3095a09258a66",
+    "testFiles": [
+      "src/tools/config/tests.rs"
+    ],
+    "sourceFiles": [
+      "src/agent/mod.rs"
+    ],
+    "sourceLinesChanged": 41
+  },
+  {
+    "repo": "codescout",
+    "fix": "76e287f8a397de0ef68beae5772e80b7d42bc3b0",
+    "parent": "76e2d6cd66950ecc5c051b9085f4210026c8d93a",
+    "subject": "fix(read_file,read_markdown): a not-found error names the tree it searched",
+    "date": "2026-08-27T12:38:48Z",
+    "subsystem": "read_file,read_markdown",
+    "patchId": "f328f65909ef74d80768f7657d3d6e86d1bf4268",
+    "testFiles": [
+      "src/tools/markdown/tests.rs"
+    ],
+    "sourceFiles": [
+      "src/tools/markdown/read_markdown.rs",
+      "src/tools/read_file.rs"
+    ],
+    "sourceLinesChanged": 76
+  },
+  {
+    "repo": "codescout",
+    "fix": "d421b6bf5d5741fb795045c75f4d0468e8b3d8ba",
+    "parent": "9dbce6ef46766679fc06c35d26394010ed27177e",
+    "subject": "fix(workspace): a path naming a workspace member focus-switches into it",
+    "date": "2026-08-27T13:16:09Z",
+    "subsystem": "workspace",
+    "patchId": "a343f55ded1f066b9ff51261aa7b9a24277104b3",
+    "testFiles": [
+      "src/tools/config/tests.rs"
+    ],
+    "sourceFiles": [
+      "src/tools/config/mod.rs"
+    ],
+    "sourceLinesChanged": 111
+  },
+  {
+    "repo": "codescout",
+    "fix": "164c8bd61e0f100f490aaf6c6e5479fa0e22dfee",
+    "parent": "f8538b72d38fa2a0b26f1f81d9a85b2abd98791d",
+    "subject": "fix(markdown): occurrence selects among identical headings",
+    "date": "2026-08-27T15:07:32Z",
+    "subsystem": "markdown",
+    "patchId": "a3681488286644bf7c0a182740d26065a1230d44",
+    "testFiles": [
+      "src/tools/file_summary/tests.rs"
+    ],
+    "sourceFiles": [
+      "src/librarian/tools/artifact.rs",
+      "src/librarian/tools/update.rs",
+      "src/tools/file_summary/file_summary.rs",
+      "src/tools/markdown/edit_markdown.rs"
+    ],
+    "sourceLinesChanged": 288
+  },
+  {
+    "repo": "codescout",
+    "fix": "22e60ee9724888a806dc89ba4cb50715d765bda1",
+    "parent": "933049b6b50553c15280353657b42bdd9397e763",
+    "subject": "fix(tools): name the checkout an unpinned write reached",
+    "date": "2026-08-27T17:30:12Z",
+    "subsystem": "tools",
+    "patchId": "1bf09e75f9b07d0703af534a83e636a8e09ede69",
+    "testFiles": [
+      "src/tools/core/tests.rs"
+    ],
+    "sourceFiles": [
+      "docs/issues/2026-08-27-edit-code-writes-to-session-default-not-pinned-workspace.md",
+      "src/tools/core/types.rs"
+    ],
+    "sourceLinesChanged": 221
+  },
+  {
+    "repo": "codescout",
+    "fix": "ca8c550b4abb6c9b247e12e931b53d28c6c59b5d",
+    "parent": "8a7b66c17e6561746c058fbf837cb46a5d431a14",
+    "subject": "fix(librarian): make a truncated heading list reach its own tail",
+    "date": "2026-08-27T19:22:53Z",
+    "subsystem": "librarian",
+    "patchId": "8235e4ae498d65364acf23b5972fd3cf85080f1f",
+    "testFiles": [
+      "src/tools/file_summary/tests.rs"
+    ],
+    "sourceFiles": [
+      "src/librarian/catalog/augmentation.rs",
+      "src/librarian/preview/default.rs",
+      "src/librarian/preview/headings.rs",
+      "src/librarian/preview/plan.rs",
+      "src/librarian/preview/spec.rs",
+      "src/tools/file_summary/file_summary.rs"
+    ],
+    "sourceLinesChanged": 224
+  },
+  {
+    "repo": "codescout",
+    "fix": "bbbbb45a6a5a4713dd405ea7ce85c9c674bb9b7c",
+    "parent": "3dc90a0b649fec337041e22494835dd9a9b48995",
+    "subject": "fix(operator-rules): apply whole-branch review fix wave (C1a/C1b, I2/I3, M1-M4, M8)",
+    "date": "2026-08-29T07:09:43Z",
+    "subsystem": "operator-rules",
+    "patchId": "9805458853f18f132f4d9ccffe3bb34933ad1a61",
+    "testFiles": [
+      "src/tools/core/tests.rs"
+    ],
+    "sourceFiles": [
+      "docs/issues/2026-08-28-atomic-write-leaks-its-temp-file-on-failure.md",
+      "docs/issues/2026-08-28-op-4-path-predicate-can-never-fire.md",
+      "docs/issues/2026-08-28-triggered-operator-rules-route-nothing-in-production.md",
+      "docs/issues/2026-08-29-memory-tests-deadlock-on-futex-in-isolation.md",
+      "docs/superpowers/plans/2026-08-28-operator-rules-phase-2.md",
+      "docs/superpowers/specs/2026-08-27-operator-rules-engine-design.md",
+      "src/operator_rules/route.rs",
+      "src/prompts/guide_index.rs",
+      "src/tools/core/types.rs"
+    ],
+    "sourceLinesChanged": 761
+  },
+  {
+    "repo": "codescout",
+    "fix": "45a885314d9bbae4bb2fd33f0a2e07ee3f0fb66c",
+    "parent": "b51eb542383cfd476d7653d6664422a976671053",
+    "subject": "fix(shrink-guard): refuse a write that loses lines while keeping bytes",
+    "date": "2026-08-29T07:16:20Z",
+    "subsystem": "shrink-guard",
+    "patchId": "5bcb69c2d5f06b9126ea78c7e8cf2d640c097463",
+    "testFiles": [
+      "src/tools/markdown/tests.rs"
+    ],
+    "sourceFiles": [
+      "CHANGELOG.md",
+      "docs/architecture/augmented-artifacts.md",
+      "src/librarian/tools/artifact.rs",
+      "src/librarian/tools/update.rs",
+      "src/memory/mod.rs",
+      "src/prompts/guides/librarian.md",
+      "src/tools/markdown/edit_markdown.rs",
+      "src/tools/memory/mod.rs",
+      "src/util/mod.rs",
+      "src/util/shrink_guard.rs"
+    ],
+    "sourceLinesChanged": 541
+  },
+  {
+    "repo": "codescout",
+    "fix": "518549d654c5731e5a81259384282abf66496716",
+    "parent": "2f60cda1a4e8a22f57cb83562e6c6b4d8aeeafb9",
+    "subject": "fix(librarian): sync a catalog row after a direct frontmatter write",
+    "date": "2026-08-30T08:46:13Z",
+    "subsystem": "librarian",
+    "patchId": "c424f89f8aeb67eaa692eeda4a9812a13820041c",
+    "testFiles": [
+      "tests/edit_markdown_catalog_sync.rs"
+    ],
+    "sourceFiles": [
+      "src/librarian/adapter.rs",
+      "src/librarian/mod.rs",
+      "src/server.rs",
+      "src/tools/markdown/edit_markdown.rs",
+      "src/util/librarian_sync.rs",
+      "src/util/mod.rs"
+    ],
+    "sourceLinesChanged": 459
+  },
+  {
+    "repo": "codescout",
+    "fix": "ff90ce411567dbf53a00c3a1e5224e326fcc48f6",
+    "parent": "8b24b8a71a26c47877e19b0b8770f690f3b58f37",
+    "subject": "fix(workspace): make the post_compact hint price the flush, not just describe it",
+    "date": "2026-08-30T09:25:39Z",
+    "subsystem": "workspace",
+    "patchId": "9da21228d439292310553fe58fc48fcbea1e5dfd",
+    "testFiles": [
+      "src/tools/config/tests.rs"
+    ],
+    "sourceFiles": [
+      "docs/issues/2026-08-28-post-compact-flush-leaves-first-nav-call-to-pay-cold-start.md",
+      "docs/manual/src/concepts/post-compact-cache-flush.md",
+      "docs/trackers/open-issue-work-queue.md",
+      "src/tools/config/mod.rs"
+    ],
+    "sourceLinesChanged": 126
+  },
+  {
+    "repo": "codescout",
+    "fix": "2447f7094f5bbbf95c60efe9efc1f04977850a93",
+    "parent": "e48df6c83f738a828ab5cc7a96f661725c0de654",
+    "subject": "fix(operator-rules): memory, edit_file and create_file supply a selector_key",
+    "date": "2026-08-30T21:53:33Z",
+    "subsystem": "operator-rules",
+    "patchId": "f83c6439691efb24ca790d00752e7cc7a43a74fe",
+    "testFiles": [
+      "src/tools/core/tests.rs"
+    ],
+    "sourceFiles": [
+      "src/tools/core/types.rs",
+      "src/tools/create_file.rs",
+      "src/tools/edit_file/mod.rs",
+      "src/tools/memory/mod.rs"
+    ],
+    "sourceLinesChanged": 76
+  },
+  {
+    "repo": "codescout",
+    "fix": "a6b4fc357059d6fa97a382420fb03147917457f8",
+    "parent": "e9bbc32955feceabfd9d4eac8223d57945a10a68",
+    "subject": "fix(operator-rules): a write response names the path it wrote, so OP-4 can match",
+    "date": "2026-08-31T07:08:28Z",
+    "subsystem": "operator-rules",
+    "patchId": "2d962f961ed764458b74ed5d0b67ed197945b957",
+    "testFiles": [
+      "src/tools/core/tests.rs"
+    ],
+    "sourceFiles": [
+      "src/operator_rules/route.rs",
+      "src/tools/core/types.rs"
+    ],
+    "sourceLinesChanged": 116
+  },
+  {
+    "repo": "codescout",
+    "fix": "3ec8e500f311a5a6b8a22e18b1f923b317d8ff16",
+    "parent": "8bae6ba094e1618e6153cc361cfca2fe5f0214a2",
+    "subject": "fix(librarian): state what counts as temp instead of inheriting it from the cwd",
+    "date": "2026-08-31T09:38:09Z",
+    "subsystem": "librarian",
+    "patchId": "a09e8ef8809f8ccf2a7d3b0d52f50dce2cf58ad4",
+    "testFiles": [
+      "tests/librarian/audit_doc_refs/corpus.rs",
+      "tests/librarian/audit_doc_refs/eval_on_codescout_self.rs",
+      "tests/librarian/audit_doc_refs/language_aware_classification.rs",
+      "tests/link_scan.rs"
+    ],
+    "sourceFiles": [
+      "src/librarian/adapter.rs",
+      "src/librarian/mod.rs",
+      "src/librarian/tools/create.rs",
+      "src/librarian/tools/find.rs",
+      "src/librarian/tools/mod.rs",
+      "src/librarian/tools/reindex.rs",
+      "src/librarian/tools/temp_write_guard.rs"
+    ],
+    "sourceLinesChanged": 247
+  },
+  {
+    "repo": "codescout",
+    "fix": "07928b443610362900effc77ad9680c33dc42ae3",
+    "parent": "2f8c0142b28be57db9d61d33f607fe1c8d78f474",
+    "subject": "fix(tests): a $(subshell) cd ran the hook suite against the real checkout",
+    "date": "2026-08-31T23:38:44Z",
+    "subsystem": "tests",
+    "patchId": "9b8e0f791165eb1df1b95ef16513034d465acb1b",
+    "testFiles": [
+      "tests/hooks-discrimination.sh"
+    ],
+    "sourceFiles": [
+      ".gitignore",
+      "a.txt",
+      "b.txt",
+      "docs/issues/archive/.buddy/by-ppid/3708603/session_id",
+      "docs/issues/archive/.buddy/by-ppid/3708603/started_at"
+    ],
+    "sourceLinesChanged": 17
+  },
+  {
+    "repo": "codescout",
+    "fix": "fa9b3aff3f007a0e1d9faf91ee80a480b279121c",
+    "parent": "ad296340c459ea06b391ce55db591ab153a1fa71",
+    "subject": "fix(hooks): a cold log claims only what argv NAMED, not everything staged",
+    "date": "2026-09-01T00:58:14Z",
+    "subsystem": "hooks",
+    "patchId": "db92ba9acc47e85136624afbd736a335d6367a6b",
+    "testFiles": [
+      "tests/hooks-discrimination.sh"
+    ],
+    "sourceFiles": [
+      "scripts/post-index-change-stage-log.sh"
+    ],
+    "sourceLinesChanged": 83
+  },
+  {
+    "repo": "codescout",
+    "fix": "92dfa4e493f14c02391469a25e569988d3ae698e",
+    "parent": "4e0fd2f8eb07b89fff2e4d11979da1c973a124e3",
+    "subject": "fix(hooks): git apply --cached now claims the paths its PATCH names, not the patch filename",
+    "date": "2026-09-01T11:00:58Z",
+    "subsystem": "hooks",
+    "patchId": "53cfd23a6ce03bc2f4d9fb38c11b6fc1607edaf7",
+    "testFiles": [
+      "tests/hooks-discrimination.sh"
+    ],
+    "sourceFiles": [
+      "scripts/post-index-change-stage-log.sh"
+    ],
+    "sourceLinesChanged": 62
+  },
+  {
+    "repo": "codescout",
+    "fix": "019b1c5b37d069c8cf194355ada0a0b02dc9e270",
+    "parent": "877d15aad43e4d866e37890a372ed8c8c63e7bdc",
+    "subject": "fix(prompts): stop telling subagents to skip guides they never received",
+    "date": "2026-09-01T19:58:24Z",
+    "subsystem": "prompts",
+    "patchId": "f75c181d83ae70b86918e250189883e621fcd6d5",
+    "testFiles": [
+      "tests/fixtures/prompt_surfaces/server_instructions.md"
+    ],
+    "sourceFiles": [
+      "docs/issues/2026-09-01-subagent-told-to-skip-guides-it-never-received.md",
+      "docs/trackers/observer-blindness.md",
+      "src/prompts/guides/iron-laws-detail.md",
+      "src/prompts/guides/project-activation-bootstrap.md",
+      "src/prompts/source.md",
+      "src/tools/guide.rs"
+    ],
+    "sourceLinesChanged": 216
+  },
+  {
+    "repo": "codescout",
+    "fix": "7a52e6218e594ad2786ffcc2de4776ab82dd3946",
+    "parent": "444929729ce8f947d6fa874e0529ca52b8c5fcc7",
+    "subject": "fix(security): offer the per-call workspace pin before re-activation",
+    "date": "2026-09-01T21:12:26Z",
+    "subsystem": "security",
+    "patchId": "630a6acd0541130ce0c32d3bf706b9c8b6b8d149",
+    "testFiles": [
+      "tests/fixtures/prompt_surfaces/server_instructions.md"
+    ],
+    "sourceFiles": [
+      "docs/issues/2026-09-01-peer-idle-timeout-test-is-the-third-load-sensitive-step.md",
+      "docs/issues/2026-09-01-workspace-activation-is-process-wide-and-a-subagent-can-flip-it.md",
+      "docs/plans/2026-05-30-per-request-workspace-pinning.md",
+      "src/prompts/guides/workspace-state.md",
+      "src/prompts/source.md",
+      "src/util/path_security.rs"
+    ],
+    "sourceLinesChanged": 148
+  },
+  {
+    "repo": "codescout",
+    "fix": "c202bf70fbc1a7c097d370517f22c0109fe77678",
+    "parent": "ceb5b57ac2e5263e0b370d85affa6331cccb16d0",
+    "subject": "fix(task-2): close review findings on the artifact→doc rename",
+    "date": "2026-09-02T07:21:29Z",
+    "subsystem": "task-2",
+    "patchId": "f5f3fcc10cab05e198c538072d15cdec0f8926b6",
+    "testFiles": [
+      "tests/fixtures/prompt_surfaces/onboarding_prompt.md",
+      "tests/issue_clusters.rs"
+    ],
+    "sourceFiles": [
+      "src/engines/mod.rs",
+      "src/librarian/tools/mod.rs",
+      "src/peer/server.rs",
+      "src/prompts/guide_index.rs",
+      "src/prompts/source.md",
+      "src/server.rs",
+      "src/tools/core/types.rs",
+      "src/util/librarian_guard.rs"
+    ],
+    "sourceLinesChanged": 16
+  },
+  {
+    "repo": "codescout",
+    "fix": "689ceffb447cea3c669ad3d3fff1b411d5fab67b",
+    "parent": "7701551dc25365c82f4fda1e5bcb40bbafb3bcb3",
+    "subject": "fix(hooks): record WHY a stage-log row is unowned, not merely that it is",
+    "date": "2026-09-02T07:39:36Z",
+    "subsystem": "hooks",
+    "patchId": "b2be19e0bf0cb3aa6cc342e1b64035e2b21f0805",
+    "testFiles": [
+      "tests/hooks-discrimination.sh"
+    ],
+    "sourceFiles": [
+      "docs/issues/2026-09-02-foreign-index-refusal-names-a-cause-no-route-produces.md",
+      "scripts/post-index-change-stage-log.sh",
+      "scripts/pre-commit-foreign-index.sh"
+    ],
+    "sourceLinesChanged": 253
+  },
+  {
+    "repo": "codescout",
+    "fix": "d7eb09c239cb265adcd7e4d19ab660652816b6ab",
+    "parent": "f093081a2d606a39fb62d5c4f76b1ccf59f6cf54",
+    "subject": "fix(hooks): `unnamed` was the catch-all, and it asserts a cause",
+    "date": "2026-09-02T08:47:46Z",
+    "subsystem": "hooks",
+    "patchId": "208e88ed8bd5cd208a67b3f1ef9def78dd6bea69",
+    "testFiles": [
+      "tests/hooks-discrimination.sh"
+    ],
+    "sourceFiles": [
+      "scripts/post-index-change-stage-log.sh",
+      "scripts/pre-commit-foreign-index.sh"
+    ],
+    "sourceLinesChanged": 51
+  },
+  {
+    "repo": "codescout",
+    "fix": "7a3aee93df7e866ffa251ee314eb3b8c8f0767a7",
+    "parent": "c71e97c76b12951364f449c4159a278cbc38ceb4",
+    "subject": "fix(worktree-notice): gate on the CONDITION, not on novelty — the one-shot was spent on the wrong episode",
+    "date": "2026-09-02T13:58:42Z",
+    "subsystem": "worktree-notice",
+    "patchId": "ea0e75497a182f07c1fbd0f753d86841f874fc1d",
+    "testFiles": [
+      "src/tools/core/tests.rs"
+    ],
+    "sourceFiles": [
+      "docs/issues/2026-09-02-the-worktree-notice-prescribes-two-calls-a-served-peer-cannot-make.md",
+      "docs/issues/2026-09-02-worktree-guard-refuses-writes-and-lets-unpinned-reads-through.md",
+      "docs/trackers/issue-clusters.md",
+      "src/tools/core/types.rs"
+    ],
+    "sourceLinesChanged": 266
+  },
+  {
+    "repo": "codescout",
+    "fix": "0d6c07c3531e204b22c324d6f10d15303c91dccd",
+    "parent": "4baf8afcc038e24af667cd3cdb30d51c042de34d",
+    "subject": "fix(worktree-notice): re-attach the notice to compact-rendered output",
+    "date": "2026-09-02T18:38:25Z",
+    "subsystem": "worktree-notice",
+    "patchId": "8806b666c3249114f615b9f036392f904cb74fa6",
+    "testFiles": [
+      "src/tools/core/tests.rs"
+    ],
+    "sourceFiles": [
+      "docs/issues/2026-09-02-the-worktree-notice-is-injected-then-discarded-by-every-compact-renderer.md",
+      "src/tools/core/types.rs"
+    ],
+    "sourceLinesChanged": 76
+  },
+  {
+    "repo": "codescout",
+    "fix": "b1299608b332a30c3eac54175f5b5ef86ced2ddb",
+    "parent": "f07e445906bc7c914cfc2ae70da36fe0134dc7ee",
+    "subject": "fix(symbols): complete a declaration the LSP reported as one line",
+    "date": "2026-09-02T20:00:35Z",
+    "subsystem": "symbols",
+    "patchId": "2b03ace7c75e1e9bed9dc40a419767aa70f73fbd",
+    "testFiles": [
+      "src/tools/symbol/tests.rs"
+    ],
+    "sourceFiles": [
+      "docs/issues/2026-09-02-symbols-renders-a-wrapped-signature-truncated-at-the-paren.md",
+      "src/tools/symbol/symbols.rs"
+    ],
+    "sourceLinesChanged": 111
+  },
+  {
+    "repo": "codescout",
+    "fix": "17479643f225a12bcfeb55d2563be087ae8dc908",
+    "parent": "8d711ebdfc15ad8fbc9a444017f66ab56ec22267",
+    "subject": "fix(rebase): re-point two peer guards onto read_file, and correct a budget only one lane can check",
+    "date": "2026-09-02T20:12:15Z",
+    "subsystem": "rebase",
+    "patchId": "e83f5d18c1d5791b049937d69e595b9377b52b99",
+    "testFiles": [
+      "src/tools/markdown/tests.rs"
+    ],
+    "sourceFiles": [
+      "docs/issues/2026-09-02-doc-tool-refs-counts-call-param-pairs-as-documents.md",
+      "docs/issues/2026-09-02-read-markdown-silently-ignores-offset-and-limit.md",
+      "docs/trackers/issue-clusters.md",
+      "src/prompts/guides/librarian.md",
+      "src/server.rs",
+      "src/tools/core/params.rs"
+    ],
+    "sourceLinesChanged": 256
+  },
+  {
+    "repo": "codescout",
+    "fix": "1cb41d7205e649e6f0ceb499f16bde019834bacf",
+    "parent": "4847fc38d91b9e4897b00d282569145f1b53b0b9",
+    "subject": "fix(sdd/task-4): fix round 1 — gate guide_blocks, fix cap_probe doc tense, annotate smoke test",
+    "date": "2026-09-02T23:19:06Z",
+    "subsystem": "sdd/task-4",
+    "patchId": "d2a1daa6efa47080a6998bd8779120b1190e0016",
+    "testFiles": [
+      "src/tools/core/cap_probe_tests.rs"
+    ],
+    "sourceFiles": [
+      "src/server.rs",
+      "src/tools/core/cap_probe.rs"
+    ],
+    "sourceLinesChanged": 21
+  },
+  {
+    "repo": "codescout",
+    "fix": "3560711caabecd5e3f194629a2c1971aa32ad5c1",
+    "parent": "a65451f29192fca6d9fba93e301a98d5d8449f2e",
+    "subject": "fix(caps): reclassify audit_doc_refs.files, harden probe-row hygiene checks",
+    "date": "2026-09-03T04:51:29Z",
+    "subsystem": "caps",
+    "patchId": "39e1f3300948bd7833090f5dfef5d27f17a7def0",
+    "testFiles": [
+      "src/tools/core/cap_probe_tests.rs",
+      "tests/result_caps.rs"
+    ],
+    "sourceFiles": [
+      "src/tools/core/cap_probe.rs"
+    ],
+    "sourceLinesChanged": 605
+  },
+  {
+    "repo": "codescout",
+    "fix": "089567a80b5127c0b5e53e2bb9964620a2ca1ddb",
+    "parent": "5e9ef96425691c94b10abc563ab5c85353f99c13",
+    "subject": "fix(caps): fix round 1 — reachable markers, honest deferrals, shared tally",
+    "date": "2026-09-03T05:45:41Z",
+    "subsystem": "caps",
+    "patchId": "b78b4eb4f9b99455d044de8cf8d0f1bbf03b7dbc",
+    "testFiles": [
+      "src/tools/core/cap_probe_tests.rs",
+      "tests/result_caps.rs"
+    ],
+    "sourceFiles": [
+      "src/tools/core/cap_probe.rs"
+    ],
+    "sourceLinesChanged": 160
+  },
+  {
+    "repo": "codescout",
+    "fix": "aa8fc8e3daf9597767318bade989686b4d8574fb",
+    "parent": "0c329657dabd2b9e05b269977191c158a079688f",
+    "subject": "fix(caps): cited_test field makes Probed rows checkable, not just noted",
+    "date": "2026-09-03T07:19:35Z",
+    "subsystem": "caps",
+    "patchId": "0da25946ce1b2a939137db719adc672ffdba50a1",
+    "testFiles": [
+      "src/tools/core/cap_probe_tests.rs",
+      "tests/result_caps.rs"
+    ],
+    "sourceFiles": [
+      "src/librarian/tools/context.rs",
+      "src/tools/core/cap_probe.rs"
+    ],
+    "sourceLinesChanged": 295
+  },
+  {
+    "repo": "codescout",
+    "fix": "85666ef0873d519b93fe3893037d1278bf01279a",
+    "parent": "284c82bd2a22b78182cc8c1bc6175740b5d951c6",
+    "subject": "fix(edit): refuse an ambiguous old_string instead of silently editing the first",
+    "date": "2026-09-03T10:19:08Z",
+    "subsystem": "edit",
+    "patchId": "c87e93c5ddb6aa8d11e35a3bf754502db81cc5ff",
+    "testFiles": [
+      "src/tools/markdown/tests.rs"
+    ],
+    "sourceFiles": [
+      "docs/issues/2026-09-03-scoped-edit-silently-takes-the-first-of-several-old-string-matches.md",
+      "docs/trackers/issue-clusters/IC-14-guard-narrower-than-its-name.md",
+      "docs/trackers/issue-clusters/IC-6-addressing-without-an-escape-hatch.md",
+      "src/tools/edit_file/mod.rs",
+      "src/tools/markdown/edit_markdown.rs"
+    ],
+    "sourceLinesChanged": 208
+  },
+  {
+    "repo": "codescout",
+    "fix": "2e563a889f130876922da955ea5fcc2952da64d9",
+    "parent": "ae82cf10fd8e36e74d2b7e5a5224a1eaeedf4ef7",
+    "subject": "fix(markdown): a fuzzy heading bind is now disclosed, on both the erroring and the silent path",
+    "date": "2026-09-03T20:47:00Z",
+    "subsystem": "markdown",
+    "patchId": "494c7dc8cd52c7cb003faa3c75c974110005a2b2",
+    "testFiles": [
+      "src/tools/file_summary/tests.rs",
+      "src/tools/markdown/tests.rs"
+    ],
+    "sourceFiles": [
+      "src/librarian/tools/get.rs",
+      "src/tools/file_summary/file_summary.rs",
+      "src/tools/markdown/edit_markdown.rs"
+    ],
+    "sourceLinesChanged": 90
+  },
+  {
+    "repo": "codescout",
+    "fix": "c79c629d99abc2736324b7a49d10804e6922dc28",
+    "parent": "c35dae7104b1fe378c4a314af0fe574fb702523c",
+    "subject": "fix(onboarding): witness the regeneration before stamping the version",
+    "date": "2026-09-04T14:00:18Z",
+    "subsystem": "onboarding",
+    "patchId": "5a671249d5543de999512714d9ebebe3c916efdf",
+    "testFiles": [
+      "src/tools/run_command/tests.rs"
+    ],
+    "sourceFiles": [
+      "src/config/project.rs",
+      "src/memory/hash.rs",
+      "src/tools/config/mod.rs",
+      "src/tools/onboarding.rs"
+    ],
+    "sourceLinesChanged": 388
+  },
+  {
+    "repo": "codescout",
+    "fix": "1932999ecac3653d81464e3f15c00155f34cc9c2",
+    "parent": "93560a3710c7cad8ea0dfcc1b306206c83c6f827",
+    "subject": "fix(tests): compile the companion-hint guard, and make it able to fail",
+    "date": "2026-09-04T14:11:22Z",
+    "subsystem": "tests",
+    "patchId": "6de4a2e7ca39a2cd64eed70a6b30a048d2026ec5",
+    "testFiles": [
+      "tests/librarian/companion_hint.rs",
+      "tests/librarian/main.rs"
+    ],
+    "sourceFiles": [
+      "Cargo.toml",
+      "src/librarian/prompts/companion_hint.md"
+    ],
+    "sourceLinesChanged": 46
+  },
+  {
+    "repo": "codescout",
+    "fix": "a47940832adde865857e117a073deb9ecf6d0e68",
+    "parent": "5aa82ae06bc1938466c3719c1fd7b919e3bfcfd3",
+    "subject": "fix(librarian): carry the caller's progress reporter across the adapter boundary",
+    "date": "2026-09-05T05:50:39Z",
+    "subsystem": "librarian",
+    "patchId": "4a53afba7ebc96e43f594846a42d74d3548e5006",
+    "testFiles": [
+      "tests/audit_shards_cross_machine.rs",
+      "tests/librarian/audit_doc_refs/corpus.rs",
+      "tests/librarian/audit_doc_refs/eval_on_codescout_self.rs",
+      "tests/librarian/audit_doc_refs/language_aware_classification.rs",
+      "tests/link_scan.rs"
+    ],
+    "sourceFiles": [
+      "docs/issues/2026-09-05-librarian-tools-cannot-emit-progress-so-a-long-reindex-times-the-caller-out.md",
+      "docs/trackers/issue-clusters/IC-3-declared-not-wired.md",
+      "src/librarian/adapter.rs",
+      "src/librarian/mod.rs",
+      "src/librarian/tools/find.rs",
+      "src/librarian/tools/mod.rs",
+      "src/librarian/tools/reindex.rs"
+    ],
+    "sourceLinesChanged": 356
+  },
+  {
+    "repo": "codescout",
+    "fix": "1f982a34f0a2371fd92d233f4aedf576c29f5c31",
+    "parent": "9e20d3ad893cbfc01bcf46d120dade233176fee4",
+    "subject": "fix(docs): close the two present-tense-surface bugs, and widen the gate's walk",
+    "date": "2026-09-06T11:42:27Z",
+    "subsystem": "docs",
+    "patchId": "c2ae9f523f258d1175f9704ff9a478cd7ff63aba",
+    "testFiles": [
+      "tests/doc_tool_refs.rs"
+    ],
+    "sourceFiles": [
+      "docs/architecture/augmented-artifacts.md",
+      "docs/issues/2026-09-02-docs-architecture-is-in-neither-the-gates-inclusion-list-nor-its-exclusion-rationale.md",
+      "docs/issues/2026-09-02-four-manual-surfaces-still-describe-read-markdown-in-the-present-tense.md",
+      "docs/issues/2026-09-06-orphaned-manual-page-documents-librarian-as-a-separate-server.md",
+      "docs/manual/src/concepts/augmentation-render-template.md",
+      "docs/manual/src/concepts/cross-process-write-serialization.md",
+      "docs/manual/src/tools/read-markdown.md",
+      "docs/trackers/issue-clusters/IC-11-doc-contradicted-by-code.md"
+    ],
+    "sourceLinesChanged": 147
+  },
+  {
+    "repo": "codescout",
+    "fix": "f15aa586e7c90f975da9fe18fb7eba7f34343918",
+    "parent": "5a44c347276e45024dab5fc65ab41dfef261683c",
+    "subject": "fix(hooks,claude-md): the guard asked a two-valued question of a three-valued state, and told you to wait on a party who could not clear it",
+    "date": "2026-09-07T05:34:33Z",
+    "subsystem": "hooks,claude-md",
+    "patchId": "bb8d9e3aba5a45cae7ed3b82dfa831506efab32e",
+    "testFiles": [
+      "tests/pre-push-foreign-session-guard.sh"
+    ],
+    "sourceFiles": [
+      "CLAUDE.md",
+      "docs/trackers/observer-blindness.md",
+      "scripts/pre-push-foreign-session-guard.sh"
+    ],
+    "sourceLinesChanged": 48
+  },
+  {
+    "repo": "codescout",
+    "fix": "e0888fb9ec81403bd061e44a973e560b5182f729",
+    "parent": "b1bd99e3e430b5e06659828f62cc1b214b50f480",
+    "subject": "fix(config): the stale-prompt banner named a call form the tool does not accept",
+    "date": "2026-09-07T05:56:27Z",
+    "subsystem": "config",
+    "patchId": "0f2c561bfb97c062c137bfe9108118b52114c5de",
+    "testFiles": [
+      "src/tools/config/tests.rs"
+    ],
+    "sourceFiles": [
+      "docs/issues/2026-09-07-the-stale-prompt-banner-names-a-call-form-the-tool-does-not-accept.md",
+      "docs/trackers/issue-clusters/IC-11-doc-contradicted-by-code.md",
+      "src/tools/config/mod.rs"
+    ],
+    "sourceLinesChanged": 162
+  },
+  {
+    "repo": "codescout",
+    "fix": "5c4e2fb763fd9a65c6a9abddfeb8b6676dcc5172",
+    "parent": "a52368c941812c73a7c2b82fcabd97434db8b54e",
+    "subject": "fix(hooks,trackers): the guard held every route and steered the reader past the right one",
+    "date": "2026-09-07T06:54:00Z",
+    "subsystem": "hooks,trackers",
+    "patchId": "e6d98ca0231b795a151785ac30af273f518eb340",
+    "testFiles": [
+      "tests/pre-push-foreign-session-guard.sh"
+    ],
+    "sourceFiles": [
+      "docs/trackers/observer-blindness.md",
+      "scripts/pre-push-foreign-session-guard.sh"
+    ],
+    "sourceLinesChanged": 30
+  },
+  {
+    "repo": "codescout",
+    "fix": "3182c61c5fb79ca4e88f4fde297aedf3779aaa0e",
+    "parent": "347812866ccbca60badd306d0137e9952aec2afd",
+    "subject": "fix(gates,gitignore): --check byte-compares the opt-in hook, and the nested rule is scoped",
+    "date": "2026-09-07T12:49:35Z",
+    "subsystem": "gates,gitignore",
+    "patchId": "370da6629053d1a65af9b2a419409be2a6159733",
+    "testFiles": [
+      "tests/hook_config.rs",
+      "tests/pre-push-foreign-session-guard.sh"
+    ],
+    "sourceFiles": [
+      ".gitignore",
+      "docs/issues/2026-09-07-gitignore-claude-rule-is-root-anchored-so-nested-dirs-escape.md",
+      "scripts/install-hooks.sh"
+    ],
+    "sourceLinesChanged": 78
+  },
+  {
+    "repo": "codescout",
+    "fix": "9852c474ed8a1e42eab30d78db9f789e6500533e",
+    "parent": "45c1e2abd0a442714d502ea077b5f29ad5000f55",
+    "subject": "fix(clusters): the growth refusal names the FILE holding the `**Members:**` field",
+    "date": "2026-09-08T07:57:13Z",
+    "subsystem": "clusters",
+    "patchId": "47737e2383bfb0238740c09f0c996a1626ec18bf",
+    "testFiles": [
+      "tests/issue_clusters.rs"
+    ],
+    "sourceFiles": [
+      "docs/trackers/issue-clusters.md",
+      "scripts/pre-commit-ledger-counts.py"
+    ],
+    "sourceLinesChanged": 134
+  },
+  {
+    "repo": "codescout",
+    "fix": "5ec4bac8208007363561ba5dc5015aafcc82483c",
+    "parent": "6fba598550352a925fa5d847662f06bbb169d143",
+    "subject": "fix(provenance): the probe matched a tool name the rename retired, and its fixture agreed",
+    "date": "2026-09-08T08:33:30Z",
+    "subsystem": "provenance",
+    "patchId": "61e43235f4b7b9412613fff2ccd62845fef8499b",
+    "testFiles": [
+      "tests/file-provenance.sh"
+    ],
+    "sourceFiles": [
+      "docs/PROBES.md",
+      "scripts/file-provenance.py",
+      "src/server.rs"
+    ],
+    "sourceLinesChanged": 166
+  },
+  {
+    "repo": "codescout",
+    "fix": "94351602f65d5e8754d285e81de38090043d9fb1",
+    "parent": "3267da00ecce3b0cc0cf962990b1e4260d24a3fa",
+    "subject": "fix(clusters): a repo path renders POSIX on every platform -- 9852c474 red both Windows lanes",
+    "date": "2026-09-08T11:55:44Z",
+    "subsystem": "clusters",
+    "patchId": "0a414c8c177d6a72455218846dadd414c419e42c",
+    "testFiles": [
+      "tests/issue_clusters.rs"
+    ],
+    "sourceFiles": [
+      "docs/issues/2026-09-08-the-growth-refusal-cites-a-native-separator-path-so-windows-lanes-red.md",
+      "docs/trackers/issue-clusters/IC-5-repro-env-diverges-from-gate-env.md",
+      "scripts/pre-commit-ledger-counts.py"
+    ],
+    "sourceLinesChanged": 160
+  },
+  {
+    "repo": "codescout",
+    "fix": "14e07fb3cb1c4e1a11b3e3cb1c74177049c13df3",
+    "parent": "fb8cb2c9299453d48bc351531a1c251dcd2afa33",
+    "subject": "fix(provenance): a sessionId resolves to an address, or says it cannot be asked",
+    "date": "2026-09-08T13:12:03Z",
+    "subsystem": "provenance",
+    "patchId": "3ec07f35c1c5169c95bb024826a981a9661d4b0c",
+    "testFiles": [
+      "tests/file-provenance.sh"
+    ],
+    "sourceFiles": [
+      "docs/PROBES.md",
+      "docs/issues/2026-09-01-claude-md-denies-a-pid-to-session-join-the-registry-carries.md",
+      "scripts/file-provenance.py"
+    ],
+    "sourceLinesChanged": 304
+  },
+  {
+    "repo": "codescout",
+    "fix": "4e7a43c06e4623c78faf85b8ce3874321adc81a6",
+    "parent": "270bd56b6018809234ec047d81debb10c04dce8f",
+    "subject": "fix(provenance): a python write through a Path-valued variable is a write",
+    "date": "2026-09-08T13:33:12Z",
+    "subsystem": "provenance",
+    "patchId": "cfd39c0aa876bed590f0fa5c65d0d229501e6214",
+    "testFiles": [
+      "tests/file-provenance.sh"
+    ],
+    "sourceFiles": [
+      "docs/PROBES.md",
+      "docs/issues/2026-09-08-a-python-write-through-a-Path-valued-variable-is-invisible.md",
+      "docs/trackers/issue-clusters/IC-18-selector-narrower-than-its-population.md",
+      "scripts/file-provenance.py"
+    ],
+    "sourceLinesChanged": 223
+  },
+  {
+    "repo": "codescout",
+    "fix": "6ac0015892cf530795fd9346fc4632c27062b842",
+    "parent": "f10eefe2a693843559e0836bf0f15409e28a42ef",
+    "subject": "fix(lsp): a SAFETY comment outlived both its unsafe block and its own rationale",
+    "date": "2026-09-09T03:04:41Z",
+    "subsystem": "lsp",
+    "patchId": "8f1541ef741edaced5768ed0e2a8c62a84392f53",
+    "testFiles": [
+      "tests/safety_comments.rs"
+    ],
+    "sourceFiles": [
+      "docs/issues/2026-09-09-a-safety-comment-outlived-both-its-unsafe-block-and-its-own-rationale.md",
+      "docs/trackers/issue-clusters/IC-11-doc-contradicted-by-code.md",
+      "src/lsp/client.rs"
+    ],
+    "sourceLinesChanged": 276
+  },
+  {
+    "repo": "codescout",
+    "fix": "3f0d13b7ff67ab168ab6b74e6a535c464ae92f30",
+    "parent": "5e49fd13676f1f1e35c35abc8a3b973e4f938e40",
+    "subject": "fix(install-hooks): write hooks where git reads them, and gate ok on the write",
+    "date": "2026-09-09T08:16:04Z",
+    "subsystem": "install-hooks",
+    "patchId": "74db845b1fa599d0f736ba6dd23bfbf26c813fbb",
+    "testFiles": [
+      "tests/hook_config.rs",
+      "tests/pre-push-foreign-session-guard.sh"
+    ],
+    "sourceFiles": [
+      "scripts/install-hooks.sh"
+    ],
+    "sourceLinesChanged": 88
+  },
+  {
+    "repo": "codescout",
+    "fix": "db4da39cd3794d19d9a295993fc0d25f107c1202",
+    "parent": "b8a6f7589c5aaf0c1c92220dff13890663c00b1a",
+    "subject": "fix(install-hooks): read grep's stdout for the seeded count, never its status",
+    "date": "2026-09-09T13:52:17Z",
+    "subsystem": "install-hooks",
+    "patchId": "9c043a7d1c0eacc9ec63fedef410fe31ff3dde2a",
+    "testFiles": [
+      "tests/pre-push-foreign-session-guard.sh"
+    ],
+    "sourceFiles": [
+      "docs/issues/2026-09-09-grep-c-exit-status-answers-a-different-question-so-the-seeded-count-prints-twice.md",
+      "scripts/install-hooks.sh"
+    ],
+    "sourceLinesChanged": 62
+  },
+  {
+    "repo": "codescout",
+    "fix": "0a6a2c9d317a67e657e386cf1c245eec42cf81f7",
+    "parent": "b4cd288a46bd40dfc651635db510315a0acdd8dd",
+    "subject": "fix(pre-push): branch the refusal's remedy on whether the pusher owns a rung",
+    "date": "2026-09-10T07:27:01Z",
+    "subsystem": "pre-push",
+    "patchId": "7cfa052e5c0a49091c20d93060914b7a1a07f7c2",
+    "testFiles": [
+      "tests/pre-push-foreign-session-guard.sh"
+    ],
+    "sourceFiles": [
+      "docs/RELEASE.md",
+      "docs/issues/2026-09-06-a-push-publishes-commits-their-author-was-withholding.md",
+      "docs/issues/2026-09-09-the-pre-push-remedy-names-a-refspec-a-zero-commit-pusher-cannot-form.md",
+      "docs/issues/archive/2026-09-09-a-sha-refspec-push-bypasses-the-foreign-session-guard-which-its-own-remedy-recommends.md",
+      "docs/issues/archive/2026-09-09-the-pre-push-remedy-names-a-refspec-a-zero-commit-pusher-cannot-form.md",
+      "scripts/pre-push-foreign-session-guard.sh"
+    ],
+    "sourceLinesChanged": 451
+  },
+  {
+    "repo": "codescout",
+    "fix": "ca977f5122883e26d01bd746c29b9bb7869939f9",
+    "parent": "64bbb28211743fe303028372de8c2f13836e03ac",
+    "subject": "fix(pre-push): the ack's three residuals, and say what taking the ack route does to the question",
+    "date": "2026-09-10T08:39:49Z",
+    "subsystem": "pre-push",
+    "patchId": "9b7bc9fd70a5d44a0e2696b76d661619221b63cb",
+    "testFiles": [
+      "tests/pre-push-foreign-session-guard.sh"
+    ],
+    "sourceFiles": [
+      "scripts/pre-push-foreign-session-guard.sh"
+    ],
+    "sourceLinesChanged": 53
+  },
+  {
+    "repo": "codescout",
+    "fix": "d0904cd22edbd7d6eda45620808126abd6fc5ba4",
+    "parent": "8858a4b346ee0f79902fa73039620fd1bd257658",
+    "subject": "fix(pre-push): the ack note told a fully-acked push there was no foreign population",
+    "date": "2026-09-10T11:17:02Z",
+    "subsystem": "pre-push",
+    "patchId": "dc8ad68f89e24a0aa66b869c98b2ac9573ba9b53",
+    "testFiles": [
+      "tests/pre-push-foreign-session-guard.sh"
+    ],
+    "sourceFiles": [
+      "scripts/pre-push-foreign-session-guard.sh"
+    ],
+    "sourceLinesChanged": 57
+  },
+  {
+    "repo": "codescout",
+    "fix": "aeab4ee22a6ea6dde9584188e7bc8dfd4b5e078e",
+    "parent": "d0904cd22edbd7d6eda45620808126abd6fc5ba4",
+    "subject": "fix(gates): git ls-files counts index stages; and a merge patch-id that is not empty",
+    "date": "2026-09-10T11:32:40Z",
+    "subsystem": "gates",
+    "patchId": "a383c873c73a6012482076d50ab381c68e39d23f",
+    "testFiles": [
+      "tests/result_caps.rs"
+    ],
+    "sourceFiles": [
+      "CLAUDE.md",
+      "docs/RELEASE.md",
+      "docs/issues/2026-09-10-a-conflicted-merge-yields-a-patch-id-and-it-is-the-wrong-one.md",
+      "docs/issues/2026-09-10-git-ls-files-counts-index-stages-so-a-merge-makes-cited-tests-ambiguous.md",
+      "src/prompts/guides/tracker-conventions.md"
+    ],
+    "sourceLinesChanged": 189
+  },
+  {
+    "repo": "codescout",
+    "fix": "281c5b3a01f39ce2acf406695fb62f03fbfe1253",
+    "parent": "faa34515a6f61571ac086a26a2eee760c5efdc57",
+    "subject": "fix(docs): the ERROR path was never a covered render path, plus four false claims in today's own text",
+    "date": "2026-09-10T12:23:46Z",
+    "subsystem": "docs",
+    "patchId": "bd5cde4e65856a0b6011c70dd55c3e4ed596b831",
+    "testFiles": [
+      "src/tools/core/tests.rs"
+    ],
+    "sourceFiles": [
+      "docs/adrs/2026-07-10-repair-and-continue-input-handling.md",
+      "docs/issues/2026-09-10-a-repaired-alias-is-never-announced-on-the-error-path.md",
+      "docs/trackers/issue-clusters/IC-22-hint-composed-without-the-request.md",
+      "src/tools/core/param_alias.rs",
+      "src/tools/core/types.rs"
+    ],
+    "sourceLinesChanged": 184
+  },
+  {
+    "repo": "codescout",
+    "fix": "9fa6012a82008c5b635ae29d588c13001ba41cc3",
+    "parent": "281c5b3a01f39ce2acf406695fb62f03fbfe1253",
+    "subject": "fix(gates): close the git ls-files floor — the pre-commit hook was the worst site",
+    "date": "2026-09-10T12:25:20Z",
+    "subsystem": "gates",
+    "patchId": "f6b62ca24dd9f89995d6ddf2060cf96d577bbf92",
+    "testFiles": [
+      "tests/e2e/eval_common/proc.rs"
+    ],
+    "sourceFiles": [
+      "scripts/pre-commit-ledger-counts.py",
+      "scripts/probe-double-frontmatter.py"
+    ],
+    "sourceLinesChanged": 59
+  },
+  {
+    "repo": "codescout",
+    "fix": "bc944ea0fc883ad0d61e2465643bbf34116fdc90",
+    "parent": "16dd492f299b30a3d1f528c20c733cc80c121456",
+    "subject": "fix(review): Task 5 alias review — real-tool alias gate, four stale claims",
+    "date": "2026-09-10T15:00:13Z",
+    "subsystem": "review",
+    "patchId": "ab2bce3ce8e4a40d6376e3e736a5aa418f34b3e6",
+    "testFiles": [
+      "src/tools/symbol/tests.rs"
+    ],
+    "sourceFiles": [
+      "docs/adrs/2026-07-10-repair-and-continue-input-handling.md",
+      "src/server.rs",
+      "src/tools/core/types.rs"
+    ],
+    "sourceLinesChanged": 192
+  },
+  {
+    "repo": "codescout",
+    "fix": "232f133cc6471753cc74d205fb9bc7c1ecbb1b9e",
+    "parent": "8c795a92265811470a81f75beefc2e7038a329d2",
+    "subject": "fix(append_entry): allocate optimistically; catch collisions at pre-push",
+    "date": "2026-09-11T10:15:43Z",
+    "subsystem": "append_entry",
+    "patchId": "5027ebf3716e897f37b2e300da28a92fad37ffb6",
+    "testFiles": [
+      "tests/pre-push-foreign-session-guard.sh"
+    ],
+    "sourceFiles": [
+      "scripts/pre-push-foreign-session-guard.sh",
+      "src/agent/build_check.rs",
+      "src/librarian/tools/append_entry.rs"
+    ],
+    "sourceLinesChanged": 598
+  },
+  {
+    "repo": "codescout",
+    "fix": "e448fb30fc2eb4fbdb6bd4ce9aa97d23f61a1607",
+    "parent": "da88b720ab1a5c329bdf728dd95871547219c91b",
+    "subject": "fix(errors): a plain anyhow error now carries the parameter-alias advisory too",
+    "date": "2026-09-11T11:12:30Z",
+    "subsystem": "errors",
+    "patchId": "2d99d44f9d5b44ddd1f58c3bb35ce9ef952fd8b9",
+    "testFiles": [
+      "src/tools/core/tests.rs"
+    ],
+    "sourceFiles": [
+      "src/server.rs",
+      "src/tools/core/types.rs"
+    ],
+    "sourceLinesChanged": 180
+  },
+  {
+    "repo": "codescout",
+    "fix": "e749c574c62d05af1ffd48af11a763d5a8cd8217",
+    "parent": "d04e9f9eec78487866bff9ffec0eadd982868db5",
+    "subject": "fix(clusters): make the hook's rule SET comparable, not just its parsers",
+    "date": "2026-09-11T12:32:23Z",
+    "subsystem": "clusters",
+    "patchId": "7f0900fae2a6a8827488e84e0653eb6e52043077",
+    "testFiles": [
+      "tests/issue_clusters.rs"
+    ],
+    "sourceFiles": [
+      "docs/issues/2026-09-11-edit-file-reads-a-keyword-in-prose-as-a-symbol-definition.md",
+      "docs/issues/2026-09-11-three-ledger-rules-are-tested-but-not-enforced-at-commit-time.md",
+      "docs/trackers/issue-clusters/IC-14-guard-narrower-than-its-name.md",
+      "docs/trackers/issue-clusters/IC-6-addressing-without-an-escape-hatch.md",
+      "scripts/pre-commit-ledger-counts.py"
+    ],
+    "sourceLinesChanged": 309
+  },
+  {
+    "repo": "codescout",
+    "fix": "d79d95e5fe2f36b0f63bdfc1112625b0dbfbd7a1",
+    "parent": "47cf93acf119350133e34b54f89c6b0331e4732d",
+    "subject": "fix(fmt-mine): format this session's half of a mixed scan, unless rustfmt would reach theirs",
+    "date": "2026-09-12T16:50:13Z",
+    "subsystem": "fmt-mine",
+    "patchId": "91afee870c9aed0cb1d23d85fcd7aa2a3ffaade4",
+    "testFiles": [
+      "tests/fmt-mine.sh"
+    ],
+    "sourceFiles": [
+      "scripts/fmt-mine.sh"
+    ],
+    "sourceLinesChanged": 109
+  },
+  {
+    "repo": "codescout",
+    "fix": "03904fe421379a858f5659d8d733a92999b970d8",
+    "parent": "67891d9823d2e8e4481884dd03a219941234b00a",
+    "subject": "fix(provenance): read the subagent transcripts, which were one directory down all along",
+    "date": "2026-09-12T18:34:45Z",
+    "subsystem": "provenance",
+    "patchId": "eea6a8ca06de7593b1c88faf0c5ddbcc4790271a",
+    "testFiles": [
+      "tests/file-provenance.sh"
+    ],
+    "sourceFiles": [
+      "scripts/file-provenance.py"
+    ],
+    "sourceLinesChanged": 91
+  },
+  {
+    "repo": "codescout",
+    "fix": "cd138c302283eb1397f0ce9aa5fd72eeccf78543",
+    "parent": "34274412b93a23392b608160bae6f80234c02046",
+    "subject": "fix(clusters): delete the roster's duplicated mechanism column, and gate its return",
+    "date": "2026-09-13T16:17:44Z",
+    "subsystem": "clusters",
+    "patchId": "05e20e756cf1105341a0b64fc31ffb52835b0f1a",
+    "testFiles": [
+      "tests/issue_clusters.rs"
+    ],
+    "sourceFiles": [
+      "docs/issues/2026-09-13-a-gate-script-edited-in-the-worktree-has-already-shipped.md",
+      "docs/issues/2026-09-13-the-ledger-hook-silently-ignores-an-unrecognised-flag.md",
+      "docs/issues/2026-09-13-the-mask-that-removes-false-keywords-fabricates-one.md",
+      "docs/issues/2026-09-13-two-of-three-parity-arms-compare-empty-to-empty.md",
+      "docs/trackers/issue-clusters.md",
+      "docs/trackers/issue-clusters/IC-11-doc-contradicted-by-code.md",
+      "docs/trackers/issue-clusters/IC-15-accepted-parameter-silently-dropped.md",
+      "docs/trackers/issue-clusters/IC-16-assertion-that-cannot-fail.md",
+      "docs/trackers/issue-clusters/IC-21-instrument-omits-the-dimension-that-grows.md",
+      "docs/trackers/issue-clusters/IC-5-repro-env-diverges-from-gate-env.md",
+      "docs/trackers/issue-clusters/IC-6-addressing-without-an-escape-hatch.md",
+      "scripts/pre-commit-ledger-counts.py",
+      "scripts/probe-cluster-census.py"
+    ],
+    "sourceLinesChanged": 689
+  },
+  {
+    "repo": "codescout",
+    "fix": "122ea35735c3c175b967e02efecc0abdc5d7bcc8",
+    "parent": "c6e0caae07d923b58c90b70aedef9f72487d87a3",
+    "subject": "fix(probes): stale-servers counts servers and muxes apart, and splits the remedy by addressee",
+    "date": "2026-09-14T04:02:14Z",
+    "subsystem": "probes",
+    "patchId": "6a84e4a2b7eaca3c25e193f20a852d588381c9c2",
+    "testFiles": [
+      "tests/stale-servers.sh"
+    ],
+    "sourceFiles": [
+      ".github/workflows/ci.yml",
+      "docs/PROBES.md",
+      "docs/RELEASE.md",
+      "scripts/stale-servers.sh"
+    ],
+    "sourceLinesChanged": 188
+  },
+  {
+    "repo": "codescout",
+    "fix": "f4dc25f991417e56d12df2eb0dd34a81ee52153c",
+    "parent": "ac75f07dc406ddd289590fb4276ce9bbb2889edc",
+    "subject": "fix(windows): the cross lane's unused imports, and the hook's locale-decoded stdin",
+    "date": "2026-09-14T09:54:55Z",
+    "subsystem": "windows",
+    "patchId": "f0aa110f73306c3f6e105a3c63277aa12577d8ea",
+    "testFiles": [
+      "tests/issue_clusters.rs"
+    ],
+    "sourceFiles": [
+      "docs/issues/2026-09-14-the-gate-ordering-guarantee-is-false-under-concurrency.md",
+      "docs/issues/2026-09-14-the-ledger-hook-reads-stdin-with-the-locale-encoding.md",
+      "docs/trackers/issue-clusters/IC-12-transient-shared-state-lies-to-readers.md",
+      "docs/trackers/issue-clusters/IC-5-repro-env-diverges-from-gate-env.md",
+      "scripts/pre-commit-ledger-counts.py",
+      "src/server.rs"
+    ],
+    "sourceLinesChanged": 334
+  },
+  {
+    "repo": "codescout",
+    "fix": "b0c42e76019b30e0e915221cf1611d93011c7cfb",
+    "parent": "d914750b639ae2085f65fee82ff0f8b398a83cb3",
+    "subject": "fix(mutation-probe): a verdict requires that tests actually executed",
+    "date": "2026-09-14T14:00:19Z",
+    "subsystem": "mutation-probe",
+    "patchId": "de38f5c87d33422482e651f39c60bd7b912008fd",
+    "testFiles": [
+      "tests/mutation-probe.sh"
+    ],
+    "sourceFiles": [
+      "docs/PROBES.md",
+      "scripts/mutation-probe.sh"
+    ],
+    "sourceLinesChanged": 77
+  },
+  {
+    "repo": "codescout",
+    "fix": "4f62a8240c051efc9b7a2fc403e4ec65a458bcda",
+    "parent": "06331c7c67645978cda3c33792c26b760b41f0c4",
+    "subject": "fix(buffer): read_file and grep honour a handle's .err suffix instead of answering from stdout",
+    "date": "2026-09-14T18:42:46Z",
+    "subsystem": "buffer",
+    "patchId": "5ad162619dd403a15dadc7eb3b1a8b8182ac3cbc",
+    "testFiles": [
+      "tests/buffer_stream_policy.rs"
+    ],
+    "sourceFiles": [
+      "docs/issues/2026-09-14-read-file-and-grep-accept-a-err-handle-and-silently-answer-from-stdout.md",
+      "docs/trackers/issue-clusters/IC-6-addressing-without-an-escape-hatch.md",
+      "src/prompts/guides/progressive-disclosure.md",
+      "src/tools/grep.rs",
+      "src/tools/output_buffer.rs",
+      "src/tools/read_file.rs"
+    ],
+    "sourceLinesChanged": 351
+  },
+  {
+    "repo": "codescout",
+    "fix": "58b6bafc32829c2bf08ed4ede192b8dd7e87227d",
+    "parent": "344aff6e2e287947cabc5b4d917584de0086d7fd",
+    "subject": "fix(gate): pin the binary cli_doc executes, and isolate the gate lanes per session",
+    "date": "2026-09-14T19:09:06Z",
+    "subsystem": "gate",
+    "patchId": "cd244fa46a481105e2c9f2b5de9b64ef38649f31",
+    "testFiles": [
+      "tests/cli_doc.rs"
+    ],
+    "sourceFiles": [
+      "CLAUDE.md",
+      "docs/issues/2026-09-14-the-gate-ordering-guarantee-is-false-under-concurrency.md",
+      "scripts/gate.sh",
+      "src/lsp/manager.rs"
+    ],
+    "sourceLinesChanged": 221
+  },
+  {
+    "repo": "codescout",
+    "fix": "fbddd86d929887dbf20f91b95db655e203e4172f",
+    "parent": "d8e6b01d2fce206375c8f39232fcf887f194bd1d",
+    "subject": "fix(pre-push): ack=all owed the same notification and printed none",
+    "date": "2026-09-16T04:49:37Z",
+    "subsystem": "pre-push",
+    "patchId": "77fced910e5cf94da98108342a9a9867416e9128",
+    "testFiles": [
+      "tests/pre-push-foreign-session-guard.sh"
+    ],
+    "sourceFiles": [
+      "scripts/pre-push-foreign-session-guard.sh"
+    ],
+    "sourceLinesChanged": 66
+  },
+  {
+    "repo": "codescout",
+    "fix": "d8268215a3df847a190c9a8bc147f1e6735105a7",
+    "parent": "b34b73ba4b3a37aa6ed2a86733bb8f5b8b4cf9dd",
+    "subject": "fix(probe): carry the whole working tree into the isolated worktree, not just --file",
+    "date": "2026-09-16T05:55:57Z",
+    "subsystem": "probe",
+    "patchId": "1893534592560b09a10ed5b3babe1cdc2ca5b776",
+    "testFiles": [
+      "tests/mutation-probe.sh"
+    ],
+    "sourceFiles": [
+      "docs/PROBES.md",
+      "scripts/mutation-probe.sh"
+    ],
+    "sourceLinesChanged": 67
+  },
+  {
+    "repo": "codescout",
+    "fix": "082b632b4e5194b16d9ac7e99d5ae1056acb8837",
+    "parent": "852fa5e7fa35d97bf8a583685a922de1677609ef",
+    "subject": "fix(probe): the receiver decides a free call, not a four-keyword denylist",
+    "date": "2026-09-16T13:53:10Z",
+    "subsystem": "probe",
+    "patchId": "87a2185ff7b99cf6f0ebbd2d30b90290d524d947",
+    "testFiles": [
+      "tests/test_architecture_boundary_probe.py"
+    ],
+    "sourceFiles": [
+      "docs/issues/2026-09-16-probe-counts-rust-keywords-as-unresolved-helpers.md",
+      "scripts/architecture-boundary-probe.py"
+    ],
+    "sourceLinesChanged": 143
+  },
+  {
+    "repo": "codescout",
+    "fix": "eaeac9c7ca684991dd58f7451c8fa76c43e834c4",
+    "parent": "7aa509c11168c1a49c248ccf883c1df142618294",
+    "subject": "fix(mutation-probe): a non-cargo runner is the fourth cause, and the only one that fit",
+    "date": "2026-09-16T19:06:49Z",
+    "subsystem": "mutation-probe",
+    "patchId": "f69b7760c33c83dd9a47717d5aac06549e906df1",
+    "testFiles": [
+      "tests/mutation-probe.sh"
+    ],
+    "sourceFiles": [
+      "docs/issues/2026-09-16-mutation-probe-renders-no-verdict-for-a-non-cargo-runner.md",
+      "scripts/mutation-probe.sh"
+    ],
+    "sourceLinesChanged": 120
+  },
+  {
+    "repo": "codescout",
+    "fix": "87e434dd488c8b98d600c2c8c4ba457ff259ad68",
+    "parent": "80327520333b5a9432b4aa82781e2a721e094c9c",
+    "subject": "fix(build): local-embed joins default, so a plain cargo build runs the default model",
+    "date": "2026-09-17T07:08:56Z",
+    "subsystem": "build",
+    "patchId": "0d32f175662fee9ba250ae632ba12797ecb939c8",
+    "testFiles": [
+      "tests/feature_lanes.rs"
+    ],
+    "sourceFiles": [
+      ".cargo/config.toml",
+      "CLAUDE.md",
+      "Cargo.toml",
+      "docs/issues/2026-09-17-the-default-build-cannot-run-the-default-embedding-model.md",
+      "docs/issues/archive/2026-08-08-cyberark-epm-blocks-ort-sys-build-script.md",
+      "docs/plans/2026-09-17-embedding-config-consolidation.md",
+      "scripts/build-windows.sh",
+      "scripts/gate.sh",
+      "src/config/project.rs"
+    ],
+    "sourceLinesChanged": 255
+  },
+  {
+    "repo": "codescout",
+    "fix": "e635d4dab44a4b434a300ceab2b8402088d43a4d",
+    "parent": "78b65f4e4e31c3de244388cc887ebe1fbcd0ca89",
+    "subject": "fix(config): a malformed project.toml refuses, and the env tests neutralise the whole surface",
+    "date": "2026-09-19T13:18:46Z",
+    "subsystem": "config",
+    "patchId": "89bf0a9bbd81be5a32efa790eb8dbfc912e5b9ca",
+    "testFiles": [
+      "src/tools/memory/tests.rs",
+      "tests/retrieval_unit.rs"
+    ],
+    "sourceFiles": [
+      "docs/issues/2026-09-19-three-config-tests-red-on-any-machine-that-configures-codescout.md",
+      "docs/trackers/issue-clusters/IC-18-selector-narrower-than-its-population.md",
+      "src/retrieval/config.rs"
+    ],
+    "sourceLinesChanged": 235
+  },
+  {
+    "repo": "codescout",
+    "fix": "d10d7f605794e1d5537890f36c526148b315f962",
+    "parent": "b631e476b750b00e541e79250d8385da5660b538",
+    "subject": "fix(scripts): file-provenance finds a worktree's transcripts and files each relative write in its tree",
+    "date": "2026-09-24T10:23:33Z",
+    "subsystem": "scripts",
+    "patchId": "f6700f1da3b06df15dd6e52222da6f4b54724232",
+    "testFiles": [
+      "tests/file-provenance.sh"
+    ],
+    "sourceFiles": [
+      "docs/issues/2026-09-24-file-provenance-reads-no-transcripts-inside-a-worktree.md",
+      "scripts/file-provenance.py"
+    ],
+    "sourceLinesChanged": 142
+  },
+  {
+    "repo": "codescout",
+    "fix": "ba3a787ef5486a4825349d313b3fb64455dff1d1",
+    "parent": "6154f0fd7bef25f8e99b07d2ee40f52d3f36236b",
+    "subject": "fix(post-compact): skip the ledger clear when the last session start was not a compaction",
+    "date": "2026-09-24T10:44:19Z",
+    "subsystem": "post-compact",
+    "patchId": "538f3a2a525265310386d375197898931d7033db",
+    "testFiles": [
+      "src/tools/config/tests.rs"
+    ],
+    "sourceFiles": [
+      "src/server.rs",
+      "src/tools/config/mod.rs",
+      "src/tools/guide_ledger.rs",
+      "src/tools/rendezvous.rs"
+    ],
+    "sourceLinesChanged": 327
+  },
+  {
+    "repo": "codescout",
+    "fix": "36ad723df4a42fe958460c457166bc802e5b4ab6",
+    "parent": "a6585408bf60fc7499a33b9b82b77ae267418491",
+    "subject": "fix(phase2-scorer): persist every row's votes and outcome, and refuse a dirty judge channel",
+    "date": "2026-09-24T16:24:04Z",
+    "subsystem": "phase2-scorer",
+    "patchId": "08ded7243c59e9b0c92c78b67463e78de30eb6bd",
+    "testFiles": [
+      "tests/test_phase2_score_dp1.py"
+    ],
+    "sourceFiles": [
+      "docs/evals/rule-tell-scoring-2026-09-23.md",
+      "scripts/phase1-span-selector.py",
+      "scripts/phase2-score-dp1.py"
+    ],
+    "sourceLinesChanged": 71
+  },
+  {
+    "repo": "codescout",
+    "fix": "e26da0b212c26c337085a817573b9fe3130fe25e",
+    "parent": "36ad723df4a42fe958460c457166bc802e5b4ab6",
+    "subject": "fix(lsp): a null documentSymbol answer is re-asked, never read as 'no symbols'; path-scoped symbols names the files it could not read",
+    "date": "2026-09-24T16:26:10Z",
+    "subsystem": "lsp",
+    "patchId": "65ab673b88f82817b3c85466671a28a969c7ddd1",
+    "testFiles": [
+      "src/tools/symbol/tests.rs"
+    ],
+    "sourceFiles": [
+      "src/lsp/client.rs",
+      "src/lsp/mock.rs",
+      "src/tools/symbol/symbols.rs"
+    ],
+    "sourceLinesChanged": 252
+  },
+  {
+    "repo": "codescout",
+    "fix": "3591f2caf606c3017274638133c527f1855720b6",
+    "parent": "938e6d0c18532d7736abc11fe5fda9d2c92dc2e9",
+    "subject": "fix(gate): lease a pooled target dir per run instead of one per session",
+    "date": "2026-09-24T16:30:31Z",
+    "subsystem": "gate",
+    "patchId": "f5b86133d4433ef7bd18c17876359340983564ae",
+    "testFiles": [
+      "tests/gate-slot.sh"
+    ],
+    "sourceFiles": [
+      "CLAUDE.md",
+      "docs/issues/2026-09-24-gate-per-session-target-dirs-are-never-reclaimed.md",
+      "docs/trackers/bug-fix-session-log.md",
+      "docs/trackers/issue-clusters.md",
+      "scripts/gate.sh",
+      "src/lsp/manager.rs"
+    ],
+    "sourceLinesChanged": 307
+  },
+  {
+    "repo": "codescout",
+    "fix": "b8b7bf85eb4a2efcde2bd222abd239f4748a36cc",
+    "parent": "ff52795807ae48f40a920bec9b80a6423b2576fb",
+    "subject": "fix(mutation-probe): lease a pooled worktree per run instead of one per session",
+    "date": "2026-09-24T17:02:53Z",
+    "subsystem": "mutation-probe",
+    "patchId": "44d11cb407376015c7279aad914979445bf34ed4",
+    "testFiles": [
+      "tests/mutation-probe.sh"
+    ],
+    "sourceFiles": [
+      ".github/workflows/ci.yml",
+      "docs/issues/2026-09-24-mutation-probe-worktrees-are-never-reclaimed.md",
+      "scripts/mutation-probe.sh"
+    ],
+    "sourceLinesChanged": 54
+  },
+  {
+    "repo": "codescout",
+    "fix": "1ea1d36b07db4cf5a8808b8dd73818b803d5dafa",
+    "parent": "ea972b403e66e92acc286ce6eba63b458bf5b7c1",
+    "subject": "fix(references): a zero with no declaration is never bare; null and [] answers are re-asked during warm-up",
+    "date": "2026-09-24T18:29:36Z",
+    "subsystem": "references",
+    "patchId": "cd2cc97d9a09c6e3fc59d6da272ff6912abcd92f",
+    "testFiles": [
+      "src/tools/symbol/tests.rs"
+    ],
+    "sourceFiles": [
+      "src/lsp/client.rs",
+      "src/tools/symbol/references.rs"
+    ],
+    "sourceLinesChanged": 271
+  },
+  {
+    "repo": "codescout",
+    "fix": "87d90d8c02c4f126f169a8781d632f4d1b5a8eb3",
+    "parent": "31e1860116ca88c3b493330ff27950763cb4bce5",
+    "subject": "fix(ci): pin the whole wine-devel family, so the wine lane survives WineHQ publishing a newer release",
+    "date": "2026-09-24T19:54:40Z",
+    "subsystem": "ci",
+    "patchId": "0eaa6f1051709de40b815fd846d54f0b29522720",
+    "testFiles": [
+      "tests/ci_wine_pin.rs"
+    ],
+    "sourceFiles": [
+      ".github/workflows/ci.yml",
+      "docs/issues/archive/2026-08-07-windows-ci-timing-flakes-block-the-gate.md"
+    ],
+    "sourceLinesChanged": 37
+  },
+  {
+    "repo": "codescout",
+    "fix": "9d755a16c72e84c2c5c7e234171e03601fac960f",
+    "parent": "e721e348a26aabe005adf1e40b65587d540d5415",
+    "subject": "fix(gate): bound the slot pool by size and burst count, and lease ad-hoc cargo runs",
+    "date": "2026-09-24T20:16:29Z",
+    "subsystem": "gate",
+    "patchId": "7316b17fb59c636ee0e7135f00e9e141d494c384",
+    "testFiles": [
+      "tests/gate-slot.sh",
+      "tests/mutation-probe.sh"
+    ],
+    "sourceFiles": [
+      "CLAUDE.md",
+      "docs/issues/2026-09-24-a-target-path-the-gate-printed-is-reused-by-hand-outside-the-lease.md",
+      "docs/issues/2026-09-24-the-gate-pool-bounds-how-many-trees-not-how-big-each-grows.md",
+      "docs/trackers/issue-clusters.md",
+      "scripts/gate.sh",
+      "scripts/mutation-probe.sh",
+      "scripts/slot-pool.sh",
+      "scripts/with-slot.sh"
+    ],
+    "sourceLinesChanged": 418
+  },
+  {
+    "repo": "codescout",
+    "fix": "0ac67b35850d765dd32177460ad3d05d5d4712fe",
+    "parent": "137f2017319b1188c505d4f75e6ff0b07fdb401a",
+    "subject": "fix(references): on Windows, compare locations against the root without its \\\\?\\ marker, so project references are not all dropped",
+    "date": "2026-09-24T21:00:18Z",
+    "subsystem": "references",
+    "patchId": "af669ed4c26caed2d439ee0b411006130e682a61",
+    "testFiles": [
+      "src/tools/symbol/tests.rs"
+    ],
+    "sourceFiles": [
+      "docs/issues/2026-09-24-references-declaration-test-builds-a-unix-only-file-uri.md",
+      "docs/trackers/issue-clusters.md",
+      "src/fs/mod.rs",
+      "src/tools/symbol/references.rs",
+      "src/util/fs.rs"
+    ],
+    "sourceLinesChanged": 173
+  },
+  {
+    "repo": "codescout",
+    "fix": "23027269ee60eec13cd40c2a062069163a5a472d",
+    "parent": "3acaae686a00b1e47d77114bf1408f1e1d4c4615",
+    "subject": "fix(ledger-counts): decode git output as UTF-8 in-thread, never via text=True, so Windows stops dropping two clusters",
+    "date": "2026-09-25T04:45:19Z",
+    "subsystem": "ledger-counts",
+    "patchId": "9c6a6924f64741365c07f18406b6a68a304e712b",
+    "testFiles": [
+      "tests/issue_clusters.rs"
+    ],
+    "sourceFiles": [
+      "docs/issues/2026-09-25-cluster-parser-parity-drops-two-clusters-on-windows.md",
+      "scripts/pre-commit-ledger-counts.py"
+    ],
+    "sourceLinesChanged": 65
+  },
+  {
+    "repo": "codescout",
+    "fix": "4025b9659918db6f024e3bf6c588c8e3dcbc7556",
+    "parent": "93bc8c59b873f34f9db7c40cd424cf2fc8f430af",
+    "subject": "fix(peer-sessions): a STATE column, so a stopped session no longer lists as an askable peer (69648a7072f12016)",
+    "date": "2026-09-25T05:40:54Z",
+    "subsystem": "peer-sessions",
+    "patchId": "3926b8ec3dc20b2119bb385f28ecac6fa5ad75ff",
+    "testFiles": [
+      "tests/peer-sessions.sh"
+    ],
+    "sourceFiles": [
+      "docs/issues/2026-09-14-a-stopped-session-holds-a-catalog-lock-and-reads-as-a-live-peer.md",
+      "scripts/peer-sessions.sh"
+    ],
+    "sourceLinesChanged": 113
+  },
+  {
+    "repo": "codescout",
+    "fix": "59c100590acca16015e16ccf0b4be54a74cf0b6d",
+    "parent": "4025b9659918db6f024e3bf6c588c8e3dcbc7556",
+    "subject": "fix(stale-servers,peer-sessions): a CONN axis names the servers a /mcp superseded (177695780d080014)",
+    "date": "2026-09-25T05:47:52Z",
+    "subsystem": "stale-servers,peer-sessions",
+    "patchId": "2df2498830a27ec70f56658b71b4fac5b51ff524",
+    "testFiles": [
+      "tests/peer-sessions.sh",
+      "tests/stale-servers.sh"
+    ],
+    "sourceFiles": [
+      "docs/issues/2026-09-25-mcp-reconnect-can-leave-the-replaced-server-connected.md",
+      "scripts/peer-sessions.sh",
+      "scripts/stale-servers.sh"
+    ],
+    "sourceLinesChanged": 249
+  },
+  {
+    "repo": "codescout",
+    "fix": "da67db028e1f1c365fbb02d8e953d09f03286578",
+    "parent": "d643c001684fe675fc682acffee6f1d817bdcc94",
+    "subject": "fix(evals): the freeze asserts positive rows actually written, and reconciles them with the item count (65605f41, IC-24)",
+    "date": "2026-09-25T08:30:50Z",
+    "subsystem": "evals",
+    "patchId": "99a0f1838c3548255280b22d3ed134fb018fe7e6",
+    "testFiles": [
+      "tests/test_stage2_synthetic.py"
+    ],
+    "sourceFiles": [
+      "docs/evals/data/2026-09-24-rule-tell/stage2/freeze_stage2.py",
+      "docs/evals/phase1-local-classifier-preregistration.md",
+      "docs/issues/2026-09-25-codex-freeze-positive-count-guard.md",
+      "docs/research/2026-09-25-codex-stage2-freeze-review.md",
+      "docs/trackers/issue-clusters/IC-24-value-correct-in-a-frame-its-name-does-not-state.md"
+    ],
+    "sourceLinesChanged": 124
+  },
+  {
+    "repo": "codescout",
+    "fix": "c404328573d2da7942b52cd7232a06d288ca16b5",
+    "parent": "532d56463cbd236885083f0a76524d81afe29c2a",
+    "subject": "fix(gates,provenance): act on the independent review -- if/while/until, rerun comments, process-wide activation",
+    "date": "2026-09-25T13:30:51Z",
+    "subsystem": "gates,provenance",
+    "patchId": "07184a2f8dfc2f054db97537536b619489cc4e95",
+    "testFiles": [
+      "tests/file-provenance.sh"
+    ],
+    "sourceFiles": [
+      "docs/issues/2026-09-24-file-provenance-reads-no-transcripts-inside-a-worktree.md",
+      "docs/issues/2026-09-24-python-multiline-constant-range-is-its-first-line.md",
+      "docs/issues/2026-09-24-source-gate-is-bypassed-by-a-keyword-or-group-prefix.md",
+      "docs/issues/2026-09-24-source-gate-refusal-discards-the-clauses-it-did-not-block.md",
+      "scripts/file-provenance.py",
+      "src/lsp/client.rs",
+      "src/util/path_security.rs"
+    ],
+    "sourceLinesChanged": 446
+  },
+  {
+    "repo": "codescout",
+    "fix": "96b52f0cac0101f107a3594e719a5c25a5ca9f8d",
+    "parent": "f566082c7c89394a7b298bcfe055b9a23a97caae",
+    "subject": "fix(evals): counterexample miner resolves cross-fold overlap among its own candidates; filters now tested (Codex review of c69a99e4)",
+    "date": "2026-09-26T04:49:06Z",
+    "subsystem": "evals",
+    "patchId": "ee65c6ff9f755e52e96d05b51b2db8efada7aef8",
+    "testFiles": [
+      "tests/test_phase1b_mining.py"
+    ],
+    "sourceFiles": [
+      "docs/evals/data/2026-09-24-rule-tell/phase1b/mine_counterexamples.py",
+      "docs/evals/phase1b-local-classifier-preregistration.md",
+      "docs/issues/2026-09-26-codex-counterexample-cross-fold-gap.md",
+      "docs/research/2026-09-26-codex-phase1b-stage1-review.md",
+      "docs/trackers/issue-clusters/IC-14-guard-narrower-than-its-name.md"
+    ],
+    "sourceLinesChanged": 305
+  },
+  {
+    "repo": "codescout",
+    "fix": "14346eb452628bdfa26b5b425a3174c0fe9bc7c9",
+    "parent": "7df9a7a8aa447daf8befc640f0f983cc6772aa8f",
+    "subject": "fix(evals): run_labellers.py stops pending batches on a terminal failure and refuses a relaunch (Codex preflight review, before any labelling)",
+    "date": "2026-09-26T08:37:28Z",
+    "subsystem": "evals",
+    "patchId": "c453deb0228aff223e47e6346ee778cdcab66d6f",
+    "testFiles": [
+      "tests/test_phase1b_audit.py"
+    ],
+    "sourceFiles": [
+      "docs/evals/data/2026-09-24-rule-tell/phase1b/run_labellers.py"
+    ],
+    "sourceLinesChanged": 111
+  },
+  {
+    "repo": "codescout",
+    "fix": "5897befebe38221884ba9b81d597a2ed28946614",
+    "parent": "f9332ea9a9e29292b008ae3d21f97de9c79dd32e",
+    "subject": "fix(measure): fix round 1 for Task 4 — 5 review findings",
+    "date": "2026-09-26T09:10:12Z",
+    "subsystem": "measure",
+    "patchId": "41762b7ed844f4fbae7d61c840217eaae8a95b0e",
+    "testFiles": [
+      "tests/test_measure_archive.py"
+    ],
+    "sourceFiles": [
+      "scripts/measure/README.md",
+      "scripts/measure/archive.py"
+    ],
+    "sourceLinesChanged": 43
+  },
+  {
+    "repo": "codescout",
+    "fix": "66ea4e0b98f1f674e34e59b312d41a9fc629762f",
+    "parent": "46b267b4679b12270e6c6d53dcaae0bce5b3c7a7",
+    "subject": "fix(measure): R25 — exclude operator-interrupt markers from prompts",
+    "date": "2026-09-26T09:37:02Z",
+    "subsystem": "measure",
+    "patchId": "20ec9c7c33bed6ecfa3d5addc44fca25f133615c",
+    "testFiles": [
+      "tests/test_measure_transcripts.py"
+    ],
+    "sourceFiles": [
+      "scripts/measure/transcripts.py"
+    ],
+    "sourceLinesChanged": 43
+  },
+  {
+    "repo": "codescout",
+    "fix": "84dba2bd2cd47d6176e6f94c029962262810cc11",
+    "parent": "66ea4e0b98f1f674e34e59b312d41a9fc629762f",
+    "subject": "fix(measure): fix round 1 for Task 5 -- R26/R27/R28/R29 + 3 review findings",
+    "date": "2026-09-26T10:27:16Z",
+    "subsystem": "measure",
+    "patchId": "7cf1a0cfa8486c0e30dedfacdaba026f4e62b2fb",
+    "testFiles": [
+      "tests/test_measure_transcripts.py"
+    ],
+    "sourceFiles": [
+      "scripts/measure/transcripts.py"
+    ],
+    "sourceLinesChanged": 181
+  },
+  {
+    "repo": "codescout",
+    "fix": "0ff91320971f15d9f7e3a3d16edc02328e0aecd9",
+    "parent": "82d1874247075943539eb8e62f30e60e5f4cd91d",
+    "subject": "fix(measure): fix round 2 for Task 5 -- R30/R31/R32",
+    "date": "2026-09-26T11:45:50Z",
+    "subsystem": "measure",
+    "patchId": "c9e8583fc749214600a6a55aa57178a3b904cfc7",
+    "testFiles": [
+      "tests/test_measure_transcripts.py"
+    ],
+    "sourceFiles": [
+      "scripts/measure/transcripts.py"
+    ],
+    "sourceLinesChanged": 64
+  },
+  {
+    "repo": "codescout",
+    "fix": "775181db78996c54ca7924b0e3a69f015f110ac0",
+    "parent": "701e0534e4708e2be44b8d832f6398624be10965",
+    "subject": "fix(rb): after a successful build, rb.sh prints which sessions still run the replaced binary (0db9597a451ba41e)",
+    "date": "2026-09-27T04:55:48Z",
+    "subsystem": "rb",
+    "patchId": "e597166601ff9b1396b32b766cbaa3c6a0ecdd01",
+    "testFiles": [
+      "tests/rb-guard.sh",
+      "tests/stale-servers.sh"
+    ],
+    "sourceFiles": [
+      "CLAUDE.md",
+      "scripts/rb.sh",
+      "scripts/stale-servers.sh"
+    ],
+    "sourceLinesChanged": 105
+  },
+  {
+    "repo": "codescout",
+    "fix": "2d70c7c2ce96ac910a9afdb354ea275b15bcd5c9",
+    "parent": "1e32b228547b59303c290e340c3f6bdbebf3e395",
+    "subject": "fix(probe): derive MECHANISM_TOOLS existence+boundedness from the served registry (b36761478b125b35)",
+    "date": "2026-09-27T05:09:44Z",
+    "subsystem": "probe",
+    "patchId": "2cd28af96008f7d9e11734a28009953922ff3f28",
+    "testFiles": [
+      "tests/test_probe_mechanism_tools_registry.py"
+    ],
+    "sourceFiles": [
+      "scripts/probe_guide_section_use.py"
+    ],
+    "sourceLinesChanged": 131
+  },
+  {
+    "repo": "codescout",
+    "fix": "c991f2265119c646b51d407f2bb556de29b91cab",
+    "parent": "a33499215da04febfd0fbbfa02d669cd46f7a0e2",
+    "subject": "fix(evals): phase-1b Stage 2 runners propagate a failed child's status (Codex stop review, F-177); prereg records the post-campaign review",
+    "date": "2026-09-27T08:43:02Z",
+    "subsystem": "evals",
+    "patchId": "f0bd8c00dafbb5ece2e7e98a445af9f9d7f9559a",
+    "testFiles": [
+      "tests/test_phase1b_stage2_shell.py"
+    ],
+    "sourceFiles": [
+      "docs/evals/data/2026-09-24-rule-tell/phase1b/codex-stop-review/analyze_saved.py",
+      "docs/evals/data/2026-09-24-rule-tell/phase1b/codex-stop-review/run-status-checks.json",
+      "docs/evals/data/2026-09-24-rule-tell/phase1b/codex-stop-review/saved-diagnostics.json",
+      "docs/evals/data/2026-09-24-rule-tell/phase1b/codex-stop-review/shell-verification.json",
+      "docs/evals/data/2026-09-24-rule-tell/phase1b/codex-stop-review/static-checks.json",
+      "docs/evals/data/2026-09-24-rule-tell/phase1b/codex-stop-review/verify_shell_fixes.py",
+      "docs/evals/data/2026-09-24-rule-tell/phase1b/stage2/lanes.sh",
+      "docs/evals/data/2026-09-24-rule-tell/phase1b/stage2/step4.sh",
+      "docs/evals/data/2026-09-24-rule-tell/phase1b/stage2/step5.sh",
+      "docs/evals/phase1b-local-classifier-preregistration.md",
+      "docs/issues/2026-09-27-codex-phase1b-shell-failures-return-success.md",
+      "docs/research/2026-09-27-codex-phase1b-stop-review.md",
+      "docs/trackers/bug-fix-session-log.md",
+      "docs/trackers/issue-clusters/IC-8-record-asserts-an-unchecked-completion.md"
+    ],
+    "sourceLinesChanged": 1436
+  },
+  {
+    "repo": "codescout",
+    "fix": "5487b52fda1210de7f2efeab5e8c9e7878e217f3",
+    "parent": "1f42d84a7201ce99e624eac18b10adf41e0ed671",
+    "subject": "fix(worktree-notice,fmt-mine): read notice activates the main repo, not list[0]; fmt-mine settles to a fixed point before reporting formatted",
+    "date": "2026-09-30T04:19:18Z",
+    "subsystem": "worktree-notice,fmt-mine",
+    "patchId": "d29ab890e40ccc067186143c5f880acf1987839b",
+    "testFiles": [
+      "src/tools/core/tests.rs",
+      "tests/fmt-mine.sh"
+    ],
+    "sourceFiles": [
+      "scripts/fmt-mine.sh",
+      "src/tools/core/types.rs"
+    ],
+    "sourceLinesChanged": 57
+  },
+  {
+    "repo": "codescout",
+    "fix": "1f033e975ab4ce9dfc6168f2c3b77c686fe7c63a",
+    "parent": "d281587f408800c73dfc03ac70e5f32fa40c57b0",
+    "subject": "fix(commit-mine): a `-` leftover is unattributed, not a peer's, and the closing line no longer says otherwise (fe8affc7)",
+    "date": "2026-09-30T11:23:43Z",
+    "subsystem": "commit-mine",
+    "patchId": "a44d7c2bd112f3d35688e60d87e5e96ff8b65c41",
+    "testFiles": [
+      "tests/commit-mine.sh"
+    ],
+    "sourceFiles": [
+      "docs/conventions/shared-checkout-commit-sequence.md",
+      "scripts/commit-mine.sh"
+    ],
+    "sourceLinesChanged": 79
+  },
+  {
+    "repo": "codescout",
+    "fix": "b88fadceea6dbf1b544c4a7bfb973f8159f8bf78",
+    "parent": "684cfa573047461306a9e59773ab053f44d2a47d",
+    "subject": "fix(worktree-guards): the permanent mutation-probe pool no longer counts as a linked worktree",
+    "date": "2026-10-01T06:31:43Z",
+    "subsystem": "worktree-guards",
+    "patchId": "23126cb2a5ecd050aced0d61a975f8e7d8a30305",
+    "testFiles": [
+      "src/tools/core/tests.rs"
+    ],
+    "sourceFiles": [
+      "src/tools/core/types.rs",
+      "src/util/path_security.rs"
+    ],
+    "sourceLinesChanged": 112
+  },
+  {
+    "repo": "codescout",
+    "fix": "43bf4053af506cf71701b04d10ad0733ca544b8d",
+    "parent": "9014592703fd651d75a1eca5cac0a05fc25ed8de",
+    "subject": "fix(file-provenance): a workspace project id is not a path, so an id activation no longer credits a phantom tree (046f3106)",
+    "date": "2026-10-01T07:03:16Z",
+    "subsystem": "file-provenance",
+    "patchId": "32251b655253f9539dfbd4a0011be25967f5fcb5",
+    "testFiles": [
+      "tests/file-provenance.sh"
+    ],
+    "sourceFiles": [
+      "scripts/file-provenance.py"
+    ],
+    "sourceLinesChanged": 59
+  },
+  {
+    "repo": "codescout",
+    "fix": "7865b9515a45340240d7dacc9beb1009780bc1f5",
+    "parent": "79a86e8ca46ee49f196b489f8e127bd2d40befe8",
+    "subject": "fix(gate): a lease evicts a build script compiled for another checkout, which size and count never could (a61fab68e4fd71f3)",
+    "date": "2026-10-01T12:30:29Z",
+    "subsystem": "gate",
+    "patchId": "d4e3612b2c7014988589cf96b3dcc7040dedc0db",
+    "testFiles": [
+      "tests/gate-slot.sh"
+    ],
+    "sourceFiles": [
+      "scripts/slot-pool.sh"
+    ],
+    "sourceLinesChanged": 55
+  },
+  {
+    "repo": "codescout",
+    "fix": "dd7b1590111b02050ceedc0061d49eb4daf0bd18",
+    "parent": "42ee57e0918d6874301919cddee72ca8ac99bfe2",
+    "subject": "fix(stage-log): a recorded write is live until its own writer commits the path, read as JSON, and a move names its destination (04e069162e1fb15f)",
+    "date": "2026-10-01T15:54:33Z",
+    "subsystem": "stage-log",
+    "patchId": "e8311f5bdd489be999244df11358b939ff397c11",
+    "testFiles": [
+      "tests/hooks-discrimination.sh"
+    ],
+    "sourceFiles": [
+      "scripts/post-index-change-stage-log.sh"
+    ],
+    "sourceLinesChanged": 64
+  },
+  {
+    "repo": "codescout",
+    "fix": "17b06d4692817939c7a6dce502fb4541a4e7b635",
+    "parent": "32a54dad48c1dff3288545a754af3834ead5f84d",
+    "subject": "fix(stage-log): a recorded write whose own text is already in HEAD no longer names its writer as the path's owner (1c1a758eeaf3846e)",
+    "date": "2026-10-01T19:20:43Z",
+    "subsystem": "stage-log",
+    "patchId": "791238e8e3b956ece6e15eecb893782c53283e80",
+    "testFiles": [
+      "tests/hooks-discrimination.sh"
+    ],
+    "sourceFiles": [
+      "scripts/post-index-change-stage-log.sh",
+      "scripts/pre-commit-foreign-index.sh"
+    ],
+    "sourceLinesChanged": 118
+  },
+  {
+    "repo": "codescout",
+    "fix": "fac7abcef9d28185c9795d2d18d89d03e01b21f5",
+    "parent": "54fc52b741a94b8efccff93b0f44918df95ad38f",
+    "subject": "fix(core): a result keeps the one handle its tool gave it",
+    "date": "2026-10-05T11:31:09Z",
+    "subsystem": "core",
+    "patchId": "e2cc4d61347ab705a1e524e71ced056159534cfb",
+    "testFiles": [
+      "src/tools/core/tests.rs"
+    ],
+    "sourceFiles": [
+      "docs/adrs/2026-10-05-a-result-keeps-the-one-handle-its-tool-gave-it.md",
+      "src/tools/command_summary.rs",
+      "src/tools/core/cap_probe.rs",
+      "src/tools/core/types.rs",
+      "src/util/text.rs"
+    ],
+    "sourceLinesChanged": 352
+  },
+  {
+    "repo": "codescout",
+    "fix": "d2ef26e9b8a1762524c6222bf3b19a9d4444cefd",
+    "parent": "fac7abcef9d28185c9795d2d18d89d03e01b21f5",
+    "subject": "fix(read_file): bound the whole-file summary by bytes so a read returns one handle",
+    "date": "2026-10-05T11:55:42Z",
+    "subsystem": "read_file",
+    "patchId": "0959f9dd1c43a953bfe233de9da65ce6a4e0f893",
+    "testFiles": [
+      "src/tools/file_summary/tests.rs"
+    ],
+    "sourceFiles": [
+      "src/tools/core/cap_probe.rs",
+      "src/tools/file_summary/file_summary.rs",
+      "src/tools/read_file.rs"
+    ],
+    "sourceLinesChanged": 523
+  },
+  {
+    "repo": "codescout",
+    "fix": "53bab8043e473b171fefc4cf216d0aca8777a5b4",
+    "parent": "5373405457184ce57f7d254947be4766d534416e",
+    "subject": "fix(json_path): `[*]` on an object names its keys, on a string its size",
+    "date": "2026-10-05T12:08:21Z",
+    "subsystem": "json_path",
+    "patchId": "bddc6b71c6ddbff4a6feb90a98a5db9e5b7f1051",
+    "testFiles": [
+      "src/tools/file_summary/tests.rs"
+    ],
+    "sourceFiles": [
+      "src/tools/file_summary/file_summary.rs"
+    ],
+    "sourceLinesChanged": 69
+  },
+  {
+    "repo": "codescout",
+    "fix": "0963b41b8d8d8366a076b0558bd88993c0086ae6",
+    "parent": "522d2961c3dbd12fe5ffb8a6eacd800b88c98dcb",
+    "subject": "fix(read_markdown): bound the heading map by bytes; share the summary budget between arrays",
+    "date": "2026-10-05T12:15:38Z",
+    "subsystem": "read_markdown",
+    "patchId": "2bc45cb87a5e9df1c8a8007900bb75d14bf59be9",
+    "testFiles": [
+      "src/tools/file_summary/tests.rs"
+    ],
+    "sourceFiles": [
+      "src/tools/file_summary/file_summary.rs",
+      "src/tools/markdown/read_markdown.rs",
+      "src/tools/read_file.rs"
+    ],
+    "sourceLinesChanged": 275
+  },
+  {
+    "repo": "codescout",
+    "fix": "c1948fe5e6ab7fbb4b0a2bc2efe4317056da66b4",
+    "parent": "27a3a7c4d95516c757a94550de9c3c975327beee",
+    "subject": "fix(file_summary): offer a line route only when the entries are in line order",
+    "date": "2026-10-05T15:42:25Z",
+    "subsystem": "file_summary",
+    "patchId": "6ca6c57f40ab1456da6bf90e66c1237dddd9ab45",
+    "testFiles": [
+      "src/tools/file_summary/tests.rs"
+    ],
+    "sourceFiles": [
+      "src/tools/file_summary/file_summary.rs",
+      "src/tools/read_file.rs"
+    ],
+    "sourceLinesChanged": 123
+  },
+  {
+    "repo": "codescout",
+    "fix": "56c5c162ca4a0eace6a52d86cb9fc2caa1951016",
+    "parent": "f83ca188d2126f445acf6b04a2a14c8142bcec51",
+    "subject": "fix(read_markdown): clip the sub-heading text the oversized-section error echoes",
+    "date": "2026-10-05T15:53:21Z",
+    "subsystem": "read_markdown",
+    "patchId": "10999bfac5716f90dbd604bbedf8913e81d60df4",
+    "testFiles": [
+      "src/tools/file_summary/tests.rs"
+    ],
+    "sourceFiles": [
+      "src/tools/core/cap_probe.rs",
+      "src/tools/markdown/read_markdown.rs",
+      "src/tools/read_file.rs"
+    ],
+    "sourceLinesChanged": 148
+  },
+  {
+    "repo": "codescout",
+    "fix": "fd0bb94673d0d2bc974ff2f09f7a535faaa4574d",
+    "parent": "c28aaf4fa7977f12e0d9d93d669c95c9090dd1bd",
+    "subject": "fix(core): the prebuffered-envelope backstop never re-cuts a field that already carries a marker",
+    "date": "2026-10-05T17:46:43Z",
+    "subsystem": "core",
+    "patchId": "7c95d244584fe77c2fdc4639ac6a881422879a7b",
+    "testFiles": [
+      "src/tools/core/tests.rs"
+    ],
+    "sourceFiles": [
+      "src/tools/core/types.rs",
+      "src/util/text.rs"
+    ],
+    "sourceLinesChanged": 52
+  },
+  {
+    "repo": "codescout",
+    "fix": "34d39567850f7e4cbc4ff98c689a3b3a28cf3394",
+    "parent": "6f6fdc962a8427958086c96a49b6e1b4c06404e6",
+    "subject": "fix(probe): a missing guide file is refused apart from 'no rules matched'",
+    "date": "2026-10-05T18:26:24Z",
+    "subsystem": "probe",
+    "patchId": "2781fa1df72532201ff8d2b618a4eda402f9fa50",
+    "testFiles": [
+      "tests/test_probe_mechanism_tools_registry.py"
+    ],
+    "sourceFiles": [
+      "scripts/probe_guide_section_use.py"
+    ],
+    "sourceLinesChanged": 76
+  },
+  {
+    "repo": "codescout",
+    "fix": "b45bcce4227689dda1d11290ab2cc7c1b2281d17",
+    "parent": "34d39567850f7e4cbc4ff98c689a3b3a28cf3394",
+    "subject": "fix(stage2): the freeze skips mined rows whose twin is already in context_before",
+    "date": "2026-10-05T18:27:52Z",
+    "subsystem": "stage2",
+    "patchId": "26c0c9fdaa143295cdfb4a8bf9ca813a717841ef",
+    "testFiles": [
+      "tests/test_stage2_mine_pairs.py"
+    ],
+    "sourceFiles": [
+      "docs/evals/data/2026-09-24-rule-tell/stage2/freeze_stage2.py",
+      "docs/evals/data/2026-09-24-rule-tell/stage2/mine_pairs.py"
+    ],
+    "sourceLinesChanged": 15
+  },
+  {
+    "repo": "codescout",
+    "fix": "d74a3f1042ed9a1ae11401bec3313ca6fc7ce309",
+    "parent": "2d1e4052d2e149ebb8a9ec93be9d57ecf8edb554",
+    "subject": "fix(core): one detector for every summarizer marker; true backstop markers; stderr keeps its end",
+    "date": "2026-10-06T08:38:47Z",
+    "subsystem": "core",
+    "patchId": "4d829c1a67d159895c9f7334e0b3862339c4dd39",
+    "testFiles": [
+      "src/tools/core/tests.rs"
+    ],
+    "sourceFiles": [
+      "src/tools/command_summary.rs",
+      "src/tools/core/types.rs",
+      "src/util/text.rs"
+    ],
+    "sourceLinesChanged": 127
+  },
+  {
+    "repo": "codescout",
+    "fix": "3f4877fa9560e8dab945f77ab64b9e3cb57e3265",
+    "parent": "2d1e4052d2e149ebb8a9ec93be9d57ecf8edb554",
+    "subject": "fix(read_markdown): decide every inline arm on the serialized response",
+    "date": "2026-10-06T08:47:58Z",
+    "subsystem": "read_markdown",
+    "patchId": "f76f96ccb65f23b07e8affc5b5bfbdbf37329d48",
+    "testFiles": [
+      "src/tools/markdown/byte_edge_tests.rs"
+    ],
+    "sourceFiles": [
+      "src/tools/core/cap_probe.rs",
+      "src/tools/markdown/mod.rs",
+      "src/tools/markdown/read_markdown.rs",
+      "src/tools/read_file.rs"
+    ],
+    "sourceLinesChanged": 266
+  },
+  {
+    "repo": "codescout",
+    "fix": "79c4a4fec36d1ecd8f960754ea23f84725327f07",
+    "parent": "5fcc60ba99e7595b46af98e2616d378eb2da97d5",
+    "subject": "fix(guard): the hold check covers tag and other-ref pushes and fails closed on an unlistable range; prefix names the hook's remote; release checks its delete",
+    "date": "2026-10-06T10:14:54Z",
+    "subsystem": "guard",
+    "patchId": "f7c928aab7d8eab03a4330d56edb3440a5fc7d3c",
+    "testFiles": [
+      "tests/hold-publish.sh",
+      "tests/pre-push-foreign-session-guard.sh"
+    ],
+    "sourceFiles": [
+      "scripts/hold-publish.sh",
+      "scripts/pre-push-foreign-session-guard.sh"
+    ],
+    "sourceLinesChanged": 107
+  },
+  {
+    "repo": "codescout",
+    "fix": "972069f96cb953d213f2a3c00c890708486fe7d5",
+    "parent": "7976c0a86e97cd00c7882e3addc20cbb0cbcbd52",
+    "subject": "fix(guard): honest unknown-tip advice, per-ref prefix, shared age formatter, scratch cleanup, and the other deferred hold minors",
+    "date": "2026-10-06T12:12:30Z",
+    "subsystem": "guard",
+    "patchId": "d5f4debad5fe26ff835950a6ac9cb7668630b47a",
+    "testFiles": [
+      "tests/hold-publish.sh",
+      "tests/pre-push-foreign-session-guard.sh"
+    ],
+    "sourceFiles": [
+      "scripts/hold-age.sh",
+      "scripts/hold-publish.sh",
+      "scripts/pre-push-foreign-session-guard.sh"
+    ],
+    "sourceLinesChanged": 172
+  },
+  {
+    "repo": "codescout",
+    "fix": "b742298690835459ec85db97e21e92b40a9214b2",
+    "parent": "4766c07fb1c042b13c96519a0a650aff1ac508cc",
+    "subject": "fix(core): spare a field by its cut record, never by its text",
+    "date": "2026-10-06T12:21:18Z",
+    "subsystem": "core",
+    "patchId": "c665484f254197870799e3eb83a437801a6aa651",
+    "testFiles": [
+      "src/tools/core/tests.rs",
+      "src/tools/run_command/tests.rs"
+    ],
+    "sourceFiles": [
+      "src/tools/command_summary.rs",
+      "src/tools/core/types.rs",
+      "src/tools/run_command/output.rs",
+      "src/util/text.rs"
+    ],
+    "sourceLinesChanged": 360
+  },
+  {
+    "repo": "codescout",
+    "fix": "4d49908a29b478035ea74dc77dcb9a2f0db2dab8",
+    "parent": "40349c9d9909f8c498df941cf26dcf8755514149",
+    "subject": "fix(file-provenance): a dirty path's peer whose write the last commit already took is not a co-writer (instance 2 of 2026-09-13-file-provenance-conflates-touched-once-with-bytes-at-risk)",
+    "date": "2026-10-06T12:55:54Z",
+    "subsystem": "file-provenance",
+    "patchId": "84231299b0a78b797a8fece7987660cdf9112ca7",
+    "testFiles": [
+      "tests/file-provenance.sh"
+    ],
+    "sourceFiles": [
+      "scripts/file-provenance.py"
+    ],
+    "sourceLinesChanged": 191
+  },
+  {
+    "repo": "codescout",
+    "fix": "0499c6060963fd55beecd989c9578156791594fc",
+    "parent": "382654058020c59c7f35f35e9c764b70254f7cbd",
+    "subject": "fix(buffer): one real file keeps one live @file_ handle - store_file dedups",
+    "date": "2026-10-07T09:29:53Z",
+    "subsystem": "buffer",
+    "patchId": "47ec549869d29d08685fd6138ab54dc4c6db76e4",
+    "testFiles": [
+      "src/tools/memory/tests.rs",
+      "src/tools/read_file_one_handle_tests.rs"
+    ],
+    "sourceFiles": [
+      "src/tools/memory/mod.rs",
+      "src/tools/output_buffer.rs",
+      "src/tools/read_file.rs"
+    ],
+    "sourceLinesChanged": 275
+  },
+  {
+    "repo": "codescout",
+    "fix": "2aa12097a592faaa76e971bc0cde9581d08c4ef7",
+    "parent": "6ebd0615bcce97e12500d84a09217b5d6e5331d8",
+    "subject": "fix(buffer): a late store of an older read never regresses a file's one handle",
+    "date": "2026-10-07T13:26:02Z",
+    "subsystem": "buffer",
+    "patchId": "0175e5a692fed67deadd7394a4c647043299b088",
+    "testFiles": [
+      "src/tools/read_file_one_handle_tests.rs"
+    ],
+    "sourceFiles": [
+      "src/tools/markdown/read_markdown.rs",
+      "src/tools/output_buffer.rs",
+      "src/tools/read_file.rs"
+    ],
+    "sourceLinesChanged": 375
+  },
+  {
+    "repo": "codescout",
+    "fix": "2ad3d950f50cde15976019fbbdc6c6d584e8aced",
+    "parent": "2aa12097a592faaa76e971bc0cde9581d08c4ef7",
+    "subject": "fix(buffer): a holder of a file's handle is told once when a path read changed it",
+    "date": "2026-10-07T13:31:40Z",
+    "subsystem": "buffer",
+    "patchId": "f8b9ca620264cced16064263b25397ef7a12412c",
+    "testFiles": [
+      "src/tools/read_file_one_handle_tests.rs"
+    ],
+    "sourceFiles": [
+      "src/tools/output_buffer.rs"
+    ],
+    "sourceLinesChanged": 124
+  },
+  {
+    "repo": "codescout",
+    "fix": "4487a34c2e7a4a919b2d0bd9e92be7f3856f9d34",
+    "parent": "21237e7f2734d8757c6b9666e2f79a9cfd6a318c",
+    "subject": "fix: refuse large write reductions and gate Python suites",
+    "date": "2026-10-08T05:51:58Z",
+    "subsystem": "src",
+    "patchId": "7e1a3a2858f3c27a5b777db567352e50b31b6d44",
+    "testFiles": [
+      "src/tools/edit_file/tests.rs",
+      "src/tools/read_file_one_handle_tests.rs",
+      "src/tools/run_command/tests.rs",
+      "tests/symbol_lsp.rs",
+      "tests/test_python_runner.py"
+    ],
+    "sourceFiles": [
+      ".github/workflows/ci.yml",
+      "CLAUDE.md",
+      "CONTRIBUTING.md",
+      "docs/manual/src/tools/edit-code.md",
+      "docs/manual/src/tools/editing.md",
+      "docs/manual/src/tools/file-operations.md",
+      "requirements-python-heavy.txt",
+      "requirements-python-light.txt",
+      "scripts/gate.sh",
+      "scripts/python-tests.py",
+      "src/server.rs",
+      "src/tools/create_file.rs",
+      "src/tools/output_buffer.rs",
+      "src/tools/symbol/edit_code.rs",
+      "src/util/shrink_guard.rs"
+    ],
+    "sourceLinesChanged": 628
+  },
+  {
+    "repo": "codescout",
+    "fix": "4e69200e293644d253e0bd469ea9471eac8fb095",
+    "parent": "918b3d51d2a50114f5fb94b3939a0a5c26ea140e",
+    "subject": "fix: quote the file path in the read_file and grep -o routes the tools print",
+    "date": "2026-10-09T09:04:27Z",
+    "subsystem": "src/util",
+    "patchId": "2ee01ecff7b5326b0407bf8958c09729bab2cb66",
+    "testFiles": [
+      "src/tools/read_file_route_path_tests.rs"
+    ],
+    "sourceFiles": [
+      "src/tools/markdown/read_markdown.rs",
+      "src/tools/read_file.rs",
+      "src/util/text.rs"
+    ],
+    "sourceLinesChanged": 252
+  },
+  {
+    "repo": "codescout",
+    "fix": "267d318ef13681ab11cc004100c71fa0245437b0",
+    "parent": "918b3d51d2a50114f5fb94b3939a0a5c26ea140e",
+    "subject": "fix(output_buffer): a hard byte budget on the buffer pool",
+    "date": "2026-10-09T09:11:41Z",
+    "subsystem": "output_buffer",
+    "patchId": "1c006d08245fdaa27bccee38880bc8d08a7cf9dc",
+    "testFiles": [
+      "src/tools/core/tests.rs",
+      "src/tools/output_buffer_budget_tests.rs",
+      "src/tools/read_file_one_handle_tests.rs",
+      "src/tools/run_command/tests.rs"
+    ],
+    "sourceFiles": [
+      "src/server.rs",
+      "src/tools/core/types.rs",
+      "src/tools/output_buffer.rs",
+      "src/tools/run_command/output.rs"
+    ],
+    "sourceLinesChanged": 607
+  },
+  {
+    "repo": "codescout",
+    "fix": "ea64a51464e2357c3803c0bdb3bfae0e3d7162d7",
+    "parent": "fae2fdabe16947398741d391ac024bdb2fcdc58f",
+    "subject": "fix: quote the real path in the file-summary cut notes; break handle tokens in grep -o routes",
+    "date": "2026-10-09T10:52:33Z",
+    "subsystem": "src/tools",
+    "patchId": "8026cd6407aab94940b23988695b8ed741aa3a98",
+    "testFiles": [
+      "src/tools/read_file_route_path_tests.rs"
+    ],
+    "sourceFiles": [
+      "src/tools/file_summary/file_summary.rs",
+      "src/tools/read_file.rs",
+      "src/util/text.rs"
+    ],
+    "sourceLinesChanged": 51
+  },
+  {
+    "repo": "codescout",
+    "fix": "e4f3f78fe87b724b92b2cb16700170cf0974611b",
+    "parent": "36f9dfa356b2539713af9bca1fa06081cd4d2d41",
+    "subject": "fix(output_buffer): the review round of the pool's byte budget",
+    "date": "2026-10-09T12:12:07Z",
+    "subsystem": "output_buffer",
+    "patchId": "975e3cc7b0c578f157a3f4e2f9875103c120940a",
+    "testFiles": [
+      "src/tools/core/tests.rs",
+      "src/tools/memory/tests.rs",
+      "src/tools/output_buffer_budget_tests.rs",
+      "src/tools/run_command/tests.rs"
+    ],
+    "sourceFiles": [
+      "src/prompts/guides/progressive-disclosure.md",
+      "src/server.rs",
+      "src/tools/core/types.rs",
+      "src/tools/grep.rs",
+      "src/tools/markdown/read_markdown.rs",
+      "src/tools/memory/mod.rs",
+      "src/tools/output_buffer.rs",
+      "src/tools/read_file.rs",
+      "src/tools/run_command/output.rs"
+    ],
+    "sourceLinesChanged": 678
+  },
+  {
+    "repo": "codescout",
+    "fix": "6fb4e25f7b76962da3fcaf024704a3e4edcf8fbb",
+    "parent": "967950ddfad5c048aa61ededc3f28bb0fa496129",
+    "subject": "fix(routes): quote the file paths the other tools print in calls a caller copies",
+    "date": "2026-10-09T14:06:36Z",
+    "subsystem": "routes",
+    "patchId": "d0586876adf07f69d81f8163c510a2eca7fbe19d",
+    "testFiles": [
+      "src/tools/config/route_path_tests.rs",
+      "src/tools/core/tests.rs",
+      "src/tools/grep_route_path_tests.rs",
+      "src/tools/read_file_one_handle_tests.rs",
+      "src/tools/symbol/route_path_tests.rs"
+    ],
+    "sourceFiles": [
+      "src/prompts/builders.rs",
+      "src/tools/config/mod.rs",
+      "src/tools/core/guards.rs",
+      "src/tools/grep.rs",
+      "src/tools/symbol/edit_code.rs",
+      "src/tools/symbol/mod.rs",
+      "src/tools/symbol/symbols.rs",
+      "src/util/path_security.rs",
+      "src/util/text.rs"
+    ],
+    "sourceLinesChanged": 216
+  },
+  {
+    "repo": "codescout",
+    "fix": "8f990d5e548917bfd03bce5fdf0d1503009b3473",
+    "parent": "967950ddfad5c048aa61ededc3f28bb0fa496129",
+    "subject": "fix(key reads): the placement line, non-grammar toml keys, yaml key rules, parent siblings, hint cap",
+    "date": "2026-10-09T14:38:06Z",
+    "subsystem": "key reads",
+    "patchId": "c36297af100a1d8c366ad6c8a6461ebc5aa25e0c",
+    "testFiles": [
+      "src/tools/file_summary/tests.rs",
+      "src/tools/read_file_buffer_edge_tests.rs"
+    ],
+    "sourceFiles": [
+      "src/tools/core/cap_probe.rs",
+      "src/tools/file_summary/file_summary.rs",
+      "src/tools/read_file.rs"
+    ],
+    "sourceLinesChanged": 340
+  },
+  {
+    "repo": "codescout",
+    "fix": "7fdc4237800aa48d0a1e6ca9dd0f46a121b83210",
+    "parent": "967950ddfad5c048aa61ededc3f28bb0fa496129",
+    "subject": "fix(output_buffer): the pool review's leftovers: bounded re-reads, no futile demotion, no copy of unkeepable text",
+    "date": "2026-10-09T14:40:33Z",
+    "subsystem": "output_buffer",
+    "patchId": "010a59ed0aca5bef7926f60ca194d91916e29cb8",
+    "testFiles": [
+      "src/tools/output_buffer_budget_tests.rs",
+      "src/tools/read_file_one_handle_tests.rs"
+    ],
+    "sourceFiles": [
+      "src/tools/grep.rs",
+      "src/tools/markdown/read_markdown.rs",
+      "src/tools/output_buffer.rs",
+      "src/tools/read_file.rs",
+      "src/tools/run_command/output.rs"
+    ],
+    "sourceLinesChanged": 218
+  },
+  {
+    "repo": "codescout",
+    "fix": "1780c38d9b25ea0919eb9f662c0c7ce8bda4dcc9",
+    "parent": "6fb4e25f7b76962da3fcaf024704a3e4edcf8fbb",
+    "subject": "fix(routes): quote the roots and directories the doctor, overview and project prompts print",
+    "date": "2026-10-09T14:45:49Z",
+    "subsystem": "routes",
+    "patchId": "961eb3b3bf6ebf147119fa4debfa45b5e5fd0c0c",
+    "testFiles": [
+      "src/tools/symbol/route_path_tests.rs"
+    ],
+    "sourceFiles": [
+      "src/librarian/tools/doctor.rs",
+      "src/prompts/builders.rs",
+      "src/tools/symbol/list_overview.rs"
+    ],
+    "sourceLinesChanged": 247
+  },
+  {
+    "repo": "codescout",
+    "fix": "18a007aacc20eef8f366aa153394f7e23ccf875b",
+    "parent": "6eb585ef9161b858316fc9ef95270b8ccaeede2e",
+    "subject": "fix: deliver native Codex MCP context to spawned commands",
+    "date": "2026-10-11T16:20:18Z",
+    "subsystem": "src/tools",
+    "patchId": "6f2508b1453014d4415045b49e2094eee2d8ebf8",
+    "testFiles": [
+      "src/server/native_context_tests.rs"
+    ],
+    "sourceFiles": [
+      "src/server.rs",
+      "src/tools/invocation_context.rs",
+      "src/tools/mod.rs",
+      "src/tools/run_command/inner.rs",
+      "src/tools/run_command/interactive.rs"
+    ],
+    "sourceLinesChanged": 153
+  },
+  {
+    "repo": "codescout",
+    "fix": "5ae71b35a05450d545ac355085378dfeee81a46c",
+    "parent": "18a007aacc20eef8f366aa153394f7e23ccf875b",
+    "subject": "fix: recover native Codex MCP history",
+    "date": "2026-10-12T08:51:35Z",
+    "subsystem": "scripts",
+    "patchId": "273b527df7a8db15021dd7b65dc313bd06ba0c5c",
+    "testFiles": [
+      "tests/test_codex_native_mcp_history.py"
+    ],
+    "sourceFiles": [
+      "docs/conventions/harness-neutral-session-context.md",
+      "scripts/codex_history.py"
+    ],
+    "sourceLinesChanged": 77
+  }
+]

@@ -28,7 +28,7 @@ Work list: tracker `effort-steering-second-phase` (id `af4ccc8b94a95c91`), entri
 |---|---|
 | Purpose | Both, staged: stage 1 for G4, stage 2 for the effort levels |
 | Kinds of hardness | Cause far from symptom; keep behaviour and read the spec; long horizon. Not chosen: single-function "subtle semantics" traps |
-| Task source | Real fix commits from the operator's own repos (codescout, claude-plugins) made after 2026-09-28 |
+| Task source | Real fix commits from the operator's own repos (codescout, claude-plugins) made after 2026-07-15 (amended 2026-10-12; the first window was 2026-09-28) |
 | Model | Sonnet 5.5 (`claude-sonnet-5-5`), stage 1 at `xhigh` |
 | Margin | 15 points of pass rate (one-sided, 95 percent, 80 percent planned power) |
 | Run box | Own Docker run box (not host runs, not Harbor) |
@@ -113,6 +113,7 @@ A wall-clock timeout counts as a failure. An infrastructure failure (container e
 ### Mining (structural rules only, no model outcomes)
 
 - Non-merge commits whose subject starts with `fix`, dated after 2026-09-28, that change both test code and non-test source. Sonnet 5.5's training data cutoff is June 2026 (models overview page, verified 2026-10-07), so these commits cannot be in its training data. (2026-09-28 is the release date a research agent reported; the page states none.)
+  **Amended 2026-10-12 (operator decision): the window starts 2026-07-15.** The June 2026 cutoff is what keeps a commit out of the training data; 2026-09-28 was an unverified release date, and it left 59 candidates after the rules below, too few for 32 tasks after calibration (measured: 179 `fix` commits since 2026-09-28, 1,211 since 2026-08-01, 1,352 since 2026-06-28). The list mined for the wider window is `effort-steering/spikes/s5/tasks/candidates-0715.json` (196 candidates). `candidates.json` stays as the list the pilot tasks came from. The wider list is not a superset of it: the per-subsystem cap keeps the earliest four, so earlier commits displace later ones.
 - Duplicates removed by patch-id (example: `4d49908a` and `2a1215c8` carry the same fix on two branches).
 - At least 2 non-test files changed, or at least 40 changed non-test lines (the hard-slice criterion of arXiv 2608.01347).
 - At most 4 tasks per subsystem. The subsystem is the conventional-commit scope in the subject (for example `read_file`, `run_command`, `librarian`); a subject without a scope uses the parent directory of its most-changed non-test file.

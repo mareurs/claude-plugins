@@ -22,7 +22,7 @@ S5="node effort-steering/spikes/s5/s5.mjs"
 
 | Subcommand | What it does | Prints on stdout |
 |---|---|---|
-| `mine --repo <name>=<dir> ... [--since <date>] [--out <file>]` | `mineCommits` over each repo; writes the candidates (default `effort-steering/spikes/s5/tasks/candidates.json`, window default `2026-09-28`) | `{ out, count, perRepo }` |
+| `mine --repo <name>=<dir> ... [--since <date>] [--out <file>]` | `mineCommits` over each repo; writes the candidates (default `effort-steering/spikes/s5/tasks/candidates.json`, window default `2026-09-28`; the study's window is `--since 2026-07-15` since 2026-10-12, spec "Mining", output `tasks/candidates-0715.json`; the code default is unchanged) | `{ out, count, perRepo }` |
 | `build <taskDir>` | `buildTask` into `<work-root>/tasks/<id>/` | the manifest without `def`: `id, repo, fix, parent, baseCommit, treeHash, hiddenHash, promptHash, taskMdHash` |
 | `warm <taskId> [--prereg <file> [--mode <m>]] [--cpus <n>] [--memory-gb <n>]` | `warmTask` (cargo tasks only; others answer `skipped: 'not cargo'`), under the given limits (R150, below) | the result |
 | `gate <taskId> [--prereg <file> [--mode <m>]] [--cpus <n>] [--memory-gb <n>]` | `gateTask`, under the given limits; writes `<work-root>/tasks/<id>/gate.json` | `{ taskId, ok, reasons, gatedAt, leftover }` |
