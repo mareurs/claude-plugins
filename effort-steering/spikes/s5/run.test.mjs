@@ -34,7 +34,7 @@ import { RUN_ID_RE } from './grade.mjs';
 import { writeHookCopy } from './hook-copy.mjs';
 import { loadS5Config } from './prereg.mjs';
 import { NETWORK, PROXY_URL } from './proxy.mjs';
-import { planRunsS5, runOne, scrubRunDirs } from './run.mjs';
+import { evidenceInfra, planRunsS5, runOne, scrubRunDirs } from './run.mjs';
 import { IMAGE_FOR_REPO, TASK_ID_RE } from './task-def.mjs';
 import { readRunUsage } from './usage.mjs';
 
@@ -2093,3 +2093,28 @@ printf '{"type":"result","subtype":"success","is_error":false,"num_turns":3,"tot
     assert.ok(!existsSync(path.join(sc.workRoot, 'grades')) || readdirSync(path.join(sc.workRoot, 'grades')).length === 0, 'no grade directory is left');
   });
 }
+
+// R-ST1 (6b), evidenceInfra called directly: runOne reads `contexts` and `steerFirst` from one transcript, so the clauses "at least one context" and "the first one
+// came before the first assistant record" cannot be told apart through it (no context means no first-turn steer). Here each is given an evidence only it refuses.
+t('R-ST1 (6b): evidenceInfra, B needs at least one context, every one the sentence, and a steer on the first turn; A and C need none', () => {
+  const good = (arm, over = {}) => ({
+    usage: { reason: null, apiError: false, efforts: ['xhigh'] },
+    decision: arm === 'B' ? { arm: 'treated', steered: true } : { arm: 'holdout', steered: false },
+    contexts: arm === 'B' ? [SHALLOW] : [],
+    steerFirst: arm === 'B',
+    steerPhrase: SHALLOW,
+    ...over,
+  });
+  const verdict = (arm, over) => evidenceInfra({ arm, effort: 'xhigh' }, good(arm, over));
+  assert.equal(verdict('B'), null);
+  assert.equal(verdict('B', { contexts: [SHALLOW, SHALLOW, SHALLOW] }), null, 'a repeat is delivered');
+  assert.equal(verdict('B', { contexts: [], steerFirst: true }), 'steer_mismatch', 'no context at all, even if steerFirst were true: the clause (a) is its own');
+  assert.equal(verdict('B', { steerFirst: false }), 'steer_mismatch', 'a context, none on the first turn');
+  assert.equal(verdict('B', { steerFirst: null }), 'steer_mismatch', 'no first-turn verdict is not a delivered steer');
+  assert.equal(verdict('B', { contexts: [SHALLOW, DEEP] }), 'steer_mismatch');
+  assert.equal(verdict('B', { contexts: [DEEP, SHALLOW] }), 'steer_mismatch');
+  assert.equal(verdict('A'), null);
+  assert.equal(verdict('C'), null);
+  assert.equal(verdict('A', { contexts: [SHALLOW, SHALLOW] }), 'steer_mismatch');
+  assert.equal(verdict('C', { contexts: [SHALLOW] }), 'steer_mismatch');
+});

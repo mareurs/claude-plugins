@@ -427,8 +427,9 @@ function resultOf(stdout) {
 const isGrade = (g) => isObject(g) && (g.infra === null || (typeof g.infra === 'string' && g.infra !== '')) && typeof g.pass === 'boolean';
 
 // R87 steps (3) to (6b), what the run left behind: the infrastructure value, or null. First match wins. (The container's own state, steps
-// (1) and (2), is grade.mjs's infraOf, called on the dockerRun result: R105.)
-function evidenceInfra(run, evidence) {
+// (1) and (2), is grade.mjs's infraOf, called on the dockerRun result: R105.) Exported for run.test.mjs: runOne computes `contexts` and `steerFirst` from
+// one transcript, so it cannot give the clause "at least one context" an evidence that only it would refuse; a test calls this one directly.
+export function evidenceInfra(run, evidence) {
   if (evidence.usage === null) return 'transcript_unreadable';
   if (evidence.usage.reason !== null) return evidence.usage.reason;
   if (evidence.usage.apiError) return 'api_error';
