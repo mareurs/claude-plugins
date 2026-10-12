@@ -49,7 +49,7 @@
   },
   "testPatterns": ["cargo test"],
   "scrub": {
-    "removePaths": [],
+    "removePaths": ["docs/superpowers/specs/2026-10-04-effort-steering-design.md", "docs/superpowers/plans/2026-10-04-effort-steering-core-and-spikes.md"],
     "terms": [
       "an_array_one_level_down",
       "wide_keys_is_summarised",

@@ -1,0 +1,108 @@
+{
+  "id": "cs-p10",
+  "repo": "codescout",
+  "repoPath": "/home/marius/work/claude/codescout",
+  "fix": "4e34fa3aa831cb0f9583e1d86465a0d58d17a9dd",
+  "parent": "a273e26be8d38227b129f0610968193ad9654752",
+  "subsystem": "run_command",
+  "testRunner": "cargo",
+  "hidden": {
+    "files": [
+      "tests/integration.rs"
+    ],
+    "extra": [
+      "tests/run_command_secrets/values.rs"
+    ],
+    "graftLines": [
+      {
+        "file": "tests/integration.rs",
+        "line": "#[path = \"run_command_secrets/values.rs\"] mod secrets;"
+      }
+    ]
+  },
+  "buildCommand": [
+    "cargo",
+    "test",
+    "--no-default-features",
+    "--test",
+    "integration",
+    "--no-run"
+  ],
+  "f2p": {
+    "command": [
+      "cargo",
+      "test",
+      "--no-default-features",
+      "--no-fail-fast",
+      "--test",
+      "integration",
+      "--",
+      "--exact",
+      "secrets::a_token_printed_on_stdout_is_replaced_and_the_lines_around_it_are_kept",
+      "secrets::a_token_printed_on_stderr_is_replaced",
+      "secrets::a_token_in_output_large_enough_to_buffer_cannot_be_read_back_from_the_buffer",
+      "secrets::a_token_the_filter_hides_cannot_be_read_back_from_the_unfiltered_capture",
+      "secrets::a_background_job_that_printed_a_token_does_not_return_it_when_read_back",
+      "secrets::every_listed_format_is_replaced_wherever_it_stands_in_a_line",
+      "secrets::a_value_longer_than_the_minimum_is_replaced_whole",
+      "secrets::an_environment_dump_that_holds_a_token_does_not_return_it"
+    ],
+    "names": [
+      "secrets::a_token_printed_on_stdout_is_replaced_and_the_lines_around_it_are_kept",
+      "secrets::a_token_printed_on_stderr_is_replaced",
+      "secrets::a_token_in_output_large_enough_to_buffer_cannot_be_read_back_from_the_buffer",
+      "secrets::a_token_the_filter_hides_cannot_be_read_back_from_the_unfiltered_capture",
+      "secrets::a_background_job_that_printed_a_token_does_not_return_it_when_read_back",
+      "secrets::every_listed_format_is_replaced_wherever_it_stands_in_a_line",
+      "secrets::a_value_longer_than_the_minimum_is_replaced_whole",
+      "secrets::an_environment_dump_that_holds_a_token_does_not_return_it"
+    ]
+  },
+  "p2p": {
+    "command": [
+      "cargo",
+      "test",
+      "--no-default-features",
+      "--no-fail-fast",
+      "--test",
+      "integration",
+      "--",
+      "integration_",
+      "secrets::unaltered_"
+    ],
+    "names": [
+      "integration_run_command_buffer_round_trip",
+      "integration_read_file_large_then_query_via_buffer",
+      "integration_speed_bump_two_round_trips",
+      "secrets::unaltered_plain_output_and_its_unfiltered_capture",
+      "secrets::unaltered_text_that_is_not_one_of_the_formats",
+      "secrets::unaltered_exit_code_and_the_lines_around_a_value",
+      "secrets::unaltered_background_output_without_a_value"
+    ]
+  },
+  "testPatterns": [
+    "cargo test"
+  ],
+  "scrub": {
+    "removePaths": [
+      "docs/issues/2026-09-28-run-command-returns-an-environment-dump-verbatim-so-a-credential-reaches-model-context.md",
+      "docs/trackers/issue-clusters.md"
+    ],
+    "terms": [
+      "8df0779550c5b5d8",
+      "returns-an-environment-dump-verbatim",
+      "environment dump verbatim",
+      "credential-shaped",
+      "redacted-credential",
+      "redacted_credentials",
+      "redact_credentials",
+      "REDACTION_MARKER",
+      "REDACTED_KEY",
+      "interactive_response"
+    ]
+  },
+  "timeoutsSec": {
+    "build": 1800,
+    "test": 900
+  }
+}

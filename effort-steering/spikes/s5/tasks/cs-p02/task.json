@@ -77,6 +77,8 @@
   ],
   "scrub": {
     "removePaths": [
+      "docs/superpowers/specs/2026-10-04-effort-steering-design.md",
+      "docs/superpowers/plans/2026-10-04-effort-steering-core-and-spikes.md",
       "docs/issues/archive/2026-10-05-run-command-json-stdout-overflow-has-no-working-json-path-recovery.md"
     ],
     "terms": [
