@@ -11,14 +11,16 @@ tags:
 - provenance
 - gate
 claimed_by_session: 01a12505-eb95-76a1-911a-4610c7b95ab3
+codescout_native_context_commit: 18a007aacc20eef8f366aa153394f7e23ccf875b
+codescout_native_history_commit: 5ae71b35a05450d545ac355085378dfeee81a46c
 design_approved_on: 2026-10-10
 implementation_review_id: 2185a218fbd18b7f
 implementation_review_pending: false
-last_observed: 2026-10-11
-native_acceptance: limited; approval accept/decline, Codex resume/compact/fork transport and fresh main-profile Claude owned formatting passed; Codex authored/mixed-host/root-child provenance pending
+last_observed: 2026-10-12
+native_acceptance: Limited by complete code-mode execution inventory F-6 and unavailable Kat authentication. Automatic context F-16 and native MCP/child reader omission F-20 are fixed; actual native known-writer resume refuses UNKNOWN with unchanged bytes.
 native_claude_child: 'Native Claude main-profile child/root smoke passed: parent af8d2e22-9029-42c5-9257-d4fe124b1a43, distinct agent a21ddf668790f255e, actual child MCP writer and same-parent formatter exit 0; exact bytes, source helper bytes/modes and independent cargo fmt --check passed. Initial fixture/capture failure preserved as F-18.'
 native_claude_fork: 'F-17 fixed and committed locally in original Codescout 6eb585ef9161b858316fc9ef95270b8ccaeede2e: conservative enqueue boundary, 99 focused tests, canonical leased gate all five exits 0, actual same-fork safe refusal/no false credit/unchanged bytes and independent nine-mutation review with zero final survivors. All four files match reviewed source bytes and only those four paths were committed; index empty.'
-native_context_transport: 'Native Codex MCP auto context is missing; F-16. Context derived from actual thread/start and confirmed by resume passed the explicit fallback: UNKNOWN retains known Claude owner and history gaps, formatter refuses with exit 1 and exact byte equality.'
+native_context_transport: 'Fixed and verified F-16: original Codescout 18a007aa, five-lane gate pass, eleven applied mutations/zero final survivors, clean server-stack release installed, fresh actual Codex root 01a12bc6-4184-7182-b87d-ae4637c3e9c9 receives automatic native-env context. Existing processes not restarted.'
 opened: 2026-10-09
 owner: marius
 plan_approved_on: 2026-10-10
@@ -31,10 +33,12 @@ source_commits:
   codex: '5eedcdc543'
   codescout: eed25579
   codescout_fork_followup: '6eb585ef9161b858316fc9ef95270b8ccaeede2e'
-source_implementation: Reviewed source and F-17 conservative native-fork correction are committed locally in their original repositories; source, independent mutation and measured native checks pass. Complete native Codex coverage and Kat authenticated smoke remain pending.
+  codescout_native_context: '18a007aacc20eef8f366aa153394f7e23ccf875b'
+  codescout_native_history: '5ae71b35a05450d545ac355085378dfeee81a46c'
+source_implementation: Initial implementation, F-17, F-16 and bounded F-20 repair are independently reviewed, verified and committed locally in their original repositories. Complete native code-mode owned formatting and Kat authenticated smoke remain unestablished.
 spec_approved_on: 2026-10-10
 spec_id: c67a8d68e01c6cf4
-unverified: Automatic Codex MCP root-context transport is missing (F-16), and actual durable Codex histories retain opaque-wrapper/token-usage/external-prefix gaps; complete Codex owned/child/inherited-history acceptance pending. Observed Claude owned, resume, child/root and corrected fork-safe checks pass. All three fresh Claude processes load 1.20.17 startup; main/SDD turns pass, while Kat authenticated smoke remains pending because reauthentication is unavailable.
+unverified: Complete code-mode wrapper inventory and successful Codex owned formatting remain F-6. Kat authenticated smoke remains pending because reauthentication is unavailable. F-20 reader repair is committed 5ae71b35 after 141 focused tests, 25 killed mutations, the canonical five-lane gate and actual native known-writer resumed refusal.
 ---
 
 ## Summary
@@ -165,6 +169,22 @@ The isolated fix marks calls older than a native root's first enqueue as unverif
 ## Native Claude child/root checkpoint — 2026-10-11
 
 Main-profile native parent af8d2e22-9029-42c5-9257-d4fe124b1a43 spawned one general-purpose Sonnet child, which wrote valid unformatted Rust through the actual Codescout MCP writer. Its saved native history retains that root principal and distinct agent a21ddf668790f255e. After restoring helper executable bits lost by the test fixture, the same parent formatted the child-authored file with exit 0. Exact formatted bytes, source helper bytes/modes and independent cargo fmt --check passed. F-18 preserves the initial fixture/capture error; it is not counted as a product failure. Evidence: .codescout/native-claude-child-fixed-result-20261011.json and verification 2185a218fbd18b7f. This is an observed Claude child/root result; complete Codex child/inherited-history coverage remains pending.
+
+## Automatic native Codex context installed — 2026-10-11
+
+Codescout source 18a007aacc20eef8f366aa153394f7e23ccf875b repairs F-16 using the already-present native MCP sessionId/threadId, scoped to individual spawned commands. The corrected canonical gate passed all five lanes; independent review applied eleven mutations with zero final survivors after closing three observed cleanup gaps. A clean release with server-stack was installed atomically and its hash verified. Fresh native root 01a12bc6-4184-7182-b87d-ae4637c3e9c9 then returned matching native-env context without identity/context/history overrides. Evidence: native-context-installed-smoke-result-20261011.json. Existing running servers keep their loaded executable until reconnect; no peer was restarted.
+
+F-20 is the remaining history boundary: actual durable MCP events exist and a native child's parent-copy boundary differs from a new-root fork cutoff. The isolated reader repair preserves unresolved wrapper gaps. This issue remains investigating; Kat login is still unavailable.
+
+## Native history reader delivered — 2026-10-12
+
+F-20's bounded decoder repair is committed in original Codescout as 5ae71b35a05450d545ac355085378dfeee81a46c. It recovers actual paginated MCP end items with native root/thread/call identity, argument objects, outcomes and current cwd; verified child copies use their child-specific boundary. Unknown effects/statuses and opaque wrappers retain coverage gaps.
+
+Verification includes 141 focused tests, all five canonical gate lanes, shell suites (245 provenance, 56 formatter, 88 lease checks), and independent reapplication of all 25 review mutations with zero final survivors. Exactly three owned source/test/document paths were committed; index bytes matched the reviewed manifest and unrelated files were preserved. Review and integration evidence: native-history-delivered-20261012.json, native-history-independent-review-v2-evidence-20261012.json and native-history-integrated-read-20261012.json under .codescout.
+
+Actual authored root 01a12f3a-ae7e-7882-87e8-8b6e4eb81706 resumes under its same root. The ordinary formatter retains the known writer, reports UNKNOWN/exit 1 and leaves exact bytes unchanged because complete wrapper coverage is not established. This proves known native ownership and safe refusal. Successful Codex owned formatting remains limited under F-6; no journal is introduced. Kat authentication remains pending. The issue therefore stays investigating.
+
+The saved verified 18a server-stack artifact was used for resumed acceptance after the shared installed executable's observed SHA changed. That drift's cause is not established, and this repair neither overwrites the shared executable nor restarts peers. The Python reader is loaded from source on invocation; no Rust rebuild was required for F-20.
 
 ## Architectural design review — 2026-10-10
 

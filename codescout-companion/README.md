@@ -294,7 +294,7 @@ over-delivers guides it already sent, which costs context and nothing else.
 
 ## Session context and verification
 
-The version 1 [session context contract](docs/session-context.md) separates root identity, history coverage, lifecycle support and peer contact across Claude Code and Codex. Codescout's `gate.sh --check` needs no identity; authored formatting requires validated context and refuses uncertain ownership. Missing context blocks formatting while the leased verification lanes still run. Native captures are limited; successful authored and installed-hook acceptance remains pending. See the linked guide for exact options, environment names and observed versions.
+The version 1 [session context contract](docs/session-context.md) separates root identity, history coverage, lifecycle support and peer contact across Claude Code and Codex. Codescout's gate.sh --check needs no identity; authored formatting requires validated context and refuses uncertain ownership. Missing context blocks formatting while the leased verification lanes still run. Actual Claude owned formatting passes. Codex native MCP context and known writer recovery pass; complete code-mode history remains limited, so its observed resumed formatter preserves bytes and reports UNKNOWN. See the linked guide for exact options, installed-load observations and remaining authentication/history limits.
 ## Changelog
 ### 1.13.1
 

@@ -11,11 +11,14 @@ tags:
 - harness-compatibility
 topic: harness-neutral-session-identity
 approved_on: 2026-10-10
+codescout_native_history_commit: 5ae71b35a05450d545ac355085378dfeee81a46c
 implementation_plan_id: 3252b9f3f104ea25
 implementation_review_id: 2185a218fbd18b7f
-native_acceptance: limited; installed 0.160.0 native approval/lifecycle transport pass; main Claude owned formatting, same-root resume and observed child/root attribution/parent formatting pass; corrected Claude fork safe refusal/no false inherited credit passes. Codex automatic MCP root-context transport and opaque/inherited/child durable coverage remain limited. Kat reauthentication unavailable; authenticated smoke pending.
+native_acceptance: Limited by complete code-mode execution inventory F-6 and Kat authentication; automatic native context F-16 and bounded native history reader F-20 verified.
+native_automatic_context: 'F-16 source 18a007aa was built with server-stack, installed and freshly verified on 2026-10-11: all five gate lanes, seven context tests and eleven applied review mutations with zero final survivors. Native root 01a12bc6-4184-7182-b87d-ae4637c3e9c9 received matching native-env context without identity/context/history overrides. Existing processes were preserved. On 2026-10-12 the shared executable SHA changed; the cause is unknown. Subsequent native resumed acceptance uses the saved verified production artifact. Complete code-mode inventory remains F-6; Kat authentication remains pending.'
 native_claude_child: 'Native Claude main-profile child/root smoke passed: parent af8d2e22-9029-42c5-9257-d4fe124b1a43, distinct agent a21ddf668790f255e, actual child MCP writer and same-parent formatter exit 0; exact bytes, source helper bytes/modes and independent cargo fmt --check passed. Initial fixture/capture failure preserved as F-18.'
 native_claude_fork_followup: 'F-17 fixed and committed locally in original Codescout 6eb585ef9161b858316fc9ef95270b8ccaeede2e: conservative enqueue boundary, 99 focused tests, canonical leased gate all five exits 0, actual same-fork safe refusal/no false credit/unchanged bytes and independent nine-mutation review with zero final survivors. All four files match reviewed source bytes and only those four paths were committed; index empty.'
+native_history_reader: 'F-20 fixed-verified in original commit 5ae71b35: 141 focused tests, all 25 reapplied mutations killed, five-lane gate and shell suites 245/56/88 pass. Actual native known-writer resume retains UNKNOWN and unchanged bytes; wrapper gaps remain.'
 plan_review_pending: false
 source_commits:
   plugin_feature: '4ce5432'
@@ -23,7 +26,7 @@ source_commits:
   codex: '5eedcdc543'
   codescout: eed25579
   codescout_fork_followup: '6eb585ef9161b858316fc9ef95270b8ccaeede2e'
-source_implementation: Complete initial source and F-17 follow-up are reviewed, source-verified and committed locally in original repositories. Native acceptance remains limited as recorded; approved design contract unchanged.
+source_implementation: Initial implementation, F-17, F-16 and bounded F-20 are reviewed, verified and committed locally. Approved context version 1 is unchanged; complete code-mode execution inventory remains F-6.
 ---
 
 # Harness-neutral session identity and write provenance
@@ -255,3 +258,11 @@ The user approved this document on 2026-10-10. The [implementation plan](../plan
 ## Implementation verification — 2026-10-10
 
 The approved plan has been executed in isolated clones, with independent implementation review and five applied mutation checks. The [verification record](../../reviews/2026-10-10-harness-neutral-session-identity.md), artifact 2185a218fbd18b7f, records the corrections, measured source checks and exhaustive review-scope rulings. Required source checks passed, including the full leased gate. Plugin changes are applied and the coordinated Codescout patch is checked; protected original application is blocked by native routing. Native authored/lifecycle and installed acceptance remain pending; this record does not extend the supported-host claims beyond observed captures.
+
+## Native evidence follow-up — 2026-10-12
+
+The approved context version remains 1. Native context transport is verified separately from ownership coverage: the F-16 native MCP sessionId/threadId fix was committed as 18a007aa and freshly installed/observed on 2026-10-11. Later shared executable drift is a dated deployment observation; the resumed check uses the saved verified production artifact.
+
+The F-20 repair normalizes actual paginated MCP end items and verifies native child boundaries independently from new-root forks. Known root/thread/call identity, argument objects, result outcomes and turn cwd are preserved. Unsupported effects/statuses, malformed/conflicting evidence and opaque wrappers still add gaps. Tests pin the observed mutations: the initial 25-recipe review found 11 survivors; after additions the independent recheck killed all 25 recipes, with 141 tests passing after byte restoration. The reviewer approved the bounded repair and capability guide. Original commit 5ae71b35 contains the verified three-path delivery, and all five canonical gate lanes and shell suites passed.
+
+Actual native authored root 01a12f3a-ae7e-7882-87e8-8b6e4eb81706 and same-root resume recover the writer but retain UNKNOWN coverage and unchanged formatter bytes. Complete code-mode execution inventory and owned formatting remain unestablished; a new journal remains a conditional design decision, not an implemented capability. Kat authenticated smoke is pending because reauthentication is unavailable. The issue therefore stays investigating.

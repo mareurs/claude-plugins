@@ -1,7 +1,7 @@
 ---
 kind: tracker
 status: active
-entry_high_water_F: 19
+entry_high_water_F: 21
 entry_prefix:
 - F
 - W
@@ -40,7 +40,7 @@ entry_prefix:
 | F-3 | 2026-08-28 | med | release-pipeline | fixed-verified | The `block_reads` opt-out turned the guard suite red (21/55) — suite hardcoded both live repos as dispatch CWDs. Hermetic escape hatch; 58/58 with the opt-out live |
 | F-4 | 2026-09-02 | med | architectural | open | Read-only agent types (Explore/Plan) retain all four codescout write tools; native Edit/Write stripped, MCP writers not. Read-only property rests on model compliance — enforcement untested |
 | F-5 | 2026-10-10 | med | architectural | fixed-verified | Paired source repair installed; native accept/decline and ordinary routing verified |
-| F-6 | 2026-10-10 | med | architectural | mitigated | Native execution and lifecycle transport now pass; actual history decoder still reports coverage gaps |
+| F-6 | 2026-10-10 | med | architectural | mitigated | Native context and MCP writer recovery pass; complete code-mode wrapper inventory remains unestablished, so ordinary owned formatting retains UNKNOWN and unchanged bytes |
 | F-7 | 2026-10-10 | med | architectural | fixed-verified | Gate mode documentation exceeded CLAUDE.md's resident byte budget; move detail behind its pointer, retain the unchanged cap |
 | F-8 | 2026-10-10 | med | architectural | fixed-verified | New policy call site omitted legacy-name markers required by the Rust registry guard |
 | F-9 | 2026-10-10 | med | tooling | mitigated | JavaScript callback insertion anchor refused after refresh; ordinary constant anchor worked |
@@ -50,10 +50,12 @@ entry_prefix:
 | F-13 | 2026-10-11 | med | release-pipeline | fixed-verified | Companion 1.20.17 seeded; final gate stopped on three unrelated marketplace revisions |
 | F-14 | 2026-10-11 | high | release-pipeline | fixed-verified | Correctly stamped 0.160.0 package cold-loaded; shared model turn and native lifecycle transport pass |
 | F-15 | 2026-10-11 | high | release-pipeline | fixed-verified | Explicit GNU/Linux target repairs public-installer acceptance; disposable upgrade and remote compaction pass |
-| F-16 | 2026-10-11 | med | architectural | mitigated | Codex MCP lacks automatic root context; native-derived explicit fallback safely refuses with the known Claude owner and coverage gaps |
+| F-16 | 2026-10-11 | med | architectural | fixed-verified | Automatic native Codex context committed 18a007aa and installed; gate, eleven applied mutations and fresh context pass; reader recovery fixed F-20, complete code-mode inventory remains F-6 |
 | F-17 | 2026-10-11 | high | architectural | fixed-verified | Conservative native enqueue guard prevents inherited fork credit; 99 tests, nine killed mutations, native refusal and full gate pass; original commit 6eb585ef |
 | F-18 | 2026-10-11 | med | test-harness | fixed-verified | Native child smoke loses helper execute bits and miscounts aliased/interleaved calls; same-root corrected fixture passes |
 | F-19 | 2026-10-11 | med | commit-workflow | fixed-verified | Unstaged pathspec commit refused; separate stage/index/content review and scoped commit succeed |
+| F-20 | 2026-10-11 | med | architectural | fixed-verified | Native MCP/child reader repair committed 5ae71b35; 141 tests, 25 killed mutations, canonical gate and actual same-root known-writer UNKNOWN/unchanged-byte refusal pass; complete inventory remains F-6 |
+| F-21 | 2026-10-11 | med | build-environment | fixed-verified | Freed /tmp with 16 test threads passes all five canonical gate lanes; alternate-scratch failures preserved and source unchanged |
 
 ## Wins Index
 
@@ -430,6 +432,12 @@ The harness's exclusion list for these agent types covers the **native** write t
 
 **Extended native observation — 2026-10-11:** Native requests now execute: accept created a marker and decline created none; native resume, compaction and fork transport completed. The real Codescout decoder was then run on both actual durable histories, recovering zero operations in each. Root history reports opaque custom-tool wrappers and unsupported rollout envelopes (token_usage_record); the fork also reports an unverified external history prefix. One durable CommandExecution event was observed, but the current decoder does not consume it, and its existence does not prove complete wrapper-effect coverage. Preserve those explicit gaps; do not claim authored/lifecycle provenance from transport success. Evidence: .codescout/native-runtime-smoke-20261011.json and .codescout/native-history-decoder-20261011.json. A subsequent fresh main-profile Claude session wrote and formatted an owned Rust file through actual Codescout MCP calls; independent final bytes and cargo fmt --check passed (.codescout/native-claude-authored-v2-result-20261011.json). This closes the main-profile Claude owned-formatting scenario only. Codex authored, mixed-host, root-child and inherited-history acceptance remain pending.
 
+### Remaining native history limit — 2026-10-12
+
+The capture limitations were narrowed by subsequent actual checks: F-16 fixes automatic native MCP root/child context and F-20 now recovers durable paginated MCP end items and verified child boundaries (original commit 5ae71b35). Actual authored root 01a12f3a-ae7e-7882-87e8-8b6e4eb81706 and same-root resume retain the full known writer, but normal formatting still returns UNKNOWN/exit 1 and preserves exact bytes because opaque code-mode wrapper coverage is incomplete. The reader does not treat completed inner calls as a complete execution inventory. F-20 is fixed within that bounded decoder scope; this F-6 remains mitigated.
+
+**Next:** Determine what durable native execution inventory can prove every wrapper's dispatched effect, including cancellation, unawaited work, failed results and replay/child boundaries, before allowing code-mode owned formatting. Existing transient ItemStarted events and outbound request metadata are not observed durable completeness evidence. A new producer extension/journal is a conditional design decision; none is enabled here. Kat authentication remains separately pending, without retries.
+
 ## F-7 — Gate documentation addition exceeded the resident CLAUDE prompt byte budget
 
 **Valid:** dated 2026-10-10
@@ -568,7 +576,7 @@ The harness's exclusion list for these agent types covers the **native** write t
 
 **Severity:** med
 **Category:** architectural
-**Status:** mitigated
+**Status:** fixed-verified
 **Valid:** dated 2026-10-11
 **Rests on:** .codescout/native-mixed-refusal-result-20261011.json; .codescout/native-mixed-refusal-codex-events-20261011.jsonl; Codescout scripts/session_context.py::_native_context and src/tools/run_command/inner.rs::run_command_inner.
 
@@ -577,6 +585,29 @@ The harness's exclusion list for these agent types covers the **native** write t
 **Evaluation:** The resolver requires CLAUDE_CODE_SESSION_ID, CODEX_SESSION_ID or validated explicit context. The inspected shell launch has no per-call root-context export. The approved contract deliberately refuses CODEX_THREAD_ID alone because it does not identify a logical root. Keep that rule; do not infer a root, borrow a marker or set synthetic identity to turn this smoke green.
 
 **Verified fallback:** A context derived from actual thread/start metadata and confirmed by thread/resume reached provenance. Native MCP item exec-5f558737-ed09-49dd-ab2b-832473ac7bf5 ran fmt-mine.sh --context and exited 1. It refused UNKNOWN src/main.rs, retaining the known Claude owner and opaque-history gaps; the file's before/after SHA-256 remained identical. Evidence: .codescout/native-mixed-explicit-context-result-20261011.json. This establishes safe mixed-host refusal through the documented explicit fallback. Automatic MCP root-context transport and complete Codex coverage remain separate pending capabilities.
+
+
+### Native request seam verified — 2026-10-11
+
+The installed 0.160.0 host sends `_meta.sessionId` and `_meta.threadId` on an actual MCP run_command call. Native root 01a12b85-bfdb-71f1-a240-93d6764c32e0 matches both wire values; initialize reports clientInfo name codex-mcp-client/version 0.160.0. The proxy forwarded bytes unchanged and logged only selected metadata. Evidence: .codescout/native-mcp-context-wire-result-20261011.json. Source tracing confirms Session::session_id uses the shared root identity, while thread_id identifies the executing thread; root construction/resume/fork logic was read. A host rebuild is not required to deliver these already-present fields.
+
+Repair is in an isolated Codescout clone /tmp/harness-context-20261011/codescout at base 6eb585ef, branch feat/native-mcp-context. Use host-specific wire metadata, preserve root/child distinction, and export to individual spawned commands. A task-local scope follows the existing peer-dispatch pattern and avoids expanding every ToolContext constructor; no process-wide environment mutation or last-written marker. Keep malformed/missing identity conservative, foreign client metadata unrelated, explicit-context conflict checks intact, and test real rmcp wire handling, concurrent requests and all shell spawn paths. Native authored history remains a separate pending capability.
+
+### Candidate automatic context verified — 2026-10-11
+
+Behavioral RED before implementation: one of six wire tests passed; five failed on missing exports or malformed identity reaching execution. After the task-local adapter, six passed. Independent review actually applied eleven mutations: eight initially killed, three startup-cleanup variants survived. A new command-local root-only/version-None regression test killed all three on recheck; restored revised source passed seven tests. Twenty unmutated six-test repetitions passed after one initial unexplained interactive stdout:Null failure. The response was unavailable before adding assertion diagnostics, so that intermittent observation is not declared fixed. Wire tests currently require the librarian feature; the cleanup unit is independent. Windows runtime not exercised.
+
+The built, uninstalled candidate resolved native-env context with actual wire/native-API roots on fresh, resume, post-compaction and fork calls. A real native child kept parent root 01a12ba0-e17a-7c81-864b-6f601dfc6348 while agent_id matched executing child 01a12ba1-0e9f-7cb1-8f9e-4037d982ac99. The mixed-host native call ran exactly bash scripts/fmt-mine.sh without overrides, reached provenance exit 1, retained Claude owner 761aa55b-cc78-4d4d-b452-85c384949f52 and UNKNOWN coverage, and preserved SHA-256 1e61cb3ed6c4c9bbb2da35a61cb32527f1361ede32419af9fd0dfb29d25536ed.
+
+Evidence: .codescout/native-mcp-context-acceptance-verified-20261011.json; .codescout/native-mcp-context-child-result-20261011.json; /tmp/native-mcp-context-independent-review-20261011/.codescout/independent-review-evidence-20261011.json. The first acceptance driver's parser selected response while the unchanged byte-forwarding proxy emits result. Original failed-instrument summary and wire captures were retained; corrected evaluation pairs literal result events within each initialization epoch, covering reused request IDs across fork connections. This is an instrument correction, not a replay or a fabricated native pass.
+
+The initial canonical gate encountered environmental failures preserved in F-21. The complete corrected gate @bg_0000004f passed all five lanes. Source, production build and installed acceptance are complete below; history coverage remains independently tracked by F-20.
+
+### Original commit and installed acceptance — 2026-10-11
+
+Native automatic MCP→shell context is fixed and installed: original Codescout commit 18a007aacc20eef8f366aa153394f7e23ccf875b, canonical five-lane gate all exits 0, seven context tests and eleven applied review mutations with zero final survivors. Clean release/server-stack artifact SHA-256 54479605de6012b89a59f556fb75bdc144e7c4ec02e0836d11c19ade03f9d279 installed atomically with previous binary preserved. Fresh native Codex root 01a12bc6-4184-7182-b87d-ae4637c3e9c9 reports matching native-env context without identity/context/history overrides. Existing server processes were not restarted. Complete authored history remains limited (F-20); Kat authentication remains pending.
+
+**Rests on:** @bg_0000004f final outcomes; original scoped native commit and six index/source hash checks; @bg_00000051 clean production build (exit 0); .codescout/native-mcp-context-installation-20261011.json; @bg_00000052 (exit 0) and .codescout/native-context-installed-smoke-result-20261011.json. The candidate's resume/compact/fork/child and automatic mixed-host refusal observations remain valid for the same production implementation. No source or test changes followed those green checks except the reviewed cleanup unit and assertion diagnostic; the installed source matches the final reviewed six-file hashes.
 
 ## F-17 — Native Claude fork rewrites inherited session IDs and falsely claims old writes
 
@@ -617,6 +648,92 @@ The harness's exclusion list for these agent types covers the **native** write t
 **Rests on:** Codescout docs/conventions/shared-checkout-commit-sequence.md (fa4a13f40ea82465); the native pre-commit refusal; original commit 6eb585ef9161b858316fc9ef95270b8ccaeede2e; .codescout/native-fork-integration-result-20261011.json.
 
 **Correction:** Enumerated live sessions without inferring occupancy or authorship, then ran native scoped git add, staged-path read, staged-content read, working/index equality check, and explicit-path commit in separate calls. Added the actual controller Session-Id trailer. All applicable pre-commit checks passed; exactly the four reviewed paths landed, source bytes match and the shared index is empty. No hook/permission bypass or reset/amend was used. Use this staged sequence for the remaining documentation commit as well.
+
+## F-20 — Native Codex durable inner-call events are present but ignored by history decoder
+
+**Observed:** Actual native root 01a12b9d-3f0b-7a00-9da4-293bbff55837 produced a 100-record paginated rollout. Its durable event_msg/item_completed records include five McpToolCall items: two workspace calls and three run_command context diagnostics. The items contain native executing thread/turn IDs, item ID, server/tool, actual arguments, completed status and result content. Each diagnostic result contains exit_code 0. scripts/codex_history.py::read_codex_history returned zero decoded operations for that same closed rollout, with eight opaque-wrapper gaps and twelve unsupported-envelope gaps.
+
+**Severity:** med
+**Category:** architectural
+**Status:** fixed-verified
+**Valid:** dated 2026-10-11
+**Rests on:** .codescout/native-history-shapes-result-20261011.json; installed 0.160.0 native rollout named there; Codescout scripts/codex_history.py::read_codex_history; Codex codex-rs/rollout/src/policy.rs::should_persist_event_msg, core/src/session/mod.rs::Session::emit_turn_item_completed and protocol/src/items.rs::McpToolCallItem.
+
+**Evaluation:** The reader skips every event_msg before decoding response_item. Native paginated persistence explicitly records ItemCompleted turn items, including authoritative inner MCP arguments/results. This is a reader omission for those observed operations; the captures do not establish complete wrapper coverage or ownership of arbitrary writes. Earlier wording that inner execution is unrecoverable is too broad for this measured native shape. Do not parse the JavaScript wrapper as executed code, remove coverage gaps wholesale, infer completeness from an MCP result alone, or introduce a journal before checking existing durable evidence.
+
+**Next:** The reader omission is fixed and committed as 5ae71b35. Complete opaque-wrapper execution inventory and successful native code-mode owned formatting remain unestablished under F-6; do not clear gaps from the presence of completed MCP items. Any new journal remains a separate conditional design decision.
+
+### Native child and inventory follow-up — 2026-10-11
+
+The v3 structural projection separates physical line from native ordinal. Actual child 01a12ba1-0e9f-7cb1-8f9e-4037d982ac99 has 43 records, native shared root 01a12ba0-e17a-7c81-864b-6f601dfc6348, subagent_history_start_ordinal=10, and forked_from_id equal to its native parent. Its post-boundary MCP events have native ordinals 30 and 35 and child thread IDs. It has no forked_from_ordinal_exclusive. Reading that exact closed native child with the current decoder returns zero operations and one unverified Codex fork replay boundary gap: the generic fork check also runs on verified native child copies. The child boundary is distinct from a new-root fork boundary; keep their validation separate.
+
+An actual native probe with the per-process executed_tool_call_metadata=true override completed without errors or approvals (root 01a12bbe-e432-7721-9233-fa7bbee2e11f; 44 records). All five observed custom-tool outputs carry only turn_id/create_time in their metadata, with no cell_id, executed_tool_calls or tool_calls_complete. This is the observed durable result, not a claim that the feature was effectively enabled in every runtime layer. No installed configuration was changed. The source request_metadata.rs::attach_to_request enriches request messages; that method and this probe do not establish a durable complete inventory. Preserve wrapper gaps rather than deriving completeness from completed inner calls.
+
+**Rests on:** .codescout/native-history-shapes-v3-20261011.py and actual child projection; direct read_codex_history invocation on that closed child; .codescout/native-executed-metadata-probe-result-20261011.json and @bg_00000050 (exit 0); Codex notify_mcp_tool_call_started/should_persist_event_msg (started items remain transient) and ExecutedToolCalls::attach_to_request.
+
+**Next bounded change:** Normalize observed durable MCP end items and verified native child boundaries, with native-shaped root/child tests, exact ownership/output/cwd assertions, refusal/partial/missing/conflict cases and formatter refusal byte checks. This recovers known ownership while retaining unresolved wrapper coverage. Do not introduce or enable a new journal or remove wrapper gaps as part of this reader repair.
+
+### Decoder repair and applied review — 2026-10-12
+
+The two-file repair is isolated in /tmp/native-history-events-20261011 at base 18a007aa. It normalizes the observed paginated McpToolCall end-item fields, separates verified child copies from new-root fork validation, ignores observed non-writing metadata envelopes, and preserves opaque-wrapper and unknown-effect gaps. The closed measured root now yields five known operations and retains eight wrapper gaps; the measured child yields two known operations under the shared root with its native child ID and retains four wrapper gaps. Those are the decoded operations in these specific captures, not a completeness count.
+
+The first independent review applied 25 mutations in /tmp/native-history-independent-review-20261011: 14 were killed and 11 survived, each survivor passing all 119 focused tests. No current production defect was identified. The observed survivors exposed unpinned native source-ID thread separation, native turn-cwd propagation, unsupported completed-item/status protections, separate error/result/status outcome predicates, raw object-number precision, and token_usage_record handling. New tests were added only after the mutations were observed. After correcting fixture API/exit-code assumptions, the revised decoder/history/provenance/formatter suite passed 141 tests in 18.37s. At this checkpoint the same frozen 25 recipes were being reapplied independently; the final result appears below. Keep the original and revised evidence separate.
+
+At this checkpoint the canonical five-lane gate was running as @bg_00000055 with the leased pool and ordinary TMPDIR=/tmp. A real native authored-write fixture was initialized and committed at 14baaa5. The first 30-second orchestration wrapper timed out after a write; its actual rollout and changed bytes are preserved. No repeated write was issued. A follow-up installed-binary preflight then failed because the shared executable SHA changed from the verified release to a8def1a566a3ffaa0f65ca41c3f64fb505778e1a506330df13c5820ec28d1e8d; the cause is not established. The saved reviewed production artifact still hashes to 54479605de6012b89a59f556fb75bdc144e7c4ec02e0836d11c19ade03f9d279. The recovery probe uses that immutable artifact and resumes the already authored root, preserving coverage gaps and requiring unchanged bytes. Its outcome was pending at this checkpoint; the actual resumed refusal and final corrected verification appear below.
+
+**Rests on:** .codescout/native-history-review-20261011.json; /tmp/native-history-independent-review-20261011/.codescout/native-history-independent-review-evidence.json; .codescout/native-history-review-v2-20261012.json; focused pytest output (141 passed); @bg_00000055; original timed-out native probe; @bg_00000056 (exit 1, installed hash preflight); @bg_00000057 (recovery running). No new journal, installed profile configuration, original index, or shared binary was changed by this reader repair.
+
+### Actual authored write and resumed refusal — 2026-10-12
+
+Actual native root 01a12f3a-ae7e-7882-87e8-8b6e4eb81706 made one create_file writer call after workspace activation in the committed disposable fixture. Its durable completed MCP item records the exact src/main.rs path/content, native call ID, shared root/executing thread, completed status and result. The repaired decoder retains codex:<full root> as principal, root/thread/call as source_id, no child agent, and the actual fixture cwd. The first overall model turn completion was not captured because the orchestration timed out; the durable completed writer and exact changed bytes were independently recovered, without repeating the write.
+
+A resumed turn under that same actual root ran the ordinary bash scripts/fmt-mine.sh via MCP, using the immutable reviewed server-stack release. Native MCP metadata supplied the root automatically. The turn completed with no errors, command approvals, native shell executions, identity/context/history overrides or exclusive authorization. The formatter exited 1, retained THIS-session ownership, reported UNKNOWN with opaque-wrapper gaps, and left the authored bytes identical. The original verifier expected the full root in display text and returned false; CLI text displays eight characters. The corrected offline verifier pins the full principal/source ID and native metadata separately, verifies that documented display abbreviation, and passes. The original false result is preserved. This proves recovered native ownership plus safe refusal on resume, not successful owned formatting or a complete wrapper execution inventory.
+
+**Rests on:** .codescout/native-history-authored-recovery-v2-result-20261012.json; .codescout/native-history-authored-verified-20261012.json; .codescout/verify-native-history-authored-20261012.py (exit 0). Snapshot before/after hashes agree; production artifact hash remained verified. The changed shared installed executable was neither overwritten nor restarted during this recovery.
+
+### Original commit and final verification — 2026-10-12
+
+Original Codescout commit 5ae71b35a05450d545ac355085378dfeee81a46c has parent 18a007aa and contains exactly the decoder, new native-history tests and capability guide. All three committed/working hashes match the delivery manifest; native commit hooks passed and the index is empty. Unrelated working files were preserved. The Python reader is used directly from source on invocation; this repair adds no Rust binary build, profile/config changes or journal.
+
+Independent review reapplied all 25 frozen recipes against the revised baseline: 25 killed, zero survivors, zero inconclusive runs; after byte restoration 141 focused tests passed in 19.27s. Initial 14-killed/11-survived evidence remains unchanged and both review JSON files are preserved under the plugin .codescout directory. The reviewer approved the Python repair and the added capability guide with no remaining findings; older profile/deployment claims were outside that review's scope.
+
+Canonical gate @bg_00000055 exited 0 with PYTHON_LIGHT=0 FMT=0 CLIPPY=0 LEAN=0 DEFAULT=0. Python light reports 1219 tests/421 subtests passed, lean library 4472 passed/7 ignored, default library 6751 passed/8 ignored. Shell suites report provenance 245, formatter 56 and lease 88 checks passed. Heavy Python, server-stack, lean librarian and local ONNX exclusions remain those printed by the gate. The original-source actual history check confirms root five operations/eight wrapper gaps, native child two/four under the shared root and distinct child ID, and actual authored-resumed root three/six. Actual resumed formatting remains UNKNOWN with unchanged bytes; this is the required conservative result, not owned-format support.
+
+**Rests on:** .codescout/native-history-delivered-20261012.json; .codescout/native-history-independent-review-v2-evidence-20261012.json (SHA a21e9ce23557bd14c7b36603e22bd15e6cdba616cb46583e7932f2a68ab83578); .codescout/native-history-gate-20261012.log; native-history-integrated-read-20261012.json; native-history-authored-verified-20261012.json. No push/publication occurred.
+
+## F-21 — Full native-context gate exhausts shared tmpfs; reroute test scratch to available disk
+
+**Observed:** First F-16 canonical gate @bg_00000042 exited 1. Python light, fmt, clippy and lean each exited 0; default exited 101 with 6713 passed, 38 failed and 8 ignored. Failure sections report OS error 28/StorageFull/No space left on device for 36 tests; two usage recorder tests instead report missing output_json column and QueryReturnedNoRows. df measured the /tmp tmpfs at 24G used/24G total with 12M available, while /home had 243G available.
+
+**Severity:** med
+**Category:** build-environment
+**Status:** fixed-verified
+**Valid:** dated 2026-10-11
+**Rests on:** @bg_00000042 final five-lane outcomes and complete failure sections; df -h /tmp /home/marius/work/claude/claude-plugins.
+
+**Evaluation:** The 36 explicit storage failures establish insufficient /tmp capacity during this gate. The two database failures are not assigned that cause without further evidence. All seven new native-context tests passed in the observed default lane, and the independent cleanup unit passed in lean. No production source was changed in response to these gate failures.
+
+**Mitigation:** Repeat canonical gate with TMPDIR=/home/marius/work/claude/claude-plugins/.codescout/native-context-gate-tmp-20261011 and the same leased pool; task ownership recorded there. @bg_00000046 is running. Preserve first-run failures, inspect every repeat lane and remaining error, and do not remove unrelated files or claim a green gate from only the focused tests.
+
+### Scratch-directory corrections — 2026-10-11
+
+The first disk-backed repeat (@bg_00000046, exit 1) used a directory inside the plugin Git root. Python's non-Git-directory test and Rust Git-discovery tests failed there; this directory does not satisfy their isolation requirement. Its captured log stops mid-test at 253952 bytes and has no final lane summary, so no final Rust outcome is asserted from it.
+
+The next repeat (@bg_00000048) began before the outside-project create-file acknowledgment was completed. Rust's lean failure sections explicitly report NotFound for temporary paths under the absent TMPDIR. Python's earlier focused test therefore did not establish use of the intended scratch path. The acknowledgment has now completed, and stat plus a real NamedTemporaryFile prove the path exists and is selected by Python; git rev-parse at that exact path reports no Git repository. A complete gate must run again after these prerequisites hold. No production source has changed in response.
+
+After the user freed /tmp, df measured 9.0G available there and 240G under /home. The verified scratch path is /home/marius/.codex/tmp/native-context-gate-20261011, outside every Git checkout. Kat authentication remains pending and unrelated to this gate.
+
+### Gate scratch assumptions confirmed — 2026-10-11
+
+@bg_0000004b used the verified existing outside-Git path. Its lean library result was 4469 passed, 3 failed, 7 ignored in 107.40s. The complete failure sections show: the memory sweep returned 0 inline/191 buffered; the YAML fixture at width 8715 was truncated with its long absolute path in routing text; and write_to_tmp_allowed refused /tmp when TMPDIR pointed elsewhere. The three corresponding test sources were read and the original checkout reports no working diff for them. This establishes three repeat-environment failures, not a regression diagnosis for changed native-context logic.
+
+Both incomplete repeats @bg_00000048 and @bg_0000004b were terminated with SIGTERM only after observing their own gate PID, process group and child Cargo processes. Their final status is 143; neither is a green gate. The complete repeat @bg_0000004f uses TMPDIR=/tmp and RUST_TEST_THREADS=16 with the same canonical five lanes and leased pool after df confirmed 9.0G free. No tested source or assertion was weakened.
+
+### Complete gate passed — 2026-10-11
+
+@bg_0000004f exited 0 using TMPDIR=/tmp and RUST_TEST_THREADS=16. All five measured outcomes are 0: Python light, formatting check, clippy, lean and default. The default library reports 6751 passed, 0 failed, 8 ignored; all seven new native-context tests passed. Lean reports 4472 passed, 0 failed, 7 ignored, including the three tests that failed under alternate scratch. The gate's printed heavy-Python, server-stack and ONNX exclusions remain real.
+
+The source was unchanged across the environmental repeats. The same reviewed six source files were independently hash-verified against the index immediately before native scoped commit 18a007aacc20eef8f366aa153394f7e23ccf875b. Only those six paths were committed and the original index is empty. This closes the gate-environment friction; production server-stack build and fresh installed native acceptance are separate remaining delivery checks.
 
 ## Template for new entries
 

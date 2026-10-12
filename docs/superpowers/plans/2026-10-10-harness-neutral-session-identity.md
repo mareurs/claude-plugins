@@ -13,7 +13,9 @@ topic: harness-neutral-session-identity
 approved_on: 2026-10-10
 bootstrap_release: Companion 1.20.17 real release installed; paired 0.160.0 host cold-loaded, native approval accept/decline passed; all reviewed source integrated locally
 claude_owned_formatting: passed; fresh main native session 761aa55b-cc78-4d4d-b452-85c384949f52, real MCP writer/formatter, exact final bytes and independent cargo fmt --check
-codescout_source_head: 52be81ae78d963610cf88879cdbc41ed6323bfbc
+codescout_native_context_commit: 18a007aacc20eef8f366aa153394f7e23ccf875b
+codescout_native_history_commit: 5ae71b35a05450d545ac355085378dfeee81a46c
+codescout_source_head: 5ae71b35a05450d545ac355085378dfeee81a46c
 cold_profile_acceptance: Startup/companion 1.20.17 observed in all three Claude profiles; own-root records/cache bytes pass; main/SDD turns passed. Kat OAuth expired and user cannot reauthenticate now; Kat's authenticated smoke remains pending.
 completed_source_tasks:
 - 1
@@ -30,10 +32,12 @@ implementation_review_pending: false
 installed_companion: 1.20.17, existing lowercase Codex plus all three Claude caches, 98 source files byte-verified
 installed_host: GNU/Linux 0.160.0; actual shared daemon/helper selected and six package files digest-verified
 native_approval_acceptance: passed
-native_capture_capability: limited; main Claude owned formatting, same-root resume/write and observed child/root attribution plus parent formatting pass; corrected Claude fork safe refusal/no false inherited credit passes. Native-derived explicit Codex mixed-host refusal passes with known Claude owner and coverage gaps. Automatic Codex MCP root context missing (F-16); complete Codex opaque/inherited/child history acceptance pending.
+native_automatic_context: 'F-16 source 18a007aa was built with server-stack, installed and freshly verified on 2026-10-11: all five gate lanes, seven context tests and eleven applied review mutations with zero final survivors. Native root 01a12bc6-4184-7182-b87d-ae4637c3e9c9 received matching native-env context without identity/context/history overrides. Existing processes were preserved. On 2026-10-12 the shared executable SHA changed; the cause is unknown. Subsequent native resumed acceptance uses the saved verified production artifact. Complete code-mode inventory remains F-6; Kat authentication remains pending.'
+native_capture_capability: Limited by complete code-mode wrapper inventory F-6 and Kat authentication. Automatic native context F-16, bounded MCP/child reader F-20, actual same-root known-writer refusal and earlier lifecycle/mixed-host context pass.
 native_claude_child: 'Native Claude main-profile child/root smoke passed: parent af8d2e22-9029-42c5-9257-d4fe124b1a43, distinct agent a21ddf668790f255e, actual child MCP writer and same-parent formatter exit 0; exact bytes, source helper bytes/modes and independent cargo fmt --check passed. Initial fixture/capture failure preserved as F-18.'
 native_claude_fork_followup: 'F-17 fixed and committed locally in original Codescout 6eb585ef9161b858316fc9ef95270b8ccaeede2e: conservative enqueue boundary, 99 focused tests, canonical leased gate all five exits 0, actual same-fork safe refusal/no false credit/unchanged bytes and independent nine-mutation review with zero final survivors. All four files match reviewed source bytes and only those four paths were committed; index empty.'
-native_mixed_host_refusal: 'Native-derived explicit context fallback passed safe refusal: exit 1, UNKNOWN retains known Claude owner and coverage gaps, bytes unchanged. Automatic MCP context missing (F-16). Claude resume preserved its native root.'
+native_history_reader: 'F-20 fixed-verified in original commit 5ae71b35: 141 focused tests, all 25 reapplied mutations killed, five-lane gate and shell suites 245/56/88 pass. Actual native known-writer resume retains UNKNOWN and unchanged bytes; wrapper gaps remain.'
+native_mixed_host_refusal: 'Native-derived explicit-context and automatic-context mixed-host refusal passed: exit 1/UNKNOWN retains known Claude owner and bytes. Automatic MCP context F-16 is fixed; Claude resume preserves its root.'
 plan_review_pending: false
 plugin_source_head: 36cf947
 release_commit: 4fc932622753638dbfda3448d6432fd8b0563585
@@ -341,6 +345,15 @@ For check-only with no identity, include fmt --check between Python and clippy; 
 - [x] **Step 6: Deliver reviewable repository changes.** Inspect exact task-owned diffs. Apply plugin changes only within authorized writable files; for protected Codescout changes, supply an inspected patch and verify git apply --check against the original current source. Request native escalation only once the concrete patch exists if original-checkout application is required. Do not bypass filesystem approval with MCP writes. Feature commits exclude version bumps and unrelated earlier issue fixes.
 - [ ] **Step 7: Release/install only when authorized and preconditions hold.** Use release.sh for the plugin after clean-tree preflight and required tests. Cover all three Codex and all installed Claude profiles with own-root cache/installPath checks, cold-load the new hooks and repeat the relevant live smoke. Keep push/publication subject to actual user authorization. Update the version-bump-checklist through doc when a release occurs.
 - [x] **Step 8: Record final status.** Source-only verification or an unapplied patch is investigating with explicit remaining work, not a fixed/live result. Close the issue only after its real-host and installation criteria are fulfilled. Link review/mutation evidence and the final support matrix. Commit task-owned documentation with message docs: document harness-neutral verification capabilities.
+
+
+### Native history reader follow-up — 2026-10-12
+
+F-20's observed decoder omission is repaired in the original working/index bytes from an exact three-path patch (decoder, native tests, capability guide). The revised source snapshot passes 141 focused tests, the canonical five-lane gate (@bg_00000055; Python 1219 tests/421 subtests, lean 4472/7 ignored, default 6751/8 ignored) and shell suites (provenance 245, formatter 56, lease 88). The gate remains limited to its documented lanes.
+
+The original integrated reader independently recovers five known MCP operations from the measured native root, two from its measured native child under the shared root/distinct child ID, and three from the actual authored/resumed root. All three captures retain their wrapper gaps. Actual native authored root 01a12f3a-ae7e-7882-87e8-8b6e4eb81706 resumes under the same root; normal formatting returns UNKNOWN/exit 1 and preserves exact bytes while retaining the known writer. This does not complete Step 4's owned-format or complete authored-history criteria. Kat authentication remains pending.
+
+The initial independent review applied 25 mutations, finding 11 survivors; tests were added after observing them. The independent recheck applied all 25 original recipes and killed all of them, with zero inconclusive runs; 141 tests passed after restoration. The reviewer approved the repair and capability guide. Original local commit 5ae71b35 contains exactly the three owned paths with matched committed hashes and empty final index. Evidence: .codescout/native-history-review-v2-20261012.json, native-history-delivery-20261012.json, native-history-integrated-read-20261012.json and native-history-authored-verified-20261012.json. The approved version-1 context contract is unchanged. No push or new journal is part of this reader repair.
 
 
 ## Source-delivery checkpoint — 2026-10-10

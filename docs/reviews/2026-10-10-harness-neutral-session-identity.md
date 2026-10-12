@@ -13,17 +13,23 @@ additional_controller_mutations: 1
 applied_mutations: 6
 claude_owned_formatting: Passed in fresh main-profile native session 761aa55b-cc78-4d4d-b452-85c384949f52; actual MCP writer and formatter, exact final bytes, helpers match source and cargo fmt --check exits 0
 codescout_original_application: Reviewed 22-file patch applied after scoped resume on 2026-10-11; bytes match reviewed source
-codescout_source_head: 52be81ae78d963610cf88879cdbc41ed6323bfbc
+codescout_source_head: 5ae71b35a05450d545ac355085378dfeee81a46c
 cold_profiles: All three observed startup and companion 1.20.17 at canonical directory source; own-root records/source-cache bytes pass; main/SDD turns pass. Kat OAuth expired; user cannot reauthenticate now, so authenticated smoke remains pending.
 controller_initial_survivors: 1
 independent_reviewer: /root/harness_identity_review
 installed_companion: 1.20.17; four existing cache snapshots byte-verified, paired 0.160.0 host cold-loaded
 mandatory_mutations: 5
 mandatory_survivors: 0
-native_acceptance: limited; approval and resume/compact/fork transport plus main Claude owned formatting pass; native Codex MCP formatter safely refuses because root context is missing (F-16)
+native_acceptance: Limited by complete native code-mode execution inventory F-6 and Kat OAuth; automatic MCP context and bounded native MCP/child decoder repair are verified.
 native_approval_acceptance: passed
+native_authored_history: Actual root 01a12f3a-ae7e-7882-87e8-8b6e4eb81706 writer identity recovered; same-root resumed normal formatter UNKNOWN/exit1/unchanged bytes; complete opaque-wrapper inventory remains unestablished.
+native_automatic_context: 'F-16 source 18a007aa was built with server-stack, installed and freshly verified on 2026-10-11: all five gate lanes, seven context tests and eleven applied review mutations with zero final survivors. Native root 01a12bc6-4184-7182-b87d-ae4637c3e9c9 received matching native-env context without identity/context/history overrides. Existing processes were preserved. On 2026-10-12 the shared executable SHA changed; the cause is unknown. Subsequent native resumed acceptance uses the saved verified production artifact. Complete code-mode inventory remains F-6; Kat authentication remains pending.'
 native_claude_child: Passed native main-profile Agent child MCP write; parent root af8d2e22-9029-42c5-9257-d4fe124b1a43 retained, native agent a21ddf668790f255e distinct. Same parent formats owned child write after fixture-mode repair; exact bytes and independent fmt check pass. F-18 records initial fixture/instrument errors.
 native_claude_fork_followup: 'F-17 fixed and committed locally in original Codescout 6eb585ef9161b858316fc9ef95270b8ccaeede2e: conservative enqueue boundary, 99 focused tests, canonical leased gate all five exits 0, actual same-fork safe refusal/no false credit/unchanged bytes and independent nine-mutation review with zero final survivors. All four files match reviewed source bytes and only those four paths were committed; index empty.'
+native_context_applied_mutations: 11
+native_context_commit: 18a007aacc20eef8f366aa153394f7e23ccf875b
+native_context_final_survivors: 0
+native_context_initial_survivors: 3
 native_explicit_mixed_host_refusal: 'Passed with context from actual Codex thread/start root confirmed by resume: formatter exit 1, UNKNOWN retains known Claude owner and opaque-history gaps, byte equality'
 native_fork_applied_mutations: 9
 native_fork_commit: 6eb585ef9161b858316fc9ef95270b8ccaeede2e
@@ -31,6 +37,15 @@ native_fork_final_survivors: 0
 native_fork_gate: '@bg_0000001e exited 0, all five lane exits 0; production unchanged after Python lane, final 99 focused tests include three added CLI cases.'
 native_fork_initial_survivors: 2
 native_fork_reviewer: /root/claude_fork_review
+native_history_commit: 5ae71b35a05450d545ac355085378dfeee81a46c
+native_history_evidence: .codescout/native-history-independent-review-v2-evidence-20261012.json; SHA a21e9ce23557bd14c7b36603e22bd15e6cdba616cb46583e7932f2a68ab83578
+native_history_focused_tests: 141
+native_history_reader: 'F-20 fixed-verified in original commit 5ae71b35: 141 focused tests, all 25 reapplied mutations killed, five-lane gate and shell suites 245/56/88 pass. Actual native known-writer resume retains UNKNOWN and unchanged bytes; wrapper gaps remain.'
+native_history_review_applied_mutations: 25
+native_history_review_final_survivors: 0
+native_history_review_inconclusive: 0
+native_history_review_initial_survivors: 11
+native_shared_binary_latest: 2026-10-12 shared executable SHA a8def1a566a3ffaa0f65ca41c3f64fb505778e1a506330df13c5820ec28d1e8d; saved verified 18a release artifact unchanged; cause not established; no peer replacement.
 original_integration: Plugin 4ce5432/f8a73ee; Codex 5eedcdc543; Codescout eed25579 plus F-17 6eb585ef9161b858316fc9ef95270b8ccaeede2e, local only
 passover_id: 40b11eb5ae97a839
 plugin_source_head: 36cf947
@@ -186,3 +201,23 @@ The canonical command CODESCOUT_GATE_POOL=/home/marius/work/claude/claude-plugin
 Three CLI cases were added after the gate's Python lane; the final 99-test focused suite passed in 14.21 seconds with production unchanged. Heavy Python, server-stack and local ONNX weight acceptance remain excluded; librarian coverage runs in DEFAULT. The final bounded pool measured 20G.
 
 The reviewed original patch was applied and committed through native approval in Codescout 6eb585ef9161b858316fc9ef95270b8ccaeede2e on experiments. A first unstaged-pathspec attempt was refused without a commit; F-19 records the required separate staging and actual index review. Post-commit checks verified exactly the four owned paths, full-byte equality with the reviewed clone/prepared digests, an empty index, and preserved unrelated dirty files. No push occurred. Evidence: .codescout/native-fork-gate-result-20261011.json and .codescout/native-fork-integration-result-20261011.json.
+
+## F-16 automatic context installed — 2026-10-11
+
+Native automatic MCP→shell context is fixed and installed: original Codescout commit 18a007aacc20eef8f366aa153394f7e23ccf875b, canonical five-lane gate all exits 0, seven context tests and eleven applied review mutations with zero final survivors. Clean release/server-stack artifact SHA-256 54479605de6012b89a59f556fb75bdc144e7c4ec02e0836d11c19ade03f9d279 installed atomically with previous binary preserved. Fresh native Codex root 01a12bc6-4184-7182-b87d-ae4637c3e9c9 reports matching native-env context without identity/context/history overrides. Existing server processes were not restarted. Complete authored history remains limited (F-20); Kat authentication remains pending.
+
+The first gate's storage failures and alternate-scratch failures are preserved in F-21. The corrected gate reports PYTHON_LIGHT=0 FMT=0 CLIPPY=0 LEAN=0 DEFAULT=0; default library 6751 passed/8 ignored, lean 4472 passed/7 ignored. Fresh installed acceptance evidence: .codescout/native-context-installed-smoke-result-20261011.json. Earlier candidate lifecycle/mixed-host evidence: .codescout/native-mcp-context-acceptance-verified-20261011.json and native-mcp-context-child-result-20261011.json. Wire tests require the librarian feature; Windows runtime and heavy-Python/ONNX behavior remain outside this gate. Complete code-mode history coverage is not established.
+
+## F-20 reader and native authored evidence — 2026-10-12
+
+The decoder repair recovers observed paginated MCP end items and validates native child boundaries separately from a new-root fork. It keeps wrapper/unknown-effect gaps. The initial independent review actually applied 25 mutations, with 14 killed and 11 observed survivors. Tests were added afterward for each surviving branch. The revised four-file focused suite passes 141 tests. All 25 frozen mutations were reapplied and killed, with zero inconclusive runs; the restored suite passed 141 tests in 19.27s. The canonical five-lane gate passed all lanes. Initial evidence is in /tmp/native-history-independent-review-20261011/.codescout/native-history-independent-review-evidence.json; revised manifest is .codescout/native-history-review-v2-20261012.json. No current production defect was identified in the initial review.
+
+Actual native authored write/root 01a12f3a-ae7e-7882-87e8-8b6e4eb81706 is recovered with full root/thread/call source ID and the exact path/content. Same-root resume invokes the ordinary formatter using automatic native context. It exits 1/UNKNOWN, retains the known THIS-session writer, and preserves exact bytes. Evidence: .codescout/native-history-authored-verified-20261012.json. The first orchestration timeout and the CLI-display verifier correction are preserved. The resumed turn completed; the initial overall writer turn completion was not captured. This is a bounded ownership/rejection result. Owned formatting and complete code-mode execution inventory remain unestablished.
+
+The shared installed binary changed after the 2026-10-11 installation verification. Its observed SHA on 2026-10-12 is a8def1a566a3ffaa0f65ca41c3f64fb505778e1a506330df13c5820ec28d1e8d; the cause was not determined. Recovery uses the saved verified 18a server-stack artifact (54479605de6012b89a59f556fb75bdc144e7c4ec02e0836d11c19ade03f9d279), leaving the shared executable and peer processes intact. The previous installed smoke remains a dated observation.
+
+### Final original delivery
+
+The independent reviewer approved v2 and the added capability guide with no remaining findings. Preserved evidence: .codescout/native-history-independent-review-v1-evidence-20261012.json (14 killed/11 survived before additions), and native-history-independent-review-v2-evidence-20261012.json (25 killed/0 survived afterward). Older profile/deployment claims were outside that recheck's scope.
+
+Original Codescout commit 5ae71b35a05450d545ac355085378dfeee81a46c contains exactly scripts/codex_history.py, tests/test_codex_native_mcp_history.py and docs/conventions/harness-neutral-session-context.md; all working/index/committed hashes matched and native hooks passed. The final index is empty. Canonical @bg_00000055 exited 0: Python light 1219 tests/421 subtests, lean 4472/7 ignored, default 6751/8 ignored; shell suites 245/56/88 passed. Gate exclusions remain documented. Original reader actual-capture verification confirms known identities and retains wrapper gaps. F-20 is fixed within the decoder scope; complete code-mode execution inventory remains limited under F-6.
