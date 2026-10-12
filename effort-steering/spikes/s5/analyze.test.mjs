@@ -851,6 +851,10 @@ t('R-ST4: counts.<arm>.multiSteer is the number of counted rows of the included 
   const one = (steer) => secondaries(tk('s0', { A: '1', B: '1', C: '1' }, { B: { steer } }), SEC_PREREG).counts.B.multiSteer;
   assert.equal(one(2), 1);
   assert.equal(one(1), 0);
+  // the Number.isInteger guard: a count that is not an integer (a string, a fraction, undefined) is not a repeat, whatever `> 1` says of it
+  assert.equal(one('2'), 0);
+  assert.equal(one(1.5), 0);
+  assert.equal(one(undefined), 0);
 });
 
 t('median: the middle value, the mean of the two middle values for an even count, null for none (ruling R80)', () => {

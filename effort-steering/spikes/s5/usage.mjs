@@ -257,8 +257,9 @@ export function hookContexts(text) {
 
 // R-ST2: did the steer reach the model on its FIRST turn? True iff the transcript holds a hook context (hookContexts' filter) and the first
 // one comes BEFORE the first `assistant` record, in file order; a steer and no assistant record at all is true, no steer is false. Claude
-// Code also fires the hook on a queued task-notification (cs-p07.B.0, 2026-10-12): that context comes after the first assistant record and is
-// no evidence for the first turn, which is the only one the hook's 500 ms kill (R147) can have missed.
+// Code also fires the hook on a queued task-notification (cs-p07.B.0, 2026-10-12): that context comes after the first assistant record. The
+// hook's 500 ms kill can miss ANY turn, the repeat included, but a miss on the first turn is the one that leaves the model unsteered from the
+// start and the one the rule must detect; a later context is therefore no evidence for it.
 export function steerReachedFirstTurn(text) {
   for (const obj of records(text)) {
     if (hookContextOf(obj) !== null) return true;
