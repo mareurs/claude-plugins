@@ -232,17 +232,37 @@ export function finalTextTail(text, n = 300) {
   return n <= 0 ? '' : last.slice(-n);
 }
 
+// The content of one UserPromptSubmit hook_additional_context attachment record, or null when the record is not one (or its content is
+// neither a string nor a list). The one filter hookContexts and steerReachedFirstTurn share.
+function hookContextOf(obj) {
+  if (!isObject(obj) || obj.type !== 'attachment' || !isObject(obj.attachment)) return null;
+  const a = obj.attachment;
+  if (a.type !== 'hook_additional_context' || a.hookEvent !== 'UserPromptSubmit') return null;
+  if (typeof a.content === 'string') return a.content;
+  if (Array.isArray(a.content)) return a.content.filter((s) => typeof s === 'string').join('\n');
+  return null;
+}
+
 // The content of each UserPromptSubmit hook_additional_context attachment, in order. The hook's
 // text is NOT in the user message; Claude Code writes it as its own `attachment` record, with
 // `content` a string or an array of strings (joined with '\n'). Other attachments are ignored.
 export function hookContexts(text) {
   const out = [];
   for (const obj of records(text)) {
-    if (!isObject(obj) || obj.type !== 'attachment' || !isObject(obj.attachment)) continue;
-    const a = obj.attachment;
-    if (a.type !== 'hook_additional_context' || a.hookEvent !== 'UserPromptSubmit') continue;
-    if (typeof a.content === 'string') out.push(a.content);
-    else if (Array.isArray(a.content)) out.push(a.content.filter((s) => typeof s === 'string').join('\n'));
+    const context = hookContextOf(obj);
+    if (context !== null) out.push(context);
   }
   return out;
+}
+
+// R-ST2: did the steer reach the model on its FIRST turn? True iff the transcript holds a hook context (hookContexts' filter) and the first
+// one comes BEFORE the first `assistant` record, in file order; a steer and no assistant record at all is true, no steer is false. Claude
+// Code also fires the hook on a queued task-notification (cs-p07.B.0, 2026-10-12): that context comes after the first assistant record and is
+// no evidence for the first turn, which is the only one the hook's 500 ms kill (R147) can have missed.
+export function steerReachedFirstTurn(text) {
+  for (const obj of records(text)) {
+    if (hookContextOf(obj) !== null) return true;
+    if (isObject(obj) && obj.type === 'assistant') return false;
+  }
+  return false;
 }

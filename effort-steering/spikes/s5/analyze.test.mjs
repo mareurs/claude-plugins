@@ -75,6 +75,7 @@ function row(o) {
     infra: o.infra ?? null,
     final: o.final ?? true,
     decision: { steered: arm === 'B' },
+    steerContexts: o.steer === undefined ? (arm === 'B' ? 1 : 0) : o.steer,
     usage: o.usage ?? usageOf(o.main, o.total),
     efforts: [EFFORT[arm] ?? 'low'],
     costUsd: o.cost === undefined ? 1 : o.cost,
@@ -826,10 +827,30 @@ t('secondaries: counts of timeouts, testsRunBeforeDone === false, infrastructure
     row({ task: 'x0', arm: 'C', timedOut: true, tests: false, main: { missing: 4 } }),
   ];
   const { counts, excludedTasks } = secondaries(rows, SEC_PREREG);
-  assert.deepEqual(counts.A, { counted: 7, timeouts: 3, testsNotRun: 1, infraRows: 2, thinkingFieldMissing: 0, p2pRegressions: 0 });
-  assert.deepEqual(counts.B, { counted: 3, timeouts: 0, testsNotRun: 0, infraRows: 2, thinkingFieldMissing: 2, p2pRegressions: 0 });
-  assert.deepEqual(counts.C, { counted: 2, timeouts: 2, testsNotRun: 2, infraRows: 0, thinkingFieldMissing: 0, p2pRegressions: 0 });
+  assert.deepEqual(counts.A, { counted: 7, timeouts: 3, multiSteer: 0, testsNotRun: 1, infraRows: 2, thinkingFieldMissing: 0, p2pRegressions: 0 });
+  assert.deepEqual(counts.B, { counted: 3, timeouts: 0, multiSteer: 0, testsNotRun: 0, infraRows: 2, thinkingFieldMissing: 2, p2pRegressions: 0 });
+  assert.deepEqual(counts.C, { counted: 2, timeouts: 2, multiSteer: 0, testsNotRun: 2, infraRows: 0, thinkingFieldMissing: 0, p2pRegressions: 0 });
   assert.equal(excludedTasks, 1);
+});
+
+t('R-ST4: counts.<arm>.multiSteer is the number of counted rows of the included tasks whose steerContexts is above 1; one context, none and null do not count', () => {
+  const rows = [
+    row({ task: 's0', arm: 'B', steer: 2 }), row({ task: 's0', arm: 'B', steer: 5 }), // two repeats
+    row({ task: 's0', arm: 'B', steer: 1 }), row({ task: 's0', arm: 'B', steer: null }), row({ task: 's0', arm: 'B', steer: 0 }), // not repeats
+    row({ task: 's0', arm: 'A', steer: 2 }), // counted, so counted (the count is about the rows, whichever the arm says it should be)
+    row({ task: 's0', arm: 'C' }),
+    // not counted: an infrastructure row with 3 contexts, and a counted row of an excluded task (x0 has no counted B run)
+    row({ task: 's0', arm: 'B', steer: 3, infra: 'steer_mismatch', final: false, grade: null }),
+    row({ task: 'x0', arm: 'A', steer: 2 }), row({ task: 'x0', arm: 'B', infra: 'infra_exhausted', final: true, grade: null, steer: 4 }),
+  ];
+  const { counts } = secondaries(rows, SEC_PREREG);
+  assert.equal(counts.B.multiSteer, 2);
+  assert.equal(counts.A.multiSteer, 1);
+  assert.equal(counts.C.multiSteer, 0);
+  // exactly 2 is a repeat (`> 1`, not `>= 1`), exactly 1 is not
+  const one = (steer) => secondaries(tk('s0', { A: '1', B: '1', C: '1' }, { B: { steer } }), SEC_PREREG).counts.B.multiSteer;
+  assert.equal(one(2), 1);
+  assert.equal(one(1), 0);
 });
 
 t('median: the middle value, the mean of the two middle values for an even count, null for none (ruling R80)', () => {

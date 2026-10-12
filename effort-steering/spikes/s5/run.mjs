@@ -64,7 +64,7 @@ import {
 } from './proxy.mjs';
 import { IMAGE_FOR_REPO, TASK_ID_RE } from './task-def.mjs';
 import {
-  finalTextTail, firstUserText, hookContexts, readRunUsage, testsRunBeforeDone,
+  finalTextTail, firstUserText, hookContexts, readRunUsage, steerReachedFirstTurn, testsRunBeforeDone,
 } from './usage.mjs';
 
 const MODES = ['measure', 'calibrate', 'pilot', 'smoke'];
@@ -191,8 +191,10 @@ export function planRunsS5(prereg, options) {
 //        (4) api_error                                      an API-error record in the MAIN transcript (a subagent's is recorded only)
 //        (5) no_log | arm_mismatch                          the decision log (R89): B must be treated and steered, A and C held out
 //        (6) effort_mismatch                                the transcript's efforts are not exactly [run.effort]
-//        (6b) steer_mismatch                                (R147) the steer did not reach the model as the arm says: the UserPromptSubmit hook contexts of the main
-//                                                           transcript (hookContexts) are not exactly [the shallow sentence] for B, or are not none for A and C. The sentence
+//        (6b) steer_mismatch                                (R147, relaxed by R-ST1) the steer did not reach the model as the arm says: the UserPromptSubmit hook contexts of the main
+//                                                           transcript (hookContexts) are, for B, none, or not ALL the shallow sentence, or the first of them does not come before
+//                                                           the first assistant record (steerReachedFirstTurn); for A and C, not none. B accepts a repeat: the shipped hook fires
+//                                                           again on a queued task-notification (cs-p07.B.0, 2026-10-12). The sentence
 //                                                           is phrases.shallow of the hook copy's core/steer.table.json, read when the run starts. The decision log (5) is
 //                                                           written BEFORE the policy CLI prints, and the hook kills the CLI after 500 ms and fails open, so it cannot show
 //                                                           that the steer arrived; the transcript can.
@@ -216,7 +218,7 @@ export function planRunsS5(prereg, options) {
 //
 // THE ROW. The brief's Row { runId, taskId, taskIndex, arm, effort, rep, round, sessionId, startedAt, wallMs, exit, infra, final,
 // decision, usage, efforts, costUsd, numTurns, firstUserTextOk, testsRunBeforeDone, finalTextTail, grade }, plus `isError` (R88, from
-// the stdout JSON), `steerContexts` (R147: how many UserPromptSubmit hook contexts the main transcript holds; null without a transcript),
+// the stdout JSON), `steerContexts` (R147, R-ST1: how many UserPromptSubmit hook contexts the main transcript holds, 1 or more in a delivered B run, 0 in A and C; null without a transcript),
 // `tokenScrubbed` (R108), `planLimit` (R-PL5: only on a plan_limit row: { source, matched, resetHint, rateLimitType, resetsAt }, the verdict of
 // detectPlanLimit; `matched` is the detector's own (see THE HIT in plan-limit.mjs): the refusal from its first non-blank character, the kind name for a typed
 // hit with no text, or the note value for a wrap-up note, at most 200 characters; `resetHint` the "resets ..." phrase in it or null,
@@ -435,12 +437,15 @@ function evidenceInfra(run, evidence) {
   if (evidence.decision.arm !== want.arm || evidence.decision.steered !== want.steered) return 'arm_mismatch';
   const { efforts } = evidence.usage;
   if (efforts.length !== 1 || efforts[0] !== run.effort) return 'effort_mismatch';
-  // (6b) R147: the steer must have REACHED the model. The decision log is written before the policy CLI prints its result, and the hook kills
-  // the CLI after 500 ms and then fails open with no steer, so a log that says steered proves nothing about the transcript. B: exactly one
-  // UserPromptSubmit hook context, equal to the shallow sentence; A and C: none. A context of any other shape is a mismatch too.
-  const wantSteer = run.arm === 'B' ? [evidence.steerPhrase] : [];
+  // (6b) R147, relaxed by R-ST1: the steer must have REACHED the model. The decision log is written before the policy CLI prints its result, and the hook kills
+  // the CLI after 500 ms and then fails open with no steer, so a log that says steered proves nothing about the transcript. B: one or more UserPromptSubmit
+  // hook contexts, EVERY one equal to the shallow sentence (a repeat is the shipped hook firing again, on a queued task-notification: cs-p07.B.0, 2026-10-12),
+  // and the first before the first assistant record (steerFirst: the steer reached the model's first turn; one that only came later proves nothing about
+  // the 500 ms kill). A and C: none. A context of any other shape is a mismatch too.
   const { contexts } = evidence;
-  if (contexts.length !== wantSteer.length || contexts.some((context, i) => context !== wantSteer[i])) return 'steer_mismatch';
+  if (run.arm === 'B') {
+    if (contexts.length < 1 || contexts.some((context) => context !== evidence.steerPhrase) || evidence.steerFirst !== true) return 'steer_mismatch';
+  } else if (contexts.length !== 0) return 'steer_mismatch';
   return null;
 }
 
@@ -687,8 +692,9 @@ export async function runOne(run, ctx) {
       text = null;
       usageError = err;
     }
-    // R147: the UserPromptSubmit hook contexts of the MAIN transcript; null without one.
+    // R147: the UserPromptSubmit hook contexts of the MAIN transcript; null without one. R-ST2: whether the first of them precedes the first assistant record.
     const contexts = text === null ? null : hookContexts(text);
+    const steerFirst = text === null ? null : steerReachedFirstTurn(text);
     // R87 (1), (2): the container, by grade.mjs's infraOf (R105: created, oom, inspect_failed, rm_failed, in that order, so a failed
     // removal never hides an OOM kill). timedOut is forced false: for the agent container a timeout is the model's failure (R90), not
     // the harness's. Then (2b) R132, and (3) to (6): what the run left behind.
@@ -714,7 +720,7 @@ export async function runOne(run, ctx) {
       });
       if (planLimit !== null) infra = 'plan_limit';
     }
-    infra ??= evidenceInfra(run, { usage, decision, contexts, steerPhrase: o.steerPhrase });
+    infra ??= evidenceInfra(run, { usage, decision, contexts, steerFirst, steerPhrase: o.steerPhrase });
     let detail = infra === 'transcript_unreadable' ? detailOf(usageError, o.token) : null;
     let grade = null;
     // R90: a timed-out run is the model's failure and is not graded. R87 puts every infrastructure step before this one.
@@ -905,7 +911,7 @@ export async function runOne(run, ctx) {
 //
 // SMOKE: Summary.smoke = { ok, checks: { firstUserText, decisionLogs, bSteered, steerDelivered }, rows } from the FINAL rows of the planned runs (one rep-0 run
 // per arm on one task): firstUserTextOk === true in every arm; a decision in every arm; the decision's steered true in B and false in A and C (a missing
-// decision is the decisionLogs check's, not this one's); steerContexts (R147, counted in the transcript) 1 in B and 0 in A and C. A planned run without a
+// decision is the decisionLogs check's, not this one's); steerContexts (R147, R-ST3, counted in the transcript) 1 or more in B and 0 in A and C. A planned run without a
 // final row makes every check false. ok also needs that no run ended infra_exhausted.
 //
 // Summary { mode, planned, skippedFinal, ran, attempts, infraAttempts, exhausted, retriedExhausted, costUsd, costEstimatedRows, concurrency, stopAtCostUsd, stopped, rowsFile, smoke, scrubbed, tornLine }:
@@ -1365,8 +1371,8 @@ function smokeSummary(plan, rows) {
     firstUserText: complete && finals.every((row) => row.firstUserTextOk === true),
     decisionLogs: complete && finals.every((row) => isObject(row.decision)),
     bSteered: complete && plan.every((run, i) => !isObject(finals[i].decision) || finals[i].decision.steered === (run.arm === 'B')),
-    // R147: the steer reached the model as the arm says, counted in the transcript: one hook context in B, none in A and C.
-    steerDelivered: complete && plan.every((run, i) => finals[i].steerContexts === (run.arm === 'B' ? 1 : 0)),
+    // R147, R-ST3: the steer reached the model as the arm says, counted in the transcript: one or more hook contexts in B, none in A and C.
+    steerDelivered: complete && plan.every((run, i) => (run.arm === 'B' ? Number.isInteger(finals[i].steerContexts) && finals[i].steerContexts >= 1 : finals[i].steerContexts === 0)),
   };
   const exhausted = finals.some((row) => row !== null && row.infra === 'infra_exhausted');
   return { ok: checks.firstUserText && checks.decisionLogs && checks.bSteered && checks.steerDelivered && !exhausted, checks, rows: finals.filter((row) => row !== null).length };

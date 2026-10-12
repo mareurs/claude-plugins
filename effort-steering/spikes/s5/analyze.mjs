@@ -46,7 +46,7 @@
 // SECONDARIES (rulings R64, R70, R79, R80) are descriptive. Every one reads the counted rows of the INCLUDED tasks only (an excluded
 // task is dropped from all arms, never from one), except `infraRows` and `excludedTasks`, which are about exclusion. They are:
 // cost per resolved task (R148: also with each counted run that timed out and printed no cost read at the largest cost known), pass^3, counts
-// (counted, timeouts, testsNotRun, infraRows [attempts: an exhausted line written without an attempt is none], thinkingFieldMissing,
+// (counted, timeouts, multiSteer [R-ST4: counted rows with more than one steer context], testsNotRun, infraRows [attempts: an exhausted line written without an attempt is none], thinkingFieldMissing,
 // p2pRegressions), per-arm token totals (R153: main and total sums of input_total, cache_creation, cache_read, output and thinking over the
 // counted rows of the included tasks), the
 // median wall time and diff size per arm (the median of an even count is the mean of the two middle values; null for none),
@@ -451,6 +451,8 @@ export function secondaries(rows, prereg) {
   const counts = perArm((arm) => ({
     counted: counted[arm].length,
     timeouts: counted[arm].filter((r) => r.exit?.timedOut === true).length,
+    // R-ST4: the counted rows whose transcript holds MORE than one steer context (a repeat of the shipped hook: R-ST1). null and 1 do not count.
+    multiSteer: counted[arm].filter((r) => Number.isInteger(r.steerContexts) && r.steerContexts > 1).length,
     testsNotRun: counted[arm].filter((r) => r.testsRunBeforeDone === false).length,
     // R153: an attempt is a row; the exhausted line written WITHOUT an attempt (noAttempt) repeats the last attempt's row and is not one.
     infraRows: all.filter((r) => r.arm === arm && r.infra !== null && r.infra !== undefined && r.noAttempt !== true).length,

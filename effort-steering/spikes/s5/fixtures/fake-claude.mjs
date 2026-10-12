@@ -29,6 +29,8 @@
 //   steer        "auto" (default: arm B, EFFORT_STEERING_HOLDOUT_RATE '0', gets ONE UserPromptSubmit hook context holding the shipped shallow phrase
 //                of core/steer.table.json, as the real hook writes it; A and C get none) | null (none) | a list, one hook context each: a string
 //                (content a string), a list of strings (content a list, the real shape) or an object { attachment } (written as it is)
+//   steerLate    a list in the same shapes as `steer` (default none): the hook contexts are written AFTER the first assistant record, as Claude Code
+//                does for a queued task-notification (R-ST1: such a context did not reach the model on its first turn)
 //   decision     "auto" (default) | null (no log) | an object | a list of objects and raw strings, one log line each
 //   decisionSession   the session id in the log's file name (default: the session id)
 //   decisionLink      true: the log is a symlink to a file that holds the line
@@ -102,15 +104,14 @@ const records = [{ type: 'user', message: { role: 'user', content: has('firstUse
 // hookEvent UserPromptSubmit, content a list holding the steer. The auto value is the shipped shallow phrase, read from the table.
 const shipped = JSON.parse(readFileSync(new URL('../../../core/steer.table.json', import.meta.url), 'utf8')).phrases.shallow;
 const steerContexts = has('steer') && scenario.steer !== 'auto' ? (scenario.steer ?? []) : (process.env.EFFORT_STEERING_HOLDOUT_RATE === '0' ? [[shipped]] : []);
-steerContexts.forEach((content, i) => {
-  records.push({
-    type: 'attachment',
-    attachment: isPlainObject(content)
-      ? content.attachment
-      : { type: 'hook_additional_context', hookEvent: 'UserPromptSubmit', hookName: 'UserPromptSubmit:steer', toolUseID: `toolu_hook_${i + 1}`, content },
-    sessionId,
-  });
+const steerRecord = (content, id) => ({
+  type: 'attachment',
+  attachment: isPlainObject(content)
+    ? content.attachment
+    : { type: 'hook_additional_context', hookEvent: 'UserPromptSubmit', hookName: 'UserPromptSubmit:steer', toolUseID: id, content },
+  sessionId,
 });
+steerContexts.forEach((content, i) => records.push(steerRecord(content, `toolu_hook_${i + 1}`)));
 if (scenario.leak === true) {
   records.push({ type: 'user', message: { role: 'user', content: [{ type: 'tool_result', tool_use_id: 'toolu_env', content: `CLAUDE_CODE_OAUTH_TOKEN=${TOKEN}` }] }, sessionId });
 }
@@ -120,6 +121,10 @@ if (scenario.leak === true) {
 });
 const finalText = scenario.finalText ?? 'Done.';
 records.push(assistant([{ type: 'text', text: finalText }]));
+// R-ST1: `steerLate` contexts go straight after the first assistant record (the main transcript's), never before it.
+if (Array.isArray(scenario.steerLate)) {
+  records.splice(records.findIndex((r) => r.type === 'assistant') + 1, 0, ...scenario.steerLate.map((content, i) => steerRecord(content, `toolu_hook_late_${i + 1}`)));
+}
 if (scenario.apiError === true) records.push(apiErrorRecord(scenario.apiErrorText));
 
 const mode = has('transcript') ? scenario.transcript : true;

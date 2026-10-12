@@ -1441,9 +1441,11 @@ await ta('smoke: one rep-0 run per arm on one task, the same retry and stop mach
 
 await ta('smoke: each of the four checks fails alone, and a run that ended infra_exhausted makes ok false although the checks hold', async () => {
   const cases = [
-    // R147: the steer counted in the transcript. One hook context in B, none in A and C; null (no count) is not 0.
+    // R147, R-ST3: the steer counted in the transcript. One or more hook contexts in B, none in A and C; null (no count) is not 0.
     ['arm B: no steer reached the transcript', (run) => (run.arm === 'B' ? { steerContexts: 0 } : {}), { firstUserText: true, decisionLogs: true, bSteered: true, steerDelivered: false }],
-    ['arm B: two steers', (run) => (run.arm === 'B' ? { steerContexts: 2 } : {}), { firstUserText: true, decisionLogs: true, bSteered: true, steerDelivered: false }],
+    ['arm B: a count that is no whole number ("2")', (run) => (run.arm === 'B' ? { steerContexts: '2' } : {}), { firstUserText: true, decisionLogs: true, bSteered: true, steerDelivered: false }],
+    ['arm A: two steers reached the transcript', (run) => (run.arm === 'A' ? { steerContexts: 2 } : {}), { firstUserText: true, decisionLogs: true, bSteered: true, steerDelivered: false }],
+    ['arm C: two steers reached the transcript', (run) => (run.arm === 'C' ? { steerContexts: 2 } : {}), { firstUserText: true, decisionLogs: true, bSteered: true, steerDelivered: false }],
     ['arm B: no count (null)', (run) => (run.arm === 'B' ? { steerContexts: null } : {}), { firstUserText: true, decisionLogs: true, bSteered: true, steerDelivered: false }],
     ['arm A: a steer reached the transcript', (run) => (run.arm === 'A' ? { steerContexts: 1 } : {}), { firstUserText: true, decisionLogs: true, bSteered: true, steerDelivered: false }],
     ['arm C: a steer reached the transcript', (run) => (run.arm === 'C' ? { steerContexts: 1 } : {}), { firstUserText: true, decisionLogs: true, bSteered: true, steerDelivered: false }],
@@ -1460,6 +1462,12 @@ await ta('smoke: each of the four checks fails alone, and a run that ended infra
     const b = smokeBench({ script: ({ run }) => okRow(run, over(run)) });
     const summary = await b.run();
     assert.deepEqual(summary.smoke, { ok: false, checks, rows: 3 }, label);
+  }
+  // R-ST3: B with a repeat (2 or 3 contexts: the shipped hook fired again on a task-notification) is delivered, and the smoke is ok.
+  for (const steerContexts of [2, 3]) {
+    const b = smokeBench({ script: ({ run }) => okRow(run, run.arm === 'B' ? { steerContexts } : {}) });
+    const repeated = await b.run();
+    assert.deepEqual(repeated.smoke, { ok: true, checks: { firstUserText: true, decisionLogs: true, bSteered: true, steerDelivered: true }, rows: 3 }, `arm B: ${steerContexts} steers`);
   }
   // Exhausted: arm C never gets a good attempt. Its last row still carries a decision and a good first user text, so only the clause "no run ended infra_exhausted" fails.
   const exhausted = smokeBench({ limits: { infraRetries: 1 }, script: ({ run }) => (run.arm === 'C' ? infraRow(run, 'api_error') : okRow(run)) });

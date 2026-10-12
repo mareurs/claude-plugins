@@ -12,7 +12,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { t } from '../../core/testkit.mjs';
 import { tokensFromTranscript } from '../s4-rows.mjs';
-import { finalTextTail, firstUserText, hookContexts, messageUsages, readRunUsage, testsRunBeforeDone, totals } from './usage.mjs';
+import { finalTextTail, firstUserText, hookContexts, messageUsages, readRunUsage, steerReachedFirstTurn, testsRunBeforeDone, totals } from './usage.mjs';
 
 const roots = [];
 process.on('exit', () => roots.forEach((r) => rmSync(r, { recursive: true, force: true })));
@@ -643,6 +643,71 @@ t('hookContexts: an array content is joined with a newline; other hook events an
   assert.deepEqual(hookContexts(lines(hook(undefined), hook({ not: 'text' }))), []);
 });
 
+// ---- steerReachedFirstTurn (R-ST2) -------------------------------------------------------------------
+
+t('steerReachedFirstTurn: true iff the first UserPromptSubmit hook context precedes the first assistant record', () => {
+  assert.equal(steerReachedFirstTurn(lines(user('p'), env(), hook('steer'), say('x'))), true);
+  assert.equal(steerReachedFirstTurn(lines(user('p'), env(), say('x'))), false, 'no steer');
+  assert.equal(steerReachedFirstTurn(''), false);
+  // the order is the file order: an assistant record first makes the steer a late one, whatever else follows
+  assert.equal(steerReachedFirstTurn(lines(user('p'), say('x'), hook('steer'))), false, 'record order inverted: the steer comes after the first assistant record');
+  assert.equal(steerReachedFirstTurn(lines(user('p'), say('x'), hook('steer'), hook('steer'))), false);
+  // a steer first and a repeat after the assistant record: the first one decides
+  assert.equal(steerReachedFirstTurn(lines(user('p'), hook('steer'), run('cargo test'), toolResult(), hook('steer'), say('x'))), true);
+  // a steer and no assistant record at all
+  assert.equal(steerReachedFirstTurn(lines(user('p'), hook('steer'))), true);
+  assert.equal(steerReachedFirstTurn(lines(hook('steer'))), true);
+  // an API-error record is an assistant record too
+  assert.equal(steerReachedFirstTurn(lines(user('p'), apiErr('e1'), hook('steer'))), false);
+});
+
+t('steerReachedFirstTurn: reads hookContexts\' filter: another event, another attachment type, a content of no shape and a non-attachment record are not a steer', () => {
+  const late = lines(user('p'), env(), hook('x', 'SessionStart'), hook(undefined), hook({ not: 'text' }), { type: 'user', attachment: { type: 'hook_additional_context', hookEvent: 'UserPromptSubmit', content: 'no' } }, say('x'), hook('steer'));
+  assert.equal(steerReachedFirstTurn(late), false, 'none of the records before the assistant record is a steer');
+  assert.deepEqual(hookContexts(late), ['steer'], 'the same filter: exactly the one hookContexts counts');
+  assert.equal(steerReachedFirstTurn(lines(hook('x', 'SessionStart'), hook('steer'), say('x'))), true);
+  // torn lines and records that are not objects carry nothing
+  assert.equal(steerReachedFirstTurn('garbage\n{"type":"assistant","message":\nnull\n5\n' + lines(hook('steer'), say('x'))), true);
+  assert.equal(steerReachedFirstTurn('garbage\n' + lines(say('x'), hook('steer'))), false);
+});
+
+t('steerReachedFirstTurn: the record shapes of a real transcript (Claude Code 2.1.296, cs-p07.B.0, 2026-10-12): the steer is on the first turn, the repeat follows a task-notification', () => {
+  // Only the record types and fields read from the real file (the types and the keys of the attachment); no task text, no token. Order as in the file:
+  // queue-operation, user, the hook attachment, the first assistant record, ..., a queued_command attachment (a <task-notification> prompt), then the
+  // SECOND hook attachment (the same sentence).
+  const realHook = (id) => ({
+    type: 'attachment',
+    attachment: { type: 'hook_additional_context', content: ['Answer directly without deliberating.'], hookName: 'UserPromptSubmit', toolUseID: `hook-${id}`, hookEvent: 'UserPromptSubmit' },
+    sessionId: 'sid',
+  });
+  const queued = { type: 'attachment', attachment: { type: 'queued_command', prompt: '<task-notification>\n<task-id>t1</task-id>\n</task-notification>', origin: { kind: 'task-notification', producer: 'session-task' } }, sessionId: 'sid' };
+  const enqueue = { type: 'queue-operation', operation: 'enqueue', sessionId: 'sid', content: '<task-notification/>' };
+  const real = lines(
+    { type: 'queue-operation', operation: 'enqueue', sessionId: 'sid', content: 'p' },
+    { type: 'user', message: { role: 'user', content: 'p' }, sessionId: 'sid' },
+    { type: 'attachment', attachment: { type: 'environment' }, sessionId: 'sid' },
+    realHook('1'),
+    { type: 'attachment', attachment: { type: 'session_context' }, sessionId: 'sid' },
+    say('x'),
+    enqueue,
+    queued,
+    realHook('2'),
+  );
+  assert.deepEqual(hookContexts(real), ['Answer directly without deliberating.', 'Answer directly without deliberating.']);
+  assert.equal(steerReachedFirstTurn(real), true);
+  // the same transcript without the first hook attachment: the only steer is the late one
+  const lateOnly = lines(
+    { type: 'queue-operation', operation: 'enqueue', sessionId: 'sid', content: 'p' },
+    { type: 'user', message: { role: 'user', content: 'p' }, sessionId: 'sid' },
+    say('x'),
+    enqueue,
+    queued,
+    realHook('2'),
+  );
+  assert.deepEqual(hookContexts(lateOnly), ['Answer directly without deliberating.']);
+  assert.equal(steerReachedFirstTurn(lateOnly), false);
+});
+
 // ---- torn input ------------------------------------------------------------------------------------
 
 t('every reader ignores torn lines and empty text', () => {
@@ -652,4 +717,5 @@ t('every reader ignores torn lines and empty text', () => {
   assert.equal(testsRunBeforeDone(torn, ['x']), false);
   assert.equal(finalTextTail(torn), '');
   assert.deepEqual(hookContexts(torn), []);
+  assert.equal(steerReachedFirstTurn(torn), false);
 });

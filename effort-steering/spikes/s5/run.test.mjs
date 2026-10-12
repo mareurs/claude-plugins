@@ -1392,13 +1392,27 @@ const CASES = [
   ['(5) before (6): no_log before effort_mismatch', { scenario: { decision: null, effort: 'medium' } }, 'no_log'],
   ['(5) before (6): arm_mismatch before effort_mismatch', { scenario: { decision: holdout, effort: 'medium' } }, 'arm_mismatch'],
   ['(4) before (6): api_error before effort_mismatch', { scenario: { apiError: true, effort: 'medium' } }, 'api_error'],
-  // R147: the steer must have REACHED the model. B: exactly one UserPromptSubmit hook context, equal to the shipped shallow sentence; A and C: none.
+  // R147, relaxed by R-ST1: the steer must have REACHED the model. B: one or more UserPromptSubmit hook contexts, EVERY one equal to the shipped shallow sentence, the
+  // first before the first assistant record (a repeat is the shipped hook firing again on a queued task-notification: cs-p07.B.0, 2026-10-12); A and C: none.
   // steer_mismatch comes directly after effort_mismatch (6) and before the timeout (7).
   ['(6b) steer_mismatch: B was steered in the log but no hook context reached the transcript (the policy CLI was killed after it logged)', { scenario: { steer: null } }, 'steer_mismatch', (r) => {
     assert.deepEqual(r.row.decision, treated, 'the log alone says steered: that is the blind spot');
     assert.equal(r.row.steerContexts, 0);
   }],
-  ['(6b) steer_mismatch: B got two hook contexts', { scenario: { steer: [[SHALLOW], [SHALLOW]] } }, 'steer_mismatch', (r) => assert.equal(r.row.steerContexts, 2)],
+  ['(6b) R-ST1: B got two identical hook contexts: delivered (the repeat is counted in the Row)', { scenario: { steer: [[SHALLOW], [SHALLOW]] } }, null, (r) => assert.equal(r.row.steerContexts, 2)],
+  ['(6b) R-ST1: B got three identical hook contexts: delivered', { scenario: { steer: [[SHALLOW], [SHALLOW], [SHALLOW]] } }, null, (r) => assert.equal(r.row.steerContexts, 3)],
+  ['(6b) R-ST1: B got the sentence, then another sentence: steer_mismatch (every context must equal it, not the first)', { scenario: { steer: [[SHALLOW], [DEEP]] } }, 'steer_mismatch', (r) => assert.equal(r.row.steerContexts, 2)],
+  ['(6b) R-ST1: B got another sentence, then the sentence: steer_mismatch (not the last one only)', { scenario: { steer: [[DEEP], [SHALLOW]] } }, 'steer_mismatch', (r) => assert.equal(r.row.steerContexts, 2)],
+  ['(6b) R-ST1: B got the sentence, then "x": steer_mismatch', { scenario: { steer: [[SHALLOW], ['x']] } }, 'steer_mismatch'],
+  ['(6b) R-ST1: B got the sentence three times and an empty context among them: steer_mismatch', { scenario: { steer: [[SHALLOW], '', [SHALLOW]] } }, 'steer_mismatch', (r) => assert.equal(r.row.steerContexts, 3)],
+  ['(6b) R-ST1: the steer arrived only AFTER the first assistant record (a task-notification), none before: steer_mismatch, the 500 ms kill is not excluded', { scenario: { steer: null, steerLate: [[SHALLOW]] } }, 'steer_mismatch', (r) => assert.equal(r.row.steerContexts, 1)],
+  ['(6b) R-ST1: two steers, both after the first assistant record: steer_mismatch', { scenario: { steer: null, bash: ['cargo test'], steerLate: [[SHALLOW], [SHALLOW]] } }, 'steer_mismatch', (r) => assert.equal(r.row.steerContexts, 2)],
+  ['(6b) R-ST1: the steer before the first assistant record and a repeat after it: delivered', { scenario: { steerLate: [[SHALLOW]] } }, null, (r) => assert.equal(r.row.steerContexts, 2)],
+  ['(6b) R-ST1: the steer before the first assistant record (a tool call) and a repeat after it, as in cs-p07.B.0: delivered', { scenario: { bash: ['cargo test'], steerLate: [[SHALLOW]] } }, null, (r) => assert.equal(r.row.steerContexts, 2)],
+  ['(6b) R-ST1: the steer first, a repeat after the first assistant record, but the repeat is another sentence: steer_mismatch', { scenario: { steerLate: [[DEEP]] } }, 'steer_mismatch', (r) => assert.equal(r.row.steerContexts, 2)],
+  ['(6b) R-ST1: A given two contexts: steer_mismatch (A and C take none)', { arm: 'A', scenario: { steer: [[SHALLOW], [SHALLOW]] } }, 'steer_mismatch', (r) => assert.equal(r.row.steerContexts, 2)],
+  ['(6b) R-ST1: C given two contexts: steer_mismatch', { arm: 'C', scenario: { steer: [[SHALLOW], [SHALLOW]] } }, 'steer_mismatch', (r) => assert.equal(r.row.steerContexts, 2)],
+  ['(6b) R-ST1: A given the sentence only late: steer_mismatch', { arm: 'A', scenario: { steerLate: [[SHALLOW]] } }, 'steer_mismatch', (r) => assert.equal(r.row.steerContexts, 1)],
   ['(6b) steer_mismatch: B got the DEEP sentence (what an ULTRATHINK prompt would earn)', { scenario: { steer: [[DEEP]] } }, 'steer_mismatch', (r) => assert.equal(r.row.steerContexts, 1)],
   ['(6b) steer_mismatch: B got the sentence with a trailing space (equality is exact)', { scenario: { steer: [[`${SHALLOW} `]] } }, 'steer_mismatch'],
   ['(6b) steer_mismatch: B got the sentence in front of another line', { scenario: { steer: [['Note.', SHALLOW]] } }, 'steer_mismatch'],
