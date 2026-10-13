@@ -338,10 +338,12 @@ export function graftScript(manifest, { work = '/work', hidden = '/hidden' } = {
 //      declaration is fine: graftScript puts it back.
 //   3. A changed `mod STEM` line in the module file above a hidden src/**/STEM.rs (the parent's `mod tests;` of a hidden tests.rs), unless STEM
 //      is itself a graftLines module (rule 2 governs it).
-// A diff that cannot be taken is a failure. A tree without the declaration (the V1 work root) passes. The diff is left in <results>/shadow.diff.
+// A diff that cannot be taken is a failure. A tree without the declaration (the V1 work root) passes. The agent's whole diff is left in
+// <results>/shadow.diff, and the diff of each parent module file in <results>/shadow.parent.diff (the last one taken).
 export function shadowGuardScript(manifest, { work = '/work', results = '/results' } = {}) {
   const base = sq(manifest.baseCommit);
   const diffFile = sq(`${results}/shadow.diff`);
+  const parentDiff = sq(`${results}/shadow.parent.diff`);
   const fail = (reason) => `shadow_fail ${sq(reason)}`;
   const graftLines = manifest.def.hidden.graftLines ?? [];
   const graftModules = new Set(graftLines.map(({ line }) => moduleOf(line)));
@@ -372,7 +374,7 @@ export function shadowGuardScript(manifest, { work = '/work', results = '/result
     const dir = rel.includes('/') ? rel.slice(0, rel.lastIndexOf('/')) : '.';
     const changed = sq(`^[-+].*mod[[:space:]]+${m[1]}([^A-Za-z0-9_]|$)`);
     for (const parent of [`${dir}/mod.rs`, `${dir}/lib.rs`, `${dir}/main.rs`, `${dir}.rs`]) {
-      lines.push(`if [ -f ${sq(parent)} ]; then ${GIT} diff --cached -U0 ${base} -- ${sq(parent)} > ${diffFile} || ${fail('git diff failed')}; if grep -Eq ${changed} ${diffFile}; then ${fail(`a changed mod ${m[1]} line in ${parent}`)}; fi; fi`);
+      lines.push(`if [ -f ${sq(parent)} ]; then ${GIT} diff --cached -U0 ${base} -- ${sq(parent)} > ${parentDiff} || ${fail('git diff failed')}; if grep -Eq ${changed} ${parentDiff}; then ${fail(`a changed mod ${m[1]} line in ${parent}`)}; fi; fi`);
     }
   }
   return `${lines.join('\n')}\n`;
