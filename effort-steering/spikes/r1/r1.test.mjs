@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { t } from '../../core/testkit.mjs';
-import { parseFlags, parseRows } from './r1.mjs';
+import { parseFlags, parseRows, usableTasks } from './r1.mjs';
 
 t('parseRows reads JSON lines, skips blank lines, and keeps non-row objects for the analysis to ignore', () => {
   const text = '{"taskId":"a","arm":"C"}\n\n{"type":"stopped","reason":"signal"}\n';
@@ -20,4 +20,22 @@ t('parseFlags refuses an unknown flag, a missing value and a bad number', () => 
   assert.throws(() => parseFlags(['--zzz', '1'], { a: 'string' }), /unknown argument/);
   assert.throws(() => parseFlags(['--a'], { a: 'string' }), /needs a value/);
   assert.throws(() => parseFlags(['--n', '0'], { n: 'number' }), /above 0/);
+});
+
+t('usableTasks keeps the tasks that are ok in the report and ok in the review', () => {
+  const report = [{ id: 'a', ok: true }, { id: 'b', ok: true }, { id: 'c', ok: false }, { id: 'd', ok: true }];
+  const review = { a: 'ok', b: 'leak', c: 'ok', d: 'unfair' };
+  assert.deepEqual(usableTasks(report, review), ['a']);
+});
+
+t('usableTasks refuses a task with no review verdict', () => {
+  assert.throws(() => usableTasks([{ id: 'a', ok: true }], {}), /no review verdict for a/);
+});
+
+t('usableTasks refuses a verdict outside ok, leak, unfair', () => {
+  assert.throws(() => usableTasks([{ id: 'a', ok: true }], { a: 'maybe' }), /verdict/);
+});
+
+t('usableTasks does not need a verdict for a task the report already dropped', () => {
+  assert.deepEqual(usableTasks([{ id: 'a', ok: false }], {}), []);
 });
