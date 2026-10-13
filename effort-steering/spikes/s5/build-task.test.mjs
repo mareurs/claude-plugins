@@ -1188,6 +1188,25 @@ t('treeAtFix: taskMdHash null and a P tree that still holds TASK.md or CLAUDE.md
   assert.throws(() => treeAtFix({ ...b.manifest, taskMdHash: null }, b.treeDir, fixTreeDir()), /CLAUDE\.md/);
 });
 
+t('treeAtFix: taskMdHash null and a P tree with a dangling TASK.md symlink is refused', () => {
+  const b = build(src);
+  const manifest = withoutTaskFiles(b);
+  symlinkSync('/nonexistent/TASK.md', join(b.treeDir, 'TASK.md'));
+  const dst = fixTreeDir();
+  assert.throws(() => treeAtFix(manifest, b.treeDir, dst), /taskMdHash/);
+  assert.ok(!existsSync(dst));
+});
+
+t('treeAtFix: only an explicit null means no task files; a missing or empty taskMdHash keeps the old rule', () => {
+  const b = build(src);
+  const { taskMdHash, ...missing } = b.manifest;
+  for (const manifest of [missing, { ...b.manifest, taskMdHash: '' }]) {
+    const dst = fixTreeDir();
+    treeAtFix(manifest, b.treeDir, dst);
+    assert.ok(existsSync(join(dst, 'TASK.md')) && existsSync(join(dst, 'CLAUDE.md')), 'both files come from the P tree');
+  }
+});
+
 t('treeAtFix: a manifest that has a taskMdHash still needs both files in the P tree', () => {
   const b = build(src);
   withoutTaskFiles(b);

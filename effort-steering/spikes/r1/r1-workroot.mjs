@@ -25,7 +25,8 @@ function readPrompt(file) {
   return bytes;
 }
 
-// The recipe of build-task.mjs's commitTree (one fresh repository, one commit `task <id>`, the S5 identity and author date), after
+// The recipe of build-task.mjs's commitTree (one fresh repository, one commit `task <id>`, the S5 identity and author date; without its
+// --show-toplevel and tracked-equals-on-disk checks, which the byte copy of an already checked tree makes redundant), after
 // TASK.md and CLAUDE.md are removed at the tree root. The old .git goes first: its one commit holds both files, and an agent could
 // read them with `git show`. Returns the new commit's id, which the grader diffs against (manifest.baseCommit).
 const IDENTITY = ['-c', 'user.name=s5', '-c', 'user.email=s5@localhost'];
@@ -51,7 +52,8 @@ function recommitWithoutTaskFiles(tree, id) {
 export function buildR1Root({ srcRoot, dstRoot, tasks, copy = reflinkCopy }) {
   const src = resolve(srcRoot);
   const dst = resolve(dstRoot);
-  // Every input is checked before the first copy, so a refusal leaves no half-built root.
+  // The inputs (source hashes, prompt bytes) are checked before the first copy. A failure AFTER a copy (git, or the hidden-hash check)
+  // leaves tasks/<id>/ half built, without gate.json and with the old manifest: remove it by hand before a rerun.
   const planned = tasks.map(({ id, promptFile }) => {
     const manifestFile = join(src, 'tasks', id, 'manifest.json');
     const manifest = JSON.parse(readFileSync(manifestFile, 'utf8'));
