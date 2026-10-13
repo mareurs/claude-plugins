@@ -16,7 +16,7 @@
     "graftLines": [
       {
         "file": "src/tools/read_file_one_handle_tests.rs",
-        "line": "#[path = \"read_file_one_handle_more_tests.rs\"] mod more;"
+        "line": "#[path = \"read_file_one_handle_more_tests.rs\"] mod s5h_more;"
       }
     ]
   },
@@ -37,13 +37,13 @@
       "--",
       "--exact",
       "tools::read_file::one_handle_tests::a_handle_first_read_under_a_future_mtime_still_follows_an_edit",
-      "tools::read_file::one_handle_tests::more::a_path_reread_under_a_later_mtime_then_an_edit_is_followed_by_the_handle",
-      "tools::read_file::one_handle_tests::more::a_handle_refreshed_under_a_later_mtime_then_an_edit_follows_the_edit"
+      "tools::read_file::one_handle_tests::s5h_more::a_path_reread_under_a_later_mtime_then_an_edit_is_followed_by_the_handle",
+      "tools::read_file::one_handle_tests::s5h_more::a_handle_refreshed_under_a_later_mtime_then_an_edit_follows_the_edit"
     ],
     "names": [
       "tools::read_file::one_handle_tests::a_handle_first_read_under_a_future_mtime_still_follows_an_edit",
-      "tools::read_file::one_handle_tests::more::a_path_reread_under_a_later_mtime_then_an_edit_is_followed_by_the_handle",
-      "tools::read_file::one_handle_tests::more::a_handle_refreshed_under_a_later_mtime_then_an_edit_follows_the_edit"
+      "tools::read_file::one_handle_tests::s5h_more::a_path_reread_under_a_later_mtime_then_an_edit_is_followed_by_the_handle",
+      "tools::read_file::one_handle_tests::s5h_more::a_handle_refreshed_under_a_later_mtime_then_an_edit_follows_the_edit"
     ]
   },
   "p2p": {
@@ -104,7 +104,10 @@
     "cargo test"
   ],
   "scrub": {
-    "removePaths": ["docs/superpowers/specs/2026-10-04-effort-steering-design.md", "docs/superpowers/plans/2026-10-04-effort-steering-core-and-spikes.md"],
+    "removePaths": [
+      "docs/superpowers/specs/2026-10-04-effort-steering-design.md",
+      "docs/superpowers/plans/2026-10-04-effort-steering-core-and-spikes.md"
+    ],
     "terms": [
       "capped_stamp",
       "future mtime",

@@ -14,7 +14,7 @@
     "graftLines": [
       {
         "file": "src/librarian/adapter.rs",
-        "line": "#[cfg(test)] #[path = \"adapter_progress_tests.rs\"] mod adapter_progress_tests;"
+        "line": "#[cfg(test)] #[path = \"adapter_progress_tests.rs\"] mod s5h_adapter_progress;"
       }
     ]
   },
@@ -37,11 +37,11 @@
       "--no-fail-fast",
       "--lib",
       "--",
-      "adapter_progress_tests::"
+      "s5h_adapter_progress::"
     ],
     "names": [
-      "librarian::adapter::adapter_progress_tests::a_reembedding_reindex_keeps_a_caller_that_asked_for_updates_informed",
-      "librarian::adapter::adapter_progress_tests::the_updates_also_advance_through_items_whose_embedding_fails"
+      "librarian::adapter::s5h_adapter_progress::a_reembedding_reindex_keeps_a_caller_that_asked_for_updates_informed",
+      "librarian::adapter::s5h_adapter_progress::the_updates_also_advance_through_items_whose_embedding_fails"
     ]
   },
   "p2p": {

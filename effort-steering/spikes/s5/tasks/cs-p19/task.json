@@ -14,7 +14,7 @@
     "graftLines": [
       {
         "file": "src/server.rs",
-        "line": "#[cfg(test)] #[path = \"server_pin_scope_checks.rs\"] mod pin_scope_checks;"
+        "line": "#[cfg(test)] #[path = \"server_pin_scope_checks.rs\"] mod s5h_pin_scope;"
       }
     ]
   },
@@ -36,12 +36,12 @@
       "--no-fail-fast",
       "--",
       "--exact",
-      "server::pin_scope_checks::an_unpinned_write_is_refused_again_after_a_pinned_write_to_the_same_read_only_project",
-      "server::pin_scope_checks::an_unpinned_write_is_refused_again_after_a_pinned_approve_write_under_read_only"
+      "server::s5h_pin_scope::an_unpinned_write_is_refused_again_after_a_pinned_write_to_the_same_read_only_project",
+      "server::s5h_pin_scope::an_unpinned_write_is_refused_again_after_a_pinned_approve_write_under_read_only"
     ],
     "names": [
-      "server::pin_scope_checks::an_unpinned_write_is_refused_again_after_a_pinned_write_to_the_same_read_only_project",
-      "server::pin_scope_checks::an_unpinned_write_is_refused_again_after_a_pinned_approve_write_under_read_only"
+      "server::s5h_pin_scope::an_unpinned_write_is_refused_again_after_a_pinned_write_to_the_same_read_only_project",
+      "server::s5h_pin_scope::an_unpinned_write_is_refused_again_after_a_pinned_approve_write_under_read_only"
     ]
   },
   "p2p": {
@@ -53,19 +53,14 @@
       "--lib",
       "--no-fail-fast",
       "--",
-      "--exact",
-      "server::pin_scope_checks::a_write_naming_a_never_activated_project_goes_through",
-      "server::pin_scope_checks::a_write_naming_a_project_that_disables_writes_in_its_config_is_refused",
-      "server::pin_scope_checks::a_read_only_activation_refuses_an_unpinned_write",
-      "server::pin_scope_checks::a_read_only_activation_can_be_lifted_by_an_unpinned_activate",
-      "server::pin_scope_checks::a_read_only_activation_does_not_block_activating_a_different_root"
+      "server::"
     ],
     "names": [
-      "server::pin_scope_checks::a_write_naming_a_never_activated_project_goes_through",
-      "server::pin_scope_checks::a_write_naming_a_project_that_disables_writes_in_its_config_is_refused",
-      "server::pin_scope_checks::a_read_only_activation_refuses_an_unpinned_write",
-      "server::pin_scope_checks::a_read_only_activation_can_be_lifted_by_an_unpinned_activate",
-      "server::pin_scope_checks::a_read_only_activation_does_not_block_activating_a_different_root"
+      "server::s5h_pin_scope::a_write_naming_a_never_activated_project_goes_through",
+      "server::s5h_pin_scope::a_write_naming_a_project_that_disables_writes_in_its_config_is_refused",
+      "server::s5h_pin_scope::a_read_only_activation_refuses_an_unpinned_write",
+      "server::s5h_pin_scope::a_read_only_activation_can_be_lifted_by_an_unpinned_activate",
+      "server::s5h_pin_scope::a_read_only_activation_does_not_block_activating_a_different_root"
     ]
   },
   "testPatterns": [

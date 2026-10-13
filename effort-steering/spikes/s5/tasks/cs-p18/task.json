@@ -15,11 +15,11 @@
     "graftLines": [
       {
         "file": "src/tools/edit_file/mod.rs",
-        "line": "#[cfg(test)] mod extra_tests;"
+        "line": "#[cfg(test)] #[path = \"extra_tests.rs\"] mod s5h_edit_guard;"
       },
       {
         "file": "src/librarian/tools/update_entry.rs",
-        "line": "#[cfg(test)] mod extra_tests;"
+        "line": "#[cfg(test)] #[path = \"update_entry/extra_tests.rs\"] mod s5h_update_entry;"
       }
     ]
   },
@@ -39,16 +39,16 @@
       "--no-fail-fast",
       "--",
       "--exact",
-      "tools::edit_file::extra_tests::a_replace_all_edit_of_a_managed_markdown_file_is_refused",
-      "tools::edit_file::extra_tests::a_batch_of_replace_all_edits_of_a_managed_markdown_file_is_refused",
-      "librarian::tools::update_entry::extra_tests::a_patch_sent_as_entry_is_refused_and_changes_nothing",
-      "librarian::tools::update_entry::extra_tests::an_empty_patch_is_refused_and_changes_nothing"
+      "tools::edit_file::s5h_edit_guard::a_replace_all_edit_of_a_managed_markdown_file_is_refused",
+      "tools::edit_file::s5h_edit_guard::a_batch_of_replace_all_edits_of_a_managed_markdown_file_is_refused",
+      "librarian::tools::update_entry::s5h_update_entry::a_patch_sent_as_entry_is_refused_and_changes_nothing",
+      "librarian::tools::update_entry::s5h_update_entry::an_empty_patch_is_refused_and_changes_nothing"
     ],
     "names": [
-      "tools::edit_file::extra_tests::a_replace_all_edit_of_a_managed_markdown_file_is_refused",
-      "tools::edit_file::extra_tests::a_batch_of_replace_all_edits_of_a_managed_markdown_file_is_refused",
-      "librarian::tools::update_entry::extra_tests::a_patch_sent_as_entry_is_refused_and_changes_nothing",
-      "librarian::tools::update_entry::extra_tests::an_empty_patch_is_refused_and_changes_nothing"
+      "tools::edit_file::s5h_edit_guard::a_replace_all_edit_of_a_managed_markdown_file_is_refused",
+      "tools::edit_file::s5h_edit_guard::a_batch_of_replace_all_edits_of_a_managed_markdown_file_is_refused",
+      "librarian::tools::update_entry::s5h_update_entry::a_patch_sent_as_entry_is_refused_and_changes_nothing",
+      "librarian::tools::update_entry::s5h_update_entry::an_empty_patch_is_refused_and_changes_nothing"
     ]
   },
   "p2p": {
@@ -64,9 +64,9 @@
       "librarian::catalog::augmentation::tests::update_entry_"
     ],
     "names": [
-      "tools::edit_file::extra_tests::prepend_and_append_to_a_managed_markdown_file_are_refused",
-      "tools::edit_file::extra_tests::an_unmanaged_markdown_file_is_edited_by_every_form",
-      "librarian::tools::update_entry::extra_tests::a_patch_sent_as_fields_is_still_applied",
+      "tools::edit_file::s5h_edit_guard::prepend_and_append_to_a_managed_markdown_file_are_refused",
+      "tools::edit_file::s5h_edit_guard::an_unmanaged_markdown_file_is_edited_by_every_form",
+      "librarian::tools::update_entry::s5h_update_entry::a_patch_sent_as_fields_is_still_applied",
       "tools::edit_file::tests::edit_file_replace_all_on_markdown_passes_through",
       "tools::edit_file::tests::edit_file_single_replace_on_markdown_still_gated",
       "tools::edit_file::tests::edit_file_batch_all_replace_all_on_markdown_passes_through",

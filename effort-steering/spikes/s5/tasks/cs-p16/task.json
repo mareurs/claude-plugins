@@ -16,7 +16,7 @@
     "graftLines": [
       {
         "file": "src/tools/markdown/tests.rs",
-        "line": "#[path = \"part_handle_tests.rs\"] mod part_handles;"
+        "line": "#[path = \"part_handle_tests.rs\"] mod s5h_part_handles;"
       }
     ]
   },
@@ -39,19 +39,19 @@
       "--",
       "--exact",
       "tools::markdown::tests::heading_excerpt_handle_stays_the_section_after_the_file_changes",
-      "tools::markdown::tests::part_handles::a_line_range_of_a_text_file_keeps_its_content_after_the_file_changes",
-      "tools::markdown::tests::part_handles::reading_a_line_range_handle_after_the_file_changed_serves_the_range",
-      "tools::markdown::tests::part_handles::several_sections_of_a_markdown_file_keep_their_content_after_the_file_changes",
-      "tools::markdown::tests::part_handles::a_line_range_of_a_markdown_file_keeps_its_content_after_the_file_changes",
-      "tools::markdown::tests::part_handles::editing_lines_inside_the_range_does_not_change_the_handle"
+      "tools::markdown::tests::s5h_part_handles::a_line_range_of_a_text_file_keeps_its_content_after_the_file_changes",
+      "tools::markdown::tests::s5h_part_handles::reading_a_line_range_handle_after_the_file_changed_serves_the_range",
+      "tools::markdown::tests::s5h_part_handles::several_sections_of_a_markdown_file_keep_their_content_after_the_file_changes",
+      "tools::markdown::tests::s5h_part_handles::a_line_range_of_a_markdown_file_keeps_its_content_after_the_file_changes",
+      "tools::markdown::tests::s5h_part_handles::editing_lines_inside_the_range_does_not_change_the_handle"
     ],
     "names": [
       "tools::markdown::tests::heading_excerpt_handle_stays_the_section_after_the_file_changes",
-      "tools::markdown::tests::part_handles::a_line_range_of_a_text_file_keeps_its_content_after_the_file_changes",
-      "tools::markdown::tests::part_handles::reading_a_line_range_handle_after_the_file_changed_serves_the_range",
-      "tools::markdown::tests::part_handles::several_sections_of_a_markdown_file_keep_their_content_after_the_file_changes",
-      "tools::markdown::tests::part_handles::a_line_range_of_a_markdown_file_keeps_its_content_after_the_file_changes",
-      "tools::markdown::tests::part_handles::editing_lines_inside_the_range_does_not_change_the_handle"
+      "tools::markdown::tests::s5h_part_handles::a_line_range_of_a_text_file_keeps_its_content_after_the_file_changes",
+      "tools::markdown::tests::s5h_part_handles::reading_a_line_range_handle_after_the_file_changed_serves_the_range",
+      "tools::markdown::tests::s5h_part_handles::several_sections_of_a_markdown_file_keep_their_content_after_the_file_changes",
+      "tools::markdown::tests::s5h_part_handles::a_line_range_of_a_markdown_file_keeps_its_content_after_the_file_changes",
+      "tools::markdown::tests::s5h_part_handles::editing_lines_inside_the_range_does_not_change_the_handle"
     ]
   },
   "p2p": {
@@ -68,8 +68,8 @@
       "tools::read_file::tests::"
     ],
     "names": [
-      "tools::markdown::tests::part_handles::a_whole_text_file_handle_still_follows_the_file",
-      "tools::markdown::tests::part_handles::a_whole_markdown_file_handle_still_follows_the_file",
+      "tools::markdown::tests::s5h_part_handles::a_whole_text_file_handle_still_follows_the_file",
+      "tools::markdown::tests::s5h_part_handles::a_whole_markdown_file_handle_still_follows_the_file",
       "tools::markdown::tests::read_markdown_empty_file_returns_small_tier",
       "tools::markdown::tests::read_markdown_large_no_headings_hint_pivots_to_line_ranges",
       "tools::markdown::tests::read_markdown_accepts_file_path_alias",

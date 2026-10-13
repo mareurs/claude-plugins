@@ -16,7 +16,7 @@
     "graftLines": [
       {
         "file": "tests/integration.rs",
-        "line": "#[path = \"run_command_secrets/values.rs\"] mod secrets;"
+        "line": "#[path = \"run_command_secrets/values.rs\"] mod s5h_secrets;"
       }
     ]
   },
@@ -38,24 +38,24 @@
       "integration",
       "--",
       "--exact",
-      "secrets::a_token_printed_on_stdout_is_replaced_and_the_lines_around_it_are_kept",
-      "secrets::a_token_printed_on_stderr_is_replaced",
-      "secrets::a_token_in_output_large_enough_to_buffer_cannot_be_read_back_from_the_buffer",
-      "secrets::a_token_the_filter_hides_cannot_be_read_back_from_the_unfiltered_capture",
-      "secrets::a_background_job_that_printed_a_token_does_not_return_it_when_read_back",
-      "secrets::every_listed_format_is_replaced_wherever_it_stands_in_a_line",
-      "secrets::a_value_longer_than_the_minimum_is_replaced_whole",
-      "secrets::an_environment_dump_that_holds_a_token_does_not_return_it"
+      "s5h_secrets::a_token_printed_on_stdout_is_replaced_and_the_lines_around_it_are_kept",
+      "s5h_secrets::a_token_printed_on_stderr_is_replaced",
+      "s5h_secrets::a_token_in_output_large_enough_to_buffer_cannot_be_read_back_from_the_buffer",
+      "s5h_secrets::a_token_the_filter_hides_cannot_be_read_back_from_the_unfiltered_capture",
+      "s5h_secrets::a_background_job_that_printed_a_token_does_not_return_it_when_read_back",
+      "s5h_secrets::every_listed_format_is_replaced_wherever_it_stands_in_a_line",
+      "s5h_secrets::a_value_longer_than_the_minimum_is_replaced_whole",
+      "s5h_secrets::an_environment_dump_that_holds_a_token_does_not_return_it"
     ],
     "names": [
-      "secrets::a_token_printed_on_stdout_is_replaced_and_the_lines_around_it_are_kept",
-      "secrets::a_token_printed_on_stderr_is_replaced",
-      "secrets::a_token_in_output_large_enough_to_buffer_cannot_be_read_back_from_the_buffer",
-      "secrets::a_token_the_filter_hides_cannot_be_read_back_from_the_unfiltered_capture",
-      "secrets::a_background_job_that_printed_a_token_does_not_return_it_when_read_back",
-      "secrets::every_listed_format_is_replaced_wherever_it_stands_in_a_line",
-      "secrets::a_value_longer_than_the_minimum_is_replaced_whole",
-      "secrets::an_environment_dump_that_holds_a_token_does_not_return_it"
+      "s5h_secrets::a_token_printed_on_stdout_is_replaced_and_the_lines_around_it_are_kept",
+      "s5h_secrets::a_token_printed_on_stderr_is_replaced",
+      "s5h_secrets::a_token_in_output_large_enough_to_buffer_cannot_be_read_back_from_the_buffer",
+      "s5h_secrets::a_token_the_filter_hides_cannot_be_read_back_from_the_unfiltered_capture",
+      "s5h_secrets::a_background_job_that_printed_a_token_does_not_return_it_when_read_back",
+      "s5h_secrets::every_listed_format_is_replaced_wherever_it_stands_in_a_line",
+      "s5h_secrets::a_value_longer_than_the_minimum_is_replaced_whole",
+      "s5h_secrets::an_environment_dump_that_holds_a_token_does_not_return_it"
     ]
   },
   "p2p": {
@@ -68,16 +68,16 @@
       "integration",
       "--",
       "integration_",
-      "secrets::unaltered_"
+      "unaltered_"
     ],
     "names": [
       "integration_run_command_buffer_round_trip",
       "integration_read_file_large_then_query_via_buffer",
       "integration_speed_bump_two_round_trips",
-      "secrets::unaltered_plain_output_and_its_unfiltered_capture",
-      "secrets::unaltered_text_that_is_not_one_of_the_formats",
-      "secrets::unaltered_exit_code_and_the_lines_around_a_value",
-      "secrets::unaltered_background_output_without_a_value"
+      "s5h_secrets::unaltered_plain_output_and_its_unfiltered_capture",
+      "s5h_secrets::unaltered_text_that_is_not_one_of_the_formats",
+      "s5h_secrets::unaltered_exit_code_and_the_lines_around_a_value",
+      "s5h_secrets::unaltered_background_output_without_a_value"
     ]
   },
   "testPatterns": [
