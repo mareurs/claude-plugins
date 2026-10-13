@@ -5,13 +5,16 @@
 //   buildR1Root({ srcRoot, dstRoot, tasks: [{ id, promptFile }], copy = reflinkCopy })
 //     -> { tasks: [{ id, treeHash, hiddenHash, promptHash }] }
 //
-// tree/ and hidden/ are not touched, so treeHash, hiddenHash and gate.json stay valid: the source manifest's values are
-// re-checked against the bytes (hashBuiltTask) before the copy is trusted. The agent's tree, TASK.md and CLAUDE.md are unchanged.
+// tree/ loses TASK.md and CLAUDE.md at its root (spec decision 4) and becomes a fresh one-commit repository, so treeHash and
+// manifest.baseCommit change and the copy has no gate.json: run `s5.mjs gate` on every task of the new root. hidden/ is untouched
+// (hiddenHash is checked). The source manifest's tree and hidden hashes are re-checked against the bytes (hashBuiltTask) first.
+// manifest.taskMdHash becomes null: there is no TASK.md any more.
 
 import { createHash } from 'node:crypto';
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { hashBuiltTask, reflinkCopy } from '../s5/build-task.mjs';
+import { git } from '../s5/git.mjs';
 
 const sha256 = (bytes) => createHash('sha256').update(bytes).digest('hex');
 
@@ -20,6 +23,29 @@ function readPrompt(file) {
   if (bytes.includes(0)) throw new Error(`buildR1Root: ${file} holds a NUL byte; the prompt reaches the CLI as one process argument`);
   if (!Buffer.from(bytes.toString('utf8'), 'utf8').equals(bytes)) throw new Error(`buildR1Root: ${file} is not valid UTF-8`);
   return bytes;
+}
+
+// The recipe of build-task.mjs's commitTree (one fresh repository, one commit `task <id>`, the S5 identity and author date), after
+// TASK.md and CLAUDE.md are removed at the tree root. The old .git goes first: its one commit holds both files, and an agent could
+// read them with `git show`. Returns the new commit's id, which the grader diffs against (manifest.baseCommit).
+const IDENTITY = ['-c', 'user.name=s5', '-c', 'user.email=s5@localhost'];
+const AUTHOR_DATE = '2026-01-01T00:00:00Z';
+const TASK_FILES = ['TASK.md', 'CLAUDE.md'];
+
+function recommitWithoutTaskFiles(tree, id) {
+  const run = (...args) => {
+    const r = git(tree, args);
+    if (r.status !== 0) throw new Error(`buildR1Root: git ${args.join(' ')} failed in ${tree} (exit ${r.status}): ${r.stderr.toString().trim()}`);
+    return r.stdout.toString().trim();
+  };
+  for (const name of TASK_FILES) rmSync(join(tree, name), { recursive: true, force: true });
+  rmSync(join(tree, '.git'), { recursive: true, force: true });
+  run('init', '-q', '-b', 'main', '--template=', tree);
+  // --force: a file the repo tracks but its .gitignore matches is part of the tree all the same (as in buildTask).
+  run('add', '--all', '--force');
+  run(...IDENTITY, 'commit', '-q', '--no-verify', '--no-gpg-sign', '-m', `task ${id}`, `--date=${AUTHOR_DATE}`);
+  if (run('rev-list', '--count', '--all') !== '1') throw new Error(`buildR1Root: the tree of ${id} has more than one commit`);
+  return run('rev-parse', 'HEAD');
 }
 
 export function buildR1Root({ srcRoot, dstRoot, tasks, copy = reflinkCopy }) {
@@ -42,14 +68,17 @@ export function buildR1Root({ srcRoot, dstRoot, tasks, copy = reflinkCopy }) {
   for (const { id, manifest, bytes } of planned) {
     const dir = join(dst, 'tasks', id);
     copy(join(src, 'tasks', id), dir);
+    // Decision 4 (spec): the agent finds no TASK.md and no CLAUDE.md. The tree is a new one-commit repository, and the old
+    // commit (which holds both files) is gone. The tree changed, so the source's gate.json no longer describes it: the task is
+    // gated again (`s5.mjs gate`), which writes a new one.
+    const baseCommit = recommitWithoutTaskFiles(join(dir, 'tree'), id);
+    rmSync(join(dir, 'gate.json'), { force: true });
     writeFileSync(join(dir, 'prompt.txt'), bytes);
     const promptHash = sha256(bytes);
-    writeFileSync(join(dir, 'manifest.json'), `${JSON.stringify({ ...manifest, promptHash }, null, 2)}\n`);
-    const check = hashBuiltTask(dir);
-    if (check.treeHash !== manifest.treeHash || check.hiddenHash !== manifest.hiddenHash || check.promptHash !== promptHash) {
-      throw new Error(`buildR1Root: ${id}: the copy does not hash to its manifest`);
-    }
-    built.push({ id, treeHash: manifest.treeHash, hiddenHash: manifest.hiddenHash, promptHash });
+    const { treeHash, hiddenHash } = hashBuiltTask(dir);
+    if (hiddenHash !== manifest.hiddenHash) throw new Error(`buildR1Root: ${id}: the copy's hidden tests do not hash to the manifest`);
+    writeFileSync(join(dir, 'manifest.json'), `${JSON.stringify({ ...manifest, baseCommit, treeHash, promptHash, taskMdHash: null }, null, 2)}\n`);
+    built.push({ id, treeHash, hiddenHash, promptHash });
   }
   return { tasks: built };
 }
