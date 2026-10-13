@@ -111,3 +111,48 @@ t('a timeout is a counted failure, a non-final retry row is not counted', () => 
   const retry = [...rowsFor('C', allPass), row(ids[0], 'C', 1, false, { final: false, runId: 'retry' })];
   assert.equal(analyzeR1(retry, prereg()).verdict, 'support');
 });
+
+t('a stage 1 that stopped early is incomplete, never support', () => {
+  const r = analyzeR1(rowsFor('C', allPass, ids.slice(0, 2)), prereg());
+  assert.equal(r.verdict, 'incomplete');
+  assert.equal(r.reason, 'unmeasured_tasks');
+  assert.equal(r.excluded.length, 14);
+});
+
+t('stage 1: a lost run does not hide an observed C failure of the same task', () => {
+  const rows = [
+    ...rowsFor('C', allPass, ids.slice(1)),
+    row(ids[0], 'C', 0, false),
+    row(ids[0], 'C', 1, false, { infra: 'infra_exhausted' }),
+  ];
+  const r = analyzeR1(rows, prereg());
+  assert.deepEqual(r.failedC, [ids[0]]);
+  assert.equal(r.verdict, 'needs_stage_2');
+  assert.deepEqual(r.excluded, [{ taskId: ids[0], reason: 'infra_exhausted_in_C' }]);
+});
+
+t('stage 2: a lost task with no observed C failure is dropped and the bound still decides', () => {
+  const lost = row(ids[0], 'A', 1, false, { infra: 'infra_exhausted' });
+  const rows = [...rowsFor('C', allPass), ...rowsFor('A', allPass, ids.slice(1)), row(ids[0], 'A', 0, true), lost];
+  const r = analyzeR1(rows, prereg());
+  assert.equal(r.included.length, 15);
+  assert.equal(r.verdict, 'support');
+});
+
+t('stage 2: a lost task that has an observed C failure makes the result incomplete', () => {
+  const lost = row(ids[0], 'A', 1, false, { infra: 'infra_exhausted' });
+  const rows = [
+    ...rowsFor('C', (id) => (id === ids[0] ? 1 : 2)),
+    ...rowsFor('A', allPass, ids.slice(1)),
+    row(ids[0], 'A', 0, true),
+    lost,
+  ];
+  const r = analyzeR1(rows, prereg());
+  assert.deepEqual(r.failedC, [ids[0]]);
+  assert.equal(r.verdict, 'incomplete');
+});
+
+t('stage 2: a task with C rows but no A rows at all makes the result incomplete', () => {
+  const rows = [...rowsFor('C', allPass), ...rowsFor('A', allPass, ids.slice(1))];
+  assert.equal(analyzeR1(rows, prereg()).verdict, 'incomplete');
+});

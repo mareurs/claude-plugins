@@ -7,7 +7,10 @@
 //   analyzeR1(rows, prereg) -> { margin, alpha, method, stage, included, excluded, failedC, d, verdict, reason }
 //
 // stage 2 iff any counted row is arm A. Rows of arm B and of tasks the prereg does not list are ignored.
-//   stage 1: every included task has C === 1 -> 'support'; else 'needs_stage_2' (failedC lists the tasks with C < 1).
+//   stage 1: a C failure anywhere (failedC, also in a task dropped for a lost run) -> 'needs_stage_2'; else every included task
+//            has C === 1 -> 'support'.
+//   'incomplete' (reason unmeasured_tasks): a registered task has no counted run, or a dropped task has an observed C failure.
+//            Checked after the 'insufficient' rule and, in stage 1, after the C-failure rule; never 'support' on a partial run.
 //   stage 2: d_i = C_i - A_i; d = pairedLowerBound(diffs, bound); 'support' iff d.lower > -margin (strict), else 'not_shown_safe'.
 //   fewer than 2 included tasks -> 'insufficient' (no bound is computed).
 // "support" means no harm found on these tasks, never "proven safe" (spec: "Limits the report must state").
@@ -56,11 +59,21 @@ export function analyzeR1(rows, prereg) {
     included.push({ taskId, C: share(c), A: stage === 2 ? share(a) : null, nC: c.length, nA: a.length });
   }
 
-  const failedC = included.filter((x) => x.C < 1).map((x) => x.taskId);
+  // A C failure counts wherever it was observed, also in a task that was dropped for a lost run: a drop must not hide it.
+  const failedC = registered.filter((taskId) => {
+    const c = counted(taskId, 'C');
+    return c.length > 0 && c.some((r) => !isPass(r));
+  });
   const report = { margin: prereg.margin, alpha: prereg.alpha, method: prereg.bound.method, stage, included, excluded, failedC, d: null, verdict: null, reason: null };
 
   if (included.length < 2) return { ...report, verdict: 'insufficient', reason: 'too_few_tasks' };
-  if (stage === 1) return { ...report, verdict: failedC.length === 0 ? 'support' : 'needs_stage_2' };
+  if (stage === 1 && failedC.length > 0) return { ...report, verdict: 'needs_stage_2' };
+  // Unmeasured: a task with no counted run (a batch that stopped early, or an arm that never ran), or a dropped task with an
+  // observed C failure. The claim would rest on fewer tasks than were registered, so it is not made.
+  if (excluded.some((e) => e.reason.startsWith('no_counted_run') || failedC.includes(e.taskId))) {
+    return { ...report, verdict: 'incomplete', reason: 'unmeasured_tasks' };
+  }
+  if (stage === 1) return { ...report, verdict: 'support' };
   const diffs = included.map((x) => x.C - x.A);
   const d = pairedLowerBound(diffs, { method: prereg.bound.method, resamples: prereg.bound.resamples, seed: prereg.bound.seed, alpha: prereg.alpha });
   return { ...report, d, verdict: d.lower > -prereg.margin ? 'support' : 'not_shown_safe' };

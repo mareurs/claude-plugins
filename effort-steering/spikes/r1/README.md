@@ -32,18 +32,18 @@ All commands run from the repository root. `R1="node effort-steering/spikes/r1/r
    ```
 6. **Stage 2** (operator gate, only when stage 1 says `needs_stage_2`: about 32 runs, about $34). The same with `--stage 2`, `stage2.json`, `rows-stage2.jsonl` and `--stop-at-cost 60`; then `analyze` with both `--rows` files.
 
-Verdicts: `support` (no harm found on these tasks), `needs_stage_2`, `not_shown_safe` (stage 2: the one-sided 95 percent lower bound of the mean `C − A` is not above −0.15; the comparison is strict), `insufficient` (fewer than 2 included tasks). A task with a lost run is dropped from both arms.
+Verdicts: `support` (no harm found on these tasks), `needs_stage_2`, `not_shown_safe` (stage 2: the one-sided 95 percent lower bound of the mean `C − A` is not above −0.15; the comparison is strict), `insufficient` (fewer than 2 included tasks), `incomplete` (a registered task is unmeasured). A task with a lost run is dropped from both arms, but a C failure observed in it still counts (`failedC`).
 
 ## Planted-truth simulation (2026-10-13)
 
-`$R1 sim`: 16 tasks, 2 runs, arm A passes with probability 31/32, 2000 trials, seed 20261013, the whole two-stage decision. Support rate:
+`$R1 sim --n-tasks 12`: 12 tasks (the registered count), 2 runs, arm A passes with probability 31/32, 2000 trials, seed 20261013, the whole two-stage decision. Support rate:
 
 | bound | true Δ = 0 (power) | true Δ = −0.15 (false support) |
 |---|---|---|
-| `paired-t` | 0.9285 | 0.0745 |
-| `percentile` (4000 resamples) | 0.9285 | 0.0755 |
+| `paired-t` | 0.844 | 0.0685 |
+| `percentile` (4000 resamples) | 0.857 | 0.0855 |
 
-Both bounds give a false-support rate above the nominal 0.05 at N = 16 with discrete pass rates. The registration uses `paired-t` (the S5 default, ruling R76). Read a `support` verdict with that in mind.
+Both bounds give a false-support rate above the nominal 0.05 at N = 12 with discrete pass rates. The registration uses `paired-t` (the S5 default, ruling R76; the plan's rule: both exceed 0.06). Read a `support` verdict with that in mind. (For N = 16 the numbers were 0.9285 / 0.0745 and 0.9285 / 0.0755; the registered design has 12 tasks, after the stage 0 checks.)
 
 ## Limits the report must state
 
@@ -51,3 +51,6 @@ Both bounds give a false-support rate above the nominal 0.05 at N = 16 with disc
 - The lab prompt is a trace plus one line. Real prompts vary.
 - A tie at the ceiling cannot separate the arms. "C passes everything" means "no harm found on these tasks", never "proven safe".
 - Run-to-run spread is real; two runs per task are few.
+- **The agent keeps the full requirements.** The trace replaces only `prompt.txt`. The agent's tree still holds `TASK.md` (the full requirements) and a `CLAUDE.md` that points at it, as in S5. So a pass says nothing about a prompt that is a trace alone, and the lab is easier than the spec's "what a user would paste". Removing both files changes `treeHash` and needs a re-gate of every task: the operator decides before stage 1.
+- The trace names a hidden test file that the agent cannot see; in 5 tasks (cs-p10, p16, p18, p19, p20) its path carries an `s5h_` module that no `mod` line of the tree declares (Opus leak review, 2026-10-13).
+- Verdicts: `incomplete` (reason `unmeasured_tasks`) means a registered task has no counted run, or a dropped task has an observed C failure; no claim is made.
