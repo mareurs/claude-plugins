@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { t } from '../../core/testkit.mjs';
 import { extractFeatures } from '../../core/features.mjs';
-import { buildTracePrompt, checkTracePrompt, traceFromTestOutput } from './r1-prompt.mjs';
+import { TEST_COMMAND_SENTENCE, buildTracePrompt, checkTracePrompt, traceFromTestOutput } from './r1-prompt.mjs';
 
 const OUTPUT = [
   'running 1 test',
@@ -29,8 +29,10 @@ const OUTPUT = [
 
 const def = (over = {}) => ({ scrub: { terms: ['secret_term'] }, f2p: { names: ['x::y'] }, ...over });
 const CLEAN = buildTracePrompt(traceFromTestOutput(OUTPUT));
-// A prompt with frames and no f2p name in it, for the cases that must stay clean.
-const FRAMES = "thread 't' panicked at src/lib.rs:3:1:\nboom\nstack backtrace:\n   0: f\n             at ./src/lib.rs:34:9\n";
+// A prompt with frames and no f2p name in it, for the cases that must stay clean. It ends with the operator's build-hint sentence.
+const withSentence = (p) => `${p}\n${TEST_COMMAND_SENTENCE}\n`;
+const FRAMES_ONLY = "thread 't' panicked at src/lib.rs:3:1:\nboom\nstack backtrace:\n   0: f\n             at ./src/lib.rs:34:9\n";
+const FRAMES = withSentence(FRAMES_ONLY);
 
 t('traceFromTestOutput keeps the failure block and its frames, and drops the framing', () => {
   const trace = traceFromTestOutput(OUTPUT);
@@ -60,13 +62,30 @@ t('traceFromTestOutput honours maxChars', () => {
   assert.ok(trace.length <= 120);
 });
 
-t('buildTracePrompt ends with the default instruction and one newline', () => {
+t('buildTracePrompt ends with the default instruction, the build-hint sentence and one newline', () => {
   const p = buildTracePrompt('trace text\n\n');
-  assert.equal(p, 'trace text\n\nThis is the failing test output. Please fix it.\n');
+  assert.equal(p, `trace text\n\nThis is the failing test output. Please fix it. ${TEST_COMMAND_SENTENCE}\n`);
 });
 
-t('buildTracePrompt takes another instruction', () => {
-  assert.equal(buildTracePrompt('trace', 'Fix it.'), 'trace\n\nFix it.\n');
+t('buildTracePrompt takes another instruction and keeps the sentence', () => {
+  assert.equal(buildTracePrompt('trace', 'Fix it.'), `trace\n\nFix it. ${TEST_COMMAND_SENTENCE}\n`);
+});
+
+t('TEST_COMMAND_SENTENCE is the operator\'s wording: one sentence, nothing about the bug', () => {
+  assert.equal(TEST_COMMAND_SENTENCE, 'Run the tests with `cargo test`; if the build fails to link ONNX Runtime, add `--no-default-features`.');
+});
+
+t('every built prompt holds the sentence once and ends with it, whatever the trace', () => {
+  for (const trace of ['a', FRAMES_ONLY, 'x\n'.repeat(50)]) {
+    const p = buildTracePrompt(trace);
+    assert.equal(p.split(TEST_COMMAND_SENTENCE).length - 1, 1);
+    assert.ok(p.endsWith(` ${TEST_COMMAND_SENTENCE}\n`));
+  }
+});
+
+t('the suffix after the trace is the same text for every task', () => {
+  const suffix = (p) => p.slice(p.lastIndexOf('\n\n'));
+  assert.equal(suffix(buildTracePrompt('trace one')), suffix(buildTracePrompt('another\ntrace')));
 });
 
 t('a clean prompt with frames is ok', () => {
@@ -74,7 +93,7 @@ t('a clean prompt with frames is ok', () => {
 });
 
 t('a panic-only prompt has no trace and is not shallow', () => {
-  const r = checkTracePrompt("thread 't' panicked at src/lib.rs:3:1:\nboom\n", def());
+  const r = checkTracePrompt(withSentence("thread 't' panicked at src/lib.rs:3:1:\nboom\n"), def());
   assert.equal(r.ok, false);
   assert.deepEqual(r.reasons, ['no_stack_trace', 'not_shallow']);
 });
@@ -102,4 +121,24 @@ t('an f2p name in the prompt is information, not a reason', () => {
 
 t('a def without scrub terms is fine', () => {
   assert.equal(checkTracePrompt(FRAMES, { f2p: { names: [] } }).ok, true);
+});
+
+t('a prompt without the build-hint sentence is refused', () => {
+  const r = checkTracePrompt(FRAMES_ONLY, def());
+  assert.equal(r.ok, false);
+  assert.deepEqual(r.reasons, ['test_command_sentence']);
+});
+
+t('a prompt that holds the sentence twice is refused', () => {
+  const r = checkTracePrompt(`${FRAMES}${TEST_COMMAND_SENTENCE}\n`, def());
+  assert.deepEqual(r.reasons, ['test_command_sentence']);
+});
+
+t('a trace that merely mentions the flag does not count as the sentence', () => {
+  const r = checkTracePrompt(`${FRAMES_ONLY}run it with --no-default-features\n`, def());
+  assert.deepEqual(r.reasons, ['test_command_sentence']);
+});
+
+t('a prompt built by buildTracePrompt from a real-shaped trace passes the checks', () => {
+  assert.equal(checkTracePrompt(CLEAN, def()).ok, true);
 });

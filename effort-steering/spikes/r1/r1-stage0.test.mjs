@@ -3,7 +3,8 @@ import { createHash } from 'node:crypto';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { captureTrace, runStage0 } from './r1-stage0.mjs';
+import { captureTrace, runStage0, savedOutputCapture } from './r1-stage0.mjs';
+import { TEST_COMMAND_SENTENCE } from './r1-prompt.mjs';
 
 let failed = false;
 async function t(name, fn) {
@@ -97,7 +98,8 @@ try {
     assert.equal(report[0].f2pNamesShown, true);
     assert.equal(readFileSync(join(out, 'stage0', 'cs-a.f2p.out'), 'utf8'), OUTPUT);
     const prompt = readFileSync(join(out, 'stage0', 'cs-a.prompt.txt'), 'utf8');
-    assert.ok(prompt.endsWith('Please fix it.\n'));
+    assert.ok(prompt.endsWith(` ${TEST_COMMAND_SENTENCE}\n`));
+    assert.ok(prompt.includes('Please fix it.'));
     assert.equal(report[0].promptSha256, createHash('sha256').update(prompt).digest('hex'));
     assert.equal(report[0].chars, prompt.length);
     assert.deepEqual(JSON.parse(readFileSync(join(out, 'stage0', 'report.json'), 'utf8')), report);
@@ -111,6 +113,25 @@ try {
     const { report, usable } = await runStage0({ workRoot: work, outRoot: join(scratch, 'out2'), taskIds: ['cs-c'], capture: async () => 'running 0 tests\n', log: () => {} });
     assert.equal(usable, 0);
     assert.deepEqual(report[0].reasons, ['no_failure_block']);
+  });
+  await t('savedOutputCapture reads the saved f2p.out of the task, and runStage0 rebuilds the prompt from it without a new capture', async () => {
+    const work = join(scratch, 'work3');
+    const out = join(scratch, 'out3');
+    mkdirSync(join(work, 'tasks', 'cs-s'), { recursive: true });
+    mkdirSync(join(out, 'stage0'), { recursive: true });
+    writeFileSync(join(work, 'tasks', 'cs-s', 'manifest.json'), JSON.stringify({ id: 'cs-s', repo: 'codescout', def: { testRunner: 'cargo', f2p: { command: ['cargo', 'test'], names: ['x::y'] } } }));
+    writeFileSync(join(out, 'stage0', 'cs-s.f2p.out'), OUTPUT);
+    writeFileSync(join(out, 'stage0', 'cs-s.prompt.txt'), 'the old prompt without the sentence\n');
+    const { report, usable } = await runStage0({ workRoot: work, outRoot: out, taskIds: ['cs-s'], capture: savedOutputCapture(out), log: () => {} });
+    assert.equal(usable, 1);
+    assert.equal(readFileSync(join(out, 'stage0', 'cs-s.f2p.out'), 'utf8'), OUTPUT, 'the saved output is kept as it was');
+    const prompt = readFileSync(join(out, 'stage0', 'cs-s.prompt.txt'), 'utf8');
+    assert.ok(prompt.endsWith(` ${TEST_COMMAND_SENTENCE}\n`));
+    assert.equal(report[0].promptSha256, createHash('sha256').update(prompt).digest('hex'));
+  });
+
+  await t('savedOutputCapture names the missing file', async () => {
+    await assert.rejects(savedOutputCapture(join(scratch, 'nowhere'))({ id: 'cs-z' }), /cs-z\.f2p\.out/);
   });
 } finally {
   rmSync(scratch, { recursive: true, force: true });

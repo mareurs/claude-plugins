@@ -39,3 +39,10 @@ t('usableTasks refuses a verdict outside ok, leak, unfair', () => {
 t('usableTasks does not need a verdict for a task the report already dropped', () => {
   assert.deepEqual(usableTasks([{ id: 'a', ok: false }], {}), []);
 });
+
+t('parseFlags reads a switch without a value, first, in the middle or last', () => {
+  const spec = { a: 'string', 'reuse-output': 'switch' };
+  assert.deepEqual(parseFlags(['--reuse-output', '--a', 'x'], spec), { 'reuse-output': true, a: 'x' });
+  assert.deepEqual(parseFlags(['--a', 'x', '--reuse-output'], spec), { a: 'x', 'reuse-output': true });
+  assert.deepEqual(parseFlags(['--a', 'x'], spec), { a: 'x' });
+});
