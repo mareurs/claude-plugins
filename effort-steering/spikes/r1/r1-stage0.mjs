@@ -40,6 +40,20 @@ export async function captureTrace(manifest, { workRoot, image, cpus, memoryGb, 
   }
 }
 
+// A capture that does not call Docker: it returns the f2p.out that an earlier stage 0 saved in <outRoot>/stage0. runStage0 then rebuilds
+// the prompt, the report and the hashes from the same raw output (the build-hint sentence changed the prompt, not the trace).
+export function savedOutputCapture(outRoot) {
+  return async (manifest) => {
+    const file = join(outRoot, 'stage0', `${manifest.id}.f2p.out`);
+    try {
+      return readFileSync(file, 'utf8');
+    } catch (err) {
+      throw new Error(`savedOutputCapture: cannot read ${file}: ${err.message}`);
+    }
+  };
+}
+
+
 export async function runStage0({ workRoot, outRoot, taskIds, image, cpus, memoryGb, capture = captureTrace, log = console.log }) {
   const dir = join(outRoot, 'stage0');
   mkdirSync(dir, { recursive: true });

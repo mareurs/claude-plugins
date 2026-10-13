@@ -7,6 +7,11 @@ import { R1_RULES } from './r1-rule.mjs';
 
 const DEFAULT_MAX_CHARS = 8000;
 const DEFAULT_INSTRUCTION = 'This is the failing test output. Please fix it.';
+// The operator's build hint (R1 decision, 2026-10-13, option A): one sentence, identical on every task and in every arm, with nothing
+// about the bug, the files or the cause. The conditional form is true for all 12 tasks: cs-p18 and cs-p20 are graded with the default
+// features (their hidden tests live under the `librarian` feature), and the 8 tasks whose default features hold local-embed fail to
+// link ONNX Runtime once in the offline container and then take the flag.
+export const TEST_COMMAND_SENTENCE = 'Run the tests with `cargo test`; if the build fails to link ONNX Runtime, add `--no-default-features`.';
 const FAILURE_HEADER = /^---- .+ stdout ----$/;
 const FAILURES_LIST = 'failures:';
 // No regex in R1, so the wall-clock probe has nothing to measure (same reasoning as hook-copy.mjs's HOOK_RULE_SET).
@@ -34,7 +39,7 @@ export function traceFromTestOutput(output, { maxChars = DEFAULT_MAX_CHARS } = {
 }
 
 export function buildTracePrompt(trace, instruction = DEFAULT_INSTRUCTION) {
-  return `${trace.trimEnd()}\n\n${instruction}\n`;
+  return `${trace.trimEnd()}\n\n${instruction} ${TEST_COMMAND_SENTENCE}\n`;
 }
 
 // Reasons, each at most once, in a fixed order. `f2pNamesShown` is information for the leak review, never a reason.
@@ -44,6 +49,7 @@ export function checkTracePrompt(prompt, def) {
   if (!features.hasStackTrace) reasons.push('no_stack_trace');
   if (!features.explicitDeep && decide({ prompt }, R1_COMPILED).level !== 'shallow') reasons.push('not_shallow');
   if (features.explicitDeep) reasons.push('ultrathink');
+  if (prompt.split(TEST_COMMAND_SENTENCE).length - 1 !== 1) reasons.push('test_command_sentence');
   const lower = prompt.toLowerCase();
   for (const term of def?.scrub?.terms ?? []) {
     if (lower.includes(term.toLowerCase())) reasons.push(`leak:${term}`);

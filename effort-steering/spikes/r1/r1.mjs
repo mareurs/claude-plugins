@@ -9,7 +9,7 @@ import { loadS5Config } from '../s5/prereg.mjs';
 import { analyzeR1 } from './r1-analyze.mjs';
 import { makeR1Prereg, serializePrereg, stageConfig, verifyRegistered } from './r1-prereg.mjs';
 import { simulateR1 } from './r1-sim.mjs';
-import { MIN_USABLE, runStage0 } from './r1-stage0.mjs';
+import { MIN_USABLE, runStage0, savedOutputCapture } from './r1-stage0.mjs';
 import { buildR1Root } from './r1-workroot.mjs';
 
 const DEFAULT_WORK_ROOT = join(homedir(), 'work', 'claude', 's5-work');
@@ -18,12 +18,17 @@ const DEFAULT_OUT_ROOT = join(homedir(), 'work', 'claude', 's5-work-r1');
 class UsageError extends Error {}
 
 // parseFlags(argv, { name: 'string' | 'number' | 'list' }) -> { name: value }. `list` flags repeat.
+// parseFlags(argv, { name: 'string' | 'number' | 'list' | 'switch' }) -> { name: value }. `list` flags repeat; a `switch` takes no value.
 export function parseFlags(argv, spec) {
   const out = {};
   for (let i = 0; i < argv.length; i += 1) {
     const arg = argv[i];
     const name = arg.startsWith('--') ? arg.slice(2) : null;
     if (name === null || !Object.hasOwn(spec, name)) throw new UsageError(`unknown argument ${JSON.stringify(arg)}`);
+    if (spec[name] === 'switch') {
+      out[name] = true;
+      continue;
+    }
     const value = argv[i + 1];
     if (value === undefined || value.startsWith('--')) throw new UsageError(`--${name} needs a value`);
     i += 1;
@@ -50,11 +55,15 @@ export function builtTaskIds(workRoot) {
 }
 
 async function cmdStage0(argv, io) {
-  const f = parseFlags(argv, { 'work-root': 'string', 'out-root': 'string', tasks: 'string', cpus: 'number', 'memory-gb': 'number' });
+  const f = parseFlags(argv, { 'work-root': 'string', 'out-root': 'string', tasks: 'string', cpus: 'number', 'memory-gb': 'number', 'reuse-output': 'switch' });
   const workRoot = resolve(f['work-root'] ?? DEFAULT_WORK_ROOT);
   const outRoot = resolve(f['out-root'] ?? DEFAULT_OUT_ROOT);
   const taskIds = f.tasks === undefined ? builtTaskIds(workRoot) : f.tasks.split(',');
-  const { report, usable } = await runStage0({ workRoot, outRoot, taskIds, cpus: f.cpus ?? 4, memoryGb: f['memory-gb'] ?? 8, log: io.log });
+  const { report, usable } = await runStage0({
+    workRoot, outRoot, taskIds, cpus: f.cpus ?? 4, memoryGb: f['memory-gb'] ?? 8, log: io.log,
+    // --reuse-output: no Docker, no new capture; the prompts are rebuilt from the f2p.out files an earlier run saved.
+    ...(f['reuse-output'] ? { capture: savedOutputCapture(outRoot) } : {}),
+  });
   io.log(`usable ${usable} of ${report.length}`);
   if (f.tasks === undefined && usable < MIN_USABLE) {
     io.err(`r1: stage0: ${usable} usable of ${report.length} is below the floor of ${MIN_USABLE}; stop and ask the operator (spec: Stages and decision rule)`);
