@@ -291,6 +291,9 @@ t('V2 repair: a bad adjustment is refused before anything is copied', () => {
     [{ 'cs-h': { hiddenFromP: ['src/a.rs'] } }, /not a hidden file/],
     [{ 'cs-h': { hiddenFromP: ['src/s5h_t.rs'] } }, /not a hidden file|no P file/],
     [{ 'cs-zz': { hiddenFromP: ['tests/p2p.rs'] } }, /unknown task/],
+    [{ 'cs-h': { hiddenFromp: ['tests/p2p.rs'] } }, /unknown key/],
+    [{ 'cs-h': { hiddenFromP: 'tests/p2p.rs' } }, /must be an array/],
+    [{ 'cs-h': {} }, /empty adjustment/],
   ];
   for (const [adjust, why] of cases) {
     const a = adjusted(adjust);

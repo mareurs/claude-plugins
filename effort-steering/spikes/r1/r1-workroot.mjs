@@ -46,6 +46,11 @@ function hiddenPathsOf(manifest) {
 
 function checkAdjustment(taskDir, manifest, adjustment, id) {
   if (adjustment === undefined) return;
+  for (const key of Object.keys(adjustment)) {
+    if (!['hiddenFromP', 'dropText'].includes(key)) throw new Error(`buildR1Root: ${id}: unknown key ${JSON.stringify(key)} in the adjustment (a misspelled key would silently undo a repair)`);
+    if (!Array.isArray(adjustment[key])) throw new Error(`buildR1Root: ${id}: ${key} must be an array`);
+  }
+  if (Object.keys(adjustment).length === 0) throw new Error(`buildR1Root: ${id}: an empty adjustment names nothing`);
   const hidden = hiddenPathsOf(manifest);
   const isHidden = (rel) => typeof rel === 'string' && hidden.includes(rel);
   for (const rel of adjustment.hiddenFromP ?? []) {
