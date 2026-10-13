@@ -17,7 +17,6 @@ const DEFAULT_OUT_ROOT = join(homedir(), 'work', 'claude', 's5-work-r1');
 
 class UsageError extends Error {}
 
-// parseFlags(argv, { name: 'string' | 'number' | 'list' }) -> { name: value }. `list` flags repeat.
 // parseFlags(argv, { name: 'string' | 'number' | 'list' | 'switch' }) -> { name: value }. `list` flags repeat; a `switch` takes no value.
 export function parseFlags(argv, spec) {
   const out = {};
