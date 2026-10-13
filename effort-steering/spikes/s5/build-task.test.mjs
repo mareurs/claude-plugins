@@ -1113,6 +1113,26 @@ t('treeAtFix replaces a TASK.md or CLAUDE.md the fix tracks as a symlink out of 
   assert.equal(readFileSync(join(outside, 'claude-target.txt'), 'utf8'), CLAUDE_TARGET);
 });
 
+// R1 (spec decision 4): the agent's tree holds no TASK.md and no CLAUDE.md. The manifest says so with taskMdHash null, and the fix
+// tree is then shaped the same way: neither file, whatever the fix commit tracks under those names.
+const withoutTaskFiles = (b) => {
+  rmSync(join(b.treeDir, 'TASK.md'));
+  rmSync(join(b.treeDir, 'CLAUDE.md'));
+  return { ...b.manifest, taskMdHash: null };
+};
+
+t('treeAtFix with taskMdHash null removes a TASK.md or CLAUDE.md the fix tracks as a symlink, and writes nothing through it', () => {
+  const outside = makeOutside();
+  const link = makeLinkSrc(outside, 'a.txt');
+  const b = build(link, { edit: forLinks });
+  const manifest = withoutTaskFiles(b);
+  const dst = fixTreeDir();
+  treeAtFix(manifest, b.treeDir, dst);
+  for (const name of ['TASK.md', 'CLAUDE.md']) assert.equal(lstatSync(join(dst, name), { throwIfNoEntry: false }), undefined, `${name} is not in the fix tree`);
+  assert.equal(readFileSync(join(outside, 'task-target.txt'), 'utf8'), TASK_TARGET);
+  assert.equal(readFileSync(join(outside, 'claude-target.txt'), 'utf8'), CLAUDE_TARGET);
+});
+
 t('treeAtFix refuses an existing destination and leaves it alone; on a failure it removes what it made', () => {
   const b = build(src);
   const taken = tmp('s5-fixtree-taken-');
@@ -1146,6 +1166,32 @@ t('treeAtFix refuses an existing destination and leaves it alone; on a failure i
   assert.ok(!existsSync(dst2), 'what the failed call made is removed');
   assert.equal(readFileSync(join(outside, 'secret.txt'), 'utf8'), 'LEAKMARK\n', 'and nothing behind the link was deleted');
   assert.throws(() => treeAtFix({ ...lb.manifest, def: { ...lb.manifest.def, scrub: { ...lb.manifest.def.scrub, removePaths: ['../x'] } } }, lb.treeDir, fixTreeDir()), /relative path/);
+});
+
+t('treeAtFix: a manifest with taskMdHash null gives a fix tree with no TASK.md and no CLAUDE.md, one commit', () => {
+  const b = build(src);
+  const manifest = withoutTaskFiles(b);
+  const dst = fixTreeDir();
+  const commit = treeAtFix(manifest, b.treeDir, dst);
+  const files = walk(dst, { skipGit: true });
+  assert.ok(!files.includes('TASK.md') && !files.includes('CLAUDE.md'), `no task files, got ${JSON.stringify(files)}`);
+  assert.deepEqual(files, [...EXPECT_TREE.filter((f) => f !== 'TASK.md' && f !== 'CLAUDE.md'), 'tests/data.bin', 'tests/new_hidden.rs'].sort(byteCmp));
+  assert.match(commit, /^[0-9a-f]{40}$/);
+});
+
+t('treeAtFix: taskMdHash null and a P tree that still holds TASK.md or CLAUDE.md is refused, and the fix tree is not left behind', () => {
+  const b = build(src);
+  const dst = fixTreeDir();
+  assert.throws(() => treeAtFix({ ...b.manifest, taskMdHash: null }, b.treeDir, dst), /taskMdHash/);
+  assert.ok(!existsSync(dst));
+  rmSync(join(b.treeDir, 'TASK.md'));
+  assert.throws(() => treeAtFix({ ...b.manifest, taskMdHash: null }, b.treeDir, fixTreeDir()), /CLAUDE\.md/);
+});
+
+t('treeAtFix: a manifest that has a taskMdHash still needs both files in the P tree', () => {
+  const b = build(src);
+  withoutTaskFiles(b);
+  assert.throws(() => treeAtFix(b.manifest, b.treeDir, fixTreeDir()), /regular file/);
 });
 
 t('treeAtFix refuses a fix that is not a child of the parent, a bad manifest and a src tree that is not a directory', () => {

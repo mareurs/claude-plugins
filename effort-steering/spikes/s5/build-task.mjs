@@ -406,6 +406,8 @@ function freshenChanged(tree, base) {
 // byte from srcTreeDir (the built P tree), the files the fix changed stamped as new as the call (see
 // freshenChanged), then the same one-commit git init. NO scrub scan: the fix tree is never
 // shown to a model and holds the fix by design. `dstDir` must not exist (its parent must); a failure removes it.
+// R1 (spec decision 4): a manifest with taskMdHash null means the agent's tree has no TASK.md and no CLAUDE.md. The P tree must hold
+// neither, and the fix tree gets neither (whatever the fix commit tracks under those names).
 export function treeAtFix(manifest, srcTreeDir, dstDir) {
   const def = manifest?.def;
   if (def === null || typeof def !== 'object') throw new TypeError('treeAtFix: the manifest has no def');
@@ -417,8 +419,16 @@ export function treeAtFix(manifest, srcTreeDir, dstDir) {
     if (typeof dir !== 'string' || dir === '') throw new TypeError(`treeAtFix: ${what} must be a non-empty string`);
   }
   requireFirstParent(def);
-  const claudeMd = readRootFile(srcTreeDir, 'CLAUDE.md');
-  const taskMd = readRootFile(srcTreeDir, 'TASK.md');
+  // R1 (spec decision 4): taskMdHash null says the agent's tree holds no TASK.md and no CLAUDE.md. The P tree must then hold neither,
+  // and the fix tree is shaped the same way. Every other manifest keeps the rule: both files, byte for byte.
+  const noTaskFiles = manifest.taskMdHash === null;
+  for (const name of ['TASK.md', 'CLAUDE.md']) {
+    if (noTaskFiles && lstatOrNull(join(srcTreeDir, name)) !== null) {
+      throw new Error(`treeAtFix: the manifest says the task has no TASK.md and no CLAUDE.md (taskMdHash is null), but ${join(srcTreeDir, name)} exists`);
+    }
+  }
+  const claudeMd = noTaskFiles ? null : readRootFile(srcTreeDir, 'CLAUDE.md');
+  const taskMd = noTaskFiles ? null : readRootFile(srcTreeDir, 'TASK.md');
   try {
     mkdirSync(dstDir); // atomic: a directory that exists is never merged into and never removed
   } catch (err) {
@@ -429,7 +439,8 @@ export function treeAtFix(manifest, srcTreeDir, dstDir) {
     extractTree(def, def.fix, dstDir);
     for (const rel of def.scrub.removePaths) removeListed(dstDir, rel, { allowMissing: true });
     removeNamed(dstDir);
-    writeTaskFiles(dstDir, claudeMd, taskMd);
+    if (noTaskFiles) for (const name of ['TASK.md', 'CLAUDE.md']) rmSync(join(dstDir, name), { recursive: true, force: true });
+    else writeTaskFiles(dstDir, claudeMd, taskMd);
     freshenChanged(dstDir, srcTreeDir);
     return commitTree(dstDir, def.id);
   } catch (err) {
