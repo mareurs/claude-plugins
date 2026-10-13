@@ -121,7 +121,7 @@ const passShare = (rs) => rs.filter(isPass).length / rs.length;
 // string runId is a run of its own. A final infra_exhausted row loses the run unless a counted row (final, infra null) has the same runId:
 // --retry-exhausted re-opens an exhausted run and its recovery is a later counted row, while the exhausted row stays in the file as evidence.
 // So the test is on the rows of a run, not on their order. A retry (final false) and every other infrastructure value lose nothing.
-function lostRunArms(rows) {
+export function lostRunArms(rows) {
   const runs = new Map(); // runId (or a fresh object for a row without one) -> { taskId, arm, exhausted, counted }
   for (const r of Array.isArray(rows) ? rows : []) {
     if (!isObject(r) || typeof r.taskId !== 'string') continue;

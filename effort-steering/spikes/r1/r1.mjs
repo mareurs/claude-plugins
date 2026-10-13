@@ -5,6 +5,8 @@ import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { loadS5Config } from '../s5/prereg.mjs';
+import { analyzeR1 } from './r1-analyze.mjs';
 import { MIN_USABLE, runStage0 } from './r1-stage0.mjs';
 
 const DEFAULT_WORK_ROOT = join(homedir(), 'work', 'claude', 's5-work');
@@ -58,7 +60,30 @@ async function cmdStage0(argv, io) {
   return 0;
 }
 
-const COMMANDS = { stage0: cmdStage0 };
+// JSON lines of a rows file. An object that is not a run row (a `stopped` line) stays: analyzeR1 ignores it.
+export function parseRows(text, file) {
+  const rows = [];
+  text.split('\n').forEach((line, i) => {
+    if (line.trim() === '') return;
+    try {
+      rows.push(JSON.parse(line));
+    } catch {
+      throw new Error(`${file} line ${i + 1} is not JSON`);
+    }
+  });
+  return rows;
+}
+
+async function cmdAnalyze(argv, io) {
+  const f = parseFlags(argv, { prereg: 'string', rows: 'list' });
+  if (f.prereg === undefined || f.rows === undefined) throw new UsageError('analyze needs --prereg <file> and at least one --rows <file>');
+  const prereg = loadS5Config(resolve(f.prereg), { mode: 'calibrate' });
+  const rows = f.rows.flatMap((file) => parseRows(readFileSync(resolve(file), 'utf8'), file));
+  io.log(JSON.stringify(analyzeR1(rows, prereg), null, 2));
+  return 0;
+}
+
+const COMMANDS = { stage0: cmdStage0, analyze: cmdAnalyze };
 
 export async function main(argv, io = { log: console.log, err: console.error }) {
   const [name, ...rest] = argv;
