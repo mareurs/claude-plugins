@@ -332,14 +332,19 @@ export function graftScript(manifest, { work = '/work', hidden = '/hidden' } = {
 // `git add -A`) and exits 1 with its reason on stdout when the change could make a hidden test name come from the agent's own code. The
 // step's status is the graft status, so a hit is `graft: failed`: no build, no pass.
 //   1. An added `#[path = ..]` attribute, an added `[[test]]` table or an added `autotests =` key: they re-point where a module or a test binary lives.
+//      Not counted: the diff of the hidden paths (the graft overwrites them), and a line that is exactly a graftLines `#[path = ".."]` attribute or
+//      exactly a graftLines line (what `cargo fmt` makes of a graftLines line: its attributes on their own lines).
 //   2. A graftLines module declared in its target file in any form but the graftLines line itself or its rustfmt form (attributes on their own
 //      lines): a bare `mod NAME;`, an inline `mod NAME { .. }`, a `pub mod`, a second declaration. graftScript keeps any declaration that
 //      looks declared, so the hidden file was then copied but not compiled, and the agent's own tests carried the same names. A MISSING
 //      declaration is fine: graftScript puts it back.
 //   3. A changed `mod STEM` line in the module file above a hidden src/**/STEM.rs (the parent's `mod tests;` of a hidden tests.rs), unless STEM
 //      is itself a graftLines module (rule 2 governs it).
-// A diff that cannot be taken is a failure. A tree without the declaration (the V1 work root) passes. The agent's whole diff is left in
-// <results>/shadow.diff, and the diff of each parent module file in <results>/shadow.parent.diff (the last one taken).
+// A diff that cannot be taken is a failure. A tree without the declaration (the V1 work root) passes. The agent's whole diff (hidden paths left out) is
+// left in <results>/shadow.diff, and the diff of each parent module file in <results>/shadow.parent.diff (the last one taken).
+// NOT closed: an agent that tampers with how git shows its change (a `binary` or `-diff` attribute, `diff.external` or a textconv in .git/config,
+// skip-worktree or assume-unchanged, `git replace` of the base commit) or that hides the original declaration with `#[cfg(any())]`. A sentinel test
+// appended to each hidden file at grade time and expected in the output would close those. This guard is for the plain forms.
 export function shadowGuardScript(manifest, { work = '/work', results = '/results' } = {}) {
   const base = sq(manifest.baseCommit);
   const diffFile = sq(`${results}/shadow.diff`);
@@ -347,11 +352,24 @@ export function shadowGuardScript(manifest, { work = '/work', results = '/result
   const fail = (reason) => `shadow_fail ${sq(reason)}`;
   const graftLines = manifest.def.hidden.graftLines ?? [];
   const graftModules = new Set(graftLines.map(({ line }) => moduleOf(line)));
+  const escapeEre = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  // What rustfmt (`cargo fmt`, which an agent's tree tells it to run) makes of a graftLines line is its attributes on their own lines, so
+  // the diff then ADDS a line `#[path = "x.rs"]`. That exact line, and the graftLines line itself moved, are not an agent's own #[path].
+  const exempt = [];
+  for (const { line } of graftLines) {
+    const attr = /#\[\s*path\s*=\s*"([^"]*)"\s*\]/.exec(line);
+    if (attr !== null) exempt.push(String.raw`^\+[[:space:]]*#\[[[:space:]]*path[[:space:]]*=[[:space:]]*"${escapeEre(attr[1])}"[[:space:]]*\][[:space:]]*$`);
+    exempt.push(`^\\+[[:space:]]*${line.trim().split(/\s+/).map(escapeEre).join('[[:space:]]+')}[[:space:]]*$`);
+  }
+  // The agent's diff WITHOUT the hidden paths: the graft overwrites them, so whatever the agent did to them (a rustfmt reflow included) is moot.
+  const notHidden = hiddenPaths(manifest.def).map((p) => sq(`:(exclude)${p}`)).join(' ');
+  const pathAdded = `grep -E ${sq(String.raw`^\+.*#\[[[:space:]]*path[[:space:]]*=`)} ${diffFile}`;
+  const pathCheck = exempt.length === 0 ? `${pathAdded} > /dev/null` : `${pathAdded} | grep -Ev ${exempt.map((e) => `-e ${sq(e)}`).join(' ')} > /dev/null`;
   const lines = [
     `cd ${sq(work)} || exit 1`,
     `shadow_fail() { printf 'shadow guard: %s\\n' "$1"; exit 1; }`,
-    `${GIT} diff --cached -U0 ${base} > ${diffFile} || ${fail('git diff failed')}`,
-    `if grep -Eq ${sq(String.raw`^\+.*#\[[[:space:]]*path[[:space:]]*=`)} ${diffFile}; then ${fail('the agent added a #[path] attribute')}; fi`,
+    `${GIT} diff --cached -U0 ${base} -- . ${notHidden} > ${diffFile} || ${fail('git diff failed')}`,
+    `if ${pathCheck}; then ${fail('the agent added a #[path] attribute')}; fi`,
     `if grep -Eq ${sq(String.raw`^\+[[:space:]]*(\[\[[[:space:]]*test[[:space:]]*\]\]|autotests[[:space:]]*=)`)} ${diffFile}; then ${fail('the agent added a [[test]] table or an autotests key')}; fi`,
   ];
   for (const { file, line } of graftLines) {
