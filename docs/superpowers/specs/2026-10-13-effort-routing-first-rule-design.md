@@ -27,6 +27,7 @@ The effort-steering plugin has a rules engine (`effort-steering/core/decide.mjs`
 2. The experiment produces one candidate rule with a ship or no-ship answer, not a dataset.
 3. R1 and the trace-style lab prompt (sections "The rule" and "The lab prompt") are approved. The stages and decision rule (section "Stages and decision rule") are approved. The false-shallow budget stays at 0.15.
 4. (After the implementation check, 2026-10-13.) The agent's tree holds **no** `TASK.md` and **no** `CLAUDE.md` pointer to it. The prompt is the trace plus one line and nothing else. The first implementation kept both files, which made the lab easier than S5 and would have made a `support` verdict misleading. Removing them changes every `treeHash`, so each task is re-gated and the registration is redone before stage 1.
+5. (After stage 1 under V1, 2026-10-13.) Switch to **V2**: the agent's tree holds the hidden test files, and the grader restores the original copy when it grades. **Fact:** under V1, 10 of 24 arm-C runs made no edit and asked for the test file or its branch, because the trace names a hidden test that is absent from the tree. C passed 4 of 24; the real cost was $1.9045; `analyze` said `needs_stage_2`. A stage 2 had been started and was stopped by the operator after about 4 minutes. The stop was a hard stop (two signals reached the runner), so the one run in flight, cs-p01.A.1, was lost without a row: `rows-stage2.jsonl` was never created, and its cost was not recorded (upper estimate about $1 by the S5 per-run figure). **Meaning:** the V1 result is a validity defect of the lab (the open problem of section "The lab prompt"), not a statement about `low`. **Disclosure:** V2 is chosen after the V1 outcome was seen. The reason is the validity defect (the agent cannot run the test), not the direction of C's score. `rows-stage1.jsonl` stays as a pilot and does not enter the verdict. The V2 analysis uses new rows in new files, a new registration, and a separate operator gate for stage 1 (run count, model, cost). **Design:** `buildR1Root` runs the grader's own `graftScript` on the fresh copy before the one-commit recommit, so the visible tree is byte-identical to what the grader would graft onto an untouched tree, and the grader's graft on it changes nothing. The grader already removes each hidden path and copies the original in, and appends a `graftLines` line only when the module is not declared; so an agent edit of a hidden file has no effect on the grade. The prompt stays the trace plus the build sentence. Still no `TASK.md` and no `CLAUDE.md`. **Gates:** an Opus review of the now-visible test files for fix leaks (symbols, new function names, comments that name the cause) and of the grader path for a bypass (the cs-p19 shadow defect); the floor of 12 tasks stays, and a leak review that leaves fewer stops the work for the operator.
 
 ## The rule
 
@@ -46,7 +47,7 @@ Per task, the prompt is what a user would paste: the failing test's output at th
 - **V2:** put the failing test in the agent's tree and let the grader restore the hidden copy. Faithful, but it changes the grader (the cs-p19 shadow defect shows the risk) and needs an Opus review.
 - **V3:** use a trace from product code. This exists only for crash-type bugs and leaves fewer tasks.
 
-Stage 0 builds V1 first and reviews each prompt for leaks. V2 is built only if that review says V1 is unfair.
+Stage 0 builds V1 first and reviews each prompt for leaks. V2 is built only if that review says V1 is unfair. **Result (decision 5):** the leak review passed V1, but stage 1 under V1 showed the defect in practice (10 of 24 runs asked for the test file), so the lab moves to V2.
 
 ## Stages and decision rule
 
@@ -87,9 +88,11 @@ The unit of analysis is the task. Per task, d = mean pass of C minus mean pass o
 1. The operator reviews this spec; then the implementation plan (writing-plans); the operator chooses the execution method.
 2. Stage 0 (no model call) and its leak review.
 3. Registration: the prereg file (tasks and prompt hashes, margin 0.15, seed, analysis) is committed.
-4. Stage 1 gate (about 32 runs, about $6).
-5. Stage 2 gate if C failed somewhere (about 32 runs, about $34).
-6. The result goes into ES-22 and ES-23; the operator rules on R1 and G4. Nothing is pushed without the operator.
+4. Stage 1 gate under V1 (24 runs, $1.9045 real): done; result `needs_stage_2`, kept as a pilot (decision 5).
+5. V2: grader path and test-file leak review (Opus), tasks gated again, V2 registration committed.
+6. Stage 1 gate under V2 (24 runs of arm C, about $2; a separate operator approval).
+7. Stage 2 gate if C failed somewhere under V2 (24 runs of arm A, about $25 by the S5 per-run figure; a separate operator approval).
+8. The result goes into ES-22 and ES-23; the operator rules on R1 and G4. Nothing is pushed without the operator.
 
 ## Out of scope
 
