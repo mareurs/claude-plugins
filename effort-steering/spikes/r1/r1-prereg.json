@@ -1,0 +1,128 @@
+{
+  "model": "claude-sonnet-5-5",
+  "cli": {
+    "version": "2.1.296",
+    "sha256": "sha256:24972e3bc859fab2b46ed4c1e51f7d6130f06d3bd550811a114640de3370d0de"
+  },
+  "arms": {
+    "A": {
+      "effort": "xhigh",
+      "steer": false,
+      "runs": 2
+    },
+    "B": {
+      "effort": "xhigh",
+      "steer": true,
+      "runs": 0
+    },
+    "C": {
+      "effort": "low",
+      "steer": false,
+      "runs": 2
+    }
+  },
+  "tasks": [
+    {
+      "id": "cs-p01",
+      "treeHash": "49b6a8a03564e77c6c6e657bb8515868eb59ec94b8672b3d02007d67cd95b37a",
+      "hiddenHash": "7573bbf2d845cffb58e1a1a585aa6c268f17f2975006f3a5a311731810685b70",
+      "promptHash": "331ea84762f429e8d9f28200a6fa2092747dfab6bbe5e3a1d2ad37e49da38b71"
+    },
+    {
+      "id": "cs-p05",
+      "treeHash": "621dafd28e0f205bd89e201eae6bd8090dd85017b9c8b5c31edd59635c1246f7",
+      "hiddenHash": "95e70ae537a08fb1f02e95d49ead30aba6db61c6a30925649e3a91d3f3bd0c47",
+      "promptHash": "c6f95cffb3fa6a24d21d845cc872df1f524771a281a12d94006d08d45bdb44e8"
+    },
+    {
+      "id": "cs-p06",
+      "treeHash": "f57fbca308ef173b69af61faef7b0cb7da93d6bc094b5e43407529f2c8d993d0",
+      "hiddenHash": "027b2a223496073ed661e0da6cfd88abcf12d68e5259f6ba56b0f283a1c87671",
+      "promptHash": "bc2cbd721b394c6c0b61feb442a4f997bb32a66e0600d5fafb29b54742c68256"
+    },
+    {
+      "id": "cs-p08",
+      "treeHash": "c676a1a3f1b921f4552c2d94adabc51882a3c9a7c9b3cffede3bdf7b59e92d0e",
+      "hiddenHash": "0c6fd51cf09c5c7ba93fd5680e3ada2e43f3cc9e75fe16b55c41b6763663452e",
+      "promptHash": "b7715a2bc26098731f3c6389ac4cdb791e99575bf66d758bd942129a89e28c64"
+    },
+    {
+      "id": "cs-p10",
+      "treeHash": "a045d36c0e4227702a7e16ed7c7e445cf011317c0522d8e6a0fe64c75b59aa77",
+      "hiddenHash": "c880c2f71315a22d84d5eb2854da20a114d09e022f8eeb4271ecb13bfbc51825",
+      "promptHash": "55f4049f58440ccc0ccfa25b8bd87159cf050ff847d411cad20ba4c0c2a15b3a"
+    },
+    {
+      "id": "cs-p11",
+      "treeHash": "79a47602a6f27c147f3c14adb1367c9578cf43a766df5155d25c9b8ef28a911d",
+      "hiddenHash": "40301a08edc7212d540c5661cc9c32e2eb409f20d10845977fc693df36be9d77",
+      "promptHash": "ba1a0921640c46aaa36431649064fd7a40119a41abf3a3e6a8a17d34f9db6186"
+    },
+    {
+      "id": "cs-p12",
+      "treeHash": "1948147272bda88bd236642250bed69ac8eec8194e24083590705c8f3e2741c3",
+      "hiddenHash": "49b6cd33697fdbfcacbcc208c7ce12a12799cf256580c5fe4971988711efcccd",
+      "promptHash": "de0a2006b9706d36c788e837e110f17854b9aa91564f5969d15df9ba469dd5c7"
+    },
+    {
+      "id": "cs-p16",
+      "treeHash": "ddaa536c8c5a48e8f32212b16df9931633d77956a1982dd69d428d6fb8863ac1",
+      "hiddenHash": "93f951ed069492b8faf8868cc8703c74a266e09cb3f1ec122a5dc33d9570b8d5",
+      "promptHash": "f89433e15021ac62cf2f0f02818a6640a387e0a4303bcae57574ecee02b5ef5e"
+    },
+    {
+      "id": "cs-p17",
+      "treeHash": "4d7b5c06cec88a1d256c89eed579b9b806bbd0a139ac74c8a656883369b301f0",
+      "hiddenHash": "69b8617a2af17354f08bfa0e2c8fa7c9b97be03c18ea51f72fc4cb48de1376e2",
+      "promptHash": "e022911ca2aae597fedb603062a0e3cbf92af6f8af3c11996be4da414e61400f"
+    },
+    {
+      "id": "cs-p18",
+      "treeHash": "b64bddcc203a56c043e43172585603188c4544b45969c49d72b3b336667a3160",
+      "hiddenHash": "2796a0432dcceccebf0c95c8a2edf4dc38979c60779147fc25f626bed1373139",
+      "promptHash": "16031d9e6d6a101a65767a8a37886c843b87583f6354d014dc59d34be04be922"
+    },
+    {
+      "id": "cs-p19",
+      "treeHash": "5e5cd587db04f2a8db42b2a345e9271fb5f7856ea8824ca43387bb357527518e",
+      "hiddenHash": "f68b51e27e9def815c30fd27b77d4c139460ffd60ba63ec73e290b9b4e73c068",
+      "promptHash": "c864e15a05703b65c905e5c146b98606fe488b8d37c396cbc24652c332414244"
+    },
+    {
+      "id": "cs-p20",
+      "treeHash": "45274cbd40c718cb71f126cbea32f324feac5a3a7753930b35fac119d31ed82b",
+      "hiddenHash": "afe583242c60ab0c680a97408c1b18c1685e095d8129ef3c61e5d122d472768f",
+      "promptHash": "a6475677dc91bddd8a2428077ddc63edada24e166e2e2fe785ecaca148f6a8e4"
+    }
+  ],
+  "margin": 0.15,
+  "alpha": 0.05,
+  "bound": {
+    "method": "paired-t",
+    "resamples": 0,
+    "seed": 1
+  },
+  "orderSeed": 20261013,
+  "mechanism": {
+    "alpha": 0.05,
+    "permutations": 9999,
+    "seed": 1,
+    "effectSizeThinkingTokens": 500
+  },
+  "limits": {
+    "timeoutMinutes": 60,
+    "cpus": 4,
+    "memoryGb": 8,
+    "concurrency": 1,
+    "infraRetries": 2
+  },
+  "images": {
+    "codescout": "sha256:36ca2b21804cebdfc8890789cb7aaa4ee5d982efc8e360e8cab343e8edb4ba4f",
+    "claude-plugins": "sha256:ed24618472f48dee4dc0a866624935a4901f516db9d769301a195ca84c2f1e73",
+    "proxy": "sha256:fc0bd7d9cc10944203e5a86ad1a520c2dc318a2f92e6f4a730890e2a50f343b4"
+  },
+  "proxyAllowlist": [
+    "api.anthropic.com"
+  ],
+  "stopAtCostUsd": 60
+}
