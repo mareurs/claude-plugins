@@ -7,6 +7,7 @@ import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { loadS5Config } from '../s5/prereg.mjs';
 import { analyzeR1 } from './r1-analyze.mjs';
+import { simulateR1 } from './r1-sim.mjs';
 import { MIN_USABLE, runStage0 } from './r1-stage0.mjs';
 
 const DEFAULT_WORK_ROOT = join(homedir(), 'work', 'claude', 's5-work');
@@ -83,7 +84,23 @@ async function cmdAnalyze(argv, io) {
   return 0;
 }
 
-const COMMANDS = { stage0: cmdStage0, analyze: cmdAnalyze };
+// The planted-truth study that picks the registered bound method: support rate at no true difference (power) and at the
+// margin (false support), for both methods. Prints one JSON object.
+async function cmdSim(argv, io) {
+  const f = parseFlags(argv, { 'p-a': 'number', trials: 'number', seed: 'number', 'n-tasks': 'number' });
+  const pA = [f['p-a'] ?? 31 / 32];
+  const common = { nTasks: f['n-tasks'] ?? 16, runs: 2, pA, trials: f.trials ?? 2000, seed: f.seed ?? 20261013 };
+  const out = { params: { ...common }, scenarios: [] };
+  for (const method of ['paired-t', 'percentile']) {
+    for (const trueDelta of [0, -0.15]) {
+      out.scenarios.push({ method, trueDelta, ...simulateR1({ ...common, method, trueDelta }) });
+    }
+  }
+  io.log(JSON.stringify(out, null, 2));
+  return 0;
+}
+
+const COMMANDS = { stage0: cmdStage0, analyze: cmdAnalyze, sim: cmdSim };
 
 export async function main(argv, io = { log: console.log, err: console.error }) {
   const [name, ...rest] = argv;
