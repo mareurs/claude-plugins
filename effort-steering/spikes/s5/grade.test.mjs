@@ -971,6 +971,91 @@ t('shadow guard: a diff that cannot be taken fails closed, and a tree without th
   assert.equal(readFileSync(join(v1.work, 'src/lib.rs'), 'utf8'), `pub fn f() {}\n${SHADOW_LINE}\n`, 'the graft appended the declaration');
 });
 
+// A real graftLines line carries a #[path] attribute, and rustfmt puts that attribute on its own line: the diff then ADDS a #[path] line.
+const PATH_LINE = '#[cfg(test)] #[path = "shadow_impl.rs"] mod shadow_tests;';
+const PATH_DEF = { hidden: { files: ['src/shadow_impl.rs'], graftLines: [{ file: 'src/lib.rs', line: PATH_LINE }] }, ...TRIVIAL };
+const pathScene = (libLines = `pub fn f() {}\n${PATH_LINE}\n`, extraFiles = {}) => {
+  const s = driverScene({ 'src/lib.rs': libLines, 'src/shadow_impl.rs': 'HIDDEN\n', ...extraFiles }, { 'src/shadow_impl.rs': 'HIDDEN\n' });
+  return { s, m: { ...manifestOf(PATH_DEF), baseCommit: commitAll(s.work) } };
+};
+
+t('shadow guard: what rustfmt makes of a graftLines line that has a #[path] passes; a different #[path], or one on another module, does not', () => {
+  const cases = [
+    ['the rustfmt form', 'pub fn f() {}\n#[cfg(test)]\n#[path = "shadow_impl.rs"]\nmod shadow_tests;\n', '0'],
+    ['the rustfmt form moved above another mod', '#[cfg(test)]\n#[path = "shadow_impl.rs"]\nmod shadow_tests;\nmod other;\npub fn f() {}\n', '0'],
+    ['the single line moved', `mod other;\n${PATH_LINE}\npub fn f() {}\n`, '0'],
+    ['a different path', 'pub fn f() {}\n#[cfg(test)]\n#[path = "mine.rs"]\nmod shadow_tests;\n', '1'],
+    ['a path with the right name on a differently named module', 'pub fn f() {}\n#[cfg(test)]\n#[path = "shadow_impl.rs"]\nmod renamed;\n', '0'],
+    ['an inline module', 'pub fn f() {}\n#[cfg(test)] #[path = "shadow_impl.rs"] mod shadow_tests { }\n', '1'],
+  ];
+  for (const [what, lib, want] of cases) {
+    const { s, m } = pathScene();
+    put(s.work, 'src/lib.rs', lib);
+    runDriver(s, m);
+    assert.equal(shadowOutcome(s).status, want, `${what}: ${shadowOutcome(s).log}`);
+  }
+  const other = pathScene();
+  put(other.s.work, 'src/other.rs', '#[path = "mine.rs"]\nmod x;\n');
+  runDriver(other.s, other.m);
+  assert.equal(shadowOutcome(other.s).status, '1', 'a #[path] elsewhere');
+});
+
+t('shadow guard: what the agent does to a hidden file is not counted (the graft overwrites it), a declaration shadow in a non-hidden file still is', () => {
+  const { s, m } = pathScene();
+  put(s.work, 'src/shadow_impl.rs', '#[path = "x.rs"]\nmod y;\n[[test]]\nautotests = false\n');
+  runDriver(s, m);
+  assert.equal(shadowOutcome(s).status, '0');
+  assert.equal(readFileSync(join(s.work, 'src/shadow_impl.rs'), 'utf8'), 'HIDDEN\n', 'and the graft put the original back');
+});
+
+t('shadow guard: a hidden file listed in extra gets the parent check too', () => {
+  const def = { hidden: { files: ['src/other_tests.rs'], extra: ['src/sub/tests.rs'] }, ...TRIVIAL };
+  const s = driverScene({ 'src/lib.rs': 'pub mod sub;\n', 'src/sub/mod.rs': '#[cfg(test)]\nmod tests;\n', 'src/sub/tests.rs': 'H\n', 'src/other_tests.rs': 'H\n' }, { 'src/sub/tests.rs': 'H\n', 'src/other_tests.rs': 'H\n' });
+  const m = { ...manifestOf(def), baseCommit: commitAll(s.work) };
+  put(s.work, 'src/sub/mod.rs', '#[cfg(test)]\nmod tests { #[test] fn t() {} }\n');
+  runDriver(s, m);
+  assert.equal(shadowOutcome(s).status, '1');
+});
+
+t('shadow guard: a shadow the agent COMMITTED (HEAD moved) is still seen, because the base is the task commit', () => {
+  const { s, m } = shadowScene();
+  put(s.work, 'src/lib.rs', 'pub fn f() {}\n#[cfg(test)] mod shadow_tests { #[test] fn t() {} }\n');
+  agentCommits(s.work);
+  runDriver(s, m);
+  assert.equal(shadowOutcome(s).status, '1');
+});
+
+t('shadow guard: shadow.diff holds the whole diff (a change outside any parent file), parent diffs go to shadow.parent.diff', () => {
+  const def = { hidden: { files: ['src/sub/tests.rs'] }, ...TRIVIAL };
+  const s = driverScene({ 'src/lib.rs': 'pub mod sub;\npub fn f() {}\n', 'src/sub/mod.rs': '#[cfg(test)]\nmod tests;\n', 'src/sub/tests.rs': 'H\n' }, { 'src/sub/tests.rs': 'H\n' });
+  const m = { ...manifestOf(def), baseCommit: commitAll(s.work) };
+  put(s.work, 'src/lib.rs', 'pub mod sub;\npub fn f() { 42 }\n');
+  put(s.work, 'src/sub/mod.rs', '#[cfg(test)]\nmod tests;\npub fn g() {}\n');
+  runDriver(s, m);
+  assert.equal(shadowOutcome(s).status, '0');
+  assert.match(res(s, 'shadow.diff'), /\+pub fn f\(\) \{ 42 \}/);
+  assert.match(res(s, 'shadow.parent.diff'), /\+pub fn g\(\) \{\}/);
+  assert.doesNotMatch(res(s, 'shadow.parent.diff'), /42/);
+});
+
+t('shadow guard: the parent of a hidden src file is mod.rs, dir.rs, lib.rs or main.rs; a longer module name that starts with the stem is not the stem', () => {
+  const make = (parentRel, parentText, hiddenRel) => {
+    const def = { hidden: { files: [hiddenRel] }, ...TRIVIAL };
+    const s = driverScene({ 'src/lib.rs': 'pub fn f() {}\n', [parentRel]: parentText, [hiddenRel]: 'H\n' }, { [hiddenRel]: 'H\n' });
+    return { s, m: { ...manifestOf(def), baseCommit: commitAll(s.work) }, parentRel };
+  };
+  for (const [parentRel, hiddenRel] of [['src/sub.rs', 'src/sub/tests.rs'], ['src/lib.rs', 'src/tests.rs'], ['src/main.rs', 'src/tests.rs'], ['src/sub/mod.rs', 'src/sub/tests.rs']]) {
+    const { s, m } = make(parentRel, '#[cfg(test)]\nmod tests;\n', hiddenRel);
+    put(s.work, parentRel, '#[cfg(test)]\nmod tests { #[test] fn t() {} }\n');
+    runDriver(s, m);
+    assert.equal(shadowOutcome(s).status, '1', parentRel);
+  }
+  const util = make('src/sub/mod.rs', '#[cfg(test)]\nmod tests;\n', 'src/sub/tests.rs');
+  put(util.s.work, 'src/sub/mod.rs', '#[cfg(test)]\nmod tests;\nmod tests_util;\n');
+  runDriver(util.s, util.m);
+  assert.equal(shadowOutcome(util.s).status, '0', 'mod tests_util; is not mod tests');
+});
+
 t('shadow guard: graftScript alone has no guard (r1-workroot runs it without a repository); driverScript has it', () => {
   assert.ok(!graftScript(manifestOf(SHADOW_DEF)).includes('shadow guard'));
   assert.ok(driverScript({ ...manifestOf(SHADOW_DEF), baseCommit: BASE }).includes('shadow guard'));
