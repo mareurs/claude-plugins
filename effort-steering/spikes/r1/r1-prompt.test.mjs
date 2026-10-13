@@ -142,3 +142,19 @@ t('a trace that merely mentions the flag does not count as the sentence', () => 
 t('a prompt built by buildTracePrompt from a real-shaped trace passes the checks', () => {
   assert.equal(checkTracePrompt(CLEAN, def()).ok, true);
 });
+
+t('the reasons keep a fixed order: trace, shallow, ultrathink, sentence, leak, utf8', () => {
+  const panicOnly = "thread 't' panicked at src/lib.rs:3:1:\nboom secret_term\n";
+  assert.deepEqual(checkTracePrompt(panicOnly, def()).reasons, ['no_stack_trace', 'not_shallow', 'test_command_sentence', 'leak:secret_term']);
+  assert.deepEqual(checkTracePrompt(`${FRAMES_ONLY}\0\n`, def()).reasons, ['test_command_sentence', 'not_utf8_or_nul']);
+});
+
+t('the sentence is matched in its exact case', () => {
+  const r = checkTracePrompt(`${FRAMES_ONLY}\n${TEST_COMMAND_SENTENCE.toLowerCase()}\n`, def());
+  assert.deepEqual(r.reasons, ['test_command_sentence']);
+});
+
+t('ultrathink is reported before the missing sentence', () => {
+  const r = checkTracePrompt(`ultrathink\n${FRAMES_ONLY}`, def());
+  assert.deepEqual(r.reasons, ['ultrathink', 'test_command_sentence']);
+});

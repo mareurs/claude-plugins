@@ -9,7 +9,7 @@ const DEFAULT_MAX_CHARS = 8000;
 const DEFAULT_INSTRUCTION = 'This is the failing test output. Please fix it.';
 // The operator's build hint (R1 decision, 2026-10-13, option A): one sentence, identical on every task and in every arm, with nothing
 // about the bug, the files or the cause. The conditional form is true for all 12 tasks: cs-p18 and cs-p20 are graded with the default
-// features (their hidden tests live under the `librarian` feature), and the 8 tasks whose default features hold local-embed fail to
+// features (their hidden tests live partly or wholly under the `librarian` feature), and the 8 tasks whose default features hold local-embed fail to
 // link ONNX Runtime once in the offline container and then take the flag.
 export const TEST_COMMAND_SENTENCE = 'Run the tests with `cargo test`; if the build fails to link ONNX Runtime, add `--no-default-features`.';
 const FAILURE_HEADER = /^---- .+ stdout ----$/;

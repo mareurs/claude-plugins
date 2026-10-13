@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, utimesSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { captureTrace, runStage0, savedOutputCapture } from './r1-stage0.mjs';
@@ -132,6 +132,23 @@ try {
 
   await t('savedOutputCapture names the missing file', async () => {
     await assert.rejects(savedOutputCapture(join(scratch, 'nowhere'))({ id: 'cs-z' }), /cs-z\.f2p\.out/);
+  });
+
+  await t('savedOutputCapture decodes UTF-8, and runStage0 with it leaves the saved f2p.out untouched', async () => {
+    const work = join(scratch, 'work4');
+    const out = join(scratch, 'out4');
+    const text = `${OUTPUT}assertion failed: é → ü\n`;
+    mkdirSync(join(work, 'tasks', 'cs-u'), { recursive: true });
+    mkdirSync(join(out, 'stage0'), { recursive: true });
+    writeFileSync(join(work, 'tasks', 'cs-u', 'manifest.json'), JSON.stringify({ id: 'cs-u', repo: 'codescout', def: { testRunner: 'cargo', f2p: { command: ['cargo', 'test'], names: [] } } }));
+    const saved = join(out, 'stage0', 'cs-u.f2p.out');
+    writeFileSync(saved, text);
+    const past = new Date('2020-01-01T00:00:00Z');
+    utimesSync(saved, past, past);
+    assert.equal(await savedOutputCapture(out)({ id: 'cs-u' }), text);
+    await runStage0({ workRoot: work, outRoot: out, taskIds: ['cs-u'], capture: savedOutputCapture(out), log: () => {} });
+    assert.equal(readFileSync(saved, 'utf8'), text);
+    assert.equal(statSync(saved).mtimeMs, past.getTime(), 'the saved output was not written again');
   });
 } finally {
   rmSync(scratch, { recursive: true, force: true });

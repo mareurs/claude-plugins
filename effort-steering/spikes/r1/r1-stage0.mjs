@@ -2,13 +2,14 @@
 //
 //   captureTrace(manifest, { workRoot, image, cpus, memoryGb, grade = gradeTree }) -> Promise<string>
 //   runStage0({ workRoot, outRoot, taskIds, image, cpus, memoryGb, capture = captureTrace, log }) -> Promise<{ report, usable }>
+//   savedOutputCapture(outRoot) -> capture      reads the f2p.out an earlier run saved (no Docker); `stage0 --reuse-output` uses it
 //
 // The grade container is S5's own (gradeTree): the built P tree with the hidden tests grafted in. gradeTree sets no
 // RUST_BACKTRACE, so the f2p command gets an `env RUST_BACKTRACE=1` prefix on a copy of the manifest. S5_KEEP_GRADES=1 makes
 // gradeTree keep the grade directory, whose results/f2p.out is the raw output.
 
 import { createHash } from 'node:crypto';
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { gradeTree, removeGradeDir } from '../s5/grade.mjs';
 import { IMAGE_FOR_REPO } from '../s5/task-def.mjs';
@@ -61,7 +62,9 @@ export async function runStage0({ workRoot, outRoot, taskIds, image, cpus, memor
   for (const id of taskIds) {
     const manifest = JSON.parse(readFileSync(join(workRoot, 'tasks', id, 'manifest.json'), 'utf8'));
     const output = await capture(manifest, { workRoot, image: image ?? IMAGE_FOR_REPO[manifest.repo], cpus, memoryGb });
-    writeFileSync(join(dir, `${id}.f2p.out`), output);
+    // The saved output is the only copy of a capture: it is written when it is new or different, and never rewritten with its own text.
+    const savedFile = join(dir, `${id}.f2p.out`);
+    if (!existsSync(savedFile) || readFileSync(savedFile, 'utf8') !== output) writeFileSync(savedFile, output);
     const trace = traceFromTestOutput(output);
     let entry;
     if (trace === null) {
