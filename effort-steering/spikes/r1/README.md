@@ -22,7 +22,7 @@ All commands run from the repository root. `R1="node effort-steering/spikes/r1/r
 2. **Leak review** (Opus). Write the verdicts to `$OUT/stage0/review.json` as `{ "<id>": "ok" | "leak" | "unfair" }`. Fewer than 12 usable: stop and ask the operator (V2 or V3, spec "Open problem").
 3. **Work root.** `$R1 workroot --dst-root $OUT` builds `$OUT/tasks/<id>/` (reflinks, no `TASK.md`, no `CLAUDE.md`, one new commit) and writes `$OUT/workroot-tasks.json`. **Gate every task again, one at a time:** `$S5 gate <id> --work-root $OUT --cpus 4 --memory-gb 8` (no model call; the tree changed, so the copy has no `gate.json`). `treeAtFix` builds the fix tree without the two files because the manifest has `taskMdHash: null`.
 4. **Registration.** `$R1 prereg --base ~/work/claude/s5-work/configs/calibrate-batch2.json --tasks-file $OUT/workroot-tasks.json --out effort-steering/spikes/r1/r1-prereg.json`. Check `images` against `spikes/s5/images/digests.json` first. Commit the file, then `$R1 verify-registered --prereg effort-steering/spikes/r1/r1-prereg.json`. **Commit before stage 1.**
-5. **Stage 1** (operator gate: about 32 runs, about $6).
+5. **Stage 1** (operator gate: 24 runs = 12 tasks × 2 runs of arm C, about $4.5: 24 × $0.19, the S5 per-run figure for `low`).
    ```
    $R1 stage-config --prereg effort-steering/spikes/r1/r1-prereg.json --stage 1 --out $OUT/configs/stage1.json
    $S5 proxy down
@@ -30,7 +30,7 @@ All commands run from the repository root. `R1="node effort-steering/spikes/r1/r
    $S5 run --mode calibrate --prereg $OUT/configs/stage1.json --rows $OUT/rows-stage1.jsonl --work-root $OUT --stop-at-cost 12
    $R1 analyze --prereg effort-steering/spikes/r1/r1-prereg.json --rows $OUT/rows-stage1.jsonl
    ```
-6. **Stage 2** (operator gate, only when stage 1 says `needs_stage_2`: about 32 runs, about $34). The same with `--stage 2`, `stage2.json`, `rows-stage2.jsonl` and `--stop-at-cost 60`; then `analyze` with both `--rows` files.
+6. **Stage 2** (operator gate, only when stage 1 says `needs_stage_2`: 24 runs = 12 tasks × 2 runs of arm A, about $25: 24 × $1.05, the S5 per-run figure for `xhigh`). The same with `--stage 2`, `stage2.json`, `rows-stage2.jsonl` and `--stop-at-cost 60`; then `analyze` with both `--rows` files.
 
 Verdicts: `support` (no harm found on these tasks), `needs_stage_2`, `not_shown_safe` (stage 2: the one-sided 95 percent lower bound of the mean `C − A` is not above −0.15; the comparison is strict), `insufficient` (fewer than 2 included tasks), `incomplete` (a registered task is unmeasured). A task with a lost run is dropped from both arms, but a C failure observed in it still counts (`failedC`).
 
