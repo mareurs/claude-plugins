@@ -96,7 +96,7 @@ Four sub-steps:
    ```bash
    python3 -c '
    import os, sys, time
-   sys.path.insert(0, os.environ["CLAUDE_PLUGIN_ROOT"])
+   sys.path.insert(0, '${CLAUDE_PLUGIN_ROOT}')
    from pathlib import Path
    from scripts.state import save_active_plan
    save_active_plan(
