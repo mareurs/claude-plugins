@@ -215,6 +215,36 @@ Each step that calls the model is a separate operator gate with a stated run cou
 
 Nothing is pushed without the operator. Every Claude Code configuration change goes to all three profiles (OP-4); this design needs none, because the runs use per-run config directories.
 
+## Result to date (2026-10-13)
+
+**Verdict by the decision rule above: uninformative.** The calibration found no task on which the effort level changes the result. So the validity gate (the lower bound of A − C above 0) cannot hold on this task set. The registered measured run was not made, and no prereg was committed. G4 stays held. This section does not show that the steer is safe.
+
+**What ran** (Sonnet 5.5, Claude Code 2.1.296, personal-account plan usage; costs are the client-reported `total_cost_usd`):
+
+| Stage | Tasks | A (`xhigh`) | B (`xhigh` + steer) | C (`low`) |
+|---|---|---|---|---|
+| Pilot | cs-p02, cs-p04, cs-p07 | 3 of 3 | 3 of 3 | 3 of 3 |
+| Calibration | 16 (cs-p01, p02, p04, p05, p06, p07, p08, p10, p11, p12, p15 to p20); A 2 runs, C 1 run each | 31 of 32 | not run | 16 of 16 |
+| Thin-spec probe | 5 (cs-p15, p16, p17, p19, p20 with a shorter `TASK.md`); 1 run per arm each | 5 of 5 | not run | 5 of 5 |
+
+The pilot tasks are also calibration tasks; the runs are separate. Spend in all: about $49 of client-estimated cost (smoke, control and pilot $7.06; calibration $36.54; probe $5.18). No run hit a plan limit.
+
+**Findings.**
+
+1. **The drop rule leaves 0 of 16 tasks.** Fifteen tasks are `effort_idle` (A 2 of 2 and C 1 of 1). The sixteenth, cs-p19, passed the rule only because of an invalid failure (finding 5). Its other arm A run and its arm C run passed, so it is idle too.
+2. **Arm C passed every valid run** (21 of 21 in calibration and probe). Arm A passed 36 of 37; the one failure is the invalid cs-p19.A.0. Real deliberation is not needed for these tasks.
+3. **Thinner task text did not create headroom.** The five thin variants gave A 5 of 5 and C 5 of 5 with one run per arm each. The probe excludes a large effect on those five tasks. It does not exclude a small one.
+4. **Effort changes the process and the bill, not the outcome.** Per run, A cost about $1.05 and C about $0.19 in calibration. C used about 18 to 20 times fewer thinking tokens (1,274 against 23,326 in batch 1; 764 against 15,069 in batch 2).
+5. **A grader defect hit one row.** `grade.mjs` appends a hidden module only when the agent's file does not already declare a module of that name. The agent's `CLAUDE.md` is built from `p2p.command`, which named the hidden module. In cs-p19.A.0 the agent wrote its own module with that name, so the hidden tests never ran (f2p `notRun`). Fixed in the task definitions (commit e24e553): graft module names carry the prefix `s5h_`, and no `p2p.command` names a hidden module. There is no loader check yet; the rule is in the author brief. The run was not repeated. A passing row proves that the hidden tests ran, so the other passing rows are not affected.
+6. **Mechanism lead from the pilot (3 tasks, 1 run each; not a registered result).** In tool loops the steer cut main-session thinking by 21 percent (25,422 to 20,032 tokens) and output by 23 percent (58,485 to 44,837). Per task, thinking fell by 27, 28 and 3 percent. Cost fell by 17 percent ($1.60 to $1.33). Arm C cut thinking by 94 percent and cost by 67 percent. This does not contradict the S4 result (thinking minus 37 percent, output minus 27 percent), and it is far too small a sample to confirm it.
+
+**Meaning for G4 and for this plan.**
+
+- Stage 1 as designed cannot test harm, because arms A and C do not differ on tasks of this kind. Commit-derived fixes with a clear `TASK.md` are solvable at `low` effort.
+- The decision table sends this verdict to "The tasks are redesigned; G4 stays held". A redesign needs a new task source (the operator's ruling of 2026-10-07 asked for harder tasks: cause far from the symptom, long horizon), new authoring, a new calibration and a new budget. It is a spec amendment, not a continuation.
+- Cheaper alternative, with a smaller claim: run arm B on the calibrated tasks to measure the steer's effect on thinking and cost in tool loops. Its quality verdict would stay uninformative.
+- The run directories (about 62 GB), the `s5-proxy` container and the OAuth token pasted into the chat are still to be cleaned up and revoked when the study ends.
+
 ## Risks
 
 - **The proxy changes behaviour.** The proxy control tests it; fallback is an open network with a transcript scan.
