@@ -698,7 +698,10 @@ function agentCommits(dir) {
 }
 
 function runDriver(s, manifest, opts = {}) {
-  const script = driverScript(manifest, { work: s.work, hidden: s.hidden, results: s.results, ...opts.driver });
+  // The shadow guard needs the repository (it reads the agent's diff and fails closed without one), so a scene that was not committed
+  // gets its one commit here, and that commit is the base. A scene that is already a repository keeps the manifest's baseCommit.
+  const used = !existsSync(join(s.work, '.git')) ? { ...manifest, baseCommit: (readdirSync(s.work).length === 0 && put(s.work, '.gitkeep'), commitAll(s.work)) } : manifest;
+  const script = driverScript(used, { work: s.work, hidden: s.hidden, results: s.results, ...opts.driver });
   const env = { PATH: opts.path ?? process.env.PATH, HOME: s.dir, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1' };
   return spawnSync('sh', ['-c', script], { cwd: s.dir, encoding: 'utf8', env, input: opts.input ?? '', timeout: 60_000 });
 }
@@ -739,14 +742,15 @@ t('an agent that COMMITS its change still shows its real stats: the diff is agai
   assert.deepEqual(parseShortstat(res(again, 'diff.txt')), { files: 0, insertions: 0, deletions: 0 }, 'against HEAD the committed work is invisible');
 });
 
-t('a base commit git cannot resolve fails only the diff step: the status is non-zero and the grade goes on', () => {
+t('a base commit git cannot resolve fails the diff step and, closed, the graft step: the build does not run, done is still written', () => {
   const s = driverScene({ 'src/lib.rs': 'a\n' }, { 'tests/h.rs': 'h\n' });
   commitAll(s.work);
   put(s.work, 'src/lib.rs', 'a\nb\n');
   assert.equal(runDriver(s, { ...manifestOf({ hidden: { files: ['tests/h.rs'] }, ...TRIVIAL }), baseCommit: 'f'.repeat(40) }).status, 0);
   assert.notEqual(res(s, 'diff.status').trim(), '0');
-  assert.equal(res(s, 'graft.status').trim(), '0');
-  assert.equal(res(s, 'build.status').trim(), '0');
+  assert.equal(res(s, 'graft.status').trim(), '1', 'the shadow guard cannot read the agent\'s diff');
+  assert.match(res(s, 'graft.log'), /shadow guard: git diff failed/);
+  assert.equal(res(s, 'build.status'), null);
   assert.ok(res(s, 'done') !== null);
 });
 
@@ -769,7 +773,7 @@ t('git in the driver runs with core.fsmonitor=false: a hook in the agent\'s .git
   assert.equal(res(s, 'diff.status').trim(), '0');
 });
 
-t('a diff that hangs is cut off with status 124 and the grade goes on', () => {
+t('a diff that hangs is cut off with status 124; the graft step, which needs git too, is cut off as well: the build does not run', () => {
   const s = driverScene({ 'src/lib.rs': 'a\n' }, { 'tests/h.rs': 'h\n' });
   const shim = tmp('s5-grade-hanggit-');
   writeFileSync(join(shim, 'git'), '#!/bin/sh\nsleep 30\n');
@@ -777,16 +781,19 @@ t('a diff that hangs is cut off with status 124 and the grade goes on', () => {
   const started = Date.now();
   runDriver(s, manifestOf({ hidden: { files: ['tests/h.rs'] }, ...TRIVIAL }), { path: `${shim}${delimiter}${process.env.PATH}`, driver: { prepSec: 1 } });
   assert.equal(res(s, 'diff.status').trim(), '124');
-  assert.equal(res(s, 'graft.status').trim(), '0');
-  assert.equal(res(s, 'build.status').trim(), '0');
+  assert.equal(res(s, 'graft.status').trim(), '124');
+  assert.equal(res(s, 'build.status'), null);
+  assert.ok(res(s, 'done') !== null);
   assert.ok(Date.now() - started < 20_000);
 });
 
 t('a graft that hangs (a FIFO where a graftLines file belongs) is cut off with status 124: the build does not run', () => {
   const s = driverScene({}, { 'tests/h.rs': 'h\n' });
-  mkdirSync(join(s.work, 'src'));
+  put(s.work, 'src/lib.rs', 'a\n');
+  const baseCommit = commitAll(s.work);
+  rmSync(join(s.work, 'src/lib.rs'));
   assert.equal(spawnSync('mkfifo', [join(s.work, 'src/lib.rs')]).status, 0);
-  const m = manifestOf({ hidden: { files: ['tests/h.rs'], graftLines: [{ file: 'src/lib.rs', line: 'mod hidden_support;' }] }, ...TRIVIAL });
+  const m = { ...manifestOf({ hidden: { files: ['tests/h.rs'], graftLines: [{ file: 'src/lib.rs', line: 'mod hidden_support;' }] }, ...TRIVIAL }), baseCommit };
   const started = Date.now();
   runDriver(s, m, { driver: { prepSec: 1 } });
   assert.equal(res(s, 'graft.status').trim(), '124');
@@ -815,7 +822,7 @@ t('the driver records each step\'s status and output, merges stderr, and writes 
   assert.equal(res(s, 'p2p.status').trim(), '0', '"done" did not exist while the last step ran');
   assert.equal(res(s, 'p2p.out'), 'p2p-err\n');
   assert.ok(res(s, 'done') !== null);
-  assert.notEqual(res(s, 'diff.status').trim(), '0', 'a work directory that is not a repository only loses the diff stats');
+  assert.equal(res(s, 'diff.status').trim(), '0', 'the driver commits an uncommitted scene itself, so the diff of an untouched tree is empty');
 });
 
 t('a failed build skips both test steps; a failed graft skips the build and the tests', () => {
@@ -869,6 +876,104 @@ t('commands run in the work directory, with no stdin, and each argv word arrives
   assert.equal(existsSync(join(s.dir, 'canary')), false);
   assert.equal(readFileSync(join(s.dir, 'cwd.txt'), 'utf8').trim(), s.work);
   assert.equal(readFileSync(join(s.dir, 'stdin.txt'), 'utf8').trim(), 'eof');
+});
+
+// =====================================================================================
+// the shadow guard (spec decision 5): the first part of the graft step
+// =====================================================================================
+
+const SHADOW_DEF = { hidden: { files: ['src/shadow_tests.rs'], graftLines: [{ file: 'src/lib.rs', line: '#[cfg(test)] mod shadow_tests;' }] }, ...TRIVIAL };
+const SHADOW_LINE = '#[cfg(test)] mod shadow_tests;';
+// A V2 scene: the base commit already holds the hidden file and its declaration, so an untouched tree is what the grader grafts onto.
+const shadowScene = (extraFiles = {}, libLines = `pub fn f() {}\n${SHADOW_LINE}\n`) => {
+  const s = driverScene({ 'src/lib.rs': libLines, 'src/shadow_tests.rs': 'HIDDEN\n', 'Cargo.toml': '[package]\nname = "t"\n', ...extraFiles }, { 'src/shadow_tests.rs': 'HIDDEN\n' });
+  return { s, m: { ...manifestOf(SHADOW_DEF), baseCommit: commitAll(s.work) } };
+};
+const shadowOutcome = (s) => ({ status: res(s, 'graft.status')?.trim() ?? null, log: res(s, 'graft.log') ?? '', ranBuild: res(s, 'build.status') !== null });
+
+t('shadow guard: an untouched tree and a real fix elsewhere both pass it, and the graft then runs', () => {
+  const { s, m } = shadowScene();
+  assert.equal(runDriver(s, m).status, 0);
+  assert.deepEqual(shadowOutcome(s), { status: '0', log: '', ranBuild: true });
+  const second = shadowScene();
+  put(second.s.work, 'src/lib.rs', `pub fn f() { 1 }\n${SHADOW_LINE}\n`);
+  put(second.s.work, 'src/other.rs', '#[cfg(test)]\nmod tests { #[test] fn t() {} }\n');
+  assert.equal(runDriver(second.s, second.m).status, 0);
+  assert.equal(shadowOutcome(second.s).status, '0', 'an agent adding its own unit-test module is not a shadow');
+});
+
+t('shadow guard: an added #[path] attribute, [[test]] table or autotests key fails the graft step, closed, before the build', () => {
+  for (const [file, text, why] of [['src/other.rs', '#[path = "mine.rs"]\nmod x;\n', /#\[path\]/], ['Cargo.toml', '[package]\nname = "t"\n[[test]]\nname = "x"\npath = "y.rs"\n', /\[\[test\]\]/], ['Cargo.toml', '[package]\nname = "t"\nautotests = false\n', /autotests/]]) {
+    const { s, m } = shadowScene();
+    put(s.work, file, text);
+    runDriver(s, m);
+    const o = shadowOutcome(s);
+    assert.equal(o.status, '1', file);
+    assert.match(o.log, /^shadow guard: /);
+    assert.match(o.log, why);
+    assert.equal(o.ranBuild, false, 'the build did not run');
+  }
+});
+
+t('shadow guard: the declaration of a graftLines module in any form but the line itself or its rustfmt form fails; a missing one does not', () => {
+  const cases = [
+    ['inline body', 'pub fn f() {}\n#[cfg(test)] mod shadow_tests { #[test] fn t() {} }\n', '1'],
+    ['bare declaration', 'pub fn f() {}\nmod shadow_tests;\n', '1'],
+    ['a second declaration', `pub fn f() {}\n${SHADOW_LINE}\n${SHADOW_LINE}\n`, '1'],
+    ['pub declaration', 'pub fn f() {}\n#[cfg(test)] pub mod shadow_tests;\n', '1'],
+    ['the line itself', `pub fn f() {}\n${SHADOW_LINE}\n`, '0'],
+    ['the rustfmt form', 'pub fn f() {}\n#[cfg(test)]\nmod shadow_tests;\n', '0'],
+    ['the rustfmt form with CRLF', 'pub fn f() {}\r\n#[cfg(test)]\r\nmod shadow_tests;\r\n', '0'],
+    ['extra spaces', 'pub fn f() {}\n  #[cfg(test)]   mod   shadow_tests ;\n', '0'],
+    ['removed (the graft puts it back)', 'pub fn f() {}\n', '0'],
+    ['a module of another name', `pub fn f() {}\n${SHADOW_LINE}\nmod shadow_tests_two;\n`, '0'],
+    ['in a comment', `pub fn f() {}\n${SHADOW_LINE}\n// mod shadow_tests {\n`, '0'],
+  ];
+  for (const [what, lib, want] of cases) {
+    const { s, m } = shadowScene();
+    put(s.work, 'src/lib.rs', lib);
+    runDriver(s, m);
+    assert.equal(shadowOutcome(s).status, want, what);
+    if (want === '0') assert.match(readFileSync(join(s.work, 'src/lib.rs'), 'utf8').replace(/\r/g, ''), /^[ \t]*#\[cfg\(test\)\][ \t]*(\n[ \t]*)?mod[ \t]+shadow_tests[ \t]*;/m, `${what}: declared after the graft`);
+  }
+});
+
+t('shadow guard: a hidden src file with a parent module file fails when the agent changes the parent\'s mod line, and passes any other edit', () => {
+  const def = { hidden: { files: ['src/sub/tests.rs'] }, ...TRIVIAL };
+  const make = () => {
+    const s = driverScene({ 'src/lib.rs': 'pub mod sub;\n', 'src/sub/mod.rs': 'pub fn g() {}\n#[cfg(test)]\nmod tests;\n', 'src/sub/tests.rs': 'HIDDEN\n' }, { 'src/sub/tests.rs': 'HIDDEN\n' });
+    return { s, m: { ...manifestOf(def), baseCommit: commitAll(s.work) } };
+  };
+  const redirected = make();
+  put(redirected.s.work, 'src/sub/mod.rs', 'pub fn g() {}\n#[cfg(test)]\nmod tests { #[test] fn t() {} }\n');
+  runDriver(redirected.s, redirected.m);
+  assert.equal(shadowOutcome(redirected.s).status, '1');
+  assert.match(shadowOutcome(redirected.s).log, /mod tests line in src\/sub\/mod\.rs/);
+  const fixed = make();
+  put(fixed.s.work, 'src/sub/mod.rs', 'pub fn g() { 2 }\n#[cfg(test)]\nmod tests;\n');
+  runDriver(fixed.s, fixed.m);
+  assert.equal(shadowOutcome(fixed.s).status, '0', 'a real edit of the parent file passes');
+  const other = make();
+  put(other.s.work, 'src/lib.rs', 'pub mod sub;\n#[cfg(test)]\nmod tests { #[test] fn t() {} }\n');
+  runDriver(other.s, other.m);
+  assert.equal(shadowOutcome(other.s).status, '0', 'a mod tests in another file is not the hidden one');
+});
+
+t('shadow guard: a diff that cannot be taken fails closed, and a tree without the declaration (V1) still grafts', () => {
+  const bad = shadowScene();
+  runDriver(bad.s, { ...bad.m, baseCommit: 'a'.repeat(40) });
+  assert.equal(shadowOutcome(bad.s).status, '1');
+  assert.match(shadowOutcome(bad.s).log, /git diff failed/);
+  const v1 = driverScene({ 'src/lib.rs': 'pub fn f() {}\n' }, { 'src/shadow_tests.rs': 'HIDDEN\n' });
+  const m = { ...manifestOf(SHADOW_DEF), baseCommit: commitAll(v1.work) };
+  runDriver(v1, m);
+  assert.equal(shadowOutcome(v1).status, '0');
+  assert.equal(readFileSync(join(v1.work, 'src/lib.rs'), 'utf8'), `pub fn f() {}\n${SHADOW_LINE}\n`, 'the graft appended the declaration');
+});
+
+t('shadow guard: graftScript alone has no guard (r1-workroot runs it without a repository); driverScript has it', () => {
+  assert.ok(!graftScript(manifestOf(SHADOW_DEF)).includes('shadow guard'));
+  assert.ok(driverScript({ ...manifestOf(SHADOW_DEF), baseCommit: BASE }).includes('shadow guard'));
 });
 
 // =====================================================================================

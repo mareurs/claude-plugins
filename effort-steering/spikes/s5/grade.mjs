@@ -301,7 +301,9 @@ export { moduleOf };
 // visibility, `mod NAME` and then `;` or `{`: so an agent's own `pub mod NAME;`, rustfmt's `#[cfg(test)]`
 // newline `mod NAME;`, a CRLF file or an inline `mod NAME {` all count, and a `//` comment, an indented line or
 // a different name do not. A second `mod NAME` would be E0428. (An inline `mod NAME { .. }` of the agent's
-// keeps its module and the hidden file is then not compiled: its names are not run, which is a failure.)
+// keeps its module and the hidden file is then not compiled. On its own that is NOT a failure: if the agent's
+// module carries the same test names, they are reported ok. shadowGuardScript, which driverScript puts before
+// this script, fails the graft step for any such declaration; this script alone, as r1-workroot runs it, does not.)
 export function graftScript(manifest, { work = '/work', hidden = '/hidden' } = {}) {
   const lines = [];
   for (const rel of hiddenPaths(manifest.def)) {
@@ -325,6 +327,57 @@ export function graftScript(manifest, { work = '/work', hidden = '/hidden' } = {
   return `${lines.join('\n')}\n`;
 }
 
+// shadowGuardScript(manifest, { work = '/work', results = '/results' }) -> an sh script: the first part of the graft step (driverScript puts it
+// before graftScript, in the same shell). It reads the agent's change against manifest.baseCommit (the index holds it: the diff step ran
+// `git add -A`) and exits 1 with its reason on stdout when the change could make a hidden test name come from the agent's own code. The
+// step's status is the graft status, so a hit is `graft: failed`: no build, no pass.
+//   1. An added `#[path = ..]` attribute, an added `[[test]]` table or an added `autotests =` key: they re-point where a module or a test binary lives.
+//   2. A graftLines module declared in its target file in any form but the graftLines line itself or its rustfmt form (attributes on their own
+//      lines): a bare `mod NAME;`, an inline `mod NAME { .. }`, a `pub mod`, a second declaration. graftScript keeps any declaration that
+//      looks declared, so the hidden file was then copied but not compiled, and the agent's own tests carried the same names. A MISSING
+//      declaration is fine: graftScript puts it back.
+//   3. A changed `mod STEM` line in the module file above a hidden src/**/STEM.rs (the parent's `mod tests;` of a hidden tests.rs), unless STEM
+//      is itself a graftLines module (rule 2 governs it).
+// A diff that cannot be taken is a failure. A tree without the declaration (the V1 work root) passes. The diff is left in <results>/shadow.diff.
+export function shadowGuardScript(manifest, { work = '/work', results = '/results' } = {}) {
+  const base = sq(manifest.baseCommit);
+  const diffFile = sq(`${results}/shadow.diff`);
+  const fail = (reason) => `shadow_fail ${sq(reason)}`;
+  const graftLines = manifest.def.hidden.graftLines ?? [];
+  const graftModules = new Set(graftLines.map(({ line }) => moduleOf(line)));
+  const lines = [
+    `cd ${sq(work)} || exit 1`,
+    `shadow_fail() { printf 'shadow guard: %s\\n' "$1"; exit 1; }`,
+    `${GIT} diff --cached -U0 ${base} > ${diffFile} || ${fail('git diff failed')}`,
+    `if grep -Eq ${sq(String.raw`^\+.*#\[[[:space:]]*path[[:space:]]*=`)} ${diffFile}; then ${fail('the agent added a #[path] attribute')}; fi`,
+    `if grep -Eq ${sq(String.raw`^\+[[:space:]]*(\[\[[[:space:]]*test[[:space:]]*\]\]|autotests[[:space:]]*=)`)} ${diffFile}; then ${fail('the agent added a [[test]] table or an autotests key')}; fi`,
+  ];
+  for (const { file, line } of graftLines) {
+    const name = moduleOf(line);
+    if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(name)) throw new TypeError(`shadowGuardScript: module name ${JSON.stringify(name)} is not an identifier`);
+    const want = line.replace(/\s+/g, ' ').replace(/ ;/g, ';').trim();
+    const awkProgram = [
+      'function norm(s) { gsub(/[ \\t]+/, " ", s); sub(/^ /, "", s); sub(/ $/, "", s); gsub(/ ;/, ";", s); return s }',
+      '{ l = $0; sub(/\\r$/, "", l) }',
+      `l ~ /^[ \\t]*(#\\[[^]]*\\][ \\t]*)*(pub([ \\t]*\\([^)]*\\))?[ \\t]+)?mod[ \\t]+${name}[ \\t]*[;{]/ { print norm(attrs " " l); attrs = ""; next }`,
+      'l ~ /^[ \\t]*(#\\[[^]]*\\][ \\t]*)+$/ { attrs = attrs " " l; next }',
+      '{ attrs = "" }',
+    ].join('\n');
+    lines.push(`got=$(awk ${sq(awkProgram)} ${sq(file)} 2>/dev/null)`);
+    lines.push(`if [ -n "$got" ] && [ "$got" != ${sq(want)} ]; then ${fail(`${file} declares ${name} in a form other than the graftLines line`)}; fi`);
+  }
+  for (const rel of hiddenPaths(manifest.def)) {
+    const m = /^src\/(?:.*\/)?([A-Za-z_][A-Za-z0-9_]*)\.rs$/.exec(rel);
+    if (m === null || ['mod', 'lib', 'main'].includes(m[1]) || graftModules.has(m[1])) continue;
+    const dir = rel.includes('/') ? rel.slice(0, rel.lastIndexOf('/')) : '.';
+    const changed = sq(`^[-+].*mod[[:space:]]+${m[1]}([^A-Za-z0-9_]|$)`);
+    for (const parent of [`${dir}/mod.rs`, `${dir}/lib.rs`, `${dir}/main.rs`, `${dir}.rs`]) {
+      lines.push(`if [ -f ${sq(parent)} ]; then ${GIT} diff --cached -U0 ${base} -- ${sq(parent)} > ${diffFile} || ${fail('git diff failed')}; if grep -Eq ${changed} ${diffFile}; then ${fail(`a changed mod ${m[1]} line in ${parent}`)}; fi; fi`);
+    }
+  }
+  return `${lines.join('\n')}\n`;
+}
+
 const BASE_COMMIT_RE = /^[0-9a-f]{40}$/;
 const GRAFT_EOF = 'S5_GRAFT_EOF';
 // git in the grade container: the agent's own tree supplies the repository, so its config may not run a
@@ -344,7 +397,7 @@ export function driverScript(manifest, { buildSec, testSec, prepSec = PREP_SEC, 
   const testLimit = testSec ?? def.timeoutsSec.test;
   const file = (name) => sq(`${results}/${name}`);
   const run = (limit, argv, name) => `timeout -k ${KILL_AFTER_SEC} ${limit} ${argv.map(sq).join(' ')} < /dev/null > ${file(`${name}.out`)} 2>&1`;
-  const graft = graftScript(manifest, { work, hidden }).trimEnd();
+  const graft = `${shadowGuardScript(manifest, { work, results })}${graftScript(manifest, { work, hidden })}`.trimEnd();
   if (graft.split('\n').includes(GRAFT_EOF)) throw new Error('driverScript: the graft script contains its own here-document delimiter');
   return [
     `cd ${sq(work)} || exit 1`,
