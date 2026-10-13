@@ -23,7 +23,6 @@ import * as path from "node:path";
 const SKILL_READ_TOOLS = new Set([
   "read",
   "codescout_read_file",
-  "codescout_read_markdown",
 ]);
 
 // MCP servers to track. Each entry maps a display name to a tool name that is

@@ -106,10 +106,8 @@ Create or edit `~/.pi/agent/mcp.json`. This file is personal — keep it out of 
         "semantic_search",
         "references",
         "read_file",
-        "read_markdown",
         "edit_code",
         "edit_file",
-        "edit_markdown",
         "grep"
       ]
     }
@@ -132,7 +130,7 @@ Create or edit `~/.pi/agent/mcp.json`. This file is personal — keep it out of 
       "lifecycle": "lazy",
       "directTools": [
         "symbols", "symbol_at", "tree", "semantic_search", "references",
-        "read_file", "read_markdown", "edit_code", "edit_file", "edit_markdown", "grep"
+        "read_file", "edit_code", "edit_file", "grep"
       ],
       "env": {
         "CODESCOUT_QDRANT_URL": "http://127.0.0.1:6334",
@@ -243,7 +241,7 @@ The widget extension in `harnesses/pi/extensions/codescout-companion.ts`.
 
 **What it tracks:**
 
-- Skill loads — intercepts `read` / `codescout_read_file` / `codescout_read_markdown`
+- Skill loads — intercepts `read` / `codescout_read_file`
   calls on `SKILL.md` files, and `/skill:<name>` inputs
 - Recon badge — reads `.buddy/<session_id>/recon-{loaded,active,counts.json}` marker
   files written by the reconnaissance skill

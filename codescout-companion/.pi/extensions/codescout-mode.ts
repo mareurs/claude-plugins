@@ -1,6 +1,6 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 
-const EDIT_TOOLS = ["codescout_edit_code", "codescout_edit_file", "codescout_edit_markdown"];
+const EDIT_TOOLS = ["codescout_edit_code", "codescout_edit_file"];
 const WRITE_TOOL = "codescout_create_file";
 const READ_TOOL = "codescout_read_file";
 const IMAGE_EXT = /\.(jpe?g|png|gif|webp|bmp)$/i;
@@ -50,7 +50,7 @@ export default function codescoutMode(pi: ExtensionAPI) {
 
   pi.on("tool_call", async (event) => {
     if (event.toolName === "edit" && hasAll(EDIT_TOOLS)) {
-      return { block: true, reason: "Use codescout's edit_code, edit_file, or edit_markdown instead of native edit." };
+      return { block: true, reason: "Use codescout's edit_code or edit_file instead of native edit." };
     }
     if (event.toolName === "write" && has(WRITE_TOOL)) {
       return { block: true, reason: "Use codescout's create_file instead of native write." };
