@@ -26,6 +26,7 @@ The effort-steering plugin has a rules engine (`effort-steering/core/decide.mjs`
 1. The next experiment feeds the effort-routing decision (ES-23), not the text-steer verdict (G4). The steer becomes a secondary arm in a later experiment.
 2. The experiment produces one candidate rule with a ship or no-ship answer, not a dataset.
 3. R1 and the trace-style lab prompt (sections "The rule" and "The lab prompt") are approved. The stages and decision rule (section "Stages and decision rule") are approved. The false-shallow budget stays at 0.15.
+4. (After the implementation check, 2026-10-13.) The agent's tree holds **no** `TASK.md` and **no** `CLAUDE.md` pointer to it. The prompt is the trace plus one line and nothing else. The first implementation kept both files, which made the lab easier than S5 and would have made a `support` verdict misleading. Removing them changes every `treeHash`, so each task is re-gated and the registration is redone before stage 1.
 
 ## The rule
 
@@ -37,7 +38,7 @@ The effort-steering plugin has a rules engine (`effort-steering/core/decide.mjs`
 
 ## The lab prompt
 
-Per task, the prompt is what a user would paste: the failing test's output at the parent commit with `RUST_BACKTRACE=1`, plus one line ("fix this"). The plan produces it by running the task's f2p command at P in the existing gate container. No model call is needed. The check `extractFeatures(prompt).hasStackTrace === true` must hold for every prompt used.
+Per task, the prompt is what a user would paste: the failing test's output at the parent commit with `RUST_BACKTRACE=1`, plus one line ("fix this"). **The agent's tree contains no `TASK.md` and no `CLAUDE.md` that points at it** (decision 4). The agent finds the test command itself, as a user's session would. The plan produces it by running the task's f2p command at P in the existing gate container. No model call is needed. The check `extractFeatures(prompt).hasStackTrace === true` must hold for every prompt used.
 
 **Open problem.** A trace of a hidden test shows the test's name, path and assertion text, and points at a file that is absent from the agent's tree. Three handlings:
 
