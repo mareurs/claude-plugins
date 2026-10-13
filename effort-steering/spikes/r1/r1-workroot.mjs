@@ -5,15 +5,18 @@
 //   buildR1Root({ srcRoot, dstRoot, tasks: [{ id, promptFile }], copy = reflinkCopy })
 //     -> { tasks: [{ id, treeHash, hiddenHash, promptHash }] }
 //
-// tree/ loses TASK.md and CLAUDE.md at its root (spec decision 4) and becomes a fresh one-commit repository, so treeHash and
+// tree/ loses TASK.md and CLAUDE.md at its root (spec decision 4) and holds the hidden tests (V2, spec decision 5: grafted by the grader's
+// own graftScript, so a later grader graft changes nothing), and becomes a fresh one-commit repository, so treeHash and
 // manifest.baseCommit change and the copy has no gate.json: run `s5.mjs gate` on every task of the new root. hidden/ is untouched
 // (hiddenHash is checked). The source manifest's tree and hidden hashes are re-checked against the bytes (hashBuiltTask) first.
 // manifest.taskMdHash becomes null: there is no TASK.md any more.
 
 import { createHash } from 'node:crypto';
+import { spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { hashBuiltTask, reflinkCopy } from '../s5/build-task.mjs';
+import { graftScript } from '../s5/grade.mjs';
 import { git } from '../s5/git.mjs';
 
 const sha256 = (bytes) => createHash('sha256').update(bytes).digest('hex');
@@ -32,6 +35,16 @@ function readPrompt(file) {
 const IDENTITY = ['-c', 'user.name=s5', '-c', 'user.email=s5@localhost'];
 const AUTHOR_DATE = '2026-01-01T00:00:00Z';
 const TASK_FILES = ['TASK.md', 'CLAUDE.md'];
+
+// V2 (spec decision 5): the hidden tests are in the agent's tree. graftHiddenTests runs the grader's own graftScript on the fresh copy
+// (host side is safe here: the copy is ours, not the agent's), so the visible tree is byte-identical to what the grader grafts onto an
+// untouched tree and the grader's graft on it changes nothing. When it grades an edited tree, that graft removes each hidden path and
+// copies the original in again, and re-adds a graftLines module line the agent removed (see graftScript in grade.mjs).
+function graftHiddenTests(dir, manifest, id) {
+  const script = graftScript(manifest, { work: join(dir, 'tree'), hidden: join(dir, 'hidden') });
+  const r = spawnSync('sh', ['-s'], { input: script, encoding: 'utf8' });
+  if (r.status !== 0) throw new Error(`buildR1Root: ${id}: the graft of the hidden tests failed (exit ${r.status}): ${(r.stderr ?? '').trim()}`);
+}
 
 function recommitWithoutTaskFiles(tree, id) {
   const run = (...args) => {
@@ -57,6 +70,7 @@ export function buildR1Root({ srcRoot, dstRoot, tasks, copy = reflinkCopy }) {
   const planned = tasks.map(({ id, promptFile }) => {
     const manifestFile = join(src, 'tasks', id, 'manifest.json');
     const manifest = JSON.parse(readFileSync(manifestFile, 'utf8'));
+    if (!Array.isArray(manifest.def?.hidden?.files)) throw new Error(`buildR1Root: ${id}: def.hidden must have a files list (V2 grafts the hidden tests into the agent tree)`);
     const actual = hashBuiltTask(join(src, 'tasks', id));
     for (const key of ['treeHash', 'hiddenHash']) {
       if (manifest[key] !== actual[key]) throw new Error(`buildR1Root: ${id}: ${key} of the source manifest is not what the bytes hash to`);
@@ -70,6 +84,7 @@ export function buildR1Root({ srcRoot, dstRoot, tasks, copy = reflinkCopy }) {
   for (const { id, manifest, bytes } of planned) {
     const dir = join(dst, 'tasks', id);
     copy(join(src, 'tasks', id), dir);
+    graftHiddenTests(dir, manifest, id);
     // Decision 4 (spec): the agent finds no TASK.md and no CLAUDE.md. The tree is a new one-commit repository, and the old
     // commit (which holds both files) is gone. The tree changed, so the source's gate.json no longer describes it: the task is
     // gated again (`s5.mjs gate`), which writes a new one.
