@@ -125,7 +125,7 @@ export function usableTasks(report, review) {
 }
 
 async function cmdWorkroot(argv, io) {
-  const f = parseFlags(argv, { 'src-root': 'string', 'dst-root': 'string' });
+  const f = parseFlags(argv, { 'src-root': 'string', 'dst-root': 'string', adjust: 'string' });
   const srcRoot = resolve(f['src-root'] ?? DEFAULT_WORK_ROOT);
   const dstRoot = resolve(f['dst-root'] ?? DEFAULT_OUT_ROOT);
   const stage0 = join(dstRoot, 'stage0');
@@ -133,7 +133,9 @@ async function cmdWorkroot(argv, io) {
   const review = JSON.parse(readFileSync(join(stage0, 'review.json'), 'utf8'));
   const ids = usableTasks(report, review);
   if (ids.length < MIN_USABLE) throw new Error(`${ids.length} usable tasks is below the floor of ${MIN_USABLE}; stop and ask the operator`);
-  const { tasks } = buildR1Root({ srcRoot, dstRoot, tasks: ids.map((id) => ({ id, promptFile: join(stage0, `${id}.prompt.txt`) })) });
+  // V2 leak repair (spec decision 5): the committed adjustments to the hidden copies (r1-v2-adjust.json), applied by buildR1Root.
+  const adjust = JSON.parse(readFileSync(f.adjust === undefined ? new URL('./r1-v2-adjust.json', import.meta.url) : resolve(f.adjust), 'utf8'));
+  const { tasks } = buildR1Root({ srcRoot, dstRoot, adjust, tasks: ids.map((id) => ({ id, promptFile: join(stage0, `${id}.prompt.txt`) })) });
   writeFileSync(join(dstRoot, 'workroot-tasks.json'), `${JSON.stringify(tasks, null, 2)}\n`);
   for (const task of tasks) io.log(`${task.id} promptHash=${task.promptHash}`);
   return 0;

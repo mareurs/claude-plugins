@@ -239,4 +239,57 @@ t('V2: a graft that fails stops the build with the script\'s error', () => {
   assert.throws(() => buildR1Root({ srcRoot: src7, dstRoot: join(scratch, 'dst7'), tasks: [{ id: 'cs-g', promptFile }], copy }), /graft/);
 });
 
+// ---- V2 leak repair (spec decision 5): a committed list of adjustments to the hidden copies, applied before the graft ----
+
+const adjusted = (adjust, id = 'cs-h') => {
+  const root = join(scratch, `adj-src-${id}-${Math.random().toString(16).slice(2, 8)}`);
+  const base = makeSrc(root, id);
+  const to = join(scratch, `adj-dst-${id}-${Math.random().toString(16).slice(2, 8)}`);
+  return { base, to, run: () => buildR1Root({ srcRoot: root, dstRoot: to, tasks: [{ id, promptFile }], copy, adjust }), dir: join(to, 'tasks', id), root };
+};
+const pVersion = '// the P version\n#[test] fn p() {}\n';
+
+t('V2 repair: hiddenFromP replaces the hidden copy by the P file; the manifest, the tree and the result carry the new hiddenHash', () => {
+  const a = adjusted({ 'cs-h': { hiddenFromP: ['tests/p2p.rs'] } });
+  const r = a.run();
+  assert.equal(readFileSync(join(a.dir, 'hidden', 'tests', 'p2p.rs'), 'utf8'), pVersion);
+  assert.equal(readFileSync(join(a.dir, 'tree', 'tests', 'p2p.rs'), 'utf8'), pVersion, 'the visible tree holds the same bytes');
+  assert.equal(readFileSync(join(a.dir, 'hidden', 'src', 's5h_t.rs'), 'utf8'), '#[test] fn t() {}\n', 'the other hidden file is untouched');
+  const m = JSON.parse(readFileSync(join(a.dir, 'manifest.json'), 'utf8'));
+  assert.notEqual(m.hiddenHash, a.base.hiddenHash);
+  assert.deepEqual(hashBuiltTask(a.dir), { treeHash: m.treeHash, hiddenHash: m.hiddenHash, promptHash: m.promptHash });
+  assert.equal(r.tasks[0].hiddenHash, m.hiddenHash);
+  assert.equal(readFileSync(join(a.root, 'tasks', 'cs-h', 'hidden', 'tests', 'p2p.rs'), 'utf8'), '// the hidden version\n#[test] fn p() {}\n#[test] fn q() {}\n', 'the source is untouched');
+});
+
+t('V2 repair: dropText removes the exact text once from the hidden copy and nothing else', () => {
+  const a = adjusted({ 'cs-h': { dropText: [{ file: 'tests/p2p.rs', text: '// the hidden version\n' }] } });
+  a.run();
+  assert.equal(readFileSync(join(a.dir, 'hidden', 'tests', 'p2p.rs'), 'utf8'), '#[test] fn p() {}\n#[test] fn q() {}\n');
+  assert.equal(readFileSync(join(a.dir, 'tree', 'tests', 'p2p.rs'), 'utf8'), '#[test] fn p() {}\n#[test] fn q() {}\n');
+});
+
+t('V2 repair: a bad adjustment is refused before anything is copied', () => {
+  const cases = [
+    [{ 'cs-h': { dropText: [{ file: 'tests/p2p.rs', text: 'not in the file' }] } }, /exactly once/],
+    [{ 'cs-h': { dropText: [{ file: 'tests/p2p.rs', text: '#[test] fn ' }] } }, /exactly once/],
+    [{ 'cs-h': { dropText: [{ file: 'tests/p2p.rs', text: '' }] } }, /exactly once|empty/],
+    [{ 'cs-h': { dropText: [{ file: 'src/a.rs', text: 'fn a' }] } }, /not a hidden file/],
+    [{ 'cs-h': { hiddenFromP: ['src/a.rs'] } }, /not a hidden file/],
+    [{ 'cs-h': { hiddenFromP: ['src/s5h_t.rs'] } }, /not a hidden file|no P file/],
+    [{ 'cs-zz': { hiddenFromP: ['tests/p2p.rs'] } }, /unknown task/],
+  ];
+  for (const [adjust, why] of cases) {
+    const a = adjusted(adjust);
+    assert.throws(() => a.run(), why, JSON.stringify(adjust));
+    assert.equal(existsSync(a.to), false, 'nothing was copied');
+  }
+});
+
+t('V2 repair: an entry whose key starts with an underscore is a note, not a task', () => {
+  const a = adjusted({ _note: 'text', 'cs-h': { hiddenFromP: ['tests/p2p.rs'] } });
+  a.run();
+  assert.equal(readFileSync(join(a.dir, 'hidden', 'tests', 'p2p.rs'), 'utf8'), pVersion);
+});
+
 rmSync(scratch, { recursive: true, force: true });
