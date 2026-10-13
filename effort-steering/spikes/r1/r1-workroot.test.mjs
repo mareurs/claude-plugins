@@ -130,6 +130,20 @@ t('a tampered source (tree hash differs from its manifest) is refused', () => {
   assert.throws(() => buildR1Root({ srcRoot: src3, dstRoot: join(scratch, 'dst3'), tasks: [{ id: 'cs-b', promptFile }], copy }), /treeHash/);
 });
 
+t('a copy whose hidden tests differ from the source manifest is refused', () => {
+  const src5 = join(scratch, 'src5');
+  makeSrc(src5, 'cs-e');
+  const tamper = (s, d) => {
+    copy(s, d);
+    if (existsSync(join(d, 'hidden', 't.rs'))) writeFileSync(join(d, 'hidden', 't.rs'), 'tampered\n');
+  };
+  assert.throws(() => buildR1Root({ srcRoot: src5, dstRoot: join(scratch, 'dst5'), tasks: [{ id: 'cs-e', promptFile }], copy: tamper }), /hidden/);
+});
+
+t('the new .git holds no hooks directory (it is created without a template)', () => {
+  assert.equal(existsSync(join(out, 'tree', '.git', 'hooks')), false);
+});
+
 t('a source tree without TASK.md or CLAUDE.md still builds (nothing to remove)', () => {
   const src4 = join(scratch, 'src4');
   makeSrc(src4, 'cs-c');
