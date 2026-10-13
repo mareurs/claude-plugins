@@ -1,14 +1,16 @@
 // r1.mjs — the CLI of the R1 experiment (docs/superpowers/specs/2026-10-13-effort-routing-first-rule-design.md).
 // Usage errors exit 64, a refusal or a "no" answer exits 1, as spikes/s5/s5.mjs does. See README.md for the runbook.
 
-import { existsSync, readdirSync, readFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
-import { join, resolve } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { loadS5Config } from '../s5/prereg.mjs';
 import { analyzeR1 } from './r1-analyze.mjs';
+import { makeR1Prereg, serializePrereg, stageConfig, verifyRegistered } from './r1-prereg.mjs';
 import { simulateR1 } from './r1-sim.mjs';
 import { MIN_USABLE, runStage0 } from './r1-stage0.mjs';
+import { buildR1Root } from './r1-workroot.mjs';
 
 const DEFAULT_WORK_ROOT = join(homedir(), 'work', 'claude', 's5-work');
 const DEFAULT_OUT_ROOT = join(homedir(), 'work', 'claude', 's5-work-r1');
@@ -100,7 +102,74 @@ async function cmdSim(argv, io) {
   return 0;
 }
 
-const COMMANDS = { stage0: cmdStage0, analyze: cmdAnalyze, sim: cmdSim };
+// The tasks that go into the work root: ok in the stage 0 report AND `ok` in the Opus leak review. A task the report already
+// dropped needs no verdict; a kept one without a verdict is refused, so an unreviewed prompt cannot slip through.
+export function usableTasks(report, review) {
+  const usable = [];
+  for (const entry of report) {
+    if (!entry.ok) continue;
+    const verdict = review[entry.id];
+    if (verdict === undefined) throw new Error(`no review verdict for ${entry.id}`);
+    if (!['ok', 'leak', 'unfair'].includes(verdict)) throw new Error(`the review verdict for ${entry.id} must be ok, leak or unfair, got ${JSON.stringify(verdict)}`);
+    if (verdict === 'ok') usable.push(entry.id);
+  }
+  return usable;
+}
+
+async function cmdWorkroot(argv, io) {
+  const f = parseFlags(argv, { 'src-root': 'string', 'dst-root': 'string' });
+  const srcRoot = resolve(f['src-root'] ?? DEFAULT_WORK_ROOT);
+  const dstRoot = resolve(f['dst-root'] ?? DEFAULT_OUT_ROOT);
+  const stage0 = join(dstRoot, 'stage0');
+  const report = JSON.parse(readFileSync(join(stage0, 'report.json'), 'utf8'));
+  const review = JSON.parse(readFileSync(join(stage0, 'review.json'), 'utf8'));
+  const ids = usableTasks(report, review);
+  if (ids.length < MIN_USABLE) throw new Error(`${ids.length} usable tasks is below the floor of ${MIN_USABLE}; stop and ask the operator`);
+  const { tasks } = buildR1Root({ srcRoot, dstRoot, tasks: ids.map((id) => ({ id, promptFile: join(stage0, `${id}.prompt.txt`) })) });
+  writeFileSync(join(dstRoot, 'workroot-tasks.json'), `${JSON.stringify(tasks, null, 2)}\n`);
+  for (const task of tasks) io.log(`${task.id} promptHash=${task.promptHash}`);
+  return 0;
+}
+
+async function cmdPrereg(argv, io) {
+  const f = parseFlags(argv, { base: 'string', 'tasks-file': 'string', method: 'string', resamples: 'number', 'bound-seed': 'number', 'order-seed': 'number', out: 'string' });
+  for (const name of ['base', 'tasks-file', 'out']) if (f[name] === undefined) throw new UsageError(`prereg needs --${name} <file>`);
+  const method = f.method ?? 'paired-t';
+  const bound = { method, resamples: method === 'percentile' ? (f.resamples ?? 4000) : 0, seed: f['bound-seed'] ?? 1 };
+  const prereg = makeR1Prereg({
+    base: JSON.parse(readFileSync(resolve(f.base), 'utf8')),
+    tasks: JSON.parse(readFileSync(resolve(f['tasks-file']), 'utf8')),
+    orderSeed: f['order-seed'] ?? 20261013,
+    bound,
+  });
+  writeFileSync(resolve(f.out), serializePrereg(prereg));
+  loadS5Config(resolve(f.out), { mode: 'calibrate' });
+  io.log(`wrote ${f.out}: ${prereg.tasks.length} tasks, bound ${method}`);
+  return 0;
+}
+
+async function cmdStageConfig(argv, io) {
+  const f = parseFlags(argv, { prereg: 'string', stage: 'number', out: 'string' });
+  for (const name of ['prereg', 'stage', 'out']) if (f[name] === undefined) throw new UsageError(`stage-config needs --${name}`);
+  const config = stageConfig(JSON.parse(readFileSync(resolve(f.prereg), 'utf8')), f.stage);
+  mkdirSync(dirname(resolve(f.out)), { recursive: true });
+  writeFileSync(resolve(f.out), serializePrereg(config));
+  loadS5Config(resolve(f.out), { mode: 'calibrate' });
+  io.log(`wrote ${f.out} (stage ${f.stage})`);
+  return 0;
+}
+
+async function cmdVerifyRegistered(argv, io) {
+  const f = parseFlags(argv, { prereg: 'string' });
+  if (f.prereg === undefined) throw new UsageError('verify-registered needs --prereg <file>');
+  verifyRegistered(f.prereg);
+  io.log(`${f.prereg} equals its HEAD blob`);
+  return 0;
+}
+
+const COMMANDS = {
+  stage0: cmdStage0, workroot: cmdWorkroot, prereg: cmdPrereg, 'stage-config': cmdStageConfig, 'verify-registered': cmdVerifyRegistered, analyze: cmdAnalyze, sim: cmdSim,
+};
 
 export async function main(argv, io = { log: console.log, err: console.error }) {
   const [name, ...rest] = argv;
