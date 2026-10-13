@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# tests/test-skill-positional-tokens.sh — no `$`-plus-digit in any skill body.
+# tests/test-skill-positional-tokens.sh — no `$`-plus-digit in any skill or
+# command body.
 #
 # WHY THIS EXISTS. Claude Code argument-substitutes a skill body BEFORE
 # delivering it, and the rewrite reaches inside fenced code blocks: a `$`
@@ -37,11 +38,15 @@
 # which no test here controls. There is no runtime signal to wait for; this
 # check is the whole defence.
 #
-# NOT SCANNED: commands/*.md. A slash command's `$1` is the documented argument
-# placeholder and is meant to be substituted -- buddy/commands/summon.md and its
-# siblings rely on it. Skills receive their args appended as a trailing
-# `ARGUMENTS:` line instead, so a `$N` in a SKILL.md is never load-bearing and
-# always a latent rewrite.
+# COMMANDS ARE SCANNED TOO. This file once exempted commands/*.md on the belief
+# that a slash command's `$1` is "the" argument placeholder. It is not. Measured
+# 2026-10-13 on CLI 2.1.296: a command file gets the same 0-indexed rewrite --
+# `Skill("buddy:remember", args="alpha beta gamma")` delivered `$1` as `beta`,
+# dropped the other two words, and appended no `ARGUMENTS:` line because a
+# placeholder had received a value. Seven buddy commands opened with "The
+# argument passed by the user is `$1`", so `/buddy:remember <lesson>` saved the
+# lesson's second word. Use `$ARGUMENTS` -- the whole string, as typed -- and
+# never paste it into a shell line, where it is substituted before quoting.
 set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
@@ -82,13 +87,19 @@ else
        "found ${#SKILLS[@]} total, $n_buddy buddy, $n_cc codescout-companion -- the find in $0 matches too little"
 fi
 
+# Every `$`-plus-digit line in the given files, as repo-relative path:line:text.
+token_hits() {
+  local f line out=""
+  for f in "$@"; do
+    while IFS= read -r line; do
+      [ -n "$line" ] && out="$out${f#"$REPO_ROOT"/}:$line"$'\n'
+    done < <(grep -n "$TOKEN_RE" "$f" 2>/dev/null || true)
+  done
+  printf '%s' "$out"
+}
+
 # 2. THE ACTUAL ASSERTION.
-hits=""
-for f in "${SKILLS[@]}"; do
-  while IFS= read -r line; do
-    [ -n "$line" ] && hits="$hits${f#"$REPO_ROOT"/}:$line"$'\n'
-  done < <(grep -n "$TOKEN_RE" "$f" 2>/dev/null || true)
-done
+hits=$(token_hits "${SKILLS[@]}")
 if [ -z "$hits" ]; then
   pass "no \$-plus-digit token in any skill body"
 else
@@ -126,6 +137,33 @@ if grep -q "$TOKEN_RE" "$TMP/good.md"; then
        "regex '$TOKEN_RE' false-positives on: $(grep -n "$TOKEN_RE" "$TMP/good.md")"
 else
   pass "named vars, \$\$ and \$ARGUMENTS stay legal"
+fi
+
+# 5. COMMANDS: SAME POPULATION RULE AS CASE 1. Pin a buddy command and a
+#    codescout-companion command, so a find that stops matching one plugin's
+#    tree cannot turn case 6 vacuously green.
+mapfile -t COMMANDS < <(find "$REPO_ROOT" -path '*/commands/*.md' -not -path '*/.git/*' | sort)
+n_buddy_cmd=0; n_cc_cmd=0
+for f in "${COMMANDS[@]}"; do
+  case "$f" in
+    */buddy/commands/*) n_buddy_cmd=$((n_buddy_cmd+1)) ;;
+    */codescout-companion/commands/*) n_cc_cmd=$((n_cc_cmd+1)) ;;
+  esac
+done
+if [ "$n_buddy_cmd" -gt 0 ] && [ "$n_cc_cmd" -gt 0 ]; then
+  pass "command discovery reaches both plugins (${#COMMANDS[@]} commands: $n_buddy_cmd buddy, $n_cc_cmd codescout-companion)"
+else
+  fail "command discovery reaches both plugins" \
+       "found ${#COMMANDS[@]} total, $n_buddy_cmd buddy, $n_cc_cmd codescout-companion -- the find in $0 matches too little"
+fi
+
+# 6. NO `$`-PLUS-DIGIT IN ANY COMMAND BODY. See COMMANDS ARE SCANNED TOO above.
+hits=$(token_hits "${COMMANDS[@]}")
+if [ -z "$hits" ]; then
+  pass "no \$-plus-digit token in any command body"
+else
+  fail "no \$-plus-digit token in any command body" \
+       "these are rewritten with the caller's args on delivery (\$1 is the SECOND word):"$'\n'"$hits"
 fi
 
 echo "-- $PASS passed, $FAIL failed"
