@@ -1,0 +1,102 @@
+{
+  "id": "cs-p19",
+  "repo": "codescout",
+  "repoPath": "/home/marius/work/claude/codescout",
+  "fix": "6b58c7b59b25285641f7adc0b8c89a2592ed7cab",
+  "parent": "75657d839a2107fe5b48d18f69e0eef4d5b5e0fa",
+  "subsystem": "workspace",
+  "testRunner": "cargo",
+  "hidden": {
+    "files": [],
+    "extra": [
+      "src/server_pin_scope_checks.rs"
+    ],
+    "graftLines": [
+      {
+        "file": "src/server.rs",
+        "line": "#[cfg(test)] #[path = \"server_pin_scope_checks.rs\"] mod pin_scope_checks;"
+      }
+    ]
+  },
+  "buildCommand": [
+    "cargo",
+    "test",
+    "--offline",
+    "--no-default-features",
+    "--lib",
+    "--no-run"
+  ],
+  "f2p": {
+    "command": [
+      "cargo",
+      "test",
+      "--offline",
+      "--no-default-features",
+      "--lib",
+      "--no-fail-fast",
+      "--",
+      "--exact",
+      "server::pin_scope_checks::an_unpinned_write_is_refused_again_after_a_pinned_write_to_the_same_read_only_project",
+      "server::pin_scope_checks::an_unpinned_write_is_refused_again_after_a_pinned_approve_write_under_read_only"
+    ],
+    "names": [
+      "server::pin_scope_checks::an_unpinned_write_is_refused_again_after_a_pinned_write_to_the_same_read_only_project",
+      "server::pin_scope_checks::an_unpinned_write_is_refused_again_after_a_pinned_approve_write_under_read_only"
+    ]
+  },
+  "p2p": {
+    "command": [
+      "cargo",
+      "test",
+      "--offline",
+      "--no-default-features",
+      "--lib",
+      "--no-fail-fast",
+      "--",
+      "--exact",
+      "server::pin_scope_checks::a_write_naming_a_never_activated_project_goes_through",
+      "server::pin_scope_checks::a_write_naming_a_project_that_disables_writes_in_its_config_is_refused",
+      "server::pin_scope_checks::a_read_only_activation_refuses_an_unpinned_write",
+      "server::pin_scope_checks::a_read_only_activation_can_be_lifted_by_an_unpinned_activate",
+      "server::pin_scope_checks::a_read_only_activation_does_not_block_activating_a_different_root"
+    ],
+    "names": [
+      "server::pin_scope_checks::a_write_naming_a_never_activated_project_goes_through",
+      "server::pin_scope_checks::a_write_naming_a_project_that_disables_writes_in_its_config_is_refused",
+      "server::pin_scope_checks::a_read_only_activation_refuses_an_unpinned_write",
+      "server::pin_scope_checks::a_read_only_activation_can_be_lifted_by_an_unpinned_activate",
+      "server::pin_scope_checks::a_read_only_activation_does_not_block_activating_a_different_root"
+    ]
+  },
+  "testPatterns": [
+    "cargo test"
+  ],
+  "scrub": {
+    "removePaths": [
+      "docs/issues/2026-09-28-a-pinned-write-lifts-a-read-only-activation-for-every-caller.md",
+      "docs/issues/archive/2026-09-24-workspace-activate-read-only-false-refused-by-the-write-guard-it-lifts-unreproduced.md",
+      "docs/issues/archive/2026-07-09-edit-code-write-path-ignores-workspace-pin.md",
+      "docs/trackers/issue-clusters/IC-17-shared-resource-carries-no-owner.md",
+      "docs/trackers/deep-agent-workflow-observations.md",
+      "docs/trackers/bug-fix-session-log.md"
+    ],
+    "terms": [
+      "a-pinned-write-lifts-a-read-only-activation-for-every-caller",
+      "9c0e178a0b53bfc4",
+      "security_config_for_write",
+      "project_security_config_with",
+      "security_config_for_call",
+      "write_consent",
+      "lifts a read-only activation",
+      "pinned write lifts",
+      "lifts the read-only",
+      "consent for that call",
+      "a_write_pin_consents_for_the_call_and_records_nothing",
+      "no_pin_means_no_write_consent"
+    ]
+  },
+  "timeoutsSec": {
+    "build": 1800,
+    "test": 900
+  }
+}

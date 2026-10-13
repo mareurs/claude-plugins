@@ -1,0 +1,128 @@
+{
+  "id": "cs-p16",
+  "repo": "codescout",
+  "repoPath": "/home/marius/work/claude/codescout",
+  "fix": "bde47270498c17d7f1edac704dcae0e007708715",
+  "parent": "fbe5323192cfc7fea24a2f29d2c37a118e2d7b49",
+  "subsystem": "output_buffer",
+  "testRunner": "cargo",
+  "hidden": {
+    "files": [
+      "src/tools/markdown/tests.rs"
+    ],
+    "extra": [
+      "src/tools/markdown/part_handle_tests.rs"
+    ],
+    "graftLines": [
+      {
+        "file": "src/tools/markdown/tests.rs",
+        "line": "#[path = \"part_handle_tests.rs\"] mod part_handles;"
+      }
+    ]
+  },
+  "buildCommand": [
+    "cargo",
+    "test",
+    "--offline",
+    "--no-default-features",
+    "--lib",
+    "--no-run"
+  ],
+  "f2p": {
+    "command": [
+      "cargo",
+      "test",
+      "--offline",
+      "--no-default-features",
+      "--lib",
+      "--no-fail-fast",
+      "--",
+      "--exact",
+      "tools::markdown::tests::heading_excerpt_handle_stays_the_section_after_the_file_changes",
+      "tools::markdown::tests::part_handles::a_line_range_of_a_text_file_keeps_its_content_after_the_file_changes",
+      "tools::markdown::tests::part_handles::reading_a_line_range_handle_after_the_file_changed_serves_the_range",
+      "tools::markdown::tests::part_handles::several_sections_of_a_markdown_file_keep_their_content_after_the_file_changes",
+      "tools::markdown::tests::part_handles::a_line_range_of_a_markdown_file_keeps_its_content_after_the_file_changes",
+      "tools::markdown::tests::part_handles::editing_lines_inside_the_range_does_not_change_the_handle"
+    ],
+    "names": [
+      "tools::markdown::tests::heading_excerpt_handle_stays_the_section_after_the_file_changes",
+      "tools::markdown::tests::part_handles::a_line_range_of_a_text_file_keeps_its_content_after_the_file_changes",
+      "tools::markdown::tests::part_handles::reading_a_line_range_handle_after_the_file_changed_serves_the_range",
+      "tools::markdown::tests::part_handles::several_sections_of_a_markdown_file_keep_their_content_after_the_file_changes",
+      "tools::markdown::tests::part_handles::a_line_range_of_a_markdown_file_keeps_its_content_after_the_file_changes",
+      "tools::markdown::tests::part_handles::editing_lines_inside_the_range_does_not_change_the_handle"
+    ]
+  },
+  "p2p": {
+    "command": [
+      "cargo",
+      "test",
+      "--offline",
+      "--no-default-features",
+      "--lib",
+      "--no-fail-fast",
+      "--",
+      "tools::markdown::tests::",
+      "tools::output_buffer::tests::",
+      "tools::read_file::tests::"
+    ],
+    "names": [
+      "tools::markdown::tests::part_handles::a_whole_text_file_handle_still_follows_the_file",
+      "tools::markdown::tests::part_handles::a_whole_markdown_file_handle_still_follows_the_file",
+      "tools::markdown::tests::read_markdown_empty_file_returns_small_tier",
+      "tools::markdown::tests::read_markdown_large_no_headings_hint_pivots_to_line_ranges",
+      "tools::markdown::tests::read_markdown_accepts_file_path_alias",
+      "tools::markdown::tests::read_markdown_small_returns_full_content_no_hint",
+      "tools::markdown::tests::read_markdown_medium_returns_content_with_hint",
+      "tools::markdown::tests::read_markdown_large_returns_summary_no_content",
+      "tools::markdown::tests::read_markdown_large_includes_hint_referencing_file_id",
+      "tools::markdown::tests::heading_on_large_section_returns_ok_false_with_hint_and_section_map",
+      "tools::markdown::tests::read_markdown_accepts_file_id_buffer_ref_for_line_range",
+      "tools::markdown::tests::buffer_ref_accepts_single_heading_nav",
+      "tools::markdown::tests::buffer_ref_accepts_multi_heading_nav",
+      "tools::markdown::tests::many_headings_escalates_to_map_shape_even_when_bytes_fit",
+      "tools::markdown::tests::line_range_past_eof_returns_recoverable_error",
+      "tools::markdown::tests::tier3_map_shape_fields_are_canonical",
+      "tools::output_buffer::tests::store_file_uses_file_prefix",
+      "tools::output_buffer::tests::store_file_with_buffer_ref_path_survives_get",
+      "tools::output_buffer::tests::get_file_handle_refreshes_when_file_modified",
+      "tools::output_buffer::tests::get_file_handle_returns_none_when_file_deleted",
+      "tools::output_buffer::tests::get_file_handle_unmodified_returns_cached",
+      "tools::output_buffer::tests::get_with_refresh_flag_returns_true_when_file_changed",
+      "tools::output_buffer::tests::get_with_refresh_flag_returns_false_when_file_unchanged",
+      "tools::output_buffer::tests::resolve_refs_reports_refreshed_file_handle",
+      "tools::output_buffer::tests::resolve_refs_no_refresh_for_unchanged_file",
+      "tools::read_file::tests::read_file_oversized_range_next_continues_from_shown_lines",
+      "tools::read_file::tests::read_file_buffer_oversized_slice_next_continues_from_shown_lines",
+      "tools::read_file::tests::read_file_buffer_midpoint_returns_content",
+      "tools::read_file::tests::read_file_buffer_start_line_alone_defaults_50_line_window"
+    ]
+  },
+  "testPatterns": [
+    "cargo test"
+  ],
+  "scrub": {
+    "removePaths": [
+      "docs/issues/2026-08-25-file-slice-handle-refreshes-to-whole-file.md",
+      "docs/issues/archive/2026-08-25-run-command-nested-buffer-recursion.md"
+    ],
+    "terms": [
+      "store_file_excerpt",
+      "store_file_inner",
+      "file-slice-handle-refreshes-to-whole-file",
+      "read-markdown-next-actions-uses-file-line-numbers",
+      "view-vs-snapshot",
+      "refreshes into the whole file",
+      "heading_excerpt_handle",
+      "excerpt_handle_does_not_refresh",
+      "ranged_read_handle_stays_the_range",
+      "derived subset",
+      "window onto the file"
+    ]
+  },
+  "timeoutsSec": {
+    "build": 1800,
+    "test": 900
+  }
+}

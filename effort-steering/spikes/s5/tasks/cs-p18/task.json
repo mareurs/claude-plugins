@@ -1,0 +1,125 @@
+{
+  "id": "cs-p18",
+  "repo": "codescout",
+  "repoPath": "/home/marius/work/claude/codescout",
+  "fix": "47abcb6dfb33bd00065913a22fd440f9f2e260bb",
+  "parent": "eeb8fbeb174a9ef735f39683dc142e4ed85e169d",
+  "subsystem": "edit_file",
+  "testRunner": "cargo",
+  "hidden": {
+    "files": [],
+    "extra": [
+      "src/tools/edit_file/extra_tests.rs",
+      "src/librarian/tools/update_entry/extra_tests.rs"
+    ],
+    "graftLines": [
+      {
+        "file": "src/tools/edit_file/mod.rs",
+        "line": "#[cfg(test)] mod extra_tests;"
+      },
+      {
+        "file": "src/librarian/tools/update_entry.rs",
+        "line": "#[cfg(test)] mod extra_tests;"
+      }
+    ]
+  },
+  "buildCommand": [
+    "cargo",
+    "test",
+    "--offline",
+    "--lib",
+    "--no-run"
+  ],
+  "f2p": {
+    "command": [
+      "cargo",
+      "test",
+      "--offline",
+      "--lib",
+      "--no-fail-fast",
+      "--",
+      "--exact",
+      "tools::edit_file::extra_tests::a_replace_all_edit_of_a_managed_markdown_file_is_refused",
+      "tools::edit_file::extra_tests::a_batch_of_replace_all_edits_of_a_managed_markdown_file_is_refused",
+      "librarian::tools::update_entry::extra_tests::a_patch_sent_as_entry_is_refused_and_changes_nothing",
+      "librarian::tools::update_entry::extra_tests::an_empty_patch_is_refused_and_changes_nothing"
+    ],
+    "names": [
+      "tools::edit_file::extra_tests::a_replace_all_edit_of_a_managed_markdown_file_is_refused",
+      "tools::edit_file::extra_tests::a_batch_of_replace_all_edits_of_a_managed_markdown_file_is_refused",
+      "librarian::tools::update_entry::extra_tests::a_patch_sent_as_entry_is_refused_and_changes_nothing",
+      "librarian::tools::update_entry::extra_tests::an_empty_patch_is_refused_and_changes_nothing"
+    ]
+  },
+  "p2p": {
+    "command": [
+      "cargo",
+      "test",
+      "--offline",
+      "--lib",
+      "--no-fail-fast",
+      "--",
+      "tools::edit_file::",
+      "librarian::tools::update_entry::",
+      "librarian::catalog::augmentation::tests::update_entry_"
+    ],
+    "names": [
+      "tools::edit_file::extra_tests::prepend_and_append_to_a_managed_markdown_file_are_refused",
+      "tools::edit_file::extra_tests::an_unmanaged_markdown_file_is_edited_by_every_form",
+      "librarian::tools::update_entry::extra_tests::a_patch_sent_as_fields_is_still_applied",
+      "tools::edit_file::tests::edit_file_replace_all_on_markdown_passes_through",
+      "tools::edit_file::tests::edit_file_single_replace_on_markdown_still_gated",
+      "tools::edit_file::tests::edit_file_batch_all_replace_all_on_markdown_passes_through",
+      "tools::edit_file::tests::edit_file_batch_mixed_replace_all_on_markdown_still_gated",
+      "tools::edit_file::tests::edit_file_md_gate_blocks_non_insert",
+      "tools::edit_file::tests::edit_file_md_gate_allows_prepend",
+      "tools::edit_file::tests::edit_file_md_gate_allows_append",
+      "tools::edit_file::tests::edit_file_replaces_unique_match",
+      "tools::edit_file::tests::edit_file_replace_all_replaces_all_occurrences",
+      "tools::edit_file::tests::edit_file_prepend_adds_text_at_start",
+      "tools::edit_file::tests::edit_file_append_adds_text_at_end",
+      "tools::edit_file::tests::edit_file_insert_without_old_string_ok",
+      "tools::edit_file::tests::edit_file_accepts_file_path_alias",
+      "tools::edit_file::tests::edit_file_not_found_errors",
+      "tools::edit_file::tests::edit_file_returns_ok_string",
+      "tools::edit_file::tests::edit_file_outside_project_returns_pending_ack",
+      "tools::edit_file::tests::edit_file_batch_all_safe_passes_through",
+      "tools::edit_file::tests::batch_edit_applies_all",
+      "tools::edit_file::tests::batch_edit_atomic_rollback",
+      "tools::edit_file::tests::batch_edit_blocks_structural_rewrite",
+      "librarian::tools::update_entry::tests::call_patches_one_row_and_reports_what_changed",
+      "librarian::tools::update_entry::tests::call_rejects_non_object_fields",
+      "librarian::tools::update_entry::tests::call_surfaces_the_known_ids_when_the_entry_id_is_wrong",
+      "librarian::catalog::augmentation::tests::update_entry_patches_one_row_and_leaves_the_others",
+      "librarian::catalog::augmentation::tests::update_entry_null_deletes_a_field",
+      "librarian::catalog::augmentation::tests::update_entry_rejects_an_unknown_entry_id",
+      "librarian::catalog::augmentation::tests::update_entry_refuses_to_rewrite_the_entry_id",
+      "librarian::catalog::augmentation::tests::update_entry_rejects_a_collection_the_artifact_did_not_declare"
+    ]
+  },
+  "testPatterns": [
+    "cargo test"
+  ],
+  "scrub": {
+    "removePaths": [
+      "docs/issues/2026-08-16-edit-file-replace-all-bypasses-the-librarian-guard.md",
+      "docs/issues/archive/2026-08-16-reindex-rekeys-moved-artifacts-and-cascades-away-their-events.md",
+      "docs/trackers/open-issue-work-queue.md"
+    ],
+    "terms": [
+      "edit-file-replace-all-bypasses-the-librarian-guard",
+      "BL-21",
+      "three write paths",
+      "librarian_guard_fires_on_every_edit_file_write_path",
+      "update-entry-ignores-an-unknown-patch-param-and-reports-success",
+      "update_entry_rejects_an_empty_patch",
+      "call_rejects_the_entry_param_and_names_fields",
+      "call_rejects_an_empty_fields_patch",
+      "nothing to patch"
+    ]
+  },
+  "timeoutsSec": {
+    "build": 1800,
+    "test": 900
+  }
+}

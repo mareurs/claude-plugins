@@ -1,0 +1,119 @@
+{
+  "id": "cs-p20",
+  "repo": "codescout",
+  "repoPath": "/home/marius/work/claude/codescout",
+  "fix": "a47940832adde865857e117a073deb9ecf6d0e68",
+  "parent": "5aa82ae06bc1938466c3719c1fd7b919e3bfcfd3",
+  "subsystem": "librarian",
+  "testRunner": "cargo",
+  "hidden": {
+    "files": [],
+    "extra": [
+      "src/librarian/adapter_progress_tests.rs"
+    ],
+    "graftLines": [
+      {
+        "file": "src/librarian/adapter.rs",
+        "line": "#[cfg(test)] #[path = \"adapter_progress_tests.rs\"] mod adapter_progress_tests;"
+      }
+    ]
+  },
+  "buildCommand": [
+    "cargo",
+    "test",
+    "--offline",
+    "--no-run",
+    "--lib",
+    "--test",
+    "link_scan",
+    "--test",
+    "audit_shards_cross_machine"
+  ],
+  "f2p": {
+    "command": [
+      "cargo",
+      "test",
+      "--offline",
+      "--no-fail-fast",
+      "--lib",
+      "--",
+      "adapter_progress_tests::"
+    ],
+    "names": [
+      "librarian::adapter::adapter_progress_tests::a_reembedding_reindex_keeps_a_caller_that_asked_for_updates_informed",
+      "librarian::adapter::adapter_progress_tests::the_updates_also_advance_through_items_whose_embedding_fails"
+    ]
+  },
+  "p2p": {
+    "command": [
+      "cargo",
+      "test",
+      "--offline",
+      "--no-fail-fast",
+      "--lib",
+      "--test",
+      "link_scan",
+      "--test",
+      "audit_shards_cross_machine",
+      "--",
+      "--exact",
+      "librarian::tools::reindex::tests::envelope_reports_embedding_state",
+      "librarian::tools::reindex::tests::an_embed_failure_still_walks_every_target_and_reports_it",
+      "librarian::tools::reindex::tests::embedded_vectors_are_filed_under_the_target_not_the_workspace_registry",
+      "librarian::tools::reindex::tests::an_embed_failure_persists_a_durable_catalog_meta_marker",
+      "librarian::tools::reindex::tests::a_clean_reindex_after_a_failure_clears_the_persisted_marker",
+      "librarian::tools::reindex::tests::indexes_two_files_one_unknown",
+      "librarian::tools::reindex::tests::a_reindex_reports_artifacts_it_can_never_embed",
+      "librarian::tools::reindex::tests::project_scope_walks_only_subdir",
+      "librarian::tools::reindex::tests::project_scope_force_does_not_nuke_sibling_rows",
+      "librarian::tools::reindex::tests::project_scope_errors_without_current_project",
+      "librarian::tools::reindex::tests::defaults_to_all_when_no_current_project",
+      "derives_edges_end_to_end_and_is_idempotent",
+      "hand_made_rels_survive_write_mode",
+      "scoped_prune_spares_unscanned_srcs",
+      "moved_citation_yields_exact_prune_and_add",
+      "a_row_deleted_on_repo_a_is_answerable_on_host_b_after_a_pull",
+      "host_b_does_not_re_export_host_as_rows_as_its_own"
+    ],
+    "names": [
+      "librarian::tools::reindex::tests::envelope_reports_embedding_state",
+      "librarian::tools::reindex::tests::an_embed_failure_still_walks_every_target_and_reports_it",
+      "librarian::tools::reindex::tests::embedded_vectors_are_filed_under_the_target_not_the_workspace_registry",
+      "librarian::tools::reindex::tests::an_embed_failure_persists_a_durable_catalog_meta_marker",
+      "librarian::tools::reindex::tests::a_clean_reindex_after_a_failure_clears_the_persisted_marker",
+      "librarian::tools::reindex::tests::indexes_two_files_one_unknown",
+      "librarian::tools::reindex::tests::a_reindex_reports_artifacts_it_can_never_embed",
+      "librarian::tools::reindex::tests::project_scope_walks_only_subdir",
+      "librarian::tools::reindex::tests::project_scope_force_does_not_nuke_sibling_rows",
+      "librarian::tools::reindex::tests::project_scope_errors_without_current_project",
+      "librarian::tools::reindex::tests::defaults_to_all_when_no_current_project",
+      "derives_edges_end_to_end_and_is_idempotent",
+      "hand_made_rels_survive_write_mode",
+      "scoped_prune_spares_unscanned_srcs",
+      "moved_citation_yields_exact_prune_and_add",
+      "a_row_deleted_on_repo_a_is_answerable_on_host_b_after_a_pull",
+      "host_b_does_not_re_export_host_as_rows_as_its_own"
+    ]
+  },
+  "testPatterns": [
+    "cargo test"
+  ],
+  "scrub": {
+    "removePaths": [],
+    "terms": [
+      "cannot-emit-progress",
+      "times-the-caller-out",
+      "embed_total",
+      "derive_ctx_carries",
+      "reports_progress_to_a_caller",
+      "across the adapter boundary",
+      "NOT A FORGOTTEN CALL",
+      "carries no progress reporter",
+      "per-call state that only"
+    ]
+  },
+  "timeoutsSec": {
+    "build": 1800,
+    "test": 900
+  }
+}

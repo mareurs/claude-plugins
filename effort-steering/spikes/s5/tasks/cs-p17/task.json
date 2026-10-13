@@ -1,0 +1,86 @@
+{
+  "id": "cs-p17",
+  "repo": "codescout",
+  "repoPath": "/home/marius/work/claude/codescout",
+  "fix": "6546a718fb3dd9144b2100aa94b01ba4cd0bbcfe",
+  "parent": "3acdd9613720e8191d29de5191a38309e162f769",
+  "subsystem": "migrate",
+  "testRunner": "cargo",
+  "hidden": {
+    "files": ["tests/retrieval_integration.rs"],
+    "extra": ["tests/migrate_memories_cli.rs"]
+  },
+  "buildCommand": ["cargo", "test", "--offline", "--no-default-features", "--no-run", "--lib", "--test", "retrieval_integration"],
+  "f2p": {
+    "command": ["cargo", "test", "--offline", "--no-default-features", "--no-fail-fast", "--test", "migrate_memories_cli"],
+    "names": [
+      "in_place_migration_embeds_every_memory_when_one_exceeds_the_backend_limit",
+      "in_place_migration_sends_every_part_of_a_long_memory_to_the_backend",
+      "in_place_migration_stores_unit_length_vectors_for_long_memories"
+    ]
+  },
+  "p2p": {
+    "command": [
+      "cargo", "test", "--offline", "--no-default-features", "--no-fail-fast", "--lib", "--test", "retrieval_integration", "--",
+      "--exact",
+      "migrate::memories::tests::missing_db_returns_empty_report",
+      "migrate::memories::tests::migrates_memories_and_anchors",
+      "migrate::memories::tests::dry_run_does_not_write",
+      "migrate::memories::tests::embed_failure_skips_row_without_aborting_run",
+      "migrate::memories::tests::migration_is_idempotent_via_deterministic_point_id",
+      "migrate::memories::tests::reembed_in_place_replaces_the_vector_and_preserves_everything_else",
+      "migrate::memories::tests::reembed_in_place_leaves_the_existing_vector_when_embedding_fails",
+      "migrate::memories::tests::reembed_in_place_dry_run_neither_embeds_nor_writes",
+      "migrate::memories::tests::reembed_in_place_ignores_other_projects",
+      "migrate::memories::tests::reembed_in_place_on_an_empty_store_is_a_no_op",
+      "migrate::memories::tests::embed_missing_recovers_what_the_store_driven_pass_cannot_see",
+      "migrate::memories::tests::embed_missing_leaves_already_stored_memories_alone",
+      "migrate::memories::tests::embed_missing_does_not_treat_another_bucket_as_coverage",
+      "migrate::memories::tests::embed_missing_writes_nothing_when_the_embedder_is_down",
+      "migrate::memories::tests::embed_missing_dry_run_neither_embeds_nor_writes",
+      "migrate::memories::tests::embed_missing_handles_nested_topics",
+      "embedder_returns_dense_and_sparse",
+      "embedder_dim_mismatch_errors",
+      "dense_only_embedder_skips_sparse"
+    ],
+    "names": [
+      "migrate::memories::tests::missing_db_returns_empty_report",
+      "migrate::memories::tests::migrates_memories_and_anchors",
+      "migrate::memories::tests::dry_run_does_not_write",
+      "migrate::memories::tests::embed_failure_skips_row_without_aborting_run",
+      "migrate::memories::tests::migration_is_idempotent_via_deterministic_point_id",
+      "migrate::memories::tests::reembed_in_place_replaces_the_vector_and_preserves_everything_else",
+      "migrate::memories::tests::reembed_in_place_leaves_the_existing_vector_when_embedding_fails",
+      "migrate::memories::tests::reembed_in_place_dry_run_neither_embeds_nor_writes",
+      "migrate::memories::tests::reembed_in_place_ignores_other_projects",
+      "migrate::memories::tests::reembed_in_place_on_an_empty_store_is_a_no_op",
+      "migrate::memories::tests::embed_missing_recovers_what_the_store_driven_pass_cannot_see",
+      "migrate::memories::tests::embed_missing_leaves_already_stored_memories_alone",
+      "migrate::memories::tests::embed_missing_does_not_treat_another_bucket_as_coverage",
+      "migrate::memories::tests::embed_missing_writes_nothing_when_the_embedder_is_down",
+      "migrate::memories::tests::embed_missing_dry_run_neither_embeds_nor_writes",
+      "migrate::memories::tests::embed_missing_handles_nested_topics",
+      "embedder_returns_dense_and_sparse",
+      "embedder_dim_mismatch_errors",
+      "dense_only_embedder_skips_sparse"
+    ]
+  },
+  "testPatterns": ["cargo test"],
+  "scrub": {
+    "removePaths": [
+      "docs/issues/2026-08-26-migration-embedder-lacks-the-segmentation-the-tool-path-has.md",
+      "docs/issues/archive/2026-08-26-dense-embedder-slot-context-drops-large-embeds.md"
+    ],
+    "terms": [
+      "migration-embedder-lacks-the-segmentation-the-tool-path-has",
+      "lacks the segmentation",
+      "segments_past_the_backend_ceiling",
+      "http_migration_embedder_",
+      "embed::document",
+      "26feb1aa",
+      "31 596",
+      "31596"
+    ]
+  },
+  "timeoutsSec": { "build": 1800, "test": 900 }
+}
