@@ -236,7 +236,20 @@ t('V2: a graft that fails stops the build with the script\'s error', () => {
   const mf = join(src7, 'tasks', 'cs-g', 'manifest.json');
   const m = JSON.parse(readFileSync(mf, 'utf8'));
   writeFileSync(mf, JSON.stringify({ ...m, ...hashBuiltTask(join(src7, 'tasks', 'cs-g')) }));
-  assert.throws(() => buildR1Root({ srcRoot: src7, dstRoot: join(scratch, 'dst7'), tasks: [{ id: 'cs-g', promptFile }], copy }), /graft/);
+  assert.throws(() => buildR1Root({ srcRoot: src7, dstRoot: join(scratch, 'dst7'), tasks: [{ id: 'cs-g', promptFile }], copy }), /graft of the hidden tests failed.*(cannot stat|No such file)/s);
+});
+
+t('V2: a def.hidden without a files list (an empty object, a string, files not an array) is refused before anything is copied', () => {
+  for (const hidden of [{}, 'tests', { files: 'a.rs' }, { files: null }, null]) {
+    const srcX = join(scratch, `srcx-${Math.random().toString(16).slice(2, 8)}`);
+    makeSrc(srcX, 'cs-x');
+    const mf = join(srcX, 'tasks', 'cs-x', 'manifest.json');
+    const m = JSON.parse(readFileSync(mf, 'utf8'));
+    writeFileSync(mf, JSON.stringify({ ...m, def: { testRunner: 'cargo', hidden } }));
+    const dstX = join(scratch, `dstx-${Math.random().toString(16).slice(2, 8)}`);
+    assert.throws(() => buildR1Root({ srcRoot: srcX, dstRoot: dstX, tasks: [{ id: 'cs-x', promptFile }], copy }), /def\.hidden/, JSON.stringify(hidden));
+    assert.equal(existsSync(dstX), false);
+  }
 });
 
 // ---- V2 leak repair (spec decision 5): a committed list of adjustments to the hidden copies, applied before the graft ----
