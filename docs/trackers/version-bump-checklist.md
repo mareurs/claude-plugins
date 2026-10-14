@@ -14,17 +14,19 @@ Release readiness across plugins × profiles. See
 
 ## State
 
-_Last refresh: `4fc9326`, 2026-10-11 — companion 1.20.16→1.20.17, local only. Release preflight passed all plugin suites and buddy pytest (528 passed). The release's final gate initially exited 1 on unrelated marketplace revision skew; four catalog copies were aligned with the main profile using preserved directory backups and unchanged registries. The repeated full parity gate exited 0. Generated release outputs are integrated in canonical commit f8a73ee after separate feature 4ce5432; original Codex/Codescout source commits are 5eedcdc543/eed25579. Native escalation respected the protected .git rules and preserved unrelated work._
+_Last refresh: `8788261`, 2026-10-14 — buddy 0.11.9→0.11.10, pushed (`main` `f026c11..8788261`). See History 2026-10-14._
+
+_Previous refresh: `4fc9326`, 2026-10-11 — companion 1.20.16→1.20.17, local only. Release preflight passed all plugin suites and buddy pytest (528 passed). The release's final gate initially exited 1 on unrelated marketplace revision skew; four catalog copies were aligned with the main profile using preserved directory backups and unchanged registries. The repeated full parity gate exited 0. Generated release outputs are integrated in canonical commit f8a73ee after separate feature 4ce5432; original Codex/Codescout source commits are 5eedcdc543/eed25579. Native escalation respected the protected .git rules and preserved unrelated work._
 
 The existing lowercase Codex profile also installed companion 1.20.17 via the public plugin installer. Its cache matches the released plugin's source files; the one generated migrated-command skill was checked against the source command. Runtime .codescout databases/locks/stamps, alongside the existing build/runtime exclusions, are explicitly excluded from source-byte comparison. The verified GNU/Linux 0.160.0 host is now selected/pinned and cold-loaded; native approval accept/decline and resume/compact/fork transport passed. All three fresh Claude profiles loaded 1.20.17 startup; main/SDD turns passed, Kat's expired OAuth blocks its authenticated smoke. Runtime canonical directory-source loading and own-profile cache ownership were measured separately. Main-profile Claude owned formatting and native-derived explicit Codex mixed-host refusal passed. The native Claude fork smoke exposed a separate Codescout history-reader attribution bug (F-17); its reviewed four-file follow-up passes 99 focused tests, nine applied mutations (zero final survivors) and same-fork corrected native refusal; the canonical broad gate passed all five lanes and the original four-file Codescout follow-up is committed locally as 6eb585ef, with reviewed-byte equality and empty index verified. Native Claude child/root attribution and parent formatting also passed after repairing scratch fixture modes. These are separate Codescout reader/native acceptance observations and do not change the released companion cache bytes. Kat reauthentication is unavailable now, so its authenticated smoke stays pending. See verification artifact 2185a218fbd18b7f.
 
-**buddy** — canonical `0.11.9` · readme `0.11.9` · marketplace clean ✅
+**buddy** — canonical `0.11.10` · readme `0.11.10` · marketplace clean ✅
 
 | profile | installed | cache dir | install_path ok | all entries | cache = working tree |
 |---|---|---|---|---|---|
-| `~/.claude` | 0.11.9 ✅ | ✅ | ✅ | `0.11.9` ✅ | ✅ |
-| `~/.claude-sdd` | 0.11.9 ✅ | ✅ | ✅ | `0.11.9` ✅ | ✅ |
-| `~/.claude-kat` | 0.11.9 ✅ | ✅ | ✅ | `0.11.9` ✅ | ✅ |
+| `~/.claude` | 0.11.10 ✅ | ✅ | ✅ | `0.11.10` ✅ | ❌ |
+| `~/.claude-sdd` | 0.11.10 ✅ | ✅ | ✅ | `0.11.10` ✅ | ❌ |
+| `~/.claude-kat` | 0.11.10 ✅ | ✅ | ✅ | `0.11.10` ✅ | ❌ |
 
 **claude-statusline** — canonical `1.2.0` · readme `1.2.0` · marketplace clean ✅
 
@@ -37,9 +39,9 @@ The existing lowercase Codex profile also installed companion 1.20.17 via the pu
 
 | profile | installed | cache dir | install_path ok | all entries | cache = working tree |
 |---|---|---|---|---|---|
-| `~/.claude` | 1.20.17 ✅ | ✅ | ✅ | `1.20.17` ✅ | ✅ |
-| `~/.claude-sdd` | 1.20.17 ✅ | ✅ | ✅ | `1.20.17` ✅ | ✅ |
-| `~/.claude-kat` | 1.20.17 ✅ | ✅ | ✅ | `1.20.17` ✅ | ✅ |
+| `~/.claude` | 1.20.17 ✅ | ✅ | ✅ | `1.20.17` ✅ | ❌ |
+| `~/.claude-sdd` | 1.20.17 ✅ | ✅ | ✅ | `1.20.17` ✅ | ❌ |
+| `~/.claude-kat` | 1.20.17 ✅ | ✅ | ✅ | `1.20.17` ✅ | ❌ |
 
 **legible** — canonical `0.2.0` · readme `0.2.0` · marketplace clean ✅
 
@@ -55,6 +57,15 @@ The existing lowercase Codex profile also installed companion 1.20.17 via the pu
 `claude-statusline` is absent from ~/.claude; it is installed in the other two profiles. This is the measured WARN reported by the parity gate, not a fabricated all-profile installation.
 
 Source/cache differences outside this release are kept visible: a new legible style-probe file was committed after legible 0.2.0. Its existing 0.2.0 cache is not re-seeded to give that version a second byte set. These rows stay ❌ until that plugin's owner releases the change.
+
+**buddy's ❌ (2026-10-14) is not a difference in the released bytes.** Each 0.11.10 cache is byte-identical, under `diff -rq` with the documented excludes, to `buddy/` in a worktree of `main@8788261`. That worktree also held the git-ignored `hooks/judge.env`, copied in from the shared checkout so the cache keeps it as the 0.11.9 caches did. The working tree differs for two measured reasons:
+- The shared checkout is on `effort-routing-r1`, which does not contain `8788261`, so its `buddy/.claude-plugin/plugin.json` still reads `0.11.9`. This clears when that branch takes `main`.
+- The release seeded from a clean worktree, so eight git-ignored local paths exist only in the shared tree: `.claude`, `.codescout`, `.fastembed_cache`, `uv.lock`, two `tests/create-buddy-eval/runs/*.md`, `tests/fixtures/consolidate_channel/summons.log` and `tests/prompt-hamsa-eval/.env`. Caches seeded from the shared checkout used to carry them. A re-seed does not fix this. Whether git-ignored paths belong in this column is an open question, and per the exclusion rule above it needs an artifact-class justification, not a quiet exclude.
+
+**codescout-companion's ❌ (2026-10-14) is two unreleased source changes plus runtime state.**
+- `b7247bf` (on `main`, after 1.20.17) changed `README.md` and `docs/session-context.md`. No hook, skill or command of the plugin reads either file.
+- `f17afad` (on `effort-routing-r1` only, not on `main`) changed `.pi/extensions/codescout-mode.ts` and its test.
+- `.codescout` and `hooks/.codescout` exist only in the tree; the 2026-10-11 refresh excluded runtime `.codescout` state explicitly.
 
 ### The new column, and why it exists
 
@@ -162,6 +173,17 @@ measured on both candidate load paths rather than argued: the record points at k
 two actually serves, they carry the same bytes — so the question CLAUDE.md flags as
 unsettled does not need settling for this release.
 ## History
+### 2026-10-14 — buddy 0.11.10 (commands take `$ARGUMENTS`; status, check and legend convert into Codex skills), pushed
+
+**Deltas, all measured:**
+- `buddy`: canonical, readme and all three profiles' installed `0.11.9→0.11.10`, via `scripts/release.sh buddy patch`. It ran from a temporary worktree on `main`, because the shared checkout is on `effort-routing-r1` with uncommitted files and `release.sh` has no branch check. Pushed (`main` `f026c11..8788261`; `52ac94c` and `322fa6f` the fixes, `8788261` the bump). One array element per profile. Each cache equals `main@8788261`'s `buddy/` under `diff -rq`, plus the git-ignored `hooks/judge.env`.
+- `cache = working tree`: buddy ✅→❌ ×3 and companion ✅→❌ ×3. Neither is a difference in the bytes a Claude Code profile serves from its cache; State explains each.
+- `legible` 0.2.0 and `claude-statusline` 1.2.0: unchanged.
+- Push state: the push carried the 15 commits before the bump. Eleven came from other sessions: ten effort-steering commits and `b7247bf`.
+- Gate: `tests/run-all.sh` green (no `not ok` line, no `FAIL:` line, no non-zero `failed` count); buddy pytest `528 passed` under the system `python3`.
+- `last_refresh_commit` `4fc9326→8788261`.
+
+**Not probed:** cold restart and registration in any profile; that `/buddy:remember` now receives the whole argument at runtime; Codex conversion of `status`, `check` and `legend` (needs `codex plugin add buddy@sdd-misc-plugins` first).
 ### 2026-10-11 — native host acceptance and original delivery
 
 The verified GNU/Linux 0.160.0 paired host is selected/pinned in the actual shared daemon. Native escalation and rejection both passed; ordinary shell routing remains active. Reviewed original local commits are plugin feature 4ce5432, separately delivered real-release outputs f8a73ee, Codex 5eedcdc543 and Codescout eed25579. No push occurred.
