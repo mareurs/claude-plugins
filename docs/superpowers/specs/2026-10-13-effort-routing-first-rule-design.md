@@ -94,6 +94,31 @@ The unit of analysis is the task. Per task, d = mean pass of C minus mean pass o
 7. Stage 2 gate if C failed somewhere under V2 (24 runs of arm A, about $25 by the S5 per-run figure; a separate operator approval).
 8. The result goes into ES-22 and ES-23; the operator rules on R1 and G4. Nothing is pushed without the operator.
 
+## Result (2026-10-14): `not_shown_safe`, so no-ship for R1 as registered
+
+The registered design ran under V2 (decision 5): 12 tasks, 2 runs per cell, `claude-sonnet-5-5`, CLI 2.1.296, registration `r1-prereg.json` at eb90bd3, bound `paired-t`, margin 0.15. Rows and analyses are outside the repository in `~/work/claude/s5-work-v2/` (sha256 prefixes: `rows-stage1.jsonl` 9ee6943313a81780, `rows-stage2.jsonl` 2f1d3ba240fb17dd, `stage2-analysis.json` 9235543a745e0f7f).
+
+| | arm C (`low`), stage 1 | arm A (`xhigh`), stage 2 |
+|---|---|---|
+| runs, infra, lost | 24, 0, 0 | 24, 0, 0 |
+| passed | 19 of 24 | 22 of 24 |
+| cost, total and per run | $3.78, $0.157 | $14.38, $0.599 |
+| median wall, median turns | 2.5 min, 12 | 8.3 min, 28 |
+
+Per task (pass out of 2, C then A): 9 tasks 2/2 and 2/2; cs-p12 1/2 and 2/2; cs-p18 0/2 and 0/2; cs-p20 0/2 and 2/2. Mean of C minus A is -0.125 (inside the 0.15 margin as a point estimate); the one-sided 95 percent lower bound is -0.286, which is below -0.15. The registered verdict is `not_shown_safe`. It is neither "unsafe" nor "safe": at N = 12 the bound cannot clear the margin, and two tasks carry the whole difference.
+
+**What the failures were (checked in the transcripts and, for cs-p20, by replaying the agents' edits and grading with the kept grade directory):**
+- cs-p20 (C 0/2, A 2/2): the agent added a `progress` field to `librarian::tools::ToolContext` and did not compile the other test targets: `E0063 missing field progress` in `tests/link_scan.rs:29` and `tests/audit_shards_cross_machine.rs:50`. Arm A ran a plain `cargo test` (the whole suite, integration targets included, and `git stash` to tell old failures from new ones) and caught it. This is the one difference that looks like an effect of effort: shallower verification at `low`. A diagnostic (4 runs, $0.53, no build sentence, `s5-work-v2d`, not in the verdict) gave cs-p20 1/2 for C.
+- cs-p12 (C 1/2): the failing run fixed one part and ended by asking whether to fix the other five failing tests.
+- cs-p18 (both arms 0/2): a tie. Both arms fixed the `edit_file` site named in the trace and never ran the `update_entry` site, which the trace does not show. Both arms ran every cargo command with `--no-default-features`, so the `librarian` module (a default feature) was not compiled.
+
+**Harness artifacts, found and disclosed:**
+- The build-hint sentence anchors the agent on `--no-default-features`: 22 of 24 C agents and 129 of 164 A cargo commands used it; without the sentence, 0 of 4. That hides `librarian` for cs-p18 and cs-p20 (graded with default features). It is symmetric between the arms, so it does not bias the comparison, but cs-p18 carries no information.
+- The V2 visible tests give the exact interface, so the lab is easier than a real prompt. The shadow guard never failed a graft in either stage. It does not close deliberate manipulation of git (attributes, config, skip-worktree, `git replace`) or `#[cfg(any())]`.
+- V2, the guard and the repairs were all chosen after the V1 pilot outcome was seen (decision 5). The V1 rows (10 of 24 runs asked for the test file) do not enter this verdict.
+
+**Meaning.** R1 (`hasStackTrace` to `shallow` to `low`) is not supported by this experiment: on well-localised fixes with the failing test in the tree, `low` costs 74 percent less per run and passes 79 percent against 92 percent, and the gap sits in how far the agent verifies before it stops. `core/rules.json` stays empty. G4 stays held. The operator rules on R1; the branch `effort-routing-r1` is not merged into `main` and nothing is pushed.
+
 ## Out of scope
 
 - The text steer (arm B) and G4. A later experiment.
