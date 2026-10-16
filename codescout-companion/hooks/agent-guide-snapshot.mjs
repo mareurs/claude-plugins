@@ -55,6 +55,7 @@ import {
   agentGuideSnapshotFile,
   agentIdOrComplain,
   guideLedgerKeys,
+  listSiblingGuideSnapshots,
   encodeGuideSnapshot,
   serversDir,
   guideRearmDir,
@@ -131,7 +132,19 @@ if (snapPath) {
 // A server that predates the field reads the request as a re-arm of topics an
 // empty ledger does not hold — a no-op, i.e. today's behaviour.
 const isFork = input.agent_type === 'fork';
-if (agentId && keys.length > 0) {
+// NESTED DISPATCH. `keys` above is the TOP-LEVEL parent's ledger, but a fork spawned
+// by a SUBAGENT inherits that subagent's context. SubagentStart names only the new
+// agent (agent_id/agent_type — checked against the shipped payload schema, 2.1.301),
+// so the dispatcher cannot be identified. If another subagent of this session is
+// LIVE (a snapshot with done:false; finished ones are tombstones) it might be the
+// dispatcher, and seeding the parent's keys would mark guides delivered that the
+// fork never saw. Skip the seed then: the fork is served normally, i.e.
+// over-delivered, which is the safe direction. Cost: sibling forks dispatched in
+// one batch also skip it. A fork with no live subagent can only have been
+// dispatched by the top-level parent.
+const dispatcherMayBeASubagent =
+  isFork && listSiblingGuideSnapshots(sessionId, snapPath).some((s) => !s.done);
+if (agentId && keys.length > 0 && !dispatcherMayBeASubagent) {
   try {
     const rearmDir = guideRearmDir(home);
     // Never `mkdir` this ourselves — the server owns creating it at
