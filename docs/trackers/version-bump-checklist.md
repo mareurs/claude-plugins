@@ -14,7 +14,9 @@ Release readiness across plugins × profiles. See
 
 ## State
 
-_Last refresh: `8788261`, 2026-10-14 — buddy 0.11.9→0.11.10, pushed (`main` `f026c11..8788261`). See History 2026-10-14._
+_Last refresh: `9223628`, 2026-10-16 — codescout-companion 1.20.17→1.20.18, pushed (`main` `8f3b8b5..9223628`); `~/.claude` buddy record repointed 0.11.9→0.11.10 after it regressed. See History 2026-10-16._
+
+_Earlier refresh: `8788261`, 2026-10-14 — buddy 0.11.9→0.11.10, pushed (`main` `f026c11..8788261`). See History 2026-10-14._
 
 _Previous refresh: `4fc9326`, 2026-10-11 — companion 1.20.16→1.20.17, local only. Release preflight passed all plugin suites and buddy pytest (528 passed). The release's final gate initially exited 1 on unrelated marketplace revision skew; four catalog copies were aligned with the main profile using preserved directory backups and unchanged registries. The repeated full parity gate exited 0. Generated release outputs are integrated in canonical commit f8a73ee after separate feature 4ce5432; original Codex/Codescout source commits are 5eedcdc543/eed25579. Native escalation respected the protected .git rules and preserved unrelated work._
 
@@ -35,13 +37,13 @@ The existing lowercase Codex profile also installed companion 1.20.17 via the pu
 | `~/.claude-sdd` | 1.2.0 ✅ | ✅ | ✅ | `1.2.0` ✅ | ✅ |
 | `~/.claude-kat` | 1.2.0 ✅ | ✅ | ✅ | `1.2.0` ✅ | ✅ |
 
-**codescout-companion** — canonical `1.20.17` · readme `1.20.17` · marketplace clean ✅
+**codescout-companion** — canonical `1.20.18` · readme `1.20.18` · marketplace clean ✅
 
 | profile | installed | cache dir | install_path ok | all entries | cache = working tree |
 |---|---|---|---|---|---|
-| `~/.claude` | 1.20.17 ✅ | ✅ | ✅ | `1.20.17` ✅ | ❌ |
-| `~/.claude-sdd` | 1.20.17 ✅ | ✅ | ✅ | `1.20.17` ✅ | ❌ |
-| `~/.claude-kat` | 1.20.17 ✅ | ✅ | ✅ | `1.20.17` ✅ | ❌ |
+| `~/.claude` | 1.20.18 ✅ | ✅ | ✅ | `1.20.18` ✅ | ❌ |
+| `~/.claude-sdd` | 1.20.18 ✅ | ✅ | ✅ | `1.20.18` ✅ | ❌ |
+| `~/.claude-kat` | 1.20.18 ✅ | ✅ | ✅ | `1.20.18` ✅ | ❌ |
 
 **legible** — canonical `0.2.0` · readme `0.2.0` · marketplace clean ✅
 
@@ -58,11 +60,15 @@ The existing lowercase Codex profile also installed companion 1.20.17 via the pu
 
 Source/cache differences outside this release are kept visible: a new legible style-probe file was committed after legible 0.2.0. Its existing 0.2.0 cache is not re-seeded to give that version a second byte set. These rows stay ❌ until that plugin's owner releases the change.
 
+**The `~/.claude` buddy record regressed to 0.11.9 and was repaired (2026-10-16).** On 2026-10-15 at 09:41:41 (+0300), a day after the release, `~/.claude/plugins/installed_plugins.json` was rewritten with `buddy` `0.11.9` and its 0.11.9 `installPath`. The same second-range rewrote `known_marketplaces.json` and `plugin-directory-cache-v2.json`, and every profile has `autoUpdate: true` on `sdd-misc-plugins`. The record's `gitCommitSha` reads `7de8d30`, the shared checkout's `effort-routing-r1` HEAD, and that checkout's `buddy/.claude-plugin/plugin.json` reads `0.11.9`. This fits a refresh that read the shared checkout, but it is **not established as the cause**: `~/.claude-sdd` refreshed its marketplace on 2026-10-15 at 09:26 and kept 0.11.10. Repair, after a backup of the record: the `release.sh` step-5 `jq` on `~/.claude` only (`version` and `installPath` of element `[0]`); other entries compared identical. The 0.11.10 cache dir had survived the rewrite. **`check-profile-parity.sh` reads the canonical version from the checkout it runs in** (`REPO_ROOT/<plugin>/.claude-plugin/plugin.json`): run from the shared checkout it reports false drift (`canonical is 0.11.9`, `1.20.17`); run from a worktree on `main`, buddy, codescout-companion and legible all pass. The refresh may recur until the shared checkout carries `main`.
+
 **buddy's ❌ (2026-10-14) is not a difference in the released bytes.** Each 0.11.10 cache is byte-identical, under `diff -rq` with the documented excludes, to `buddy/` in a worktree of `main@8788261`. That worktree also held the git-ignored `hooks/judge.env`, copied in from the shared checkout so the cache keeps it as the 0.11.9 caches did. The working tree differs for two measured reasons:
 - The shared checkout is on `effort-routing-r1`, which does not contain `8788261`, so its `buddy/.claude-plugin/plugin.json` still reads `0.11.9`. This clears when that branch takes `main`.
 - The release seeded from a clean worktree, so eight git-ignored local paths exist only in the shared tree: `.claude`, `.codescout`, `.fastembed_cache`, `uv.lock`, two `tests/create-buddy-eval/runs/*.md`, `tests/fixtures/consolidate_channel/summons.log` and `tests/prompt-hamsa-eval/.env`. Caches seeded from the shared checkout used to carry them. A re-seed does not fix this. Whether git-ignored paths belong in this column is an open question, and per the exclusion rule above it needs an artifact-class justification, not a quiet exclude.
 
-**codescout-companion's ❌ (2026-10-14) is two unreleased source changes plus runtime state.**
+**codescout-companion's ❌ (2026-10-16) is a difference between the shared checkout and 1.20.18, not in the released bytes.** Each profile's 1.20.18 cache is byte-identical to `codescout-companion/` of `main@9223628` under `diff -rq` with the documented excludes (plus `.in_use`, `.fastembed_cache`, `.claude`, `.codescout`); checked in all three profiles. Release preflight: no `not ok` line, no `FAIL:` line, no non-zero `failed` count, buddy pytest 528 passed. Against the shared checkout, the `~/.claude` 1.20.18 cache differs in `.claude-plugin/plugin.json`, `package.json` and `.pi/extensions/codescout-mode.test.mjs`. It also holds three files the tree lacks: `.pi/extensions/companion-widget.test.mjs`, `scripts/rollout-inventory.py` and `scripts/rollout-inventory.README.md`. The tree holds `.codescout` and `hooks/.codescout`, which exist only there. Cause: `effort-routing-r1` does not contain `ccb62c5`, `8f3b8b5`, `8788261` or `9223628`; it does contain `b7247bf` and `f17afad`. This clears when that branch takes `main`. What 1.20.18 ships from `main`: the README and `docs/session-context.md` change (`b7247bf`), the Pi extension changes (`ccb62c5`) and the read-only `scripts/rollout-inventory.py` (`8f3b8b5`). No hook, skill or command changed, so a Claude Code session behaves as on 1.20.17.
+
+**codescout-companion's ❌ as read on 2026-10-14 (superseded by the paragraph above, kept as history).**
 - `b7247bf` (on `main`, after 1.20.17) changed `README.md` and `docs/session-context.md`. No hook, skill or command of the plugin reads either file.
 - `f17afad` (on `effort-routing-r1` only, not on `main`) changed `.pi/extensions/codescout-mode.ts` and its test.
 - `.codescout` and `hooks/.codescout` exist only in the tree; the 2026-10-11 refresh excluded runtime `.codescout` state explicitly.
@@ -173,6 +179,15 @@ measured on both candidate load paths rather than argued: the record points at k
 two actually serves, they carry the same bytes — so the question CLAUDE.md flags as
 unsettled does not need settling for this release.
 ## History
+### 2026-10-16 — codescout-companion 1.20.18 released and pushed; `~/.claude` buddy record repaired
+
+**Deltas, all measured:**
+- `codescout-companion`: canonical, readme and all three profiles' installed `1.20.17→1.20.18`, via `scripts/release.sh codescout-companion patch` from a clean worktree on `main`. Pushed `8f3b8b5..9223628`; `origin/main` equals `main`.
+- `buddy` in `~/.claude`: record repointed `0.11.9→0.11.10` by hand with the release script's own `jq`. See State for the evidence and for why the cause is not established.
+- Parity gate, run from the `main` worktree: `buddy` 0.11.10, `codescout-companion` 1.20.18 and `legible` 0.2.0 pass across 3 profiles. Marketplace registrations: no skew, no symlinks.
+- Caches: `buddy` 0.11.10 and `codescout-companion` 1.20.18 are byte-identical to `main@9223628` in all three profiles (`buddy` excluding the git-ignored `judge.env`).
+
+**Still open:** the cold restart of all three Claude Code instances, and the shared checkout on `effort-routing-r1`, which keeps the refresh risk alive.
 ### 2026-10-14 — buddy 0.11.10 (commands take `$ARGUMENTS`; status, check and legend convert into Codex skills), pushed
 
 **Deltas, all measured:**
