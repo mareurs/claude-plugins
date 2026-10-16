@@ -1,9 +1,10 @@
 // SubagentStart hook — snapshot codescout's guide-hints ledger before a
 // subagent does any work, so agent-guide-restore.mjs (SubagentStop) can undo
 // whatever the subagent's OWN tool calls mark delivered, without touching
-// anything the PARENT already fetched before this dispatch. ALSO, for a fresh
-// (non-`fork`) subagent, requests a LIVE re-arm of that same key set from the
-// already-running server — see the second half of this file.
+// anything the PARENT already fetched before this dispatch. ALSO requests a
+// LIVE adjustment of the new subagent's ledger from the already-running server
+// — a re-arm for a fresh subagent, an "already held" seed for a `fork` — see
+// the second half of this file.
 //
 // Why: codescout's guide_hints_emitted ledger is keyed by Claude Code
 // session_id, which a subagent shares with its parent — no separate MCP
@@ -109,16 +110,28 @@ if (snapPath) {
 // LIVE RE-ARM — see the module doc comment above and lib.mjs's "Live
 // in-session guide re-arm" section for the design.
 //
-// `agent_type !== 'fork'` treats a MISSING agent_type as fresh (the safe
-// default): a `fork` subagent inherits the parent's full conversation and
-// already has this content, so re-arming for it would only cost a harmless
-// redundant re-delivery to whichever party's next call lands first (still
-// the correct direction to err in — see Decision #8 in
-// codescout:docs/superpowers/specs/2026-08-18-guide-ledger-session-identity-design.md
-// — but there is no reason to pay it when the dispatch type is known safe).
-// A NON-fork subagent has zero inherited context, so re-arming is not an
-// optimization there — it is the only way the guide ever reaches it.
-if (agentId && keys.length > 0 && input.agent_type !== 'fork') {
+// `agent_type === 'fork'` treats a MISSING agent_type as fresh (the safe
+// default). A NON-fork subagent has zero inherited context, so the request is a
+// RE-ARM: the only way the guide ever reaches it.
+//
+// A `fork` inherits the parent's full conversation and already holds this
+// content, but the server serves it as its own never-seen principal with an
+// EMPTY ledger, so staying silent here re-served it every guide it inherited
+// (59,381 B for tracker-conventions alone). Until 2026-10-16 this gate skipped
+// the fork on the belief that skipping kept it suppressed — true only while
+// parent and child shared one ledger. Now the same request carries
+// `fork: true`, which tells the server the topics are ALREADY HELD: it marks
+// them delivered on the fork's ledger instead of re-arming them (codescout
+// `RearmRequest.fork` / `GuideLedger::seed_inherited`). The seed is the parent's
+// key set as of THIS dispatch; the server ignores one that arrives for a fork
+// that already has history of its own (a `SendMessage` resume re-fires this hook
+// with the parent's LATER keys).
+// codescout:docs/issues/2026-09-24-a-fork-child-is-re-served-every-guide-it-inherited.md
+//
+// A server that predates the field reads the request as a re-arm of topics an
+// empty ledger does not hold — a no-op, i.e. today's behaviour.
+const isFork = input.agent_type === 'fork';
+if (agentId && keys.length > 0) {
   try {
     const rearmDir = guideRearmDir(home);
     // Never `mkdir` this ourselves — the server owns creating it at
@@ -133,7 +146,10 @@ if (agentId && keys.length > 0 && input.agent_type !== 'fork') {
         try {
           const f = guideRearmFile(rearmDir, pid, agentId);
           const tmp = `${f}.tmp`;
-          writeFileSync(tmp, JSON.stringify({ topics: keys, created_at: new Date().toISOString() }));
+          writeFileSync(
+            tmp,
+            JSON.stringify({ topics: keys, fork: isFork, created_at: new Date().toISOString() })
+          );
           renameSync(tmp, f);
         } catch {
           /* best-effort per-pid: one failed write must not block the others */

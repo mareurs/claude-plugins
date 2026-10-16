@@ -315,11 +315,24 @@ check "non-fork dispatch with topics writes exactly one re-arm request" "$(rearm
 GOT=$(cat $(rearm_requests) | jq -S '.topics')
 WANT=$(echo '["librarian"]' | jq -S .)
 check "re-arm request names the ledger's current topics" "$GOT" "$WANT"
+check "a fresh dispatch's request is NOT marked fork (it is a re-arm)" \
+  "$(jq -r '.fork // false' $(rearm_requests))" "false"
 rm -f $(rearm_requests)
 
 echo '{"librarian":"2026-08-01T00:00:00Z"}' > "$LEDGER_FILE"
 run_start_typed "$SESSION" "agent_rearm_fork" "fork" > /dev/null
-check "fork dispatch writes no re-arm request (it already inherited the content)" "$(rearm_count)" "0"
+# A fork inherits the parent's conversation, so it must NOT be re-armed -- but the
+# server starts its (never-seen) principal ledger EMPTY and would re-serve every
+# inherited guide. The hook therefore writes the SAME request file with
+# `fork: true`, telling the server these topics are already held and to mark them
+# delivered (codescout RearmRequest.fork / GuideLedger::seed_inherited).
+# codescout:docs/issues/2026-09-24-a-fork-child-is-re-served-every-guide-it-inherited.md
+check "fork dispatch writes exactly one request (the inherited-topics seed)" "$(rearm_count)" "1"
+check "the fork request is marked fork:true" \
+  "$(jq -r '.fork' $(rearm_requests))" "true"
+check "the fork request names the parent's topics as of dispatch" \
+  "$(jq -S -c '.topics' $(rearm_requests))" '["librarian"]'
+rm -f $(rearm_requests)
 
 rm -f "$LEDGER_FILE"
 run_start "$SESSION" "agent_rearm_empty" > /dev/null
