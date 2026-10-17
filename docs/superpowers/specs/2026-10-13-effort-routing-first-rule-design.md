@@ -119,6 +119,8 @@ Per task (pass out of 2, C then A): 9 tasks 2/2 and 2/2; cs-p12 1/2 and 2/2; cs-
 
 **Meaning.** R1 (`hasStackTrace` to `shallow` to `low`) is not supported by this experiment: on well-localised fixes with the failing test in the tree, `low` costs 74 percent less per run and passes 79 percent against 92 percent, and the gap sits in how far the agent verifies before it stops. `core/rules.json` stays empty. G4 stays held. The operator rules on R1; the branch `effort-routing-r1` is not merged into `main` and nothing is pushed.
 
+**Operator ruling, 2026-10-17: R1 is a no-ship.** The static rule (`hasStackTrace` to `shallow` to `low`) is not shipped as registered. `core/rules.json` stays `{"version":1,"rules":[]}` (checked 2026-10-17). G4 stays held. The ruling covers this static rule only. It does not rule on routing in general. Later work (codescout `docs/research/2026-10-14-effort-steering-when-to-switch.md`) found that a termination gate lets `low` pass cs-p20 5 of 5 on that one task, and that for plan writing `xhigh` had fewer verified defects than `low`, `medium` and `high`. No router was run. Any new rule needs a new registration.
+
 ## Out of scope
 
 - The text steer (arm B) and G4. A later experiment.
