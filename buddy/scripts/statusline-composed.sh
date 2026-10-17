@@ -121,9 +121,24 @@ _maybe_refresh_cache() {
   disown 2>/dev/null || true
 }
 
+_creds_token_missing() {
+  # True only when .credentials.json EXISTS but holds no accessToken — the state
+  # of a profile that logs in with a long-lived CLAUDE_CODE_OAUTH_TOKEN. Such a
+  # token has no user:profile scope, and with no stored token _fetch_usage
+  # returns before it can mark the cache stale. The cache can then never
+  # refresh, so merging it would show old numbers as current. An absent file is
+  # not this state (API-key users, fresh installs): the cache is left alone.
+  [[ -f "$_CREDS" ]] || return 1
+  command -v jq &>/dev/null || return 1
+  [[ -z "$(jq -r '.claudeAiOauth.accessToken // empty' "$_CREDS" 2>/dev/null)" ]]
+}
+
 _merge_cache() {
   command -v jq &>/dev/null || { echo "$INPUT"; return; }
   [[ -f "$_CACHE" ]] || { echo "$INPUT"; return; }
+  # No stored token → cache is unrefreshable. Keep CC's own stdin untouched,
+  # so native rate_limits (Pro/Max) still show and nothing stale is invented.
+  _creds_token_missing && { echo "$INPUT"; return; }
 
   local merged
   merged=$(jq -s '
