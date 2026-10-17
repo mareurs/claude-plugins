@@ -5,12 +5,17 @@
 //   toggle stage-config --registration <file> --arm <name> --out <file> [--runs <n>]
 //       writes the S5 config of one arm (registration.mjs stageArmConfig); `--runs` replaces the arm's registered run count (an
 //       extension or a replacement batch) and changes nothing else. The output is checked with loadS5Config(out, { mode: 'calibrate' }).
-//   toggle check-runs --work-root <dir> --rows <file> --mode <mode> --out <file>
-//       one Run per final row (below); `--mode` is one of S5's mod modes, handed to checkRun.
+//   toggle check-runs --work-root <dir> --rows <file> --mode <mode|none> --out <file>
+//       one Run per final row (below); `--mode` is one of S5's mod modes, handed to checkRun (which does not read it), or `none` (ruling
+//       P16): a run made without a mod (reused R1 V2 rows), whose log is neither expected nor read, so only the `audit` reason excludes it.
+//       A `--work-root` without a `runs/` directory is an error (exit 1), not a work root whose every run is excluded.
 //   toggle analyze0 --registration <file> --evidence <arm>=<file> ...
 //   toggle analyze1 --registration <file> --evidence <arm>=<file> ...
-//   toggle random-params --evidence <file>
-//       the verdict JSON of analyze.mjs. An evidence file is a JSON array of Run objects (what check-runs writes).
+//   toggle random-params --registration <file> --stratum quality|other --evidence <T evidence file>
+//       the verdict JSON of analyze.mjs. An evidence file is a JSON array of Run objects (what check-runs writes). Ruling P18: it holds exactly
+//       the keys of a Run with their types, a unique runId, and taskIds among the arm's registered tasks (errors name the file and the run, exit
+//       1); evidence is required for every registered arm and refused for an unregistered one (exit 64). analyze1 merges the evidence of
+//       R-quality and R-other into R (ruling P17); random-params keeps T's runs on the quality task (`quality`) or on the others (`other`).
 //   toggle check-known [--low <runsDir>]... [--xhigh <runsDir>]... [--all <runsDir>]... [--task <id>]
 //       the broad matcher, the blinding audit and firstEditIndex over run directories that hold a transcript and no mod log.
 //
@@ -32,7 +37,7 @@
 // any other letter is skipped). `--task` keeps the runs of that task. A run directory without exactly one main transcript
 // (config/projects/*/*.jsonl) is an error, not a skip.
 
-import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { loadS5Config, MOD_MODES } from '../s5/prereg.mjs';
@@ -70,6 +75,13 @@ const needFlags = (flags, command, names) => {
 };
 const isObject = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
 const finite = (x) => typeof x === 'number' && Number.isFinite(x);
+const isDirectory = (p) => {
+  try {
+    return statSync(p).isDirectory();
+  } catch {
+    return false;
+  }
+};
 const writeJson = (file, value) => {
   mkdirSync(dirname(resolve(file)), { recursive: true });
   writeFileSync(resolve(file), `${JSON.stringify(value, null, 2)}\n`);
@@ -159,6 +171,7 @@ function readIfExists(file) {
 // checkRuns({ workRoot, rows, mode }) -> Run[]
 export function checkRuns({ workRoot, rows, mode }) {
   const runsDir = join(resolve(workRoot), 'runs');
+  if (!isDirectory(runsDir)) throw new Error(`${runsDir} is not a directory: --work-root must be a work root that holds runs/`);
   return finalRows(rows).map((row) => {
     const { runDir, usage } = findAttempt(runsDir, row);
     let transcriptText = '';
@@ -171,9 +184,11 @@ export function checkRuns({ workRoot, rows, mode }) {
         transcriptReason = 'transcript_unreadable';
       }
     }
-    const modLogText = runDir === null ? null : readIfExists(join(runDir, 'state', 'effort-toggle', 'log.jsonl'));
+    // Mode `none` (ruling P16): a run without a mod; no log is expected and none is read, so only the audit can exclude it.
+    const modLogText = runDir === null || mode === 'none' ? null : readIfExists(join(runDir, 'state', 'effort-toggle', 'log.jsonl'));
     const c = checkRun({ transcriptText, modLogText, mode });
-    const excludedFor = transcriptReason ?? (c.reasons.includes('audit') ? 'audit' : (c.reasons[0] ?? null));
+    const reason = c.reasons.includes('audit') ? 'audit' : (mode === 'none' ? null : (c.reasons[0] ?? null));
+    const excludedFor = transcriptReason ?? reason;
     return {
       runId: row.runId,
       taskId: row.taskId,
@@ -193,7 +208,7 @@ export function checkRuns({ workRoot, rows, mode }) {
 async function cmdCheckRuns(argv, io) {
   const f = parseFlags(argv, { 'work-root': 'string', rows: 'string', mode: 'string', out: 'string' });
   needFlags(f, 'check-runs', ['work-root', 'rows', 'mode', 'out']);
-  if (!MOD_MODES.includes(f.mode)) throw new UsageError(`--mode must be one of ${MOD_MODES.join(', ')}, got ${JSON.stringify(f.mode)}`);
+  if (f.mode !== 'none' && !MOD_MODES.includes(f.mode)) throw new UsageError(`--mode must be one of ${MOD_MODES.join(', ')} or none, got ${JSON.stringify(f.mode)}`);
   const rows = parseRows(readFileSync(resolve(f.rows), 'utf8'), f.rows);
   const runs = checkRuns({ workRoot: f['work-root'], rows, mode: f.mode });
   writeJson(f.out, runs);
@@ -203,14 +218,47 @@ async function cmdCheckRuns(argv, io) {
 
 // ---- the verdicts ----
 
-function readEvidence(file) {
+const RUN_KEYS = ['runId', 'taskId', 'rep', 'pass', 'costUsd', 'excludedFor', 'secondTurn', 'broadAt', 'requests', 'shareXhigh', 'upSwitches'];
+const isCount = (x) => Number.isInteger(x) && x >= 0;
+
+// The first problem of one Run object (ruling P18: exactly the keys check-runs writes, with their types), or null.
+function runProblem(r) {
+  for (const k of Object.keys(r)) if (!RUN_KEYS.includes(k)) return `has an unknown key ${JSON.stringify(k)}`;
+  for (const k of RUN_KEYS) if (!Object.hasOwn(r, k)) return `lacks the key ${k}`;
+  if (typeof r.runId !== 'string' || r.runId === '') return 'has a runId that is not a non-empty string';
+  if (typeof r.taskId !== 'string' || r.taskId === '') return 'has a taskId that is not a non-empty string';
+  if (!isCount(r.rep)) return `has rep ${JSON.stringify(r.rep)}, not an integer >= 0`;
+  if (r.pass !== null && typeof r.pass !== 'boolean') return `has pass ${JSON.stringify(r.pass)}, not a boolean or null`;
+  if (r.costUsd !== null && !(finite(r.costUsd) && r.costUsd >= 0)) return `has costUsd ${JSON.stringify(r.costUsd)}, not null or a finite number >= 0`;
+  if (r.excludedFor !== null && (typeof r.excludedFor !== 'string' || r.excludedFor === '')) return `has excludedFor ${JSON.stringify(r.excludedFor)}, not null or a string`;
+  if (typeof r.secondTurn !== 'boolean') return `has secondTurn ${JSON.stringify(r.secondTurn)}, not a boolean`;
+  if (!Array.isArray(r.broadAt) || !r.broadAt.every(isCount)) return 'has a broadAt that is not an array of integers >= 0';
+  if (!finite(r.requests)) return `has requests ${JSON.stringify(r.requests)}, not a finite number`;
+  if (!finite(r.shareXhigh) || r.shareXhigh < 0 || r.shareXhigh > 1) return `has shareXhigh ${JSON.stringify(r.shareXhigh)}, not a finite number in [0, 1]`;
+  if (!finite(r.upSwitches)) return `has upSwitches ${JSON.stringify(r.upSwitches)}, not a finite number`;
+  return null;
+}
+
+// An evidence file: a JSON array of valid Run objects with a unique runId, every taskId one of `tasks` (the arm's registered tasks).
+// Errors name the file and the offending run.
+function readEvidence(file, tasks) {
   let runs;
   try {
     runs = JSON.parse(readFileSync(resolve(file), 'utf8'));
   } catch (err) {
     throw new Error(`${file}: ${err.message}`);
   }
-  if (!Array.isArray(runs) || !runs.every(isObject)) throw new Error(`${file} must hold a JSON array of Run objects`);
+  if (!Array.isArray(runs)) throw new Error(`${file} must hold a JSON array of Run objects`);
+  const seen = new Set();
+  runs.forEach((r, i) => {
+    if (!isObject(r)) throw new Error(`${file}: entry ${i} is not a Run object`);
+    const problem = runProblem(r);
+    const name = typeof r.runId === 'string' && r.runId !== '' ? r.runId : `#${i}`;
+    if (problem !== null) throw new Error(`${file}: run ${name} ${problem}`);
+    if (seen.has(r.runId)) throw new Error(`${file}: run ${r.runId} appears twice`);
+    seen.add(r.runId);
+    if (!tasks.includes(r.taskId)) throw new Error(`${file}: run ${r.runId} has taskId ${r.taskId}, which is not one of the registered tasks (${tasks.join(', ')})`);
+  });
   return runs;
 }
 
@@ -223,8 +271,10 @@ function evidenceByArm(specs, reg) {
     const arm = spec.slice(0, eq);
     if (!Object.hasOwn(reg.arms, arm)) throw new UsageError(`--evidence names arm ${JSON.stringify(arm)}, which the registration lacks (its arms: ${Object.keys(reg.arms).join(', ')})`);
     if (Object.hasOwn(out, arm)) throw new UsageError(`--evidence names arm ${JSON.stringify(arm)} twice`);
-    out[arm] = readEvidence(spec.slice(eq + 1));
+    out[arm] = readEvidence(spec.slice(eq + 1), reg.arms[arm].tasks);
   }
+  const lacking = Object.keys(reg.arms).filter((arm) => !Object.hasOwn(out, arm));
+  if (lacking.length > 0) throw new UsageError(`--evidence is missing for the registered arm(s) ${lacking.join(', ')}`);
   return out;
 }
 
@@ -258,16 +308,24 @@ export function analyze1(reg, runs) {
 async function cmdAnalyze1(argv, io) {
   const f = parseFlags(argv, { registration: 'string', evidence: 'list' });
   const reg = loadStep(f, 'analyze1', 1);
-  const runs = evidenceByArm(f.evidence, reg);
+  const byArm = evidenceByArm(f.evidence, reg);
+  // Ruling P17: the random arm's two strata are one arm R for the verdict.
+  const { 'R-quality': rq, 'R-other': ro, ...runs } = byArm;
+  if (rq !== undefined || ro !== undefined) runs.R = [...(rq ?? []), ...(ro ?? [])];
   io.log(JSON.stringify(analyze1(reg, runs), null, 2));
   return 0;
 }
 
 // Ruling P13: only counted runs whose shareXhigh, upSwitches and requests are finite.
+// Ruling P13: only counted runs whose shareXhigh, upSwitches and requests are finite. Ruling P17 (C10): the parameters are per stratum, from
+// T's runs on the quality task (`--stratum quality`) or on the other tasks (`--stratum other`).
 async function cmdRandomParams(argv, io) {
-  const f = parseFlags(argv, { evidence: 'string' });
-  needFlags(f, 'random-params', ['evidence']);
-  const usable = readEvidence(f.evidence).filter((r) => isCounted(r) && finite(r.shareXhigh) && finite(r.upSwitches) && finite(r.requests));
+  const f = parseFlags(argv, { registration: 'string', stratum: 'string', evidence: 'string' });
+  needFlags(f, 'random-params', ['registration', 'stratum', 'evidence']);
+  if (f.stratum !== 'quality' && f.stratum !== 'other') throw new UsageError(`--stratum must be quality or other, got ${JSON.stringify(f.stratum)}`);
+  const reg = loadStep(f, 'random-params', 1);
+  const inStratum = (r) => (r.taskId === reg.verdict.qualityTask) === (f.stratum === 'quality');
+  const usable = readEvidence(f.evidence, reg.arms.T.tasks).filter((r) => inStratum(r) && isCounted(r) && finite(r.shareXhigh) && finite(r.upSwitches) && finite(r.requests));
   io.log(JSON.stringify(randomParams(usable), null, 2));
   return 0;
 }
