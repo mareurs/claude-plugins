@@ -2,7 +2,8 @@ import type { Register } from 'claude-code'
 
 // effort-toggle: the mod of the effort-toggle experiment (spec 2026-10-17-effort-toggle-design.md, "The mod").
 //
-// One config file, `${$.plugin.root}/config.json`, written by the arm's stage step, picks the mode:
+// One config file, `${$.plugin.root}/config.json`, written by `writeHookCopy` once per batch (not by the stage step),
+// picks the mode:
 //   toggle    registers the set_effort tool; the model's last valid choice is the effort of every later main step.
 //   placebo   registers the same tool and answers the same text, but rewrites no step (the tool does nothing).
 //   random    registers the same tool and answers the same text; the effort of the main steps follows a seeded
@@ -15,9 +16,13 @@ import type { Register } from 'claude-code'
 // Log: one JSON line per event at config.logPath, the whole file rewritten after each line because $.fs.write has no
 // append. A log failure never breaks a request or a tool answer. A missing or malformed config registers nothing,
 // rewrites nothing and leaves one `error` line at FALLBACK_LOG.
-//   { type: 'step', request: number | null, agentId: string | null, turnId, before, after }   before = the effort the step
-//       carried, after = the effort the request carries (equal to before when not rewritten); null only if it had none
-//   { type: 'call', request, level, reason }    { type: 'invalid', request, input }    { type: 'error', message }
+//   { type: 'step', request: number | null, index, agentId: string | null, turnId, before, after }   index = the engine's
+//       per-turn step index (it restarts every turn; `request` does not); before = the effort the step carried, after =
+//       the effort the request carries (equal to before when not rewritten); null only if it had none
+//   { type: 'call', request, agentId: string | null, level, reason, text }    text = the result text the tool answered
+//   { type: 'invalid', request, agentId: string | null, input }    input without the reserved keys (tool, tool_use_id,
+//       agentId, consent)
+//   { type: 'error', message }
 //
 // This file is loaded by the engine AND imported by Node in mod.test.mjs, so it is erasable TypeScript only (type
 // annotations and `import type`: no enums, namespaces or parameter properties). State lives in `register`'s closure.
@@ -183,17 +188,19 @@ export const register: Register = on => {
 
   on('tool.call', { tool: FULL_TOOL_NAME }, async ($, e, next) => {
     if (cfg === null) return next(e)
-    const { tool: _tool, tool_use_id: _id, agentId: _agent, ...input } = e as Record<string, unknown>
+    const { tool: _tool, tool_use_id: _id, agentId: rawAgent, consent: _consent, ...input } = e as Record<string, unknown>
+    const agentId = typeof rawAgent === 'string' ? rawAgent : null
     const request = Math.max(requests - 1, 0) // the main request whose response made this call
     const { level, reason } = input
     if (!isLevel(level) || typeof reason !== 'string' || reason.trim() === '') {
-      await appendLog($, sink, { type: 'invalid', request, input })
+      await appendLog($, sink, { type: 'invalid', request, agentId, input })
       return { deny: DENY_TEXT }
     }
     // Set before any await, so calls answered in one message apply in the order their hooks start: the last one wins.
     if (cfg.mode === 'toggle') mainLevel = level
-    await appendLog($, sink, { type: 'call', request, level, reason })
-    return { result: resultText(level) }
+    const text = resultText(level)
+    await appendLog($, sink, { type: 'call', request, agentId, level, reason, text })
+    return { result: text }
   })
 
   on('turn.step', async function* ($, e, next) {
@@ -214,6 +221,7 @@ export const register: Register = on => {
     await appendLog($, sink, {
       type: 'step',
       request,
+      index: e.index,
       agentId: typeof e.agentId === 'string' ? e.agentId : null,
       turnId: e.turnId,
       before: e.effort ?? null,

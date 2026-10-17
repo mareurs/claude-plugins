@@ -180,8 +180,8 @@ await ta('toggle: a valid call is logged with the request number of the main req
   await m.call({ level: 'low', reason: 'routine again' });
   const calls = m.log().filter((l) => l.type === 'call');
   assert.deepEqual(calls, [
-    { type: 'call', request: 1, level: 'xhigh', reason: 'check the diff' },
-    { type: 'call', request: 2, level: 'low', reason: 'routine again' },
+    { type: 'call', request: 1, agentId: null, level: 'xhigh', reason: 'check the diff', text: 'Effort is now xhigh. It applies from your next step.' },
+    { type: 'call', request: 2, agentId: null, level: 'low', reason: 'routine again', text: 'Effort is now low. It applies from your next step.' },
   ]);
 });
 
@@ -271,7 +271,7 @@ await ta('subagent steps (agentId set) do not advance the request number, are lo
     steps.map((l) => [l.request, l.agentId]),
     [[null, 'agent-1'], [0, null], [null, 'agent-1'], [null, 'agent-1'], [null, 'agent-2'], [1, null]],
   );
-  assert.deepEqual(steps[4], { type: 'step', request: null, agentId: 'agent-2', turnId: 'T1', before: 'medium', after: 'xhigh' });
+  assert.deepEqual(steps[4], { type: 'step', request: null, index: 2, agentId: 'agent-2', turnId: 'T1', before: 'medium', after: 'xhigh' });
 });
 
 await ta('subagent steps in schedule and random mode get the level of the latest main request and do not consume the schedule', async () => {
@@ -340,7 +340,7 @@ await ta('invalid input (level "high", missing reason, empty reason): deny resul
   const log = m.log();
   const invalid = log.filter((l) => l.type === 'invalid');
   assert.equal(invalid.length, bad.length, 'one invalid line per refused call');
-  assert.deepEqual(invalid[0], { type: 'invalid', request: 0, input: { level: 'high', reason: 'because' } });
+  assert.deepEqual(invalid[0], { type: 'invalid', request: 0, agentId: null, input: { level: 'high', reason: 'because' } });
   assert.deepEqual(invalid[1].input, { level: 'low' });
   assert.equal(log.filter((l) => l.type === 'call').length, 1, 'only the valid call is a call line');
 });
@@ -453,4 +453,54 @@ t('randomLevels: the sequence is pinned, so a registered seed reproduces the sam
   const X = 'xhigh';
   assert.deepEqual(randomLevels(0.5, 0.5, 42, 'T1', 16), [L, L, X, L, L, L, L, X, X, X, X, L, X, X, X, X]);
   assert.deepEqual(randomLevels(0.4, 0.3, 7, 'T1', 20), [L, L, X, X, L, X, L, X, X, L, L, X, L, X, L, L, X, L, X, X]);
+});
+
+// P26: the log fields the arm check (evidence.mjs) and the reader need.
+await ta('P26: a subagent call line and an invalid line carry the agentId; a main-loop call carries null; the call line carries the answered text', async () => {
+  const m = await boot({ config: cfg('toggle') });
+  await m.start();
+  await m.step({ turnId: 'T1', effort: 'medium' });
+  assert.deepEqual(await m.call({ level: 'xhigh', reason: 'r', agentId: 'agent-7' }), { result: resultText('xhigh') });
+  assert.deepEqual(await m.call({ level: 'low', reason: 'r2' }), { result: resultText('low') });
+  assert.deepEqual(await m.call({ level: 'high', reason: 'r3', agentId: 'agent-8' }), { deny: DENY });
+  assert.deepEqual(await m.call({ level: 'high', reason: 'r4' }), { deny: DENY });
+  const log = m.log();
+  const calls = log.filter((l) => l.type === 'call');
+  assert.deepEqual(calls.map((l) => [l.agentId, l.level, l.text]), [
+    ['agent-7', 'xhigh', 'Effort is now xhigh. It applies from your next step.'],
+    [null, 'low', 'Effort is now low. It applies from your next step.'],
+  ]);
+  assert.deepEqual(log.filter((l) => l.type === 'invalid').map((l) => l.agentId), ['agent-8', null]);
+  // The logged text is exactly what the tool answered, in every mode that answers.
+  for (const config of [cfg('placebo'), cfg('random', { random: RANDOM })]) {
+    const p = await boot({ config });
+    await p.start();
+    await p.step({ turnId: 'T1', effort: 'medium' });
+    const r = await p.call({ level: 'xhigh', reason: 'r' });
+    assert.equal(p.log().find((l) => l.type === 'call').text, r.result);
+  }
+});
+
+await ta('P26: the step line carries the engine index, which restarts every turn while request does not', async () => {
+  const m = await boot({ config: cfg('toggle') });
+  await m.start();
+  for (const [turnId, index] of [['T1', 0], ['T1', 1], ['T1', 2], ['T2', 0], ['T2', 1]]) await m.step({ turnId, index, effort: 'medium' });
+  await m.step({ turnId: 'T2', index: 5, agentId: 'agent-1', effort: 'medium' });
+  const steps = m.log().filter((l) => l.type === 'step');
+  assert.deepEqual(steps.map((l) => l.index), [0, 1, 2, 0, 1, 5]);
+  assert.deepEqual(steps.map((l) => l.request), [0, 1, 2, 3, 4, null]);
+});
+
+await ta('P26: the reserved key consent (and tool, tool_use_id, agentId) is not logged in an invalid input', async () => {
+  const m = await boot({ config: cfg('toggle') });
+  await m.start();
+  await m.step({ turnId: 'T1', effort: 'medium' });
+  await m.call({ level: 'high', reason: 'because', consent: 'The user pressed "1: Yes" on ...', agentId: 'agent-1' });
+  const invalid = m.log().filter((l) => l.type === 'invalid');
+  assert.equal(invalid.length, 1);
+  assert.deepEqual(invalid[0], { type: 'invalid', request: 0, agentId: 'agent-1', input: { level: 'high', reason: 'because' } });
+  assert.ok(!m.files.get(LOG).includes('pressed'), 'the consent text is nowhere in the log');
+  // A valid call carrying consent is logged without it too, and is still answered.
+  assert.deepEqual(await m.call({ level: 'low', reason: 'r', consent: 'x' }), { result: resultText('low') });
+  assert.ok(!m.files.get(LOG).includes('"consent"'));
 });
