@@ -10,6 +10,7 @@
 import assert from 'node:assert/strict';
 import { t } from '../../core/testkit.mjs';
 import { checkRun, firstEditIndex, mainRequests, secondUserTurn } from './evidence.mjs';
+import { randomLevels } from './mod/hooks/register.ts';
 
 const jsonl = (records) => records.map((r) => JSON.stringify(r)).join('\n') + '\n';
 
@@ -362,7 +363,7 @@ t('checkRun: secondTurn comes from the transcript', () => {
   assert.deepEqual(r.reasons, []);
 });
 
-t('checkRun: the checks do not depend on the mode (placebo, random, schedule, an unknown one)', () => {
+t('checkRun: without a mod the arm check is not made, whatever `mode` says (it is no longer read)', () => {
   const efforts = ['low', 'xhigh'];
   for (const mode of ['toggle', 'placebo', 'random', 'schedule', undefined, 'nonsense']) {
     const r = checkRun({ transcriptText: simple(efforts), modLogText: logOf(agreeing(efforts)), mode });
@@ -418,4 +419,172 @@ t('checkRun: never throws, on empty, torn, hostile or non-string input', () => {
   assert.equal(r.shareXhigh, 0);
   assert.equal(r.upSwitches, 0);
   assert.equal(r.secondTurn, false);
+});
+
+// ---- checkRun: the arm check (ruling P20) -------------------------------------------------------------------------------
+
+const sched = (...schedule) => ({ mode: 'schedule', schedule });
+const PLACEBO = { mode: 'placebo' };
+const TOGGLE = { mode: 'toggle' };
+// A run whose transcript carries `levels` and whose log is `lines`; `mod` and `startEffort` are the arm's.
+const arm = (mod, startEffort, levels, lines) => checkRun({ transcriptText: simple(levels), modLogText: logOf(lines), mod, startEffort });
+// The log of a run that started at `start` and sent `levels`.
+const sent = (start, levels) => levels.map((l, i) => step(i, start, l));
+const LX = sched('low', 'low', 'low', 'xhigh'); // F-LX with switchAt 3
+const LX_LEVELS = ['low', 'low', 'low', 'xhigh', 'xhigh', 'xhigh'];
+
+t('checkRun arm check, schedule: F-LX levels fit F-LX and break F-L, F-X and a different switch point', () => {
+  assert.deepEqual(arm(LX, 'low', LX_LEVELS, sent('low', LX_LEVELS)).reasons, []);
+  assert.deepEqual(arm(sched('low'), 'low', LX_LEVELS, sent('low', LX_LEVELS)).reasons, ['arm_mismatch'], 'F-L levels expected: F-LX data is not F-L');
+  assert.deepEqual(arm(sched('low', 'low', 'low', 'low', 'xhigh'), 'low', LX_LEVELS, sent('low', LX_LEVELS)).reasons, ['arm_mismatch'], 'a switch one request later');
+  assert.deepEqual(arm(sched('low', 'xhigh'), 'low', LX_LEVELS, sent('low', LX_LEVELS)).reasons, ['arm_mismatch'], 'a switch earlier');
+  // F-L data fed as the F-LX arm (the review's case)
+  assert.deepEqual(arm(LX, 'low', Array(6).fill('low'), sent('low', Array(6).fill('low'))).reasons, ['arm_mismatch']);
+  assert.deepEqual(arm(sched('low'), 'low', Array(6).fill('low'), sent('low', Array(6).fill('low'))).reasons, []);
+  assert.deepEqual(arm(sched('xhigh'), 'xhigh', Array(4).fill('xhigh'), sent('xhigh', Array(4).fill('xhigh'))).reasons, []);
+  // F-XL
+  const xl = ['xhigh', 'xhigh', 'low', 'low'];
+  assert.deepEqual(arm(sched('xhigh', 'xhigh', 'low'), 'xhigh', xl, sent('xhigh', xl)).reasons, []);
+  assert.deepEqual(arm(sched('xhigh', 'low'), 'xhigh', xl, sent('xhigh', xl)).reasons, ['arm_mismatch']);
+});
+
+t('checkRun arm check: the first step must have started at the arm CLI effort', () => {
+  assert.deepEqual(arm(sched('low'), 'xhigh', ['low', 'low'], sent('low', ['low', 'low'])).reasons, ['arm_mismatch'], 'start effort xhigh expected, the run started low');
+  assert.deepEqual(arm(sched('low'), 'low', ['low', 'low'], sent('xhigh', ['low', 'low'])).reasons, ['arm_mismatch'], 'first step arrived at xhigh');
+  // only the first step counts for this rule (a later step may arrive at another effort in schedule mode)
+  assert.deepEqual(arm(sched('low'), 'low', ['low', 'low'], [step(0, 'low', 'low'), step(1, 'xhigh', 'low')]).reasons, []);
+  assert.deepEqual(arm(sched('low'), 'low', ['low'], [step(0, null, 'low')]).reasons, ['arm_mismatch'], 'before null is not the start effort');
+  assert.deepEqual(arm(sched('low'), 'medium', ['low'], sent('low', ['low'])).reasons, ['arm_mismatch'], 'a start effort that is not a level');
+  assert.deepEqual(arm(PLACEBO, 'medium', ['medium', 'medium'], sent('medium', ['medium', 'medium'])).reasons, ['arm_mismatch'], 'levels are exactly low and xhigh, even for a placebo that never rewrites');
+  assert.deepEqual(arm(sched('low'), undefined, ['low'], sent('low', ['low'])).reasons, ['arm_mismatch']);
+});
+
+t('checkRun arm check, placebo: nothing is rewritten and every step arrives at the start effort', () => {
+  const lines = [...sent('low', ['low', 'low', 'low']).slice(0, 1), call(0, 'xhigh'), step(1, 'low', 'low'), call(1, 'low'), step(2, 'low', 'low')];
+  assert.deepEqual(arm(PLACEBO, 'low', ['low', 'low', 'low'], lines).reasons, []);
+  // a rewritten step (xhigh after a call) is a toggle run, not a placebo run
+  assert.deepEqual(arm(PLACEBO, 'low', ['low', 'low', 'xhigh'], [step(0, 'low', 'low'), call(0, 'xhigh'), step(1, 'low', 'low'), step(2, 'low', 'xhigh')]).reasons, ['arm_mismatch']);
+  // a placebo run that arrived at xhigh throughout, against a low start
+  assert.deepEqual(arm(PLACEBO, 'low', ['xhigh', 'xhigh'], sent('xhigh', ['xhigh', 'xhigh'])).reasons, ['arm_mismatch']);
+  // and a later step that arrived at another effort without being rewritten is not the arm's start effort
+  assert.deepEqual(arm(PLACEBO, 'low', ['low', 'xhigh'], [step(0, 'low', 'low'), step(1, 'xhigh', 'xhigh')]).reasons, ['arm_mismatch']);
+  assert.deepEqual(arm(PLACEBO, 'xhigh', ['xhigh', 'xhigh'], sent('xhigh', ['xhigh', 'xhigh'])).reasons, [], 'a placebo arm that starts at xhigh');
+});
+
+t('checkRun arm check, toggle: a step follows the last call of an EARLIER request, else the start effort', () => {
+  const ok = [step(0, 'low', 'low'), step(1, 'low', 'low'), call(1, 'xhigh'), step(2, 'low', 'xhigh'), step(3, 'low', 'xhigh'), call(3, 'low'), step(4, 'low', 'low')];
+  const levels = ['low', 'low', 'xhigh', 'xhigh', 'low'];
+  assert.deepEqual(arm(TOGGLE, 'low', levels, ok).reasons, []);
+  // the level changes with no call
+  assert.deepEqual(arm(TOGGLE, 'low', ['low', 'low', 'xhigh', 'xhigh', 'xhigh'], [step(0, 'low', 'low'), step(1, 'low', 'low'), step(2, 'low', 'xhigh'), step(3, 'low', 'xhigh'), step(4, 'low', 'xhigh')]).reasons, ['arm_mismatch']);
+  // a call that is ignored: the next step stays low
+  assert.deepEqual(arm(TOGGLE, 'low', ['low', 'low', 'low'], [step(0, 'low', 'low'), step(1, 'low', 'low'), call(1, 'xhigh'), step(2, 'low', 'low')]).reasons, ['arm_mismatch']);
+  // timing, early: the call made in request 1 must not reach request 1
+  assert.deepEqual(arm(TOGGLE, 'low', ['low', 'xhigh', 'xhigh'], [step(0, 'low', 'low'), step(1, 'low', 'xhigh'), call(1, 'xhigh'), step(2, 'low', 'xhigh')]).reasons, ['arm_mismatch']);
+  // timing, late: it must reach request 2
+  assert.deepEqual(arm(TOGGLE, 'low', ['low', 'low', 'low', 'xhigh'], [step(0, 'low', 'low'), step(1, 'low', 'low'), call(1, 'xhigh'), step(2, 'low', 'low'), step(3, 'low', 'xhigh')]).reasons, ['arm_mismatch']);
+  // two calls in one request: the last answered wins
+  assert.deepEqual(arm(TOGGLE, 'low', ['low', 'low'], [step(0, 'low', 'low'), call(0, 'xhigh'), call(0, 'low'), step(1, 'low', 'low')]).reasons, []);
+  assert.deepEqual(arm(TOGGLE, 'low', ['low', 'xhigh'], [step(0, 'low', 'low'), call(0, 'low'), call(0, 'xhigh'), step(1, 'low', 'xhigh')]).reasons, []);
+  // an invalid line is not a call; a hand-made call line with a level that is not allowed does not set a level
+  assert.deepEqual(arm(TOGGLE, 'low', ['low', 'low'], [step(0, 'low', 'low'), { type: 'invalid', request: 0, input: { level: 'high' } }, call(0, 'high'), step(1, 'low', 'low')]).reasons, []);
+  assert.deepEqual(arm(TOGGLE, 'low', ['low', 'xhigh'], [step(0, 'low', 'low'), { type: 'invalid', request: 0, input: { level: 'xhigh' } }, step(1, 'low', 'xhigh')]).reasons, ['arm_mismatch']);
+  // a toggle arm that starts at xhigh
+  assert.deepEqual(arm(TOGGLE, 'xhigh', ['xhigh', 'xhigh'], sent('xhigh', ['xhigh', 'xhigh'])).reasons, []);
+});
+
+t('checkRun arm check, toggle: a subagent call counts like the mod counts it (it sets the main level); subagent steps are ignored', () => {
+  const log = [
+    subStep(null, null),
+    step(0, 'low', 'low'),
+    { ...call(0, 'xhigh'), agentId: 'a1', text: 'Effort is now xhigh. It applies from your next step.' },
+    subStep('low', 'xhigh'),
+    step(1, 'low', 'xhigh'),
+  ];
+  assert.deepEqual(arm(TOGGLE, 'low', ['low', 'xhigh'], log).reasons, []);
+  // a subagent step with a wrong level changes nothing
+  assert.deepEqual(arm(sched('low'), 'low', ['low'], [subStep('xhigh', 'xhigh'), step(0, 'low', 'low'), subStep('xhigh', 'xhigh')]).reasons, []);
+});
+
+t('checkRun arm check, random: the levels must equal randomLevels for the arm seed and the first main turnId', () => {
+  const mod = { mode: 'random', random: { pUp: 0.5, pDown: 0.5, seed: 42 } };
+  const levels = randomLevels(0.5, 0.5, 42, 't1', 8);
+  // pUp and pDown are not interchangeable
+  const skew = { mode: 'random', random: { pUp: 0.8, pDown: 0.2, seed: 5 } };
+  const skewed = randomLevels(0.8, 0.2, 5, 't1', 10);
+  assert.notDeepEqual(skewed, randomLevels(0.2, 0.8, 5, 't1', 10));
+  assert.deepEqual(arm(skew, 'low', skewed, sent('low', skewed)).reasons, []);
+  assert.deepEqual(arm({ mode: 'random', random: { pUp: 0.2, pDown: 0.8, seed: 5 } }, 'low', skewed, sent('low', skewed)).reasons, ['arm_mismatch']);
+  assert.ok(levels.includes('low') && levels.includes('xhigh'));
+  assert.deepEqual(arm(mod, 'low', levels, sent('low', levels)).reasons, []);
+  assert.deepEqual(arm({ mode: 'random', random: { pUp: 0.5, pDown: 0.5, seed: 43 } }, 'low', levels, sent('low', levels)).reasons, ['arm_mismatch'], 'a wrong seed');
+  assert.deepEqual(arm({ mode: 'random', random: { pUp: 0.9, pDown: 0.1, seed: 42 } }, 'low', levels, sent('low', levels)).reasons, ['arm_mismatch'], 'wrong probabilities');
+  // the chain is seeded with the FIRST main step's turnId, not a later one
+  const other = levels.map((l, i) => ({ ...step(i, 'low', l), turnId: i === 0 ? 'T-other' : 't1' }));
+  assert.deepEqual(arm(mod, 'low', levels, other).reasons, ['arm_mismatch']);
+  const later = randomLevels(0.5, 0.5, 42, 'T-other', 8);
+  assert.deepEqual(arm(mod, 'low', later, later.map((l, i) => ({ ...step(i, 'low', l), turnId: i === 0 ? 'T-other' : 't1' }))).reasons, [], 'a later turn continues the chain (P6)');
+  // a main-step turnId that is not a string cannot seed anything
+  assert.deepEqual(arm(mod, 'low', levels, levels.map((l, i) => ({ ...step(i, 'low', l), turnId: undefined }))).reasons, ['arm_mismatch']);
+  // a malformed random block
+  for (const random of [undefined, { pUp: 2, pDown: 0, seed: 1 }, { pUp: 0.5, pDown: 0.5, seed: 1.5 }, { pUp: 0.5, pDown: 'x', seed: 1 }]) {
+    assert.deepEqual(arm({ mode: 'random', random }, 'low', levels, sent('low', levels)).reasons, ['arm_mismatch'], JSON.stringify(random));
+  }
+});
+
+t('checkRun arm check: a numeric or missing effort is a mismatch, a malformed mod is a mismatch, a null mod is no check', () => {
+  const r = arm(sched('low'), 'low', [7], [step(0, 'low', 7)]);
+  assert.ok(r.reasons.includes('arm_mismatch'));
+  for (const mod of [{}, { mode: 'sometimes' }, { mode: 'schedule' }, { mode: 'schedule', schedule: [] }, { mode: 'schedule', schedule: ['medium'] }, 'schedule', [], 5]) {
+    assert.deepEqual(arm(mod, 'low', ['low'], sent('low', ['low'])).reasons, ['arm_mismatch'], JSON.stringify(mod));
+  }
+  for (const mod of [null, undefined]) assert.deepEqual(arm(mod, 'low', ['xhigh', 'low'], sent('xhigh', ['xhigh', 'low'])).reasons, [], 'no mod: no arm check');
+  // no main step at all: nothing to compare
+  assert.deepEqual(arm(sched('low'), 'low', [], [subStep(null, null)]).reasons, []);
+});
+
+t('checkRun arm check: no_mod_log stands alone; reasons come in the order log reasons, arm_mismatch, audit', () => {
+  const tr = jsonl([rec('m0', 'low', [bashUse('cat /run/state/x')]), rec('m1', 'low', [bashUse('ls')])]);
+  assert.deepEqual(checkRun({ transcriptText: tr, modLogText: undefined, mod: sched('xhigh'), startEffort: 'xhigh' }).reasons, ['no_mod_log', 'audit']);
+  const all = checkRun({ transcriptText: tr, modLogText: logOf([{ type: 'error', message: 'e' }]), mod: sched('xhigh'), startEffort: 'xhigh' });
+  assert.deepEqual(all.reasons, ['mod_error', 'log_transcript_mismatch', 'audit'], 'no main step line, nothing to compare');
+  const withSteps = checkRun({ transcriptText: tr, modLogText: logOf([{ type: 'error', message: 'e' }, step(0, 'low', 'low'), step(1, 'low', 'low')]), mod: sched('xhigh'), startEffort: 'xhigh' });
+  assert.deepEqual(withSteps.reasons, ['mod_error', 'arm_mismatch', 'audit']);
+  const mismatch = checkRun({ transcriptText: tr, modLogText: logOf([step(0, 'low', 'low')]), mod: sched('xhigh'), startEffort: 'xhigh' });
+  assert.deepEqual(mismatch.reasons, ['log_transcript_mismatch', 'arm_mismatch', 'audit']);
+});
+
+t('checkRun: callLog lists the call lines as { request, level, reason }; log lines with the new fields (index, agentId, text) give no reasons', () => {
+  const efforts = ['low', 'low', 'xhigh'];
+  const log = logOf([
+    step(0, 'low', 'low', { index: 0 }),
+    { type: 'call', request: 0, agentId: null, level: 'low', reason: 'first', text: 'Effort is now low. It applies from your next step.' },
+    step(1, 'low', 'low', { index: 1, agentId: null }),
+    { type: 'call', request: 1, agentId: 'a1', level: 'xhigh', reason: 'review', text: 'Effort is now xhigh. It applies from your next step.' },
+    { type: 'invalid', request: 1, agentId: null, input: { level: 'high' } },
+    step(2, 'low', 'xhigh', { index: 0 }), // a new turn: index restarts, request does not
+  ]);
+  for (const arg of [{}, { mod: TOGGLE, startEffort: 'low' }]) {
+    const r = checkRun({ transcriptText: simple(efforts), modLogText: log, ...arg });
+    assert.deepEqual(r.reasons, [], JSON.stringify(arg));
+    assert.equal(r.calls, 2);
+    assert.deepEqual(r.callLog, [
+      { request: 0, level: 'low', reason: 'first' },
+      { request: 1, level: 'xhigh', reason: 'review' },
+    ]);
+  }
+  assert.deepEqual(checkRun({ transcriptText: simple(efforts), modLogText: undefined }).callLog, []);
+});
+
+t('checkRun arm check: never throws, whatever mod, startEffort and log hold', () => {
+  const tr = simple(['low', 'xhigh']);
+  const logs = [logOf(agreeing(['low', 'xhigh'])), logOf([{ type: 'step', request: 0 }, { type: 'call' }, { type: 'call', request: 'x', level: 'xhigh' }]), '{', 'null', '[1]'];
+  const mods = [null, undefined, 0, 'x', [], {}, { mode: 'toggle' }, { mode: 'random' }, { mode: 'random', random: null }, { mode: 'random', random: { pUp: NaN, pDown: 0, seed: 1 } }, { mode: 'schedule', schedule: 'low' }, { mode: 'placebo' }, { mode: 'toggle', schedule: [1] }];
+  for (const modLogText of logs) {
+    for (const mod of mods) {
+      for (const startEffort of ['low', 'xhigh', 5, null, undefined, {}]) {
+        assert.doesNotThrow(() => checkRun({ transcriptText: tr, modLogText, mod, startEffort }), JSON.stringify([modLogText, mod, startEffort]));
+      }
+    }
+  }
 });

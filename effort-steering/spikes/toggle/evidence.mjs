@@ -3,8 +3,8 @@
 //   mainRequests(transcriptText)  -> { index, messageId, effort, toolUses: { name, input }[] }[]   the main loop's requests
 //   secondUserTurn(transcriptText) -> boolean   a user record that holds text after the first assistant record (spec C7)
 //   firstEditIndex(transcriptText) -> number | null   the first request that edits a file
-//   checkRun({ transcriptText, modLogText, mode })
-//       -> { reasons, requests, shareXhigh, upSwitches, calls, secondTurn, broadAt, audit }
+//   checkRun({ transcriptText, modLogText, mod, startEffort })
+//       -> { reasons, requests, shareXhigh, upSwitches, calls, callLog, secondTurn, broadAt, audit }
 //
 // Requests. Claude Code splits one API message over several assistant records that share a `message.id` (a thinking block in
 // one, text or tool_use in a later one). mainRequests counts each id once, in first-appearance order from index 0, and gathers
@@ -22,7 +22,7 @@
 // `-i.bak`, `-ni`, `--in-place`), `cat >` or `cat >>` into a file (not /dev/null, not `2>&1`), `tee `, or a heredoc whose body
 // calls `.write(`. Text rules over the command, as the plan states them: `grep "tee " f` or `cargo test | tee log` hit too.
 //
-// checkRun (rulings P1, P2, P3). The mod's log is JSONL (spikes/toggle/mod/hooks/register.ts): `step` lines (main requests carry
+// checkRun (rulings P2, P3, P20; P20 supersedes P1). The mod's log is JSONL (spikes/toggle/mod/hooks/register.ts): `step` lines (main requests carry
 // `request` 0, 1, 2, ..., subagent steps `request: null`), `call`, `invalid` and `error` lines. `reasons`, in this order:
 //   no_mod_log                the log is absent, null or blank; no other log check is made then
 //   mod_error                 the log holds an `error` line
@@ -30,16 +30,27 @@
 //                             differ in count from mainRequests, or a main step's `request` is not its position, or its `after` is
 //                             not a string equal to that request's transcript effort, or its `before` is neither a string nor null.
 //                             A non-string effort in the log or in the transcript is therefore a mismatch.
+//   arm_mismatch              only when `mod` (the arm's registered mod: { mode, schedule? | random? }) is given and the log has a
+//                             `step` line for a main request: the first main step's `before` is not `startEffort` (the arm's CLI
+//                             effort), or a main step i's `after` is not the level the arm's mod must send (P20):
+//                               schedule  schedule[min(i, length - 1)]
+//                               placebo   `before` (the mod rewrites nothing), and `before` is `startEffort`
+//                               toggle    the level of the last `call` line with `request < i` (the call made in the response to
+//                                         request r, logged with request r, first applies to request r + 1), else `startEffort`
+//                               random    randomLevels(pUp, pDown, seed, turnId of the first main step, n)[i], the mod's own chain
+//                             A malformed `mod` or `startEffort` is a mismatch too. With `mod` null or absent (a reused row with no
+//                             mod) none of this is checked. Order: log reasons, then arm_mismatch, then audit.
 //   audit                     some tool use gave auditHits (the blinding audit); `audit` lists { request, tool, hits }
 // `requests` is the number of main requests; `shareXhigh` the share of them whose transcript effort is 'xhigh' (0 when there are
 // none); `upSwitches` the number of consecutive pairs of main requests going 'low' -> 'xhigh' in the transcript; `calls` the number
-// of `call` lines; `broadAt` the indices of the requests holding a Bash command that isBroadCheck. `mode` is accepted and not
-// read: the checks are the same in every mode (ruling P1), because a placebo or fixed run also logs an agreeing `after`.
-// checkRun never throws on any text, including empty, torn or non-string input.
+// of `call` lines and `callLog` those lines as [{ request, level, reason }]; `broadAt` the indices of the requests holding a Bash
+// command that isBroadCheck. The log/transcript checks are the same in every mode; the arm check is what ties the run to its arm.
+// Extra log fields (index, agentId, text) are ignored. checkRun never throws on any text, including empty, torn or non-string input.
 //
 // Pure functions over strings: no I/O. Never calls a model.
 
 import { auditHits, isBroadCheck } from './commands.mjs';
+import { randomLevels } from './mod/hooks/register.ts';
 
 const isObject = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
 const isString = (v) => typeof v === 'string';
@@ -157,21 +168,62 @@ function logMismatch(mainSteps, reqs, skippedLines) {
   return mainSteps.some((s, i) => s.request !== i || !isString(s.after) || s.after !== reqs[i].effort || !(isString(s.before) || s.before === null));
 }
 
+const isLevel = (v) => v === 'low' || v === 'xhigh';
+const isProb = (v) => typeof v === 'number' && Number.isFinite(v) && v >= 0 && v <= 1;
+
+// Ruling P20: whether the log's main steps differ from what the arm's `mod` must send, starting at `startEffort`. `records` are all
+// the log's objects (the `call` lines drive the toggle), `mainSteps` its main `step` lines in order.
+function armMismatch(mod, startEffort, mainSteps, records) {
+  if (!isObject(mod) || !isLevel(startEffort)) return true;
+  if (mainSteps.length === 0) return false;
+  if (mainSteps[0].before !== startEffort) return true;
+  let expected; // the level main step i must send, or null for "after must equal before and before the start effort"
+  if (mod.mode === 'schedule') {
+    const s = mod.schedule;
+    if (!Array.isArray(s) || s.length === 0 || !s.every(isLevel)) return true;
+    expected = (i) => s[Math.min(i, s.length - 1)];
+  } else if (mod.mode === 'placebo') {
+    return mainSteps.some((st) => st.after !== st.before || st.before !== startEffort);
+  } else if (mod.mode === 'toggle') {
+    const calls = records.filter((e) => e.type === 'call' && isLevel(e.level) && typeof e.request === 'number');
+    expected = (i) => {
+      let level = startEffort;
+      for (const c of calls) if (c.request < i) level = c.level;
+      return level;
+    };
+  } else if (mod.mode === 'random') {
+    const r = mod.random;
+    const turnId = mainSteps[0].turnId;
+    if (!isObject(r) || !isProb(r.pUp) || !isProb(r.pDown) || !Number.isSafeInteger(r.seed) || !isString(turnId)) return true;
+    const levels = randomLevels(r.pUp, r.pDown, r.seed, turnId, mainSteps.length);
+    expected = (i) => levels[i];
+  } else {
+    return true;
+  }
+  return mainSteps.some((st, i) => st.after !== expected(i));
+}
+
 export function checkRun(args) {
-  const { transcriptText, modLogText } = isObject(args) ? args : {};
+  const { transcriptText, modLogText, mod, startEffort } = isObject(args) ? args : {};
   const reqs = mainRequests(transcriptText);
   const reasons = [];
   let calls = 0;
+  let callLog = [];
+  let armBad = false;
 
   if (!isString(modLogText) || modLogText.trim() === '') {
     reasons.push('no_mod_log');
   } else {
     const { records, skipped } = parseJsonl(modLogText);
-    calls = records.filter((e) => e.type === 'call').length;
+    const callLines = records.filter((e) => e.type === 'call');
+    calls = callLines.length;
+    callLog = callLines.map((e) => ({ request: e.request, level: e.level, reason: e.reason }));
     if (records.some((e) => e.type === 'error')) reasons.push('mod_error');
     const mainSteps = records.filter((e) => e.type === 'step' && e.request !== null);
     if (logMismatch(mainSteps, reqs, skipped)) reasons.push('log_transcript_mismatch');
+    if (mod !== undefined && mod !== null) armBad = armMismatch(mod, startEffort, mainSteps, records);
   }
+  if (armBad) reasons.push('arm_mismatch');
 
   const audit = [];
   const broadAt = [];
@@ -194,6 +246,7 @@ export function checkRun(args) {
     shareXhigh: reqs.length === 0 ? 0 : xhigh / reqs.length,
     upSwitches,
     calls,
+    callLog,
     secondTurn: secondUserTurn(transcriptText),
     broadAt,
     audit,
