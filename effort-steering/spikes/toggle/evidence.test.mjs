@@ -1,0 +1,421 @@
+// evidence.test.mjs — the effort-toggle run evidence (evidence.mjs), on transcripts and mod logs built in memory.
+//
+//   TMPDIR=/home/marius/.cache/sdd-effort-toggle-tmp node --test effort-steering/spikes/toggle/evidence.test.mjs
+//
+// The transcript builder writes the records the way Claude Code does: one API message split over several assistant records that
+// share a `message.id` (a thinking block, then text or tool_use), a top-level `effort` on each, user records that carry either a
+// string, text blocks or `tool_result` blocks. The log builder writes the lines the mod writes (spikes/toggle/mod/hooks/register.ts):
+// `step`, `call`, `invalid`, `error`. Pure functions over strings: no I/O, never calls a model.
+
+import assert from 'node:assert/strict';
+import { t } from '../../core/testkit.mjs';
+import { checkRun, firstEditIndex, mainRequests, secondUserTurn } from './evidence.mjs';
+
+const jsonl = (records) => records.map((r) => JSON.stringify(r)).join('\n') + '\n';
+
+// One assistant record. `blocks` are content blocks; `out` is usage.output_tokens.
+const rec = (id, effort, blocks, out = 10, extra = {}) => ({
+  type: 'assistant',
+  ...(effort === undefined ? {} : { effort }),
+  isSidechain: false,
+  message: { id, role: 'assistant', model: 'claude-sonnet-5-5', content: blocks, usage: { output_tokens: out } },
+  ...extra,
+});
+let useCounter = 0;
+const use = (name, input, id = `tu_${(useCounter += 1)}`) => ({ type: 'tool_use', id, name, input });
+const bashUse = (command) => use('Bash', { command });
+const text = (s) => ({ type: 'text', text: s });
+const thinking = () => ({ type: 'thinking', thinking: '' });
+const userText = (s) => ({ type: 'user', message: { role: 'user', content: s } });
+const userBlocks = (blocks) => ({ type: 'user', message: { role: 'user', content: blocks } });
+const toolResult = () => userBlocks([{ type: 'tool_result', tool_use_id: 'tu_1', content: 'ok' }]);
+
+// A transcript of one single-record message per entry of `efforts`, each with one Bash call.
+const simple = (efforts, command = 'ls') => jsonl(efforts.map((e, i) => rec(`msg_${i}`, e, [bashUse(command)])));
+
+// The mod's log lines.
+const step = (request, before, after, extra = {}) => ({ type: 'step', request, agentId: null, turnId: 't1', before, after, ...extra });
+const subStep = (before, after) => ({ type: 'step', request: null, agentId: 'a1', turnId: 't1', before, after });
+const call = (request, level) => ({ type: 'call', request, level, reason: 'r' });
+const logOf = (lines) => jsonl(lines);
+// A log that agrees with `efforts`: one step per request whose before and after are that effort.
+const agreeing = (efforts) => efforts.map((e, i) => step(i, e, e));
+
+// ---- mainRequests -----------------------------------------------------------------------------------------------------
+
+t('mainRequests: a message split over three records counts once and keeps all its tool uses', () => {
+  const text3 = jsonl([
+    rec('msg_a', 'low', [thinking()], 3),
+    rec('msg_a', 'low', [bashUse('ls')], 40),
+    rec('msg_a', 'low', [use('Read', { file_path: '/work/x' })], 41),
+    toolResult(),
+    rec('msg_b', 'xhigh', [text('done')], 7),
+  ]);
+  const reqs = mainRequests(text3);
+  assert.equal(reqs.length, 2);
+  assert.deepEqual(
+    reqs.map((r) => [r.index, r.messageId, r.effort]),
+    [
+      [0, 'msg_a', 'low'],
+      [1, 'msg_b', 'xhigh'],
+    ],
+  );
+  assert.deepEqual(reqs[0].toolUses, [
+    { name: 'Bash', input: { command: 'ls' } },
+    { name: 'Read', input: { file_path: '/work/x' } },
+  ]);
+  assert.deepEqual(reqs[1].toolUses, []);
+});
+
+t('mainRequests: first-appearance order holds when records of two ids interleave', () => {
+  const reqs = mainRequests(jsonl([rec('m1', 'low', [thinking()]), rec('m2', 'low', [bashUse('a')]), rec('m1', 'low', [bashUse('b')])]));
+  assert.deepEqual(
+    reqs.map((r) => [r.messageId, r.toolUses.map((u) => u.input.command)]),
+    [
+      ['m1', ['b']],
+      ['m2', ['a']],
+    ],
+  );
+});
+
+t('mainRequests: the effort is read from the record with the largest output_tokens, the later one on a tie', () => {
+  const reqs = mainRequests(
+    jsonl([rec('m1', 'low', [thinking()], 3), rec('m1', 'xhigh', [text('x')], 300), rec('m1', 'low', [text('y')], 300), rec('m2', 'low', [text('z')], 5)]),
+  );
+  assert.deepEqual(reqs.map((r) => r.effort), ['low', 'low']);
+  const reqs2 = mainRequests(jsonl([rec('m1', 'low', [thinking()], 3), rec('m1', 'xhigh', [text('x')], 300), rec('m1', 'low', [text('y')], 299)]));
+  assert.equal(reqs2[0].effort, 'xhigh');
+});
+
+t('mainRequests: a non-string or absent effort is null; a repeated tool_use id is gathered once', () => {
+  const reqs = mainRequests(
+    jsonl([
+      rec('m1', 3, [bashUse('a')]),
+      rec('m2', undefined, [use('Bash', { command: 'b' }, 'tu_dup')]),
+      rec('m2', undefined, [use('Bash', { command: 'b' }, 'tu_dup')]),
+    ]),
+  );
+  assert.deepEqual(reqs.map((r) => r.effort), [null, null]);
+  assert.equal(reqs[1].toolUses.length, 1);
+});
+
+t('mainRequests: API-error records, user records, records with no message or no id, and torn lines are not requests', () => {
+  const lines = [
+    JSON.stringify(rec('m1', 'low', [bashUse('a')])),
+    JSON.stringify({ type: 'assistant', isApiErrorMessage: true, effort: 'low', message: { id: 'err1', role: 'assistant', model: '<synthetic>', content: [text('boom')], usage: { output_tokens: 0 } } }),
+    JSON.stringify(toolResult()),
+    JSON.stringify({ type: 'assistant', effort: 'low' }),
+    JSON.stringify({ type: 'assistant', effort: 'low', message: { role: 'assistant', content: [text('no id')] } }),
+    JSON.stringify({ type: 'assistant', effort: 'low', message: null }),
+    'null',
+    '[1,2]',
+    '{"type":"assistant","message":{"id":"torn',
+    '',
+    JSON.stringify(rec('m2', 'xhigh', [text('b')])),
+  ];
+  assert.deepEqual(mainRequests(lines.join('\n')).map((r) => r.messageId), ['m1', 'm2']);
+});
+
+t('mainRequests: a sidechain record is a subagent step, not a main request', () => {
+  const reqs = mainRequests(jsonl([rec('m1', 'low', [bashUse('a')]), rec('s1', 'low', [bashUse('b')], 10, { isSidechain: true }), rec('m2', 'low', [bashUse('c')])]));
+  assert.deepEqual(reqs.map((r) => r.messageId), ['m1', 'm2']);
+});
+
+t('mainRequests: a tool_use block with no input has an empty input; non-tool blocks and bad content are ignored', () => {
+  const reqs = mainRequests(
+    jsonl([
+      rec('m1', 'low', [{ type: 'tool_use', id: 'a', name: 'Glob' }, null, 'str', text('t')]),
+      rec('m2', 'low', 'plain string content'),
+      rec('m3', 'low', null),
+    ]),
+  );
+  assert.deepEqual(reqs[0].toolUses, [{ name: 'Glob', input: {} }]);
+  assert.deepEqual(reqs[1].toolUses, []);
+  assert.deepEqual(reqs[2].toolUses, []);
+});
+
+// ---- secondUserTurn ---------------------------------------------------------------------------------------------------
+
+t('secondUserTurn: a task-notification user text after the first assistant record is a second turn', () => {
+  assert.equal(secondUserTurn(jsonl([userText('fix it'), rec('m1', 'low', [bashUse('a')]), toolResult(), userText('<task-notification>done</task-notification>'), rec('m2', 'low', [text('ok')])])), true);
+  assert.equal(secondUserTurn(jsonl([userText('fix it'), rec('m1', 'low', [bashUse('a')]), userBlocks([text('and also this')])])), true);
+  assert.equal(secondUserTurn(jsonl([userText('fix it'), rec('m1', 'low', [bashUse('a')]), userBlocks([{ type: 'tool_result', tool_use_id: 'x', content: 'r' }, text('and text')])])), true);
+});
+
+t('secondUserTurn: tool_result-only user records, the first prompt and empty texts are not a second turn', () => {
+  assert.equal(secondUserTurn(jsonl([userText('fix it'), rec('m1', 'low', [bashUse('a')]), toolResult(), rec('m2', 'low', [text('ok')]), toolResult()])), false);
+  assert.equal(secondUserTurn(jsonl([userText('first'), userText('still before any assistant record'), rec('m1', 'low', [text('x')])])), false);
+  assert.equal(secondUserTurn(jsonl([userText('fix it'), rec('m1', 'low', [text('x')]), userText('   '), userBlocks([text('')]), userBlocks([])])), false);
+  assert.equal(secondUserTurn(''), false);
+  assert.equal(secondUserTurn('not json\n{"type":"user"'), false);
+});
+
+// ---- firstEditIndex ---------------------------------------------------------------------------------------------------
+
+t('firstEditIndex: an Edit, Write or MultiEdit call, by request index', () => {
+  for (const name of ['Edit', 'Write', 'MultiEdit']) {
+    const tr = jsonl([rec('m0', 'low', [bashUse('ls')]), rec('m1', 'low', [use('Read', { file_path: '/work/a' })]), rec('m2', 'low', [thinking()]), rec('m2', 'low', [use(name, { file_path: '/work/a' })])]);
+    assert.equal(firstEditIndex(tr), 2, name);
+  }
+});
+
+t('firstEditIndex: a Bash call holding sed -i, cat >, tee or a heredoc whose body calls .write(', () => {
+  const edits = [
+    "sed -i 's/a/b/' src/lib.rs",
+    "sed -i.bak 's/a/b/' src/lib.rs",
+    "sed -ni 's/a/b/p' f",
+    "cd /work && sed -E -i 's/a/b/' f",
+    'sed --in-place s/a/b/ f',
+    "cat > src/new.rs <<'EOF'\nfn main() {}\nEOF",
+    'cat >src/new.rs',
+    'cat a 2>&1 > out.txt',
+    'echo hi | tee out.txt',
+    'tee -a notes.md < x',
+    "python3 - <<'PY'\nopen('/work/f','w').write('x')\nPY",
+    "python3 <<PY\nfrom pathlib import Path\nPath('f').write_text('x')\np = open('g', 'w')\np.write('x')\nPY",
+  ];
+  for (const command of edits) {
+    assert.equal(firstEditIndex(jsonl([rec('m0', 'low', [bashUse('ls')]), rec('m1', 'low', [bashUse(command)])])), 1, command);
+  }
+});
+
+t('firstEditIndex: reads, searches and tests are not edits; none gives null', () => {
+  const quiet = [
+    'ls -la',
+    "sed -n '1,20p' src/lib.rs",
+    'sed s/a/b/ f',
+    'cat src/lib.rs',
+    'cat a b | wc -l',
+    'cargo test 2>&1',
+    'cat f 2>&1 | head',
+    'cat f >&2',
+    'cat > /dev/null',
+    "python3 - <<'PY'\nprint(open('f').read())\nPY",
+    'cat <<EOF\nhello\nEOF',
+  ];
+  for (const command of quiet) {
+    assert.equal(firstEditIndex(jsonl([rec('m0', 'low', [bashUse(command)])])), null, command);
+  }
+  assert.equal(firstEditIndex(''), null);
+  assert.equal(firstEditIndex(jsonl([rec('m0', 'low', [use('Bash', { command: 7 })]), rec('m1', 'low', [use('Bash', null)]), rec('m2', 'low', [use('Read', {})])])), null);
+});
+
+// ---- checkRun ---------------------------------------------------------------------------------------------------------
+
+t('checkRun: a consistent toggle run gives no reasons, shareXhigh 0.5 and upSwitches 1 for efforts low, low, xhigh, xhigh', () => {
+  const efforts = ['low', 'low', 'xhigh', 'xhigh'];
+  const log = logOf([...agreeing(efforts).slice(0, 2), call(1, 'xhigh'), ...agreeing(efforts).slice(2)]);
+  const r = checkRun({ transcriptText: simple(efforts), modLogText: log, mode: 'toggle' });
+  assert.deepEqual(r.reasons, []);
+  assert.equal(r.requests, 4);
+  assert.equal(r.shareXhigh, 0.5);
+  assert.equal(r.upSwitches, 1);
+  assert.equal(r.calls, 1);
+  assert.equal(r.secondTurn, false);
+  assert.deepEqual(r.broadAt, []);
+  assert.deepEqual(r.audit, []);
+});
+
+t('checkRun: upSwitches counts low to xhigh transitions between consecutive requests only', () => {
+  const run = (efforts) => checkRun({ transcriptText: simple(efforts), modLogText: logOf(agreeing(efforts)), mode: 'toggle' });
+  assert.equal(run(['low', 'xhigh', 'low', 'xhigh']).upSwitches, 2);
+  assert.equal(run(['xhigh', 'low', 'low']).upSwitches, 0);
+  assert.equal(run(['xhigh', 'xhigh']).upSwitches, 0);
+  assert.equal(run(['low', 'xhigh', 'xhigh', 'low', 'low', 'xhigh']).upSwitches, 2);
+  assert.equal(run(['xhigh']).shareXhigh, 1);
+  assert.equal(run(['low', 'low', 'low']).shareXhigh, 0);
+});
+
+t('checkRun: the requests count is a number and ignores the log', () => {
+  const r = checkRun({ transcriptText: simple(['low', 'low', 'low']), modLogText: logOf(agreeing(['low'])), mode: 'toggle' });
+  assert.equal(typeof r.requests, 'number');
+  assert.equal(r.requests, 3);
+});
+
+t('checkRun: an extra message id (API retry) gives log_transcript_mismatch and does not throw', () => {
+  const efforts = ['low', 'low', 'xhigh'];
+  const retried = jsonl([
+    rec('m0', 'low', [bashUse('ls')]),
+    rec('m0_retry', 'low', [bashUse('ls')]),
+    rec('m1', 'low', [bashUse('ls')]),
+    rec('m2', 'xhigh', [bashUse('ls')]),
+  ]);
+  let r;
+  assert.doesNotThrow(() => {
+    r = checkRun({ transcriptText: retried, modLogText: logOf(agreeing(efforts)), mode: 'toggle' });
+  });
+  assert.deepEqual(r.reasons, ['log_transcript_mismatch']);
+  assert.equal(r.requests, 4);
+});
+
+t('checkRun: fewer transcript requests than log steps, and a step whose after differs from the transcript effort, are mismatches', () => {
+  const fewer = checkRun({ transcriptText: simple(['low', 'low']), modLogText: logOf(agreeing(['low', 'low', 'low'])), mode: 'toggle' });
+  assert.deepEqual(fewer.reasons, ['log_transcript_mismatch']);
+  const differs = checkRun({ transcriptText: simple(['low', 'low']), modLogText: logOf([step(0, 'low', 'low'), step(1, 'low', 'xhigh')]), mode: 'toggle' });
+  assert.deepEqual(differs.reasons, ['log_transcript_mismatch']);
+  // `before` is the effort the step arrived with; only `after` is the request as sent (ruling P2).
+  const rewritten = checkRun({ transcriptText: simple(['xhigh', 'xhigh']), modLogText: logOf([step(0, 'low', 'xhigh'), step(1, 'low', 'xhigh')]), mode: 'toggle' });
+  assert.deepEqual(rewritten.reasons, []);
+});
+
+t('checkRun: a non-string effort in the log or in the transcript is a mismatch', () => {
+  const inLog = checkRun({ transcriptText: simple(['low']), modLogText: logOf([step(0, 1, 1)]), mode: 'toggle' });
+  assert.deepEqual(inLog.reasons, ['log_transcript_mismatch']);
+  const nullInLog = checkRun({ transcriptText: simple(['low']), modLogText: logOf([step(0, null, null)]), mode: 'toggle' });
+  assert.deepEqual(nullInLog.reasons, ['log_transcript_mismatch']);
+  const inTranscript = checkRun({ transcriptText: simple([7]), modLogText: logOf([step(0, 7, 7)]), mode: 'toggle' });
+  assert.deepEqual(inTranscript.reasons, ['log_transcript_mismatch']);
+  const oddBefore = checkRun({ transcriptText: simple(['low']), modLogText: logOf([step(0, 1, 'low')]), mode: 'toggle' });
+  assert.deepEqual(oddBefore.reasons, ['log_transcript_mismatch']);
+  // a step that arrived with no effort (before null) and was rewritten is fine
+  const nullBefore = checkRun({ transcriptText: simple(['low']), modLogText: logOf([step(0, null, 'low')]), mode: 'toggle' });
+  assert.deepEqual(nullBefore.reasons, []);
+  const absent = checkRun({ transcriptText: simple([undefined]), modLogText: logOf([step(0, null, null)]), mode: 'toggle' });
+  assert.deepEqual(absent.reasons, ['log_transcript_mismatch']);
+});
+
+t('checkRun: subagent step lines (request null) are not main steps', () => {
+  const efforts = ['low', 'xhigh'];
+  const log = logOf([subStep(null, null), step(0, 'low', 'low'), subStep('low', 'low'), step(1, 'low', 'xhigh'), subStep('low', 'xhigh')]);
+  const r = checkRun({ transcriptText: simple(efforts), modLogText: log, mode: 'toggle' });
+  assert.deepEqual(r.reasons, []);
+  assert.equal(r.requests, 2);
+});
+
+t('checkRun: a main step whose request number is not its position is a mismatch', () => {
+  const r = checkRun({ transcriptText: simple(['low', 'low']), modLogText: logOf([step(0, 'low', 'low'), step(5, 'low', 'low')]), mode: 'toggle' });
+  assert.deepEqual(r.reasons, ['log_transcript_mismatch']);
+});
+
+t('checkRun: a missing log gives no_mod_log and nothing else; an error line gives mod_error', () => {
+  const transcriptText = simple(['low', 'low']);
+  for (const modLogText of [undefined, null, '', '  \n\n']) {
+    const r = checkRun({ transcriptText, modLogText, mode: 'toggle' });
+    assert.deepEqual(r.reasons, ['no_mod_log'], JSON.stringify(modLogText));
+    assert.equal(r.requests, 2);
+    assert.equal(r.calls, 0);
+  }
+  const err = checkRun({ transcriptText, modLogText: logOf([{ type: 'error', message: 'cannot read config.json: ENOENT' }]), mode: 'toggle' });
+  assert.ok(err.reasons.includes('mod_error'));
+  assert.ok(!err.reasons.includes('no_mod_log'));
+  // an error line next to a log that otherwise agrees is still an error run
+  const both = checkRun({ transcriptText, modLogText: logOf([{ type: 'error', message: 'x' }, ...agreeing(['low', 'low'])]), mode: 'toggle' });
+  assert.deepEqual(both.reasons, ['mod_error']);
+});
+
+t('checkRun: a torn last log line is a mismatch, whether it cuts a step or a call', () => {
+  const efforts = ['low', 'low'];
+  const good = logOf([...agreeing(efforts), call(1, 'xhigh')]);
+  const cutCall = good.slice(0, good.length - 12);
+  const r = checkRun({ transcriptText: simple(efforts), modLogText: cutCall, mode: 'toggle' });
+  assert.deepEqual(r.reasons, ['log_transcript_mismatch']);
+  const cutStep = logOf(agreeing(efforts)).slice(0, -15);
+  assert.deepEqual(checkRun({ transcriptText: simple(efforts), modLogText: cutStep, mode: 'toggle' }).reasons, ['log_transcript_mismatch']);
+});
+
+t('checkRun: calls counts the call lines only, not invalid ones', () => {
+  const log = logOf([step(0, 'low', 'low'), call(0, 'xhigh'), { type: 'invalid', request: 0, input: { level: 'medium' } }, call(0, 'low')]);
+  assert.equal(checkRun({ transcriptText: simple(['low']), modLogText: log, mode: 'toggle' }).calls, 2);
+});
+
+t('checkRun: a Bash call cat /run/config/... gives an audit entry with its request index', () => {
+  const tr = jsonl([
+    rec('m0', 'low', [bashUse('ls /work')]),
+    rec('m1', 'low', [thinking()]),
+    rec('m1', 'low', [bashUse('cat /run/config/arm.json'), use('Read', { file_path: '/work/README.md' })]),
+    rec('m2', 'low', [use('Read', { file_path: '/opt/es/mod/hooks/register.ts' })]),
+  ]);
+  const r = checkRun({ transcriptText: tr, modLogText: logOf(agreeing(['low', 'low', 'low'])), mode: 'toggle' });
+  assert.deepEqual(r.reasons, ['audit']);
+  assert.equal(r.audit.length, 2);
+  assert.deepEqual(r.audit[0], { request: 1, tool: 'Bash', hits: ['names /run/config'] });
+  assert.equal(r.audit[1].request, 2);
+  assert.equal(r.audit[1].tool, 'Read');
+  assert.ok(r.audit[1].hits.length > 0);
+});
+
+t('checkRun: reasons come in the order no_mod_log, mod_error, log_transcript_mismatch, audit', () => {
+  const tr = jsonl([rec('m0', 'low', [bashUse('cat /run/state/x')]), rec('m1', 'low', [bashUse('ls')])]);
+  const r = checkRun({ transcriptText: tr, modLogText: logOf([{ type: 'error', message: 'e' }]), mode: 'toggle' });
+  assert.deepEqual(r.reasons, ['mod_error', 'log_transcript_mismatch', 'audit']);
+  const none = checkRun({ transcriptText: tr, modLogText: undefined, mode: 'toggle' });
+  assert.deepEqual(none.reasons, ['no_mod_log', 'audit']);
+});
+
+t('checkRun: broadAt lists the request indices of broad checks', () => {
+  const tr = jsonl([
+    rec('m0', 'low', [bashUse('cargo test --lib')]),
+    rec('m1', 'low', [bashUse('cargo test --workspace')]),
+    rec('m2', 'low', [bashUse('ls')]),
+    rec('m3', 'low', [use('Read', { file_path: '/work/a' }), bashUse('cd /work && cargo clippy --all-targets')]),
+    rec('m4', 'low', [bashUse('cargo test')]),
+  ]);
+  const r = checkRun({ transcriptText: tr, modLogText: logOf(agreeing(['low', 'low', 'low', 'low', 'low'])), mode: 'toggle' });
+  assert.deepEqual(r.broadAt, [1, 3, 4]);
+  assert.deepEqual(r.reasons, []);
+});
+
+t('checkRun: secondTurn comes from the transcript', () => {
+  const tr = jsonl([userText('go'), rec('m0', 'low', [bashUse('ls')]), userText('<task-notification>x</task-notification>'), rec('m1', 'low', [text('done')])]);
+  const r = checkRun({ transcriptText: tr, modLogText: logOf(agreeing(['low', 'low'])), mode: 'toggle' });
+  assert.equal(r.secondTurn, true);
+  assert.deepEqual(r.reasons, []);
+});
+
+t('checkRun: the checks do not depend on the mode (placebo, random, schedule, an unknown one)', () => {
+  const efforts = ['low', 'xhigh'];
+  for (const mode of ['toggle', 'placebo', 'random', 'schedule', undefined, 'nonsense']) {
+    const r = checkRun({ transcriptText: simple(efforts), modLogText: logOf(agreeing(efforts)), mode });
+    assert.deepEqual(r.reasons, [], String(mode));
+  }
+});
+
+t('checkRun: never throws, on empty, torn, hostile or non-string input', () => {
+  const tr = jsonl([
+    userText('go'),
+    rec('m0', 'low', [thinking()], 3),
+    rec('m0', 'low', [bashUse('cat /run/config/x <<EOF\nbody\nEOF'), use('Read', { file_path: '/opt/es' })], 40),
+    toolResult(),
+    userText('<task-notification>x</task-notification>'),
+    rec('m1', 'xhigh', [bashUse('cargo test --workspace')]),
+  ]);
+  const log = logOf([step(0, 'low', 'low'), call(0, 'xhigh'), step(1, 'low', 'xhigh'), { type: 'error', message: 'e' }]);
+  // every prefix of both texts, each paired with the whole of the other and with itself
+  for (let i = 0; i <= tr.length; i += 7) {
+    assert.doesNotThrow(() => checkRun({ transcriptText: tr.slice(0, i), modLogText: log, mode: 'toggle' }), `transcript cut at ${i}`);
+  }
+  for (let i = 0; i <= log.length; i += 3) {
+    assert.doesNotThrow(() => checkRun({ transcriptText: tr, modLogText: log.slice(0, i), mode: 'toggle' }), `log cut at ${i}`);
+  }
+  const hostile = [
+    '',
+    '\n\n',
+    'null',
+    '[]',
+    '{',
+    '{"type":"assistant"}',
+    '{"type":"assistant","message":null}',
+    '{"type":"assistant","message":{"id":"x","content":[{"type":"tool_use","name":"Bash","input":{"command":{"a":1}}}]}}',
+    '{"type":"assistant","message":{"id":"x","content":[{"type":"tool_use","name":7,"input":[1]}]}}',
+    '{"type":"user","message":{"content":[null,1,"a",{"type":"text"}]}}',
+    '{"type":"user"}',
+    '{"type":"step","request":"0"}',
+    '\u0000\ud800',
+  ];
+  for (const a of hostile) {
+    for (const b of [...hostile, undefined, null]) {
+      assert.doesNotThrow(() => checkRun({ transcriptText: a, modLogText: b, mode: 'toggle' }), JSON.stringify([a, b]));
+    }
+  }
+  for (const odd of [undefined, null, 5, {}, [], true]) {
+    assert.doesNotThrow(() => checkRun({ transcriptText: odd, modLogText: odd, mode: odd }));
+  }
+  assert.doesNotThrow(() => checkRun({}));
+  assert.doesNotThrow(() => checkRun());
+  const r = checkRun({ transcriptText: '', modLogText: '', mode: 'toggle' });
+  assert.deepEqual(r.reasons, ['no_mod_log']);
+  assert.equal(r.requests, 0);
+  assert.equal(r.shareXhigh, 0);
+  assert.equal(r.upSwitches, 0);
+  assert.equal(r.secondTurn, false);
+});
