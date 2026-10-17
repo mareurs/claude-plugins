@@ -6,7 +6,7 @@
 //       positiveControl 'pass' | 'fail'; up, down 'delivered' | 'not_delivered' | 'inconclusive' | 'needs_extension';
 //       counts[arm] = { counted, broad, pass, meanCostUsd }; stop = string[]
 //   step1Verdict(runs, reg)  -> { quality, cost, harm, works, timing, incomplete, detail }
-//       runs = { L, X, T, P, R } (each Run[]), reg = { qualityTask, qualityRuns, otherRuns }
+//       runs = { L, X, T, P, R } (each Run[]), reg = { qualityTask, qualityRuns, otherRuns, costEstimator: 'run' | 'task' }
 //   randomParams(tRuns)      -> { s, u, n, pUp, pDown, degenerate }
 //
 // Run = { runId, taskId, rep, pass: boolean | null, costUsd: number | null, excludedFor: string | null, secondTurn, broadAt: number[],
@@ -33,13 +33,21 @@
 //   counted over every run of the arm, counted or not.
 //
 //   STEP 1 (no secondTurn rule). Counted as above. On reg.qualityTask each arm takes its first reg.qualityRuns counted runs by rep; on
-//   every other task its first reg.otherRuns. QUALITY: passT >= passX - 1 AND passT - passP >= 3 on the quality task. COST: the task-
-//   weighted mean (mean over tasks of the task's mean costUsd over its used runs) of T <= (L + X) / 2, equality passes. HARM: passes
-//   over all other tasks, passT >= passL - 1. COST and HARM use only the tasks both compared arms have (cost: L, X and T; harm: L and
-//   T), so a task missing in one arm cannot tilt the comparison; with every arm complete that is every task. TIMING (reported, not part
-//   of works): passT - passR >= 2 on the quality task; null when R has no counted run there. WORKS = quality && cost && harm; null when
-//   L, X, T or P has no counted run (their names go in incomplete) or a criterion could not be evaluated. A (arm, task) cell with fewer
-//   counted runs than asked is listed in detail.short and does not block a verdict. detail carries the numbers behind the verdicts.
+//   every other task its first reg.otherRuns. QUALITY: passT >= passX - 1 AND passT - passP >= 3 on the quality task. COST (ruling P12,
+//   the spec says run-weighted, the plan task-weighted, so the estimator is a REGISTRATION FIELD): reg.costEstimator must be 'run' or
+//   'task', else a TypeError names the field. 'run' = total costUsd over the used runs divided by their number; 'task' = the mean over
+//   tasks of each task's mean costUsd over its used runs. cost = T <= (L + X) / 2 with the registered estimator, equality passes;
+//   detail.cost = { run: {L,X,T}, task: {L,X,T}, used } always carries both. HARM: passes over all other tasks, passT >= passL - 1.
+//   COST and HARM use only the tasks the compared arms share (cost: L, X and T with a costed run; harm: L and T). TIMING (reported, not
+//   part of works): passT - passR >= 2 on the quality task; null when R has no counted run there.
+//   INCOMPLETE (ruling P11): over the union of the tasks L, X, T and P have runs for (in order of first appearance), an arm with no
+//   counted run at all is listed by name; else each task it has no counted run on is '<arm>:<task>' and each task it has counted runs on
+//   but none with a finite costUsd is '<arm>:<task>:cost' (order: arm L, X, T, P, then task). quality, cost and harm are still computed
+//   from the data that exists but are PROVISIONAL while incomplete is non-empty. WORKS = quality && cost && harm; null whenever
+//   incomplete is non-empty or a criterion could not be evaluated. A SHORT cell (fewer counted runs than registered, at least one) is
+//   not incomplete: it still gives a verdict and is listed in detail.short as '<arm>:<task>:<counted>/<registered>' (an exclusion plus
+//   a capped replacement can leave one; letting it block would let one exclusion veto the experiment). detail also carries the quality
+//   passes, the harm totals and costTasks.
 //
 //   RANDOM (C10). s = mean shareXhigh, u = mean upSwitches, n = mean requests over tRuns; pUp = u / (n (1 - s)); pDown = pUp (1 - s) / s;
 //   both clipped to [0, 1] after being computed. degenerate (pUp = pDown = 0) when s is 0, u is 0, or n (1 - s) is not positive (s 1,
@@ -149,42 +157,68 @@ function usedByTask(arm, limit) {
 const passes = (rs) => rs.filter((r) => r.pass === true).length;
 
 export function step1Verdict(runs, reg) {
-  const { qualityTask, qualityRuns, otherRuns } = reg ?? {};
+  const { qualityTask, qualityRuns, otherRuns, costEstimator } = reg ?? {};
   if (typeof qualityTask !== 'string' || !Number.isInteger(qualityRuns) || qualityRuns < 1 || !Number.isInteger(otherRuns) || otherRuns < 1) {
     throw new TypeError('step1Verdict: reg needs a string qualityTask and integers qualityRuns >= 1 and otherRuns >= 1');
+  }
+  if (costEstimator !== 'run' && costEstimator !== 'task') {
+    throw new TypeError(`step1Verdict: reg.costEstimator must be 'run' or 'task' (a registered choice), got ${JSON.stringify(costEstimator)}`);
   }
   const limit = (task) => (task === qualityTask ? qualityRuns : otherRuns);
   const by = {};
   for (const a of ['L', 'X', 'T', 'P', 'R']) by[a] = usedByTask(runs?.[a], limit);
-  const present = (a) => by[a].size > 0;
-  const incomplete = ['L', 'X', 'T', 'P'].filter((a) => !present(a));
+
+  // INCOMPLETE (ruling P11): over the union of the tasks L, X, T and P have runs for (counted or not), in order of first appearance.
+  // An arm with no counted run at all is listed by name; otherwise each task it has no counted run on is '<arm>:<task>', and each task
+  // it has counted runs on but none with a finite costUsd is '<arm>:<task>:cost'. Order: arm L, X, T, P, then task order.
+  const unionTasks = [];
+  for (const a of ['L', 'X', 'T', 'P']) {
+    for (const r of list(runs?.[a])) if (r.taskId !== undefined && !unionTasks.includes(r.taskId)) unionTasks.push(r.taskId);
+  }
+  const incomplete = [];
+  for (const a of ['L', 'X', 'T', 'P']) {
+    if (by[a].size === 0) {
+      incomplete.push(a);
+      continue;
+    }
+    for (const task of unionTasks) {
+      if (!by[a].has(task)) incomplete.push(`${a}:${task}`);
+      else if (mean(by[a].get(task).map((r) => r.costUsd)) === null) incomplete.push(`${a}:${task}:cost`);
+    }
+  }
 
   const qPass = (a) => (by[a].has(qualityTask) ? passes(by[a].get(qualityTask)) : null);
   const detail = { qualityPasses: { L: qPass('L'), X: qPass('X'), T: qPass('T'), P: qPass('P'), R: qPass('R') } };
+  // A short cell (fewer counted runs than registered, but at least one) is reported, not incomplete.
   const short = [];
   for (const a of ['L', 'X', 'T', 'P', 'R']) {
-    for (const [task, rs] of by[a]) if (rs.length < limit(task)) short.push(`${a}:${task}`);
+    for (const [task, rs] of by[a]) if (rs.length < limit(task)) short.push(`${a}:${task}:${rs.length}/${limit(task)}`);
   }
   detail.short = short;
 
-  // quality
+  // quality (provisional while incomplete is non-empty)
   let quality = null;
   const q = detail.qualityPasses;
   if (q.X !== null && q.T !== null && q.P !== null) quality = q.T >= q.X - 1 && q.T - q.P >= 3;
 
-  // cost over the tasks that L, X and T all have
-  const taskCost = (a, task) => mean(by[a].get(task).map((r) => r.costUsd));
+  // cost over the tasks L, X and T all have costed runs on (provisional while incomplete is non-empty). Both estimators are
+  // returned; reg.costEstimator picks the one the boolean uses.
+  const costOf = (a, task) => mean(by[a].get(task).map((r) => r.costUsd));
   const costTasks = [...by.T.keys()].filter((task) => by.L.has(task) && by.X.has(task)
-    && taskCost('L', task) !== null && taskCost('X', task) !== null && taskCost('T', task) !== null);
-  const weighted = (a) => mean(costTasks.map((task) => taskCost(a, task)));
+    && costOf('L', task) !== null && costOf('X', task) !== null && costOf('T', task) !== null);
+  const taskWeighted = (a) => mean(costTasks.map((task) => costOf(a, task)));
+  const runWeighted = (a) => mean(costTasks.flatMap((task) => by[a].get(task).map((r) => r.costUsd)));
+  const est = (f) => ({ L: f('L'), X: f('X'), T: f('T') });
   let cost = null;
-  detail.cost = { tasks: costTasks.length, L: null, X: null, T: null };
+  detail.cost = { run: { L: null, X: null, T: null }, task: { L: null, X: null, T: null }, used: costEstimator };
   if (costTasks.length > 0) {
-    detail.cost = { tasks: costTasks.length, L: weighted('L'), X: weighted('X'), T: weighted('T') };
-    cost = detail.cost.T <= (detail.cost.L + detail.cost.X) / 2;
+    detail.cost = { run: est(runWeighted), task: est(taskWeighted), used: costEstimator };
+    const c = detail.cost[costEstimator];
+    cost = c.T <= (c.L + c.X) / 2;
   }
+  detail.costTasks = costTasks.length;
 
-  // harm over the other tasks that L and T both have
+  // harm over the other tasks that L and T both have (provisional while incomplete is non-empty)
   const harmTasks = [...by.T.keys()].filter((task) => task !== qualityTask && by.L.has(task));
   let harm = null;
   detail.harm = { tasks: harmTasks.length, L: null, T: null };

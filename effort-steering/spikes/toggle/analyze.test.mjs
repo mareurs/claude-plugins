@@ -246,7 +246,7 @@ t('step 0: counts for a pooled arm cover the pooled 8; a null cost is left out o
 
 // ---- step 1 -----------------------------------------------------------------------------------------------------------------
 
-const REG1 = { qualityTask: 'cs-p20', qualityRuns: 5, otherRuns: 2 };
+const REG1 = { qualityTask: 'cs-p20', qualityRuns: 5, otherRuns: 2, costEstimator: 'task' };
 // `n` runs of one task with the first `passes` passing, at one cost.
 const cell = (taskId, n, passes, costUsd = 1) => Array.from({ length: n }, (_, rep) => run({ taskId, rep, pass: rep < passes, costUsd }));
 // An arm from { task: [n, passes, cost] }.
@@ -310,9 +310,9 @@ t('step 1: the task weighting is by task, not by run (5 runs of one task do not 
     L: mkArm({ 'cs-p20': [5, 0, 1], a: [2, 2, 1] }), X: mkArm({ 'cs-p20': [5, 5, 3], a: [2, 2, 3] }),
     T: mkArm({ 'cs-p20': [5, 4, 3], a: [2, 2, 1] }),
   }), REG1);
-  assert.equal(v.detail.cost.T, 2);
-  assert.equal(v.detail.cost.L, 1);
-  assert.equal(v.detail.cost.X, 3);
+  assert.equal(v.detail.cost.task.T, 2);
+  assert.equal(v.detail.cost.task.L, 1);
+  assert.equal(v.detail.cost.task.X, 3);
   assert.equal(v.cost, true);
 });
 
@@ -336,7 +336,7 @@ t('step 1: harm leaves the quality task out (L and T differ there only)', () => 
 t('step 1: harm and cost use only the first otherRuns counted runs per other task', () => {
   const v = step1Verdict(base({ T: mkArm({ 'cs-p20': [5, 4, 2], a: [2, 2, 2], b: [2, 2, 2] }).concat(cell('a', 3, 0, 100).map((r) => ({ ...r, rep: r.rep + 2 }))) }), REG1);
   assert.equal(v.detail.harm.T, 4);
-  assert.equal(v.detail.cost.T, 2);
+  assert.equal(v.detail.cost.task.T, 2);
 });
 
 t('step 1: works needs all three: one failing criterion alone makes works false', () => {
@@ -387,7 +387,8 @@ t('step 1: runs that are not counted (pass null, excluded) do not count, and an 
 
 t('step 1: a short cell is reported in detail.short and does not stop a verdict', () => {
   const v = step1Verdict(base({ T: mkArm({ 'cs-p20': [5, 4, 2], a: [2, 2, 2], b: [1, 1, 2] }) }), REG1);
-  assert.deepEqual(v.detail.short, ['T:b']);
+  assert.deepEqual(v.detail.short, ['T:b:1/2']);
+  assert.deepEqual(v.incomplete, []);
   assert.equal(typeof v.works, 'boolean');
 });
 
@@ -401,9 +402,124 @@ t('step 1: no NaN and no throw on empty input', () => {
   assert.equal(v.timing, null);
 });
 
+// ---- step 1: the union of tasks, short cells, the cost estimator (rulings P11, P12) -----------------------------------------
+
+const OTHER = Array.from({ length: 11 }, (_, i) => `o${i + 1}`);
+// A full 12-task arm: cs-p20 5 runs, the 11 others 2 runs, every run passing at one cost; `cells` overrides a task's [n, passes, cost].
+const full = (costUsd, cells = {}) => {
+  const spec = { 'cs-p20': [5, 5, costUsd], ...Object.fromEntries(OTHER.map((o) => [o, [2, 2, costUsd]])) };
+  for (const [task, c] of Object.entries(cells)) {
+    if (c === null) delete spec[task];
+    else spec[task] = c;
+  }
+  return mkArm(spec);
+};
+const full12 = (over = {}) => ({ L: full(1), X: full(3), T: full(2), P: full(1, { 'cs-p20': [5, 0, 1] }), R: full(2), ...over });
+
+t('step 1 (P11): a complete 12-task input has no incomplete entry and works is defined', () => {
+  const v = step1Verdict(full12(), REG1);
+  assert.deepEqual(v.incomplete, []);
+  assert.equal(v.works, true);
+});
+
+t('step 1 (P11): T missing a whole other task is incomplete as T:<task> and works is null', () => {
+  const v = step1Verdict(full12({ T: full(2, { o11: null }) }), REG1);
+  assert.deepEqual(v.incomplete, ['T:o11']);
+  assert.equal(v.works, null);
+});
+
+t('step 1 (P11): L at 22 of 22 and T missing task o1 is incomplete (T:o1), works null, never a silent harm true', () => {
+  const v = step1Verdict(full12({ T: full(2, { o1: null }) }), REG1);
+  assert.deepEqual(v.incomplete, ['T:o1']);
+  assert.equal(v.works, null);
+});
+
+t('step 1 (P11): T without the quality task is incomplete as T:cs-p20 and works is null', () => {
+  const v = step1Verdict(full12({ T: full(2, { 'cs-p20': null }) }), REG1);
+  assert.deepEqual(v.incomplete, ['T:cs-p20']);
+  assert.equal(v.works, null);
+  assert.equal(v.quality, null);
+});
+
+t('step 1 (P11): counted runs with a null costUsd on every run of a task is <arm>:<task>:cost and works is null', () => {
+  const noCost = mkArm({ 'cs-p20': [5, 5, 2], ...Object.fromEntries(OTHER.map((o) => [o, [2, 2, o === 'o3' ? null : 2]])) });
+  const v = step1Verdict(full12({ T: noCost }), REG1);
+  assert.deepEqual(v.incomplete, ['T:o3:cost']);
+  assert.equal(v.works, null);
+  // one costed run among the task's runs is enough
+  const oneCost = noCost.map((r, i) => (r.taskId === 'o3' && i % 2 === 0 ? { ...r, costUsd: 2 } : r));
+  assert.deepEqual(step1Verdict(full12({ T: oneCost }), REG1).incomplete, []);
+});
+
+t('step 1 (P11): incomplete entries are ordered by arm L, X, T, P, then by task of first appearance', () => {
+  const v = step1Verdict(full12({ P: full(1, { o5: null, o2: null }), T: full(2, { o9: null }), L: full(1, { o7: null }) }), REG1);
+  assert.deepEqual(v.incomplete, ['L:o7', 'T:o9', 'P:o2', 'P:o5']);
+  assert.equal(v.works, null);
+});
+
+t('step 1 (P11): a missing arm is listed by its name alone, a missing R leaves works defined and timing null, a missing L names L', () => {
+  assert.deepEqual(step1Verdict(full12({ L: [] }), REG1).incomplete, ['L']);
+  assert.equal(step1Verdict(full12({ L: [] }), REG1).works, null);
+  const noR = step1Verdict(full12({ R: undefined }), REG1);
+  assert.equal(noR.works, true);
+  assert.equal(noR.timing, null);
+  assert.deepEqual(noR.incomplete, []);
+});
+
+t('step 1 (P11): a short cell (1 of 2 counted) is in detail.short, not in incomplete, and works is still a verdict', () => {
+  const v = step1Verdict(full12({ T: full(2, { o4: [1, 1, 2] }) }), REG1);
+  assert.ok(v.detail.short.includes('T:o4:1/2'), JSON.stringify(v.detail.short));
+  assert.deepEqual(v.incomplete, []);
+  assert.equal(v.works, true);
+  // a short quality cell (4 of 5) is reported the same way
+  const q = step1Verdict(full12({ T: full(2, { 'cs-p20': [4, 4, 2] }) }), REG1);
+  assert.deepEqual(q.detail.short, ['T:cs-p20:4/5']);
+  assert.deepEqual(q.incomplete, []);
+  assert.notEqual(q.works, null);
+});
+
+// T costs 10 on cs-p20 (5 runs) and 1 on the 11 others (22 runs); L = 1 and X = 3 everywhere; the midpoint is 2.
+// Task-weighted T = (10 + 11 * 1) / 12 = 1.75 (passes); run-weighted T = (50 + 22) / 27 = 2.667 (fails).
+const costInput = () => full12({ T: full(1, { 'cs-p20': [5, 5, 10] }) });
+
+t('step 1 (P12): costEstimator task passes and run fails on the same data (probe numbers), both values are always returned', () => {
+  const task = step1Verdict(costInput(), { ...REG1, costEstimator: 'task' });
+  const run_ = step1Verdict(costInput(), { ...REG1, costEstimator: 'run' });
+  assert.equal(task.cost, true);
+  assert.equal(run_.cost, false);
+  for (const v of [task, run_]) {
+    near(v.detail.cost.task.T, 1.75, 'task T');
+    near(v.detail.cost.run.T, 72 / 27, 'run T');
+    assert.deepEqual([v.detail.cost.task.L, v.detail.cost.task.X, v.detail.cost.run.L, v.detail.cost.run.X], [1, 3, 1, 3]);
+  }
+  assert.equal(task.detail.cost.used, 'task');
+  assert.equal(run_.detail.cost.used, 'run');
+  assert.equal(task.works, true);
+  assert.equal(run_.works, false);
+});
+
+t('step 1 (P12): the run estimator is total cost over the used runs divided by their number (here run passes, task fails)', () => {
+  // T costs 1 on the 5 cs-p20 runs and 2.2 on the 22 others: run = (5 + 48.4) / 27 = 1.978 <= 2; task = (1 + 11 * 2.2) / 12 = 2.183 > 2
+  const input = full12({ T: full(2.2, { 'cs-p20': [5, 5, 1] }) });
+  const run_ = step1Verdict(input, { ...REG1, costEstimator: 'run' });
+  const task = step1Verdict(input, { ...REG1, costEstimator: 'task' });
+  near(run_.detail.cost.run.T, 53.4 / 27, 'run T');
+  near(run_.detail.cost.task.T, (1 + 11 * 2.2) / 12, 'task T');
+  assert.equal(run_.cost, true);
+  assert.equal(task.cost, false);
+});
+
+t('step 1 (P12): costEstimator must be registered: missing or anything but run/task is a TypeError naming the field', () => {
+  for (const bad of [undefined, null, '', 'mean', 'Run', 1]) {
+    assert.throws(() => step1Verdict(full12(), { ...REG1, costEstimator: bad }), (e) => e instanceof TypeError && /costEstimator/.test(e.message), String(bad));
+  }
+  const { costEstimator: _omit, ...noField } = REG1;
+  assert.throws(() => step1Verdict(full12(), noField), (e) => e instanceof TypeError && /costEstimator/.test(e.message));
+});
+
 // ---- randomParams -----------------------------------------------------------------------------------------------------------
 
-const near = (a, b, msg) => assert.ok(Math.abs(a - b) < 1e-12, `${msg ?? ''}: ${a} vs ${b}`);
+function near(a, b, msg) { assert.ok(Math.abs(a - b) < 1e-12, `${msg ?? ''}: ${a} vs ${b}`); }
 
 t('randomParams: s, u, n are the means; pUp = u / (n (1 - s)); pDown = pUp (1 - s) / s', () => {
   const tRuns = [
