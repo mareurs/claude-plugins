@@ -332,6 +332,34 @@ t("writeHookCopy: with a mod the top level adds mod/, mod/config.json is {...mod
   assert.deepEqual(RANDOM_MOD, { mode: 'random', random: { pUp: 0.25, pDown: 0.5, seed: 7 } });
 });
 
+t('writeHookCopy (P25): opts.logPath replaces the container log path in config.json and nothing else; the default is unchanged', () => {
+  const es = fixtureTreeWithMod();
+  const host = '/tmp/g1a/log.jsonl';
+  const result = writeHookCopy(fresh('root'), es, SCHEDULE_MOD, { logPath: host });
+  assert.deepEqual(JSON.parse(readFileSync(path.join(result.modDir, 'config.json'), 'utf8')), { ...SCHEDULE_MOD, logPath: host });
+  const plain = writeHookCopy(fresh('root'), es, SCHEDULE_MOD);
+  const a = bytesOf(result.copyDir);
+  const b = bytesOf(plain.copyDir);
+  delete a['mod/config.json'];
+  delete b['mod/config.json'];
+  assert.deepEqual(a, b, 'every other byte of the copy is the same');
+  for (const opts of [undefined, {}, { logPath: undefined }]) {
+    const r = writeHookCopy(fresh('root'), es, RANDOM_MOD, ...(opts === undefined ? [] : [opts]));
+    assert.equal(JSON.parse(readFileSync(path.join(r.modDir, 'config.json'), 'utf8')).logPath, MOD_LOG);
+  }
+  // without a mod the option has nothing to write
+  assert.equal(writeHookCopy(fresh('root'), es, null, { logPath: host }).modDir, null);
+});
+
+t('writeHookCopy (P25): a log path that is not an absolute string, or opts that is not an object, is a TypeError before anything is written', () => {
+  const es = fixtureTreeWithMod();
+  for (const bad of [{ logPath: 'log.jsonl' }, { logPath: './x/log.jsonl' }, { logPath: '' }, { logPath: 7 }, { logPath: null }, null, 'x', []]) {
+    const root = fresh('root');
+    assert.throws(() => writeHookCopy(root, es, SCHEDULE_MOD, bad), (e) => e instanceof TypeError && /logPath|opts/.test(e.message), JSON.stringify(bad));
+    assert.deepEqual(readdirSync(root), [], `nothing was written for ${JSON.stringify(bad)}`);
+  }
+});
+
 t('writeHookCopy: the real mod is copied from this checkout, and every file of it is readable by the container user', () => {
   const result = writeHookCopy(fresh('root'), ES, SCHEDULE_MOD);
   for (const f of MOD_FILES) assert.ok(statSync(path.join(result.modDir, f)).isFile(), f);

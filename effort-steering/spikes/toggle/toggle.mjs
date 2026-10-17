@@ -5,17 +5,28 @@
 //   toggle stage-config --registration <file> --arm <name> --out <file> [--runs <n>]
 //       writes the S5 config of one arm (registration.mjs stageArmConfig); `--runs` replaces the arm's registered run count (an
 //       extension or a replacement batch) and changes nothing else. The output is checked with loadS5Config(out, { mode: 'calibrate' }).
-//   toggle check-runs --work-root <dir> --rows <file> --mode <mode|none> --out <file>
-//       one Run per final row (below); `--mode` is one of S5's mod modes, handed to checkRun (which does not read it), or `none` (ruling
-//       P16): a run made without a mod (reused R1 V2 rows), whose log is neither expected nor read, so only the `audit` reason excludes it.
-//       A `--work-root` without a `runs/` directory is an error (exit 1), not a work root whose every run is excluded.
+//   toggle check-runs --work-root <dir> --rows <file> --out <file> (--registration <file> --arm <name> | --mode none --label <name>)
+//       one Run per final row (below). Ruling P20: the check is tied to the arm. `--registration` and `--arm` load the registration (the
+//       committed checks of loadRegistration) and hand the arm's mod and its CLI effort (base.arms[s5Arm].effort, which loadRegistration
+//       ties to the level the arm starts at) to checkRun, which checks every main request against the level that mod must have sent
+//       (reason `arm_mismatch`). `--mode none` (ruling P16) is a run made without a mod (reused R1 V2 rows): no log is expected or read,
+//       so only the `audit` reason excludes it; `--label` names the arm the Runs carry. The old free `--mode toggle|placebo|...` is gone
+//       (exit 64, the message points to `--arm`). A `--work-root` without a `runs/` directory is an error (exit 1), not a work root whose
+//       every run is excluded. The summary line counts the excluded runs per reason.
+//   toggle hook-copy --registration <file> --arm <name> --out <dir> [--log-path <absolute path>]
+//       ruling P25 (G1a on the host): writes the hook copy for that arm's mod (spikes/s5/hook-copy.mjs writeHookCopy, esRoot = the
+//       effort-steering/ directory of this checkout) and prints the mod directory, the value for `claude -p --plugin-dir`. `--log-path`
+//       (default: the container path) is where the mod writes its log; its directory is created.
 //   toggle analyze0 --registration <file> --evidence <arm>=<file> ...
 //   toggle analyze1 --registration <file> --evidence <arm>=<file> ...
 //   toggle random-params --registration <file> --stratum quality|other --evidence <T evidence file>
 //       the verdict JSON of analyze.mjs. An evidence file is a JSON array of Run objects (what check-runs writes). Ruling P18: it holds exactly
 //       the keys of a Run with their types, a unique runId, and taskIds among the arm's registered tasks (errors name the file and the run, exit
-//       1); evidence is required for every registered arm and refused for an unregistered one (exit 64). analyze1 merges the evidence of
+//       1); evidence is required for every registered arm and refused for an unregistered one (exit 64). Ruling P20: every Run's `arm` must be the
+//       arm the file is given for (`--evidence <arm>=<file>`), else exit 1 naming the file and the run. analyze1 merges the evidence of
 //       R-quality and R-other into R (ruling P17); random-params keeps T's runs on the quality task (`quality`) or on the others (`other`).
+//       Ruling P22: random-params solves the generator for the real chain (analyze.mjs randomParams); when its expected share or up-switch
+//       count differs from T's by more than GAP_LIMIT (25%) it exits 1, prints the gaps and NO pUp/pDown.
 //   toggle check-known [--low <runsDir>]... [--xhigh <runsDir>]... [--all <runsDir>]... [--task <id>]
 //       the broad matcher, the blinding audit and firstEditIndex over run directories that hold a transcript and no mod log.
 //
@@ -25,9 +36,14 @@
 // costUsd (a finite number >= 0, else null). The row carries no attempt number, so the run directory is the
 // `<workRoot>/runs/<runId>-a<N>` (run.mjs nextAttemptNumber's naming) with the highest N whose config/ holds the row's session.
 // Its transcript is readRunUsage(<runDir>/config, sessionId).transcriptPath and its mod log <runDir>/state/effort-toggle/log.jsonl.
-// Run = { runId, taskId, rep, pass, costUsd, excludedFor, secondTurn, broadAt, requests, shareXhigh, upSwitches }. excludedFor is
-// 'audit' when checkRun lists it (ruling P10), else the first of checkRun's reasons, else null; a run without a readable transcript is
-// excluded for readRunUsage's reason ('no_transcript', 'ambiguous_transcript') or 'transcript_unreadable', before any other reason.
+// Run = { runId, taskId, rep, arm, pass, costUsd, excludedFor, secondTurn, broadAt, requests, shareXhigh, upSwitches, calls, callLog }.
+// `arm` is the registered arm name (or the --label under `--mode none`); `calls` the number of valid set_effort calls in the mod log and
+// `callLog` them as { request, level, reason } (ruling P24). excludedFor is 'audit' when checkRun lists it (ruling P10), else the first
+// of checkRun's reasons, else null; a run without a readable transcript is excluded for readRunUsage's reason ('no_transcript',
+// 'ambiguous_transcript') or 'transcript_unreadable', before any other reason. Ruling P21, the final rows (S5 run.mjs: `final` is true
+// for infra null, which includes a timeout with grade null, and for an exhausted run, infra 'infra_exhausted'): a final row with infra null
+// and grade null is a TIMEOUT, a counted failure as in R1 (pass false); a final row with an infra reason is excluded for 'infra:<reason>',
+// ahead of every other reason. A row with final false (a retried attempt) is not read.
 //
 // check-known prints one line per run: `<dir name> group=<xhigh|low> broad=<true|false> audit=<n> firstEditIndex=<n|none>`; `broad` is
 // "some broad check anywhere" (broadAt not empty), `audit` the number of tool calls checkRun's audit flags. Then exactly:
@@ -38,15 +54,19 @@
 // (config/projects/*/*.jsonl) is an error, not a skip.
 
 import { existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
-import { dirname, join, resolve } from 'node:path';
+import { dirname, isAbsolute, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { loadS5Config, MOD_MODES } from '../s5/prereg.mjs';
+import { writeHookCopy } from '../s5/hook-copy.mjs';
+import { loadS5Config } from '../s5/prereg.mjs';
 import { readRunUsage } from '../s5/usage.mjs';
 import { randomParams, step0Verdict, step1Verdict } from './analyze.mjs';
 import { checkRun, firstEditIndex } from './evidence.mjs';
 import { loadRegistration, serializeConfig, stageArmConfig } from './registration.mjs';
 
 class UsageError extends Error {}
+
+// Ruling P22: the largest relative gap between the random chain's expectation and T's means that random-params still prints parameters for.
+export const GAP_LIMIT = 0.25;
 
 // parseFlags(argv, { name: 'string' | 'int' | 'list' }) -> { name: value }. `list` flags repeat; `int` is a non-negative integer.
 export function parseFlags(argv, spec) {
@@ -168,10 +188,12 @@ function readIfExists(file) {
   }
 }
 
-// checkRuns({ workRoot, rows, mode }) -> Run[]
-export function checkRuns({ workRoot, rows, mode }) {
+// checkRuns({ workRoot, rows, arm, mod, startEffort }) -> Run[]. `mod` is the arm's registered mod and `startEffort` its CLI effort; mod null
+// is a run without a mod (`--mode none`: only the audit excludes), `arm` the name the Runs carry.
+export function checkRuns({ workRoot, rows, arm, mod = null, startEffort = null }) {
   const runsDir = join(resolve(workRoot), 'runs');
   if (!isDirectory(runsDir)) throw new Error(`${runsDir} is not a directory: --work-root must be a work root that holds runs/`);
+  const none = mod === null;
   return finalRows(rows).map((row) => {
     const { runDir, usage } = findAttempt(runsDir, row);
     let transcriptText = '';
@@ -185,15 +207,19 @@ export function checkRuns({ workRoot, rows, mode }) {
       }
     }
     // Mode `none` (ruling P16): a run without a mod; no log is expected and none is read, so only the audit can exclude it.
-    const modLogText = runDir === null || mode === 'none' ? null : readIfExists(join(runDir, 'state', 'effort-toggle', 'log.jsonl'));
-    const c = checkRun({ transcriptText, modLogText, mode });
-    const reason = c.reasons.includes('audit') ? 'audit' : (mode === 'none' ? null : (c.reasons[0] ?? null));
-    const excludedFor = transcriptReason ?? reason;
+    const modLogText = runDir === null || none ? null : readIfExists(join(runDir, 'state', 'effort-toggle', 'log.jsonl'));
+    const c = checkRun({ transcriptText, modLogText, mod, startEffort });
+    const reason = c.reasons.includes('audit') ? 'audit' : (none ? null : (c.reasons[0] ?? null));
+    // Ruling P21: a final row with an infra reason is excluded for it; a final row with neither infra nor grade timed out (R90): a failure.
+    const infra = typeof row.infra === 'string' && row.infra !== '' ? row.infra : null;
+    const excludedFor = infra !== null ? `infra:${infra}` : (transcriptReason ?? reason);
+    const graded = isObject(row.grade) && typeof row.grade.pass === 'boolean';
     return {
       runId: row.runId,
       taskId: row.taskId,
       rep: row.rep,
-      pass: isObject(row.grade) && typeof row.grade.pass === 'boolean' ? row.grade.pass : null,
+      arm,
+      pass: graded ? row.grade.pass : (isTimeout(row) ? false : null),
       costUsd: finite(row.costUsd) && row.costUsd >= 0 ? row.costUsd : null,
       excludedFor,
       secondTurn: c.secondTurn,
@@ -201,24 +227,68 @@ export function checkRuns({ workRoot, rows, mode }) {
       requests: c.requests,
       shareXhigh: c.shareXhigh,
       upSwitches: c.upSwitches,
+      calls: c.calls,
+      callLog: c.callLog,
     };
   });
 }
 
+// A final row that ran to the harness timeout: no infra reason and no grade (S5 run.mjs never grades a timed-out run, R90).
+const isTimeout = (row) => (row.infra ?? null) === null && row.grade === null;
+
+// "audit 1, infra:infra_exhausted 2": the excluded runs per reason, most first.
+function excludedSummary(runs) {
+  const counts = new Map();
+  for (const r of runs) if (r.excludedFor !== null) counts.set(r.excludedFor, (counts.get(r.excludedFor) ?? 0) + 1);
+  return [...counts].sort((a, b) => b[1] - a[1] || (a[0] < b[0] ? -1 : 1)).map(([reason, n]) => `${reason} ${n}`).join(', ');
+}
+
 async function cmdCheckRuns(argv, io) {
-  const f = parseFlags(argv, { 'work-root': 'string', rows: 'string', mode: 'string', out: 'string' });
-  needFlags(f, 'check-runs', ['work-root', 'rows', 'mode', 'out']);
-  if (f.mode !== 'none' && !MOD_MODES.includes(f.mode)) throw new UsageError(`--mode must be one of ${MOD_MODES.join(', ')} or none, got ${JSON.stringify(f.mode)}`);
+  const f = parseFlags(argv, { 'work-root': 'string', rows: 'string', mode: 'string', out: 'string', registration: 'string', arm: 'string', label: 'string' });
+  needFlags(f, 'check-runs', ['work-root', 'rows', 'out']);
+  let spec;
+  if (f.mode !== undefined) {
+    if (f.mode !== 'none') throw new UsageError(`--mode takes only none (a run without a mod); for a run with a mod use --registration <file> --arm <name>, got --mode ${JSON.stringify(f.mode)}`);
+    if (f.registration !== undefined || f.arm !== undefined) throw new UsageError('--mode none cannot be combined with --registration or --arm');
+    if (f.label === undefined || f.label.trim() === '') throw new UsageError('check-runs --mode none needs --label <name> (the arm name the Runs carry)');
+    spec = { arm: f.label, mod: null, startEffort: null };
+  } else {
+    if (f.label !== undefined) throw new UsageError('--label belongs to --mode none; with --registration the Runs carry the arm name');
+    needFlags(f, 'check-runs', ['registration', 'arm']);
+    const reg = loadRegistration(f.registration);
+    if (!Object.hasOwn(reg.arms, f.arm)) throw new UsageError(`the registration has no arm ${JSON.stringify(f.arm)} (its arms: ${Object.keys(reg.arms).join(', ')})`);
+    const a = reg.arms[f.arm];
+    spec = { arm: f.arm, mod: a.mod, startEffort: reg.base.arms[a.s5Arm].effort };
+  }
   const rows = parseRows(readFileSync(resolve(f.rows), 'utf8'), f.rows);
-  const runs = checkRuns({ workRoot: f['work-root'], rows, mode: f.mode });
+  const runs = checkRuns({ workRoot: f['work-root'], rows, ...spec });
   writeJson(f.out, runs);
-  io.log(`wrote ${f.out}: ${runs.length} runs, ${runs.filter((r) => r.excludedFor !== null).length} excluded`);
+  const excluded = runs.filter((r) => r.excludedFor !== null).length;
+  const timeouts = finalRows(rows).filter(isTimeout).length;
+  io.log(`wrote ${f.out}: ${runs.length} runs, ${excluded} excluded${excluded > 0 ? ` (${excludedSummary(runs)})` : ''}${timeouts > 0 ? `; ${timeouts} timed out (counted as failures)` : ''}`);
+  return 0;
+}
+
+// ---- hook-copy (ruling P25) ----
+
+const ES_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
+
+async function cmdHookCopy(argv, io) {
+  const f = parseFlags(argv, { registration: 'string', arm: 'string', out: 'string', 'log-path': 'string' });
+  needFlags(f, 'hook-copy', ['registration', 'arm', 'out']);
+  const logPath = f['log-path'];
+  if (logPath !== undefined && !isAbsolute(logPath)) throw new UsageError(`--log-path must be an absolute path, got ${JSON.stringify(logPath)}`);
+  const reg = loadRegistration(f.registration);
+  if (!Object.hasOwn(reg.arms, f.arm)) throw new UsageError(`the registration has no arm ${JSON.stringify(f.arm)} (its arms: ${Object.keys(reg.arms).join(', ')})`);
+  if (logPath !== undefined) mkdirSync(dirname(logPath), { recursive: true });
+  const { modDir } = writeHookCopy(resolve(f.out), ES_ROOT, reg.arms[f.arm].mod, logPath === undefined ? {} : { logPath });
+  io.log(modDir);
   return 0;
 }
 
 // ---- the verdicts ----
 
-const RUN_KEYS = ['runId', 'taskId', 'rep', 'pass', 'costUsd', 'excludedFor', 'secondTurn', 'broadAt', 'requests', 'shareXhigh', 'upSwitches'];
+const RUN_KEYS = ['runId', 'taskId', 'rep', 'arm', 'pass', 'costUsd', 'excludedFor', 'secondTurn', 'broadAt', 'requests', 'shareXhigh', 'upSwitches', 'calls', 'callLog'];
 const isCount = (x) => Number.isInteger(x) && x >= 0;
 
 // The first problem of one Run object (ruling P18: exactly the keys check-runs writes, with their types), or null.
@@ -228,6 +298,7 @@ function runProblem(r) {
   if (typeof r.runId !== 'string' || r.runId === '') return 'has a runId that is not a non-empty string';
   if (typeof r.taskId !== 'string' || r.taskId === '') return 'has a taskId that is not a non-empty string';
   if (!isCount(r.rep)) return `has rep ${JSON.stringify(r.rep)}, not an integer >= 0`;
+  if (typeof r.arm !== 'string' || r.arm === '') return 'has an arm that is not a non-empty string';
   if (r.pass !== null && typeof r.pass !== 'boolean') return `has pass ${JSON.stringify(r.pass)}, not a boolean or null`;
   if (r.costUsd !== null && !(finite(r.costUsd) && r.costUsd >= 0)) return `has costUsd ${JSON.stringify(r.costUsd)}, not null or a finite number >= 0`;
   if (r.excludedFor !== null && (typeof r.excludedFor !== 'string' || r.excludedFor === '')) return `has excludedFor ${JSON.stringify(r.excludedFor)}, not null or a string`;
@@ -236,12 +307,17 @@ function runProblem(r) {
   if (!finite(r.requests)) return `has requests ${JSON.stringify(r.requests)}, not a finite number`;
   if (!finite(r.shareXhigh) || r.shareXhigh < 0 || r.shareXhigh > 1) return `has shareXhigh ${JSON.stringify(r.shareXhigh)}, not a finite number in [0, 1]`;
   if (!finite(r.upSwitches)) return `has upSwitches ${JSON.stringify(r.upSwitches)}, not a finite number`;
+  if (!isCount(r.calls)) return `has calls ${JSON.stringify(r.calls)}, not an integer >= 0`;
+  if (!Array.isArray(r.callLog) || !r.callLog.every((c) => isObject(c) && isCount(c.request) && (c.level === 'low' || c.level === 'xhigh') && typeof c.reason === 'string')) {
+    return 'has a callLog that is not an array of { request: integer >= 0, level: low | xhigh, reason: string }';
+  }
+  if (r.callLog.length !== r.calls) return `has calls ${r.calls} but a callLog of ${r.callLog.length} entries`;
   return null;
 }
 
-// An evidence file: a JSON array of valid Run objects with a unique runId, every taskId one of `tasks` (the arm's registered tasks).
-// Errors name the file and the offending run.
-function readEvidence(file, tasks) {
+// An evidence file: a JSON array of valid Run objects with a unique runId, every taskId one of `tasks` (the arm's registered tasks) and
+// every `arm` the arm the file is given for (`arm`, ruling P20). Errors name the file and the offending run.
+function readEvidence(file, tasks, arm) {
   let runs;
   try {
     runs = JSON.parse(readFileSync(resolve(file), 'utf8'));
@@ -257,6 +333,7 @@ function readEvidence(file, tasks) {
     if (problem !== null) throw new Error(`${file}: run ${name} ${problem}`);
     if (seen.has(r.runId)) throw new Error(`${file}: run ${r.runId} appears twice`);
     seen.add(r.runId);
+    if (r.arm !== arm) throw new Error(`${file}: run ${r.runId} is a run of arm ${JSON.stringify(r.arm)}, but the file is given for arm ${JSON.stringify(arm)} (ruling P20)`);
     if (!tasks.includes(r.taskId)) throw new Error(`${file}: run ${r.runId} has taskId ${r.taskId}, which is not one of the registered tasks (${tasks.join(', ')})`);
   });
   return runs;
@@ -271,7 +348,7 @@ function evidenceByArm(specs, reg) {
     const arm = spec.slice(0, eq);
     if (!Object.hasOwn(reg.arms, arm)) throw new UsageError(`--evidence names arm ${JSON.stringify(arm)}, which the registration lacks (its arms: ${Object.keys(reg.arms).join(', ')})`);
     if (Object.hasOwn(out, arm)) throw new UsageError(`--evidence names arm ${JSON.stringify(arm)} twice`);
-    out[arm] = readEvidence(spec.slice(eq + 1), reg.arms[arm].tasks);
+    out[arm] = readEvidence(spec.slice(eq + 1), reg.arms[arm].tasks, arm);
   }
   const lacking = Object.keys(reg.arms).filter((arm) => !Object.hasOwn(out, arm));
   if (lacking.length > 0) throw new UsageError(`--evidence is missing for the registered arm(s) ${lacking.join(', ')}`);
@@ -310,7 +387,9 @@ async function cmdAnalyze1(argv, io) {
   const reg = loadStep(f, 'analyze1', 1);
   const byArm = evidenceByArm(f.evidence, reg);
   // Ruling P17: the random arm's two strata are one arm R for the verdict.
-  const { 'R-quality': rq, 'R-other': ro, ...runs } = byArm;
+  // The strata stay in `runs` too: step1Verdict reads them for the audit stop only (ruling P23), R for the criteria.
+  const runs = { ...byArm };
+  const { 'R-quality': rq, 'R-other': ro } = byArm;
   if (rq !== undefined || ro !== undefined) runs.R = [...(rq ?? []), ...(ro ?? [])];
   io.log(JSON.stringify(analyze1(reg, runs), null, 2));
   return 0;
@@ -325,9 +404,18 @@ async function cmdRandomParams(argv, io) {
   if (f.stratum !== 'quality' && f.stratum !== 'other') throw new UsageError(`--stratum must be quality or other, got ${JSON.stringify(f.stratum)}`);
   const reg = loadStep(f, 'random-params', 1);
   const inStratum = (r) => (r.taskId === reg.verdict.qualityTask) === (f.stratum === 'quality');
-  const usable = readEvidence(f.evidence, reg.arms.T.tasks).filter((r) => inStratum(r) && isCounted(r) && finite(r.shareXhigh) && finite(r.upSwitches) && finite(r.requests));
-  io.log(JSON.stringify(randomParams(usable), null, 2));
-  return 0;
+  const usable = readEvidence(f.evidence, reg.arms.T.tasks, 'T').filter((r) => inStratum(r) && isCounted(r) && finite(r.shareXhigh) && finite(r.upSwitches) && finite(r.requests));
+  const p = randomParams(usable);
+  // Ruling P22: nothing registrable when the chain cannot match T within GAP_LIMIT; the gaps are still printed.
+  const over = !p.degenerate && (Math.abs(p.gap.share) > GAP_LIMIT || Math.abs(p.gap.upSwitches) > GAP_LIMIT);
+  if (!over) {
+    io.log(JSON.stringify(p, null, 2));
+    return 0;
+  }
+  const { pUp: _pUp, pDown: _pDown, ...shown } = p;
+  io.log(JSON.stringify({ ...shown, refused: `the random chain cannot match T within ${GAP_LIMIT * 100}%: do not register parameters from this evidence` }, null, 2));
+  io.err(`toggle: random-params: refused: the closest chain misses T's mean share by ${(p.gap.share * 100).toFixed(1)}% and its mean up-switches by ${(p.gap.upSwitches * 100).toFixed(1)}% (limit ${GAP_LIMIT * 100}%); no pUp/pDown printed`);
+  return 1;
 }
 
 // ---- check-known ----
@@ -360,7 +448,7 @@ export function knownRuns({ low = [], xhigh = [], all = [], task }) {
       const group = groupOf(m[2]);
       if (group === null) continue;
       const text = readFileSync(mainTranscript(join(resolve(dir), name)), 'utf8');
-      const c = checkRun({ transcriptText: text, modLogText: null, mode: 'toggle' });
+      const c = checkRun({ transcriptText: text, modLogText: null });
       found.push({ name, group, broad: c.broadAt.length > 0, audit: c.audit.length, firstEditIndex: firstEditIndex(text) });
     }
   };
@@ -387,6 +475,7 @@ async function cmdCheckKnown(argv, io) {
 const COMMANDS = {
   'stage-config': cmdStageConfig,
   'check-runs': cmdCheckRuns,
+  'hook-copy': cmdHookCopy,
   analyze0: cmdAnalyze0,
   analyze1: cmdAnalyze1,
   'random-params': cmdRandomParams,

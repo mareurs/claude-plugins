@@ -7,14 +7,14 @@
 
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { loadS5Config } from '../s5/prereg.mjs';
 import { ta } from '../s5/fixtures/testkit-async.mjs';
 import { TOOL_TEXT_SHA256, loadRegistration, stageArmConfig } from './registration.mjs';
 import { TOOL_DESCRIPTION } from './mod/hooks/register.ts';
-import { main, parseFlags } from './toggle.mjs';
+import { GAP_LIMIT, main, parseFlags } from './toggle.mjs';
 
 const ROOT = mkdtempSync(join(tmpdir(), 'toggle-cli-'));
 process.on('exit', () => rmSync(ROOT, { recursive: true, force: true }));
@@ -341,20 +341,37 @@ function makeRun(runsDir, dirName, sessionId, text, log) {
 }
 
 // ---- check-runs ----
-await ta('check-runs over a fixture work root writes the expected Run objects', async () => {
+// The log of a toggle run that sends `reqs` (one { effort } per request, the transcript's efforts) and calls set_effort where `calls` says
+// ({ after: request, level }): the level a call sets applies from the next request.
+const stepLine = (request, before, after) => ({ type: 'step', request, agentId: null, turnId: 't1', before, after });
+const toggleLog = (reqs, calls = [], start = 'low') => jsonl([
+  ...reqs.flatMap((r, i) => [
+    stepLine(i, start, r.effort),
+    ...calls.filter((c) => c.after === i).map((c) => ({ type: 'call', request: i, agentId: null, level: c.level, reason: 'r', text: 'Effort is now xhigh. It applies from your next step.' })),
+  ]),
+]);
+const CHECK_RUNS_REG = committed(STEP1);
+
+await ta('check-runs --registration --arm over a fixture work root writes the expected Run objects (arm, calls, callLog, timeouts, infra)', async () => {
   const work = join(ROOT, 'work-cr');
   const runs = join(work, 'runs');
   const good = [{ effort: 'low', tools: [NARROW] }, { effort: 'low', tools: [EDIT] }, { effort: 'xhigh', tools: [BROAD] }, { effort: 'xhigh' }];
-  makeRun(runs, 'cs-p20.C.0-a1', 'sess-0', transcript(good), agreeing(good));
+  const goodCalls = [{ after: 1, level: 'xhigh' }];
+  makeRun(runs, 'cs-p20.C.0-a1', 'sess-0', transcript(good), toggleLog(good, goodCalls));
   // Run 1: the first attempt (a1) had no transcript and was retried (a2): the directory of the row is the one that holds its session.
   makeRun(runs, 'cs-p20.C.1-a1', 'sess-gone', null);
   const disagree = [{ effort: 'low' }, { effort: 'xhigh' }];
-  makeRun(runs, 'cs-p20.C.1-a2', 'sess-1', transcript(disagree), agreeing([{ effort: 'low' }, { effort: 'low' }]));
+  makeRun(runs, 'cs-p20.C.1-a2', 'sess-1', transcript(disagree), toggleLog([{ effort: 'low' }, { effort: 'low' }]));
   // Run 2: an audit hit and a mod error: audit wins (ruling P10).
   const peek = [{ effort: 'low', tools: [bash('cat /run/state/effort-toggle/log.jsonl')] }];
-  makeRun(runs, 'cs-p20.C.2-a1', 'sess-2', transcript(peek), `${agreeing(peek)}${JSON.stringify({ type: 'error', message: 'x' })}\n`);
-  // Run 3: no mod log. Run 4: a failed grade-less final row (infra_exhausted) with no directory at all.
+  makeRun(runs, 'cs-p20.C.2-a1', 'sess-2', transcript(peek), `${toggleLog(peek)}${JSON.stringify({ type: 'error', message: 'x' })}\n`);
+  // Run 3: no mod log. Run 4: an infra_exhausted final row with no directory at all.
   makeRun(runs, 'cs-p01.C.0-a1', 'sess-3', transcript(good));
+  // Run 5: a timeout (final, infra null, grade null): a counted failure, with an agreeing transcript and log.
+  const slow = [{ effort: 'low', tools: [NARROW] }, { effort: 'low' }];
+  makeRun(runs, 'cs-p01.C.1-a1', 'sess-4', transcript(slow), toggleLog(slow));
+  // Run 6: a final row with an infra reason that still has a transcript: excluded for the infra reason, ahead of anything else.
+  makeRun(runs, 'cs-p05.C.1-a1', 'sess-5', transcript(slow), toggleLog(slow));
   const rows = [
     { runId: 'cs-p20.C.1', taskId: 'cs-p20', rep: 1, sessionId: 'sess-gone', infra: 'container_failed', final: false, costUsd: 0.1, grade: null },
     { runId: 'cs-p20.C.0', taskId: 'cs-p20', rep: 0, sessionId: 'sess-0', infra: null, final: true, costUsd: 0.5, grade: { infra: null, pass: true } },
@@ -363,33 +380,85 @@ await ta('check-runs over a fixture work root writes the expected Run objects', 
     { runId: 'cs-p20.C.2', taskId: 'cs-p20', rep: 2, sessionId: 'sess-2', infra: null, final: true, costUsd: null, grade: { infra: null, pass: true } },
     { runId: 'cs-p01.C.0', taskId: 'cs-p01', rep: 0, sessionId: 'sess-3', infra: null, final: true, costUsd: 1, grade: { infra: null, pass: true } },
     { runId: 'cs-p05.C.0', taskId: 'cs-p05', rep: 0, sessionId: null, infra: 'infra_exhausted', final: true, costUsd: null, grade: null },
+    { runId: 'cs-p01.C.1', taskId: 'cs-p01', rep: 1, sessionId: 'sess-4', infra: null, final: true, costUsd: 2, grade: null },
+    { runId: 'cs-p05.C.1', taskId: 'cs-p05', rep: 1, sessionId: 'sess-5', infra: 'infra_exhausted', final: true, costUsd: null, grade: null },
   ];
   const rowsFile = join(ROOT, 'rows-cr.jsonl');
   writeFileSync(rowsFile, `${rows.map((r) => JSON.stringify(r)).join('\n')}\n\n`);
   const out = outPath('runs-cr.json');
   const io = cliIo();
-  assert.equal(await main(['check-runs', '--work-root', work, '--rows', rowsFile, '--mode', 'toggle', '--out', out], io), 0, io.errs.join('\n'));
+  assert.equal(await main(['check-runs', '--work-root', work, '--rows', rowsFile, '--registration', CHECK_RUNS_REG, '--arm', 'T', '--out', out], io), 0, io.errs.join('\n'));
   const got = JSON.parse(readFileSync(out, 'utf8'));
+  const base = { arm: 'T', secondTurn: false, calls: 0, callLog: [] };
   assert.deepEqual(got, [
     {
-      runId: 'cs-p20.C.0', taskId: 'cs-p20', rep: 0, pass: true, costUsd: 0.5, excludedFor: null, secondTurn: false, broadAt: [2], requests: 4, shareXhigh: 0.5, upSwitches: 1,
+      ...base, runId: 'cs-p20.C.0', taskId: 'cs-p20', rep: 0, pass: true, costUsd: 0.5, excludedFor: null, broadAt: [2], requests: 4, shareXhigh: 0.5, upSwitches: 1, calls: 1, callLog: [{ request: 1, level: 'xhigh', reason: 'r' }],
     },
     {
-      runId: 'cs-p20.C.1', taskId: 'cs-p20', rep: 1, pass: false, costUsd: 0.25, excludedFor: 'log_transcript_mismatch', secondTurn: false, broadAt: [], requests: 2, shareXhigh: 0.5, upSwitches: 1,
+      ...base, runId: 'cs-p20.C.1', taskId: 'cs-p20', rep: 1, pass: false, costUsd: 0.25, excludedFor: 'log_transcript_mismatch', broadAt: [], requests: 2, shareXhigh: 0.5, upSwitches: 1,
     },
     {
-      runId: 'cs-p20.C.2', taskId: 'cs-p20', rep: 2, pass: true, costUsd: null, excludedFor: 'audit', secondTurn: false, broadAt: [], requests: 1, shareXhigh: 0, upSwitches: 0,
+      ...base, runId: 'cs-p20.C.2', taskId: 'cs-p20', rep: 2, pass: true, costUsd: null, excludedFor: 'audit', broadAt: [], requests: 1, shareXhigh: 0, upSwitches: 0,
     },
     {
-      runId: 'cs-p01.C.0', taskId: 'cs-p01', rep: 0, pass: true, costUsd: 1, excludedFor: 'no_mod_log', secondTurn: false, broadAt: [2], requests: 4, shareXhigh: 0.5, upSwitches: 1,
+      ...base, runId: 'cs-p01.C.0', taskId: 'cs-p01', rep: 0, pass: true, costUsd: 1, excludedFor: 'no_mod_log', broadAt: [2], requests: 4, shareXhigh: 0.5, upSwitches: 1,
     },
     {
-      runId: 'cs-p05.C.0', taskId: 'cs-p05', rep: 0, pass: null, costUsd: null, excludedFor: 'no_transcript', secondTurn: false, broadAt: [], requests: 0, shareXhigh: 0, upSwitches: 0,
+      ...base, runId: 'cs-p05.C.0', taskId: 'cs-p05', rep: 0, pass: null, costUsd: null, excludedFor: 'infra:infra_exhausted', broadAt: [], requests: 0, shareXhigh: 0, upSwitches: 0,
+    },
+    {
+      ...base, runId: 'cs-p01.C.1', taskId: 'cs-p01', rep: 1, pass: false, costUsd: 2, excludedFor: null, broadAt: [], requests: 2, shareXhigh: 0, upSwitches: 0,
+    },
+    {
+      ...base, runId: 'cs-p05.C.1', taskId: 'cs-p05', rep: 1, pass: null, costUsd: null, excludedFor: 'infra:infra_exhausted', broadAt: [], requests: 2, shareXhigh: 0, upSwitches: 0,
     },
   ]);
+  // The summary keeps its old prefix and now counts the excluded runs per reason (and the timeouts).
+  assert.equal(io.logs.length, 1);
+  assert.ok(io.logs[0].startsWith(`wrote ${out}: 7 runs, 5 excluded`), io.logs[0]);
+  assert.equal(io.logs[0], `wrote ${out}: 7 runs, 5 excluded (infra:infra_exhausted 2, audit 1, log_transcript_mismatch 1, no_mod_log 1); 1 timed out (counted as failures)`);
 });
 
-await ta('check-runs --mode none (a run without a mod): no log is expected, only the audit excludes; a mod mode still wants the log', async () => {
+await ta('check-runs ties the check to the arm: the same toggle run under a placebo or a different schedule arm is excluded for arm_mismatch (ruling P20)', async () => {
+  const work = join(ROOT, 'work-arm');
+  const runs = join(work, 'runs');
+  const reqs = [{ effort: 'low' }, { effort: 'low' }, { effort: 'xhigh' }, { effort: 'xhigh' }];
+  makeRun(runs, 'cs-p20.C.0-a1', 'arm-0', transcript(reqs), toggleLog(reqs, [{ after: 1, level: 'xhigh' }]));
+  const rowsFile = join(ROOT, 'rows-arm.jsonl');
+  writeFileSync(rowsFile, jsonl([{ runId: 'cs-p20.C.0', taskId: 'cs-p20', rep: 0, sessionId: 'arm-0', infra: null, final: true, costUsd: 1, grade: { infra: null, pass: true } }]));
+  const run = async (reg, armName) => {
+    const out = outPath(`arm-${armName}.json`);
+    const io = cliIo();
+    assert.equal(await main(['check-runs', '--work-root', work, '--rows', rowsFile, '--registration', reg, '--arm', armName, '--out', out], io), 0, io.errs.join('\n'));
+    return JSON.parse(readFileSync(out, 'utf8'))[0];
+  };
+  const reg = committed(STEP1);
+  assert.equal((await run(reg, 'T')).excludedFor, null, 'T: the run did what a toggle arm does');
+  assert.equal((await run(reg, 'P')).excludedFor, 'arm_mismatch', 'P: a placebo never rewrites');
+  assert.equal((await run(reg, 'P')).arm, 'P');
+  assert.equal((await run(reg, 'L')).excludedFor, 'arm_mismatch', 'L: a one-level low schedule');
+  assert.equal((await run(reg, 'X')).excludedFor, 'arm_mismatch', 'X starts at xhigh; the run started low');
+  // a step 0 registration: F-LX (switchAt 5) fed a run that switches by a call is a mismatch too
+  assert.equal((await run(committed(STEP0), 'F-LX')).excludedFor, 'arm_mismatch');
+  assert.equal((await run(committed(STEP0), 'F-X')).excludedFor, 'arm_mismatch');
+  // the schedule that matches is accepted, with the start effort read from the arm's S5 arm (C: low)
+  const sw = [{ effort: 'low' }, { effort: 'low' }, { effort: 'low' }, { effort: 'low' }, { effort: 'low' }, { effort: 'xhigh' }];
+  makeRun(runs, 'cs-p20.C.1-a1', 'arm-1', transcript(sw), toggleLog(sw));
+  writeFileSync(rowsFile, jsonl([{ runId: 'cs-p20.C.1', taskId: 'cs-p20', rep: 1, sessionId: 'arm-1', infra: null, final: true, costUsd: 1, grade: { infra: null, pass: true } }]));
+  assert.equal((await run(committed(STEP0), 'F-LX')).excludedFor, null);
+  assert.equal((await run(committed(STEP0), 'F-L')).excludedFor, 'arm_mismatch');
+  assert.equal((await run(committed(STEP0), 'F-XL')).excludedFor, 'arm_mismatch');
+  // an arm on S5 arm A starts at xhigh (read from base.arms.A.effort): a run that held xhigh throughout fits X and F-X, not L
+  const hi = [{ effort: 'xhigh' }, { effort: 'xhigh' }, { effort: 'xhigh' }];
+  makeRun(runs, 'cs-p20.A.0-a1', 'arm-2', transcript(hi), toggleLog(hi, [], 'xhigh'));
+  writeFileSync(rowsFile, jsonl([{ runId: 'cs-p20.A.0', taskId: 'cs-p20', rep: 0, sessionId: 'arm-2', infra: null, final: true, costUsd: 1, grade: { infra: null, pass: true } }]));
+  assert.equal((await run(reg, 'X')).excludedFor, null);
+  assert.equal((await run(committed(STEP0), 'F-X')).excludedFor, null);
+  assert.equal((await run(reg, 'L')).excludedFor, 'arm_mismatch');
+  assert.equal((await run(committed(STEP0), 'F-XL')).excludedFor, null, 'three requests of F-XL are all still xhigh (switchAt 5)');
+});
+
+await ta('check-runs --mode none --label (a run without a mod): no log is expected, only the audit excludes; the Runs carry the label', async () => {
   const work = join(ROOT, 'work-none');
   const runs = join(work, 'runs');
   const reqs = [{ effort: 'xhigh', tools: [NARROW] }, { effort: 'xhigh', tools: [BROAD] }];
@@ -401,16 +470,51 @@ await ta('check-runs --mode none (a run without a mod): no log is expected, only
   writeFileSync(rowsFile, jsonl([row(0, 'n-0'), row(1, 'n-1'), row(2, 'n-2')]));
   const out = outPath('runs-none.json');
   const io = cliIo();
-  assert.equal(await main(['check-runs', '--work-root', work, '--rows', rowsFile, '--mode', 'none', '--out', out], io), 0, io.errs.join('\n'));
+  assert.equal(await main(['check-runs', '--work-root', work, '--rows', rowsFile, '--mode', 'none', '--label', 'X', '--out', out], io), 0, io.errs.join('\n'));
   const got = JSON.parse(readFileSync(out, 'utf8'));
   assert.deepEqual(got.map((r) => r.excludedFor), [null, null, 'audit']);
   assert.deepEqual(got[0], {
-    runId: 'cs-p20.A.0', taskId: 'cs-p20', rep: 0, pass: true, costUsd: 0.5, excludedFor: null, secondTurn: false, broadAt: [1], requests: 2, shareXhigh: 1, upSwitches: 0,
+    runId: 'cs-p20.A.0', taskId: 'cs-p20', rep: 0, arm: 'X', pass: true, costUsd: 0.5, excludedFor: null, secondTurn: false, broadAt: [1], requests: 2, shareXhigh: 1, upSwitches: 0, calls: 0, callLog: [],
   });
-  // the same rows under a mod mode: the missing log excludes
+  assert.ok(io.logs[0].startsWith(`wrote ${out}: 3 runs, 1 excluded (audit 1)`), io.logs[0]);
+  // the same rows under an arm that has a mod: the missing log excludes
   const outMod = outPath('runs-none-mod.json');
-  assert.equal(await main(['check-runs', '--work-root', work, '--rows', rowsFile, '--mode', 'toggle', '--out', outMod], cliIo()), 0);
+  assert.equal(await main(['check-runs', '--work-root', work, '--rows', rowsFile, '--registration', committed(STEP1), '--arm', 'T', '--out', outMod], cliIo()), 0);
   assert.deepEqual(JSON.parse(readFileSync(outMod, 'utf8')).map((r) => r.excludedFor), ['no_mod_log', 'log_transcript_mismatch', 'audit']);
+});
+
+await ta('check-runs: the old free --mode toggle is gone (exit 64, the message points to --arm); the arm options are exclusive and --label is needed under none', async () => {
+  const work = join(ROOT, 'work-flags');
+  mkdirSync(join(work, 'runs'), { recursive: true });
+  const rowsFile = join(ROOT, 'rows-flags.jsonl');
+  writeFileSync(rowsFile, '');
+  const out = outPath('runs-flags.json');
+  const reg = committed(STEP1);
+  const base = ['check-runs', '--work-root', work, '--rows', rowsFile, '--out', out];
+  for (const mode of ['toggle', 'placebo', 'random', 'schedule', 'nope']) {
+    const io = cliIo();
+    assert.equal(await main([...base, '--mode', mode], io), 64, mode);
+    assert.match(io.errs.join('\n'), /--arm/, mode);
+  }
+  const cases = [
+    ['--mode none without --label', ['--mode', 'none']],
+    ['--mode none with a blank label', ['--mode', 'none', '--label', ' ']],
+    ['--mode none with --arm', ['--mode', 'none', '--label', 'L', '--arm', 'T', '--registration', reg]],
+    ['--mode none with --registration', ['--mode', 'none', '--label', 'L', '--registration', reg]],
+    ['--arm without --registration', ['--arm', 'T']],
+    ['--registration without --arm', ['--registration', reg]],
+    ['an arm the registration lacks', ['--registration', reg, '--arm', 'Z']],
+    ['--label with --registration', ['--registration', reg, '--arm', 'T', '--label', 'T']],
+    ['no mode, no arm', []],
+  ];
+  for (const [label, extra] of cases) assert.equal(await main([...base, ...extra], cliIo()), 64, label);
+  assert.equal(await main(['check-runs', '--work-root', work, '--mode', 'none', '--label', 'L', '--out', out], cliIo()), 64, 'no --rows');
+  // a registration that is not committed is refused before any run is read
+  const loose = join(REPO, 'loose-cr.json');
+  writeFileSync(loose, `${JSON.stringify(STEP1, null, 2)}\n`);
+  const un = cliIo();
+  assert.equal(await main([...base, '--registration', loose, '--arm', 'T'], un), 1);
+  assert.match(un.errs.join('\n'), /not committed/);
 });
 
 await ta('check-runs refuses a --work-root without runs/ (exit 1, nothing written); a missing run directory under an existing runs/ is no_transcript', async () => {
@@ -418,36 +522,81 @@ await ta('check-runs refuses a --work-root without runs/ (exit 1, nothing writte
   writeFileSync(rowsFile, jsonl([{ runId: 'cs-p20.C.0', taskId: 'cs-p20', rep: 0, sessionId: 's', infra: null, final: true, costUsd: 1, grade: { infra: null, pass: true } }]));
   const out = outPath('runs-wrong.json');
   const bad = cliIo();
-  assert.equal(await main(['check-runs', '--work-root', join(ROOT, 'no-such-root'), '--rows', rowsFile, '--mode', 'toggle', '--out', out], bad), 1);
+  assert.equal(await main(['check-runs', '--work-root', join(ROOT, 'no-such-root'), '--rows', rowsFile, '--registration', CHECK_RUNS_REG, '--arm', 'T', '--out', out], bad), 1);
   assert.match(bad.errs.join('\n'), /no-such-root.*runs/);
   const file = join(ROOT, 'a-file');
   writeFileSync(file, 'x');
-  assert.equal(await main(['check-runs', '--work-root', ROOT, '--rows', rowsFile, '--mode', 'none', '--out', out], cliIo()), 1, 'ROOT has no runs/');
-  assert.equal(await main(['check-runs', '--work-root', file, '--rows', rowsFile, '--mode', 'none', '--out', out], cliIo()), 1);
+  const none = (root) => ['check-runs', '--work-root', root, '--rows', rowsFile, '--mode', 'none', '--label', 'L', '--out', out];
+  assert.equal(await main(none(ROOT), cliIo()), 1, 'ROOT has no runs/');
+  assert.equal(await main(none(file), cliIo()), 1);
   const empty = join(ROOT, 'work-empty');
   mkdirSync(join(empty, 'runs'), { recursive: true });
-  assert.equal(await main(['check-runs', '--work-root', empty, '--rows', rowsFile, '--mode', 'none', '--out', out], cliIo()), 0);
+  assert.equal(await main(none(empty), cliIo()), 0);
   assert.deepEqual(JSON.parse(readFileSync(out, 'utf8')).map((r) => r.excludedFor), ['no_transcript']);
 });
 
-await ta('check-runs: a second final row of a run replaces the first; --mode must be an S5 mod mode or none; flags are required', async () => {
+await ta('check-runs: a second final row of a run replaces the first; flags are required', async () => {
   const work = join(ROOT, 'work-cr2');
   const reqs = [{ effort: 'low' }];
-  makeRun(join(work, 'runs'), 'cs-p20.C.0-a2', 'sess-b', transcript(reqs), agreeing(reqs));
+  makeRun(join(work, 'runs'), 'cs-p20.C.0-a2', 'sess-b', transcript(reqs), toggleLog(reqs));
   const rowsFile = join(ROOT, 'rows-cr2.jsonl');
   writeFileSync(rowsFile, jsonl([
     { runId: 'cs-p20.C.0', taskId: 'cs-p20', rep: 0, sessionId: 'sess-a', infra: 'infra_exhausted', final: true, costUsd: null, grade: null },
     { runId: 'cs-p20.C.0', taskId: 'cs-p20', rep: 0, sessionId: 'sess-b', infra: null, final: true, costUsd: 0.3, grade: { infra: null, pass: true } },
   ]));
   const out = outPath('runs-cr2.json');
-  assert.equal(await main(['check-runs', '--work-root', work, '--rows', rowsFile, '--mode', 'toggle', '--out', out], cliIo()), 0);
+  assert.equal(await main(['check-runs', '--work-root', work, '--rows', rowsFile, '--registration', CHECK_RUNS_REG, '--arm', 'T', '--out', out], cliIo()), 0);
   const got = JSON.parse(readFileSync(out, 'utf8'));
   assert.equal(got.length, 1);
   assert.equal(got[0].pass, true);
   assert.equal(got[0].excludedFor, null);
-  const bad = cliIo();
-  assert.equal(await main(['check-runs', '--work-root', work, '--rows', rowsFile, '--mode', 'nope', '--out', out], bad), 64);
-  assert.equal(await main(['check-runs', '--work-root', work, '--mode', 'toggle', '--out', out], cliIo()), 64);
+  assert.equal(await main(['check-runs', '--work-root', work, '--registration', CHECK_RUNS_REG, '--arm', 'T', '--out', out], cliIo()), 64);
+});
+
+// ---- hook-copy (ruling P25) ----
+await ta('GAP_LIMIT is the 25% of the spec (ruling P22)', async () => {
+  assert.equal(GAP_LIMIT, 0.25);
+});
+
+await ta('hook-copy writes the arm hook copy (mod + config.json with the arm mod and the log path) and prints the mod directory', async () => {
+  const reg = committed(STEP0);
+  const out = join(ROOT, 'hook', 'lx');
+  const logPath = join(ROOT, 'hook', 'logs', 'g1a', 'log.jsonl');
+  const io = cliIo();
+  assert.equal(await main(['hook-copy', '--registration', reg, '--arm', 'F-LX', '--out', out, '--log-path', logPath], io), 0, io.errs.join('\n'));
+  assert.deepEqual(io.logs, [join(out, 'es', 'mod')]);
+  const cfg = JSON.parse(readFileSync(join(out, 'es', 'mod', 'config.json'), 'utf8'));
+  assert.deepEqual(cfg, { ...STEP0.arms['F-LX'].mod, logPath });
+  assert.ok(readFileSync(join(out, 'es', 'mod', 'hooks', 'register.ts'), 'utf8').includes('effort-toggle'));
+  assert.ok(readFileSync(join(out, 'es', 'settings.json'), 'utf8').includes('UserPromptSubmit'));
+  assert.ok(statSync(dirname(logPath)).isDirectory(), 'the log directory exists');
+  // another arm of another registration: its own mod
+  const reg1 = committed(STEP1);
+  for (const [name, mod] of [['T', STEP1.arms.T.mod], ['P', STEP1.arms.P.mod], ['L', STEP1.arms.L.mod]]) {
+    const o = join(ROOT, 'hook', name);
+    const lp = join(ROOT, 'hook', 'logs', `${name}.jsonl`);
+    assert.equal(await main(['hook-copy', '--registration', reg1, '--arm', name, '--out', o, '--log-path', lp], cliIo()), 0, name);
+    assert.deepEqual(JSON.parse(readFileSync(join(o, 'es', 'mod', 'config.json'), 'utf8')), { ...mod, logPath: lp }, name);
+  }
+  // without --log-path: the container path of the batch
+  const dflt = join(ROOT, 'hook', 'default');
+  assert.equal(await main(['hook-copy', '--registration', reg1, '--arm', 'T', '--out', dflt], cliIo()), 0);
+  assert.equal(JSON.parse(readFileSync(join(dflt, 'es', 'mod', 'config.json'), 'utf8')).logPath, '/run/state/effort-toggle/log.jsonl');
+});
+
+await ta('hook-copy refuses a relative log path, an unknown arm, missing flags and an uncommitted registration', async () => {
+  const reg = committed(STEP1);
+  const out = join(ROOT, 'hook', 'refused');
+  const rel = cliIo();
+  assert.equal(await main(['hook-copy', '--registration', reg, '--arm', 'T', '--out', out, '--log-path', 'log.jsonl'], rel), 64);
+  assert.match(rel.errs.join('\n'), /absolute/);
+  assert.equal(await main(['hook-copy', '--registration', reg, '--arm', 'Z', '--out', out], cliIo()), 64);
+  assert.equal(await main(['hook-copy', '--registration', reg, '--arm', 'T'], cliIo()), 64);
+  assert.equal(await main(['hook-copy', '--arm', 'T', '--out', out], cliIo()), 64);
+  const loose = join(REPO, 'loose-hc.json');
+  writeFileSync(loose, `${JSON.stringify(STEP1, null, 2)}\n`);
+  assert.equal(await main(['hook-copy', '--registration', loose, '--arm', 'T', '--out', out], cliIo()), 1);
+  assert.throws(() => statSync(join(out, 'es')), /ENOENT/, 'nothing was written');
 });
 
 // ---- check-known ----
@@ -492,16 +641,20 @@ await ta('check-known: --low and --xhigh classify a whole directory, --task is o
 
 // ---- analyze0 / analyze1 / random-params ----
 let runSeq = 0;
+// A Run carries its arm (ruling P20); R() gives the placeholder arm '*', which evFile(name, runs, arm) replaces by the arm the file is for.
+const ANY_ARM = '*';
 const R = (over) => ({
-  runId: `run-${(runSeq += 1)}`, taskId: 'cs-p20', rep: 0, pass: true, costUsd: 1, excludedFor: null, secondTurn: false, broadAt: [], requests: 20, shareXhigh: 0, upSwitches: 0, ...over,
+  runId: `run-${(runSeq += 1)}`, taskId: 'cs-p20', rep: 0, arm: ANY_ARM, pass: true, costUsd: 1, excludedFor: null, secondTurn: false, broadAt: [], requests: 20, shareXhigh: 0, upSwitches: 0, calls: 0, callLog: [], ...over,
 });
-const evFile = (name, runs) => {
+const forArm = (arm, runs) => runs.map((r) => (isObj(r) && r.arm === ANY_ARM ? { ...r, arm } : r));
+const isObj = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
+const evFile = (name, runs, arm) => {
   const file = join(ROOT, 'ev', `${name}.json`);
   mkdirSync(dirname(file), { recursive: true });
-  writeFileSync(file, JSON.stringify(runs));
+  writeFileSync(file, JSON.stringify(arm === undefined ? runs : forArm(arm, runs)));
   return file;
 };
-const evArgs = (map) => Object.entries(map).flatMap(([arm, runs]) => ['--evidence', `${arm}=${evFile(arm, runs)}`]);
+const evArgs = (map) => Object.entries(map).flatMap(([arm, runs]) => ['--evidence', `${arm}=${evFile(arm, runs, arm)}`]);
 
 await ta('analyze0 prints the step 0 verdict as 2-space JSON and refuses a step 1 registration or an unknown arm', async () => {
   const reg = committed(STEP0);
@@ -563,11 +716,21 @@ await ta('analyze0 and analyze1 refuse missing, unregistered and malformed evide
     ['broadAt not an array', [R({ broadAt: 3 })], 'broadAt', 'RUN'],
     ['requests null', [R({ requests: null })], 'requests', 'RUN'],
     ['upSwitches null', [R({ upSwitches: null })], 'upSwitches', 'RUN'],
+    ['no arm key', [(({ arm: _a, ...r }) => r)(R({}))], 'lacks the key arm', 'RUN'],
+    ['arm a number', [R({ arm: 5 })], 'arm', 'RUN'],
+    ['arm empty', [R({ arm: '' })], 'arm', 'RUN'],
+    ['no calls key', [(({ calls: _c, ...r }) => r)(R({}))], 'lacks the key calls', 'RUN'],
+    ['calls negative', [R({ calls: -1 })], 'calls', 'RUN'],
+    ['no callLog key', [(({ callLog: _c, ...r }) => r)(R({}))], 'lacks the key callLog', 'RUN'],
+    ['callLog not an array', [R({ callLog: {} })], 'callLog', 'RUN'],
+    ['callLog entry with a level that is not allowed', [R({ calls: 1, callLog: [{ request: 0, level: 'high', reason: 'r' }] })], 'callLog', 'RUN'],
+    ['callLog entry without a reason', [R({ calls: 1, callLog: [{ request: 0, level: 'low' }] })], 'callLog', 'RUN'],
+    ['calls differs from the callLog length', [R({ calls: 2, callLog: [{ request: 0, level: 'low', reason: 'r' }] })], 'callLog', 'RUN'],
     ['an entry that is not an object', [R({}), 3], 'not a Run object', null],
   ];
   for (const [label, runs, needle, runId] of bad) {
     const io = cliIo();
-    const file = evFile('F-L', runs);
+    const file = evFile('F-L', runs, 'F-L');
     const args = ['analyze0', '--registration', reg0, '--evidence', `F-L=${file}`, ...evArgs({ 'F-X': [R({})], 'F-LX': [R({})], 'F-XL': [R({})] })];
     assert.equal(await main(args, io), 1, label);
     const msg = io.errs.join('\n');
@@ -687,7 +850,7 @@ await ta('random-params takes one stratum of T (quality or other) and only count
     sw('cs-p05', 0.3, 3, 50),
     sw('cs-p05', 0.9, 9, 9, { excludedFor: 'no_mod_log' }),
   ];
-  const ev = evFile('rp', runs);
+  const ev = evFile('rp', runs, 'T');
   const params = async (stratum) => {
     const io = cliIo();
     assert.equal(await main(['random-params', '--registration', reg, '--stratum', stratum, '--evidence', ev], io), 0, io.errs.join('\n'));
@@ -709,11 +872,11 @@ await ta('random-params takes one stratum of T (quality or other) and only count
   assert.equal(await main(['random-params', '--registration', committed(STEP0), '--stratum', 'quality', '--evidence', ev], cliIo()), 64);
   assert.equal(await main(['random-params'], cliIo()), 64);
   // the evidence is validated as for the verdicts
-  const nonFinite = evFile('rp-bad', [sw('cs-p20', 0.5, null, 100)]);
+  const nonFinite = evFile('rp-bad', [sw('cs-p20', 0.5, null, 100)], 'T');
   const bad = cliIo();
   assert.equal(await main(['random-params', '--registration', reg, '--stratum', 'quality', '--evidence', nonFinite], bad), 1);
   assert.match(bad.errs.join('\n'), /upSwitches/);
-  const elsewhere = evFile('rp-task', [sw('cs-zzz', 0.5, 1, 100)]);
+  const elsewhere = evFile('rp-task', [sw('cs-zzz', 0.5, 1, 100)], 'T');
   const wrongTask = cliIo();
   assert.equal(await main(['random-params', '--registration', reg, '--stratum', 'other', '--evidence', elsewhere], wrongTask), 1);
   assert.match(wrongTask.errs.join('\n'), /cs-zzz/);
@@ -722,6 +885,109 @@ await ta('random-params takes one stratum of T (quality or other) and only count
   const na = cliIo();
   assert.equal(await main(['random-params', '--registration', reg, '--stratum', 'quality', '--evidence', notArray], na), 1);
   assert.match(na.errs.join('\n'), /array/);
+});
+
+await ta('evidence of one arm given under another arm name is refused, naming the file and the run (ruling P20); a valid callLog is accepted', async () => {
+  const reg0 = committed(STEP0);
+  const mine = (arm, taskId = 'cs-p20') => R({ arm, taskId, calls: 1, callLog: [{ request: 0, level: 'xhigh', reason: 'review' }] });
+  const ok = (over = {}) => ({ 'F-L': [mine('F-L')], 'F-X': [mine('F-X')], 'F-LX': [mine('F-LX')], 'F-XL': [mine('F-XL')], ...over });
+  const argsFor = (map) => Object.entries(map).flatMap(([name, runs]) => ['--evidence', `${name}=${evFile(`own-${name}`, runs)}`]);
+  const good = cliIo();
+  assert.equal(await main(['analyze0', '--registration', reg0, ...argsFor(ok())], good), 0, good.errs.join('\n'));
+  // F-L's runs given as the F-LX evidence (the review's case): a refusal, no verdict
+  const swapped = ok({ 'F-LX': [mine('F-L')] });
+  const bad = cliIo();
+  assert.equal(await main(['analyze0', '--registration', reg0, ...argsFor(swapped)], bad), 1);
+  const msg = bad.errs.join('\n');
+  assert.ok(msg.includes('own-F-LX.json'), msg);
+  assert.ok(msg.includes(swapped['F-LX'][0].runId), msg);
+  assert.match(msg, /arm "F-L".*arm "F-LX"/);
+  assert.deepEqual(bad.logs, []);
+  // one wrong run among right ones is enough
+  const mixed = ok({ 'F-X': [mine('F-X'), mine('F-X'), mine('F-LX')] });
+  assert.equal(await main(['analyze0', '--registration', reg0, ...argsFor(mixed)], cliIo()), 1);
+  // the placeholder arm (a Run with no arm of its own) matches nothing
+  assert.equal(await main(['analyze0', '--registration', reg0, ...argsFor(ok({ 'F-L': [R({})] }))], cliIo()), 1);
+  // step 1, including the strata and random-params
+  const reg1 = committed(STEP1);
+  const arms1 = (over = {}) => ({ L: [mine('L')], X: [mine('X')], T: [mine('T')], P: [mine('P')], ...over });
+  assert.equal(await main(['analyze1', '--registration', reg1, ...argsFor(arms1())], cliIo()), 0);
+  const p = cliIo();
+  assert.equal(await main(['analyze1', '--registration', reg1, ...argsFor(arms1({ P: [mine('T')] }))], p), 1);
+  assert.match(p.errs.join('\n'), /arm "T".*arm "P"/);
+  const rp = cliIo();
+  assert.equal(await main(['random-params', '--registration', reg1, '--stratum', 'quality', '--evidence', evFile('rp-wrong-arm', [mine('P')])], rp), 1);
+  assert.match(rp.errs.join('\n'), /arm "P".*arm "T"/);
+  const regR = committed(STEP1R);
+  const withR = (rq, ro) => arms1({ 'R-quality': rq, 'R-other': ro });
+  const rOk = cliIo();
+  assert.equal(await main(['analyze1', '--registration', regR, ...argsFor(withR([mine('R-quality')], [mine('R-other', 'cs-p01')]))], rOk), 0, rOk.errs.join('\n'));
+  assert.equal(await main(['analyze1', '--registration', regR, ...argsFor(withR([mine('R-other')], [mine('R-other', 'cs-p01')]))], cliIo()), 1);
+});
+
+await ta('analyze1 stops on more than 2 audit exclusions in one arm, including a stratum of the random arm (ruling P23)', async () => {
+  const regR = committed(STEP1R);
+  const cellOf = (arm, task, n, over = {}) => Array.from({ length: n }, (_, rep) => R({ arm, taskId: task, rep, ...over }));
+  const armRuns = (arm, tasks) => tasks.flatMap((task) => cellOf(arm, task, task === 'cs-p20' ? 8 : 2));
+  const audited = (arm, task, k) => cellOf(arm, task, k, { excludedFor: 'audit', pass: null, rep: 50 });
+  const run = async (extra) => {
+    const evidence = {
+      L: armRuns('L', TASKS), X: armRuns('X', TASKS), T: armRuns('T', TASKS), P: armRuns('P', TASKS),
+      'R-quality': armRuns('R-quality', ['cs-p20']), 'R-other': armRuns('R-other', ['cs-p01', 'cs-p05']),
+    };
+    for (const [arm, runs] of Object.entries(extra)) evidence[arm] = [...evidence[arm], ...runs];
+    const io = cliIo();
+    assert.equal(await main(['analyze1', '--registration', regR, ...evArgs(evidence)], io), 0, io.errs.join('\n'));
+    return JSON.parse(io.logs[0]);
+  };
+  assert.deepEqual((await run({})).stop, []);
+  assert.deepEqual((await run({ T: audited('T', 'cs-p01', 2) })).stop, []);
+  assert.deepEqual((await run({ T: audited('T', 'cs-p01', 3) })).stop, ['audit:T']);
+  assert.deepEqual((await run({ 'R-other': audited('R-other', 'cs-p01', 3) })).stop, ['audit:R-other']);
+  assert.deepEqual((await run({ 'R-quality': audited('R-quality', 'cs-p20', 3), L: audited('L', 'cs-p20', 4) })).stop, ['audit:L', 'audit:R-quality']);
+  // 2 in each stratum is within the limit although the merged R holds 4
+  assert.deepEqual((await run({ 'R-quality': audited('R-quality', 'cs-p20', 2), 'R-other': audited('R-other', 'cs-p01', 2) })).stop, []);
+});
+
+await ta('random-params prints the solved parameters with the expected values and gaps, and refuses (exit 1, no pUp/pDown) beyond 25% (ruling P22)', async () => {
+  const reg = committed(STEP1);
+  const evidenceOf = (n, s, u) => evFile(`rp-${n}-${s}-${u}`, [R({ taskId: 'cs-p20', shareXhigh: s, upSwitches: u, requests: n })], 'T');
+  const call = async (n, s, u) => {
+    const io = cliIo();
+    const code = await main(['random-params', '--registration', reg, '--stratum', 'quality', '--evidence', evidenceOf(n, s, u)], io);
+    return { code, io, out: JSON.parse(io.logs[0]) };
+  };
+  // a target the chain reaches: parameters, expected values equal to the targets, tiny gaps
+  const ok = await call(15, 0.4, 1);
+  assert.equal(ok.code, 0, ok.io.errs.join('\n'));
+  assert.ok(ok.out.pUp > 0 && ok.out.pUp <= 1 && ok.out.pDown > 0 && ok.out.pDown <= 1);
+  assert.ok(Math.abs(ok.out.expected.share - 0.4) < 1e-9 && Math.abs(ok.out.expected.upSwitches - 1) < 1e-9);
+  assert.ok(Math.abs(ok.out.gap.share) < 1e-9 && Math.abs(ok.out.gap.upSwitches) < 1e-9);
+  assert.equal(ok.out.n, 15);
+  // n = 2 can never hold more than half of its requests at xhigh: the share gap is (0.5 - s) / s
+  const near = await call(2, 0.65, 1); // gap -0.2308: within the limit
+  assert.equal(near.code, 0, near.io.errs.join('\n'));
+  assert.ok(near.out.pUp !== undefined && near.out.gap.share < -0.2 && near.out.gap.share > -0.25, JSON.stringify(near.out.gap));
+  const over = await call(2, 0.7, 1); // gap -0.2857: refused
+  assert.equal(over.code, 1);
+  assert.equal('pUp' in over.out, false);
+  assert.equal('pDown' in over.out, false);
+  assert.ok(over.out.gap.share < -0.25 && typeof over.out.refused === 'string', JSON.stringify(over.out));
+  assert.match(over.io.errs.join('\n'), /refused.*25/);
+  // the up-switch gap alone refuses too (a 0.1 share cannot hold 5 up-switches over 20 requests: the share overshoots instead)
+  const ups = await call(20, 0.1, 5);
+  assert.equal(ups.code, 1);
+  assert.equal('pUp' in ups.out, false);
+  // the up-switch gap alone: over 3 requests a share of 0.5 is reachable, but not with 2 up-switches (at most 1): share exact, ups -50%
+  const upsOnly = await call(3, 0.5, 2);
+  assert.equal(upsOnly.code, 1);
+  assert.ok(Math.abs(upsOnly.out.gap.share) < 1e-9 && upsOnly.out.gap.upSwitches < -0.25, JSON.stringify(upsOnly.out.gap));
+  assert.equal('pUp' in upsOnly.out, false);
+  // a degenerate target keeps its old output and exit 0
+  const flat = await call(20, 0, 3);
+  assert.equal(flat.code, 0);
+  assert.equal(flat.out.degenerate, true);
+  assert.equal(flat.out.pUp, 0);
 });
 
 await ta('main: an unknown command and a command that throws', async () => {

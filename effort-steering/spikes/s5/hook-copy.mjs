@@ -1,6 +1,6 @@
 // hook-copy.mjs — the effort-steering hook as the S5 containers run it.
 //
-//   writeHookCopy(root, esRoot, mod = null) -> { copyDir, settingsFile, modDir }
+//   writeHookCopy(root, esRoot, mod = null, opts = {}) -> { copyDir, settingsFile, modDir }
 //   MOD_CONTAINER_DIR, MOD_LOG_PATH   where a container sees the effort-toggle mod, and where the mod writes its log
 //
 // Copies bin/, core/ and adapter/ of `esRoot` (the effort-steering/ directory) into <root>/es, without any *.test.mjs, gives the
@@ -14,8 +14,10 @@
 // All arms of one batch run this one copy.
 //
 // With a `mod` (the validated config's {mode, schedule?, random?}), <esRoot>/spikes/toggle/mod/ is copied to <copyDir>/mod (no
-// *.test.mjs) and <copyDir>/mod/config.json is written as { ...mod, logPath: MOD_LOG_PATH }: the mod's own config reader insists on
-// a logPath, and the log lives outside /work. `modDir` is that directory, or null without a mod. The container loads it with
+// *.test.mjs) and <copyDir>/mod/config.json is written as { ...mod, logPath: opts.logPath ?? MOD_LOG_PATH }: the mod's own config reader insists on
+// a logPath, and the log lives outside /work. `opts.logPath` (an absolute path, else a TypeError before anything is written) is for a hook
+// copy used on the host (toggle.mjs hook-copy, G1a), where the container path is not writable; the batch (run.mjs) never passes it.
+// `modDir` is that directory, or null without a mod. The container loads it with
 // --plugin-dir /opt/es/mod (run.mjs, not this file). Without a mod the copy is byte for byte what it was before the mod existed.
 // Which arm a run is in comes from the environment, not from the copy: EFFORT_STEERING_HOLDOUT_RATE '0' steers every prompt (B),
 // '1' holds every prompt out (A and C), and in both the hook leaves one decision-log line per prompt.
@@ -47,7 +49,7 @@ const SETTINGS = { hooks: { UserPromptSubmit: [{ hooks: [{ type: 'command', comm
 
 const isDirectory = (dir) => statSync(dir, { throwIfNoEntry: false })?.isDirectory() === true;
 
-export function writeHookCopy(root, esRoot, mod = null) {
+export function writeHookCopy(root, esRoot, mod = null, opts = {}) {
   for (const [name, value] of [['root', root], ['esRoot', esRoot]]) {
     if (typeof value !== 'string' || value.trim() === '') {
       throw new TypeError(`writeHookCopy: ${name} must be a non-blank string, got ${JSON.stringify(value) ?? String(value)}`);
@@ -62,6 +64,13 @@ export function writeHookCopy(root, esRoot, mod = null) {
 
   if (mod !== null && (typeof mod !== 'object' || Array.isArray(mod))) {
     throw new TypeError(`writeHookCopy: mod must be null or an object, got ${JSON.stringify(mod) ?? String(mod)}`);
+  }
+  if (opts === null || typeof opts !== 'object' || Array.isArray(opts)) {
+    throw new TypeError(`writeHookCopy: opts must be an object, got ${JSON.stringify(opts) ?? String(opts)}`);
+  }
+  const logPath = opts.logPath === undefined ? MOD_LOG_PATH : opts.logPath;
+  if (typeof logPath !== 'string' || !path.isAbsolute(logPath)) {
+    throw new TypeError(`writeHookCopy: opts.logPath must be an absolute path, got ${JSON.stringify(logPath) ?? String(logPath)}`);
   }
   const modSource = path.join(source, ...MOD_SOURCE_PARTS);
   if (mod !== null && !isDirectory(modSource)) {
@@ -82,7 +91,7 @@ export function writeHookCopy(root, esRoot, mod = null) {
   if (mod !== null) {
     modDir = path.join(copyDir, 'mod');
     cpSync(modSource, modDir, { recursive: true, filter: (src) => !src.endsWith('.test.mjs') });
-    writeFileSync(path.join(modDir, 'config.json'), `${JSON.stringify({ ...mod, logPath: MOD_LOG_PATH }, null, 2)}\n`);
+    writeFileSync(path.join(modDir, 'config.json'), `${JSON.stringify({ ...mod, logPath }, null, 2)}\n`);
   }
   return { copyDir, settingsFile, modDir };
 }
