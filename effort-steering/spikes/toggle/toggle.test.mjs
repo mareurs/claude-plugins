@@ -697,7 +697,9 @@ await ta('random-params takes one stratum of T (quality or other) and only count
   };
   const q = await params('quality');
   assert.deepEqual([q.s, q.u, q.n, q.degenerate], [0.4, 3, 100, false]);
-  assert.ok(Math.abs(q.pUp - 3 / (100 * 0.6)) < 1e-12);
+  // ruling P22: the parameters are solved for the real chain, so its expected share and up-switches are the targets
+  assert.ok(Math.abs(q.expected.share - 0.4) < 1e-9 && Math.abs(q.expected.upSwitches - 3) < 1e-9, JSON.stringify(q.expected));
+  assert.ok(Math.abs(q.gap.share) < 1e-9 && Math.abs(q.gap.upSwitches) < 1e-9);
   const o = await params('other');
   assert.deepEqual([o.s, o.u, o.n, o.degenerate], [0.2, 2, 50, false]);
   // usage errors

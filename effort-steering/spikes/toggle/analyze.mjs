@@ -1,16 +1,18 @@
 // analyze.mjs — the effort-toggle verdicts: the operator's pre-registered decision rules for step 0 and step 1, and the random arm's
 // generator parameters. Pure: no file, no clock, no model. Never calls a model.
 //
-//   step0Verdict(runs, reg)  -> { positiveControl, up, down, counts, stop }
+//   step0Verdict(runs, reg)  -> { positiveControl, up, down, counts, stop, detail }
 //       runs = { 'F-L': Run[], 'F-X': Run[], 'F-LX': Run[], 'F-XL': Run[] }, reg = { switchAt, n, extension }
 //       positiveControl 'pass' | 'fail'; up, down 'delivered' | 'not_delivered' | 'inconclusive' | 'needs_extension';
-//       counts[arm] = { counted, broad, pass, meanCostUsd }; stop = string[]
-//   step1Verdict(runs, reg)  -> { quality, cost, harm, works, timing, incomplete, detail }
-//       runs = { L, X, T, P, R } (each Run[]), reg = { qualityTask, qualityRuns, otherRuns, costEstimator: 'run' | 'task' }
-//   randomParams(tRuns)      -> { s, u, n, pUp, pDown, degenerate }
+//       counts[arm] = { counted, broad, pass, meanCostUsd }; stop = string[]; detail.realized[arm] (below)
+//   step1Verdict(runs, reg)  -> { quality, cost, harm, works, timing, incomplete, stop, detail }
+//       runs = { L, X, T, P, R } (each Run[]; R-quality and R-other may be given too, for the audit stop only), reg = { qualityTask,
+//       qualityRuns, otherRuns, costEstimator: 'run' | 'task' }
+//   randomParams(tRuns)      -> { s, u, n, pUp, pDown, degenerate, expected: { share, upSwitches }, gap: { share, upSwitches } }
+//   chainExpectation(pUp, pDown, n) -> { share, upSwitches }   the exact expectation of the mod's random chain
 //
 // Run = { runId, taskId, rep, pass: boolean | null, costUsd: number | null, excludedFor: string | null, secondTurn, broadAt: number[],
-//         requests, shareXhigh, upSwitches }. Task 8 builds it from the rows and checkRun (evidence.mjs).
+//         requests, shareXhigh, upSwitches } (check-runs also writes arm, calls, callLog; the verdicts do not read them).
 //
 // Rules implemented (spec "Decisions" C7, C8, C10; "Step 0"; "Step 1" success rule; "Blinding"), with the controller's rulings:
 //   COUNTED. A run is counted when pass is a boolean (not null) and excludedFor is null. In step 0 a counted run with secondTurn true is
@@ -28,6 +30,9 @@
 //   whose first n runs already decide keeps that verdict whatever its later runs say (the extension is for the middle count only).
 //   counts[arm] covers the runs the verdict used: the first n, or the pooled n + extension when the pooled thresholds decided it; its
 //   meanCostUsd skips runs with a null costUsd and is null when none is known.
+//   REALIZED (ruling P24, reporting only, no verdict reads it). detail.realized[arm] = { counted, meanShareXhigh, meanUpSwitches,
+//   meanRequests } over the same used runs (counted = how many; a mean is null when no run has a finite value). It is what the arms did,
+//   so the random arm's realized share and up-switches can be set beside T's.
 //   STOP. 'positive_control_failed' / 'positive_control_incomplete'; for each arm with more than 2 runs excluded for 'audit' (P10:
 //   excludedFor === 'audit'), 'audit:<arm>'; for each arm with more than 2 secondTurn runs (C7), 'secondTurn:<arm>'. Those two are
 //   counted over every run of the arm, counted or not.
@@ -47,10 +52,25 @@
 //   incomplete is non-empty or a criterion could not be evaluated. A SHORT cell (fewer counted runs than registered, at least one) is
 //   not incomplete: it still gives a verdict and is listed in detail.short as '<arm>:<task>:<counted>/<registered>' (an exclusion plus
 //   a capped replacement can leave one; letting it block would let one exclusion veto the experiment). detail also carries the quality
-//   passes, the harm totals and costTasks.
+//   passes, the harm totals and costTasks. detail.realized[arm] as in step 0 for L, X, T, P, R. detail.partlyCosted (ruling P24):
+//   '<arm>:<task>:<costed>/<counted>' for each cell of L, X, T, P whose used runs have a null costUsd on some but not all of them
+//   (all null is '<arm>:<task>:cost' in incomplete); both cost estimators average only the costed runs, so such a cell is reported.
+//   STOP (ruling P23, spec Blinding): 'audit:<arm>' for each arm of L, X, T, P, R-quality, R-other with more than 2 runs excluded for
+//   'audit' (over every run of the arm, counted or not; a plain R is an arm only when neither stratum is given). Empty when none.
 //
-//   RANDOM (C10). s = mean shareXhigh, u = mean upSwitches, n = mean requests over tRuns; pUp = u / (n (1 - s)); pDown = pUp (1 - s) / s;
-//   both clipped to [0, 1] after being computed. degenerate (pUp = pDown = 0) when s is 0, u is 0, or n (1 - s) is not positive (s 1,
+//   RANDOM (C10, ruling P22). s = mean shareXhigh and u = mean upSwitches over tRuns, n = round(mean requests). The mod's chain starts at
+//   'low' at request 0 and, at each of the n - 1 later requests, draws once: low -> xhigh with probability pUp, xhigh -> low with
+//   probability pDown (register.ts levelChain; a draw u switches when u < p, so the probability is p). Over n requests its EXPECTED share
+//   of xhigh requests and EXPECTED number of low -> xhigh switches are computed exactly by dynamic programming over the two states
+//   (chainExpectation), not by a stationary formula (the chain is short and starts at low, so those are off by 19% to 43%).
+//   randomParams solves chainExpectation(pUp, pDown, n) = (s, u) deterministically: for a given pUp the expected share falls as pDown
+//   rises, so the pDown that gives share s is found by bisection (0 or 1 when s lies outside what pUp can give); the up-switch count
+//   then rises with pUp along that curve, so pUp is found by bisection too. 100 halvings each, i.e. a tolerance far below double
+//   precision of [0, 1]: the result matches the targets to ~1e-12 whenever they are reachable (a test checks 1e-6 against a second DP).
+//   The targets can be unreachable (u above what share s allows, or s above (n - 1) / n because request 0 is low): the up-switch
+//   equation is then solved with the share matched as closely as pUp allows, or pUp = 1 with the share matched, and `gap` says by how
+//   much. expected = the chain's values at the returned parameters; gap.share and gap.upSwitches = (expected - target) / target (0 when
+//   both are 0, 1 when only the target is 0). degenerate (pUp = pDown = 0) when s is 0, u is 0, or n (1 - s) is not positive (s 1,
 //   n 0). Empty tRuns -> s = u = n = 0, degenerate. Non-finite fields are skipped in the means, so no NaN comes out.
 
 const isObject = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
@@ -73,6 +93,14 @@ const summarize = (used, switchAt) => ({
   broad: used.filter((r) => isBroad(r, switchAt)).length,
   pass: used.filter((r) => r.pass === true).length,
   meanCostUsd: mean(used.map((r) => r.costUsd)),
+});
+
+// What the used runs did (ruling P24): reporting only.
+const realized = (rs) => ({
+  counted: rs.length,
+  meanShareXhigh: mean(rs.map((r) => r.shareXhigh)),
+  meanUpSwitches: mean(rs.map((r) => r.upSwitches)),
+  meanRequests: mean(rs.map((r) => r.requests)),
 });
 
 export function step0Verdict(runs, reg) {
@@ -131,13 +159,18 @@ export function step0Verdict(runs, reg) {
   for (const arm of ARMS0) if (all[arm].filter((r) => r.secondTurn === true).length > 2) stop.push(`secondTurn:${arm}`);
 
   const counts = {};
-  for (const arm of ARMS0) counts[arm] = summarize(used[arm], switchAt);
+  const realizedOf = {};
+  for (const arm of ARMS0) {
+    counts[arm] = summarize(used[arm], switchAt);
+    realizedOf[arm] = realized(used[arm]);
+  }
   return {
     positiveControl: controlPass ? 'pass' : 'fail',
     up: verdict(upDir, 'high'),
     down: verdict(downDir, 'low'),
     counts,
     stop,
+    detail: { realized: realizedOf },
   };
 }
 
@@ -195,6 +228,16 @@ export function step1Verdict(runs, reg) {
     for (const [task, rs] of by[a]) if (rs.length < limit(task)) short.push(`${a}:${task}:${rs.length}/${limit(task)}`);
   }
   detail.short = short;
+  // Ruling P24: reporting only. realized over the used runs of each arm; partlyCosted for a cell with some but not all runs costed.
+  detail.realized = {};
+  for (const a of ['L', 'X', 'T', 'P', 'R']) detail.realized[a] = realized([...by[a].values()].flat());
+  detail.partlyCosted = [];
+  for (const a of ['L', 'X', 'T', 'P']) {
+    for (const [task, rs] of by[a]) {
+      const costed = rs.filter((r) => finite(r.costUsd)).length;
+      if (costed > 0 && costed < rs.length) detail.partlyCosted.push(`${a}:${task}:${costed}/${rs.length}`);
+    }
+  }
 
   // quality (provisional while incomplete is non-empty)
   let quality = null;
@@ -230,21 +273,76 @@ export function step1Verdict(runs, reg) {
 
   const timing = q.T !== null && q.R !== null ? q.T - q.R >= 2 : null;
   const works = incomplete.length > 0 || quality === null || cost === null || harm === null ? null : quality && cost && harm;
-  return { quality, cost, harm, works, timing, incomplete, detail };
+  // Ruling P23: blinding. A plain R is an arm only when neither stratum arm is given.
+  const stop = [];
+  const stratified = runs?.['R-quality'] !== undefined || runs?.['R-other'] !== undefined;
+  for (const a of ['L', 'X', 'T', 'P', ...(stratified ? ['R-quality', 'R-other'] : ['R'])]) {
+    if (list(runs?.[a]).filter((r) => r.excludedFor === 'audit').length > 2) stop.push(`audit:${a}`);
+  }
+  return { quality, cost, harm, works, timing, incomplete, stop, detail };
 }
 
 // ---- the random arm ---------------------------------------------------------------------------------------------------------
 
-const clip01 = (x) => Math.min(1, Math.max(0, x));
+// The mod's chain (register.ts levelChain) over `n` main requests: request 0 is low; each later request draws once, low -> xhigh with
+// probability pUp, xhigh -> low with probability pDown. -> the exact expected share of xhigh requests and expected number of
+// low -> xhigh switches, by dynamic programming over P(xhigh at request i).
+export function chainExpectation(pUp, pDown, n) {
+  let high = 0; // P(request i is xhigh)
+  let sum = 0;
+  let ups = 0;
+  for (let i = 0; i < n; i += 1) {
+    sum += high;
+    if (i < n - 1) {
+      ups += pUp * (1 - high);
+      high = high * (1 - pDown) + (1 - high) * pUp;
+    }
+  }
+  return { share: n > 0 ? sum / n : 0, upSwitches: ups };
+}
+
+const HALVINGS = 100;
+// The pDown in [0, 1] whose expected share is s for this pUp (the share falls as pDown rises); 0 or 1 when s is out of reach.
+function solvePDown(pUp, s, n) {
+  if (chainExpectation(pUp, 0, n).share <= s) return 0;
+  if (chainExpectation(pUp, 1, n).share >= s) return 1;
+  let lo = 0;
+  let hi = 1;
+  for (let k = 0; k < HALVINGS; k += 1) {
+    const mid = (lo + hi) / 2;
+    if (chainExpectation(pUp, mid, n).share > s) lo = mid;
+    else hi = mid;
+  }
+  return (lo + hi) / 2;
+}
+
+const relGap = (expected, target) => (target === 0 ? (expected === 0 ? 0 : 1) : (expected - target) / target);
 
 export function randomParams(tRuns) {
   const rs = list(tRuns);
   const s = mean(rs.map((r) => r.shareXhigh)) ?? 0;
   const u = mean(rs.map((r) => r.upSwitches)) ?? 0;
-  const n = mean(rs.map((r) => r.requests)) ?? 0;
-  const denom = n * (1 - s);
-  if (s === 0 || u === 0 || !(denom > 0)) return { s, u, n, pUp: 0, pDown: 0, degenerate: true };
-  const pUp = u / denom;
-  const pDown = (pUp * (1 - s)) / s;
-  return { s, u, n, pUp: clip01(pUp), pDown: clip01(pDown), degenerate: false };
+  const n = Math.round(mean(rs.map((r) => r.requests)) ?? 0);
+  let pUp = 0;
+  let pDown = 0;
+  const degenerate = s === 0 || u === 0 || !(n * (1 - s) > 0);
+  if (!degenerate) {
+    // The up-switch count rises with pUp along the curve of pDown(pUp) that holds the share at s: bisect pUp on it.
+    const upsAt = (a) => chainExpectation(a, solvePDown(a, s, n), n).upSwitches;
+    if (upsAt(1) <= u) {
+      pUp = 1;
+    } else {
+      let lo = 0;
+      let hi = 1;
+      for (let k = 0; k < HALVINGS; k += 1) {
+        const mid = (lo + hi) / 2;
+        if (upsAt(mid) < u) lo = mid;
+        else hi = mid;
+      }
+      pUp = (lo + hi) / 2;
+    }
+    pDown = solvePDown(pUp, s, n);
+  }
+  const expected = chainExpectation(pUp, pDown, n);
+  return { s, u, n, pUp, pDown, degenerate, expected, gap: { share: relGap(expected.share, s), upSwitches: relGap(expected.upSwitches, u) } };
 }

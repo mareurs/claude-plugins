@@ -8,7 +8,8 @@
 
 import assert from 'node:assert/strict';
 import { t } from '../../core/testkit.mjs';
-import { randomParams, step0Verdict, step1Verdict } from './analyze.mjs';
+import { chainExpectation, randomParams, step0Verdict, step1Verdict } from './analyze.mjs';
+import { randomLevels } from './mod/hooks/register.ts';
 
 const REG0 = { switchAt: 5, n: 4, extension: 4 };
 
@@ -517,64 +518,259 @@ t('step 1 (P12): costEstimator must be registered: missing or anything but run/t
   assert.throws(() => step1Verdict(full12(), noField), (e) => e instanceof TypeError && /costEstimator/.test(e.message));
 });
 
-// ---- randomParams -----------------------------------------------------------------------------------------------------------
+// ---- step 1 stop (P23) and the realized/partlyCosted reporting (P24) --------------------------------------------------------
 
-function near(a, b, msg) { assert.ok(Math.abs(a - b) < 1e-12, `${msg ?? ''}: ${a} vs ${b}`); }
+// `k` runs of cs-p20 excluded for `why`, appended to an arm.
+const withExcluded = (armRuns, k, why = 'audit') => [...armRuns, ...Array.from({ length: k }, (_, i) => run({ taskId: 'cs-p20', rep: 90 + i, excludedFor: why }))];
 
-t('randomParams: s, u, n are the means; pUp = u / (n (1 - s)); pDown = pUp (1 - s) / s', () => {
-  const tRuns = [
-    run({ shareXhigh: 0.2, upSwitches: 2, requests: 40 }),
-    run({ shareXhigh: 0.4, upSwitches: 4, requests: 60 }),
+t('step 1 (P23): stop is empty when no arm has an audit exclusion', () => {
+  assert.deepEqual(step1Verdict(full12(), REG1).stop, []);
+});
+
+t('step 1 (P23): stop names an arm with more than 2 runs excluded for audit: 2 is fine, 3 stops, for each of L, X, T, P and R', () => {
+  for (const a of ['L', 'X', 'T', 'P', 'R']) {
+    const base12 = full12();
+    for (const [k, want] of [[0, []], [1, []], [2, []], [3, [`audit:${a}`]], [5, [`audit:${a}`]]]) {
+      const v = step1Verdict({ ...base12, [a]: withExcluded(base12[a], k) }, REG1);
+      assert.deepEqual(v.stop, want, `${a} with ${k} audit exclusions`);
+    }
+  }
+});
+
+t('step 1 (P23): only excludedFor audit counts (another reason does not), excluded runs are not counted in the verdict, stop keeps the arm order', () => {
+  const b = full12();
+  assert.deepEqual(step1Verdict({ ...b, T: withExcluded(b.T, 4, 'no_mod_log') }, REG1).stop, []);
+  const v = step1Verdict({ ...b, P: withExcluded(b.P, 3), L: withExcluded(b.L, 3), X: withExcluded(b.X, 4) }, REG1);
+  assert.deepEqual(v.stop, ['audit:L', 'audit:X', 'audit:P']);
+  assert.equal(v.works, step1Verdict(b, REG1).works, 'the excluded runs change no verdict number');
+});
+
+t('step 1 (P23): with R-quality / R-other given, each stratum is an arm (2 each is fine, 3 in one stops that one) and a plain R is not read', () => {
+  const b = full12();
+  const q = (k) => withExcluded([], k);
+  assert.deepEqual(step1Verdict({ ...b, 'R-quality': q(2), 'R-other': q(2) }, REG1).stop, []);
+  assert.deepEqual(step1Verdict({ ...b, 'R-quality': q(3), 'R-other': q(2) }, REG1).stop, ['audit:R-quality']);
+  assert.deepEqual(step1Verdict({ ...b, 'R-quality': q(2), 'R-other': q(3) }, REG1).stop, ['audit:R-other']);
+  // 2 + 2 in the merged R is 4 > 2, but each stratum is within its limit
+  assert.deepEqual(step1Verdict({ ...b, R: [...q(2), ...q(2)], 'R-quality': q(2), 'R-other': q(2) }, REG1).stop, []);
+});
+
+t('step 1 (P24): detail.realized has counted and the means of shareXhigh, upSwitches and requests per arm, over the used runs', () => {
+  const b = full12();
+  const T = b.T.map((r, i) => ({ ...r, shareXhigh: i % 2 === 0 ? 0.25 : 0.75, upSwitches: 2, requests: 10 + (i % 2) * 10 }));
+  const v = step1Verdict({ ...b, T }, REG1);
+  assert.deepEqual(Object.keys(v.detail.realized), ['L', 'X', 'T', 'P', 'R']);
+  const r = v.detail.realized.T;
+  assert.equal(r.counted, 27);
+  assert.equal(r.meanUpSwitches, 2);
+  assert.ok(Math.abs(r.meanShareXhigh - T.reduce((a, x) => a + x.shareXhigh, 0) / 27) < 1e-12);
+  assert.ok(Math.abs(r.meanRequests - T.reduce((a, x) => a + x.requests, 0) / 27) < 1e-12);
+  // an arm with no counted run has counted 0 and null means, not NaN
+  const none = step1Verdict({ ...b, R: undefined }, REG1).detail.realized.R;
+  assert.deepEqual(none, { counted: 0, meanShareXhigh: null, meanUpSwitches: null, meanRequests: null });
+  // only the used runs: runs beyond qualityRuns are left out
+  const extra = step1Verdict({ ...b, L: [...b.L, ...cell('cs-p20', 3, 3).map((r, i) => ({ ...r, rep: 50 + i, shareXhigh: 1 }))] }, REG1);
+  assert.equal(extra.detail.realized.L.counted, 27);
+  assert.equal(extra.detail.realized.L.meanShareXhigh, 0);
+});
+
+t('step 1 (P24): detail.partlyCosted lists cells with a null cost on some but not all counted runs, and changes no verdict', () => {
+  const b = full12();
+  assert.deepEqual(step1Verdict(b, REG1).detail.partlyCosted, []);
+  const T = b.T.map((r) => (r.taskId === 'o3' && r.rep === 0 ? { ...r, costUsd: null } : r));
+  const v = step1Verdict({ ...b, T }, REG1);
+  assert.deepEqual(v.detail.partlyCosted, ['T:o3:1/2']);
+  assert.deepEqual(v.incomplete, [], 'a partly costed cell is not incomplete');
+  // all null is the incomplete case ('<arm>:<task>:cost'), not partly costed
+  const allNull = b.T.map((r) => (r.taskId === 'o3' ? { ...r, costUsd: null } : r));
+  const w = step1Verdict({ ...b, T: allNull }, REG1);
+  assert.deepEqual(w.detail.partlyCosted, []);
+  assert.deepEqual(w.incomplete, ['T:o3:cost']);
+  // order: arm L, X, T, P, then task
+  const L = b.L.map((r) => (r.taskId === 'o7' && r.rep === 1 ? { ...r, costUsd: null } : r));
+  const P = b.P.map((r) => (r.taskId === 'cs-p20' && r.rep < 2 ? { ...r, costUsd: null } : r));
+  assert.deepEqual(step1Verdict({ ...b, L, T, P }, REG1).detail.partlyCosted, ['L:o7:1/2', 'T:o3:1/2', 'P:cs-p20:3/5']);
+});
+
+t('step 0 (P24): detail.realized per arm over the runs the verdict used', () => {
+  const fLX = arm([true, true, true, true]).map((r, i) => ({ ...r, shareXhigh: 0.5, upSwitches: i, requests: 20 }));
+  const v = step0Verdict(step0(fLX, neutral), REG0);
+  assert.deepEqual(Object.keys(v.detail.realized), ['F-L', 'F-X', 'F-LX', 'F-XL']);
+  assert.deepEqual(v.detail.realized['F-LX'], { counted: 4, meanShareXhigh: 0.5, meanUpSwitches: 1.5, meanRequests: 20 });
+  assert.deepEqual(v.detail.realized['F-XL'], { counted: 4, meanShareXhigh: 0, meanUpSwitches: 0, meanRequests: 20 });
+  // pooled arm: 8 runs
+  const pooledLX = pooled(2).map((r) => ({ ...r, upSwitches: 1 }));
+  assert.equal(step0Verdict(step0(pooledLX, neutral), REG0).detail.realized['F-LX'].counted, 8);
+  // runs beyond the ones the verdict used are not reported: the first 4 decide, the other 4 are left out
+  assert.equal(step0Verdict(step0(arm([true, true, true, false, true, true, true, true]), neutral), REG0).detail.realized['F-LX'].counted, 4);
+  // a missing arm: counted 0, null means
+  assert.deepEqual(step0Verdict(step0([], neutral), REG0).detail.realized['F-LX'], { counted: 0, meanShareXhigh: null, meanUpSwitches: null, meanRequests: null });
+});
+
+// ---- randomParams (ruling P22) --------------------------------------------------------------------------------------------
+
+function near(a, b, msg, tol = 1e-12) { assert.ok(Math.abs(a - b) < tol, `${msg ?? ''}: ${a} vs ${b}`); }
+const tOne = (n, s, u) => [run({ shareXhigh: s, upSwitches: u, requests: n })];
+
+// A second, naive implementation: the distribution over the two states carried as a vector, request by request.
+function naive(pUp, pDown, n) {
+  let low = 1;
+  let high = 0;
+  let sumHigh = 0;
+  let ups = 0;
+  for (let i = 0; i < n; i += 1) {
+    sumHigh += high;
+    if (i === n - 1) break;
+    ups += low * pUp;
+    [low, high] = [low * (1 - pUp) + high * pDown, low * pUp + high * (1 - pDown)];
+  }
+  return { share: sumHigh / n, upSwitches: ups };
+}
+
+// A third, by enumerating every path of n requests with its probability (n small).
+function byPaths(pUp, pDown, n) {
+  let share = 0;
+  let ups = 0;
+  const walk = (i, cur, prob, highs, upCount) => {
+    if (i === n) {
+      share += (prob * highs) / n;
+      ups += prob * upCount;
+      return;
+    }
+    const pSwitch = cur === 'low' ? pUp : pDown;
+    const other = cur === 'low' ? 'xhigh' : 'low';
+    walk(i + 1, other, prob * pSwitch, highs + (other === 'xhigh' ? 1 : 0), upCount + (cur === 'low' && other === 'xhigh' ? 1 : 0));
+    walk(i + 1, cur, prob * (1 - pSwitch), highs + (cur === 'xhigh' ? 1 : 0), upCount);
+  };
+  walk(1, 'low', 1, 0, 0);
+  return { share, upSwitches: ups };
+}
+
+t('chainExpectation: equals a naive vector DP and a path enumeration; n = 1 and n = 0 have no switches', () => {
+  for (const [a, b, n] of [[0.3, 0.2, 10], [1, 1, 9], [0.05, 0.9, 12], [0, 0.5, 8], [1, 0, 7], [0.5, 0.5, 2]]) {
+    const c = chainExpectation(a, b, n);
+    near(c.share, naive(a, b, n).share, `share ${a} ${b} ${n}`);
+    near(c.upSwitches, naive(a, b, n).upSwitches, `ups ${a} ${b} ${n}`);
+    near(c.share, byPaths(a, b, n).share, `paths share ${a} ${b} ${n}`);
+    near(c.upSwitches, byPaths(a, b, n).upSwitches, `paths ups ${a} ${b} ${n}`);
+  }
+  assert.deepEqual(chainExpectation(1, 0, 1), { share: 0, upSwitches: 0 });
+  assert.deepEqual(chainExpectation(0.5, 0.5, 0), { share: 0, upSwitches: 0 });
+  assert.deepEqual(chainExpectation(1, 1, 4), { share: 0.5, upSwitches: 2 });
+});
+
+t('chainExpectation: the mean of the REAL mod chain (randomLevels over many seeds) agrees with the DP within 3%', () => {
+  const [pUp, pDown, n] = [0.18, 0.31, 15];
+  let share = 0;
+  let ups = 0;
+  const seeds = 20000;
+  for (let seed = 0; seed < seeds; seed += 1) {
+    const levels = randomLevels(pUp, pDown, seed, 'T1', n);
+    share += levels.filter((l) => l === 'xhigh').length / n;
+    for (let i = 1; i < n; i += 1) if (levels[i - 1] === 'low' && levels[i] === 'xhigh') ups += 1;
+  }
+  const want = chainExpectation(pUp, pDown, n);
+  assert.ok(Math.abs(share / seeds - want.share) / want.share < 0.03, `share ${share / seeds} vs ${want.share}`);
+  assert.ok(Math.abs(ups / seeds - want.upSwitches) / want.upSwitches < 0.03, `ups ${ups / seeds} vs ${want.upSwitches}`);
+});
+
+t('randomParams (P22): the expected share and up-switches of the chain equal the targets within 1% (the review cases and more)', () => {
+  const table = [
+    [15, 0.4, 1], [18, 0.44, 1], [20, 0.7, 1], [16, 0.25, 1], // the reviewer's patterns
+    [30, 0.5, 3], [40, 0.3, 2], [25, 0.15, 1.5], [12, 0.6, 2], [20, 0.5, 5], [50, 0.2, 4],
   ];
-  const p = randomParams(tRuns);
+  for (const [n, s, u] of table) {
+    const p = randomParams(tOne(n, s, u));
+    const label = `n ${n} s ${s} u ${u}`;
+    assert.equal(p.degenerate, false, label);
+    assert.equal(p.n, n, label);
+    for (const k of ['pUp', 'pDown']) assert.ok(p[k] >= 0 && p[k] <= 1, `${k} in range, ${label}`);
+    const e = naive(p.pUp, p.pDown, n);
+    assert.ok(Math.abs(e.share - s) / s < 0.01, `share ${e.share} vs ${s}, ${label}`);
+    assert.ok(Math.abs(e.upSwitches - u) / u < 0.01, `ups ${e.upSwitches} vs ${u}, ${label}`);
+    // what randomParams reports is what the independent DP says, and the gap is tiny
+    near(p.expected.share, e.share, `expected share, ${label}`);
+    near(p.expected.upSwitches, e.upSwitches, `expected ups, ${label}`);
+    assert.ok(Math.abs(p.gap.share) < 1e-6 && Math.abs(p.gap.upSwitches) < 1e-6, `gap ${JSON.stringify(p.gap)}, ${label}`);
+  }
+});
+
+t('randomParams (P22): the old stationary formulas miss the targets by more than 15% on the review cases (why the DP is needed)', () => {
+  for (const [n, s, u] of [[15, 0.4, 1], [18, 0.44, 1], [16, 0.25, 1]]) {
+    const pUp = u / (n * (1 - s));
+    const pDown = (pUp * (1 - s)) / s;
+    const e = naive(pUp, pDown, n);
+    assert.ok(Math.abs(e.share - s) / s > 0.15 || Math.abs(e.upSwitches - u) / u > 0.15, `n ${n} s ${s}`);
+  }
+});
+
+t('randomParams (P22): the means over several runs are the targets, and n is the rounded mean of requests', () => {
+  const p = randomParams([
+    run({ shareXhigh: 0.2, upSwitches: 1, requests: 14 }),
+    run({ shareXhigh: 0.4, upSwitches: 3, requests: 15 }),
+    run({ shareXhigh: 0.3, upSwitches: 2, requests: 16 }),
+  ]);
   near(p.s, 0.3, 's');
-  near(p.u, 3, 'u');
-  near(p.n, 50, 'n');
-  near(p.pUp, 3 / (50 * 0.7), 'pUp');
-  near(p.pDown, (3 / (50 * 0.7)) * 0.7 / 0.3, 'pDown');
-  assert.equal(p.degenerate, false);
+  near(p.u, 2, 'u');
+  assert.equal(p.n, 15);
+  assert.equal(randomParams(tOne(14.6, 0.3, 2)).n, 15);
+  assert.equal(randomParams(tOne(14.4, 0.3, 2)).n, 14);
+  near(p.expected.share, 0.3, 'expected share', 1e-6);
+  near(p.expected.upSwitches, 2, 'expected up-switches', 1e-6);
 });
 
-t('randomParams: the generator matches its target (expected share and up-switches per run) for a known input', () => {
-  // A two-state chain of n requests: stationary share = pUp / (pUp + pDown) is NOT what the formula states; it states
-  // u = n (1 - s) pUp (up-switches start from the low share) and pDown = pUp (1 - s) / s, which gives n s pDown = u.
-  const p = randomParams([run({ shareXhigh: 0.25, upSwitches: 3, requests: 80 })]);
-  near(80 * (1 - 0.25) * p.pUp, 3, 'expected up-switches');
-  near(80 * 0.25 * p.pDown, 3, 'expected down-switches equal the up-switches');
+t('randomParams (P22): a target the chain cannot reach returns the closest parameters and the real gap', () => {
+  // Request 0 is low, so the share cannot pass (n - 1) / n = 0.9
+  const high = randomParams(tOne(10, 0.95, 1));
+  assert.equal(high.degenerate, false);
+  assert.ok(high.gap.share < -0.04, `share gap ${high.gap.share}`);
+  near(high.expected.share, naive(high.pUp, high.pDown, 10).share, 'expected share is the real one');
+  // more up-switches than a share of 0.1 over 20 requests can hold
+  const many = randomParams(tOne(20, 0.1, 5));
+  assert.ok(many.gap.share > 1, JSON.stringify(many.gap)); // the up-switches are met, the share overshoots by 150%
+  // fewer up-switches than any chain reaching share 0.7 produces
+  const few = randomParams(tOne(20, 0.7, 0.2));
+  assert.ok(few.gap.share < -0.5, JSON.stringify(few.gap)); // the up-switches are met, the share undershoots by 85%
+  for (const p of [high, many, few]) {
+    for (const k of ['pUp', 'pDown']) assert.ok(p[k] >= 0 && p[k] <= 1, k);
+    for (const v of [p.expected.share, p.expected.upSwitches, p.gap.share, p.gap.upSwitches]) assert.ok(Number.isFinite(v));
+    near(p.expected.share, naive(p.pUp, p.pDown, p.n).share, 'expected share');
+    near(p.expected.upSwitches, naive(p.pUp, p.pDown, p.n).upSwitches, 'expected up-switches');
+  }
+  // one request: nothing can switch
+  const one = randomParams(tOne(1, 0.5, 1));
+  assert.ok(one.gap.share === -1 && one.gap.upSwitches === -1, JSON.stringify(one.gap));
 });
 
-t('randomParams: each probability is clipped to [0, 1]', () => {
-  // u / (n (1 - s)) = 10 / (10 * 0.5) = 2 -> 1; pDown = 2 * 0.5 / 0.5 = 2 -> 1
-  const big = randomParams([run({ shareXhigh: 0.5, upSwitches: 10, requests: 10 })]);
-  assert.equal(big.pUp, 1);
-  assert.equal(big.pDown, 1);
-  assert.equal(big.degenerate, false);
-  // pUp stays below 1 but pDown clips: s 0.1, u 4, n 20 -> pUp 4 / 18 = 0.222; pDown = 0.222 * 0.9 / 0.1 = 2
-  const clipDown = randomParams([run({ shareXhigh: 0.1, upSwitches: 4, requests: 20 })]);
-  near(clipDown.pUp, 4 / 18, 'pUp');
-  assert.equal(clipDown.pDown, 1);
-});
-
-t('randomParams: s = 0 or u = 0 is degenerate with pUp and pDown both 0', () => {
+t('randomParams: s = 0 or u = 0 is degenerate with pUp and pDown both 0, and the reported gap is finite', () => {
   for (const over of [{ shareXhigh: 0, upSwitches: 3, requests: 40 }, { shareXhigh: 0.4, upSwitches: 0, requests: 40 }]) {
     const p = randomParams([run(over)]);
     assert.equal(p.degenerate, true, JSON.stringify(over));
     assert.equal(p.pUp, 0);
     assert.equal(p.pDown, 0);
+    assert.deepEqual(p.expected, { share: 0, upSwitches: 0 });
+    for (const v of [p.gap.share, p.gap.upSwitches]) assert.ok(Number.isFinite(v));
   }
 });
 
-t('randomParams: s = 1 (division by zero in pUp) and zero requests are degenerate, with no NaN or Infinity', () => {
-  for (const over of [{ shareXhigh: 1, upSwitches: 2, requests: 40 }, { shareXhigh: 0.5, upSwitches: 2, requests: 0 }]) {
+t('randomParams: s = 1 (division by zero) and zero requests are degenerate, with no NaN or Infinity', () => {
+  for (const over of [{ shareXhigh: 1, upSwitches: 2, requests: 40 }, { shareXhigh: 0.5, upSwitches: 2, requests: 0 }, { shareXhigh: 0.5, upSwitches: 2, requests: 0.4 }]) {
     const p = randomParams([run(over)]);
     assert.equal(p.degenerate, true, JSON.stringify(over));
     for (const k of ['s', 'u', 'n', 'pUp', 'pDown']) assert.ok(Number.isFinite(p[k]), `${k} in ${JSON.stringify(over)}`);
+    for (const v of [p.expected.share, p.expected.upSwitches, p.gap.share, p.gap.upSwitches]) assert.ok(Number.isFinite(v), JSON.stringify(over));
     assert.equal(p.pUp, 0);
     assert.equal(p.pDown, 0);
   }
 });
 
-t('randomParams: empty tRuns is degenerate with s, u, n = 0 and no NaN', () => {
-  assert.deepEqual(randomParams([]), { s: 0, u: 0, n: 0, pUp: 0, pDown: 0, degenerate: true });
-  assert.deepEqual(randomParams(undefined), { s: 0, u: 0, n: 0, pUp: 0, pDown: 0, degenerate: true });
+t('randomParams: empty tRuns is degenerate with s, u, n = 0 and no NaN; non-finite fields are skipped in the means', () => {
+  const empty = { s: 0, u: 0, n: 0, pUp: 0, pDown: 0, degenerate: true, expected: { share: 0, upSwitches: 0 }, gap: { share: 0, upSwitches: 0 } };
+  assert.deepEqual(randomParams([]), empty);
+  assert.deepEqual(randomParams(undefined), empty);
+  const p = randomParams([run({ shareXhigh: NaN, upSwitches: 1, requests: 20 }), run({ shareXhigh: 0.4, upSwitches: Infinity, requests: 20 }), run({ shareXhigh: 0.4, upSwitches: 1, requests: 20 })]);
+  near(p.s, 0.4, 's');
+  near(p.u, 1, 'u');
+  assert.equal(p.n, 20);
+  for (const v of [p.pUp, p.pDown, p.expected.share, p.expected.upSwitches, p.gap.share, p.gap.upSwitches]) assert.ok(Number.isFinite(v));
 });
