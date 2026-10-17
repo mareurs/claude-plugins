@@ -41,6 +41,11 @@
 //                    image names s5/codescout, s5/plugins and s5/proxy)
 //   proxyAllowlist   non-empty array of host names the proxy accepts (proxy.mjs's hostPattern, ruling R50), no duplicates
 //   stopAtCostUsd    finite number > 0
+//   mod              optional (effort-toggle; absent, the config is exactly what it was): { mode } with mode one of MOD_MODES
+//                    (toggle, placebo, random, schedule); `schedule` is required iff mode is 'schedule' (a non-empty array of
+//                    'low' and 'xhigh'), `random` iff mode is 'random' ({ pUp, pDown: finite in [0, 1], seed: integer in
+//                    [0, 4294967295] }, ruling P8: the mod XORs it with a 32-bit hash); any other key is refused. Kept on the
+//                    loaded object, frozen with the rest.
 //
 // The `registered` marker (ruling R59) cannot come from the file: both loaders refuse a `registered` key. loadS5Prereg
 // returns `registered: true`, loadS5Config `registered: false`, and Task 10's measure refusal trusts that. The returned
@@ -59,6 +64,9 @@ const HASH_FIELDS = ['treeHash', 'hiddenHash', 'promptHash'];
 const TOP_KEYS = ['model', 'cli', 'arms', 'tasks', 'margin', 'alpha', 'bound', 'orderSeed', 'mechanism', 'limits', 'images', 'proxyAllowlist', 'stopAtCostUsd'];
 const IMAGE_KEYS = [...Object.keys(IMAGE_FOR_REPO), 'proxy'];
 const STEER = { A: false, B: true, C: false };
+export const MOD_MODES = Object.freeze(['toggle', 'placebo', 'random', 'schedule']);
+const MOD_LEVELS = ['low', 'xhigh'];
+const MAX_MOD_SEED = 4294967295;
 
 // What loadS5Prereg and loadS5Config differ in (ruling R2): the least `runs` per arm and the fewest tasks.
 const MEASURED = { minTasks: 8, minRuns: { A: 2, B: 2, C: 1 } };
@@ -166,10 +174,32 @@ function checkAllowlist(list) {
   });
 }
 
+// The optional `mod` (effort-toggle): { mode } plus `schedule` iff mode is 'schedule' and `random` iff mode is 'random'. The mode is
+// checked first so that a wrong mode is refused by naming mod.mode, not by the keys it would have wanted. The seed is bounded to
+// 32 bits (ruling P8): the mod XORs it with a 32-bit hash, so a larger seed would alias a smaller one.
+function checkMod(mod) {
+  if (!isObject(mod)) fail('mod', `must be an object, got ${show(mod)}`);
+  need(MOD_MODES.includes(mod.mode), 'mod.mode', `be one of ${MOD_MODES.join(', ')}`, mod.mode);
+  shape('mod', mod, ['mode', ...(mod.mode === 'schedule' ? ['schedule'] : []), ...(mod.mode === 'random' ? ['random'] : [])]);
+  if (mod.mode === 'schedule') {
+    need(Array.isArray(mod.schedule) && mod.schedule.length > 0, 'mod.schedule', 'be a non-empty array', mod.schedule);
+    mod.schedule.forEach((level, i) => need(MOD_LEVELS.includes(level), `mod.schedule[${i}]`, `be one of ${MOD_LEVELS.join(', ')}`, level));
+  }
+  if (mod.mode === 'random') {
+    const r = mod.random;
+    shape('mod.random', r, ['pUp', 'pDown', 'seed']);
+    for (const k of ['pUp', 'pDown']) need(isNum(r[k]) && r[k] >= 0 && r[k] <= 1, `mod.random.${k}`, 'be a finite number in [0, 1]', r[k]);
+    safeInt('mod.random.seed', r.seed, 0, MAX_MOD_SEED);
+  }
+}
+
+
 function validate(p, { minTasks, minRuns }) {
   if (!isObject(p)) throw new Error('prereg: the file must hold a JSON object');
   if (Object.hasOwn(p, 'registered')) fail('registered', 'must not be in the file: only loadS5Prereg sets it, after the committed-bytes check');
-  shape('', p, TOP_KEYS);
+  const { mod, ...unmodded } = p;
+  shape('', unmodded, TOP_KEYS);
+  if (Object.hasOwn(p, 'mod')) checkMod(mod);
   text('model', p.model);
   shape('cli', p.cli, ['version', 'sha256']);
   text('cli.version', p.cli.version);
