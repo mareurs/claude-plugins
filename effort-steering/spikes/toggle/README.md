@@ -141,7 +141,7 @@ Verified in `spikes/s5/run.mjs` (header lines 10-28; batch layer lines 838-891 a
 - `s5 run` without `--tasks` runs every task in the staged config. `--runs 5` without `--tasks` therefore runs 5 reps on EVERY task of the arm. That is a wrong spend unless the arm has one task.
 - Resume needs the SAME work root and the SAME rows file (same `--mode`, same `--rows`). A different rows file does not see the earlier rows and runs the reps again.
 - Step 1 arm with two run counts (quality task 5, others 2), per arm `<A>`, in one work root: (a) `stage-config --registration <file> --arm <A> --out <f2>` (runs = `otherRuns` = 2), then `s5 run --mode <m> --prereg <f2> --work-root <dir> --tasks <the 11 other ids>`; (b) `stage-config --registration <file> --arm <A> --runs 5 --out <f5>`, then `s5 run --mode <m> --prereg <f5> --work-root <dir> --tasks cs-p20`. Do (b) with `--tasks cs-p20` only.
-- A replacement for an excluded run (an `excludedFor` that is set: audit, an arm or log mismatch, a missing log, a transcript problem or `infra:<reason>`; NOT a timeout, which counts as a failure): stage `--runs n+1` (total) with `--tasks` for that task, same work root. The excluded run keeps its final row, so it is not re-run; rep n is the only one missing, so only it runs.
+- A replacement for an excluded run (an `excludedFor` that is set: audit, an arm or log mismatch, a missing log, a transcript problem or `infra:<reason>`; a timeout is not excluded for the in-flight step alone (P27); it is still excluded for any other reason (audit, arm_mismatch, mod_error, no_mod_log, a transcript problem)): stage `--runs n+1` (total) with `--tasks` for that task, same work root. The excluded run keeps its final row, so it is not re-run; rep n is the only one missing, so only it runs.
 - The step 0 extension: stage `--runs 8` (n 4 + extension 4), not `--runs 4`. Reps 0 to 3 are skipped.
 - "Alternating by rep" (step 0, G2): for k = 1 to 4, for each of the four arms in turn, stage `--runs k` and run it in that arm's work root. At k the reps 0 to k-2 are final and skipped; only rep k-1 runs. This follows from the resume rule above; it has not been run live. Run `check-runs` and `analyze0` between reps (see G2).
 
@@ -184,7 +184,7 @@ Each gate STOPS for the operator. Nothing below runs until the operator approves
 4. Step 1 proceeds only on `up: delivered`. If the positive control fails, step 0 stops and the operator decides.
 
 **16 runs (4 arms x 4), about $5.5.** Up to 8 more for an extension or replacements, about $3. Sonnet 5.5, CLI 2.1.296.
-A stop rule: more than 2 audit-flagged runs in one arm, or more than 2 second-turn runs in one arm, means the batch should stop and the operator be told (`stop` in the `analyze0` verdict; `analyze1` prints `stop` for the audit rule too, P23). The operator or the session applies it: nothing in `s5 run` reads `stop`. For an extension stage `--runs 8`; for a replacement of an excluded run stage `--runs n+1` (totals, not extras). A run is excluded (and replaced) when its `excludedFor` is set: `audit`, `arm_mismatch`, `log_transcript_mismatch`, `no_mod_log`, `mod_error`, a transcript problem, or `infra:<reason>` (a run that ended `infra_exhausted`). A timeout is not excluded: it is a final row with no grade and counts as a failure, as in R1 (P21).
+A stop rule: more than 2 audit-flagged runs in one arm, or more than 2 second-turn runs in one arm, means the batch should stop and the operator be told (`stop` in the `analyze0` verdict; `analyze1` prints `stop` for the audit rule too, P23). The operator or the session applies it: nothing in `s5 run` reads `stop`. For an extension stage `--runs 8`; for a replacement of an excluded run stage `--runs n+1` (totals, not extras). A run is excluded (and replaced) when its `excludedFor` is set: `audit`, `arm_mismatch`, `log_transcript_mismatch`, `no_mod_log`, `mod_error`, a transcript problem, or `infra:<reason>` (a run that ended `infra_exhausted`). A timeout is not excluded for the in-flight step alone (P27); it is still excluded for any other reason (audit, arm_mismatch, mod_error, no_mod_log, a transcript problem). It is a final row with no grade and counts as a failure, as in R1 (P21).
 
 ### G3 Pilot. Operator approval required.
 
@@ -220,6 +220,7 @@ The pilot's measured cost replaces the assumed one in the G4 estimate.
 - `firstEditIndex` and `broad` are text rules. `cargo test | tee log` counts as an edit; `cargo t`, `bash -c "cargo test"` and nextest are not classified as broad.
 - Second-turn detection also counts sidechain, meta and compaction-summary user records. None occurred in V2.
 - Reused R1 V2 rows for L and X have no mod and are not an arm (ruling P7).
+- The mod rewrites the whole log file after each line. A kill during that write can tear the last line or empty the file, and that run is then excluded (`log_transcript_mismatch` or `no_mod_log`) and replaced instead of counted. Rare.
 
 ## Decisions made while building
 

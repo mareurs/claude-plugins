@@ -169,7 +169,6 @@ export function firstEditIndex(transcriptText) {
 
 // ---- checkRun -----------------------------------------------------------------------------------------------------------
 
-// Whether the log's main steps disagree with the transcript's main requests.
 // Whether the log's main steps disagree with the transcript's main requests. With `timedOut` (P27) the log may hold exactly ONE
 // main step more than the transcript has requests, as the LAST main step: the mod writes a step line before it sends the request, the
 // transcript records the message only when the response returns, so a wall-clock kill mid-request leaves that one line over. That

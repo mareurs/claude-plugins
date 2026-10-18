@@ -780,6 +780,13 @@ t('P27: N = 0 (no transcript request, one step in the log) follows the same rule
   assert.equal(killedCheck(K0, P27_SCHEDULE, { timedOut: true }).requests, 0);
   assert.deepEqual(killedCheck(K0, P27_SCHEDULE).reasons, ['log_transcript_mismatch']);
   assert.deepEqual(checkRun({ transcriptText: '', modLogText: KS.logText, timedOut: true }).reasons, ['log_transcript_mismatch'], 'five steps against none');
+  // the trailing main step followed by subagent steps and subagent calls (the kill does not stop a running subagent): still no mismatch
+  const subCall = { ...call(4, 'xhigh'), agentId: 'a1' };
+  const withSubs = logOf([...KS.lines, subStep('xhigh', 'xhigh'), subCall, subStep('xhigh', 'xhigh'), subCall]);
+  for (const mod of [P27_SCHEDULE, undefined]) {
+    assert.deepEqual(checkRun({ transcriptText: KS.transcriptText, modLogText: withSubs, mod, startEffort: 'low', timedOut: true }).reasons, [], JSON.stringify(mod));
+  }
+  assert.deepEqual(checkRun({ transcriptText: KS.transcriptText, modLogText: withSubs, mod: P27_SCHEDULE, startEffort: 'low' }).reasons, ['log_transcript_mismatch'], 'and without timedOut it is still one');
   // a subagent step between main steps is no main step: 4 answered + 1 in flight is still one extra
   const { logText, sent } = KSUB;
   assert.equal(mainOf(logText.split('\n').filter(Boolean).map((l) => JSON.parse(l))).length, 5);

@@ -434,6 +434,8 @@ await ta('check-runs: a timeout that kills a run mid-request is a counted failur
   makeRun(runs, 'cs-p05.C.0-a1', 'k-4', transcript(slow), toggleLog(slow)); // timeout, agreeing log: counted
   makeRun(runs, 'cs-p05.C.1-a1', 'k-5', transcript(slow), twoInFlight); // timeout, two extra steps: excluded
   makeRun(runs, 'cs-p05.C.2-a1', 'k-6', transcript(slow), toggleLog(slow)); // graded, agreeing log: counted, not a timeout
+  makeRun(runs, 'cs-p05.C.3-a1', 'k-7', transcript(slow), inFlight(slow)); // graded failure, the in-flight log: NOT a timeout, excluded
+  makeRun(runs, 'cs-p05.C.4-a1', 'k-8', transcript(slow), inFlight(slow)); // a final row with no `grade` key at all: NOT a timeout, excluded
   const row = (runId, taskId, rep, sessionId, grade) => ({ runId, taskId, rep, sessionId, infra: null, final: true, costUsd: 1, grade });
   const all = [
     row('cs-p20.C.0', 'cs-p20', 0, 'k-0', null),
@@ -443,6 +445,8 @@ await ta('check-runs: a timeout that kills a run mid-request is a counted failur
     row('cs-p05.C.0', 'cs-p05', 0, 'k-4', null),
     row('cs-p05.C.1', 'cs-p05', 1, 'k-5', null),
     row('cs-p05.C.2', 'cs-p05', 2, 'k-6', { infra: null, pass: false }),
+    row('cs-p05.C.3', 'cs-p05', 3, 'k-7', { pass: false }),
+    (({ grade: _omitted, ...noGrade }) => noGrade)(row('cs-p05.C.4', 'cs-p05', 4, 'k-8', null)),
   ];
   const go = async (name, rows) => {
     const rowsFile = join(ROOT, `rows-${name}.jsonl`);
@@ -463,10 +467,12 @@ await ta('check-runs: a timeout that kills a run mid-request is a counted failur
     'cs-p05.C.0': [false, null],
     'cs-p05.C.1': [false, 'log_transcript_mismatch'],
     'cs-p05.C.2': [false, null],
+    'cs-p05.C.3': [false, 'log_transcript_mismatch'],
+    'cs-p05.C.4': [null, 'log_transcript_mismatch'],
   });
   assert.equal(got[0].requests, 2, 'the Run counts the transcript requests, not the log steps');
-  // No run is both excluded and counted: 4 excluded (two of them timeouts), 2 timeouts counted as failures (a graded failure is not one).
-  assert.equal(line, `wrote ${out}: 7 runs, 4 excluded (log_transcript_mismatch 2, audit 1, no_mod_log 1); 2 timed out (counted as failures)`);
+  // No run is both excluded and counted: 6 excluded (two of them timeouts), 2 timeouts counted as failures (a graded failure and a row with no grade are not timeouts).
+  assert.equal(line, `wrote ${out}: 9 runs, 6 excluded (log_transcript_mismatch 4, audit 1, no_mod_log 1); 2 timed out (counted as failures)`);
   // One counted timeout and one excluded timeout: the exact text.
   const pair = await go('p27-pair', [all[0], all[3]]);
   assert.equal(pair.line, `wrote ${pair.out}: 2 runs, 1 excluded (no_mod_log 1); 1 timed out (counted as failures)`);
