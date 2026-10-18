@@ -3,7 +3,7 @@
 //   mainRequests(transcriptText)  -> { index, messageId, effort, toolUses: { name, input }[] }[]   the main loop's requests
 //   secondUserTurn(transcriptText) -> boolean   a user record that holds text after the first assistant record (spec C7)
 //   firstEditIndex(transcriptText) -> number | null   the first request that edits a file
-//   checkRun({ transcriptText, modLogText, mod, startEffort })
+//   checkRun({ transcriptText, modLogText, mod, startEffort, timedOut })
 //       -> { reasons, requests, shareXhigh, upSwitches, calls, callLog, secondTurn, broadAt, audit }
 //
 // Requests. Claude Code splits one API message over several assistant records that share a `message.id` (a thinking block in
@@ -30,9 +30,16 @@
 //                             differ in count from mainRequests, or a main step's `request` is not its position, or its `after` is
 //                             not a string equal to that request's transcript effort, or its `before` is neither a string nor null.
 //                             A non-string effort in the log or in the transcript is therefore a mismatch.
+//                             Ruling P27, `timedOut` true (the run was killed by the wall clock; optional, default false): exactly one
+//                             extra TRAILING main step is no mismatch. The mod writes its step line before the request is sent and the
+//                             transcript records the message when the response returns, so a kill mid-request leaves one line over.
+//                             The first N steps (N = main requests) are checked as for any run, the extra step must be request N with
+//                             a string `after` and a `before` that is a string or null; two or more extra steps, an extra step before
+//                             the last one, a torn line and every other disagreement stay a mismatch. Only `timedOut === true` counts.
 //   arm_mismatch              only when `mod` (the arm's registered mod: { mode, schedule? | random? }) is given and the log has a
 //                             `step` line for a main request: the first main step's `before` is not `startEffort` (the arm's CLI
-//                             effort), or a main step i's `after` is not the level the arm's mod must send (P20):
+//                             effort), or a main step i's `after` is not the level the arm's mod must send (P20), over ALL the log's
+//                             main steps, the P27 trailing step included (the mod's rule holds for the step it sent):
 //                               schedule  schedule[min(i, length - 1)]
 //                               placebo   `before` (the mod rewrites nothing), and `before` is `startEffort`
 //                               toggle    the level of the last `call` line with `request < i` (the call made in the response to
@@ -163,9 +170,21 @@ export function firstEditIndex(transcriptText) {
 // ---- checkRun -----------------------------------------------------------------------------------------------------------
 
 // Whether the log's main steps disagree with the transcript's main requests.
-function logMismatch(mainSteps, reqs, skippedLines) {
-  if (skippedLines > 0 || mainSteps.length !== reqs.length) return true;
-  return mainSteps.some((s, i) => s.request !== i || !isString(s.after) || s.after !== reqs[i].effort || !(isString(s.before) || s.before === null));
+// Whether the log's main steps disagree with the transcript's main requests. With `timedOut` (P27) the log may hold exactly ONE
+// main step more than the transcript has requests, as the LAST main step: the mod writes a step line before it sends the request, the
+// transcript records the message only when the response returns, so a wall-clock kill mid-request leaves that one line over. That
+// trailing step must be well formed (request number N, a string `after`, `before` a string or null); the first N steps are checked
+// exactly as for any run. Two or more extra steps, an extra step anywhere else and a torn line stay a mismatch.
+function logMismatch(mainSteps, reqs, skippedLines, timedOut) {
+  if (skippedLines > 0) return true;
+  let steps = mainSteps;
+  if (timedOut === true && mainSteps.length === reqs.length + 1) {
+    const last = mainSteps[reqs.length];
+    if (last.request !== reqs.length || !isString(last.after) || !(isString(last.before) || last.before === null)) return true;
+    steps = mainSteps.slice(0, reqs.length);
+  }
+  if (steps.length !== reqs.length) return true;
+  return steps.some((s, i) => s.request !== i || !isString(s.after) || s.after !== reqs[i].effort || !(isString(s.before) || s.before === null));
 }
 
 const isLevel = (v) => v === 'low' || v === 'xhigh';
@@ -204,7 +223,7 @@ function armMismatch(mod, startEffort, mainSteps, records) {
 }
 
 export function checkRun(args) {
-  const { transcriptText, modLogText, mod, startEffort } = isObject(args) ? args : {};
+  const { transcriptText, modLogText, mod, startEffort, timedOut } = isObject(args) ? args : {};
   const reqs = mainRequests(transcriptText);
   const reasons = [];
   let calls = 0;
@@ -220,7 +239,7 @@ export function checkRun(args) {
     callLog = callLines.map((e) => ({ request: e.request, level: e.level, reason: e.reason }));
     if (records.some((e) => e.type === 'error')) reasons.push('mod_error');
     const mainSteps = records.filter((e) => e.type === 'step' && e.request !== null);
-    if (logMismatch(mainSteps, reqs, skipped)) reasons.push('log_transcript_mismatch');
+    if (logMismatch(mainSteps, reqs, skipped, timedOut)) reasons.push('log_transcript_mismatch');
     if (mod !== undefined && mod !== null) armBad = armMismatch(mod, startEffort, mainSteps, records);
   }
   if (armBad) reasons.push('arm_mismatch');

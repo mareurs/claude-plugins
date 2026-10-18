@@ -39,11 +39,14 @@
 // Run = { runId, taskId, rep, arm, pass, costUsd, excludedFor, secondTurn, broadAt, requests, shareXhigh, upSwitches, calls, callLog }.
 // `arm` is the registered arm name (or the --label under `--mode none`); `calls` the number of valid set_effort calls in the mod log and
 // `callLog` them as { request, level, reason } (ruling P24). excludedFor is 'audit' when checkRun lists it (ruling P10), else the first
-// of checkRun's reasons, else null; a run without a readable transcript is excluded for readRunUsage's reason ('no_transcript',
+// of checkRun's reasons, else null (a timeout row passes `timedOut` to checkRun: ruling P27); a run without a readable transcript is excluded for readRunUsage's reason ('no_transcript',
 // 'ambiguous_transcript') or 'transcript_unreadable', before any other reason. Ruling P21, the final rows (S5 run.mjs: `final` is true
 // for infra null, which includes a timeout with grade null, and for an exhausted run, infra 'infra_exhausted'): a final row with infra null
 // and grade null is a TIMEOUT, a counted failure as in R1 (pass false); a final row with an infra reason is excluded for 'infra:<reason>',
-// ahead of every other reason. A row with final false (a retried attempt) is not read.
+// ahead of every other reason. A row with final false (a retried attempt) is not read. Ruling P27: a TIMEOUT row is checked with
+// `timedOut: true`, so one trailing main step in the mod log that the transcript lacks (the request in flight at the kill) is no
+// `log_transcript_mismatch`; every other reason still excludes it. The summary's `N timed out (counted as failures)` counts the timeouts that
+// are NOT excluded; an excluded timeout appears under its reason only.
 //
 // check-known prints one line per run: `<dir name> group=<xhigh|low> broad=<true|false> audit=<n> firstEditIndex=<n|none>`; `broad` is
 // "some broad check anywhere" (broadAt not empty), `audit` the number of tool calls checkRun's audit flags. Then exactly:
@@ -208,7 +211,8 @@ export function checkRuns({ workRoot, rows, arm, mod = null, startEffort = null 
     }
     // Mode `none` (ruling P16): a run without a mod; no log is expected and none is read, so only the audit can exclude it.
     const modLogText = runDir === null || none ? null : readIfExists(join(runDir, 'state', 'effort-toggle', 'log.jsonl'));
-    const c = checkRun({ transcriptText, modLogText, mod, startEffort });
+    // Ruling P27: a timeout row may hold one main step line the transcript lacks (the request that was in flight when the clock ran out).
+    const c = checkRun({ transcriptText, modLogText, mod, startEffort, timedOut: isTimeout(row) });
     const reason = c.reasons.includes('audit') ? 'audit' : (none ? null : (c.reasons[0] ?? null));
     // Ruling P21: a final row with an infra reason is excluded for it; a final row with neither infra nor grade timed out (R90): a failure.
     const infra = typeof row.infra === 'string' && row.infra !== '' ? row.infra : null;
@@ -264,7 +268,9 @@ async function cmdCheckRuns(argv, io) {
   const runs = checkRuns({ workRoot: f['work-root'], rows, ...spec });
   writeJson(f.out, runs);
   const excluded = runs.filter((r) => r.excludedFor !== null).length;
-  const timeouts = finalRows(rows).filter(isTimeout).length;
+  // Ruling P27: a timeout counts as a failure only when it was not excluded; an excluded timeout is listed under its reason alone.
+  const finals = finalRows(rows);
+  const timeouts = runs.filter((r, i) => isTimeout(finals[i]) && r.excludedFor === null).length;
   io.log(`wrote ${f.out}: ${runs.length} runs, ${excluded} excluded${excluded > 0 ? ` (${excludedSummary(runs)})` : ''}${timeouts > 0 ? `; ${timeouts} timed out (counted as failures)` : ''}`);
   return 0;
 }

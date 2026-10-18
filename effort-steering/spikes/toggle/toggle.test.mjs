@@ -419,6 +419,62 @@ await ta('check-runs --registration --arm over a fixture work root writes the ex
   assert.equal(io.logs[0], `wrote ${out}: 7 runs, 5 excluded (infra:infra_exhausted 2, audit 1, log_transcript_mismatch 1, no_mod_log 1); 1 timed out (counted as failures)`);
 });
 
+await ta('check-runs: a timeout that kills a run mid-request is a counted failure, not an exclusion; the summary lists no run twice (ruling P27)', async () => {
+  const work = join(ROOT, 'work-p27');
+  const runs = join(work, 'runs');
+  const slow = [{ effort: 'low', tools: [NARROW] }, { effort: 'low' }];
+  // The mod logs request 2 before it is sent; the kill came before the response, so the transcript holds requests 0 and 1 only.
+  const inFlight = (reqs) => `${toggleLog(reqs)}${JSON.stringify(stepLine(reqs.length, 'low', 'low'))}\n`;
+  const twoInFlight = `${inFlight(slow)}${JSON.stringify(stepLine(3, 'low', 'low'))}\n`;
+  makeRun(runs, 'cs-p20.C.0-a1', 'k-0', transcript(slow), inFlight(slow)); // timeout, one trailing step: counted
+  makeRun(runs, 'cs-p20.C.1-a1', 'k-1', transcript(slow), inFlight(slow)); // the same log, NOT a timeout: excluded
+  const peek = [{ effort: 'low', tools: [bash('cat /run/config/arm.json')] }, { effort: 'low' }];
+  makeRun(runs, 'cs-p01.C.0-a1', 'k-2', transcript(peek), inFlight(peek)); // timeout, trailing step and an audit hit: excluded for audit
+  makeRun(runs, 'cs-p01.C.1-a1', 'k-3', transcript(slow)); // timeout, no mod log: excluded for no_mod_log
+  makeRun(runs, 'cs-p05.C.0-a1', 'k-4', transcript(slow), toggleLog(slow)); // timeout, agreeing log: counted
+  makeRun(runs, 'cs-p05.C.1-a1', 'k-5', transcript(slow), twoInFlight); // timeout, two extra steps: excluded
+  makeRun(runs, 'cs-p05.C.2-a1', 'k-6', transcript(slow), toggleLog(slow)); // graded, agreeing log: counted, not a timeout
+  const row = (runId, taskId, rep, sessionId, grade) => ({ runId, taskId, rep, sessionId, infra: null, final: true, costUsd: 1, grade });
+  const all = [
+    row('cs-p20.C.0', 'cs-p20', 0, 'k-0', null),
+    row('cs-p20.C.1', 'cs-p20', 1, 'k-1', { infra: null, pass: true }),
+    row('cs-p01.C.0', 'cs-p01', 0, 'k-2', null),
+    row('cs-p01.C.1', 'cs-p01', 1, 'k-3', null),
+    row('cs-p05.C.0', 'cs-p05', 0, 'k-4', null),
+    row('cs-p05.C.1', 'cs-p05', 1, 'k-5', null),
+    row('cs-p05.C.2', 'cs-p05', 2, 'k-6', { infra: null, pass: false }),
+  ];
+  const go = async (name, rows) => {
+    const rowsFile = join(ROOT, `rows-${name}.jsonl`);
+    writeFileSync(rowsFile, jsonl(rows));
+    const out = outPath(`runs-${name}.json`);
+    const io = cliIo();
+    assert.equal(await main(['check-runs', '--work-root', work, '--rows', rowsFile, '--registration', CHECK_RUNS_REG, '--arm', 'T', '--out', out], io), 0, io.errs.join('\n'));
+    assert.equal(io.logs.length, 1);
+    return { got: JSON.parse(readFileSync(out, 'utf8')), line: io.logs[0], out };
+  };
+  const { got, line, out } = await go('p27', all);
+  const by = Object.fromEntries(got.map((r) => [r.runId, [r.pass, r.excludedFor]]));
+  assert.deepEqual(by, {
+    'cs-p20.C.0': [false, null],
+    'cs-p20.C.1': [true, 'log_transcript_mismatch'],
+    'cs-p01.C.0': [false, 'audit'],
+    'cs-p01.C.1': [false, 'no_mod_log'],
+    'cs-p05.C.0': [false, null],
+    'cs-p05.C.1': [false, 'log_transcript_mismatch'],
+    'cs-p05.C.2': [false, null],
+  });
+  assert.equal(got[0].requests, 2, 'the Run counts the transcript requests, not the log steps');
+  // No run is both excluded and counted: 4 excluded (two of them timeouts), 2 timeouts counted as failures (a graded failure is not one).
+  assert.equal(line, `wrote ${out}: 7 runs, 4 excluded (log_transcript_mismatch 2, audit 1, no_mod_log 1); 2 timed out (counted as failures)`);
+  // One counted timeout and one excluded timeout: the exact text.
+  const pair = await go('p27-pair', [all[0], all[3]]);
+  assert.equal(pair.line, `wrote ${pair.out}: 2 runs, 1 excluded (no_mod_log 1); 1 timed out (counted as failures)`);
+  // Only an excluded timeout: no "timed out" clause at all.
+  const lone = await go('p27-lone', [all[3]]);
+  assert.equal(lone.line, `wrote ${lone.out}: 1 runs, 1 excluded (no_mod_log 1)`);
+});
+
 await ta('check-runs ties the check to the arm: the same toggle run under a placebo or a different schedule arm is excluded for arm_mismatch (ruling P20)', async () => {
   const work = join(ROOT, 'work-arm');
   const runs = join(work, 'runs');

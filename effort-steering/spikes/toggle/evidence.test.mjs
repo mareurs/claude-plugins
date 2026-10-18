@@ -10,7 +10,7 @@
 import assert from 'node:assert/strict';
 import { t } from '../../core/testkit.mjs';
 import { checkRun, firstEditIndex, mainRequests, secondUserTurn } from './evidence.mjs';
-import { randomLevels } from './mod/hooks/register.ts';
+import { randomLevels, register } from './mod/hooks/register.ts';
 
 const jsonl = (records) => records.map((r) => JSON.stringify(r)).join('\n') + '\n';
 
@@ -587,4 +587,205 @@ t('checkRun arm check: never throws, whatever mod, startEffort and log hold', ()
       }
     }
   }
+});
+
+// ---- checkRun: a timeout that kills a run mid-request (ruling P27) --------------------------------------------------------
+//
+// The mod writes the `step` line of a request BEFORE the request is sent (register.ts turn.step); the transcript records the message
+// only when the response returns. A wall-clock kill during request N therefore leaves N + 1 main step lines against N transcript
+// requests. The logs below come from the REAL mod, register.ts driven by fakes the way mod.test.mjs drives it.
+
+const MOD_LOG_PATH = '/run/state/effort-toggle/log.jsonl';
+
+// Drives the real mod through `events` (one turn.step each, as the engine sends them); `callAfter` maps an event index to the level the
+// model asks for with set_effort in the response to that step. Returns the log text and the effort each step's request carried.
+async function driveRealMod(config, events, callAfter = {}) {
+  const hooks = { 'session.start': [], 'tool.call': [], 'turn.step': [] };
+  const on = (event, a, b) => hooks[event].push(b === undefined ? { matcher: undefined, hook: a } : { matcher: a, hook: b });
+  const files = new Map([['/opt/es/mod/config.json', JSON.stringify({ ...config, logPath: MOD_LOG_PATH })]]);
+  const $ = {
+    plugin: { name: 'effort-toggle', root: '/opt/es/mod' },
+    fs: {
+      read: async (p) => {
+        if (!files.has(p)) throw new Error(`ENOENT: ${p}`);
+        return files.get(p);
+      },
+      write: async (p, s) => {
+        files.set(p, s);
+      },
+    },
+    tool: { register: async (spec) => ({ tool: `mcp__effort-toggle__${spec.name}` }) },
+  };
+  register(on, {});
+  await hooks['session.start'][0].hook($, Object.freeze({ cwd: '/work' }), async (x) => ({ cwd: x.cwd }));
+  const sent = [];
+  for (const [i, ev] of events.entries()) {
+    const seen = [];
+    const next = async function* (x) {
+      seen.push(x);
+      return {};
+    };
+    const gen = hooks['turn.step'][0].hook($, Object.freeze({ model: 'claude-test', messageCount: 3, index: i, turnId: 't1', ...ev }), next);
+    while (!(await gen.next()).done);
+    sent.push(seen[0].effort);
+    if (callAfter[i] !== undefined) {
+      const e = Object.freeze({ tool: 'mcp__effort-toggle__set_effort', tool_use_id: `tu_${i}`, level: callAfter[i], reason: 'r' });
+      await hooks['tool.call'][0].hook($, e, async () => ({ result: 'passed on' }));
+    }
+  }
+  return { logText: files.get(MOD_LOG_PATH), sent };
+}
+
+// A run killed with `extra` requests sent and unanswered after `answered` answered ones: the transcript holds the answered requests
+// (each at the effort the mod sent), the log every step the mod saw.
+async function killedRun(mod, answered, extra, callAfter = {}) {
+  const events = Array.from({ length: answered + extra }, () => ({ effort: 'low' }));
+  const { logText, sent } = await driveRealMod(mod, events, callAfter);
+  const lines = logText.split('\n').filter(Boolean).map((l) => JSON.parse(l));
+  return { sent, logText, lines, transcriptText: simple(sent.slice(0, answered)) };
+}
+
+const P27_SCHEDULE = { mode: 'schedule', schedule: ['low', 'low', 'xhigh'] };
+const P27_TOGGLE = { mode: 'toggle' };
+const KS = await killedRun(P27_SCHEDULE, 4, 1); // 4 answered (low low xhigh xhigh), request 4 in flight (xhigh)
+const KS2 = await killedRun(P27_SCHEDULE, 4, 2);
+const KT = await killedRun(P27_TOGGLE, 3, 1, { 1: 'xhigh' }); // answered low low xhigh, set_effort xhigh answered at request 1, request 3 in flight
+const K0 = await killedRun(P27_SCHEDULE, 0, 1);
+const P27_RANDOM = { mode: 'random', random: { pUp: 0.5, pDown: 0.5, seed: 42 } };
+const KR = await killedRun(P27_RANDOM, 5, 1);
+// a subagent step (event 2) between main steps: 5 main steps, the 5th unanswered
+const KSUB = await driveRealMod(P27_SCHEDULE, [{ effort: 'low' }, { effort: 'low' }, { effort: 'low', agentId: 'a1' }, { effort: 'low' }, { effort: 'low' }, { effort: 'low' }]);
+const mainOf = (lines) => lines.filter((l) => l.type === 'step' && l.request !== null);
+assert.deepEqual(KS.sent, ['low', 'low', 'xhigh', 'xhigh', 'xhigh'], 'the real mod sent the schedule');
+assert.deepEqual(KT.sent, ['low', 'low', 'xhigh', 'xhigh'], 'the real mod applied the call from the next request');
+assert.equal(mainOf(KS.lines).length, 5);
+assert.equal(mainOf(KS2.lines).length, 6);
+assert.equal(mainOf(KT.lines).length, 4);
+assert.equal(mainOf(K0.lines).length, 1);
+
+const killedCheck = (K, mod, extra = {}) => checkRun({ transcriptText: K.transcriptText, modLogText: K.logText, mod, startEffort: 'low', ...extra });
+// A copy of the log's lines edited by `fn` and written the way the mod writes it.
+const edited = (K, fn) => logOf(fn(K.lines.map((l) => ({ ...l }))));
+const renumbered = (lines) => {
+  let n = 0;
+  return lines.map((l) => (l.type === 'step' && l.request !== null ? { ...l, request: n++ } : l));
+};
+
+t('P27: a timed-out run with one extra trailing main step in the real mod log has no reasons, in a schedule and in a toggle arm', () => {
+  const s = killedCheck(KS, P27_SCHEDULE, { timedOut: true });
+  assert.deepEqual(s.reasons, []);
+  assert.equal(s.requests, 4);
+  const tg = killedCheck(KT, P27_TOGGLE, { timedOut: true });
+  assert.deepEqual(tg.reasons, []);
+  assert.equal(tg.requests, 3);
+  assert.equal(tg.calls, 1);
+  // without an arm (a reused row) the same
+  assert.deepEqual(killedCheck(KS, undefined, { timedOut: true }).reasons, []);
+  assert.deepEqual(killedCheck(KS, null, { timedOut: true }).reasons, []);
+});
+
+t('P27: the same log without timedOut (false, absent, or not the boolean true) is still log_transcript_mismatch, and only that', () => {
+  assert.deepEqual(killedCheck(KS, P27_SCHEDULE).reasons, ['log_transcript_mismatch'], 'absent');
+  assert.deepEqual(killedCheck(KT, P27_TOGGLE).reasons, ['log_transcript_mismatch'], 'absent, toggle');
+  for (const timedOut of [false, undefined, null, 'true', 1, {}]) {
+    assert.deepEqual(killedCheck(KS, P27_SCHEDULE, { timedOut }).reasons, ['log_transcript_mismatch'], JSON.stringify(timedOut));
+  }
+  // and an agreeing log is no mismatch either way
+  const agree = { transcriptText: KS.transcriptText, modLogText: edited(KS, (ls) => ls.slice(0, 4)) };
+  for (const timedOut of [true, false]) assert.deepEqual(checkRun({ ...agree, mod: P27_SCHEDULE, startEffort: 'low', timedOut }).reasons, []);
+});
+
+t('P27: two or more extra main steps are a mismatch even for a timeout', () => {
+  assert.deepEqual(killedCheck(KS2, P27_SCHEDULE, { timedOut: true }).reasons, ['log_transcript_mismatch']);
+  assert.deepEqual(killedCheck(KS2, undefined, { timedOut: true }).reasons, ['log_transcript_mismatch']);
+});
+
+t('P27: N + 1 steps where the extra one is not the last is a mismatch (an inserted step, a skipped or repeated request number)', () => {
+  // an extra low step inserted before request 2, the numbers renumbered: the first 4 steps read low low low xhigh against low low xhigh xhigh
+  const inserted = edited(KS, (ls) => renumbered([ls[0], ls[1], { ...ls[1] }, ls[2], ls[3]]));
+  assert.deepEqual(checkRun({ transcriptText: KS.transcriptText, modLogText: inserted, timedOut: true }).reasons, ['log_transcript_mismatch']);
+  // a skipped request number among the first N
+  const skipped = edited(KS, (ls) => ls.map((l, i) => (i >= 3 ? { ...l, request: l.request + 1 } : l)));
+  assert.deepEqual(checkRun({ transcriptText: KS.transcriptText, modLogText: skipped, timedOut: true }).reasons, ['log_transcript_mismatch']);
+  // the trailing step is request N + 1, not N
+  const gap = edited(KS, (ls) => ls.map((l, i) => (i === 4 ? { ...l, request: 5 } : l)));
+  assert.deepEqual(checkRun({ transcriptText: KS.transcriptText, modLogText: gap, timedOut: true }).reasons, ['log_transcript_mismatch']);
+  // a repeated request number
+  const repeated = edited(KS, (ls) => ls.map((l, i) => (i === 4 ? { ...l, request: 3 } : l)));
+  assert.deepEqual(checkRun({ transcriptText: KS.transcriptText, modLogText: repeated, timedOut: true }).reasons, ['log_transcript_mismatch']);
+});
+
+t('P27: N + 1 steps with a differing `after` in the first N, or a transcript effort that differs from the log, is a mismatch', () => {
+  const wrongAfter = edited(KS, (ls) => ls.map((l, i) => (i === 1 ? { ...l, after: 'xhigh' } : l)));
+  assert.deepEqual(checkRun({ transcriptText: KS.transcriptText, modLogText: wrongAfter, timedOut: true }).reasons, ['log_transcript_mismatch']);
+  const wrongBefore = edited(KS, (ls) => ls.map((l, i) => (i === 1 ? { ...l, before: 7 } : l)));
+  assert.deepEqual(checkRun({ transcriptText: KS.transcriptText, modLogText: wrongBefore, timedOut: true }).reasons, ['log_transcript_mismatch']);
+  const otherTranscript = simple(['low', 'xhigh', 'xhigh', 'xhigh']);
+  assert.deepEqual(checkRun({ transcriptText: otherTranscript, modLogText: KS.logText, timedOut: true }).reasons, ['log_transcript_mismatch']);
+  // with the arm check on, the wrong `after` is also an arm violation: both reasons, in the documented order
+  const both = checkRun({ transcriptText: KS.transcriptText, modLogText: wrongAfter, mod: P27_SCHEDULE, startEffort: 'low', timedOut: true });
+  assert.deepEqual(both.reasons, ['log_transcript_mismatch', 'arm_mismatch']);
+});
+
+t('P27: a malformed trailing step (a request number that is not N, a non-string `after`, a `before` that is neither string nor null) is a mismatch', () => {
+  const last = (patch) => edited(KS, (ls) => ls.map((l, i) => (i === 4 ? { ...l, ...patch } : l)));
+  for (const patch of [{ request: '4' }, { request: 4.5 }, { after: null }, { after: 3 }, { before: 3 }, { before: undefined, after: undefined }]) {
+    assert.deepEqual(checkRun({ transcriptText: KS.transcriptText, modLogText: last(patch), timedOut: true }).reasons, ['log_transcript_mismatch'], JSON.stringify(patch));
+  }
+  // `before` null is fine (the step carried no effort)
+  assert.deepEqual(checkRun({ transcriptText: KS.transcriptText, modLogText: last({ before: null }), timedOut: true }).reasons, []);
+});
+
+t('P27: the arm check still runs over the trailing step: a trailing step that breaks the arm rule is arm_mismatch, not excused', () => {
+  // the schedule says xhigh for request 4; the log says the mod sent low
+  const bad = edited(KS, (ls) => ls.map((l, i) => (i === 4 ? { ...l, after: 'low' } : l)));
+  assert.deepEqual(checkRun({ transcriptText: KS.transcriptText, modLogText: bad, mod: P27_SCHEDULE, startEffort: 'low', timedOut: true }).reasons, ['arm_mismatch']);
+  // toggle: the last answered call asked xhigh, the trailing step went out low
+  const badToggle = edited(KT, (ls) => ls.map((l) => (l.type === 'step' && l.request === 3 ? { ...l, after: 'low' } : l)));
+  assert.deepEqual(checkRun({ transcriptText: KT.transcriptText, modLogText: badToggle, mod: P27_TOGGLE, startEffort: 'low', timedOut: true }).reasons, ['arm_mismatch']);
+  // placebo: a rewritten trailing step
+  const placebo = edited(KS, (ls) => ls.map((l, i) => (i === 4 ? { ...l, before: 'low', after: 'low' } : { ...l, after: l.before })));
+  const plTranscript = simple(['low', 'low', 'low', 'low']);
+  assert.deepEqual(checkRun({ transcriptText: plTranscript, modLogText: placebo, mod: { mode: 'placebo' }, startEffort: 'low', timedOut: true }).reasons, []);
+  const placeboBad = edited(KS, (ls) => ls.map((l, i) => (i === 4 ? { ...l, before: 'low', after: 'xhigh' } : { ...l, after: l.before })));
+  assert.deepEqual(checkRun({ transcriptText: plTranscript, modLogText: placeboBad, mod: { mode: 'placebo' }, startEffort: 'low', timedOut: true }).reasons, ['arm_mismatch']);
+  // random: the mod's own chain, and the trailing step flipped
+  assert.deepEqual(killedCheck(KR, P27_RANDOM, { timedOut: true }).reasons, []);
+  const flipped = edited(KR, (ls) => ls.map((l, i) => (i === 5 ? { ...l, after: l.after === 'low' ? 'xhigh' : 'low' } : l)));
+  assert.deepEqual(checkRun({ transcriptText: KR.transcriptText, modLogText: flipped, mod: P27_RANDOM, startEffort: 'low', timedOut: true }).reasons, ['arm_mismatch']);
+});
+
+t('P27: an audit hit, a mod_error line, a torn log line and a missing log still exclude a timeout row', () => {
+  // audit: request 1 read the config
+  const peek = jsonl(KS.sent.slice(0, 4).map((e, i) => rec(`msg_${i}`, e, [bashUse(i === 1 ? 'cat /run/config/arm.json' : 'ls')])));
+  assert.deepEqual(checkRun({ transcriptText: peek, modLogText: KS.logText, mod: P27_SCHEDULE, startEffort: 'low', timedOut: true }).reasons, ['audit']);
+  // mod_error
+  const withError = logOf([{ type: 'error', message: 'x' }]) + KS.logText;
+  assert.deepEqual(killedCheck({ ...KS, logText: withError }, P27_SCHEDULE, { timedOut: true }).reasons, ['mod_error']);
+  // a torn last line (the kill cut the in-flight step line itself) and a torn line in the middle
+  const tornLast = KS.logText.slice(0, -20);
+  assert.throws(() => JSON.parse(tornLast.split('\n').filter(Boolean).at(-1)), 'the fixture is torn');
+  assert.deepEqual(killedCheck({ ...KS, logText: tornLast }, P27_SCHEDULE, { timedOut: true }).reasons, ['log_transcript_mismatch']);
+  const lines = KS.logText.split('\n').filter(Boolean);
+  const tornMiddle = [...lines.slice(0, 2), lines[2].slice(0, 10), ...lines.slice(3)].join('\n') + '\n';
+  assert.deepEqual(killedCheck({ ...KS, logText: tornMiddle }, P27_SCHEDULE, { timedOut: true }).reasons, ['log_transcript_mismatch']);
+  // no log at all
+  for (const modLogText of [undefined, null, '', ' \n']) {
+    assert.deepEqual(checkRun({ transcriptText: KS.transcriptText, modLogText, mod: P27_SCHEDULE, startEffort: 'low', timedOut: true }).reasons, ['no_mod_log'], JSON.stringify(modLogText));
+  }
+});
+
+t('P27: N = 0 (no transcript request, one step in the log) follows the same rule; subagent steps never count as extra', () => {
+  assert.deepEqual(killedCheck(K0, P27_SCHEDULE, { timedOut: true }).reasons, []);
+  assert.equal(killedCheck(K0, P27_SCHEDULE, { timedOut: true }).requests, 0);
+  assert.deepEqual(killedCheck(K0, P27_SCHEDULE).reasons, ['log_transcript_mismatch']);
+  assert.deepEqual(checkRun({ transcriptText: '', modLogText: KS.logText, timedOut: true }).reasons, ['log_transcript_mismatch'], 'five steps against none');
+  // a subagent step between main steps is no main step: 4 answered + 1 in flight is still one extra
+  const { logText, sent } = KSUB;
+  assert.equal(mainOf(logText.split('\n').filter(Boolean).map((l) => JSON.parse(l))).length, 5);
+  const mainSent = sent.filter((_, i) => i !== 2);
+  const r = checkRun({ transcriptText: simple(mainSent.slice(0, 4)), modLogText: logText, mod: P27_SCHEDULE, startEffort: 'low', timedOut: true });
+  assert.deepEqual(r.reasons, []);
+  assert.equal(r.requests, 4);
+  assert.deepEqual(checkRun({ transcriptText: simple(mainSent.slice(0, 4)), modLogText: logText, mod: P27_SCHEDULE, startEffort: 'low' }).reasons, ['log_transcript_mismatch']);
 });
