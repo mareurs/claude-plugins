@@ -179,6 +179,19 @@ measured on both candidate load paths rather than argued: the record points at k
 two actually serves, they carry the same bytes — so the question CLAUDE.md flags as
 unsettled does not need settling for this release.
 ## History
+### 2026-10-19 — `~/.claude` record repointed again; branch merged with `main`; buddy 0.11.11 blocked by two failing suites on `main`
+
+**Deltas, all measured:**
+- `~/.claude` record: `buddy` `0.11.9→0.11.10` and `codescout-companion` `1.20.17→1.20.18`, `version` and `installPath` only, the two fields `release.sh` step 5 sets. Backup: `~/.claude/plugins/installed_plugins.json.bak-20261019-pre-repoint`. Both caches already existed in that profile.
+- Likely cause of the regression: the two `~/.claude` entries carried `gitCommitSha` `7de8d301`, a commit on `effort-routing-r1` (2026-10-14), and their versions equalled the checkout's `plugin.json` files. That fits Claude Code re-resolving from this checkout. The sha match and the version match are measured; the mechanism is not proven.
+- `effort-routing-r1` merged with `main` (`18c2640`), so the checkout's `plugin.json` files now read `buddy` 0.11.10 and `codescout-companion` 1.20.18. `check-profile-parity.sh` exits 0 from this checkout.
+- Sweep commit `7d75258` is docs-only and needs no release.
+
+**Not released — blocked:** `buddy` needs a patch release for `444e627` (statusline fix, on `main` after 0.11.10). `release.sh` runs `tests/run-all.sh` first, and two suites fail on a clean worktree of `main@dd8695c`, so it would abort:
+- `test-all-plugins-hooks-json-portable.sh`: `effort-steering/spikes/toggle/mod/hooks/hooks.json` is `{ "modules": [...] }`, a mod manifest with no `.hooks` key, and the test's `jq` fails on it.
+- `plan-limit.guard.test.mjs` (R-PL8): `spikes/toggle/commands.mjs` is flagged as a launcher with no plan-limit detector. The only `claude` text in that file is `/opt/claude` in a path list. Four more assertions fail because the expected set of 10 launchers is now 11. The guard's own comment says adding a launcher is a decision, not a fix, so it was not changed.
+
+**Still open:** the fix for those two suites (owner: the effort-toggle work), then `release.sh buddy patch` from a clean `main` worktree; the cold restart of all three Claude Code instances; and `main` is 53 commits ahead of `origin/main`.
 ### 2026-10-16 — codescout-companion 1.20.18 released and pushed; `~/.claude` buddy record repaired
 
 **Deltas, all measured:**
