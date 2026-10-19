@@ -30,7 +30,14 @@ trap 'rm -rf "$T"' EXIT
 # A real commit pair in this repo: one that touches a plugin.json and one that
 # does not. Discovered, never hardcoded — a pinned sha rots and the test would
 # then pass for the wrong reason.
-BUMP_SHA=$(git -C "$REPO_ROOT" log -1 --format=%H -- '*/.claude-plugin/plugin.json')
+#
+# `:(glob)` matters: in a plain git pathspec `*` also matches `/`, so
+# '*/.claude-plugin/plugin.json' matches a manifest at ANY depth, such as the
+# effort-toggle mod's effort-steering/spikes/toggle/mod/.claude-plugin/plugin.json.
+# BUMP_PLUGINS below keeps only `<plugin>/.claude-plugin/plugin.json` (one level),
+# so a nested manifest as the newest match left it empty and failed discovery
+# on 2026-10-19, though nothing about the guard had changed.
+BUMP_SHA=$(git -C "$REPO_ROOT" log -1 --format=%H -- ':(glob)*/.claude-plugin/plugin.json')
 BUMP_PARENT=$(git -C "$REPO_ROOT" rev-parse "${BUMP_SHA}^")
 # A range with no plugin.json in it: the bump commit to itself is empty.
 NOBUMP_SHA=$(git -C "$REPO_ROOT" log -1 --format=%H -- tests/)

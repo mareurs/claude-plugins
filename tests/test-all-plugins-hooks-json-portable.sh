@@ -18,6 +18,38 @@ echo "── all-plugins hooks.json portable command strings ──"
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
+# The hooks of one manifest that carry a separate args array, as a JSON array.
+# A jq failure leaves the output empty, which is never "[]", so a manifest the
+# predicate cannot read fails the sweep instead of passing it.
+args_hooks() {
+  jq -c '[(.hooks // {})[][]?.hooks[] | select(.type == "command" and .args != null)]' "$1"
+}
+
+echo "── args_hooks: the sweep's own predicate, on fixtures ──"
+FIX="$(mktemp -d)"
+printf '%s' '{ "modules": ["./register.ts"] }' > "$FIX/mod-manifest.json"
+printf '%s' '{"hooks":{"PreToolUse":[{"hooks":[{"type":"command","command":"node","args":["x.js"]}]}]}}' > "$FIX/with-args.json"
+printf '%s' '{"hooks":{"PreToolUse":[{"hooks":[{"type":"command","command":"node x.js"}]}]}}' > "$FIX/folded.json"
+printf '%s' '{"hooks":5}' > "$FIX/unreadable.json"
+
+# A mod manifest has no `hooks` key, so no hook of it can carry an args array. It is not a failure.
+[ "$(args_hooks "$FIX/mod-manifest.json" 2>/dev/null)" = "[]" ] \
+  && pass "a mod manifest with no hooks key has no args hook" \
+  || fail "a mod manifest with no hooks key has no args hook" "got: $(args_hooks "$FIX/mod-manifest.json" 2>&1)"
+# The check must still catch what it exists to catch.
+[ "$(args_hooks "$FIX/with-args.json" 2>/dev/null)" != "[]" ] \
+  && pass "a hook with a separate args array is reported" \
+  || fail "a hook with a separate args array is reported" "the predicate returned []"
+[ "$(args_hooks "$FIX/folded.json" 2>/dev/null)" = "[]" ] \
+  && pass "a hook with its args folded into the command string is clean" \
+  || fail "a hook with its args folded into the command string is clean" "got: $(args_hooks "$FIX/folded.json" 2>&1)"
+# A hooks key of the wrong shape is a defect in the manifest, not an absent key: it must not read as clean.
+[ "$(args_hooks "$FIX/unreadable.json" 2>/dev/null)" != "[]" ] \
+  && pass "a hooks key of the wrong shape does not read as clean" \
+  || fail "a hooks key of the wrong shape does not read as clean" "the predicate returned []"
+rm -rf "$FIX"
+
+echo "── every hooks.json in the repo ──"
 FOUND=0
 while IFS= read -r -d '' f; do
   FOUND=$((FOUND + 1))
@@ -29,7 +61,7 @@ while IFS= read -r -d '' f; do
   fi
   pass "$rel is valid JSON"
 
-  ARGS_HOOKS=$(jq -c '[.hooks[][]?.hooks[] | select(.type == "command" and .args != null)]' "$f")
+  ARGS_HOOKS=$(args_hooks "$f")
   if [ "$ARGS_HOOKS" = "[]" ]; then
     pass "$rel: no hook uses a separate args array"
   else
