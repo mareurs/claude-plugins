@@ -122,7 +122,9 @@ const stripComments = (source, kind) => {
 // package @anthropic-ai/claude-code) AND the print flag as a word of a string literal (`-p`, `--print`, or inside `${bin} -p`). Comments are dropped first; a
 // literal is read on one line. Evidence from the real tree: this alone flags exactly s4-run.mjs, s5/run.mjs and dose/run-calibration.py.
 const STRING_LITERAL = /(['"`])((?:\\.|(?!\1)[^\\\n])*)\1/g;
-const CLAUDE_LITERAL = /^(?:\S*\/)?claude$|^@anthropic-ai\/claude-code$|\/claude\/versions\/[\w.-]+$/;
+// `/opt/claude` alone is the container's install DIRECTORY: the binary is `/opt/claude/claude`, which s5/run.mjs launches. The exemption is that exact string, so
+// the same tail under another root (`/usr/opt/claude`) is still read as a possible binary.
+const CLAUDE_LITERAL = /^(?!\/opt\/claude$)(?:\S*\/)?claude$|^@anthropic-ai\/claude-code$|\/claude\/versions\/[\w.-]+$/;
 const PRINT_FLAG_LITERAL = /(?:^|\s)(?:-p|--print)(?:\s|$)/;
 const hasClaudeAndPrintFlagLiterals = (code) => {
   const values = [...code.matchAll(STRING_LITERAL)].map((match) => match[2]);
@@ -631,6 +633,17 @@ t('R-PL8 guard (M1): shell innocents stay innocent under the widened wrapper lis
     'until true; do :; done',
   ];
   for (const line of notLaunches) assert.deepEqual(launchKinds('x.sh', line), [], line);
+});
+
+t('R-PL8 guard: /opt/claude is the container install DIRECTORY, not the binary; /opt/claude/claude inside it is the binary', () => {
+  // spikes/toggle/commands.mjs lists /opt/claude as a harness directory of the blinding audit and `-p` as cargo's --package option: nothing there launches claude.
+  assert.deepEqual(launchKinds('x.mjs', "const dirs = ['/opt/claude']; const opts = new Set(['-p']);"), []);
+  assert.deepEqual(launchKinds('x.py', "d = '/opt/claude'\nf = '-p'"), []);
+  // the binary inside the directory is still a launch, and so is the bare name even with the directory beside it
+  assert.deepEqual(launchKinds('x.mjs', "const bin = '/opt/claude/claude'; const f = '-p';"), ['claude-literal-with-print-flag']);
+  assert.deepEqual(launchKinds('x.mjs', "const bin = 'claude'; const dir = '/opt/claude'; const f = '-p';"), ['claude-literal-with-print-flag']);
+  // the exemption is the exact container path: the same tail under another root is still read as a possible binary
+  assert.deepEqual(launchKinds('x.mjs', "const bin = '/usr/opt/claude'; const f = '-p';"), ['claude-literal-with-print-flag']);
 });
 
 t('R-PL8 guard: KNOWN false alarms, pinned (visible and cheap: an UNGUARDED entry or a rewording fixes each; a missed launcher is neither)', () => {
