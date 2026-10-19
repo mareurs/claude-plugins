@@ -116,7 +116,7 @@ const IMAGE_ID_OF_REF = { [IMAGE_FOR_REPO.codescout]: IMAGES.codescout, [IMAGE_F
 const CLI_HEX = 'c1'.repeat(32);
 const CLI_SHA = `sha256:${CLI_HEX}`;
 
-function makePrereg(world, { runs, limits = {}, stopAtCostUsd = 100, registered = true, images = IMAGES, cli = CLI_SHA, cliVersion = '2.1.292', orderSeed = 7 }) {
+function makePrereg(world, { runs, limits = {}, stopAtCostUsd = 100, registered = true, images = IMAGES, cli = CLI_SHA, cliVersion = '2.1.292', orderSeed = 7, mod }) {
   const object = {
     model: 'claude-sonnet-5-5',
     // R-PL7: `cliVersion` is the registered cli.version; NO_MARKER leaves the key out (a registration without one).
@@ -136,6 +136,8 @@ function makePrereg(world, { runs, limits = {}, stopAtCostUsd = 100, registered 
     images,
     proxyAllowlist: ['api.anthropic.com'],
     stopAtCostUsd,
+    // effort-toggle: the key is present only when a test gives a mod, as in a file that has none.
+    ...(mod === undefined ? {} : { mod }),
   };
   return deepFreeze(registered === NO_MARKER ? object : { ...object, registered });
 }
@@ -217,11 +219,11 @@ function fakeDocker(config = {}, lockFile = null) {
 function bench(o = {}) {
   const {
     specs = [{ id: 'ta' }], runs = { A: 1, B: 1, C: 1 }, limits, stopAtCostUsd, registered = true, mode = 'pilot', dockerConfig = {}, options = {}, ctx = {},
-    script, images = IMAGES, cli = CLI_SHA, cliVersion, orderSeed = 7, makeAttemptDir = true,
+    script, images = IMAGES, cli = CLI_SHA, cliVersion, orderSeed = 7, makeAttemptDir = true, mod,
   } = o;
   const dir = fresh('bench');
   const world = makeWorld(dir, specs);
-  const prereg = makePrereg(world, { runs, limits, stopAtCostUsd, registered, images, cli, cliVersion, orderSeed });
+  const prereg = makePrereg(world, { runs, limits, stopAtCostUsd, registered, images, cli, cliVersion, orderSeed, mod });
   const lockFile = path.join(world.workRoot, 'batch.lock');
   const docker = fakeDocker(dockerConfig, lockFile);
   const rowsFile = path.join(dir, 'rows.jsonl');
@@ -374,6 +376,31 @@ await ta('runOne is called with { ...ctx, prereg, workRoot, hookCopy, claudeBin,
   assert.equal(summary.rowsFile, rel.rowsFile);
   assert.equal(rel.calls[0].ctx.workRoot, rel.world.workRoot);
   assert.equal(rel.lines().length, 1);
+});
+
+await ta('a batch whose config names a mod writes hook/es/mod/config.json (the mod\'s settings and the log path outside /work) and hands runOne a hook copy that carries it; a batch without one writes no mod directory', async () => {
+  const mod = { mode: 'schedule', schedule: ['low', 'low', 'xhigh'] };
+  const b = bench({ runs: { A: 1, B: 0, C: 0 }, mod });
+  await b.run();
+  assert.equal(b.calls.length, 1);
+  const modDir = path.join(b.world.workRoot, 'hook', 'es', 'mod');
+  assert.deepEqual(JSON.parse(readFileSync(path.join(modDir, 'config.json'), 'utf8')), { ...mod, logPath: '/run/state/effort-toggle/log.jsonl' });
+  assert.ok(existsSync(path.join(modDir, 'hooks', 'register.ts')), 'the mod itself is beside its config');
+  const { hookCopy, prereg } = b.calls[0].ctx;
+  assert.equal(hookCopy.modDir, modDir);
+  assert.deepEqual(prereg.mod, mod, 'runOne sees the mod through the prereg it is given');
+  // Every run of the batch gets the same copy.
+  const two = bench({ runs: { A: 2, B: 0, C: 0 }, mod: { mode: 'toggle' } });
+  await two.run();
+  assert.equal(two.calls.length, 2);
+  assert.equal(two.calls[0].ctx.hookCopy.modDir, two.calls[1].ctx.hookCopy.modDir);
+  assert.deepEqual(JSON.parse(readFileSync(path.join(two.world.workRoot, 'hook', 'es', 'mod', 'config.json'), 'utf8')), { mode: 'toggle', logPath: '/run/state/effort-toggle/log.jsonl' });
+  // No mod key: the R1 V2 copy, exactly as before (no mod directory, modDir null).
+  const plain = bench({ runs: { A: 1, B: 0, C: 0 } });
+  await plain.run();
+  assert.ok(!existsSync(path.join(plain.world.workRoot, 'hook', 'es', 'mod')), 'no mod directory without a mod');
+  assert.equal(plain.calls[0].ctx.hookCopy.modDir, null);
+  assert.ok(!('mod' in plain.calls[0].ctx.prereg));
 });
 
 await ta('at most `concurrency` runs are in flight, never more and (with enough runs) exactly that many; the default is prereg.limits.concurrency and the option wins; starts keep the order of the plan', async () => {

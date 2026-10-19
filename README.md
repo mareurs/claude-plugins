@@ -18,9 +18,9 @@ These plugins reflect specific workflows and tool choices -- they may not suit e
 | Plugin | Version | Description |
 |--------|---------|-------------|
 | **[sdd](./sdd/)** | 2.4.2 | Specification-Driven Development: governance, workflow commands, and enforcement hooks |
-| **[codescout-companion](./codescout-companion/)** | 1.20.17 | Companion plugin for [codescout](https://github.com/mareurs/codescout) MCP server: injects tool guidance, redirects Read/Grep/Glob/Edit/Write to symbol-aware tools, auto-reindex + drift warnings, worktree shared-asset symlinking |
+| **[codescout-companion](./codescout-companion/)** | 1.20.18 | Companion plugin for [codescout](https://github.com/mareurs/codescout) MCP server: injects tool guidance, redirects Read/Grep/Glob/Edit/Write to symbol-aware tools, auto-reindex + drift warnings, worktree shared-asset symlinking |
 | **[claude-statusline](./claude-statusline/)** | 1.2.0 | Rich, color-coded terminal status line: model, context %, rate limits (incl. per-model weekly), git info, duration. Self-heals orphan `statusLine` settings when sibling plugins are uninstalled. |
-| **[buddy](./buddy/)** | 0.11.9 | Himalayan-aesthetic bodhisattva companion: 12 specialist masters on demand, AI judge, focus tracking, statusline integration |
+| **[buddy](./buddy/)** | 0.11.10 | Himalayan-aesthetic bodhisattva companion: 12 specialist masters on demand, AI judge, focus tracking, statusline integration |
 | **[Pi harness](./harnesses/pi/)** | 0.1.0 | Companion for [pi](https://github.com/earendil-works/pi-mono): Codescout routing, skill-load tracker, recon badge, MCP status widget, and local read-only session snapshots |
 | **[session-bridge](./session-bridge/)** | 0.1.0 | Cross-session MCP bridge: ask one Claude Code session a question from another, answered in its loaded context. Rust MCP server, bash SessionStart/Stop hooks. |
 | **[legible](./legible/)** | 0.2.0 | Output style `legible:Explanatory STE`: the Explanatory style (★ Insight blocks) plus about 80% of the ASD-STE100 writing rules, so prose is easier to read and check. |

@@ -16,7 +16,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { t } from '../../core/testkit.mjs';
-import { writeHookCopy } from './hook-copy.mjs';
+import { MOD_CONTAINER_DIR, MOD_LOG_PATH, writeHookCopy } from './hook-copy.mjs';
 
 const ES = fileURLToPath(new URL('../..', import.meta.url));
 const HOOK_INPUT = JSON.parse(readFileSync(path.join(ES, 'adapter', 'claude-code', 'fixtures', 'hook-input.json'), 'utf8'));
@@ -267,4 +267,157 @@ t("writeHookCopy: the copied hook steers at holdout rate '0' and logs a steered 
   assert.equal(held.log[0].arm, 'holdout');
   assert.equal(held.log[0].steered, false);
   assert.ok(held.log[0].reasons.includes('s5-all'));
+});
+
+// ---- the copy carries the effort-toggle mod when the config names one ----
+
+const MOD_LOG = '/run/state/effort-toggle/log.jsonl';
+const MOD_FILES = ['.claude-plugin/plugin.json', 'hooks/hooks.json', 'hooks/register.ts'];
+const SCHEDULE_MOD = { mode: 'schedule', schedule: ['low', 'xhigh'] };
+const RANDOM_MOD = { mode: 'random', random: { pUp: 0.25, pDown: 0.5, seed: 7 } };
+
+// A fixtureTree() that also holds spikes/toggle/mod/, with a test file the copy must leave out.
+function fixtureTreeWithMod() {
+  const es = fixtureTree();
+  const files = {
+    'spikes/toggle/mod/.claude-plugin/plugin.json': '{"name":"effort-toggle"}\n',
+    'spikes/toggle/mod/hooks/hooks.json': '{}\n',
+    'spikes/toggle/mod/hooks/register.ts': 'export const register = () => {}\n',
+    'spikes/toggle/mod/hooks/register.test.mjs': 'a test inside the mod',
+    'spikes/toggle/mod.test.mjs': 'outside mod/: never copied',
+  };
+  for (const [rel, content] of Object.entries(files)) {
+    const abs = path.join(es, rel);
+    mkdirSync(path.dirname(abs), { recursive: true });
+    writeFileSync(abs, content);
+  }
+  return es;
+}
+
+t('writeHookCopy: the container paths of the mod are /opt/es/mod and a log outside /work', () => {
+  assert.equal(MOD_CONTAINER_DIR, '/opt/es/mod');
+  assert.equal(MOD_LOG_PATH, MOD_LOG);
+});
+
+t("writeHookCopy: without a mod the copy's top level is unchanged and modDir is null, even when esRoot holds a mod", () => {
+  for (const es of [fixtureTree(), fixtureTreeWithMod(), ES]) {
+    for (const args of [[], [null]]) {
+      const result = writeHookCopy(fresh('root'), es, ...args);
+      assert.deepEqual(Object.keys(result).sort(), ['copyDir', 'modDir', 'settingsFile']);
+      assert.equal(result.modDir, null);
+      assert.deepEqual(readdirSync(result.copyDir).sort(), ['adapter', 'bin', 'core', 'settings.json']);
+    }
+  }
+});
+
+t("writeHookCopy: with a mod the top level adds mod/, mod/config.json is {...mod, logPath}, and the mod's files are copied without tests", () => {
+  const es = fixtureTreeWithMod();
+  const result = writeHookCopy(fresh('root'), es, SCHEDULE_MOD);
+  assert.equal(result.modDir, path.join(result.copyDir, 'mod'));
+  assert.deepEqual(readdirSync(result.copyDir).sort(), ['adapter', 'bin', 'core', 'mod', 'settings.json']);
+  assert.deepEqual(listFiles(result.modDir), [...MOD_FILES, 'config.json'].sort());
+  for (const f of MOD_FILES) {
+    assert.deepEqual(readFileSync(path.join(result.modDir, f)), readFileSync(path.join(es, 'spikes', 'toggle', 'mod', f)), `${f} byte for byte`);
+  }
+  assert.deepEqual(JSON.parse(readFileSync(path.join(result.modDir, 'config.json'), 'utf8')), { ...SCHEDULE_MOD, logPath: MOD_LOG });
+  assert.deepEqual(Object.keys(bytesOf(result.copyDir)).filter(isTestFile), [], 'no *.test.mjs anywhere in the copy');
+  // The rest of the copy is what it is without a mod.
+  const plain = writeHookCopy(fresh('root'), es);
+  const withMod = Object.fromEntries(Object.entries(bytesOf(result.copyDir)).filter(([f]) => !f.startsWith('mod/')));
+  assert.deepEqual(withMod, bytesOf(plain.copyDir));
+
+  // A random mod keeps its nested parameters, and the argument is not changed.
+  const random = writeHookCopy(fresh('root'), es, RANDOM_MOD);
+  assert.deepEqual(JSON.parse(readFileSync(path.join(random.modDir, 'config.json'), 'utf8')), { ...RANDOM_MOD, logPath: MOD_LOG });
+  assert.deepEqual(RANDOM_MOD, { mode: 'random', random: { pUp: 0.25, pDown: 0.5, seed: 7 } });
+});
+
+t('writeHookCopy (P25): opts.logPath replaces the container log path in config.json and nothing else; the default is unchanged', () => {
+  const es = fixtureTreeWithMod();
+  const host = '/tmp/g1a/log.jsonl';
+  const result = writeHookCopy(fresh('root'), es, SCHEDULE_MOD, { logPath: host });
+  assert.deepEqual(JSON.parse(readFileSync(path.join(result.modDir, 'config.json'), 'utf8')), { ...SCHEDULE_MOD, logPath: host });
+  const plain = writeHookCopy(fresh('root'), es, SCHEDULE_MOD);
+  const a = bytesOf(result.copyDir);
+  const b = bytesOf(plain.copyDir);
+  delete a['mod/config.json'];
+  delete b['mod/config.json'];
+  assert.deepEqual(a, b, 'every other byte of the copy is the same');
+  for (const opts of [undefined, {}, { logPath: undefined }]) {
+    const r = writeHookCopy(fresh('root'), es, RANDOM_MOD, ...(opts === undefined ? [] : [opts]));
+    assert.equal(JSON.parse(readFileSync(path.join(r.modDir, 'config.json'), 'utf8')).logPath, MOD_LOG);
+  }
+  // without a mod the option has nothing to write
+  assert.equal(writeHookCopy(fresh('root'), es, null, { logPath: host }).modDir, null);
+});
+
+t('writeHookCopy (P25): a log path that is not an absolute string, or opts that is not an object, is a TypeError before anything is written', () => {
+  const es = fixtureTreeWithMod();
+  for (const bad of [{ logPath: 'log.jsonl' }, { logPath: './x/log.jsonl' }, { logPath: '' }, { logPath: 7 }, { logPath: null }, null, 'x', []]) {
+    const root = fresh('root');
+    assert.throws(() => writeHookCopy(root, es, SCHEDULE_MOD, bad), (e) => e instanceof TypeError && /logPath|opts/.test(e.message), JSON.stringify(bad));
+    assert.deepEqual(readdirSync(root), [], `nothing was written for ${JSON.stringify(bad)}`);
+  }
+});
+
+t('writeHookCopy: the real mod is copied from this checkout, and every file of it is readable by the container user', () => {
+  const result = writeHookCopy(fresh('root'), ES, SCHEDULE_MOD);
+  for (const f of MOD_FILES) assert.ok(statSync(path.join(result.modDir, f)).isFile(), f);
+  assert.deepEqual(Object.keys(bytesOf(result.modDir)).filter(isTestFile), []);
+  const entries = [result.modDir, ...listFiles(result.modDir).map((f) => path.join(result.modDir, f))];
+  for (const p of entries) {
+    const st = statSync(p);
+    assert.ok((st.mode & 0o004) !== 0, `${p} is readable by others (mode ${(st.mode & 0o777).toString(8)})`);
+    if (st.isDirectory()) assert.ok((st.mode & 0o001) !== 0, `${p} is searchable by others`);
+  }
+  // The same bits as the rest of the copy, which the container already reads.
+  assert.equal(statSync(path.join(result.modDir, 'config.json')).mode & 0o777, statSync(result.settingsFile).mode & 0o777);
+});
+
+t('writeHookCopy: with a mod and no spikes/toggle/mod under esRoot it throws naming that path, before anything is removed', () => {
+  const es = fixtureTree();
+  const modPath = path.join(es, 'spikes', 'toggle', 'mod');
+  const root = fresh('root');
+  assert.throws(() => writeHookCopy(root, es, SCHEDULE_MOD), (e) => e instanceof Error && e.message.includes(modPath));
+  assert.deepEqual(readdirSync(root), [], 'nothing was written');
+
+  // A file where the directory should be is not a directory.
+  const filed = fixtureTree();
+  mkdirSync(path.join(filed, 'spikes', 'toggle'), { recursive: true });
+  writeFileSync(path.join(filed, 'spikes', 'toggle', 'mod'), 'a file');
+  assert.throws(() => writeHookCopy(fresh('root'), filed, SCHEDULE_MOD), (e) => e instanceof Error && e.message.includes(path.join(filed, 'spikes', 'toggle', 'mod')));
+
+  // An existing copy survives the refused call untouched.
+  const keptRoot = fresh('root');
+  const good = writeHookCopy(keptRoot, fixtureTreeWithMod(), SCHEDULE_MOD);
+  const kept = bytesOf(good.copyDir);
+  assert.throws(() => writeHookCopy(keptRoot, es, RANDOM_MOD), (e) => e instanceof Error && e.message.includes(modPath));
+  assert.deepEqual(bytesOf(good.copyDir), kept);
+  // Without a mod the missing directory does not matter.
+  assert.doesNotThrow(() => writeHookCopy(fresh('root'), es));
+});
+
+t('writeHookCopy: a mod that is not an object is a TypeError, before anything is removed', () => {
+  const es = fixtureTreeWithMod();
+  const root = fresh('root');
+  for (const bad of ['schedule', 7, true, [SCHEDULE_MOD]]) {
+    assert.throws(() => writeHookCopy(root, es, bad), (e) => e instanceof TypeError && e.message.includes('mod'), String(bad));
+  }
+  assert.deepEqual(readdirSync(root), []);
+});
+
+t('writeHookCopy: a second call without a mod leaves no mod/ behind, and a second call with a mod rebuilds it', () => {
+  const es = fixtureTreeWithMod();
+  const root = fresh('root');
+  const first = writeHookCopy(root, es, SCHEDULE_MOD);
+  assert.ok(existsSync(first.modDir));
+  writeFileSync(path.join(first.modDir, 'stale.txt'), 'left over');
+  const again = writeHookCopy(root, es, RANDOM_MOD);
+  assert.ok(!existsSync(path.join(again.modDir, 'stale.txt')));
+  assert.deepEqual(JSON.parse(readFileSync(path.join(again.modDir, 'config.json'), 'utf8')), { ...RANDOM_MOD, logPath: MOD_LOG });
+
+  const second = writeHookCopy(root, es);
+  assert.equal(second.modDir, null);
+  assert.ok(!existsSync(path.join(second.copyDir, 'mod')), 'mod/ is gone');
+  assert.deepEqual(readdirSync(second.copyDir).sort(), ['adapter', 'bin', 'core', 'settings.json']);
 });

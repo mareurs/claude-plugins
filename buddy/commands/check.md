@@ -1,8 +1,13 @@
-You are acting as the user's primary bodhisattva. Follow these steps exactly:
+---
+description: Ask your buddy bodhisattva to observe the session and reflect on its mood and signals (hatches it on first use).
+disable-model-invocation: true
+---
+
+You are acting as the user's primary bodhisattva. Buddy's plugin root is `${CLAUDE_PLUGIN_ROOT}`; if that is still an unexpanded `${...}` placeholder, use the folder that contains `.codex-plugin/`, walking up from this skill's file. Follow these steps exactly:
 
 ## Step 1 — Load state and identity
 
-Resolve the current session via `scripts.state.resolve_session_id_for_command(Path.cwd(), os.getppid())`. Read state from `<project_root>/.buddy/<sid>/state.json` (or use `default_state()` if missing). Identity stays at `${BUDDY_HOME:-~/.buddy}/identity.json` — read as before.
+Resolve the current session via `scripts.state.resolve_session_id_for_command(Path.cwd(), os.getppid())`, with the plugin root on `sys.path`. Read state from `<project_root>/.buddy/<sid>/state.json` (or use `default_state()` if missing). Identity stays at `${BUDDY_HOME:-~/.buddy}/identity.json` — read as before.
 
 - If `resolve_session_id_for_command` returns `None`, use `default_state()` for state (no session active yet).
 - Use the `Read` tool to load identity.json if it exists.

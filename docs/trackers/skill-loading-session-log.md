@@ -1,7 +1,7 @@
 ---
 kind: tracker
 status: active
-entry_high_water_F: 5
+entry_high_water_F: 7
 entry_prefix:
 - F
 - W
@@ -40,6 +40,8 @@ entry_prefix:
 | F-3 | 2026-06-14 | med | cc-hooks | fixed-verified | codescout-companion read-guard blocks reading back the persisted summon payload |
 | F-4 | 2026-06-14 | high | architectural | fixed-verified | Summon payload overflows the CC hook-output cap; the "fully-loaded" marker is false for all 14 personas |
 | F-5 | 2026-09-01 | high | doc-vs-reality | fixed-verified | CLAUDE.md says plugin edits are live from the working tree; skills load from `installPath`'s cache dir, so the split shipped to nobody |
+| F-6 | 2026-10-13 | med | doc-vs-reality | open | Skill tool reports the working tree as "Base directory" while `installPath` is the cache; served-byte source undetermined (cache == tree today) |
+| F-7 | 2026-10-13 | med | cc-hooks | open | PostToolUse now fires for Claude-initiated Skill calls (CC 2.1.296) — contradicts F-1 and `skill_ledger.py`'s "#43630: Skill fires no hooks" |
 
 ## Wins Index
 
@@ -301,6 +303,62 @@ Measured against CC 2.1.252 with `sdd-misc-plugins` registered as a `directory` 
 **Rests on:** three byte counts taken in the same minute (working tree 13,680, cache 1.19.11 44,673, injected body containing strings absent from the working tree) plus the install record's `installPath`. Not on inference about caching mechanics — the served bytes were matched to a file on disk.
 
 **Fix idea / Pointer:** `CLAUDE.md` § *This Machine — Linux workstation*, the paragraph beginning *"Our plugins load from the REPO WORKING TREE"*, and its restatement in § *Plugin Install Path (directory-source gotcha)* which carries the same over-generalised correction. Same class as `F-4` (this log) — a claim that is true of the channel someone measured and false of the channel that matters.
+
+## F-6 — Skill tool reports the working tree as base directory while installPath is the cache
+
+**Observed:** 2026-10-13, ~/.claude-sdd session 7d363749-…, while reviewing the portable-workflows design (portable-workflows-session-log).
+
+**When:** Invoking `buddy:architecture-snow-lion` and `codescout-companion:reconnaissance` through the Skill tool.
+
+**Expected:** F-5 and CLAUDE.md § Plugin Install Path: skills resolve through `installPath`, the versioned cache dir.
+
+**Got:** The Skill tool printed "Base directory for this skill:" as the WORKING TREE for both — `/home/marius/work/claude/claude-plugins/buddy/skills/architecture-snow-lion` and `/home/marius/work/claude/claude-plugins/codescout-companion/skills/reconnaissance`. The sdd profile's `installPath` values point at the cache (`…/cache/sdd-misc-plugins/buddy/0.11.9`, `…/codescout-companion/1.20.17`), and those cache dirs are real directories, not symlinks (`readlink -f` returns the path itself). `known_marketplaces.json` has `installLocation` = the repo and `autoUpdate: true`.
+
+Same session, command channel: `Skill("buddy:remember")` (a command file) expanded `${CLAUDE_PLUGIN_ROOT}` to `/home/marius/work/claude/claude-plugins/buddy` — also the working tree, not `installPath`. So for this directory-source marketplace, the host's path variables point at the working tree on both the skill and the command channel.
+
+**What this does NOT establish:** which bytes were served.
+
+Attempted discriminating probe, same session: after `buddy/commands/remember.md` line 6 changed from `$1` to `$ARGUMENTS` in the working tree (the cache copy still reads `$1`), a second `Skill("buddy:remember", args="alpha beta gamma")` returned only "Skill /buddy:remember is already loaded above; instructions unchanged. Arguments: alpha beta gamma" — no re-expansion. "Unchanged" despite a changed working-tree file fits cache or in-session serving but does not prove either. Re-run the probe in a FRESH session before any release. The cache and working-tree copies of both SKILL.md files are byte-identical today (`cmp`: 14036 B and 11139 B), so this observation cannot distinguish the two sources. F-5's measurement (text from the cache) is not contradicted.
+
+**Probable cause:** Unknown. Either the host now serves skills from the directory-source location, or it reports that location as the base directory while reading text from the cache.
+
+**Workaround:** None needed today.
+
+**Severity:** med
+
+**Status:** open
+
+**Valid:** dated 2026-10-13
+
+**Rests on:** A skill that resolves helper paths from its reported base directory can mix versions if the base directory and the text come from different trees.
+
+**Fix idea / Pointer:** Probe with a working-tree-only marker line in a SKILL.md (not yet released) and check whether the invoked text contains it. Relevant to design f8cfc0601374b062 § Workflow inventory ("Resolve packaged resource paths from the actual skill location supplied by discovery").
+
+## F-7 — PostToolUse now fires for Claude-initiated Skill calls on CC 2.1.296
+
+**Observed:** 2026-10-13, Claude Code 2.1.296, ~/.claude-sdd session 7d363749-….
+
+**When:** Checking whether any hook can supply authoritative session context when Claude itself invokes a skill (input to design f8cfc0601374b062, portable-workflows-session-log F-2).
+
+**Expected:** F-1 (2026-06-12, fixed-verified) and `buddy/scripts/skill_ledger.py` docstring: "Skill-tool loads (`Skill('plugin:skill')`) fire no hooks (anthropics/claude-code#43630)".
+
+**Got:** The first record in `.buddy/7d363749-4279-410a-ae66-5cfb39363059/narrative.jsonl` is `{"ts": 1791921561, "type": "action", "text": "Claude Skill"}` — the model-initiated `Skill("buddy:architecture-snow-lion")` call that opened the session. Only `run_post_tool_use` (`buddy/scripts/hook_entry.py:218`) calls `accumulate_narrative`, and it derives the directory from the hook event's `session_id`. So PostToolUse fired for a Claude-initiated Skill call and carried the correct native session id. Docs (code.claude.com/docs/en/hooks § UserPromptExpansion): "a `PreToolUse` hook matching the `Skill` tool fires only when Claude calls the tool, but typing `/skillname` directly bypasses `PreToolUse`. `UserPromptExpansion` fires on that direct path." PreToolUse:Skill itself was not observed at runtime here — Buddy's pre-tool-use writes no log.
+
+A first grep for `"Skill"` (with quotes) returned 0 against this file. That zero could not express the event, because the tool name sits inside the `text` string.
+
+**Probable cause:** Host behavior changed after 2026-06-12 (or #43630 was fixed); the docstring and F-1 were not re-measured.
+
+**Workaround:** None needed.
+
+**Severity:** med
+
+**Status:** open
+
+**Valid:** dated 2026-10-13
+
+**Rests on:** A "this channel fires nothing" claim must be re-measured per host version before a design relies on its absence.
+
+**Fix idea / Pointer:** Re-measure PreToolUse:Skill `tool_input` shape (skill name + args) with a capture hook; then correct `skill_ledger.py`'s docstring and F-1's status. This opens a documented Claude Code context source for the skill route: PreToolUse on `Skill` (model-invoked) plus `UserPromptExpansion` (typed `/plugin:skill`), both with native `session_id`.
 
 ## Template for new entries
 

@@ -1,14 +1,19 @@
+---
+description: Print the buddy reference card - active specialists, the builtin specialists and how to summon them, and the moods.
+disable-model-invocation: true
+---
+
 You are printing the buddy plugin reference card.
 
 ## Step 1 — Resolve currently active specialists
 
-Use the `Bash` tool to gather the active list and resolve plain labels:
+Use the `Bash` tool to gather the active list and resolve plain labels. `BUDDY_ROOT` is buddy's plugin root, `${CLAUDE_PLUGIN_ROOT}`; if that is still an unexpanded `${...}` placeholder, set it to the folder that contains `.codex-plugin/`, walking up from this skill's file:
 
 ```bash
-python3 - <<'PY'
+BUDDY_ROOT="${CLAUDE_PLUGIN_ROOT}" python3 - <<'PY'
 import json, os, sys
 from pathlib import Path
-sys.path.insert(0, os.environ.get("CLAUDE_PLUGIN_ROOT", ""))
+sys.path.insert(0, os.environ["BUDDY_ROOT"])
 from scripts.specialist_labels import resolve_labels
 
 project = Path(os.environ.get("CLAUDE_PROJECT_DIR") or os.getcwd())
@@ -26,9 +31,8 @@ active = state.get("active_specialists", []) or []
 if not active:
     print("(none)")
     sys.exit(0)
-plugin_root = Path(os.environ["CLAUDE_PLUGIN_ROOT"])
-pairs = resolve_labels(active, plugin_root=plugin_root,
-                       project_root=project, home=Path.home())
+plugin_root = Path(os.environ["BUDDY_ROOT"])
+pairs = resolve_labels(active, plugin_root=plugin_root, project_root=project)
 for slug, label in pairs:
     print(f"- **{label}** (`{slug}`)")
 PY

@@ -1,4 +1,4 @@
-You are handling a /buddy:focus request. The argument is `$1`.
+You are handling a /buddy:focus request. The argument is `$ARGUMENTS`.
 
 ## Step 1 — Resolve the session
 
@@ -42,10 +42,12 @@ Print: `Active plan cleared. Judge now narrative-only.`
 **Setup.** Before the sub-steps, export the inputs as env vars so all
 Python one-liners can read them via `os.environ` — this eliminates shell
 quoting/injection bugs from paths that may contain single quotes, spaces,
-or `$`:
+or `$`. Replace `<PATH>` with the argument inside single quotes, writing
+each single quote in it as `'\''`. Do not use double quotes: the shell
+expands `$` and backticks inside them.
 
 ```bash
-export BUDDY_FOCUS_RAW="$1"
+export BUDDY_FOCUS_RAW='<PATH>'
 export BUDDY_FOCUS_PROJECT_DIR="$PROJECT_DIR"
 export BUDDY_FOCUS_SESSION_DIR="$SESSION_DIR"
 ```
@@ -94,7 +96,7 @@ Four sub-steps:
    ```bash
    python3 -c '
    import os, sys, time
-   sys.path.insert(0, os.environ["CLAUDE_PLUGIN_ROOT"])
+   sys.path.insert(0, '${CLAUDE_PLUGIN_ROOT}')
    from pathlib import Path
    from scripts.state import save_active_plan
    save_active_plan(

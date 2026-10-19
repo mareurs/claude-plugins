@@ -34,7 +34,7 @@ import { RUN_ID_RE } from './grade.mjs';
 import { writeHookCopy } from './hook-copy.mjs';
 import { loadS5Config } from './prereg.mjs';
 import { NETWORK, PROXY_URL } from './proxy.mjs';
-import { evidenceInfra, planRunsS5, runOne, scrubRunDirs } from './run.mjs';
+import { allowedEfforts, evidenceInfra, planRunsS5, runOne, scrubRunDirs } from './run.mjs';
 import { IMAGE_FOR_REPO, TASK_ID_RE } from './task-def.mjs';
 import { readRunUsage } from './usage.mjs';
 
@@ -734,6 +734,18 @@ const ROW_KEYS = [
 const SHALLOW = JSON.parse(readFileSync(path.join(ES_ROOT, 'core', 'steer.table.json'), 'utf8')).phrases.shallow;
 const DEEP = JSON.parse(readFileSync(path.join(ES_ROOT, 'core', 'steer.table.json'), 'utf8')).phrases.deep;
 
+// ---- the effort-toggle mod: a prereg that names one, and the hook copy that carries it (Task 4) ----
+
+const MODS = {
+  toggle: { mode: 'toggle' },
+  placebo: { mode: 'placebo' },
+  random: { mode: 'random', random: { pUp: 0.3, pDown: 0.3, seed: 5 } },
+  schedule: { mode: 'schedule', schedule: ['low', 'low', 'xhigh'] },
+};
+// A run's prereg with `mod`, and a hook copy made WITH that mod (writeHookCopy puts it at <copyDir>/mod, which the container sees at /opt/es/mod).
+const withMod = (mod) => deepFreeze({ ...PREREG, mod });
+const hookWithMod = (mod) => writeHookCopy(mkdtempSync(path.join(ROOT, 'hook-mod-')), ES_ROOT, mod);
+
 // ---- refusals: before anything is made ----
 
 await taIf('runOne refuses before anything is made: no token, a prompt.txt that is not the manifest\'s (R99), an existing run directory, inputs it cannot use', NO_REFLINK_HERE, async () => {
@@ -937,6 +949,30 @@ await taIf('runOne asks docker for exactly this container: name, labels, limits,
   ]);
   assert.equal(call.stdinKind, 'null', 'stdin is /dev/null');
   assert.equal(cargo.image, 's5/codescout', 'the codescout task runs in the codescout image');
+});
+
+await taIf('with a mod the command holds \'--plugin-dir\', \'/opt/es/mod\' right after \'--settings\', \'/opt/es/settings.json\', and nothing else of the invocation changes', NO_REFLINK_HERE, async () => {
+  for (const [label, mod] of Object.entries(MODS)) {
+    const run = mkRun(cargo, 'B');
+    const { f, row } = await go(cargo, run, { prereg: withMod(mod), ctx: { hookCopy: hookWithMod(mod) } });
+    assert.equal(row.infra, null, label);
+    assert.deepEqual(commandOf(agentCall(f), cargo), [
+      '/opt/claude/claude', '-p', '--model', 'test-model-x1', '--effort', 'xhigh', '--session-id', row.sessionId, '--setting-sources', 'local', '--settings', '/opt/es/settings.json',
+      '--plugin-dir', '/opt/es/mod',
+      '--strict-mcp-config', '--thinking-display', 'summarized', '--dangerously-skip-permissions', '--disallowedTools', 'WebFetch', 'WebSearch', '--output-format', 'json', '--', PROMPT,
+    ], `${label}: the pinned command plus the two arguments`);
+    // The mod is under the hook copy, which is already mounted read-only at /opt/es: the mounts do not change.
+    assert.deepEqual(mountsOf(agentCall(f).argv).map((m) => m.target), ['/work', '/target', '/cargo', '/run/config', '/run/state', '/opt/es', '/opt/claude/claude'], `${label}: the same 7 mounts`);
+  }
+});
+
+await taIf('a prereg that names a mod needs a hook copy that carries it: runOne refuses before anything is made, by name', NO_REFLINK_HERE, async () => {
+  // The scene's own hook copy was made without a mod (modDir null): the container would be told to load /opt/es/mod, which is not there.
+  await refused(node, mkRun(node), { prereg: withMod(MODS.toggle) }, /hookCopy\.modDir|modDir/, 'a mod in the prereg, none in the hook copy');
+  await refused(node, mkRun(node), { prereg: withMod(MODS.toggle), ctx: { hookCopy: { ...node.hook, modDir: path.join(node.workRoot, 'no-such-mod') } } }, /modDir/, 'a modDir that is not a directory');
+  // A mod the runner does not know is refused the same way, not run.
+  await refused(node, mkRun(node), { prereg: withMod({ mode: 'bogus' }), ctx: { hookCopy: hookWithMod(MODS.toggle) } }, /mod\.mode|mode/, 'an unknown mode');
+  await refused(node, mkRun(node), { prereg: withMod({ mode: 'schedule' }), ctx: { hookCopy: hookWithMod(MODS.toggle) } }, /schedule/, 'mode schedule without a schedule');
 });
 
 await taIf('runOne\'s mounts: the copies of the tree and the warm target read-write, the cargo home, the hook copy and the Claude binary read-only, the two state directories read-write; a task with no warm target or no cargo home gets neither mount; nothing is mounted from under tasks/<id>/', NO_REFLINK_HERE, async () => {
@@ -2117,4 +2153,104 @@ t('R-ST1 (6b): evidenceInfra, B needs at least one context, every one the senten
   assert.equal(verdict('C'), null);
   assert.equal(verdict('A', { contexts: [SHALLOW, SHALLOW] }), 'steer_mismatch');
   assert.equal(verdict('C', { contexts: [SHALLOW] }), 'steer_mismatch');
+});
+
+// ---- Task 4: the effort guard (6) per mode of the effort-toggle mod ----
+
+t('allowedEfforts(mod, runEffort): no mod and placebo give the run\'s own effort; toggle and random both levels; schedule its distinct levels in order of first appearance', () => {
+  const table = [
+    ['no mod (null), arm at xhigh', null, 'xhigh', ['xhigh']],
+    ['no mod (undefined), arm at low', undefined, 'low', ['low']],
+    ['placebo, arm at xhigh', MODS.placebo, 'xhigh', ['xhigh']],
+    ['placebo, arm at low', MODS.placebo, 'low', ['low']],
+    ['toggle', MODS.toggle, 'xhigh', ['low', 'xhigh']],
+    ['toggle, the run effort does not matter', MODS.toggle, 'low', ['low', 'xhigh']],
+    ['random', MODS.random, 'xhigh', ['low', 'xhigh']],
+    ['schedule [low, low, xhigh]: distinct, first appearance', MODS.schedule, 'xhigh', ['low', 'xhigh']],
+    ['schedule [xhigh, low, xhigh, low]: first appearance, not sorted', { mode: 'schedule', schedule: ['xhigh', 'low', 'xhigh', 'low'] }, 'low', ['xhigh', 'low']],
+    ['schedule [low]: one level', { mode: 'schedule', schedule: ['low'] }, 'xhigh', ['low']],
+    ['schedule [xhigh, xhigh]: one level', { mode: 'schedule', schedule: ['xhigh', 'xhigh'] }, 'low', ['xhigh']],
+  ];
+  for (const [label, mod, runEffort, want] of table) assert.deepEqual(allowedEfforts(mod, runEffort), want, label);
+  assert.throws(() => allowedEfforts({ mode: 'bogus' }, 'xhigh'), /mode/, 'a mode it does not know is not guessed at');
+  assert.throws(() => allowedEfforts({ mode: 'schedule' }, 'xhigh'), /schedule/, 'a schedule mod without a schedule is not guessed at');
+  const mod = { mode: 'schedule', schedule: ['low', 'xhigh'] };
+  allowedEfforts(mod, 'low');
+  assert.deepEqual(mod, { mode: 'schedule', schedule: ['low', 'xhigh'] }, 'the mod is read, never changed');
+});
+
+t('evidenceInfra (6) with a mod: toggle and random accept any non-empty subset of {low, xhigh}; placebo and no mod keep the old exact check; an empty efforts fails in every mode', () => {
+  const verdict = (mod, efforts, runEffort = 'xhigh') => evidenceInfra(
+    { arm: 'A', effort: runEffort },
+    { usage: { reason: null, apiError: false, efforts }, decision: { arm: 'holdout', steered: false }, contexts: [], steerFirst: false, steerPhrase: SHALLOW, ...(mod === undefined ? {} : { mod }) },
+  );
+  const MISMATCH = 'effort_mismatch';
+  // No mod: key absent, null, and (as the earlier suites call it) never present: the exact old check.
+  for (const mod of [undefined, null]) {
+    assert.equal(verdict(mod, ['xhigh']), null, `mod ${mod}: exactly [run.effort]`);
+    assert.equal(verdict(mod, ['low', 'xhigh']), MISMATCH, `mod ${mod}: two levels`);
+    assert.equal(verdict(mod, ['low']), MISMATCH, `mod ${mod}: another single level`);
+    assert.equal(verdict(mod, []), MISMATCH, `mod ${mod}: none`);
+    assert.equal(verdict(mod, ['low'], 'low'), null, `mod ${mod}: arm C at low`);
+  }
+  // placebo: the same exact check (the mod does nothing to the effort, so the transcript holds the arm's one effort).
+  assert.equal(verdict(MODS.placebo, ['xhigh']), null);
+  assert.equal(verdict(MODS.placebo, ['low', 'xhigh']), MISMATCH, 'placebo: [low, xhigh] is a mismatch');
+  assert.equal(verdict(MODS.placebo, ['low']), MISMATCH, 'placebo: another single level');
+  assert.equal(verdict(MODS.placebo, [], 'low'), MISMATCH);
+  assert.equal(verdict(MODS.placebo, ['low'], 'low'), null);
+  // toggle and random: non-empty, every entry in {low, xhigh}.
+  for (const mod of [MODS.toggle, MODS.random]) {
+    const m = mod.mode;
+    for (const efforts of [['low'], ['xhigh'], ['low', 'xhigh'], ['xhigh', 'low']]) assert.equal(verdict(mod, efforts), null, `${m}: ${JSON.stringify(efforts)}`);
+    assert.equal(verdict(mod, ['low'], 'low'), null, `${m}: the run's own effort is not what is compared`);
+    for (const efforts of [['low', 'high'], ['high'], ['medium'], ['xhigh', null], [null], ['low', 'xhigh', 'max'], ['XHIGH']]) assert.equal(verdict(mod, efforts), MISMATCH, `${m}: ${JSON.stringify(efforts)}`);
+    assert.equal(verdict(mod, []), MISMATCH, `${m}: no counted record is no evidence`);
+  }
+  // schedule: the schedule's distinct levels.
+  assert.equal(verdict(MODS.schedule, ['low']), null, 'schedule [low, low, xhigh]: only low was ever used, a subset');
+  assert.equal(verdict(MODS.schedule, ['low', 'xhigh']), null);
+  assert.equal(verdict(MODS.schedule, ['xhigh']), null);
+  assert.equal(verdict(MODS.schedule, ['low', 'high']), MISMATCH);
+  assert.equal(verdict(MODS.schedule, []), MISMATCH);
+  const lowOnly = { mode: 'schedule', schedule: ['low', 'low'] };
+  assert.equal(verdict(lowOnly, ['low']), null, 'a one-level schedule');
+  assert.equal(verdict(lowOnly, ['low', 'xhigh']), MISMATCH, 'a level the schedule never names');
+  assert.equal(verdict(lowOnly, ['xhigh']), MISMATCH);
+  // The guard does not outrank the steps before it.
+  assert.equal(evidenceInfra({ arm: 'A', effort: 'xhigh' }, { usage: { reason: null, apiError: false, efforts: ['high'] }, decision: null, contexts: [], steerFirst: false, steerPhrase: SHALLOW, mod: MODS.toggle }), 'no_log');
+});
+
+await taIf('runOne with a mod, through the whole classification: toggle accepts [low, xhigh] and refuses [low, high]; placebo refuses [low, xhigh]; a schedule [low, low, xhigh] accepts [low]; a run without a mod is unchanged', NO_REFLINK_HERE, async () => {
+  const cases = [
+    ['toggle: [xhigh, low] passes', 'toggle', { bash: ['ls'], efforts: ['xhigh', 'low'] }, null],
+    ['toggle: [low, xhigh] passes', 'toggle', { bash: ['ls'], efforts: ['low', 'xhigh'] }, null],
+    ['toggle: [low] alone passes', 'toggle', { effort: 'low' }, null],
+    ['toggle: [low, high] is effort_mismatch', 'toggle', { bash: ['ls'], efforts: ['low', 'high'] }, 'effort_mismatch'],
+    ['toggle: [xhigh, null] (a record with no effort) is effort_mismatch', 'toggle', { bash: ['ls'], efforts: ['xhigh', null] }, 'effort_mismatch'],
+    ['random: [low, xhigh] passes', 'random', { bash: ['ls'], efforts: ['low', 'xhigh'] }, null],
+    ['random: [medium] is effort_mismatch', 'random', { effort: 'medium' }, 'effort_mismatch'],
+    ['placebo: [xhigh] passes', 'placebo', {}, null],
+    ['placebo: [low, xhigh] is effort_mismatch', 'placebo', { bash: ['ls'], efforts: ['low', 'xhigh'] }, 'effort_mismatch'],
+    ['placebo: [low] on an xhigh arm is effort_mismatch', 'placebo', { effort: 'low' }, 'effort_mismatch'],
+    ['schedule [low, low, xhigh]: [low] passes', 'schedule', { effort: 'low' }, null],
+    ['schedule [low, low, xhigh]: [low, xhigh] passes', 'schedule', { bash: ['ls'], efforts: ['low', 'xhigh'] }, null],
+    ['schedule [low, low, xhigh]: [low, high] is effort_mismatch', 'schedule', { bash: ['ls'], efforts: ['low', 'high'] }, 'effort_mismatch'],
+  ];
+  await inChunks(cases, 6, async ([label, modName, scenario, infra]) => {
+    const mod = MODS[modName];
+    const r = await go(node, mkRun(node, 'B'), { prereg: withMod(mod), ctx: { hookCopy: hookWithMod(mod) }, scenario });
+    if (infra === null) {
+      assert.equal(r.row.infra, null, label);
+      assert.equal(r.row.final, true, label);
+      assert.equal(r.seam.calls.length, 1, `${label}: graded`);
+    } else {
+      assertInfra(r, infra, label);
+    }
+    assertCleaned(r, label);
+  });
+  // The same transcript without a mod: [low, xhigh] is a mismatch (the old guard), so it is the mod that widens the guard.
+  const plain = await go(node, mkRun(node, 'B'), { scenario: { bash: ['ls'], efforts: ['low', 'xhigh'] } });
+  assertInfra(plain, 'effort_mismatch', 'no mod: [low, xhigh]');
+  assert.deepEqual(plain.row.efforts, ['low', 'xhigh'], 'the Row records what the transcript held');
 });

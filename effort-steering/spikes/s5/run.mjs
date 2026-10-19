@@ -57,8 +57,8 @@ import { DOCKER_PASSTHROUGH, dockerRun, removeLabeled } from './docker.mjs';
 import {
   gradeTree, infraOf, readResultFile, removeGradeDir, RUN_ID_RE,
 } from './grade.mjs';
-import { writeHookCopy } from './hook-copy.mjs';
-import { checkTasksMatch } from './prereg.mjs';
+import { MOD_CONTAINER_DIR, writeHookCopy } from './hook-copy.mjs';
+import { MOD_MODES, checkTasksMatch } from './prereg.mjs';
 import {
   NETWORK, PROXY_IMAGE, PROXY_NAME, PROXY_URL,
 } from './proxy.mjs';
@@ -145,7 +145,8 @@ export function planRunsS5(prereg, options) {
 //   ctx   { prereg, workRoot, hookCopy, claudeBin, attempt, dockerBin, grade, network, proxyUrl, images, tokenEnv, keepRunDirs }
 //     prereg       the frozen object a loader returned: read, never mutated. The model, and limits.{timeoutMinutes, cpus, memoryGb}.
 //     workRoot     <workRoot>/tasks/<id>/{tree,hidden,manifest.json,prompt.txt[,target]}, <workRoot>/cargo-home, <workRoot>/runs.
-//     hookCopy     { copyDir, settingsFile } from writeHookCopy; copyDir is mounted read-only at /opt/es (R93).
+//     hookCopy     { copyDir, settingsFile, modDir } from writeHookCopy; copyDir is mounted read-only at /opt/es (R93). modDir is the mod directory inside the
+//                  copy (so /opt/es/mod in the container) when the prereg names a mod, else null; a prereg with a mod and a hookCopy without one is refused.
 //     claudeBin    host path of the Claude Code binary, mounted read-only at /opt/claude/claude. Default (R75):
 //                  <HOME>/.local/share/claude/versions/<prereg.cli.version>.
 //     attempt      1-based. The container is `s5-<runId>-a<attempt>` and the run directory `<workRoot>/runs/<runId>-a<attempt>`.
@@ -169,7 +170,8 @@ export function planRunsS5(prereg, options) {
 //   2. The container, via dockerRun, with the grader's own paths (R74): /work, /target (CARGO_TARGET_DIR), /cargo read-only, user
 //      agent. The Claude binary, the hook copy and the cargo home are read-only; config and state are /run/config and /run/state. Every
 //      environment variable goes by NAME (the value lives only in the docker process's environment, never in argv).
-//   3. The invocation (R93, R75), with the prompt as ONE argv element after `--`, the exact text of prompt.txt (R99).
+//   3. The invocation (R93, R75), with the prompt as ONE argv element after `--`, the exact text of prompt.txt (R99). When prereg.mod is set (effort-toggle) the
+//      two arguments `--plugin-dir /opt/es/mod` follow `--settings /opt/es/settings.json`; without a mod the command is exactly the R1 V2 one.
 //   4. The classification, FIRST MATCH WINS; every infrastructure value gives a non-final row without a grade:
 //        (1) (2) the container, by grade.mjs's infraOf on the dockerRun result with timedOut forced false (R105, which revises R87's
 //            order): create_failed, then oom (OOMKilled, whatever the exit status), then inspect_failed, then rm_failed, so a failed
@@ -190,7 +192,9 @@ export function planRunsS5(prereg, options) {
 //        (3) transcript_unreadable (readRunUsage threw) | no_transcript | ambiguous_transcript
 //        (4) api_error                                      an API-error record in the MAIN transcript (a subagent's is recorded only)
 //        (5) no_log | arm_mismatch                          the decision log (R89): B must be treated and steered, A and C held out
-//        (6) effort_mismatch                                the transcript's efforts are not exactly [run.effort]
+//        (6) effort_mismatch                                the transcript's efforts are not exactly [run.effort]; with a prereg.mod other than `placebo` (effort-toggle) they
+//                                                           are instead empty, or not all in allowedEfforts(mod, run.effort) (toggle, random: low or xhigh; schedule: the
+//                                                           schedule's levels). Membership only: whether each request carried the level the mod's log says is checkRun's
 //        (6b) steer_mismatch                                (R147, relaxed by R-ST1) the steer did not reach the model as the arm says: the UserPromptSubmit hook contexts of the main
 //                                                           transcript (hookContexts) are, for B, none, or not ALL the shallow sentence, or the first of them does not come before
 //                                                           the first assistant record (steerReachedFirstTurn); for A and C, not none. B accepts a repeat: the shipped hook fires
@@ -331,6 +335,15 @@ function resolveInputs(run, ctx) {
     throw refuse(`ctx.hookCopy.copyDir must be the directory writeHookCopy made, got ${show(hookCopy?.copyDir)}`);
   }
   const steerPhrase = steerPhraseOf(hookCopy.copyDir);
+  // The effort-toggle mod (optional, validated by the loader): the container is told to load it from the hook copy, so the copy must carry it.
+  const mod = prereg.mod ?? null;
+  if (mod !== null) {
+    if (!isObject(mod) || !MOD_MODES.includes(mod.mode)) throw refuse(`ctx.prereg.mod.mode must be one of ${MOD_MODES.join(', ')}, got ${show(mod?.mode)}`);
+    if (mod.mode === 'schedule' && (!Array.isArray(mod.schedule) || mod.schedule.length === 0)) throw refuse(`ctx.prereg.mod.schedule must be a non-empty array in mode schedule, got ${show(mod.schedule)}`);
+    if (typeof hookCopy.modDir !== 'string' || statOrNull(hookCopy.modDir)?.isDirectory() !== true) {
+      throw refuse(`ctx.prereg names a mod, so ctx.hookCopy.modDir must be the mod directory writeHookCopy made (writeHookCopy(root, esRoot, mod)), got ${show(hookCopy.modDir)}`);
+    }
+  }
   const claudeBin = ctx.claudeBin ?? path.join(os.homedir(), '.local', 'share', 'claude', 'versions', String(prereg.cli?.version));
   if (typeof claudeBin !== 'string' || statOrNull(claudeBin)?.isFile() !== true) {
     throw refuse(`the Claude binary ${show(claudeBin)} is not a file (ctx.claudeBin, or <HOME>/.local/share/claude/versions/<prereg.cli.version>)`);
@@ -426,9 +439,24 @@ function resultOf(stdout) {
 // from a grader that finished.
 const isGrade = (g) => isObject(g) && (g.infra === null || (typeof g.infra === 'string' && g.infra !== '')) && typeof g.pass === 'boolean';
 
+// The efforts a transcript may hold under the effort-toggle mod (guard (6)). Without a mod, and in `placebo` (the mod logs and never
+// changes the effort), only the run's own effort. `toggle` and `random` can set either level the mod knows. `schedule` can set the
+// levels its schedule names: the DISTINCT ones, in order of first appearance (a run may use only some of them, so the guard asks for
+// membership, not for all of them). A mod this function does not know is refused, not guessed at: the guard must never widen by accident.
+export function allowedEfforts(mod, runEffort) {
+  if (mod === null || mod === undefined || mod.mode === 'placebo') return [runEffort];
+  if (mod.mode === 'toggle' || mod.mode === 'random') return ['low', 'xhigh'];
+  if (mod.mode === 'schedule') {
+    if (!Array.isArray(mod.schedule) || mod.schedule.length === 0) throw new TypeError(`allowedEfforts: a schedule mod needs a non-empty schedule, got ${show(mod.schedule)}`);
+    return [...new Set(mod.schedule)];
+  }
+  throw new TypeError(`allowedEfforts: mod.mode must be one of ${MOD_MODES.join(', ')}, got ${show(mod.mode)}`);
+}
+
 // R87 steps (3) to (6b), what the run left behind: the infrastructure value, or null. First match wins. (The container's own state, steps
 // (1) and (2), is grade.mjs's infraOf, called on the dockerRun result: R105.) Exported for run.test.mjs: runOne computes `contexts` and `steerFirst` from
 // one transcript, so it cannot give the clause "at least one context" an evidence that only it would refuse; a test calls this one directly.
+// `evidence.mod` (optional; the effort-toggle mod of the run's prereg, null or absent without one) selects guard (6), see below.
 export function evidenceInfra(run, evidence) {
   if (evidence.usage === null) return 'transcript_unreadable';
   if (evidence.usage.reason !== null) return evidence.usage.reason;
@@ -437,7 +465,16 @@ export function evidenceInfra(run, evidence) {
   const want = EXPECTED_DECISION[run.arm];
   if (evidence.decision.arm !== want.arm || evidence.decision.steered !== want.steered) return 'arm_mismatch';
   const { efforts } = evidence.usage;
-  if (efforts.length !== 1 || efforts[0] !== run.effort) return 'effort_mismatch';
+  // (6) The efforts of the main transcript. Without a mod, and under a `placebo` mod (it never changes the effort), the run's one effort and nothing else: the
+  // R1 V2 check, byte for byte. Under any other mod the effort can legitimately change inside the run, so the transcript must hold at least one effort and
+  // every one must be a level the mode can set (allowedEfforts: a membership test; whether each request carried the level the mod's log says is checkRun's).
+  const mod = evidence.mod ?? null;
+  if (mod === null || mod.mode === 'placebo') {
+    if (efforts.length !== 1 || efforts[0] !== run.effort) return 'effort_mismatch';
+  } else {
+    const allowed = allowedEfforts(mod, run.effort);
+    if (efforts.length === 0 || !efforts.every((effort) => allowed.includes(effort))) return 'effort_mismatch';
+  }
   // (6b) R147, relaxed by R-ST1: the steer must have REACHED the model. The decision log is written before the policy CLI prints its result, and the hook kills
   // the CLI after 500 ms and then fails open with no steer, so a log that says steered proves nothing about the transcript. B: one or more UserPromptSubmit
   // hook contexts, EVERY one equal to the shallow sentence (a repeat is the shipped hook firing again, on a queued task-notification: cs-p07.B.0, 2026-10-12),
@@ -657,7 +694,7 @@ export async function runOne(run, ctx) {
     };
     const cmd = [
       '/opt/claude/claude', '-p', '--model', model, '--effort', run.effort, '--session-id', sessionId, '--setting-sources', 'local',
-      '--settings', '/opt/es/settings.json', '--strict-mcp-config', '--thinking-display', 'summarized', '--dangerously-skip-permissions',
+      '--settings', '/opt/es/settings.json', ...(o.prereg.mod ? ['--plugin-dir', MOD_CONTAINER_DIR] : []), '--strict-mcp-config', '--thinking-display', 'summarized', '--dangerously-skip-permissions',
       '--disallowedTools', 'WebFetch', 'WebSearch', '--output-format', 'json', '--', prompt,
     ];
     const startedAt = new Date().toISOString();
@@ -721,7 +758,7 @@ export async function runOne(run, ctx) {
       });
       if (planLimit !== null) infra = 'plan_limit';
     }
-    infra ??= evidenceInfra(run, { usage, decision, contexts, steerFirst, steerPhrase: o.steerPhrase });
+    infra ??= evidenceInfra(run, { usage, decision, contexts, steerFirst, steerPhrase: o.steerPhrase, mod: o.prereg.mod ?? null });
     let detail = infra === 'transcript_unreadable' ? detailOf(usageError, o.token) : null;
     let grade = null;
     // R90: a timed-out run is the model's failure and is not graded. R87 puts every infrastructure step before this one.
@@ -838,7 +875,7 @@ export async function runOne(run, ctx) {
 //   s5=1 and s5.run=s5-proxy, and sweeping s5=1 would remove the proxy the preflight just found running; NOT s5.task alone: the runner removes
 //   only s5=1 containers. Every container runOne, gradeTree and warmTask start carries both;
 //   scrubRunDirs(<workRoot>/runs, token): the token an interrupted attempt left in config/ or state/ (R117); a path it cannot clean refuses the
-//   batch, naming the count and the first path with the token redacted; writeHookCopy(<workRoot>/hook, esRoot): once, for every run; then,
+//   batch, naming the count and the first path with the token redacted; writeHookCopy(<workRoot>/hook, esRoot, prereg.mod ?? null): once, for every run (a prereg that names a mod gets the mod copied to hook/es/mod with its config.json, effort-toggle); then,
 //   when the real runOne is used, runOne's own checks of its ctx on the first run (an unusable ctx is refused once, instead of making every
 //   runOne throw: each throw is an attempt, and the whole plan would end as final infra_exhausted lines).
 //   Before the workers start the batch yields TWICE (setImmediate, R136): the start-up above is synchronous, so a signal that arrived during it is
@@ -1404,7 +1441,7 @@ export async function runBatch(prereg, options) {
       const said = `the start-of-batch scrub could not clean ${scrubbed.failed.length} path(s) under ${runsDir} (the first: ${scrubbed.failed[0]}); the token could stay on disk there, so the batch does not start (R117)`;
       throw new Error(`runBatch: ${said}`.split(checked.token).join(REDACTED));
     }
-    const hookCopy = writeHookCopy(path.join(o.workRoot, 'hook'), o.esRoot);
+    const hookCopy = writeHookCopy(path.join(o.workRoot, 'hook'), o.esRoot, prereg.mod ?? null);
 
     // ---- the runs ----
     const appendLine = rowsAppender(o.rowsFile, file);

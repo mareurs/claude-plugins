@@ -987,3 +987,98 @@ t('checkTasksMatch never builds a path from an id outside the id rule: the id is
   assert.deepEqual(checkTasksMatch({ tasks: [{ ...outside, id: 5 }] }, root), [5]);
   assert.deepEqual(checkTasksMatch({ tasks: [{ ...outside, id: 'Task-1' }, { ...outside, id: '' }, { ...outside, id: 5 }] }, root), ['Task-1', '', 5]);
 });
+
+// =====================================================================================================
+// the optional `mod` key (effort-toggle plan, Task 2; ruling P8: a random seed is an integer in [0, 2^32 - 1])
+// =====================================================================================================
+
+const withMod = (mod) => [['mod', mod]];
+const RANDOM = { pUp: 0.2, pDown: 0.5, seed: 7 };
+
+t('a config with mod {mode: "toggle"} loads in both loaders and keeps mod', () => {
+  const f = committed({ ...VALID, mod: { mode: 'toggle' } });
+  assert.deepEqual(loadS5Prereg(f), { ...VALID, mod: { mode: 'toggle' }, registered: true });
+  assert.deepEqual(loadS5Config(f, { mode: 'pilot' }), { ...VALID, mod: { mode: 'toggle' }, registered: false });
+});
+
+t('mod modes placebo, schedule ["low","low","xhigh"] and random {pUp: 0.2, pDown: 0.5, seed: 7} load and are kept', () => {
+  for (const mod of [{ mode: 'placebo' }, { mode: 'schedule', schedule: ['low', 'low', 'xhigh'] }, { mode: 'random', random: RANDOM }]) {
+    const f = committed({ ...VALID, mod });
+    for (const load of Object.values(LOADERS)) assert.deepEqual(load(f).mod, mod, `mode ${mod.mode}`);
+  }
+});
+
+t('mod boundaries load: a one-entry schedule, pUp and pDown at 0 and at 1, seed 0 and 4294967295', () => {
+  acceptCases([
+    withMod({ mode: 'schedule', schedule: ['xhigh'] }),
+    withMod({ mode: 'random', random: { pUp: 0, pDown: 1, seed: 0 } }),
+    withMod({ mode: 'random', random: { pUp: 1, pDown: 0, seed: 4294967295 } }),
+  ]);
+});
+
+t('the loaded mod is frozen at every depth, schedule and random included', () => {
+  for (const mod of [{ mode: 'schedule', schedule: ['low', 'xhigh'] }, { mode: 'random', random: RANDOM }]) {
+    const loaded = loadS5Prereg(committed({ ...VALID, mod }));
+    assert.ok(deepFrozen(loaded.mod));
+    assert.ok(Object.isFrozen(loaded.mod.schedule ?? loaded.mod.random));
+  }
+});
+
+t('a config without mod loads exactly as before: no mod key on the result', () => {
+  const f = committed(VALID);
+  assert.equal(Object.hasOwn(loadS5Prereg(f), 'mod'), false);
+  assert.equal(Object.hasOwn(loadS5Config(f, { mode: 'pilot' }), 'mod'), false);
+});
+
+t('mod is refused by path: unknown mode, null, a non-object, a missing mode', () => {
+  refuseCases([withMod({ mode: 'steer' }), withMod({ mode: 'Toggle' }), withMod({ mode: 5 }), withMod({})], 'mod.mode');
+  refuseCases([withMod(null), withMod('toggle'), withMod([]), withMod(5)], 'mod');
+});
+
+t('mod.schedule is refused in a mode that does not take it, and required in the mode that does', () => {
+  refuseCases([withMod({ mode: 'toggle', schedule: ['low'] }), withMod({ mode: 'placebo', schedule: ['low'] }), withMod({ mode: 'random', random: RANDOM, schedule: ['low'] })], 'mod.schedule');
+  refuseCases([withMod({ mode: 'schedule' }), withMod({ mode: 'schedule', schedule: null })], 'mod.schedule');
+  refuseCases([withMod({ mode: 'schedule', schedule: [] }), withMod({ mode: 'schedule', schedule: 'low' }), withMod({ mode: 'schedule', schedule: { 0: 'low' } })], 'mod.schedule');
+});
+
+t('mod.schedule holds only "low" and "xhigh", each entry named by index', () => {
+  refuseCases([withMod({ mode: 'schedule', schedule: ['low', 'high'] })], 'mod.schedule[1]');
+  refuseCases([withMod({ mode: 'schedule', schedule: ['low', 'xhigh', 'LOW'] }), withMod({ mode: 'schedule', schedule: ['low', 'xhigh', 3] })], 'mod.schedule[2]');
+  refuseCases([withMod({ mode: 'schedule', schedule: ['medium'] }), withMod({ mode: 'schedule', schedule: [null] })], 'mod.schedule[0]');
+});
+
+t('mod.random is required in mode random and refused in any other', () => {
+  refuseCases([withMod({ mode: 'random' }), withMod({ mode: 'random', random: null })], 'mod.random');
+  refuseCases([withMod({ mode: 'toggle', random: RANDOM }), withMod({ mode: 'placebo', random: RANDOM }), withMod({ mode: 'schedule', schedule: ['low'], random: RANDOM })], 'mod.random');
+  refuseCases([withMod({ mode: 'random', random: 5 }), withMod({ mode: 'random', random: [] })], 'mod.random');
+});
+
+t('mod.random.pUp and pDown are finite numbers in [0, 1]', () => {
+  for (const key of ['pUp', 'pDown']) {
+    const field = `mod.random.${key}`;
+    refuseCases([1.5, -0.1, 2, Infinity, NaN, '0.5', null, true].map((v) => withMod({ mode: 'random', random: { ...RANDOM, [key]: v } })), field);
+  }
+});
+
+t('mod.random.seed is an integer in [0, 4294967295]: -1, 4294967296, a fraction, 2^53 and a string are refused', () => {
+  refuseCases([-1, 4294967296, 0.5, 9007199254740992, 1e300, '7', null, NaN].map((v) => withMod({ mode: 'random', random: { ...RANDOM, seed: v } })), 'mod.random.seed');
+});
+
+t('mod.random holds exactly pUp, pDown and seed: a missing or extra key is refused by path', () => {
+  for (const key of ['pUp', 'pDown', 'seed']) {
+    const { [key]: _gone, ...rest } = RANDOM;
+    refuseCases([withMod({ mode: 'random', random: rest })], `mod.random.${key}`);
+  }
+  refuseCases([withMod({ mode: 'random', random: { ...RANDOM, extra: 1 } })], 'mod.random.extra');
+});
+
+t('any other mod key is refused by path: mod.foo, in every mode', () => {
+  refuseCases(
+    [{ mode: 'toggle' }, { mode: 'placebo' }, { mode: 'schedule', schedule: ['low'] }, { mode: 'random', random: RANDOM }].map((mod) => withMod({ ...mod, foo: 1 })),
+    'mod.foo',
+  );
+});
+
+t('a mod refusal is a refusal of the config, not a pass: the unmodded fields are still checked', () => {
+  refuseCases([[['mod', { mode: 'toggle' }], ['margin', 2]]], 'margin');
+});
