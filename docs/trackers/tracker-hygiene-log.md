@@ -6,10 +6,10 @@ tags:
 - hygiene
 - skill-meta
 - lifecycle
+entry_high_water_HY: 3
 entry_prefix: HY
-next-sweep-due: 2026-10-05
+next-sweep-due: 2026-11-18
 sweep-interval-days: 30
-entry_high_water_HY: 1
 ---
 
 # Tracker hygiene log
@@ -38,8 +38,8 @@ neutral (streak unchanged).
 
 | Detector | Mode | Consecutive zero-reject sweeps | Last reject (sweep, reason) |
 |----------|------|-------------------------------|------------------------------|
-| D1 index-drift | individual | 1 | — |
-| D2 terminal-not-archived | individual | 0 | — |
+| D1 index-drift | batch | 2 | — |
+| D2 terminal-not-archived | individual | 1 | — |
 | D3 stale-active | individual | 0 | 2026-09-05, both rejected (confirmed still-live, not stale) |
 | D4 frontmatter-catalog-mismatch | individual | 1 | — |
 | D5 canonical-conflict | individual | 0 | — |
@@ -164,6 +164,51 @@ All 4 archives: `doc(update, patch={status:"archived"})` then `doc(move, new_rel
 **HY-1 filed:** this skill's Phase 1 instructs looking for `docs/trackers/README.md`; this project's index is `docs/trackers/INDEX.md`. The first pass missed it entirely and nearly ran a thin sweep on a project that has a rich, real index. Proposal: Phase 1 should say "a file named `README.md`, `INDEX.md`, or similar" rather than one exact filename.
 
 **Next sweep due:** 2026-10-05 (frontmatter updated in this edit)
+## Sweep 2026-10-19
+
+**Scope:** docs/trackers/ | **Files inventoried:** 28 (including INDEX.md) | **Convention sources:** `docs/trackers/INDEX.md` + `get_guide("tracker-conventions")`
+
+**Precondition (passed, no repair needed):** `augmentation_declared_but_absent` 0, `memories.missing_count` 0, `link_scan` `edges_missing` 35. `index(verify)` reported `stale`: 91 files unindexed, which the 3-commit gap to HEAD explains (`7de8d301` against `b3a25808`). The index was not rebuilt. `doctor` reported 46 violations. The 11 `row_behind_file` hits are `buddy/commands/*.md` and `harnesses/pi/README.md`, working-tree edits the catalog had not read; they are not tracker drift.
+
+| Detector | Findings | Approved | Rejected | Deferred |
+|----------|----------|----------|----------|----------|
+| D1 index-drift | 13 | 13 | 0 | 0 |
+| D2 terminal-not-archived | 1 | 1 | 0 | 0 |
+| D3 stale-active | 1 | 1 | 0 | 0 |
+| D4 frontmatter-catalog-mismatch | 0 | 0 | 0 | 0 |
+| D5 canonical-conflict | 0 | 0 | 0 | 0 |
+| D9 augmentation-stale | 1 | 0 | 0 | 1 |
+| D10 session-log-decay | 5 | 2 | 0 | 3 |
+| D11 promotion-pointer drift | 0 | 0 | 0 | 0 |
+
+**D1 (13, approved):** 13 files had no mention in `INDEX.md`. The operator approved all 13. Twelve rows were added to the Active trackers table. The 13th, `subagent-bootstrap-session-log`, went in as an archived row after its D10 archive. Five of the 13 were also missing at the 2026-09-05 sweep.
+
+**D2 (1, approved):** `passover-effort-steering-second-phase-2026-10-05.md` had `status: superseded` and sat in the live directory. No other file cited its path. Moved to `docs/trackers/archive/` with the same name. Its id changed to `5e62ea41ac312c1f`.
+
+**D3 (1, approved through D10):** `subagent-bootstrap-session-log.md`, 47 days idle, `active`. It was resolved by its D10 archive. `passover-roster-audit-release-integrity-2026-08-26.md` was exactly 45 days idle and was not raised. Caveat on the clock: the 2026-09-05 migration commit reset the git date of `eval-bringup.md` and `fixture-expansion.md`, so their idle age reads 44 days and understates the real gap.
+
+**D5 (0):** not examined in depth. Absence of a finding is not evidence here.
+
+**D9 (1, deferred):** `prompt-hamsa-audit-log.md`, `age_hours: null`, `refresh_count: 0`. A null age means never refreshed here, and the ledger is a domain-expert audit log, so the skill says defer. Same finding and same verdict as 2026-09-05.
+
+**D10 (5, 2 approved / 3 deferred):**
+- `subagent-bootstrap-session-log`: **archived** under its stable name, with `archived_on: 2026-10-19`. It has 0 open frictions, and `W-1` is validated but its 2-datapoint promotion criterion is unmet. Code and a skill cite `subagent-bootstrap-session-log:F-6` and `:F-8`, so the name was kept, and the entries were kept verbatim (no compaction). The malformed `F-8` `**Valid:**` line was repaired first (`HY-3`).
+- `session-passover-impl-session-log`: **archived** under its stable name, with `archived_on: 2026-10-19`. It has 0 open frictions; `F-2` is mitigated, and `W-1` is a single datapoint. An archived passover cites `session-passover-impl-session-log:F-3` by stem. The INDEX row was repointed to `archive/`.
+- `repo-hygiene-session-log`: **deferred.** `F-2` is open and concerns codescout's session-log template, in another repo. The operator selected this log for triage, but gave no verdict on the defer proposal.
+- `roster-audit-session-log`: **deferred.** `W-4` and `W-5` are `candidate`, the `W-4` addendum is open, and `F-14` is `fixed-at-source pending`. Same: selected for triage, no verdict on the defer proposal.
+- `codescout-usage-audit-session-log`: **deferred.** Not presented this sweep. The 2026-09-05 deferral stands.
+
+**D11 (0):** every `promoted-to-permanent-docs` hit in the live trackers is a template or vocabulary line. None is a promotion claim.
+
+**Outside the detectors:** `docs/issues/2026-08-05-test-run-all-pre-existing-failures-under-fresh-wsl.md` had a stale top banner ("kept `zombie`"). Its status `investigating` is correct, because the bug was re-opened 2026-09-10. A supersession banner was added and the status was left alone. An earlier reading in this sweep that the status should become `zombie` was wrong and was not applied. Two `miss` entries were filed: `HY-2` and `HY-3`.
+
+**Rejects (verbatim reasons):** none.
+
+**Fixes applied:** this commit (not yet made when this entry was written). Citations repointed in the same pass: the `R-1` source path in `reconnaissance-patterns.md`, the 2026-07-28 history entry in `version-bump-checklist.md`, the `ES-13` passover id in `effort-steering-second-phase.md`, and the Pointers id in `passover-effort-steering-2026-10-07.md`. Left alone as historical snapshots: two executed plan files under `docs/superpowers/plans/` (path citations, and one old id in the 2026-07-28 plan) and an archived passover. `link_scan(write=true)`: the first run added 47 edges and pruned 0. The second scan reported `edges_missing[0]` and `edges_stale[0]`. `ambiguous` moved from 101 to 103 and `dangling` stayed at 68; the cause of the +2 was not examined.
+
+**Detector trust updates:** D1 advanced to streak 2 and entered `batch`. D2 advanced to streak 1. D3, D9 and D10 are unchanged: D3's finding was resolved through D10 rather than a gate of its own, and D9 and D10 had deferrals. D4, D5 and D11 had no findings.
+
+**Next sweep due:** 2026-11-18 (frontmatter updated in this edit)
 ## HY-1 — Phase 1's index-file search names one exact filename, missing this project's real index
 
 **Valid:** dated 2026-09-05
@@ -187,6 +232,36 @@ content is an index/map of the other trackers)" rather than naming one exact fil
 
 **Promote-when:** same shape confirmed across 2+ sweeps (this project's next sweep, or
 a sibling project's ledger hitting the same miss).
+
+## HY-2 — The doctor finds a cited id prefix with no definer, and no detector does
+
+**Valid:** dated 2026-10-19
+
+**Verdict:** miss
+
+**Sweep:** 2026-10-19 (this ledger).
+
+**Observation:** `librarian(action="doctor")` reported `cited_prefix_with_no_definer` for `MQ-N` in `docs/trackers/claude-mods-research-2026-10-06.md`. The prefix is cited 10 times across 2 files, but no `## MQ-N — <title>` heading exists anywhere in the corpus. The doctor message is clipped at `entry_pr…`, so I read the rest of its claim (no artifact declares an `entry_prefix`) only as far as that clipped text shows. No detector D1 to D11 flagged this. The sweep logged it and did not fix it, because you asked only for a log entry.
+
+**Proposal (if any):** the v2 detector D7 (citation format) should consume the doctor's `cited_prefix_with_no_definer` check. Until D7 exists, Phase 2 could list the doctor's per-check counts that are non-zero for `docs/trackers/`.
+
+**Promote-when:** the same shape (a cited id prefix with no defining heading) is found by a doctor run in a second sweep.
+
+## HY-3 — The doctor finds a malformed Valid line, and no detector does
+
+**Valid:** dated 2026-10-19
+
+**Verdict:** miss
+
+**Sweep:** 2026-10-19 (this ledger).
+
+**Observation:** `librarian(action="doctor")` reported `validity_unparseable` for `F-8` in `subagent-bootstrap-session-log.md`. The line read `**Valid:** invariant — measured directly end-to-end; supersedes both the original conditional and the retraction's`. The accepted forms are `invariant`, `dated YYYY-MM-DD` and `conditional — <event>`, so prose after `invariant` makes the line unparseable. The source line also ended in the middle of a sentence, at "the retraction's". No detector D1 to D11 flagged it.
+
+**Fix applied:** the line is now `**Valid:** invariant`. The former text sits on the next line, marked as the former Valid line, verbatim and still cut at the same word. The sweep did not guess how the sentence continued. The log was then archived (D10) under its stable name.
+
+**Proposal (if any):** Phase 2 should read `librarian(action="doctor")` and list its non-zero `validity_unparseable` findings for `docs/trackers/`. A D10 candidate with this defect should have it repaired before the digest or archive step.
+
+**Promote-when:** the same shape is found in a second sweep, or by a sibling project's ledger.
 
 ## Template for new entries
 

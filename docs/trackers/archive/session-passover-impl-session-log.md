@@ -1,9 +1,10 @@
 ---
 kind: tracker
-status: active
+status: archived
 title: Session Log — Session-Passover Implementation
-entry_prefix: F
+archived_on: 2026-10-19
 entry_high_water_F: 4
+entry_prefix: F
 ---
 
 # Session Log — Session-Passover Implementation

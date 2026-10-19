@@ -58,7 +58,7 @@ A logging-only `UserPromptSubmit` hook is wired into `~/.claude` and `~/.claude-
 
 ## Pointers
 
-- Work list: `docs/trackers/effort-steering-second-phase.md` in the claude-plugins repo, id `af4ccc8b94a95c91` (ES-1 to ES-23). Research: `docs/trackers/effort-steering-research-2026-10-06.md` (id `8ad5f00472dc1e42`) and `docs/trackers/claude-mods-research-2026-10-06.md`. The previous passover `b2838d56206e8d62` is superseded.
+- Work list: `docs/trackers/effort-steering-second-phase.md` in the claude-plugins repo, id `af4ccc8b94a95c91` (ES-1 to ES-23). Research: `docs/trackers/effort-steering-research-2026-10-06.md` (id `8ad5f00472dc1e42`) and `docs/trackers/claude-mods-research-2026-10-06.md`. The previous passover `5e62ea41ac312c1f` is superseded.
 - Plans: claude-plugins `docs/superpowers/plans/2026-10-05-effort-steering-adapter-and-experiment.md` ("As built" first). First-phase design, plan, spike findings and review notes are in the codescout repo (`/home/marius/work/claude/codescout`, branch `experiments`, `docs/superpowers/` and `docs/research/`; its status note points here).
 - Durable memory: codescout memory topic `research/effort-steering` (verified findings and instrument rules in short form).
 - Code: `effort-steering/` (`core/`, `bin/effort-policy.mjs`, `adapter/claude-code/`, `spikes/`).

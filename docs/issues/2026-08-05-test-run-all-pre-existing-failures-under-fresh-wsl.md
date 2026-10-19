@@ -16,6 +16,9 @@ unverified: WSL-only failures remain unobserved by CI (~10 of the original 16). 
 
 ## Summary
 
+> **SUPERSEDED 2026-09-10 — read the `RE-OPENED 2026-09-10` banner further down first.**
+> The status is `investigating`, not `zombie`. The 2026-09-01 note below is kept as history.
+
 > **Re-checked 2026-09-01 on `ripper` — still green. Third consecutive clean
 > observation; kept `zombie`, deliberately not closed.**
 >
