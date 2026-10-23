@@ -160,7 +160,7 @@
         ]
       },
       {
-        "matcher": "mcp__.*__(symbols|run_command|read_file|grep|semantic_search|edit_code|edit_file|tree|references|call_graph|symbol_at|workspace|doc|memory|index|onboarding|librarian)",
+        "matcher": "mcp__.*__(symbols|run_command|read_file|create_file|grep|semantic_search|edit_code|edit_file|tree|references|call_graph|symbol_at|workspace|doc|memory|index|onboarding|librarian)",
         "hooks": [
           {
             "type": "command",

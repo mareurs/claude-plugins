@@ -230,6 +230,65 @@ echo "{\"session_id\":\"$SID\"}" | node "$LIVENESS"
 OUT=$(fire "$SID" "echo after-liveness")
 check "breaker-liveness-rearms" "$(verdict "$OUT")" "deny"
 
+# Proof of REACHABILITY, not proof of life (codescout:docs/issues/2026-09-07-the-source-
+# redirect-names-tools-a-partial-tool-set-does-not-have.md). A session can expose a
+# SUBSET of codescout's tools: `symbols`/`grep`/`doc`/`run_command` answer all day
+# while `read_file`/`edit_file`/`edit_code`/`create_file` are gone. Clearing the
+# strike counter on ANY codescout answer then resets it on every call, so the
+# stand-down is unreachable in exactly the state it exists for. A deny records the
+# tool(s) its redirect needs; only one of THOSE answering clears the counter.
+# Each direction is its own assertion because each is monotone the other way: a
+# breaker that never clears passes the first and fails the second.
+#
+# (1) A codescout tool that is NOT the redirect target answers between denies: the
+#     strikes must accumulate and the guard must stand down on the 4th. Native
+#     Edit's redirect names edit_code/edit_file -- two of the tools a partial
+#     exposure drops -- while `symbols` (which the same session still has) says
+#     nothing about them.
+fire_edit() {  # <session_id> -> raw hook stdout of a native Edit deny
+    clean_window
+    jq -n --arg s "$1" --arg cwd "$ACTIVE_CWD" --arg p "$ACTIVE_CWD/src/lib.rs" \
+        '{tool_name:"Edit", session_id:$s, cwd:$cwd, tool_input:{file_path:$p}}' | node "$HOOK"
+}
+answer() {  # <session_id> <short tool name> -- a PostToolUse payload for a codescout tool
+    echo "{\"session_id\":\"$1\",\"tool_name\":\"mcp__codescout__$2\"}" | node "$LIVENESS"
+}
+clean
+SID2="breaker-partial-$$"
+for i in 1 2 3; do
+    OUT=$(fire_edit "$SID2")
+    check "partial-set-strike-$i-deny" "$(verdict "$OUT")" "deny"
+    answer "$SID2" symbols
+done
+OUT=$(fire_edit "$SID2")
+check "partial-set-non-target-answers-do-not-reset-the-breaker" "$(verdict "$OUT")" "allow"
+case "$OUT" in
+    *"stood its guard down"*) check "partial-set-standdown-explains" "yes" "yes" ;;
+    *)                        check "partial-set-standdown-explains" "no"  "yes" ;;
+esac
+
+# (2) The redirect target itself answers: that IS reachability, so the counter
+#     clears and the guard stays armed however many times this repeats.
+clean
+SID3="breaker-target-$$"
+TARGET_OK=yes
+for i in 1 2 3 4 5 6; do
+    [[ "$(verdict "$(fire_edit "$SID3")")" == "deny" ]] || TARGET_OK=no
+    answer "$SID3" edit_file
+done
+check "redirect-target-answers-keep-the-guard-armed" "$TARGET_OK" "yes"
+
+# (3) A deny whose redirect names no tool a partial exposure drops (Bash ->
+#     run_command) keeps the original contract: any codescout answer clears it.
+clean
+SID4="breaker-bash-$$"
+BASH_OK=yes
+for i in 1 2 3 4 5 6; do
+    [[ "$(verdict "$(fire "$SID4" "echo bash-$i")")" == "deny" ]] || BASH_OK=no
+    answer "$SID4" symbols
+done
+check "bash-redirect-keeps-any-answer-clears" "$BASH_OK" "yes"
+
 # No session id → breaker disabled (a cwd-keyed counter would be shared by two
 # concurrent sessions in one repo). Must never stand down, however many strikes.
 clean
@@ -246,6 +305,20 @@ OUT=$(fire "$SID" "echo footer")
 case "$OUT" in
     *"/mcp"*) check "escape-footer-names-mcp" "yes" "yes" ;;
     *)        check "escape-footer-names-mcp" "no"  "yes" ;;
+esac
+# The footer must not assert ONE cause. A session whose server is up but exposes a
+# subset of its tools gets the same deny, and "the MCP server has disconnected"
+# sends its reader to repair a healthy connection. It must name a route that works
+# when the tool list is partial (run_command answers there) and must not claim
+# disconnection as the only explanation. Not pinned: the footer's prose.
+case "$OUT" in
+    *"acknowledge_risk"*) check "escape-footer-names-a-partial-set-route" "yes" "yes" ;;
+    *)                    check "escape-footer-names-a-partial-set-route" "no"  "yes" ;;
+esac
+case "$OUT" in
+    *"has disconnected and this redirect points at nothing"*)
+        check "escape-footer-does-not-assert-disconnection" "no" "yes" ;;
+    *)  check "escape-footer-does-not-assert-disconnection" "yes" "yes" ;;
 esac
 case "$OUT" in
     *"codescout-companion.json"*) check "escape-footer-avoids-unreachable-config" "no"  "yes" ;;

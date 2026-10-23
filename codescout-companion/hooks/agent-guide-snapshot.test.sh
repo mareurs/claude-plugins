@@ -315,11 +315,52 @@ check "non-fork dispatch with topics writes exactly one re-arm request" "$(rearm
 GOT=$(cat $(rearm_requests) | jq -S '.topics')
 WANT=$(echo '["librarian"]' | jq -S .)
 check "re-arm request names the ledger's current topics" "$GOT" "$WANT"
+check "a fresh dispatch's request is NOT marked fork (it is a re-arm)" \
+  "$(jq -r '.fork // false' $(rearm_requests))" "false"
 rm -f $(rearm_requests)
 
 echo '{"librarian":"2026-08-01T00:00:00Z"}' > "$LEDGER_FILE"
+# The case-7 dispatches above left their snapshots behind (no run_stop here). A LIVE
+# snapshot means a subagent is running, and that changes what a fork's seed may be
+# -- see the nested-dispatch case below. Start the fork case from none.
+rm -f "$TMPDIR"/cs-guide-snapshot-* 2>/dev/null
 run_start_typed "$SESSION" "agent_rearm_fork" "fork" > /dev/null
-check "fork dispatch writes no re-arm request (it already inherited the content)" "$(rearm_count)" "0"
+# A fork inherits the parent's conversation, so it must NOT be re-armed -- but the
+# server starts its (never-seen) principal ledger EMPTY and would re-serve every
+# inherited guide. The hook therefore writes the SAME request file with
+# `fork: true`, telling the server these topics are already held and to mark them
+# delivered (codescout RearmRequest.fork / GuideLedger::seed_inherited).
+# codescout:docs/issues/2026-09-24-a-fork-child-is-re-served-every-guide-it-inherited.md
+check "fork dispatch writes exactly one request (the inherited-topics seed)" "$(rearm_count)" "1"
+check "the fork request is marked fork:true" \
+  "$(jq -r '.fork' $(rearm_requests))" "true"
+check "the fork request names the parent's topics as of dispatch" \
+  "$(jq -S -c '.topics' $(rearm_requests))" '["librarian"]'
+rm -f $(rearm_requests)
+
+# A fork spawned by a SUBAGENT inherits that subagent's context, not the top-level
+# parent's. SubagentStart carries only the NEW agent's id/type (verified against the
+# shipped 2.1.301 payload schema), so the hook cannot name its dispatcher, and the
+# ledger it reads is the top-level parent's. Seeding that set would mark guides
+# delivered that the fork never saw: starvation, the unsafe direction. A live
+# sibling snapshot (a running subagent that could be the dispatcher) therefore
+# suppresses the seed; the fork is then served normally, i.e. over-delivered.
+# Each direction asserted: alone -> seeded (above); a live subagent -> not seeded;
+# only a FINISHED subagent (tombstone, done:true) -> seeded again.
+rm -f "$TMPDIR"/cs-guide-snapshot-* 2>/dev/null
+run_start "$SESSION" "agent_nest_outer" > /dev/null
+rm -f $(rearm_requests)   # the outer agent's own re-arm is not what is measured
+run_start_typed "$SESSION" "agent_nest_fork" "fork" > /dev/null
+check "a fork started while another subagent is live is not seeded (dispatcher unknown)" \
+  "$(rearm_count)" "0"
+run_stop "$SESSION" "agent_nest_outer" > /dev/null
+run_stop "$SESSION" "agent_nest_fork" > /dev/null   # every real dispatch gets a SubagentStop
+rm -f $(rearm_requests)
+run_start_typed "$SESSION" "agent_nest_fork2" "fork" > /dev/null
+check "a fork started once the other subagent has finished is seeded" \
+  "$(rearm_count)" "1"
+rm -f $(rearm_requests)
+rm -f "$TMPDIR"/cs-guide-snapshot-* 2>/dev/null
 
 rm -f "$LEDGER_FILE"
 run_start "$SESSION" "agent_rearm_empty" > /dev/null
