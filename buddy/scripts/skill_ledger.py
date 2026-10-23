@@ -29,7 +29,10 @@ from __future__ import annotations
 
 import json
 import re
+from datetime import datetime, timezone
 from pathlib import Path
+
+from scripts.buddy_paths import event_project_dir
 
 LEDGER_FILENAME = "loaded_skills.json"
 
@@ -40,16 +43,31 @@ def ledger_path(project_root: Path, session_id: str) -> Path:
     return project_root / ".buddy" / session_id / LEDGER_FILENAME
 
 
-def load_ledger(path: Path) -> dict:
+def read_ledger(path: Path) -> "dict | None":
+    """The ledger at *path*, or None when there is no readable one.
+
+    None means "absent or unreadable" — NOT "this session has loaded no skills".
+    Those are different facts: an empty ledger is a record, a missing file only
+    says we looked in a place where nothing was written. Callers that would
+    otherwise treat a miss as "nothing seen yet" must handle None explicitly.
+    """
     try:
         with open(path, encoding="utf-8") as f:
             data = json.load(f)
-        if isinstance(data, dict) and isinstance(data.get("skills"), dict):
-            data.setdefault("version", 1)
-            data.setdefault("transcript_offset", 0)
-            return data
     except (OSError, json.JSONDecodeError, ValueError):
-        pass
+        return None
+    if isinstance(data, dict) and isinstance(data.get("skills"), dict):
+        data.setdefault("version", 1)
+        data.setdefault("transcript_offset", 0)
+        return data
+    return None
+
+
+def load_ledger(path: Path) -> dict:
+    """Like `read_ledger`, but an absent ledger reads as an empty one."""
+    data = read_ledger(path)
+    if data is not None:
+        return data
     return {"version": 1, "transcript_offset": 0, "skills": {}}
 
 
@@ -104,6 +122,26 @@ def _skill_ids_in_line(line: str) -> list[str]:
     return out
 
 
+def _line_epoch(line: str) -> "int | None":
+    """Epoch seconds from a transcript line's own ISO `timestamp`, else None.
+
+    First-seen must come from the transcript, not from the moment a scan runs:
+    a ledger rebuilt from zero (moved root, deleted file) would otherwise stamp
+    every skill it finds with the rebuild instant — a complete, plausible, wrong
+    record rather than an error.
+    """
+    try:
+        raw = json.loads(line).get("timestamp")
+        if not isinstance(raw, str):
+            return None
+        parsed = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+        if parsed.tzinfo is None:
+            parsed = parsed.replace(tzinfo=timezone.utc)
+        return int(parsed.timestamp())
+    except (json.JSONDecodeError, ValueError, TypeError, AttributeError, OverflowError, OSError):
+        return None
+
+
 def _command_skills(text: str) -> list[str]:
     """Plugin-namespaced <command-name> invocations, excluding buddy:* commands."""
     return [
@@ -132,7 +170,11 @@ def scan_transcript(
     except OSError:
         return advisories
 
-    ledger = load_ledger(ledger_file)
+    ledger = read_ledger(ledger_file)
+    if ledger is None:
+        # Absent, not empty: a from-zero rebuild. `ts` is the write instant, which
+        # is NOT when these skills were first seen — the transcript knows that.
+        ledger = {"version": 1, "transcript_offset": 0, "skills": {}}
     offset = int(ledger.get("transcript_offset", 0) or 0)
     if offset > size:
         offset = 0  # transcript rotated/rewritten (e.g. compact) — rescan
@@ -149,9 +191,15 @@ def scan_transcript(
     changed = new_offset != offset
     advised: set[str] = set()
     for line in chunk.splitlines():
-        for skill in _skill_ids_in_line(line):
+        skill_ids = _skill_ids_in_line(line)
+        if not skill_ids:
+            continue
+        seen = _line_epoch(line)
+        if seen is None:
+            seen = ts  # line carries no timestamp (synthetic transcripts only)
+        for skill in skill_ids:
             entry = ledger["skills"].setdefault(
-                skill, {"first_ts": ts, "count": 0}
+                skill, {"first_ts": seen, "count": 0}
             )
             entry["count"] = int(entry.get("count", 0)) + 1
             if skill in pre_existing and skill not in advised:
@@ -175,16 +223,25 @@ def loaded_skills(project_root: Path, session_id: str) -> list[str]:
 
 
 def scan_from_event(event: dict) -> list[str]:
-    """Hook entry point: scan using a UserPromptSubmit event's fields."""
+    """Hook entry point: scan using a UserPromptSubmit event's fields.
+
+    The ledger root is `event_project_dir(event)` — the same rule the statusline
+    reader uses. A root that no longer exists (a removed worktree whose session
+    is still alive) is refused: `.buddy/<sid>/` is only ever created beneath a
+    directory that is already there, so removing a worktree stays removed.
+    """
     try:
         transcript = event.get("transcript_path")
-        cwd = event.get("cwd")
+        root = event_project_dir(event)
         sid = event.get("session_id")
-        if not (transcript and cwd and sid):
+        if not (transcript and root and sid):
+            return []
+        project_root = Path(root)
+        if not project_root.is_dir():
             return []
         return scan_transcript(
             Path(transcript),
-            ledger_path(Path(cwd), sid),
+            ledger_path(project_root, sid),
             ts=int(event.get("timestamp") or 0),
         )
     except Exception:

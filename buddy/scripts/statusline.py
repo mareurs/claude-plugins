@@ -265,7 +265,7 @@ def parse_stdin_session(raw: str):
     except (json.JSONDecodeError, ValueError, TypeError):
         return None, None
     session_id = data.get("session_id")
-    cwd = (data.get("workspace") or {}).get("current_dir") or data.get("cwd")
+    cwd = buddy_paths.event_project_dir(data)
     project_root = Path(cwd) if cwd else None
     if not session_id or not project_root:
         return None, None
