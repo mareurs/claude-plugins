@@ -14,7 +14,9 @@ Release readiness across plugins × profiles. See
 
 ## State
 
-_Last refresh: `1b91724`, 2026-10-19 — buddy 0.11.10→0.11.11, pushed (`main` `ae12d60..1b91724`). `~/.claude` record repointed the same day; `effort-routing-r1` merged with `main` (`9e346ca`) so the checkout's `plugin.json` files agree with the profiles. See History 2026-10-19._
+_Last refresh: `a08668e`, 2026-10-23 — buddy 0.11.11→0.11.12 and codescout-companion 1.20.18→1.20.19, both pushed (`main` `1b91724..a08668e`). Two fix branches and the research-subagent fix were merged into `main` first; `effort-routing-r1` was merged with `main` afterwards (`8903213`). See History 2026-10-23._
+
+_Earlier refresh: `1b91724`, 2026-10-19 — buddy 0.11.10→0.11.11, pushed (`main` `ae12d60..1b91724`). `~/.claude` record repointed the same day; `effort-routing-r1` merged with `main` (`9e346ca`) so the checkout's `plugin.json` files agree with the profiles. See History 2026-10-19._
 
 _Earlier refresh: `9223628`, 2026-10-16 — codescout-companion 1.20.17→1.20.18, pushed (`main` `8f3b8b5..9223628`); `~/.claude` buddy record repointed 0.11.9→0.11.10 after it regressed. See History 2026-10-16._
 
@@ -24,15 +26,15 @@ _Previous refresh: `4fc9326`, 2026-10-11 — companion 1.20.16→1.20.17, local 
 
 The existing lowercase Codex profile also installed companion 1.20.17 via the public plugin installer. Its cache matches the released plugin's source files; the one generated migrated-command skill was checked against the source command. Runtime .codescout databases/locks/stamps, alongside the existing build/runtime exclusions, are explicitly excluded from source-byte comparison. The verified GNU/Linux 0.160.0 host is now selected/pinned and cold-loaded; native approval accept/decline and resume/compact/fork transport passed. All three fresh Claude profiles loaded 1.20.17 startup; main/SDD turns passed, Kat's expired OAuth blocks its authenticated smoke. Runtime canonical directory-source loading and own-profile cache ownership were measured separately. Main-profile Claude owned formatting and native-derived explicit Codex mixed-host refusal passed. The native Claude fork smoke exposed a separate Codescout history-reader attribution bug (F-17); its reviewed four-file follow-up passes 99 focused tests, nine applied mutations (zero final survivors) and same-fork corrected native refusal; the canonical broad gate passed all five lanes and the original four-file Codescout follow-up is committed locally as 6eb585ef, with reviewed-byte equality and empty index verified. Native Claude child/root attribution and parent formatting also passed after repairing scratch fixture modes. These are separate Codescout reader/native acceptance observations and do not change the released companion cache bytes. Kat reauthentication is unavailable now, so its authenticated smoke stays pending. See verification artifact 2185a218fbd18b7f.
 
-**buddy** — canonical `0.11.11` · readme `0.11.11` · marketplace clean ✅
+**buddy** — canonical `0.11.12` · readme `0.11.12` · marketplace clean ✅
 
 | profile | installed | cache dir | install_path ok | all entries | cache = working tree |
 |---|---|---|---|---|---|
-| `~/.claude` | 0.11.11 ✅ | ✅ | ✅ | `0.11.11` ✅ | ✅ |
-| `~/.claude-sdd` | 0.11.11 ✅ | ✅ | ✅ | `0.11.11` ✅ | ✅ |
-| `~/.claude-kat` | 0.11.11 ✅ | ✅ | ✅ | `0.11.11` ✅ | ✅ |
+| `~/.claude` | 0.11.12 ✅ | ✅ | ✅ | `0.11.12` ✅ | ✅ |
+| `~/.claude-sdd` | 0.11.12 ✅ | ✅ | ✅ | `0.11.12` ✅ | ✅ |
+| `~/.claude-kat` | 0.11.12 ✅ | ✅ | ✅ | `0.11.12` ✅ | ✅ |
 
-_cache = working tree, measured 2026-10-19 with `diff -rq` (excluding `judge.env`, `__pycache__`, `.pytest_cache`, `.venv`): 0 files differ in content. Nine paths exist only in the checkout; eight are git-ignored local paths, and the ninth, `buddy/.claude`, is the directory the 2026-10-14 State already lists._
+_cache = working tree, measured 2026-10-19 with `diff -rq` (excluding `judge.env`, `__pycache__`, `.pytest_cache`, `.venv`): 0 files differ in content, re-measured 2026-10-23 for all three profiles. Seven paths exist only in the checkout (`buddy/.claude`, `.fastembed_cache`, `uv.lock`, two files under `tests/create-buddy-eval/runs`, `tests/fixtures/consolidate_channel/summons.log`, `tests/prompt-hamsa-eval/.env`); I did not classify them as ignored or tracked this time._
 
 **claude-statusline** — canonical `1.2.0` · readme `1.2.0` · marketplace clean ✅
 
@@ -41,15 +43,15 @@ _cache = working tree, measured 2026-10-19 with `diff -rq` (excluding `judge.env
 | `~/.claude-sdd` | 1.2.0 ✅ | ✅ | ✅ | `1.2.0` ✅ | ✅ |
 | `~/.claude-kat` | 1.2.0 ✅ | ✅ | ✅ | `1.2.0` ✅ | ✅ |
 
-**codescout-companion** — canonical `1.20.18` · readme `1.20.18` · marketplace clean ✅
+**codescout-companion** — canonical `1.20.19` · readme `1.20.19` · marketplace clean ✅
 
 | profile | installed | cache dir | install_path ok | all entries | cache = working tree |
 |---|---|---|---|---|---|
-| `~/.claude` | 1.20.18 ✅ | ✅ | ✅ | `1.20.18` ✅ | ✅ |
-| `~/.claude-sdd` | 1.20.18 ✅ | ✅ | ✅ | `1.20.18` ✅ | ✅ |
-| `~/.claude-kat` | 1.20.18 ✅ | ✅ | ✅ | `1.20.18` ✅ | ✅ |
+| `~/.claude` | 1.20.19 ✅ | ✅ | ✅ | `1.20.19` ✅ | ✅ |
+| `~/.claude-sdd` | 1.20.19 ✅ | ✅ | ✅ | `1.20.19` ✅ | ✅ |
+| `~/.claude-kat` | 1.20.19 ✅ | ✅ | ✅ | `1.20.19` ✅ | ✅ |
 
-_cache = working tree, measured 2026-10-19 for `~/.claude` with `diff -rq`: 0 source files differ. The only differences are the cache marker `.orphaned_at` and the ignored local directories `.buddy` and `.codescout` (also under `hooks/`). The ❌ rows of 2026-10-14 and 2026-10-16 came from the checkout being on `effort-routing-r1`; the merge cleared them._
+_cache = working tree, measured 2026-10-23 for all three profiles with `diff -rq` (excluding `.buddy`, `.codescout`, `.orphaned_at`, `node_modules`, `judge.env`, `__pycache__`, `.pytest_cache`, `.venv`): 0 files differ. The only differences are the cache marker `.orphaned_at` and the ignored local directories `.buddy` and `.codescout` (also under `hooks/`). The ❌ rows of 2026-10-14 and 2026-10-16 came from the checkout being on `effort-routing-r1`; the merge cleared them._
 
 **legible** — canonical `0.2.0` · readme `0.2.0` · marketplace clean ✅
 
@@ -185,6 +187,16 @@ measured on both candidate load paths rather than argued: the record points at k
 two actually serves, they carry the same bytes — so the question CLAUDE.md flags as
 unsettled does not need settling for this release.
 ## History
+### 2026-10-23 — buddy 0.11.12 and codescout-companion 1.20.19 released and pushed; two fix branches and the research-subagent fix merged
+
+**Deltas, all measured:**
+- `main` gained `fix/guide-hooks-20261016` (3 commits, companion hooks), `fix/codescout-issues-20261016` (2 commits, buddy skill ledger and statusline, companion `tracker-hygiene` skill) and the `research-subagent` skill rewrite (`977b699`). Both merges were conflict-free (`git merge-tree` exit 0). `./tests/run-all.sh` on the merged `main` exited 0.
+- `buddy` 0.11.11→0.11.12 and `codescout-companion` 1.20.18→1.20.19, in canonical, readme and all three profiles. `main` `1b91724..a08668e` was pushed by the companion release.
+- `effort-routing-r1` was merged with `main` (`8903213`). The branch holds docs only outside `main`; it is still not pushed.
+
+**The buddy release stopped at step 6.5.** The preflight, the bump commit (`f4f4cda`), the cache seeding and the record repointing all passed. The parity gate then exited 1 on `MARKETPLACE SKEW`: `~/.claude-sdd` held `superpowers-marketplace` at `2cf27fa` (2026-10-10), the other two profiles at `87b5911` (2026-10-21). Origin `main` was `87b5911`. The sdd clone was clean and shallow, so a local ancestry check was impossible. Fix: `git fetch --depth=1 origin main`, then `git reset --hard origin/main` in that clone. Parity then exited 0. The buddy release was not re-run, because a re-run would have bumped to 0.11.13. The companion release ran next and pushed both bumps.
+
+**Not done or not probed:** the cold restart of all three profiles. The statusline fix `444e627` and the new hooks were not observed in a live session. The two merged fix worktrees and branches were left in place.
 ### 2026-10-19 — buddy 0.11.11 released and pushed; `~/.claude` record repointed; branch merged with `main`; three test defects fixed
 
 **Deltas, all measured:**
