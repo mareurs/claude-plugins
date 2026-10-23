@@ -55,6 +55,38 @@ For topic/market research, use `max_queries=3`, `max_sources=5` unless the user
 requests a different budget. Honor an explicit mode such as `deep`.
 These limits apply per worker; fan-out multiplies the work.
 
+## Evidence audits (when requested)
+
+Pass a writable audit directory in the brief. Retain exact MCP responses before
+synthesis, including inline reports, plus any saved-report content. Copy saved files
+mechanically with the helper below and retain its byte count and SHA-256 manifest;
+never rebuild a snapshot by re-emitting a file-reading tool’s rendered text. The parent
+records the worker's actual returned answer. Keep audit files outside skill discovery.
+Check every factual statement against the retained evidence and every cited URL
+against the URLs actually present; a plausible or correct-from-memory addition
+still fails. A URL occurring in a source list alone does not establish a claim.
+Score unsupported-claim runs and unsupported-URL runs separately, record explicit
+gaps, and report the model, reasoning level, sample count, and inline/file path.
+Calibrate automated URL checks against hand-reviewed supported and unsupported
+examples before trusting zeroes; inspect factual claims separately. Missing raw
+evidence is unscorable, not a pass. This checks grounding in the retrieved
+material, not whether the material itself is true.
+
+### Saved report snapshots
+
+When an audit is requested, copy each saved report before synthesis:
+
+```bash
+python3 <this-skill-dir>/scripts/capture_evidence.py <report-path> <audit-dir> --sequence 1
+```
+
+Pass the resolved helper path to the worker. The helper copies raw bytes, verifies
+the destination hash, and writes `full-report-1.manifest.json`. Increment the
+sequence for another report. If copying fails, record the failure; a rendered or
+reconstructed substitute is not an exact snapshot. Read the copied report for
+synthesis. Inline responses must still be captured directly from the tool result
+before synthesis; this file helper does not replace raw response capture.
+
 ## Worker prompt
 
 Fill the placeholders and pass this prompt with the dispatch above:
@@ -68,16 +100,31 @@ Tool: <actual callable tool name>
 Arguments: <concrete JSON arguments>
 Scope: <this worker's question/angle; exclusions if other workers own them>
 
-1. Make the research call. If it returns a saved-report path, read that report
-   before synthesizing; page through it if necessary. If unreadable, state the
-   limitation and lower confidence.
+1. Make the research call. The evidence is the complete inline response, or the
+   full saved report after reading its path; an envelope summary alone is not
+   the full report. If unreadable, state that limitation and lower confidence.
+   If an audit directory was provided, save each exact tool response there before
+   synthesizing (inline responses included) and copy any saved report with the supplied snapshot helper before reading it.
+   Retain the helper’s byte count and SHA-256 manifest. Do not write a report copy
+   from rendered tool text or reconstruct its Markdown.
+   Do not reconstruct evidence after answering.
 2. One refinement call is allowed only for a specific unanswered question:
    at most two researcher calls total. Stop after that and report remaining gaps.
    On an explicit tool/server error, including error text with isError=false,
    return the error and stop.
-3. Answer from the evidence, prefer authoritative sources, and surface material
-   disagreements. Do not fill gaps from memory or run extra searches/subagents.
-4. Return findings with source URLs, confidence, and unresolved questions.
+3. Build the answer from supported findings and explicit gaps:
+   - Each factual statement needs supporting text in the response/report you
+     actually read. A source URL or title alone does not support further facts.
+   - Cite only exact URLs present in that evidence. Familiar chapter numbers,
+     remembered links, and plausible URL completions are still outside evidence.
+   - For each requested item without support, report "not established by the
+     retrieved evidence". A partial answer with named gaps is the correct result.
+     Labeling a remembered fact/link as unverified does not make it admissible.
+   - Before returning, check every factual statement and every URL against the
+     evidence; remove unsupported additions, including explanatory background.
+     Confidence applies only to supported findings; keep missing coverage visible.
+   Do not fill gaps from memory or run extra searches/subagents.
+4. Return supported findings with source URLs, confidence, and unresolved questions.
    Keep the response within 400 words unless the user requested more detail.
    Return no raw tool output, full report, brief, or process narration.
 ```
