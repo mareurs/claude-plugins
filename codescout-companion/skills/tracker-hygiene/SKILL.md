@@ -241,9 +241,15 @@ sequence — each mutation is its own Phase-4 gate:
    with one line of evidence.
 3. **Confirm with the owner** that the work stream is actually wrapped (D3-style
    question — an idle-but-planned stream gets `defer`, which resurfaces next sweep).
-4. **Compact.** Replace the body with an outcomes digest: the Index / Wins Index
-   tables (statuses updated), one paragraph per promoted/rehomed entry naming its
-   destination, and unfired Promote-when criteria. Full prose history stays in git.
+4. **Compact.** Never reduce an F-N / W-N entry to a bare row: every entry keeps
+   its `## <ID> — <title>` heading in the archived file, because `link_scan` binds
+   PREFIX-N to that heading and to nothing else — git history is not consulted, so
+   a citation whose heading is gone resolves Dangling. Prose beneath a heading may
+   be shortened. Add the outcomes digest as an ADDITIONAL reading surface at the
+   top: the Index / Wins Index tables (statuses updated), one paragraph per
+   promoted/rehomed entry naming its destination, and unfired Promote-when
+   criteria. Verify with `link_scan`: no new dangling citation for the stem's
+   tokens. (`get_guide("tracker-conventions")` § Compaction and archival.)
 5. **Archive through the catalog, in three steps — not two.** Use
    `archive-cadence-policy` § 3 (amended, ratified 2026-08-17), with the
    stem-citation exception below to its whole-file timestamp rule:
