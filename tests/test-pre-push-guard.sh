@@ -39,8 +39,21 @@ trap 'rm -rf "$T"' EXIT
 # on 2026-10-19, though nothing about the guard had changed.
 BUMP_SHA=$(git -C "$REPO_ROOT" log -1 --format=%H -- ':(glob)*/.claude-plugin/plugin.json')
 BUMP_PARENT=$(git -C "$REPO_ROOT" rev-parse "${BUMP_SHA}^")
-# A range with no plugin.json in it: the bump commit to itself is empty.
-NOBUMP_SHA=$(git -C "$REPO_ROOT" log -1 --format=%H -- tests/)
+# A range with no plugin.json in it. The newest commit under tests/ is NOT enough:
+# a plugin rename (7a8cf6c, claude-statusline -> statusline) touches tests/ AND a
+# <plugin>/.claude-plugin/plugin.json, so the guard rightly denied it and the
+# "no bump -> allow" assertion failed on 2026-10-24 though the guard was correct.
+# Walk the tests/ history for the newest commit that leaves every manifest alone,
+# using the same one-level expression as BUMP_PLUGINS below.
+NOBUMP_SHA=""
+for cand in $(git -C "$REPO_ROOT" log --format=%H -- tests/); do
+  parent=$(git -C "$REPO_ROOT" rev-parse -q --verify "${cand}^") || continue
+  if ! git -C "$REPO_ROOT" diff --name-only "$parent" "$cand" \
+       | grep -qE '^[^/]+/\.claude-plugin/plugin\.json$'; then
+    NOBUMP_SHA=$cand
+    break
+  fi
+done
 NOBUMP_PARENT=$(git -C "$REPO_ROOT" rev-parse "${NOBUMP_SHA}^")
 
 if [ -z "$BUMP_SHA" ] || [ -z "$NOBUMP_SHA" ]; then
