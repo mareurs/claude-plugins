@@ -1,7 +1,7 @@
 {
   "name": "statusline",
   "description": "Rich, color-coded terminal status line showing model, context %, rate limits (incl. per-model weekly), git info, and more.",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "author": {
     "name": "Marius"
   },
