@@ -1,13 +1,16 @@
 ---
 id: e6e78dff80031f0d
 kind: bug
-status: open
+status: fixed
 title: '`claude-statusline` name is reserved, so `claude plugin validate` fails for the marketplace'
 tags:
 - claude-statusline
 - marketplace
 - validation
+fixed_on: 2026-10-24
 last_observed: 2026-10-04
+release_pending: true
+unverified: 'Fix is in the working tree on effort-routing-r1, not committed and not released: no skill or command channel nor install record outside ~/.claude-kat has seen the new name. No automated regression test pins the validate result, because tests/run-all.sh does not call the claude CLI; the check was a manual `claude plugin validate .` run (passed, 2026-10-24).'
 ---
 
 ## Summary
@@ -43,7 +46,7 @@ Observed output:
 ## Impact
 
 - Any marketplace-level `claude plugin validate` run fails, so it cannot serve as a gate for the other plugins.
-- `claude-statusline` is not installed in any profile today (`scripts/check-profile-parity.sh`, 2026-10-04), so a rename has no install record to migrate on this machine.
+- `claude-statusline` was not installed in any profile when this was filed (`scripts/check-profile-parity.sh`, 2026-10-04). Re-checked 2026-10-24: `~/.claude-kat/plugins/installed_plugins.json` held a record `claude-statusline@sdd-misc-plugins` at 1.2.0, not enabled in `enabledPlugins`. The other three profiles have none.
 
 ## Options
 
@@ -51,3 +54,13 @@ Observed output:
 2. Keep the name and accept that marketplace validation fails. Validate each plugin directory one at a time instead.
 
 Source for the rule: https://code.claude.com/docs/en/plugins-reference.md, section `name`.
+
+
+## Fix
+
+Option 1 taken on 2026-10-24: the plugin is now `statusline`.
+
+- `git mv claude-statusline statusline`, then `claude-statusline` → `statusline` in every live file: `.claude-plugin/marketplace.json`, `README.md`, `buddy/README.md`, `buddy/scripts/statusline-composed.sh` (the sibling-directory lookup and the cache fallback), `buddy/commands/install.md`, the plugin's own `plugin.json`, commands, hook and README, `scripts/bump-cache.sh`, four tests and two docs. Historical specs, plans and trackers keep the old name on purpose.
+- `~/.claude-kat`: renamed the install record key to `statusline@sdd-misc-plugins`, moved its cache dir to `cache/sdd-misc-plugins/statusline/1.2.0` and repointed `installPath`. Backup: `installed_plugins.json.bak-statusline-rename-20261024`.
+- Evidence: `claude plugin validate .` → `✔ Validation passed`; `tests/test-statusline*.sh` and `tests/test-cs-workspace-marker.sh` pass (29, 6, 11, 10); `scripts/check-versions.sh` and `scripts/check-profile-parity.sh` pass.
+- Not done: commit and release. Users who installed `claude-statusline@…` elsewhere must reinstall under the new name.

@@ -6,10 +6,10 @@ echo "── statusline-cache ──"
 
 # Isolated CLAUDE_CONFIG_DIR — no creds → no background fetch race
 export CLAUDE_CONFIG_DIR="$(mktemp -d)"
-# Run a copy of the composed script from a sandbox with no claude-statusline
+# Run a copy of the composed script from a sandbox with no statusline
 # beside it, so resolve_primary finds nothing and these tests exercise the
 # rate-limits fallback. Run from the repo, the sibling lookup would find the
-# real claude-statusline and the fallback would be tested nowhere.
+# real statusline and the fallback would be tested nowhere.
 SANDBOX="$(mktemp -d)"
 mkdir -p "$SANDBOX/buddy/scripts"
 cp "$(dirname "${BASH_SOURCE[0]}")/../buddy/scripts/statusline-composed.sh" "$SANDBOX/buddy/scripts/"

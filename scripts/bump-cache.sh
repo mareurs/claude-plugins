@@ -18,7 +18,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=lib-copy-plugin.sh
 source "$SCRIPT_DIR/lib-copy-plugin.sh"
 
-PLUGIN="${1:?plugin name required (buddy | codescout-companion | sdd | claude-statusline | session-bridge)}"
+PLUGIN="${1:?plugin name required (buddy | codescout-companion | sdd | statusline | session-bridge)}"
 VERSION="${2:?version required (e.g. 0.7.3)}"
 MARKETPLACE="sdd-misc-plugins"
 

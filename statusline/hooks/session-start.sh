@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# claude-statusline SessionStart hook — self-heal orphan statusLine entries.
+# statusline SessionStart hook — self-heal orphan statusLine entries.
 #
-# Background: both buddy and claude-statusline can write a `statusLine` key
+# Background: both buddy and statusline can write a `statusLine` key
 # into ~/.claude/settings.json. If the plugin that owns the referenced script
 # is later uninstalled (without running its /uninstall command), the key
 # becomes a dangling pointer and Claude Code prints a startup error.
@@ -134,7 +134,7 @@ except Exception:
     sys.exit(0)
 
 print(
-    f'[claude-statusline] Pruned orphan statusLine entry ({reason}). '
+    f'[statusline] Pruned orphan statusLine entry ({reason}). '
     f'Removed: {json.dumps(removed)}',
     file=sys.stderr,
 )

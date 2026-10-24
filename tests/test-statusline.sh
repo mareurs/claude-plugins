@@ -3,7 +3,7 @@
 source "$(dirname "${BASH_SOURCE[0]}")/lib/fixtures.sh"
 
 echo "── statusline ──"
-STATUSLINE="$(cd "$(dirname "${BASH_SOURCE[0]}")/../claude-statusline/bin" && pwd)/statusline.sh"
+STATUSLINE="$(cd "$(dirname "${BASH_SOURCE[0]}")/../statusline/bin" && pwd)/statusline.sh"
 
 # Base sample — uses v2.1.97+ field paths
 SAMPLE='{"model":{"display_name":"test-model"},"context_window":{"used_percentage":42,"context_window_size":200000,"current_usage":{"cache_creation_input_tokens":1500,"cache_read_input_tokens":3000}},"rate_limits":{"five_hour":{"used_percentage":10,"resets_at":9999999999},"seven_day":{"used_percentage":5,"resets_at":9999999999}},"rate_limits_stale":false,"cost":{"total_cost_usd":0.15,"total_duration_ms":30000,"total_lines_added":10,"total_lines_removed":3},"workspace":{"git_worktree":{"name":"my-feature","branch":"feat/my-feature"}}}'
@@ -73,7 +73,7 @@ fi
 rm -rf "$SOLO"
 
 # Test 10: profile badge — derived from CLAUDE_CONFIG_DIR
-for pair in ".claude-sdd|sdd" ".claude-kat|kat" ".claude|claude"; do
+for pair in ".claude-sdd|sdd" ".claude-kat|kat" ".claude-stef|claude-stef" ".claude|claude"; do
   IFS='|' read -r cfg label <<< "$pair"
   OUT=$(CLAUDE_CONFIG_DIR="/home/x/$cfg" echo '{"model":{"display_name":"m"}}' | CLAUDE_CONFIG_DIR="/home/x/$cfg" bash "$STATUSLINE" 2>/dev/null)
   if echo "$OUT" | grep -q " $label "; then
