@@ -14,7 +14,9 @@ Release readiness across plugins × profiles. See
 
 ## State
 
-_Last refresh: `a08668e`, 2026-10-23 — buddy 0.11.11→0.11.12 and codescout-companion 1.20.18→1.20.19, both pushed (`main` `1b91724..a08668e`). Two fix branches and the research-subagent fix were merged into `main` first; `effort-routing-r1` was merged with `main` afterwards (`8903213`). See History 2026-10-23._
+_Last refresh: `3340151`, 2026-10-24 — codescout-companion 1.20.19→1.20.20, buddy 0.11.12→0.11.13 and statusline 1.2.0→1.2.1, pushed in one push (`main` `c5dbc1c..3340151`, 48 commits, including the merge of `effort-routing-r1`). The plugin `claude-statusline` was renamed `statusline` in `7a8cf6c`. See History 2026-10-24._
+
+_Earlier refresh: `a08668e`, 2026-10-23 — buddy 0.11.11→0.11.12 and codescout-companion 1.20.18→1.20.19, both pushed (`main` `1b91724..a08668e`). Two fix branches and the research-subagent fix were merged into `main` first; `effort-routing-r1` was merged with `main` afterwards (`8903213`). See History 2026-10-23._
 
 _Earlier refresh: `1b91724`, 2026-10-19 — buddy 0.11.10→0.11.11, pushed (`main` `ae12d60..1b91724`). `~/.claude` record repointed the same day; `effort-routing-r1` merged with `main` (`9e346ca`) so the checkout's `plugin.json` files agree with the profiles. See History 2026-10-19._
 
@@ -26,32 +28,33 @@ _Previous refresh: `4fc9326`, 2026-10-11 — companion 1.20.16→1.20.17, local 
 
 The existing lowercase Codex profile also installed companion 1.20.17 via the public plugin installer. Its cache matches the released plugin's source files; the one generated migrated-command skill was checked against the source command. Runtime .codescout databases/locks/stamps, alongside the existing build/runtime exclusions, are explicitly excluded from source-byte comparison. The verified GNU/Linux 0.160.0 host is now selected/pinned and cold-loaded; native approval accept/decline and resume/compact/fork transport passed. All three fresh Claude profiles loaded 1.20.17 startup; main/SDD turns passed, Kat's expired OAuth blocks its authenticated smoke. Runtime canonical directory-source loading and own-profile cache ownership were measured separately. Main-profile Claude owned formatting and native-derived explicit Codex mixed-host refusal passed. The native Claude fork smoke exposed a separate Codescout history-reader attribution bug (F-17); its reviewed four-file follow-up passes 99 focused tests, nine applied mutations (zero final survivors) and same-fork corrected native refusal; the canonical broad gate passed all five lanes and the original four-file Codescout follow-up is committed locally as 6eb585ef, with reviewed-byte equality and empty index verified. Native Claude child/root attribution and parent formatting also passed after repairing scratch fixture modes. These are separate Codescout reader/native acceptance observations and do not change the released companion cache bytes. Kat reauthentication is unavailable now, so its authenticated smoke stays pending. See verification artifact 2185a218fbd18b7f.
 
-**buddy** — canonical `0.11.12` · readme `0.11.12` · marketplace clean ✅
+**buddy** — canonical `0.11.13` · readme `0.11.13` · marketplace clean ✅
 
 | profile | installed | cache dir | install_path ok | all entries | cache = working tree |
 |---|---|---|---|---|---|
-| `~/.claude` | 0.11.12 ✅ | ✅ | ✅ | `0.11.12` ✅ | ✅ |
-| `~/.claude-sdd` | 0.11.12 ✅ | ✅ | ✅ | `0.11.12` ✅ | ✅ |
-| `~/.claude-kat` | 0.11.12 ✅ | ✅ | ✅ | `0.11.12` ✅ | ✅ |
+| `~/.claude` | 0.11.13 ✅ | ✅ | ✅ | `0.11.13` ✅ | ✅ |
+| `~/.claude-sdd` | 0.11.13 ✅ | ✅ | ✅ | `0.11.13` ✅ | ✅ |
+| `~/.claude-kat` | 0.11.13 ✅ | ✅ | ✅ | `0.11.13` ✅ | ✅ |
 
-_cache = working tree, measured 2026-10-19 with `diff -rq` (excluding `judge.env`, `__pycache__`, `.pytest_cache`, `.venv`): 0 files differ in content, re-measured 2026-10-23 for all three profiles. Seven paths exist only in the checkout (`buddy/.claude`, `.fastembed_cache`, `uv.lock`, two files under `tests/create-buddy-eval/runs`, `tests/fixtures/consolidate_channel/summons.log`, `tests/prompt-hamsa-eval/.env`); I did not classify them as ignored or tracked this time._
+_cache = working tree, measured 2026-10-19 with `diff -rq` (excluding `judge.env`, `__pycache__`, `.pytest_cache`, `.venv`): 0 files differ in content, re-measured 2026-10-24 for 0.11.13 in all three profiles, same excludes plus the seven checkout-only paths listed here. Seven paths exist only in the checkout (`buddy/.claude`, `.fastembed_cache`, `uv.lock`, two files under `tests/create-buddy-eval/runs`, `tests/fixtures/consolidate_channel/summons.log`, `tests/prompt-hamsa-eval/.env`); I did not classify them as ignored or tracked this time._
 
-**claude-statusline** — canonical `1.2.0` · readme `1.2.0` · marketplace clean ✅
-
-| profile | installed | cache dir | install_path ok | all entries | cache = working tree |
-|---|---|---|---|---|---|
-| `~/.claude-sdd` | 1.2.0 ✅ | ✅ | ✅ | `1.2.0` ✅ | ✅ |
-| `~/.claude-kat` | 1.2.0 ✅ | ✅ | ✅ | `1.2.0` ✅ | ✅ |
-
-**codescout-companion** — canonical `1.20.19` · readme `1.20.19` · marketplace clean ✅
+**statusline** — canonical `1.2.1` · readme `1.2.1` · marketplace clean ✅
 
 | profile | installed | cache dir | install_path ok | all entries | cache = working tree |
 |---|---|---|---|---|---|
-| `~/.claude` | 1.20.19 ✅ | ✅ | ✅ | `1.20.19` ✅ | ✅ |
-| `~/.claude-sdd` | 1.20.19 ✅ | ✅ | ✅ | `1.20.19` ✅ | ✅ |
-| `~/.claude-kat` | 1.20.19 ✅ | ✅ | ✅ | `1.20.19` ✅ | ✅ |
+| `~/.claude` | 1.2.1 ✅ | ✅ | ✅ | `1.2.1` ✅ | ✅ |
+| `~/.claude-sdd` | 1.2.1 ✅ | ✅ | ✅ | `1.2.1` ✅ | ✅ |
+| `~/.claude-kat` | 1.2.1 ✅ | ✅ | ✅ | `1.2.1` ✅ | ✅ |
 
-_cache = working tree, measured 2026-10-23 for all three profiles with `diff -rq` (excluding `.buddy`, `.codescout`, `.orphaned_at`, `node_modules`, `judge.env`, `__pycache__`, `.pytest_cache`, `.venv`): 0 files differ. The only differences are the cache marker `.orphaned_at` and the ignored local directories `.buddy` and `.codescout` (also under `hooks/`). The ❌ rows of 2026-10-14 and 2026-10-16 came from the checkout being on `effort-routing-r1`; the merge cleared them._
+**codescout-companion** — canonical `1.20.20` · readme `1.20.20` · marketplace clean ✅
+
+| profile | installed | cache dir | install_path ok | all entries | cache = working tree |
+|---|---|---|---|---|---|
+| `~/.claude` | 1.20.20 ✅ | ✅ | ✅ | `1.20.20` ✅ | ✅ |
+| `~/.claude-sdd` | 1.20.20 ✅ | ✅ | ✅ | `1.20.20` ✅ | ✅ |
+| `~/.claude-kat` | 1.20.20 ✅ | ✅ | ✅ | `1.20.20` ✅ | ✅ |
+
+_cache = working tree, measured 2026-10-24 for 1.20.20 in all three profiles with `diff -rq` (excluding `.buddy`, `.codescout`, `.orphaned_at`, `node_modules`, `judge.env`, `__pycache__`, `.pytest_cache`, `.venv`): 0 files differ. The only differences are the cache marker `.orphaned_at` and the ignored local directories `.buddy` and `.codescout` (also under `hooks/`). The ❌ rows of 2026-10-14 and 2026-10-16 came from the checkout being on `effort-routing-r1`; the merge cleared them._
 
 **legible** — canonical `0.2.0` · readme `0.2.0` · marketplace clean ✅
 
@@ -64,7 +67,7 @@ _cache = working tree, measured 2026-10-23 for all three profiles with `diff -rq
 `sdd`: not installed in any Claude profile.
 `session-bridge`: not installed in any Claude profile.
 
-`claude-statusline` is absent from ~/.claude; it is installed in the other two profiles. This is the measured WARN reported by the parity gate, not a fabricated all-profile installation.
+`statusline` now has a record in all three profiles (`~/.claude` had none before). Measured 2026-10-24: each record holds only `version` and `installPath`, with no `scope`, `installedAt` or `gitCommitSha`, unlike the buddy records. No profile lists `statusline` in `enabledPlugins`. `claude-statusline@sdd-misc-plugins` exists in no profile record; I did not establish when it was removed. Whether Claude Code accepts a record without `scope` is not tested.
 
 Source/cache differences outside this release are kept visible: a new legible style-probe file was committed after legible 0.2.0. Its existing 0.2.0 cache is not re-seeded to give that version a second byte set. These rows stay ❌ until that plugin's owner releases the change.
 
@@ -187,6 +190,19 @@ measured on both candidate load paths rather than argued: the record points at k
 two actually serves, they carry the same bytes — so the question CLAUDE.md flags as
 unsettled does not need settling for this release.
 ## History
+### 2026-10-24 — companion 1.20.20, buddy 0.11.13 and statusline 1.2.1 released and pushed; `effort-routing-r1` merged into `main`
+
+**Deltas, all measured:**
+- `effort-routing-r1` merged into `main` (`7c72a3b`, `--no-ff`; `git merge-tree` reported no conflicts). `origin/main..effort-routing-r1` was 42 commits; none had been pushed.
+- `c485ed6` fixes the `pre-push-guard` test fixture. It picked the newest commit under `tests/` as its "no bump" range, and that commit was the statusline rename, which also renames a `plugin.json`. The guard denied it correctly; 1 of 19 cases failed on the branch tip and 19 of 19 pass after the fix. The old `main` tip passed 19 of 19.
+- `f830803` fixes `emitSkillHint`, which emitted `hookSpecificOutput` without `hookEventName`. The usage sweep counted 211 rejections in the 2026-10-03..10-24 transcripts. That count was not re-measured after the fix.
+- Released with `NO_PUSH=1 scripts/release.sh`: codescout-companion 1.20.19→1.20.20 (`3c2a876`, full preflight, `All suites passed`), buddy 0.11.12→0.11.13 (`9c4a388`) and statusline 1.2.0→1.2.1 (`3340151`), the last two with `SKIP_TESTS=1`. The parity gate passed after each. One push: `c5dbc1c..3340151`. I did not read the buddy pytest count in the companion preflight.
+- All 9 cache dirs (3 plugins × 3 profiles) show 0 differing entries under `diff -rq` with the documented excludes. The checkout was on `main` for this release, so the 2026-10-14 and 2026-10-16 ❌ causes, which came from the checkout being on `effort-routing-r1`, do not apply.
+
+**statusline records (measured, not explained):** see the State note. The release script wrote bare records in all three profiles; I did not repair them.
+
+**Not done or not probed:** the cold restart of all three profiles; the effect of the `emitSkillHint` fix in a live session; deleting `effort-routing-r1`. Two bugs stay `investigating` (`2646bba03b528020`, `33de9ea8980e85c9`). `stash@{0}` holds copies of the `c5dbc1c` files and the older issue file from the old checkout.
+
 ### 2026-10-23 — buddy 0.11.12 and codescout-companion 1.20.19 released and pushed; two fix branches and the research-subagent fix merged
 
 **Deltas, all measured:**
