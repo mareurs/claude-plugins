@@ -197,7 +197,7 @@ Bundled in the same fix wave (all from the final review): FINAL I-1 (treated run
 
 **Decision for the operator (add to Done when).** Should the adapter skip or tag injected messages, and by what test? Candidates: a prefix test on the prompt (`<task-notification`, `Another Claude session sent a message`, `<agent-message`), or a field of the real hook input if one exists. The first step is to log one real hook payload (all keys, no prompt text) to see which fields exist.
 
-**Source:** live logs `~/.local/state/effort-steering/*.jsonl`; transcript `~/.claude/projects/-home-marius-work-claude-codescout/e1cb2369-1071-450c-a3e0-5634a7d447e0.jsonl`; `effort-steering/adapter/claude-code/build-context.mjs`, `effort-steering/core/arm.mjs`; passover `b2838d56206e8d62` ("Local deployment").
+**Source:** live logs `~/.local/state/effort-steering/*.jsonl`; transcript `~/.claude/projects/-home-marius-work-claude-codescout/e1cb2369-1071-450c-a3e0-5634a7d447e0.jsonl`; `effort-steering/adapter/claude-code/build-context.mjs`, `effort-steering/core/arm.mjs`; passover `5e62ea41ac312c1f` ("Local deployment").
 
 ## ES-14 — Research landscape recorded; the decisions it forces (D-1 to D-5)
 

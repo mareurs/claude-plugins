@@ -1,6 +1,6 @@
 # codescout-active marker convention
 
-**Shared contract between `codescout-companion` and `claude-statusline`.**
+**Shared contract between `codescout-companion` and `statusline`.**
 
 A session-scoped marker file records the agent's *declared* active workspace,
 so the statusline can display the truthful branch even when CC's process PWD
@@ -35,7 +35,7 @@ later operates on a worktree via `git -C` or chained `cd && git`.
 `session-start.sh` also sweeps markers older than 7 days (cheap garbage
 collection; markers cannot be relied on across longer gaps).
 
-## Reader — `claude-statusline`
+## Reader — `statusline`
 
 When `.workspace.git_worktree.name` is absent from the CC payload and a
 marker exists for `.session_id`, statusline runs `git -C <marker> branch
@@ -65,6 +65,6 @@ PWD with the `·Nwt` multi-worktree warning suffix.
   `session_id`; no contention.
 - Session resumed without prior `workspace()` call but CWD is inside a
   worktree → `session-start.sh` seeds the marker so first render is truthful.
-- User has `claude-statusline` but not `codescout-companion` (or vice
+- User has `statusline` but not `codescout-companion` (or vice
   versa) → no marker is ever written / read; statusline falls back. No
   hard coupling between the plugins.

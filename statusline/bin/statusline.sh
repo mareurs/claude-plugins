@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# claude-statusline v1.0.3
+# statusline v1.0.3
 # Claude Code status line — informative single-line display
 # Reads JSON from stdin, outputs ANSI-colored status line to stdout
 
@@ -277,6 +277,8 @@ if [[ "$_cfg" == *.claude-sdd* ]]; then
   right+="${SEP}${AGENT_BG} sdd ${RST}"
 elif [[ "$_cfg" == *.claude-kat* ]]; then
   right+="${SEP}${AGENT_BG} kat ${RST}"
+elif [[ "$_cfg" == *.claude-stef* ]]; then
+  right+="${SEP}${AGENT_BG} claude-stef ${RST}"
 elif [[ "$_cfg" == *.claude* ]]; then
   right+="${SEP}${MODEL_BG} claude ${RST}"
 fi

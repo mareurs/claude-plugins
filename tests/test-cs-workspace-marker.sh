@@ -3,7 +3,7 @@
 # End-to-end tests for the codescout-active marker convention:
 #   $CLAUDE_CONFIG_DIR/codescout-active/<session_id> contains one line: workspace path
 # Written by: cs-activate-project.sh, worktree-activate.sh, session-start.sh (resumed-in-wt)
-# Read by:    claude-statusline/bin/statusline.sh
+# Read by:    statusline/bin/statusline.sh
 source "$(dirname "${BASH_SOURCE[0]}")/lib/fixtures.sh"
 
 echo "── cs-workspace-marker ──"
@@ -121,7 +121,7 @@ fi
 
 # === Statusline reads marker and prefixes branch with cs: ===
 
-STATUSLINE="$(cd "$(dirname "${BASH_SOURCE[0]}")/../claude-statusline/bin" && pwd)/statusline.sh"
+STATUSLINE="$(cd "$(dirname "${BASH_SOURCE[0]}")/../statusline/bin" && pwd)/statusline.sh"
 
 # Activate WT branch
 git -C "$WT" checkout -q -B feat/gcp

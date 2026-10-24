@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Buddy composed statusline.
 #
-# Runs a "primary" statusline command (e.g. claude-statusline) on row 1,
+# Runs a "primary" statusline command (e.g. statusline) on row 1,
 # then the buddy bodhisattva on the following rows — both fed the same
 # stdin JSON from Claude Code.
 #
@@ -9,7 +9,7 @@
 #
 # Configuration (all optional):
 #   BUDDY_PRIMARY_STATUSLINE  Path to a primary statusline command. If unset,
-#                             the script tries the sibling claude-statusline in
+#                             the script tries the sibling statusline in
 #                             the same checkout, then the sdd-misc-plugins
 #                             cache, then $CLAUDE_CONFIG_DIR/statusline.sh,
 #                             then nothing.
@@ -178,20 +178,20 @@ resolve_primary() {
     return
   fi
 
-  # Sibling claude-statusline in the same checkout (buddy/scripts/ → ../..).
-  # Tried before the plugin cache: claude-statusline has no install record in
+  # Sibling statusline in the same checkout (buddy/scripts/ → ../..).
+  # Tried before the plugin cache: statusline has no install record in
   # any profile, so CC's orphan sweep deletes its cache dir — which silently
   # dropped row 1 from ~/.claude-sdd. Absent for cache installs
   # (cache/…/buddy/<ver>/), where the lookups below still apply.
   local checkout
   checkout="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." 2>/dev/null && pwd)"
-  if [[ -n "$checkout" ]] && [[ -x "$checkout/claude-statusline/bin/statusline.sh" ]]; then
-    printf '%s' "$checkout/claude-statusline/bin/statusline.sh"
+  if [[ -n "$checkout" ]] && [[ -x "$checkout/statusline/bin/statusline.sh" ]]; then
+    printf '%s' "$checkout/statusline/bin/statusline.sh"
     return
   fi
 
   local cfg="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
-  local base="$cfg/plugins/cache/sdd-misc-plugins/claude-statusline"
+  local base="$cfg/plugins/cache/sdd-misc-plugins/statusline"
   # Glob returns versions alphabetically; sort -V picks the newest semver.
   # Without -V we'd silently pin to the oldest cached version forever.
   local candidate

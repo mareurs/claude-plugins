@@ -31,8 +31,8 @@
       "category": "infrastructure"
     },
     {
-      "name": "claude-statusline",
-      "source": "./claude-statusline",
+      "name": "statusline",
+      "source": "./statusline",
       "description": "Rich, color-coded terminal status line showing model, context %, rate limits, git info, cost, and more.",
       "author": {
         "name": "Marius"
@@ -44,7 +44,7 @@
     {
       "name": "buddy",
       "source": "./buddy",
-      "description": "A Himalayan-aesthetic bodhisattva companion for Claude Code, with 9 specialist masters on demand. Standalone or composable with claude-statusline.",
+      "description": "A Himalayan-aesthetic bodhisattva companion for Claude Code, with 9 specialist masters on demand. Standalone or composable with statusline.",
       "author": {
         "name": "Marius"
       },

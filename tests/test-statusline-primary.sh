@@ -1,10 +1,10 @@
 #!/bin/bash
 # tests/test-statusline-primary.sh — resolve_primary lookup order.
 #
-# The primary (row 1) used to resolve only from the claude-statusline plugin
-# cache. No profile has an install record for claude-statusline, so Claude
+# The primary (row 1) used to resolve only from the statusline plugin
+# cache. No profile has an install record for statusline, so Claude
 # Code's orphan sweep deleted that cache dir from ~/.claude-sdd and row 1
-# silently degraded to the rate-limits fallback. The sibling claude-statusline
+# silently degraded to the rate-limits fallback. The sibling statusline
 # in the same checkout is now tried first; cache and $cfg/statusline.sh remain
 # as fallbacks.
 source "$(dirname "${BASH_SOURCE[0]}")/lib/fixtures.sh"
@@ -33,8 +33,8 @@ stub() {
   printf '#!/bin/bash\ncat >/dev/null\necho %s\n' "$2" > "$1"
   chmod +x "$1"
 }
-add_sibling() { stub "$SANDBOX/checkout/claude-statusline/bin/statusline.sh" SIBLING-PRIMARY; }
-add_cache()   { stub "$CLAUDE_CONFIG_DIR/plugins/cache/sdd-misc-plugins/claude-statusline/9.9.9/bin/statusline.sh" CACHE-PRIMARY; }
+add_sibling() { stub "$SANDBOX/checkout/statusline/bin/statusline.sh" SIBLING-PRIMARY; }
+add_cache()   { stub "$CLAUDE_CONFIG_DIR/plugins/cache/sdd-misc-plugins/statusline/9.9.9/bin/statusline.sh" CACHE-PRIMARY; }
 
 render() {
   echo "$BASE_INPUT" | BUDDY_SKIP_SELF=1 bash "$SANDBOX/checkout/buddy/scripts/statusline-composed.sh" 2>/dev/null
@@ -80,7 +80,7 @@ fi
 
 # ── Test 5: non-executable sibling is skipped ──
 new_sandbox; add_sibling; add_cache
-chmod -x "$SANDBOX/checkout/claude-statusline/bin/statusline.sh"
+chmod -x "$SANDBOX/checkout/statusline/bin/statusline.sh"
 OUT=$(render)
 if echo "$OUT" | grep -q CACHE-PRIMARY; then
   pass "sibling: non-executable falls through to cache"
@@ -88,15 +88,15 @@ else
   fail "sibling: non-executable falls through to cache" "got: $OUT"
 fi
 
-# ── Test 6: the real repo layout resolves the real claude-statusline ──
+# ── Test 6: the real repo layout resolves the real statusline ──
 # Guards the relative path against the actual tree: the fallback never prints
 # the model name, the primary always does.
 new_sandbox
 OUT=$(echo "$BASE_INPUT" | BUDDY_SKIP_SELF=1 bash "$REAL_COMPOSED" 2>/dev/null)
 if echo "$OUT" | grep -q "test-model"; then
-  pass "repo layout: real claude-statusline renders row 1"
+  pass "repo layout: real statusline renders row 1"
 else
-  fail "repo layout: real claude-statusline renders row 1" "got: $OUT"
+  fail "repo layout: real statusline renders row 1" "got: $OUT"
 fi
 
 print_summary "statusline-primary"

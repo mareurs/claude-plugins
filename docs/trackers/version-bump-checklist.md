@@ -14,21 +14,27 @@ Release readiness across plugins × profiles. See
 
 ## State
 
-_Last refresh: `9223628`, 2026-10-16 — codescout-companion 1.20.17→1.20.18, pushed (`main` `8f3b8b5..9223628`); `~/.claude` buddy record repointed 0.11.9→0.11.10 after it regressed. See History 2026-10-16._
+_Last refresh: `a08668e`, 2026-10-23 — buddy 0.11.11→0.11.12 and codescout-companion 1.20.18→1.20.19, both pushed (`main` `1b91724..a08668e`). Two fix branches and the research-subagent fix were merged into `main` first; `effort-routing-r1` was merged with `main` afterwards (`8903213`). See History 2026-10-23._
 
-_Earlier refresh: `8788261`, 2026-10-14 — buddy 0.11.9→0.11.10, pushed (`main` `f026c11..8788261`). See History 2026-10-14._
+_Earlier refresh: `1b91724`, 2026-10-19 — buddy 0.11.10→0.11.11, pushed (`main` `ae12d60..1b91724`). `~/.claude` record repointed the same day; `effort-routing-r1` merged with `main` (`9e346ca`) so the checkout's `plugin.json` files agree with the profiles. See History 2026-10-19._
+
+_Earlier refresh: `9223628`, 2026-10-16 — codescout-companion 1.20.17→1.20.18, pushed (`main` `8f3b8b5..9223628`); `~/.claude` buddy record repointed 0.11.9→0.11.10 after it regressed. See History 2026-10-16._
+
+_Before that: `8788261`, 2026-10-14 — buddy 0.11.9→0.11.10, pushed (`main` `f026c11..8788261`). See History 2026-10-14._
 
 _Previous refresh: `4fc9326`, 2026-10-11 — companion 1.20.16→1.20.17, local only. Release preflight passed all plugin suites and buddy pytest (528 passed). The release's final gate initially exited 1 on unrelated marketplace revision skew; four catalog copies were aligned with the main profile using preserved directory backups and unchanged registries. The repeated full parity gate exited 0. Generated release outputs are integrated in canonical commit f8a73ee after separate feature 4ce5432; original Codex/Codescout source commits are 5eedcdc543/eed25579. Native escalation respected the protected .git rules and preserved unrelated work._
 
 The existing lowercase Codex profile also installed companion 1.20.17 via the public plugin installer. Its cache matches the released plugin's source files; the one generated migrated-command skill was checked against the source command. Runtime .codescout databases/locks/stamps, alongside the existing build/runtime exclusions, are explicitly excluded from source-byte comparison. The verified GNU/Linux 0.160.0 host is now selected/pinned and cold-loaded; native approval accept/decline and resume/compact/fork transport passed. All three fresh Claude profiles loaded 1.20.17 startup; main/SDD turns passed, Kat's expired OAuth blocks its authenticated smoke. Runtime canonical directory-source loading and own-profile cache ownership were measured separately. Main-profile Claude owned formatting and native-derived explicit Codex mixed-host refusal passed. The native Claude fork smoke exposed a separate Codescout history-reader attribution bug (F-17); its reviewed four-file follow-up passes 99 focused tests, nine applied mutations (zero final survivors) and same-fork corrected native refusal; the canonical broad gate passed all five lanes and the original four-file Codescout follow-up is committed locally as 6eb585ef, with reviewed-byte equality and empty index verified. Native Claude child/root attribution and parent formatting also passed after repairing scratch fixture modes. These are separate Codescout reader/native acceptance observations and do not change the released companion cache bytes. Kat reauthentication is unavailable now, so its authenticated smoke stays pending. See verification artifact 2185a218fbd18b7f.
 
-**buddy** — canonical `0.11.10` · readme `0.11.10` · marketplace clean ✅
+**buddy** — canonical `0.11.12` · readme `0.11.12` · marketplace clean ✅
 
 | profile | installed | cache dir | install_path ok | all entries | cache = working tree |
 |---|---|---|---|---|---|
-| `~/.claude` | 0.11.10 ✅ | ✅ | ✅ | `0.11.10` ✅ | ❌ |
-| `~/.claude-sdd` | 0.11.10 ✅ | ✅ | ✅ | `0.11.10` ✅ | ❌ |
-| `~/.claude-kat` | 0.11.10 ✅ | ✅ | ✅ | `0.11.10` ✅ | ❌ |
+| `~/.claude` | 0.11.12 ✅ | ✅ | ✅ | `0.11.12` ✅ | ✅ |
+| `~/.claude-sdd` | 0.11.12 ✅ | ✅ | ✅ | `0.11.12` ✅ | ✅ |
+| `~/.claude-kat` | 0.11.12 ✅ | ✅ | ✅ | `0.11.12` ✅ | ✅ |
+
+_cache = working tree, measured 2026-10-19 with `diff -rq` (excluding `judge.env`, `__pycache__`, `.pytest_cache`, `.venv`): 0 files differ in content, re-measured 2026-10-23 for all three profiles. Seven paths exist only in the checkout (`buddy/.claude`, `.fastembed_cache`, `uv.lock`, two files under `tests/create-buddy-eval/runs`, `tests/fixtures/consolidate_channel/summons.log`, `tests/prompt-hamsa-eval/.env`); I did not classify them as ignored or tracked this time._
 
 **claude-statusline** — canonical `1.2.0` · readme `1.2.0` · marketplace clean ✅
 
@@ -37,13 +43,15 @@ The existing lowercase Codex profile also installed companion 1.20.17 via the pu
 | `~/.claude-sdd` | 1.2.0 ✅ | ✅ | ✅ | `1.2.0` ✅ | ✅ |
 | `~/.claude-kat` | 1.2.0 ✅ | ✅ | ✅ | `1.2.0` ✅ | ✅ |
 
-**codescout-companion** — canonical `1.20.18` · readme `1.20.18` · marketplace clean ✅
+**codescout-companion** — canonical `1.20.19` · readme `1.20.19` · marketplace clean ✅
 
 | profile | installed | cache dir | install_path ok | all entries | cache = working tree |
 |---|---|---|---|---|---|
-| `~/.claude` | 1.20.18 ✅ | ✅ | ✅ | `1.20.18` ✅ | ❌ |
-| `~/.claude-sdd` | 1.20.18 ✅ | ✅ | ✅ | `1.20.18` ✅ | ❌ |
-| `~/.claude-kat` | 1.20.18 ✅ | ✅ | ✅ | `1.20.18` ✅ | ❌ |
+| `~/.claude` | 1.20.19 ✅ | ✅ | ✅ | `1.20.19` ✅ | ✅ |
+| `~/.claude-sdd` | 1.20.19 ✅ | ✅ | ✅ | `1.20.19` ✅ | ✅ |
+| `~/.claude-kat` | 1.20.19 ✅ | ✅ | ✅ | `1.20.19` ✅ | ✅ |
+
+_cache = working tree, measured 2026-10-23 for all three profiles with `diff -rq` (excluding `.buddy`, `.codescout`, `.orphaned_at`, `node_modules`, `judge.env`, `__pycache__`, `.pytest_cache`, `.venv`): 0 files differ. The only differences are the cache marker `.orphaned_at` and the ignored local directories `.buddy` and `.codescout` (also under `hooks/`). The ❌ rows of 2026-10-14 and 2026-10-16 came from the checkout being on `effort-routing-r1`; the merge cleared them._
 
 **legible** — canonical `0.2.0` · readme `0.2.0` · marketplace clean ✅
 
@@ -179,6 +187,35 @@ measured on both candidate load paths rather than argued: the record points at k
 two actually serves, they carry the same bytes — so the question CLAUDE.md flags as
 unsettled does not need settling for this release.
 ## History
+### 2026-10-23 — buddy 0.11.12 and codescout-companion 1.20.19 released and pushed; two fix branches and the research-subagent fix merged
+
+**Deltas, all measured:**
+- `main` gained `fix/guide-hooks-20261016` (3 commits, companion hooks), `fix/codescout-issues-20261016` (2 commits, buddy skill ledger and statusline, companion `tracker-hygiene` skill) and the `research-subagent` skill rewrite (`977b699`). Both merges were conflict-free (`git merge-tree` exit 0). `./tests/run-all.sh` on the merged `main` exited 0.
+- `buddy` 0.11.11→0.11.12 and `codescout-companion` 1.20.18→1.20.19, in canonical, readme and all three profiles. `main` `1b91724..a08668e` was pushed by the companion release.
+- `effort-routing-r1` was merged with `main` (`8903213`). The branch holds docs only outside `main`; it is still not pushed.
+
+**The buddy release stopped at step 6.5.** The preflight, the bump commit (`f4f4cda`), the cache seeding and the record repointing all passed. The parity gate then exited 1 on `MARKETPLACE SKEW`: `~/.claude-sdd` held `superpowers-marketplace` at `2cf27fa` (2026-10-10), the other two profiles at `87b5911` (2026-10-21). Origin `main` was `87b5911`. The sdd clone was clean and shallow, so a local ancestry check was impossible. Fix: `git fetch --depth=1 origin main`, then `git reset --hard origin/main` in that clone. Parity then exited 0. The buddy release was not re-run, because a re-run would have bumped to 0.11.13. The companion release ran next and pushed both bumps.
+
+**Not done or not probed:** the cold restart of all three profiles. The statusline fix `444e627` and the new hooks were not observed in a live session. The two merged fix worktrees and branches were left in place.
+### 2026-10-19 — buddy 0.11.11 released and pushed; `~/.claude` record repointed; branch merged with `main`; three test defects fixed
+
+**Deltas, all measured:**
+- `buddy`: canonical, readme and all three profiles' installed `0.11.10→0.11.11`, via `NO_PUSH=1 scripts/release.sh buddy patch` from a clean worktree on `main`. Bump commit `1b91724`. It ships `444e627` (the statusline hides cached usage when `.credentials.json` holds no token).
+- Preflight: `tests/run-all.sh` printed `All suites passed` and buddy pytest reported `528 passed`. The parity gate passes for `buddy` 0.11.11, `codescout-companion` 1.20.18 and `legible` 0.2.0; `claude-statusline` in 2 of 3 profiles is a WARN, not a failure.
+- Pushed `ae12d60..1b91724`: 57 commits, one author, no merges, a fast-forward. `origin/main` equals `main`.
+- `~/.claude` record: earlier the same day repointed `buddy` `0.11.9→0.11.10` and `codescout-companion` `1.20.17→1.20.18` (`version` and `installPath` only; backup `~/.claude/plugins/installed_plugins.json.bak-20261019-pre-repoint`), then set to buddy 0.11.11 by the release. Likely cause of the regression: the old entries carried `gitCommitSha` `7de8d301`, a commit on `effort-routing-r1`, and their versions equalled that checkout's `plugin.json` files. That fits Claude Code re-resolving from the checkout; the sha match and the version match are measured, the mechanism is not proven.
+- `effort-routing-r1` merged with `main` twice (`18c2640`, `9e346ca`), so the checkout's `plugin.json` files read `buddy` 0.11.11 and `codescout-companion` 1.20.18, and parity holds from the checkout.
+- `codescout-companion`: no release needed. The 1.20.18 cache matches the checkout's `.pi/extensions` byte for byte, so the branch-only `f17afad` pi change is already in 1.20.18; the merge conflict in `codescout-mode.test.mjs` had the same text on both sides.
+- Sweep commit `7d75258` is docs-only.
+
+**Three defects, all in tests and all on `main`, found by the release preflight and fixed with a test first (`896c944`, `6156ba5`, `9cb1500`):**
+- `test-all-plugins-hooks-json-portable.sh` ran `jq '.hooks[][]?…'` on the toggle mod manifest `{ "modules": [...] }`, where `.hooks` is null. It now reads `(.hooks // {})`, with fixtures for four shapes; a `hooks` key of the wrong shape still fails.
+- `plan-limit.guard.test.mjs` (R-PL8) read the directory literal `/opt/claude` in `toggle/commands.mjs` as the `claude` binary and paired it with cargo's `-p`. The exact string `/opt/claude` is now exempt, since the binary is `/opt/claude/claude`. A new test pins that `/opt/claude/claude`, a bare `claude` and `/usr/opt/claude` still count. The real tree stays at exactly 10 launchers and no `UNGUARDED` entry was added.
+- `test-pre-push-guard.sh` found its bump commit with `'*/.claude-plugin/plugin.json'`, whose `*` also matches `/`, so the newest match became the toggle mod's nested manifest and plugin discovery came back empty. It now uses `':(glob)*/.claude-plugin/plugin.json'`. The guard itself was never wrong.
+
+**Still open:** the cold restart of all three Claude Code instances. The checkout on `effort-routing-r1` stays a risk after every future `main` bump until that branch merges `main` again, so merge `main` after each release.
+
+**Not probed:** cold restart and registration in any profile; that the statusline fix of `444e627` behaves as intended in a live session.
 ### 2026-10-16 — codescout-companion 1.20.18 released and pushed; `~/.claude` buddy record repaired
 
 **Deltas, all measured:**
@@ -1494,7 +1531,7 @@ Cold restart / `/reload-plugins` per instance still required to bind the 1.16.4 
 
 Subagent bootstrap injection (`f1488c2` carries the merge of 13 commits). `subagent-guidance.mjs` now prepends a `PROJECT BOOTSTRAP` paragraph — `workspace(action="activate", path=<root>)` resolved via `git rev-parse --show-toplevel` with a raw-cwd fallback — and Phase 0's first bullet lists the project's memory topics inline instead of instructing a `memory(action="list")` discovery call, falling back to the original wording when a project has no memories. Root resolution uses the toplevel because `worktree-write-guard.mjs` places `.cs-worktree-pending` there and `cs-activate-project.mjs` releases it via a literal `join(tool_input.path, …)`, so activating a subdirectory path would leave codescout writes blocked.
 
-Execution was rougher than the diff suggests. `tests/test-subagent-guidance.sh` grew 4 → 34 assertions across three hardening rounds and a final fix wave, all driven by one recurring defect class: assertions that read correct while proving nothing. A whole task was reverted after review found the plan rested on two false premises — that this hook had no test suite (it did, in `tests/`, never searched) and that no fixture could control the `HAS_CODESCOUT` gate (`write_routing_config` does; `write_mcp_json` is a trap that leaves it closed, because `detect.mjs` matches `/codescout/` against the server `command`/`args`, not its key). Every non-obvious assertion is now mutation-proven. Recorded as `subagent-bootstrap-session-log:F-1`…`subagent-bootstrap-session-log:F-5`/`subagent-bootstrap-session-log:W-1` in `docs/trackers/subagent-bootstrap-session-log.md` and R-1 (hit) / R-2 (miss) in `docs/trackers/reconnaissance-patterns.md`.
+Execution was rougher than the diff suggests. `tests/test-subagent-guidance.sh` grew 4 → 34 assertions across three hardening rounds and a final fix wave, all driven by one recurring defect class: assertions that read correct while proving nothing. A whole task was reverted after review found the plan rested on two false premises — that this hook had no test suite (it did, in `tests/`, never searched) and that no fixture could control the `HAS_CODESCOUT` gate (`write_routing_config` does; `write_mcp_json` is a trap that leaves it closed, because `detect.mjs` matches `/codescout/` against the server `command`/`args`, not its key). Every non-obvious assertion is now mutation-proven. Recorded as `subagent-bootstrap-session-log:F-1`…`subagent-bootstrap-session-log:F-5`/`subagent-bootstrap-session-log:W-1` in `docs/trackers/archive/subagent-bootstrap-session-log.md` and R-1 (hit) / R-2 (miss) in `docs/trackers/reconnaissance-patterns.md`.
 
 Ran `release.sh codescout-companion patch` (→1.16.3): `run-all.sh` green (16 suites, 491 PASS, 0 FAIL), buddy pytest green, caches seeded + install records repointed across all three profiles, sanity loop all ✅. Verified independently rather than trusting the script's printout: all three records → `1.16.3` with same-profile `installPath`s, the `1.16.3` cache dir present in each, and the deployed `subagent-guidance.mjs` byte-identical to the repo copy in all three (4949 bytes) carrying the bootstrap paragraph, the inline memory bullet, and no `CS_SUBAGENT_GUIDANCE_FORCE` residue. `check-versions.sh` clean across all five plugins. Pushed to origin/main (`f1488c2`).
 

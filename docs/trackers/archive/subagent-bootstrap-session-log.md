@@ -1,7 +1,7 @@
 ---
-id: '9ea452e9cf4d9fbe'
+id: 3e9add58c1ff674c
 kind: tracker
-status: active
+status: archived
 title: Subagent bootstrap injection — session log
 tags:
 - session-log
@@ -9,10 +9,11 @@ tags:
 - codescout-companion
 - hooks
 topic: subagent-bootstrap
+archived_on: 2026-10-19
+entry_high_water_F: 9
 entry_prefix:
 - F
 - W
-entry_high_water_F: 9
 ---
 
 # Subagent bootstrap injection — session log
@@ -453,7 +454,9 @@ So the skill's conditional fallback ("If a foreign-project bootstrap directive w
 
 **Status:** wontfix-false-alarm — the claimed defect does not exist; the hook fires for nested dispatches and the injection reaches the grandchild (see RESOLVED banner). No code change was warranted. The F-6 fix stands on a corrected rationale.
 
-**Valid:** invariant — measured directly end-to-end; supersedes both the original conditional and the retraction's
+**Valid:** invariant
+
+Basis (the former Valid line, verbatim; the source line ends here): measured directly end-to-end; supersedes both the original conditional and the retraction's
 
 **Valid (superseded — see Status):** conditional — a live nested dispatch at a foreign path is observed, confirming or refuting non-firing
 
