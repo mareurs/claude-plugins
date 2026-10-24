@@ -33,6 +33,17 @@ has "pre-task dedup {}"    "{}"                          "$(inp "$CS" "$SID" "Ag
 has "pre-edit first fire"  "shape-changing edit" "$(inp "$CS" "$SID" "mcp__codescout__edit_code" | node "$HERE/pre-edit-hint.mjs")"
 has "pre-edit dedup {}"    "{}"                  "$(inp "$CS" "$SID" "mcp__codescout__edit_code" | node "$HERE/pre-edit-hint.mjs")"
 
+# Claude Code rejects a hookSpecificOutput that has no hookEventName ("missing
+# required field hookEventName"; 211 rejections in the 2026-10-03..10-24
+# transcripts), so the hint never reaches the model. The substring checks above
+# cannot see that: the text is present either way. Fresh session ids, because the
+# dedup markers for $SID are spent.
+ev() { printf '%s' "$1" | jq -r '.hookSpecificOutput.hookEventName // "none"'; }
+has "pre-task hint names its hook event" "PreToolUse" \
+  "$(ev "$(inp "$CS" "sid-ev-task" "Agent" | node "$HERE/pre-task-hint.mjs")")"
+has "pre-edit hint names its hook event" "PreToolUse" \
+  "$(ev "$(inp "$CS" "sid-ev-edit" "mcp__codescout__edit_code" | node "$HERE/pre-edit-hint.mjs")")"
+
 # non-codescout cwd (empty HOME, no CLAUDE_CONFIG_DIR, no .mcp.json) → silent
 BARE="$TMP/bare"
 mkdir -p "$BARE"

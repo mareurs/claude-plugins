@@ -158,6 +158,8 @@ export function git(cwd, args) {
 // One-shot, session-scoped skill pointer. Emits the hint the first time for
 // <topic> this session (touching a marker); emits {} otherwise. Mirrors
 // skill-hints.sh: marker at <cwd>/.buddy/<sessionId>/hint-emitted-<topic>.
+// PreToolUse only: Claude Code rejects hook output without hookEventName, and
+// both callers (pre-task-hint, pre-edit-hint) are PreToolUse hooks.
 export function emitSkillHint(cwd, sessionId, topic, hint) {
   if (!sessionId || !cwd) {
     emit({});
@@ -175,7 +177,7 @@ export function emitSkillHint(cwd, sessionId, topic, hint) {
   } catch {
     /* best-effort */
   }
-  emit({ hookSpecificOutput: { additionalContext: hint } });
+  contextPreToolUse(hint);
 }
 
 // --- Guide-hints ledger path: mirrors codescout's own resolution --------
