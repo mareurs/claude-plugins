@@ -10,8 +10,8 @@ tags:
 - node
 - pre-existing-debt
 claimed_at: 2026-09-13
-last_observed: 2026-09-13
-unverified: WSL-only failures remain unobserved by CI (~10 of the original 16). pre-tool-guard.test.sh remains excluded from CI (hardcoded real absolute dev-machine paths, not a fixture — needs a rewrite, not a HOME pin). 4 of the 5 originally-excluded ambient-config suites were fixed 2026-09-13 and are now covered by CI (42/43).
+last_observed: 2026-10-27
+unverified: WSL-only failures remain unobserved by CI (~10 of the original 16). All 5 originally-excluded ambient-config suites are now hermetic and CI no longer sets CS_TEST_SKIP. The pre-tool-guard.test.sh rewrite is uncommitted in the working tree and has not run on a real CI runner yet.
 ---
 
 ## Summary
@@ -255,3 +255,15 @@ mutation-tested (`guard-hardening-session-log:F-3`) for real security-relevant c
 of the original 16 (5 root-caused 2026-09-10 + 4 fixed here). `pre-tool-guard.test.sh` and the
 remaining ~10 WSL-only suites are still not covered by CI and still need, respectively, a
 fixture rewrite and a WSL host to observe.
+
+## Re-checked 2026-10-27 — the fifth suite, pre-tool-guard.test.sh, made hermetic
+
+**Reproduced first.** `env -i PATH="$PATH" HOME=<empty tmp dir> bash codescout-companion/hooks/pre-tool-guard.test.sh` gave 24 pass / 44 fail (68 assertions; the 2026-09-13 note counted 59).
+
+**Fix.** The suite now builds three synthetic fixture projects (`codescout`, `claude-plugins`, `backend-kotlin`) under its own temp dir. Each has a `.mcp.json` whose command contains `codescout`, so `detect.mjs` matches it without an ambient profile. The sibling keeps the name `claude-plugins` and sits next to the active project, so `cd ../claude-plugins` is still a sibling-repo case. The two config cases (`cfg-hatch-*`) also needed their own `.mcp.json`: after the first fix they were the only 2 failures, because they too passed only through the ambient profile.
+
+**Measured after the fix.** 68 pass / 0 fail under an empty `HOME`, and 68 pass / 0 fail under the ambient environment. Full `tests/run-all.sh` under an empty `HOME` with no `CS_TEST_SKIP`: exit 0, 114 `▶` suite lines, no FAIL line.
+
+**CI.** `CS_TEST_SKIP` is removed from `.github/workflows/cross-platform-hooks.yml`, so every suite runs. No assertion was edited except the one `cd` case that named a real path; only the fixture setup changed.
+
+**Not covered.** The ~10 WSL-only suites still need a WSL host. The change has not run on a real GitHub runner yet.

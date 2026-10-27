@@ -20,16 +20,32 @@ HOOK="$(cd "$(dirname "$0")" && pwd)/pre-tool-guard.mjs"
 GUARD_TEST_TMP="$(mktemp -d "${TMPDIR:-/tmp}/cs-guard-test-XXXXXX")" || exit 1
 export TMPDIR="$GUARD_TEST_TMP"
 trap 'rm -rf "$GUARD_TEST_TMP"' EXIT
-ACTIVE_CWD="/home/marius/work/claude/codescout"
-SIBLING_CWD="/home/marius/work/claude/claude-plugins"
 
-# The two CWDs above are REAL repos, and either may carry a developer's
-# `.claude/codescout-companion.json` opt-out (`block_reads: false`). That makes
+# Synthetic fixture projects, NOT the author's real checkouts. The suite used to
+# hardcode /home/marius/work/claude/{codescout,claude-plugins}: on any other host
+# those dirs do not exist, so detect.mjs found no codescout server and every hook
+# exited at its HAS_CODESCOUT gate (37 of 59 assertions failed under an empty
+# HOME — see docs/issues/2026-08-05-test-run-all-pre-existing-failures-under-
+# fresh-wsl.md). Each fixture carries a `.mcp.json` whose command contains
+# "codescout" (detect.mjs SERVER_NAME_RE), so detection no longer depends on the
+# ambient ~/.claude* profile. The sibling keeps the name `claude-plugins` and sits
+# next to the active project so `cd ../claude-plugins` still means a sibling repo.
+FIXTURE_ROOT="$GUARD_TEST_TMP/work"
+ACTIVE_CWD="$FIXTURE_ROOT/codescout"
+SIBLING_CWD="$FIXTURE_ROOT/claude-plugins"
+OTHER_CWD="$FIXTURE_ROOT/backend-kotlin"
+for d in "$ACTIVE_CWD" "$SIBLING_CWD" "$OTHER_CWD"; do
+    mkdir -p "$d/src"
+    printf '{"mcpServers":{"codescout":{"command":"/usr/local/bin/codescout","args":["serve"]}}}\n' > "$d/.mcp.json"
+done
+
+# A fixture CWD may still pick up a project `.claude/codescout-companion.json`
+# opt-out (`block_reads: false`) if a developer's own config leaks in. That makes
 # pre-tool-guard.mjs:32 exit before any dispatch, turning every deny assertion
 # into a false allow — measured 2026-08-28 as 21/55, which also blocks
-# release.sh pre-flight. Make the suite hermetic; the hatch is honoured by
-# detect.mjs findRoutingConfig + its detect.py mirror, and is unset again by the
-# config cases at the bottom of this file. See `guard-hardening-session-log:F-3`.
+# release.sh pre-flight. Keep the hatch: it is honoured by detect.mjs
+# findRoutingConfig + its detect.py mirror, and is unset again by the config
+# cases at the bottom of this file. See `guard-hardening-session-log:F-3`.
 export CS_COMPANION_IGNORE_PROJECT_CONFIG=1
 
 PASS=0
@@ -98,7 +114,7 @@ assert_file() {  # <label> <tool_name> <file_path> <expected>
 
 # --- Cross-repo cd: hardened — no longer an escape (all Bash → run_command) ---
 assert "cd-sibling-abs"      "cd $SIBLING_CWD && git status"                        "deny"
-assert "cd-sibling-quoted"   "cd \"/home/marius/work/mirela/backend-kotlin\" && git status" "deny"
+assert "cd-sibling-quoted"   "cd \"$OTHER_CWD\" && git status"                      "deny"
 assert "cd-sibling-tilde"    "cd ~/work/claude/claude-plugins && git log -1"        "deny"
 assert "cd-sibling-relative" "cd ../claude-plugins && git status"                   "deny"
 assert "cd-tmp"              "cd /tmp && ls"                                        "deny"
@@ -332,6 +348,11 @@ CFG_TMP="$(mktemp -d)"
 mkdir -p "$CFG_TMP/optout/.claude" "$CFG_TMP/plain/.claude"
 printf '{"block_reads": false}\n' > "$CFG_TMP/optout/.claude/codescout-companion.json"
 printf '{}\n'                     > "$CFG_TMP/plain/.claude/codescout-companion.json"
+# Both need their own codescout `.mcp.json`: without it these cases only pass on a
+# machine whose ambient ~/.claude* profile happens to register a codescout server.
+for d in optout plain; do
+    printf '{"mcpServers":{"codescout":{"command":"/usr/local/bin/codescout","args":["serve"]}}}\n' > "$CFG_TMP/$d/.mcp.json"
+done
 
 assert_cfg() {  # <label> <cwd> <expected> <hatch: on|off>
     clean

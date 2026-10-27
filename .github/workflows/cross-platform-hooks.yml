@@ -88,28 +88,15 @@ jobs:
           node-version: '24'
 
       - name: Full suite
-        env:
-          # Of the original five ambient-config suites (measured 2026-09-10 by
-          # running under an empty HOME — see
-          # docs/issues/2026-08-05-test-run-all-pre-existing-failures-under-fresh-wsl.md),
-          # four were made hermetic 2026-09-13 by giving each fixture project a
-          # .mcp.json whose command matches detect.mjs's /codescout/ regex
-          # (write_mcp_json's dummy "fake-ce" binary never matched it, so
-          # HAS_CODESCOUT silently fell back to an ambient ~/.claude* profile that
-          # only exists on a developer machine) and are no longer skipped here.
-          #
-          # pre-tool-guard.test.sh stays skipped — it is not the same defect.
-          # It hardcodes real absolute paths on the author's machine
-          # (/home/marius/work/claude/codescout and its siblings) as CWDs, so it
-          # depends on directories that do not exist on a CI runner at all, not
-          # just on ambient config. Fixing it means rewriting it around synthetic
-          # fixture repos (as the other four now are), which is separate,
-          # larger work — not done in this pass.
-          #
-          # A DENY-list, so every other suite — including any added after this
-          # line was written — runs here by default. run-all.sh prints what it
-          # skipped and FAILS if a name here matches no discovered suite, so this
-          # list cannot rot into silence.
-          CS_TEST_SKIP: >-
-            pre-tool-guard.test.sh
+        # No suite is skipped. The five ambient-config suites measured 2026-09-10
+        # (empty HOME — see
+        # docs/issues/2026-08-05-test-run-all-pre-existing-failures-under-fresh-wsl.md)
+        # are all hermetic now: four got a .mcp.json whose command matches
+        # detect.mjs's /codescout/ regex on 2026-09-13, and pre-tool-guard.test.sh
+        # was rewritten around synthetic fixture projects (it used to hardcode the
+        # author's /home/marius/... checkouts as CWDs).
+        #
+        # tests/run-all.sh still honours a CS_TEST_SKIP deny-list (space-separated
+        # basenames). It prints what it skipped and FAILS if a name matches no
+        # discovered suite, so an exclusion cannot rot into silence.
         run: bash tests/run-all.sh

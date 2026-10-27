@@ -29,10 +29,12 @@ longer exist — the hooks were ported to node. `*.test.sh` files are bash *test
 for those hooks, not the hooks themselves.
 
 **A guard test that reads your ambient config is not hermetic.** `pre-tool-guard.test.sh`
-hardcodes the two live repo checkouts as its dispatch CWDs, so a `.claude/codescout-companion.json`
-opt-out in either turns the suite red. It exports `CS_COMPANION_IGNORE_PROJECT_CONFIG=1`
-to stay independent of it; set that env var if you drive the hook by hand from a repo
-that carries an opt-out. See `guard-hardening-session-log:F-3`.
+builds synthetic fixture projects (each with a `.mcp.json` whose command contains
+`codescout`, so `detect.mjs`'s `/codescout/` regex matches) under its own temp dir. It
+used to hardcode the two live repo checkouts as dispatch CWDs, which only worked on the
+author's machine. It still exports `CS_COMPANION_IGNORE_PROJECT_CONFIG=1` so a developer's
+`.claude/codescout-companion.json` opt-out cannot turn it red; set that env var if you
+drive the hook by hand from a repo that carries an opt-out. See `guard-hardening-session-log:F-3`.
 ## Installing Plugins
 
 ```
