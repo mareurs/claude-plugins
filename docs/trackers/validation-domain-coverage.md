@@ -704,7 +704,7 @@ scope, which is why `roster-audit-session-log:F-1` and `roster-audit-session-log
 
 ## VG-9 — The prompting spine was over-specified for current models
 
-**Status:** mitigated — spine rewritten 2026-08-26, shape corrected. Effect unmeasured and, on the stimulus built for it, **unmeasurable**: the unaided Opus 5 floor clears the pass bar 3/3. Stimulus retired. A discriminating one now exists (§ *A discriminating stimulus exists — 2026-10-27*); the spine A/B itself is still unrun.
+**Status:** mitigated — spine rewritten 2026-08-26, shape corrected. The original stimulus was **unmeasurable** (the unaided Opus 5 floor cleared its pass bar 3/3) and is retired. A discriminating stimulus now exists (§ *A discriminating stimulus exists — 2026-10-27*), and the effect has been measured **once**, on that one stimulus at n = 5 per arm (§ *The spine A/B — 2026-10-27*): failing runs no skill 4, old spine 3, new spine 1. By the registered rule the new spine helps, the old shows no detectable effect, and they are not distinguishable. Not significant by Fisher (p = 0.21); one behaviour, one stimulus, one model.
 **Valid:** dated 2026-10-27
 **Condition met 2026-10-27:** this entry was `conditional` on a stimulus existing on which unaided Opus 5 measurably fails, established by controls before any arm is built. Candidate `C2` meets the pre-registered rule (3 of 3 unaided runs fail), with the limits stated in the section at the end. The spine's effect remains unmeasured.
 **Rests on:** `shared/prompt-audit.md` §1a/§1b/§1c in the bundled `claude-api` skill — first-party guidance on prompting patterns that degrade current models — plus the capability-scaling result in the reward-hacking literature.
@@ -901,7 +901,7 @@ stimulus where the puzzle shape that Opus 5 clears (a stated contradiction) is a
 
 What this is **not**:
 
-- **Not a measurement of the spine.** No skill arm was run. Whether either spine variant changes
+- **Not a measurement of the spine** (true of this control; the A/B was run later the same day, see the next section). No skill arm was run in the control. Whether either spine variant changes
   this behaviour is the unrun A/B. It needs both variants under an identical directory name and
   description, a way to confirm the skill activated (the control runner disables slash commands and
   keeps no transcript), the same rubric, and n >= 5 per arm. From the per-run costs ($0.34 to
@@ -919,6 +919,43 @@ What this is **not**:
 
 Candidate `C3` (the specification kept in `docs/billing-rules.md`) was built and its grader
 validated, and was not run: the registered rule says one discriminating candidate suffices.
+
+### The spine A/B — 2026-10-27
+
+Pre-registered and committed before any call (`buddy/tests/validation-spine-control/AB-PRE-REGISTRATION.md`,
+`6044321`); results in `RESULTS-AB.md` there. Stimulus `C2`, model `claude-opus-5`, plugin-free profile,
+n = 5 valid runs per arm, both spine variants installed under the identical directory name and
+description. Arms cost **$7.707**, plus a $0.504 activation pilot that is not part of any arm. The 15
+verdicts were scored blind and committed (`6faee2d`) before the arm key was opened.
+
+| arm | runs failing the C2 rubric | activated |
+|---|---|---|
+| no skill | 4 of 5 | 0 of 5 |
+| old spine (numbered choreography) | 3 of 5 | 5 of 5 |
+| new spine (outcome framing) | 1 of 5 | 5 of 5 |
+
+By the registered rule: headroom holds (no-skill fails 4, at least 3); both arms activated; **the new
+spine helps (reduces failures by 3, the threshold); the old shows no detectable effect (reduces by 1);
+the two are not distinguishable at n = 5** (difference 2, needs 3).
+
+What bounds it:
+
+- **Rubric strictness changes the OLD verdict.** Three runs flagged only the upper boundary and treated
+  the lower as settled (two OLD, one NEW). Scored strictly, as registered, they FAIL. If flagging either
+  boundary counted, the counts are 4, 1 and 0, and the old spine also helps. The NEW verdict holds under
+  both. Both are reported; the registered rule stands.
+- **Not significant.** No skill against new spine, 4/5 against 1/5, has a two-sided Fisher exact p of 0.21.
+  The registered rule is a threshold on an effect size, which n = 5 can only meet if the effect is large.
+- **One behaviour only:** naming an unspecified boundary, the spine's third clause. Nothing here says
+  anything about the other requirements (spec as oracle, the mutation bar, run and report).
+- **I scored the runs.** Blind to the arm (no final message mentioned a skill), rubric fixed first, but I
+  am not an independent judge.
+- **The OLD skill's own instruction was not followed:** it says to list an ambiguity and stop; none of its
+  five runs stopped. Noted, not tested.
+
+What would firm this up: more runs on the same stimulus (the smallest step), the pressure-to-relax shape
+and `C3` as second stimuli, and a rubric with the strict-or-lenient question settled before the runs.
+This entry still should not close.
 ## VG-10 — Prompt artifacts decay on model release, not on the 90-day clock
 
 **Status:** fixed 2026-09-07 (`RM-15`) — pasted verbatim into `active-plan.md` as `D-8`
