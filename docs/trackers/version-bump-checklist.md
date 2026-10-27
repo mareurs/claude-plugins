@@ -14,7 +14,9 @@ Release readiness across plugins × profiles. See
 
 ## State
 
-_Last refresh: `3340151`, 2026-10-24 — codescout-companion 1.20.19→1.20.20, buddy 0.11.12→0.11.13 and statusline 1.2.0→1.2.1, pushed in one push (`main` `c5dbc1c..3340151`, 48 commits, including the merge of `effort-routing-r1`). The plugin `claude-statusline` was renamed `statusline` in `7a8cf6c`. See History 2026-10-24._
+_Last refresh: `caa4e66`, 2026-10-27 — codescout-companion 1.20.20→1.20.21 and legible 0.2.0→0.2.1, each released and pushed by `release.sh` (`27bbb93..1db0234`, then `1db0234..caa4e66`). See History 2026-10-27._
+
+_Earlier refresh: `3340151`, 2026-10-24 — codescout-companion 1.20.19→1.20.20, buddy 0.11.12→0.11.13 and statusline 1.2.0→1.2.1, pushed in one push (`main` `c5dbc1c..3340151`, 48 commits, including the merge of `effort-routing-r1`). The plugin `claude-statusline` was renamed `statusline` in `7a8cf6c`. See History 2026-10-24._
 
 _Earlier refresh: `a08668e`, 2026-10-23 — buddy 0.11.11→0.11.12 and codescout-companion 1.20.18→1.20.19, both pushed (`main` `1b91724..a08668e`). Two fix branches and the research-subagent fix were merged into `main` first; `effort-routing-r1` was merged with `main` afterwards (`8903213`). See History 2026-10-23._
 
@@ -46,30 +48,32 @@ _cache = working tree, measured 2026-10-19 with `diff -rq` (excluding `judge.env
 | `~/.claude-sdd` | 1.2.1 ✅ | ✅ | ✅ | `1.2.1` ✅ | ✅ |
 | `~/.claude-kat` | 1.2.1 ✅ | ✅ | ✅ | `1.2.1` ✅ | ✅ |
 
-**codescout-companion** — canonical `1.20.20` · readme `1.20.20` · marketplace clean ✅
+**codescout-companion** — canonical `1.20.21` · readme `1.20.21` · marketplace clean ✅
 
 | profile | installed | cache dir | install_path ok | all entries | cache = working tree |
 |---|---|---|---|---|---|
-| `~/.claude` | 1.20.20 ✅ | ✅ | ✅ | `1.20.20` ✅ | ✅ |
-| `~/.claude-sdd` | 1.20.20 ✅ | ✅ | ✅ | `1.20.20` ✅ | ✅ |
-| `~/.claude-kat` | 1.20.20 ✅ | ✅ | ✅ | `1.20.20` ✅ | ✅ |
+| `~/.claude` | 1.20.21 ✅ | ✅ | ✅ | `1.20.21` ✅ | ✅ |
+| `~/.claude-sdd` | 1.20.21 ✅ | ✅ | ✅ | `1.20.21` ✅ | ✅ |
+| `~/.claude-kat` | 1.20.21 ✅ | ✅ | ✅ | `1.20.21` ✅ | ✅ |
 
-_cache = working tree, measured 2026-10-24 for 1.20.20 in all three profiles with `diff -rq` (excluding `.buddy`, `.codescout`, `.orphaned_at`, `node_modules`, `judge.env`, `__pycache__`, `.pytest_cache`, `.venv`): 0 files differ. The only differences are the cache marker `.orphaned_at` and the ignored local directories `.buddy` and `.codescout` (also under `hooks/`). The ❌ rows of 2026-10-14 and 2026-10-16 came from the checkout being on `effort-routing-r1`; the merge cleared them._
+_cache = working tree, measured 2026-10-27 for 1.20.21 in all three profiles with the same `diff -rq` excludes: 0 lines of output each._
 
-**legible** — canonical `0.2.0` · readme `0.2.0` · marketplace clean ✅
+_Earlier: cache = working tree, measured 2026-10-24 for 1.20.20 in all three profiles with `diff -rq` (excluding `.buddy`, `.codescout`, `.orphaned_at`, `node_modules`, `judge.env`, `__pycache__`, `.pytest_cache`, `.venv`): 0 files differ. The only differences are the cache marker `.orphaned_at` and the ignored local directories `.buddy` and `.codescout` (also under `hooks/`). The ❌ rows of 2026-10-14 and 2026-10-16 came from the checkout being on `effort-routing-r1`; the merge cleared them._
+
+**legible** — canonical `0.2.1` · readme `0.2.1` · marketplace clean ✅
 
 | profile | installed | cache dir | install_path ok | all entries | cache = working tree |
 |---|---|---|---|---|---|
-| `~/.claude` | 0.2.0 ✅ | ✅ | ✅ | `0.2.0` ✅ | ❌ |
-| `~/.claude-sdd` | 0.2.0 ✅ | ✅ | ✅ | `0.2.0` ✅ | ❌ |
-| `~/.claude-kat` | 0.2.0 ✅ | ✅ | ✅ | `0.2.0` ✅ | ❌ |
+| `~/.claude` | 0.2.1 ✅ | ✅ | ✅ | `0.2.1` ✅ | ✅ |
+| `~/.claude-sdd` | 0.2.1 ✅ | ✅ | ✅ | `0.2.1` ✅ | ✅ |
+| `~/.claude-kat` | 0.2.1 ✅ | ✅ | ✅ | `0.2.1` ✅ | ✅ |
 
 `sdd`: not installed in any Claude profile.
 `session-bridge`: not installed in any Claude profile.
 
 `statusline` now has a record in all three profiles (`~/.claude` had none before). Measured 2026-10-24: each record holds only `version` and `installPath`, with no `scope`, `installedAt` or `gitCommitSha`, unlike the buddy records. No profile lists `statusline` in `enabledPlugins`. `claude-statusline@sdd-misc-plugins` exists in no profile record; I did not establish when it was removed. Whether Claude Code accepts a record without `scope` is not tested.
 
-Source/cache differences outside this release are kept visible: a new legible style-probe file was committed after legible 0.2.0. Its existing 0.2.0 cache is not re-seeded to give that version a second byte set. These rows stay ❌ until that plugin's owner releases the change.
+_legible cache = working tree, measured 2026-10-27 for 0.2.1 in all three profiles with the companion's `diff -rq` excludes: 0 lines of output each. Positive control: the old `~/.claude` 0.2.0 cache against the same working tree reports 4 differences (`plugin.json`, `.in_use`, and `README.md` and `scripts` present only in the checkout). The ❌ of 2026-10-24 (style-probe commit `6160804` unreleased) is cleared by 0.2.1._
 
 **The `~/.claude` buddy record regressed to 0.11.9 and was repaired (2026-10-16).** On 2026-10-15 at 09:41:41 (+0300), a day after the release, `~/.claude/plugins/installed_plugins.json` was rewritten with `buddy` `0.11.9` and its 0.11.9 `installPath`. The same second-range rewrote `known_marketplaces.json` and `plugin-directory-cache-v2.json`, and every profile has `autoUpdate: true` on `sdd-misc-plugins`. The record's `gitCommitSha` reads `7de8d30`, the shared checkout's `effort-routing-r1` HEAD, and that checkout's `buddy/.claude-plugin/plugin.json` reads `0.11.9`. This fits a refresh that read the shared checkout, but it is **not established as the cause**: `~/.claude-sdd` refreshed its marketplace on 2026-10-15 at 09:26 and kept 0.11.10. Repair, after a backup of the record: the `release.sh` step-5 `jq` on `~/.claude` only (`version` and `installPath` of element `[0]`); other entries compared identical. The 0.11.10 cache dir had survived the rewrite. **`check-profile-parity.sh` reads the canonical version from the checkout it runs in** (`REPO_ROOT/<plugin>/.claude-plugin/plugin.json`): run from the shared checkout it reports false drift (`canonical is 0.11.9`, `1.20.17`); run from a worktree on `main`, buddy, codescout-companion and legible all pass. The refresh may recur until the shared checkout carries `main`.
 
@@ -190,6 +194,19 @@ measured on both candidate load paths rather than argued: the record points at k
 two actually serves, they carry the same bytes — so the question CLAUDE.md flags as
 unsettled does not need settling for this release.
 ## History
+### 2026-10-27 — companion 1.20.21 and legible 0.2.1 released and pushed
+
+**Deltas, all measured:**
+- codescout-companion 1.20.20→1.20.21 (`1db0234`) ships `968f7b9`, a peer session's fix: a subagent in a linked worktree is told to pin `workspace=` instead of activating, and `worktree-write-guard.mjs` passes a pin to the worktree root. Its commit message said it was not released.
+- legible 0.2.0→0.2.1 (`caa4e66`) ships `6160804` (`scripts/style_probe.py`, `README.md`).
+- Both ran the full `release.sh` (preflight with `tests/run-all.sh` and buddy pytest, parity gate, push). Neither used `SKIP_TESTS` or `NO_PUSH`.
+- The first companion run aborted at preflight with no commit: buddy pytest failed collection with 20 errors, from `test_*.py` files with shared basenames in the committed `buddy/tests/validation-spine-control/` eval tree. Fixed in `7574728` (`conftest.py` with `collect_ignore_glob = ["*"]`); buddy pytest then reported 534 passed. CI does not run buddy pytest, so CI stayed green while it was broken.
+- All 6 cache dirs (2 plugins × 3 profiles) show 0 lines under `diff -rq` with the documented excludes; positive control in the State note.
+- `check-profile-parity.sh` after both releases: `Profile parity holds across 4 plugin(s).`
+- CI `cross-platform hooks` succeeded on all four jobs for `27bbb93`, `1db0234` and `caa4e66`. The five `main` runs before `27bbb93` had failed; `27bbb93` fixed the three suites that failed only on CI (shallow clone, `node` outside the scrubbed `PATH`).
+
+**Not done or not probed:** the cold restart of all three profiles. `session-bridge` has 5 unreleased commits from 2026-05-18 but is installed in no profile; it was not released.
+
 ### 2026-10-24 — companion 1.20.20, buddy 0.11.13 and statusline 1.2.1 released and pushed; `effort-routing-r1` merged into `main`
 
 **Deltas, all measured:**
