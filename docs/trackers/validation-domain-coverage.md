@@ -511,7 +511,8 @@ internal quality gap. `S-5` coverage is unchanged — `fixtures_count` still rec
 ## VG-6 — Property-based testing has no home in the roster
 
 **Status:** fixed
-**Valid:** dated 2026-08-26
+**Valid:** dated 2026-10-27
+**Re-verified 2026-10-27** against `buddy/skills/testing-snow-leopard/SKILL.md`: `## Properties and Invariants` is at line 76, the `**Properties:**` field in the Test Format block at line 66, and Heuristic 9 (the test-oracle problem, metamorphic relations) at line 114. The file is still 148 lines, as recorded below. Not re-checked: that Operating Principles 1–5 and Heuristics 1–8 keep their numbers, and that the eval's positional anchors still resolve.
 
 Closed by the `## Properties and Invariants` section in `testing-snow-leopard/SKILL.md`;
 re-verify if that section is removed or the skill is lens-split.
@@ -613,7 +614,8 @@ So the rule is a **smell, not a law**. It correctly pointed at this file, and a 
 ### Found while doing it
 
 `_llm.md` Reactions 5 and 8 both cited *"Heuristic (universal) 5 (variance floor)"*. Base universal Heuristic 5 is **label noise**; the variance floor lives in Phase 3. A pre-existing mis-citation in shipped prompt content, repointed to Phase 3 in the same pass. Base Heuristics 1–7 kept their numbering precisely so `_classic.md`'s surviving `Heuristic (universal) 1` cross-reference did not break.
-**Valid:** dated 2026-08-26
+**Valid:** dated 2026-10-27
+**Re-measured 2026-10-27** (`wc -l` over `buddy/skills/data-leakage-snow-pheasant/`). The tables below stay as the record at `0fd8eb1`; the files have grown since. `SKILL.md` is now 160 lines (was 141), `_llm.md` 140 (was 118), `_classic.md` 59 (unchanged). So base + `:classic` is 219 (was 200), base + `:llm` is 300 (was 259), and the `_llm.md` / base ratio is 0.875 (was 0.84). The absolute lines per `:llm` summon, the measure this entry says to use, rose 41 lines since the extraction. I did not check what was added. The conclusion that the ratio is a smell and not a law does not depend on these figures.
 **Rests on:** the measurement table below, taken from source at `0fd8eb1`; feeds `buddy/docs/trackers/headroom-optimization.md` backlog item 2b.
 
 **Condition discharged — and it was the wrong condition.** The original class was
@@ -655,7 +657,8 @@ or every copy inherits the flaw.
 ## VG-8 — buddy-introspection records security-ibex at a stale line count
 
 **Status:** fixed
-**Valid:** dated 2026-08-26
+**Valid:** dated 2026-10-27
+**Re-measured 2026-10-27** over the 12 current `buddy/skills/*/SKILL.md` files (118, 118, 121, 121, 123, 123, 148, 160, 161, 171, 181, 316 lines). Still true: `security-ibex` is 181 lines and second, `codescout-pika` is 316, and the minimum is 118. Not true any more: the median is **135.5**, not 123, so ibex is **1.34×** the median, not 1.47×. Most of that is explained by `testing-snow-leopard` growing from 125 to 148 lines (see `VG-6`): with 125, the median of these 12 files would have been 124. The recorded 123 is not exactly reproducible from the 12 files, and I did not find which set it was taken over. The correction of `#20` stands.
 **Rests on:** direct read of `buddy/skills/security-ibex/SKILL.md` on 2026-08-26.
 
 buddy-introspection's `#20 — security-ibex — Length 167 lines` no longer matches source:
