@@ -956,6 +956,22 @@ What bounds it:
 What would firm this up: more runs on the same stimulus (the smallest step), the pressure-to-relax shape
 and `C3` as second stimuli, and a rubric with the strict-or-lenient question settled before the runs.
 This entry still should not close.
+
+**Next study, sized 2026-10-27 — not run.** Do not top up the n = 5 arms above: adding runs after
+seeing a promising result is optional stopping, and it biases the p-value. Run a fresh, separately
+pre-registered study instead:
+
+- **Arms:** no skill and new spine only, n = 10 each, on `C2`, `claude-opus-5`, same harness
+  (`run_ab.sh`, `blind_ab.py`). This answers "does the new spine help". It does not answer old
+  against new; that needs the third arm.
+- **Rubric:** decide strict or lenient (flag both boundaries, or either one) in the pre-registration,
+  before any call. Report the other reading as sensitivity only.
+- **Cost:** about $0.51 a run (the A/B arms were $7.707 for 15), so about $10.3 for two arms and
+  about $15.4 for three. This is more than the $4.70 left of the 2026-10-27 cap, so it needs a new
+  budget decision.
+- **What n = 10 can show** (two-sided Fisher exact, computed 2026-10-27): 8/10 against 2/10 gives
+  p = 0.023; 7/10 against 2/10 gives p = 0.070. At n = 8, 6/8 against 2/8 gives p = 0.132. So even
+  n = 10 is significant only if the effect stays near the size seen at n = 5.
 ## VG-10 — Prompt artifacts decay on model release, not on the 90-day clock
 
 **Status:** fixed 2026-09-07 (`RM-15`) — pasted verbatim into `active-plan.md` as `D-8`
