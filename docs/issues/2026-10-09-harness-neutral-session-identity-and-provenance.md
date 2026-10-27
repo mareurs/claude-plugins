@@ -12,11 +12,11 @@ tags:
 - gate
 claimed_by_session: 01a12505-eb95-76a1-911a-4610c7b95ab3
 codescout_native_context_commit: 18a007aacc20eef8f366aa153394f7e23ccf875b
-codescout_native_history_commit: 5ae71b35a05450d545ac355085378dfeee81a46c
+codescout_native_history_commit: 76bfcca7d65494e90fb7c5296e69304e49388742
 design_approved_on: 2026-10-10
 implementation_review_id: 2185a218fbd18b7f
 implementation_review_pending: false
-last_observed: 2026-10-12
+last_observed: 2026-10-27
 native_acceptance: Limited by complete code-mode execution inventory F-6 and unavailable Kat authentication. Automatic context F-16 and native MCP/child reader omission F-20 are fixed; actual native known-writer resume refuses UNKNOWN with unchanged bytes.
 native_claude_child: 'Native Claude main-profile child/root smoke passed: parent af8d2e22-9029-42c5-9257-d4fe124b1a43, distinct agent a21ddf668790f255e, actual child MCP writer and same-parent formatter exit 0; exact bytes, source helper bytes/modes and independent cargo fmt --check passed. Initial fixture/capture failure preserved as F-18.'
 native_claude_fork: 'F-17 fixed and committed locally in original Codescout 6eb585ef9161b858316fc9ef95270b8ccaeede2e: conservative enqueue boundary, 99 focused tests, canonical leased gate all five exits 0, actual same-fork safe refusal/no false credit/unchanged bytes and independent nine-mutation review with zero final survivors. All four files match reviewed source bytes and only those four paths were committed; index empty.'
@@ -34,7 +34,7 @@ source_commits:
   codescout: eed25579
   codescout_fork_followup: '6eb585ef9161b858316fc9ef95270b8ccaeede2e'
   codescout_native_context: '18a007aacc20eef8f366aa153394f7e23ccf875b'
-  codescout_native_history: '5ae71b35a05450d545ac355085378dfeee81a46c'
+  codescout_native_history: '76bfcca7d65494e90fb7c5296e69304e49388742'
 source_implementation: Initial implementation, F-17, F-16 and bounded F-20 repair are independently reviewed, verified and committed locally in their original repositories. Complete native code-mode owned formatting and Kat authenticated smoke remain unestablished.
 spec_approved_on: 2026-10-10
 spec_id: c67a8d68e01c6cf4
@@ -178,7 +178,7 @@ F-20 is the remaining history boundary: actual durable MCP events exist and a na
 
 ## Native history reader delivered — 2026-10-12
 
-F-20's bounded decoder repair is committed in original Codescout as 5ae71b35a05450d545ac355085378dfeee81a46c. It recovers actual paginated MCP end items with native root/thread/call identity, argument objects, outcomes and current cwd; verified child copies use their child-specific boundary. Unknown effects/statuses and opaque wrappers retain coverage gaps.
+F-20's bounded decoder repair is committed in original Codescout as 5ae71b35a05450d545ac355085378dfeee81a46c. **Rebased since: on 2026-10-27 that hash is no longer reachable from any branch; the same commit is `76bfcca7d65494e90fb7c5296e69304e49388742` on `experiments`.** Verified by `git cat-file` (the old object still exists), `merge-base --is-ancestor` (exit 1 for the old hash, exit 0 for the other three codescout commits recorded here) and an empty `git diff 5ae71b35 HEAD` over the three owned paths. Other documents that quote 5ae71b35 are historical records and were left as written. It recovers actual paginated MCP end items with native root/thread/call identity, argument objects, outcomes and current cwd; verified child copies use their child-specific boundary. Unknown effects/statuses and opaque wrappers retain coverage gaps.
 
 Verification includes 141 focused tests, all five canonical gate lanes, shell suites (245 provenance, 56 formatter, 88 lease checks), and independent reapplication of all 25 review mutations with zero final survivors. Exactly three owned source/test/document paths were committed; index bytes matched the reviewed manifest and unrelated files were preserved. Review and integration evidence: native-history-delivered-20261012.json, native-history-independent-review-v2-evidence-20261012.json and native-history-integrated-read-20261012.json under .codescout.
 
