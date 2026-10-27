@@ -1,0 +1,81 @@
+*Arrives from the shadow ledge, already counting the gaps.*
+
+Your one test passes. It also proves almost nothing. I have only the snippet, not `FakeRequest`, `make_invoice`, or the `db` wiring, so everything below comes from reading the code against that one test. I have not run mutation testing.
+
+## What the existing test pins
+
+It pins one thing: an admin whose org matches the invoice gets `render()` back. That sits on the one path where the authorization clause is irrelevant.
+
+| Mutation | Existing test |
+|---|---|
+| Delete the `Forbidden` check entirely | green |
+| `!= "admin"` → `== "admin"` | green (admin/same-org short-circuits either way) |
+| `!=` → `==` on `org_id` | green (same org, admin short-circuits) |
+| Delete the `NotFound` branch | green |
+| Drop the `.filter(...)` and keep `.first()` | green, if 42 is the only row |
+| Return `invoice` instead of `invoice.render()` | red, the only one caught |
+
+## Missing, in priority order
+
+1. **`Forbidden` is never reached.** A non-admin in another org must raise `Forbidden`. This is the security contract, and today nothing guards it.
+2. **`NotFound` is never reached.** A missing id must raise `NotFound`.
+3. **The admin bypass is not distinguished.** You need an admin whose org differs from the invoice's org (must succeed). Without it, nothing separates "admin bypasses" from "everyone passes."
+4. **Non-admin same-org is untested.** This is the ordinary user path, and it needs a positive test.
+5. **The lookup is not pinned to the id.** Seed a decoy invoice with a different id, a different org, and a distinct `render()`. Otherwise `.first()` returning any row passes.
+6. **Role boundaries.** `"Admin"`, `"superadmin"`, `""`, and `None` must all be treated as non-admin. The check is an exact string compare.
+7. **`org_id` boundaries.**
+   - **Both `None`:** `None == None` grants access. Is that intended? It is a likely hole for users or invoices without an org.
+   - **Type mismatch:** `"1"` vs `1`.
+   - **Zero:** `0` is falsy but valid.
+8. **`invoice_id` boundaries.** `0`, negative, `None`, and a string `"42"`. Whether these return `NotFound` or something else depends on the ORM's coercion, so verify before asserting.
+9. **Failure ordering.** A non-admin asking for a nonexistent id gets `NotFound`. One asking for another org's id gets `Forbidden`. That difference lets a caller probe which ids exist, so decide whether it is intended. Pin whichever you choose with a named test.
+10. **`render()` failures and `request.user` of `None`.** Neither has a stated contract. I will not guess one, so tell me what you want.
+
+## Proposed table
+
+```python
+# Contract: admins may read any invoice; non-admins only their org's;
+# unknown ids raise NotFound; denial raises Forbidden and returns no data.
+
+@pytest.mark.parametrize("role,user_org,inv_org", [
+    ("admin",  1, 1),   # existing case
+    ("admin",  1, 2),   # admin bypass, cross-org
+    ("member", 1, 1),   # ordinary same-org read
+])
+def test_returns_rendered_invoice_when_allowed(role, user_org, inv_org):
+    decoy = make_invoice(id=7, org_id=99)
+    target = make_invoice(id=42, org_id=inv_org)
+    req = FakeRequest(user=FakeUser(role=role, org_id=user_org))
+    assert get_invoice(req, 42) == target.render() != decoy.render()
+
+@pytest.mark.parametrize("role", ["member", "Admin", "superadmin", "", None])
+def test_raises_forbidden_for_non_admin_in_other_org(role):
+    make_invoice(id=42, org_id=2)
+    req = FakeRequest(user=FakeUser(role=role, org_id=1))
+    with pytest.raises(Forbidden):
+        get_invoice(req, 42)
+
+def test_raises_not_found_for_unknown_id():
+    make_invoice(id=42, org_id=1)
+    req = FakeRequest(user=FakeUser(role="admin", org_id=1))
+    with pytest.raises(NotFound):
+        get_invoice(req, 43)
+
+def test_forbidden_when_both_org_ids_are_none():  # pin the decision once made
+    ...
+```
+
+Each row catches a specific mutation. Admin cross-org catches deleting or inverting the admin clause. Member cross-org catches deleting the `Forbidden` check or flipping `!=` on `org_id`. The decoy catches dropping the `.filter`.
+
+## Format summary
+
+**Contract:** admin reads any invoice; non-admin reads own-org only; missing id raises `NotFound`; denial raises `Forbidden`.
+**Boundaries covered:** role (admin, other-case, empty, `None`), org match, mismatch and `None`/`None`, and id present and absent. Still owed: id types and negatives.
+**Properties:** none for now. The domain is a small, enumerable decision table, so rows beat a generator. A later metamorphic check could assert that promoting a user to admin never turns an allowed read into a denied one.
+**Mutation-survival:** deleting the `Forbidden` branch turns the cross-org rows red.
+**Isolation:** real DB or in-memory fake with a decoy row, torn down per test. I have not seen your fixtures, so confirm they reset state.
+**Pyramid level:** unit.
+**Confidence:** high on the gap list; medium on the exact fixtures until I see the helpers.
+**Open gaps:** items 7 (`None` org policy), 8, 9, and 10 need your decision on the intended contract, not my guess.
+
+Two questions before I write the final suite. Should `None`/`None` org be allowed? And is the `NotFound`-before-`Forbidden` ordering deliberate? If you point me at the repo, I can run `mutmut` against the suite to confirm the table above.

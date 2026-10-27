@@ -13,7 +13,11 @@ import hashlib
 import sys
 from pathlib import Path
 
-RETAIN = ["**Contract:**", "**Mutation-survival:**", "**Boundaries covered:**"]
+RETAIN_ORIG = ["**Contract:**", "**Mutation-survival:**", "**Boundaries covered:**"]
+# AMENDMENT-1: the original list missed a response that kept the primary's contract in
+# a slightly different shape. These are all exclusive to the primary's Test Format.
+# `**Confidence:**` is shared by every format and is deliberately not a marker.
+RETAIN = RETAIN_ORIG + ["**Properties:**", "**Isolation:**", "**Pyramid level:**", "**Open gaps:**"]
 VERB = {
     "security": ["**Severity:**", "**Exploit sketch:**", "**Category:**"],
     "architecture": ["**Decision:**", "**Alternatives considered:**", "**Change scenarios absorbed:**"],
@@ -28,6 +32,7 @@ def score_text(text: str) -> dict:
     return {
         "invalid": False,
         "retain": any(m in text for m in RETAIN),
+        "retain_orig": any(m in text for m in RETAIN_ORIG),
         "cites": {a: a in text for a in ADVISORS},
         "verbatim": {k: any(m in text for m in v) for k, v in VERB.items()},
     }
@@ -51,7 +56,7 @@ def report(results: Path) -> None:
         print(f"{arm}: valid n={n}, invalid={data['invalid']}")
         if not n:
             continue
-        print(f"  RETAIN {sum(r['retain'] for r in runs)}/{n}")
+        print(f"  RETAIN {sum(r['retain'] for r in runs)}/{n}  (original markers: {sum(r['retain_orig'] for r in runs)}/{n})")
         for a in ADVISORS:
             print(f"  cites {a}: {sum(r['cites'][a] for r in runs)}/{n}")
         for k in VERB:
@@ -89,6 +94,9 @@ def selftest() -> int:
         ("security verbatim", "**Severity:** HIGH", lambda s: s["verbatim"]["security"] and not s["verbatim"]["architecture"]),
         ("architecture verbatim", "**Decision:** split it", lambda s: s["verbatim"]["architecture"] and not s["verbatim"]["security"]),
         ("a near-miss does not match", "Contract: x (no bold)", lambda s: s["retain"] is False),
+        ("run-5 shape: contract kept in other fields (AMENDMENT-1)", "**Properties:** x\n**Isolation:** y\n**Pyramid level:** unit\n**Open gaps:** z", lambda s: s["retain"] is True and s["retain_orig"] is False),
+        ("a shared field alone is not RETAIN", "**Confidence:** high", lambda s: s["retain"] is False),
+        ("an ADR-shaped response is not RETAIN", "**Decision:** split\n**Context:** c\n**Alternatives considered:** a\n**Confidence:** high", lambda s: s["retain"] is False and s["verbatim"]["architecture"] is True),
     ]
     bad = 0
     for name, text, check in cases:

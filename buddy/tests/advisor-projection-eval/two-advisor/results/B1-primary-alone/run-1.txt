@@ -1,0 +1,76 @@
+*The Testing Snow Leopard pads in, eyes on the shadows.*
+
+Your one test passes. That does not mean `get_invoice` is correct. It pins one of four paths, and it is the one least likely to hide a bug.
+
+**Contract:** Given an existing invoice, an admin or a user in the invoice's org gets `invoice.render()`. A missing invoice raises `NotFound`. A non-admin from another org raises `Forbidden`.
+
+## What the existing test pins
+
+- **Admin, same org, invoice exists → rendered output.**
+- It sets `org_id=1` on both the admin and the invoice. So the admin bypass is never exercised: delete the `role != "admin"` clause and the test stays green.
+- `make_invoice` is assumed to persist to the DB the function queries. I have not verified that.
+- The test would also pass if `get_invoice` ignored `invoice_id` and returned the only invoice present.
+
+## What is missing
+
+| # | Missing case | Mutation it would catch |
+|---|---|---|
+| 1 | Unknown id → `NotFound` | Removing the `None` check. It would fall through to `AttributeError` on `None.render()`. |
+| 2 | Non-admin, different org → `Forbidden` | Deleting the org check or flipping `!=` to `==`. This is the security-critical path and has zero coverage. |
+| 3 | Non-admin, same org → rendered | Flipping `and` to `or`, or `!=` to `==`, which locks out legitimate users. |
+| 4 | Admin, different org → rendered | Removing the admin bypass. The current test cannot see this because the orgs match. |
+| 5 | Two invoices exist, request one → that one is returned | Dropping the `id` filter. |
+| 6 | Other role values, such as `"viewer"` or `"ADMIN"`, from a different org → `Forbidden` | Loosening the role check to case-insensitive or substring matching. |
+| 7 | `org_id` is `None` on both user and invoice | `None != None` is `False`, so an org-less user would read an org-less invoice. Decide whether that is intended and pin it. |
+
+Cases 1–4 are the full truth table of the function's branches. Branch pairing gap: three of the four branch outcomes are unreached.
+
+## Assertion strength
+
+- `raises(NotFound)` and `raises(Forbidden)` should assert the exact exception type. Make sure `Forbidden` is not a subclass of `NotFound`, or the reverse. Otherwise a swapped branch could still pass.
+- Case 2 should also assert that `render()` is never reached. A spy is acceptable here as a security side-effect check, not as a correctness check.
+- Do not compare `get_invoice(...) == inv.render()` if `render()` returns something the same for every invoice, such as a constant. Use distinct field values per invoice.
+
+## Suggested shape
+
+```python
+# Contract: admin or same-org user gets invoice.render(); missing -> NotFound;
+# other-org non-admin -> Forbidden.
+
+@pytest.mark.parametrize("role,user_org,inv_org,expected", [
+    ("admin",  1, 1, "render"),
+    ("admin",  2, 1, "render"),     # admin bypass, orgs differ
+    ("member", 1, 1, "render"),
+    ("member", 2, 1, Forbidden),
+    ("ADMIN",  2, 1, Forbidden),    # role match is exact
+    ("member", None, None, ???),    # decide the contract first
+])
+def test_get_invoice_access_matrix(role, user_org, inv_org, expected): ...
+
+def test_raises_not_found_when_invoice_id_unknown(): ...
+def test_returns_requested_invoice_when_several_exist(): ...
+```
+
+Distinct `org_id`s (1 vs 2) are deliberate: the old fixture gave both sides the same value, so no test could tell which one the check reads.
+
+## Properties
+
+- **Metamorphic:** for any non-admin, access depends only on `user.org_id == invoice.org_id`. Changing the user's org to match never turns a `Forbidden` into a `NotFound`.
+- **Admin invariance:** for any `org_id` pair, an admin on an existing invoice gets the same result.
+- This is a small, branchy function, so the truth table above is enough. A generator adds little here.
+
+## Test format for the biggest gap (case 2)
+
+**Contract:** a non-admin in a different org cannot read the invoice.
+**Boundaries covered:** role (admin, non-admin, wrong-case), org (match, mismatch, None), id (existing, missing).
+**Arrange / Act / Assert:** a member in org 2, an invoice in org 1, call `get_invoice`, assert `Forbidden`.
+**Properties:** none for this one, because the truth table is exhaustive.
+**Mutation-survival:** flipping `!=` to `==` in the org check.
+**Isolation:** the DB should be real or in-memory, since the query filter is part of the contract. Roll back per test.
+**Pyramid level:** unit, with an in-memory DB.
+**Confidence:** high on branch coverage, medium on `make_invoice` and the DB seam, which I have not seen.
+**Open gaps:** the `org_id=None` contract, whether `Forbidden` and `NotFound` share a base class, and that `render()` failures are not tested.
+
+## One question before I write these
+
+I have only seen the snippets, not the repo. I can write the full parametrized suite, but I need to know whether `None` org IDs are legal in your data model. That decides the expected value in case 7, and I will not guess it.

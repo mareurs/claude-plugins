@@ -1,0 +1,82 @@
+*The snow leopard arrives, eyes already on the narrow passes.*
+
+Your test passes. That does not mean your code is correct. One test, one path, and it is the path least likely to hide a defect.
+
+## Contract
+
+Given an invoice id and a requesting user:
+- Missing invoice → `NotFound`.
+- Non-admin whose `org_id` differs from the invoice's → `Forbidden`.
+- Admin, or a user in the invoice's org → `invoice.render()`.
+
+The existing test pins only the last clause, and only via the admin branch.
+
+## What the existing test fails to catch
+
+Mutations that leave it green:
+
+| Mutation | Survives? |
+|---|---|
+| `!= "admin"` → `== "admin"` | **Yes**, the admin path still returns (the `or` is short-circuited the other way, but admin with matching org passes either way) |
+| `and` → `or` in the auth check | **Yes**, org matches, so both operands are False for the member case; admin with matching org never exercises the difference |
+| `invoice.org_id != ...` → `==` | **Yes**, admin short-circuits before it is ever evaluated |
+| Delete the `Forbidden` line entirely | **Yes** |
+| Delete the `NotFound` line entirely | **Yes** |
+| `.first()` returns the wrong row (filter dropped) | **Likely yes**, only one invoice exists, so any query finds it |
+
+The test also gives the admin the *same* `org_id` as the invoice (both 1). Admin and member are therefore indistinguishable, and the org check is never decisive. That is a fixture that cannot tell two inputs apart.
+
+## Branch map
+
+| Branch | Reached by a test? |
+|---|---|
+| `invoice is None` → raise | No |
+| `role != admin` False (admin) | Yes, but with a matching org |
+| `role != admin` True, org matches → return | No |
+| `role != admin` True, org differs → raise | No |
+| Admin with a *different* org → return | No (the key privilege case) |
+
+Of five reachable outcomes, one is pinned.
+
+## Missing tests
+
+**Contract:** each row below is one promise of `get_invoice`.
+
+**Boundaries covered (parameters: `invoice_id`, `user.role`, `user.org_id` vs `invoice.org_id`):**
+
+| Test name | Setup | Expected |
+|---|---|---|
+| `test_raises_not_found_when_invoice_missing` | empty DB, any user | `NotFound` |
+| `test_raises_forbidden_when_member_requests_other_orgs_invoice` | role=member, org 2, invoice org 1 | `Forbidden` |
+| `test_returns_invoice_when_member_requests_own_org_invoice` | role=member, org 1, invoice org 1 | `inv.render()` |
+| `test_admin_can_read_invoice_from_other_org` | role=admin, org 2, invoice org 1 | `inv.render()` |
+| `test_not_found_takes_precedence_over_forbidden` | missing id, non-admin | `NotFound`, not `Forbidden` and not an `AttributeError` |
+| `test_selects_requested_invoice_among_several` | invoices 41, 42, 43 in different orgs | render of 42 only |
+
+Further edges worth deciding on, since the contract is silent:
+- `role` is `None`, empty string, or `"Admin"` (case). The code treats anything not exactly `"admin"` as non-admin; pin that.
+- `org_id` is `None` on the user or on the invoice. `None != None` is False, so two org-less parties pass the check. Is that intended? If not, it is a latent defect and the test should say so.
+- `invoice_id` of `0`, negative, or a wrong type (string). What does the DB layer do with it?
+- Soft-deleted invoices, if `Invoice` supports them. The query does not filter them.
+
+Assert on the specific exception type. Use `pytest.raises(Forbidden)`, not a bare `Exception`, so `NotFound` and `Forbidden` cannot stand in for each other.
+
+## Tightening the existing test
+
+Its name promises "returns rendered invoice", but it proves little. Give the invoice a different org than the admin (`org_id=2`) so the privilege is actually exercised. As written, deleting the whole authorization block leaves it green.
+
+## Test format
+
+**Contract:** access to an invoice is granted to admins and to members of its org, denied otherwise, and a missing invoice is reported before authorization.
+**Boundaries covered:** missing id, role admin / member / unknown, org match / mismatch / `None`, multiple rows.
+**Arrange / Act / Assert:** seed DB with invoices → call `get_invoice(req, id)` → assert returned render or `pytest.raises(<specific>)`.
+**Properties:** a small truth table over `(is_admin, org_match, exists)` → expected outcome. The table is the oracle, and it is finite, so parametrize it rather than reaching for a generator. Metamorphic relation: changing only the user's `org_id` from mismatched to matching never turns an allow into a deny.
+**Mutation-survival:** `!= "admin"` → `== "admin"` is caught by the member-own-org and member-other-org tests. `and` → `or` is caught by the admin-other-org test. Deleting `NotFound` is caught by the missing-invoice test.
+**Isolation:** the DB should be a real in-memory/test database or a fake with real filter semantics. A stub that returns a fixed row would hide the filter mutation. Tear down per test.
+**Pyramid level:** unit (with in-memory DB). The authorization logic needs no HTTP layer.
+**Confidence:** high on the authorization branches; medium on the edge cases, which depend on decisions only you can make.
+**Open gaps:** `None` org semantics, role casing, soft-deletes, and what `render()` can raise are all unpinned. I have not read `FakeRequest`, `make_invoice`, or the real `db` seam, so I do not know whether `make_invoice` persists to the same store that `get_invoice` queries. Please confirm that; if they are disconnected, even the one existing test is not testing what its name says.
+
+One correction to my table above: for the first mutation, the cell's wording is imprecise. With `==`, an admin hits the org check, and with matching orgs it passes, so the test stays green. What matters is that it survives, and the member tests are what kill it.
+
+Which of the open decisions (`None` orgs, role casing) should I pin as intended behavior, and shall I write the parametrized suite?

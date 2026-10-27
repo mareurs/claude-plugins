@@ -1,0 +1,81 @@
+*The Testing Snow Leopard settles onto the ledge and starts counting the gaps.*
+
+Your test passes, but it pins one of at least six distinct outcomes. I read this from the snippet alone. I haven't seen `make_invoice`, `FakeRequest` or the DB setup, and I traced the mutations by hand without running them.
+
+## What the one test pins
+
+It covers an admin whose `org_id` (1) matches the invoice's `org_id` (1), so the admin bypass is never exercised. These mutations all leave it green:
+
+| Mutation | Why it survives |
+|---|---|
+| Delete the `Forbidden` check entirely | The happy path never reaches a raise |
+| `and` → `or` in the auth condition | Admin and same org: both sides are False |
+| `!=` → `==` on `role` | The org comparison is still False, so no raise |
+| Delete the `NotFound` branch | The invoice exists |
+| Drop `.filter(Invoice.id == invoice_id)` | Only one invoice exists, so `.first()` returns it anyway |
+
+Both error paths and the authorization logic are unprotected.
+
+## Contract
+
+Given an existing invoice, an admin or a user in the invoice's org gets `invoice.render()`. A missing invoice raises `NotFound`. A non-admin from another org raises `Forbidden`. `NotFound` is checked before `Forbidden`.
+
+## Missing tests
+
+**Boundaries covered today:** none. Every row below is owed.
+
+| # | Test name | Setup | Expected | Mutation caught |
+|---|---|---|---|---|
+| 1 | `raises_not_found_when_invoice_missing` | empty DB | `NotFound` | deleting the None branch |
+| 2 | `raises_forbidden_when_non_admin_other_org` | member org 2, invoice org 1 | `Forbidden` | deleting the check, `and`→`or` |
+| 3 | `returns_invoice_when_non_admin_same_org` | member org 1, invoice org 1 | render | `!=` → `==` on org |
+| 4 | `admin_can_read_other_orgs_invoice` | admin org 2, invoice org 1 | render | `role != "admin"` flipped |
+| 5 | `selects_invoice_by_id_among_many` | invoices 41 (org 1), 42 (org 1), 43 (org 2) | `get_invoice(req, 42)` returns 42's render | dropping the id filter |
+| 6 | `not_found_takes_precedence_over_forbidden` | non-admin, missing id | `NotFound`, not `Forbidden` | reordering the checks |
+
+For 1, 2 and 6, assert the exception type with `pytest.raises(NotFound)`. A bare `Exception` match would also pass if the wrong branch raised.
+
+Rows 2 to 4 are one table over role × org-match, which also covers the existing test:
+
+```python
+@pytest.mark.parametrize("role, user_org, expect", [
+    ("admin",  1, "ok"),         # existing test
+    ("admin",  2, "ok"),         # bypass, currently unpinned
+    ("member", 1, "ok"),
+    ("member", 2, Forbidden),
+])
+def test_get_invoice_authorization_matrix(role, user_org, expect):
+    make_invoice(id=42, org_id=1)
+    make_invoice(id=43, org_id=2)  # decoy, so a dropped id filter shows up
+    req = FakeRequest(user=FakeUser(role=role, org_id=user_org))
+    if expect == "ok":
+        assert get_invoice(req, 42) == Invoice.get(42).render()
+    else:
+        with pytest.raises(expect):
+            get_invoice(req, 42)
+```
+
+My own Phase 1 rule bars `if` in tests. Split the success and error rows into two parametrized tests when you write this for real.
+
+## Edge cases the code raises that you haven't decided on
+
+1. **`None == None` grants access.** A non-admin with `org_id=None` reading an invoice with `org_id=None` passes the check, because `None != None` is False. That may be an accidental grant, so decide the intended behavior, then pin it.
+2. **Role matching is exact.** `"Admin"`, `"superadmin"`, `""` and `None` are all treated as non-admin. One parametrized row each documents that.
+3. **Existence leak.** A non-admin probing ids gets 404 for missing and 403 for other-org invoices, which reveals which ids exist. If that's unintended, the fix is in the code and the test pins the new behavior. Test 6 freezes the current ordering either way.
+4. **Type mismatch.** `org_id="1"` against `1` is `!=` in Python, so access is denied. This depends on the column type and is worth a row if org ids can arrive as strings.
+
+## Problems in the existing test
+
+- It compares `get_invoice(...)` to `inv.render()`, so it shares the production code's oracle. If `render()` is non-deterministic (timestamps, say) it flakes. If `render()` returns an object without `__eq__`, the comparison is identity-based. I can't tell which from here.
+- It is unclear whether `make_invoice` persists to the DB that `get_invoice` queries. Check that before trusting the test. If it doesn't, the test might pass on a stub.
+- A hardcoded expected value, or a distinct fixture asserting on a known field, would make it harder to pass vacuously.
+
+## Suite summary
+
+**Properties:** a metamorphic relation fits here. For admins the outcome never depends on `org_id`, and for non-admins it's allowed if and only if the orgs match. The matrix is small enough to enumerate fully, so a generator adds little.
+**Isolation:** use a real in-memory DB, or whatever `make_invoice` uses, and tear down per test. Avoid mocking `db.query`, since that would hide the id-filter mutation.
+**Pyramid level:** unit.
+**Confidence:** high on rows 1 to 6. Low on edge cases 1 to 4 until you state the intended behavior.
+**Open gaps:** non-integer `invoice_id`, and what `render()` does on a malformed invoice, which is outside this unit's contract.
+
+Before I write the full file, one question: should a non-admin get `NotFound` or `Forbidden` for another org's invoice? That decides whether test 6 and edge case 3 pin the current behavior or a fix.

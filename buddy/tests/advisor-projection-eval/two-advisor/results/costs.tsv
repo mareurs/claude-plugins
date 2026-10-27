@@ -1,0 +1,6 @@
+arm	run	status	cost_usd	model
+B1-primary-alone	1	valid	0.048053900000000004	claude-sonnet-5-5
+B1-primary-alone	2	valid	0.034848	claude-sonnet-5-5
+B1-primary-alone	3	valid	0.0238755	claude-sonnet-5-5
+B1-primary-alone	4	valid	0.05179799999999999	claude-sonnet-5-5
+B1-primary-alone	5	valid	0.037107999999999995	claude-sonnet-5-5
