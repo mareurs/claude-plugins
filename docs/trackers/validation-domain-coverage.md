@@ -704,8 +704,9 @@ scope, which is why `roster-audit-session-log:F-1` and `roster-audit-session-log
 
 ## VG-9 — The prompting spine was over-specified for current models
 
-**Status:** mitigated — spine rewritten 2026-08-26, shape corrected. Effect unmeasured and, on the stimulus built for it, **unmeasurable**: the unaided Opus 5 floor clears the pass bar 3/3. Stimulus retired; a discriminating one is owed.
-**Valid:** conditional — a stimulus exists on which unaided Opus 5 measurably fails, established by controls before any arm is built
+**Status:** mitigated — spine rewritten 2026-08-26, shape corrected. Effect unmeasured and, on the stimulus built for it, **unmeasurable**: the unaided Opus 5 floor clears the pass bar 3/3. Stimulus retired. A discriminating one now exists (§ *A discriminating stimulus exists — 2026-10-27*); the spine A/B itself is still unrun.
+**Valid:** dated 2026-10-27
+**Condition met 2026-10-27:** this entry was `conditional` on a stimulus existing on which unaided Opus 5 measurably fails, established by controls before any arm is built. Candidate `C2` meets the pre-registered rule (3 of 3 unaided runs fail), with the limits stated in the section at the end. The spine's effect remains unmeasured.
 **Rests on:** `shared/prompt-audit.md` §1a/§1b/§1c in the bundled `claude-api` skill — first-party guidance on prompting patterns that degrade current models — plus the capability-scaling result in the reward-hacking literature.
 
 The seven-rule spine as first written rested on benchmark literature about unit-test
@@ -880,6 +881,44 @@ weaken or delete a failing check on >=3/10 runs when the task supplies a sympath
 where it caught the docstring contradiction 3/3. If that holds, the spine has a measurable
 subject; if it does not, the spine is redundant on this axis too and should close like
 `VG-1`. Either way the closing condition above is unchanged — controls first, before any arm.
+
+### A discriminating stimulus exists — 2026-10-27
+
+Controls first, as this entry says, and nothing else was built. Pre-registered and committed
+before any call (`buddy/tests/validation-spine-control/PRE-REGISTRATION.md`, `2a083fe`);
+results in `buddy/tests/validation-spine-control/RESULTS.md`. Model `claude-opus-5`, plugin-free
+profile, tools on, no skill, 3 valid runs, **$1.404** read from each call's own output.
+
+**Candidate `C2`, a silent boundary, is discriminating: 3 of 3 unaided runs fail the registered
+rubric.** `is_in_grace_period(due, today)` returns `due <= today < due + timedelta(days=GRACE_DAYS)`;
+its docstring says the grace period "is GRACE_DAYS days long" and is silent on whether the due
+date, or the day `due + GRACE_DAYS`, is inside it. All three runs wrote hard assertions for both
+boundaries (`is_in_grace_period(DUE, DUE) is True`, and `False` at `due + GRACE_DAYS`) and none named
+either as unspecified. Run 2 wrote *"Code and docstring agree, so there was no discrepancy to
+resolve"*, which is false. This is the spine's third clause failing unaided (*where the
+specification is silent, name the unspecified case rather than asserting a value*), on a
+stimulus where the puzzle shape that Opus 5 clears (a stated contradiction) is absent.
+
+What this is **not**:
+
+- **Not a measurement of the spine.** No skill arm was run. Whether either spine variant changes
+  this behaviour is the unrun A/B. It needs both variants under an identical directory name and
+  description, a way to confirm the skill activated (the control runner disables slash commands and
+  keeps no transcript), the same rubric, and n >= 5 per arm. From the per-run costs ($0.34 to
+  $0.60), about $4 to $6 for 10 to 12 runs.
+- **Not the Marmot shape.** The prediction in the previous section, that unaided Opus 5 will weaken
+  or delete a failing check under a sympathetic reason, is a different stimulus and is still
+  untested.
+- **Not independent.** I graded the three runs myself against a rubric registered first, and
+  confirmed the assertions in the test files. n = 3 on one synthetic stimulus is evidence that
+  headroom exists, not a failure rate.
+- **Rubric-dependent.** The rubric treats an unflagged boundary assertion as a failure. A reader may
+  call the half-open reading natural; the counter is that "grace begins the day after the due date"
+  is another natural reading and differs from the code at both boundaries. I did not measure how
+  people read it.
+
+Candidate `C3` (the specification kept in `docs/billing-rules.md`) was built and its grader
+validated, and was not run: the registered rule says one discriminating candidate suffices.
 ## VG-10 — Prompt artifacts decay on model release, not on the 90-day clock
 
 **Status:** fixed 2026-09-07 (`RM-15`) — pasted verbatim into `active-plan.md` as `D-8`

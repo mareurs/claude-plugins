@@ -598,7 +598,9 @@ on this machine and `promptfoo` is not installed (`which promptfoo` → nothing)
 run would fail on auth before answering the question. Same posture as `VG-3`/`VG-9`: real
 infra/API spend, deferred rather than guessed at.
 
-**Valid:** dated 2026-09-01
+**Checked 2026-10-27, still not run.** The spend for `RM-24` and `VG-9` was approved; this item was not part of it, and it needs `promptfoo`, which is not installed here. Its question is answered by running one case and reading the rendered rubric, so the cost is small once `promptfoo` and a provider key are in place. I did not test whether `promptfoo` can use the `ANTHROPIC_API_KEY` in `prompt-engineering/.env` instead of `OPENROUTER_API_KEY`.
+
+**Valid:** dated 2026-10-27
 
 ## RM-23 — Adjudicate the passover promote-when, whose counter its own failure mode made unincrementable
 
@@ -686,12 +688,15 @@ front. Written up as `roster-audit-session-log:W-4` addendum 2.
 
 Prior results and the limits binding the claim: `buddy/tests/advisor-projection-eval/RESULTS.md`.
 
-**Status:** open — checked 2026-09-07 (`RM-24`), correctly not attempted. This is a new
-eval design (two-advisor arm, registered treatment-side observable), not a re-run — real
-API spend, and `OPENROUTER_API_KEY` is unset on this machine. Same posture as
-`VG-3`/`VG-9`/`RM-22`: deferred, not guessed at.
+**Status:** open — run 2026-10-27 with the owner's approval of the spend; the result is **not informative**, so the question is still unanswered. Results and data: `buddy/tests/advisor-projection-eval/two-advisor/RESULTS.md`.
 
-**Valid:** dated 2026-09-01
+- **Round 1** (pre-registered first, `1512d61`): 15 valid runs on `claude-sonnet-5-5`, **$0.495**. Instrument control passed (primary alone keeps its contract, RETAIN 5/5 after an openly recorded amendment; 4/5 under the original markers). The registered treatment-side control, advisor named in the response, failed: `security-ibex` 3/5 (all deferrals) and `architecture-snow-lion` 0/5. By the registered rule that is *not informative about crowding-out*, not "holds". My assumption that the stimulus tempts the architecture advisor was wrong.
+- **Round 2** pilot (one pilot, registered, `f8326a6`): the new stimulus gave `security-ibex` 3/3 and `architecture-snow-lion` 0/3, so the registered stop rule ended it ($0.160). No round 2 arms were run and the stimulus was not revised.
+- **What it adds:** naming an advisor measures *deferral*, not attention, and is only possible for an advisor whose domain is outside the primary's. A third round needs an observable that does not depend on citation (validated first, as `AMENDMENT-1` validated RETAIN), or advisors from domains the primary does not cover.
+- **Correction to the 2026-09-07 note above:** `OPENROUTER_API_KEY` was not needed. These runs use `claude -p`, billed to the `ANTHROPIC_API_KEY` in `prompt-engineering/.env`. The `~/.claude-test` login itself hit its weekly limit the same day (resets 08:00 Europe/Bucharest).
+- Spend on this item: $0.655 for 18 runs, plus two smoke calls of $0.025.
+
+**Valid:** dated 2026-10-27
 
 ## RM-25 — ~20 bare `A-N` tokens are codescout's ledger, and a local `A-4` would silently capture them
 
