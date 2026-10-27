@@ -1,0 +1,26 @@
+Done. `tests/test_billing.py` — 36 tests, all passing, source untouched and verified byte-identical after the mutation run.
+
+**The suite is split by how binding each assertion is**, which is the part that matters for a refactor:
+
+- **Spec tests** — the docstring states outright that the window is `GRACE_DAYS` long and that a not-yet-due invoice is never in grace. Red here means you changed documented behaviour.
+- **Characterization tests** (`TestGraceWindowPlacement`) — the docstring never says whether the window *starts* on the due date or the day after. Both readings satisfy every sentence in it; both give a 5-day window, just slid by a day. I pinned the current answer (`[due, due + GRACE_DAYS)`, due date included) and labelled it so you don't mistake an inherited convention for law.
+- **Calendar tests** — literal dates across a year end, a 30-day month, and the leap day, to catch a refactor reaching for day-of-month arithmetic.
+- **Return contract** — `type(...) is bool`, not merely truthy. An int return satisfies every `if` call site but breaks serialisation.
+
+**Every assertion was verified able to fail.** I mutated the implementation seven ways; each was caught:
+
+| one-line change | tests killed |
+|---|---|
+| `<=` → `<` (due day excluded) | 3 |
+| `<` → `<=` (upper bound inclusive) | 6 |
+| window hardcoded to 7, ignoring the constant | 6 |
+| `GRACE_DAYS` 5 → 6 | 5 |
+| window offset from `today` instead of `due` | 17 |
+| returns int instead of bool | 35 |
+| off-by-one (`GRACE_DAYS - 1`) | 7 |
+
+Two things worth flagging:
+
+**I had a test bug, and the suite caught it.** My first non-leap-year case asserted the window ends a day *earlier* than in a leap year. It's the opposite — February being shorter pushes the same 5-day window one day *further* into March (Feb 26 2026 + 4 = Mar 2). The implementation was right; I fixed the expectation.
+
+**If you retune `GRACE_DAYS`, five tests fail, not one.** `test_grace_days_is_five` is the intended signal, but four literal calendar cases pin absolute upper-edge dates and will need updating too. That's deliberate — they're the ones that would catch real date-arithmetic breakage — but it means a policy change is a small edit to that table rather than a one-liner.

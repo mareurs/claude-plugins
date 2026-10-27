@@ -1,0 +1,24 @@
+Every mutant is caught, so the suite is a real safety net rather than a passing formality.
+
+**Files added:**
+- `tests/test_billing.py` — 30 tests
+- `pytest.ini` — `pythonpath = src` so `from billing import ...` resolves without an `__init__.py`
+
+**What's covered**, organized around the boundaries a refactor is most likely to move:
+
+| Group | Pins |
+|---|---|
+| Before due | not-yet-due returns False, incl. the day immediately before |
+| Inside window | due date itself, and each of days 0–4 |
+| After window | day 5 is exclusive; far-future dates |
+| Window shape | a −10…+10 sweep compared against an expected map; window is exactly `GRACE_DAYS` long and contiguous |
+| Calendar edges | month, year, leap day, non-leap February, `date.min` |
+| Return type | actual `bool`, not a truthy value |
+
+Two deliberate choices worth your attention before you refactor:
+
+**Assertions use concrete dates, not arithmetic on `GRACE_DAYS`.** A test that recomputes the expected answer from the same constant the implementation reads would follow the implementation wherever it went and catch nothing. So the window length is pinned literally (`GRACE_DAYS == 5`, days 0–4 inside, day 5 outside). The two tests in `TestWindowShape` that *do* reference the constant check a different property — that the implementation and the constant stay consistent with each other — and are labeled as such. If your refactor intentionally changes the grace length, `test_grace_days_is_five` and the literal boundary tests are the ones to update, and that's the point: the change should be loud.
+
+**`is True` / `is False` rather than truthiness.** This is why the non-bool mutant failed 22 tests instead of 0. If your refactor legitimately returns something truthy-but-not-`bool`, you'll get a wall of failures — intentional, but I'd rather you know the cause up front than debug it mid-refactor.
+
+One thing I did *not* do: the function has no input validation, so there are no tests for `None`, naive-vs-aware `datetime` passed where a `date` is expected, or `due`/`today` swapped. Those currently either work by accident (`datetime` is a `date` subclass, so it compares fine) or raise `TypeError` from the comparison itself. Pinning that incidental behavior would lock in accidents rather than contract. If any of it is actually load-bearing for your callers, tell me and I'll add tests for it before you start.

@@ -1,0 +1,46 @@
+All 9 mutations killed, and every one of the 20 test cases appears in at least one failure list — so no assertion in the suite is dead weight.
+
+## What I wrote
+
+- **`tests/test_billing.py`** — 20 cases across 5 tests
+- **`pyproject.toml`** — needed plumbing: `pythonpath = ["src"]` so `import billing` resolves without a package install
+
+```
+20 passed in 0.03s
+```
+
+## Test design
+
+| Test | Guards against |
+|---|---|
+| `test_grace_days_is_five` | silent policy change; isolated so it fails *once*, not everywhere |
+| `test_window_by_day_offset` | the window shape at `-60, -1, 0, 1, 3, 4, 5, 6, 60` |
+| `test_window_length_follows_grace_days` | window length decoupling from the constant |
+| `test_window_spans_calendar_boundaries` | month end, year end, leap/non-leap February |
+| `test_returns_a_bool` | a truthy non-bool leaking to callers |
+
+## Mutation evidence (the part that matters before a refactor)
+
+Each row is a one-line edit I actually applied to `billing.py`, ran, then reverted:
+
+| Mutation | Caught by |
+|---|---|
+| `<=` → `<` (window opens a day late) | `offset[0]` |
+| window shortened one day | `offset[4]`, length test, 4 calendar cases |
+| window lengthened one day | `offset[5]`, length test, 4 calendar cases |
+| upper bound dropped | 8 cases |
+| lower bound dropped | `offset[-1]`, `offset[-60]` |
+| **day-of-month arithmetic instead of elapsed days** | `offset[60]` + **4 calendar cases** |
+| modulo arithmetic | 15 cases |
+| returns `int` not `bool` | 19 cases |
+| `GRACE_DAYS = 6` | `test_grace_days_is_five` + 5 others |
+
+The sixth row is the one to care about: it's the most likely refactor slip, it passes every test anchored on a single mid-month date, and only the calendar-boundary cases catch it. The leap-year pair is deliberate — `2027-02-27 → 2027-03-03` is in-window while `2028-02-27 → 2028-03-03` is out, so the two differ by exactly the leap day.
+
+Harness is at `/tmp/mutgate/run_mutations.py` (takes the project dir as an argument) if you want to re-run it against the refactored version.
+
+## One thing to confirm before you refactor
+
+The docstring's two sentences jointly pin the window to `[due, due+5)` — "not yet due is not in grace" fixes the start at `due`, and "GRACE_DAYS days long" then forces the exit at `due+5`. That's what I tested, and it matches current behavior.
+
+But if the business rule is actually *"five days of grace **after** the due date"*, the exit belongs at `due+6` and the current code is off by one — in which case `test_window_by_day_offset[5-False]` is locking in a bug rather than protecting a contract. I derived the expectation from the docstring rather than from the code, but the docstring is the only spec I have here. Worth a glance at the ticket or the invoicing policy before you lean on these tests.

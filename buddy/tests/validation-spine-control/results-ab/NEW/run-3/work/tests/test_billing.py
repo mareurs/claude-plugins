@@ -1,0 +1,166 @@
+"""Tests for src/billing.py, written as a safety net ahead of a refactor.
+
+Expectations here are derived from the docstring of `is_in_grace_period`, not from
+reading its implementation. The suite is split in two:
+
+  * SPEC tests encode statements the docstring makes outright. A refactor that
+    turns one of these red has changed documented behaviour.
+
+  * CHARACTERIZATION tests pin behaviour the docstring leaves genuinely open (see
+    `TestGraceWindowPlacement`). They describe what the module does today so a
+    refactor cannot drift silently, but they are not law -- if you decide to move
+    the window, update them deliberately rather than treating them as a bug.
+"""
+
+from datetime import date, timedelta
+
+import pytest
+
+from src.billing import GRACE_DAYS, is_in_grace_period
+
+
+DUE = date(2026, 3, 10)
+
+
+# --------------------------------------------------------------------------
+# SPEC: "An invoice that is not yet due is not in its grace period."
+# --------------------------------------------------------------------------
+
+
+class TestNotYetDue:
+    @pytest.mark.parametrize("days_early", [1, 2, 5, 6, 30, 365])
+    def test_before_due_date_is_never_in_grace(self, days_early):
+        today = DUE - timedelta(days=days_early)
+        assert is_in_grace_period(DUE, today) is False
+
+    def test_day_before_due_is_not_in_grace(self):
+        """The tightest form of the rule: the boundary sits at `due`, not before."""
+        assert is_in_grace_period(DUE, date(2026, 3, 9)) is False
+
+    def test_grace_does_not_extend_backwards_by_grace_days(self):
+        """Guards against a refactor that mixes up which operand it offsets.
+
+        Shifting the window onto `today` instead of `due` would make an invoice
+        due well in the future read as 'in grace'.
+        """
+        assert is_in_grace_period(DUE, DUE - timedelta(days=GRACE_DAYS - 1)) is False
+
+
+# --------------------------------------------------------------------------
+# SPEC: "The grace period is GRACE_DAYS days long."
+# --------------------------------------------------------------------------
+
+
+class TestGraceWindowLength:
+    def test_grace_days_is_five(self):
+        """The configured length. A deliberate change to the policy fails here
+        and only here -- the window tests below are written against the constant
+        so they stay meaningful when it moves."""
+        assert GRACE_DAYS == 5
+
+    def test_window_spans_exactly_grace_days(self):
+        """Count the days that report True, independent of where the window sits.
+
+        This is the check that survives a change to GRACE_DAYS: it fails if the
+        implementation stops honouring the constant (e.g. a hardcoded 7), while
+        remaining correct if the policy itself is retuned.
+        """
+        scan = [DUE + timedelta(days=n) for n in range(-10, 30)]
+        in_grace = [d for d in scan if is_in_grace_period(DUE, d)]
+        assert len(in_grace) == GRACE_DAYS
+
+    def test_window_is_one_contiguous_run(self):
+        scan = [DUE + timedelta(days=n) for n in range(-10, 30)]
+        in_grace = [d for d in scan if is_in_grace_period(DUE, d)]
+        expected = [in_grace[0] + timedelta(days=n) for n in range(len(in_grace))]
+        assert in_grace == expected
+
+    def test_long_past_due_is_not_in_grace(self):
+        assert is_in_grace_period(DUE, DUE + timedelta(days=60)) is False
+
+
+# --------------------------------------------------------------------------
+# CHARACTERIZATION: where the window sits.
+#
+# The docstring says the period is GRACE_DAYS long and that a not-yet-due
+# invoice is excluded, but it never states whether the due date itself is the
+# first day of grace or the last day before it. Both readings satisfy every
+# sentence in the docstring. These tests pin today's answer: the window is
+# [due, due + GRACE_DAYS), i.e. half-open with the due date included.
+# --------------------------------------------------------------------------
+
+
+class TestGraceWindowPlacement:
+    def test_due_date_itself_is_in_grace(self):
+        """Current reading: the due date is grace day one, not the day before it."""
+        assert is_in_grace_period(DUE, DUE) is True
+
+    def test_last_day_of_grace_is_included(self):
+        assert is_in_grace_period(DUE, DUE + timedelta(days=GRACE_DAYS - 1)) is True
+
+    def test_day_grace_expires_is_excluded(self):
+        """The upper bound is exclusive: due + GRACE_DAYS is the first day overdue."""
+        assert is_in_grace_period(DUE, DUE + timedelta(days=GRACE_DAYS)) is False
+
+    @pytest.mark.parametrize("offset", range(GRACE_DAYS))
+    def test_every_day_in_the_window_is_in_grace(self, offset):
+        assert is_in_grace_period(DUE, DUE + timedelta(days=offset)) is True
+
+
+# --------------------------------------------------------------------------
+# Calendar arithmetic. These use literal dates so they stay honest even if the
+# helpers above are rewritten; they catch a refactor that reaches for
+# day-of-month arithmetic instead of real date arithmetic.
+# --------------------------------------------------------------------------
+
+
+class TestCalendarBoundaries:
+    @pytest.mark.parametrize(
+        "due, today, expected",
+        [
+            # Window crossing a year end: due 2025-12-29, grace through 2026-01-02.
+            (date(2025, 12, 29), date(2025, 12, 31), True),
+            (date(2025, 12, 29), date(2026, 1, 1), True),
+            (date(2025, 12, 29), date(2026, 1, 2), True),
+            (date(2025, 12, 29), date(2026, 1, 3), False),
+            # Window crossing a month end in a 30-day month.
+            (date(2026, 4, 28), date(2026, 5, 2), True),
+            (date(2026, 4, 28), date(2026, 5, 3), False),
+            # Window crossing the leap day: 2024-02-26 + 4 days lands on 03-01.
+            (date(2024, 2, 26), date(2024, 2, 29), True),
+            (date(2024, 2, 26), date(2024, 3, 1), True),
+            (date(2024, 2, 26), date(2024, 3, 2), False),
+            # Same span in a non-leap year: February is a day shorter, so the
+            # window reaches one calendar day *further* into March.
+            (date(2026, 2, 26), date(2026, 3, 1), True),
+            (date(2026, 2, 26), date(2026, 3, 2), True),
+            (date(2026, 2, 26), date(2026, 3, 3), False),
+        ],
+    )
+    def test_window_follows_the_calendar(self, due, today, expected):
+        assert is_in_grace_period(due, today) is expected
+
+
+# --------------------------------------------------------------------------
+# Type contract from the signature: (date, date) -> bool.
+# --------------------------------------------------------------------------
+
+
+class TestReturnContract:
+    @pytest.mark.parametrize(
+        "today",
+        [
+            DUE - timedelta(days=1),
+            DUE,
+            DUE + timedelta(days=GRACE_DAYS - 1),
+            DUE + timedelta(days=GRACE_DAYS),
+        ],
+    )
+    def test_returns_an_actual_bool(self, today):
+        """Not merely truthy -- the annotation promises bool.
+
+        A refactor returning a timedelta, an int, or a numpy bool would still
+        satisfy `if is_in_grace_period(...)` at every call site but breaks
+        serialisation and `is True` comparisons.
+        """
+        assert type(is_in_grace_period(DUE, today)) is bool

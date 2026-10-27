@@ -1,0 +1,16 @@
+label	arm	run
+R01	NEW	run-4
+R02	OLD	run-5
+R03	NEW	run-5
+R04	A0	run-4
+R05	NEW	run-3
+R06	A0	run-3
+R07	OLD	run-4
+R08	OLD	run-2
+R09	A0	run-2
+R10	A0	run-5
+R11	A0	run-1
+R12	NEW	run-1
+R13	OLD	run-3
+R14	OLD	run-1
+R15	NEW	run-2

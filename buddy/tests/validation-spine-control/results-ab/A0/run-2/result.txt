@@ -1,0 +1,22 @@
+Every mutant is caught, including the subtle off-by-one variants. The suite is in place.
+
+**Files added:**
+- `tests/test_billing.py` — 28 tests
+- `pytest.ini` — sets `pythonpath = src` so tests import `billing` the way the service would (there was no pytest config before; this is new)
+
+**What's pinned**, organized so a refactor diff is easy to read:
+
+- **The four boundaries**, one test each: day-before-due is out, the due date itself is in, `due + 4` is in, `due + 5` is out. These are the edges most likely to shift under a rewrite.
+- **Window shape** — a parametrized offset sweep, plus a test asserting the True set is exactly offsets `0..GRACE_DAYS-1`. That one derives from the constant, so it pins contiguity, start point and length as a single property that survives retuning the window.
+- **Calendar arithmetic** — month, year, leap-day and non-leap-February crossings, each with its in-grace and past-grace pair. Catches a refactor that swaps `timedelta` for day-of-month math.
+- **Edges** — far-future due date, `date.min`, and `date.max`.
+
+Two judgment calls worth your attention:
+
+**`test_due_date_at_date_max_overflows`** pins an `OverflowError`, which is current behavior rather than behavior I'd defend. If your refactor returns `True` there instead, that's an improvement and the test should be updated, not the code. The docstring says so.
+
+**`test_grace_days_is_five`** is deliberate redundancy. The contiguity test tracks `GRACE_DAYS` dynamically, so on its own it would silently accept the constant changing from 5 to 6. The hard-coded boundary tests plus this one close that gap — confirmed by the mutation run, where retuning the constant fails 6 tests.
+
+I verified the suite has teeth rather than assuming it: against seven broken implementations (exclusive due date, `<=` at the end, window one day short, always-True, always-False, swapped arguments, retuned constant) every mutant was killed, 5–16 failures each. A suite like this is only worth the characterization claim if it actually fails on a wrong implementation.
+
+One thing I did *not* test: passing a `datetime` where a `date` is expected. `datetime` subclasses `date`, and mixing the two raises `TypeError` on comparison — but pinning that would constrain a refactor over what looks like caller error rather than intended contract. Say the word if the service does pass datetimes and I'll add coverage.

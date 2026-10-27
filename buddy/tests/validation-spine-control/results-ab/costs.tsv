@@ -1,0 +1,16 @@
+arm	run	status	cost_usd	model
+A0	1	valid	0.44676475	claude-opus-5
+A0	2	valid	0.34799475	claude-opus-5
+A0	3	valid	0.51834675	claude-opus-5
+A0	4	valid	0.326081	claude-opus-5
+A0	5	valid	0.47052725	claude-opus-5
+NEW	1	valid	0.4669205	claude-opus-5
+NEW	2	valid	0.52935075	claude-opus-5
+NEW	3	valid	0.59181575	claude-opus-5
+NEW	4	valid	0.50563775	claude-opus-5
+NEW	5	valid	0.54328475	claude-opus-5
+OLD	1	valid	0.561253	claude-opus-5
+OLD	2	valid	0.682449	claude-opus-5
+OLD	3	valid	0.7697365	claude-opus-5
+OLD	4	valid	0.43862724999999997	claude-opus-5
+OLD	5	valid	0.508319	claude-opus-5

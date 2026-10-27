@@ -1,0 +1,27 @@
+Done. **28 tests, all passing**, in `tests/test_billing.py`, plus a `pyproject.toml` with `pythonpath = ["src"]` (there was no test infrastructure in the repo).
+
+**How I derived the expectations.** I wrote them from the docstring rather than from what the code returns, so the suite is capable of contradicting the implementation. The two documented sentences pin both ends of the window:
+
+- "An invoice that is not yet due is not in its grace period" → the due date itself is *in*, since the invoice has fallen due by then.
+- "The grace period is GRACE_DAYS days long" → counting from the due date, the last day in is `due + GRACE_DAYS - 1`, and `due + GRACE_DAYS` is the first day out.
+
+The current implementation agrees with that reading on every case, so nothing came back red. That's a result, not a given — the boundary is exactly where a "grace starts the day *after* due" reading would have put the window one day later, and the tests would have failed if the code had taken that view.
+
+**What's covered:**
+- Both boundaries and a day-by-day sweep across the whole span (`-3` through `GRACE_DAYS + 3`), plus a counting test asserting the window is exactly `GRACE_DAYS` days wide over a 60-day range.
+- `GRACE_DAYS` treated as the knob: monkeypatched to 1, 3, 7, 30 with both boundaries re-checked, so a refactor can't hardcode 5.
+- Real calendar arithmetic — month boundary, year boundary, a leap day that exists (2028) and the same due date in a year where it doesn't (2026). These pin against a refactor that drops `timedelta` for day-field math.
+- A pin on the shipped default `GRACE_DAYS == 5`.
+
+**Verification that the tests can fail.** Since a green suite proves nothing on its own, I ran six mutants against a *copy* of the source (`src/billing.py` itself was never modified — re-printed above to confirm). Every one was caught:
+
+| Mutation | Failures |
+|---|---|
+| `due <= today` → `due < today` | 7 |
+| window one day longer (`<` → `<=`) | 11 |
+| hardcode `days=5` | 4 |
+| window one day shorter | 11 |
+| default `GRACE_DAYS = 7` | 5 |
+| naive day-field arithmetic | 7 |
+
+Two things I deliberately did *not* assert, since the docstring is silent and guessing would bake in behavior your refactor might reasonably change: what happens when `GRACE_DAYS` is `0` (the current code yields an empty window, so even the due date is out), and what happens if a `datetime` or `None` is passed where a `date` is expected. If you want either nailed down before refactoring, tell me which way it should go and I'll add them.

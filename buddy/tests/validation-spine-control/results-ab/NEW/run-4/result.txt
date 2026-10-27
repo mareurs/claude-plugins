@@ -1,0 +1,28 @@
+Done. Two new files; `src/billing.py` is untouched.
+
+- **`tests/test_billing.py`** — 118 cases over 5 due-date anchors (mid-month, month-end, year-end, leap and non-leap February).
+- **`conftest.py`** — puts `src/` on the import path and registers the `characterization` marker.
+
+**The one thing worth your attention before you refactor:** the docstring doesn't settle which end of the window is closed. "Five days long", starting at the due date (offsets 0–4) and starting the day after (offsets 1–5) both satisfy every sentence in it. So I did not assert the two endpoint days — `due` itself and `due + GRACE_DAYS` — against the spec, because any expectation I wrote there would just be a transcript of the current code.
+
+Instead the suite splits:
+
+- **Spec-derived** — not-yet-due is always False; the True-days form one unbroken run; the run is exactly `GRACE_DAYS` long; offsets 1…4 are in and `GRACE_DAYS+1` onward are out (both readings agree); the window is counted in real days across month, year and leap-day boundaries; the return is a true `bool`.
+- **Characterization** (marked, at the bottom) — the two endpoints and the literal `GRACE_DAYS == 5`. These say "this is today's behaviour", not "this is correct". If your refactor turns one red, that's a question to answer, not automatically a bug — and if you answer it, update the docstring and the test together.
+
+**Mutation check.** Green tests are worthless unless they can go red, so I ran the suite against ten one-line mutants in a temp copy of the repo. All ten were killed; the unmutated control stayed green:
+
+| mutant | result |
+|---|---|
+| `due <= today` → `due < today` (window shifted) | 10 failed |
+| `<` → `<=` on the upper bound (window widened) | 10 failed |
+| not-yet-due check dropped | 45 failed |
+| upper bound dropped | 37 failed |
+| `GRACE_DAYS` 5 → 7 | **1 failed** |
+| `GRACE_DAYS` 5 → 0 | 20 failed |
+| `timedelta(days=…)` → `timedelta(weeks=…)` | 27 failed |
+| `due`/`today` swapped | 44 failed |
+| returns `int` not `bool` | 102 failed |
+| naive `today.day - due.day` arithmetic | 25 failed |
+
+The `5 → 7` row is the interesting one. The length tests deliberately read `GRACE_DAYS` rather than hardcoding 5, so they follow the constant and stay green when it changes — which is what you want during a refactor, but it leaves that value unguarded. The single test that caught it is the characterization pin pulling its weight; without it, changing the grace period would have been silent.

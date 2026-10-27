@@ -1,0 +1,34 @@
+Done. Two files:
+
+- `conftest.py` (root) — puts `src/` on `sys.path` so tests can `from billing import ...`. There was no `pyproject.toml`/packaging config in the tree, so this is the lightest thing that works.
+- `tests/test_billing.py` — 62 tests.
+
+**What's covered.** The contract is the half-open window `[due, due + GRACE_DAYS)`:
+
+- Truth table at every offset from −3 to +7 around the due date.
+- Both boundaries pinned twice — once derived from `GRACE_DAYS`, once as spelled-out literal dates — so a failure tells you whether the *constant* moved or the *logic* did.
+- Calendar arithmetic: 30- and 31-day month rollovers, the year boundary, windows spanning 29 Feb, due-on-29-Feb, and the same due date in a leap vs. non-leap year.
+- Structural invariants: the covered set is exactly `GRACE_DAYS` long, contiguous, and starts at offset 0 — plus an exhaustive sweep over every date in 2024 and 2025 × offsets −2…+7 (~7,300 assertions, runs in ~0.1s). That sweep is the real safety net for a rewrite of the date math.
+- `GRACE_DAYS` honoured at call time, via `monkeypatch`, including `grace=0`.
+
+**Two things worth your judgement before you refactor:**
+
+1. **`TestGraceDaysIsHonouredAtCallTime` pins a contract, not current behaviour.** If your refactor captures the constant at import time — e.g. `def is_in_grace_period(due, today, grace=GRACE_DAYS)` — these 5 tests fail even though the function is otherwise correct. I think that's the right contract (the constant exists to be tunable), but it's a deliberate choice, not a characterization. Delete that class if you disagree.
+
+2. **`date.max` overflows today.** `due + timedelta(days=GRACE_DAYS)` raises `OverflowError` when `due` is near `date.max`, even though the answer needs no arithmetic past `date.max`. I recorded it as a non-strict `xfail` rather than pinning the exception — so it won't block you, and if you rewrite in terms of `(today - due).days` it'll flip to XPASS and tell you you fixed it.
+
+Assertions use `is True` / `is False` rather than truthiness, since the signature says `-> bool`. If your refactor plans to return something merely truthy, that's the one choice that'll generate noise.
+
+**Verified the suite has teeth** rather than just that it passes — I ran it against six mutated versions of the module in a scratch copy:
+
+| Mutant | Result |
+|---|---|
+| Inclusive end (off-by-one) | 25 failed |
+| Excludes the due date | 19 failed |
+| Drops the not-yet-due check | 22 failed |
+| Constant frozen in default arg | 5 failed |
+| Day-of-month instead of date delta | 19 failed |
+| Returns truthy non-bool | 59 failed |
+| Unmodified control | 61 passed, 1 xfailed |
+
+All six killed; the control is clean.
