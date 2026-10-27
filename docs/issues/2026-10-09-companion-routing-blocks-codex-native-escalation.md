@@ -261,3 +261,12 @@ A real native require_escalated Git command wrote a temporary ref to the protect
 A separate real native app-server turn used the same installed executable and existing authenticated lowercase profile, on-request approval and workspace-write sandbox. The client answered one exact command request with accept and the other with decline, without any session or persistent permission grant. The accepted commandExecution item completed with exit 0 and its marker existed. The declined item had status declined and its marker did not exist. The scratch directory was removed after observation. Raw account/history content was not copied into fixtures.
 
 The same native thread resumed across a new app-server process with its root ID unchanged, completed remote compaction, completed a subsequent turn, and forked to a distinct root ID with another completed turn. This establishes lifecycle transport, while decoder provenance remains limited by opaque wrappers and external history. Evidence: .codescout/native-approval-live-check-20261011.json and .codescout/native-runtime-smoke-20261011.json. The routing issue is fixed; provenance acceptance remains tracked by 33de9ea8980e85c9.
+
+## Fix provenance
+
+- **SHA:** `4ce543210dab3b7a3f46aa56b66fc14d96adcb9e` (`main`)
+- **patch-id:** `747239436418bd81a3e729f9f5a81cb6f5e327a0`
+
+This is the companion half of the paired repair. `4ce5432` is a combined commit (29 files); it carries the `require_escalated` handling in `codescout-companion/hooks/pre-tool-guard.mjs` and `tests/test-native-escalation.sh`, and `git log -S"require_escalated"` over `codescout-companion/hooks` finds only this commit. The patch-id covers the whole commit. `f8a73ee` is the separate delivery of release-script outputs, not the fix.
+
+The Codex adapter half lives in the Codex repository (`5eedcdc543`, as recorded in this file). I could not resolve that commit from this repository, so it has no SHA line here. The revisions `a335403` and `fe68488` under § Environment and revision anchors are where the bug was observed, not fixes.

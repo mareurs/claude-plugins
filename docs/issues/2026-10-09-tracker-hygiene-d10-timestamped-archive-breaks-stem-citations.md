@@ -228,6 +228,15 @@ A text match proves the words are present. It does not prove the procedure works
 
 D2 (line 187 of `SKILL.md`) moves terminal trackers with `doc(move, new_rel_path=...)` "per archive policy", and the rule above sits only in D10. A stem-cited tracker that is not a session log has the same exposure. Decide whether the naming rule should move to one place that both D2 and D10 point to.
 
+## Fix provenance
+
+- **SHA:** `4ce543210dab3b7a3f46aa56b66fc14d96adcb9e` (`main`)
+- **patch-id:** `747239436418bd81a3e729f9f5a81cb6f5e327a0`
+
+`4ce5432` is a combined commit (29 files). It carries the D10 step 5 change in `codescout-companion/skills/tracker-hygiene/SKILL.md` and the scenario `tests/scenarios/tracker-hygiene-archive-naming.md`; `git log -S"archived_on"` on that skill file finds only this commit. The patch-id covers the whole commit, not only the skill change.
+
+The feature and release commits named under § Release delivery, `e75ce39` and `4fc9326`, do not exist in this repository (`git cat-file` reports no such object). They were made in a scratch clone. The commits that landed here are `4ce5432` and `f8a73ee`. A later, separate D10 change is `e0532f0` (compaction keeps every entry's heading); it is not this fix.
+
 ## References
 
 - `codescout-companion/skills/tracker-hygiene/SKILL.md`, lines 187, 247-267.

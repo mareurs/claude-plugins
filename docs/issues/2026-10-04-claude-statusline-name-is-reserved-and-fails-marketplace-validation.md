@@ -74,3 +74,10 @@ The "not committed, not released" state above is out of date. Measured today:
 - **Validator.** `claude plugin validate .` → `✔ Validation passed`, with only advice lines about `session-bridge` and `legible` READMEs.
 - **Regression test added 2026-10-27:** `tests/test-marketplace-validate.sh`. Offline layer: a `jq` check of the documented reserved-name rules over `marketplace.json`, with a positive control. CLI layer: the real `claude plugin validate`, with a positive control, skipped with a visible notice when `claude` is not on PATH. Measured: 4 of 4 pass here; 2 of 2 with `claude` off PATH; a doctored copy of the marketplace with `claude-statusline` restored fails the offline layer and exits 1.
 - **Still not covered.** CI does not install the `claude` CLI, so it never runs the real validator, and the offline rule list can lag the documented rules.
+
+## Fix provenance
+
+- **SHA:** `7a8cf6cfe904e4558fe9af3ffa3760b538ef3cf9` (`main`)
+- **patch-id:** `7fc6b511ee3727bd275643e9db8c06f76038b5a2`
+
+The version bump `3340151` is not the fix. The regression test is in `0a43185`, which is not a fix commit.

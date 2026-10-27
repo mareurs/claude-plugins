@@ -51,6 +51,13 @@ Re-measured 2026-10-27 over the session transcripts (`*.jsonl`, depth 2) of `~/.
 
 Limits: I did not separate the hits by profile, so this does not show the fix in each of the three profiles individually. The hits are counts of sessions, not a rate against the number of hook firings.
 
+## Fix provenance
+
+- **SHA:** `f830803a012694bccc11cb76c31c3eb3a139fba6` (`main`)
+- **patch-id:** `364b6ce80645fcd866816da8a795ecf888eef553`
+
+The other 7-8 character tokens in this file are session ids from the transcript sweep, not commits.
+
 ## References
 
 - `codescout:docs/usage-reports/2026-10-24-usage-analysis.md` § 2
