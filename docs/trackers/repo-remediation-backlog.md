@@ -518,9 +518,9 @@ as informational for this machine. Leaving it undecided means 10 of every `docto
 violations are permanent noise, which is how a real finding gets lost in the count. Use
 `limit`/`offset` to page the window rather than reading the elided rows as absent.
 
-**Status:** open
+**Status:** open — checked 2026-10-27, still the owner's decision. `doctor` run in this project's scope reports `abs_path_outside_managed_roots` = 0 (it did at the start of today's session as well), and the unrelated `catalog_health` counter reads `outside_roots_total` = 3,236, shown as informational. So the 10 rows named above are not in this scope's report today. Which other projects' roots to register (`avatar`, `terasa`, `PFA`, `pi`) is not a state I can measure; I did not register or prune anything.
 
-**Valid:** dated 2026-09-01
+**Valid:** dated 2026-10-27
 
 ## RM-21 — run-all.sh is RED — the pre-push guard's positive control cannot fire
 
