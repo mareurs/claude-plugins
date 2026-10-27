@@ -12,6 +12,7 @@ tags:
 - buddy
 topic: claude-mods
 time_scope: dated:2026-10-06
+entry_prefix: MQ
 ---
 
 # Claude mods — research findings and probe plan
@@ -83,22 +84,39 @@ SessionStart/UserPromptSubmit): those ratings are `[inferred]`.
 
 ## Open questions
 
-- **MQ-1 — mod load path.** Docs say a relative-path plugin in a directory marketplace
-  loads in place. Our CLAUDE.md measured *skills* served from the cached `installPath`.
-  No page says which path a mod module uses. Probe: log `$.plugin.root`.
-- **MQ-2 — hot reload for marketplace-folder plugins.** Documented only for
-  `--plugin-dir`, `CLAUDE_CODE_PLUGIN_DIRS` and skills-dir plugins. The troubleshoot page
-  says installed plugins run the cached copy. Assume `/reload-plugins` is needed.
-- **MQ-3 — does a rewritten MCP tool input reach the server?** Verified only for the shell
-  hook's `updatedInput` path. Needed before the `cs-principal-stamp` prototype.
-- **MQ-4 — does `$.ui.status` coexist with a `statusLine` command?** Needed for buddy.
-- **MQ-5 — does `prompt.compose` reach subagents?** Needed to replace `subagent-guidance`.
-- **MQ-6 — is a `tool.call` hook on the Agent tool invoked?** `agent.spawn` is the verified route.
-- **MQ-7 — does `/reload-plugins` re-run a dev-mods mod's `session.start`?** One observation says no
-  (log unchanged). Untested otherwise: a second reload, or an edit to the mod file, would show it.
-- **MQ-8 — which path serves a skill from this directory marketplace?** Settle it by editing a
-  skill in the working tree only (no release), reloading, and checking the served bytes: tree and
-  cache then differ. The `re-read from its folder` message suggests the folder.
+Each question is an `MQ-N` entry below, with its probe or the reason it is open.
+
+## MQ-1 — mod load path
+
+Docs say a relative-path plugin in a directory marketplace loads in place. Our CLAUDE.md measured *skills* served from the cached `installPath`. No page says which path a mod module uses. Probe: log `$.plugin.root`.
+
+## MQ-2 — hot reload for marketplace-folder plugins
+
+Documented only for `--plugin-dir`, `CLAUDE_CODE_PLUGIN_DIRS` and skills-dir plugins. The troubleshoot page says installed plugins run the cached copy. Assume `/reload-plugins` is needed.
+
+## MQ-3 — does a rewritten MCP tool input reach the server?
+
+Verified only for the shell hook's `updatedInput` path. Needed before the `cs-principal-stamp` prototype.
+
+## MQ-4 — does `$.ui.status` coexist with a `statusLine` command?
+
+Needed for buddy.
+
+## MQ-5 — does `prompt.compose` reach subagents?
+
+Needed to replace `subagent-guidance`.
+
+## MQ-6 — is a `tool.call` hook on the Agent tool invoked?
+
+`agent.spawn` is the verified route.
+
+## MQ-7 — does `/reload-plugins` re-run a dev-mods mod's `session.start`?
+
+One observation says no (log unchanged). Untested otherwise: a second reload, or an edit to the mod file, would show it.
+
+## MQ-8 — which path serves a skill from this directory marketplace?
+
+Settle it by editing a skill in the working tree only (no release), reloading, and checking the served bytes: tree and cache then differ. The `re-read from its folder` message suggests the folder.
 
 ## Probe: `mods-probe`
 
