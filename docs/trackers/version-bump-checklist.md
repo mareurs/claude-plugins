@@ -802,7 +802,7 @@ is not the releaser's to move.
 **Not pushed.** `NO_PUSH` semantics by choice — two commits (`b74c730` content, `3e65211`
 bump) are local on `main`, for the owner to push.
 
-**Probed the served copy, not the repo copy** (`R-89`): the new sentence is present in all
+**Probed the served copy, not the repo copy** (`codescout:R-89`): the new sentence is present in all
 three profiles' `1.19.11/skills/reconnaissance/SKILL.md`. That is what makes it *shipped*;
 a cold restart or `/reload-plugins` is still what makes a running session read it.
 ### 2026-09-01 — 1.19.10, and a ⚠ that cleared on schedule
@@ -1399,7 +1399,7 @@ skill + templates were never fixed at the source until now.
 
 Two Phase 1 bullets promoted from codescout's R-N ledger, both criteria fired and neither
 ever harvested. Surfaced by the verify-open sweep that closed that ledger's 56%
-`Status:`-line gap (codescout `tracker-hygiene-log:HY-15`).
+`Status:`-line gap (`codescout:tracker-hygiene-log:HY-15`).
 
 **`codescout:R-95` — re-cost a deferral before believing it is expensive.** Its `Promote-when` asked for
 *"one more cluster where a deferral rationale is falsified on contact"* — a cluster, not a
@@ -1427,14 +1427,14 @@ source, both back-citations present. NO_PUSH — local on `main`. Cold restart /
 Ships **D11 promotion-pointer drift** in the `tracker-hygiene` skill, plus its trust
 row in `references/tracker-hygiene-log-template.md`.
 
-D11 was already specified as **HY-11** in codescout's `docs/trackers/tracker-hygiene-log.md`
+D11 was already specified as **`codescout:tracker-hygiene-log:HY-11`** in codescout's `docs/trackers/tracker-hygiene-log.md`
 (2026-08-17) and never implemented; this ships that design rather than a fork — its name,
 its three verdicts (repoint / absorbed / retire, because "fix the link" gets two of them
 wrong) and its active-entries-only scope, which leaves `docs/trackers/archive/**` as the
 historical record. It runs every sweep: D10 already checks `Promote-when` criteria but
 fires only at ≥21 days idle, which is archive time.
 
-Three rules added that HY-11 did not have, each from a miss measured 2026-08-18/20 — name
+Three rules added that `codescout:tracker-hygiene-log:HY-11` did not have, each from a miss measured 2026-08-18/20 — name
 every instance of the target rather than its type; for an installed artifact the target is
 the **serving** copy; and prefer a back-citation to a verbatim quote, since a quote goes red
 when the rule is legitimately reworded.

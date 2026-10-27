@@ -13,7 +13,7 @@ fix_patch_id: 893c9e35072b8b1480a0b7be44deeb3237b05724
 fix_sha: d334a50 (main)
 opened: 2026-08-26
 severity: med
-unverified: 'The reporting defect is fixed; the underlying gap is not. codescout-pika and prompt-hamsa remain UNAUDITED — the tracker now names them as pending instead of hiding them behind a 10/10. S-1..S-6 ''Applies to (N/10)'' counts are still scoped to the audited ten. And no check derives the denominator from buddy/skills/, so a thirteenth specialist would again be invisible. (Re-checked 2026-10-27: S-4 and S-5 were re-measured over all 12 specialists, so ''scoped to the audited ten'' no longer holds for those two; S-1, S-3 and S-6 are still ten-specialist figures. No marker applied: I did not find an open artifact that carries the pika and hamsa audits.)'
+unverified: 'TRACKED 95e041b562ebd595 — The reporting defect is fixed; the underlying gap is not. codescout-pika and prompt-hamsa remain UNAUDITED — the tracker names them under specialists_pending instead of hiding them behind a 10/10. (Discharged 2026-10-27: the clause ''no check derives the denominator from buddy/skills/'' no longer holds. tests/test-buddy-roster-denominator.sh compares the tracker''s scanned and pending lists and its N/M fraction with the directories under buddy/skills/; it fails on an unlisted specialist, a ghost name, a name in both lists, or a wrong fraction. A mutation that adds a thirteenth directory fails it.) Re-checked 2026-10-27: the ''Applies to (N/10)'' counts of S-1 and S-4 were re-measured over all 12 specialists; S-3 and S-6 keep their ten-specialist figures with a 12-file re-check noted; S-2 was not re-measured.'
 ---
 
 ## Summary

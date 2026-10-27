@@ -12,7 +12,7 @@ tags:
 topic: citation grammar and the link graph
 opened: 2026-08-26
 severity: med
-unverified: The per-file referent for version-bump-checklist.md's 15 dangling tokens is INFERRED from subject matter (they read as codescout R-N release notes), not confirmed entry-by-entry against codescout's ledger. Two of its tokens (R-1, R-3 at line 215, 'as R-1 and R-3 have since May') are genuinely ambiguous between the two repos' ledgers by date and need a human call. No fix is applied to any prompt-surface file.
+unverified: 'STANDING — The per-file referent for version-bump-checklist.md''s 15 dangling tokens is INFERRED from subject matter (they read as codescout R-N release notes), not confirmed entry-by-entry against codescout''s ledger. (Re-checked 2026-10-27: the R-1/R-3 line this clause called ambiguous is now written `codescout:R-1` and `codescout:R-3`, so the ambiguity no longer exists. `link_scan` reports far fewer dangling tokens in version-bump-checklist.md than 15. I read codescout''s ledger entries for `R-89`, `HY-11` and `HY-15`, confirmed each matches its context, and qualified three bare citations with `codescout:`. One dangling token is left there: a codescout bug id, `e492592986c67138` at line 1705, which cannot be qualified because the catalog only holds this repository''s artifacts. The inference for the other tokens that were once dangling was not re-checked one by one.) No fix is applied to any prompt-surface file.'
 ---
 
 ## Summary
