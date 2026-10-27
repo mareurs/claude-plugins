@@ -23,7 +23,7 @@ These plugins reflect specific workflows and tool choices -- they may not suit e
 | **[buddy](./buddy/)** | 0.11.13 | Himalayan-aesthetic bodhisattva companion: 12 specialist masters on demand, AI judge, focus tracking, statusline integration |
 | **[Pi harness](./harnesses/pi/)** | 0.1.0 | Companion for [pi](https://github.com/earendil-works/pi-mono): Codescout routing, skill-load tracker, recon badge, MCP status widget, and local read-only session snapshots |
 | **[session-bridge](./session-bridge/)** | 0.1.0 | Cross-session MCP bridge: ask one Claude Code session a question from another, answered in its loaded context. Rust MCP server, bash SessionStart/Stop hooks. |
-| **[legible](./legible/)** | 0.2.0 | Output style `legible:Explanatory STE`: the Explanatory style (★ Insight blocks) plus about 80% of the ASD-STE100 writing rules, so prose is easier to read and check. |
+| **[legible](./legible/)** | 0.2.1 | Output style `legible:Explanatory STE`: the Explanatory style (★ Insight blocks) plus about 80% of the ASD-STE100 writing rules, so prose is easier to read and check. |
 ## Requirements
 
 - [Claude Code](https://claude.com/claude-code) CLI

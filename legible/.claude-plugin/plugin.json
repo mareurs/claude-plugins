@@ -1,7 +1,7 @@
 {
   "name": "legible",
   "description": "Make Claude's output easier for a person to read and check: the Explanatory output style plus about 80% of the ASD-STE100 writing rules.",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "author": {
     "name": "Marius"
   },
