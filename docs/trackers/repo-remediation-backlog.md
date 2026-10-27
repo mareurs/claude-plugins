@@ -762,9 +762,9 @@ The stale map itself was fixed surgically instead (`eee3d8c`): six `.sh` → `.m
 
 **Repair:** correct or annotate the advice at `version-bump-checklist.md:1039` so a future session does not run `refresh_prompt` expecting a repair and silently flatten the curated map.
 
-**Status:** open
+**Status:** mitigated 2026-10-27 — the repair this entry asks for is done: the prescription (now at `docs/trackers/version-bump-checklist.md:1554`, in the 1.16.2 → 1.16.3 history entry) carries a caution that names `RM-26` and says to diff against a copy first. The underlying question is NOT settled: whether `refresh_prompt` would flatten the curated file. I did not run it, because it writes the live always-on file that every subagent receives.
 
-**Valid:** dated 2026-09-02
+**Valid:** dated 2026-10-27
 
 ## RM-27 — `il3-deny-hook.sh` is registered in no hooks.json event — dead file or lost registration
 
@@ -780,9 +780,9 @@ This also made the root `.codescout/system-prompt.md` doubly wrong before `eee3d
 
 Deciding needs to know whether the warn-tier behaviour is still wanted; the test file's expectations are the place to look first.
 
-**Status:** open
+**Status:** resolved 2026-10-27, no action — the file answers the question itself. Its header reads "STATUS: PARKED AND UNWIRED since companion 1.16.9. This file does NOT run" and says it is "kept in-repo deliberately for possible re-promotion". That header was added in `88f1e29` on 2026-08-27, before this entry was filed. The commits it names (`4923f62`, `50282a8`, `a989d73`) all exist. Checked today: `il3-deny-hook.sh` and its test still exist, no `hooks.json` registers an `il3` hook (and none an `il4` hook either, since IL-4 was retired), and IL-3 is enforced server-side, as this session's own `IL3 violation … BLOCKED` replies show. So "dead file or lost registration" was neither: it is parked on purpose. Deleting it remains the owner's call, and the test (`il3-deny-hook.test.sh`) still runs in `run-all.sh`.
 
-**Valid:** conditional — `hooks.json` gains an `il3` registration, or the file and its test are deleted
+**Valid:** dated 2026-10-27
 
 ## RM-28 — codescout-usage-audit-session-log's U-2/U-3 prescribe retired tools
 

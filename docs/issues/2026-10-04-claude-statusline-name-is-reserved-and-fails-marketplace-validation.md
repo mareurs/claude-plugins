@@ -10,7 +10,7 @@ tags:
 fixed_on: 2026-10-24
 last_observed: 2026-10-27
 release_pending: false
-unverified: 'Regression coverage is partial. tests/test-marketplace-validate.sh pins reserved names offline (runs in CI) and runs the real `claude plugin validate` only where the CLI is on PATH, so CI never runs the real validator. The offline rule list is a copy of the documented rules and will lag if Claude Code adds one. (Earlier doubts, CLEARED 2026-10-27: the fix is committed and released, and all three profiles hold the new name.)'
+unverified: 'Regression coverage is partial. tests/test-marketplace-validate.sh pins reserved names offline (runs in CI) and runs the real `claude plugin validate` only where the CLI is on PATH, so CI never runs the real validator. The offline rule list is a copy of the documented rules and will lag if Claude Code adds one. Measured 2026-10-27: the real validator runs with an empty HOME and with no network (`unshare -rn`), so CI could run it after installing the CLI; that step is not added because it adds an npm dependency to CI and could not be verified on a runner. (Earlier doubts, CLEARED 2026-10-27: the fix is committed and released, and all three profiles hold the new name.)'
 ---
 
 ## Summary
@@ -74,6 +74,7 @@ The "not committed, not released" state above is out of date. Measured today:
 - **Validator.** `claude plugin validate .` → `✔ Validation passed`, with only advice lines about `session-bridge` and `legible` READMEs.
 - **Regression test added 2026-10-27:** `tests/test-marketplace-validate.sh`. Offline layer: a `jq` check of the documented reserved-name rules over `marketplace.json`, with a positive control. CLI layer: the real `claude plugin validate`, with a positive control, skipped with a visible notice when `claude` is not on PATH. Measured: 4 of 4 pass here; 2 of 2 with `claude` off PATH; a doctored copy of the marketplace with `claude-statusline` restored fails the offline layer and exits 1.
 - **Still not covered.** CI does not install the `claude` CLI, so it never runs the real validator, and the offline rule list can lag the documented rules.
+- **Measured 2026-10-27, for whoever closes this:** `env -i PATH="$PATH" HOME=<empty dir> claude plugin validate .` exits 0 with `Validation passed`, and so does the same command under `unshare -rn` (no network). The validator needs no login and no network, so the remaining step is only to install the CLI in the `full-suite` job (for example `npm install -g @anthropic-ai/claude-code` after `setup-node`). I did not add it: it puts a global npm package into CI, and I could not run it on a real runner.
 
 ## Fix provenance
 

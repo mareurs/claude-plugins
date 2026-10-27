@@ -1553,6 +1553,8 @@ Ran `release.sh codescout-companion patch` (→1.16.3): `run-all.sh` green (16 s
 
 Two notes for the next release. First, `artifact(action="get", id="cc8cb9e23ab5cc67")` returned `null` at refresh time — the librarian catalog held only artifacts created in-session, so all 17 pre-existing trackers were invisible to `find`. `librarian(action="reindex")` restored it (222 added) and the id in `CLAUDE.md` then resolved correctly; it was never stale. Worth reindexing before trusting any tracker lookup. Second, the root `.codescout/system-prompt.md` still lists the hook entry points as `.sh` files (`subagent-guidance.sh`, `session-start.sh`, `explore-inject.sh`, `pre-tool-guard.sh`, `pre-task-hint.sh`, `il3-warn-hook.sh`, `il4-deny-hook.sh`, `goal-stop-hook.sh`); only `detect-tools.sh` still exists as named — the rest became `.mjs` in the 1.14.0 cross-platform port. That prompt is injected verbatim into every subagent, so the stale file map ships on the always-on channel. `onboarding(action="refresh_prompt")` is the fix; not done here, out of this release's scope.
 
+> **Caution — `RM-26` (filed 2026-09-02, annotated 2026-10-27).** That prescription is probably wrong and was never settled. The root `.codescout/system-prompt.md` is project-curated, and `refresh_prompt` regenerates from templates, so running it could replace the hand-written hook map with generic text. The stale map was fixed by hand in `eee3d8c`. If you want to test the claim, run `refresh_prompt` against a copy of the file and diff; do not run it against the live always-on file.
+
 Cold restart / `/reload-plugins` per instance still required to bind the 1.16.3 record.
 
 ### 2026-07-22 — buddy 0.9.0 → 0.9.1
