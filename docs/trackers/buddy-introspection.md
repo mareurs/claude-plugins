@@ -39,7 +39,7 @@ These are the canonical rows. Per-specialist duplicates are not recorded; severi
 | S-1 | Heavy biographical role-priming (animal metaphor + multi-sentence persona biography) | high | open | H2 | arxiv 2311.10054, 2507.16076 | cut bio; keep one-line tone cue | **9** (ibex is light, others heavy) |
 | S-2 | No I/O contract (no input/output shape, no escape hatch) | high | open | step-5 | — | adopt ibex-style Finding Format and/or output schema block | **9** (ibex has Finding Format) |
 | S-3 | No soft scope rule for out-of-domain input | high | open | step-5 | arxiv 2505.18325 | adopt ibex-style "set scope, ask once" pattern | **8** (ibex + pheasant have explicit scope-ask) |
-| S-4 | Closed-set Reactions (~5 pairs) without trigger-rationale | high | open | H3 | arxiv 2403.16512 | add _Applies: <Method/Heuristic ref>_ per Reaction; mark non-exhaustive | **10** |
+| S-4 | Closed-set Reactions (~5 pairs) without trigger-rationale | high | open | H3 | arxiv 2403.16512 | add _Applies: <Method/Heuristic ref>_ per Reaction; mark non-exhaustive | **2 of 12** (was 10; re-measured 2026-10-27: `security-ibex`, `codescout-pika`) |
 | S-5 | No eval set (zero graded examples per specialist) | high | **fixed** — falsified 2026-08-26 | H7 | DSPy/Promptfoo/LangSmith 2025 | **done**: `buddy/tests/<specialist>-eval/` exists for **12/12**, each with 2 prompt-tdd scenarios + a `prompt_tdd.yaml` (hamsa's sits at a nested `prompt-tdd/` path under an older bespoke harness) | **0** (was 10) |
 | S-6 | Declarative third-person framing vs interview-style | med | **wontfix-with-data** | H2 | arxiv 2507.16076 | T-33 dialogic draft + hamsa inspection on both variants: declarative wins on 6/7 dimensions; dialogic adds ~37% token cost without named benefit hypothesis. Forensic artifact at `buddy/skills/debugging-yeti/SKILL-dialogic.md`. See active-plan.md 2026-05-16 disposition entry. | **10** |
 
@@ -209,7 +209,9 @@ when no Reaction matches, derive response from Method + Heuristics."*
 **Predicted impact:** Less surface shoehorning on novel inputs. Token cost ~40/specialist.
 
 
-**Valid:** dated 2026-05-15
+**Valid:** dated 2026-10-27
+
+**Re-measured 2026-10-27** over the 12 current specialists (`buddy/skills/*/SKILL.md`). All 12 have a `## Reactions` section. 10 carry `_Applies:_` lines, 53 in total: 6 each in `data-leakage-snow-pheasant`, `ml-training-takin` and `prompt-hamsa`, and 5 each in the other seven. `security-ibex` and `codescout-pika` carry none; both keep the plain numbered `When the user says …: respond with —` form. The exact S-4 sentence "illustrative, not exhaustive" appears in no file; the one fixed file I read, `debugging-yeti`, words it "Non-exhaustive. Each pairs a user signal with a method/heuristic anchor…". So the symptom no longer holds for 10 of the 12 and still holds for `security-ibex` and `codescout-pika`. Not measured: whether every Reaction in the 10 carries its `_Applies:_` line, and whether the two were left out on purpose. This answers the shape question in the paragraph below.
 
 "Every specialist" meant the ten scanned. Whether the two later additions follow the same
 closed-set Reactions shape is unverified.
@@ -258,7 +260,9 @@ Per LLM-lens research, use a 3-judge PoLL panel.
 S-1, S-2, S-3, S-4, S-6 — is a guess. **This is the highest-leverage single action.**
 
 
-**Valid:** dated 2026-05-15
+**Valid:** dated 2026-10-27
+
+**Re-measured 2026-10-27:** the CLOSED note still holds. `buddy/tests/<specialist>-eval/` exists for all 12 specialists. Each has a `prompt_tdd.yaml` and exactly 2 `scenario.yaml` files (24 in total); `prompt-hamsa-eval` nests its prompt-tdd form under `prompt-tdd/`, as the note says. Five more `*-eval` directories exist for non-specialists (`advisor-projection`, `create-buddy`, `explore-project`, `legibility-dzo`, `reconnaissance`). This is existence only; pass results were not measured.
 
 Declared `dated` rather than left blank precisely because the claim is **falsified** — see the
 CLOSED note above. `dated` is the honest class for a statement that was true of an instant and
