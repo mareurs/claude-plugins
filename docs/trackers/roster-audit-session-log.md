@@ -68,8 +68,8 @@ entry_high_water_W: 5
 
 | ID | Date | Severity | Category | Status | Title |
 |----|------|---------:|----------|--------|-------|
-| F-1 | 2026-08-26 | med | tracker-drift | open | A drift finding re-measured its own title; the claim that number supported was falsified and went unfiled |
-| F-2 | 2026-08-26 | med | tracker-drift | open | `buddy-introspection` reports `specialists_scanned: 10/10` while the roster has grown to 12 |
+| F-1 | 2026-08-26 | med | tracker-drift | fixed-verified (re-verified 2026-10-27) | A drift finding re-measured its own title; the claim that number supported was falsified and went unfiled |
+| F-2 | 2026-08-26 | med | tracker-drift | fixed-verified (re-verified 2026-10-27) | `buddy-introspection` reports `specialists_scanned: 10/10` while the roster has grown to 12 |
 | F-3 | 2026-08-26 | med | codescout-tool | fixed-verified | The reconnaissance skill's own worked exemplars use a `**Valid:**` form that `append_entry` hard-rejects (`f53aaea`, shipped in codescout-companion 1.16.17) |
 | F-4 | 2026-08-26 | med | tracker-drift | fixed-verified | `T-N` is not a live namespace, so ~60 citations are silently inert — invisible to `link_scan` and to `doctor` (**corrected** same day; original claim was "dangles permanently") |
 | F-5 | 2026-08-26 | med | codescout-tool | open | codescout's session-log template cites its own ledger's ids bare, so every fresh copy injects cross-repo dangling (and one wrongly-resolving) citation |
@@ -285,7 +285,9 @@ still shows `codescout-pika` at 316 (highest) and `security-ibex` at 181 (second
 123 across the other 11 — the correction has held for 12 days. `codescout-pika`'s own
 audit (the "still owed" item both `VG-8` and `#20` name) remains a separate open item.
 
-**Valid:** dated 2026-08-26
+**Valid:** dated 2026-10-27
+
+**Re-measured 2026-10-27** (`wc -l` over `buddy/skills/*/SKILL.md`): `codescout-pika` 316 (highest), `security-ibex` 181 (second), minimum 118, and the median of the 11 files other than `codescout-pika` is 123. All as recorded on 2026-09-07, so the correction has held for 51 days; 181 / 123 = 1.47×. One sub-claim no longer reproduces: the `118–136` baseline of the ten scanned specialists. Without `security-ibex`, those nine are now 118–161 lines (`testing-snow-leopard` 148, `data-leakage-snow-pheasant` 160, `ml-training-takin` 161). I did not check what was added to them.
 
 True of `buddy/skills/` at plugin version 0.9.1; re-verify after any specialist rewrite.
 
@@ -315,7 +317,9 @@ with an explanatory line at 98 spelling out which two are unaudited. Re-verified
 2026-09-07 (`RM-14`): still reads `10/12` today, matching the 12 directories under
 `buddy/skills/`.
 
-**Valid:** dated 2026-08-26
+**Valid:** dated 2026-10-27
+
+**Re-verified 2026-10-27:** `buddy/skills/` still holds twelve specialist directories, and `buddy-introspection.md` line 16 still reads `specialists_scanned: 10/12`, with the ten named and `codescout-pika` and `prompt-hamsa` under `specialists_pending`. The tracker's own figure for `prompt-hamsa` is stale: it says 158 lines and the file is now 171 (corrected there the same day).
 
 True of `buddy/skills/` at plugin version 0.9.1 — twelve specialist directories, ten named in `specialists_scanned`.
 

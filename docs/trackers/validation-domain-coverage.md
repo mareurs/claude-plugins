@@ -658,7 +658,7 @@ or every copy inherits the flaw.
 
 **Status:** fixed
 **Valid:** dated 2026-10-27
-**Re-measured 2026-10-27** over the 12 current `buddy/skills/*/SKILL.md` files (118, 118, 121, 121, 123, 123, 148, 160, 161, 171, 181, 316 lines). Still true: `security-ibex` is 181 lines and second, `codescout-pika` is 316, and the minimum is 118. Not true any more: the median is **135.5**, not 123, so ibex is **1.34×** the median, not 1.47×. Most of that is explained by `testing-snow-leopard` growing from 125 to 148 lines (see `VG-6`): with 125, the median of these 12 files would have been 124. The recorded 123 is not exactly reproducible from the 12 files, and I did not find which set it was taken over. The correction of `#20` stands.
+**Re-measured 2026-10-27** over the 12 current `buddy/skills/*/SKILL.md` files (118, 118, 121, 121, 123, 123, 148, 160, 161, 171, 181, 316 lines). Still true: `security-ibex` is 181 lines and second, `codescout-pika` is 316, and the minimum is 118. Also still true: the median of the 11 files other than `codescout-pika` is **123**, so ibex is **1.47×** the median, exactly as recorded. (The median of all 12 files is 135.5; the recorded figure excludes the outlier, as `roster-audit-session-log:F-1` says. An earlier note on this entry, written 2026-10-27, compared against the 12-file median and wrongly called 123 not reproducible. That note was wrong and is replaced by this one.) Every figure this entry states still reproduces. The correction of `#20` stands.
 **Rests on:** direct read of `buddy/skills/security-ibex/SKILL.md` on 2026-08-26.
 
 buddy-introspection's `#20 — security-ibex — Length 167 lines` no longer matches source:
