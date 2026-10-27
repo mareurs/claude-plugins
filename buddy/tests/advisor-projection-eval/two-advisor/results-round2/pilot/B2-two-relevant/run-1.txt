@@ -1,0 +1,70 @@
+*The Testing Snow Leopard steps out of the shadow and counts the gaps.*
+
+Your test passes, but that doesn't tell us the code is correct. I haven't run anything. This is a read of the code you pasted, and items marked **verify** are hypotheses to run against the real schema and fakes.
+
+## What the existing test pins
+
+**Contract it actually enforces:** for an org with 2 orders, CSV output has exactly 2 newlines.
+
+| Mutation to `export_orders` | Test result |
+|---|---|
+| Remove `WHERE org_id = ...` | **green**, since only org 1 is seeded |
+| Write `r.id` where `r.total` should be | **green** |
+| Delete `mailer.send(...)` | **green** |
+| Delete `audit_log.write(...)` or change its args | **green** |
+| Break or delete the whole JSON branch | **green** |
+| Add a CSV header row, or drop the loop | red |
+
+Only the last row of that table turns the test red. Every other behavior this function promises is unpinned.
+
+## What is missing
+
+**Contract (proposed):** given an authenticated user, an org they may export, and a format, the function returns that org's orders and nothing else, in that format. It emails the same body to the requester and writes one audit entry.
+
+### 1. Core output, round-trip (highest value)
+- `test_csv_body_parses_back_to_seeded_orders`: parse with `csv.reader` and compare id, total and created_at per row against the seeded values.
+- `test_json_body_parses_back_to_seeded_orders`: the same via `json.loads`.
+- Property form: for any generated list of orders, `parse(export(rows)) == rows`, covering conservation of count and order. Keep named boundary cases beside it.
+
+### 2. Tenant isolation
+- `test_excludes_orders_from_other_orgs`: seed org 1 and org 2, export org 1, and assert that no org-2 id appears. This is the mutation the current test misses.
+- Metamorphic form: adding orders to another org never changes the output for this one.
+
+### 3. Boundaries not covered
+- **Zero rows:** CSV should be `""` and JSON `"[]"`. This is the case where `fmt` branches are most likely to diverge.
+- **One row**, and a large export (the whole body goes into one email, so is there a size limit?).
+- **`fmt`:** `"json"`, `"CSV"`, `""`, `None` and `"xml"`. Today every non-`"csv"` value silently becomes JSON. **Is that intended?** I can't write the assertion until you say.
+- **Field values:**
+  - `total` as `Decimal`, `0`, negative and `None`. **Verify:** `json.dumps` raises `TypeError` on `Decimal`, so if your driver returns `Decimal`, the JSON path crashes.
+  - `created_at=None`. **Verify:** CSV writes `""` while JSON writes `"None"`, so the two formats would disagree.
+
+### 4. Side effects, observable through fakes
+Use a recording fake mailer and audit log, not spies on call counts.
+- `test_emails_body_to_requesting_user`: assert recipient `a@x.io`, subject `"Your export"`, and that the body equals the return value.
+- `test_writes_audit_entry_for_user_and_org`: assert the recorded entry is `("export", 7, 1)`.
+- **Failure ordering:** if `mailer.send` raises, no audit entry is written. If audit raises after the mail goes out, the data has left unaudited. Which behavior do you want? Pin that choice.
+
+### 5. Security-shaped tests (red against the current code)
+I pin the behavior here and leave the finding to `security-ibex`.
+- `test_rejects_org_id_the_user_does_not_belong_to`: call `export_orders(req, 2, "csv")` with the user from your test, whose `org_id=1`. I see no ownership check in the function. If one lives in a decorator or middleware I can't see, point me to it and this becomes an integration test.
+- `test_org_id_injection_payload_does_not_widen_results`: pass `"1 OR 1=1"` with orders seeded in two orgs. The `f"... {org_id}"` interpolation is the reason this test exists. Route the finding itself to security-ibex.
+
+## Test plan format (top three)
+
+**Contract:** CSV and JSON bodies contain exactly the requested org's orders, field for field.
+**Boundaries covered:** 0, 1 and many rows; `fmt` csv, json and unknown; `Decimal`, `None` and negative `total`; `None` `created_at`.
+**Arrange / Act / Assert:** seed orders for orgs 1 and 2 → `export_orders(req, 1, fmt)` → parse the body and compare to the expected org-1 rows.
+**Properties:** round-trip, count conservation, and cross-org invariance (a metamorphic relation).
+**Mutation-survival:** removing the `WHERE` clause, or swapping `r.total` for `r.id`.
+**Isolation:** real in-memory DB, fake recording mailer, fake recording audit log, torn down per test.
+**Pyramid level:** unit, with the DB real for the SQL contract.
+**Confidence:** high on items 1 to 4, medium on 5 until the auth layer is confirmed.
+**Open gaps:** the unknown-`fmt` contract, the failure-ordering contract, and email size limits.
+
+## Questions before I write them
+1. Is org authorization enforced upstream, or is it meant to live in this function?
+2. Should an unknown `fmt` raise or fall back to JSON?
+3. Should the audit entry be written even when the mailer fails?
+4. What type does `total` come back as from your driver, `Decimal` or `float`?
+
+Answer those and I'll write the suite, starting with the cross-org isolation test, since it kills the most surviving mutations.

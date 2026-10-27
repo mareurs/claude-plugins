@@ -15,7 +15,7 @@
 # Model: claude-opus-5, the pin the original spine ablation used (validation_spine_opus5.yaml).
 # Auth: ANTHROPIC_API_KEY read from $ENV_FILE and passed to the subprocess only.
 set -u
-FIX="$1"; RES="$2"; N="$3"; CAP="${4:-10}"
+FIX="$(cd "$1" && pwd)"; mkdir -p "$2"; RES="$(cd "$2" && pwd)"; N="$3"; CAP="${4:-10}"
 ENV_FILE="${ENV_FILE:-/home/marius/work/claude/prompt-engineering/.env}"
 MODEL="${MODEL:-claude-opus-5}"
 PER_CALL_CAP="${PER_CALL_CAP:-2.0}"

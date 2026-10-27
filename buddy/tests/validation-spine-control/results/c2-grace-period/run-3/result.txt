@@ -1,0 +1,24 @@
+Done — 29 tests, all passing.
+
+**Files added**
+- `tests/test_billing.py` — the suite
+- `pytest.ini` — sets `pythonpath = src` so `import billing` resolves (there's no `__init__.py`, so `from src.billing import ...` wouldn't have worked)
+
+**What's covered**
+
+Since this is pre-refactor, I wrote these as characterisation tests — they pin current observable behaviour so a faithful refactor stays green and an off-by-one goes red:
+
+- **Window boundaries** — due date itself (in), day before (out), last grace day `due + 4` (in), expiry day `due + 5` (out)
+- **Day-by-day sweep** across the window, plus ranges well before and well after
+- **Window length** — counts in-grace days across a wide span and asserts exactly `GRACE_DAYS` of them
+- **Calendar arithmetic** — month end, year end, leap day crossings, and an invoice due *on* Feb 29. These are the ones that break if a refactor starts doing component-wise date maths instead of `timedelta`.
+- **Contract** — returns a real `bool` (not merely truthy), doesn't mutate its arguments
+
+Tests derive dates from `GRACE_DAYS` rather than hard-coding 5, so retuning the constant doesn't cause a cascade of failures. The one exception is `test_grace_days_constant_is_five`, which pins the value in a single place so a change to it surfaces as one clear failure instead of silently shifting behaviour.
+
+**I verified the suite can actually fail.** A green suite proves nothing on its own, so I ran it against five mutated implementations: `<=`→`<` on the lower bound (4 failures), `<`→`<=` on the upper (7), `GRACE_DAYS+1` (7), returning `int` instead of `bool` (26), and dropping the lower bound entirely (6). All five were killed.
+
+**Two behaviours I found but deliberately did not pin:**
+
+1. `due = date.max` raises `OverflowError` from the `due + timedelta(...)`. This is an artifact of *how* the check is written — rewrite it as `today - due < timedelta(days=GRACE_DAYS)` and the overflow disappears. Encoding it would fail a perfectly good refactor over a case nobody cares about, so I left it out. Flagging it in case you do want it locked down.
+2. Calling with `due` after `today` returns `False` rather than raising. Looks like sane behaviour rather than an accident, but it's unspecified in the docstring — worth deciding on while you're in there.

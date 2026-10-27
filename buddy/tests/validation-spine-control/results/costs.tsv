@@ -1,0 +1,9 @@
+fixture	run	status	cost_usd	model
+c2-grace-period	-	invalid		
+c2-grace-period	-	invalid		
+c2-grace-period	-	invalid		
+c2-grace-period	-	invalid		
+c2-grace-period	-	invalid		
+c2-grace-period	1	valid	0.5966385000000001	claude-opus-5
+c2-grace-period	2	valid	0.4640535	claude-opus-5
+c2-grace-period	3	valid	0.34324200000000005	claude-opus-5

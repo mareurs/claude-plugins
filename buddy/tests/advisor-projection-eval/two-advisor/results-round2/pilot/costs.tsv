@@ -1,0 +1,4 @@
+arm	run	status	cost_usd	model
+B2-two-relevant	1	valid	0.0794164	claude-sonnet-5-5
+B2-two-relevant	2	valid	0.0411684	claude-sonnet-5-5
+B2-two-relevant	3	valid	0.0391559	claude-sonnet-5-5
