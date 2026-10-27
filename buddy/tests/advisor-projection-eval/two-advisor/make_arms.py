@@ -6,8 +6,8 @@ Each arm's payload is the real `build_payload` output from the shipped assembler
 this script does by hand is add an `advisors:` line to a COPY of the primary's
 frontmatter, which is exactly what a real specialist would declare.
 
-Usage: make_arms.py <out_dir>
-Writes <out_dir>/<arm>/prompt.txt and <out_dir>/manifest.tsv.
+Usage: make_arms.py <out_dir> [stimulus.md]
+Defaults to ../stimulus.md. Writes <out_dir>/<arm>/prompt.txt and <out_dir>/manifest.tsv.
 """
 import re
 import sys
@@ -27,8 +27,8 @@ ARMS = {
 }
 
 
-def stimulus() -> str:
-    text = (HERE.parent / "stimulus.md").read_text()
+def stimulus(path: Path) -> str:
+    text = path.read_text()
     # The file is a short intro, a line of '---', then the task. Take what follows.
     return text.split("\n---\n", 1)[1].strip()
 
@@ -45,11 +45,11 @@ def with_advisors(raw: str, advisors: list[str]) -> str:
     return m.group(1) + line + "\n" + m.group(2) + raw[m.end():]
 
 
-def main(out: Path) -> None:
+def main(out: Path, stim: Path) -> None:
     index = sb.discover(Path("/nonexistent-project-root"))
     primary_dir = index[PRIMARY][1]
     raw = (primary_dir / "SKILL.md").read_text()
-    task = stimulus()
+    task = stimulus(stim)
     out.mkdir(parents=True, exist_ok=True)
     rows = ["arm\tpayload_chars\tprompt_chars\tadvisors"]
     for arm, advisors in ARMS.items():
@@ -76,6 +76,6 @@ def main(out: Path) -> None:
 
 
 if __name__ == "__main__":
-    if len(sys.argv) != 2:
+    if len(sys.argv) not in (2, 3):
         raise SystemExit(__doc__)
-    main(Path(sys.argv[1]))
+    main(Path(sys.argv[1]), Path(sys.argv[2]) if len(sys.argv) == 3 else HERE.parent / "stimulus.md")
