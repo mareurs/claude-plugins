@@ -143,6 +143,10 @@ The probe uses wall-clock time. Under CPU starvation 27 of 1,500 benign regexes 
 **Status:** blocked — by G4 (held, ES-5 and ES-21) and by the missing design of the Claude Code actuation (hook text steer, a mod that sets effort, or both: ES-17, ES-23). ES-3, the hook adapter, is done.
 **Done when:** `effort-steering/.claude-plugin/plugin.json` and `hooks/hooks.json` exist, `.claude-plugin/marketplace.json` has the entry (no version field), `README.md` has the version-table row, `effort-steering/spikes/` is deleted or excluded, and the release ran through `./scripts/release.sh effort-steering` followed by the cold restart of all three Claude Code instances.
 
+**Valid:** dated 2026-10-27
+
+**Checked 2026-10-27:** none of the **Done when** items is met. `effort-steering/` has no `.claude-plugin/` and no `hooks/` directory, and `.claude-plugin/marketplace.json` has no `effort-steering` entry. The **Status** line above (blocked by `G4`, `ES-5`, `ES-21`, `ES-17`, `ES-23`) is as recorded; I did not re-check those blockers.
+
 Never bump a version inline in a feature commit. The spikes hard-code machine-specific paths into three profiles and would ship into every install cache.
 
 **Source:** this repo's `CLAUDE.md`, section "Version Management".
