@@ -1,0 +1,81 @@
+*The Testing Snow Leopard arrives, eyes already on the gaps.*
+
+Your tests pass. That does not mean your code is correct. One test exists, and it pins almost nothing.
+
+## What the existing test pins
+
+**Contract:** an admin gets the rendered invoice for an invoice in their own org.
+
+**Mutation-survival check against the current test.** Each of these mutations leaves it green:
+
+| Mutation | Test result |
+|---|---|
+| Delete `raise NotFound()` branch | green |
+| Delete the entire `Forbidden` check | green |
+| Change `!=` to `==` in the role check | green, since the admin's org matches too |
+| Change `!=` to `==` in the org check | green, since the admin short-circuits first |
+| `return invoice.render()` becomes a hardcoded value equal to `inv.render()` | green, if the render is deterministic |
+
+Two of the three branches have no test. The authorization line, which is the security-critical one, is entirely unguarded.
+
+## Contract, stated
+
+Given an existing invoice, an admin always receives it. A non-admin receives it only when `invoice.org_id == user.org_id`. A missing invoice raises `NotFound`. A non-admin from another org raises `Forbidden`.
+
+## Missing tests (priority order)
+
+1. **Non-admin, same org → returns rendered invoice.** This is the main non-admin path, and nothing covers it. It kills the `!=`→`==` flip on the role check.
+2. **Non-admin, different org → `Forbidden`.** This is the core IDOR guard. Assert the exception type specifically, and also assert the response does not contain the rendered body.
+3. **Admin, different org → returns the invoice.** The current test uses matching orgs, so it never proves the admin bypass. Without this, a mutation to `invoice.org_id != request.user.org_id` that drops the role clause survives.
+4. **Unknown `invoice_id` → `NotFound`.** The branch is entirely uncovered.
+5. **Ordering: missing invoice vs. unauthorized user.** A non-admin requesting a nonexistent id gets `NotFound`, per the current code. Pin it deliberately. It leaks existence (`Forbidden` vs `NotFound` tells a caller which ids exist). If that is not intended, it is a design question rather than a test gap, and I would raise it with security-ibex.
+
+## Boundary list
+
+| Parameter | Edges not yet covered |
+|---|---|
+| `user.role` | `"admin"` (covered), `"user"`, `None`, `""`, `"Admin"` (case), unknown role string |
+| `user.org_id` | equal, different, `None` vs non-None, `0` (falsy but valid), type mismatch (`"1"` vs `1`) |
+| `invoice.org_id` | `None` (legacy or orphan invoice) with a `None` user org. `None == None` would grant access. |
+| `invoice_id` | nonexistent, `0`, negative, wrong type, `None` |
+| DB | duplicate ids (`.first()` hides them), empty table |
+
+The `None == None` case deserves a named test. A non-admin with `org_id=None` against an invoice with `org_id=None` passes the check today. Whether that is correct is a contract decision to make explicitly, not leave implicit.
+
+## Proposed table-driven authorization test
+
+```python
+@pytest.mark.parametrize("role, user_org, inv_org, expected", [
+    ("admin", 1, 1, "ok"),
+    ("admin", 1, 2, "ok"),          # admin bypass across orgs
+    ("user",  1, 1, "ok"),
+    ("user",  1, 2, Forbidden),     # IDOR guard
+    ("user",  0, 1, Forbidden),     # falsy org_id is still a real org
+    ("Admin", 1, 2, Forbidden),     # role match is case-sensitive
+    (None,    1, 2, Forbidden),
+])
+def test_get_invoice_authorization(role, user_org, inv_org, expected): ...
+```
+
+Note the loop-free parametrization carries the branching, so the test body stays arrange/act/assert. For the `"ok"` rows, assert equality with `inv.render()`. For exception rows, use `pytest.raises(expected)`.
+
+## Test format for the highest-value gap
+
+**Contract:** a non-admin requesting another org's invoice gets `Forbidden`, never the rendered body.
+**Boundaries covered:** role `"user"`, org mismatch, `org_id=0`.
+**Arrange / Act / Assert:** arrange a non-admin in org 1 and an invoice in org 2; call `get_invoice`; assert `Forbidden` is raised.
+**Properties:** metamorphic. For any invoice and any non-admin, changing the user's `org_id` to equal the invoice's flips `Forbidden` to success. Also: for every admin, the result equals `render()` regardless of org.
+**Mutation-survival:** flipping `!=` to `==` on the role check, or deleting the `Forbidden` branch, turns this red.
+**Isolation:** real `FakeRequest` and `FakeUser`. The DB is the seam: use an in-memory fake or a transaction rolled back per test. Do not share invoice fixtures across tests.
+**Pyramid level:** unit, since the logic is three branches.
+**Confidence:** high on the missing-branch analysis. Medium on the boundary list, because I have not seen `FakeRequest`, `make_invoice`, or how `db` is wired.
+**Open gaps:** see below.
+
+## Open gaps and things I have not verified
+
+- **I have not seen `make_invoice` or the `db` fixture.** The existing test never passes `db` to `get_invoice`, so `make_invoice` presumably patches or populates a global. I would read it before writing anything, to confirm the fake's `.filter(...).first()` actually honors the id filter. If it returns the only row regardless of id, the `NotFound` test cannot work and the existing test proves less than it appears to.
+- **`render()` determinism.** If `render()` embeds a timestamp, the existing equality assertion is fragile.
+- **Whether `NotFound` ahead of `Forbidden` is intentional** (see item 5).
+- **Concurrency and duplicate ids** are skipped. They are low value unless the schema lacks a uniqueness constraint.
+
+Tell me where `make_invoice` and the fake DB live and I will read them before drafting the final tests. I want to verify the seam, not assume it.

@@ -1,0 +1,69 @@
+*The snow leopard arrives, eyes already on the narrow passes.*
+
+Your tests pass. That does not mean your code is correct. You have one test, and it exercises the single path where every guard is satisfied. Here is what I see from the snippet alone; I have not seen `FakeRequest`, `make_invoice`, or `db` wiring, so those are flagged as open questions below.
+
+## Contract
+
+Given an invoice id, `get_invoice` returns `invoice.render()` if the invoice exists and the caller is an admin or belongs to the invoice's org. It raises `NotFound` if no invoice has that id, and `Forbidden` if the caller is a non-admin from a different org.
+
+## What the existing test pins
+
+**Mutation-survival check on the one test:** it uses an admin whose `org_id` (1) also matches the invoice's `org_id` (1). That makes it blind to the authorization condition. Mutations that stay green:
+
+- Delete the `Forbidden` check entirely.
+- Change `!=` to `==` on the role comparison.
+- Change `and` to `or`.
+- Replace `invoice.org_id != request.user.org_id` with `False`.
+
+It does catch: removing `.render()`, or returning something other than the rendered invoice. That is all.
+
+## Missing tests
+
+| # | Test name (as specification) | Catches |
+|---|---|---|
+| 1 | `test_raises_not_found_when_invoice_id_does_not_exist` | Removing the `None` guard; it would otherwise hit `AttributeError` on `None.render()`, so assert `NotFound` specifically |
+| 2 | `test_raises_forbidden_when_non_admin_requests_other_orgs_invoice` | Deleting the Forbidden check, `and`→`or` flips |
+| 3 | `test_returns_invoice_when_non_admin_requests_own_orgs_invoice` | Over-tightening: a mutation making the check deny all non-admins |
+| 4 | `test_admin_can_read_invoice_from_other_org` | The admin bypass. The current test cannot see it, because the org matches |
+| 5 | `test_raises_not_found_before_forbidden_for_missing_invoice` | Check ordering. A missing invoice must not leak as `Forbidden`, and an existing foreign one must not look like `NotFound` |
+
+Tests 2, 3, and 4 together form the 2x2 of (admin, non-admin) x (same org, other org). Three cells are untested today. Write it as a parametrized table with expected outcome per row, rather than copy-pasting.
+
+## Boundary list
+
+| Parameter | Edges | Covered? |
+|---|---|---|
+| `invoice_id` | nonexistent, `None`, wrong type (`"42"` vs `42`), negative, 0 | none |
+| `user.role` | `"admin"`, `"user"`, other roles, `None`, `"Admin"` (case) | only `"admin"` |
+| `user.org_id` | matches, differs, `None` | only matches |
+| `invoice.org_id` | matches, differs, `None` | only matches |
+
+Two of these deserve a decision, not just a test:
+
+- **`None` on both sides.** If `user.org_id` and `invoice.org_id` are both `None`, then `None != None` is `False` and a non-admin passes the check. Whether that is intended depends on whether `org_id` is nullable in your schema. If it is, that is a possible authorization bypass, and this test pins the answer.
+- **Role case sensitivity.** `"Admin"` is treated as non-admin. That is probably correct, but it is a security-relevant edge, so pin it.
+
+## Properties
+
+A metamorphic relation fits here: **for any non-admin user, changing `invoice.org_id` to differ from `user.org_id` must flip the outcome from success to `Forbidden`, and an admin's outcome must not change.** A generator over (role, user_org, invoice_org) that checks the outcome against a one-line oracle (`admin or orgs equal`) covers the matrix. It sits beside the named cases above and does not replace them.
+
+## Open gaps and things I could not verify
+
+- **`db` isolation.** I don't know whether the test's `make_invoice` writes to a real or in-memory DB. If `get_invoice` queries a shared global `db`, test ordering and leftover rows are a risk; each test should tear down its own state.
+- **`render()` failure.** If `render()` can raise, nothing tests how that propagates. I can't tell from the snippet whether that is in the contract.
+- **Exception identity.** Assert on the exception type (`pytest.raises(NotFound)` / `Forbidden`), not just that something was raised. Otherwise an `AttributeError` from a removed guard can satisfy a loose check.
+- **The existing assertion is partly tautological.** `get_invoice(req, 42) == inv.render()` is meaningful only if `render()` is deterministic and has no timestamps or ids that differ per call. Worth confirming.
+
+## Test format (for the 2x2 table)
+
+**Contract:** access is granted iff `role == "admin"` or `user.org_id == invoice.org_id`; otherwise `Forbidden`; missing invoice is `NotFound`.
+**Boundaries covered:** role (admin/non-admin), org (match/differ), invoice existence.
+**Arrange / Act / Assert:** build user and invoice from the row; call `get_invoice`; assert the rendered value or `pytest.raises(<expected>)`.
+**Properties:** the metamorphic relation above, via Hypothesis.
+**Mutation-survival:** flipping `and` to `or` turns the "non-admin, other org" row red.
+**Isolation:** real or fake DB per test, with teardown. To be confirmed.
+**Pyramid level:** unit.
+**Confidence:** high on the authorization gaps; medium on the DB and `render()` items, since I haven't seen that code.
+**Open gaps:** `None` org handling decision, `render()` errors, id type edges.
+
+If you share `FakeRequest`, `make_invoice`, and how `db` is set up, I can turn this into the actual parametrized test file and check that each row fails under its target mutation.

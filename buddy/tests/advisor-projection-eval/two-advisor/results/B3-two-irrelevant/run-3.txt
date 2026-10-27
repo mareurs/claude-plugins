@@ -1,0 +1,51 @@
+*The Testing Snow Leopard pads in, eyes on the shadows.*
+
+"Your tests pass. That does not mean your code is correct." One test exists. It pins one path of four.
+
+## What the existing test actually pins
+
+**Contract it covers:** an admin in the same org gets `invoice.render()`.
+
+**Mutation-survival problem:** the user is an admin *and* in the same org, so both sides of the authorization check are true. The test cannot tell which one let them through. These mutations all stay green:
+
+- `!= "admin"` → `!= "root"`, or the role check deleted outright
+- `invoice.org_id != request.user.org_id` → `==`, or the org check deleted outright
+- `and` → `or`: with an admin in the same org, `role != "admin"` is False and `org_id !=` is False, so both operators return the same result
+
+The fixture also lacks a distinct value (see my standing lesson on fixtures that give two inputs one value): admin and owner share `org_id=1`, so no test can tell which org the code compared.
+
+There is a second weakness: `get_invoice(req, 42) == inv.render()`. If `render()` is deterministic, a hardcoded or wrong-invoice return still passes if `make_invoice` is the only invoice in the DB. Id 42 is never contrasted with another row.
+
+## Missing tests (branch-pairing gap: 3 of 4 outcomes unreached)
+
+| # | Test name | Setup | Expected | Mutation caught |
+|---|---|---|---|---|
+| 1 | `test_raises_not_found_when_invoice_missing` | no invoice with id 999 | `NotFound` | removing the `None` guard (would raise `AttributeError` instead) |
+| 2 | `test_raises_forbidden_when_non_admin_in_other_org` | role=`member`, org 2; invoice org 1 | `Forbidden` | deleting the org check, or `!=` → `==` |
+| 3 | `test_returns_invoice_when_non_admin_in_same_org` | role=`member`, org 1; invoice org 1 | rendered invoice | `and` → `or`'s inverse, or role check inverted to deny everyone |
+| 4 | `test_admin_can_read_invoice_from_other_org` | role=`admin`, org 2; invoice org 1 | rendered invoice | deleting the admin bypass |
+| 5 | `test_returns_requested_invoice_not_another` | invoices 41 and 42 in different orgs or with different content | render of 42 | wrong filter, e.g. dropping `.id == invoice_id` |
+
+Tests 2, 3 and 4 together form the full 2×2 of (admin?, same org?). Parametrize them as a table, not as copies.
+
+## Boundaries not yet listed
+
+- **Order of checks:** a non-admin in another org requesting a *missing* invoice must get `NotFound`, not `Forbidden`. Pin it, since the current order leaks nothing, and a reorder would change which error an outsider sees.
+- **Role values:** `None`, `""`, `"Admin"` (case), `"administrator"`. The check is an exact string match, so `"Admin"` must be denied unless the contract says otherwise. Ask the owner which is intended.
+- **`org_id` of `None` on both sides:** `None != None` is False, so a user with no org can read an invoice with no org. Is that a promise or a bug? Confirm before pinning.
+- **Type mismatch:** `invoice_id` as `"42"` versus `42`, and `org_id` as `"1"` versus `1`. Depends on the layer's coercion.
+- **Authorization failure must not render:** assert `render` was not reached. Better observable: the exception, plus no returned body.
+
+## Test plan block (for the table-driven authorization test)
+
+**Contract:** Given an existing invoice, return its render if the user is admin or shares its org; otherwise raise `Forbidden`; if no invoice exists, raise `NotFound`.
+**Boundaries covered:** missing id; admin/non-admin × same/other org; distinct org ids (1 vs 2); case-variant role; `None` org.
+**Arrange / Act / Assert:** build user and invoice from a table row, call `get_invoice`, assert the returned render or `pytest.raises(<specific error>)`.
+**Properties:** metamorphic: changing only `role` from `member` to `admin` never turns an allowed result into a denial (monotonic). Worth a Hypothesis test over roles and org ids.
+**Mutation-survival:** flipping `!=` to `==` on the org check turns row (member, other org) red.
+**Isolation:** real or in-memory DB, so the `.filter(...).first()` is exercised rather than mocked; no mock of `db.query`.
+**Pyramid level:** unit, with an in-memory DB.
+**Confidence:** high on the authorization 2×2, medium on the role and `None` edges (the contract is unstated).
+**Open gaps:** the expected behavior for `None` orgs, role case, and id types needs an owner decision. `render()` itself is out of scope here.
+
+I have not run anything or seen `db`, `FakeRequest`, or `make_invoice`, so the table above comes from reading the snippet alone. Send me the fixtures and I'll check that `make_invoice` persists rows and that the fakes don't hand back a pre-bound invoice.

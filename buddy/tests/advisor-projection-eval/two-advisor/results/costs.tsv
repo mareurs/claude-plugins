@@ -4,3 +4,13 @@ B1-primary-alone	2	valid	0.034848	claude-sonnet-5-5
 B1-primary-alone	3	valid	0.0238755	claude-sonnet-5-5
 B1-primary-alone	4	valid	0.05179799999999999	claude-sonnet-5-5
 B1-primary-alone	5	valid	0.037107999999999995	claude-sonnet-5-5
+B2-two-relevant	1	valid	0.0572094	claude-sonnet-5-5
+B2-two-relevant	2	valid	0.0216639	claude-sonnet-5-5
+B2-two-relevant	3	valid	0.020483900000000003	claude-sonnet-5-5
+B2-two-relevant	4	valid	0.022256400000000003	claude-sonnet-5-5
+B2-two-relevant	5	valid	0.035563899999999996	claude-sonnet-5-5
+B3-two-irrelevant	1	valid	0.056221900000000005	claude-sonnet-5-5
+B3-two-irrelevant	2	valid	0.021391399999999998	claude-sonnet-5-5
+B3-two-irrelevant	3	valid	0.0201789	claude-sonnet-5-5
+B3-two-irrelevant	4	valid	0.0198339	claude-sonnet-5-5
+B3-two-irrelevant	5	valid	0.024726400000000003	claude-sonnet-5-5

@@ -1,0 +1,94 @@
+*The snow leopard arrives, eyes already on the narrow passes.*
+
+Your one test passes. That does not mean `get_invoice` is correct. It pins one branch out of four.
+
+**Contract:** Given an existing invoice, an admin or a member of the invoice's org gets `invoice.render()`. A missing invoice raises `NotFound`. A non-admin from another org raises `Forbidden`.
+
+## What the existing test actually pins
+
+It uses an admin whose `org_id` is 1, and the invoice's `org_id` is also 1. So the user is both an admin and in the owning org. Both halves of the `or` are satisfied at once.
+
+**Mutation-survival check.** Each of these one-line changes leaves the test green:
+- Delete the `Forbidden` check.
+- Change `!=` to `==` in the role check.
+- Change `!=` to `==` in the org check.
+- Delete the `NotFound` check. A found invoice never reaches it.
+- Replace `and` with `or`.
+
+I read the test as an attacker would. It exercises the success path only, and not even the success paths that matter.
+
+## What is missing
+
+| # | Missing test | Mutation it catches |
+|---|---|---|
+| 1 | Invoice id absent: raises `NotFound`. Assert the exception type. | Deleting the `None` check. Without it, `None.render()` raises `AttributeError` instead. |
+| 2 | Non-admin, same org: returns the rendered invoice. | Flipping the org comparison to `==`. |
+| 3 | Non-admin, different org: raises `Forbidden`. This is the security-critical one. | Deleting the check, or flipping `and` to `or`. |
+| 4 | Admin, different org: returns the rendered invoice. | Dropping the admin bypass. Test 3 alone cannot catch that. |
+| 5 | Missing invoice and unauthorized user together: raises `NotFound`, not `Forbidden`. | Reordering the checks. |
+| 6 | Role is not exactly `"admin"` (`"Admin"`, `""`, `None`): treated as non-admin. | Loosening the role comparison. |
+| 7 | Invoice `org_id` is `None`, user `org_id` is `None`, non-admin: pin the behavior. | Null equals null grants access. |
+
+Notes on the less obvious cases:
+
+- **Test 5** pins an information-disclosure decision. The order tells a caller whether an id exists, even to people who may not see it. Whether that is intended is a product question, but the test should say so either way.
+- **Test 7** is a real risk. If both `org_id` values are `None`, `None != None` is false and access is granted. I do not know whether `org_id` is nullable in your schema. Check the model before deciding what the contract should be. I am not assuming it is a bug.
+- **Tests 1 and 3 need the specific exception type.** `pytest.raises(NotFound)` and `pytest.raises(Forbidden)` discriminate. Asserting only that something raised does not.
+
+## Weakness in the existing test itself
+
+`assert get_invoice(req, 42) == inv.render()` is only as strong as `render()`. If `render()` returns something constant, such as `""` or `None`, or is equal for any two invoices, the test passes whatever invoice is fetched. Add a second invoice with a different id and org, and assert that the right one comes back. That catches a wrong filter, such as `Invoice.id == invoice_id` becoming a different column or the filter being dropped.
+
+## Suggested shape
+
+Parameterize the authorization matrix. Each row is a boundary at zero marginal cost.
+
+```python
+# Contract: admin or same-org user gets invoice.render(); missing id -> NotFound;
+# non-admin from another org -> Forbidden. NotFound is checked before authorization.
+
+@pytest.mark.parametrize("role,user_org,invoice_org,allowed", [
+    ("admin",  1, 1, True),
+    ("admin",  2, 1, True),    # admin bypass across orgs
+    ("member", 1, 1, True),
+    ("member", 2, 1, False),   # cross-org denial
+    ("Admin",  2, 1, False),   # case-sensitive role
+    ("",       2, 1, False),
+])
+def test_get_invoice_authorization_matrix(role, user_org, invoice_org, allowed):
+    inv = make_invoice(id=42, org_id=invoice_org)
+    make_invoice(id=43, org_id=99)  # decoy: the filter must select by id
+    req = FakeRequest(user=FakeUser(role=role, org_id=user_org))
+    if allowed:
+        assert get_invoice(req, 42) == inv.render()
+    else:
+        with pytest.raises(Forbidden):
+            get_invoice(req, 42)
+```
+
+Per Principle 4, I would avoid the `if` in the test body and split into two parametrized tests, one for allowed and one for denied. I wrote it inline here for brevity.
+
+```python
+def test_raises_not_found_when_invoice_missing():
+    req = FakeRequest(user=FakeUser(role="admin", org_id=1))
+    with pytest.raises(NotFound):
+        get_invoice(req, 999)
+
+def test_raises_not_found_before_forbidden_for_unauthorized_user():
+    req = FakeRequest(user=FakeUser(role="member", org_id=2))
+    with pytest.raises(NotFound):
+        get_invoice(req, 999)
+```
+
+## Test plan fields
+
+**Boundaries covered:** invoice existence (present, absent); role (admin, non-admin, wrong case, empty); org relationship (same, different). Not yet covered: `None` org ids, `None` role.
+**Properties:** none, examples only. The input space is a small finite matrix, so enumeration beats a generator here.
+**Isolation:** real `db` or a fake? I cannot tell from the snippet. `make_invoice` suggests a fixture that writes to a test DB. Confirm it tears down between tests so the decoy invoice does not leak.
+**Pyramid level:** unit, since this is pure branching logic over one query.
+**Confidence:** high on the gap analysis, which follows from reading the four branches. Medium on the `None` org question, since I have not seen the schema.
+**Open gaps:**
+- The `render()` contract is untested here and should have its own tests.
+- I have not looked at `FakeRequest`, `FakeUser`, or `make_invoice`, so I do not know whether `make_invoice` persists to the DB that `get_invoice` queries. If it does not, the existing test may be passing for a reason I have not verified.
+
+Which concerns you most: the cross-org denial, or the `None` org case? I can start there and write it out in full once you tell me.

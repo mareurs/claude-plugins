@@ -1,0 +1,53 @@
+*Eyes in shadow, counting gaps.*
+
+Your one test passes. That does not mean `get_invoice` is correct. It pins one path out of four, and it pins that path in the one configuration where the authorization check is never evaluated.
+
+**Contract:** Given an invoice id, `get_invoice` returns `invoice.render()` if the caller is an admin or belongs to the invoice's org. It raises `NotFound` if no invoice has that id, and `Forbidden` if the invoice exists but belongs to another org and the caller is not an admin.
+
+## What the existing test pins
+
+The user is `admin`, so `request.user.role != "admin"` is `False` and short-circuits. `invoice.org_id != request.user.org_id` is never evaluated. The test also sets `org_id=1` on both sides, so even a version that dropped the role check and kept only the org comparison would pass.
+
+**Mutation-survival of the existing test:**
+- Delete the whole `Forbidden` line: still green.
+- Flip `!=` to `==` on the org comparison: still green.
+- Change `NotFound` to return `None`: still green.
+- Swap `and` for `or`: still green, because the admin branch short-circuits before the org check matters.
+
+The test catches almost nothing except "returns something other than `render()`".
+
+## Missing tests
+
+| # | Test name (specification) | Branch / boundary | Mutation it catches |
+|---|---|---|---|
+| 1 | `raises_not_found_when_invoice_missing` | `invoice is None` | removing the None check, which would fail with `AttributeError` instead |
+| 2 | `raises_forbidden_when_non_admin_requests_other_orgs_invoice` | role≠admin and org mismatch | deleting the `Forbidden` line, or `!=` flipped to `==` |
+| 3 | `returns_invoice_when_non_admin_requests_own_org_invoice` | role≠admin and org match | `and` swapped for `or`, or the org comparison inverted |
+| 4 | `returns_invoice_when_admin_requests_other_orgs_invoice` | admin and org mismatch | removing the role exemption. This is the **only test where the admin bypass is observable**; today's test cannot distinguish it from no bypass |
+| 5 | `not_found_takes_precedence_over_forbidden` | a missing id with a non-admin caller | reordering the checks, which would leak invoice existence differently |
+| 6 | `admin_check_is_exact_match_on_role` | roles like `"Admin"`, `"administrator"`, `""`, `None` | a loosened comparison such as `.lower()` or `startswith` |
+
+Tests 2, 3 and 4 together complete the truth table for `role × org-match`. Right now one of the four cells is covered, and it's the cell where the check is skipped.
+
+## Boundaries
+
+- **`invoice_id`:** missing id, `None`, a wrong type (`"42"` vs `42`), a negative number, `0`. Whether the query layer coerces or rejects these is a contract decision the code doesn't state, so I'd ask you before pinning it.
+- **`org_id`:** `None` on the invoice with a `None` user org. `None != None` is `False`, so a non-admin with no org could read an org-less invoice. This is the most dangerous edge in the function and needs an explicit test, whichever behavior you decide is correct.
+- **`role`:** `None` or missing, an unknown role. Test 6 covers these.
+- **Id type mismatch:** `org_id` stored as `int` and the user's as `str` (`1 != "1"` is `True`), which would wrongly forbid a legitimate user.
+
+## Test seams
+
+The DB is the only real dependency. Use an in-memory or per-test transaction-rolled-back DB rather than patching `db.query`. A mocked query chain would freeze the `.filter().first()` structure, which is implementation, not contract. The existing test relies on `make_invoice` persisting somewhere. I haven't seen how, so I can't tell you whether state leaks between tests. Check that before adding the others.
+
+**Assertion strength:** for the error cases, use `pytest.raises(Forbidden)` and `pytest.raises(NotFound)` specifically. A bare `pytest.raises(Exception)` would let tests 1 and 2 pass when the wrong error fires.
+
+## Properties
+
+A property fits here: for any `(role, user_org, invoice_org)`, the outcome is `render()` iff `role == "admin" or user_org == invoice_org`, otherwise `Forbidden`. Generate over roles, including `None` and near-miss strings, and over org ids, including `None`. This sits beside tests 2 to 4, not in place of them. Keep the named cases so a regression names the exact cell.
+
+## Summary
+
+**Boundaries covered today:** none. **Confidence in this assessment:** high on the branch gaps, which I read directly from the code. Medium on the boundary list, because I haven't seen `FakeRequest`, `make_invoice` or the DB layer. **Open gaps:** the `None`-org decision, id-type coercion, and test isolation.
+
+I have not run anything. This is from reading the function and the test you pasted. If you share the test module, I can verify the fixtures and check isolation before drafting the tests.
