@@ -15,7 +15,7 @@ partially_fixed: 2026-09-01 — state clobber only, with regression test
 related: []
 severity: high
 spawned: docs/issues/archive/2026-09-01-reload-block-inlines-45kb-over-the-hook-stdout-cap.md
-unverified: 'The subagent-compaction case has a regression test but has NOT been observed live since the fix: `SKIPPED=subagent-scoped-event` count is still 0 across the whole trace log, so the early return has never fired in production. The main-session case IS now measured end-to-end (see § Verified). Spawned defect: the reload payload is truncated to 4% in transit — filed separately, NOT a routing fault.'
+unverified: 'STANDING — The subagent-compaction case has a regression test but has NOT been observed live since the fix: `SKIPPED=subagent-scoped-event` count is still 0 across the whole trace log, so the early return has never fired in production. The main-session case IS now measured end-to-end (see § Verified). Spawned defect: the reload payload is truncated to 4% in transit — filed separately, NOT a routing fault. (Re-checked 2026-10-27: the count is still 0 in this repository''s .buddy/.session-start-trace.log. Other repositories'' logs were not checked.)'
 ---
 
 # A subagent's compaction fires `SessionStart source=compact` under the PARENT's session id

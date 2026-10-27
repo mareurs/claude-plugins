@@ -1,5 +1,5 @@
 ---
-id: 4737da88bd13012e
+id: '4737da88bd13012e'
 kind: bug
 status: fixed
 title: 'buddy-introspection reports `specialists_scanned: 10/10` against a roster that has grown to 12 — two specialists have never been audited'
@@ -13,7 +13,7 @@ fix_patch_id: 893c9e35072b8b1480a0b7be44deeb3237b05724
 fix_sha: d334a50 (main)
 opened: 2026-08-26
 severity: med
-unverified: The reporting defect is fixed; the underlying gap is not. codescout-pika and prompt-hamsa remain UNAUDITED — the tracker now names them as pending instead of hiding them behind a 10/10. S-1..S-6 'Applies to (N/10)' counts are still scoped to the audited ten. And no check derives the denominator from buddy/skills/, so a thirteenth specialist would again be invisible.
+unverified: 'The reporting defect is fixed; the underlying gap is not. codescout-pika and prompt-hamsa remain UNAUDITED — the tracker now names them as pending instead of hiding them behind a 10/10. S-1..S-6 ''Applies to (N/10)'' counts are still scoped to the audited ten. And no check derives the denominator from buddy/skills/, so a thirteenth specialist would again be invisible. (Re-checked 2026-10-27: S-4 and S-5 were re-measured over all 12 specialists, so ''scoped to the audited ten'' no longer holds for those two; S-1, S-3 and S-6 are still ten-specialist figures. No marker applied: I did not find an open artifact that carries the pika and hamsa audits.)'
 ---
 
 ## Summary

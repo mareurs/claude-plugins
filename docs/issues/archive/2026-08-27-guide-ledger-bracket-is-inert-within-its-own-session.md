@@ -1,5 +1,5 @@
 ---
-id: 6aa4e517791a1e55
+id: '6aa4e517791a1e55'
 kind: bug
 status: wontfix
 title: The guide-ledger snapshot/restore bracket cannot affect the session it runs in
@@ -10,7 +10,7 @@ tags:
 - subagent
 - design-defect
 closed: 2026-08-27
-unverified: 'The retained cross-restart benefit is REASONED, not measured: it follows from GuideLedger::load reading the file at server construction, but no probe has watched a reconnect inherit a cleaned ledger end to end. If that benefit is ever the thing being relied on, measure it rather than citing this file.'
+unverified: 'STANDING — The retained cross-restart benefit is REASONED, not measured: it follows from GuideLedger::load reading the file at server construction, but no probe has watched a reconnect inherit a cleaned ledger end to end. If that benefit is ever the thing being relied on, measure it rather than citing this file.'
 ---
 
 ---

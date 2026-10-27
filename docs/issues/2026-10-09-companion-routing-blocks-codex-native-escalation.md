@@ -18,7 +18,7 @@ owner: marius
 plugin_feature_commit: 4ce5432
 plugin_release_delivery_commit: f8a73ee616414b2d83c7dde069dcb403c3321248
 severity: medium
-unverified: 'None for native routing: installed paired host/guard acceptance and rejection observed. Remaining Codex automatic context/durable history and Kat authenticated acceptance are tracked in issue 33de9ea8980e85c9; observed Claude owned/child/fork-safe and explicit mixed-host refusal checks pass.'
+unverified: 'TRACKED 33de9ea8980e85c9 — None for native routing: installed paired host/guard acceptance and rejection observed. Remaining Codex automatic context/durable history and Kat authenticated acceptance are tracked in issue 33de9ea8980e85c9; observed Claude owned/child/fork-safe and explicit mixed-host refusal checks pass.'
 ---
 
 ## Summary

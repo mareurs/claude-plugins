@@ -15,7 +15,7 @@ owner: marius
 related:
 - cde98724a366d2a2
 severity: high
-unverified: 'The 12,000-byte inline cap is derived from a measured bound of (14,056 … 21,327], not from the constant itself: `maxResultSizeChars`/`persistenceThresholdCeiling` were located in the 2.1.252 bundle but their numeric values were not read. Whether JSON `additionalContext` escapes the cap is UNKNOWN and must not be assumed — no JSON sample above the cap exists in 130,958 observations, so shape and size are confounded. (Discharged 2026-09-01: this field used to open with ''Not fixed — filed only'', which contradicted `status: fixed`. The fix shipped in `584d804` + `8c6711c` and is now verified live end-to-end — see `## Verified live 2026-09-01`. The two clauses above still stand, which is why the field is narrowed rather than cleared.)'
+unverified: 'STANDING — The 12,000-byte inline cap is derived from a measured bound of (14,056 … 21,327], not from the constant itself: `maxResultSizeChars`/`persistenceThresholdCeiling` were located in the 2.1.252 bundle but their numeric values were not read. Whether JSON `additionalContext` escapes the cap is UNKNOWN and must not be assumed — no JSON sample above the cap exists in 130,958 observations, so shape and size are confounded. (Discharged 2026-09-01: this field used to open with ''Not fixed — filed only'', which contradicted `status: fixed`. The fix shipped in `584d804` + `8c6711c` and is now verified live end-to-end — see `## Verified live 2026-09-01`. The two clauses above still stand, which is why the field is narrowed rather than cleared.)'
 ---
 
 

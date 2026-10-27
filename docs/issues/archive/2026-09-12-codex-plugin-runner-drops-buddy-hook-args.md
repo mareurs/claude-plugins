@@ -1,15 +1,15 @@
 ---
-id: 3fd1009cc02aefe7
+id: '3fd1009cc02aefe7'
 kind: bug
 status: fixed
-title: 'Codex runs Buddy hooks without their manifest `args`, producing hook failures'
+title: Codex runs Buddy hooks without their manifest `args`, producing hook failures
 tags:
 - buddy
 - codex
 - hooks
 - plugin-compatibility
 last_observed: 2026-09-12
-unverified: 'Codex did not expose the failing hook command or stderr in its normal or JSON CLI event output. The `args`-drop diagnosis is a strong inference from the shared registration shape and the matching bare-Node failure; capture host-side hook stderr before treating it as proven.'
+unverified: STANDING — Codex did not expose the failing hook command or stderr in its normal or JSON CLI event output. The `args`-drop diagnosis is a strong inference from the shared registration shape and the matching bare-Node failure; capture host-side hook stderr before treating it as proven.
 ---
 
 ## Summary

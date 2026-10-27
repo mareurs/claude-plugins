@@ -1,5 +1,5 @@
 ---
-id: 1012db2a6c0e4d7b
+id: '1012db2a6c0e4d7b'
 kind: bug
 status: fixed
 title: tests/run-all.sh rekeys the LIVE codescout server to a test fixture's session id
@@ -10,7 +10,7 @@ tags:
 - rendezvous
 - guide-ledger
 closed: 2026-08-27
-unverified: The leak-outcome assertions (Tests 3 and 4) only discriminate when the suite runs with a live codescout server in its process ancestry — i.e. under run_command. In CI or a plain terminal they pass green either way; Tests 1 and 2 are what hold the line there. Measured by mutation, not assumed.
+unverified: STANDING — The leak-outcome assertions (Tests 3 and 4) only discriminate when the suite runs with a live codescout server in its process ancestry — i.e. under run_command. In CI or a plain terminal they pass green either way; Tests 1 and 2 are what hold the line there. Measured by mutation, not assumed.
 ---
 
 ---

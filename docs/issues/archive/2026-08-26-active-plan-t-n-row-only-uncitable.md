@@ -12,7 +12,7 @@ tags:
 closed: 2026-08-26
 opened: 2026-08-26
 severity: med
-unverified: 'The all-or-nothing constraint remains DERIVED, not demonstrated: the prescribed scratch-copy trial (add one T-N heading, watch the other 37 flip to dangling) was never run, because converting all 38 atomically made it unnecessary and running it would have been the only way to actually enter the dangling state. Also unfixed: the upstream doctor check cited_prefix_with_no_definer, which is the half that generalises. And no per-task completion status was derived — the new sections carry row fields only.'
+unverified: 'STANDING — The all-or-nothing constraint remains DERIVED, not demonstrated: the prescribed scratch-copy trial (add one T-N heading, watch the other 37 flip to dangling) was never run, because converting all 38 atomically made it unnecessary and running it would have been the only way to actually enter the dangling state. (Discharged 2026-10-27: the upstream doctor check `cited_prefix_with_no_definer`, listed here as unfixed, exists; `librarian(action="doctor")` reported it earlier today.) And no per-task completion status was derived — the new sections carry row fields only.'
 ---
 
 ## Summary
