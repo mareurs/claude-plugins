@@ -9,7 +9,7 @@ prompt: |-
 
       for pj in */.claude-plugin/plugin.json; do basename "$(dirname "$(dirname "$pj")")"; done
 
-  This replaced a hardcoded `{codescout-companion, buddy, statusline, sdd}` on
+  This replaced a hardcoded `{codescout-companion, buddy, claude-statusline, sdd}` on
   2026-08-26. That list had gone stale: `session-bridge` was published by this repo and
   installed in **all three** profiles while the tracker reported fully green without ever
   looking at it. A fixed enumeration of the things you audit is the same defect as a stale
