@@ -88,6 +88,41 @@ assert "stale-insert_code"      "mcp__codescout__insert_code"      "$PENDING_WT"
 assert "stale-edit_lines"       "mcp__codescout__edit_lines"       "$PENDING_WT" "allow"
 assert "stale-create_or_update" "mcp__github__create_or_update_file" "$PENDING_WT" "allow"
 
+# assert_pin <label> <tool_name> <cwd> <workspace pin> <expected>
+# A call pinned with workspace="<abs path>" names its own target. The guard only
+# exists so a write cannot silently land in the wrong repo; a pin to THIS worktree
+# cannot, so it must pass without `workspace(action="activate")` — activation is
+# shared by every session of the codescout server, so concurrent subagents that
+# activate their own worktrees race each other.
+assert_pin() {
+    local label="$1" tool="$2" cwd="$3" pin="$4" expected="$5"
+    local input
+    input=$(jq -n --arg t "$tool" --arg c "$cwd" --arg w "$pin" \
+        '{tool_name:$t, cwd:$c, tool_input:{workspace:$w}}')
+    local got
+    got=$(verdict "$(echo "$input" | node "$HOOK")")
+    if [ "$got" = "$expected" ]; then
+        echo "PASS [$label]"
+        PASS=$((PASS+1))
+    else
+        echo "FAIL [$label]: expected=$expected got=$got"
+        FAIL=$((FAIL+1))
+    fi
+}
+
+# --- A pin naming THIS worktree → ALLOW, whatever the write tool ---
+assert_pin "edit_code-pin-self"      "mcp__codescout__edit_code"   "$PENDING_WT" "$PENDING_WT"  "allow"
+assert_pin "edit_file-pin-self"      "mcp__codescout__edit_file"   "$PENDING_WT" "$PENDING_WT"  "allow"
+assert_pin "create_file-pin-self"    "mcp__codescout__create_file" "$PENDING_WT" "$PENDING_WT"  "allow"
+assert_pin "pin-self-trailing-slash" "mcp__codescout__edit_file"   "$PENDING_WT" "$PENDING_WT/" "allow"
+
+# --- A pin naming ANOTHER tree, or nothing usable → still DENY ---
+assert_pin "pin-main-repo"       "mcp__codescout__edit_file" "$PENDING_WT" "$SANDBOX/main-repo" "deny"
+assert_pin "pin-sibling-worktree" "mcp__codescout__edit_file" "$PENDING_WT" "$CLEAN_WT"          "deny"
+assert_pin "pin-empty"           "mcp__codescout__edit_file" "$PENDING_WT" ""                    "deny"
+assert_pin "pin-relative"        "mcp__codescout__edit_file" "$PENDING_WT" "worktree-pending"    "deny"
+assert_pin "pin-prefix-sibling"  "mcp__codescout__edit_file" "$PENDING_WT" "${PENDING_WT}-two"   "deny"
+
 echo "---"
 echo "Total: $((PASS+FAIL)). Pass: $PASS. Fail: $FAIL."
 [ "$FAIL" -gt 0 ] && exit 1

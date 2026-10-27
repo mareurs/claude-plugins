@@ -130,12 +130,33 @@ OUT=$(run_hook "$T/wt" "general-purpose")
 if assert_context_contains "$OUT" "PROJECT BOOTSTRAP:"; then
   pass "worktree: bootstrap fires"
 else fail "worktree: bootstrap fires" "$OUT"; fi
-if assert_context_contains "$OUT" "path=\"$WT_ROOT\""; then
-  pass "worktree: names the worktree root"
-else fail "worktree: names the worktree root" "$OUT"; fi
+if assert_context_contains "$OUT" "workspace=\"$WT_ROOT\""; then
+  pass "worktree: pins the worktree root"
+else fail "worktree: pins the worktree root" "$OUT"; fi
+# A worktree subagent must not be told to activate: activation is shared by every
+# session of the codescout server, so parallel subagents that each activate their
+# own worktree race each other (10 subagents, 10 worktrees, 3.9 s). The write guard
+# accepts a write pinned to its own worktree, so a pin is all it needs.
+if assert_context_contains "$OUT" "workspace(action=\"activate\", path="; then
+  fail "worktree: must NOT tell the subagent to activate" "$OUT"
+else pass "worktree: does not tell the subagent to activate"; fi
+if assert_context_contains "$OUT" "edit_code, edit_file, create_file"; then
+  pass "worktree: the pin covers the write tools"
+else fail "worktree: the pin covers the write tools" "$OUT"; fi
 if assert_context_contains "$OUT" "path=\"$PROJ_ROOT\""; then
   fail "worktree: must NOT name the main repo" "$OUT"
 else pass "worktree: does not name the main repo"; fi
+
+# --- A SUBDIRECTORY of the worktree pins the toplevel, never the raw cwd.
+mkdir -p "$T/wt/sub/dir"
+write_routing_config "$T/wt/sub/dir" '{"server_name":"codescout"}'
+OUT=$(run_hook "$T/wt/sub/dir" "general-purpose")
+if assert_context_contains "$OUT" "workspace=\"$WT_ROOT\""; then
+  pass "worktree subdir: pins the toplevel"
+else fail "worktree subdir: pins the toplevel" "$OUT"; fi
+if assert_context_contains "$OUT" "workspace=\"$T/wt/sub/dir\""; then
+  fail "worktree subdir: must NOT pin the raw cwd" "$OUT"
+else pass "worktree subdir: does not pin the raw cwd"; fi
 
 
 # --- Memories present → names inlined, no list round-trip. Assert on

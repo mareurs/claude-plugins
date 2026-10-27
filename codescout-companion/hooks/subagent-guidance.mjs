@@ -3,6 +3,8 @@
 // protocol + Iron-Laws reminder + the project system-prompt verbatim (the ONLY
 // channel that reaches subagents — they don't get codescout's
 // server_instructions, claude-code#29655).
+import { realpathSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { readInput, detectFor, git, emit } from './lib.mjs';
 
 const input = readInput();
@@ -44,7 +46,40 @@ let msg = '';
 // a foreign-targeted subagent (explore-inject prepended its own root directive
 // to the prompt) must be able to override this. Do NOT "simplify" to an
 // unconditional activate — that reintroduces the conflict.
-if (root) {
+// A linked worktree has git-common-dir != git-dir (the same test the
+// worktree-write-guard uses). Compare RESOLVED paths: from a subdirectory of the
+// main checkout git prints --git-dir absolute but --git-common-dir relative
+// ("../../.git"), so a string compare would call that a worktree. Its subagents
+// must PIN, not activate: activation is shared by every session of the codescout
+// server, so subagents that each activate their own worktree race each other, and
+// a pinned call needs no activation at all — worktree-write-guard accepts a write
+// pinned to its own worktree.
+const gitPath = (arg) => {
+  const p = cwd ? git(cwd, ['rev-parse', arg]) : null;
+  if (!p) return null;
+  try {
+    return realpathSync(resolve(cwd, p));
+  } catch {
+    return null;
+  }
+};
+const gitCommon = gitPath('--git-common-dir');
+const gitDir = gitPath('--git-dir');
+const inLinkedWorktree = gitCommon !== null && gitDir !== null && gitCommon !== gitDir;
+
+if (root && inLinkedWorktree) {
+  msg += `PROJECT BOOTSTRAP: you are in a linked git worktree at ${root}. Do NOT call
+workspace(action="activate") — activation is shared by every session of the codescout
+server, so parallel subagents that each activate their own worktree overwrite one
+another. Instead pin EVERY codescout call with workspace="${root}" — reads and the
+write tools (edit_code, edit_file, create_file) alike. A pinned call needs no activation
+and is not blocked by the worktree write guard. Pass paths relative to ${root}, and check
+that they exist in this worktree's commit: a path the parent saw in the main checkout may
+be absent here. Exception: if your task names a different project root, follow that
+directive instead and pin every call with workspace="<that root>".
+
+`;
+} else if (root) {
   msg += `PROJECT BOOTSTRAP: workspace(action="activate", path="${root}") is your FIRST
 codescout action, before Phase 0 below — it prewarms LSP, auto-registers
 dependencies, and returns project_hints (primary language, entry points, build
