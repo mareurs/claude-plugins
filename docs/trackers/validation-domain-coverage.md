@@ -881,7 +881,8 @@ subject; if it does not, the spine is redundant on this axis too and should clos
 
 **Status:** fixed 2026-09-07 (`RM-15`) — pasted verbatim into `active-plan.md` as `D-8`
 (`D-7` confirmed the prior max by direct read first).
-**Valid:** conditional — a decision superseding `D-6`'s trigger for prompt-surface artifacts is recorded in `active-plan.md`
+**Valid:** dated 2026-10-27
+**Condition met:** this entry was `conditional` on a decision superseding `D-6`'s trigger for prompt-surface artifacts being recorded in `active-plan.md`. Checked 2026-10-27 by reading `active-plan.md`: `D-8` (2026-08-27, landed 2026-09-07 through `RM-15`) states "Supersedes `D-6` for prompt-surface artifacts only" and names `VG-10` under **Resolves.**
 **Rests on:** `shared/prompt-audit.md` Step 7 — "Re-audit at every model release. Prompts are per-model artifacts; a line that is load-bearing on one generation is cruft on the next" — read against `active-plan.md` `D-6`.
 
 `D-6` sets a 90-day stale threshold and `T-35` schedules a quarterly hamsa sweep. For

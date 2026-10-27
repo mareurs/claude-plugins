@@ -156,7 +156,9 @@ Append-only. Each entry: date, decision-id, what, why, who. Reversals get a new 
 **Resolves.** T-37.
 
 
-**Valid:** conditional — `VG-10`'s model-release amendment is applied to this decision
+**Valid:** dated 2026-10-27
+
+> **Superseded in part, 2026-10-27 check.** `D-8` (landed 2026-09-07) supersedes this decision for prompt-surface artifacts. It is unchanged for every other artifact. The condition this entry was `conditional` on, `VG-10`'s amendment being applied, is met. The paragraph below describes the state before `D-8` landed and is kept as the record.
 
 The decision is **in force**, so `invariant` would be wrong in a specific way: `VG-10` in
 `validation-domain-coverage.md` argues the premise is mis-framed — *prompt artifacts decay on
