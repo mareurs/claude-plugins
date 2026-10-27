@@ -26,6 +26,11 @@ trap "rm -rf $WORK" EXIT
 mkdir -p "$WORK/bin"
 mkdir -p "$WORK/project/.claude"
 ORIG_PATH="$PATH"
+# Resolve node BEFORE the asserts narrow PATH to $WORK/bin:/usr/bin:/bin.
+# actions/setup-node installs it in the runner's tool cache, outside that PATH,
+# so a bare `node` is "command not found" on CI. The hook execs only the
+# codescout stub, never node, so the narrow PATH stays as hermetic as before.
+NODE=$(command -v node) || { echo "FAIL: node not on PATH"; exit 1; }
 
 # Helper: install a `codescout` stub whose body branches on the doc subcommand
 # ($1) — the function body to evaluate as bash inside the stub.
@@ -75,7 +80,7 @@ assert_hook() {
 
     local input="{\"session_id\":\"t\",\"transcript_path\":\"/dev/null\",\"cwd\":\"$WORK/project\",\"last_assistant_message\":\"\"}"
     local output
-    output=$(echo "$input" | PATH="$WORK/bin:/usr/bin:/bin" HOME="$WORK/home" node "$HOOK")
+    output=$(echo "$input" | PATH="$WORK/bin:/usr/bin:/bin" HOME="$WORK/home" "$NODE" "$HOOK")
 
     local got_continue
     got_continue=$(echo "$output" | jq -r '.continue' 2>/dev/null || echo "")
@@ -151,7 +156,7 @@ install_find_get_stub \
     '[]'
 assert_hook "done-no-gate" "false" "goal done: do X"
 # Defensive: also assert the gate substring is ABSENT in the fallback path.
-fallback_out=$(echo "{\"session_id\":\"t\",\"transcript_path\":\"/dev/null\",\"cwd\":\"$WORK/project\",\"last_assistant_message\":\"\"}" | PATH="$WORK/bin:/usr/bin:/bin" HOME="$WORK/home" node "$HOOK")
+fallback_out=$(echo "{\"session_id\":\"t\",\"transcript_path\":\"/dev/null\",\"cwd\":\"$WORK/project\",\"last_assistant_message\":\"\"}" | PATH="$WORK/bin:/usr/bin:/bin" HOME="$WORK/home" "$NODE" "$HOOK")
 if [[ "$fallback_out" == *"auto-close gate passed"* ]]; then
     echo "FAIL [done-no-gate-no-leak]: fallback reason should NOT contain 'auto-close gate passed' substring"
     echo "  full output: $fallback_out"

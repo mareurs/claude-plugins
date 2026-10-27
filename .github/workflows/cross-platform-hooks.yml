@@ -75,6 +75,11 @@ jobs:
     # the added minutes.
     steps:
       - uses: actions/checkout@v4
+        with:
+          # Full history: tests/test-pre-push-guard.sh discovers its bump and
+          # no-bump fixture commits by walking git log and their parents. The
+          # default depth-1 clone has neither, so it failed "fixture discovery".
+          fetch-depth: 0
 
       - uses: actions/setup-python@v5
         with:

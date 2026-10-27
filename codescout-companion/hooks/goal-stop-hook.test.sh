@@ -16,12 +16,17 @@ fi
 WORK=$(mktemp -d)
 trap 'rm -rf "$WORK"' EXIT
 
+# Resolve node BEFORE PATH is scrubbed below. actions/setup-node installs it in
+# the runner's tool cache, outside /usr/bin:/bin, so a bare `node` under the
+# scrubbed PATH is "No such file" on CI while it passes wherever node is /usr/bin/node.
+NODE=$(command -v node) || { echo "FAIL: node not on PATH"; exit 1; }
+
 INPUT="{\"session_id\":\"test\",\"transcript_path\":\"/dev/null\",\"cwd\":\"$WORK\",\"last_assistant_message\":\"\"}"
 
 # Force fail-open: scrub PATH (no `codescout`) and point HOME at a nonexistent
 # dir so the $HOME/.cargo/bin fallback also misses. The hook should still
 # emit `{"continue": true, ...}` rather than crash or produce non-JSON.
-OUTPUT=$(echo "$INPUT" | env -i PATH=/usr/bin:/bin HOME=/nonexistent node "$HOOK" 2>&1 || true)
+OUTPUT=$(echo "$INPUT" | env -i PATH=/usr/bin:/bin HOME=/nonexistent "$NODE" "$HOOK" 2>&1 || true)
 
 PARSED=$(echo "$OUTPUT" | jq -r '.continue' 2>/dev/null || echo "")
 if [[ "$PARSED" != "true" && "$PARSED" != "false" ]]; then
