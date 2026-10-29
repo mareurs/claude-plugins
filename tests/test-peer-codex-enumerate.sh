@@ -234,7 +234,13 @@ has() { grep -qiE -- "$2" <<<"$1"; }
 deliver_pins() {
   local s; s=$(deliver_flat "$1")
   has "$s" 'subprocess\.run\(\["codex", "queue", "--thread", sid, "--message", text\]' \
-    && has "$s" "cat > \"[$]msg\" <<'MSG'" && has "$s" "python3 - <PID> <SID> \"[$]msg\" <<'PY'" \
+    && has "$s" "cat > \"[$]msg\" <<'MSG_<16 hex digits>'" && has "$s" "python3 - '<PID>' '<SID>' \"[$]msg\" <<'PY'" \
+    && has "$s" "trap 'rm -f \"[$]msg\"' EXIT" \
+    && has "$s" 'Pick a FRESH terminator for each send: MSG_ plus 16 random hex digits' \
+    && has "$s" 'check that it occurs nowhere in the text' \
+    && has "$s" 'A SID that is not a lowercase thread uuid is refused' \
+    && has "$s" 'uses the target.s own HOME from that environment plus /\.codex, and refuses when neither is there' \
+    && has "$s" 'How a Claude receiver treats such a message is in references/claude-code\.md' \
     && has "$s" 'Send only to a row Enumerate listed as loaded; for a target that is not loaded, do not send and tell the operator why' \
     && has "$s" "The home is the row.s own, read from its process, never your own by default" \
     && has "$s" 'checks the size of the thread.s rollout file before the send and once after a bounded wait; pass its one line to the operator: the target, the time, and whether the file grew' \
@@ -253,7 +259,12 @@ dcontrol() { # dcontrol <label> <old> <new>
   if deliver_pins "$dst"; then bad "deliver control $1" "mutated copy still passed"; else ok "deliver control $1 is caught"; fi
 }
 dcontrol queue_form     '"codex", "queue", "--thread"' '"codex", "send", "--thread"'
-dcontrol msg_heredoc    "<<'MSG'" '<<MSG'
+dcontrol msg_heredoc    "<<'MSG_<16 hex digits>'" "<<'MSG'"
+dcontrol fresh_term     'Pick a FRESH terminator' 'Pick a terminator'
+dcontrol no_trap_pin    "trap 'rm -f \"\$msg\"' EXIT" ''
+dcontrol uuid_sentence  'a lowercase thread uuid is refused' 'any SID is accepted'
+dcontrol home_sentence  'and refuses when neither is there' 'and carries on'
+dcontrol pointer_rule   'How a Claude receiver treats such a message is in' 'A Claude receiver replies to such a message with'
 dcontrol loaded_only    'Send only to a row Enumerate listed as `loaded`;' 'Send to any row;'
 dcontrol not_loaded_why  'tell the operator why' 'stay quiet'
 dcontrol home_guard     "2. The home is the row's own, read from its process, never your own by default." ''
@@ -268,41 +279,53 @@ dcontrol cost_accepted  'and the operator has accepted that cost' 'and nobody mi
 dcontrol fill_rule      'cannot be answered by address' 'can be answered by address'
 
 # ---- the Deliver snippet, run for real against a fixture /proc tree and a STUB codex ----
-# The stub records its argv (NUL-separated) and CODEX_HOME to files and exits 0; with
-# STUB_GROW=1 it also appends to the rollout, as a delivered message would. The real
+# The stub records its argv (NUL-separated) and CODEX_HOME to files and exits $STUB_RC (default
+# 0); with STUB_GROW=1 it also appends to the rollout, as a delivered message would. The real
 # `codex` is never started: the stub directory is the only thing put on PATH, first.
 DBLOCK=$(awk '/^## Deliver/{s=1} s && /^```bash/{b=1; next} b && /^```/{exit} b{print}' "$REF")
 DPROG=$(awk '/<<.PY.$/{b=1; next} b && /^PY$/{exit} b{print}' <<<"$DBLOCK")
 if [ -z "$DPROG" ]; then bad "extract Deliver snippet" "no python program between <<'PY' and PY under ## Deliver"; DPROG='raise SystemExit("no snippet")'; fi
-DX="$T/dx"; mkdir -p "$DX/proc" "$DX/bin" "$DX/work/codex-work/sessions"
-SID_L=0b0b0b0b-0b0b-4b0b-8b0b-0b0b0b0b0b0b; SID_X=1c1c1c1c-1c1c-4c1c-8c1c-1c1c1c1c1c1c
-DROLL="$DX/work/codex-work/sessions/rollout-2026-10-29T10-00-00-$SID_L.jsonl"
-DOTHER="$DX/work/codex-work/sessions/rollout-2026-10-29T10-00-00-$SID_X.jsonl"
-: > "$DROLL"; : > "$DOTHER"; echo '{"seed":1}' > "$DROLL"
-mkdir -p "$DX/proc/6001/fd" "$DX/proc/6002/fd" "$DX/proc/6003/fd"
-printf '/opt/codex/bin/codex\0app-server\0' > "$DX/proc/6001/cmdline"; printf 'CODEX_HOME=%s\0' "$DX/work/codex-work" > "$DX/proc/6001/environ"
-ln -s "$DROLL" "$DX/proc/6001/fd/3"
-printf '/opt/codex/bin/codex\0app-server\0' > "$DX/proc/6002/cmdline"; printf 'CODEX_HOME=%s\0' "$DX/work/codex-work" > "$DX/proc/6002/environ"
-ln -s "$DOTHER" "$DX/proc/6002/fd/3"      # holds a DIFFERENT thread: SID_L is not loaded here
-printf 'codex\0resume\0x\0' > "$DX/proc/6003/cmdline"; ln -s "$DROLL" "$DX/proc/6003/fd/3"
+DX="$T/dx"; mkdir -p "$DX/proc" "$DX/bin" "$DX/work/codex-work/sessions" "$DX/home6006/.codex/sessions" "$DX/callerhome" "$DX/cwd" "$DX/tmp" "$DX/out"
+SID_L=0b0b0b0b-0b0b-4b0b-8b0b-0b0b0b0b0b0b; SID_X=1c1c1c1c-1c1c-4c1c-8c1c-1c1c1c1c1c1c; SID_H=2d2d2d2d-2d2d-4d2d-8d2d-2d2d2d2d2d2d
+SESS="$DX/work/codex-work/sessions"
+DROLL="$SESS/rollout-2026-10-29T10-00-00-$SID_L.jsonl"
+DOTHER="$SESS/rollout-2026-10-29T10-00-00-$SID_X.jsonl"
+DHOME="$DX/home6006/.codex/sessions/rollout-2026-10-29T10-00-00-$SID_H.jsonl"
+echo '{"seed":1}' > "$DROLL"; : > "$DOTHER"; : > "$DHOME"
+: > "$SESS/x-$SID_L.jsonl"; : > "$SESS/rollout-x-$SID_L.txt"       # holds the SID but is not a rollout file
+app_proc() { mkdir -p "$DX/proc/$1/fd"; printf '/opt/codex/bin/codex\0app-server\0' > "$DX/proc/$1/cmdline"; }
+app_proc 6001; printf 'CODEX_HOME=%s\0' "$DX/work/codex-work" > "$DX/proc/6001/environ"; ln -s "$DROLL" "$DX/proc/6001/fd/3"
+app_proc 6002; printf 'CODEX_HOME=%s\0' "$DX/work/codex-work" > "$DX/proc/6002/environ"; ln -s "$DOTHER" "$DX/proc/6002/fd/3"   # a DIFFERENT thread
+mkdir -p "$DX/proc/6003/fd"; printf 'codex\0resume\0x\0' > "$DX/proc/6003/cmdline"; ln -s "$DROLL" "$DX/proc/6003/fd/3"                # not an app-server
+printf 'CODEX_HOME=%s\0' "$DX/work/codex-work" > "$DX/proc/6003/environ"
+app_proc 6005; printf 'CODEX_HOME=%s\0' "$DX/work/codex-work" > "$DX/proc/6005/environ"
+ln -s "$SESS/x-$SID_L.jsonl" "$DX/proc/6005/fd/3"; ln -s "$SESS/rollout-x-$SID_L.txt" "$DX/proc/6005/fd/4"                          # no rollout- prefix / no .jsonl suffix
+app_proc 6006; printf 'PATH=/usr/bin\0HOME=%s\0' "$DX/home6006" > "$DX/proc/6006/environ"; ln -s "$DHOME" "$DX/proc/6006/fd/3"     # no CODEX_HOME, target HOME present
+app_proc 6007; printf 'PATH=/usr/bin\0' > "$DX/proc/6007/environ"; ln -s "$DHOME" "$DX/proc/6007/fd/3"                           # neither
 cat > "$DX/bin/codex" <<'STUB'
 #!/usr/bin/env bash
 printf '%s\0' "$@" > "$STUB_OUT/argv"
 printf '%s' "$CODEX_HOME" > "$STUB_OUT/home"
 [ "${STUB_GROW:-}" = 1 ] && echo '{"queued":1}' >> "$STUB_ROLLOUT"
-exit 0
+exit "${STUB_RC:-0}"
 STUB
 chmod +x "$DX/bin/codex"
 cat > "$DX/msg" <<'EOF'
-[from codex/? "Codex effort steering experiment branch" pid ?, 2026-10-29T12:00:00Z] cost $1 and `id` and $(echo hi) with "quotes", 'single' and a  double  space; cannot be answered by address
+[from codex/? "Codex "effort" branch" pid ?, 2026-10-29T12:00:00Z] cost $1 and `id` and $(echo hi) with "quotes", 'single' and a  double  space; cannot be answered by address
 EOF
-run_deliver() { # run_deliver <program> <pid> <sid> <grow 0|1>: sets D_RC, D_OUT, D_ERR
-  rm -f "$DX/out/argv" "$DX/out/home"; mkdir -p "$DX/out"
-  D_OUT=$(CS_PEERS_PROC="$DX/proc" CS_PEERS_WAIT=0.2 PATH="$DX/bin:$PATH" STUB_OUT="$DX/out" STUB_GROW="$4" STUB_ROLLOUT="$DROLL" \
-    python3 -I - "$2" "$3" "$DX/msg" <<<"$1" 2>"$DX/err"); D_RC=$?; D_ERR=$(cat "$DX/err")
+DWAIT=0.4
+deliver_env() { # deliver_env <grow 0|1> <rc>: sets DENV, the environment every run of the snippet or the fence gets
+  DENV=(CS_PEERS_PROC="$DX/proc" CS_PEERS_WAIT="$DWAIT" PATH="$DX/bin:$PATH" STUB_OUT="$DX/out" STUB_GROW="$1" STUB_RC="$2" STUB_ROLLOUT="$DROLL" HOME="$DX/callerhome" TMPDIR="$DX/tmp")
+}
+run_deliver() { # run_deliver <program> <pid> <sid> <grow 0|1> [rc]: sets D_RC, D_OUT, D_ERR, D_MS
+  rm -f "$DX/out/argv" "$DX/out/home"
+  local t0 t1; t0=$(date +%s%N)
+  deliver_env "$4" "${5:-0}"
+  D_OUT=$(cd "$DX/cwd" && env "${DENV[@]}" python3 -I - "$2" "$3" "$DX/msg" <<<"$1" 2>"$DX/err"); D_RC=$?; D_ERR=$(cat "$DX/err")
+  t1=$(date +%s%N); D_MS=$(( (t1 - t0) / 1000000 ))
 }
 deliver_checks() { # deliver_checks <program>: echoes each failing reason on stderr
-  local prog=$1 failed=0 want got
+  local prog=$1 failed=0 want got s
   want=$(python3 -c 'import sys;print(open(sys.argv[1]).read().rstrip("\n"),end="")' "$DX/msg")
   run_deliver "$prog" 6001 "$SID_L" 1
   got=$(python3 -c 'import sys;print(repr(open(sys.argv[1],"rb").read().decode().split("\0")[:-1]))' "$DX/out/argv" 2>/dev/null)
@@ -310,17 +333,29 @@ deliver_checks() { # deliver_checks <program>: echoes each failing reason on std
   [ "$got" = "$(python3 -c 'import sys;print(repr(["queue","--thread",sys.argv[1],"--message",sys.argv[2]]))' "$SID_L" "$want")" ] || { echo "argv wrong: $got" >&2; failed=1; }
   [ "$(cat "$DX/out/home" 2>/dev/null)" = "$DX/work/codex-work" ] || { echo "home wrong: $(cat "$DX/out/home" 2>/dev/null)" >&2; failed=1; }
   grep -q 'rollout grew' <<<"$D_OUT" && grep -qF "$SID_L" <<<"$D_OUT" || { echo "report wrong (grew): $D_OUT" >&2; failed=1; }
+  [ "$D_MS" -ge 350 ] || { echo "no bounded wait: the run took $D_MS ms for a 400 ms wait" >&2; failed=1; }
   run_deliver "$prog" 6001 "$SID_L" 0
   grep -q 'rollout did not grow' <<<"$D_OUT" || { echo "report wrong (no growth): $D_OUT" >&2; failed=1; }
+  run_deliver "$prog" 6001 "$SID_L" 0 3
+  { [ "$D_RC" != 0 ] && grep -q 'nothing is confirmed' <<<"$D_ERR"; } || { echo "rc ignored: codex exited 3 but the run reported rc=$D_RC" >&2; failed=1; }
   run_deliver "$prog" 6002 "$SID_L" 0
   { [ "$D_RC" != 0 ] && [ ! -e "$DX/out/argv" ] && grep -q 'Tell the operator why' <<<"$D_ERR"; } || { echo "sent to a thread that is not loaded (rc=$D_RC)" >&2; failed=1; }
   run_deliver "$prog" 6003 "$SID_L" 0
   { [ "$D_RC" != 0 ] && [ ! -e "$DX/out/argv" ]; } || { echo "sent via a non-app-server process" >&2; failed=1; }
-  run_deliver "$prog" 6001 '?' 0
-  { [ "$D_RC" != 0 ] && [ ! -e "$DX/out/argv" ]; } || { echo "sent to SID ?" >&2; failed=1; }
+  for s in '?' '' '-' 2026 0b0b0b0b not-a-uuid "${SID_L^^}"; do
+    run_deliver "$prog" 6001 "$s" 0
+    if [ -e "$DX/out/argv" ]; then echo "non-uuid SID '$s' reached codex" >&2; failed=1
+    elif [ "$D_RC" = 0 ] || ! grep -q 'not a thread uuid' <<<"$D_ERR"; then echo "non-uuid SID '$s' not refused as such: $D_ERR" >&2; failed=1; fi
+  done
+  run_deliver "$prog" 6005 "$SID_L" 0
+  { [ "$D_RC" != 0 ] && [ ! -e "$DX/out/argv" ]; } || { echo "non-rollout file accepted as the thread" >&2; failed=1; }
+  run_deliver "$prog" 6006 "$SID_H" 0
+  { [ "$D_RC" = 0 ] && [ "$(cat "$DX/out/home" 2>/dev/null)" = "$DX/home6006/.codex" ]; } || { echo "fallback home wrong: $(cat "$DX/out/home" 2>/dev/null) rc=$D_RC $D_ERR" >&2; failed=1; }
+  run_deliver "$prog" 6007 "$SID_H" 0
+  { [ "$D_RC" != 0 ] && [ ! -e "$DX/out/argv" ]; } || { echo "sent without any home in the target environment" >&2; failed=1; }
   return $failed
 }
-if why=$(deliver_checks "$DPROG" 2>&1 >/dev/null); then ok "Deliver snippet: argv list intact, row's own home, loaded guard, size report (stub codex)"; else bad "Deliver snippet" "$why"; fi
+if why=$(deliver_checks "$DPROG" 2>&1 >/dev/null); then ok "Deliver snippet: argv list, row's own home (and target HOME fallback), uuid-only SID, rc and size report (stub codex)"; else bad "Deliver snippet" "$why"; fi
 dprog_control() { # dprog_control <label> <expected reason> <python-mutation: t -> t>
   local mut why
   mut=$(python3 -c 'import sys;t=sys.stdin.read();exec(sys.argv[1]);sys.stdout.write(t)' "$3" <<<"$DPROG")
@@ -329,11 +364,60 @@ dprog_control() { # dprog_control <label> <expected reason> <python-mutation: t 
   elif grep -qF -- "$2" <<<"$why"; then ok "snippet control $1 is caught ($2)"
   else bad "snippet control $1" "failed, but not for '$2': $why"; fi
 }
-dprog_control any_rollout   "sent to a thread that is not loaded" 't = t.replace("and sid in base", "")'
-dprog_control shell_string  "argv wrong"                          't = t.replace("subprocess.run([\"codex\", \"queue\", \"--thread\", sid, \"--message\", text],", "subprocess.run(\"codex queue --thread %s --message \\\"%s\\\"\" % (sid, text), shell=True,")'
-dprog_control home_basename "home wrong"                          't = t.replace("CODEX_HOME=codex_home", "CODEX_HOME=os.path.join(os.environ.get(\"HOME\", \"\"), \".codex\", os.path.basename(codex_home))")'
-dprog_control always_grew   "report wrong (no growth)"            't = t.replace("\"grew\" if after > before else \"did not grow\"", "\"grew\"")'
-dprog_control no_app_check  "sent via a non-app-server"           't = t.replace("\"app-server\" not in", "False and \"app-server\" not in")'
+dprog_control any_rollout    "sent to a thread that is not loaded" 't = t.replace("m.group(1) == sid", "True")'
+dprog_control sid_substring  "reached codex"                       't = t.replace("if not re.fullmatch(UUID_RE, sid):", "if False:").replace("m = ROLL.fullmatch(os.path.basename(target))\n    if m and m.group(1) == sid:", "m = os.path.basename(target)\n    if sid in m:")'
+dprog_control no_uuid_guard  "not refused as such"                 't = t.replace("if not re.fullmatch(UUID_RE, sid):", "if False:")'
+dprog_control shell_string   "argv wrong"                          't = t.replace("subprocess.run([\"codex\", \"queue\", \"--thread\", sid, \"--message\", text],", "subprocess.run(\"codex queue --thread %s --message \\\"%s\\\"\" % (sid, text), shell=True,")'
+dprog_control home_basename  "home wrong"                          't = t.replace("CODEX_HOME=codex_home", "CODEX_HOME=os.path.join(os.environ.get(\"HOME\", \"\"), \".codex\", os.path.basename(codex_home))")'
+dprog_control caller_home    "fallback home wrong"                 't = t.replace("elif vals.get(\"HOME\"):\n    codex_home = os.path.join(vals[\"HOME\"], \".codex\")", "elif os.environ.get(\"HOME\"):\n    codex_home = os.path.join(os.environ[\"HOME\"], \".codex\")")'
+dprog_control no_home_refusal "sent without any home"              't = t.replace("else:\n    sys.exit(\"not sent: the target", "else:\n    codex_home = \"/nonexistent\"\nif False:\n    sys.exit(\"not sent: the target")'
+dprog_control rollout_loose  "non-rollout file accepted"           't = t.replace("ROLL = re.compile(r\"rollout-.+-(%s)[.]jsonl\" % UUID_RE)", "ROLL = re.compile(r\".*(%s).*\" % UUID_RE)")'
+dprog_control rc_ignored      "rc ignored"                         't = t.replace("if done.returncode != 0:", "if False:")'
+dprog_control always_grew     "report wrong (no growth)"           't = t.replace("\"grew\" if after > before else \"did not grow\"", "\"grew\"")'
+dprog_control no_app_check    "sent via a non-app-server"          't = t.replace("\"app-server\" not in", "False and \"app-server\" not in")'
+dprog_control no_sleep        "no bounded wait"                    't = t.replace("time.sleep(WAIT)", "pass")'
+
+# ---- the Codex Deliver fence end to end (bash wrapper included) ----
+# The terminator, the placeholders and the temp file live in the wrapper, which the Python-only
+# checks above never run. The message holds a line `MSG` and a line that would create a file
+# if it ever ran as shell; the file must not appear, the message must arrive byte-exact (the
+# stub's argv), and no temp message file may be left behind.
+cat > "$DX/wrapmsg" <<'EOF'
+[from codex/? "Codex "effort" branch" pid ?, 2026-10-29T12:00:00Z] cost $1 `id` "q" and more text
+MSG
+echo injected > PWNED
+MSG_
+EOF
+wrapper_checks() { # wrapper_checks <fence-text>
+  local failed=0 rc want got
+  rm -f "$DX/cwd/PWNED" "$DX/out/argv"; rm -rf "$DX/tmp"; mkdir -p "$DX/tmp"
+  printf '%s\n' "$1" > "$DX/fence"
+  python3 -c 'import sys
+t=open(sys.argv[1]).read(); m=open(sys.argv[2]).read().rstrip("\n")
+for a,b in (("MSG_<16 hex digits>","MSG_a1b2c3d4e5f60718"),("<PID>","6001"),("<SID>",sys.argv[4])): t=t.replace(a,b)
+open(sys.argv[3],"w").write(t.replace("<the label, then the text>", m))' "$DX/fence" "$DX/wrapmsg" "$DX/wrap.sh" "$SID_L"
+  deliver_env 1 0
+  (cd "$DX/cwd" && env "${DENV[@]}" bash "$DX/wrap.sh" >"$DX/wrap.out" 2>"$DX/wrap.err"); rc=$?
+  [ ! -e "$DX/cwd/PWNED" ] || { echo "heredoc injection: a line of the message ran as shell" >&2; failed=1; }
+  want=$(python3 -c 'import sys;print(repr(["queue","--thread",sys.argv[1],"--message",open(sys.argv[2]).read().rstrip("\n")]))' "$SID_L" "$DX/wrapmsg")
+  got=$(python3 -c 'import sys;print(repr(open(sys.argv[1],"rb").read().decode().split("\0")[:-1]))' "$DX/out/argv" 2>/dev/null)
+  { [ "$rc" = 0 ] && [ "$got" = "$want" ]; } || { echo "message not byte-exact or not sent (rc=$rc): $(cat "$DX/wrap.err")" >&2; failed=1; }
+  [ -z "$(ls -A "$DX/tmp")" ] || { echo "temp message left behind" >&2; failed=1; }
+  return $failed
+}
+if [ -n "$DBLOCK" ] && why=$(wrapper_checks "$DBLOCK" 2>&1 >/dev/null); then
+  ok "Codex Deliver fence end to end: terminator, byte-exact message, no injected command, no temp file left"
+else bad "Codex Deliver fence end to end" "${why:-no bash fence under ## Deliver}"; fi
+fence_control() { # fence_control <label> <expected reason> <python-mutation: t -> t>
+  local mut why
+  mut=$(python3 -c 'import sys;t=sys.stdin.read();exec(sys.argv[1]);sys.stdout.write(t)' "$3" <<<"$DBLOCK")
+  if [ "$mut" = "$DBLOCK" ]; then bad "fence control $1" "mutation did not change the fence"; return; fi
+  if why=$(wrapper_checks "$mut" 2>&1 >/dev/null); then bad "fence control $1" "mutated fence still passed"
+  elif grep -qF -- "$2" <<<"$why"; then ok "fence control $1 is caught ($2)"
+  else bad "fence control $1" "failed, but not for '$2': $why"; fi
+}
+fence_control fixed_terminator "heredoc injection" 't = t.replace("MSG_<16 hex digits>", "MSG")'
+fence_control no_trap          "temp message left" 't = t.replace("trap \x27rm -f \"$msg\"\x27 EXIT\n", "")'
 
 echo "-- peer-codex-enumerate: $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]

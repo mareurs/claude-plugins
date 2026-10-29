@@ -151,19 +151,33 @@ done mechanically: no such rollout means the thread is not loaded here), runs
 `codex queue` with the message as one argument of an argument list, waits a bounded
 time, and prints the one-line report. The message goes in through a quoted heredoc,
 never through a shell argument, so the quotes in the label, backticks and dollar signs
-arrive as written. The snippet assumes the thread id appears in its rollout file name,
-as it does in the rollouts measured on 2026-10-29.
+arrive as written. Pick a FRESH terminator for each send: `MSG_` plus 16 random hex
+digits (for example `python3 -c 'import secrets;print(secrets.token_hex(8))'`), the
+same string on the opening and the closing line, and check that it occurs nowhere in
+the text. A line equal to the terminator ends the message early, and every line after
+it then runs as a shell command. The snippet assumes the thread id appears in its
+rollout file name, as it does in the rollouts measured on 2026-10-29. A SID that is not
+a lowercase thread uuid is refused, so the SID placeholder is single-quoted. If
+`CODEX_HOME` is not in the target's environment, the snippet uses the target's own
+`HOME` from that environment plus `/.codex`, and refuses when neither is there.
 
 ```bash
 msg=$(mktemp)
-cat > "$msg" <<'MSG'
+trap 'rm -f "$msg"' EXIT
+cat > "$msg" <<'MSG_<16 hex digits>'
 <the label, then the text>
-MSG
-python3 - <PID> <SID> "$msg" <<'PY'
-import datetime, os, subprocess, sys, time
+MSG_<16 hex digits>
+python3 - '<PID>' '<SID>' "$msg" <<'PY'
+import datetime, os, re, subprocess, sys, time
 pid, sid, msgfile = sys.argv[1:4]
 proc = os.environ.get("CS_PEERS_PROC", "/proc")
 WAIT = float(os.environ.get("CS_PEERS_WAIT", "20"))
+UUID_RE = "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
+ROLL = re.compile(r"rollout-.+-(%s)[.]jsonl" % UUID_RE)
+if not pid.isdigit():
+    sys.exit("not sent: PID %r is not a process id" % pid)
+if not re.fullmatch(UUID_RE, sid):
+    sys.exit("not sent: SID %r is not a thread uuid" % sid)
 def read(path):
     try:
         with open(path, "rb") as f:
@@ -172,8 +186,13 @@ def read(path):
         return ""
 if "app-server" not in read(os.path.join(proc, pid, "cmdline")).split("\0"):
     sys.exit("not sent: pid %s is not an app-server process" % pid)
-envs = [e for e in read(os.path.join(proc, pid, "environ")).split("\0") if e.startswith("CODEX_HOME=")]
-codex_home = envs[0].split("=", 1)[1] if envs and envs[0].split("=", 1)[1] else os.path.join(os.environ.get("HOME", ""), ".codex")
+vals = dict(e.split("=", 1) for e in read(os.path.join(proc, pid, "environ")).split("\0") if "=" in e)
+if vals.get("CODEX_HOME"):
+    codex_home = vals["CODEX_HOME"]
+elif vals.get("HOME"):
+    codex_home = os.path.join(vals["HOME"], ".codex")
+else:
+    sys.exit("not sent: the target's environment has neither CODEX_HOME nor HOME")
 rollout = None
 fddir = os.path.join(proc, pid, "fd")
 try:
@@ -185,8 +204,8 @@ for fd in fds:
         target = os.readlink(os.path.join(fddir, fd))
     except OSError:
         continue
-    base = os.path.basename(target)
-    if sid not in ("", "?") and base.startswith("rollout-") and base.endswith(".jsonl") and sid in base:
+    m = ROLL.fullmatch(os.path.basename(target))
+    if m and m.group(1) == sid:
         rollout = target
         break
 if rollout is None:
@@ -233,5 +252,5 @@ rollout-size check exists.
 **Writing the label when your own row is not identified.** The label format is the
 core's and does not change. A Codex caller whose own row is not identified writes `?`
 for the name and for any pid it cannot learn, and says in the message text that it
-cannot be answered by address. The receiver then goes through the operator, unless
-the text names a thread uuid it can reach with this section.
+cannot be answered by address. How a Claude receiver treats such a message is in
+`references/claude-code.md`.

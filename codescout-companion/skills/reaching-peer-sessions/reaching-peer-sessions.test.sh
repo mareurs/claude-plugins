@@ -380,7 +380,10 @@ fi
 #     through CS_PEERS_PROC / CS_PEERS_SOCKS, and a throwaway AF_UNIX listener in a short
 #     mktemp path. Never a real /run/user socket. An allowed version posts exactly one
 #     newline-terminated JSON object with the six keys; an unmeasured version, a missing
-#     version source and a `uds:` sender each send nothing and exit non-zero.
+#     version source, an empty CLAUDE_CONFIG_DIR and a `uds:` sender each send nothing and
+#     exit non-zero. The Python is tested on its own (snippet_checks) AND through the whole
+#     bash fence (wrapper_checks): the heredoc terminator, the placeholders and the temp
+#     file live in the wrapper, which a Python-only test never runs.
 CBLOCK=$(awk '/^## Deliver/{s=1} s && /^```bash/{b=1; next} b && /^```/{exit} b{print}' "$SKILL")
 SNIP=$(awk '/<<.PY.$/{b=1; next} b && /^PY$/{exit} b{print}' <<<"$CBLOCK")
 LISTEN='import socket,sys
@@ -402,31 +405,38 @@ assert m["msgV"] == 1 and m["type"] == "user" and m["priority"] == "next"
 uuid.UUID(m["msg_id"])
 assert m["message"]["role"] == "user" and set(m["message"]) == {"role", "content"}
 c = m["message"]["content"]
-want = "<cross-session-message from=\"codex-4242\" from-name=\"Codex effort branch\" from-mode=\"prompting\">"
-assert c.startswith(want) and c.endswith("</cross-session-message>"), c
-assert "cost" in c and not m["from"].startswith("uds:") and m["from"] == "codex-4242"'
-# post_case <snippet> <sender> <mode: reg:<version> | exe:<name>>: sets POST_RC, POST_ERR, POST_N,
-# and leaves the received bytes in $PD/got until the next call.
-post_case() {
-  PD=$(mktemp -d -p /tmp); local sock="$PD/4242.sock" i
-  mkdir -p "$PD/proc/4242" "$PD/cfg/sessions"
-  printf 'CLAUDE_CONFIG_DIR=%s\0' "$PD/cfg" > "$PD/proc/4242/environ"
-  case "$3" in
-    reg:*) printf '{"pid":4242,"version":"%s","name":"x"}' "${3#reg:}" > "$PD/cfg/sessions/4242.json" ;;
-    exe:*) ln -s "/x/${3#exe:}" "$PD/proc/4242/exe" ;;
+text = open(sys.argv[2]).read().rstrip("\n")
+want = "<cross-session-message from=\"codex-4242\" from-name=\"Codex ###effort### branch\" from-mode=\"prompting\">\n" + text + "\n</cross-session-message>"
+assert c == want, (c, want)
+assert not m["from"].startswith("uds:") and m["from"] == "codex-4242"'
+CHECK_POST=${CHECK_POST//###/$'\x27'}
+post_setup() { # post_setup <mode: reg:<version> | exe:<name> | emptycfg>: sets PD, starts the listener (LP)
+  PD=$(mktemp -d -p /tmp)
+  mkdir -p "$PD/proc/4242" "$PD/cfg/sessions" "$PD/cwd" "$PD/tmp" "$PD/home"
+  case "$1" in
+    reg:*)    printf 'CLAUDE_CONFIG_DIR=%s\0' "$PD/cfg" > "$PD/proc/4242/environ"
+              printf '{"pid":4242,"version":"%s","name":"x"}' "${1#reg:}" > "$PD/cfg/sessions/4242.json" ;;
+    exe:*)    printf 'CLAUDE_CONFIG_DIR=%s\0' "$PD/cfg" > "$PD/proc/4242/environ"; ln -s "/x/${1#exe:}" "$PD/proc/4242/exe" ;;
+    emptycfg) printf 'CLAUDE_CONFIG_DIR=\0' > "$PD/proc/4242/environ"
+              mkdir -p "$PD/cwd/sessions"; printf '{"pid":4242,"version":"2.1.312"}' > "$PD/cwd/sessions/4242.json" ;;
   esac
-  printf '%s\n' '[from codex/acctA "Codex effort branch" pid ?, 2026-10-29T12:00:00Z] cost $1 `id` "q" and more text' > "$PD/msg"
-  python3 -c "$LISTEN" "$sock" "$PD/got" 2>/dev/null & local lp=$!
-  for i in $(seq 1 50); do [ -S "$sock" ] && break; sleep 0.1; done
-  POST_ERR=$(CS_PEERS_PROC="$PD/proc" CS_PEERS_SOCKS="$PD" python3 -I - 4242 "$2" "$PD/msg" <<<"$1" 2>&1 >/dev/null); POST_RC=$?
-  wait "$lp" 2>/dev/null
-  POST_N=$(wc -c <"$PD/got" 2>/dev/null); POST_N=${POST_N:-0}
+  cat > "$PD/msg" <<'EOF'
+[from codex/acctA "Codex "effort" branch" pid ?, 2026-10-29T12:00:00Z] cost $1 `id` "q" and more text
+EOF
+  python3 -c "$LISTEN" "$PD/4242.sock" "$PD/got" 2>/dev/null & LP=$!
+  local i; for i in $(seq 1 50); do [ -S "$PD/4242.sock" ] && break; sleep 0.1; done
+}
+post_collect() { wait "$LP" 2>/dev/null; POST_N=$(wc -c <"$PD/got" 2>/dev/null); POST_N=${POST_N:-0}; }
+post_case() { # post_case <snippet> <sender> <mode>: sets POST_RC, POST_ERR, POST_N; bytes in $PD/got
+  post_setup "$3"
+  POST_ERR=$(cd "$PD/cwd" && CS_PEERS_PROC="$PD/proc" CS_PEERS_SOCKS="$PD" HOME="$PD/home" python3 -I - 4242 "$2" "$PD/msg" <<<"$1" 2>&1 >/dev/null); POST_RC=$?
+  post_collect
 }
 post_clean() { rm -r "$PD" 2>/dev/null; }
 snippet_checks() { # snippet_checks <snippet-text>: echoes each failing reason on stderr
   local s=$1 failed=0
   post_case "$s" codex-4242 reg:2.1.312
-  if [ "$POST_RC" = 0 ] && python3 -c "$CHECK_POST" "$PD/got" 2>/dev/null; then :; else echo "post wrong (rc=$POST_RC): $POST_ERR" >&2; failed=1; fi
+  if [ "$POST_RC" = 0 ] && python3 -c "$CHECK_POST" "$PD/got" "$PD/msg" 2>/dev/null; then :; else echo "post wrong (rc=$POST_RC): $POST_ERR" >&2; failed=1; fi
   post_clean
   post_case "$s" codex-4242 "exe:2.1.312 (deleted)"
   { [ "$POST_RC" = 0 ] && [ "$POST_N" -gt 0 ]; } || { echo "exe fallback did not post (rc=$POST_RC): $POST_ERR" >&2; failed=1; }
@@ -437,6 +447,9 @@ snippet_checks() { # snippet_checks <snippet-text>: echoes each failing reason o
   post_case "$s" codex-4242 exe:claude
   { [ "$POST_RC" != 0 ] && [ "$POST_N" -eq 0 ]; } || { echo "unmeasured exe version posted (rc=$POST_RC)" >&2; failed=1; }
   post_clean
+  post_case "$s" codex-4242 emptycfg
+  { [ "$POST_RC" != 0 ] && [ "$POST_N" -eq 0 ]; } || { echo "empty CLAUDE_CONFIG_DIR read the caller's cwd (rc=$POST_RC n=$POST_N)" >&2; failed=1; }
+  post_clean
   post_case "$s" "uds:/run/user/1/cc-socks/9.sock" reg:2.1.312
   { [ "$POST_RC" != 0 ] && [ "$POST_N" -eq 0 ]; } || { echo "uds sender posted (rc=$POST_RC)" >&2; failed=1; }
   post_clean
@@ -445,7 +458,7 @@ snippet_checks() { # snippet_checks <snippet-text>: echoes each failing reason o
 if [ -z "$SNIP" ]; then
   fail "Codex-caller post" "no python program between <<'PY' and PY under ## Deliver"; SNIP='raise SystemExit("no snippet")'
 elif why=$(snippet_checks "$SNIP" 2>&1 >/dev/null); then
-  pass "Codex-caller post: one JSON line to the socket for a measured version; unmeasured version and uds sender refused"
+  pass "Codex-caller post: one JSON line to the socket for a measured version; unmeasured version, empty config dir and uds sender refused"
 else
   fail "Codex-caller post" "$why"
 fi
@@ -460,10 +473,59 @@ snip_control() { # snip_control <label> <expected reason> <python-mutation: t ->
 snip_control gate_removed   "unmeasured version posted" 't = t.replace("if version not in MEASURED:", "if False:")'
 snip_control exe_fallback_removed "exe fallback did not post" 't = t.replace("if not version:", "if False:")'
 snip_control uds_check      "uds sender posted" 't = t.replace("sender.startswith(\"uds:\")", "False")'
+snip_control cfg_fallback   "empty CLAUDE_CONFIG_DIR read the caller" 't = t.replace("if not cfg:", "if False:")'
+snip_control fromname_quote "post wrong" 't = t.replace(".replace(\x27\"\x27, \"\x27\")", "")'
 snip_control no_newline     "post wrong" 't = t.replace(r"""json.dumps(msg) + "\n")""", r"""json.dumps(msg))""")'
 snip_control wrong_priority "post wrong" 't = t.replace(r"""priority": "next""", r"""priority": "later""")'
 snip_control wrong_key      "post wrong" 't = t.replace("msgV", "msgW")'
 snip_control no_send        "post wrong" 't = t.replace("s.sendall(", "(")'
+
+# 17a. THE WHOLE BASH FENCE, end to end. The placeholders and the terminator are filled in
+#      as the doc says (fresh MSG_ plus hex), and the message holds a line `MSG` and a line
+#      that would create a file if it ever ran as shell. The file must not appear, the
+#      message must arrive byte-exact, and no temp message file may be left behind.
+wrap_case() { # wrap_case <fence-text>: sets WRAP_RC, WRAP_PWNED, WRAP_LEFT, POST_N; bytes in $PD/got
+  post_setup reg:2.1.312
+  cat > "$PD/msg" <<'EOF'
+[from codex/acctA "Codex "effort" branch" pid ?, 2026-10-29T12:00:00Z] cost $1 `id` "q" and more text
+MSG
+echo injected > PWNED
+MSG_
+EOF
+  printf '%s\n' "$1" > "$PD/fence"
+  python3 -c 'import sys
+t=open(sys.argv[1]).read(); m=open(sys.argv[2]).read().rstrip("\n")
+for a,b in (("MSG_<16 hex digits>","MSG_a1b2c3d4e5f60718"),("<target PID>","4242"),("<sender-id>","codex-4242")): t=t.replace(a,b)
+open(sys.argv[3],"w").write(t.replace("<the label, then the text>", m))' "$PD/fence" "$PD/msg" "$PD/wrap.sh"
+  (cd "$PD/cwd" && TMPDIR="$PD/tmp" CS_PEERS_PROC="$PD/proc" CS_PEERS_SOCKS="$PD" HOME="$PD/home" bash "$PD/wrap.sh" >"$PD/wrap.out" 2>"$PD/wrap.err"); WRAP_RC=$?
+  post_collect
+  [ -e "$PD/cwd/PWNED" ] && WRAP_PWNED=1 || WRAP_PWNED=0
+  WRAP_LEFT=$(ls -A "$PD/tmp" | wc -l)
+}
+wrapper_checks() { # wrapper_checks <fence-text>
+  local failed=0
+  wrap_case "$1"
+  [ "$WRAP_PWNED" = 0 ] || { echo "heredoc injection: a line of the message ran as shell" >&2; failed=1; }
+  { [ "$WRAP_RC" = 0 ] && python3 -c "$CHECK_POST" "$PD/got" "$PD/msg" 2>/dev/null; } || { echo "message not byte-exact or not sent (rc=$WRAP_RC): $(cat "$PD/wrap.err")" >&2; failed=1; }
+  [ "$WRAP_LEFT" = 0 ] || { echo "temp message left behind ($WRAP_LEFT files)" >&2; failed=1; }
+  post_clean
+  return $failed
+}
+if [ -n "$CBLOCK" ] && why=$(wrapper_checks "$CBLOCK" 2>&1 >/dev/null); then
+  pass "Claude Deliver fence end to end: terminator, byte-exact message, no injected command, no temp file left"
+else
+  fail "Claude Deliver fence end to end" "${why:-no bash fence under ## Deliver}"
+fi
+fence_control() { # fence_control <label> <expected reason> <python-mutation: t -> t>
+  local mut why
+  mut=$(python3 -c 'import sys;t=sys.stdin.read();exec(sys.argv[1]);sys.stdout.write(t)' "$3" <<<"$CBLOCK")
+  if [ "$mut" = "$CBLOCK" ]; then fail "control $1" "mutation did not change the fence"; return; fi
+  if why=$(wrapper_checks "$mut" 2>&1 >/dev/null); then fail "control $1" "mutated fence still passed"
+  elif grep -qF -- "$2" <<<"$why"; then pass "control $1 is caught ($2)"
+  else fail "control $1" "failed, but not for '$2': $why"; fi
+}
+fence_control fixed_terminator "heredoc injection" 't = t.replace("MSG_<16 hex digits>", "MSG")'
+fence_control no_trap          "temp message left" 't = t.replace("trap \x27rm -f \"$msg\"\x27 EXIT\n", "")'
 
 # 17b. THE VERSION LIST IN PROSE AND IN CODE AGREE. `Measured versions:` (prose) and the
 #      snippet's MEASURED set must hold the same versions; editing one alone must go red.
@@ -490,7 +552,12 @@ cc_deliver_pins() {
   grep -qiE 'If codescout.s run_command is not available, report that to the operator and stop' <<<"$s" \
     && grep -qiE 'whose from= is a uds: path: copy that attribute verbatim' <<<"$s" \
     && grep -qiE 'When from= is anything else .*do not pass it on.*go through the operator, unless the message text names a Codex thread uuid' <<<"$s" \
-    && grep -qE "cat > \"[$]msg\" <<'MSG'" <<<"$s" && grep -qE "python3 - <target PID> <sender-id> \"[$]msg\" <<'PY'" <<<"$s"
+    && grep -qE "cat > \"[$]msg\" <<'MSG_<16 hex digits>'" <<<"$s" && grep -qE "python3 - '<target PID>' '<sender-id>' \"[$]msg\" <<'PY'" <<<"$s" \
+    && grep -qE "trap 'rm -f \"[$]msg\"' EXIT" <<<"$s" \
+    && grep -qE 'Pick a FRESH terminator for each send: MSG_ plus 16 random hex digits' <<<"$s" \
+    && grep -qE 'check that it occurs nowhere in the text' <<<"$s" \
+    && grep -qE 'which is correct, because the running image is that version' <<<"$s" \
+    && ! grep -qiE 'is not a safe source' <<<"$s"
 }
 if cc_deliver_pins "$SKILL"; then pass "claude-code Deliver pins: codescout-missing stop, non-uds receiver rule, quoted-heredoc send"; else fail "claude-code Deliver pins" "a pinned sentence is missing"; fi
 ccctl() { # ccctl <label> <old> <new>
@@ -502,7 +569,11 @@ ccctl() { # ccctl <label> <old> <new>
 ccctl no_codescout_stop 'report that to the operator and stop; do not fall back' 'carry on; do not fall back'
 ccctl uds_only_copy     'path: copy that' 'path: copy it'
 ccctl no_operator_route 'go through the operator, unless' 'reply anyway, unless'
-ccctl shell_message     "cat > \"\$msg\" <<'MSG'" 'cat > "$msg" <<MSG'
+ccctl shell_message     "<<'MSG_<16 hex digits>'" "<<'MSG'"
+ccctl fixed_terminator  'Pick a FRESH terminator' 'Pick a terminator'
+ccctl no_trap_line      "trap 'rm -f \"\$msg\"' EXIT" ''
+ccctl exe_deleted_ok    'which is correct, because the' 'which is unsafe, because the'
+ccctl exe_unsafe_back   'but `exe` is not always usable' 'but `exe` is not a safe source'
 
 # 18. THE MERGE BLOCK UNDER ERREXIT (`bash -e`). A rowset with only one harness makes a
 #     counting `grep -c` exit 1, and an empty rowset makes `grep -v` exit 1: unguarded, the

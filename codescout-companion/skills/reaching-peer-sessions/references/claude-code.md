@@ -130,16 +130,22 @@ agree, and a test pins that. It reads the target's version from the registry key
 `version` in `<its CLAUDE_CONFIG_DIR>/sessions/<pid>.json`, not from
 `claude --version` (that reports the binary on the caller's PATH). Measured
 2026-10-29 across the live registries: `version` matched the basename of
-`/proc/<pid>/exe` for every version-pinned install, but `exe` is not a safe source:
-an unpinned install shows `claude`, and an install replaced after launch shows
-`<version> (deleted)`. So the registry `version` is the source; the `exe` basename is
-used only when the registry row has no `version`. If the target's version is not in
+`/proc/<pid>/exe` for every version-pinned install, but `exe` is not always usable: an unpinned install shows
+`claude`, and a missing exe gives nothing, so neither names a version. An install
+replaced after launch shows `<version> (deleted)`, which is correct, because the
+running image is that version. So the registry `version` is the source; the `exe`
+basename, without a ` (deleted)` suffix, is used only when the registry row has no
+`version`. If the target's version is not in
 the measured list, refuse to post: report the version to the operator and stop. Some
 Claude peers run older versions (2.1.310 and below were seen), so they are
 unreachable from Codex until their format is measured.
 
 Send with the snippet. The message goes in through a quoted heredoc, never through a
-shell argument, so quotes, backticks and dollar signs in it arrive as written. The
+shell argument, so quotes, backticks and dollar signs in it arrive as written. Pick a FRESH terminator for each send: `MSG_` plus 16 random hex
+digits (for example `python3 -c 'import secrets;print(secrets.token_hex(8))'`), the
+same string on the opening and the closing line, and check that it occurs nowhere in
+the text. A line equal to the terminator ends the message early, and every line after
+it then runs as a shell command. The
 first line of the message is the core's label; its quoted name becomes `from-name`.
 `<sender-id>` is any non-`uds:` id for the sender, a single word. The snippet exits
 non-zero, sends nothing and prints the reason when the version is not measured or the
@@ -147,12 +153,15 @@ sender id starts with `uds:`.
 
 ```bash
 msg=$(mktemp)
-cat > "$msg" <<'MSG'
+trap 'rm -f "$msg"' EXIT
+cat > "$msg" <<'MSG_<16 hex digits>'
 <the label, then the text>
-MSG
-python3 - <target PID> <sender-id> "$msg" <<'PY'
+MSG_<16 hex digits>
+python3 - '<target PID>' '<sender-id>' "$msg" <<'PY'
 import json, os, re, socket, sys, uuid
 pid, sender, msgfile = sys.argv[1:4]
+if not pid.isdigit():
+    sys.exit("not sent: PID %r is not a process id" % pid)
 MEASURED = {"2.1.312"}
 proc = os.environ.get("CS_PEERS_PROC", "/proc")
 socks = os.environ.get("CS_PEERS_SOCKS", "/run/user/%d/cc-socks" % os.getuid())
@@ -165,7 +174,9 @@ def blob(path):
     except OSError:
         return ""
 envs = [e for e in blob(os.path.join(proc, pid, "environ")).split("\0") if e.startswith("CLAUDE_CONFIG_DIR=")]
-cfg = envs[0].split("=", 1)[1] if envs else os.path.join(os.environ.get("HOME", ""), ".claude")
+cfg = envs[0].split("=", 1)[1] if envs else ""
+if not cfg:
+    cfg = os.path.join(os.environ.get("HOME", ""), ".claude")
 version = ""
 try:
     with open(os.path.join(cfg, "sessions", pid + ".json")) as f:
