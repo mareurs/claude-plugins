@@ -195,11 +195,14 @@ export function sanitizeSessionId(sessionId) {
 // mirrors src/util/fs.rs's state_dir_from() (see session-start.mjs's
 // identical rendezvous-dir resolution), so both sides agree on which
 // directory they mean rather than silently looking in different places.
+export function stateHome(home) {
+  const xdgStateHome = process.env.XDG_STATE_HOME;
+  return xdgStateHome && isAbsolute(xdgStateHome) ? xdgStateHome : join(home, '.local', 'state');
+}
+
 export function guideLedgerPath(sessionId, home) {
   if (!sessionId) return null;
-  const xdgStateHome = process.env.XDG_STATE_HOME;
-  const stateHome = xdgStateHome && isAbsolute(xdgStateHome) ? xdgStateHome : join(home, '.local', 'state');
-  return join(stateHome, 'codescout', 'guide_hints', `${sanitizeSessionId(sessionId)}.json`);
+  return join(stateHome(home), 'codescout', 'guide_hints', `${sanitizeSessionId(sessionId)}.json`);
 }
 
 // True when this session has at least one PER-AGENT ledger beside the parent's —
