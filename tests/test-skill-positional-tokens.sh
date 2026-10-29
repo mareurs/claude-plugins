@@ -166,5 +166,36 @@ else
        "these are rewritten with the caller's args on delivery (\$1 is the SECOND word):"$'\n'"$hits"
 fi
 
+# 7. REFERENCE FILES ARE SCANNED TOO. A skill's `references/*.md` is read on demand
+#    through a tool call, but a pointer may also load it into a skill body, and the
+#    peer skill keeps its executable walk there (references/claude-code.md). Same
+#    population rule as case 1: assert a hit, so an empty glob cannot go green.
+mapfile -t REFERENCES < <(find "$REPO_ROOT" -path '*/skills/*/references/*.md' -not -path '*/.git/*' | sort)
+if [ "${#REFERENCES[@]}" -gt 0 ]; then
+  pass "reference discovery finds ${#REFERENCES[@]} skills/*/references/*.md file(s)"
+else
+  fail "reference discovery finds at least one reference file" \
+       "the find in $0 matches nothing -- case 8 would be vacuously green"
+fi
+
+# 8. NO `$`-PLUS-DIGIT IN ANY REFERENCE FILE.
+hits=$(token_hits "${REFERENCES[@]}")
+if [ "${#REFERENCES[@]}" -gt 0 ] && [ -z "$hits" ]; then
+  pass "no \$-plus-digit token in any reference file"
+else
+  fail "no \$-plus-digit token in any reference file" \
+       "these are rewritten with the caller's args on delivery:"$'\n'"$hits"
+fi
+
+# 8b. The reference scan is DISCRIMINATING: run token_hits itself (not the bare regex)
+#     over a reference-shaped file carrying the shipped form and require a hit.
+mkdir -p "$TMP/skills/x/references"
+printf '%s\n' "  me=\$(awk '/^PPid:/{print \$2}' \"/proc/\$me/status\")" > "$TMP/skills/x/references/bad.md"
+if [ -n "$(token_hits "$TMP/skills/x/references/bad.md")" ]; then
+  pass "reference scan still catches the form that shipped"
+else
+  fail "reference scan still catches the form that shipped" "token_hits missed a known-bad reference file"
+fi
+
 echo "-- $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]
