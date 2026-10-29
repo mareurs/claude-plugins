@@ -1,7 +1,7 @@
 ---
 id: af3292c4ea2d4712
 kind: bug
-status: open
+status: investigating
 title: No automated check that the tool calls a skill prescribes stay legal against the MCP server it drives
 tags:
 - codescout-companion
@@ -63,6 +63,13 @@ Traps for anyone extending it:
 - I did not mutate the skill text to confirm that the test then fails. The extractor ties the test to the skill, and the control ties it to the server.
 - The fresh-copy case needs the codescout repo as a sibling directory, or `CODESCOUT_REPO`. Without it the case SKIPs.
 - I verified isolation by confirming that the scratch trackers are absent from the real catalog, and by `git status`. I did not locate the isolated database file.
+
+## Steps 1-3 done 2026-10-29
+
+- **Skill prose fixed.** `reconnaissance/SKILL.md:103` no longer says a fresh template ships without `entry_prefix`. It now says a copy of `docs/templates/session-log.md` declares `entry_prefix`, so it is a ledger from its first moment and `edit_file` refuses it. The skill edit is committed, not live: skills are served from the versioned cache, so it reaches no profile until a release.
+- **The INFO line is now an assertion.** `tests/lib/skill_call_legality.py` fails when the skill says a fresh template ships without `entry_prefix` and the real template declares it. The run is 7 passed, 0 failed, 0 skipped.
+- **Mutation check, measured.** Mutation A put the old prose back: 1 FAIL, exit 1. Mutation B put an em-dash tail on `dated` in the skill's own `append_entry` exemplar: 2 FAIL (`is not an ISO date`), exit 1. The skill file was restored byte for byte after both.
+- **Still open:** 31 of the 32 prescribed calls are not run, 20 of them in `tracker-hygiene`. The options above are still not decided. The status is `investigating`, not `fixed`, for that reason.
 
 ## Why it matters
 

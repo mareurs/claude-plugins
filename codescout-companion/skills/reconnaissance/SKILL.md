@@ -100,7 +100,7 @@ One write: the server allocates the next `F-N` / `W-N` id (separate counters), w
 
 **The Index row needs a placement anchor, and one of its failure modes is silent.** A declared `snapshot_anchor` is the safer source — a duplicate is refused by name — while a per-call `index_after_line` wins when passed but takes the **first** trimmed match, so a non-unique line (never the `|---|---|` separator) files your row under the wrong table with no error. A line matching *nothing* is the loud case: refused by name, ledger byte-identical, no id consumed. The refusals, what `entry_prefix` actually locks, and the definition-heading shape are in `references/append-entry-anchoring.md` — read it once before your first entry in an unfamiliar ledger.
 
-`edit_file` is not the append path, though it works at first — a fresh template ships without `entry_prefix`, so it is directly editable until the ledger is guarded. After that, `append_entry` is the sole **id allocator** (not the sole writer: `doc(action="update", patch={body_edits: […]})` writes sections and prose). See the reference above.
+`edit_file` is not the append path. A copy of `docs/templates/session-log.md` declares `entry_prefix` in its frontmatter, so it is a ledger from its first moment and `edit_file` refuses it. A file with no `entry_prefix` is directly editable until someone guards it. From the moment a ledger declares `entry_prefix`, `append_entry` is the sole **id allocator** (not the sole writer: `doc(action="update", patch={body_edits: […]})` writes sections and prose). See the reference above.
 
 Never reuse an ID. Never skip an ID.
 

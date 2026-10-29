@@ -139,8 +139,11 @@ def case_real_template(cs: IsolatedCodescout, repo: Path, template: Path, call: 
 
     skill_says = "ships without `entry_prefix`" in RECON_SKILL.read_text()
     declares = lines[:6].count("entry_prefix:") == 1
-    info(f"skill prose says a fresh template ships without entry_prefix: {skill_says}; "
-         f"the template's own frontmatter declares it: {declares}")
+    if skill_says and declares:
+        bad("skill prose agrees with the real template about entry_prefix",
+            "the skill says a fresh template ships without `entry_prefix`; the template's frontmatter declares it")
+    else:
+        ok("skill prose does not contradict the template's declared entry_prefix")
     edit = cs.call("edit_file", path=rel, old_string="# Session Log — Template", new_string="# Session Log — Template X")
     info(f"edit_file on the fresh copy (skill says 'directly editable'): accepted={edit.ok} "
          f"{'' if edit.ok else 'error=' + edit.error[:140]!r}")
