@@ -21,13 +21,12 @@
 #   1. version     — bump <plugin>/.claude-plugin/plugin.json + README.md table
 #   2. consistency — scripts/check-versions.sh
 #   3. commit      — "chore: bump <plugin> to <version>"
-#   4. cache       — scripts/bump-cache.sh (seed all 3 Claude Code profiles)
+#   4. cache       — scripts/bump-cache.sh (seed every Claude Code profile in lib-profiles.sh)
 #   4.5. copilot    — scripts/sync-copilot.sh (separate app/marketplace; soft-skips
 #                     if this machine has no Copilot install or this plugin isn't
 #                     registered there)
-#   5. records     — repoint version + installPath in all 3 install records
-#   6. sanity      — recorded version's cache dir exists; installPath owns its profile
-#   6.5. parity    — scripts/check-profile-parity.sh: every ARRAY element across all 3
+#   5. records     — repoint version + installPath in every profile's install record#   6. sanity      — recorded version's cache dir exists; installPath owns its profile
+#   6.5. parity    — scripts/check-profile-parity.sh: every ARRAY element across every profile
 #                    profiles is canonical, cached, and owns its profile (steps 5 and 6
 #                    only ever look at element [0])
 #   7. push        — unless NO_PUSH=1 (protected by the pre-push-guard hook if
@@ -41,7 +40,7 @@ cd "$REPO_ROOT"
 PLUGIN="${1:?usage: release.sh <plugin> [<version>|patch|minor|major]}"
 BUMP="${2:-patch}"
 MARKETPLACE="${MARKETPLACE:-sdd-misc-plugins}"
-PROFILES=("$HOME/.claude" "$HOME/.claude-sdd" "$HOME/.claude-kat")
+source "$REPO_ROOT/scripts/lib-profiles.sh"   # PROFILES
 PLUGIN_JSON="$PLUGIN/.claude-plugin/plugin.json"
 PACKAGE_JSON="$PLUGIN/package.json"
 
@@ -96,7 +95,7 @@ git commit -m "chore: bump $PLUGIN to $VERSION" \
 #      machine has no Copilot install, or this plugin isn't registered there) --
 ./scripts/sync-copilot.sh "$PLUGIN" "$VERSION"
 
-# 5. repoint version + installPath in all 3 install records --------------------
+# 5. repoint version + installPath in every profile's install record --------
 for P in "${PROFILES[@]}"; do
   rec="$P/plugins/installed_plugins.json"
   [ -f "$rec" ] || { echo "  · skip $P (no install record)"; continue; }
@@ -137,6 +136,6 @@ cat <<EOF
 Two steps remain — a bash script can't do them:
   1. codescout tracker — refresh version-bump-checklist (needs the MCP tool), then verify all ✅:
        doc(action="update", id="cc8cb9e23ab5cc67", commit_refresh=true)   # update params/body for $PLUGIN $VERSION
-  2. COLD-RESTART all three Claude Code instances — a resume is NOT enough (hooks
+  2. COLD-RESTART every Claude Code instance — a resume is NOT enough (hooks
      resolve installPath at launch). Fully quit + relaunch, or run /reload-plugins.
 EOF

@@ -55,7 +55,7 @@
 set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 MARKETPLACE="${MARKETPLACE:-sdd-misc-plugins}"
-PROFILES=("$HOME/.claude" "$HOME/.claude-sdd" "$HOME/.claude-kat")
+source "$REPO_ROOT/scripts/lib-profiles.sh"   # PROFILES
 
 # Which plugins to check: argv, else every plugin.json in the repo.
 if [ "$#" -gt 0 ]; then
