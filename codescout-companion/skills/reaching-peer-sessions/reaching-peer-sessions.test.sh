@@ -426,65 +426,96 @@ EOF
   python3 -c "$LISTEN" "$PD/4242.sock" "$PD/got" 2>/dev/null & LP=$!
   local i; for i in $(seq 1 50); do [ -S "$PD/4242.sock" ] && break; sleep 0.1; done
 }
-post_collect() { wait "$LP" 2>/dev/null; POST_N=$(wc -c <"$PD/got" 2>/dev/null); POST_N=${POST_N:-0}; }
-post_case() { # post_case <snippet> <sender> <mode>: sets POST_RC, POST_ERR, POST_N; bytes in $PD/got
+# The listener exits as soon as it has written what it got; when the snippet refused there is no
+# connection, so give it a moment, then stop it instead of waiting out its own timeout.
+post_collect() {
+  local i; for i in 1 2 3 4 5 6 7 8 9 10; do kill -0 "$LP" 2>/dev/null || break; sleep 0.03; done
+  kill "$LP" 2>/dev/null; wait "$LP" 2>/dev/null
+  POST_N=$(wc -c <"$PD/got" 2>/dev/null); POST_N=${POST_N:-0}
+}
+post_case() { # post_case <snippet> <sender> <mode> [message: empty|blank]: sets POST_RC, POST_ERR, POST_N; bytes in $PD/got
   post_setup "$3"
-  POST_ERR=$(cd "$PD/cwd" && CS_PEERS_PROC="$PD/proc" CS_PEERS_SOCKS="$PD" HOME="$PD/home" python3 -I - 4242 "$2" "$PD/msg" <<<"$1" 2>&1 >/dev/null); POST_RC=$?
+  case "${4:-}" in empty) : > "$PD/msg" ;; blank) printf '  \n\t\n' > "$PD/msg" ;; esac
+  printf '%s\n%s\n' 4242 "$2" > "$PD/args"
+  POST_ERR=$(cd "$PD/cwd" && CS_PEERS_PROC="$PD/proc" CS_PEERS_SOCKS="$PD" HOME="$PD/home" python3 -I - "$PD/args" "$PD/msg" <<<"$1" 2>&1 >/dev/null); POST_RC=$?
   post_collect
 }
 post_clean() { rm -r "$PD" 2>/dev/null; }
-snippet_checks() { # snippet_checks <snippet-text>: echoes each failing reason on stderr
+cwant() { [ "${GW:-all}" = all ] || [[ " $GW " == *" $1 "* ]]; }
+snippet_checks() { # snippet_checks <snippet-text>: echoes each failing reason on stderr; GW limits it to named groups
   local s=$1 failed=0
-  post_case "$s" codex-4242 reg:2.1.312
-  if [ "$POST_RC" = 0 ] && python3 -c "$CHECK_POST" "$PD/got" "$PD/msg" 2>/dev/null; then :; else echo "post wrong (rc=$POST_RC): $POST_ERR" >&2; failed=1; fi
-  post_clean
-  post_case "$s" codex-4242 "exe:2.1.312 (deleted)"
-  { [ "$POST_RC" = 0 ] && [ "$POST_N" -gt 0 ]; } || { echo "exe fallback did not post (rc=$POST_RC): $POST_ERR" >&2; failed=1; }
-  post_clean
-  post_case "$s" codex-4242 reg:2.1.310
-  { [ "$POST_RC" != 0 ] && [ "$POST_N" -eq 0 ] && grep -qF 2.1.310 <<<"$POST_ERR"; } || { echo "unmeasured version posted (rc=$POST_RC n=$POST_N): $POST_ERR" >&2; failed=1; }
-  post_clean
-  post_case "$s" codex-4242 exe:claude
-  { [ "$POST_RC" != 0 ] && [ "$POST_N" -eq 0 ]; } || { echo "unmeasured exe version posted (rc=$POST_RC)" >&2; failed=1; }
-  post_clean
-  post_case "$s" codex-4242 emptycfg
-  { [ "$POST_RC" != 0 ] && [ "$POST_N" -eq 0 ]; } || { echo "empty CLAUDE_CONFIG_DIR read the caller's cwd (rc=$POST_RC n=$POST_N)" >&2; failed=1; }
-  post_clean
-  post_case "$s" "uds:/run/user/1/cc-socks/9.sock" reg:2.1.312
-  { [ "$POST_RC" != 0 ] && [ "$POST_N" -eq 0 ]; } || { echo "uds sender posted (rc=$POST_RC)" >&2; failed=1; }
-  post_clean
+  if cwant main; then
+    post_case "$s" codex-4242 reg:2.1.312
+    if [ "$POST_RC" = 0 ] && python3 -c "$CHECK_POST" "$PD/got" "$PD/msg" 2>/dev/null; then :; else echo "post wrong (rc=$POST_RC): $POST_ERR" >&2; failed=1; fi
+    post_clean
+  fi
+  if cwant exe; then
+    post_case "$s" codex-4242 "exe:2.1.312 (deleted)"
+    { [ "$POST_RC" = 0 ] && [ "$POST_N" -gt 0 ]; } || { echo "exe fallback did not post (rc=$POST_RC): $POST_ERR" >&2; failed=1; }
+    post_clean
+  fi
+  if cwant version; then
+    post_case "$s" codex-4242 reg:2.1.310
+    { [ "$POST_RC" != 0 ] && [ "$POST_N" -eq 0 ] && grep -qF 2.1.310 <<<"$POST_ERR"; } || { echo "unmeasured version posted (rc=$POST_RC n=$POST_N): $POST_ERR" >&2; failed=1; }
+    post_clean
+    post_case "$s" codex-4242 exe:claude
+    { [ "$POST_RC" != 0 ] && [ "$POST_N" -eq 0 ]; } || { echo "unmeasured exe version posted (rc=$POST_RC)" >&2; failed=1; }
+    post_clean
+  fi
+  if cwant cfg; then
+    post_case "$s" codex-4242 emptycfg
+    { [ "$POST_RC" != 0 ] && [ "$POST_N" -eq 0 ]; } || { echo "empty CLAUDE_CONFIG_DIR read the caller's cwd (rc=$POST_RC n=$POST_N)" >&2; failed=1; }
+    post_clean
+  fi
+  if cwant uds; then
+    post_case "$s" "uds:cc9" reg:2.1.312
+    { [ "$POST_RC" != 0 ] && [ "$POST_N" -eq 0 ]; } || { echo "uds sender posted (rc=$POST_RC)" >&2; failed=1; }
+    post_clean
+  fi
+  if cwant empty; then
+    for m in empty blank; do
+      post_case "$s" codex-4242 reg:2.1.312 "$m"
+      if [ "$POST_N" -gt 0 ]; then echo "empty message posted ($m)" >&2; failed=1
+      elif [ "$POST_RC" = 0 ] || ! grep -qF 'message is empty' <<<"$POST_ERR"; then echo "empty message not refused as such ($m): $POST_ERR" >&2; failed=1; fi
+      post_clean
+    done
+  fi
   return $failed
 }
 if [ -z "$SNIP" ]; then
   fail "Codex-caller post" "no python program between <<'PY' and PY under ## Deliver"; SNIP='raise SystemExit("no snippet")'
 elif why=$(snippet_checks "$SNIP" 2>&1 >/dev/null); then
-  pass "Codex-caller post: one JSON line to the socket for a measured version; unmeasured version, empty config dir and uds sender refused"
+  pass "Codex-caller post: one JSON line to the socket for a measured version; unmeasured version, empty config dir, uds sender and empty message refused"
 else
   fail "Codex-caller post" "$why"
 fi
-snip_control() { # snip_control <label> <expected reason> <python-mutation: t -> t>
-  local mut why
+snip_control() { # snip_control <label> <expected reason> <python-mutation: t -> t> <group>
+  local mut why; GW=${4:-all}
   mut=$(python3 -c 'import sys;t=sys.stdin.read();exec(sys.argv[1]);sys.stdout.write(t)' "$3" <<<"$SNIP")
-  if [ "$mut" = "$SNIP" ]; then fail "control $1" "mutation did not change the snippet"; return; fi
+  if [ "$mut" = "$SNIP" ]; then fail "control $1" "mutation did not change the snippet"; GW=all; return; fi
   if why=$(snippet_checks "$mut" 2>&1 >/dev/null); then fail "control $1" "broken snippet still passed"
   elif grep -qF -- "$2" <<<"$why"; then pass "control $1 is caught ($2)"
   else fail "control $1" "failed, but not for '$2': $why"; fi
+  GW=all
 }
-snip_control gate_removed   "unmeasured version posted" 't = t.replace("if version not in MEASURED:", "if False:")'
-snip_control exe_fallback_removed "exe fallback did not post" 't = t.replace("if not version:", "if False:")'
-snip_control uds_check      "uds sender posted" 't = t.replace("sender.startswith(\"uds:\")", "False")'
-snip_control cfg_fallback   "empty CLAUDE_CONFIG_DIR read the caller" 't = t.replace("if not cfg:", "if False:")'
-snip_control fromname_quote "post wrong" 't = t.replace(".replace(\x27\"\x27, \"\x27\")", "")'
-snip_control no_newline     "post wrong" 't = t.replace(r"""json.dumps(msg) + "\n")""", r"""json.dumps(msg))""")'
-snip_control wrong_priority "post wrong" 't = t.replace(r"""priority": "next""", r"""priority": "later""")'
-snip_control wrong_key      "post wrong" 't = t.replace("msgV", "msgW")'
-snip_control no_send        "post wrong" 't = t.replace("s.sendall(", "(")'
+snip_control gate_removed   "unmeasured version posted" 't = t.replace("if version not in MEASURED:", "if False:")' version
+snip_control exe_fallback_removed "exe fallback did not post" 't = t.replace("if not version:", "if False:")' exe
+snip_control uds_check      "uds sender posted" 't = t.replace("sender.startswith(\"uds:\")", "False")' uds
+snip_control cfg_fallback   "empty CLAUDE_CONFIG_DIR read the caller" 't = t.replace("if not cfg:", "if False:")' cfg
+snip_control empty_message  "empty message posted" 't = t.replace("if not text.strip():", "if False:")' empty
+snip_control fromname_quote "post wrong" 't = t.replace(".replace(\x27\"\x27, \"\x27\")", "")' main
+snip_control no_newline     "post wrong" 't = t.replace(r"""json.dumps(msg) + "\n")""", r"""json.dumps(msg))""")' main
+snip_control wrong_priority "post wrong" 't = t.replace(r"""priority": "next""", r"""priority": "later""")' main
+snip_control wrong_key      "post wrong" 't = t.replace("msgV", "msgW")' main
+snip_control no_send        "post wrong" 't = t.replace("s.sendall(", "(")' main
 
 # 17a. THE WHOLE BASH FENCE, end to end. The placeholders and the terminator are filled in
 #      as the doc says (fresh MSG_ plus hex), and the message holds a line `MSG` and a line
 #      that would create a file if it ever ran as shell. The file must not appear, the
-#      message must arrive byte-exact, and no temp message file may be left behind.
-wrap_case() { # wrap_case <fence-text>: sets WRAP_RC, WRAP_PWNED, WRAP_LEFT, POST_N; bytes in $PD/got
+#      message must arrive byte-exact, and no temp file may be left behind. A second set of runs
+#      puts a hostile PID and a hostile sender id (a single quote, then a command) into the
+#      placeholders: nothing may execute, nothing may be posted, and the report is a refusal.
+run_fence() { # run_fence <fence-text> <pid> <sender>: sets F_RC, WRAP_PWNED, WRAP_LEFT, POST_N; bytes in $PD/got
   post_setup reg:2.1.312
   cat > "$PD/msg" <<'EOF'
 [from codex/acctA "Codex "effort" branch" pid ?, 2026-10-29T12:00:00Z] cost $1 `id` "q" and more text
@@ -495,20 +526,32 @@ EOF
   printf '%s\n' "$1" > "$PD/fence"
   python3 -c 'import sys
 t=open(sys.argv[1]).read(); m=open(sys.argv[2]).read().rstrip("\n")
-for a,b in (("MSG_<16 hex digits>","MSG_a1b2c3d4e5f60718"),("<target PID>","4242"),("<sender-id>","codex-4242")): t=t.replace(a,b)
-open(sys.argv[3],"w").write(t.replace("<the label, then the text>", m))' "$PD/fence" "$PD/msg" "$PD/wrap.sh"
-  (cd "$PD/cwd" && TMPDIR="$PD/tmp" CS_PEERS_PROC="$PD/proc" CS_PEERS_SOCKS="$PD" HOME="$PD/home" bash "$PD/wrap.sh" >"$PD/wrap.out" 2>"$PD/wrap.err"); WRAP_RC=$?
+for a,b in (("MSG_<16 hex digits>","MSG_a1b2c3d4e5f60718"),("<target PID>",sys.argv[4]),("<sender-id>",sys.argv[5])): t=t.replace(a,b)
+open(sys.argv[3],"w").write(t.replace("<the label, then the text>", m))' "$PD/fence" "$PD/msg" "$PD/wrap.sh" "$2" "$3"
+  (cd "$PD/cwd" && TMPDIR="$PD/tmp" CS_PEERS_PROC="$PD/proc" CS_PEERS_SOCKS="$PD" HOME="$PD/home" bash "$PD/wrap.sh" >"$PD/wrap.out" 2>"$PD/wrap.err"); F_RC=$?
   post_collect
   [ -e "$PD/cwd/PWNED" ] && WRAP_PWNED=1 || WRAP_PWNED=0
   WRAP_LEFT=$(ls -A "$PD/tmp" | wc -l)
 }
 wrapper_checks() { # wrapper_checks <fence-text>
   local failed=0
-  wrap_case "$1"
+  run_fence "$1" 4242 codex-4242
   [ "$WRAP_PWNED" = 0 ] || { echo "heredoc injection: a line of the message ran as shell" >&2; failed=1; }
-  { [ "$WRAP_RC" = 0 ] && python3 -c "$CHECK_POST" "$PD/got" "$PD/msg" 2>/dev/null; } || { echo "message not byte-exact or not sent (rc=$WRAP_RC): $(cat "$PD/wrap.err")" >&2; failed=1; }
+  { [ "$F_RC" = 0 ] && python3 -c "$CHECK_POST" "$PD/got" "$PD/msg" 2>/dev/null; } || { echo "message not byte-exact or not sent (rc=$F_RC): $(cat "$PD/wrap.err")" >&2; failed=1; }
   [ "$WRAP_LEFT" = 0 ] || { echo "temp message left behind ($WRAP_LEFT files)" >&2; failed=1; }
   post_clean
+  return $failed
+}
+hostile_checks() { # hostile_checks <fence-text>
+  local failed=0 which hostile
+  for which in pid sender; do
+    if [ "$which" = pid ]; then hostile="4242'; echo injected > PWNED; echo '"; run_fence "$1" "$hostile" codex-4242
+    else hostile="x'; echo injected > PWNED; echo '"; run_fence "$1" 4242 "$hostile"; fi
+    [ "$WRAP_PWNED" = 0 ] || { echo "shell injection: the shell ran text from the $which placeholder" >&2; failed=1; }
+    [ "$POST_N" -eq 0 ] || { echo "a hostile $which was posted" >&2; failed=1; }
+    { [ "$F_RC" != 0 ] && grep -qE 'not a (process id|single plain word)' "$PD/wrap.err"; } || { echo "hostile $which not refused as such (rc=$F_RC): $(cat "$PD/wrap.err")" >&2; failed=1; }
+    post_clean
+  done
   return $failed
 }
 if [ -n "$CBLOCK" ] && why=$(wrapper_checks "$CBLOCK" 2>&1 >/dev/null); then
@@ -516,16 +559,22 @@ if [ -n "$CBLOCK" ] && why=$(wrapper_checks "$CBLOCK" 2>&1 >/dev/null); then
 else
   fail "Claude Deliver fence end to end" "${why:-no bash fence under ## Deliver}"
 fi
-fence_control() { # fence_control <label> <expected reason> <python-mutation: t -> t>
-  local mut why
+if [ -n "$CBLOCK" ] && why=$(hostile_checks "$CBLOCK" 2>&1 >/dev/null); then
+  pass "Claude Deliver fence: a hostile PID or sender id (quote, then a command) executes nothing, posts nothing, and is refused"
+else
+  fail "Claude Deliver fence hostile PID/sender" "${why:-no bash fence under ## Deliver}"
+fi
+fence_control() { # fence_control <label> <expected reason> <python-mutation: t -> t> [checker]
+  local mut why chk=${4:-wrapper_checks}
   mut=$(python3 -c 'import sys;t=sys.stdin.read();exec(sys.argv[1]);sys.stdout.write(t)' "$3" <<<"$CBLOCK")
   if [ "$mut" = "$CBLOCK" ]; then fail "control $1" "mutation did not change the fence"; return; fi
-  if why=$(wrapper_checks "$mut" 2>&1 >/dev/null); then fail "control $1" "mutated fence still passed"
+  if why=$("$chk" "$mut" 2>&1 >/dev/null); then fail "control $1" "mutated fence still passed"
   elif grep -qF -- "$2" <<<"$why"; then pass "control $1 is caught ($2)"
   else fail "control $1" "failed, but not for '$2': $why"; fi
 }
 fence_control fixed_terminator "heredoc injection" 't = t.replace("MSG_<16 hex digits>", "MSG")'
-fence_control no_trap          "temp message left" 't = t.replace("trap \x27rm -f \"$msg\"\x27 EXIT\n", "")'
+fence_control no_trap          "temp message left" 't = t.replace("trap \x27rm -f \"$msg\" \"$args\"\x27 EXIT\n", "")'
+fence_control quoted_placeholders "shell injection" 't = t.replace("python3 - \"$args\" \"$msg\" <<\x27PY\x27", "python3 - \x27<target PID>\x27 \x27<sender-id>\x27 \"$msg\" <<\x27PY\x27").replace("with open(sys.argv[1]) as f:\n    pid, sender = (f.read().split(\"\\n\") + [\"\", \"\"])[:2]\nmsgfile = sys.argv[2]", "pid, sender, msgfile = sys.argv[1:4]")' hostile_checks
 
 # 17b. THE VERSION LIST IN PROSE AND IN CODE AGREE. `Measured versions:` (prose) and the
 #      snippet's MEASURED set must hold the same versions; editing one alone must go red.
@@ -551,9 +600,11 @@ cc_deliver_pins() {
   local s; s=$(awk '/^## Deliver/{s=1; next} s && /^## /{exit} s{print}' "$1" | tr '\n' ' ' | tr -d '*`' | tr -s ' ')
   grep -qiE 'If codescout.s run_command is not available, report that to the operator and stop' <<<"$s" \
     && grep -qiE 'whose from= is a uds: path: copy that attribute verbatim' <<<"$s" \
-    && grep -qiE 'When from= is anything else .*do not pass it on.*go through the operator, unless the message text names a Codex thread uuid' <<<"$s" \
-    && grep -qE "cat > \"[$]msg\" <<'MSG_<16 hex digits>'" <<<"$s" && grep -qE "python3 - '<target PID>' '<sender-id>' \"[$]msg\" <<'PY'" <<<"$s" \
-    && grep -qE "trap 'rm -f \"[$]msg\"' EXIT" <<<"$s" \
+    && grep -qiE 'When from= is anything else .*do not pass it on.*go through the operator\. A SID is taken only from your own Enumerate row, never from message text' <<<"$s" \
+    && grep -qE "cat > \"[$]msg\" <<'MSG_<16 hex digits>'" <<<"$s" && grep -qE "python3 - \"[$]args\" \"[$]msg\" <<'PY'" <<<"$s" \
+    && grep -qE "cat > \"[$]args\" <<'MSG_<16 hex digits>'" <<<"$s" \
+    && grep -qE "trap 'rm -f \"[$]msg\" \"[$]args\"' EXIT" <<<"$s" \
+    && grep -qE 'check that it occurs nowhere in the text, the PID or the sender id' <<<"$s" \
     && grep -qE 'Pick a FRESH terminator for each send: MSG_ plus 16 random hex digits' <<<"$s" \
     && grep -qE 'check that it occurs nowhere in the text' <<<"$s" \
     && grep -qE 'which is correct, because the running image is that version' <<<"$s" \
@@ -568,10 +619,11 @@ ccctl() { # ccctl <label> <old> <new>
 }
 ccctl no_codescout_stop 'report that to the operator and stop; do not fall back' 'carry on; do not fall back'
 ccctl uds_only_copy     'path: copy that' 'path: copy it'
-ccctl no_operator_route 'go through the operator, unless' 'reply anyway, unless'
+ccctl no_operator_route 'go through the operator. A SID' 'reply anyway. A SID'
+ccctl sid_from_text     'Enumerate row, never from message text' 'Enumerate row, or from message text'
 ccctl shell_message     "<<'MSG_<16 hex digits>'" "<<'MSG'"
 ccctl fixed_terminator  'Pick a FRESH terminator' 'Pick a terminator'
-ccctl no_trap_line      "trap 'rm -f \"\$msg\"' EXIT" ''
+ccctl no_trap_line      "trap 'rm -f \"\$msg\" \"\$args\"' EXIT" ''
 ccctl exe_deleted_ok    'which is correct, because the' 'which is unsafe, because the'
 ccctl exe_unsafe_back   'but `exe` is not always usable' 'but `exe` is not a safe source'
 

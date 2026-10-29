@@ -39,11 +39,11 @@ MERGE=$(awk '/^```bash/{b=1; next} b && /^```/{exit} b{print}' "$CORE")
 
 # ---- fixture ----
 FX="$T/fx"; TABHOME="$FX/co${TAB}dex-t"
-mkdir -p "$FX/proc" "$FX/home/.codex/sessions" "$FX/codex-a" "$FX/codex-b" "$FX/codex-c" "$FX/codex-e" "$TABHOME" "$T/stage"
+mkdir -p "$FX/proc" "$FX/home9/.codex/sessions" "$FX/home/.codex/sessions" "$FX/codex-a" "$FX/codex-b" "$FX/codex-c" "$FX/codex-e" "$TABHOME" "$T/stage"
 U_A3=33333333-3333-4333-8333-333333333333
 U_C1=cccccccc-cccc-4ccc-8ccc-cccccccccccc
 U_T1=77777777-7777-4777-8777-777777777777
-LOCKED_N=12
+LOCKED_N=8
 LONGCWD="/w/$(printf 'x%.0s' $(seq 1 100))/a${TAB}b"
 LONGCWD_WANT="/w/$(printf 'x%.0s' $(seq 1 100))/a b"
 ro() { echo "$FX/$1/sessions/rollout-2026-10-29T10-00-00-$2.jsonl"; }
@@ -77,6 +77,8 @@ def plain(path, rows):
 plain(os.path.join(fx, "codex-b", "state_5.sqlite"), [("thr-b1", r("codex-b", "b1"), "Alpha task", None, "/w/beta", 0)])
 plain(os.path.join(fx, "home", ".codex", "state_5.sqlite"),
       [("thr-d1", os.path.join(fx, "home", ".codex", "sessions", "rollout-2026-10-29T10-00-00-d1.jsonl"), "Default home", None, "/w/default", 0)])
+plain(os.path.join(fx, "home9", ".codex", "state_5.sqlite"),
+      [("thr-h9", os.path.join(fx, "home9", ".codex", "sessions", "rollout-2026-10-29T10-00-00-h9.jsonl"), "Target home", None, "/w/h9", 0)])
 plain(os.path.join(fx, "codex-e", "state_5.sqlite"), [("thr-e1", r("codex-e", "e00"), "Locked", None, "/w/locked", 0)])
 PY
 if [ ! -s "$FX/codex-a/state_5.sqlite-wal" ]; then bad "fixture" "codex-a has no pending -wal; the write check would be blind"; echo "-- $PASS passed, $FAIL failed"; exit 1; fi
@@ -115,7 +117,10 @@ for i in $(seq 1 "$LOCKED_N"); do fd 5007 "$(ro codex-e "e$(printf '%02d' "$i")"
 # 5008: app-server whose CODEX_HOME contains a TAB
 mk_proc 5008 /opt/codex/bin/codex app-server; mk_env 5008 "$TABHOME"
 fd 5008 "$TABHOME/sessions/rollout-2026-10-29T10-00-00-$U_T1.jsonl" 3
-EXPECT_ROWS=$((10 + LOCKED_N + 1))   # a1 a3 a4 a5 a6 a7 | b1 | c1 | d1 weird | 12 locked | tab home
+# 5009: app-server with HOME but NO CODEX_HOME in its environ: the target's own HOME names the home
+mk_proc 5009 /opt/codex/bin/codex app-server; printf 'PATH=/usr/bin\0HOME=%s\0' "$FX/home9" > "$FX/proc/5009/environ"
+fd 5009 "$FX/home9/.codex/sessions/rollout-2026-10-29T10-00-00-h9.jsonl" 3
+EXPECT_ROWS=$((11 + LOCKED_N + 1))   # a1 a3 a4 a5 a6 a7 | b1 | c1 | d1 weird | 12 locked | tab home
 
 # Hold an exclusive lock on codex-e for the whole run.
 python3 -c 'import sqlite3,sys,time
@@ -125,7 +130,7 @@ for _ in $(seq 1 50); do [ -e "$T/lockflag" ] && break; sleep 0.1; done
 [ -e "$T/lockflag" ] || { bad "fixture" "could not lock codex-e"; echo "-- $PASS passed, $FAIL failed"; exit 1; }
 
 # Pristine copies of the databases a faulty block might change; restored before every run.
-DBHOMES="codex-a codex-b home/.codex"
+DBHOMES="codex-a codex-b home/.codex home9/.codex"
 for h in $DBHOMES; do mkdir -p "$T/pristine/$h"; cp -a "$FX/$h"/state_5.sqlite* "$T/pristine/$h/"; done
 restore_dbs() {
   local h
@@ -187,9 +192,11 @@ check_all() {
   [ "$(field "$(row "$out" "$U_T1")" 2)" = "co dex-t" ] || { echo "account wrong: $(field "$(row "$out" "$U_T1")" 2)" >&2; failed=1; }
   # 17. a matched thread with an empty title and no name is (untitled); ? stays "unknown"
   [ "$(field "$(row "$out" thr-a7)" 5)" = "(untitled)" ] || { echo "untitled wrong: $(field "$(row "$out" thr-a7)" 5)" >&2; failed=1; }
+  # 18. no CODEX_HOME in the target's environ: the target's own HOME (not the caller's) names the home
+  r=$(row "$out" thr-h9); { [ "$(field "$r" 2)" = .codex ] && [ "$(field "$r" 5)" = "Target home" ]; } || { echo "target-home row wrong: $r" >&2; failed=1; }
   # 16. a locked database: every row of that home survives with NAME ?, and the run is fast
   [ "$(awk -F'\t' '$2=="codex-e" && $5=="?"' <<<"$out" | wc -l)" = "$LOCKED_N" ] || { echo "locked-home rows wrong" >&2; failed=1; }
-  [ $(( (t1 - t0) / 1000000 )) -lt 4000 ] || { echo "slow: $(( (t1 - t0) / 1000000 )) ms for a locked home" >&2; failed=1; }
+  [ $(( (t1 - t0) / 1000000 )) -lt 3000 ] || { echo "slow: $(( (t1 - t0) / 1000000 )) ms for a locked home" >&2; failed=1; }
   return $failed
 }
 
@@ -221,7 +228,8 @@ control title_first     "name/title rule"    't = t.replace("found[2] or found[1
 control cwd_cut         "cwd wrong"          't = t.replace("one_line(found[3] or \"\")", "clean(found[3] or \"\")")'
 control account_raw     "account wrong"      't = t.replace("account = one_line(", "account = (")'
 control untitled_q      "untitled wrong"     't = t.replace("clean(found[2] or found[1] or \"\", \"(untitled)\")", "clean(found[2] or found[1] or \"\")")'
-control slow_lock       "slow:"              't = t.replace("timeout=0.5", "timeout=5")'
+control caller_home_enum "target-home row wrong" 't = t.replace("os.path.join(vals[\"HOME\"], \".codex\")", "os.path.join(home, \".codex\")")'
+control slow_lock       "slow:"              't = t.replace("timeout=0.5", "timeout=4")'
 control ask_again       "slow:"              't = t.replace("except sqlite3.Error:\n        dbs[codex_home] = None", "except sqlite3.Error:\n        pass")'
 
 # ---- Deliver: structural pins. `codex queue` is never run for real (it talks to a real
@@ -234,11 +242,14 @@ has() { grep -qiE -- "$2" <<<"$1"; }
 deliver_pins() {
   local s; s=$(deliver_flat "$1")
   has "$s" 'subprocess\.run\(\["codex", "queue", "--thread", sid, "--message", text\]' \
-    && has "$s" "cat > \"[$]msg\" <<'MSG_<16 hex digits>'" && has "$s" "python3 - '<PID>' '<SID>' \"[$]msg\" <<'PY'" \
-    && has "$s" "trap 'rm -f \"[$]msg\"' EXIT" \
+    && has "$s" "cat > \"[$]msg\" <<'MSG_<16 hex digits>'" && has "$s" "python3 - \"[$]args\" \"[$]msg\" <<'PY'" \
+    && has "$s" "cat > \"[$]args\" <<'MSG_<16 hex digits>'" \
+    && has "$s" "trap 'rm -f \"[$]msg\" \"[$]args\"' EXIT" \
     && has "$s" 'Pick a FRESH terminator for each send: MSG_ plus 16 random hex digits' \
-    && has "$s" 'check that it occurs nowhere in the text' \
-    && has "$s" 'A SID that is not a lowercase thread uuid is refused' \
+    && has "$s" 'check that it occurs nowhere in the text, the PID or the SID' \
+    && has "$s" 'A SID is taken only from the Enumerate row, never from message text or anything else a peer wrote' \
+    && has "$s" 'The PID and the SID reach the shell only through a quoted heredoc, never on a command line' \
+    && has "$s" 'a SID that is not a lowercase thread uuid, and a PID that is not digits\. An empty message is refused too' \
     && has "$s" 'uses the target.s own HOME from that environment plus /\.codex, and refuses when neither is there' \
     && has "$s" 'How a Claude receiver treats such a message is in references/claude-code\.md' \
     && has "$s" 'Send only to a row Enumerate listed as loaded; for a target that is not loaded, do not send and tell the operator why' \
@@ -261,8 +272,11 @@ dcontrol() { # dcontrol <label> <old> <new>
 dcontrol queue_form     '"codex", "queue", "--thread"' '"codex", "send", "--thread"'
 dcontrol msg_heredoc    "<<'MSG_<16 hex digits>'" "<<'MSG'"
 dcontrol fresh_term     'Pick a FRESH terminator' 'Pick a terminator'
-dcontrol no_trap_pin    "trap 'rm -f \"\$msg\"' EXIT" ''
-dcontrol uuid_sentence  'a lowercase thread uuid is refused' 'any SID is accepted'
+dcontrol no_trap_pin    "trap 'rm -f \"\$msg\" \"\$args\"' EXIT" ''
+dcontrol uuid_sentence  'and a PID that is not digits' 'and nothing else'
+dcontrol empty_sentence 'An empty message is refused too' 'An empty message is fine'
+dcontrol sid_source     'only from the Enumerate row, never from message text' 'from wherever it was named'
+dcontrol no_cmdline     'The PID and the SID reach the shell only through a quoted heredoc' 'The PID and the SID reach the shell as arguments'
 dcontrol home_sentence  'and refuses when neither is there' 'and carries on'
 dcontrol pointer_rule   'How a Claude receiver treats such a message is in' 'A Claude receiver replies to such a message with'
 dcontrol loaded_only    'Send only to a row Enumerate listed as `loaded`;' 'Send to any row;'
@@ -313,111 +327,163 @@ chmod +x "$DX/bin/codex"
 cat > "$DX/msg" <<'EOF'
 [from codex/? "Codex "effort" branch" pid ?, 2026-10-29T12:00:00Z] cost $1 and `id` and $(echo hi) with "quotes", 'single' and a  double  space; cannot be answered by address
 EOF
-DWAIT=0.4
+DW=0.01     # the bounded wait the snippet gets, except in the ONE check that proves the wait
 deliver_env() { # deliver_env <grow 0|1> <rc>: sets DENV, the environment every run of the snippet or the fence gets
-  DENV=(CS_PEERS_PROC="$DX/proc" CS_PEERS_WAIT="$DWAIT" PATH="$DX/bin:$PATH" STUB_OUT="$DX/out" STUB_GROW="$1" STUB_RC="$2" STUB_ROLLOUT="$DROLL" HOME="$DX/callerhome" TMPDIR="$DX/tmp")
+  DENV=(CS_PEERS_PROC="$DX/proc" CS_PEERS_WAIT="$DW" PATH="$DX/bin:$PATH" STUB_OUT="$DX/out" STUB_GROW="$1" STUB_RC="$2" STUB_ROLLOUT="$DROLL" HOME="$DX/callerhome" TMPDIR="$DX/tmp")
 }
+: > "$DX/empty"; printf '  \n\t\n\n' > "$DX/blank"
+DMSG="$DX/msg"
 run_deliver() { # run_deliver <program> <pid> <sid> <grow 0|1> [rc]: sets D_RC, D_OUT, D_ERR, D_MS
   rm -f "$DX/out/argv" "$DX/out/home"
+  printf '%s\n%s\n' "$2" "$3" > "$DX/args"
   local t0 t1; t0=$(date +%s%N)
   deliver_env "$4" "${5:-0}"
-  D_OUT=$(cd "$DX/cwd" && env "${DENV[@]}" python3 -I - "$2" "$3" "$DX/msg" <<<"$1" 2>"$DX/err"); D_RC=$?; D_ERR=$(cat "$DX/err")
+  D_OUT=$(cd "$DX/cwd" && env "${DENV[@]}" python3 -I - "$DX/args" "$DMSG" <<<"$1" 2>"$DX/err"); D_RC=$?; D_ERR=$(cat "$DX/err")
   t1=$(date +%s%N); D_MS=$(( (t1 - t0) / 1000000 ))
 }
-deliver_checks() { # deliver_checks <program>: echoes each failing reason on stderr
+want() { [ "${GW:-all}" = all ] || [[ " $GW " == *" $1 "* ]]; }
+deliver_checks() { # deliver_checks <program>: echoes each failing reason on stderr; GW limits it to named groups
   local prog=$1 failed=0 want got s
-  want=$(python3 -c 'import sys;print(open(sys.argv[1]).read().rstrip("\n"),end="")' "$DX/msg")
-  run_deliver "$prog" 6001 "$SID_L" 1
-  got=$(python3 -c 'import sys;print(repr(open(sys.argv[1],"rb").read().decode().split("\0")[:-1]))' "$DX/out/argv" 2>/dev/null)
-  [ "$D_RC" = 0 ] || { echo "send failed rc=$D_RC: $D_ERR" >&2; failed=1; }
-  [ "$got" = "$(python3 -c 'import sys;print(repr(["queue","--thread",sys.argv[1],"--message",sys.argv[2]]))' "$SID_L" "$want")" ] || { echo "argv wrong: $got" >&2; failed=1; }
-  [ "$(cat "$DX/out/home" 2>/dev/null)" = "$DX/work/codex-work" ] || { echo "home wrong: $(cat "$DX/out/home" 2>/dev/null)" >&2; failed=1; }
-  grep -q 'rollout grew' <<<"$D_OUT" && grep -qF "$SID_L" <<<"$D_OUT" || { echo "report wrong (grew): $D_OUT" >&2; failed=1; }
-  [ "$D_MS" -ge 350 ] || { echo "no bounded wait: the run took $D_MS ms for a 400 ms wait" >&2; failed=1; }
-  run_deliver "$prog" 6001 "$SID_L" 0
-  grep -q 'rollout did not grow' <<<"$D_OUT" || { echo "report wrong (no growth): $D_OUT" >&2; failed=1; }
-  run_deliver "$prog" 6001 "$SID_L" 0 3
-  { [ "$D_RC" != 0 ] && grep -q 'nothing is confirmed' <<<"$D_ERR"; } || { echo "rc ignored: codex exited 3 but the run reported rc=$D_RC" >&2; failed=1; }
-  run_deliver "$prog" 6002 "$SID_L" 0
-  { [ "$D_RC" != 0 ] && [ ! -e "$DX/out/argv" ] && grep -q 'Tell the operator why' <<<"$D_ERR"; } || { echo "sent to a thread that is not loaded (rc=$D_RC)" >&2; failed=1; }
-  run_deliver "$prog" 6003 "$SID_L" 0
-  { [ "$D_RC" != 0 ] && [ ! -e "$DX/out/argv" ]; } || { echo "sent via a non-app-server process" >&2; failed=1; }
-  for s in '?' '' '-' 2026 0b0b0b0b not-a-uuid "${SID_L^^}"; do
-    run_deliver "$prog" 6001 "$s" 0
-    if [ -e "$DX/out/argv" ]; then echo "non-uuid SID '$s' reached codex" >&2; failed=1
-    elif [ "$D_RC" = 0 ] || ! grep -q 'not a thread uuid' <<<"$D_ERR"; then echo "non-uuid SID '$s' not refused as such: $D_ERR" >&2; failed=1; fi
-  done
-  run_deliver "$prog" 6005 "$SID_L" 0
-  { [ "$D_RC" != 0 ] && [ ! -e "$DX/out/argv" ]; } || { echo "non-rollout file accepted as the thread" >&2; failed=1; }
-  run_deliver "$prog" 6006 "$SID_H" 0
-  { [ "$D_RC" = 0 ] && [ "$(cat "$DX/out/home" 2>/dev/null)" = "$DX/home6006/.codex" ]; } || { echo "fallback home wrong: $(cat "$DX/out/home" 2>/dev/null) rc=$D_RC $D_ERR" >&2; failed=1; }
-  run_deliver "$prog" 6007 "$SID_H" 0
-  { [ "$D_RC" != 0 ] && [ ! -e "$DX/out/argv" ]; } || { echo "sent without any home in the target environment" >&2; failed=1; }
+  DMSG="$DX/msg"
+  if want main; then
+    want=$(python3 -c 'import sys;print(open(sys.argv[1]).read().rstrip("\n"),end="")' "$DX/msg")
+    DW=0.4; run_deliver "$prog" 6001 "$SID_L" 1; DW=0.01     # the one run that proves the bounded wait
+    got=$(python3 -c 'import sys;print(repr(open(sys.argv[1],"rb").read().decode().split("\0")[:-1]))' "$DX/out/argv" 2>/dev/null)
+    [ "$D_RC" = 0 ] || { echo "send failed rc=$D_RC: $D_ERR" >&2; failed=1; }
+    [ "$got" = "$(python3 -c 'import sys;print(repr(["queue","--thread",sys.argv[1],"--message",sys.argv[2]]))' "$SID_L" "$want")" ] || { echo "argv wrong: $got" >&2; failed=1; }
+    [ "$(cat "$DX/out/home" 2>/dev/null)" = "$DX/work/codex-work" ] || { echo "home wrong: $(cat "$DX/out/home" 2>/dev/null)" >&2; failed=1; }
+    grep -q 'rollout grew' <<<"$D_OUT" && grep -qF "$SID_L" <<<"$D_OUT" || { echo "report wrong (grew): $D_OUT" >&2; failed=1; }
+    [ "$D_MS" -ge 350 ] || { echo "no bounded wait: the run took $D_MS ms for a 400 ms wait" >&2; failed=1; }
+    run_deliver "$prog" 6001 "$SID_L" 0
+    grep -q 'rollout did not grow' <<<"$D_OUT" || { echo "report wrong (no growth): $D_OUT" >&2; failed=1; }
+  fi
+  if want rc; then
+    run_deliver "$prog" 6001 "$SID_L" 0 3
+    { [ "$D_RC" != 0 ] && grep -q 'nothing is confirmed' <<<"$D_ERR"; } || { echo "rc ignored: codex exited 3 but the run reported rc=$D_RC" >&2; failed=1; }
+  fi
+  if want empty; then
+    for DMSG in "$DX/empty" "$DX/blank"; do
+      run_deliver "$prog" 6001 "$SID_L" 0
+      if [ -e "$DX/out/argv" ]; then echo "empty message sent ($DMSG)" >&2; failed=1
+      elif [ "$D_RC" = 0 ] || ! grep -q 'message is empty' <<<"$D_ERR"; then echo "empty message not refused as such: $D_ERR" >&2; failed=1; fi
+    done
+    DMSG="$DX/msg"
+  fi
+  if want notloaded; then
+    run_deliver "$prog" 6002 "$SID_L" 0
+    { [ "$D_RC" != 0 ] && [ ! -e "$DX/out/argv" ] && grep -q 'Tell the operator why' <<<"$D_ERR"; } || { echo "sent to a thread that is not loaded (rc=$D_RC)" >&2; failed=1; }
+    run_deliver "$prog" 6003 "$SID_L" 0
+    { [ "$D_RC" != 0 ] && [ ! -e "$DX/out/argv" ]; } || { echo "sent via a non-app-server process" >&2; failed=1; }
+  fi
+  if want sid; then
+    for s in '?' '' '-' 2026 0b0b0b0b not-a-uuid "${SID_L^^}"; do
+      run_deliver "$prog" 6001 "$s" 0
+      if [ -e "$DX/out/argv" ]; then echo "non-uuid SID '$s' reached codex" >&2; failed=1
+      elif [ "$D_RC" = 0 ] || ! grep -q 'not a thread uuid' <<<"$D_ERR"; then echo "non-uuid SID '$s' not refused as such: $D_ERR" >&2; failed=1; fi
+    done
+  fi
+  if want pid; then
+    run_deliver "$prog" abc "$SID_L" 0
+    { [ "$D_RC" != 0 ] && [ ! -e "$DX/out/argv" ] && grep -q 'not a process id' <<<"$D_ERR"; } || { echo "non-digit PID not refused as such: $D_ERR" >&2; failed=1; }
+  fi
+  if want rollout; then
+    run_deliver "$prog" 6005 "$SID_L" 0
+    { [ "$D_RC" != 0 ] && [ ! -e "$DX/out/argv" ]; } || { echo "non-rollout file accepted as the thread" >&2; failed=1; }
+  fi
+  if want home; then
+    run_deliver "$prog" 6006 "$SID_H" 0
+    { [ "$D_RC" = 0 ] && [ "$(cat "$DX/out/home" 2>/dev/null)" = "$DX/home6006/.codex" ]; } || { echo "fallback home wrong: $(cat "$DX/out/home" 2>/dev/null) rc=$D_RC $D_ERR" >&2; failed=1; }
+    run_deliver "$prog" 6007 "$SID_H" 0
+    { [ "$D_RC" != 0 ] && [ ! -e "$DX/out/argv" ]; } || { echo "sent without any home in the target environment" >&2; failed=1; }
+  fi
   return $failed
 }
-if why=$(deliver_checks "$DPROG" 2>&1 >/dev/null); then ok "Deliver snippet: argv list, row's own home (and target HOME fallback), uuid-only SID, rc and size report (stub codex)"; else bad "Deliver snippet" "$why"; fi
-dprog_control() { # dprog_control <label> <expected reason> <python-mutation: t -> t>
-  local mut why
+if why=$(deliver_checks "$DPROG" 2>&1 >/dev/null); then ok "Deliver snippet: argv list, row's own home (and target HOME fallback), uuid-only SID, digit-only PID, empty message refused, rc and size report (stub codex)"; else bad "Deliver snippet" "$why"; fi
+dprog_control() { # dprog_control <label> <expected reason> <python-mutation: t -> t> <group>
+  local mut why; GW=${4:-all}
   mut=$(python3 -c 'import sys;t=sys.stdin.read();exec(sys.argv[1]);sys.stdout.write(t)' "$3" <<<"$DPROG")
   if [ "$mut" = "$DPROG" ]; then bad "snippet control $1" "mutation did not change the snippet"; return; fi
   if why=$(deliver_checks "$mut" 2>&1 >/dev/null); then bad "snippet control $1" "mutated snippet still passed"
   elif grep -qF -- "$2" <<<"$why"; then ok "snippet control $1 is caught ($2)"
   else bad "snippet control $1" "failed, but not for '$2': $why"; fi
+  GW=all
 }
-dprog_control any_rollout    "sent to a thread that is not loaded" 't = t.replace("m.group(1) == sid", "True")'
-dprog_control sid_substring  "reached codex"                       't = t.replace("if not re.fullmatch(UUID_RE, sid):", "if False:").replace("m = ROLL.fullmatch(os.path.basename(target))\n    if m and m.group(1) == sid:", "m = os.path.basename(target)\n    if sid in m:")'
-dprog_control no_uuid_guard  "not refused as such"                 't = t.replace("if not re.fullmatch(UUID_RE, sid):", "if False:")'
-dprog_control shell_string   "argv wrong"                          't = t.replace("subprocess.run([\"codex\", \"queue\", \"--thread\", sid, \"--message\", text],", "subprocess.run(\"codex queue --thread %s --message \\\"%s\\\"\" % (sid, text), shell=True,")'
-dprog_control home_basename  "home wrong"                          't = t.replace("CODEX_HOME=codex_home", "CODEX_HOME=os.path.join(os.environ.get(\"HOME\", \"\"), \".codex\", os.path.basename(codex_home))")'
-dprog_control caller_home    "fallback home wrong"                 't = t.replace("elif vals.get(\"HOME\"):\n    codex_home = os.path.join(vals[\"HOME\"], \".codex\")", "elif os.environ.get(\"HOME\"):\n    codex_home = os.path.join(os.environ[\"HOME\"], \".codex\")")'
-dprog_control no_home_refusal "sent without any home"              't = t.replace("else:\n    sys.exit(\"not sent: the target", "else:\n    codex_home = \"/nonexistent\"\nif False:\n    sys.exit(\"not sent: the target")'
-dprog_control rollout_loose  "non-rollout file accepted"           't = t.replace("ROLL = re.compile(r\"rollout-.+-(%s)[.]jsonl\" % UUID_RE)", "ROLL = re.compile(r\".*(%s).*\" % UUID_RE)")'
-dprog_control rc_ignored      "rc ignored"                         't = t.replace("if done.returncode != 0:", "if False:")'
-dprog_control always_grew     "report wrong (no growth)"           't = t.replace("\"grew\" if after > before else \"did not grow\"", "\"grew\"")'
-dprog_control no_app_check    "sent via a non-app-server"          't = t.replace("\"app-server\" not in", "False and \"app-server\" not in")'
-dprog_control no_sleep        "no bounded wait"                    't = t.replace("time.sleep(WAIT)", "pass")'
+dprog_control any_rollout    "sent to a thread that is not loaded" 't = t.replace("m.group(1) == sid", "True")' notloaded
+dprog_control sid_substring  "reached codex"                       't = t.replace("if not re.fullmatch(UUID_RE, sid):", "if False:").replace("m = ROLL.fullmatch(os.path.basename(target))\n    if m and m.group(1) == sid:", "m = os.path.basename(target)\n    if sid in m:")' sid
+dprog_control no_uuid_guard  "not refused as such"                 't = t.replace("if not re.fullmatch(UUID_RE, sid):", "if False:")' sid
+dprog_control no_pid_guard   "non-digit PID not refused as such"   't = t.replace("if not re.fullmatch(\"[0-9]+\", pid):", "if False:")' pid
+dprog_control empty_message  "empty message sent"                  't = t.replace("if not text.strip():", "if False:")' empty
+dprog_control shell_string   "argv wrong"                          't = t.replace("subprocess.run([\"codex\", \"queue\", \"--thread\", sid, \"--message\", text],", "subprocess.run(\"codex queue --thread %s --message \\\"%s\\\"\" % (sid, text), shell=True,")' main
+dprog_control home_basename  "home wrong"                          't = t.replace("CODEX_HOME=codex_home", "CODEX_HOME=os.path.join(os.environ.get(\"HOME\", \"\"), \".codex\", os.path.basename(codex_home))")' main
+dprog_control caller_home    "fallback home wrong"                 't = t.replace("elif vals.get(\"HOME\"):\n    codex_home = os.path.join(vals[\"HOME\"], \".codex\")", "elif os.environ.get(\"HOME\"):\n    codex_home = os.path.join(os.environ[\"HOME\"], \".codex\")")' home
+dprog_control no_home_refusal "sent without any home"              't = t.replace("else:\n    sys.exit(\"not sent: the target", "else:\n    codex_home = \"/nonexistent\"\nif False:\n    sys.exit(\"not sent: the target")' home
+dprog_control rollout_loose  "non-rollout file accepted"           't = t.replace("ROLL = re.compile(r\"rollout-.+-(%s)[.]jsonl\" % UUID_RE)", "ROLL = re.compile(r\".*(%s).*\" % UUID_RE)")' rollout
+dprog_control rc_ignored      "rc ignored"                         't = t.replace("if done.returncode != 0:", "if False:")' rc
+dprog_control always_grew     "report wrong (no growth)"           't = t.replace("\"grew\" if after > before else \"did not grow\"", "\"grew\"")' main
+dprog_control no_app_check    "sent via a non-app-server"          't = t.replace("\"app-server\" not in", "False and \"app-server\" not in")' notloaded
+dprog_control no_sleep        "no bounded wait"                    't = t.replace("time.sleep(WAIT)", "pass")' main
 
 # ---- the Codex Deliver fence end to end (bash wrapper included) ----
-# The terminator, the placeholders and the temp file live in the wrapper, which the Python-only
+# The terminator, the placeholders and the temp files live in the wrapper, which the Python-only
 # checks above never run. The message holds a line `MSG` and a line that would create a file
 # if it ever ran as shell; the file must not appear, the message must arrive byte-exact (the
-# stub's argv), and no temp message file may be left behind.
+# stub's argv), and no temp file may be left behind. A second set of runs puts a hostile PID and
+# a hostile SID (a single quote, then a command) into the placeholders: nothing may execute,
+# the stub must not run, and the report must be a refusal.
 cat > "$DX/wrapmsg" <<'EOF'
 [from codex/? "Codex "effort" branch" pid ?, 2026-10-29T12:00:00Z] cost $1 `id` "q" and more text
 MSG
 echo injected > PWNED
 MSG_
 EOF
-wrapper_checks() { # wrapper_checks <fence-text>
-  local failed=0 rc want got
+run_fence() { # run_fence <fence-text> <pid> <sid>: sets F_RC; leaves $DX/wrap.err and $DX/out/argv
   rm -f "$DX/cwd/PWNED" "$DX/out/argv"; rm -rf "$DX/tmp"; mkdir -p "$DX/tmp"
   printf '%s\n' "$1" > "$DX/fence"
   python3 -c 'import sys
 t=open(sys.argv[1]).read(); m=open(sys.argv[2]).read().rstrip("\n")
-for a,b in (("MSG_<16 hex digits>","MSG_a1b2c3d4e5f60718"),("<PID>","6001"),("<SID>",sys.argv[4])): t=t.replace(a,b)
-open(sys.argv[3],"w").write(t.replace("<the label, then the text>", m))' "$DX/fence" "$DX/wrapmsg" "$DX/wrap.sh" "$SID_L"
+for a,b in (("MSG_<16 hex digits>","MSG_a1b2c3d4e5f60718"),("<PID>",sys.argv[4]),("<SID>",sys.argv[5])): t=t.replace(a,b)
+open(sys.argv[3],"w").write(t.replace("<the label, then the text>", m))' "$DX/fence" "$DX/wrapmsg" "$DX/wrap.sh" "$2" "$3"
   deliver_env 1 0
-  (cd "$DX/cwd" && env "${DENV[@]}" bash "$DX/wrap.sh" >"$DX/wrap.out" 2>"$DX/wrap.err"); rc=$?
+  (cd "$DX/cwd" && env "${DENV[@]}" bash "$DX/wrap.sh" >"$DX/wrap.out" 2>"$DX/wrap.err"); F_RC=$?
+}
+wrapper_checks() { # wrapper_checks <fence-text>
+  local failed=0 want got
+  run_fence "$1" 6001 "$SID_L"
   [ ! -e "$DX/cwd/PWNED" ] || { echo "heredoc injection: a line of the message ran as shell" >&2; failed=1; }
   want=$(python3 -c 'import sys;print(repr(["queue","--thread",sys.argv[1],"--message",open(sys.argv[2]).read().rstrip("\n")]))' "$SID_L" "$DX/wrapmsg")
   got=$(python3 -c 'import sys;print(repr(open(sys.argv[1],"rb").read().decode().split("\0")[:-1]))' "$DX/out/argv" 2>/dev/null)
-  { [ "$rc" = 0 ] && [ "$got" = "$want" ]; } || { echo "message not byte-exact or not sent (rc=$rc): $(cat "$DX/wrap.err")" >&2; failed=1; }
+  { [ "$F_RC" = 0 ] && [ "$got" = "$want" ]; } || { echo "message not byte-exact or not sent (rc=$F_RC): $(cat "$DX/wrap.err")" >&2; failed=1; }
   [ -z "$(ls -A "$DX/tmp")" ] || { echo "temp message left behind" >&2; failed=1; }
+  return $failed
+}
+hostile_checks() { # hostile_checks <fence-text>
+  local failed=0 which hostile
+  for which in sid pid; do
+    if [ "$which" = sid ]; then hostile="x'; echo injected > PWNED; echo '"; run_fence "$1" 6001 "$hostile"
+    else hostile="6001'; echo injected > PWNED; echo '"; run_fence "$1" "$hostile" "$SID_L"; fi
+    [ ! -e "$DX/cwd/PWNED" ] || { echo "shell injection: the shell ran text from the $which placeholder" >&2; failed=1; }
+    [ ! -e "$DX/out/argv" ] || { echo "stub ran for a hostile $which" >&2; failed=1; }
+    { [ "$F_RC" != 0 ] && grep -qE 'not a (thread uuid|process id)' "$DX/wrap.err"; } || { echo "hostile $which not refused as such (rc=$F_RC): $(cat "$DX/wrap.err")" >&2; failed=1; }
+  done
   return $failed
 }
 if [ -n "$DBLOCK" ] && why=$(wrapper_checks "$DBLOCK" 2>&1 >/dev/null); then
   ok "Codex Deliver fence end to end: terminator, byte-exact message, no injected command, no temp file left"
 else bad "Codex Deliver fence end to end" "${why:-no bash fence under ## Deliver}"; fi
-fence_control() { # fence_control <label> <expected reason> <python-mutation: t -> t>
-  local mut why
+if [ -n "$DBLOCK" ] && why=$(hostile_checks "$DBLOCK" 2>&1 >/dev/null); then
+  ok "Codex Deliver fence: a hostile PID or SID (quote, then a command) executes nothing, reaches no stub, and is refused"
+else bad "Codex Deliver fence hostile PID/SID" "${why:-no bash fence under ## Deliver}"; fi
+fence_control() { # fence_control <label> <expected reason> <python-mutation: t -> t> [checker]
+  local mut why chk=${4:-wrapper_checks}
   mut=$(python3 -c 'import sys;t=sys.stdin.read();exec(sys.argv[1]);sys.stdout.write(t)' "$3" <<<"$DBLOCK")
   if [ "$mut" = "$DBLOCK" ]; then bad "fence control $1" "mutation did not change the fence"; return; fi
-  if why=$(wrapper_checks "$mut" 2>&1 >/dev/null); then bad "fence control $1" "mutated fence still passed"
+  if why=$("$chk" "$mut" 2>&1 >/dev/null); then bad "fence control $1" "mutated fence still passed"
   elif grep -qF -- "$2" <<<"$why"; then ok "fence control $1 is caught ($2)"
   else bad "fence control $1" "failed, but not for '$2': $why"; fi
 }
 fence_control fixed_terminator "heredoc injection" 't = t.replace("MSG_<16 hex digits>", "MSG")'
-fence_control no_trap          "temp message left" 't = t.replace("trap \x27rm -f \"$msg\"\x27 EXIT\n", "")'
+fence_control no_trap          "temp message left" 't = t.replace("trap \x27rm -f \"$msg\" \"$args\"\x27 EXIT\n", "")'
+fence_control quoted_placeholders "shell injection" 't = t.replace("python3 - \"$args\" \"$msg\" <<\x27PY\x27", "python3 - \x27<PID>\x27 \x27<SID>\x27 \"$msg\" <<\x27PY\x27").replace("with open(sys.argv[1]) as f:\n    pid, sid = (f.read().split(\"\\n\") + [\"\", \"\"])[:2]\nmsgfile = sys.argv[2]", "pid, sid, msgfile = sys.argv[1:4]")' hostile_checks
 
 echo "-- peer-codex-enumerate: $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]

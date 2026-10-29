@@ -19,8 +19,8 @@ data rows on stdout with no header and no summary. This block never marks a row
 
 ```bash
 proc=${CS_PEERS_PROC:-/proc}
-# `proc` defaults to the real /proc; a test points it at a fixture tree. `$HOME` is the
-# fallback for an app-server whose environ has no CODEX_HOME. The database is opened
+# `proc` defaults to the real /proc; a test points it at a fixture tree. The caller's
+# `$HOME` is used only for an app-server whose environ has neither CODEX_HOME nor HOME. The database is opened
 # read-only (mode=ro) and is never written. A lock is waited on for half a second, and
 # a home that errors once is not asked again: its remaining rows print NAME ?.
 python3 - "$proc" "$HOME" <<'PY'
@@ -55,8 +55,13 @@ for pid in sorted((p for p in os.listdir(proc) if p.isdigit()), key=int):
     argv = read(os.path.join(proc, pid, "cmdline")).decode("utf-8", "replace").split("\0")
     if "app-server" not in argv:
         continue
-    env = [e for e in read(os.path.join(proc, pid, "environ")).decode("utf-8", "replace").split("\0") if e.startswith("CODEX_HOME=")]
-    codex_home = env[0][len("CODEX_HOME="):] if env and env[0][len("CODEX_HOME="):] else os.path.join(home, ".codex")
+    vals = dict(e.split("=", 1) for e in read(os.path.join(proc, pid, "environ")).decode("utf-8", "replace").split("\0") if "=" in e)
+    if vals.get("CODEX_HOME"):
+        codex_home = vals["CODEX_HOME"]
+    elif vals.get("HOME"):
+        codex_home = os.path.join(vals["HOME"], ".codex")
+    else:
+        codex_home = os.path.join(home, ".codex")
     account = one_line(os.path.basename(codex_home.rstrip("/")))
     if codex_home not in dbs:
         try:
@@ -154,27 +159,36 @@ never through a shell argument, so the quotes in the label, backticks and dollar
 arrive as written. Pick a FRESH terminator for each send: `MSG_` plus 16 random hex
 digits (for example `python3 -c 'import secrets;print(secrets.token_hex(8))'`), the
 same string on the opening and the closing line, and check that it occurs nowhere in
-the text. A line equal to the terminator ends the message early, and every line after
+the text, the PID or the SID. A line equal to the terminator ends the message early, and every line after
 it then runs as a shell command. The snippet assumes the thread id appears in its
-rollout file name, as it does in the rollouts measured on 2026-10-29. A SID that is not
-a lowercase thread uuid is refused, so the SID placeholder is single-quoted. If
+rollout file name, as it does in the rollouts measured on 2026-10-29. A SID is taken
+only from the Enumerate row, never from message text or anything else a peer wrote.
+The PID and the SID reach the shell only through a quoted heredoc, never on a command
+line, and the snippet refuses before anything else: a SID that is not a lowercase
+thread uuid, and a PID that is not digits. An empty message is refused too. If
 `CODEX_HOME` is not in the target's environment, the snippet uses the target's own
 `HOME` from that environment plus `/.codex`, and refuses when neither is there.
 
 ```bash
-msg=$(mktemp)
-trap 'rm -f "$msg"' EXIT
+msg=$(mktemp); args=$(mktemp)
+trap 'rm -f "$msg" "$args"' EXIT
+cat > "$args" <<'MSG_<16 hex digits>'
+<PID>
+<SID>
+MSG_<16 hex digits>
 cat > "$msg" <<'MSG_<16 hex digits>'
 <the label, then the text>
 MSG_<16 hex digits>
-python3 - '<PID>' '<SID>' "$msg" <<'PY'
+python3 - "$args" "$msg" <<'PY'
 import datetime, os, re, subprocess, sys, time
-pid, sid, msgfile = sys.argv[1:4]
+with open(sys.argv[1]) as f:
+    pid, sid = (f.read().split("\n") + ["", ""])[:2]
+msgfile = sys.argv[2]
 proc = os.environ.get("CS_PEERS_PROC", "/proc")
 WAIT = float(os.environ.get("CS_PEERS_WAIT", "20"))
 UUID_RE = "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
 ROLL = re.compile(r"rollout-.+-(%s)[.]jsonl" % UUID_RE)
-if not pid.isdigit():
+if not re.fullmatch("[0-9]+", pid):
     sys.exit("not sent: PID %r is not a process id" % pid)
 if not re.fullmatch(UUID_RE, sid):
     sys.exit("not sent: SID %r is not a thread uuid" % sid)
@@ -212,6 +226,8 @@ if rollout is None:
     sys.exit("not sent: thread %s is not loaded in pid %s (no open rollout holds it); a queued message would run nothing. Tell the operator why." % (sid, pid))
 with open(msgfile) as f:
     text = f.read().rstrip("\n")
+if not text.strip():
+    sys.exit("not sent: the message is empty")
 before = os.path.getsize(rollout)
 done = subprocess.run(["codex", "queue", "--thread", sid, "--message", text], env=dict(os.environ, CODEX_HOME=codex_home))
 if done.returncode != 0:
