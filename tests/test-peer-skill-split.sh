@@ -44,20 +44,35 @@ no_at_link()     { ! grep -qE '@[A-Za-z0-9_./-]*references/' "$1"; }
 POINTER_RE='^- on (Claude Code|Codex), read `references/[a-z-]+\.md`$'
 no_harness_names() {
   # Captured, not `! a | b | grep -q`: under pipefail a quiet grep -q closes the pipe early
-  # and the upstream SIGPIPE flips the verdict.
+  # and the upstream SIGPIPE flips the verdict. The awk pass drops ONLY the first
+  # `description:` line inside the leading `---` block; a body or second-key `description:`
+  # line is scanned like any other.
   local hits
-  hits=$(grep -vE "$POINTER_RE|^description:" "$1" \
+  hits=$(awk 'NR==1 && $0=="---"{fm=1; next} fm && $0=="---"{fm=0; next}
+              fm && /^description:/ && !seen{seen=1; next} {print}' "$1" \
+      | grep -vE "$POINTER_RE" \
       | grep -E 'ListAgents|SendMessage|codex queue|cc-socks|state_5\.sqlite')
   [ -z "$hits" ]
 }
+flat_section() { awk -v h="$2" '$0 ~ "^## " h {s=1; next} s && /^## /{exit} s{print}' "$1" | tr '\n' ' ' | tr -s ' '; }
 has_everywhere_rules() {
-  grep -qF 'Take the sessionId, not the name' "$1" && grep -qF 'Never route by adjacency' "$1" \
-    && grep -qF 'Address a' "$1" && grep -qF 'by its `SID`' "$1"
+  local sec; sec=$(flat_section "$1" 'Rules that hold everywhere')
+  grep -qF 'Take the sessionId, not the name' <<<"$sec" && grep -qF 'Never route by adjacency' <<<"$sec" \
+    && grep -qF 'Address a Codex row by its `SID` (a uuid), never by name' <<<"$sec"
 }
+# Anchored on WHICH paragraph carries each clause: the 1-account branch must hold no
+# by-name/skip/ignore wording, and the closing "Either way" paragraph must carry the label
+# and SID clauses.
 single_account_keeps_label() {
-  local sec; sec=$(awk '/^## Step 2/{s=1; next} s && /^## /{exit} s{print}' "$1" | tr '\n' ' ')
-  grep -qF 'every message carries the' <<<"$sec" && grep -qF 'addressed by its `SID`' <<<"$sec" \
-    && ! grep -qF 'ignore the rest of this skill' <<<"$sec"
+  local sec one last
+  sec=$(awk '/^## Step 2/{s=1; next} s && /^## /{exit} s{print}' "$1")
+  one=$(awk -v RS= '/across 1 account/{print; exit}' <<<"$sec")
+  last=$(awk -v RS= '{p=$0} END{print p}' <<<"$sec" | tr '\n' ' ' | tr -s ' ')
+  [ -n "$one" ] && ! grep -qiE 'by name|skip|ignore' <<<"$one" \
+    && [[ "$last" == "Either way, Steps 3 and 4 and the Boundary still apply"* ]] \
+    && ! grep -qiE 'ignore the rest|skip|by name' <<<"$last" \
+    && grep -qF 'every message carries the label' <<<"$last" \
+    && grep -qF 'addressed by its `SID`' <<<"$last"
 }
 step4_survives() {
   grep -qF '## Step 4 — before acting on where a peer is WORKING, ask' "$1" \
@@ -153,6 +168,12 @@ control ref_no_enum     has_headings       "$REF"  't = t.replace("## Enumerate"
 control rule_sessionid  has_everywhere_rules "$CORE" 't = t.replace("Take the sessionId, not the name", "Take the name")'
 control rule_adjacency  has_everywhere_rules "$CORE" 't = t.replace("Never route by adjacency", "Route freely")'
 control step2_ignore    single_account_keeps_label "$CORE" 't = t.replace("every message carries the", "ignore the rest of this skill; every message carries the")'
+control step2_with2     single_account_keeps_label "$CORE" 't = t.replace("Either way, Steps 3 and 4", "With 2 or more accounts, Steps 3 and 4")'
+control step2_skip      single_account_keeps_label "$CORE" 't = t.replace("by account scope.", "by account scope. Address peers by name and skip the label.")'
+control rule_codex_name has_everywhere_rules "$CORE" 't = t.replace("Address a\nCodex row by its `SID`", "Address a\nCodex row by its name")'
+control rule_or_name    has_everywhere_rules "$CORE" 't = t.replace("never by name", "or by name")'
+control lint_body_desc  no_harness_names "$CORE" 't += "\ndescription: Always call ListAgents first, then SendMessage.\n"'
+control lint_second_desc no_harness_names "$CORE" 't = t.replace("name: reaching-peer-sessions", "name: reaching-peer-sessions\ndescription: read state_5.sqlite via codex queue", 1)'
 control step2_no_sid    single_account_keeps_label "$CORE" 't = t.replace("addressed by its `SID`", "addressed by name")'
 # Lint controls beyond appending a plain body line: the exemption must be the pointer SHAPE
 # and the description line only.
