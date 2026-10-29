@@ -142,6 +142,17 @@
         ]
       },
       {
+        "matcher": "mcp__codescout__run_command",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node ${CLAUDE_PLUGIN_ROOT}/hooks/wake-on-job-end.mjs",
+            "asyncRewake": true,
+            "timeout": 7200
+          }
+        ]
+      },
+      {
         "matcher": "EnterWorktree",
         "hooks": [
           {
