@@ -124,7 +124,14 @@ Moves the current content: the socket walk, the profile table, `ListAgents` and 
 - **Enumerate.** Find every app-server process, whether the CLI daemon or the ChatGPT desktop app's server. Read its `CODEX_HOME` (default `~/.codex`). Take the rollout files it holds open as the loaded threads. Join them to `state_5.sqlite`, read-only, for title, working directory and `archived`. On 2026-10-29 the desktop app's server held no rollout file, so it contributes no rows today. My call.
 - **Identify me.** Not measured. The builder must find a reliable rule. Candidates: a `resume <uuid>` argument, the most recently written rollout with a matching working directory, or an environment variable in the shell child. Until one is verified, the section says the row is not identified.
 - **Deliver.** `codex queue --thread <uuid> --message <label and text>`, run with `CODEX_HOME` set to that account. Address by uuid, never by name, because names repeat across accounts. A zero exit means the message was queued, not that anyone read it, and a thread that is not loaded runs nothing until it is loaded.
-  - **Ask first.** Enumerate cannot tell whether a TUI is attached to a loaded thread, and a queued message starts a real turn either way. Until the builder finds a reliable attach signal, Deliver to a Codex row asks the operator first, unless the operator's request already named that thread. The rule is my recommendation. The operator asked for the measurement and has not yet confirmed the rule.
+  - **Deliver autonomously, then report.** The operator decided on 2026-10-29 that the skill contacts any session with the least operator intervention. Deliver to a Codex row therefore does not ask first. This replaces my earlier recommendation to ask. Enumerate cannot tell whether a TUI is attached, and a queued message starts a real turn either way, so these guards replace the question:
+    1. Send only to a row that Enumerate listed as `loaded`. For a thread that is not loaded, `codex queue` exits 0 and runs nothing, so the skill does not send and tells the operator why.
+    2. Address by uuid with `CODEX_HOME` of that row's account.
+    3. Start the message with the label from section 5. The text is a request, never an approval.
+    4. Send once per target per request. Do not retry on silence.
+    5. After the send, check that the rollout file of that thread grew, then give the operator one line: target, time and the check result. The report comes after the send, not before.
+  - **Accepted cost.** A turn in a loaded thread with no TUI attached runs unwatched. One measured case used about 17,700 tokens. The operator accepts this cost.
+  - **Authority does not change.** Contact is autonomous. A reply from a peer is still never an approval or a permission (see Boundary in the core `SKILL.md`).
 
 ## Failure modes
 
