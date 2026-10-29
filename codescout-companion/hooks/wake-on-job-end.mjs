@@ -11,7 +11,7 @@
 // is only ever a deliberate wake-up.
 //
 // Spec (codescout repo): docs/superpowers/specs/2026-10-29-background-job-wake-design.md
-import { readFileSync, writeFileSync, unlinkSync, mkdirSync } from 'node:fs';
+import { readFileSync, writeFileSync, unlinkSync, mkdirSync, existsSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -204,6 +204,9 @@ export function rearmTarget(input) {
     if (!record) return null;
     const rec = readRecord(record);
     if (!rec || rec.state !== 'running') return null;
+    // The end was already announced, or the server that served this handle is gone
+    // (its record stays 'running' for good): a read now cannot refer to this job.
+    if (existsSync(`${record}.delivered`) || !pidAlive(rec.server_pid)) return null;
     let owner = null;
     try {
       owner = Number(readFileSync(`${record}.watch`, 'utf8').trim());

@@ -203,6 +203,24 @@ run_hook c15 "$(mkinput readbg "$R")" "$PD"
 expect "read of a finished job does not arm" 0 ""
 [ $((SECONDS-START)) -le 2 ] && pass "finished job: no wait" || fail "finished job: no wait" "took $((SECONDS-START))s"
 
+# 15a. an exited record with NO .delivered: the state check alone must stop the re-arm
+# (without it the hook would arm, find 'exited', claim the delivery and exit 2)
+R="$TMP/r15a.json"; mkrec "$R" exited "$$" null; mkmap "$R"; rm -f "$R.watch" "$R.delivered"
+START=$SECONDS
+run_hook c15a "$(mkinput readbg "$R")" "$PD"
+expect "exited record without .delivered does not arm" 0 ""
+[ $((SECONDS-START)) -le 2 ] && pass "exited, undelivered: no wait" || fail "exited, undelivered: no wait" "took $((SECONDS-START))s"
+
+# 15b. final wake-up delivered for a dead server: the record stays 'running' for good
+R="$TMP/r15b.json"; sleep 10 & JOB=$!
+mkrec "$R" running "$DEAD" "$JOB"; mkmap "$R"; printf '%s' "$$" >"$R.delivered"; rm -f "$R.watch"
+START=$SECONDS
+run_hook c15b "$(mkinput readbg "$R")" "$PD"
+ELAPSED=$((SECONDS-START))
+kill "$JOB" 2>/dev/null; wait "$JOB" 2>/dev/null
+expect "delivered job of a dead server does not arm" 0 ""
+[ "$ELAPSED" -le 2 ] && pass "dead server, delivered: no wait (${ELAPSED}s)" || fail "dead server, delivered: no wait" "took ${ELAPSED}s"
+[ ! -e "$R.watch" ] && pass "dead server, delivered: no watch marker" || fail "dead server, delivered" "$R.watch exists"
 # 16. read while a watcher is alive does not arm
 R="$TMP/r16.json"; mkrec "$R" running "$$" null; mkmap "$R"; printf '%s' "$$" >"$R.watch"
 START=$SECONDS
