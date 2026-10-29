@@ -257,25 +257,35 @@ fi
 # 12. THE DELIVER SECTION NAMES ITS MEASURED VERSIONS AND THE REFUSAL RULE. Codex delivery
 #     writes a wire format measured on specific Claude Code versions; sending it to an
 #     unmeasured one is a guess. Pinned as SHAPE, not wording: the `## Deliver` section
-#     must contain the measured version `2.1.312` and a refuse-and-report statement
-#     (the words `refuse` and `report`). Rewording is free; deleting either is caught.
+#     must carry (a) a `Measured versions:` line that holds `2.1.312`, and (b) the RULE
+#     sentence: `not in the measured list` followed, in the same sentence, by refuse and
+#     report. Anchored on the rule itself, NOT on bare tokens: `refused`, `reports` and
+#     `2.1.312` also occur elsewhere in the section (decoys), so a token check survives
+#     deleting the rule. The section is flattened to one line first, because the prose
+#     is hard-wrapped and the sentence spans lines. Rewording is free; deleting either
+#     the line or the sentence is caught.
 deliver_pins_versions() {
-  local sec; sec=$(awk '/^## Deliver/{s=1; next} s && /^## /{exit} s{print}' "$1")
-  grep -qF '2.1.312' <<<"$sec" && grep -qi 'refuse' <<<"$sec" && grep -qi 'report' <<<"$sec"
+  local sec; sec=$(awk '/^## Deliver/{s=1; next} s && /^## /{exit} s{print}' "$1" | tr '\n' ' ' | tr -s ' ')
+  grep -qE 'Measured versions:\**[[:space:]]*2\.1\.312' <<<"$sec" \
+    && grep -qiE 'not in the measured list[^.]*refuse[^.]*report' <<<"$sec"
 }
 if deliver_pins_versions "$SKILL"; then
   pass "Deliver names the measured version list and the refuse-and-report rule"
 else
   fail "Deliver names the measured version list and the refuse-and-report rule" "section missing, no 2.1.312, or no refuse/report"
 fi
-# 12b. Control: a copy with the version list removed from the section must be caught.
-sed 's/2\.1\.312/X/g' "$SKILL" > "$TMP/no-version.md"
+# 12b. Controls: each deletes EXACTLY one thing (not every token) and must be caught.
+#     Delete only the `**Measured versions: 2.1.312.**` label:
+python3 -c 'import re,sys;t=open(sys.argv[1]).read();open(sys.argv[2],"w").write(re.sub(r"\*\*Measured versions: 2\.1\.312\.\*\* *","",t))' "$SKILL" "$TMP/no-version.md"
+cmp -s "$SKILL" "$TMP/no-version.md" && fail "control no-version actually changed the copy" "mutation did not apply"
 if deliver_pins_versions "$TMP/no-version.md"; then
   fail "control: dropping the measured version from Deliver is caught" "mutated copy still passed"
 else
   pass "control: dropping the measured version from Deliver is caught"
 fi
-sed '/^## Deliver/,$ s/[Rr]efuse/ignore/g' "$SKILL" > "$TMP/no-refuse.md"
+#     Delete only the rule sentence:
+python3 -c 'import re,sys;t=open(sys.argv[1]).read();open(sys.argv[2],"w").write(re.sub(r"If the target.s version is not in the measured\s+list.*?stop\. *","",t,flags=re.S))' "$SKILL" "$TMP/no-refuse.md"
+cmp -s "$SKILL" "$TMP/no-refuse.md" && fail "control no-refuse actually changed the copy" "mutation did not apply"
 if deliver_pins_versions "$TMP/no-refuse.md"; then
   fail "control: dropping the refuse rule from Deliver is caught" "mutated copy still passed"
 else
