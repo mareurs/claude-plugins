@@ -16,6 +16,12 @@ import { homedir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { readInput, stateHome } from './lib.mjs';
+import { loadWakeConfig } from '../background-wake/config.mjs';
+import { createPlatform } from '../background-wake/platform-node.mjs';
+import { createReceiptStore } from '../background-wake/receipt-store.mjs';
+import { runWatch } from '../background-wake/engine.mjs';
+import { normalizeClaudeWatch,createClaudeAdapter } from '../background-wake/adapters/claude-code.mjs';
+import { selectEngine } from '../background-wake/intake.mjs';
 
 const RECORD_GRACE_MS = 5000; // the record may lag the spawn response by a few ms
 
@@ -240,27 +246,32 @@ export function rearmTarget(input) {
 
 
 async function main() {
-  // Guard 1: a host that does not set CLAUDE_PROJECT_DIR for plugin hooks never blocks (verify in Task 5).
   if (!process.env.CLAUDE_PROJECT_DIR) process.exit(0);
-  const input = readInput();
-  if (!input) process.exit(0);
-  // Guard 2: subagent jobs are out of scope (verify in Task 5).
-  if (input.agent_id) process.exit(0);
-  const spawn = spawnOf(input);
-  const target = spawn || rearmTarget(input);
-  if (!target) process.exit(0);
-  if (spawn) writeMap(input.session_id, spawn.handle, spawn.record);
-  const num = (v, d) => (Number.isFinite(Number(v)) && Number(v) > 0 ? Number(v) : d);
-  const result = await watch({
-    ...target,
-    deadlineSecs: deadlineSecsOf(process.env.CODESCOUT_WAKE_DEADLINE_SECS),
-    pollMs: num(process.env.CODESCOUT_WAKE_POLL_MS, 1000),
-  });
-  if (result.exit === 2 && result.message) {
-    process.stderr.write(`${result.message}\n`, () => process.exit(2));
-  } else {
-    process.exit(0);
+  const input=readInput();
+  if(!input||input.agent_id)process.exit(0);
+  const profileRoot=resolve(process.env.CLAUDE_CONFIG_DIR||join(homedir(),'.claude'));
+  const environmentId=process.env.CODESCOUT_WAKE_ENVIRONMENT_ID||process.platform;
+  if(existsSync(join(profileRoot,'codescout-wake.json'))){
+    const config=await loadWakeConfig({profileRoot,environmentId});
+    if(config.engine==='v1'){
+      const platform=createPlatform(config);
+      const request=await normalizeClaudeWatch(input,config,platform);
+      if(!request)process.exit(0);
+      let emitted=false;
+      const adapter=createClaudeAdapter(config,{emit:(text)=>new Promise((done)=>process.stderr.write(text+'\n',()=>{emitted=true;done();}))});
+      const store=createReceiptStore({platform,clock:{now:()=>Date.now()}});
+      await runWatch(request,{store,platform,adapter,policy:{deadlineMs:deadlineSecsOf(process.env.CODESCOUT_WAKE_DEADLINE_SECS)*1000,pollMs:Number(process.env.CODESCOUT_WAKE_POLL_MS)||1000}});
+      process.exit(emitted?2:0);
+    }
   }
+  const spawn=spawnOf(input);
+  const target=spawn||rearmTarget(input);
+  if(!target||!await selectEngine(target.record,'legacy'))process.exit(0);
+  if(spawn)writeMap(input.session_id,spawn.handle,spawn.record);
+  const num=(v,d)=>(Number.isFinite(Number(v))&&Number(v)>0?Number(v):d);
+  const result=await watch({...target,deadlineSecs:deadlineSecsOf(process.env.CODESCOUT_WAKE_DEADLINE_SECS),pollMs:num(process.env.CODESCOUT_WAKE_POLL_MS,1000)});
+  if(result.exit===2&&result.message)process.stderr.write(result.message+'\n',()=>process.exit(2));
+  else process.exit(0);
 }
 
 // Run only as the entry point, not when imported by tests or other hooks.
