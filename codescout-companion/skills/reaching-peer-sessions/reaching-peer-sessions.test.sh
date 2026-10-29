@@ -7,8 +7,9 @@
 # LAST `"name":` on the line, and `formerNames` is a list of OBJECTS each
 # carrying one -- so a renamed session prints a name it no longer has. Address
 # a peer by that name and `SendMessage` answers `No agent named 'X' is
-# reachable`, which is byte-identical to a cross-profile refusal, and Step 3
-# tells you to answer that by switching to the `uds:` form -- which works. The
+# reachable`, which is byte-identical to a cross-profile refusal, and the core's
+# "Two readings" tell you to answer that by switching to the `uds:` form of
+# references/claude-code.md Deliver -- which works. The
 # skill's own correct advice for a DIFFERENT cause consumes the evidence.
 # Measured 2026-09-02: 21 live registry files, 1 with a non-empty `formerNames`,
 # and exactly that one mismatched. The population grows monotonically, because
@@ -308,7 +309,7 @@ else
   pass "control: dropping the measured version from Deliver is caught"
 fi
 #     Delete only the rule sentence:
-python3 -c 'import re,sys;t=open(sys.argv[1]).read();open(sys.argv[2],"w").write(re.sub(r"If the target.s version is not in the measured\s+list.*?stop\. *","",t,flags=re.S))' "$SKILL" "$TMP/no-refuse.md"
+python3 -c 'import re,sys;t=open(sys.argv[1]).read();open(sys.argv[2],"w").write(re.sub(r"If the target.s version is not in\s+the\s+measured\s+list.*?stop\. *","",t,flags=re.S))' "$SKILL" "$TMP/no-refuse.md"
 cmp -s "$SKILL" "$TMP/no-refuse.md" && fail "control no-refuse actually changed the copy" "mutation did not apply"
 if deliver_pins_versions "$TMP/no-refuse.md"; then
   fail "control: dropping the refuse rule from Deliver is caught" "mutated copy still passed"
@@ -374,12 +375,16 @@ else
   pass "control: codex-branch arithmetic mutation is caught"
 fi
 
-# 17. THE CODEX-CALLER POST TO A CLAUDE SOCKET (Deliver, `python` fence in references/claude-code.md),
-#     run for real against a throwaway AF_UNIX listener in a short mktemp path: exactly one
-#     newline-terminated JSON object with the six keys arrives. Never a real /run/user socket.
-SNIP=$(awk '/^## Deliver/{s=1} s && /^```python/{b=1; next} b && /^```/{exit} b{print}' "$SKILL")
+# 17. THE CODEX-CALLER POST TO A CLAUDE SOCKET (the bash fence under ## Deliver of
+#     references/claude-code.md), run for real: a fixture /proc tree and registry reached
+#     through CS_PEERS_PROC / CS_PEERS_SOCKS, and a throwaway AF_UNIX listener in a short
+#     mktemp path. Never a real /run/user socket. An allowed version posts exactly one
+#     newline-terminated JSON object with the six keys; an unmeasured version, a missing
+#     version source and a `uds:` sender each send nothing and exit non-zero.
+CBLOCK=$(awk '/^## Deliver/{s=1} s && /^```bash/{b=1; next} b && /^```/{exit} b{print}' "$SKILL")
+SNIP=$(awk '/<<.PY.$/{b=1; next} b && /^PY$/{exit} b{print}' <<<"$CBLOCK")
 LISTEN='import socket,sys
-s=socket.socket(socket.AF_UNIX); s.bind(sys.argv[1]); s.listen(1); s.settimeout(3)
+s=socket.socket(socket.AF_UNIX); s.bind(sys.argv[1]); s.listen(1); s.settimeout(1.5)
 c,_=s.accept(); c.settimeout(3); b=b""
 try:
     while True:
@@ -397,58 +402,136 @@ assert m["msgV"] == 1 and m["type"] == "user" and m["priority"] == "next"
 uuid.UUID(m["msg_id"])
 assert m["message"]["role"] == "user" and set(m["message"]) == {"role", "content"}
 c = m["message"]["content"]
-want = "<cross-session-message from=\"codex-4242\" from-name=\"codex/acctA ###pe### pid 4242\" from-mode=\"prompting\">".replace("###", chr(39))
+want = "<cross-session-message from=\"codex-4242\" from-name=\"Codex effort branch\" from-mode=\"prompting\">"
 assert c.startswith(want) and c.endswith("</cross-session-message>"), c
-assert "hello" in c and not m["from"].startswith("uds:") and m["from"] == "codex-4242"'
-post_ok() { # post_ok <snippet-text>: 0 iff the listener received one well-formed message
-  local d; d=$(mktemp -d -p /tmp); local sock="$d/s.sock" got="$d/got" i rc
-  python3 -c "$LISTEN" "$sock" "$got" & local lp=$!
+assert "cost" in c and not m["from"].startswith("uds:") and m["from"] == "codex-4242"'
+# post_case <snippet> <sender> <mode: reg:<version> | exe:<name>>: sets POST_RC, POST_ERR, POST_N,
+# and leaves the received bytes in $PD/got until the next call.
+post_case() {
+  PD=$(mktemp -d -p /tmp); local sock="$PD/4242.sock" i
+  mkdir -p "$PD/proc/4242" "$PD/cfg/sessions"
+  printf 'CLAUDE_CONFIG_DIR=%s\0' "$PD/cfg" > "$PD/proc/4242/environ"
+  case "$3" in
+    reg:*) printf '{"pid":4242,"version":"%s","name":"x"}' "${3#reg:}" > "$PD/cfg/sessions/4242.json" ;;
+    exe:*) ln -s "/x/${3#exe:}" "$PD/proc/4242/exe" ;;
+  esac
+  printf '%s\n' '[from codex/acctA "Codex effort branch" pid ?, 2026-10-29T12:00:00Z] cost $1 `id` "q" and more text' > "$PD/msg"
+  python3 -c "$LISTEN" "$sock" "$PD/got" 2>/dev/null & local lp=$!
   for i in $(seq 1 50); do [ -S "$sock" ] && break; sleep 0.1; done
-  printf '%s\n' "$1" | python3 - "$sock" codex-4242 'codex/acctA "pe" pid 4242' 'codex/acctA "pe" pid 4242, 2026-10-29T12:00:00Z hello' >/dev/null 2>&1
+  POST_ERR=$(CS_PEERS_PROC="$PD/proc" CS_PEERS_SOCKS="$PD" python3 -I - 4242 "$2" "$PD/msg" <<<"$1" 2>&1 >/dev/null); POST_RC=$?
   wait "$lp" 2>/dev/null
-  python3 -c "$CHECK_POST" "$got" 2>/dev/null; rc=$?
-  rm -r "$d"; return $rc
+  POST_N=$(wc -c <"$PD/got" 2>/dev/null); POST_N=${POST_N:-0}
 }
-if [ -n "$SNIP" ] && post_ok "$SNIP"; then
-  pass "Codex-caller post: one newline-terminated JSON line with the six keys reaches the socket"
+post_clean() { rm -r "$PD" 2>/dev/null; }
+snippet_checks() { # snippet_checks <snippet-text>: echoes each failing reason on stderr
+  local s=$1 failed=0
+  post_case "$s" codex-4242 reg:2.1.312
+  if [ "$POST_RC" = 0 ] && python3 -c "$CHECK_POST" "$PD/got" 2>/dev/null; then :; else echo "post wrong (rc=$POST_RC): $POST_ERR" >&2; failed=1; fi
+  post_clean
+  post_case "$s" codex-4242 "exe:2.1.312 (deleted)"
+  { [ "$POST_RC" = 0 ] && [ "$POST_N" -gt 0 ]; } || { echo "exe fallback did not post (rc=$POST_RC): $POST_ERR" >&2; failed=1; }
+  post_clean
+  post_case "$s" codex-4242 reg:2.1.310
+  { [ "$POST_RC" != 0 ] && [ "$POST_N" -eq 0 ] && grep -qF 2.1.310 <<<"$POST_ERR"; } || { echo "unmeasured version posted (rc=$POST_RC n=$POST_N): $POST_ERR" >&2; failed=1; }
+  post_clean
+  post_case "$s" codex-4242 exe:claude
+  { [ "$POST_RC" != 0 ] && [ "$POST_N" -eq 0 ]; } || { echo "unmeasured exe version posted (rc=$POST_RC)" >&2; failed=1; }
+  post_clean
+  post_case "$s" "uds:/run/user/1/cc-socks/9.sock" reg:2.1.312
+  { [ "$POST_RC" != 0 ] && [ "$POST_N" -eq 0 ]; } || { echo "uds sender posted (rc=$POST_RC)" >&2; failed=1; }
+  post_clean
+  return $failed
+}
+if [ -z "$SNIP" ]; then
+  fail "Codex-caller post" "no python program between <<'PY' and PY under ## Deliver"; SNIP='raise SystemExit("no snippet")'
+elif why=$(snippet_checks "$SNIP" 2>&1 >/dev/null); then
+  pass "Codex-caller post: one JSON line to the socket for a measured version; unmeasured version and uds sender refused"
 else
-  fail "Codex-caller post" "no python fence under ## Deliver, or the listener did not receive one well-formed message"
+  fail "Codex-caller post" "$why"
 fi
-snip_control() { # snip_control <label> <python-mutation: t -> t>
-  local mut
-  mut=$(python3 -c 'import sys;t=sys.stdin.read();exec(sys.argv[1]);sys.stdout.write(t)' "$2" <<<"$SNIP")
+snip_control() { # snip_control <label> <expected reason> <python-mutation: t -> t>
+  local mut why
+  mut=$(python3 -c 'import sys;t=sys.stdin.read();exec(sys.argv[1]);sys.stdout.write(t)' "$3" <<<"$SNIP")
   if [ "$mut" = "$SNIP" ]; then fail "control $1" "mutation did not change the snippet"; return; fi
-  if post_ok "$mut"; then fail "control $1" "broken snippet still passed"; else pass "control $1 is caught"; fi
+  if why=$(snippet_checks "$mut" 2>&1 >/dev/null); then fail "control $1" "broken snippet still passed"
+  elif grep -qF -- "$2" <<<"$why"; then pass "control $1 is caught ($2)"
+  else fail "control $1" "failed, but not for '$2': $why"; fi
 }
-snip_control no_newline     't = t.replace(r"""json.dumps(msg) + "\n")""", r"""json.dumps(msg))""")'
-snip_control wrong_priority 't = t.replace(r"""priority": "next""", r"""priority": "later""")'
-snip_control wrong_key      't = t.replace("msgV", "msgW")'
-snip_control no_send        't = t.replace("s.sendall(", "(")'
+snip_control gate_removed   "unmeasured version posted" 't = t.replace("if version not in MEASURED:", "if False:")'
+snip_control exe_fallback_removed "exe fallback did not post" 't = t.replace("if not version:", "if False:")'
+snip_control uds_check      "uds sender posted" 't = t.replace("sender.startswith(\"uds:\")", "False")'
+snip_control no_newline     "post wrong" 't = t.replace(r"""json.dumps(msg) + "\n")""", r"""json.dumps(msg))""")'
+snip_control wrong_priority "post wrong" 't = t.replace(r"""priority": "next""", r"""priority": "later""")'
+snip_control wrong_key      "post wrong" 't = t.replace("msgV", "msgW")'
+snip_control no_send        "post wrong" 't = t.replace("s.sendall(", "(")'
 
-
-# 18. A `uds:`-prefixed sender is refused by the snippet and nothing reaches the socket.
-reject_uds() { # reject_uds <snippet-text>: 0 iff the post exits non-zero and sends no byte
-  local d; d=$(mktemp -d -p /tmp); local sock="$d/s.sock" got="$d/got" i rc n
-  python3 -c "$LISTEN" "$sock" "$got" & local lp=$!
-  for i in $(seq 1 50); do [ -S "$sock" ] && break; sleep 0.1; done
-  printf '%s\n' "$1" | python3 - "$sock" "uds:/run/user/1/cc-socks/9.sock" name text >/dev/null 2>&1; rc=$?
-  wait "$lp" 2>/dev/null
-  n=$(wc -c <"$got" 2>/dev/null); n=${n:-0}
-  rm -r "$d"; [ "$rc" -ne 0 ] && [ "$n" -eq 0 ]
+# 17b. THE VERSION LIST IN PROSE AND IN CODE AGREE. `Measured versions:` (prose) and the
+#      snippet's MEASURED set must hold the same versions; editing one alone must go red.
+versions_agree() {
+  local prose code
+  prose=$(awk '/^## Deliver/{s=1; next} s && /^## /{exit} s{print}' "$1" | grep -oE 'Measured versions:[^*]*' | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | sort -u | tr '\n' ' ')
+  code=$(grep -oE 'MEASURED = \{[^}]*\}' "$1" | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | sort -u | tr '\n' ' ')
+  [ -n "$prose" ] && [ "$prose" = "$code" ]
 }
-if [ -n "$SNIP" ] && reject_uds "$SNIP"; then
-  pass "Codex-caller post: a uds:-prefixed sender is refused and nothing is sent"
-else
-  fail "Codex-caller post: a uds:-prefixed sender is refused" "the snippet posted, or exited 0"
-fi
-UDS_MUT=${SNIP/'sender.startswith("uds:")'/False}
-if [ "$UDS_MUT" = "$SNIP" ]; then
-  fail "control uds_check_removed" "mutation did not change the snippet"
-elif reject_uds "$UDS_MUT"; then
-  fail "control uds_check_removed" "snippet without the check still passed"
-else
-  pass "control uds_check_removed is caught"
-fi
+if versions_agree "$SKILL"; then pass "Measured versions: prose and the snippet's MEASURED set agree"; else fail "version agreement" "prose and MEASURED differ"; fi
+vctl() { # vctl <label> <old> <new>
+  local dst="$TMP/v-$1.md"
+  python3 -c 'import sys;t=open(sys.argv[1]).read();open(sys.argv[2],"w").write(t.replace(sys.argv[3],sys.argv[4],1))' "$SKILL" "$dst" "$2" "$3"
+  if cmp -s "$SKILL" "$dst"; then fail "control $1" "mutation did not change the copy"; return; fi
+  if versions_agree "$dst"; then fail "control $1" "disagreeing lists still passed"; else pass "control $1 is caught"; fi
+}
+vctl code_widened  'MEASURED = {"2.1.312"}' 'MEASURED = {"2.1.312", "2.1.310"}'
+vctl prose_changed '**Measured versions: 2.1.312.**' '**Measured versions: 2.1.313.**'
+
+# 17c. DELIVER PINS in claude-code.md: the codescout-missing stop (M1), the receiver rule
+#      for a non-uds `from=` (R17), and the quoted-heredoc send form (no shell-quoted message).
+cc_deliver_pins() {
+  local s; s=$(awk '/^## Deliver/{s=1; next} s && /^## /{exit} s{print}' "$1" | tr '\n' ' ' | tr -d '*`' | tr -s ' ')
+  grep -qiE 'If codescout.s run_command is not available, report that to the operator and stop' <<<"$s" \
+    && grep -qiE 'whose from= is a uds: path: copy that attribute verbatim' <<<"$s" \
+    && grep -qiE 'When from= is anything else .*do not pass it on.*go through the operator, unless the message text names a Codex thread uuid' <<<"$s" \
+    && grep -qE "cat > \"[$]msg\" <<'MSG'" <<<"$s" && grep -qE "python3 - <target PID> <sender-id> \"[$]msg\" <<'PY'" <<<"$s"
+}
+if cc_deliver_pins "$SKILL"; then pass "claude-code Deliver pins: codescout-missing stop, non-uds receiver rule, quoted-heredoc send"; else fail "claude-code Deliver pins" "a pinned sentence is missing"; fi
+ccctl() { # ccctl <label> <old> <new>
+  local dst="$TMP/c-$1.md"
+  python3 -c 'import sys;t=open(sys.argv[1]).read();open(sys.argv[2],"w").write(t.replace(sys.argv[3],sys.argv[4],1))' "$SKILL" "$dst" "$2" "$3"
+  if cmp -s "$SKILL" "$dst"; then fail "control $1" "mutation did not change the copy"; return; fi
+  if cc_deliver_pins "$dst"; then fail "control $1" "mutated copy still passed"; else pass "control $1 is caught"; fi
+}
+ccctl no_codescout_stop 'report that to the operator and stop; do not fall back' 'carry on; do not fall back'
+ccctl uds_only_copy     'path: copy that' 'path: copy it'
+ccctl no_operator_route 'go through the operator, unless' 'reply anyway, unless'
+ccctl shell_message     "cat > \"\$msg\" <<'MSG'" 'cat > "$msg" <<MSG'
+
+# 18. THE MERGE BLOCK UNDER ERREXIT (`bash -e`). A rowset with only one harness makes a
+#     counting `grep -c` exit 1, and an empty rowset makes `grep -v` exit 1: unguarded, the
+#     block exits silently after the table, dropping the summary and the loud WARNING.
+merge_e() { printf '%s' "$1" | CS_PEERS_NOW=2026-10-29T12:00:00Z bash -e -c "$2" 2>&1; }
+merge_e_checks() { # merge_e_checks <merge-text>: echoes each failing reason on stderr
+  local m=$1 o failed=0
+  o=$(merge_e "$(printf '%s\n' "claude${TB}acctA${TB}101${TB}sid1${TB}a${TB}busy${TB}/w/a  <-- you" "claude${TB}acctA${TB}102${TB}sid2${TB}b${TB}idle${TB}/w/b")" "$m"); local rc=$?
+  { [ $rc = 0 ] && grep -qxF -- '-- 2 Claude Code sessions (1 peers plus you) and 0 loaded Codex threads, across 1 account(s), at 2026-10-29T12:00:00Z' <<<"$o"; } || { echo "claude-only: summary lost (rc=$rc)" >&2; failed=1; }
+  o=$(merge_e "$(printf '%s\n' "codex${TB}acctA${TB}201${TB}t1${TB}c${TB}loaded${TB}/w/c  <-- you")" "$m"); rc=$?
+  { [ $rc = 0 ] && grep -qxF -- '-- 0 Claude Code sessions (0 peers) and 1 loaded Codex threads, across 1 account(s), at 2026-10-29T12:00:00Z' <<<"$o"; } || { echo "codex-only: summary lost (rc=$rc)" >&2; failed=1; }
+  o=$(merge_e "$(printf '%s\n' "codex${TB}acctA${TB}201${TB}t1${TB}c${TB}loaded${TB}/w/c")" "$m"); rc=$?
+  { [ $rc = 0 ] && grep -qF 'WARNING: your own row was NOT identified' <<<"$o"; } || { echo "codex-only unmarked: WARNING lost (rc=$rc)" >&2; failed=1; }
+  o=$(merge_e "" "$m"); rc=$?
+  { [ $rc = 0 ] && grep -qF 'no live sessions found' <<<"$o" && grep -qF 'WARNING: your own row was NOT identified' <<<"$o"; } || { echo "empty: WARNING lost (rc=$rc)" >&2; failed=1; }
+  return $failed
+}
+if why=$(merge_e_checks "$MERGE" 2>&1 >/dev/null); then pass "merge under bash -e: one-harness and empty rowsets keep the summary and the WARNING"; else fail "merge under bash -e" "$why"; fi
+merge_ctl() { # merge_ctl <label> <expected reason> <old> <new>
+  local mut why="${MERGE/"$3"/"$4"}"; mut=$why
+  if [ "$mut" = "$MERGE" ]; then fail "control $1" "mutation did not change the merge block"; return; fi
+  if why=$(merge_e_checks "$mut" 2>&1 >/dev/null); then fail "control $1" "mutated merge block still passed"
+  elif grep -qF -- "$2" <<<"$why"; then pass "control $1 is caught ($2)"
+  else fail "control $1" "failed, but not for '$2': $why"; fi
+}
+merge_ctl no_true_on_t    "claude-only: summary lost" "grep -c '^codex\$' || true" "grep -c '^codex\$'"
+merge_ctl no_true_on_s    "codex-only: summary lost"  "grep -c '^claude\$' || true" "grep -c '^claude\$'"
+merge_ctl no_true_on_rows "empty: WARNING lost"       "grep -v '^\$' || true" "grep -v '^\$'"
+merge_ctl empty_no_warn   "empty: WARNING lost"       "WARNING: your own row was NOT identified — no row at all" "note: no row at all"
 
 echo "-- $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]

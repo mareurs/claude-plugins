@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # tests/test-peer-table-launch-cwd.sh — the peer table's cwd column must say what it measures.
 #
-# reaching-peer-sessions Step 1 reads `readlink /proc/<pid>/cwd`: where a process was LAUNCHED.
+# reaching-peer-sessions' Enumerate blocks (one per harness reference) print LAUNCH-CWD: for a Claude row `readlink /proc/<pid>/cwd`, where a process was LAUNCHED; for a Codex row the thread's own cwd.
 # It was headed `CWD` and universally read as "where this session is working", which codescout's
 # `workspace(action="activate")` changes without touching the process cwd. On 2026-09-09 that
 # misreading was one message from licensing `git worktree remove` on an occupied worktree
@@ -31,13 +31,13 @@ fail() { echo "FAIL: $1"; FAIL=$((FAIL + 1)); }
 # characters there — grep -F matches them as written.
 header_says_launch_cwd() { grep -qF 'STATUS\tLAUNCH-CWD\n' "$1" && ! grep -qF 'STATUS\tCWD\n' "$1"; }
 step4_exists() { grep -qF '## Step 4 — before acting on where a peer is WORKING, ask' "$1"; }
-step4_asks_over_the_socket() { grep -qF 'are you working in <path> right now?' "$1"; }
+step4_carries_the_question() { grep -qF 'are you working in <path> right now?' "$1"; }
 
 header_says_launch_cwd "$SKILL" && pass "the merge block's header says LAUNCH-CWD, not a bare CWD" \
     || fail "the merge block's header says LAUNCH-CWD, not a bare CWD"
 step4_exists "$SKILL" && pass "Step 4 (ask before acting on occupancy) exists" \
     || fail "Step 4 (ask before acting on occupancy) exists"
-step4_asks_over_the_socket "$SKILL" && pass "Step 4 carries the question to send" \
+step4_carries_the_question "$SKILL" && pass "Step 4 carries the question to send" \
     || fail "Step 4 carries the question to send"
 
 # ---- the controls: each mutation reintroduces one half of the defect and must be caught.
@@ -52,7 +52,7 @@ step4_exists "$T/no-step4.md" && fail "control: deleting Step 4 is caught" \
     || pass "control: deleting Step 4 is caught"
 
 sed '/are you working in <path> right now?/d' "$SKILL" > "$T/no-question.md"
-step4_asks_over_the_socket "$T/no-question.md" && fail "control: deleting the question is caught" \
+step4_carries_the_question "$T/no-question.md" && fail "control: deleting the question is caught" \
     || pass "control: deleting the question is caught"
 
 # A control that mutated nothing would pass for the wrong reason; prove each copy differs.

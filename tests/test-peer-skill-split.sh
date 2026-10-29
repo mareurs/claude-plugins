@@ -76,6 +76,17 @@ single_account_keeps_label() {
     && grep -qF 'every message carries the label' <<<"$last" \
     && grep -qF 'addressed by its `SID`' <<<"$last"
 }
+# R16 / R17: one paragraph every harness obeys, under Step 3: one send per target per
+# request, no repost on silence, never broadcast (a listing is not a mandate), and a
+# message whose sender cannot be answered by address says so in its text.
+send_rules() {
+  local sec; sec=$(flat_section "$1" 'Step 3')
+  grep -qF 'One send per target per request.' <<<"$sec" \
+    && grep -qF 'Do not repost on silence' <<<"$sec" \
+    && grep -qF 'Never broadcast: send only to the peers the request names' <<<"$sec" \
+    && grep -qF 'a listing is not a mandate' <<<"$sec" \
+    && grep -qF 'A message whose sender cannot be answered by address says so in its text.' <<<"$sec"
+}
 step4_survives() {
   grep -qF '## Step 4 — before acting on where a peer is WORKING, ask' "$1" \
     && grep -qF 'are you working in <path> right now?' "$1"
@@ -126,6 +137,7 @@ declare -A CHECKS=(
   [core_has_no_at_links]="no_at_link"
   [core_names_no_harness_tool_outside_pointers]="no_harness_names"
   [step4_heading_and_question_survive]="step4_survives"
+  [step3_holds_the_send_rules]="send_rules"
   [core_states_sessionid_and_no_adjacency_rules]="has_everywhere_rules"
   [step2_single_account_keeps_label_and_sid]="single_account_keeps_label"
   [core_has_exactly_one_bash_block_the_merge]="one_block"
@@ -181,6 +193,12 @@ control codex_no_deliv  has_headings       "$CREF" 't = t.replace("## Deliver", 
 control codex_at_link   no_at_link         "$CREF" 't += "\n@references/claude-code.md\n"'
 control codex_dollar    no_dollar_digit    "$CREF" 't += "\ncost $4.20\n"'
 control codex_unreach   reachable_codex_copy "$CORE" 't = t.replace("references/codex.md", "codex.md")'
+
+control send_once       send_rules         "$CORE" 't = t.replace("One send per target per request.", "Send as often as needed.")'
+control send_repost     send_rules         "$CORE" 't = t.replace("Do not repost on silence", "Repost on silence")'
+control send_broadcast  send_rules         "$CORE" 't = t.replace("Never broadcast: send only to the peers\nthe request names", "Broadcast to every peer you can see")'
+control send_mandate    send_rules         "$CORE" 't = t.replace("a listing is not a mandate", "a listing is a mandate")'
+control send_unanswer   send_rules         "$CORE" 't = t.replace("cannot be answered by address says\nso in its text", "needs no comment")'
 
 control rule_sessionid  has_everywhere_rules "$CORE" 't = t.replace("Take the sessionId, not the name", "Take the name")'
 control rule_adjacency  has_everywhere_rules "$CORE" 't = t.replace("Never route by adjacency", "Route freely")'

@@ -108,47 +108,89 @@ short-args test looks clean.
 
 **From a Claude Code session.** Same account as the target: `SendMessage` with
 `to: "<NAME>"`. Any other account: `to: "uds:/run/user/<uid>/cc-socks/<PID>.sock"`.
-Replying to a message you received: copy its `from=` attribute verbatim.
+Replying to a message you received whose `from=` is a `uds:` path: copy that
+attribute verbatim. When `from=` is anything else (a Codex sender posts an arbitrary
+id, which `SendMessage` refuses), do not pass it on and do not take the refusal as
+"no such session": go through the operator, unless the message text names a Codex
+thread uuid, in which case answer with the Deliver section of `references/codex.md`.
 
 **From a Codex session.** Post one JSON line, ended by a newline, on the target's
 socket `/run/user/<uid>/cc-socks/<PID>.sock`, through codescout's `run_command`
-(the native Codex shell blocks the socket). The format, captured from a real
-`SendMessage` on Claude Code 2.1.312:
+(the native Codex shell blocks the socket). If codescout's `run_command` is not
+available, report that to the operator and stop; do not fall back to the native shell.
+The format, captured from a real `SendMessage` on Claude Code 2.1.312:
 
     {"msgV":1,"msg_id":"<uuid>","type":"user","message":{"role":"user","content":"<cross-session-message from=\"<sender id>\" from-name=\"<name>\" from-mode=\"prompting\">\n<text>\n</cross-session-message>"},"priority":"next","from":"<sender id>"}
 
 The sender needs no auth line. The server sends no reply bytes.
 
 **Measured versions: 2.1.312.** The format is measured only on the versions listed
-here. Read the target's version from the registry key `version` in
-`<its CLAUDE_CONFIG_DIR>/sessions/<pid>.json`, not from `claude --version` (that
-reports the binary on the caller's PATH). Measured 2026-10-29 across the live
-registries: `version` matched the basename of `/proc/<pid>/exe` for every
-version-pinned install, but `exe` is not a safe source: an unpinned install shows
-`claude`, and an install replaced after launch shows `<version> (deleted)`. So the
-registry `version` is the source this check reads; use the `exe` basename only when
-the registry row has no `version`. If the target's version is not in the measured
-list, refuse to post: report the version to the operator and stop. Some Claude
-peers run older versions (2.1.310 and below were seen), so they are unreachable
-from Codex until their format is measured.
+here. The snippet below enforces the list in code (its `MEASURED` set); the two must
+agree, and a test pins that. It reads the target's version from the registry key
+`version` in `<its CLAUDE_CONFIG_DIR>/sessions/<pid>.json`, not from
+`claude --version` (that reports the binary on the caller's PATH). Measured
+2026-10-29 across the live registries: `version` matched the basename of
+`/proc/<pid>/exe` for every version-pinned install, but `exe` is not a safe source:
+an unpinned install shows `claude`, and an install replaced after launch shows
+`<version> (deleted)`. So the registry `version` is the source; the `exe` basename is
+used only when the registry row has no `version`. If the target's version is not in
+the measured list, refuse to post: report the version to the operator and stop. Some
+Claude peers run older versions (2.1.310 and below were seen), so they are
+unreachable from Codex until their format is measured.
 
-Only after that check passes, run this through `run_command`, as `python3 - <socket> <sender-id> <from-name> <text> <<'PY'`.
-`<sender-id>` is any non-`uds:` id for the sender. `<from-name>` is the sender's name
-as it appears in the label the core's Step 3 prescribes, and `<text>` starts with that
-label. It sends exactly one line and closes:
+Send with the snippet. The message goes in through a quoted heredoc, never through a
+shell argument, so quotes, backticks and dollar signs in it arrive as written. The
+first line of the message is the core's label; its quoted name becomes `from-name`.
+`<sender-id>` is any non-`uds:` id for the sender, a single word. The snippet exits
+non-zero, sends nothing and prints the reason when the version is not measured or the
+sender id starts with `uds:`.
 
-```python
-import json, socket, sys, uuid
-sock_path, sender, from_name, text = sys.argv[1:5]
+```bash
+msg=$(mktemp)
+cat > "$msg" <<'MSG'
+<the label, then the text>
+MSG
+python3 - <target PID> <sender-id> "$msg" <<'PY'
+import json, os, re, socket, sys, uuid
+pid, sender, msgfile = sys.argv[1:4]
+MEASURED = {"2.1.312"}
+proc = os.environ.get("CS_PEERS_PROC", "/proc")
+socks = os.environ.get("CS_PEERS_SOCKS", "/run/user/%d/cc-socks" % os.getuid())
 if sender.startswith("uds:"):
-    sys.exit("sender id must not start with uds:")
-content = '<cross-session-message from="%s" from-name="%s" from-mode="prompting">\n%s\n</cross-session-message>' % (
-    sender, from_name.replace('"', "'"), text)
+    sys.exit("not sent: sender id must not start with uds:")
+def blob(path):
+    try:
+        with open(path, "rb") as f:
+            return f.read().decode("utf-8", "replace")
+    except OSError:
+        return ""
+envs = [e for e in blob(os.path.join(proc, pid, "environ")).split("\0") if e.startswith("CLAUDE_CONFIG_DIR=")]
+cfg = envs[0].split("=", 1)[1] if envs else os.path.join(os.environ.get("HOME", ""), ".claude")
+version = ""
+try:
+    with open(os.path.join(cfg, "sessions", pid + ".json")) as f:
+        version = str(json.load(f).get("version") or "")
+except (OSError, ValueError):
+    pass
+if not version:
+    try:
+        version = os.path.basename(os.readlink(os.path.join(proc, pid, "exe"))).split(" ")[0]
+    except OSError:
+        pass
+if version not in MEASURED:
+    sys.exit("not sent: target version %s is not in the measured list %s; report it to the operator" % (version or "unknown", sorted(MEASURED)))
+with open(msgfile) as f:
+    text = f.read().rstrip("\n")
+m = re.match(r'\[from [^ ]+ "(.*)" pid ', text)
+from_name = (m.group(1) if m else "?").replace('"', "'")
+content = '<cross-session-message from="%s" from-name="%s" from-mode="prompting">\n%s\n</cross-session-message>' % (sender, from_name, text)
 msg = {"msgV": 1, "msg_id": str(uuid.uuid4()), "type": "user",
        "message": {"role": "user", "content": content}, "priority": "next", "from": sender}
 s = socket.socket(socket.AF_UNIX)
 s.settimeout(5)
-s.connect(sock_path)
+s.connect(os.path.join(socks, pid + ".sock"))
 s.sendall((json.dumps(msg) + "\n").encode())
 s.close()
+print("sent to claude pid %s (version %s)" % (pid, version))
+PY
 ```

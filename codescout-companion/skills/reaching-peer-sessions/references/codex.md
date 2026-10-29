@@ -27,8 +27,8 @@ python3 - "$proc" "$HOME" <<'PY'
 import os, re, sqlite3, sys, urllib.parse
 proc, home = sys.argv[1], sys.argv[2]
 UUID = re.compile(r"([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})[.]jsonl$")
-def clean(s):
-    return " ".join(str(s).split())[:80] or "?"
+def clean(s, empty="?"):
+    return " ".join(str(s).split())[:80] or empty
 def one_line(s):
     # A path or account is never cut; a tab or newline would split the row, so each
     # becomes a space.
@@ -82,7 +82,7 @@ for pid in sorted((p for p in os.listdir(proc) if p.isdigit()), key=int):
         if found:
             if found[4] == 1:
                 continue
-            rows.append(("codex", account, pid, clean(found[0]), clean(found[2] or found[1] or ""), "loaded", one_line(found[3] or "")))
+            rows.append(("codex", account, pid, clean(found[0]), clean(found[2] or found[1] or "", "(untitled)"), "loaded", one_line(found[3] or "")))
         else:
             m = UUID.search(base)
             rows.append(("codex", account, pid, m.group(1) if m else "?", "?", "loaded", "?"))
@@ -105,6 +105,9 @@ newline in either becomes a space.
 Rows and their edge cases:
 
 - An archived thread (`archived` = 1) gives no row.
+- A thread that has a `threads` row but an empty `title` and an empty or NULL `name`
+  gives `NAME` `(untitled)`. `?` never means that: it means the value is unknown (no
+  `threads` row, no database, or a lock; the next three items).
 - An open rollout with no `threads` row gives `NAME` `?`, `LAUNCH-CWD` `?`, and a
   `SID` taken from the uuid in the rollout file name, else `?`.
 - A home whose `state_5.sqlite` is missing or unreadable gives its rows the same way
@@ -141,19 +144,75 @@ Do not add a `<-- you` marking by hand.
 
 ## Deliver
 
-Send to a Codex thread with the target row's own home:
+Send with the snippet below, which takes the target row's `PID` and `SID`. The row
+carries only the basename of `CODEX_HOME`, so the snippet reads the full home from
+that process. It then finds the open rollout whose file name holds the `SID` (guard 1,
+done mechanically: no such rollout means the thread is not loaded here), runs
+`codex queue` with the message as one argument of an argument list, waits a bounded
+time, and prints the one-line report. The message goes in through a quoted heredoc,
+never through a shell argument, so the quotes in the label, backticks and dollar signs
+arrive as written. The snippet assumes the thread id appears in its rollout file name,
+as it does in the rollouts measured on 2026-10-29.
 
-    CODEX_HOME=<that row's home> codex queue --thread <SID> --message "<label and text>"
+```bash
+msg=$(mktemp)
+cat > "$msg" <<'MSG'
+<the label, then the text>
+MSG
+python3 - <PID> <SID> "$msg" <<'PY'
+import datetime, os, subprocess, sys, time
+pid, sid, msgfile = sys.argv[1:4]
+proc = os.environ.get("CS_PEERS_PROC", "/proc")
+WAIT = float(os.environ.get("CS_PEERS_WAIT", "20"))
+def read(path):
+    try:
+        with open(path, "rb") as f:
+            return f.read().decode("utf-8", "replace")
+    except OSError:
+        return ""
+if "app-server" not in read(os.path.join(proc, pid, "cmdline")).split("\0"):
+    sys.exit("not sent: pid %s is not an app-server process" % pid)
+envs = [e for e in read(os.path.join(proc, pid, "environ")).split("\0") if e.startswith("CODEX_HOME=")]
+codex_home = envs[0].split("=", 1)[1] if envs and envs[0].split("=", 1)[1] else os.path.join(os.environ.get("HOME", ""), ".codex")
+rollout = None
+fddir = os.path.join(proc, pid, "fd")
+try:
+    fds = os.listdir(fddir)
+except OSError:
+    fds = []
+for fd in fds:
+    try:
+        target = os.readlink(os.path.join(fddir, fd))
+    except OSError:
+        continue
+    base = os.path.basename(target)
+    if sid not in ("", "?") and base.startswith("rollout-") and base.endswith(".jsonl") and sid in base:
+        rollout = target
+        break
+if rollout is None:
+    sys.exit("not sent: thread %s is not loaded in pid %s (no open rollout holds it); a queued message would run nothing. Tell the operator why." % (sid, pid))
+with open(msgfile) as f:
+    text = f.read().rstrip("\n")
+before = os.path.getsize(rollout)
+done = subprocess.run(["codex", "queue", "--thread", sid, "--message", text], env=dict(os.environ, CODEX_HOME=codex_home))
+if done.returncode != 0:
+    sys.exit("codex queue exited %d; nothing is confirmed" % done.returncode)
+time.sleep(WAIT)
+after = os.path.getsize(rollout)
+now = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+print("sent to codex thread %s (pid %s, home %s) at %s: rollout %s (%d -> %d bytes)" % (sid, pid, codex_home, now, "grew" if after > before else "did not grow", before, after))
+PY
+```
 
-The label format and the rule that a Codex row is addressed by `SID` are in the core.
-The guards specific to Codex:
+The label format, the rule that a Codex row is addressed by `SID`, one send per target,
+no repost and no broadcast are in the core. The guards specific to Codex:
 
-1. Send only to a row Enumerate listed as `loaded`.
-2. One send per target per request, and no retry on silence.
-3. After the send, check the size of the thread's rollout file once, after a
-   bounded wait, and tell the operator one line: the target, the time, and whether
-   the file grew.
-4. Set `CODEX_HOME` to the home the row was found in, never your own by default.
+1. Send only to a row Enumerate listed as `loaded`; for a target that is not loaded,
+   do not send and tell the operator why (the snippet refuses and says so).
+2. The home is the row's own, read from its process, never your own by default.
+3. The snippet checks the size of the thread's rollout file before the send and once
+   after a bounded wait; pass its one line to the operator: the target, the time, and
+   whether the file grew.
 
 `codex queue` has three measured outcomes, and only one is a message reaching
 someone who is watching.
@@ -170,3 +229,9 @@ an unwatched, costly turn, and the operator has accepted that cost.
 
 An exit code of 0 does not say a thread read the message, which is why the
 rollout-size check exists.
+
+**Writing the label when your own row is not identified.** The label format is the
+core's and does not change. A Codex caller whose own row is not identified writes `?`
+for the name and for any pid it cannot learn, and says in the message text that it
+cannot be answered by address. The receiver then goes through the operator, unless
+the text names a thread uuid it can reach with this section.

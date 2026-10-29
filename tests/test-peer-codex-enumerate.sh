@@ -65,6 +65,7 @@ db.executemany("insert into threads values (?,?,?,?,?,?)", [
     ("thr-a4", r("codex-a", "a4"), "a very long first user message", "Named one", "/w/named", 0),
     ("thr-a5", r("codex-a", "a5"), "has\ttab and\nnewline", "", "/w/messy", 0),
     ("thr-a6", r("codex-a", "a6"), "Long cwd", None, longcwd, 0),
+    ("thr-a7", r("codex-a", "a7"), "", None, "/w/untitled", 0),
 ])
 db.commit()
 for suffix in ("", "-wal"):
@@ -90,7 +91,7 @@ fd() { touch_ro "$2"; ln -s "$2" "$FX/proc/$1/fd/$3"; }
 #       rollout with no threads row (uuid in the file name)
 mk_proc 5001 /opt/codex/bin/codex app-server --listen unix://; mk_env 5001 "$FX/codex-a"
 fd 5001 "$(ro codex-a a1)" 3; fd 5001 "$(ro codex-a a2)" 4; fd 5001 "$(ro codex-a "$U_A3")" 5
-fd 5001 "$(ro codex-a a4)" 6; fd 5001 "$(ro codex-a a5)" 7; fd 5001 "$(ro codex-a a6)" 10
+fd 5001 "$(ro codex-a a4)" 6; fd 5001 "$(ro codex-a a5)" 7; fd 5001 "$(ro codex-a a6)" 10; fd 5001 "$(ro codex-a a7)" 11
 ln -s 'socket:[12345]' "$FX/proc/5001/fd/8"; ln -s /dev/null "$FX/proc/5001/fd/9"
 # 5002: second app-server on another home, SAME title as thr-a1
 mk_proc 5002 /usr/lib/chatgpt/resources/codex -c x=y app-server --analytics-default-enabled; mk_env 5002 "$FX/codex-b"
@@ -114,7 +115,7 @@ for i in $(seq 1 "$LOCKED_N"); do fd 5007 "$(ro codex-e "e$(printf '%02d' "$i")"
 # 5008: app-server whose CODEX_HOME contains a TAB
 mk_proc 5008 /opt/codex/bin/codex app-server; mk_env 5008 "$TABHOME"
 fd 5008 "$TABHOME/sessions/rollout-2026-10-29T10-00-00-$U_T1.jsonl" 3
-EXPECT_ROWS=$((9 + LOCKED_N + 1))   # a1 a3 a4 a5 a6 | b1 | c1 | d1 weird | 12 locked | tab home
+EXPECT_ROWS=$((10 + LOCKED_N + 1))   # a1 a3 a4 a5 a6 a7 | b1 | c1 | d1 weird | 12 locked | tab home
 
 # Hold an exclusive lock on codex-e for the whole run.
 python3 -c 'import sqlite3,sys,time
@@ -184,6 +185,8 @@ check_all() {
   [ "$(field "$(row "$out" thr-a6)" 7)" = "$LONGCWD_WANT" ] || { echo "cwd wrong: $(field "$(row "$out" thr-a6)" 7)" >&2; failed=1; }
   # 15. a tab in CODEX_HOME does not split ACCOUNT
   [ "$(field "$(row "$out" "$U_T1")" 2)" = "co dex-t" ] || { echo "account wrong: $(field "$(row "$out" "$U_T1")" 2)" >&2; failed=1; }
+  # 17. a matched thread with an empty title and no name is (untitled); ? stays "unknown"
+  [ "$(field "$(row "$out" thr-a7)" 5)" = "(untitled)" ] || { echo "untitled wrong: $(field "$(row "$out" thr-a7)" 5)" >&2; failed=1; }
   # 16. a locked database: every row of that home survives with NAME ?, and the run is fast
   [ "$(awk -F'\t' '$2=="codex-e" && $5=="?"' <<<"$out" | wc -l)" = "$LOCKED_N" ] || { echo "locked-home rows wrong" >&2; failed=1; }
   [ $(( (t1 - t0) / 1000000 )) -lt 4000 ] || { echo "slow: $(( (t1 - t0) / 1000000 )) ms for a locked home" >&2; failed=1; }
@@ -217,47 +220,120 @@ control write_rwc       "database changed"   't = t.replace("mode=ro", "mode=rwc
 control title_first     "name/title rule"    't = t.replace("found[2] or found[1]", "found[1] or found[2]")'
 control cwd_cut         "cwd wrong"          't = t.replace("one_line(found[3] or \"\")", "clean(found[3] or \"\")")'
 control account_raw     "account wrong"      't = t.replace("account = one_line(", "account = (")'
+control untitled_q      "untitled wrong"     't = t.replace("clean(found[2] or found[1] or \"\", \"(untitled)\")", "clean(found[2] or found[1] or \"\")")'
 control slow_lock       "slow:"              't = t.replace("timeout=0.5", "timeout=5")'
 control ask_again       "slow:"              't = t.replace("except sqlite3.Error:\n        dbs[codex_home] = None", "except sqlite3.Error:\n        pass")'
 
-# ---- Deliver: structural pins. `codex queue` is never run (it talks to a real thread);
-# these assert the SHAPE of the section the agent will follow, each with a control that
-# deletes exactly one thing from a scratch copy. The section is flattened (backticks and
-# emphasis stripped, one line) because the prose is hard-wrapped.
+# ---- Deliver: structural pins. `codex queue` is never run for real (it talks to a real
+# thread): the snippet is run below against a STUB `codex` on PATH. These assert the SHAPE
+# of the section the agent will follow, each with a control that deletes exactly one thing
+# from a scratch copy. The section is flattened (backticks and emphasis stripped, one
+# line) because the prose is hard-wrapped.
 deliver_flat() { awk '/^## Deliver/{s=1; next} s && /^## /{exit} s{print}' "$1" | tr '\n' ' ' | tr -d '*`' | tr -s ' '; }
 has() { grep -qiE -- "$2" <<<"$1"; }
 deliver_pins() {
   local s; s=$(deliver_flat "$1")
-  has "$s" 'CODEX_HOME=<that row.s home> codex queue --thread <SID> --message' \
-    && has "$s" 'Send only to a row Enumerate listed as loaded' \
-    && has "$s" 'One send per target per request, and no retry on silence' \
-    && has "$s" 'check the size of the thread.s rollout file once, after a bounded wait, and tell the operator one line: the target, the time, and whether the file grew' \
-    && has "$s" '4\. Set CODEX_HOME to the home the row was found in, never your own by default' \
+  has "$s" 'subprocess\.run\(\["codex", "queue", "--thread", sid, "--message", text\]' \
+    && has "$s" "cat > \"[$]msg\" <<'MSG'" && has "$s" "python3 - <PID> <SID> \"[$]msg\" <<'PY'" \
+    && has "$s" 'Send only to a row Enumerate listed as loaded; for a target that is not loaded, do not send and tell the operator why' \
+    && has "$s" "The home is the row.s own, read from its process, never your own by default" \
+    && has "$s" 'checks the size of the thread.s rollout file before the send and once after a bounded wait; pass its one line to the operator: the target, the time, and whether the file grew' \
     && has "$s" 'attached to a TUI: a turn starts' \
     && has "$s" 'loaded with nobody attached: a turn runs unwatched\. One measured case used about 17,700 tokens' \
     && has "$s" 'not loaded: the command exits 0 and prints Queued, nothing runs, and the message waits in queue_1.sqlite' \
     && has "$s" 'A loaded row can be the first outcome or the second, and Enumerate cannot tell them apart' \
-    && has "$s" 'A send to a loaded row may start an unwatched, costly turn, and the operator has accepted that cost'
+    && has "$s" 'A send to a loaded row may start an unwatched, costly turn, and the operator has accepted that cost' \
+    && has "$s" 'A Codex caller whose own row is not identified writes \? for the name and for any pid it cannot learn, and says in the message text that it cannot be answered by address'
 }
-if deliver_pins "$REF"; then ok "Deliver pins the queue form, the guards, the outcomes and the accepted cost"; else bad "Deliver pins" "a pinned sentence is missing from ## Deliver in $REF"; fi
+if deliver_pins "$REF"; then ok "Deliver pins the argv-list send, the quoted heredoc, the guards, the outcomes, the cost and the caller fill rule"; else bad "Deliver pins" "a pinned sentence is missing from ## Deliver in $REF"; fi
 dcontrol() { # dcontrol <label> <old> <new>
   local dst="$T/d-$1.md"
   python3 -c 'import sys;t=open(sys.argv[1]).read();open(sys.argv[2],"w").write(t.replace(sys.argv[3],sys.argv[4]))' "$REF" "$dst" "$2" "$3"
   if cmp -s "$REF" "$dst"; then bad "deliver control $1" "mutation did not change the copy"; return; fi
   if deliver_pins "$dst"; then bad "deliver control $1" "mutated copy still passed"; else ok "deliver control $1 is caught"; fi
 }
-dcontrol queue_form     'codex queue --thread' 'codex send --thread'
-dcontrol loaded_only    'Send only to a row Enumerate listed as `loaded`.' 'Send to any row.'
-dcontrol one_send       'no retry on silence' 'retry on silence'
-dcontrol size_check     'rollout file once' 'rollout file'
-dcontrol report_deleted 'tell the operator one line' 'say nothing'
-dcontrol guard4_deleted '4. Set `CODEX_HOME` to the home the row was found in, never your own by default.' ''
+dcontrol queue_form     '"codex", "queue", "--thread"' '"codex", "send", "--thread"'
+dcontrol msg_heredoc    "<<'MSG'" '<<MSG'
+dcontrol loaded_only    'Send only to a row Enumerate listed as `loaded`;' 'Send to any row;'
+dcontrol not_loaded_why  'tell the operator why' 'stay quiet'
+dcontrol home_guard     "2. The home is the row's own, read from its process, never your own by default." ''
+dcontrol size_check     'rollout file before the send' 'rollout file'
+dcontrol report_deleted 'pass its one line to the operator' 'say nothing'
 dcontrol outcome_attach 'a turn starts there' 'it depends'
 dcontrol outcome_tokens '17,700' 'many'
 dcontrol outcome_queued '`queue_1.sqlite`' 'disk'
 dcontrol outcome_exit0  'exits 0 and prints' 'prints'
 dcontrol cannot_tell    'Enumerate cannot tell them apart' 'Enumerate can tell them apart'
 dcontrol cost_accepted  'and the operator has accepted that cost' 'and nobody minds'
+dcontrol fill_rule      'cannot be answered by address' 'can be answered by address'
+
+# ---- the Deliver snippet, run for real against a fixture /proc tree and a STUB codex ----
+# The stub records its argv (NUL-separated) and CODEX_HOME to files and exits 0; with
+# STUB_GROW=1 it also appends to the rollout, as a delivered message would. The real
+# `codex` is never started: the stub directory is the only thing put on PATH, first.
+DBLOCK=$(awk '/^## Deliver/{s=1} s && /^```bash/{b=1; next} b && /^```/{exit} b{print}' "$REF")
+DPROG=$(awk '/<<.PY.$/{b=1; next} b && /^PY$/{exit} b{print}' <<<"$DBLOCK")
+if [ -z "$DPROG" ]; then bad "extract Deliver snippet" "no python program between <<'PY' and PY under ## Deliver"; DPROG='raise SystemExit("no snippet")'; fi
+DX="$T/dx"; mkdir -p "$DX/proc" "$DX/bin" "$DX/work/codex-work/sessions"
+SID_L=0b0b0b0b-0b0b-4b0b-8b0b-0b0b0b0b0b0b; SID_X=1c1c1c1c-1c1c-4c1c-8c1c-1c1c1c1c1c1c
+DROLL="$DX/work/codex-work/sessions/rollout-2026-10-29T10-00-00-$SID_L.jsonl"
+DOTHER="$DX/work/codex-work/sessions/rollout-2026-10-29T10-00-00-$SID_X.jsonl"
+: > "$DROLL"; : > "$DOTHER"; echo '{"seed":1}' > "$DROLL"
+mkdir -p "$DX/proc/6001/fd" "$DX/proc/6002/fd" "$DX/proc/6003/fd"
+printf '/opt/codex/bin/codex\0app-server\0' > "$DX/proc/6001/cmdline"; printf 'CODEX_HOME=%s\0' "$DX/work/codex-work" > "$DX/proc/6001/environ"
+ln -s "$DROLL" "$DX/proc/6001/fd/3"
+printf '/opt/codex/bin/codex\0app-server\0' > "$DX/proc/6002/cmdline"; printf 'CODEX_HOME=%s\0' "$DX/work/codex-work" > "$DX/proc/6002/environ"
+ln -s "$DOTHER" "$DX/proc/6002/fd/3"      # holds a DIFFERENT thread: SID_L is not loaded here
+printf 'codex\0resume\0x\0' > "$DX/proc/6003/cmdline"; ln -s "$DROLL" "$DX/proc/6003/fd/3"
+cat > "$DX/bin/codex" <<'STUB'
+#!/usr/bin/env bash
+printf '%s\0' "$@" > "$STUB_OUT/argv"
+printf '%s' "$CODEX_HOME" > "$STUB_OUT/home"
+[ "${STUB_GROW:-}" = 1 ] && echo '{"queued":1}' >> "$STUB_ROLLOUT"
+exit 0
+STUB
+chmod +x "$DX/bin/codex"
+cat > "$DX/msg" <<'EOF'
+[from codex/? "Codex effort steering experiment branch" pid ?, 2026-10-29T12:00:00Z] cost $1 and `id` and $(echo hi) with "quotes", 'single' and a  double  space; cannot be answered by address
+EOF
+run_deliver() { # run_deliver <program> <pid> <sid> <grow 0|1>: sets D_RC, D_OUT, D_ERR
+  rm -f "$DX/out/argv" "$DX/out/home"; mkdir -p "$DX/out"
+  D_OUT=$(CS_PEERS_PROC="$DX/proc" CS_PEERS_WAIT=0.2 PATH="$DX/bin:$PATH" STUB_OUT="$DX/out" STUB_GROW="$4" STUB_ROLLOUT="$DROLL" \
+    python3 -I - "$2" "$3" "$DX/msg" <<<"$1" 2>"$DX/err"); D_RC=$?; D_ERR=$(cat "$DX/err")
+}
+deliver_checks() { # deliver_checks <program>: echoes each failing reason on stderr
+  local prog=$1 failed=0 want got
+  want=$(python3 -c 'import sys;print(open(sys.argv[1]).read().rstrip("\n"),end="")' "$DX/msg")
+  run_deliver "$prog" 6001 "$SID_L" 1
+  got=$(python3 -c 'import sys;print(repr(open(sys.argv[1],"rb").read().decode().split("\0")[:-1]))' "$DX/out/argv" 2>/dev/null)
+  [ "$D_RC" = 0 ] || { echo "send failed rc=$D_RC: $D_ERR" >&2; failed=1; }
+  [ "$got" = "$(python3 -c 'import sys;print(repr(["queue","--thread",sys.argv[1],"--message",sys.argv[2]]))' "$SID_L" "$want")" ] || { echo "argv wrong: $got" >&2; failed=1; }
+  [ "$(cat "$DX/out/home" 2>/dev/null)" = "$DX/work/codex-work" ] || { echo "home wrong: $(cat "$DX/out/home" 2>/dev/null)" >&2; failed=1; }
+  grep -q 'rollout grew' <<<"$D_OUT" && grep -qF "$SID_L" <<<"$D_OUT" || { echo "report wrong (grew): $D_OUT" >&2; failed=1; }
+  run_deliver "$prog" 6001 "$SID_L" 0
+  grep -q 'rollout did not grow' <<<"$D_OUT" || { echo "report wrong (no growth): $D_OUT" >&2; failed=1; }
+  run_deliver "$prog" 6002 "$SID_L" 0
+  { [ "$D_RC" != 0 ] && [ ! -e "$DX/out/argv" ] && grep -q 'Tell the operator why' <<<"$D_ERR"; } || { echo "sent to a thread that is not loaded (rc=$D_RC)" >&2; failed=1; }
+  run_deliver "$prog" 6003 "$SID_L" 0
+  { [ "$D_RC" != 0 ] && [ ! -e "$DX/out/argv" ]; } || { echo "sent via a non-app-server process" >&2; failed=1; }
+  run_deliver "$prog" 6001 '?' 0
+  { [ "$D_RC" != 0 ] && [ ! -e "$DX/out/argv" ]; } || { echo "sent to SID ?" >&2; failed=1; }
+  return $failed
+}
+if why=$(deliver_checks "$DPROG" 2>&1 >/dev/null); then ok "Deliver snippet: argv list intact, row's own home, loaded guard, size report (stub codex)"; else bad "Deliver snippet" "$why"; fi
+dprog_control() { # dprog_control <label> <expected reason> <python-mutation: t -> t>
+  local mut why
+  mut=$(python3 -c 'import sys;t=sys.stdin.read();exec(sys.argv[1]);sys.stdout.write(t)' "$3" <<<"$DPROG")
+  if [ "$mut" = "$DPROG" ]; then bad "snippet control $1" "mutation did not change the snippet"; return; fi
+  if why=$(deliver_checks "$mut" 2>&1 >/dev/null); then bad "snippet control $1" "mutated snippet still passed"
+  elif grep -qF -- "$2" <<<"$why"; then ok "snippet control $1 is caught ($2)"
+  else bad "snippet control $1" "failed, but not for '$2': $why"; fi
+}
+dprog_control any_rollout   "sent to a thread that is not loaded" 't = t.replace("and sid in base", "")'
+dprog_control shell_string  "argv wrong"                          't = t.replace("subprocess.run([\"codex\", \"queue\", \"--thread\", sid, \"--message\", text],", "subprocess.run(\"codex queue --thread %s --message \\\"%s\\\"\" % (sid, text), shell=True,")'
+dprog_control home_basename "home wrong"                          't = t.replace("CODEX_HOME=codex_home", "CODEX_HOME=os.path.join(os.environ.get(\"HOME\", \"\"), \".codex\", os.path.basename(codex_home))")'
+dprog_control always_grew   "report wrong (no growth)"            't = t.replace("\"grew\" if after > before else \"did not grow\"", "\"grew\"")'
+dprog_control no_app_check  "sent via a non-app-server"           't = t.replace("\"app-server\" not in", "False and \"app-server\" not in")'
 
 echo "-- peer-codex-enumerate: $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]
