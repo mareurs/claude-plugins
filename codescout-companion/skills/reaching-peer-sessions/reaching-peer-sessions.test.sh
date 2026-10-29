@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Regression test for Step 1's session-name read (fixed at bb14719).
+# Regression test for the Enumerate block's session-name read (fixed at bb14719).
+# The block lives in references/claude-code.md; the merge block lives in SKILL.md.
 #
 # WHY THIS EXISTS. The defect was self-concealing in a way that guarantees no
 # reader reports it: a greedy `sed 's/.*"name":"\(...\)".*/\1/'` binds to the
@@ -18,9 +19,9 @@
 # cases 8-11 below. It used to be disclaimed here: the walk read `/proc` and
 # `/run/user/<uid>/cc-socks` by hardcoded absolute path, so it could not be pointed
 # at a fixture, and a source-text assertion ("the block contains no comm test") is
-# a proxy for the behaviour rather than the behaviour. SKILL.md now reads both
+# a proxy for the behaviour rather than the behaviour. The Enumerate block in references/claude-code.md now reads both
 # roots from CS_PEERS_PROC / CS_PEERS_SOCKS (defaults unchanged), and the cases run
-# the EXTRACTED block against a fixture tree. The 2026-09-03 hand verification
+# the EXTRACTED Enumerate block (piped into the extracted merge block) against a fixture tree. The 2026-09-03 hand verification
 # against live pid 985365 (`comm=2.1.258`) is no longer the only evidence.
 #
 # WHAT IS STILL NOT COVERED. The fixture is a model of /proc, not /proc: it has no
@@ -29,15 +30,15 @@
 # the fixture honest about the one property that matters -- that the old rule fails it.
 set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-SKILL="$SCRIPT_DIR/references/claude-code.md"  # the Claude mechanics live here; SKILL.md only points at it
-CORE="$SCRIPT_DIR/SKILL.md"
+SKILL="$SCRIPT_DIR/references/claude-code.md"  # the Claude mechanics (Enumerate, Deliver) live here; SKILL.md only points at it
+CORE="$SCRIPT_DIR/SKILL.md"                    # holds the one merge block
 PASS=0; FAIL=0
 pass() { echo "PASS: $1"; PASS=$((PASS+1)); }
 fail() { echo "FAIL: $1 -- $2"; FAIL=$((FAIL+1)); }
 
 TMP=$(mktemp -d); trap 'rm -rf "$TMP"' EXIT
 
-# The program under test is EXTRACTED FROM SKILL.md, never re-typed here. A copy
+# The program under test is EXTRACTED FROM the reference's Enumerate block, never re-typed here. A copy
 # would pass forever against a skill edited back to the greedy form -- the exact
 # shape CLAUDE.md calls "a second level asserting about its own re-implementation".
 # LOAD-BEARING: the split is on the single-quote that opens `python3 -c '...'`, so
@@ -134,7 +135,7 @@ else
 fi
 
 # 7. The replacement reads the SAME field the old awk did. Extracted from
-#    SKILL.md, never re-typed, for the reason given at PROG above.
+#    the reference, never re-typed, for the reason given at PROG above.
 SEDPROG=$(grep -m1 "me=\$(sed -n" "$SKILL" | sed -n "s/.*sed -n '\([^']*\)'.*/\1/p")
 printf 'Name:\tbash\nPPid:\t4124418\nPPid2:\t9\n' > "$TMP/status"
 got=$(sed -n "$SEDPROG" "$TMP/status" 2>/dev/null)
@@ -145,8 +146,9 @@ else
 fi
 
 # 8-11. THE SELF-IDENTIFICATION WALK, run for real against a fixture tree.
-#    The block is EXTRACTED from SKILL.md (the first ```bash fence under Step 1),
-#    never re-typed, for the reason given at PROG above. The fixture is the shape
+#    The Enumerate block is EXTRACTED from the reference (the first ```bash fence under
+#    `## Enumerate`) and the merge block from SKILL.md (its one ```bash fence), never
+#    re-typed, for the reason given at PROG above. Each case runs `enumerate | merge`. The fixture is the shape
 #    the bug was measured on 2026-09-02: the shell's ancestor that owns the socket
 #    is a VERSION-PINNED install, so its `comm` is `2.1.258`, not `claude`.
 #      $$ (bash) -> 910001 (node, no socket) -> 910002 (comm 2.1.258, HAS socket) -> 1
@@ -156,31 +158,41 @@ if [ -z "$BLOCK" ] || ! grep -q 'me=\$\$' <<<"$BLOCK"; then
   fail "extract walk block" "no bash fence containing 'me=\$\$' under '## Enumerate' in $SKILL"
   echo "-- $PASS passed, $FAIL failed"; exit 1
 fi
+MERGE=$(awk '/^```bash/{b=1; next} b && /^```/{exit} b{print}' "$CORE")
+if [ -z "$MERGE" ] || ! grep -q 'CS_PEERS_NOW' <<<"$MERGE"; then
+  fail "extract merge block" "no bash fence containing CS_PEERS_NOW in $CORE"
+  echo "-- $PASS passed, $FAIL failed"; exit 1
+fi
 
 mk_proc() { # mk_proc <fx> <pid> <comm> <ppid>
   mkdir -p "$1/proc/$2"
   printf 'Name:\t%s\nPPid:\t%s\n' "$3" "$4" > "$1/proc/$2/status"
   printf '%s\n' "$3" > "$1/proc/$2/comm"
 }
-mk_peer() { # mk_peer <fx> <pid> <comm> <ppid> <name> -- a socket-bound session
+mk_peer() { # mk_peer <fx> <pid> <comm> <ppid> <name> [sessionId] -- a socket-bound session
   mk_proc "$1" "$2" "$3" "$4"
   python3 -c 'import socket,sys; socket.socket(socket.AF_UNIX).bind(sys.argv[1])' "$1/socks/$2.sock" 2>/dev/null
   printf 'CLAUDE_CONFIG_DIR=%s\0' "$1/profile" > "$1/proc/$2/environ"
   ln -s "/work/$5" "$1/proc/$2/cwd"
-  printf '{"pid":%s,"name":"%s","status":"idle"}' "$2" "$5" > "$1/profile/sessions/$2.json"
+  if [ -n "${6:-}" ]; then
+    printf '{"pid":%s,"sessionId":"%s","name":"%s","status":"idle"}' "$2" "$6" "$5" > "$1/profile/sessions/$2.json"
+  else
+    printf '{"pid":%s,"name":"%s","status":"idle"}' "$2" "$5" > "$1/profile/sessions/$2.json"
+  fi
 }
 mk_fixture() { # mk_fixture <fx>
   mkdir -p "$1/proc" "$1/socks" "$1/profile/sessions" "$1/home"
 }
-# run_walk <fx> <parent-of-the-running-shell> <block> -- the running shell's own
+# run_walk <fx> <parent-of-the-running-shell> <enumerate-block> -- the running shell's own
 # status row is written under ITS pid, which is only known once it is running, so
-# the wrapper creates it before evaluating the block.
+# the wrapper creates it before evaluating the block. The Enumerate block's rows are
+# piped into the merge block from SKILL.md, as the skill instructs.
 run_walk() {
-  CS_PEERS_PROC="$1/proc" CS_PEERS_SOCKS="$1/socks" HOME="$1/home" \
-  START_PARENT="$2" BLOCK_UNDER_TEST="$3" bash -c '
+  CS_PEERS_PROC="$1/proc" CS_PEERS_SOCKS="$1/socks" HOME="$1/home" CS_PEERS_NOW=2026-10-29T12:00:00Z \
+  START_PARENT="$2" BLOCK_UNDER_TEST="$3" MERGE_UNDER_TEST="$MERGE" bash -c '
     mkdir -p "$CS_PEERS_PROC/$$"
     printf "Name:\tbash\nPPid:\t%s\n" "$START_PARENT" > "$CS_PEERS_PROC/$$/status"
-    eval "$BLOCK_UNDER_TEST"' 2>&1
+    eval "$BLOCK_UNDER_TEST" | bash -c "$MERGE_UNDER_TEST"' 2>&1
 }
 marked() { # marked <pid> <output> -- is <pid>'s row the one tagged "<-- you"?
   awk -F'\t' -v p="$1" '$3==p && $7 ~ /<-- you$/ {f=1} END{exit !f}' <<<"$2"
@@ -188,7 +200,7 @@ marked() { # marked <pid> <output> -- is <pid>'s row the one tagged "<-- you"?
 
 FXA="$TMP/fx-pinned"; mk_fixture "$FXA"
 mk_proc "$FXA" 910001 node 910002
-mk_peer "$FXA" 910002 2.1.258 1 pinned-server
+mk_peer "$FXA" 910002 2.1.258 1 pinned-server sid-pinned-910002
 mk_peer "$FXA" 910003 claude 1 other-peer
 if [ ! -S "$FXA/socks/910002.sock" ] || [ ! -S "$FXA/socks/910003.sock" ]; then
   fail "fixture sockets" "could not bind unix sockets under $FXA (path too long, or python3 missing)"
@@ -203,6 +215,15 @@ if marked 910002 "$outA" && ! marked 910003 "$outA" && ! grep -q 'WARNING' <<<"$
   pass "walk terminates on the socket-bearing ancestor despite comm=2.1.258"
 else
   fail "walk terminates on the socket-bearing ancestor despite comm=2.1.258" "$outA"
+fi
+
+# 8b. The registry's `sessionId` lands in column 4 (SID) of its own row; a peer whose registry
+#     row has none prints `?`.
+sid8=$(awk -F'\t' '$3==910002{print $4}' <<<"$outA"); sid8b=$(awk -F'\t' '$3==910003{print $4}' <<<"$outA")
+if [ "$sid8" = "sid-pinned-910002" ] && [ "$sid8b" = "?" ]; then
+  pass "SID column carries the registry sessionId (and ? when absent)"
+else
+  fail "SID column carries the registry sessionId (and ? when absent)" "got '$sid8' / '$sid8b' in: $outA"
 fi
 
 # 9. No socket-bearing ancestor: the failure is LOUD. This is the property the
@@ -262,8 +283,11 @@ fi
 #     report. Anchored on the rule itself, NOT on bare tokens: `refused`, `reports` and
 #     `2.1.312` also occur elsewhere in the section (decoys), so a token check survives
 #     deleting the rule. The section is flattened to one line first, because the prose
-#     is hard-wrapped and the sentence spans lines. Rewording is free; deleting either
-#     the line or the sentence is caught.
+#     is hard-wrapped and the sentence spans lines. The anchor is a `[^.]*` span, so the
+#     rule sentence may be reworded freely ONLY while it holds no full stop between
+#     `not in the measured list`, `refuse` and `report` -- a version number such as
+#     2.1.312 written inside that span breaks the match and needs the anchor updated.
+#     Deleting either the line or the sentence is caught.
 deliver_pins_versions() {
   local sec; sec=$(awk '/^## Deliver/{s=1; next} s && /^## /{exit} s{print}' "$1" | tr '\n' ' ' | tr -s ' ')
   grep -qE 'Measured versions:\**[[:space:]]*2\.1\.312' <<<"$sec" \
@@ -272,7 +296,7 @@ deliver_pins_versions() {
 if deliver_pins_versions "$SKILL"; then
   pass "Deliver names the measured version list and the refuse-and-report rule"
 else
-  fail "Deliver names the measured version list and the refuse-and-report rule" "section missing, no 2.1.312, or no refuse/report"
+  fail "Deliver names the measured version list and the refuse-and-report rule" "section missing, no 'Measured versions:' line holding 2.1.312, or no 'not in the measured list ... refuse ... report' sentence (a full stop inside that span, e.g. a version number, breaks the match)"
 fi
 # 12b. Controls: each deletes EXACTLY one thing (not every token) and must be caught.
 #     Delete only the `**Measured versions: 2.1.312.**` label:
@@ -290,6 +314,35 @@ if deliver_pins_versions "$TMP/no-refuse.md"; then
   fail "control: dropping the refuse rule from Deliver is caught" "mutated copy still passed"
 else
   pass "control: dropping the refuse rule from Deliver is caught"
+fi
+
+# 13-15. THE MERGE BLOCK on row fixtures of both harnesses (extracted from SKILL.md; rows
+#     are the Enumerate contract: seven tab fields, no header). The Codex row counts under
+#     its own unit T and never under S; a NAME with a space stays on its own row; and with
+#     no `<-- you` row the peer figure is dropped and the WARNING printed.
+merge_rows() { printf '%s' "$1" | CS_PEERS_NOW=2026-10-29T12:00:00Z bash -c "$MERGE" 2>&1; }
+TB=$(printf '\t')
+ROWS=$(printf '%s\n' \
+  "codex${TB}acctA${TB}201${TB}thr1${TB}codex one${TB}loaded${TB}/w/c" \
+  "claude${TB}acctB${TB}102${TB}sid2${TB}peer${TB}idle${TB}/w/b" \
+  "claude${TB}acctA${TB}101${TB}sid1${TB}name with space${TB}busy${TB}/w/a  <-- you")$'\n'
+outM13=$(merge_rows "$ROWS")
+if grep -qxF -- '-- 2 Claude Code sessions (1 peers plus you) and 1 loaded Codex threads, across 2 account(s), at 2026-10-29T12:00:00Z' <<<"$outM13"; then
+  pass "merge: two-unit summary counts the Codex row under T, not S"
+else
+  fail "merge: two-unit summary counts the Codex row under T, not S" "$outM13"
+fi
+if [ "$(sed -n '2,4p' <<<"$outM13" | cut -f3 | tr '\n' ' ')" = "101 201 102 " ] \
+   && [ "$(sed -n 2p <<<"$outM13" | cut -f5)" = "name with space" ]; then
+  pass "merge: sorted by ACCOUNT then HARNESS; a NAME with a space stays on its own row"
+else
+  fail "merge: sorted by ACCOUNT then HARNESS; a NAME with a space stays on its own row" "$outM13"
+fi
+outM15=$(merge_rows "${ROWS//  <-- you/}")
+if grep -qF 'WARNING: your own row was NOT identified' <<<"$outM15" && ! grep -qF 'peers plus you' <<<"$outM15"; then
+  pass "merge: no <-- you row prints the WARNING and no peer figure"
+else
+  fail "merge: no <-- you row prints the WARNING and no peer figure" "$outM15"
 fi
 
 echo "-- $PASS passed, $FAIL failed"

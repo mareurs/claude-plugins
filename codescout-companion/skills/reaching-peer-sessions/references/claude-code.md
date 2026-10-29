@@ -19,7 +19,8 @@ population, with nothing marking it as a subset.
 
 Columns, in order: `HARNESS` (always `claude`), `ACCOUNT` (the basename of
 `CLAUDE_CONFIG_DIR`), `PID`, `SID` (the registry key `sessionId`), `NAME`,
-`STATUS`, `LAUNCH-CWD`, then `  <-- you` on the caller's row. Registry keys
+`STATUS`, `LAUNCH-CWD`, then `  <-- you` on the caller's row, as data rows on
+stdout with no header and no summary. Registry keys
 measured 2026-10-29 in `sessions/<pid>.json`: `sessionId`, `version`, `status`,
 `name`.
 
@@ -48,7 +49,7 @@ while [ -n "$me" ] && [ "$me" -gt 1 ] 2>/dev/null && [ ! -S "$socks/$me.sock" ];
   me=$(sed -n 's/^PPid:[[:space:]]*//p' "$proc/$me/status" 2>/dev/null)
 done
 [ -n "$me" ] && [ -S "$socks/$me.sock" ] || me=""
-rows=$(for s in "$socks"/*.sock; do
+for s in "$socks"/*.sock; do
   p=${s##*/}; p=${p%.sock}; [ -r "$proc/$p/environ" ] || continue
   d=$(tr '\0' '\n' <"$proc/$p/environ" | sed -n 's/^CLAUDE_CONFIG_DIR=//p'); d=${d:-$HOME/.claude}
   # Structural read, never a regex. `name` is a TOP-LEVEL key; `formerNames` is a list
@@ -62,28 +63,16 @@ rows=$(for s in "$socks"/*.sock; do
   sid=$(python3 -c 'import json,sys;print(json.load(open(sys.argv[1])).get("sessionId") or "?")' "$d/sessions/$p.json" 2>/dev/null); sid=${sid:-?}
   printf 'claude\t%s\t%s\t%s\t%s\t%s\t%s%s\n' "$(basename "$d")" "$p" "$sid" "$n" "$st" \
     "$(readlink "$proc/$p/cwd")" "$([ "$p" = "$me" ] && echo '  <-- you')"
-done | sort -k2,2 -k7,7)
-[ -z "$rows" ] && { echo "no live sessions found"; exit; }
-printf 'HARNESS\tACCOUNT\tPID\tSID\tNAME\tSTATUS\tLAUNCH-CWD\n%s\n' "$rows"
-n_rows=$(printf '%s\n' "$rows" | wc -l)
-n_acct=$(printf '%s\n' "$rows" | cut -f2 | sort -u | wc -l)
-if [ -n "$me" ]; then
-  printf -- '-- %s live sessions (%s peers plus you) across %s account(s)\n' \
-    "$n_rows" "$((n_rows - 1))" "$n_acct"
-else
-  printf -- '-- %s live sessions across %s account(s)\n' "$n_rows" "$n_acct"
-  printf -- '-- WARNING: your own row was NOT identified — no "<-- you" marker below.\n'
-  printf -- '--          Do NOT report a peer count from this run: you cannot subtract yourself.\n'
-fi
-printf -- '-- outside your account, address by: uds:/run/user/%s/cc-socks/<PID>.sock\n' "$u"
+done
 ```
 
-Pipe to `column -t -s$'\t'` if you want it aligned.
+The block prints rows only. The core's merge block sorts them and prints the header
+and the summary; pipe the output there, in one shell call. Pipe the merge output to
+`column -t -s$'\t'` if you want it aligned.
 
 A socket with no live `/proc/<pid>` is a stale leftover and is skipped;
 `STATUS` is the peer's own last-reported `idle`/`busy`. `LAUNCH-CWD` is
-`/proc/<pid>/cwd`: where the process was **started**, not where the session is
-**working**. Never read occupancy off it.
+`/proc/<pid>/cwd`.
 
 ## Identify me
 
@@ -93,12 +82,8 @@ identify yourself with `pgrep … | head -1`, which samples arbitrarily among se
 running servers, and do not filter on `comm`, which is the binary's basename rather
 than its identity.
 
-**A failed self-identification is LOUD, and that is load-bearing.** When the walk
-finds no socket-bearing ancestor, `me` is empty, no row is marked, and the table
-still renders perfectly — identical to a correct run except for one missing
-annotation nobody is looking for. So the summary drops the peer figure entirely and
-says why, rather than printing a session count a reader will silently use as a peer
-count.
+When the walk finds no socket-bearing ancestor, `me` is empty and no row is marked.
+The core's merge block turns that into a loud warning; see Step 1 there for why.
 
 **Both defects were shipped and both were self-concealing.** A stale name makes
 `SendMessage` answer `No agent named 'X' is reachable`, which is byte-identical to
@@ -124,11 +109,6 @@ short-args test looks clean.
 **From a Claude Code session.** Same account as the target: `SendMessage` with
 `to: "<NAME>"`. Any other account: `to: "uds:/run/user/<uid>/cc-socks/<PID>.sock"`.
 Replying to a message you received: copy its `from=` attribute verbatim.
-
-**`No agent named 'X' is reachable` means the NAME did not resolve — not that the
-session is absent.** A cross-account peer is refused by name and delivers by socket
-path, so treat that error as "switch to the `uds:` form", never as "no such
-session".
 
 **From a Codex session.** Post one JSON line, ended by a newline, on the target's
 socket `/run/user/<uid>/cc-socks/<PID>.sock`, through codescout's `run_command`
