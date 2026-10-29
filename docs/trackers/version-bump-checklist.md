@@ -14,7 +14,9 @@ Release readiness across plugins × profiles. See
 
 ## State
 
-_Last refresh: `caa4e66`, 2026-10-27 — codescout-companion 1.20.20→1.20.21 and legible 0.2.0→0.2.1, each released and pushed by `release.sh` (`27bbb93..1db0234`, then `1db0234..caa4e66`). See History 2026-10-27._
+_Last refresh: `de26eba`, 2026-10-29 — codescout-companion 1.20.21→1.20.22, bumped by `release.sh` and pushed by hand (`223b56a..de26eba`, 9 commits) after the release's parity gate stopped on marketplace skew. See History 2026-10-29._
+
+_Earlier refresh: `caa4e66`, 2026-10-27 — codescout-companion 1.20.20→1.20.21 and legible 0.2.0→0.2.1, each released and pushed by `release.sh` (`27bbb93..1db0234`, then `1db0234..caa4e66`). See History 2026-10-27._
 
 _Earlier refresh: `3340151`, 2026-10-24 — codescout-companion 1.20.19→1.20.20, buddy 0.11.12→0.11.13 and statusline 1.2.0→1.2.1, pushed in one push (`main` `c5dbc1c..3340151`, 48 commits, including the merge of `effort-routing-r1`). The plugin `claude-statusline` was renamed `statusline` in `7a8cf6c`. See History 2026-10-24._
 
@@ -48,15 +50,17 @@ _cache = working tree, measured 2026-10-19 with `diff -rq` (excluding `judge.env
 | `~/.claude-sdd` | 1.2.1 ✅ | ✅ | ✅ | `1.2.1` ✅ | ✅ |
 | `~/.claude-kat` | 1.2.1 ✅ | ✅ | ✅ | `1.2.1` ✅ | ✅ |
 
-**codescout-companion** — canonical `1.20.21` · readme `1.20.21` · marketplace clean ✅
+**codescout-companion** — canonical `1.20.22` · readme `1.20.22` · marketplace clean ✅
 
 | profile | installed | cache dir | install_path ok | all entries | cache = working tree |
 |---|---|---|---|---|---|
-| `~/.claude` | 1.20.21 ✅ | ✅ | ✅ | `1.20.21` ✅ | ✅ |
-| `~/.claude-sdd` | 1.20.21 ✅ | ✅ | ✅ | `1.20.21` ✅ | ✅ |
-| `~/.claude-kat` | 1.20.21 ✅ | ✅ | ✅ | `1.20.21` ✅ | ✅ |
+| `~/.claude` | 1.20.22 ✅ | ✅ | ✅ | `1.20.22` ✅ | ✅ |
+| `~/.claude-sdd` | 1.20.22 ✅ | ✅ | ✅ | `1.20.22` ✅ | ✅ |
+| `~/.claude-kat` | 1.20.22 ✅ | ✅ | ✅ | `1.20.22` ✅ | ✅ |
 
-_cache = working tree, measured 2026-10-27 for 1.20.21 in all three profiles with the same `diff -rq` excludes: 0 lines of output each._
+_cache = working tree, measured 2026-10-29 for 1.20.22 in all three profiles with the same `diff -rq` excludes: 0 lines of output each. Positive control: the `~/.claude` 1.20.21 cache against the same working tree reports 6 lines._
+
+_Earlier: cache = working tree, measured 2026-10-27 for 1.20.21 in all three profiles with the same `diff -rq` excludes: 0 lines of output each._
 
 _Earlier: cache = working tree, measured 2026-10-24 for 1.20.20 in all three profiles with `diff -rq` (excluding `.buddy`, `.codescout`, `.orphaned_at`, `node_modules`, `judge.env`, `__pycache__`, `.pytest_cache`, `.venv`): 0 files differ. The only differences are the cache marker `.orphaned_at` and the ignored local directories `.buddy` and `.codescout` (also under `hooks/`). The ❌ rows of 2026-10-14 and 2026-10-16 came from the checkout being on `effort-routing-r1`; the merge cleared them._
 
@@ -194,6 +198,18 @@ measured on both candidate load paths rather than argued: the record points at k
 two actually serves, they carry the same bytes — so the question CLAUDE.md flags as
 unsettled does not need settling for this release.
 ## History
+### 2026-10-29 — companion 1.20.22 released; push by hand after a marketplace-skew stop
+
+**Deltas, all measured:**
+- codescout-companion 1.20.21→1.20.22 (`de26eba`) ships the `wake-on-job-end` hook (`32d8a06`..`71cc9f8`, 7 commits): it wakes the session when a codescout background job ends. It adds `hooks/wake-on-job-end.mjs`, its test, a `hooks.json` entry and a `stateHome` helper in `lib.mjs`.
+- Before the release, two commits cleared the dirty tree: `97d75a7` (skill-call legality test and two tracker updates) and `ca67a38` (`CLAUDE.md` skill-layout rule, a `reaching-peer-sessions` design spec, blind A/B results). A peer session wrote the second one.
+- `release.sh` passed preflight (`tests/run-all.sh`, buddy pytest 534 passed), made the bump commit, seeded 3 caches and repointed 3 records. Its parity gate then **stopped before the push**: `MARKETPLACE SKEW: anthropic-agent-skills` (`~/.claude` and `~/.claude-sdd` at `dbd4588`, `~/.claude-kat` and `~/.claude-stef` at `ca45fc4`).
+- Repair: a fetch in the stale clone showed `ca45fc4` descends from `dbd4588` (`merge-base --is-ancestor`). The `~/.claude-kat` clone is shallow, so it lacks `dbd4588`; this is why ancestry could not be tested there. Both stale clones were fast-forwarded with `merge --ff-only`, not `rsync --delete`. None was a symlink and none had local changes.
+- `check-profile-parity.sh` after the repair: `Profile parity holds across 4 plugin(s).` I then ran `git push` by hand: `223b56a..de26eba`. The pre-push guard passed.
+- All 3 cache dirs show 0 lines under `diff -rq`; positive control in the State note.
+
+**Not done or not probed:** CI `cross-platform hooks` for `de26eba` was still `in_progress` when this was written. The cold restart of the three profiles is not done. The `~/.claude-stef` profile is not covered by `release.sh` or the parity script.
+
 ### 2026-10-27 — companion 1.20.21 and legible 0.2.1 released and pushed
 
 **Deltas, all measured:**
