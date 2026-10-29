@@ -14,7 +14,9 @@ Release readiness across plugins × profiles. See
 
 ## State
 
-_Last refresh: `209584f`, 2026-10-29 — codescout-companion 1.20.22→1.20.23, bumped and pushed by `release.sh` (`fafc0e0..209584f`, 5 commits). See History 2026-10-29 (second entry)._
+_Last refresh: `338e82a`, 2026-10-29 — codescout-companion 1.20.23→1.20.24, bumped by `release.sh` with `NO_PUSH=1` (local, not pushed) after merging `feat/peer-skill-cross-harness` (`a4df207`): the `reaching-peer-sessions` skill now spans accounts and harnesses (core `SKILL.md` plus `references/claude-code.md` and `references/codex.md`). Full suite green on the merged tree before the bump._
+
+_Earlier refresh: `209584f`, 2026-10-29 — codescout-companion 1.20.22→1.20.23, bumped and pushed by `release.sh` (`fafc0e0..209584f`, 5 commits). See History 2026-10-29 (second entry)._
 
 _Earlier refresh: `de26eba`, 2026-10-29 — codescout-companion 1.20.21→1.20.22, bumped by `release.sh` and pushed by hand (`223b56a..de26eba`, 9 commits) after the release's parity gate stopped on marketplace skew. See History 2026-10-29._
 
@@ -52,16 +54,16 @@ _cache = working tree, measured 2026-10-19 with `diff -rq` (excluding `judge.env
 | `~/.claude-sdd` | 1.2.1 ✅ | ✅ | ✅ | `1.2.1` ✅ | ✅ |
 | `~/.claude-kat` | 1.2.1 ✅ | ✅ | ✅ | `1.2.1` ✅ | ✅ |
 
-**codescout-companion** — canonical `1.20.23` · readme `1.20.23` · marketplace clean ✅
+**codescout-companion** — canonical `1.20.24` · readme `1.20.24` · marketplace clean ✅
 
 | profile | installed | cache dir | install_path ok | all entries | cache = working tree |
 |---|---|---|---|---|---|
-| `~/.claude` | 1.20.23 ✅ | ✅ | ✅ | `1.20.23` ✅ | ✅ |
-| `~/.claude-sdd` | 1.20.23 ✅ | ✅ | ✅ | `1.20.23` ✅ | ✅ |
-| `~/.claude-kat` | 1.20.23 ✅ | ✅ | ✅ | `1.20.23` ✅ | ✅ |
-| `~/.claude-stef` | 1.20.23 ✅ | ✅ | ✅ | `1.20.23` ✅ | ✅ |
+| `~/.claude` | 1.20.24 ✅ | ✅ | ✅ | `1.20.24` ✅ | ✅ |
+| `~/.claude-sdd` | 1.20.24 ✅ | ✅ | ✅ | `1.20.24` ✅ | ✅ |
+| `~/.claude-kat` | 1.20.24 ✅ | ✅ | ✅ | `1.20.24` ✅ | ✅ |
+| `~/.claude-stef` | 1.20.24 ✅ | ✅ | ✅ | `1.20.24` ✅ | ✅ |
 
-_cache = working tree, measured 2026-10-29 for 1.20.23 in all four profiles with the same `diff -rq` excludes: 0 lines of output each. Positive control: the `~/.claude` 1.20.22 cache against the same working tree reports 3 lines._
+_cache = working tree, measured 2026-10-29 for 1.20.24 in all four profiles with `diff -rq` (excludes `__pycache__`, `.pytest_cache`, `.venv`, `.buddy`, `.orphaned_at`, `*.pyc`): 0 lines of output each. Positive control: the `~/.claude` 1.20.23 cache against the same working tree reports 6 lines._
 
 _Earlier: cache = working tree, measured 2026-10-29 for 1.20.22 in all three profiles with the same `diff -rq` excludes: 0 lines of output each. Positive control: the `~/.claude` 1.20.21 cache against the same working tree reports 6 lines._
 
