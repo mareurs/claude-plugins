@@ -137,7 +137,7 @@ def apply_command(record, command):
         if op != 'ensure':
             return fail('receipt missing')
         validate_event(command['event'], command['eventId'])
-        return True, {'version': 1, 'event': command['event'], 'state': 'pending', 'updatedAtMs': now}, 'event persisted'
+        return True, {'version': 1, 'event': command['event'], 'state': 'pending', 'updatedAtMs': now, 'sendAttempts': 0}, 'event persisted'
     if record.get('version') != 1 or record['event']['eventId'] != command['eventId']:
         return fail('unsupported receipt identity')
     if op == 'ensure':
@@ -146,6 +146,8 @@ def apply_command(record, command):
     if now < record['updatedAtMs']:
         return fail('transaction clock moved backward')
     if op == 'claim':
+        if record.get('sendAttempts', 0) >= 4:
+            return fail('persistent send budget exhausted')
         if record['state'] not in ('pending', 'failed') or (record['state'] == 'failed' and not record.get('lastError', {}).get('safeRetry')):
             return fail('event cannot be claimed')
         token = command.get('ownerToken', '')
@@ -160,7 +162,7 @@ def apply_command(record, command):
     elif op == 'begin-send':
         if record['state'] != 'claimed' or not owns(record, command, live=True):
             return fail('no live send lease')
-        record.update(state='sending', sendIntentAtMs=now)
+        record.update(state='sending', sendIntentAtMs=now, sendAttempts=record.get('sendAttempts', 0) + 1)
     elif op == 'release':
         if not owns(record, command):
             return fail('lease belongs to another attempt')
@@ -206,6 +208,13 @@ def apply_command(record, command):
                 return fail('unsupported delivery result')
         else:
             return fail('missing or inapplicable delivery evidence')
+    elif op == 'decline':
+        if record['state'] not in ('pending', 'failed'):
+            return fail('cannot decline an owned or sent event')
+        result = command.get('result', {})
+        if result.get('kind') not in ('failed', 'unsupported'):
+            return fail('unsupported decline result')
+        record.update(state=result['kind'], lastError={'safeRetry': False, 'reason': str(result.get('reason', ''))[:240]})
     elif op == 'gc':
         return True, record, 'retained stable deduplication identity; unresolved receipts are never erased'
     else:
