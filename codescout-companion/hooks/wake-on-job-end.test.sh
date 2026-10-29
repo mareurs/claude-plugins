@@ -140,10 +140,24 @@ expect "heartbeat" 2 "still running"
 R="$TMP/r11.json"
 sleep 1 & JOB=$!
 mkrec "$R" running "$DEAD" "$JOB"
+START=$SECONDS
 run_hook c11 "$(mkinput spawn "$R")" "$PD"
+ELAPSED=$((SECONDS-START))
+# The hook must have WAITED for the job: it returns only after the job pid died.
+if kill -0 "$JOB" 2>/dev/null; then fail "server dead, job alive: waits for the job" "job still alive when hook returned"; else pass "server dead, job alive: waits for the job (job dead on return)"; fi
 wait "$JOB" 2>/dev/null
 expect "server dead, job alive: no longer valid" 2 "no longer valid"
 case "$ERR" in *"has also ended"*) pass "server dead, job alive: has also ended" ;; *) fail "server dead, job alive" "no 'has also ended': $ERR" ;; esac
+
+# 11b. server dead, job outlives the deadline: still running as pid N
+R="$TMP/r11b.json"
+sleep 10 & JOB=$!
+mkrec "$R" running "$DEAD" "$JOB"
+run_hook c11b "$(mkinput spawn "$R")" "$PD"
+kill "$JOB" 2>/dev/null; wait "$JOB" 2>/dev/null
+expect "server dead, job still running at deadline" 2 "still running as pid $JOB"
+case "$ERR" in *"no longer valid"*) pass "server dead, job running: no longer valid" ;; *) fail "server dead, job running" "no 'no longer valid': $ERR" ;; esac
+case "$ERR" in *"tail -50"*) fail "server dead, job running" "stderr offers tail -50: $ERR" ;; *) pass "server dead, job running: no tail -50" ;; esac
 
 # 12. server dead, job dead
 R="$TMP/r12.json"; mkrec "$R" running "$DEAD" "$DEAD"
