@@ -286,6 +286,15 @@ corrupted environment and produce false results. The pattern is: write config â†
 remove config. If test N establishes this pattern, make sure test N+1 doesn't silently
 inherit leftover state.
 
+## Skill layout â€” core in `SKILL.md`, harness specifics in `references/`
+
+A skill whose mechanics differ by harness (Claude Code, Codex) keeps what holds in every harness in `SKILL.md`, and each harness's commands, paths and quirks in `references/<harness>.md`. This is progressive disclosure: a session loads the core, then reads only the file for the harness it runs in. `reconnaissance` and `tracker-hygiene` already split their detail this way, with a pointer that says when to read each file.
+
+- `SKILL.md` holds the rules, the decision steps, and how a session tells which harness it runs in. For each harness it holds one pointer: "on Codex, read `references/codex.md` before Step N".
+- A core rule never names one harness's tool or path, except inside that pointer. A harness file never repeats a core rule.
+- A session reads the file for its own harness only. Do not inline another harness's mechanics "for completeness".
+- `reaching-peer-sessions` is the first skill to be split this way, for Claude Code and Codex.
+
 ## Session Passover
 
 Hand a live work thread to a fresh session (e.g. after compaction, or one of several

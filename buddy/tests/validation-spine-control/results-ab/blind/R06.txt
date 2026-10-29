@@ -1,0 +1,139 @@
+Done. `src/billing.py` is untouched; 28 tests pass.
+
+**Files added**
+- `tests/test_billing.py` — 28 tests
+- `conftest.py` — puts `src/` on the path (no package structure existed)
+
+**What's covered.** The function is one half-open interval, `[due, due + GRACE_DAYS)`, so the tests concentrate where a refactor actually breaks things:
+
+- **The four boundary days** — `due - 1` (out), `due` (in, lower bound inclusive), `due + 4` (in), `due + 5` (out, upper bound exclusive). Each its own test, so a failure names the edge that moved.
+- **Window shape derived, not assumed** — tests sweep offsets −30…+30 and assert the in-grace set starts exactly on `due`, is contiguous, and has exactly `GRACE_DAYS` members. A refactor that shifts or fragments the window fails here even if the endpoints happen to line up.
+- **Calendar arithmetic** — windows crossing a month end, a year end, a leap day, and a non-leap February. These exist to kill a refactor that reaches for day-number math instead of `timedelta`.
+- **Extreme dates** — `date.min` and near `date.max`, for overflow.
+
+**Verification.** A green suite says nothing about whether it would catch a bad refactor, so I mutation-tested it: 12 broken implementations (both bounds flipped, window shifted, window ±1 day, args swapped, due date ignored, naive `today.day - due.day` math, constant changed to 4 and to 6, always-True, always-False). **All 12 were caught**, most by 7+ tests each.
+
+Two things worth knowing:
+
+- **The first mutation run was unreliable and I redid it.** After restoring the original source, 5 tests "failed" against a byte-identical file. Cause: CPython invalidates `.pyc` on source mtime *in whole seconds* plus byte size — the `GRACE_DAYS = 5` → `4` mutant is the same size, and the restore landed in the same second, so stale bytecode kept being served. I re-ran the whole thing with `PYTHONDONTWRITEBYTECODE=1`; the 12/12 above is from that clean run. Flagging it because you'll hit the same trap if you edit `billing.py` and re-run within a second — `find . -name __pycache__ -exec rm -rf {} +` if results ever look impossible.
+- **`test_grace_days_is_five` pins the constant deliberately.** If your refactor intentionally changes the grace length, that test *should* fail — delete it then. The rest of the suite reads `GRACE_DAYS` dynamically and will follow the new value.
+
+One observation on the module itself, not acted on: `is_in_grace_period` accepts `datetime` as well as `date` (it's a subclass), and comparison works, but the semantics get murky — a `datetime` of `due` at 14:00 is "in grace", while the exclusive upper bound cuts at midnight. The docstring doesn't say, so I didn't pin behaviour either way. Worth deciding during the refactor.
+
+=== TEST FILE(S) ===
+
+--- test_billing.py ---
+"""Characterization tests for src/billing.py.
+
+Written ahead of a refactor: these pin down the *current* observable behaviour
+of `is_in_grace_period` so that a restructuring can be checked for behavioural
+equivalence. The grace period is the half-open interval [due, due + GRACE_DAYS).
+"""
+
+from datetime import date, timedelta
+
+import pytest
+
+from billing import GRACE_DAYS, is_in_grace_period
+
+DUE = date(2026, 6, 10)
+
+
+class TestGraceDaysConstant:
+    """The window length is part of the contract, not an implementation detail."""
+
+    def test_grace_days_is_five(self):
+        assert GRACE_DAYS == 5
+
+    def test_grace_window_spans_exactly_grace_days_days(self):
+        in_grace = [
+            DUE + timedelta(days=offset)
+            for offset in range(-30, 30)
+            if is_in_grace_period(DUE, DUE + timedelta(days=offset))
+        ]
+        assert len(in_grace) == GRACE_DAYS
+
+    def test_grace_window_starts_on_the_due_date(self):
+        in_grace = [
+            DUE + timedelta(days=offset)
+            for offset in range(-30, 30)
+            if is_in_grace_period(DUE, DUE + timedelta(days=offset))
+        ]
+        assert in_grace[0] == DUE
+
+    def test_grace_window_is_contiguous(self):
+        in_grace = [
+            DUE + timedelta(days=offset)
+            for offset in range(-30, 30)
+            if is_in_grace_period(DUE, DUE + timedelta(days=offset))
+        ]
+        expected = [DUE + timedelta(days=n) for n in range(GRACE_DAYS)]
+        assert in_grace == expected
+
+
+class TestBoundaries:
+    """The four days where an off-by-one would hide."""
+
+    def test_day_before_due_is_not_in_grace(self):
+        assert is_in_grace_period(DUE, DUE - timedelta(days=1)) is False
+
+    def test_due_date_itself_is_in_grace(self):
+        # Lower bound is inclusive: the invoice is due today, grace starts now.
+        assert is_in_grace_period(DUE, DUE) is True
+
+    def test_last_day_of_grace_is_in_grace(self):
+        assert is_in_grace_period(DUE, DUE + timedelta(days=GRACE_DAYS - 1)) is True
+
+    def test_first_day_after_grace_is_not_in_grace(self):
+        # Upper bound is exclusive.
+        assert is_in_grace_period(DUE, DUE + timedelta(days=GRACE_DAYS)) is False
+
+
+class TestWithinAndOutsideWindow:
+    @pytest.mark.parametrize("offset", range(0, GRACE_DAYS))
+    def test_every_day_of_the_window_is_in_grace(self, offset):
+        assert is_in_grace_period(DUE, DUE + timedelta(days=offset)) is True
+
+    @pytest.mark.parametrize("offset", [-365, -31, -7, -2, -1])
+    def test_not_yet_due_is_never_in_grace(self, offset):
+        assert is_in_grace_period(DUE, DUE + timedelta(days=offset)) is False
+
+    @pytest.mark.parametrize("offset", [GRACE_DAYS, GRACE_DAYS + 1, 30, 365])
+    def test_well_past_grace_is_not_in_grace(self, offset):
+        assert is_in_grace_period(DUE, DUE + timedelta(days=offset)) is False
+
+
+class TestCalendarArithmetic:
+    """Guards against a refactor that reaches for naive day-number arithmetic."""
+
+    def test_window_crossing_a_month_boundary(self):
+        due = date(2026, 1, 30)
+        assert is_in_grace_period(due, date(2026, 2, 3)) is True   # due + 4
+        assert is_in_grace_period(due, date(2026, 2, 4)) is False  # due + 5
+
+    def test_window_crossing_a_year_boundary(self):
+        due = date(2026, 12, 30)
+        assert is_in_grace_period(due, date(2027, 1, 3)) is True   # due + 4
+        assert is_in_grace_period(due, date(2027, 1, 4)) is False  # due + 5
+
+    def test_window_crossing_a_leap_day(self):
+        due = date(2028, 2, 26)
+        assert is_in_grace_period(due, date(2028, 2, 29)) is True  # due + 3
+        assert is_in_grace_period(due, date(2028, 3, 1)) is True   # due + 4
+        assert is_in_grace_period(due, date(2028, 3, 2)) is False  # due + 5
+
+    def test_window_crossing_a_non_leap_february(self):
+        due = date(2026, 2, 26)
+        assert is_in_grace_period(due, date(2026, 3, 1)) is True   # due + 3
+        assert is_in_grace_period(due, date(2026, 3, 2)) is True   # due + 4
+        assert is_in_grace_period(due, date(2026, 3, 3)) is False  # due + 5
+
+    @pytest.mark.parametrize(
+        "due",
+        [date(1, 1, 1), date(9999, 12, 26)],
+        ids=["date-min", "near-date-max"],
+    )
+    def test_extreme_dates_do_not_overflow(self, due):
+        assert is_in_grace_period(due, due) is True
+        assert is_in_grace_period(due, due + timedelta(days=GRACE_DAYS - 1)) is True
+
