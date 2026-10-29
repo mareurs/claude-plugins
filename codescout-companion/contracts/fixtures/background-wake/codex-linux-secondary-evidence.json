@@ -1,0 +1,44 @@
+{
+  "version": 1,
+  "measuredAt": "2026-10-30",
+  "synthetic": false,
+  "captureKind": "native-protocol-summary",
+  "harness": "codex",
+  "hookVersion": "0.165.0",
+  "daemonVersion": "0.160.0",
+  "os": "linux",
+  "model": "gpt-6.1-sol",
+  "backend": "existing authenticated Codex daemon",
+  "subscription": {
+    "method": "thread/resume",
+    "params": {
+      "threadId": "<exact-loaded-thread>",
+      "excludeTurns": true
+    },
+    "configOverrides": false
+  },
+  "callbacksAfterSecondaryClose": {
+    "originalTool": 1,
+    "originalPermission": 1,
+    "secondaryCallbacks": 0
+  },
+  "realEngine": {
+    "jobProvider": "real codescout run_command",
+    "binding": "explicit measurement request, not native hook end-to-end",
+    "idleExit7": "completed",
+    "duplicate": "same event completed; no new send",
+    "reconnectExit0": "completed",
+    "modelMarkerObserved": true
+  },
+  "sameTurnControl": {
+    "returnedSameTurn": true,
+    "preReadStatus": "idle",
+    "receiptState": "accepted",
+    "completion": "unverified"
+  },
+  "limitations": [
+    "Native Windows and macOS host paths unverified",
+    "Full automatic hook-to-continuation registration unverified",
+    "Same-turn completion not established in this bounded run"
+  ]
+}

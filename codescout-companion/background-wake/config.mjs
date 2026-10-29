@@ -21,5 +21,5 @@ export async function loadWakeConfig({profileRoot,environmentId}) {
   const adapters=value.adapters;
   if(!object(adapters)||!object(adapters.claudeCode)||!object(adapters.codex)||typeof adapters.claudeCode.enabled!=='boolean'||typeof adapters.codex.enabled!=='boolean')throw new Error('configuration requires explicit adapter switches');
   if(adapters.codex.enabled&&(!nonempty(adapters.codex.endpoint)||! /^(unix|ws|wss):/.test(adapters.codex.endpoint)))throw new Error('configuration needs an explicit supported Codex endpoint');
-  return {version:1,engine:value.engine,profileRoot:profile,environmentId,stateDir:value.stateDir,pythonArgv:[...value.pythonArgv],adapters:{claudeCode:{enabled:adapters.claudeCode.enabled},codex:{enabled:adapters.codex.enabled,endpoint:adapters.codex.endpoint??null}},bindings:value.bindings??{}};
+  return {version:1,engine:value.engine,profileRoot:profile,environmentId,stateDir:value.stateDir,pythonArgv:[...value.pythonArgv],adapters:{claudeCode:{enabled:adapters.claudeCode.enabled},codex:{enabled:adapters.codex.enabled,endpoint:adapters.codex.endpoint??null}},bindings:value.bindings??{},capabilities:value.capabilities??{}};
 }

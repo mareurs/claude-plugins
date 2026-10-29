@@ -56,6 +56,9 @@ jobs:
           echo "jq:      $(command -v jq || echo 'absent')"
           echo "node:    $(node --version || echo 'absent')"
 
+      - name: Install companion runtime dependencies
+        run: npm ci --prefix codescout-companion --ignore-scripts --omit=optional
+
       - name: Cross-platform hook smoke test
         run: bash tests/test-cross-platform-hooks.sh
 
@@ -91,6 +94,9 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
+
+      - name: Install companion runtime dependencies
+        run: npm ci --prefix codescout-companion --ignore-scripts --omit=optional
 
       - name: Full suite
         # No suite is skipped. The five ambient-config suites measured 2026-09-10
