@@ -26,13 +26,14 @@ true & DEAD=$!; wait "$DEAD" 2>/dev/null
 mkrec() {
   node -e '
     const fs = require("fs");
-    const [f, state, sp, jp] = process.argv.slice(1);
+    const [f, state, sp, jp] = process.argv.slice(1); // argv[5]: optional JS patch of rec
     const fin = state === "running" ? null : "2026-10-29T10:00:05Z";
     const rec = { schema: 1, handle: "@bg_00000001", command: "sleep 1",
       server_pid: Number(sp), job_pid: jp === "null" ? null : Number(jp),
       state, exit_code: state === "exited" ? 0 : null,
       error: state === "failed" ? "spawn boom" : null,
       started_at: "2026-10-29T10:00:00Z", finished_at: fin };
+    if (process.argv[5]) new Function("rec", process.argv[5])(rec); // optional patch
     fs.writeFileSync(f + ".tmp", JSON.stringify(rec));
     fs.renameSync(f + ".tmp", f);
   ' "$@"
@@ -255,6 +256,62 @@ mkrec "$R" exited "$$" null
 wait "$PW"; CODE=$?; ERR=$(cat "$TMP/c19.err")
 expect "non-owner watcher still wakes" 2 "ended: exited 0"
 [ "$(cat "$R.watch" 2>/dev/null)" = "$$" ] && pass "non-owner exit leaves the marker" || fail "non-owner exit" "marker removed or changed"
+
+# 20. a record of another schema, or without server_pid, is not guessed at:
+# exit 0, silent, and no wait (the server's RECORD_SCHEMA contract)
+nowait() { # NAME START
+  [ $((SECONDS-$2)) -le 2 ] && pass "$1: no wait" || fail "$1: no wait" "took $((SECONDS-$2))s"
+}
+R="$TMP/r20a.json"; mkrec "$R" running "$DEAD" null 'rec.schema = 2'
+START=$SECONDS; run_hook c20a "$(mkinput spawn "$R")" "$PD"
+expect "spawn: schema 2 record exits 0 silently" 0 ""; nowait "spawn schema 2" "$START"
+R="$TMP/r20b.json"; mkrec "$R" running "$DEAD" null 'delete rec.server_pid'
+START=$SECONDS; run_hook c20b "$(mkinput spawn "$R")" "$PD"
+expect "spawn: record without server_pid exits 0 silently" 0 ""; nowait "spawn no server_pid" "$START"
+R="$TMP/r20c.json"; mkrec "$R" running "$$" null 'rec.schema = 2'; mkmap "$R"; rm -f "$R.watch" "$R.delivered"
+START=$SECONDS; run_hook c20c "$(mkinput readbg "$R")" "$PD"
+expect "re-arm: schema 2 record exits 0 silently" 0 ""; nowait "re-arm schema 2" "$START"
+R="$TMP/r20d.json"; mkrec "$R" running "$$" null 'delete rec.server_pid'; mkmap "$R"; rm -f "$R.watch" "$R.delivered"
+START=$SECONDS; run_hook c20d "$(mkinput readbg "$R")" "$PD"
+expect "re-arm: record without server_pid exits 0 silently" 0 ""; nowait "re-arm no server_pid" "$START"
+
+# 20e. rearmTarget itself refuses such a record (end to end, watch's own check masks it)
+R="$TMP/r20e.json"; mkrec "$R" running "$$" null 'rec.schema = 2'; mkmap "$R"; rm -f "$R.watch" "$R.delivered"
+RT=$(node -e 'import(process.argv[1]).then(m => { const rt = m.rearmTarget(JSON.parse(process.argv[2])); console.log(rt === null ? "null" : "armed"); })' "file://$HOOK" "$(mkinput readbg "$R")" 2>&1)
+[ "$RT" = "null" ] && pass "rearmTarget: schema 2 record is not a target" || fail "rearmTarget schema 2" "got '$RT'"
+R="$TMP/r20f.json"; mkrec "$R" running "$$" null 'delete rec.server_pid'; mkmap "$R"; rm -f "$R.watch" "$R.delivered"
+RT=$(node -e 'import(process.argv[1]).then(m => { const rt = m.rearmTarget(JSON.parse(process.argv[2])); console.log(rt === null ? "null" : "armed"); })' "file://$HOOK" "$(mkinput readbg "$R")" 2>&1)
+[ "$RT" = "null" ] && pass "rearmTarget: record without server_pid is not a target" || fail "rearmTarget no server_pid" "got '$RT'"
+
+# 21. an error while writing the wake-up must never exit 1 (fail-open). /dev/full
+# makes every stderr write fail (ENOSPC). Proves: no exit 1 from a stderr write
+# error. Does not prove an EPIPE specifically, nor a throw inside a timer.
+if [ -w /dev/full ]; then
+  R="$TMP/r21.json"; mkrec "$R" exited "$$" null
+  printf '%s' "$(mkinput spawn "$R")" | env "$PD" node "$HOOK" >"$TMP/c21.out" 2>/dev/full; CODE=$?
+  case "$CODE" in 0|2) pass "stderr write failure (/dev/full) exits $CODE, never 1" ;; *) fail "stderr write failure" "exit $CODE" ;; esac
+  # a closed pipe: the reader is gone before the hook writes (EPIPE)
+  R="$TMP/r21b.json"; mkrec "$R" exited "$$" null
+  printf '%s' "$(mkinput spawn "$R")" | env "$PD" node "$HOOK" >"$TMP/c21b.out" 2> >(exec true); CODE=$?
+  case "$CODE" in 0|2) pass "stderr to a closed pipe exits $CODE, never 1" ;; *) fail "stderr to a closed pipe" "exit $CODE" ;; esac
+else
+  pass "stderr write failure: skipped (no writable /dev/full)"
+fi
+# An error thrown inside a timer (not covered by main().catch). A preload makes
+# the process throw 300 ms in, while the watcher is polling a running record.
+R="$TMP/r21c.json"; mkrec "$R" running "$$" null
+printf '%s' "$(mkinput spawn "$R")" | env "$PD" node --import 'data:text/javascript,setTimeout(()=>{throw new Error("boom")},300)' "$HOOK" >"$TMP/c21c.out" 2>"$TMP/c21c.err"; CODE=$?
+ERR=$(cat "$TMP/c21c.err")
+expect "uncaught exception in a timer exits 0, not 1" 0 ""
+
+# 22. CODESCOUT_WAKE_DEADLINE_SECS: clamped below the 7200 s hook timeout; junk -> 1800
+DL=$(node -e 'import(process.argv[1]).then(m => console.log([m.deadlineSecsOf("7200"), m.deadlineSecsOf("99999"), m.deadlineSecsOf("60"), m.deadlineSecsOf("abc"), m.deadlineSecsOf("-5"), m.deadlineSecsOf("0"), m.deadlineSecsOf(undefined)].join(",")))' "file://$HOOK" 2>&1)
+[ "$DL" = "7000,7000,60,1800,1800,1800,1800" ] && pass "deadline: clamped to 7000, junk defaults to 1800" || fail "deadline parsing" "got '$DL'"
+
+# 23. the heartbeat reports the job's real age (record started_at), not the watcher's deadline
+R="$TMP/r23.json"; mkrec "$R" running "$$" null 'rec.started_at = new Date(Date.now() - 100*60000).toISOString()'
+run_hook c23 "$(mkinput spawn "$R")" "$PD"
+expect "heartbeat of an old job" 2 "still running after 100 min"
 
 echo "passed=$PASS failed=$FAIL"
 [ "$FAIL" -eq 0 ]

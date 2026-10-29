@@ -106,6 +106,14 @@ function claimDelivery(record) {
   }
 }
 
+// The watcher's deadline. Kept under the 7200 s hook timeout in hooks.json: past
+// it Claude Code kills the watcher before it can send a heartbeat.
+export function deadlineSecsOf(v) {
+  const n = Number(v);
+  const secs = Number.isFinite(n) && n > 0 ? n : 1800;
+  return Math.min(secs, 7000);
+}
+
 export async function watch({ handle, record, deadlineSecs = 1800, pollMs = 1000 }) {
   const startedAt = Date.now();
   const deadline = startedAt + deadlineSecs * 1000;
@@ -141,6 +149,10 @@ export async function watch({ handle, record, deadlineSecs = 1800, pollMs = 1000
     }
     seen = true;
 
+    // The contract with the server: a record of another schema, or one without a
+    // numeric server_pid, is not guessed at.
+    if (rec.schema !== 1 || typeof rec.server_pid !== 'number') return finish(0);
+
     if (rec.state === 'exited' || rec.state === 'failed') {
       const durationMs = Date.parse(rec.finished_at) - Date.parse(rec.started_at);
       return deliver(rec.state, { exitCode: rec.exit_code, error: rec.error, durationMs });
@@ -159,7 +171,12 @@ export async function watch({ handle, record, deadlineSecs = 1800, pollMs = 1000
       }
     }
 
-    if (Date.now() >= deadline) return finish(2, wakeMessage('heartbeat', { handle, minutes }));
+    if (Date.now() >= deadline) {
+      // The job's real age, not this watcher's: a re-armed watcher starts late.
+      const age = Date.now() - Date.parse(rec.started_at);
+      const mins = Number.isFinite(age) && age >= 0 ? Math.max(1, Math.round(age / 60000)) : minutes;
+      return finish(2, wakeMessage('heartbeat', { handle, minutes: mins }));
+    }
     await sleep(pollMs);
   }
 }
@@ -204,6 +221,7 @@ export function rearmTarget(input) {
     if (!record) return null;
     const rec = readRecord(record);
     if (!rec || rec.state !== 'running') return null;
+    if (rec.schema !== 1 || typeof rec.server_pid !== 'number') return null;
     // The end was already announced, or the server that served this handle is gone
     // (its record stays 'running' for good): a read now cannot refer to this job.
     if (existsSync(`${record}.delivered`) || !pidAlive(rec.server_pid)) return null;
@@ -235,7 +253,7 @@ async function main() {
   const num = (v, d) => (Number.isFinite(Number(v)) && Number(v) > 0 ? Number(v) : d);
   const result = await watch({
     ...target,
-    deadlineSecs: num(process.env.CODESCOUT_WAKE_DEADLINE_SECS, 1800),
+    deadlineSecs: deadlineSecsOf(process.env.CODESCOUT_WAKE_DEADLINE_SECS),
     pollMs: num(process.env.CODESCOUT_WAKE_POLL_MS, 1000),
   });
   if (result.exit === 2 && result.message) {
@@ -247,5 +265,7 @@ async function main() {
 
 // Run only as the entry point, not when imported by tests or other hooks.
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  // Fail-open for anything main().catch cannot see: an async stderr error, a throw in a timer.
+  process.on('uncaughtException', () => process.exit(0));
   main().catch(() => process.exit(0));
 }
