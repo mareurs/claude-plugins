@@ -115,28 +115,9 @@ socket `/run/user/<uid>/cc-socks/<PID>.sock`, through codescout's `run_command`
 (the native Codex shell blocks the socket). The format, captured from a real
 `SendMessage` on Claude Code 2.1.312:
 
-    {"msgV":1,"msg_id":"<uuid>","type":"user","message":{"role":"user","content":"<text>"},"priority":"next","from":"<sender label>"}
+    {"msgV":1,"msg_id":"<uuid>","type":"user","message":{"role":"user","content":"<cross-session-message from=\"<sender id>\" from-name=\"<name>\" from-mode=\"prompting\">\n<text>\n</cross-session-message>"},"priority":"next","from":"<sender id>"}
 
 The sender needs no auth line. The server sends no reply bytes.
-
-Run this through `run_command`, as `python3 - <socket> <sender-id> <from-name> <text> <<'PY'`.
-`<sender-id>` is any non-`uds:` id for the sender. `<from-name>` is the sender's name
-as it appears in the label the core's Step 3 prescribes, and `<text>` starts with that
-label. It sends exactly one line and closes:
-
-```python
-import json, socket, sys, uuid
-sock_path, sender, from_name, text = sys.argv[1:5]
-content = '<cross-session-message from="%s" from-name="%s" from-mode="prompting">\n%s\n</cross-session-message>' % (
-    sender, from_name.replace('"', "'"), text)
-msg = {"msgV": 1, "msg_id": str(uuid.uuid4()), "type": "user",
-       "message": {"role": "user", "content": content}, "priority": "next", "from": sender}
-s = socket.socket(socket.AF_UNIX)
-s.settimeout(5)
-s.connect(sock_path)
-s.sendall((json.dumps(msg) + "\n").encode())
-s.close()
-```
 
 **Measured versions: 2.1.312.** The format is measured only on the versions listed
 here. Read the target's version from the registry key `version` in
@@ -150,3 +131,24 @@ the registry row has no `version`. If the target's version is not in the measure
 list, refuse to post: report the version to the operator and stop. Some Claude
 peers run older versions (2.1.310 and below were seen), so they are unreachable
 from Codex until their format is measured.
+
+Only after that check passes, run this through `run_command`, as `python3 - <socket> <sender-id> <from-name> <text> <<'PY'`.
+`<sender-id>` is any non-`uds:` id for the sender. `<from-name>` is the sender's name
+as it appears in the label the core's Step 3 prescribes, and `<text>` starts with that
+label. It sends exactly one line and closes:
+
+```python
+import json, socket, sys, uuid
+sock_path, sender, from_name, text = sys.argv[1:5]
+if sender.startswith("uds:"):
+    sys.exit("sender id must not start with uds:")
+content = '<cross-session-message from="%s" from-name="%s" from-mode="prompting">\n%s\n</cross-session-message>' % (
+    sender, from_name.replace('"', "'"), text)
+msg = {"msgV": 1, "msg_id": str(uuid.uuid4()), "type": "user",
+       "message": {"role": "user", "content": content}, "priority": "next", "from": sender}
+s = socket.socket(socket.AF_UNIX)
+s.settimeout(5)
+s.connect(sock_path)
+s.sendall((json.dumps(msg) + "\n").encode())
+s.close()
+```

@@ -425,5 +425,30 @@ snip_control wrong_priority 't = t.replace(r"""priority": "next""", r"""priority
 snip_control wrong_key      't = t.replace("msgV", "msgW")'
 snip_control no_send        't = t.replace("s.sendall(", "(")'
 
+
+# 18. A `uds:`-prefixed sender is refused by the snippet and nothing reaches the socket.
+reject_uds() { # reject_uds <snippet-text>: 0 iff the post exits non-zero and sends no byte
+  local d; d=$(mktemp -d -p /tmp); local sock="$d/s.sock" got="$d/got" i rc n
+  python3 -c "$LISTEN" "$sock" "$got" & local lp=$!
+  for i in $(seq 1 50); do [ -S "$sock" ] && break; sleep 0.1; done
+  printf '%s\n' "$1" | python3 - "$sock" "uds:/run/user/1/cc-socks/9.sock" name text >/dev/null 2>&1; rc=$?
+  wait "$lp" 2>/dev/null
+  n=$(wc -c <"$got" 2>/dev/null); n=${n:-0}
+  rm -r "$d"; [ "$rc" -ne 0 ] && [ "$n" -eq 0 ]
+}
+if [ -n "$SNIP" ] && reject_uds "$SNIP"; then
+  pass "Codex-caller post: a uds:-prefixed sender is refused and nothing is sent"
+else
+  fail "Codex-caller post: a uds:-prefixed sender is refused" "the snippet posted, or exited 0"
+fi
+UDS_MUT=${SNIP/'sender.startswith("uds:")'/False}
+if [ "$UDS_MUT" = "$SNIP" ]; then
+  fail "control uds_check_removed" "mutation did not change the snippet"
+elif reject_uds "$UDS_MUT"; then
+  fail "control uds_check_removed" "snippet without the check still passed"
+else
+  pass "control uds_check_removed is caught"
+fi
+
 echo "-- $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]

@@ -8,8 +8,14 @@
 # into something else. The fixture uses invented ids, titles and paths only; no real
 # Codex thread, daemon or database is touched, and `codex queue` is never run.
 #
-# NOT VACUOUS: each control mutates a COPY of the extracted block, proves the
-# mutation changed it, and requires the checks to FAIL on it.
+# The home codex-a is a WAL database with a PENDING -wal, as the live one is: a block
+# opened read-write checkpoints that into the main file and deletes the -wal, which a
+# rollback-journal fixture cannot show. The home codex-e is held under an exclusive
+# lock for the whole run, to bound the cost of a locked database.
+#
+# NOT VACUOUS: each control mutates a COPY of the extracted block, proves the mutation
+# changed it, and requires check_all to FAIL with the NAMED reason (so a control cannot be
+# "caught" by an unrelated breakage).
 set -uo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 SKILL_DIR="${PEER_SKILL_DIR:-$ROOT/codescout-companion/skills/reaching-peer-sessions}"
@@ -18,7 +24,8 @@ REF="$SKILL_DIR/references/codex.md"
 PASS=0; FAIL=0
 ok()  { echo "  PASS: $1"; PASS=$((PASS+1)); }
 bad() { echo "  FAIL: $1 -- $2"; FAIL=$((FAIL+1)); }
-T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
+T=$(mktemp -d); LOCKPID=""
+trap '[ -n "$LOCKPID" ] && kill "$LOCKPID" 2>/dev/null; rm -rf "$T"' EXIT
 TAB=$(printf '\t')
 
 echo "-- peer-codex-enumerate --"
@@ -31,33 +38,47 @@ fi
 MERGE=$(awk '/^```bash/{b=1; next} b && /^```/{exit} b{print}' "$CORE")
 
 # ---- fixture ----
-FX="$T/fx"; mkdir -p "$FX/proc" "$FX/home/.codex" "$FX/codex-a" "$FX/codex-b" "$FX/codex-c"
+FX="$T/fx"; TABHOME="$FX/co${TAB}dex-t"
+mkdir -p "$FX/proc" "$FX/home/.codex/sessions" "$FX/codex-a" "$FX/codex-b" "$FX/codex-c" "$FX/codex-e" "$TABHOME" "$T/stage"
 U_A3=33333333-3333-4333-8333-333333333333
 U_C1=cccccccc-cccc-4ccc-8ccc-cccccccccccc
+U_T1=77777777-7777-4777-8777-777777777777
+LOCKED_N=12
+LONGCWD="/w/$(printf 'x%.0s' $(seq 1 100))/a${TAB}b"
+LONGCWD_WANT="/w/$(printf 'x%.0s' $(seq 1 100))/a b"
 ro() { echo "$FX/$1/sessions/rollout-2026-10-29T10-00-00-$2.jsonl"; }
-python3 - "$FX" <<'PY'
-import os, sqlite3, sys
-fx = sys.argv[1]
-def mkdb(home, rows):
-    db = sqlite3.connect(os.path.join(fx, home, "state_5.sqlite"))
-    db.execute("create table threads (id text primary key, rollout_path text, title text, name text, cwd text, archived integer)")
-    db.executemany("insert into threads values (?,?,?,?,?,?)", rows)
-    db.commit(); db.close()
+python3 - "$FX" "$T/stage" "$LONGCWD" <<'PY'
+import os, shutil, sqlite3, sys
+fx, stage, longcwd = sys.argv[1:4]
+SCHEMA = "create table threads (id text primary key, rollout_path text, title text, name text, cwd text, archived integer)"
 def r(home, tag):
     return os.path.join(fx, home, "sessions", "rollout-2026-10-29T10-00-00-%s.jsonl" % tag)
-mkdb("codex-a", [
+# codex-a: WAL with a pending -wal. The staging connection stays open (autocheckpoint
+# off) while both files are copied, so the copied -wal is NOT checkpointed.
+st = os.path.join(stage, "state_5.sqlite")
+db = sqlite3.connect(st)
+db.execute("pragma journal_mode=wal"); db.execute("pragma wal_autocheckpoint=0")
+db.execute(SCHEMA)
+db.executemany("insert into threads values (?,?,?,?,?,?)", [
     ("thr-a1", r("codex-a", "a1"), "Alpha task", None, "/w/alpha", 0),
     ("thr-a2", r("codex-a", "a2"), "Archived one", None, "/w/arch", 1),
     ("thr-a4", r("codex-a", "a4"), "a very long first user message", "Named one", "/w/named", 0),
     ("thr-a5", r("codex-a", "a5"), "has\ttab and\nnewline", "", "/w/messy", 0),
+    ("thr-a6", r("codex-a", "a6"), "Long cwd", None, longcwd, 0),
 ])
-mkdb("codex-b", [("thr-b1", r("codex-b", "b1"), "Alpha task", None, "/w/beta", 0)])
-os.makedirs(os.path.join(fx, "home", ".codex", "sessions"), exist_ok=True)
-db = sqlite3.connect(os.path.join(fx, "home", ".codex", "state_5.sqlite"))
-db.execute("create table threads (id text primary key, rollout_path text, title text, name text, cwd text, archived integer)")
-db.execute("insert into threads values (?,?,?,?,?,?)", ("thr-d1", os.path.join(fx, "home", ".codex", "sessions", "rollout-2026-10-29T10-00-00-d1.jsonl"), "Default home", None, "/w/default", 0))
-db.commit(); db.close()
+db.commit()
+for suffix in ("", "-wal"):
+    shutil.copy(st + suffix, os.path.join(fx, "codex-a", "state_5.sqlite" + suffix))
+db.close()
+def plain(path, rows):
+    c = sqlite3.connect(path); c.execute(SCHEMA)
+    c.executemany("insert into threads values (?,?,?,?,?,?)", rows); c.commit(); c.close()
+plain(os.path.join(fx, "codex-b", "state_5.sqlite"), [("thr-b1", r("codex-b", "b1"), "Alpha task", None, "/w/beta", 0)])
+plain(os.path.join(fx, "home", ".codex", "state_5.sqlite"),
+      [("thr-d1", os.path.join(fx, "home", ".codex", "sessions", "rollout-2026-10-29T10-00-00-d1.jsonl"), "Default home", None, "/w/default", 0)])
+plain(os.path.join(fx, "codex-e", "state_5.sqlite"), [("thr-e1", r("codex-e", "e00"), "Locked", None, "/w/locked", 0)])
 PY
+if [ ! -s "$FX/codex-a/state_5.sqlite-wal" ]; then bad "fixture" "codex-a has no pending -wal; the write check would be blind"; echo "-- $PASS passed, $FAIL failed"; exit 1; fi
 touch_ro() { mkdir -p "$(dirname "$1")"; : > "$1"; }
 mk_proc() { # mk_proc <pid> <cmdline words...>
   local p=$1; shift; mkdir -p "$FX/proc/$p/fd"
@@ -65,11 +86,11 @@ mk_proc() { # mk_proc <pid> <cmdline words...>
 }
 mk_env() { printf 'PATH=/usr/bin\0CODEX_HOME=%s\0' "$2" > "$FX/proc/$1/environ"; }
 fd() { touch_ro "$2"; ln -s "$2" "$FX/proc/$1/fd/$3"; }
-# 5001: app-server on home codex-a: one live, one archived, one named, one messy title,
-#       and one rollout with no threads row (uuid in the file name)
+# 5001: app-server on home codex-a: live, archived, named, messy title, long cwd, and one
+#       rollout with no threads row (uuid in the file name)
 mk_proc 5001 /opt/codex/bin/codex app-server --listen unix://; mk_env 5001 "$FX/codex-a"
 fd 5001 "$(ro codex-a a1)" 3; fd 5001 "$(ro codex-a a2)" 4; fd 5001 "$(ro codex-a "$U_A3")" 5
-fd 5001 "$(ro codex-a a4)" 6; fd 5001 "$(ro codex-a a5)" 7
+fd 5001 "$(ro codex-a a4)" 6; fd 5001 "$(ro codex-a a5)" 7; fd 5001 "$(ro codex-a a6)" 10
 ln -s 'socket:[12345]' "$FX/proc/5001/fd/8"; ln -s /dev/null "$FX/proc/5001/fd/9"
 # 5002: second app-server on another home, SAME title as thr-a1
 mk_proc 5002 /usr/lib/chatgpt/resources/codex -c x=y app-server --analytics-default-enabled; mk_env 5002 "$FX/codex-b"
@@ -87,23 +108,54 @@ fd 5005 "$(ro codex-a a4)" 3
 mk_proc 5006 /opt/codex/bin/codex app-server
 fd 5006 "$FX/home/.codex/sessions/rollout-2026-10-29T10-00-00-d1.jsonl" 3
 fd 5006 "$FX/home/.codex/sessions/rollout-weird.jsonl" 4
+# 5007: app-server on the LOCKED home, LOCKED_N open rollouts
+mk_proc 5007 /opt/codex/bin/codex app-server; mk_env 5007 "$FX/codex-e"
+for i in $(seq 1 "$LOCKED_N"); do fd 5007 "$(ro codex-e "e$(printf '%02d' "$i")")" $((i + 2)); done
+# 5008: app-server whose CODEX_HOME contains a TAB
+mk_proc 5008 /opt/codex/bin/codex app-server; mk_env 5008 "$TABHOME"
+fd 5008 "$TABHOME/sessions/rollout-2026-10-29T10-00-00-$U_T1.jsonl" 3
+EXPECT_ROWS=$((9 + LOCKED_N + 1))   # a1 a3 a4 a5 a6 | b1 | c1 | d1 weird | 12 locked | tab home
 
-sum_db() { sha256sum "$FX"/codex-*/state_5.sqlite* "$FX"/home/.codex/state_5.sqlite* 2>/dev/null; }
+# Hold an exclusive lock on codex-e for the whole run.
+python3 -c 'import sqlite3,sys,time
+c=sqlite3.connect(sys.argv[1],isolation_level=None); c.execute("begin exclusive"); open(sys.argv[2],"w").close(); time.sleep(600)' \
+  "$FX/codex-e/state_5.sqlite" "$T/lockflag" & LOCKPID=$!
+for _ in $(seq 1 50); do [ -e "$T/lockflag" ] && break; sleep 0.1; done
+[ -e "$T/lockflag" ] || { bad "fixture" "could not lock codex-e"; echo "-- $PASS passed, $FAIL failed"; exit 1; }
+
+# Pristine copies of the databases a faulty block might change; restored before every run.
+DBHOMES="codex-a codex-b home/.codex"
+for h in $DBHOMES; do mkdir -p "$T/pristine/$h"; cp -a "$FX/$h"/state_5.sqlite* "$T/pristine/$h/"; done
+restore_dbs() {
+  local h
+  for h in $DBHOMES; do rm -f "$FX/$h"/state_5.sqlite*; cp -a "$T/pristine/$h"/state_5.sqlite* "$FX/$h/"; done
+  rm -f "$FX/codex-c"/state_5.sqlite*
+}
+# The write check covers the main file and the -wal, NOT the -shm (a read-only open
+# legitimately touches the -shm index).
+sum_db() {
+  local h f
+  for h in $DBHOMES codex-e; do for f in state_5.sqlite state_5.sqlite-wal; do [ -e "$FX/$h/$f" ] && sha256sum "$FX/$h/$f"; done; done
+  return 0
+}
 run_block() { CS_PEERS_PROC="$FX/proc" HOME="$FX/home" bash -c "$1" 2>"$T/stderr"; }
 row() { awk -F'\t' -v s="$2" '$4==s' <<<"$1"; }
 field() { cut -f"$2" <<<"$1"; }
 
-# check_all <block>: every property; echoes the failing names, returns 1 if any.
+# check_all <block>: every property; echoes each failing reason on stderr, returns 1 if any.
 check_all() {
-  local blk=$1 out failed=0 r n
-  out=$(run_block "$blk")
-  chk() { if ! "$@"; then echo "  [failed] $CHK_NAME" >&2; failed=1; fi; }
-  # 1. one row per open rollout of an app-server, minus the archived one: 5001 gives 4,
-  #    5002 1, 5003 1, 5006 2  => 8 rows
-  [ "$(grep -c . <<<"$out")" = 8 ] || { echo "rows!=8" >&2; failed=1; }
+  local blk=$1 out failed=0 r t0 t1 before after
+  restore_dbs
+  before=$(sum_db)
+  t0=$(date +%s%N); out=$(run_block "$blk"); t1=$(date +%s%N)
+  after=$(sum_db)
+  # 1. row count: 5001 gives 5, 5002 1, 5003 1, 5006 2, 5007 12, 5008 1
+  [ "$(grep -c . <<<"$out")" = "$EXPECT_ROWS" ] || { echo "rows!=$EXPECT_ROWS" >&2; failed=1; }
+  # 1b. every row has seven fields
+  [ -z "$(awk -F'\t' 'NF!=7' <<<"$out")" ] || { echo "a row does not have 7 fields" >&2; failed=1; }
   # 2. R10 values on a plain row
   r=$(row "$out" thr-a1)
-  [ "$(printf '%s' "$r" | tr -cd '\t' | wc -c)" = 6 ] && [ "$(field "$r" 1)" = codex ] && [ "$(field "$r" 2)" = codex-a ] \
+  [ "$(field "$r" 1)" = codex ] && [ "$(field "$r" 2)" = codex-a ] \
     && [ "$(field "$r" 3)" = 5001 ] && [ "$(field "$r" 5)" = "Alpha task" ] && [ "$(field "$r" 6)" = loaded ] \
     && [ "$(field "$r" 7)" = /w/alpha ] || { echo "plain row wrong: $r" >&2; failed=1; }
   # 3. archived thread gives no row
@@ -124,34 +176,49 @@ check_all() {
   [ "$(awk -F'\t' '$3==5006 && $4=="?" && $5=="?"' <<<"$out" | wc -l)" = 1 ] || { echo "no-uuid row wrong" >&2; failed=1; }
   # 11. nothing marked
   ! grep -q '<-- you' <<<"$out" || { echo "a row is marked" >&2; failed=1; }
-  # 12. the block never writes a database
-  local before after; before=$(sum_db); run_block "$blk" >/dev/null; after=$(sum_db)
+  # 12. the block never writes a database (main file and -wal unchanged; WAL fixture)
   [ "$before" = "$after" ] || { echo "database changed" >&2; failed=1; }
   # 13. the missing database was not created by the block
   [ ! -e "$FX/codex-c/state_5.sqlite" ] || { echo "state_5.sqlite created" >&2; failed=1; }
+  # 14. LAUNCH-CWD is never cut (over 80 characters kept whole), a tab becomes a space
+  [ "$(field "$(row "$out" thr-a6)" 7)" = "$LONGCWD_WANT" ] || { echo "cwd wrong: $(field "$(row "$out" thr-a6)" 7)" >&2; failed=1; }
+  # 15. a tab in CODEX_HOME does not split ACCOUNT
+  [ "$(field "$(row "$out" "$U_T1")" 2)" = "co dex-t" ] || { echo "account wrong: $(field "$(row "$out" "$U_T1")" 2)" >&2; failed=1; }
+  # 16. a locked database: every row of that home survives with NAME ?, and the run is fast
+  [ "$(awk -F'\t' '$2=="codex-e" && $5=="?"' <<<"$out" | wc -l)" = "$LOCKED_N" ] || { echo "locked-home rows wrong" >&2; failed=1; }
+  [ $(( (t1 - t0) / 1000000 )) -lt 4000 ] || { echo "slow: $(( (t1 - t0) / 1000000 )) ms for a locked home" >&2; failed=1; }
   return $failed
 }
 
 if check_all "$BLOCK" 2>"$T/why"; then ok "Enumerate block: all fixture properties hold"; else bad "Enumerate block" "$(cat "$T/why")"; fi
 
-# 14. the merge block turns an unmarked Codex-caller run into the loud warning
+# the merge block turns an unmarked Codex-caller run into the loud warning
+restore_dbs
 m=$(run_block "$BLOCK" | CS_PEERS_NOW=2026-10-29T12:00:00Z bash -c "$MERGE" 2>&1)
 if grep -qF 'WARNING: your own row was NOT identified' <<<"$m" && ! grep -qF 'peers' <<<"$m"; then ok "merge prints the loud warning for the unidentified Codex caller"; else bad "merge warning" "$m"; fi
-if grep -qxF -- '-- 0 Claude Code sessions and 8 loaded Codex threads, across 4 account(s), at 2026-10-29T12:00:00Z' <<<"$m"; then ok "merge summary counts the 8 Codex rows under their own unit"; else bad "merge summary" "$m"; fi
+if grep -qxF -- "-- 0 Claude Code sessions and $EXPECT_ROWS loaded Codex threads, across 6 account(s), at 2026-10-29T12:00:00Z" <<<"$m"; then ok "merge summary counts the $EXPECT_ROWS Codex rows under their own unit"; else bad "merge summary" "$m"; fi
 
-# ---- controls: mutate a copy of the block; it must change, and check_all must FAIL ----
-control() { # control <label> <python-mutation: t -> t>
-  local mut
-  mut=$(python3 -c 'import sys;t=sys.stdin.read();exec(sys.argv[1]);sys.stdout.write(t)' "$2" <<<"$BLOCK")
+# ---- controls: mutate a copy of the block; it must change, and check_all must FAIL with
+# the named reason ----
+control() { # control <label> <expected reason substring> <python-mutation: t -> t>
+  local mut why
+  mut=$(python3 -c 'import sys;t=sys.stdin.read();exec(sys.argv[1]);sys.stdout.write(t)' "$3" <<<"$BLOCK")
   if [ "$mut" = "$BLOCK" ]; then bad "control $1" "mutation did not change the block"; return; fi
-  if check_all "$mut" 2>/dev/null; then bad "control $1" "mutated block still passed"; else ok "control $1 is caught"; fi
+  if why=$(check_all "$mut" 2>&1 >/dev/null); then bad "control $1" "mutated block still passed"
+  elif grep -qF -- "$2" <<<"$why"; then ok "control $1 is caught ($2)"
+  else bad "control $1" "failed, but not for '$2': $why"; fi
 }
-control drop_join       't = t.replace("rollout_path = ?", "rollout_path = ? and 0")'
-control keep_archived   't = t.replace("if found[4] == 1:", "if False:")'
-control substring_match 't = t.replace("\"app-server\" not in argv", "\"app-server\" not in \" \".join(argv)")'
-control mark_you        't = t.replace(r"""print("\t".join(r))""", r"""print("\t".join(r) + "  <-- you")""")'
-control writable_open   't = t.replace("mode=ro", "mode=rwc")'
-control title_first     't = t.replace("found[2] or found[1]", "found[1] or found[2]")'
+control drop_join       "plain row wrong"    't = t.replace("rollout_path = ?", "rollout_path = ? and 0")'
+control keep_archived   "archived row"       't = t.replace("if found[4] == 1:", "if False:")'
+control substring_match "non-app-server"     't = t.replace("\"app-server\" not in argv", "\"app-server\" not in \" \".join(argv)")'
+control mark_you        "a row is marked"    't = t.replace(r"""print("\t".join(r))""", r"""print("\t".join(r) + "  <-- you")""")'
+control write_rw        "database changed"   't = t.replace("mode=ro", "mode=rw")'
+control write_rwc       "database changed"   't = t.replace("mode=ro", "mode=rwc")'
+control title_first     "name/title rule"    't = t.replace("found[2] or found[1]", "found[1] or found[2]")'
+control cwd_cut         "cwd wrong"          't = t.replace("one_line(found[3] or \"\")", "clean(found[3] or \"\")")'
+control account_raw     "account wrong"      't = t.replace("account = one_line(", "account = (")'
+control slow_lock       "slow:"              't = t.replace("timeout=0.5", "timeout=5")'
+control ask_again       "slow:"              't = t.replace("except sqlite3.Error:\n        dbs[codex_home] = None", "except sqlite3.Error:\n        pass")'
 
 # ---- Deliver: structural pins. `codex queue` is never run (it talks to a real thread);
 # these assert the SHAPE of the section the agent will follow, each with a control that
@@ -164,12 +231,15 @@ deliver_pins() {
   has "$s" 'CODEX_HOME=<that row.s home> codex queue --thread <SID> --message' \
     && has "$s" 'Send only to a row Enumerate listed as loaded' \
     && has "$s" 'One send per target per request, and no retry on silence' \
-    && has "$s" 'check the size of the thread.s rollout file once, after a bounded wait' \
+    && has "$s" 'check the size of the thread.s rollout file once, after a bounded wait, and tell the operator one line: the target, the time, and whether the file grew' \
+    && has "$s" '4\. Set CODEX_HOME to the home the row was found in, never your own by default' \
     && has "$s" 'attached to a TUI: a turn starts' \
     && has "$s" 'loaded with nobody attached: a turn runs unwatched\. One measured case used about 17,700 tokens' \
-    && has "$s" 'not loaded: the command exits 0 and prints Queued, nothing runs, and the message waits in queue_1.sqlite'
+    && has "$s" 'not loaded: the command exits 0 and prints Queued, nothing runs, and the message waits in queue_1.sqlite' \
+    && has "$s" 'A loaded row can be the first outcome or the second, and Enumerate cannot tell them apart' \
+    && has "$s" 'A send to a loaded row may start an unwatched, costly turn, and the operator has accepted that cost'
 }
-if deliver_pins "$REF"; then ok "Deliver pins the queue form, the guards and the three outcomes"; else bad "Deliver pins" "a pinned sentence is missing from ## Deliver in $REF"; fi
+if deliver_pins "$REF"; then ok "Deliver pins the queue form, the guards, the outcomes and the accepted cost"; else bad "Deliver pins" "a pinned sentence is missing from ## Deliver in $REF"; fi
 dcontrol() { # dcontrol <label> <old> <new>
   local dst="$T/d-$1.md"
   python3 -c 'import sys;t=open(sys.argv[1]).read();open(sys.argv[2],"w").write(t.replace(sys.argv[3],sys.argv[4]))' "$REF" "$dst" "$2" "$3"
@@ -180,10 +250,14 @@ dcontrol queue_form     'codex queue --thread' 'codex send --thread'
 dcontrol loaded_only    'Send only to a row Enumerate listed as `loaded`.' 'Send to any row.'
 dcontrol one_send       'no retry on silence' 'retry on silence'
 dcontrol size_check     'rollout file once' 'rollout file'
+dcontrol report_deleted 'tell the operator one line' 'say nothing'
+dcontrol guard4_deleted '4. Set `CODEX_HOME` to the home the row was found in, never your own by default.' ''
 dcontrol outcome_attach 'a turn starts there' 'it depends'
 dcontrol outcome_tokens '17,700' 'many'
 dcontrol outcome_queued '`queue_1.sqlite`' 'disk'
 dcontrol outcome_exit0  'exits 0 and prints' 'prints'
+dcontrol cannot_tell    'Enumerate cannot tell them apart' 'Enumerate can tell them apart'
+dcontrol cost_accepted  'and the operator has accepted that cost' 'and nobody minds'
 
 echo "-- peer-codex-enumerate: $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]
