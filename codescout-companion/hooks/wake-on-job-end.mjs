@@ -11,10 +11,11 @@
 // is only ever a deliberate wake-up.
 //
 // Spec (codescout repo): docs/superpowers/specs/2026-10-29-background-job-wake-design.md
-import { readFileSync, writeFileSync, unlinkSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { readFileSync, writeFileSync, unlinkSync, mkdirSync } from 'node:fs';
+import { homedir } from 'node:os';
+import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { readInput } from './lib.mjs';
+import { readInput, stateHome } from './lib.mjs';
 
 const RECORD_GRACE_MS = 5000; // the record may lag the spawn response by a few ms
 
@@ -116,8 +117,10 @@ export async function watch({ handle, record, deadlineSecs = 1800, pollMs = 1000
     /* best-effort marker */
   }
   const finish = (exit, message) => {
+    // Remove the marker only while it is still ours: a finished watcher must not
+    // delete a live watcher's marker, or a duplicate watcher would be armed.
     try {
-      unlinkSync(watchFile);
+      if (readFileSync(watchFile, 'utf8').trim() === String(process.pid)) unlinkSync(watchFile);
     } catch {
       /* already gone */
     }
@@ -161,6 +164,60 @@ export async function watch({ handle, record, deadlineSecs = 1800, pollMs = 1000
   }
 }
 
+// Where a session remembers which record belongs to which job handle, so a later
+// read of that job can re-arm a watcher after a heartbeat. null when an id is
+// not path-safe: nothing is rewritten silently, the caller simply has no map.
+export function mapPath(sessionId, handle) {
+  const safe = /^[A-Za-z0-9_-]+$/;
+  if (typeof sessionId !== 'string' || !safe.test(sessionId)) return null;
+  if (typeof handle !== 'string' || !/^@bg_[0-9a-f]{8}$/.test(handle)) return null;
+  return join(stateHome(homedir()), 'codescout-companion', 'wake', `map-${sessionId}-${handle}`);
+}
+
+// Fail-open: a map that cannot be written only costs the re-arm.
+function writeMap(sessionId, handle, record) {
+  try {
+    const p = mapPath(sessionId, handle);
+    if (!p) return;
+    mkdirSync(dirname(p), { recursive: true });
+    writeFileSync(p, record);
+  } catch {
+    /* fail-open */
+  }
+}
+
+// A read of a job this session armed earlier, whose watcher has since ended
+// (heartbeat) while the job still runs. Returns { handle, record } or null.
+export function rearmTarget(input) {
+  try {
+    const text = input && input.tool_response && input.tool_response[0] && input.tool_response[0].text;
+    if (typeof text !== 'string') return null;
+    const r = JSON.parse(text);
+    if (!r || typeof r !== 'object' || !('exit_code' in r)) return null; // not a read
+    const command = input.tool_input && input.tool_input.command;
+    const m = typeof command === 'string' ? command.match(/@bg_[0-9a-f]{8}/) : null;
+    if (!m) return null;
+    const handle = m[0];
+    const map = mapPath(input.session_id, handle);
+    if (!map) return null;
+    const record = readFileSync(map, 'utf8').trim();
+    if (!record) return null;
+    const rec = readRecord(record);
+    if (!rec || rec.state !== 'running') return null;
+    let owner = null;
+    try {
+      owner = Number(readFileSync(`${record}.watch`, 'utf8').trim());
+    } catch {
+      /* no watcher */
+    }
+    if (owner !== null && pidAlive(owner)) return null; // a live watcher already holds it
+    return { handle, record };
+  } catch {
+    return null;
+  }
+}
+
+
 async function main() {
   // Guard 1: a host that does not set CLAUDE_PROJECT_DIR for plugin hooks never blocks (verify in Task 5).
   if (!process.env.CLAUDE_PROJECT_DIR) process.exit(0);
@@ -169,10 +226,12 @@ async function main() {
   // Guard 2: subagent jobs are out of scope (verify in Task 5).
   if (input.agent_id) process.exit(0);
   const spawn = spawnOf(input);
-  if (!spawn) process.exit(0);
+  const target = spawn || rearmTarget(input);
+  if (!target) process.exit(0);
+  if (spawn) writeMap(input.session_id, spawn.handle, spawn.record);
   const num = (v, d) => (Number.isFinite(Number(v)) && Number(v) > 0 ? Number(v) : d);
   const result = await watch({
-    ...spawn,
+    ...target,
     deadlineSecs: num(process.env.CODESCOUT_WAKE_DEADLINE_SECS, 1800),
     pollMs: num(process.env.CODESCOUT_WAKE_POLL_MS, 1000),
   });

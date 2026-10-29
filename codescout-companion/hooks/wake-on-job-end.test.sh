@@ -15,6 +15,9 @@ fail() { echo "FAIL: $1 -- $2"; FAIL=$((FAIL+1)); }
 TMP=$(mktemp -d); trap 'rm -rf "$TMP"' EXIT
 export CODESCOUT_WAKE_DEADLINE_SECS=3
 export CODESCOUT_WAKE_POLL_MS=100
+# The map file lives under the state home: keep it inside the test directory.
+export XDG_STATE_HOME="$TMP/state"
+MAP="$XDG_STATE_HOME/codescout-companion/wake/map-sess-1-@bg_00000001"
 
 # A pid that is certainly dead: a child that has been reaped.
 true & DEAD=$!; wait "$DEAD" 2>/dev/null
@@ -43,10 +46,12 @@ mkinput() {
       spawn:   { output_id: "@bg_00000001", record: rec },
       read:    { output_id: "@bg_00000001", record: rec, exit_code: 0 },
       pending: { pending_ack: "@ack_x" },
-    }[kind === "ack" || kind === "agent" ? "spawn" : kind];
+    }[kind === "ack" || kind === "agent" ? "spawn" : kind === "readbg" ? "read" : kind];
+    const cmd = kind === "ack" ? "@ack_x" : kind === "readbg" ? "tail -50 @bg_00000001" : "sleep 1";
     const input = { tool_name: "mcp__codescout__run_command",
-      tool_input: { command: kind === "ack" ? "@ack_x" : "sleep 1" },
+      tool_input: { command: cmd },
       tool_response: [{ text: JSON.stringify(inner) }] };
+    if (!process.env.TEST_NO_SID) input.session_id = "sess-1";
     if (kind === "agent") input.agent_id = "agent-123";
     process.stdout.write(JSON.stringify(input));
   ' "$1" "$2"
@@ -164,6 +169,74 @@ R="$TMP/r12.json"; mkrec "$R" running "$DEAD" "$DEAD"
 run_hook c12 "$(mkinput spawn "$R")" "$PD"
 expect "server dead, job dead" 2 "state is unknown"
 case "$ERR" in *"tail -50"*) fail "server dead, job dead" "stderr offers tail -50: $ERR" ;; *) pass "server dead, job dead: no tail -50" ;; esac
+
+# mkmap RECORD -> write the session-to-record map the way a spawn would
+mkmap() { mkdir -p "$(dirname "$MAP")"; printf '%s' "$1" >"$MAP"; }
+
+# 13. spawn writes the map (and a spawn without session_id writes none)
+rm -rf "$XDG_STATE_HOME"
+R="$TMP/r13.json"; mkrec "$R" exited "$$" null
+run_hook c13 "$(mkinput spawn "$R")" "$PD"
+expect "spawn writes the map: still wakes" 2 "ended:"
+if [ -f "$MAP" ] && [ "$(cat "$MAP")" = "$R" ]; then pass "spawn writes the map"; else fail "spawn writes the map" "missing or wrong content at $MAP"; fi
+rm -rf "$XDG_STATE_HOME"
+R="$TMP/r13b.json"; mkrec "$R" exited "$$" null
+run_hook c13b "$(TEST_NO_SID=1 mkinput spawn "$R")" "$PD"
+expect "spawn without session_id still wakes" 2 "ended:"
+[ -z "$(find "$XDG_STATE_HOME" -type f 2>/dev/null)" ] && pass "spawn without session_id writes no map" || fail "no session_id" "a map file was written"
+
+# 14. read of a running job after a heartbeat re-arms
+R="$TMP/r14.json"; mkrec "$R" running "$$" null; mkmap "$R"; rm -f "$R.watch" "$R.delivered"
+printf '%s' "$(mkinput readbg "$R")" | env "$PD" node "$HOOK" >"$TMP/c14.out" 2>"$TMP/c14.err" & PW=$!
+sleep 0.6
+if kill -0 "$PW" 2>/dev/null; then pass "re-arm: hook stays alive on a running job"; else fail "re-arm: hook stays alive" "hook already exited"; fi
+[ "$(cat "$R.watch" 2>/dev/null)" = "$PW" ] && pass "watch marker holds the watcher's pid" || fail "watch marker" "want $PW, got '$(cat "$R.watch" 2>/dev/null)'"
+mkrec "$R" exited "$$" null
+wait "$PW"; CODE=$?; ERR=$(cat "$TMP/c14.err")
+expect "read of a running job after heartbeat re-arms" 2 "ended: exited 0"
+[ ! -e "$R.watch" ] && pass "owner removes its watch marker" || fail "owner removes marker" "$R.watch still exists"
+
+# 15. read of a finished job does not arm (final wake-up already delivered)
+R="$TMP/r15.json"; mkrec "$R" exited "$$" null; mkmap "$R"; printf '%s' "$$" >"$R.delivered"; rm -f "$R.watch"
+START=$SECONDS
+run_hook c15 "$(mkinput readbg "$R")" "$PD"
+expect "read of a finished job does not arm" 0 ""
+[ $((SECONDS-START)) -le 2 ] && pass "finished job: no wait" || fail "finished job: no wait" "took $((SECONDS-START))s"
+
+# 16. read while a watcher is alive does not arm
+R="$TMP/r16.json"; mkrec "$R" running "$$" null; mkmap "$R"; printf '%s' "$$" >"$R.watch"
+START=$SECONDS
+run_hook c16 "$(mkinput readbg "$R")" "$PD"
+expect "read while a watcher is alive does not arm" 0 ""
+[ $((SECONDS-START)) -le 2 ] && pass "live watcher: no wait" || fail "live watcher: no wait" "took $((SECONDS-START))s"
+[ "$(cat "$R.watch" 2>/dev/null)" = "$$" ] && pass "live watcher's marker untouched" || fail "live watcher's marker" "changed or gone"
+
+# 17. read with no map does not arm
+rm -rf "$XDG_STATE_HOME"
+R="$TMP/r17.json"; mkrec "$R" running "$$" null; rm -f "$R.watch"
+START=$SECONDS
+run_hook c17 "$(mkinput readbg "$R")" "$PD"
+expect "read with no map does not arm" 0 ""
+[ $((SECONDS-START)) -le 2 ] && pass "no map: no wait" || fail "no map: no wait" "took $((SECONDS-START))s"
+
+# 18. a dead pid in the watch marker does not block a re-arm
+R="$TMP/r18.json"; mkrec "$R" exited "$$" null; mkmap "$R"
+mkrec "$R" running "$$" null; printf '%s' "$DEAD" >"$R.watch"; rm -f "$R.delivered"
+printf '%s' "$(mkinput readbg "$R")" | env "$PD" node "$HOOK" >"$TMP/c18.out" 2>"$TMP/c18.err" & PW=$!
+sleep 0.5; mkrec "$R" exited "$$" null
+wait "$PW"; CODE=$?; ERR=$(cat "$TMP/c18.err")
+expect "stale watch marker (dead pid) re-arms" 2 "ended: exited 0"
+
+# 19. a watcher that does not own the marker leaves it alone on exit
+R="$TMP/r19.json"; mkrec "$R" running "$$" null; rm -f "$R.watch" "$R.delivered"
+printf '%s' "$(mkinput spawn "$R")" | env "$PD" node "$HOOK" >"$TMP/c19.out" 2>"$TMP/c19.err" & PW=$!
+sleep 0.5
+[ "$(cat "$R.watch" 2>/dev/null)" = "$PW" ] && pass "spawn: watch marker holds the watcher's pid" || fail "spawn watch marker" "want $PW, got '$(cat "$R.watch" 2>/dev/null)'"
+printf '%s' "$$" >"$R.watch"   # another (live) watcher takes the marker
+mkrec "$R" exited "$$" null
+wait "$PW"; CODE=$?; ERR=$(cat "$TMP/c19.err")
+expect "non-owner watcher still wakes" 2 "ended: exited 0"
+[ "$(cat "$R.watch" 2>/dev/null)" = "$$" ] && pass "non-owner exit leaves the marker" || fail "non-owner exit" "marker removed or changed"
 
 echo "passed=$PASS failed=$FAIL"
 [ "$FAIL" -eq 0 ]
