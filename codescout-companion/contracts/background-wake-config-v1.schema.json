@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Codescout background wake configuration v1",
+  "type": "object",
+  "required": ["version", "engine", "profileRoot", "environmentId", "stateDir", "pythonArgv", "adapters"],
+  "properties": {
+    "version": {"const": 1},
+    "engine": {"enum": ["legacy", "v1"]},
+    "profileRoot": {"type": "string", "pattern": "\\S", "description": "Consumer verifies exact canonical profile identity."},
+    "environmentId": {"type": "string", "pattern": "\\S"},
+    "stateDir": {"type": "string", "pattern": "\\S", "description": "Absolute normalized native private state path."},
+    "pythonArgv": {"type": "array", "minItems": 1, "items": {"type": "string", "pattern": "\\S"}},
+    "adapters": {
+      "type": "object",
+      "required": ["claudeCode", "codex"],
+      "properties": {
+        "claudeCode": {"type": "object", "required": ["enabled"], "properties": {"enabled": {"type": "boolean"}}},
+        "codex": {"type": "object", "required": ["enabled"], "properties": {"enabled": {"type": "boolean"}, "endpoint": {"type": ["string", "null"]}}, "description": "An enabled adapter requires an explicit supported endpoint; consumer validates it."}
+      }
+    }
+  }
+}

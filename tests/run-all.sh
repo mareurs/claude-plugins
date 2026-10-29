@@ -37,9 +37,27 @@ if [ -d "$EFFORT_TESTS_DIR" ]; then
   )
 fi
 
+WAKE_TESTS_DIR="$SCRIPT_DIR/../codescout-companion/background-wake"
+WAKE_SUITES=()
+if [ -d "$WAKE_TESTS_DIR" ]; then
+  WAKE_TESTS_DIR="$(cd "$WAKE_TESTS_DIR" && pwd)"
+  while IFS= read -r -d '' f; do WAKE_SUITES+=("$f"); done < <(
+    find "$WAKE_TESTS_DIR" -name node_modules -prune -o -type f -name '*.test.mjs' -print0 | sort -z
+  )
+fi
+
 shopt -s nullglob
-SUITES=("$SCRIPT_DIR"/test-*.sh "$HOOK_TESTS_DIR"/*.test.sh "$SKILL_TESTS_DIR"/*/*.test.sh "$HOOK_TESTS_DIR"/*.test.mjs "$PI_EXTENSION_TESTS_DIR"/*.test.mjs ${EFFORT_SUITES[@]+"${EFFORT_SUITES[@]}"})
+SUITES=("$SCRIPT_DIR"/test-*.sh "$HOOK_TESTS_DIR"/*.test.sh "$SKILL_TESTS_DIR"/*/*.test.sh "$HOOK_TESTS_DIR"/*.test.mjs "$PI_EXTENSION_TESTS_DIR"/*.test.mjs ${EFFORT_SUITES[@]+"${EFFORT_SUITES[@]}"} ${WAKE_SUITES[@]+"${WAKE_SUITES[@]}"})
 shopt -u nullglob
+
+if [ "${1:-}" = "--list" ]; then
+  printf '%s\n' "${SUITES[@]}"
+  exit 0
+fi
+if [ "$#" -ne 0 ]; then
+  echo 'usage: tests/run-all.sh [--list]' >&2
+  exit 2
+fi
 
 # LOAD-BEARING. Without nullglob a non-matching glob survives as a literal path and
 # `bash <literal>` fails loudly; with it, the list silently empties and the summary
