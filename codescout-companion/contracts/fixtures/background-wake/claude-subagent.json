@@ -1,0 +1,59 @@
+{
+  "version": 1,
+  "harness": "claude-code",
+  "hostVersion": "2.1.312",
+  "os": "linux",
+  "profileRoot": "/probe/claude-profile",
+  "captureKind": "native-hook",
+  "synthetic": false,
+  "syntheticToolOutcome": true,
+  "sanitized": true,
+  "nativeInputKeys": [
+    "session_id",
+    "transcript_path",
+    "cwd",
+    "prompt_id",
+    "permission_mode",
+    "agent_id",
+    "agent_type",
+    "effort",
+    "hook_event_name",
+    "tool_name",
+    "tool_input",
+    "tool_response",
+    "tool_use_id",
+    "duration_ms",
+    "mcp_server"
+  ],
+  "rootDiscriminator": {
+    "field": "agent_id",
+    "absentMeansRoot": true,
+    "measuredVersion": "2.1.312",
+    "evidenceRef": "claude-root-and-subagent-native"
+  },
+  "input": {
+    "session_id": "11111111-1111-4111-8111-111111111111",
+    "cwd": "/probe/project",
+    "prompt_id": "8e6e9142-3a4f-43bd-80be-8e6dcb651bb4",
+    "permission_mode": "default",
+    "agent_id": "a1111111111111111",
+    "agent_type": "general-purpose",
+    "effort": {
+      "level": "medium"
+    },
+    "hook_event_name": "PostToolUse",
+    "tool_name": "mcp__codescout__run_command",
+    "tool_input": {
+      "command": "echo wake-probe",
+      "run_in_background": true
+    },
+    "tool_response": [
+      {
+        "type": "text",
+        "text": "{\"output_id\":\"@bg_00000001\",\"record\":\"/probe/records/4242-a1b2c3d4-bg_00000001.json\"}"
+      }
+    ],
+    "tool_use_id": "probe-tool-call-subagent",
+    "duration_ms": 7
+  }
+}
