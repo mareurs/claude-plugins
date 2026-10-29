@@ -19,6 +19,18 @@ Mechanics differ per harness and live in one file each:
 Each file has three sections: `## Enumerate`, `## Identify me`, `## Deliver`. The
 rules below hold on every harness.
 
+## Rules that hold everywhere
+
+**Take the sessionId, not the name.** To identify or attribute a session, use its
+`SID`. A name is minted by the registry and re-minted by compaction, a resume, or a
+restart under another account, so it decays while the sessionId does not. Address a
+Codex row by its `SID` (a uuid), never by name. A Claude row is still addressed as
+its reference's Deliver section says.
+
+**Never route by adjacency.** That a file was touched near a session, or that a
+session is listed beside a checkout, is not evidence of who wrote it or who works
+there. Attribute by asking the session, not by proximity.
+
 ## Step 0 — name your own harness
 
 State which harness you are running in, from your own context: Claude Code or
@@ -75,12 +87,15 @@ peer count. Never report a peer count from such a run.
 
 ## Step 2 — branch on the account count
 
-**`across 1 account(s)`** — the harness's own listing is complete on this machine.
-Address peers by name and ignore the rest of this skill.
+**`across 1 account(s)`** — every session on this machine shares your account, so
+no row is hidden from you by account scope.
 
-**`across 2 or more account(s)`** — the harness's own listing shows only the rows
-whose `ACCOUNT` matches your own. Every other row is invisible to it and still
-reachable.
+**`across 2 or more account(s)`** — a harness's own listing, where it has one, shows
+only the rows whose `ACCOUNT` matches your own. Every other row is invisible to it
+and still reachable through that harness's Deliver section.
+
+Either way, Steps 3 and 4 and the Boundary still apply: every message carries the
+label, and a Codex row is addressed by its `SID`.
 
 ## Step 3 — address the target
 

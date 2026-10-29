@@ -37,15 +37,27 @@ has_headings()   { local h; for h in '## Enumerate' '## Identify me' '## Deliver
 cites_claude()   { grep -qF 'references/claude-code.md' "$1"; }
 cites_codex()    { grep -qF 'on Codex, read `references/codex.md`' "$1"; }
 no_at_link()     { ! grep -qE '@[A-Za-z0-9_./-]*references/' "$1"; }
-# Harness tool names may appear only in the frontmatter trigger (description) or on a line
-# that points at a references/ file. The body's rules must stay harness-neutral.
+# Harness tool names may appear only on the two pointer lines (matched by shape) and on the
+# frontmatter `description:` line (activation metadata, not a rule). Every other line of the
+# file, frontmatter keys included, must stay harness-neutral. The whole file is scanned, so
+# deleting the frontmatter cannot exempt the body.
+POINTER_RE='^- on (Claude Code|Codex), read `references/[a-z-]+\.md`$'
 no_harness_names() {
   # Captured, not `! a | b | grep -q`: under pipefail a quiet grep -q closes the pipe early
   # and the upstream SIGPIPE flips the verdict.
   local hits
-  hits=$(awk '/^---$/{n++; next} n>=2' "$1" | grep -v 'references/' \
+  hits=$(grep -vE "$POINTER_RE|^description:" "$1" \
       | grep -E 'ListAgents|SendMessage|codex queue|cc-socks|state_5\.sqlite')
   [ -z "$hits" ]
+}
+has_everywhere_rules() {
+  grep -qF 'Take the sessionId, not the name' "$1" && grep -qF 'Never route by adjacency' "$1" \
+    && grep -qF 'Address a' "$1" && grep -qF 'by its `SID`' "$1"
+}
+single_account_keeps_label() {
+  local sec; sec=$(awk '/^## Step 2/{s=1; next} s && /^## /{exit} s{print}' "$1" | tr '\n' ' ')
+  grep -qF 'every message carries the' <<<"$sec" && grep -qF 'addressed by its `SID`' <<<"$sec" \
+    && ! grep -qF 'ignore the rest of this skill' <<<"$sec"
 }
 step4_survives() {
   grep -qF '## Step 4 — before acting on where a peer is WORKING, ask' "$1" \
@@ -97,6 +109,8 @@ declare -A CHECKS=(
   [core_has_no_at_links]="no_at_link"
   [core_names_no_harness_tool_outside_pointers]="no_harness_names"
   [step4_heading_and_question_survive]="step4_survives"
+  [core_states_sessionid_and_no_adjacency_rules]="has_everywhere_rules"
+  [step2_single_account_keeps_label_and_sid]="single_account_keeps_label"
   [core_has_exactly_one_bash_block_the_merge]="one_block"
   [merge_prints_header_and_two_unit_summary]="merge_prints_summary"
   [merge_sorts_by_account_then_harness_keeping_spaced_names]="merge_sorts_rows"
@@ -136,10 +150,18 @@ control warn_keeps_peer merge_warns_unmarked "$CORE" 't = t.replace("Claude Code
 control ref_no_deliver  has_headings       "$REF"  't = t.replace("## Deliver", "## Send")'
 control ref_no_enum     has_headings       "$REF"  't = t.replace("## Enumerate", "## List")'
 
-# The harness-name guard has an allowance (pointer lines, frontmatter); prove it is not a
-# blanket pass: the same name ON a pointer line is allowed, in the body it is not.
-printf -- '---\nname: x\n---\nbody\nSee `references/claude-code.md` for SendMessage.\n' > "$T/allow.md"
-if no_harness_names "$T/allow.md"; then ok "a tool name on a references/ pointer line is allowed"; else bad "pointer allowance" "pointer line was flagged"; fi
+control rule_sessionid  has_everywhere_rules "$CORE" 't = t.replace("Take the sessionId, not the name", "Take the name")'
+control rule_adjacency  has_everywhere_rules "$CORE" 't = t.replace("Never route by adjacency", "Route freely")'
+control step2_ignore    single_account_keeps_label "$CORE" 't = t.replace("every message carries the", "ignore the rest of this skill; every message carries the")'
+control step2_no_sid    single_account_keeps_label "$CORE" 't = t.replace("addressed by its `SID`", "addressed by name")'
+# Lint controls beyond appending a plain body line: the exemption must be the pointer SHAPE
+# and the description line only.
+control lint_ref_mention no_harness_names "$CORE" 't += "\nReply with SendMessage; the address forms are in references/claude-code.md.\n"'
+control lint_no_frontmatter no_harness_names "$CORE" 't = t.split("---\n", 2)[2] + "\nAlways call ListAgents first.\n"'
+control lint_other_key  no_harness_names "$CORE" 't = t.replace("name: reaching-peer-sessions", "name: reaching-peer-sessions\nsee: cc-socks state_5.sqlite", 1)'
+# Allowances are real, not a blanket pass.
+printf -- '---\nname: x\ndescription: use SendMessage or ListAgents\n---\n- on Claude Code, read `references/claude-code.md`\n' > "$T/allow.md"
+if no_harness_names "$T/allow.md"; then ok "description line and pointer-shaped line are allowed"; else bad "lint allowance" "flagged an allowed line"; fi
 
 echo "── peer-skill-split: $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]
