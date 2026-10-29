@@ -19,12 +19,15 @@ set -uo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 SKILL="${PEER_SKILL_MD:-$ROOT/codescout-companion/skills/reaching-peer-sessions/SKILL.md}"
+# The header printf lives in the Claude reference (Enumerate block); Step 4 stays in SKILL.md.
+REF="${PEER_REF_MD:-$ROOT/codescout-companion/skills/reaching-peer-sessions/references/claude-code.md}"
 PASS=0
 FAIL=0
 pass() { echo "PASS: $1"; PASS=$((PASS + 1)); }
 fail() { echo "FAIL: $1"; FAIL=$((FAIL + 1)); }
 
 [ -f "$SKILL" ] || { echo "FAIL: no skill file at $SKILL"; exit 1; }
+[ -f "$REF" ] || { echo "FAIL: no reference file at $REF"; exit 1; }
 
 # The header is a printf format string in the skill's code block, so `\t` is two literal
 # characters there — grep -F matches them as written.
@@ -32,7 +35,7 @@ header_says_launch_cwd() { grep -qF 'STATUS\tLAUNCH-CWD\n' "$1" && ! grep -qF 'S
 step4_exists() { grep -qF '## Step 4 — before acting on where a peer is WORKING, ask' "$1"; }
 step4_asks_over_the_socket() { grep -qF 'are you working in <path> right now?' "$1"; }
 
-header_says_launch_cwd "$SKILL" && pass "Step 1's header says LAUNCH-CWD, not a bare CWD" \
+header_says_launch_cwd "$REF" && pass "Step 1's header says LAUNCH-CWD, not a bare CWD" \
     || fail "Step 1's header says LAUNCH-CWD, not a bare CWD"
 step4_exists "$SKILL" && pass "Step 4 (ask before acting on occupancy) exists" \
     || fail "Step 4 (ask before acting on occupancy) exists"
@@ -42,7 +45,7 @@ step4_asks_over_the_socket "$SKILL" && pass "Step 4 carries the question to send
 # ---- the controls: each mutation reintroduces one half of the defect and must be caught.
 T="$(mktemp -d)"; trap 'rm -rf "$T"' EXIT
 
-sed 's/STATUS\\tLAUNCH-CWD\\n/STATUS\\tCWD\\n/' "$SKILL" > "$T/old-header.md"
+sed 's/STATUS\\tLAUNCH-CWD\\n/STATUS\\tCWD\\n/' "$REF" > "$T/old-header.md"
 header_says_launch_cwd "$T/old-header.md" && fail "control: the pre-fix CWD header is caught" \
     || pass "control: the pre-fix CWD header is caught"
 
@@ -56,7 +59,7 @@ step4_asks_over_the_socket "$T/no-question.md" && fail "control: deleting the qu
 
 # A control that mutated nothing would pass for the wrong reason; prove each copy differs.
 for m in old-header no-step4 no-question; do
-    cmp -s "$SKILL" "$T/$m.md" && fail "control $m actually changed the copy" \
+    cmp -s "$([ "$m" = old-header ] && echo "$REF" || echo "$SKILL")" "$T/$m.md" && fail "control $m actually changed the copy" \
         || pass "control $m actually changed the copy"
 done
 

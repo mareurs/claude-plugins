@@ -29,7 +29,8 @@
 # the fixture honest about the one property that matters -- that the old rule fails it.
 set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-SKILL="$SCRIPT_DIR/SKILL.md"
+SKILL="$SCRIPT_DIR/references/claude-code.md"  # the Claude mechanics live here; SKILL.md only points at it
+CORE="$SCRIPT_DIR/SKILL.md"
 PASS=0; FAIL=0
 pass() { echo "PASS: $1"; PASS=$((PASS+1)); }
 fail() { echo "FAIL: $1 -- $2"; FAIL=$((FAIL+1)); }
@@ -114,7 +115,7 @@ fi
 #    runtime signal exists at all. This check is the only guard.
 #    Deliberately the WHOLE file, not just the code block: prose is substituted
 #    too, where a literal cost like `$4.20` would silently become `.20`.
-hits=$(grep -n '\$[0-9]' "$SKILL" || true)
+hits=$(grep -n '\$[0-9]' "$SKILL" "$CORE" || true)
 if [ -z "$hits" ]; then
   pass "no \$-plus-digit token survives in the skill body"
 else
@@ -150,9 +151,9 @@ fi
 #    is a VERSION-PINNED install, so its `comm` is `2.1.258`, not `claude`.
 #      $$ (bash) -> 910001 (node, no socket) -> 910002 (comm 2.1.258, HAS socket) -> 1
 #    plus an unrelated peer 910003 (comm claude, has a socket, not an ancestor).
-BLOCK=$(awk '/^## Step 1/{s=1} s && /^```bash/{b=1; next} b && /^```/{exit} b{print}' "$SKILL")
+BLOCK=$(awk '/^## Enumerate/{s=1} s && /^```bash/{b=1; next} b && /^```/{exit} b{print}' "$SKILL")
 if [ -z "$BLOCK" ] || ! grep -q 'me=\$\$' <<<"$BLOCK"; then
-  fail "extract walk block" "no bash fence containing 'me=\$\$' under '## Step 1' in $SKILL"
+  fail "extract walk block" "no bash fence containing 'me=\$\$' under '## Enumerate' in $SKILL"
   echo "-- $PASS passed, $FAIL failed"; exit 1
 fi
 
@@ -182,7 +183,7 @@ run_walk() {
     eval "$BLOCK_UNDER_TEST"' 2>&1
 }
 marked() { # marked <pid> <output> -- is <pid>'s row the one tagged "<-- you"?
-  awk -F'\t' -v p="$1" '$1==p && $5 ~ /<-- you$/ {f=1} END{exit !f}' <<<"$2"
+  awk -F'\t' -v p="$1" '$3==p && $7 ~ /<-- you$/ {f=1} END{exit !f}' <<<"$2"
 }
 
 FXA="$TMP/fx-pinned"; mk_fixture "$FXA"
@@ -246,11 +247,39 @@ if [ "$MUT" = "$BLOCK" ]; then
   fail "old comm-keyed walk still fails the fixture" "the loop condition '$OLD_COND' was not found in the block; update OLD_COND with the skill"
 else
   outM=$(run_walk "$FXA" 910001 "$MUT")
-  if grep -q "^910002$(printf '\t')" <<<"$outM" && ! marked 910002 "$outM"; then
+  if grep -q "^claude$(printf '\t')[^$(printf '\t')]*$(printf '\t')910002$(printf '\t')" <<<"$outM" && ! marked 910002 "$outM"; then
     pass "old comm-keyed walk still fails the fixture (the fixture discriminates)"
   else
     fail "old comm-keyed walk still fails the fixture" "expected the table to render with 910002 unmarked; the comm rule either identified the pinned server (cases 8-10 prove nothing) or the block did not run: $outM"
   fi
+fi
+
+# 12. THE DELIVER SECTION NAMES ITS MEASURED VERSIONS AND THE REFUSAL RULE. Codex delivery
+#     writes a wire format measured on specific Claude Code versions; sending it to an
+#     unmeasured one is a guess. Pinned as SHAPE, not wording: the `## Deliver` section
+#     must contain the measured version `2.1.312` and a refuse-and-report statement
+#     (the words `refuse` and `report`). Rewording is free; deleting either is caught.
+deliver_pins_versions() {
+  local sec; sec=$(awk '/^## Deliver/{s=1; next} s && /^## /{exit} s{print}' "$1")
+  grep -qF '2.1.312' <<<"$sec" && grep -qi 'refuse' <<<"$sec" && grep -qi 'report' <<<"$sec"
+}
+if deliver_pins_versions "$SKILL"; then
+  pass "Deliver names the measured version list and the refuse-and-report rule"
+else
+  fail "Deliver names the measured version list and the refuse-and-report rule" "section missing, no 2.1.312, or no refuse/report"
+fi
+# 12b. Control: a copy with the version list removed from the section must be caught.
+sed 's/2\.1\.312/X/g' "$SKILL" > "$TMP/no-version.md"
+if deliver_pins_versions "$TMP/no-version.md"; then
+  fail "control: dropping the measured version from Deliver is caught" "mutated copy still passed"
+else
+  pass "control: dropping the measured version from Deliver is caught"
+fi
+sed '/^## Deliver/,$ s/[Rr]efuse/ignore/g' "$SKILL" > "$TMP/no-refuse.md"
+if deliver_pins_versions "$TMP/no-refuse.md"; then
+  fail "control: dropping the refuse rule from Deliver is caught" "mutated copy still passed"
+else
+  pass "control: dropping the refuse rule from Deliver is caught"
 fi
 
 echo "-- $PASS passed, $FAIL failed"

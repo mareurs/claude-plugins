@@ -19,113 +19,30 @@ count as the whole population, with nothing marking it as a subset.
 
 ## Step 1 — enumerate the real population
 
-```bash
-u=$(id -u)
-# The two roots this block reads. Leave them unset: they default to the real `/proc`
-# and `/run/user/<uid>/cc-socks`. They exist so a test can point the walk below at a
-# fixture tree and observe where it stops, instead of asserting about its source text.
-proc=${CS_PEERS_PROC:-/proc}
-socks=${CS_PEERS_SOCKS:-/run/user/$u/cc-socks}
-# Your own row: walk up from this shell to the first ancestor holding a socket in
-# cc-socks. That IS what "a claude server" means here, and it is deliberately NOT a
-# `comm` test — `comm` is the executable BASENAME, and a version-pinned install names
-# the binary after its version, so those processes report `comm=2.1.258`. A
-# comm=claude walk passes its own server and terminates at PID 1. Measured
-# 2026-09-02: 3 of 21 socket-bound sessions on this machine were version-pinned.
-me=$$
-# Field read is sed, NOT `awk '/^PPid:/{print <dollar>2}'`. A skill body is
-# argument-substituted before delivery: a `$` followed by a digit is replaced by a
-# word of the CALLER's `args` string, inside fenced code blocks too. Measured
-# 2026-09-15 on CLI 2.1.272 — two sessions invoking this skill minutes apart were
-# delivered `{print garaj-96}` and `{print terrace}`, each the third word of its own
-# args, and out-of-range indexes pass through untouched, so short args look clean.
-# sed's substitution form carries no positional token and cannot be rewritten.
-while [ -n "$me" ] && [ "$me" -gt 1 ] 2>/dev/null && [ ! -S "$socks/$me.sock" ]; do
-  me=$(sed -n 's/^PPid:[[:space:]]*//p' "$proc/$me/status" 2>/dev/null)
-done
-[ -n "$me" ] && [ -S "$socks/$me.sock" ] || me=""
-rows=$(for s in "$socks"/*.sock; do
-  p=${s##*/}; p=${p%.sock}; [ -r "$proc/$p/environ" ] || continue
-  d=$(tr '\0' '\n' <"$proc/$p/environ" | sed -n 's/^CLAUDE_CONFIG_DIR=//p'); d=${d:-$HOME/.claude}
-  # Structural read, never a regex. `name` is a TOP-LEVEL key; `formerNames` is a list
-  # of objects each carrying its own `name`, so `sed 's/.*"name":"\(...\)".*/\1/'`
-  # binds its greedy `.*` to the LAST match and prints the FORMER name — silently, and
-  # only for sessions that have been renamed. `status` has the identical shape and is
-  # safe today only because no nested object currently carries that key.
-  nm=$(python3 -c 'import json,sys;d=json.load(open(sys.argv[1]));print((d.get("status") or "?")+"|"+(d.get("name") or "?"))' "$d/sessions/$p.json" 2>/dev/null)
-  st=${nm%%|*}; n=${nm#*|}; [ -n "$nm" ] || { st='?'; n='?'; }
-  printf '%s\t%s\t%s\t%s\t%s%s\n' "$p" "$(basename "$d")" "$n" "$st" \
-    "$(readlink "$proc/$p/cwd")" "$([ "$p" = "$me" ] && echo '  <-- you')"
-done | sort -k2,2 -k5,5)
-[ -z "$rows" ] && { echo "no live sessions found"; exit; }
-printf 'PID\tPROFILE\tNAME\tSTATUS\tLAUNCH-CWD\n%s\n' "$rows"
-n_rows=$(printf '%s\n' "$rows" | wc -l)
-n_prof=$(printf '%s\n' "$rows" | cut -f2 | sort -u | wc -l)
-if [ -n "$me" ]; then
-  printf -- '-- %s live sessions (%s peers plus you) across %s profile(s)\n' \
-    "$n_rows" "$((n_rows - 1))" "$n_prof"
-else
-  printf -- '-- %s live sessions across %s profile(s)\n' "$n_rows" "$n_prof"
-  printf -- '-- WARNING: your own row was NOT identified — no "<-- you" marker below.\n'
-  printf -- '--          Do NOT report a peer count from this run: you cannot subtract yourself.\n'
-fi
-printf -- '-- outside your profile, address by: uds:/run/user/%s/cc-socks/<PID>.sock\n' "$u"
-```
-
-Pipe to `column -t -s$'\t'` if you want it aligned.
-
-A socket with no live `/proc/<pid>` is a stale leftover and is skipped;
-`STATUS` is the peer's own last-reported `idle`/`busy`. The `<-- you` row is
-found by walking up from this shell, which is a child of your own server by
-construction — do **not** identify yourself with `pgrep … | head -1`, which
-samples arbitrarily among several running servers, and do not filter on `comm`,
-which is the binary's basename rather than its identity.
+On Claude Code, read `references/claude-code.md` and run its Enumerate block. It
+prints the table (`HARNESS`, `ACCOUNT`, `PID`, `SID`, `NAME`, `STATUS`,
+`LAUNCH-CWD`, then `<-- you` on your row) and a summary line. Its Identify me
+section explains how your own row is found, and why a missing `<-- you` marker
+means you must not report a peer count.
 
 `LAUNCH-CWD` is `/proc/<pid>/cwd`: where the process was **started**, not where
 the session is **working**. Never read occupancy off it — see Step 4.
 
-**A failed self-identification is LOUD, and that is load-bearing.** When the walk
-finds no socket-bearing ancestor, `me` is empty, no row is marked, and the table
-still renders perfectly — identical to a correct run except for one missing
-annotation nobody is looking for. A reader who cannot find themselves assumes they
-misread. So the summary drops the peer figure entirely and says why, rather than
-printing a session count a reader will silently use as a peer count.
-
-**Both defects were shipped and both were self-concealing.** A stale name makes
-`SendMessage` answer `No agent named 'X' is reachable`, which is byte-identical to
-a cross-profile refusal — and Step 3 tells you to answer that by switching to the
-`uds:` form, which works. So a wrong name never surfaces as wrong. A version-pinned
-session, meanwhile, saw a correct table with no `<-- you` row. Neither produced an
-error; both produced a plausible answer. Recorded in codescout as
-`docs/issues/archive/2026-09-02-greedy-name-regex-reads-a-former-session-name-as-the-current-one.md`
-and `docs/issues/archive/2026-09-02-comm-filter-misses-version-pinned-claude-processes.md`.
-
-**A third shipped in the same self-concealing shape, and it was never this skill's
-bug.** Until 2026-09-15 the walk read `awk '/^PPid:/{print <dollar>2}'`, and the
-harness rewrote that token with a word of the caller's own `args` on the way in, so
-the block a session executed was not the block on disk. Sessions that noticed filed
-it as a typo here; the file was correct every time. Two things follow. If a
-delivered block ever again disagrees with this file, suspect substitution before
-suspecting the skill — diff the two rather than hand-patching what you were handed.
-And if you edit this skill, never write `$` immediately followed by a digit
-anywhere in it. Named variables (`$me`, `$u`, `$p`) and `$$` are untouched; only
-`$`-plus-digit is rewritten, and only when the caller's args run that long, which
-is why a short-args test looks clean.
 ## Step 2 — branch on the last count
 
-**`across 1 profile(s)`** — `ListAgents` is complete on this machine. Address
+**`across 1 account(s)`** — `ListAgents` is complete on this machine. Address
 peers by name and ignore the rest of this skill.
 
-**`across 2 or more profile(s)`** — `ListAgents` shows you only the rows whose
-`PROFILE` matches your own. Every other row is invisible to it and still
+**`across 2 or more account(s)`** — `ListAgents` shows you only the rows whose
+`ACCOUNT` matches your own. Every other row is invisible to it and still
 reachable.
 
 ## Step 3 — address the target
 
 | target | `to:` value |
 |---|---|
-| same `PROFILE` as your `<-- you` row | `"<NAME>"` |
-| any other `PROFILE` | `"uds:/run/user/<uid>/cc-socks/<PID>.sock"` |
+| same `ACCOUNT` as your `<-- you` row | `"<NAME>"` |
+| any other `ACCOUNT` | `"uds:/run/user/<uid>/cc-socks/<PID>.sock"` |
 | replying to a message you received | copy its `from=` attribute verbatim |
 
 ## Step 4 — before acting on where a peer is WORKING, ask
