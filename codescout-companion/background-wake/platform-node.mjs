@@ -32,11 +32,12 @@ export function createPlatform({profileRoot,stateDir,pythonArgv=[process.platfor
   const privateStateRoot=async()=>{
     if(!ready)ready=(async()=>{
       if(Number(process.versions.node.split('.')[0])<24)throw new Error('Node 24 or newer is required');
-      const profile=await realpath(profileRoot);
-      const fs=await statfs(profile);
-      if(networkFs.has(Number(fs.type)>>>0))throw new Error('network filesystem state is unsupported');
+      await realpath(profileRoot);
       const result=await invoke({op:'probe'});
       if(!result.ok)throw new Error(result.reason);
+      const storage=await realpath(root);
+      const fs=await statfs(storage);
+      if(networkFs.has(Number(fs.type)>>>0))throw new Error('network filesystem state is unsupported');
       return root;
     })();
     return ready;

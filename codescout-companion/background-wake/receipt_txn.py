@@ -232,6 +232,8 @@ def transact(root, command):
             record = json.loads(path.read_text(encoding='utf-8'))
         except FileNotFoundError:
             record = None
+        if record is not None:
+            validate_event(record['event'], key)
         ok, updated, reason = apply_command(record, command)
         if ok and command['op'] != 'gc':
             publish(path, updated)
