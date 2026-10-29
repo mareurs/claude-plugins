@@ -339,11 +339,91 @@ else
   fail "merge: sorted by ACCOUNT then HARNESS; a NAME with a space stays on its own row" "$outM13"
 fi
 outM15=$(merge_rows "${ROWS//  <-- you/}")
-if grep -qF 'WARNING: your own row was NOT identified' <<<"$outM15" && ! grep -qF 'peers plus you' <<<"$outM15"; then
+if grep -qF 'WARNING: your own row was NOT identified' <<<"$outM15" && ! grep -qF 'peers plus you' <<<"$outM15" \
+   && ! grep -qE '\([0-9]+ peers\)' <<<"$outM15"; then
   pass "merge: no <-- you row prints the WARNING and no peer figure"
 else
   fail "merge: no <-- you row prints the WARNING and no peer figure" "$outM15"
 fi
+
+
+# 16. THE CODEX-CALLER SUMMARY BRANCH. A MARKED codex row selects the `codex)` arm: the
+#     figure is the Claude session count as peers, with no `plus you` (the caller is not a
+#     Claude session, so nothing is subtracted). A mutation of that arm's arithmetic must
+#     turn this red.
+ROWS_CX=$(printf '%s\n' \
+  "codex${TB}acctA${TB}201${TB}thr1${TB}codex one${TB}loaded${TB}/w/c  <-- you" \
+  "claude${TB}acctB${TB}102${TB}sid2${TB}peer${TB}idle${TB}/w/b" \
+  "claude${TB}acctA${TB}101${TB}sid1${TB}other${TB}busy${TB}/w/a")$'\n'
+codex_branch_ok() { # codex_branch_ok <merge-text>
+  local o; o=$(printf '%s' "$ROWS_CX" | CS_PEERS_NOW=2026-10-29T12:00:00Z bash -c "$1" 2>&1)
+  grep -qxF -- '-- 2 Claude Code sessions (2 peers) and 1 loaded Codex threads, across 2 account(s), at 2026-10-29T12:00:00Z' <<<"$o" \
+    && ! grep -qF 'plus you' <<<"$o" && ! grep -qF 'WARNING' <<<"$o"
+}
+if codex_branch_ok "$MERGE"; then
+  pass "merge: a marked Codex caller gets the peers-without-plus-you summary"
+else
+  fail "merge: a marked Codex caller gets the peers-without-plus-you summary" "$(printf '%s' "$ROWS_CX" | CS_PEERS_NOW=2026-10-29T12:00:00Z bash -c "$MERGE" 2>&1)"
+fi
+MERGE_MUT=${MERGE/'"$s" "$s" "$t"'/'"$s" "$((s - 1))" "$t"'}
+if [ "$MERGE_MUT" = "$MERGE" ]; then
+  fail "control: codex-branch arithmetic mutation" "the arm text was not found; update the pattern with the merge block"
+elif codex_branch_ok "$MERGE_MUT"; then
+  fail "control: codex-branch arithmetic mutation is caught" "mutated merge block still passed"
+else
+  pass "control: codex-branch arithmetic mutation is caught"
+fi
+
+# 17. THE CODEX-CALLER POST TO A CLAUDE SOCKET (Deliver, `python` fence in references/claude-code.md),
+#     run for real against a throwaway AF_UNIX listener in a short mktemp path: exactly one
+#     newline-terminated JSON object with the six keys arrives. Never a real /run/user socket.
+SNIP=$(awk '/^## Deliver/{s=1} s && /^```python/{b=1; next} b && /^```/{exit} b{print}' "$SKILL")
+LISTEN='import socket,sys
+s=socket.socket(socket.AF_UNIX); s.bind(sys.argv[1]); s.listen(1); s.settimeout(3)
+c,_=s.accept(); c.settimeout(3); b=b""
+try:
+    while True:
+        d=c.recv(4096)
+        if not d: break
+        b+=d
+except OSError: pass
+open(sys.argv[2],"wb").write(b)'
+CHECK_POST='import json, sys, uuid
+b = open(sys.argv[1], "rb").read()
+assert b.endswith(b"\n") and b.count(b"\n") == 1, "not one newline-terminated line"
+m = json.loads(b)
+assert set(m) == {"msgV", "msg_id", "type", "message", "priority", "from"}, sorted(m)
+assert m["msgV"] == 1 and m["type"] == "user" and m["priority"] == "next"
+uuid.UUID(m["msg_id"])
+assert m["message"]["role"] == "user" and set(m["message"]) == {"role", "content"}
+c = m["message"]["content"]
+want = "<cross-session-message from=\"codex-4242\" from-name=\"codex/acctA ###pe### pid 4242\" from-mode=\"prompting\">".replace("###", chr(39))
+assert c.startswith(want) and c.endswith("</cross-session-message>"), c
+assert "hello" in c and not m["from"].startswith("uds:") and m["from"] == "codex-4242"'
+post_ok() { # post_ok <snippet-text>: 0 iff the listener received one well-formed message
+  local d; d=$(mktemp -d -p /tmp); local sock="$d/s.sock" got="$d/got" i rc
+  python3 -c "$LISTEN" "$sock" "$got" & local lp=$!
+  for i in $(seq 1 50); do [ -S "$sock" ] && break; sleep 0.1; done
+  printf '%s\n' "$1" | python3 - "$sock" codex-4242 'codex/acctA "pe" pid 4242' 'codex/acctA "pe" pid 4242, 2026-10-29T12:00:00Z hello' >/dev/null 2>&1
+  wait "$lp" 2>/dev/null
+  python3 -c "$CHECK_POST" "$got" 2>/dev/null; rc=$?
+  rm -r "$d"; return $rc
+}
+if [ -n "$SNIP" ] && post_ok "$SNIP"; then
+  pass "Codex-caller post: one newline-terminated JSON line with the six keys reaches the socket"
+else
+  fail "Codex-caller post" "no python fence under ## Deliver, or the listener did not receive one well-formed message"
+fi
+snip_control() { # snip_control <label> <python-mutation: t -> t>
+  local mut
+  mut=$(python3 -c 'import sys;t=sys.stdin.read();exec(sys.argv[1]);sys.stdout.write(t)' "$2" <<<"$SNIP")
+  if [ "$mut" = "$SNIP" ]; then fail "control $1" "mutation did not change the snippet"; return; fi
+  if post_ok "$mut"; then fail "control $1" "broken snippet still passed"; else pass "control $1 is caught"; fi
+}
+snip_control no_newline     't = t.replace(r"""json.dumps(msg) + "\n")""", r"""json.dumps(msg))""")'
+snip_control wrong_priority 't = t.replace(r"""priority": "next""", r"""priority": "later""")'
+snip_control wrong_key      't = t.replace("msgV", "msgW")'
+snip_control no_send        't = t.replace("s.sendall(", "(")'
 
 echo "-- $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]

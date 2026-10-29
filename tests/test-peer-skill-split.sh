@@ -12,13 +12,15 @@
 # (must fail); each control also proves its mutation changed the copy. The real files are
 # never edited. PEER_SKILL_DIR points the suite at another skill dir.
 #
-# Task 3 creates references/codex.md; this suite asserts the Claude reference fully and the
-# Codex POINTER text only. The Codex reference's own existence belongs to Task 3's test.
+# Both references are asserted here for shape (headings, pointers, reachability, no @-link,
+# no dollar-plus-digit token). The Codex Enumerate and Deliver CONTENT is tested in
+# tests/test-peer-codex-enumerate.sh.
 set -uo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 SKILL_DIR="${PEER_SKILL_DIR:-$ROOT/codescout-companion/skills/reaching-peer-sessions}"
 CORE="$SKILL_DIR/SKILL.md"
 REF="$SKILL_DIR/references/claude-code.md"
+CREF="$SKILL_DIR/references/codex.md"
 PASS=0; FAIL=0
 ok()  { echo "  PASS: $1"; PASS=$((PASS+1)); }
 bad() { echo "  FAIL: $1 — $2"; FAIL=$((FAIL+1)); }
@@ -137,6 +139,14 @@ for name in "${!CHECKS[@]}"; do
 done
 if [ -f "$REF" ]; then ok "references/claude-code.md exists"; else bad "references/claude-code.md" "missing"; fi
 if has_headings "$REF"; then ok "claude reference has Enumerate, Identify me, Deliver"; else bad "claude reference headings" "one of ## Enumerate / ## Identify me / ## Deliver missing"; fi
+# Codex reference: exists, three headings, cited by the core by plain path, so reachable.
+reachable_codex_copy() { grep -qF 'references/codex.md' "$1" && [ -f "$CREF" ]; }
+reachable_codex() { reachable_codex_copy "$CORE"; }
+no_dollar_digit() { ! grep -qE '[$][0-9]' "$1"; }
+if [ -f "$CREF" ]; then ok "references/codex.md exists"; else bad "references/codex.md" "missing"; fi
+if has_headings "$CREF"; then ok "codex reference has Enumerate, Identify me, Deliver"; else bad "codex reference headings" "one of ## Enumerate / ## Identify me / ## Deliver missing"; fi
+if reachable_codex; then ok "codex reference is reachable from the core by plain path"; else bad "codex reachability" "core does not cite references/codex.md, or the file is missing"; fi
+if no_at_link "$CREF" && no_dollar_digit "$CREF" && no_dollar_digit "$REF"; then ok "references hold no @-link and no dollar-plus-digit token"; else bad "reference lint" "an @-link or a dollar-plus-digit token"; fi
 [ -d "$SKILL_DIR/references" ] && ok "references/ dir name preserved" || bad "references/ dir" "missing or renamed"
 
 # ---- controls: each mutates a copy, must change it, and the check must then FAIL ----
@@ -164,6 +174,13 @@ control warning_gone    merge_warns_unmarked "$CORE" 't = t.replace("WARNING: yo
 control warn_keeps_peer merge_warns_unmarked "$CORE" 't = t.replace("Claude Code sessions and %s loaded", "Claude Code sessions (0 peers plus you) and %s loaded")'
 control ref_no_deliver  has_headings       "$REF"  't = t.replace("## Deliver", "## Send")'
 control ref_no_enum     has_headings       "$REF"  't = t.replace("## Enumerate", "## List")'
+
+control codex_no_enum   has_headings       "$CREF" 't = t.replace("## Enumerate", "## List")'
+control codex_no_ident  has_headings       "$CREF" 't = t.replace("## Identify me", "## Who am I")'
+control codex_no_deliv  has_headings       "$CREF" 't = t.replace("## Deliver", "## Send")'
+control codex_at_link   no_at_link         "$CREF" 't += "\n@references/claude-code.md\n"'
+control codex_dollar    no_dollar_digit    "$CREF" 't += "\ncost $4.20\n"'
+control codex_unreach   reachable_codex_copy "$CORE" 't = t.replace("references/codex.md", "codex.md")'
 
 control rule_sessionid  has_everywhere_rules "$CORE" 't = t.replace("Take the sessionId, not the name", "Take the name")'
 control rule_adjacency  has_everywhere_rules "$CORE" 't = t.replace("Never route by adjacency", "Route freely")'
