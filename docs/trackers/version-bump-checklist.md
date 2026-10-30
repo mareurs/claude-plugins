@@ -13,6 +13,59 @@ Release readiness across plugins × profiles. See
 `docs/superpowers/specs/2026-05-18-version-bump-checklist-tracker-design.md`.
 
 ## State
+### Release verification — 1.20.26
+
+_Last refresh: `7b898e6`, 2026-10-30 — codescout-companion 1.20.25→1.20.26. Fixes native PostToolUse stdout and irrelevant-event exit status. Full suite passed on the identical pre-bump tree d9712b9 (job @bg_0000000a); fresh buddy pytest: 534 passed. release.sh reused these results with SKIP_TESTS=1 and NO_PUSH=1; final parity/package checks passed. Package-lock root metadata was synchronized without dependency changes._
+
+**buddy** — canonical `0.11.13` · readme `0.11.13` · marketplace clean ✅
+
+| profile | installed | cache dir | install_path ok | all entries | tracked files outside tests match |
+|---|---|---|---|---|---|
+| `~/.claude` | 0.11.13 ✅ | ✅ | ✅ | `0.11.13` ✅ | ✅ |
+| `~/.claude-sdd` | 0.11.13 ✅ | ✅ | ✅ | `0.11.13` ✅ | ✅ |
+| `~/.claude-kat` | 0.11.13 ✅ | ✅ | ✅ | `0.11.13` ✅ | ✅ |
+| `~/.claude-stef` | 0.11.13 ✅ | ✅ | ✅ | `0.11.13` ✅ | ✅ |
+
+**codescout-companion** — canonical `1.20.26` · readme `1.20.26` · marketplace clean ✅
+
+| profile | installed | cache dir | install_path ok | all entries | tracked files outside tests match |
+|---|---|---|---|---|---|
+| `~/.claude` | 1.20.26 ✅ | ✅ | ✅ | `1.20.26` ✅ | ✅ |
+| `~/.claude-sdd` | 1.20.26 ✅ | ✅ | ✅ | `1.20.26` ✅ | ✅ |
+| `~/.claude-kat` | 1.20.26 ✅ | ✅ | ✅ | `1.20.26` ✅ | ✅ |
+| `~/.claude-stef` | 1.20.26 ✅ | ✅ | ✅ | `1.20.26` ✅ | ✅ |
+
+**legible** — canonical `0.2.1` · readme `0.2.1` · marketplace clean ✅
+
+| profile | installed | cache dir | install_path ok | all entries | tracked files outside tests match |
+|---|---|---|---|---|---|
+| `~/.claude` | 0.2.1 ✅ | ✅ | ✅ | `0.2.1` ✅ | ✅ |
+| `~/.claude-sdd` | 0.2.1 ✅ | ✅ | ✅ | `0.2.1` ✅ | ✅ |
+| `~/.claude-kat` | 0.2.1 ✅ | ✅ | ✅ | `0.2.1` ✅ | ✅ |
+| `~/.claude-stef` | 0.2.1 ✅ | ✅ | ✅ | `0.2.1` ✅ | ✅ |
+
+**statusline** — canonical `1.2.1` · readme `1.2.1` · marketplace clean ✅
+
+| profile | installed | cache dir | install_path ok | all entries | tracked files outside tests match |
+|---|---|---|---|---|---|
+| `~/.claude` | 1.2.1 ✅ | ✅ | ✅ | `1.2.1` ✅ | ✅ |
+| `~/.claude-sdd` | 1.2.1 ✅ | ✅ | ✅ | `1.2.1` ✅ | ✅ |
+| `~/.claude-kat` | 1.2.1 ✅ | ✅ | ✅ | `1.2.1` ✅ | ✅ |
+
+`sdd`: not installed in any configured Claude profile.
+`session-bridge`: not installed in any configured Claude profile.
+
+Source comparison covers all git-tracked files in each installed plugin, for every install-record entry. Runtime files and generated untracked files are outside this predicate.
+
+Codex: the only existing profile is ~/.codex. Its native installer deployed 1.20.26, hooks/list resolves companion hooks inside its own 1.20.26 cache, and the explicit background-wake command now targets that version and is trusted/enabled. All 168 tracked companion files match source in the four Claude caches and the Codex cache. The configured uppercase Codex profile directories and lowercase sdd/kat variants do not exist on this host. Copilot has no companion installation here; sync skipped.
+
+Codex daemon was not restarted, preserving its pinned generation. Claude profile caches/install records are updated; no running Claude session was restarted or claimed to have reloaded.
+
+Full tracked snapshots differ for buddy only in research test files under tests/; those caches were not changed by this companion release. The table runtime predicate excludes tests/. The full cache_matches_source field remains false for those buddy rows rather than claiming an exact snapshot match.
+
+Published to origin/main: 474e6a7..7b898e6. Final native 1.20.26 smoke: two PostToolUse completions had status completed with empty entries; automatic job @bg_00000010 exited 0 and delivered its notification in this session. No daemon restart was needed.
+
+### Previous observations (preserved)
 
 _Last refresh: `34942f7`, 2026-10-30 — codescout-companion 1.20.24→1.20.25, bumped and pushed by `release.sh` (`e7b05fa..34942f7`, 9 commits). The release ships the background-wake work: capabilities, event identities, receipt fencing, shared watcher, Claude and Codex adapters, and generation fencing. Full suite and buddy pytest (534 passed) green before the bump; the parity gate passed across 4 profiles._
 
@@ -209,6 +262,9 @@ measured on both candidate load paths rather than argued: the record points at k
 two actually serves, they carry the same bytes — so the question CLAUDE.md flags as
 unsettled does not need settling for this release.
 ## History
+### 2026-10-30 — codescout-companion 1.20.26
+
+Published 7b898e6 after fix d9712b9. Delta: native PostToolUse launch now emits no diagnostic JSON and irrelevant events return success. Release and package-lock metadata agree at 1.20.26; ws stays 8.22.0. Reused the full suite pass on identical d9712b9 and the fresh 534-test buddy pass; parity and copied-cache dependency smoke passed. All 168 tracked companion files match source in four Claude caches and the native Codex cache. The native installer and explicitly trusted wake hook now use 1.20.26; two native hook completions succeeded and an automatic exit-0 job delivered its notification. Copilot sync skipped because companion is not installed there. Running Claude sessions were not restarted. Buddy was not redeployed; its newer research-test files account for the separate full-snapshot differences recorded above.
 ### 2026-10-30 — companion 1.20.25 released and pushed by `release.sh`
 
 **Deltas, all measured:**
