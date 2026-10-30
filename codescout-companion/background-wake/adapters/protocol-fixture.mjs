@@ -3,6 +3,15 @@ import {WebSocketServer} from 'ws';
 import {mkdtemp,rm,chmod} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
+import {eventId} from '../model.mjs';
+
+export function boundTarget(config,sessionId='session'){
+ return {harness:'codex',profileRoot:config.profileRoot,environmentId:config.environmentId,hostInstanceId:config.bindings.codex.hostInstanceId,runtimeGeneration:config.bindings.codex.runtimeGeneration,origin:'root',sessionId};
+}
+export function bindEvent(event,config){
+ const target=boundTarget(config);
+ return {...event,target,eventId:eventId(event.job,target,event.kind,event.sequence)};
+}
 
 export async function withProtocol(fn,{reply}={}){
   const root=await mkdtemp(join(tmpdir(),'wake-rpc-'));

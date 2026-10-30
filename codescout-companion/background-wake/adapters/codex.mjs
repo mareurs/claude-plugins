@@ -24,6 +24,9 @@ export function createCodexAdapter(config,{completionTimeoutMs=15000}={}){
     }catch(e){return denied(e.message);}
   };
   const validateTarget=async(request)=>{
+    const binding=config.bindings?.codex,target=request?.target;
+    const expected={harness:'codex',profileRoot:config.profileRoot,environmentId:config.environmentId,hostInstanceId:binding?.hostInstanceId,runtimeGeneration:binding?.runtimeGeneration,origin:'root'};
+    if(!target||Object.entries(expected).some(([key,value])=>typeof value!=='string'||target[key]!==value))return denied('event target differs from the verified profile/environment/runtime binding');
     const capabilityResult=await capability();if(!capabilityResult.supported)return capabilityResult;
     try{
       const id=request?.target?.sessionId;if(!id)return denied('exact existing thread required');

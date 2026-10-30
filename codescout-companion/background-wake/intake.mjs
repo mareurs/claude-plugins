@@ -1,13 +1,12 @@
 import {readFile,writeFile,access} from 'node:fs/promises';
 import {basename,join} from 'node:path';
-import {createHash} from 'node:crypto';
 import {bindingKey,validateWatchRequest} from './model.mjs';
 import {normalizeHookContext} from '../hooks/session-context.mjs';
 import {stateHome} from '../hooks/lib.mjs';
 import {homedir} from 'node:os';
+import {registerWatch,readCurrentWatch} from './watch-map.mjs';
 
 const exists=async(path)=>{try{await access(path);return true;}catch(e){if(e.code==='ENOENT')return false;throw e;}};
-const hash=(value)=>createHash('sha256').update(JSON.stringify(value)).digest('hex');
 
 /** Immutable per-record engine ownership also fences a rollback to the legacy wrapper. */
 export async function selectEngine(record,engine,target=null){
@@ -47,23 +46,22 @@ export async function normalizeNativeWatch(harness,raw,config,platform){
   try{response=JSON.parse(content.find(c=>c.type==='text'||typeof c.text==='string')?.text);}catch{return null;}
   if(!response||typeof response!=='object')return null;
   const target={harness,profileRoot:config.profileRoot,environmentId:config.environmentId,hostInstanceId:binding.hostInstanceId,sessionId:raw.session_id,runtimeGeneration:binding.runtimeGeneration,origin:'root'};
-  const root=await platform.privateStateRoot();
-  const mapping=(handle)=>join(root,'map-'+hash([bindingKey(target),handle])+'.json');
+  await platform.privateStateRoot();
   if(typeof response.record==='string'&&typeof response.output_id==='string'&&!('exit_code' in response)){
     const match=basename(response.record).match(/^([1-9][0-9]*)-([a-f0-9]{8})-(bg_[a-f0-9]{8})\.json$/);
     if(!match)return null;
     let request;
     try{request=validateWatchRequest({version:1,sourceEventId:raw.tool_use_id,target,job:{recordPath:response.record,schema:1,serverPid:Number(match[1]),serverToken:match[2],handle:response.output_id}});}catch{return null;}
     if(await hasLegacyMapping(request,config)||!await selectEngine(request.job.recordPath,'v1',target))return null;
-    try{await writeFile(mapping(request.job.handle),JSON.stringify(request),{flag:'wx',mode:0o600});}
-    catch(e){if(e.code!=='EEXIST')return null;const old=validateWatchRequest(JSON.parse(await readFile(mapping(request.job.handle),'utf8')));if(JSON.stringify(old.job)!==JSON.stringify(request.job))return null;}
+    if(!(await registerWatch(request,platform)).ok)return null;
     return request;
   }
   if(!('exit_code' in response))return null;
   const handles=typeof raw.tool_input?.command==='string'?[...raw.tool_input.command.matchAll(/@bg_[a-f0-9]{8}/g)].map(m=>m[0]):[];
   if(new Set(handles).size!==1)return null;
   try{
-    const request=validateWatchRequest(JSON.parse(await readFile(mapping(handles[0]),'utf8')));
+    const request=await readCurrentWatch(target,handles[0],platform);
+    if(!request)return null;
     if(bindingKey(request.target)!==bindingKey(target)||!await selectEngine(request.job.recordPath,'v1',target))return null;
     return {...request,sourceEventId:raw.tool_use_id};
   }catch{return null;}

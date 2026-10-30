@@ -232,7 +232,54 @@ def apply_command(record, command):
     return True, record, 'transaction committed'
 
 
+def register_watch(root, command):
+    event, request, key = command['event'], command['request'], command['mapKey']
+    validate_event(event, command['eventId'])
+    if event['kind'] != 'terminal' or event['sequence'] != 0 or request.get('version') != 1 or not request.get('sourceEventId'):
+        raise ValueError('invalid watch registration')
+    if request['job'] != event['job'] or request['target'] != event['target']:
+        raise ValueError('watch registration differs from event identity')
+    target_key = digest(['binding-v1'] + [request['target'][k] for k in ('harness', 'profileRoot', 'hostInstanceId', 'environmentId', 'sessionId', 'runtimeGeneration', 'origin')])
+    if key != digest([target_key, request['job']['handle']]):
+        raise ValueError('watch index identity differs')
+    path, lock_path = root / ('map-' + key + '.json'), root / ('map-' + key + '.lock')
+    registration = root / ('watch-' + command['eventId'][6:] + '.json')
+    if any(p.is_symlink() for p in (path, lock_path, registration)):
+        raise OSError('watch paths must not be links')
+    with open(lock_path, 'a+b') as lock:
+        if os.name != 'nt':
+            os.fchmod(lock.fileno(), 0o600)
+        locked(lock)
+        try:
+            previous = json.loads(registration.read_text(encoding='utf-8'))
+            if previous['job'] != request['job'] or previous['target'] != request['target']:
+                raise ValueError('immutable watch registration differs')
+        except FileNotFoundError:
+            publish(registration, request)
+        try:
+            index = json.loads(path.read_text(encoding='utf-8'))
+        except FileNotFoundError:
+            index = {'version': 1, 'current': None, 'retired': []}
+        if 'job' in index:
+            index = {'version': 1, 'current': index, 'retired': []}
+        if index.get('version') != 1 or not isinstance(index.get('retired'), list):
+            raise ValueError('unsupported watch index')
+        identity = lambda r: 'wake1:' + digest(['event-v1', digest(['job-v1'] + [r['job'][k] for k in ('recordPath', 'schema', 'serverPid', 'serverToken', 'handle')]), target_key, 'terminal', 0])
+        current = index.get('current')
+        if current and (current['target'] != request['target'] or current['job']['handle'] != request['job']['handle']):
+            raise ValueError('watch index belongs to another target')
+        if command['eventId'] in index['retired']:
+            return {'ok': False, 'receipt': None, 'reason': 'retired server generation cannot replace current handle mapping'}
+        if not current or identity(current) != command['eventId']:
+            if current:
+                index['retired'].append(identity(current))
+            index['current'] = request
+            publish(path, index)
+        return {'ok': True, 'receipt': None, 'reason': 'generation-specific watch registered; current handle index fenced'}
+
 def transact(root, command):
+    if command.get('op') == 'register-watch':
+        return register_watch(root, command)
     if command.get('op') == 'probe':
         return {'ok': True, 'receipt': None, 'root': str(root), 'reason': 'private native storage available'}
     key = command.get('eventId', '')

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {withProtocol} from './protocol-fixture.mjs';
+import {withProtocol,bindEvent} from './protocol-fixture.mjs';
 import {withStore} from '../test-support.mjs';
 import {createCodexAdapter} from './codex.mjs';
 import {endpointIdentity} from './codex-client.mjs';
@@ -8,8 +8,8 @@ import {endpointIdentity} from './codex-client.mjs';
 async function fixture(fn,{reply}={}){
  return withProtocol(async({root,endpoint,messages,broadcast})=>withStore(async({event})=>{
   const {generation}=await endpointIdentity(endpoint);
-  const config={engine:'v1',profileRoot:root,adapters:{codex:{enabled:true,endpoint}},bindings:{codex:{hostInstanceId:generation,runtimeGeneration:generation}},capabilities:{codex:{daemonVersion:'0.160.0',subscription:'resume-loaded',callbackPreserved:true}}};
-  await fn({config,event,messages,broadcast});
+  const config={engine:'v1',profileRoot:root,environmentId:'linux',adapters:{codex:{enabled:true,endpoint}},bindings:{codex:{hostInstanceId:generation,runtimeGeneration:generation}},capabilities:{codex:{daemonVersion:'0.160.0',subscription:'resume-loaded',callbackPreserved:true}}};
+  await fn({config,event:bindEvent(event,config),messages,broadcast});
  }),{reply});
 }
 test('missingCallbackProofDisablesBeforeAttach',()=>fixture(async({config,messages})=>{

@@ -7,7 +7,8 @@
   "hookVersion": "0.165.0",
   "daemonVersion": "0.160.0",
   "os": "linux",
-  "model": "gpt-6.1-sol",
+  "requestedModel": "gpt-6.1-sol",
+  "servedModel": "not independently verified",
   "backend": "existing authenticated Codex daemon",
   "subscription": {
     "method": "thread/resume",

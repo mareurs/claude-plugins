@@ -50,6 +50,13 @@ export function createPlatform({profileRoot,stateDir,pythonArgv=[process.platfor
   return {
     profileRoot:resolve(profileRoot),stateDir:root,spawnArgv,privateStateRoot,
     async receiptTransaction(command){try{await privateStateRoot();return await invoke(command);}catch(e){return {ok:false,receipt:null,reason:e.message};}},
+    async readStateJson(name){
+      if(!/^(map-|watch-)[a-f0-9]{64}\.json$/.test(name))throw new Error('invalid private state filename');
+      const root=await privateStateRoot();
+      try{return JSON.parse(await readFile(join(root,name),'utf8'));}
+      catch(e){if(e.code==='ENOENT')return null;throw e;}
+    },
+
     async readRecord(path){
       try{
         if((await stat(path)).size>1024*1024)return {kind:'unsupported',reason:'record exceeds read budget'};

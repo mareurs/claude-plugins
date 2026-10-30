@@ -37,7 +37,7 @@ The inspection tool does not launch a host or automatically approve tools. Its p
 
 ## Remaining release gates
 
-The implemented engine was measured against the authenticated Linux Codex daemon 0.160.0 using gpt-6.1-sol. The native hook capture is separately CLI 0.165.0. A new private thread verified loaded-thread attach with thread/resume plus excludeTurns and no overrides. After the secondary connection closed, the original client received one dynamic tool callback and one actual permission callback; the secondary received neither. Earlier probes with zero permission callbacks were not counted as verification.
+The implemented engine was measured against the authenticated Linux Codex daemon 0.160.0 with requested model gpt-6.1-sol; the served model was not independently verified. The native hook capture is separately CLI 0.165.0. A new private thread verified loaded-thread attach with thread/resume plus excludeTurns and no overrides. After the secondary connection closed, the original client received one dynamic tool callback and one actual permission callback; the secondary received neither. Earlier probes with zero permission callbacks were not counted as verification.
 
 Real codescout jobs were supplied through explicit measurement bindings to the implemented engine. Idle exit-7 delivery reached a correlated completed receipt and the model marker; a duplicate kept the same completed event, and a fresh secondary connection completed an exit-0 job. This verifies the delivery/storage path, not the complete automatic registration chain. The same-turn control returned the primary turn ID but its preceding status read said idle; the receipt remained accepted. Active-turn completion remains unverified.
 

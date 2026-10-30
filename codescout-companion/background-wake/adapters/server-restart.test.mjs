@@ -1,0 +1,20 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {join} from 'node:path';
+import {readFile,readdir,writeFile} from 'node:fs/promises';
+import {withStore} from '../test-support.mjs';
+import {normalizeClaudeWatch} from './claude-code.mjs';
+test('newServerReusesHandleAndOldReplayCannotRollMappingBack',()=>withStore(async({event,platform,profileRoot})=>{
+ const config={engine:'v1',profileRoot,environmentId:'linux',adapters:{claudeCode:{enabled:true}},bindings:{claudeCode:{hostVersion:'2.1.312',hostInstanceId:'fixture',runtimeGeneration:'fixture'}}};
+ const native=(record,read=false)=>({hook_event_name:'PostToolUse',tool_name:'mcp__codescout__run_command',tool_use_id:'call-'+record,session_id:'session',cwd:profileRoot,tool_input:{command:read?'tail -50 @bg_00000001':'@ack_x'},tool_response:[{text:JSON.stringify(read?{exit_code:0}:{record,output_id:event.job.handle})}]});
+ const first=await normalizeClaudeWatch(native(event.job.recordPath),config,platform);assert.ok(first);
+ const newer=join(profileRoot,'4243-b1b2c3d4-bg_00000001.json');
+ const second=await normalizeClaudeWatch(native(newer),config,platform);assert.ok(second,'new server generation must register');
+ assert.equal((await normalizeClaudeWatch(native('',true),config,platform)).job.recordPath,newer);
+ assert.equal(await normalizeClaudeWatch(native(event.job.recordPath),config,platform),null,'retired generation replay must not roll back the handle index');
+ assert.equal((await normalizeClaudeWatch(native('',true),config,platform)).job.recordPath,newer);
+ const registrations=(await readdir(platform.stateDir)).filter(n=>/^watch-[a-f0-9]{64}\.json$/.test(n));
+ assert.equal(registrations.length,2);
+ const jobs=await Promise.all(registrations.map(n=>readFile(join(platform.stateDir,n),'utf8').then(JSON.parse)));
+ assert.deepEqual(new Set(jobs.map(r=>r.job.recordPath)),new Set([event.job.recordPath,newer]));
+}));

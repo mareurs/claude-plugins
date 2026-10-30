@@ -105,7 +105,7 @@ For this machine's three Codex installations, prepare and verify all three indep
 
 ## Delivery and recovery
 
-The event key includes the full job/server generation and exact target binding. Terminal and heartbeat IDs differ. Only one owner can persist a send permit. A durable send intent precedes transport delivery; a crash in the return window is unknown and is never replayed automatically. Only definite pre-send failures retry, up to four persisted send attempts.
+The event key includes the full job/server generation and exact target binding. Terminal and heartbeat IDs differ. Generation-specific watch registrations remain immutable; an OS-locked current-handle index can move to a new server generation and rejects replay of a retired one. The engine consults an existing terminal receipt before declaring tracking loss, and omits handle-read instructions when the original handle cannot be verified. Only one owner can persist a send permit. A durable send intent precedes transport delivery; a crash in the return window is unknown and is never replayed automatically. Only definite pre-send failures retry, up to four persisted send attempts.
 
 Codex records accepted from the request reply, continuation_observed from the matching tool-output event, and completed only after that item and its exact turn complete. A generic idle event proves nothing. Closing the secondary connection does not unload, interrupt or close the thread.
 

@@ -1,6 +1,7 @@
 import {randomUUID} from 'node:crypto';
 import {setTimeout as delay} from 'node:timers/promises';
-import {eventId,validateWatchRequest} from './model.mjs';
+import {eventId,jobKey,validateWatchRequest} from './model.mjs';
+import {readCurrentWatch} from './watch-map.mjs';
 
 export const defaultPolicy=Object.freeze({pollMs:1000,recordGraceMs:5000,deadlineMs:1800000,leaseMs:30000,renewMs:10000,retryDelaysMs:[1000,2000,4000]});
 const realClock={now:()=>Date.now(),sleep:(ms,signal)=>delay(ms,undefined,{signal})};
@@ -15,8 +16,11 @@ export async function runWatch(input,{store,platform,adapter,clock=realClock,sig
   let absentSince;
   const tx=(event,op,fields={})=>store.transact({op,eventId:event.eventId,nowMs:clock.now(),...fields});
   try{
-    let kind,payload,sequence=0;
-    while(!signal?.aborted){
+    const known=await tx({eventId:eventId(request.job,request.target,'terminal',0)},'inspect');
+    if(!known.ok&&known.reason!=='receipt missing')return resultOf(known);
+    const restored=known.ok?known.receipt.event:null;
+    let kind=restored?.kind,payload=restored?.payload,sequence=restored?.sequence??0;
+    while(!restored&&!signal?.aborted){
       const observation=await platform.readRecord(request.job.recordPath);
       if(observation.kind==='available'){
         absentSince=undefined;
@@ -28,6 +32,8 @@ export async function runWatch(input,{store,platform,adapter,clock=realClock,sig
           kind='terminal';payload={state:r.state,exitCode:r.exit_code,durationMs:Number.isFinite(durationMs)&&durationMs>=0?durationMs:null};break;
         }
         if(r.state!=='running')return {state:'unsupported',reason:'unsupported job state'};
+        const active=await readCurrentWatch(request.target,request.job.handle,platform);
+        if(active&&jobKey(active.job)!==jobKey(request.job)){kind='tracking-lost';payload={reason:'origin handle now belongs to another server generation'};break;}
         if(await platform.processStatus(request.job)==='dead'){kind='tracking-lost';payload={reason:'originating server exited'};break;}
         if(clock.now()-started>=p.deadlineMs){
           kind='heartbeat';
@@ -58,6 +64,10 @@ export async function runWatch(input,{store,platform,adapter,clock=realClock,sig
       const capability=await adapter.capability(request);
       const target=capability.supported?await adapter.validateTarget(request):capability;
       if(!target.supported)return resultOf(await tx(event,'decline',{result:{kind:'unsupported',reason:target.reason}}));
+      const observation=await platform.readRecord(request.job.recordPath);
+      const active=await readCurrentWatch(request.target,request.job.handle,platform);
+      const r=observation.record;
+      const handleValid=observation.kind==='available'&&r.schema===1&&r.server_pid===request.job.serverPid&&r.handle===request.job.handle&&await platform.processStatus(request.job)!=='dead'&&Boolean(active)&&jobKey(active.job)===jobKey(request.job);
       const ownerToken=randomUUID(),attemptId=randomUUID();
       current=await tx(event,'claim',{ownerToken,attemptId,leaseMs:p.leaseMs});
       if(!current.ok)return resultOf(current);
@@ -74,7 +84,7 @@ export async function runWatch(input,{store,platform,adapter,clock=realClock,sig
         return evidenceQueue;
       };
       let outcome;
-      try{outcome=await adapter.deliver({...persisted,attemptId},observe,signal);}
+      try{outcome=await adapter.deliver({...persisted,attemptId,handleValid},observe,signal);}
       catch(e){outcome={kind:'unknown',reason:e.message||'transport ended after send intent'};}
       await evidenceQueue;
       if(current.receipt.state==='sending'){

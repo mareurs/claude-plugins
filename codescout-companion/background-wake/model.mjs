@@ -4,7 +4,7 @@ import { isAbsolute, basename, normalize } from 'node:path';
 /** @typedef {{recordPath:string,schema:1,serverPid:number,serverToken:string,handle:string}} JobRef */
 /** @typedef {{harness:'claude-code'|'codex',profileRoot:string,hostInstanceId:string,environmentId:string,sessionId:string,runtimeGeneration:string,origin:'root'}} TargetBinding */
 /** @typedef {{version:1,job:JobRef,target:TargetBinding,sourceEventId:string}} WatchRequest */
-/** @typedef {{version:1,eventId:string,kind:'terminal'|'heartbeat'|'tracking-lost',job:JobRef,target:TargetBinding,sequence:number,payload:object}} DeliveryEvent */
+/** @typedef {{version:1,eventId:string,kind:'terminal'|'heartbeat'|'tracking-lost',job:JobRef,target:TargetBinding,sequence:number,payload:object,attemptId?:string,handleValid?:boolean}} DeliveryEvent */
 /** @typedef {{supported:boolean,reason:string,evidenceRef:string|null}} Capability */
 /** @typedef {{version:1,event:DeliveryEvent,state:string,attemptId?:string,ownerToken?:string,leaseUntilMs?:number,lastEvidence?:object,lastError?:object,updatedAtMs:number}} Receipt */
 /** @typedef {{state:'accepted'|'continuation_observed'|'completed',eventId:string,attemptId:string,correlation:object}} Evidence */
@@ -47,18 +47,19 @@ export function validateWatchRequest(value) {
 /** Only allowlisted outcome facts enter model context; raw command/output never do. */
 export function formatDeliveryEvent(event) {
   validateWatchRequest({version:1,job:event?.job,target:event?.target,sourceEventId:'delivery'});
-  if (event.version!==1 || event.eventId!==eventId(event.job,event.target,event.kind,event.sequence)) throw new Error('invalid delivery event identity');
+  if(event.version!==1||event.eventId!==eventId(event.job,event.target,event.kind,event.sequence))throw new Error('invalid delivery event identity');
   const prefix=`codescout background job ${event.job.handle}`;
   const suffix=` Event ${event.eventId}.`;
-  if(event.kind==='tracking-lost') return `${prefix}: originating server/record is unavailable; job state unknown and this handle is invalid.${suffix} Do not read the handle on a replacement server.`;
-  if(event.kind==='heartbeat') return `${prefix} is still recorded as running.${suffix} Read it with run_command("tail -50 ${event.job.handle}") to continue watching.`;
+  const read=event.handleValid===false?' The originating handle cannot be verified; do not read it on a replacement server.':` Read it with run_command("tail -50 ${event.job.handle}").`;
+  if(event.kind==='tracking-lost')return `${prefix}: originating server/record is unavailable; job state unknown and this handle is invalid.${suffix} Do not read the handle on a replacement server.`;
+  if(event.kind==='heartbeat')return `${prefix} is still recorded as running.${suffix}${event.handleValid===false?read:` Read it with run_command("tail -50 ${event.job.handle}") to continue watching.`}`;
   const p=event.payload||{};
   let outcome;
-  if(p.state==='exited') {
-    if(p.exitCode!==null && !Number.isSafeInteger(p.exitCode)) throw new Error('invalid job exit code');
+  if(p.state==='exited'){
+    if(p.exitCode!==null&&!Number.isSafeInteger(p.exitCode))throw new Error('invalid job exit code');
     outcome=p.exitCode===null?'terminated by signal':`exited ${p.exitCode}`;
-  } else if(p.state==='failed') outcome='failed to start or track';
+  }else if(p.state==='failed')outcome='failed to start or track';
   else throw new Error('terminal event requires an observed terminal state');
   const duration=Number.isFinite(p.durationMs)&&p.durationMs>=0?` after ${Math.round(p.durationMs/1000)}s`:'';
-  return `${prefix} ended: ${outcome}${duration}.${suffix} Read it with run_command("tail -50 ${event.job.handle}").`;
+  return `${prefix} ended: ${outcome}${duration}.${suffix}${read}`;
 }
