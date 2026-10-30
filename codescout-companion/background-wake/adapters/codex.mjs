@@ -17,7 +17,7 @@ export function createCodexAdapter(config,{completionTimeoutMs=15000}={}){
       if(proof?.daemonVersion!=='0.160.0'||proof?.subscription!=='resume-loaded'||proof?.callbackPreserved!==true)return denied('Codex secondary callback preservation is unverified for this version/profile');
       const identity=await endpointIdentity(config.adapters.codex.endpoint),binding=config.bindings?.codex;
       if(binding?.hostInstanceId!==identity.generation||binding?.runtimeGeneration!==identity.generation)return denied('configured daemon generation differs from endpoint');
-      client??=await connectCodex({endpoint:config.adapters.codex.endpoint,clientInfo:{name:'codescout_background_wake',version:'1'}});
+      client??=await connectCodex({endpoint:config.adapters.codex.endpoint,clientInfo:{name:'codescout_background_wake',version:'1'},maxPayload:config.adapters.codex.maxPayloadBytes});
       if(await realpath(client.server.codexHome)!==await realpath(config.profileRoot))return denied('endpoint belongs to another Codex profile');
       if(!/^codex-tui\/0\.160\.0(?:\s|$)/.test(client.server.userAgent))return denied('daemon version lacks measured callback preservation');
       return allowed;

@@ -42,7 +42,7 @@ export async function probeCapabilities({ harness, profileRoot, endpointRef = nu
       const bytes = await readFile(join(captureDir, file));
       if (bytes.length > 2 * 1024 * 1024) throw new Error('capture exceeds probe budget');
       const capture = JSON.parse(bytes);
-      if (capture.harness !== harness || capture.os !== platform) continue;
+      if (capture.captureKind !== 'native-hook' || capture.harness !== harness || capture.os !== platform) continue;
       if (!nonempty(capture.hostVersion) || capture.hostVersion === 'unmeasured') throw new Error('capture has no measured host version');
       if (resolve(capture.profileRoot || '.') !== resolve(profileRoot)) throw new Error('capture profile does not match explicit profile');
       if (row.hostVersion !== 'unmeasured' && row.hostVersion !== capture.hostVersion) throw new Error('mixed host versions require separate reports');

@@ -1,4 +1,4 @@
-import {readFile,stat,realpath,statfs} from 'node:fs/promises';
+import {readFile,writeFile,stat,realpath,statfs} from 'node:fs/promises';
 import {spawn} from 'node:child_process';
 import {join,resolve,isAbsolute} from 'node:path';
 import {createHash} from 'node:crypto';
@@ -32,12 +32,17 @@ export function createPlatform({profileRoot,stateDir,pythonArgv=[process.platfor
   const privateStateRoot=async()=>{
     if(!ready)ready=(async()=>{
       if(Number(process.versions.node.split('.')[0])<24)throw new Error('Node 24 or newer is required');
-      await realpath(profileRoot);
+      const profile=await realpath(profileRoot);
       const result=await invoke({op:'probe'});
       if(!result.ok)throw new Error(result.reason);
       const storage=await realpath(root);
       const fs=await statfs(storage);
       if(networkFs.has(Number(fs.type)>>>0))throw new Error('network filesystem state is unsupported');
+      const marker=join(storage,'.wake-profile.json');
+      try{await writeFile(marker,JSON.stringify({version:1,profileRoot:profile}),{flag:'wx',mode:0o600});}
+      catch(e){if(e.code!=='EEXIST')throw e;}
+      const owner=JSON.parse(await readFile(marker,'utf8'));
+      if(owner.version!==1||owner.profileRoot!==profile)throw new Error('receipt storage belongs to another profile');
       return root;
     })();
     return ready;

@@ -7,7 +7,7 @@ This report accompanies the cross-harness continuation implementation. It measur
 | Host | Version | Environment | Native observations | Delivery readiness |
 |---|---|---|---|---|
 | Claude Code | 2.1.312 | Linux | Root and child `PostToolUse`, spawn/read; child has `agent_id`, root does not. `tool_response` is a content array. | Unverified for the new engine |
-| Codex CLI | 0.165.0 | Linux | Root and child `PostToolUse`, spawn/read; child carries `agent_id` while `session_id` names its parent. `tool_response` wraps the array in `content`. | Non-destructive attach/callback preservation still unverified |
+| Codex CLI | 0.165.0 | Linux | Root and child `PostToolUse`, spawn/read; child carries `agent_id` while `session_id` names its parent. `tool_response` wraps the array in `content`. | Separate daemon 0.160.0 delivery/callback probes passed; automatic registration and active completion remain unverified |
 | Claude Code | unmeasured | Native Windows | No host available here | Unverified; disabled |
 | Codex | unmeasured | Native Windows | No endpoint/host available here | Unverified; disabled |
 
@@ -37,8 +37,12 @@ The inspection tool does not launch a host or automatically approve tools. Its p
 
 ## Remaining release gates
 
-Verify the original client's tools, permission callbacks and settings after a second Codex client attaches; correlate delivery with the actual event and turn; exercise the real job record, lifecycle teardown and native Windows transport/ACL behavior. The older real-model wake measurement proves feasibility, not those missing properties. Pi and Copilot remain separate future probes.
+The implemented engine was measured against the authenticated Linux Codex daemon 0.160.0 using gpt-6.1-sol. The native hook capture is separately CLI 0.165.0. A new private thread verified loaded-thread attach with thread/resume plus excludeTurns and no overrides. After the secondary connection closed, the original client received one dynamic tool callback and one actual permission callback; the secondary received neither. Earlier probes with zero permission callbacks were not counted as verification.
 
-Baseline check of the unmodified companion base `e7b05fa` failed in `test-cross-platform-hooks.sh`, `test-skill-hints-lib.sh` and `constitution-epoch-bump.test.sh`; the raw baseline log is private scratch evidence. These failures predate the new capability tests and must be reported separately from their results.
+Real codescout jobs were supplied through explicit measurement bindings to the implemented engine. Idle exit-7 delivery reached a correlated completed receipt and the model marker; a duplicate kept the same completed event, and a fresh secondary connection completed an exit-0 job. This verifies the delivery/storage path, not the complete automatic registration chain. The same-turn control returned the primary turn ID but its preceding status read said idle; the receipt remained accepted. Active-turn completion remains unverified.
+
+The [native evidence summary](../../codescout-companion/contracts/fixtures/background-wake/codex-linux-secondary-evidence.json) records those limits. Original raw logs remain private. The new Claude scratch parity attempt did not authenticate/reach a model tool call and establishes no additional native delivery claim. Native Windows/macOS host adapters remain unverified and disabled; CI coverage of the portable core does not prove host support.
+
+The earlier unmodified-base failures were reproduced with /tmp fixture roots. All three named baseline suites passed with TMPDIR=/dev/shm; an unrelated ancestor git repository under /tmp changed root discovery. The corrected full-suite run uses TMPDIR=/var/tmp without deleting that repository. /dev/shm fixed those suites but is outside the older foreign-path detector's allowlist; /var/tmp also satisfies that detector.
 
 **Stale when:** host versions, native hook schema, endpoint/attach behavior, profile identity or permission/callback routing change. Keep this dated report rather than relabeling its evidence as observations of another release.

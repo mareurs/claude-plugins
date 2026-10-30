@@ -62,6 +62,14 @@ jobs:
       - name: Cross-platform hook smoke test
         run: bash tests/test-cross-platform-hooks.sh
 
+      - name: Portable wake identity, receipt, engine and CLI tests
+        run: node --test codescout-companion/background-wake/*.test.mjs
+
+      - name: Native Windows CLI without Bash
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: node --test codescout-companion/background-wake/cli.test.mjs codescout-companion/background-wake/cli-stdin.test.mjs
+
       - name: secret-guard adversarial test suite
         run: node harnesses/pi/tests/test-secret-guard.mjs
 

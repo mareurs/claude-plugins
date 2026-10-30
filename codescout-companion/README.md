@@ -79,6 +79,10 @@ codescout MCP server through `pi-mcp-adapter` with its codescout tools listed as
 
 ## Configuration
 
+### Background-job continuation
+
+The shared engine is opt in per profile; missing configuration keeps Claude legacy and disables Codex. See [preparation, measured support, migration and recovery](../docs/background-wake.md). Prepare the exact runtime dependency with `npm ci --prefix codescout-companion --ignore-scripts --omit=optional` before copying this source. Native Windows host delivery remains unverified and disabled.
+
 ### Auto-detection
 
 The plugin auto-detects codescout by scanning (in order):

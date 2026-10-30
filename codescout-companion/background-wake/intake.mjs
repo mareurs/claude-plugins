@@ -3,6 +3,8 @@ import {basename,join} from 'node:path';
 import {createHash} from 'node:crypto';
 import {bindingKey,validateWatchRequest} from './model.mjs';
 import {normalizeHookContext} from '../hooks/session-context.mjs';
+import {stateHome} from '../hooks/lib.mjs';
+import {homedir} from 'node:os';
 
 const exists=async(path)=>{try{await access(path);return true;}catch(e){if(e.code==='ENOENT')return false;throw e;}};
 const hash=(value)=>createHash('sha256').update(JSON.stringify(value)).digest('hex');
@@ -18,8 +20,21 @@ export async function selectEngine(record,engine,target=null){
   catch{return false;}
 }
 
+async function hasLegacyMapping(request,config){
+  if(request.target.harness!=='claude-code'||!/^[A-Za-z0-9_-]+$/.test(request.target.sessionId))return false;
+  const roots=new Set([join(stateHome(homedir()),'codescout-companion','wake'),config.migration?.legacyStateDir].filter(Boolean));
+  for(const root of roots){
+    try{
+      const record=(await readFile(join(root,'map-'+request.target.sessionId+'-'+request.job.handle),'utf8')).trim();
+      if(record===request.job.recordPath)return true;
+    }catch(e){if(e.code!=='ENOENT')throw e;}
+  }
+  return false;
+}
+
 /** Only the version-measured native hook shape can register a root target. */
 export async function normalizeNativeWatch(harness,raw,config,platform){
+  if(process.platform!=='linux')return null;
   const name=harness==='claude-code'?'claudeCode':'codex';
   const binding=config.bindings?.[name];
   const measured=harness==='claude-code'?'2.1.312':'0.165.0';
@@ -39,7 +54,7 @@ export async function normalizeNativeWatch(harness,raw,config,platform){
     if(!match)return null;
     let request;
     try{request=validateWatchRequest({version:1,sourceEventId:raw.tool_use_id,target,job:{recordPath:response.record,schema:1,serverPid:Number(match[1]),serverToken:match[2],handle:response.output_id}});}catch{return null;}
-    if(!await selectEngine(request.job.recordPath,'v1',target))return null;
+    if(await hasLegacyMapping(request,config)||!await selectEngine(request.job.recordPath,'v1',target))return null;
     try{await writeFile(mapping(request.job.handle),JSON.stringify(request),{flag:'wx',mode:0o600});}
     catch(e){if(e.code!=='EEXIST')return null;const old=validateWatchRequest(JSON.parse(await readFile(mapping(request.job.handle),'utf8')));if(JSON.stringify(old.job)!==JSON.stringify(request.job))return null;}
     return request;

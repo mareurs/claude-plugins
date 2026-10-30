@@ -140,6 +140,8 @@ def apply_command(record, command):
         return True, {'version': 1, 'event': command['event'], 'state': 'pending', 'updatedAtMs': now, 'sendAttempts': 0}, 'event persisted'
     if record.get('version') != 1 or record['event']['eventId'] != command['eventId']:
         return fail('unsupported receipt identity')
+    if op == 'inspect':
+        return True, record, 'receipt observed without modification'
     if op == 'ensure':
         validate_event(command['event'], command['eventId'])
         return True, record, 'event already registered'
@@ -170,7 +172,9 @@ def apply_command(record, command):
         record.pop('leaseUntilMs', None)
         if record['state'] == 'claimed':
             record['state'] = 'pending'
-    elif op == 'recover':
+    elif op in ('recover', 'recover-pre-send'):
+        if op == 'recover-pre-send' and (record['state'] != 'claimed' or 'sendIntentAtMs' in record):
+            return fail('operator recovery is limited to pre-send claims')
         if record.get('leaseUntilMs', now + 1) > now:
             return fail('lease has not expired')
         if record['state'] == 'claimed' and 'sendIntentAtMs' not in record:
@@ -215,6 +219,11 @@ def apply_command(record, command):
         if result.get('kind') not in ('failed', 'unsupported'):
             return fail('unsupported decline result')
         record.update(state=result['kind'], lastError={'safeRetry': False, 'reason': str(result.get('reason', ''))[:240]})
+    elif op == 'acknowledge':
+        note = command.get('note')
+        if not isinstance(note, str) or not note.strip() or len(note) > 500:
+            return fail('explicit operator note required (1-500 characters)')
+        record['operatorDecision'] = {'kind': 'acknowledged-without-resend', 'note': note, 'atMs': now}
     elif op == 'gc':
         return True, record, 'retained stable deduplication identity; unresolved receipts are never erased'
     else:
@@ -244,7 +253,7 @@ def transact(root, command):
         if record is not None:
             validate_event(record['event'], key)
         ok, updated, reason = apply_command(record, command)
-        if ok and command['op'] != 'gc':
+        if ok and command['op'] not in ('gc', 'inspect'):
             publish(path, updated)
         return {'ok': ok, 'receipt': updated, 'reason': reason}
 
