@@ -99,7 +99,7 @@ Claude's existing hooks/hooks.json already invokes the compatibility wrapper; no
 }
 ```
 
-Use the host's normal hook trust/approval flow. launch checks capability and root origin, starts a detached Node watcher with executable/argument arrays, and returns. It does not hold the model turn open while the job runs. No asyncRewake flag is assumed for Codex. No installed profile, daemon or plugin version is changed by these tests.
+Use the host's normal hook trust/approval flow. launch checks capability and root origin, starts a detached Node watcher with executable/argument arrays, and returns. As a native hook entry point, launch writes no stdout: its internal result is not PostToolUse response JSON. Disabled or irrelevant events are successful no-ops; genuine configuration/launch errors still report a nonzero exit and a bounded stderr diagnostic. doctor and other operator commands retain their machine-readable JSON. It does not hold the model turn open while the job runs. No asyncRewake flag is assumed for Codex. No installed profile, daemon or plugin version is changed by these tests.
 
 For this machine's three Codex installations, prepare and verify all three independently when installation is authorized. Each installation record must point into its own cache; no profile may borrow another profile's state or endpoint.
 

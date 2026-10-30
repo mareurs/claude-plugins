@@ -93,5 +93,10 @@ export async function runCli(argv,{input}={}){
   return {ok:result.ok,reason:command==='reconcile'&&result.ok?'observed only; no new correlated host evidence, state unchanged':result.reason,receipt:summarizeReceipt(result.receipt)};
 }
 if(process.argv[1]&&resolve(process.argv[1])===fileURLToPath(import.meta.url)){
-  runCli(process.argv.slice(2)).then(result=>{process.stdout.write(JSON.stringify(result)+'\n');process.exitCode=result.ok===false?1:0;}).catch(()=>{process.stderr.write('background-wake: command failed; verify explicit profile, environment and configuration with doctor\n');process.exitCode=1;});
+  runCli(process.argv.slice(2)).then(result=>{
+    const hookLaunch=process.argv[2]==='launch';
+    // PostToolUse owns stdout: diagnostics JSON is not a hook response.
+    if(!hookLaunch)process.stdout.write(JSON.stringify(result)+'\n');
+    process.exitCode=hookLaunch&&result.state==='unsupported'?0:result.ok===false?1:0;
+  }).catch(()=>{process.stderr.write('background-wake: command failed; verify explicit profile, environment and configuration with doctor\n');process.exitCode=1;});
 }
