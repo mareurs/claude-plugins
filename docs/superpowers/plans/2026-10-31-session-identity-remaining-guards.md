@@ -34,7 +34,7 @@
 
 ### Task 0: Gate, worktree and baseline
 
-> **Status 2026-10-31: BLOCKED at Step 1.** `git merge-base --is-ancestor f7d6c797e origin/experiments` exits 1 and no remote branch contains `f7d6c797e`; the branch `feat/codex-publish-holds-20261027` is still unpushed at `cb50bc4e1`. The user chose to wait for the Codex session to land it. Resume here when it has landed. Nothing was created in the codescout repository.
+> **Status 2026-10-31: Task 0 DONE with a recorded override.** `f7d6c797e` still was not in `origin/experiments` (no live session owns the branch; its worktree is clean and four days idle). The user said "yes, go" to stacking and to running the owed gate. Done without touching the Codex worktree: `$WT` = `/home/marius/work/claude/codescout.worktrees/neutral-commit-guards`, branch `feat/neutral-commit-guards-20261031` (upstream removed so it cannot be pushed by accident), created from `origin/experiments` (`ea3c12600`) with `git cherry-pick -x f7d6c797e cb50bc4e1` (new SHAs `3cfce2978`, `200f6a7e1`). When the original branch lands, rebase with `git rebase --onto origin/experiments 200f6a7e1`; `git` drops the duplicate patches. Baseline in `$WT`, all exit 0: `tests/commit-mine.sh` 57, `tests/git-safe-reset.sh` 35, `tests/mutation-probe.sh` 70, `tests/hooks-discrimination.sh` 302, `tests/hold-publish.sh` 91, `tests/pre-push-foreign-session-guard.sh` 412, `tests/prepare-commit-msg-session-id.sh` 21, pytest (`test_codex_publish_hold.py`, `test_pre_commit_publish_hold.py`, `test_session_context.py`) 95. The full gate on this tree was started in the background (`@bg_00000017`).
 
 **Files:** none changed.
 
@@ -113,7 +113,7 @@
 - Modify: `scripts/git-safe-reset.sh` (guard at `:59-72`)
 - Test: `tests/git-safe-reset.sh`
 
-- [ ] **Step 1: Write failing tests:** `codex_only_is_not_refused_for_identity`, `conflicting_identity_exits_2`, `missing_identity_message_does_not_claim_exclusivity` (stderr must not contain `only writer`; exit stays 2).
+- [ ] **Step 1: Write failing tests:** `codex_only_is_not_refused_for_identity`, `conflicting_identity_exits_2`, `missing_identity_message_does_not_claim_exclusivity` (stderr must not contain `only writer`; exit stays 2). **Also change the existing case 7 assertion `no sid names the solo-checkout fallback`** in `tests/git-safe-reset.sh` on purpose: the new wording drops the solo-checkout claim, so that assertion must become a check that the message names both variables. Record the change in the commit message.
 - [ ] **Step 2: Run** `bash tests/git-safe-reset.sh`. Expected: FAIL.
 - [ ] **Step 3: Implement** the guard with `publish_identity`. New missing-id text: without a session identity this script cannot attribute a peer's staged work, so it refuses; naming `CLAUDE_CODE_SESSION_ID` and `CODEX_SESSION_ID`. Keep the three `git reset` forms as information, without the claim that the caller is probably alone.
 - [ ] **Step 4: Run.** Expected: PASS.
