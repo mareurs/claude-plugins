@@ -1,6 +1,6 @@
 # Harness-neutral identity for the remaining codescout commit guards — short design
 
-**Status:** proposed 2026-10-31. The scope was approved ("yes") with the recommendation to build on the Codex branch; the owner-format decision below is still open. Nothing in this document is built.
+**Status:** approved 2026-10-31. The scope was approved ("yes") with the recommendation to build on the Codex branch, and the owner-format decision below was delegated to the assistant, which chose **option 2**. Plan: [2026-10-31-session-identity-remaining-guards.md](../plans/2026-10-31-session-identity-remaining-guards.md). Nothing in this document is built.
 **Parent:** [harness-neutral session identity design](2026-10-10-harness-neutral-session-identity-design.md) (approved 2026-10-10) and its bug, `docs/issues/2026-10-09-harness-neutral-session-identity-and-provenance.md`.
 **Size:** small to medium. Five scripts and their tests, in the codescout repository.
 
