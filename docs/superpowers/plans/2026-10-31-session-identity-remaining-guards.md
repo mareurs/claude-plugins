@@ -34,6 +34,8 @@
 
 ### Task 0: Gate, worktree and baseline
 
+> **Status 2026-10-31: BLOCKED at Step 1.** `git merge-base --is-ancestor f7d6c797e origin/experiments` exits 1 and no remote branch contains `f7d6c797e`; the branch `feat/codex-publish-holds-20261027` is still unpushed at `cb50bc4e1`. The user chose to wait for the Codex session to land it. Resume here when it has landed. Nothing was created in the codescout repository.
+
 **Files:** none changed.
 
 **Interfaces:**
