@@ -1,6 +1,6 @@
 # Harness-neutral identity for the remaining codescout commit guards — short design
 
-**Status:** proposed 2026-10-31, awaiting approval. Nothing in this document is built.
+**Status:** proposed 2026-10-31. The scope was approved ("yes") with the recommendation to build on the Codex branch; the owner-format decision below is still open. Nothing in this document is built.
 **Parent:** [harness-neutral session identity design](2026-10-10-harness-neutral-session-identity-design.md) (approved 2026-10-10) and its bug, `docs/issues/2026-10-09-harness-neutral-session-identity-and-provenance.md`.
 **Size:** small to medium. Five scripts and their tests, in the codescout repository.
 
@@ -63,9 +63,24 @@ No test runs any of the five with only `CODEX_SESSION_ID` set. Tests with the id
 
 **Recommendation:** approach 1. Reason: the owner format is the shared contract, and a second helper is the anti-goal.
 
+## Open decision — owner format (found while planning, 2026-10-31)
+
+Measured before writing the plan; this corrects the "left to the builder" line below.
+
+- The codescout server fills `usage.db` `tool_calls.cc_session_id` with the native root, stored **bare**. The real Codex root `01a12f3a-ae7e-7882-87e8-8b6e4eb81706` has 9 rows there, none qualified, and no row in the database has a `codex:` form. The column does not record the harness.
+- `post-index-change-stage-log.sh` `foreign_writer` takes a peer's id from that column and tests `[ "$sid" = "$me" ]`. `pre-commit-foreign-index.sh` tests `[ "$owner" != "$me" ]` (line 274) and prints owners in `Co-Authored-Session-Id:` trailers and `CODESCOUT_INDEX_ACK`.
+- The Codex branch's `publish-identity.py` prints `codex:<sid>` for Codex.
+- If `$me` were `codex:<sid>` while the write record holds `<sid>`, a Codex session's own earlier write would read as a peer's. That is the failure class of the archived bug `2026-10-13-attribute-red-compares-a-raw-session-id-with-qualified-owners-so-your-own-write-reads-as-a-peers`.
+
+Options for the stage-log owner:
+
+1. **Bare native root.** Matches `usage.db`; no comparison changes. The stage log cannot tell hosts apart, and trailers and ACK tokens from these scripts disagree with the branch's `codex:` tokens.
+2. **`codex:<sid>` written, one equivalence function at every comparison (recommended).** The writer knows its own harness, so it records the qualified form. Every comparison strips a `codex:` or `claude-code:` prefix before comparing, because the write record's bare ids carry no harness. One function in `publish-identity.sh`. Trade-off: a same-UUID collision across hosts is treated as the same writer; I rate that as negligible, but the parent spec's own rule in `resolve-sids.sh` (never borrow a same-UUID Claude row for Codex) shows the project cares. Confidence: medium.
+3. **Record the harness in `usage.db`.** The server would store `principal_key`, with a migration. Most correct, and the largest: a Rust change that needs the full Rust gate lanes. Best as a follow-up to option 2.
+
 ## Left to the builder
 
-- The exact owner string written to the stage log. The default is `codex:<root id>` as in `publish-identity.sh`.
+- The stage-log owner string is no longer left to the builder: see *Open decision* above.
 - Whether each script needs `CODESCOUT_CONTEXT_FILE` or can resolve from the native environment.
 - Wording of the new messages.
 
