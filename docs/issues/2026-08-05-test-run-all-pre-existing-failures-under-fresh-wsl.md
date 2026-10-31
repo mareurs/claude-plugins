@@ -10,11 +10,16 @@ tags:
 - node
 - pre-existing-debt
 claimed_at: 2026-09-13
-last_observed: 2026-10-27
-unverified: WSL-only failures remain unobserved by CI (~10 of the original 16). All 5 originally-excluded ambient-config suites are now hermetic and CI no longer sets CS_TEST_SKIP. The pre-tool-guard.test.sh rewrite is uncommitted in the working tree and has not run on a real CI runner yet.
+last_observed: 2026-10-31
+unverified: WSL-only failures remain unobserved by CI (~10 of the original 16). The 5 originally-excluded ambient-config suites are hermetic, committed (f0f0028) and pass on the CI full-suite job (runs 41012475002 and 41176478070); CI sets no CS_TEST_SKIP. The wake suites run on macOS and Windows only since 7a3c3b1; their 2026-10-30 failures were a separate symlinked-tmpdir defect, not this bug.
 ---
 
 ## Summary
+
+> **Re-checked 2026-10-31 — the two open facts in the `unverified` caveat are closed; the WSL doubt stays.**
+> `pre-tool-guard.test.sh` was rewritten around synthetic fixture projects and committed in `f0f0028`. The CI `full-suite` job (`tests/run-all.sh`, no `CS_TEST_SKIP`) passed on the 1.20.25 bump push (run `41012475002`) and on `7a3c3b1` (run `41176478070`), so the five formerly ambient-config suites pass on a real runner.
+> The same workflow's macOS and Windows smoke jobs went red on 2026-10-30 in the wake test step. That was **not** this bug: `loadWakeConfig` rejected a symlinked `profileRoot` (macOS `/var` -> `/private/var`). Reproduced on Linux with `TMPDIR` pointing at a symlink (13 tests fail), fixed in `7a3c3b1` (83 of 83 pass with and without the symlink; all four CI jobs green). Anyone following this file's re-check protocol "count red CI jobs" would have misread it as a recurrence, as with RM-21 below.
+> Still open and still unobservable: about 10 of the 16 original failures, which came from a WSL box that no longer runs Claude Code. Status stays `investigating`.
 
 > **SUPERSEDED 2026-09-10 — read the `RE-OPENED 2026-09-10` banner further down first.**
 > The status is `investigating`, not `zombie`. The 2026-09-01 note below is kept as history.
