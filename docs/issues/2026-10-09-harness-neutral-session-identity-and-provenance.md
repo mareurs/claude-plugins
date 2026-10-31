@@ -43,6 +43,14 @@ unverified: Complete code-mode wrapper inventory and successful Codex owned form
 
 ## Summary
 
+> **Re-checked 2026-10-31 — the implementation landed; the reproduction below is outdated. The status stays `investigating`.**
+>
+> - **Plugin half:** `4ce5432` (2026-10-11) and `b7247bf` (2026-10-12) are on `origin/main` and in the history of the 1.20.24 bump. They add `scripts/session-context.mjs`, its hook tests and `codescout-companion/docs/session-context.md`.
+> - **Codescout half:** `eed255794` (2026-10-11, pushed to `origin/experiments`) adds `scripts/session_context.py`. `gate.sh` calls it before any lane.
+> - **Measured today** in the codescout checkout, with `--workspace "$PWD"`: no identity gives `missing`. `CODEX_SESSION_ID=root-1 CODEX_THREAD_ID=child-2 CODEX_VERSION=0.160.0` gives `available`, harness `codex`, session `root-1`, agent `child-2`. Both hosts' variables together give `conflicting`. I read `gate.sh` lines 85-98: a blocked context prints a notice and the remaining lanes still run. I did **not** run the gate.
+> - **Not established** (spec, *Native evidence follow-up — 2026-10-12*): owned formatting and complete authored history under Codex (coverage stays UNKNOWN; the journal alternative is an open design decision), Kat authenticated smoke, and the native approval routing dependency.
+> - **Out of the approved scope, still Claude-only:** `commit-mine.sh`, `git-safe-reset.sh`, `hold-publish.sh`, `mutation-probe.sh`, `pre-commit-foreign-index.sh`, `pre-push-foreign-session-guard.sh` and `prepare-commit-msg-session-id.sh` in codescout. The codescout branch `feat/codex-publish-holds-20261027` is related work in flight.
+
 A Codex session in the shared codescout checkout cannot run the required development gate because it lacks CLAUDE_CODE_SESSION_ID. The gate exits 2 before any test lane. Its suggested fallback assumes that a non-Claude session is probably the only writer and sends it to the shared target directory. Harness identity does not establish exclusive checkout ownership.
 
 Provide a harness-neutral session identity and write-provenance contract in the companion infrastructure, then integrate the codescout consumers. Codex and other supported harnesses should retain the same ownership and build-isolation protections as Claude Code.
