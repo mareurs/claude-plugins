@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {mkdtemp,mkdir,writeFile,rm} from 'node:fs/promises';
+import {mkdtemp,mkdir,writeFile,rm,symlink} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 const url=new URL('./config.mjs',import.meta.url);let api;
@@ -12,6 +12,7 @@ async function save(dir,value){await writeFile(join(dir,'codescout-wake.json'),J
 test('missingConfigPreservesLegacy',async()=>{const {loadWakeConfig}=subject();await fixture(async(dir)=>{const value=await loadWakeConfig({profileRoot:dir,environmentId:'linux:local'});assert.equal(value.engine,'legacy');assert.equal(value.adapters.codex.enabled,false);});});
 test('wrongEnvironmentRejected',async()=>{const {loadWakeConfig}=subject();await fixture(async(dir)=>{await save(dir,{...config(dir),environmentId:'wsl:Ubuntu'});await assert.rejects(loadWakeConfig({profileRoot:dir,environmentId:'linux:local'}),/environment/i);});});
 test('wrongProfileRejected',async()=>{const {loadWakeConfig}=subject();await fixture(async(dir)=>{await save(dir,{...config(dir),profileRoot:join(dir,'other')});await assert.rejects(loadWakeConfig({profileRoot:dir,environmentId:'linux:local'}),/profile/i);});});
+test('symlinkedProfileMatchesItsRealPath',async()=>{const {loadWakeConfig}=subject();await fixture(async(dir)=>{const link=`${dir}-link`;await symlink(dir,link,'junction');try{for(const [recorded,selected] of [[link,dir],[dir,link],[link,link]]){await save(dir,{...config(dir),profileRoot:recorded});const loaded=await loadWakeConfig({profileRoot:selected,environmentId:'linux:local'});assert.equal(loaded.engine,'v1',`${recorded} selected as ${selected}`);}}finally{await rm(link,{force:true});}});});
 test('malformedConfigDoesNotSilentlyDowngrade',async()=>{const {loadWakeConfig}=subject();await fixture(async(dir)=>{await writeFile(join(dir,'codescout-wake.json'),'{broken');await assert.rejects(loadWakeConfig({profileRoot:dir,environmentId:'linux:local'}),/configuration|JSON/i);});});
 test('explicitConfigPreservesEndpointWithoutShellParsing',async()=>{const {loadWakeConfig}=subject();await fixture(async(dir)=>{const value=config(dir);value.pythonArgv=['/path with space/python','-I'];await save(dir,value);const loaded=await loadWakeConfig({profileRoot:dir,environmentId:'linux:local'});assert.deepEqual(loaded.pythonArgv,value.pythonArgv);assert.equal(loaded.adapters.codex.endpoint,value.adapters.codex.endpoint);});});
 test('unsupportedSchemaAndNonAbsoluteStateRejected',async()=>{const {loadWakeConfig}=subject();await fixture(async(dir)=>{for(const patch of [{version:2},{stateDir:'relative'},{pythonArgv:[]},{engine:'guess'}]){await save(dir,{...config(dir),...patch});await assert.rejects(loadWakeConfig({profileRoot:dir,environmentId:'linux:local'}));}});});

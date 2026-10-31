@@ -2,6 +2,8 @@ import { readFile, realpath } from 'node:fs/promises';
 import { isAbsolute, join, normalize } from 'node:path';
 const nonempty=(v)=>typeof v==='string'&&v.trim().length>0;
 const object=(v)=>v!==null&&typeof v==='object'&&!Array.isArray(v);
+/** Same directory, not same spelling: a symlinked profile (macOS /var, dotfile links) resolves to one real path. */
+const sameDirectory=async(recorded,resolved)=>{try{return normalize(await realpath(recorded))===normalize(resolved);}catch{return false;}};
 
 /** Read only the explicitly selected profile; malformed config never silently changes mode. */
 export async function loadWakeConfig({profileRoot,environmentId}) {
@@ -14,7 +16,7 @@ export async function loadWakeConfig({profileRoot,environmentId}) {
     throw new Error('wake configuration could not be read');
   }
   if(!object(value)||value.version!==1||!['legacy','v1'].includes(value.engine))throw new Error('unsupported wake configuration schema or engine');
-  if(!nonempty(value.profileRoot)||!isAbsolute(value.profileRoot)||normalize(value.profileRoot)!==normalize(profile))throw new Error('configuration belongs to another profile');
+  if(!nonempty(value.profileRoot)||!isAbsolute(value.profileRoot)||!await sameDirectory(value.profileRoot,profile))throw new Error('configuration belongs to another profile');
   if(value.environmentId!==environmentId)throw new Error('configuration belongs to another environment');
   if(!nonempty(value.stateDir)||!isAbsolute(value.stateDir)||normalize(value.stateDir)!==value.stateDir)throw new Error('configuration stateDir must be absolute and normalized');
   if(!Array.isArray(value.pythonArgv)||!value.pythonArgv.length||!value.pythonArgv.every(nonempty))throw new Error('configuration requires executable/argument array for Python');
