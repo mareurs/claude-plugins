@@ -141,3 +141,6 @@
 - [ ] **Step 2: Full leased gate** in `$WT`: `./scripts/gate.sh`; start it in the background and wait for the completion notice. Expected: exit 0 with every lane code 0.
 - [ ] **Step 3: Update the convention doc** to say which scripts accept Codex and under which owner format, and state that no live Codex run covered them.
 - [ ] **Step 4: Commit** in `$WT` as `docs(git): record Codex support in the commit guards`. Update the plugin bug ledger with the SHAs, mutation results and gate lane codes. Do not push either repository; report the branch and SHAs.
+
+
+> **Status 2026-10-31: Task 7 DONE.** Codescout branch HEAD `09280e6e5` (docs commit). Mutations M1, M2, M4, M5, M6 turned their named tests red; M3 stayed green (`commit-mine.sh` `|| exit 2` is redundant with the downstream foreign-index guard, which also exits 2). Gate on the settled tree: `PYTHON_LIGHT=0 FMT=0 CLIPPY=0 LEAN=101 DEFAULT=0 FMT_STATE=passed`; the LEAN red was two `attribution` tests unrelated to this branch (no Rust changed), which passed alone and in a full LEAN rerun (5370/0). Cause of the first red not established. Nothing pushed; see the bug ledger section "Commit guards accept Codex".

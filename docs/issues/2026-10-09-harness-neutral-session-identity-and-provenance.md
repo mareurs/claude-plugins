@@ -194,6 +194,19 @@ Actual authored root 01a12f3a-ae7e-7882-87e8-8b6e4eb81706 resumes under its same
 
 The saved verified 18a server-stack artifact was used for resumed acceptance after the shared installed executable's observed SHA changed. That drift's cause is not established, and this repair neither overwrites the shared executable nor restarts peers. The Python reader is loaded from source on invocation; no Rust rebuild was required for F-20.
 
+
+## Commit guards accept Codex — 2026-10-31
+
+Source only; nothing pushed, merged or released. Codescout branch `feat/neutral-commit-guards-20261031` (worktree `codescout.worktrees/neutral-commit-guards`, upstream removed) stacks on `origin/experiments` `ea3c12600` plus cherry-picks `3cfce2978` and `200f6a7e1` of the unlanded Codex hold branch `feat/codex-publish-holds-20261027`. Rebase with `git rebase --onto origin/experiments 200f6a7e1` once that branch lands. HEAD `09280e6e5`.
+
+The five remaining guards now resolve a Claude or Codex identity through `scripts/publish-identity.sh`: `1cc743f13` helper and `publish_principal_equal`, `4d2fe3f13` stage-log hook, `a1f1160e3` foreign-index guard, `5f992bdda` `commit-mine.sh`, `3e2763a84` `git-safe-reset.sh`, `99c582635` `mutation-probe.sh`, fix wave `eeabc4538`..`d51008e2e` (eight commits), docs `09280e6e5`. Owner format: bare id for Claude, `codex:<root id>` for Codex, `-` when missing, conflicting or invalid. Every comparison goes through `publish_principal_equal`, because `usage.db` stores bare ids for both hosts. Design: [remaining-guards spec](../superpowers/specs/2026-10-31-session-identity-remaining-guards-design.md); plan: [remaining-guards plan](../superpowers/plans/2026-10-31-session-identity-remaining-guards.md).
+
+Suites at the fix-wave HEAD, each alone: publish-principal 22, hooks-discrimination 374 (also with ambient Codex variables), commit-mine 79, git-safe-reset 59, mutation-probe 92, hold-publish 91, pre-push guard 412, prepare-commit-msg 21, pytest 95. Mutations on the settled tree: M1, M2, M4, M5 and M6 each turn their named tests red. M3 (drop `|| exit 2` in `commit-mine.sh`) stays green, because the downstream foreign-index guard also exits 2 on a conflicting identity; the line is untested defence in depth.
+
+Gate on `09280e6e5`: first run `PYTHON_LIGHT=0 FMT=0 CLIPPY=0 LEAN=101 DEFAULT=0 FMT_STATE=passed`. The LEAN red was two `attribution` tests (`the_same_red_at_exit_zero_still_answers`, `a_module_planted_beside_the_entry_does_not_run_through_the_shipped_path`). The branch changes no Rust file. Those tests passed alone (33/33) and the whole LEAN lane passed on rerun (5370/0). The cause of the first red is not established, and no single run had every lane green.
+
+Open: the foreign-index guard captures the resolver with `2>&1` and takes the last line as identity, so a stderr warning can be adopted as identity (it fails conservatively: refuse, or label `theirs`). Codex writers found through the write record are described with the Claude liveness text. No live Codex run covered these guards. Status stays `investigating`.
+
 ## Architectural design review — 2026-10-10
 
 Conversational design approved by the user on 2026-10-10. Reviewed with the Architecture Snow Lion skill. The [written spec](../superpowers/specs/2026-10-10-harness-neutral-session-identity-design.md), artifact c67a8d68e01c6cf4, was approved on 2026-10-10. The [implementation plan](../superpowers/plans/2026-10-10-harness-neutral-session-identity.md), artifact 3252b9f3f104ea25, was approved for inline execution with an independent final review. This decision record is not a claim of running-host support.
