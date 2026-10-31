@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# scripts/pre-push-guard.sh — git pre-push hook. Two independent guards.
+# scripts/pre-push-guard.sh — git pre-push hook. Three independent guards.
 #
 # GUARD 1 — force-push protection.
 # Refuses a non-fast-forward (force) push of a protected branch (default:
@@ -20,6 +20,12 @@
 # Fires only on a version change, so ordinary pushes are never gated on local
 # profile state, and it is a no-op during a real release (release.sh has already
 # repaired and verified parity at its step 6.5, before it pushes at step 7).
+#
+# GUARD 3 — content without a version bump (added 2026-10-31).
+# When the pushed range changes a plugin's content (anything under <plugin>/ except its
+# manifest, docs/, tests/, README* and CHANGELOG*) and that plugin's `version` is the same at both
+# tips, refuses the push. Content that ships without a bump never reaches any profile.
+# Override: SKIP_VERSION_BUMP_CHECK=1.
 #
 # Install (one-time, per clone — hooks are local, not synced by git):
 #   ./scripts/install-hooks.sh
@@ -51,6 +57,41 @@ bumped_plugins() {
   printf '%s\n' "$changed" \
     | grep -E '^[^/]+/\.claude-plugin/plugin\.json$' 2>/dev/null \
     | cut -d/ -f1 | sort -u || true
+}
+
+# Plugins whose CONTENT changed in the range "$1..$2" while their `version` did not, one
+# `<plugin><TAB><first content path>` per line. Empty output = nothing to refuse.
+#
+# A plugin is a top-level directory that carries .claude-plugin/plugin.json at the pushed tip.
+# Content is every changed path under it except its manifest, docs/, tests/, and the top-level
+# README* and CHANGELOG* files: those cannot change what a profile serves. The version is compared
+# between the two tips, so content commits followed by a bump commit in one push pass.
+#
+# Skips, on purpose:
+#   * a branch the remote does not have yet ($1 all zeros): there is no base to compare against;
+#   * a plugin added in this push: it has no earlier version to differ from;
+#   * any plugin whose version cannot be read (no jq, bad JSON): fail open, as the other guards do.
+# Never fails the caller, for the same `set -e` reason as bumped_plugins.
+unbumped_plugins() {
+  local from="$1" to="$2" changed plugin path first old new
+  [ "$from" = "$ZERO" ] && return 0
+  changed=$(git diff --name-only "$from" "$to" 2>/dev/null || true)
+  [ -n "$changed" ] || return 0
+  while IFS= read -r plugin; do
+    git cat-file -e "$to:$plugin/.claude-plugin/plugin.json" 2>/dev/null || continue
+    first=""
+    while IFS= read -r path; do
+      case "$path" in
+        "$plugin/.claude-plugin/plugin.json"|"$plugin/docs/"*|"$plugin/tests/"*|"$plugin/README"*|"$plugin/CHANGELOG"*) continue ;;
+        "$plugin/"*) first="$path"; break ;;
+      esac
+    done <<< "$changed"
+    [ -n "$first" ] || continue
+    old=$(git show "$from:$plugin/.claude-plugin/plugin.json" 2>/dev/null | jq -r '.version // empty' 2>/dev/null || true)
+    new=$(git show "$to:$plugin/.claude-plugin/plugin.json" 2>/dev/null | jq -r '.version // empty' 2>/dev/null || true)
+    [ -n "$old" ] || continue
+    [ "$old" != "$new" ] || printf '%s\t%s\n' "$plugin" "$first"
+  done < <(git ls-tree --name-only "$to" 2>/dev/null || true)
 }
 
 
@@ -110,6 +151,35 @@ EOF
         exit 1
       fi
     done
+  fi
+
+  # --- Content without a version bump --------------------------------------
+  # Install records name a version, and the versioned cache is keyed on it, so plugin
+  # content that reaches main without a bump never reaches any profile: the old bytes keep
+  # being served and nothing reports it. Remembering to bump failed one commit after it
+  # succeeded (the 2026-08-17 incident, codescout:docs/issues/archive/
+  # 2026-08-17-plugin-content-edit-without-a-version-bump-never-reaches-any-profile.md).
+  # Content and the bump may sit in different commits of the same push. Override:
+  # SKIP_VERSION_BUMP_CHECK=1.
+  if [ "${SKIP_VERSION_BUMP_CHECK:-0}" != "1" ]; then
+    unbumped=$(unbumped_plugins "$remote_sha" "$local_sha")
+    if [ -n "$unbumped" ]; then
+      echo "" >&2
+      while IFS=$'\t' read -r plugin path; do
+        echo "✗ pre-push-guard: '$plugin' has content changes in this push but its version did not change." >&2
+        echo "  first content path: $path" >&2
+        echo "  bump and release it:  ./scripts/release.sh $plugin <version>" >&2
+      done <<< "$unbumped"
+      cat >&2 <<EOF
+
+  Install records name a version and the versioned cache is keyed on it, so content
+  pushed without a bump never reaches any profile.
+
+  Override for this push (the content is not meant to ship yet):
+    SKIP_VERSION_BUMP_CHECK=1 git push ...
+EOF
+      exit 1
+    fi
   fi
 
   # New branch on remote (remote_sha all zeros) — nothing to force over.

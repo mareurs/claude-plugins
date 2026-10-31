@@ -107,9 +107,13 @@ JSON
 }
 
 run_hook() {  # <home> <from-sha> <to-sha> [env assignments...]
+  # Guard 3 is skipped here: these cases drive real ranges from this repo's history to test
+  # Guards 1 and 2 on their own. Without the skip, a range that happens to carry plugin content
+  # would be refused by Guard 3 first, and a "deny" case would pass on the wrong guard.
+  # Guard 3 has its own synthetic-repo cases above.
   local home="$1" from="$2" to="$3"; shift 3
   printf 'refs/heads/main %s refs/heads/main %s\n' "$to" "$from" \
-    | env HOME="$home" "$@" bash "$HOOK" origin git@example.com:x/y.git 2>&1
+    | env HOME="$home" SKIP_VERSION_BUMP_CHECK=1 "$@" bash "$HOOK" origin git@example.com:x/y.git 2>&1
 }
 
 check() {  # <label> <expected: allow|deny> <output> <exit-code>
@@ -121,6 +125,130 @@ check() {  # <label> <expected: allow|deny> <output> <exit-code>
     fail "$label" "expected=$expected got=$got ec=$ec :: $(echo "$out" | tail -3 | tr '\n' ' ')"
   fi
 }
+
+# --- Guard 3: a plugin content edit with no version bump ---------------------
+#
+# codescout:docs/issues/2026-09-24-residual-plugin-content-edit-needs-version-gate.md. Plugin
+# content that reaches `main` without a version bump never reaches any profile: the install
+# records name a version, and a cache keyed on that version keeps serving the old bytes.
+#
+# Driven through synthetic repos, not this repo's history. The Guard 2 cases below find real
+# commit ranges, and a range that is content-only cannot be found on demand; a pinned one rots.
+# Every case starts from a fresh repo with two plugins (`pa`, `pb`) and a non-plugin directory,
+# so no case inherits another's state.
+G3HOME="$T/g3home"; mkdir -p "$G3HOME"
+
+g3_repo() {  # <dir>
+  local d="$1" p
+  mkdir -p "$d"
+  git -C "$d" init -q -b main
+  git -C "$d" config user.email t@t
+  git -C "$d" config user.name t
+  for p in pa pb; do
+    mkdir -p "$d/$p/.claude-plugin" "$d/$p/hooks" "$d/$p/docs" "$d/$p/tests"
+    printf '{"name":"%s","version":"1.0.0"}\n' "$p" > "$d/$p/.claude-plugin/plugin.json"
+    echo v1 > "$d/$p/hooks/h.mjs"
+    echo v1 > "$d/$p/README.md"
+    echo v1 > "$d/$p/CHANGELOG.md"
+    echo v1 > "$d/$p/docs/d.md"
+    echo v1 > "$d/$p/tests/t.sh"
+  done
+  mkdir -p "$d/misc"
+  echo v1 > "$d/misc/x.txt"
+  git -C "$d" add -A
+  git -C "$d" commit -q -m base
+}
+
+g3_commit() {  # <dir> <message>: commit everything, print the new sha
+  git -C "$1" add -A
+  git -C "$1" commit -q -m "$2"
+  git -C "$1" rev-parse HEAD
+}
+
+g3_bump() {  # <dir> <plugin> <version>
+  printf '{"name":"%s","version":"%s"}\n' "$2" "$3" > "$1/$2/.claude-plugin/plugin.json"
+}
+
+g3_run() {  # <dir> <from> <to> [env assignments...]: the hook's output; exit code is the hook's
+  local d="$1" from="$2" to="$3"; shift 3
+  ( cd "$d" && printf 'refs/heads/main %s refs/heads/main %s\n' "$to" "$from" \
+      | env HOME="$G3HOME" SKIP_PARITY_CHECK=1 "$@" bash "$HOOK" origin git@example.com:x/y.git 2>&1 )
+}
+
+# POSITIVE CONTROL FIRST: a content-only push is refused. Every "allow" below reads the same in
+# a world where Guard 3 never runs, so none of them counts until this one denies.
+g3_repo "$T/g3a"; BASE=$(git -C "$T/g3a" rev-parse HEAD)
+echo v2 > "$T/g3a/pa/hooks/h.mjs"; HEAD_A=$(g3_commit "$T/g3a" content)
+OUT=$(g3_run "$T/g3a" "$BASE" "$HEAD_A"); EC=$?
+check "content: a content edit with no version bump → deny" deny "$OUT" $EC
+if echo "$OUT" | grep -qF "'pa' has content changes" && echo "$OUT" | grep -qF "pa/hooks/h.mjs" \
+   && echo "$OUT" | grep -qF "release.sh pa"; then
+  pass "content: the refusal names the plugin, the first content path and the repair"
+else
+  fail "content: the refusal names the plugin, the first content path and the repair" "$(echo "$OUT" | tail -4)"
+fi
+
+# Escape hatch, same scenario.
+OUT=$(g3_run "$T/g3a" "$BASE" "$HEAD_A" SKIP_VERSION_BUMP_CHECK=1); EC=$?
+check "content: SKIP_VERSION_BUMP_CHECK=1 → allow" allow "$OUT" $EC
+
+# A non-protected branch is not main's concern.
+OUT=$( cd "$T/g3a" && printf 'refs/heads/wip %s refs/heads/wip %s\n' "$HEAD_A" "$BASE" \
+        | env HOME="$G3HOME" SKIP_PARITY_CHECK=1 bash "$HOOK" origin git@example.com:x/y.git 2>&1 ); EC=$?
+check "content: non-protected branch → allow" allow "$OUT" $EC
+
+# A new branch on the remote has no base to compare against.
+OUT=$(g3_run "$T/g3a" "$ZERO" "$HEAD_A"); EC=$?
+check "content: a branch the remote does not have yet → allow" allow "$OUT" $EC
+
+# Content plus a bump of that plugin, in one commit.
+g3_repo "$T/g3b"; BASE=$(git -C "$T/g3b" rev-parse HEAD)
+echo v2 > "$T/g3b/pa/hooks/h.mjs"; g3_bump "$T/g3b" pa 1.0.1; HEAD_B=$(g3_commit "$T/g3b" "content and bump")
+OUT=$(g3_run "$T/g3b" "$BASE" "$HEAD_B"); EC=$?
+check "content: content plus a version bump → allow" allow "$OUT" $EC
+
+# The usual flow: content commits first, the bump in a later commit of the same push.
+g3_repo "$T/g3c"; BASE=$(git -C "$T/g3c" rev-parse HEAD)
+echo v2 > "$T/g3c/pa/hooks/h.mjs"; g3_commit "$T/g3c" content >/dev/null
+g3_bump "$T/g3c" pa 1.0.1; HEAD_C=$(g3_commit "$T/g3c" bump)
+OUT=$(g3_run "$T/g3c" "$BASE" "$HEAD_C"); EC=$?
+check "content: content commit then a bump commit in one push → allow" allow "$OUT" $EC
+
+# Paths that are not plugin content: docs, tests, README and CHANGELOG under the plugin, and
+# anything outside a plugin directory.
+g3_repo "$T/g3d"; BASE=$(git -C "$T/g3d" rev-parse HEAD)
+echo v2 > "$T/g3d/pa/README.md"; echo v2 > "$T/g3d/pa/CHANGELOG.md"
+echo v2 > "$T/g3d/pa/docs/d.md"; echo v2 > "$T/g3d/pa/tests/t.sh"; echo v2 > "$T/g3d/misc/x.txt"
+HEAD_D=$(g3_commit "$T/g3d" "not content")
+OUT=$(g3_run "$T/g3d" "$BASE" "$HEAD_D"); EC=$?
+check "content: docs, tests, README, CHANGELOG and non-plugin paths only → allow" allow "$OUT" $EC
+
+# An edit to plugin.json that leaves the version alone is not a bump.
+g3_repo "$T/g3e"; BASE=$(git -C "$T/g3e" rev-parse HEAD)
+printf '{"name":"pa","version":"1.0.0","description":"changed"}\n' > "$T/g3e/pa/.claude-plugin/plugin.json"
+echo v2 > "$T/g3e/pa/hooks/h.mjs"; HEAD_E=$(g3_commit "$T/g3e" "manifest edit, same version")
+OUT=$(g3_run "$T/g3e" "$BASE" "$HEAD_E"); EC=$?
+check "content: a manifest edit that keeps the version, plus content → deny" deny "$OUT" $EC
+
+# Two plugins: the one that bumped passes, the one that did not is named.
+g3_repo "$T/g3f"; BASE=$(git -C "$T/g3f" rev-parse HEAD)
+echo v2 > "$T/g3f/pa/hooks/h.mjs"; g3_bump "$T/g3f" pa 1.0.1
+echo v2 > "$T/g3f/pb/hooks/h.mjs"; HEAD_F=$(g3_commit "$T/g3f" "two plugins")
+OUT=$(g3_run "$T/g3f" "$BASE" "$HEAD_F"); EC=$?
+check "content: one plugin bumped and one not → deny" deny "$OUT" $EC
+if echo "$OUT" | grep -qF "'pb' has content changes" && ! echo "$OUT" | grep -qF "'pa' has content changes"; then
+  pass "content: only the plugin that did not bump is named"
+else
+  fail "content: only the plugin that did not bump is named" "$(echo "$OUT" | head -4)"
+fi
+
+# A plugin added in this push has no earlier version to differ from.
+g3_repo "$T/g3g"; BASE=$(git -C "$T/g3g" rev-parse HEAD)
+mkdir -p "$T/g3g/pc/.claude-plugin" "$T/g3g/pc/hooks"
+printf '{"name":"pc","version":"0.1.0"}\n' > "$T/g3g/pc/.claude-plugin/plugin.json"
+echo v1 > "$T/g3g/pc/hooks/h.mjs"; HEAD_G=$(g3_commit "$T/g3g" "new plugin")
+OUT=$(g3_run "$T/g3g" "$BASE" "$HEAD_G"); EC=$?
+check "content: a plugin added in this push → allow" allow "$OUT" $EC
 
 # --- Guard 2: version-bump parity -------------------------------------------
 
