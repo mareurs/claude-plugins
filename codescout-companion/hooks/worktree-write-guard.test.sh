@@ -123,6 +123,15 @@ assert_pin "pin-empty"           "mcp__codescout__edit_file" "$PENDING_WT" ""   
 assert_pin "pin-relative"        "mcp__codescout__edit_file" "$PENDING_WT" "worktree-pending"    "deny"
 assert_pin "pin-prefix-sibling"  "mcp__codescout__edit_file" "$PENDING_WT" "${PENDING_WT}-two"   "deny"
 
+# --- A pin spelled through a symlink is judged by where it resolves ---
+# `/tmp` vs `/private/tmp` and a linked checkout directory spell one tree two
+# ways; the guard compares realpaths, so the spelling must not matter. A link to
+# ANOTHER tree must not pass for this one.
+ln -s "$PENDING_WT" "$SANDBOX/link-to-pending"
+ln -s "$CLEAN_WT"   "$SANDBOX/link-to-clean"
+assert_pin "pin-symlink-to-self"    "mcp__codescout__edit_file" "$PENDING_WT" "$SANDBOX/link-to-pending" "allow"
+assert_pin "pin-symlink-to-sibling" "mcp__codescout__edit_file" "$PENDING_WT" "$SANDBOX/link-to-clean"   "deny"
+
 echo "---"
 echo "Total: $((PASS+FAIL)). Pass: $PASS. Fail: $FAIL."
 [ "$FAIL" -gt 0 ] && exit 1
