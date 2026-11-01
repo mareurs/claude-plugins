@@ -121,7 +121,7 @@ contextPreToolUse(
     `\n` +
     `To find out whose — worth doing only if you do not already recognise the change as yours:\n` +
     `\n` +
-    `    ./scripts/file-provenance.py ${rel}    # codescout repo; ~7s, scans transcripts\n` +
+    `    ./scripts/file-provenance.py ${rel}    # codescout repo; ~20s, scans transcripts\n` +
     `\n` +
     `Then ask the holder if it is theirs and live. Editing is fine once you know — this is\n` +
     `a check, not a refusal. Scope: this working tree's uncommitted state only; a peer in a\n` +
