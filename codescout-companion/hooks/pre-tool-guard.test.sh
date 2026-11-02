@@ -414,6 +414,63 @@ assert_sub_file "cfg-optout-subagent-markdown-denies"      "$CFG_TMP/optout/docs
 assert_tool "copilot-read-file-path-deny" "read_file" \
     "$(jq -nc --arg p "$ACTIVE_CWD/src/main.rs" '{filePath:$p}')" "deny"
 
+# --- Dedupe window: ONE full reason per CALLER, but ONE strike per burst ---
+# Measured 2026-11-02 over 6,038 transcripts: 855 of 2,225 subagent blocks (38%) got only the pointer
+# "BLOCKED (see previous message)", 48 of 239 for the main agent (20%). The window was keyed by
+# (tool, cwd), so a subagent whose first block fell inside another caller's 3 s window was pointed at a
+# message that sits in a DIFFERENT context. The reason is now claimed per (tool, cwd, session, agent).
+# The circuit breaker must NOT follow: it counts consecutive redirects that went unanswered, and a burst
+# of parallel subagents is ONE turn, so its strike marker stays keyed by (tool, cwd) alone.
+call_as() {  # <session> <agent_id or ""> -> raw hook stdout of a native Read of a source file
+    jq -n --arg cwd "$ACTIVE_CWD" --arg s "$1" --arg a "$2" \
+        '{session_id:$s, tool_name:"Read", cwd:$cwd, tool_input:{file_path:($cwd+"/src/main.rs")}}
+         + (if $a != "" then {agent_id:$a, agent_type:"general-purpose"} else {} end)' | node "$HOOK"
+}
+reason_of() { printf '%s' "$1" | jq -r '.hookSpecificOutput.permissionDecisionReason // "none"' 2>/dev/null; }
+is_full()    { [[ "$(reason_of "$1")" == *"faster path for source files"* ]]; }
+is_pointer() { [[ "$(reason_of "$1")" == "BLOCKED (see previous message)" ]]; }
+expect() {  # <label> <true|false> <detail>
+    if [[ "$2" == "true" ]]; then echo "PASS [$1]"; PASS=$((PASS+1)); else echo "FAIL [$1]: $3"; FAIL=$((FAIL+1)); fi
+}
+
+clean
+o1=$(call_as s1 "");       o2=$(call_as s1 agentA);  o3=$(call_as s1 agentA)
+o4=$(call_as s1 agentB);   o5=$(call_as s2 "");      o6=$(call_as s1 "")
+# Positive control: the very first call in a window is always the full reason.
+expect "dedupe-first-caller-gets-the-full-reason"            "$(is_full "$o1" && echo true || echo false)"    "got: $(reason_of "$o1" | head -c 80)"
+expect "dedupe-subagent-in-anothers-window-gets-its-own"     "$(is_full "$o2" && echo true || echo false)"    "got: $(reason_of "$o2" | head -c 80)"
+expect "dedupe-same-subagent-again-gets-the-pointer"         "$(is_pointer "$o3" && echo true || echo false)" "got: $(reason_of "$o3" | head -c 80)"
+expect "dedupe-another-subagent-gets-its-own-reason"         "$(is_full "$o4" && echo true || echo false)"    "got: $(reason_of "$o4" | head -c 80)"
+expect "dedupe-another-session-gets-its-own-reason"          "$(is_full "$o5" && echo true || echo false)"    "got: $(reason_of "$o5" | head -c 80)"
+expect "dedupe-same-main-agent-again-gets-the-pointer"       "$(is_pointer "$o6" && echo true || echo false)" "got: $(reason_of "$o6" | head -c 80)"
+
+# A burst of five parallel subagents of ONE session, no codescout answer in between: all five are denied and
+# the breaker has counted ONE strike. Counting one per caller would reach 4 strikes and stand the guard down
+# (an allow) while codescout is reachable.
+clean
+burst=""
+for a in b1 b2 b3 b4 b5; do burst="$burst $(verdict "$(call_as sB "$a")")"; done
+expect "dedupe-a-burst-of-subagents-is-one-strike-all-denied" "$([[ "$burst" == " deny deny deny deny deny" ]] && echo true || echo false)" "verdicts:$burst"
+strike_file=$(printf '%s' "sB" | sha256sum | cut -c1-12)
+n=$(cat "$TMPDIR/cs-redirect-$strike_file" 2>/dev/null | cut -f1)
+expect "dedupe-a-burst-counts-exactly-one-strike" "$([[ "$n" == "1" ]] && echo true || echo false)" "strikes recorded: '$n'"
+
+# The window EXPIRES: after 3 s the same caller is explained again, not pointed at a message long gone.
+clean
+call_as sE agentE >/dev/null
+touch -d '10 seconds ago' "$TMPDIR"/cs-block-*
+oE=$(call_as sE agentE)
+expect "dedupe-the-window-expires-after-3s-and-explains-again" "$(is_full "$oE" && echo true || echo false)" "got: $(reason_of "$oE" | head -c 80)"
+
+# A stand-down reached INSIDE a burst applies to the whole burst. The caller that counted the strike crosses the
+# threshold (3 -> 4) and the guard stands down; a second caller of the same burst did not count a strike but must
+# read the count that was reached, not 0: a guard that stood down for one parallel call and denied the next
+# would contradict its own message.
+clean
+printf '3' > "$TMPDIR/cs-redirect-$(printf '%s' sT | sha256sum | cut -c1-12)"
+t1=$(verdict "$(call_as sT t1)"); t2=$(verdict "$(call_as sT t2)")
+expect "dedupe-a-stand-down-inside-a-burst-covers-the-whole-burst" "$([[ "$t1 $t2" == "allow allow" ]] && echo true || echo false)" "verdicts: $t1 $t2"
+
 /bin/rm -rf "$CFG_TMP"
 
 clean

@@ -123,40 +123,64 @@ function bumpBreaker(probes) {
 // --- Hard block with reason. First block in a 3s window per (tool,cwd) gets the
 // full reason; parallel/repeat calls within the window get a short pointer.
 // Window tracked by a temp-file mtime (cross-platform; no backgrounded cleanup).
-function enforce(reason, probes = []) {
-  // `probes`: the tools whose answer proves this redirect reachable — see bumpBreaker.
-  const key = createHash('sha256').update(`${toolName}\t${cwd}`).digest('hex').slice(0, 8);
-  const dedupFile = join(tmpdir(), `cs-block-${key}`);
-  let firstInWindow = false;
+// --- Hard block with reason. A 3 s window is tracked by a temp-file mtime (cross-platform; no
+// backgrounded cleanup), and TWO questions use it, so TWO markers:
+//
+//   * Who gets the FULL reason? One marker per CALLER: (tool, cwd, session, agent). A caller's repeat or
+//     parallel call inside the window gets a short pointer to the message it already holds. A DIFFERENT
+//     caller gets its own full reason: measured 2026-11-02 over 6,038 transcripts, 855 of 2,225 subagent
+//     blocks (38%) were only the pointer "BLOCKED (see previous message)", because the marker was keyed by
+//     (tool, cwd) and a subagent's first block fell inside another caller's window, pointing it at a message
+//     that sits in a different context.
+//   * Who counts a STRIKE for the circuit breaker? One marker per (tool, cwd), as before: a burst of parallel
+//     calls, whatever their callers, is ONE turn and scores a single strike. Keyed per caller, five parallel
+//     subagents would reach the stand-down threshold while codescout is reachable.
+function claimWindow(file) {
   try {
-    // Atomic create-if-absent (O_EXCL): in a burst of parallel hook processes,
-    // exactly one wins the create and emits the full reason; the rest fall
-    // through to the short pointer. Fixes the check-then-write race that let
-    // every parallel call print the full multi-line block.
-    writeFileSync(dedupFile, '', { flag: 'wx' });
-    firstInWindow = true;
+    // Atomic create-if-absent (O_EXCL): in a burst of parallel hook processes, exactly one wins the
+    // create. Fixes the check-then-write race that let every parallel call print the full block.
+    writeFileSync(file, '', { flag: 'wx' });
+    return true;
   } catch {
-    // Marker exists (or the write failed). If the 3s window has elapsed, refresh
-    // it and treat this as a fresh first block, so a later unrelated block in
-    // the same session re-explains rather than staying terse forever.
+    // Marker exists (or the write failed). If the 3 s window has elapsed, refresh it and treat this as a
+    // fresh first block, so a later unrelated block re-explains rather than staying terse forever.
     try {
-      if (Date.now() - statSync(dedupFile).mtimeMs >= 3000) {
-        writeFileSync(dedupFile, '');
-        firstInWindow = true;
+      if (Date.now() - statSync(file).mtimeMs >= 3000) {
+        writeFileSync(file, '');
+        return true;
       }
     } catch {
       /* best-effort: treat as not-first */
     }
+    return false;
   }
-  if (!firstInWindow) {
+}
+
+// The strikes already counted, WITHOUT counting another: for a caller that gets its own full reason inside a
+// burst whose strike was counted by an earlier caller. 0 when the breaker is disabled or unreadable.
+function readBreaker() {
+  const f = breakerFile(sessionId);
+  if (!f) return 0;
+  try {
+    return parseInt(readFileSync(f, 'utf8'), 10) || 0;
+  } catch {
+    return 0;
+  }
+}
+
+function enforce(reason, probes = []) {
+  // `probes`: the tools whose answer proves this redirect reachable — see bumpBreaker.
+  const marker = (s) => join(tmpdir(), `cs-block-${createHash('sha256').update(s).digest('hex').slice(0, 8)}`);
+  const firstForCaller = claimWindow(marker(`${toolName}\t${cwd}\t${sessionId}\t${input.agent_id || ''}`));
+  if (!firstForCaller) {
     denyPreToolUse('BLOCKED (see previous message)');
     process.exit(0);
   }
 
-  // Only first-in-window denies count, so a burst of parallel calls the model
-  // issued in ONE turn scores a single strike rather than tripping the breaker
-  // on its own.
-  const strikes = bumpBreaker(probes);
+  // Only the first call of a burst counts a strike, so a burst of parallel calls issued in ONE turn scores
+  // a single strike rather than tripping the breaker on its own.
+  const firstForStrike = claimWindow(marker(`${toolName}\t${cwd}`));
+  const strikes = firstForStrike ? bumpBreaker(probes) : readBreaker();
 
   if (strikes > BREAKER_THRESHOLD) {
     // Stand down: let the call through normal permissions (this is advisory
