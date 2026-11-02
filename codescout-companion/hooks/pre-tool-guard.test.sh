@@ -15,7 +15,7 @@
 
 set -uo pipefail
 
-HOOK="$(cd "$(dirname "$0")" && pwd)/pre-tool-guard.mjs"
+HOOK="${PRE_TOOL_GUARD_HOOK:-$(cd "$(dirname "$0")" && pwd)/pre-tool-guard.mjs}"
 # Never delete another session's dedup/breaker markers while testing the guard.
 GUARD_TEST_TMP="$(mktemp -d "${TMPDIR:-/tmp}/cs-guard-test-XXXXXX")" || exit 1
 export TMPDIR="$GUARD_TEST_TMP"
@@ -354,11 +354,12 @@ for d in optout plain; do
     printf '{"mcpServers":{"codescout":{"command":"/usr/local/bin/codescout","args":["serve"]}}}\n' > "$CFG_TMP/$d/.mcp.json"
 done
 
-assert_cfg() {  # <label> <cwd> <expected> <hatch: on|off>
+assert_cfg() {  # <label> <cwd> <expected> <hatch: on|off> [sub]  ("sub" = the call comes from a subagent)
     clean
     local payload got
-    payload=$(jq -n --arg cwd "$2" \
-        '{tool_name:"Read", cwd:$cwd, tool_input:{file_path:($cwd+"/src/main.rs")}}')
+    payload=$(jq -n --arg cwd "$2" --arg sub "${5:-}" \
+        '{tool_name:"Read", cwd:$cwd, tool_input:{file_path:($cwd+"/src/main.rs")}}
+         + (if $sub == "sub" then {agent_id:"a1b2c3d4e5f6a7b8c", agent_type:"general-purpose"} else {} end)')
     if [[ "$4" == "off" ]]; then
         got=$(verdict "$(echo "$payload" | env -u CS_COMPANION_IGNORE_PROJECT_CONFIG node "$HOOK")")
     else
@@ -377,6 +378,36 @@ assert_cfg "cfg-hatch-off-plain-denies"  "$CFG_TMP/plain"  "deny"  "off"
 assert_cfg "cfg-hatch-off-optout-allows" "$CFG_TMP/optout" "allow" "off"
 # And the hatch does what it claims: same cwd, config ignored.
 assert_cfg "cfg-hatch-on-ignores-optout" "$CFG_TMP/optout" "deny"  "on"
+
+# --- block_reads=false opts out the MAIN agent only; a subagent stays guarded ---
+# Measured 2026-11-02 over 6,038 transcripts: with block_reads=false in the project's own checkout, 97% of the
+# native source reads that succeeded there (2,098 of 2,159 since 2026-09-23) came from subagents, and every one of
+# them was a call the guard would have refused anywhere else. A subagent call carries agent_id/agent_type in the
+# PreToolUse payload (a real `claude -p` run, 2.1.316, Read and Grep); the main thread's calls have neither.
+# Positive control first: the same opt-out cwd and call from the MAIN agent still allows (cfg-hatch-off-optout-allows).
+assert_cfg "cfg-optout-subagent-denies"        "$CFG_TMP/optout" "deny"  "off" "sub"
+assert_cfg "cfg-plain-subagent-denies"         "$CFG_TMP/plain"  "deny"  "off" "sub"
+assert_cfg "cfg-optout-main-still-allows"      "$CFG_TMP/optout" "allow" "off"
+
+# The exemptions a subagent legitimately needs are unchanged by this: a binary image, a skill payload and a
+# harness tool-results file read natively, in the opt-out cwd, as a subagent.
+assert_sub_file() {  # <label> <path> <expected>
+    clean
+    local payload got
+    payload=$(jq -n --arg cwd "$CFG_TMP/optout" --arg p "$2" \
+        '{tool_name:"Read", cwd:$cwd, agent_id:"a1b2c3d4e5f6a7b8c", agent_type:"general-purpose", tool_input:{file_path:$p}}')
+    got=$(verdict "$(echo "$payload" | env -u CS_COMPANION_IGNORE_PROJECT_CONFIG node "$HOOK")")
+    if [[ "$got" == "$3" ]]; then
+        echo "PASS [$1]"; PASS=$((PASS+1))
+    else
+        echo "FAIL [$1]: expected=$3 got=$got"; FAIL=$((FAIL+1))
+    fi
+}
+assert_sub_file "cfg-optout-subagent-image-allows"        "$CFG_TMP/optout/diagram.png"                     "allow"
+assert_sub_file "cfg-optout-subagent-skill-payload-allows" "$CFG_TMP/optout/skills/foo/SKILL.md"           "allow"
+assert_sub_file "cfg-optout-subagent-tool-results-allows"  "$CFG_TMP/optout/.codescout/tool-results/o.txt" "allow"
+# And a subagent's markdown read is refused like any other source-class read.
+assert_sub_file "cfg-optout-subagent-markdown-denies"      "$CFG_TMP/optout/docs/x.md"                      "deny"
 
 # VS Code/Copilot reports a lower-case read tool with a camelCase path key.
 # This must reach the same denial branch as Claude Code's Read/file_path form.

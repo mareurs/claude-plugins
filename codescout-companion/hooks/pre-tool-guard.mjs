@@ -31,7 +31,13 @@ const cwd = norm(input.cwd || '');
 
 const d = detectFor(cwd);
 if (d.HAS_CODESCOUT === 'false') process.exit(0);
-if (d.BLOCK_READS === 'false') process.exit(0);
+// `block_reads: false` opts the MAIN agent out of this guard, not a subagent. A subagent call carries
+// `agent_id` in the PreToolUse payload (measured 2026-11-02 with a real `claude -p` run: Read and Grep
+// from a subagent have it, the main thread's calls do not). Measured over 6,038 transcripts: in the one
+// checkout that sets block_reads=false, 97% of the native source reads that succeeded (2,098 of 2,159
+// since 2026-09-23) were a subagent's, each a call this guard refuses in every other directory.
+// Every other exemption below (images, skill payloads, tool-results, config dirs) still applies to both.
+if (d.BLOCK_READS === 'false' && !input.agent_id) process.exit(0);
 
 // --- Exemption helpers ---
 const isBinaryImage = (p) => /\.(png|jpg|jpeg|gif|webp|bmp|ico|pdf)$/i.test(p);
