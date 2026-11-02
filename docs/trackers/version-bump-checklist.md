@@ -13,18 +13,18 @@ Release readiness across plugins × profiles. See
 `docs/superpowers/specs/2026-05-18-version-bump-checklist-tracker-design.md`.
 
 ## State
-### Release verification — 1.20.27
+### Release verification — buddy 0.11.14, codescout-companion 1.20.27
 
-_Last refresh: `7461d86`, 2026-11-02 — codescout-companion 1.20.26→1.20.27, released with release.sh (pushed 32ce0ff..7461d86). Content: two hook commits, the pre-edit-dirty-check advisory cost text and a worktree-write-guard symlink test. Full suite and buddy pytest (534 passed) passed; profile parity OK in 4 profiles; tracked files outside tests match source in all 4 caches. No running Claude session restarted yet. Previous refresh `7b898e6`, 2026-10-30 — codescout-companion 1.20.25→1.20.26. Fixes native PostToolUse stdout and irrelevant-event exit status. Full suite passed on the identical pre-bump tree d9712b9 (job @bg_0000000a); fresh buddy pytest: 534 passed. release.sh reused these results with SKIP_TESTS=1 and NO_PUSH=1; final parity/package checks passed. Package-lock root metadata was synchronized without dependency changes._
+_Last refresh: `6461d42`, 2026-11-02 — buddy 0.11.13→0.11.14 released with release.sh (pushed 7461d86..6461d42). Content: `buddy/hooks/run.mjs` runs the dispatcher directly instead of probing the interpreter first, which removes one pyenv-shim start per hook call (pre-tool-use p50 175 to 115 ms; hyperfine 205.9 to 131.1 ms). Full suite and buddy pytest (534 passed) passed; profile parity OK in 4 profiles; tracked files outside tests match source in all 4 buddy caches. The push also carried `83de778` (native-call-record) and its revert `a73df86`, so codescout-companion stays at 1.20.27 with no net content change. No running Claude session restarted yet. Previous refresh `7461d86`, 2026-11-02 — codescout-companion 1.20.26→1.20.27, released with release.sh (pushed 32ce0ff..7461d86). Content: two hook commits, the pre-edit-dirty-check advisory cost text and a worktree-write-guard symlink test. Full suite and buddy pytest (534 passed) passed; profile parity OK in 4 profiles; tracked files outside tests match source in all 4 caches. No running Claude session restarted yet. Previous refresh `7b898e6`, 2026-10-30 — codescout-companion 1.20.25→1.20.26. Fixes native PostToolUse stdout and irrelevant-event exit status. Full suite passed on the identical pre-bump tree d9712b9 (job @bg_0000000a); fresh buddy pytest: 534 passed. release.sh reused these results with SKIP_TESTS=1 and NO_PUSH=1; final parity/package checks passed. Package-lock root metadata was synchronized without dependency changes._
 
-**buddy** — canonical `0.11.13` · readme `0.11.13` · marketplace clean ✅
+**buddy** — canonical `0.11.14` · readme `0.11.14` · marketplace clean ✅
 
 | profile | installed | cache dir | install_path ok | all entries | tracked files outside tests match |
 |---|---|---|---|---|---|
-| `~/.claude` | 0.11.13 ✅ | ✅ | ✅ | `0.11.13` ✅ | ✅ |
-| `~/.claude-sdd` | 0.11.13 ✅ | ✅ | ✅ | `0.11.13` ✅ | ✅ |
-| `~/.claude-kat` | 0.11.13 ✅ | ✅ | ✅ | `0.11.13` ✅ | ✅ |
-| `~/.claude-stef` | 0.11.13 ✅ | ✅ | ✅ | `0.11.13` ✅ | ✅ |
+| `~/.claude` | 0.11.14 ✅ | ✅ | ✅ | `0.11.14` ✅ | ✅ |
+| `~/.claude-sdd` | 0.11.14 ✅ | ✅ | ✅ | `0.11.14` ✅ | ✅ |
+| `~/.claude-kat` | 0.11.14 ✅ | ✅ | ✅ | `0.11.14` ✅ | ✅ |
+| `~/.claude-stef` | 0.11.14 ✅ | ✅ | ✅ | `0.11.14` ✅ | ✅ |
 
 **codescout-companion** — canonical `1.20.27` · readme `1.20.27` · marketplace clean ✅
 
