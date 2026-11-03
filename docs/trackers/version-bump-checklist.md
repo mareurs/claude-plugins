@@ -13,9 +13,9 @@ Release readiness across plugins × profiles. See
 `docs/superpowers/specs/2026-05-18-version-bump-checklist-tracker-design.md`.
 
 ## State
-### Release verification — buddy 0.11.14, codescout-companion 1.20.27
+### Release verification — buddy 0.11.14, codescout-companion 1.20.28
 
-_Last refresh: `6461d42`, 2026-11-02 — buddy 0.11.13→0.11.14 released with release.sh (pushed 7461d86..6461d42). Content: `buddy/hooks/run.mjs` runs the dispatcher directly instead of probing the interpreter first, which removes one pyenv-shim start per hook call (pre-tool-use p50 175 to 115 ms; hyperfine 205.9 to 131.1 ms). Full suite and buddy pytest (534 passed) passed; profile parity OK in 4 profiles; tracked files outside tests match source in all 4 buddy caches. The push also carried `83de778` (native-call-record) and its revert `a73df86`, so codescout-companion stays at 1.20.27 with no net content change. No running Claude session restarted yet. Previous refresh `7461d86`, 2026-11-02 — codescout-companion 1.20.26→1.20.27, released with release.sh (pushed 32ce0ff..7461d86). Content: two hook commits, the pre-edit-dirty-check advisory cost text and a worktree-write-guard symlink test. Full suite and buddy pytest (534 passed) passed; profile parity OK in 4 profiles; tracked files outside tests match source in all 4 caches. No running Claude session restarted yet. Previous refresh `7b898e6`, 2026-10-30 — codescout-companion 1.20.25→1.20.26. Fixes native PostToolUse stdout and irrelevant-event exit status. Full suite passed on the identical pre-bump tree d9712b9 (job @bg_0000000a); fresh buddy pytest: 534 passed. release.sh reused these results with SKIP_TESTS=1 and NO_PUSH=1; final parity/package checks passed. Package-lock root metadata was synchronized without dependency changes._
+_Last refresh: `5eea7ef`, 2026-11-03 — codescout-companion 1.20.27→1.20.28 released with release.sh (pushed 6461d42..5eea7ef). Content: two `pre-tool-guard` hook commits, `508b076` (block_reads=false opts out the main agent only; a subagent stays guarded) and `892ecb4` (a subagent's first block gets its own full reason; a burst is still one strike), plus the docs-only tracker commit `d433944`. Full suite and buddy pytest (534 passed) passed; profile parity OK in 4 profiles; all 168 tracked companion files match source in all 4 caches (cmp, 0 differing); install records point at 1.20.28 in all 4 profiles. No running Claude session restarted yet. Previous refresh `6461d42`, 2026-11-02 — buddy 0.11.13→0.11.14 released with release.sh (pushed 7461d86..6461d42). Content: `buddy/hooks/run.mjs` runs the dispatcher directly instead of probing the interpreter first, which removes one pyenv-shim start per hook call (pre-tool-use p50 175 to 115 ms; hyperfine 205.9 to 131.1 ms). Full suite and buddy pytest (534 passed) passed; profile parity OK in 4 profiles; tracked files outside tests match source in all 4 buddy caches. The push also carried `83de778` (native-call-record) and its revert `a73df86`, so codescout-companion stayed at 1.20.27 with no net content change. Previous refresh `7461d86`, 2026-11-02 — codescout-companion 1.20.26→1.20.27, released with release.sh (pushed 32ce0ff..7461d86). Content: two hook commits, the pre-edit-dirty-check advisory cost text and a worktree-write-guard symlink test. Full suite and buddy pytest (534 passed) passed; profile parity OK in 4 profiles; tracked files outside tests match source in all 4 caches. Previous refresh `7b898e6`, 2026-10-30 — codescout-companion 1.20.25→1.20.26. Fixes native PostToolUse stdout and irrelevant-event exit status. Full suite passed on the identical pre-bump tree d9712b9 (job @bg_0000000a); fresh buddy pytest: 534 passed. release.sh reused these results with SKIP_TESTS=1 and NO_PUSH=1; final parity/package checks passed. Package-lock root metadata was synchronized without dependency changes._
 
 **buddy** — canonical `0.11.14` · readme `0.11.14` · marketplace clean ✅
 
@@ -26,14 +26,14 @@ _Last refresh: `6461d42`, 2026-11-02 — buddy 0.11.13→0.11.14 released with r
 | `~/.claude-kat` | 0.11.14 ✅ | ✅ | ✅ | `0.11.14` ✅ | ✅ |
 | `~/.claude-stef` | 0.11.14 ✅ | ✅ | ✅ | `0.11.14` ✅ | ✅ |
 
-**codescout-companion** — canonical `1.20.27` · readme `1.20.27` · marketplace clean ✅
+**codescout-companion** — canonical `1.20.28` · readme `1.20.28` · marketplace clean ✅
 
 | profile | installed | cache dir | install_path ok | all entries | tracked files outside tests match |
 |---|---|---|---|---|---|
-| `~/.claude` | 1.20.27 ✅ | ✅ | ✅ | `1.20.27` ✅ | ✅ |
-| `~/.claude-sdd` | 1.20.27 ✅ | ✅ | ✅ | `1.20.27` ✅ | ✅ |
-| `~/.claude-kat` | 1.20.27 ✅ | ✅ | ✅ | `1.20.27` ✅ | ✅ |
-| `~/.claude-stef` | 1.20.27 ✅ | ✅ | ✅ | `1.20.27` ✅ | ✅ |
+| `~/.claude` | 1.20.28 ✅ | ✅ | ✅ | `1.20.28` ✅ | ✅ |
+| `~/.claude-sdd` | 1.20.28 ✅ | ✅ | ✅ | `1.20.28` ✅ | ✅ |
+| `~/.claude-kat` | 1.20.28 ✅ | ✅ | ✅ | `1.20.28` ✅ | ✅ |
+| `~/.claude-stef` | 1.20.28 ✅ | ✅ | ✅ | `1.20.28` ✅ | ✅ |
 
 **legible** — canonical `0.2.1` · readme `0.2.1` · marketplace clean ✅
 
@@ -57,13 +57,9 @@ _Last refresh: `6461d42`, 2026-11-02 — buddy 0.11.13→0.11.14 released with r
 
 Source comparison covers all git-tracked files in each installed plugin, for every install-record entry. Runtime files and generated untracked files are outside this predicate.
 
-Codex: the only existing profile is ~/.codex. Its native installer deployed 1.20.26, hooks/list resolves companion hooks inside its own 1.20.26 cache, and the explicit background-wake command now targets that version and is trusted/enabled. All 168 tracked companion files match source in the four Claude caches and the Codex cache. The configured uppercase Codex profile directories and lowercase sdd/kat variants do not exist on this host. Copilot has no companion installation here; sync skipped.
-
-Codex daemon was not restarted, preserving its pinned generation. Claude profile caches/install records are updated; no running Claude session was restarted or claimed to have reloaded.
-
 Full tracked snapshots differ for buddy only in research test files under tests/; those caches were not changed by this companion release. The table runtime predicate excludes tests/. The full cache_matches_source field remains false for those buddy rows rather than claiming an exact snapshot match.
 
-Published to origin/main: 474e6a7..7b898e6. Final native 1.20.26 smoke: two PostToolUse completions had status completed with empty entries; automatic job @bg_00000010 exited 0 and delivered its notification in this session. No daemon restart was needed.
+No Claude session was restarted or claimed to have reloaded. Codex and Copilot were not re-checked for 1.20.28 (release.sh reported Copilot: not installed, skipped; Codex cache was not examined this refresh).
 
 ### Previous observations (preserved)
 
