@@ -1,7 +1,7 @@
 ---
 id: '2646bba03b528020'
 kind: bug
-status: investigating
+status: zombie
 title: '`tests/run-all.sh` has ~16 pre-existing failing suites, unrelated to session-start.mjs bootstrap fix'
 tags:
 - tests
@@ -15,6 +15,8 @@ unverified: WSL-only failures remain unobserved by CI (~10 of the original 16). 
 ---
 
 ## Summary
+
+> **Set to `zombie` 2026-11-04 (user decision).** No work is available here, only a recurrence check. The 5 ambient-config suites are hermetic and the full suite passed on the Arch workstation in the 2026-11-02 and 2026-11-03 releases (buddy 0.11.14, codescout-companion 1.20.28). About 10 of the original 16 failures stay unobservable without a WSL host. Re-open on the trigger in `## Re-open trigger`. CI was not re-checked this day: `gh` returned `HTTP 401`.
 
 > **Re-checked 2026-10-31 — the two open facts in the `unverified` caveat are closed; the WSL doubt stays.**
 > `pre-tool-guard.test.sh` was rewritten around synthetic fixture projects and committed in `f0f0028`. The CI `full-suite` job (`tests/run-all.sh`, no `CS_TEST_SKIP`) passed on the 1.20.25 bump push (run `41012475002`) and on `7a3c3b1` (run `41176478070`), so the five formerly ambient-config suites pass on a real runner.
