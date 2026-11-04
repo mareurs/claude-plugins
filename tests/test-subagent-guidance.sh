@@ -65,9 +65,9 @@ else fail "guides: directs an explicit get_guide fetch" "$OUT"; fi
 if assert_context_contains "$OUT" "already loaded"; then
   pass "guides: overrides an 'already loaded' brief"
 else fail "guides: overrides an 'already loaded' brief" "$OUT"; fi
-if assert_context_contains "$OUT" "will NOT auto-inject for you"; then
-  pass "guides: states the shared-ledger substrate fact"
-else fail "guides: states the shared-ledger substrate fact" "$OUT"; fi
+if assert_context_contains "$OUT" "shared parent↔subagent unless the companion stamps your calls as your own principal"; then
+  pass "guides: states the shared-ledger fact conditionally on the principal stamp"
+else fail "guides: states the shared-ledger fact conditionally on the principal stamp" "$OUT"; fi
 
 # --- Gate CLOSED → silent, with the environment sealed (not ambient config). ---
 OUT=$(run_hook "$T/bare" "general-purpose")
