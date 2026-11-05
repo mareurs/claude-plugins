@@ -322,3 +322,39 @@ test('after an unsimulable step the rest of the call is untrusted, not blanket-d
   // a '---' line before any unsimulable step is simulated normally
   assert.equal(cs([{ old_string: 'body', new_string: 'x\n---\ny' }]), '');
 });
+
+test('round 5: the untrusted tail is still simulated; unsimulable edits over planted precursors are denied', () => {
+  const root = repo({ config: { enforcement: 'warn' } });
+  const cs = (edits, rel = SPEC) => run({ cwd: root, tool_name: 'mcp__codescout__edit_file', tool_input: { path: rel, workspace: root, edits } });
+  const heading = { heading: '# Spec', action: 'replace', content: 'nb\n' };
+  // V8c: partial value inside the block, completed by a later step
+  put(root, SPEC, '---\nstatus: donex\n---\n# Spec\nb\n');
+  denied(cs([heading, { heading: '^', action: 'edit', old_string: 'x\n', new_string: '\n' }]), 'V8c');
+  // V8d: partial key inside the block
+  put(root, SPEC, '---\napprovedx: yes\n---\n# Spec\nb\n');
+  denied(cs([heading, { heading: '^', action: 'edit', old_string: 'x:', new_string: ':' }]), 'V8d');
+  // V7b: BOM opener completes a planted field
+  put(root, SPEC, 'status: done\n---\n# Spec\nb\n');
+  denied(cs([heading, { heading: '^', action: 'edit', old_string: 'status', new_string: '﻿---\nstatus' }]), 'V7b');
+  // V2: a broken opener over a planted field, repaired later
+  put(root, SPEC, '---x\n# Notes\nstatus: done\n---\n# Spec\nbody\n');
+  denied(cs([heading, { heading: '^', action: 'edit', old_string: 'x', new_string: '' }]), 'V2');
+  // V3c/V3d/V3e: unclosed opener closed by a heading-grammar step
+  const unclosed = '---\n# A\nstatus: done\n# Spec\nbody\n';
+  put(root, SPEC, unclosed);
+  denied(cs([{ heading: '# Spec', action: 'replace', content: '---\n' }]), 'V3d');
+  denied(cs([{ heading: '# Spec', action: 'insert_before', content: '---\n' }]), 'V3c');
+  denied(run({ cwd: root, tool_name: 'mcp__codescout__edit_file', tool_input: { path: SPEC, workspace: root, heading: '# Spec', action: 'replace', body: '---\n' } }), 'V3e');
+  // a neutral heading edit on a normal spec passes
+  put(root, SPEC, '---\nstatus: draft\ntitle: T\n---\n\n# Spec\n\nbody\n');
+  assert.equal(run({ cwd: root, tool_name: 'mcp__codescout__edit_file', tool_input: { path: SPEC, workspace: root, heading: '# Spec', action: 'replace', body: 'new text\n' } }), '');
+  assert.equal(cs([heading, { heading: '# Spec', action: 'replace', content: 'again\n' }]), '');
+  // a normal heading batch on an approved plan passes
+  put(root, PLANP, '---\nstatus: approved\nspec: docs/superpowers/specs/x.md\n---\n# Plan\n\n## Task 1\n\n- [ ] step\n\n## Task 2\n\n- [ ] step\n');
+  assert.equal(cs([{ heading: '## Task 1', action: 'replace', content: '- [x] step\n' }, { heading: '## Task 2', action: 'replace', content: '- [x] step\n' }], PLANP), '');
+  // no precursor, no approval word, no '---': only the tail simulation sees draft -> done
+  put(root, SPEC, '---\nstatus: draft\n---\n# Spec\nb\n');
+  denied(cs([heading, { heading: '^', action: 'edit', old_string: 'raft', new_string: 'one' }]), 'tail simulation');
+  // a BOM-prefixed delimiter line in the untrusted tail is a delimiter line
+  denied(cs([heading, { heading: '^', action: 'edit', old_string: 'b', new_string: 'x\n﻿---\ny' }]), 'BOM delimiter');
+});

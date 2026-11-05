@@ -94,14 +94,40 @@ export function applyEdit(text, oldS, newS, all) {
 // An approval word or key in text the guard could not simulate.
 const approvalWords = (t) => typeof t === 'string' &&
   (/\b(approved|implemented|done)\b/i.test(t) || APPROVED_KEY_RE.test(t));
-// A line that is only a frontmatter delimiter (trailing spaces/tabs and \r allowed).
-const DELIM_LINE_RE = /^---[ \t]*\r?$/m;
+// A line that is only a frontmatter delimiter (optional BOM, trailing spaces/tabs and \r allowed).
+const DELIM_LINE_RE = /^\uFEFF?---[ \t]*\r?$/m;
+// Local copy of lib.mjs FM_RE (not exported): the frontmatter block at file start.
+const FM_BLOCK_RE = /^(?<open>\uFEFF?---[ \t]*\r?\n)(?:(?<close2>---[ \t]*(?:\r?\n|$))|(?<inner>[\s\S]*?)(?<close>\r?\n---[ \t]*(?:\r?\n|$)))/;
+const OPENER_LINE_RE = /^\uFEFF?---[ \t]*\r?(?:\n|$)/;
+// Outside the block: a full or partial line-start approval field.
+const PLANTED_STATUS_RE = /^\s*status\s*:\s*["']?(approved|implemented|done)/im;
+const PLANTED_KEY_RE = /^[ \t]*approved[A-Za-z0-9_-]*[ \t]*:/im;
+// Inside the block: a partial approval field only (an existing approval is not a precursor).
+const PARTIAL_STATUS_RE = /^[ \t]*status[ \t]*:[ \t]*["']?(approved|implemented|done)(?!["']?[ \t]*\r?$)/im;
+const PARTIAL_KEY_RE = /^[ \t]*approved[A-Za-z0-9_-]+[ \t]*:/im;
+
+// Text that an unsimulable step could complete into an approval field: a planted
+// field (full or partial) outside the frontmatter block, a partial one inside it,
+// or an opener line with no closing delimiter.
+function hasPrecursor(text) {
+  if (typeof text !== 'string') return false;
+  const m = text.match(FM_BLOCK_RE);
+  if (!m) {
+    if (OPENER_LINE_RE.test(text)) return true;
+    return PLANTED_STATUS_RE.test(text) || PLANTED_KEY_RE.test(text);
+  }
+  const inner = m.groups.inner ?? '';
+  if (PARTIAL_STATUS_RE.test(inner) || PARTIAL_KEY_RE.test(inner)) return true;
+  const outside = text.slice(m[0].length);
+  return PLANTED_STATUS_RE.test(outside) || PLANTED_KEY_RE.test(outside);
+}
 
 // True when the call sets an approval field. With absPath, text edits are
 // simulated against the current file and the frontmatter compared before/after
 // (so a value-only edit is caught and quoted text in a body is not). Carriers that
 // cannot be simulated (edit_code, NotebookEdit, heading-grammar edits, an
-// unreadable file) fall back to a text match on the new text.
+// unreadable file) fall back to a text match on the new text; a call with any
+// unsimulable step is also denied over a planted precursor (see hasPrecursor).
 export function touchesApprovalFields(input, absPath) {
   const ti = (input && input.tool_input) || {};
   if (frontmatterParamApproves(ti.frontmatter)) return true;
@@ -126,19 +152,22 @@ export function touchesApprovalFields(input, absPath) {
     steps.push({ old_string: ti.old_string, new_string: ti.new_string, content: ti.content, insert: ti.insert, replace_all: ti.replace_all });
   }
   for (const e of edits) steps.push(e);
+  if (!steps.length && ti.heading !== undefined) {
+    // top-level heading grammar: one unsimulable step
+    steps.push({ heading: ti.heading, action: ti.action, body: ti.body, content: ti.content });
+  }
   if (!steps.length) {
     for (const k of TEXT_KEYS) fallback.push(ti[k]);
   }
   let unsimulated = false;
   // untrusted: an earlier step could not be simulated, so the host applies it and
-  // cur no longer matches the real file. Later steps are not simulated; each is
-  // denied if its new text has an approval word or a bare `---` line (a frontmatter
-  // block cannot be rebuilt without one).
-  let untrusted = false;
+  // cur no longer matches the real file. Later steps are still simulated against
+  // cur (a forge may complete text already in the file) and, in addition, each is
+  // denied if its new text has an approval word or a bare `---` line.
+  let untrusted = !steps.length && fallback.some((t) => typeof t === 'string');
   for (const s of steps) {
     if (untrusted) {
       for (const k of TEXT_KEYS) if (approvalWords(s[k]) || (typeof s[k] === 'string' && DELIM_LINE_RE.test(s[k]))) unsimulated = true;
-      continue;
     }
     let next = null;
     if (simulable && cur !== null) {
@@ -163,6 +192,8 @@ export function touchesApprovalFields(input, absPath) {
     }
   }
   if (unsimulated) return true;
+  // a call with any unsimulable step over a planted precursor is denied
+  if (untrusted && hasPrecursor(before)) return true;
   if (simulable && cur !== before && fmApprovalChange(before, cur)) return true;
   return fallback.some(textApproves);
 }
