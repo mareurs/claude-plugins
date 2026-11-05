@@ -187,6 +187,9 @@ export function touchesApprovalFields(input, absPath) {
     } else {
       // cannot simulate this step: fail closed on approval words in its new text
       for (const k of TEXT_KEYS) if (approvalWords(s[k])) unsimulated = true;
+      // ...and over a precursor that earlier steps of this same call planted (the
+      // hasPrecursor(before) check below only sees the file as it was before the call)
+      if (hasPrecursor(cur)) unsimulated = true;
       for (const k of TEXT_KEYS) fallback.push(s[k]);
       untrusted = true;
     }

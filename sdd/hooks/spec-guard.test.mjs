@@ -358,3 +358,29 @@ test('round 5: the untrusted tail is still simulated; unsimulable edits over pla
   // a BOM-prefixed delimiter line in the untrusted tail is a delimiter line
   denied(cs([heading, { heading: '^', action: 'edit', old_string: 'b', new_string: 'x\n﻿---\ny' }]), 'BOM delimiter');
 });
+
+test('final review I1: a precursor planted by earlier steps of the same call is caught at the unsimulable step', () => {
+  const root = repo({ config: { enforcement: 'warn' } });
+  const cs = (edits) => run({ cwd: root, tool_name: 'mcp__codescout__edit_file', tool_input: { path: SPEC, workspace: root, edits } });
+  // S1b: simulable steps leave an unclosed opener over `status: done`; a heading step closes it
+  put(root, SPEC, '---\nstatus: draft\n---\n# Spec\nbody\n');
+  denied(cs([
+    { heading: '^', action: 'edit', old_string: '---\nstatus', new_string: '---\nstatus: done\nx' },
+    { heading: '^', action: 'edit', old_string: 'draft\n---\n', new_string: 'draft\n' },
+    { heading: '# Spec', action: 'replace', content: '---\n' },
+  ]), 'S1b');
+  // S3: an opener and a field planted in a file with no frontmatter, closed by a heading step
+  put(root, SPEC, 'x\ny\n# Spec\nbody\n');
+  denied(cs([
+    { heading: '^', action: 'edit', old_string: 'x\n', new_string: '---\n' },
+    { heading: '^', action: 'edit', old_string: 'y\n', new_string: 'status: done\n' },
+    { heading: '# Spec', action: 'replace', content: '---\n' },
+  ]), 'S3');
+  // positive control: an ordinary heading edit on a clean draft spec
+  put(root, SPEC, '---\nstatus: draft\n---\n# Spec\nbody\n');
+  assert.equal(cs([{ heading: '# Spec', action: 'replace', content: 'new body\n' }]), '');
+  assert.equal(cs([
+    { heading: '^', action: 'edit', old_string: 'body', new_string: 'text' },
+    { heading: '# Spec', action: 'replace', content: 'new body\n' },
+  ]), '');
+});
