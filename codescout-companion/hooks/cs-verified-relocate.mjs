@@ -10,7 +10,8 @@
 //   equals stdin `session_id`; CLAUDECODE, CLAUDE_CODE_ENTRYPOINT, AI_AGENT and
 //   CLAUDE_PLUGIN_ROOT are constant or inheritable and are not used.
 // - Only the codescout server is trusted to say "verified": the tool name must
-//   start with exactly `mcp__codescout__`.
+//   start with exactly `mcp__codescout__`, and stdin `mcp_server.name` must be
+//   exactly `codescout` (a missing or malformed `mcp_server` means do nothing).
 // - `tool_response` is a list of content blocks; every block other than the one
 //   holding the advice is echoed unchanged and in order.
 // - Never `{}`, never exit 2, never stderr: exit 2 leaks hook text to the model.

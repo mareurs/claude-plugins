@@ -181,7 +181,9 @@ session after `/clear` and after a fork). A hook in `--settings` whose command c
 both versions), so the shipped entry runs only as a plugin hook. Not measured:
 compaction persistence, `--continue`, interactive resume and fork, `claude --bg`,
 VS Code, Copilot and other hosts, other CLI versions and models, the real `buddy` hook,
-the real companion `hooks.json` load and a release install. Measurements and decisions
+a cold start and a release install. In the `results.md` runs the hook was a throwaway
+plugin hook, not the real companion `hooks.json`; the real `hooks.json` load was
+exercised once, by the live run described below (n = 1). Measurements and decisions
 are in `contracts/fixtures/cs-verified/results.md` and the `README.md` beside it.
 
 **Measurement scope: stub server.** Every Claude Code run in `results.md` used a stub MCP
@@ -193,7 +195,7 @@ real codescout server was relocated by the live hook: the visible result had no 
 and a system-role message `PostToolUse:mcp__codescout__edit_code hook additional
 context: [cs-verified] ...` arrived. That is n = 1 and one model. It shows that the
 relocation works on the product path; it does not show that the model behaves
-differently.
+differently. That live run happened before the `mcp_server.name` check existed (it ran on `main` at `2a1a7a8`), so the hardened gate has not yet run on real-server hook input. The operator's real server is registered under the key `codescout` (user scope), so the name is very likely `codescout`, but this is unmeasured.
 
 **Not yet.** The hook relocates whenever the gates pass, with or without a consent
 statement in the user's `CLAUDE.md`. That statement is a future step and is not
