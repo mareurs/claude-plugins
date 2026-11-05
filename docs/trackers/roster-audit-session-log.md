@@ -9,7 +9,7 @@ tags:
 entry_prefix:
 - F
 - W
-entry_high_water_F: 14
+entry_high_water_F: 15
 entry_high_water_W: 5
 ---
 
@@ -82,6 +82,7 @@ entry_high_water_W: 5
 | F-13 | 2026-08-26 | high | eval-design | **The skill never loaded in three of four instrument scenarios**, so their "treatment" arms were controls. Adding the clause that activates it flips the *control* 0/3 → 3/3 — activation IS the treatment, and this harness cannot separate them. Corrects `F-11`, `F-12`, `W-3` |
 | F-12 | 2026-08-26 | high | eval-design | fixed-verified | **Second design also tautological — and the control arm probed unprompted.** All 3 no-skill runs built a known-answer probe. Two designs, six control runs: the behaviour `R-4` teaches is base competence, so this harness cannot measure it |
 | F-14 | 2026-08-27 | med | codescout-tool | open | `unfiltered_output_lines` counts the SOURCE, not the buffer (said `624`/`20000` over buffers holding ~231/238 lines). A grep past the cut returns 0, reading identically to "absent" — I concluded `run-all.sh` skips `hooks/*.test.sh`; it runs all 39. Upstream cause was mine: an IL-3 pipe-to-trimmer |
+| F-15 | 2026-11-05 | high | release-pipeline | open | `release.sh` seeds caches and auto-vivifies an install record for a plugin in every profile, installed or not; parity then certifies it. Blocks a kat-only `sdd` release |
 ## Wins Index
 
 | ID | Date | Impact | Pattern | Counterfactual | Status |
@@ -1654,6 +1655,30 @@ reliable way to inspect it.
 buffer *without* an IL-3 violation upstream — i.e. from a bare `run_command` whose
 `output_id` was itself capped. That would separate "the tool's reporting is unsafe"
 from "I broke the law that protects me from it", which this instance cannot.
+
+## F-15 — release.sh writes an install record and cache for a plugin into every profile, even where it is not installed
+
+**Status:** open
+**Severity:** high — a release would write hidden state (install records + caches) into three profiles and the parity gate would certify it green.
+**Category:** release-pipeline
+
+**Valid:** dated 2026-11-05
+
+**Observed:** 2026-11-05, recon before the sdd refactor. The user wants `sdd` installed in `~/.claude-kat` only.
+
+**Expected:** `release.sh <plugin>` touches only the profiles where the plugin is installed.
+
+**Actual:** two steps act on every profile in `PROFILES`, installed or not.
+
+- Step 4, `scripts/bump-cache.sh:42-50`, copies the plugin into `<profile>/plugins/cache/sdd-misc-plugins/<plugin>/<ver>` for all four profiles, with no install check.
+- Step 5, `scripts/release.sh:99-107`, runs `jq '(.plugins["<plugin>@<mkt>"][0].version) = $v | (...installPath) = $p'`. On a record without that key, jq creates it. Measured on a synthetic record: `{"plugins":{"buddy@m":[...]}}` came out with `"sdd@m":[{"version":"2.4.3","installPath":"/x/cache/m/sdd/2.4.3"}]`, an entry with no `scope` and no `installedAt`.
+- Step 6.5 then runs `check-profile-parity.sh`. It sees the plugin "present" in all four profiles, so the release reports green.
+
+**Consequence:** the first `release.sh sdd` writes a partial install record for `sdd` into all four profiles, and the same happens to any plugin installed in a subset of profiles. `statusline` (installed in 3 of 4; not in `~/.claude-stef`) gets a record in `~/.claude-stef` on its next release. `enabledPlugins` is not touched, so nothing loads, but the records and caches are drift that the parity gate was built to catch and here certifies.
+
+**Not verified:** whether Claude Code accepts or rewrites a record entry without `scope`. No release was run; the jq behaviour was measured on a synthetic record only.
+
+**Fix idea:** in steps 4 and 5, skip a profile whose record lacks `.plugins["<plugin>@<mkt>"]` (`jq -e 'has(...)'`), and print the skip. Add a test in `tests/` with a three-profile tree where the plugin is installed in one profile; assert the other two records and caches stay byte-identical. Needed before the first sdd release.
 
 ## Template for new entries
 
