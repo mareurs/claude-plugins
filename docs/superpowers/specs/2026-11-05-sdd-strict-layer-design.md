@@ -1,6 +1,6 @@
 ---
 kind: spec
-status: draft
+status: active
 title: 'sdd 3.0 — a strict-SDD layer over superpowers and codescout; general pieces move to codescout-companion'
 tags:
 - sdd
@@ -176,7 +176,8 @@ copy test.
   - **Approval fields are user-only.** Any write by a tool to a spec or plan that
     adds or changes `status: approved`, `status: implemented`, `status: done` or
     `approved:` is denied, in every mode, with a pointer to `/sdd:approve`. Same for
-    writes under the approval-record directory.
+    writes under the approval-record directory, except the `review` command's
+    `<feature>.report.json`.
   - Strict → deny with the reason; warn → context.
 - **review-guard** (PreToolUse). Matchers: `Bash` and `mcp__codescout__run_command`.
   **Gates integration into the base branch only.** It parses the command (handles
@@ -221,9 +222,10 @@ model cannot trigger it.
     file's frontmatter (refuses if the spec is missing, or if the plan's `Spec:`
     is not approved);
   - for `review`: writes the review approval record for the feature (refuses
-    unless the latest `spec-drift` verdict and the last `review` report for the
-    feature are GO);
-  - records an approval event, and injects a one-line confirmation as context.
+    unless `<approvals>/<feature>.report.json`, written by the `review` command,
+    has `outcome: go` and `drift_outcome: go`);
+  - injects a one-line confirmation as context. It makes no codescout call; the
+    `sdd-flow` guide records a `doc` event on the spec after each approval.
 - Records live under `<main repo>/.git/sdd/approvals/` (not in the tree, not
   committed): `<feature>.review.json` with date, session id and HEAD commit.
 - `commands/approve.md` exists so the command shows in the slash menu and
