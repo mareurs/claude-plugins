@@ -21,7 +21,7 @@ echo "$FM" | grep -Eq '^description: *"?Use when' && pass "description starts wi
 SIZE=$(wc -c < "$SKILL")
 [ "$SIZE" -lt 20480 ] && pass "SKILL.md is $SIZE bytes (< 20480)" || fail "size" "$SIZE bytes"
 
-for needle in 'event_create' '"verdict"' 'outcome'; do
+for needle in 'event_create' '"verdict"' 'outcome' '"gate"'; do
   grep -qF -- "$needle" "$SKILL" && pass "names $needle" || fail "names $needle" "absent"
 done
 

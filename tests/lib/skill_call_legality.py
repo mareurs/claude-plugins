@@ -355,12 +355,26 @@ def case_spec_drift(cs: IsolatedCodescout) -> None:
         return bad(f"{label}: prescribed call is accepted", reply.error or reply.text[:200])
     ok(f"{label}: prescribed call is accepted")
 
-    listed = cs.call("doc", action="event_list", id=sid, kinds=["verdict"])
-    want = call["event"]["payload"]["outcome"]
-    if listed.ok and re.search(r'"outcome":\s*"%s"' % re.escape(want), listed.text):
-        ok(f'{label}: event_list(kinds=["verdict"]) returns the recorded outcome')
+    payload = call["event"]["payload"]
+    want, gate = payload["outcome"], payload.get("gate")
+    # The example must obey the rule the skill states: gate go <=> no missing/divergent; outcome follows gate.
+    clean = payload["missing"] == 0 and payload["divergent"] == 0
+    expect_gate = "go" if clean else "no-go"
+    expect_outcome = "confirmed" if clean else ("partial" if payload["implemented"] > 0 else "refuted")
+    if gate == expect_gate and want == expect_outcome and \
+            payload["implemented"] + payload["missing"] + payload["divergent"] == len(payload["criteria"]):
+        ok(f"{label}: example payload obeys the rule (gate={gate}, outcome={want})")
     else:
-        bad(f"{label}: event_list returns the recorded outcome", listed.error or listed.text[:200])
+        bad(f"{label}: example payload obeys the gate/outcome rule",
+            f"gate={gate!r} want {expect_gate!r}; outcome={want!r} want {expect_outcome!r}; counts vs criteria")
+    listed = cs.call("doc", action="event_list", id=sid, kinds=["verdict"])
+    got_outcome = listed.ok and re.search(r'"outcome":\s*"%s"' % re.escape(want), listed.text)
+    got_gate = listed.ok and gate is not None and re.search(r'"gate":\s*"%s"' % re.escape(gate), listed.text)
+    if got_outcome and got_gate:
+        ok(f'{label}: event_list(kinds=["verdict"]) returns the recorded outcome and gate')
+    else:
+        bad(f"{label}: event_list returns the recorded outcome and gate",
+            f"outcome found={bool(got_outcome)} gate found={bool(got_gate)}: {listed.error or listed.text[:200]}")
     while CREATED:
         dropped = cs.call("doc", action="delete", id=CREATED.pop(), force=True)
         if not dropped.ok:
