@@ -280,6 +280,11 @@ test('refuses_advice_text_that_is_not_a_plain_single_line', () => {
     assert.equal(out.hookSpecificOutput.additionalContext, '[cs-verified] ' + t);
   }
   assert.equal(relocateVerifiedAdvice(inputOf([text(JSON.stringify(envelope(verified('😀'.repeat(1001)))))]), ENV), null);
+  // The limit counts code points of the RAW text, before NFKC: U+FB01 (the fi
+  // ligature) is one code point whose NFKC form is two.
+  const ligature = String.fromCodePoint(0xfb01);
+  assert.ok(relocateVerifiedAdvice(adviceInput(ligature.repeat(1000)), ENV), '1000 ligatures: accepted');
+  assert.equal(relocateVerifiedAdvice(adviceInput(ligature.repeat(1001)), ENV), null, '1001 ligatures: refused');
 });
 
 test('refuses_line_separators_and_bidi_controls_in_advice_text', () => {
@@ -533,7 +538,7 @@ test('process_exits_0_and_prints_nothing_when_not_acting', () => {
   assertSilent(run(JSON.stringify(deepInput(20000)), ENV), 'block nested deeper than the stack');
 });
 
-test('process_exits_0_with_empty_stderr_when_the_stdout_reader_is_gone', async () => {
+test('process_exits_0_with_empty_stderr_when_the_stdout_reader_is_gone', { timeout: 20000 }, async () => {
   // An acting input (about 200 KiB of output, under the size cap). The read side of
   // the child's stdout is closed BEFORE its stdin is written, and the child cannot
   // write before it has read stdin to EOF, so its write always fails with EPIPE:
