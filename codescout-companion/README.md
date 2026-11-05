@@ -120,7 +120,7 @@ Create `.claude/codescout-companion.json` (or `codescout-routing.json`) in your 
 
 ## Hooks
 
-**This table is a selection, not an inventory — 8 of the 20 registrations in
+**This table is a selection, not an inventory — 9 of the 22 registrations in
 `hooks/hooks.json`.** Derive the real figure rather than trusting this sentence:
 
 ```bash
@@ -136,10 +136,48 @@ below is not thereby inactive.
 | `SubagentStart` | `subagent-guidance.mjs` | Compact guidance for all subagents |
 | `PreToolUse` (Grep/Glob/Read/Bash) | `pre-tool-guard.mjs` | Hard-block Read/Edit/Write/Grep/Glob/Bash on source files (path-agnostic), redirect to codescout. Native Bash escalation continues through host approval; binary images/PDF and skill payloads also have read exemptions. |
 | `PreToolUse` (`mcp__codescout__.*`) | `principal-stamp.mjs` | Stamp the calling principal (`session_id/agent_id`) into codescout tool arguments, so the server can tell a subagent's call from its parent's — the one thing the MCP wire cannot carry. Silent for parent calls, by design. Emits **no** `permissionDecision`. |
+| `PostToolUse` (`mcp__codescout__.*`) | `cs-verified-relocate.mjs` | Move a server-verified `advice` out of a codescout result into `[cs-verified]` hook context. Fail-open, 5 s timeout. Not released; see the section below. |
 | `PostToolUse` (EnterWorktree) | `worktree-activate.mjs` | Symlink .codescout/ and inject workspace guidance |
 | `PreToolUse` (Edit/Write/edit_code/edit_file/create_file) | `constitution-guard.mjs` | Deny-once-per-epoch enforcement of path-scoped "constitution" tracker rules — shells into `codescout constitution-check --path` |
 | `UserPromptSubmit` | `constitution-brief.mjs` | Surface global (path-less) "constitution" tracker rules once per epoch via `additionalContext` |
 | `PreCompact` | `constitution-epoch-bump.mjs` | Bump the per-session constitution "epoch" so rules re-surface after compaction |
+
+### `cs-verified-relocate.mjs` (not released)
+
+A `PostToolUse` hook on `mcp__codescout__.*` (5 s timeout). When a codescout result
+carries a top-level `advice` object whose `verified` is the boolean `true`, the hook
+removes `advice` from that one content block and delivers its text as hook context,
+tagged `[cs-verified]`. It acts only when all of these hold:
+
+- the tool name starts with `mcp__codescout__`;
+- the Claude Code session-id gate passes: `session_id` in the hook input equals the
+  `CLAUDE_CODE_SESSION_ID` the CLI sets for the hook;
+- the advice text has no invisible or non-printing characters, no look-alike markers
+  and no control characters. The text can carry a path or a symbol name from the user's
+  code, so advice that fails this check stays in the result.
+
+It **never** moves an unverified advice, a protocol hint or a safety warning: `hint`
+is untouched. On every other path it prints nothing and exits 0 (fail-open; it never
+exits 2). The header comment of the script lists the remaining limits (size caps,
+round-trip refusals).
+
+Measured on Claude Code 2.1.318 and 2.1.311, in `-p` mode only. Interactive sessions,
+`/clear`, `--fork-session`, compaction persistence, VS Code and Copilot are not
+measured. Measurements and decisions are in
+`contracts/fixtures/cs-verified/results.md` and the `README.md` beside it.
+
+**Not yet.** The hook relocates whenever the gates pass, with or without a consent
+statement in the user's `CLAUDE.md`. That statement is a future step and is not
+shipped; it will only change how the model treats the `[cs-verified]` context. Until
+it exists, the relocated text is ordinary hook context, and its effect on the model is
+not measured for this class of hint. The hook is not released: a version bump goes
+through `./scripts/release.sh`.
+
+Pairing with the server, in the style of the `principal-stamp.mjs` section below:
+
+- **New hook, old server** (no `advice` field) — the hook never acts.
+- **New server, old or absent hook** — the advice stays in the result, as before.
+
 ## Ollama Setup
 
 Semantic search (`semantic_search`, `index`) requires an embedding backend.

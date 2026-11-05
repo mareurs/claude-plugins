@@ -178,6 +178,16 @@
             "command": "node ${CLAUDE_PLUGIN_ROOT}/hooks/cs-liveness.mjs"
           }
         ]
+      },
+      {
+        "matcher": "mcp__codescout__.*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node ${CLAUDE_PLUGIN_ROOT}/hooks/cs-verified-relocate.mjs",
+            "timeout": 5
+          }
+        ]
       }
     ],
     "Stop": [

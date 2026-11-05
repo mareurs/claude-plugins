@@ -75,6 +75,35 @@ else
   fail "PostToolUse/Bash matcher -> suspicious-zero-hint.mjs" "got: $MATCH"
 fi
 
+# Test 3d: the cs-verified relocation hook is registered on PostToolUse with the
+# codescout matcher. The EVENT is asserted: the hook reads the tool RESULT and
+# rewrites it, which PreToolUse cannot do, and `mcp__codescout__.*` is already
+# registered there for principal-stamp.mjs, so a bare "matcher exists" check
+# would pass on the wrong event. The command must be the portable string with no
+# `args` field, and `timeout` must be 5 (the hook runs after every codescout
+# call; a hang must not cost a session the CLI's default timeout). The script
+# must also exist and parse under node.
+CSV_ENTRY=$(jq -c '[.hooks.PostToolUse[]
+  | select(.matcher == "mcp__codescout__.*")
+  | .hooks[]
+  | select(.command | test("cs-verified-relocate"))]' "$HOOKS_JSON")
+CSV_PRE=$(jq -r '[.hooks.PreToolUse[]?.hooks[]? | select(.command | test("cs-verified-relocate"))] | length' "$HOOKS_JSON")
+CSV_COUNT=$(echo "$CSV_ENTRY" | jq 'length')
+CSV_CMD=$(echo "$CSV_ENTRY" | jq -r '.[0].command // ""')
+CSV_ARGS=$(echo "$CSV_ENTRY" | jq -r '.[0] | has("args")')
+CSV_TIMEOUT=$(echo "$CSV_ENTRY" | jq -r '.[0].timeout // "none"')
+CSV_SCRIPT="$HOOK_DIR/cs-verified-relocate.mjs"
+CSV_ALL=$(jq -r '[.hooks | to_entries[] | .key as $ev | .value[] | select(.hooks[].command | test("cs-verified-relocate")) | $ev] | join(",")' "$HOOKS_JSON")
+if [[ "$CSV_COUNT" == "1" && "$CSV_PRE" == "0" && "$CSV_ALL" == "PostToolUse" ]] \
+   && [[ "$CSV_CMD" =~ ^node\ \$\{CLAUDE_PLUGIN_ROOT\}/hooks/cs-verified-relocate\.mjs$ ]] \
+   && [[ "$CSV_ARGS" == "false" && "$CSV_TIMEOUT" == "5" ]] \
+   && [[ -f "$CSV_SCRIPT" ]] && node --check "$CSV_SCRIPT" 2>/dev/null; then
+  pass "PostToolUse/mcp__codescout__.* -> cs-verified-relocate.mjs (portable, timeout 5, script parses)"
+else
+  fail "PostToolUse/mcp__codescout__.* -> cs-verified-relocate.mjs (portable, timeout 5, script parses)" \
+    "events=$CSV_ALL count=$CSV_COUNT pre=$CSV_PRE cmd=$CSV_CMD has_args=$CSV_ARGS timeout=$CSV_TIMEOUT"
+fi
+
 # Test 4: existing matchers preserved
 for keep in "pre-tool-guard.mjs" "worktree-write-guard.mjs"; do
   if grep -q "$keep" "$HOOKS_JSON"; then
