@@ -314,6 +314,60 @@ def case_prescribed_exemplars(cs: IsolatedCodescout) -> None:
          f"found but not parseable as a call: {len(unparsed_at)}" + (f" ({', '.join(unparsed_at)})" if unparsed_at else ""))
 
 
+SPEC_DRIFT_SKILL = SKILLS / "spec-drift" / "SKILL.md"
+
+
+def case_spec_drift(cs: IsolatedCodescout) -> None:
+    """spec-drift's own `event_create` call, with the id filled, is accepted on a `kind: spec` artifact
+    and reads back; the same call with event kind "verdikt" is refused."""
+    label = "spec-drift/SKILL.md event_create"
+    text = SPEC_DRIFT_SKILL.read_text()
+    m = re.search(r'doc\(\s*action\s*=\s*"event_create"', text)
+    if not m:
+        return bad(f"{label} call extracted", 'no doc(action="event_create" ...) in the skill')
+    try:
+        node = ast.parse(text[m.start():call_end(text, m.start() + 3)], mode="eval").body
+        call = {kw.arg: ast.literal_eval(kw.value) for kw in node.keywords}
+    except (SyntaxError, ValueError) as exc:
+        return bad(f"{label} call extracted", f"not parseable as a call: {exc}")
+    if not str(call.get("id", "")).startswith("<"):
+        return bad(f"{label} call extracted", "skill no longer leaves `id` as a <placeholder>; update case_spec_drift")
+    ok(f"{label} call extracted")
+
+    made = cs.call("doc", action="create", kind="spec", status="active", title="Fixture spec",
+                   rel_path="docs/superpowers/specs/2026-11-05-fixture-design.md",
+                   body="# Fixture design\n\n## Acceptance criteria\n\n- Exports a CSV\n")
+    if not made.ok:
+        return bad("fixture kind=spec artifact created", made.error or made.text[:200])
+    sid = made.payload["id"]
+    CREATED.append(sid)
+
+    # CONTROL FIRST: an unknown event kind must be refused, or the PASS below proves nothing.
+    wrong = dict(call, id=sid, event={**call["event"], "kind": "verdikt"})
+    refused = cs.call("doc", **wrong)
+    if refused.ok:
+        return bad(f'{label}: control (event kind "verdikt") is refused',
+                   "harness cannot detect a bad event kind: the call was accepted")
+    ok(f'{label}: control (event kind "verdikt") is refused')
+
+    reply = cs.call("doc", **dict(call, id=sid))
+    if not reply.ok:
+        return bad(f"{label}: prescribed call is accepted", reply.error or reply.text[:200])
+    ok(f"{label}: prescribed call is accepted")
+
+    listed = cs.call("doc", action="event_list", id=sid, kinds=["verdict"])
+    want = call["event"]["payload"]["outcome"]
+    if listed.ok and re.search(r'"outcome":\s*"%s"' % re.escape(want), listed.text):
+        ok(f'{label}: event_list(kinds=["verdict"]) returns the recorded outcome')
+    else:
+        bad(f"{label}: event_list returns the recorded outcome", listed.error or listed.text[:200])
+    while CREATED:
+        dropped = cs.call("doc", action="delete", id=CREATED.pop(), force=True)
+        if not dropped.ok:
+            bad(f"{label}: fixture spec dropped", dropped.error or dropped.text[:200])
+
+
+
 def main() -> int:
     binary = find_binary()
     if binary is None:
@@ -335,6 +389,7 @@ def main() -> int:
         with IsolatedCodescout(repo, sandbox, binary) as cs:
             case_fixture_ledger(cs, repo, call)
             case_prescribed_exemplars(cs)
+            case_spec_drift(cs)
             if template.is_file():
                 case_real_template(cs, repo, template, call)
             else:
