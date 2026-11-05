@@ -55,9 +55,6 @@ PENDING_REWRITE=(
   sdd/commands/review.md
   sdd/commands/sdd-init.md
   sdd/README.md
-  sdd/hooks/session-start.mjs
-  sdd/hooks/subagent-inject.mjs
-  sdd/hooks/hooks.json
 )
 
 # Task 10, Step 1 flips this to 1: the list must then be empty, and every file is scanned.
