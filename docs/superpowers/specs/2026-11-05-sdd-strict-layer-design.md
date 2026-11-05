@@ -165,7 +165,8 @@ record is keyed the same way from both. This helper is `sdd`'s own (companion's
 copy test.
 
 - **spec-guard** (PreToolUse). Matchers: `Write|Edit|MultiEdit|NotebookEdit` and
-  `mcp__codescout__(edit_file|edit_code|create_file)`.
+  `mcp__codescout__(edit_file|edit_code|create_file|doc)` (`doc` only for the
+  approval-field rule below: an `update`/`create` that sets an approval field).
   - Exempt targets: anything under `docs/`, `.sdd/`, `.claude/`, `.codescout/`, and
     `*.md`, `*.json`, `*.yaml`, `*.yml`, `*.toml`, `*.ini`, `*.env` (the current
     exemption list, `sdd/hooks/spec-guard.mjs:19`, plus the new directories).
@@ -207,7 +208,10 @@ copy test.
 (`sed -i`, `>`, `tee`, via `Bash` or `run_command`) are not detected by spec-guard,
 and a deliberate shell write can forge an approval record. The guards stop edits
 through edit tools and self-unblocking through `mark-reviewed`; they are not a
-sandbox. Companion's guards have the same limit.
+sandbox. Companion's guards have the same limit. Likewise, an agent that edits a
+plan's `branch:` field can widen its gate from "the plan for this branch" to "any
+active plan"; that also takes a deliberate edit, and is accepted on the same terms
+(ruling 2026-11-05, Task 6 review).
 
 ### Approval channel
 

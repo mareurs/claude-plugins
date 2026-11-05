@@ -256,7 +256,7 @@ Decision for this task: the review gate reads `<approvalsDir>/<feature>.report.j
 
 **Interfaces:**
 - Consumes: Task 5 lib (`contextEvent`, `activePlans`, `loadConfig`).
-- Produces: `hooks.json` entries — SessionStart (sync, `startup|resume|clear|compact`) → `session-start.mjs`; UserPromptSubmit → `approve-intake.mjs`; PreToolUse `Write|Edit|MultiEdit|NotebookEdit|mcp__codescout__edit_file|mcp__codescout__edit_code|mcp__codescout__create_file` → `spec-guard.mjs`; PreToolUse `Bash|mcp__codescout__run_command` → `review-guard.mjs`; SubagentStart → `subagent-inject.mjs`. Every command `node "${CLAUDE_PLUGIN_ROOT}/hooks/<hook>.mjs"`.
+- Produces: `hooks.json` entries — SessionStart (sync, `startup|resume|clear|compact`) → `session-start.mjs`; UserPromptSubmit → `approve-intake.mjs`; PreToolUse `Write|Edit|MultiEdit|NotebookEdit|mcp__codescout__edit_file|mcp__codescout__edit_code|mcp__codescout__create_file|mcp__codescout__doc` → `spec-guard.mjs`; PreToolUse `Bash|mcp__codescout__run_command` → `review-guard.mjs`; SubagentStart → `subagent-inject.mjs`. Every command `node "${CLAUDE_PLUGIN_ROOT}/hooks/<hook>.mjs"`.
 
 - [ ] **Step 1: Write the failing tests:**
   - session-start: no config → empty; strict with one active plan → `hookEventName:'SessionStart'`, text names the mode and the feature; malformed config → text says the config is unreadable and enforcement is `warn` (Review Focus 5).
