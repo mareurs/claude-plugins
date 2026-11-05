@@ -1,15 +1,55 @@
-"""Summarise one cs-verified probe run dir as JSON (what the hook got, what it printed, what the model saw).
+"""Summarise one cs-verified probe run dir as JSON (what the hook got, what it printed, what the model saw),
+or write the committed fixtures from a run dir.
 
-Usage: python3 -I analyze.py <run-dir>
+Usage:
+  python3 -I analyze.py <run-dir>                      summary JSON on stdout
+  python3 -I analyze.py stdin-fixture <run-dir> <out>  write the first hook call's raw stdin bytes to <out>
+  python3 -I analyze.py env-fixture <run-dir> <out>    write the first hook call's environment record to <out>
+                                                       (the claude-<ver>-hook-env-*.json shape)
 
 Sources: hook-log.jsonl (written by hook.py), stream.jsonl (--include-hook-events),
-transcript.jsonl (the session transcript copied by run.sh), exit.txt, binary.txt.
+transcript.jsonl (the session transcript copied by run.sh), exit.txt, binary.txt, env-passed.txt.
 """
 import json, os, re, sys
 
-run = sys.argv[1]
+POLLUTED = {"CLAUDECODE": "polluted", "CLAUDE_CODE_ENTRYPOINT": "polluted", "CLAUDE_CODE_SESSION_ID": "polluted",
+            "AI_AGENT": "polluted", "CLAUDE_PROJECT_DIR": "/polluted", "CLAUDE_EFFORT": "polluted",
+            "CLAUDE_PID": "polluted", "CLAUDE_PLUGIN_ROOT": "/polluted"}  # the values run.sh hands over with PROBE_POLLUTE=1
 MARKERS = ("[cs-verified]", "probe_fn_9v", "HINT_KEEP_4K", "SECOND_BLOCK_7Q",
            "PROBE_EXIT2_STDERR_5M", "MALFORMED_6P")
+
+
+def first_hook_call(run_dir):
+    with open(os.path.join(run_dir, "hook-log.jsonl")) as f:
+        for line in f:
+            if line.strip():
+                r = json.loads(line)
+                if "stdin_raw" in r:
+                    return r
+    raise SystemExit(f"{run_dir}: no hook call logged")
+
+
+def write_fixture(cmd, run_dir, dest):
+    """stdin-fixture: the raw stdin bytes. env-fixture: the environment record committed as claude-<ver>-hook-env-*.json."""
+    r = first_hook_call(run_dir)
+    if cmd == "stdin-fixture":
+        json.loads(r["stdin_raw"])  # must be one JSON document
+        with open(dest, "w") as f:
+            f.write(r["stdin_raw"])
+        return
+    d = json.loads(r["stdin_raw"])
+    passed = open(os.path.join(run_dir, "env-passed.txt")).read().split("\n")
+    name = os.path.basename(run_dir.rstrip("/"))
+    out = {"run": name, "binary": open(os.path.join(run_dir, "binary.txt")).read().strip(),
+           "envPassedToCli": passed[0].split(),
+           "pollutedPassedToCli": POLLUTED if len(passed) > 1 and passed[1] else {},
+           "redaction": "values of names matching TOKEN|KEY|SECRET|PASSWORD|AUTH|CREDENTIAL|COOKIE replaced by their length",
+           "hookRegisteredVia": "plugin (--plugin-dir, ${CLAUDE_PLUGIN_ROOT} in command)" if "plugin" in name else "--settings",
+           "stdinSessionId": d.get("session_id"), "stdinAgentId": d.get("agent_id"),
+           "stdinKeys": r["stdin_keys"], "hookEnv": r["env"]}
+    with open(dest, "w") as f:
+        f.write(json.dumps(out, indent=1) + "\n")
+
 
 
 def rows(name):
@@ -33,6 +73,10 @@ def shape(tr):
     return {"type": type(tr).__name__}
 
 
+if len(sys.argv) == 4 and sys.argv[1] in ("stdin-fixture", "env-fixture"):
+    write_fixture(*sys.argv[1:])
+    sys.exit(0)
+run = sys.argv[1]
 out = {"run": os.path.basename(run.rstrip("/"))}
 for f in ("binary.txt", "exit.txt"):
     p = os.path.join(run, f)

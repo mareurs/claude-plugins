@@ -16,9 +16,12 @@
 #                     CLAUDE_EFFORT, CLAUDE_PID, CLAUDE_PLUGIN_ROOT) to see which ones the CLI overwrites
 #
 # The CLI runs with an explicit environment (execve, the `env -i` equivalent) of exactly: HOME, PATH (fixed below), CLAUDE_CONFIG_DIR (a fresh
-# directory inside the run dir, so no profile is read or written), CLAUDE_CODE_OAUTH_TOKEN
-# (from PROBE_TOKEN_FILE) and DISABLE_AUTOUPDATER=1. Nothing from the calling session leaks in.
-# Settings come only from --settings (plus --setting-sources local in an empty cwd).
+# directory inside the run dir, so no profile config dir is read or written), CLAUDE_CODE_OAUTH_TOKEN
+# (from PROBE_TOKEN_FILE) and DISABLE_AUTOUPDATER=1. No environment variable of the calling session leaks in.
+# Settings files: only --settings (plus --setting-sources local in an empty cwd). Not isolated from that:
+# the CLI still loads its builtin plugins (4 on 2.1.318: cc-plugin-agents-md, -telemetry, -privacy,
+# -plugin-authoring; 3 on 2.1.311, without -privacy; listed in the stream's init event) and fetches
+# remote-settings.json ({} in every run) and policy-limits.json from the network into the run's config dir.
 # Evidence: stream.jsonl (with --include-hook-events), the session transcript (copied to
 # transcript.jsonl), hook-log.jsonl (what the hook process received).
 set -euo pipefail
@@ -26,6 +29,12 @@ D="$(cd "$(dirname "$0")" && pwd)"
 VER="$1"; LABEL="$2"; STUB="$3"; HOOK="$4"; TMO="${5:-}"; KIND="${6:-main}"
 BIN="$HOME/.local/share/claude/versions/$VER"
 : "${PROBE_OUT:?set PROBE_OUT}"; : "${PROBE_TOKEN_FILE:?set PROBE_TOKEN_FILE}"
+case "$LABEL" in
+  ""|*/*|*..*) echo "run.sh: label must be a non-empty single path component without '..': '$LABEL'" >&2; exit 2 ;;
+esac
+if [ ! -f "$PROBE_TOKEN_FILE" ] || [ -L "$PROBE_TOKEN_FILE" ] || [ "$(stat -c %a "$PROBE_TOKEN_FILE")" != 600 ]; then
+  echo "run.sh: PROBE_TOKEN_FILE must be a regular file with mode 0600" >&2; exit 2
+fi
 RUN="$PROBE_OUT/$LABEL"; rm -rf "$RUN"; mkdir -p "$RUN/work" "$RUN/config"
 echo "binary: $("$BIN" --version 2>&1 | head -1)  sha256: $(sha256sum "$BIN" | cut -c1-16)" > "$RUN/binary.txt"
 printf '{"mcpServers": {"codescout": {"command": "/usr/bin/python3", "args": ["-I", "%s/stub_mcp.py", "%s"]}}}\n' \

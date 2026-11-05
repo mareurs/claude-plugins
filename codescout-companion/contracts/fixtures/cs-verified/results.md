@@ -61,7 +61,7 @@ Runs: `v318-two-relocate`, `v311-two-relocate`, `v318-mixed-relocate`, `v311-mix
   `PostToolUse:mcp__codescout__edit_code hook additional context: [cs-verified] verify callers: references(symbol="probe_fn_9v", path="src/lib.rs") | ...`
   followed by the CLI's own budget lines. It is not a `<system-reminder>` block, and the text the model sees does not
   start with `[cs-verified]`: the CLI prefixes `<hook name> hook additional context: `.
-- The model's reply (2.1.318): "Yes, I saw text starting with `[cs-verified]`, but not in the tool's result blocks.
+- The model's reply (2.1.318, runs `v318-plugin-relocate` and `v318-two-big`): "Yes, I saw text starting with `[cs-verified]`, but not in the tool's result blocks.
   It appeared in a PostToolUse hook's additional context, after the call".
 
 **DECISION (Q3):** Task 2 prints exactly the shape above; it works on 2.1.318 and 2.1.311 for 1, 2 and 3(+1) blocks.
@@ -102,12 +102,31 @@ subagent calls on both versions; the subagent call carries the parent's session 
 
 **DECISION (Q4), the host gate:**
 `input.hook_event_name === "PostToolUse" && typeof input.session_id === "string" && input.session_id !== "" && process.env.CLAUDE_CODE_SESSION_ID === input.session_id`.
-It uses only what this CLI writes for the call itself: an inherited `CLAUDE_CODE_SESSION_ID` is overwritten, and a
-value inherited by some other host's hook process would name a different session than that host's stdin. Do not use
-`AI_AGENT`, `CLAUDE_CODE_ENTRYPOINT` or `CLAUDE_PLUGIN_ROOT` (inherited, measured), nor `CLAUDECODE` alone (constant).
-Not measured: what VS Code or Copilot put in a hook's stdin and environment; whether the variable follows the stdin
-id after `--resume`, `/clear`, `--fork-session` or compaction, and interactive (non `-p`) sessions. A mismatch fails
-closed (the hook prints nothing, the advice stays in the result).
+Do not use `AI_AGENT`, `CLAUDE_CODE_ENTRYPOINT` or `CLAUDE_PLUGIN_ROOT` (inherited, measured), nor `CLAUDECODE` alone
+(constant). A mismatch fails closed: the hook prints nothing and the advice stays in the result.
+
+What the measurements establish:
+
+- On 2.1.318 and 2.1.311, in `-p` mode, the CLI writes its own `CLAUDE_CODE_SESSION_ID` over an inherited one. This
+  was measured once per version, with the inherited value `polluted`, and with `--session-id` always passed
+  (`run.sh`, the `ARGS=` line). The CLI also overwrites `CLAUDECODE`.
+- The environment value equals stdin `session_id` for main-agent, plugin and subagent calls, in all 23 hook calls.
+- One extra run by the reviewer of `51519f4` (`-p --resume <id>` without `--session-id`, USD 0.00141; reported in the
+  review, not re-run here) kept the session id, with the environment value equal to stdin `session_id` and the same
+  13 stdin keys.
+
+What they do not establish:
+
+- Interactive (non `-p`) sessions, `/clear`, `--fork-session`, compaction.
+- Whether an inherited value shaped like a UUID is overwritten or adopted (adoption would still be self-consistent).
+- What VS Code or Copilot put in a hook's stdin and environment.
+- Inference, not measured: a `CLAUDE_CODE_SESSION_ID` inherited by some other host's hook process would name a
+  different session than that host's stdin.
+
+**BINDING NOTE:** the real risk of this gate is a SILENT fail-closed. If an interactive session or `/clear` leaves the
+environment id and the stdin id different, the feature never fires and nothing reports it. Task 4 must include at
+least one interactive-mode, `/clear` or `--fork-session` run before the gate is called proven, or state in its results
+that this was not measured.
 
 ## 5. Failure modes
 
@@ -115,7 +134,7 @@ All on the two-block stub; both versions gave the same outcome.
 
 | Mode (run) | Stream `hook_response` | Result the model got | Shown to the model | Session |
 |---|---|---|---|---|
-| sleep 5 s with `"timeout": 2` (`v318-two-timeout`, `v311-two-timeout`) | `outcome: cancelled`, `exit_code: 1`, stdout empty | unchanged (advice in it) | nothing | continued; exit 0. Cancelled 2.05 s / 2.07 s after the hook started; the hook process was killed (its post-sleep log line never appeared) |
+| sleep 5 s with `"timeout": 2` (`v318-two-timeout`, `v311-two-timeout`) | `outcome: cancelled`, `exit_code: 1`, stdout empty | unchanged (advice in it) | nothing | continued; exit 0. The CLI cancelled the hook 2.05 s / 2.07 s after it started (evidenced: hook start time vs the `hook_cancelled` timestamp). When the process was killed is not evidenced: its post-sleep log line never appeared, so it did not survive its 5 s sleep, but the log cannot say whether it died at the 2 s cancel or later (the runs took 6.48 s / 6.59 s wall) |
 | `exit 2` + stderr line (`v318-two-exit2`, `v311-two-exit2`) | `outcome: error`, `exit_code: 2`, stderr = the line | unchanged | **yes**: a system turn `PostToolUse:mcp__codescout__edit_code hook blocking error from command: "<full command line>": [<full command line>]: PROBE_EXIT2_STDERR_5M: text the probe hook wrote to stderr before exit 2`; the model mentioned it in its reply | continued; exit 0 |
 | truncated JSON on stdout, exit 0 (`v318-two-malformed`, `v311-two-malformed`) | `outcome: success`, `exit_code: 0` | unchanged | nothing (the raw text is kept as a `hook_success` attachment in the transcript only) | continued; exit 0 |
 | 2 MiB stdout: valid relocation JSON with 2 MiB of spaces between its two members (`v318-two-big`, `v311-two-big`) | `outcome: success`, all 2,097,708 bytes | relocated (advice removed) | the `[cs-verified]` context, as in Q3 | continued; exit 0; the transcript stored the whole stdout (2.15 MB transcript vs 57 KB for `two-relocate`) |
@@ -123,7 +142,8 @@ All on the two-block stub; both versions gave the same outcome.
 **DECISION (Q5):** every path exits 0 and writes nothing to stderr; exit 2 is the one mode that leaks hook text
 (and the command line) to the model, so the hook must never use it. A timeout and malformed JSON both leave the
 result unchanged and show nothing; keep the default hook timeout (a short `timeout` only costs the relocation).
-Output size is not a CLI failure mode up to 2 MiB, but the CLI writes the hook's stdout verbatim into the transcript
+Output size was not a CLI failure mode at 2 MiB, measured only with 2 MiB of whitespace padding inside valid JSON;
+a 2 MiB `updatedToolOutput` or `additionalContext` was not measured. The CLI writes the hook's stdout verbatim into the transcript
 on every call, so the hook's own size limit (Review Focus: huge `tool_response` → print nothing) is what bounds that growth.
 
 ## 6. Subagent tool calls (record only)
@@ -141,7 +161,7 @@ the `Agent` tool; the subagent called the stub once). Fixtures `claude-<ver>-sub
 
 - Relocated context surviving compaction (spec "What is left to the builder"): no compaction was triggered.
 - Behaviour under VS Code / Copilot hosts, and in interactive sessions (every run was `-p`, entrypoint `sdk-cli`).
-- `--resume`, `/clear`, `--fork-session` effect on `CLAUDE_CODE_SESSION_ID` vs stdin `session_id`.
+- `/clear`, `--fork-session` and interactive sessions vs the session-id equality (`-p --resume` only: one reviewer run, see Q4).
 - Exit 0 with text on stderr; exit codes other than 0, 1 (prior probe) and 2.
 - A `tool_response` that the CLI itself truncates or persists (large MCP results): the stub's results are small.
 - Which variable switched on the extra stdin key `scratchpad_dir`, seen only in the two polluted runs (eight
