@@ -83,7 +83,15 @@ node codescout-companion/background-wake/cli.mjs activate --profile /absolute/se
 
 Activation inspects the explicit legacyStateDir and refuses live or unverified mapped watcher PIDs. It never adopts an existing legacy job. Rolling the config back cannot adopt a v1-owned record either. The acknowledgement flag is an operator assertion that old intake is disabled; the tool cannot inspect arbitrary host registration. Do not enable both registrations during migration.
 
-Claude's existing hooks/hooks.json already invokes the compatibility wrapper; no additional Claude registration is needed. Codex 0.165.0 was measured with a profile hooks.json containing PostToolUse command hooks. Merge this Linux-only entry into that profile's existing hooks, using absolute prepared-plugin/profile paths and normal shell quoting:
+Claude's existing hooks/hooks.json already invokes the compatibility wrapper; no additional Claude registration is needed. For Codex, install the stable profile-local launcher from the prepared checkout:
+
+```sh
+node codescout-companion/background-wake/codex-hook.mjs --install --profile /absolute/selected/profile
+```
+
+The installer preserves unrelated hooks, replaces the previous versioned wake registration, and saves the original `hooks.json` as `hooks.json.before-versionless-wake`. Re-running it is safe. The installed launcher stays in the profile when plugin caches are replaced. Each invocation asks `codex plugin list --json` which enabled companion version is installed and validates that version's manifest and cache path inside the same profile. It follows the selected version, including downgrades; it never guesses the newest directory or falls back to another profile. The profile comes from the launcher's location, and `environmentId` comes from that profile's wake configuration. Missing configuration or a disabled/uninstalled companion is a silent no-op; malformed configuration, missing selected caches, ambiguous installations and launch failures remain errors.
+
+The resulting Linux hook command uses `CODEX_HOME` with the normal single-profile fallback:
 
 ```json
 {
@@ -92,7 +100,7 @@ Claude's existing hooks/hooks.json already invokes the compatibility wrapper; no
       "matcher": "mcp__codescout__run_command",
       "hooks": [{
         "type": "command",
-        "command": "node '/absolute/prepared/codescout-companion/background-wake/cli.mjs' launch --harness codex --profile '/absolute/selected/profile' --environment linux"
+        "command": "node \"${CODEX_HOME:-$HOME/.codex}/hooks/codescout-wake.mjs\""
       }]
     }]
   }
