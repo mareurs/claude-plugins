@@ -195,6 +195,11 @@ copy test.
   plan (more than one active plan → deny and ask which). Commits on a feature
   branch, including superpowers' per-task commits, pass. It also denies a command
   that runs `mark-reviewed` or writes the approval-record directory.
+  *Amended by the final review (2026-11-05, I3/I5):* the record counts only while
+  its `head` equals the current tip of the plan's `branch:` (for a commit on the
+  base branch too, so the step-9 frontmatter commit passes); a plan with no
+  `branch:` is checked for the record's existence only. A commit or push on the
+  base branch with several active plans passes when every one has a valid record.
 - **approve-intake** (UserPromptSubmit) — the approval channel, § Approval channel.
 - **session-start** (SessionStart, sync, matcher `startup|resume|clear|compact`).
   One short banner: enforcement mode, active feature(s), the next gate.
