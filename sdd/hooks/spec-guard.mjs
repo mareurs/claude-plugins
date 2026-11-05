@@ -56,10 +56,42 @@ function readText(abs) {
   try { return readFileSync(abs, 'utf8'); } catch { return null; }
 }
 
+const normQuotes = (s) => s.replace(/[‘’]/g, "'").replace(/[“”]/g, '"');
+
+// Replace oldS by newS in text, matching exactly first and otherwise modulo curly
+// quotes and CRLF/LF (as the host's Edit does). Returns null when not found.
 function applyEdit(text, oldS, newS, all) {
-  if (typeof oldS !== 'string' || typeof newS !== 'string' || oldS === '' || !text.includes(oldS)) return null;
-  return all ? text.split(oldS).join(newS) : text.replace(oldS, () => newS);
+  if (typeof oldS !== 'string' || typeof newS !== 'string' || oldS === '') return null;
+  // LF-normalised copy of text with an index map back to the original.
+  let lf = '';
+  const map = [];
+  for (let i = 0; i < text.length; i++) {
+    if (text[i] === '\r' && text[i + 1] === '\n') continue;
+    map.push(i);
+    lf += text[i];
+  }
+  map.push(text.length);
+  const hay = normQuotes(lf);
+  const needle = normQuotes(oldS.replace(/\r\n/g, '\n'));
+  const crlf = text.includes('\r\n');
+  const rep = crlf ? newS.replace(/\r?\n/g, '\r\n') : newS;
+  const spans = [];
+  for (let from = 0; ;) {
+    const i = hay.indexOf(needle, from);
+    if (i < 0) break;
+    spans.push([map[i], map[i + needle.length]]);
+    from = i + needle.length;
+    if (!all) break;
+  }
+  if (!spans.length) return null;
+  let out = text;
+  for (let k = spans.length - 1; k >= 0; k--) out = out.slice(0, spans[k][0]) + rep + out.slice(spans[k][1]);
+  return out;
 }
+
+// An approval word or key in text the guard could not simulate.
+const approvalWords = (t) => typeof t === 'string' &&
+  (/\b(approved|implemented|done)\b/i.test(t) || APPROVED_KEY_RE.test(t));
 
 // True when the call sets an approval field. With absPath, text edits are
 // simulated against the current file and the frontmatter compared before/after
@@ -86,18 +118,30 @@ export function touchesApprovalFields(input, absPath) {
   const simulable = before !== null && absPath;
   let cur = before;
   const steps = [];
-  if (ti.old_string !== undefined || ti.new_string !== undefined) {
-    steps.push({ old_string: ti.old_string, new_string: ti.new_string, replace_all: ti.replace_all });
+  if (ti.old_string !== undefined || ti.new_string !== undefined || ti.insert !== undefined) {
+    steps.push({ old_string: ti.old_string, new_string: ti.new_string, content: ti.content, insert: ti.insert, replace_all: ti.replace_all });
   }
   for (const e of edits) steps.push(e);
   if (!steps.length) {
     for (const k of TEXT_KEYS) fallback.push(ti[k]);
   }
+  let unsimulated = false;
   for (const s of steps) {
-    const next = simulable && cur !== null ? applyEdit(cur, s.old_string, s.new_string, s.replace_all) : null;
+    let next = null;
+    if (simulable && cur !== null) {
+      const ins = s.new_string ?? s.content;
+      if (s.insert === 'prepend' && typeof ins === 'string') next = ins + cur;
+      else if (s.insert === 'append' && typeof ins === 'string') next = cur + ins;
+      else if (s.insert === undefined) next = applyEdit(cur, s.old_string, s.new_string, s.replace_all);
+    }
     if (next !== null) cur = next;
-    else for (const k of TEXT_KEYS) fallback.push(s[k]);
+    else {
+      // cannot simulate this step: fail closed on approval words in its new text
+      for (const k of TEXT_KEYS) if (approvalWords(s[k])) unsimulated = true;
+      for (const k of TEXT_KEYS) fallback.push(s[k]);
+    }
   }
+  if (unsimulated) return true;
   if (simulable && cur !== before && fmApprovalChange(before, cur)) return true;
   return fallback.some(textApproves);
 }

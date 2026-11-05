@@ -226,6 +226,7 @@ describe('artifacts and activePlans', () => {
   test('draft plan is not active', () => {
     const d = tmp();
     write(d, SPEC, '---\nstatus: approved\n---\nS');
+    write(d, PLAN, planBody('draft'));
     assert.deepEqual(lib.activePlans(d), []);
   });
   test('spec pointer outside docs/superpowers/specs is not active', () => {

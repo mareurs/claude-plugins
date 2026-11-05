@@ -239,3 +239,32 @@ test('codescout doc: update/create setting an approval field is denied; find and
   const none = repo({ config: null });
   assert.equal(run({ cwd: none, tool_name: 'mcp__codescout__doc', tool_input: { action: 'update', id: 'a', patch: { status: 'approved' } } }), '');
 });
+
+test('two-step forge via edit_file insert is caught at step 2', () => {
+  const root = repo({ config: { enforcement: 'warn' } });
+  const p = join(root, SPEC);
+  // step 1: no opening delimiter, frontmatter unchanged -> allowed
+  assert.equal(run({ cwd: root, tool_name: 'Write', tool_input: { file_path: p, content: 'status: approved\n---\n# S\n' } }), '');
+  put(root, SPEC, 'status: approved\n---\n# S\n'); // the write lands
+  denied(run({ cwd: root, tool_name: 'mcp__codescout__edit_file', tool_input: { path: SPEC, workspace: root, insert: 'prepend', new_string: '---\n' } }), 'insert prepend');
+  // append that creates an approved block at the end is not frontmatter: allowed
+  put(root, SPEC, '---\nstatus: draft\n---\nbody\n');
+  assert.equal(run({ cwd: root, tool_name: 'mcp__codescout__edit_file', tool_input: { path: SPEC, workspace: root, insert: 'append', new_string: 'tail\n' } }), '');
+});
+
+test('curly-quote and CRLF old_string matches are simulated; unsimulable approval text fails closed', () => {
+  const root = repo({ config: { enforcement: 'warn' } });
+  const p = join(root, SPEC);
+  put(root, SPEC, '---\nstatus: "draft"\n---\nbody\n');
+  denied(run({ cwd: root, tool_name: 'Edit', tool_input: { file_path: p, old_string: '“draft”', new_string: '"approved"' } }), 'curly');
+  put(root, SPEC, '---\r\nstatus: draft\r\ntitle: T\r\n---\r\nbody\r\n');
+  denied(run({ cwd: root, tool_name: 'Edit', tool_input: { file_path: p, old_string: 'draft\ntitle', new_string: 'approved\ntitle' } }), 'crlf');
+  // unsimulable step (old_string absent) whose new text has an approval word: fail closed
+  put(root, SPEC, '---\nstatus: draft\n---\nbody\n');
+  denied(run({ cwd: root, tool_name: 'Edit', tool_input: { file_path: p, old_string: 'no such text', new_string: 'now approved' } }), 'unsimulable word');
+  denied(run({ cwd: root, tool_name: 'mcp__codescout__edit_file', tool_input: { path: SPEC, workspace: root, edits: [{ old_string: 'zzz', new_string: 'approved: yes' }] } }), 'unsimulable key');
+  // unsimulable step with no approval word: still allowed
+  assert.equal(run({ cwd: root, tool_name: 'Edit', tool_input: { file_path: p, old_string: 'no such text', new_string: 'plain words' } }), '');
+  // a quote-normalised edit that does not touch approval passes
+  assert.equal(run({ cwd: root, tool_name: 'Edit', tool_input: { file_path: p, old_string: 'bo’dy', new_string: 'text' } }), '');
+});
