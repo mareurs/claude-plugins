@@ -10,8 +10,11 @@ This project uses strict specification-driven development (`.sdd/config.json`). 
 1. Design with `superpowers:brainstorming`. The design doc is the spec.
 2. Stop. The user types `/sdd:approve spec <feature>`.
 3. Plan with `superpowers:writing-plans`. Fill the `**Spec:**` line with the plain path.
-4. Stop. The user types `/sdd:approve plan <feature>`. Commit spec and plan, then create the
-   worktree, and record `branch:` in the plan.
+4. Commit spec and plan while the plan is still `draft` (no plan is active, so the review guard
+   lets the commit through). Then stop: the user types `/sdd:approve plan <feature>`. Then
+   record `branch:` in the plan and create the worktree. The approval frontmatter written
+   after the commit stays uncommitted in the main checkout and is committed with the
+   integration, after `/sdd:approve review`; do not commit it on the base branch earlier.
 5. Execute with `superpowers:subagent-driven-development`. Source writes are denied until the
    plan is approved.
 6. Check drift with `codescout-companion:spec-drift`. A Missing or Divergent criterion stops

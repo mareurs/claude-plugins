@@ -33,10 +33,18 @@ You may write `status: draft`, `feature:`, `kind:` and `branch:` in frontmatter.
    `**Spec:** docs/superpowers/specs/2026-11-05-x-design.md`. A Markdown link is not
    followed, and the plan then never becomes active. Give the plan `kind: plan`,
    `status: draft`, `feature: <slug>`.
-5. **Gate 2.** Ask the user to type `/sdd:approve plan <feature>`. Then commit the spec and
-   the plan, and only then create the worktree: the worktree starts from HEAD and would not
-   contain them. Once the feature branch exists, write `branch: <name>` into the plan's
-   frontmatter.
+5. **Gate 2.** In this order:
+   1. Commit the spec and the plan while the plan is still `draft`. No plan is active yet,
+      so a commit on the base branch passes the review guard. The worktree starts from HEAD
+      and would not contain them otherwise.
+   2. Ask the user to type `/sdd:approve plan <feature>`.
+   3. Write `branch: <name>` into the plan's frontmatter (an allowed field).
+   4. Create the worktree and the feature branch.
+
+   The approval frontmatter that `/sdd:approve` writes after the commit stays an uncommitted
+   change in the main checkout; the hooks read it there. It is committed together with the
+   integration, after `/sdd:approve review`. Do not try to commit it on the base branch
+   before that: the review guard refuses.
 6. **Execute.** Call `superpowers:subagent-driven-development`, or
    `superpowers:executing-plans` for inline work. Source writes are denied until the plan is
    active; stay inside the spec.

@@ -416,6 +416,12 @@ def case_sdd_calls(cs: IsolatedCodescout) -> None:
                       event={"kind": "verdict", "payload": {"outcome": "refuted", "gate": "no-go"}})
     if not verdict.ok:
         return bad("sdd fixture verdict recorded", verdict.error or verdict.text[:200])
+    # A second, NEWER verdict with the opposite gate: the content says "take the newest verdict"
+    # because event_list returns newest first, so the first gate listed must be this one.
+    newer = cs.call("doc", action="event_create", id=ids["<spec id>"],
+                    event={"kind": "verdict", "payload": {"outcome": "confirmed", "gate": "go"}})
+    if not newer.ok:
+        return bad("sdd fixture newer verdict recorded", newer.error or newer.text[:200])
 
     # CONTROL FIRST: an unknown action must be refused, or the PASSes below prove nothing.
     refused = cs.call("doc", action="fnd", kind="spec")
@@ -452,8 +458,10 @@ def case_sdd_calls(cs: IsolatedCodescout) -> None:
         elif act == "get" and "entry_filter" in call:
             check('"C-1"' in reply.text, f"{label}: entry_filter returns the rule rows", reply.text)
         elif act == "event_list":
-            check('"gate"' in reply.text and "no-go" in reply.text,
-                  f"{label}: event_list returns the verdict's payload.gate", reply.text)
+            gates = re.findall(r'"gate":\s*"(go|no-go)"', reply.text)
+            check(gates[:2] == ["go", "no-go"],
+                  f"{label}: event_list lists the newer verdict (payload.gate go) before the older (no-go)",
+                  f"gates in order: {gates}: {reply.text}")
         elif act == "event_create":
             listed = cs.call("doc", action="event_list", id=ids["<spec id>"], kinds=["note"])
             check(listed.ok and call["event"]["payload"]["text"] in listed.text,

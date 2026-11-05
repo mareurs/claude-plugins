@@ -33,7 +33,10 @@ tracker. It never commits.
 1. Design with `superpowers:brainstorming`; the design doc is the spec.
 2. You type `/sdd:approve spec <feature>`.
 3. Plan with `superpowers:writing-plans`.
-4. You type `/sdd:approve plan <feature>`. Spec and plan are committed, then the worktree is made.
+4. Spec and plan are committed while the plan is still a draft; you type
+   `/sdd:approve plan <feature>`; `branch:` goes into the plan; then the worktree is made. The
+   approval frontmatter written after the commit stays uncommitted in the main checkout (the
+   hooks read it there) and is committed with the integration, after `/sdd:approve review`.
 5. Execute with `superpowers:subagent-driven-development`. Source writes are denied until the
    plan is approved.
 6. Check drift with `codescout-companion:spec-drift`.

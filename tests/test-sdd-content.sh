@@ -122,5 +122,16 @@ needs "$SKILL" "sdd-flow tells the agent never to edit status fields and to ask 
 needs "$SDD/commands/sdd-init.md" "sdd-init names .sdd/config.json and constitution" '.sdd/config.json' 'constitution'
 needs "$SDD/commands/review.md" "review names report.json, payload.gate and drift_outcome" 'report.json' 'payload.gate' 'drift_outcome'
 
+# Gate 2 order: the spec and the plan are committed while the plan is still a draft, BEFORE the
+# user types /sdd:approve plan. Once the plan is approved with no branch: yet, review-guard denies
+# a commit on the base branch (see review-guard.test.mjs), so the other order dead-ends.
+COMMIT_LINE="$(grep -nF 'Commit the spec and the plan while the plan is still `draft`' "$SKILL" | head -1 | cut -d: -f1)"
+APPROVE_LINE="$(grep -nF 'Ask the user to type `/sdd:approve plan' "$SKILL" | head -1 | cut -d: -f1)"
+if [ -n "$COMMIT_LINE" ] && [ -n "$APPROVE_LINE" ] && [ "$COMMIT_LINE" -lt "$APPROVE_LINE" ]; then
+  pass "sdd-flow commits spec and plan while the plan is draft, before /sdd:approve plan"
+else
+  fail "sdd-flow commits spec and plan while the plan is draft, before /sdd:approve plan" "commit line='$COMMIT_LINE' approve line='$APPROVE_LINE'"
+fi
+
 echo "  ── sdd-content: $PASS_COUNT passed, $FAIL_COUNT failed"
 [ "$FAIL_COUNT" -eq 0 ]

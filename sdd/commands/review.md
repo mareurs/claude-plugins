@@ -5,7 +5,10 @@ description: Check the feature against the constitution and the spec-drift verdi
 # /review
 
 Writes the review report for the feature. It does not approve anything: after a GO you ask
-the user to type the approval.
+the user to type the approval. To find the spec id and the feature name, see
+`${CLAUDE_PLUGIN_ROOT}/skills/sdd-flow/references/artifacts.md` (if `${CLAUDE_PLUGIN_ROOT}` is
+still an unexpanded `${...}` placeholder, use the folder of this plugin that contains `skills/`;
+sdd has no `.codex-plugin/` folder).
 
 ## 1. Read the rules
 
@@ -23,7 +26,7 @@ doc(action="get", id="<constitution id>", entry_filter={"status": {"eq": "active
 doc(action="event_list", id="<spec id>", kinds=["verdict"])
 ```
 
-Take the newest verdict. Its `payload.gate` is `go` or `no-go`. Use `gate`, never `outcome`:
+Take the newest verdict (`event_list` returns events newest first). Its `payload.gate` is `go` or `no-go`. Use `gate`, never `outcome`:
 the server only accepts confirmed, refuted, partial and abandoned there, so the GO or NO-GO
 lives in `payload.gate`. No verdict yet means no GO: run `codescout-companion:spec-drift`
 first.
@@ -41,8 +44,11 @@ user a table: rule id, title, verdict, evidence.
 
 Find the git common directory with `git rev-parse --git-common-dir` (a read). The report is
 `<git common dir>/sdd/approvals/<feature>.report.json`: under the common directory, not
-under the worktree. Make the directory if needed, then write the file with an edit tool
-(Write or create_file), never through a shell command. The review guard denies a shell
+under the worktree. The report lives in the main repository's git common directory, outside
+the worktree, so a codescout write there may ask for an out-of-scope acknowledgement: give it
+for that path only. The edit tool creates the missing directory itself; a shell `mkdir` there
+is denied by the review guard. Write the file with an edit tool (Write or create_file), never
+through a shell command. The review guard denies a shell
 command that writes into the approvals directory, and the spec guard allows a tool write
 only to `<feature>.report.json` there.
 

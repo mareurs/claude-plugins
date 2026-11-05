@@ -21,7 +21,9 @@ turns the sdd hooks on for the project.
 ## 3. Create the constitution
 
 Fetch the exact shape first: `librarian(action="tracker_design", archetype="constitution")`.
-Read `${CLAUDE_PLUGIN_ROOT}/templates/constitution/base.md` and, for kotlin or python, the
+Read `${CLAUDE_PLUGIN_ROOT}/templates/constitution/base.md` (if `${CLAUDE_PLUGIN_ROOT}` is still an
+unexpanded `${...}` placeholder, use the folder of this plugin that contains `templates/`; sdd
+has no `.codex-plugin/` folder) and, for kotlin or python, the
 stack file next to it. Each has a JSON list of rules (articles I to VI are global, with no
 `paths`; VII and VIII may carry `paths`) and one `## C-N` section per rule.
 
@@ -39,7 +41,8 @@ doc(action="create", kind="tracker", status="active", tags=["constitution", "sdd
 
 ## 4. CLAUDE.md section (optional)
 
-Ask whether to add the strict-flow section from `${CLAUDE_PLUGIN_ROOT}/templates/CLAUDE.md.template`
+Ask whether to add the strict-flow section from
+`${CLAUDE_PLUGIN_ROOT}/templates/CLAUDE.md.template` (same fallback as above)
 (the part under "SDD workflow"). Instruction files outrank skills, so this section keeps the
 flow in force. Append it; do not overwrite the file.
 

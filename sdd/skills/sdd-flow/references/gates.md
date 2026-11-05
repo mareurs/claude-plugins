@@ -15,6 +15,15 @@ adds a note.
 - A tool write into the approvals directory is denied, except `<feature>.report.json`.
 - After `/sdd:approve done`, the next source write needs a new approved spec and plan.
 
+## Committing spec and plan
+
+Commit them while the plan is still `draft`: no plan is active then, so review-guard lets a
+commit on the base branch through. Once the plan is approved and has no `branch:` yet, a
+commit on the base branch is denied and asks for a review approval that cannot exist before
+any code. So the order is commit, `/sdd:approve plan`, `branch:`, worktree. What
+`/sdd:approve` writes after the commit stays an uncommitted change in the main checkout (the
+hooks read it there) and is committed with the integration, after `/sdd:approve review`.
+
 ## review-guard (integration)
 
 It gates only integration into the base branch (`baseBranch` in the config, default `main`,

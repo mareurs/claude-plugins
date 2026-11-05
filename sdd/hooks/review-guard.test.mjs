@@ -113,6 +113,24 @@ test('no active plan: nothing to review, commit on base passes', () => {
   assert.equal(run(bash(root, 'git commit -m x')), '');
 });
 
+// sdd-flow step 5 relies on this pair: commit spec and plan while the plan is still a draft,
+// because after /sdd:approve plan (and before any branch: exists) the same commit is denied.
+test('a DRAFT plan on base: the commit of spec and plan passes', () => {
+  const root = repo();
+  put(root, 'docs/superpowers/specs/2026-11-05-a-design.md', '---\nstatus: approved\n---\nspec\n');
+  put(root, 'docs/superpowers/plans/2026-11-05-a.md',
+    '---\nstatus: draft\n---\n**Spec:** docs/superpowers/specs/2026-11-05-a-design.md\n');
+  assert.equal(run(bash(root, 'git commit -m x')), '');
+});
+
+test('an ACTIVE plan without branch: on base, no record: the commit is denied', () => {
+  const root = repo();
+  addActivePlan(root, 'a');
+  const out = parse(run(bash(root, 'git commit -m x')));
+  assert.equal(out.permissionDecision, 'deny');
+  assert.match(out.permissionDecisionReason, /\/sdd:approve review a\b/);
+});
+
 test('gh pr create from the feature branch needs the record', () => {
   const root = repo();
   addActivePlan(root, 'a', 'feat/x');
