@@ -208,7 +208,7 @@ the `Agent` tool; the subagent called the stub once). Fixtures `claude-<ver>-sub
 # End-to-end: the SHIPPED hook `cs-verified-relocate.mjs` on Claude Code 2.1.318 and 2.1.311
 
 Measured 2026-11-05 (Task 4). 32 runs (16 on each version), USD 0.0357 for the 30 `-p` runs (the CLI's `result` event) and
-USD 0.0051 for the 2 interactive runs. An interactive session has no `result` event; the `cost-state` rows of its two session
+USD 0.0050 for the 2 interactive runs. An interactive session has no `result` event; the `cost-state` rows of its two session
 transcripts give 0.0016975 + 0.00099246 on 2.1.318 and 0.001428 + 0.00093197 on 2.1.311. For `-p` runs that row equals the result
 cost (for example `e318-b-two` 0.00038952), so it is a reliable source. Total USD 0.0408 for the 32 runs. With Task 1's
 23 runs (USD 0.0293) the plan has used 55 runs and USD 0.0701 of the 60 runs and USD 5 allowed. **Caps:** every `-p` run had
@@ -280,9 +280,12 @@ in a single system-role message, each under the same prefix `PostToolUse:mcp__co
 The order in the message matched the order in which the hooks finished in all 6 samples (f1 and f3: the stand-in first; f4, the
 stand-in slowed by 1.5 s: ours first). The hooks' own clocks (ms after the first start; start/end as logged by the wrapper and the
 stand-in): 2.1.318 f1 stand-in 2/3, ours 0/129; f3 stand-in 0/0, ours 5/682; f4 stand-in 0/1500, ours 7/54; 2.1.311 f1 stand-in
-0/0, ours 5/56; f3 stand-in 0/0, ours 10/56; f4 stand-in 0/1500, ours 6/55. Our hook runs through a python wrapper that starts node
-(about 40 to 50 ms more than the bare script), so in f1 and f3 the stand-in finishes first by construction and those two
-arrangements cannot separate finishing order from other rules; f4 rules out registration order and a fixed stand-in-first order. The
+0/0, ours 5/56; f3 stand-in 0/0, ours 10/56; f4 stand-in 0/1500, ours 6/55. Our hook is a node script. By the wrapper's own log (its
+window is the runtime of `node <script>` alone; python start-up of the wrapper and of the stand-in lies outside their windows) it took
+46 to 51 ms in four of the six samples and 129 and 677 ms in the other two (2.1.318 f1 and f3); the stand-in is near-instant. So in
+f1 and f3 the stand-in finishes first because our script takes longer, not because of the logging wrapper (the shipped registration
+runs the same node script, with the same runtime). Those two arrangements therefore cannot separate finishing order from other
+rules; f4 rules out registration order and a fixed stand-in-first order. The
 "finishing order" rule is a fit to these samples, not a general property. Not measured: another hook that also prints
 `updatedToolOutput` (then one would have to win), a hook that exits 2, more than two hooks, the real `buddy` hook.
 
@@ -338,7 +341,7 @@ writes the real argv for interactive runs and copies the post-`/clear` transcrip
 - The effect of the `[cs-verified]` text on the model's behaviour (the replies above only show the model saw it and, in these
   runs, did not act on it).
 - Interactive run cost: the CLI shows no `result` event interactively, but each session transcript's `cost-state` row gives it:
-  USD 0.0016975 + 0.00099246 (2.1.318) and 0.001428 + 0.00093197 (2.1.311), about USD 0.0051 for the two runs (section 11).
+  USD 0.0016975 + 0.00099246 (2.1.318) and 0.001428 + 0.00093197 (2.1.311), about USD 0.0050 for the two runs (section 11).
 
 ## 11. Runs and cost (Task 4)
 
@@ -378,4 +381,4 @@ writes the real argv for interactive runs and copies the post-`/clear` transcrip
 | e311-h-subagent | 311 | 0.00367 | 14.4 |
 | **total (32 runs; 30 from `result` events, 2 interactive from `cost-state`)** | | **0.0408** | |
 
-With Task 1: 55 runs, USD 0.0701 (Task 4: 0.0357 from the `result` events of the 30 `-p` runs plus 0.0051 from the `cost-state` rows of the 2 interactive runs = 0.0408; Task 1: 0.0293).
+With Task 1: 55 runs, USD 0.0701 (Task 4, at full precision: 0.03573 from the `result` events of the 30 `-p` runs plus 0.00505 from the `cost-state` rows of the 2 interactive runs (0.0016975 + 0.00099246 + 0.001428 + 0.00093197 = 0.00504993) = 0.04078, rounded 0.0408; Task 1: 0.0293, the sum of its table is 0.02928). The 53 non-interactive runs of the 55 come from `result` events, only the 2 interactive runs from `cost-state`.

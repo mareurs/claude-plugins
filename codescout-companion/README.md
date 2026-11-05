@@ -204,9 +204,12 @@ Risks, measured or not:
   both hooks, delivered both `additionalContext` strings in one system message under the
   same prefix (`PostToolUse:<tool> hook additional context: `, so the model cannot tell
   which hook spoke), and applied our `updatedToolOutput`. The order matched the order in
-  which the hooks finished in all 6 two-hook samples, but our wrapper adds about 40 to
-  50 ms to our hook, so that is a fit to those samples, not a general property. Not
-  measured: another hook that also prints `updatedToolOutput`.
+  which the hooks finished in all 6 two-hook samples. Our hook is a node script (46 to
+  51 ms by the logging wrapper's own log in four of the six samples, 129 and 677 ms in
+  the other two) and the stand-in is near-instant, so where the stand-in finished first
+  it did so because our script takes longer, not because of the wrapper (the shipped
+  registration has the same runtime). The order is therefore a fit to those samples, not
+  a general property. Not measured: another hook that also prints `updatedToolOutput`.
 - **`asyncRewake` is not used, on purpose.** An async hook's `updatedToolOutput` would
   probably not apply. This is not measured.
 
