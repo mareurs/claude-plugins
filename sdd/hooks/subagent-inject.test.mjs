@@ -105,5 +105,16 @@ test('hooks.json: single-string node commands, files exist, nothing async, five 
   assert.equal(new Set(cmds).size, 5);
   assert.equal(j.hooks.SessionStart[0].matcher, 'startup|resume|clear|compact');
   assert.equal(j.hooks.PreToolUse.length, 2);
+  // exact matchers: a tool dropped from a matcher silently escapes its guard
+  const script = (g) => g.hooks.map((h) => h.command.match(/hooks\/([a-z-]+\.mjs)/)[1]).join(',');
+  const pre = Object.fromEntries(j.hooks.PreToolUse.map((g) => [script(g), g.matcher]));
+  assert.deepEqual(pre, {
+    'spec-guard.mjs': 'Write|Edit|MultiEdit|NotebookEdit|mcp__codescout__edit_file|mcp__codescout__edit_code|mcp__codescout__create_file|mcp__codescout__doc',
+    'review-guard.mjs': 'Bash|mcp__codescout__run_command',
+  });
   assert.ok(j.hooks.UserPromptSubmit && j.hooks.SubagentStart);
+  for (const ev of ['UserPromptSubmit', 'SubagentStart']) {
+    assert.equal(j.hooks[ev].length, 1, ev);
+    assert.equal(j.hooks[ev][0].matcher, undefined, `${ev} has no matcher`);
+  }
 });
