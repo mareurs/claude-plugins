@@ -2,7 +2,8 @@
 # scripts/bump-cache.sh <plugin> <version>
 #
 # Copies plugin source into the versioned cache directory for every
-# Claude Code profiles (the list is in lib-profiles.sh).
+# Claude Code profile (the list is in lib-profiles.sh) whose install record already
+# carries the plugin; other profiles are skipped.
 #
 # Directory-source plugins read their files from cache/<marketplace>/<plugin>/<version>.
 # Bumping plugin.json + installed_plugins.json without seeding the cache leaves
@@ -39,7 +40,13 @@ if [ "$DECLARED_VERSION" != "$VERSION" ]; then
   exit 1
 fi
 
+SEEDED=0
 for PROFILE in "${PROFILES[@]}"; do
+  if ! profile_has_plugin "$PROFILE" "$PLUGIN" "$MARKETPLACE"; then
+    echo "  · skip $PROFILE ($PLUGIN not installed)"
+    continue
+  fi
+  SEEDED=$((SEEDED + 1))
   DEST="$PROFILE/plugins/cache/$MARKETPLACE/$PLUGIN/$VERSION"
   if [ -d "$DEST" ]; then
     echo "= $PROFILE: $PLUGIN $VERSION already cached, refreshing"
@@ -49,4 +56,4 @@ for PROFILE in "${PROFILES[@]}"; do
   copy_plugin_tree "$SRC" "$DEST"
 done
 
-echo "✓ $PLUGIN $VERSION cached in ${#PROFILES[@]} profiles"
+echo "✓ $PLUGIN $VERSION cached in $SEEDED of ${#PROFILES[@]} profiles"

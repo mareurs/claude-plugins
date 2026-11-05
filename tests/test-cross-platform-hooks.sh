@@ -190,6 +190,26 @@ else
   skip "node absent — launcher exit-code/probe checks require Node"
 fi
 
+# 5c. sdd spec-guard denies a source write in a strict project with no approved
+#     plan (the deny is the JSON permissionDecision on stdout, exit 0). The temp
+#     project carries a bare .git dir: the hook finds the main checkout by it.
+if ! command -v node >/dev/null 2>&1; then
+  skip "node absent — sdd spec-guard check requires Node"
+else
+  sp="$(mktemp -d 2>/dev/null || mktemp -d -t cpsdd)"
+  mkdir -p "$sp/.git" "$sp/.sdd" "$sp/src"
+  printf '%s' '{"enforcement":"strict"}' > "$sp/.sdd/config.json"
+  spayload='{"hook_event_name":"PreToolUse","tool_name":"Write","cwd":"'"$(winpath "$sp")"'","tool_input":{"file_path":"'"$(winpath "$sp")"'/src/a.ts","content":"x"}}'
+  sout="$(printf '%s' "$spayload" | node "$ROOT/sdd/hooks/spec-guard.mjs" 2>/dev/null || true)"
+  if printf '%s' "$sout" | grep -q '"hookEventName":"PreToolUse"' \
+    && printf '%s' "$sout" | grep -q '"permissionDecision":"deny"'; then
+    ok "sdd spec-guard denies a source write in a strict project with no approved plan"
+  else
+    bad "sdd spec-guard did not deny a source write (stdout: $sout)"
+  fi
+  rm -rf "$sp" 2>/dev/null || true
+fi
+
 # 6. .gitattributes guard: no CRLF in tracked shell/python scripts. On a Windows
 #    checkout this fails loudly if `*.sh text eol=lf` ever stops working.
 crlf="$(git -C "$ROOT" grep -lI "$(printf '\r')" -- '*.sh' '*.py' '*.mjs' 2>/dev/null || true)"

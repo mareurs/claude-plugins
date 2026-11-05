@@ -25,7 +25,7 @@ else
 fi
 
 # Each script must read the list from the library, and must not assign its own.
-for s in release.sh bump-cache.sh check-profile-parity.sh; do
+for s in release.sh bump-cache.sh check-profile-parity.sh repoint-install-records.sh; do
   if grep -q 'lib-profiles.sh' "$SCRIPTS/$s"; then pass "$s sources lib-profiles.sh"
   else fail "$s sources lib-profiles.sh" "no source line"; fi
   if grep -qE '^(PROFILES=|for PROFILE in ~/)' "$SCRIPTS/$s"; then

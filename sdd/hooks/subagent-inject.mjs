@@ -1,76 +1,32 @@
-// SDD SubagentStart hook — injects SDD guidance tailored to the agent type.
-// Port of subagent-inject.sh. All context strings use real newlines (the old
-// Explore branch emitted literal "\n" text — normalized here to render correctly).
-import { readInput, projectDir, hasConstitution, specNames, specPaths, planNames, emit } from './lib.mjs';
+// SDD SubagentStart hook: tells implementer subagents which approved plan and spec
+// bind them. Tool-routing text is the companion plugin's job, not ours.
+import { relative } from 'node:path';
+import { readInput, contextEvent, mainCheckout, currentBranch, loadConfig, activePlans } from './lib.mjs';
 
-const input = readInput();
-const agentType = input.agent_type || '';
+const IMPLEMENTERS = new Set(['general-purpose', 'Plan', 'claude']);
 
-// Skip agents that don't do code work (exact matches + episodic-memory* prefix).
-if (
-  agentType === 'Bash' ||
-  agentType === 'statusline-setup' ||
-  agentType === 'claude-code-guide' ||
-  agentType.startsWith('episodic-memory')
-) {
-  process.exit(0);
-}
+function main() {
+  const input = readInput();
+  if (!input || !IMPLEMENTERS.has(input.agent_type)) return;
+  const ctx = mainCheckout(input.cwd || process.cwd());
+  if (!ctx) return;
+  if (!loadConfig(ctx.root)) return;
 
-const dir = projectDir(input);
-if (!hasConstitution(dir)) process.exit(0);
+  let plans = activePlans(ctx.root);
+  if (plans.length === 0) return;
+  const branch = currentBranch(ctx.gitDir);
+  const onBranch = branch ? plans.filter((p) => p.fm.branch === branch) : [];
+  if (onBranch.length > 0) plans = onBranch;
 
-const specs = specNames(dir);
-const specsStr = specs.length ? specs.join(' ') : 'none';
-const plans = planNames(dir);
-const plansStr = plans.length ? plans.join(' ') : 'none';
-
-let context;
-switch (agentType) {
-  case 'Plan':
-    context = `SDD: Plan must stay within spec scope. Human approval required before execution.
-Constitution: memory/constitution.md
-Active specs: ${specsStr}
-Active plans: ${plansStr}
-Read the relevant spec before planning. Your plan output needs human approval before implementation begins.`;
-    break;
-
-  case 'general-purpose':
-    context = `SDD: Follow the approved plan. Don't exceed spec scope.
-Active specs: memory/specs/ → ${specsStr}
-Approved plans: memory/plans/ → ${plansStr}
-spec-guard will block writes without a spec.`;
-    break;
-
-  case 'superpowers:code-reviewer':
-    context = `SDD: Review implementation against the spec, not just code quality.
-Specs: memory/specs/ → ${specsStr}
-Check: does implementation match acceptance criteria? Does it exceed scope?`;
-    break;
-
-  case 'Explore': {
-    const paths = specPaths(dir);
-    const specList = paths.length ? `\nSpec files:\n${paths.map((f) => `- ${f}`).join('\n')}\n` : '';
-    context = `SDD PROJECT - EXPLORATION GUIDANCE
-
-This project uses Specification-Driven Development.
-Specs: memory/specs/ | Plans: memory/plans/ | Constitution: memory/constitution.md
-${specList}
-TOOL ROUTING (codescout MCP, when present):
-- Source code: prefer codescout symbols/symbol_at/references/grep/semantic_search over native Read/Grep/Glob
-- Markdown (.md): use read_markdown / edit_markdown — heading-aware, slice-able
-- Other non-code (.json, .yaml, .toml, .sql): read_file is fine
-- Structural code edits: edit_code (replace/insert/remove/rename) — never edit_file on function bodies
-
-PHASES:
-1. Semantic Discovery - semantic_search for concepts when name is unknown
-2. Symbol Drill-down - symbols(name=..., include_body=true) for specific classes/methods
-3. Cross-reference - references(symbol, path) or call_graph for usage patterns`;
-    break;
+  const rel = (p) => relative(ctx.root, p).split('\\').join('/');
+  const lines = ['SDD: this project is under strict spec-driven development.'];
+  for (const p of plans) {
+    lines.push(`- Plan: ${rel(p.path)}`);
+    lines.push(`  Spec: ${rel(p.specPath)}`);
   }
-
-  default:
-    process.exit(0);
+  lines.push('Stay inside the spec: implement only what the plan and spec bind you to. If the work needs something the spec does not cover, stop and report it instead of widening scope.');
+  contextEvent('SubagentStart', lines.join('\n'));
 }
 
-emit({ hookSpecificOutput: { additionalContext: context } });
+try { main(); } catch { /* fail open */ }
 process.exit(0);

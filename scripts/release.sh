@@ -21,11 +21,13 @@
 #   1. version     — bump <plugin>/.claude-plugin/plugin.json + README.md table
 #   2. consistency — scripts/check-versions.sh
 #   3. commit      — "chore: bump <plugin> to <version>"
-#   4. cache       — scripts/bump-cache.sh (seed every Claude Code profile in lib-profiles.sh)
+#   4. cache       — scripts/bump-cache.sh (seed each profile in lib-profiles.sh that has the plugin)
 #   4.5. copilot    — scripts/sync-copilot.sh (separate app/marketplace; soft-skips
 #                     if this machine has no Copilot install or this plugin isn't
 #                     registered there)
-#   5. records     — repoint version + installPath in every profile's install record#   6. sanity      — recorded version's cache dir exists; installPath owns its profile
+#   5. records     — repoint version + installPath in the install record of every profile
+#                    that has the plugin (scripts/repoint-install-records.sh)
+#   6. sanity      — recorded version's cache dir exists; installPath owns its profile
 #   6.5. parity    — scripts/check-profile-parity.sh: every ARRAY element across every profile
 #                    profiles is canonical, cached, and owns its profile (steps 5 and 6
 #                    only ever look at element [0])
@@ -95,27 +97,10 @@ git commit -m "chore: bump $PLUGIN to $VERSION" \
 #      machine has no Copilot install, or this plugin isn't registered there) --
 ./scripts/sync-copilot.sh "$PLUGIN" "$VERSION"
 
-# 5. repoint version + installPath in every profile's install record --------
-for P in "${PROFILES[@]}"; do
-  rec="$P/plugins/installed_plugins.json"
-  [ -f "$rec" ] || { echo "  · skip $P (no install record)"; continue; }
-  t="$(mktemp)"
-  jq --arg v "$VERSION" --arg p "$P/plugins/cache/$MARKETPLACE/$PLUGIN/$VERSION" \
-     "(.plugins[\"$PLUGIN@$MARKETPLACE\"][0].version) = \$v
-      | (.plugins[\"$PLUGIN@$MARKETPLACE\"][0].installPath) = \$p" \
-     "$rec" > "$t" && mv "$t" "$rec"
-done
-
-# 6. sanity: cache dir for recorded version exists; installPath owns its profile
-fail=0
-for P in "${PROFILES[@]}"; do
-  rec="$P/plugins/installed_plugins.json"; [ -f "$rec" ] || continue
-  v="$(jq -r ".plugins[\"$PLUGIN@$MARKETPLACE\"][0].version" "$rec")"
-  ip="$(jq -r ".plugins[\"$PLUGIN@$MARKETPLACE\"][0].installPath" "$rec")"
-  if [ -d "$P/plugins/cache/$MARKETPLACE/$PLUGIN/$v" ]; then echo "  ✓ $P  $PLUGIN $v"; else echo "  ✗ $P  $PLUGIN $v cache MISSING"; fail=1; fi
-  case "$ip" in "$P"/*) ;; *) echo "  ✗ $P  installPath escapes profile: $ip"; fail=1 ;; esac
-done
-[ "$fail" = 0 ] || { echo "✗ sanity failed — NOT pushing. Fix records, re-run, or push manually."; exit 1; }
+# 5 + 6. repoint version + installPath in the install record of every profile that has
+#        the plugin, then sanity-check (cache dir exists; installPath owns its profile).
+#        Profiles without the plugin are skipped, never given it (F-15).
+MARKETPLACE="$MARKETPLACE" ./scripts/repoint-install-records.sh "$PLUGIN" "$VERSION"
 
 # 6.5. profile parity — EVERY array element, not just [0] ----------------------
 # Step 5 repoints [0] and step 6 validates what step 5 wrote, so both are blind to a

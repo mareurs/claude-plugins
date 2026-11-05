@@ -9,6 +9,15 @@
 # that profile stayed on 1.20.21 without the wake hook (2026-10-29).
 # tests/test-profile-list-single-source.sh pins that no script keeps its own copy.
 #
-# A profile with no install record is skipped by release.sh and check-profile-parity.sh.
-# bump-cache.sh still creates its cache directory.
+# A profile whose install record lacks "<plugin>@<marketplace>" is skipped by bump-cache.sh,
+# repoint-install-records.sh and check-profile-parity.sh: a release must not install a
+# plugin into a profile that never had it (F-15). Test with profile_has_plugin.
 PROFILES=("$HOME/.claude" "$HOME/.claude-sdd" "$HOME/.claude-kat" "$HOME/.claude-stef")
+
+# profile_has_plugin <profile_dir> <plugin> <marketplace>
+# Exit 0 iff the profile's installed_plugins.json exists and has the "<plugin>@<marketplace>" key.
+profile_has_plugin() {
+  local rec="$1/plugins/installed_plugins.json"
+  [ -f "$rec" ] || return 1
+  jq -e --arg k "$2@$3" '.plugins | has($k)' "$rec" >/dev/null 2>&1
+}

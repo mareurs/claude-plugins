@@ -6,28 +6,37 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node ${CLAUDE_PLUGIN_ROOT}/hooks/session-start.mjs",
-            "async": true
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/session-start.mjs\""
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/approve-intake.mjs\""
           }
         ]
       }
     ],
     "PreToolUse": [
       {
-        "matcher": "Write|Edit",
+        "matcher": "Write|Edit|MultiEdit|NotebookEdit|mcp__codescout__edit_file|mcp__codescout__edit_code|mcp__codescout__create_file|mcp__codescout__doc",
         "hooks": [
           {
             "type": "command",
-            "command": "node ${CLAUDE_PLUGIN_ROOT}/hooks/spec-guard.mjs"
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/spec-guard.mjs\""
           }
         ]
       },
       {
-        "matcher": "Bash",
+        "matcher": "Bash|mcp__codescout__run_command",
         "hooks": [
           {
             "type": "command",
-            "command": "node ${CLAUDE_PLUGIN_ROOT}/hooks/review-guard.mjs"
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/review-guard.mjs\""
           }
         ]
       }
@@ -37,7 +46,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node ${CLAUDE_PLUGIN_ROOT}/hooks/subagent-inject.mjs"
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/subagent-inject.mjs\""
           }
         ]
       }
