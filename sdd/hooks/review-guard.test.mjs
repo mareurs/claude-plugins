@@ -304,3 +304,64 @@ test('shell keywords before a command word do not hide it', () => {
   denies(run(bash(root, 'for i in 1; do git commit -m x; done')));
   denies(run(bash(root, 'echo a | xargs git commit -m x')));
 });
+
+test('N1: a checkout with paths, -- or -p is not a branch switch', () => {
+  const root = repo();
+  addActivePlan(root, 'a', 'feat/x');
+  git(root, 'branch', 'feat/x');
+  for (const c of ['git checkout feat/x -- README.md && git commit -m x', 'git checkout feat/x README.md && git commit -m x',
+    'git checkout feat/x -- . && git commit -m x', 'git checkout -p feat/x && git commit -m x', 'git checkout feat/x -- . && git push']) {
+    denies(run(bash(root, c)));
+  }
+  // a real branch switch still lifts the gate
+  assert.equal(run(bash(root, 'git checkout feat/x && git commit -m x')), '');
+});
+
+test('N2: cd inside ( ) is scoped; popd restores the pushd dir', () => {
+  const root = repo();
+  addActivePlan(root, 'a');
+  const wt = worktree(root, 'feat/w');
+  denies(run(bash(root, `(cd ${wt} && git status) && git commit -m x`)));
+  denies(run(bash(root, `pushd ${wt} && git status && popd && git commit -m x`)));
+  assert.equal(run(bash(root, `(cd ${wt} && git commit -m x)`)), '');
+  assert.equal(run(bash(root, `pushd ${wt} && git commit -m x`)), '');
+});
+
+test('N3: writers and redirects into the approval directory, including via cwd', () => {
+  const root = repo({ config: { enforcement: 'strict' } });
+  const ap = join(root, '.git/sdd/approvals');
+  mkdirSync(ap, { recursive: true });
+  for (const c of [`cd ${ap} && echo {} > a.review.json`, `sed -i s/a/b/ ${ap}/a.review.json`, `rsync x ${ap}/`,
+    `truncate -s0 ${ap}/a`, `dd of=${ap}/a`, `cd ${ap} && touch a`, `(cd ${ap}; echo x >> b)`]) {
+    denies(run(bash(root, c)));
+  }
+  assert.equal(run(bash(root, `(cd ${ap}) && echo x > out.txt`)), '');
+});
+
+test('N4: merging origin/<branch> on that branch is a remote sync; the bare branch from a stale cwd is gated', () => {
+  const root = repo();
+  addActivePlan(root, 'a', 'feat/x');
+  const wt = worktree(root, 'feat/x');
+  assert.equal(run(bash(wt, 'git merge origin/feat/x')), '');
+  assert.equal(run(bash(wt, 'git merge refs/remotes/origin/feat/x')), '');
+  denies(run(bash(wt, 'git merge feat/x')));
+  denies(run(bash(root, 'git merge origin/feat/x')));
+});
+
+test('N5: mark-reviewed only as the command word or an interpreter script', () => {
+  const root = repo({ config: { enforcement: 'strict' } });
+  for (const c of ['git commit -m "mark-reviewed: fix docs"', 'git log -- sdd/scripts/mark-reviewed.mjs', 'git add sdd/scripts/mark-reviewed.mjs']) {
+    assert.equal(run(bash(root, c)), '', c);
+  }
+  for (const c of ['node sdd/scripts/mark-reviewed.mjs', './mark-reviewed.sh', 'bash -x mark-reviewed.sh a', 'FOO=1 node mark-reviewed.mjs']) {
+    denies(run(bash(root, c)));
+  }
+});
+
+test('a refs/heads/<name> directory is not a branch', () => {
+  const root = repo();
+  addActivePlan(root, 'a');
+  mkdirSync(join(root, '.git/refs/heads/feat'), { recursive: true });
+  // `feat` exists only as a directory (feat/x would be a file inside it)
+  denies(run(bash(root, 'git checkout feat && git commit -m x')));
+});

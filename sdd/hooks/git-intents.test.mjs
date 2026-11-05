@@ -78,3 +78,16 @@ test('shell keywords are skipped before the command word', () => {
   assert.deepEqual(kinds('! git commit'), ['commit']);
   assert.deepEqual(kinds('echo a | xargs git commit'), ['commit']);
 });
+
+test('checkout with paths, -- or -p keeps the branch state', () => {
+  for (const c of ['git checkout b -- f', 'git checkout b f', 'git checkout -p b', 'git checkout b -- .']) {
+    assert.deepEqual(gitIntents(`${c}; git commit`), [{ kind: 'commit' }], c);
+  }
+  assert.deepEqual(gitIntents('git switch b; git commit'), [{ kind: 'commit', assumedBranch: 'b' }]);
+});
+
+test('( ) scopes cd; popd restores the pushd dir', () => {
+  assert.deepEqual(gitIntents('(cd /w && git commit); git commit').map((i) => i.dir), ['/w', undefined]);
+  assert.deepEqual(gitIntents('pushd /w; git commit; popd; git commit').map((i) => i.dir), ['/w', undefined]);
+  assert.deepEqual(gitIntents('cd /a; (cd /b); git commit').map((i) => i.dir), ['/a']);
+});

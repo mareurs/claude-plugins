@@ -11,35 +11,47 @@
 // are followed by git-intents.mjs; its header lists what is still not followed. With no
 // active plan there is no feature to review, so nothing is gated (spec and plan commits
 // on the base branch must stay possible).
-import { existsSync, readFileSync } from 'node:fs';
+import { readFileSync, statSync } from 'node:fs';
 import { join, basename, resolve as resolvePath } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import {
   readInput, denyPreToolUse, contextPreToolUse, normalizedToolName, isCodescoutTool,
   mainCheckout, currentBranch, loadConfig, activePlans, approvalsDir, featureFromSpecPath,
 } from './lib.mjs';
-import { gitIntents, splitCommands, skipPrefix } from './git-intents.mjs';
+import { gitIntents, traverse, skipPrefix } from './git-intents.mjs';
 
-const APPROVALS_RE = /sdd\/approvals/;
-const WRITER_CMDS = new Set(['tee', 'cp', 'mv', 'mkdir', 'rm', 'touch', 'ln', 'install']);
+const APPROVALS_RE = /sdd[\\/]approvals/;
+const WRITER_CMDS = new Set(['tee', 'cp', 'mv', 'mkdir', 'rm', 'touch', 'ln', 'install', 'sed', 'rsync', 'dd', 'truncate']);
+const INTERPRETERS = new Set(['node', 'sh', 'bash', 'zsh', 'python', 'python3', 'deno', 'bun']);
 
 export function reviewRecordPath(commonDir, feature) {
   return join(approvalsDir(commonDir), `${feature}.review.json`);
 }
 
-// Runs mark-reviewed, or writes into the approval-record directory (redirect target,
-// tee/cp/mv/mkdir/rm/touch/ln argument). Reads and quoted mentions pass.
+// Runs mark-reviewed (as the command word, or the script an interpreter runs), or
+// writes into the approval-record directory: a redirect target or a writer command's
+// argument containing sdd/approvals, or any redirect/writer while the tracked cwd is
+// inside it. Reads and quoted mentions pass.
 export function tampers(command) {
-  for (const raw of splitCommands(command)) {
-    if (raw.some((t) => basename(t).startsWith('mark-reviewed'))) return true;
+  let found = false;
+  traverse(command, (raw, st) => {
+    if (found) return;
+    const toks = skipPrefix(raw);
+    if (!toks.length) return;
+    const word = basename(toks[0]);
+    if (word.startsWith('mark-reviewed')) { found = true; return; }
+    if (INTERPRETERS.has(word)) {
+      const script = toks.slice(1).find((a) => !a.startsWith('-'));
+      if (script && basename(script).startsWith('mark-reviewed')) { found = true; return; }
+    }
+    const inApprovals = typeof st.cwd === 'string' && APPROVALS_RE.test(`${st.cwd}/`);
     for (let i = 0; i < raw.length; i++) {
       const m = raw[i].match(/^\d*>>?(.*)$/);
-      if (m && APPROVALS_RE.test(m[1] || raw[i + 1] || '')) return true;
+      if (m && (inApprovals || APPROVALS_RE.test(m[1] || raw[i + 1] || ''))) { found = true; return; }
     }
-    const toks = skipPrefix(raw);
-    if (toks.length && WRITER_CMDS.has(basename(toks[0])) && toks.slice(1).some((a) => APPROVALS_RE.test(a))) return true;
-  }
-  return false;
+    if (WRITER_CMDS.has(word) && (inApprovals || toks.slice(1).some((a) => APPROVALS_RE.test(a)))) found = true;
+  });
+  return found;
 }
 
 function hasRecord(commonDir, feature) {
@@ -51,8 +63,12 @@ function hasRecord(commonDir, feature) {
   }
 }
 
+function isFile(p) {
+  try { return statSync(p).isFile(); } catch { return false; }
+}
+
 function branchExists(commonDir, b) {
-  if (existsSync(join(commonDir, 'refs', 'heads', b))) return true;
+  if (isFile(join(commonDir, 'refs', 'heads', b))) return true;
   try {
     return readFileSync(join(commonDir, 'packed-refs'), 'utf8')
       .split(/\r?\n/).some((l) => l.endsWith(` refs/heads/${b}`));
@@ -70,13 +86,18 @@ export function baseBranch(commonDir, cfg) {
 
 const featureOf = (p) => p.fm.feature || featureFromSpecPath(p.specPath);
 
-// refs/heads/x -> x; origin/x -> x when x is a plan branch.
+// refs/heads/x -> x; origin/x -> x when x is a plan branch. viaRemote: a remote
+// prefix was stripped (the merge pulls the remote copy of the branch).
 function normalizeRef(ref, plans) {
-  const r = ref.replace(/^refs\/(heads|remotes)\//, '');
-  if (plans.some((p) => p.fm.branch === r)) return r;
+  if (/^refs\/remotes\//.test(ref)) {
+    const r = ref.replace(/^refs\/remotes\/[^/]+\//, '');
+    return { ref: r, viaRemote: true };
+  }
+  const r = ref.replace(/^refs\/heads\//, '');
+  if (plans.some((p) => p.fm.branch === r)) return { ref: r, viaRemote: false };
   const i = r.indexOf('/');
-  if (i > 0 && plans.some((p) => p.fm.branch === r.slice(i + 1))) return r.slice(i + 1);
-  return r;
+  if (i > 0 && plans.some((p) => p.fm.branch === r.slice(i + 1))) return { ref: r.slice(i + 1), viaRemote: true };
+  return { ref: r, viaRemote: false };
 }
 
 // -> {feature} | {ambiguous: [names]} | null (no active plan: nothing to review)
@@ -138,14 +159,16 @@ function main() {
     else if (intent.kind === 'merge') {
       gated = onBase;
       if (intent.mergeRef) {
-        const ref = normalizeRef(intent.mergeRef, plans);
+        const { ref, viaRemote } = normalizeRef(intent.mergeRef, plans);
         candidates = [ref];
         if (plans.some((p) => p.fm.branch === ref)) {
           // A plan-owned branch is being merged. Not gated only when the command is
-          // known to run on some other feature branch (a branch cannot merge into itself,
-          // so branch === ref means the cwd is stale).
+          // known to run on some other feature branch. A branch cannot merge into
+          // itself, so known === ref means the cwd is stale, unless the ref came from
+          // a remote (a sync of the branch from its remote: judged normally).
           const known = assumed ?? (intent.dirUnknown ? null : currentBranch(ctx.gitDir));
-          gated = !(known && known !== base && known !== ref);
+          if (viaRemote && known === ref) gated = onBase;
+          else gated = !(known && known !== base && known !== ref);
         }
       }
     } else if (intent.kind === 'push') {

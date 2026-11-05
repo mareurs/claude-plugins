@@ -4,16 +4,18 @@
 // Splits on ; & | ( ) ` and newlines outside quotes, honours '…', "…", $'…' and
 // backslash escapes, so a quoted "git commit" is data, not an intent. It tracks two
 // pieces of state across the segments of one command line: the directory (`cd`,
-// `pushd`, `git -C`) and the branch a `git checkout|switch <b>` put that directory on,
-// and stamps each intent with `dir` / `dirUnknown` / `assumedBranch` / `assumedNew`.
+// `pushd`, `popd`, `git -C`) and the branch a `git checkout|switch <b>` put that
+// directory on, and stamps each intent with `dir` / `dirUnknown` / `assumedBranch` /
+// `assumedNew`. A `cd` inside ( … ) is undone at the closing paren.
 //
 // Still NOT followed (the guards are not a sandbox; see the spec): `sh -c '…'` and
 // `eval`, command substitution inside double quotes, aliases and functions, `git pull`,
-// `rebase`, `cherry-pick`, `reset`, subshell scoping of `cd` (a `cd` inside `( … )`
-// is treated as if it applied afterwards), `cd` or `checkout` sent in an EARLIER
-// command (the guard's merge rule compensates for the merge case), a `checkout` of a
-// path that looks like a branch (the guard checks the branch exists), shell variables
-// holding a directory or branch name (the directory becomes "unknown").
+// `rebase`, `cherry-pick`, `reset`, pipeline subshells (`a | ( cd x )` scoping is the
+// plain paren rule only), `cd` or `checkout` sent in an EARLIER command (the guard's
+// merge rule compensates for the merge case), a `checkout` of a path that looks like a
+// branch (the guard checks the branch exists; a checkout with paths, `--` or -p is not a
+// branch switch), shell variables holding a directory or branch name (the directory
+// becomes "unknown").
 import { basename, isAbsolute, join } from 'node:path';
 
 const SEPARATORS = new Set([';', '&', '|', '(', ')', '`', '\n']);
@@ -24,8 +26,9 @@ const PUSH_OPT_WITH_VALUE = new Set(['-o', '--push-option', '--repo', '--receive
 const MERGE_OPT_WITH_VALUE = new Set(['-m', '-s', '-X', '-F', '--strategy', '--strategy-option', '--file', '--into-name']);
 const CREATE_FLAGS = new Set(['-b', '-B', '-c', '-C', '--orphan']);
 
-// -> string[][] : one token list per simple command, quotes removed.
-export function splitCommands(command) {
+// -> (string[] | '(' | ')')[] : one token list per simple command, quotes removed,
+// with a marker wherever an unquoted parenthesis opens or closes a group.
+function scan(command) {
   const segments = [];
   let toks = [];
   let cur = null;
@@ -65,6 +68,7 @@ export function splitCommands(command) {
       endSeg();
     } else if (SEPARATORS.has(c)) {
       endSeg();
+      if (c === '(' || c === ')') segments.push(c);
     } else if (c === ' ' || c === '\t' || c === '\r') {
       endTok();
     } else {
@@ -73,6 +77,11 @@ export function splitCommands(command) {
   }
   endSeg();
   return segments;
+}
+
+// -> string[][] : one token list per simple command.
+export function splitCommands(command) {
+  return scan(command).filter(Array.isArray);
 }
 
 // Drop leading env assignments, wrappers (sudo, xargs, …) and shell keywords (then,
@@ -105,6 +114,25 @@ function cdTarget(state, args) {
   return applyDir(state, t);
 }
 
+// Visit every simple command in order with the tracked state BEFORE it runs:
+// {cwd, branches}. `cd`, `pushd`, `popd` update it; a cd inside ( … ) is undone at the
+// closing paren.
+export function traverse(command, visit) {
+  let st = { cwd: undefined, branches: new Map(), stack: [] };
+  const scopes = [];
+  for (const item of scan(command)) {
+    if (item === '(') { scopes.push({ cwd: st.cwd, branches: new Map(st.branches), stack: [...st.stack] }); continue; }
+    if (item === ')') { const s = scopes.pop(); if (s) st = s; continue; }
+    visit(item, st);
+    const toks = skipPrefix(item);
+    if (!toks.length) continue;
+    const exe = basename(toks[0]);
+    if (exe === 'cd') st.cwd = cdTarget(st.cwd, toks.slice(1));
+    else if (exe === 'pushd') { st.stack.push(st.cwd); st.cwd = cdTarget(st.cwd, toks.slice(1)); }
+    else if (exe === 'popd') st.cwd = st.stack.length ? st.stack.pop() : null;
+  }
+}
+
 const dirKey = (d) => (d === undefined ? '' : d === null ? '\0?' : d);
 
 function parseGit(toks, cwdState, branches) {
@@ -129,16 +157,20 @@ function parseGit(toks, cwdState, branches) {
     return r;
   };
   if (sub === 'checkout' || sub === 'switch') {
+    // A branch switch: a create flag with a name, or exactly one positional and no
+    // `--` / -p. Anything else (paths, patch mode) leaves the working branch alone.
     let name;
     let isNew = false;
+    const pos = [];
+    let pathMode = false;
     for (let k = 0; k < args.length; k++) {
       const a = args[k];
-      if (a === '--') break;
+      if (a === '--' || /^(-p|--patch)/.test(a)) { pathMode = true; continue; }
       if (CREATE_FLAGS.has(a)) { name = args[k + 1]; isNew = true; break; }
       if (a.startsWith('-')) continue;
-      name = a;
-      break;
+      pos.push(a);
     }
+    if (!isNew && !pathMode && pos.length === 1) name = pos[0];
     if (name) branches.set(dirKey(eff), { name, isNew });
     return [];
   }
@@ -182,21 +214,17 @@ function parseGh(toks) {
 // -> {kind, pushRef?, mergeRef?, dir?, dirUnknown?, assumedBranch?, assumedNew?}[]
 export function gitIntents(command) {
   const out = [];
-  let cwdState;
-  const branches = new Map();
-  for (const raw of splitCommands(command)) {
+  traverse(command, (raw, st) => {
     const toks = skipPrefix(raw);
-    if (!toks.length) continue;
+    if (!toks.length) return;
     const exe = basename(toks[0]).replace(/\.exe$/i, '');
-    if (exe === 'cd' || exe === 'pushd') cwdState = cdTarget(cwdState, toks.slice(1));
-    else if (exe === 'git') out.push(...parseGit(toks, cwdState, branches));
+    if (exe === 'git') out.push(...parseGit(toks, st.cwd, st.branches));
     else if (exe === 'gh') {
-      const g = parseGh(toks);
-      out.push(...g.map((o) => {
-        if (typeof cwdState === 'string') return { ...o, dir: cwdState };
-        return cwdState === null ? { ...o, dirUnknown: true } : o;
+      out.push(...parseGh(toks).map((o) => {
+        if (typeof st.cwd === 'string') return { ...o, dir: st.cwd };
+        return st.cwd === null ? { ...o, dirUnknown: true } : o;
       }));
     }
-  }
+  });
   return out;
 }
