@@ -29,6 +29,11 @@ for banned in 'read_markdown' 'edit_markdown' 'Serena' 'memory/specs'; do
   grep -qF -- "$banned" "$SKILL" && fail "does not name $banned" "found in SKILL.md" || pass "does not name $banned"
 done
 
+# Final review M1: a find filter on the frontmatter key `feature` is refused by the server.
+grep -qF -- 'filter={"feature"' "$SKILL" && fail "no find filter on feature" "SKILL.md filters on feature" || pass "no find filter on feature"
+# Final review M4: an empty criteria list records no verdict.
+grep -qF -- 'Zero criteria: stop' "$SKILL" && pass "zero criteria stops before a verdict" || fail "zero criteria stops before a verdict" "absent"
+
 # Every references/*.md the skill links must exist.
 links=$(grep -oE 'references/[A-Za-z0-9._-]+\.md' "$SKILL" | sort -u)
 if [ -z "$links" ]; then

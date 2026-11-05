@@ -379,6 +379,63 @@ def case_spec_drift(cs: IsolatedCodescout) -> None:
         dropped = cs.call("doc", action="delete", id=CREATED.pop(), force=True)
         if not dropped.ok:
             bad(f"{label}: fixture spec dropped", dropped.error or dropped.text[:200])
+def case_spec_drift_finds(cs: IsolatedCodescout) -> None:
+    """Every `doc(action="find", ...)` spec-drift spells out is accepted (final review M1: a filter on
+    the frontmatter key `feature` is refused, because only catalog fields are filterable), and the
+    slug route reaches the spec: a `kind="spec"` find returns the fixture, and its `get` carries the
+    `feature:` value the skill tells the agent to match by hand."""
+    label = "spec-drift/SKILL.md find"
+    text = SPEC_DRIFT_SKILL.read_text()
+    calls: list[tuple[str, dict]] = []
+    for m in re.finditer(r'doc\(\s*action\s*=\s*"find"', text):
+        where = f"{label}:{text.count(chr(10), 0, m.start()) + 1}"
+        try:
+            node = ast.parse(text[m.start():call_end(text, m.start() + 3)], mode="eval").body
+            calls.append((where, {kw.arg: ast.literal_eval(kw.value) for kw in node.keywords}))
+        except (SyntaxError, ValueError) as exc:
+            bad(f"{where}: find call parses", str(exc))
+    if not calls:
+        return bad(f"{label} calls extracted", 'no doc(action="find" ...) in the skill')
+    ok(f"{label}: {len(calls)} calls extracted")
+
+    made = cs.call("doc", action="create", kind="spec", status="draft", tags=["sdd"], title="Fixture spec",
+                   rel_path="docs/superpowers/specs/2026-11-05-drift-fixture-design.md",
+                   extra={"feature": "fx-slug"},
+                   body="# Fixture design\n\n## Acceptance criteria\n\n- Exports a CSV\n")
+    if not made.ok:
+        return bad("spec-drift fixture spec created", made.error or made.text[:200])
+    sid = made.payload["id"]
+    CREATED.append(sid)
+
+    # CONTROL FIRST: the filter the skill used to prescribe must be refused, or the PASSes prove nothing.
+    refused = cs.call("doc", action="find", kind="spec", filter={"feature": {"eq": "fx-slug"}})
+    if refused.ok:
+        bad(f"{label}: control (filter on frontmatter key 'feature') is refused",
+            "harness cannot detect a non-catalog filter field: the call was accepted")
+    else:
+        ok(f"{label}: control (filter on frontmatter key 'feature') is refused")
+
+    for where, call in calls:
+        reply = cs.call("doc", **call)
+        if not reply.ok:
+            bad(f"{where}: find call is accepted", reply.error or reply.text[:200])
+            continue
+        ok(f"{where}: find call is accepted")
+        if set(call) <= {"action", "kind", "filter"} and call.get("kind") == "spec":
+            if sid in reply.text:
+                ok(f"{where}: returns the fixture spec")
+            else:
+                bad(f"{where}: returns the fixture spec", reply.text[:200])
+    got = cs.call("doc", action="get", id=sid)
+    # the slug is not in the path or title, so a hit here is the frontmatter value
+    if got.ok and "fx-slug" in got.text and '"extra"' in got.text:
+        ok(f"{label}: get on the spec shows its feature: value to match by hand")
+    else:
+        bad(f"{label}: get on the spec shows its feature: value", got.error or got.text[:200])
+    while CREATED:
+        dropped = cs.call("doc", action="delete", id=CREATED.pop(), force=True)
+        if not dropped.ok:
+            bad(f"{label}: fixture spec dropped", dropped.error or dropped.text[:200])
 
 
 
@@ -494,6 +551,7 @@ def main() -> int:
             case_fixture_ledger(cs, repo, call)
             case_prescribed_exemplars(cs)
             case_spec_drift(cs)
+            case_spec_drift_finds(cs)
             case_sdd_calls(cs)
             if template.is_file():
                 case_real_template(cs, repo, template, call)

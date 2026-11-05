@@ -15,7 +15,7 @@ The user gives one of: a catalog id, a file path, or a `feature:` slug.
 
 - Id: `doc(action="get", id="<id>", full=true)`.
 - Path: `doc(action="find", kind="spec", rel_path="<path or fragment>")`, then `get` the row.
-- Slug: `doc(action="find", kind="spec", filter={"feature": {"eq": "<slug>"}})`. If that returns nothing, find all specs and match the `feature:` frontmatter key yourself.
+- Slug: `doc(action="find", kind="spec")`, then `get` each candidate and keep the ones whose `feature:` frontmatter value (shown under `extra`) equals the slug. Do not filter on `feature`: only catalog fields are filterable, and the server refuses it as an unknown field. In an sdd project, `doc(action="find", kind="spec", filter={"tags": {"contains": "sdd"}})` narrows the candidates first.
 - Nothing given: `doc(action="find", kind="spec")` and ask which one.
 
 Superpowers writes specs at `docs/superpowers/specs/YYYY-MM-DD-<topic>-design.md`; codescout catalogs them as `kind=spec`. Zero or several matches: stop and ask. Never pick one silently. Note the artifact `id`; the verdict is recorded against it.
@@ -31,6 +31,8 @@ Take the first source that yields items, in this order:
 3. Else extract a candidate list yourself from the spec's requirements and **ask the user to confirm it** before checking anything. Do not proceed on an unconfirmed list.
 
 One criterion is one checkable statement. Split compound items ("X and Y") into two. Keep the spec's own wording in `text`.
+
+Zero criteria: stop. Tell the user the spec has no checkable criteria and do not record a verdict; an empty list would record `outcome: refuted` with a meaningless gate.
 
 ## Step 3 - Check each criterion against the code
 
@@ -78,5 +80,5 @@ For each `missing` or `divergent` criterion, give two options and let the user c
 
 - Never mark `implemented` without a cited `file:line` you read.
 - Never record `gate: "go"` while any criterion is `missing` or `divergent`.
-- Never record a verdict on a criteria list the user has not confirmed (Step 2, case 3).
+- Never record a verdict on a criteria list the user has not confirmed (Step 2, case 3), or on an empty one.
 - The skill reads and reports. It changes no code and no spec unless the user directs it in Step 6.
