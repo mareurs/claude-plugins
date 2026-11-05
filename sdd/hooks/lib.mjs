@@ -119,7 +119,11 @@ export function mainCheckout(cwd) {
           const rel = readFileSync(cd, 'utf8').trim();
           commonDir = isAbsolute(rel) ? rel : resolvePath(gitDir, rel);
         }
-        return { root: dirname(commonDir), commonDir, gitDir };
+        // No commondir (separate git dir, submodule), or a common dir that is not
+        // a `.git` (separate-git-dir repo's worktree): the main root is not derivable
+        // from the git dir, so fall back to the directory holding the .git file.
+        const root = basename(commonDir) === '.git' && commonDir !== gitDir ? dirname(commonDir) : dir;
+        return { root, commonDir, gitDir };
       }
       const parent = dirname(dir);
       if (parent === dir) return null;
@@ -158,14 +162,15 @@ export function loadConfig(root) {
   }
 }
 
-const FM_RE = /^(﻿?)---[ \t]*\r?\n([\s\S]*?)\r?\n---[ \t]*(?:\r?\n|$)/;
+// open delimiter | (close2: immediately-closed block) or (inner + close)
+const FM_RE = /^(?<open>﻿?---[ \t]*\r?\n)(?:(?<close2>---[ \t]*(?:\r?\n|$))|(?<inner>[\s\S]*?)(?<close>\r?\n---[ \t]*(?:\r?\n|$)))/;
 
 // First `---` block as flat key: value pairs. Tolerates BOM and CRLF.
 export function readFrontmatter(text) {
   const m = String(text).match(FM_RE);
   const out = {};
   if (!m) return out;
-  for (const line of m[2].split(/\r?\n/)) {
+  for (const line of (m.groups.inner ?? '').split(/\r?\n/)) {
     const kv = line.match(/^([A-Za-z0-9_-]+):[ \t]*(.*?)[ \t]*$/);
     if (!kv) continue;
     let v = kv[2];
@@ -186,16 +191,20 @@ export function writeFrontmatterFields(path, fields) {
     writeFileSync(path, `---\n${block}\n---\n${text}`);
     return;
   }
-  const eol = m[0].includes('\r\n') ? '\r\n' : '\n';
-  let inner = m[2];
+  const { open, close2, close } = m.groups;
+  const eol = open.includes('\r\n') ? '\r\n' : '\n';
+  let inner = m.groups.inner ?? '';
   for (const [k, v] of entries) {
     const re = new RegExp(`^${k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}:.*$`, 'm');
     if (re.test(inner)) inner = inner.replace(re, () => `${k}: ${v}`);
-    else inner += `${eol}${k}: ${v}`;
+    else inner = inner === '' ? `${k}: ${v}` : `${inner}${eol}${k}: ${v}`;
   }
-  const head = m[0].slice(0, m[0].indexOf(m[2]));
-  const tail = m[0].slice(m[0].indexOf(m[2]) + m[2].length);
-  writeFileSync(path, text.slice(0, m.index) + head + inner + tail + text.slice(m[0].length));
+  // close2 = the block closed on the line right after the opener (no inner text,
+  // so no eol belongs before the closer); otherwise close carries its own leading eol.
+  const rebuilt = close2 !== undefined
+    ? open + (inner === '' ? '' : inner + eol) + close2
+    : open + inner + close;
+  writeFileSync(path, rebuilt + text.slice(m[0].length));
 }
 
 // *.md files in <root>/docs/superpowers/<kind>/.

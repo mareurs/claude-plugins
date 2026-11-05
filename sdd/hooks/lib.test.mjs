@@ -28,7 +28,7 @@ function tmp() {
   return d;
 }
 const git = (cwd, ...args) =>
-  execFileSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', ...args], { cwd, stdio: 'pipe' }).toString().trim();
+  execFileSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', '-c', 'commit.gpgsign=false', ...args], { cwd, stdio: 'pipe' }).toString().trim();
 
 function write(root, rel, text) {
   const p = join(root, rel);
@@ -78,6 +78,25 @@ describe('mainCheckout / currentBranch', () => {
     assert.equal(r.root, main);
     assert.equal(r.commonDir, join(main, '.git'));
     assert.equal(r.gitDir, join(main, '.git'));
+  });
+  test('separate git dir: root is the dir holding the .git file', () => {
+    const base = tmp();
+    const sep = join(base, 'sepgit');
+    const work = join(base, 'sep');
+    git(base, 'init', '-q', '-b', 'main', `--separate-git-dir=${sep}`, work);
+    const r = lib.mainCheckout(work);
+    assert.equal(r.root, work);
+    assert.equal(r.gitDir, sep);
+  });
+  test('worktree of a separate-git-dir repo falls back to the worktree dir', () => {
+    const base = tmp();
+    const sep = join(base, 'sepgit');
+    const work = join(base, 'sep');
+    git(base, 'init', '-q', '-b', 'main', `--separate-git-dir=${sep}`, work);
+    git(work, 'commit', '-q', '--allow-empty', '-m', 'x');
+    const wt2 = join(base, 'wt2');
+    git(work, 'worktree', 'add', '-q', '-b', 'f2', wt2);
+    assert.equal(lib.mainCheckout(wt2).root, wt2);
   });
   test('outside a repo returns null', () => {
     assert.equal(lib.mainCheckout(outside), null);
@@ -140,6 +159,25 @@ describe('frontmatter', () => {
     const p = write(d, 'a.md', '---\ntitle: T\n---\nbody\n');
     lib.writeFrontmatterFields(p, { status: 'approved' });
     assert.equal(readFileSync(p, 'utf8'), '---\ntitle: T\nstatus: approved\n---\nbody\n');
+  });
+  test('writeFrontmatterFields fills an empty block', () => {
+    const d = tmp();
+    const p = write(d, 'a.md', '---\n\n---\nbody\n');
+    lib.writeFrontmatterFields(p, { status: 'approved' });
+    assert.equal(readFileSync(p, 'utf8'), '---\nstatus: approved\n---\nbody\n');
+    assert.deepEqual(lib.readFrontmatter(readFileSync(p, 'utf8')), { status: 'approved' });
+  });
+  test('writeFrontmatterFields fills an empty-adjacent block', () => {
+    const d = tmp();
+    const p = write(d, 'a.md', '---\n---\nbody\n');
+    lib.writeFrontmatterFields(p, { status: 'approved' });
+    assert.equal(readFileSync(p, 'utf8'), '---\nstatus: approved\n---\nbody\n');
+  });
+  test('writeFrontmatterFields ignores a later --- rule when no block exists', () => {
+    const d = tmp();
+    const p = write(d, 'a.md', '# T\n\n---\n\nx\n');
+    lib.writeFrontmatterFields(p, { status: 'approved' });
+    assert.equal(readFileSync(p, 'utf8'), '---\nstatus: approved\n---\n# T\n\n---\n\nx\n');
   });
   test('writeFrontmatterFields creates a block when none', () => {
     const d = tmp();
