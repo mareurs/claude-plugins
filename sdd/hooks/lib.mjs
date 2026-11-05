@@ -7,7 +7,7 @@
 // FAIL-OPEN CONTRACT: hooks exit 0 even on error; intended denials go through
 // the JSON `permissionDecision` field.
 import { readFileSync, readdirSync, existsSync, statSync, writeFileSync } from 'node:fs';
-import { join, dirname, resolve as resolvePath, basename, isAbsolute } from 'node:path';
+import { join, dirname, resolve as resolvePath, basename, isAbsolute, sep } from 'node:path';
 
 // ---- copied from codescout-companion/hooks/lib.mjs -------------------------
 
@@ -237,7 +237,11 @@ export function activePlans(root) {
     if (p.fm.status !== 'approved') continue;
     const ptr = specPointer(p.body);
     if (!ptr) continue;
-    const specPath = isAbsolute(ptr) ? ptr : resolvePath(root, ptr);
+    const specPath = isAbsolute(ptr) ? resolvePath(ptr) : resolvePath(root, ptr);
+    // The spec must live in <root>/docs/superpowers/specs/ (a pointer elsewhere,
+    // or one that climbs out with `..`, does not count).
+    const specsDir = resolvePath(root, 'docs', 'superpowers', 'specs');
+    if (!specPath.startsWith(specsDir + sep)) continue;
     try {
       if (readFrontmatter(readFileSync(specPath, 'utf8')).status !== 'approved') continue;
     } catch { continue; }

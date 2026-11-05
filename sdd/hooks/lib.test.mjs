@@ -226,7 +226,14 @@ describe('artifacts and activePlans', () => {
   test('draft plan is not active', () => {
     const d = tmp();
     write(d, SPEC, '---\nstatus: approved\n---\nS');
-    write(d, PLAN, planBody('draft'));
+    assert.deepEqual(lib.activePlans(d), []);
+  });
+  test('spec pointer outside docs/superpowers/specs is not active', () => {
+    const d = tmp();
+    write(d, 'notes/x.md', '---\nstatus: approved\n---\nS');
+    write(d, PLAN, '---\nstatus: approved\n---\n# Plan\n\n**Spec:** notes/x.md\n');
+    assert.deepEqual(lib.activePlans(d), []);
+    write(d, PLAN, '---\nstatus: approved\n---\n# Plan\n\n**Spec:** docs/superpowers/specs/../../../notes/x.md\n');
     assert.deepEqual(lib.activePlans(d), []);
   });
 });
