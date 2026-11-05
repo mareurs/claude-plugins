@@ -10,18 +10,21 @@ This project uses strict specification-driven development (`.sdd/config.json`). 
 1. Design with `superpowers:brainstorming`. The design doc is the spec.
 2. Stop. The user types `/sdd:approve spec <feature>`.
 3. Plan with `superpowers:writing-plans`. Fill the `**Spec:**` line with the plain path.
-4. Commit spec and plan while the plan is still `draft` (no plan is active, so the review guard
-   lets the commit through). Then stop: the user types `/sdd:approve plan <feature>`. Then
+4. Commit spec and plan while the plan is still `draft` (this plan is not active yet, so the
+   review guard lets the commit through unless another feature is active and not yet
+   reviewed). Then stop: the user types `/sdd:approve plan <feature>`. Then
    record `branch:` in the plan and create the worktree. The approval frontmatter written
-   after the commit stays uncommitted in the main checkout and is committed with the
-   integration, after `/sdd:approve review`; do not commit it on the base branch earlier.
+   after the commit stays uncommitted in the main checkout until step 8; do not commit it on
+   the base branch earlier.
 5. Execute with `superpowers:subagent-driven-development`. Source writes are denied until the
    plan is approved.
 6. Check drift with `codescout-companion:spec-drift`. A Missing or Divergent criterion stops
    the flow.
 7. Run `/review`. On GO, the user types `/sdd:approve review <feature>`.
-8. Finish with `superpowers:finishing-a-development-branch`, then the user types
-   `/sdd:approve done <feature>`.
+8. After `/sdd:approve review` and before any merge, on the base branch, commit the spec and
+   plan frontmatter; then merge with `superpowers:finishing-a-development-branch` (for a PR,
+   commit it before `git pull` brings in the merged PR). Then the user types
+   `/sdd:approve done <feature>`; commit the `implemented`/`done` frontmatter it writes.
 
 Never edit status fields or approval records yourself. Ask the user to type the command.
 

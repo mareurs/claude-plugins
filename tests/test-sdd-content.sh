@@ -133,5 +133,25 @@ else
   fail "sdd-flow commits spec and plan while the plan is draft, before /sdd:approve plan" "commit line='$COMMIT_LINE' approve line='$APPROVE_LINE'"
 fi
 
+# Finish order (final review I2): main carries the approval frontmatter uncommitted, and a
+# feature branch that touched the plan makes `git merge` refuse ("would be overwritten by
+# merge"). So at step 9, after /sdd:approve review and before any merge, the spec and plan
+# frontmatter is committed on the base branch; the merge comes after.
+FIN_LINE="$(grep -nF '**Finish.**' "$SKILL" | head -1 | cut -d: -f1)"
+FM_LINE="$(grep -nF 'before any merge, on the base branch, commit the spec and plan frontmatter' "$SKILL" | head -1 | cut -d: -f1)"
+MERGE_LINE="$(grep -nF 'Then merge' "$SKILL" | head -1 | cut -d: -f1)"
+if [ -n "$FIN_LINE" ] && [ -n "$FM_LINE" ] && [ -n "$MERGE_LINE" ] && [ "$FIN_LINE" -le "$FM_LINE" ] && [ "$FM_LINE" -le "$MERGE_LINE" ]; then
+  pass "sdd-flow step 9 commits the approval frontmatter on the base branch before the merge"
+else
+  fail "sdd-flow step 9 commits the approval frontmatter on the base branch before the merge" "finish='$FIN_LINE' frontmatter='$FM_LINE' merge='$MERGE_LINE'"
+fi
+STALE_HITS="$(grep -lF 'committed together with the integration' "$SKILL" "$SDD/skills/sdd-flow/references/gates.md" "$SDD/README.md" "$SDD/templates/CLAUDE.md.template" 2>/dev/null)"
+STALE_HITS+="$(grep -lF 'committed with the integration' "$SKILL" "$SDD/skills/sdd-flow/references/gates.md" "$SDD/README.md" "$SDD/templates/CLAUDE.md.template" 2>/dev/null)"
+if [ -z "$STALE_HITS" ]; then pass "no 'committed with the integration' wording left"; else fail "no 'committed with the integration' wording left" "$(echo "$STALE_HITS" | tr '\n' ' ')"; fi
+for f in "$SDD/skills/sdd-flow/references/gates.md" "$SDD/README.md" "$SDD/templates/CLAUDE.md.template"; do
+  needs "$f" "${f#"$REPO_ROOT"/} says to commit the approval frontmatter before the merge" 'before any merge'
+done
+needs "$SKILL" "sdd-flow says the /sdd:approve done frontmatter is committed" 'Commit the `implemented`/`done` frontmatter'
+
 echo "  ── sdd-content: $PASS_COUNT passed, $FAIL_COUNT failed"
 [ "$FAIL_COUNT" -eq 0 ]

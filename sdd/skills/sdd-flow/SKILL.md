@@ -32,19 +32,22 @@ You may write `status: draft`, `feature:`, `kind:` and `branch:` in frontmatter.
    be filled with the plain root-relative path, optionally in backticks:
    `**Spec:** docs/superpowers/specs/2026-11-05-x-design.md`. A Markdown link is not
    followed, and the plan then never becomes active. Give the plan `kind: plan`,
-   `status: draft`, `feature: <slug>`.
+   `status: draft`, `feature: <slug>` and the tag `sdd`.
 5. **Gate 2.** In this order:
-   1. Commit the spec and the plan while the plan is still `draft`. No plan is active yet,
-      so a commit on the base branch passes the review guard. The worktree starts from HEAD
-      and would not contain them otherwise.
+   1. Commit the spec and the plan while the plan is still `draft`. This feature's plan is
+      not active yet, so a commit on the base branch passes the review guard, as long as no
+      other feature is in flight: while another feature's plan is active and not yet
+      review-approved, the guard refuses commits on the base branch, and this commit must
+      wait until that feature is reviewed. The worktree starts from HEAD and would not
+      contain them otherwise.
    2. Ask the user to type `/sdd:approve plan <feature>`.
    3. Write `branch: <name>` into the plan's frontmatter (an allowed field).
    4. Create the worktree and the feature branch.
 
    The approval frontmatter that `/sdd:approve` writes after the commit stays an uncommitted
-   change in the main checkout; the hooks read it there. It is committed together with the
-   integration, after `/sdd:approve review`. Do not try to commit it on the base branch
-   before that: the review guard refuses.
+   change in the main checkout; the hooks read it there. It is committed at step 9, after
+   `/sdd:approve review`. Do not try to commit it on the base branch before that: the
+   review guard refuses.
 6. **Execute.** Call `superpowers:subagent-driven-development`, or
    `superpowers:executing-plans` for inline work. Source writes are denied until the plan is
    active; stay inside the spec.
@@ -55,10 +58,20 @@ You may write `status: draft`, `feature:`, `kind:` and `branch:` in frontmatter.
    and writes a GO or NO-GO report. On GO, ask the user to type
    `/sdd:approve review <feature>`, and tell them to read the report first: that typed
    command is the real gate.
-9. **Finish.** Call `superpowers:finishing-a-development-branch`; the merge or PR it
-   produces is what the review gate guards. Then ask the user to type
-   `/sdd:approve done <feature>`, and record the merge commit or PR as a note on the spec.
-   The calls are in `references/artifacts.md`.
+9. **Finish.** After `/sdd:approve review` and before any merge, on the base branch, commit the spec and plan frontmatter
+   (the main checkout). The review guard lets that commit through because the review record
+   names the feature branch's current tip. Then merge: call
+   `superpowers:finishing-a-development-branch`; the merge or PR it produces is what the
+   review gate guards. In the other order `git merge` refuses ("Your local changes ... would
+   be overwritten by merge") whenever the branch touched the plan, such as a ticked
+   checkbox. For a PR, commit the frontmatter on the base branch the same way before
+   `git pull` brings in the merged PR; pushing that commit is gated, and the review record
+   satisfies the gate. Any commit added to the feature branch after `/sdd:approve review`
+   needs a new review and a new `/sdd:approve review <feature>`.
+   Then ask the user to type `/sdd:approve done <feature>`.
+   Commit the `implemented`/`done` frontmatter it writes; the plan is no longer active, so
+   that commit on the base branch is not gated. Record the merge commit or PR as a note on
+   the spec. The calls are in `references/artifacts.md`.
 
 ## After each approval
 

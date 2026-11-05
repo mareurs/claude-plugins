@@ -5,7 +5,7 @@
 | Artifact | Path | Frontmatter you may write | Frontmatter only `/sdd:approve` writes |
 |---|---|---|---|
 | Spec | `docs/superpowers/specs/YYYY-MM-DD-<topic>-design.md` | `kind: spec`, `status: draft`, `feature: <slug>`, tags `sdd` | `status: approved`, `approved:`, `implemented` |
-| Plan | `docs/superpowers/plans/YYYY-MM-DD-<feature>.md` | `kind: plan`, `status: draft`, `feature: <slug>`, `branch: <name>` | `status: approved`, `approved:`, `done` |
+| Plan | `docs/superpowers/plans/YYYY-MM-DD-<feature>.md` | `kind: plan`, `status: draft`, `feature: <slug>`, `branch: <name>`, tags `sdd` | `status: approved`, `approved:`, `done` |
 | Config | `.sdd/config.json` | written by `/sdd-init` | |
 
 A feature slug matches `^[A-Za-z0-9][A-Za-z0-9._-]*$`. A missing `status` counts as `draft`.
