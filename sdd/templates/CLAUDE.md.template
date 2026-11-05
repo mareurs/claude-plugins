@@ -28,7 +28,7 @@ All development follows [`memory/constitution.md`](memory/constitution.md).
 ## Quick Links
 
 - [Constitution](memory/constitution.md) - Governance principles
-- [Specs](memory/specs/) - Feature specifications
+- [Specs](docs/superpowers/specs/) - Feature specifications
 - [Plans](memory/plans/) - Implementation plans
 
 ## Getting Started

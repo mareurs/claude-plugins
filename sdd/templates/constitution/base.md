@@ -20,7 +20,7 @@ This document defines the principles governing development for {{PROJECT_NAME}}.
 No code shall be written without a specification.
 
 ### Mandates
-1. Every feature MUST have a spec at `memory/specs/<feature>.md`
+1. Every feature MUST have a spec at `docs/superpowers/specs/<feature>.md`
 2. Specs include: problem, solution, acceptance criteria, out of scope
 3. Implementation MUST NOT exceed specification scope
 
