@@ -5,7 +5,7 @@ import { mkdtempSync, mkdirSync, writeFileSync, rmSync, realpathSync } from 'nod
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { isExempt, touchesApprovalFields } from './spec-guard.mjs';
+import { isExempt, touchesApprovalFields, applyEdit } from './spec-guard.mjs';
 
 const HOOK = join(dirname(fileURLToPath(import.meta.url)), 'spec-guard.mjs');
 const GIT = ['-c', 'commit.gpgsign=false', '-c', 'user.name=t', '-c', 'user.email=t@t'];
@@ -267,4 +267,30 @@ test('curly-quote and CRLF old_string matches are simulated; unsimulable approva
   assert.equal(run({ cwd: root, tool_name: 'Edit', tool_input: { file_path: p, old_string: 'no such text', new_string: 'plain words' } }), '');
   // a quote-normalised edit that does not touch approval passes
   assert.equal(run({ cwd: root, tool_name: 'Edit', tool_input: { file_path: p, old_string: 'bo’dy', new_string: 'text' } }), '');
+});
+
+test('CRLF file: exact matches starting or ending at a line break are simulated correctly', () => {
+  const root = repo({ config: { enforcement: 'warn' } });
+  const p = join(root, SPEC);
+  put(root, SPEC, '---\r\nstatus: draft\r\n---\r\nbody\r\n');
+  denied(run({ cwd: root, tool_name: 'Edit', tool_input: { file_path: p, old_string: '\nstatus: draft', new_string: '\nstatus: approved' } }), 'LF-start');
+  denied(run({ cwd: root, tool_name: 'Edit', tool_input: { file_path: p, old_string: '\r\nstatus: draft', new_string: '\r\nstatus: approved' } }), 'CRLF-start');
+  denied(run({ cwd: root, tool_name: 'Edit', tool_input: { file_path: p, old_string: '---\nstatus: draft', new_string: '---\nstatus: approved' } }), 'normalised');
+  // spans never leave a stray \r
+  const crlf = '---\r\ntitle: T\r\nstatus: draft\r\n---\r\n';
+  const a = applyEdit(crlf, '\nstatus: draft', '\nstatus: approved', false);
+  assert.equal(a, '---\r\ntitle: T\r\nstatus: approved\r\n---\r\n');
+  const b = applyEdit(crlf, 'T\nstatus: draft', 'T\nstatus: approved', false);
+  assert.ok(!/\r\r/.test(b));
+  assert.equal(b, '---\r\ntitle: T\r\nstatus: approved\r\n---\r\n');
+  const c = applyEdit(crlf, 'title: T\nstatus', 'title: U\nstatus', false);
+  assert.equal(c, '---\r\ntitle: U\r\nstatus: draft\r\n---\r\n');
+});
+
+test('losing the frontmatter block in a simulated edit fails closed', () => {
+  const root = repo({ config: { enforcement: 'warn' } });
+  const p = join(root, SPEC);
+  put(root, SPEC, '---\nstatus: draft\n---\nbody\n');
+  denied(run({ cwd: root, tool_name: 'Edit', tool_input: { file_path: p, old_string: '---\nstatus: draft', new_string: 'approved: soon' } }), 'deleted opener + word');
+  assert.equal(run({ cwd: root, tool_name: 'Edit', tool_input: { file_path: p, old_string: '---\nstatus: draft', new_string: 'Intro' } }), '');
 });

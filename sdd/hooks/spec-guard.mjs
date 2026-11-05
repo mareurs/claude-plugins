@@ -60,15 +60,17 @@ const normQuotes = (s) => s.replace(/[‘’]/g, "'").replace(/[“”]/g, '"');
 
 // Replace oldS by newS in text, matching exactly first and otherwise modulo curly
 // quotes and CRLF/LF (as the host's Edit does). Returns null when not found.
-function applyEdit(text, oldS, newS, all) {
+export function applyEdit(text, oldS, newS, all) {
   if (typeof oldS !== 'string' || typeof newS !== 'string' || oldS === '') return null;
-  // LF-normalised copy of text with an index map back to the original.
+  // 1. exact match first
+  if (text.includes(oldS)) return all ? text.split(oldS).join(newS) : text.replace(oldS, () => newS);
+  // 2. LF-normalised copy of text with an index map back to the original; the
+  // \n of a \r\n pair maps to the \r, so spans cover whole line endings.
   let lf = '';
   const map = [];
   for (let i = 0; i < text.length; i++) {
-    if (text[i] === '\r' && text[i + 1] === '\n') continue;
     map.push(i);
-    lf += text[i];
+    if (text[i] === '\r' && text[i + 1] === '\n') { lf += '\n'; i++; } else lf += text[i];
   }
   map.push(text.length);
   const hay = normQuotes(lf);
@@ -133,6 +135,9 @@ export function touchesApprovalFields(input, absPath) {
       if (s.insert === 'prepend' && typeof ins === 'string') next = ins + cur;
       else if (s.insert === 'append' && typeof ins === 'string') next = cur + ins;
       else if (s.insert === undefined) next = applyEdit(cur, s.old_string, s.new_string, s.replace_all);
+    }
+    if (next !== null && Object.keys(readFrontmatter(cur)).length && !Object.keys(readFrontmatter(next)).length) {
+      next = null; // invariant: a simulated step must not lose the frontmatter block
     }
     if (next !== null) cur = next;
     else {
