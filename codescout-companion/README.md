@@ -168,13 +168,18 @@ round-trip refusals).
 The CLI behaviour it relies on (empty stdout accepted, `updatedToolOutput` with several
 blocks, `additionalContext` delivery, failure modes, subagent calls, the session-id
 gate) was measured with a probe hook on 2.1.318 and 2.1.311 in `-p` mode. The shipped
-script itself was then run on both versions, registered as a plugin hook: `-p`, `-p
---resume`, `-p --fork-session --resume` and an interactive pty session with `/clear`
-between two calls; the relocation applied in all of them and the gate held (the hook's
-`CLAUDE_CODE_SESSION_ID` equalled its stdin `session_id`, including the new session
-after `/clear` and after a fork). Compaction persistence, VS Code, Copilot and a
-release install are not measured. Measurements and decisions are in
-`contracts/fixtures/cs-verified/results.md` and the `README.md` beside it.
+script itself was then run on both versions (each mode once per version, one model,
+`claude-haiku-5-5`), registered as a throwaway plugin hook: `-p`, `-p --resume`,
+`-p --fork-session --resume`, an interactive pty session with `/clear` between two
+calls, and a subagent call; the relocation applied in all of them and the gate held (the
+hook's `CLAUDE_CODE_SESSION_ID` equalled its stdin `session_id`, including the new
+session after `/clear` and after a fork). A hook in `--settings` whose command contains
+`${CLAUDE_PLUGIN_ROOT}` is refused by the CLI with a non-blocking error (measured on
+both versions), so the shipped entry runs only as a plugin hook. Not measured:
+compaction persistence, `--continue`, interactive resume and fork, `claude --bg`,
+VS Code, Copilot and other hosts, other CLI versions and models, the real `buddy` hook,
+the real companion `hooks.json` load and a release install. Measurements and decisions
+are in `contracts/fixtures/cs-verified/results.md` and the `README.md` beside it.
 
 **Not yet.** The hook relocates whenever the gates pass, with or without a consent
 statement in the user's `CLAUDE.md`. That statement is a future step and is not
@@ -186,18 +191,22 @@ through `./scripts/release.sh`.
 Risks, measured or not:
 
 - **Silent fail-closed.** If the session-id gate failed, the hook would never act and
-  nothing would report it. Measured on 2.1.318 and 2.1.311: it holds in `-p`, `-p
-  --resume`, `-p --fork-session` and an interactive session across `/clear` (stdin
-  `session_id` equal to the hook's `CLAUDE_CODE_SESSION_ID` in every call). Not
-  measured: after compaction, `--continue`, other hosts. `/clear` through
-  `--input-format stream-json` was not tried, because the CLI help does not document
-  slash commands there.
-- **Coexistence.** Measured on both versions with a stand-in for the `buddy` plugin's
-  unmatched hook (in its own plugin, printing `[cs-hint]` `additionalContext`). The CLI
-  runs both hooks, delivers both `additionalContext` strings (one system message, each
-  prefixed with the hook name, in the order the hooks finished, not the order they are
-  registered), and applies our `updatedToolOutput`; the other hook's output does not
-  disturb it. Not measured: another hook that also prints `updatedToolOutput`.
+  nothing would report it. The measurement reduces this risk; it does not remove it.
+  On 2.1.318 and 2.1.311 the gate held in `-p`, `-p --resume`, `-p --fork-session`, an
+  interactive session across `/clear` and a subagent call (stdin `session_id` equal to
+  the hook's `CLAUDE_CODE_SESSION_ID`), one run per mode and version, one model. Not
+  measured: compaction, `--continue`, interactive resume and fork, `claude --bg`, other
+  hosts, other versions. `/clear` through `--input-format stream-json` was not tried,
+  because the CLI help does not document slash commands there.
+- **Coexistence.** Measured thinly: one run per arrangement and version, with a
+  python STAND-IN for the `buddy` plugin's unmatched hook (own plugin, no matcher,
+  `[cs-hint]` `additionalContext` only), not the real hook. In those runs the CLI ran
+  both hooks, delivered both `additionalContext` strings in one system message under the
+  same prefix (`PostToolUse:<tool> hook additional context: `, so the model cannot tell
+  which hook spoke), and applied our `updatedToolOutput`. The order matched the order in
+  which the hooks finished in all 6 two-hook samples, but our wrapper adds about 40 to
+  50 ms to our hook, so that is a fit to those samples, not a general property. Not
+  measured: another hook that also prints `updatedToolOutput`.
 - **`asyncRewake` is not used, on purpose.** An async hook's `updatedToolOutput` would
   probably not apply. This is not measured.
 
@@ -208,8 +217,9 @@ Pairing with the server:
 - **New server, old or absent hook** — safe. The advice stays in the result unchanged.
   The server first emitted `advice` at codescout commit `08775f958` (`edit_code`
   `replace`), and its `verified` claim rests on the tree-sitter declaration-header
-  reader that `4214c5f77` brings in (reader `310a20e86`, text scanner deleted in
-  `4414a44fb`). All of these are on codescout `experiments`.
+  reader, on the branch merged at `4214c5f77` (a merge commit): `310a20e86` added the
+  reader and `4414a44fb` wired it in and deleted the text scanner. Both are ancestors
+  of `4214c5f77` through its first parent and are on `experiments`.
 
 ## Ollama Setup
 

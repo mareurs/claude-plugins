@@ -108,18 +108,24 @@ want = 2
 note(f"hook rows>={want}: {wait_rows(want, 90)}")
 note(f"quiet after reply 2: {quiet(6, 60)}")
 note("send /exit"); send("/exit")
+# Wait up to 20 s for the CLI to exit. EOF on the pty (the CLI closed its terminal) does not mean it has exited yet:
+# keep calling waitpid for the rest of the window and kill only a process still running after it.
 end = time.time() + 20
-while alive[0] and time.time() < end:
+exited = False
+while time.time() < end:
     pump(0.5)
     try:
         done, status = os.waitpid(pid, os.WNOHANG)
     except ChildProcessError:
-        done = pid; status = 0
+        done, status = pid, 0
     if done:
-        note(f"exited, status={status}"); alive[0] = False
+        note(f"exited, exit code {os.waitstatus_to_exitcode(status)}" + ("" if alive[0] else " (after EOF on the pty)"))
+        exited = True
         break
-else:
-    note("still alive after /exit: killing")
+    if not alive[0]:
+        time.sleep(0.2)  # pump returns at once after EOF: do not spin
+if not exited:
+    note("still running 20 s after /exit: killing")
     try:
         os.kill(pid, 9); os.waitpid(pid, 0)
     except (ProcessLookupError, ChildProcessError):

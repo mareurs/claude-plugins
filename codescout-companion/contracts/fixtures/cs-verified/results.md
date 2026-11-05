@@ -117,7 +117,7 @@ What the measurements establish:
 
 What they do not establish:
 
-- Interactive (non `-p`) sessions, `/clear`, `--fork-session`, compaction.
+- (Task 4, sections 7 to 10 below, measured `-p --resume`, `--fork-session` and an interactive `/clear` once per version.) Still unmeasured: interactive resume and fork, `--continue`, `claude --bg`, compaction.
 - Whether an inherited value shaped like a UUID is overwritten or adopted (adoption would still be self-consistent).
 - What VS Code or Copilot put in a hook's stdin and environment.
 - Inference, not measured: a `CLAUDE_CODE_SESSION_ID` inherited by some other host's hook process would name a
@@ -128,9 +128,11 @@ environment id and the stdin id different, the feature never fires and nothing r
 least one interactive-mode, `/clear` or `--fork-session` run before the gate is called proven, or state in its results
 that this was not measured.
 
-**Update (Task 4, sections 7 to 10 below):** measured on both versions with the shipped script: `-p --resume`, `-p --fork-session`
-and an interactive session across `/clear` all kept the environment id equal to stdin `session_id`, and the relocation applied.
-Compaction, VS Code and Copilot remain unmeasured.
+**Update (Task 4, sections 7 to 10 below):** measured on both versions with the shipped script, each mode ONCE per version and with
+one model (`claude-haiku-5-5`): `-p --resume`, `-p --fork-session`, an interactive session across `/clear` and a subagent call all kept
+the environment id equal to stdin `session_id`, and the relocation applied. This REDUCES the risk of a silent fail-closed; it does
+not remove it. Compaction, `--continue`, interactive resume and fork, `claude --bg`, VS Code, Copilot and other CLI versions remain
+unmeasured.
 
 ## 5. Failure modes
 
@@ -164,8 +166,8 @@ the `Agent` tool; the subagent called the stub once). Fixtures `claude-<ver>-sub
 ## Not measured
 
 - Relocated context surviving compaction (spec "What is left to the builder"): no compaction was triggered.
-- Behaviour under VS Code / Copilot hosts, and in interactive sessions (every run was `-p`, entrypoint `sdk-cli`).
-- `/clear`, `--fork-session` and interactive sessions vs the session-id equality (`-p --resume` only: one reviewer run, see Q4).
+- Behaviour under VS Code / Copilot hosts. Interactive sessions: every Task 1 run was `-p`, entrypoint `sdk-cli`; Task 4 measured one interactive session per version (section 9).
+- `/clear`, `--fork-session` and interactive sessions vs the session-id equality: not measured in Task 1 (`-p --resume` only: one reviewer run, see Q4); measured once per version in Task 4, see section 9 (which also lists what stays unmeasured).
 - Exit 0 with text on stderr; exit codes other than 0, 1 (prior probe) and 2.
 - A `tool_response` that the CLI itself truncates or persists (large MCP results): the stub's results are small.
 - Which variable switched on the extra stdin key `scratchpad_dir`, seen only in the two polluted runs (eight
@@ -205,10 +207,14 @@ the `Agent` tool; the subagent called the stub once). Fixtures `claude-<ver>-sub
 
 # End-to-end: the SHIPPED hook `cs-verified-relocate.mjs` on Claude Code 2.1.318 and 2.1.311
 
-Measured 2026-11-05 (Task 4). 32 runs (16 on each version), USD 0.0357 as reported by the CLI for the 30 `-p` runs; the 2
-interactive runs report no cost (an interactive session has no `result` event, see "NOT measured"). With Task 1's
-23 runs (USD 0.0293) the plan has used 55 runs and USD 0.065 of the 60 runs and USD 5 allowed. Every run: model
-`claude-haiku-5-5`, `--max-budget-usd 0.25` (`-p` runs), the stub as MCP server `codescout`, the hook registered with the shipped
+Measured 2026-11-05 (Task 4). 32 runs (16 on each version), USD 0.0357 for the 30 `-p` runs (the CLI's `result` event) and
+USD 0.0051 for the 2 interactive runs. An interactive session has no `result` event; the `cost-state` rows of its two session
+transcripts give 0.0016975 + 0.00099246 on 2.1.318 and 0.001428 + 0.00093197 on 2.1.311. For `-p` runs that row equals the result
+cost (for example `e318-b-two` 0.00038952), so it is a reliable source. Total USD 0.0408 for the 32 runs. With Task 1's
+23 runs (USD 0.0293) the plan has used 55 runs and USD 0.0701 of the 60 runs and USD 5 allowed. **Caps:** every `-p` run had
+`--max-budget-usd 0.25` enforced by the CLI; the 2 interactive runs had NO CLI-enforced per-run cap (`--max-budget-usd` only works
+with `--print`), only the fixed pty script bounded them. Every run: model
+`claude-haiku-5-5`, the stub as MCP server `codescout`, the hook registered with the shipped
 entry (matcher `mcp__codescout__.*`, command `node ${CLAUDE_PLUGIN_ROOT}/hooks/cs-verified-relocate.mjs`, `"timeout": 5`),
 the CLI started with the explicit environment of Task 1 (token read inside `execve`, never on a command line). The script under
 test is the file in this worktree (`codescout-companion/hooks/cs-verified-relocate.mjs` at `5da73fc`), reached through
@@ -218,8 +224,11 @@ settings, install record or plugin cache was touched.
 ## 7. How the shipped hook was registered, and why not `--settings`
 
 **A `--settings` hook cannot carry `${CLAUDE_PLUGIN_ROOT}`; the CLI refuses it.** The first run put the shipped command in
-`--settings` with `CLAUDE_PLUGIN_ROOT` set in the CLI's environment, as planned (run `e318-x-settings-refused`: a wrapper command
-containing `${CLAUDE_PLUGIN_ROOT}`; `e311-x-settings-refused`: the bare shipped command). Both versions: stream `hook_response`
+`--settings`, as planned. Run `e318-x-settings-refused` used a wrapper command containing `${CLAUDE_PLUGIN_ROOT}` and had
+`CLAUDE_PLUGIN_ROOT` set in the CLI's environment (its `env-passed.txt` lists it); `e311-x-settings-refused` used the bare shipped
+command and had no `CLAUDE_PLUGIN_ROOT` in its environment. Both were refused, so the refusal does not depend on that variable. The
+committed `run.sh settingsref` writes the `e311` form only; the `e318` form came from an earlier state of the harness that was not
+kept. Both versions: stream `hook_response`
 `outcome: error`, `exit_code: 1`, stderr
 `Failed to run: Hook command references ${CLAUDE_PLUGIN_ROOT} but the hook is not associated with a plugin. This variable is only available in hooks defined in a plugin's hooks/hooks.json file, not in settings.json. Command: …`;
 the hook process never started (no log line), the result reached the model unchanged (advice in block 1), the run exited 0.
@@ -262,17 +271,25 @@ messages, and the model's reply. Hook stdin keys in every `-p` main-agent call: 
 | (h) subagent call | `h-subagent` | relocation inside a subagent | hook stdin has `agent_id` (`a8b1a95942ce922c2` on 318, `ab9a393132f7c5062` on 311), `agent_type: "general-purpose"`, the parent's `session_id`, 15 keys; env session id equals stdin `session_id`; the subagent's own transcript has the 2-block result without `advice` and the system message `PostToolUse:mcp__codescout__edit_code hook additional context: [cs-verified] verify callers: …` | `…/subagents/agent-<id>.jsonl` in each run's config dir |
 | settings registration | `x-settings-refused` | (found while running) | see section 7: refused, fail-open | stderr text in section 7 |
 
-**Coexistence, the merge rule as measured (both versions, same outcome in f1 to f4; one sample per arrangement):** the CLI ran
-both hooks and delivered both `additionalContext` strings, joined in a single system-role message, each prefixed with
-`PostToolUse:<tool> hook additional context: `, separated by a blank line. The order in that message followed which hook finished
-first, not the order of registration (f1 and f3: the fast stand-in first whichever was registered first; f4: the slow stand-in last
-although registered first). Our `updatedToolOutput` applied in f1, f3 and f4 next to the stand-in's output; the stand-in's output
-did not disturb it; no error or warning appeared. Not measured: another hook that also prints `updatedToolOutput` (then one would
-have to win), a hook that exits 2, more than two hooks.
+**Coexistence, as measured (n=1 per arrangement per version: f1, f3 and f4 are the three two-hook arrangements; f2 has one hook).**
+The other hook was a STAND-IN (a python script registered in its own plugin without a matcher, printing `additionalContext` only),
+not the real `buddy` hook. In every two-hook sample the CLI ran both hooks and delivered both `additionalContext` strings, joined
+in a single system-role message, each under the same prefix `PostToolUse:mcp__codescout__edit_code hook additional context: `
+(the prefix names the tool, not the hook, so the model cannot tell which hook spoke), separated by a blank line. Our
+`updatedToolOutput` applied in f1, f3 and f4 next to the stand-in's output, which did not disturb it; no error or warning appeared.
+The order in the message matched the order in which the hooks finished in all 6 samples (f1 and f3: the stand-in first; f4, the
+stand-in slowed by 1.5 s: ours first). The hooks' own clocks (ms after the first start; start/end as logged by the wrapper and the
+stand-in): 2.1.318 f1 stand-in 2/3, ours 0/129; f3 stand-in 0/0, ours 5/682; f4 stand-in 0/1500, ours 7/54; 2.1.311 f1 stand-in
+0/0, ours 5/56; f3 stand-in 0/0, ours 10/56; f4 stand-in 0/1500, ours 6/55. Our hook runs through a python wrapper that starts node
+(about 40 to 50 ms more than the bare script), so in f1 and f3 the stand-in finishes first by construction and those two
+arrangements cannot separate finishing order from other rules; f4 rules out registration order and a fixed stand-in-first order. The
+"finishing order" rule is a fit to these samples, not a general property. Not measured: another hook that also prints
+`updatedToolOutput` (then one would have to win), a hook that exits 2, more than two hooks, the real `buddy` hook.
 
 ## 9. (g) Host gate in other session modes
 
-The question: does `CLAUDE_CODE_SESSION_ID` (hook environment) equal the hook's stdin `session_id`? Answered from the hook log of
+The question: does `CLAUDE_CODE_SESSION_ID` (hook environment) equal the hook's stdin `session_id`? Each row below is ONE run (n=1 per
+mode per CLI version), one model (`claude-haiku-5-5`). Answered from the hook log of
 each call. The shipped script's own gate decision is observable: the relocation applied (513 bytes printed, advice removed from the
 model-visible result, `[cs-verified]` message present) in every row, so the gate passed in every row.
 
@@ -297,6 +314,13 @@ in Task 1's polluted runs) and `permission_mode` is `"auto"` (`"default"` in `-p
 `claude-<ver>-interactive-after-clear.json` (stdin of the call after `/clear`), `claude-<ver>-hook-env-interactive-after-clear.json`,
 `claude-<ver>-hook-env-fork.json`; also `claude-<ver>-root-verified-false.json` and `claude-<ver>-root-hint-only.json` (stdin of cases (c) and (d)).
 
+The recorded `cmd.txt` of `e318-g-interactive` and `e311-g-interactive` is WRONG for those two runs: the first version of `run.sh` wrote it from
+the `-p` argument list, so it shows `-p <prompt> ... --max-budget-usd 0.25 --output-format stream-json ...`, which the pty invocation
+never passed. The CLI was started with `--model claude-haiku-5-5 --session-id <uuid> --setting-sources local --mcp-config <run>/mcp.json
+--strict-mcp-config --settings <run>/settings.json --tools '' --allowedTools mcp__codescout__edit_code --plugin-dir <run>/plugin-0-shipped`
+(no `-p`, no budget flag, hence no CLI-enforced cap on those two runs). Those run dirs are not rewritten; the committed `run.sh` now
+writes the real argv for interactive runs and copies the post-`/clear` transcript itself.
+
 `/clear` through `--input-format stream-json`: **not tried.** `claude --help` documents `--input-format` only as `"text"` or
 `"stream-json"` (realtime streaming input) and says nothing about slash commands there, so by the task rule it was not attempted.
 
@@ -313,8 +337,8 @@ in Task 1's polluted runs) and `permission_mode` is `"auto"` (`"default"` in `-p
 - Any CLI version other than 2.1.318 and 2.1.311, and any model other than `claude-haiku-5-5`.
 - The effect of the `[cs-verified]` text on the model's behaviour (the replies above only show the model saw it and, in these
   runs, did not act on it).
-- Interactive run cost: not reported by the CLI; the token usage in the session transcripts is a few thousand tokens per session,
-  of the order of the `-p` runs, so the two runs are assumed to be well under USD 0.02 together (estimate, not measured).
+- Interactive run cost: the CLI shows no `result` event interactively, but each session transcript's `cost-state` row gives it:
+  USD 0.0016975 + 0.00099246 (2.1.318) and 0.001428 + 0.00093197 (2.1.311), about USD 0.0051 for the two runs (section 11).
 
 ## 11. Runs and cost (Task 4)
 
@@ -334,7 +358,7 @@ in Task 1's polluted runs) and `permission_mode` is `"auto"` (`"default"` in `-p
 | e318-f4-slow-standin-first | 318 | 0.00098 | 7.7 |
 | e318-g-fork | 318 | 0.00082 | 5.7 |
 | e318-g-resume | 318 | 0.00071 | 5.3 |
-| e318-g-interactive | 318 | not reported | 36.7 |
+| e318-g-interactive | 318 | 0.00269 (0.0016975 + 0.00099246, cost-state of the 2 sessions) | 36.7 |
 | e318-h-subagent | 318 | 0.00448 | 15.9 |
 | e311-b-two | 311 | 0.00100 | 7.0 |
 | e311-b-mixed | 311 | 0.00124 | 7.2 |
@@ -350,8 +374,8 @@ in Task 1's polluted runs) and `permission_mode` is `"auto"` (`"default"` in `-p
 | e311-f4-slow-standin-first | 311 | 0.00101 | 8.4 |
 | e311-g-fork | 311 | 0.00146 | 6.0 |
 | e311-g-resume | 311 | 0.00133 | 5.9 |
-| e311-g-interactive | 311 | not reported | 36.4 |
+| e311-g-interactive | 311 | 0.00236 (0.001428 + 0.00093197, cost-state of the 2 sessions) | 36.4 |
 | e311-h-subagent | 311 | 0.00367 | 14.4 |
-| **total (32 runs; 30 with a reported cost)** | | **0.0357** | |
+| **total (32 runs; 30 from `result` events, 2 interactive from `cost-state`)** | | **0.0408** | |
 
-With Task 1: 55 runs, USD 0.0650 reported (plus the two unreported interactive runs).
+With Task 1: 55 runs, USD 0.0701 (Task 4: 0.0357 from the `result` events of the 30 `-p` runs plus 0.0051 from the `cost-state` rows of the 2 interactive runs = 0.0408; Task 1: 0.0293).

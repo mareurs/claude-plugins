@@ -31,9 +31,12 @@
 #                     only its logs. PROBE_FORK=1 adds --fork-session.
 #   PROBE_PROMPT      replace the default prompt
 #   PROBE_INTERACTIVE=1  no -p: pty_drive.py runs the CLI under a pty (prompt 1, /clear, prompt 2, /exit; PROBE_PROMPT1,
-#                     PROBE_PROMPT2, PROBE_INTERACTIVE_CLEAR=0 to skip /clear). No stream.jsonl and no cost: the CLI reports
-#                     neither interactively; evidence is hook-log.jsonl, pty.log, pty-steps.txt and the session transcripts
-#                     under <run>/config/projects/ (one per session: /clear starts a new one).
+#                     PROBE_PROMPT2, PROBE_INTERACTIVE_CLEAR=0 to skip /clear). No stream.jsonl; the cost comes from the
+#                     `cost-state` rows of the session transcripts, and the first session's transcript is copied to
+#                     transcript.jsonl, the one after /clear to transcript-after-clear.jsonl; evidence is also hook-log.jsonl,
+#                     pty.log and pty-steps.txt. NO CLI-ENFORCED COST CAP: --max-budget-usd only works with --print, so an
+#                     interactive run is bounded only by pty_drive.py's fixed script (two prompts, /clear, /exit; the
+#                     timeouts there). cmd.txt holds the argv actually passed (without -p and without --max-budget-usd).
 #   PROBE_OUT         directory for run dirs (outside any repo; required)
 #   PROBE_TOKEN_FILE  mode-0600 file holding one long-lived Claude Code OAuth token (required)
 #   PROBE_POLLUTE=1   also hand the CLI fake values for the host-signal variables (CLAUDECODE,
@@ -157,7 +160,14 @@ ARGS=(-p "$PROMPT" --model claude-haiku-5-5 "${SESSION_ARGS[@]}" --setting-sourc
       --mcp-config "$RUN/mcp.json" --strict-mcp-config --settings "$RUN/settings.json"
       "${TOOLS[@]}" "${PLUGIN[@]}" --max-budget-usd 0.25
       --output-format stream-json --verbose --include-hook-events)
-printf '%q ' "$BIN" "${ARGS[@]}" > "$RUN/cmd.txt"; echo >> "$RUN/cmd.txt"
+if [ "${PROBE_INTERACTIVE:-}" = 1 ]; then
+  IARGS=(--model claude-haiku-5-5 "${SESSION_ARGS[@]}" --setting-sources local --mcp-config "$RUN/mcp.json"
+         --strict-mcp-config --settings "$RUN/settings.json" "${TOOLS[@]}" "${PLUGIN[@]}")
+  printf '%q ' "$BIN" "${IARGS[@]}" > "$RUN/cmd.txt"
+else
+  printf '%q ' "$BIN" "${ARGS[@]}" > "$RUN/cmd.txt"
+fi
+echo >> "$RUN/cmd.txt"
 cd "$WORKD"
 T0=$(date +%s.%N)
 set +e
@@ -165,8 +175,7 @@ set +e
 if [ "${PROBE_INTERACTIVE:-}" = 1 ]; then
   # interactive (no -p): pty_drive.py runs the same CLI under a pty with the same explicit environment (+ TERM)
   /usr/bin/python3 -I "$D/pty_drive.py" "$HOME" "$CFG" "$PROBE_TOKEN_FILE" "$BIN" "$WORKD" "$RUN" \
-    --model claude-haiku-5-5 "${SESSION_ARGS[@]}" --setting-sources local --mcp-config "$RUN/mcp.json" \
-    --strict-mcp-config --settings "$RUN/settings.json" "${TOOLS[@]}" "${PLUGIN[@]}" > "$RUN/stream.jsonl" 2> "$RUN/stderr.txt"
+    "${IARGS[@]}" > "$RUN/stream.jsonl" 2> "$RUN/stderr.txt"
 else
 /usr/bin/python3 -I -c '
 import os, sys
@@ -190,6 +199,21 @@ SID2="$(jq -r 'select(.type=="system" and .subtype=="init") | .session_id' "$RUN
 [ -n "$SID2" ] && echo "$SID2" > "$RUN/stream-session-id.txt"
 TP="$(ls "$CFG"/projects/*/"${SID2:-$SID}".jsonl 2>/dev/null | head -1 || true)"
 [ -n "$TP" ] && cp "$TP" "$RUN/transcript.jsonl"
+if [ "${PROBE_INTERACTIVE:-}" = 1 ]; then
+  # /clear starts a new session with its own transcript: keep the one(s) other than the first session's
+  for f in "$CFG"/projects/*/*.jsonl; do
+    [ "$(basename "$f" .jsonl)" = "$SID" ] && continue
+    cp "$f" "$RUN/transcript-after-clear.jsonl"
+  done
+fi
 COST="$(jq -r 'select(.type=="result") | .total_cost_usd' "$RUN/stream.jsonl" 2>/dev/null | tail -1)"
+COST_SRC="result event of the stream"
+if [ "${PROBE_INTERACTIVE:-}" = 1 ]; then
+  # an interactive session has no result event: sum the last cost-state row of each session transcript
+  # (for -p runs that row equals the result event's cost, e.g. e318-b-two 0.00038952)
+  COST="$(cat "$CFG"/projects/*/*.jsonl | jq -s -r '[.[] | select(.type=="cost-state")] | group_by(.sessionId) | map(last | .totalCostUSD) | add' 2>/dev/null || true)"
+  COST_SRC="cost-state rows of the session transcripts"
+fi
 echo "cost_usd: ${COST:-unknown}" >> "$RUN/exit.txt"
+echo "cost_source: $COST_SRC" >> "$RUN/exit.txt"
 cat "$RUN/exit.txt"

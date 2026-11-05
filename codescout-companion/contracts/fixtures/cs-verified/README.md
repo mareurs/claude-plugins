@@ -80,7 +80,7 @@ sections 7 to 11.
 
 | File | CLI | Run | Case |
 |---|---|---|---|
-| `claude-<ver>-root-verified-false.json` | 2.1.318, 2.1.311 | `e318-c-false`, `e311-c-false` (`<ver-short> <label> false shipped`) | stdin for a 2-block result whose advice has `verified: false` |
+| `claude-<ver>-root-verified-false.json` | 2.1.318, 2.1.311 | `e318-c-false`, `e311-c-false` (`run.sh 2.1.318 e318-c-false false shipped`, `run.sh 2.1.311 e311-c-false false shipped`) | stdin for a 2-block result whose advice has `verified: false` |
 | `claude-<ver>-root-hint-only.json` | 2.1.318, 2.1.311 | `e318-d-hintonly`, `e311-d-hintonly` | stdin for a 2-block result with a `hint` and no `advice` |
 | `claude-<ver>-interactive-after-clear.json` | 2.1.318, 2.1.311 | `e318-g-interactive`, `e311-g-interactive` (`PROBE_INTERACTIVE=1`), second hook call | stdin of an interactive session's call after `/clear` (14 keys, `permission_mode` `auto`) |
 | `claude-<ver>-hook-env-interactive-after-clear.json` | 2.1.318, 2.1.311 | same, second hook call | hook environment there (`CLAUDE_CODE_ENTRYPOINT=cli`, `CLAUDE_CODE_SESSION_ATTENDED=1`, session id equal to stdin) |
