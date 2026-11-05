@@ -103,16 +103,22 @@ export function touchesApprovalFields(input, absPath) {
 }
 
 // codescout `doc` update/create: match parsed structure, never raw strings,
-// so a `find` filter or prose is never mistaken for a write.
+// so a `find` filter or prose is never mistaken for a write. Only `approved`
+// (status or key) is denied: implemented/done close the gate (fail-closed) and
+// `done` is an ordinary tracker status.
 function docSetsApproval(ti) {
+  const isApproved = (s) => String(s ?? '').trim().toLowerCase() === 'approved';
   const walk = (v, key) => {
     if (key === 'filter' || key === 'entry_filter') return false;
     if (Array.isArray(v)) return v.some((x) => walk(x, key));
     if (v && typeof v === 'object') {
       return Object.entries(v).some(([k, x]) =>
-        k === 'approved' || (k === 'status' && typeof x === 'string' && isApprovalValue(x)) || walk(x, k));
+        k === 'approved' || (k === 'status' && isApproved(x)) || walk(x, k));
     }
-    if (typeof v === 'string' && v.startsWith('---')) return fmApprovalChange('', v);
+    if (typeof v === 'string' && v.startsWith('---')) {
+      const fm = readFrontmatter(v);
+      return 'approved' in fm || isApproved(fm.status);
+    }
     return false;
   };
   return walk(ti, '');

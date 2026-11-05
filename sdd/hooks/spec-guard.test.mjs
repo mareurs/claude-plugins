@@ -227,7 +227,8 @@ test('codescout doc: update/create setting an approval field is denied; find and
   const root = repo({ config: { enforcement: 'warn' } });
   const d = (tool_input) => run({ cwd: root, tool_name: 'mcp__codescout__doc', tool_input });
   denied(d({ action: 'update', id: 'abc', patch: { status: 'approved' } }), 'patch.status');
-  denied(d({ action: 'update', id: 'abc', patch: { status: 'done' } }), 'done');
+  assert.equal(d({ action: 'update', id: 'abc', patch: { status: 'done' } }), '');
+  assert.equal(d({ action: 'update', id: 'abc', patch: { status: 'implemented' } }), '');
   denied(d({ action: 'update', id: 'abc', patch: { extra: { approved: '2026-11-05' } } }), 'extra.approved');
   denied(d({ action: 'create', kind: 'spec', title: 't', rel_path: 'docs/superpowers/specs/x.md', status: 'approved' }), 'create');
   assert.equal(d({ action: 'update', id: 'abc', patch: { status: 'draft' } }), '');
