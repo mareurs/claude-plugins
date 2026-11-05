@@ -195,7 +195,7 @@ real codescout server was relocated by the live hook: the visible result had no 
 and a system-role message `PostToolUse:mcp__codescout__edit_code hook additional
 context: [cs-verified] ...` arrived. That is n = 1 and one model. It shows that the
 relocation works on the product path; it does not show that the model behaves
-differently. That live run happened before the `mcp_server.name` check existed (it ran on `main` at `2a1a7a8`), so the hardened gate has not yet run on real-server hook input. The operator's real server is registered under the key `codescout` (user scope), so the name is very likely `codescout`, but this is unmeasured.
+differently. That live run happened before the `mcp_server.name` check existed (it ran on `main` at `2a1a7a8`). A second live run on 2026-11-05, after the check reached `main` (`6faf007`) and a `/reload-plugins`, repeated the same kind of edit (a TypeScript signature change with a caller in another file, through the real codescout server) and was relocated again: the real server's hook input passes the `mcp_server.name === "codescout"` check (n = 1, one model).
 
 **Not yet.** The hook relocates whenever the gates pass, with or without a consent
 statement in the user's `CLAUDE.md`. That statement is a future step and is not
