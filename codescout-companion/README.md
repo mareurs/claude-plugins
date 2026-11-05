@@ -167,11 +167,14 @@ round-trip refusals).
 
 The CLI behaviour it relies on (empty stdout accepted, `updatedToolOutput` with several
 blocks, `additionalContext` delivery, failure modes, subagent calls, the session-id
-gate) was measured with a probe hook on 2.1.318 and 2.1.311 in `-p` mode; the shipped
-script has not yet been run on the CLI. Interactive sessions, `/clear`,
-`--fork-session`, compaction persistence, VS Code and Copilot are not measured.
-Measurements and decisions are in `contracts/fixtures/cs-verified/results.md` and the
-`README.md` beside it.
+gate) was measured with a probe hook on 2.1.318 and 2.1.311 in `-p` mode. The shipped
+script itself was then run on both versions, registered as a plugin hook: `-p`, `-p
+--resume`, `-p --fork-session --resume` and an interactive pty session with `/clear`
+between two calls; the relocation applied in all of them and the gate held (the hook's
+`CLAUDE_CODE_SESSION_ID` equalled its stdin `session_id`, including the new session
+after `/clear` and after a fork). Compaction persistence, VS Code, Copilot and a
+release install are not measured. Measurements and decisions are in
+`contracts/fixtures/cs-verified/results.md` and the `README.md` beside it.
 
 **Not yet.** The hook relocates whenever the gates pass, with or without a consent
 statement in the user's `CLAUDE.md`. That statement is a future step and is not
@@ -180,16 +183,21 @@ it exists, the relocated text is ordinary hook context, and its effect on the mo
 not measured for this class of hint. The hook is not released: a version bump goes
 through `./scripts/release.sh`.
 
-Three risks that are not measured:
+Risks, measured or not:
 
-- **Silent fail-closed.** If an interactive session, `/clear` or `--fork-session`
-  makes `CLAUDE_CODE_SESSION_ID` and the hook input `session_id` differ, the gate
-  fails, the hook never acts, and nothing reports it.
-- **Coexistence.** Another `PostToolUse` hook may answer the same call. The `buddy`
-  plugin in this repo registers an unmatched `PostToolUse` hook that can print
-  `additionalContext` (`[cs-hint] ...`) for codescout tools. How the CLI merges two
-  hooks' `additionalContext`, or an `updatedToolOutput` next to another hook's output,
-  is not measured.
+- **Silent fail-closed.** If the session-id gate failed, the hook would never act and
+  nothing would report it. Measured on 2.1.318 and 2.1.311: it holds in `-p`, `-p
+  --resume`, `-p --fork-session` and an interactive session across `/clear` (stdin
+  `session_id` equal to the hook's `CLAUDE_CODE_SESSION_ID` in every call). Not
+  measured: after compaction, `--continue`, other hosts. `/clear` through
+  `--input-format stream-json` was not tried, because the CLI help does not document
+  slash commands there.
+- **Coexistence.** Measured on both versions with a stand-in for the `buddy` plugin's
+  unmatched hook (in its own plugin, printing `[cs-hint]` `additionalContext`). The CLI
+  runs both hooks, delivers both `additionalContext` strings (one system message, each
+  prefixed with the hook name, in the order the hooks finished, not the order they are
+  registered), and applies our `updatedToolOutput`; the other hook's output does not
+  disturb it. Not measured: another hook that also prints `updatedToolOutput`.
 - **`asyncRewake` is not used, on purpose.** An async hook's `updatedToolOutput` would
   probably not apply. This is not measured.
 
@@ -198,8 +206,10 @@ Pairing with the server:
 - **New hook, old server** (no `advice` field) — safe. The hook never acts, by
   construction; this was not measured against an old server binary.
 - **New server, old or absent hook** — safe. The advice stays in the result unchanged.
-  The server emits `advice` from codescout `experiments` at `4214c5f77` (`edit_code`
-  `replace`).
+  The server first emitted `advice` at codescout commit `08775f958` (`edit_code`
+  `replace`), and its `verified` claim rests on the tree-sitter declaration-header
+  reader that `4214c5f77` brings in (reader `310a20e86`, text scanner deleted in
+  `4414a44fb`). All of these are on codescout `experiments`.
 
 ## Ollama Setup
 

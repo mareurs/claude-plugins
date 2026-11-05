@@ -69,3 +69,22 @@ python3 -I $A env-fixture   <PROBE_OUT>/v318-two-empty $F/claude-2.1.318-hook-en
 
 The run for each file is in the tables above. Re-running both subcommands over the 23 recorded run dirs reproduced
 all 16 committed fixtures byte for byte (checked with `cmp`, 2026-11-05).
+
+## End-to-end fixtures (Task 4, the shipped hook)
+
+Recorded by the same harness extended in Task 4 (`run.sh` hook modes `shipped`, `exact`, `crash`, `standin`; `PROBE_RESUME_FROM`,
+`PROBE_FORK`, `PROBE_INTERACTIVE`; `wrap_shipped.py`, `standin.py`, `pty_drive.py`, `digest.py`). The hook is registered as a
+throwaway plugin (`--plugin-dir`): a `--settings` hook with `${CLAUDE_PLUGIN_ROOT}` is refused by the CLI (see `results.md`
+section 7). Stub modes added: `false` (advice with `verified: false`) and `hintonly` (hint, no advice). Findings: `results.md`
+sections 7 to 11.
+
+| File | CLI | Run | Case |
+|---|---|---|---|
+| `claude-<ver>-root-verified-false.json` | 2.1.318, 2.1.311 | `e318-c-false`, `e311-c-false` (`<ver-short> <label> false shipped`) | stdin for a 2-block result whose advice has `verified: false` |
+| `claude-<ver>-root-hint-only.json` | 2.1.318, 2.1.311 | `e318-d-hintonly`, `e311-d-hintonly` | stdin for a 2-block result with a `hint` and no `advice` |
+| `claude-<ver>-interactive-after-clear.json` | 2.1.318, 2.1.311 | `e318-g-interactive`, `e311-g-interactive` (`PROBE_INTERACTIVE=1`), second hook call | stdin of an interactive session's call after `/clear` (14 keys, `permission_mode` `auto`) |
+| `claude-<ver>-hook-env-interactive-after-clear.json` | 2.1.318, 2.1.311 | same, second hook call | hook environment there (`CLAUDE_CODE_ENTRYPOINT=cli`, `CLAUDE_CODE_SESSION_ATTENDED=1`, session id equal to stdin) |
+| `claude-<ver>-hook-env-fork.json` | 2.1.318, 2.1.311 | `e318-g-fork`, `e311-g-fork` (`PROBE_RESUME_FROM=<run> PROBE_FORK=1`) | hook environment of a `--fork-session` call (new session id, equal to stdin) |
+
+Write them with `analyze.py stdin-fixture|env-fixture <run-dir> <out> [n]` (`n`: the 0-based hook call, default the first; the
+interactive files use `1`).

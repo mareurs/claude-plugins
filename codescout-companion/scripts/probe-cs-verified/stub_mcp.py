@@ -8,6 +8,8 @@ argv[1] picks the content blocks of the result:
   one    [envelope]
   two    [envelope, second text block]
   mixed  [envelope, second text block, a 1x1 PNG image block]
+  false     as two, but advice.verified is false (the hook must leave it alone)
+  hintonly  as two, but the envelope has a `hint` and no `advice` at all
 
 Adapted from codescout docs/evals/data/2026-11-04-harness-channel-hints/relocation-probe/stub_mcp.py.
 """
@@ -18,12 +20,14 @@ MODE = sys.argv[1] if len(sys.argv) > 1 else "two"
 ADVICE_TEXT = ('verify callers: references(symbol="probe_fn_9v", path="src/lib.rs") | '
                '`probe_fn_9v` is called by name in src/other.rs '
                '(a syntactic match, not resolved by the language server)')
-ENVELOPE = json.dumps({
+_BODY = {
     "status": "ok",
     "replaced_lines": "10-12",
     "hint": "HINT_KEEP_4K: a protocol hint that must stay in the result",
-    "advice": {"text": ADVICE_TEXT, "verified": True},
-})
+}
+if MODE != "hintonly":
+    _BODY["advice"] = {"text": ADVICE_TEXT, "verified": MODE != "false"}
+ENVELOPE = json.dumps(_BODY)
 SECOND = {"type": "text", "text": "SECOND_BLOCK_7Q: a second text block from the stub"}
 # 1x1 transparent PNG
 PNG_1X1 = ("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA"
@@ -32,7 +36,7 @@ PNG_1X1 = ("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAC
 
 def content():
     blocks = [{"type": "text", "text": ENVELOPE}]
-    if MODE in ("two", "mixed"):
+    if MODE in ("two", "mixed", "false", "hintonly"):
         blocks.append(SECOND)
     if MODE == "mixed":
         blocks.append({"type": "image", "data": PNG_1X1, "mimeType": "image/png"})

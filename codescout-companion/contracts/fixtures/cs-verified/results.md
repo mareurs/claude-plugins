@@ -128,6 +128,10 @@ environment id and the stdin id different, the feature never fires and nothing r
 least one interactive-mode, `/clear` or `--fork-session` run before the gate is called proven, or state in its results
 that this was not measured.
 
+**Update (Task 4, sections 7 to 10 below):** measured on both versions with the shipped script: `-p --resume`, `-p --fork-session`
+and an interactive session across `/clear` all kept the environment id equal to stdin `session_id`, and the relocation applied.
+Compaction, VS Code and Copilot remain unmeasured.
+
 ## 5. Failure modes
 
 All on the two-block stub; both versions gave the same outcome.
@@ -195,3 +199,159 @@ the `Agent` tool; the subagent called the stub once). Fixtures `claude-<ver>-sub
 | v311-polluted-empty | 2.1.311 | 0.00111 | 5.0 |
 | v311-subagent-relocate | 2.1.311 | 0.00374 | 11.4 |
 | **total (23 runs)** | | **0.0293** | |
+
+
+---
+
+# End-to-end: the SHIPPED hook `cs-verified-relocate.mjs` on Claude Code 2.1.318 and 2.1.311
+
+Measured 2026-11-05 (Task 4). 32 runs (16 on each version), USD 0.0357 as reported by the CLI for the 30 `-p` runs; the 2
+interactive runs report no cost (an interactive session has no `result` event, see "NOT measured"). With Task 1's
+23 runs (USD 0.0293) the plan has used 55 runs and USD 0.065 of the 60 runs and USD 5 allowed. Every run: model
+`claude-haiku-5-5`, `--max-budget-usd 0.25` (`-p` runs), the stub as MCP server `codescout`, the hook registered with the shipped
+entry (matcher `mcp__codescout__.*`, command `node ${CLAUDE_PLUGIN_ROOT}/hooks/cs-verified-relocate.mjs`, `"timeout": 5`),
+the CLI started with the explicit environment of Task 1 (token read inside `execve`, never on a command line). The script under
+test is the file in this worktree (`codescout-companion/hooks/cs-verified-relocate.mjs` at `5da73fc`), reached through
+symlinks, not a copy; only the `crash` runs use a copy with one line added. Nothing was installed in any profile; no profile
+settings, install record or plugin cache was touched.
+
+## 7. How the shipped hook was registered, and why not `--settings`
+
+**A `--settings` hook cannot carry `${CLAUDE_PLUGIN_ROOT}`; the CLI refuses it.** The first run put the shipped command in
+`--settings` with `CLAUDE_PLUGIN_ROOT` set in the CLI's environment, as planned (run `e318-x-settings-refused`: a wrapper command
+containing `${CLAUDE_PLUGIN_ROOT}`; `e311-x-settings-refused`: the bare shipped command). Both versions: stream `hook_response`
+`outcome: error`, `exit_code: 1`, stderr
+`Failed to run: Hook command references ${CLAUDE_PLUGIN_ROOT} but the hook is not associated with a plugin. This variable is only available in hooks defined in a plugin's hooks/hooks.json file, not in settings.json. Command: …`;
+the hook process never started (no log line), the result reached the model unchanged (advice in block 1), the run exited 0.
+So the end-to-end runs register the hook as a **throwaway plugin passed with `--plugin-dir`** (the registration form Task 1 also
+measured), one plugin per hook, whose `hooks/hooks.json` holds exactly the shipped entry. The plugin's `hooks/*.mjs` are symlinks
+to the worktree's files, so `${CLAUDE_PLUGIN_ROOT}/hooks/cs-verified-relocate.mjs` is the shipped script, and node resolves
+`./lib.mjs` and `./detect.mjs` to the real files. For logging, most runs wrap the command:
+`python3 -I wrap_shipped.py <log> ${CLAUDE_PLUGIN_ROOT}/hooks/cs-verified-relocate.mjs shipped` runs `node <script>` with the same
+stdin bytes and environment, writes stdin, stdout, stderr and exit code to `hook-log.jsonl`, and passes stdout, stderr and exit
+code on unchanged. Control runs without the wrapper (`e318-x-exact`, `e311-x-exact`: the bare shipped entry, same plugin form)
+gave `outcome: success`, `exit_code: 0`, the same model-visible result and the same `[cs-verified]` message as the wrapped
+runs, so the wrapper changes nothing observable. This deviates from the planned `--settings` form for the reason above; it keeps
+the literal command string.
+
+Checked offline for the `shipped` runs with a script over the hook log (stdin blocks vs the printed `updatedToolOutput`, runs
+`b-two` and `b-mixed` on both versions, `e318-f1-ours-standin`, `e311-f3-standin-ours`): the edited block equals the original minus
+`advice`; every other block is identical to its stdin block (`[False, True]` for 2 blocks, `[False, True, True, True]` for 4); the
+output has exactly the keys `hookEventName`, `updatedToolOutput`, `additionalContext`; the context starts `[cs-verified] `.
+
+## 8. Case table (each case on both versions; run ids are `e318-…` and `e311-…`)
+
+"Model-visible" is read as in Task 1: the `tool_result` the transcript recorded for the model, the system-role `api-request-blob`
+messages, and the model's reply. Hook stdin keys in every `-p` main-agent call: the 13 of Task 1
+(`cwd, duration_ms, effort, hook_event_name, mcp_server, permission_mode, prompt_id, session_id, tool_input, tool_name, tool_response, tool_use_id, transcript_path`).
+
+| Case | Run | Expected | Observed (both versions unless noted) | Evidence |
+|---|---|---|---|---|
+| (a) no hook | `a-none` | advice stays in the result, the model sees it | no hook ran (no hook events, no log); block 1 still holds `"advice": {…, "verified": true}`; no `hook_additional_context` | 318 reply: "I did not see any text starting with `[cs-verified]`. The only "verified" appears as a JSON key (`"verified": true`) inside block 1" |
+| (b) verified advice, 2 blocks | `b-two` | no `advice` in the result, block 2 intact, system message `[cs-verified] <text>` | hook: 513 bytes, exit 0, stderr empty; CLI `hook_response` `success`/0; `tool_result` = `[{"type":"text","text":"{\"status\":\"ok\",\"replaced_lines\":\"10-12\",\"hint\":\"HINT_KEEP_4K: …\"}"},{"type":"text","text":"SECOND_BLOCK_7Q: …"}]`; hint kept; one system-role message | system message (both): `PostToolUse:mcp__codescout__edit_code hook additional context: [cs-verified] verify callers: references(symbol="probe_fn_9v", path="src/lib.rs") \| \`probe_fn_9v\` is called by name in src/other.rs (a syntactic match, not resolved by the language server)`. 318 reply: "Yes, I saw text starting with `[cs-verified]`. It did not come from the tool's result. It appeared in a PostToolUse hook's additional context" |
+| (b) text, text, image | `b-mixed` | all four blocks preserved in order | stdin had 4 blocks (the CLI's converted form, as in Task 1); hook printed 4; `tool_result` block types `[text, text, image, text]`, block 1 without `advice`, blocks 2 to 4 byte-identical to stdin, the CLI's `[Image: source: …]` text block last; same system message | 311 reply: "The tool returned four blocks. Here they are, in order: 1. Text …" and "That prefix appears only in a separate PostToolUse hook context message that followed the call" |
+| (c) `verified:false` | `c-false` | result keeps its advice, no context | hook: 0 bytes, exit 0; `success`/0; `tool_result` block 1 still has `advice` with `"verified": false`; no `hook_additional_context` attachment; no hook system message | 318 reply: "I did not see any text starting with `[cs-verified]` anywhere in the result. The closest match is `"verified": false` in the advice object" |
+| (d) hint only | `d-hintonly` | `hint` kept, nothing relocated | hook: 0 bytes, exit 0; result block 1 = `{"status": "ok", "replaced_lines": "10-12", "hint": "HINT_KEEP_4K: …"}` unchanged; no context | 318 reply: "I did not see any text starting with `[cs-verified]` in either block." |
+| (d) hint plus verified advice | `b-two` (the stub's envelope has both) | `hint` kept, advice relocated | as (b): `hint` in the result, `advice` removed, context delivered | see (b) |
+| (e) script crashes | `e-crash` | result unchanged, nothing shown, session unaffected | the copy throws on its first line: node exit 1, stack on stderr (`…/cs-verified-relocate.mjs:1 throw new Error("PROBE_CRASH_8K: cs-verified probe crash")`); CLI `hook_response` `outcome: error`, `exit_code: 1`; transcript attachment `hook_non_blocking_error` ("Failed with non-blocking status code: file:///…"); the `tool_result` still has the advice and both blocks; no api-request-blob carries the stack or any hook text; run exit 0 | 318 reply: "I did not see any text starting with `[cs-verified]` anywhere in the result"; it did not mention an error. Note: this throw happens before the script installs its handlers, so it exits 1 (non-blocking). A throw inside `main` is caught by the script's own handlers (exit 0); not run on the CLI here |
+| (f1) ours registered first, stand-in second | `f1-ours-standin` | record the merge | both hooks ran (stand-in 99 bytes, ours 513, both exit 0); `updatedToolOutput` applied (no advice, hint kept, block 2 intact); one system-role message holding both contexts, stand-in text first: `PostToolUse:mcp__codescout__edit_code hook additional context: [cs-hint] stand-in\n\nPostToolUse:mcp__codescout__edit_code hook additional context: [cs-verified] verify callers: …`; no error | 318 reply: "The same hook context also included a line reading `[cs-hint] stand-in`." |
+| (f2) stand-in only | `f2-standin` | `[cs-hint]` delivered, result untouched | result keeps advice; one message `… hook additional context: [cs-hint] stand-in` | 318 reply: "The only bracketed tag I saw was `[cs-hint] stand-in`, which came in a PostToolUse hook message rather than the tool's result." |
+| (f3) opposite order: stand-in first, ours second | `f3-standin-ours` | same merge | identical to f1: both delivered in one message, stand-in first; ours applied | as f1 |
+| (f4) stand-in registered first but slow (sleeps 1.5 s), ours second | `f4-slow-standin-first` | is the delivery order the registration order or the completion order | ours first, stand-in second (`[cs-verified] …` then `[cs-hint] stand-in`), both delivered, ours applied; in f1 and f3 (stand-in finishing first, whichever was registered first) the stand-in came first | 318 reply: "…The same hook context also included `[cs-hint] stand-in`." |
+| (h) exact registered command, no wrapper | `x-exact` | same as (b) | `success`/0, relocation applied, one `[cs-verified]` message, same `tool_result` as `b-two` | transcript `hook_additional_context` `["[cs-verified] verify callers: …"]` |
+| (h) subagent call | `h-subagent` | relocation inside a subagent | hook stdin has `agent_id` (`a8b1a95942ce922c2` on 318, `ab9a393132f7c5062` on 311), `agent_type: "general-purpose"`, the parent's `session_id`, 15 keys; env session id equals stdin `session_id`; the subagent's own transcript has the 2-block result without `advice` and the system message `PostToolUse:mcp__codescout__edit_code hook additional context: [cs-verified] verify callers: …` | `…/subagents/agent-<id>.jsonl` in each run's config dir |
+| settings registration | `x-settings-refused` | (found while running) | see section 7: refused, fail-open | stderr text in section 7 |
+
+**Coexistence, the merge rule as measured (both versions, same outcome in f1 to f4; one sample per arrangement):** the CLI ran
+both hooks and delivered both `additionalContext` strings, joined in a single system-role message, each prefixed with
+`PostToolUse:<tool> hook additional context: `, separated by a blank line. The order in that message followed which hook finished
+first, not the order of registration (f1 and f3: the fast stand-in first whichever was registered first; f4: the slow stand-in last
+although registered first). Our `updatedToolOutput` applied in f1, f3 and f4 next to the stand-in's output; the stand-in's output
+did not disturb it; no error or warning appeared. Not measured: another hook that also prints `updatedToolOutput` (then one would
+have to win), a hook that exits 2, more than two hooks.
+
+## 9. (g) Host gate in other session modes
+
+The question: does `CLAUDE_CODE_SESSION_ID` (hook environment) equal the hook's stdin `session_id`? Answered from the hook log of
+each call. The shipped script's own gate decision is observable: the relocation applied (513 bytes printed, advice removed from the
+model-visible result, `[cs-verified]` message present) in every row, so the gate passed in every row.
+
+| Mode | Run | Session ids (stdin `session_id` / env `CLAUDE_CODE_SESSION_ID`) | Equal | Relocation applied |
+|---|---|---|---|---|
+| `-p`, new session (2.1.318) | `e318-b-two` | `b2f64709-bcf5-4378-86b9-4bbdd3316c00` / same | yes | yes |
+| `-p --resume <id>` (318), config dir and cwd of `e318-b-two` reused | `e318-g-resume` | `b2f64709-…` / same (the id of the resumed session) | yes | yes (the new call: tool_result `ReqSy8`, no advice) |
+| `-p --fork-session --resume <id>` (318) | `e318-g-fork` | `5f495581-99b4-4b56-ba54-07438622c521` / same: a NEW id, different from the resumed `b2f64709-…` | yes | yes (new call `v16MLM`, no advice) |
+| interactive, before `/clear` (318) | `e318-g-interactive` | `a3f723e9-7041-494a-8813-14b898027779` / same | yes | yes |
+| interactive, after `/clear` (318) | `e318-g-interactive` | `dc577845-9712-4de3-b60f-cce8024e18e0` / same: a new session id | yes | yes (that session's transcript: result without advice, system message present) |
+| `-p`, new session (2.1.311) | `e311-b-two` | `59fffe58-822c-4300-885f-3bbddb06dd42` / same | yes | yes |
+| `-p --resume` (311) | `e311-g-resume` | `59fffe58-…` / same | yes | yes |
+| `-p --fork-session --resume` (311) | `e311-g-fork` | `47257a77-8139-483e-bfe4-aacd017ead24` / same (new id) | yes | yes |
+| interactive, before `/clear` (311) | `e311-g-interactive` | `b5a62015-df5e-405a-bd03-9e7a9d149aa8` / same | yes | yes |
+| interactive, after `/clear` (311) | `e311-g-interactive` | `0ee84d03-ef95-440d-9f8a-df4882c2785c` / same: a new session id | yes | yes |
+
+The interactive runs were driven through a pty (`pty_drive.py`): onboarding and folder trust pre-accepted in a temporary
+`CLAUDE_CONFIG_DIR/.claude.json`, prompt 1, `/clear`, prompt 2, `/exit`, no `-p`; steps in each run's `pty-steps.txt` (the CLI exited
+with status 0 after `/exit`). In interactive mode the hook environment has `CLAUDE_CODE_ENTRYPOINT=cli` and
+`CLAUDE_CODE_SESSION_ATTENDED=1` (against `sdk-cli` and `0` in `-p`), the stdin has 14 keys (the 13 plus `scratchpad_dir`, as
+in Task 1's polluted runs) and `permission_mode` is `"auto"` (`"default"` in `-p`). Fixtures:
+`claude-<ver>-interactive-after-clear.json` (stdin of the call after `/clear`), `claude-<ver>-hook-env-interactive-after-clear.json`,
+`claude-<ver>-hook-env-fork.json`; also `claude-<ver>-root-verified-false.json` and `claude-<ver>-root-hint-only.json` (stdin of cases (c) and (d)).
+
+`/clear` through `--input-format stream-json`: **not tried.** `claude --help` documents `--input-format` only as `"text"` or
+`"stream-json"` (realtime streaming input) and says nothing about slash commands there, so by the task rule it was not attempted.
+
+## 10. NOT measured
+
+- Compaction persistence of the relocated context (neither `/compact` nor auto-compact was run).
+- VS Code and Copilot hosts (everything here is the Claude Code CLI, entrypoints `sdk-cli` and `cli`).
+- `--continue`, resume or fork of an interactive session, a session started by `claude --bg`.
+- `/clear` via `--input-format stream-json` (not documented, not tried).
+- The shipped `hooks.json` loaded as part of the real companion plugin: the registration entry was run verbatim from a throwaway
+  plugin, so the other hooks of the companion, the plugin cache path and a release install were not part of any run.
+- Another hook that also prints `updatedToolOutput`; more than two hooks; the `buddy` plugin's real hook (a stand-in was used).
+- A throw inside `main` on the CLI and exit 0 with text on stderr from the shipped script.
+- Any CLI version other than 2.1.318 and 2.1.311, and any model other than `claude-haiku-5-5`.
+- The effect of the `[cs-verified]` text on the model's behaviour (the replies above only show the model saw it and, in these
+  runs, did not act on it).
+- Interactive run cost: not reported by the CLI; the token usage in the session transcripts is a few thousand tokens per session,
+  of the order of the `-p` runs, so the two runs are assumed to be well under USD 0.02 together (estimate, not measured).
+
+## 11. Runs and cost (Task 4)
+
+| Run | CLI | USD | wall s |
+|---|---|---|---|
+| e318-x-settings-refused | 318 | 0.00115 | 6.4 |
+| e318-b-two | 318 | 0.00039 | 6.8 |
+| e318-b-mixed | 318 | 0.00119 | 6.8 |
+| e318-c-false | 318 | 0.00096 | 6.5 |
+| e318-d-hintonly | 318 | 0.00084 | 5.1 |
+| e318-a-none | 318 | 0.00094 | 6.0 |
+| e318-e-crash | 318 | 0.00093 | 5.9 |
+| e318-x-exact | 318 | 0.00105 | 7.2 |
+| e318-f1-ours-standin | 318 | 0.00100 | 6.9 |
+| e318-f2-standin | 318 | 0.00097 | 8.2 |
+| e318-f3-standin-ours | 318 | 0.00104 | 12.7 |
+| e318-f4-slow-standin-first | 318 | 0.00098 | 7.7 |
+| e318-g-fork | 318 | 0.00082 | 5.7 |
+| e318-g-resume | 318 | 0.00071 | 5.3 |
+| e318-g-interactive | 318 | not reported | 36.7 |
+| e318-h-subagent | 318 | 0.00448 | 15.9 |
+| e311-b-two | 311 | 0.00100 | 7.0 |
+| e311-b-mixed | 311 | 0.00124 | 7.2 |
+| e311-c-false | 311 | 0.00091 | 6.2 |
+| e311-d-hintonly | 311 | 0.00084 | 6.1 |
+| e311-a-none | 311 | 0.00093 | 6.0 |
+| e311-e-crash | 311 | 0.00098 | 7.2 |
+| e311-x-exact | 311 | 0.00097 | 6.6 |
+| e311-x-settings-refused | 311 | 0.00093 | 6.2 |
+| e311-f1-ours-standin | 311 | 0.00102 | 6.7 |
+| e311-f2-standin | 311 | 0.00102 | 6.6 |
+| e311-f3-standin-ours | 311 | 0.00096 | 6.2 |
+| e311-f4-slow-standin-first | 311 | 0.00101 | 8.4 |
+| e311-g-fork | 311 | 0.00146 | 6.0 |
+| e311-g-resume | 311 | 0.00133 | 5.9 |
+| e311-g-interactive | 311 | not reported | 36.4 |
+| e311-h-subagent | 311 | 0.00367 | 14.4 |
+| **total (32 runs; 30 with a reported cost)** | | **0.0357** | |
+
+With Task 1: 55 runs, USD 0.0650 reported (plus the two unreported interactive runs).

@@ -3,8 +3,8 @@ or write the committed fixtures from a run dir.
 
 Usage:
   python3 -I analyze.py <run-dir>                      summary JSON on stdout
-  python3 -I analyze.py stdin-fixture <run-dir> <out>  write the first hook call's raw stdin bytes to <out>
-  python3 -I analyze.py env-fixture <run-dir> <out>    write the first hook call's environment record to <out>
+  python3 -I analyze.py stdin-fixture <run-dir> <out> [n]  write the n-th (default first) hook call's raw stdin bytes to <out>
+  python3 -I analyze.py env-fixture <run-dir> <out> [n]    write that call's environment record to <out>
                                                        (the claude-<ver>-hook-env-*.json shape)
 
 Sources: hook-log.jsonl (written by hook.py), stream.jsonl (--include-hook-events),
@@ -15,23 +15,28 @@ import json, os, re, sys
 POLLUTED = {"CLAUDECODE": "polluted", "CLAUDE_CODE_ENTRYPOINT": "polluted", "CLAUDE_CODE_SESSION_ID": "polluted",
             "AI_AGENT": "polluted", "CLAUDE_PROJECT_DIR": "/polluted", "CLAUDE_EFFORT": "polluted",
             "CLAUDE_PID": "polluted", "CLAUDE_PLUGIN_ROOT": "/polluted"}  # the values run.sh hands over with PROBE_POLLUTE=1
-MARKERS = ("[cs-verified]", "probe_fn_9v", "HINT_KEEP_4K", "SECOND_BLOCK_7Q",
-           "PROBE_EXIT2_STDERR_5M", "MALFORMED_6P")
+MARKERS = ("[cs-verified]", "[cs-hint]", "probe_fn_9v", "HINT_KEEP_4K", "SECOND_BLOCK_7Q",
+           "PROBE_EXIT2_STDERR_5M", "MALFORMED_6P", "PROBE_CRASH_8K")
 
 
-def first_hook_call(run_dir):
+def first_hook_call(run_dir, n=0):
+    """The n-th (0-based) logged hook call that carries a stdin record."""
+    seen = 0
     with open(os.path.join(run_dir, "hook-log.jsonl")) as f:
         for line in f:
             if line.strip():
                 r = json.loads(line)
                 if "stdin_raw" in r:
-                    return r
-    raise SystemExit(f"{run_dir}: no hook call logged")
+                    if seen == n:
+                        return r
+                    seen += 1
+    raise SystemExit(f"{run_dir}: no hook call number {n} logged")
 
 
-def write_fixture(cmd, run_dir, dest):
-    """stdin-fixture: the raw stdin bytes. env-fixture: the environment record committed as claude-<ver>-hook-env-*.json."""
-    r = first_hook_call(run_dir)
+def write_fixture(cmd, run_dir, dest, n=0):
+    """stdin-fixture: the raw stdin bytes. env-fixture: the environment record committed as claude-<ver>-hook-env-*.json.
+    n picks the n-th (0-based) hook call of the run (default the first)."""
+    r = first_hook_call(run_dir, n)
     if cmd == "stdin-fixture":
         json.loads(r["stdin_raw"])  # must be one JSON document
         with open(dest, "w") as f:
@@ -40,11 +45,12 @@ def write_fixture(cmd, run_dir, dest):
     d = json.loads(r["stdin_raw"])
     passed = open(os.path.join(run_dir, "env-passed.txt")).read().split("\n")
     name = os.path.basename(run_dir.rstrip("/"))
+    plugin_registered = any(x.startswith("plugin") for x in os.listdir(run_dir))
     out = {"run": name, "binary": open(os.path.join(run_dir, "binary.txt")).read().strip(),
            "envPassedToCli": passed[0].split(),
            "pollutedPassedToCli": POLLUTED if len(passed) > 1 and passed[1] else {},
            "redaction": "values of names matching TOKEN|KEY|SECRET|PASSWORD|AUTH|CREDENTIAL|COOKIE replaced by their length",
-           "hookRegisteredVia": "plugin (--plugin-dir, ${CLAUDE_PLUGIN_ROOT} in command)" if "plugin" in name else "--settings",
+           "hookRegisteredVia": "plugin (--plugin-dir, ${CLAUDE_PLUGIN_ROOT} in command)" if plugin_registered else "--settings",
            "stdinSessionId": d.get("session_id"), "stdinAgentId": d.get("agent_id"),
            "stdinKeys": r["stdin_keys"], "hookEnv": r["env"]}
     with open(dest, "w") as f:
@@ -73,8 +79,8 @@ def shape(tr):
     return {"type": type(tr).__name__}
 
 
-if len(sys.argv) == 4 and sys.argv[1] in ("stdin-fixture", "env-fixture"):
-    write_fixture(*sys.argv[1:])
+if len(sys.argv) in (4, 5) and sys.argv[1] in ("stdin-fixture", "env-fixture"):
+    write_fixture(*sys.argv[1:4], *([int(sys.argv[4])] if len(sys.argv) == 5 else []))
     sys.exit(0)
 run = sys.argv[1]
 out = {"run": os.path.basename(run.rstrip("/"))}
@@ -91,9 +97,14 @@ for r in rows("hook-log.jsonl"):
     except ValueError:
         d = {}
     hooks.append({"mode": r["mode"], "start": r["start"], "stdin_keys": r["stdin_keys"],
+                  "stdin_session_id": d.get("session_id"),
+                  "env_session_id": (r.get("env") or {}).get("CLAUDE_CODE_SESSION_ID"),
+                  "env_equals_stdin_session_id": (r.get("env") or {}).get("CLAUDE_CODE_SESSION_ID") == d.get("session_id") if r.get("env") else None,
+                  "hook_exit": r.get("hook_exit"), "hook_stdout": r.get("hook_stdout"),
+                  "hook_stderr": r.get("hook_stderr"),
                   "agent_id": d.get("agent_id"), "agent_type": d.get("agent_type"),
                   "tool_name": d.get("tool_name"), "tool_response_shape": shape(d.get("tool_response")),
-                  "env_signal": {k: v for k, v in r["env"].items()
+                  "env_signal": {k: v for k, v in (r.get("env") or {}).items()
                                  if k.startswith("CLAUDE") or k.startswith("AI_") or k.startswith("ANTHROPIC")}})
 out["hook_calls"] = hooks
 
