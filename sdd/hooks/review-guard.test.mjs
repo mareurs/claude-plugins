@@ -230,3 +230,77 @@ test('baseBranch absent: main if it exists, else master', () => {
   assert.equal(parse(run(bash(wt2, 'git push origin master'))).permissionDecision, 'deny');
   assert.equal(run(bash(wt2, 'git push origin main')), '');
 });
+
+const OPTION1 = 'MAIN_ROOT=$(git -C "$(git rev-parse --git-common-dir)/.." rev-parse --show-toplevel)\ncd "$MAIN_ROOT"\ngit checkout main\ngit pull\ngit merge feat/x';
+const denies = (o) => assert.equal(parse(o).permissionDecision, 'deny');
+
+test('cd / checkout earlier in the command: the merge is still gated', () => {
+  const root = repo();
+  addActivePlan(root, 'a', 'feat/x');
+  const wt = worktree(root, 'feat/x');
+  denies(run(bash(wt, OPTION1)));
+  denies(run(bash(wt, `cd ${root} && git merge feat/x`)));
+  denies(run(bash(wt, `cd ${root} && git commit -m x`)));
+  denies(run(bash(wt, 'git checkout main && git merge feat/x')));
+  denies(run(bash(wt, 'git switch main; git merge --no-ff feat/x')));
+  record(root, 'a');
+  assert.equal(run(bash(wt, OPTION1)), '');
+  assert.equal(run(bash(wt, `cd ${root} && git merge feat/x`)), '');
+  assert.equal(run(bash(wt, 'git checkout main && git merge feat/x')), '');
+  assert.equal(run(bash(wt, 'git switch main; git merge --no-ff feat/x')), '');
+});
+
+test('merge ref is normalised: refs/heads/ and <remote>/ prefixes', () => {
+  const root = repo();
+  addActivePlan(root, 'a', 'feat/a');
+  addActivePlan(root, 'b', 'feat/b');
+  for (const ref of ['feat/a', 'refs/heads/feat/a', 'origin/feat/a']) {
+    const out = parse(run(bash(root, `git merge ${ref}`)));
+    assert.equal(out.permissionDecision, 'deny', ref);
+    assert.match(out.permissionDecisionReason, /review a\b/, ref);
+  }
+});
+
+test('merging a plan branch from a stale cwd on that branch is gated', () => {
+  const root = repo();
+  addActivePlan(root, 'a', 'feat/x');
+  const wt = worktree(root, 'feat/x');
+  denies(run(bash(wt, 'git merge feat/x')));
+});
+
+test('merging a plan branch while known to be on another feature branch passes', () => {
+  const root = repo();
+  addActivePlan(root, 'a', 'feat/x');
+  git(root, 'branch', 'feat/y');
+  assert.equal(run(bash(root, 'git checkout feat/y && git merge feat/x')), '');
+  assert.equal(run(bash(root, 'git checkout -b feat/z && git merge feat/x')), '');
+  const wt = worktree(root, 'feat/w');
+  assert.equal(run(bash(wt, 'git merge feat/x')), '');
+});
+
+test('checkout of a path that is not a branch does not lift the base-branch gate', () => {
+  const root = repo();
+  addActivePlan(root, 'a');
+  denies(run(bash(root, 'git checkout README.md && git commit -m x')));
+});
+
+test('tamper check is on tokens: mentions and reads pass, writes and mark-reviewed deny', () => {
+  const root = repo({ config: { enforcement: 'strict' } });
+  for (const c of ['git commit -m "fix mark-reviewed docs"', 'git log -- sdd/approvals', 'cat .git/sdd/approvals/a.review.json', 'echo "sdd/approvals"']) {
+    assert.equal(run(bash(root, c)), '', c);
+  }
+  for (const c of ['echo x > .git/sdd/approvals/a.review.json', 'echo x >> .git/sdd/approvals/a.review.json',
+    'echo x | tee .git/sdd/approvals/a.review.json', 'cp a .git/sdd/approvals/a.review.json',
+    'rm .git/sdd/approvals/a.review.json', './scripts/mark-reviewed.sh', 'echo x >".git/sdd/approvals/a"']) {
+    assert.equal(parse(run(bash(root, c))).permissionDecision, 'deny', c);
+  }
+});
+
+test('shell keywords before a command word do not hide it', () => {
+  const root = repo();
+  addActivePlan(root, 'a');
+  denies(run(bash(root, 'if true; then git commit -m x; fi')));
+  denies(run(bash(root, '{ git commit -m x; }')));
+  denies(run(bash(root, 'for i in 1; do git commit -m x; done')));
+  denies(run(bash(root, 'echo a | xargs git commit -m x')));
+});

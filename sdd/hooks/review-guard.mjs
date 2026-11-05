@@ -1,26 +1,45 @@
 // sdd review-guard (PreToolUse on Bash / run_command): integration into the base
 // branch needs the user's review approval record for the feature. Gated: commit or
-// merge while on the base branch, push whose target is the base branch (or a ref-less
-// push while on it), `gh pr create`, `gh pr merge`. Feature-branch commits pass.
-// Any command naming `mark-reviewed` or the approval-record directory is denied.
+// merge while on the base branch, a merge of a branch that an active plan owns (unless
+// the command is known to run on another feature branch), push whose target is the
+// base branch (or a ref-less push while on it), `gh pr create`, `gh pr merge`.
+// Feature-branch commits pass. A command that runs `mark-reviewed` or writes into the
+// approval-record directory is denied in every mode.
 // Exit 0 on every path; denials go through the JSON permissionDecision.
 //
-// Limits (not a sandbox): `sh -c '…'`, `cd x && git …`, aliases, `git pull`/`rebase`
-// and shell writes are not followed. With no active plan there is no feature to review,
-// so nothing is gated (spec and plan commits on the base branch must stay possible).
+// Directory and branch changes inside one command line (`cd`, `git checkout|switch`)
+// are followed by git-intents.mjs; its header lists what is still not followed. With no
+// active plan there is no feature to review, so nothing is gated (spec and plan commits
+// on the base branch must stay possible).
 import { existsSync, readFileSync } from 'node:fs';
-import { join, resolve as resolvePath } from 'node:path';
+import { join, basename, resolve as resolvePath } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import {
   readInput, denyPreToolUse, contextPreToolUse, normalizedToolName, isCodescoutTool,
   mainCheckout, currentBranch, loadConfig, activePlans, approvalsDir, featureFromSpecPath,
 } from './lib.mjs';
-import { gitIntents } from './git-intents.mjs';
+import { gitIntents, splitCommands, skipPrefix } from './git-intents.mjs';
 
-const TAMPER_RE = /mark-reviewed|sdd\/approvals/;
+const APPROVALS_RE = /sdd\/approvals/;
+const WRITER_CMDS = new Set(['tee', 'cp', 'mv', 'mkdir', 'rm', 'touch', 'ln', 'install']);
 
 export function reviewRecordPath(commonDir, feature) {
   return join(approvalsDir(commonDir), `${feature}.review.json`);
+}
+
+// Runs mark-reviewed, or writes into the approval-record directory (redirect target,
+// tee/cp/mv/mkdir/rm/touch/ln argument). Reads and quoted mentions pass.
+export function tampers(command) {
+  for (const raw of splitCommands(command)) {
+    if (raw.some((t) => basename(t).startsWith('mark-reviewed'))) return true;
+    for (let i = 0; i < raw.length; i++) {
+      const m = raw[i].match(/^\d*>>?(.*)$/);
+      if (m && APPROVALS_RE.test(m[1] || raw[i + 1] || '')) return true;
+    }
+    const toks = skipPrefix(raw);
+    if (toks.length && WRITER_CMDS.has(basename(toks[0])) && toks.slice(1).some((a) => APPROVALS_RE.test(a))) return true;
+  }
+  return false;
 }
 
 function hasRecord(commonDir, feature) {
@@ -50,6 +69,15 @@ export function baseBranch(commonDir, cfg) {
 }
 
 const featureOf = (p) => p.fm.feature || featureFromSpecPath(p.specPath);
+
+// refs/heads/x -> x; origin/x -> x when x is a plan branch.
+function normalizeRef(ref, plans) {
+  const r = ref.replace(/^refs\/(heads|remotes)\//, '');
+  if (plans.some((p) => p.fm.branch === r)) return r;
+  const i = r.indexOf('/');
+  if (i > 0 && plans.some((p) => p.fm.branch === r.slice(i + 1))) return r.slice(i + 1);
+  return r;
+}
 
 // -> {feature} | {ambiguous: [names]} | null (no active plan: nothing to review)
 function pickFeature(plans, candidates) {
@@ -88,7 +116,7 @@ function main() {
   const strict = cfg0.enforcement === 'strict';
   const report = (reason) => (strict ? denyPreToolUse(reason) : contextPreToolUse(reason));
 
-  if (TAMPER_RE.test(command)) {
+  if (tampers(command)) {
     denyPreToolUse('Review approval is user-only: the agent may not run mark-reviewed or touch the approval-record directory. Ask the user to run /sdd:approve review <feature>.');
     return;
   }
@@ -98,22 +126,35 @@ function main() {
     const cfg = loadConfig(ctx.root);
     if (!cfg) continue;
     const base = baseBranch(ctx.commonDir, cfg);
-    const branch = currentBranch(ctx.gitDir);
+    const assumed = intent.assumedBranch && (intent.assumedNew || branchExists(ctx.commonDir, intent.assumedBranch))
+      ? intent.assumedBranch : null;
+    const branch = assumed ?? currentBranch(ctx.gitDir);
     const onBase = branch !== null && branch === base;
+    const plans = activePlans(ctx.root);
 
     let candidates = branch ? [branch] : [];
     let gated;
     if (intent.kind === 'commit') gated = onBase;
     else if (intent.kind === 'merge') {
       gated = onBase;
-      if (intent.mergeRef) candidates = [intent.mergeRef];
+      if (intent.mergeRef) {
+        const ref = normalizeRef(intent.mergeRef, plans);
+        candidates = [ref];
+        if (plans.some((p) => p.fm.branch === ref)) {
+          // A plan-owned branch is being merged. Not gated only when the command is
+          // known to run on some other feature branch (a branch cannot merge into itself,
+          // so branch === ref means the cwd is stale).
+          const known = assumed ?? (intent.dirUnknown ? null : currentBranch(ctx.gitDir));
+          gated = !(known && known !== base && known !== ref);
+        }
+      }
     } else if (intent.kind === 'push') {
       const target = intent.pushRef === 'HEAD' ? branch : intent.pushRef;
       gated = target === undefined ? onBase : target === base;
     } else gated = true; // pr-create, pr-merge
 
     if (!gated) continue;
-    const pick = pickFeature(activePlans(ctx.root), candidates);
+    const pick = pickFeature(plans, candidates);
     if (!pick) continue;
     if (pick.ambiguous) {
       report(`Integration into ${base} needs a review approval, but more than one active plan applies (${pick.ambiguous.join(', ')}). Say which feature this is for, then ask the user to run /sdd:approve review <feature>.`);

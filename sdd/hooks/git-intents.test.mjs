@@ -51,3 +51,30 @@ test('gh and merge', () => {
   assert.deepEqual(kinds('git merge --abort'), []);
   assert.deepEqual(kinds('git status && git log'), []);
 });
+
+test('cd, pushd, checkout and -C are tracked across segments', () => {
+  assert.equal(gitIntents('cd /m && git commit')[0].dir, '/m');
+  assert.equal(gitIntents('pushd ../w; git commit')[0].dir, '../w');
+  assert.equal(gitIntents('cd /m && cd sub && git commit')[0].dir, '/m/sub');
+  assert.equal(gitIntents('cd /m && git -C sub commit')[0].dir, '/m/sub');
+  for (const c of ['cd "$X"; git commit', 'cd ~u; git commit', 'cd $(pwd); git commit', 'cd; git commit', 'cd -; git commit']) {
+    const i = gitIntents(c)[0];
+    assert.equal(i.dirUnknown, true, c);
+    assert.equal(i.dir, undefined, c);
+  }
+  assert.equal(gitIntents('cd /abs; git commit')[0].dirUnknown, undefined);
+  assert.deepEqual(gitIntents('git checkout main && git merge feat/x'),
+    [{ kind: 'merge', mergeRef: 'feat/x', assumedBranch: 'main' }]);
+  assert.deepEqual(gitIntents('git switch -c n; git commit'), [{ kind: 'commit', assumedBranch: 'n', assumedNew: true }]);
+  assert.deepEqual(gitIntents('git checkout -b n main; git commit'), [{ kind: 'commit', assumedBranch: 'n', assumedNew: true }]);
+  assert.deepEqual(gitIntents('git checkout -- f; git commit'), [{ kind: 'commit' }]);
+  // a checkout is per directory: a later cd drops it
+  assert.deepEqual(gitIntents('git checkout b; cd /m; git commit'), [{ kind: 'commit', dir: '/m' }]);
+});
+
+test('shell keywords are skipped before the command word', () => {
+  assert.deepEqual(kinds('if true; then git commit -m x; fi'), ['commit']);
+  assert.deepEqual(kinds('{ git commit -m x; }'), ['commit']);
+  assert.deepEqual(kinds('! git commit'), ['commit']);
+  assert.deepEqual(kinds('echo a | xargs git commit'), ['commit']);
+});
