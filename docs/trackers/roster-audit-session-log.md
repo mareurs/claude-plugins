@@ -82,7 +82,7 @@ entry_high_water_W: 5
 | F-13 | 2026-08-26 | high | eval-design | **The skill never loaded in three of four instrument scenarios**, so their "treatment" arms were controls. Adding the clause that activates it flips the *control* 0/3 → 3/3 — activation IS the treatment, and this harness cannot separate them. Corrects `F-11`, `F-12`, `W-3` |
 | F-12 | 2026-08-26 | high | eval-design | fixed-verified | **Second design also tautological — and the control arm probed unprompted.** All 3 no-skill runs built a known-answer probe. Two designs, six control runs: the behaviour `R-4` teaches is base competence, so this harness cannot measure it |
 | F-14 | 2026-08-27 | med | codescout-tool | open | `unfiltered_output_lines` counts the SOURCE, not the buffer (said `624`/`20000` over buffers holding ~231/238 lines). A grep past the cut returns 0, reading identically to "absent" — I concluded `run-all.sh` skips `hooks/*.test.sh`; it runs all 39. Upstream cause was mine: an IL-3 pipe-to-trimmer |
-| F-15 | 2026-11-05 | high | release-pipeline | open | `release.sh` seeds caches and auto-vivifies an install record for a plugin in every profile, installed or not; parity then certifies it. Blocks a kat-only `sdd` release |
+| F-15 | 2026-11-05 | high | release-pipeline | fixed-verified | `release.sh` seeds caches and auto-vivifies an install record for a plugin in every profile, installed or not; parity then certifies it. Blocks a kat-only `sdd` release |
 ## Wins Index
 
 | ID | Date | Impact | Pattern | Counterfactual | Status |
@@ -1679,6 +1679,9 @@ from "I broke the law that protects me from it", which this instance cannot.
 **Not verified:** whether Claude Code accepts or rewrites a record entry without `scope`. No release was run; the jq behaviour was measured on a synthetic record only.
 
 **Fix idea:** in steps 4 and 5, skip a profile whose record lacks `.plugins["<plugin>@<mkt>"]` (`jq -e 'has(...)'`), and print the skip. Add a test in `tests/` with a three-profile tree where the plugin is installed in one profile; assert the other two records and caches stay byte-identical. Needed before the first sdd release.
+
+
+**Fixed-verified 2026-11-05.** Fix merged in `ae6a9d9` (branch commit `92121f6`): `scripts/lib-profiles.sh` `profile_has_plugin`, `bump-cache.sh` skips profiles without the plugin, and the new `scripts/repoint-install-records.sh` (called from `release.sh`) prints `· skip <profile> (<plugin> not installed)`. Regression test: `tests/test-release-installed-profiles.sh`. Verified for real by the `sdd` 3.0.0 release (push `5eea7ef..55344e9`): it printed the skip line for all four profiles, cached `sdd 3.0.0 in 0 of 4 profiles`, and parity reported `OK: sdd 3.0.0 — not installed in any profile`; no `sdd@` key was written into any install record.
 
 ## Template for new entries
 
