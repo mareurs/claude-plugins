@@ -258,3 +258,19 @@ export function approvalsDir(commonDir) {
 export function featureFromSpecPath(p) {
   return basename(p).replace(/^\d{4}-\d{2}-\d{2}-/, '').replace(/-design\.md$/, '').replace(/\.md$/, '');
 }
+
+// The object id a ref (e.g. refs/heads/x) names, from the loose ref file in dir or a
+// packed-refs line; null when neither has it.
+export function readRef(dir, ref) {
+  try {
+    const v = readFileSync(join(dir, ref), 'utf8').trim();
+    if (/^[0-9a-f]{40,64}$/.test(v)) return v;
+  } catch { /* fall through */ }
+  try {
+    for (const l of readFileSync(join(dir, 'packed-refs'), 'utf8').split(/\r?\n/)) {
+      const m = l.match(/^([0-9a-f]{40,64}) (.+)$/);
+      if (m && m[2] === ref) return m[1];
+    }
+  } catch { /* none */ }
+  return null;
+}

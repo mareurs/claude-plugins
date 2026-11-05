@@ -19,7 +19,7 @@ import { join, resolve as resolvePath, isAbsolute, sep } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import {
   readInput, contextEvent, mainCheckout, loadConfig,
-  writeFrontmatterFields, listArtifacts, specPointer, approvalsDir, featureFromSpecPath,
+  writeFrontmatterFields, listArtifacts, specPointer, approvalsDir, featureFromSpecPath, readRef,
 } from './lib.mjs';
 import { reviewRecordPath } from './review-guard.mjs';
 
@@ -122,20 +122,6 @@ function pickOne(res, allowed, kind, target) {
     return { msg: `More than one ${kind} for "${target}" is ${allowed.join(' or ')}: ${c.map((a) => a.path).join(', ')}. Pass the path of the one you mean. Nothing was written.` };
   }
   return { item: c[0] };
-}
-
-function readRef(dir, ref) {
-  try {
-    const v = readFileSync(join(dir, ref), 'utf8').trim();
-    if (/^[0-9a-f]{40,64}$/.test(v)) return v;
-  } catch { /* fall through */ }
-  try {
-    for (const l of readFileSync(join(dir, 'packed-refs'), 'utf8').split(/\r?\n/)) {
-      const m = l.match(/^([0-9a-f]{40,64}) (.+)$/);
-      if (m && m[2] === ref) return m[1];
-    }
-  } catch { /* none */ }
-  return null;
 }
 
 function cwdHead(co) {

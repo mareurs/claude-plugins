@@ -5,6 +5,9 @@
 // base branch (or a ref-less push while on it), `gh pr create`, `gh pr merge`.
 // Feature-branch commits pass. A command that runs `mark-reviewed` or writes into the
 // approval-record directory is denied in every mode.
+// The review record counts only while its `head` is the current tip of the plan's
+// `branch:` (commits added after /sdd:approve review need a new review); a plan with
+// no `branch:` is checked for the record's existence only.
 // Exit 0 on every path; denials go through the JSON permissionDecision.
 //
 // Directory and branch changes inside one command line (`cd`, `git checkout|switch`)
@@ -16,7 +19,7 @@ import { join, basename, resolve as resolvePath } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import {
   readInput, denyPreToolUse, contextPreToolUse, normalizedToolName, isCodescoutTool,
-  mainCheckout, currentBranch, loadConfig, activePlans, approvalsDir, featureFromSpecPath,
+  mainCheckout, currentBranch, loadConfig, activePlans, approvalsDir, featureFromSpecPath, readRef,
 } from './lib.mjs';
 import { gitIntents, traverse, skipPrefix } from './git-intents.mjs';
 
@@ -54,14 +57,16 @@ export function tampers(command) {
   return found;
 }
 
-function hasRecord(commonDir, feature) {
+// The review record for a feature, or null when it is absent or not a JSON object.
+function readRecord(commonDir, feature) {
   try {
-    JSON.parse(readFileSync(reviewRecordPath(commonDir, feature), 'utf8'));
-    return true;
+    const r = JSON.parse(readFileSync(reviewRecordPath(commonDir, feature), 'utf8'));
+    return r && typeof r === 'object' ? r : null;
   } catch {
-    return false;
+    return null;
   }
 }
+
 
 function isFile(p) {
   try { return statSync(p).isFile(); } catch { return false; }
@@ -85,6 +90,27 @@ export function baseBranch(commonDir, cfg) {
 }
 
 const featureOf = (p) => p.fm.feature || featureFromSpecPath(p.specPath);
+// The reason the review record does not cover the plan's feature, or null when it
+// does. The record must exist and its head must be the current tip of the plan's
+// `branch:` — whichever branch the command runs on, so the approval frontmatter commit
+// on the base branch (whose HEAD is not the feature tip) is judged like the merge.
+// A plan with no `branch:` names no tip to compare against: only the record's
+// existence is checked for it.
+function recordProblem(commonDir, plan, base) {
+  const feature = featureOf(plan);
+  const rec = readRecord(commonDir, feature);
+  if (!rec) return `Integration into ${base} needs your review approval for feature "${feature}". Ask the user to run /sdd:approve review ${feature}.`;
+  const branch = plan.fm.branch;
+  if (!branch) return null;
+  const tipRef = readRef(commonDir, `refs/heads/${branch}`);
+  if (!tipRef) {
+    return `Integration into ${base} needs a review approval that matches the tip of branch ${branch} (feature "${feature}"), but that branch cannot be read. If it was merged and deleted, ask the user to run /sdd:approve done ${feature}; otherwise restore the branch.`;
+  }
+  if (rec.head !== tipRef) {
+    return `Commits were added to ${branch} after the review approval for "${feature}" (the review record does not name its current tip): re-run the review, then ask the user to run /sdd:approve review ${feature}.`;
+  }
+  return null;
+}
 
 // refs/heads/x -> x; origin/x -> x when x is a plan branch. viaRemote: a remote
 // prefix was stripped (the merge pulls the remote copy of the branch).
@@ -101,13 +127,14 @@ function normalizeRef(ref, plans) {
 }
 
 // -> {feature} | {ambiguous: [names]} | null (no active plan: nothing to review)
+// -> {plan} | {ambiguous: [plans]} | null (no active plan: nothing to review)
 function pickFeature(plans, candidates) {
   if (!plans.length) return null;
   const hits = plans.filter((p) => p.fm.branch && candidates.includes(p.fm.branch));
-  if (hits.length === 1) return { feature: featureOf(hits[0]) };
-  if (hits.length > 1) return { ambiguous: hits.map(featureOf) };
-  if (plans.length === 1) return { feature: featureOf(plans[0]) };
-  return { ambiguous: plans.map(featureOf) };
+  if (hits.length === 1) return { plan: hits[0] };
+  if (hits.length > 1) return { ambiguous: hits };
+  if (plans.length === 1) return { plan: plans[0] };
+  return { ambiguous: plans };
 }
 
 // The directory the command runs in.
@@ -180,11 +207,18 @@ function main() {
     const pick = pickFeature(plans, candidates);
     if (!pick) continue;
     if (pick.ambiguous) {
-      report(`Integration into ${base} needs a review approval, but more than one active plan applies (${pick.ambiguous.join(', ')}). Say which feature this is for, then ask the user to run /sdd:approve review <feature>.`);
+      // A commit or push on the base branch with several features in flight (none
+      // owning the base branch) passes when every one of them has a valid record.
+      const lacking = pick.ambiguous.filter((p) => recordProblem(ctx.commonDir, p, base) !== null);
+      if ((intent.kind === 'commit' || intent.kind === 'push') && !lacking.length) continue;
+      const names = pick.ambiguous.map(featureOf).join(', ');
+      const missing = lacking.length ? ` ${lacking.map(featureOf).join(', ')} ${lacking.length === 1 ? 'has' : 'have'} no review approval matching the branch tip.` : '';
+      report(`Integration into ${base} needs a review approval, but more than one active plan applies (${names}).${missing} Say which feature this is for, then ask the user to run /sdd:approve review <feature>.`);
       return;
     }
-    if (!hasRecord(ctx.commonDir, pick.feature)) {
-      report(`Integration into ${base} needs your review approval for feature "${pick.feature}". Ask the user to run /sdd:approve review ${pick.feature}.`);
+    const problem = recordProblem(ctx.commonDir, pick.plan, base);
+    if (problem) {
+      report(problem);
       return;
     }
   }

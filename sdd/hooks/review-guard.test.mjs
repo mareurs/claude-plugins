@@ -37,12 +37,27 @@ function worktree(root, branch) {
   git(root, 'worktree', 'add', '-q', '-b', branch, wt);
   return wt;
 }
+const planBranch = new Map(); // `${root}\0${feature}` -> the plan's branch
+// The commit a ref names, or null.
+function tip(root, ref) {
+  try {
+    return execFileSync('git', ['rev-parse', '--verify', '-q', ref], { cwd: root, stdio: 'pipe' }).toString().trim() || null;
+  } catch {
+    return null;
+  }
+}
+
 function addActivePlan(root, name, branch, feature) {
+  planBranch.set(`${root}\0${feature || name}`, branch);
   put(root, `docs/superpowers/specs/2026-11-05-${name}-design.md`, '---\nstatus: approved\n---\nspec\n');
   put(root, `docs/superpowers/plans/2026-11-05-${name}.md`,
     `---\nstatus: approved\n${branch ? `branch: ${branch}\n` : ''}${feature ? `feature: ${feature}\n` : ''}---\n**Spec:** docs/superpowers/specs/2026-11-05-${name}-design.md\n`);
 }
-function record(root, feature, text = '{"date":"2026-11-05"}') {
+function record(root, feature, text) {
+  if (text === undefined) {
+    const b = planBranch.get(`${root}\0${feature}`);
+    text = JSON.stringify({ feature, date: '2026-11-05', head: b ? tip(root, `refs/heads/${b}`) : null });
+  }
   put(root, `.git/sdd/approvals/${feature}.review.json`, text);
 }
 function run(payload, raw) {
@@ -168,6 +183,8 @@ test('detached HEAD commit passes', () => {
 
 test('merge on base: the plan whose branch is the source decides', () => {
   const root = repo();
+  git(root, 'branch', 'feat/a');
+  git(root, 'branch', 'feat/b');
   addActivePlan(root, 'a', 'feat/a');
   addActivePlan(root, 'b', 'feat/b');
   record(root, 'a');
@@ -391,4 +408,108 @@ test('a refs/heads/<name> directory is not a branch', () => {
   mkdirSync(join(root, '.git/refs/heads/feat'), { recursive: true });
   // `feat` exists only as a directory (feat/x would be a file inside it)
   denies(run(bash(root, 'git checkout feat && git commit -m x')));
+});
+
+// ---- final review I3 / I5: the record's head must be the plan branch's tip ----
+
+// A repo whose plan for `a` owns feat/a, with one commit on feat/a ahead of main.
+function reviewedRepo() {
+  const root = repo();
+  addActivePlan(root, 'a', 'feat/a');
+  git(root, 'add', '-A');
+  git(root, 'commit', '-q', '-m', 'spec and plan');
+  const wt = worktree(root, 'feat/a');
+  put(wt, 'src.txt', 'one\n');
+  git(wt, 'add', '-A');
+  git(wt, 'commit', '-q', '-m', 'feature work');
+  return { root, wt };
+}
+
+test('I3: a record whose head is the current tip of the plan branch passes', () => {
+  const { root, wt } = reviewedRepo();
+  record(root, 'a');
+  assert.equal(run(bash(root, 'git merge feat/a')), '');
+  assert.equal(run(bash(wt, 'gh pr create --fill')), '');
+  assert.equal(run(bash(wt, 'gh pr merge 1')), '');
+  assert.equal(run(bash(wt, 'git push origin main')), '');
+});
+
+test('I3: commits added after the review approval are denied', () => {
+  const { root, wt } = reviewedRepo();
+  record(root, 'a');
+  put(wt, 'src.txt', 'two\n');
+  git(wt, 'add', '-A');
+  git(wt, 'commit', '-q', '-m', 'unreviewed');
+  for (const [cwd, c] of [[root, 'git merge feat/a'], [root, 'git commit -m x'], [wt, 'gh pr create --fill'], [wt, 'gh pr merge 1'], [wt, 'git push origin main']]) {
+    const out = parse(run(bash(cwd, c)));
+    assert.equal(out.permissionDecision, 'deny', c);
+    assert.match(out.permissionDecisionReason, /after the review approval/, c);
+    assert.match(out.permissionDecisionReason, /\/sdd:approve review a\b/, c);
+  }
+});
+
+test('I3: a record with head null (or no head) is denied', () => {
+  const { root } = reviewedRepo();
+  record(root, 'a', '{"feature":"a","head":null}');
+  denies(run(bash(root, 'git merge feat/a')));
+  denies(run(bash(root, 'git commit -m x')));
+  record(root, 'a', '{"feature":"a","date":"2026-11-05"}');
+  denies(run(bash(root, 'git merge feat/a')));
+});
+
+test('I3/I2: the frontmatter commit on base is judged against the plan branch tip, not the cwd HEAD', () => {
+  const { root } = reviewedRepo();
+  record(root, 'a');
+  // main's HEAD is behind feat/a, so it differs from record.head; the commit still passes
+  assert.notEqual(tip(root, 'HEAD'), tip(root, 'refs/heads/feat/a'));
+  put(root, 'docs/superpowers/plans/2026-11-05-a.md', '---\nstatus: approved\nbranch: feat/a\napproved: 2026-11-05\n---\n**Spec:** docs/superpowers/specs/2026-11-05-a-design.md\n');
+  assert.equal(run(bash(root, 'git add docs && git commit -m "docs: approval frontmatter"')), '');
+  git(root, 'add', '-A');
+  git(root, 'commit', '-q', '-m', 'docs: approval frontmatter');
+  // after that commit the merge still passes (feat/a has not moved)
+  assert.equal(run(bash(root, 'git merge feat/a')), '');
+});
+
+test('I3: a plan with no branch: only the record existence is checked', () => {
+  const root = repo();
+  addActivePlan(root, 'a');
+  record(root, 'a', '{"feature":"a","head":null}');
+  assert.equal(run(bash(root, 'git commit -m x')), '');
+});
+
+test('I3: a record from an earlier use of the slug does not cover a branch that moved on', () => {
+  const { root } = reviewedRepo();
+  record(root, 'a', JSON.stringify({ feature: 'a', head: tip(root, 'refs/heads/main') }));
+  denies(run(bash(root, 'git merge feat/a')));
+});
+
+test('I5: a commit on base with several active plans passes when every one has a valid record', () => {
+  const root = repo();
+  git(root, 'branch', 'feat/a');
+  git(root, 'branch', 'feat/b');
+  addActivePlan(root, 'a', 'feat/a');
+  addActivePlan(root, 'b', 'feat/b');
+  record(root, 'a');
+  // one record missing: still denied, naming the features
+  const out = parse(run(bash(root, 'git commit -m x')));
+  assert.equal(out.permissionDecision, 'deny');
+  assert.match(out.permissionDecisionReason, /which feature/i);
+  record(root, 'b');
+  assert.equal(run(bash(root, 'git commit -m x')), '');
+  assert.equal(run(bash(root, 'git push')), '');
+  // feat/b moves on after its record: denied again
+  put(root, 'x.txt', 'x\n');
+  git(root, 'add', '-A');
+  git(root, 'commit', '-q', '-m', 'move');
+  git(root, 'branch', '-f', 'feat/b', 'HEAD');
+  denies(run(bash(root, 'git commit -m x')));
+});
+
+test('I3: a plan branch that cannot be read is denied, naming /sdd:approve done', () => {
+  const root = repo();
+  addActivePlan(root, 'a', 'feat/gone');
+  record(root, 'a', JSON.stringify({ feature: 'a', head: tip(root, 'HEAD') }));
+  const out = parse(run(bash(root, 'git commit -m x')));
+  assert.equal(out.permissionDecision, 'deny');
+  assert.match(out.permissionDecisionReason, /cannot be read.*\/sdd:approve done a\b/);
 });
