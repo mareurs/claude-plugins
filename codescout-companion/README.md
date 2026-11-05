@@ -149,7 +149,10 @@ carries a top-level `advice` object whose `verified` is the boolean `true`, the 
 removes `advice` from that one content block and delivers its text as hook context,
 tagged `[cs-verified]`. It acts only when all of these hold:
 
-- the tool name starts with `mcp__codescout__`;
+- the tool name starts with `mcp__codescout__`, and the hook input's `mcp_server.name`
+  is exactly `codescout` (the prefix alone also matches a server registered as
+  `codescout__x`; `mcp_server.source` is not checked). A hook input without an
+  `mcp_server` object makes the hook do nothing;
 - the Claude Code session-id gate passes: `session_id` in the hook input equals the
   `CLAUDE_CODE_SESSION_ID` the CLI sets for the hook;
 - the advice text has no invisible or non-printing characters, no control characters,
@@ -180,6 +183,17 @@ compaction persistence, `--continue`, interactive resume and fork, `claude --bg`
 VS Code, Copilot and other hosts, other CLI versions and models, the real `buddy` hook,
 the real companion `hooks.json` load and a release install. Measurements and decisions
 are in `contracts/fixtures/cs-verified/results.md` and the `README.md` beside it.
+
+**Measurement scope: stub server.** Every Claude Code run in `results.md` used a stub MCP
+server (`scripts/probe-cs-verified/stub_mcp.py`) that answers with single-line JSON. The
+real codescout server answers with pretty-printed JSON (2-space indent); the hook's unit
+tests cover that with a hand-built variant. On 2026-11-05, after the merge into `main`
+and a `/reload-plugins`, one real `edit_code replace` on a TypeScript file through the
+real codescout server was relocated by the live hook: the visible result had no `advice`,
+and a system-role message `PostToolUse:mcp__codescout__edit_code hook additional
+context: [cs-verified] ...` arrived. That is n = 1 and one model. It shows that the
+relocation works on the product path; it does not show that the model behaves
+differently.
 
 **Not yet.** The hook relocates whenever the gates pass, with or without a consent
 statement in the user's `CLAUDE.md`. That statement is a future step and is not

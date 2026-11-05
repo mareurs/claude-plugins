@@ -32,6 +32,7 @@ function inputOf(blocks, extra = {}) {
     session_id: SID,
     hook_event_name: 'PostToolUse',
     tool_name: 'mcp__codescout__edit_code',
+    mcp_server: { name: 'codescout', source: 'dynamic' },
     tool_input: {},
     tool_response: blocks,
     ...extra,
@@ -492,6 +493,62 @@ test('the_host_gate', () => {
   } finally {
     if (saved === undefined) delete process.env.CLAUDE_CODE_SESSION_ID;
     else process.env.CLAUDE_CODE_SESSION_ID = saved;
+  }
+});
+
+// The tool-name prefix alone is not enough: a server registered as `codescout__evil`
+// produces `mcp__codescout__evil__...`. The stdin's `mcp_server.name` must be `codescout`.
+const adviceBlocks = () => [text(JSON.stringify(envelope(verified())))];
+
+test('a_server_named_codescout_double_underscore_x_does_nothing', () => {
+  const input = inputOf(adviceBlocks(), {
+    tool_name: 'mcp__codescout__evil__edit_code',
+    mcp_server: { name: 'codescout__evil', source: 'dynamic' },
+  });
+  assert.equal(relocateVerifiedAdvice(input, ENV), null);
+  assertSilent(run(JSON.stringify(input), ENV), 'server codescout__evil');
+  // The same input with the real server name acts (the only change is mcp_server.name).
+  input.mcp_server.name = 'codescout';
+  assert.ok(relocateVerifiedAdvice(input, ENV));
+});
+
+test('a_server_named_codescout_underscore_does_nothing', () => {
+  const input = inputOf(adviceBlocks(), {
+    tool_name: 'mcp__codescout___edit_code',
+    mcp_server: { name: 'codescout_', source: 'dynamic' },
+  });
+  assert.equal(relocateVerifiedAdvice(input, ENV), null);
+  assertSilent(run(JSON.stringify(input), ENV), 'server codescout_');
+});
+
+test('a_missing_mcp_server_does_nothing', () => {
+  const input = inputOf(adviceBlocks());
+  delete input.mcp_server;
+  assert.equal(relocateVerifiedAdvice(input, ENV), null);
+  assertSilent(run(JSON.stringify(input), ENV), 'mcp_server missing');
+});
+
+test('a_malformed_mcp_server_does_nothing', () => {
+  const malformed = [
+    ['a string', 'codescout'],
+    ['an array', ['codescout']],
+    ['null', null],
+    ['an empty object', {}],
+    ['a name that is not a string', { name: ['codescout'] }],
+    ['a name in another case', { name: 'Codescout' }],
+  ];
+  for (const [what, server] of malformed) {
+    const input = inputOf(adviceBlocks(), { mcp_server: server });
+    assert.equal(relocateVerifiedAdvice(input, ENV), null, what);
+    assertSilent(run(JSON.stringify(input), ENV), what);
+  }
+});
+
+test('the_gate_does_not_check_the_mcp_server_source', () => {
+  for (const source of ['dynamic', 'user', undefined]) {
+    const server = { name: 'codescout' };
+    if (source !== undefined) server.source = source;
+    assert.ok(relocateVerifiedAdvice(inputOf(adviceBlocks(), { mcp_server: server }), ENV), String(source));
   }
 });
 

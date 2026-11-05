@@ -32,6 +32,8 @@ import { readInput, emit } from './lib.mjs';
 
 export const MARKER = '[cs-verified]';
 export const CODESCOUT_TOOL_PREFIX = 'mcp__codescout__';
+// The hook stdin's `mcp_server.name` of the codescout server (`source` is not checked).
+export const CODESCOUT_SERVER_NAME = 'codescout';
 export const MAX_ADVICE_CHARS = 1000; // code points
 // Size of `JSON.stringify(tool_response)` above which the hook does nothing,
 // counted in UTF-16 code units (String length), not bytes. The output repeats
@@ -73,6 +75,9 @@ function hostGate(input, env) {
   return input.hook_event_name === 'PostToolUse' &&
     typeof input.tool_name === 'string' &&
     input.tool_name.startsWith(CODESCOUT_TOOL_PREFIX) &&
+    // The prefix alone also matches a server registered as `codescout__x`.
+    isJsonObject(input.mcp_server) &&
+    input.mcp_server.name === CODESCOUT_SERVER_NAME &&
     typeof input.session_id === 'string' &&
     input.session_id !== '' &&
     env.CLAUDE_CODE_SESSION_ID === input.session_id;
