@@ -4,7 +4,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { execFileSync } from 'node:child_process';
-import { readInput, emit, resolveProjectRoot } from './lib.mjs';
+import { readInput, emit, resolveProjectRoot, resolveCodescoutBinary } from './lib.mjs';
 
 const DEFAULT_STATE = { epoch: 0, seen_path_rules: [], global_surfaced_epoch: -1 };
 
@@ -44,9 +44,11 @@ if (existsSync(stateFile)) {
 const epoch = state.epoch ?? 0;
 if (epoch === (state.global_surfaced_epoch ?? -1)) process.exit(0); // already surfaced this epoch
 
+const csBin = resolveCodescoutBinary(cwd);
+if (!csBin) process.exit(0); // codescout absent → no enforcement
 let raw;
 try {
-  raw = execFileSync('codescout', ['constitution-check', '--project', cwd], {
+  raw = execFileSync(csBin, ['constitution-check', '--project', cwd], {
     encoding: 'utf8',
     stdio: ['ignore', 'pipe', 'ignore'],
   });

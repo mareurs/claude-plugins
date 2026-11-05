@@ -6,8 +6,8 @@
 // through the JSON `permissionDecision` field (honored by Claude Code AND
 // Copilot). A non-zero exit is never used to deny — on Copilot CLI a non-zero
 // PreToolUse exit is itself a deny, so a crash would block the user's tool.
-import { readFileSync, existsSync, mkdirSync, writeFileSync, readdirSync, statSync, unlinkSync, renameSync } from 'node:fs';
-import { join, isAbsolute, dirname, resolve as resolvePath } from 'node:path';
+import { readFileSync, existsSync, mkdirSync, writeFileSync, readdirSync, statSync, unlinkSync, renameSync, accessSync, constants } from 'node:fs';
+import { join, isAbsolute, dirname, delimiter, resolve as resolvePath } from 'node:path';
 import { homedir, tmpdir } from 'node:os';
 import { createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
@@ -100,6 +100,40 @@ export function detectFor(cwd) {
     return { HAS_CODESCOUT: 'false', BLOCK_READS: 'false' };
   }
 }
+
+// Locate the codescout binary. A hook process often has a narrower PATH than the
+// user's shell (e.g. `~/.cargo/bin` is absent), so a bare `execFileSync('codescout')`
+// silently fails. Order: PATH dirs, detect().CS_BINARY, ~/.cargo/bin, <cwd>/target/release.
+// Returns an absolute path, or null when none is executable.
+export function resolveCodescoutBinary(cwd) {
+  const exe = process.platform === 'win32' ? 'codescout.exe' : 'codescout';
+  const executable = (p) => {
+    try {
+      accessSync(p, constants.X_OK);
+      return true;
+    } catch {
+      return false;
+    }
+  };
+  for (const dir of (process.env.PATH || '').split(delimiter)) {
+    if (!dir) continue;
+    const p = join(dir, exe);
+    if (executable(p)) return p;
+  }
+  const home = process.env.HOME || process.env.USERPROFILE || homedir();
+  const root = cwd || process.cwd();
+  let detected = '';
+  try {
+    detected = detect(root, home, process.env.CLAUDE_CONFIG_DIR || null).CS_BINARY || '';
+  } catch {
+    /* fall through to fixed fallbacks */
+  }
+  for (const cand of [detected, join(home, '.cargo', 'bin', 'codescout'), join(root, 'target', 'release', 'codescout')]) {
+    if (cand && executable(cand)) return cand;
+  }
+  return null;
+}
+
 // Resolve a session cwd UP to the nearest enclosing project root.
 //
 // A cwd is not a project root. Hooks that build state paths as `join(cwd, …)`
