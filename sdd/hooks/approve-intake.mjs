@@ -5,21 +5,26 @@
 // review record); the PreToolUse guards deny tools that try to write the same fields.
 // No codescout call and no git spawn: fast, and works without the binary.
 //
-//   spec <path|feature>   status: approved, approved: <today>, kind, feature
-//   plan <feature>        same, refused unless the plan's spec is approved
+//   spec <path|feature>   draft spec -> approved, approved: <today>, kind, feature
+//   plan <feature>        draft plan -> approved; refused unless its spec is approved
 //   review <feature>      record {feature,date,session_id,head}; needs report go/go
-//   done <feature>        spec -> implemented, plan -> done
+//   done <feature|path>   approved spec -> implemented, approved plan -> done
+//
+// A feature target must be a plain slug; a path target must resolve (symlinks
+// followed) inside docs/superpowers/<specs|plans>/. Candidates are filtered to the
+// status the action applies to; more than one left is refused, never guessed.
 
-import { readFileSync, mkdirSync, writeFileSync, existsSync } from 'node:fs';
+import { readFileSync, mkdirSync, writeFileSync, realpathSync } from 'node:fs';
 import { join, resolve as resolvePath, isAbsolute, sep } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import {
-  readInput, contextEvent, mainCheckout, loadConfig, readFrontmatter,
+  readInput, contextEvent, mainCheckout, loadConfig,
   writeFrontmatterFields, listArtifacts, specPointer, approvalsDir, featureFromSpecPath,
 } from './lib.mjs';
 import { reviewRecordPath } from './review-guard.mjs';
 
 const RE = /^(?:\/sdd:approve|\/approve|sdd approve)[ \t]+(spec|plan|review|done)[ \t]+(\S+)$/;
+const SLUG_RE = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
 
 export function parseApproval(prompt) {
   if (typeof prompt !== 'string') return null;
@@ -34,42 +39,89 @@ function today() {
 }
 
 const say = (t) => contextEvent('UserPromptSubmit', t);
+const status = (a) => a.fm.status || 'draft';
+const isPathTarget = (t) => /[\\/]/.test(t) || t.endsWith('.md');
+const validSlug = (t) => SLUG_RE.test(t) && !t.includes('..');
 const specFeature = (s) => s.fm.feature || featureFromSpecPath(s.path);
 
-function underDir(root, sub, p) {
+// Artifacts whose real path (symlinks resolved) stays inside the real kind dir.
+function safeList(root, sub) {
+  let realDir;
+  try { realDir = realpathSync(join(root, 'docs', 'superpowers', sub)); } catch { return []; }
+  return listArtifacts(root, sub).filter((a) => {
+    try { return realpathSync(a.path).startsWith(realDir + sep); } catch { return false; }
+  });
+}
+
+// Lexical path of a path-like target inside <root>/docs/superpowers/<sub>/, or null.
+function targetPath(root, sub, target) {
   const dir = resolvePath(root, 'docs', 'superpowers', sub);
-  const abs = isAbsolute(p) ? resolvePath(p) : resolvePath(root, p);
+  const bare = !/[\\/]/.test(target);
+  const abs = bare ? join(dir, target)
+    : isAbsolute(target) ? resolvePath(target) : resolvePath(root, target);
   return abs.startsWith(dir + sep) ? abs : null;
 }
 
-function findArtifact(root, sub, target) {
-  const list = listArtifacts(root, sub);
-  if (/[\\/]/.test(target) || target.endsWith('.md')) {
-    const abs = underDir(root, sub, target);
-    return abs ? list.find((a) => a.path === abs) || null : null;
+// All specs matching a target -> {matches} | {err}.
+function specMatches(root, target) {
+  const list = safeList(root, 'specs');
+  if (isPathTarget(target)) {
+    const abs = targetPath(root, 'specs', target);
+    if (!abs) return { err: `"${target}" is not inside docs/superpowers/specs/. Nothing was written.` };
+    return { matches: list.filter((s) => s.path === abs) };
   }
-  if (sub === 'specs') return list.find((s) => specFeature(s) === target) || null;
-  return null;
+  if (!validSlug(target)) return { err: `Invalid target "${target}": expected a feature slug or a path. Nothing was written.` };
+  return { matches: list.filter((s) => specFeature(s) === target) };
 }
 
-// The spec a plan points at (inside specs/ only), as a listed artifact.
+// The spec a plan points at (inside specs/ only).
 function planSpec(root, plan) {
   const ptr = specPointer(plan.body);
   if (!ptr) return null;
-  const abs = underDir(root, 'specs', ptr);
-  return abs ? listArtifacts(root, 'specs').find((s) => s.path === abs) || null : null;
+  const abs = targetPath(root, 'specs', ptr);
+  return abs ? safeList(root, 'specs').find((s) => s.path === abs) || null : null;
 }
 
-function findPlan(root, feature) {
-  const plans = listArtifacts(root, 'plans');
-  const own = plans.find((p) => p.fm.feature === feature);
-  if (own) return own;
-  return plans.find((p) => {
-    const s = planSpec(root, p);
-    if (s) return specFeature(s) === feature;
-    const ptr = specPointer(p.body);
-    return !p.fm.feature && ptr && featureFromSpecPath(ptr) === feature;
-  }) || null;
+function planMatchesFeature(root, p, feature) {
+  if (p.fm.feature === feature) return true;
+  const s = planSpec(root, p);
+  if (s) return specFeature(s) === feature;
+  const ptr = specPointer(p.body);
+  return !p.fm.feature && !!ptr && featureFromSpecPath(ptr) === feature;
+}
+
+function planFeature(root, p) {
+  if (p.fm.feature) return p.fm.feature;
+  const s = planSpec(root, p);
+  if (s) return specFeature(s);
+  const ptr = specPointer(p.body);
+  return ptr ? featureFromSpecPath(ptr) : null;
+}
+
+function planMatches(root, target) {
+  const list = safeList(root, 'plans');
+  if (isPathTarget(target)) {
+    const abs = targetPath(root, 'plans', target);
+    if (!abs) return { err: `"${target}" is not inside docs/superpowers/plans/. Nothing was written.` };
+    return { matches: list.filter((p) => p.path === abs) };
+  }
+  if (!validSlug(target)) return { err: `Invalid target "${target}": expected a feature slug or a path. Nothing was written.` };
+  return { matches: list.filter((p) => planMatchesFeature(root, p, target)) };
+}
+
+// Pick the single candidate whose status is allowed -> {item} | {msg}.
+function pickOne(res, allowed, kind, target) {
+  if (res.err) return { msg: res.err };
+  const { matches } = res;
+  if (!matches.length) return { msg: `No ${kind} found for "${target}". Nothing was written.` };
+  const c = matches.filter((a) => allowed.includes(status(a)));
+  if (!c.length) {
+    return { msg: `Found ${kind} for "${target}" but its status (${matches.map(status).join(', ')}) is not ${allowed.join(' or ')}. Nothing was written.` };
+  }
+  if (c.length > 1) {
+    return { msg: `More than one ${kind} for "${target}" is ${allowed.join(' or ')}: ${c.map((a) => a.path).join(', ')}. Pass the path of the one you mean. Nothing was written.` };
+  }
+  return { item: c[0] };
 }
 
 function readRef(dir, ref) {
@@ -84,10 +136,6 @@ function readRef(dir, ref) {
     }
   } catch { /* none */ }
   return null;
-}
-
-function branchTip(commonDir, b) {
-  return readRef(commonDir, `refs/heads/${b}`);
 }
 
 function cwdHead(co) {
@@ -106,40 +154,41 @@ function approveFile(path, extra) {
 }
 
 function doSpec(root, target) {
-  const s = findArtifact(root, 'specs', target);
-  if (!s) return `No spec found for "${target}" under docs/superpowers/specs/. Nothing was approved.`;
-  const feature = specFeature(s);
-  approveFile(s.path, { kind: 'spec', feature });
+  const r = pickOne(specMatches(root, target), ['draft'], 'spec', target);
+  if (r.msg) return r.msg;
+  const feature = specFeature(r.item);
+  approveFile(r.item.path, { kind: 'spec', feature });
   return `sdd: spec "${feature}" approved (${today()}).`;
 }
 
 function doPlan(root, target) {
-  const p = findPlan(root, target);
-  if (!p) return `No plan found for feature "${target}" under docs/superpowers/plans/. Nothing was approved.`;
+  const r = pickOne(planMatches(root, target), ['draft'], 'plan', target);
+  if (r.msg) return r.msg;
+  const p = r.item;
+  const feature = planFeature(root, p) || target;
   const s = planSpec(root, p);
-  if (!s || s.fm.status !== 'approved') {
-    return `Plan for "${target}" not approved: its spec is not approved (or its **Spec:** pointer does not resolve). Run /sdd:approve spec ${target} first.`;
+  if (!s || status(s) !== 'approved') {
+    return `Plan "${feature}" not approved: its spec is not approved (or its **Spec:** pointer does not resolve). Run /sdd:approve spec ${feature} first. Nothing was written.`;
   }
   const fields = { kind: 'plan' };
-  if (!p.fm.feature) fields.feature = target;
+  if (!p.fm.feature) fields.feature = feature;
   approveFile(p.path, fields);
-  return `sdd: plan "${target}" approved (${today()}).`;
+  return `sdd: plan "${feature}" approved (${today()}).`;
 }
 
 function doReview(co, input, target) {
+  if (!validSlug(target)) return `Review approval refused: invalid feature "${target}" (a plain slug is required). Nothing was written.`;
   const dir = approvalsDir(co.commonDir);
   let report = null;
   try { report = JSON.parse(readFileSync(join(dir, `${target}.report.json`), 'utf8')); } catch { /* refused below */ }
   if (!report || typeof report !== 'object' || report.outcome !== 'go' || report.drift_outcome !== 'go') {
     return `Review approval for "${target}" refused: no readable ${target}.report.json with outcome go and drift_outcome go. Run the review command first.`;
   }
-  const plan = findPlan(co.root, target);
+  const plans = planMatches(co.root, target).matches || [];
+  const live = plans.filter((p) => status(p) === 'approved');
   let head = null;
-  if (plan && plan.fm.branch) head = branchTip(co.commonDir, plan.fm.branch);
-  if (!head) {
-    const cwdCo = mainCheckout(input.cwd || process.cwd()) || co;
-    head = cwdHead(cwdCo);
-  }
+  if (live.length === 1 && live[0].fm.branch) head = readRef(co.commonDir, `refs/heads/${live[0].fm.branch}`);
+  if (!head) head = cwdHead(co);
   mkdirSync(dir, { recursive: true });
   writeFileSync(reviewRecordPath(co.commonDir, target), JSON.stringify({
     feature: target, date: today(), session_id: input.session_id ?? null, head,
@@ -148,13 +197,14 @@ function doReview(co, input, target) {
 }
 
 function doDone(root, target) {
-  const s = findArtifact(root, 'specs', target);
-  const p = findPlan(root, target);
-  if (!s && !p) return `Nothing to finish: no spec or plan found for "${target}".`;
-  const done = [];
-  if (s) { writeFrontmatterFields(s.path, { status: 'implemented' }); done.push('spec implemented'); }
-  if (p) { writeFrontmatterFields(p.path, { status: 'done' }); done.push('plan done'); }
-  return `sdd: "${target}": ${done.join(', ')}.`;
+  const sr = pickOne(specMatches(root, target), ['approved'], 'spec', target);
+  if (sr.msg) return sr.msg;
+  const feature = specFeature(sr.item);
+  const pr = pickOne(planMatches(root, feature), ['approved'], 'plan', feature);
+  if (pr.msg) return pr.msg;
+  writeFrontmatterFields(sr.item.path, { status: 'implemented' });
+  writeFrontmatterFields(pr.item.path, { status: 'done' });
+  return `sdd: "${feature}": spec implemented, plan done.`;
 }
 
 function main() {

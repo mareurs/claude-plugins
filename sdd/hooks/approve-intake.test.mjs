@@ -3,7 +3,7 @@
 import { test, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync, execFileSync } from 'node:child_process';
-import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, existsSync, rmSync, realpathSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, existsSync, rmSync, realpathSync, symlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -207,4 +207,135 @@ test('garbage stdin: silent exit 0', () => {
   const r = spawnSync('node', [HOOK], { input: 'not json', encoding: 'utf8' });
   assert.equal(r.status, 0);
   assert.equal(r.stdout, '');
+});
+
+// ---- fix round 1 ------------------------------------------------------------
+
+test('spec <feature>: only draft candidates; superseded/implemented skipped, ambiguity refused', () => {
+  const root = repo();
+  const old = 'docs/superpowers/specs/2026-01-01-auth-design.md';
+  const neu = 'docs/superpowers/specs/2026-11-05-auth-v2-design.md';
+  put(root, old, '---\nstatus: superseded\nfeature: auth\n---\nold\n');
+  put(root, neu, '---\nstatus: draft\nfeature: auth\n---\nnew\n');
+  const oldBytes = read(root, old);
+  run(root, '/sdd:approve spec auth');
+  assert.equal(read(root, old), oldBytes);
+  assert.match(read(root, neu), /status: approved/);
+
+  // implemented spec is not re-approved
+  const r2 = repo();
+  put(r2, old, '---\nstatus: implemented\nfeature: auth\n---\nold\n');
+  const b2 = read(r2, old);
+  assert.match(ctx(run(r2, '/sdd:approve spec auth')), /status|implemented/i);
+  assert.equal(read(r2, old), b2);
+
+  // two drafts: refused, both paths listed
+  const r3 = repo();
+  put(r3, old, '---\nstatus: draft\nfeature: auth\n---\na\n');
+  put(r3, neu, '---\nstatus: draft\nfeature: auth\n---\nb\n');
+  const msg = ctx(run(r3, '/sdd:approve spec auth'));
+  assert.match(msg, /2026-01-01-auth-design/);
+  assert.match(msg, /2026-11-05-auth-v2-design/);
+  assert.match(read(r3, old), /status: draft/);
+  assert.match(read(r3, neu), /status: draft/);
+
+  // explicit path to a non-draft spec is refused too
+  const r4 = repo();
+  put(r4, old, '---\nstatus: superseded\n---\nx\n');
+  const b4 = read(r4, old);
+  run(r4, `/sdd:approve spec ${old}`);
+  assert.equal(read(r4, old), b4);
+});
+
+test('plan <feature>: a done plan is not re-activated; the draft is approved', () => {
+  const root = repo();
+  put(root, SPEC, '---\nstatus: approved\nfeature: q\n---\nspec\n');
+  const donePlan = 'docs/superpowers/plans/2026-01-01-q.md';
+  const draftPlan = 'docs/superpowers/plans/2026-11-05-q2.md';
+  put(root, donePlan, `---\nstatus: done\n---\n**Spec:** ${SPEC}\n`);
+  put(root, draftPlan, `---\nstatus: draft\n---\n**Spec:** ${SPEC}\n`);
+  const doneBytes = read(root, donePlan);
+  run(root, '/sdd:approve plan q');
+  assert.equal(read(root, donePlan), doneBytes);
+  assert.match(read(root, draftPlan), /status: approved/);
+});
+
+test('targets: non-path features must be a plain slug; nothing read or written outside', () => {
+  const root = repo();
+  const ad = join(root, '.git', 'sdd', 'approvals');
+  mkdirSync(ad, { recursive: true });
+  writeFileSync(join(root, '.git', 'x.report.json'), '{"outcome":"go","drift_outcome":"go"}');
+  writeFileSync(join(ad, 'a.report.json'), '{"outcome":"go","drift_outcome":"go"}');
+  for (const t of ['../../x', 'a/b', '..', '.hidden', 'a..b', 'a\\b']) {
+    const out = run(root, `/sdd:approve review ${t}`);
+    assert.match(ctx(out), /invalid|refused/i);
+  }
+  assert.equal(existsSync(join(root, '.git', 'x.review.json')), false);
+  assert.equal(existsSync(join(ad, 'a', 'b.review.json')), false);
+  for (const k of ['plan', 'done']) assert.match(ctx(run(root, `/sdd:approve ${k} ../x`)), /invalid|outside|not inside|refused|not found/i);
+});
+
+test('symlink in specs/ pointing outside the tree is not written through', () => {
+  const root = repo();
+  put(root, 'src/victim.md', 'victim\n');
+  mkdirSync(join(root, 'docs/superpowers/specs'), { recursive: true });
+  symlinkSync(join(root, 'src/victim.md'), join(root, 'docs/superpowers/specs/2026-11-05-evil-design.md'));
+  run(root, '/sdd:approve spec evil');
+  run(root, '/sdd:approve spec docs/superpowers/specs/2026-11-05-evil-design.md');
+  assert.equal(read(root, 'src/victim.md'), 'victim\n');
+});
+
+test('done: refuses unless spec and plan are approved; draft spec writes nothing', () => {
+  const root = repo();
+  put(root, SPEC, SPEC_BODY);
+  put(root, PLAN, `---\nstatus: approved\n---\n**Spec:** ${SPEC}\n`);
+  const a = read(root, SPEC), b = read(root, PLAN);
+  run(root, '/sdd:approve done auth-login');
+  assert.equal(read(root, SPEC), a);
+  assert.equal(read(root, PLAN), b);
+
+  const r2 = repo();
+  put(r2, SPEC, '---\nstatus: approved\n---\nspec\n');
+  put(r2, PLAN, `---\nstatus: draft\n---\n**Spec:** ${SPEC}\n`);
+  const c = read(r2, SPEC), d = read(r2, PLAN);
+  run(r2, '/sdd:approve done auth-login');
+  assert.equal(read(r2, SPEC), c);
+  assert.equal(read(r2, PLAN), d);
+});
+
+test('done <path> derives the feature from the resolved spec', () => {
+  const root = repo();
+  put(root, SPEC, '---\nstatus: approved\nfeature: custom\n---\nspec\n');
+  put(root, PLAN, `---\nstatus: approved\n---\n**Spec:** ${SPEC}\n`);
+  run(root, `/sdd:approve done ${SPEC}`);
+  assert.match(read(root, SPEC), /status: implemented/);
+  assert.match(read(root, PLAN), /status: done/);
+});
+
+test('bare *.md target resolves inside specs/ and plans/', () => {
+  const root = repo();
+  put(root, SPEC, SPEC_BODY);
+  run(root, '/sdd:approve spec 2026-11-05-auth-login-design.md');
+  assert.match(read(root, SPEC), /status: approved/);
+  put(root, PLAN, PLAN_BODY());
+  run(root, '/sdd:approve plan 2026-11-05-auth-login.md');
+  assert.match(read(root, PLAN), /status: approved/);
+});
+
+test('CRLF + BOM files keep every non-frontmatter byte and their line endings', () => {
+  const root = repo();
+  const spec = '﻿---\r\ntitle: T\r\nstatus: draft\r\n---\r\n\r\n# Spec\r\n\r\nbody\r\n';
+  const plan = `﻿---\r\nstatus: draft\r\n---\r\n\r\n**Spec:** ${SPEC}\r\n\r\n# Plan\r\n`;
+  put(root, SPEC, spec);
+  put(root, PLAN, plan);
+  run(root, '/sdd:approve spec auth-login');
+  run(root, '/sdd:approve plan auth-login');
+  for (const [rel, orig] of [[SPEC, spec], [PLAN, plan]]) {
+    const t = read(root, rel);
+    assert.ok(t.startsWith('﻿---\r\n'));
+    assert.match(t, /status: approved\r\n/);
+    const tail = orig.slice(orig.indexOf('---\r\n\r\n') + 3);
+    assert.ok(t.endsWith(tail));
+    assert.equal(/(?<!\r)\n/.test(t), false);
+  }
 });
