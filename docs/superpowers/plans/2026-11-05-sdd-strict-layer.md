@@ -271,7 +271,7 @@ Decision for this task: the review gate reads `<approvalsDir>/<feature>.report.j
 
 **Files:**
 - Rewrite: `sdd/skills/sdd-flow/SKILL.md`; Create: `sdd/skills/sdd-flow/references/{gates.md,artifacts.md}`
-- Rewrite: `sdd/commands/review.md`, `sdd/commands/sdd-init.md`, `sdd/README.md`, `sdd/templates/CLAUDE.md.template`, `sdd/templates/constitution/{base,kotlin,python}.md`
+- Rewrite: `sdd/commands/review.md`, `sdd/commands/sdd-init.md`, `sdd/README.md`, `sdd/templates/CLAUDE.md.template`, `sdd/templates/constitution/{base,kotlin,python}.md`, and the `### SDD` section of the root `README.md` (it still lists the commands Task 4 deleted)
 - Modify: `tests/test-sdd-content.sh` (turn on the `PENDING_REWRITE` assertion; size checks), `tests/test-codex-convertible-commands.sh:117` (add `sdd/commands/{review,sdd-init,approve}.md` to `TARGETS`), `tests/lib/skill_call_legality.py` (scan `sdd/skills` and `sdd/commands`)
 
 **Interfaces:**
