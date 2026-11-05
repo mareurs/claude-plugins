@@ -166,7 +166,8 @@ copy test.
 
 - **spec-guard** (PreToolUse). Matchers: `Write|Edit|MultiEdit|NotebookEdit` and
   `mcp__codescout__(edit_file|edit_code|create_file|doc)` (`doc` only for the
-  approval-field rule below: an `update`/`create` that sets an approval field).
+  approval-field rule below: an `update`/`create` that sets `status: approved` or an
+  `approved` key; `implemented`/`done` via `doc` only make an artifact inactive).
   - Exempt targets: anything under `docs/`, `.sdd/`, `.claude/`, `.codescout/`, and
     `*.md`, `*.json`, `*.yaml`, `*.yml`, `*.toml`, `*.ini`, `*.env` (the current
     exemption list, `sdd/hooks/spec-guard.mjs:19`, plus the new directories).
