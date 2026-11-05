@@ -37,6 +37,7 @@ if [ -d "$EFFORT_TESTS_DIR" ]; then
   )
 fi
 
+SDD_HOOK_TESTS_DIR="$SCRIPT_DIR/../sdd/hooks"
 WAKE_TESTS_DIR="$SCRIPT_DIR/../codescout-companion/background-wake"
 WAKE_SUITES=()
 if [ -d "$WAKE_TESTS_DIR" ]; then
@@ -47,7 +48,7 @@ if [ -d "$WAKE_TESTS_DIR" ]; then
 fi
 
 shopt -s nullglob
-SUITES=("$SCRIPT_DIR"/test-*.sh "$HOOK_TESTS_DIR"/*.test.sh "$SKILL_TESTS_DIR"/*/*.test.sh "$HOOK_TESTS_DIR"/*.test.mjs "$PI_EXTENSION_TESTS_DIR"/*.test.mjs ${EFFORT_SUITES[@]+"${EFFORT_SUITES[@]}"} ${WAKE_SUITES[@]+"${WAKE_SUITES[@]}"})
+SUITES=("$SCRIPT_DIR"/test-*.sh "$HOOK_TESTS_DIR"/*.test.sh "$SKILL_TESTS_DIR"/*/*.test.sh "$HOOK_TESTS_DIR"/*.test.mjs "$SDD_HOOK_TESTS_DIR"/*.test.mjs "$PI_EXTENSION_TESTS_DIR"/*.test.mjs ${EFFORT_SUITES[@]+"${EFFORT_SUITES[@]}"} ${WAKE_SUITES[@]+"${WAKE_SUITES[@]}"})
 shopt -u nullglob
 
 if [ "${1:-}" = "--list" ]; then

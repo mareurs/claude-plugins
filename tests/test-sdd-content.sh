@@ -55,7 +55,6 @@ PENDING_REWRITE=(
   sdd/commands/review.md
   sdd/commands/sdd-init.md
   sdd/README.md
-  sdd/hooks/lib.mjs
   sdd/hooks/spec-guard.mjs
   sdd/hooks/review-guard.mjs
   sdd/hooks/session-start.mjs
