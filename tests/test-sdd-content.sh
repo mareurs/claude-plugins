@@ -48,28 +48,17 @@ for p in "${MOVED_PATHS[@]}"; do
 done
 
 # Files a LATER task still rewrites, so they may still carry retired strings.
-# One path per line: the task that rewrites a file deletes exactly that line.
-#   Task 5-9 rewrite the hooks; Task 10 rewrites the skill, commands and README.
-PENDING_REWRITE=(
-  sdd/skills/sdd-flow
-  sdd/commands/review.md
-  sdd/commands/sdd-init.md
-  sdd/README.md
-)
+# One path per line. Every rewrite has landed, so the list is empty and every file is scanned.
+PENDING_REWRITE=()
 
-# Task 10, Step 1 flips this to 1: the list must then be empty, and every file is scanned.
-ENFORCE_PENDING_REWRITE_EMPTY=0
-
-if [ "$ENFORCE_PENDING_REWRITE_EMPTY" = "1" ]; then
-  if [ "${#PENDING_REWRITE[@]}" -eq 0 ]; then
-    pass "PENDING_REWRITE is empty"
-  else
-    fail "PENDING_REWRITE is empty" "still lists: ${PENDING_REWRITE[*]}"
-  fi
+if [ "${#PENDING_REWRITE[@]}" -eq 0 ]; then
+  pass "PENDING_REWRITE is empty"
+else
+  fail "PENDING_REWRITE is empty" "still lists: ${PENDING_REWRITE[*]}"
 fi
 
 # Retired strings, as grep -E alternation.
-RETIRED='memory/specs|Serena|serena|read_markdown|edit_markdown|superpowers:code-reviewer|ralph-sdd|COMPONENT_REGISTRY'
+RETIRED='memory/specs|Serena|serena|read_markdown|edit_markdown|superpowers:code-reviewer|ralph-sdd|COMPONENT_REGISTRY|memory/plans|memory/constitution|/specify|/drift|/document|/bootstrap-docs|sdd-ecosystem-architect'
 
 # Resolve hits to repo-relative paths and drop only exact PENDING_REWRITE matches.
 HITS=""
@@ -88,6 +77,50 @@ if [ -z "$HITS" ]; then
 else
   fail "no retired strings in sdd/ (outside PENDING_REWRITE)" "$(echo "$HITS" | tr '\n' ' ')"
 fi
+
+# `mark-reviewed` is retired as a command, but review-guard legitimately names it in its
+# tamper check, so this string is scanned in the content surface only: sdd/skills,
+# sdd/commands, sdd/templates, sdd/README.md and the root README's SDD section. sdd/hooks is
+# excluded on purpose.
+ROOT_SDD_SECTION="$(awk '/^### SDD/{f=1;print;next} /^###? /{f=0} f' "$REPO_ROOT/README.md")"
+if [ -n "$ROOT_SDD_SECTION" ]; then pass "root README has an SDD section"; else fail "root README has an SDD section" "no '### SDD' heading"; fi
+MR_HITS="$(grep -rIl 'mark-reviewed' "$SDD/skills" "$SDD/commands" "$SDD/templates" "$SDD/README.md" 2>/dev/null)"
+if printf '%s' "$ROOT_SDD_SECTION" | grep -q 'mark-reviewed'; then MR_HITS+=" README.md"; fi
+if [ -z "$MR_HITS" ]; then pass "no mark-reviewed in the sdd content surface"; else fail "no mark-reviewed in the sdd content surface" "$MR_HITS"; fi
+# Same retired list, applied to the root README's SDD section.
+if printf '%s' "$ROOT_SDD_SECTION" | grep -qE "$RETIRED"; then fail "root README SDD section has no retired strings" "$(printf '%s' "$ROOT_SDD_SECTION" | grep -oE "$RETIRED" | sort -u | tr '\n' ' ')"; else pass "root README SDD section has no retired strings"; fi
+
+# Sizes: the skill under 20 KB; every command under 4096 bytes (Codex converts <= 4000 rendered).
+SKILL="$SDD/skills/sdd-flow/SKILL.md"
+if [ -f "$SKILL" ] && [ "$(wc -c < "$SKILL")" -lt 20480 ]; then pass "sdd-flow SKILL.md < 20480 bytes"; else fail "sdd-flow SKILL.md < 20480 bytes" "missing or too large"; fi
+for c in review sdd-init approve; do
+  f="$SDD/commands/$c.md"
+  if [ -f "$f" ] && [ "$(wc -c < "$f")" -lt 4096 ]; then pass "sdd/commands/$c.md < 4096 bytes"; else fail "sdd/commands/$c.md < 4096 bytes" "missing or too large"; fi
+done
+
+# Every superpowers:<name> named in sdd/ is a real superpowers 7.0.2 skill directory.
+SP_SKILLS=" brainstorming diagnosing-superpowers dispatching-parallel-agents executing-plans finishing-a-development-branch receiving-code-review requesting-code-review subagent-driven-development systematic-debugging test-driven-development using-git-worktrees using-superpowers verification-before-completion writing-plans writing-skills "
+SP_BAD=""
+while IFS= read -r name; do
+  [ -n "$name" ] || continue
+  case "$SP_SKILLS" in *" $name "*) ;; *) SP_BAD+="superpowers:$name " ;; esac
+done < <(grep -rhoE 'superpowers:[a-z][a-z-]*[a-z]' "$SDD" 2>/dev/null | sed 's/^superpowers://' | sort -u)
+if [ -z "$SP_BAD" ]; then pass "every superpowers:<name> in sdd/ is a superpowers 7.0.2 skill"; else fail "every superpowers:<name> in sdd/ is a superpowers 7.0.2 skill" "$SP_BAD"; fi
+
+# Required content.
+needs() { # file, label, fixed-string...
+  local file="$1" label="$2"; shift 2
+  local miss="" s
+  [ -f "$file" ] || { fail "$label" "missing file"; return; }
+  for s in "$@"; do grep -qF -- "$s" "$file" || miss+="'$s' "; done
+  if [ -z "$miss" ]; then pass "$label"; else fail "$label" "absent: $miss"; fi
+}
+needs "$SKILL" "sdd-flow names spec-drift and the four approvals" \
+  'spec-drift' '/sdd:approve spec' '/sdd:approve plan' '/sdd:approve review' '/sdd:approve done'
+needs "$SKILL" "sdd-flow tells the agent never to edit status fields and to ask the user to type /sdd:approve" \
+  'never edit status fields' 'ask the user to type `/sdd:approve'
+needs "$SDD/commands/sdd-init.md" "sdd-init names .sdd/config.json and constitution" '.sdd/config.json' 'constitution'
+needs "$SDD/commands/review.md" "review names report.json, payload.gate and drift_outcome" 'report.json' 'payload.gate' 'drift_outcome'
 
 echo "  ── sdd-content: $PASS_COUNT passed, $FAIL_COUNT failed"
 [ "$FAIL_COUNT" -eq 0 ]

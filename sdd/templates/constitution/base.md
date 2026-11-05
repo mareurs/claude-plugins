@@ -1,112 +1,46 @@
-# {{PROJECT_NAME}} Constitutional Foundation
+# Base constitution: articles I to VI
 
-**Version**: 1.0
-**Status**: Ratified
-**Date**: {{DATE}}
+`/sdd-init` turns this file into codescout constitution rules (ids C-1 to C-6, global, no
+`paths`). The JSON block is the `rules` list of the tracker's params. Each `## C-N` section
+below is copied into the tracker body.
 
-This document defines the principles governing development for {{PROJECT_NAME}}.
+```json
+[
+  {"id": "C-1", "title": "Specification first", "rule": "No source change without an approved spec in docs/superpowers/specs/ and an approved plan. The change stays inside the spec's scope.", "status": "active"},
+  {"id": "C-2", "title": "The user approves specs, plans and reviews", "rule": "Only the user's typed /sdd:approve command approves a spec, a plan or a review. Never edit status fields or approval records.", "status": "active"},
+  {"id": "C-3", "title": "Review before integration", "rule": "A feature is reviewed against this constitution and the spec-drift verdict before it is merged into the base branch. Resolve every NO-GO first.", "status": "active"},
+  {"id": "C-4", "title": "Documentation changes with the code", "rule": "Update the docs a change makes false in the same change. A stale doc is a bug.", "status": "active"},
+  {"id": "C-5", "title": "Smallest solution that meets the spec", "rule": "No speculative abstraction, no unused code, no commented-out code.", "status": "active"},
+  {"id": "C-6", "title": "Clear names and recorded rationale", "rule": "Names say what a thing is. A non-obvious decision carries its reason, and an error message says what to do.", "status": "active"}
+]
+```
 
----
+## C-1 — Specification first
 
-## Preamble
+Why: code without a spec cannot be checked for drift. How: write the spec with
+`superpowers:brainstorming`, get it approved, then plan. Evidence: the approved spec file.
 
-{{PROJECT_PREAMBLE}}
+## C-2 — The user approves specs, plans and reviews
 
----
+Why: approval from the agent is no approval. How: ask the user to type the command; the
+hook writes the field. Evidence: `approved:` in the frontmatter, the review record.
 
-## Article I: Specification-First Development
+## C-3 — Review before integration
 
-### Principle
-No code shall be written without a specification.
+Why: the base branch is where unreviewed work does the most harm. How: run `/review`, then
+ask for `/sdd:approve review <feature>`. Evidence: the report and the review record.
 
-### Mandates
-1. Every feature MUST have a spec at `docs/superpowers/specs/<feature>.md`
-2. Specs include: problem, solution, acceptance criteria, out of scope
-3. Implementation MUST NOT exceed specification scope
+## C-4 — Documentation changes with the code
 
----
+Why: readers trust docs. How: grep the docs for what you changed. Evidence: doc changes in
+the same diff.
 
-## Article II: Human-in-the-Loop for Planning
+## C-5 — Smallest solution that meets the spec
 
-### Principle
-Implementation plans require human approval.
+Why: unrequested code is unreviewed code. How: build what the acceptance criteria name.
+Evidence: no code in the diff that no criterion needs.
 
-### Mandates
-1. Plans live at `memory/plans/<spec>/plan.md`
-2. Plans MUST receive explicit human approval
-3. Implementation MUST follow approved plan
+## C-6 — Clear names and recorded rationale
 
----
-
-## Article III: Constitutional Review Before Commit
-
-### Principle
-All changes validated against constitution before commit.
-
-### Mandates
-1. Run `/review` before committing
-2. Resolve NO-GO issues before proceeding
-3. No exceptions
-
----
-
-## Article IV: Documentation as Code
-
-### Principle
-Documentation updated alongside code.
-
-### Mandates
-1. Doc changes in same commit as code changes
-2. No orphan docs or undocumented code
-3. Stale docs are bugs
-
----
-
-## Article V: Progressive Enhancement
-
-### Principle
-Start minimal, add complexity only when needed.
-
-### Mandates
-1. Simplest solution first
-2. No premature abstraction
-3. Delete unused code (don't comment out)
-
----
-
-## Article VI: Clear Communication
-
-### Principle
-All artifacts communicate clearly.
-
-### Mandates
-1. Self-documenting names
-2. Rationale for non-obvious decisions
-3. Actionable error messages
-
----
-
-## Project-Specific Articles
-
-{{CUSTOM_ARTICLES}}
-
----
-
-## Constitutional Compliance Checklist
-
-- [ ] Article I: Spec exists and matches implementation
-- [ ] Article II: Plan approved before implementation
-- [ ] Article III: Review performed
-- [ ] Article IV: Documentation updated
-- [ ] Article V: No over-engineering
-- [ ] Article VI: Clear communication
-{{CUSTOM_CHECKLIST}}
-
----
-
-## Amendment Process
-
-1. Written proposal with rationale
-2. Impact analysis
-3. Review period
-4. Documentation with version increment
+Why: the next reader has only the code. How: rename before you comment; note the reason for
+a surprising choice. Evidence: review of names and messages in the diff.

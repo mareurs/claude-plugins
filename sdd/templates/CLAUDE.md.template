@@ -2,56 +2,43 @@
 
 {{PROJECT_DESCRIPTION}}
 
-## SDD Workflow
+## SDD workflow
 
-This project follows Specification-Driven Development.
+This project uses strict specification-driven development (`.sdd/config.json`). Follow the
+`sdd-flow` skill; where this section and a skill disagree, this section wins.
 
-### Full Lifecycle (Recommended)
+1. Design with `superpowers:brainstorming`. The design doc is the spec.
+2. Stop. The user types `/sdd:approve spec <feature>`.
+3. Plan with `superpowers:writing-plans`. Fill the `**Spec:**` line with the plain path.
+4. Stop. The user types `/sdd:approve plan <feature>`. Commit spec and plan, then create the
+   worktree, and record `branch:` in the plan.
+5. Execute with `superpowers:subagent-driven-development`. Source writes are denied until the
+   plan is approved.
+6. Check drift with `codescout-companion:spec-drift`. A Missing or Divergent criterion stops
+   the flow.
+7. Run `/review`. On GO, the user types `/sdd:approve review <feature>`.
+8. Finish with `superpowers:finishing-a-development-branch`, then the user types
+   `/sdd:approve done <feature>`.
 
-```bash
-/sdd-flow <feature>  # Full lifecycle: idea → spec → plan → TDD → review → PR
-```
-
-### Individual Commands
-
-```bash
-/specify <feature>   # Create specification
-/plan <feature>      # Create implementation plan (requires approval)
-/drift <feature>     # Check spec-vs-code alignment
-/review              # Validate before committing
-```
+Never edit status fields or approval records yourself. Ask the user to type the command.
 
 ## Constitution
 
-All development follows [`memory/constitution.md`](memory/constitution.md).
+The rules are a codescout constitution tracker (tag `constitution`). Read them with
+`codescout constitution-check --project .` or `doc(action="find", kind="tracker",
+filter={"tags": {"contains": "constitution"}})`.
 
-## Quick Links
+## Quick links
 
-- [Constitution](memory/constitution.md) - Governance principles
-- [Specs](docs/superpowers/specs/) - Feature specifications
-- [Plans](memory/plans/) - Implementation plans
+- [Specs](docs/superpowers/specs/)
+- [Plans](docs/superpowers/plans/)
 
-## Getting Started
+## Getting started
 
 {{GETTING_STARTED_INSTRUCTIONS}}
 
-## Project Structure
+## Project structure
 
 ```
 {{PROJECT_STRUCTURE}}
 ```
-
-## Skills
-
-| Skill | Purpose |
-|-------|---------|
-| `/sdd-flow <feature>` | Full lifecycle orchestration (idea → PR) |
-
-## Commands
-
-| Command | Purpose |
-|---------|---------|
-| `/specify <feature>` | Create PRD |
-| `/plan <spec>` | Generate implementation plan |
-| `/drift <spec>` | Check spec-vs-code alignment |
-| `/review` | Constitutional compliance check |

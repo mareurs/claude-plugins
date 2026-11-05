@@ -114,7 +114,8 @@ print("OK" if not r else "; ".join(r))
 PY
 verdict() { python3 -I "$TMP/replica.py" "$1" 2>&1; }
 
-TARGETS=(buddy/commands/status.md buddy/commands/check.md buddy/commands/legend.md)
+TARGETS=(buddy/commands/status.md buddy/commands/check.md buddy/commands/legend.md
+         sdd/commands/review.md sdd/commands/sdd-init.md sdd/commands/approve.md)
 CONTROL_OK=codescout-companion/commands/dashboard.md
 CONTROL_BAD=buddy/commands/remember.md
 

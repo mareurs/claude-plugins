@@ -33,7 +33,7 @@ These plugins reflect specific workflows and tool choices -- they may not suit e
 
 | Plugin | Additional Requirements |
 |--------|----------------------|
-| **sdd** | None (core workflow). [Serena MCP](https://github.com/oraios/serena) for `/drift` and `/document`. |
+| **sdd** | `codescout-companion` (the `spec-drift` skill), `superpowers`, and the codescout MCP server. |
 | **codescout-companion** | [codescout MCP](https://github.com/mareurs/codescout) server configured in `.mcp.json` or globally. |
 
 
@@ -107,13 +107,15 @@ proxy implementation, local model providers, skill versioning, and the
 
 ### SDD (Specification-Driven Development)
 
-A methodology where code follows specifications. Every feature starts with a clear definition of *what* before diving into *how*.
+A strict layer over superpowers and codescout: code follows a spec and a plan that you approved, and a feature is reviewed before it reaches the base branch. You approve by typing `/sdd:approve ...`; the agent cannot.
 
-**Commands:** `/specify`, `/plan`, `/review`, `/drift`, `/document`, `/bootstrap-docs`, `/sdd-init`
+**Commands:** `/sdd-init`, `/review`, `/sdd:approve` (yours only)
 
-**Skills:** `sdd-flow` (full lifecycle orchestration)
+**Skills:** `sdd-flow` (the nine-step flow)
 
-**Hooks:** spec-guard, review-guard, subagent-inject, session-start
+**Hooks:** spec-guard, review-guard, approve-intake, session-start, subagent-inject
+
+Needs `codescout-companion`, `superpowers` and codescout. Guards are not a sandbox: shell writes are not detected, and your typed `/sdd:approve review` is the real gate.
 
 See [sdd/README.md](./sdd/) for full documentation.
 

@@ -382,6 +382,88 @@ def case_spec_drift(cs: IsolatedCodescout) -> None:
 
 
 
+SDD_FILES = sorted([*(ROOT / "sdd" / "commands").glob("*.md"), *(ROOT / "sdd" / "skills").rglob("*.md")])
+SDD_ACTIONS = ("find", "get", "create", "event_create", "event_list")
+SDD_CALL_RE = re.compile(r'doc\(\s*action\s*=\s*"(%s)"' % "|".join(SDD_ACTIONS))
+
+
+def case_sdd_calls(cs: IsolatedCodescout) -> None:
+    """Every doc(...) call that sdd's commands and skill spell out is accepted, with the <placeholder>
+    ids filled, and does what the text says: the constitution create lands and is found by its tag, its
+    entries are readable through entry_filter, a note and a verdict event read back through event_list."""
+    calls: list[tuple[str, dict]] = []
+    for path in SDD_FILES:
+        text = path.read_text()
+        for m in SDD_CALL_RE.finditer(text):
+            label = f"{path.relative_to(ROOT)}:{text.count(chr(10), 0, m.start()) + 1}"
+            try:
+                node = ast.parse(text[m.start():call_end(text, m.start() + 3)], mode="eval").body
+                calls.append((label, {kw.arg: ast.literal_eval(kw.value) for kw in node.keywords}))
+            except (SyntaxError, ValueError) as exc:
+                bad(f"{label}: doc call parses", str(exc))
+    if not calls:
+        return bad("sdd content prescribes doc calls", "found none under sdd/commands and sdd/skills")
+    ok(f"sdd content prescribes {len(calls)} doc calls")
+
+    spec = cs.call("doc", action="create", kind="spec", status="active", tags=["sdd"], title="Fixture spec",
+                   rel_path="docs/superpowers/specs/2026-11-05-sdd-fixture-design.md",
+                   body="# Fixture design\n\n## Acceptance criteria\n\n- Exports a CSV\n")
+    if not spec.ok:
+        return bad("sdd fixture spec created", spec.error or spec.text[:200])
+    ids = {"<spec id>": spec.payload["id"]}
+    made = [spec.payload["id"]]
+    verdict = cs.call("doc", action="event_create", id=ids["<spec id>"],
+                      event={"kind": "verdict", "payload": {"outcome": "refuted", "gate": "no-go"}})
+    if not verdict.ok:
+        return bad("sdd fixture verdict recorded", verdict.error or verdict.text[:200])
+
+    # CONTROL FIRST: an unknown action must be refused, or the PASSes below prove nothing.
+    refused = cs.call("doc", action="fnd", kind="spec")
+    if refused.ok:
+        return bad("sdd calls: control (action 'fnd') is refused", "harness cannot detect a bad call")
+    ok("sdd calls: control (action 'fnd') is refused")
+
+    def check(hit: bool, label: str, text: str) -> None:
+        ok(label) if hit else bad(label, text[:200])
+
+    # create first: it makes <constitution id>
+    for label, call in sorted(calls, key=lambda c: c[1]["action"] != "create"):
+        call = dict(call)
+        placeholder = str(call.get("id", ""))
+        if placeholder.startswith("<"):
+            if placeholder not in ids:
+                bad(f"{label}: placeholder {placeholder} is known", "update case_sdd_calls")
+                continue
+            call["id"] = ids[placeholder]
+        reply = cs.call("doc", **call)
+        if not reply.ok:
+            bad(f"{label}: {call['action']} call is accepted", reply.error or reply.text[:200])
+            continue
+        ok(f"{label}: {call['action']} call is accepted")
+        act = call["action"]
+        if act == "create":
+            ids["<constitution id>"] = reply.payload["id"]
+            made.append(reply.payload["id"])
+        elif act == "find" and call.get("filter", {}).get("tags", {}).get("contains") == "constitution":
+            check(ids.get("<constitution id>", "?") in reply.text,
+                  f"{label}: find by tag constitution returns the created tracker", reply.text)
+        elif act == "find" and call.get("kind") == "spec":
+            check(ids["<spec id>"] in reply.text, f"{label}: find by tag sdd returns the fixture spec", reply.text)
+        elif act == "get" and "entry_filter" in call:
+            check('"C-1"' in reply.text, f"{label}: entry_filter returns the rule rows", reply.text)
+        elif act == "event_list":
+            check('"gate"' in reply.text and "no-go" in reply.text,
+                  f"{label}: event_list returns the verdict's payload.gate", reply.text)
+        elif act == "event_create":
+            listed = cs.call("doc", action="event_list", id=ids["<spec id>"], kinds=["note"])
+            check(listed.ok and call["event"]["payload"]["text"] in listed.text,
+                  f"{label}: the note reads back through event_list", listed.text)
+    for doc_id in made:
+        dropped = cs.call("doc", action="delete", id=doc_id, force=True)
+        if not dropped.ok:
+            bad(f"sdd fixture {doc_id} dropped", dropped.error or dropped.text[:200])
+
+
 def main() -> int:
     binary = find_binary()
     if binary is None:
@@ -404,6 +486,7 @@ def main() -> int:
             case_fixture_ledger(cs, repo, call)
             case_prescribed_exemplars(cs)
             case_spec_drift(cs)
+            case_sdd_calls(cs)
             if template.is_file():
                 case_real_template(cs, repo, template, call)
             else:
