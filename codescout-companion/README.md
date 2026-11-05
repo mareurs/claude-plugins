@@ -152,19 +152,26 @@ tagged `[cs-verified]`. It acts only when all of these hold:
 - the tool name starts with `mcp__codescout__`;
 - the Claude Code session-id gate passes: `session_id` in the hook input equals the
   `CLAUDE_CODE_SESSION_ID` the CLI sets for the hook;
-- the advice text has no invisible or non-printing characters, no look-alike markers
-  and no control characters. The text can carry a path or a symbol name from the user's
-  code, so advice that fails this check stays in the result.
+- the advice text has no invisible or non-printing characters, no control characters,
+  and no `[cs-` or `system-reminder` marker. The marker check compares after NFKC
+  folding and lower-casing, which catches fullwidth and other compatibility forms but
+  not cross-script homoglyphs such as Cyrillic letters; any such text sits after the
+  CLI's own `PostToolUse:<tool> hook additional context:` prefix. The text can carry a
+  path or a symbol name from the user's code, so advice that fails these checks stays
+  in the result.
 
 It **never** moves an unverified advice, a protocol hint or a safety warning: `hint`
 is untouched. On every other path it prints nothing and exits 0 (fail-open; it never
 exits 2). The header comment of the script lists the remaining limits (size caps,
 round-trip refusals).
 
-Measured on Claude Code 2.1.318 and 2.1.311, in `-p` mode only. Interactive sessions,
-`/clear`, `--fork-session`, compaction persistence, VS Code and Copilot are not
-measured. Measurements and decisions are in
-`contracts/fixtures/cs-verified/results.md` and the `README.md` beside it.
+The CLI behaviour it relies on (empty stdout accepted, `updatedToolOutput` with several
+blocks, `additionalContext` delivery, failure modes, subagent calls, the session-id
+gate) was measured with a probe hook on 2.1.318 and 2.1.311 in `-p` mode; the shipped
+script has not yet been run on the CLI. Interactive sessions, `/clear`,
+`--fork-session`, compaction persistence, VS Code and Copilot are not measured.
+Measurements and decisions are in `contracts/fixtures/cs-verified/results.md` and the
+`README.md` beside it.
 
 **Not yet.** The hook relocates whenever the gates pass, with or without a consent
 statement in the user's `CLAUDE.md`. That statement is a future step and is not
@@ -173,10 +180,26 @@ it exists, the relocated text is ordinary hook context, and its effect on the mo
 not measured for this class of hint. The hook is not released: a version bump goes
 through `./scripts/release.sh`.
 
-Pairing with the server, in the style of the `principal-stamp.mjs` section below:
+Three risks that are not measured:
 
-- **New hook, old server** (no `advice` field) — the hook never acts.
-- **New server, old or absent hook** — the advice stays in the result, as before.
+- **Silent fail-closed.** If an interactive session, `/clear` or `--fork-session`
+  makes `CLAUDE_CODE_SESSION_ID` and the hook input `session_id` differ, the gate
+  fails, the hook never acts, and nothing reports it.
+- **Coexistence.** Another `PostToolUse` hook may answer the same call. The `buddy`
+  plugin in this repo registers an unmatched `PostToolUse` hook that can print
+  `additionalContext` (`[cs-hint] ...`) for codescout tools. How the CLI merges two
+  hooks' `additionalContext`, or an `updatedToolOutput` next to another hook's output,
+  is not measured.
+- **`asyncRewake` is not used, on purpose.** An async hook's `updatedToolOutput` would
+  probably not apply. This is not measured.
+
+Pairing with the server:
+
+- **New hook, old server** (no `advice` field) — safe. The hook never acts, by
+  construction; this was not measured against an old server binary.
+- **New server, old or absent hook** — safe. The advice stays in the result unchanged.
+  The server emits `advice` from codescout `experiments` at `4214c5f77` (`edit_code`
+  `replace`).
 
 ## Ollama Setup
 

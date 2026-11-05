@@ -92,16 +92,20 @@ CSV_COUNT=$(echo "$CSV_ENTRY" | jq 'length')
 CSV_CMD=$(echo "$CSV_ENTRY" | jq -r '.[0].command // ""')
 CSV_ARGS=$(echo "$CSV_ENTRY" | jq -r '.[0] | has("args")')
 CSV_TIMEOUT=$(echo "$CSV_ENTRY" | jq -r '.[0].timeout // "none"')
+# The WHOLE hook object, so a stringly `"timeout": "5"`, a different `type`, an
+# added `asyncRewake` (an async hook's updatedToolOutput would probably not apply)
+# or a stray byte in the command cannot slip past the field checks.
+CSV_EXACT=$(echo "$CSV_ENTRY" | jq -r '.[0] == {"type":"command","command":"node ${CLAUDE_PLUGIN_ROOT}/hooks/cs-verified-relocate.mjs","timeout":5}')
 CSV_SCRIPT="$HOOK_DIR/cs-verified-relocate.mjs"
 CSV_ALL=$(jq -r '[.hooks | to_entries[] | .key as $ev | .value[] | select(.hooks[].command | test("cs-verified-relocate")) | $ev] | join(",")' "$HOOKS_JSON")
 if [[ "$CSV_COUNT" == "1" && "$CSV_PRE" == "0" && "$CSV_ALL" == "PostToolUse" ]] \
    && [[ "$CSV_CMD" =~ ^node\ \$\{CLAUDE_PLUGIN_ROOT\}/hooks/cs-verified-relocate\.mjs$ ]] \
-   && [[ "$CSV_ARGS" == "false" && "$CSV_TIMEOUT" == "5" ]] \
+   && [[ "$CSV_ARGS" == "false" && "$CSV_TIMEOUT" == "5" && "$CSV_EXACT" == "true" ]] \
    && [[ -f "$CSV_SCRIPT" ]] && node --check "$CSV_SCRIPT" 2>/dev/null; then
   pass "PostToolUse/mcp__codescout__.* -> cs-verified-relocate.mjs (portable, timeout 5, script parses)"
 else
   fail "PostToolUse/mcp__codescout__.* -> cs-verified-relocate.mjs (portable, timeout 5, script parses)" \
-    "events=$CSV_ALL count=$CSV_COUNT pre=$CSV_PRE cmd=$CSV_CMD has_args=$CSV_ARGS timeout=$CSV_TIMEOUT"
+    "events=$CSV_ALL count=$CSV_COUNT pre=$CSV_PRE cmd=$CSV_CMD has_args=$CSV_ARGS timeout=$CSV_TIMEOUT exact=$CSV_EXACT"
 fi
 
 # Test 4: existing matchers preserved
