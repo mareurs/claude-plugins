@@ -13,7 +13,7 @@
 // `rebase`, `cherry-pick`, `reset`, pipeline subshells (`a | ( cd x )` scoping is the
 // plain paren rule only), `cd` or `checkout` sent in an EARLIER command (the guard's
 // merge rule compensates for the merge case), a `checkout` of a path that looks like a
-// branch (the guard checks the branch exists; a checkout with paths, `--` or -p is not a
+// branch (the guard checks the branch exists; a checkout with paths, a path after `--` or -p is not a
 // branch switch), shell variables holding a directory or branch name (the directory
 // becomes "unknown").
 import { basename, isAbsolute, join } from 'node:path';
@@ -158,14 +158,16 @@ function parseGit(toks, cwdState, branches) {
   };
   if (sub === 'checkout' || sub === 'switch') {
     // A branch switch: a create flag with a name, or exactly one positional and no
-    // `--` / -p. Anything else (paths, patch mode) leaves the working branch alone.
+    // paths after `--` (a trailing bare `--` is still a switch) and no -p. Anything else
+    // leaves the working branch alone.
     let name;
     let isNew = false;
     const pos = [];
     let pathMode = false;
     for (let k = 0; k < args.length; k++) {
       const a = args[k];
-      if (a === '--' || /^(-p|--patch)/.test(a)) { pathMode = true; continue; }
+      if (a === '--') { if (k < args.length - 1) pathMode = true; continue; }
+      if (/^(-p|--patch)/.test(a)) { pathMode = true; continue; }
       if (CREATE_FLAGS.has(a)) { name = args[k + 1]; isNew = true; break; }
       if (a.startsWith('-')) continue;
       pos.push(a);

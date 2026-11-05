@@ -284,6 +284,15 @@ test('checkout of a path that is not a branch does not lift the base-branch gate
   denies(run(bash(root, 'git checkout README.md && git commit -m x')));
 });
 
+test('a trailing -- is a branch switch; -- with paths is a path checkout', () => {
+  const root = repo();
+  addActivePlan(root, 'a', 'feat/x');
+  const wt = worktree(root, 'feat/x');
+  denies(run(bash(wt, 'git checkout main -- && git commit -m x')));
+  denies(run(bash(wt, 'git checkout main -- && git push')));
+  assert.equal(run(bash(wt, 'git checkout main -- README.md && git commit -m x')), '');
+});
+
 test('tamper check is on tokens: mentions and reads pass, writes and mark-reviewed deny', () => {
   const root = repo({ config: { enforcement: 'strict' } });
   for (const c of ['git commit -m "fix mark-reviewed docs"', 'git log -- sdd/approvals', 'cat .git/sdd/approvals/a.review.json', 'echo "sdd/approvals"']) {

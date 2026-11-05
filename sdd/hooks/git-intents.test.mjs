@@ -84,6 +84,7 @@ test('checkout with paths, -- or -p keeps the branch state', () => {
     assert.deepEqual(gitIntents(`${c}; git commit`), [{ kind: 'commit' }], c);
   }
   assert.deepEqual(gitIntents('git switch b; git commit'), [{ kind: 'commit', assumedBranch: 'b' }]);
+  assert.deepEqual(gitIntents('git checkout b --; git commit'), [{ kind: 'commit', assumedBranch: 'b' }]);
 });
 
 test('( ) scopes cd; popd restores the pushd dir', () => {
