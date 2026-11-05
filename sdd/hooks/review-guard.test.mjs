@@ -1,0 +1,232 @@
+import { test, after } from 'node:test';
+import assert from 'node:assert/strict';
+import { spawnSync, execFileSync } from 'node:child_process';
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync, realpathSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { reviewRecordPath } from './review-guard.mjs';
+
+const HOOK = join(dirname(fileURLToPath(import.meta.url)), 'review-guard.mjs');
+const GIT = ['-c', 'commit.gpgsign=false', '-c', 'user.name=t', '-c', 'user.email=t@t'];
+const git = (cwd, ...a) => execFileSync('git', [...GIT, ...a], { cwd, stdio: 'pipe' });
+
+const dirs = [];
+function tmp() {
+  const d = realpathSync(mkdtempSync(join(tmpdir(), 'sdd-rg-')));
+  dirs.push(d);
+  return d;
+}
+function put(root, rel, text) {
+  const p = join(root, rel);
+  mkdirSync(dirname(p), { recursive: true });
+  writeFileSync(p, text);
+}
+function repo({ config = { enforcement: 'strict', baseBranch: 'main' }, branch = 'main' } = {}) {
+  const root = tmp();
+  git(root, 'init', '-q', '-b', branch);
+  if (config) put(root, '.sdd/config.json', JSON.stringify(config));
+  put(root, 'README.md', 'x\n');
+  git(root, 'add', '-A');
+  git(root, 'commit', '-q', '-m', 'init');
+  return root;
+}
+function worktree(root, branch) {
+  const wt = tmp();
+  rmSync(wt, { recursive: true });
+  git(root, 'worktree', 'add', '-q', '-b', branch, wt);
+  return wt;
+}
+function addActivePlan(root, name, branch, feature) {
+  put(root, `docs/superpowers/specs/2026-11-05-${name}-design.md`, '---\nstatus: approved\n---\nspec\n');
+  put(root, `docs/superpowers/plans/2026-11-05-${name}.md`,
+    `---\nstatus: approved\n${branch ? `branch: ${branch}\n` : ''}${feature ? `feature: ${feature}\n` : ''}---\n**Spec:** docs/superpowers/specs/2026-11-05-${name}-design.md\n`);
+}
+function record(root, feature, text = '{"date":"2026-11-05"}') {
+  put(root, `.git/sdd/approvals/${feature}.review.json`, text);
+}
+function run(payload, raw) {
+  const r = spawnSync('node', [HOOK], { input: raw ?? JSON.stringify(payload), encoding: 'utf8' });
+  assert.equal(r.status, 0);
+  return r.stdout;
+}
+const bash = (cwd, command, tool_name = 'Bash', extra = {}) => ({ cwd, tool_name, tool_input: { command, ...extra } });
+const parse = (s) => JSON.parse(s).hookSpecificOutput;
+
+after(() => { for (const d of dirs) rmSync(d, { recursive: true, force: true }); });
+
+test('reviewRecordPath is <commonDir>/sdd/approvals/<feature>.review.json', () => {
+  assert.equal(reviewRecordPath('/r/.git', 'auth'), join('/r/.git', 'sdd', 'approvals', 'auth.review.json'));
+});
+
+test('no config, bad stdin, non-bash tool: silent', () => {
+  const root = repo({ config: null });
+  assert.equal(run(bash(root, 'git commit -m x')), '');
+  assert.equal(run(null, 'not json'), '');
+  assert.equal(run(null, ''), '');
+  const r2 = repo();
+  assert.equal(run({ cwd: r2, tool_name: 'Read', tool_input: { command: 'git commit' } }), '');
+});
+
+test('commit on a feature branch (worktree) passes', () => {
+  const root = repo();
+  addActivePlan(root, 'a', 'feat/x');
+  const wt = worktree(root, 'feat/x');
+  assert.equal(run(bash(wt, 'git commit -m x')), '');
+});
+
+test('commit on base: one active plan, record required', () => {
+  const root = repo();
+  addActivePlan(root, 'a');
+  const out = parse(run(bash(root, 'git commit -m x')));
+  assert.equal(out.permissionDecision, 'deny');
+  assert.match(out.permissionDecisionReason, /\/sdd:approve review a\b/);
+  record(root, 'a');
+  assert.equal(run(bash(root, 'git commit -m x')), '');
+});
+
+test('a record that is not valid JSON does not count', () => {
+  const root = repo();
+  addActivePlan(root, 'a');
+  record(root, 'a', 'not json');
+  assert.equal(parse(run(bash(root, 'git commit -m x'))).permissionDecision, 'deny');
+});
+
+test('feature name: frontmatter feature wins over the spec path', () => {
+  const root = repo();
+  addActivePlan(root, 'a', undefined, 'login');
+  const out = parse(run(bash(root, 'git commit -m x')));
+  assert.match(out.permissionDecisionReason, /\/sdd:approve review login\b/);
+});
+
+test('commit on base with two active plans: deny asking which feature', () => {
+  const root = repo();
+  addActivePlan(root, 'a', 'feat/a');
+  addActivePlan(root, 'b', 'feat/b');
+  const out = parse(run(bash(root, 'git commit -m x')));
+  assert.equal(out.permissionDecision, 'deny');
+  assert.match(out.permissionDecisionReason, /which feature/i);
+});
+
+test('no active plan: nothing to review, commit on base passes', () => {
+  const root = repo();
+  assert.equal(run(bash(root, 'git commit -m x')), '');
+});
+
+test('gh pr create from the feature branch needs the record', () => {
+  const root = repo();
+  addActivePlan(root, 'a', 'feat/x');
+  addActivePlan(root, 'b', 'feat/y');
+  const wt = worktree(root, 'feat/x');
+  const out = parse(run(bash(wt, 'gh pr create --fill')));
+  assert.equal(out.permissionDecision, 'deny');
+  assert.match(out.permissionDecisionReason, /review a\b/);
+  record(root, 'a');
+  assert.equal(run(bash(wt, 'gh pr create --fill')), '');
+  assert.equal(run(bash(wt, 'gh pr merge 12')), '');
+  rmSync(join(root, '.git/sdd/approvals/a.review.json'));
+  assert.equal(parse(run(bash(wt, 'gh pr merge 12'))).permissionDecision, 'deny');
+});
+
+test('push: to base is gated, without a ref from a feature branch passes', () => {
+  const root = repo();
+  addActivePlan(root, 'a', 'feat/x');
+  const wt = worktree(root, 'feat/x');
+  assert.equal(parse(run(bash(wt, 'git push origin main'))).permissionDecision, 'deny');
+  assert.equal(parse(run(bash(wt, 'git push origin HEAD:main'))).permissionDecision, 'deny');
+  assert.equal(run(bash(wt, 'git push')), '');
+  assert.equal(run(bash(wt, 'git push origin feat/x')), '');
+  assert.equal(parse(run(bash(root, 'git push'))).permissionDecision, 'deny');
+  record(root, 'a');
+  assert.equal(run(bash(wt, 'git push origin main')), '');
+});
+
+test('detached HEAD commit passes', () => {
+  const root = repo();
+  addActivePlan(root, 'a');
+  git(root, 'checkout', '-q', '--detach');
+  assert.equal(run(bash(root, 'git commit -m x')), '');
+});
+
+test('merge on base: the plan whose branch is the source decides', () => {
+  const root = repo();
+  addActivePlan(root, 'a', 'feat/a');
+  addActivePlan(root, 'b', 'feat/b');
+  record(root, 'a');
+  const out = parse(run(bash(root, 'git merge feat/b')));
+  assert.equal(out.permissionDecision, 'deny');
+  assert.match(out.permissionDecisionReason, /review b\b/);
+  assert.equal(run(bash(root, 'git merge feat/a')), '');
+  record(root, 'b');
+  assert.equal(run(bash(root, 'git merge feat/b')), '');
+  // no branch match and two plans: ask which
+  const other = parse(run(bash(root, 'git merge feat/zzz')));
+  assert.match(other.permissionDecisionReason, /which feature/i);
+});
+
+test('merge on a feature branch passes', () => {
+  const root = repo();
+  addActivePlan(root, 'a', 'feat/x');
+  const wt = worktree(root, 'feat/x');
+  assert.equal(run(bash(wt, 'git merge main')), '');
+});
+
+test('git -C <main checkout> from a feature cwd is judged on the target dir branch', () => {
+  const root = repo();
+  addActivePlan(root, 'a', 'feat/x');
+  const wt = worktree(root, 'feat/x');
+  const out = parse(run(bash(wt, `git -C ${root} commit -m x`)));
+  assert.equal(out.permissionDecision, 'deny');
+  // and the reverse: from main, -C into the worktree is a feature-branch commit
+  assert.equal(run(bash(root, `git -C ${wt} commit -m x`)), '');
+});
+
+test('approval tampering is denied in every mode', () => {
+  for (const enforcement of ['strict', 'warn']) {
+    const root = repo({ config: { enforcement } });
+    for (const c of ['node sdd/hooks/mark-reviewed.mjs a', 'echo {} > .git/sdd/approvals/a.review.json', 'ls "x"; mark-reviewed']) {
+      assert.equal(parse(run(bash(root, c))).permissionDecision, 'deny', `${enforcement}: ${c}`);
+    }
+  }
+});
+
+test('mcp__codescout__run_command behaves like Bash; workspace and cwd are honoured', () => {
+  const root = repo();
+  addActivePlan(root, 'a', 'feat/x');
+  const wt = worktree(root, 'feat/x');
+  const t = 'mcp__codescout__run_command';
+  assert.equal(parse(run(bash(root, 'git commit -m x', t, { workspace: root }))).permissionDecision, 'deny');
+  assert.equal(run(bash(root, 'git commit -m x', t, { workspace: wt })), '');
+  assert.equal(run(bash(root, 'git commit -m x', t, { workspace: dirname(wt), cwd: wt.slice(dirname(wt).length + 1) })), '');
+  assert.equal(parse(run(bash(wt, 'git push origin main', 'run_command'))).permissionDecision, 'deny');
+});
+
+test('quoted git text is not an intent', () => {
+  const root = repo();
+  addActivePlan(root, 'a');
+  assert.equal(run(bash(root, 'echo "git commit" && ls')), '');
+});
+
+test('warn mode: context with the same text, no denial', () => {
+  const root = repo({ config: { enforcement: 'warn', baseBranch: 'main' } });
+  addActivePlan(root, 'a');
+  const out = parse(run(bash(root, 'git commit -m x')));
+  assert.equal(out.permissionDecision, undefined);
+  assert.match(out.additionalContext, /\/sdd:approve review a\b/);
+});
+
+test('baseBranch absent: main if it exists, else master', () => {
+  const m = repo({ config: { enforcement: 'strict' } });
+  addActivePlan(m, 'a');
+  assert.equal(parse(run(bash(m, 'git commit -m x'))).permissionDecision, 'deny');
+  const wt = worktree(m, 'feat/x');
+  assert.equal(parse(run(bash(wt, 'git push origin main'))).permissionDecision, 'deny');
+  assert.equal(run(bash(wt, 'git push origin master')), '');
+
+  const ms = repo({ config: { enforcement: 'strict' }, branch: 'master' });
+  addActivePlan(ms, 'a');
+  assert.equal(parse(run(bash(ms, 'git commit -m x'))).permissionDecision, 'deny');
+  const wt2 = worktree(ms, 'feat/x');
+  assert.equal(parse(run(bash(wt2, 'git push origin master'))).permissionDecision, 'deny');
+  assert.equal(run(bash(wt2, 'git push origin main')), '');
+});
