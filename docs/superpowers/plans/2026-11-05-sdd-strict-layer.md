@@ -104,7 +104,7 @@ topic: sdd strict layer refactor
 - Modify: `tests/lib/skill_call_legality.py` (scan `spec-drift`; add an `event_create` case)
 
 **Interfaces:**
-- Produces: the verdict event other tasks read — `doc(action="event_create", id=<spec artifact id>, event={kind: "verdict", payload: {outcome: "go" | "no-go", implemented: <int>, missing: <int>, divergent: <int>, criteria: [{text, status: "implemented"|"missing"|"divergent", evidence: "<file:line or reason>"}]}})`. `outcome` is `go` iff `missing == 0 && divergent == 0`.
+- Produces: the verdict event other tasks read — `doc(action="event_create", id=<spec artifact id>, event={kind: "verdict", payload: {outcome: "confirmed" | "partial" | "refuted", gate: "go" | "no-go", implemented: <int>, missing: <int>, divergent: <int>, criteria: [{text, status: "implemented"|"missing"|"divergent", evidence: "<file:line or reason>"}]}})`. `gate` is `go` iff `missing == 0 && divergent == 0`. `outcome` is `confirmed` when `gate` is `go`, `partial` when `gate` is `no-go` and `implemented > 0`, else `refuted` (the server accepts only `confirmed|refuted|partial|abandoned`, `codescout/src/librarian/tools/event_create.rs:241`). Consumers read `payload.gate`, never `payload.outcome`.
 - Consumes: codescout `doc(action="find"|"get"|"event_list")`, `symbols`, `references`, `grep`, `semantic_search`.
 
 - [ ] **Step 1: Write the failing test** `spec-drift.test.sh`: frontmatter has `name: spec-drift` and a `description` starting `Use when`; `SKILL.md` < 20480 bytes; it names `event_create`, `"verdict"` and `outcome`; it names no `read_markdown`, `edit_markdown`, `Serena`, `memory/specs`; every `references/*.md` it links exists.
@@ -275,7 +275,7 @@ Decision for this task: the review gate reads `<approvalsDir>/<feature>.report.j
 - Modify: `tests/test-sdd-content.sh` (turn on the `PENDING_REWRITE` assertion; size checks), `tests/test-codex-convertible-commands.sh:117` (add `sdd/commands/{review,sdd-init,approve}.md` to `TARGETS`), `tests/lib/skill_call_legality.py` (scan `sdd/skills` and `sdd/commands`)
 
 **Interfaces:**
-- Consumes: Task 3 (`spec-drift` skill name and verdict shape), Task 8 (`/sdd:approve` forms; `<approvals>/<feature>.report.json` shape `{outcome, drift_outcome, date}`), codescout constitution archetype (fetch `librarian(action="tracker_design", archetype="constitution")` for the exact `doc(create …)` call).
+- Consumes: Task 3 (`spec-drift` skill name and verdict shape; the review command sets `drift_outcome` from the verdict's `payload.gate`), Task 8 (`/sdd:approve` forms; `<approvals>/<feature>.report.json` shape `{outcome, drift_outcome, date}`), codescout constitution archetype (fetch `librarian(action="tracker_design", archetype="constitution")` for the exact `doc(create …)` call).
 
 - [ ] **Step 1: Extend the test:** `PENDING_REWRITE` must be empty; `SKILL.md` < 20480 bytes; each command < 4096 bytes; every `superpowers:<name>` named in `sdd/` is one of the 15 skill directories of superpowers 7.0.2 (list pinned in the test); `sdd-flow` names `spec-drift`, `/sdd:approve spec`, `/sdd:approve plan`, `/sdd:approve review`, `/sdd:approve done`; `sdd-init.md` names `.sdd/config.json` and `constitution`.
 - [ ] **Step 2: Run** → FAIL.
