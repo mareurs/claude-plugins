@@ -136,13 +136,13 @@ below is not thereby inactive.
 | `SubagentStart` | `subagent-guidance.mjs` | Compact guidance for all subagents |
 | `PreToolUse` (Grep/Glob/Read/Bash) | `pre-tool-guard.mjs` | Hard-block Read/Edit/Write/Grep/Glob/Bash on source files (path-agnostic), redirect to codescout. Native Bash escalation continues through host approval; binary images/PDF and skill payloads also have read exemptions. |
 | `PreToolUse` (`mcp__codescout__.*`) | `principal-stamp.mjs` | Stamp the calling principal (`session_id/agent_id`) into codescout tool arguments, so the server can tell a subagent's call from its parent's — the one thing the MCP wire cannot carry. Silent for parent calls, by design. Emits **no** `permissionDecision`. |
-| `PostToolUse` (`mcp__codescout__.*`) | `cs-verified-relocate.mjs` | Move a server-verified `advice` out of a codescout result into `[cs-verified]` hook context. Fail-open, 5 s timeout. Not released; see the section below. |
+| `PostToolUse` (`mcp__codescout__.*`) | `cs-verified-relocate.mjs` | Move a server-verified `advice` out of a codescout result into `[cs-verified]` hook context. Fail-open, 5 s timeout. Released in 1.21.0; see the section below. |
 | `PostToolUse` (EnterWorktree) | `worktree-activate.mjs` | Symlink .codescout/ and inject workspace guidance |
 | `PreToolUse` (Edit/Write/edit_code/edit_file/create_file) | `constitution-guard.mjs` | Deny-once-per-epoch enforcement of path-scoped "constitution" tracker rules — shells into `codescout constitution-check --path` |
 | `UserPromptSubmit` | `constitution-brief.mjs` | Surface global (path-less) "constitution" tracker rules once per epoch via `additionalContext` |
 | `PreCompact` | `constitution-epoch-bump.mjs` | Bump the per-session constitution "epoch" so rules re-surface after compaction |
 
-### `cs-verified-relocate.mjs` (not released)
+### `cs-verified-relocate.mjs` (released in 1.21.0)
 
 A `PostToolUse` hook on `mcp__codescout__.*` (5 s timeout). When a codescout result
 carries a top-level `advice` object whose `verified` is the boolean `true`, the hook
@@ -201,8 +201,9 @@ differently. That live run happened before the `mcp_server.name` check existed (
 statement in the user's `CLAUDE.md`. That statement is a future step and is not
 shipped; it will only change how the model treats the `[cs-verified]` context. Until
 it exists, the relocated text is ordinary hook context, and its effect on the model is
-not measured for this class of hint. The hook is not released: a version bump goes
-through `./scripts/release.sh`.
+not measured for this class of hint. The hook ships in `codescout-companion` 1.21.0 (bump commit `fac74c0`, which contains its
+`hooks.json` entry); on 2026-11-05 all four local profiles had 1.21.0 installed, and the cached
+hook was byte-identical to the one in `main`.
 
 Risks, measured or not:
 
