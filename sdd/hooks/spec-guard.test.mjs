@@ -294,3 +294,31 @@ test('losing the frontmatter block in a simulated edit fails closed', () => {
   denied(run({ cwd: root, tool_name: 'Edit', tool_input: { file_path: p, old_string: '---\nstatus: draft', new_string: 'approved: soon' } }), 'deleted opener + word');
   assert.equal(run({ cwd: root, tool_name: 'Edit', tool_input: { file_path: p, old_string: '---\nstatus: draft', new_string: 'Intro' } }), '');
 });
+
+test('a step that loses the frontmatter keeps the simulation accurate (T7, T8)', () => {
+  const root = repo({ config: { enforcement: 'warn' } });
+  const cs = (edits) => run({ cwd: root, tool_name: 'mcp__codescout__edit_file', tool_input: { path: SPEC, workspace: root, edits } });
+  put(root, SPEC, '---\nstatus: draft\n---\nbody\n');
+  denied(cs([{ old_string: '---\nstatus: draft\n---\n', new_string: '' }, { old_string: 'body', new_string: '---\nstatus: done\n---\nbody' }]), 'T7');
+  put(root, SPEC, '---\nstatus: draft\n---\nstatus: done\n---\n');
+  denied(cs([{ old_string: '---\nstatus: draft\n---\n', new_string: '' }, { old_string: 'status: d', new_string: '---\nstatus: d' }]), 'T8');
+  // unit-level: same probes through touchesApprovalFields
+  const p = join(root, SPEC);
+  const ti = (edits) => ({ tool_name: 'mcp__codescout__edit_file', tool_input: { path: SPEC, edits } });
+  assert.equal(touchesApprovalFields(ti([{ old_string: '---\nstatus: draft\n---\n', new_string: '' }, { old_string: 'status: d', new_string: '---\nstatus: d' }]), p), true);
+});
+
+test('after an unsimulable step the rest of the call is untrusted, not blanket-denied', () => {
+  const root = repo({ config: { enforcement: 'warn' } });
+  const cs = (edits) => run({ cwd: root, tool_name: 'mcp__codescout__edit_file', tool_input: { path: SPEC, workspace: root, edits } });
+  put(root, SPEC, '---\nstatus: draft\n---\n# Spec\n\nbody\n');
+  const heading = { heading: '# Spec', action: 'replace', content: 'new body\n' };
+  assert.equal(cs([heading, { old_string: 'body', new_string: 'text' }]), '');
+  denied(cs([heading, { old_string: 'body', new_string: 'x\n---\ny' }]), 'delimiter line');
+  denied(cs([heading, { old_string: 'body', new_string: 'x\n--- \r\ny' }]), 'delimiter line, trailing space and CR');
+  denied(cs([heading, { old_string: 'body', new_string: 'now done' }]), 'approval word');
+  // a no-match old_string is unsimulable too
+  denied(cs([{ old_string: 'zzz', new_string: 'a' }, { old_string: 'body', new_string: '---' }]), 'no-match then delimiter');
+  // a '---' line before any unsimulable step is simulated normally
+  assert.equal(cs([{ old_string: 'body', new_string: 'x\n---\ny' }]), '');
+});

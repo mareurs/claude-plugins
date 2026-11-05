@@ -94,6 +94,8 @@ export function applyEdit(text, oldS, newS, all) {
 // An approval word or key in text the guard could not simulate.
 const approvalWords = (t) => typeof t === 'string' &&
   (/\b(approved|implemented|done)\b/i.test(t) || APPROVED_KEY_RE.test(t));
+// A line that is only a frontmatter delimiter (trailing spaces/tabs and \r allowed).
+const DELIM_LINE_RE = /^---[ \t]*\r?$/m;
 
 // True when the call sets an approval field. With absPath, text edits are
 // simulated against the current file and the frontmatter compared before/after
@@ -128,7 +130,16 @@ export function touchesApprovalFields(input, absPath) {
     for (const k of TEXT_KEYS) fallback.push(ti[k]);
   }
   let unsimulated = false;
+  // untrusted: an earlier step could not be simulated, so the host applies it and
+  // cur no longer matches the real file. Later steps are not simulated; each is
+  // denied if its new text has an approval word or a bare `---` line (a frontmatter
+  // block cannot be rebuilt without one).
+  let untrusted = false;
   for (const s of steps) {
+    if (untrusted) {
+      for (const k of TEXT_KEYS) if (approvalWords(s[k]) || (typeof s[k] === 'string' && DELIM_LINE_RE.test(s[k]))) unsimulated = true;
+      continue;
+    }
     let next = null;
     if (simulable && cur !== null) {
       const ins = s.new_string ?? s.content;
@@ -136,14 +147,19 @@ export function touchesApprovalFields(input, absPath) {
       else if (s.insert === 'append' && typeof ins === 'string') next = cur + ins;
       else if (s.insert === undefined) next = applyEdit(cur, s.old_string, s.new_string, s.replace_all);
     }
-    if (next !== null && Object.keys(readFrontmatter(cur)).length && !Object.keys(readFrontmatter(next)).length) {
-      next = null; // invariant: a simulated step must not lose the frontmatter block
-    }
-    if (next !== null) cur = next;
-    else {
+    if (next !== null) {
+      // A step that drops the frontmatter block is still simulated (cur stays accurate,
+      // so the final compare sees a block rebuilt later), and its own new text gets
+      // the approval-word check.
+      if (Object.keys(readFrontmatter(cur)).length && !Object.keys(readFrontmatter(next)).length) {
+        for (const k of TEXT_KEYS) if (approvalWords(s[k])) unsimulated = true;
+      }
+      cur = next;
+    } else {
       // cannot simulate this step: fail closed on approval words in its new text
       for (const k of TEXT_KEYS) if (approvalWords(s[k])) unsimulated = true;
       for (const k of TEXT_KEYS) fallback.push(s[k]);
+      untrusted = true;
     }
   }
   if (unsimulated) return true;
