@@ -5,8 +5,8 @@ FAIL. Called by tests/test-skill-call-legality.sh.
 
 What it establishes: the call, as the skill text spells it, is accepted by the server and has the
 effect the skill claims. What it does NOT establish: that the skill's prose around the call is
-true, or that any call other than the one extracted here is legal. INFO lines record measurements
-that are not yet assertions.
+true, that incomplete illustrations can run unchanged, or that index build completes embedding.
+INFO lines distinguish incomplete examples and inventory counts from runtime assertions.
 
 The control matters as much as the case. A harness that cannot fail reads as a harness that
 passes, so the same call with the one known-bad body (an em-dash tail on `dated`) must be
@@ -26,6 +26,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from cs_isolated import IsolatedCodescout, find_binary  # noqa: E402
+from skill_contract_calls import run_catalog_examples  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[2]
 RECON_SKILL = ROOT / "codescout-companion" / "skills" / "reconnaissance" / "SKILL.md"
@@ -285,10 +286,11 @@ def case_exemplar(cs: IsolatedCodescout, label: str, slug: str, kind: str, call:
         bad(f"{label}: accepted; {what}", f"body lacks {want!r} in the expected place")
 
 
-def case_prescribed_exemplars(cs: IsolatedCodescout) -> None:
+def case_prescribed_exemplars(cs: IsolatedCodescout) -> list[tuple[Path, dict]]:
     """Every other append_entry-by-heading and body_edits exemplar the skills spell out, and a count of
     the `doc(...)` calls found but NOT run, so a gap is a printed number rather than silence."""
     ran = skipped = 0
+    covered = []
     for tpl in TEMPLATE_FILES:
         if f"\n{TEMPLATE_HEADING}\n" in (SKILLS / tpl).read_text():
             ok(f"{tpl} carries the heading the fixture ledgers use")
@@ -306,12 +308,14 @@ def case_prescribed_exemplars(cs: IsolatedCodescout) -> None:
                 continue
             ran += 1
             case_exemplar(cs, f"{rel}:{line}", f"ex{ran}", kind, call)
+            covered.append((path, call))
             while CREATED:
                 dropped = cs.call("doc", action="delete", id=CREATED.pop(), force=True)
                 if not dropped.ok:
                     bad(f"{rel}:{line}: fixture ledger dropped", dropped.error or dropped.text[:200])
     info(f"exemplar calls run: {ran}; found but not run (no heading/body_edits shape): {skipped}; "
          f"found but not parseable as a call: {len(unparsed_at)}" + (f" ({', '.join(unparsed_at)})" if unparsed_at else ""))
+    return covered
 
 
 SPEC_DRIFT_SKILL = SKILLS / "spec-drift" / "SKILL.md"
@@ -549,10 +553,11 @@ def main() -> int:
         template = Path(os.environ.get("CODESCOUT_REPO", ROOT.parent / "codescout")) / "docs/templates/session-log.md"
         with IsolatedCodescout(repo, sandbox, binary) as cs:
             case_fixture_ledger(cs, repo, call)
-            case_prescribed_exemplars(cs)
+            covered = [(RECON_SKILL, call)] + case_prescribed_exemplars(cs)
             case_spec_drift(cs)
             case_spec_drift_finds(cs)
             case_sdd_calls(cs)
+            run_catalog_examples(cs, SKILLS, ok, bad, info, covered)
             if template.is_file():
                 case_real_template(cs, repo, template, call)
             else:

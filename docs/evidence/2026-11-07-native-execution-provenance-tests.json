@@ -1,0 +1,333 @@
+{
+  "date": "2026-11-07",
+  "status": "reviewed-source-applied-native-acceptance-open",
+  "source_delivery": "committed-locally-in-original-checkouts",
+  "source_commits": {
+    "codex": "c4d58a767b91b49058fc2e85b664b75209e25f6e",
+    "codescout": "9cab1095e55dbd9f09030caed2acd4d56caa6d86"
+  },
+  "native_owned_format_acceptance": "not-established",
+  "suites": [
+    {
+      "name": "Code Mode",
+      "tests": 76,
+      "exit_code": 0,
+      "log": "@bg_000000aa"
+    },
+    {
+      "name": "host protocol",
+      "tests": 41,
+      "exit_code": 0,
+      "log": "@bg_000000aa"
+    },
+    {
+      "name": "actual stdio peer/delegate/frontier modules",
+      "tests": 6,
+      "exit_code": 0,
+      "log": "@bg_000000ab",
+      "scope": "production sources and real protocol, excludes V8 runtime and host handshake integration"
+    },
+    {
+      "name": "MCP",
+      "tests": 256,
+      "exit_code": 0,
+      "log": "@bg_000000aa"
+    },
+    {
+      "name": "journal/fence/capability production-module harness",
+      "tests": 25,
+      "exit_code": 0,
+      "log": "@bg_000000ae"
+    },
+    {
+      "name": "Codescout fence/context",
+      "tests": 18,
+      "exit_code": 0,
+      "log": "@bg_000000a5"
+    },
+    {
+      "name": "Codescout trusted formatter",
+      "tests": 5,
+      "exit_code": 0,
+      "log": "@bg_000000a1"
+    },
+    {
+      "name": "Codescout attribution",
+      "tests": 50,
+      "exit_code": 0,
+      "log": "@bg_0000008e"
+    },
+    {
+      "name": "Python native provenance and existing identity/history",
+      "tests": 143,
+      "subtests": 25,
+      "exit_code": 0,
+      "log": "@bg_00000091"
+    },
+    {
+      "name": "Python integrity using Rust-produced bytes",
+      "tests": 12,
+      "subtests": 11,
+      "exit_code": 0,
+      "log": "@bg_00000098",
+      "overlaps": "Python native provenance suite"
+    },
+    {
+      "name": "default-feature server native wire and capability",
+      "tests": 8,
+      "exit_code": 0,
+      "log": "@bg_000000a8",
+      "scope": "actual current-HEAD integration clone"
+    },
+    {
+      "name": "pre-existing large routing test after dispatch boxing",
+      "tests": 1,
+      "exit_code": 0,
+      "log": "@bg_000000b2"
+    },
+    {
+      "name": "Codex core production library check",
+      "exit_code": 0,
+      "warnings": 0,
+      "log": "@bg_000000b0"
+    }
+  ],
+  "observed_mutations": [
+    {
+      "name": "remove production formatter environment sanitizer",
+      "before_regression": "survived 16 tests",
+      "after_regression": "killed",
+      "log": "@bg_00000082",
+      "restored": true
+    },
+    {
+      "name": "remove production trusted helper verification",
+      "before_regression": "survived 15 tests",
+      "after_regression": "killed",
+      "log": "@bg_00000083",
+      "restored": true
+    },
+    {
+      "name": "move durable shell marker after awaited body",
+      "before_regression": "survived 17 tests",
+      "after_regression": "killed inside body",
+      "log": "@bg_0000009e",
+      "restored": true
+    },
+    {
+      "name": "forward constant callback sequence 1 in production host delegate",
+      "before_regression": "survived 6 tests",
+      "after_regression": "killed on second distinct callback",
+      "log": "@bg_0000009d",
+      "restored": true
+    }
+  ],
+  "non_verifications": [
+    {
+      "name": "server advertised fence capability on lean feature lane",
+      "selected_tests": 0,
+      "logs": [
+        "@bg_00000095",
+        "@bg_00000097"
+      ],
+      "next": "Run default feature lane after reviewer releases source."
+    },
+    {
+      "name": "full native host",
+      "reason": "V8 150.4.0 archive HTTP 404; DOCS_RS check lacks generated bindings",
+      "logs": [
+        "@bg_00000063",
+        "@bg_0000008d"
+      ]
+    }
+  ],
+  "limits": [
+    "Independent focused source review and complete standard integration gate passed.",
+    "No full matching native runtime acceptance.",
+    "No Kat authentication retry.",
+    "Any arbitrary shell persists global UNKNOWN with no automatic reset.",
+    "Existing repository Python caches retain UNKNOWN; no automatic deletion.",
+    "Installed binaries, profiles and plugin versions unchanged; source changes are committed locally."
+  ],
+  "review": {
+    "initial_completed_mutations": 5,
+    "initial_killed": 3,
+    "initial_survived": 2,
+    "initial_inconclusive": 0,
+    "followup": "No remaining blocker in three corrected findings; independently reran host6, formatter5, fence18. Full native acceptance excluded."
+  },
+  "full_gate_runs": [
+    {
+      "log": "@bg_000000a9",
+      "python_light_exit": 0,
+      "python_tests": 1756,
+      "python_subtests": 554,
+      "python_skipped": 1,
+      "format_exit": 0,
+      "clippy_exit": 101,
+      "lean_exit": 0,
+      "lean_passed": 6206,
+      "lean_skipped": 48,
+      "default_exit": 100,
+      "default_passed": 9087,
+      "default_failed": 1,
+      "default_skipped": 62,
+      "failure": "new library lint gaps plus existing large routing test stack overflow with added wrapper"
+    },
+    {
+      "log": "@bg_000000af",
+      "python_light_exit": 0,
+      "format_exit": 0,
+      "clippy_exit": 0,
+      "lean_exit": 0,
+      "default_exit": 100,
+      "failure": "same stack overflow on pre-boxing snapshot"
+    },
+    {
+      "log": "@bg_000000b4",
+      "status": "passed",
+      "exit_code": 0,
+      "python_light_exit": 0,
+      "python_tests": 1756,
+      "python_subtests": 554,
+      "python_skipped": 1,
+      "format_exit": 0,
+      "clippy_exit": 0,
+      "lean_exit": 0,
+      "lean_passed": 6206,
+      "lean_skipped": 48,
+      "default_exit": 0,
+      "default_passed": 9088,
+      "default_skipped": 62,
+      "scope": "integration snapshot ff631b8e plus reviewed source patch",
+      "exclusions": [
+        "three heavy Python suites",
+        "server-stack feature",
+        "two local ONNX weight tests",
+        "doctests contain 2 ignored cases"
+      ]
+    }
+  ],
+  "patches": [
+    {
+      "name": "codex",
+      "clone": "/tmp/native-provenance-20261107-codex",
+      "original": "/home/marius/work/claude/codex",
+      "baseline": "5eedcdc5439da3a57516196df386fc2db7ffa288",
+      "original_head": "5eedcdc5439da3a57516196df386fc2db7ffa288",
+      "patch": "/tmp/native-provenance-20261107-delivery/codex.patch",
+      "sha256": "f4ed8507c8f7bdca3ff4d093b0214809bed8cac66c29fa80e517a05d35745eec",
+      "bytes": 114336,
+      "tracked_paths": [
+        "codex-rs/Cargo.lock",
+        "codex-rs/code-mode-host/src/delegate.rs",
+        "codex-rs/code-mode-host/src/lib.rs",
+        "codex-rs/code-mode-host/src/peer.rs",
+        "codex-rs/code-mode-protocol/src/host/host_tests.rs",
+        "codex-rs/code-mode-protocol/src/host/message.rs",
+        "codex-rs/code-mode-protocol/src/host/mod.rs",
+        "codex-rs/code-mode-protocol/src/host/payload.rs",
+        "codex-rs/code-mode-protocol/src/session.rs",
+        "codex-rs/code-mode/src/grpc_session/generation.rs",
+        "codex-rs/code-mode/src/grpc_session/generation_tests.rs",
+        "codex-rs/code-mode/src/grpc_session/state.rs",
+        "codex-rs/code-mode/src/remote_session/connection.rs",
+        "codex-rs/code-mode/src/remote_session/connection/driver/delegate_runtime.rs",
+        "codex-rs/code-mode/src/remote_session/connection/driver/responses.rs",
+        "codex-rs/code-mode/src/remote_session/connection/driver_tests.rs",
+        "codex-rs/codex-mcp/src/binding.rs",
+        "codex-rs/codex-mcp/src/binding_tests.rs",
+        "codex-rs/codex-mcp/src/connection_manager_tests.rs",
+        "codex-rs/codex-mcp/src/lib.rs",
+        "codex-rs/codex-mcp/src/rmcp_client.rs",
+        "codex-rs/core/Cargo.toml",
+        "codex-rs/core/src/mcp_tool_call.rs",
+        "codex-rs/core/src/tools/code_mode/delegate.rs",
+        "codex-rs/core/src/tools/executed_tool_calls.rs",
+        "codex-rs/core/src/tools/executed_tool_calls/request_metadata_tests.rs",
+        "codex-rs/core/src/tools/mod.rs",
+        "codex-rs/core/src/tools/registry.rs",
+        "codex-rs/features/src/lib.rs"
+      ],
+      "new_paths": [
+        "codex-rs/code-mode-host/src/native_frontier.rs",
+        "codex-rs/code-mode-host/src/native_stdio_tests.rs",
+        "codex-rs/code-mode/src/grpc_session/provenance_tests.rs",
+        "codex-rs/codex-mcp/src/native_execution_fence.rs",
+        "codex-rs/codex-mcp/src/native_execution_fence/tests.rs",
+        "codex-rs/core/src/tools/native_provenance.rs",
+        "codex-rs/core/src/tools/native_provenance/tests.rs",
+        "codex-rs/core/src/tools/native_provenance_fence.rs",
+        "codex-rs/core/src/tools/native_provenance_fence/tests.rs",
+        "codex-rs/core/src/tools/native_provenance_host.rs"
+      ],
+      "apply_check_exit": 0,
+      "apply_check_stderr": ""
+    },
+    {
+      "name": "codescout",
+      "clone": "/tmp/native-provenance-20261107-codescout",
+      "original": "/home/marius/work/claude/codescout",
+      "baseline": "aa8683b70bc987712f21e907c598f4e8ea51a06c",
+      "original_head": "a10cb7703666f6009e3f455773acada9706e31c6",
+      "patch": "/tmp/native-provenance-20261107-delivery/codescout.patch",
+      "sha256": "10a79cdc494f577e3da43683206de13a8133e97de564007e0e6a0bf091c8744c",
+      "bytes": 123708,
+      "tracked_paths": [
+        "scripts/file-provenance.py",
+        "src/server.rs",
+        "src/server/native_context_tests.rs",
+        "src/tools/invocation_context.rs",
+        "src/tools/mod.rs",
+        "src/tools/run_command/attribution.rs"
+      ],
+      "new_paths": [
+        "scripts/native_provenance.py",
+        "scripts/native_provenance_fence.py",
+        "scripts/native_provenance_history.py",
+        "scripts/native_provenance_policy.py",
+        "src/tools/native_provenance_fence.rs",
+        "src/tools/native_provenance_fence/tests.rs",
+        "src/tools/provenance_fence_context.rs",
+        "src/tools/provenance_fence_context_tests.rs",
+        "src/tools/trusted_formatter.rs",
+        "src/tools/trusted_formatter_tests.rs",
+        "tests/test_native_provenance.py",
+        "tests/test_native_provenance_fence.py",
+        "tests/test_native_provenance_history.py",
+        "tests/test_native_provenance_policy.py"
+      ],
+      "apply_check_exit": 0,
+      "apply_check_stderr": ""
+    }
+  ],
+  "application": [
+    {
+      "name": "codex",
+      "head": "5eedcdc5439da3a57516196df386fc2db7ffa288",
+      "sha256": "f4ed8507c8f7bdca3ff4d093b0214809bed8cac66c29fa80e517a05d35745eec",
+      "applied": true,
+      "reverse_check": true
+    },
+    {
+      "name": "codescout",
+      "head": "a10cb7703666f6009e3f455773acada9706e31c6",
+      "sha256": "10a79cdc494f577e3da43683206de13a8133e97de564007e0e6a0bf091c8744c",
+      "applied": true,
+      "reverse_check": true
+    }
+  ],
+  "post_gate_peer_change": {
+    "head": "a10cb7703666f6009e3f455773acada9706e31c6",
+    "change": "path-display spelling and make_server fixture refactor; inspected and merged into integration snapshot",
+    "native_wire": {
+      "passed": 8,
+      "log": "@bg_000000b5"
+    },
+    "large_routing": {
+      "passed": 1,
+      "log": "@bg_000000b6"
+    },
+    "source_apply_checks": "both passed, then both reverse checks passed after native filesystem escalation"
+  }
+}

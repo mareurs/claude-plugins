@@ -11,12 +11,14 @@
 # Skills are served from a versioned cache, so a bad prescription reaches every profile at release
 # and is found only when an agent follows it. Bug: docs/issues/2026-10-27-no-check-that-a-skills-prescribed-tool-calls-stay-legal.md
 #
-# HOW: tests/lib/skill_call_legality.py extracts the call from the skill text (so the test cannot
-# drift from the skill), starts a codescout in a sandbox that shares no state with the live server
-# (tests/lib/cs_isolated.py), runs it, and runs a known-bad control that must be REFUSED.
+# HOW: tests/lib/skill_call_legality.py and skill_contract_calls.py extract examples from the skill
+# text, validate supplied names/actions against the live schemas, and execute complete calls on
+# isolated fixtures. Known-bad ledger/event controls must be REFUSED; assertions check fixture effects.
 #
-# LIMITS: this checks one call (reconnaissance's append_entry). A static check of names against a tool
-# schema would not catch the second archived bug, which used legal names and an illegal value; a run does.
+# LIMITS: incomplete illustrations receive signature checks only and are reported separately.
+# Index calls check metadata and request acceptance, not successful embedding completion. The child
+# uses sandbox SQLite stores and a metadata-only embedder endpoint; it never attaches to shared Qdrant.
+# A static schema check alone would miss legal names with illegal values; runtime cases cover those.
 #
 # A missing codescout binary SKIPS loudly and passes. CI has no binary, so a skip there reads as
 # "not checked", never as "legal" — the SKIP line says so.

@@ -1,15 +1,26 @@
 ---
 id: af3292c4ea2d4712
 kind: bug
-status: investigating
+status: fixed
 title: No automated check that the tool calls a skill prescribes stay legal against the MCP server it drives
 tags:
 - codescout-companion
 - skills
 - regression-coverage
 - librarian
-unverified: The skill-call check runs 7 of the 10 append_entry/update calls found in five skill files. 3 calls with ellipsis placeholders are not parsed. The read-only, link, memory and workspace calls are not run. The suite SKIPs without a codescout binary, so CI does not check it; only a local run-all.sh and the release preflight do.
+closed: 2026-11-07
+validation_scope: All 43 action-bearing companion examples have live signature checks; 38 complete examples executed directly or through matched ledger runtime cases. Five incomplete illustrations are signature-only. Runtime checks require a codescout binary and report SKIP without one; nine extraction/signature unit tests run without the binary.
 ---
+
+## Verification and fix — 2026-11-07
+
+The earlier limitation was still present: only selected example shapes were executed. A new quote-aware extractor now discovers action-bearing `doc`, `librarian`, `index`, `memory` and `workspace` examples across every companion skill Markdown file. It preserves quoted payloads, recognizes unquoted JSON booleans and illustrative placeholders, and fails on malformed calls rather than dropping them. Nine parser/signature unit tests run without a codescout binary and are included by the root runner.
+
+The live contract pass obtains the actual server schemas through `tools/list`, rejects unknown parameter/action names, and executes complete auxiliary examples on an isolated SQLite-backed server. The observed inventory is 43 live signatures checked: 31 auxiliary calls executed, 7 ledger calls matched to examples actually exercised by the existing runtime cases, and 5 incomplete illustrations checked for supplied names/action only. A separate explicit future `audit_trackers` roadmap mention is excluded. The snapshot-anchor example with an ellipsis id is now executed after filling the id; the two ellipsis-only body-edit fragments remain illustrations. Find results, memory writes, event readback, snapshot persistence, activation mode and supersedes direction have fixture assertions. Targeted result: 77 PASS, 0 FAIL, 0 SKIP, plus 9 parser/signature unit tests.
+
+The subprocess uses sandbox HOME/SQLite paths, `CODESCOUT_VECTOR_BACKEND=sqlite-vec` and a metadata-only embedder URL at `http://127.0.0.1:1`, so these index checks do not attach to shared Qdrant or download a model. `index(build)` acceptance is checked, not successful embedding completion.
+
+The runtime pass still reports SKIP if no codescout binary is installed; CI therefore runs the extractor/signature unit tests but cannot prove runtime legality against a server it does not have. This is a documented execution prerequisite, not a claim that CI performed the runtime checks. Independent review applied four mutations: forced hook exit, unknown-argument rejection removed, supersedes direction reversed, and index discovery omitted. The first three were killed; index omission initially survived. After adding a literal all-five-tool-families regression, the reviewer reapplied that exact mutation and observed it fail. All four final mutations are killed, with zero final survivors. Successful embedding completion was explicitly excluded from review. Final verification: `./tests/run-all.sh` exited 0 with All suites passed; Buddy pytest passed all 534 tests; `scripts/check-versions.sh` and `git diff --check` passed. The issue is fixed in source; release and profile installation remain pending.
 
 ## Summary
 

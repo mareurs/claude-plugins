@@ -6,8 +6,9 @@ A real server is the only judge of whether a call is legal — some rules live i
 appear in no tool schema.
 
 ISOLATION. The child gets a minimal environment: PATH, plus a HOME and a CODESCOUT_SQLITE_DIR
-under the sandbox. It inherits no CODESCOUT_*/LIBRARIAN_* variable, so it cannot reach the
-shared Qdrant or the live catalog. CODESCOUT_ALLOW_TEMP_WORKSPACE=1 is required because the
+under the sandbox. It inherits no CODESCOUT_*/LIBRARIAN_* variable. Index tools are explicitly
+pinned to sqlite-vec with a metadata-only embedder URL, so they do not attach to shared Qdrant.
+CODESCOUT_ALLOW_TEMP_WORKSPACE=1 is required because the
 server refuses to catalogue artifacts rooted under the system temp dir otherwise.
 
 A REJECTION IS NOT AN MCP ERROR. The server answers a refused call with isError=false and a
@@ -81,6 +82,10 @@ class IsolatedCodescout:
             "HOME": str(home),
             "CODESCOUT_SQLITE_DIR": str(sqlite),
             "CODESCOUT_ALLOW_TEMP_WORKSPACE": "1",
+            # Never attach index verification/build to a developer\'s Qdrant.
+            # Metadata checks need a constructible embedder, not a live endpoint.
+            "CODESCOUT_VECTOR_BACKEND": "sqlite-vec",
+            "CODESCOUT_EMBEDDER_URL": "http://127.0.0.1:1",
         }
         self._proc = subprocess.Popen(
             [self.binary, "start", "-p", str(self.repo)],

@@ -121,5 +121,6 @@ if (d.HAS_CS_SYSTEM_PROMPT === 'true' && d.CS_SYSTEM_PROMPT) {
 ${d.CS_SYSTEM_PROMPT}`;
 }
 
+// Let Node drain stdout before exiting: an immediate process.exit() can cut
+// a piped payload mid-JSON when the consumer applies backpressure.
 emit({ hookSpecificOutput: { hookEventName: 'SubagentStart', additionalContext: msg } });
-process.exit(0);

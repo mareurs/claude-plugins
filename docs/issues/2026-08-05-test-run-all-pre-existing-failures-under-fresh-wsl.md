@@ -14,6 +14,10 @@ last_observed: 2026-10-31
 unverified: WSL-only failures remain unobserved by CI (~10 of the original 16). The 5 originally-excluded ambient-config suites are hermetic, committed (f0f0028) and pass on the CI full-suite job (runs 41012475002 and 41176478070); CI sets no CS_TEST_SKIP. The wake suites run on macOS and Windows only since 7a3c3b1; their 2026-10-30 failures were a separate symlinked-tmpdir defect, not this bug.
 ---
 
+## Re-check — 2026-11-07
+
+The complete root runner passed on this machine before the present issue-fix work (exit 0, 376 seconds); Buddy pytest passed all 534 tests. This is another scoped non-recurrence observation, not evidence about the original WSL environment. No WSL reproduction was performed. Keep `zombie` and the existing re-open trigger; no root-cause fix or closure is claimed.
+
 ## Summary
 
 > **Set to `zombie` 2026-11-04 (user decision).** No work is available here, only a recurrence check. The 5 ambient-config suites are hermetic and the full suite passed on the Arch workstation in the 2026-11-02 and 2026-11-03 releases (buddy 0.11.14, codescout-companion 1.20.28). About 10 of the original 16 failures stay unobservable without a WSL host. Re-open on the trigger in `## Re-open trigger`. CI was not re-checked this day: `gh` returned `HTTP 401`.

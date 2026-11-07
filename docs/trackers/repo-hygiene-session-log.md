@@ -11,7 +11,7 @@ entry_prefix:
 - F
 - W
 entry_high_water_W: 2
-entry_high_water_F: 2
+entry_high_water_F: 8
 ---
 
 # Session Log — Repo Hygiene
@@ -69,6 +69,12 @@ entry_high_water_F: 2
 | ID | Date | Severity | Category | Status | Title |
 |----|------|---------:|----------|--------|-------|
 | F-2 | 2026-08-21 | low | codescout-tool | open | codescout's session-log template's own example Index/Wins-Index row burns the id it displays |
+| F-3 | 2026-11-07 | med | hook-output | fixed-verified | Subagent hook exits before stdout drains |
+| F-4 | 2026-11-07 | med | test-coverage | fixed-verified | A passing runtime suite can hide omission of a whole tool family |
+| F-5 | 2026-11-07 | med | test-coverage | fixed-verified | Native provenance gap filtering must pin reason and locator independently |
+| F-6 | 2026-11-07 | high | architectural | mitigated | Declared workspace does not confine shell write targets |
+| F-7 | 2026-11-07 | high | architectural | open | Native stdio did not transport issued callback receipts |
+| F-8 | 2026-11-07 | high | verification | fixed-verified | Full integration gate exposes dispatch-stack growth and library lint gaps |
 
 ## Wins Index
 
@@ -269,6 +275,96 @@ The specific commits and doctor-scan count are true as of this session; re-verif
 **Rests on:** the same allocator behavior the template's own "How to use" section already documents for mid-use index rows (`get_guide("tracker-conventions")` § Entry ids) — this entry is the bootstrap-time special case of that general rule, not a new mechanism.
 
 **Fix idea / Pointer:** codescout `docs/templates/session-log.md` — replace the example rows' `F-1` / `W-1` tokens with a non-matching placeholder shape (e.g. `F-<n>` / `W-<n>`, which the `\b[A-Z]{1,3}-\d+\b` grammar does not match) so the documentation no longer doubles as a claim.
+
+## F-3 — Subagent hook exits before its stdout pipe drains
+
+**Observed:** 2026-11-07, open-issue verification.
+
+**Expected:** the hook delivers valid JSON containing the whole project system prompt.
+
+**Got:** a real hook invocation through a 4096-byte pipe exited 0 after emitting 4096 bytes; JSON parsing failed. The new delayed-consumer regression also failed on the unchanged hook with Unexpected end of JSON input.
+
+**Cause:** emit() uses process.stdout.write(), followed by process.exit(0) in subagent-guidance.mjs, which drops pending asynchronous pipe writes.
+
+**Severity:** med
+
+**Status:** fixed-verified
+
+**Fix:** let the event loop drain naturally. The new regression and the existing 43-check shell suite pass.
+
+**Valid:** dated 2026-11-07
+
+## F-4 — A passing runtime suite can hide omission of an entire tool family
+
+**Observed:** 2026-11-07, independent review of skill-call legality coverage.
+
+**Expected:** the expanded runner notices when any supported tool family stops being discovered.
+
+**Got:** the reviewer removed `index|` from the extractor's tool regex in a temporary copy and ran the real live suite. It still exited 0: 73 PASS/0 FAIL/0 SKIP, while its inventory fell from 43 to 39 signatures and 31 to 27 auxiliary calls. The smaller nonempty population was not evidence of complete discovery.
+
+**Fix:** add a unit test with five literal calls and an independent expected list of `doc`, `librarian`, `index`, `memory`, `workspace`. The reviewer reapplied the exact omission mutation after the test landed; it exited 1 at the new assertion. Current unit suite: 9 tests pass. The three other applied review mutations (premature hook exit, unknown-argument rejection removed, supersedes direction reversed) were also observed killed; final observed survivors: zero out of four.
+
+**Severity:** med
+
+**Status:** fixed-verified
+
+**Valid:** dated 2026-11-07
+
+## F-5 — Native provenance gap filtering must pin reason and locator independently
+
+**Valid:** dated 2026-11-07
+
+**Severity:** med
+**Category:** test-coverage
+**Status:** fixed-verified
+
+**Observed:** Independent native-provenance review applied a mutation deleting only the opaque-reason allowlist from the new history overlay while retaining the bound source locator check. The observed native Python suite stayed green: 31 tests plus 23 subtests. The existing unrelated-gap case used another source locator, so it could not discriminate overbroad deletion of a different reason attached to the same certified wrapper locator.
+
+**Rests on:** Reviewer `/root/native_provenance_final_review`, actual M2 mutation and test run; temporary source restored byte-identically. Added test_unrelated_reason_on_the_same_certified_wrapper_locator_is_preserved. The exact allowlist-removal mutation was reapplied and observed to fail, then restored. The current relevant Python suite passed 143 tests plus 25 subtests (@bg_00000091), including this regression. This closes the test-coverage hole only; native acceptance remains open.
+
+**Consequence:** A green suite could approve future removal of unrelated native-history uncertainty. No such removal is present in production code at discovery; this is an observed regression-guard hole.
+
+## F-6 — Declared workspace does not confine shell write targets
+
+**Valid:** dated 2026-11-07
+
+**Severity:** high
+**Category:** architectural
+**Status:** mitigated
+
+**Observed:** Independent review used the built Codescout stdio server and two disposable Git checkouts. While B's real checkout fence remained exclusively held, a supported run_command in workspace A wrote B/probe.txt and returned exit 0. The per-checkout-only protocol therefore did not close participating cross-checkout effects. A new production-boundary regression reproduced this as RED (@bg_0000006b) before the coordination change, then GREEN (@bg_0000006c).
+
+**Rests on:** Approved native provenance spec be871df4dc66f9a4, independent reviewer native_provenance_final_review's real stdio observation; temporary fixture was cleaned. The actual server framed JSON-RPC regression native_wire_foreign_workspace_command_is_refused_while_formatting now holds global and target-checkout exclusive leases while a different workspace requests a shell write with effect=read. It observes the coordination refusal and unchanged target bytes; default native-wire suite 8 passed in both the feature clone (@bg_000000a4) and current-HEAD integration clone (@bg_000000a8). Complete native formatter success is still unverified.
+
+**Action:** Add a shared per-user coordination lease and counter before the checkout lease; native checkpoint and formatter consumer bind both generations; both descriptors survive caller interruption. Version the negotiated capability so an old checkout-only participant cannot be accepted. Ordinary effects keep shared concurrency; only formatter intervals exclude all participating writes. Verify real stdio cross-checkout behavior after rebuilding before fixed-verified.
+
+## F-7 — Native stdio did not transport issued callback receipts
+
+**Valid:** dated 2026-11-07
+
+**Severity:** high
+**Category:** architectural
+**Status:** open
+
+**Observed:** The real native CLI journal for root 01a1b6df-ac0d-70b0-afd0-1ac26961a810 contained cell_start, actual MCP dispatch and outcomes, but no cell_callback or cell_closed. The implemented gRPC hooks did not cover the default stdio host. A production client-driver regression observed only invocation and retirement before the fix (@bg_0000008a), then receipt-before-invocation and the exact issued final frontier after it (@bg_0000008c).
+
+**Rests on:** Approved spec be871df4dc66f9a4; actual native journal inspected; Code Mode 76 and protocol 41 tests pass. This establishes client and wire behavior, not a complete native acceptance result.
+
+**Action:** Negotiate optional native-execution-provenance-v1, produce sequence/frontier in the native stdio host and forward them before effects/retirement. Full host build remains unavailable because the V8 150.4.0 artifacts are missing; the actual production-module transport harness passed 6 tests, including two distinct callbacks, final frontier, legacy negotiation and late refusal. Independent focused review reran it, the 18 fence/context tests and the 5 formatter tests successfully. These do not replace full matching-host native acceptance. Keep issue open until native acceptance.
+
+## F-8 — Full integration gate exposes dispatch-stack growth and library lint gaps
+
+**Valid:** dated 2026-11-07
+
+**Severity:** high
+**Category:** verification
+**Status:** fixed-verified
+
+**Observed:** After focused native suites and independent review passed, the full gate on current Codescout HEAD plus the patch rejected unused non-test fence helpers and a redundant closure. Its default nextest lane also aborted a_write_to_a_tracker_or_bug_file_is_routed_to_its_section with stack overflow; lean passed all 6206 tests, default passed 9087 of 9088. Python light passed 1756 tests plus 554 subtests, with one skip. A targeted Box::pin change before the new provenance wrapper made the same test pass on the unchanged default test stack (@bg_000000b2). The second full gate had Clippy=0 and retained only the pre-Box stack failure; the third full gate now includes the heap-stored dispatch future. The third full gate completed successfully (@bg_000000b4): Python light 1756 passed plus 554 subtests, one skipped; FMT=0/CLIPPY=0/LEAN=0/DEFAULT=0. Lean ran 6206 passing tests with 48 skipped; default ran 9088 passing tests with 62 skipped. Standard documented heavy-Python/server-stack/ONNX exclusions remain. This closes the integration failures; native V8 acceptance is still a separate open obligation.
+
+**Rests on:** Native provenance implementation plan 46b174b8c4c5e2e2 and full integration gate @bg_000000a9. Its actual lane exits were Python=0/FMT=0/CLIPPY=101/LEAN=0/DEFAULT=100. The focused tests measured their selected boundaries only.
+
+**Action:** Keep test-only APIs behind cfg(test), document the Codex producer's intentional shared writer-side engine surface, avoid duplicating a large dispatch future in wrapper storage, rerun the exact failing test and then the complete required gate. Preserve the original repositories until delivery checks pass.
 
 ## Template for new entries
 

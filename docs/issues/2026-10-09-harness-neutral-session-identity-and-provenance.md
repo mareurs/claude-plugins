@@ -16,11 +16,13 @@ codescout_native_history_commit: 76bfcca7d65494e90fb7c5296e69304e49388742
 design_approved_on: 2026-10-10
 implementation_review_id: 2185a218fbd18b7f
 implementation_review_pending: false
-last_observed: 2026-10-27
-native_acceptance: Limited by complete code-mode execution inventory F-6 and unavailable Kat authentication. Automatic context F-16 and native MCP/child reader omission F-20 are fixed; actual native known-writer resume refuses UNKNOWN with unchanged bytes.
+last_observed: 2026-11-07
+native_acceptance: Native Codex root/write/resume attribution and safe UNKNOWN refusal were measured. The execution-journal, stdio/gRPC receipts, dual fence and strict reader source is now applied and tested; native positive owned-formatting is still unestablished without a matching rebuilt V8 host. Kat authentication remains unavailable and was not retried.
 native_claude_child: 'Native Claude main-profile child/root smoke passed: parent af8d2e22-9029-42c5-9257-d4fe124b1a43, distinct agent a21ddf668790f255e, actual child MCP writer and same-parent formatter exit 0; exact bytes, source helper bytes/modes and independent cargo fmt --check passed. Initial fixture/capture failure preserved as F-18.'
 native_claude_fork: 'F-17 fixed and committed locally in original Codescout 6eb585ef9161b858316fc9ef95270b8ccaeede2e: conservative enqueue boundary, 99 focused tests, canonical leased gate all five exits 0, actual same-fork safe refusal/no false credit/unchanged bytes and independent nine-mutation review with zero final survivors. All four files match reviewed source bytes and only those four paths were committed; index empty.'
 native_context_transport: 'Fixed and verified F-16: original Codescout 18a007aa, five-lane gate pass, eleven applied mutations/zero final survivors, clean server-stack release installed, fresh actual Codex root 01a12bc6-4184-7182-b87d-ae4637c3e9c9 receives automatic native-env context. Existing processes not restarted.'
+native_provenance_design: Approved be871df4dc66f9a4; independently reviewed source committed locally in Codex c4d58a767b and Codescout 9cab1095e. Full standard Codescout gate and recorded Codex/module checks passed. Full matching-host native acceptance remains pending because V8 150.4.0 artifacts are unavailable.
+native_provenance_plan: 46b174b8c4c5e2e2
 opened: 2026-10-09
 owner: marius
 plan_approved_on: 2026-10-10
@@ -28,18 +30,37 @@ plan_id: 3252b9f3f104ea25
 plan_review_pending: false
 severity: medium
 source_commits:
-  plugin_feature: '4ce5432'
-  plugin_release: f8a73ee
-  codex: '5eedcdc543'
-  codescout: eed25579
-  codescout_fork_followup: '6eb585ef9161b858316fc9ef95270b8ccaeede2e'
-  codescout_native_context: '18a007aacc20eef8f366aa153394f7e23ccf875b'
-  codescout_native_history: '76bfcca7d65494e90fb7c5296e69304e49388742'
+  native_execution_codex: c4d58a767b91b49058fc2e85b664b75209e25f6e
+  native_execution_codescout: '9cab1095e55dbd9f09030caed2acd4d56caa6d86'
 source_implementation: Initial implementation, F-17, F-16 and bounded F-20 repair are independently reviewed, verified and committed locally in their original repositories. Complete native code-mode owned formatting and Kat authenticated smoke remain unestablished.
 spec_approved_on: 2026-10-10
 spec_id: c67a8d68e01c6cf4
-unverified: Complete code-mode wrapper inventory and successful Codex owned formatting remain F-6. Kat authenticated smoke remains pending because reauthentication is unavailable. F-20 reader repair is committed 5ae71b35 after 141 focused tests, 25 killed mutations, the canonical five-lane gate and actual native known-writer resumed refusal.
+unverified: 'Complete native execution-provenance acceptance and successful Codex owned formatting remain unestablished: full host build is blocked by unavailable V8 150.4.0 artifacts. Kat authenticated smoke remains pending without reauthentication. Reviewed source is committed locally; standard integration gate and focused module checks passed.'
 ---
+
+## Re-check — 2026-11-07
+
+The commit-guard implementation described below as unmerged is now in the current codescout `experiments` history via `a6d175ee0`. Follow-up fixes include `2cdf4fca7` (resolver stdout separated from diagnostics), `8939ee5ec` (correct identity failure and no Codex-owner liveness probe) and `af0c22f2d` (qualified sentinel is never an equal principal).
+
+Fresh verification ran `tests/publish-principal.sh`, `tests/commit-mine.sh`, `tests/git-safe-reset.sh`, `tests/mutation-probe.sh`, `tests/hooks-discrimination.sh` and `pytest tests/test_session_context.py` in the current codescout checkout; all exited 0 (the final shell suite reported 425 passed/0 failed; context pytest reported 41 passed). A separate run of `test_harness_formatter.py`, `test_harness_provenance.py`, `test_harness_history.py` and `test_codex_native_mcp_history.py` passed all 146 tests.
+
+The native code-mode completeness boundary remains in the current `scripts/codex_history.py`: custom wrappers that are not directly interpretable add an explicit coverage gap. The approved design's Native evidence follow-up still requires complete dispatched/cancelled/unawaited execution evidence before permitting owned formatting. Removing that gap based on wrapper source text would violate that contract. Kat authenticated smoke also remains unestablished. The issue stays `investigating` for these native acceptance obligations; the already-landed guard fixes should not be reimplemented. No codescout source, shared binary or profile configuration was changed in this re-check.
+
+## Fresh native reproduction — 2026-11-07
+
+Current IDE root `01a1b59b-676f-7881-b7eb-4d8e1687c3f8` has native metadata `cli_version: 0.160.0`, source `vscode`, and paginated history. Calling the unchanged `session_context.py` through the real MCP `run_command` returns that same root and workspace with `source: native-env`. The separately installed CLI is 0.167.0; these are different observed processes, not a version mismatch to repair by altering context.
+
+A fresh `codex exec --json --sandbox workspace-write` using the existing logged-in profile created native root `01a1b668-4efb-7763-a6b5-a1fef3ce4671` in disposable checkout `/tmp/native-identity-20261107-bk9tesai`. Its real MCP writer changed `src/main.rs` to the exact requested bytes. The unchanged decoder recovered one `create_file` operation under that root, with no child id, and three opaque-wrapper gaps after the first turn. Both the native operation and independent file bytes were checked.
+
+`codex exec ... resume <that root>` retained the same root and ran exactly one real MCP `run_command` with `bash scripts/fmt-mine.sh`. Its tool result reports exit 1, `UNKNOWN src/main.rs`, opaque-wrapper and shared-workspace gaps, and `written by THIS session (codex:01a1b668)`. The two native turns completed successfully; that is not a successful formatter result. File SHA-256 stayed `76299fb39f2090cb6b6dd73984de0ef8e1e71842ef9732447f8e6f5374d2eb6a`. Every copied formatter/helper SHA remained equal to the current codescout source. After resume, the root decoder reports five opaque-wrapper gaps.
+
+Private evidence: `/tmp/native-identity-20261107-bk9tesai/native-acceptance-summary.json`, write/resume event streams, copied-helper manifest `/tmp/native-identity-20261107-manifest.json`, and the native persisted history named by the summary. No credential copying, identity/context/history override, exclusive-checkout declaration, permission/trust bypass, profile edit or shared-binary replacement was used. No Kat authentication retry was attempted.
+
+This reproduces the remaining execution-coverage limitation on installed CLI 0.167.0 and establishes root context/write/resume attribution there. It does not establish child/fork/compaction completeness or native owned-format success. A producer-side provenance extension needs a separate design decision; normal identity transport does not need another implementation.
+
+## Proposed next step — 2026-11-07
+
+[Normalized native evidence](../evidence/2026-11-07-native-identity.json) preserves the measured IDs, operation/formatter results and byte/helper hashes without raw prompts, reasoning or credentials. [Native execution provenance design](../superpowers/specs/2026-11-07-native-execution-provenance-design.md) was approved by the maintainer on 2026-11-07 («ok, continua»). Reviewed source changes are committed locally in the original Codex (`c4d58a767b`) and Codescout (`9cab1095e`) checkouts. The complete standard Codescout gate passed (Python, formatting, Clippy, lean and default Rust lanes); Codex core and the protocol/MCP/module suites also passed their recorded checks. The [verification evidence](../evidence/2026-11-07-native-execution-provenance-tests.json) distinguishes these results from native acceptance. Installed binaries and profile configuration have not been changed. The [implementation plan](../superpowers/plans/2026-11-07-native-execution-provenance.md) records delivery and acceptance separately. The complete native host build is currently blocked by unavailable V8 150.4.0 artifacts, so native owned-format success is still unestablished. The exact shipped formatter is the only certifiable shell exception; any arbitrary shell creates durable uncertainty across participating checkouts, with no automatic reset. The existing recorder and host sequence/closure primitives were inspected; warehouse metadata and best-effort rollout tracing are not automatically promoted to completeness proof.
 
 ## Summary
 
