@@ -88,10 +88,24 @@ export function breakerFile(sessionId) {
 
 // Run codescout detection for a cwd, resolving home/config-dir from env
 // (cross-platform: HOME on POSIX, USERPROFILE/os.homedir() on Windows).
+//
+// CS_COMPANION_HOST_ARMED is set by a non-Claude host bridge (harnesses/opencode) after
+// IT has independently proven codescout is present in that session: opencode registers
+// MCP under `mcp.servers` in opencode.json, which detect.mjs never reads. Without this
+// signal a machine that runs opencode and has no Claude config would fail the guard's own
+// gate on every call, and the whole port would silently do nothing — the no-op class this
+// plugin keeps getting bitten by. The bridge is trusted for that one bit only: it forces
+// presence, never the block_reads opt-out, and the redirect circuit breaker
+// (breakerFile() / cs-liveness.mjs) still stands the guard down if the tools its redirect
+// names never actually answer.
 export function detectFor(cwd) {
   const home = process.env.HOME || process.env.USERPROFILE || homedir();
   try {
-    return detect(cwd || process.cwd(), home, process.env.CLAUDE_CONFIG_DIR || null);
+    const d = detect(cwd || process.cwd(), home, process.env.CLAUDE_CONFIG_DIR || null);
+    if (process.env.CS_COMPANION_HOST_ARMED === '1' && d.HAS_CODESCOUT !== 'true') {
+      return { ...d, HAS_CODESCOUT: 'true', BLOCK_READS: 'true' };
+    }
+    return d;
   } catch {
     // Fail-open: any detection error → behave as if codescout is absent so the
     // hook exits 0 without denying. A crash must never block the user's tool
@@ -667,14 +681,21 @@ export function parentOf(pid) {
 // Normalize host-specific names and input keys at the hook boundary. Claude
 // Code uses PascalCase tools and snake_case paths; Copilot/VS Code use
 // lower-case tools and camelCase paths.
+// OpenCode names its built-in tools in bare lower case. Measured against the installed
+// opencode 2.1.3 binary: v2 RENAMED three of them — `shell` (was `bash`), `patch` (was
+// `apply_patch`), `subagent` (was `task`) — and a rename notice is compiled into the
+// binary, so both spellings of `shell` and `patch` map. `task`/`subagent` is not mapped:
+// no guard has a branch for subagent dispatch. Without these rows an OpenCode call falls through
+// unmatched, the guards below compare against 'Read'/'Bash'/… and see nothing, and the
+// redirect silently never fires: the silent-no-op class this plugin keeps hitting.
 export function normalizedToolName(input) {
   const name = input && input.tool_name;
-  if (name === 'read_file' || name === 'readFile') return 'Read';
+  if (name === 'read_file' || name === 'readFile' || name === 'read') return 'Read';
   if (name === 'search' || name === 'search_codebase' || name === 'grep') return 'Grep';
   if (name === 'find_files' || name === 'glob') return 'Glob';
-  if (name === 'run_in_terminal' || name === 'run_command' || name === 'terminal') return 'Bash';
-  if (name === 'replace_string_in_file' || name === 'replace_file_content') return 'Edit';
-  if (name === 'create_file' || name === 'write_file') return 'Write';
+  if (name === 'run_in_terminal' || name === 'run_command' || name === 'terminal' || name === 'bash' || name === 'shell') return 'Bash';
+  if (name === 'replace_string_in_file' || name === 'replace_file_content' || name === 'edit' || name === 'apply_patch' || name === 'patch') return 'Edit';
+  if (name === 'create_file' || name === 'write_file' || name === 'write') return 'Write';
   return name || '';
 }
 
