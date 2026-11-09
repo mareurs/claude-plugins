@@ -69,8 +69,10 @@ Measured against the 17 recorded firings: 14 are silenced, by 12 distinct patter
 
 Positive side pinned by `test_grep_for_concept_genuine_concept_still_fires`: `retry logic backoff`, `authentication middleware`, `error handling retries`, `how are retries scheduled`, `where is the session state stored`.
 
-Mutation check: emptying `_FUNCTION_WORDS` fails 9 tests, `_QUESTION_WORDS` 2, `_DEFINITION_KEYWORDS` 1, and removing the camelCase rule 1. The recorded definition fragments trip both identifier rules, so removing either one would pass the list alone (inferred from the rules, not run); `test_grep_for_concept_each_identifier_rule_stands_alone` adds one case per rule, and the two mutations above that fail exactly one test are those cases.
+Mutation check: emptying `_FUNCTION_WORDS` fails 9 tests, `_QUESTION_WORDS` 2, `_DEFINITION_FIRST_WORDS` 1, and removing the camelCase rule 1. The recorded definition fragments trip both identifier rules, so removing either one would pass the list alone (inferred from the rules, not run); `test_grep_for_concept_each_identifier_rule_stands_alone` adds one case per rule, and the two mutations above that fail exactly one test are those cases.
 
 buddy pytest: 569 passed.
+
+Regression caught and fixed after the first commit of this change: the new definition-word set was first named `_DEFINITION_KEYWORDS`, which already existed in the module (used by the structural-edit hint), so the later definition rebound it. Go `func` and Rust `trait` stopped counting as definitions there, and `default_value = 1` started to. The 569 tests did not cover either. The set is now `_DEFINITION_FIRST_WORDS`; `test_structural_edit_detected_for_every_definition_keyword` and `test_structural_edit_keyword_must_be_a_whole_word` pin both. A scan for duplicate top-level names in `cs_heuristics.py` and `hook_helpers.py` found none.
 
 Not done, and still open: the share of real concept queries this now misses. A concept phrased with a function word (`error handling for retries`) no longer gets the hint. Option 3's labelled sample is what would show whether that cost is real. The `path` and previous-result checks from option 2 were not added.

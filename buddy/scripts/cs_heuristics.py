@@ -260,7 +260,7 @@ def _check_parallel_write(event: dict, session_log: list[dict]) -> str | None:
     return None
 
 
-_DEFINITION_KEYWORDS = frozenset({
+_DEFINITION_FIRST_WORDS = frozenset({
     "function", "class", "fn", "def", "export", "const", "let", "var", "interface",
     "struct", "enum", "type", "impl", "import", "pub", "async",
 })
@@ -325,7 +325,7 @@ def _check_grep_for_concept(event: dict, session_log: list[dict]) -> str | None:
     # An identifier (camelCase / PascalCase) or a definition keyword up front is a
     # lookup by name: `symbols(name=...)` or grep, never a concept query.
     first = words[0].lower()
-    if first in _DEFINITION_KEYWORDS or any(_re.search(r"[a-z][A-Z]", w) for w in words):
+    if first in _DEFINITION_FIRST_WORDS or any(_re.search(r"[a-z][A-Z]", w) for w in words):
         return None
 
     # Prose words mean quoted text, unless the pattern opens as a question.

@@ -53,6 +53,31 @@ def test_structural_edit_detected():
     assert "BUG-027" in result
 
 
+@pytest.mark.parametrize("path,new_string", [
+    ("src/main.go", "func main() {\n    run()\n}\n"),
+    ("src/lib.rs", "trait Greeter {\n    // greets\n}\n"),
+    ("src/app.py", "def handler(event):\n    return event\n"),
+])
+def test_structural_edit_detected_for_every_definition_keyword(path, new_string):
+    """`func` (Go) and `trait` (Rust) are in the definition list, not only `fn`."""
+    event = _make_event(
+        tool_name="mcp__codescout__edit_file",
+        tool_input={"path": path, "new_string": new_string},
+    )
+    result = check(event, [])
+    assert result is not None
+    assert "edit_code" in result
+
+
+def test_structural_edit_keyword_must_be_a_whole_word():
+    """`default_value = 1` starts with the letters `def` but defines nothing."""
+    event = _make_event(
+        tool_name="mcp__codescout__edit_file",
+        tool_input={"path": "src/app.py", "new_string": "default_value = 1\nother = 2\n"},
+    )
+    assert check(event, []) is None
+
+
 def test_structural_edit_single_line_ok():
     """Single-line edits are fine — only multi-line triggers."""
     event = _make_event(
