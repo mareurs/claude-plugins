@@ -1,6 +1,6 @@
 ---
 kind: bug
-status: open
+status: fixed
 title: buddy's forgot-restore check keys on the retired activate_project tool, so it can never fire
 tags:
 - buddy
@@ -10,7 +10,8 @@ owner: marius
 severity: low
 opened: 2026-11-04
 moved_from: 'codescout:docs/issues/2026-11-04-buddy-forgot-restore-check-keys-on-retired-activate-project.md (catalog id 67ee3305dce3224c), moved 2026-11-09'
-unverified: The zero deliveries come from a subagent's transcript scan, not re-checked; the rename history was not traced; no fix applied, no test.
+unverified: Fixed and tested against recorded-shape events, not a live session. The 0-versus-275 counts are from 2026-11-04 and were not re-run; the mining subagent's zero-delivery scan was not re-checked.
+closed: 2026-11-09
 ---
 
 # BUG: buddy's forgot-restore check keys on the retired activate_project tool, so it can never fire
@@ -53,13 +54,22 @@ N/A — the counts settle it.
 
 ## Fix
 
-Not applied. Either key the check on `mcp__codescout__workspace` with `tool_input.action == "activate"` and update the text, or delete the check. Deleting needs a decision: the hint's rule (restore home between projects) is still true.
+Applied 2026-11-09: re-keyed, not deleted. The rule (restore home between projects) is still true, and `workspace(action="activate")` is called with foreign paths 275 times in the window the issue measured.
+
+- `buddy/scripts/cs_heuristics.py`: new public `is_workspace_activate(tool_name, tool_input)` is the one definition of "an activation". `_check_forgot_restore` uses it for the current event, and `_log_entry_is_activate` for log records. The log test compares whole `, `-separated parts of the `summarize_args` string, so a path that merely contains `action=activate` cannot match. The hint now reads ``Restore with `workspace(action="activate", path=".")` between projects``.
+- `buddy/scripts/hook_helpers.py`: the state tracker that sets `root_cwd` and `cs_active_project` keyed on the same retired name, so it had not run since the rename. The issue did not list it. It now uses `is_workspace_activate`, so both signals update again. Without this, the heuristic fix alone would have fallen back to `event["cwd"]`, which is the CC process directory and often not the project root.
+
+Not changed: `_args_look_like_home` still treats any `path=.` prefix as home, so `path=./sub` counts as a restore. Not measured here.
 
 ## Tests added
 
-N/A — no fix applied. A fix should add a test that feeds the check a recorded `workspace(activate)` event.
+`buddy/tests/test_cs_heuristics.py`: the five forgot-restore tests now build events and log records from `workspace(action="activate")`; the log records come from the real `summarize_args`, so the test cannot drift from the format the log writes. New: `test_forgot_restore_ignores_workspace_calls_that_are_not_activations` and `test_workspace_status_is_not_an_activation`. The `xfail(strict=True)` mark on the `forgot_restore` case is gone, and its `_TRIGGERS` entry sends a `workspace(activate)` event, so `test_every_tool_a_hint_names_is_a_current_codescout_tool[forgot_restore]` now passes for real.
 
-The tool-name test from the sibling bug exists since 2026-11-09: `buddy/tests/test_cs_heuristics.py::test_every_tool_a_hint_names_is_a_current_codescout_tool`. Its `forgot_restore` case is marked `xfail(strict=True)`, because this hint names `activate_project`. Either fix first turns `test_each_trigger_fires_a_hint[forgot_restore]` red, because the trigger in `_TRIGGERS` sends `activate_project` and stops firing. A re-key then needs a `workspace(activate)` trigger there; once its hint names only real tools, the strict mark fails the suite until it is removed. A delete removes the `_TRIGGERS` entry, and the marked case goes with it.
+`buddy/tests/test_hook_helpers.py`: `test_cs_active_project_clears_on_absolute_home_path` moved to `workspace(activate)`. New: `test_first_workspace_activate_sets_root_cwd_from_response` and `test_workspace_status_does_not_touch_cs_active_project`.
+
+Mutation check: making `_log_entry_is_activate` return `True` for every `workspace` record first survived all 40 tests, because the first version of the status test gave the same result with or without the filter. The test was rewritten so a `status` call sits between a restore and a new activation; the mutation then fails exactly that test.
+
+buddy pytest: 550 passed (was 545 passed, 1 xfailed).
 
 ## Workarounds
 
@@ -67,8 +77,7 @@ The `workspace` result already carries a note about returning to the home projec
 
 ## Resume
 
-1. Decide: re-key to `workspace(action="activate")` or delete.
-2. Add the recorded-event test.
+Nothing left for this bug. Not verified in a live session: no real `workspace(activate)` event was fed through the installed hook; the tests use recorded-shape events.
 
 ## References
 

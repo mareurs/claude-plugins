@@ -103,18 +103,21 @@ def test_forgot_restore_detected():
 
 
 def test_forgot_restore_ignores_workspace_calls_that_are_not_activations():
-    """workspace(action="status") between two activations is not a restore."""
+    """A workspace(action="status") after a restore is not a foreign activation.
+
+    The log's latest ACTIVATION is the restore, so the next foreign activation is
+    fine. If the check counted the status call as a prior activation, it would see
+    a non-home entry and wrongly warn."""
     log = [
         _activate_entry("/other"),
+        _activate_entry("."),
         _make_log_entry(
             tool="mcp__codescout__workspace",
             args=summarize_args({"action": "status"}),
         ),
-        _activate_entry("/another"),
+        _activate_entry("/new"),
     ]
-    result = check(_activate_event("/another"), log)
-    assert result is not None
-    assert "Iron Law 4" in result
+    assert check(_activate_event("/new"), log) is None
 
 
 def test_workspace_status_is_not_an_activation():

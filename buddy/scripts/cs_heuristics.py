@@ -114,18 +114,40 @@ def _args_look_like_home(args_summary: str, cwd: str) -> bool:
     return False
 
 
-def _check_forgot_restore(event: dict, session_log: list[dict], root_cwd: str = "") -> str | None:
-    """Detect a foreign activate_project when the previous one was also foreign.
+_WORKSPACE_TOOL = "mcp__codescout__workspace"
 
-    Pattern: warn only when the most recent prior activate_project was a foreign
+
+def is_workspace_activate(tool_name: str, tool_input) -> bool:
+    """True for a `workspace(action="activate")` call, the only call that moves
+    codescout's active project. `activate_project` was folded into it; other
+    `workspace` actions (`status`, `list_projects`) never change the project."""
+    return (
+        tool_name == _WORKSPACE_TOOL
+        and isinstance(tool_input, dict)
+        and tool_input.get("action") == "activate"
+    )
+
+
+def _log_entry_is_activate(entry: dict) -> bool:
+    """Same test for a cs_tool_log record, whose `args` is the summarize_args
+    string (`path=/x, action=activate`): compare whole comma-separated parts, so
+    a path that merely contains the text cannot match."""
+    if entry.get("tool") != _WORKSPACE_TOOL:
+        return False
+    return "action=activate" in str(entry.get("args", "")).split(", ")
+
+
+def _check_forgot_restore(event: dict, session_log: list[dict], root_cwd: str = "") -> str | None:
+    """Detect a foreign workspace(action="activate") when the previous one was also foreign.
+
+    Pattern: warn only when the most recent prior activation was a foreign
     path (meaning the user never restored home). First foreign activation and
     activations that follow a proper restore are both silent.
     """
-    tool = event.get("tool_name", "")
-    if tool != "mcp__codescout__activate_project":
+    tool_input = event.get("tool_input") or {}
+    if not is_workspace_activate(event.get("tool_name", ""), tool_input):
         return None
 
-    tool_input = event.get("tool_input") or {}
     path = tool_input.get("path", "")
 
     import os
@@ -133,19 +155,20 @@ def _check_forgot_restore(event: dict, session_log: list[dict], root_cwd: str = 
     if _is_home_path(path, cwd):
         return None  # this IS a restore — not a foreign activation
 
-    # Walk backwards to find the most recent activate_project before this one.
+    # Walk backwards to find the most recent activation before this one.
     for entry in reversed(session_log[:-1]):  # [:-1] excludes current entry
-        if entry.get("tool") == "mcp__codescout__activate_project":
+        if _log_entry_is_activate(entry):
             args = entry.get("args", "")
             if _args_look_like_home(args, cwd):
                 return None  # prior was a restore — user is cycling correctly
             # Prior was also foreign: user forgot to restore before switching again.
             return (
                 "You activated a foreign project without restoring home first. "
-                "Restore with `activate_project('.')` between projects — Iron Law 4."
+                "Restore with `workspace(action=\"activate\", path=\".\")` "
+                "between projects — Iron Law 4."
             )
 
-    # No prior activate_project in this session — first foreign activation, silent.
+    # No prior activation in this session — first foreign activation, silent.
     return None
 
 
