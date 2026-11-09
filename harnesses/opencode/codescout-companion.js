@@ -83,11 +83,14 @@
 // load, so registration is individually guarded and reports to stderr rather than
 // rejecting setup.
 
-import { spawn } from 'node:child_process';
 import { readFileSync, existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join, resolve } from 'node:path';
 import { homedir } from 'node:os';
+import { runHook, resolveRuntime, resolveDir, decisionOf } from './lib/host.mjs';
+
+// Re-exported so existing callers and the test suite keep one import site.
+export { runHook, resolveRuntime, resolveDir };
 
 // Self-locate. install.sh symlinks this file into the OpenCode plugin dir, and
 // import.meta.url resolves through the symlink to the real repo checkout — so the
@@ -99,8 +102,6 @@ const REPO = resolve(HERE, '..', '..');
 const HOOKS = join(REPO, 'codescout-companion', 'hooks');
 const GUARD = join(HOOKS, 'pre-tool-guard.mjs');
 const LIVENESS = join(HOOKS, 'cs-liveness.mjs');
-
-const HOOK_TIMEOUT_MS = 5000;
 
 // --- OpenCode's own "is codescout here", since detect.mjs reads Claude paths -------
 //
@@ -200,90 +201,16 @@ export function rehostReason(reason) {
 // which proves registration only. It is a blanket override inside detectFor(), so the
 // blast radius of passing it loosely is "native reads blocked in repos codescout does not
 // serve", which is what the first version of this file did.
-// Which binary runs the hook scripts. NOT blindly process.execPath: OpenCode ships as a
-// compiled Bun executable, so inside the host execPath is `opencode.exe` itself, and
-// spawning it with a script path ran `opencode <script>` — the CLI took the path as a
-// project dir, died with ENOTDIR, printed nothing, and every guard call failed OPEN.
-// Measured in opencode.log on 2.1.3. Under the unit tests execPath IS node, which is why
-// they never saw it. Order: explicit override → execPath when it really is node/bun →
-// `node` from PATH (install.sh already refuses to install without it).
-export function resolveRuntime(execPath = process.execPath, env = process.env) {
-  if (env.CS_COMPANION_NODE) return env.CS_COMPANION_NODE;
-  const base = String(execPath || '').split(/[\\/]/).pop().toLowerCase();
-  if (/^(node|nodejs|bun)(\.exe)?$/.test(base)) return execPath;
-  return 'node';
-}
-
-// A hook that cannot run must fail OPEN — but never SILENTLY: live bug #2 (the opencode
-// binary spawned as the interpreter) loaded clean, printed nothing and blocked nothing.
-// Each failure kind is reported once per process on stderr (which lands in opencode.log),
-// so a missing `node` on the service's PATH is visible instead of looking like "allowed".
-const reported = new Set();
-function reportOnce(kind, detail) {
-  if (reported.has(kind)) return;
-  reported.add(kind);
-  process.stderr.write(`codescout-companion: hook ${kind} — ${detail} (guard failing open)\n`);
-}
-
-// Async on purpose: the plugin runs inside the long-lived `opencode serve` process, and a
-// spawnSync there froze the event loop for EVERY session for the length of the hook.
-// CLAUDE_CONFIG_DIR is passed through unchanged: detect.mjs resolves Claude config via
-// `${CLAUDE_CONFIG_DIR:-$HOME/.claude}` (repo rule), and stripping it made a multi-profile
-// machine read the default profile instead of the one in use.
-export function runHook(script, payload, { forceArmed = false, runtime = resolveRuntime() } = {}) {
-  return new Promise((resolveP) => {
-    const env = { ...process.env };
-    if (forceArmed) env.CS_COMPANION_HOST_ARMED = '1';
-    let out = '';
-    let settled = false;
-    const done = (v) => {
-      if (!settled) {
-        settled = true;
-        resolveP(v);
-      }
-    };
-    let child;
-    try {
-      child = spawn(runtime, [script], { cwd: payload.cwd || process.cwd(), env, stdio: ['pipe', 'pipe', 'ignore'] });
-    } catch (e) {
-      reportOnce('spawn-failed', `${runtime}: ${e?.message || e}`);
-      return done(null);
-    }
-    const timer = setTimeout(() => {
-      reportOnce('timeout', `${script} exceeded ${HOOK_TIMEOUT_MS} ms`);
-      try {
-        child.kill();
-      } catch {
-        /* already gone */
-      }
-      done(null);
-    }, HOOK_TIMEOUT_MS);
-    child.on('error', (e) => {
-      clearTimeout(timer);
-      reportOnce('spawn-failed', `${runtime}: ${e?.message || e}`);
-      done(null);
-    });
-    child.stdout.on('data', (d) => {
-      if (out.length < 1 << 20) out += d;
-    });
-    child.on('close', (code, signal) => {
-      clearTimeout(timer);
-      // The hooks' contract is "always exit 0"; anything else is a crash, not a decision.
-      if (code !== 0) reportOnce('crashed', `${script} exited ${code ?? signal}`);
-      const text = out.trim();
-      if (!text) return done(null);
-      try {
-        done(JSON.parse(text));
-      } catch {
-        reportOnce('bad-output', `${script} printed non-JSON`);
-        done(null);
-      }
-    });
-    child.stdin.on('error', () => {
-      /* hook exited before reading stdin — its exit code tells the story */
-    });
-    child.stdin.end(JSON.stringify(payload));
-  });
+// A connection-level failure, as opposed to an error the server itself returned. Matched on
+// the host's own wording ("Connection closed: MCP server process exited with code 1",
+// measured in opencode.log on 2.1.3) plus the usual socket errors.
+const TRANSPORT_FAILURE = /connection closed|process exited|not connected|disconnected|ECONNREFUSED|ECONNRESET|EPIPE|transport (error|closed)/i;
+export function answeredByServer(event) {
+  if (event?.status === 'completed') return true;
+  if (event?.status !== 'error') return false;
+  const e = event.error;
+  const text = typeof e === 'string' ? e : `${e?.message ?? ''} ${e?._tag ?? ''} ${(() => { try { return JSON.stringify(e); } catch { return ''; } })()}`;
+  return !TRANSPORT_FAILURE.test(text);
 }
 
 // The native tools pre-tool-guard has a branch for, in OpenCode spelling (v1 and v2 names).
@@ -291,14 +218,6 @@ export function runHook(script, payload, { forceArmed = false, runtime = resolve
 // the same filter here, every todowrite/webfetch/skill call paid a node start-up for a
 // guard that exits 0 on it.
 export const GUARDED_TOOLS = new Set(['read', 'grep', 'glob', 'bash', 'shell', 'edit', 'patch', 'apply_patch', 'write']);
-
-function decisionOf(payload) {
-  const h = payload?.hookSpecificOutput;
-  if (!h) return null;
-  if (h.permissionDecision === 'deny') return { deny: h.permissionDecisionReason || 'blocked' };
-  if (h.additionalContext) return { context: h.additionalContext };
-  return null;
-}
 
 // Advice waiting to be attached to the call that triggered it. Bounded, so a session
 // that ends before execute.after fires cannot grow without limit.
@@ -356,25 +275,6 @@ function systemBlock(directory) {
     // No project prompt. The routing block alone still carries the value.
   }
   return project ? `${OPENCODE_ROUTING}\n\n## Project system prompt\n\n${project}` : OPENCODE_ROUTING;
-}
-
-// Which project this bridge speaks for. Measured on the 2.1.3 binary: the setup shim
-// (`pZ`) builds ctx as `{app, location, options, agent, …, worktree: {list, …}, …}`, and
-// the host's own internal plugins read `e.location.directory`. So `location.directory`
-// comes first — and every candidate must be a STRING, because v2 ctx carries API groups
-// under names that used to be paths: `ctx.worktree` is the worktree *API*, an object.
-// Returning it crashed setup with `ERR_INVALID_ARG_TYPE: "paths[0]" … got object` the
-// first time the plugin got past the loader. The older v1 keys stay as fallbacks only.
-export function resolveDir(ctx) {
-  const c = ctx || {};
-  const candidates = [
-    c.location?.directory,
-    c.location?.worktree,
-    c.directory,
-    c.worktree,
-    c.app?.directory,
-  ];
-  return candidates.find((v) => typeof v === 'string' && v.length > 0) || process.cwd();
 }
 
 // The behaviour, with the host's registration calls stripped out. Everything the test
@@ -465,11 +365,13 @@ export function buildBridge(dir) {
       // name it was written against: feeding it `codescout_symbols` would leave the
       // breaker never clearing, and the guard would stand down after three blocks and
       // stay down — a silent loss of the whole feature.
-      // Only a call that COMPLETED is proof of life. A transport failure on a server that
-      // died mid-session still fires execute.after (status "error"); counting it would reset
-      // the breaker on every failed redirect, so the guard would never stand down — the
-      // exact deadlock the breaker exists to break. Not awaited: nothing depends on it.
-      if (bare && event?.status === 'completed' && existsSync(LIVENESS)) {
+      // Proof of life is "the codescout server is REACHABLE", the rule lib.mjs's breaker
+      // documents: "An error payload still counts". So a codescout call that ended in an
+      // ordinary error (file not found, bad args) counts. What must NOT count is a
+      // connection failure: a server that died mid-session still fires execute.after with
+      // status "error", and counting that would reset the breaker on every failed redirect,
+      // so the guard would never stand down (code review, 2026-11-09). Not awaited.
+      if (bare && answeredByServer(event) && existsSync(LIVENESS)) {
         void runHook(LIVENESS, {
           hook_event_name: 'PostToolUse',
           tool_name: `mcp__codescout__${bare}`,

@@ -208,7 +208,7 @@ plain-text read, image exemption (extension-based — `isBinaryImage` is
 project-config arming, user-config **non**-arming, self-call never self-blocks, malformed
 events ignored, `resolveDir` ignoring non-string ctx keys, `resolveRuntime` never picking
 the host binary, stand-down advice delivered on the v2 `result.content` shape, only a
-*completed* codescout call clearing the breaker, only the guarded native tools reaching the
+codescout call clearing the breaker unless it failed on the connection, only the guarded native tools reaching the
 guard, the `block_reads: false` opt-out surviving host arming, spawn failures reported on
 stderr, and `CLAUDE_CONFIG_DIR` reaching the hooks. The user-config case and the last five
 are mutation-checked. The suite runs in a throwaway `TMPDIR`/`XDG_STATE_HOME`, so it leaves
@@ -251,9 +251,12 @@ regression test now:
 
 - Host arming forced `BLOCK_READS`, which overrode a project's `block_reads: false`
   opt-out. It now forces presence only.
-- A *failed* codescout call counted as proof of life, so a server that died mid-session
-  reset the breaker on every failed redirect and the guard never stood down. Only
-  `status: "completed"` counts now.
+- A codescout call that failed on the **connection** counted as proof of life, so a server
+  that died mid-session reset the breaker on every failed redirect and the guard never
+  stood down. Now a connection failure (`Connection closed`, `process exited`,
+  `ECONNREFUSED`, …) does not count, while a completed call or an error the server itself
+  returned still does: that is the breaker's documented rule ("an error payload still
+  counts — what is measured is whether the tool surface is REACHABLE").
 - A hook that could not start (e.g. no `node` on the service's PATH) failed open with no
   trace. Spawn failures, crashes, timeouts and non-JSON output are now reported once each
   on stderr, which ends up in `opencode.log`.

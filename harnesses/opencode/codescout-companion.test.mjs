@@ -500,19 +500,26 @@ try {
     }
   });
 
-  // Fix 2 (review): a FAILED codescout call is not proof of life. Counting it reset the
-  // breaker on every failed redirect, so a server that died mid-session never let the guard
-  // stand down.
-  await ok('only a COMPLETED codescout call clears the circuit breaker', async () => {
+  // Proof of life = "the server is REACHABLE" (lib.mjs breaker rule: "An error payload
+  // still counts"). A server-returned error counts; a CONNECTION failure must not, or a
+  // server that died mid-session resets the breaker forever (code review, 2026-11-09).
+  await ok('a connection failure does not clear the breaker; a server error or success does', async () => {
     const b = bridge();
+    const waitGone = async (f) => { for (let i = 0; i < 50 && existsSync(f); i++) await new Promise((r) => setTimeout(r, 100)); };
     const sid = SID('pol');
     const bf = breakerFile(sid);
     writeFileSync(bf, '1\tread_file');
-    await b.onToolAfter({ tool: 'codescout_read_file', sessionID: sid, id: 'p1', status: 'error', error: 'transport' });
+    await b.onToolAfter({ tool: 'codescout_read_file', sessionID: sid, id: 'p1', status: 'error',
+      error: { message: 'Connection closed: MCP server process exited with code 1' } });
     await new Promise((r) => setTimeout(r, 1500));
-    assert.ok(existsSync(bf), 'an errored call must leave the breaker alone');
-    await b.onToolAfter({ tool: 'codescout_read_file', sessionID: sid, id: 'p2', status: 'completed', result: { content: [] } });
-    for (let i = 0; i < 50 && existsSync(bf); i++) await new Promise((r) => setTimeout(r, 100));
+    assert.ok(existsSync(bf), 'a transport failure must leave the breaker alone');
+    await b.onToolAfter({ tool: 'codescout_read_file', sessionID: sid, id: 'p2', status: 'error',
+      error: { message: 'path not found: nope.rs' } });
+    await waitGone(bf);
+    assert.ok(!existsSync(bf), 'a server-returned error proves the server is reachable');
+    writeFileSync(bf, '1\tread_file');
+    await b.onToolAfter({ tool: 'codescout_read_file', sessionID: sid, id: 'p3', status: 'completed', result: { content: [] } });
+    await waitGone(bf);
     assert.ok(!existsSync(bf), 'a completed call must clear the breaker');
   });
 
