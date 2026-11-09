@@ -4,7 +4,7 @@ export const EVENTS=["request-observed","dispatch-observed","result-observed","h
 export const OUTCOMES=["requested","dispatched","returned-success","refused","error-possible-effects","missing-terminal","unknown"];
 export const DIAGNOSTICS=["missing-root","invalid-context","context-conflict","unsupported-tool","unsupported-event","incomplete-input","opaque-effects","missing-terminal","unavailable","disabled","quota","torn-record","checksum","sequence-gap","conflicting-duplicate","ambiguous-pair","incompatible-schema","checkout-mismatch","reset","unsupported-fingerprint"];
 export const TOOLS=["create_file","edit_file","edit_code","run_command","read_file","symbols","grep","semantic_search","workspace","doc","memory","find_file","references","call_graph","symbol_at","get_guide","onboarding","index","execute","exec_command","shell","code_mode"];
-const FIELDS=["schema_version","observation_id","producer_instance","sequence","store_epoch","event","producer_kind","workspace","caller","tool","local_invocation","native_call_id","turn_id","fingerprints","targets","outcome","diagnostics"];
+const FIELDS=["schema_version","observed_at_unix_ms","observation_id","producer_instance","sequence","store_epoch","event","producer_kind","workspace","caller","tool","local_invocation","native_call_id","turn_id","fingerprints","targets","outcome","diagnostics"];
 const object=v=>v!==null && typeof v==='object' && !Array.isArray(v);
 const fail=()=>{throw new Error('invalid observation');};
 const exact=(v,keys)=>{if(!object(v)||Object.keys(v).sort().join('|')!==[...keys].sort().join('|')) fail();};
@@ -33,11 +33,11 @@ export function canonicalJson(value,depth=0){
 export function fingerprint(value){return {domain:'canonical-json-safe-v1',digest:createHash('sha256').update(canonicalJson(value)).digest('hex')};}
 function validateFingerprint(v){exact(v,['domain','digest']);if(!['canonical-json-safe-v1','bytes-v1'].includes(v.domain)||! /^[0-9a-f]{64}$/.test(v.digest))fail();}
 export function validateObservation(v){
- exact(v,FIELDS);
- if(v.schema_version!==1||!safe(v.sequence))fail();
- text(v.observation_id);uuid(v.producer_instance);uuid(v.store_epoch);path(v.workspace);
+ exact(v,Object.hasOwn(v,'native_cwd')?[...FIELDS,'native_cwd']:FIELDS);
+ if(v.schema_version!==1||!safe(v.sequence)||!safe(v.observed_at_unix_ms))fail();
+ text(v.observation_id);uuid(v.producer_instance);uuid(v.store_epoch);path(v.workspace);if(Object.hasOwn(v,'native_cwd'))optional(v.native_cwd,path);
  if(!EVENTS.includes(v.event)||!['codex-hook','codescout-server'].includes(v.producer_kind)||!OUTCOMES.includes(v.outcome))fail();
- exact(v.caller,['harness','principal','thread_id','agent_id']);if(v.caller.harness!=='codex')fail();
+ exact(v.caller,['harness','principal','thread_id','agent_id']);if(!['codex','unknown'].includes(v.caller.harness)||(v.producer_kind==='codex-hook'&&v.caller.harness!=='codex')||(v.caller.harness==='unknown'&&['principal','thread_id','agent_id'].some(k=>v.caller[k]!==null)))fail();
  optional(v.caller.principal,s=>{text(s);if(!s.startsWith('codex:')||s.length===6)fail();});
  optional(v.caller.thread_id);optional(v.caller.agent_id);
  optional(v.tool,s=>{if(!TOOLS.includes(s))fail();});optional(v.local_invocation);optional(v.native_call_id);optional(v.turn_id);
@@ -52,19 +52,19 @@ export function normalizeHookObservation(payload,event,workspace){
  const diagnostic=d=>({diagnostic:d});
  if(!object(payload)||payload.session_id===undefined||payload.session_id==='')return diagnostic('missing-root');
  try{
-   text(payload.session_id);if(payload.agent_id!=null)text(payload.agent_id);
+   path(payload.cwd);text(payload.session_id);if(payload.agent_id!=null)text(payload.agent_id);
    if(payload.turn_id!=null)text(payload.turn_id);if(payload.tool_use_id!=null)text(payload.tool_use_id);
    const normalized=normalizeHookContext('codex',payload,workspace);
    if(normalized.state!=='available')return diagnostic('invalid-context');
    const context=normalized.context;
-   const eventKind=event==='PreToolUse'?'hook-pre':event==='PostToolUse'?'hook-post':['SessionStart','SessionEnd','Stop','SubagentStart','SubagentStop','PreCompact','PostCompact'].includes(event)?'lifecycle':null;
+   const eventKind=event==='PreToolUse'?'hook-pre':event==='PostToolUse'?'hook-post':['SessionStart','SessionEnd','Stop','SubagentStart','SubagentStop','PreCompact','PostCompact','Interrupt'].includes(event)?'lifecycle':null;
    if(!eventKind)return diagnostic('unsupported-event');
    const rawTool=typeof payload.tool_name==='string'?payload.tool_name.replace(/^mcp__codescout__/,''):null;
    const tool=TOOLS.includes(rawTool)?rawTool:null;
    const diagnostics=rawTool&&!tool?['unsupported-tool']:[];
    const fingerprints=[];
    if(Object.hasOwn(payload,'tool_input')){try{fingerprints.push(fingerprint(payload.tool_input));}catch{diagnostics.push('unsupported-fingerprint');}}
-   return {schema_version:1,event:eventKind,producer_kind:'codex-hook',workspace:context.workspace,
+   return {schema_version:1,event:eventKind,producer_kind:'codex-hook',workspace:context.workspace,native_cwd:payload.cwd,
      caller:{harness:'codex',principal:'codex:'+context.session_id,thread_id:context.agent_id,agent_id:context.agent_id},
      tool,local_invocation:null,native_call_id:payload.tool_use_id??null,turn_id:payload.turn_id??null,
      fingerprints,targets:[],outcome:'unknown',diagnostics};

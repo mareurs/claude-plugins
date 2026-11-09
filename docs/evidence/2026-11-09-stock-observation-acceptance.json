@@ -1,0 +1,175 @@
+{
+  "date": "2026-11-09",
+  "adapter_sha256": "5ed6adbfd1714654f920846f1802e8a339d357422c450b7ecc02c4795747afa3",
+  "completed_native_exec_call_output_keys": [
+    {
+      "call_id": "call_2e8e6b80c1644b8bba0a8f807a20094e",
+      "turn_id": "01a1c060-56d4-7a72-aa69-267d89e3bb27",
+      "input_sha256": "b76c7ad1a5ca5b672bd1a557904ca09b03f2c8fc04a73acd397c5f3f2e6ab896"
+    },
+    {
+      "call_id": "call_7677bc089d424dc8b2184fed9f0d787d",
+      "turn_id": "01a1c061-5f0c-7bc2-9c4e-1dc143dc7c23",
+      "input_sha256": "bf26b01ca36beefd903cfcc1996feb89c3cf4adf929f78177930a01a37604f6c"
+    },
+    {
+      "call_id": "call_829d1e064dc94d27ab03f632bfd11f90",
+      "turn_id": "01a1c061-47eb-7e53-b309-2b0fdc5e7eba",
+      "input_sha256": "5ba7974a1d1e9b88853f92530f9ae3968e41fdb9dc8621e306cfbf002b6cf8ea"
+    },
+    {
+      "call_id": "call_aabd6c2f1bc449658c5ba33d9e95cb0a",
+      "turn_id": "01a1c060-95e3-7560-ae15-3008eaa8dbae",
+      "input_sha256": "d118e04930f2b9e90ad6d4a217acdb9663926900f1437816b289c905fc7a6e31"
+    },
+    {
+      "call_id": "call_c2fbc2223ded4929a3c9b0eff4fca939",
+      "turn_id": "01a1c060-c672-7c92-a2eb-01892868d657",
+      "input_sha256": "8642aaa5029c7caecce4269e1afc3642ed57bfd3f4dde3a44d1bdff5c56fb75b"
+    },
+    {
+      "call_id": "call_e02c1632ba494456849df587aedd5a6c",
+      "turn_id": "01a1c061-734e-7c10-b238-62601a0aa2d3",
+      "input_sha256": "a2816107f6b02e22ea24001bbb092fc72509646183bb3899364641b1ea647cd6"
+    },
+    {
+      "call_id": "call_e379c4b45f6c42dca4fe83b50f8a2039",
+      "turn_id": "01a1c060-7675-7020-bd6e-dc919019dde2",
+      "input_sha256": "7775e1c64f133d894fa667e0c67f1b7c0c2a8186bc4cc7d44aaee7333cac339a"
+    },
+    {
+      "call_id": "call_e820621fff78436f810bed4ab03cec12",
+      "turn_id": "01a1c061-2e42-76c2-b4e9-e01b85d839a3",
+      "input_sha256": "0048f8739a091991c6f8be95036301292fa9fac96e1cc6510e936bfc59d61122"
+    }
+  ],
+  "package": "openai-codex 0.167.0-1",
+  "code_mode_host_sha256": "ca8dfd283eb7f21028b408611e4fdaa467a1339edc1f1d90f3494d6710378b28",
+  "kind": "stock-observation-native-acceptance",
+  "codex_version": "codex-cli 0.167.0",
+  "codex_binary_sha256": "7e63ca6fc6e368fe64e8c48e0e5a8c485d868830232f7ab4c023a0ef26daa926",
+  "codescout_binary_sha256": "c122901212fcacd65d1d844d23406b733f46b4b512cfd3415156e676adfaa597",
+  "routes": {
+    "untrusted_hooks": {
+      "effect": true,
+      "hook_records": false,
+      "native_root": "01a1c060-5528-7c70-a8a8-21bc5acf5b97"
+    },
+    "resume_nested_code_mode": {
+      "effect": true,
+      "root": "codex:01a1c060-5528-7c70-a8a8-21bc5acf5b97",
+      "thread": "01a1c060-5528-7c70-a8a8-21bc5acf5b97",
+      "paired_hook": true
+    },
+    "direct_api": {
+      "effect": true,
+      "root": null,
+      "thread": "01a1c060-5528-7c70-a8a8-21bc5acf5b97",
+      "call_id": null
+    },
+    "fork": {
+      "effect": true,
+      "root": "codex:01a1c060-95bc-7a82-930a-488a88ebc499",
+      "thread": "01a1c060-95bc-7a82-930a-488a88ebc499"
+    },
+    "child": {
+      "effect": true,
+      "root": "codex:01a1c060-5528-7c70-a8a8-21bc5acf5b97",
+      "thread": "01a1c060-c655-7af3-8f99-a528d09510cf"
+    },
+    "compaction": {
+      "completed": true,
+      "later_effect": true,
+      "root": "codex:01a1c060-5528-7c70-a8a8-21bc5acf5b97",
+      "hook_events": [
+        "postCompact",
+        "postToolUse",
+        "preCompact",
+        "preToolUse",
+        "sessionStart",
+        "stop"
+      ]
+    },
+    "refusal": {
+      "bytes_preserved": true,
+      "server_refusal_observed": true
+    },
+    "cancellation": {
+      "start_effect": true,
+      "missing_terminal": true,
+      "descendant_termination_proved": false
+    },
+    "crashed_hook": {
+      "effect": true,
+      "root": "codex:01a1c060-5528-7c70-a8a8-21bc5acf5b97"
+    },
+    "native_shell": {
+      "effect": true,
+      "root": "codex:01a1c062-3158-72c3-ae81-98a701017834",
+      "hook_only": true,
+      "enumerated_targets": false,
+      "uncertainty_retained": true
+    }
+  },
+  "capture_records": 80,
+  "positive_write_facts": 7,
+  "host_dispatch_overlap": "unverified; no overlap instrumented in this run",
+  "trust_method": "reviewed own definitions; native hooks/list hashes persisted through native config/batchWrite and reverified, no bypass flag",
+  "live_profiles_modified": false,
+  "installed_binary_replaced": false,
+  "copied_auth_removed": true,
+  "coverage": "unknown",
+  "scope": "Source acceptance in isolated temporary homes/checkout; live-profile deployment remains future work.",
+  "controlled_tests": {
+    "native_component_cases": 6,
+    "rust_observation_cases": 20,
+    "rust_store_cases": 16,
+    "rust_capture_time_cases": 1,
+    "python_contract_reconciliation_harness_cases": 75,
+    "formatter_regression_checks": 56,
+    "buddy_tests": 534
+  },
+  "independent_review": {
+    "verdict": "accepted at source level after fixes; no outstanding findings",
+    "initial_mutation_candidates": 6,
+    "initial_killed": 5,
+    "initial_survived": 1,
+    "compile_failures_counted_as_kills": 0,
+    "survivor_followup": {
+      "unmutated_passed": 1,
+      "mutated_failed": 1,
+      "restored_focused_passed": 21
+    },
+    "report_sha256": "3e285d65683aa5f493fa63647eff48df25d11579d197390949c0c03cbfd3200f"
+  },
+  "final_gates": {
+    "plugin_run_all": "passed",
+    "registration": "passed",
+    "codescout": {
+      "FMT": 0,
+      "CLIPPY": 0,
+      "LEAN": 0,
+      "DEFAULT": 0,
+      "PYTHON_LIGHT": 0
+    },
+    "formatter": {
+      "passed": 56,
+      "failed": 0
+    }
+  },
+  "verification_log_sha256": {
+    "stock-plugin-final-verified.log": "7e0d1b26dc23694890cd4e3cc31108141f5a8921637d4796f8b9eac77b9b1993",
+    "stock-codescout-final-verified.log": "2690cd40e3fbf39316ccb01838c22b9bdb99c0e350838aa23a0ef6651a333a20",
+    "stock-final-native-components.log": "9e0be01783c49a3c2be78a5b1ad172fd07aa52eed4bb97afc529e7ae1ad25411",
+    "stock-fmt-final-verified.log": "a637b4f06aae941cd46a058ed88442824c9fd8ff94729c4e3e2d94c259a06db6",
+    "stock-buddy-final.log": "1777f9e72140115e9b5c868a5465fcab5c7f1082bfd0f230cdbabd1466c7834e",
+    "stock-registration-final.log": "21b3af33ea56fa011c6604ec6d8988c09fda33e525f0b50abec175655b67fa13"
+  },
+  "spec_drift": {
+    "artifact": "57ada03063a50be6",
+    "verdict": "source GO",
+    "atomic_checks": 37,
+    "missing": 0,
+    "divergent": 0
+  }
+}

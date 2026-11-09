@@ -8,7 +8,7 @@ The pure [hook adapter](../hooks/session-context.mjs) accepts an explicitly iden
 node codescout-companion/scripts/session-context.mjs --harness claude-code --workspace /absolute/checkout < hook-payload.json
 ```
 
-This adapter adds no hook registration, stdout event, permission policy, or change to `principal-stamp.mjs`. Its native Codex hook registration remains pending; native MCP context reaches Codescout commands independently, as recorded below.
+This adapter adds no hook registration, stdout event, permission policy, or change to `principal-stamp.mjs`. A separate source-only stock Codex observation registration is described below; native MCP context reaches Codescout commands independently.
 
 ## Codescout consumers
 
@@ -72,3 +72,37 @@ The implementation [review](../../../docs/reviews/2026-10-10-harness-neutral-ses
 The [capture manifest](../contracts/fixtures/native-histories/manifest.json) records actual commands and limits. Process exit 0 did not mean the requested tool ran: native routing refused the captured requests, and Claude's capture surface lacked Bash. These versions are observations, not a supported minimum or range. Successful authored formatting and installed-hook acceptance remain pending. No profile/cache changes or permission bypass were used.
 
 See the [smoke procedure](../../../tests/scenarios/harness-neutral-session-identity-smoke.md). Run `CODESCOUT_CONTRACT_ROOT=/absolute/codescout bash tests/test-session-context-contract.sh` to verify packaged agreement. An absent automatic sibling is reported as skipped, not compatible.
+
+## Stock Codex operation observations — source integration
+
+This route uses stock Codex hooks and native MCP metadata. It does not patch the Codex executable installed through yay. The initial native spike measured Linux Codex 0.167.0; that is an observed version, not a supported minimum. The shared Claude hooks and session-context v1 contract are unchanged.
+
+Capture is **off by default for each Git checkout**. With a matching Codescout binary, explicit operator opt-in is:
+
+```sh
+codescout observations enable --workspace /absolute/checkout --json
+codescout observations status --workspace /absolute/checkout --json
+codescout observations disable --workspace /absolute/checkout --json
+python3 /path/to/codescout/scripts/inspect-observations.py --workspace /absolute/checkout --json
+```
+
+Disabling leaves prior evidence readable. Do not delete or reset the journal to obtain formatter clearance. Capture uses private directories (0700), regular files (0600), no-follow opens, bounded records (64 KiB), shards (8 MiB), and a checkout budget (64 MiB). The initial filesystem support is Linux ext/tmpfs/btrfs/xfs/overlay. Atomic expected producer sequence counts detect missing entire shards; metadata and temporary control replacement bytes count toward the quota. A private write-once marker, `codescout-observation-policy-v1.json`, lives in the actual per-checkout Git directory; it preserves reset uncertainty when journal files disappear. Linked checkouts have separate markers and epochs. The source v1 store control now requires this bounded sequence registry; older/incomplete control files are unavailable. This is cooperative local evidence, not protection against an account owner deleting all Git metadata or recreating a checkout.
+
+Render a candidate hook configuration for review:
+
+```sh
+node scripts/render-codex-observation-hooks.mjs --plugin-root /absolute/profile/cache/codescout-companion/source --codescout /absolute/codescout --existing /absolute/hooks.json
+node scripts/render-codex-observation-hooks.mjs --plugin-root /absolute/profile/cache/codescout-companion/source --codescout /absolute/codescout --capabilities
+```
+
+The renderer only prints JSON. It merges unrelated hooks and reports contract version 1 plus a fingerprint of the adapter and its source dependencies. `available` describes source/executable presence; `runtime_verified: false` explicitly requires an installed runtime check. It does not write profiles, install plugins, enable the host hook feature, trust hashes, or reload processes. The source template `codex/observation-hooks.json` contains a renderer placeholder and is not a directly installed configuration.
+
+For future deployment, inspect the merged JSON, opt into stock hooks, review and trust it through the stock Codex trust flow, then cold-load/reload and verify a real isolated write. Repeat acceptance separately for each existing profile (`~/.Codex`, `~/.Codex-sdd`, `~/.Codex-kat`); each install path must remain inside that profile's own cache. Missing or case-distinct profiles are not implicitly created. This feature's source work performs no live profile installation or version bump.
+
+The hook adapter resolves its working directory to the actual Git checkout with a bounded 200 ms argv-only Git query, including invocation from nested directories. It reads at most 4 MiB of native stdin, has a bounded input wait, sends a normalized record to the local CLI with argv/stdin, and kills an overdue CLI after 1500 ms. Host registrations have a 3-second timeout. Every recording outcome returns neutral `{}`; the adapter never changes permissions or tool input. No raw bodies, command text, results, prompts, reasoning, environment or credentials are persisted. Native root, executing child/thread, call and turn remain separate. The optional bounded `native_cwd` path retains the raw native hook/turn cwd separately from canonical `workspace`; absence remains unknown. Capture time is diagnostic only and never establishes causal order.
+
+Server observations retain supported actual replacement facts using resolved target paths and the bytes supplied at the write boundary. Missing terminal results and contradictory results retain explicit uncertainty. Errors or cancellation can coexist with committed facts; post-hook refusal does not erase an effect. Arbitrary shell/Code Mode effects remain opaque. Hooks pair only with a unique compatible full native key and a comparable fingerprint; repeated calls remain distinct. A missing root is unknown and a lone thread never supplies it. A foreign MCP client remains an unknown harness.
+
+The Python inspector is read-only and always reports `coverage: unknown`. Hash-only facts remain separate from rich history bodies and experimental checkpoints. They never discharge existing coverage gaps, create content evidence, or grant formatting permission. A positive foreign writer can restrict an existing verdict; missing, corrupt, quota-limited or reset evidence adds uncertainty.
+
+The current stock hook review model is documented in [official OpenAI documentation](https://learn.chatgpt.com/docs/hooks). The private native acceptance uses freshly returned hooks/list hashes, reviewed against its own rendered commands, with config/batchWrite persistence; it never uses a trust-bypass flag.

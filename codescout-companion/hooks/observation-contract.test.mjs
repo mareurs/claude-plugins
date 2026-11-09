@@ -33,3 +33,21 @@ test('hook normalizer reuses native origin and preserves root vs child',()=>{
   assert.equal(normalizeHookObservation({cwd,session_id:'root',agent_id:7},'PreToolUse',cwd).diagnostic,'invalid-context');
   assert.equal(normalizeHookObservation({cwd:'/somewhere-else',session_id:'root'},'PreToolUse',cwd).diagnostic,'invalid-context');
 });
+
+test('a foreign client can only remain an unknown harness with no principal',()=>{
+ const r={...fixtures.record,caller:{harness:'unknown',principal:null,thread_id:null,agent_id:null}};
+ assert.equal(validateObservation(r).caller.harness,'unknown');
+ assert.throws(()=>validateObservation({...r,caller:{...r.caller,principal:'codex:root'}}));
+ assert.throws(()=>validateObservation({...r,producer_kind:'codex-hook'}));
+});
+
+test('raw native cwd is optional, bounded and distinct from canonical checkout',()=>{
+ for(const cwd of [null,'/repo/src/../nested']){
+  const record={...fixtures.record,native_cwd:cwd};
+  assert.equal(validateObservation(record).native_cwd,cwd);
+  assert.equal(record.workspace,fixtures.record.workspace);
+ }
+ for(const cwd of ['relative/path','/bad'+String.fromCharCode(0)+'cwd','/'+ 'a'.repeat(4096),42])assert.throws(()=>validateObservation({...fixtures.record,native_cwd:cwd}));
+ const payload={session_id:'root',cwd:tmpdir(),hook_event_name:'PreToolUse'};
+ assert.equal(normalizeHookObservation(payload,'PreToolUse',tmpdir()).native_cwd,payload.cwd);
+});
