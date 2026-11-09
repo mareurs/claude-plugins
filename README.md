@@ -23,7 +23,7 @@ codex plugin add cs-hint-codex@sdd-misc-plugins
 codex mcp add codescout -- codescout start
 ```
 
-Codex never runs a plugin hook before you approve it, and installing the plugin does not approve it. Until then no advisory reaches the model and Codex shows no error. Start Codex and review the one hook of `cs-hint-codex` in its hooks review (`/hooks`). The approval holds until the plugin's own files change, so a new version of the plugin asks for it again.
+Codex never runs a plugin hook before you approve it, and installing the plugin does not approve it. The interactive `codex` asks at its next start ("Hooks need review"): choose "Review hooks" and press `t` to trust all, or choose "Trust all and continue". The same screen opens later with `/hooks` (Codex documents it; not tried here). Non-interactive runs (`codex exec`, an app-server client) show no prompt and run no unapproved hook. The advisories go to the model, not to your screen. The approval holds until the plugin's own files change, so a new version of the plugin asks for it again.
 
 ## Available Plugins
 

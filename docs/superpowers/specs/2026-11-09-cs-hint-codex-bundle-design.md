@@ -4,7 +4,7 @@ Date: 2026-11-09. Status: first version built and measured (see Results). Codex 
 
 ## Problem
 
-Codex runs a plugin hook only after the user has approved it, and the approval is bound to the plugin's content. A new user who installs `buddy` or `codescout-companion` gets 5 or 27 hooks in state `untrusted`: no hook runs, no `[cs-hint]` reaches the model, and Codex shows no error. Measured 2026-11-09 on a clean `CODEX_HOME` (`codex plugin add buddy@sdd-misc-plugins`: 5 hooks `untrusted`, 0 hook runs, turn completed).
+Codex runs a plugin hook only after the user has approved it, and the approval is bound to the plugin's content. A new user who installs `buddy` or `codescout-companion` gets 5 or 27 hooks in state `untrusted`: no hook runs and no `[cs-hint]` reaches the model. Headless runs (`codex exec`, an app-server client) show no error and no prompt. The interactive TUI asks at its next start ("Hooks need review", measured 2026-11-10, see Results). Measured 2026-11-09 on a clean `CODEX_HOME` (`codex plugin add buddy@sdd-misc-plugins`: 5 hooks `untrusted`, 0 hook runs, turn completed).
 
 Facts this design rests on (Codex source at rust-v0.167.0 read by a subagent, plus the plugin docs; memory `research/hint-visibility-channels-20261109`):
 
@@ -60,5 +60,17 @@ What this shows, and what it does not:
 - The surface to approve shrinks from 27 hooks to 1, and the approval survived a reinstall of the same bytes. One edit inside the root cancels it, as the source says.
 - A trust error on a `PostToolUse` hook did not stop the tool call here (n = 1). `PreToolUse` guard hooks were not measured; their behaviour on a trust error is not known.
 - Codex expanded `${CLAUDE_PLUGIN_ROOT}` in the hook command.
-- Not tested: a real user's `/hooks` review, the Windows launcher, a thread with the codescout MCP server (the `mcp__codescout__.*` half of the matcher), a second approval after a `scripts/sync-cs-hint-codex.sh` refresh. One earlier step-A run did not complete within 300 s with 0 hook runs; the repeat completed in 6 s and the cause was not found.
+- Tested later: the `mcp__codescout__.*` half of the matcher on a clean `CODEX_HOME` with `codex mcp add codescout` (2 MCP calls, 2 hook runs, one `[cs-hint]`; local-path and GitHub marketplace), and the real approval in the interactive TUI (below).
+- Not tested: the Windows launcher, a second approval after a `scripts/sync-cs-hint-codex.sh` refresh, the `/hooks` command typed by hand. One earlier step-A run did not complete within 300 s with 0 hook runs; the repeat completed in 6 s and the cause was not found.
 - The hint text is whatever `buddy` has at the time of the sync. At the first measurement a peer had just changed several heuristics in `buddy`; this bundle carries that newer version, while the Codex cache of `buddy` itself is still on the older one.
+
+
+### Interactive TUI check (2026-11-10)
+
+A clean `CODEX_HOME` (GitHub marketplace, `codex plugin add cs-hint-codex@sdd-misc-plugins`), Codex 0.167.0 started in a `tmux` pane (`codex --no-alt-screen`, scratch directory), screen read with `tmux capture-pane`.
+
+- First screen at start: "Hooks need review. 1 hook is new or changed. Hooks can run outside the sandbox after you trust them." with three choices: 1 Review hooks, 2 Trust all and continue, 3 Continue without trusting (hooks won't run). So an interactive user is asked, unlike a headless run.
+- "Review hooks" opens the Hooks screen, a table by event: `PostToolUse  Installed 1  Active 0  Review 1`, footer "t trust all · enter review · esc close". After `t`: `Installed 1  Active 1`.
+- `config.toml` then held `[hooks.state."cs-hint-codex@sdd-misc-plugins:hooks/hooks.json:post_tool_use:0:0"]` with `trusted_hash` and `trusted_content_hash`, the same form the scripted approval wrote.
+- A prompt asking for `head -3 src/main.rs`: the command ran and the answer came back. The session file holds a `developer` message `[cs-hint] Use read_file or symbols — Bash on source files bypasses codescout's LSP index.` Nothing about the hint appears on screen: the model gets it, the user does not see it.
+- Not exercised: choices 2 and 3, the `/hooks` command typed by hand, other Codex versions. One run.
