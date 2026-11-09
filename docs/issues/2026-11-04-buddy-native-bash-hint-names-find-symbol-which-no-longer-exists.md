@@ -1,6 +1,6 @@
 ---
 kind: bug
-status: open
+status: fixed
 title: buddy's native-Bash [cs-hint] tells the agent to use find_symbol, a tool that no longer exists
 tags:
 - buddy
@@ -10,7 +10,8 @@ owner: marius
 severity: medium
 opened: 2026-11-04
 moved_from: 'codescout:docs/issues/2026-11-04-buddy-native-bash-hint-names-find-symbol-which-no-longer-exists.md (catalog id 9419db55285a2f81), moved 2026-11-09'
-unverified: Delivery count (2,428) and the 491-of-1,350 false-positive figure come from a mining subagent's transcript scan and were not re-checked; no fix applied, no test.
+unverified: "The tool name is fixed with a test. Not re-checked: the delivery count (2,428) and the 491-of-1,350 false-positive figure come from a mining subagent's transcript scan; the false-positive pipelines still fire."
+closed: 2026-11-09
 ---
 
 # BUG: buddy's native-Bash [cs-hint] tells the agent to use find_symbol, a tool that no longer exists
@@ -51,11 +52,20 @@ N/A — the text and the tool list settle it.
 
 ## Fix
 
-Not applied. Replace `find_symbol` by `symbols` in the text. Separately, the check fires on pipelines that merely end in `head`/`tail`/`sed` (per the subagent's figure), which a fix should narrow to a command whose first word reads a file.
+Applied 2026-11-09: the hint in `_check_native_bash_on_source` (`buddy/scripts/cs_heuristics.py:208`) now reads "Use `read_file` or `symbols` — Bash on source files bypasses codescout's LSP index."
+
+Not changed: the check still fires on pipelines that merely end in `head`/`tail`/`sed` (the subagent's 491 false positives). Narrowing it to a command whose first word reads a file is a separate change, not made here.
 
 ## Tests added
 
-N/A — no fix applied. A fix should come with a test that every tool name in a `cs_heuristics.py` hint exists in codescout's registered tool list.
+`buddy/tests/test_cs_heuristics.py`:
+
+- `test_every_tool_a_hint_names_is_a_current_codescout_tool`, parametrized over one triggering event per check (all six). It takes the identifier after each backtick in the hint and requires it to be in `CODESCOUT_TOOLS`, the codescout server's 21 tools as served on 2026-11-09. Before the fix it failed for `native_bash_on_source` with `['find_symbol']`.
+- `test_each_trigger_fires_a_hint` guards it: a trigger that returned None would check nothing.
+- `test_native_bash_cat_detected` asserted `"read_file" in result or "find_symbol" in result`, so it passed through `read_file` and never saw the dead name. It now requires both `` `read_file` `` and `` `symbols` ``.
+- The `forgot_restore` case is `xfail(strict=True)`: its hint names `activate_project`, and its fix waits on a decision (sibling bug below).
+
+buddy pytest: 545 passed, 1 xfailed.
 
 ## Workarounds
 
@@ -63,9 +73,7 @@ None needed on the agent side: `symbols` is in the tool list and `pre-tool-guard
 
 ## Resume
 
-1. Fix the text in `buddy/scripts/cs_heuristics.py`.
-2. Add the tool-name test across all six checks.
-3. Re-count deliveries from transcripts before and after.
+Nothing left for the tool name. Optional follow-up: narrow the trigger regex (see Fix), then re-count deliveries from transcripts.
 
 ## References
 

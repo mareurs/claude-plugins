@@ -205,7 +205,7 @@ def _check_native_bash_on_source(event: dict, session_log: list[dict]) -> str | 
     file_ref = match.group(2)
     if any(file_ref.endswith(ext) for ext in _SOURCE_EXTENSIONS):
         return (
-            "Use `read_file` or `find_symbol` — Bash on source files "
+            "Use `read_file` or `symbols` — Bash on source files "
             "bypasses codescout's LSP index."
         )
 

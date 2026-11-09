@@ -57,7 +57,9 @@ Not applied. Either key the check on `mcp__codescout__workspace` with `tool_inpu
 
 ## Tests added
 
-N/A — no fix applied. A fix should add a test that feeds the check a recorded `workspace(activate)` event, and the tool-name test named in the sibling bug.
+N/A — no fix applied. A fix should add a test that feeds the check a recorded `workspace(activate)` event.
+
+The tool-name test from the sibling bug exists since 2026-11-09: `buddy/tests/test_cs_heuristics.py::test_every_tool_a_hint_names_is_a_current_codescout_tool`. Its `forgot_restore` case is marked `xfail(strict=True)`, because this hint names `activate_project`. Either fix first turns `test_each_trigger_fires_a_hint[forgot_restore]` red, because the trigger in `_TRIGGERS` sends `activate_project` and stops firing. A re-key then needs a `workspace(activate)` trigger there; once its hint names only real tools, the strict mark fails the suite until it is removed. A delete removes the `_TRIGGERS` entry, and the marked case goes with it.
 
 ## Workarounds
 
