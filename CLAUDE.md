@@ -42,8 +42,8 @@ For `.claude.json` (the file): single-profile users have it at `~/.claude.json`;
   reports 3): `superpowers`, `codescout-companion`, `buddy` in all three profiles.
   `~/.claude-sdd` additionally enables `hookify` + `andrej-karpathy-skills` — that is
   profile purpose, not drift. Other installed plugins are enabled nowhere and load nothing.
-- **The marketplace key is `sdd-misc-plugins`**, which is what every install record and
-  `release.sh` use — *not* the `claude-plugins` shown in § Installing below.
+- **The marketplace key is `sdd-misc-plugins`** (the `name` in `.claude-plugin/marketplace.json`),
+  which is what every install record, `release.sh` and the install lines in § Installing use.
 - **Native Linux git. The cross-shell CRLF advice in the Windows section below does not
   apply** — `core.autocrlf` is not in play and the working tree does not go pseudo-dirty.
 - **Cross-profile parity is checked, not assumed:** `./scripts/check-profile-parity.sh`
@@ -384,11 +384,11 @@ install record to point at the new cache snapshot:**
 
 ```bash
 # Check the latest cache version
-ls ~/.claude/plugins/cache/claude-plugins/codescout-companion/
+ls ~/.claude/plugins/cache/sdd-misc-plugins/codescout-companion/
 
 # Edit installed_plugins.json: update installPath + version to the new cache entry
 ~/.claude/plugins/installed_plugins.json
-# → "installPath": "~/.claude/plugins/cache/claude-plugins/codescout-companion/<version>"
+# → "installPath": "~/.claude/plugins/cache/sdd-misc-plugins/codescout-companion/<version>"
 # → "version": "<version>"
 ```
 
@@ -398,21 +398,24 @@ Then restart Claude Code.
 
 ```
 /plugin marketplace add mareurs/claude-plugins
-/plugin install codescout-companion@claude-plugins
-/plugin install sdd@claude-plugins
+/plugin install codescout-companion@sdd-misc-plugins
+/plugin install sdd@sdd-misc-plugins
 ```
+
+Verified 2026-11-09 on a clean profile: `/plugin install buddy@claude-plugins` fails with
+`Plugin "buddy" not found in marketplace "claude-plugins"`; `@sdd-misc-plugins` installs.
 
 For project-level setup, add to `.claude/settings.json`:
 
 ```json
 {
   "extraKnownMarketplaces": {
-    "claude-plugins": {
+    "sdd-misc-plugins": {
       "source": { "source": "github", "repo": "mareurs/claude-plugins" }
     }
   },
   "enabledPlugins": {
-    "codescout-companion@claude-plugins": true
+    "codescout-companion@sdd-misc-plugins": true
   }
 }
 ```
