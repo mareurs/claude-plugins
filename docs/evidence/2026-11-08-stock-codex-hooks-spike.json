@@ -1,0 +1,332 @@
+{
+  "date": "2026-11-08",
+  "kind": "throwaway-native-observability-spike",
+  "status": "identity-route-demonstrated-completeness-not-established",
+  "codex_version": "codex-cli 0.167.0",
+  "package": "openai-codex 0.167.0-1",
+  "binaries_sha256": {
+    "/usr/bin/codex": "7e63ca6fc6e368fe64e8c48e0e5a8c485d868830232f7ab4c023a0ef26daa926",
+    "/usr/bin/codex-code-mode-host": "ca8dfd283eb7f21028b408611e4fdaa467a1339edc1f1d90f3494d6710378b28",
+    "/home/marius/.cargo/bin/codescout": "79d6b989c24ee2848caad566504292c3eb4e6ee6676a026fa5462e0defd75cd3"
+  },
+  "configuration": {
+    "isolated_codex_home": true,
+    "model": "gpt-6.1-sol",
+    "code_mode": true,
+    "code_mode_under_development_warning_observed": true,
+    "hook_trust": "stock hooks/list hashes persisted in private home; no trust-bypass flag",
+    "sandbox": "workspace-write",
+    "installed_binary_replaced": false,
+    "production_profile_config_writes": false
+  },
+  "raw_evidence_private_directory": "/tmp/stock-hooks-20261108-7gu3brft",
+  "calls": [
+    {
+      "tool": "create_file",
+      "native_call_id": null,
+      "thread_id": "01a1bc95-994b-7ad3-a13b-1f029d1e7c84",
+      "root_session_id": null,
+      "turn_id": null,
+      "wrapper_item_id": null,
+      "pre_count": 0,
+      "post_count": 0,
+      "request_time_ns": 1794165283998295441,
+      "pre_times_ns": [],
+      "post_times_ns": [],
+      "file": "direct.txt",
+      "file_sha256": "96f56a26868e3613cca099b0457840e9e532b916a4de8572946edca4b12a5a15",
+      "file_equals_requested_content": true
+    },
+    {
+      "tool": "create_file",
+      "native_call_id": "exec-0285a22d-5c4c-4e2f-beed-223ef81e828f",
+      "thread_id": "01a1bc96-4990-77d0-b952-5202796ed519",
+      "root_session_id": "01a1bc96-4990-77d0-b952-5202796ed519",
+      "turn_id": "01a1bc96-4a85-7a23-9ffc-03dff7a73a29",
+      "wrapper_item_id": "ctc_040681f0896c3d5c016af0ca56594c87d2a3bf5221b7a94622",
+      "pre_count": 1,
+      "post_count": 1,
+      "request_time_ns": 1794165335456096292,
+      "pre_times_ns": [
+        1794165335447513547
+      ],
+      "post_times_ns": [
+        1794165335524717376
+      ],
+      "hook_identity_matches_mcp": true,
+      "hook_agent_ids": [],
+      "file": "serial.txt",
+      "file_sha256": "1528df5875b0f958cf884a8e86db5b88ff85f0e1e7fa58a2c6ad7028bd9f58e0",
+      "file_equals_requested_content": true
+    },
+    {
+      "tool": "create_file",
+      "native_call_id": "exec-5ce22139-82a4-4ec5-94a8-ec531b539aa1",
+      "thread_id": "01a1bc96-4990-77d0-b952-5202796ed519",
+      "root_session_id": "01a1bc96-4990-77d0-b952-5202796ed519",
+      "turn_id": "01a1bc96-4a85-7a23-9ffc-03dff7a73a29",
+      "wrapper_item_id": "ctc_040681f0896c3d5c016af0ca595df087d2acbf5c89d6125af0",
+      "pre_count": 1,
+      "post_count": 1,
+      "request_time_ns": 1794165339243068924,
+      "pre_times_ns": [
+        1794165339235310655
+      ],
+      "post_times_ns": [
+        1794165339301099099
+      ],
+      "hook_identity_matches_mcp": true,
+      "hook_agent_ids": [],
+      "file": "parallel-a.txt",
+      "file_sha256": "06f961b802bc46ee168555f066d28f4f0e9afdf3f88174c1ee6f9de004fc30a0",
+      "file_equals_requested_content": true
+    },
+    {
+      "tool": "create_file",
+      "native_call_id": "exec-ba9c4736-3f27-4a4a-91f7-6a0c704f0962",
+      "thread_id": "01a1bc96-4990-77d0-b952-5202796ed519",
+      "root_session_id": "01a1bc96-4990-77d0-b952-5202796ed519",
+      "turn_id": "01a1bc96-4a85-7a23-9ffc-03dff7a73a29",
+      "wrapper_item_id": "ctc_040681f0896c3d5c016af0ca595df087d2acbf5c89d6125af0",
+      "pre_count": 1,
+      "post_count": 1,
+      "request_time_ns": 1794165339363879820,
+      "pre_times_ns": [
+        1794165339355104808
+      ],
+      "post_times_ns": [
+        1794165339431940204
+      ],
+      "hook_identity_matches_mcp": true,
+      "hook_agent_ids": [],
+      "file": "parallel-b.txt",
+      "file_sha256": "c0cde77fa8fef97d476c10aad3d2d54fcc2f336140d073651c2dcccf1e379fd6",
+      "file_equals_requested_content": true
+    },
+    {
+      "tool": "create_file",
+      "native_call_id": "exec-96d8febd-6352-41ef-938b-a542147c28c9",
+      "thread_id": "01a1bc96-4990-77d0-b952-5202796ed519",
+      "root_session_id": "01a1bc96-4990-77d0-b952-5202796ed519",
+      "turn_id": "01a1bc97-eb9f-7522-9050-22187567d7b7",
+      "wrapper_item_id": "ctc_0b875d2c76a61262016af0cabf762087d299f5c37f521537aa",
+      "pre_count": 1,
+      "post_count": 1,
+      "request_time_ns": 1794165440601936577,
+      "pre_times_ns": [
+        1794165440593422040
+      ],
+      "post_times_ns": [
+        1794165440657412604
+      ],
+      "hook_identity_matches_mcp": true,
+      "hook_agent_ids": [],
+      "file": "resume.txt",
+      "file_sha256": "535fd952fb9473150fd21218d3bdacd1eae57d613c3ffc561cbd595da558631b",
+      "file_equals_requested_content": true
+    },
+    {
+      "tool": "create_file",
+      "native_call_id": "exec-2e0cee90-b3ab-439c-aba4-809fb4a7fbd7",
+      "thread_id": "01a1bc98-0c9a-78b1-87ca-8081aa633801",
+      "root_session_id": "01a1bc98-0c9a-78b1-87ca-8081aa633801",
+      "turn_id": "01a1bc98-0dbd-78b2-b42b-c34264de5a1d",
+      "wrapper_item_id": "ctc_02bb8c2a9efbb23f016af0cac9f27887d2a1e8bf44aecd5e27",
+      "pre_count": 1,
+      "post_count": 1,
+      "request_time_ns": 1794165450940437355,
+      "pre_times_ns": [
+        1794165450933662770
+      ],
+      "post_times_ns": [
+        1794165450996189605
+      ],
+      "hook_identity_matches_mcp": true,
+      "hook_agent_ids": [],
+      "file": "fork.txt",
+      "file_sha256": "aad801dbcad58bbe3db0595803b52d6c29d8b22aa2385c05edb0335035e7ae64",
+      "file_equals_requested_content": true
+    },
+    {
+      "tool": "create_file",
+      "native_call_id": "exec-1e596b28-e8b2-43db-b524-cbd4873b6953",
+      "thread_id": "01a1bc98-4c70-7583-9d65-db3c703a820a",
+      "root_session_id": "01a1bc98-3615-7620-b8d3-2c8f4cdcb7d0",
+      "turn_id": "01a1bc98-4c90-7392-bdec-671f8821ae31",
+      "wrapper_item_id": "ctc_0bcab41e82258ef6016af0cad8a94c87d296f2409b214b99a3",
+      "pre_count": 1,
+      "post_count": 1,
+      "request_time_ns": 1794165465680808053,
+      "pre_times_ns": [
+        1794165465666695798
+      ],
+      "post_times_ns": [
+        1794165465744711933
+      ],
+      "hook_identity_matches_mcp": true,
+      "hook_agent_ids": [
+        "01a1bc98-4c70-7583-9d65-db3c703a820a"
+      ],
+      "file": "child.txt",
+      "file_sha256": "2fa14f53e6b15cac9ac77846c7be87862c2a7e9ec0c6cea319db939317f126ed",
+      "file_equals_requested_content": true
+    },
+    {
+      "tool": "run_command",
+      "native_call_id": "exec-a65940ef-0432-4223-9433-c3304ddbf2f1",
+      "thread_id": "01a1bc98-e171-7963-aeb7-959fc56e29c5",
+      "root_session_id": "01a1bc98-e171-7963-aeb7-959fc56e29c5",
+      "turn_id": "01a1bc98-e192-7511-b84e-897c622d0496",
+      "wrapper_item_id": "ctc_03fd19251439e02c016af0cafd7b5087d2ac40a45d72213758",
+      "pre_count": 1,
+      "post_count": 0,
+      "request_time_ns": 1794165504068751600,
+      "pre_times_ns": [
+        1794165504061143033
+      ],
+      "post_times_ns": [],
+      "hook_identity_matches_mcp": true,
+      "hook_agent_ids": [],
+      "case": "cancel"
+    },
+    {
+      "tool": "run_command",
+      "native_call_id": "exec-8a9a0cd0-053d-40a8-bdc9-2dfd7a2d2c63",
+      "thread_id": "01a1bc96-4990-77d0-b952-5202796ed519",
+      "root_session_id": "01a1bc96-4990-77d0-b952-5202796ed519",
+      "turn_id": "01a1bc9d-34b0-7d20-b34c-59490863aa8b",
+      "wrapper_item_id": "ctc_08ef038170799764016af0cc1b50e087d29cdd05689bcafeea",
+      "pre_count": 1,
+      "post_count": 1,
+      "request_time_ns": 1794165789618502862,
+      "pre_times_ns": [
+        1794165789611385438
+      ],
+      "post_times_ns": [
+        1794165791697573569
+      ],
+      "hook_identity_matches_mcp": true,
+      "hook_agent_ids": [],
+      "case": "slow-b"
+    },
+    {
+      "tool": "run_command",
+      "native_call_id": "exec-e25b9784-f6d3-4997-9be8-c7188e97dfd4",
+      "thread_id": "01a1bc96-4990-77d0-b952-5202796ed519",
+      "root_session_id": "01a1bc96-4990-77d0-b952-5202796ed519",
+      "turn_id": "01a1bc9d-34b0-7d20-b34c-59490863aa8b",
+      "wrapper_item_id": "ctc_08ef038170799764016af0cc1b50e087d29cdd05689bcafeea",
+      "pre_count": 1,
+      "post_count": 1,
+      "request_time_ns": 1794165791759626044,
+      "pre_times_ns": [
+        1794165791750503834
+      ],
+      "post_times_ns": [
+        1794165793846798649
+      ],
+      "hook_identity_matches_mcp": true,
+      "hook_agent_ids": [],
+      "case": "slow-a"
+    },
+    {
+      "tool": "create_file",
+      "native_call_id": "exec-4188a0c2-59f2-4889-a2af-8ebdd66df4b6",
+      "thread_id": "01a1bc96-4990-77d0-b952-5202796ed519",
+      "root_session_id": "01a1bc96-4990-77d0-b952-5202796ed519",
+      "turn_id": "01a1bc9d-34b0-7d20-b34c-59490863aa8b",
+      "wrapper_item_id": "ctc_08ef038170799764016af0cc235ce087d2b1c1f5b6e03b5848",
+      "pre_count": 1,
+      "post_count": 1,
+      "request_time_ns": 1794165796332727501,
+      "pre_times_ns": [
+        1794165796325728891
+      ],
+      "post_times_ns": [
+        1794165796409889607
+      ],
+      "hook_identity_matches_mcp": true,
+      "hook_agent_ids": [],
+      "file": "after-compact.txt",
+      "file_sha256": "eae973851229264f89a550c13121d327a50a37964aefa1650b4dae3b2ba7a5d5",
+      "file_equals_requested_content": true
+    }
+  ],
+  "observations": {
+    "resume_keeps_identity": true,
+    "fork_has_new_identity": true,
+    "child_root_and_agent_match_mcp": true,
+    "explicit_deny_timeout_crash": {
+      "deny": {
+        "file_written": false,
+        "pre_count": 1,
+        "post_count": 0
+      },
+      "timeout": {
+        "file_written": true,
+        "pre_count": 1,
+        "post_count": 1
+      },
+      "crash": {
+        "file_written": true,
+        "pre_count": 1,
+        "post_count": 1
+      }
+    },
+    "cancellation": {
+      "mcp_dispatch_observed": true,
+      "turn_status": "interrupted",
+      "start_file_written": true,
+      "end_file_written_after_ten_seconds": false,
+      "pre_count": 1,
+      "post_count": 0
+    },
+    "compaction": {
+      "completed": true,
+      "hook_events": [
+        "PreCompact",
+        "PostCompact"
+      ],
+      "later_write_has_same_identity": true
+    },
+    "slow_calls_hook_intervals_overlap": false,
+    "basic_exec_json_completed_mcp_items": 3,
+    "direct_app_server_create_file": {
+      "file_written": true,
+      "native_call_id": null,
+      "pre_count": 0,
+      "post_count": 0,
+      "note": "Client API route, not a model-dispatched tool; no callId on observed request, so no hook tool-use-id association. Session lifecycle hook alone is not per-tool evidence.",
+      "measurement_scope": "All collected tool hooks whose session_id equals the direct App Server thread; not a lookup by missing callId."
+    },
+    "parallel_code_evidence": [
+      {
+        "wrapper_call_id": "call_bade2df7d8bc4581b67ebc352813643a",
+        "actual_code_contains_Promise_all": true,
+        "code_sha256": "2ac91512e6e9be6102da4db26cd970a0f51222d2c26669b870a6465f849a3c29",
+        "case": "create"
+      },
+      {
+        "wrapper_call_id": "call_57f01f34bb014c6b80cb17222a82b9c1",
+        "actual_code_contains_Promise_all": true,
+        "code_sha256": "300277e5009b14cc59b5d6f39f41ab1891c8d8a04d18d2860ccdc0e8d8475d2b",
+        "case": "slow"
+      }
+    ]
+  },
+  "limits": [
+    "One native sample per scenario; no claim of broad host/version coverage.",
+    "Metadata identifies callers; it does not attest complete write coverage.",
+    "Normal hooks may fail open; crash/timeout probes log before failing, so total collector loss was not tested.",
+    "Interrupted call has no post hook; retain UNKNOWN rather than infer no effects.",
+    "No owned-format success, arbitrary background descendant lifetime, hostile producer, or global concurrent-writer proof was established.",
+    "Parent exec stream is not assumed to enumerate child calls; hooks and MCP capture were observed separately.",
+    "The passive proxy is a throwaway observer, not an authorization boundary or production journal; raw JSON-RPC ids are connection-scoped.",
+    "No changes from this spike were installed or integrated into production.",
+    "The two actual Promise.all slow calls had non-overlapping pre/post-hook intervals in this configuration; simultaneous execution was not demonstrated."
+  ],
+  "recommendation": "Prefer stock Codex caller metadata plus hooks/Codescout operation evidence for identity, with conservative UNKNOWN for missing coverage. Design a separate execution-isolation or write-coordination strategy before claiming exclusive formatting safety.",
+  "credential_cleanup": {
+    "temporary_auth_file_removed": true
+  }
+}

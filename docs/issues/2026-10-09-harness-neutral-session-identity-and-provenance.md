@@ -10,6 +10,7 @@ tags:
 - session-identity
 - provenance
 - gate
+arch_package_verification: '2026-11-07: installed openai-codex 0.167.0-1 (Extra); official packaging 512c92b targets 0.167.0-2 and V8 152.2.0. Release source, complete V8 archive and generated bindings downloaded and matched recipe BLAKE2b checksums. PKGBUILD syntax and bundled voice patch dry-run passed. c4d58a767b provenance patch git apply --check fails in 10 distinct files on rust-v0.167.0; requires porting. No patched build or install performed. The older V8 150.4.0 download blocker is specific to the original development baseline, not the packaged 0.167.0 release.'
 claimed_by_session: 01a12505-eb95-76a1-911a-4610c7b95ab3
 codescout_native_context_commit: 18a007aacc20eef8f366aa153394f7e23ccf875b
 codescout_native_history_commit: 76bfcca7d65494e90fb7c5296e69304e49388742
@@ -35,8 +36,22 @@ source_commits:
 source_implementation: Initial implementation, F-17, F-16 and bounded F-20 repair are independently reviewed, verified and committed locally in their original repositories. Complete native code-mode owned formatting and Kat authenticated smoke remain unestablished.
 spec_approved_on: 2026-10-10
 spec_id: c67a8d68e01c6cf4
-unverified: 'Complete native execution-provenance acceptance and successful Codex owned formatting remain unestablished: full host build is blocked by unavailable V8 150.4.0 artifacts. Kat authenticated smoke remains pending without reauthentication. Reviewed source is committed locally; standard integration gate and focused module checks passed.'
+stock_codex_design: 9d1d3c7f58f63dad; 2026-11-09 draft independently builder-reviewed, pending maintainer approval. Reuses native invocation context and session-context v1, adds positive observations, never grants formatter coverage/authorization.
+stock_codex_spike: '2026-11-08: installed Arch Codex 0.167.0, private CODEX_HOME, trusted hooks without bypass, installed Codescout behind transparent capture. Native MCP callId/sessionId/threadId match tool hooks for Code Mode writes; resume, fork, child/root and post-compaction write measured. Eight create_file requests match actual bytes; 11 MCP requests observed overall. Explicit denial blocks; timeout/exit-1 hooks permit shell effects. Interrupted MCP call wrote its start marker but not final marker and has no post hook. Direct App Server MCP client call writes without model tool hooks. Two actual Promise.all slow calls have non-overlapping hook intervals, so simultaneous execution is unestablished. Identity route needs no Codex patch; complete effect inventory/exclusive formatting remains unproved. Evidence: docs/evidence/2026-11-08-stock-codex-hooks-spike.json. No production integration or installation; temporary auth copy removed.'
+unverified: Stock Codex identity was measured on 0.167.0, including root/resume/fork/child and post-compaction writes. Complete effect inventory, exclusive owned formatting, genuinely concurrent dispatch coverage and Kat authenticated smoke remain unestablished. The new stock-adapter design is a draft, not implemented or installed. The older experimental Codex-host build was separately blocked by V8 150.4.0; packaged 0.167.0 uses available V8 152.2.0.
 ---
+
+## Stock adapter design — 2026-11-09
+
+[Stock Codex identity and operation observations](../superpowers/specs/2026-11-09-stock-codex-identity-observations-design.md) is a draft based on the native spike and current integration seams. An independent fresh builder review found no important unanswered planning questions. The design reuses existing context resolution, adds bounded private observations in Codescout and the companion, and preserves all formatter coverage/authorization boundaries. It requires no Codex patch or client replacement. This is design readiness only: maintainer approval, implementation, gates and installed acceptance remain separate.
+
+## Stock Codex spike — 2026-11-08
+
+The maintainer approved a throwaway experiment before maintaining a patched Codex package. The installed Arch Codex 0.167.0 was run with a private configuration, genuinely trusted hooks and an unchanged Codescout server behind a passive MCP observer. [Normalized evidence](../evidence/2026-11-08-stock-codex-hooks-spike.json) records binary hashes and measured cases without exporting prompts, reasoning or credentials.
+
+Stock MCP metadata and tool hooks correlate root session, turn and individual call IDs. Resume retains the identity; fork obtains a distinct one; a real child carries both parent session and child thread/agent IDs. Manual compaction emitted both lifecycle hooks and a later write retained the root. The basic Code Mode case also emitted three completed MCP items on `exec --json` in this installed version. Two real `Promise.all` slow calls were observed with non-overlapping hook intervals; concurrent execution was not established.
+
+This demonstrates an identity route without modifying Codex, not complete execution provenance. Explicit hook denial blocked the shell command, whereas timeout and exit-1 allowed writes. A genuinely interrupted MCP command produced its initial effect and no post hook. A client-initiated App Server MCP call wrote a file without model-dispatch tool hooks. Missing coverage therefore remains UNKNOWN. Owned-format success, arbitrary background process lifetime and exclusion of concurrent writers remain unverified. No production source/configuration changes or installation were made; the temporary authentication copy was removed. The patch remains a prototype, not a prerequisite for identity.
 
 ## Re-check — 2026-11-07
 
