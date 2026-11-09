@@ -1,15 +1,20 @@
 ---
 id: '9d1d3c7f58f63dad'
 kind: spec
-status: draft
+status: approved
 title: Stock Codex identity and operation observations
 tags:
 - codex
 - session-identity
 - observability
 - design
+approval_message: ok, go
+approved_by: maintainer
+approved_on: 2026-11-09
 builder_review: '2026-11-09: fresh independent infrastructure builder check returned ''nothing important left''. Design sufficiency only; no runtime or implementation correctness claim.'
-decision_state: draft-pending-maintainer-review
+decision_state: approved
+implementation_plan: 3f373e14fa311cc8
+implementation_state: 'Source implementation and verification complete; plugin feature 381ae57, documentation bb8ff30, Codescout support 505e8033a, wiring c7b38be29 and caller tests f89590d31 committed. Manual notification approvals applied: three destinations accepted by the tool; 01a1c000 failed as not loaded. Guard ACK and mandatory trailers recorded without changing attribution rows. Source-only delivery; live installation is outside this plan.'
 parent_issue: 33de9ea8980e85c9
 scope: Stock Codex identity and additive operation observations; formatter authorization unchanged
 ---
@@ -20,7 +25,7 @@ scope: Stock Codex identity and additive operation observations; formatter autho
 
 Use the packaged, unmodified Codex to attribute observed Codescout writes and native tool invocations to their actual root session and executing child. Preserve normal `yay`/pacman updates. Deliver this through Codescout and its companion plugin, without maintaining a Codex fork, replacing the user's client, or claiming a complete execution inventory.
 
-The maintainer requested this design after approving the stock-Codex experiment. The recommended stock adapter is the direction being designed. This document is a proposal awaiting approval; storage limits and module boundaries below are design choices, not preferences attributed to the maintainer. Implementation and deployment are separate subsequent work.
+The maintainer approved this stock-Codex adapter design on 2026-11-09 after reviewing the experiment. Storage limits and module boundaries below are approved design choices, not pre-existing preferences attributed to the maintainer. The implementation plan is approved and its source verification is recorded in the implementation-state metadata and linked evidence; deployment remains separate subsequent work.
 
 The central invariant is: **known identity and an observed write do not establish exclusive ownership or complete effect coverage.**
 
@@ -180,4 +185,6 @@ The builder may choose module names, internal Rust/Python representations, test 
 
 ## Approval and delivery state
 
-Draft, pending maintainer approval. No implementation, installation, release, profile changes or prototype-code removal is authorized by this document itself. The next artifact after approval is an implementation plan.
+Approved by the maintainer on 2026-11-09 («ok, go»). Implementation plan `3f373e14fa311cc8` is complete for source delivery. Plugin feature `381ae57` and documentation `bb8ff30`, plus Codescout support `505e8033a`, wiring `c7b38be29` and real caller tests `f89590d31`, are committed in isolated worktrees. Required gates, independent applied-mutation review and the ten-route native stock acceptance passed; the source/spec review records GO in `57ada03063a50be6`.
+
+This delivery uses the packaged, unmodified Codex. Live profile activation, integration, release and installation remain outside this approved source-only plan. Host dispatch overlap remains unverified; controlled server-handler overlap is tested. The attribution incident `16de4012209e895f` remains open: the operator-approved ACK records observed wrong stamps and does not establish or repair their cause.

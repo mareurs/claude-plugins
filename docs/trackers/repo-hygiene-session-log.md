@@ -10,7 +10,7 @@ tags:
 entry_prefix:
 - F
 - W
-entry_high_water_W: 2
+entry_high_water_W: 3
 entry_high_water_F: 8
 ---
 
@@ -81,6 +81,7 @@ entry_high_water_F: 8
 | ID | Date | Impact | Pattern | Counterfactual | Status |
 |----|------|-------:|---------|----------------|--------|
 | W-2 | 2026-08-21 | med | Checking `merge-base --is-ancestor` + a machine-wide `doctor` scan before concluding a missing file was deliberately scrubbed | Would have supported a false "deliberately scrubbed" claim or a premature catalog-row delete | validated |
+| W-3 | 2026-11-09 | med | Verify native context and actual filesystem writer before designing observation interfaces | Would have inferred resolved paths from a success response that contains only ok | validated |
 
 ---
 
@@ -365,6 +366,18 @@ The specific commits and doctor-scan count are true as of this session; re-verif
 **Rests on:** Native provenance implementation plan 46b174b8c4c5e2e2 and full integration gate @bg_000000a9. Its actual lane exits were Python=0/FMT=0/CLIPPY=101/LEAN=0/DEFAULT=100. The focused tests measured their selected boundaries only.
 
 **Action:** Keep test-only APIs behind cfg(test), document the Codex producer's intentional shared writer-side engine surface, avoid duplicating a large dispatch future in wrapper storage, rerun the exact failing test and then the complete required gate. Preserve the original repositories until delivery checks pass.
+
+## W-3 — Stock identity plan reuses native context and the real write seam
+
+**Valid:** dated 2026-11-09
+
+**Observed:** The stock Codex design already had a working root/thread resolver in Codescout. Current `CreateFile::call` returns `json!("ok")`, so a plan that tried to reconstruct reached targets from tool responses would lose the actual path. The implementation uses `src/tools/edit_file/mod.rs`, not a flat `edit_file.rs`. Reading `CreateFile::call`, `NativeInvocation::from_meta/apply`, `util::fs::write_utf8` and `ProvenanceScan` before writing task interfaces exposed these seams.
+
+**Counterfactual:** Guessing from the older spike's response shape would have designed target capture at the response decoder and missed current successful writes. Naming a flat edit-file path would have sent implementation to a nonexistent file.
+
+**Decision:** Keep existing identity resolution, observe the scoped filesystem write boundary, treat unsupported/unresolved effects conservatively, and integrate positive observation facts without granting formatter authority. These are planning decisions, not runtime verification.
+
+**Status:** validated
 
 ## Template for new entries
 
