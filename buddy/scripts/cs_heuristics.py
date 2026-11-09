@@ -260,6 +260,29 @@ def _check_parallel_write(event: dict, session_log: list[dict]) -> str | None:
     return None
 
 
+_DEFINITION_KEYWORDS = frozenset({
+    "function", "class", "fn", "def", "export", "const", "let", "var", "interface",
+    "struct", "enum", "type", "impl", "import", "pub", "async",
+})
+
+# A question opener marks a pattern as a question about code, whatever else it holds.
+_QUESTION_WORDS = frozenset({"how", "where", "what", "why", "which", "when", "who"})
+
+# Prose words. A concept query is a keyword list ("retry logic backoff"); text the
+# agent copied from a message, a log line or a document carries these ("reference
+# index is not ready"), and grep is the right tool for it. Deliberately small and
+# conservative: it silences the hint on doubt, never fires on it.
+_FUNCTION_WORDS = frozenset({
+    "a", "an", "the", "is", "are", "was", "were", "be", "been", "am", "do", "does",
+    "did", "has", "have", "had", "not", "no", "only", "as", "at", "by", "for", "from",
+    "in", "into", "of", "on", "onto", "to", "with", "about", "against", "another",
+    "that", "this", "these", "those", "it", "its", "while", "when", "if", "or", "and",
+    "but", "than", "then", "so", "also", "which", "who", "whom", "whose", "can",
+    "could", "will", "would", "shall", "should", "may", "might", "must", "there",
+})
+
+
+
 def _check_grep_for_concept(event: dict, session_log: list[dict]) -> str | None:
     """Detect grep used with a natural-language concept phrase.
 
@@ -270,6 +293,10 @@ def _check_grep_for_concept(event: dict, session_log: list[dict]) -> str | None:
     Decision table (from codescout manual):
       "A text fragment"        → grep  ✓
       "The concept, not name"  → semantic_search  ← this heuristic fires here
+
+    A concept query is a keyword list or a question. Quoted prose and identifiers
+    are text the agent already has, so they are left to grep (see the issue
+    2026-11-07-grep-for-concept-heuristic-fires-on-literal-phrase-searches).
     """
     import re as _re
 
@@ -290,13 +317,23 @@ def _check_grep_for_concept(event: dict, session_log: list[dict]) -> str | None:
     if any(tok in pattern for tok in ("::", "->", "=>", "__")):
         return None
 
-    # 2+ space-separated all-alpha words → natural-language concept phrase
+    # 2+ space-separated all-alpha words → candidate concept phrase
     words = pattern.split()
-    if len(words) >= 2 and all(_re.match(r"^[a-zA-Z]+$", w) for w in words):
-        return (
-            f'`grep("{pattern}")` matches text literally. '
-            f"For concept queries, `semantic_search` finds related code "
-            f"by meaning without requiring an exact text match."
-        )
+    if len(words) < 2 or not all(_re.match(r"^[a-zA-Z]+$", w) for w in words):
+        return None
 
-    return None
+    # An identifier (camelCase / PascalCase) or a definition keyword up front is a
+    # lookup by name: `symbols(name=...)` or grep, never a concept query.
+    first = words[0].lower()
+    if first in _DEFINITION_KEYWORDS or any(_re.search(r"[a-z][A-Z]", w) for w in words):
+        return None
+
+    # Prose words mean quoted text, unless the pattern opens as a question.
+    if first not in _QUESTION_WORDS and any(w.lower() in _FUNCTION_WORDS for w in words):
+        return None
+
+    return (
+        f'`grep("{pattern}")` matches text literally. '
+        f"For concept queries, `semantic_search` finds related code "
+        f"by meaning without requiring an exact text match."
+    )

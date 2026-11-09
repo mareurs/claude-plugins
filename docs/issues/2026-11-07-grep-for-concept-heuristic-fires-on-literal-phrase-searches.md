@@ -1,6 +1,6 @@
 ---
 kind: bug
-status: open
+status: mitigated
 title: the buddy grep-for-concept heuristic fires on literal phrase searches, and none of 17 recorded firings was a concept query
 tags:
 - buddy
@@ -9,7 +9,8 @@ tags:
 owner: marius
 severity: low
 opened: 2026-11-07
-unverified: 'The 17 labels are one reader''s judgement from the grep pattern and the next three calls; the surrounding turns were not read. Not yet checked: the share of grep calls that do NOT fire, and whether any firing led to a better search.'
+unverified: "Mitigated against 14 of the 17 recorded firings (labels are one reader's judgement from the pattern and the next three calls). Not checked: the share of grep calls that do NOT fire, whether a real concept query phrased with a function word is now missed, and whether any firing ever led to a better search."
+closed: 2026-11-09
 ---
 
 ## Summary
@@ -54,3 +55,22 @@ I recommend 3 before 2. The 17 cases show the heuristic never helped here, but t
 ## Tests to add with any change
 
 A case per row group in the table above must NOT fire; one genuine concept phrase (for example `how are retries scheduled`) must fire. Today no test pins the negative side.
+
+## Resolution (2026-11-09)
+
+Status `mitigated`, not `fixed`. I took option 2 (narrow), with the 17 recorded patterns as the negative tests, instead of option 3 (measure first) that this file recommends. Reason: the shape test alone cannot separate a quoted message from a concept, but quoted prose carries function words and identifiers carry camelCase or a definition keyword, and those two signals are cheap and one-way (they only silence the hint).
+
+`_check_grep_for_concept` in `buddy/scripts/cs_heuristics.py` now returns `None` when the all-alpha pattern:
+
+- has a camelCase or PascalCase word, or starts with a definition keyword (`function`, `class`, `export`, `struct`, ...);
+- or contains a function word (`the`, `is`, `not`, `another`, ...), unless it opens with a question word (`how`, `where`, `what`, ...).
+
+Measured against the 17 recorded firings: 14 are silenced, by 12 distinct patterns (`another session wrote` and `class CrashSignalTests` each fired twice), one test case per distinct pattern in `test_grep_for_concept_literal_phrase_ok`. The three that still fire (one firing each) have no function word and no identifier: `substrate fact`, `verify callers`, `matches text literally`. No shape test separates them from a concept, so they are not pinned.
+
+Positive side pinned by `test_grep_for_concept_genuine_concept_still_fires`: `retry logic backoff`, `authentication middleware`, `error handling retries`, `how are retries scheduled`, `where is the session state stored`.
+
+Mutation check: emptying `_FUNCTION_WORDS` fails 9 tests, `_QUESTION_WORDS` 2, `_DEFINITION_KEYWORDS` 1, and removing the camelCase rule 1. The recorded definition fragments trip both identifier rules, so removing either one would pass the list alone (inferred from the rules, not run); `test_grep_for_concept_each_identifier_rule_stands_alone` adds one case per rule, and the two mutations above that fail exactly one test are those cases.
+
+buddy pytest: 569 passed.
+
+Not done, and still open: the share of real concept queries this now misses. A concept phrased with a function word (`error handling for retries`) no longer gets the hint. Option 3's labelled sample is what would show whether that cost is real. The `path` and previous-result checks from option 2 were not added.

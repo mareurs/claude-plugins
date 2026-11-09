@@ -327,6 +327,73 @@ def test_grep_for_concept_wrong_tool_ok():
     result = check(event, [])
     assert result is None
 
+# The 17 patterns that fired this hint in the codescout transcripts modified after
+# 2026-11-05 (docs/issues/2026-11-07-grep-for-concept-heuristic-fires-on-literal-
+# phrase-searches.md, table "Evidence"). By that reading none was a concept query:
+# each is text the agent already had in front of it. Three of them
+# (`substrate fact`, `verify callers`, `matches text literally`) carry no function
+# word and no identifier, so no shape test can tell them from a concept; they are
+# not pinned here either way.
+_LITERAL_PHRASES_THAT_FIRED = [
+    # message or log text
+    "another session wrote",
+    "another mux instance holds the lock",
+    "reference index is not ready",
+    # phrase from a document
+    "Filed the silent partial result as",
+    "about a minute",
+    "a gate started while the command runs gets another slot",
+    "baselined against that layer",
+    "ledger is shared parent",
+    "only moves down",
+    # definition fragment
+    "function emitSkillHint",
+    "export function contextPostToolUse",
+    "class CrashSignalTests",
+]
+
+
+@pytest.mark.parametrize("pattern", _LITERAL_PHRASES_THAT_FIRED)
+def test_grep_for_concept_literal_phrase_ok(pattern):
+    """Quoted text and definition fragments are searched with grep on purpose."""
+    event = _make_event(
+        tool_name="mcp__codescout__grep",
+        tool_input={"pattern": pattern},
+    )
+    assert check(event, []) is None
+
+
+@pytest.mark.parametrize("pattern", [
+    "retry logic backoff",
+    "authentication middleware",
+    "error handling retries",
+    "how are retries scheduled",
+    "where is the session state stored",
+])
+def test_grep_for_concept_genuine_concept_still_fires(pattern):
+    """The negative cases above must not have switched the hint off."""
+    event = _make_event(
+        tool_name="mcp__codescout__grep",
+        tool_input={"pattern": pattern},
+    )
+    result = check(event, [])
+    assert result is not None
+    assert "semantic_search" in result
+
+
+@pytest.mark.parametrize("pattern", [
+    "emitSkillHint handler",   # camelCase identifier, no definition keyword
+    "struct session state",    # definition keyword, no identifier and no prose word
+])
+def test_grep_for_concept_each_identifier_rule_stands_alone(pattern):
+    """Every definition fragment in the recorded list trips BOTH identifier rules, so
+    removing either one would pass the list above. These trip one rule each."""
+    event = _make_event(
+        tool_name="mcp__codescout__grep",
+        tool_input={"pattern": pattern},
+    )
+    assert check(event, []) is None
+
 
 # --- check returns None on no issues ---
 
