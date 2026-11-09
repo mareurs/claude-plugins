@@ -379,6 +379,65 @@ else
   pass "startup → no post-compact block (gate exercised)"
 fi
 
+# --- SKILLS AVAILABLE: only when the session can call the Skill tool ---
+# The block tells the agent to call Skill('...'). A session launched with --tools that
+# omits Skill has no such tool (28 of 28 cs-arm runs of the Setup A/B study), so the
+# line can only waste a turn. The hook reads the Claude process's own argv; unreadable
+# or unrecognised argv leaves the block in, which is the behaviour from before.
+# docs/issues/2026-11-09-companion-hooks-advertise-tools-and-skills-the-session-does-not-have.md
+skill_absent() {  # <argv...>: prints yes|no
+  node -e 'import(process.argv[1]).then((m) => console.log(m.skillToolAbsentFromArgv(process.argv.slice(2)) ? "yes" : "no"))' \
+    -- "$SCRIPT_DIR/lib.mjs" "$@" 2>/dev/null
+}
+check_absent() {  # <expected yes|no> <label> <argv...>
+  local want="$1" label="$2" got; shift 2
+  got=$(skill_absent "$@")
+  [ "$got" = "$want" ] && pass "skill tool, argv: $label" || fail "skill tool, argv: $label (want $want, got '$got')"
+}
+check_absent no  "no --tools flag → present" claude
+check_absent yes "--tools list without Skill → absent" claude -p --tools Bash,Read,Write,Edit,Glob,Grep
+check_absent no  "--tools list with Skill → present" claude --tools Bash,Skill
+check_absent yes "--tools=<list> form" claude '--tools=Bash,Read'
+check_absent yes "space-separated values end at the next flag" claude --tools Bash Read --model opus
+check_absent yes '--tools "" disables every tool' claude --tools ""
+check_absent no  "--tools default keeps the default set" claude --tools default
+check_absent no  "--tools with no value is ignored (fail safe)" claude --tools
+check_absent no  "--disallowedTools is not read as removing Skill (not verified to)" claude --disallowedTools Skill
+
+if [ "$(uname)" = "Linux" ]; then
+  mkdir -p "$TMP/bin"; ln -sf "$(command -v bash)" "$TMP/bin/claude"
+  skills_hook() {  # <extra claude args...>: the hook's raw stdout, run under a process whose comm is "claude"
+    NEST_CFG="$NEST_CFG" TMP="$TMP" HOOK="$HOOK" "$TMP/bin/claude" -c '
+      printf "{\"cwd\":\"%s\",\"source\":\"startup\",\"session_id\":\"sst-skills\"}" "$TMP" \
+        | CLAUDE_CONFIG_DIR="$NEST_CFG" XDG_STATE_HOME="$TMP/state" node "$HOOK" 2>/dev/null
+      rc=$?  # a command after the pipeline keeps this shell alive as the parent of the hook
+    ' nested "$@"
+  }
+  skills_ctx() { skills_hook "$@" | jq -r '.hookSpecificOutput.additionalContext // ""'; }
+
+  SK_DEFAULT=$(skills_ctx)
+  SK_RESTRICTED=$(skills_ctx --tools Bash,Read,Write,Edit,Glob,Grep)
+  SK_WITH=$(skills_ctx --tools Bash,Skill)
+
+  echo "$SK_DEFAULT" | grep -q "SKILLS AVAILABLE" \
+    && pass "skills block: a session with no --tools flag gets it" \
+    || fail "skills block: missing for a session with no --tools flag"
+  echo "$SK_WITH" | grep -q "SKILLS AVAILABLE" \
+    && pass "skills block: --tools that lists Skill keeps it" \
+    || fail "skills block: dropped although --tools lists Skill"
+  # Non-vacuity: the restricted run must still emit the rest of the message, or a hook
+  # that failed to run at all would pass the absence check below.
+  echo "$SK_RESTRICTED" | grep -q "PROJECT BOOTSTRAP" \
+    || fail "skills block: fixture precondition — the hook emitted nothing under the fake claude"
+  if echo "$SK_RESTRICTED" | grep -q "SKILLS AVAILABLE"; then
+    fail "skills block: advertised to a session whose --tools omits Skill"
+  else
+    pass "skills block: omitted when --tools omits Skill"
+  fi
+else
+  pass "skills block: N/A (the Claude argv is read from /proc)"
+fi
+
 echo
 echo "Total: $((PASS+FAIL))  Pass: $PASS  Fail: $FAIL"
 [ "$FAIL" -eq 0 ]

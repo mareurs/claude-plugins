@@ -87,7 +87,9 @@ const ESCAPE_FOOTER =
   '\n\nIf a tool named above is not in your tool list, do not assume the MCP ' +
   'server is down: this session may expose only a subset of codescout\'s tools. ' +
   'Call one that IS present to find out — if `run_command` answers, it reaches ' +
-  'the same file with `acknowledge_risk: true`. If no codescout tool is present ' +
+  'the same file with `acknowledge_risk: true`, but only for a tool that is missing. ' +
+  'If the tool named above IS in your tool list, call it: do not reach the file ' +
+  'through `run_command` with `acknowledge_risk` instead. If no codescout tool is present ' +
   'at all, the server has disconnected: ask the user to run /mcp, or to run the ' +
   'command for you by typing "! <command>" at the prompt.';
 

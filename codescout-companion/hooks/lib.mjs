@@ -616,6 +616,33 @@ export function isClaudeProcess(pid) {
   }
 }
 
+// Does a Claude Code command line prove the session has NO `Skill` tool?
+// `--tools <tools...>` sets the built-in tool list: comma- or space-separated names,
+// "" for none, "default" for the default set (`claude --help`). A session started with
+// a list that omits Skill cannot call it, so advice to call it only wastes a turn.
+// Answers true only on that proof; no flag, an unreadable value or anything else
+// answers false, so the caller keeps its old behaviour. `--disallowedTools` is NOT
+// read: that it removes the tool from the model's list rather than only denying the
+// call has not been checked.
+export function skillToolAbsentFromArgv(argv) {
+  let names = null;
+  for (let i = 0; i < argv.length; i++) {
+    const a = argv[i];
+    let values;
+    if (a.startsWith('--tools=')) {
+      values = [a.slice('--tools='.length)];
+    } else if (a === '--tools') {
+      values = [];
+      while (i + 1 < argv.length && !argv[i + 1].startsWith('-')) values.push(argv[++i]);
+      if (values.length === 0) continue; // a flag with no value says nothing
+    } else {
+      continue;
+    }
+    names = values.flatMap((v) => v.split(',')).map((s) => s.trim()).filter((s) => s !== '');
+  }
+  return names !== null && !names.includes('Skill') && !names.includes('default');
+}
+
 // Stamp one rendezvous slot with a SessionStart's session id and source, unless
 // it already carries them. Returns whether it wrote. Shared by session-start.mjs's
 // scan and by rendezvous-late-stamp.mjs, so a slot stamped late obeys the same

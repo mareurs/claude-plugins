@@ -331,6 +331,15 @@ case "$OUT" in
     *"acknowledge_risk"*) check "escape-footer-names-a-partial-set-route" "yes" "yes" ;;
     *)                    check "escape-footer-names-a-partial-set-route" "no"  "yes" ;;
 esac
+# ...but the route is for a tool that is MISSING. Opus, in a session that had every
+# tool, read a source file through run_command + acknowledge_risk because the footer
+# offered the route without that condition (Setup A/B audit,
+# docs/issues/2026-11-09-companion-hooks-advertise-tools-and-skills-the-session-does-not-have.md).
+# Pinned: the sentence that sends a session with the named tool back to that tool.
+case "$OUT" in
+    *"IS in your tool list, call it"*) check "escape-footer-route-is-for-a-missing-tool-only" "yes" "yes" ;;
+    *)                                  check "escape-footer-route-is-for-a-missing-tool-only" "no"  "yes" ;;
+esac
 case "$OUT" in
     *"has disconnected and this redirect points at nothing"*)
         check "escape-footer-does-not-assert-disconnection" "no" "yes" ;;

@@ -12,7 +12,7 @@ import {
 import { join, dirname, isAbsolute } from 'node:path';
 import { homedir } from 'node:os';
 import { spawn, execFileSync } from 'node:child_process';
-import { readInput, detectFor, git, emit, isClaudeProcess, stampSlotIfStale } from './lib.mjs';
+import { readInput, detectFor, git, emit, isClaudeProcess, skillToolAbsentFromArgv, stampSlotIfStale } from './lib.mjs';
 import { fileURLToPath } from 'node:url';
 
 const input = readInput();
@@ -166,6 +166,21 @@ function parentOf(pid) {
     return null;
   }
 }
+// False only when our Claude's own command line proves this session has no `Skill` tool
+// (launched with `--tools` that omits it). Everything else — no Claude process found,
+// unreadable argv, a non-Linux host — answers true, so the skills block stays, as before.
+function sessionMayHaveSkillTool() {
+  try {
+    if (process.platform !== 'linux') return true;
+    const claudePid = [...ownAncestry()].pop();
+    if (claudePid === undefined || !isClaudeProcess(claudePid)) return true;
+    const argv = readFileSync(`/proc/${claudePid}/cmdline`, 'utf8').split('\0');
+    return !skillToolAbsentFromArgv(argv);
+  } catch {
+    return true;
+  }
+}
+
 
 let msg = '';
 
@@ -203,11 +218,13 @@ if (d.HAS_CS_MEMORIES === 'true') {
 `;
 }
 
-// Skills.
-msg += `SKILLS AVAILABLE:
+// Skills. Advice to call Skill(...) is noise in a session that has no Skill tool.
+if (sessionMayHaveSkillTool()) {
+  msg += `SKILLS AVAILABLE:
 - Reconnaissance — Skill('codescout-companion:reconnaissance'). Recommended before subagent dispatch or shape-changing edits.
 
 `;
+}
 
 // Tracker-hygiene overdue nudge (ISO date; due-today counts; local date to match `date +%F`).
 const hygieneLog = join(cwd, 'docs', 'trackers', 'tracker-hygiene-log.md');
