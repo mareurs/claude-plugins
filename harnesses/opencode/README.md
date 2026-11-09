@@ -1,8 +1,16 @@
 # OpenCode harness
 
-Runs the `codescout-companion` tool-routing guard under
-[OpenCode](https://opencode.ai), the terminal coding agent. This is a **host bridge**, not a
-fork of the routing rules.
+Runs this repo's plugins under [OpenCode](https://opencode.ai), the terminal coding agent.
+Each one is a **host bridge**, not a fork: the OpenCode plugin translates OpenCode events
+into what the Claude Code side already does, and the plugin's own files stay the source.
+
+| Plugin | OpenCode plugin | What you get on OpenCode |
+|---|---|---|
+| `codescout-companion` | `codescout-companion.js` | The source-redirect guard, the routing directive, the circuit breaker; its skills and `/codescout-dashboard` |
+| `legible` | `legible.js` | A `legible` agent that writes in the Explanatory STE style; the `explain` skill and `/legible-explain` |
+
+Most of this README is about `codescout-companion`, which came first. Each other plugin has
+its own section below.
 
 **Target: OpenCode v2.** The first version of this bridge was written against the v1 plugin
 typing and v2 refused to load it — see §The v1 failure below, because it is the reason the
@@ -79,17 +87,41 @@ Honesty here is the point — see §Verified vs asserted before reporting a gap 
 | Statusline, `buddy`, `sdd`, `statusline` plugins | **not ported** | `sdd`'s guards and buddy's judges depend on Claude Code hook events with no OpenCode equivalent found. Only `codescout-companion`'s routing is bridged. |
 | Background-job continuation | **not ported** | `background-wake/` has `claude-code` and `codex` adapters; an OpenCode adapter would be its own piece of work. |
 
+## legible
+
+Claude Code selects legible's output style with `/output-style legible:Explanatory STE`.
+OpenCode has no output styles, so `legible.js` registers a **`legible` agent** instead: pick
+it with Tab in the TUI, or `opencode run --agent legible`.
+
+- The agent copies the `build` agent's permissions and model, so it can do everything
+  `build` can. Only the writing style changes.
+- It does **not** set the agent's `system` prompt. On 2.1.3 a `system` prompt *replaces*
+  OpenCode's coding prompt, which is the opposite of the style's
+  `keep-coding-instructions: true`. The style text is added through
+  `session.hook("context")`, and only while the active agent is `legible`.
+- `/legible-explain [ste|page]` runs the `explain` skill on the previous answer, like
+  `/legible:explain` on Claude Code.
+
+Verified live on 2.1.3: the style is in the prompt under `legible` and absent under
+`build`; the `legible` agent still lists the coding tools; the `explain` skill is
+available. Unit tests: `node harnesses/opencode/legible.test.mjs`.
+
 ## Install
 
 ```bash
 cd /path/to/claude-plugins
-git checkout feat/opencode-harness-adapter
-./harnesses/opencode/install.sh            # user-level: ~/.config/opencode/plugins/
-./harnesses/opencode/install.sh --project  # or project-level: ./.opencode/plugins/
-./harnesses/opencode/install.sh --check    # verify, change nothing
+./harnesses/opencode/install.sh                       # everything, user level (~/.config/opencode/)
+./harnesses/opencode/install.sh --plugins legible     # only some plugins (comma-separated)
+./harnesses/opencode/install.sh --project             # into ./.opencode/ instead
+./harnesses/opencode/install.sh --check               # verify, change nothing (flags dangling links)
 ```
 
-The installer **only symlinks the plugin**. It deliberately does not touch
+Per plugin it links `<plugin>.js` into `plugins/`, each skill into `skills/` and each
+command into `commands/`. Skills go to OpenCode's own `skills/` dir, not `~/.claude/skills`:
+OpenCode reads both, but Claude Code also reads `~/.claude/skills` and already loads these
+skills from the plugin, so linking them there would load each one twice in Claude Code.
+
+The installer deliberately does not touch
 `opencode.json` — that file holds provider API keys on real machines, and it prints the
 one block you need to add yourself:
 
@@ -293,6 +325,6 @@ writable on this machine at all, and why nothing in this adapter imports from
 ## Tests
 
 ```bash
-node harnesses/opencode/codescout-companion.test.mjs   # direct
-bash tests/test-opencode-adapter.sh                    # as run-all.sh discovers it
+node harnesses/opencode/<plugin>.test.mjs   # one bridge, direct
+bash tests/test-opencode-adapter.sh         # every bridge + a sandboxed install, as run-all.sh runs it
 ```
