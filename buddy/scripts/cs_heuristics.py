@@ -88,7 +88,7 @@ def _check_structural_edit(event: dict, session_log: list[dict]) -> str | None:
             return (
                 "Use `edit_code` for structural edits — "
                 "`edit_file` on definition bodies risks LSP range "
-                "corruption (BUG-027)."
+                "corruption."
             )
 
     return None
@@ -253,7 +253,7 @@ def _check_parallel_write(event: dict, session_log: list[dict]) -> str | None:
     prev_ts = prev.get("ts", 0)
     if current_ts == prev_ts and current_ts > 0:
         return (
-            "Parallel writes risk inconsistent state (BUG-021) — "
+            "Parallel writes risk inconsistent state — "
             "serialize write tool calls."
         )
 

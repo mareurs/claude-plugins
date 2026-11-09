@@ -50,7 +50,7 @@ def test_structural_edit_detected():
     result = check(event, [])
     assert result is not None
     assert "edit_code" in result
-    assert "BUG-027" in result
+    assert "BUG-" not in result  # an internal id the agent cannot look up
 
 
 @pytest.mark.parametrize("path,new_string", [
@@ -257,7 +257,7 @@ def test_parallel_write_detected():
     event = _make_event(tool_name="mcp__codescout__edit_code")
     result = check(event, log)
     assert result is not None
-    assert "BUG-021" in result
+    assert "BUG-" not in result  # an internal id the agent cannot look up
 
 
 def test_sequential_writes_ok():
