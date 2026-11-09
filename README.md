@@ -6,12 +6,24 @@ These plugins reflect specific workflows and tool choices -- they may not suit e
 
 ## Quick Start
 
+Claude Code. The marketplace is registered as `sdd-misc-plugins`, the `name` in `.claude-plugin/marketplace.json`:
+
 ```
 /plugin marketplace add mareurs/claude-plugins
-/plugin install sdd@claude-plugins
-/plugin install codescout-companion@claude-plugins
-/plugin install buddy@claude-plugins
+/plugin install sdd@sdd-misc-plugins
+/plugin install codescout-companion@sdd-misc-plugins
+/plugin install buddy@sdd-misc-plugins
 ```
+
+Codex, with `codescout` on your PATH. Install `cs-hint-codex` and not `buddy`: both emit the `[cs-hint]` advisories, and in Codex they would appear twice.
+
+```
+codex plugin marketplace add mareurs/claude-plugins
+codex plugin add cs-hint-codex@sdd-misc-plugins
+codex mcp add codescout -- codescout start
+```
+
+Codex never runs a plugin hook before you approve it, and installing the plugin does not approve it. Until then no advisory reaches the model and Codex shows no error. Start Codex and review the one hook of `cs-hint-codex` in its hooks review (`/hooks`). The approval holds until the plugin's own files change, so a new version of the plugin asks for it again.
 
 ## Available Plugins
 
