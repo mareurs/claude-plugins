@@ -125,21 +125,10 @@ The format, captured from a real `SendMessage` on Claude Code 2.1.312:
 
 The sender needs no auth line. The server sends no reply bytes.
 
-**Measured versions: 2.1.312.** The format is measured only on the versions listed
-here. The snippet below enforces the list in code (its `MEASURED` set); the two must
-agree, and a test pins that. It reads the target's version from the registry key
-`version` in `<its CLAUDE_CONFIG_DIR>/sessions/<pid>.json`, not from
-`claude --version` (that reports the binary on the caller's PATH). Measured
-2026-10-29 across the live registries: `version` matched the basename of
-`/proc/<pid>/exe` for every version-pinned install, but `exe` is not always usable: an unpinned install shows
-`claude`, and a missing exe gives nothing, so neither names a version. An install
-replaced after launch shows `<version> (deleted)`, which is correct, because the
-running image is that version. So the registry `version` is the source; the `exe`
-basename, without a ` (deleted)` suffix, is used only when the registry row has no
-`version`. If the target's version is not in
-the measured list, refuse to post: report the version to the operator and stop. Some
-Claude peers run older versions (2.1.310 and below were seen), so they are
-unreachable from Codex until their format is measured.
+The format was measured on Claude Code 2.1.312. The snippet does not check the target's
+version and posts to any target that has a socket. A newer or older target may read the line
+differently. The exit code does not say that the target read the message, so ask the target
+to confirm if the answer matters.
 
 Send with the snippet. The message goes in through a quoted heredoc, never through a
 shell argument, so quotes, backticks and dollar signs in it arrive as written. Pick a FRESH terminator for each send: `MSG_` plus 16 random hex
@@ -149,8 +138,7 @@ the text, the PID or the sender id. A line equal to the terminator ends the mess
 it then runs as a shell command. The
 first line of the message is the core's label; its quoted name becomes `from-name`.
 `<sender-id>` is any non-`uds:` id for the sender, a single word. The snippet exits
-non-zero, sends nothing and prints the reason when the version is not measured or the
-sender id starts with `uds:`.
+non-zero, sends nothing and prints the reason when the sender id starts with `uds:`.
 
 ```bash
 msg=$(mktemp); args=$(mktemp)
@@ -169,36 +157,11 @@ with open(sys.argv[1]) as f:
 msgfile = sys.argv[2]
 if not re.fullmatch("[0-9]+", pid):
     sys.exit("not sent: PID %r is not a process id" % pid)
-MEASURED = {"2.1.312"}
-proc = os.environ.get("CS_PEERS_PROC", "/proc")
 socks = os.environ.get("CS_PEERS_SOCKS", "/run/user/%d/cc-socks" % os.getuid())
 if sender.startswith("uds:"):
     sys.exit("not sent: sender id must not start with uds:")
 if not re.fullmatch("[A-Za-z0-9_.:-]+", sender):
     sys.exit("not sent: sender id %r is not a single plain word" % sender)
-def blob(path):
-    try:
-        with open(path, "rb") as f:
-            return f.read().decode("utf-8", "replace")
-    except OSError:
-        return ""
-envs = [e for e in blob(os.path.join(proc, pid, "environ")).split("\0") if e.startswith("CLAUDE_CONFIG_DIR=")]
-cfg = envs[0].split("=", 1)[1] if envs else ""
-if not cfg:
-    cfg = os.path.join(os.environ.get("HOME", ""), ".claude")
-version = ""
-try:
-    with open(os.path.join(cfg, "sessions", pid + ".json")) as f:
-        version = str(json.load(f).get("version") or "")
-except (OSError, ValueError):
-    pass
-if not version:
-    try:
-        version = os.path.basename(os.readlink(os.path.join(proc, pid, "exe"))).split(" ")[0]
-    except OSError:
-        pass
-if version not in MEASURED:
-    sys.exit("not sent: target version %s is not in the measured list %s; report it to the operator" % (version or "unknown", sorted(MEASURED)))
 with open(msgfile) as f:
     text = f.read().rstrip("\n")
 if not text.strip():
@@ -213,6 +176,6 @@ s.settimeout(5)
 s.connect(os.path.join(socks, pid + ".sock"))
 s.sendall((json.dumps(msg) + "\n").encode())
 s.close()
-print("sent to claude pid %s (version %s)" % (pid, version))
+print("sent to claude pid %s" % pid)
 PY
 ```

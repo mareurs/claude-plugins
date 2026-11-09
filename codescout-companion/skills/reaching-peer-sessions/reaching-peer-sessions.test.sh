@@ -276,46 +276,11 @@ else
   fi
 fi
 
-# 12. THE DELIVER SECTION NAMES ITS MEASURED VERSIONS AND THE REFUSAL RULE. Codex delivery
-#     writes a wire format measured on specific Claude Code versions; sending it to an
-#     unmeasured one is a guess. Pinned as SHAPE, not wording: the `## Deliver` section
-#     must carry (a) a `Measured versions:` line that holds `2.1.312`, and (b) the RULE
-#     sentence: `not in the measured list` followed, in the same sentence, by refuse and
-#     report. Anchored on the rule itself, NOT on bare tokens: `refused`, `reports` and
-#     `2.1.312` also occur elsewhere in the section (decoys), so a token check survives
-#     deleting the rule. The section is flattened to one line first, because the prose
-#     is hard-wrapped and the sentence spans lines. The anchor is a `[^.]*` span, so the
-#     rule sentence may be reworded freely ONLY while it holds no full stop between
-#     `not in the measured list`, `refuse` and `report` -- a version number such as
-#     2.1.312 written inside that span breaks the match and needs the anchor updated.
-#     Deleting either the line or the sentence is caught.
-deliver_pins_versions() {
-  local sec; sec=$(awk '/^## Deliver/{s=1; next} s && /^## /{exit} s{print}' "$1" | tr '\n' ' ' | tr -s ' ')
-  grep -qE 'Measured versions:\**[[:space:]]*2\.1\.312' <<<"$sec" \
-    && grep -qiE 'not in the measured list[^.]*refuse[^.]*report' <<<"$sec"
-}
-if deliver_pins_versions "$SKILL"; then
-  pass "Deliver names the measured version list and the refuse-and-report rule"
-else
-  fail "Deliver names the measured version list and the refuse-and-report rule" "section missing, no 'Measured versions:' line holding 2.1.312, or no 'not in the measured list ... refuse ... report' sentence (a full stop inside that span, e.g. a version number, breaks the match)"
-fi
-# 12b. Controls: each deletes EXACTLY one thing (not every token) and must be caught.
-#     Delete only the `**Measured versions: 2.1.312.**` label:
-python3 -c 'import re,sys;t=open(sys.argv[1]).read();open(sys.argv[2],"w").write(re.sub(r"\*\*Measured versions: 2\.1\.312\.\*\* *","",t))' "$SKILL" "$TMP/no-version.md"
-cmp -s "$SKILL" "$TMP/no-version.md" && fail "control no-version actually changed the copy" "mutation did not apply"
-if deliver_pins_versions "$TMP/no-version.md"; then
-  fail "control: dropping the measured version from Deliver is caught" "mutated copy still passed"
-else
-  pass "control: dropping the measured version from Deliver is caught"
-fi
-#     Delete only the rule sentence:
-python3 -c 'import re,sys;t=open(sys.argv[1]).read();open(sys.argv[2],"w").write(re.sub(r"If the target.s version is not in\s+the\s+measured\s+list.*?stop\. *","",t,flags=re.S))' "$SKILL" "$TMP/no-refuse.md"
-cmp -s "$SKILL" "$TMP/no-refuse.md" && fail "control no-refuse actually changed the copy" "mutation did not apply"
-if deliver_pins_versions "$TMP/no-refuse.md"; then
-  fail "control: dropping the refuse rule from Deliver is caught" "mutated copy still passed"
-else
-  pass "control: dropping the refuse rule from Deliver is caught"
-fi
+# 12. THE DELIVER SECTION DOES NOT GATE ON THE TARGET'S VERSION. An earlier rule refused to post
+#     to any Claude Code version outside a measured list. It was removed on 2026-11-09 because it
+#     made every newer session unreachable from Codex until someone re-measured. The snippet
+#     check in section 17 pins the replacement behaviour: a target of any version is posted to.
+
 
 # 13-15. THE MERGE BLOCK on row fixtures of both harnesses (extracted from SKILL.md; rows
 #     are the Enumerate contract: seven tab fields, no header). The Codex row counts under
@@ -379,8 +344,8 @@ fi
 #     references/claude-code.md), run for real: a fixture /proc tree and registry reached
 #     through CS_PEERS_PROC / CS_PEERS_SOCKS, and a throwaway AF_UNIX listener in a short
 #     mktemp path. Never a real /run/user socket. An allowed version posts exactly one
-#     newline-terminated JSON object with the six keys; an unmeasured version, a missing
-#     version source, an empty CLAUDE_CONFIG_DIR and a `uds:` sender each send nothing and
+#     newline-terminated JSON object with the six keys, whatever the target's version; an
+#     uds: sender and an empty message each send nothing and
 #     exit non-zero. The Python is tested on its own (snippet_checks) AND through the whole
 #     bash fence (wrapper_checks): the heredoc terminator, the placeholders and the temp
 #     file live in the wrapper, which a Python-only test never runs.
@@ -449,23 +414,12 @@ snippet_checks() { # snippet_checks <snippet-text>: echoes each failing reason o
     if [ "$POST_RC" = 0 ] && python3 -c "$CHECK_POST" "$PD/got" "$PD/msg" 2>/dev/null; then :; else echo "post wrong (rc=$POST_RC): $POST_ERR" >&2; failed=1; fi
     post_clean
   fi
-  if cwant exe; then
-    post_case "$s" codex-4242 "exe:2.1.312 (deleted)"
-    { [ "$POST_RC" = 0 ] && [ "$POST_N" -gt 0 ]; } || { echo "exe fallback did not post (rc=$POST_RC): $POST_ERR" >&2; failed=1; }
-    post_clean
-  fi
-  if cwant version; then
-    post_case "$s" codex-4242 reg:2.1.310
-    { [ "$POST_RC" != 0 ] && [ "$POST_N" -eq 0 ] && grep -qF 2.1.310 <<<"$POST_ERR"; } || { echo "unmeasured version posted (rc=$POST_RC n=$POST_N): $POST_ERR" >&2; failed=1; }
-    post_clean
-    post_case "$s" codex-4242 exe:claude
-    { [ "$POST_RC" != 0 ] && [ "$POST_N" -eq 0 ]; } || { echo "unmeasured exe version posted (rc=$POST_RC)" >&2; failed=1; }
-    post_clean
-  fi
-  if cwant cfg; then
-    post_case "$s" codex-4242 emptycfg
-    { [ "$POST_RC" != 0 ] && [ "$POST_N" -eq 0 ]; } || { echo "empty CLAUDE_CONFIG_DIR read the caller's cwd (rc=$POST_RC n=$POST_N)" >&2; failed=1; }
-    post_clean
+  if cwant anyversion; then
+    for v in reg:2.1.319 reg:2.1.310 reg:99.0.0; do
+      post_case "$s" codex-4242 "$v"
+      { [ "$POST_RC" = 0 ] && [ "$POST_N" -gt 0 ]; } || { echo "a target of version ${v#reg:} was not posted to (rc=$POST_RC n=$POST_N): $POST_ERR" >&2; failed=1; }
+      post_clean
+    done
   fi
   if cwant uds; then
     post_case "$s" "uds:cc9" reg:2.1.312
@@ -485,7 +439,7 @@ snippet_checks() { # snippet_checks <snippet-text>: echoes each failing reason o
 if [ -z "$SNIP" ]; then
   fail "Codex-caller post" "no python program between <<'PY' and PY under ## Deliver"; SNIP='raise SystemExit("no snippet")'
 elif why=$(snippet_checks "$SNIP" 2>&1 >/dev/null); then
-  pass "Codex-caller post: one JSON line to the socket for a measured version; unmeasured version, empty config dir, uds sender and empty message refused"
+  pass "Codex-caller post: one JSON line to the socket for a target of any version; uds sender and empty message refused"
 else
   fail "Codex-caller post" "$why"
 fi
@@ -498,10 +452,8 @@ snip_control() { # snip_control <label> <expected reason> <python-mutation: t ->
   else fail "control $1" "failed, but not for '$2': $why"; fi
   GW=all
 }
-snip_control gate_removed   "unmeasured version posted" 't = t.replace("if version not in MEASURED:", "if False:")' version
-snip_control exe_fallback_removed "exe fallback did not post" 't = t.replace("if not version:", "if False:")' exe
+snip_control version_gate_added "a target of version" 't = t.replace("with open(msgfile) as f:", "sys.exit(\"not sent: unmeasured\")\nwith open(msgfile) as f:", 1)' anyversion
 snip_control uds_check      "uds sender posted" 't = t.replace("sender.startswith(\"uds:\")", "False")' uds
-snip_control cfg_fallback   "empty CLAUDE_CONFIG_DIR read the caller" 't = t.replace("if not cfg:", "if False:")' cfg
 snip_control empty_message  "empty message posted" 't = t.replace("if not text.strip():", "if False:")' empty
 snip_control fromname_quote "post wrong" 't = t.replace(".replace(\x27\"\x27, \"\x27\")", "")' main
 snip_control no_newline     "post wrong" 't = t.replace(r"""json.dumps(msg) + "\n")""", r"""json.dumps(msg))""")' main
@@ -576,24 +528,6 @@ fence_control fixed_terminator "heredoc injection" 't = t.replace("MSG_<16 hex d
 fence_control no_trap          "temp message left" 't = t.replace("trap \x27rm -f \"$msg\" \"$args\"\x27 EXIT\n", "")'
 fence_control quoted_placeholders "shell injection" 't = t.replace("python3 - \"$args\" \"$msg\" <<\x27PY\x27", "python3 - \x27<target PID>\x27 \x27<sender-id>\x27 \"$msg\" <<\x27PY\x27").replace("with open(sys.argv[1]) as f:\n    pid, sender = (f.read().split(\"\\n\") + [\"\", \"\"])[:2]\nmsgfile = sys.argv[2]", "pid, sender, msgfile = sys.argv[1:4]")' hostile_checks
 
-# 17b. THE VERSION LIST IN PROSE AND IN CODE AGREE. `Measured versions:` (prose) and the
-#      snippet's MEASURED set must hold the same versions; editing one alone must go red.
-versions_agree() {
-  local prose code
-  prose=$(awk '/^## Deliver/{s=1; next} s && /^## /{exit} s{print}' "$1" | grep -oE 'Measured versions:[^*]*' | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | sort -u | tr '\n' ' ')
-  code=$(grep -oE 'MEASURED = \{[^}]*\}' "$1" | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | sort -u | tr '\n' ' ')
-  [ -n "$prose" ] && [ "$prose" = "$code" ]
-}
-if versions_agree "$SKILL"; then pass "Measured versions: prose and the snippet's MEASURED set agree"; else fail "version agreement" "prose and MEASURED differ"; fi
-vctl() { # vctl <label> <old> <new>
-  local dst="$TMP/v-$1.md"
-  python3 -c 'import sys;t=open(sys.argv[1]).read();open(sys.argv[2],"w").write(t.replace(sys.argv[3],sys.argv[4],1))' "$SKILL" "$dst" "$2" "$3"
-  if cmp -s "$SKILL" "$dst"; then fail "control $1" "mutation did not change the copy"; return; fi
-  if versions_agree "$dst"; then fail "control $1" "disagreeing lists still passed"; else pass "control $1 is caught"; fi
-}
-vctl code_widened  'MEASURED = {"2.1.312"}' 'MEASURED = {"2.1.312", "2.1.310"}'
-vctl prose_changed '**Measured versions: 2.1.312.**' '**Measured versions: 2.1.313.**'
-
 # 17c. DELIVER PINS in claude-code.md: the codescout-missing stop (M1), the receiver rule
 #      for a non-uds `from=` (R17), and the quoted-heredoc send form (no shell-quoted message).
 cc_deliver_pins() {
@@ -606,9 +540,7 @@ cc_deliver_pins() {
     && grep -qE "trap 'rm -f \"[$]msg\" \"[$]args\"' EXIT" <<<"$s" \
     && grep -qE 'check that it occurs nowhere in the text, the PID or the sender id' <<<"$s" \
     && grep -qE 'Pick a FRESH terminator for each send: MSG_ plus 16 random hex digits' <<<"$s" \
-    && grep -qE 'check that it occurs nowhere in the text' <<<"$s" \
-    && grep -qE 'which is correct, because the running image is that version' <<<"$s" \
-    && ! grep -qiE 'is not a safe source' <<<"$s"
+    && grep -qE 'check that it occurs nowhere in the text' <<<"$s"
 }
 if cc_deliver_pins "$SKILL"; then pass "claude-code Deliver pins: codescout-missing stop, non-uds receiver rule, quoted-heredoc send"; else fail "claude-code Deliver pins" "a pinned sentence is missing"; fi
 ccctl() { # ccctl <label> <old> <new>
@@ -624,8 +556,6 @@ ccctl sid_from_text     'Enumerate row, never from message text' 'Enumerate row,
 ccctl shell_message     "<<'MSG_<16 hex digits>'" "<<'MSG'"
 ccctl fixed_terminator  'Pick a FRESH terminator' 'Pick a terminator'
 ccctl no_trap_line      "trap 'rm -f \"\$msg\" \"\$args\"' EXIT" ''
-ccctl exe_deleted_ok    'which is correct, because the' 'which is unsafe, because the'
-ccctl exe_unsafe_back   'but `exe` is not always usable' 'but `exe` is not a safe source'
 
 # 18. THE MERGE BLOCK UNDER ERREXIT (`bash -e`). A rowset with only one harness makes a
 #     counting `grep -c` exit 1, and an empty rowset makes `grep -v` exit 1: unguarded, the
