@@ -171,5 +171,11 @@
     "atomic_checks": 37,
     "missing": 0,
     "divergent": 0
+  },
+  "delivery": {
+    "plugin_feature_commit": "381ae57",
+    "codescout_support_commit": "505e8033a",
+    "remaining": "guarded wiring and caller-test commits pending notification/ACK authorization",
+    "live_installation": false
   }
 }

@@ -11,7 +11,7 @@ tags:
 approved_on: 2026-11-09
 deployment: not included
 execution_method: inline/native with independent final applied-mutation review
-execution_progress: Tasks 1–7 source implementation and verification complete; final explicit-path commits pending. Full plugin and Codescout gates green, six native components passed, ten stock-native routes passed, formatter56 and buddy534 passed. Independent mutation review accepted after fixes; spec-drift source GO (57ada03063a50be6). No deployment.
+execution_progress: Source verification complete, source/spec GO. Plugin feature381ae57 and Codescout support505e8033a committed. Remaining Codescout wiring23 paths are guard-contested under4 identities; caller tests3 paths follow wiring. Automatic approval review rejected notification to01a1bf89 because previous authorization named only01a1bf68. Additional notification/ACK authorization pending; no deployment.
 final_review: Independent strongest-model review accepts source after fixes; six applied mutations, initial 5 killed/1 survivor; exact survivor killed by subsequently added parent-inode regression. Fresh final gates/native rerun in progress.
 review_state: 'approved by maintainer: go'
 spec: 9d1d3c7f58f63dad
@@ -122,7 +122,7 @@ Register pre/post tool events and supported session/child/compaction lifecycle e
 - [x] Run `node --test codescout-companion/hooks/codex-observation.test.mjs`; verify missing adapter failures.
 - [x] Implement adapter/config using Task 1 pure normalizer and Task 2 CLI only. Do not duplicate store locking/rotation in JavaScript.
 - [x] Run adapter and session-context Node tests. Assert bounded execution, exact neutral stdout, no forbidden persisted canaries, no MCP/model/background calls and default-disabled no observation files.
-- [ ] Commit Task 4 paths: `feat(hooks): add stock Codex observation adapter`.
+- [x] Commit Task 4 paths: `feat(hooks): add stock Codex observation adapter`.
 
 ## Task 5: Conservative Python reconciliation and read-only inspector
 
@@ -152,7 +152,7 @@ Inspector CLI: `python3 scripts/inspect-observations.py --workspace PATH --json`
 - [x] Implement rendering and source packaging. Document explicit future opt-in/reload/trust steps and per-profile installed acceptance; no version bump in this feature.
 - [x] Verify the new Node/shell tests are actually discovered by `tests/run-all.sh`, and Codescout's Python gate discovers the new Python tests. Package-resource smoke tests must locate every newly required runtime helper without relying on the source checkout.
 - [x] Run registration tests and context-contract tests; confirm Claude shared hooks and session-context v1 fixtures remain unchanged.
-- [ ] Commit Task 6 paths: `feat(observations): package Codex adapter and activation guidance`.
+- [x] Commit Task 6 paths: `feat(observations): package Codex adapter and activation guidance`.
 
 ## Task 7: End-to-end acceptance, applied mutations and required gates
 
@@ -172,4 +172,4 @@ Inspector CLI: `python3 scripts/inspect-observations.py --workspace PATH --json`
 
 Spec mapping: criteria 1–2 → Tasks 1, 3, 6; 3–4 → Tasks 3–4, 7; 5 → Tasks 1, 5; 6 → Tasks 2–3, 7; 7–8 → Tasks 2–5, 7; 9 → Tasks 2–3; 10 → Tasks 1–4; 11 → Task 5; 12 → Tasks 1, 6–7; 13 → Task 6's documented future deployment boundary.
 
-Self-review covers spec coverage, checkable steps, shared interface names, the five Review Focus cases and proportion. This document plans implementation; no new observer, tests or installed hooks are claimed to exist. Await maintainer plan review before starting execution.
+Self-review covers spec coverage, checkable steps, shared interface names, the five Review Focus cases and proportion. Source implementation and verification are complete. Plugin feature 381ae57 and Codescout support 505e8033a are committed; remaining guarded wiring and dependent caller-test commits await the documented notification/ACK authorization. Source delivery remains distinct from future installed-profile acceptance; no live profile was modified.
