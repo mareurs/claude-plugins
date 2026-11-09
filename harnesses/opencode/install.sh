@@ -27,7 +27,7 @@ set -euo pipefail
 
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 HARNESS="$REPO_DIR/harnesses/opencode"
-ALL_PLUGINS="codescout-companion legible"
+ALL_PLUGINS="codescout-companion sdd legible"
 
 CONFIG_DIR="${OPENCODE_CONFIG_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/opencode}"
 MODE="user"
@@ -80,9 +80,10 @@ commands_of() {
   esac
 }
 
-# OpenCode spelling of sdd's command names: OpenCode has a BUILT-IN /review, and a command
-# file named `sdd:approve.md` did not load on 2.1.3 (measured). sdd.js applies the same
-# mapping to hook messages at runtime.
+# OpenCode spelling of sdd's command names: OpenCode has a BUILT-IN /review, and a ':' is
+# not allowed in a Windows filename, so the names are dashed (`sdd:approve.md` does load on
+# Linux — measured — but would not install everywhere). sdd.js applies the same mapping to
+# hook messages at runtime.
 render_command() {
   sed -e "s#\${CLAUDE_PLUGIN_ROOT}#$REPO_DIR/sdd#g" \
       -e 's#/sdd:approve#/sdd-approve#g' \

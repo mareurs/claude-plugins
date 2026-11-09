@@ -7,6 +7,7 @@ into what the Claude Code side already does, and the plugin's own files stay the
 | Plugin | OpenCode plugin | What you get on OpenCode |
 |---|---|---|
 | `codescout-companion` | `codescout-companion.js` | The source-redirect guard, the routing directive, the circuit breaker; its skills and `/codescout-dashboard` |
+| `sdd` | `sdd.js` | spec-guard and review-guard, the session banner, approvals through `/sdd-approve`, subagent plan pointers; the `sdd-flow` skill, `/sdd-review`, `/sdd-init` |
 | `legible` | `legible.js` | A `legible` agent that writes in the Explanatory STE style; the `explain` skill and `/legible-explain` |
 
 Most of this README is about `codescout-companion`, which came first. Each other plugin has
@@ -86,6 +87,42 @@ Honesty here is the point — see §Verified vs asserted before reporting a gap 
 | Skills (`reconnaissance`, `tracker-hygiene`, …) | **not wired** | v2 has `ctx.skill.transform(...)`/`skill.list`, but its discovery configuration was never verified against a live session, so nothing is claimed. |
 | Statusline, `buddy`, `sdd`, `statusline` plugins | **not ported** | `sdd`'s guards and buddy's judges depend on Claude Code hook events with no OpenCode equivalent found. Only `codescout-companion`'s routing is bridged. |
 | Background-job continuation | **not ported** | `background-wake/` has `claude-code` and `codex` adapters; an OpenCode adapter would be its own piece of work. |
+
+## sdd
+
+`sdd.js` runs sdd's own hook scripts from OpenCode's plugin callbacks, so the rules are the
+same as on Claude Code:
+
+| Claude Code | OpenCode |
+|---|---|
+| `spec-guard.mjs` on Write/Edit and codescout write tools | `execute.before` on `edit`, `write`, `patch` and `codescout_edit_file`/`edit_code`/`create_file`/`doc`. A `patch` is checked file by file |
+| `review-guard.mjs` on Bash and `run_command` | `execute.before` on `shell`/`bash` and `codescout_run_command` |
+| `session-start.mjs` (SessionStart) | `session.hook("context")` in top-level sessions: run once, cached, refreshed after an approval |
+| `approve-intake.mjs` (UserPromptSubmit) | `session.hook("context")`: the latest **user** message of a **top-level** session, once per message |
+| `subagent-inject.mjs` (SubagentStart) | `session.hook("context")` in child sessions (`general` counts as an implementer) |
+| `/sdd:approve`, `/review`, `/sdd-init` | `/sdd-approve`, `/sdd-review`, `/sdd-init` |
+
+- **The approval boundary.** OpenCode has no prompt-submit event, so approvals are read
+  from the latest user message. The model cannot write user messages in its own session.
+  A subagent's first message *is* written by the model, so child sessions never approve.
+  If the session lookup fails, no approval is processed: approvals fail closed.
+- **Command names.** OpenCode has a built-in `/review`, and `:` is not allowed in a
+  Windows filename, so the commands are dashed. `install.sh` renders `/sdd-review` and
+  `/sdd-init` from `sdd/commands/` with the plugin path filled in (re-run it after editing
+  them), and `sdd.js` maps the names inside hook messages. The `sdd-flow` skill points
+  OpenCode sessions at `references/opencode.md`.
+- **Argument names.** OpenCode's `edit` sends `oldString`/`newString`; sdd's guards read
+  Claude Code's `old_string`/`new_string`. The bridge passes both. Without that, an edit
+  writing `status: approved` got past the approval guard (caught by the test suite).
+- **With codescout-companion installed**, codescout's guard runs first and blocks native
+  `edit`/`write`/`shell` on source, so sdd's guard sees codescout's write tools instead.
+
+Verified live on 2.1.3, with only `sdd.js` loaded (`OPENCODE_CONFIG_DIR` pointing at a
+config with just this plugin): a source edit, a new source file, an agent edit of
+`status: approved` and a shell write to the approval records are all denied without an
+approved plan; the edit is allowed once a plan is approved; the banner states the mode;
+`/sdd-approve spec a`, sent through the server's command route, approved the spec. Unit
+tests (real hooks, throwaway git repos): `node harnesses/opencode/sdd.test.mjs`.
 
 ## legible
 
