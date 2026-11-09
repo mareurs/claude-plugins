@@ -13,6 +13,8 @@ codescout-companion/               -- companion plugin for codescout MCP server
   .claude-plugin/plugin.json     -- version source of truth
   hooks/                         -- tool routing, guidance injection, auto-indexing
   docs/plans/                    -- design and implementation docs
+cs-hint-codex/                     -- Codex-only [cs-hint] hook; root must stay 5 files (§ cs-hint-codex)
+hint-echo/                         -- Claude Code mod: shows hook additionalContext to the user
 scripts/check-versions.sh       -- version consistency validator
 ```
 
@@ -79,6 +81,13 @@ For `.claude.json` (the file): single-profile users have it at `~/.claude.json`;
   `91cb319` (2026-05-06) while the other two profiles ran `1ab7b8e` (2026-08-12), so
   repointing without refreshing first would have silently downgraded an enabled plugin by
   three months. **Refresh the local copy, then repoint — never the reverse.**
+
+## Codex on this machine (verified 2026-11-09)
+
+- Only `~/.codex` exists. Marketplace `sdd-misc-plugins` is the LOCAL path of this checkout (`[marketplaces.sdd-misc-plugins] source_type = "local"`), so `codex plugin marketplace upgrade` does nothing for it; `codex plugin add <plugin>@sdd-misc-plugins` re-copies a plugin into `~/.codex/plugins/cache/` byte-identical with the working tree.
+- Installed and approved: `cs-hint-codex`, `buddy`, `codescout-companion`. `buddy`'s PostToolUse hook is switched off there (`[hooks.state."buddy@sdd-misc-plugins:hooks/hooks.json:post_tool_use:0:0"] enabled = false`) because it would double the advisories.
+- Every `codex plugin add` that changes content cancels that plugin's approvals (`trustStatus: modified`, runs fail with `plugin contents changed; hook approval required`; in the one case measured a failing PostToolUse hook did not stop its tool call, PreToolUse guard hooks were not measured). The repair writes the content half of `currentHash` (`declaration/content`) from `hooks/list` into `trusted_content_hash` of each hook-state record. Record, method and backups: codescout memories `codex-hook-content-trust-20261107` and `research/hint-visibility-channels-20261109`.
+- Nothing writes into `~/.codex/plugins/cache/` from this repo's scripts: do not edit files there by hand.
 
 ## The Windows work box (verified 2026-08-05 — NOT the machine above)
 
@@ -179,6 +188,17 @@ guard the import in `run_session_start` (matching every other block there) AND a
 neither alone closes the gap.
 
 **Judge config:** `buddy/hooks/judge.env` is the authoritative source — do NOT put judge config in settings.json.
+## cs-hint-codex (Codex only)
+
+Lives at `cs-hint-codex/`. The `[cs-hint]` advisories of buddy as one PostToolUse hook for Codex. Design and measurements: `docs/superpowers/specs/2026-11-09-cs-hint-codex-bundle-design.md`.
+
+- **Why it exists.** Codex runs a plugin hook only after the user approves it, installing the plugin does not approve it, and the approval is bound to a hash of the WHOLE plugin root (only `__pycache__`, `.venv`, `*.pyc`, `*.egg-info` are skipped). A new user who installs `buddy` or `codescout-companion` gets 5 or 27 hooks that silently do not run. Here one approval covers one hook.
+- **The root stays five files**: `.claude-plugin/plugin.json`, `hooks/hooks.json`, `hooks/cs_hint.py`, `scripts/cs_heuristics.py`, `scripts/cs_tool_log.py`. No README, tests or skills inside; any file added or edited there cancels every user's approval. `tests/test-cs-hint-codex.sh` pins the layout. Tests, docs and the sync script live outside the root.
+- **The two `scripts/` files are byte copies of `buddy/scripts/`** (a symlink in the root is an error for Codex). After a change to either buddy file run `scripts/sync-cs-hint-codex.sh`, bump the plugin version, and expect every Codex user to approve again. The test fails while a copy drifts.
+- **Stdlib only.** Unlike `buddy` (PyYAML is a hard dependency of its SessionStart), the hook needs only `python3`.
+- **Do not leave `buddy`'s PostToolUse hook active beside it in Codex**: both emit the same advisories. For new users: install `cs-hint-codex` and not `buddy` (README). On this machine `buddy` is installed too, with that one hook switched off (§ Codex on this machine). Claude Code keeps `buddy`; do not install `cs-hint-codex` there.
+- Fails silent (no output, exit 0). `CS_HINT_ENABLED=false` disables it. State: `$PLUGIN_DATA/<session>/cs_tool_log.jsonl`.
+
 ## Version Management
 
 **Single source of truth**: each plugin's `.claude-plugin/plugin.json` is the canonical version.
