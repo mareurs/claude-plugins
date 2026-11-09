@@ -10,7 +10,7 @@ plugin packages; an adapter should reference them rather than copy them.
 | Harness | Directory | What it provides |
 |---|---|---|
 | [Pi](./pi/) | `pi/` | Codescout MCP routing, companion status widget, recon/skill wiring, a fail-closed shell-egress guard, and read-only local session snapshots. |
-| [OpenCode](./opencode/) | `opencode/` | OpenCode v2 plugins bridging this repo's plugins: codescout-companion (source-redirect guard, routing directive, skills), sdd (spec and review guards, approvals, banner, skill and commands) and legible (an agent with the Explanatory STE style, its skill). Read its §Verified vs asserted before filing a gap as a bug. |
+| [OpenCode](./opencode/) | `opencode/` | OpenCode v2 plugins bridging this repo's plugins: codescout-companion (source-redirect guard, routing directive, skills), sdd (spec and review guards, approvals, banner, skill and commands) legible (an agent with the Explanatory STE style, its skill) and session-bridge (list and ask other OpenCode sessions through a read-only fork). Read its §Verified vs asserted before filing a gap as a bug. |
 
 ## Adding an adapter
 

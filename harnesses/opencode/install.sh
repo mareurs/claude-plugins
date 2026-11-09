@@ -27,7 +27,7 @@ set -euo pipefail
 
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 HARNESS="$REPO_DIR/harnesses/opencode"
-ALL_PLUGINS="codescout-companion sdd legible"
+ALL_PLUGINS="codescout-companion sdd legible session-bridge"
 
 CONFIG_DIR="${OPENCODE_CONFIG_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/opencode}"
 MODE="user"

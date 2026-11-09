@@ -9,6 +9,7 @@ into what the Claude Code side already does, and the plugin's own files stay the
 | `codescout-companion` | `codescout-companion.js` | The source-redirect guard, the routing directive, the circuit breaker; its skills and `/codescout-dashboard` |
 | `sdd` | `sdd.js` | spec-guard and review-guard, the session banner, approvals through `/sdd-approve`, subagent plan pointers; the `sdd-flow` skill, `/sdd-review`, `/sdd-init` |
 | `legible` | `legible.js` | A `legible` agent that writes in the Explanatory STE style; the `explain` skill and `/legible-explain` |
+| `session-bridge` | `session-bridge.js` | `session_bridge_list_sessions` and `session_bridge_ask_session`: ask another OpenCode session from a read-only fork |
 
 Most of this README is about `codescout-companion`, which came first. Each other plugin has
 its own section below.
@@ -123,6 +124,37 @@ config with just this plugin): a source edit, a new source file, an agent edit o
 approved plan; the edit is allowed once a plan is approved; the banner states the mode;
 `/sdd-approve spec a`, sent through the server's command route, approved the spec. Unit
 tests (real hooks, throwaway git repos): `node harnesses/opencode/sdd.test.mjs`.
+
+## session-bridge
+
+Claude Code's session-bridge is a Rust MCP server that answers through `claude -p --resume`;
+Pi's is a separate extension. Each harness has its own bridge, and none can reach another
+harness's sessions. `session-bridge.js` is the OpenCode one:
+
+- **`session_bridge_list_sessions`** lists a project's OpenCode sessions (default: the
+  current one), newest first, labelled with their first user message. It reads OpenCode's
+  own session store, so there is no registry file to keep in sync. Subagent sessions are
+  hidden unless `include_children` is set.
+- **`session_bridge_ask_session(ref, prompt)`** runs
+  `opencode run --fork -s <id> --agent session-bridge-reader` in that session's directory
+  and returns the answer. `ref` is an id, an id prefix, or words from the first message.
+  The producer session is never written, and the fork is deleted afterwards, also when the
+  ask fails.
+- **Read-only, for real.** OpenCode's `plan` agent is not read-only on 2.1.3: its
+  permissions are `* allow` with only `edit` denied, so it can run shell commands. The fork
+  runs under `session-bridge-reader`, which denies everything and then allows only
+  reading tools (`read`, `grep`, `glob`, `list`, codescout's read tools). There is no
+  two-way mode, the same as Pi.
+- **No recursion.** The fork loads the plugin with `OPENCODE_SESSION_BRIDGE_CHILD=1`, which
+  registers the reader agent but not the tools.
+- **Direct tools.** The tools set `codemode: false`. Without it, OpenCode exposes a plugin
+  tool only inside its code-mode `execute` tool (measured).
+
+Verified live on 2.1.3, with only this plugin loaded: the list showed the producer session;
+the ask returned a fact that only the producer's conversation held; asked to run a shell
+command, the fork refused and no file appeared; the producer's history held none of the
+questions; no fork session was left behind. Unit tests (a fake `opencode` binary for the
+launcher): `node harnesses/opencode/session-bridge.test.mjs`.
 
 ## legible
 
