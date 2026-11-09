@@ -173,9 +173,39 @@
     "divergent": 0
   },
   "delivery": {
+    "status": "source_complete",
     "plugin_feature_commit": "381ae57",
+    "plugin_prior_documentation_commit": "bb8ff30",
     "codescout_support_commit": "505e8033a",
-    "remaining": "guarded wiring and caller-test commits pending notification/ACK authorization",
-    "live_installation": false
+    "codescout_wiring_commit": "c7b38be29a59f73bbc98c54fe99a2bda7fea3e90",
+    "codescout_caller_tests_commit": "f89590d3139bd1d3ebc9037c73e24db058a22310",
+    "remaining_source_commits": [],
+    "live_installation": false,
+    "notification_scope": "Operator approved the four destinations, guarded ACK, and exact denied-message retries.",
+    "notifications": [
+      {
+        "thread_id": "01a1bf68-e650-7f20-911e-b53f86597c27",
+        "result": "accepted_by_thread_tool",
+        "time_utc": "2026-11-09T19:52:34.003Z"
+      },
+      {
+        "thread_id": "01a15ca9-f939-7603-acb5-01c6b02f68e2",
+        "result": "accepted_by_thread_tool",
+        "time_utc": "2026-11-09T20:10:49.485Z"
+      },
+      {
+        "thread_id": "01a1bf89-3111-7c70-b934-5f6fd89102a3",
+        "result": "accepted_by_thread_tool",
+        "time_utc": "2026-11-09T20:10:55.706Z"
+      },
+      {
+        "thread_id": "01a1c000-a771-79b2-8ebe-a72aeb509c54",
+        "result": "failed_thread_not_loaded",
+        "code": -32600,
+        "time_utc": "2026-11-09T20:10:58.096Z"
+      }
+    ],
+    "attribution_incident": "16de4012209e895f remains open; recorded ACK is not a causal fix or proof of peer authorship.",
+    "reading_acknowledgment_claimed": false
   }
 }

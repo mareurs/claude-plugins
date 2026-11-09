@@ -1,7 +1,7 @@
 ---
 id: '3f373e14fa311cc8'
 kind: plan
-status: active
+status: done
 title: Stock Codex Identity and Operation Observations Implementation Plan
 tags:
 - codex
@@ -11,8 +11,8 @@ tags:
 approved_on: 2026-11-09
 deployment: not included
 execution_method: inline/native with independent final applied-mutation review
-execution_progress: Source verification complete, source/spec GO. Plugin feature381ae57 and Codescout support505e8033a committed. Remaining Codescout wiring23 paths are guard-contested under4 identities; caller tests3 paths follow wiring. Automatic approval review rejected notification to01a1bf89 because previous authorization named only01a1bf68. Additional notification/ACK authorization pending; no deployment.
-final_review: Independent strongest-model review accepts source after fixes; six applied mutations, initial 5 killed/1 survivor; exact survivor killed by subsequently added parent-inode regression. Fresh final gates/native rerun in progress.
+execution_progress: 'Source implementation and verification complete; plugin feature 381ae57, documentation bb8ff30, Codescout support 505e8033a, wiring c7b38be29 and caller tests f89590d31 committed. Manual notification approvals applied: three destinations accepted by the tool; 01a1c000 failed as not loaded. Guard ACK and mandatory trailers recorded without changing attribution rows. Source-only delivery; live installation is outside this plan.'
+final_review: Independent strongest-model final review accepted the source after fixes. Six applied mutations initially yielded five killed and one survivor; the exact survivor was killed after the deterministic parent-inode regression. Final required gates, six real components, and ten stock-native acceptance routes passed.
 review_state: 'approved by maintainer: go'
 spec: 9d1d3c7f58f63dad
 ---
@@ -93,7 +93,7 @@ Use Linux no-follow, directory-relative operations throughout storage creation/o
 - [x] Run leased `cargo test --test observation_store`; verify the new behavior is absent/failing.
 - [x] Implement store and CLI with fsync for committed journal records and bounded lock/health handling. Reject unsupported filesystem guarantees as unavailable. Never silently repair a corrupt journal into a coverage claim.
 - [x] Run the store tests with two barrier-synchronized subprocess writers and inspect every emitted line; assert independent IDs, untorn records, caps and expected private modes. Run leased `cargo test --lib observations` and CLI help/status smoke checks.
-- [ ] Commit Task 2 paths: `feat(observations): add private opt-in store and ingestion CLI`.
+- [x] Commit Task 2 paths: store policy in `505e8033a`; store/CLI wiring in `c7b38be29`.
 
 ## Task 3: Scoped server observations and actual write targets
 
@@ -108,7 +108,7 @@ Instrument `atomic_write` around the actual replacement boundary after existing 
 - [x] Implement request/dispatch/result recording, actual write facts and cancellation/drop diagnostics. Reuse existing semantic refusal handling; distinguish request observation from entry into the handler. Never use a later global active-project pointer for attribution.
 - [x] Add a barrier test that holds two handlers inside overlapping dispatch intervals, switches active project and performs pinned writes; assert caller/target isolation, preserved supplied-byte digests and no inferred external-shell targets.
 - [x] Run all Task 3 tests plus existing create/edit and filesystem atomic-write tests through the leased runner; require original tool outputs/errors unchanged with disabled/unwritable/full stores.
-- [ ] Commit Task 3 paths: `feat(observations): record scoped callers and supported write effects` (cite reconnaissance W-3).
+- [x] Commit Task 3 paths: observer support in `505e8033a`, wiring in `c7b38be29` (cites reconnaissance W-3), real call-site tests in `f89590d31`.
 
 ## Task 4: Bounded Codex-only hook adapter
 
@@ -139,7 +139,7 @@ Inspector CLI: `python3 scripts/inspect-observations.py --workspace PATH --json`
 - [x] Implement reader/reconciler/inspector and additive scan integration. Keep existing gaps byte-for-byte equivalent where possible; diagnostics may add uncertainty. No experimental checkpoint is synthesized.
 - [x] Add formatter regressions asserting that a new foreign writer can restrict ownership, an unknown observed writer retains uncertainty, opaque wrapper gaps survive, and previously refused cases retain exit state and exact file bytes with observation capture enabled.
 - [x] Run the Python tests and `bash tests/fmt-mine.sh`; compare inspector JSON and filesystem snapshots to prove read-only behavior.
-- [ ] Commit Task 5 paths: `feat(provenance): reconcile stock observations conservatively`.
+- [x] Commit Task 5 paths: conservative reader/reconciler/inspector in `505e8033a`; history/formatter wiring and final contract fixtures in `c7b38be29`.
 
 ## Task 6: Source packaging, registration fixtures and test discovery
 
@@ -166,10 +166,12 @@ Inspector CLI: `python3 scripts/inspect-observations.py --workspace PATH --json`
 - [x] Apply one mutation at a time to six load-bearing seams: root/thread discrimination; local connection scope; ambiguous hook pairing; gap preservation; execution-time target binding; default-disabled capture/privacy allowlist. Run the targeted suite for each and record actual killed/surviving counts. Observe any survivor before adding its regression test, restore the mutation, then close the test gap.
 - [x] Run plugin `./tests/run-all.sh` and its required buddy pytest checks; run Codescout `bash scripts/gate.sh --check` with leased builds and the existing context/history/formatter suites. Report failures/unverified routes explicitly; a quiet skipped test is not acceptance.
 - [x] Request the preserved independent final review on the strongest available review model, explicitly requiring applied mutations and observed counts. Fix findings, rerun affected checks and do the required spec-drift review before claiming completion.
-- [ ] Commit acceptance evidence and scoped final changes per repository; report source verification separately from future installed-profile acceptance. Do not push, release, install or claim real-profile delivery.
+- [x] Commit acceptance evidence and scoped final changes per repository: plugin `381ae57` + `bb8ff30`, Codescout `505e8033a` + `c7b38be29` + `f89590d31`; retain source verification separately from future installed-profile acceptance. Final documentation records this delivery; no push, release, install or real-profile delivery.
 
 ## Self-review and handoff
 
 Spec mapping: criteria 1–2 → Tasks 1, 3, 6; 3–4 → Tasks 3–4, 7; 5 → Tasks 1, 5; 6 → Tasks 2–3, 7; 7–8 → Tasks 2–5, 7; 9 → Tasks 2–3; 10 → Tasks 1–4; 11 → Task 5; 12 → Tasks 1, 6–7; 13 → Task 6's documented future deployment boundary.
 
-Self-review covers spec coverage, checkable steps, shared interface names, the five Review Focus cases and proportion. Source implementation and verification are complete. Plugin feature 381ae57 and Codescout support 505e8033a are committed; remaining guarded wiring and dependent caller-test commits await the documented notification/ACK authorization. Source delivery remains distinct from future installed-profile acceptance; no live profile was modified.
+Self-review covers spec coverage, checkable steps, shared interface names, the five Review Focus cases and proportion. Source implementation and verification are complete. Plugin feature 381ae57, documentation bb8ff30 and Codescout support 505e8033a, guarded wiring c7b38be29 and caller tests f89590d31 are committed. The operator manually approved denied notifications; three destinations were accepted by the thread tool and the fourth failed with thread not loaded. The approved ACK and mandatory trailers document the wrong usage stamps, without asserting peer authorship or fixing the unverified attribution cause. Source delivery remains distinct from future installed-profile acceptance; no live profile was modified.
+
+Delivery ruling: group the originally task-scoped commits into owned support, all-contested wiring and owned caller tests to satisfy the repository's narrow guard ACK contract. Intermediate support-only and support+wiring candidates passed cargo check --tests before committing; the full implementation passed the required gates and final review. Commit finalization changes no implementation bytes, so retained verified test results are reused rather than rerunning unchanged suites solely to produce ledger completion lines.

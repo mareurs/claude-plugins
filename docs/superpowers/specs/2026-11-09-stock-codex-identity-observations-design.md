@@ -14,7 +14,7 @@ approved_on: 2026-11-09
 builder_review: '2026-11-09: fresh independent infrastructure builder check returned ''nothing important left''. Design sufficiency only; no runtime or implementation correctness claim.'
 decision_state: approved
 implementation_plan: 3f373e14fa311cc8
-implementation_state: 'Source verified: plugin381ae57 and Codescout support505e8033a committed. Required gates all pass, independent review accepted, ten stock-native routes and six components passed; spec-drift source GO. Guard-contested Codescout wiring and dependent caller tests await authorization for four notification destinations/recorded ACK. No package, live-profile, version or formatter-authorization change.'
+implementation_state: 'Source implementation and verification complete; plugin feature 381ae57, documentation bb8ff30, Codescout support 505e8033a, wiring c7b38be29 and caller tests f89590d31 committed. Manual notification approvals applied: three destinations accepted by the tool; 01a1c000 failed as not loaded. Guard ACK and mandatory trailers recorded without changing attribution rows. Source-only delivery; live installation is outside this plan.'
 parent_issue: 33de9ea8980e85c9
 scope: Stock Codex identity and additive operation observations; formatter authorization unchanged
 ---
@@ -185,4 +185,6 @@ The builder may choose module names, internal Rust/Python representations, test 
 
 ## Approval and delivery state
 
-Approved by the maintainer on 2026-11-09 («ok, go»). The next artifact is an implementation plan. Approval selects the stock-Codex adapter design; it does not request installation, release, profile changes or removal of prototype code.
+Approved by the maintainer on 2026-11-09 («ok, go»). Implementation plan `3f373e14fa311cc8` is complete for source delivery. Plugin feature `381ae57` and documentation `bb8ff30`, plus Codescout support `505e8033a`, wiring `c7b38be29` and real caller tests `f89590d31`, are committed in isolated worktrees. Required gates, independent applied-mutation review and the ten-route native stock acceptance passed; the source/spec review records GO in `57ada03063a50be6`.
+
+This delivery uses the packaged, unmodified Codex. Live profile activation, integration, release and installation remain outside this approved source-only plan. Host dispatch overlap remains unverified; controlled server-handler overlap is tested. The attribution incident `16de4012209e895f` remains open: the operator-approved ACK records observed wrong stamps and does not establish or repair their cause.
