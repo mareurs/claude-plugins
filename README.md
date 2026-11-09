@@ -25,6 +25,7 @@ These plugins reflect specific workflows and tool choices -- they may not suit e
 | **[session-bridge](./session-bridge/)** | 0.1.0 | Cross-session MCP bridge: ask one Claude Code session a question from another, answered in its loaded context. Rust MCP server, bash SessionStart/Stop hooks. |
 | **[legible](./legible/)** | 0.2.1 | Output style `legible:Explanatory STE`: the Explanatory style (★ Insight blocks) plus about 80% of the ASD-STE100 writing rules, so prose is easier to read and check. |
 | **[hint-echo](./hint-echo/)** | 0.1.0 | Mod that shows you the `additionalContext` tool hooks hand to the model (such as `[cs-hint]`) as a dim transcript row. Read-only: the model gets the same context. |
+| **[cs-hint-codex](./cs-hint-codex/)** | 0.1.0 | Codex only: the `[cs-hint]` advisories of buddy as one PostToolUse hook in a deliberately small plugin root (Codex hashes the whole root for hook trust), so one approval covers it and survives edits to docs, skills and tests. Design: `docs/superpowers/specs/2026-11-09-cs-hint-codex-bundle-design.md`. |
 ## Requirements
 
 - [Claude Code](https://claude.com/claude-code) CLI

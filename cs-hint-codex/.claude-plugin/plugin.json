@@ -1,0 +1,10 @@
+{
+  "name": "cs-hint-codex",
+  "description": "Codex only: the [cs-hint] advisories of the buddy plugin as one small hook. Needs one hook approval, not 27.",
+  "version": "0.1.0",
+  "author": {
+    "name": "Marius"
+  },
+  "license": "MIT",
+  "keywords": ["codex", "hooks", "cs-hint", "codescout"]
+}

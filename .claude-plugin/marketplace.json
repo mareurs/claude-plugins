@@ -84,6 +84,17 @@
       "license": "MIT",
       "keywords": ["hooks", "mod", "cs-hint", "transparency"],
       "category": "ui"
+    },
+    {
+      "name": "cs-hint-codex",
+      "source": "./cs-hint-codex",
+      "description": "Codex only: the [cs-hint] advisories of the buddy plugin as one small hook, so a new Codex user approves one hook instead of 27.",
+      "author": {
+        "name": "Marius"
+      },
+      "license": "MIT",
+      "keywords": ["codex", "hooks", "cs-hint", "codescout"],
+      "category": "infrastructure"
     }
   ]
 }
