@@ -73,6 +73,17 @@
       "license": "MIT",
       "keywords": ["output-style", "ste100", "readability", "explanatory"],
       "category": "ui"
+    },
+    {
+      "name": "hint-echo",
+      "source": "./hint-echo",
+      "description": "Shows the user the additionalContext that tool hooks hand to the model, such as [cs-hint], as a dim transcript row.",
+      "author": {
+        "name": "Marius"
+      },
+      "license": "MIT",
+      "keywords": ["hooks", "mod", "cs-hint", "transparency"],
+      "category": "ui"
     }
   ]
 }
