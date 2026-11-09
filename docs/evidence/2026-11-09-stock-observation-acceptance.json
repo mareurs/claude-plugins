@@ -207,5 +207,57 @@
     ],
     "attribution_incident": "16de4012209e895f remains open; recorded ACK is not a causal fix or proof of peer authorship.",
     "reading_acknowledgment_claimed": false
+  },
+  "integration": {
+    "date": "2026-11-09",
+    "authorization": "Explicit maintainer request: fa merge",
+    "plugin_branch": "main",
+    "plugin_merge_commit": "6e3036a04eec3ae11bc528aaff3d98f7fc026a08",
+    "codescout_branch": "experiments",
+    "codescout_merge_commit": "f6d96e59fa0ff6d83851c2f5de1a24865b63864f",
+    "plugin_full_suite_tested_tree": "3d298ac010395173bd39fa6aada09d32eda768dc",
+    "plugin_final_merged_tree": "537645dde352472c1458218892bd5aaa8c785e14",
+    "plugin_post_suite_differences": [
+      "README.md",
+      "buddy/.claude-plugin/plugin.json",
+      "codescout-companion/.claude-plugin/plugin.json",
+      "codescout-companion/package.json",
+      "docs/trackers/version-bump-checklist.md"
+    ],
+    "executable_source_and_dependencies_unchanged_after_plugin_full_suite": true,
+    "version_manifest_differences_are_version_fields_only": true,
+    "final_version_and_registration_checks": "passed",
+    "codescout_gate_exits": {
+      "FMT": 0,
+      "CLIPPY": 0,
+      "LEAN": 0,
+      "DEFAULT": 0,
+      "PYTHON_LIGHT": 0
+    },
+    "plugin_run_all": "passed",
+    "buddy_passed": 573,
+    "real_components_passed": 6,
+    "formatter": {
+      "passed": 56,
+      "failed": 0
+    },
+    "merged_binary_sha256": "939516f3f8f3c5e2f483bea66748e3c1bb0cea6cee5f828aa0809ea82ccbac5e",
+    "codescout_preexisting_tracked_local_paths_preserved": 19,
+    "codescout_preexisting_staged_entries_preserved": 6,
+    "working_bytes_and_staged_blobs_verified_unchanged": true,
+    "verification_log_sha256": {
+      "codescout_gate": "5da3310430f85f7c951bdeca6c83bf0cabfb19a3a2281e0f76cf7d87f78f6155",
+      "plugin_run_all": "92c90921098b2b5a25c2eb8ae25fb057965185d8d913ed1957f2ae54c44b6148",
+      "buddy": "18fcd7b928ca7dc241475483dce80ea3c099a0fad721a94aee840f6b4a7051ff",
+      "buddy_after_version": "61b4a142c4811a2150f02c8a64ada54d61a4bca438bce97d983d335c386100ce",
+      "versions": "b650ecbd9bad18b49cddb382c62b8496f0fd12c14aac5d898cea8ad6df888089",
+      "formatter": "a637b4f06aae941cd46a058ed88442824c9fd8ff94729c4e3e2d94c259a06db6",
+      "native_components": "6763cf29a2741224be5b53d8207c0ad4ac0db1a00965726189100acfadea4a5f",
+      "final_versions": "8464ad04a1699300936172f31aa6e8cb8e8cbef68128877e3bcfb4a3e37c3a98",
+      "final_registration": "21b3af33ea56fa011c6604ec6d8988c09fda33e525f0b50abec175655b67fa13"
+    },
+    "installed": false,
+    "live_profiles_modified_by_this_integration": false,
+    "pushed_by_this_integration": false
   }
 }
