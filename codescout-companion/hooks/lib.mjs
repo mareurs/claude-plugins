@@ -103,7 +103,10 @@ export function detectFor(cwd) {
   try {
     const d = detect(cwd || process.cwd(), home, process.env.CLAUDE_CONFIG_DIR || null);
     if (process.env.CS_COMPANION_HOST_ARMED === '1' && d.HAS_CODESCOUT !== 'true') {
-      return { ...d, HAS_CODESCOUT: 'true', BLOCK_READS: 'true' };
+      // Presence only. BLOCK_READS stays whatever detect.mjs computed from the project's
+      // .claude/codescout-companion.json — it is resolved independently of detection, so a
+      // `block_reads: false` opt-out still holds under a host bridge.
+      return { ...d, HAS_CODESCOUT: 'true' };
     }
     return d;
   } catch {

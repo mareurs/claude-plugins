@@ -17,7 +17,7 @@
 //     README §"Verified vs asserted". A green run here is not proof of the port.
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync, existsSync, readdirSync } from 'node:fs';
 import { tmpdir, homedir } from 'node:os';
 import { join, dirname, resolve as resolvePath } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -28,15 +28,30 @@ import PLUGIN_DEF, {
   buildBridge,
   resolveDir,
   resolveRuntime,
+  runHook,
+  GUARDED_TOOLS,
   CodescoutCompanion,
 } from './codescout-companion.js';
-import { normalizedToolName } from '../../codescout-companion/hooks/lib.mjs';
+import { normalizedToolName, breakerFile, detectFor } from '../../codescout-companion/hooks/lib.mjs';
+
+// Test isolation (repo rule: clean up mutated state). The guard writes cs-redirect-* /
+// cs-block-* markers into os.tmpdir(), and cs-liveness refreshes the codescout rendezvous
+// slot under XDG_STATE_HOME — the LIVE server's slot when this file is run directly rather
+// than through run-all.sh (docs/issues/archive/2026-08-27-test-suite-rekeys-live-codescout-server.md).
+// Both are read from env at call time, by this process and by every hook it spawns, so
+// pointing them at a throwaway dir before any test runs contains all of it.
+const SANDBOX = mkdtempSync(join(tmpdir(), 'cs-oc-test-'));
+mkdirSync(join(SANDBOX, 'tmp'));
+mkdirSync(join(SANDBOX, 'state'));
+process.env.TMPDIR = join(SANDBOX, 'tmp');
+process.env.XDG_STATE_HOME = join(SANDBOX, 'state');
+process.on('exit', () => rmSync(SANDBOX, { recursive: true, force: true }));
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO = resolvePath(HERE, '..', '..');
 
 // Session ids must be unique per RUN, not per test. The Claude-side circuit breaker files
-// are keyed by session id under the real HOME; reusing a fixed id across runs accumulates
+// are keyed by session id in os.tmpdir() (now the sandbox above); reusing a fixed id across runs accumulates
 // redirect strikes until the third run starts failing with 'BLOCKED (see previous
 // message)' — a flake indistinguishable from a real regression. State this test mutates
 // gets fresh keys.
@@ -484,8 +499,95 @@ try {
       rmSync(bf, { force: true });
     }
   });
+
+  // Fix 2 (review): a FAILED codescout call is not proof of life. Counting it reset the
+  // breaker on every failed redirect, so a server that died mid-session never let the guard
+  // stand down.
+  await ok('only a COMPLETED codescout call clears the circuit breaker', async () => {
+    const b = bridge();
+    const sid = SID('pol');
+    const bf = breakerFile(sid);
+    writeFileSync(bf, '1\tread_file');
+    await b.onToolAfter({ tool: 'codescout_read_file', sessionID: sid, id: 'p1', status: 'error', error: 'transport' });
+    await new Promise((r) => setTimeout(r, 1500));
+    assert.ok(existsSync(bf), 'an errored call must leave the breaker alone');
+    await b.onToolAfter({ tool: 'codescout_read_file', sessionID: sid, id: 'p2', status: 'completed', result: { content: [] } });
+    for (let i = 0; i < 50 && existsSync(bf); i++) await new Promise((r) => setTimeout(r, 100));
+    assert.ok(!existsSync(bf), 'a completed call must clear the breaker');
+  });
+
+  // Fix 4 (review): Claude Code limits the guard with a matcher; the bridge must too, or
+  // every unrelated tool call pays a node start-up.
+  await ok('only the guarded native tools reach the guard', () => {
+    for (const t of ['read', 'grep', 'glob', 'shell', 'bash', 'edit', 'patch', 'apply_patch', 'write']) assert.ok(GUARDED_TOOLS.has(t), t);
+    for (const t of ['todowrite', 'webfetch', 'skill', 'question', 'codescout_read_file', 'execute']) assert.ok(!GUARDED_TOOLS.has(t), t);
+  });
 } finally {
   rmSync(dir, { recursive: true, force: true });
 }
+
+// Fix 1 (review): host arming forces PRESENCE only. It used to also force BLOCK_READS, so a
+// project's `block_reads: false` opt-out was ignored under OpenCode. Reproduced by the
+// reviewer with a real pre-tool-guard run.
+await ok('host arming keeps the project block_reads:false opt-out', () => {
+  const p = mkdtempSync(join(tmpdir(), 'cs-oc-optout-'));
+  mkdirSync(join(p, '.claude'));
+  writeFileSync(join(p, '.claude', 'codescout-companion.json'), JSON.stringify({ block_reads: false }));
+  // An EMPTY home: with a real ~/.claude.json registering codescout, detection already says
+  // "present", the override branch never runs, and this test would pass under the bug
+  // (caught by mutation-checking it).
+  const saved = { a: process.env.CS_COMPANION_HOST_ARMED, h: process.env.HOME, c: process.env.CLAUDE_CONFIG_DIR };
+  const home = join(SANDBOX, 'empty-home');
+  mkdirSync(home, { recursive: true });
+  process.env.HOME = home;
+  delete process.env.CLAUDE_CONFIG_DIR;
+  try {
+    delete process.env.CS_COMPANION_HOST_ARMED;
+    assert.equal(detectFor(p).HAS_CODESCOUT, 'false', 'precondition: nothing detects codescout here');
+    process.env.CS_COMPANION_HOST_ARMED = '1';
+    const d = detectFor(p);
+    assert.equal(d.HAS_CODESCOUT, 'true');
+    assert.equal(d.BLOCK_READS, 'false');
+  } finally {
+    for (const [k, v] of [['CS_COMPANION_HOST_ARMED', saved.a], ['HOME', saved.h], ['CLAUDE_CONFIG_DIR', saved.c]]) {
+      if (v === undefined) delete process.env[k];
+      else process.env[k] = v;
+    }
+    rmSync(p, { recursive: true, force: true });
+  }
+});
+
+// Fix 3 (review): a hook that cannot start fails open, but must SAY so — live bug #2 was a
+// spawn failure that printed nothing and blocked nothing.
+await ok('a hook that cannot be spawned fails open AND is reported on stderr', async () => {
+  const orig = process.stderr.write.bind(process.stderr);
+  let seen = '';
+  process.stderr.write = (c, ...rest) => {
+    seen += String(c);
+    return true;
+  };
+  try {
+    const r = await runHook(join(SANDBOX, 'nope.mjs'), { cwd: SANDBOX }, { runtime: join(SANDBOX, 'no-such-node') });
+    assert.equal(r, null);
+  } finally {
+    process.stderr.write = orig;
+  }
+  assert.match(seen, /codescout-companion: hook spawn-failed/);
+});
+
+// Fix 6 (review): CLAUDE_CONFIG_DIR must reach the hooks (repo rule), not be stripped.
+await ok('runHook passes CLAUDE_CONFIG_DIR through to the hook', async () => {
+  const script = join(SANDBOX, 'env-echo.mjs');
+  writeFileSync(script, "process.stdout.write(JSON.stringify({ d: process.env.CLAUDE_CONFIG_DIR || null }));");
+  const prev = process.env.CLAUDE_CONFIG_DIR;
+  process.env.CLAUDE_CONFIG_DIR = '/profiles/claude-test';
+  try {
+    const r = await runHook(script, { cwd: SANDBOX }, { runtime: process.execPath });
+    assert.equal(r?.d, '/profiles/claude-test');
+  } finally {
+    if (prev === undefined) delete process.env.CLAUDE_CONFIG_DIR;
+    else process.env.CLAUDE_CONFIG_DIR = prev;
+  }
+});
 
 console.log(`\nResults: ${pass} passed, ${process.exitCode ? 'FAILURES above' : '0 failed'}`);

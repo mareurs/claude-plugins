@@ -83,7 +83,7 @@
 // load, so registration is individually guarded and reports to stderr rather than
 // rejecting setup.
 
-import { spawnSync } from 'node:child_process';
+import { spawn } from 'node:child_process';
 import { readFileSync, existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join, resolve } from 'node:path';
@@ -214,28 +214,83 @@ export function resolveRuntime(execPath = process.execPath, env = process.env) {
   return 'node';
 }
 
-function runHook(script, payload, { forceArmed = false } = {}) {
-  try {
-    // CLAUDE_CONFIG_DIR is stripped: on a machine that also runs Claude Code, the guard
-    // would resolve config against the wrong profile and misreport codescout as absent (or
-    // present) for this cwd — see configArms() for what this bridge trusts instead.
-    const env = { ...process.env, CLAUDE_CONFIG_DIR: undefined };
-    if (forceArmed) env.CS_COMPANION_HOST_ARMED = '1';
-    const res = spawnSync(resolveRuntime(), [script], {
-      input: JSON.stringify(payload),
-      encoding: 'utf8',
-      timeout: HOOK_TIMEOUT_MS,
-      cwd: payload.cwd || process.cwd(),
-      env,
-      maxBuffer: 1 << 20,
-    });
-    const out = (res.stdout || '').trim();
-    if (!out) return null;
-    return JSON.parse(out);
-  } catch {
-    return null;
-  }
+// A hook that cannot run must fail OPEN — but never SILENTLY: live bug #2 (the opencode
+// binary spawned as the interpreter) loaded clean, printed nothing and blocked nothing.
+// Each failure kind is reported once per process on stderr (which lands in opencode.log),
+// so a missing `node` on the service's PATH is visible instead of looking like "allowed".
+const reported = new Set();
+function reportOnce(kind, detail) {
+  if (reported.has(kind)) return;
+  reported.add(kind);
+  process.stderr.write(`codescout-companion: hook ${kind} — ${detail} (guard failing open)\n`);
 }
+
+// Async on purpose: the plugin runs inside the long-lived `opencode serve` process, and a
+// spawnSync there froze the event loop for EVERY session for the length of the hook.
+// CLAUDE_CONFIG_DIR is passed through unchanged: detect.mjs resolves Claude config via
+// `${CLAUDE_CONFIG_DIR:-$HOME/.claude}` (repo rule), and stripping it made a multi-profile
+// machine read the default profile instead of the one in use.
+export function runHook(script, payload, { forceArmed = false, runtime = resolveRuntime() } = {}) {
+  return new Promise((resolveP) => {
+    const env = { ...process.env };
+    if (forceArmed) env.CS_COMPANION_HOST_ARMED = '1';
+    let out = '';
+    let settled = false;
+    const done = (v) => {
+      if (!settled) {
+        settled = true;
+        resolveP(v);
+      }
+    };
+    let child;
+    try {
+      child = spawn(runtime, [script], { cwd: payload.cwd || process.cwd(), env, stdio: ['pipe', 'pipe', 'ignore'] });
+    } catch (e) {
+      reportOnce('spawn-failed', `${runtime}: ${e?.message || e}`);
+      return done(null);
+    }
+    const timer = setTimeout(() => {
+      reportOnce('timeout', `${script} exceeded ${HOOK_TIMEOUT_MS} ms`);
+      try {
+        child.kill();
+      } catch {
+        /* already gone */
+      }
+      done(null);
+    }, HOOK_TIMEOUT_MS);
+    child.on('error', (e) => {
+      clearTimeout(timer);
+      reportOnce('spawn-failed', `${runtime}: ${e?.message || e}`);
+      done(null);
+    });
+    child.stdout.on('data', (d) => {
+      if (out.length < 1 << 20) out += d;
+    });
+    child.on('close', (code, signal) => {
+      clearTimeout(timer);
+      // The hooks' contract is "always exit 0"; anything else is a crash, not a decision.
+      if (code !== 0) reportOnce('crashed', `${script} exited ${code ?? signal}`);
+      const text = out.trim();
+      if (!text) return done(null);
+      try {
+        done(JSON.parse(text));
+      } catch {
+        reportOnce('bad-output', `${script} printed non-JSON`);
+        done(null);
+      }
+    });
+    child.stdin.on('error', () => {
+      /* hook exited before reading stdin — its exit code tells the story */
+    });
+    child.stdin.end(JSON.stringify(payload));
+  });
+}
+
+// The native tools pre-tool-guard has a branch for, in OpenCode spelling (v1 and v2 names).
+// Claude Code limits the guard with the matcher `Grep|Glob|Read|Bash|Edit|Write`; without
+// the same filter here, every todowrite/webfetch/skill call paid a node start-up for a
+// guard that exits 0 on it.
+export const GUARDED_TOOLS = new Set(['read', 'grep', 'glob', 'bash', 'shell', 'edit', 'patch', 'apply_patch', 'write']);
 
 function decisionOf(payload) {
   const h = payload?.hookSpecificOutput;
@@ -374,10 +429,10 @@ export function buildBridge(dir) {
         return;
       }
 
-      if (!shouldAsk(sessionId) || !existsSync(GUARD)) return;
+      if (!GUARDED_TOOLS.has(tool) || !shouldAsk(sessionId) || !existsSync(GUARD)) return;
 
       const decision = decisionOf(
-        runHook(
+        await runHook(
           GUARD,
           {
             hook_event_name: 'PreToolUse',
@@ -410,8 +465,12 @@ export function buildBridge(dir) {
       // name it was written against: feeding it `codescout_symbols` would leave the
       // breaker never clearing, and the guard would stand down after three blocks and
       // stay down — a silent loss of the whole feature.
-      if (bare && existsSync(LIVENESS)) {
-        runHook(LIVENESS, {
+      // Only a call that COMPLETED is proof of life. A transport failure on a server that
+      // died mid-session still fires execute.after (status "error"); counting it would reset
+      // the breaker on every failed redirect, so the guard would never stand down — the
+      // exact deadlock the breaker exists to break. Not awaited: nothing depends on it.
+      if (bare && event?.status === 'completed' && existsSync(LIVENESS)) {
+        void runHook(LIVENESS, {
           hook_event_name: 'PostToolUse',
           tool_name: `mcp__codescout__${bare}`,
           session_id: sessionId,

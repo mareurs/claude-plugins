@@ -197,7 +197,7 @@ the `execute.before` trigger and its exact field list, and the fact that plugin 
 are wrapped in `Effect.try{catch}` so a throw becomes a failed call. Cross-checked against
 OpenCode's own v1→v2 migration table and server-plugin reference.
 
-**Verified by execution** — `node harnesses/opencode/codescout-companion.test.mjs`, 21
+**Verified by execution** — `node harnesses/opencode/codescout-companion.test.mjs`, 26
 cases: loader-union conformance, the four registered channel names, teardown-is-a-function,
 registration failure still loads the plugin (fail-open, reported on stderr), name
 normalisation incl. the v2 renames, MCP recognition across four plausible prefix forms plus
@@ -207,8 +207,12 @@ plain-text read, image exemption (extension-based — `isBinaryImage` is
 `/\.(png|jpg|jpeg|gif|webp|bmp|ico|pdf)$/i`), unarmed session never blocked,
 project-config arming, user-config **non**-arming, self-call never self-blocks, malformed
 events ignored, `resolveDir` ignoring non-string ctx keys, `resolveRuntime` never picking
-the host binary, stand-down advice delivered on the v2 `result.content` shape. The
-user-config case is mutation-checked.
+the host binary, stand-down advice delivered on the v2 `result.content` shape, only a
+*completed* codescout call clearing the breaker, only the guarded native tools reaching the
+guard, the `block_reads: false` opt-out surviving host arming, spawn failures reported on
+stderr, and `CLAUDE_CONFIG_DIR` reaching the hooks. The user-config case and the last five
+are mutation-checked. The suite runs in a throwaway `TMPDIR`/`XDG_STATE_HOME`, so it leaves
+no markers in `/tmp` and never touches the live codescout server slot.
 
 **Verified live (OpenCode 2.1.3, 2026-11-09)** — real `opencode run --standalone` sessions,
 tool calls read from `--format json` events:
@@ -242,6 +246,32 @@ regression test now:
    showed `content` is what the model reads, mutated in place.
 4. `rehostReason` cut everything after the Claude footer, including the breaker's
    `[!] 3 redirects in a row` warning that comes after it.
+
+**Fixed after code review (2026-11-09).** Each has a regression test:
+
+- Host arming forced `BLOCK_READS`, which overrode a project's `block_reads: false`
+  opt-out. It now forces presence only.
+- A *failed* codescout call counted as proof of life, so a server that died mid-session
+  reset the breaker on every failed redirect and the guard never stood down. Only
+  `status: "completed"` counts now.
+- A hook that could not start (e.g. no `node` on the service's PATH) failed open with no
+  trace. Spawn failures, crashes, timeouts and non-JSON output are now reported once each
+  on stderr, which ends up in `opencode.log`.
+- Every tool call in an armed session spawned the guard **synchronously**, freezing the
+  whole `opencode serve` process for every session. Hooks now run asynchronously, and only
+  the guarded native tools (`read`, `grep`, `glob`, `shell`/`bash`, `edit`/`patch`,
+  `write`) reach the guard, the same filter Claude Code's matcher applies.
+- `CLAUDE_CONFIG_DIR` was stripped before running the hooks, so a multi-profile machine
+  read the default profile. It is passed through now (repo rule
+  `${CLAUDE_CONFIG_DIR:-$HOME/.claude}`).
+
+**Known, not yet fixed** (from the same review): `opencode.jsonc` and commented configs are
+not recognised as project arming; the stand-down note still mentions `/mcp`; the project
+prompt is injected on every request even though codescout's server instructions already
+carry it; `pending`/`armedSessions` are shared by every project in one service process;
+`install.sh` treats unknown flags as an install and `--check` reports a dangling symlink as
+present; the lower-case tool names live in the shared `normalizedToolName` rather than in
+the bridge.
 
 **NOT verified:**
 
