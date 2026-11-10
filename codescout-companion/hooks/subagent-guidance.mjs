@@ -113,7 +113,8 @@ CODESCOUT RULES (compression-resilient reminder):
 • Code edits: edit_code (LSP-aware; action=replace/insert/remove/rename), NOT edit_file/Edit for structural changes
 • Shell commands: run_command, NOT Bash — output buffers save tokens
 • Markdown: read_file returns the heading map (heading= for a section); edit_file edits by heading — managed trackers go through doc
-• Never pipe unbounded run_command output — run bare, query @cmd_* buffer (bounded LHS like ls, cat, awk, sed, find -maxdepth N is OK)`;
+• Never pipe unbounded run_command output — run bare, query @cmd_* buffer (bounded LHS like ls, cat, awk, sed, find -maxdepth N is OK)
+• Long task: no wake message reaches a subagent. Run it in the foreground with timeout_secs. Do not start it with run_in_background and then poll or sleep.`;
 
 if (d.HAS_CS_SYSTEM_PROMPT === 'true' && d.CS_SYSTEM_PROMPT) {
   msg += `
