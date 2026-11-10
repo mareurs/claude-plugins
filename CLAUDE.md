@@ -308,12 +308,14 @@ inherit leftover state.
 
 ## Skill layout — core in `SKILL.md`, harness specifics in `references/`
 
-A skill whose mechanics differ by harness (Claude Code, Codex) keeps what holds in every harness in `SKILL.md`, and each harness's commands, paths and quirks in `references/<harness>.md`. This is progressive disclosure: a session loads the core, then reads only the file for the harness it runs in. `reconnaissance` and `tracker-hygiene` already split their detail this way, with a pointer that says when to read each file.
+A skill whose mechanics differ by harness (Claude Code, Codex, OpenCode) or by operating system (Linux, macOS, Windows) keeps what holds everywhere in `SKILL.md`. Each measured pair of harness and operating system gets its own file, `references/<harness>-<os>.md`. This is progressive disclosure: a session loads the core, then reads only the file for its own pair. `reconnaissance` and `tracker-hygiene` already split their detail this way by topic, with a pointer that says when to read each file.
 
-- `SKILL.md` holds the rules, the decision steps, and how a session tells which harness it runs in. For each harness it holds one pointer: "on Codex, read `references/codex.md` before Step N".
-- A core rule never names one harness's tool or path, except inside that pointer. A harness file never repeats a core rule.
-- A session reads the file for its own harness only. Do not inline another harness's mechanics "for completeness".
-- `reaching-peer-sessions` is the first skill to be split this way, for Claude Code and Codex.
+- `SKILL.md` holds the rules, the decision steps, and how a session tells which harness and operating system it runs in. It holds one pointer per measured pair: "on Codex on Linux, read `references/codex-linux.md` before Step N". One last pointer sends every unmeasured pair to `references/unmeasured.md`.
+- A core rule never names one harness's tool or path, except inside a pointer. A pair file never repeats a core rule.
+- A session reads the file for its own pair only. Do not inline another pair's mechanics "for completeness".
+- **Add a pair file only after you measure that pair.** A guessed macOS or Windows block is worse than none: a block that finds nothing looks like a true zero. `references/unmeasured.md` says "stop and ask the operator" until a measured file exists.
+- **Split only when a skill has real harness or OS content.** Measured 2026-11-10 over 22 skills: only `reaching-peer-sessions` has it (60 harness lines, 21 tool-name lines, `/proc` and `/run/user` paths). Every other skill has 5 or fewer such lines, and those name plugin paths such as `CLAUDE.md`, or one 2-row dispatch table in `research-subagent`. Re-measure before you split another skill.
+- `reaching-peer-sessions` is the first skill split this way. Measured pairs: Claude Code on Linux and Codex on Linux. `tests/test-peer-skill-split.sh` pins the layout.
 
 ## Session Passover
 

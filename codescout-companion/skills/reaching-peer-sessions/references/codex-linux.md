@@ -269,4 +269,4 @@ rollout-size check exists.
 core's and does not change. A Codex caller whose own row is not identified writes `?`
 for the name and for any pid it cannot learn, and says in the message text that it
 cannot be answered by address. How a Claude receiver treats such a message is in
-`references/claude-code.md`.
+`references/claude-code-linux.md`.

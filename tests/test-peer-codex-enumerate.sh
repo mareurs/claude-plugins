@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # tests/test-peer-codex-enumerate.sh — the Codex Enumerate block of
-# references/codex.md, run for real against a fixture /proc tree and fixture
+# references/codex-linux.md, run for real against a fixture /proc tree and fixture
 # state_5.sqlite files (python3 sqlite3, only the columns the block reads).
 #
 # The block is EXTRACTED from the reference (the first ```bash fence under
@@ -20,7 +20,7 @@ set -uo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 SKILL_DIR="${PEER_SKILL_DIR:-$ROOT/codescout-companion/skills/reaching-peer-sessions}"
 CORE="$SKILL_DIR/SKILL.md"
-REF="$SKILL_DIR/references/codex.md"
+REF="$SKILL_DIR/references/codex-linux.md"
 PASS=0; FAIL=0
 ok()  { echo "  PASS: $1"; PASS=$((PASS+1)); }
 bad() { echo "  FAIL: $1 -- $2"; FAIL=$((FAIL+1)); }
@@ -29,7 +29,7 @@ trap '[ -n "$LOCKPID" ] && kill "$LOCKPID" 2>/dev/null; rm -rf "$T"' EXIT
 TAB=$(printf '\t')
 
 echo "-- peer-codex-enumerate --"
-[ -f "$REF" ] || { bad "references/codex.md" "missing $REF"; echo "-- $PASS passed, $FAIL failed"; exit 1; }
+[ -f "$REF" ] || { bad "references/codex-linux.md" "missing $REF"; echo "-- $PASS passed, $FAIL failed"; exit 1; }
 BLOCK=$(awk '/^## Enumerate/{s=1} s && /^```bash/{b=1; next} b && /^```/{exit} b{print}' "$REF")
 if [ -z "$BLOCK" ] || ! grep -q 'CS_PEERS_PROC' <<<"$BLOCK"; then
   bad "extract" "no bash fence holding CS_PEERS_PROC under '## Enumerate' in $REF"
@@ -251,7 +251,7 @@ deliver_pins() {
     && has "$s" 'The PID and the SID reach the shell only through a quoted heredoc, never on a command line' \
     && has "$s" 'a SID that is not a lowercase thread uuid, and a PID that is not digits\. An empty message is refused too' \
     && has "$s" 'uses the target.s own HOME from that environment plus /\.codex, and refuses when neither is there' \
-    && has "$s" 'How a Claude receiver treats such a message is in references/claude-code\.md' \
+    && has "$s" 'How a Claude receiver treats such a message is in references/claude-code-linux\.md' \
     && has "$s" 'Send only to a row Enumerate listed as loaded; for a target that is not loaded, do not send and tell the operator why' \
     && has "$s" "The home is the row.s own, read from its process, never your own by default" \
     && has "$s" 'checks the size of the thread.s rollout file before the send and once after a bounded wait; pass its one line to the operator: the target, the time, and whether the file grew' \

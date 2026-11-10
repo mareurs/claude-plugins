@@ -11,13 +11,16 @@ one account, a harness's own listing returns a short count and presents it as th
 whole population, with nothing marking it as a subset. This skill rebuilds the real
 population and says what was searched.
 
-Mechanics differ per harness and live in one file each:
+Mechanics differ per harness and per operating system. They live in one file for each
+measured pair, and one more file covers every pair nobody measured:
 
-- on Claude Code, read `references/claude-code.md`
-- on Codex, read `references/codex.md`
+- on Claude Code on Linux, read `references/claude-code-linux.md`
+- on Codex on Linux, read `references/codex-linux.md`
+- on any other harness or operating system (OpenCode, macOS, Windows), read `references/unmeasured.md`
 
-Each file has three sections: `## Enumerate`, `## Identify me`, `## Deliver`. The
-rules below hold on every harness.
+Read only the file for your own pair. Each measured file has three sections:
+`## Enumerate`, `## Identify me`, `## Deliver`. The rules below hold on every harness
+and on every operating system.
 
 ## Rules that hold everywhere
 
@@ -31,15 +34,19 @@ its reference's Deliver section says.
 session is listed beside a checkout, is not evidence of who wrote it or who works
 there. Attribute by asking the session, not by proximity.
 
-## Step 0 — name your own harness
+## Step 0 — name your own harness and operating system
 
-State which harness you are running in, from your own context: Claude Code or
-Codex. If you cannot say, stop and ask the operator. Do not guess, and do not
-invent a detection script.
+State which harness you are running in, from your own context: Claude Code, Codex
+or another. State your operating system the same way: Linux, macOS or Windows. Your
+environment block names the platform. If you cannot say either one, stop and ask the
+operator. Do not guess, and do not invent a detection script.
+
+Then read the one reference that the pointer list above gives for your pair. If the
+list sends you to `references/unmeasured.md`, follow that file and do not run Step 1.
 
 ## Step 1 — enumerate the real population
 
-Run the Enumerate block of each harness's reference. Each prints DATA ROWS ONLY:
+Run the Enumerate block of each harness's reference for your operating system. Each prints DATA ROWS ONLY:
 seven tab-separated columns `HARNESS`, `ACCOUNT`, `PID`, `SID`, `NAME`, `STATUS`,
 `LAUNCH-CWD`, with `  <-- you` appended to your own row, and no header or summary.
 Pipe the concatenated rows into the block below in ONE shell call, so no row passes

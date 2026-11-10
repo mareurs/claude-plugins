@@ -168,7 +168,7 @@ fi
 
 # 7. REFERENCE FILES ARE SCANNED TOO. A skill's `references/*.md` is read on demand
 #    through a tool call, but a pointer may also load it into a skill body, and the
-#    peer skill keeps its executable walk there (references/claude-code.md). Same
+#    peer skill keeps its executable walk there (references/claude-code-linux.md). Same
 #    population rule as case 1: assert a hit, so an empty glob cannot go green.
 mapfile -t REFERENCES < <(find "$REPO_ROOT" -path '*/skills/*/references/*.md' -not -path '*/.git/*' | sort)
 if [ "${#REFERENCES[@]}" -gt 0 ]; then

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Regression test for the Enumerate block's session-name read (fixed at bb14719).
-# The block lives in references/claude-code.md; the merge block lives in SKILL.md.
+# The block lives in references/claude-code-linux.md; the merge block lives in SKILL.md.
 #
 # WHY THIS EXISTS. The defect was self-concealing in a way that guarantees no
 # reader reports it: a greedy `sed 's/.*"name":"\(...\)".*/\1/'` binds to the
@@ -9,7 +9,7 @@
 # a peer by that name and `SendMessage` answers `No agent named 'X' is
 # reachable`, which is byte-identical to a cross-profile refusal, and the core's
 # "Two readings" tell you to answer that by switching to the `uds:` form of
-# references/claude-code.md Deliver -- which works. The
+# references/claude-code-linux.md Deliver -- which works. The
 # skill's own correct advice for a DIFFERENT cause consumes the evidence.
 # Measured 2026-09-02: 21 live registry files, 1 with a non-empty `formerNames`,
 # and exactly that one mismatched. The population grows monotonically, because
@@ -20,7 +20,7 @@
 # cases 8-11 below. It used to be disclaimed here: the walk read `/proc` and
 # `/run/user/<uid>/cc-socks` by hardcoded absolute path, so it could not be pointed
 # at a fixture, and a source-text assertion ("the block contains no comm test") is
-# a proxy for the behaviour rather than the behaviour. The Enumerate block in references/claude-code.md now reads both
+# a proxy for the behaviour rather than the behaviour. The Enumerate block in references/claude-code-linux.md now reads both
 # roots from CS_PEERS_PROC / CS_PEERS_SOCKS (defaults unchanged), and the cases run
 # the EXTRACTED Enumerate block (piped into the extracted merge block) against a fixture tree. The 2026-09-03 hand verification
 # against live pid 985365 (`comm=2.1.258`) is no longer the only evidence.
@@ -31,7 +31,7 @@
 # the fixture honest about the one property that matters -- that the old rule fails it.
 set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-SKILL="$SCRIPT_DIR/references/claude-code.md"  # the Claude mechanics (Enumerate, Deliver) live here; SKILL.md only points at it
+SKILL="$SCRIPT_DIR/references/claude-code-linux.md"  # the Claude mechanics (Enumerate, Deliver) live here; SKILL.md only points at it
 CORE="$SCRIPT_DIR/SKILL.md"                    # holds the one merge block
 PASS=0; FAIL=0
 pass() { echo "PASS: $1"; PASS=$((PASS+1)); }
@@ -341,7 +341,7 @@ else
 fi
 
 # 17. THE CODEX-CALLER POST TO A CLAUDE SOCKET (the bash fence under ## Deliver of
-#     references/claude-code.md), run for real: a fixture /proc tree and registry reached
+#     references/claude-code-linux.md), run for real: a fixture /proc tree and registry reached
 #     through CS_PEERS_PROC / CS_PEERS_SOCKS, and a throwaway AF_UNIX listener in a short
 #     mktemp path. Never a real /run/user socket. An allowed version posts exactly one
 #     newline-terminated JSON object with the six keys, whatever the target's version; an
@@ -528,7 +528,7 @@ fence_control fixed_terminator "heredoc injection" 't = t.replace("MSG_<16 hex d
 fence_control no_trap          "temp message left" 't = t.replace("trap \x27rm -f \"$msg\" \"$args\"\x27 EXIT\n", "")'
 fence_control quoted_placeholders "shell injection" 't = t.replace("python3 - \"$args\" \"$msg\" <<\x27PY\x27", "python3 - \x27<target PID>\x27 \x27<sender-id>\x27 \"$msg\" <<\x27PY\x27").replace("with open(sys.argv[1]) as f:\n    pid, sender = (f.read().split(\"\\n\") + [\"\", \"\"])[:2]\nmsgfile = sys.argv[2]", "pid, sender, msgfile = sys.argv[1:4]")' hostile_checks
 
-# 17c. DELIVER PINS in claude-code.md: the codescout-missing stop (M1), the receiver rule
+# 17c. DELIVER PINS in claude-code-linux.md: the codescout-missing stop (M1), the receiver rule
 #      for a non-uds `from=` (R17), and the quoted-heredoc send form (no shell-quoted message).
 cc_deliver_pins() {
   local s; s=$(awk '/^## Deliver/{s=1; next} s && /^## /{exit} s{print}' "$1" | tr '\n' ' ' | tr -d '*`' | tr -s ' ')

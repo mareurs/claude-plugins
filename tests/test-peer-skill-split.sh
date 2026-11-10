@@ -19,8 +19,9 @@ set -uo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 SKILL_DIR="${PEER_SKILL_DIR:-$ROOT/codescout-companion/skills/reaching-peer-sessions}"
 CORE="$SKILL_DIR/SKILL.md"
-REF="$SKILL_DIR/references/claude-code.md"
-CREF="$SKILL_DIR/references/codex.md"
+REF="$SKILL_DIR/references/claude-code-linux.md"
+CREF="$SKILL_DIR/references/codex-linux.md"
+UREF="$SKILL_DIR/references/unmeasured.md"
 PASS=0; FAIL=0
 ok()  { echo "  PASS: $1"; PASS=$((PASS+1)); }
 bad() { echo "  FAIL: $1 — $2"; FAIL=$((FAIL+1)); }
@@ -36,14 +37,22 @@ CAP=14056
 # ---- checks (each takes the file to judge) ----
 under_cap()      { [ "$(wc -c <"$1")" -lt "$CAP" ]; }
 has_headings()   { local h; for h in '## Enumerate' '## Identify me' '## Deliver'; do grep -qxF "$h" "$1" || return 1; done; }
-cites_claude()   { grep -qF 'references/claude-code.md' "$1"; }
-cites_codex()    { grep -qF 'on Codex, read `references/codex.md`' "$1"; }
+cites_claude()   { grep -qF 'references/claude-code-linux.md' "$1"; }
+cites_codex()    { grep -qF 'on Codex on Linux, read `references/codex-linux.md`' "$1"; }
+# The third pointer routes every harness/OS pair with no measured mechanics to one file.
+cites_unmeasured() { grep -qF 'read `references/unmeasured.md`' "$1"; }
+# unmeasured.md must tell the reader to STOP and must name the cells it covers; a file that
+# only says "unmeasured" would let an agent adapt the Linux block, which reads /proc.
+unmeasured_stops() {
+  grep -qiF 'stop' "$1" && grep -qF 'operator' "$1" && grep -qF 'OpenCode' "$1" \
+    && grep -qF 'macOS' "$1" && grep -qF 'Windows' "$1" && grep -qF '/proc' "$1"
+}
 no_at_link()     { ! grep -qE '@[A-Za-z0-9_./-]*references/' "$1"; }
 # Harness tool names may appear only on the two pointer lines (matched by shape) and on the
 # frontmatter `description:` line (activation metadata, not a rule). Every other line of the
 # file, frontmatter keys included, must stay harness-neutral. The whole file is scanned, so
 # deleting the frontmatter cannot exempt the body.
-POINTER_RE='^- on (Claude Code|Codex), read `references/[a-z-]+\.md`$'
+POINTER_RE='^- on .+, read `references/[a-z-]+\.md`$'
 no_harness_names() {
   # Captured, not `! a | b | grep -q`: under pipefail a quiet grep -q closes the pipe early
   # and the upstream SIGPIPE flips the verdict. The awk pass drops ONLY the first
@@ -134,6 +143,7 @@ declare -A CHECKS=(
   [core_under_cap]="under_cap"
   [core_cites_claude_reference]="cites_claude"
   [core_names_codex_pointer]="cites_codex"
+  [core_names_unmeasured_pointer]="cites_unmeasured"
   [core_has_no_at_links]="no_at_link"
   [core_names_no_harness_tool_outside_pointers]="no_harness_names"
   [step4_heading_and_question_survive]="step4_survives"
@@ -149,17 +159,20 @@ if [ -f "$CORE" ]; then ok "core SKILL.md exists"; else bad "core SKILL.md" "mis
 for name in "${!CHECKS[@]}"; do
   if "${CHECKS[$name]}" "$CORE"; then ok "$name"; else bad "$name" "check ${CHECKS[$name]} failed on $CORE"; fi
 done
-if [ -f "$REF" ]; then ok "references/claude-code.md exists"; else bad "references/claude-code.md" "missing"; fi
+if [ -f "$REF" ]; then ok "references/claude-code-linux.md exists"; else bad "references/claude-code-linux.md" "missing"; fi
 if has_headings "$REF"; then ok "claude reference has Enumerate, Identify me, Deliver"; else bad "claude reference headings" "one of ## Enumerate / ## Identify me / ## Deliver missing"; fi
 # Codex reference: exists, three headings, cited by the core by plain path, so reachable.
-reachable_codex_copy() { grep -qF 'references/codex.md' "$1" && [ -f "$CREF" ]; }
+reachable_codex_copy() { grep -qF 'references/codex-linux.md' "$1" && [ -f "$CREF" ]; }
 reachable_codex() { reachable_codex_copy "$CORE"; }
 no_dollar_digit() { ! grep -qE '[$][0-9]' "$1"; }
-if [ -f "$CREF" ]; then ok "references/codex.md exists"; else bad "references/codex.md" "missing"; fi
+if [ -f "$CREF" ]; then ok "references/codex-linux.md exists"; else bad "references/codex-linux.md" "missing"; fi
 if has_headings "$CREF"; then ok "codex reference has Enumerate, Identify me, Deliver"; else bad "codex reference headings" "one of ## Enumerate / ## Identify me / ## Deliver missing"; fi
-if reachable_codex; then ok "codex reference is reachable from the core by plain path"; else bad "codex reachability" "core does not cite references/codex.md, or the file is missing"; fi
+if reachable_codex; then ok "codex reference is reachable from the core by plain path"; else bad "codex reachability" "core does not cite references/codex-linux.md, or the file is missing"; fi
 if no_at_link "$CREF" && no_dollar_digit "$CREF" && no_dollar_digit "$REF"; then ok "references hold no @-link and no dollar-plus-digit token"; else bad "reference lint" "an @-link or a dollar-plus-digit token"; fi
 [ -d "$SKILL_DIR/references" ] && ok "references/ dir name preserved" || bad "references/ dir" "missing or renamed"
+if [ -f "$UREF" ]; then ok "references/unmeasured.md exists"; else bad "references/unmeasured.md" "missing"; fi
+if unmeasured_stops "$UREF" 2>/dev/null; then ok "unmeasured reference says stop, names the operator and the unmeasured cells"; else bad "unmeasured reference" "missing stop/operator wording or an unmeasured cell name"; fi
+if no_at_link "$UREF" 2>/dev/null && no_dollar_digit "$UREF" 2>/dev/null; then ok "unmeasured reference holds no @-link and no dollar-plus-digit token"; else bad "unmeasured lint" "an @-link, a dollar-plus-digit token, or the file is missing"; fi
 
 # ---- controls: each mutates a copy, must change it, and the check must then FAIL ----
 # control <label> <check-fn> <file> <python-mutation: t -> t>
@@ -170,9 +183,9 @@ control() {
   if "$fn" "$dst"; then bad "control $label" "mutated copy still passed $fn"; else ok "control $label is caught"; fi
 }
 control oversize        under_cap          "$CORE" 't += "x" * 15000'
-control no_claude_ptr   cites_claude       "$CORE" 't = t.replace("references/claude-code.md", "claude-code.md")'
-control no_codex_ptr    cites_codex        "$CORE" 't = t.replace("on Codex, read", "on Codex, see")'
-control at_link         no_at_link         "$CORE" 't += "\n@references/claude-code.md\n"'
+control no_claude_ptr   cites_claude       "$CORE" 't = t.replace("references/claude-code-linux.md", "claude-code.md")'
+control no_codex_ptr    cites_codex        "$CORE" 't = t.replace("on Codex on Linux, read", "on Codex, see")'
+control at_link         no_at_link         "$CORE" 't += "\n@references/claude-code-linux.md\n"'
 control tool_name       no_harness_names   "$CORE" 't += "\nPost with SendMessage to the peer.\n"'
 control cc_socks_path   no_harness_names   "$CORE" 't += "\nSocket at /run/user/1000/cc-socks/1.sock\n"'
 control step4_heading   step4_survives     "$CORE" 't = t.replace("## Step 4 — before acting", "## Step 4 — acting")'
@@ -190,9 +203,13 @@ control ref_no_enum     has_headings       "$REF"  't = t.replace("## Enumerate"
 control codex_no_enum   has_headings       "$CREF" 't = t.replace("## Enumerate", "## List")'
 control codex_no_ident  has_headings       "$CREF" 't = t.replace("## Identify me", "## Who am I")'
 control codex_no_deliv  has_headings       "$CREF" 't = t.replace("## Deliver", "## Send")'
-control codex_at_link   no_at_link         "$CREF" 't += "\n@references/claude-code.md\n"'
+control codex_at_link   no_at_link         "$CREF" 't += "\n@references/claude-code-linux.md\n"'
 control codex_dollar    no_dollar_digit    "$CREF" 't += "\ncost $4.20\n"'
-control codex_unreach   reachable_codex_copy "$CORE" 't = t.replace("references/codex.md", "codex.md")'
+control codex_unreach   reachable_codex_copy "$CORE" 't = t.replace("references/codex-linux.md", "codex.md")'
+control no_unmeasured_ptr cites_unmeasured "$CORE" 't = t.replace("references/unmeasured.md", "unmeasured.md")'
+control unmeasured_no_stop unmeasured_stops "$UREF" 'import re; t = re.sub("(?i)stop", "go on", t)'
+control unmeasured_no_proc unmeasured_stops "$UREF" 't = t.replace("/proc", "the process table")'
+control unmeasured_dollar  no_dollar_digit  "$UREF" 't += "\ncost $4.20\n"'
 
 control send_once       send_rules         "$CORE" 't = t.replace("One send per target per request.", "Send as often as needed.")'
 control send_repost     send_rules         "$CORE" 't = t.replace("Do not repost on silence", "Repost on silence")'
@@ -212,11 +229,11 @@ control lint_second_desc no_harness_names "$CORE" 't = t.replace("name: reaching
 control step2_no_sid    single_account_keeps_label "$CORE" 't = t.replace("addressed by its `SID`", "addressed by name")'
 # Lint controls beyond appending a plain body line: the exemption must be the pointer SHAPE
 # and the description line only.
-control lint_ref_mention no_harness_names "$CORE" 't += "\nReply with SendMessage; the address forms are in references/claude-code.md.\n"'
+control lint_ref_mention no_harness_names "$CORE" 't += "\nReply with SendMessage; the address forms are in references/claude-code-linux.md.\n"'
 control lint_no_frontmatter no_harness_names "$CORE" 't = t.split("---\n", 2)[2] + "\nAlways call ListAgents first.\n"'
 control lint_other_key  no_harness_names "$CORE" 't = t.replace("name: reaching-peer-sessions", "name: reaching-peer-sessions\nsee: cc-socks state_5.sqlite", 1)'
 # Allowances are real, not a blanket pass.
-printf -- '---\nname: x\ndescription: use SendMessage or ListAgents\n---\n- on Claude Code, read `references/claude-code.md`\n' > "$T/allow.md"
+printf -- '---\nname: x\ndescription: use SendMessage or ListAgents\n---\n- on Claude Code on Linux, read `references/claude-code-linux.md`\n' > "$T/allow.md"
 if no_harness_names "$T/allow.md"; then ok "description line and pointer-shaped line are allowed"; else bad "lint allowance" "flagged an allowed line"; fi
 
 echo "── peer-skill-split: $PASS passed, $FAIL failed"
