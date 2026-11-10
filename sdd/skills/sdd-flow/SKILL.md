@@ -18,6 +18,10 @@ those fields is denied, and a typed command is the only thing that opens a gate.
 
 You may write `status: draft`, `feature:`, `kind:` and `branch:` in frontmatter.
 
+**Which harness.** If your native tools are named in lower case (`read`, `edit`, `shell`) and
+codescout's as `codescout_<tool>`, you run in OpenCode: read `references/opencode.md` before
+step 1. Otherwise (Claude Code) the command names below are exact.
+
 ## The nine steps
 
 1. **Resume.** Find the feature's spec and plan before starting anything new. Query the
@@ -84,6 +88,8 @@ The hook confirms in one line. Record it as an event on the spec (see
   denied. Read it when a write or a git command is refused.
 - `references/artifacts.md`: frontmatter fields, the plan-is-active rule, the catalog and
   event calls, the git common directory. Read it at step 1 and after any approval.
+- `references/opencode.md`: the OpenCode command names and what differs there. Read it
+  first when you run in OpenCode.
 
 Without `.sdd/config.json` none of this applies: the hooks stay silent and superpowers runs
 as usual.
