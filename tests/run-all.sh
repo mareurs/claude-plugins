@@ -71,6 +71,23 @@ if [ "${#SUITES[@]}" -eq 0 ]; then
   exit 1
 fi
 
+# Missing-dependency NOTICE, never a gate. node_modules/ is gitignored and
+# codescout-companion/package.json has no scripts, so a fresh clone or `git worktree
+# add` has no `ws`, and the seven suites that import it (the codex-* suites and
+# test-background-wake-package.sh) fail with `Cannot find package 'ws'` — a message that
+# names the symptom but not the fix. Measured 2026-11-10: `npm ci` turned all seven
+# green. The exit code is left alone and the other suites still run, so a missing
+# dependency never hides unrelated failures. Printed again beside the failed-suite list
+# below, because this line scrolls away in a long run.
+# Tests: tests/test-run-all-deps-notice.sh.
+WS_NOTICE=""
+if [ "${#WAKE_SUITES[@]}" -ne 0 ] && [ ! -d "$SCRIPT_DIR/../codescout-companion/node_modules/ws" ]; then
+  WS_NOTICE="⚠ codescout-companion/node_modules/ws is missing: the background-wake and codex suites import it and will fail with \"Cannot find package 'ws'\".
+  Fix: (cd codescout-companion && npm ci)"
+  echo "$WS_NOTICE"
+  echo ""
+fi
+
 # CS_TEST_SKIP — space-separated suite basenames to skip. A DENY-list on purpose:
 # discovery stays glob-driven, so a suite added tomorrow runs by default and only
 # the names written here are excluded. An allow-list would silently un-cover every
@@ -132,5 +149,6 @@ if [ "${#FAILED[@]}" -eq 0 ]; then
   exit 0
 else
   echo "✗ Failed suites: ${FAILED[*]}"
+  [ -n "$WS_NOTICE" ] && { echo ""; echo "$WS_NOTICE"; }
   exit 1
 fi
