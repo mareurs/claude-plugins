@@ -342,10 +342,11 @@ try {
   await ok('an UNARMED session is never blocked', async () => {
     const fakeHome = mkdtempSync(join(tmpdir(), 'cs-oc-nohome-'));
     const bare = mkdtempSync(join(tmpdir(), 'cs-oc-bare-'));
-    const saved = { HOME: process.env.HOME, USERPROFILE: process.env.USERPROFILE, XDG_CONFIG_HOME: process.env.XDG_CONFIG_HOME };
+    const saved = { HOME: process.env.HOME, USERPROFILE: process.env.USERPROFILE, XDG_CONFIG_HOME: process.env.XDG_CONFIG_HOME, CLAUDE_CONFIG_DIR: process.env.CLAUDE_CONFIG_DIR };
     process.env.HOME = fakeHome;
     process.env.USERPROFILE = fakeHome;
     process.env.XDG_CONFIG_HOME = join(fakeHome, 'xdg-empty');
+    delete process.env.CLAUDE_CONFIG_DIR;
     try {
       const b = buildBridge(bare);
       await b.onToolBefore({
@@ -370,10 +371,14 @@ try {
   //    nothing. With it set from a USER-level entry instead, the same code would block
   //    reads in repos codescout does not serve — so both directions are asserted.
   const isolatedIn = async (fakeHome, project, run) => {
-    const saved = { HOME: process.env.HOME, USERPROFILE: process.env.USERPROFILE, XDG_CONFIG_HOME: process.env.XDG_CONFIG_HOME };
+    // CLAUDE_CONFIG_DIR too: detect.mjs reads it, so a developer whose Claude profile
+    // registers codescout would otherwise arm detection and defeat the "unregistered
+    // project" assertion below. Measured 2026-11-10 with CLAUDE_CONFIG_DIR=~/.claude-kat.
+    const saved = { HOME: process.env.HOME, USERPROFILE: process.env.USERPROFILE, XDG_CONFIG_HOME: process.env.XDG_CONFIG_HOME, CLAUDE_CONFIG_DIR: process.env.CLAUDE_CONFIG_DIR };
     process.env.HOME = fakeHome;
     process.env.USERPROFILE = fakeHome;
     process.env.XDG_CONFIG_HOME = join(fakeHome, 'xdg');
+    delete process.env.CLAUDE_CONFIG_DIR;
     try {
       return await run(project);
     } finally {
