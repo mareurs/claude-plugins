@@ -5,6 +5,7 @@ import {normalizeHookContext} from '../hooks/session-context.mjs';
 import {stateHome} from '../hooks/lib.mjs';
 import {homedir} from 'node:os';
 import {registerWatch,readCurrentWatch} from './watch-map.mjs';
+import {supportsCodexHook} from './compatibility.mjs';
 
 const exists=async(path)=>{try{await access(path);return true;}catch(e){if(e.code==='ENOENT')return false;throw e;}};
 
@@ -36,8 +37,8 @@ export async function normalizeNativeWatch(harness,raw,config,platform){
   if(process.platform!=='linux')return null;
   const name=harness==='claude-code'?'claudeCode':'codex';
   const binding=config.bindings?.[name];
-  const measured=harness==='claude-code'?'2.1.312':'0.165.0';
-  if(config.engine!=='v1'||!config.adapters?.[name]?.enabled||!binding||binding.hostVersion!==measured)return null;
+  const measured=harness==='claude-code'?binding?.hostVersion==='2.1.312':harness==='codex'&&supportsCodexHook(binding?.hostVersion);
+  if(config.engine!=='v1'||!config.adapters?.[name]?.enabled||!binding||!measured)return null;
   if(raw?.hook_event_name!=='PostToolUse'||raw.tool_name!=='mcp__codescout__run_command'||raw.agent_id!=null||!raw.tool_use_id)return null;
   if(normalizeHookContext(harness,raw,raw.cwd,binding.hostVersion).state!=='available')return null;
   const content=harness==='claude-code'?raw.tool_response:raw.tool_response?.content;

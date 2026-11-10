@@ -2,9 +2,10 @@ import {realpath} from 'node:fs/promises';
 import {normalizeNativeWatch} from '../intake.mjs';
 import {formatDeliveryEvent} from '../model.mjs';
 import {connectCodex,endpointIdentity} from './codex-client.mjs';
+import {codexDaemonEvidence} from '../compatibility.mjs';
 export const normalizeCodexWatch=(raw,config,platform)=>normalizeNativeWatch('codex',raw,config,platform);
 const denied=(reason)=>({supported:false,reason,evidenceRef:null});
-const allowed={supported:true,reason:'measured existing-thread secondary attach',evidenceRef:'codex-linux-0.160.0-callback-probe'};
+const allowed={supported:true,reason:'measured existing-thread secondary attach'};
 
 /** Exact profile/socket generation and loaded thread only; no dormant-thread resume. */
 export function createCodexAdapter(config,{completionTimeoutMs=15000}={}){
@@ -14,13 +15,15 @@ export function createCodexAdapter(config,{completionTimeoutMs=15000}={}){
     try{
       if(config.engine!=='v1'||!config.adapters?.codex?.enabled)return denied('Codex wake is disabled for this profile');
       const proof=config.capabilities?.codex;
-      if(proof?.daemonVersion!=='0.160.0'||proof?.subscription!=='resume-loaded'||proof?.callbackPreserved!==true)return denied('Codex secondary callback preservation is unverified for this version/profile');
+      const evidenceRef=codexDaemonEvidence(proof?.daemonVersion);
+      if(!evidenceRef||proof?.subscription!=='resume-loaded'||proof?.callbackPreserved!==true)return denied('Codex secondary callback preservation is unverified for this version/profile');
       const identity=await endpointIdentity(config.adapters.codex.endpoint),binding=config.bindings?.codex;
       if(binding?.hostInstanceId!==identity.generation||binding?.runtimeGeneration!==identity.generation)return denied('configured daemon generation differs from endpoint');
       client??=await connectCodex({endpoint:config.adapters.codex.endpoint,clientInfo:{name:'codescout_background_wake',version:'1'},maxPayload:config.adapters.codex.maxPayloadBytes});
       if(await realpath(client.server.codexHome)!==await realpath(config.profileRoot))return denied('endpoint belongs to another Codex profile');
-      if(!/^codex-tui\/0\.160\.0(?:\s|$)/.test(client.server.userAgent))return denied('daemon version lacks measured callback preservation');
-      return allowed;
+      const observedVersion=client.server.userAgent?.match(/^codex-tui\/(\d+\.\d+\.\d+)(?:\s|$)/)?.[1];
+      if(observedVersion!==proof.daemonVersion)return denied('observed daemon version differs from the measured configured version');
+      return {...allowed,evidenceRef};
     }catch(e){return denied(e.message);}
   };
   const validateTarget=async(request)=>{
@@ -39,7 +42,7 @@ export function createCodexAdapter(config,{completionTimeoutMs=15000}={}){
         unsubscribe=await client.subscribeThread(id,m=>{if(notifications.length>=512){stopWait?.('notification budget exceeded');return;}notifications.push(m);stopWait?.();});
         subscribed=id;
       }
-      return allowed;
+      return capabilityResult;
     }catch(e){return denied(e.message);}
   };
   return {
