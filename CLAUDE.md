@@ -314,8 +314,8 @@ A skill whose mechanics differ by harness (Claude Code, Codex, OpenCode) or by o
 - A core rule never names one harness's tool or path, except inside a pointer. A pair file never repeats a core rule.
 - A session reads the file for its own pair only. Do not inline another pair's mechanics "for completeness".
 - **Add a pair file only after you measure that pair.** A guessed macOS or Windows block is worse than none: a block that finds nothing looks like a true zero. `references/unmeasured.md` says "stop and ask the operator" until a measured file exists.
-- **Split only when a skill has real harness or OS content.** Measured 2026-11-10 over 22 skills: only `reaching-peer-sessions` has it (60 harness lines, 21 tool-name lines, `/proc` and `/run/user` paths). Every other skill has 5 or fewer such lines, and those name plugin paths such as `CLAUDE.md`, or one 2-row dispatch table in `research-subagent`. Re-measure before you split another skill.
-- `reaching-peer-sessions` is the first skill split this way. Measured pairs: Claude Code on Linux and Codex on Linux. `tests/test-peer-skill-split.sh` pins the layout.
+- **Split only when a skill has real harness or OS content.** Measured 2026-11-10 over 22 skills: `reaching-peer-sessions` has the most (67 harness lines, 21 tool-name lines, `/proc` and `/run/user` paths). `sdd-flow` already splits by harness: `references/opencode.md` holds the OpenCode command names. Every other skill has 5 or fewer such lines, and those name plugin paths such as `CLAUDE.md`, or one 2-row dispatch table in `research-subagent`. Re-measure before you split another skill, and measure after `git pull`: a first measurement here ran on a checkout that lacked the OpenCode work on `origin`.
+- `reaching-peer-sessions` is the skill split by harness and by OS. Measured pairs: Claude Code on Linux and Codex on Linux. `tests/test-peer-skill-split.sh` pins the layout. `sdd-flow` splits by harness only.
 
 ## Session Passover
 
