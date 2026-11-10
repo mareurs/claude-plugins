@@ -1,5 +1,5 @@
 // Tests for the OpenCode host bridge. Plain node, no opencode install required:
-//   node harnesses/opencode/codescout-companion.test.mjs
+//   node harnesses/opencode/tests/test-codescout-companion.mjs
 //
 // WHAT THIS COVERS, and what it deliberately cannot
 //
@@ -31,8 +31,8 @@ import PLUGIN_DEF, {
   runHook,
   GUARDED_TOOLS,
   CodescoutCompanion,
-} from './codescout-companion.js';
-import { normalizedToolName, breakerFile, detectFor } from '../../codescout-companion/hooks/lib.mjs';
+} from '../plugins/codescout-companion.js';
+import { normalizedToolName, breakerFile, detectFor } from '../../../codescout-companion/hooks/lib.mjs';
 
 // Test isolation (repo rule: clean up mutated state). The guard writes cs-redirect-* /
 // cs-block-* markers into os.tmpdir(), and cs-liveness refreshes the codescout rendezvous
@@ -48,7 +48,7 @@ process.env.XDG_STATE_HOME = join(SANDBOX, 'state');
 process.on('exit', () => rmSync(SANDBOX, { recursive: true, force: true }));
 
 const HERE = dirname(fileURLToPath(import.meta.url));
-const REPO = resolvePath(HERE, '..', '..');
+const REPO = resolvePath(HERE, '..', '..', '..');
 
 // Session ids must be unique per RUN, not per test. The Claude-side circuit breaker files
 // are keyed by session id in os.tmpdir() (now the sandbox above); reusing a fixed id across runs accumulates
@@ -477,7 +477,7 @@ try {
   // seed this session's breaker past the threshold so the real guard stands down with
   // additionalContext, then deliver an execute.after shaped exactly like the host's.
   await ok('stand-down advice reaches the model via result.content (v2 shape)', async () => {
-    const { breakerFile } = await import('../../codescout-companion/hooks/lib.mjs');
+    const { breakerFile } = await import('../../../codescout-companion/hooks/lib.mjs');
     const b = bridge();
     const sid = SID('standdown');
     const bf = breakerFile(sid);

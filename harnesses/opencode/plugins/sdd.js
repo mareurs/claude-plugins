@@ -33,10 +33,10 @@
 import { existsSync, statSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join, resolve, isAbsolute } from 'node:path';
-import { runHook, decisionOf, resolveDir } from './lib/host.mjs';
+import { runHook, decisionOf, resolveDir } from '../lib/host.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
-const REPO = resolve(HERE, '..', '..');
+const REPO = resolve(HERE, '..', '..', '..');
 const HOOKS = join(REPO, 'sdd', 'hooks');
 export const SPEC_GUARD = join(HOOKS, 'spec-guard.mjs');
 export const REVIEW_GUARD = join(HOOKS, 'review-guard.mjs');

@@ -1,11 +1,11 @@
 // sdd OpenCode bridge — tests against the REAL sdd hooks in throwaway git repos.
-// Run: node harnesses/opencode/sdd.test.mjs
+// Run: node harnesses/opencode/tests/test-sdd.mjs
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync, realpathSync, existsSync, readdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
-import DEF, { buildSddBridge, sddActive, hooksFor, patchCalls, rehostSdd, lastUserMessage } from './sdd.js';
+import DEF, { buildSddBridge, sddActive, hooksFor, patchCalls, rehostSdd, lastUserMessage } from '../plugins/sdd.js';
 
 // Isolation (repo rule): hooks may write markers to os.tmpdir() / XDG_STATE_HOME.
 const SANDBOX = realpathSync(mkdtempSync(join(tmpdir(), 'oc-sdd-test-')));

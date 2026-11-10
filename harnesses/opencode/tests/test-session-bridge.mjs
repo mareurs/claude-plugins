@@ -1,11 +1,11 @@
-// session-bridge OpenCode plugin — unit tests. Run: node harnesses/opencode/session-bridge.test.mjs
+// session-bridge OpenCode plugin — unit tests. Run: node harnesses/opencode/tests/test-session-bridge.mjs
 import assert from 'node:assert/strict';
 import { mkdtempSync, writeFileSync, rmSync, chmodSync, readFileSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import DEF, {
   READER, CHILD_ENV, readerPermissions, registerReader, opencodeBin, resolveRef, runFork, buildSessionBridge,
-} from './session-bridge.js';
+} from '../plugins/session-bridge.js';
 
 const SANDBOX = mkdtempSync(join(tmpdir(), 'oc-sb-test-'));
 process.on('exit', () => rmSync(SANDBOX, { recursive: true, force: true }));

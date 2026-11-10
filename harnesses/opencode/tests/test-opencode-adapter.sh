@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# tests/test-opencode-adapter.sh — the OpenCode bridges stay wired to the Claude-side hooks
+# harnesses/opencode/tests/test-opencode-adapter.sh — the OpenCode bridges stay wired to the Claude-side hooks
 #
 # WHY THIS EXISTS
 #
-# harnesses/opencode/*.js are bridges, not forks: they translate OpenCode events into the
+# harnesses/opencode/plugins/*.js are bridges, not forks: they translate OpenCode events into the
 # stdin/stdout JSON dialect the Claude-side hooks already speak. That coupling is invisible
 # to both sides. Rename a field in a hook's lib.mjs, change the shape of a deny payload, or
 # move a hook, and a bridge stops enforcing while still exiting cleanly — the silent-no-op
@@ -13,7 +13,7 @@
 # Also installs into a throwaway config dir and checks every link resolves: an installer
 # whose paths drifted installs nothing and reports success.
 set -u
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 H="$ROOT/harnesses/opencode"
 INSTALLER="$H/install.sh"
 PASS=0; FAIL=0; SKIP=0
@@ -36,7 +36,7 @@ done
 
 # Syntax, before behaviour: a broken plugin throws inside opencode's loader, and the host's
 # own failure mode there is not visible to us.
-for f in "$H"/*.js "$H"/lib/*.mjs; do
+for f in "$H"/plugins/*.js "$H"/lib/*.mjs; do
   [ -f "$f" ] || continue
   if node --check "$f" 2>/dev/null; then pass "parses: ${f#"$ROOT"/}"
   else fail "does not parse: ${f#"$ROOT"/}"; fi
@@ -73,7 +73,7 @@ rm -rf "$SANDBOX" "$SANDBOX.log"
 
 # The behaviour suites, one per bridge. On failure, print the failing cases in full: a
 # count alone sends the developer back to re-run node by hand.
-for t in "$H"/*.test.mjs; do
+for t in "$H"/tests/test-*.mjs; do
   [ -f "$t" ] || continue
   out="$(node "$t" 2>&1)"; rc=$?
   p=$(printf '%s\n' "$out" | grep -c '^  PASS:'); f=$(printf '%s\n' "$out" | grep -c '^  FAIL:')

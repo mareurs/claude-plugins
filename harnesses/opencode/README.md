@@ -55,7 +55,7 @@ Channel renames that same rewrite had to absorb:
 | args in `output.args`, id in `input.callID` | **one event object**: `{tool, sessionID, agent, messageID, id, input}` |
 | return a hooks object | **register**; the return value is used as a *cleanup function*, so returning an object would be called at teardown |
 
-`tests/test-opencode-adapter.sh` now asserts the loader contract itself, so a v1-shaped
+`harnesses/opencode/tests/test-opencode-adapter.sh` now asserts the loader contract itself, so a v1-shaped
 regression fails in CI instead of on someone's machine.
 
 ## What you get
@@ -123,7 +123,7 @@ config with just this plugin): a source edit, a new source file, an agent edit o
 `status: approved` and a shell write to the approval records are all denied without an
 approved plan; the edit is allowed once a plan is approved; the banner states the mode;
 `/sdd-approve spec a`, sent through the server's command route, approved the spec. Unit
-tests (real hooks, throwaway git repos): `node harnesses/opencode/sdd.test.mjs`.
+tests (real hooks, throwaway git repos): `node harnesses/opencode/tests/test-sdd.mjs`.
 
 ## session-bridge
 
@@ -154,7 +154,7 @@ Verified live on 2.1.3, with only this plugin loaded: the list showed the produc
 the ask returned a fact that only the producer's conversation held; asked to run a shell
 command, the fork refused and no file appeared; the producer's history held none of the
 questions; no fork session was left behind. Unit tests (a fake `opencode` binary for the
-launcher): `node harnesses/opencode/session-bridge.test.mjs`.
+launcher): `node harnesses/opencode/tests/test-session-bridge.mjs`.
 
 ## legible
 
@@ -173,7 +173,7 @@ it with Tab in the TUI, or `opencode run --agent legible`.
 
 Verified live on 2.1.3: the style is in the prompt under `legible` and absent under
 `build`; the `legible` agent still lists the coding tools; the `explain` skill is
-available. Unit tests: `node harnesses/opencode/legible.test.mjs`.
+available. Unit tests: `node harnesses/opencode/tests/test-legible.mjs`.
 
 ## Install
 
@@ -222,13 +222,27 @@ Do **not** register the plugin through the `plugins: [...]` config array — v2 
 configured local plugin to be a *directory* (`…/index.ts`). The symlinked file in
 `plugins/` is discovered directly, which is what `install.sh` sets up.
 
+## Layout
+
+Same shape as `harnesses/pi/`:
+
+```
+harnesses/opencode/
+  plugins/<plugin>.js          one OpenCode plugin per repo plugin (install.sh links these)
+  lib/host.mjs                 shared host plumbing: hook runner, runtime, project dir
+  commands/                    OpenCode-only command files
+  tests/test-<plugin>.mjs      one suite per plugin
+  tests/test-opencode-adapter.sh   runs every suite + a sandboxed install (run-all.sh runs it)
+  install.sh
+```
+
 ## How it works
 
 ```
 opencode tool call → one event object {tool, sessionID, agent, messageID, id, input}
    │  ctx.tool.hook("execute.before", fn)      ← registered by setup(ctx), not returned
    ▼
-harnesses/opencode/codescout-companion.js
+harnesses/opencode/plugins/codescout-companion.js
    │  translate to Claude Code's stdin JSON dialect, spawn, parse stdout
    ▼
 codescout-companion/hooks/pre-tool-guard.mjs   ← the same guard Claude Code runs
@@ -298,7 +312,7 @@ the `execute.before` trigger and its exact field list, and the fact that plugin 
 are wrapped in `Effect.try{catch}` so a throw becomes a failed call. Cross-checked against
 OpenCode's own v1→v2 migration table and server-plugin reference.
 
-**Verified by execution** — `node harnesses/opencode/codescout-companion.test.mjs`, 26
+**Verified by execution** — `node harnesses/opencode/tests/test-codescout-companion.mjs`, 26
 cases: loader-union conformance, the four registered channel names, teardown-is-a-function,
 registration failure still loads the plugin (fail-open, reported on stderr), name
 normalisation incl. the v2 renames, MCP recognition across four plausible prefix forms plus
@@ -394,6 +408,6 @@ writable on this machine at all, and why nothing in this adapter imports from
 ## Tests
 
 ```bash
-node harnesses/opencode/<plugin>.test.mjs   # one bridge, direct
-bash tests/test-opencode-adapter.sh         # every bridge + a sandboxed install, as run-all.sh runs it
+node harnesses/opencode/tests/test-<plugin>.mjs           # one bridge, direct
+bash harnesses/opencode/tests/test-opencode-adapter.sh       # every bridge + a sandboxed install, as run-all.sh runs it
 ```

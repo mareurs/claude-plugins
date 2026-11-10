@@ -25,7 +25,7 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join, resolve } from 'node:path';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
-const REPO = resolve(HERE, '..', '..');
+const REPO = resolve(HERE, '..', '..', '..');
 export const STYLE_FILE = join(REPO, 'legible', 'output-styles', 'explanatory-ste.md');
 export const AGENT_ID = 'legible';
 

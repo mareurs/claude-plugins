@@ -1,9 +1,9 @@
-// legible OpenCode bridge — unit tests. Run: node harnesses/opencode/legible.test.mjs
+// legible OpenCode bridge — unit tests. Run: node harnesses/opencode/tests/test-legible.mjs
 import assert from 'node:assert/strict';
 import { mkdtempSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import DEF, { styleText, registerAgent, onContextFor, AGENT_ID, STYLE_FILE } from './legible.js';
+import DEF, { styleText, registerAgent, onContextFor, AGENT_ID, STYLE_FILE } from '../plugins/legible.js';
 
 let pass = 0;
 const ok = async (name, fn) => {

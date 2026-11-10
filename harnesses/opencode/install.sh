@@ -9,7 +9,7 @@
 # Plugins: codescout-companion, sdd, legible, session-bridge (default: all four).
 #
 # What it does, per plugin:
-#   plugin   symlinks harnesses/opencode/<plugin>.js into OpenCode's plugins/ dir
+#   plugin   symlinks harnesses/opencode/plugins/<plugin>.js into OpenCode's plugins/ dir
 #   skills   symlinks each <plugin>/skills/<name>/ into OpenCode's skills/ dir
 #   commands writes OpenCode commands into commands/: sdd's are RENDERED (the
 #            ${CLAUDE_PLUGIN_ROOT} placeholder filled in, command names mapped to their
@@ -150,7 +150,7 @@ fi
 # ── install ───────────────────────────────────────────────────────────────
 mkdir -p "$BASE/plugins" "$BASE/skills" "$BASE/commands"
 for p in $PLUGINS; do
-  src="$HARNESS/$p.js"
+  src="$HARNESS/plugins/$p.js"
   [ -f "$src" ] || die "plugin source missing at $src (is this checkout intact?)"
   link "$src" "$BASE/plugins/$p.js"
   info "plugin   $p → $BASE/plugins/$p.js"

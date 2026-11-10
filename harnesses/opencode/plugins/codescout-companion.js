@@ -87,7 +87,7 @@ import { readFileSync, existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join, resolve } from 'node:path';
 import { homedir } from 'node:os';
-import { runHook, resolveRuntime, resolveDir, decisionOf } from './lib/host.mjs';
+import { runHook, resolveRuntime, resolveDir, decisionOf } from '../lib/host.mjs';
 
 // Re-exported so existing callers and the test suite keep one import site.
 export { runHook, resolveRuntime, resolveDir };
@@ -98,7 +98,7 @@ export { runHook, resolveRuntime, resolveDir };
 // equivalent of. (That missing variable is the exact blocker that stalled the Copilot
 // CLI port; see docs/INSTALL-COPILOT.md §2.)
 const HERE = dirname(fileURLToPath(import.meta.url));
-const REPO = resolve(HERE, '..', '..');
+const REPO = resolve(HERE, '..', '..', '..');
 const HOOKS = join(REPO, 'codescout-companion', 'hooks');
 const GUARD = join(HOOKS, 'pre-tool-guard.mjs');
 const LIVENESS = join(HOOKS, 'cs-liveness.mjs');

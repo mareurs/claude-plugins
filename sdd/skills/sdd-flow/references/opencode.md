@@ -1,7 +1,7 @@
 # sdd on OpenCode
 
 The flow, the gates and the rules in `SKILL.md` are the same. The same hook scripts enforce
-them, run by `harnesses/opencode/sdd.js`. Only the names you type differ.
+them, run by `harnesses/opencode/plugins/sdd.js`. Only the names you type differ.
 
 ## Command names
 

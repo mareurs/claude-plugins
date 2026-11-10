@@ -24,7 +24,7 @@
 // NO RECURSION. The forked run loads this plugin too. It sees OPENCODE_SESSION_BRIDGE_CHILD
 // and registers the reader agent but not the tools, so a fork cannot ask another session.
 import { spawn } from 'node:child_process';
-import { resolveDir } from './lib/host.mjs';
+import { resolveDir } from '../lib/host.mjs';
 
 export const READER = 'session-bridge-reader';
 export const CHILD_ENV = 'OPENCODE_SESSION_BRIDGE_CHILD';

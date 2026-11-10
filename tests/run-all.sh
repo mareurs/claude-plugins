@@ -47,8 +47,10 @@ if [ -d "$WAKE_TESTS_DIR" ]; then
   )
 fi
 
+# Harness test runners: harnesses/<harness>/tests/test-*.sh. The OpenCode runner runs that
+# harness's test-*.mjs itself (and a sandboxed install), so only the .sh is listed here.
 shopt -s nullglob
-SUITES=("$SCRIPT_DIR"/test-*.sh "$HOOK_TESTS_DIR"/*.test.sh "$SKILL_TESTS_DIR"/*/*.test.sh "$HOOK_TESTS_DIR"/*.test.mjs "$SDD_HOOK_TESTS_DIR"/*.test.mjs "$PI_EXTENSION_TESTS_DIR"/*.test.mjs ${EFFORT_SUITES[@]+"${EFFORT_SUITES[@]}"} ${WAKE_SUITES[@]+"${WAKE_SUITES[@]}"})
+SUITES=("$SCRIPT_DIR"/test-*.sh "$SCRIPT_DIR"/../harnesses/*/tests/test-*.sh "$HOOK_TESTS_DIR"/*.test.sh "$SKILL_TESTS_DIR"/*/*.test.sh "$HOOK_TESTS_DIR"/*.test.mjs "$SDD_HOOK_TESTS_DIR"/*.test.mjs "$PI_EXTENSION_TESTS_DIR"/*.test.mjs ${EFFORT_SUITES[@]+"${EFFORT_SUITES[@]}"} ${WAKE_SUITES[@]+"${WAKE_SUITES[@]}"})
 shopt -u nullglob
 
 if [ "${1:-}" = "--list" ]; then
