@@ -29,7 +29,7 @@ Codex never runs a plugin hook before you approve it, and installing the plugin 
 
 | Plugin | Version | Description |
 |--------|---------|-------------|
-| **[sdd](./sdd/)** | 3.0.0 | Specification-Driven Development: governance, workflow commands, and enforcement hooks |
+| **[sdd](./sdd/)** | 3.0.1 | Specification-Driven Development: governance, workflow commands, and enforcement hooks |
 | **[codescout-companion](./codescout-companion/)** | 1.21.4 | Companion plugin for [codescout](https://github.com/mareurs/codescout) MCP server: injects tool guidance, redirects Read/Grep/Glob/Edit/Write to symbol-aware tools, auto-reindex + drift warnings, worktree shared-asset symlinking |
 | **[statusline](./statusline/)** | 1.2.1 | Rich, color-coded terminal status line: model, context %, rate limits (incl. per-model weekly), git info, duration. Self-heals orphan `statusLine` settings when sibling plugins are uninstalled. |
 | **[buddy](./buddy/)** | 0.11.15 | Himalayan-aesthetic bodhisattva companion: 12 specialist masters on demand, AI judge, focus tracking, statusline integration |
