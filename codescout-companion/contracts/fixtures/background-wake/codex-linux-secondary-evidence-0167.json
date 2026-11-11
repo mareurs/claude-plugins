@@ -1,0 +1,66 @@
+{
+  "version": 1,
+  "measuredAt": "2026-11-10",
+  "synthetic": false,
+  "captureKind": "native-protocol-summary",
+  "harness": "codex",
+  "daemonVersion": "0.167.0",
+  "os": "linux",
+  "probe": "tools/probe-codex-wake-callbacks.mjs",
+  "model": "configured default; served model not independently verified",
+  "subscription": {
+    "method": "thread/resume",
+    "params": {
+      "threadId": "<exact-probe-owned-loaded-thread>",
+      "excludeTurns": true
+    },
+    "configOverrides": false
+  },
+  "callbacksAfterSecondaryClose": {
+    "attached": true,
+    "turnCompleted": true,
+    "originalTool": 1,
+    "originalPermission": 1,
+    "secondaryCallbacks": 0
+  },
+  "approvalDecision": "decline; the escalated command was not approved",
+  "probeIsolation": {
+    "thread": "created and archived by probe",
+    "cwd": "empty temporary directory",
+    "threadLocalHooks": false,
+    "existingUserThreads": "not attached or modified"
+  },
+  "earlierInconclusiveProbe": {
+    "originalTool": 1,
+    "originalPermission": 0,
+    "result": "not counted as callback preservation"
+  },
+  "nativeHookEvidence": "docs/evidence/2026-11-08-stock-codex-hooks-spike.json",
+  "automaticRegistration": {
+    "measuredAt": "2026-11-10",
+    "synthetic": false,
+    "trigger": "native CodeScout run_command with run_in_background=true",
+    "hook": "trusted profile-local Codex PostToolUse launcher",
+    "job": {
+      "durationSeconds": 15,
+      "exitCode": 0,
+      "outputMarker": "CODEX_WAKE_LIVE_TEST_OK"
+    },
+    "observation": {
+      "wakeArrivedAfterOriginalTurnEnded": true,
+      "newUserMessageRequired": false,
+      "sendAttempts": 1,
+      "receiptState": "continuation_observed"
+    },
+    "limits": [
+      "The receipt completed state was not observed",
+      "Active-turn delivery, repeated jobs and platform parity were not tested by this single run"
+    ]
+  },
+  "limitations": [
+    "One native root background job reached continuation_observed; receipt completed and active-turn completion remain unverified",
+    "Native root/child hook evidence is separate and dated 2026-11-08",
+    "No Windows/macOS support claim",
+    "No forward compatibility beyond exact measured versions"
+  ]
+}

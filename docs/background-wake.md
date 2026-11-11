@@ -9,6 +9,7 @@ The shared Node engine is opt in for each profile. Missing configuration keeps t
 | Claude legacy | Existing hook parity suite retained | Existing asyncRewake behavior |
 | Claude v1, 2.1.312 on Linux | Real native root/child envelopes; wrapper subprocess parity for exit 0/7, heartbeat/rearm, concurrent jobs | Complete new-engine native-host parity unverified: scratch authentication did not reach the model |
 | Codex CLI 0.165.0 + daemon 0.160.0 on Linux | Real native envelopes; secondary loaded-thread attach; original tool and permission callbacks after secondary close; real job receipt completed; duplicate suppressed; reconnect completed | Full automatic registration chain unverified. Same-turn control stayed accepted; completion was not observed |
+| Codex CLI + daemon 0.167.0 on Linux | Native root/child identity evidence from 2026-11-08; callback probe observed one original tool callback and one original permission callback after secondary close, zero secondary callbacks. A real 15-second root job triggered the installed hook and resumed the idle session automatically, with one send and receipt `continuation_observed` | Single root-job delivery observed; receipt `completed`, active-turn completion, repeated-job and platform parity remain unverified |
 | Native Windows / macOS host adapters | Unverified, disabled | Portable storage/engine/CLI tests are configured in CI; no local native Windows run was available |
 | WSL | Separate Linux execution environment | Never reuse a native Windows binding or endpoint |
 | Pi / Copilot | Future adapters | Copilot requires an extension-owned authenticated session; SDK feasibility is separate from VS Code integration |
@@ -130,6 +131,23 @@ node codescout-companion/background-wake/cli.mjs gc --profile /absolute/selected
 reconcile currently observes the stored evidence only; it cannot infer missing host completion. recover-pre-send can recover only expired claims without send intent. acknowledge records an operator decision while preserving unknown/sending/accepted; it is not host evidence and never resends. There is no generic retry command.
 
 GC conservatively retains all stable identities, including completed and unconfirmed ones, and every persistent lock file. This prevents reopening a replay window and costs continuing local storage growth. Do not manually erase unresolved receipts to trigger delivery.
+
+## Recheck Codex callback compatibility
+
+The adapter accepts daemon 0.160.0 and 0.167.0 only, and requires the observed daemon version to match the configured `capabilities.codex.daemonVersion`. Native intake accepts CLI 0.165.0 and 0.167.0 only. These are exact measured versions, not a supported minimum or automatic approval of later releases. Keep the older [0.160.0 evidence](../codescout-companion/contracts/fixtures/background-wake/codex-linux-secondary-evidence.json) distinct from the [0.167.0 evidence](../codescout-companion/contracts/fixtures/background-wake/codex-linux-secondary-evidence-0167.json).
+
+The opt-in native probe creates its own test thread, starts one bounded model turn to make its rollout resumable, attaches and closes a secondary client, and then requires an actual tool callback and an actual permission callback on the primary. It declines the escalated command. Its own thread-local hooks are disabled so installed routing hooks do not intercept the probe command. Existing user threads and profile configuration are not changed. The test thread is archived on cleanup. This consumes account usage; run it only with permission.
+
+```sh
+node tools/probe-codex-wake-callbacks.mjs --help
+node tools/probe-codex-wake-callbacks.mjs \
+  --endpoint unix:///absolute/profile/app-server-control/app-server-control.sock \
+  --profile /absolute/profile --expected-version 0.167.0 \
+  --allow-model-call --timeout-ms 90000
+node --test tools/probe-codex-wake*.test.mjs
+```
+
+An absent permission callback, an early callback, a callback on the secondary, timeout, or failed attach is not a compatibility pass. The probe does not enable a profile or prove full automatic hook-to-wake delivery. A new daemon generation still requires explicit endpoint repinning. Use Node 24+ and Python 3.13+ for activation and the full wake test suite; installing `ws` alone does not provide those runtimes.
 
 ## Verification and extension
 
