@@ -61,20 +61,24 @@ OTHER='{"session_id":"s1","tool_name":"WebSearch","tool_input":{"query":"another
 out="$(run_hook "$OTHER")"
 [ -z "$out" ] && ok "a tool outside the matcher set prints nothing" || bad "other tool" "got: $out"
 
-# The rule compares the whole-second timestamp of the two logged calls, and each call here
-# is a separate process, so a second boundary between them hides the hint. Retry with a
-# fresh session; a hint can only appear when the machinery works, so retries cannot pass a
-# broken hook.
-out=""
+# Codex and Claude Code run one agent's write calls one after the other, and codescout
+# serializes writes itself (write guard in src/server.rs), so two writes in one second are
+# serial calls, not a race. The rule that flagged them was removed 2026-11-11; see
+# docs/issues/2026-11-11-buddy-parallel-write-hint-keys-on-a-same-second-clock-and-a-session-wide-log.md.
+# Each call here is a separate process, so a second boundary between two calls would hide a
+# stale hint and make this test pass by luck. Retry with a fresh session until the log shows
+# the two writes really share a timestamp, and assert on that attempt only.
+same_second=""
 for attempt in 1 2 3 4 5; do
   W1='{"session_id":"s2-'$attempt'","tool_name":"mcp__codescout__create_file","tool_input":{"path":"a.txt","content":"x"},"tool_response":{}}'
   W2='{"session_id":"s2-'$attempt'","tool_name":"mcp__codescout__create_file","tool_input":{"path":"b.txt","content":"y"},"tool_response":{}}'
   run_hook "$W1" >/dev/null
   out="$(run_hook "$W2")"
-  echo "$out" | grep -q 'Parallel writes' && break
+  if python3 -c 'import json,sys; ts=[json.loads(l)["ts"] for l in open(sys.argv[1])]; sys.exit(0 if len(ts)==2 and ts[0]==ts[1] else 1)' "$TMP/data/s2-$attempt/cs_tool_log.jsonl"; then same_second=1; break; fi
 done
-if echo "$out" | grep -q 'Parallel writes'; then ok "two writes in one second print the parallel-writes hint (the log persists between calls)"
-else bad "parallel writes" "no hint in 5 attempts; last: $out"; fi
+if [ -z "$same_second" ]; then bad "same-second writes" "no attempt in 5 put both writes in one second; the test checked nothing"
+elif [ -z "$out" ]; then ok "two writes in one second print nothing (they are serial calls, not a race)"
+else bad "same-second writes" "got: $out"; fi
 
 W3='{"session_id":"s3","tool_name":"mcp__codescout__create_file","tool_input":{"path":"c.txt","content":"z"},"tool_response":{}}'
 out="$(run_hook "$W3")"

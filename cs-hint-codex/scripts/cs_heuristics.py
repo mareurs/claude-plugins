@@ -21,18 +21,6 @@ _DEFINITION_KEYWORDS = (
     "trait ", "interface ", "func ", "function ",
 )
 
-# Codescout write tools, used by the parallel-write heuristic. Only codescout
-# MCP writes flow through handle_cs_tool_use and get logged, so native
-# Edit/Write can never reach this heuristic and are intentionally omitted.
-# edit_code (action=replace/insert/remove/rename) replaced the old
-# replace_symbol/insert_code/remove_symbol tools; edit_markdown handles .md.
-_WRITE_TOOLS = frozenset({
-    "mcp__codescout__edit_file",
-    "mcp__codescout__create_file",
-    "mcp__codescout__edit_code",
-    "mcp__codescout__edit_markdown",
-})
-
 # Source file extensions where Bash cat/head/tail/sed should be avoided.
 _SOURCE_EXTENSIONS = _LSP_EXTENSIONS | frozenset({
     ".json", ".toml", ".yaml", ".yml",
@@ -47,7 +35,6 @@ def check(event: dict, session_log: list[dict], root_cwd: str = "") -> str | Non
             lambda e, l: _check_forgot_restore(e, l, root_cwd),
             _check_ignored_buffer_ref,
             _check_native_bash_on_source,
-            _check_parallel_write,
             _check_grep_for_concept,
         ]
         for fn in checks:
@@ -235,29 +222,6 @@ def _check_native_bash_on_source(event: dict, session_log: list[dict]) -> str | 
     return None
 
 
-def _check_parallel_write(event: dict, session_log: list[dict]) -> str | None:
-    """Detect parallel writes (same-second timestamps on write-class tools)."""
-    tool = event.get("tool_name", "")
-    if tool not in _WRITE_TOOLS:
-        return None
-
-    if len(session_log) < 2:
-        return None
-
-    prev = session_log[-2]
-    if prev.get("tool") not in _WRITE_TOOLS:
-        return None
-
-    # Same-second = parallel dispatch
-    current_ts = session_log[-1].get("ts", 0) if session_log else 0
-    prev_ts = prev.get("ts", 0)
-    if current_ts == prev_ts and current_ts > 0:
-        return (
-            "Parallel writes risk inconsistent state — "
-            "serialize write tool calls."
-        )
-
-    return None
 
 
 _DEFINITION_FIRST_WORDS = frozenset({

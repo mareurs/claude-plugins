@@ -3,8 +3,9 @@ import re
 
 import pytest
 
+from scripts import cs_tool_log
 from scripts.cs_heuristics import check
-from scripts.cs_tool_log import summarize_args
+from scripts.cs_tool_log import append_entry, summarize_args
 
 
 def _make_event(tool_name="", tool_input=None, tool_error=None, cwd="/home/user/project"):
@@ -247,27 +248,45 @@ def test_native_bash_non_source_ok():
     assert result is None
 
 
-# --- parallel write ---
+# --- writes are never flagged as parallel ---
 
-def test_parallel_write_detected():
+
+
+# Claude Code runs ONE agent's write calls one after the other, so two writes in the
+# same wall-clock second are two serial calls, not a race. Measured 2026-11-11 in
+# claude-plugins:docs/issues/2026-11-11-buddy-parallel-write-hint-keys-on-a-same-
+# second-clock-and-a-session-wide-log.md: the old same-second rule fired 286 times
+# on Claude Code logs and 1 firing was a real overlap. The only real overlap there is
+# between two subagents, and a hint to one agent cannot serialize the other's call.
+_WRITE_TOOLS_UNDER_TEST = [
+    "mcp__codescout__edit_file",
+    "mcp__codescout__create_file",
+    "mcp__codescout__edit_code",
+    "mcp__codescout__edit_markdown",
+]
+
+
+@pytest.mark.parametrize("tool", _WRITE_TOOLS_UNDER_TEST)
+def test_two_writes_with_the_same_timestamp_get_no_hint(tool):
     log = [
         _make_log_entry(tool="mcp__codescout__edit_file", ts=1000),
-        _make_log_entry(tool="mcp__codescout__edit_code", ts=1000),
+        _make_log_entry(tool=tool, ts=1000),
     ]
-    event = _make_event(tool_name="mcp__codescout__edit_code")
-    result = check(event, log)
-    assert result is not None
-    assert "BUG-" not in result  # an internal id the agent cannot look up
+    assert check(_make_event(tool_name=tool), log) is None
 
 
-def test_sequential_writes_ok():
-    log = [
-        _make_log_entry(tool="mcp__codescout__edit_file", ts=1000),
-        _make_log_entry(tool="mcp__codescout__edit_code", ts=1002),
-    ]
-    event = _make_event(tool_name="mcp__codescout__edit_code")
-    result = check(event, log)
-    assert result is None
+def test_back_to_back_writes_through_the_real_log_get_no_hint(tmp_path, monkeypatch):
+    """Two real append_entry calls inside one second, then the hook's check().
+
+    The clock is fixed so the test cannot straddle a second boundary and pass by luck.
+    """
+    monkeypatch.setattr(cs_tool_log.time, "time", lambda: 1000.4)
+    path = tmp_path / "cs_tool_log.jsonl"
+    append_entry(path, "mcp__codescout__create_file", "path=a.txt", "ok")
+    log = append_entry(path, "mcp__codescout__create_file", "path=b.txt", "ok")
+    assert [e["ts"] for e in log] == [1000, 1000]  # the setup really is same-second
+    event = _make_event(tool_name="mcp__codescout__create_file")
+    assert check(event, log) is None
 
 
 # ── _check_grep_for_concept ────────────────────────────────────────────────
@@ -475,11 +494,6 @@ _TRIGGERS = {
     "native_bash_on_source": (
         _make_event(tool_name="Bash", tool_input={"command": "cat src/main.rs"}),
         [],
-    ),
-    "parallel_write": (
-        _make_event(tool_name="mcp__codescout__edit_code"),
-        [_make_log_entry(tool="mcp__codescout__edit_file", ts=1000),
-         _make_log_entry(tool="mcp__codescout__edit_code", ts=1000)],
     ),
     "grep_for_concept": (
         _make_event(tool_name="mcp__codescout__grep",
