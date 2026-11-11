@@ -313,5 +313,12 @@ R="$TMP/r23.json"; mkrec "$R" running "$$" null 'rec.started_at = new Date(Date.
 run_hook c23 "$(mkinput spawn "$R")" "$PD"
 expect "heartbeat of an old job" 2 "still running after 100 min"
 
+# 24. the heartbeat tells the model the whole mechanism: this watcher has ended, one
+# read that names the handle re-arms it, and without that read no end wake arrives.
+# (docs/issues/2026-11-11-background-job-past-30-minutes-loses-its-end-wake-...)
+case "$ERR" in *'run_command("tail -1 @bg_00000001")'*) pass "heartbeat names the one read that re-arms" ;; *) fail "heartbeat re-arm instruction" "no tail -1 @bg_00000001 in: $ERR" ;; esac
+case "$ERR" in *"no end wake"*) pass "heartbeat says an end wake is lost without the read" ;; *) fail "heartbeat consequence" "no 'no end wake' in: $ERR" ;; esac
+case "$ERR" in *"end your turn"*) pass "heartbeat says to end the turn after the read" ;; *) fail "heartbeat turn rule" "no 'end your turn' in: $ERR" ;; esac
+
 echo "passed=$PASS failed=$FAIL"
 [ "$FAIL" -eq 0 ]

@@ -26,7 +26,7 @@ import { selectEngine } from '../background-wake/intake.mjs';
 const RECORD_GRACE_MS = 5000; // the record may lag the spawn response by a few ms
 
 // A pid is alive unless kill(pid, 0) says ESRCH. EPERM means it exists.
-function pidAlive(pid) {
+export function pidAlive(pid) {
   if (typeof pid !== 'number' || !Number.isInteger(pid) || pid <= 0) return false;
   try {
     process.kill(pid, 0);
@@ -78,7 +78,11 @@ export function wakeMessage(kind, ctx) {
     case 'vanished':
       return `codescout background job ${h}: its record file vanished, so its end was not observed. ${tail}`;
     case 'heartbeat':
-      return `codescout background job ${h} is still running after ${ctx.minutes} min. Read it with run_command("tail -50 ${h}") to keep waiting.`;
+      return (
+        `codescout background job ${h} is still running after ${ctx.minutes} min. This watcher has ended. ` +
+        `To get a wake when the job ends, run run_command("tail -1 ${h}") once now, then end your turn. ` +
+        `If you do not, no end wake arrives.`
+      );
     case 'server-ended-job-ended':
     case 'server-ended-job-running':
     case 'server-ended-unknown': {
