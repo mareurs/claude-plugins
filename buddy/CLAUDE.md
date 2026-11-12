@@ -62,10 +62,10 @@ Follow the repo-root `CLAUDE.md` § "When bumping a plugin version":
 ```bash
 # 1. bump buddy/.claude-plugin/plugin.json + the README version table, then:
 ./scripts/check-versions.sh
-# 2. seed the versioned cache in all three profiles:
+# 2. seed the versioned cache in every profile that has the plugin (four on this machine):
 ./scripts/bump-cache.sh buddy <version>
-# 3. repoint installPath + version in all three install records (root CLAUDE.md step 6)
-# 4. cold-restart all three instances
+# 3. repoint installPath + version in each install record (root CLAUDE.md step 6)
+# 4. cold-restart all four instances
 ```
 
 ### Install (any user)
