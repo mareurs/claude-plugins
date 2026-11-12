@@ -59,8 +59,8 @@ content is served from the working tree.
 
 Gated, aborting on first failure: pre-flight (clean tree + `./tests/run-all.sh` + buddy
 pytest) → bump `plugin.json` + the README table → `check-versions.sh` → commit → seed the
-versioned cache in all **three** profiles → repoint `version` + `installPath` in all three
-install records → `check-profile-parity.sh` → sanity loop → push. `NO_PUSH=1` dry-runs it;
+versioned cache in every profile that has the plugin (four here) → repoint `version` +
+`installPath` in each install record → `check-profile-parity.sh` → sanity loop → push. `NO_PUSH=1` dry-runs it;
 `SKIP_TESTS=1` skips the suites. **The script header is authoritative.**
 
 Two steps it cannot do, both required afterwards:
@@ -68,7 +68,7 @@ Two steps it cannot do, both required afterwards:
 1. Refresh the codescout `version-bump-checklist` tracker (needs the MCP tool):
    `doc(action="update", id="cc8cb9e23ab5cc67", commit_refresh=true)`, then verify
    every row — any ❌ is real drift.
-2. **Cold-restart all three Claude Code instances**; a `resume` is not enough, since hook
+2. **Cold-restart all four Claude Code instances**; a `resume` is not enough, since hook
    registration resolves at process launch. `/reload-plugins` works.
 
 **Never bump the version inline in a feature commit.** It gets you the number without any

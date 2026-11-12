@@ -49,9 +49,11 @@ Authoritative wiring is `codescout-companion/hooks/hooks.json`. `detect-tools.sh
 - `./scripts/check-versions.sh` — version consistency validator (plugin.json vs README.md vs marketplace.json)
 - No CI configured; tests are run manually before version bumps
 
-## Plugin Install Records (3 instances)
+## Plugin Install Records (4 instances)
 
-All version bumps must update install records in all three Claude Code instances:
+All version bumps must update the install record of every Claude Code instance that has the
+plugin (the list is `PROFILES` in `scripts/lib-profiles.sh`):
 - `~/.claude/plugins/installed_plugins.json`
 - `~/.claude-sdd/plugins/installed_plugins.json`
 - `~/.claude-kat/plugins/installed_plugins.json`
+- `~/.claude-stef/plugins/installed_plugins.json`

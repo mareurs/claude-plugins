@@ -27,7 +27,10 @@ prompt: |-
   - marketplace_clean: true iff `[.plugins[] | objects | select(has("version"))] | length` on
     `.claude-plugin/marketplace.json` is 0. The catalog-level `.metadata.version` does NOT count.
 
-  For each (plugin, profile) where profile in {.claude, .claude-sdd, .claude-kat}:
+  For each (plugin, profile) where profile is each entry of `PROFILES` in `scripts/lib-profiles.sh`
+  (`.claude`, `.claude-sdd`, `.claude-kat`, `.claude-stef` on 2026-11-12). **Never hardcode this
+  list either:** a three-profile list left `.claude-stef` out of every gate until 2026-10-29. A
+  profile whose record lacks the plugin is skipped, not failed:
   - The record `.plugins["<plugin>@sdd-misc-plugins"]` is an ARRAY, one element per install
     scope (`user`, plus one per `project` install). **READ EVERY ELEMENT.** Do not index `[0]`
     and stop.
@@ -51,7 +54,10 @@ prompt: |-
   record it in the body's State section as "not installed in any profile".** Do not try to
   represent it as `installed: null`: `params` is merged RFC 7396, which reads a `null` value as
   *delete the key*, and the schema requires `installed` — so a null write fails validation.
-  `sdd` is stable and uninstalled by design; never flag it. Same for any repo plugin that has
+  `sdd` is stable. A project can enable it (this repo's `.claude/settings.local.json` does), and
+  Claude Code then writes a `local`-scope record in each profile that opens the project, without
+  a cache dir. Measure `sdd` per profile like any other plugin: a record with no cache dir is a
+  real ❌ (found 2026-11-12 in `~/.claude-stef`). Same for any repo plugin that has
   a `plugin.json` but no install record (e.g. `pi`, whose README row exists under a different
   directory layout).
 

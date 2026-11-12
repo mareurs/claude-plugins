@@ -126,9 +126,10 @@ plugin.json at install time. Duplicating it in marketplace.json causes drift.
 
 Each step is gated (aborts on first failure): **pre-flight** (working tree clean +
 `./tests/run-all.sh` + buddy pytest green) → bump `plugin.json` + the README version
-table → `check-versions.sh` → commit `chore: bump …` → seed the versioned cache in all
-three profiles (`bump-cache.sh`) → repoint `version` + `installPath` in all three install
-records → **sanity loop** → `git push`. Toggles: `NO_PUSH=1` (commit locally, skip push —
+table → `check-versions.sh` → commit `chore: bump …` → seed the versioned cache in every
+profile that has the plugin (`bump-cache.sh`; four profiles on this machine) → repoint
+`version` + `installPath` in each install record → **sanity loop** → `git push`. Toggles:
+`NO_PUSH=1` (commit locally, skip push —
 use it to dry-run a release), `SKIP_TESTS=1`. **The script header is the authoritative
 step-by-step** — read/edit it there, not here.
 
@@ -170,7 +171,7 @@ exactly the drift the release exists to repair.
    It is the richer cross-check of the same two failure classes the bash sanity loop covers;
    design in `docs/superpowers/specs/2026-05-18-version-bump-checklist-tracker-design.md`.
 
-2. **Cold-restart all three Claude Code instances — a `resume` is NOT enough.** CC resolves
+2. **Cold-restart all four Claude Code instances — a `resume` is NOT enough.** CC resolves
    hook commands + `installPath` at process launch and caches them; re-attaching with
    `source=resume` reuses the *old* in-memory hook even after the records point at the new
    version, so the bumped code never runs. Fully quit + relaunch, or run `/reload-plugins`.
@@ -188,7 +189,7 @@ exactly the drift the release exists to repair.
 Git hooks live in `.git/hooks/` and are never cloned or synced, so this is opt-in per
 clone. It installs a `pre-push` shim carrying two guards: force-push protection on `main`,
 and version-bump parity (a bump that skipped `release.sh` cannot reach `main` while the
-three profiles disagree about it). `./tests/run-all.sh` prints a notice when they are
+profiles disagree about it). `./tests/run-all.sh` prints a notice when they are
 missing — a guard that is not installed is otherwise indistinguishable from a guard
 finding nothing wrong.
 

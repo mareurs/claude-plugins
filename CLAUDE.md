@@ -31,19 +31,28 @@ For `.claude.json` (the file): single-profile users have it at `~/.claude.json`;
 
 ## This Machine — Linux workstation (verified 2026-08-26)
 
-**All three Claude Code profiles are live and in use here.** Measured 2026-08-26:
+**All four Claude Code profiles are live and in use here** — `~/.claude`, `~/.claude-sdd`,
+`~/.claude-kat`, `~/.claude-stef`. The list is `PROFILES` in `scripts/lib-profiles.sh`, and each
+profile has a `claude-*` alias in `~/.bashrc`. Measured 2026-08-26 (the first three) and
+2026-11-12 (all four):
 
 - `claude` is on PATH at `~/.local/bin/claude`. `uname -sr` → `Linux 7.1.9-zen1-2-zen`
   (Arch zen kernel — **not** WSL, which reports `*-microsoft-standard-WSL2`).
-- `~/.claude` (256 project dirs), `~/.claude-sdd` (49), `~/.claude-kat` (18) — all three
-  carry real session history, and `.claude-kat` is a routine working profile.
-- **`release.sh`'s Claude-Code-side steps are real here, not no-ops.** A release seeds
-  three versioned caches and repoints three install records; the 1.16.17 release did
-  exactly that.
-- **Enabled plugins** (`enabledPlugins` is what actually loads — `/reload-plugins`
-  reports 3): `superpowers`, `codescout-companion`, `buddy` in all three profiles.
-  `~/.claude-sdd` additionally enables `hookify` + `andrej-karpathy-skills` — that is
-  profile purpose, not drift. Other installed plugins are enabled nowhere and load nothing.
+- `~/.claude` (657 project dirs), `~/.claude-sdd` (183), `~/.claude-kat` (110),
+  `~/.claude-stef` (26) — all four carry real session history, and `.claude-kat` is a routine
+  working profile. (The 2026-08-26 counts for the first three were 256, 49 and 18.)
+- **`release.sh`'s Claude-Code-side steps are real here, not no-ops.** A release seeds a
+  versioned cache in every profile whose install record has the plugin, and repoints that
+  record; a profile without the plugin is skipped. The 1.16.17 release did exactly that, for
+  the three profiles the scripts covered then.
+- **Enabled plugins** (`enabledPlugins` is what actually loads), measured 2026-11-12:
+  `superpowers`, `codescout-companion`, `buddy`, `legible` and `hint-echo` in all four profiles.
+  `~/.claude-sdd` and `~/.claude-stef` additionally enable `hookify` + `andrej-karpathy-skills` —
+  that is profile purpose, not drift. `~/.claude`, `~/.claude-sdd` and `~/.claude-kat` also
+  enable `chrome-devtools-mcp`, `document-skills`, `frontend-design` and `claude-md-management`;
+  `~/.claude` adds `context7`. A project can enable a plugin too: this repo's
+  `.claude/settings.local.json` enables `sdd@sdd-misc-plugins`. Other installed plugins are
+  enabled nowhere and load nothing.
 - **The marketplace key is `sdd-misc-plugins`** (the `name` in `.claude-plugin/marketplace.json`),
   which is what every install record, `release.sh` and the install lines in § Installing use.
 - **Native Linux git. The cross-shell CRLF advice in the Windows section below does not
@@ -218,9 +227,10 @@ plugin.json at install time. Duplicating it in marketplace.json causes drift.
 
 Each step is gated (aborts on first failure): **pre-flight** (working tree clean +
 `./tests/run-all.sh` + buddy pytest green) → bump `plugin.json` + the README version
-table → `check-versions.sh` → commit `chore: bump …` → seed the versioned cache in all
-three profiles (`bump-cache.sh`) → repoint `version` + `installPath` in all three install
-records → **sanity loop** → `git push`. Toggles: `NO_PUSH=1` (commit locally, skip push —
+table → `check-versions.sh` → commit `chore: bump …` → seed the versioned cache in every
+profile that has the plugin (`bump-cache.sh`; four profiles on this machine) → repoint
+`version` + `installPath` in each install record → **sanity loop** → `git push`. Toggles:
+`NO_PUSH=1` (commit locally, skip push —
 use it to dry-run a release), `SKIP_TESTS=1`. **The script header is the authoritative
 step-by-step** — read/edit it there, not here.
 
@@ -240,7 +250,7 @@ whose `installPath` points at another profile's cache).
    It is the richer cross-check of the same two failure classes the bash sanity loop covers;
    design in `docs/superpowers/specs/2026-05-18-version-bump-checklist-tracker-design.md`.
 
-2. **Cold-restart all three Claude Code instances — a `resume` is NOT enough.** CC resolves
+2. **Cold-restart all four Claude Code instances — a `resume` is NOT enough.** CC resolves
    hook commands + `installPath` at process launch and caches them; re-attaching with
    `source=resume` reuses the *old* in-memory hook even after the records point at the new
    version, so the bumped code never runs. Fully quit + relaunch, or run `/reload-plugins`.
@@ -280,7 +290,7 @@ exactly the drift the release exists to repair.
 Git hooks live in `.git/hooks/` and are never cloned or synced, so this is opt-in per
 clone. It installs a `pre-push` shim carrying two guards: force-push protection on `main`,
 and version-bump parity (a bump that skipped `release.sh` cannot reach `main` while the
-three profiles disagree about it). `./tests/run-all.sh` prints a notice when they are
+profiles disagree about it). `./tests/run-all.sh` prints a notice when they are
 missing — a guard that is not installed is otherwise indistinguishable from a guard
 finding nothing wrong.
 
@@ -390,7 +400,7 @@ Always run Next-actions step 1 (verify state) before acting.
 > block serves the **new** copy of a skill while CC's Skill tool serves the **cached** one.
 >
 > Practical consequence: **a skill or command edit is `committed`, not `live`, until
-> `release.sh` seeds a new cache dir and repoints the three install records.** The editing
+> `release.sh` seeds a new cache dir and repoints the install records.** The editing
 > session is the least representative observer of this — it is the one most likely to
 > believe the edit shipped. Probe `plugin_root` in the trace log for hook freshness; probe
 > the served bytes against `installPath` for skill freshness.

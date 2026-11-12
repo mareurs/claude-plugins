@@ -12,7 +12,7 @@
 # so it is driven directly rather than through a real `git push`.
 #
 # Profile state is faked via HOME, because check-profile-parity.sh resolves its
-# three profiles from $HOME. That keeps the suite off the developer's real
+# profiles from $HOME. That keeps the suite off the developer's real
 # ~/.claude* dirs — the same hermeticity lesson as guard-hardening-session-log:F-3,
 # where a suite reading live ambient config went red for everyone who used a
 # documented opt-out.

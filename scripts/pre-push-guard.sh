@@ -132,8 +132,8 @@ while read -r local_ref local_sha remote_ref remote_sha; do
         "$REPO_ROOT/scripts/check-profile-parity.sh" "$plugin" >&2 || true
         cat >&2 <<EOF
 
-✗ pre-push-guard: '$plugin' version changed in this push, but the three Claude
-  Code profiles disagree about it.
+✗ pre-push-guard: '$plugin' version changed in this push, but the Claude Code
+  profiles disagree about it.
 
   A version bump is only half a release. The other half — seeding the versioned
   cache and repointing every install record — is what makes the number true, and
