@@ -1,16 +1,17 @@
 ---
 kind: bug
-status: open
+status: fixed
 title: the buddy parallel-write hint tests "same wall-clock second" in a session-wide log, so it fires on writes that ran one after the other and on writes from different agents
 tags:
 - buddy
 - hooks
 - cs-hint
 - subagents
+closed: 2026-11-12
+opened: 2026-11-11
 owner: marius
 severity: low
-opened: 2026-11-11
-unverified: "Measured in the second pass (see the section 'Measured 2026-11-11, second pass'): harness serial rule, population overlap, rule precision, hook event fields. Still not measured: whether buddy hooks run under the Visual Studio Code client, Codex dispatch behavior for cs-hint-codex, whether the user's own sighting is a same-second serial pair, how the main view shows a subagent's hook output."
+unverified: 'Not checked: Codex users'' re-approval of the cs-hint-codex hook after 0.1.1, and the repair in this machine''s ~/.codex. Not measured: whether buddy hooks run under the Visual Studio Code client. The 2026-11-07 issue''s claim that this hint fired correctly 18 of 18 times was not re-checked.'
 ---
 
 ## Summary
@@ -112,6 +113,8 @@ I recommend confirming the harness rule (option 1's premise) before any code cha
 
 ## Resolution (2026-11-11, not yet released)
 
+**Update 2026-11-12:** the words "not yet released" in this heading are out of date. The fix shipped in buddy 0.11.16 and cs-hint-codex 0.1.1; see `### Still to do`.
+
 Decision: remove the rule from buddy (Claude Code) and from the cs-hint-codex bundle. The user chose "fix it first for CC, then we'll see Codex", then chose to measure Codex before touching the bundle.
 
 ### Codex 0.167.1 measurements (headless `codex exec`, scratch directory, codescout MCP, cs-hint-codex hook active)
@@ -135,5 +138,6 @@ One prompt: four `create_file` calls in parallel. The model wrote one `exec` cal
 
 ### Still to do
 
-- Release: `./scripts/release.sh buddy patch`, then `./scripts/release.sh cs-hint-codex patch`. Every Codex user must approve the bundle's hook again (`codex plugin add`, then `/hooks`), and this machine's `~/.codex` needs the repair in the Codex section of the repo `CLAUDE.md`.
+- Nothing for the code. Released 2026-11-12 check: `0d899fc` (buddy 0.11.16) and `f0378e2` (cs-hint-codex 0.1.1) come after the fix commit `f601612` and both are on `origin/main`. `git grep _check_parallel_write` finds nothing in either bumped tree. `check-profile-parity.sh` reports buddy 0.11.16 in parity across 4 profiles.
+- Not checked: whether each Codex user approved the bundle's hook again, and whether this machine's `~/.codex` has the repair from the Codex section of the repo `CLAUDE.md`.
 - Not measured: whether buddy hooks run under the Visual Studio Code client.
