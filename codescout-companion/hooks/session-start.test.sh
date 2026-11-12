@@ -240,6 +240,32 @@ else
   pass "rendezvous (nested, comm): N/A (comm is read from /proc)"
 fi
 
+# --- rendezvous: a CODEX session started inside another session must not stamp that session's server ---
+# codescout:docs/issues/2026-11-09-shared-mcp-usage-misattributes-observation-work.md
+# A Codex thread started from a Claude session's tool call has the Claude process above it,
+# and with a walk that only stopped at a Claude process the hook of that thread walked
+# THROUGH the `codex` process and stamped the Claude session's server with the thread id
+# (the commit guard then blamed the thread for the Claude session's writes). Reproduced
+# 2026-11-12 with the real ownAncestry on the real tree: hook > bash > codex > bash >
+# codescout > claude. The fixture is the nested-Claude one with a launcher whose comm is
+# `codex`: its own server (ppid = the launcher) is stamped, the OUTER server (ppid = this
+# script, one hop further up) keeps its session.
+if [ "$(uname)" = "Linux" ]; then
+  mkdir -p "$TMP/bin"; ln -sf "$(command -v bash)" "$TMP/bin/codex"
+  outer_slot "$RV/999130.json" outer-c
+  nested_hook "$TMP/bin/codex" "$RV/999131.json" no sst-codex-c "$TMP/comm-c"
+  [ "$(cat "$TMP/comm-c")" = codex ] \
+    || fail "rendezvous (nested, codex): fixture precondition — the launcher's comm was '$(cat "$TMP/comm-c")', not 'codex'"
+  jq -e '.session == "sst-codex-c" and .hook_at != null' "$RV/999131.json" >/dev/null \
+    && pass "rendezvous (nested, codex): the codex session stamps its own server" \
+    || fail "rendezvous (nested, codex): the codex session's own server was not stamped"
+  jq -e '.session == "outer-c"' "$RV/999130.json" >/dev/null \
+    && pass "rendezvous (nested, codex): the ancestor session's server keeps its session" \
+    || fail "rendezvous (nested, codex): a codex session stamped its ancestor's server ($(jq -r .session "$RV/999130.json"))"
+else
+  pass "rendezvous (nested, codex): N/A (comm is read from /proc)"
+fi
+
 # --- rendezvous: a server that publishes AFTER SessionStart still gets stamped ---
 # codescout:docs/issues/archive/2026-09-24-sessionstart-can-run-before-the-resumed-servers-slot-exists.md
 # Interactive Claude Code fires SessionStart about 220 ms BEFORE its codescout

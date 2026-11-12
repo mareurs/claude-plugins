@@ -591,18 +591,22 @@ export function refreshLivenessStamp(now = Date.now()) {
 // inside a hook. Mirrors session-start.mjs's copy; kept separate so the
 // load-bearing SessionStart path is untouched by this instrumentation.
 //
-// The walk ENDS at the nearest Claude Code process. That process spawned our
-// servers, so they are all its children. Every ancestor above it belongs to
-// another session, one that started ours from inside a tool call (`claude -p`
-// via run_command/Bash). Matching those stamped that session's server with our id.
+// The walk ENDS at the nearest agent host, a Claude Code or a Codex process. That process
+// spawned our servers, so they are all its children. Every ancestor above it belongs to
+// another session, one that started ours from inside a tool call (`claude -p` via
+// run_command/Bash, or a Codex thread started the same way). Matching those stamped that
+// session's server with our id. The Codex stop matters in the other direction too: a hook
+// run by a Codex thread under a Claude session used to walk THROUGH the `codex` process to
+// the Claude one and stamp that Claude session's server with the thread id.
 // codescout:docs/issues/archive/2026-09-24-a-nested-claude-session-hijacks-its-ancestor-sessions-codescout-server.md
+// codescout:docs/issues/2026-11-09-shared-mcp-usage-misattributes-observation-work.md
 export function ownAncestry() {
   const seen = new Set();
   let pid = process.pid;
   for (let hop = 0; hop < 10; hop++) {
     if (pid <= 1 || seen.has(pid)) break;
     seen.add(pid);
-    if (isClaudeProcess(pid)) break;
+    if (isClaudeProcess(pid) || isCodexProcess(pid)) break;
     const parent = parentOf(pid);
     if (parent === null) break;
     pid = parent;
@@ -628,6 +632,19 @@ export function isClaudeProcess(pid) {
   if (process.platform !== 'linux') return false;
   try {
     return readFileSync(`/proc/${pid}/comm`, 'utf8').trim() === 'claude';
+  } catch {
+    return false;
+  }
+}
+// Is `pid` a Codex process? One signal: comm `codex`, set at exec. Measured 2026-11-12 for
+// both `codex exec` and the app-server daemon's release binary (the helper `codex-code-mode`
+// has a different comm and does not match). Linux-only, like the comm signal of
+// `isClaudeProcess`; elsewhere it answers false, which keeps the walk's old behaviour there.
+// codescout:docs/issues/2026-11-09-shared-mcp-usage-misattributes-observation-work.md
+export function isCodexProcess(pid) {
+  if (process.platform !== 'linux') return false;
+  try {
+    return readFileSync(`/proc/${pid}/comm`, 'utf8').trim() === 'codex';
   } catch {
     return false;
   }
