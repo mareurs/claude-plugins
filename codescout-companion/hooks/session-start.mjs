@@ -6,7 +6,7 @@
 // post-compact flush, worktree reminder + symlink, Iron Laws, tool guide.
 // Also seeds/sweeps the codescout-active marker and writes cc_session_id.
 import {
-  existsSync, statSync, lstatSync, readFileSync, readdirSync,
+  existsSync, statSync, readFileSync, readdirSync,
   mkdirSync, writeFileSync, unlinkSync, symlinkSync, renameSync,
 } from 'node:fs';
 import { join, dirname, isAbsolute } from 'node:path';
@@ -387,32 +387,7 @@ if (inWorktree) {
         /* best-effort */
       }
     }
-    let dstStat;
-    try {
-      dstStat = lstatSync(ceDest);
-    } catch {
-      /* absent */
-    }
-    if (dstStat && dstStat.isDirectory() && !dstStat.isSymbolicLink()) {
-      for (const asset of ['embeddings']) {
-        const src = join(mainRoot, '.codescout', asset);
-        const dst = join(ceDest, asset);
-        if (!existsSync(src)) continue;
-        let dstExists = false;
-        try {
-          lstatSync(dst);
-          dstExists = true;
-        } catch {
-          /* absent */
-        }
-        if (dstExists) continue;
-        try {
-          symlinkSync(src, dst, 'junction');
-        } catch {
-          /* best-effort */
-        }
-      }
-    }
+    // No `embeddings` link here: see the note in worktree-activate.mjs.
   }
   msg += `WORKTREE SESSION: You are inside a git worktree at: ${wtRoot}
 → Call workspace(action="activate", path="${wtRoot}") before using any codescout write tools.

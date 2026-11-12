@@ -58,7 +58,9 @@ else
     "marker=$(ls "$T/t4wt/.cs-worktree-pending" 2>/dev/null || echo missing) ctx=$(echo "$OUT" | jq -r '.hookSpecificOutput.additionalContext' 2>/dev/null | head -2)"
 fi
 
-# Test 5: EnterWorktree, worktree has real .codescout/ dir → embeddings symlink created
+# Test 5: EnterWorktree, worktree has real .codescout/ dir, main HAS embeddings → NO symlink
+# (the link is dead under the Qdrant backend and left an untracked entry that made
+#  `git worktree remove` refuse — docs/issues/2026-11-12-worktree-hooks-link-the-legacy-embeddings-store-into-every-worktree.md)
 make_git_repo "$T/t5main"
 write_ce_mcp_json "$T/t5main"
 make_codescout_dir "$T/t5main"
@@ -68,10 +70,10 @@ mkdir -p "$T/t5wt/.codescout"
 echo '[project]' > "$T/t5wt/.codescout/project.toml"
 OUT=$(printf '{"cwd":"%s","tool_name":"EnterWorktree","tool_response":{"worktree_path":"%s"}}' \
   "$T/t5main" "$T/t5wt" | node "$HOOK" 2>/dev/null)
-if [ -L "$T/t5wt/.codescout/embeddings" ]; then
-  pass "EnterWorktree real .codescout/: embeddings symlink created"
+if [ ! -e "$T/t5wt/.codescout/embeddings" ] && [ ! -L "$T/t5wt/.codescout/embeddings" ]; then
+  pass "EnterWorktree real .codescout/, main has embeddings: no symlink created"
 else
-  fail "EnterWorktree real .codescout/: embeddings symlink created" \
+  fail "EnterWorktree real .codescout/, main has embeddings: no symlink created" \
     "$(ls -la "$T/t5wt/.codescout/" 2>/dev/null)"
 fi
 

@@ -124,7 +124,8 @@ else
   fail "drift: warning shown" "$(echo "$OUT" | jq -r '.hookSpecificOutput.additionalContext' 2>/dev/null | head -5)"
 fi
 
-# --- Test 9: worktree resumed with real .codescout/ dir → embeddings symlink created ---
+# --- Test 9: worktree resumed with real .codescout/ dir, main HAS embeddings → NO symlink ---
+# (see docs/issues/2026-11-12-worktree-hooks-link-the-legacy-embeddings-store-into-every-worktree.md)
 make_git_repo "$T/t9main"
 make_codescout_dir "$T/t9main"
 make_embeddings_dir "$T/t9main"
@@ -134,10 +135,10 @@ write_ce_mcp_json "$T/t9wt"
 mkdir -p "$T/t9wt/.codescout"
 echo '[project]' > "$T/t9wt/.codescout/project.toml"
 OUT=$(printf '{"cwd":"%s"}' "$T/t9wt" | node "$HOOK" 2>/dev/null)
-if [ -L "$T/t9wt/.codescout/embeddings" ]; then
-  pass "worktree real .codescout/: embeddings symlink created"
+if [ ! -e "$T/t9wt/.codescout/embeddings" ] && [ ! -L "$T/t9wt/.codescout/embeddings" ]; then
+  pass "worktree real .codescout/, main has embeddings: no symlink created"
 else
-  fail "worktree real .codescout/: embeddings symlink created" \
+  fail "worktree real .codescout/, main has embeddings: no symlink created" \
     "$(ls -la "$T/t9wt/.codescout/" 2>/dev/null)"
 fi
 

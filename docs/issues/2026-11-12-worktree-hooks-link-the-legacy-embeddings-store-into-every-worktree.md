@@ -1,13 +1,15 @@
 ---
 kind: bug
-status: open
+status: fixed
 title: worktree hooks link the main checkout's .codescout/embeddings into every worktree, and the archived 2026-08-13 codescout bug calls that link a no-op
 tags:
 - codescout-companion
 - hooks
 - worktree
-owner: marius
+closed: 2026-11-12
 opened: 2026-11-12
+owner: marius
+unverified: 'Not measured: a sqlite-vec user (lean build, or CODESCOUT_VECTOR_BACKEND=sqlite-vec) who relied on the link to share the main checkout''s store. By the resolve_sqlite_dir comment the store file is <project_id>.db and project_id is the directory basename, so a worktree would look for a different file than the main checkout holds; that is a reading of a comment, not a measurement. Observed on 2026-11-12 in this repo and in the codescout checkout: no data write to .codescout/embeddings since 2026-09-14; only codescout''s project.db-shm was touched on 2026-11-11 21:24 (an open, not attributed).'
 ---
 
 ## Summary
@@ -52,16 +54,18 @@ That the link is a no-op: **not verified, and the current source does not settle
 
 ## Fix
 
-None applied. Two options:
+Applied 2026-11-12: option 1. Both hooks no longer link `embeddings`.
 
-1. Remove the `embeddings` loop from both hooks, as the 2026-08-13 spec says. This is right only if the link has no reader. If the sqlite-vec store is in use, a worktree would then build its own store.
-2. Keep the link, and make the repository that uses it ignore it. codescout did this (`codescout:652f12d88`: its rules `.codescout/embeddings` and `crates/*/.codescout/embeddings` have no trailing slash). Other repositories get the untracked link until they do the same.
+- `codescout-companion/hooks/worktree-activate.mjs`: the fallback block and its `lstatSync` import are removed. A comment points here.
+- `codescout-companion/hooks/session-start.mjs`: the same loop (inside the `inWorktree` block) and the `lstatSync` import are removed. The `.codescout` link itself stays.
+- Tests first, then code. `tests/test-worktree-activate.sh` test 5 and `tests/test-session-start.sh` test 9 now assert that no link is created although the main checkout has an `embeddings` dir. Both failed before the hook change, with the unwanted symlink in the failure output. Tests 6, 10 and 11 are unchanged and pass; test 11 still guards a worktree's own real `embeddings` dir against being overwritten.
+- Full runner `./tests/run-all.sh`: exit 0, `All suites passed`.
+
+Option 2 (ignore the link in each repository's `.gitignore`) stays available to any repository whose worktrees already hold the link; the hooks no longer create new ones. An existing link is not removed by this change.
 
 ## Resume
 
-- Decide between the two options. The operator must decide; the change is in this repository.
-- Before option 1, find the reader of `<root>/.codescout/embeddings` in a worktree session: which backend is live, and does a worktree read the main checkout's store through this link.
-- If the hooks change, add a test to `session-start.test.sh` and the `worktree-activate` hook tests for the choice made.
+Nothing to resume. If a sqlite-vec user reports that a worktree lost its semantic search after this change, re-open this issue and measure which `<project_id>.db` the worktree opens.
 
 ## References
 
