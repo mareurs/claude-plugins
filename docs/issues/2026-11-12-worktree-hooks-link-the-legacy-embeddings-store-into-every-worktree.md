@@ -73,3 +73,9 @@ Nothing to resume. If a sqlite-vec user reports that a worktree lost its semanti
 - `codescout:docs/superpowers/specs/2026-08-13-worktree-semantic-search-design.md`, section Lifecycle.
 - `codescout:docs/superpowers/plans/2026-08-13-worktree-semantic-search.md`, line 1044.
 - `codescout:docs/issues/2026-11-12-git-worktree-remove-refuses-after-codescout-and-agent-briefs-leave-untracked-files-in-a-worktree.md` (catalog id `3dde1548c3e5c310`). This issue is split out of it.
+
+
+## Fix provenance
+
+- **SHA:** `83acfd2f32c5047b337d5c28a1005af97acc84f6` (`main`)
+- **patch-id:** `eebb58dc9bcd4a40d1ac52652fad216dfd36e514`

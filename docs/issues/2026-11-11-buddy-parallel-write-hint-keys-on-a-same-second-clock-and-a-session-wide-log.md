@@ -141,3 +141,9 @@ One prompt: four `create_file` calls in parallel. The model wrote one `exec` cal
 - Nothing for the code. Released 2026-11-12 check: `0d899fc` (buddy 0.11.16) and `f0378e2` (cs-hint-codex 0.1.1) come after the fix commit `f601612` and both are on `origin/main`. `git grep _check_parallel_write` finds nothing in either bumped tree. `check-profile-parity.sh` reports buddy 0.11.16 in parity across 4 profiles.
 - Not checked: whether each Codex user approved the bundle's hook again, and whether this machine's `~/.codex` has the repair from the Codex section of the repo `CLAUDE.md`.
 - Not measured: whether buddy hooks run under the Visual Studio Code client.
+
+
+## Fix provenance
+
+- **SHA:** `f601612ad85b2f86c329feee5aa10026c41b4572` (`main`)
+- **patch-id:** `1757cc51cfbb1ef7f43585f9df1567f26df49b92`
