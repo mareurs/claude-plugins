@@ -69,6 +69,17 @@ if assert_context_contains "$OUT" "shared parent↔subagent unless the companion
   pass "guides: states the shared-ledger fact conditionally on the principal stamp"
 else fail "guides: states the shared-ledger fact conditionally on the principal stamp" "$OUT"; fi
 
+# --- The topic list and the bug-ledger statuses must match the session opener
+# --- (codescout `project-activation-bootstrap`): a subagent that reads only this hook gets the
+# --- same contract. Two drifts seen on 2026-11-12: `untrusted-content` was missing from the
+# --- topic list, and `investigating` and `zombie` were filtered on but never explained.
+if assert_context_contains "$OUT" "tracker-conventions, untrusted-content)"; then
+  pass "guides: the topic list names untrusted-content"
+else fail "guides: the topic list names untrusted-content" "$OUT"; fi
+if assert_context_contains "$OUT" "\"investigating\" (no live owner)" && assert_context_contains "$OUT" "\"zombie\" (a recurrence check, not a task)"; then
+  pass "bug ledger: explains investigating and zombie"
+else fail "bug ledger: explains investigating and zombie" "$OUT"; fi
+
 # --- Gate CLOSED → silent, with the environment sealed (not ambient config). ---
 OUT=$(run_hook "$T/bare" "general-purpose")
 RC=$?
