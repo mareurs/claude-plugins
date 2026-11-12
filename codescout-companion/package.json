@@ -1,6 +1,6 @@
 {
   "name": "codescout-companion",
-  "version": "1.21.4",
+  "version": "1.21.5",
   "description": "Codescout workflows and harness adapters for coding agents",
   "type": "module",
   "keywords": [
