@@ -254,7 +254,7 @@ def test_native_bash_non_source_ok():
 
 # Claude Code runs ONE agent's write calls one after the other, so two writes in the
 # same wall-clock second are two serial calls, not a race. Measured 2026-11-11 in
-# claude-plugins:docs/issues/2026-11-11-buddy-parallel-write-hint-keys-on-a-same-
+# claude-plugins:docs/issues/archive/2026-11-11-buddy-parallel-write-hint-keys-on-a-same-
 # second-clock-and-a-session-wide-log.md: the old same-second rule fired 286 times
 # on Claude Code logs and 1 firing was a real overlap. The only real overlap there is
 # between two subagents, and a hint to one agent cannot serialize the other's call.

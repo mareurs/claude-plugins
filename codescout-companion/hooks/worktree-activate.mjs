@@ -119,5 +119,5 @@ if (!existsSync(dest)) {
 
 // Note: this hook does NOT link `.codescout/embeddings` into the worktree. The link was
 // dead under the Qdrant backend and left an untracked entry that made `git worktree remove`
-// refuse. See docs/issues/2026-11-12-worktree-hooks-link-the-legacy-embeddings-store-into-every-worktree.md
+// refuse. See docs/issues/archive/2026-11-12-worktree-hooks-link-the-legacy-embeddings-store-into-every-worktree.md
 process.exit(0);

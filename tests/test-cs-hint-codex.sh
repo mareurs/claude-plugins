@@ -64,7 +64,7 @@ out="$(run_hook "$OTHER")"
 # Codex and Claude Code run one agent's write calls one after the other, and codescout
 # serializes writes itself (write guard in src/server.rs), so two writes in one second are
 # serial calls, not a race. The rule that flagged them was removed 2026-11-11; see
-# docs/issues/2026-11-11-buddy-parallel-write-hint-keys-on-a-same-second-clock-and-a-session-wide-log.md.
+# docs/issues/archive/2026-11-11-buddy-parallel-write-hint-keys-on-a-same-second-clock-and-a-session-wide-log.md.
 # Each call here is a separate process, so a second boundary between two calls would hide a
 # stale hint and make this test pass by luck. Retry with a fresh session until the log shows
 # the two writes really share a timestamp, and assert on that attempt only.

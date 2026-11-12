@@ -125,7 +125,7 @@ else
 fi
 
 # --- Test 9: worktree resumed with real .codescout/ dir, main HAS embeddings → NO symlink ---
-# (see docs/issues/2026-11-12-worktree-hooks-link-the-legacy-embeddings-store-into-every-worktree.md)
+# (see docs/issues/archive/2026-11-12-worktree-hooks-link-the-legacy-embeddings-store-into-every-worktree.md)
 make_git_repo "$T/t9main"
 make_codescout_dir "$T/t9main"
 make_embeddings_dir "$T/t9main"

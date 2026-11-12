@@ -60,7 +60,7 @@ fi
 
 # Test 5: EnterWorktree, worktree has real .codescout/ dir, main HAS embeddings → NO symlink
 # (the link is dead under the Qdrant backend and left an untracked entry that made
-#  `git worktree remove` refuse — docs/issues/2026-11-12-worktree-hooks-link-the-legacy-embeddings-store-into-every-worktree.md)
+#  `git worktree remove` refuse — docs/issues/archive/2026-11-12-worktree-hooks-link-the-legacy-embeddings-store-into-every-worktree.md)
 make_git_repo "$T/t5main"
 write_ce_mcp_json "$T/t5main"
 make_codescout_dir "$T/t5main"
