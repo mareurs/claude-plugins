@@ -44,6 +44,7 @@ Read on 2026-11-12:
 - Both hook blocks above.
 - `session-start.mjs` line 305 has a comment on the drift warnings: "legacy sqlite-vec surface; inert post-Qdrant — embeddings.db no longer exists".
 - The archived codescout bug and the codescout spec cited above.
+- On 2026-11-12, activating the main checkout of codescout returned `legacy_semantic_index` for `.codescout/embeddings/project.db`, with the hint "Run `codescout migrate-memories` to port memories to Qdrant, then delete this file." So codescout itself still calls that file a legacy store. This shows the store is flagged as legacy; it does not show that nothing reads the `.codescout/embeddings` directory in a worktree session.
 
 ## Hypotheses tried
 
