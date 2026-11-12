@@ -79,11 +79,11 @@ if [ -z "$BUMP_PLUGINS" ]; then
   print_summary; exit 1
 fi
 
-# Build a fake HOME with three profiles. `mode` picks whether the records match
+# Build a fake HOME with four profiles (the PROFILES list in scripts/lib-profiles.sh). `mode` picks whether the records match
 # each plugin's canonical version (`canonical`) or lag it (`stale`).
 make_profiles() {  # <home> <stale|canonical>
   local home="$1" mode="$2" plugin ver entries
-  for p in .claude .claude-sdd .claude-kat; do
+  for p in .claude .claude-sdd .claude-kat .claude-stef; do
     mkdir -p "$home/$p/plugins"
     entries=""
     # A record for EVERY plugin the guard will check for this range — see
