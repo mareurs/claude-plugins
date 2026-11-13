@@ -25,6 +25,15 @@ codex mcp add codescout -- codescout start
 
 Codex never runs a plugin hook before you approve it, and installing the plugin does not approve it. The interactive `codex` asks at its next start ("Hooks need review"): choose "Review hooks" and press `t` to trust all, or choose "Trust all and continue". The same screen opens later with `/hooks` (Codex documents it; not tried here). Non-interactive runs (`codex exec`, an app-server client) show no prompt and run no unapproved hook. The advisories go to the model, not to your screen. The approval holds until the plugin's own files change, so a new version of the plugin asks for it again.
 
+OpenCode (v2), from a clone of this repo. The installer links the plugins into `~/.config/opencode/` and never edits `opencode.json`; it prints the codescout MCP block to add yourself.
+
+```bash
+git clone https://github.com/mareurs/claude-plugins && cd claude-plugins
+./harnesses/opencode/install.sh            # or --plugins buddy,statusline,… for a subset
+./harnesses/opencode/install.sh --check
+opencode service restart                   # the background service caches plugin code
+```
+
 ## Available Plugins
 
 | Plugin | Version | Description |
@@ -34,13 +43,14 @@ Codex never runs a plugin hook before you approve it, and installing the plugin 
 | **[statusline](./statusline/)** | 1.2.1 | Rich, color-coded terminal status line: model, context %, rate limits (incl. per-model weekly), git info, duration. Self-heals orphan `statusLine` settings when sibling plugins are uninstalled. |
 | **[buddy](./buddy/)** | 0.11.17 | Himalayan-aesthetic bodhisattva companion: 12 specialist masters on demand, AI judge, focus tracking, statusline integration |
 | **[Pi harness](./harnesses/pi/)** | 0.1.0 | Companion for [pi](https://github.com/earendil-works/pi-mono): Codescout routing, skill-load tracker, recon badge, MCP status widget, and local read-only session snapshots |
+| **[OpenCode harness](./harnesses/opencode/)** | — | OpenCode v2 adapter for codescout-companion, sdd, legible, session-bridge, buddy (hooks, specialists, `/buddy-*` commands, sidebar spirit animal), a statusline under the prompt, and hint-echo toasts |
 | **[session-bridge](./session-bridge/)** | 0.1.0 | Cross-session MCP bridge: ask one Claude Code session a question from another, answered in its loaded context. Rust MCP server, bash SessionStart/Stop hooks. |
 | **[legible](./legible/)** | 0.2.1 | Output style `legible:Explanatory STE`: the Explanatory style (★ Insight blocks) plus about 80% of the ASD-STE100 writing rules, so prose is easier to read and check. |
 | **[hint-echo](./hint-echo/)** | 0.1.0 | Mod that shows you the `additionalContext` tool hooks hand to the model (such as `[cs-hint]`) as a dim transcript row. Read-only: the model gets the same context. |
 | **[cs-hint-codex](./cs-hint-codex/)** | 0.1.1 | Codex only: the `[cs-hint]` advisories of buddy as one PostToolUse hook in a deliberately small plugin root (Codex hashes the whole root for hook trust), so one approval covers it and survives edits to docs, skills and tests. Design: `docs/superpowers/specs/2026-11-09-cs-hint-codex-bundle-design.md`. |
 ## Requirements
 
-- [Claude Code](https://claude.com/claude-code) CLI
+- One harness: [Claude Code](https://claude.com/claude-code) or Codex (see [Quick Start](#quick-start)), [Pi](#pi), or [OpenCode](#opencode) v2
 - [jq](https://jqlang.github.io/jq/) -- used by hook scripts for JSON parsing
 
 ### Per-plugin requirements
@@ -117,6 +127,23 @@ proxy serves both.
 See [`docs/pi-integration.md`](./docs/pi-integration.md) for the full setup:
 proxy implementation, local model providers, skill versioning, and the
 `X-Proxy-Upstream` contract.
+## OpenCode
+
+For [OpenCode](https://opencode.ai) v2, the adapter in [`harnesses/opencode/`](./harnesses/opencode/) bridges this repo's plugins to OpenCode's plugin API. The plugin code stays in the existing packages; the adapter runs their hooks and links their skills and commands.
+
+| Plugin | What you get in OpenCode |
+|---|---|
+| codescout-companion | source-redirect guard, routing directive, skills |
+| sdd | spec and review guards, approvals, banner, skill and commands |
+| legible | an agent with the Explanatory STE style, its skill |
+| session-bridge | list and ask other OpenCode sessions through a read-only fork |
+| buddy | its hooks (session start, prompt, tool advisories, optional judge block), specialist skills, `/buddy-*` commands, the spirit animal in the sidebar, and `/buddy-status` / `/buddy-legend` dialogs |
+| statusline | one row under the prompt: model, agent, branch, working-tree diff, cache, cost, duration |
+| hint-echo | a toast for each advisory a plugin hands the model after a tool call |
+
+Install with the commands in [Quick Start](#quick-start). After installing, run `opencode service restart` (the shared background service keeps the plugin code it loaded first), then restart the TUI. `buddy` needs `python3` with PyYAML.
+
+See [harnesses/opencode/README.md](./harnesses/opencode/README.md) for detection rules, the TUI parts, limits, and what is verified live versus asserted.
 ## Plugins
 
 ### SDD (Specification-Driven Development)

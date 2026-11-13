@@ -29,24 +29,32 @@ fi
 # Every hook a bridge shells out to. If one moves, that bridge stops enforcing and nothing
 # fails — so this is an assertion, not a comment.
 for h in codescout-companion/hooks/pre-tool-guard.mjs codescout-companion/hooks/cs-liveness.mjs \
-         codescout-companion/hooks/lib.mjs codescout-companion/hooks/detect.mjs; do
+         codescout-companion/hooks/lib.mjs codescout-companion/hooks/detect.mjs \
+         buddy/hooks/run.mjs buddy/hooks/hook_dispatch.py buddy/scripts/statusline.py; do
   if [ -f "$ROOT/$h" ]; then pass "hook a bridge depends on exists: $h"
   else fail "a bridge calls $h but it is absent"; fi
 done
 
 # Syntax, before behaviour: a broken plugin throws inside opencode's loader, and the host's
 # own failure mode there is not visible to us.
-for f in "$H"/plugins/*.js "$H"/lib/*.mjs; do
+for f in "$H"/plugins/*.js "$H"/lib/*.mjs "$H"/tui/*/tui.js; do
   [ -f "$f" ] || continue
   if node --check "$f" 2>/dev/null; then pass "parses: ${f#"$ROOT"/}"
   else fail "does not parse: ${f#"$ROOT"/}"; fi
 done
 if bash -n "$INSTALLER" 2>/dev/null; then pass "install.sh parses"
 else fail "install.sh does not parse"; fi
+# BSD/macOS sed rejects a command directly before a closing `}` ("extra characters at the end
+# of d command"); GNU sed accepts it, even with --posix, so running install.sh on Linux cannot
+# catch it. Static check of the single-quoted sed scripts instead.
+if grep -nE -- "-e '[^']*[^;{[:space:]]\}'" "$INSTALLER" >/dev/null; then
+  fail "install.sh has a sed block closing without ';' (BSD/macOS sed rejects it)"
+else pass "install.sh's sed blocks close with ';' (BSD/macOS sed)"; fi
 
 # The installer, for real, into a sandbox: every plugin, skill and command it creates must
 # resolve, and --check must agree. A drifted source path fails here, not on a user's machine.
 SANDBOX="$(mktemp -d "${TMPDIR:-/tmp}/oc-install-XXXXXX")"
+export OPENCODE_HINT_ECHO_DIR="$SANDBOX/hint-echo-state"
 if OPENCODE_CONFIG_DIR="$SANDBOX" bash "$INSTALLER" >"$SANDBOX.log" 2>&1; then
   pass "install.sh installs into a fresh config dir"
   broken=$(find "$SANDBOX" -xtype l 2>/dev/null)
@@ -54,7 +62,42 @@ if OPENCODE_CONFIG_DIR="$SANDBOX" bash "$INSTALLER" >"$SANDBOX.log" 2>&1; then
   else fail "dangling links after install:"; printf '      %s\n' $broken; fi
   n=$(find "$SANDBOX/plugins" -name '*.js' | wc -l)
   [ "$n" -ge 1 ] && pass "plugins installed: $n" || fail "no plugin installed"
-  if grep -rq 'CLAUDE_PLUGIN_ROOT' "$SANDBOX/commands" 2>/dev/null; then
+  # TUI parts are directory links whose tui.js must resolve: OpenCode loads <dir>/tui.js.
+  for p in buddy statusline hint-echo; do
+    if [ -f "$SANDBOX/plugins/$p-tui/tui.js" ]; then pass "tui part installed: plugins/$p-tui/tui.js"
+    else fail "tui part missing or dangling: plugins/$p-tui/tui.js"; fi
+  done
+  [ -d "$OPENCODE_HINT_ECHO_DIR" ] && pass "hint-echo channel dir created" || fail "hint-echo channel dir not created"
+  # buddy's commands: dashed names, the summon fast-path line, no Claude-only leftovers.
+  S="$SANDBOX/commands/buddy-summon.md"
+  if [ -f "$S" ] && awk '/^---/{n++; next} n==2 && NF {print; exit}' "$S" | grep -qx '/buddy:summon \$ARGUMENTS'; then
+    pass "/buddy-summon's first body line is the prompt the summon hook keys on"
+  else fail "/buddy-summon lacks its '/buddy:summon \$ARGUMENTS' first line (the hook fast path would never fire)"; fi
+  if grep -l '^name: buddy:' "$SANDBOX"/commands/buddy-*.md >/dev/null 2>&1; then fail "a buddy command kept its Claude-only 'name:' key"
+  else pass "buddy commands carry no Claude-only 'name:' key"; fi
+  if grep -h -o '/buddy:[a-z-]*' "$SANDBOX"/commands/buddy-*.md 2>/dev/null | grep -qv '^/buddy:summon$'; then
+    fail "a buddy command still names a /buddy:<cmd> that does not exist on OpenCode"
+  else pass "buddy commands reference only /buddy-<cmd> names"; fi
+  if [ -e "$SANDBOX/commands/buddy-install.md" ] || [ -e "$SANDBOX/commands/buddy-uninstall.md" ]; then
+    fail "buddy's Claude-statusline install/uninstall commands were installed"
+  else pass "buddy's Claude-statusline install/uninstall commands are not installed"; fi
+  # status/legend are TUI commands (tui/buddy/tui.js); as model commands they would interrupt
+  # a busy session and shadow the TUI names.
+  if [ -e "$SANDBOX/commands/buddy-status.md" ] || [ -e "$SANDBOX/commands/buddy-legend.md" ]; then
+    fail "buddy status/legend were installed as model commands (they are TUI commands)"
+  else pass "buddy status/legend are not installed as model commands"; fi
+  # Upgrade path: a stale rendered copy of OURS is removed, a user's own file is kept.
+  printf 'old\n%s/buddy/scripts\n' "$ROOT" > "$SANDBOX/commands/buddy-status.md"
+  printf 'my own legend\n' > "$SANDBOX/commands/buddy-legend.md"
+  OPENCODE_CONFIG_DIR="$SANDBOX" bash "$INSTALLER" --plugins buddy >/dev/null 2>&1
+  [ -e "$SANDBOX/commands/buddy-status.md" ] && fail "a stale rendered /buddy-status survived a re-install" \
+    || pass "a re-install removes a stale rendered /buddy-status"
+  [ -e "$SANDBOX/commands/buddy-legend.md" ] && pass "a re-install keeps a user's own buddy-legend.md" \
+    || fail "a re-install deleted a buddy-legend.md the installer did not write"
+  rm -f "$SANDBOX/commands/buddy-legend.md"
+  # The placeholder form only: summon.md's prose names the variable ("does not trust
+  # `CLAUDE_PLUGIN_ROOT`") and that is not an unexpanded placeholder.
+  if grep -rqF '${CLAUDE_PLUGIN_ROOT' "$SANDBOX/commands" 2>/dev/null; then
     fail "a rendered command still holds an unexpanded \${CLAUDE_PLUGIN_ROOT}"
   else pass "no unexpanded \${CLAUDE_PLUGIN_ROOT} in installed commands"; fi
   if OPENCODE_CONFIG_DIR="$SANDBOX" bash "$INSTALLER" --check >/dev/null 2>&1; then pass "install.sh --check agrees after install"
@@ -69,6 +112,7 @@ else
 fi
 if bash "$INSTALLER" --definitely-not-a-flag >/dev/null 2>&1; then fail "install.sh accepted an unknown flag (it would install)"
 else pass "install.sh rejects unknown flags"; fi
+unset OPENCODE_HINT_ECHO_DIR
 rm -rf "$SANDBOX" "$SANDBOX.log"
 
 # The behaviour suites, one per bridge. On failure, print the failing cases in full: a

@@ -505,6 +505,30 @@ try {
     }
   });
 
+  // hint-echo: the advice the model got is also written to the echo channel, so the
+  // hint-echo TUI part can show it to the user (lib/host.mjs → echoHint).
+  await ok('appended advice is echoed to the hint-echo channel with its session and tool', async () => {
+    const { breakerFile } = await import('../../../codescout-companion/hooks/lib.mjs');
+    const echoed = [];
+    const b = buildBridge(dir, { echo: (r) => echoed.push(r) });
+    const sid = SID('echo');
+    const bf = breakerFile(sid);
+    writeFileSync(bf, '4\tread_file');
+    try {
+      const id = `echo-${sid}`;
+      await b.onToolBefore({ tool: 'read', sessionID: sid, id, input: { filePath: join(dir, 'src', 'main.rs') } });
+      const ev = { tool: 'read', sessionID: sid, id, status: 'completed', result: { content: [{ type: 'text', text: 'fn main() {}' }] } };
+      await b.onToolAfter(ev);
+      assert.equal(echoed.length, 1);
+      assert.equal(echoed[0].sessionID, sid);
+      assert.equal(echoed[0].tool, 'read');
+      assert.equal(echoed[0].source, 'codescout-companion');
+      assert.equal(echoed[0].text, ev.result.content[1].text, 'the echo must be exactly what the model got');
+    } finally {
+      rmSync(bf, { force: true });
+    }
+  });
+
   // Proof of life = "the server is REACHABLE" (lib.mjs breaker rule: "An error payload
   // still counts"). A server-returned error counts; a CONNECTION failure must not, or a
   // server that died mid-session resets the breaker forever (code review, 2026-11-09).
