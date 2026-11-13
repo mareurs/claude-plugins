@@ -29,8 +29,9 @@ OpenCode (v2), from a clone of this repo. The installer links the plugins into `
 
 ```bash
 git clone https://github.com/mareurs/claude-plugins && cd claude-plugins
-./harnesses/opencode/install.sh            # or --plugins buddy,statusline,… for a subset
-./harnesses/opencode/install.sh --check
+./harnesses/opencode/install.sh            # default set: codescout-companion, sdd, legible, session-bridge
+./harnesses/opencode/install.sh --plugins buddy,statusline,hint-echo   # opt-in (or --plugins all)
+./harnesses/opencode/install.sh --check    # add --plugins all to check every plugin
 opencode service restart                   # the background service caches plugin code
 ```
 
@@ -50,7 +51,7 @@ opencode service restart                   # the background service caches plugi
 | **[cs-hint-codex](./cs-hint-codex/)** | 0.1.1 | Codex only: the `[cs-hint]` advisories of buddy as one PostToolUse hook in a deliberately small plugin root (Codex hashes the whole root for hook trust), so one approval covers it and survives edits to docs, skills and tests. Design: `docs/superpowers/specs/2026-11-09-cs-hint-codex-bundle-design.md`. |
 ## Requirements
 
-- One harness: [Claude Code](https://claude.com/claude-code) or Codex (see [Quick Start](#quick-start)), [Pi](#pi), or [OpenCode](#opencode) v2
+- [Claude Code](https://claude.com/claude-code) CLI
 - [jq](https://jqlang.github.io/jq/) -- used by hook scripts for JSON parsing
 
 ### Per-plugin requirements
@@ -141,7 +142,7 @@ For [OpenCode](https://opencode.ai) v2, the adapter in [`harnesses/opencode/`](.
 | statusline | one row under the prompt: model, agent, branch, working-tree diff, cache, cost, duration |
 | hint-echo | a toast for each advisory a plugin hands the model after a tool call |
 
-Install with the commands in [Quick Start](#quick-start). After installing, run `opencode service restart` (the shared background service keeps the plugin code it loaded first), then restart the TUI. `buddy` needs `python3` with PyYAML.
+Install with the commands in [Quick Start](#quick-start). `buddy`, `statusline` and `hint-echo` are opt-in (`--plugins …` or `--plugins all`): `buddy` runs Python on every tool call. After installing, run `opencode service restart` (the shared background service keeps the plugin code it loaded first), then restart the TUI. `buddy` needs `python3` with PyYAML.
 
 See [harnesses/opencode/README.md](./harnesses/opencode/README.md) for detection rules, the TUI parts, limits, and what is verified live versus asserted.
 ## Plugins

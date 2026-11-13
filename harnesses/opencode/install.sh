@@ -2,11 +2,12 @@
 # install.sh — wire this repo's plugins into OpenCode (v2).
 # Run from anywhere: paths resolve from this file, not from your CWD.
 #
-# usage: install.sh [--project] [--plugins a,b,…]     install (user level by default)
-#        install.sh --check [--plugins a,b,…]         report, change nothing
+# usage: install.sh [--project] [--plugins a,b,…|all]  install (user level by default)
+#        install.sh --check [--plugins a,b,…|all]      report, change nothing
 #        install.sh --help
 #
-# Plugins: codescout-companion sdd legible session-bridge buddy statusline hint-echo (default: all).
+# Plugins: codescout-companion sdd legible session-bridge (the default set), and
+#          buddy statusline hint-echo (opt-in: name them, or --plugins all).
 #
 # What it does, per plugin:
 #   plugin   symlinks harnesses/opencode/plugins/<plugin>.js into OpenCode's plugins/ dir
@@ -33,14 +34,20 @@ set -euo pipefail
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 HARNESS="$REPO_DIR/harnesses/opencode"
 ALL_PLUGINS="codescout-companion sdd legible session-bridge buddy statusline hint-echo"
+# The default set is the four bridges that came before buddy, statusline and hint-echo. Those
+# three are opt-in. buddy puts a node → Python run on the critical path of every tool call
+# (up to 5 s) and of each session's first request (up to 15 s), in every session the service
+# hosts, and needs Python with PyYAML. A user who re-runs a bare install.sh after a pull must
+# not get that unasked, and a bare --check must keep passing on an existing 4-plugin install.
+DEFAULT_PLUGINS="codescout-companion sdd legible session-bridge"
 
 CONFIG_DIR="${OPENCODE_CONFIG_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/opencode}"
 MODE="user"
-PLUGINS="$ALL_PLUGINS"
+PLUGINS="$DEFAULT_PLUGINS"
 
 die()   { echo "error: $*" >&2; exit 1; }
 info()  { echo "  $*"; }
-usage() { sed -n '2,9p' "$0" | sed 's/^# \{0,1\}//'; }
+usage() { sed -n '2,10p' "$0" | sed 's/^# \{0,1\}//'; }
 HINT_ECHO_DIR="${OPENCODE_HINT_ECHO_DIR:-${XDG_STATE_HOME:-$HOME/.local/state}/opencode-hint-echo}"
 
 while [ $# -gt 0 ]; do
@@ -54,6 +61,7 @@ while [ $# -gt 0 ]; do
   esac
   shift
 done
+case " $PLUGINS " in *" all "*) PLUGINS="$ALL_PLUGINS" ;; esac
 for p in $PLUGINS; do
   case " $ALL_PLUGINS " in *" $p "*) ;; *) die "unknown plugin: $p (known: $ALL_PLUGINS)" ;; esac
 done
@@ -64,9 +72,19 @@ case "$MODE" in
 esac
 
 command -v node >/dev/null 2>&1 || die "'node' not found — the bridges spawn hooks with it"
+# buddy's launcher (buddy/hooks/run.mjs) runs the first of python3, python that works. Without
+# PyYAML, buddy's SessionStart does nothing and says nothing (CLAUDE.md § buddy), so check it
+# here, where someone is reading.
 case " $PLUGINS " in *" buddy "*)
-  command -v python3 >/dev/null 2>&1 || command -v python >/dev/null 2>&1 \
-    || echo "warning: no python3/python on PATH — buddy's hooks and statusline are Python and will do nothing" >&2 ;;
+  py=""
+  for c in python3 python; do
+    if command -v "$c" >/dev/null 2>&1; then py="$c"; break; fi
+  done
+  if [ -z "$py" ]; then
+    echo "warning: no python3/python on PATH — buddy's hooks and statusline are Python and will do nothing" >&2
+  elif ! "$py" -c 'import yaml' >/dev/null 2>&1; then
+    echo "warning: $py has no PyYAML — buddy's SessionStart will do nothing, silently (pip install pyyaml)" >&2
+  fi ;;
 esac
 
 # ── what each plugin installs ─────────────────────────────────────────────

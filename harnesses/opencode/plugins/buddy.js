@@ -10,7 +10,8 @@
 //   ───────────────────────────────── ─────────────────────────────────────────────────────
 //   SessionStart (startup)            session.hook("context"), first request of a top-level
 //                                     session; its text is cached and re-pushed each request
-//   SessionStart (compact)            session.hook("compaction"); replaces the cached text
+//   SessionStart (compact)            session.hook("compaction") runs it; its text replaces
+//                                     the cached text for the NEXT turn only
 //   UserPromptSubmit                  session.hook("context"): the latest USER message of a
 //                                     top-level session, once per message id
 //   PreToolUse (judge block, exit 2)  tool.hook("execute.before") — only when judge.env asks
@@ -236,9 +237,9 @@ export function preToolActive(j) {
 }
 
 // --- running the launcher ---------------------------------------------------------------
-export function runBuddyHook(event, payload, { runtime = resolveRuntime() } = {}) {
-  if (!existsSync(LAUNCHER)) return Promise.resolve(null);
-  return runProcess(runtime, [LAUNCHER, event], {
+export function runBuddyHook(event, payload, { runtime = resolveRuntime(), launcher = LAUNCHER } = {}) {
+  if (!existsSync(launcher)) return Promise.resolve(null);
+  return runProcess(runtime, [launcher, event], {
     input: JSON.stringify(payload),
     cwd: payload.cwd,
     timeoutMs: TIMEOUTS[event] ?? 5000,
@@ -253,8 +254,11 @@ export function buildBuddyBridge(dir, { getSession = async () => ({}), run = run
   // can overlap (a side request beside the main step); with the text stored only after the
   // await, both saw an empty slot and both ran the hook, so prompt_count was counted twice
   // and the summon bootstrap ran twice.
-  const banners = new Map(); // session id → Promise<SessionStart text> ('' = nothing to say)
+  const banners = new Map(); // session id → Promise<SessionStart(startup) text> ('' = nothing to say)
   const prompts = new Map(); // user message id → Promise<UserPromptSubmit text>
+  // session id → {text: Promise<SessionStart(compact) text>, turn}. `turn` is the user message
+  // id of the turn after the compaction (null: none; undefined: not seen yet). See onCompaction.
+  const compacted = new Map();
   // parentID | null | undefined (lookup failed). A failure is not remembered: one transient
   // error used to make a subagent top-level for the life of the service.
   const family = sessionFamily(getSession);
@@ -301,9 +305,20 @@ export function buildBuddyBridge(dir, { getSession = async () => ({}), run = run
       // Each has()/set() pair below runs with no await between them (see the Maps above).
       // SessionStart finishes before UserPromptSubmit starts, as on Claude Code.
       if (!banners.has(sid)) banners.set(sid, sessionStart(sid, 'startup'));
-      const banner = await banners.get(sid);
+      let banner = await banners.get(sid);
 
       const msg = lastUserMessage(event?.messages);
+      // The turn after a compaction gets SessionStart(compact)'s text in place of the banner.
+      // That turn is the user message the first request after the compaction carries; a side
+      // request of the same turn carries the same one. A new user message ends it, and the
+      // banner comes back.
+      const c = compacted.get(sid);
+      if (c) {
+        const turn = msg ? msg.id : null;
+        if (c.turn === undefined) c.turn = turn;
+        if (c.turn === turn) banner = await c.text;
+        else compacted.delete(sid);
+      }
       let prompt;
       if (msg) {
         if (!prompts.has(msg.id)) {
@@ -324,10 +339,19 @@ export function buildBuddyBridge(dir, { getSession = async () => ({}), run = run
       const sid = String(event?.sessionID || '');
       if (!sid || (await family.parent(sid))) return;
       // Claude Code's SessionStart(source=compact): buddy releases summoned specialists and
-      // prints a re-summon notice. That text replaces the startup banner from here on.
+      // prints a reload block and a release notice. Both speak to ONE turn ("Your FIRST
+      // user-facing line of this turn MUST be …", "Begin this turn by telling the user …"),
+      // and Claude Code shows them once, after the summary. So the text goes to the requests
+      // of the next turn only (onContext). It is not pushed onto this request either: this
+      // is the summary request, and its turn is the summary. Kept as the banner, the text was
+      // pushed on every later request, and the model repeated the arrival and release lines
+      // at the start of every turn.
       const text = sessionStart(sid, 'compact');
-      banners.set(sid, text);
-      pushSystem(event, await text);
+      compacted.set(sid, { text, turn: undefined });
+      // A session first seen here (the service restarted, then /compact) must not run
+      // SessionStart(startup) after the compaction: Claude Code never sends startup after it.
+      if (!banners.has(sid)) banners.set(sid, Promise.resolve(''));
+      await text; // the release is written before the next turn reads state
     },
 
     async onToolBefore(event) {

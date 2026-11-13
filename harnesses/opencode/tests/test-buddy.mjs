@@ -6,7 +6,7 @@
 // buddy actually reads — a renamed field there is the silent-no-op this suite exists for.
 import assert from 'node:assert/strict';
 import { execFileSync, spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import DEF, {
@@ -20,6 +20,7 @@ import DEF, {
   readJudgeEnv,
   rehostBuddy,
   runBuddyHook,
+  BUDDY_ROOT,
   LAUNCHER,
 } from '../plugins/buddy.js';
 import { codescoutBareTool, runProcess, sessionFamily } from '../lib/host.mjs';
@@ -213,6 +214,26 @@ await ok('sessionFamily: answers are cached, failures (thrown or an SDK {error})
   assert.equal(n, 1, 'concurrent lookups of one id share one request');
 });
 
+await ok('sessionFamily: a lookup that never settles times out, is not cached, and blocks nobody', async () => {
+  // One getSession that never answered used to stay in the cache as a pending promise, so
+  // every later lookup of that session (every buddy and sdd hook for it) waited forever.
+  let n = 0;
+  const fam = sessionFamily(
+    (id) => {
+      n++;
+      return n === 1 ? new Promise(() => {}) : Promise.resolve({ data: { parentID: id === 'a' ? 'p' : null } });
+    },
+    { timeoutMs: 50 },
+  );
+  const t0 = Date.now();
+  const [x, y] = await Promise.all([fam.parent('a'), fam.parent('a')]);
+  assert.deepEqual([x, y], [undefined, undefined], 'a stalled lookup is unknown, for every waiter');
+  assert.ok(Date.now() - t0 < 1000, `waited ${Date.now() - t0} ms`);
+  assert.equal(await fam.parent('a'), 'p', 'the timeout was not cached: the next call asks again');
+  assert.equal(await fam.root('a'), 'p');
+  assert.equal(n, 3, 'stalled lookup, retry of a, first lookup of p');
+});
+
 await ok('onContext: a failed parent lookup is retried, not remembered as "top-level"', async () => {
   let n = 0;
   const getSession = async () => {
@@ -278,16 +299,43 @@ await ok('onContext: child sessions get nothing (no SubagentStart in buddy)', as
   assert.equal(f.calls.length, 0);
 });
 
-await ok('onCompaction: SessionStart(compact) replaces the banner', async () => {
+await ok('onCompaction: SessionStart(compact) text replaces the banner for the next turn only', async () => {
+  // buddy's compact text is one-turn ("Your FIRST user-facing line of this turn MUST be …",
+  // "Begin this turn by telling the user …"). Kept as the banner, it was pushed on every later
+  // request and the model repeated the arrival and release lines at the start of every turn.
   const f = fakeRun({ 'session-start': (p) => ({ code: 0, stdout: p.source === 'compact' ? 'RESUMMON' : 'BANNER', stderr: '' }) });
   const b = buildBuddyBridge('/proj', { run: f.run, getSession: async () => ({}) });
-  await b.onContext(ctxEvent('s1', []));
+  const texts = (e) => e.system.map((p) => p.text);
+  const e0 = ctxEvent('s1', [userMsg('m1', 'hello')]);
+  await b.onContext(e0);
+  assert.deepEqual(texts(e0), ['BANNER']);
   const c = { sessionID: 's1', system: [] };
   await b.onCompaction(c);
-  assert.deepEqual(c.system.map((p) => p.text), ['RESUMMON']);
-  const e = ctxEvent('s1', []);
-  await b.onContext(e);
-  assert.deepEqual(e.system.map((p) => p.text), ['RESUMMON']);
+  assert.deepEqual(texts(c), [], 'the summary request is not the turn the text speaks to');
+  const turn = () => ctxEvent('s1', [userMsg('m1', 'hello'), userMsg('m2', 'go on')]);
+  const e1 = turn();
+  await b.onContext(e1);
+  assert.deepEqual(texts(e1), ['RESUMMON'], 'the turn after the compaction gets it, in place of the banner');
+  const e2 = turn();
+  await b.onContext(e2); // a later step (or a side request) of that same turn
+  assert.deepEqual(texts(e2), ['RESUMMON']);
+  const e3 = ctxEvent('s1', [userMsg('m1', 'hello'), userMsg('m2', 'go on'), userMsg('m3', 'next')]);
+  await b.onContext(e3);
+  assert.deepEqual(texts(e3), ['BANNER'], 'a new user message ends that turn: the banner comes back');
+  assert.deepEqual(f.calls.filter((x) => x.event === 'session-start').map((x) => x.payload.source), ['startup', 'compact']);
+});
+
+await ok('onCompaction: a session first seen at compaction never runs SessionStart(startup) after it', async () => {
+  const f = fakeRun({ 'session-start': (p) => ({ code: 0, stdout: p.source === 'compact' ? 'RESUMMON' : 'BANNER', stderr: '' }) });
+  const b = buildBuddyBridge('/proj', { run: f.run, getSession: async () => ({}) });
+  await b.onCompaction({ sessionID: 's1', system: [] }); // service restarted, then /compact
+  const e1 = ctxEvent('s1', [userMsg('m1', 'hi')]);
+  await b.onContext(e1);
+  assert.deepEqual(e1.system.map((p) => p.text), ['RESUMMON']);
+  const e2 = ctxEvent('s1', [userMsg('m1', 'hi'), userMsg('m2', 'again')]);
+  await b.onContext(e2);
+  assert.deepEqual(e2.system.map((p) => p.text), []);
+  assert.deepEqual(f.calls.filter((x) => x.event === 'session-start').map((x) => x.payload.source), ['compact']);
 });
 
 await ok('onToolBefore: no spawn while judge.env does not ask for blocking', async () => {
@@ -416,13 +464,37 @@ if (!havePython) {
   process.env.HOME = home;
   process.env.BUDDY_HOME = join(home, '.buddy');
   delete process.env.CLAUDE_CONFIG_DIR;
-  // A codescout call takes buddy's judge-spawn path; a local judge.env must not start an LLM
-  // judge from the test (the caller's env wins over judge.env).
+  // The events that do not load judge.env (user-prompt-submit) read the judge switches from
+  // the environment, so a developer's exported BUDDY_*_ENABLED=true must not reach them.
   process.env.BUDDY_JUDGE_ENABLED = 'false';
   process.env.BUDDY_CS_JUDGE_ENABLED = 'false';
+  // The real launcher runs from a plugin root built here, never from buddy/ itself. For
+  // session-start and post-tool-use, hook_dispatch.py loads <plugin root>/hooks/judge.env
+  // with override=True: the FILE beats the environment set above. buddy/hooks/judge.env is
+  // gitignored and written by each developer, and a literal BUDDY_JUDGE_ENABLED=true there
+  // made a codescout call in this suite start a real, detached LLM judge. This root holds
+  // copies of the two launcher files and the suite's own judge.env, which turns both judges
+  // off. Every other entry is a link to buddy/ (a junction on Windows), so the Python code
+  // under test is buddy's own. BUDDY_PLAN_GLOBS is a canary: the last case below proves the
+  // dispatcher read THIS file.
+  const pluginRoot = join(root, 'buddy');
+  mkdirSync(join(pluginRoot, 'hooks'), { recursive: true });
+  for (const e of readdirSync(BUDDY_ROOT)) {
+    if (e === 'hooks') continue;
+    const src = join(BUDDY_ROOT, e);
+    if (statSync(src).isDirectory()) symlinkSync(src, join(pluginRoot, e), 'junction');
+    else copyFileSync(src, join(pluginRoot, e));
+  }
+  for (const f of ['run.mjs', 'hook_dispatch.py']) copyFileSync(join(BUDDY_ROOT, 'hooks', f), join(pluginRoot, 'hooks', f));
+  writeFileSync(
+    join(pluginRoot, 'hooks', 'judge.env'),
+    'BUDDY_JUDGE_ENABLED=false\nBUDDY_CS_JUDGE_ENABLED=false\nBUDDY_JUDGE_BLOCK=false\nBUDDY_PLAN_GLOBS=canary/*.md\n',
+  );
+  const launcher = join(pluginRoot, 'hooks', 'run.mjs');
+  const run = (event, payload) => runBuddyHook(event, payload, { launcher });
   try {
     const sid = 'ses_test_integration';
-    const b = buildBuddyBridge(proj, { run: runBuddyHook, getSession: async () => ({ parentID: null }), judgeEnv: OFF, echo: () => {} });
+    const b = buildBuddyBridge(proj, { run, getSession: async () => ({ parentID: null }), judgeEnv: OFF, echo: () => {} });
 
     await ok('real launcher: the first context event creates .buddy/<OpenCode session id>/', async () => {
       await b.onContext(ctxEvent(sid, [userMsg('m1', 'hello')]));
@@ -464,6 +536,20 @@ if (!havePython) {
       assert.match(text, /buddy:summon-payload specialist=testing-snow-leopard/);
       const st = JSON.parse(readFileSync(join(proj, '.buddy', sid, 'state.json'), 'utf8'));
       assert.deepEqual(st.active_specialists, ['testing-snow-leopard']);
+    });
+
+    await ok("real launcher: reads the suite's own judge.env, never buddy/hooks/judge.env (canary)", async () => {
+      // BUDDY_PLAN_GLOBS=canary/*.md exists only in the suite's judge.env. Read from any other
+      // file (or none), the default globs do not match, and the read is not a plan touch.
+      await b.onToolAfter({
+        sessionID: sid,
+        tool: 'read',
+        input: { filePath: 'canary/plan.md' },
+        result: { content: [{ type: 'text', text: '# plan' }] },
+      });
+      const plan = JSON.parse(readFileSync(join(proj, '.buddy', sid, 'active_plan.json'), 'utf8'));
+      assert.equal(plan.path, 'canary/plan.md');
+      assert.equal(plan.source, 'auto');
     });
   } finally {
     for (const [k, v] of Object.entries(savedEnv)) {

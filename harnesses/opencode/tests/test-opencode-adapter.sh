@@ -55,8 +55,25 @@ else pass "install.sh's sed blocks close with ';' (BSD/macOS sed)"; fi
 # resolve, and --check must agree. A drifted source path fails here, not on a user's machine.
 SANDBOX="$(mktemp -d "${TMPDIR:-/tmp}/oc-install-XXXXXX")"
 export OPENCODE_HINT_ECHO_DIR="$SANDBOX/hint-echo-state"
+# A bare install is the default set. buddy, statusline and hint-echo are opt-in (buddy runs
+# Python on every tool call), and a bare --check must keep passing on such an install.
 if OPENCODE_CONFIG_DIR="$SANDBOX" bash "$INSTALLER" >"$SANDBOX.log" 2>&1; then
-  pass "install.sh installs into a fresh config dir"
+  extra=""
+  for p in buddy statusline hint-echo; do
+    for part in "$SANDBOX/plugins/$p.js" "$SANDBOX/plugins/$p-tui"; do
+      if [ -e "$part" ] || [ -L "$part" ]; then extra="$extra ${part#"$SANDBOX"/}"; fi
+    done
+  done
+  [ -d "$OPENCODE_HINT_ECHO_DIR" ] && extra="$extra (hint-echo channel dir)"
+  if [ -z "$extra" ]; then pass "a bare install leaves the opt-in plugins out"
+  else fail "a bare install installed opt-in parts:$extra"; fi
+  if OPENCODE_CONFIG_DIR="$SANDBOX" bash "$INSTALLER" --check >/dev/null 2>&1; then pass "a bare --check passes on a default install"
+  else fail "a bare --check reports problems on a default install"; fi
+else
+  fail "a bare install.sh failed in a sandbox:"; sed 's/^/      /' "$SANDBOX.log"
+fi
+if OPENCODE_CONFIG_DIR="$SANDBOX" bash "$INSTALLER" --plugins all >"$SANDBOX.log" 2>&1; then
+  pass "install.sh --plugins all installs into a config dir"
   broken=$(find "$SANDBOX" -xtype l 2>/dev/null)
   if [ -z "$broken" ]; then pass "every installed link resolves"
   else fail "dangling links after install:"; printf '      %s\n' $broken; fi
@@ -100,16 +117,24 @@ if OPENCODE_CONFIG_DIR="$SANDBOX" bash "$INSTALLER" >"$SANDBOX.log" 2>&1; then
   if grep -rqF '${CLAUDE_PLUGIN_ROOT' "$SANDBOX/commands" 2>/dev/null; then
     fail "a rendered command still holds an unexpanded \${CLAUDE_PLUGIN_ROOT}"
   else pass "no unexpanded \${CLAUDE_PLUGIN_ROOT} in installed commands"; fi
-  if OPENCODE_CONFIG_DIR="$SANDBOX" bash "$INSTALLER" --check >/dev/null 2>&1; then pass "install.sh --check agrees after install"
-  else fail "install.sh --check reports problems right after install"; fi
+  if OPENCODE_CONFIG_DIR="$SANDBOX" bash "$INSTALLER" --check --plugins all >/dev/null 2>&1; then pass "install.sh --check --plugins all agrees after install"
+  else fail "install.sh --check --plugins all reports problems right after install"; fi
   # A moved repo leaves dangling links; --check must say so (it used to report "present").
   first="$(find "$SANDBOX/plugins" -name '*.js' | head -1)"
   ln -sfn "$SANDBOX/gone.js" "$first"
-  if OPENCODE_CONFIG_DIR="$SANDBOX" bash "$INSTALLER" --check 2>/dev/null | grep -q DANGLING; then pass "install.sh --check flags a dangling plugin link"
+  if OPENCODE_CONFIG_DIR="$SANDBOX" bash "$INSTALLER" --check --plugins all 2>/dev/null | grep -q DANGLING; then pass "install.sh --check flags a dangling plugin link"
   else fail "install.sh --check missed a dangling plugin link"; fi
 else
-  fail "install.sh failed in a sandbox:"; sed 's/^/      /' "$SANDBOX.log"
+  fail "install.sh --plugins all failed in a sandbox:"; sed 's/^/      /' "$SANDBOX.log"
 fi
+# buddy's SessionStart does nothing, silently, without PyYAML: the installer must say so. A
+# stub python3 that cannot import anything stands in for an interpreter without it.
+mkdir -p "$SANDBOX/fakebin"
+printf '#!/bin/sh\nexit 1\n' > "$SANDBOX/fakebin/python3"
+chmod +x "$SANDBOX/fakebin/python3"
+if PATH="$SANDBOX/fakebin:$PATH" OPENCODE_CONFIG_DIR="$SANDBOX/nopyyaml" bash "$INSTALLER" --plugins buddy 2>&1 >/dev/null | grep -q 'no PyYAML'; then
+  pass "install.sh warns when buddy's Python has no PyYAML"
+else fail "install.sh did not warn about a Python without PyYAML"; fi
 if bash "$INSTALLER" --definitely-not-a-flag >/dev/null 2>&1; then fail "install.sh accepted an unknown flag (it would install)"
 else pass "install.sh rejects unknown flags"; fi
 unset OPENCODE_HINT_ECHO_DIR

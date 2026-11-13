@@ -243,18 +243,31 @@ export function codescoutBareTool(name) {
 // approvals stayed off for that session until the service restarted. Concurrent lookups of
 // one id share one request. root(sid) climbs to the top of the family (the session Claude
 // Code names as session_id); where a lookup fails it stops at the highest id it knows.
-export function sessionFamily(getSession) {
+//
+// A lookup that has not answered after `timeoutMs` is a failure, so it is not cached. The
+// shared pending promise is what makes that necessary: one getSession that never settled
+// (service busy or deadlocked) left a pending promise in `known`, and every later lookup of
+// that session, so every buddy and sdd hook for it, waited on it forever.
+export const SESSION_LOOKUP_TIMEOUT_MS = 3000;
+export function sessionFamily(getSession, { timeoutMs = SESSION_LOOKUP_TIMEOUT_MS } = {}) {
   const known = new Map(); // session id → Promise<parentID | null>
   function parent(sid) {
     if (!known.has(sid)) {
-      const p = Promise.resolve()
+      const lookup = Promise.resolve()
         .then(() => getSession(sid))
         .then((r) => {
           if (r && r.error && !r.data) throw r.error;
           return (r?.data ?? r)?.parentID ?? null;
         });
+      let timer;
+      const late = new Promise((_, reject) => {
+        timer = setTimeout(() => reject(new Error(`session lookup exceeded ${timeoutMs} ms`)), timeoutMs);
+      });
+      const p = Promise.race([lookup, late]).finally(() => clearTimeout(timer));
       known.set(sid, p);
-      p.catch(() => known.delete(sid));
+      p.catch(() => {
+        if (known.get(sid) === p) known.delete(sid);
+      });
     }
     return known.get(sid).catch(() => undefined);
   }

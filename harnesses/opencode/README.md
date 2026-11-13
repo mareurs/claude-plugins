@@ -187,7 +187,7 @@ callbacks, as `sdd.js` does for sdd. buddy's logic stays in Python.
 | Claude Code event | OpenCode |
 |---|---|
 | SessionStart (startup) | `session.hook("context")`, first request of a top-level session. The text is cached and pushed on every request, because OpenCode rebuilds the system prompt each time |
-| SessionStart (compact) | `session.hook("compaction")`. Its re-summon notice replaces the cached text |
+| SessionStart (compact) | `session.hook("compaction")` runs it. Its text (reload block, release notice) replaces the cached text for the **next turn only**: the requests of the turn after the compaction, up to the next user message. It speaks to one turn ("Your FIRST user-facing line of this turn MUST be …"), so as a lasting banner it made the model repeat the arrival and release lines every turn. It is not pushed onto the summary request |
 | UserPromptSubmit | `session.hook("context")`: the latest user message of a top-level session, once per message id |
 | PreToolUse (judge block) | `execute.before`, only when `judge.env` turns on a judge **and** `BUDDY_JUDGE_BLOCK`. Exit 2 denies the call with buddy's stderr message |
 | PostToolUse | `execute.after`: signals, narrative, codescout log and judge spawn. `[cs-hint]` advisories are appended to `result.content` |
@@ -201,7 +201,13 @@ callbacks, as `sdd.js` does for sdd. buddy's logic stays in Python.
   index cannot tell them apart. Commands find the session through
   `.buddy/.current_session_id`, which buddy writes on every prompt.
 - **Subagents.** Child sessions get no context injection, as on Claude Code. Their tool
-  calls still reach PostToolUse with the child's session id.
+  calls still reach PreToolUse and PostToolUse, with the family ROOT's id as `session_id`
+  and the child's own id as `agent_id`, as Claude Code sends a subagent's tool call. So a
+  subagent's work is counted in `.buddy/<root id>/`; there is no `.buddy/<child id>/`.
+- **Session lookups.** Whether a session is a child comes from `session.get`. A lookup that
+  has not answered after 3 s counts as failed and is asked again next time
+  (`lib/host.mjs` `sessionFamily`), so a stalled service call cannot hang the session's
+  later requests and tool calls.
 - **Commands.** `install.sh` renders `buddy/commands/*.md` as `/buddy-<name>`, fills in the
   plugin root, and drops the Claude-only `name:` key. `install` and `uninstall` are not
   installed: they set up Claude Code's statusline, and on OpenCode that is the TUI part.
@@ -234,7 +240,12 @@ Verified live on 2.1.3: SessionStart created `.buddy/<session id>/`; PostToolUse
 codescout calls; `/buddy-summon testing` spilled the payload file, tracked
 `testing-snow-leopard` in `active_specialists`, and the model read the payload file
 instead of running the fallback; the Lotus rendered in the sidebar. Tests:
-`node harnesses/opencode/tests/test-buddy.mjs` (16 unit cases, 3 against the real launcher).
+`node harnesses/opencode/tests/test-buddy.mjs`: unit cases with a fake launcher, and cases
+against the real launcher, which need Python with PyYAML. The real-launcher cases run buddy
+from a plugin root the suite builds, with its own `judge.env` that turns both judges off:
+`hook_dispatch.py` loads `judge.env` with the file winning over the environment for
+SessionStart and PostToolUse, so a developer's own `buddy/hooks/judge.env` could otherwise
+start a real LLM judge from the test.
 
 ## statusline
 
@@ -317,17 +328,26 @@ part (`buddy.js`) loads in the background service; see §Install about restartin
 
 ```bash
 cd /path/to/claude-plugins
-./harnesses/opencode/install.sh                       # everything, user level (~/.config/opencode/)
-./harnesses/opencode/install.sh --plugins legible     # only some plugins (comma-separated)
+./harnesses/opencode/install.sh                       # the default set, user level (~/.config/opencode/)
+./harnesses/opencode/install.sh --plugins buddy,statusline,hint-echo   # add opt-in plugins (comma-separated)
+./harnesses/opencode/install.sh --plugins all         # every plugin
 ./harnesses/opencode/install.sh --project             # into ./.opencode/ instead
-./harnesses/opencode/install.sh --check               # verify, change nothing (flags dangling links)
+./harnesses/opencode/install.sh --check               # verify the default set, change nothing (flags dangling links)
+./harnesses/opencode/install.sh --check --plugins all # verify every plugin
 ```
+
+The default set is `codescout-companion`, `sdd`, `legible` and `session-bridge`. `buddy`,
+`statusline` and `hint-echo` are opt-in: `buddy` runs node and Python on every tool call
+(up to 5 s) and on each session's first request (up to 15 s), in every session the service
+hosts. A re-run of a bare `install.sh` after a pull therefore does not add them, and a bare
+`--check` keeps passing on a default install.
 
 Per plugin it links `<plugin>.js` into `plugins/`, the TUI part's directory as
 `plugins/<plugin>-tui/`, each skill into `skills/` and each command into `commands/`
 (sdd's and buddy's commands are rendered copies: re-run after editing them). For
 `hint-echo` it also creates the advisory channel directory (§hint-echo). `buddy` needs
-`python3` with PyYAML; the installer warns when no Python is on PATH. Skills go to OpenCode's own `skills/` dir, not `~/.claude/skills`:
+`python3` with PyYAML; the installer warns when no Python is on PATH, or when that Python
+cannot import `yaml` (without it buddy's SessionStart does nothing, silently). Skills go to OpenCode's own `skills/` dir, not `~/.claude/skills`:
 OpenCode reads both, but Claude Code also reads `~/.claude/skills` and already loads these
 skills from the plugin, so linking them there would load each one twice in Claude Code.
 
@@ -558,6 +578,26 @@ Version skew is real and unresolved: the binary is 2.1.3 while `~/.config/openco
 `@opencode-ai/plugin@1.18.25` — the **v1** types. That is *why* a v1-shaped plugin looked
 writable on this machine at all, and why nothing in this adapter imports from
 `@opencode/plugin`.
+
+**Fixes from the second review (2026-11-13).** Each one mutation-checked: the fix was broken
+on purpose in a scratch copy, and its test failed.
+
+- buddy's SessionStart(compact) text stayed the session's banner, so its one-turn
+  instructions were pushed on every later request. It now covers the next turn only (§buddy).
+  Breaks checked: keep it as the banner, push it onto the summary request, run startup after
+  a first-seen compaction. (Dropping the `delete` that ends the turn is an equivalent mutant:
+  a later message id never matches the stored turn again, so the delete only frees memory.)
+- `sessionFamily` cached a lookup that never settled, and every later hook for that session
+  waited on it. A lookup now times out after 3 s and is not cached. Breaks checked: a timer
+  that never fires (the case hangs, the suite exits non-zero), a timeout kept in the cache.
+- The real-launcher cases of `test-buddy.mjs` set the judge switches in the environment,
+  which `judge.env` overrides for SessionStart and PostToolUse. They now run from a plugin
+  root with the suite's own `judge.env`; a canary key in it proves that file is the one read.
+  Break checked: the real launcher instead of that root.
+- A bare `install.sh` installed seven plugins instead of four, and a bare `--check` failed on
+  an existing 4-plugin install. buddy, statusline and hint-echo are opt-in now
+  (`--plugins …` or `--plugins all`), and the installer warns when buddy's Python has no
+  PyYAML. Breaks checked: default back to all seven, no `all` shorthand, no PyYAML check.
 
 ## Tests
 
