@@ -367,7 +367,9 @@ No `cd` and no workspace switch needed — `run_command` sandboxes cwd to the pr
 
 A native Bash call with `tool_input.sandbox_permissions: "require_escalated"` continues through the host's permission flow, because `run_command` cannot carry the host's sandbox approval request. The routing hook emits advisory context, never an approval decision. Ordinary calls and native source-file reads/edits retain their routing rules.
 
-The Codex shell adapter must preserve `sandbox_permissions` in its PreToolUse payload for this exception to work. Older adapters that send only `{command}` remain routed to Codescout; installing the companion change alone does not repair those hosts.
+The Codex shell adapter must preserve `sandbox_permissions` in its PreToolUse payload for this exception to work. Stock Codex does not, as far as we measured: its `exec_command` handler in upstream source of 2026-10-13 builds `tool_input` as `{"command": ...}` only, and [openai/codex#40996](https://github.com/openai/codex/issues/40996) reports a captured payload without the field. On such a host the hook cannot tell an escalation request from ordinary shell work, so it routes the call to Codescout and the native approval prompt never appears. Installing the companion alone does not repair that host. The exception works with a Codex build whose payload carries the field (this repo's `docs/issues/2026-10-09-companion-routing-blocks-codex-native-escalation.md` records the paired fix and its acceptance test).
+
+If you hit this on stock Codex, either ask the user to run the command with `!`, or opt the main agent out of the guard with `block_reads: false` in `.claude/codescout-companion.json` (a subagent stays guarded; that setting also lifts the Read, Grep and Edit routing for the main agent).
 
 ## Coupling to codescout
 
