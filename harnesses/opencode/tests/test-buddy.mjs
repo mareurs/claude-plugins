@@ -338,6 +338,26 @@ await ok('onCompaction: a session first seen at compaction never runs SessionSta
   assert.deepEqual(f.calls.filter((x) => x.event === 'session-start').map((x) => x.payload.source), ['compact']);
 });
 
+await ok('banners: only the newest bannerCap texts are kept; an evicted session gets none and no second SessionStart', async () => {
+  // One service hosts every session; the texts can be several KB. buddy resets a session's
+  // signals on every SessionStart, so a session that comes back must not get one again.
+  const f = fakeRun({ 'session-start': (p) => ({ code: 0, stdout: `BANNER:${p.session_id}`, stderr: '' }) });
+  const b = buildBuddyBridge('/proj', { run: f.run, getSession: async () => ({}), bannerCap: 2 });
+  const texts = async (sid, mid) => {
+    const e = ctxEvent(sid, [userMsg(mid, 'x')]);
+    await b.onContext(e);
+    return e.system.map((p) => p.text);
+  };
+  assert.deepEqual(await texts('A', 'a1'), ['BANNER:A']);
+  assert.deepEqual(await texts('B', 'b1'), ['BANNER:B']);
+  assert.deepEqual(await texts('A', 'a2'), ['BANNER:A'], 'a used session moves to the newest end');
+  assert.deepEqual(await texts('C', 'c1'), ['BANNER:C']); // over the cap: B, the least recently used, is dropped
+  assert.deepEqual(await texts('A', 'a3'), ['BANNER:A'], 'A was used after B, so it is kept');
+  assert.deepEqual(await texts('B', 'b2'), [], 'an evicted session gets no banner');
+  const starts = f.calls.filter((c) => c.event === 'session-start').map((c) => c.payload.session_id);
+  assert.deepEqual(starts, ['A', 'B', 'C'], 'and is never sent SessionStart again');
+});
+
 await ok('onToolBefore: no spawn while judge.env does not ask for blocking', async () => {
   const f = fakeRun({ 'pre-tool-use': { code: 2, stdout: '', stderr: 'BLOCKED' } });
   const b = buildBuddyBridge('/proj', { run: f.run, judgeEnv: OFF });
@@ -353,6 +373,11 @@ await ok('onToolBefore: exit 2 denies the call with buddy\'s stderr message', as
   const g = fakeRun({ 'pre-tool-use': { code: 0, stdout: '', stderr: '' } });
   const b2 = buildBuddyBridge('/proj', { run: g.run, judgeEnv: () => ({ judge: true, csJudge: false, block: true }) });
   await b2.onToolBefore({ sessionID: 's1', tool: 'shell', input: { command: 'ls' } }); // exit 0 → allowed
+  for (const answer of [{ code: 1, stdout: '', stderr: 'Traceback (most recent call last):' }, null]) {
+    const h = fakeRun({ 'pre-tool-use': () => answer });
+    const b3 = buildBuddyBridge('/proj', { run: h.run, judgeEnv: () => ({ judge: true, csJudge: false, block: true }) });
+    await b3.onToolBefore({ sessionID: 's1', tool: 'shell', input: { command: 'ls' } }); // a crash or a timeout is not a block, as on Claude Code
+  }
 });
 
 await ok('onToolAfter: advisories are appended to result.content and echoed', async () => {
@@ -500,6 +525,8 @@ if (!havePython) {
       await b.onContext(ctxEvent(sid, [userMsg('m1', 'hello')]));
       assert.ok(existsSync(join(proj, '.buddy', sid, 'state.json')), 'state.json missing');
       assert.equal(readFileSync(join(proj, '.buddy', '.current_session_id'), 'utf8').trim(), sid);
+      const st = JSON.parse(readFileSync(join(proj, '.buddy', sid, 'state.json'), 'utf8'));
+      assert.ok(st.signals.session_start_ts > 0, 'SessionStart(startup) itself must have run under this id (UserPromptSubmit alone also creates state.json)');
     });
 
     await ok('real launcher: a shell `cat app.py` counts as a tool call and yields a [cs-hint]', async () => {

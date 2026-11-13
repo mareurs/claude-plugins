@@ -4,10 +4,10 @@
 // (tui/hint-echo/tui.js readNew). They run in different processes, so the only contract is
 // the file: this suite writes with one and reads with the other.
 import assert from 'node:assert/strict';
-import { mkdirSync, mkdtempSync, rmSync, statSync, writeFileSync, appendFileSync, existsSync } from 'node:fs';
+import { chmodSync, mkdirSync, mkdtempSync, rmSync, statSync, writeFileSync, appendFileSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { echoHint, hintEchoDir, hintEchoFile, HINT_ECHO_MAX_BYTES, runProcess } from '../lib/host.mjs';
+import { echoHint, ensureHintEchoDir, hintEchoDir, hintEchoFile, HINT_ECHO_MAX_BYTES, runProcess } from '../lib/host.mjs';
 import { hintMessage, readNew, relevant, MAX_CHARS } from '../tui/hint-echo/tui.js';
 import { buildSddBridge } from '../plugins/sdd.js';
 
@@ -68,6 +68,26 @@ try {
     echoHint({ text: 'after rotation' }, env);
     assert.ok(existsSync(`${f}.1`), 'old generation kept as .1');
     assert.ok(statSync(f).size < 1000, 'live file restarted');
+  });
+
+  await ok('the channel is private: ensureHintEchoDir makes (and tightens) a 0700 dir, echoHint creates a 0600 file', () => {
+    if (process.platform === 'win32') {
+      console.log('        (POSIX modes; not exercised on Windows)');
+      return;
+    }
+    const penv = { OPENCODE_HINT_ECHO_DIR: join(root, 'private', 'chan') };
+    const prev = process.umask(0o022); // the common default: without explicit modes, 0755 and 0644
+    try {
+      assert.equal(ensureHintEchoDir(penv), true);
+      assert.equal(statSync(hintEchoDir(penv)).mode & 0o777, 0o700);
+      assert.equal(echoHint({ text: 'secret path' }, penv), true);
+      assert.equal(statSync(hintEchoFile(penv)).mode & 0o777, 0o600);
+      chmodSync(hintEchoDir(penv), 0o755); // a dir an older install created
+      ensureHintEchoDir(penv);
+      assert.equal(statSync(hintEchoDir(penv)).mode & 0o777, 0o700, 'an existing 0755 dir is tightened');
+    } finally {
+      process.umask(prev);
+    }
   });
 
   await ok('hintMessage mirrors Claude Code hint-echo: prefix and a 400-character cut', () => {

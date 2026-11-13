@@ -236,7 +236,8 @@ for p in $PLUGINS; do
     done
   fi
   if [ "$p" = "hint-echo" ]; then
-    mkdir -p "$HINT_ECHO_DIR"
+    # 0700: the advisories hold paths, commands and session ids (lib/host.mjs, hint-echo).
+    mkdir -p "$HINT_ECHO_DIR" && chmod 700 "$HINT_ECHO_DIR"
     info "state    advisory channel $HINT_ECHO_DIR"
   fi
   sd="$(skills_of "$p")"

@@ -11,9 +11,9 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { ansiToParts, currentSessionID, dialogBodyHeight, markdownDialog, markdownStyles, rootOf, stripAnsi, textNode } from '../lib/tui.mjs';
-import SL, { fmtDuration, fmtK, parseShortstat, segments } from '../tui/statusline/tui.js';
-import BT, { REPORT, REPORT_COMMANDS, STATUSLINE, buddySidebar, renderBuddy, reportLayer, runReport, statuslineInput, toLines } from '../tui/buddy/tui.js';
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import SL, { fmtDuration, fmtK, parseShortstat, readGit, segments } from '../tui/statusline/tui.js';
+import BT, { FRESH_MS, REPORT, REPORT_COMMANDS, STATUSLINE, buddySidebar, inputsKey, renderBuddy, reportLayer, runReport, statuslineInput, toLines } from '../tui/buddy/tui.js';
+import { mkdirSync, mkdtempSync, rmSync, utimesSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import HE from '../tui/hint-echo/tui.js';
 
@@ -61,6 +61,16 @@ await ok('ansiToParts: basic, bright, 256 and truecolor foregrounds; reset', () 
 await ok('ansiToParts drops non-SGR escapes and background colours instead of printing them', () => {
   assert.equal(stripAnsi('a\x1b[2Kb\x1b]0;title\x07c'), 'abc');
   assert.deepEqual(ansiToParts('\x1b[48;5;21;33mx'), [{ text: 'x', fg: '#e5e510' }]);
+  assert.deepEqual(ansiToParts('\x1b[48;5;34mx'), [{ text: 'x' }], 'a 256-colour background index is not read as a foreground code');
+  assert.deepEqual(ansiToParts('\x1b[48;2;1;31;1mx'), [{ text: 'x' }], 'truecolor background components are not read as codes');
+});
+
+await ok('ansiToParts drops private and intermediate CSI sequences whole, and ignores 256-colour codes above 255', () => {
+  // Measured before the fix: '?25lhi0 q' (the parameters printed) and fg '#2b02b02b0'.
+  assert.deepEqual(ansiToParts('\x1b[?25lhi\x1b[0 q'), [{ text: 'hi' }]);
+  assert.deepEqual(ansiToParts('\x1b[38;5;300mx'), [{ text: 'x' }]);
+  assert.deepEqual(ansiToParts('\x1b[31m\x1b[38;5;300mx'), [{ text: 'x', fg: '#cd3131' }], 'an invalid code keeps the colour in force');
+  assert.deepEqual(ansiToParts('\x1b[38;5;255mx'), [{ text: 'x', fg: '#eeeeee' }], '255 is still a colour');
 });
 
 await ok('currentSessionID: slot prop, then the router, else none', () => {
@@ -103,6 +113,34 @@ await ok('statusline segments: default variant, zero cost and no git are left ou
   const wt = segments({ model: { id: 'm' } }, { branch: 'feat', worktree: 'wt1' }).map((p) => p.text).join('');
   assert.equal(wt, 'm │ wt1:feat');
 });
+
+const haveGit = spawnSync('git', ['--version'], { stdio: 'ignore' }).status === 0;
+if (haveGit) {
+  await ok('statusline readGit: a linked worktree is named, a main checkout under a "worktrees" dir is not', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'sl-git-'));
+    try {
+      const main = join(root, 'worktrees', 'proj');
+      mkdirSync(join(main, 'src'), { recursive: true });
+      const g = (cwd, ...args) => spawnSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@example.invalid', ...args], { cwd, encoding: 'utf8' });
+      g(main, 'init', '-q', '-b', 'main');
+      writeFileSync(join(main, 'src', 'a.txt'), 'a\n');
+      g(main, 'add', '.');
+      g(main, 'commit', '-q', '-m', 'init');
+      const inMain = await readGit(join(main, 'src'));
+      assert.equal(inMain.branch, 'main');
+      assert.equal(inMain.worktree, '', 'a main checkout whose path contains /worktrees/ is not a linked worktree');
+      const linked = join(root, 'wt1');
+      g(main, 'worktree', 'add', '-q', '-b', 'feat', linked);
+      const inLinked = await readGit(linked);
+      assert.equal(inLinked.branch, 'feat');
+      assert.equal(inLinked.worktree, 'wt1');
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+} else {
+  console.log('  SKIP: no git — statusline worktree detection NOT run');
+}
 
 await ok('buddy TUI: the statusline.py it runs exists, and the input names the session', () => {
   assert.match(STATUSLINE, /[\\/]buddy[\\/]scripts[\\/]statusline\.py$/);
@@ -151,6 +189,12 @@ await ok('buddy TUI: a timeout is not re-run under the next interpreter, and dra
   assert.deepEqual(none, ['python3', 'python', 'py']);
 });
 
+await ok('buddy TUI: an empty answer draws nothing (null), because statusline.py exits 0 when it fails', async () => {
+  // statusline.py's main() catches every exception and returns 0 with nothing printed. [] here
+  // blanked the sidebar until a later run worked.
+  assert.equal(await renderBuddy('s', '/tmp', { run: async () => ({ code: 0, stdout: '\n', stderr: '' }) }), null);
+});
+
 await ok("buddy sidebar: draws the family ROOT's animal, and a run that drew nothing keeps the frame", async () => {
   const drawn = [];
   const rendered = [];
@@ -178,6 +222,58 @@ await ok("buddy sidebar: draws the family ROOT's animal, and a run that drew not
   await sb.refresh();
   assert.equal(rendered.at(-1), 'root', 'no session on screen → the last one');
   assert.equal(drawn.length, 2);
+});
+
+await ok('buddy sidebar: the 3 s tick starts statusline.py only when its inputs changed', async () => {
+  let k = 'a';
+  let runs = 0;
+  const sb = buddySidebar({}, {
+    currentSessionID: () => 's',
+    rootOf: (_api, s) => s,
+    setLines: () => {},
+    dirOf: () => '/p',
+    render: async () => (runs++, [[{ text: 'A' }]]),
+    key: () => k,
+  });
+  await sb.refresh();
+  await sb.tick();
+  await sb.tick();
+  assert.equal(runs, 1, 'nothing changed: no new run');
+  k = 'b';
+  await sb.tick();
+  assert.equal(runs, 2, 'a changed input: one run');
+  await sb.tick();
+  assert.equal(runs, 2);
+});
+
+await ok('buddy sidebar inputsKey: a changed session file, a new minute, and 3 s steps while a file is fresh', () => {
+  const proj = mkdtempSync(join(tmpdir(), 'buddy-key-'));
+  const home = mkdtempSync(join(tmpdir(), 'buddy-home-'));
+  try {
+    const env = { BUDDY_HOME: home };
+    const base = 1_800_000_000_000; // a whole minute
+    mkdirSync(join(proj, '.buddy', 's'), { recursive: true });
+    const f = join(proj, '.buddy', 's', 'state.json');
+    writeFileSync(f, '{}');
+    const old = (base - 3_600_000) / 1000;
+    utimesSync(f, old, old);
+    const a = inputsKey('s', proj, { now: base + 1000, env });
+    assert.equal(inputsKey('s', proj, { now: base + 30_000, env }), a, 'same minute, nothing changed: same key');
+    assert.notEqual(inputsKey('s', proj, { now: base + 61_000, env }), a, 'a new minute (mood decay)');
+    writeFileSync(f, '{"x":1}');
+    utimesSync(f, old, old);
+    const changed = inputsKey('s', proj, { now: base + 1000, env });
+    assert.notEqual(changed, a, 'a changed state.json');
+    writeFileSync(join(home, 'identity.json'), '{}');
+    assert.notEqual(inputsKey('s', proj, { now: base + 1000, env }), changed, 'the identity file counts');
+    utimesSync(f, base / 1000, base / 1000); // a file written at `base`
+    assert.notEqual(inputsKey('s', proj, { now: base + 1000, env }), inputsKey('s', proj, { now: base + 4000, env }), 'fresh: a new key every 3 s (verdict bubbles expire in seconds)');
+    const later = base + FRESH_MS + 1000;
+    assert.equal(inputsKey('s', proj, { now: later, env }), inputsKey('s', proj, { now: later + 3000, env }), 'no longer fresh: back to the minute');
+  } finally {
+    rmSync(proj, { recursive: true, force: true });
+    rmSync(home, { recursive: true, force: true });
+  }
 });
 
 const havePython = spawnSync('python3', ['-c', ''], { stdio: 'ignore' }).status === 0;
@@ -331,6 +427,15 @@ if (havePython) {
       assert.doesNotMatch(text, /<output of Step 1/);
       assert.match(text, /`\/buddy-summon yeti`/);
       assert.doesNotMatch(text, /\/buddy:/);
+    });
+    await ok('real report.py legend reads state through load_state, as status does (another STATE_VERSION reads as none)', async () => {
+      const oldSid = 'ses_old_version';
+      mkdirSync(join(proj, '.buddy', oldSid), { recursive: true });
+      writeFileSync(join(proj, '.buddy', oldSid, 'state.json'), JSON.stringify({ version: -1, active_specialists: ['debugging-yeti'] }));
+      assert.match(await runReport('status', oldSid, proj), /active_specialists: \(none\)/);
+      const legend = await runReport('legend', oldSid, proj);
+      assert.doesNotMatch(legend, /^- .*\(debugging-yeti\)$/m, 'legend listed the old file\'s specialists while status said none');
+      assert.match(legend, /\(none\)/);
     });
     await ok('real report.py: no session id → a plain message, not a crash', async () => {
       assert.match(await runReport('status', '', proj), /no active buddy session/);

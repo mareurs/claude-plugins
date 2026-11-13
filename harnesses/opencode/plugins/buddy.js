@@ -24,9 +24,11 @@
 // SESSION IDENTITY. buddy keys state on `.buddy/<session_id>/`; the OpenCode session id is
 // passed as session_id, so the TUI part (tui/buddy/) and the /buddy-* commands find the
 // same directory. One `opencode serve` hosts every session, so run.mjs's BUDDY_HOOK_PPID is
-// the service pid for all of them: the by-ppid index cannot tell sessions apart here, and
-// commands resolve through the `.buddy/.current_session_id` pointer (written on every
-// prompt) instead. That is the resolver's documented second step, not a new mechanism.
+// the service pid for all of them, and the by-ppid index and the `.buddy/.current_session_id`
+// pointer name whichever session prompted last. The commands the model runs (/buddy-dismiss,
+// /buddy-focus, /buddy-remember, the summon fallback) therefore resolve through
+// $OPENCODE_SESSION_ID first: OpenCode's shell tool sets it to the calling session's id, and
+// buddy's resolver (scripts/state.py session_id_from_env) takes it when `.buddy/<it>/` exists.
 //
 // SUBAGENTS. Claude Code fires no buddy hook for a subagent's start, and buddy's state is
 // per main session, so child sessions (a parentID) are skipped by the context hook. Their
@@ -249,13 +251,18 @@ export function runBuddyHook(event, payload, { runtime = resolveRuntime(), launc
 
 // --- the bridge -------------------------------------------------------------------------
 // All state is per bridge instance: one long-lived `opencode serve` hosts many projects.
-export function buildBuddyBridge(dir, { getSession = async () => ({}), run = runBuddyHook, judgeEnv = readJudgeEnv, echo = echoHint } = {}) {
+// At most this many SessionStart texts are kept (see bannerFor), as prompts is capped at 500.
+export const BANNER_CAP = 500;
+export function buildBuddyBridge(dir, { getSession = async () => ({}), run = runBuddyHook, judgeEnv = readJudgeEnv, echo = echoHint, bannerCap = BANNER_CAP } = {}) {
   // Both Maps hold PROMISES, stored before the first await. Two context events of one session
   // can overlap (a side request beside the main step); with the text stored only after the
   // await, both saw an empty slot and both ran the hook, so prompt_count was counted twice
   // and the summon bootstrap ran twice.
   const banners = new Map(); // session id → Promise<SessionStart(startup) text> ('' = nothing to say)
   const prompts = new Map(); // user message id → Promise<UserPromptSubmit text>
+  // Session ids whose banner text was dropped to stay under bannerCap (see bannerFor).
+  const retired = new Set();
+  const EMPTY = Promise.resolve('');
   // session id → {text: Promise<SessionStart(compact) text>, turn}. `turn` is the user message
   // id of the turn after the compaction (null: none; undefined: not seen yet). See onCompaction.
   const compacted = new Map();
@@ -271,6 +278,26 @@ export function buildBuddyBridge(dir, { getSession = async () => ({}), run = run
       .then((res) => rehostBuddy(contextText(res?.stdout)), () => '');
 
   const sessionStart = (sid, source) => textOf(() => hook('session-start', { hook_event_name: 'SessionStart', source, session_id: sid }));
+
+  // A session's banner slot, most recently used last; `start` makes the text of a session not
+  // seen before. Synchronous, so it keeps the has/set rule above. Only the newest bannerCap
+  // texts are kept: one service hosts every session for as long as it runs, and a text can be
+  // several KB. An evicted session's id moves to `retired`, and when that session comes back
+  // it gets no banner. It is NOT sent SessionStart again: buddy resets a session's signals on
+  // every SessionStart, resume included. The ids are capped too (100 × bannerCap).
+  const bannerFor = (sid, start = () => sessionStart(sid, 'startup')) => {
+    let p = banners.get(sid);
+    if (p) banners.delete(sid); // set again below, as the most recently used
+    else p = retired.has(sid) ? EMPTY : start();
+    banners.set(sid, p);
+    if (banners.size > bannerCap) {
+      const old = banners.keys().next().value;
+      banners.delete(old);
+      retired.add(old);
+      if (retired.size > bannerCap * 100) retired.delete(retired.values().next().value);
+    }
+    return p;
+  };
 
   // The ids a tool hook carries. Claude Code gives a subagent's tool call its PARENT's
   // session_id (and the subagent's own id as agent_id), and buddy keeps state, mood, the
@@ -304,8 +331,7 @@ export function buildBuddyBridge(dir, { getSession = async () => ({}), run = run
 
       // Each has()/set() pair below runs with no await between them (see the Maps above).
       // SessionStart finishes before UserPromptSubmit starts, as on Claude Code.
-      if (!banners.has(sid)) banners.set(sid, sessionStart(sid, 'startup'));
-      let banner = await banners.get(sid);
+      let banner = await bannerFor(sid);
 
       const msg = lastUserMessage(event?.messages);
       // The turn after a compaction gets SessionStart(compact)'s text in place of the banner.
@@ -350,7 +376,7 @@ export function buildBuddyBridge(dir, { getSession = async () => ({}), run = run
       compacted.set(sid, { text, turn: undefined });
       // A session first seen here (the service restarted, then /compact) must not run
       // SessionStart(startup) after the compaction: Claude Code never sends startup after it.
-      if (!banners.has(sid)) banners.set(sid, Promise.resolve(''));
+      bannerFor(sid, () => EMPTY);
       await text; // the release is written before the next turn reads state
     },
 

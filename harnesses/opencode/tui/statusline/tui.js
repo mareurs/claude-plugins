@@ -112,8 +112,13 @@ export async function readGit(cwd) {
   if (!cwd) return {};
   const branch = await git(cwd, ['rev-parse', '--abbrev-ref', 'HEAD']);
   if (!branch) return {};
-  const gitDir = await git(cwd, ['rev-parse', '--git-dir']);
-  const worktree = /[\\/]worktrees[\\/]/.test(gitDir) ? basename(await git(cwd, ['rev-parse', '--show-toplevel'])) : '';
+  // A linked worktree has its own git dir, apart from the repo's common dir; in a main
+  // checkout the two are the same. Matching "/worktrees/" in --git-dir also flagged a main
+  // checkout that lives under a directory named "worktrees". (--path-format needs git 2.31;
+  // an older git fails the call, and the row shows the branch alone.)
+  const [gitDir, commonDir] = (await git(cwd, ['rev-parse', '--path-format=absolute', '--git-dir', '--git-common-dir'])).split(/\r?\n/);
+  const linked = Boolean(gitDir && commonDir && gitDir !== commonDir);
+  const worktree = linked ? basename(await git(cwd, ['rev-parse', '--show-toplevel'])) : '';
   const { add, del } = parseShortstat(await git(cwd, ['diff', '--shortstat', 'HEAD']));
   return { branch, worktree, add, del };
 }

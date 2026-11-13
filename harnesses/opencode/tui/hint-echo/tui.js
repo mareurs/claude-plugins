@@ -17,7 +17,7 @@
 //
 // Only advisories for the session family on screen are shown; with no session open, all
 // are. Lines written before this TUI started are not replayed.
-import { closeSync, existsSync, mkdirSync, openSync, readSync, realpathSync, statSync } from 'node:fs';
+import { closeSync, existsSync, openSync, readSync, realpathSync, statSync } from 'node:fs';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { dirname, join } from 'node:path';
 
@@ -77,19 +77,17 @@ export function readNew(file, offset) {
 export default {
   id: 'sdd-misc.hint-echo',
   async setup(api) {
-    let hintEchoDir, hintEchoFile, currentSessionID, rootOf;
+    let ensureHintEchoDir, hintEchoFile, currentSessionID, rootOf;
     try {
-      ({ hintEchoDir, hintEchoFile } = await lib('host.mjs'));
+      ({ ensureHintEchoDir, hintEchoFile } = await lib('host.mjs'));
       ({ currentSessionID, rootOf } = await lib('tui.mjs'));
     } catch (e) {
       process.stderr.write(`hint-echo: shared lib unavailable — ${e?.message || e}\n`);
       return;
     }
-    try {
-      mkdirSync(hintEchoDir(), { recursive: true }); // turns the bridges' channel on
-    } catch {
-      /* cannot create: the bridges stay silent, nothing breaks */
-    }
+    // Turns the bridges' channel on, as a 0700 dir. When it cannot be created the bridges stay
+    // silent and nothing breaks.
+    ensureHintEchoDir();
     const file = hintEchoFile();
     let offset = 0;
     try {

@@ -186,7 +186,7 @@ callbacks, as `sdd.js` does for sdd. buddy's logic stays in Python.
 
 | Claude Code event | OpenCode |
 |---|---|
-| SessionStart (startup) | `session.hook("context")`, first request of a top-level session. The text is cached and pushed on every request, because OpenCode rebuilds the system prompt each time |
+| SessionStart (startup) | `session.hook("context")`, first request of a top-level session. The text is cached and pushed on every request, because OpenCode rebuilds the system prompt each time. The newest 500 texts are kept; a session whose text was dropped gets none, and is not sent SessionStart again (buddy resets a session's signals on every SessionStart) |
 | SessionStart (compact) | `session.hook("compaction")` runs it. Its text (reload block, release notice) replaces the cached text for the **next turn only**: the requests of the turn after the compaction, up to the next user message. It speaks to one turn ("Your FIRST user-facing line of this turn MUST be …"), so as a lasting banner it made the model repeat the arrival and release lines every turn. It is not pushed onto the summary request |
 | UserPromptSubmit | `session.hook("context")`: the latest user message of a top-level session, once per message id |
 | PreToolUse (judge block) | `execute.before`, only when `judge.env` turns on a judge **and** `BUDDY_JUDGE_BLOCK`. Exit 2 denies the call with buddy's stderr message |
@@ -198,8 +198,13 @@ callbacks, as `sdd.js` does for sdd. buddy's logic stays in Python.
   and the camelCase arguments to snake_case (`ccInput`, shared with sdd).
 - **Session identity.** The OpenCode session id is buddy's `session_id`, so state lives in
   `.buddy/<OpenCode session id>/`. One `opencode serve` hosts every session, so the by-ppid
-  index cannot tell them apart. Commands find the session through
-  `.buddy/.current_session_id`, which buddy writes on every prompt.
+  index and `.buddy/.current_session_id` name whichever session prompted last. The commands
+  the model runs (`/buddy-dismiss`, `/buddy-focus`, `/buddy-remember`, the summon fallback)
+  find their session through `$OPENCODE_SESSION_ID` instead: OpenCode's shell tool sets it
+  to the calling session's id (measured in the 2.1.3 binary), and buddy's resolver
+  (`scripts/state.py` `session_id_from_env`) takes it first when `.buddy/<it>/` exists.
+  Before that, a command run in one session changed the state of the session that
+  prompted last.
 - **Subagents.** Child sessions get no context injection, as on Claude Code. Their tool
   calls still reach PreToolUse and PostToolUse, with the family ROOT's id as `session_id`
   and the child's own id as `agent_id`, as Claude Code sends a subagent's tool call. So a
@@ -233,8 +238,12 @@ callbacks, as `sdd.js` does for sdd. buddy's logic stays in Python.
 
 The spirit animal is the TUI part `tui/buddy/`. It runs buddy's own `statusline.py` with the
 same JSON shape Claude Code sends (`session_id`, `cwd`), translates its ANSI colours, and
-draws the rows in `sidebar.content`. It refreshes on session events and every 3 s. OpenCode
-reports no context limit, so the context-pressure mood signal does not fire.
+draws the rows in `sidebar.content`. It refreshes on session events, and a 3 s check starts
+`statusline.py` only when what it reads has changed: the files in `.buddy/<session id>/`,
+the identity file, or the minute (mood decays over minutes); while a file is under 60 s old,
+every 3 s (a judge verdict's bubble lasts 3–60 s). A run that prints nothing keeps the frame
+on screen: `statusline.py` exits 0 even when it fails. OpenCode reports no context limit, so
+the context-pressure mood signal does not fire.
 
 Verified live on 2.1.3: SessionStart created `.buddy/<session id>/`; PostToolUse counted
 codescout calls; `/buddy-summon testing` spilled the payload file, tracked
@@ -259,7 +268,7 @@ draws one row in `prompt.footer.status`, beside the host's own context figure.
 | agent | the session's agent |
 | context % | not drawn: the host already shows it in the same row |
 | rate limits | not available: no OpenCode source |
-| git | branch, or worktree:branch (git, every 5 s, async) |
+| git | branch, or worktree:branch in a linked worktree (git, every 5 s, async). A linked worktree is one whose `--git-dir` differs from its `--git-common-dir` (needs git 2.31; an older git shows the branch alone) |
 | lines +/- | `git diff --shortstat HEAD` of the working tree. Claude Code counts the session's own edits instead |
 | cache | write/read tokens in k |
 | cost | session cost, hidden while 0 (local models) |
@@ -280,7 +289,9 @@ toast: `hook told the model after <tool>: <text>`, cut at 400 characters.
 - The channel is `${XDG_STATE_HOME:-~/.local/state}/opencode-hint-echo/hints.jsonl`
   (`OPENCODE_HINT_ECHO_DIR` overrides it). It is off until the directory exists:
   `install.sh --plugins hint-echo` creates it, and so does the TUI part. The file rotates
-  at 256 KiB.
+  at 256 KiB. It is private: the directory is 0700 and the file is created 0600, because
+  the lines hold file paths, shell commands and session ids from every project the service
+  hosts. The TUI part also tightens a directory an older install created 0755.
 - Only advisories for the session family on screen are shown. Old lines are not replayed.
 - SessionStart and system-prompt text is not echoed, the same as on Claude Code.
 
@@ -598,6 +609,48 @@ on purpose in a scratch copy, and its test failed.
   an existing 4-plugin install. buddy, statusline and hint-echo are opt-in now
   (`--plugins …` or `--plugins all`), and the installer warns when buddy's Python has no
   PyYAML. Breaks checked: default back to all seven, no `all` shorthand, no PyYAML check.
+
+**Follow-ups from the second review (2026-11-13).** The low-severity findings of the same
+review, each with a test that a deliberate break in a scratch copy makes fail (23 breaks,
+23 failures):
+
+- `ansiToParts` printed the parameters of private and intermediate CSI sequences
+  (`ESC[?25l` became `?25l`) and turned `38;5;300` into the colour `#2b02b02b0`. It parses
+  the full CSI grammar now and ignores 256-colour codes above 255. Breaks: the old regex, no
+  range check.
+- The buddy sidebar went blank when `statusline.py` failed, because it exits 0 with no
+  output. An empty answer keeps the frame. Break: draw the empty answer.
+- The sidebar started Python every 3 s. It now starts it only when its inputs change (see
+  §buddy). Breaks: render on every tick; leave out the session files, the identity file, the
+  minute, or the 3 s steps for a fresh file.
+- The statusline flagged a main checkout under a directory named `worktrees` as a linked
+  worktree. It compares `--git-dir` with `--git-common-dir` now. Breaks: the old regex,
+  never linked.
+- `/buddy-legend` read `state.json` raw while `/buddy-status` used `load_state`, so they
+  disagreed about a file from another `STATE_VERSION`. Both use `load_state`. Break: raw
+  `json.loads`.
+- The hint-echo channel was readable by other local users. Directory 0700, file 0600, and an
+  existing 0755 directory is tightened. Breaks: no chmod, no file mode, a new directory left
+  at the umask default, no `chmod 700` in `install.sh`.
+- `runHook` (codescout-companion, sdd) had its own spawn and timeout code that killed only
+  the direct child, so a timed-out hook's children kept running. It is built on
+  `runProcess` now and ends the whole process tree. Break: the old copy.
+- buddy's SessionStart texts were kept for every session for the life of the service. The
+  newest 500 are kept (§buddy). Breaks: no eviction, a second SessionStart for an evicted
+  session, no move to the newest end on use.
+- The commands the model runs acted on whichever session prompted last. They resolve
+  through `$OPENCODE_SESSION_ID` now (§buddy); this changes buddy's own `scripts/state.py`,
+  `scripts/track_specialist.py` and `commands/focus.md`, and does nothing on Claude Code or
+  Codex, which do not set the variable. Breaks: no environment step, no state-directory
+  check, no single-path-component check, `track_specialist.py` reading the pointer first.
+- The 2026-11-12 suites recorded 18 breaks for about 64 test cases. Every one of the 63
+  cases that commit added to `test-buddy.mjs`, `test-tui.mjs`, `test-hint-echo.mjs`,
+  `test-sdd.mjs` and `test-codescout-companion.mjs` now has its own break (72 in all, each
+  one failing the case it targets, not only some other case). Three cases were weak and are
+  stronger now: the real-launcher first-context case also checks that SessionStart itself
+  ran under the session id (UserPromptSubmit alone creates `state.json` too); the exit-2
+  case checks that a crash (exit 1) or a timeout does not block a tool call; the background
+  colour case uses indexes that a foreground code would misread.
 
 ## Tests
 

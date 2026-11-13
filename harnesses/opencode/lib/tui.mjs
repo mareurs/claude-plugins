@@ -52,8 +52,9 @@ export function rootOf(api, sid) {
 }
 
 // Minimal ANSI SGR → [{text, fg?, bold?}] for one line. Covers what buddy's statusline and
-// most shell statuslines emit: 30–37/90–97, 38;5;n, 38;2;r;g;b, 39/0 reset, 1/22 bold.
-// Anything else (cursor movement, OSC) is stripped, never rendered as garbage.
+// most shell statuslines emit: 30–37/90–97, 38;5;n (0–255), 38;2;r;g;b, 39/0 reset, 1/22
+// bold. Anything else (cursor movement, private modes, OSC) is stripped, never rendered as
+// garbage.
 const BASIC = ['#000000', '#cd3131', '#0dbc79', '#e5e510', '#2472c8', '#bc3fbc', '#11a8cd', '#e5e5e5'];
 const BRIGHT = ['#666666', '#f14c4c', '#23d18b', '#f5f543', '#3b8eea', '#d670d6', '#29b8db', '#ffffff'];
 function xterm256(n) {
@@ -78,14 +79,18 @@ export function ansiToParts(line) {
     buf = '';
   };
   const s = String(line ?? '');
+  // A CSI sequence is ESC [, parameter bytes 0x30–0x3F, intermediate bytes 0x20–0x2F, then one
+  // final byte 0x40–0x7E (ECMA-48). Only digits and ';' with the final 'm' are SGR; a private
+  // (`ESC[?25l`) or intermediate (`ESC[0 q`) sequence is dropped whole. Matching only [0-9;]
+  // let the `\x1b.` branch eat just `ESC [`, and "?25l" and "0 q" were printed.
   // eslint-disable-next-line no-control-regex
-  const re = /\x1b\[([0-9;]*)([A-Za-z])|\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)|\x1b./g;
+  const re = /\x1b\[([0-?]*)([ -/]*)([@-~])|\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)|\x1b./g;
   let last = 0;
   let m;
   while ((m = re.exec(s))) {
     buf += s.slice(last, m.index);
     last = re.lastIndex;
-    if (m[2] !== 'm') continue; // not SGR: drop it
+    if (m[3] !== 'm' || m[2] || !/^[0-9;]*$/.test(m[1])) continue; // not SGR: drop it
     flush();
     const codes = (m[1] === '' ? '0' : m[1]).split(';').map((x) => Number(x || 0));
     for (let i = 0; i < codes.length; i++) {
@@ -99,7 +104,8 @@ export function ansiToParts(line) {
       else if (c >= 30 && c <= 37) fg = BASIC[c - 30];
       else if (c >= 90 && c <= 97) fg = BRIGHT[c - 90];
       else if (c === 38 && codes[i + 1] === 5) {
-        fg = xterm256(codes[i + 2] ?? 7);
+        const n = codes[i + 2];
+        if (Number.isInteger(n) && n >= 0 && n <= 255) fg = xterm256(n); // else not a colour: ignored
         i += 2;
       } else if (c === 38 && codes[i + 1] === 2) {
         const [r, g, b] = [codes[i + 2], codes[i + 3], codes[i + 4]].map((x) => Math.max(0, Math.min(255, x || 0)));

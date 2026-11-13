@@ -18,7 +18,6 @@ in the text.
 """
 from __future__ import annotations
 
-import json
 import os
 import re
 import sys
@@ -125,7 +124,12 @@ def legend(buddy: Path, project: Path, sid: str) -> str:
     if not sid:
         active_lines = "(no active session)"
     elif state_path.is_file():
-        active = (json.loads(state_path.read_text()).get("active_specialists") or [])
+        from scripts.state import load_state
+
+        # load_state, as status() reads it: a file from another STATE_VERSION reads as the
+        # defaults in both dialogs. Raw json.loads listed that file's specialists here while
+        # /buddy-status said "(none)".
+        active = load_state(state_path).get("active_specialists") or []
         if active:
             pairs = resolve_labels(active, plugin_root=buddy, project_root=project)
             active_lines = "\n".join(f"- {label} ({slug})" for slug, label in pairs)

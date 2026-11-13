@@ -5,7 +5,7 @@
 // path; that works through install.sh's symlinks because the host loads each plugin by its
 // real path (import.meta.url resolves into the repo — measured on 2.1.3).
 import { spawn } from 'node:child_process';
-import { appendFileSync, existsSync, renameSync, statSync } from 'node:fs';
+import { appendFileSync, chmodSync, existsSync, mkdirSync, renameSync, statSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 
@@ -42,60 +42,26 @@ function reportOnce(label, kind, detail) {
 // CLAUDE_CONFIG_DIR is passed through unchanged: detect.mjs resolves Claude config via
 // `${CLAUDE_CONFIG_DIR:-$HOME/.claude}` (repo rule), and stripping it made a multi-profile
 // machine read the default profile instead of the one in use.
-export function runHook(script, payload, { forceArmed = false, runtime = resolveRuntime(), label = 'codescout-companion' } = {}) {
-  return new Promise((resolveP) => {
-    const env = { ...process.env };
-    if (forceArmed) env.CS_COMPANION_HOST_ARMED = '1';
-    let out = '';
-    let settled = false;
-    const done = (v) => {
-      if (!settled) {
-        settled = true;
-        resolveP(v);
-      }
-    };
-    let child;
-    try {
-      child = spawn(runtime, [script], { cwd: payload.cwd || process.cwd(), env, stdio: ['pipe', 'pipe', 'ignore'] });
-    } catch (e) {
-      reportOnce(label, 'spawn-failed', `${runtime}: ${e?.message || e}`);
-      return done(null);
-    }
-    const timer = setTimeout(() => {
-      reportOnce(label, 'timeout', `${script} exceeded ${HOOK_TIMEOUT_MS} ms`);
-      try {
-        child.kill();
-      } catch {
-        /* already gone */
-      }
-      done(null);
-    }, HOOK_TIMEOUT_MS);
-    child.on('error', (e) => {
-      clearTimeout(timer);
-      reportOnce(label, 'spawn-failed', `${runtime}: ${e?.message || e}`);
-      done(null);
-    });
-    child.stdout.on('data', (d) => {
-      if (out.length < 1 << 20) out += d;
-    });
-    child.on('close', (code, signal) => {
-      clearTimeout(timer);
-      // The hooks' contract is "always exit 0"; anything else is a crash, not a decision.
-      if (code !== 0) reportOnce(label, 'crashed', `${script} exited ${code ?? signal}`);
-      const text = out.trim();
-      if (!text) return done(null);
-      try {
-        done(JSON.parse(text));
-      } catch {
-        reportOnce(label, 'bad-output', `${script} printed non-JSON`);
-        done(null);
-      }
-    });
-    child.stdin.on('error', () => {
-      /* hook exited before reading stdin — its exit code tells the story */
-    });
-    child.stdin.end(JSON.stringify(payload));
-  });
+//
+// Built on runProcess (below), so a timeout ends the hook's whole process TREE: detect.mjs
+// can start the codescout or sqlite3 binaries, and killing only `node <hook>` left them
+// running. This used to be a second copy of the spawn, timeout and settle code that killed
+// the direct child alone.
+export async function runHook(script, payload, { forceArmed = false, runtime = resolveRuntime(), label = 'codescout-companion', timeoutMs = HOOK_TIMEOUT_MS } = {}) {
+  const env = { ...process.env };
+  if (forceArmed) env.CS_COMPANION_HOST_ARMED = '1';
+  const res = await runProcess(runtime, [script], { input: JSON.stringify(payload), cwd: payload.cwd, env, timeoutMs, label });
+  if (!res) return null; // spawn failure or timeout, already reported
+  // The hooks' contract is "always exit 0"; anything else is a crash, not a decision.
+  if (res.code !== 0) reportOnce(label, 'crashed', `${script} exited ${res.code}`);
+  const text = res.stdout.trim();
+  if (!text) return null;
+  try {
+    return JSON.parse(text);
+  } catch {
+    reportOnce(label, 'bad-output', `${script} printed non-JSON`);
+    return null;
+  }
 }
 
 export function decisionOf(payload) {
@@ -310,6 +276,11 @@ export function lastUserMessage(messages) {
 // (appendFileSync into a missing dir fails with ENOENT, caught below); the existsSync check
 // is only the cheap early exit — a mutation check confirmed removing it changes nothing.
 // The file is rotated at 256 KiB (one .1 generation), so it cannot grow without bound.
+//
+// Private to the user: the lines hold file paths, shell commands and session ids from every
+// project the service hosts. The dir is 0700 (ensureHintEchoDir, which also tightens a dir
+// an older install made 0755) and the file is created 0600. With default modes, a 022 umask
+// left both readable by every local user.
 export const HINT_ECHO_MAX_BYTES = 256 * 1024;
 export function hintEchoDir(env = process.env) {
   if (env.OPENCODE_HINT_ECHO_DIR) return env.OPENCODE_HINT_ECHO_DIR;
@@ -318,6 +289,17 @@ export function hintEchoDir(env = process.env) {
 }
 export function hintEchoFile(env = process.env) {
   return join(hintEchoDir(env), 'hints.jsonl');
+}
+// Creates the channel dir (turning the channel on) as 0700. Returns false when it cannot.
+export function ensureHintEchoDir(env = process.env) {
+  try {
+    const dir = hintEchoDir(env);
+    mkdirSync(dir, { recursive: true }); // parents keep their usual mode; the channel dir:
+    chmodSync(dir, 0o700);
+    return true;
+  } catch {
+    return false;
+  }
 }
 export function echoHint({ sessionID = '', tool = '', source = '', text = '' } = {}, env = process.env) {
   try {
@@ -328,7 +310,7 @@ export function echoHint({ sessionID = '', tool = '', source = '', text = '' } =
     } catch {
       /* no file yet */
     }
-    appendFileSync(file, `${JSON.stringify({ ts: Date.now(), sessionID, tool, source, text })}\n`);
+    appendFileSync(file, `${JSON.stringify({ ts: Date.now(), sessionID, tool, source, text })}\n`, { mode: 0o600 });
     return true;
   } catch {
     return false; // an echo must never break the bridge that called it

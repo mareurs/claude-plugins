@@ -85,6 +85,12 @@ if OPENCODE_CONFIG_DIR="$SANDBOX" bash "$INSTALLER" --plugins all >"$SANDBOX.log
     else fail "tui part missing or dangling: plugins/$p-tui/tui.js"; fi
   done
   [ -d "$OPENCODE_HINT_ECHO_DIR" ] && pass "hint-echo channel dir created" || fail "hint-echo channel dir not created"
+  # Private: the advisories hold paths, commands and session ids. GNU stat, else BSD stat.
+  mode="$(stat -c %a "$OPENCODE_HINT_ECHO_DIR" 2>/dev/null || stat -f %Lp "$OPENCODE_HINT_ECHO_DIR" 2>/dev/null)"
+  case "$(uname -s)" in
+    MINGW*|MSYS*|CYGWIN*) pass "hint-echo channel dir mode not checked on Windows" ;;
+    *) [ "$mode" = "700" ] && pass "hint-echo channel dir is 0700" || fail "hint-echo channel dir mode is $mode, want 700" ;;
+  esac
   # buddy's commands: dashed names, the summon fast-path line, no Claude-only leftovers.
   S="$SANDBOX/commands/buddy-summon.md"
   if [ -f "$S" ] && awk '/^---/{n++; next} n==2 && NF {print; exit}' "$S" | grep -qx '/buddy:summon \$ARGUMENTS'; then

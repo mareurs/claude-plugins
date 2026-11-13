@@ -203,10 +203,34 @@ def pid_started_at(pid: int) -> str | None:
         return None
 
 
+# OpenCode (2.1.3, measured in its binary) sets OPENCODE_SESSION_ID in the environment of every
+# shell command the model runs, to the id of the session that runs it. One `opencode serve`
+# hosts every session, so there the by-ppid entry (the service pid) and the
+# .current_session_id pointer name whichever session prompted last, and a /buddy-* command
+# changed another session's state. Claude Code and Codex do not set it.
+SESSION_ID_ENV = "OPENCODE_SESSION_ID"
+
+
+def session_id_from_env(project_root: Path) -> str | None:
+    """$OPENCODE_SESSION_ID when it names an existing .buddy/<sid>/ dir, else None.
+
+    The dir check lets a subagent's shell fall through: it carries the child's id, and
+    buddy keeps state per main session only.
+    """
+    sid = os.environ.get(SESSION_ID_ENV, "").strip()
+    if not sid or sid in (".", "..") or "/" in sid or "\\" in sid:
+        return None
+    try:
+        return sid if (Path(project_root) / ".buddy" / sid).is_dir() else None
+    except OSError:
+        return None
+
+
 def resolve_session_id_for_command(project_root: Path, ppid: int) -> str | None:
     """Resolve the active session_id for a slash command running under PPID.
 
     Resolution chain:
+      0. $OPENCODE_SESSION_ID, when .buddy/<it>/ exists (session_id_from_env)
       1. by-ppid/<ppid>/{session_id,started_at} — verify started_at matches current
          (on platforms without start-time support, trust the PPID mapping alone)
       2. .current_session_id pointer (last-writer)
@@ -216,6 +240,11 @@ def resolve_session_id_for_command(project_root: Path, ppid: int) -> str | None:
     buddy_dir = project_root / ".buddy"
     if not buddy_dir.is_dir():
         return None
+
+    # 0. The session the host says runs this command
+    sid = session_id_from_env(project_root)
+    if sid:
+        return sid
 
     # 1. by-ppid index with PID-reuse verification
     ppid_dir = buddy_dir / "by-ppid" / str(ppid)

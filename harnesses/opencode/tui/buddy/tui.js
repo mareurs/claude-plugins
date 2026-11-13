@@ -7,9 +7,10 @@
 // `.buddy/<session_id>/state.json` that the server part (plugins/buddy.js) writes under the
 // OpenCode session id — and draws its rows, ANSI colours translated, in the sidebar. The id is
 // the session family's ROOT: the server part keeps state for top-level sessions only, so a
-// subagent's view shows its parent's animal. Refresh: on session events (debounced) and every
-// 3 s, because mood decays with time. One render at a time; a slow or failed run keeps the
-// frame on screen instead of piling up or blanking it.
+// subagent's view shows its parent's animal. Refresh: on session events (debounced), and from
+// a 3 s check that starts statusline.py only when what it reads has changed (inputsKey: the
+// session's .buddy files, the identity file, the minute for mood decay). One render at a time;
+// a slow or failed run keeps the frame on screen instead of piling up or blanking it.
 // context_window.used_percentage is not sent: OpenCode's session record has token counts but
 // no context limit, and statusline.py treats a missing value as "unknown" (0), so the
 // context-pressure mood signal does not fire on OpenCode.
@@ -24,7 +25,8 @@
 // Registration is the host's own pattern (measured in the 2.1.3 binary: /btw, /diff, /stats):
 // `api.keymap.layer(() => ({mode: "global", commands: [{id, title, group, palette, slash,
 // run}]}))` created inside an `app` slot whose render returns null.
-import { existsSync, realpathSync } from 'node:fs';
+import { existsSync, readdirSync, realpathSync, statSync } from 'node:fs';
+import { homedir } from 'node:os';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { dirname, join, resolve } from 'node:path';
 
@@ -70,7 +72,9 @@ async function runPython(script, args, { input = '', cwd, env = process.env, tim
 }
 
 // The rows to draw, or null when this run drew nothing (no interpreter, a timeout, a non-zero
-// exit): the caller keeps the frame it has. [] only when statusline.py itself is gone.
+// exit, no output): the caller keeps the frame it has. [] only when statusline.py itself is
+// gone. No output counts as a failed run: statusline.py catches its own exceptions and still
+// exits 0 with nothing printed, and drawing that [] blanked the sidebar.
 export async function renderBuddy(sid, dir, { run } = {}) {
   if (!existsSync(STATUSLINE)) return [];
   const res = await runPython(STATUSLINE, [], {
@@ -79,16 +83,53 @@ export async function renderBuddy(sid, dir, { run } = {}) {
     env: { ...process.env, COLUMNS: String(WIDTH) },
     run,
   });
-  return res && res.code === 0 ? toLines(res.stdout) : null;
+  if (!res || res.code !== 0) return null;
+  const lines = await toLines(res.stdout);
+  return lines.length ? lines : null;
+}
+
+// What statusline.py reads, as a cheap key: every file in .buddy/<sid>/ (state, verdicts,
+// recon markers, skill ledger) and the identity file, by mtime and size, plus a time bucket.
+// The bucket is the minute (mood decays over minutes), or 3 s while a file changed in the
+// last 60 s, because a judge verdict's bubble lives 3–60 s (verdicts.py BUBBLE_TTL_*). The
+// sidebar used to start statusline.py every 3 s whatever happened: about 20 Python starts a
+// minute for every open TUI, idle or on the home screen.
+export const FRESH_MS = 60_000;
+export function inputsKey(sid, dir, { now = Date.now(), env = process.env } = {}) {
+  const parts = [sid || '', dir || ''];
+  let newest = 0;
+  const add = (p) => {
+    try {
+      const st = statSync(p);
+      parts.push(`${p}:${st.mtimeMs}:${st.size}`);
+      newest = Math.max(newest, st.mtimeMs);
+    } catch {
+      parts.push(`${p}:-`);
+    }
+  };
+  add(join(env.BUDDY_HOME || join(homedir(), '.buddy'), 'identity.json'));
+  if (sid && dir) {
+    const sessionDir = join(dir, '.buddy', sid);
+    let names = [];
+    try {
+      names = readdirSync(sessionDir).sort();
+    } catch {
+      /* no state yet */
+    }
+    for (const n of names) add(join(sessionDir, n));
+  }
+  parts.push(now - newest < FRESH_MS ? `s${Math.floor(now / 3000)}` : `m${Math.floor(now / 60_000)}`);
+  return parts.join('|');
 }
 
 // The sidebar's refresh and session choice, apart from the host so they can be tested. The
 // session is the one on screen, mapped to its family root (see the header): without that a
 // subagent's view drew a default animal, and /buddy-status reported "state.json: missing …
 // hooks are not firing" for a session the server part never keeps state for.
-export function buddySidebar(api, { currentSessionID, rootOf, setLines, dirOf, render = renderBuddy }) {
+export function buddySidebar(api, { currentSessionID, rootOf, setLines, dirOf, render = renderBuddy, key = inputsKey }) {
   let busy = false;
   let lastSid;
+  let lastKey;
   const sid = () => {
     const s = rootOf(api, currentSessionID(api)) ?? lastSid;
     if (s) lastSid = s;
@@ -99,7 +140,9 @@ export function buddySidebar(api, { currentSessionID, rootOf, setLines, dirOf, r
     busy = true;
     try {
       const s = sid();
-      const next = await render(s, dirOf(s));
+      const d = dirOf(s);
+      lastKey = key(s, d); // taken before the run: a change during it is seen by the next tick
+      const next = await render(s, d);
       if (next) setLines(next); // null: this run drew nothing, keep the last frame
     } catch {
       /* keep the last frame */
@@ -107,7 +150,12 @@ export function buddySidebar(api, { currentSessionID, rootOf, setLines, dirOf, r
       busy = false;
     }
   }
-  return { refresh, sid };
+  // The 3 s timer: a render only when statusline.py's inputs changed since the last one.
+  async function tick() {
+    const s = sid();
+    if (key(s, dirOf(s)) !== lastKey) await refresh();
+  }
+  return { refresh, tick, sid };
 }
 
 // `kind` is "status" or "legend". Returns the report text (never throws).
@@ -180,7 +228,7 @@ export default {
       const t = details?.type || '';
       if (t.startsWith('session.execution') || t === 'session.step.ended' || t === 'session.created' || t.startsWith('session.tool')) soon();
     });
-    const timer = setInterval(() => void refresh(), 3000);
+    const timer = setInterval(() => void sidebar.tick(), 3000);
     void refresh();
 
     api.ui.slot({ append: 'sidebar.content', render: () => column(solid, lines) });

@@ -17,7 +17,7 @@
 //     README §"Verified vs asserted". A green run here is not proof of the port.
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync, existsSync, readdirSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync, existsSync, readdirSync, readFileSync } from 'node:fs';
 import { tmpdir, homedir } from 'node:os';
 import { join, dirname, resolve as resolvePath } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -624,6 +624,46 @@ await ok('runHook passes CLAUDE_CONFIG_DIR through to the hook', async () => {
     if (prev === undefined) delete process.env.CLAUDE_CONFIG_DIR;
     else process.env.CLAUDE_CONFIG_DIR = prev;
   }
+});
+
+// Review follow-up: runHook is built on runProcess, so a hook that times out takes its
+// children with it (detect.mjs can start the codescout or sqlite3 binaries). It used to kill
+// the direct `node <hook>` child alone and leave them running.
+await ok("runHook: a timeout ends the hook's whole process tree", async () => {
+  if (process.platform === 'win32') {
+    console.log('        (process groups are POSIX; the taskkill /T path is not exercised here)');
+    return;
+  }
+  const pidFile = join(SANDBOX, 'hook-grandchild.pid');
+  const script = join(SANDBOX, 'hangs.cjs');
+  writeFileSync(script, [
+    "const { spawn } = require('node:child_process');",
+    "const g = spawn(process.execPath, ['-e', 'setTimeout(() => {}, 20000)'], { stdio: 'inherit' });",
+    `require('node:fs').writeFileSync(${JSON.stringify(pidFile)}, String(g.pid));`,
+    'setTimeout(() => {}, 20000);',
+  ].join('\n'));
+  const orig = process.stderr.write.bind(process.stderr);
+  let seen = '';
+  process.stderr.write = (c) => {
+    seen += String(c);
+    return true;
+  };
+  let gpid;
+  try {
+    const r = await runHook(script, { cwd: SANDBOX }, { runtime: process.execPath, timeoutMs: 1500, label: 'test-hook-tree' });
+    assert.equal(r, null);
+    gpid = Number(readFileSync(pidFile, 'utf8'));
+    await new Promise((res) => setTimeout(res, 400));
+    assert.throws(() => process.kill(gpid, 0), /ESRCH/, `grandchild ${gpid} outlived the hook's timeout`);
+  } finally {
+    process.stderr.write = orig;
+    try {
+      if (gpid) process.kill(gpid, 'SIGKILL');
+    } catch {
+      /* gone, as it should be */
+    }
+  }
+  assert.match(seen, /test-hook-tree: hook timeout/);
 });
 
 console.log(`\nResults: ${pass} passed, ${process.exitCode ? 'FAILURES above' : '0 failed'}`);
