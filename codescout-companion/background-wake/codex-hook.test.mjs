@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {mkdtemp, mkdir, readFile, writeFile, rm, chmod, symlink, cp} from 'node:fs/promises';
+import {mkdtemp, mkdir, readFile, writeFile, rm, chmod, symlink, cp, realpath} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join, resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
@@ -10,7 +10,10 @@ const source = fileURLToPath(new URL('./codex-hook.mjs', import.meta.url));
 const command = 'node "${CODEX_HOME:-$HOME/.codex}/hooks/codescout-wake.mjs"';
 
 async function fixture(t) {
-  const root = await mkdtemp(join(tmpdir(), 'codex wake hook '));
+  // realpath: node runs the installed launcher by its real path and the launcher
+  // derives its profile from it, so expected paths must be real too. On macOS
+  // tmpdir() is under /var, a symlink to /private/var.
+  const root = await realpath(await mkdtemp(join(tmpdir(), 'codex wake hook ')));
   t.after(() => rm(root, {recursive: true, force: true}));
   const profile = join(root, 'profile one');
   const bin = join(root, 'bin');
