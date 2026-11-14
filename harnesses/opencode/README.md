@@ -10,7 +10,11 @@ into what the Claude Code side already does, and the plugin's own files stay the
 | `sdd` | `sdd.js` | spec-guard and review-guard, the session banner, approvals through `/sdd-approve`, subagent plan pointers; the `sdd-flow` skill, `/sdd-review`, `/sdd-init` |
 | `legible` | `legible.js` | A `legible` agent that writes in the Explanatory STE style; the `explain` skill and `/legible-explain` |
 | `session-bridge` | `session-bridge.js` | `session_bridge_list_sessions` and `session_bridge_ask_session`: ask another OpenCode session from a read-only fork |
+| `buddy` | `buddy.js` + `tui/buddy/` | buddy's hooks (mood signals, narrative, `[cs-hint]` advisories, memory nudges, the judge block, the summon fast path), the 12 specialist skills, `/buddy-*` commands, and the spirit animal in the sidebar |
+| `statusline` | `tui/statusline/` | Model · variant, agent, git branch, working-tree +/-, cache tokens, cost, duration, under the prompt |
+| `hint-echo` | `tui/hint-echo/` | A toast showing each advisory a tool hook handed the model |
 
+`plugins/*.js` run in OpenCode's server; `tui/*/tui.js` run in the terminal UI (§TUI parts).
 Most of this README is about `codescout-companion`, which came first. Each other plugin has
 its own section below.
 
@@ -86,7 +90,7 @@ Honesty here is the point — see §Verified vs asserted before reporting a gap 
 | `PreCompact` epoch bump | approximated | `session.hook("compaction")` re-injects the directive; it does not run `constitution-epoch-bump.mjs`. |
 | Post-tool advisory text | **delivered** (was silently dropped before 2026-11-09) | v2's `result.output` is structured data (a file *object* for `read`), and the model reads `result.content`. Advice is now pushed onto `content` in place. If `content` is not an array, the advice is dropped rather than risk corrupting the result. |
 | Skills (`reconnaissance`, `tracker-hygiene`, …) | **not wired** | v2 has `ctx.skill.transform(...)`/`skill.list`, but its discovery configuration was never verified against a live session, so nothing is claimed. |
-| Statusline, `buddy`, `sdd`, `statusline` plugins | **not ported** | `sdd`'s guards and buddy's judges depend on Claude Code hook events with no OpenCode equivalent found. Only `codescout-companion`'s routing is bridged. |
+| Claude Code's statusline command (JSON on stdin) | **replaced** | v2 has no statusline command; it has TUI plugins that draw into named slots. `statusline` and buddy's spirit animal are TUI parts (§TUI parts). Rate limits have no OpenCode source and are not drawn. |
 | Background-job continuation | **not ported** | `background-wake/` has `claude-code` and `codex` adapters; an OpenCode adapter would be its own piece of work. |
 
 ## sdd
@@ -175,18 +179,186 @@ Verified live on 2.1.3: the style is in the prompt under `legible` and absent un
 `build`; the `legible` agent still lists the coding tools; the `explain` skill is
 available. Unit tests: `node harnesses/opencode/tests/test-legible.mjs`.
 
+## buddy
+
+`buddy.js` runs buddy's own launcher, `buddy/hooks/run.mjs <event>`, from OpenCode's plugin
+callbacks, as `sdd.js` does for sdd. buddy's logic stays in Python.
+
+| Claude Code event | OpenCode |
+|---|---|
+| SessionStart (startup) | `session.hook("context")`, first request of a top-level session. The text is cached and pushed on every request, because OpenCode rebuilds the system prompt each time. The newest 500 texts are kept; a session whose text was dropped gets none, and is not sent SessionStart again (buddy resets a session's signals on every SessionStart) |
+| SessionStart (compact) | `session.hook("compaction")` runs it. Its text (reload block, release notice) replaces the cached text for the **next turn only**: the requests of the turn after the compaction, up to the next user message. It speaks to one turn ("Your FIRST user-facing line of this turn MUST be …"), so as a lasting banner it made the model repeat the arrival and release lines every turn. It is not pushed onto the summary request |
+| UserPromptSubmit | `session.hook("context")`: the latest user message of a top-level session, once per message id |
+| PreToolUse (judge block) | `execute.before`, only when `judge.env` turns on a judge **and** `BUDDY_JUDGE_BLOCK`. Exit 2 denies the call with buddy's stderr message |
+| PostToolUse | `execute.after`: signals, narrative, codescout log and judge spawn. `[cs-hint]` advisories are appended to `result.content` |
+| SessionEnd | none. OpenCode has no session-end hook. The next SessionStart removes stale by-ppid entries |
+
+- **Tool names.** buddy reads Claude Code's names. The bridge maps `shell` → `Bash`,
+  `edit`/`patch` → `Edit`, `write` → `Write`, `codescout_<tool>` → `mcp__codescout__<tool>`,
+  and the camelCase arguments to snake_case (`ccInput`, shared with sdd).
+- **Session identity.** The OpenCode session id is buddy's `session_id`, so state lives in
+  `.buddy/<OpenCode session id>/`. One `opencode serve` hosts every session, so the by-ppid
+  index and `.buddy/.current_session_id` name whichever session prompted last. The commands
+  the model runs (`/buddy-dismiss`, `/buddy-focus`, `/buddy-remember`, the summon fallback)
+  find their session through `$OPENCODE_SESSION_ID` instead: OpenCode's shell tool sets it
+  to the calling session's id (measured in the 2.1.3 binary), and buddy's resolver
+  (`scripts/state.py` `session_id_from_env`) takes it first when `.buddy/<it>/` exists.
+  Before that, a command run in one session changed the state of the session that
+  prompted last.
+- **Subagents.** Child sessions get no context injection, as on Claude Code. Their tool
+  calls still reach PreToolUse and PostToolUse, with the family ROOT's id as `session_id`
+  and the child's own id as `agent_id`, as Claude Code sends a subagent's tool call. So a
+  subagent's work is counted in `.buddy/<root id>/`; there is no `.buddy/<child id>/`.
+- **Session lookups.** Whether a session is a child comes from `session.get`. A lookup that
+  has not answered after 3 s counts as failed and is asked again next time
+  (`lib/host.mjs` `sessionFamily`), so a stalled service call cannot hang the session's
+  later requests and tool calls.
+- **Commands.** `install.sh` renders `buddy/commands/*.md` as `/buddy-<name>`, fills in the
+  plugin root, and drops the Claude-only `name:` key. `install` and `uninstall` are not
+  installed: they set up Claude Code's statusline, and on OpenCode that is the TUI part.
+- **`/buddy-status` and `/buddy-legend` do not interrupt.** A command is a prompt, and
+  a prompt sent to a busy session is delivered with `delivery: "steer"`: it breaks into
+  the turn in progress. These two reports need no reasoning (`disable-model-invocation`
+  on Claude Code), so the TUI part registers them as TUI commands, slash and ctrl+p
+  palette (group "Buddy"), the way OpenCode's own `/btw`, `/diff` and `/stats` are built.
+  They run `tui/buddy/report.py`, which uses buddy's own modules (state, identity,
+  `derive_mood`, `specialist_labels`) and takes the legend's tables from `legend.md`, and
+  show the result as rendered markdown in a scrollable dialog (arrows or wheel, esc closes;
+  §TUI parts). The model never sees them. `install.sh` therefore does not
+  install them as model commands, and removes copies an earlier install rendered. They
+  exist only where the TUI runs (not in `opencode run`). Verified live on 2.1.3:
+  `/buddy-status` typed during a long turn opened the dialog while the turn kept running,
+  the turn finished by itself, and buddy's `prompt_count` stayed at 1.
+- **Summon fast path.** OpenCode sends a command's expanded template as the user message.
+  The rendered `/buddy-summon` starts with the line `/buddy:summon $ARGUMENTS`, and the
+  bridge hands only that first line to the hook (`hookPrompt`). Without that,
+  `summon_bootstrap.parse_argument` read the whole template as the argument, declined, and
+  the model did every load step by hand (measured).
+- **Requires** `python3` (or `python`) with PyYAML, as on Claude Code.
+
+The spirit animal is the TUI part `tui/buddy/`. It runs buddy's own `statusline.py` with the
+same JSON shape Claude Code sends (`session_id`, `cwd`), translates its ANSI colours, and
+draws the rows in `sidebar.content`. It refreshes on session events, and a 3 s check starts
+`statusline.py` only when what it reads has changed: the files in `.buddy/<session id>/`,
+the identity file, or the minute (mood decays over minutes); while a file is under 60 s old,
+every 3 s (a judge verdict's bubble lasts 3–60 s). A run that prints nothing keeps the frame
+on screen: `statusline.py` exits 0 even when it fails. OpenCode reports no context limit, so
+the context-pressure mood signal does not fire.
+
+Verified live on 2.1.3: SessionStart created `.buddy/<session id>/`; PostToolUse counted
+codescout calls; `/buddy-summon testing` spilled the payload file, tracked
+`testing-snow-leopard` in `active_specialists`, and the model read the payload file
+instead of running the fallback; the Lotus rendered in the sidebar. Tests:
+`node harnesses/opencode/tests/test-buddy.mjs`: unit cases with a fake launcher, and cases
+against the real launcher, which need Python with PyYAML. The real-launcher cases run buddy
+from a plugin root the suite builds, with its own `judge.env` that turns both judges off:
+`hook_dispatch.py` loads `judge.env` with the file winning over the environment for
+SessionStart and PostToolUse, so a developer's own `buddy/hooks/judge.env` could otherwise
+start a real LLM judge from the test.
+
+## statusline
+
+`tui/statusline/` is a TUI part, not a bridge: Claude Code's `statusline.sh` reads a JSON
+blob that OpenCode does not produce. It reads the same facts from OpenCode's data API and
+draws one row in `prompt.footer.status`, beside the host's own context figure.
+
+| `statusline.sh` field | OpenCode |
+|---|---|
+| model · effort | session model id · variant (hidden when `default`) |
+| agent | the session's agent |
+| context % | not drawn: the host already shows it in the same row |
+| rate limits | not available: no OpenCode source |
+| git | branch, or worktree:branch in a linked worktree (git, every 5 s, async). A linked worktree is one whose `--git-dir` differs from its `--git-common-dir` (needs git 2.31; an older git shows the branch alone) |
+| lines +/- | `git diff --shortstat HEAD` of the working tree. Claude Code counts the session's own edits instead |
+| cache | write/read tokens in k |
+| cost | session cost, hidden while 0 (local models) |
+| duration | since the session was created |
+
+Verified live on 2.1.3, at user level and project level:
+`main │ build │ cache 0w/19kr │ 34s` beside `24.1K (12%)`. Tests: `test-tui.mjs`.
+
+## hint-echo
+
+Claude Code's hint-echo mod shows the user each `additionalContext` that a tool hook gives
+the model. On OpenCode the bridges push that text onto `result.content` in the server, and
+the TUI is a different process. So every bridge that appends an advisory (`codescout-
+companion.js`, `sdd.js`, `buddy.js`) also writes it to a JSONL channel through
+`lib/host.mjs → echoHint`. `tui/hint-echo/` tails the channel and shows each line as a
+toast: `hook told the model after <tool>: <text>`, cut at 400 characters.
+
+- The channel is `${XDG_STATE_HOME:-~/.local/state}/opencode-hint-echo/hints.jsonl`
+  (`OPENCODE_HINT_ECHO_DIR` overrides it). It is off until the directory exists:
+  `install.sh --plugins hint-echo` creates it, and so does the TUI part. The file rotates
+  at 256 KiB. It is private: the directory is 0700 and the file is created 0600, because
+  the lines hold file paths, shell commands and session ids from every project the service
+  hosts. The TUI part also tightens a directory an older install created 0755.
+- Only advisories for the session family on screen are shown. Old lines are not replayed.
+- SessionStart and system-prompt text is not echoed, the same as on Claude Code.
+
+Verified live on 2.1.3: a line appended to the channel appeared as a toast in the open
+session. Tests: `test-hint-echo.mjs`.
+
+## TUI parts
+
+What a TUI plugin is on v2, measured with a probe plugin on 2.1.3:
+
+- A plugin **directory** with a root `tui.js` loads as a TUI part, from
+  `~/.config/opencode/plugins/<dir>/` (`OPENCODE_CONFIG_DIR` honoured) and from
+  `.opencode/plugins/<dir>/`. `install.sh` links `tui/<plugin>/` as `plugins/<plugin>-tui/`.
+- The module exports `{id, setup(api)}`. `setup` gets `{options, location, app, renderer,
+  client, data, attention, theme, themeMode, markdown, keymap, storage, ui}`.
+- `api.ui.slot({append: "<slot>", render})` draws into a slot. **`render` must return a
+  host element. A bare string crashes the whole TUI** ("Orphan text error: … must have a
+  `<text>` as a parent"). `lib/tui.mjs` builds every node.
+- `import('@opentui/solid')` and `import('solid-js')` resolve to the host's own modules,
+  so `createElement`, `insert`, `setProp` and signals work without a JSX build step. The
+  parts are plain `.js`.
+- One load stage resolves a static `import '../../lib/…'` against the **symlink's**
+  location and logs "Cannot find module". So `tui.js` files import the shared lib
+  dynamically through their real path. `test-tui.mjs` enforces this.
+- `api.ui.toast.show({title, message, variant, duration})`. `api.data.session.get(id)`
+  returns `{agent, model {id, providerID, variant}, cost, tokens {input, output, reasoning,
+  cache {read, write}}, time {created}, location {directory}}`, and `session.usage.updated`
+  fires after each step.
+
+- **Dialogs with long content** (`lib/tui.mjs → markdownDialog`, used by `/buddy-status` and
+  `/buddy-legend`): `ui.dialog.alert` shows raw text with no scrolling, and a long legend ran
+  off the bottom of the screen. The dialog is instead a `<scrollbox>` capped at the terminal
+  height minus 16 rows, holding a `<markdown conceal internalBlockMode="top-level">` with grid
+  tables, the way the host's own `/btw` answer dialog is built. Three things were measured
+  the hard way: `SyntaxStyle.fromStyles(styles, renderer.nativeScene)` needs that owner
+  argument, or it throws and the markdown keeps its raw `##` and backticks; a keymap layer
+  created inside a dialog never receives keys, but a **focused** scrollbox scrolls itself
+  with the arrow keys; the style is destroyed when the dialog closes.
+- **One-row text**: `wrapMode: "none"` + `truncate: true`. Without it the statusline wrapped
+  its last segment onto a second row when the sidebar narrowed the footer.
+
+TUI parts load in the terminal UI process, so restarting the TUI reloads them. The server
+part (`buddy.js`) loads in the background service; see §Install about restarting it.
 ## Install
 
 ```bash
 cd /path/to/claude-plugins
-./harnesses/opencode/install.sh                       # everything, user level (~/.config/opencode/)
-./harnesses/opencode/install.sh --plugins legible     # only some plugins (comma-separated)
+./harnesses/opencode/install.sh                       # the default set, user level (~/.config/opencode/)
+./harnesses/opencode/install.sh --plugins buddy,statusline,hint-echo   # add opt-in plugins (comma-separated)
+./harnesses/opencode/install.sh --plugins all         # every plugin
 ./harnesses/opencode/install.sh --project             # into ./.opencode/ instead
-./harnesses/opencode/install.sh --check               # verify, change nothing (flags dangling links)
+./harnesses/opencode/install.sh --check               # verify the default set, change nothing (flags dangling links)
+./harnesses/opencode/install.sh --check --plugins all # verify every plugin
 ```
 
-Per plugin it links `<plugin>.js` into `plugins/`, each skill into `skills/` and each
-command into `commands/`. Skills go to OpenCode's own `skills/` dir, not `~/.claude/skills`:
+The default set is `codescout-companion`, `sdd`, `legible` and `session-bridge`. `buddy`,
+`statusline` and `hint-echo` are opt-in: `buddy` runs node and Python on every tool call
+(up to 5 s) and on each session's first request (up to 15 s), in every session the service
+hosts. A re-run of a bare `install.sh` after a pull therefore does not add them, and a bare
+`--check` keeps passing on a default install.
+
+Per plugin it links `<plugin>.js` into `plugins/`, the TUI part's directory as
+`plugins/<plugin>-tui/`, each skill into `skills/` and each command into `commands/`
+(sdd's and buddy's commands are rendered copies: re-run after editing them). For
+`hint-echo` it also creates the advisory channel directory (§hint-echo). `buddy` needs
+`python3` with PyYAML; the installer warns when no Python is on PATH, or when that Python
+cannot import `yaml` (without it buddy's SessionStart does nothing, silently). Skills go to OpenCode's own `skills/` dir, not `~/.claude/skills`:
 OpenCode reads both, but Claude Code also reads `~/.claude/skills` and already loads these
 skills from the plugin, so linking them there would load each one twice in Claude Code.
 
@@ -228,8 +400,11 @@ Same shape as `harnesses/pi/`:
 
 ```
 harnesses/opencode/
-  plugins/<plugin>.js          one OpenCode plugin per repo plugin (install.sh links these)
-  lib/host.mjs                 shared host plumbing: hook runner, runtime, project dir
+  plugins/<plugin>.js          server part, one per repo plugin that has hooks (install.sh links these)
+  tui/<plugin>/tui.js          TUI part (buddy, statusline, hint-echo); installed as plugins/<plugin>-tui/
+  lib/host.mjs                 shared host plumbing: hook runner, process runner, runtime, project dir,
+                               ccInput/lastUserMessage, the hint-echo channel writer
+  lib/tui.mjs                  shared TUI plumbing: host-element builders, ANSI translation, session lookup
   commands/                    OpenCode-only command files
   tests/test-<plugin>.mjs      one suite per plugin
   tests/test-opencode-adapter.sh   runs every suite + a sandboxed install (run-all.sh runs it)
@@ -391,6 +566,16 @@ carry it; `pending`/`armedSessions` are shared by every project in one service p
 present; the lower-case tool names live in the shared `normalizedToolName` rather than in
 the bridge.
 
+**buddy, statusline, hint-echo (2026-11-12).** Verified live and by tests as listed in their
+own sections. The suites `test-buddy.mjs`, `test-tui.mjs` and `test-hint-echo.mjs` were
+mutation-checked: 18 deliberate breaks across the bridge, the TUI parts, the channel and
+the installer, each one failed its suite except one (removing `echoHint`'s directory
+check, which is equivalent: the append fails without the directory anyway). NOT verified
+live for these parts: buddy's judge block (exit 2, unit-tested only: it needs judge
+verdicts), buddy's compaction notice, a `[cs-hint]` produced by a model's own shell call
+(the real-launcher test produces one; live, the codescout guard denied the shell call
+first), and how the sidebar behaves on a terminal too narrow to show it.
+
 **NOT verified:**
 
 - Whether the routing block injected at compaction changes the summary. The hook runs and
@@ -404,6 +589,68 @@ Version skew is real and unresolved: the binary is 2.1.3 while `~/.config/openco
 `@opencode-ai/plugin@1.18.25` — the **v1** types. That is *why* a v1-shaped plugin looked
 writable on this machine at all, and why nothing in this adapter imports from
 `@opencode/plugin`.
+
+**Fixes from the second review (2026-11-13).** Each one mutation-checked: the fix was broken
+on purpose in a scratch copy, and its test failed.
+
+- buddy's SessionStart(compact) text stayed the session's banner, so its one-turn
+  instructions were pushed on every later request. It now covers the next turn only (§buddy).
+  Breaks checked: keep it as the banner, push it onto the summary request, run startup after
+  a first-seen compaction. (Dropping the `delete` that ends the turn is an equivalent mutant:
+  a later message id never matches the stored turn again, so the delete only frees memory.)
+- `sessionFamily` cached a lookup that never settled, and every later hook for that session
+  waited on it. A lookup now times out after 3 s and is not cached. Breaks checked: a timer
+  that never fires (the case hangs, the suite exits non-zero), a timeout kept in the cache.
+- The real-launcher cases of `test-buddy.mjs` set the judge switches in the environment,
+  which `judge.env` overrides for SessionStart and PostToolUse. They now run from a plugin
+  root with the suite's own `judge.env`; a canary key in it proves that file is the one read.
+  Break checked: the real launcher instead of that root.
+- A bare `install.sh` installed seven plugins instead of four, and a bare `--check` failed on
+  an existing 4-plugin install. buddy, statusline and hint-echo are opt-in now
+  (`--plugins …` or `--plugins all`), and the installer warns when buddy's Python has no
+  PyYAML. Breaks checked: default back to all seven, no `all` shorthand, no PyYAML check.
+
+**Follow-ups from the second review (2026-11-13).** The low-severity findings of the same
+review, each with a test that a deliberate break in a scratch copy makes fail (23 breaks,
+23 failures):
+
+- `ansiToParts` printed the parameters of private and intermediate CSI sequences
+  (`ESC[?25l` became `?25l`) and turned `38;5;300` into the colour `#2b02b02b0`. It parses
+  the full CSI grammar now and ignores 256-colour codes above 255. Breaks: the old regex, no
+  range check.
+- The buddy sidebar went blank when `statusline.py` failed, because it exits 0 with no
+  output. An empty answer keeps the frame. Break: draw the empty answer.
+- The sidebar started Python every 3 s. It now starts it only when its inputs change (see
+  §buddy). Breaks: render on every tick; leave out the session files, the identity file, the
+  minute, or the 3 s steps for a fresh file.
+- The statusline flagged a main checkout under a directory named `worktrees` as a linked
+  worktree. It compares `--git-dir` with `--git-common-dir` now. Breaks: the old regex,
+  never linked.
+- `/buddy-legend` read `state.json` raw while `/buddy-status` used `load_state`, so they
+  disagreed about a file from another `STATE_VERSION`. Both use `load_state`. Break: raw
+  `json.loads`.
+- The hint-echo channel was readable by other local users. Directory 0700, file 0600, and an
+  existing 0755 directory is tightened. Breaks: no chmod, no file mode, a new directory left
+  at the umask default, no `chmod 700` in `install.sh`.
+- `runHook` (codescout-companion, sdd) had its own spawn and timeout code that killed only
+  the direct child, so a timed-out hook's children kept running. It is built on
+  `runProcess` now and ends the whole process tree. Break: the old copy.
+- buddy's SessionStart texts were kept for every session for the life of the service. The
+  newest 500 are kept (§buddy). Breaks: no eviction, a second SessionStart for an evicted
+  session, no move to the newest end on use.
+- The commands the model runs acted on whichever session prompted last. They resolve
+  through `$OPENCODE_SESSION_ID` now (§buddy); this changes buddy's own `scripts/state.py`,
+  `scripts/track_specialist.py` and `commands/focus.md`, and does nothing on Claude Code or
+  Codex, which do not set the variable. Breaks: no environment step, no state-directory
+  check, no single-path-component check, `track_specialist.py` reading the pointer first.
+- The 2026-11-12 suites recorded 18 breaks for about 64 test cases. Every one of the 63
+  cases that commit added to `test-buddy.mjs`, `test-tui.mjs`, `test-hint-echo.mjs`,
+  `test-sdd.mjs` and `test-codescout-companion.mjs` now has its own break (72 in all, each
+  one failing the case it targets, not only some other case). Three cases were weak and are
+  stronger now: the real-launcher first-context case also checks that SessionStart itself
+  ran under the session id (UserPromptSubmit alone creates `state.json` too); the exit-2
+  case checks that a crash (exit 1) or a timeout does not block a tool call; the background
+  colour case uses indexes that a foreground code would misread.
 
 ## Tests
 

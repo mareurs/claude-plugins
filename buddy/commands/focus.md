@@ -3,7 +3,21 @@ You are handling a /buddy:focus request. The argument is `$ARGUMENTS`.
 ## Step 1 — Resolve the session
 
 Read `session_id` and `cwd` from the stdin JSON Claude Code delivers to this
-command. If `session_id` is missing or the literal string "unknown", print
+command. If there is no such JSON (OpenCode delivers none), take `cwd` as the
+current directory and get `session_id` from buddy's resolver, which reads the
+host's session id first:
+
+```bash
+python3 -c '
+import os, sys
+sys.path.insert(0, "${CLAUDE_PLUGIN_ROOT}")
+from pathlib import Path
+from scripts.state import resolve_session_id_for_command
+print(resolve_session_id_for_command(Path.cwd(), os.getppid()) or "")
+'
+```
+
+If `session_id` is missing, empty or the literal string "unknown", print
 "Could not resolve session id — cannot scope focus" and stop. Do not guess.
 
 Compute:

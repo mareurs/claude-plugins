@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {mkdtemp, mkdir, readFile, writeFile, rm, chmod, symlink, cp} from 'node:fs/promises';
+import {mkdtemp, mkdir, readFile, writeFile, rm, chmod, symlink, cp, realpath} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join, resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
@@ -9,8 +9,20 @@ import {spawnSync} from 'node:child_process';
 const source = fileURLToPath(new URL('./codex-hook.mjs', import.meta.url));
 const command = 'node "${CODEX_HOME:-$HOME/.codex}/hooks/codescout-wake.mjs"';
 
+// Tests that RUN the installed hook are POSIX only. The hook command above needs a
+// POSIX shell to expand ${CODEX_HOME:-$HOME/.codex}, and the fixture runs it through
+// /bin/sh with a shebang `codex` fake on a ':'-separated PATH. Codex hooks on native
+// Windows are not measured, so these skip there (windows-latest CI, 2026-11-13: all
+// 10 failed on the fixture, with status null from /bin/sh and an unspawnable fake).
+// The installer-only tests use `test` and still run on Windows.
+const POSIX_ONLY = 'runs the Codex wake hook command, which needs a POSIX shell; native Windows is not measured';
+const posixTest = process.platform === 'win32' ? (name, fn) => test(name, {skip: POSIX_ONLY}, fn) : test;
+
 async function fixture(t) {
-  const root = await mkdtemp(join(tmpdir(), 'codex wake hook '));
+  // realpath: node runs the installed launcher by its real path and the launcher
+  // derives its profile from it, so expected paths must be real too. On macOS
+  // tmpdir() is under /var, a symlink to /private/var.
+  const root = await realpath(await mkdtemp(join(tmpdir(), 'codex wake hook ')));
   t.after(() => rm(root, {recursive: true, force: true}));
   const profile = join(root, 'profile one');
   const bin = join(root, 'bin');
@@ -37,7 +49,7 @@ async function fixture(t) {
 
 function successful(result) {assert.equal(result.status, 0, result.stderr); assert.equal(result.stdout, ''); assert.equal(result.stderr, '');}
 
-test('disabled adapter never executes and missing or nonboolean switches fail', async t => {
+posixTest('disabled adapter never executes and missing or nonboolean switches fail', async t => {
   const f = await fixture(t); await f.installed('8.0.0'); assert.equal(f.install().status, 0);
   const configPath = join(f.profile, 'codescout-wake.json');
   const base = JSON.parse(await readFile(configPath, 'utf8'));
@@ -51,7 +63,7 @@ test('disabled adapter never executes and missing or nonboolean switches fail', 
   await assert.rejects(readFile(join(f.profile, 'observed.json')), {code: 'ENOENT'});
 });
 
-test('default home fallback runs the independent profiles own cached plugin', async t => {
+posixTest('default home fallback runs the independent profiles own cached plugin', async t => {
   const f = await fixture(t); const cached = await f.installed('2.0.0');
   const home = join(f.root, 'other home'); await mkdir(home);
   const other = join(home, '.codex'); await mkdir(other);
@@ -67,7 +79,7 @@ test('default home fallback runs the independent profiles own cached plugin', as
   assert.equal(observed.input, 'other profile input');
 });
 
-test('manifest mismatch and ambiguous installed companions are rejected before execution', async t => {
+posixTest('manifest mismatch and ambiguous installed companions are rejected before execution', async t => {
   const f = await fixture(t); assert.equal(f.install().status, 0);
   const directory = await f.installed('6.0.0');
   await writeFile(join(directory, '.claude-plugin/plugin.json'), JSON.stringify({name: 'wrong-plugin', version: '6.0.0'}));
@@ -81,7 +93,7 @@ test('manifest mismatch and ambiguous installed companions are rejected before e
   await assert.rejects(readFile(join(f.profile, 'observed.json')), {code: 'ENOENT'});
 });
 
-test('installed launcher binds to its own location rather than an inherited foreign CODEX_HOME', async t => {
+posixTest('installed launcher binds to its own location rather than an inherited foreign CODEX_HOME', async t => {
   const f = await fixture(t); await f.installed('7.0.0'); assert.equal(f.install().status, 0);
   const result = spawnSync(process.execPath, [join(f.profile, 'hooks/codescout-wake.mjs')], {env: {...f.env, CODEX_HOME: f.root}, input: 'own-profile', encoding: 'utf8'});
   successful(result);
@@ -89,7 +101,7 @@ test('installed launcher binds to its own location rather than an inherited fore
   assert.equal(observed.profile, f.profile); assert.equal(observed.input, 'own-profile');
 });
 
-test('absent configuration is a no-op but malformed configuration and registry are errors', async t => {
+posixTest('absent configuration is a no-op but malformed configuration and registry are errors', async t => {
   const f = await fixture(t); assert.equal(f.install().status, 0);
   const configPath = join(f.profile, 'codescout-wake.json');
   await rm(configPath); successful(f.invoke());
@@ -115,7 +127,7 @@ test('installation migrates old versioned hooks and preserves unrelated configur
   assert.deepEqual(JSON.parse(await readFile(join(f.profile, 'hooks.json.before-versionless-wake'), 'utf8')), before);
 });
 
-test('installed hook follows upgrades after cache deletion and selected downgrades instead of largest cached version', async t => {
+posixTest('installed hook follows upgrades after cache deletion and selected downgrades instead of largest cached version', async t => {
   const f = await fixture(t);
   assert.equal(f.install().status, 0);
   const old = await f.installed('1.2.9'); successful(f.invoke('first input'));
@@ -131,7 +143,7 @@ test('installed hook follows upgrades after cache deletion and selected downgrad
   assert.equal(observed.version, '1.2.8'); assert.equal(observed.profile, f.profile);
 });
 
-test('default CODEX_HOME fallback handles spaces and independent profiles', async t => {
+posixTest('default CODEX_HOME fallback handles spaces and independent profiles', async t => {
   const f = await fixture(t); await f.installed('2.0.0'); assert.equal(f.install().status, 0);
   const home = join(f.root, 'other home'); await mkdir(home);
   const other = join(home, '.codex'); await mkdir(other);
@@ -144,7 +156,7 @@ test('default CODEX_HOME fallback handles spaces and independent profiles', asyn
   await assert.rejects(readFile(join(f.profile, 'observed.json')), {code: 'ENOENT'});
 });
 
-test('disabled plugin is a silent no-op and unavailable installed cache is a real failure', async t => {
+posixTest('disabled plugin is a silent no-op and unavailable installed cache is a real failure', async t => {
   const f = await fixture(t); assert.equal(f.install().status, 0);
   const directory = await f.installed('3.0.0', {enabled: false}); successful(f.invoke());
   await assert.rejects(readFile(join(f.profile, 'observed.json')), {code: 'ENOENT'});
@@ -152,7 +164,7 @@ test('disabled plugin is a silent no-op and unavailable installed cache is a rea
   const failed = f.invoke(); assert.notEqual(failed.status, 0); assert.equal(failed.stdout, ''); assert.match(failed.stderr, /cache|ENOENT/);
 });
 
-test('launcher rejects caches symlinked to another profile', async t => {
+posixTest('launcher rejects caches symlinked to another profile', async t => {
   const f = await fixture(t); assert.equal(f.install().status, 0);
   const directory = await f.installed('4.0.0');
   const outside = join(f.root, 'other-profile-plugin');
@@ -163,7 +175,7 @@ test('launcher rejects caches symlinked to another profile', async t => {
   const result = f.invoke(); assert.notEqual(result.status, 0); assert.equal(result.stdout, ''); assert.match(result.stderr, /profile|cache/);
 });
 
-test('child failures propagate and accidental stdout never becomes hook response JSON', async t => {
+posixTest('child failures propagate and accidental stdout never becomes hook response JSON', async t => {
   const f = await fixture(t); assert.equal(f.install().status, 0);
   await f.installed('5.0.0', {exit: 7, stderr: 'real launch failure'});
   let result = f.invoke(); assert.equal(result.status, 7); assert.equal(result.stdout, ''); assert.match(result.stderr, /real launch failure/);
