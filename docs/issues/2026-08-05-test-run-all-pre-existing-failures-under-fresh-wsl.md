@@ -18,6 +18,10 @@ unverified: WSL-only failures remain unobserved by CI (~10 of the original 16). 
 
 The complete root runner passed on this machine before the present issue-fix work (exit 0, 376 seconds); Buddy pytest passed all 534 tests. This is another scoped non-recurrence observation, not evidence about the original WSL environment. No WSL reproduction was performed. Keep `zombie` and the existing re-open trigger; no root-cause fix or closure is claimed.
 
+## Re-check — 2026-11-14
+
+The complete root runner passed on this machine at `7b8a186` (exit 0, 8 minutes 9 seconds, "All suites passed", no `not ok` line, no `ℹ fail` count above 0). Eight lines of the output contain the word "FAIL", and all eight are `ok -` lines of tests that check the detection of failures, not failures. Buddy pytest passed 575 tests in 3.17 seconds (534 on 2026-11-07). This is another scoped non-recurrence observation on the Arch workstation, not evidence about the original WSL environment. No WSL reproduction was performed. Keep `zombie` and the existing re-open trigger; no root-cause fix or closure is claimed.
+
 ## Summary
 
 > **Set to `zombie` 2026-11-04 (user decision).** No work is available here, only a recurrence check. The 5 ambient-config suites are hermetic and the full suite passed on the Arch workstation in the 2026-11-02 and 2026-11-03 releases (buddy 0.11.14, codescout-companion 1.20.28). About 10 of the original 16 failures stay unobservable without a WSL host. Re-open on the trigger in `## Re-open trigger`. CI was not re-checked this day: `gh` returned `HTTP 401`.
