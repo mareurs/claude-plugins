@@ -276,6 +276,10 @@ Run index
 
 ## Troubleshooting
 
+### Codex: `updatedInput` without `permissionDecision:allow`
+
+See the [principal-stamp compatibility workaround](../docs/troubleshooting/codex-principal-stamp.md) for the cause, a read-only override renderer, isolated tests, and the identity-metadata tradeoff. Disable only the metadata handler after review; keep protection hooks enabled.
+
 ### "codescout not detected"
 
 The plugin scans these locations for a codescout server entry (in order):
