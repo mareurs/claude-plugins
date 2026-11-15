@@ -6,7 +6,7 @@ use rmcp::{
     schemars, tool, tool_handler, tool_router, ErrorData, ServerHandler,
 };
 use serde::Deserialize;
-use crate::ask::ask;
+use crate::ask::{ask, clamp_timeout, locate_claude};
 use crate::endpoints::{discover, repo_of, resolve_target, Endpoint, Roots};
 use crate::error::BridgeError;
 use crate::paths::{profile_of, short_profile, state_root};
@@ -20,6 +20,9 @@ pub struct AskArgs {
     /// Model alias or id (default `haiku`).
     #[serde(default)]
     pub model: Option<String>,
+    /// Seconds to wait for the answer (default 120, clamped to 1..=300).
+    #[serde(default)]
+    pub timeout_s: Option<u64>,
 }
 
 #[derive(Debug, Deserialize, schemars::JsonSchema)]
@@ -115,10 +118,13 @@ impl Bridge {
         let eps = discover(&Roots::system());
         let target = resolve_target(&eps, &args.target, (&me.0, me.1)).map_err(to_error)?.clone();
         let asker = format!("{}:{}", short_profile(&me.0), me.1);
-        let bin = std::env::var("SESSION_BRIDGE_CLAUDE_BIN").unwrap_or_else(|_| "claude".to_string());
+        let bin = locate_claude(&|k| std::env::var(k).ok()).map_err(to_error)?;
         let state = state_root(&|k| std::env::var(k).ok());
         let model = args.model.as_deref().unwrap_or("haiku");
-        let result = ask(&bin, &target, &asker, &args.question, model, 120, &state).await.map_err(to_error)?;
+        let timeout_s = clamp_timeout(args.timeout_s);
+        let result = ask(&bin.to_string_lossy(), &target, &asker, &args.question, model, timeout_s, &state)
+            .await
+            .map_err(to_error)?;
         serde_json::to_string_pretty(&result).map_err(|e| ErrorData::internal_error(e.to_string(), None))
     }
 

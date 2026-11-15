@@ -1,6 +1,7 @@
 use chrono::NaiveDate;
 use session_bridge_mcp::ask::{
-    ask, fork_argv, model_id, parse_fork_output, spent_today, ASK_NOTE, DAILY_BOUND_USD, WRAPPER_PREFIX,
+    ask, clamp_timeout, fork_argv, locate_claude, model_id, parse_fork_output, resolve_program, spent_today,
+    ASK_NOTE, DAILY_BOUND_USD, FAILED_ASK_CHARGE_USD, WRAPPER_PREFIX,
 };
 use session_bridge_mcp::endpoints::Endpoint;
 use session_bridge_mcp::error::BridgeError;
@@ -137,13 +138,28 @@ fn file(p: &Path, name: &str) -> String {
 #[tokio::test]
 async fn ask_runs_in_target_cwd_and_profile_with_env_scrubbed() {
     let f = fx();
-    std::env::set_var("CLAUDE_CODE_SESSION_ID", "leak");
-    let r = ask(&fake_bin(), &f.target, "main:1", "why?", "haiku", 20, &f.state).await.unwrap();
+    const LEAKS: [&str; 4] =
+        ["CLAUDE_CODE_SESSION_ID", "CLAUDE_CODE_MESSAGING_SOCKET", "CLAUDE_CODE_MESSAGING_TOKEN", "CLAUDECODE"];
+    let saved: Vec<Option<String>> = LEAKS.iter().map(|k| std::env::var(k).ok()).collect();
+    for k in LEAKS {
+        std::env::set_var(k, "leak");
+    }
+    let r = ask(&fake_bin(), &f.target, "main:1", "why?", "haiku", 20, &f.state).await;
+    for (k, v) in LEAKS.iter().zip(saved) {
+        match v {
+            Some(v) => std::env::set_var(k, v),
+            None => std::env::remove_var(k),
+        }
+    }
+    let r = r.unwrap();
     assert_eq!(r.answer, "canned answer");
     let out = file(&f.cfg, "fake-out.txt");
     assert!(out.contains(&format!("pwd={}", f.cwd.canonicalize().unwrap().display())), "{out}");
     assert!(out.contains(&format!("config={}", f.cfg.display())), "{out}");
     assert!(out.contains("session=unset"), "{out}");
+    assert!(out.contains("socket=unset"), "{out}");
+    assert!(out.contains("token=unset"), "{out}");
+    assert!(out.contains("claudecode=unset"), "{out}");
     assert!(out.contains("--fork-session"), "{out}");
     assert!(out.contains("--no-session-persistence"), "{out}");
     assert!(out.contains("claude-haiku-5-5"), "{out}");
@@ -213,4 +229,121 @@ async fn ask_reports_a_missing_binary() {
     let f = fx();
     let err = ask("/nonexistent/claude-bin", &f.target, "main:1", "q", "haiku", 5, &f.state).await.unwrap_err();
     assert!(matches!(err, BridgeError::ClaudeCliMissing), "{err:?}");
+}
+
+fn log_lines(f: &Fx) -> Vec<serde_json::Value> {
+    std::fs::read_to_string(f.state.join("asks.jsonl"))
+        .unwrap()
+        .lines()
+        .map(|l| serde_json::from_str(l).unwrap())
+        .collect()
+}
+
+fn assert_metered_failure(f: &Fx, error: &str) {
+    let lines = log_lines(f);
+    assert_eq!(lines.len(), 1);
+    let v = &lines[0];
+    assert_eq!(v["ok"], false);
+    assert_eq!(v["cost_usd"], FAILED_ASK_CHARGE_USD);
+    assert_eq!(v["error"], error);
+    assert_eq!(v["asker"], "main:1");
+    assert_eq!(v["billed_profile"], f.target.profile.as_str());
+    for k in ["at", "target", "cache_read_tokens", "cache_write_tokens", "secs"] {
+        assert!(!v[k].is_null(), "missing {k}: {v}");
+    }
+    assert_eq!(v["cache_read_tokens"], 0);
+    assert_eq!(v["cache_write_tokens"], 0);
+}
+
+#[tokio::test]
+async fn timeout_is_metered_in_the_log() {
+    assert_eq!(FAILED_ASK_CHARGE_USD, 0.10);
+    let f = fx();
+    std::fs::write(f.cfg.join("fake-sleep"), "").unwrap();
+    let err = ask(&fake_bin(), &f.target, "main:1", "q", "haiku", 1, &f.state).await.unwrap_err();
+    assert!(matches!(err, BridgeError::Timeout(1)), "{err:?}");
+    assert_metered_failure(&f, "timeout");
+}
+
+#[tokio::test]
+async fn unparseable_output_is_metered() {
+    let f = fx();
+    std::fs::write(f.cfg.join("fake-garbage"), "").unwrap();
+    let err = ask(&fake_bin(), &f.target, "main:1", "q", "haiku", 20, &f.state).await.unwrap_err();
+    assert!(matches!(err, BridgeError::BadForkOutput(_)), "{err:?}");
+    assert_metered_failure(&f, "unparseable output");
+}
+
+#[tokio::test]
+async fn missing_total_cost_usd_is_an_error_not_zero() {
+    assert!(parse_fork_output(r#"{"result":"x","usage":{}}"#).is_err());
+    let f = fx();
+    std::fs::write(f.cfg.join("fake-nocost"), "").unwrap();
+    let err = ask(&fake_bin(), &f.target, "main:1", "q", "haiku", 20, &f.state).await.unwrap_err();
+    assert!(matches!(err, BridgeError::BadForkOutput(_)), "{err:?}");
+    assert_metered_failure(&f, "unparseable output");
+}
+
+#[tokio::test]
+async fn failed_asks_count_toward_the_bound() {
+    let f = fx();
+    std::fs::write(f.state.join("asks.jsonl"), log_line("main:1", &now_rfc(), 1.85)).unwrap();
+    std::fs::write(f.cfg.join("fake-sleep"), "").unwrap();
+    let err = ask(&fake_bin(), &f.target, "main:1", "q", "haiku", 1, &f.state).await.unwrap_err();
+    assert!(matches!(err, BridgeError::Timeout(1)), "{err:?}");
+    // 1.85 + 0.10 = 1.95 is still under the bound, so a second failed ask is allowed to run.
+    let err = ask(&fake_bin(), &f.target, "main:1", "q", "haiku", 1, &f.state).await.unwrap_err();
+    assert!(matches!(err, BridgeError::Timeout(1)), "{err:?}");
+    let err = ask(&fake_bin(), &f.target, "main:1", "q", "haiku", 20, &f.state).await.unwrap_err();
+    assert!(matches!(err, BridgeError::BudgetExceeded { .. }), "{err:?}");
+}
+
+#[test]
+fn timeout_is_clamped() {
+    assert_eq!(clamp_timeout(Some(0)), 1);
+    assert_eq!(clamp_timeout(Some(120)), 120);
+    assert_eq!(clamp_timeout(Some(100000)), 300);
+    assert_eq!(clamp_timeout(None), 120);
+}
+
+#[tokio::test]
+async fn ask_refuses_a_relative_binary() {
+    let f = fx();
+    for bad in ["bin/claude", "./claude", "../claude"] {
+        let err = ask(bad, &f.target, "main:1", "q", "haiku", 5, &f.state).await.unwrap_err();
+        assert!(matches!(err, BridgeError::RelativeBinary(_)), "{bad}: {err:?}");
+    }
+    assert!(!f.state.join("asks.jsonl").exists());
+}
+
+#[test]
+fn claude_binary_resolution_is_absolute() {
+    use std::os::unix::fs::PermissionsExt;
+    let dir = tempfile::tempdir().unwrap();
+    let exe = dir.path().join("claude");
+    std::fs::write(&exe, "#!/bin/sh\n").unwrap();
+    std::fs::set_permissions(&exe, std::fs::Permissions::from_mode(0o755)).unwrap();
+    let d = dir.path().to_string_lossy().into_owned();
+    let env = |path: String, over: Option<&str>| {
+        let over = over.map(str::to_string);
+        move |k: &str| match k {
+            "PATH" => Some(path.clone()),
+            "SESSION_BRIDGE_CLAUDE_BIN" => over.clone(),
+            _ => None,
+        }
+    };
+    // bare name resolved against PATH to an absolute path
+    assert_eq!(locate_claude(&env(format!("/nonexistent:{d}"), None)).unwrap(), exe);
+    // a relative or empty PATH entry is never searched
+    assert!(matches!(
+        locate_claude(&env(format!(":.:bin:{d}x"), None)),
+        Err(BridgeError::ClaudeCliMissing)
+    ));
+    // absolute override used as given; relative override refused
+    assert_eq!(locate_claude(&env(String::new(), Some("/opt/claude"))).unwrap(), PathBuf::from("/opt/claude"));
+    assert!(matches!(
+        locate_claude(&env(d.clone(), Some("bin/claude"))),
+        Err(BridgeError::RelativeBinary(_))
+    ));
+    assert!(matches!(resolve_program("./claude", Some(&d)), Err(BridgeError::RelativeBinary(_))));
 }

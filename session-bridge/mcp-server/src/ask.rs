@@ -8,7 +8,7 @@ use crate::error::{BridgeError, Result};
 use chrono::{DateTime, NaiveDate, SecondsFormat, Utc};
 use serde::{Deserialize, Serialize};
 use std::io::Write;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::process::Stdio;
 use std::time::{Duration, Instant};
 use tokio::io::AsyncReadExt;
@@ -81,7 +81,7 @@ struct RawUsage {
 struct RawOutput {
     #[serde(default)]
     result: String,
-    #[serde(default)]
+    /// Required: a missing or renamed field must fail loudly, not be metered as zero.
     total_cost_usd: f64,
     #[serde(default)]
     is_error: bool,
@@ -162,6 +162,76 @@ fn append_log(state: &Path, entry: &serde_json::Value) -> Result<()> {
     Ok(())
 }
 
+/// Default and bounds for `timeout_s`, in seconds.
+pub const DEFAULT_TIMEOUT_S: u64 = 120;
+const MAX_TIMEOUT_S: u64 = 300;
+
+/// `None` -> 120; anything else clamped to `1..=300`.
+pub fn clamp_timeout(timeout_s: Option<u64>) -> u64 {
+    timeout_s.unwrap_or(DEFAULT_TIMEOUT_S).clamp(1, MAX_TIMEOUT_S)
+}
+
+/// Resolve `program` to an absolute path. A name with a `/` must already be absolute; a bare
+/// name is searched in the absolute entries of `path` only (a relative or empty entry would
+/// run a binary from the current directory).
+pub fn resolve_program(program: &str, path: Option<&str>) -> Result<PathBuf> {
+    use std::os::unix::fs::PermissionsExt;
+    if program.contains('/') {
+        return if program.starts_with('/') {
+            Ok(PathBuf::from(program))
+        } else {
+            Err(BridgeError::RelativeBinary(program.to_string()))
+        };
+    }
+    path.unwrap_or("")
+        .split(':')
+        .filter(|d| d.starts_with('/'))
+        .map(|d| Path::new(d).join(program))
+        .find(|p| std::fs::metadata(p).is_ok_and(|m| m.is_file() && m.permissions().mode() & 0o111 != 0))
+        .ok_or(BridgeError::ClaudeCliMissing)
+}
+
+/// The `claude` binary: `SESSION_BRIDGE_CLAUDE_BIN` (must be absolute) or `claude` on PATH.
+pub fn locate_claude(env: &dyn Fn(&str) -> Option<String>) -> Result<PathBuf> {
+    match env("SESSION_BRIDGE_CLAUDE_BIN").filter(|s| !s.is_empty()) {
+        Some(b) if b.starts_with('/') => Ok(PathBuf::from(b)),
+        Some(b) => Err(BridgeError::RelativeBinary(b)),
+        None => resolve_program("claude", env("PATH").as_deref()),
+    }
+}
+
+/// Assumed charge for an ask that ended without a readable cost (timeout, garbled output).
+/// An estimate: the fork may have cost more or less, but it must not be metered as free.
+pub const FAILED_ASK_CHARGE_USD: f64 = 0.10;
+
+#[allow(clippy::too_many_arguments)]
+fn log_entry(
+    state: &Path,
+    asker: &str,
+    target: &Endpoint,
+    cost_usd: f64,
+    cache: (u64, u64),
+    secs: f64,
+    ok: bool,
+    error: Option<&str>,
+) -> Result<()> {
+    let mut v = serde_json::json!({
+        "at": Utc::now().to_rfc3339_opts(SecondsFormat::Secs, true),
+        "asker": asker,
+        "target": target.key(),
+        "billed_profile": target.profile,
+        "cost_usd": cost_usd,
+        "cache_read_tokens": cache.0,
+        "cache_write_tokens": cache.1,
+        "secs": secs,
+        "ok": ok,
+    });
+    if let Some(e) = error {
+        v["error"] = e.into();
+    }
+    append_log(state, &v)
+}
+
 /// Fork `target`'s session, ask it `question`, return the answer with its cost.
 ///
 /// Refused before any spawn when `asker` has spent `DAILY_BOUND_USD` or more today. The child
@@ -175,6 +245,11 @@ pub async fn ask(
     timeout_s: u64,
     state: &Path,
 ) -> Result<AskResult> {
+    // The child runs in the target's repository with the target's credentials: never let a
+    // relative program path resolve against it.
+    if bin.contains('/') && !bin.starts_with('/') {
+        return Err(BridgeError::RelativeBinary(bin.to_string()));
+    }
     let log = state.join(ASK_LOG);
     let spent = spent_today(&log, asker, Utc::now().date_naive());
     if spent >= DAILY_BOUND_USD {
@@ -202,29 +277,26 @@ pub async fn ask(
         let (read, _) = tokio::join!(stdout.read_to_end(&mut buf), child.wait());
         read.map(|_| buf)
     };
+    let failed = |error: &str| {
+        log_entry(state, asker, target, FAILED_ASK_CHARGE_USD, (0, 0), started.elapsed().as_secs_f64(), false, Some(error))
+    };
     let buf = match tokio::time::timeout(Duration::from_secs(timeout_s), run).await {
         Ok(r) => r?,
         Err(_) => {
             let _ = child.kill().await;
+            failed("timeout")?;
             return Err(BridgeError::Timeout(timeout_s));
         }
     };
     let secs = started.elapsed().as_secs_f64();
-    let out = parse_fork_output(&String::from_utf8_lossy(&buf))?;
-    append_log(
-        state,
-        &serde_json::json!({
-            "at": Utc::now().to_rfc3339_opts(SecondsFormat::Secs, true),
-            "asker": asker,
-            "target": target.key(),
-            "billed_profile": target.profile,
-            "cost_usd": out.cost_usd,
-            "cache_read_tokens": out.cache_read_tokens,
-            "cache_write_tokens": out.cache_write_tokens,
-            "secs": secs,
-            "ok": !out.is_error,
-        }),
-    )?;
+    let out = match parse_fork_output(&String::from_utf8_lossy(&buf)) {
+        Ok(o) => o,
+        Err(e) => {
+            failed("unparseable output")?;
+            return Err(e);
+        }
+    };
+    log_entry(state, asker, target, out.cost_usd, (out.cache_read_tokens, out.cache_write_tokens), secs, !out.is_error, None)?;
     if out.is_error {
         return Err(BridgeError::ForkFailed(out.result));
     }
