@@ -3,6 +3,7 @@ pub mod cursor;
 pub mod diag;
 pub mod endpoints;
 pub mod error;
+pub mod filter;
 pub mod hook;
 pub mod paths;
 pub mod server;

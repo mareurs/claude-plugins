@@ -236,6 +236,20 @@ impl Store {
             .collect::<rusqlite::Result<Vec<_>>>()?;
         Ok(rows)
     }
+    /// The notices with these seqs, oldest first. A seq that no longer exists (retention
+    /// deleted it) is simply absent from the result.
+    pub fn get_many(&self, seqs: &[i64]) -> Result<Vec<Notice>> {
+        if seqs.is_empty() {
+            return Ok(vec![]);
+        }
+        let marks = vec!["?"; seqs.len()].join(",");
+        let mut stmt =
+            self.conn.prepare(&format!("SELECT {COLS} FROM notice WHERE seq IN ({marks}) ORDER BY seq ASC"))?;
+        let rows = stmt
+            .query_map(rusqlite::params_from_iter(seqs.iter()), row_to_notice)?
+            .collect::<rusqlite::Result<Vec<_>>>()?;
+        Ok(rows)
+    }
 
     /// Deletes notices with `at_ms < older_than_ms`; records one (lo, hi) deletion row.
     pub fn prune(&self, older_than_ms: i64) -> Result<usize> {

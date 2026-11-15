@@ -348,3 +348,14 @@ fn post_notice_surfaces_limit_errors() {
     let err = post_notice_impl(state.path(), (".claude", 1), repo.path(), args(&"x".repeat(121))).unwrap_err();
     assert!(matches!(err, BridgeError::OverLimit { field: "title", .. }), "{err}");
 }
+
+#[test]
+fn get_many_returns_existing_seqs_oldest_first_and_skips_missing() {
+    let (_d, s) = open();
+    for i in 0..4 {
+        s.post(notice(R, ".claude-kat", 2, 1000 + i)).unwrap();
+    }
+    let got = s.get_many(&[4, 2, 99]).unwrap();
+    assert_eq!(got.iter().map(|n| n.seq).collect::<Vec<_>>(), vec![2, 4]);
+    assert!(s.get_many(&[]).unwrap().is_empty());
+}

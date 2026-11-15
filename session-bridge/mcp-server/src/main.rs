@@ -1,9 +1,11 @@
 use clap::{Parser, Subcommand};
 use rmcp::{transport::io::stdio, ServiceExt};
+use session_bridge_mcp::ask::locate_claude;
 use session_bridge_mcp::endpoints::{claude_pid_of, repo_of, Roots};
+use session_bridge_mcp::filter::run_filter;
 use session_bridge_mcp::hook::{emit, session_start, HookInput};
 use session_bridge_mcp::diag;
-use session_bridge_mcp::paths::{profile_of, short_profile, state_root};
+use session_bridge_mcp::paths::{is_safe_component, profile_of, short_profile, state_root};
 use session_bridge_mcp::server::Bridge;
 use session_bridge_mcp::store::Store;
 
@@ -140,7 +142,25 @@ async fn run() -> anyhow::Result<()> {
         }
         // `hook` is handled in `main` before clap runs.
         Command::Hook { .. } => {}
-        Command::Filter { .. } => diag::note("filter: not implemented"),
+        Command::Filter { profile, pid } => filter_cmd(&profile, pid).await,
     }
     Ok(())
+}
+/// `session-bridge filter`: judge the pending notices of one endpoint. Silent and exit 0 on
+/// any error. The profile becomes part of a file name, so an unsafe one stops here, before
+/// it can reach `endpoint_path`.
+async fn filter_cmd(profile: &str, pid: u32) {
+    if !is_safe_component(profile) {
+        return;
+    }
+    let Ok(bin) = locate_claude(&|k| std::env::var(k).ok()) else { return };
+    let state = state_root(&|k| std::env::var(k).ok());
+    let db = state.join("notices.db");
+    if !db.exists() {
+        return;
+    }
+    let Ok(store) = Store::open(&db) else { return };
+    if let Err(e) = run_filter(&bin.to_string_lossy(), &state, &store, profile, pid).await {
+        diag::note(&format!("filter: {e}"));
+    }
 }

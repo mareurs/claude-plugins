@@ -1,0 +1,14 @@
+{"type":"user","isSidechain":false,"message":{"role":"user","content":"Please look at the plan in docs/plan.md and branch feat/alpha"}}
+{"type":"queue-operation","operation":"enqueue","content":"QUEUE-OP-HIDDEN"}
+{"type":"user","isSidechain":false,"message":{"role":"user","content":[{"type":"text","text":"Also check src/foo.rs"},{"type":"text","text":"second user block"}]}}
+{"type":"assistant","isSidechain":false,"message":{"role":"assistant","content":[{"type":"thinking","thinking":"HIDDEN-THINKING"},{"type":"text","text":"I will edit src/foo.rs now"},{"type":"tool_use","id":"t1","name":"Edit","input":{"file":"HIDDEN-TOOL-INPUT"}}]}}
+{"type":"user","isSidechain":false,"message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"t1","content":"HIDDEN-TOOL-RESULT"}]}}
+{"type":"user","isSidechain":true,"message":{"role":"user","content":"HIDDEN-SIDECHAIN"}}
+{"type":"attachment","attachment":{"text":"HIDDEN-ATTACHMENT"}}
+{"type":"system","content":"HIDDEN-SYSTEM"}
+{"type":"user","isSidechain":false,"message":{"role":"user","content":[{"type":"text","text":"<system-reminder>HIDDEN-REMINDER</system-reminder>"}]}}
+{"type":"user","isSidechain":false,"message":{"role":"user","content":"Caveat: <local-command-stdout>HIDDEN-LOCAL-COMMAND</local-command-stdout>"}}
+{"type":"user","isSidechain":false,"message":{"role":"user","content":"<task-notification>HIDDEN-TASK-NOTIFICATION</task-notification>"}}
+{this line is not json
+{"type":"user","isSidechain":false,"message":{"role":"user","content":"Final question: should we merge feat/alpha?"}}
+{"type":"assistant","isSidechain":false,"message":{"role":"assistant","content":[{"type":"text","text":"Merging feat/alpha after the tests pass."}]}}
