@@ -1,14 +1,14 @@
 {
   "name": "session-bridge",
-  "description": "Cross-session MCP bridge — ask one Claude Code session a question from another, in its loaded context.",
-  "version": "0.1.0",
+  "description": "Channel between Claude Code sessions: ask a live session through a read-only fork, and post notices that reach the sessions they matter to.",
+  "version": "0.2.0",
   "author": { "name": "Marius" },
   "license": "MIT",
   "keywords": ["mcp", "session", "rpc", "bridge"],
   "mcpServers": {
     "session-bridge": {
-      "command": "${CLAUDE_PLUGIN_ROOT}/mcp-server/target/release/session-bridge-mcp",
-      "args": []
+      "command": "${HOME}/.cargo/bin/session-bridge",
+      "args": ["serve"]
     }
   }
 }

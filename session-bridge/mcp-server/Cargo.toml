@@ -1,3 +1,4 @@
+
 [package]
 name = "session-bridge-mcp"
 version = "0.1.0"
@@ -8,7 +9,7 @@ name = "session_bridge_mcp"
 path = "src/lib.rs"
 
 [[bin]]
-name = "session-bridge-mcp"
+name = "session-bridge"
 path = "src/main.rs"
 
 [dependencies]
@@ -17,11 +18,15 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 anyhow = "1"
 thiserror = "1"
-nix = { version = "0.27", features = ["signal"] }
+nix = { version = "0.27", features = ["signal", "process"] }
 fs2 = "0.4"
 which = "6"
 rmcp = { version = "1.7", features = ["server", "transport-io"] }
 schemars = "0.8"
+clap = { version = "4", features = ["derive"] }
+rusqlite = { version = "0.31", features = ["bundled"] }
+globset = "0.4"
+chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
 
 [dev-dependencies]
 tempfile = "3"
