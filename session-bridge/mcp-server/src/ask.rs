@@ -285,7 +285,7 @@ pub async fn ask(
         Err(_) => {
             let _ = child.kill().await;
             if let Err(e) = failed("timeout") {
-                eprintln!("session-bridge: could not write the ask log: {e}");
+                crate::diag::note(&format!("could not write the ask log: {e}"));
             }
             return Err(BridgeError::Timeout(timeout_s));
         }
@@ -295,7 +295,7 @@ pub async fn ask(
         Ok(o) => o,
         Err(e) => {
             if let Err(le) = failed("unparseable output") {
-                eprintln!("session-bridge: could not write the ask log: {le}");
+                crate::diag::note(&format!("could not write the ask log: {le}"));
             }
             return Err(e);
         }

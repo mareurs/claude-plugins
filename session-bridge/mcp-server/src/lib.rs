@@ -1,4 +1,5 @@
 pub mod ask;
+pub mod diag;
 pub mod endpoints;
 pub mod error;
 pub mod paths;

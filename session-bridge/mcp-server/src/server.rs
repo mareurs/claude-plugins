@@ -111,7 +111,7 @@ pub fn post_notice_impl(
     })?;
     // Best effort: a failed state update must never fail the post or hide the stored notice.
     if let Err(e) = update(&endpoint_path(state, me.0, me.1), |s| s.last_post_ms = at_ms) {
-        eprintln!("session-bridge: could not record last_post_ms: {e}");
+        crate::diag::note(&format!("could not record last_post_ms: {e}"));
     }
     Ok(seq)
 }
