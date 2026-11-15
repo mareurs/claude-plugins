@@ -8,6 +8,12 @@ pub enum BridgeError {
     ClaudeCliMissing,
     #[error("subprocess timed out after {0}s")]
     Timeout(u64),
+    #[error("daily ask bound reached: {spent:.2} USD spent today, bound {bound:.2} USD")]
+    BudgetExceeded { spent: f64, bound: f64 },
+    #[error("unreadable fork output: {0}")]
+    BadForkOutput(String),
+    #[error("the fork reported an error: {0}")]
+    ForkFailed(String),
     #[error("no live session matches {target:?}; live sessions: {}", .candidates.join("; "))]
     TargetNotFound { target: String, candidates: Vec<String> },
     #[error("{target:?} matches more than one session; use a longer id or a <profile>: prefix: {}", .candidates.join("; "))]

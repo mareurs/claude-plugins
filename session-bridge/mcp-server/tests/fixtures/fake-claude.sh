@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+# Stand-in for `claude`. Records what it was given under $CLAUDE_CONFIG_DIR, prints a canned result.
+out="$CLAUDE_CONFIG_DIR/fake-out.txt"
+{
+  echo "pwd=$(pwd)"
+  echo "config=$CLAUDE_CONFIG_DIR"
+  echo "session=${CLAUDE_CODE_SESSION_ID-unset}"
+  echo "argv=$*"
+} > "$out"
+echo $$ > "$CLAUDE_CONFIG_DIR/fake-pid"
+if [ -e "$CLAUDE_CONFIG_DIR/fake-sleep" ]; then
+  exec sleep 5
+fi
+echo '{"type":"result","is_error":false,"result":"canned answer","total_cost_usd":0.02,"usage":{"cache_read_input_tokens":1000,"cache_creation_input_tokens":50}}'

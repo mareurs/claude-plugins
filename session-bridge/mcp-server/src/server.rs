@@ -6,8 +6,10 @@ use rmcp::{
     schemars, tool, tool_handler, tool_router, ErrorData, ServerHandler,
 };
 use serde::Deserialize;
-use crate::endpoints::{discover, repo_of, Endpoint, Roots};
-use crate::paths::profile_of;
+use crate::ask::ask;
+use crate::endpoints::{discover, repo_of, resolve_target, Endpoint, Roots};
+use crate::error::BridgeError;
+use crate::paths::{profile_of, short_profile, state_root};
 
 #[derive(Debug, Deserialize, schemars::JsonSchema)]
 pub struct AskArgs {
@@ -49,6 +51,19 @@ impl Bridge {
     }
 }
 
+/// The calling endpoint: (full profile of `CLAUDE_CONFIG_DIR`, pid of the Claude Code parent).
+fn calling_endpoint() -> (String, u32) {
+    (
+        profile_of(std::env::var("CLAUDE_CONFIG_DIR").ok().as_deref()),
+        std::os::unix::process::parent_id(),
+    )
+}
+
+fn to_error(e: BridgeError) -> ErrorData {
+    ErrorData::internal_error(e.to_string(), None)
+}
+
+
 fn not_implemented() -> ErrorData {
     ErrorData::internal_error("not implemented", None)
 }
@@ -84,10 +99,7 @@ impl Bridge {
     #[tool(description = "List live Claude Code sessions on this machine.")]
     fn list_sessions(&self) -> Result<String, ErrorData> {
         let roots = Roots::system();
-        let me = (
-            profile_of(std::env::var("CLAUDE_CONFIG_DIR").ok().as_deref()),
-            std::os::unix::process::parent_id(),
-        );
+        let me = calling_endpoint();
         let mut eps = discover(&roots);
         for e in &mut eps {
             e.repo = repo_of(&e.launch_cwd);
@@ -95,10 +107,21 @@ impl Bridge {
         Ok(render_sessions(&eps, (&me.0, me.1)))
     }
 
-    #[tool(description = "Ask a live session a read-only question through a fork of its context.")]
-    async fn ask_session(&self, Parameters(_args): Parameters<AskArgs>) -> Result<String, ErrorData> {
-        Err(not_implemented())
+    #[tool(
+        description = "Ask another live Claude Code session a question. A read-only fork of it answers from its context; the session itself is not disturbed. Works across profiles; the target's profile pays. Returns the answer with its cost."
+    )]
+    async fn ask_session(&self, Parameters(args): Parameters<AskArgs>) -> Result<String, ErrorData> {
+        let me = calling_endpoint();
+        let eps = discover(&Roots::system());
+        let target = resolve_target(&eps, &args.target, (&me.0, me.1)).map_err(to_error)?.clone();
+        let asker = format!("{}:{}", short_profile(&me.0), me.1);
+        let bin = std::env::var("SESSION_BRIDGE_CLAUDE_BIN").unwrap_or_else(|_| "claude".to_string());
+        let state = state_root(&|k| std::env::var(k).ok());
+        let model = args.model.as_deref().unwrap_or("haiku");
+        let result = ask(&bin, &target, &asker, &args.question, model, 120, &state).await.map_err(to_error)?;
+        serde_json::to_string_pretty(&result).map_err(|e| ErrorData::internal_error(e.to_string(), None))
     }
+
 
     #[tool(description = "Post a notice that reaches the sessions it matters to.")]
     fn post_notice(&self, Parameters(_args): Parameters<PostNoticeArgs>) -> Result<String, ErrorData> {
