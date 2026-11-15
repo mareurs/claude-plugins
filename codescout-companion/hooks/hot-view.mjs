@@ -61,7 +61,10 @@ function ask(binary, key, root, timeoutMs) {
   const out = typeof r.stdout === 'string' ? r.stdout : '';
   if (r.status === 0 && out.trim()) {
     const text = out.trimEnd();
-    return { kind: text.split('\n')[0].includes(': 0 of ') ? 'quiet' : 'shown', text };
+    // Quiet only when the view is the header line alone. Extra lines (entries, a problems line,
+    // an unclassified line) carry information and must reach the agent verbatim.
+    const lines = text.split('\n');
+    return { kind: lines.length === 1 && lines[0].includes(': 0 of ') ? 'quiet' : 'shown', text };
   }
   const first = out.split('\n')[0];
   if (r.status === 2 && first.startsWith(NOT_SHOWN_PREFIX)) {

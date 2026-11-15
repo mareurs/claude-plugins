@@ -472,7 +472,9 @@ printf -- '---\ntitle: T\nhot_cap: 5\n---\n# body\n' > "$HV_REPO/docs/trackers/l
 HV_FAKE="$TMP/hv-fake-codescout"
 cat > "$HV_FAKE" <<EOF
 #!/usr/bin/env bash
-echo "\$2" >> "$HV_LOG"
+echo "\$*" >> "$HV_LOG"
+# The call shape is part of the contract: hot-view <key> --project <root>.
+if [ "\$1" != "hot-view" ] || [ "\$3" != "--project" ] || [ "\$#" -ne 4 ]; then exit 101; fi
 printf 'hot view: busy (docs/trackers/ledgers/busy): 1 of 1 hot, 1 live. Scope: x.\n- [[e1]] t: open since 2026-11-01\n'
 EOF
 chmod +x "$HV_FAKE"
@@ -482,6 +484,24 @@ hv_ctx() {  # <source>
     | CLAUDE_CONFIG_DIR="$HV_CFG" XDG_STATE_HOME="$TMP/state" node "$HOOK" 2>/dev/null \
     | jq -r '.hookSpecificOutput.additionalContext // ""'
 }
+hv_profile "$HV_FAKE"
+
+# The MCP launch command is not necessarily the codescout binary (review I-1): with
+# {"command":"bash","args":["-c","exec codescout start"]} the hook must still call the real
+# `codescout` it finds on PATH, never `bash hot-view ...`.
+HV_BIN="$TMP/hv-bin"; mkdir -p "$HV_BIN"
+cp "$HV_FAKE" "$HV_BIN/codescout"
+printf '{"mcpServers":{"codescout":{"command":"bash","args":["-c","exec codescout start"]}}}' > "$HV_CFG/.claude.json"
+: > "$HV_LOG"
+HV_WRAP=$(printf '{"cwd":"%s","source":"startup","session_id":"hv-wrap"}' "$HV_REPO" \
+  | PATH="$HV_BIN:$PATH" CLAUDE_CONFIG_DIR="$HV_CFG" XDG_STATE_HOME="$TMP/state" node "$HOOK" 2>/dev/null \
+  | jq -r '.hookSpecificOutput.additionalContext // ""')
+if echo "$HV_WRAP" | grep -q -F -- "- [[e1]] t: open since 2026-11-01" \
+   && [ "$(cat "$HV_LOG")" = "hot-view busy --project $HV_REPO" ]; then
+  pass "hot view: a wrapper launch command (bash -c exec codescout) still reaches the real codescout"
+else
+  fail "hot view: wrapper launch command broke the call (log: $(tr '\n' ';' < "$HV_LOG"))"
+fi
 hv_profile "$HV_FAKE"
 
 HV_START=$(hv_ctx startup)

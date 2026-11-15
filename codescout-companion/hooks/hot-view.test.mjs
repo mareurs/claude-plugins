@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, mkdirSync, writeFileSync, chmodSync, existsSync, readFileSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
+import { spawnSync } from 'node:child_process';
 import { findHotCollections, hotViewBlock } from './hot-view.mjs';
 
 const HEADER = 'HOT VIEW (codescout hot-view; this hook shows collections whose readme declares hot_cap):';
@@ -25,10 +26,13 @@ function fakeBinary(dir) {
   writeFileSync(
     bin,
     `#!/usr/bin/env bash
-echo "$2|$4" >> "${dir}/calls.log"
+echo "$*" >> "${dir}/calls.log"
+# The call shape is part of the contract: hot-view <key> --project <root>. Anything else is a failure.
+if [ "$1" != "hot-view" ] || [ "$3" != "--project" ] || [ "$#" -ne 4 ]; then exit 101; fi
 case "$2" in
   busy) printf 'hot view: busy (docs/trackers/ledgers/busy): 1 of 1 hot, 1 live. Scope: x.\\n- [[e1]] t: open since 2026-11-01\\n\\n\\n'; exit 0 ;;
   calm) printf 'hot view: calm (docs/trackers/streams/calm): 0 of 0 hot, 0 live. Scope: x.\\n'; exit 0 ;;
+  calmplus) printf 'hot view: calmplus (docs/trackers/ledgers/calmplus): 0 of 0 hot, 0 live. Scope: x.\\n(2 problems found while reading this folder; an entry file with a problem is not listed. Run the doctor for detail.)\\n'; exit 0 ;;
   refused) printf 'NOT SHOWN — broken readme\\n'; exit 2 ;;
   old) echo "error: unrecognized subcommand 'hot-view'" >&2; exit 2 ;;
   panic) exit 101 ;;
@@ -91,7 +95,31 @@ const tests = {
       'not shown: empty (hot-view unavailable); old (hot-view unavailable); panic (hot-view unavailable); refused (broken readme)\n\n';
     assert.equal(block, expected);
     assert.doesNotMatch(block, /\n\n\n/); // trailing_newlines_are_trimmed
-    for (const line of calls(root)) assert.ok(line.endsWith('|' + root), line);
+    for (const line of calls(root)) assert.match(line, new RegExp('^hot-view [a-z]+ --project ' + root.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '$'), line);
+    // The exact call shape reaches the binary for every key (a wrong shape makes the fake exit 101,
+    // which would turn "busy" into "not shown", so the block above would not match).
+    assert.ok(calls(root).includes(`hot-view busy --project ${root}`));
+  },
+  quiet_view_with_problems_is_shown_verbatim() {
+    const root = mkRoot();
+    readme(root, 'ledgers', 'calmplus', HOT);
+    readme(root, 'streams', 'calm', HOT);
+    const block = hotViewBlock({ root, binary: fakeBinary(root) });
+    assert.equal(
+      block,
+      HEADER + '\n' +
+      'hot view: calmplus (docs/trackers/ledgers/calmplus): 0 of 0 hot, 0 live. Scope: x.\n' +
+      '(2 problems found while reading this folder; an entry file with a problem is not listed. Run the doctor for detail.)\n' +
+      'quiet (0 hot): calm\n\n',
+    );
+  },
+  a_wrong_call_shape_is_not_shown() {
+    // Guards the fake itself: a binary that is called the wrong way must not look healthy.
+    const root = mkRoot();
+    readme(root, 'ledgers', 'busy', HOT);
+    const bin = fakeBinary(root);
+    const r = spawnSync(bin, ['hotview', 'busy', '--projekt', root], { encoding: 'utf8' });
+    assert.equal(r.status, 101);
   },
   timeout_is_not_shown() {
     const root = mkRoot();
