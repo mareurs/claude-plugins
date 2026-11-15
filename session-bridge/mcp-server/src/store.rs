@@ -194,7 +194,10 @@ impl Store {
     /// `gap` is the smallest (lo, hi) covering every recorded deletion range that
     /// intersects the window; a non-contiguous prune makes it an over-approximation.
     pub fn after(&self, repo: &str, after: i64, exclude: (&str, u32)) -> Result<Page> {
-        let mut stmt = self.conn.prepare(&format!(
+        // One read transaction: notices, head and gap come from a single snapshot,
+        // so next_cursor never covers a seq that `notices` did not see.
+        let tx = self.conn.unchecked_transaction()?;
+        let mut stmt = tx.prepare(&format!(
             "SELECT {COLS} FROM notice
              WHERE repo = ?1 AND seq > ?2 AND NOT (author_profile = ?3 AND author_pid = ?4)
              ORDER BY seq ASC"
@@ -202,12 +205,17 @@ impl Store {
         let notices = stmt
             .query_map(params![repo, after, exclude.0, exclude.1], row_to_notice)?
             .collect::<rusqlite::Result<Vec<_>>>()?;
-        let next_cursor = after.max(self.head()?);
-        let gap: (Option<i64>, Option<i64>) = self.conn.query_row(
+        drop(stmt);
+        let head: Option<i64> = tx
+            .query_row("SELECT seq FROM sqlite_sequence WHERE name = 'notice'", [], |r| r.get(0))
+            .optional()?;
+        let next_cursor = after.max(head.unwrap_or(0));
+        let gap: (Option<i64>, Option<i64>) = tx.query_row(
             "SELECT MIN(lo), MAX(hi) FROM deletion WHERE hi > ?1 AND lo <= ?2",
             params![after, next_cursor],
             |r| Ok((r.get(0)?, r.get(1)?)),
         )?;
+        tx.commit()?;
         let gap = match gap {
             (Some(lo), Some(hi)) => Some((lo, hi)),
             _ => None,

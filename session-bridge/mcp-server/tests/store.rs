@@ -78,11 +78,14 @@ fn head_survives_prune_of_everything() {
 #[test]
 fn post_prunes_notices_older_than_fourteen_days() {
     let (_d, s) = open();
-    s.post(notice(R, ".claude-kat", 2, 1000)).unwrap();
-    s.post(notice(R, ".claude-kat", 2, 1000 + 14 * DAY + 1)).unwrap();
+    let new_at = 100 * DAY;
+    // Mutation: retention cutoff off by one (<= instead of <, or 14d +/- 1ms).
+    s.post(notice(R, ".claude-kat", 2, new_at - 14 * DAY - 1)).unwrap(); // seq 1: deleted
+    s.post(notice(R, ".claude-kat", 2, new_at - 14 * DAY)).unwrap(); // seq 2: exactly at cutoff, kept
+    s.post(notice(R, ".claude-kat", 2, new_at)).unwrap(); // seq 3
     let page = s.after(R, 0, STEF).unwrap();
-    assert_eq!(page.notices.len(), 1);
-    assert_eq!(page.notices[0].seq, 2);
+    let seqs: Vec<i64> = page.notices.iter().map(|n| n.seq).collect();
+    assert_eq!(seqs, vec![2, 3]);
     assert_eq!(page.gap, Some((1, 1)));
 }
 
@@ -140,6 +143,8 @@ fn has_patch_id_is_per_repo() {
     s.post(n).unwrap();
     assert!(s.has_patch_id(R, "P").unwrap());
     assert!(!s.has_patch_id(Q, "P").unwrap());
+    // Mutation: has_patch_id ignores the patch id and checks only the repo.
+    assert!(!s.has_patch_id(R, "other-patch").unwrap());
 }
 
 #[test]
@@ -161,13 +166,17 @@ fn refs_and_fields_round_trip() {
 fn two_connections_post_concurrently() {
     let d = TempDir::new().unwrap();
     let path = Arc::new(d.path().join("n.db"));
+    let barrier = Arc::new(std::sync::Barrier::new(2));
     let handles: Vec<_> = (0..2u32)
         .map(|t| {
             let path = path.clone();
+            let barrier = barrier.clone();
             std::thread::spawn(move || {
                 let s = Store::open(&path).unwrap();
+                barrier.wait();
                 for i in 0..50 {
                     s.post(notice(R, ".claude-kat", t, 1000 + i)).unwrap();
+                    std::thread::yield_now();
                 }
             })
         })
@@ -183,4 +192,60 @@ fn two_connections_post_concurrently() {
     seqs.dedup();
     assert_eq!(seqs.len(), 100);
     assert_eq!(s.head().unwrap(), 100);
+}
+
+#[test]
+fn after_never_skips_a_notice_posted_during_the_read() {
+    const N: i64 = 3000;
+    let d = TempDir::new().unwrap();
+    let path = Arc::new(d.path().join("n.db"));
+    let reader = Store::open(&path).unwrap();
+    let wpath = path.clone();
+    let writer = std::thread::spawn(move || {
+        let w = Store::open(&wpath).unwrap();
+        for i in 0..N {
+            w.post(notice(R, ".claude-kat", 2, 1000 + i)).unwrap();
+        }
+    });
+    let mut cursor = 0;
+    let mut seen: Vec<i64> = Vec::new();
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(120);
+    while cursor < N && std::time::Instant::now() < deadline {
+        let page = reader.after(R, cursor, STEF).unwrap();
+        seen.extend(page.notices.iter().map(|n| n.seq));
+        cursor = page.next_cursor;
+    }
+    writer.join().unwrap();
+    let expected: Vec<i64> = (1..=N).collect();
+    let missing = expected.iter().filter(|s| !seen.contains(s)).count();
+    assert_eq!(missing, 0, "{missing} of {N} notices were never seen");
+    assert_eq!(seen, expected, "duplicates or out-of-order reads");
+}
+
+// Mutation: exclude by profile only. Two sessions of one profile must see each other.
+#[test]
+fn exclusion_needs_both_profile_and_pid() {
+    let (_d, s) = open();
+    s.post(notice(R, ".claude-stef", 7, 1000)).unwrap();
+    s.post(notice(R, ".claude-stef", 1, 1001)).unwrap();
+    let page = s.after(R, 0, (".claude-stef", 1)).unwrap();
+    assert_eq!(page.notices.len(), 1);
+    assert_eq!(page.notices[0].author_pid, 7);
+    // same pid under another profile is a different endpoint too
+    s.post(notice(R, ".claude-kat", 1, 1002)).unwrap();
+    assert_eq!(s.after(R, 0, (".claude-stef", 1)).unwrap().notices.len(), 2);
+}
+
+#[test]
+fn recent_window_is_inclusive_and_excludes_the_excluded_author() {
+    let (_d, s) = open();
+    let since = 50 * DAY;
+    s.post(notice(R, ".claude-kat", 2, since - 1)).unwrap(); // seq 1: just outside
+    s.post(notice(R, ".claude-kat", 2, since)).unwrap(); // seq 2: exactly at since
+    s.post(notice(R, ".claude-stef", 1, since + 5)).unwrap(); // seq 3: excluded author
+    s.post(notice(R, ".claude-kat", 2, since + 10)).unwrap(); // seq 4
+    s.post(notice(Q, ".claude-kat", 2, since + 11)).unwrap(); // seq 5: other repo
+    let got = s.recent(R, since, 8, STEF).unwrap();
+    let seqs: Vec<i64> = got.iter().map(|n| n.seq).collect();
+    assert_eq!(seqs, vec![4, 2]);
 }
