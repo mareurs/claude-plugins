@@ -6,6 +6,8 @@ use rmcp::{
     schemars, tool, tool_handler, tool_router, ErrorData, ServerHandler,
 };
 use serde::Deserialize;
+use crate::endpoints::{discover, repo_of, Endpoint, Roots};
+use crate::paths::profile_of;
 
 #[derive(Debug, Deserialize, schemars::JsonSchema)]
 pub struct AskArgs {
@@ -51,11 +53,46 @@ fn not_implemented() -> ErrorData {
     ErrorData::internal_error("not implemented", None)
 }
 
+/// One line per live session, sorted by profile then pid; the caller's own is marked `(you)`.
+fn render_sessions(eps: &[Endpoint], me: (&str, u32)) -> String {
+    if eps.is_empty() {
+        return "No live Claude Code sessions found.".to_string();
+    }
+    let mut sorted: Vec<&Endpoint> = eps.iter().collect();
+    sorted.sort_by(|a, b| (&a.profile, a.pid).cmp(&(&b.profile, b.pid)));
+    sorted
+        .iter()
+        .map(|e| {
+            format!(
+                "{}{} session={} name={} kind={} status={} cwd={} repo={}",
+                e.key(),
+                if e.profile == me.0 && e.pid == me.1 { " (you)" } else { "" },
+                e.session_id,
+                e.name.as_deref().unwrap_or("-"),
+                e.kind.as_deref().unwrap_or("-"),
+                e.status.as_deref().unwrap_or("-"),
+                e.launch_cwd.display(),
+                e.repo.as_ref().map_or("-".to_string(), |r| r.display().to_string()),
+            )
+        })
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
 #[tool_router]
 impl Bridge {
     #[tool(description = "List live Claude Code sessions on this machine.")]
     fn list_sessions(&self) -> Result<String, ErrorData> {
-        Err(not_implemented())
+        let roots = Roots::system();
+        let me = (
+            profile_of(std::env::var("CLAUDE_CONFIG_DIR").ok().as_deref()),
+            std::os::unix::process::parent_id(),
+        );
+        let mut eps = discover(&roots);
+        for e in &mut eps {
+            e.repo = repo_of(&e.launch_cwd);
+        }
+        Ok(render_sessions(&eps, (&me.0, me.1)))
     }
 
     #[tool(description = "Ask a live session a read-only question through a fork of its context.")]

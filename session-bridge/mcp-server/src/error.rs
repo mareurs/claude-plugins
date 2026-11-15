@@ -8,6 +8,12 @@ pub enum BridgeError {
     ClaudeCliMissing,
     #[error("subprocess timed out after {0}s")]
     Timeout(u64),
+    #[error("no live session matches {target:?}; live sessions: {}", .candidates.join("; "))]
+    TargetNotFound { target: String, candidates: Vec<String> },
+    #[error("{target:?} matches more than one session; use a longer id or a <profile>: prefix: {}", .candidates.join("; "))]
+    AmbiguousTarget { target: String, candidates: Vec<String> },
+    #[error("the target is the calling session itself")]
+    TargetIsSelf,
     #[error("io: {0}")]
     Io(#[from] std::io::Error),
     #[error("serde: {0}")]
