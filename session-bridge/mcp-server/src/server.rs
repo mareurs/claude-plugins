@@ -10,7 +10,7 @@ use crate::ask::{ask, clamp_timeout, locate_claude};
 use crate::endpoints::{discover, repo_of, resolve_target, Endpoint, Roots};
 use crate::error::BridgeError;
 use crate::paths::{profile_of, short_profile, state_root};
-use crate::state::current_session;
+use crate::state::{current_session, endpoint_path, update};
 use crate::store::{NewNotice, Origin, Store};
 use std::path::{Path, PathBuf};
 
@@ -96,8 +96,9 @@ pub fn post_notice_impl(
     let session = current_session(state, &own_config_dir(), me.0, me.1).unwrap_or_default();
     std::fs::create_dir_all(state)?;
     let store = Store::open(&state.join("notices.db"))?;
-    store.post(NewNotice {
-        at_ms: now_ms(),
+    let at_ms = now_ms();
+    let seq = store.post(NewNotice {
+        at_ms,
         repo: repo.to_string_lossy().into_owned(),
         author_profile: me.0.to_string(),
         author_pid: me.1,
@@ -107,7 +108,12 @@ pub fn post_notice_impl(
         title: args.title,
         body: args.body,
         refs: args.refs,
-    })
+    })?;
+    // Best effort: a failed state update must never fail the post or hide the stored notice.
+    if let Err(e) = update(&endpoint_path(state, me.0, me.1), |s| s.last_post_ms = at_ms) {
+        eprintln!("session-bridge: could not record last_post_ms: {e}");
+    }
+    Ok(seq)
 }
 
 /// One line per live session, sorted by profile then pid; the caller's own is marked `(you)`.

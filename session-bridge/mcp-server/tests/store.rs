@@ -1,6 +1,6 @@
 use session_bridge_mcp::error::BridgeError;
 use session_bridge_mcp::server::{post_notice_impl, PostNoticeArgs};
-use session_bridge_mcp::state::{endpoint_path, update};
+use session_bridge_mcp::state::{endpoint_path, load_or_default, update};
 use session_bridge_mcp::store::{NewNotice, Origin, Store};
 use std::sync::Arc;
 use tempfile::TempDir;
@@ -299,6 +299,36 @@ fn post_notice_records_author_endpoint_and_current_session() {
     assert_eq!(n.refs, vec!["a.rs".to_string()]);
     assert!(n.at_ms > 1_700_000_000_000);
     assert_eq!(n.repo, want.to_string_lossy());
+    // the author's endpoint state records when it last posted
+    let st = load_or_default(&endpoint_path(state.path(), ".claude-stef", 4242));
+    assert_eq!(st.last_post_ms, n.at_ms);
+    assert_eq!(st.session_id, "SESS-X", "the update keeps the other fields");
+}
+#[test]
+fn post_notice_survives_an_unwritable_endpoint_state() {
+    let state = TempDir::new().unwrap();
+    let repo = git_repo();
+    // `<state>/endpoints` is a regular file, so no state file can be created
+    std::fs::write(state.path().join("endpoints"), "x").unwrap();
+    let seq = post_notice_impl(state.path(), (".claude", 5), repo.path(), args("still posted")).unwrap();
+    assert_eq!(seq, 1);
+    let s = Store::open(&state.path().join("notices.db")).unwrap();
+    let want = session_bridge_mcp::endpoints::repo_of(repo.path()).unwrap();
+    let page = s.after(&want.to_string_lossy(), 0, ("x", 1)).unwrap();
+    assert_eq!(page.notices.len(), 1);
+    assert_eq!(page.notices[0].title, "still posted");
+}
+
+#[test]
+fn a_refused_post_leaves_last_post_ms_untouched() {
+    let state = TempDir::new().unwrap();
+    let plain = TempDir::new().unwrap();
+    let repo = git_repo();
+    let p = endpoint_path(state.path(), ".claude", 5);
+    assert!(post_notice_impl(state.path(), (".claude", 5), plain.path(), args("t")).is_err());
+    assert!(post_notice_impl(state.path(), (".claude", 5), repo.path(), args(&"x".repeat(121))).is_err());
+    assert_eq!(load_or_default(&p).last_post_ms, 0);
+    assert!(!p.exists(), "no state file is created by a refused post");
 }
 
 #[test]

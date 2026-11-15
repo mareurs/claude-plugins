@@ -150,3 +150,40 @@ fn current_session_prefers_the_endpoint_state() {
     // another pid or profile does not see it
     assert_eq!(current_session(&state, &config, ".claude-stef", 10), None);
 }
+
+#[test]
+fn update_is_atomic_for_unlocked_readers() {
+    use std::sync::atomic::{AtomicBool, Ordering};
+    let d = TempDir::new().unwrap();
+    let p = Arc::new(d.path().join("endpoints/r.json"));
+    const SEED: usize = 100;
+    update(&p, |s| {
+        s.session_id = "S".into();
+        s.pending = (0..SEED as i64).collect();
+    })
+    .unwrap();
+    let stop = Arc::new(AtomicBool::new(false));
+    let reader = {
+        let (p, stop) = (p.clone(), stop.clone());
+        std::thread::spawn(move || {
+            let mut reads = 0u32;
+            let mut last = SEED;
+            while !stop.load(Ordering::Relaxed) {
+                let s = load_or_default(&p);
+                assert_eq!(s.session_id, "S", "an unlocked reader saw a torn or empty file");
+                assert!(s.pending.len() >= last, "pending shrank: {} < {last}", s.pending.len());
+                assert!(s.pending.len() >= SEED);
+                last = s.pending.len();
+                reads += 1;
+            }
+            reads
+        })
+    };
+    for i in 0..100i64 {
+        update(&p, |s| s.pending.push(1000 + i)).unwrap();
+    }
+    stop.store(true, Ordering::Relaxed);
+    let reads = reader.join().unwrap();
+    assert!(reads >= 50, "reader only managed {reads} reads");
+    assert_eq!(load_or_default(&p).pending.len(), SEED + 100);
+}
