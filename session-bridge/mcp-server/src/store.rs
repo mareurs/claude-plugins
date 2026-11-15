@@ -11,7 +11,8 @@ pub const MAX_BODY: usize = 4000;
 pub const MAX_REFS: usize = 20;
 pub const RETENTION_MS: i64 = 14 * 24 * 60 * 60 * 1000;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
+#[serde(rename_all = "lowercase")]
 pub enum Origin {
     Manual,
     Commit,
@@ -47,7 +48,7 @@ pub struct NewNotice {
     pub refs: Vec<String>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize)]
 pub struct Notice {
     pub seq: i64,
     pub at_ms: i64,
@@ -62,7 +63,7 @@ pub struct Notice {
     pub refs: Vec<String>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize)]
 pub struct Page {
     pub notices: Vec<Notice>,
     pub next_cursor: i64,

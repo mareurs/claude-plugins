@@ -93,8 +93,32 @@ fn env_get<'a>(env: &'a [(String, String)], key: &str) -> Option<&'a str> {
     env.iter().find(|(k, _)| k == key).map(|(_, v)| v.as_str())
 }
 
+/// The one parser of `<config>/sessions/<pid>.json`. `None` when the file is absent,
+/// unreadable, malformed, lacks `sessionId`, or names a different pid.
+fn read_registration(config_dir: &Path, pid: u32) -> Option<Registration> {
+    let json = std::fs::read_to_string(config_dir.join("sessions").join(format!("{pid}.json"))).ok()?;
+    let reg: Registration = serde_json::from_str(&json).ok()?;
+    if reg.pid.is_some_and(|p| p != pid) {
+        return None;
+    }
+    Some(reg)
+}
+
+/// The session id Claude Code registered for `pid` in `<config_dir>/sessions/<pid>.json`.
+/// `None` when the file is absent, unreadable or malformed, has no `sessionId`, or its
+/// `pid` field disagrees with `pid` (a stale or misplaced file).
+pub fn registered_session(config_dir: &Path, pid: u32) -> Option<String> {
+    read_registration(config_dir, pid).map(|r| r.session_id)
+}
+
+/// Whether process `pid` exists: `<proc_root>/<pid>` is a directory. This is the only
+/// liveness rule; the socket file is checked separately by `discover`.
+pub fn pid_alive(roots: &Roots, pid: u32) -> bool {
+    roots.proc_root.join(pid.to_string()).is_dir()
+}
+
 fn endpoint_for(roots: &Roots, pid: u32) -> Option<Endpoint> {
-    if !roots.proc_root.join(pid.to_string()).is_dir() {
+    if !pid_alive(roots, pid) {
         return None;
     }
     let env = read_environ(roots, pid)?;
@@ -102,11 +126,7 @@ fn endpoint_for(roots: &Roots, pid: u32) -> Option<Endpoint> {
         Some(c) => PathBuf::from(c),
         None => Path::new(env_get(&env, "HOME").filter(|s| !s.is_empty())?).join(".claude"),
     };
-    let json = std::fs::read_to_string(config_dir.join("sessions").join(format!("{pid}.json"))).ok()?;
-    let reg: Registration = serde_json::from_str(&json).ok()?;
-    if reg.pid.is_some_and(|p| p != pid) {
-        return None;
-    }
+    let reg = read_registration(&config_dir, pid)?;
     let launch_cwd = std::fs::read_link(roots.proc_root.join(pid.to_string()).join("cwd"))
         .ok()
         .or_else(|| reg.cwd.map(PathBuf::from))?;

@@ -10,6 +10,9 @@ use crate::ask::{ask, clamp_timeout, locate_claude};
 use crate::endpoints::{discover, repo_of, resolve_target, Endpoint, Roots};
 use crate::error::BridgeError;
 use crate::paths::{profile_of, short_profile, state_root};
+use crate::state::current_session;
+use crate::store::{NewNotice, Origin, Store};
+use std::path::{Path, PathBuf};
 
 #[derive(Debug, Deserialize, schemars::JsonSchema)]
 pub struct AskArgs {
@@ -67,8 +70,44 @@ fn to_error(e: BridgeError) -> ErrorData {
 }
 
 
-fn not_implemented() -> ErrorData {
-    ErrorData::internal_error("not implemented", None)
+/// The calling process's own config dir: `CLAUDE_CONFIG_DIR`, else `$HOME/.claude`.
+fn own_config_dir() -> PathBuf {
+    match std::env::var("CLAUDE_CONFIG_DIR").ok().filter(|s| !s.is_empty()) {
+        Some(c) => PathBuf::from(c),
+        None => PathBuf::from(std::env::var("HOME").unwrap_or_default()).join(".claude"),
+    }
+}
+
+fn now_ms() -> i64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_or(0, |d| d.as_millis() as i64)
+}
+
+/// Post a manual notice from endpoint `me` (full profile, Claude pid) working in `cwd`.
+/// Returns the new notice's seq. Opens the store per call at `<state>/notices.db`.
+pub fn post_notice_impl(
+    state: &Path,
+    me: (&str, u32),
+    cwd: &Path,
+    args: PostNoticeArgs,
+) -> Result<i64, BridgeError> {
+    let repo = repo_of(cwd).ok_or(BridgeError::NotInRepo)?;
+    let session = current_session(state, &own_config_dir(), me.0, me.1).unwrap_or_default();
+    std::fs::create_dir_all(state)?;
+    let store = Store::open(&state.join("notices.db"))?;
+    store.post(NewNotice {
+        at_ms: now_ms(),
+        repo: repo.to_string_lossy().into_owned(),
+        author_profile: me.0.to_string(),
+        author_pid: me.1,
+        author_session: session,
+        origin: Origin::Manual,
+        patch_id: None,
+        title: args.title,
+        body: args.body,
+        refs: args.refs,
+    })
 }
 
 /// One line per live session, sorted by profile then pid; the caller's own is marked `(you)`.
@@ -129,9 +168,16 @@ impl Bridge {
     }
 
 
-    #[tool(description = "Post a notice that reaches the sessions it matters to.")]
-    fn post_notice(&self, Parameters(_args): Parameters<PostNoticeArgs>) -> Result<String, ErrorData> {
-        Err(not_implemented())
+    #[tool(
+        description = "Tell the other live sessions of this repository about a change they may depend on: a moved branch, a changed tool, hook, config or convention, a plan that changed status. Only sessions whose own work names the change will see it."
+    )]
+    fn post_notice(&self, Parameters(args): Parameters<PostNoticeArgs>) -> Result<String, ErrorData> {
+        let me = calling_endpoint();
+        let cwd = std::fs::read_link(format!("/proc/{}/cwd", me.1))
+            .map_err(|e| to_error(BridgeError::Io(e)))?;
+        let state = state_root(&|k| std::env::var(k).ok());
+        let seq = post_notice_impl(&state, (&me.0, me.1), &cwd, args).map_err(to_error)?;
+        Ok(format!("Posted notice {seq}."))
     }
 }
 

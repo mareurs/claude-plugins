@@ -1,4 +1,6 @@
-use session_bridge_mcp::endpoints::{claude_pid_of, discover, repo_of, resolve_target, Endpoint, Roots};
+use session_bridge_mcp::endpoints::{
+    claude_pid_of, discover, pid_alive, registered_session, repo_of, resolve_target, Endpoint, Roots,
+};
 use session_bridge_mcp::error::BridgeError;
 use std::os::unix::net::UnixListener;
 use std::path::{Path, PathBuf};
@@ -271,4 +273,37 @@ fn repo_of_returns_the_work_tree_root_or_none() {
     let got = repo_of(&d.path().join("sub")).unwrap();
     assert_eq!(got.canonicalize().unwrap(), d.path().canonicalize().unwrap());
     assert_eq!(repo_of(Path::new("/definitely/not/here")), None);
+}
+
+#[test]
+fn registered_session_reads_the_session_id() {
+    let fx = Fx::new();
+    fx.json(".claude", 5, r#"{"pid":5,"sessionId":"SID","extra":1}"#);
+    assert_eq!(registered_session(&fx.config(".claude"), 5).as_deref(), Some("SID"));
+    // pid field absent is accepted
+    fx.json(".claude", 6, r#"{"sessionId":"NOPID"}"#);
+    assert_eq!(registered_session(&fx.config(".claude"), 6).as_deref(), Some("NOPID"));
+}
+
+#[test]
+fn registered_session_is_none_when_absent_malformed_or_for_another_pid() {
+    let fx = Fx::new();
+    assert_eq!(registered_session(&fx.config(".claude"), 5), None); // no file
+    fx.json(".claude", 5, r#"{"pid":6,"sessionId":"SID"}"#); // json says another pid
+    assert_eq!(registered_session(&fx.config(".claude"), 5), None);
+    fx.json(".claude", 7, "{not json");
+    assert_eq!(registered_session(&fx.config(".claude"), 7), None);
+    fx.json(".claude", 8, r#"{"pid":8}"#); // no sessionId
+    assert_eq!(registered_session(&fx.config(".claude"), 8), None);
+}
+
+#[test]
+fn pid_alive_is_true_for_a_proc_dir_only() {
+    let fx = Fx::new();
+    fx.proc_entry(12, 1, "A=b\0", Path::new("/tmp"));
+    assert!(pid_alive(&fx.roots(), 12));
+    assert!(!pid_alive(&fx.roots(), 13));
+    // a plain file named like a pid is not a process
+    std::fs::write(fx.dir.path().join("proc").join("14"), "").unwrap();
+    assert!(!pid_alive(&fx.roots(), 14));
 }

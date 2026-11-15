@@ -1,3 +1,6 @@
+use session_bridge_mcp::error::BridgeError;
+use session_bridge_mcp::server::{post_notice_impl, PostNoticeArgs};
+use session_bridge_mcp::state::{endpoint_path, update};
 use session_bridge_mcp::store::{NewNotice, Origin, Store};
 use std::sync::Arc;
 use tempfile::TempDir;
@@ -254,4 +257,64 @@ fn recent_window_is_inclusive_and_excludes_the_excluded_author() {
     let got = s.recent(R, since, 8, STEF).unwrap();
     let seqs: Vec<i64> = got.iter().map(|n| n.seq).collect();
     assert_eq!(seqs, vec![7, 6, 4, 2]);
+}
+
+fn git_repo() -> TempDir {
+    let d = TempDir::new().unwrap();
+    let ok = std::process::Command::new("git")
+        .args(["init", "-q"])
+        .arg(d.path())
+        .status()
+        .unwrap()
+        .success();
+    assert!(ok);
+    d
+}
+
+fn args(title: &str) -> PostNoticeArgs {
+    PostNoticeArgs { title: title.to_string(), body: "body".to_string(), refs: vec!["a.rs".to_string()] }
+}
+
+#[test]
+fn post_notice_records_author_endpoint_and_current_session() {
+    let state = TempDir::new().unwrap();
+    let repo = git_repo();
+    let sub = repo.path().join("sub");
+    std::fs::create_dir(&sub).unwrap();
+    update(&endpoint_path(state.path(), ".claude-stef", 4242), |s| s.session_id = "SESS-X".into()).unwrap();
+
+    let seq = post_notice_impl(state.path(), (".claude-stef", 4242), &sub, args("moved main")).unwrap();
+    assert_eq!(seq, 1);
+
+    let want = session_bridge_mcp::endpoints::repo_of(&sub).unwrap();
+    let s = Store::open(&state.path().join("notices.db")).unwrap();
+    let page = s.after(&want.to_string_lossy(), 0, ("x", 1)).unwrap();
+    assert_eq!(page.notices.len(), 1);
+    let n = &page.notices[0];
+    assert_eq!(n.author_profile, ".claude-stef");
+    assert_eq!(n.author_pid, 4242);
+    assert_eq!(n.author_session, "SESS-X");
+    assert_eq!(n.origin, Origin::Manual);
+    assert_eq!(n.title, "moved main");
+    assert_eq!(n.refs, vec!["a.rs".to_string()]);
+    assert!(n.at_ms > 1_700_000_000_000);
+    assert_eq!(n.repo, want.to_string_lossy());
+}
+
+#[test]
+fn post_notice_outside_a_git_repo_is_refused() {
+    let state = TempDir::new().unwrap();
+    let plain = TempDir::new().unwrap();
+    let err = post_notice_impl(state.path(), (".claude", 1), plain.path(), args("t")).unwrap_err();
+    assert!(err.to_string().contains("not in a git repository"), "{err}");
+    assert!(matches!(err, BridgeError::NotInRepo));
+    assert!(!state.path().join("notices.db").exists(), "nothing is stored");
+}
+
+#[test]
+fn post_notice_surfaces_limit_errors() {
+    let state = TempDir::new().unwrap();
+    let repo = git_repo();
+    let err = post_notice_impl(state.path(), (".claude", 1), repo.path(), args(&"x".repeat(121))).unwrap_err();
+    assert!(matches!(err, BridgeError::OverLimit { field: "title", .. }), "{err}");
 }

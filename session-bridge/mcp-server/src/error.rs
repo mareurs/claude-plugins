@@ -30,6 +30,8 @@ pub enum BridgeError {
     OverLimit { field: &'static str, limit: usize, actual: usize },
     #[error("notice store: {0}")]
     Store(#[from] rusqlite::Error),
+    #[error("not in a git repository")]
+    NotInRepo,
 }
 
 pub type Result<T> = std::result::Result<T, BridgeError>;
