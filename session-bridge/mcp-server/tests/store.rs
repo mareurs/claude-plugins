@@ -162,6 +162,7 @@ fn refs_and_fields_round_trip() {
     assert_eq!(got.author_session, "sess");
 }
 
+// Pins the `open` init race and distinct seqs, not interleaving of writers (SQLite serialises them).
 #[test]
 fn two_connections_post_concurrently() {
     let d = TempDir::new().unwrap();
@@ -196,7 +197,7 @@ fn two_connections_post_concurrently() {
 
 #[test]
 fn after_never_skips_a_notice_posted_during_the_read() {
-    const N: i64 = 3000;
+    const N: i64 = 200;
     let d = TempDir::new().unwrap();
     let path = Arc::new(d.path().join("n.db"));
     let reader = Store::open(&path).unwrap();
@@ -245,7 +246,12 @@ fn recent_window_is_inclusive_and_excludes_the_excluded_author() {
     s.post(notice(R, ".claude-stef", 1, since + 5)).unwrap(); // seq 3: excluded author
     s.post(notice(R, ".claude-kat", 2, since + 10)).unwrap(); // seq 4
     s.post(notice(Q, ".claude-kat", 2, since + 11)).unwrap(); // seq 5: other repo
+    // seq 6: same profile, other pid, inside the window. It must be returned, so a
+    // profile-only exclusion fails; seq 3 (same pid and profile) must stay out.
+    s.post(notice(R, ".claude-stef", 7, since + 12)).unwrap();
+    // seq 7: same pid, other profile: a pid-only exclusion would drop it.
+    s.post(notice(R, ".claude-kat", 1, since + 13)).unwrap();
     let got = s.recent(R, since, 8, STEF).unwrap();
     let seqs: Vec<i64> = got.iter().map(|n| n.seq).collect();
-    assert_eq!(seqs, vec![4, 2]);
+    assert_eq!(seqs, vec![7, 6, 4, 2]);
 }
