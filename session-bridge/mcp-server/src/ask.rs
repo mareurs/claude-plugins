@@ -247,7 +247,7 @@ pub async fn ask(
 ) -> Result<AskResult> {
     // The child runs in the target's repository with the target's credentials: never let a
     // relative program path resolve against it.
-    if bin.contains('/') && !bin.starts_with('/') {
+    if !bin.starts_with('/') {
         return Err(BridgeError::RelativeBinary(bin.to_string()));
     }
     let log = state.join(ASK_LOG);
@@ -284,7 +284,9 @@ pub async fn ask(
         Ok(r) => r?,
         Err(_) => {
             let _ = child.kill().await;
-            failed("timeout")?;
+            if let Err(e) = failed("timeout") {
+                eprintln!("session-bridge: could not write the ask log: {e}");
+            }
             return Err(BridgeError::Timeout(timeout_s));
         }
     };
@@ -292,7 +294,9 @@ pub async fn ask(
     let out = match parse_fork_output(&String::from_utf8_lossy(&buf)) {
         Ok(o) => o,
         Err(e) => {
-            failed("unparseable output")?;
+            if let Err(le) = failed("unparseable output") {
+                eprintln!("session-bridge: could not write the ask log: {le}");
+            }
             return Err(e);
         }
     };

@@ -309,11 +309,48 @@ fn timeout_is_clamped() {
 #[tokio::test]
 async fn ask_refuses_a_relative_binary() {
     let f = fx();
-    for bad in ["bin/claude", "./claude", "../claude"] {
+    for bad in ["bin/claude", "./claude", "../claude", "claude"] {
         let err = ask(bad, &f.target, "main:1", "q", "haiku", 5, &f.state).await.unwrap_err();
         assert!(matches!(err, BridgeError::RelativeBinary(_)), "{bad}: {err:?}");
     }
     assert!(!f.state.join("asks.jsonl").exists());
+}
+
+#[test]
+fn relative_path_entries_are_never_searched() {
+    use std::os::unix::fs::PermissionsExt;
+    let root = env!("CARGO_MANIFEST_DIR");
+    assert_eq!(std::env::current_dir().unwrap(), PathBuf::from(root), "cargo runs integration tests in the package root");
+    // Removed on drop, also when an assertion below fails.
+    let dir = tempfile::tempdir_in(root).unwrap();
+    let exe = dir.path().join("claude");
+    std::fs::write(&exe, "#!/bin/sh\n").unwrap();
+    std::fs::set_permissions(&exe, std::fs::Permissions::from_mode(0o755)).unwrap();
+    let rel = dir.path().file_name().unwrap().to_string_lossy().into_owned();
+    // The binary is reachable through the relative entry from the current directory.
+    assert!(Path::new(&rel).join("claude").is_file());
+    let path = format!(":{rel}:./{rel}");
+    let env = |k: &str| (k == "PATH").then(|| path.clone());
+    assert!(matches!(locate_claude(&env), Err(BridgeError::ClaudeCliMissing)));
+}
+
+#[tokio::test]
+async fn failed_ask_log_write_does_not_mask_the_original_error() {
+    let f = fx();
+    let blocker = f.cfg.join("not-a-dir");
+    std::fs::write(&blocker, "").unwrap();
+    let state = blocker.join("state"); // create_dir_all fails: the parent is a regular file
+    std::fs::write(f.cfg.join("fake-sleep"), "").unwrap();
+    let err = ask(&fake_bin(), &f.target, "main:1", "q", "haiku", 1, &state).await.unwrap_err();
+    assert!(matches!(err, BridgeError::Timeout(1)), "{err:?}");
+    std::fs::remove_file(f.cfg.join("fake-sleep")).unwrap();
+    std::fs::write(f.cfg.join("fake-garbage"), "").unwrap();
+    let err = ask(&fake_bin(), &f.target, "main:1", "q", "haiku", 20, &state).await.unwrap_err();
+    assert!(matches!(err, BridgeError::BadForkOutput(_)), "{err:?}");
+    // The success path keeps its rule: a failed append fails the ask.
+    std::fs::remove_file(f.cfg.join("fake-garbage")).unwrap();
+    let err = ask(&fake_bin(), &f.target, "main:1", "q", "haiku", 20, &state).await.unwrap_err();
+    assert!(matches!(err, BridgeError::Io(_)), "{err:?}");
 }
 
 #[test]

@@ -10,7 +10,7 @@ pub enum BridgeError {
     Timeout(u64),
     #[error("daily ask bound reached: {spent:.2} USD spent today, bound {bound:.2} USD")]
     BudgetExceeded { spent: f64, bound: f64 },
-    #[error("claude binary path {0:?} is relative; use an absolute path (a relative one would resolve inside the target's repository)")]
+    #[error("claude binary {0:?} is not an absolute path; resolve it first (SESSION_BRIDGE_CLAUDE_BIN must be absolute)")]
     RelativeBinary(String),
     #[error("unreadable fork output: {0}")]
     BadForkOutput(String),
