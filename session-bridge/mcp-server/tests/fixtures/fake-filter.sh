@@ -5,6 +5,12 @@
 #   fake-wait   after reading stdin, wait (at most 10 s) for a `go` file
 #   fake-sleep  sleep past any timeout     fake-exit1  exit 1
 #   fake-stdout print that file verbatim   (none)      print `not json`
+# Refuses to run (exit 97, writes nothing) unless $CLAUDE_CONFIG_DIR holds `.sb-test-config`,
+# so a test that leaks a real CLAUDE_CONFIG_DIR into this script cannot write into a profile.
+if [ -z "$CLAUDE_CONFIG_DIR" ] || [ ! -e "$CLAUDE_CONFIG_DIR/.sb-test-config" ]; then
+  echo "fake-filter.sh: refusing to run: CLAUDE_CONFIG_DIR is not a test config dir (no .sb-test-config)" >&2
+  exit 97
+fi
 d="$CLAUDE_CONFIG_DIR"
 echo call >> "$d/filter-calls"
 {

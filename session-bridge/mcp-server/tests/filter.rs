@@ -50,6 +50,9 @@ impl Env {
         let config = d.path().join(PROFILE);
         std::fs::create_dir_all(&state).unwrap();
         std::fs::create_dir_all(&config).unwrap();
+        // The fake claude refuses to run in a config dir without this marker, so a
+        // regression that lets it inherit a real CLAUDE_CONFIG_DIR writes nothing there.
+        std::fs::write(config.join(".sb-test-config"), "").unwrap();
         let store = Store::open(&state.join("notices.db")).unwrap();
         store.post(new_notice("first title", "first body")).unwrap();
         store.post(new_notice("second title", "second body")).unwrap();
@@ -757,6 +760,66 @@ fn a_missing_endpoint_state_is_not_created_by_an_early_return() {
         .unwrap();
     assert_eq!(o.status.code(), Some(0));
     assert!(!path.exists(), "no state file is made for an endpoint that has none");
+}
+#[tokio::test]
+async fn a_failing_store_read_clears_the_worker_pid_and_keeps_pending() {
+    let e = Env::new();
+    assert!(e.st().worker_pid.is_some());
+    // Make `get_many` fail: drop the table through a second connection on the same file.
+    {
+        let c = rusqlite::Connection::open(e.state.join("notices.db")).unwrap();
+        c.execute("DROP TABLE notice", []).unwrap();
+    }
+    let bin = fixture("fake-filter.sh");
+    let r = run_filter_with(bin.to_str().unwrap(), &e.state, &e.store, PROFILE, PID, &e.config, T).await;
+    assert!(r.is_err(), "a store failure is an error");
+    let st = e.st();
+    assert_eq!(st.worker_pid, None);
+    assert_eq!(st.pending, vec![1, 2], "nothing was handled, so the next look retries");
+    assert!(st.verdicts.is_empty());
+    assert!(e.recorded("filter-calls").is_none(), "no model call");
+}
+
+fn run_fixture(config: Option<&Path>, cwd: &Path) -> std::process::Output {
+    let mut cmd = std::process::Command::new(fixture("fake-filter.sh"));
+    cmd.env("HOME", cwd)
+        .current_dir(cwd)
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped());
+    match config {
+        Some(c) => cmd.env("CLAUDE_CONFIG_DIR", c),
+        None => cmd.env("CLAUDE_CONFIG_DIR", ""),
+    };
+    cmd.output().unwrap()
+}
+
+#[test]
+fn the_fake_refuses_a_config_dir_without_the_test_marker_and_writes_nothing() {
+    let d = TempDir::new().unwrap();
+    let cfg = d.path().join("profile");
+    std::fs::create_dir_all(&cfg).unwrap();
+    let o = run_fixture(Some(&cfg), d.path());
+    assert_eq!(o.status.code(), Some(97), "{}", String::from_utf8_lossy(&o.stderr));
+    assert!(!o.stderr.is_empty(), "a one-line explanation");
+    assert_eq!(std::fs::read_dir(&cfg).unwrap().count(), 0, "nothing was written to the config dir");
+    // An empty CLAUDE_CONFIG_DIR is refused too, and writes nothing in the working directory.
+    let before = snapshot(d.path());
+    let o = run_fixture(None, d.path());
+    assert_eq!(o.status.code(), Some(97));
+    assert_eq!(snapshot(d.path()), before);
+}
+
+#[test]
+fn the_fake_runs_when_the_config_dir_carries_the_test_marker() {
+    let d = TempDir::new().unwrap();
+    let cfg = d.path().join("profile");
+    std::fs::create_dir_all(&cfg).unwrap();
+    std::fs::write(cfg.join(".sb-test-config"), "").unwrap();
+    let o = run_fixture(Some(&cfg), d.path());
+    assert_eq!(o.status.code(), Some(0), "{}", String::from_utf8_lossy(&o.stderr));
+    assert_eq!(String::from_utf8_lossy(&o.stdout), "not json\n");
+    assert!(cfg.join("filter-calls").exists());
 }
 
 

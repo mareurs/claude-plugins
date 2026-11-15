@@ -385,7 +385,7 @@ pub async fn run_filter_with(
             Ok(n) => n,
             Err(e) => {
                 // Keep `pending` so the next look retries; do not leave a stale worker pid.
-                let _ = update(&path, |s| s.worker_pid = None);
+                clear_worker_pid(state, profile, pid);
                 return Err(e);
             }
         }
