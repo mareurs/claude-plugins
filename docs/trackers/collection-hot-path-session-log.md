@@ -6,7 +6,7 @@ topic: collection-hot-path
 entry_prefix:
 - F
 - W
-entry_high_water_F: 4
+entry_high_water_F: 6
 entry_high_water_W: 1
 ---
 # Session Log — collection hot path (hot-view hook, Plan L-E)
@@ -102,7 +102,9 @@ entry_high_water_W: 1
 | F-1 | 2026-11-15 | med | substrate | open | **The installed codescout 0.15.0 has no `hot-view`** — the hook will be dormant until a release |
 | F-2 | 2026-11-15 | high | coupling | open | **No collection exists yet, and L-E must write `hot_cap`** — else the hook shows nothing after the migration too |
 | F-3 | 2026-11-15 | med | plan-drift | mitigated | **My discovery glob covered `ledgers/` only** — collections also live in `streams/` and `temp/` |
-| F-4 | 2026-11-15 | low | contract-gap | open | **The contract does not say what to do with a view of 0 hot entries** — inject, drop, or summarise |
+| F-4 | 2026-11-15 | low | contract-gap | mitigated | **The contract does not say what to do with a view of 0 hot entries** — inject, drop, or summarise |
+| F-5 | 2026-11-15 | high | plan-drift | fixed-verified | **`CS_BINARY` is the MCP launch command, not the binary** — the hook ran `bash hot-view …`; now uses `resolveCodescoutBinary` |
+| F-6 | 2026-11-15 | med | contract-gap | open | **A "quiet" view can hide a problems line** — fixed in the hook; Plan L-E must check new collections load clean |
 
 ## Wins Index
 
@@ -343,6 +345,34 @@ Codified so the Index column means the same thing across sessions.
 **Counterfactual:** Without the number, the design would likely add a background spawn and a cache file, as the auto-reindex path does, to keep session start fast. That means a second state file, staleness rules for it, and a view that is one session late. With 15 ms per call, a synchronous `spawnSync` with a timeout is enough for a few collections.
 
 **Still to check:** the time of a real `hot-view` on a large collection. That needs a binary built from the integration branch.
+
+## F-5 — `CS_BINARY` is the MCP launch command, so the hook could run `bash hot-view …`
+
+**Valid:** dated 2026-11-15
+**Status:** fixed-verified
+
+**Observed:** The spec said to run `<CS_BINARY> hot-view …`. `CS_BINARY` comes from `detect.mjs`, which names a server when its `command` OR its `args` match `/codescout/` and returns only `command`. For `{"command":"bash","args":["-c","exec codescout start"]}` the hook ran `bash hot-view busy --project <root>`. The Opus whole-branch review measured it: bash executed a file named `hot-view` from the hook's cwd. With `uvx` or `npx` as the command, the call would fetch and run a package named `hot-view` (inferred from documented npm behaviour, not run).
+
+**Cost:** The hook ran the MCP launch command with arguments it was never meant to get. A bare `"command":"codescout"` also failed when the hook's PATH lacked `~/.cargo/bin`.
+
+**Fix:** `session-start.mjs` passes `resolveCodescoutBinary(cwd)`, as three sibling hooks already do (`constitution-guard.mjs`, `constitution-brief.mjs`, `goal-stop-hook.mjs`). Hook test "a wrapper launch command (bash -c exec codescout) still reaches the real codescout" went RED to GREEN.
+
+**Lesson:** A name that holds a launch command is not a binary path. Check what a field is before you hand it to `spawn`.
+
+**Rests on:** `codescout-companion/hooks/lib.mjs` `resolveCodescoutBinary`, and the spec § Design step 2, which named `<CS_BINARY>`.
+
+## F-6 — A quiet view can carry a problems line, so "quiet" must mean the header alone
+
+**Valid:** dated 2026-11-15
+**Status:** open
+
+**Observed:** F-4 asked what to do with a view of 0 hot entries. My answer (a "quiet" line) was wrong in one case. The real `render_markdown` prints the header, then entry lines, then `(N more hot entries hidden …)`, then `(N live entries cannot be judged …)`. The CLI adds `(N problems found while reading this folder; an entry file with a problem is not listed. Run the doctor for detail.)`. A collection whose entries all fail to parse has `0 of 0 hot` in the header AND a problems line. The first hook version kept only the header, so such a collection read as `quiet (0 hot)`. That is a bare zero, which the spec's Anti-goals and ADR `2026-08-27-negative-results-name-their-scope` forbid.
+
+**Fix in the hook:** a view is quiet only when it is the header line alone. Any other text is shown verbatim. Test `quiet_view_with_problems_is_shown_verbatim` went RED to GREEN.
+
+**Still open, for Plan L-E:** the contract itself does not say that `0 of 0 hot` with a problems line is a signal. A migration that writes many collections will meet unparseable entries. Plan L-E should decide whether the migration verifies that each new collection loads with zero problems, and say what the agent sees when it does not.
+
+**Rests on:** `src/cli/hot_view.rs` and `src/librarian/lifecycle/hot_view.rs::render_markdown` on `integration/identity-lifecycle-20261114` (read by the reviewer; the binary itself could not be run, see F-1).
 
 ## Template for new entries
 

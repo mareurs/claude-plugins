@@ -1,7 +1,7 @@
 ---
 id: '892d64dc03e2fd82'
 kind: plan
-status: draft
+status: done
 title: Session-Start Hot View Implementation Plan
 tags:
 - codescout-companion
@@ -181,3 +181,14 @@ git commit -m "feat(companion): session-start injects the hot view of collection
 
 - Spec coverage: Discovery → Task 1 (`findHotCollections`, three folders, archive skip); Call → Task 1 (`spawnSync`, 3 s); Classify → Task 1 (`composes_the_documented_block`, `timeout_is_not_shown`); Compose and the empty case → Task 1; fires on all but `resume`, opt-out, placement before the connectivity note → Task 2; tests listed in the spec → Tasks 1 and 2; F-4 quiet line → `composes_the_documented_block`.
 - One deviation from the spec text, as a call: the spec said "on `startup`, `clear` and `compact`". This plan fires on every `source` except `resume`, so an unknown or empty `source` from another client still gets the view. This follows the hook's own `BOOTSTRAP_SUPPRESSED_SOURCES` reasoning (lines 190-197).
+
+
+## Outcome (2026-11-15)
+
+Built on branch `worktree-session-start-hot-view` (worktree `.claude/worktrees/session-start-hot-view`), not yet merged to `main`: `f07a421` (hot-view.mjs, 9 tests), `a39db8d` (session-start wiring, 56 hook assertions), `8c9ece2` (fix pass).
+
+The Opus whole-branch review found no Critical and three Important issues, all fixed with a test that failed first: I-1 the hook ran `CS_BINARY`, the MCP launch command (now `resolveCodescoutBinary(cwd)`; session log F-5), I-2 a quiet view dropped its problems line (F-6), I-3 the call shape was unpinned (fakes now exit 101 on a wrong shape). Final state: `hot-view.test.mjs` 11 tests, `session-start.test.sh` 57 assertions, `./tests/run-all.sh` all suites passed.
+
+Deferred minors (M-1 to M-6): archive skip untested; every failure reads "hot-view unavailable"; a key starting with `-` reads as a flag; `hot_view` missing from `codescout-companion/README.md`; hook tests check markers, not a full diff; worst case 8 x 3 s blocking.
+
+The hook stays dormant until a codescout release that contains `hot-view` is installed (F-1) and a collection declares `hot_cap` (F-2). No release was run.
