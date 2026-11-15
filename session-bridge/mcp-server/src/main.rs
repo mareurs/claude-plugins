@@ -1,7 +1,9 @@
 use clap::{Parser, Subcommand};
 use rmcp::{transport::io::stdio, ServiceExt};
-use session_bridge_mcp::endpoints::repo_of;
-use session_bridge_mcp::paths::{short_profile, state_root};
+use session_bridge_mcp::endpoints::{claude_pid_of, repo_of, Roots};
+use session_bridge_mcp::hook::{emit, session_start, HookInput};
+use session_bridge_mcp::diag;
+use session_bridge_mcp::paths::{profile_of, short_profile, state_root};
 use session_bridge_mcp::server::Bridge;
 use session_bridge_mcp::store::Store;
 
@@ -74,8 +76,59 @@ fn notices_output(repo_dir: &str, after: u64, json: bool) -> Option<String> {
     Some(lines.join("\n"))
 }
 
+fn main() -> anyhow::Result<()> {
+    // Hooks are fail-open: a bad command line or a panic must exit 0 and print nothing,
+    // so they never reach clap's own error handling or the default panic report.
+    if std::env::args().nth(1).as_deref() == Some("hook") {
+        run_hook_fail_open();
+    }
+    run()
+}
+
+/// Run `session-bridge hook <event>`; never returns, always exits 0, prints only a view.
+fn run_hook_fail_open() -> ! {
+    std::panic::set_hook(Box::new(|_| {}));
+    let _ = std::panic::catch_unwind(|| {
+        if let Some(out) = hook_output() {
+            use std::io::Write;
+            let _ = writeln!(std::io::stdout(), "{out}");
+        }
+    });
+    std::process::exit(0)
+}
+
+/// The text a hook prints, or `None` for nothing.
+fn hook_output() -> Option<String> {
+    #[cfg(debug_assertions)]
+    if std::env::var_os("SESSION_BRIDGE_TEST_PANIC").is_some() {
+        panic!("forced by SESSION_BRIDGE_TEST_PANIC");
+    }
+    let Command::Hook { event } = Cli::try_parse().ok()?.command else {
+        return None;
+    };
+    let mut raw = String::new();
+    std::io::Read::read_to_string(&mut std::io::stdin(), &mut raw).ok()?;
+    match event.as_str() {
+        "session-start" => session_start_output(&raw),
+        // `prompt` and `post-tool` arrive with the filter worker.
+        _ => None,
+    }
+}
+
+fn session_start_output(raw: &str) -> Option<String> {
+    let input: HookInput = serde_json::from_str(raw).ok()?;
+    let roots = Roots::system();
+    let pid = claude_pid_of(&roots, std::process::id())?;
+    let profile = profile_of(std::env::var("CLAUDE_CONFIG_DIR").ok().as_deref());
+    let state = state_root(&|k| std::env::var(k).ok());
+    std::fs::create_dir_all(&state).ok()?;
+    let store = Store::open(&state.join("notices.db")).ok()?;
+    let view = session_start(&input, (&profile, pid), &roots, &state, &store)?;
+    Some(emit("SessionStart", &view))
+}
+
 #[tokio::main(flavor = "multi_thread")]
-async fn main() -> anyhow::Result<()> {
+async fn run() -> anyhow::Result<()> {
     match Cli::parse().command {
         Command::Serve => {
             Bridge::new().serve(stdio()).await?.waiting().await?;
@@ -85,9 +138,9 @@ async fn main() -> anyhow::Result<()> {
                 println!("{out}");
             }
         }
-        Command::Hook { .. } | Command::Filter { .. } => {
-            eprintln!("not implemented");
-        }
+        // `hook` is handled in `main` before clap runs.
+        Command::Hook { .. } => {}
+        Command::Filter { .. } => diag::note("filter: not implemented"),
     }
     Ok(())
 }

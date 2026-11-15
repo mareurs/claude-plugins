@@ -38,3 +38,14 @@ pub fn short_profile(profile: &str) -> String {
 pub fn profile_matches(profile: &str, query: &str) -> bool {
     query == profile || query == short_profile(profile)
 }
+/// True when `s` can be used as part of a file name: 1 to 128 bytes of `[A-Za-z0-9._-]`,
+/// not `.` or `..`, and no `..` inside. A session id from hook input is untrusted and
+/// becomes a file name, so every path built from one goes through this check.
+pub fn is_safe_component(s: &str) -> bool {
+    !s.is_empty()
+        && s.len() <= 128
+        && s != "."
+        && s != ".."
+        && !s.contains("..")
+        && s.bytes().all(|b| b.is_ascii_alphanumeric() || matches!(b, b'.' | b'_' | b'-'))
+}
