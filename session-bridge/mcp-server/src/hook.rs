@@ -48,7 +48,12 @@ pub fn render_start_view(notices: &[Notice]) -> Option<String> {
         } else {
             n.author_session.chars().take(8).collect()
         };
-        out.push_str(&format!("\n- {at} UTC {}:{who} {}", short_profile(&n.author_profile), n.title));
+        // The view is model context: a control character (a newline above all) in a
+        // notice field must not be able to start a line of its own.
+        let line = format!("{at} UTC {}:{who} {}", short_profile(&n.author_profile), n.title);
+        let line: String = line.chars().map(|c| if c.is_control() { ' ' } else { c }).collect();
+        out.push_str("\n- ");
+        out.push_str(&line);
     }
     Some(out)
 }
@@ -84,22 +89,20 @@ pub fn session_start(
     if !is_safe_component(&input.session_id) || !is_safe_component(me.0) {
         return None;
     }
-    let head = match store.head() {
-        Ok(h) => h,
-        Err(e) => {
-            diag::note(&format!("session-start: store head: {e}"));
-            return None;
-        }
-    };
-    let alive = |pid: u32| pid_alive(roots, pid);
-    let rule = match on_session_start(state, me.0, me.1, &input.session_id, &alive, head) {
-        Ok((rule, _)) => rule,
-        Err(e) => {
-            diag::note(&format!("session-start: cursor: {e}"));
-            return None;
-        }
-    };
     let now = now_ms();
+    let alive = |pid: u32| pid_alive(roots, pid);
+    // The cursor step reads this pid's PREVIOUS session id from the endpoint state (rule 3),
+    // so the state is written after it, but on every path, success or failure.
+    let rule = store
+        .head()
+        .map_err(|e| diag::note(&format!("session-start: store head: {e}")))
+        .ok()
+        .and_then(|head| {
+            on_session_start(state, me.0, me.1, &input.session_id, &alive, head)
+                .map_err(|e| diag::note(&format!("session-start: cursor: {e}")))
+                .ok()
+        })
+        .map(|(rule, _)| rule);
     // Best effort: a failed update never changes the output. A fresh start has just looked
     // at the head, so the look interval starts now; a continued cursor looks at the next trigger.
     let recorded = update(&endpoint_path(state, me.0, me.1), |s| {
@@ -110,14 +113,14 @@ pub fn session_start(
         if !input.cwd.is_empty() {
             s.cwd = Some(input.cwd.clone());
         }
-        if rule == StartRule::Fresh {
+        if rule == Some(StartRule::Fresh) {
             s.last_look_ms = now;
         }
     });
     if let Err(e) = recorded {
         diag::note(&format!("session-start: endpoint state: {e}"));
     }
-    if rule != StartRule::Fresh || input.source.as_deref() == Some("resume") {
+    if rule != Some(StartRule::Fresh) || input.source.as_deref() == Some("resume") {
         return None;
     }
     let repo = repo_of(Path::new(&input.cwd))?;

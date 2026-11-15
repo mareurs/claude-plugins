@@ -60,6 +60,43 @@ fn fresh_starts_at_head() {
     assert_eq!((rule, v), (StartRule::Fresh, 42));
     assert_eq!(get(d.path(), STEF, "S", 20), Some(42));
 }
+fn files_for(d: &std::path::Path, session: &str) -> Vec<String> {
+    let prefix = format!("{STEF}__{session}");
+    let mut v: Vec<String> = std::fs::read_dir(d.join("cursors"))
+        .unwrap()
+        .flatten()
+        .map(|e| e.file_name().to_string_lossy().into_owned())
+        .filter(|n| n.starts_with(&prefix))
+        .collect();
+    v.sort();
+    v
+}
+
+#[test]
+fn take_over_after_the_holder_dies_uses_this_pids_own_twin_value() {
+    let d = TempDir::new().unwrap();
+    set(d.path(), STEF, "S", 10, 5).unwrap();
+    let (rule, v) = on_session_start(d.path(), STEF, 20, "S", &|p| p == 10, 99).unwrap();
+    assert_eq!((rule, v), (StartRule::CopyFromTwin, 5));
+    set(d.path(), STEF, "S", 20, 8).unwrap();
+    // pid 10 dies; pid 20 compacts.
+    let (rule, v) = on_session_start(d.path(), STEF, 20, "S", &|_| false, 99).unwrap();
+    assert_eq!((rule, v), (StartRule::TakeOver, 8), "the twin is newer than the plain file");
+    assert_eq!(get(d.path(), STEF, "S", 20), Some(8));
+    assert_eq!(files_for(d.path(), "S").len(), 1, "{:?}", files_for(d.path(), "S"));
+    // A new pid resuming while 20 is alive copies 8, so notices 6 to 8 are not repeated.
+    let (rule, v) = on_session_start(d.path(), STEF, 30, "S", &|p| p == 20, 99).unwrap();
+    assert_eq!((rule, v), (StartRule::CopyFromTwin, 8));
+}
+
+#[test]
+fn compact_of_the_holder_takes_over() {
+    let d = TempDir::new().unwrap();
+    set(d.path(), STEF, "S", 10, 5).unwrap();
+    let (rule, v) = on_session_start(d.path(), STEF, 10, "S", &|_| true, 99).unwrap();
+    assert_eq!((rule, v), (StartRule::TakeOver, 5));
+    assert_eq!(files_for(d.path(), "S").len(), 1, "no twin of itself: {:?}", files_for(d.path(), "S"));
+}
 
 #[test]
 fn other_profile_twin_is_fresh() {

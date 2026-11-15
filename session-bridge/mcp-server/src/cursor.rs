@@ -117,9 +117,12 @@ pub fn on_session_start(
     let twin = twin_path(dir, profile, session_id, pid);
     if let Some(held) = read(&plain) {
         if held.pid == pid || !alive(held.pid) {
-            // Rule 1.
-            write(&plain, pid, held.cursor)?;
-            return Ok((StartRule::TakeOver, held.cursor));
+            // Rule 1. This pid's own twin file (it was a twin of a holder that has since
+            // died) is newer than the plain file: its value wins, and it folds back.
+            let value = read(&twin).map_or(held.cursor, |t| t.cursor);
+            write(&plain, pid, value)?;
+            let _ = std::fs::remove_file(&twin);
+            return Ok((StartRule::TakeOver, value));
         }
         // Rule 2. A twin file of this very pid (a compact in the same process) is newer
         // than the original, so it wins over a fresh copy.

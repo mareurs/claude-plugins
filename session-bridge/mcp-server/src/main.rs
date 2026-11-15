@@ -79,7 +79,7 @@ fn notices_output(repo_dir: &str, after: u64, json: bool) -> Option<String> {
 fn main() -> anyhow::Result<()> {
     // Hooks are fail-open: a bad command line or a panic must exit 0 and print nothing,
     // so they never reach clap's own error handling or the default panic report.
-    if std::env::args().nth(1).as_deref() == Some("hook") {
+    if std::env::args_os().nth(1).as_deref() == Some(std::ffi::OsStr::new("hook")) {
         run_hook_fail_open();
     }
     run()

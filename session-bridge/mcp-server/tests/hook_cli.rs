@@ -56,3 +56,26 @@ fn other_commands_keep_the_normal_clap_errors() {
     let o = run(&["notices"], "", d.path(), &[]);
     assert_ne!(o.status.code(), Some(0), "a missing argument of `notices` is still an error");
 }
+#[test]
+fn non_utf8_argument_exits_zero_silently() {
+    use std::os::unix::ffi::OsStrExt;
+    let d = TempDir::new().unwrap();
+    let bad = std::ffi::OsStr::from_bytes(b"\xff\xfe");
+    let o = Command::new(env!("CARGO_BIN_EXE_session-bridge"))
+        .arg("hook")
+        .arg(bad)
+        .env("XDG_STATE_HOME", d.path())
+        .stdin(Stdio::null())
+        .output()
+        .unwrap();
+    silent_ok(&o);
+    // A non-UTF-8 FIRST argument is the one `std::env::args()` panics on (exit 101).
+    let o = Command::new(env!("CARGO_BIN_EXE_session-bridge"))
+        .arg(bad)
+        .env("XDG_STATE_HOME", d.path())
+        .stdin(Stdio::null())
+        .output()
+        .unwrap();
+    assert_ne!(o.status.code(), Some(101), "no panic exit: {}", String::from_utf8_lossy(&o.stderr));
+}
+

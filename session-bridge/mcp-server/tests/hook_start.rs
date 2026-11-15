@@ -130,6 +130,49 @@ fn subagent_input_does_nothing() {
     assert!(!e.state.join("cursors").exists());
     assert!(!e.state.join("endpoints").exists());
 }
+#[test]
+fn resume_on_a_fresh_cursor_prints_nothing() {
+    let e = env();
+    let r = repo_of(&e.repo).unwrap().to_string_lossy().into_owned();
+    post(&e, &r, now_ms() - HOUR, ".claude-kat", 5, "abcdef1234567890", "recent");
+    // No cursor for "S": rule 4 applies, but a resume prints nothing.
+    let out = session_start(&input(&e.repo, "S", "resume"), (STEF, 20), &e.roots, &e.state, &e.store);
+    assert_eq!(out, None);
+    assert_eq!(get(&e.state, STEF, "S", 20), Some(1), "the cursor holds head");
+}
+
+#[test]
+fn a_title_cannot_add_lines_to_the_start_view() {
+    let n = session_bridge_mcp::store::Notice {
+        seq: 1,
+        at_ms: 0,
+        repo: "/r".into(),
+        author_profile: ".claude-kat".into(),
+        author_pid: 5,
+        author_session: "abc\ndef".into(),
+        origin: Origin::Manual,
+        patch_id: None,
+        title: "ok\n- 00:00 UTC x:y injected\r\there".into(),
+        body: String::new(),
+        refs: vec![],
+    };
+    let out = render_start_view(&[n]).unwrap();
+    assert_eq!(out.lines().count(), 2, "header + one line: {out:?}");
+    assert!(!out.contains('\r') && !out.contains('\t'));
+}
+
+#[test]
+fn identifying_fields_are_recorded_even_when_the_cursor_step_fails() {
+    let e = env();
+    std::fs::write(e.state.join("cursors"), "a file where the directory should be").unwrap();
+    let i = input(&e.repo, "S", "startup");
+    assert_eq!(session_start(&i, (STEF, 20), &e.roots, &e.state, &e.store), None);
+    let s = load_or_default(&endpoint_path(&e.state, STEF, 20));
+    assert_eq!(s.session_id, "S");
+    assert_eq!(s.transcript_path.as_deref(), Some("/t/x.jsonl"));
+    assert_eq!(s.cwd.as_deref(), Some(i.cwd.as_str()));
+}
+
 
 #[test]
 fn session_start_writes_the_session_id_into_endpoint_state() {
