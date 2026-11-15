@@ -331,6 +331,17 @@ fn append_log(state: &Path, profile: &str, pid: u32, verdicts: &[Verdict]) {
     }
 }
 
+/// Clear `worker_pid` of endpoint (`profile`, `pid`), best effort, and only when its state
+/// file already exists: a worker that stops early must not leave a stale pid behind, but it
+/// must not make files for an endpoint that has none.
+pub fn clear_worker_pid(state: &Path, profile: &str, pid: u32) {
+    let path = endpoint_path(state, profile, pid);
+    if path.exists() {
+        let _ = update(&path, |s| s.worker_pid = None);
+    }
+}
+
+
 /// Filter the pending notices of endpoint (`profile`, `pid`) with the model program `bin`
 /// (an absolute path), with the config dir from the environment of this process.
 pub async fn run_filter(bin: &str, state: &Path, store: &Store, profile: &str, pid: u32) -> Result<()> {
@@ -339,6 +350,7 @@ pub async fn run_filter(bin: &str, state: &Path, store: &Store, profile: &str, p
         None => Path::new(&std::env::var("HOME").unwrap_or_default()).join(".claude"),
     };
     if !config_dir.is_absolute() {
+        clear_worker_pid(state, profile, pid);
         return Err(BridgeError::Io(std::io::Error::other("no absolute config dir")));
     }
     let timeout = filter_timeout(std::env::var("SESSION_BRIDGE_FILTER_TIMEOUT_S").ok().as_deref());
@@ -360,6 +372,7 @@ pub async fn run_filter_with(
 ) -> Result<()> {
     // The child runs with the endpoint's credentials: never resolve a relative program.
     if !bin.starts_with('/') {
+        clear_worker_pid(state, profile, pid);
         return Err(BridgeError::RelativeBinary(bin.to_string()));
     }
     let path = endpoint_path(state, profile, pid);

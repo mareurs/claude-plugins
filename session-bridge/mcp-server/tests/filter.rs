@@ -46,7 +46,7 @@ impl Env {
 
     fn with_transcript(t: Option<PathBuf>) -> Env {
         let d = TempDir::new().unwrap();
-        let state = d.path().join("state");
+        let state = d.path().join("xdg/session-bridge");
         let config = d.path().join(PROFILE);
         std::fs::create_dir_all(&state).unwrap();
         std::fs::create_dir_all(&config).unwrap();
@@ -86,6 +86,11 @@ impl Env {
     fn recorded(&self, name: &str) -> Option<String> {
         std::fs::read_to_string(self.config.join(name)).ok()
     }
+    /// The temp tree: HOME of every subprocess a test starts, so none can reach a real profile.
+    fn root(&self) -> &Path {
+        self._d.path()
+    }
+
 }
 
 const T: Duration = Duration::from_secs(20);
@@ -382,19 +387,6 @@ async fn the_stdin_carries_the_notices_and_the_tail() {
     assert!(stdin.contains("[user] Final question: should we merge feat/alpha?"));
 }
 
-#[tokio::test]
-async fn a_large_input_does_not_deadlock() {
-    let e = Env::new();
-    // 41 notices of 3900 characters: far beyond a pipe buffer, written while the child
-    // is also being read.
-    for _ in 0..41 {
-        e.store.post(new_notice("big", &"y".repeat(3900))).unwrap();
-    }
-    update(&endpoint_path(&e.state, PROFILE, PID), |s| s.pending = (1..=43).collect()).unwrap();
-    e.run(T).await;
-    assert_eq!(e.st().verdicts.len(), 43);
-    assert!(e.recorded("filter-stdin.txt").unwrap().len() > 150_000);
-}
 
 #[tokio::test]
 async fn empty_pending_makes_no_model_call_and_only_clears_the_worker_pid() {
@@ -457,46 +449,315 @@ async fn a_new_verdict_replaces_an_older_one_of_the_same_seq() {
     assert_eq!(st.verdicts.iter().filter(|v| v.seq == 1).count(), 1);
     assert!(st.verdicts.iter().find(|v| v.seq == 1).unwrap().relevant);
 }
+#[tokio::test]
+async fn a_large_input_with_a_chatty_child_does_not_deadlock() {
+    let td = TempDir::new().unwrap();
+    let transcript = td.path().join("t.jsonl");
+    let lines: Vec<String> = (0..10)
+        .map(|i| {
+            let text = format!("item{i}-{}", "z".repeat(1400));
+            serde_json::json!({"type":"user","isSidechain":false,"message":{"content":text}}).to_string()
+        })
+        .collect();
+    std::fs::write(&transcript, lines.join("\n")).unwrap();
+    let e = Env::with_transcript(Some(transcript));
+    e.marker("fake-flood", "");
+    // 41 notices of 3900 characters plus the tail: well past a 64 KiB pipe buffer, while the
+    // child writes more than 64 KiB to stdout and to stderr before it reads any input.
+    for _ in 0..41 {
+        e.store.post(new_notice("big", &"y".repeat(3900))).unwrap();
+    }
+    update(&endpoint_path(&e.state, PROFILE, PID), |s| s.pending = (1..=43).collect()).unwrap();
+    e.run(Duration::from_secs(5)).await;
+    let st = e.st();
+    assert_eq!(st.verdicts.len(), 43);
+    assert!(
+        st.verdicts.iter().all(|v| v.unfiltered_reason.as_deref() != Some("filter timed out")),
+        "the write and the reads must run concurrently"
+    );
+    assert!(e.recorded("flood-done").is_some(), "the flood was drained");
+    assert!(e.recorded("filter-stdin.txt").unwrap().len() > 150_000);
+}
 
-fn cli(state: &Path, config: &Path, profile: &str) -> std::process::Output {
-    std::process::Command::new(env!("CARGO_BIN_EXE_session-bridge"))
-        .args(["filter", "--profile", profile, "--pid", "4242"])
-        .env("XDG_STATE_HOME", state)
-        .env("CLAUDE_CONFIG_DIR", config)
-        .env("SESSION_BRIDGE_CLAUDE_BIN", fixture("fake-filter.sh"))
-        .stdin(std::process::Stdio::null())
-        .output()
-        .unwrap()
+#[tokio::test]
+async fn pending_added_during_the_call_survives() {
+    let e = Env::new();
+    e.marker("fake-wait", "");
+    e.reply(serde_json::json!([
+        {"notice":"N1","relevant":false,"evidence":"","why":"no"},
+        {"notice":"N2","relevant":false,"evidence":"","why":"no"}
+    ]));
+    let path = endpoint_path(&e.state, PROFILE, PID);
+    let hook = async {
+        // The fake records its call first, so the worker has already read `pending`.
+        for _ in 0..200 {
+            if e.config.join("filter-calls").exists() {
+                break;
+            }
+            tokio::time::sleep(Duration::from_millis(50)).await;
+        }
+        update(&path, |s| s.pending.push(9)).unwrap();
+        std::fs::write(e.config.join("go"), "").unwrap();
+    };
+    tokio::join!(e.run(T), hook);
+    let st = e.st();
+    assert_eq!(st.pending, vec![9]);
+    let mut seqs: Vec<i64> = st.verdicts.iter().map(|v| v.seq).collect();
+    seqs.sort();
+    assert_eq!(seqs, vec![1, 2]);
+    assert_eq!(st.worker_pid, None);
+}
+
+#[tokio::test]
+async fn an_error_envelope_is_unparsable_even_with_a_valid_body() {
+    let e = Env::new();
+    let inner = serde_json::json!({"verdicts":[
+        {"notice":"N1","relevant":false,"evidence":"","why":""},
+        {"notice":"N2","relevant":false,"evidence":"","why":""}
+    ]})
+    .to_string();
+    e.marker("fake-stdout", &serde_json::json!({"is_error":true,"result":inner}).to_string());
+    e.run(T).await;
+    let st = e.st();
+    assert_eq!(st.verdicts.len(), 2);
+    assert!(st
+        .verdicts
+        .iter()
+        .all(|v| v.relevant && v.unfiltered_reason.as_deref() == Some("unparsable filter output")));
+}
+
+fn write_transcript(dir: &Path, texts: &[String]) -> PathBuf {
+    let p = dir.join("t.jsonl");
+    let lines: Vec<String> = texts
+        .iter()
+        .map(|t| serde_json::json!({"type":"user","isSidechain":false,"message":{"content":t}}).to_string())
+        .collect();
+    std::fs::write(&p, lines.join("\n")).unwrap();
+    p
 }
 
 #[test]
-fn an_unsafe_profile_exits_zero_silently_and_creates_nothing() {
+fn a_local_command_marker_after_the_first_200_characters_is_not_skipped() {
     let d = TempDir::new().unwrap();
-    let config = d.path().join(".claude-x");
-    std::fs::create_dir_all(&config).unwrap();
-    let state = d.path().join("xdg");
-    std::fs::create_dir_all(&state).unwrap();
+    let late = format!("{}<local-command-stdout>LATE-MARKER</local-command-stdout>", "a".repeat(250));
+    let tail = transcript_tail(&write_transcript(d.path(), &[late]), 6000).unwrap();
+    assert!(tail.contains("LATE-MARKER"));
+}
+
+#[test]
+fn the_budget_counts_characters_not_bytes() {
+    let d = TempDir::new().unwrap();
+    // Two items of 1500 two-byte/three-byte characters: 3016 characters, over 6000 bytes.
+    let item = "é漢".repeat(750);
+    let tail = transcript_tail(&write_transcript(d.path(), &[item.clone(), item.clone()]), 6000).unwrap();
+    assert!(tail.len() > 6000, "more than 6000 bytes");
+    assert_eq!(tail.chars().count(), 2 * ("[user] ".len() + 1500) + 2, "kept whole");
+    // Six items are over 6000 characters: cut at 6000 characters.
+    let many: Vec<String> = (0..6).map(|_| item.clone()).collect();
+    let tail = transcript_tail(&write_transcript(d.path(), &many), 6000).unwrap();
+    assert_eq!(tail.chars().count(), 6000);
+}
+
+/// Run `session-bridge filter` with HOME, the state root and the config dir all inside the
+/// test's temp tree, so nothing a test does can reach a real profile. Killed and failed
+/// after `limit`.
+fn cli_run(
+    root: &Path,
+    config: &Path,
+    profile: &str,
+    bin: &std::ffi::OsStr,
+    extra: &[(&str, &str)],
+    limit: Duration,
+) -> std::process::Output {
+    let mut cmd = std::process::Command::new(env!("CARGO_BIN_EXE_session-bridge"));
+    cmd.args(["filter", "--profile", profile, "--pid", "4242"])
+        .env("HOME", root)
+        .env("XDG_STATE_HOME", root.join("xdg"))
+        .env("CLAUDE_CONFIG_DIR", config)
+        .env("SESSION_BRIDGE_CLAUDE_BIN", bin)
+        .env_remove("SESSION_BRIDGE_FILTER_TIMEOUT_S")
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped());
+    for (k, v) in extra {
+        cmd.env(k, v);
+    }
+    let mut child = cmd.spawn().unwrap();
+    let start = std::time::Instant::now();
+    while child.try_wait().unwrap().is_none() {
+        if start.elapsed() > limit {
+            let _ = child.kill();
+            let _ = child.wait();
+            panic!("the filter command ran past {limit:?}");
+        }
+        std::thread::sleep(Duration::from_millis(50));
+    }
+    child.wait_with_output().unwrap()
+}
+
+fn cli(e: &Env, profile: &str) -> std::process::Output {
+    cli_run(e.root(), &e.config, profile, fixture("fake-filter.sh").as_os_str(), &[], Duration::from_secs(30))
+}
+
+fn snapshot(root: &Path) -> std::collections::BTreeMap<PathBuf, Option<Vec<u8>>> {
+    fn walk(dir: &Path, out: &mut std::collections::BTreeMap<PathBuf, Option<Vec<u8>>>) {
+        for entry in std::fs::read_dir(dir).unwrap() {
+            let p = entry.unwrap().path();
+            if p.is_dir() {
+                out.insert(p.clone(), None);
+                walk(&p, out);
+            } else {
+                let bytes = std::fs::read(&p).unwrap();
+                out.insert(p, Some(bytes));
+            }
+        }
+    }
+    let mut out = std::collections::BTreeMap::new();
+    walk(root, &mut out);
+    out
+}
+
+#[test]
+fn an_unsafe_profile_exits_zero_silently_and_changes_nothing() {
+    // A real notices.db, an endpoint state and a pending seq are in place: only the
+    // profile check stands between these arguments and a state file or a model call.
+    let e = Env::new();
+    let before = snapshot(e.root());
     for p in ["../x", "a/b", "..", ""] {
-        let o = cli(&state, &config, p);
+        let o = cli(&e, p);
         assert_eq!(o.status.code(), Some(0), "{p:?}");
         assert!(o.stdout.is_empty(), "{p:?}");
     }
-    assert_eq!(std::fs::read_dir(&state).unwrap().count(), 0, "no state files");
-    assert_eq!(std::fs::read_dir(d.path()).unwrap().count(), 2, "nothing next to the state root either");
-    assert!(!config.join("filter-calls").exists(), "the model program did not run");
+    assert_eq!(snapshot(e.root()), before, "no file was created, changed or removed");
 }
 
 #[test]
 fn the_filter_command_runs_a_worker_end_to_end() {
     let e = Env::new();
-    // Env::new put the state in <tmp>/state; the CLI wants <XDG>/session-bridge.
-    let xdg = e._d.path().join("xdg");
-    std::fs::create_dir_all(&xdg).unwrap();
-    std::fs::rename(&e.state, xdg.join("session-bridge")).unwrap();
-    let o = cli(&xdg, &e.config, PROFILE);
+    e.reply(serde_json::json!([
+        {"notice":"N1","relevant":true,"evidence":"merge feat/alpha","why":"same branch"},
+        {"notice":"N2","relevant":true,"evidence":"src/foo.rs","why":"same file"}
+    ]));
+    let o = cli(&e, PROFILE);
     assert_eq!(o.status.code(), Some(0), "{}", String::from_utf8_lossy(&o.stderr));
     assert!(o.stdout.is_empty());
-    let st = load_or_default(&endpoint_path(&xdg.join("session-bridge"), PROFILE, PID));
+    // The call used the config dir of this process, and was fed the transcript tail.
+    assert!(e.recorded("filter-calls").is_some(), "the model program ran under the endpoint's config dir");
+    let env = e.recorded("filter-env.txt").unwrap();
+    assert!(env.contains(&format!("config={}", e.config.display())), "{env}");
+    assert!(e.recorded("filter-stdin.txt").unwrap().contains("[user] Final question: should we merge feat/alpha?"));
+    let st = e.st();
     assert_eq!(st.verdicts.len(), 2);
+    assert!(st.verdicts.iter().all(|v| v.relevant && v.unfiltered_reason.is_none()), "{:?}", st.verdicts);
     assert!(st.pending.is_empty() && st.worker_pid.is_none());
 }
+
+#[test]
+fn the_filter_command_honours_the_timeout_variable() {
+    let e = Env::new();
+    e.marker("fake-sleep", "");
+    let o = cli_run(
+        e.root(),
+        &e.config,
+        PROFILE,
+        fixture("fake-filter.sh").as_os_str(),
+        &[("SESSION_BRIDGE_FILTER_TIMEOUT_S", "1")],
+        Duration::from_secs(30),
+    );
+    assert_eq!(o.status.code(), Some(0));
+    let st = e.st();
+    assert_eq!(st.verdicts.len(), 2);
+    assert!(st.verdicts.iter().all(|v| v.unfiltered_reason.as_deref() == Some("filter timed out")), "{:?}", st.verdicts);
+}
+
+fn assert_worker_cleared(e: &Env) {
+    assert_eq!(e.st().worker_pid, None, "worker_pid is cleared on this return");
+}
+
+#[tokio::test]
+async fn a_relative_binary_refusal_clears_the_worker_pid() {
+    let e = Env::new();
+    assert!(e.st().worker_pid.is_some());
+    let r = run_filter_with("claude", &e.state, &e.store, PROFILE, PID, &e.config, T).await;
+    assert!(r.is_err());
+    assert_worker_cleared(&e);
+}
+
+#[test]
+fn a_relative_config_dir_clears_the_worker_pid() {
+    let e = Env::new();
+    assert!(e.st().worker_pid.is_some());
+    let o = cli_run(
+        e.root(),
+        Path::new("relative-config"),
+        PROFILE,
+        fixture("fake-filter.sh").as_os_str(),
+        &[],
+        Duration::from_secs(30),
+    );
+    assert_eq!(o.status.code(), Some(0));
+    assert!(o.stdout.is_empty());
+    assert_worker_cleared(&e);
+    assert!(e.st().verdicts.is_empty(), "no verdicts: the worker stopped early");
+}
+
+#[test]
+fn a_locate_failure_clears_the_worker_pid() {
+    let e = Env::new();
+    assert!(e.st().worker_pid.is_some());
+    let o = cli_run(e.root(), &e.config, PROFILE, std::ffi::OsStr::new("relative-claude"), &[], Duration::from_secs(30));
+    assert_eq!(o.status.code(), Some(0));
+    assert_worker_cleared(&e);
+}
+
+/// A state root with an endpoint state (worker pid set) and no notice database.
+fn without_db() -> Env {
+    let e = Env::new();
+    for suffix in ["", "-wal", "-shm"] {
+        let _ = std::fs::remove_file(e.state.join(format!("notices.db{suffix}")));
+    }
+    e
+}
+
+#[test]
+fn a_missing_database_clears_the_worker_pid_and_creates_no_file() {
+    let e = without_db();
+    assert!(e.st().worker_pid.is_some());
+    let before = snapshot(e.root());
+    let o = cli(&e, PROFILE);
+    assert_eq!(o.status.code(), Some(0));
+    assert_eq!(e.st().worker_pid, None);
+    let after = snapshot(e.root());
+    let created: Vec<_> = after.keys().filter(|k| !before.contains_key(*k)).collect();
+    assert!(created.is_empty(), "{created:?}");
+}
+
+#[test]
+fn an_unopenable_database_clears_the_worker_pid() {
+    let e = without_db();
+    std::fs::create_dir(e.state.join("notices.db")).unwrap();
+    assert!(e.st().worker_pid.is_some());
+    let o = cli(&e, PROFILE);
+    assert_eq!(o.status.code(), Some(0));
+    assert_worker_cleared(&e);
+}
+
+#[test]
+fn a_missing_endpoint_state_is_not_created_by_an_early_return() {
+    let e = Env::new();
+    let path = endpoint_path(&e.state, PROFILE, 31337);
+    let o = std::process::Command::new(env!("CARGO_BIN_EXE_session-bridge"))
+        .args(["filter", "--profile", PROFILE, "--pid", "31337"])
+        .env("HOME", e.root())
+        .env("XDG_STATE_HOME", e.root().join("xdg"))
+        .env("CLAUDE_CONFIG_DIR", &e.config)
+        .env("SESSION_BRIDGE_CLAUDE_BIN", "relative-claude")
+        .stdin(std::process::Stdio::null())
+        .output()
+        .unwrap();
+    assert_eq!(o.status.code(), Some(0));
+    assert!(!path.exists(), "no state file is made for an endpoint that has none");
+}
+
+
+
