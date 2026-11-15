@@ -218,9 +218,11 @@ pub fn resolve_target<'a>(eps: &'a [Endpoint], target: &str, me: (&str, u32)) ->
     if found.is_empty() {
         return Err(BridgeError::TargetNotFound { target: target.to_string(), candidates: all() });
     }
-    found.retain(|e| !(e.profile == me.0 && e.pid == me.1));
+    // Decide on the FULL match set, caller included: one match is self or the answer,
+    // two or more are ambiguous even when the caller is one of them. A tier-1 hit (exact
+    // id, name or pid) stops the search before the prefix tier, even when it is the caller.
     match found.as_slice() {
-        [] => Err(BridgeError::TargetIsSelf),
+        [one] if one.profile == me.0 && one.pid == me.1 => Err(BridgeError::TargetIsSelf),
         [one] => Ok(one),
         many => Err(BridgeError::AmbiguousTarget {
             target: target.to_string(),

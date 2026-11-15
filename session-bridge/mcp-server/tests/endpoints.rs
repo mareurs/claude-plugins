@@ -192,6 +192,34 @@ fn resolve_not_found_lists_candidates() {
 }
 
 #[test]
+fn resolve_refuses_a_twin_when_the_caller_is_one_of_them() {
+    let (_fx, eps) = twins();
+    match resolve_target(&eps, ID, (".claude-stef", 100)) {
+        Err(BridgeError::AmbiguousTarget { candidates, .. }) => {
+            let all = candidates.join("\n");
+            assert!(all.contains("stef:100") && all.contains("kat:200"), "{all}");
+        }
+        other => panic!("expected AmbiguousTarget, got {other:?}"),
+    }
+}
+
+#[test]
+fn resolve_main_prefix_is_ambiguous_when_the_caller_is_a_match() {
+    let mut fx = Fx::new();
+    fx.live(".claude", 100, ID, None);
+    fx.live(".claude-main", 200, ID, None);
+    let eps = discover(&fx.roots());
+    match resolve_target(&eps, &format!("main:{}", &ID[..8]), (".claude", 100)) {
+        Err(BridgeError::AmbiguousTarget { candidates, .. }) => {
+            let all = candidates.join("\n");
+            assert!(all.contains("main:100") && all.contains("main:200"), "{all}");
+        }
+        other => panic!("expected AmbiguousTarget, got {other:?}"),
+    }
+}
+
+
+#[test]
 fn resolve_refuses_self() {
     let mut fx = Fx::new();
     fx.live(".claude-stef", 100, ID, None);
