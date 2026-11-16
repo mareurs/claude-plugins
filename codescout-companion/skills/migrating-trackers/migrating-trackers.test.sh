@@ -85,6 +85,10 @@ if echo "$l03" | grep -qF '.apply.refused' && echo "$l03" | grep -qF 'partial ex
    && echo "$l03" | grep -qF 'mkdir -p'; then
   pass "Step 0.3 stops on a partial export and creates the tracker-migration directory"
 else fail "Step 0.3 partial export" "line lacks .apply.refused, partial export, STOP or mkdir -p"; fi
+if echo "$l03" | grep -qF 'subset of the names' && ! echo "$l03" | grep -qF 'equal the names' \
+   && echo "$l03" | grep -qF '.report_errors' && echo "$l03" | grep -qF '"ran": false' && echo "$l03" | grep -qF 'cutover.before.txt'; then
+  pass "Step 0.3 compares as a subset, handles report_errors and exit 2, names the snapshot file"
+else fail "Step 0.3 subset" "line lacks 'subset of the names', has 'equal the names', or lacks .report_errors, exit 2 shape or the snapshot file"; fi
 if command -v jq >/dev/null 2>&1; then
   # the filter the skill prescribes must hold both sides of a rename (shape from ApplyOutcome: renamed is [[old,new]])
   f=$(line_of '**Catalog facts.**' "$SKILL" | grep -oE "\[\.apply\.written\[\][^']*" | head -1)
