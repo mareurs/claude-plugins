@@ -67,7 +67,14 @@ with tempfile.TemporaryDirectory(prefix="bridge-mcp-test-") as tmp:
         assert author==A and repository==str(repo),(author,repository)
         db.close()
         missing=call("post_notice",{"title":"missing identity","body":"must fail"},False)
-        assert "error" in missing or missing.get("result",{}).get("isError"),missing
+        if "error" not in missing and not missing.get("result",{}).get("isError"):
+            # Run inside a Claude Code session, the bridge's ancestry holds a registered Claude
+            # host, and the call without thread metadata is by design that Claude session's call
+            # (caller_session). It must never be attributed to the Codex thread A.
+            db=sqlite3.connect(root/"state/session-bridge/notices.db")
+            (author,)=db.execute("select author_session from notice where title='missing identity'").fetchone()
+            db.close()
+            assert author!=A and author!=B,("missing identity resolved to a Codex thread",author,missing)
         hook = subprocess.run([sys.argv[1],"hook","session-start","--harness","codex"],
                               input=json.dumps({"session_id":B,"cwd":str(repo)}),env=bridge_env,cwd=repo,
                               capture_output=True,text=True,timeout=5)
