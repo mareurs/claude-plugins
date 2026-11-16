@@ -106,8 +106,8 @@ tool results are not in it, so an edit made by a tool counts only when the sessi
 about it. Harness text (system reminders, task notifications, local-command output) and
 subagent sidechains are left out. A notice
 counts as relevant only when the transcript names something specific that the notice changes,
-and the model must quote the exact words. A quote that is not in the transcript tail voids the
-verdict. Every verdict is appended to `verdicts.jsonl`.
+and the model must quote the exact words. A quote that is not in the transcript tail, or that is
+longer than 15 words or 200 characters, voids the verdict. Every verdict is appended to `verdicts.jsonl`.
 
 A relevant notice reaches the session as `additionalContext`:
 
@@ -172,7 +172,7 @@ Root: `$XDG_STATE_HOME/session-bridge/` when `XDG_STATE_HOME` is set and absolut
 | `endpoints/` | One state file per endpoint (`<profile>__<pid>.json`): queue, verdicts, delivered notices, worker pid. |
 | `cursors/` | The notice cursor of each session. |
 | `asks.jsonl` | Log and meter of every ask. |
-| `verdicts.jsonl` | Log of every filter verdict, with `relevant`, quote and reason. |
+| `verdicts.jsonl` | Log of every filter verdict, with `relevant`, quote and reason. The quotes are words copied from session transcripts (at most 200 characters each, `why` too): transcript text that stays in the state directory after the session ends. Nothing trims this file. |
 | `filter-cwd/` | An empty directory in which the filter runs, so it loads no project memory. |
 
 `CLAUDE_CONFIG_DIR` names the profile of a session: its last path component, or `.claude` when

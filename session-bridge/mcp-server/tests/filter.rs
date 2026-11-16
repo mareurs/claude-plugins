@@ -198,6 +198,75 @@ fn irrelevant_and_unfiltered_verdicts_pass_void_unquoted_unchanged() {
     assert!(out[1].relevant, "an unfiltered verdict has no quote and must stay relevant");
 }
 
+// ---- bounded quotes: the filter prompt allows at most 15 words ----------------------------
+
+fn words(n: usize) -> String {
+    (1..=n).map(|i| format!("w{i}")).collect::<Vec<_>>().join(" ")
+}
+
+#[test]
+fn a_quote_over_15_words_is_voided_even_when_it_is_in_the_tail() {
+    let tail = format!("[user] {} end", words(40));
+    let v = void_unquoted(
+        vec![verdict(1, true, &words(40)), verdict(2, true, &words(16)), verdict(3, true, &words(15))],
+        &tail,
+    );
+    assert!(!v[0].relevant, "40 words");
+    assert_eq!(v[0].why, "quote longer than 15 words or 200 characters");
+    assert!(!v[1].relevant, "16 words");
+    assert!(v[2].relevant, "15 words");
+}
+
+#[test]
+fn a_quote_over_200_characters_is_voided() {
+    let (x200, y201, e200) = ("x".repeat(200), "y".repeat(201), "é".repeat(200));
+    let tail = format!("{x200} {y201} {e200}");
+    let v = void_unquoted(vec![verdict(1, true, &x200), verdict(2, true, &y201), verdict(3, true, &e200)], &tail);
+    assert!(v[0].relevant, "200 characters, one word");
+    assert!(!v[1].relevant, "201 characters");
+    assert!(v[2].relevant, "200 characters of 2 bytes each: characters count, not bytes");
+}
+
+#[test]
+fn why_and_evidence_are_cut_to_200_characters() {
+    let mut a = verdict(1, false, "");
+    a.why = "é".repeat(500);
+    let b = verdict(2, true, &"q".repeat(300));
+    let mut c = verdict(3, true, "w1 w2");
+    c.why = "ü".repeat(201);
+    let v = void_unquoted(vec![a, b, c], "w1 w2");
+    assert_eq!(v[0].why, "é".repeat(200), "an irrelevant verdict's why is cut, by characters");
+    assert_eq!(v[1].evidence, "q".repeat(200), "a voided quote is stored cut");
+    assert!(v[2].relevant);
+    assert_eq!(v[2].why, "ü".repeat(200));
+}
+
+#[tokio::test]
+async fn the_stored_verdicts_and_their_log_lines_are_bounded() {
+    let d = TempDir::new().unwrap();
+    let long = words(40);
+    let t = write_transcript(d.path(), &[format!("I said {long} today")]);
+    let e = Env::with_transcript(Some(t));
+    e.reply(serde_json::json!([
+        {"notice":"N1","relevant":true,"evidence":long,"why":"same words"},
+        {"notice":"N2","relevant":false,"evidence":"","why":"é".repeat(500)}
+    ]));
+    e.run(T).await;
+    assert!(e.recorded("filter-calls").is_some(), "the model was called");
+    let st = e.st();
+    let get = |seq: i64| st.verdicts.iter().find(|v| v.seq == seq).unwrap().clone();
+    assert!(!get(1).relevant, "a 40-word quote is voided although the tail holds it");
+    assert!(get(1).evidence.chars().count() <= 200);
+    assert_eq!(get(2).why, "é".repeat(200));
+    let log = std::fs::read_to_string(e.state.join("verdicts.jsonl")).unwrap();
+    let lines: Vec<serde_json::Value> = log.lines().map(|l| serde_json::from_str(l).unwrap()).collect();
+    assert_eq!(lines.len(), 2);
+    for l in &lines {
+        assert!(l["why"].as_str().unwrap().chars().count() <= 200, "{l}");
+        assert!(l["evidence"].as_str().unwrap().chars().count() <= 200, "{l}");
+    }
+}
+
 #[test]
 fn unfiltered_is_relevant_with_a_reason() {
     let u = unfiltered(&[notice(1, "t", "b"), notice(2, "t", "b")], "no transcript");

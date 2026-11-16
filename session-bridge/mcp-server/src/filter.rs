@@ -32,6 +32,11 @@ const DEFAULT_TIMEOUT_S: u64 = 60;
 const VERDICT_LOG: &str = "verdicts.jsonl";
 /// Pending notices judged by one model call.
 pub const FILTER_BATCH: usize = 20;
+/// Longest quote a relevant verdict may carry: the prompt's 15 words, and 200 characters.
+pub const MAX_QUOTE_WORDS: usize = 15;
+pub const MAX_QUOTE_CHARS: usize = 200;
+/// `why` and `evidence` are stored (endpoint state, verdict log) cut to this many characters.
+pub const MAX_STORED_CHARS: usize = 200;
 const ENV_REMOVED: [&str; 4] =
     ["CLAUDE_CODE_SESSION_ID", "CLAUDE_CODE_MESSAGING_SOCKET", "CLAUDE_CODE_MESSAGING_TOKEN", "CLAUDECODE"];
 
@@ -197,9 +202,12 @@ fn squash(s: &str) -> String {
     s.split_whitespace().collect::<Vec<_>>().join(" ")
 }
 
-/// A relevant verdict whose quote is not in the tail (whitespace runs collapsed on both
+/// A relevant verdict whose quote is over `MAX_QUOTE_WORDS` words or `MAX_QUOTE_CHARS`
+/// characters (the prompt allows 15 words: a longer "quote" could carry any amount of
+/// transcript text), whose quote is not in the tail (whitespace runs collapsed on both
 /// sides), or whose quote is empty, becomes not relevant. Unfiltered verdicts carry no
-/// quote by design and pass through.
+/// quote by design and pass through. Every verdict leaves with `why` and `evidence` cut to
+/// `MAX_STORED_CHARS` characters: both are stored in the endpoint state and the verdict log.
 pub fn void_unquoted(verdicts: Vec<Verdict>, tail: &str) -> Vec<Verdict> {
     let tail = squash(tail);
     verdicts
@@ -207,11 +215,16 @@ pub fn void_unquoted(verdicts: Vec<Verdict>, tail: &str) -> Vec<Verdict> {
         .map(|mut v| {
             if v.relevant && v.unfiltered_reason.is_none() {
                 let quote = squash(&v.evidence);
-                if quote.is_empty() || !tail.contains(&quote) {
+                if quote.split(' ').count() > MAX_QUOTE_WORDS || quote.chars().count() > MAX_QUOTE_CHARS {
+                    v.relevant = false;
+                    v.why = "quote longer than 15 words or 200 characters".to_string();
+                } else if quote.is_empty() || !tail.contains(&quote) {
                     v.relevant = false;
                     v.why = "quote not found in the transcript tail".to_string();
                 }
             }
+            v.why = clip(&v.why, MAX_STORED_CHARS);
+            v.evidence = clip(&v.evidence, MAX_STORED_CHARS);
             v
         })
         .collect()
