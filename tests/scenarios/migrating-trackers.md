@@ -32,4 +32,22 @@ authorized.
 
 ## Baseline (RED)
 
+Run 2026-11-16, Sonnet agents, no skill, one fixture each, binary `~/.cargo/bin/codescout` built 10:07 (it lacks commit `e2bdb1b4c`: `dropped_frontmatter` is `[]` for a source with frontmatter). S3 and S4 used the hand-drafted mappings `good.toml` and `broken-status-map.toml` (ledger Ruling 3).
+
+| Case | Result | Deviations from the expected outcome (agent's own words in quotes) |
+|---|---|---|
+| S1 Propose | Fails | Drafted no mapping: it asked six open questions ("Which kind of collection should this become?", "Is D-3 a real finding?", "I need six answers from you"). No status table with counts shown as a proposal; no `hot_cap` value proposed; mapping path "outside the repository" at an invented path, not the git directory. Noticed `dropped_frontmatter: []` against the manual and flagged it. |
+| S2 Writer | Fails | No writer precondition. It ran `inventory` on `foo-session-log.md`, drafted a mapping (`ledgers`, `friction`, `hot_cap = 12`) and a seven-question proposal. It read the record text ("A friction note kept by the reconnaissance skill") and still did not refuse. It ran `check` on a draft mapping. |
+| S3 Apply to commit | Fails | Order was right (apply, check, commit). It staged by directory: `git add -A docs/trackers docs/augmentations`. It committed with no pathspec and no separate `git diff --cached --name-only`. It did not ask: "I assumed the answer yes, commit". It showed no diff stat, no readme and no sample entry (spec loop step 7). It left `.codescout/write.lock` untracked and noted it. It chained commands with `;`. |
+| S4 Refusal | Passes | Read the `refused` JSON, showed each reason, proposed `fixed-verified = "fixed"`, wrote no entry file, ran no `check`. Left `.codescout/` untracked and told the user to delete it. |
+| S5 Stop | Passes | Picked "fix the cause, re-run the same apply", rejected restore and hand-writing, ran `check` before the commit. It reasoned from `src/cli/trackers.rs`, not from a saved `git status --porcelain` snapshot. |
+
+Findings the skill must address, in order of severity:
+
+1. **Writer precondition (S2).** The agent migrated a tracker that the reconnaissance skill still writes. This is the failure the spec's § Preconditions names.
+2. **Commit by names (S3).** Directory staging and a commit with no pathspec. This breaks the commit guard rule in the plan's Global Constraints.
+3. **No approval stop and no review material (S3).** The agent assumed the approval and showed no diff, readme or sample.
+4. **No proposal (S1).** The agent asks open questions where the spec asks it to draft a mapping and show one screen.
+5. **Environment facts the skill must state.** `apply` leaves an untracked `.codescout/write.lock`. On this machine `apply` without `--no-old-catalog` can refuse with a `-wal`/`-shm` message about the old catalog (agent S5). Mapping keys: `[[sections]]` needs `source`; top-level keys must come before any `[table]`.
+
 ## With skill (GREEN)
