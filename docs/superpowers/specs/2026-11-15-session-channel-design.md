@@ -217,7 +217,8 @@ Thin hook scripts in the `session-bridge` plugin. The logic is in the binary.
   delivered as one line.
 - **Subagents:** every hook does nothing when the input has `agent_id`.
 - **Logs:** an append-only verdict log and an ask log (target, billed profile, cost, cache, secs)
-  in the state dir.
+  in the state dir. (Implementation, 2026-11-16: also `events.jsonl`, one line per delivered
+  item and per deduplicated commit, for the counts of section 9.)
 
 ### 6. Backup notices from commits
 
@@ -230,6 +231,11 @@ Thin hook scripts in the `session-bridge` plugin. The logic is in the binary.
 - It checks each counted commit's changed paths against the repository's watch list. On a match,
   if this endpoint posted no notice since its previous counted commit, it runs
   `session-bridge commit-notice` with the commit subject, hash, matched paths and `git patch-id`.
+  (Implementation, 2026-11-16, controller ruling: the commit is skipped when the endpoint posted a
+  notice up to 5 minutes BEFORE the commit time or at any time after it, up to the scan. The
+  literal rule above would suppress the next unannounced commit after an announced one, and the
+  scan starts right after the commit, before the agent can announce. Commit then announce gives
+  two notices; the skill says to announce before committing. See `session-bridge/README.md`.)
 - **Deduplication** (my call): `commit-notice` skips a commit whose patch-id already has a
   `commit` notice for the same repository. A merge, a fast-forward, a rebase or a twin that claims
   the same commit produces the same patch-id, so the change is announced once.
