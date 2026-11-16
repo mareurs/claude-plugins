@@ -1,4 +1,4 @@
-//! The `Bridge` MCP server. Tools are stubs until later tasks fill them in.
+//! The `Bridge` MCP server: `list_sessions`, `ask_session` and `post_notice`.
 
 use rmcp::{
     handler::server::{router::tool::ToolRouter, wrapper::Parameters},
@@ -191,8 +191,9 @@ impl Bridge {
 impl ServerHandler for Bridge {
     fn get_info(&self) -> ServerInfo {
         ServerInfo::new(ServerCapabilities::builder().enable_tools().build()).with_instructions(
-            "session-bridge: channel between Claude Code sessions. list_sessions, \
-             ask_session(target, question) and post_notice(title, body, refs).",
+            "Use ask_session(target, question) to put a question to another live Claude Code session; \
+             a read-only fork of it answers, and the target's profile pays. \
+             Use post_notice(title, body, refs) to tell the other sessions of this repository about a change they may depend on.",
         )
     }
 }

@@ -1,7 +1,9 @@
 ---
-description: List active Claude Code sessions registered by session-bridge.
+description: List the live Claude Code sessions on this machine through session-bridge.
 ---
 
-Call the `session-bridge.list_sessions` MCP tool and present the result as a compact table with columns: `instance`, `alias`, `session_id` (first 8 chars), `cwd`, `branch`, `age`.
+Call the `session-bridge.list_sessions` MCP tool. It returns one line per live session, sorted by profile and pid, in the form `<key> [(you)] session=<id> name=<name> kind=<kind> status=<status> cwd=<dir> repo=<dir>`. The key is `<short profile>:<pid>`; a field that is unknown shows `-`.
 
-If the tool returns an empty array, say so plainly: no other sessions are currently registered.
+Present the result as a compact table with the columns `key`, `kind`, `status`, `name`, `repo`. Keep the `(you)` mark after the key of the caller's own session. Do not hide any line.
+
+If the tool returns "No live Claude Code sessions found.", say so plainly.
