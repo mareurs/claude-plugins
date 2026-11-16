@@ -15,6 +15,8 @@ pub use crate::deliver::render_nudge;
 
 /// Look interval per endpoint.
 const LOOK_INTERVAL_MS: i64 = 120_000;
+/// Shortest time between two worker starts of one endpoint.
+pub const SPAWN_MIN_INTERVAL_MS: i64 = 15_000;
 
 /// Start view: notices from the last 3 days, at most 8.
 const VIEW_WINDOW_MS: i64 = 3 * 24 * 60 * 60 * 1000;
@@ -149,8 +151,14 @@ pub fn session_start(
 /// 2. Look, when the last look is at least 120 s old or the tool input mentions `commit`:
 ///    read the notices after this session's cursor (a missing cursor starts at the head),
 ///    add them to `pending`, advance the cursor, and report a deletion gap in one line.
-/// 3. When `pending` is not empty and no live worker runs: `spawn` the filter worker and
-///    record the pid it returns as `worker_pid`.
+/// 3. When `pending` is not empty, no live worker runs and the last spawn is at least 15 s
+///    old: `spawn` the filter worker, record the pid it returns as `worker_pid` and the time
+///    as `last_spawn_ms` (also when the spawn fails). The interval bounds a worker that
+///    keeps dying to one start per 15 s instead of one per tool call.
+///
+/// Delivery is at most once: a verdict is marked delivered in the state write, before its
+/// text is printed. A hook killed between that write and its output loses that nudge
+/// (accepted).
 ///
 /// Every state change happens in ONE locked `update`, and only when something changes:
 /// this runs on every tool call. The spawn happens inside that update, so a second hook
@@ -204,7 +212,7 @@ pub fn on_trigger(
         || (input.transcript_path.is_some() && st.transcript_path != input.transcript_path)
         || (!input.cwd.is_empty() && st.cwd.as_deref() != Some(input.cwd.as_str()));
     let worker_live = st.worker_pid.is_some_and(|p| pid_alive(roots, p));
-    let may_spawn = !worker_live && (!st.pending.is_empty() || !new_seqs.is_empty());
+    let may_spawn = spawn_due(&st, now_ms) && !worker_live && (!st.pending.is_empty() || !new_seqs.is_empty());
     if !(identity_changed || has_undelivered(&st) || due || may_spawn) {
         return None;
     }
@@ -228,8 +236,9 @@ pub fn on_trigger(
                 s.pending.push(*q);
             }
         }
-        if !s.pending.is_empty() && !s.worker_pid.is_some_and(|p| pid_alive(roots, p)) {
+        if !s.pending.is_empty() && spawn_due(s, now_ms) && !s.worker_pid.is_some_and(|p| pid_alive(roots, p)) {
             s.worker_pid = spawn(me.0, me.1);
+            s.last_spawn_ms = now_ms;
         }
     });
     if let Err(e) = written {
@@ -257,30 +266,52 @@ fn mentions_commit(input: &HookInput) -> bool {
 }
 
 /// The page of notices after this session's cursor in the repository of its cwd. A
-/// session without a cursor starts at the head. `None` outside a repository or on a
-/// store error.
+/// session without a cursor starts at the head. A cursor AHEAD of the head means the store
+/// was recreated (its seqs restarted): that is a reset, read from 0, with no gap line.
+/// `None` outside a repository or on a store error.
 fn look(input: &HookInput, st: &EndpointState, me: (&str, u32), state: &Path, store: &Store) -> Option<Page> {
     let cwd = if input.cwd.is_empty() { st.cwd.clone()? } else { input.cwd.clone() };
     let repo = repo_of(Path::new(&cwd))?;
-    let from = match cursor::get(state, me.0, &input.session_id, me.1) {
-        Some(c) => c,
-        None => store.head().map_err(|e| diag::note(&format!("trigger: head: {e}"))).ok()?,
+    let head = store.head().map_err(|e| diag::note(&format!("trigger: head: {e}"))).ok()?;
+    let (from, reset) = match cursor::get(state, me.0, &input.session_id, me.1) {
+        None => (head, false),
+        Some(c) if c > head => {
+            diag::note(&format!("trigger: cursor {c} is ahead of the store head {head}: reading from 0"));
+            (0, true)
+        }
+        Some(c) => (c, false),
     };
-    store
+    let mut page = store
         .after(&repo.to_string_lossy(), from, me)
         .map_err(|e| diag::note(&format!("trigger: read notices: {e}")))
-        .ok()
+        .ok()?;
+    if reset {
+        page.gap = None;
+    }
+    Some(page)
+}
+
+/// Whether the last worker start of `s` is at least `SPAWN_MIN_INTERVAL_MS` old.
+fn spawn_due(s: &EndpointState, now_ms: i64) -> bool {
+    now_ms - s.last_spawn_ms >= SPAWN_MIN_INTERVAL_MS
 }
 
 /// Start `session-bridge filter --profile <profile> --pid <pid>` (this same executable)
-/// detached: its own session, stdio null, the environment inherited (the worker needs
-/// `CLAUDE_CONFIG_DIR` and `XDG_STATE_HOME`). Never waited on: the hook exits at once and
-/// the worker is reparented. Returns the child pid, or `None` (noted) when it cannot start.
+/// with `spawn_detached`. Returns the child pid, or `None` (noted) when it cannot start.
 pub fn spawn_worker(profile: &str, pid: u32) -> Option<u32> {
-    use std::os::unix::process::CommandExt;
     let exe = std::env::current_exe().map_err(|e| diag::note(&format!("spawn: current exe: {e}"))).ok()?;
-    let mut cmd = std::process::Command::new(exe);
-    cmd.args(["filter", "--profile", profile, "--pid", &pid.to_string()])
+    let pid = pid.to_string();
+    spawn_detached(&exe, &["filter", "--profile", profile, "--pid", &pid])
+}
+
+/// Start `program` with `args` detached: its own session (`setsid`), stdin, stdout and stderr
+/// on `/dev/null`, the environment inherited (the worker needs `CLAUDE_CONFIG_DIR` and
+/// `XDG_STATE_HOME`). Never waited on: the hook exits at once and the child is reparented.
+/// Returns the child pid, or `None` (noted) when it cannot start.
+pub fn spawn_detached(program: &Path, args: &[&str]) -> Option<u32> {
+    use std::os::unix::process::CommandExt;
+    let mut cmd = std::process::Command::new(program);
+    cmd.args(args)
         .stdin(std::process::Stdio::null())
         .stdout(std::process::Stdio::null())
         .stderr(std::process::Stdio::null());
@@ -294,7 +325,7 @@ pub fn spawn_worker(profile: &str, pid: u32) -> Option<u32> {
     match cmd.spawn() {
         Ok(child) => Some(child.id()),
         Err(e) => {
-            diag::note(&format!("spawn: filter worker: {e}"));
+            diag::note(&format!("spawn: {}: {e}", program.display()));
             None
         }
     }

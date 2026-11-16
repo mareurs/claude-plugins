@@ -86,7 +86,9 @@ pub struct Fetched {
 /// return the nudges to show, oldest seq first. An irrelevant verdict is only marked. A
 /// relevant one is marked when its notice was fetched (and shown when the store still had
 /// it); a relevant verdict that arrived after the fetch waits for the next trigger.
-/// Marking under the lock makes delivery exactly-once across concurrent hooks.
+/// Marking under the lock means two concurrent hooks never both show a verdict. Delivery is
+/// at most once, not exactly once: the mark is written before the hook prints the text, so
+/// a hook killed after the state write loses that nudge (accepted).
 pub fn take_deliverable(s: &mut EndpointState, fetched: &Fetched) -> Vec<(Notice, Verdict)> {
     let mut out = vec![];
     let mut marked = vec![];

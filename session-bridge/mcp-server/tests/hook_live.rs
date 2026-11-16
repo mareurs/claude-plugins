@@ -144,9 +144,6 @@ fn irrelevant(seq: i64) -> Verdict {
     Verdict { seq, relevant: false, evidence: String::new(), why: "no".into(), unfiltered_reason: None }
 }
 
-fn hhmm(ms: i64) -> String {
-    chrono::DateTime::from_timestamp_millis(ms).unwrap().format("%H:%M").to_string()
-}
 
 fn notice(title: &str, body: &str, refs: &[&str], session: &str) -> Notice {
     Notice {
@@ -284,16 +281,14 @@ fn nudge_matches_the_pinned_shape() {
     assert_eq!(
         out,
         format!(
-            "Notice from session wk (kat:abcdef12), {} UTC: Moved the cursor rules. It matters to you because you wrote: \"fix cursor.rs rule 3\". Rule 3 now runs first.. Refs: src/cursor.rs, abc123. {TAIL}",
-            hhmm(1_700_000_000_000)
+            "Notice from session wk (kat:abcdef12), 22:13 UTC: Moved the cursor rules. It matters to you because you wrote: \"fix cursor.rs rule 3\". Rule 3 now runs first.. Refs: src/cursor.rs, abc123. {TAIL}"
         )
     );
     let u = Verdict { unfiltered_reason: Some("filter timed out".into()), ..relevant(3, "") };
     assert_eq!(
         render_nudge(&n, &u, Some("wk")),
         format!(
-            "Notice from session wk (kat:abcdef12), {} UTC: Moved the cursor rules. (not filtered: filter timed out) Rule 3 now runs first.. Refs: src/cursor.rs, abc123. {TAIL}",
-            hhmm(1_700_000_000_000)
+            "Notice from session wk (kat:abcdef12), 22:13 UTC: Moved the cursor rules. (not filtered: filter timed out) Rule 3 now runs first.. Refs: src/cursor.rs, abc123. {TAIL}"
         )
     );
 }
@@ -400,6 +395,39 @@ fn a_dead_worker_is_replaced() {
     e.trigger_at(&e.plain(), now);
     assert_eq!(e.spawned.borrow().as_slice(), &[(STEF.to_string(), 20)]);
     assert_eq!(e.st().worker_pid, Some(4321));
+}
+
+#[test]
+fn a_failing_worker_is_restarted_at_most_once_per_15_seconds() {
+    let e = env();
+    let now = now_ms();
+    e.set_state(|s| {
+        s.last_look_ms = now + 60_000; // no look during this test
+        s.pending = vec![1];
+        s.worker_pid = Some(78); // no proc entry: dead
+    });
+    // The recorder reports pid 4321, which has no proc entry either: every worker "dies" at once.
+    for i in 0..10 {
+        e.trigger_at(&e.plain(), now + i * 1000);
+    }
+    assert_eq!(e.spawns(), 1, "ten triggers within 15 s start one worker");
+    assert_eq!(e.st().last_spawn_ms, now);
+    e.trigger_at(&e.plain(), now + 15_000);
+    assert_eq!(e.spawns(), 2, "15 s later a second worker starts");
+    assert_eq!(e.st().last_spawn_ms, now + 15_000);
+}
+
+#[test]
+fn a_cursor_ahead_of_the_head_is_a_reset() {
+    let e = env();
+    // notices.db was recreated: the cursor file still says 50, the new store has seqs 1..3.
+    set(&e.state, STEF, "S", 20, 50).unwrap();
+    let seqs: Vec<i64> = (0..3).map(|i| e.post(now_ms(), &format!("n{i}"), "", &[])).collect();
+    assert_eq!(seqs, vec![1, 2, 3]);
+    let out = e.trigger_at(&e.plain(), now_ms());
+    assert_eq!(out, None, "no gap line for a reset");
+    assert_eq!(e.st().pending, vec![1, 2, 3]);
+    assert_eq!(get(&e.state, STEF, "S", 20), Some(3));
 }
 
 #[test]
