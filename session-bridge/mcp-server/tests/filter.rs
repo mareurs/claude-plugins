@@ -1,6 +1,6 @@
 use session_bridge_mcp::filter::{
-    filter_argv, filter_input, filter_timeout, parse_verdicts, run_filter_with, transcript_tail, unfiltered,
-    void_unquoted, FILTER_PROMPT,
+    drain_unfiltered, filter_argv, filter_input, filter_timeout, parse_verdicts, run_filter_with, transcript_tail,
+    unfiltered, void_unquoted, FILTER_PROMPT,
 };
 use session_bridge_mcp::state::{endpoint_path, load_or_default, update, Verdict};
 use session_bridge_mcp::store::{NewNotice, Notice, Origin, Store};
@@ -722,6 +722,22 @@ fn assert_worker_cleared(e: &Env) {
     assert_eq!(e.st().worker_pid, None, "worker_pid is cleared on this return");
 }
 
+/// An early return of the worker settled the two seeded notices as unfiltered verdicts with
+/// `reason`, emptied `pending` and cleared `worker_pid`, without a model call.
+fn assert_drained(e: &Env, reason: &str) {
+    let st = e.st();
+    assert_eq!(st.pending, Vec::<i64>::new(), "pending is drained");
+    assert_eq!(st.worker_pid, None);
+    let mut seqs: Vec<i64> = st.verdicts.iter().map(|v| v.seq).collect();
+    seqs.sort();
+    assert_eq!(seqs, vec![1, 2]);
+    for v in &st.verdicts {
+        assert!(v.relevant && v.evidence.is_empty() && v.why.is_empty(), "{v:?}");
+        assert_eq!(v.unfiltered_reason.as_deref(), Some(reason), "{v:?}");
+    }
+    assert!(e.recorded("filter-calls").is_none(), "no model call");
+}
+
 #[tokio::test]
 async fn a_relative_binary_refusal_clears_the_worker_pid() {
     let e = Env::new();
@@ -731,8 +747,19 @@ async fn a_relative_binary_refusal_clears_the_worker_pid() {
     assert_worker_cleared(&e);
 }
 
+
+
+/// A state root with an endpoint state (worker pid set) and no notice database.
+fn without_db() -> Env {
+    let e = Env::new();
+    for suffix in ["", "-wal", "-shm"] {
+        let _ = std::fs::remove_file(e.state.join(format!("notices.db{suffix}")));
+    }
+    e
+}
+
 #[test]
-fn a_relative_config_dir_clears_the_worker_pid() {
+fn a_relative_config_dir_drains_pending_unfiltered() {
     let e = Env::new();
     assert!(e.st().worker_pid.is_some());
     let o = cli_run(
@@ -745,50 +772,79 @@ fn a_relative_config_dir_clears_the_worker_pid() {
     );
     assert_eq!(o.status.code(), Some(0));
     assert!(o.stdout.is_empty());
-    assert_worker_cleared(&e);
-    assert!(e.st().verdicts.is_empty(), "no verdicts: the worker stopped early");
+    assert_drained(&e, "bad config dir");
 }
 
 #[test]
-fn a_locate_failure_clears_the_worker_pid() {
+fn a_locate_failure_drains_pending_unfiltered() {
     let e = Env::new();
     assert!(e.st().worker_pid.is_some());
     let o = cli_run(e.root(), &e.config, PROFILE, std::ffi::OsStr::new("relative-claude"), &[], Duration::from_secs(30));
     assert_eq!(o.status.code(), Some(0));
-    assert_worker_cleared(&e);
-}
-
-/// A state root with an endpoint state (worker pid set) and no notice database.
-fn without_db() -> Env {
-    let e = Env::new();
-    for suffix in ["", "-wal", "-shm"] {
-        let _ = std::fs::remove_file(e.state.join(format!("notices.db{suffix}")));
-    }
-    e
+    assert_drained(&e, "no claude binary");
 }
 
 #[test]
-fn a_missing_database_clears_the_worker_pid_and_creates_no_file() {
+fn a_missing_database_drains_pending_unfiltered_and_creates_no_file() {
     let e = without_db();
     assert!(e.st().worker_pid.is_some());
     let before = snapshot(e.root());
     let o = cli(&e, PROFILE);
     assert_eq!(o.status.code(), Some(0));
-    assert_eq!(e.st().worker_pid, None);
+    assert_drained(&e, "notice store unavailable");
     let after = snapshot(e.root());
     let created: Vec<_> = after.keys().filter(|k| !before.contains_key(*k)).collect();
     assert!(created.is_empty(), "{created:?}");
 }
 
 #[test]
-fn an_unopenable_database_clears_the_worker_pid() {
+fn an_unopenable_database_drains_pending_unfiltered() {
     let e = without_db();
     std::fs::create_dir(e.state.join("notices.db")).unwrap();
     assert!(e.st().worker_pid.is_some());
     let o = cli(&e, PROFILE);
     assert_eq!(o.status.code(), Some(0));
-    assert_worker_cleared(&e);
+    assert_drained(&e, "notice store unavailable");
 }
+
+#[tokio::test]
+async fn a_failing_store_read_drains_pending_unfiltered() {
+    let e = Env::new();
+    assert!(e.st().worker_pid.is_some());
+    // Make `get_many` fail: drop the table through a second connection on the same file.
+    {
+        let c = rusqlite::Connection::open(e.state.join("notices.db")).unwrap();
+        c.execute("DROP TABLE notice", []).unwrap();
+    }
+    let bin = fixture("fake-filter.sh");
+    let r = run_filter_with(bin.to_str().unwrap(), &e.state, &e.store, PROFILE, PID, &e.config, T).await;
+    assert!(r.is_err(), "a store failure is an error");
+    assert_drained(&e, "store read failed");
+}
+
+#[test]
+fn a_drain_settles_only_the_oldest_twenty() {
+    let e = Env::new();
+    update(&endpoint_path(&e.state, PROFILE, PID), |s| s.pending = (1..=25).rev().collect()).unwrap();
+    drain_unfiltered(&e.state, PROFILE, PID, "no claude binary");
+    let st = e.st();
+    let mut pending = st.pending.clone();
+    pending.sort();
+    assert_eq!(pending, (21..=25).collect::<Vec<_>>());
+    let mut seqs: Vec<i64> = st.verdicts.iter().map(|v| v.seq).collect();
+    seqs.sort();
+    assert_eq!(seqs, (1..=20).collect::<Vec<_>>());
+    assert_eq!(st.worker_pid, None);
+}
+
+#[test]
+fn a_drain_without_an_endpoint_state_creates_nothing() {
+    let d = TempDir::new().unwrap();
+    drain_unfiltered(d.path(), PROFILE, PID, "no claude binary");
+    assert_eq!(std::fs::read_dir(d.path()).unwrap().count(), 0);
+}
+
+
 
 #[test]
 fn a_missing_endpoint_state_is_not_created_by_an_early_return() {
@@ -805,24 +861,6 @@ fn a_missing_endpoint_state_is_not_created_by_an_early_return() {
         .unwrap();
     assert_eq!(o.status.code(), Some(0));
     assert!(!path.exists(), "no state file is made for an endpoint that has none");
-}
-#[tokio::test]
-async fn a_failing_store_read_clears_the_worker_pid_and_keeps_pending() {
-    let e = Env::new();
-    assert!(e.st().worker_pid.is_some());
-    // Make `get_many` fail: drop the table through a second connection on the same file.
-    {
-        let c = rusqlite::Connection::open(e.state.join("notices.db")).unwrap();
-        c.execute("DROP TABLE notice", []).unwrap();
-    }
-    let bin = fixture("fake-filter.sh");
-    let r = run_filter_with(bin.to_str().unwrap(), &e.state, &e.store, PROFILE, PID, &e.config, T).await;
-    assert!(r.is_err(), "a store failure is an error");
-    let st = e.st();
-    assert_eq!(st.worker_pid, None);
-    assert_eq!(st.pending, vec![1, 2], "nothing was handled, so the next look retries");
-    assert!(st.verdicts.is_empty());
-    assert!(e.recorded("filter-calls").is_none(), "no model call");
 }
 
 fn run_fixture(config: Option<&Path>, cwd: &Path) -> std::process::Output {

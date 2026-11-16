@@ -39,6 +39,9 @@ pub struct EndpointState {
     pub heads: BTreeMap<String, String>,
     pub last_post_ms: i64,
     pub worker_pid: Option<u32>,
+    /// When a hook last started a filter worker for this endpoint.
+    #[serde(default)]
+    pub last_spawn_ms: i64,
 }
 
 impl Default for EndpointState {
@@ -55,6 +58,7 @@ impl Default for EndpointState {
             heads: BTreeMap::new(),
             last_post_ms: 0,
             worker_pid: None,
+            last_spawn_ms: 0,
         }
     }
 }
@@ -70,6 +74,22 @@ pub fn load_or_default(path: &Path) -> EndpointState {
         .ok()
         .and_then(|s| serde_json::from_str(&s).ok())
         .unwrap_or_default()
+}
+
+/// The state at `path`, read under a SHARED lock on `<path>.lock`, so a read never sees the
+/// state from before an `update` that is running. Creates no file: when the lock file (or
+/// its directory) does not exist, no update ever ran and the state is the default. If the
+/// lock itself fails, the read goes ahead without it.
+pub fn read_locked(path: &Path) -> EndpointState {
+    let Ok(lock) = std::fs::File::open(sibling(path, ".lock")) else {
+        return EndpointState::default();
+    };
+    let locked = lock.lock_shared().is_ok();
+    let state = load_or_default(path);
+    if locked {
+        let _ = lock.unlock();
+    }
+    state
 }
 
 fn sibling(path: &Path, suffix: &str) -> PathBuf {

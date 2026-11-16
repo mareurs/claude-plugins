@@ -14,6 +14,51 @@ fn default_state_has_schema_one() {
 }
 
 #[test]
+fn read_locked_waits_for_a_running_update() {
+    let d = TempDir::new().unwrap();
+    let p = endpoint_path(d.path(), ".claude-stef", 42);
+    update(&p, |s| s.pending = vec![]).unwrap();
+    let (tx, rx) = std::sync::mpsc::channel();
+    let writer = {
+        let p = p.clone();
+        std::thread::spawn(move || {
+            update(&p, |s| {
+                tx.send(()).unwrap();
+                std::thread::sleep(std::time::Duration::from_millis(300));
+                s.pending = vec![1];
+            })
+            .unwrap();
+        })
+    };
+    rx.recv().unwrap();
+    // The update holds the lock: a locked read sees its result, not the state before it.
+    assert_eq!(session_bridge_mcp::state::read_locked(&p).pending, vec![1]);
+    writer.join().unwrap();
+}
+
+#[test]
+fn read_locked_creates_no_file() {
+    let d = TempDir::new().unwrap();
+    let p = endpoint_path(&d.path().join("nowhere"), ".claude-stef", 42);
+    assert_eq!(session_bridge_mcp::state::read_locked(&p), EndpointState::default());
+    assert!(!d.path().join("nowhere").exists());
+    // A state dir without the lock file: still the default, still no file.
+    let p = endpoint_path(d.path(), ".claude-stef", 42);
+    std::fs::create_dir_all(p.parent().unwrap()).unwrap();
+    assert_eq!(session_bridge_mcp::state::read_locked(&p), EndpointState::default());
+    assert_eq!(std::fs::read_dir(p.parent().unwrap()).unwrap().count(), 0);
+}
+
+#[test]
+fn an_old_state_file_without_last_spawn_ms_loads_with_zero() {
+    let d = TempDir::new().unwrap();
+    let p = d.path().join("s.json");
+    std::fs::write(&p, r#"{"schema":1,"session_id":"S","pending":[3],"worker_pid":7}"#).unwrap();
+    let s = load_or_default(&p);
+    assert_eq!((s.last_spawn_ms, s.pending, s.worker_pid), (0, vec![3], Some(7)));
+}
+
+#[test]
 fn missing_corrupt_and_partial_files_load_as_defaults() {
     let d = TempDir::new().unwrap();
     let p = d.path().join("s.json");

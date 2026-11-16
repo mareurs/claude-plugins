@@ -7,7 +7,7 @@
 //! relevant and unfiltered, so a broken filter delays nothing and hides nothing.
 
 use crate::error::{BridgeError, Result};
-use crate::state::{endpoint_path, load_or_default, update, EndpointState, Verdict};
+use crate::state::{endpoint_path, read_locked, update, EndpointState, Verdict};
 use crate::store::{Notice, Store};
 use serde::Deserialize;
 use std::io::{Read, Seek, SeekFrom, Write};
@@ -345,6 +345,46 @@ pub fn clear_worker_pid(state: &Path, profile: &str, pid: u32) {
     }
 }
 
+/// Fail-open for a worker that cannot run the filter at all: settle the oldest
+/// `FILTER_BATCH` pending notices as unfiltered verdicts with `reason`, remove them from
+/// `pending` and clear `worker_pid`, in one locked update. The next hook trigger delivers
+/// them, and `pending` shrinks, so a broken setup cannot keep the endpoint starting workers.
+/// Only the seqs are needed, so no store is read. Only when the endpoint state file already
+/// exists: it never creates a file.
+pub fn drain_unfiltered(state: &Path, profile: &str, pid: u32, reason: &str) {
+    let path = endpoint_path(state, profile, pid);
+    if !path.exists() {
+        return;
+    }
+    let drained = update(&path, |s| {
+        let batch = oldest_batch(&s.pending);
+        for q in &batch {
+            s.verdicts.retain(|v| v.seq != *q);
+            s.verdicts.push(Verdict {
+                seq: *q,
+                relevant: true,
+                evidence: String::new(),
+                why: String::new(),
+                unfiltered_reason: Some(reason.to_string()),
+            });
+        }
+        s.pending.retain(|q| !batch.contains(q));
+        s.worker_pid = None;
+    });
+    if let Err(e) = drained {
+        crate::diag::note(&format!("filter: drain: {e}"));
+    }
+}
+
+/// The oldest `FILTER_BATCH` distinct seqs of `pending`.
+fn oldest_batch(pending: &[i64]) -> Vec<i64> {
+    let mut batch = pending.to_vec();
+    batch.sort_unstable();
+    batch.dedup();
+    batch.truncate(FILTER_BATCH);
+    batch
+}
+
 
 /// Filter the pending notices of endpoint (`profile`, `pid`) with the model program `bin`
 /// (an absolute path), with the config dir from the environment of this process.
@@ -354,7 +394,7 @@ pub async fn run_filter(bin: &str, state: &Path, store: &Store, profile: &str, p
         None => Path::new(&std::env::var("HOME").unwrap_or_default()).join(".claude"),
     };
     if !config_dir.is_absolute() {
-        clear_worker_pid(state, profile, pid);
+        drain_unfiltered(state, profile, pid, "bad config dir");
         return Err(BridgeError::Io(std::io::Error::other("no absolute config dir")));
     }
     let timeout = filter_timeout(std::env::var("SESSION_BRIDGE_FILTER_TIMEOUT_S").ok().as_deref());
@@ -381,21 +421,20 @@ pub async fn run_filter_with(
         return Err(BridgeError::RelativeBinary(bin.to_string()));
     }
     let path = endpoint_path(state, profile, pid);
-    let st = load_or_default(&path);
+    // Under the shared lock: the hook that started this worker may still be inside the
+    // update that added the notices to `pending`.
+    let st = read_locked(&path);
     // At most FILTER_BATCH notices per model call, the oldest first. The rest stay in
     // `pending`, so the next hook trigger starts another worker after this one ends.
-    let mut handled = st.pending.clone();
-    handled.sort_unstable();
-    handled.dedup();
-    handled.truncate(FILTER_BATCH);
+    let handled = oldest_batch(&st.pending);
     let notices = if handled.is_empty() {
         vec![]
     } else {
         match store.get_many(&handled) {
             Ok(n) => n,
             Err(e) => {
-                // Keep `pending` so the next look retries; do not leave a stale worker pid.
-                clear_worker_pid(state, profile, pid);
+                // Fail-open: the batch is delivered unfiltered and `worker_pid` cleared.
+                drain_unfiltered(state, profile, pid, "store read failed");
                 return Err(e);
             }
         }
