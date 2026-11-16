@@ -47,7 +47,8 @@ target's credentials, so a relative program is never resolved.
 - **`list_sessions()`** lists the live sessions, one line each, sorted by profile and pid:
   `<key> session=<id> name=<name> kind=<kind> status=<status> cwd=<dir> repo=<dir>`. The key is
   `<short profile>:<pid>` (`main` for `.claude`, `x` for `.claude-x`). Your own line carries `(you)`.
-  `repo` is the main work tree of the repository (the parent of its git common directory), so
+  `repo` is the main work tree of the repository (the parent of its git common directory when that
+  is named `.git`, else the common directory itself), so
   sessions in linked worktrees of one repository show the same `repo`. Notices are keyed by it.
 - **`ask_session(target, question, model = "haiku", timeout_s = 120)`**. `target` is a key (`<short profile>:<pid>`), a session id or an id prefix of at least 4 characters, or a session name, each optionally prefixed with `<profile>:`. A target that matches more than one session is refused with the candidates listed. `model` is `haiku`, `sonnet`, `opus` or a model id. `timeout_s` is clamped to
   1..=300. The result holds the answer, the target, `billed_profile`, `as_of` (the mtime of the
@@ -192,7 +193,8 @@ its Claude process from `/proc/<pid>/stat` and `/proc/stat`. When that process s
 reset to defaults (queue, verdicts, delivered list, heads, worker pid, last post), the dead
 session's cursor is not moved to the new session, and the cursor starts at the head as for a new
 session (so a fresh start, not a resume, shows the start view). When the start time cannot be
-read, nothing is reset.
+read, nothing is reset. When the new process resumes the dead session's own id, cursor rule 1 still
+keeps that session's cursor: the holder is the same pid, or dead.
 
 `CLAUDE_CONFIG_DIR` names the profile of a session: its last path component, or `.claude` when
 unset. The server and the hooks read it from their own environment. A fork or a filter call runs
@@ -235,13 +237,13 @@ change) and how to word it.
   2 s between the first SessionStart of a process and a later one (a compact, a `/clear`) makes the
   process look newer and resets its endpoint state: its queue, verdicts and heads are dropped
   (after a `/clear` the start view is shown again). The reset also drops `last_post_ms` and
-  `worker_pid`, so a commit that the agent announced just before can get a duplicate backup
-  notice. When the new process resumes the dead session's own id, cursor rule 1 keeps that
-  session's cursor, because the holder is the same pid or dead. Slow clock corrections (NTP
-  slewing) stay far below 2 s.
+  `worker_pid`. A commit gets a second notice only when the reset falls between its
+  announcement and the scan of the commit. Slow clock corrections (NTP slewing) stay far below
+  2 s.
 - A filter worker of a process that died, or whose endpoint was reset by the reused-pid check,
-  can run for up to about 60 s (the filter timeout) and may write verdicts into the reset
-  endpoint state.
+  can run for up to about 75 s (the 15 s scan budget plus the 60 s filter timeout; one git call
+  can overrun the budget by 5 s). It may write verdicts and heads into the reset endpoint state,
+  clear the worker pid of the new process, and post backup notices under the old endpoint.
 - A store error during a backup scan leaves the heads unmoved, so the retry meets the commits it
   already posted and logs one `dedup` line for each. Count `dedup` lines with that in mind.
 - A worker is considered alive while `/proc/<pid>` exists, so a reused pid can delay the next
