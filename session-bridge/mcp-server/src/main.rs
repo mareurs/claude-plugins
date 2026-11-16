@@ -3,7 +3,7 @@ use rmcp::{transport::io::stdio, ServiceExt};
 use session_bridge_mcp::ask::locate_claude;
 use session_bridge_mcp::endpoints::{claude_pid_of, repo_of, Roots};
 use session_bridge_mcp::filter::{clear_worker_pid, run_filter};
-use session_bridge_mcp::hook::{emit, session_start, HookInput};
+use session_bridge_mcp::hook::{emit, now_ms, on_trigger, session_start, spawn_worker, HookInput};
 use session_bridge_mcp::diag;
 use session_bridge_mcp::paths::{is_safe_component, profile_of, short_profile, state_root};
 use session_bridge_mcp::server::Bridge;
@@ -87,7 +87,7 @@ fn main() -> anyhow::Result<()> {
     run()
 }
 
-/// Run `session-bridge hook <event>`; never returns, always exits 0, prints only a view.
+/// Run `session-bridge hook <event>`; never returns, always exits 0, prints only hook output.
 fn run_hook_fail_open() -> ! {
     std::panic::set_hook(Box::new(|_| {}));
     let _ = std::panic::catch_unwind(|| {
@@ -112,7 +112,8 @@ fn hook_output() -> Option<String> {
     std::io::Read::read_to_string(&mut std::io::stdin(), &mut raw).ok()?;
     match event.as_str() {
         "session-start" => session_start_output(&raw),
-        // `prompt` and `post-tool` arrive with the filter worker.
+        "prompt" => trigger_output(&raw, "UserPromptSubmit"),
+        "post-tool" => trigger_output(&raw, "PostToolUse"),
         _ => None,
     }
 }
@@ -127,6 +128,26 @@ fn session_start_output(raw: &str) -> Option<String> {
     let store = Store::open(&state.join("notices.db")).ok()?;
     let view = session_start(&input, (&profile, pid), &roots, &state, &store)?;
     Some(emit("SessionStart", &view))
+}
+
+/// `hook prompt` and `hook post-tool`. This runs on every tool call, so it stops before
+/// touching anything when there is no notice store yet: no store open, no state write.
+fn trigger_output(raw: &str, event: &str) -> Option<String> {
+    let state = state_root(&|k| std::env::var(k).ok());
+    let db = state.join("notices.db");
+    if !db.exists() {
+        return None;
+    }
+    let input: HookInput = serde_json::from_str(raw).ok()?;
+    if input.agent_id.is_some() {
+        return None;
+    }
+    let roots = Roots::system();
+    let pid = claude_pid_of(&roots, std::process::id())?;
+    let profile = profile_of(std::env::var("CLAUDE_CONFIG_DIR").ok().as_deref());
+    let store = Store::open(&db).ok()?;
+    let text = on_trigger(&input, (&profile, pid), &roots, &state, &store, now_ms(), &spawn_worker)?;
+    Some(emit(event, &text))
 }
 
 #[tokio::main(flavor = "multi_thread")]

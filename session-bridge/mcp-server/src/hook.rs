@@ -1,14 +1,20 @@
 //! Claude Code hook handlers. Every handler is fail-open: an internal error is noted on
 //! stderr (best effort) and the hook prints nothing.
 
-use crate::cursor::{on_session_start, StartRule};
+use crate::cursor::{self, on_session_start, StartRule};
+use crate::deliver::{has_undelivered, render_all, take_deliverable, undelivered_relevant, Fetched};
 use crate::diag;
 use crate::endpoints::{pid_alive, repo_of, Roots};
 use crate::paths::{is_safe_component, short_profile};
-use crate::state::{endpoint_path, update};
-use crate::store::{Notice, Store};
+use crate::state::{endpoint_path, load_or_default, update, EndpointState};
+use crate::store::{Notice, Page, Store};
 use serde::Deserialize;
 use std::path::Path;
+
+pub use crate::deliver::render_nudge;
+
+/// Look interval per endpoint.
+const LOOK_INTERVAL_MS: i64 = 120_000;
 
 /// Start view: notices from the last 3 days, at most 8.
 const VIEW_WINDOW_MS: i64 = 3 * 24 * 60 * 60 * 1000;
@@ -66,7 +72,8 @@ pub fn emit(event: &str, context: &str) -> String {
     .to_string()
 }
 
-fn now_ms() -> i64 {
+/// Wall-clock milliseconds since the Unix epoch; 0 before it.
+pub fn now_ms() -> i64 {
     std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map_or(0, |d| i64::try_from(d.as_millis()).unwrap_or(i64::MAX))
@@ -128,6 +135,166 @@ pub fn session_start(
         Ok(notices) => render_start_view(&notices),
         Err(e) => {
             diag::note(&format!("session-start: recent: {e}"));
+            None
+        }
+    }
+}
+
+
+/// UserPromptSubmit and PostToolUse for endpoint `me` = (full profile, Claude pid), at
+/// `now_ms`. Returns the text for `additionalContext`, or `None` for nothing. Three steps:
+///
+/// 1. Deliver the verdicts not delivered yet: a relevant one becomes a nudge, an
+///    irrelevant one is only marked delivered.
+/// 2. Look, when the last look is at least 120 s old or the tool input mentions `commit`:
+///    read the notices after this session's cursor (a missing cursor starts at the head),
+///    add them to `pending`, advance the cursor, and report a deletion gap in one line.
+/// 3. When `pending` is not empty and no live worker runs: `spawn` the filter worker and
+///    record the pid it returns as `worker_pid`.
+///
+/// Every state change happens in ONE locked `update`, and only when something changes:
+/// this runs on every tool call. The spawn happens inside that update, so a second hook
+/// waiting on the lock sees the new worker, and the worker (whose final update needs the
+/// same lock) cannot clear `worker_pid` before it is recorded.
+///
+/// Accepted loss window: the cursor advances at look time, before the worker has judged
+/// the notices now in `pending`. If the session ends in the seconds between that look and
+/// the delivery of their verdicts, a resume of the session (a new pid, a new endpoint
+/// state) continues from the advanced cursor and never sees those notices.
+///
+/// `None` without any effect for a subagent (`agent_id`) or an unsafe session id or profile.
+pub fn on_trigger(
+    input: &HookInput,
+    me: (&str, u32),
+    roots: &Roots,
+    state: &Path,
+    store: &Store,
+    now_ms: i64,
+    spawn: &dyn Fn(&str, u32) -> Option<u32>,
+) -> Option<String> {
+    if input.agent_id.is_some() {
+        return None;
+    }
+    if !is_safe_component(&input.session_id) || !is_safe_component(me.0) {
+        return None;
+    }
+    let path = endpoint_path(state, me.0, me.1);
+    let st = load_or_default(&path);
+
+    // Step 1, read side: the notices of the relevant verdicts to deliver. A failed read
+    // marks nothing, so those verdicts wait for the next trigger.
+    let mut fetched = Fetched::default();
+    let want = undelivered_relevant(&st);
+    if !want.is_empty() {
+        match store.get_many(&want) {
+            Ok(found) => {
+                fetched.asked = want.into_iter().collect();
+                fetched.found = found.into_iter().map(|n| (n.seq, n)).collect();
+            }
+            Err(e) => diag::note(&format!("trigger: fetch notices: {e}")),
+        }
+    }
+
+    // Step 2, read side.
+    let due = now_ms - st.last_look_ms >= LOOK_INTERVAL_MS || mentions_commit(input);
+    let page = if due { look(input, &st, me, state, store) } else { None };
+    let new_seqs: Vec<i64> = page.as_ref().map(|p| p.notices.iter().map(|n| n.seq).collect()).unwrap_or_default();
+
+    let identity_changed = st.session_id != input.session_id
+        || (input.transcript_path.is_some() && st.transcript_path != input.transcript_path)
+        || (!input.cwd.is_empty() && st.cwd.as_deref() != Some(input.cwd.as_str()));
+    let worker_live = st.worker_pid.is_some_and(|p| pid_alive(roots, p));
+    let may_spawn = !worker_live && (!st.pending.is_empty() || !new_seqs.is_empty());
+    if !(identity_changed || has_undelivered(&st) || due || may_spawn) {
+        return None;
+    }
+
+    let mut items = vec![];
+    let written = update(&path, |s| {
+        s.session_id = input.session_id.clone();
+        if input.transcript_path.is_some() {
+            s.transcript_path = input.transcript_path.clone();
+        }
+        if !input.cwd.is_empty() {
+            s.cwd = Some(input.cwd.clone());
+        }
+        items = take_deliverable(s, &fetched);
+        if due {
+            s.last_look_ms = now_ms;
+        }
+        for q in &new_seqs {
+            let known = s.pending.contains(q) || s.delivered.contains(q) || s.verdicts.iter().any(|v| v.seq == *q);
+            if !known {
+                s.pending.push(*q);
+            }
+        }
+        if !s.pending.is_empty() && !s.worker_pid.is_some_and(|p| pid_alive(roots, p)) {
+            s.worker_pid = spawn(me.0, me.1);
+        }
+    });
+    if let Err(e) = written {
+        // Nothing was marked delivered and the cursor stays: the next trigger retries.
+        diag::note(&format!("trigger: endpoint state: {e}"));
+        return None;
+    }
+    // The cursor moves only after its notices are safely in `pending`.
+    if let Some(p) = &page {
+        if let Err(e) = cursor::set(state, me.0, &input.session_id, me.1, p.next_cursor) {
+            diag::note(&format!("trigger: cursor: {e}"));
+        }
+    }
+
+    let mut parts: Vec<String> = render_all(roots, &items).into_iter().collect();
+    if let Some((lo, hi)) = page.and_then(|p| p.gap) {
+        parts.push(format!("notices {lo}..{hi} were deleted before this session read them"));
+    }
+    (!parts.is_empty()).then(|| parts.join("\n\n"))
+}
+
+/// Whether the tool input mentions `commit` (a commit may carry notices worth a look now).
+fn mentions_commit(input: &HookInput) -> bool {
+    input.tool_input.as_ref().is_some_and(|v| v.to_string().contains("commit"))
+}
+
+/// The page of notices after this session's cursor in the repository of its cwd. A
+/// session without a cursor starts at the head. `None` outside a repository or on a
+/// store error.
+fn look(input: &HookInput, st: &EndpointState, me: (&str, u32), state: &Path, store: &Store) -> Option<Page> {
+    let cwd = if input.cwd.is_empty() { st.cwd.clone()? } else { input.cwd.clone() };
+    let repo = repo_of(Path::new(&cwd))?;
+    let from = match cursor::get(state, me.0, &input.session_id, me.1) {
+        Some(c) => c,
+        None => store.head().map_err(|e| diag::note(&format!("trigger: head: {e}"))).ok()?,
+    };
+    store
+        .after(&repo.to_string_lossy(), from, me)
+        .map_err(|e| diag::note(&format!("trigger: read notices: {e}")))
+        .ok()
+}
+
+/// Start `session-bridge filter --profile <profile> --pid <pid>` (this same executable)
+/// detached: its own session, stdio null, the environment inherited (the worker needs
+/// `CLAUDE_CONFIG_DIR` and `XDG_STATE_HOME`). Never waited on: the hook exits at once and
+/// the worker is reparented. Returns the child pid, or `None` (noted) when it cannot start.
+pub fn spawn_worker(profile: &str, pid: u32) -> Option<u32> {
+    use std::os::unix::process::CommandExt;
+    let exe = std::env::current_exe().map_err(|e| diag::note(&format!("spawn: current exe: {e}"))).ok()?;
+    let mut cmd = std::process::Command::new(exe);
+    cmd.args(["filter", "--profile", profile, "--pid", &pid.to_string()])
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null());
+    // SAFETY: the closure runs in the child between fork and exec, where only
+    // async-signal-safe work is allowed. It makes one setsid(2) syscall and turns an errno
+    // into an io::Error (no allocation, no lock, no shared state touched), so it is sound.
+    // A new session keeps the worker alive when Claude Code ends the hook's process group.
+    unsafe {
+        cmd.pre_exec(|| nix::unistd::setsid().map(|_| ()).map_err(std::io::Error::from));
+    }
+    match cmd.spawn() {
+        Ok(child) => Some(child.id()),
+        Err(e) => {
+            diag::note(&format!("spawn: filter worker: {e}"));
             None
         }
     }

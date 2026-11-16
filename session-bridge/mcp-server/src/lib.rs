@@ -1,5 +1,6 @@
 pub mod ask;
 pub mod cursor;
+pub mod deliver;
 pub mod diag;
 pub mod endpoints;
 pub mod error;

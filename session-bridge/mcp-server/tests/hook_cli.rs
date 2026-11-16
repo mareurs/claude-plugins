@@ -79,3 +79,47 @@ fn non_utf8_argument_exits_zero_silently() {
     assert_ne!(o.status.code(), Some(101), "no panic exit: {}", String::from_utf8_lossy(&o.stderr));
 }
 
+fn tree(root: &std::path::Path) -> Vec<std::path::PathBuf> {
+    let mut out = vec![];
+    if let Ok(rd) = std::fs::read_dir(root) {
+        for e in rd.flatten() {
+            out.push(e.path());
+            if e.path().is_dir() {
+                out.extend(tree(&e.path()));
+            }
+        }
+    }
+    out
+}
+
+#[test]
+fn prompt_and_post_tool_without_a_database_or_with_bad_input_exit_zero_and_write_nothing() {
+    let d = TempDir::new().unwrap();
+    let home = d.path().join("home");
+    let state = d.path().join("xdg");
+    std::fs::create_dir_all(&home).unwrap();
+    std::fs::create_dir_all(&state).unwrap();
+    let home_s = home.to_string_lossy().into_owned();
+    let good = r#"{"session_id":"S","cwd":"/tmp","hook_event_name":"PostToolUse","tool_input":{"command":"git commit"}}"#;
+    for event in ["prompt", "post-tool"] {
+        for stdin in ["{not json", "", "[]", good] {
+            let o = run(&["hook", event], stdin, &state, &[("HOME", home_s.as_str())]);
+            silent_ok(&o);
+            assert!(o.stderr.is_empty(), "{event} {stdin:?}: {}", String::from_utf8_lossy(&o.stderr));
+        }
+    }
+    let mut t = tree(d.path());
+    t.sort();
+    assert_eq!(t, vec![home.clone(), state.clone()], "no file was created");
+}
+
+#[test]
+fn a_panic_in_prompt_or_post_tool_exits_zero_silently() {
+    let d = TempDir::new().unwrap();
+    for event in ["prompt", "post-tool"] {
+        let o = run(&["hook", event], "{}", d.path(), &[("SESSION_BRIDGE_TEST_PANIC", "1"), ("HOME", "/nonexistent")]);
+        silent_ok(&o);
+        assert!(o.stderr.is_empty());
+    }
+}
+
