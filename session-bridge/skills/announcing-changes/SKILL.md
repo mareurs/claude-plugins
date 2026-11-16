@@ -13,7 +13,7 @@ names the same thing. If the filter cannot judge a notice, it is shown marked `(
 
 Post about a change that another session may build on or collide with, BEFORE you commit it:
 
-- a moved or rebased branch, a new commit that others must pull;
+- a branch you are about to move or rebase, or a commit that others must pull (announce what it will contain);
 - a changed tool, hook, binary, config file, gate or convention;
 - a plan or design that changed status;
 - a finding that other sessions would act on.
