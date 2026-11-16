@@ -307,7 +307,7 @@ fn a_commit_time_at_the_integer_floor_does_not_overflow_the_window_arithmetic() 
     let (_, mut c) = scan(&r, Some(&old), S, &watch(&["Cargo.toml"])).unwrap();
     c[0].committed_ms = i64::MIN;
     let st = store(&fx);
-    assert_eq!(post(&fx, &st, "R", &c, 0), 0, "posted after that commit time: suppressed, no panic");
+    assert_eq!(post(&fx, &st, "R", &c, 1), 0, "a post at any real time is after that commit time: suppressed, no panic");
     assert_eq!(post(&fx, &st, "R", &c, i64::MIN), 1, "the window floor saturates: not suppressed");
 }
 
