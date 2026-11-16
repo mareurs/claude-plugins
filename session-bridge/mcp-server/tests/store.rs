@@ -359,3 +359,44 @@ fn get_many_returns_existing_seqs_oldest_first_and_skips_missing() {
     assert_eq!(got.iter().map(|n| n.seq).collect::<Vec<_>>(), vec![2, 4]);
     assert!(s.get_many(&[]).unwrap().is_empty());
 }
+
+#[test]
+fn post_commit_once_posts_one_row_per_repo_and_patch_even_when_racing() {
+    let d = TempDir::new().unwrap();
+    let path = d.path().join("n.db");
+    let reader = Store::open(&path).unwrap();
+    let barrier = Arc::new(std::sync::Barrier::new(2));
+    let mk = |patch: &str| {
+        let mut n = notice(R, ".claude-stef", 1, 1000);
+        n.origin = Origin::Commit;
+        n.patch_id = Some(patch.to_string());
+        n
+    };
+    // Each thread owns its own connection to the same file and posts the same 20 patches,
+    // released together at every round.
+    let runner = |path: std::path::PathBuf, barrier: Arc<std::sync::Barrier>| {
+        std::thread::spawn(move || {
+            let store = Store::open(&path).unwrap();
+            (0..20)
+                .map(|round| {
+                    barrier.wait();
+                    let mut n = notice(R, ".claude-stef", 1, 1000);
+                    n.origin = Origin::Commit;
+                    n.patch_id = Some(format!("patch-{round}"));
+                    store.post_commit_once(n).unwrap().is_some()
+                })
+                .collect::<Vec<bool>>()
+        })
+    };
+    let (ta, tb) = (runner(path.clone(), barrier.clone()), runner(path.clone(), barrier));
+    let (ra, rb) = (ta.join().unwrap(), tb.join().unwrap());
+    for round in 0..20 {
+        assert_eq!([ra[round], rb[round]].iter().filter(|x| **x).count(), 1, "round {round}: {ra:?} {rb:?}");
+    }
+    let rows = reader.recent(R, 0, 100, ("none", 0)).unwrap();
+    assert_eq!(rows.len(), 20, "one row per patch");
+    // Another repository is another namespace for the same patch-id.
+    let mut other = mk("patch-0");
+    other.repo = Q.to_string();
+    assert!(reader.post_commit_once(other).unwrap().is_some());
+}

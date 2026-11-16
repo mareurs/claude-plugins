@@ -156,31 +156,45 @@ impl Store {
     /// Validates limits before writing, prunes notices older than 14 days
     /// (measured from the new notice's `at_ms`), then inserts, all in one transaction.
     pub fn post(&self, n: NewNotice) -> Result<i64> {
+        let refs = Self::validated_refs(&n)?;
+        let tx = self.tx()?;
+        prune_in(&tx, n.at_ms - RETENTION_MS)?;
+        let seq = insert_in(&tx, &n, &refs)?;
+        tx.commit()?;
+        Ok(seq)
+    }
+
+    /// Like `post`, but inserts only when no notice of the same `repo` and `patch_id` exists:
+    /// the check and the insert share ONE immediate transaction, so two writers with the same
+    /// patch (twin sessions, a merge seen from two worktrees) cannot both pass the check.
+    /// `Ok(None)` when the patch is already announced. Without a `patch_id` it is `post`.
+    pub fn post_commit_once(&self, n: NewNotice) -> Result<Option<i64>> {
+        let refs = Self::validated_refs(&n)?;
+        let tx = self.tx()?;
+        prune_in(&tx, n.at_ms - RETENTION_MS)?;
+        if let Some(p) = &n.patch_id {
+            let found: Option<i64> = tx
+                .query_row(
+                    "SELECT 1 FROM notice WHERE repo = ?1 AND patch_id = ?2 LIMIT 1",
+                    params![n.repo, p],
+                    |r| r.get(0),
+                )
+                .optional()?;
+            if found.is_some() {
+                tx.commit()?;
+                return Ok(None);
+            }
+        }
+        let seq = insert_in(&tx, &n, &refs)?;
+        tx.commit()?;
+        Ok(Some(seq))
+    }
+
+    fn validated_refs(n: &NewNotice) -> Result<String> {
         check("title", MAX_TITLE, n.title.chars().count())?;
         check("body", MAX_BODY, n.body.chars().count())?;
         check("refs", MAX_REFS, n.refs.len())?;
-        let refs = serde_json::to_string(&n.refs)?;
-        let tx = self.tx()?;
-        prune_in(&tx, n.at_ms - RETENTION_MS)?;
-        tx.execute(
-            "INSERT INTO notice (at_ms, repo, author_profile, author_pid, author_session, origin, patch_id, title, body, refs)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
-            params![
-                n.at_ms,
-                n.repo,
-                n.author_profile,
-                n.author_pid,
-                n.author_session,
-                n.origin.as_str(),
-                n.patch_id,
-                n.title,
-                n.body,
-                refs
-            ],
-        )?;
-        let seq = tx.last_insert_rowid();
-        tx.commit()?;
-        Ok(seq)
+        Ok(serde_json::to_string(&n.refs)?)
     }
 
     /// Highest seq ever assigned (survives pruning); 0 if none.
@@ -280,6 +294,27 @@ impl Store {
         )?)
     }
 }
+
+fn insert_in(tx: &rusqlite::Transaction, n: &NewNotice, refs: &str) -> Result<i64> {
+    tx.execute(
+        "INSERT INTO notice (at_ms, repo, author_profile, author_pid, author_session, origin, patch_id, title, body, refs)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
+        params![
+            n.at_ms,
+            n.repo,
+            n.author_profile,
+            n.author_pid,
+            n.author_session,
+            n.origin.as_str(),
+            n.patch_id,
+            n.title,
+            n.body,
+            refs
+        ],
+    )?;
+    Ok(tx.last_insert_rowid())
+}
+
 
 fn prune_in(tx: &rusqlite::Transaction, older_than_ms: i64) -> Result<usize> {
     let (lo, hi): (Option<i64>, Option<i64>) = tx.query_row(
