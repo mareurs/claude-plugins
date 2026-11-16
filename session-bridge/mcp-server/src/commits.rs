@@ -429,7 +429,9 @@ pub fn post_commit_notices(
 ) -> Result<usize> {
     let mut posted = 0;
     for c in counted {
-        if last_post_ms > c.committed_ms.saturating_sub(SUPPRESS_WINDOW_MS) {
+        // `last_post_ms` 0 means the endpoint never posted: nothing to suppress. (A commit time
+        // that failed to parse is also 0, and `0 > 0 - window` would wrongly skip it.)
+        if last_post_ms > 0 && last_post_ms > c.committed_ms.saturating_sub(SUPPRESS_WINDOW_MS) {
             continue;
         }
         let title: String = clean(&c.subject).chars().take(MAX_TITLE_CHARS).collect();

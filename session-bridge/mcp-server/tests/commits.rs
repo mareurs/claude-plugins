@@ -850,3 +850,27 @@ fn a_signed_commit_with_log_showsignature_is_still_counted() {
     assert_eq!(c.len(), 1, "{c:?}");
     assert_eq!(c[0].subject, "signed change");
 }
+
+fn counted_at(committed_ms: i64) -> Counted {
+    Counted {
+        sha: "a".repeat(40),
+        subject: "bump".into(),
+        patch_id: format!("p{committed_ms}"),
+        matched: vec!["Cargo.toml".into()],
+        committed_ms,
+        branch: None,
+    }
+}
+
+#[test]
+fn an_endpoint_that_never_posted_suppresses_nothing_whatever_the_commit_time() {
+    let fx = Fx::new();
+    let st = store(&fx);
+    // A commit time that failed to parse reads 0; the endpoint never posted (also 0).
+    assert_eq!(post(&fx, &st, "R", &[counted_at(0)], 0), 1, "never posted: nothing to suppress");
+    // A huge negative `%ct` must not overflow the window arithmetic (debug builds panic).
+    assert_eq!(post(&fx, &st, "R", &[counted_at(i64::MIN + 1)], 0), 1);
+    assert_eq!(post(&fx, &st, "R", &[counted_at(i64::MIN + 1)], 1), 0, "a later post suppresses it");
+    // An endpoint that did post still suppresses a commit inside the window.
+    assert_eq!(post(&fx, &st, "R", &[counted_at(5_000)], 5_000), 0);
+}
