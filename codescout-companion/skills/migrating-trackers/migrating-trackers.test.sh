@@ -56,6 +56,16 @@ for needle in 'normalised repository path' 'target.existing' 'does not parse' '"
 done
 grep -F '**Check.**' "$SKILL" | grep -qF 'blocking' && grep -F '**Check.**' "$SKILL" | grep -qF 'refused' \
   && pass "Step 6 parses blocking and refused shapes" || fail "Step 6 shapes" "Step 6 lacks blocking or refused"
+# refactor round 1: each assertion is scoped to the step's own line
+line_of() { grep -F -- "$1" "$2" | head -1; }
+line_of '**Inventory.**' "$SKILL" | grep -qF 'readme_body' && line_of '**Inventory.**' "$SKILL" | grep -qF 'silently' \
+  && pass "Step 2 handles a supplied mapping (readme routing, no silent edit)" || fail "Step 2 supplied mapping" "Inventory line lacks readme_body or silently"
+line_of '1. **Binary.**' "$SKILL" | grep -qF 'trackers apply --help' && line_of '1. **Binary.**' "$SKILL" | grep -qF 'trackers check --help' \
+  && pass "binary probe covers apply and check help" || fail "binary probe" "Binary line lacks apply/check --help"
+line_of '**Review.**' "$SKILL" | grep -qF 'git status --porcelain' \
+  && pass "Step 7 shows git status --porcelain beside the stat" || fail "Step 7 status" "Review line lacks git status --porcelain"
+line_of '1. **Fix the cause' "$RECOVERY_MD" | grep -qF 'first `git status --porcelain` snapshot' \
+  && pass "recovery keeps the first snapshot on re-run" || fail "recovery snapshot" "Fix-the-cause item lacks it"
 # the risky flag is not in the default Step 5 command
 grep -F '**Apply.**' "$SKILL" | grep -qF -- '--no-old-catalog' && fail "Step 5 default command has no --no-old-catalog" "flag present" || pass "Step 5 default command has no --no-old-catalog"
 # the -wal/-shm case is exit 2, not the no-old-catalog question

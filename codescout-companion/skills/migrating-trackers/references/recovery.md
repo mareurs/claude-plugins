@@ -18,7 +18,7 @@ A message about the old catalog's `-wal` or `-shm` file is exit 2 from `apply` o
 
 The stop JSON is `{"ran": false, "reason": "<one line>"}`. It carries no `written` or `deleted` list. Show the reason, then:
 
-1. **Fix the cause and re-run the same `apply`.** A run completes the one before it: a file already written comes back under `already_applied`, so the union of `written`, `deleted` and `already_applied` of the run that exits 0 is the full set. This is the first choice.
+1. **Fix the cause and re-run the same `apply`.** The user decides on the cause fix and makes it (or says "fix it"); you may inspect read-only. Keep the first `git status --porcelain` snapshot: do not take a new one before the re-run. A run completes the one before it: a file already written comes back under `already_applied`, so the union of `written`, `deleted` and `already_applied` of the run that exits 0 is the full set. This is the first choice.
 2. **Restore.** If the user wants the tree back, compare `git status --porcelain` now with the snapshot. The paths that differ are the migration's. Restore those paths by exact names (`git restore --source=HEAD --staged --worktree -- <names>` for tracked ones; remove an untracked new file by its exact name). Never restore or clean a directory. Never touch a path that is not in the difference, and never the untracked `.codescout/`.
 
 A dirty path under `docs/trackers/` that the plan does not write or delete is another session's work. `apply` refuses on it; do not clear it to get past the refusal.
