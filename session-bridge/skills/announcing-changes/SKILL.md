@@ -5,7 +5,7 @@ description: "Use when you make a change that other live sessions of this reposi
 
 # Announcing changes
 
-Other Claude Code sessions work in this repository at the same time. They cannot see your
+Other Claude Code sessions and Codex threads work in this repository at the same time. They cannot see your
 edits. `post_notice` tells them. A filter shows a notice only to a session whose own work
 names the same thing. If the filter cannot judge a notice, it is shown marked `(not filtered: ...)`.
 

@@ -4,7 +4,12 @@ use tempfile::TempDir;
 
 fn git_repo() -> TempDir {
     let d = TempDir::new().unwrap();
-    assert!(Command::new("git").args(["init", "-q"]).arg(d.path()).status().unwrap().success());
+    assert!(Command::new("git")
+        .args(["init", "-q"])
+        .arg(d.path())
+        .status()
+        .unwrap()
+        .success());
     d
 }
 
@@ -15,7 +20,10 @@ fn run(state: &TempDir, repo: &str, extra: &[&str]) -> (i32, String) {
         .env("XDG_STATE_HOME", state.path())
         .output()
         .unwrap();
-    (out.status.code().unwrap(), String::from_utf8(out.stdout).unwrap())
+    (
+        out.status.code().unwrap(),
+        String::from_utf8(out.stdout).unwrap(),
+    )
 }
 
 #[test]
@@ -27,13 +35,20 @@ fn notices_prints_text_and_json_and_stays_silent_on_errors() {
     assert_eq!(run(&xdg, repo_s, &[]), (0, String::new()));
 
     let state = xdg.path().join("session-bridge");
-    let a = PostNoticeArgs { title: "moved main".into(), body: "b".into(), refs: vec![] };
+    let a = PostNoticeArgs {
+        title: "moved main".into(),
+        body: "b".into(),
+        refs: vec![],
+    };
     post_notice_impl(&state, (".claude-stef", 77), repo.path(), a).unwrap();
 
     let (code, text) = run(&xdg, repo_s, &[]);
     assert_eq!(code, 0);
     assert_eq!(text.lines().count(), 1, "{text}");
-    assert!(text.starts_with("1 ") && text.contains(" UTC stef:77 moved main"), "{text}");
+    assert!(
+        text.starts_with("1 ") && text.contains(" UTC stef:77 moved main"),
+        "{text}"
+    );
 
     let (code, json) = run(&xdg, repo_s, &["--json"]);
     assert_eq!(code, 0);
@@ -44,5 +59,8 @@ fn notices_prints_text_and_json_and_stays_silent_on_errors() {
 
     // not a repository: silent, exit 0
     let plain = TempDir::new().unwrap();
-    assert_eq!(run(&xdg, plain.path().to_str().unwrap(), &[]), (0, String::new()));
+    assert_eq!(
+        run(&xdg, plain.path().to_str().unwrap(), &[]),
+        (0, String::new())
+    );
 }

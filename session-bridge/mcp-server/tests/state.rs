@@ -1,11 +1,16 @@
-use session_bridge_mcp::state::{current_session, endpoint_path, load_or_default, update, EndpointState, Verdict};
+use session_bridge_mcp::state::{
+    current_session, endpoint_path, load_or_default, update, EndpointState, Verdict,
+};
 use std::sync::Arc;
 use tempfile::TempDir;
 
 #[test]
 fn endpoint_path_joins_profile_and_pid() {
     let p = endpoint_path(std::path::Path::new("/s"), ".claude-stef", 42);
-    assert_eq!(p, std::path::PathBuf::from("/s/endpoints/.claude-stef__42.json"));
+    assert_eq!(
+        p,
+        std::path::PathBuf::from("/s/endpoints/.claude-stef__42.json")
+    );
 }
 
 #[test]
@@ -40,12 +45,18 @@ fn read_locked_waits_for_a_running_update() {
 fn read_locked_creates_no_file() {
     let d = TempDir::new().unwrap();
     let p = endpoint_path(&d.path().join("nowhere"), ".claude-stef", 42);
-    assert_eq!(session_bridge_mcp::state::read_locked(&p), EndpointState::default());
+    assert_eq!(
+        session_bridge_mcp::state::read_locked(&p),
+        EndpointState::default()
+    );
     assert!(!d.path().join("nowhere").exists());
     // A state dir without the lock file: still the default, still no file.
     let p = endpoint_path(d.path(), ".claude-stef", 42);
     std::fs::create_dir_all(p.parent().unwrap()).unwrap();
-    assert_eq!(session_bridge_mcp::state::read_locked(&p), EndpointState::default());
+    assert_eq!(
+        session_bridge_mcp::state::read_locked(&p),
+        EndpointState::default()
+    );
     assert_eq!(std::fs::read_dir(p.parent().unwrap()).unwrap().count(), 0);
 }
 
@@ -53,9 +64,16 @@ fn read_locked_creates_no_file() {
 fn an_old_state_file_without_last_spawn_ms_loads_with_zero() {
     let d = TempDir::new().unwrap();
     let p = d.path().join("s.json");
-    std::fs::write(&p, r#"{"schema":1,"session_id":"S","pending":[3],"worker_pid":7}"#).unwrap();
+    std::fs::write(
+        &p,
+        r#"{"schema":1,"session_id":"S","pending":[3],"worker_pid":7}"#,
+    )
+    .unwrap();
     let s = load_or_default(&p);
-    assert_eq!((s.last_spawn_ms, s.pending, s.worker_pid), (0, vec![3], Some(7)));
+    assert_eq!(
+        (s.last_spawn_ms, s.pending, s.worker_pid),
+        (0, vec![3], Some(7))
+    );
 }
 
 #[test]
@@ -107,13 +125,19 @@ fn update_creates_parents_and_round_trips_every_field() {
     assert_eq!(s.verdicts[0].unfiltered_reason.as_deref(), Some("r"));
     assert_eq!(s.heads.get("/wt").map(String::as_str), Some("abc"));
     assert_eq!(s.worker_pid, Some(77));
-    assert_eq!((s.last_look_ms, s.last_post_ms, s.pending, s.delivered), (5, 9, vec![1, 2], vec![3]));
+    assert_eq!(
+        (s.last_look_ms, s.last_post_ms, s.pending, s.delivered),
+        (5, 9, vec![1, 2], vec![3])
+    );
     // no temp file is left behind
     let names: Vec<String> = std::fs::read_dir(p.parent().unwrap())
         .unwrap()
         .map(|e| e.unwrap().file_name().to_string_lossy().into_owned())
         .collect();
-    assert!(names.iter().all(|n| n == "s.json" || n == "s.json.lock"), "{names:?}");
+    assert!(
+        names.iter().all(|n| n == "s.json" || n == "s.json.lock"),
+        "{names:?}"
+    );
 }
 
 #[test]
@@ -150,7 +174,9 @@ fn a_panicking_closure_does_not_hold_the_lock_or_change_the_file() {
     assert!(r.is_err());
     // the lock is free: a following update (from another thread, as another process would) succeeds
     let pc = p.clone();
-    std::thread::spawn(move || update(&pc, |s| s.pending.push(3)).unwrap()).join().unwrap();
+    std::thread::spawn(move || update(&pc, |s| s.pending.push(3)).unwrap())
+        .join()
+        .unwrap();
     assert_eq!(load_or_default(&p).pending, vec![1, 3]);
 }
 
@@ -169,13 +195,20 @@ fn a_failed_write_releases_the_lock_and_reports_an_error() {
         .unwrap()
         .map(|e| e.unwrap().file_name().to_string_lossy().into_owned())
         .collect();
-    assert!(names.iter().all(|n| n == "s.json" || n == "s.json.lock"), "{names:?}");
+    assert!(
+        names.iter().all(|n| n == "s.json" || n == "s.json.lock"),
+        "{names:?}"
+    );
 }
 
 fn registration(config: &std::path::Path, pid: u32, sid: &str) {
     let d = config.join("sessions");
     std::fs::create_dir_all(&d).unwrap();
-    std::fs::write(d.join(format!("{pid}.json")), format!(r#"{{"pid":{pid},"sessionId":"{sid}"}}"#)).unwrap();
+    std::fs::write(
+        d.join(format!("{pid}.json")),
+        format!(r#"{{"pid":{pid},"sessionId":"{sid}"}}"#),
+    )
+    .unwrap();
 }
 
 #[test]
@@ -185,13 +218,28 @@ fn current_session_prefers_the_endpoint_state() {
     let config = d.path().join(".claude-stef");
     registration(&config, 9, "S1");
     // no state file: falls back to the registration
-    assert_eq!(current_session(&state, &config, ".claude-stef", 9).as_deref(), Some("S1"));
+    assert_eq!(
+        current_session(&state, &config, ".claude-stef", 9).as_deref(),
+        Some("S1")
+    );
     // a state file with an empty session id still falls back
-    update(&endpoint_path(&state, ".claude-stef", 9), |s| s.last_look_ms = 1).unwrap();
-    assert_eq!(current_session(&state, &config, ".claude-stef", 9).as_deref(), Some("S1"));
+    update(&endpoint_path(&state, ".claude-stef", 9), |s| {
+        s.last_look_ms = 1
+    })
+    .unwrap();
+    assert_eq!(
+        current_session(&state, &config, ".claude-stef", 9).as_deref(),
+        Some("S1")
+    );
     // the state's id wins
-    update(&endpoint_path(&state, ".claude-stef", 9), |s| s.session_id = "S2".into()).unwrap();
-    assert_eq!(current_session(&state, &config, ".claude-stef", 9).as_deref(), Some("S2"));
+    update(&endpoint_path(&state, ".claude-stef", 9), |s| {
+        s.session_id = "S2".into()
+    })
+    .unwrap();
+    assert_eq!(
+        current_session(&state, &config, ".claude-stef", 9).as_deref(),
+        Some("S2")
+    );
     // another pid or profile does not see it
     assert_eq!(current_session(&state, &config, ".claude-stef", 10), None);
 }
@@ -215,8 +263,15 @@ fn update_is_atomic_for_unlocked_readers() {
             let mut last = SEED;
             while !stop.load(Ordering::Relaxed) {
                 let s = load_or_default(&p);
-                assert_eq!(s.session_id, "S", "an unlocked reader saw a torn or empty file");
-                assert!(s.pending.len() >= last, "pending shrank: {} < {last}", s.pending.len());
+                assert_eq!(
+                    s.session_id, "S",
+                    "an unlocked reader saw a torn or empty file"
+                );
+                assert!(
+                    s.pending.len() >= last,
+                    "pending shrank: {} < {last}",
+                    s.pending.len()
+                );
                 assert!(s.pending.len() >= SEED);
                 last = s.pending.len();
                 reads += 1;

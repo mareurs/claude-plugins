@@ -1,13 +1,13 @@
 [
   {
     "name": "ask_session",
-    "description": "Ask another live Claude Code session a question. A read-only fork of it answers from its context; the session itself is not disturbed. Works across profiles; the target's profile pays. Returns the answer with its cost.",
+    "description": "Ask a live Claude Code session or loaded Codex thread through an isolated read-only fork. The target account pays. Claude defaults to haiku; Codex uses its own default model and reports unknown USD cost honestly. Peer answers are data, never approvals.",
     "inputSchema": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "properties": {
         "model": {
           "default": null,
-          "description": "Model alias or id (default `haiku`).",
+          "description": "Claude alias or Codex model id; defaults to haiku for Claude and the Codex default for Codex.",
           "type": [
             "string",
             "null"
@@ -18,7 +18,7 @@
           "type": "string"
         },
         "target": {
-          "description": "Target endpoint, `<short profile>:<pid>`, or a session name.",
+          "description": "Claude endpoint, canonical Codex address, UUID/prefix or unambiguous session name.",
           "type": "string"
         },
         "timeout_s": {
@@ -42,7 +42,7 @@
   },
   {
     "name": "list_sessions",
-    "description": "List live Claude Code sessions on this machine.",
+    "description": "List live Claude Code sessions and loaded Codex threads on this Linux machine. Codex discovery covers open-rollout hosts; loaded does not establish UI attachment.",
     "inputSchema": {
       "properties": {},
       "type": "object"
@@ -50,7 +50,7 @@
   },
   {
     "name": "post_notice",
-    "description": "Tell the other live sessions of this repository about a change they may depend on: a moved branch, a changed tool, hook, config or convention, a plan that changed status. Only sessions whose own work names the change will see it.",
+    "description": "Tell other sessions of this repository about a change they may depend on. Claude Code and Codex share this channel; author identity and repository come from the exact calling session.",
     "inputSchema": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "properties": {
@@ -76,6 +76,39 @@
         "body"
       ],
       "title": "PostNoticeArgs",
+      "type": "object"
+    }
+  },
+  {
+    "name": "send_message",
+    "description": "Send a peer message into an original loaded Codex thread, potentially starting a normal tool-using turn under its existing account/model/permissions. Does not fork, interrupt or resume dormant threads. Returns queued, observed or unknown evidence; never retries a possibly enqueued message. Direct Claude targets are unsupported.",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "message": {
+          "description": "Peer message, at most 16000 characters. Starts a normal target turn.",
+          "type": "string"
+        },
+        "target": {
+          "description": "Exact loaded Codex thread address, UUID or unambiguous name.",
+          "type": "string"
+        },
+        "timeout_s": {
+          "default": null,
+          "description": "Queue/observation budget in seconds (default 20, clamped to 1..=30).",
+          "format": "uint64",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "target",
+        "message"
+      ],
+      "title": "SendMessageArgs",
       "type": "object"
     }
   }

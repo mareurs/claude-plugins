@@ -70,7 +70,9 @@ impl Default for EndpointState {
 
 /// `<state>/endpoints/<full profile>__<pid>.json`.
 pub fn endpoint_path(state: &Path, profile: &str, pid: u32) -> PathBuf {
-    state.join("endpoints").join(format!("{profile}__{pid}.json"))
+    state
+        .join("endpoints")
+        .join(format!("{profile}__{pid}.json"))
 }
 
 /// The state at `path`; a missing, unreadable or corrupt file is the default state.
@@ -98,7 +100,10 @@ pub fn read_locked(path: &Path) -> EndpointState {
 }
 
 fn sibling(path: &Path, suffix: &str) -> PathBuf {
-    let mut name = path.file_name().map(|n| n.to_os_string()).unwrap_or_default();
+    let mut name = path
+        .file_name()
+        .map(|n| n.to_os_string())
+        .unwrap_or_default();
     name.push(suffix);
     path.with_file_name(name)
 }

@@ -1,7 +1,8 @@
 //! Live Claude Code endpoints, read from Claude Code's own registry.
 //!
-//! An endpoint is one running Claude Code process. It is live when
-//! `<socks>/<pid>.sock` exists and `<proc>/<pid>` exists. Its profile comes from
+//! An endpoint is one running Claude Code process. A legacy IPC socket or a native
+//! Claude command identifies the host, and its live proc entry plus current per-PID
+//! registration identifies the session. Its profile comes from
 //! the process's `CLAUDE_CONFIG_DIR`; its session id comes ONLY from
 //! `<config>/sessions/<pid>.json` (the environ copy is the launch-time id and
 //! goes stale after /clear or resume).
@@ -31,7 +32,9 @@ impl Roots {
     /// `/proc` and `/run/user/<uid>/cc-socks`.
     pub fn system() -> Self {
         use std::os::unix::fs::MetadataExt;
-        let uid = std::fs::metadata("/proc/self").map(|m| m.uid()).unwrap_or(0);
+        let uid = std::fs::metadata("/proc/self")
+            .map(|m| m.uid())
+            .unwrap_or(0);
         Roots {
             proc_root: PathBuf::from("/proc"),
             socks: PathBuf::from(format!("/run/user/{uid}/cc-socks")),
@@ -89,7 +92,8 @@ fn read_environ(roots: &Roots, pid: u32) -> Option<Vec<(String, String)>> {
         raw.split(|b| *b == 0)
             .filter_map(|kv| {
                 let s = String::from_utf8_lossy(kv);
-                s.split_once('=').map(|(k, v)| (k.to_string(), v.to_string()))
+                s.split_once('=')
+                    .map(|(k, v)| (k.to_string(), v.to_string()))
             })
             .collect(),
     )
@@ -102,7 +106,8 @@ fn env_get<'a>(env: &'a [(String, String)], key: &str) -> Option<&'a str> {
 /// The one parser of `<config>/sessions/<pid>.json`. `None` when the file is absent,
 /// unreadable, malformed, lacks `sessionId`, or names a different pid.
 fn read_registration(config_dir: &Path, pid: u32) -> Option<Registration> {
-    let json = std::fs::read_to_string(config_dir.join("sessions").join(format!("{pid}.json"))).ok()?;
+    let json =
+        std::fs::read_to_string(config_dir.join("sessions").join(format!("{pid}.json"))).ok()?;
     let reg: Registration = serde_json::from_str(&json).ok()?;
     if reg.pid.is_some_and(|p| p != pid) {
         return None;
@@ -133,8 +138,15 @@ pub fn process_start_ms(roots: &Roots, pid: u32) -> Option<i64> {
     // `rest` starts at field 3 (state), so field 22 is the 20th token.
     let ticks: i64 = rest.split_whitespace().nth(22 - 3)?.parse().ok()?;
     let sys = std::fs::read_to_string(roots.proc_root.join("stat")).ok()?;
-    let btime: i64 = sys.lines().find_map(|l| l.strip_prefix("btime "))?.trim().parse().ok()?;
-    btime.checked_mul(1000)?.checked_add(ticks.checked_mul(1000)? / CLK_TCK)
+    let btime: i64 = sys
+        .lines()
+        .find_map(|l| l.strip_prefix("btime "))?
+        .trim()
+        .parse()
+        .ok()?;
+    btime
+        .checked_mul(1000)?
+        .checked_add(ticks.checked_mul(1000)? / CLK_TCK)
 }
 
 fn endpoint_for(roots: &Roots, pid: u32) -> Option<Endpoint> {
@@ -142,6 +154,9 @@ fn endpoint_for(roots: &Roots, pid: u32) -> Option<Endpoint> {
         return None;
     }
     let env = read_environ(roots, pid)?;
+    if env_get(&env, "SESSION_BRIDGE_CHILD") == Some("1") {
+        return None;
+    }
     let config_dir = match env_get(&env, "CLAUDE_CONFIG_DIR").filter(|s| !s.is_empty()) {
         Some(c) => PathBuf::from(c),
         None => Path::new(env_get(&env, "HOME").filter(|s| !s.is_empty())?).join(".claude"),
@@ -163,34 +178,78 @@ fn endpoint_for(roots: &Roots, pid: u32) -> Option<Endpoint> {
     })
 }
 
+/// Official native Claude registers its current session even without the optional IPC socket.
+fn native_claude_endpoint(roots: &Roots, pid: u32) -> Option<Endpoint> {
+    use std::io::Read;
+    let file = std::fs::File::open(roots.proc_root.join(pid.to_string()).join("cmdline")).ok()?;
+    let mut bytes = Vec::new();
+    file.take(4096).read_to_end(&mut bytes).ok()?;
+    let first = std::str::from_utf8(bytes.split(|b| *b == 0).next()?).ok()?;
+    if Path::new(first).file_name()? != "claude" {
+        return None;
+    }
+    endpoint_for(roots, pid)
+}
+
 /// Live endpoints, sorted by profile then pid. Anything unreadable is skipped.
 pub fn discover(roots: &Roots) -> Vec<Endpoint> {
-    let Ok(rd) = std::fs::read_dir(&roots.socks) else {
-        return vec![];
-    };
-    let mut out: Vec<Endpoint> = rd
-        .flatten()
-        .filter_map(|e| {
-            let name = e.file_name().into_string().ok()?;
-            let pid: u32 = name.strip_suffix(".sock")?.parse().ok()?;
-            endpoint_for(roots, pid)
+    let mut pids = HashSet::new();
+    if let Ok(entries) = std::fs::read_dir(&roots.socks) {
+        for entry in entries.flatten() {
+            if let Some(pid) = entry
+                .file_name()
+                .to_str()
+                .and_then(|s| s.strip_suffix(".sock"))
+                .and_then(|s| s.parse::<u32>().ok())
+            {
+                pids.insert(pid);
+            }
+        }
+    }
+    if let Ok(entries) = std::fs::read_dir(&roots.proc_root) {
+        for entry in entries.flatten() {
+            if let Some(pid) = entry
+                .file_name()
+                .to_str()
+                .and_then(|s| s.parse::<u32>().ok())
+            {
+                pids.insert(pid);
+            }
+        }
+    }
+    let mut out: Vec<_> = pids
+        .into_iter()
+        .filter_map(|pid| {
+            if roots.socks.join(format!("{pid}.sock")).exists() {
+                endpoint_for(roots, pid)
+            } else {
+                native_claude_endpoint(roots, pid)
+            }
         })
         .collect();
     out.sort_by(|a, b| (&a.profile, a.pid).cmp(&(&b.profile, b.pid)));
     out
 }
 
-fn ppid_of(roots: &Roots, pid: u32) -> Option<u32> {
-    let status = std::fs::read_to_string(roots.proc_root.join(pid.to_string()).join("status")).ok()?;
-    status.lines().find_map(|l| l.strip_prefix("PPid:"))?.trim().parse().ok()
+pub(crate) fn ppid_of(roots: &Roots, pid: u32) -> Option<u32> {
+    let status =
+        std::fs::read_to_string(roots.proc_root.join(pid.to_string()).join("status")).ok()?;
+    status
+        .lines()
+        .find_map(|l| l.strip_prefix("PPid:"))?
+        .trim()
+        .parse()
+        .ok()
 }
 
-/// Walk `PPid` from `start_pid` to the first process that holds a socket.
+/// Walk PPid to the nearest legacy socket holder or registered native Claude host.
 pub fn claude_pid_of(roots: &Roots, start_pid: u32) -> Option<u32> {
     let mut seen = HashSet::new();
     let mut pid = start_pid;
     while pid > 1 && seen.insert(pid) {
-        if roots.socks.join(format!("{pid}.sock")).exists() {
+        if roots.socks.join(format!("{pid}.sock")).exists()
+            || native_claude_endpoint(roots, pid).is_some()
+        {
             return Some(pid);
         }
         pid = ppid_of(roots, pid)?;
@@ -241,22 +300,38 @@ pub fn repo_of(cwd: &Path) -> Option<PathBuf> {
 /// Resolve `target` (full id, id prefix of at least 4 characters, registry name or
 /// `<profile>:<pid>`, each optionally prefixed `<profile>:`) to one endpoint other
 /// than `me` (full profile, pid).
-pub fn resolve_target<'a>(eps: &'a [Endpoint], target: &str, me: (&str, u32)) -> Result<&'a Endpoint> {
+pub fn resolve_target<'a>(
+    eps: &'a [Endpoint],
+    target: &str,
+    me: (&str, u32),
+) -> Result<&'a Endpoint> {
     let (profile, rest) = match target.split_once(':') {
         Some((p, r)) if eps.iter().any(|e| profile_matches(&e.profile, p)) => (Some(p), r),
         _ => (None, target),
     };
-    let pool = || eps.iter().filter(|e| profile.is_none_or(|p| profile_matches(&e.profile, p)));
-    let pid_query: Option<u32> = if profile.is_some() { rest.parse().ok() } else { None };
+    let pool = || {
+        eps.iter()
+            .filter(|e| profile.is_none_or(|p| profile_matches(&e.profile, p)))
+    };
+    let pid_query: Option<u32> = if profile.is_some() {
+        rest.parse().ok()
+    } else {
+        None
+    };
     let mut found: Vec<&Endpoint> = pool()
-        .filter(|e| e.session_id == rest || e.name.as_deref() == Some(rest) || Some(e.pid) == pid_query)
+        .filter(|e| {
+            e.session_id == rest || e.name.as_deref() == Some(rest) || Some(e.pid) == pid_query
+        })
         .collect();
     if found.is_empty() && rest.chars().count() >= 4 {
         found = pool().filter(|e| e.session_id.starts_with(rest)).collect();
     }
     let all = || eps.iter().map(Endpoint::describe).collect::<Vec<_>>();
     if found.is_empty() {
-        return Err(BridgeError::TargetNotFound { target: target.to_string(), candidates: all() });
+        return Err(BridgeError::TargetNotFound {
+            target: target.to_string(),
+            candidates: all(),
+        });
     }
     // Decide on the FULL match set, caller included: one match is self or the answer,
     // two or more are ambiguous even when the caller is one of them. A tier-1 hit (exact

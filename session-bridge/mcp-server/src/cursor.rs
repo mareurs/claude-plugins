@@ -34,7 +34,11 @@ struct CursorFile {
 }
 
 fn unsafe_component(what: &str, value: &str) -> crate::error::BridgeError {
-    std::io::Error::new(std::io::ErrorKind::InvalidInput, format!("unsafe {what}: {value:?}")).into()
+    std::io::Error::new(
+        std::io::ErrorKind::InvalidInput,
+        format!("unsafe {what}: {value:?}"),
+    )
+    .into()
 }
 
 fn checked(profile: &str, session_id: &str) -> Result<()> {
@@ -48,11 +52,13 @@ fn checked(profile: &str, session_id: &str) -> Result<()> {
 }
 
 fn plain_path(dir: &Path, profile: &str, session_id: &str) -> PathBuf {
-    dir.join("cursors").join(format!("{profile}__{session_id}.json"))
+    dir.join("cursors")
+        .join(format!("{profile}__{session_id}.json"))
 }
 
 fn twin_path(dir: &Path, profile: &str, session_id: &str, pid: u32) -> PathBuf {
-    dir.join("cursors").join(format!("{profile}__{session_id}__{pid}.json"))
+    dir.join("cursors")
+        .join(format!("{profile}__{session_id}__{pid}.json"))
 }
 
 fn read(path: &Path) -> Option<CursorFile> {
@@ -63,12 +69,19 @@ fn write(path: &Path, pid: u32, cursor: i64) -> Result<()> {
     if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent)?;
     }
-    let mut tmp_name = path.file_name().map(|n| n.to_os_string()).unwrap_or_default();
+    let mut tmp_name = path
+        .file_name()
+        .map(|n| n.to_os_string())
+        .unwrap_or_default();
     tmp_name.push(format!(".{}.tmp", std::process::id()));
     let tmp = path.with_file_name(tmp_name);
     let written = (|| -> Result<()> {
         let mut f = std::fs::File::create(&tmp)?;
-        f.write_all(&serde_json::to_vec(&CursorFile { schema: 1, pid, cursor })?)?;
+        f.write_all(&serde_json::to_vec(&CursorFile {
+            schema: 1,
+            pid,
+            cursor,
+        })?)?;
         f.sync_all()?;
         std::fs::rename(&tmp, path)?;
         Ok(())
@@ -135,9 +148,11 @@ pub fn on_session_start(
     if prev != session_id && is_safe_component(&prev) {
         let prev_twin = twin_path(dir, profile, &prev, pid);
         let prev_plain = plain_path(dir, profile, &prev);
-        let held = read(&prev_twin)
-            .map(|c| (c, prev_twin))
-            .or_else(|| read(&prev_plain).filter(|c| c.pid == pid).map(|c| (c, prev_plain)));
+        let held = read(&prev_twin).map(|c| (c, prev_twin)).or_else(|| {
+            read(&prev_plain)
+                .filter(|c| c.pid == pid)
+                .map(|c| (c, prev_plain))
+        });
         if let Some((c, old_path)) = held {
             write(&plain, pid, c.cursor)?;
             let _ = std::fs::remove_file(old_path);

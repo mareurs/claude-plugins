@@ -49,5 +49,6 @@ pub fn is_safe_component(s: &str) -> bool {
         && s != "."
         && s != ".."
         && !s.contains("..")
-        && s.bytes().all(|b| b.is_ascii_alphanumeric() || matches!(b, b'.' | b'_' | b'-'))
+        && s.bytes()
+            .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'.' | b'_' | b'-'))
 }

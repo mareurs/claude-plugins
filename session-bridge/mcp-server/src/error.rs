@@ -15,9 +15,15 @@ pub enum BridgeError {
     #[error("the fork reported an error: {0}")]
     ForkFailed(String),
     #[error("no live session matches {target:?}; live sessions: {}", .candidates.join("; "))]
-    TargetNotFound { target: String, candidates: Vec<String> },
+    TargetNotFound {
+        target: String,
+        candidates: Vec<String>,
+    },
     #[error("{target:?} matches more than one session; use a longer id or a <profile>: prefix: {}", .candidates.join("; "))]
-    AmbiguousTarget { target: String, candidates: Vec<String> },
+    AmbiguousTarget {
+        target: String,
+        candidates: Vec<String>,
+    },
     #[error("the target is the calling session itself")]
     TargetIsSelf,
     #[error("io: {0}")]
@@ -25,7 +31,11 @@ pub enum BridgeError {
     #[error("serde: {0}")]
     Serde(#[from] serde_json::Error),
     #[error("{field} over the limit: {actual} exceeds {limit}")]
-    OverLimit { field: &'static str, limit: usize, actual: usize },
+    OverLimit {
+        field: &'static str,
+        limit: usize,
+        actual: usize,
+    },
     #[error("notice store: {0}")]
     Store(#[from] rusqlite::Error),
     #[error("not in a git repository")]

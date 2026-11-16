@@ -11,13 +11,19 @@ fn env_of<'a>(pairs: &'a [(&'a str, &'a str)]) -> impl Fn(&str) -> Option<String
 #[test]
 fn state_root_uses_absolute_xdg_state_home() {
     let env = env_of(&[("XDG_STATE_HOME", "/x/state"), ("HOME", "/h")]);
-    assert_eq!(state_root(&env), Some(PathBuf::from("/x/state/session-bridge")));
+    assert_eq!(
+        state_root(&env),
+        Some(PathBuf::from("/x/state/session-bridge"))
+    );
 }
 
 #[test]
 fn state_root_ignores_relative_xdg_state_home() {
     let env = env_of(&[("XDG_STATE_HOME", "rel"), ("HOME", "/h")]);
-    assert_eq!(state_root(&env), Some(PathBuf::from("/h/.local/state/session-bridge")));
+    assert_eq!(
+        state_root(&env),
+        Some(PathBuf::from("/h/.local/state/session-bridge"))
+    );
 }
 
 #[test]
@@ -38,9 +44,15 @@ fn state_root_is_none_when_the_result_is_not_absolute() {
 fn a_tool_without_a_state_dir_gets_a_clear_error() {
     let env = env_of(&[("HOME", "")]);
     let err = state_dir(&env).unwrap_err();
-    assert_eq!(err.to_string(), "state directory not available: set HOME or XDG_STATE_HOME");
+    assert_eq!(
+        err.to_string(),
+        "state directory not available: set HOME or XDG_STATE_HOME"
+    );
     let env = env_of(&[("HOME", "/h")]);
-    assert_eq!(state_dir(&env).unwrap(), PathBuf::from("/h/.local/state/session-bridge"));
+    assert_eq!(
+        state_dir(&env).unwrap(),
+        PathBuf::from("/h/.local/state/session-bridge")
+    );
 }
 
 #[test]

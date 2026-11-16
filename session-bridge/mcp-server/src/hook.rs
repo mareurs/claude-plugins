@@ -2,7 +2,9 @@
 //! stderr (best effort) and the hook prints nothing.
 
 use crate::cursor::{self, on_session_start, StartRule};
-use crate::deliver::{has_undelivered, render_all, take_deliverable, undelivered_relevant, Fetched};
+use crate::deliver::{
+    has_undelivered, render_all, take_deliverable, undelivered_relevant, Fetched,
+};
 use crate::diag;
 use crate::endpoints::{pid_alive, process_start_ms, repo_of, Roots};
 use crate::events;
@@ -62,7 +64,11 @@ pub fn render_start_view(notices: &[Notice]) -> Option<String> {
         };
         // The view is model context: a control character (a newline above all) or a Unicode
         // line or paragraph separator in a notice field must not be able to start a line.
-        let line = format!("{at} UTC {}:{who} {}", short_profile(&n.author_profile), n.title);
+        let line = format!(
+            "{at} UTC {}:{who} {}",
+            short_profile(&n.author_profile),
+            n.title
+        );
         let line = crate::deliver::clean(&line);
         out.push_str("\n- ");
         out.push_str(&line);
@@ -95,8 +101,11 @@ fn reset_if_recycled(roots: &Roots, path: &Path, pid: u32) {
     if !path.exists() {
         return;
     }
-    let Some(proc_start) = process_start_ms(roots, pid) else { return };
-    let stale = |s: &EndpointState| s.started_ms > 0 && proc_start - s.started_ms > RECYCLE_GRACE_MS;
+    let Some(proc_start) = process_start_ms(roots, pid) else {
+        return;
+    };
+    let stale =
+        |s: &EndpointState| s.started_ms > 0 && proc_start - s.started_ms > RECYCLE_GRACE_MS;
     if !stale(&load_or_default(path)) {
         return;
     }
@@ -106,7 +115,9 @@ fn reset_if_recycled(roots: &Roots, path: &Path, pid: u32) {
         }
     });
     match reset {
-        Ok(()) => diag::note(&format!("session-start: pid {pid} was reused: endpoint state reset")),
+        Ok(()) => diag::note(&format!(
+            "session-start: pid {pid} was reused: endpoint state reset"
+        )),
         Err(e) => diag::note(&format!("session-start: endpoint state reset: {e}")),
     }
 }
@@ -170,7 +181,12 @@ pub fn session_start(
         return None;
     }
     let repo = repo_of(Path::new(&input.cwd))?;
-    match store.recent(&repo.to_string_lossy(), now - VIEW_WINDOW_MS, VIEW_LIMIT, me) {
+    match store.recent(
+        &repo.to_string_lossy(),
+        now - VIEW_WINDOW_MS,
+        VIEW_LIMIT,
+        me,
+    ) {
         Ok(notices) => {
             let view = render_start_view(&notices)?;
             let line = serde_json::json!({
@@ -186,7 +202,6 @@ pub fn session_start(
         }
     }
 }
-
 
 /// UserPromptSubmit and PostToolUse for endpoint `me` = (full profile, Claude pid), at
 /// `now_ms`. Returns the text for `additionalContext`, or `None` for nothing. Three steps:
@@ -250,8 +265,15 @@ pub fn on_trigger(
 
     // Step 2, read side.
     let due = now_ms - st.last_look_ms >= LOOK_INTERVAL_MS || mentions_commit(input);
-    let page = if due { look(input, &st, me, state, store) } else { None };
-    let new_seqs: Vec<i64> = page.as_ref().map(|p| p.notices.iter().map(|n| n.seq).collect()).unwrap_or_default();
+    let page = if due {
+        look(input, &st, me, state, store)
+    } else {
+        None
+    };
+    let new_seqs: Vec<i64> = page
+        .as_ref()
+        .map(|p| p.notices.iter().map(|n| n.seq).collect())
+        .unwrap_or_default();
 
     let identity_changed = st.session_id != input.session_id
         || (input.transcript_path.is_some() && st.transcript_path != input.transcript_path)
@@ -259,8 +281,9 @@ pub fn on_trigger(
     let worker_live = st.worker_pid.is_some_and(|p| pid_alive(roots, p));
     // A commit in this tool call needs the worker's backup scan even with nothing pending.
     let scan_wanted = mentions_commit(input);
-    let may_spawn =
-        spawn_due(&st, now_ms) && !worker_live && (!st.pending.is_empty() || !new_seqs.is_empty() || scan_wanted);
+    let may_spawn = spawn_due(&st, now_ms)
+        && !worker_live
+        && (!st.pending.is_empty() || !new_seqs.is_empty() || scan_wanted);
     if !(identity_changed || has_undelivered(&st) || due || may_spawn) {
         return None;
     }
@@ -279,7 +302,9 @@ pub fn on_trigger(
             s.last_look_ms = now_ms;
         }
         for q in &new_seqs {
-            let known = s.pending.contains(q) || s.delivered.contains(q) || s.verdicts.iter().any(|v| v.seq == *q);
+            let known = s.pending.contains(q)
+                || s.delivered.contains(q)
+                || s.verdicts.iter().any(|v| v.seq == *q);
             if !known {
                 s.pending.push(*q);
             }
@@ -307,20 +332,30 @@ pub fn on_trigger(
     let mut parts: Vec<String> = render_all(roots, &items).into_iter().collect();
     let gap = page.and_then(|p| p.gap);
     if let Some((lo, hi)) = gap {
-        parts.push(format!("notices {lo}..{hi} were deleted before this session read them"));
+        parts.push(format!(
+            "notices {lo}..{hi} were deleted before this session read them"
+        ));
     }
     log_delivered(state, me, now_ms, &items, gap.is_some());
     (!parts.is_empty()).then(|| parts.join("\n\n"))
 }
 /// One `delivered` line in the event log per item this trigger shows: a nudge (`nudge`, or
 /// `unfiltered` for a fail-open one) and the gap line. Nothing when nothing is shown.
-fn log_delivered(state: &Path, me: (&str, u32), now_ms: i64, items: &[(Notice, Verdict)], gap: bool) {
+fn log_delivered(
+    state: &Path,
+    me: (&str, u32),
+    now_ms: i64,
+    items: &[(Notice, Verdict)],
+    gap: bool,
+) {
     let endpoint = events::endpoint_key(me.0, me.1);
-    let line = |kind: &str, seq: Option<i64>| {
-        serde_json::json!({"at": now_ms, "event": "delivered", "kind": kind, "endpoint": endpoint, "seq": seq})
-    };
+    let line = |kind: &str, seq: Option<i64>| serde_json::json!({"at": now_ms, "event": "delivered", "kind": kind, "endpoint": endpoint, "seq": seq});
     for (n, v) in items {
-        let kind = if v.unfiltered_reason.is_some() { "unfiltered" } else { "nudge" };
+        let kind = if v.unfiltered_reason.is_some() {
+            "unfiltered"
+        } else {
+            "nudge"
+        };
         events::append(state, &line(kind, Some(n.seq)));
     }
     if gap {
@@ -330,21 +365,39 @@ fn log_delivered(state: &Path, me: (&str, u32), now_ms: i64, items: &[(Notice, V
 
 /// Whether the tool input mentions `commit` (a commit may carry notices worth a look now).
 fn mentions_commit(input: &HookInput) -> bool {
-    input.tool_input.as_ref().is_some_and(|v| v.to_string().contains("commit"))
+    input
+        .tool_input
+        .as_ref()
+        .is_some_and(|v| v.to_string().contains("commit"))
 }
 
 /// The page of notices after this session's cursor in the repository of its cwd. A
 /// session without a cursor starts at the head. A cursor AHEAD of the head means the store
 /// was recreated (its seqs restarted): that is a reset, read from 0, with no gap line.
 /// `None` outside a repository or on a store error.
-fn look(input: &HookInput, st: &EndpointState, me: (&str, u32), state: &Path, store: &Store) -> Option<Page> {
-    let cwd = if input.cwd.is_empty() { st.cwd.clone()? } else { input.cwd.clone() };
+fn look(
+    input: &HookInput,
+    st: &EndpointState,
+    me: (&str, u32),
+    state: &Path,
+    store: &Store,
+) -> Option<Page> {
+    let cwd = if input.cwd.is_empty() {
+        st.cwd.clone()?
+    } else {
+        input.cwd.clone()
+    };
     let repo = repo_of(Path::new(&cwd))?;
-    let head = store.head().map_err(|e| diag::note(&format!("trigger: head: {e}"))).ok()?;
+    let head = store
+        .head()
+        .map_err(|e| diag::note(&format!("trigger: head: {e}")))
+        .ok()?;
     let (from, reset) = match cursor::get(state, me.0, &input.session_id, me.1) {
         None => (head, false),
         Some(c) if c > head => {
-            diag::note(&format!("trigger: cursor {c} is ahead of the store head {head}: reading from 0"));
+            diag::note(&format!(
+                "trigger: cursor {c} is ahead of the store head {head}: reading from 0"
+            ));
             (0, true)
         }
         Some(c) => (c, false),
@@ -367,7 +420,9 @@ fn spawn_due(s: &EndpointState, now_ms: i64) -> bool {
 /// Start `session-bridge filter --profile <profile> --pid <pid>` (this same executable)
 /// with `spawn_detached`. Returns the child pid, or `None` (noted) when it cannot start.
 pub fn spawn_worker(profile: &str, pid: u32) -> Option<u32> {
-    let exe = std::env::current_exe().map_err(|e| diag::note(&format!("spawn: current exe: {e}"))).ok()?;
+    let exe = std::env::current_exe()
+        .map_err(|e| diag::note(&format!("spawn: current exe: {e}")))
+        .ok()?;
     let pid = pid.to_string();
     spawn_detached(&exe, &["filter", "--profile", profile, "--pid", &pid])
 }
@@ -388,7 +443,11 @@ pub fn spawn_detached(program: &Path, args: &[&str]) -> Option<u32> {
     // into an io::Error (no allocation, no lock, no shared state touched), so it is sound.
     // A new session keeps the worker alive when Claude Code ends the hook's process group.
     unsafe {
-        cmd.pre_exec(|| nix::unistd::setsid().map(|_| ()).map_err(std::io::Error::from));
+        cmd.pre_exec(|| {
+            nix::unistd::setsid()
+                .map(|_| ())
+                .map_err(std::io::Error::from)
+        });
     }
     match cmd.spawn() {
         Ok(child) => Some(child.id()),

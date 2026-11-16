@@ -37,8 +37,12 @@ pub const MAX_QUOTE_WORDS: usize = 15;
 pub const MAX_QUOTE_CHARS: usize = 200;
 /// `why` and `evidence` are stored (endpoint state, verdict log) cut to this many characters.
 pub const MAX_STORED_CHARS: usize = 200;
-const ENV_REMOVED: [&str; 4] =
-    ["CLAUDE_CODE_SESSION_ID", "CLAUDE_CODE_MESSAGING_SOCKET", "CLAUDE_CODE_MESSAGING_TOKEN", "CLAUDECODE"];
+const ENV_REMOVED: [&str; 4] = [
+    "CLAUDE_CODE_SESSION_ID",
+    "CLAUDE_CODE_MESSAGING_SOCKET",
+    "CLAUDE_CODE_MESSAGING_TOKEN",
+    "CLAUDECODE",
+];
 
 /// The argv for `claude` (binary excluded); the input goes on stdin.
 pub fn filter_argv() -> Vec<String> {
@@ -65,7 +69,10 @@ pub fn filter_argv() -> Vec<String> {
 /// The model budget from `SESSION_BRIDGE_FILTER_TIMEOUT_S` (test hook); a missing, zero or
 /// unparsable value is 60 seconds.
 pub fn filter_timeout(var: Option<&str>) -> Duration {
-    let s = var.and_then(|v| v.trim().parse::<u64>().ok()).filter(|n| *n > 0).unwrap_or(DEFAULT_TIMEOUT_S);
+    let s = var
+        .and_then(|v| v.trim().parse::<u64>().ok())
+        .filter(|n| *n > 0)
+        .unwrap_or(DEFAULT_TIMEOUT_S);
     Duration::from_secs(s)
 }
 
@@ -78,6 +85,9 @@ fn clip(s: &str, max: usize) -> String {
 /// blocks count. System reminders, local-command output and task notifications are the
 /// harness talking, not the session, and are skipped.
 fn speech(record: &serde_json::Value) -> Vec<(&'static str, String)> {
+    if record.get("type").and_then(|t| t.as_str()) == Some("response_item") {
+        return codex_speech(record);
+    }
     let role = match record.get("type").and_then(|t| t.as_str()) {
         Some("user") => "user",
         Some("assistant") => "assistant",
@@ -102,7 +112,41 @@ fn speech(record: &serde_json::Value) -> Vec<(&'static str, String)> {
             !t.trim().is_empty()
                 && !head.starts_with("<system-reminder>")
                 && !head.starts_with("<task-notification>")
-                && !t.chars().take(200).collect::<String>().contains("<local-command")
+                && !t
+                    .chars()
+                    .take(200)
+                    .collect::<String>()
+                    .contains("<local-command")
+        })
+        .map(|t| (role, clip(t, ITEM_CHARS)))
+        .collect()
+}
+
+/// Canonical response messages only: event_msg mirrors would count speech twice.
+fn codex_speech(record: &serde_json::Value) -> Vec<(&'static str, String)> {
+    let p = &record["payload"];
+    if p["type"] != "message" {
+        return vec![];
+    }
+    let role = match p["role"].as_str() {
+        Some("user") => "user",
+        Some("assistant") => "assistant",
+        _ => return vec![],
+    };
+    let Some(blocks) = p["content"].as_array() else {
+        return vec![];
+    };
+    blocks
+        .iter()
+        .filter(|b| matches!(b["type"].as_str(), Some("input_text" | "output_text")))
+        .filter_map(|b| b["text"].as_str())
+        .filter(|t| {
+            let head = t.trim_start();
+            !head.is_empty()
+                && !head.starts_with("<system-reminder>")
+                && !head.starts_with("<task-notification>")
+                && !head.starts_with("# AGENTS.md instructions")
+                && !head.starts_with("<environment_context>")
         })
         .map(|t| (role, clip(t, ITEM_CHARS)))
         .collect()
@@ -125,14 +169,20 @@ pub fn transcript_tail(path: &Path, budget: usize) -> std::io::Result<String> {
     }
     let mut items: Vec<String> = vec![];
     for line in lines {
-        let Ok(record) = serde_json::from_slice::<serde_json::Value>(line) else { continue };
+        let Ok(record) = serde_json::from_slice::<serde_json::Value>(line) else {
+            continue;
+        };
         for (role, text) in speech(&record) {
             items.push(format!("[{role}] {text}"));
         }
     }
     let joined = items.join("\n\n");
     let n = joined.chars().count();
-    Ok(if n > budget { joined.chars().skip(n - budget).collect() } else { joined })
+    Ok(if n > budget {
+        joined.chars().skip(n - budget).collect()
+    } else {
+        joined
+    })
 }
 
 /// Notice text is data the model reads, written by another session: control characters
@@ -145,8 +195,10 @@ fn flat(s: &str) -> String {
 
 /// The stdin of the filter call.
 pub fn filter_input(tail: &str, notices: &[Notice]) -> String {
-    let lines: Vec<String> =
-        notices.iter().map(|n| format!("N{}: {}. {}", n.seq, flat(&n.title), flat(&n.body))).collect();
+    let lines: Vec<String> = notices
+        .iter()
+        .map(|n| format!("N{}: {}. {}", n.seq, flat(&n.title), flat(&n.body)))
+        .collect();
     format!(
         "<session_transcript_tail>\n{tail}\n</session_transcript_tail>\n\n<notices>\n{}\n</notices>\n\nGive one verdict per notice.",
         lines.join("\n")
@@ -173,12 +225,18 @@ struct RawVerdict {
 /// unfiltered verdict (`no verdict returned`); ids that match no notice are ignored.
 pub fn parse_verdicts(stdout: &str, notices: &[Notice]) -> Result<Vec<Verdict>> {
     let bad = |what: &str| BridgeError::BadForkOutput(format!("{what}: {}", clip(stdout, 200)));
-    let envelope: serde_json::Value = serde_json::from_str(stdout.trim()).map_err(|_| bad("not json"))?;
+    let envelope: serde_json::Value =
+        serde_json::from_str(stdout.trim()).map_err(|_| bad("not json"))?;
     if envelope.get("is_error").and_then(|b| b.as_bool()) == Some(true) {
         return Err(bad("the model reported an error"));
     }
-    let result = envelope.get("result").and_then(|r| r.as_str()).ok_or_else(|| bad("no result"))?;
-    let (Some(a), Some(b)) = (result.find('{'), result.rfind('}')) else { return Err(bad("no object")) };
+    let result = envelope
+        .get("result")
+        .and_then(|r| r.as_str())
+        .ok_or_else(|| bad("no result"))?;
+    let (Some(a), Some(b)) = (result.find('{'), result.rfind('}')) else {
+        return Err(bad("no object"));
+    };
     let json = result.get(a..=b).ok_or_else(|| bad("no object"))?;
     let answer: Answer = serde_json::from_str(json).map_err(|_| bad("not a verdict list"))?;
     Ok(notices
@@ -216,7 +274,9 @@ pub fn void_unquoted(verdicts: Vec<Verdict>, tail: &str) -> Vec<Verdict> {
         .map(|mut v| {
             if v.relevant && v.unfiltered_reason.is_none() {
                 let quote = squash(&v.evidence);
-                if quote.split(' ').count() > MAX_QUOTE_WORDS || quote.chars().count() > MAX_QUOTE_CHARS {
+                if quote.split(' ').count() > MAX_QUOTE_WORDS
+                    || quote.chars().count() > MAX_QUOTE_CHARS
+                {
                     v.relevant = false;
                     v.why = "quote longer than 15 words or 200 characters".to_string();
                 } else if quote.is_empty() || !tail.contains(&quote) {
@@ -257,6 +317,7 @@ async fn call_model(
     cmd.args(filter_argv())
         .current_dir(cwd)
         .env("CLAUDE_CONFIG_DIR", config_dir)
+        .env("SESSION_BRIDGE_CHILD", "1")
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
@@ -265,7 +326,8 @@ async fn call_model(
         cmd.env_remove(v);
     }
     let mut child = cmd.spawn().map_err(|_| "filter failed")?;
-    let (Some(mut stdin), Some(stdout), Some(stderr)) = (child.stdin.take(), child.stdout.take(), child.stderr.take())
+    let (Some(mut stdin), Some(stdout), Some(stderr)) =
+        (child.stdin.take(), child.stdout.take(), child.stderr.take())
     else {
         let _ = child.kill().await;
         return Err("filter failed");
@@ -309,7 +371,11 @@ async fn verdicts_for(
 ) -> Vec<Verdict> {
     // A tail that is empty after trimming (the file holds no speech in its last window)
     // gives the model nothing to quote: it is treated like a missing transcript.
-    let tail = match st.transcript_path.as_deref().map(|p| transcript_tail(Path::new(p), TAIL_CHARS)) {
+    let tail = match st
+        .transcript_path
+        .as_deref()
+        .map(|p| transcript_tail(Path::new(p), TAIL_CHARS))
+    {
         Some(Ok(t)) if !t.trim().is_empty() => t,
         _ => return unfiltered(notices, "no transcript"),
     };
@@ -319,7 +385,15 @@ async fn verdicts_for(
     if std::fs::create_dir_all(&cwd).is_err() {
         return unfiltered(notices, "filter failed");
     }
-    match call_model(bin, &cwd, config_dir, &filter_input(&tail, notices), timeout).await {
+    match call_model(
+        bin,
+        &cwd,
+        config_dir,
+        &filter_input(&tail, notices),
+        timeout,
+    )
+    .await
+    {
         Err(reason) => unfiltered(notices, reason),
         Ok(out) => match parse_verdicts(&out, notices) {
             Ok(v) => void_unquoted(v, &tail),
@@ -333,7 +407,10 @@ fn append_log(state: &Path, profile: &str, pid: u32, verdicts: &[Verdict]) {
     let at = chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true);
     let write = || -> std::io::Result<()> {
         std::fs::create_dir_all(state)?;
-        let mut f = std::fs::OpenOptions::new().create(true).append(true).open(state.join(VERDICT_LOG))?;
+        let mut f = std::fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(state.join(VERDICT_LOG))?;
         for v in verdicts {
             let mut value = serde_json::to_value(v).map_err(std::io::Error::other)?;
             value["at"] = at.clone().into();
@@ -407,19 +484,33 @@ fn oldest_batch(pending: &[i64]) -> Vec<i64> {
     batch
 }
 
-
 /// Filter the pending notices of endpoint (`profile`, `pid`) with the model program `bin`
 /// (an absolute path), with the config dir from the environment of this process.
-pub async fn run_filter(bin: &str, state: &Path, store: &Store, profile: &str, pid: u32) -> Result<()> {
-    let config_dir = match std::env::var("CLAUDE_CONFIG_DIR").ok().filter(|s| !s.is_empty()) {
+pub async fn run_filter(
+    bin: &str,
+    state: &Path,
+    store: &Store,
+    profile: &str,
+    pid: u32,
+) -> Result<()> {
+    let config_dir = match std::env::var("CLAUDE_CONFIG_DIR")
+        .ok()
+        .filter(|s| !s.is_empty())
+    {
         Some(c) => std::path::PathBuf::from(c),
         None => Path::new(&std::env::var("HOME").unwrap_or_default()).join(".claude"),
     };
     if !config_dir.is_absolute() {
         drain_unfiltered(state, profile, pid, "bad config dir");
-        return Err(BridgeError::Io(std::io::Error::other("no absolute config dir")));
+        return Err(BridgeError::Io(std::io::Error::other(
+            "no absolute config dir",
+        )));
     }
-    let timeout = filter_timeout(std::env::var("SESSION_BRIDGE_FILTER_TIMEOUT_S").ok().as_deref());
+    let timeout = filter_timeout(
+        std::env::var("SESSION_BRIDGE_FILTER_TIMEOUT_S")
+            .ok()
+            .as_deref(),
+    );
     run_filter_with(bin, state, store, profile, pid, &config_dir, timeout).await
 }
 
@@ -429,14 +520,29 @@ pub async fn run_filter(bin: &str, state: &Path, store: &Store, profile: &str, p
 /// Skips silently without a cwd, a repository, a session id or a watch list. Every error is
 /// noted and ignored; the heads move only after the posting succeeded, so a failed post is
 /// retried by the next scan (the patch-id check makes a retry harmless).
-async fn backup_scan(state: &Path, path: &Path, store: &Store, profile: &str, pid: u32, st: &EndpointState) {
-    let Some(cwd) = st.cwd.clone().filter(|c| !c.is_empty()) else { return };
+async fn backup_scan(
+    state: &Path,
+    path: &Path,
+    store: &Store,
+    profile: &str,
+    pid: u32,
+    st: &EndpointState,
+) {
+    let Some(cwd) = st.cwd.clone().filter(|c| !c.is_empty()) else {
+        return;
+    };
     if st.session_id.is_empty() {
         return;
     }
     let (session, heads, started) = (st.session_id.clone(), st.heads.clone(), st.started_ms);
     let found = tokio::task::spawn_blocking(move || {
-        crate::commits::collect(Path::new(&cwd), &session, &heads, started, crate::commits::SCAN_BUDGET)
+        crate::commits::collect(
+            Path::new(&cwd),
+            &session,
+            &heads,
+            started,
+            crate::commits::SCAN_BUDGET,
+        )
     })
     .await;
     let found = match found {
@@ -467,7 +573,6 @@ async fn backup_scan(state: &Path, path: &Path, store: &Store, profile: &str, pi
         crate::diag::note(&format!("filter: commit heads: {e}"));
     }
 }
-
 
 /// `run_filter` with the config dir and the timeout given. Reads the endpoint state, runs the
 /// commit backup scan (even with nothing pending), makes
@@ -528,5 +633,70 @@ pub async fn run_filter_with(
     if !verdicts.is_empty() {
         append_log(state, profile, pid, &verdicts);
     }
+    Ok(())
+}
+
+/// Codex receivers judge with their own account, never a guessed Claude profile.
+pub async fn run_codex_filter(
+    bin: &Path,
+    state: &Path,
+    store: &Store,
+    target: &crate::codex::CodexEndpoint,
+    timeout: Duration,
+) -> anyhow::Result<()> {
+    let profile = target.storage_profile();
+    let path = endpoint_path(state, &profile, 0);
+    let st = read_locked(&path);
+    backup_scan(state, &path, store, &profile, 0, &st).await;
+    let handled = oldest_batch(&st.pending);
+    let notices = match store.get_many(&handled) {
+        Ok(n) => n,
+        Err(e) => {
+            drain_unfiltered(state, &profile, 0, "Codex notice store read failed");
+            return Err(e.into());
+        }
+    };
+    let judge = async {
+        let transcript = st
+            .transcript_path
+            .as_deref()
+            .ok_or_else(|| anyhow::anyhow!("no transcript"))?;
+        let tail = transcript_tail(Path::new(transcript), TAIL_CHARS)?;
+        anyhow::ensure!(!tail.trim().is_empty(), "no transcript speech");
+        let scratch = tempfile::Builder::new()
+            .prefix("session-bridge-filter-")
+            .tempdir_in("/tmp")?;
+        let mut cmd =
+            crate::codex_process::isolated_command(bin, &target.config_dir, scratch.path())?;
+        cmd.arg(format!(
+            "{FILTER_PROMPT}\n\n{}",
+            filter_input(&tail, &notices)
+        ));
+        let out = crate::codex_process::run_bounded(&mut cmd, timeout).await?;
+        anyhow::ensure!(out.status.success(), "Codex filter exited unsuccessfully");
+        let (answer, _, _) = crate::codex_process::parse_answer(&out.stdout)?;
+        let envelope = serde_json::json!({"result":answer}).to_string();
+        Ok::<_, anyhow::Error>(void_unquoted(parse_verdicts(&envelope, &notices)?, &tail))
+    };
+    let verdicts = if notices.is_empty() {
+        vec![]
+    } else {
+        match judge.await {
+            Ok(v) => v,
+            Err(e) => {
+                crate::diag::note(&format!("Codex filter: {e}"));
+                unfiltered(&notices, "Codex filter unavailable or failed")
+            }
+        }
+    };
+    update(&path, |s| {
+        for v in &verdicts {
+            s.verdicts.retain(|old| old.seq != v.seq);
+            s.verdicts.push(v.clone());
+        }
+        s.pending.retain(|seq| !handled.contains(seq));
+        s.worker_pid = None;
+    })?;
+    append_log(state, &profile, 0, &verdicts);
     Ok(())
 }

@@ -19,7 +19,12 @@ fn git(dir: &Path, hooks: &Path, args: &[&str]) -> String {
         .current_dir(dir)
         .arg("-c")
         .arg(format!("core.hooksPath={}", hooks.display()))
-        .args(["-c", "commit.gpgsign=false", "-c", "init.defaultBranch=main"])
+        .args([
+            "-c",
+            "commit.gpgsign=false",
+            "-c",
+            "init.defaultBranch=main",
+        ])
         .args(args)
         .env("GIT_CONFIG_GLOBAL", "/dev/null")
         .env("GIT_CONFIG_NOSYSTEM", "1")
@@ -32,7 +37,11 @@ fn git(dir: &Path, hooks: &Path, args: &[&str]) -> String {
         .stdin(std::process::Stdio::null())
         .output()
         .unwrap();
-    assert!(out.status.success(), "git {args:?}: {}", String::from_utf8_lossy(&out.stderr));
+    assert!(
+        out.status.success(),
+        "git {args:?}: {}",
+        String::from_utf8_lossy(&out.stderr)
+    );
     String::from_utf8(out.stdout).unwrap().trim().to_string()
 }
 
@@ -55,7 +64,11 @@ fn a_global_trailer_separators_without_a_colon_still_finds_own_commits() {
     let old = git(&r, &hooks, &["rev-parse", "HEAD"]);
     std::fs::write(r.join("Cargo.toml"), "a\n").unwrap();
     git(&r, &hooks, &["add", "-A"]);
-    git(&r, &hooks, &["commit", "-q", "-m", &format!("bump\n\nSession-Id: {S}")]);
+    git(
+        &r,
+        &hooks,
+        &["commit", "-q", "-m", &format!("bump\n\nSession-Id: {S}")],
+    );
     let sha = git(&r, &hooks, &["rev-parse", "HEAD"]);
 
     // Control: the global file really hides the trailer from a git that reads it.
@@ -64,7 +77,11 @@ fn a_global_trailer_separators_without_a_colon_still_finds_own_commits() {
         .args(["log", "-1", "--format=%(trailers:key=Session-Id,valueonly)"])
         .output()
         .unwrap();
-    assert_eq!(String::from_utf8_lossy(&plain.stdout).trim(), "", "the bad global value is in effect");
+    assert_eq!(
+        String::from_utf8_lossy(&plain.stdout).trim(),
+        "",
+        "the bad global value is in effect"
+    );
 
     let mut b = GlobSetBuilder::new();
     b.add(Glob::new("Cargo.toml").unwrap());

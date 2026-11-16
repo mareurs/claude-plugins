@@ -22,8 +22,17 @@ fn run(args: &[&str], stdin: &str, state: &std::path::Path, envs: &[(&str, &str)
 }
 
 fn silent_ok(o: &Output) {
-    assert_eq!(o.status.code(), Some(0), "stderr: {}", String::from_utf8_lossy(&o.stderr));
-    assert!(o.stdout.is_empty(), "stdout: {}", String::from_utf8_lossy(&o.stdout));
+    assert_eq!(
+        o.status.code(),
+        Some(0),
+        "stderr: {}",
+        String::from_utf8_lossy(&o.stderr)
+    );
+    assert!(
+        o.stdout.is_empty(),
+        "stdout: {}",
+        String::from_utf8_lossy(&o.stdout)
+    );
 }
 
 #[test]
@@ -45,7 +54,12 @@ fn malformed_json_exits_zero_silently_and_creates_no_files() {
 #[test]
 fn a_panic_in_the_hook_body_exits_zero_silently() {
     let d = TempDir::new().unwrap();
-    let o = run(&["hook", "session-start"], "{}", d.path(), &[("SESSION_BRIDGE_TEST_PANIC", "1")]);
+    let o = run(
+        &["hook", "session-start"],
+        "{}",
+        d.path(),
+        &[("SESSION_BRIDGE_TEST_PANIC", "1")],
+    );
     silent_ok(&o);
     assert!(o.stderr.is_empty(), "the panic hook is silent");
 }
@@ -54,7 +68,11 @@ fn a_panic_in_the_hook_body_exits_zero_silently() {
 fn other_commands_keep_the_normal_clap_errors() {
     let d = TempDir::new().unwrap();
     let o = run(&["notices"], "", d.path(), &[]);
-    assert_ne!(o.status.code(), Some(0), "a missing argument of `notices` is still an error");
+    assert_ne!(
+        o.status.code(),
+        Some(0),
+        "a missing argument of `notices` is still an error"
+    );
 }
 #[test]
 fn non_utf8_argument_exits_zero_silently() {
@@ -76,7 +94,12 @@ fn non_utf8_argument_exits_zero_silently() {
         .stdin(Stdio::null())
         .output()
         .unwrap();
-    assert_ne!(o.status.code(), Some(101), "no panic exit: {}", String::from_utf8_lossy(&o.stderr));
+    assert_ne!(
+        o.status.code(),
+        Some(101),
+        "no panic exit: {}",
+        String::from_utf8_lossy(&o.stderr)
+    );
 }
 
 fn tree(root: &std::path::Path) -> Vec<std::path::PathBuf> {
@@ -105,21 +128,39 @@ fn prompt_and_post_tool_without_a_database_or_with_bad_input_exit_zero_and_write
     let good = r#"{"session_id":"S","cwd":"/tmp","hook_event_name":"PostToolUse","tool_input":{"command":"git commit"}}"#;
     for event in ["prompt", "post-tool"] {
         for stdin in ["{not json", "", "[]", good] {
-            let o = run(&["hook", event], stdin, &state, &[("HOME", home_s.as_str())]);
+            let o = run(
+                &["hook", event],
+                stdin,
+                &state,
+                &[("HOME", home_s.as_str())],
+            );
             silent_ok(&o);
-            assert!(o.stderr.is_empty(), "{event} {stdin:?}: {}", String::from_utf8_lossy(&o.stderr));
+            assert!(
+                o.stderr.is_empty(),
+                "{event} {stdin:?}: {}",
+                String::from_utf8_lossy(&o.stderr)
+            );
         }
     }
     let mut t = tree(d.path());
     t.sort();
-    assert_eq!(t, vec![home.clone(), state.clone(), root.clone()], "no file was created");
+    assert_eq!(
+        t,
+        vec![home.clone(), state.clone(), root.clone()],
+        "no file was created"
+    );
 }
 
 #[test]
 fn a_panic_in_prompt_or_post_tool_exits_zero_silently() {
     let d = TempDir::new().unwrap();
     for event in ["prompt", "post-tool"] {
-        let o = run(&["hook", event], "{}", d.path(), &[("SESSION_BRIDGE_TEST_PANIC", "1"), ("HOME", "/nonexistent")]);
+        let o = run(
+            &["hook", event],
+            "{}",
+            d.path(),
+            &[("SESSION_BRIDGE_TEST_PANIC", "1"), ("HOME", "/nonexistent")],
+        );
         silent_ok(&o);
         assert!(o.stderr.is_empty());
     }
@@ -149,12 +190,34 @@ fn run_without_state_root(args: &[&str], stdin: &str, cwd: &std::path::Path) -> 
 fn without_an_absolute_state_root_nothing_is_created_in_the_cwd() {
     let d = TempDir::new().unwrap();
     let cwd = d.path().to_string_lossy().into_owned();
-    let start = format!(r#"{{"session_id":"S","cwd":"{cwd}","hook_event_name":"SessionStart","source":"startup"}}"#);
-    let prompt = format!(r#"{{"session_id":"S","cwd":"{cwd}","hook_event_name":"UserPromptSubmit"}}"#);
-    silent_ok(&run_without_state_root(&["hook", "session-start"], &start, d.path()));
-    silent_ok(&run_without_state_root(&["hook", "prompt"], &prompt, d.path()));
-    silent_ok(&run_without_state_root(&["notices", "--repo", &cwd, "--after", "0"], "", d.path()));
-    silent_ok(&run_without_state_root(&["filter", "--profile", ".claude-stef", "--pid", "1"], "", d.path()));
-    assert_eq!(tree(d.path()), Vec::<std::path::PathBuf>::new(), "nothing was created in the cwd");
+    let start = format!(
+        r#"{{"session_id":"S","cwd":"{cwd}","hook_event_name":"SessionStart","source":"startup"}}"#
+    );
+    let prompt =
+        format!(r#"{{"session_id":"S","cwd":"{cwd}","hook_event_name":"UserPromptSubmit"}}"#);
+    silent_ok(&run_without_state_root(
+        &["hook", "session-start"],
+        &start,
+        d.path(),
+    ));
+    silent_ok(&run_without_state_root(
+        &["hook", "prompt"],
+        &prompt,
+        d.path(),
+    ));
+    silent_ok(&run_without_state_root(
+        &["notices", "--repo", &cwd, "--after", "0"],
+        "",
+        d.path(),
+    ));
+    silent_ok(&run_without_state_root(
+        &["filter", "--profile", ".claude-stef", "--pid", "1"],
+        "",
+        d.path(),
+    ));
+    assert_eq!(
+        tree(d.path()),
+        Vec::<std::path::PathBuf>::new(),
+        "nothing was created in the cwd"
+    );
 }
-

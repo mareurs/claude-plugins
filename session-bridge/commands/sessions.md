@@ -1,9 +1,7 @@
 ---
-description: List the live Claude Code sessions on this machine through session-bridge.
+description: List live Claude Code sessions and loaded Codex threads through session-bridge.
 ---
 
-Call the `session-bridge.list_sessions` MCP tool. It returns one line per live session, sorted by profile and pid, in the form `<key> [(you)] session=<id> name=<name> kind=<kind> status=<status> cwd=<dir> repo=<dir>`. The key is `<short profile>:<pid>`; a field that is unknown shows `-`.
+Call `session-bridge.list_sessions`. Present every session row in a compact table with `key`, `harness`, `status`, `name`, and `repo`; preserve `(you)`. Claude keys retain `<short profile>:<pid>`. Canonical Codex keys are `codex:<absolute CODEX_HOME>:<thread UUID>` and distinguish threads sharing a process. Preserve discovery-scope and caller-identity notes separately from the rows.
 
-Present the result as a compact table with the columns `key`, `kind`, `status`, `name`, `repo`. Keep the `(you)` mark after the key of the caller's own session. Do not hide any line.
-
-If the tool returns "No live Claude Code sessions found.", say so plainly.
+Use `ask_session` for an isolated read-only answer. Use `send_message` when an original Codex thread should receive a direct message and potentially run tools. Preserve its queued/observed/unknown result instead of treating every accepted queue as delivery.

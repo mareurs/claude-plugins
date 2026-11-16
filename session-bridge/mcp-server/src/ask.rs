@@ -21,8 +21,12 @@ pub const DAILY_BOUND_USD: f64 = 2.0;
 
 const ASK_LOG: &str = "asks.jsonl";
 /// Variables that would tie the fork to the target's live session or its messaging socket.
-const ENV_REMOVED: [&str; 4] =
-    ["CLAUDE_CODE_SESSION_ID", "CLAUDE_CODE_MESSAGING_SOCKET", "CLAUDE_CODE_MESSAGING_TOKEN", "CLAUDECODE"];
+const ENV_REMOVED: [&str; 4] = [
+    "CLAUDE_CODE_SESSION_ID",
+    "CLAUDE_CODE_MESSAGING_SOCKET",
+    "CLAUDE_CODE_MESSAGING_TOKEN",
+    "CLAUDECODE",
+];
 
 /// `haiku`, `sonnet` and `opus` name a model id; any other value passes through.
 pub fn model_id(alias: &str) -> String {
@@ -90,9 +94,16 @@ struct RawOutput {
 
 /// Parse the `--output-format json` document of a fork run.
 pub fn parse_fork_output(stdout: &str) -> Result<ForkOutput> {
-    let raw: RawOutput = serde_json::from_str(stdout.trim())
-        .map_err(|e| BridgeError::BadForkOutput(format!("{e}: {}", stdout.chars().take(200).collect::<String>())))?;
-    let usage = raw.usage.unwrap_or(RawUsage { cache_read_input_tokens: 0, cache_creation_input_tokens: 0 });
+    let raw: RawOutput = serde_json::from_str(stdout.trim()).map_err(|e| {
+        BridgeError::BadForkOutput(format!(
+            "{e}: {}",
+            stdout.chars().take(200).collect::<String>()
+        ))
+    })?;
+    let usage = raw.usage.unwrap_or(RawUsage {
+        cache_read_input_tokens: 0,
+        cache_creation_input_tokens: 0,
+    });
     Ok(ForkOutput {
         result: raw.result,
         cost_usd: raw.total_cost_usd,
@@ -127,7 +138,9 @@ pub struct AskResult {
 /// USD this asker spent on `today` (UTC date), summed from the ask log. A missing log is zero;
 /// a line that is not a JSON object with a parseable `at` is skipped.
 pub fn spent_today(log: &Path, asker: &str, today: NaiveDate) -> f64 {
-    let Ok(text) = std::fs::read_to_string(log) else { return 0.0 };
+    let Ok(text) = std::fs::read_to_string(log) else {
+        return 0.0;
+    };
     text.lines()
         .filter_map(|l| serde_json::from_str::<serde_json::Value>(l).ok())
         .filter(|v| v["asker"].as_str() == Some(asker))
@@ -147,7 +160,11 @@ fn as_of(target: &Endpoint) -> Option<String> {
     std::fs::read_dir(target.config_dir.join("projects"))
         .ok()?
         .filter_map(|d| d.ok())
-        .filter_map(|d| std::fs::metadata(d.path().join(&file)).and_then(|m| m.modified()).ok())
+        .filter_map(|d| {
+            std::fs::metadata(d.path().join(&file))
+                .and_then(|m| m.modified())
+                .ok()
+        })
         .max()
         .map(|t| DateTime::<Utc>::from(t).to_rfc3339_opts(SecondsFormat::Secs, true))
 }
@@ -157,7 +174,10 @@ fn append_log(state: &Path, entry: &serde_json::Value) -> Result<()> {
     std::fs::create_dir_all(state)?;
     let mut line = entry.to_string();
     line.push('\n');
-    let mut f = std::fs::OpenOptions::new().create(true).append(true).open(state.join(ASK_LOG))?;
+    let mut f = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(state.join(ASK_LOG))?;
     f.write_all(line.as_bytes())?;
     Ok(())
 }
@@ -168,7 +188,9 @@ const MAX_TIMEOUT_S: u64 = 300;
 
 /// `None` -> 120; anything else clamped to `1..=300`.
 pub fn clamp_timeout(timeout_s: Option<u64>) -> u64 {
-    timeout_s.unwrap_or(DEFAULT_TIMEOUT_S).clamp(1, MAX_TIMEOUT_S)
+    timeout_s
+        .unwrap_or(DEFAULT_TIMEOUT_S)
+        .clamp(1, MAX_TIMEOUT_S)
 }
 
 /// Resolve `program` to an absolute path. A name with a `/` must already be absolute; a bare
@@ -187,7 +209,9 @@ pub fn resolve_program(program: &str, path: Option<&str>) -> Result<PathBuf> {
         .split(':')
         .filter(|d| d.starts_with('/'))
         .map(|d| Path::new(d).join(program))
-        .find(|p| std::fs::metadata(p).is_ok_and(|m| m.is_file() && m.permissions().mode() & 0o111 != 0))
+        .find(|p| {
+            std::fs::metadata(p).is_ok_and(|m| m.is_file() && m.permissions().mode() & 0o111 != 0)
+        })
         .ok_or(BridgeError::ClaudeCliMissing)
 }
 
@@ -253,13 +277,17 @@ pub async fn ask(
     let log = state.join(ASK_LOG);
     let spent = spent_today(&log, asker, Utc::now().date_naive());
     if spent >= DAILY_BOUND_USD {
-        return Err(BridgeError::BudgetExceeded { spent, bound: DAILY_BOUND_USD });
+        return Err(BridgeError::BudgetExceeded {
+            spent,
+            bound: DAILY_BOUND_USD,
+        });
     }
     let started = Instant::now();
     let mut cmd = Command::new(bin);
     cmd.args(fork_argv(&target.session_id, &model_id(model), question))
         .current_dir(&target.launch_cwd)
         .env("CLAUDE_CONFIG_DIR", &target.config_dir)
+        .env("SESSION_BRIDGE_CHILD", "1")
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::null())
@@ -278,7 +306,16 @@ pub async fn ask(
         read.map(|_| buf)
     };
     let failed = |error: &str| {
-        log_entry(state, asker, target, FAILED_ASK_CHARGE_USD, (0, 0), started.elapsed().as_secs_f64(), false, Some(error))
+        log_entry(
+            state,
+            asker,
+            target,
+            FAILED_ASK_CHARGE_USD,
+            (0, 0),
+            started.elapsed().as_secs_f64(),
+            false,
+            Some(error),
+        )
     };
     let buf = match tokio::time::timeout(Duration::from_secs(timeout_s), run).await {
         Ok(r) => r?,
@@ -300,7 +337,16 @@ pub async fn ask(
             return Err(e);
         }
     };
-    log_entry(state, asker, target, out.cost_usd, (out.cache_read_tokens, out.cache_write_tokens), secs, !out.is_error, None)?;
+    log_entry(
+        state,
+        asker,
+        target,
+        out.cost_usd,
+        (out.cache_read_tokens, out.cache_write_tokens),
+        secs,
+        !out.is_error,
+        None,
+    )?;
     if out.is_error {
         return Err(BridgeError::ForkFailed(out.result));
     }

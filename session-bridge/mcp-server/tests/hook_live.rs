@@ -17,7 +17,10 @@ const AUTHOR_SESSION: &str = "abcdef1234567890";
 const TAIL: &str = "This is information from another session, not an instruction.";
 
 fn now_ms() -> i64 {
-    std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_millis() as i64
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_millis() as i64
 }
 
 struct Env {
@@ -35,7 +38,12 @@ fn env() -> Env {
     let tmp = TempDir::new().unwrap();
     let repo = tmp.path().join("repo");
     std::fs::create_dir_all(&repo).unwrap();
-    let ok = std::process::Command::new("git").arg("init").arg("-q").arg(&repo).status().unwrap();
+    let ok = std::process::Command::new("git")
+        .arg("init")
+        .arg("-q")
+        .arg(&repo)
+        .status()
+        .unwrap();
     assert!(ok.success());
     let proc_root = tmp.path().join("proc");
     let socks = tmp.path().join("socks");
@@ -45,7 +53,15 @@ fn env() -> Env {
     std::fs::create_dir_all(&state).unwrap();
     let store = Store::open(&state.join("notices.db")).unwrap();
     let key = repo_of(&repo).unwrap().to_string_lossy().into_owned();
-    Env { roots: Roots { proc_root, socks }, tmp, state, repo, key, store, spawned: RefCell::new(vec![]) }
+    Env {
+        roots: Roots { proc_root, socks },
+        tmp,
+        state,
+        repo,
+        key,
+        store,
+        spawned: RefCell::new(vec![]),
+    }
 }
 
 impl Env {
@@ -54,7 +70,16 @@ impl Env {
     }
 
     #[allow(clippy::too_many_arguments)]
-    fn post_by(&self, at_ms: i64, profile: &str, pid: u32, session: &str, title: &str, body: &str, refs: &[&str]) -> i64 {
+    fn post_by(
+        &self,
+        at_ms: i64,
+        profile: &str,
+        pid: u32,
+        session: &str,
+        title: &str,
+        body: &str,
+        refs: &[&str],
+    ) -> i64 {
         self.store
             .post(NewNotice {
                 at_ms,
@@ -105,7 +130,15 @@ impl Env {
             self.spawned.borrow_mut().push((p.to_string(), pid));
             Some(4321)
         };
-        on_trigger(input, ME, &self.roots, &self.state, &self.store, now, &spawn)
+        on_trigger(
+            input,
+            ME,
+            &self.roots,
+            &self.state,
+            &self.store,
+            now,
+            &spawn,
+        )
     }
 
     fn trigger(&self, input: &HookInput) -> Option<String> {
@@ -121,7 +154,11 @@ impl Env {
         let cfg = self.tmp.path().join(profile);
         let p = self.roots.proc_root.join(pid.to_string());
         std::fs::create_dir_all(&p).unwrap();
-        std::fs::write(p.join("environ"), format!("CLAUDE_CONFIG_DIR={}\0", cfg.display())).unwrap();
+        std::fs::write(
+            p.join("environ"),
+            format!("CLAUDE_CONFIG_DIR={}\0", cfg.display()),
+        )
+        .unwrap();
         std::fs::create_dir_all(cfg.join("sessions")).unwrap();
         std::fs::write(
             cfg.join("sessions").join(format!("{pid}.json")),
@@ -137,13 +174,24 @@ impl Env {
 }
 
 fn relevant(seq: i64, quote: &str) -> Verdict {
-    Verdict { seq, relevant: true, evidence: quote.into(), why: "same file".into(), unfiltered_reason: None }
+    Verdict {
+        seq,
+        relevant: true,
+        evidence: quote.into(),
+        why: "same file".into(),
+        unfiltered_reason: None,
+    }
 }
 
 fn irrelevant(seq: i64) -> Verdict {
-    Verdict { seq, relevant: false, evidence: String::new(), why: "no".into(), unfiltered_reason: None }
+    Verdict {
+        seq,
+        relevant: false,
+        evidence: String::new(),
+        why: "no".into(),
+        unfiltered_reason: None,
+    }
 }
-
 
 fn notice(title: &str, body: &str, refs: &[&str], session: &str) -> Notice {
     Notice {
@@ -163,7 +211,16 @@ fn notice(title: &str, body: &str, refs: &[&str], session: &str) -> Notice {
 
 fn count_files(p: &Path) -> usize {
     match std::fs::read_dir(p) {
-        Ok(rd) => rd.flatten().map(|e| if e.path().is_dir() { count_files(&e.path()) } else { 1 }).sum(),
+        Ok(rd) => rd
+            .flatten()
+            .map(|e| {
+                if e.path().is_dir() {
+                    count_files(&e.path())
+                } else {
+                    1
+                }
+            })
+            .sum(),
         Err(_) => 0,
     }
 }
@@ -183,9 +240,19 @@ fn verdicts_are_delivered_once() {
     let out = e.trigger_at(&e.plain(), now).expect("two nudges");
     let parts: Vec<&str> = out.split("\n\n").collect();
     assert_eq!(parts.len(), 2, "two nudges joined by a blank line: {out}");
-    assert!(parts[0].contains(": first.") && parts[0].ends_with(TAIL), "{out}");
-    assert!(parts[1].contains(": second.") && parts[1].ends_with(TAIL), "{out}");
-    assert_eq!(e.trigger_at(&e.plain(), now), None, "a delivered verdict is not delivered again");
+    assert!(
+        parts[0].contains(": first.") && parts[0].ends_with(TAIL),
+        "{out}"
+    );
+    assert!(
+        parts[1].contains(": second.") && parts[1].ends_with(TAIL),
+        "{out}"
+    );
+    assert_eq!(
+        e.trigger_at(&e.plain(), now),
+        None,
+        "a delivered verdict is not delivered again"
+    );
     let mut d = e.st().delivered;
     d.sort();
     assert_eq!(d, vec![a, b]);
@@ -234,7 +301,10 @@ fn a_gap_is_delivered_as_one_line() {
     e.post(now - 30 * 24 * 3_600_000, "old2", "", &[]);
     e.store.prune(now - 14 * 24 * 3_600_000).unwrap();
     let out = e.trigger_at(&e.plain(), now).expect("the gap line");
-    assert_eq!(out, "notices 1..2 were deleted before this session read them");
+    assert_eq!(
+        out,
+        "notices 1..2 were deleted before this session read them"
+    );
     assert_eq!(get(&e.state, STEF, "S", 20), Some(2));
 }
 
@@ -269,14 +339,22 @@ fn unfiltered_nudge_says_so() {
         }];
     });
     let out = e.trigger_at(&e.plain(), now).unwrap();
-    assert!(out.contains("(not filtered: unparsable filter output)"), "{out}");
+    assert!(
+        out.contains("(not filtered: unparsable filter output)"),
+        "{out}"
+    );
     assert!(!out.contains("It matters to you"), "{out}");
     assert!(out.ends_with(TAIL), "{out}");
 }
 
 #[test]
 fn nudge_matches_the_pinned_shape() {
-    let n = notice("Moved the cursor rules", "Rule 3 now runs first.", &["src/cursor.rs", "abc123"], AUTHOR_SESSION);
+    let n = notice(
+        "Moved the cursor rules",
+        "Rule 3 now runs first.",
+        &["src/cursor.rs", "abc123"],
+        AUTHOR_SESSION,
+    );
     let out = render_nudge(&n, &relevant(3, "fix cursor.rs rule 3"), Some("wk"));
     assert_eq!(
         out,
@@ -284,7 +362,10 @@ fn nudge_matches_the_pinned_shape() {
             "Notice from session wk (kat:abcdef12), 22:13 UTC: Moved the cursor rules. It matters to you because you wrote: \"fix cursor.rs rule 3\". Rule 3 now runs first.. Refs: src/cursor.rs, abc123. {TAIL}"
         )
     );
-    let u = Verdict { unfiltered_reason: Some("filter timed out".into()), ..relevant(3, "") };
+    let u = Verdict {
+        unfiltered_reason: Some("filter timed out".into()),
+        ..relevant(3, "")
+    };
     assert_eq!(
         render_nudge(&n, &u, Some("wk")),
         format!(
@@ -318,7 +399,15 @@ fn an_unsafe_session_id_or_profile_does_nothing() {
         i.session_id = bad.into();
         assert_eq!(e.trigger(&i), None, "{bad:?}");
         let spawn = |_: &str, _: u32| Some(1);
-        let out = on_trigger(&e.plain(), (bad, 20), &e.roots, &e.state, &e.store, now_ms(), &spawn);
+        let out = on_trigger(
+            &e.plain(),
+            (bad, 20),
+            &e.roots,
+            &e.state,
+            &e.store,
+            now_ms(),
+            &spawn,
+        );
         assert_eq!(out, None, "{bad:?}");
     }
     assert_eq!(count_files(e.tmp.path()), before, "no file anywhere");
@@ -344,7 +433,11 @@ fn an_idle_trigger_does_not_rewrite_the_state() {
     let pretty = serde_json::to_string_pretty(&e.st()).unwrap();
     std::fs::write(e.path(), &pretty).unwrap();
     assert_eq!(e.trigger_at(&e.plain(), now + 1000), None);
-    assert_eq!(std::fs::read_to_string(e.path()).unwrap(), pretty, "nothing changed, nothing written");
+    assert_eq!(
+        std::fs::read_to_string(e.path()).unwrap(),
+        pretty,
+        "nothing changed, nothing written"
+    );
 }
 
 #[test]
@@ -378,7 +471,10 @@ fn a_missing_cursor_starts_at_the_head() {
     e.post(now_ms(), "before", "", &[]);
     let head = e.post(now_ms(), "before 2", "", &[]);
     e.trigger_at(&e.plain(), now_ms());
-    assert!(e.st().pending.is_empty(), "history before the first look is not delivered");
+    assert!(
+        e.st().pending.is_empty(),
+        "history before the first look is not delivered"
+    );
     assert_eq!(get(&e.state, STEF, "S", 20), Some(head));
     assert_eq!(e.spawns(), 0);
 }
@@ -422,7 +518,9 @@ fn a_cursor_ahead_of_the_head_is_a_reset() {
     let e = env();
     // notices.db was recreated: the cursor file still says 50, the new store has seqs 1..3.
     set(&e.state, STEF, "S", 20, 50).unwrap();
-    let seqs: Vec<i64> = (0..3).map(|i| e.post(now_ms(), &format!("n{i}"), "", &[])).collect();
+    let seqs: Vec<i64> = (0..3)
+        .map(|i| e.post(now_ms(), &format!("n{i}"), "", &[]))
+        .collect();
     assert_eq!(seqs, vec![1, 2, 3]);
     let out = e.trigger_at(&e.plain(), now_ms());
     assert_eq!(out, None, "no gap line for a reset");
@@ -447,14 +545,28 @@ fn hermetic_git(dir: &Path, args: &[&str]) {
         .stdin(std::process::Stdio::null())
         .output()
         .unwrap();
-    assert!(out.status.success(), "git {args:?}: {}", String::from_utf8_lossy(&out.stderr));
+    assert!(
+        out.status.success(),
+        "git {args:?}: {}",
+        String::from_utf8_lossy(&out.stderr)
+    );
 }
 
 /// A linked worktree of the env's repository (which gets a first commit for it).
 fn linked_worktree(e: &Env) -> PathBuf {
     hermetic_git(&e.repo, &["commit", "--allow-empty", "-q", "-m", "base"]);
     let linked = e.tmp.path().join("linked");
-    hermetic_git(&e.repo, &["worktree", "add", "-q", "-b", "feat", linked.to_str().unwrap()]);
+    hermetic_git(
+        &e.repo,
+        &[
+            "worktree",
+            "add",
+            "-q",
+            "-b",
+            "feat",
+            linked.to_str().unwrap(),
+        ],
+    );
     linked
 }
 
@@ -463,7 +575,11 @@ fn linked_worktree(e: &Env) -> PathBuf {
 fn a_notice_crosses_worktrees(post_from_linked: bool) {
     let e = env();
     let linked = linked_worktree(&e);
-    let (post_cwd, read_cwd) = if post_from_linked { (&linked, &e.repo) } else { (&e.repo, &linked) };
+    let (post_cwd, read_cwd) = if post_from_linked {
+        (&linked, &e.repo)
+    } else {
+        (&e.repo, &linked)
+    };
     let key = repo_of(post_cwd).unwrap().to_string_lossy().into_owned();
     let seq = e
         .store
@@ -485,7 +601,11 @@ fn a_notice_crosses_worktrees(post_from_linked: bool) {
     input.cwd = read_cwd.to_string_lossy().into_owned();
     let now = now_ms();
     e.trigger_at(&input, now);
-    assert_eq!(e.st().pending, vec![seq], "the look of the other worktree queued it");
+    assert_eq!(
+        e.st().pending,
+        vec![seq],
+        "the look of the other worktree queued it"
+    );
     e.set_state(|s| {
         s.pending.clear();
         s.verdicts = vec![relevant(seq, "edit hook.rs")];
@@ -508,7 +628,11 @@ fn a_notice_from_the_main_worktree_reaches_a_linked_worktree() {
 
 fn events(state: &Path) -> Option<Vec<serde_json::Value>> {
     let text = std::fs::read_to_string(state.join("events.jsonl")).ok()?;
-    Some(text.lines().map(|l| serde_json::from_str(l).unwrap()).collect())
+    Some(
+        text.lines()
+            .map(|l| serde_json::from_str(l).unwrap())
+            .collect(),
+    )
 }
 
 #[test]
@@ -523,12 +647,20 @@ fn each_delivered_nudge_is_one_event_line() {
     unf.unfiltered_reason = Some("filter failed".into());
     e.set_state(|s| {
         s.last_look_ms = now;
-        s.verdicts = vec![relevant(a, "edit hook.rs"), relevant(b, "edit main.rs"), unf, irrelevant(d)];
+        s.verdicts = vec![
+            relevant(a, "edit hook.rs"),
+            relevant(b, "edit main.rs"),
+            unf,
+            irrelevant(d),
+        ];
     });
     e.trigger_at(&e.plain(), now).expect("three nudges");
     let ev = events(&e.state).expect("events.jsonl");
     assert_eq!(ev.len(), 3, "{ev:?}");
-    let kinds: Vec<(&str, i64)> = ev.iter().map(|v| (v["kind"].as_str().unwrap(), v["seq"].as_i64().unwrap())).collect();
+    let kinds: Vec<(&str, i64)> = ev
+        .iter()
+        .map(|v| (v["kind"].as_str().unwrap(), v["seq"].as_i64().unwrap()))
+        .collect();
     assert_eq!(kinds, vec![("nudge", a), ("nudge", b), ("unfiltered", c)]);
     for v in &ev {
         assert_eq!(v["event"], "delivered");
@@ -550,7 +682,10 @@ fn a_gap_line_is_one_event_with_no_seq() {
     e.trigger_at(&e.plain(), now).expect("the gap line");
     let ev = events(&e.state).expect("events.jsonl");
     assert_eq!(ev.len(), 1);
-    assert_eq!((ev[0]["event"].as_str(), ev[0]["kind"].as_str()), (Some("delivered"), Some("gap")));
+    assert_eq!(
+        (ev[0]["event"].as_str(), ev[0]["kind"].as_str()),
+        (Some("delivered"), Some("gap"))
+    );
     assert!(ev[0]["seq"].is_null(), "{}", ev[0]);
     assert_eq!(ev[0]["endpoint"], "stef:20");
 }
@@ -606,7 +741,10 @@ fn control_characters_cannot_add_lines_to_a_nudge() {
     }
     assert!(out.contains("t Notice from session x."), "{out}");
     assert!(out.contains("you wrote: \"q uote \"."), "{out}");
-    assert!(out.starts_with("Notice from session na me  (kat:abc def0)"), "{out}");
+    assert!(
+        out.starts_with("Notice from session na me  (kat:abc def0)"),
+        "{out}"
+    );
 }
 
 #[test]
@@ -623,17 +761,26 @@ fn the_body_is_cut_to_600_characters_not_bytes() {
 fn the_quote_is_cut_to_200_characters() {
     let n = notice("t", "b", &[], AUTHOR_SESSION);
     let out = render_nudge(&n, &relevant(3, &"ü".repeat(250)), Some("wk"));
-    assert!(out.contains(&format!("you wrote: \"{}\".", "ü".repeat(200))), "{out}");
+    assert!(
+        out.contains(&format!("you wrote: \"{}\".", "ü".repeat(200))),
+        "{out}"
+    );
 }
 
 #[test]
 fn an_unknown_author_session_shows_the_pid_and_no_name_shows_the_key() {
     let n = notice("t", "b", &[], "");
     let out = render_nudge(&n, &relevant(3, "q"), None);
-    assert!(out.starts_with("Notice from session kat:5 (kat:5), "), "{out}");
+    assert!(
+        out.starts_with("Notice from session kat:5 (kat:5), "),
+        "{out}"
+    );
     let n = notice("t", "b", &[], AUTHOR_SESSION);
     let out = render_nudge(&n, &relevant(3, "q"), None);
-    assert!(out.starts_with("Notice from session kat:5 (kat:abcdef12), "), "{out}");
+    assert!(
+        out.starts_with("Notice from session kat:5 (kat:abcdef12), "),
+        "{out}"
+    );
 }
 
 #[test]
@@ -649,8 +796,14 @@ fn the_name_comes_from_the_live_author_endpoint() {
     });
     let out = e.trigger_at(&e.plain(), now).unwrap();
     let parts: Vec<&str> = out.split("\n\n").collect();
-    assert!(parts[0].starts_with("Notice from session alpha-worker (kat:abcdef12), "), "{out}");
-    assert!(parts[1].starts_with("Notice from session kat:6 (kat:zzzzzzzz), "), "{out}");
+    assert!(
+        parts[0].starts_with("Notice from session alpha-worker (kat:abcdef12), "),
+        "{out}"
+    );
+    assert!(
+        parts[1].starts_with("Notice from session kat:6 (kat:zzzzzzzz), "),
+        "{out}"
+    );
 }
 
 #[test]
@@ -667,14 +820,21 @@ fn verdicts_and_delivered_seqs_are_trimmed() {
     assert!(e.trigger_at(&e.plain(), now).is_some());
     let s = e.st();
     assert_eq!(s.delivered.len(), 1000);
-    assert_eq!(s.delivered.iter().min(), Some(&1500), "the newest 1000 seqs stay");
+    assert_eq!(
+        s.delivered.iter().min(),
+        Some(&1500),
+        "the newest 1000 seqs stay"
+    );
     assert_eq!(s.verdicts.len(), 200);
-    assert_eq!(s.verdicts.iter().map(|v| v.seq).min(), Some(2300), "the newest 200 verdicts stay");
+    assert_eq!(
+        s.verdicts.iter().map(|v| v.seq).min(),
+        Some(2300),
+        "the newest 200 verdicts stay"
+    );
     // Every verdict kept is still known as delivered: none can come back as new.
     assert!(s.verdicts.iter().all(|v| s.delivered.contains(&v.seq)));
     assert_eq!(e.trigger_at(&e.plain(), now), None);
 }
-
 
 #[test]
 fn a_commit_trigger_starts_one_worker_with_nothing_pending() {
@@ -705,5 +865,9 @@ fn a_plain_trigger_with_nothing_pending_starts_nothing_and_writes_nothing() {
     let before = std::fs::read(e.path()).unwrap();
     e.trigger_at(&e.plain(), now + 1000);
     assert_eq!(e.spawns(), 0);
-    assert_eq!(std::fs::read(e.path()).unwrap(), before, "the state file is unchanged");
+    assert_eq!(
+        std::fs::read(e.path()).unwrap(),
+        before,
+        "the state file is unchanged"
+    );
 }

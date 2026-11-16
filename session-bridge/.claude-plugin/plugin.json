@@ -1,6 +1,6 @@
 {
   "name": "session-bridge",
-  "description": "Channel between Claude Code sessions: ask a live session through a read-only fork, and post notices that reach the sessions they matter to.",
+  "description": "Channel between Claude Code and Codex sessions: ask read-only forks, post repository notices, and send messages to original loaded Codex threads.",
   "version": "0.2.2",
   "author": {
     "name": "Marius"

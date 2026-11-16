@@ -35,22 +35,36 @@ fn same_profile_twin_copies() {
 #[test]
 fn clear_moves_the_cursor_to_the_new_id() {
     let d = TempDir::new().unwrap();
-    update(&endpoint_path(d.path(), STEF, 20), |s| s.session_id = "S".into()).unwrap();
+    update(&endpoint_path(d.path(), STEF, 20), |s| {
+        s.session_id = "S".into()
+    })
+    .unwrap();
     set(d.path(), STEF, "S", 20, 7).unwrap();
     let (rule, v) = on_session_start(d.path(), STEF, 20, "S2", &|_| true, 99).unwrap();
     assert_eq!((rule, v), (StartRule::MoveAfterClear, 7));
     assert_eq!(get(d.path(), STEF, "S2", 20), Some(7));
-    assert_eq!(get(d.path(), STEF, "S", 20), None, "the old id's cursor is gone");
+    assert_eq!(
+        get(d.path(), STEF, "S", 20),
+        None,
+        "the old id's cursor is gone"
+    );
 }
 
 #[test]
 fn clear_does_not_steal_a_cursor_held_by_another_live_pid() {
     let d = TempDir::new().unwrap();
-    update(&endpoint_path(d.path(), STEF, 20), |s| s.session_id = "S".into()).unwrap();
+    update(&endpoint_path(d.path(), STEF, 20), |s| {
+        s.session_id = "S".into()
+    })
+    .unwrap();
     set(d.path(), STEF, "S", 10, 7).unwrap(); // held by pid 10, not by 20
     let (rule, v) = on_session_start(d.path(), STEF, 20, "S2", &|_| true, 99).unwrap();
     assert_eq!((rule, v), (StartRule::Fresh, 99));
-    assert_eq!(get(d.path(), STEF, "S", 10), Some(7), "pid 10's cursor is untouched");
+    assert_eq!(
+        get(d.path(), STEF, "S", 10),
+        Some(7),
+        "pid 10's cursor is untouched"
+    );
 }
 
 #[test]
@@ -81,9 +95,18 @@ fn take_over_after_the_holder_dies_uses_this_pids_own_twin_value() {
     set(d.path(), STEF, "S", 20, 8).unwrap();
     // pid 10 dies; pid 20 compacts.
     let (rule, v) = on_session_start(d.path(), STEF, 20, "S", &|_| false, 99).unwrap();
-    assert_eq!((rule, v), (StartRule::TakeOver, 8), "the twin is newer than the plain file");
+    assert_eq!(
+        (rule, v),
+        (StartRule::TakeOver, 8),
+        "the twin is newer than the plain file"
+    );
     assert_eq!(get(d.path(), STEF, "S", 20), Some(8));
-    assert_eq!(files_for(d.path(), "S").len(), 1, "{:?}", files_for(d.path(), "S"));
+    assert_eq!(
+        files_for(d.path(), "S").len(),
+        1,
+        "{:?}",
+        files_for(d.path(), "S")
+    );
     // A new pid resuming while 20 is alive copies 8, so notices 6 to 8 are not repeated.
     let (rule, v) = on_session_start(d.path(), STEF, 30, "S", &|p| p == 20, 99).unwrap();
     assert_eq!((rule, v), (StartRule::CopyFromTwin, 8));
@@ -95,7 +118,12 @@ fn compact_of_the_holder_takes_over() {
     set(d.path(), STEF, "S", 10, 5).unwrap();
     let (rule, v) = on_session_start(d.path(), STEF, 10, "S", &|_| true, 99).unwrap();
     assert_eq!((rule, v), (StartRule::TakeOver, 5));
-    assert_eq!(files_for(d.path(), "S").len(), 1, "no twin of itself: {:?}", files_for(d.path(), "S"));
+    assert_eq!(
+        files_for(d.path(), "S").len(),
+        1,
+        "no twin of itself: {:?}",
+        files_for(d.path(), "S")
+    );
 }
 
 #[test]
@@ -112,10 +140,16 @@ fn unsafe_profile_or_session_id_never_builds_a_path() {
     let d = TempDir::new().unwrap();
     let root = d.path().join("state");
     for bad in ["../../etc/x", "a/b", "", "..", ".", "a..b", "x y"] {
-        assert!(on_session_start(&root, STEF, 20, bad, &|_| false, 1).is_err(), "{bad:?}");
+        assert!(
+            on_session_start(&root, STEF, 20, bad, &|_| false, 1).is_err(),
+            "{bad:?}"
+        );
         assert!(set(&root, STEF, bad, 20, 1).is_err(), "{bad:?}");
         assert_eq!(get(&root, STEF, bad, 20), None, "{bad:?}");
-        assert!(on_session_start(&root, bad, 20, "S", &|_| false, 1).is_err(), "{bad:?}");
+        assert!(
+            on_session_start(&root, bad, 20, "S", &|_| false, 1).is_err(),
+            "{bad:?}"
+        );
     }
     assert!(!root.exists(), "nothing was created");
 }

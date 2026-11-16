@@ -60,7 +60,11 @@ fn git_bytes(dir: &Path, args: &[&str], input: Option<Vec<u8>>) -> Result<Vec<u8
         .env("GIT_TERMINAL_PROMPT", "0")
         .env("GIT_OPTIONAL_LOCKS", "0")
         .env("GIT_PAGER", "cat")
-        .stdin(if input.is_some() { Stdio::piped() } else { Stdio::null() })
+        .stdin(if input.is_some() {
+            Stdio::piped()
+        } else {
+            Stdio::null()
+        })
         .stdout(Stdio::piped())
         .stderr(Stdio::null());
     let mut child = cmd.spawn()?;
@@ -102,7 +106,11 @@ fn git_bytes(dir: &Path, args: &[&str], input: Option<Vec<u8>>) -> Result<Vec<u8
     match status {
         None => Err(BridgeError::Timeout(GIT_TIMEOUT.as_secs())),
         Some(s) if s.success() => Ok(out),
-        Some(s) => Err(std::io::Error::other(format!("git {}: {s}", args.first().copied().unwrap_or(""))).into()),
+        Some(s) => Err(std::io::Error::other(format!(
+            "git {}: {s}",
+            args.first().copied().unwrap_or("")
+        ))
+        .into()),
     }
 }
 
@@ -117,7 +125,11 @@ pub fn watch_list(root: &Path) -> Option<GlobSet> {
     let text = std::fs::read_to_string(root.join(WATCH_FILE)).ok()?;
     let mut builder = GlobSetBuilder::new();
     let mut any = false;
-    for line in text.lines().map(str::trim).filter(|l| !l.is_empty() && !l.starts_with('#')) {
+    for line in text
+        .lines()
+        .map(str::trim)
+        .filter(|l| !l.is_empty() && !l.starts_with('#'))
+    {
         match Glob::new(line) {
             Ok(g) => {
                 builder.add(g);
@@ -129,7 +141,10 @@ pub fn watch_list(root: &Path) -> Option<GlobSet> {
     if !any {
         return None;
     }
-    builder.build().map_err(|e| diag::note(&format!("commits: watch list: {e}"))).ok()
+    builder
+        .build()
+        .map_err(|e| diag::note(&format!("commits: watch list: {e}")))
+        .ok()
 }
 
 /// The worktrees of the repository `any_worktree` belongs to (`git worktree list
@@ -160,7 +175,10 @@ pub fn worktrees(any_worktree: &Path) -> Vec<PathBuf> {
         }
     }
     if found.len() > MAX_WORKTREES {
-        diag::note(&format!("commits: {} worktrees, scanning the first {MAX_WORKTREES}", found.len()));
+        diag::note(&format!(
+            "commits: {} worktrees, scanning the first {MAX_WORKTREES}",
+            found.len()
+        ));
         found.truncate(MAX_WORKTREES);
     }
     found
@@ -177,7 +195,11 @@ fn patch_id(dir: &Path, sha: &str) -> Result<String> {
         return Ok(String::new());
     }
     let out = git_bytes(dir, &["patch-id", "--stable"], Some(diff))?;
-    Ok(String::from_utf8_lossy(&out).split_whitespace().next().unwrap_or("").to_string())
+    Ok(String::from_utf8_lossy(&out)
+        .split_whitespace()
+        .next()
+        .unwrap_or("")
+        .to_string())
 }
 
 /// One commit as `git log` lists it.
@@ -190,7 +212,8 @@ pub struct LogRecord {
     pub trailers: String,
 }
 
-const LOG_FORMAT: &str = "--format=%H%x00%ct%x00%s%x00%(trailers:key=Session-Id,valueonly,separator=%x1f)%x1e";
+const LOG_FORMAT: &str =
+    "--format=%H%x00%ct%x00%s%x00%(trailers:key=Session-Id,valueonly,separator=%x1f)%x1e";
 
 /// The argv of the `git log` that lists the commits of `new` (newest first, at most
 /// `MAX_COMMITS + 1`, the extra one only detects an overflow), without those reachable from
@@ -200,10 +223,17 @@ const LOG_FORMAT: &str = "--format=%H%x00%ct%x00%s%x00%(trailers:key=Session-Id,
 /// `:` (in any scope) makes the `Session-Id:` trailer invisible to `%(trailers:...)`, and
 /// command-line config wins over every file.
 pub fn log_argv(new: &str, old: Option<&str>) -> Vec<String> {
-    let mut argv: Vec<String> = ["-c", "trailer.separators=:", "log", "--no-show-signature", LOG_FORMAT, "-n"]
-        .iter()
-        .map(|s| s.to_string())
-        .collect();
+    let mut argv: Vec<String> = [
+        "-c",
+        "trailer.separators=:",
+        "log",
+        "--no-show-signature",
+        LOG_FORMAT,
+        "-n",
+    ]
+    .iter()
+    .map(|s| s.to_string())
+    .collect();
     argv.push((MAX_COMMITS + 1).to_string());
     argv.push(new.to_string());
     if let Some(old) = old {
@@ -222,13 +252,21 @@ pub fn parse_log(out: &str) -> Vec<LogRecord> {
             continue;
         }
         let mut f = rec.splitn(4, '\0');
-        let (Some(first), Some(ct), Some(subject), Some(trailers)) = (f.next(), f.next(), f.next(), f.next()) else {
+        let (Some(first), Some(ct), Some(subject), Some(trailers)) =
+            (f.next(), f.next(), f.next(), f.next())
+        else {
             diag::note("commits: skipped a log chunk that is not a record");
             continue;
         };
-        let sha = first.lines().map(str::trim).rfind(|l| !l.is_empty()).unwrap_or("");
+        let sha = first
+            .lines()
+            .map(str::trim)
+            .rfind(|l| !l.is_empty())
+            .unwrap_or("");
         if !is_sha(sha) {
-            diag::note(&format!("commits: skipped a log record with the bad sha {sha:?}"));
+            diag::note(&format!(
+                "commits: skipped a log record with the bad sha {sha:?}"
+            ));
             continue;
         }
         records.push(LogRecord {
@@ -240,7 +278,6 @@ pub fn parse_log(out: &str) -> Vec<LogRecord> {
     }
     records
 }
-
 
 /// New commits of `worktree` since `old`, oldest first, that this session made and that touch
 /// a watched path; plus the new head. First sight (`old == None`), or an `old` that no longer
@@ -255,7 +292,14 @@ pub fn scan(
     watch: &GlobSet,
     started_ms: i64,
 ) -> Result<(String, Vec<Counted>)> {
-    scan_until(worktree, old, session_id, watch, started_ms, Instant::now() + Duration::from_secs(3600))
+    scan_until(
+        worktree,
+        old,
+        session_id,
+        watch,
+        started_ms,
+        Instant::now() + Duration::from_secs(3600),
+    )
 }
 
 fn scan_until(
@@ -266,7 +310,9 @@ fn scan_until(
     started_ms: i64,
     deadline: Instant,
 ) -> Result<(String, Vec<Counted>)> {
-    let new = git(worktree, &["rev-parse", "--verify", "HEAD^{commit}"])?.trim().to_string();
+    let new = git(worktree, &["rev-parse", "--verify", "HEAD^{commit}"])?
+        .trim()
+        .to_string();
     let session_id = session_id.trim();
     if session_id.is_empty() {
         return Ok((new, vec![]));
@@ -298,7 +344,10 @@ fn scan_until(
             Err(e) => {
                 let probe = format!("{old}^{{commit}}");
                 if git(worktree, &["rev-parse", "--verify", "--quiet", &probe]).is_err() {
-                    diag::note(&format!("commits: old head {old} is gone in {}: first sight", worktree.display()));
+                    diag::note(&format!(
+                        "commits: old head {old} is gone in {}: first sight",
+                        worktree.display()
+                    ));
                     first_sight()?
                 } else {
                     return Err(e);
@@ -320,11 +369,27 @@ fn scan_until(
         if Instant::now() >= deadline {
             return Err(std::io::Error::other("scan budget exceeded").into());
         }
-        if !rec.trailers.split(['\x1f', '\n']).any(|t| t.trim() == session_id) {
+        if !rec
+            .trailers
+            .split(['\x1f', '\n'])
+            .any(|t| t.trim() == session_id)
+        {
             continue;
         }
         let sha = rec.sha.as_str();
-        let paths = git_bytes(worktree, &["diff-tree", "--no-commit-id", "--name-only", "-r", "--root", "-z", sha], None)?;
+        let paths = git_bytes(
+            worktree,
+            &[
+                "diff-tree",
+                "--no-commit-id",
+                "--name-only",
+                "-r",
+                "--root",
+                "-z",
+                sha,
+            ],
+            None,
+        )?;
         let matched: Vec<String> = paths
             .split(|b| *b == 0)
             .filter(|p| !p.is_empty())
@@ -348,7 +413,9 @@ fn scan_until(
         });
     }
     if !counted.is_empty() {
-        let branch = git(worktree, &["rev-parse", "--abbrev-ref", "HEAD"]).ok().map(|b| b.trim().to_string());
+        let branch = git(worktree, &["rev-parse", "--abbrev-ref", "HEAD"])
+            .ok()
+            .map(|b| b.trim().to_string());
         let branch = branch.filter(|b| !b.is_empty() && b != "HEAD");
         for c in &mut counted {
             c.branch = branch.clone();
@@ -385,16 +452,26 @@ pub fn collect(
     let deadline = started + budget;
     let repo = crate::endpoints::repo_of(cwd)?;
     let main_watch = watch_list(&repo);
-    let mut out = Collected { repo: repo.to_string_lossy().into_owned(), ..Default::default() };
+    let mut out = Collected {
+        repo: repo.to_string_lossy().into_owned(),
+        ..Default::default()
+    };
     for tree in worktrees(&repo) {
         if Instant::now() >= deadline {
-            diag::note("commits: scan budget used up, the remaining worktrees wait for the next scan");
+            diag::note(
+                "commits: scan budget used up, the remaining worktrees wait for the next scan",
+            );
             break;
         }
         let own = watch_list(&tree);
-        let Some(watch) = own.as_ref().or(main_watch.as_ref()) else { continue };
+        let Some(watch) = own.as_ref().or(main_watch.as_ref()) else {
+            continue;
+        };
         let key = tree.to_string_lossy().into_owned();
-        let old = heads.get(&key).map(String::as_str).filter(|h| !h.is_empty());
+        let old = heads
+            .get(&key)
+            .map(String::as_str)
+            .filter(|h| !h.is_empty());
         match scan_until(&tree, old, session_id, watch, started_ms, deadline) {
             Ok((head, counted)) => {
                 out.heads.insert(key, head);
@@ -407,7 +484,9 @@ pub fn collect(
 }
 
 fn clean(s: &str) -> String {
-    s.chars().map(|c| if c.is_control() { ' ' } else { c }).collect()
+    s.chars()
+        .map(|c| if c.is_control() { ' ' } else { c })
+        .collect()
 }
 
 /// Post one `commit` notice per counted commit, oldest first, and return how many were posted.
@@ -438,7 +517,12 @@ pub fn post_commit_notices(
         }
         let title: String = clean(&c.subject).chars().take(MAX_TITLE_CHARS).collect();
         let sha9: String = c.sha.chars().take(9).collect();
-        let mut list: Vec<String> = c.matched.iter().take(MAX_LISTED_PATHS).map(|p| clean(p)).collect();
+        let mut list: Vec<String> = c
+            .matched
+            .iter()
+            .take(MAX_LISTED_PATHS)
+            .map(|p| clean(p))
+            .collect();
         if c.matched.len() > MAX_LISTED_PATHS {
             list.push(format!("+{} more", c.matched.len() - MAX_LISTED_PATHS));
         }
@@ -472,7 +556,9 @@ pub fn post_commit_notices(
                     "patch_id": c.patch_id,
                 }),
             ),
-            Err(e @ BridgeError::OverLimit { .. }) => diag::note(&format!("commits: commit {sha9} not announced: {e}")),
+            Err(e @ BridgeError::OverLimit { .. }) => {
+                diag::note(&format!("commits: commit {sha9} not announced: {e}"))
+            }
             Err(e) => return Err(e),
         }
     }

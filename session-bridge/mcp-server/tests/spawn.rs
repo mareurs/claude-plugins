@@ -58,7 +58,11 @@ fn the_child_runs_in_its_own_session_with_null_stdio() {
         .expect("the helper reports the child pid");
     let p = pid.to_string();
     let checks = std::panic::catch_unwind(|| {
-        assert_eq!(session_of(&p), i64::from(pid), "the child leads a new session");
+        assert_eq!(
+            session_of(&p),
+            i64::from(pid),
+            "the child leads a new session"
+        );
         assert_ne!(session_of(&p), session_of("self"), "not the test's session");
         for fd in 0..3 {
             let target = std::fs::read_link(format!("/proc/{p}/fd/{fd}")).unwrap();

@@ -1,3 +1,7 @@
+---
+id: cb296ac7e2e0b3a1
+kind: doc
+---
 # session-bridge
 
 A channel between the live Claude Code sessions on one machine. It does two things:
@@ -41,6 +45,32 @@ pays (see the cost section).
 `claude` is found on `PATH`, or through `SESSION_BRIDGE_CLAUDE_BIN`. That variable must be an
 absolute path; a bare name is refused. The child runs in the target's repository with the
 target's credentials, so a relative program is never resolved.
+
+## Codex and Claude Code → Codex
+
+The bridge uses the installed Codex CLI; no Codex source patch is required. Linux discovery covers app-server processes with open JSONL rollouts. Saved-only threads and hosts with a different history layout are outside this listing. An open rollout does not prove that a UI is attached.
+
+Build and preview installation into each existing Codex home:
+
+```bash
+cargo build --release --manifest-path session-bridge/mcp-server/Cargo.toml
+python3 session-bridge/scripts/install-codex.py \
+  --profile "${CODEX_HOME:-$HOME/.codex}" \
+  --binary "$PWD/session-bridge/mcp-server/target/release/session-bridge"
+# Add --apply to install the previewed MCP entry and three notice hooks.
+```
+
+The installer preserves other servers, hook groups and trust settings and refuses absent profiles. Review/enable the new commands in Codex's normal hook trust UI, enable hooks if needed, then reconnect the MCP server. Existing connections need a reconnect to see new tools. Claude keeps its existing plugin registration; its configured executable must also be rebuilt and its MCP connection restarted.
+
+- `list_sessions()` includes canonical addresses `codex:<absolute CODEX_HOME>:<thread UUID>`. UUIDs, prefixes of at least four characters, and names work only when unambiguous. Every Codex thread has separate notice state, including threads sharing a PID.
+- `ask_session(target, question, model?, timeout_s?)` uses an ephemeral read-only Codex fork with hooks, plugins, user configuration and unsafe execution rules excluded. Omit the model to use Codex's default; Codex IDs are passed literally. Token usage is returned; unavailable USD cost is `null`, outside the Claude USD meter.
+- `send_message(target, message, timeout_s = 20)` sends to an **original loaded Codex thread** with its existing account, model and permissions. It may start a normal turn that uses tools. It neither forks nor resumes a dormant thread. Direct Claude targets are unsupported; use `ask_session` for Claude.
+- A send result is `queued` after CLI acceptance, `observed` only after the exact message appears in a new user transcript record, or `unknown` after uncertain enqueue. Observed does not imply an answer. Messages are never automatically resent.
+- Codex notice filters use the receiver's own Codex account. A failed filter delivers the notice with an explicit unfiltered reason and never bills an arbitrary Claude profile.
+
+`SESSION_BRIDGE_CODEX_BIN` selects an absolute Codex executable. `session-bridge sessions --json` discovers sessions without an LLM call. Claude callers use their current per-PID session registration, through either the native CLI process or the legacy IPC socket. Runs with no validated current registration can list sessions but cannot ask, send or post notices. Exact validated caller identity is required for effects: Codex MCP `threadId` metadata or validated `CODEX_THREAD_ID`, and Claude's current per-PID session registration (native CLI or legacy socket). Missing identity is reported rather than attributed to another session.
+
+Terminal and desktop delivery need separate live checks. A desktop thread hosted by the managed daemon shares that queue; a separate stdio host or a host without an open rollout is not certified by a daemon smoke. This plugin does not replace or restart shared Codex executables.
 
 ## Tools
 

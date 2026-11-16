@@ -20,6 +20,7 @@ echo call >> "$d/filter-calls"
   echo "socket=${CLAUDE_CODE_MESSAGING_SOCKET-unset}"
   echo "token=${CLAUDE_CODE_MESSAGING_TOKEN-unset}"
   echo "claudecode=${CLAUDECODE-unset}"
+  echo "bridge_child=${SESSION_BRIDGE_CHILD-unset}"
 } > "$d/filter-env.txt"
 printf '%s\n' "$@" > "$d/filter-argv.txt"
 if [ -e "$d/fake-flood" ]; then

@@ -96,7 +96,11 @@ fn row_to_notice(r: &Row) -> rusqlite::Result<Notice> {
 
 fn check(field: &'static str, limit: usize, actual: usize) -> Result<()> {
     if actual > limit {
-        return Err(BridgeError::OverLimit { field, limit, actual });
+        return Err(BridgeError::OverLimit {
+            field,
+            limit,
+            actual,
+        });
     }
     Ok(())
 }
@@ -201,7 +205,11 @@ impl Store {
     pub fn head(&self) -> Result<i64> {
         let v: Option<i64> = self
             .conn
-            .query_row("SELECT seq FROM sqlite_sequence WHERE name = 'notice'", [], |r| r.get(0))
+            .query_row(
+                "SELECT seq FROM sqlite_sequence WHERE name = 'notice'",
+                [],
+                |r| r.get(0),
+            )
             .optional()?;
         Ok(v.unwrap_or(0))
     }
@@ -222,7 +230,11 @@ impl Store {
             .collect::<rusqlite::Result<Vec<_>>>()?;
         drop(stmt);
         let head: Option<i64> = tx
-            .query_row("SELECT seq FROM sqlite_sequence WHERE name = 'notice'", [], |r| r.get(0))
+            .query_row(
+                "SELECT seq FROM sqlite_sequence WHERE name = 'notice'",
+                [],
+                |r| r.get(0),
+            )
             .optional()?;
         let next_cursor = after.max(head.unwrap_or(0));
         let gap: (Option<i64>, Option<i64>) = tx.query_row(
@@ -235,18 +247,31 @@ impl Store {
             (Some(lo), Some(hi)) => Some((lo, hi)),
             _ => None,
         };
-        Ok(Page { notices, next_cursor, gap })
+        Ok(Page {
+            notices,
+            next_cursor,
+            gap,
+        })
     }
 
     /// Notices of `repo` with `at_ms >= since_ms`, newest first, at most `limit`.
-    pub fn recent(&self, repo: &str, since_ms: i64, limit: usize, exclude: (&str, u32)) -> Result<Vec<Notice>> {
+    pub fn recent(
+        &self,
+        repo: &str,
+        since_ms: i64,
+        limit: usize,
+        exclude: (&str, u32),
+    ) -> Result<Vec<Notice>> {
         let mut stmt = self.conn.prepare(&format!(
             "SELECT {COLS} FROM notice
              WHERE repo = ?1 AND at_ms >= ?2 AND NOT (author_profile = ?3 AND author_pid = ?4)
              ORDER BY at_ms DESC, seq DESC LIMIT ?5"
         ))?;
         let rows = stmt
-            .query_map(params![repo, since_ms, exclude.0, exclude.1, limit as i64], row_to_notice)?
+            .query_map(
+                params![repo, since_ms, exclude.0, exclude.1, limit as i64],
+                row_to_notice,
+            )?
             .collect::<rusqlite::Result<Vec<_>>>()?;
         Ok(rows)
     }
@@ -257,8 +282,9 @@ impl Store {
             return Ok(vec![]);
         }
         let marks = vec!["?"; seqs.len()].join(",");
-        let mut stmt =
-            self.conn.prepare(&format!("SELECT {COLS} FROM notice WHERE seq IN ({marks}) ORDER BY seq ASC"))?;
+        let mut stmt = self.conn.prepare(&format!(
+            "SELECT {COLS} FROM notice WHERE seq IN ({marks}) ORDER BY seq ASC"
+        ))?;
         let rows = stmt
             .query_map(rusqlite::params_from_iter(seqs.iter()), row_to_notice)?
             .collect::<rusqlite::Result<Vec<_>>>()?;
@@ -272,7 +298,6 @@ impl Store {
         tx.commit()?;
         Ok(n)
     }
-
 
     fn tx(&self) -> Result<rusqlite::Transaction<'_>> {
         // IMMEDIATE takes the write lock up front, so busy_timeout applies and
@@ -304,7 +329,6 @@ fn insert_in(tx: &rusqlite::Transaction, n: &NewNotice, refs: &str) -> Result<i6
     Ok(tx.last_insert_rowid())
 }
 
-
 fn prune_in(tx: &rusqlite::Transaction, older_than_ms: i64) -> Result<usize> {
     let (lo, hi): (Option<i64>, Option<i64>) = tx.query_row(
         "SELECT MIN(seq), MAX(seq) FROM notice WHERE at_ms < ?1",
@@ -314,7 +338,10 @@ fn prune_in(tx: &rusqlite::Transaction, older_than_ms: i64) -> Result<usize> {
     let (Some(lo), Some(hi)) = (lo, hi) else {
         return Ok(0);
     };
-    let n = tx.execute("DELETE FROM notice WHERE at_ms < ?1", params![older_than_ms])?;
+    let n = tx.execute(
+        "DELETE FROM notice WHERE at_ms < ?1",
+        params![older_than_ms],
+    )?;
     tx.execute(
         "INSERT INTO deletion (lo, hi, at_ms) VALUES (?1, ?2, ?3)",
         params![lo, hi, older_than_ms],
