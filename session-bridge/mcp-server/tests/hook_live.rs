@@ -536,3 +536,35 @@ fn verdicts_and_delivered_seqs_are_trimmed() {
     assert_eq!(e.trigger_at(&e.plain(), now), None);
 }
 
+
+#[test]
+fn a_commit_trigger_starts_one_worker_with_nothing_pending() {
+    let e = env();
+    let now = now_ms();
+    e.set_state(|s| s.last_look_ms = now);
+    let commit = e.input(serde_json::json!({"command": "git commit -m 'bump Cargo.toml'"}));
+    e.trigger_at(&commit, now);
+    assert_eq!(e.spawns(), 1, "a commit may need a backup scan: one worker");
+    assert_eq!(e.st().worker_pid, Some(4321));
+    assert_eq!(e.st().last_spawn_ms, now);
+    e.trigger_at(&commit, now + 1000);
+    assert_eq!(e.spawns(), 1, "no second worker within 15 s");
+    e.trigger_at(&commit, now + 15_000);
+    assert_eq!(e.spawns(), 2, "15 s later a commit may start another");
+}
+
+#[test]
+fn a_plain_trigger_with_nothing_pending_starts_nothing_and_writes_nothing() {
+    let e = env();
+    let now = now_ms();
+    e.set_state(|s| {
+        s.session_id = "S".into();
+        s.transcript_path = Some("/t/x.jsonl".into());
+        s.cwd = Some(e.repo.to_string_lossy().into_owned());
+        s.last_look_ms = now;
+    });
+    let before = std::fs::read(e.path()).unwrap();
+    e.trigger_at(&e.plain(), now + 1000);
+    assert_eq!(e.spawns(), 0);
+    assert_eq!(std::fs::read(e.path()).unwrap(), before, "the state file is unchanged");
+}

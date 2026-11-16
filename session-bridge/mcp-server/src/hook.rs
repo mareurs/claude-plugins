@@ -212,7 +212,10 @@ pub fn on_trigger(
         || (input.transcript_path.is_some() && st.transcript_path != input.transcript_path)
         || (!input.cwd.is_empty() && st.cwd.as_deref() != Some(input.cwd.as_str()));
     let worker_live = st.worker_pid.is_some_and(|p| pid_alive(roots, p));
-    let may_spawn = spawn_due(&st, now_ms) && !worker_live && (!st.pending.is_empty() || !new_seqs.is_empty());
+    // A commit in this tool call needs the worker's backup scan even with nothing pending.
+    let scan_wanted = mentions_commit(input);
+    let may_spawn =
+        spawn_due(&st, now_ms) && !worker_live && (!st.pending.is_empty() || !new_seqs.is_empty() || scan_wanted);
     if !(identity_changed || has_undelivered(&st) || due || may_spawn) {
         return None;
     }
@@ -236,7 +239,10 @@ pub fn on_trigger(
                 s.pending.push(*q);
             }
         }
-        if !s.pending.is_empty() && spawn_due(s, now_ms) && !s.worker_pid.is_some_and(|p| pid_alive(roots, p)) {
+        if (!s.pending.is_empty() || scan_wanted)
+            && spawn_due(s, now_ms)
+            && !s.worker_pid.is_some_and(|p| pid_alive(roots, p))
+        {
             s.worker_pid = spawn(me.0, me.1);
             s.last_spawn_ms = now_ms;
         }
