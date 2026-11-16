@@ -236,11 +236,17 @@ change) and how to word it.
 - A worker is considered alive while `/proc/<pid>` exists, so a reused pid can delay the next
   worker until that other process ends.
 - The quote check has no minimum length.
-- Not yet verified: that a `PostToolUse` `additionalContext` reaches the model. The live check
-  (two sessions in two profiles) is still pending; if it does not, delivery moves to
-  `UserPromptSubmit` only.
-- Not yet verified: that the fork leaves the target's profile directory untouched. This is also
-  part of the pending live check.
+- Live check, 2026-11-16 (two sessions, profiles `kat` and `stef`, plugin loaded with
+  `--plugin-dir`). Verified: `${HOME}` expands in the plugin's `mcpServers.command`; the MCP
+  server and the hooks report the same Claude pid; a `PostToolUse` `additionalContext` reaches
+  the model; the fork's JSON carries `total_cost_usd` and the cache token counts; the fork leaves
+  the target's profile directory untouched (no new file, the transcript keeps its size and
+  mtime); the filter runs against the real `claude` CLI with `--system-prompt` and the
+  `filter-cwd` directory; a relevant notice is delivered and an irrelevant one is held back; the
+  fork child does not run the plugin hooks.
+- Not yet verified: the 120 s look interval (the live check forced every look with the text
+  `commit`), the commit backup scan with a `Session-Id:` trailer against a real session, and the
+  size of a nudge in a real transcript.
 - Local user and one machine only.
 
 ## Files
