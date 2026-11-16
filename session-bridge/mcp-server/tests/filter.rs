@@ -622,6 +622,11 @@ async fn pending_added_during_the_call_survives() {
     let mut seqs: Vec<i64> = st.verdicts.iter().map(|v| v.seq).collect();
     seqs.sort();
     assert_eq!(seqs, vec![1, 2]);
+    // The verdicts are the fake model's reply, not fail-open ones: the call really ran while
+    // the hook added seq 9.
+    for v in &st.verdicts {
+        assert_eq!((v.relevant, v.why.as_str(), v.unfiltered_reason.as_deref()), (false, "no", None), "{v:?}");
+    }
     assert_eq!(st.worker_pid, None);
 }
 
@@ -1004,7 +1009,10 @@ fn the_fake_refuses_a_config_dir_without_the_test_marker_and_writes_nothing() {
     assert_eq!(o.status.code(), Some(97), "{}", String::from_utf8_lossy(&o.stderr));
     assert!(!o.stderr.is_empty(), "a one-line explanation");
     assert_eq!(std::fs::read_dir(&cfg).unwrap().count(), 0, "nothing was written to the config dir");
-    // An empty CLAUDE_CONFIG_DIR is refused too, and writes nothing in the working directory.
+    // An empty CLAUDE_CONFIG_DIR is refused too: the exit code 97 is what proves the guard ran.
+    // (Without the guard the fake would write to `$CLAUDE_CONFIG_DIR/filter-calls`, i.e.
+    // `/filter-calls`, outside this temp dir, so the snapshot below cannot see that leak; it only
+    // shows that the refusal wrote nothing in the working directory.)
     let before = snapshot(d.path());
     let o = run_fixture(None, d.path());
     assert_eq!(o.status.code(), Some(97));
