@@ -34,7 +34,9 @@ Then add the marketplace and install the plugin (the marketplace key is `sdd-mis
 ```
 
 The plugin must be enabled in each profile that should join the channel. A session in a profile
-without it neither posts, receives nor answers through the channel.
+without it neither posts nor receives notices. It can still be listed and asked: discovery does
+not check that the plugin is enabled, and an ask forks the session under its own profile, which
+pays (see the cost section).
 
 `claude` is found on `PATH`, or through `SESSION_BRIDGE_CLAUDE_BIN`. That variable must be an
 absolute path; a bare name is refused. The child runs in the target's repository with the
@@ -88,8 +90,8 @@ nothing and exits 0. Subagents are skipped.
 
 Rates:
 
-- **Look**: at most once per 120 s per endpoint, or at once when the tool input mentions
-  `commit`. A look reads the notices after the session's cursor and queues them.
+- **Look**: at most once per 120 s per endpoint, or at once when the tool input contains
+  the text `commit` (a case-sensitive substring). A look reads the notices after the session's cursor and queues them.
 - **Worker**: a detached `session-bridge filter` process judges the queue. A new worker starts at
   most once per 15 s per endpoint, and never while one runs.
 - **Filter batch**: 20 notices per Haiku call. The rest wait for the next worker.
@@ -144,8 +146,8 @@ notice, posted for it from the commit.
   stored for the repository is not posted again. A rebase, a fast-forward, a cherry-pick or a
   twin worktree therefore announces a change once. Merge commits have an empty patch-id and are
   never announced.
-- **Suppression**: any notice the endpoint posted after the commit, about anything and in any
-  repository, suppresses the backup notice for that commit (`last_post_ms` is set by every
+- **Suppression**: any notice the endpoint posted with `post_notice` after the commit, about anything
+  and in any repository, suppresses the backup notice for that commit (`last_post_ms` is set by every
   `post_notice`). The comparison is against the commit time, which git records to the second.
 - **Cap**: at most the newest 50 new commits per worktree and scan. A scan visits at most 32
   worktrees and stops after 15 s.
@@ -194,16 +196,17 @@ out. It prints nothing and exits 0 when there is no store or no repository. `ser
   lost on resume. The window is seconds. Notices posted while the session was dead are not lost.
 - Delivery is at most once. A hook killed after it marked a nudge delivered and before it printed
   the nudge loses it.
-- The commit trigger is a case-sensitive substring test, not a word test: `src/hook.rs`
+- The commit trigger is a case-sensitive substring test, not a word test: `mcp-server/src/hook.rs`
   `mentions_commit` is `tool_input.to_string().contains("commit")`. Reading a file named
   `commits.rs`, grepping `uncommitted` or touching any path that contains `commit` forces an
   immediate look and starts a backup-scan worker (at most one per 15 s). `Commit` with a capital
   letter does not trigger. A commit made through a tool whose input does not contain the
   substring is found only when a worker runs for another reason.
-- Known issue: a global git config `trailer.separators` without `:` makes
-  `%(trailers:key=Session-Id,...)` stop finding the trailer (measured: with
-  `trailer.separators=' ='` the format prints nothing, with `':='` it prints the id; the scan
-  in `src/commits.rs` uses that format). The backup path is then disabled without any message.
+- Known issue: a git config `trailer.separators` without `:`, in any scope
+  (repository, global or `-c`), makes `%(trailers:key=Session-Id,...)` stop finding the trailer
+  (measured: with `trailer.separators=' ='` the Session-Id field of the record is empty, with
+  `':='` it holds the id; the rest of the record still prints; the scan in
+  `mcp-server/src/commits.rs` uses that format). The backup path is then disabled without any message.
   A fix is scheduled. Until then remove that setting or do not rely on backup notices.
 - Commits made before a `/clear` carry the old session id and never match the new one.
 - A worker is considered alive while `/proc/<pid>` exists, so a reused pid can delay the next

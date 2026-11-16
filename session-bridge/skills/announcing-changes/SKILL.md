@@ -7,7 +7,7 @@ description: "Use after you make a change that other live sessions of this repos
 
 Other Claude Code sessions work in this repository at the same time. They cannot see
 your edits. `post_notice` tells them. A filter shows a notice only to a session whose
-own work names the same thing. If the filter cannot run, the notice is shown anyway and
+own work names the same thing. If the filter cannot judge a notice, the notice is shown anyway and
 marked `(not filtered: ...)`.
 
 ## When to post
