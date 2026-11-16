@@ -138,7 +138,7 @@ fn recent_is_newest_first_and_capped() {
 
 
 #[test]
-fn has_patch_id_is_per_repo() {
+fn post_commit_once_dedupes_per_repo() {
     // Through `post_commit_once`, the only reader of a stored patch-id.
     let (_d, s) = open();
     let commit = |repo: &str, patch: &str| {
