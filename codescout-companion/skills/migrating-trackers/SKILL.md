@@ -23,7 +23,7 @@ One tracker per run of the loop.
    | `tracker-hygiene-log` | the `tracker-hygiene` skill and the session-start banner |
 
    Reading the record text and finding it looks like a plain log is not a reason to proceed. The writer is the reason. They wait for the reconnaissance and hygiene skills to change.
-3. **Catalog facts.** `apply` can refuse because the identity cutover has not moved the sources' catalog-only facts into files. When the refusal names the cutover: run `codescout cutover plan`, show it, and on the user's word run `cutover export` and commit that export by its own exact names before this tracker. When the refusal says there is no old catalog: ask the user whether this repository ever had one. Pass `--no-old-catalog` only on a "no". If the machine has a `-wal` or `-shm` message about the old catalog, that is this same refusal.
+3. **Catalog facts.** `apply` can refuse because the identity cutover has not moved the sources' catalog-only facts into files. When the refusal names the cutover: run `codescout cutover plan`, show it, and on the user's word run `cutover export` and commit that export by its own exact names before this tracker. When the refusal says there is no old catalog: ask the user whether this repository ever had one. Only on a "no", re-run the same command with `--no-old-catalog` added: `codescout trackers apply <mapping> --project <repo> --no-old-catalog --json`. A `-wal` or `-shm` message about the old catalog is not this refusal. It is exit 2 with `{"ran": false, "reason": ...}`, and the flag does not bypass it. Show the reason and stop for the user: the catalog needs every codescout process stopped and a `PRAGMA wal_checkpoint(TRUNCATE)`. Do not ask the old-catalog question for it.
 4. **Move-out outcomes** for a tracker that is not a ledger of records: a snapshot becomes a report, a policy becomes conventions, by `doc(move)`, on the user's word. A repo with no `PREFIX-N` ledgers uses the `sections` and `whole` kinds in the mapping (see [references/mapping.md](references/mapping.md)).
 
 ## The loop
@@ -34,8 +34,8 @@ Each step names its command and its stop point. Use `--json` on every command an
 2. **Inventory.** `codescout trackers inventory <source> --json --project <repo>` (add `--kind` for a non-record tracker). Run it once, then query the buffer with `jq`; the queries are in [references/mapping.md](references/mapping.md). Writes nothing.
 3. **Propose.** Draft the mapping yourself and show the one proposal screen of [references/mapping.md](references/mapping.md). The draft goes to `$(git rev-parse --absolute-git-dir)/tracker-migration/<key>.toml`, inside the git directory, so no staging command can pick it up. Never write it under the project tree. Stop: nothing is written to the project before the user approves.
 4. **Approve.** The user approves or edits the screen. Only the user's reply moves you on. "Go on", "looks fine" and silence on a part you did not show are not approval of that part.
-5. **Apply.** `codescout trackers apply <mapping> --project <repo> --no-old-catalog --json` (drop the flag unless Step 0.3 allowed it). Read the exit code, then the JSON. On exit 1 show each reason in `{"refused": [...]}`, propose the mapping fix, stop. On exit 2 go to [references/recovery.md](references/recovery.md). Save `git status --porcelain` before this step; recovery needs it.
-6. **Check.** `codescout trackers check <mapping> --project <repo> --json`, before any commit. Exit 0 and `clean: true`: go on. Anything else is "not clean": show `blocking`, stop, and the user decides between a mapping fix and re-apply, or a restore by exact names.
+5. **Apply.** First save `git status --porcelain`; recovery needs it. Then `codescout trackers apply <mapping> --project <repo> --json`. Read the exit code, then the JSON. On exit 1 show each reason in `{"refused": [...]}`, propose the mapping fix, stop. On exit 2 go to [references/recovery.md](references/recovery.md).
+6. **Check.** `codescout trackers check <mapping> --project <repo> --json`, before any commit. Parse by shape. `{clean: true, ...}` (exit 0): go on. `{clean: false, blocking: [...]}` (exit 1): show `blocking`. `{"refused": [...]}` (exit 1): show each reason; it is "not clean", not a crash. `{"ran": false, "reason": ...}` (exit 2): show the reason and go to [references/recovery.md](references/recovery.md). Every case except clean: stop, and the user decides between a mapping fix and re-apply, or a restore by exact names.
 7. **Review.** Show: the check report with every `review` item (also `apply`'s `review`; read the `dropped` list when the binary reports one), `git diff --stat`, the readme, and two sample entries. Say that most old open records are stale on day one: that is honest, and a `doc` status update re-confirms a record. Stop: the user approves the result. Assume nothing.
 8. **Commit.** Only on the user's word, by exact names. The names are the union of `written`, `deleted` and `already_applied` from the last `apply --json` that exited 0.
    1. `git add -- <name> <name> ...`
@@ -49,7 +49,9 @@ Each step names its command and its stop point. Use `--json` on every command an
 |---|---|---|---|
 | `inventory` | `{sources, mentions, sidecar}` | not used | `{"ran": false, "reason": "..."}` |
 | `apply` | `{written, deleted, already_applied, review}` | `{"refused": [...]}` | `{"ran": false, "reason": "..."}` |
-| `check` | `{clean: true, blocking, shortened, review}` | `{clean: false, ...}`, or `{"refused": [...]}` for a broken mapping | `{"ran": false, "reason": "..."}`, also after the commit |
+| `check` | `{clean: true, blocking, shortened, review}` | `{clean: false, blocking, ...}`, or `{"refused": [...]}` | `{"ran": false, "reason": "..."}`, also after the commit |
+
+`check` prints `{"refused": [...]}` in three cases: the mapping file does not parse; a source path is not a normalised repository path; `target.existing` is `true` and no collection loads at the target folder.
 
 A second `apply` with the same mapping writes nothing and reports the files as `already_applied`.
 

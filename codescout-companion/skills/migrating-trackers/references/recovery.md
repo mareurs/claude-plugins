@@ -6,6 +6,14 @@ Read this when `apply` exits 2, when `check` is not clean and the user wants the
 
 Run `git status --porcelain` before `apply` and keep the output. It is the only record of what the tree held before the migration wrote anything.
 
+## Check exited 2
+
+`check` writes nothing, so there is nothing to restore. The JSON is `{"ran": false, "reason": "<one line>"}`. Show the reason and stop. Two common causes: a source is "not in HEAD" (the migration was already committed, so `check` cannot run; that is expected after the commit), or the tree is not what `apply` left. Do not re-run `apply` to get past it.
+
+## Old catalog side files (`-wal` or `-shm`)
+
+A message about the old catalog's `-wal` or `-shm` file is exit 2 from `apply` or `check`, `{"ran": false, ...}`. `--no-old-catalog` does not bypass it. Show the reason and stop for the user. The binary's remedy: stop every codescout process, then run `PRAGMA wal_checkpoint(TRUNCATE)` on the catalog. Do not ask whether the repository ever had an old catalog.
+
 ## Apply exited 2
 
 The stop JSON is `{"ran": false, "reason": "<one line>"}`. It carries no `written` or `deleted` list. Show the reason, then:

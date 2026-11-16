@@ -6,19 +6,32 @@ Read this at Step 2 (queries), Step 3 (proposal screen) and when a mapping key i
 
 Run `inventory --json` once. The output is a `@cmd_*` buffer. Query the buffer; do not print it. The replay form is `jq <filter> @cmd_xxxx` (bounded left side, no `;` or `&&` after a pipe).
 
-| Question | Query |
-|---|---|
-| How many records, per source? | `jq '[.sources[] \| {path, line_count, n: (.records\|length)}]'` |
-| Status words and counts | `jq '.sources[] \| {path, status_values, no_status}'` |
-| Record with no heading (row only) | `jq '.sources[] \| {path, row_only, no_row, duplicate_rows}'` |
-| Possible records | `jq '.sources[] \| {path, possibles}'` |
-| Repeated tokens | `jq '.sources[] \| {path, repeats}'` |
-| Sections that are not records | `jq '.sources[] \| {path, sections}'` |
-| Body versus index disagreements | `jq '.sources[] \| {path, disagreements}'` |
-| Frontmatter that will be lost | `jq '.sources[] \| {path, dropped_frontmatter}'` |
-| Files that name the source | `jq '.mentions.code'` |
-| The sidecar and its prompt | `jq '.sidecar'` |
-| Records with a stated date | `jq '.sources[].records[] \| select((.stated_dates\|length)>0) \| {token, stated_dates}'` |
+Each line below is one query. Replace `@cmd_xxxx` with the buffer name of the `inventory` call.
+
+```text
+# records per source
+jq '[.sources[] | {path, line_count, n: (.records|length)}]' @cmd_xxxx
+# status words and counts
+jq '.sources[] | {path, status_values, no_status}' @cmd_xxxx
+# rows with no heading, records with no row
+jq '.sources[] | {path, row_only, no_row, duplicate_rows}' @cmd_xxxx
+# possible records
+jq '.sources[] | {path, possibles}' @cmd_xxxx
+# repeated tokens
+jq '.sources[] | {path, repeats}' @cmd_xxxx
+# sections that are not records
+jq '.sources[] | {path, sections}' @cmd_xxxx
+# body versus index disagreements
+jq '.sources[] | {path, disagreements}' @cmd_xxxx
+# frontmatter that will be lost
+jq '.sources[] | {path, dropped_frontmatter}' @cmd_xxxx
+# files that name the source
+jq '.mentions.code' @cmd_xxxx
+# the sidecar and its prompt
+jq '.sidecar' @cmd_xxxx
+# records with a stated date
+jq '.sources[].records[] | select((.stated_dates|length)>0) | {token, stated_dates}' @cmd_xxxx
+```
 
 The binary at hand may report `dropped_frontmatter` as `[]` for a source that has frontmatter. When the list is not empty, show it on the proposal screen and in the review.
 
@@ -62,19 +75,15 @@ The fixture `tests/lib/tracker-migration-fixture.sh` builds `docs/trackers/demo-
 - `status_map` covers both words the inventory reports (`open`, `fixed-verified`). `fixed-verified` maps to the declared status `fixed`.
 - `D-3` has an index row and no heading, so it needs `row_title_column`, and it states no date, so `[overrides."D-3"]` sets `created`.
 - `D-2b` (line 33) sits inside `D-2`, so `[[possibles_inside]]` keeps it there. It is not a `sections` entry.
-- Four non-record sections: three are dropped, the template (line 7) becomes the readme.
+- Four `sections` entries. The inventory lists the blank lead-in at line 6 (after the source frontmatter) as a section of its own, and the three headings that are not records: `# Demo log` (line 7), `## Index` (line 11) and `## Template for new entries` (line 37). Line 6 and the index table (line 11; its rows are carried as `**Index row:**` lines) are dropped. The sections that carry text (lines 7 and 37) go to `to = "readme"`, so apply copies them; you do not retype them.
+- `readme_body` is one purpose sentence that you write. Never paste a source section into it.
 - `scripts/demo-reader.json` is a `fixture`; the sidecar is retired.
 
 The test `migrating-trackers.test.sh` extracts the fence between the markers and runs it against a fresh fixture: `apply` exits 0 and `check` is clean.
 
 <!-- example-mapping:start -->
 ```toml
-readme_body = """Findings of the demo log.
-
-## Entry template
-
-Copy a finished entry, give it a new date, and fill in the status.
-"""
+readme_body = "Findings of the demo log."
 status_source = "body_label"
 status_none = "open"
 entry_kind = "finding"
@@ -124,7 +133,7 @@ to = "drop"
 [[sections]]
 source = "docs/trackers/demo-log.md"
 start = 37
-to = "drop"
+to = "readme"
 
 [code_mentions]
 "scripts/demo-reader.json" = "fixture"

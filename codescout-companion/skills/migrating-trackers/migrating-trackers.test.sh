@@ -28,7 +28,7 @@ SIZE=$(wc -c < "$SKILL")
 [ "$SIZE" -lt 20480 ] && pass "SKILL.md is $SIZE bytes (< 20480)" || fail "size" "$SIZE bytes"
 
 for needle in 'trackers inventory' 'trackers apply' 'trackers check' '--json' '"refused"' '"ran": false' \
-  'already_applied' 'git diff --cached --name-only' '-- <' 'absolute-git-dir' 'reconnaissance-patterns' \
+  'already_applied' 'git diff --cached --name-only' 'absolute-git-dir' 'reconnaissance-patterns' \
   'tracker-hygiene-log' '-session-log' 'trackers --help' 'cutover plan' '--no-old-catalog'; do
   grep -qF -- "$needle" "$SKILL" && pass "names $needle" || fail "names $needle" "absent"
 done
@@ -42,11 +42,28 @@ else
   fail "check before commit" "check line '${CHECK_LINE:-none}', commit line '${COMMIT_LINE:-none}'"
 fi
 
-for banned in 'git add docs/' 'git add -A' 'git push' 'read_markdown' 'edit_markdown'; do
+for banned in 'git add docs/' 'git add -A' 'git add .' 'git commit -a' 'git push' 'read_markdown' 'edit_markdown'; do
   # A prohibition may name the banned text only inside a line that starts with "Never" or "- Never";
   # the skill keeps them out entirely, so the check is plain.
   grep -qF -- "$banned" "$SKILL" && fail "does not name $banned" "found in SKILL.md" || pass "does not name $banned"
 done
+
+grep -qE 'git commit -m .* -- <' "$SKILL" && pass "commit line carries a pathspec" || fail "commit line carries a pathspec" "absent"
+
+# check refusal shapes (manual: three cases) and the three result shapes in Step 6
+for needle in 'normalised repository path' 'target.existing' 'does not parse' '"reason"'; do
+  grep -qF -- "$needle" "$SKILL" && pass "names check refusal item: $needle" || fail "names check refusal item: $needle" "absent"
+done
+grep -F '**Check.**' "$SKILL" | grep -qF 'blocking' && grep -F '**Check.**' "$SKILL" | grep -qF 'refused' \
+  && pass "Step 6 parses blocking and refused shapes" || fail "Step 6 shapes" "Step 6 lacks blocking or refused"
+# the risky flag is not in the default Step 5 command
+grep -F '**Apply.**' "$SKILL" | grep -qF -- '--no-old-catalog' && fail "Step 5 default command has no --no-old-catalog" "flag present" || pass "Step 5 default command has no --no-old-catalog"
+# the -wal/-shm case is exit 2, not the no-old-catalog question
+grep -qF 'wal_checkpoint' "$SKILL" && pass "SKILL.md gives the -wal remedy" || fail "-wal remedy" "absent"
+grep -qF 'wal_checkpoint' "$RECOVERY_MD" && pass "recovery.md gives the -wal remedy" || fail "recovery -wal" "absent"
+grep -qF 'Check exited 2' "$RECOVERY_MD" && pass "recovery.md covers check exit 2" || fail "recovery check exit 2" "absent"
+# jq pipes must not be markdown-escaped (a copied \| is a jq syntax error)
+if grep -qF '\|' "$MAPPING_MD"; then fail "mapping.md has no escaped pipes" "found backslash-pipe"; else pass "mapping.md has no escaped pipes"; fi
 
 links=$(grep -oE 'references/[A-Za-z0-9._-]+\.md' "$SKILL" | sort -u)
 if [ -z "$links" ]; then
@@ -101,6 +118,17 @@ else
     cp "$2" "$gd/tracker-migration/demo-log.toml"
     echo "$gd/tracker-migration/demo-log.toml"
   }
+
+  # 0. every jq query in mapping.md parses and runs against a real inventory
+  RJ="$TMP/rj"; bash "$FIXTURE" "$RJ" >/dev/null 2>&1
+  "$BIN" trackers inventory docs/trackers/demo-log.md --project "$RJ" --json > "$TMP/inv.json" 2>/dev/null
+  nq=0
+  while IFS= read -r line; do
+    f=${line#jq \'}; f=${f%\' @cmd_xxxx}
+    nq=$((nq+1))
+    if jq "$f" "$TMP/inv.json" >/dev/null 2>"$TMP/jqerr"; then pass "jq query $nq runs"; else fail "jq query $nq runs" "$f: $(cat "$TMP/jqerr")"; fi
+  done < <(grep -E "^jq '.* @cmd_xxxx$" "$MAPPING_MD")
+  [ "$nq" -ge 10 ] && pass "found $nq jq queries" || fail "found jq queries" "only $nq"
 
   # 1. apply + check on the good mapping
   R1="$TMP/r1"; bash "$FIXTURE" "$R1" >/dev/null 2>&1
