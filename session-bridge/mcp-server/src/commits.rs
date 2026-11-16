@@ -429,7 +429,7 @@ pub fn post_commit_notices(
 ) -> Result<usize> {
     let mut posted = 0;
     for c in counted {
-        if last_post_ms > c.committed_ms - SUPPRESS_WINDOW_MS {
+        if last_post_ms > c.committed_ms.saturating_sub(SUPPRESS_WINDOW_MS) {
             continue;
         }
         let title: String = clean(&c.subject).chars().take(MAX_TITLE_CHARS).collect();

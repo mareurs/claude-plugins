@@ -298,6 +298,20 @@ fn the_suppression_window_boundary_is_pinned() {
     assert_eq!(post(&fx, &st, "R", &c, at - SUPPRESS_WINDOW_MS), 1, "exactly the window before the commit: posted");
 }
 
+#[test]
+fn a_commit_time_at_the_integer_floor_does_not_overflow_the_window_arithmetic() {
+    let fx = Fx::new();
+    let r = fx.repo();
+    let old = fx.head(&r);
+    fx.commit(&r, &[("Cargo.toml", "a\n")], "bump", Some(S), T0);
+    let (_, mut c) = scan(&r, Some(&old), S, &watch(&["Cargo.toml"])).unwrap();
+    c[0].committed_ms = i64::MIN;
+    let st = store(&fx);
+    assert_eq!(post(&fx, &st, "R", &c, 0), 0, "posted after that commit time: suppressed, no panic");
+    assert_eq!(post(&fx, &st, "R", &c, i64::MIN), 1, "the window floor saturates: not suppressed");
+}
+
+
 /// The worker-level flow: the first run records the head, then a commit at `T0` with the
 /// endpoint's `last_post_ms` set (or not) before the scan. Returns the commit notices stored.
 async fn backup_notices_with_last_post(last_post_ms: Option<i64>) -> usize {
