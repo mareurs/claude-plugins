@@ -89,7 +89,8 @@ its authority rule.
   (`codescout-companion/hooks/principal-stamp.mjs:4-5`). A `--fork-session` CLI fork gets a new id.
 - **codescout commits carry a `Session-Id:` trailer** (the last 200, per builder check). This
   repository's commits do not (the last 3 checked). Many worktrees exist, and `experiments` in
-  codescout is rebased routinely.
+  codescout is rebased routinely. (Implementation, 2026-11-16: some commits in this repository now
+  carry the trailer, measured 17 of the last 200, so its backup path is no longer off.)
 - **Notice filter** (spike, prompt v2): relevant only if the transcript names the same file, branch,
   commit, plan, command or pending decision; Haiku quotes at most 15 words verbatim; a quote not in
   the tail voids the verdict. 7 of 7 relevant pairs found, 3 and 4 of 29 noise, 3 of 50 verdicts
@@ -164,7 +165,7 @@ Tool `ask_session(target, question, model = "haiku", timeout_s = 120)`.
 
 Tool `post_notice(title, body, refs = [])`. `refs`: commits, branches, paths, tracker entry ids.
 
-- Store (my call): SQLite at `$XDG_STATE_HOME/session-bridge/channel.db`, WAL mode, one table
+- Store (my call): SQLite at `$XDG_STATE_HOME/session-bridge/channel.db` (implementation, 2026-11-16: the file is `notices.db`), WAL mode, one table
   `notice(seq INTEGER PRIMARY KEY AUTOINCREMENT, at_ms, repo, author_profile, author_pid,
   author_session, origin ('manual' | 'commit'), patch_id, title, body, refs)`. `repo` is the git
   common directory. `patch_id` is set for `commit` notices only.
@@ -172,6 +173,8 @@ Tool `post_notice(title, body, refs = [])`. `refs`: commits, branches, paths, tr
   so a reader can report a gap.
 - CLI `session-bridge notices --repo <dir> --after <seq> --exclude <profile>:<pid> [--json]` prints
   the rows, `next_cursor`, and `gap` (with the range) when rows after the cursor were deleted.
+  (Implementation, 2026-11-16: the CLI takes `--repo`, `--after` and `--json` only, with no
+  `--exclude`; it shows the repository's whole log.)
 - A notice is never delivered to its author endpoint. Subagents share that endpoint, so a session
   never gets back its own subagents' notices either. That is intended: the parent learns from the
   subagent's result. A twin in another profile is a different endpoint and does get it.
@@ -232,7 +235,7 @@ Thin hook scripts in the `session-bridge` plugin. The logic is in the binary.
   the same commit produces the same patch-id, so the change is announced once.
 - Watch list (my call): `.claude/notice-watch.txt` in the repository, one glob per line. No file,
   or no `Session-Id:` trailers in the repository: no backup notices. This repository has no
-  trailers today, so its backup path stays off. First content for codescout: `Cargo.toml`,
+  trailers today, so its backup path stays off. (Implementation, 2026-11-16: it now has some; see §2.) First content for codescout: `Cargo.toml`,
   `scripts/**`, `.claude/**`, `.codescout/project.toml`, `.pre-commit-config.yaml`, `CLAUDE.md`.
 
 ### 7. Act (later phase, authority rule only)
