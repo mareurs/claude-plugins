@@ -1,5 +1,11 @@
 #!/usr/bin/env bash
 # Stand-in for `claude`. Records what it was given under $CLAUDE_CONFIG_DIR, prints a canned result.
+# Refuses to run (exit 97, writes nothing) unless $CLAUDE_CONFIG_DIR holds `.sb-test-config`,
+# so a regression that lets it inherit a real CLAUDE_CONFIG_DIR cannot write into a profile.
+if [ -z "$CLAUDE_CONFIG_DIR" ] || [ ! -e "$CLAUDE_CONFIG_DIR/.sb-test-config" ]; then
+  echo "fake-claude.sh: refusing to run: CLAUDE_CONFIG_DIR is not a test config dir (no .sb-test-config)" >&2
+  exit 97
+fi
 out="$CLAUDE_CONFIG_DIR/fake-out.txt"
 {
   echo "pwd=$(pwd)"

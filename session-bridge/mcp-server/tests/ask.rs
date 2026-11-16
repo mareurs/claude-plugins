@@ -37,6 +37,9 @@ fn fx() -> Fx {
     for d in [&cfg, &cwd, &state] {
         std::fs::create_dir_all(d).unwrap();
     }
+    // The fake claude refuses to run in a config dir without this marker, so a regression that
+    // lets it inherit a real CLAUDE_CONFIG_DIR writes nothing there.
+    std::fs::write(cfg.join(".sb-test-config"), "").unwrap();
     let target = Endpoint {
         profile: ".claude-stef".into(),
         config_dir: cfg.clone(),
@@ -133,6 +136,50 @@ fn spent_today_sums_the_asker_today_and_skips_bad_lines() {
 
 fn file(p: &Path, name: &str) -> String {
     std::fs::read_to_string(p.join(name)).unwrap()
+}
+
+fn run_fake_claude(config: &str, cwd: &Path) -> std::process::Output {
+    std::process::Command::new(fake_bin())
+        .env("CLAUDE_CONFIG_DIR", config)
+        .env("HOME", cwd)
+        .current_dir(cwd)
+        .stdin(std::process::Stdio::null())
+        .output()
+        .unwrap()
+}
+
+fn tree(p: &Path) -> Vec<PathBuf> {
+    let mut out = vec![];
+    if let Ok(rd) = std::fs::read_dir(p) {
+        for e in rd.flatten() {
+            out.push(e.path());
+            out.extend(tree(&e.path()));
+        }
+    }
+    out.sort();
+    out
+}
+
+#[test]
+fn the_fake_claude_refuses_a_config_dir_without_the_test_marker_and_writes_nothing() {
+    let d = tempfile::tempdir().unwrap();
+    let cfg = d.path().join("profile");
+    std::fs::create_dir_all(&cfg).unwrap();
+    let before = tree(d.path());
+    let o = run_fake_claude(cfg.to_str().unwrap(), d.path());
+    assert_eq!(o.status.code(), Some(97), "{}", String::from_utf8_lossy(&o.stderr));
+    assert!(o.stdout.is_empty());
+    assert_eq!(tree(d.path()), before, "nothing was written");
+    // An empty CLAUDE_CONFIG_DIR is refused too: the exit code shows the guard ran (without it
+    // the script would write `/fake-out.txt`, outside this temp dir).
+    let o = run_fake_claude("", d.path());
+    assert_eq!(o.status.code(), Some(97));
+    assert_eq!(tree(d.path()), before);
+    // Control: with the marker it runs and records its call.
+    std::fs::write(cfg.join(".sb-test-config"), "").unwrap();
+    let o = run_fake_claude(cfg.to_str().unwrap(), d.path());
+    assert_eq!(o.status.code(), Some(0));
+    assert!(cfg.join("fake-out.txt").exists());
 }
 
 #[tokio::test]
