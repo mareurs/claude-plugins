@@ -274,6 +274,37 @@ fn repo_of_returns_the_work_tree_root_or_none() {
     assert_eq!(got.canonicalize().unwrap(), d.path().canonicalize().unwrap());
     assert_eq!(repo_of(Path::new("/definitely/not/here")), None);
 }
+#[test]
+fn repo_of_a_linked_worktree_is_the_main_worktree() {
+    let git = |dir: &Path, args: &[&str]| {
+        let out = std::process::Command::new("git")
+            .current_dir(dir)
+            .args(["-c", "commit.gpgsign=false", "-c", "core.hooksPath=/dev/null"])
+            .args(args)
+            .env("GIT_CONFIG_GLOBAL", "/dev/null")
+            .env("GIT_CONFIG_NOSYSTEM", "1")
+            .env("GIT_AUTHOR_NAME", "T")
+            .env("GIT_AUTHOR_EMAIL", "t@example.invalid")
+            .env("GIT_COMMITTER_NAME", "T")
+            .env("GIT_COMMITTER_EMAIL", "t@example.invalid")
+            .stdin(std::process::Stdio::null())
+            .output()
+            .unwrap();
+        assert!(out.status.success(), "git {args:?}: {}", String::from_utf8_lossy(&out.stderr));
+    };
+    let d = tempfile::Builder::new().prefix("sbw").tempdir_in("/tmp").unwrap();
+    let main = d.path().join("main");
+    let linked = d.path().join("linked");
+    std::fs::create_dir(&main).unwrap();
+    git(&main, &["init", "-q"]);
+    git(&main, &["commit", "--allow-empty", "-q", "-m", "base"]);
+    git(&main, &["worktree", "add", "-q", "-b", "feat", linked.to_str().unwrap()]);
+    std::fs::create_dir(linked.join("sub")).unwrap();
+    let m = repo_of(&main).unwrap();
+    assert_eq!(m.canonicalize().unwrap(), main.canonicalize().unwrap());
+    assert_eq!(repo_of(&linked).unwrap(), m, "a linked worktree has the main worktree's key");
+    assert_eq!(repo_of(&linked.join("sub")).unwrap(), m, "a directory inside it too");
+}
 
 #[test]
 fn registered_session_reads_the_session_id() {

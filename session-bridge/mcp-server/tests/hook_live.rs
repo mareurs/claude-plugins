@@ -429,6 +429,80 @@ fn a_cursor_ahead_of_the_head_is_a_reset() {
     assert_eq!(e.st().pending, vec![1, 2, 3]);
     assert_eq!(get(&e.state, STEF, "S", 20), Some(3));
 }
+/// git with no user or system config, no hooks and no signing (the fixture's own calls).
+fn hermetic_git(dir: &Path, args: &[&str]) {
+    let hooks = dir.join(".git").join("no-hooks");
+    let out = std::process::Command::new("git")
+        .current_dir(dir)
+        .arg("-c")
+        .arg(format!("core.hooksPath={}", hooks.display()))
+        .args(["-c", "commit.gpgsign=false"])
+        .args(args)
+        .env("GIT_CONFIG_GLOBAL", "/dev/null")
+        .env("GIT_CONFIG_NOSYSTEM", "1")
+        .env("GIT_AUTHOR_NAME", "T")
+        .env("GIT_AUTHOR_EMAIL", "t@example.invalid")
+        .env("GIT_COMMITTER_NAME", "T")
+        .env("GIT_COMMITTER_EMAIL", "t@example.invalid")
+        .stdin(std::process::Stdio::null())
+        .output()
+        .unwrap();
+    assert!(out.status.success(), "git {args:?}: {}", String::from_utf8_lossy(&out.stderr));
+}
+
+/// A linked worktree of the env's repository (which gets a first commit for it).
+fn linked_worktree(e: &Env) -> PathBuf {
+    hermetic_git(&e.repo, &["commit", "--allow-empty", "-q", "-m", "base"]);
+    let linked = e.tmp.path().join("linked");
+    hermetic_git(&e.repo, &["worktree", "add", "-q", "-b", "feat", linked.to_str().unwrap()]);
+    linked
+}
+
+/// A notice posted from one worktree (keyed by `repo_of` of that worktree) reaches an endpoint
+/// whose cwd is the other worktree: the look queues it and the verdict is delivered.
+fn a_notice_crosses_worktrees(post_from_linked: bool) {
+    let e = env();
+    let linked = linked_worktree(&e);
+    let (post_cwd, read_cwd) = if post_from_linked { (&linked, &e.repo) } else { (&e.repo, &linked) };
+    let key = repo_of(post_cwd).unwrap().to_string_lossy().into_owned();
+    let seq = e
+        .store
+        .post(NewNotice {
+            at_ms: now_ms(),
+            repo: key,
+            author_profile: KAT.into(),
+            author_pid: 5,
+            author_session: AUTHOR_SESSION.into(),
+            origin: Origin::Manual,
+            patch_id: None,
+            title: "from the other worktree".into(),
+            body: "b".into(),
+            refs: vec![],
+        })
+        .unwrap();
+    set(&e.state, STEF, "S", 20, 0).unwrap();
+    let mut input = e.plain();
+    input.cwd = read_cwd.to_string_lossy().into_owned();
+    let now = now_ms();
+    e.trigger_at(&input, now);
+    assert_eq!(e.st().pending, vec![seq], "the look of the other worktree queued it");
+    e.set_state(|s| {
+        s.pending.clear();
+        s.verdicts = vec![relevant(seq, "edit hook.rs")];
+    });
+    let out = e.trigger_at(&input, now).expect("the nudge");
+    assert!(out.contains(": from the other worktree."), "{out}");
+}
+
+#[test]
+fn a_notice_from_a_linked_worktree_reaches_the_main_worktree() {
+    a_notice_crosses_worktrees(true);
+}
+
+#[test]
+fn a_notice_from_the_main_worktree_reaches_a_linked_worktree() {
+    a_notice_crosses_worktrees(false);
+}
 
 #[test]
 fn a_failed_spawn_records_no_worker() {
