@@ -147,7 +147,8 @@ fn render_sessions(eps: &[Endpoint], me: (&str, u32)) -> String {
         .join("\n")
 }
 
-#[tool_router]
+// `pub`: tests/server.rs pins the served tool schemas through `Bridge::tool_router()`.
+#[tool_router(vis = "pub")]
 impl Bridge {
     #[tool(description = "List live Claude Code sessions on this machine.")]
     fn list_sessions(&self) -> Result<String, ErrorData> {

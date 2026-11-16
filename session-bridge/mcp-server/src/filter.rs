@@ -136,10 +136,11 @@ pub fn transcript_tail(path: &Path, budget: usize) -> std::io::Result<String> {
 }
 
 /// Notice text is data the model reads, written by another session: control characters
-/// (newlines included) become spaces so a notice cannot add lines, fake a `</notices>`
-/// close or forge an `N9:` entry.
+/// (newlines included) and Unicode line and paragraph separators become spaces
+/// (`deliver::clean`), so a notice cannot add lines or forge an `N9:` entry. A literal
+/// `</notices>` inside one line is not removed; only the line structure is protected.
 fn flat(s: &str) -> String {
-    s.chars().map(|c| if c.is_control() { ' ' } else { c }).collect()
+    crate::deliver::clean(s)
 }
 
 /// The stdin of the filter call.

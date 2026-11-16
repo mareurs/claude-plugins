@@ -2,8 +2,6 @@ use thiserror::Error;
 
 #[derive(Debug, Error)]
 pub enum BridgeError {
-    #[error("session {0} pid {1} is dead")]
-    SessionDied(String, i32),
     #[error("claude CLI not found on PATH")]
     ClaudeCliMissing,
     #[error("subprocess timed out after {0}s")]

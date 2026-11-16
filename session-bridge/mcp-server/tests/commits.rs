@@ -800,15 +800,21 @@ fn parse_log_skips_signature_junk_and_invalid_records() {
 
 #[test]
 fn a_signed_commit_with_log_showsignature_is_still_counted() {
-    // ssh-keygen is present on this machine (checked), so the test signs a real commit.
+    // Signs a real commit with an ssh key. Without ssh-keygen the test cannot run: it says so on
+    // stderr (written directly, so the test harness does not capture it) and returns.
     let fx = Fx::new();
     let r = fx.repo();
     let key = fx.root().join("key");
-    let ok = Command::new("ssh-keygen")
+    let Ok(ok) = Command::new("ssh-keygen")
         .args(["-q", "-t", "ed25519", "-N", "", "-C", "t", "-f"])
         .arg(&key)
         .status()
-        .expect("ssh-keygen must exist for this test");
+    else {
+        session_bridge_mcp::diag::note(
+            "SKIPPED a_signed_commit_with_log_showsignature_is_still_counted: ssh-keygen is not on PATH",
+        );
+        return;
+    };
     assert!(ok.success());
     fx.git(&r, &["config", "--local", "log.showSignature", "true"]);
     let old = fx.head(&r);

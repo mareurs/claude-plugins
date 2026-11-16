@@ -60,10 +60,10 @@ pub fn render_start_view(notices: &[Notice]) -> Option<String> {
         } else {
             n.author_session.chars().take(8).collect()
         };
-        // The view is model context: a control character (a newline above all) in a
-        // notice field must not be able to start a line of its own.
+        // The view is model context: a control character (a newline above all) or a Unicode
+        // line or paragraph separator in a notice field must not be able to start a line.
         let line = format!("{at} UTC {}:{who} {}", short_profile(&n.author_profile), n.title);
-        let line: String = line.chars().map(|c| if c.is_control() { ' ' } else { c }).collect();
+        let line = crate::deliver::clean(&line);
         out.push_str("\n- ");
         out.push_str(&line);
     }

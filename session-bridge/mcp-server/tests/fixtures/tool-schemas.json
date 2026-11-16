@@ -1,0 +1,82 @@
+[
+  {
+    "name": "ask_session",
+    "description": "Ask another live Claude Code session a question. A read-only fork of it answers from its context; the session itself is not disturbed. Works across profiles; the target's profile pays. Returns the answer with its cost.",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "model": {
+          "default": null,
+          "description": "Model alias or id (default `haiku`).",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "question": {
+          "description": "The question to ask the target session.",
+          "type": "string"
+        },
+        "target": {
+          "description": "Target endpoint, `<short profile>:<pid>`, or a session name.",
+          "type": "string"
+        },
+        "timeout_s": {
+          "default": null,
+          "description": "Seconds to wait for the answer (default 120, clamped to 1..=300).",
+          "format": "uint64",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "target",
+        "question"
+      ],
+      "title": "AskArgs",
+      "type": "object"
+    }
+  },
+  {
+    "name": "list_sessions",
+    "description": "List live Claude Code sessions on this machine.",
+    "inputSchema": {
+      "properties": {},
+      "type": "object"
+    }
+  },
+  {
+    "name": "post_notice",
+    "description": "Tell the other live sessions of this repository about a change they may depend on: a moved branch, a changed tool, hook, config or convention, a plan that changed status. Only sessions whose own work names the change will see it.",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "body": {
+          "description": "Notice body (at most 4000 characters).",
+          "type": "string"
+        },
+        "refs": {
+          "default": [],
+          "description": "References such as files, branches or commits (at most 20).",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "title": {
+          "description": "Short title (at most 120 characters).",
+          "type": "string"
+        }
+      },
+      "required": [
+        "title",
+        "body"
+      ],
+      "title": "PostNoticeArgs",
+      "type": "object"
+    }
+  }
+]

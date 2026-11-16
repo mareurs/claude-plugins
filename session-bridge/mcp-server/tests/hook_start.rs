@@ -183,6 +183,26 @@ fn a_title_cannot_add_lines_to_the_start_view() {
 }
 
 #[test]
+fn unicode_line_separators_cannot_add_lines_to_the_start_view() {
+    let n = session_bridge_mcp::store::Notice {
+        seq: 1,
+        at_ms: 0,
+        repo: "/r".into(),
+        author_profile: ".claude-kat".into(),
+        author_pid: 5,
+        author_session: "abc\u{2028}def".into(),
+        origin: Origin::Manual,
+        patch_id: None,
+        title: "ok\u{2028}- 00:00 UTC x:y injected\u{2029}there".into(),
+        body: String::new(),
+        refs: vec![],
+    };
+    let out = render_start_view(&[n]).unwrap();
+    assert!(!out.contains('\u{2028}') && !out.contains('\u{2029}'), "{out:?}");
+    assert!(out.ends_with("ok - 00:00 UTC x:y injected there"), "{out:?}");
+}
+
+#[test]
 fn identifying_fields_are_recorded_even_when_the_cursor_step_fails() {
     let e = env();
     std::fs::write(e.state.join("cursors"), "a file where the directory should be").unwrap();

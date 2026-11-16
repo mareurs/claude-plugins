@@ -139,15 +139,19 @@ fn recent_is_newest_first_and_capped() {
 
 #[test]
 fn has_patch_id_is_per_repo() {
+    // Through `post_commit_once`, the only reader of a stored patch-id.
     let (_d, s) = open();
-    let mut n = notice(R, ".claude-kat", 2, 1000);
-    n.origin = Origin::Commit;
-    n.patch_id = Some("P".to_string());
-    s.post(n).unwrap();
-    assert!(s.has_patch_id(R, "P").unwrap());
-    assert!(!s.has_patch_id(Q, "P").unwrap());
-    // Mutation: has_patch_id ignores the patch id and checks only the repo.
-    assert!(!s.has_patch_id(R, "other-patch").unwrap());
+    let commit = |repo: &str, patch: &str| {
+        let mut n = notice(repo, ".claude-kat", 2, 1000);
+        n.origin = Origin::Commit;
+        n.patch_id = Some(patch.to_string());
+        n
+    };
+    assert_eq!(s.post_commit_once(commit(R, "P")).unwrap(), Some(1));
+    assert_eq!(s.post_commit_once(commit(R, "P")).unwrap(), None, "the same patch in the same repo");
+    assert_eq!(s.post_commit_once(commit(Q, "P")).unwrap(), Some(2), "another repo is another namespace");
+    // Mutation: the check ignores the patch id and looks only at the repo.
+    assert_eq!(s.post_commit_once(commit(R, "other-patch")).unwrap(), Some(3));
 }
 
 #[test]

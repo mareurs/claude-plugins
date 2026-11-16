@@ -1,7 +1,7 @@
 
 [package]
 name = "session-bridge-mcp"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 
 [lib]
@@ -21,7 +21,6 @@ thiserror = "1"
 nix = { version = "0.27", features = ["signal", "process"] }
 fs2 = "0.4"
 rmcp = { version = "1.7", features = ["server", "transport-io"] }
-schemars = "0.8"
 clap = { version = "4", features = ["derive"] }
 rusqlite = { version = "0.31", features = ["bundled"] }
 globset = "0.4"

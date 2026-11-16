@@ -273,17 +273,6 @@ impl Store {
         Ok(n)
     }
 
-    pub fn has_patch_id(&self, repo: &str, patch_id: &str) -> Result<bool> {
-        let found: Option<i64> = self
-            .conn
-            .query_row(
-                "SELECT 1 FROM notice WHERE repo = ?1 AND patch_id = ?2 LIMIT 1",
-                params![repo, patch_id],
-                |r| r.get(0),
-            )
-            .optional()?;
-        Ok(found.is_some())
-    }
 
     fn tx(&self) -> Result<rusqlite::Transaction<'_>> {
         // IMMEDIATE takes the write lock up front, so busy_timeout applies and
