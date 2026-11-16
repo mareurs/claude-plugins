@@ -557,6 +557,32 @@ async fn pending_added_during_the_call_survives() {
 }
 
 #[tokio::test]
+async fn a_worker_started_inside_the_hooks_update_sees_its_pending() {
+    let e = Env::new();
+    let path = endpoint_path(&e.state, PROFILE, PID);
+    update(&path, |s| s.pending.clear()).unwrap();
+    // The hook spawns the worker inside its locked update, before that update is written.
+    let (tx, rx) = std::sync::mpsc::channel();
+    let hook = {
+        let path = path.clone();
+        std::thread::spawn(move || {
+            update(&path, |s| {
+                tx.send(()).unwrap();
+                std::thread::sleep(Duration::from_millis(300));
+                s.pending = vec![1];
+            })
+            .unwrap();
+        })
+    };
+    rx.recv().unwrap();
+    e.run(T).await;
+    hook.join().unwrap();
+    let st = e.st();
+    assert_eq!(st.verdicts.iter().map(|v| v.seq).collect::<Vec<_>>(), vec![1], "the worker judged notice 1");
+    assert!(st.pending.is_empty(), "{:?}", st.pending);
+}
+
+#[tokio::test]
 async fn an_error_envelope_is_unparsable_even_with_a_valid_body() {
     let e = Env::new();
     let inner = serde_json::json!({"verdicts":[
