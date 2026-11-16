@@ -47,6 +47,8 @@ target's credentials, so a relative program is never resolved.
 - **`list_sessions()`** lists the live sessions, one line each, sorted by profile and pid:
   `<key> session=<id> name=<name> kind=<kind> status=<status> cwd=<dir> repo=<dir>`. The key is
   `<short profile>:<pid>` (`main` for `.claude`, `x` for `.claude-x`). Your own line carries `(you)`.
+  `repo` is the main work tree of the repository (the parent of its git common directory), so
+  sessions in linked worktrees of one repository show the same `repo`. Notices are keyed by it.
 - **`ask_session(target, question, model = "haiku", timeout_s = 120)`**. `target` is a key (`<short profile>:<pid>`), a session id or an id prefix of at least 4 characters, or a session name, each optionally prefixed with `<profile>:`. A target that matches more than one session is refused with the candidates listed. `model` is `haiku`, `sonnet`, `opus` or a model id. `timeout_s` is clamped to
   1..=300. The result holds the answer, the target, `billed_profile`, `as_of` (the mtime of the
   target transcript), `cost_usd`, cache token counts and a note that the answer is data, not an
@@ -152,7 +154,8 @@ notice, posted for it from the commit.
   never announced.
 - **Suppression**: a notice the endpoint posted with `post_notice` up to 5 minutes BEFORE the
   commit, or at any time after it (up to the scan), suppresses the backup notice for that commit
-  (`last_post_ms > committed_ms - SUPPRESS_WINDOW_MS`, 300 000 ms). Any such notice counts,
+  (`last_post_ms > 0 && last_post_ms > committed_ms - SUPPRESS_WINDOW_MS`, 300 000 ms; an endpoint
+  that never posted has `last_post_ms` 0 and suppresses nothing). Any such notice counts,
   about anything and in any repository: `last_post_ms` is set by every `post_notice`, not by
   the backup's own commit notices. The commit time is recorded by git to the second. The scan
   starts right after the commit, so announce BEFORE you commit.
@@ -180,7 +183,7 @@ relative), nothing is stored anywhere: the hooks print nothing and write nothing
 | `asks.jsonl` | Log and meter of every ask. |
 | `verdicts.jsonl` | Log of every filter verdict, with `relevant`, quote and reason. The quotes are words copied from session transcripts (at most 200 characters each, `why` too): transcript text that stays in the state directory after the session ends. Nothing trims this file. |
 | `filter-cwd/` | An empty directory in which the filter runs, so it loads no project memory. |
-| `events.jsonl` | One JSON line per delivered item (`"event":"delivered"`, `kind` = `nudge`, `unfiltered`, `gap` or `start_view`, `endpoint`, `seq` or null) and per commit not posted because its patch-id was already stored (`"event":"dedup"`, `endpoint`, `repo`, `patch_id`). A trigger that delivers nothing writes nothing. Nothing trims this file. |
+| `events.jsonl` | One JSON line per delivered item (`"event":"delivered"`, `at`, `kind` = `nudge`, `unfiltered`, `gap` or `start_view`, `endpoint`, `seq` or null) and per commit not posted because its patch-id was already stored (`"event":"dedup"`, `at`, `endpoint`, `repo`, `patch_id`). `at` is the wall-clock time in milliseconds since the epoch, an integer, on every line. A trigger that delivers nothing writes nothing. Nothing trims this file. |
 
 **A reused pid starts clean.** Linux reuses pids, so a new Claude process can get the pid of a
 dead one whose endpoint state is still on disk. At SessionStart the hook reads the start time of
@@ -231,8 +234,16 @@ change) and how to word it.
   follows the wall clock, with a start recorded earlier. A wall-clock step forward of more than
   2 s between the first SessionStart of a process and a later one (a compact, a `/clear`) makes the
   process look newer and resets its endpoint state: its queue, verdicts and heads are dropped
-  (after a `/clear` the start view is shown again). Slow clock corrections (NTP slewing) stay far
-  below 2 s.
+  (after a `/clear` the start view is shown again). The reset also drops `last_post_ms` and
+  `worker_pid`, so a commit that the agent announced just before can get a duplicate backup
+  notice. When the new process resumes the dead session's own id, cursor rule 1 keeps that
+  session's cursor, because the holder is the same pid or dead. Slow clock corrections (NTP
+  slewing) stay far below 2 s.
+- A filter worker of a process that died, or whose endpoint was reset by the reused-pid check,
+  can run for up to about 60 s (the filter timeout) and may write verdicts into the reset
+  endpoint state.
+- A store error during a backup scan leaves the heads unmoved, so the retry meets the commits it
+  already posted and logs one `dedup` line for each. Count `dedup` lines with that in mind.
 - A worker is considered alive while `/proc/<pid>` exists, so a reused pid can delay the next
   worker until that other process ends.
 - The quote check has no minimum length.
