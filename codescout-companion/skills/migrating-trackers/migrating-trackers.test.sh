@@ -72,7 +72,19 @@ done
 # M5: no repo-specific names in a shipped skill
 grep -qE 'bistriceanu|bug-fix-session-log' "$SKILL" && fail "no repo-specific names" "found" || pass "no repo-specific names in SKILL.md"
 # M7: where the cutover export names come from
-line_of '**Catalog facts.**' "$SKILL" | grep -qF '.apply.written' && pass "Step 0.3 says where export names come from" || fail "Step 0.3 export names" "absent"
+line_of '**Catalog facts.**' "$SKILL" > "${TMPDIR:-/tmp}/m7.$$"
+m7=${TMPDIR:-/tmp}/m7.$$
+if grep -qF '.apply.written' "$m7" && grep -qF '.apply.renamed' "$m7" && grep -qF '.apply.unchanged' "$m7" \
+   && grep -qF -- '--untracked-files=all' "$m7" && grep -qF -- '--pathspec-from-file' "$m7"; then
+  pass "Step 0.3 builds the export names from written, renamed and unchanged, with a snapshot first"
+else fail "Step 0.3 export names" "line lacks written/renamed/unchanged, the snapshot or pathspec-from-file"; fi
+rm -f "$m7"
+if command -v jq >/dev/null 2>&1; then
+  # the filter the skill prescribes must hold both sides of a rename (shape from ApplyOutcome: renamed is [[old,new]])
+  f=$(line_of '**Catalog facts.**' "$SKILL" | grep -oE "\[\.apply\.written\[\][^']*" | head -1)
+  got=$(echo '{"apply":{"written":["b.md"],"renamed":[["old.md","new.md"]],"unchanged":["c.md"],"refused":[]}}' | jq -r "$f" | tr '\n' ' ')
+  [ "$got" = "b.md c.md new.md old.md " ] && pass "export names filter keeps both rename paths" || fail "export names filter" "got '$got' from '$f'"
+fi
 # I-3: row-only created comes from blame
 grep -F '`row_only`' "$MAPPING_MD" | grep -qF 'git blame' && pass "mapping.md sources the row-only date from blame" || fail "row-only date source" "absent"
 
