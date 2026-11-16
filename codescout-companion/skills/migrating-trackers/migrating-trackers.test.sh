@@ -79,6 +79,12 @@ if grep -qF '.apply.written' "$m7" && grep -qF '.apply.renamed' "$m7" && grep -q
   pass "Step 0.3 builds the export names from written, renamed and unchanged, with a snapshot first"
 else fail "Step 0.3 export names" "line lacks written/renamed/unchanged, the snapshot or pathspec-from-file"; fi
 rm -f "$m7"
+# Ruling 11: a partial export is never committed; the directory exists before the first write
+l03=$(line_of '**Catalog facts.**' "$SKILL")
+if echo "$l03" | grep -qF '.apply.refused' && echo "$l03" | grep -qF 'partial export' && echo "$l03" | grep -qF 'STOP' \
+   && echo "$l03" | grep -qF 'mkdir -p'; then
+  pass "Step 0.3 stops on a partial export and creates the tracker-migration directory"
+else fail "Step 0.3 partial export" "line lacks .apply.refused, partial export, STOP or mkdir -p"; fi
 if command -v jq >/dev/null 2>&1; then
   # the filter the skill prescribes must hold both sides of a rename (shape from ApplyOutcome: renamed is [[old,new]])
   f=$(line_of '**Catalog facts.**' "$SKILL" | grep -oE "\[\.apply\.written\[\][^']*" | head -1)
