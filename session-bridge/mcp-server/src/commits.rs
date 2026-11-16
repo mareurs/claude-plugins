@@ -245,8 +245,8 @@ pub fn parse_log(out: &str) -> Vec<LogRecord> {
 /// New commits of `worktree` since `old`, oldest first, that this session made and that touch
 /// a watched path; plus the new head. First sight (`old == None`), or an `old` that no longer
 /// exists (rebased away, collected), counts nothing when `started_ms` is 0 (history is never
-/// replayed), else only the commits whose committer time is at or after `started_ms` (the
-/// start of this endpoint). More than 50 new
+/// replayed), else only the commits whose committer time is in the second of `started_ms` or
+/// later (the start of this endpoint; git records the time to the second). More than 50 new
 /// commits: the newest 50 are considered and the head is still the new one.
 pub fn scan(
     worktree: &Path,
@@ -278,14 +278,16 @@ fn scan_until(
     };
     // First sight: history is never replayed, except the commits made since this endpoint
     // started (a quiet repo's first worker is started by the hook of the commit itself, so its
-    // baseline would otherwise already contain the commit). `>=`: a commit in the second of
-    // the start counts; the patch-id check protects repeats.
+    // baseline would otherwise already contain the commit). Git records the committer time to
+    // the second, so the start is floored to its second: a commit in the second of the start
+    // counts; the patch-id check protects repeats.
     let first_sight = || -> Result<Vec<LogRecord>> {
         if started_ms <= 0 {
             return Ok(vec![]);
         }
+        let floor = started_ms - started_ms.rem_euclid(1000);
         let mut records = list(None)?;
-        records.retain(|r| r.committed_ms >= started_ms);
+        records.retain(|r| r.committed_ms >= floor);
         Ok(records)
     };
     let mut records = match old.filter(|o| is_sha(o)) {

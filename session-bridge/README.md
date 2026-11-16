@@ -156,8 +156,9 @@ notice, posted for it from the commit.
   starts right after the commit, so announce BEFORE you commit.
 - **Cap**: at most the newest 50 new commits per worktree and scan. A scan visits at most 32
   worktrees and stops after 15 s.
-- **First sight**: the first scan of a worktree counts only the commits made since the endpoint's
-  first SessionStart. History before it never replays.
+- **First sight**: the first scan of a worktree counts only the commits made in the second of the
+  endpoint's first SessionStart or later (git records the commit time to the second, so the start
+  is rounded down to its second). History before it never replays.
 - **Trigger**: the scan runs inside the filter worker. A tool input whose JSON text contains
   the substring `commit` (case-sensitive) starts a worker, even with nothing queued.
 

@@ -678,14 +678,26 @@ fn without_a_start_time_first_sight_counts_nothing() {
 
 #[test]
 fn a_commit_in_the_second_of_the_start_is_counted() {
+    // Git records the committer time to the second; the start is in milliseconds. A commit in
+    // the second of the start counts, whatever the milliseconds of the start.
     let fx = Fx::new();
     let r = fx.repo();
     fx.commit(&r, &[("Cargo.toml", "a\n")], "same second", Some(S), T0);
     let w = watch(&["Cargo.toml"]);
-    let (_, c) = scan_since(&r, None, S, &w, T0 * 1000).unwrap();
-    assert_eq!(c.len(), 1, "committer time == start time counts");
-    let (_, c) = scan_since(&r, None, S, &w, T0 * 1000 + 1).unwrap();
-    assert!(c.is_empty(), "a start a millisecond later does not");
+    for start in [T0 * 1000, T0 * 1000 + 500, T0 * 1000 + 999] {
+        let (_, c) = scan_since(&r, None, S, &w, start).unwrap();
+        assert_eq!(c.len(), 1, "a commit at second T0 counts for a start at {start}");
+    }
+    for start in [T0 * 1000 + 1000, T0 * 1000 + 1500] {
+        let (_, c) = scan_since(&r, None, S, &w, start).unwrap();
+        assert!(c.is_empty(), "a start in the next second does not count it ({start})");
+    }
+    // A commit one second before the start's second is not counted.
+    let fx2 = Fx::new();
+    let r2 = fx2.repo();
+    fx2.commit(&r2, &[("Cargo.toml", "b\n")], "a second early", Some(S), T0 - 1);
+    let (_, c) = scan_since(&r2, None, S, &w, T0 * 1000 + 500).unwrap();
+    assert!(c.is_empty(), "{c:?}");
 }
 
 // ---- log.showSignature and junk in the log output ----------------------------------------
