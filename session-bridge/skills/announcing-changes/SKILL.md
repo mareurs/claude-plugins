@@ -1,13 +1,14 @@
 ---
 name: announcing-changes
-description: Use after you make a change that other live sessions of this repository may depend on: a moved branch, a changed tool, hook, binary, config, gate or convention, a plan or design that changed status, or a finding other sessions would act on.
+description: "Use after you make a change that other live sessions of this repository may depend on: a moved branch, a changed tool, hook, binary, config, gate or convention, a plan or design that changed status, or a finding other sessions would act on."
 ---
 
 # Announcing changes
 
 Other Claude Code sessions work in this repository at the same time. They cannot see
 your edits. `post_notice` tells them. A filter shows a notice only to a session whose
-own work names the same thing, so a notice does not interrupt the others.
+own work names the same thing. If the filter cannot run, the notice is shown anyway and
+marked `(not filtered: ...)`.
 
 ## When to post
 
