@@ -235,7 +235,7 @@ Thin hook scripts in the `session-bridge` plugin. The logic is in the binary.
   the same commit produces the same patch-id, so the change is announced once.
 - Watch list (my call): `.claude/notice-watch.txt` in the repository, one glob per line. No file,
   or no `Session-Id:` trailers in the repository: no backup notices. This repository has no
-  trailers today, so its backup path stays off. (Implementation, 2026-11-16: it now has some; see §2.) First content for codescout: `Cargo.toml`,
+  trailers today, so its backup path stays off. (Implementation, 2026-11-16: it now has some; see the trailer statement under `## Constraints`.) First content for codescout: `Cargo.toml`,
   `scripts/**`, `.claude/**`, `.codescout/project.toml`, `.pre-commit-config.yaml`, `CLAUDE.md`.
 
 ### 7. Act (later phase, authority rule only)
