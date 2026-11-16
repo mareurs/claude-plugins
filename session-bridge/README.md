@@ -139,7 +139,9 @@ notice, posted for it from the commit.
   `**/CLAUDE.md` matches it at any depth, top level included. Each worktree reads its
   own file and falls back to the main worktree's. No file, no backup.
 - **Trailer**: a commit counts only when its `Session-Id:` trailer equals the endpoint's current
-  session id. A repository whose commits carry no such trailer gets no backup notices.
+  session id. A repository whose commits carry no such trailer gets no backup notices. The scan
+  runs `git -c trailer.separators=: log …`, so a `trailer.separators` setting of the user in any
+  scope does not hide the trailer.
 - **Changed paths**: at least one path of the commit must match the watch list. The notice
   lists up to 20 matching paths.
 - **Deduplication**: the notice is stored with the commit's patch-id, and a patch-id already
@@ -202,12 +204,6 @@ out. It prints nothing and exits 0 when there is no store or no repository. `ser
   immediate look and starts a backup-scan worker (at most one per 15 s). `Commit` with a capital
   letter does not trigger. A commit made through a tool whose input does not contain the
   substring is found only when a worker runs for another reason.
-- Known issue: a git config `trailer.separators` without `:`, in any scope
-  (repository, global or `-c`), makes `%(trailers:key=Session-Id,...)` stop finding the trailer
-  (measured: with `trailer.separators=' ='` the Session-Id field of the record is empty, with
-  `':='` it holds the id; the rest of the record still prints; the scan in
-  `mcp-server/src/commits.rs` uses that format). The backup path is then disabled without any message.
-  A fix is scheduled. Until then remove that setting or do not rely on backup notices.
 - Commits made before a `/clear` carry the old session id and never match the new one.
 - A worker is considered alive while `/proc/<pid>` exists, so a reused pid can delay the next
   worker until that other process ends.

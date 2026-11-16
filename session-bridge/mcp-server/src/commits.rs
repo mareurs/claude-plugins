@@ -192,10 +192,15 @@ const LOG_FORMAT: &str = "--format=%H%x00%ct%x00%s%x00%(trailers:key=Session-Id,
 /// The argv of the `git log` that lists the commits of `new` (newest first, at most
 /// `MAX_COMMITS + 1`, the extra one only detects an overflow), without those reachable from
 /// `old` when it is given. `--no-show-signature` is load-bearing: a user's
-/// `log.showSignature=true` would print verification text in front of every record.
+/// `log.showSignature=true` would print verification text in front of every record. So is
+/// `-c trailer.separators=:` in front of the subcommand: a user's `trailer.separators` without
+/// `:` (in any scope) makes the `Session-Id:` trailer invisible to `%(trailers:...)`, and
+/// command-line config wins over every file.
 pub fn log_argv(new: &str, old: Option<&str>) -> Vec<String> {
-    let mut argv: Vec<String> =
-        ["log", "--no-show-signature", LOG_FORMAT, "-n"].iter().map(|s| s.to_string()).collect();
+    let mut argv: Vec<String> = ["-c", "trailer.separators=:", "log", "--no-show-signature", LOG_FORMAT, "-n"]
+        .iter()
+        .map(|s| s.to_string())
+        .collect();
     argv.push((MAX_COMMITS + 1).to_string());
     argv.push(new.to_string());
     if let Some(old) = old {

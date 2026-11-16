@@ -636,8 +636,31 @@ fn the_log_argv_turns_signature_output_off() {
     for old in [None, Some("a".repeat(40))] {
         let argv = log_argv(&"b".repeat(40), old.as_deref());
         assert!(argv.iter().any(|a| a == "--no-show-signature"), "{argv:?}");
-        assert_eq!(argv[0], "log");
+        assert!(argv.iter().any(|a| a == "log"), "{argv:?}");
     }
+}
+
+// ---- trailer.separators (a user setting without `:` hides the Session-Id trailer) ----------
+
+#[test]
+fn the_log_argv_pins_the_trailer_separator_before_the_subcommand() {
+    for old in [None, Some("a".repeat(40))] {
+        let argv = log_argv(&"b".repeat(40), old.as_deref());
+        let log = argv.iter().position(|a| a == "log").expect("a log subcommand");
+        assert_eq!(&argv[..log], ["-c", "trailer.separators=:"], "{argv:?}");
+    }
+}
+
+#[test]
+fn a_repo_local_trailer_separators_without_a_colon_still_finds_own_commits() {
+    let fx = Fx::new();
+    let r = fx.repo();
+    fx.git(&r, &["config", "--local", "trailer.separators", " ="]);
+    let old = fx.head(&r);
+    let sha = fx.commit(&r, &[("Cargo.toml", "a\n")], "bump", Some(S), T0);
+    let (_, c) = scan(&r, Some(&old), S, &watch(&["Cargo.toml"])).unwrap();
+    let shas: Vec<&str> = c.iter().map(|c| c.sha.as_str()).collect();
+    assert_eq!(shas, vec![sha.as_str()], "the own commit is counted");
 }
 
 #[test]
