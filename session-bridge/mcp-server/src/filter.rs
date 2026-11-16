@@ -30,6 +30,8 @@ const WINDOW_BYTES: u64 = 4 * 1024 * 1024;
 const OUT_LIMIT: u64 = 4 * 1024 * 1024;
 const DEFAULT_TIMEOUT_S: u64 = 60;
 const VERDICT_LOG: &str = "verdicts.jsonl";
+/// Pending notices judged by one model call.
+pub const FILTER_BATCH: usize = 20;
 const ENV_REMOVED: [&str; 4] =
     ["CLAUDE_CODE_SESSION_ID", "CLAUDE_CODE_MESSAGING_SOCKET", "CLAUDE_CODE_MESSAGING_TOKEN", "CLAUDECODE"];
 
@@ -291,8 +293,10 @@ async fn verdicts_for(
     notices: &[Notice],
     timeout: Duration,
 ) -> Vec<Verdict> {
+    // A tail that is empty after trimming (the file holds no speech in its last window)
+    // gives the model nothing to quote: it is treated like a missing transcript.
     let tail = match st.transcript_path.as_deref().map(|p| transcript_tail(Path::new(p), TAIL_CHARS)) {
-        Some(Ok(t)) => t,
+        Some(Ok(t)) if !t.trim().is_empty() => t,
         _ => return unfiltered(notices, "no transcript"),
     };
     // An empty directory of our own: the call must not run inside a project, whose memory
@@ -358,7 +362,8 @@ pub async fn run_filter(bin: &str, state: &Path, store: &Store, profile: &str, p
 }
 
 /// `run_filter` with the config dir and the timeout given. Reads the endpoint state, makes
-/// at most one model call (none when no notice is left to judge), then stores the verdicts
+/// at most one model call for the oldest `FILTER_BATCH` pending notices (none when no
+/// notice is left to judge), then stores the verdicts
 /// in one locked update that also removes the handled seqs from `pending` and clears
 /// `worker_pid`. The model call holds no lock.
 pub async fn run_filter_with(
@@ -377,7 +382,12 @@ pub async fn run_filter_with(
     }
     let path = endpoint_path(state, profile, pid);
     let st = load_or_default(&path);
-    let handled = st.pending.clone();
+    // At most FILTER_BATCH notices per model call, the oldest first. The rest stay in
+    // `pending`, so the next hook trigger starts another worker after this one ends.
+    let mut handled = st.pending.clone();
+    handled.sort_unstable();
+    handled.dedup();
+    handled.truncate(FILTER_BATCH);
     let notices = if handled.is_empty() {
         vec![]
     } else {

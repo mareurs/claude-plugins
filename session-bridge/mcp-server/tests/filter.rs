@@ -441,6 +441,48 @@ async fn no_transcript_falls_back_to_unfiltered() {
 }
 
 #[tokio::test]
+async fn an_empty_tail_is_like_a_missing_transcript() {
+    let td = TempDir::new().unwrap();
+    // The file exists, but its last window holds no speech: a tool result and a reminder.
+    let t = td.path().join("t.jsonl");
+    let lines = [
+        serde_json::json!({"type":"user","message":{"content":[{"type":"tool_result","content":"out"}]}}),
+        serde_json::json!({"type":"user","message":{"content":"<system-reminder>x</system-reminder>"}}),
+        serde_json::json!({"type":"assistant","message":{"content":[{"type":"text","text":"   "}]}}),
+    ];
+    std::fs::write(&t, lines.iter().map(|l| l.to_string()).collect::<Vec<_>>().join("\n")).unwrap();
+    let e = Env::with_transcript(Some(t));
+    e.run(T).await;
+    let st = e.st();
+    assert_eq!(st.verdicts.len(), 2);
+    assert!(st.verdicts.iter().all(|v| v.relevant && v.unfiltered_reason.as_deref() == Some("no transcript")));
+    assert!(e.recorded("filter-calls").is_none(), "no model call on an empty tail");
+}
+
+#[tokio::test]
+async fn one_call_judges_at_most_twenty_notices_the_oldest_first() {
+    let e = Env::new();
+    for i in 3..=25 {
+        e.store.post(new_notice(&format!("title {i}"), "b")).unwrap();
+    }
+    // Out of order on purpose: the batch is the oldest 20 by seq.
+    update(&endpoint_path(&e.state, PROFILE, PID), |s| s.pending = (1..=25).rev().collect()).unwrap();
+    e.run(T).await;
+    assert_eq!(e.recorded("filter-calls").unwrap().lines().count(), 1);
+    let stdin = e.recorded("filter-stdin.txt").unwrap();
+    let ids: Vec<i64> = (1..=25).filter(|i| stdin.contains(&format!("\nN{i}: "))).collect();
+    assert_eq!(ids, (1..=20).collect::<Vec<_>>());
+    let st = e.st();
+    let mut pending = st.pending.clone();
+    pending.sort();
+    assert_eq!(pending, (21..=25).collect::<Vec<_>>());
+    let mut judged: Vec<i64> = st.verdicts.iter().map(|v| v.seq).collect();
+    judged.sort();
+    assert_eq!(judged, (1..=20).collect::<Vec<_>>());
+    assert_eq!(st.worker_pid, None);
+}
+
+#[tokio::test]
 async fn a_new_verdict_replaces_an_older_one_of_the_same_seq() {
     let e = Env::new();
     update(&endpoint_path(&e.state, PROFILE, PID), |s| {
@@ -465,21 +507,24 @@ async fn a_large_input_with_a_chatty_child_does_not_deadlock() {
     std::fs::write(&transcript, lines.join("\n")).unwrap();
     let e = Env::with_transcript(Some(transcript));
     e.marker("fake-flood", "");
-    // 41 notices of 3900 characters plus the tail: well past a 64 KiB pipe buffer, while the
-    // child writes more than 64 KiB to stdout and to stderr before it reads any input.
+    // One batch (20) of notices near the size limits plus the tail: over 80 KB, past a
+    // 64 KiB pipe buffer, while the child writes more than 64 KiB to stdout and to stderr
+    // before it reads any input.
     for _ in 0..41 {
-        e.store.post(new_notice("big", &"y".repeat(3900))).unwrap();
+        e.store.post(new_notice(&"t".repeat(120), &"y".repeat(3990))).unwrap();
     }
-    update(&endpoint_path(&e.state, PROFILE, PID), |s| s.pending = (1..=43).collect()).unwrap();
+    // Seqs 3..=43 are the big ones; the oldest 20 of them make the batch.
+    update(&endpoint_path(&e.state, PROFILE, PID), |s| s.pending = (3..=43).collect()).unwrap();
     e.run(Duration::from_secs(5)).await;
     let st = e.st();
-    assert_eq!(st.verdicts.len(), 43);
+    assert_eq!(st.verdicts.len(), 20);
+    assert_eq!(st.pending.len(), 21, "the rest waits for the next worker");
     assert!(
         st.verdicts.iter().all(|v| v.unfiltered_reason.as_deref() != Some("filter timed out")),
         "the write and the reads must run concurrently"
     );
     assert!(e.recorded("flood-done").is_some(), "the flood was drained");
-    assert!(e.recorded("filter-stdin.txt").unwrap().len() > 150_000);
+    assert!(e.recorded("filter-stdin.txt").unwrap().len() > 80_000);
 }
 
 #[tokio::test]
