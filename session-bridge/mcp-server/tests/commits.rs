@@ -124,8 +124,35 @@ fn store(fx: &Fx) -> Store {
     Store::open(&fx.root().join("notices.db")).unwrap()
 }
 
-fn post(store: &Store, repo: &str, counted: &[Counted], last_post_ms: i64) -> usize {
-    post_commit_notices(store, repo, ME, S, counted, last_post_ms).unwrap()
+/// `post_commit_notices` with the fixture root as the state directory (its event log).
+fn post(fx: &Fx, store: &Store, repo: &str, counted: &[Counted], last_post_ms: i64) -> usize {
+    post_commit_notices(fx.root(), store, repo, ME, S, counted, last_post_ms).unwrap()
+}
+
+fn event_lines(state: &Path) -> Option<Vec<serde_json::Value>> {
+    let text = std::fs::read_to_string(state.join("events.jsonl")).ok()?;
+    Some(text.lines().map(|l| serde_json::from_str(l).unwrap()).collect())
+}
+
+#[test]
+fn a_deduplicated_commit_is_one_event_line() {
+    let fx = Fx::new();
+    let r = fx.repo();
+    let old = fx.head(&r);
+    fx.commit(&r, &[("Cargo.toml", "a\n")], "bump", Some(S), T0);
+    let (_, c) = scan(&r, Some(&old), S, &watch(&["Cargo.toml"])).unwrap();
+    let st = store(&fx);
+    assert_eq!(post(&fx, &st, "R", &c, 0), 1);
+    assert_eq!(post(&fx, &st, "R", &c, T0 * 1000), 0, "suppressed: not a dedupe");
+    assert!(event_lines(fx.root()).is_none(), "a posted or suppressed commit is no event");
+    assert_eq!(post(&fx, &st, "R", &c, 0), 0, "the patch-id is already stored");
+    let ev = event_lines(fx.root()).expect("events.jsonl");
+    assert_eq!(ev.len(), 1, "{ev:?}");
+    assert_eq!(ev[0]["event"], "dedup");
+    assert_eq!(ev[0]["endpoint"], "stef:4242");
+    assert_eq!(ev[0]["repo"], "R");
+    assert_eq!(ev[0]["patch_id"], c[0].patch_id.as_str());
+    assert!(ev[0]["at"].as_i64().is_some_and(|t| t > 0), "{}", ev[0]);
 }
 
 #[test]
@@ -215,7 +242,7 @@ fn rebased_commit_is_not_announced_twice() {
     let (_, c) = scan(&r, Some(&base), S, &w).unwrap();
     assert_eq!(c.len(), 1);
     let st = store(&fx);
-    assert_eq!(post(&st, "R", &c, 0), 1);
+    assert_eq!(post(&fx, &st, "R", &c, 0), 1);
     // The same patch on another base: a new sha, the same patch-id.
     fx.git(&r, &["checkout", "-q", "-b", "other", &base]);
     fx.commit(&r, &[("other.txt", "o\n")], "other base", None, T0);
@@ -225,9 +252,9 @@ fn rebased_commit_is_not_announced_twice() {
     assert_eq!(c2.len(), 1);
     assert_ne!(c2[0].sha, x);
     assert_eq!(c2[0].patch_id, c[0].patch_id);
-    assert_eq!(post(&st, "R", &c2, 0), 0, "announced once");
+    assert_eq!(post(&fx, &st, "R", &c2, 0), 0, "announced once");
     // Another repository is another namespace for the patch-id.
-    assert_eq!(post(&st, "R2", &c2, 0), 1);
+    assert_eq!(post(&fx, &st, "R2", &c2, 0), 1);
 }
 
 #[test]
@@ -249,12 +276,12 @@ fn merge_to_another_worktree_is_not_announced_twice() {
     let (_, ca) = scan(&wt, Some(&old_a), S, &w).unwrap();
     assert_eq!(ca.len(), 1);
     let st = store(&fx);
-    assert_eq!(post(&st, "R", &ca, 0), 1);
+    assert_eq!(post(&fx, &st, "R", &ca, 0), 1);
 
     fx.git(&r, &["merge", "--ff-only", "-q", "feat"]);
     let (_, cb) = scan(&r, Some(&old_b), S, &w).unwrap();
     assert_eq!(cb.len(), 1, "B sees the commit too");
-    assert_eq!(post(&st, "R", &cb, 0), 0, "but it is announced once");
+    assert_eq!(post(&fx, &st, "R", &cb, 0), 0, "but it is announced once");
 }
 
 #[test]
@@ -266,9 +293,9 @@ fn the_suppression_window_boundary_is_pinned() {
     let (_, c) = scan(&r, Some(&old), S, &watch(&["Cargo.toml"])).unwrap();
     let st = store(&fx);
     let at = T0 * 1000;
-    assert_eq!(post(&st, "R", &c, at + 10_000), 0, "posted after the commit: suppressed");
-    assert_eq!(post(&st, "R", &c, at - SUPPRESS_WINDOW_MS + 1), 0, "1 ms inside the window: suppressed");
-    assert_eq!(post(&st, "R", &c, at - SUPPRESS_WINDOW_MS), 1, "exactly the window before the commit: posted");
+    assert_eq!(post(&fx, &st, "R", &c, at + 10_000), 0, "posted after the commit: suppressed");
+    assert_eq!(post(&fx, &st, "R", &c, at - SUPPRESS_WINDOW_MS + 1), 0, "1 ms inside the window: suppressed");
+    assert_eq!(post(&fx, &st, "R", &c, at - SUPPRESS_WINDOW_MS), 1, "exactly the window before the commit: posted");
 }
 
 /// The worker-level flow: the first run records the head, then a commit at `T0` with the
@@ -338,7 +365,7 @@ fn the_notice_carries_title_body_refs_and_origin() {
     let sha = fx.commit(&r, &[("Cargo.toml", "a\n"), ("scripts/a.sh", "b\n")], "bump", Some(S), T0);
     let (_, c) = scan(&r, Some(&old), S, &watch(&["Cargo.toml", "scripts/**"])).unwrap();
     let st = store(&fx);
-    assert_eq!(post(&st, "R", &c, 0), 1);
+    assert_eq!(post(&fx, &st, "R", &c, 0), 1);
     let n = only_notice(&st, 1);
     assert_eq!(n.origin, Origin::Commit);
     assert_eq!(n.repo, "R");
@@ -360,7 +387,7 @@ fn a_detached_head_has_no_branch_ref() {
     let (new, c) = scan(&r, Some(&old), S, &watch(&["Cargo.toml"])).unwrap();
     assert_eq!(new, sha);
     let st = store(&fx);
-    assert_eq!(post(&st, "R", &c, 0), 1);
+    assert_eq!(post(&fx, &st, "R", &c, 0), 1);
     assert_eq!(only_notice(&st, 1).refs, vec![sha]);
 }
 
@@ -373,7 +400,7 @@ fn the_title_is_cut_to_120_characters_not_bytes() {
     fx.commit(&r, &[("Cargo.toml", "a\n")], &subject, Some(S), T0);
     let (_, c) = scan(&r, Some(&old), S, &watch(&["Cargo.toml"])).unwrap();
     let st = store(&fx);
-    assert_eq!(post(&st, "R", &c, 0), 1);
+    assert_eq!(post(&fx, &st, "R", &c, 0), 1);
     let t = only_notice(&st, 1).title;
     assert_eq!(t.chars().count(), 120);
     assert!(t.starts_with("ééééé x"), "{t}");
@@ -391,7 +418,7 @@ fn sixty_watched_paths_give_a_bounded_body() {
     let (_, c) = scan(&r, Some(&old), S, &watch(&["scripts/**"])).unwrap();
     assert_eq!(c[0].matched.len(), 60);
     let st = store(&fx);
-    assert_eq!(post(&st, "R", &c, 0), 1);
+    assert_eq!(post(&fx, &st, "R", &c, 0), 1);
     let b = only_notice(&st, 1).body;
     assert!(b.chars().count() <= 4000);
     assert!(b.contains("scripts/f19.sh"), "{b}");
@@ -638,6 +665,25 @@ async fn the_first_own_commit_after_the_endpoint_started_is_announced_at_first_s
     assert_eq!(w.store.head().unwrap(), 1);
     assert_eq!(only_notice(&w.store, 1).title, "first own change");
     assert_eq!(w.st().heads.get(&w.key()), Some(&w.fx.head(&w.repo)));
+}
+
+#[tokio::test]
+async fn the_worker_logs_a_deduplicated_commit_in_the_state_dir() {
+    let w = W::new();
+    set_started(&w, (T0 - 50) * 1000);
+    w.fx.commit(&w.repo, &[("Cargo.toml", "a\n")], "first own change", Some(S), T0);
+    w.run().await;
+    assert_eq!(w.store.head().unwrap(), 1);
+    assert!(event_lines(&w.state).is_none(), "a posted commit is no event");
+    // Forget the heads: the next scan is first sight again and finds the same commit.
+    update(&endpoint_path(&w.state, PROFILE, PID), |s| s.heads.clear()).unwrap();
+    w.run().await;
+    assert_eq!(w.store.head().unwrap(), 1, "not posted twice");
+    let ev = event_lines(&w.state).expect("events.jsonl in the state dir");
+    assert_eq!(ev.len(), 1);
+    assert_eq!(ev[0]["event"], "dedup");
+    assert_eq!(ev[0]["endpoint"], "stef:4242");
+    assert_eq!(ev[0]["repo"], w.key().as_str());
 }
 
 #[test]

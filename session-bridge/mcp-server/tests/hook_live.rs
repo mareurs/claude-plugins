@@ -504,6 +504,71 @@ fn a_notice_from_the_main_worktree_reaches_a_linked_worktree() {
     a_notice_crosses_worktrees(false);
 }
 
+// ---- events.jsonl: one line per delivered item, nothing for an idle trigger ----------------
+
+fn events(state: &Path) -> Option<Vec<serde_json::Value>> {
+    let text = std::fs::read_to_string(state.join("events.jsonl")).ok()?;
+    Some(text.lines().map(|l| serde_json::from_str(l).unwrap()).collect())
+}
+
+#[test]
+fn each_delivered_nudge_is_one_event_line() {
+    let e = env();
+    let a = e.post(now_ms(), "first", "b1", &[]);
+    let b = e.post(now_ms(), "second", "b2", &[]);
+    let c = e.post(now_ms(), "third", "b3", &[]);
+    let d = e.post(now_ms(), "fourth", "b4", &[]);
+    let now = now_ms();
+    let mut unf = relevant(c, "");
+    unf.unfiltered_reason = Some("filter failed".into());
+    e.set_state(|s| {
+        s.last_look_ms = now;
+        s.verdicts = vec![relevant(a, "edit hook.rs"), relevant(b, "edit main.rs"), unf, irrelevant(d)];
+    });
+    e.trigger_at(&e.plain(), now).expect("three nudges");
+    let ev = events(&e.state).expect("events.jsonl");
+    assert_eq!(ev.len(), 3, "{ev:?}");
+    let kinds: Vec<(&str, i64)> = ev.iter().map(|v| (v["kind"].as_str().unwrap(), v["seq"].as_i64().unwrap())).collect();
+    assert_eq!(kinds, vec![("nudge", a), ("nudge", b), ("unfiltered", c)]);
+    for v in &ev {
+        assert_eq!(v["event"], "delivered");
+        assert_eq!(v["endpoint"], "stef:20");
+        assert_eq!(v["at"], now);
+    }
+    // Nothing new to deliver: no new line.
+    assert_eq!(e.trigger_at(&e.plain(), now), None);
+    assert_eq!(events(&e.state).unwrap().len(), 3);
+}
+
+#[test]
+fn a_gap_line_is_one_event_with_no_seq() {
+    let e = env();
+    set(&e.state, STEF, "S", 20, 0).unwrap();
+    let now = now_ms();
+    e.post(now - 30 * 24 * 3_600_000, "old1", "", &[]);
+    e.store.prune(now - 14 * 24 * 3_600_000).unwrap();
+    e.trigger_at(&e.plain(), now).expect("the gap line");
+    let ev = events(&e.state).expect("events.jsonl");
+    assert_eq!(ev.len(), 1);
+    assert_eq!((ev[0]["event"].as_str(), ev[0]["kind"].as_str()), (Some("delivered"), Some("gap")));
+    assert!(ev[0]["seq"].is_null(), "{}", ev[0]);
+    assert_eq!(ev[0]["endpoint"], "stef:20");
+}
+
+#[test]
+fn an_idle_trigger_or_an_irrelevant_verdict_writes_no_event() {
+    let e = env();
+    let a = e.post(now_ms(), "t", "b", &[]);
+    let now = now_ms();
+    e.set_state(|s| {
+        s.last_look_ms = now;
+        s.verdicts = vec![irrelevant(a)];
+    });
+    assert_eq!(e.trigger_at(&e.plain(), now), None);
+    assert_eq!(e.trigger_at(&e.plain(), now + 1), None);
+    assert!(!e.state.join("events.jsonl").exists());
+}
+
 #[test]
 fn a_failed_spawn_records_no_worker() {
     let e = env();

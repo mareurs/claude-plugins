@@ -5,8 +5,9 @@ use crate::cursor::{self, on_session_start, StartRule};
 use crate::deliver::{has_undelivered, render_all, take_deliverable, undelivered_relevant, Fetched};
 use crate::diag;
 use crate::endpoints::{pid_alive, process_start_ms, repo_of, Roots};
+use crate::events;
 use crate::paths::{is_safe_component, short_profile};
-use crate::state::{endpoint_path, load_or_default, update, EndpointState};
+use crate::state::{endpoint_path, load_or_default, update, EndpointState, Verdict};
 use crate::store::{Notice, Page, Store};
 use serde::Deserialize;
 use std::path::Path;
@@ -170,7 +171,15 @@ pub fn session_start(
     }
     let repo = repo_of(Path::new(&input.cwd))?;
     match store.recent(&repo.to_string_lossy(), now - VIEW_WINDOW_MS, VIEW_LIMIT, me) {
-        Ok(notices) => render_start_view(&notices),
+        Ok(notices) => {
+            let view = render_start_view(&notices)?;
+            let line = serde_json::json!({
+                "at": now, "event": "delivered", "kind": "start_view",
+                "endpoint": events::endpoint_key(me.0, me.1), "seq": null,
+            });
+            events::append(state, &line);
+            Some(view)
+        }
         Err(e) => {
             diag::note(&format!("session-start: recent: {e}"));
             None
@@ -296,10 +305,27 @@ pub fn on_trigger(
     }
 
     let mut parts: Vec<String> = render_all(roots, &items).into_iter().collect();
-    if let Some((lo, hi)) = page.and_then(|p| p.gap) {
+    let gap = page.and_then(|p| p.gap);
+    if let Some((lo, hi)) = gap {
         parts.push(format!("notices {lo}..{hi} were deleted before this session read them"));
     }
+    log_delivered(state, me, now_ms, &items, gap.is_some());
     (!parts.is_empty()).then(|| parts.join("\n\n"))
+}
+/// One `delivered` line in the event log per item this trigger shows: a nudge (`nudge`, or
+/// `unfiltered` for a fail-open one) and the gap line. Nothing when nothing is shown.
+fn log_delivered(state: &Path, me: (&str, u32), now_ms: i64, items: &[(Notice, Verdict)], gap: bool) {
+    let endpoint = events::endpoint_key(me.0, me.1);
+    let line = |kind: &str, seq: Option<i64>| {
+        serde_json::json!({"at": now_ms, "event": "delivered", "kind": kind, "endpoint": endpoint, "seq": seq})
+    };
+    for (n, v) in items {
+        let kind = if v.unfiltered_reason.is_some() { "unfiltered" } else { "nudge" };
+        events::append(state, &line(kind, Some(n.seq)));
+    }
+    if gap {
+        events::append(state, &line("gap", None));
+    }
 }
 
 /// Whether the tool input mentions `commit` (a commit may carry notices worth a look now).

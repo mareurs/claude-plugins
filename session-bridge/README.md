@@ -175,6 +175,7 @@ Root: `$XDG_STATE_HOME/session-bridge/` when `XDG_STATE_HOME` is set and absolut
 | `asks.jsonl` | Log and meter of every ask. |
 | `verdicts.jsonl` | Log of every filter verdict, with `relevant`, quote and reason. The quotes are words copied from session transcripts (at most 200 characters each, `why` too): transcript text that stays in the state directory after the session ends. Nothing trims this file. |
 | `filter-cwd/` | An empty directory in which the filter runs, so it loads no project memory. |
+| `events.jsonl` | One JSON line per delivered item (`"event":"delivered"`, `kind` = `nudge`, `unfiltered`, `gap` or `start_view`, `endpoint`, `seq` or null) and per commit not posted because its patch-id was already stored (`"event":"dedup"`, `endpoint`, `repo`, `patch_id`). A trigger that delivers nothing writes nothing. Nothing trims this file. |
 
 `CLAUDE_CONFIG_DIR` names the profile of a session: its last path component, or `.claude` when
 unset. The server and the hooks read it from their own environment. A fork or a filter call runs

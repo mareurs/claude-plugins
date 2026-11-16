@@ -415,9 +415,11 @@ fn clean(s: &str) -> String {
 /// `SUPPRESS_WINDOW_MS` before the commit time or at any time after it (`last_post_ms >
 /// committed_ms - SUPPRESS_WINDOW_MS`: the agent announced it itself, before or after the
 /// commit; the scan starts right after the commit, so the window before it is the one that
-/// matters), or when the store already holds its patch-id for `repo`. A store limit error on
-/// one commit is noted and the next still posts.
+/// matters), or when the store already holds its patch-id for `repo` (that skip is one `dedup`
+/// line in `<state>/events.jsonl`). A store limit error on one commit is noted and the next
+/// still posts.
 pub fn post_commit_notices(
+    state: &Path,
     store: &Store,
     repo: &str,
     author: (&str, u32),
@@ -456,7 +458,16 @@ pub fn post_commit_notices(
         };
         match store.post_commit_once(notice) {
             Ok(Some(_)) => posted += 1,
-            Ok(None) => {}
+            Ok(None) => crate::events::append(
+                state,
+                &serde_json::json!({
+                    "at": chrono::Utc::now().timestamp_millis(),
+                    "event": "dedup",
+                    "endpoint": crate::events::endpoint_key(author.0, author.1),
+                    "repo": repo,
+                    "patch_id": c.patch_id,
+                }),
+            ),
             Err(e @ BridgeError::OverLimit { .. }) => diag::note(&format!("commits: commit {sha9} not announced: {e}")),
             Err(e) => return Err(e),
         }

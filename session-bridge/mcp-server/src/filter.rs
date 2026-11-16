@@ -428,7 +428,7 @@ pub async fn run_filter(bin: &str, state: &Path, store: &Store, profile: &str, p
 /// Skips silently without a cwd, a repository, a session id or a watch list. Every error is
 /// noted and ignored; the heads move only after the posting succeeded, so a failed post is
 /// retried by the next scan (the patch-id check makes a retry harmless).
-async fn backup_scan(path: &Path, store: &Store, profile: &str, pid: u32, st: &EndpointState) {
+async fn backup_scan(state: &Path, path: &Path, store: &Store, profile: &str, pid: u32, st: &EndpointState) {
     let Some(cwd) = st.cwd.clone().filter(|c| !c.is_empty()) else { return };
     if st.session_id.is_empty() {
         return;
@@ -447,6 +447,7 @@ async fn backup_scan(path: &Path, store: &Store, profile: &str, pid: u32, st: &E
         }
     };
     let posted = crate::commits::post_commit_notices(
+        state,
         store,
         &found.repo,
         (profile, pid),
@@ -492,7 +493,7 @@ pub async fn run_filter_with(
     // update that added the notices to `pending`.
     let st = read_locked(&path);
     // The backup scan runs first, whether or not anything is pending. It never fails the filter.
-    backup_scan(&path, store, profile, pid, &st).await;
+    backup_scan(state, &path, store, profile, pid, &st).await;
     // At most FILTER_BATCH notices per model call, the oldest first. The rest stay in
     // `pending`, so the next hook trigger starts another worker after this one ends.
     let handled = oldest_batch(&st.pending);

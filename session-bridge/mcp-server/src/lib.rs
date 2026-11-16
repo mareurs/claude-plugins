@@ -5,6 +5,7 @@ pub mod deliver;
 pub mod diag;
 pub mod endpoints;
 pub mod error;
+pub mod events;
 pub mod filter;
 pub mod hook;
 pub mod paths;

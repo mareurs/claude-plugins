@@ -110,6 +110,27 @@ fn fresh_start_prints_the_start_view_of_this_repo() {
 }
 
 #[test]
+fn a_shown_start_view_is_one_event_line_and_no_view_writes_none() {
+    let e = env();
+    let r = repo_of(&e.repo).unwrap().to_string_lossy().into_owned();
+    post(&e, &r, now_ms() - HOUR, ".claude-kat", 5, "abcdef1234567890", "recent");
+    let log = e.state.join("events.jsonl");
+    // A resume shows no view and logs nothing.
+    assert_eq!(session_start(&input(&e.repo, "S", "resume"), (STEF, 20), &e.roots, &e.state, &e.store), None);
+    assert!(!log.exists());
+    let before = now_ms();
+    session_start(&input(&e.repo, "T", "startup"), (STEF, 21), &e.roots, &e.state, &e.store).expect("the view");
+    let lines: Vec<serde_json::Value> =
+        std::fs::read_to_string(&log).unwrap().lines().map(|l| serde_json::from_str(l).unwrap()).collect();
+    assert_eq!(lines.len(), 1, "{lines:?}");
+    let v = &lines[0];
+    assert_eq!((v["event"].as_str(), v["kind"].as_str()), (Some("delivered"), Some("start_view")));
+    assert_eq!(v["endpoint"], "stef:21");
+    assert!(v["seq"].is_null());
+    assert!(v["at"].as_i64().unwrap() >= before);
+}
+
+#[test]
 fn resume_prints_nothing_and_keeps_the_cursor() {
     let e = env();
     let r = repo_of(&e.repo).unwrap().to_string_lossy().into_owned();
