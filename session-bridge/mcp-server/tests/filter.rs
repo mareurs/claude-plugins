@@ -785,6 +785,20 @@ fn without_db() -> Env {
 }
 
 #[test]
+fn a_missing_database_drains_pending_unfiltered_and_creates_only_the_log() {
+    let e = without_db();
+    assert!(e.st().worker_pid.is_some());
+    let before = snapshot(e.root());
+    let o = cli(&e, PROFILE);
+    assert_eq!(o.status.code(), Some(0));
+    assert_drained(&e, "notice store unavailable");
+    // No database is created; the verdict log of the drain is the only new file.
+    let after = snapshot(e.root());
+    let created: Vec<_> = after.keys().filter(|k| !before.contains_key(*k)).collect();
+    assert_eq!(created, vec![&e.state.join("verdicts.jsonl")], "{created:?}");
+}
+
+#[test]
 fn a_relative_config_dir_drains_pending_unfiltered() {
     let e = Env::new();
     assert!(e.st().worker_pid.is_some());
@@ -811,17 +825,24 @@ fn a_locate_failure_drains_pending_unfiltered() {
 }
 
 #[test]
-fn a_missing_database_drains_pending_unfiltered_and_creates_no_file() {
-    let e = without_db();
-    assert!(e.st().worker_pid.is_some());
-    let before = snapshot(e.root());
-    let o = cli(&e, PROFILE);
+fn a_locate_failure_drain_is_logged() {
+    let e = Env::new();
+    let o = cli_run(e.root(), &e.config, PROFILE, std::ffi::OsStr::new("relative-claude"), &[], Duration::from_secs(30));
     assert_eq!(o.status.code(), Some(0));
-    assert_drained(&e, "notice store unavailable");
-    let after = snapshot(e.root());
-    let created: Vec<_> = after.keys().filter(|k| !before.contains_key(*k)).collect();
-    assert!(created.is_empty(), "{created:?}");
+    let log = std::fs::read_to_string(e.state.join("verdicts.jsonl")).expect("the drain writes the verdict log");
+    let lines: Vec<serde_json::Value> = log.lines().map(|l| serde_json::from_str(l).unwrap()).collect();
+    assert_eq!(lines.len(), 2, "{log}");
+    let mut seqs: Vec<i64> = lines.iter().map(|v| v["seq"].as_i64().unwrap()).collect();
+    seqs.sort();
+    assert_eq!(seqs, vec![1, 2]);
+    for v in &lines {
+        assert_eq!(v["unfiltered_reason"], "no claude binary", "{v}");
+        assert_eq!(v["relevant"], true, "{v}");
+        assert_eq!(v["endpoint"], format!("{PROFILE}:{PID}"), "{v}");
+        assert!(v["at"].is_string(), "{v}");
+    }
 }
+
 
 #[test]
 fn an_unopenable_database_drains_pending_unfiltered() {
@@ -867,6 +888,8 @@ fn a_drain_settles_only_the_oldest_twenty() {
 fn a_drain_without_an_endpoint_state_creates_nothing() {
     let d = TempDir::new().unwrap();
     drain_unfiltered(d.path(), PROFILE, PID, "no claude binary");
+    assert!(!endpoint_path(d.path(), PROFILE, PID).exists(), "no endpoint state");
+    assert!(!d.path().join("verdicts.jsonl").exists(), "no verdict log");
     assert_eq!(std::fs::read_dir(d.path()).unwrap().count(), 0);
 }
 

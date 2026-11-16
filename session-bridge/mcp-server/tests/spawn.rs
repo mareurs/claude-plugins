@@ -1,10 +1,12 @@
 //! The detached spawn the hook uses for the filter worker, checked on a harmless child
-//! (`/bin/sh -c "sleep 2"`). No filter worker and no `claude` is started here.
+//! (`/bin/sh -c "sleep 30"`). No filter worker and no `claude` is started here.
 //!
 //! The spawn runs in a helper: this test binary, run again with `SB_SPAWN_HELPER` set and a
-//! regular file as stdin. The test's own stdin may already be /dev/null (cargo started from
-//! a script), and an inherited stdin would then look right; a regular file shows it. The
-//! helper is the child's parent, so it reaps the child after the test kills it.
+//! regular file as stdin and as stderr (stdout is the pipe the pid comes back on). The test's
+//! own stdio may already be /dev/null (cargo started from a script), and an inherited fd
+//! would then look right; a regular file or a pipe shows it. The helper is the child's
+//! parent, so it reaps the child after the test kills it. The child sleeps 30 s, far longer
+//! than the checks, so the kill never meets an exited (and reaped, or reused) pid.
 
 use nix::sys::signal::{kill, Signal};
 use nix::sys::wait::waitpid;
@@ -30,7 +32,7 @@ fn spawn_helper() {
     if std::env::var_os(HELPER).is_none() {
         return;
     }
-    let pid = spawn_detached(Path::new("/bin/sh"), &["-c", "sleep 2"]).expect("the child starts");
+    let pid = spawn_detached(Path::new("/bin/sh"), &["-c", "sleep 30"]).expect("the child starts");
     println!("PID={pid}");
     waitpid(Pid::from_raw(pid as i32), None).unwrap();
 }
@@ -43,7 +45,8 @@ fn the_child_runs_in_its_own_session_with_null_stdio() {
         .env(HELPER, "1")
         .stdin(stdin)
         .stdout(Stdio::piped())
-        .stderr(Stdio::null())
+        // A regular (unlinked) file: an inherited fd 2 shows up as `/tmp/… (deleted)`.
+        .stderr(tempfile::tempfile().unwrap())
         .spawn()
         .unwrap();
     let mut out = std::io::BufReader::new(helper.stdout.take().unwrap()).lines();

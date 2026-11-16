@@ -350,29 +350,37 @@ pub fn clear_worker_pid(state: &Path, profile: &str, pid: u32) {
 /// `pending` and clear `worker_pid`, in one locked update. The next hook trigger delivers
 /// them, and `pending` shrinks, so a broken setup cannot keep the endpoint starting workers.
 /// Only the seqs are needed, so no store is read. Only when the endpoint state file already
-/// exists: it never creates a file.
+/// exists: it never creates that file. The drained verdicts go to the verdict log like any
+/// others, so unfiltered deliveries can be counted from it.
 pub fn drain_unfiltered(state: &Path, profile: &str, pid: u32, reason: &str) {
     let path = endpoint_path(state, profile, pid);
     if !path.exists() {
         return;
     }
+    let mut logged: Vec<Verdict> = vec![];
     let drained = update(&path, |s| {
         let batch = oldest_batch(&s.pending);
         for q in &batch {
-            s.verdicts.retain(|v| v.seq != *q);
-            s.verdicts.push(Verdict {
+            let v = Verdict {
                 seq: *q,
                 relevant: true,
                 evidence: String::new(),
                 why: String::new(),
                 unfiltered_reason: Some(reason.to_string()),
-            });
+            };
+            s.verdicts.retain(|o| o.seq != *q);
+            s.verdicts.push(v.clone());
+            logged.push(v);
         }
         s.pending.retain(|q| !batch.contains(q));
         s.worker_pid = None;
     });
-    if let Err(e) = drained {
-        crate::diag::note(&format!("filter: drain: {e}"));
+    match drained {
+        Err(e) => crate::diag::note(&format!("filter: drain: {e}")),
+        Ok(()) if !logged.is_empty() => {
+            append_log(state, profile, pid, &logged);
+        }
+        Ok(()) => {}
     }
 }
 
