@@ -29,6 +29,9 @@ const MAX_TITLE_CHARS: usize = 120;
 const MAX_BODY_CHARS: usize = 4000;
 /// Wall time of one whole backup scan over all worktrees.
 pub const SCAN_BUDGET: Duration = Duration::from_secs(15);
+/// A backup notice is skipped when the endpoint posted a notice up to this long BEFORE the
+/// commit, or at any time after it (5 minutes).
+pub const SUPPRESS_WINDOW_MS: i64 = 300_000;
 const WATCH_FILE: &str = ".claude/notice-watch.txt";
 
 /// One own commit that touched a watched path.
@@ -406,9 +409,12 @@ fn clean(s: &str) -> String {
 }
 
 /// Post one `commit` notice per counted commit, oldest first, and return how many were posted.
-/// A commit is skipped when the endpoint posted a notice after it (`last_post_ms` is later than
-/// the commit time: the agent announced it itself) or when the store already holds its
-/// patch-id for `repo`. A store limit error on one commit is noted and the next still posts.
+/// A commit is skipped when the endpoint posted a notice with `post_notice` up to
+/// `SUPPRESS_WINDOW_MS` before the commit time or at any time after it (`last_post_ms >
+/// committed_ms - SUPPRESS_WINDOW_MS`: the agent announced it itself, before or after the
+/// commit; the scan starts right after the commit, so the window before it is the one that
+/// matters), or when the store already holds its patch-id for `repo`. A store limit error on
+/// one commit is noted and the next still posts.
 pub fn post_commit_notices(
     store: &Store,
     repo: &str,
@@ -419,7 +425,7 @@ pub fn post_commit_notices(
 ) -> Result<usize> {
     let mut posted = 0;
     for c in counted {
-        if last_post_ms > c.committed_ms {
+        if last_post_ms > c.committed_ms - SUPPRESS_WINDOW_MS {
             continue;
         }
         let title: String = clean(&c.subject).chars().take(MAX_TITLE_CHARS).collect();

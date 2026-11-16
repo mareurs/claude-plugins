@@ -1,23 +1,25 @@
 ---
 name: announcing-changes
-description: "Use after you make a change that other live sessions of this repository may depend on: a moved branch, a changed tool, hook, binary, config, gate or convention, a plan or design that changed status, or a finding other sessions would act on."
+description: "Use when you make a change that other live sessions of this repository may depend on, and before you commit it: a moved branch, a changed tool, hook, binary, config, gate or convention, a plan or design that changed status, or a finding other sessions would act on."
 ---
 
 # Announcing changes
 
-Other Claude Code sessions work in this repository at the same time. They cannot see
-your edits. `post_notice` tells them. A filter shows a notice only to a session whose
-own work names the same thing. If the filter cannot judge a notice, the notice is shown anyway and
-marked `(not filtered: ...)`.
+Other Claude Code sessions work in this repository at the same time. They cannot see your
+edits. `post_notice` tells them. A filter shows a notice only to a session whose own work
+names the same thing. If the filter cannot judge a notice, it is shown marked `(not filtered: ...)`.
 
 ## When to post
 
-Post after a change that another session may build on or collide with:
+Post about a change that another session may build on or collide with, BEFORE you commit it:
 
 - a moved or rebased branch, a new commit that others must pull;
 - a changed tool, hook, binary, config file, gate or convention;
 - a plan or design that changed status;
 - a finding that other sessions would act on.
+
+A watched commit that nobody announced produces a backup notice from the commit itself.
+Announce first, then commit: a notice after the commit makes the readers get two.
 
 ## When not to post
 

@@ -148,9 +148,12 @@ notice, posted for it from the commit.
   stored for the repository is not posted again. A rebase, a fast-forward, a cherry-pick or a
   twin worktree therefore announces a change once. Merge commits have an empty patch-id and are
   never announced.
-- **Suppression**: any notice the endpoint posted with `post_notice` after the commit, about anything
-  and in any repository, suppresses the backup notice for that commit (`last_post_ms` is set by every
-  `post_notice`). The comparison is against the commit time, which git records to the second.
+- **Suppression**: a notice the endpoint posted with `post_notice` up to 5 minutes BEFORE the
+  commit, or at any time after it (up to the scan), suppresses the backup notice for that commit
+  (`last_post_ms > committed_ms - SUPPRESS_WINDOW_MS`, 300 000 ms). Any such notice counts,
+  about anything and in any repository: `last_post_ms` is set by every `post_notice`, not by
+  the backup's own commit notices. The commit time is recorded by git to the second. The scan
+  starts right after the commit, so announce BEFORE you commit.
 - **Cap**: at most the newest 50 new commits per worktree and scan. A scan visits at most 32
   worktrees and stops after 15 s.
 - **First sight**: the first scan of a worktree counts only the commits made since the endpoint's
@@ -204,6 +207,8 @@ out. It prints nothing and exits 0 when there is no store or no repository. `ser
   immediate look and starts a backup-scan worker (at most one per 15 s). `Commit` with a capital
   letter does not trigger. A commit made through a tool whose input does not contain the
   substring is found only when a worker runs for another reason.
+- Commit then announce gives two notices: the scan runs right after the commit, before the
+  agent can announce it, so the backup notice is already posted. Announce before you commit.
 - Commits made before a `/clear` carry the old session id and never match the new one.
 - A worker is considered alive while `/proc/<pid>` exists, so a reused pid can delay the next
   worker until that other process ends.

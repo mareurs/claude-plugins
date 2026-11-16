@@ -4,8 +4,10 @@
 use globset::{Glob, GlobSet, GlobSetBuilder};
 use session_bridge_mcp::commits::{
     collect, log_argv, parse_log, post_commit_notices, scan as scan_since, watch_list, worktrees, Counted,
+    SUPPRESS_WINDOW_MS,
 };
 use session_bridge_mcp::filter::run_filter_with;
+use session_bridge_mcp::server::{post_notice_impl, PostNoticeArgs};
 use session_bridge_mcp::state::{endpoint_path, load_or_default, update};
 use session_bridge_mcp::store::{Notice, Origin, Store};
 use std::path::{Path, PathBuf};
@@ -256,15 +258,72 @@ fn merge_to_another_worktree_is_not_announced_twice() {
 }
 
 #[test]
-fn a_manual_notice_after_the_commit_suppresses_the_backup() {
+fn the_suppression_window_boundary_is_pinned() {
     let fx = Fx::new();
     let r = fx.repo();
     let old = fx.head(&r);
     fx.commit(&r, &[("Cargo.toml", "a\n")], "bump", Some(S), T0);
     let (_, c) = scan(&r, Some(&old), S, &watch(&["Cargo.toml"])).unwrap();
     let st = store(&fx);
-    assert_eq!(post(&st, "R", &c, (T0 + 10) * 1000), 0, "the agent announced it itself");
-    assert_eq!(post(&st, "R", &c, (T0 - 10) * 1000), 1, "a manual notice from before the commit does not count");
+    let at = T0 * 1000;
+    assert_eq!(post(&st, "R", &c, at + 10_000), 0, "posted after the commit: suppressed");
+    assert_eq!(post(&st, "R", &c, at - SUPPRESS_WINDOW_MS + 1), 0, "1 ms inside the window: suppressed");
+    assert_eq!(post(&st, "R", &c, at - SUPPRESS_WINDOW_MS), 1, "exactly the window before the commit: posted");
+}
+
+/// The worker-level flow: the first run records the head, then a commit at `T0` with the
+/// endpoint's `last_post_ms` set (or not) before the scan. Returns the commit notices stored.
+async fn backup_notices_with_last_post(last_post_ms: Option<i64>) -> usize {
+    let w = W::new();
+    w.run().await;
+    w.fx.commit(&w.repo, &[("Cargo.toml", "a\n")], "bump deps", Some(S), T0);
+    if let Some(ms) = last_post_ms {
+        update(&endpoint_path(&w.state, PROFILE, PID), |s| s.last_post_ms = ms).unwrap();
+    }
+    w.run().await;
+    commit_notices(&w.store)
+}
+
+fn commit_notices(st: &Store) -> usize {
+    let head = st.head().unwrap();
+    let seqs: Vec<i64> = (1..=head).collect();
+    st.get_many(&seqs).unwrap().iter().filter(|n| n.origin == Origin::Commit).count()
+}
+
+#[tokio::test]
+async fn a_post_30_s_before_the_commit_suppresses_the_backup() {
+    assert_eq!(backup_notices_with_last_post(Some(T0 * 1000 - 30_000)).await, 0);
+}
+
+#[tokio::test]
+async fn a_post_6_minutes_before_the_commit_does_not_suppress_the_backup() {
+    assert_eq!(backup_notices_with_last_post(Some(T0 * 1000 - 360_000)).await, 1);
+}
+
+#[tokio::test]
+async fn no_post_at_all_gives_the_backup() {
+    assert_eq!(backup_notices_with_last_post(None).await, 1);
+}
+
+#[tokio::test]
+async fn a_post_after_the_commit_and_before_the_scan_suppresses_the_backup() {
+    assert_eq!(backup_notices_with_last_post(Some(T0 * 1000 + 10_000)).await, 0);
+}
+
+/// The real wiring: `post_notice_impl` sets `last_post_ms` to now, and the agent commits 30 s
+/// later (the fixture dates the commit). The worker posts no backup notice.
+#[tokio::test]
+async fn announcing_through_post_notice_before_the_commit_suppresses_the_backup() {
+    let w = W::new();
+    w.run().await;
+    let args = PostNoticeArgs { title: "bumping deps".into(), body: "next commit".into(), refs: vec![] };
+    post_notice_impl(&w.state, (PROFILE, PID), &w.repo, args).unwrap();
+    let posted_at = w.st().last_post_ms;
+    assert!(posted_at > 0, "post_notice_impl recorded the post");
+    w.fx.commit(&w.repo, &[("Cargo.toml", "a\n")], "bump deps", Some(S), posted_at / 1000 + 30);
+    w.run().await;
+    assert_eq!(commit_notices(&w.store), 0, "the agent announced it itself");
+    assert_eq!(w.store.head().unwrap(), 1, "only the manual notice");
 }
 
 fn only_notice(st: &Store, seq: i64) -> Notice {
