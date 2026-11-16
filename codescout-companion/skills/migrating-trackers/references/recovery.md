@@ -4,7 +4,7 @@ Read this when `apply` exits 2, when `check` is not clean and the user wants the
 
 ## Before apply: the snapshot
 
-Run `git status --porcelain` before `apply` and keep the output. It is the only record of what the tree held before the migration wrote anything.
+Run `git status --porcelain --untracked-files=all` before `apply` and keep the output. Plain `--porcelain` collapses an untracked folder into one line (`?? docs/trackers/ledgers/`), which names no file. With `--untracked-files=all` every file has its own line. This snapshot is the only record of what the tree held before the migration wrote anything.
 
 ## Check exited 2
 
@@ -12,20 +12,20 @@ Run `git status --porcelain` before `apply` and keep the output. It is the only 
 
 ## Old catalog side files (`-wal` or `-shm`)
 
-A message about the old catalog's `-wal` or `-shm` file is exit 2 from `apply` or `check`, `{"ran": false, ...}`. `--no-old-catalog` does not bypass it. Show the reason and stop for the user. The binary's remedy: stop every codescout process, then run `PRAGMA wal_checkpoint(TRUNCATE)` on the catalog. Do not ask whether the repository ever had an old catalog.
+A message about the old catalog's `-wal` or `-shm` file is exit 2 from `apply`, `{"ran": false, ...}`. `--no-old-catalog` does not bypass it. Show the reason and stop for the user. The binary's remedy: stop every codescout process, then run `PRAGMA wal_checkpoint(TRUNCATE)` on the catalog. Do not ask whether the repository ever had an old catalog.
 
 ## Apply exited 2
 
 The stop JSON is `{"ran": false, "reason": "<one line>"}`. It carries no `written` or `deleted` list. Show the reason, then:
 
-1. **Fix the cause and re-run the same `apply`.** The user decides on the cause fix and makes it (or says "fix it"); you may inspect read-only. Keep the first `git status --porcelain` snapshot: do not take a new one before the re-run. A run completes the one before it: a file already written comes back under `already_applied`, so the union of `written`, `deleted` and `already_applied` of the run that exits 0 is the full set. This is the first choice.
-2. **Restore.** If the user wants the tree back, compare `git status --porcelain` now with the snapshot. The paths that differ are the migration's. Restore those paths by exact names (`git restore --source=HEAD --staged --worktree -- <names>` for tracked ones; remove an untracked new file by its exact name). Never restore or clean a directory. Never touch a path that is not in the difference, and never the untracked `.codescout/`.
+1. **Fix the cause and re-run the same `apply`.** The user decides on the cause fix and makes it (or says "fix it"); you may inspect read-only. Keep the first `git status --porcelain --untracked-files=all` snapshot: do not take a new one before the re-run. A run completes the one before it: a file already written comes back under `already_applied`, so the union of `written`, `deleted` and `already_applied` of the run that exits 0 is the full set. This is the first choice.
+2. **Restore.** Only if the user wants the tree back. Take `git status --porcelain --untracked-files=all` now and compare it with the snapshot. In a shared checkout a peer may have changed other files since the snapshot: not every difference is the migration's. Restore only a differing path that `apply` could have touched: under the target collection folder, a source path, the sidecar, or a markdown file the inventory lists as a citation mention. Show every other differing path to the user and leave it alone. Restore by exact names: `git restore --source=HEAD --staged --worktree -- <tracked names>`; remove an untracked new file by its exact name with a plain `rm -- <name>`. Never restore or remove a directory. Never touch the untracked `.codescout/`.
 
 A dirty path under `docs/trackers/` that the plan does not write or delete is another session's work. `apply` refuses on it; do not clear it to get past the refusal.
 
 ## Check is not clean
 
-Show `blocking`. The user chooses: fix the mapping and re-run `apply` (a mapping fix with the same files is an idempotent re-run), or restore as above. Writes nothing by hand either way.
+Show `blocking`. The user chooses: fix the mapping and re-run `apply` (a mapping fix with the same files is an idempotent re-run), or restore. After an `apply` that exited 0 the exact list exists: restore exactly the union of `written`, `deleted` and `already_applied` from that apply's JSON, by those names, and nothing from a snapshot difference. Writes nothing by hand either way.
 
 ## Late records
 

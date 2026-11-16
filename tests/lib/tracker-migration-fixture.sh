@@ -17,6 +17,10 @@ fi
 
 mkdir -p "$dir/docs/trackers" "$dir/docs/augmentations" "$dir/scripts"
 cd "$dir"
+# Isolate git from the user's configuration and pin the commit date: the worked mapping's
+# override for the row-only record D-3 is this date, and it equals the blame date of D-3's row.
+export GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1
+export GIT_AUTHOR_DATE="2026-01-12T00:00:00+0000" GIT_COMMITTER_DATE="2026-01-12T00:00:00+0000"
 git init -q -b main
 
 cat > docs/trackers/demo-log.md <<'EOF'

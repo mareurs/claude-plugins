@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 # Colocated test for the migrating-trackers skill.
-# Part 1: structural assertions on SKILL.md and its references.
+# Part 1: structural assertions on SKILL.md and its references. This part is PHRASE-MATCHING: it
+# proves the text says what it should, not that an agent follows it (the agent scenarios in
+# tests/scenarios/migrating-trackers.md do that).
 # Part 2: runtime assertions. The worked mapping in references/mapping.md must be legal against a
 # real `codescout trackers` (apply exits 0, check is clean). Without a binary that has `trackers`,
 # Part 2 SKIPs loudly ("NOT checked") and passes.
@@ -48,7 +50,31 @@ for banned in 'git add docs/' 'git add -A' 'git add .' 'git commit -a' 'git push
   grep -qF -- "$banned" "$SKILL" && fail "does not name $banned" "found in SKILL.md" || pass "does not name $banned"
 done
 
-grep -qE 'git commit -m .* -- <' "$SKILL" && pass "commit line carries a pathspec" || fail "commit line carries a pathspec" "absent"
+grep -qE 'git commit -m .* --pathspec-from-file' "$SKILL" && pass "commit line carries a pathspec" || fail "commit line carries a pathspec" "absent"
+
+# I-2: Step 8 stages and commits by a names file, never by retyped names
+line_of() { grep -F -- "$1" "$2" | head -1; }
+grep -qE 'git add --pathspec-from-file' "$SKILL" && ! grep -qE 'git add -- <' "$SKILL" \
+  && pass "Step 8 stages by pathspec file" || fail "Step 8 staging" "no pathspec-from-file add, or a retyped add"
+grep -F 'unique' "$SKILL" | grep -qF '.names' && pass "Step 8 builds the names file with jq" || fail "Step 8 names file" "absent"
+
+# I-1: untracked-files=all in the snapshot (recovery) and in Step 7; restore uses the apply list;
+# no destructive command appears in either file as an instruction (a line with never/do not is a prohibition)
+grep -qF -- '--untracked-files=all' "$RECOVERY_MD" && pass "recovery.md snapshot uses --untracked-files=all" || fail "recovery untracked-files" "absent"
+line_of '**Review.**' "$SKILL" | grep -qF -- '--untracked-files=all' && pass "Step 7 uses --untracked-files=all" || fail "Step 7 untracked-files" "absent"
+line_of '## Check is not clean' "$RECOVERY_MD" >/dev/null
+grep -A2 '^## Check is not clean' "$RECOVERY_MD" | grep -qF 'exactly the union' && pass "restore after a clean apply uses the apply list" || fail "restore list" "absent"
+for f in "$SKILL" "$RECOVERY_MD"; do
+  bad=$(grep -nE 'git clean|git checkout -- |rm -rf' "$f" | grep -vE '[Nn]ever|[Dd]o not|[Dd]on.t' || true)
+  [ -z "$bad" ] && pass "$(basename "$f") has no destructive instruction" || fail "$(basename "$f") destructive instruction" "$bad"
+done
+
+# M5: no repo-specific names in a shipped skill
+grep -qE 'bistriceanu|bug-fix-session-log' "$SKILL" && fail "no repo-specific names" "found" || pass "no repo-specific names in SKILL.md"
+# M7: where the cutover export names come from
+line_of '**Catalog facts.**' "$SKILL" | grep -qF '.apply.written' && pass "Step 0.3 says where export names come from" || fail "Step 0.3 export names" "absent"
+# I-3: row-only created comes from blame
+grep -F '`row_only`' "$MAPPING_MD" | grep -qF 'git blame' && pass "mapping.md sources the row-only date from blame" || fail "row-only date source" "absent"
 
 # check refusal shapes (manual: three cases) and the three result shapes in Step 6
 for needle in 'normalised repository path' 'target.existing' 'does not parse' '"reason"'; do
@@ -64,7 +90,7 @@ line_of '1. **Binary.**' "$SKILL" | grep -qF 'trackers apply --help' && line_of 
   && pass "binary probe covers apply and check help" || fail "binary probe" "Binary line lacks apply/check --help"
 line_of '**Review.**' "$SKILL" | grep -qF 'git status --porcelain' \
   && pass "Step 7 shows git status --porcelain beside the stat" || fail "Step 7 status" "Review line lacks git status --porcelain"
-line_of '1. **Fix the cause' "$RECOVERY_MD" | grep -qF 'first `git status --porcelain` snapshot' \
+line_of '1. **Fix the cause' "$RECOVERY_MD" | grep -qF 'first `git status --porcelain --untracked-files=all` snapshot' \
   && pass "recovery keeps the first snapshot on re-run" || fail "recovery snapshot" "Fix-the-cause item lacks it"
 # the risky flag is not in the default Step 5 command
 grep -F '**Apply.**' "$SKILL" | grep -qF -- '--no-old-catalog' && fail "Step 5 default command has no --no-old-catalog" "flag present" || pass "Step 5 default command has no --no-old-catalog"
@@ -130,7 +156,10 @@ else
   }
 
   # 0. every jq query in mapping.md parses and runs against a real inventory
-  RJ="$TMP/rj"; bash "$FIXTURE" "$RJ" >/dev/null 2>&1
+  mkfx() { # <dir>: build a fixture; a failing builder is a test failure, not a silent skip
+    if ! bash "$FIXTURE" "$1" >"$TMP/fx.log" 2>&1; then fail "fixture builds ($1)" "$(cat "$TMP/fx.log")"; return 1; fi
+  }
+  RJ="$TMP/rj"; mkfx "$RJ"
   "$BIN" trackers inventory docs/trackers/demo-log.md --project "$RJ" --json > "$TMP/inv.json" 2>/dev/null
   nq=0
   while IFS= read -r line; do
@@ -141,7 +170,7 @@ else
   [ "$nq" -ge 10 ] && pass "found $nq jq queries" || fail "found jq queries" "only $nq"
 
   # 1. apply + check on the good mapping
-  R1="$TMP/r1"; bash "$FIXTURE" "$R1" >/dev/null 2>&1
+  R1="$TMP/r1"; mkfx "$R1"
   M1=$(place_mapping "$R1" "$EX")
   AOUT=$("$BIN" trackers apply "$M1" --project "$R1" --no-old-catalog --json 2>/dev/null); arc=$?
   [ "$arc" -eq 0 ] && pass "apply exits 0" || fail "apply exits 0" "exit $arc: $AOUT"
@@ -152,7 +181,7 @@ else
     && pass "check exits 0 and is clean" || fail "check clean" "exit $crc: $COUT"
 
   # 2. status_map without fixed-verified: apply refuses
-  R2="$TMP/r2"; bash "$FIXTURE" "$R2" >/dev/null 2>&1
+  R2="$TMP/r2"; mkfx "$R2"
   grep -v '^fixed-verified' "$EX" > "$TMP/nostatus.toml"
   M2=$(place_mapping "$R2" "$TMP/nostatus.toml")
   ROUT=$("$BIN" trackers apply "$M2" --project "$R2" --no-old-catalog --json 2>/dev/null); rrc=$?
@@ -160,25 +189,41 @@ else
     && pass "apply refuses a status_map gap (exit 1, refused key)" || fail "apply refusal" "exit $rrc: $ROUT"
 
   # 3. not TOML: check refuses
-  R3="$TMP/r3"; bash "$FIXTURE" "$R3" >/dev/null 2>&1
+  R3="$TMP/r3"; mkfx "$R3"
   printf 'this is = not [valid toml\n' > "$TMP/broken.toml"
   M3=$(place_mapping "$R3" "$TMP/broken.toml")
   BOUT=$("$BIN" trackers check "$M3" --project "$R3" --json 2>/dev/null); brc=$?
   [ "$brc" -eq 1 ] && [ "$(echo "$BOUT" | jq 'has("refused")' 2>/dev/null)" = "true" ] \
     && pass "check refuses a broken mapping (exit 1, refused key)" || fail "check refusal" "exit $brc: $BOUT"
 
-  # 4. commit by exact names, then check exits 2 with ran=false
-  names=$(echo "$AOUT" | jq -r '[.written[], .deleted[], .already_applied[]] | unique | .[]')
-  if [ -n "$names" ]; then
-    git -C "$R1" config user.email t@example.invalid; git -C "$R1" config user.name t
-    # shellcheck disable=SC2086
-    (cd "$R1" && echo "$names" | xargs git add -- && git commit -q -m "test: migrate demo-log" -- $(echo "$names" | tr '\n' ' ')) >/dev/null 2>&1
-    CC=$("$BIN" trackers check "$M1" --project "$R1" --json 2>/dev/null); ccrc=$?
-    [ "$ccrc" -eq 2 ] && [ "$(echo "$CC" | jq '.ran' 2>/dev/null)" = "false" ] \
-      && pass "check after the commit exits 2 with ran false" || fail "check after commit" "exit $ccrc: $CC"
-  else
-    fail "commit names" "apply listed no names"
-  fi
+  # 4. the Step 8 procedure: names file from the apply JSON, stage and commit by the file
+  GD=$(git -C "$R1" rev-parse --absolute-git-dir)
+  printf '%s\n' "$AOUT" > "$GD/tracker-migration/demo-log.apply.json"
+  NAMES="$GD/tracker-migration/demo-log.names"; STAGED="$GD/tracker-migration/demo-log.staged"
+  jq -r '[.written[], .deleted[], .already_applied[]] | unique | .[]' "$GD/tracker-migration/demo-log.apply.json" > "$NAMES"
+  [ "$(wc -l < "$NAMES")" -eq 6 ] && pass "names file holds the six paths" || fail "names file" "$(cat "$NAMES")"
+  export GIT_AUTHOR_NAME=t GIT_AUTHOR_EMAIL=t@example.invalid GIT_COMMITTER_NAME=t GIT_COMMITTER_EMAIL=t@example.invalid
+  git -C "$R1" add --pathspec-from-file="$NAMES" >/dev/null 2>&1 && pass "git add --pathspec-from-file" || fail "git add --pathspec-from-file" "refused"
+  git -C "$R1" diff --cached --name-only > "$STAGED"
+  cmp_out=$(LC_ALL=C sort "$NAMES" | diff - <(LC_ALL=C sort "$STAGED"))
+  [ -z "$cmp_out" ] && pass "staged set equals the names file" || fail "staged set" "$cmp_out"
+  git -C "$R1" commit -q -m "test: migrate demo-log" --pathspec-from-file="$NAMES" >/dev/null 2>&1 && pass "git commit --pathspec-from-file" || fail "git commit --pathspec-from-file" "refused"
+  committed=$(git -C "$R1" show --name-only --format= HEAD | LC_ALL=C sort)
+  [ "$committed" = "$(LC_ALL=C sort "$NAMES")" ] && pass "the commit holds exactly the six paths" || fail "commit content" "$committed"
+  rest=$(git -C "$R1" status --porcelain --untracked-files=all | grep -v '^?? \.codescout/' || true)
+  [ -z "$rest" ] && pass "nothing else is dirty" || fail "dirty after commit" "$rest"
+  git -C "$R1" status --porcelain --untracked-files=all | grep -q '^?? \.codescout/' \
+    && ! git -C "$R1" ls-files --error-unmatch .codescout/write.lock >/dev/null 2>&1 \
+    && pass ".codescout/ stays untracked" || fail ".codescout/ untracked" "missing or tracked"
+  CC=$("$BIN" trackers check "$M1" --project "$R1" --json 2>/dev/null); ccrc=$?
+  [ "$ccrc" -eq 2 ] && [ "$(echo "$CC" | jq '.ran' 2>/dev/null)" = "false" ] \
+    && pass "check after the commit exits 2 with ran false" || fail "check after commit" "exit $ccrc: $CC"
+
+  # 5. the worked example's D-3 date is the blame date of D-3's row in a fresh fixture
+  ROW=$(grep -n '| D-3 |' "$RJ/docs/trackers/demo-log.md" | head -1 | cut -d: -f1)
+  BLAME=$(git -C "$RJ" blame -L "$ROW,$ROW" --date=short -- docs/trackers/demo-log.md | grep -oE '[0-9]{4}-[0-9]{2}-[0-9]{2}' | head -1)
+  EXD=$(grep -A1 '^\[overrides."D-3"\]' "$EX" | grep -oE '[0-9]{4}-[0-9]{2}-[0-9]{2}')
+  [ -n "$BLAME" ] && [ "$BLAME" = "$EXD" ] && pass "example D-3 date ($EXD) equals the row's blame date" || fail "example D-3 date" "example '$EXD', blame '$BLAME'"
 fi
 
 echo ""
