@@ -124,4 +124,37 @@ fn a_panic_in_prompt_or_post_tool_exits_zero_silently() {
         assert!(o.stderr.is_empty());
     }
 }
+/// `HOME=""` and no `XDG_STATE_HOME`: there is no absolute state root. The child's cwd is a
+/// temp dir, so a relative root would land there.
+fn run_without_state_root(args: &[&str], stdin: &str, cwd: &std::path::Path) -> Output {
+    let mut child = Command::new(env!("CARGO_BIN_EXE_session-bridge"))
+        .args(args)
+        .current_dir(cwd)
+        .env("HOME", "")
+        .env_remove("XDG_STATE_HOME")
+        .env("CLAUDE_CONFIG_DIR", "/nonexistent/.claude-stef")
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .unwrap();
+    let _ = child.stdin.take().unwrap().write_all(stdin.as_bytes());
+    child.wait_with_output().unwrap()
+}
+
+/// The hook only gets as far as the state root when a Claude Code process with a messaging
+/// socket is among its ancestors (it is when these tests run inside a Claude Code session; the
+/// pure `state_root` test in tests/paths.rs carries the rule everywhere else).
+#[test]
+fn without_an_absolute_state_root_nothing_is_created_in_the_cwd() {
+    let d = TempDir::new().unwrap();
+    let cwd = d.path().to_string_lossy().into_owned();
+    let start = format!(r#"{{"session_id":"S","cwd":"{cwd}","hook_event_name":"SessionStart","source":"startup"}}"#);
+    let prompt = format!(r#"{{"session_id":"S","cwd":"{cwd}","hook_event_name":"UserPromptSubmit"}}"#);
+    silent_ok(&run_without_state_root(&["hook", "session-start"], &start, d.path()));
+    silent_ok(&run_without_state_root(&["hook", "prompt"], &prompt, d.path()));
+    silent_ok(&run_without_state_root(&["notices", "--repo", &cwd, "--after", "0"], "", d.path()));
+    silent_ok(&run_without_state_root(&["filter", "--profile", ".claude-stef", "--pid", "1"], "", d.path()));
+    assert_eq!(tree(d.path()), Vec::<std::path::PathBuf>::new(), "nothing was created in the cwd");
+}
 

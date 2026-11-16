@@ -32,6 +32,8 @@ pub enum BridgeError {
     Store(#[from] rusqlite::Error),
     #[error("not in a git repository")]
     NotInRepo,
+    #[error("state directory not available: set HOME or XDG_STATE_HOME")]
+    NoStateDir,
 }
 
 pub type Result<T> = std::result::Result<T, BridgeError>;

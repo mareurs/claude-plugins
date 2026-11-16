@@ -47,7 +47,7 @@ enum Command {
 /// `after`, as text (one line per notice) or JSON. `None` on any internal error, so the
 /// caller prints nothing and exits 0 (scripts call this).
 fn notices_output(repo_dir: &str, after: u64, json: bool) -> Option<String> {
-    let state = state_root(&|k| std::env::var(k).ok());
+    let state = state_root(&|k| std::env::var(k).ok())?;
     let db = state.join("notices.db");
     if !db.exists() {
         return None;
@@ -123,7 +123,7 @@ fn session_start_output(raw: &str) -> Option<String> {
     let roots = Roots::system();
     let pid = claude_pid_of(&roots, std::process::id())?;
     let profile = profile_of(std::env::var("CLAUDE_CONFIG_DIR").ok().as_deref());
-    let state = state_root(&|k| std::env::var(k).ok());
+    let state = state_root(&|k| std::env::var(k).ok())?;
     std::fs::create_dir_all(&state).ok()?;
     let store = Store::open(&state.join("notices.db")).ok()?;
     let view = session_start(&input, (&profile, pid), &roots, &state, &store)?;
@@ -133,7 +133,7 @@ fn session_start_output(raw: &str) -> Option<String> {
 /// `hook prompt` and `hook post-tool`. This runs on every tool call, so it stops before
 /// touching anything when there is no notice store yet: no store open, no state write.
 fn trigger_output(raw: &str, event: &str) -> Option<String> {
-    let state = state_root(&|k| std::env::var(k).ok());
+    let state = state_root(&|k| std::env::var(k).ok())?;
     let db = state.join("notices.db");
     if !db.exists() {
         return None;
@@ -177,7 +177,10 @@ async fn filter_cmd(profile: &str, pid: u32) {
     if !is_safe_component(profile) {
         return;
     }
-    let state = state_root(&|k| std::env::var(k).ok());
+    // Without a state directory there is no endpoint state to drain into.
+    let Some(state) = state_root(&|k| std::env::var(k).ok()) else {
+        return;
+    };
     let Ok(bin) = locate_claude(&|k| std::env::var(k).ok()) else {
         drain_unfiltered(&state, profile, pid, "no claude binary");
         return;

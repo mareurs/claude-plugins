@@ -3,15 +3,17 @@
 use std::path::{Path, PathBuf};
 
 /// `$XDG_STATE_HOME/session-bridge` when `XDG_STATE_HOME` is set and absolute,
-/// else `$HOME/.local/state/session-bridge`.
-pub fn state_root(env: &dyn Fn(&str) -> Option<String>) -> PathBuf {
+/// else `$HOME/.local/state/session-bridge`; `None` when that is not an absolute path
+/// (`HOME` empty, unset or relative): a relative root would put the state inside whatever
+/// directory the process runs in, a repository maybe.
+pub fn state_root(env: &dyn Fn(&str) -> Option<String>) -> Option<PathBuf> {
     if let Some(x) = env("XDG_STATE_HOME") {
         if Path::new(&x).is_absolute() {
-            return PathBuf::from(x).join("session-bridge");
+            return Some(PathBuf::from(x).join("session-bridge"));
         }
     }
-    let home = env("HOME").unwrap_or_default();
-    PathBuf::from(home).join(".local/state/session-bridge")
+    let root = PathBuf::from(env("HOME").unwrap_or_default()).join(".local/state/session-bridge");
+    root.is_absolute().then_some(root)
 }
 
 /// Basename of the config dir; `.claude` when unset or empty.

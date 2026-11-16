@@ -77,6 +77,11 @@ fn own_config_dir() -> PathBuf {
         None => PathBuf::from(std::env::var("HOME").unwrap_or_default()).join(".claude"),
     }
 }
+/// The state root for a tool call, or the error the tool returns when there is none (no
+/// absolute `XDG_STATE_HOME` and no absolute `HOME`).
+pub fn state_dir(env: &dyn Fn(&str) -> Option<String>) -> Result<PathBuf, BridgeError> {
+    state_root(env).ok_or(BridgeError::NoStateDir)
+}
 
 fn now_ms() -> i64 {
     std::time::SystemTime::now()
@@ -164,7 +169,7 @@ impl Bridge {
         let target = resolve_target(&eps, &args.target, (&me.0, me.1)).map_err(to_error)?.clone();
         let asker = format!("{}:{}", short_profile(&me.0), me.1);
         let bin = locate_claude(&|k| std::env::var(k).ok()).map_err(to_error)?;
-        let state = state_root(&|k| std::env::var(k).ok());
+        let state = state_dir(&|k| std::env::var(k).ok()).map_err(to_error)?;
         let model = args.model.as_deref().unwrap_or("haiku");
         let timeout_s = clamp_timeout(args.timeout_s);
         let result = ask(&bin.to_string_lossy(), &target, &asker, &args.question, model, timeout_s, &state)
@@ -181,7 +186,7 @@ impl Bridge {
         let me = calling_endpoint();
         let cwd = std::fs::read_link(format!("/proc/{}/cwd", me.1))
             .map_err(|e| to_error(BridgeError::Io(e)))?;
-        let state = state_root(&|k| std::env::var(k).ok());
+        let state = state_dir(&|k| std::env::var(k).ok()).map_err(to_error)?;
         let seq = post_notice_impl(&state, (&me.0, me.1), &cwd, args).map_err(to_error)?;
         Ok(format!("Posted notice {seq}."))
     }
