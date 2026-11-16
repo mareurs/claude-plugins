@@ -481,7 +481,7 @@ chmod +x "$HV_FAKE"
 hv_profile() { printf '{"mcpServers":{"codescout":{"command":"%s"}}}' "$1" > "$HV_CFG/.claude.json"; }
 hv_ctx() {  # <source>
   printf '{"cwd":"%s","source":"%s","session_id":"hv-%s"}' "$HV_REPO" "$1" "$1" \
-    | CLAUDE_CONFIG_DIR="$HV_CFG" XDG_STATE_HOME="$TMP/state" node "$HOOK" 2>/dev/null \
+    | HOME="${HV_HOME:-$HOME}" CLAUDE_CONFIG_DIR="$HV_CFG" XDG_STATE_HOME="$TMP/state" node "$HOOK" 2>/dev/null \
     | jq -r '.hookSpecificOutput.additionalContext // ""'
 }
 hv_profile "$HV_FAKE"
@@ -545,8 +545,11 @@ fi
 rm -f "$HV_REPO/.claude/codescout-routing.json"
 
 # Missing binary: the rest of the message is unchanged, the collection is listed as not shown.
+# resolveCodescoutBinary also tries ~/.cargo/bin/codescout, which exists on a developer machine
+# and would turn "missing" into a real binary — so this call runs with an empty HOME.
 hv_profile "$TMP/missing-codescout"
-HV_MISSING=$(hv_ctx startup)
+mkdir -p "$TMP/hv-empty-home"
+HV_MISSING=$(HV_HOME="$TMP/hv-empty-home" hv_ctx startup)
 echo "$HV_MISSING" | grep -q "not shown: busy (hot-view unavailable)" \
   && echo "$HV_MISSING" | grep -q "codescout: Detected in config" \
   && echo "$HV_MISSING" | grep -q "CODESCOUT RULES" \
