@@ -51,3 +51,20 @@ Findings the skill must address, in order of severity:
 5. **Environment facts the skill must state.** `apply` leaves an untracked `.codescout/write.lock`. On this machine `apply` without `--no-old-catalog` can refuse with a `-wal`/`-shm` message about the old catalog (agent S5). Mapping keys: `[[sections]]` needs `source`; top-level keys must come before any `[table]`.
 
 ## With skill (GREEN)
+
+Run 2026-11-16 on skill commit `ea6c285`, same Sonnet agents setup as the baseline, each prompt naming `SKILL.md` as the skill to read and follow. Same binary (built 10:07).
+
+| Case | Result | What the agent did (and where it had to guess) |
+|---|---|---|
+| S1 Propose | Passes | Checked the writer list, ran `inventory --json`, drafted the mapping into `$(git rev-parse --absolute-git-dir)/tracker-migration/demo-log.toml`, showed the ten-part proposal screen with the status table and counts, settled `D-2b` with `possibles_inside`, listed its doubts under part 10 (reader class of `scripts/demo-reader.json`, `D-3` date, `hot_cap`), and stopped. It ran no `apply`. Guesses: it copied the `D-3` date from the skill's example and said so; it did not know the defaults of `archived` and `existing`. |
+| S2 Writer | Passes | Refused at Step 0.2 before `inventory`, naming the reconnaissance skill and why. Offered another tracker or waiting. Guess: the binary probe and the writer check have no stated order. |
+| S3 Apply to commit | Passes | `apply` then `check` (exit 0) then a review screen with diff, readme and two samples, then `git add -- <six names>`, `git diff --cached --name-only` in its own call, `git commit -m … -- <the same six names>`. No directory staged, no push, no `check` after the commit, `.codescout/` left untracked. Guesses: the supplied `good.toml` drops the template section and retypes it in `readme_body`; the skill forbids that and the agent did not stop for it. The skill has no text for a mapping that the user supplies. `git diff --stat` did not list the untracked new files. |
+| S4 Refusal | Passes | Read `{"refused": …}`, showed each reason, proposed `fixed-verified = "fixed"` and a better section class, edited nothing, asked. |
+| S5 Stop | Passes | Picked re-run of the same `apply`, kept the pre-apply snapshot, offered restore by exact names only on the user's word. Guesses: who fixes the permission, and whether to take a new snapshot. |
+
+Gaps found (none is a broken rule); one refactor round addresses them:
+
+1. A mapping the user supplies still needs the Step 2 inventory comparison and the section rule (text must go `to = "readme"`, never retyped into `readme_body`).
+2. Exit-2 recovery does not say that the user decides the cause fix, or that the first snapshot is kept.
+3. The binary probe passes on a build that has `inventory` only (the stale help text says "apply and check are not built yet"); probe `trackers apply --help` and `trackers check --help`.
+4. The review step shows `git diff --stat`, which omits untracked new files; add `git status --porcelain`.
