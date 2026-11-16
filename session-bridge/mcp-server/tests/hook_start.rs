@@ -229,3 +229,21 @@ fn render_and_emit_shapes() {
     assert_eq!(v["hookSpecificOutput"]["additionalContext"], "hi \"x\"\nthere");
     assert!(!emit("SessionStart", "a\nb").contains('\n'), "one compact line");
 }
+
+#[test]
+fn started_ms_is_set_by_the_first_session_start_and_kept_by_the_next() {
+    let e = env();
+    let path = endpoint_path(&e.state, STEF, 20);
+    let before = now_ms();
+    session_start(&input(&e.repo, "S", "startup"), (STEF, 20), &e.roots, &e.state, &e.store);
+    let first = load_or_default(&path).started_ms;
+    assert!(first >= before && first <= now_ms(), "{first}");
+    // A compact or clear on the same pid keeps the original start.
+    session_bridge_mcp::state::update(&path, |s| s.started_ms = 123).unwrap();
+    session_start(&input(&e.repo, "S", "compact"), (STEF, 20), &e.roots, &e.state, &e.store);
+    session_start(&input(&e.repo, "S2", "clear"), (STEF, 20), &e.roots, &e.state, &e.store);
+    assert_eq!(load_or_default(&path).started_ms, 123);
+    // Another pid is another endpoint with its own start.
+    session_start(&input(&e.repo, "S", "resume"), (STEF, 21), &e.roots, &e.state, &e.store);
+    assert!(load_or_default(&endpoint_path(&e.state, STEF, 21)).started_ms >= before);
+}

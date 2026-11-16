@@ -177,12 +177,77 @@ fn patch_id(dir: &Path, sha: &str) -> Result<String> {
     Ok(String::from_utf8_lossy(&out).split_whitespace().next().unwrap_or("").to_string())
 }
 
+/// One commit as `git log` lists it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LogRecord {
+    pub sha: String,
+    pub committed_ms: i64,
+    pub subject: String,
+    /// The `Session-Id` trailer values, separated by `\x1f` or newlines.
+    pub trailers: String,
+}
+
+const LOG_FORMAT: &str = "--format=%H%x00%ct%x00%s%x00%(trailers:key=Session-Id,valueonly,separator=%x1f)%x1e";
+
+/// The argv of the `git log` that lists the commits of `new` (newest first, at most
+/// `MAX_COMMITS + 1`, the extra one only detects an overflow), without those reachable from
+/// `old` when it is given. `--no-show-signature` is load-bearing: a user's
+/// `log.showSignature=true` would print verification text in front of every record.
+pub fn log_argv(new: &str, old: Option<&str>) -> Vec<String> {
+    let mut argv: Vec<String> =
+        ["log", "--no-show-signature", LOG_FORMAT, "-n"].iter().map(|s| s.to_string()).collect();
+    argv.push((MAX_COMMITS + 1).to_string());
+    argv.push(new.to_string());
+    if let Some(old) = old {
+        argv.push(format!("^{old}"));
+    }
+    argv
+}
+
+/// Parse the output of `log_argv`, newest first. A record whose sha is not a sha is skipped
+/// (noted), never an error. Text in front of a record's sha (signature verification output
+/// that slipped through) is ignored: the sha is the last line of the first field.
+pub fn parse_log(out: &str) -> Vec<LogRecord> {
+    let mut records = vec![];
+    for rec in out.split('\x1e') {
+        if rec.trim().is_empty() {
+            continue;
+        }
+        let mut f = rec.splitn(4, '\0');
+        let (Some(first), Some(ct), Some(subject), Some(trailers)) = (f.next(), f.next(), f.next(), f.next()) else {
+            diag::note("commits: skipped a log chunk that is not a record");
+            continue;
+        };
+        let sha = first.lines().map(str::trim).rfind(|l| !l.is_empty()).unwrap_or("");
+        if !is_sha(sha) {
+            diag::note(&format!("commits: skipped a log record with the bad sha {sha:?}"));
+            continue;
+        }
+        records.push(LogRecord {
+            sha: sha.to_string(),
+            committed_ms: ct.trim().parse::<i64>().unwrap_or(0).saturating_mul(1000),
+            subject: subject.to_string(),
+            trailers: trailers.to_string(),
+        });
+    }
+    records
+}
+
+
 /// New commits of `worktree` since `old`, oldest first, that this session made and that touch
 /// a watched path; plus the new head. First sight (`old == None`), or an `old` that no longer
-/// exists (rebased away, collected), returns the head and counts nothing. More than 50 new
+/// exists (rebased away, collected), counts nothing when `started_ms` is 0 (history is never
+/// replayed), else only the commits whose committer time is at or after `started_ms` (the
+/// start of this endpoint). More than 50 new
 /// commits: the newest 50 are considered and the head is still the new one.
-pub fn scan(worktree: &Path, old: Option<&str>, session_id: &str, watch: &GlobSet) -> Result<(String, Vec<Counted>)> {
-    scan_until(worktree, old, session_id, watch, Instant::now() + Duration::from_secs(3600))
+pub fn scan(
+    worktree: &Path,
+    old: Option<&str>,
+    session_id: &str,
+    watch: &GlobSet,
+    started_ms: i64,
+) -> Result<(String, Vec<Counted>)> {
+    scan_until(worktree, old, session_id, watch, started_ms, Instant::now() + Duration::from_secs(3600))
 }
 
 fn scan_until(
@@ -190,41 +255,47 @@ fn scan_until(
     old: Option<&str>,
     session_id: &str,
     watch: &GlobSet,
+    started_ms: i64,
     deadline: Instant,
 ) -> Result<(String, Vec<Counted>)> {
     let new = git(worktree, &["rev-parse", "--verify", "HEAD^{commit}"])?.trim().to_string();
     let session_id = session_id.trim();
-    let Some(old) = old.filter(|o| is_sha(o) && !session_id.is_empty()) else {
-        return Ok((new, vec![]));
-    };
-    if old == new {
+    if session_id.is_empty() {
         return Ok((new, vec![]));
     }
-    let exclude = format!("^{old}");
-    let limit = (MAX_COMMITS + 1).to_string();
-    let log = git(
-        worktree,
-        &[
-            "log",
-            "--format=%H%x00%ct%x00%s%x00%(trailers:key=Session-Id,valueonly,separator=%x1f)%x1e",
-            "-n",
-            &limit,
-            &new,
-            &exclude,
-        ],
-    );
-    let log = match log {
-        Ok(l) => l,
-        Err(e) => {
-            let probe = format!("{old}^{{commit}}");
-            if git(worktree, &["rev-parse", "--verify", "--quiet", &probe]).is_err() {
-                diag::note(&format!("commits: old head {old} is gone in {}: first sight", worktree.display()));
-                return Ok((new, vec![]));
-            }
-            return Err(e);
-        }
+    let list = |old: Option<&str>| -> Result<Vec<LogRecord>> {
+        let argv = log_argv(&new, old);
+        let argv: Vec<&str> = argv.iter().map(String::as_str).collect();
+        Ok(parse_log(&git(worktree, &argv)?))
     };
-    let mut records: Vec<&str> = log.split('\x1e').map(|r| r.trim_start_matches('\n')).filter(|r| !r.is_empty()).collect();
+    // First sight: history is never replayed, except the commits made since this endpoint
+    // started (a quiet repo's first worker is started by the hook of the commit itself, so its
+    // baseline would otherwise already contain the commit). `>=`: a commit in the second of
+    // the start counts; the patch-id check protects repeats.
+    let first_sight = || -> Result<Vec<LogRecord>> {
+        if started_ms <= 0 {
+            return Ok(vec![]);
+        }
+        let mut records = list(None)?;
+        records.retain(|r| r.committed_ms >= started_ms);
+        Ok(records)
+    };
+    let mut records = match old.filter(|o| is_sha(o)) {
+        None => first_sight()?,
+        Some(old) if old == new => return Ok((new, vec![])),
+        Some(old) => match list(Some(old)) {
+            Ok(r) => r,
+            Err(e) => {
+                let probe = format!("{old}^{{commit}}");
+                if git(worktree, &["rev-parse", "--verify", "--quiet", &probe]).is_err() {
+                    diag::note(&format!("commits: old head {old} is gone in {}: first sight", worktree.display()));
+                    first_sight()?
+                } else {
+                    return Err(e);
+                }
+            }
+        },
+    };
     if records.len() > MAX_COMMITS {
         diag::note(&format!(
             "commits: more than {MAX_COMMITS} new commits in {}: the older ones are dropped",
@@ -239,13 +310,10 @@ fn scan_until(
         if Instant::now() >= deadline {
             return Err(std::io::Error::other("scan budget exceeded").into());
         }
-        let mut f = rec.splitn(4, '\0');
-        let (Some(sha), Some(ct), Some(subject), Some(trailers)) = (f.next(), f.next(), f.next(), f.next()) else {
-            continue;
-        };
-        if !trailers.split(['\x1f', '\n']).any(|t| t.trim() == session_id) {
+        if !rec.trailers.split(['\x1f', '\n']).any(|t| t.trim() == session_id) {
             continue;
         }
+        let sha = rec.sha.as_str();
         let paths = git_bytes(worktree, &["diff-tree", "--no-commit-id", "--name-only", "-r", "--root", "-z", sha], None)?;
         let matched: Vec<String> = paths
             .split(|b| *b == 0)
@@ -261,11 +329,11 @@ fn scan_until(
             continue;
         }
         counted.push(Counted {
-            sha: sha.to_string(),
-            subject: subject.to_string(),
+            sha: rec.sha.clone(),
+            subject: rec.subject.clone(),
             patch_id,
             matched,
-            committed_ms: ct.trim().parse::<i64>().unwrap_or(0).saturating_mul(1000),
+            committed_ms: rec.committed_ms,
             branch: None,
         });
     }
@@ -293,7 +361,13 @@ pub struct Collected {
 /// watch file, else the main worktree's. `None` when `cwd` is in no repository or there is no
 /// session id. A worktree that fails keeps its old head (it is left out of `heads`); the scan
 /// stops, noted, once `budget` is used up. It never fails.
-pub fn collect(cwd: &Path, session_id: &str, heads: &BTreeMap<String, String>, budget: Duration) -> Option<Collected> {
+pub fn collect(
+    cwd: &Path,
+    session_id: &str,
+    heads: &BTreeMap<String, String>,
+    started_ms: i64,
+    budget: Duration,
+) -> Option<Collected> {
     if session_id.is_empty() {
         return None;
     }
@@ -311,7 +385,7 @@ pub fn collect(cwd: &Path, session_id: &str, heads: &BTreeMap<String, String>, b
         let Some(watch) = own.as_ref().or(main_watch.as_ref()) else { continue };
         let key = tree.to_string_lossy().into_owned();
         let old = heads.get(&key).map(String::as_str).filter(|h| !h.is_empty());
-        match scan_until(&tree, old, session_id, watch, deadline) {
+        match scan_until(&tree, old, session_id, watch, started_ms, deadline) {
             Ok((head, counted)) => {
                 out.heads.insert(key, head);
                 out.counted.extend(counted);
@@ -340,7 +414,7 @@ pub fn post_commit_notices(
 ) -> Result<usize> {
     let mut posted = 0;
     for c in counted {
-        if last_post_ms > c.committed_ms || store.has_patch_id(repo, &c.patch_id)? {
+        if last_post_ms > c.committed_ms {
             continue;
         }
         let title: String = clean(&c.subject).chars().take(MAX_TITLE_CHARS).collect();
@@ -367,8 +441,9 @@ pub fn post_commit_notices(
             body,
             refs,
         };
-        match store.post(notice) {
-            Ok(_) => posted += 1,
+        match store.post_commit_once(notice) {
+            Ok(Some(_)) => posted += 1,
+            Ok(None) => {}
             Err(e @ BridgeError::OverLimit { .. }) => diag::note(&format!("commits: commit {sha9} not announced: {e}")),
             Err(e) => return Err(e),
         }

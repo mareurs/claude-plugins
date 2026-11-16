@@ -42,6 +42,10 @@ pub struct EndpointState {
     /// When a hook last started a filter worker for this endpoint.
     #[serde(default)]
     pub last_spawn_ms: i64,
+    /// When the first SessionStart of this endpoint (profile, pid) ran; 0 when none was seen.
+    /// The backup scan counts commits from this time on at first sight of a worktree.
+    #[serde(default)]
+    pub started_ms: i64,
 }
 
 impl Default for EndpointState {
@@ -59,6 +63,7 @@ impl Default for EndpointState {
             last_post_ms: 0,
             worker_pid: None,
             last_spawn_ms: 0,
+            started_ms: 0,
         }
     }
 }

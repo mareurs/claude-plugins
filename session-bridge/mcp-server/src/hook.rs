@@ -125,6 +125,10 @@ pub fn session_start(
         if rule == Some(StartRule::Fresh) {
             s.last_look_ms = now;
         }
+        // The first SessionStart of this endpoint; a compact or clear keeps it.
+        if s.started_ms == 0 {
+            s.started_ms = now;
+        }
     });
     if let Err(e) = recorded {
         diag::note(&format!("session-start: endpoint state: {e}"));

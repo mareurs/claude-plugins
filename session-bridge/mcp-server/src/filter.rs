@@ -420,9 +420,9 @@ async fn backup_scan(path: &Path, store: &Store, profile: &str, pid: u32, st: &E
     if st.session_id.is_empty() {
         return;
     }
-    let (session, heads) = (st.session_id.clone(), st.heads.clone());
+    let (session, heads, started) = (st.session_id.clone(), st.heads.clone(), st.started_ms);
     let found = tokio::task::spawn_blocking(move || {
-        crate::commits::collect(Path::new(&cwd), &session, &heads, crate::commits::SCAN_BUDGET)
+        crate::commits::collect(Path::new(&cwd), &session, &heads, started, crate::commits::SCAN_BUDGET)
     })
     .await;
     let found = match found {

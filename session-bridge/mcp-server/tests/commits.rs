@@ -2,7 +2,9 @@
 //! git's environment scrubbed (no user or system config, no hooks, no signing, no remote).
 
 use globset::{Glob, GlobSet, GlobSetBuilder};
-use session_bridge_mcp::commits::{post_commit_notices, scan, watch_list, worktrees, Counted};
+use session_bridge_mcp::commits::{
+    collect, log_argv, parse_log, post_commit_notices, scan as scan_since, watch_list, worktrees, Counted,
+};
 use session_bridge_mcp::filter::run_filter_with;
 use session_bridge_mcp::state::{endpoint_path, load_or_default, update};
 use session_bridge_mcp::store::{Notice, Origin, Store};
@@ -15,6 +17,20 @@ const S: &str = "sess-S";
 const T0: i64 = 1_700_000_000;
 const ME: (&str, u32) = (".claude-stef", 4242);
 
+/// No test may depend on the user's git configuration: the production git calls inherit this
+/// process's environment. (The signature test sets its configuration repo-locally.)
+static HERMETIC: std::sync::Once = std::sync::Once::new();
+
+fn scan(
+    worktree: &Path,
+    old: Option<&str>,
+    session: &str,
+    w: &GlobSet,
+) -> session_bridge_mcp::error::Result<(String, Vec<Counted>)> {
+    scan_since(worktree, old, session, w, 0)
+}
+
+
 struct Fx {
     d: TempDir,
     hooks: PathBuf,
@@ -22,6 +38,10 @@ struct Fx {
 
 impl Fx {
     fn new() -> Fx {
+        HERMETIC.call_once(|| {
+            std::env::set_var("GIT_CONFIG_GLOBAL", "/dev/null");
+            std::env::set_var("GIT_CONFIG_NOSYSTEM", "1");
+        });
         let d = TempDir::new().unwrap();
         let hooks = d.path().join("empty-hooks");
         std::fs::create_dir_all(&hooks).unwrap();
@@ -540,4 +560,133 @@ async fn a_vanished_cwd_does_not_stop_the_filter() {
     let st = w.st();
     assert_eq!(st.worker_pid, None);
     assert!(st.heads.is_empty());
+}
+
+// ---- first sight with a start time (the first own commit of an endpoint is announced) -------
+
+fn set_started(w: &W, ms: i64) {
+    update(&endpoint_path(&w.state, PROFILE, PID), |s| s.started_ms = ms).unwrap();
+}
+
+#[tokio::test]
+async fn the_first_own_commit_after_the_endpoint_started_is_announced_at_first_sight() {
+    let w = W::new();
+    set_started(&w, (T0 - 50) * 1000);
+    // In a quiet repo the worker is started by the hook of the `git commit` call itself, so its
+    // very first scan already sees the commit in HEAD.
+    w.fx.commit(&w.repo, &[("Cargo.toml", "a\n")], "first own change", Some(S), T0);
+    w.run().await;
+    assert_eq!(w.store.head().unwrap(), 1);
+    assert_eq!(only_notice(&w.store, 1).title, "first own change");
+    assert_eq!(w.st().heads.get(&w.key()), Some(&w.fx.head(&w.repo)));
+}
+
+#[test]
+fn a_commit_before_the_endpoint_started_is_not_counted_at_first_sight() {
+    let fx = Fx::new();
+    let r = fx.repo();
+    fx.commit(&r, &[("Cargo.toml", "a\n")], "old own change", Some(S), T0 - 10);
+    let (_, c) = scan_since(&r, None, S, &watch(&["Cargo.toml"]), T0 * 1000).unwrap();
+    assert!(c.is_empty(), "{c:?}");
+}
+
+#[test]
+fn a_resumed_endpoint_does_not_replay_commits_that_predate_it() {
+    let fx = Fx::new();
+    let r = fx.repo();
+    fx.commit(&r, &[("Cargo.toml", "a\n")], "before the resume", Some(S), T0);
+    std::fs::create_dir_all(r.join(".claude")).unwrap();
+    std::fs::write(r.join(".claude/notice-watch.txt"), "Cargo.toml\n").unwrap();
+    let heads = std::collections::BTreeMap::new();
+    // The new pid started 10 s after the commit: nothing to count.
+    let after = collect(&r, S, &heads, (T0 + 10) * 1000, Duration::from_secs(15)).unwrap();
+    assert!(after.counted.is_empty(), "{:?}", after.counted);
+    assert_eq!(after.heads.len(), 1, "the head is still recorded");
+    // The same repository for an endpoint that started before the commit does count it.
+    let before = collect(&r, S, &heads, (T0 - 10) * 1000, Duration::from_secs(15)).unwrap();
+    assert_eq!(before.counted.len(), 1);
+}
+
+#[test]
+fn without_a_start_time_first_sight_counts_nothing() {
+    let fx = Fx::new();
+    let r = fx.repo();
+    fx.commit(&r, &[("Cargo.toml", "a\n")], "own change", Some(S), T0);
+    let (new, c) = scan_since(&r, None, S, &watch(&["Cargo.toml"]), 0).unwrap();
+    assert_eq!(new, fx.head(&r));
+    assert!(c.is_empty(), "history is never replayed without a start time");
+}
+
+#[test]
+fn a_commit_in_the_second_of_the_start_is_counted() {
+    let fx = Fx::new();
+    let r = fx.repo();
+    fx.commit(&r, &[("Cargo.toml", "a\n")], "same second", Some(S), T0);
+    let w = watch(&["Cargo.toml"]);
+    let (_, c) = scan_since(&r, None, S, &w, T0 * 1000).unwrap();
+    assert_eq!(c.len(), 1, "committer time == start time counts");
+    let (_, c) = scan_since(&r, None, S, &w, T0 * 1000 + 1).unwrap();
+    assert!(c.is_empty(), "a start a millisecond later does not");
+}
+
+// ---- log.showSignature and junk in the log output ----------------------------------------
+
+#[test]
+fn the_log_argv_turns_signature_output_off() {
+    for old in [None, Some("a".repeat(40))] {
+        let argv = log_argv(&"b".repeat(40), old.as_deref());
+        assert!(argv.iter().any(|a| a == "--no-show-signature"), "{argv:?}");
+        assert_eq!(argv[0], "log");
+    }
+}
+
+#[test]
+fn parse_log_skips_signature_junk_and_invalid_records() {
+    let (a, b) = ("a".repeat(40), "b".repeat(40));
+    let rec = |sha: &str, subject: &str| format!("{sha}\0{T0}\0{subject}\0Session-Id: S\x1e\n");
+    let out = format!(
+        "No signature\n{}gpg: Signature made Mon\ngpg: Good signature from \"x\"\n{}not a record at all\n{}",
+        rec(&a, "first"),
+        rec(&b, "second"),
+        "zzzz\x00123\0bad sha\0\x1e\n"
+    );
+    let got = parse_log(&out);
+    let shas: Vec<&str> = got.iter().map(|r| r.sha.as_str()).collect();
+    assert_eq!(shas, vec![a.as_str(), b.as_str()]);
+    assert_eq!(got[0].subject, "first");
+    assert_eq!(got[1].committed_ms, T0 * 1000);
+    assert_eq!(got[1].trailers.trim(), "Session-Id: S");
+}
+
+#[test]
+fn a_signed_commit_with_log_showsignature_is_still_counted() {
+    // ssh-keygen is present on this machine (checked), so the test signs a real commit.
+    let fx = Fx::new();
+    let r = fx.repo();
+    let key = fx.root().join("key");
+    let ok = Command::new("ssh-keygen")
+        .args(["-q", "-t", "ed25519", "-N", "", "-C", "t", "-f"])
+        .arg(&key)
+        .status()
+        .expect("ssh-keygen must exist for this test");
+    assert!(ok.success());
+    fx.git(&r, &["config", "--local", "log.showSignature", "true"]);
+    let old = fx.head(&r);
+    std::fs::write(r.join("Cargo.toml"), "signed\n").unwrap();
+    fx.git(&r, &["add", "-A"]);
+    let pubkey = format!("{}.pub", key.display());
+    fx.git_at(
+        &r,
+        &[
+            "-c", "commit.gpgsign=true", "-c", "gpg.format=ssh", "-c", &format!("user.signingkey={pubkey}"),
+            "commit", "-q", "-m", &format!("signed change\n\nSession-Id: {S}"),
+        ],
+        T0,
+    );
+    // The commit really carries a signature.
+    let raw = fx.git(&r, &["cat-file", "-p", "HEAD"]);
+    assert!(raw.contains("gpgsig"), "{raw}");
+    let (_, c) = scan(&r, Some(&old), S, &watch(&["Cargo.toml"])).unwrap();
+    assert_eq!(c.len(), 1, "{c:?}");
+    assert_eq!(c[0].subject, "signed change");
 }
