@@ -14,6 +14,12 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::time::{Duration, Instant};
 
+/// Clock ticks per second of the times in `/proc/<pid>/stat` (USER_HZ). 100 is the Linux
+/// default and a fixed kernel ABI value on the mainstream architectures. `sysconf(_SC_CLK_TCK)`
+/// is not called: it reports this same constant, and a fixed value keeps `process_start_ms` a
+/// pure function of the files under `Roots`, which the tests fake.
+const CLK_TCK: i64 = 100;
+
 /// Where to look. Injectable so tests use a tempdir.
 #[derive(Debug, Clone)]
 pub struct Roots {
@@ -115,6 +121,20 @@ pub fn registered_session(config_dir: &Path, pid: u32) -> Option<String> {
 /// liveness rule; the socket file is checked separately by `discover`.
 pub fn pid_alive(roots: &Roots, pid: u32) -> bool {
     roots.proc_root.join(pid.to_string()).is_dir()
+}
+/// When process `pid` started, in milliseconds since the epoch: `starttime` (field 22 of
+/// `<proc_root>/<pid>/stat`, in clock ticks since boot) plus `btime` (`<proc_root>/stat`,
+/// seconds since the epoch). The fields are counted after the LAST `)`, because the comm
+/// field (2) may hold spaces and parentheses. `None` when a file is unreadable or a field
+/// does not parse.
+pub fn process_start_ms(roots: &Roots, pid: u32) -> Option<i64> {
+    let stat = std::fs::read_to_string(roots.proc_root.join(pid.to_string()).join("stat")).ok()?;
+    let rest = stat.get(stat.rfind(')')? + 1..)?;
+    // `rest` starts at field 3 (state), so field 22 is the 20th token.
+    let ticks: i64 = rest.split_whitespace().nth(22 - 3)?.parse().ok()?;
+    let sys = std::fs::read_to_string(roots.proc_root.join("stat")).ok()?;
+    let btime: i64 = sys.lines().find_map(|l| l.strip_prefix("btime "))?.trim().parse().ok()?;
+    btime.checked_mul(1000)?.checked_add(ticks.checked_mul(1000)? / CLK_TCK)
 }
 
 fn endpoint_for(roots: &Roots, pid: u32) -> Option<Endpoint> {

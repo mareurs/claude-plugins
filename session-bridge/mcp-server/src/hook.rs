@@ -4,7 +4,7 @@
 use crate::cursor::{self, on_session_start, StartRule};
 use crate::deliver::{has_undelivered, render_all, take_deliverable, undelivered_relevant, Fetched};
 use crate::diag;
-use crate::endpoints::{pid_alive, repo_of, Roots};
+use crate::endpoints::{pid_alive, process_start_ms, repo_of, Roots};
 use crate::paths::{is_safe_component, short_profile};
 use crate::state::{endpoint_path, load_or_default, update, EndpointState};
 use crate::store::{Notice, Page, Store};
@@ -17,6 +17,9 @@ pub use crate::deliver::render_nudge;
 const LOOK_INTERVAL_MS: i64 = 120_000;
 /// Shortest time between two worker starts of one endpoint.
 pub const SPAWN_MIN_INTERVAL_MS: i64 = 15_000;
+/// A process that started more than this after an endpoint state's `started_ms` did not
+/// write that state: its pid was reused.
+const RECYCLE_GRACE_MS: i64 = 2_000;
 
 /// Start view: notices from the last 3 days, at most 8.
 const VIEW_WINDOW_MS: i64 = 3 * 24 * 60 * 60 * 1000;
@@ -81,6 +84,32 @@ pub fn now_ms() -> i64 {
         .map_or(0, |d| i64::try_from(d.as_millis()).unwrap_or(i64::MAX))
 }
 
+/// Reset the endpoint state at `path` to defaults, in one locked update, when it belongs to
+/// an earlier process that had the same `pid`: the state records a start (`started_ms > 0`)
+/// and process `pid` started more than `RECYCLE_GRACE_MS` after it. The process that wrote
+/// the state started before (or within moments of) its first SessionStart, so its own start
+/// time is never later than that. An unreadable start time never resets (fail safe). The
+/// reset state has no session id, so cursor rule 3 does not move the dead session's cursor.
+fn reset_if_recycled(roots: &Roots, path: &Path, pid: u32) {
+    if !path.exists() {
+        return;
+    }
+    let Some(proc_start) = process_start_ms(roots, pid) else { return };
+    let stale = |s: &EndpointState| s.started_ms > 0 && proc_start - s.started_ms > RECYCLE_GRACE_MS;
+    if !stale(&load_or_default(path)) {
+        return;
+    }
+    let reset = update(path, |s| {
+        if stale(s) {
+            *s = EndpointState::default();
+        }
+    });
+    match reset {
+        Ok(()) => diag::note(&format!("session-start: pid {pid} was reused: endpoint state reset")),
+        Err(e) => diag::note(&format!("session-start: endpoint state reset: {e}")),
+    }
+}
+
 /// Handle SessionStart for endpoint `me` = (full profile, Claude pid). Picks the cursor by
 /// the four rules, records the session in the endpoint state, and returns the start view
 /// when this is a fresh start (not a resume) in a repository with recent notices.
@@ -100,6 +129,9 @@ pub fn session_start(
     }
     let now = now_ms();
     let alive = |pid: u32| pid_alive(roots, pid);
+    // A dead endpoint's state under a reused pid must not reach this process: its session
+    // id would feed rule 3, its queue and verdicts would be delivered here.
+    reset_if_recycled(roots, &endpoint_path(state, me.0, me.1), me.1);
     // The cursor step reads this pid's PREVIOUS session id from the endpoint state (rule 3),
     // so the state is written after it, but on every path, success or failure.
     let rule = store
