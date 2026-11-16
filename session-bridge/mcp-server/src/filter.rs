@@ -409,7 +409,53 @@ pub async fn run_filter(bin: &str, state: &Path, store: &Store, profile: &str, p
     run_filter_with(bin, state, store, profile, pid, &config_dir, timeout).await
 }
 
-/// `run_filter` with the config dir and the timeout given. Reads the endpoint state, makes
+/// Backup notices from the endpoint's own commits (see `commits`): scan every worktree of the
+/// repository of the state's `cwd`, post what nobody announced, then record the new heads in one
+/// locked update that touches `heads` and nothing else. The git work runs on a blocking thread.
+/// Skips silently without a cwd, a repository, a session id or a watch list. Every error is
+/// noted and ignored; the heads move only after the posting succeeded, so a failed post is
+/// retried by the next scan (the patch-id check makes a retry harmless).
+async fn backup_scan(path: &Path, store: &Store, profile: &str, pid: u32, st: &EndpointState) {
+    let Some(cwd) = st.cwd.clone().filter(|c| !c.is_empty()) else { return };
+    if st.session_id.is_empty() {
+        return;
+    }
+    let (session, heads) = (st.session_id.clone(), st.heads.clone());
+    let found = tokio::task::spawn_blocking(move || {
+        crate::commits::collect(Path::new(&cwd), &session, &heads, crate::commits::SCAN_BUDGET)
+    })
+    .await;
+    let found = match found {
+        Ok(Some(f)) => f,
+        Ok(None) => return,
+        Err(e) => {
+            crate::diag::note(&format!("filter: commit scan: {e}"));
+            return;
+        }
+    };
+    let posted = crate::commits::post_commit_notices(
+        store,
+        &found.repo,
+        (profile, pid),
+        &st.session_id,
+        &found.counted,
+        st.last_post_ms,
+    );
+    if let Err(e) = posted {
+        crate::diag::note(&format!("filter: commit notices: {e}"));
+        return;
+    }
+    if found.heads.iter().all(|(k, v)| st.heads.get(k) == Some(v)) {
+        return;
+    }
+    if let Err(e) = update(path, |s| s.heads.extend(found.heads)) {
+        crate::diag::note(&format!("filter: commit heads: {e}"));
+    }
+}
+
+
+/// `run_filter` with the config dir and the timeout given. Reads the endpoint state, runs the
+/// commit backup scan (even with nothing pending), makes
 /// at most one model call for the oldest `FILTER_BATCH` pending notices (none when no
 /// notice is left to judge), then stores the verdicts
 /// in one locked update that also removes the handled seqs from `pending` and clears
@@ -432,6 +478,8 @@ pub async fn run_filter_with(
     // Under the shared lock: the hook that started this worker may still be inside the
     // update that added the notices to `pending`.
     let st = read_locked(&path);
+    // The backup scan runs first, whether or not anything is pending. It never fails the filter.
+    backup_scan(&path, store, profile, pid, &st).await;
     // At most FILTER_BATCH notices per model call, the oldest first. The rest stay in
     // `pending`, so the next hook trigger starts another worker after this one ends.
     let handled = oldest_batch(&st.pending);
