@@ -237,13 +237,16 @@ change) and how to word it.
   2 s between the first SessionStart of a process and a later one (a compact, a `/clear`) makes the
   process look newer and resets its endpoint state: its queue, verdicts and heads are dropped
   (after a `/clear` the start view is shown again). The reset also drops `last_post_ms` and
-  `worker_pid`. A commit gets a second notice only when the reset falls between its
-  announcement and the scan of the commit. Slow clock corrections (NTP slewing) stay far below
-  2 s.
+  `worker_pid`, and `heads` and `started_ms` start again, so the next scan is a first sight that
+  counts only commits from the second of the reset on. A commit gets a second notice only when
+  the reset falls between its announcement and the commit (or in the same second). A reset
+  between an unannounced watched commit and its scan gives that commit no notice at all. Slow
+  clock corrections (NTP slewing) stay far below 2 s.
 - A filter worker of a process that died, or whose endpoint was reset by the reused-pid check,
   can run for up to about 75 s (the 15 s scan budget plus the 60 s filter timeout; one git call
   can overrun the budget by 5 s). It may write verdicts and heads into the reset endpoint state,
-  clear the worker pid of the new process, and post backup notices under the old endpoint.
+  clear the worker pid of the new process, and post backup notices under the same endpoint key
+  (profile, pid) but with the old session id.
 - A store error during a backup scan leaves the heads unmoved, so the retry meets the commits it
   already posted and logs one `dedup` line for each. Count `dedup` lines with that in mind.
 - A worker is considered alive while `/proc/<pid>` exists, so a reused pid can delay the next
