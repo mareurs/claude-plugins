@@ -97,8 +97,10 @@ fn prompt_and_post_tool_without_a_database_or_with_bad_input_exit_zero_and_write
     let d = TempDir::new().unwrap();
     let home = d.path().join("home");
     let state = d.path().join("xdg");
+    // The state root exists, so anything that opened the store would create notices.db.
+    let root = state.join("session-bridge");
     std::fs::create_dir_all(&home).unwrap();
-    std::fs::create_dir_all(&state).unwrap();
+    std::fs::create_dir_all(&root).unwrap();
     let home_s = home.to_string_lossy().into_owned();
     let good = r#"{"session_id":"S","cwd":"/tmp","hook_event_name":"PostToolUse","tool_input":{"command":"git commit"}}"#;
     for event in ["prompt", "post-tool"] {
@@ -110,7 +112,7 @@ fn prompt_and_post_tool_without_a_database_or_with_bad_input_exit_zero_and_write
     }
     let mut t = tree(d.path());
     t.sort();
-    assert_eq!(t, vec![home.clone(), state.clone()], "no file was created");
+    assert_eq!(t, vec![home.clone(), state.clone(), root.clone()], "no file was created");
 }
 
 #[test]
