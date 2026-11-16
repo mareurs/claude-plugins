@@ -870,7 +870,7 @@ fn an_endpoint_that_never_posted_suppresses_nothing_whatever_the_commit_time() {
     assert_eq!(post(&fx, &st, "R", &[counted_at(0)], 0), 1, "never posted: nothing to suppress");
     // A huge negative `%ct` must not overflow the window arithmetic (debug builds panic).
     assert_eq!(post(&fx, &st, "R", &[counted_at(i64::MIN + 1)], 0), 1);
-    assert_eq!(post(&fx, &st, "R", &[counted_at(i64::MIN + 1)], 1), 0, "a later post suppresses it");
+    assert_eq!(post(&fx, &st, "R2", &[counted_at(i64::MIN + 1)], 1), 0, "a later post suppresses it");
     // An endpoint that did post still suppresses a commit inside the window.
     assert_eq!(post(&fx, &st, "R", &[counted_at(5_000)], 5_000), 0);
 }

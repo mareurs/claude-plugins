@@ -412,10 +412,12 @@ fn clean(s: &str) -> String {
 
 /// Post one `commit` notice per counted commit, oldest first, and return how many were posted.
 /// A commit is skipped when the endpoint posted a notice with `post_notice` up to
-/// `SUPPRESS_WINDOW_MS` before the commit time or at any time after it (`last_post_ms >
-/// committed_ms - SUPPRESS_WINDOW_MS`: the agent announced it itself, before or after the
-/// commit; the scan starts right after the commit, so the window before it is the one that
-/// matters), or when the store already holds its patch-id for `repo` (that skip is one `dedup`
+/// `SUPPRESS_WINDOW_MS` before the commit time or at any time after it (`last_post_ms > 0 &&
+/// last_post_ms > committed_ms - SUPPRESS_WINDOW_MS`, saturating; `last_post_ms` 0 means the
+/// endpoint never posted, so nothing is suppressed). The agent announced the commit itself,
+/// before or after it; the scan starts right after the commit, so the window before it is the
+/// one that matters. A commit is also skipped when the store already holds its patch-id for
+/// `repo` (that skip is one `dedup`
 /// line in `<state>/events.jsonl`). A store limit error on one commit is noted and the next
 /// still posts.
 pub fn post_commit_notices(
