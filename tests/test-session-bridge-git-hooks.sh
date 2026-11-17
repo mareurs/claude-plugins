@@ -6,7 +6,7 @@
 # invented (`sess-a`, `sess-b`). The ambient session variables are unset at the top, so no real
 # session id can leak into a fixture.
 #
-# NOT VACUOUS BY CONSTRUCTION. Three mutation controls at the end copy the hooks, break one rule
+# NOT VACUOUS BY CONSTRUCTION. Six mutation controls at the end copy the hooks, break one rule
 # in the copy, and run the scenario that rule guards. The scenario must then go the WRONG way.
 # A control that does not change the outcome means the scenario cannot detect that rule.
 # SBG_HOOKS_DIR points the suite at another copy of the hooks.
@@ -216,6 +216,98 @@ eq "SESSION_BRIDGE_HOLD_NS moves the hold namespace" "$PUSH_RC" 1
 push_as hold sess-a SESSION_BRIDGE_PUSH_ACK=all
 eq "…and the default namespace does not see it" "$PUSH_RC" 0
 
+# ---- what a hold says about itself ----
+# A hold that is a BLOB with `reason:` and `set-at:` lines (codescout's hold-publish.sh writes
+# that) shows its age and reason. Ages need GNU `date -d`.
+if date -u -d '1 hour ago' +%s >/dev/null 2>&1; then
+    new_repo hd
+    commit_as hd sess-b "held with detail"
+    iso() { date -u -d "$1" +%Y-%m-%dT%H:%M:%SZ; }
+    blob="$(printf 'reason: waiting for review\nset-at: %s\nhead: x\n' "$(iso '3 hours ago')" | git -C "$T/hd" hash-object -w --stdin)"
+    git -C "$T/hd" update-ref refs/holds/sess-b "$blob"
+    push_as hd sess-a SESSION_BRIDGE_PUSH_ACK=all
+    eq "a blob hold still refuses under the ack" "$PUSH_RC" 1
+    has "the refusal shows the hold's age in hours" "sess-b: held for 3h" "$PUSH_OUT"
+    has "…and its reason" "reason: waiting for review" "$PUSH_OUT"
+    blob="$(printf 'reason: old\nset-at: %s\n' "$(iso '77 days ago')" | git -C "$T/hd" hash-object -w --stdin)"
+    git -C "$T/hd" update-ref refs/holds/sess-b "$blob"
+    push_as hd sess-a
+    has "an old hold shows its age in days" "held for 77d" "$PUSH_OUT"
+    blob="$(printf 'reason: fresh\nset-at: %s\n' "$(iso '30 minutes ago')" | git -C "$T/hd" hash-object -w --stdin)"
+    git -C "$T/hd" update-ref refs/holds/sess-b "$blob"
+    push_as hd sess-a
+    has "a recent hold shows its age in minutes" "held for 30m" "$PUSH_OUT"
+    blob="$(printf 'reason: no clock\n' | git -C "$T/hd" hash-object -w --stdin)"
+    git -C "$T/hd" update-ref refs/holds/sess-b "$blob"
+    push_as hd sess-a
+    has "a hold with no set-at says the age is unknown, not a made-up one" "held for unknown time" "$PUSH_OUT"
+    has "…and its reason is still shown" "reason: no clock" "$PUSH_OUT"
+    blob="$(printf 'reason: a\033[31mb\nset-at: %s\n' "$(iso '2 hours ago')" | git -C "$T/hd" hash-object -w --stdin)"
+    git -C "$T/hd" update-ref refs/holds/sess-b "$blob"
+    push_as hd sess-a
+    has "control characters in the reason are dropped" "reason: a[31mb" "$PUSH_OUT"
+    case "$PUSH_OUT" in *$'\033'*) bad "no escape byte reaches the terminal" "found ESC in the output" ;; *) ok "no escape byte reaches the terminal" ;; esac
+    git -C "$T/hd" update-ref refs/holds/sess-b HEAD
+    push_as hd sess-a
+    hasnt "a hold that points at a commit shows no age (it carries none)" "held for" "$PUSH_OUT"
+    has "…and still refuses and names the author" "sess-b" "$PUSH_OUT"
+else
+    echo "  SKIP: hold age and reason (this system's date has no -d)"
+fi
+
+# ---- the prefix below the oldest held commit ----
+new_repo pf
+commit_as pf sess-a "below"
+commit_as pf sess-b "held middle"
+commit_as pf sess-a "above"
+below_sha="$(git -C "$T/pf" rev-parse HEAD~2)"; held_sha="$(git -C "$T/pf" rev-parse HEAD~1)"; above_sha="$(git -C "$T/pf" rev-parse HEAD)"
+git -C "$T/pf" update-ref refs/holds/sess-b "$held_sha"
+push_as pf sess-a
+eq "a held commit in the middle of a stack refuses the push" "$PUSH_RC" 1
+has "the refusal names a push of the commit below the held one" "git push origin $below_sha:main" "$PUSH_OUT"
+hasnt "…and not of the held commit or of what sits above it" "$held_sha:main" "$PUSH_OUT"
+hasnt "…and not of the commit above" "$above_sha:main" "$PUSH_OUT"
+has "…and says the prefix is still checked for other sessions" "still checked for commits of other sessions" "$PUSH_OUT"
+out="$(cd "$T/pf" && CLAUDE_CODE_SESSION_ID=sess-a git push origin "$below_sha:main" 2>&1)"; rc=$?
+eq "the advised push passes" "$rc" 0
+
+new_repo pn
+commit_as pn sess-b "held first"
+git -C "$T/pn" update-ref refs/holds/sess-b HEAD
+commit_as pn sess-a "above held"
+push_as pn sess-a
+eq "a held commit right above the remote tip refuses" "$PUSH_RC" 1
+has "it says nothing below it is unpublished" "nothing below the held commit is unpublished" "$PUSH_OUT"
+hasnt "…and advises no prefix push" "push only those" "$PUSH_OUT"
+
+new_repo p2
+commit_as p2 sess-a "low"
+commit_as p2 sess-b "held one"
+commit_as p2 sess-a "between"
+commit_as p2 sess-b "held two"
+low_sha="$(git -C "$T/p2" rev-parse HEAD~3)"; between_sha="$(git -C "$T/p2" rev-parse HEAD~1)"
+git -C "$T/p2" update-ref refs/holds/sess-b "$(git -C "$T/p2" rev-parse HEAD)"
+push_as p2 sess-a
+has "two held commits: the prefix is below the OLDEST one" "git push origin $low_sha:main" "$PUSH_OUT"
+hasnt "…not below the newer one" "$between_sha:main" "$PUSH_OUT"
+
+# ---- a refused ref that is not a branch ----
+new_repo pt
+commit_as pt sess-b "foreign, tagged"
+git -C "$T/pt" tag v9
+out="$(cd "$T/pt" && CLAUDE_CODE_SESSION_ID=sess-a git push origin refs/tags/v9 2>&1)"; rc=$?
+eq "a tag push carrying a foreign commit is refused" "$rc" 1
+has "the refusal says the ref is not a branch" "is not a branch" "$out"
+has "…names the tag" "refs/tags/v9" "$out"
+hasnt "…and does not advise a refspec onto a branch" "<your-sha>:<branch>" "$out"
+out="$(cd "$T/pt" && CLAUDE_CODE_SESSION_ID=sess-a git push origin main refs/tags/v9 2>&1)"; rc=$?
+has "a branch and a tag in one push: the branch keeps its refspec advice" "<your-sha>:<branch>" "$out"
+has "…and the tag is still named" "refs/tags/v9" "$out"
+git -C "$T/pt" update-ref refs/holds/sess-b "$(git -C "$T/pt" rev-parse HEAD)"
+out="$(cd "$T/pt" && CLAUDE_CODE_SESSION_ID=sess-a git push origin refs/tags/v9 2>&1)"; rc=$?
+has "a held commit on a tag push says there is no prefix to push" "is not a branch: there is no prefix to push" "$out"
+git -C "$T/pt" update-ref -d refs/holds/sess-b
+
 # ---- mutation controls ----
 # Each control breaks one rule in a copy and runs the scenario that rule guards. The scenario
 # must go the wrong way. A control that leaves it unchanged proves the scenario is blind.
@@ -244,6 +336,30 @@ if mutate hold pre-push 's/^        find_held "\${sids:-},\${co:-}"$/        _he
     git -C "$T/mh" update-ref refs/holds/sess-b HEAD
     push_as mh sess-a SESSION_BRIDGE_PUSH_ACK=all
     eq "control: with the hold check removed, a held commit passes under ack=all (so the scenario can detect it)" "$PUSH_RC" 0
+fi
+if date -u -d '1 hour ago' +%s >/dev/null 2>&1 && mutate detail pre-push 's/^            d="\$(sbg_hold_detail "\$r")"$/            d=""/'; then
+    new_repo md "$T/mut-detail"
+    commit_as md sess-b "held"
+    blob="$(printf 'reason: waiting\nset-at: %s\n' "$(date -u -d '3 hours ago' +%Y-%m-%dT%H:%M:%SZ)" | git -C "$T/md" hash-object -w --stdin)"
+    git -C "$T/md" update-ref refs/holds/sess-b "$blob"
+    push_as md sess-a
+    eq "control: with the detail lookup removed, the age and reason disappear (so the scenario can detect them)" "$(printf '%s' "$PUSH_OUT" | grep -c 'held for')" 0
+fi
+if mutate prefix pre-push 's/"\${ref_oldest_held}^"/"\${ref_oldest_held}"/'; then
+    new_repo mp "$T/mut-prefix"
+    commit_as mp sess-a "below"
+    commit_as mp sess-b "held middle"
+    commit_as mp sess-a "above"
+    git -C "$T/mp" update-ref refs/holds/sess-b "$(git -C "$T/mp" rev-parse HEAD~1)"
+    push_as mp sess-a
+    has "control: taking the held commit instead of its parent advises the held commit (so the scenario can detect it)" "$(git -C "$T/mp" rev-parse HEAD~1):main" "$PUSH_OUT"
+fi
+if mutate nonbranch pre-push 's/is_branch=0; branch=""/is_branch=1; branch="x"/'; then
+    new_repo mt "$T/mut-nonbranch"
+    commit_as mt sess-b "foreign, tagged"
+    git -C "$T/mt" tag v9
+    out="$(cd "$T/mt" && CLAUDE_CODE_SESSION_ID=sess-a git push origin refs/tags/v9 2>&1)"
+    has "control: counting a tag as a branch brings back the branch refspec advice (so the scenario can detect it)" "<your-sha>:<branch>" "$out"
 fi
 
 echo

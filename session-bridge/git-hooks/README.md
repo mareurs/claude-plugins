@@ -52,6 +52,12 @@ The guard is not active when the pusher has no identity (a person at a terminal)
 
 A hold is a ref. The author sets it with `git update-ref <HOLD_NS>/<token> HEAD`. The author, or the user, lifts it with `git update-ref -d <ref>`.
 
+A hold ref may instead point at a blob with a `reason: <text>` line and a `set-at: <UTC ISO-8601 time>` line. The refusal then shows the hold's age and reason, for example `sess-b: held for 3h, reason: waiting for review`. A hold that points at a commit shows neither. The age needs GNU `date`: without it, or without a `set-at` line, the refusal says `held for unknown time`. The reason is cut at 200 characters and its control characters are dropped, because another session wrote it.
+
+When a held commit sits in a stack, the refusal names the push of what sits below the oldest held commit: `git push <remote> <sha>:<branch>`. That prefix is still checked for other sessions' commits. When nothing below it is unpublished, the refusal says so. A tag or a `refs/wip/*` push has no prefix. The refusal says the ref is not a branch and does not advise a refspec onto one.
+
+A hold ref that cannot be read counts as a hold: the guard fails closed. A pushed range that cannot be listed is refused only when the repository has holds.
+
 ## What this version does not have
 
 - A command that sets and lists holds. Today a hold is set by hand with `git update-ref`.

@@ -91,3 +91,39 @@ sbg_ref_state() {
         *) echo error ;;
     esac
 }
+
+# Whole seconds -> the largest unit that fits: 45s, 30m, 3h, 2d. Needs GNU `date -d`; it prints
+# nothing and returns 1 when the date cannot be read, so the caller says "unknown time".
+# Usage: sbg_age <UTC ISO-8601 time>
+sbg_age() {
+    local iso="${1:-}" t0 now d
+    [ -n "$iso" ] || return 1
+    t0="$(date -u -d "$iso" +%s 2>/dev/null </dev/null)" || return 1
+    now="$(date -u +%s)"
+    d=$((now - t0))
+    [ "$d" -ge 0 ] || d=0
+    if [ "$d" -lt 60 ]; then printf '%ss\n' "$d"
+    elif [ "$d" -lt 3600 ]; then printf '%sm\n' $((d / 60))
+    elif [ "$d" -lt 86400 ]; then printf '%sh\n' $((d / 3600))
+    else printf '%sd\n' $((d / 86400))
+    fi
+}
+
+# What a hold says about itself, on one line, or nothing. A hold ref that points at a BLOB with
+# `reason: <text>` and `set-at: <UTC ISO-8601>` lines (the format codescout's hold-publish.sh
+# writes) gives `held for 3h, reason: waiting`. A hold that points at a commit, as
+# `git update-ref <ref> HEAD` makes it, says nothing: it carries neither.
+# The reason was written by another session and goes to the terminal of this one, so control
+# characters are dropped and the length is capped.
+# Usage: sbg_hold_detail <ref>
+sbg_hold_detail() {
+    local ref="${1:-}" body at reason age
+    [ "$(git cat-file -t "$ref" 2>/dev/null </dev/null)" = blob ] || return 0
+    body="$(git cat-file -p "$ref" 2>/dev/null </dev/null)" || return 0
+    at="$(printf '%s\n' "$body" | sed -n 's/^set-at: //p' | sed -n 1p)"
+    reason="$(printf '%s\n' "$body" | sed -n 's/^reason: //p' | sed -n 1p | tr -d '[:cntrl:]' | cut -c1-200)"
+    age="$(sbg_age "$at")" || age=""
+    printf 'held for %s' "${age:-unknown time}"
+    [ -n "$reason" ] && printf ', reason: %s' "$reason"
+    printf '\n'
+}
