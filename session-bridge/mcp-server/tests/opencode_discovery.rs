@@ -128,7 +128,6 @@ fn key_round_trips_and_resolves() {
     assert_eq!(a.key(), "opencode:/data/opencode:ses_aaaa1111");
     assert_ne!(a.storage_profile(), b.storage_profile());
     assert!(a.storage_profile().starts_with("opencode-"));
-    assert_eq!(a.storage_profile().len(), "opencode-".len() + 16);
     let sessions = vec![Session::OpenCode(a.clone()), Session::OpenCode(b)];
     // the same id in two data dirs is ambiguous by id, exact by key
     assert!(resolve_session(&sessions, "ses_aaaa1111", None).is_err());
@@ -277,4 +276,17 @@ async fn service_returning_html_becomes_note() {
     assert!(sessions.is_empty());
     assert_eq!(notes.len(), 1, "{notes:?}");
     assert!(notes[0].contains("non-JSON"), "{notes:?}");
+}
+
+#[test]
+fn storage_profile_is_per_session() {
+    let a = ep("ses_aaaa1111", "alpha");
+    let b = ep("ses_bbbb2222", "beta");
+    assert_ne!(a.storage_profile(), b.storage_profile());
+    assert_eq!(
+        a.storage_profile(),
+        ep("ses_aaaa1111", "other").storage_profile()
+    );
+    assert!(a.storage_profile().ends_with("-ses_aaaa1111"));
+    assert_eq!(Session::OpenCode(a).storage_id().1, 0);
 }

@@ -28,11 +28,11 @@ impl OpenCodeEndpoint {
     }
     /// Filesystem-safe store identity; SHA-256 of the canonical data dir.
     pub fn storage_profile(&self) -> String {
-        let hex = format!(
-            "{:x}",
-            Sha256::digest(self.data_dir.as_os_str().as_encoded_bytes())
-        );
-        format!("opencode-{}", &hex[..16])
+        format!(
+            "opencode-{:x}-{}",
+            Sha256::digest(self.data_dir.as_os_str().as_encoded_bytes()),
+            self.session_id
+        )
     }
     /// 0 = exact key, id or title; 1 = id prefix of at least four characters.
     pub fn match_rank(&self, target: &str) -> Option<u8> {
