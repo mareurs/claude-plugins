@@ -33,7 +33,7 @@ enum Command {
     /// Handle one host hook event (JSON on stdin), fail-open.
     Hook {
         event: String,
-        #[arg(long,default_value="claude",value_parser=["claude","codex"])]
+        #[arg(long,default_value="claude",value_parser=["claude","codex","opencode"])]
         harness: String,
     },
     /// Filter Claude notices against a session transcript.
@@ -42,6 +42,11 @@ enum Command {
         profile: String,
         #[arg(long)]
         pid: u32,
+    },
+    /// Settle one OpenCode session's pending notices as unfiltered verdicts.
+    OpencodeFilter {
+        #[arg(long)]
+        profile: String,
     },
     /// Filter one Codex thread's pending notices under its own account.
     CodexFilter {
@@ -139,7 +144,7 @@ fn hook_output() -> Option<String> {
     if raw.len() > 1024 * 1024 {
         return None;
     }
-    if harness == "codex" {
+    if harness == "codex" || harness == "opencode" {
         let state = state_root(&|k| std::env::var(k).ok())?;
         let db = state.join("notices.db");
         if event != "session-start" && !db.exists() {
@@ -147,13 +152,11 @@ fn hook_output() -> Option<String> {
         }
         std::fs::create_dir_all(&state).ok()?;
         let store = Store::open(&db).ok()?;
-        return session_bridge_mcp::codex_hook::output(
-            &raw,
-            &event,
-            &Roots::system(),
-            &state,
-            &store,
-        );
+        let roots = Roots::system();
+        if harness == "opencode" {
+            return session_bridge_mcp::opencode_hook::output(&raw, &event, &roots, &state, &store);
+        }
+        return session_bridge_mcp::codex_hook::output(&raw, &event, &roots, &state, &store);
     }
     match event.as_str() {
         "session-start" => session_start_output(&raw),
@@ -326,6 +329,13 @@ async fn run() -> anyhow::Result<()> {
         },
         Command::Filter { profile, pid } => filter_cmd(&profile, pid).await,
         Command::CodexFilter { profile } => codex_filter_cmd(&profile).await,
+        Command::OpencodeFilter { profile } => {
+            if is_safe_component(&profile) && profile.starts_with("opencode-") {
+                if let Some(state) = state_root(&|k| std::env::var(k).ok()) {
+                    session_bridge_mcp::opencode_hook::settle_pending(&state, &profile);
+                }
+            }
+        }
     }
     Ok(())
 }
