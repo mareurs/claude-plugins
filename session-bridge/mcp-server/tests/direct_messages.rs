@@ -563,3 +563,107 @@ fn direct_table_without_target_identity_gains_columns() {
     drop(s);
     assert!(Store::open(&path).is_ok(), "a second open is a no-op");
 }
+
+/// Store `n` messages for TARGET, oldest first, each `len` characters starting with `m<i>.`.
+fn post_many(e: &Env, n: usize, len: usize, at: i64) -> Vec<String> {
+    (0..n)
+        .map(|i| {
+            let mut body = format!("m{i}.");
+            body.push_str(&"x".repeat(len - body.len()));
+            e.store
+                .post_direct(NewDirect {
+                    at_ms: at + i as i64,
+                    target_profile: TARGET.0.into(),
+                    target_pid: TARGET.1,
+                    target_session: TARGET.2.into(),
+                    target_start_ms: None,
+                    target_config_dir: None,
+                    sender: "claude:/home/u/.claude-kat:5:K".into(),
+                    body,
+                })
+                .unwrap()
+        })
+        .collect()
+}
+
+/// The ids, in order, of the direct messages one trigger delivered.
+fn delivered_ids(text: &str) -> Vec<String> {
+    text.split("Direct message ")
+        .skip(1)
+        .map(|s| s.split(' ').next().unwrap().to_string())
+        .collect()
+}
+
+/// One trigger delivers at most 5 messages and at most 16000 body characters, oldest first;
+/// the rest stay pending for the next trigger.
+#[tokio::test]
+async fn direct_delivery_is_bounded_per_trigger() {
+    let e = env();
+    let now = now_ms();
+    let ids = post_many(&e, 7, 20, now - 10_000);
+    let first = delivered_ids(&e.trigger(TARGET, now).unwrap());
+    assert_eq!(first, ids[..5], "the 5 oldest, in order");
+    let second = delivered_ids(&e.trigger(TARGET, now + 1).unwrap());
+    assert_eq!(second, ids[5..]);
+
+    // 4000-character messages: four fit the 16000-character budget, the fifth waits.
+    let e = env();
+    let ids = post_many(&e, 5, 4000, now - 10_000);
+    let first = delivered_ids(&e.trigger(TARGET, now).unwrap());
+    assert_eq!(first, ids[..4]);
+    let taken = e
+        .store
+        .sent_by("claude:/home/u/.claude-kat:5:K", 0)
+        .unwrap();
+    let pending: Vec<_> = taken.iter().filter(|d| d.status == "pending").collect();
+    assert_eq!(pending.len(), 1);
+    assert_eq!(pending[0].id, ids[4]);
+    let second = delivered_ids(&e.trigger(TARGET, now + 1).unwrap());
+    assert_eq!(second, ids[4..]);
+}
+
+/// A session with 20 pending messages takes no more until it has read some.
+#[tokio::test]
+async fn post_direct_refuses_past_the_pending_cap() {
+    let e = env();
+    let now = now_ms();
+    post_many(&e, 20, 10, now - 10_000);
+    let more = NewDirect {
+        at_ms: now,
+        target_profile: TARGET.0.into(),
+        target_pid: TARGET.1,
+        target_session: TARGET.2.into(),
+        target_start_ms: None,
+        target_config_dir: None,
+        sender: "claude:/home/u/.claude-kat:5:K".into(),
+        body: "one more".into(),
+    };
+    let err = e.store.post_direct(more.clone()).unwrap_err().to_string();
+    assert!(err.contains("20 pending direct messages"), "{err}");
+    // another session of the same process is not affected
+    let mut sibling = more.clone();
+    sibling.target_pid = SIBLING.1;
+    sibling.target_session = SIBLING.2.into();
+    e.store.post_direct(sibling).unwrap();
+    // and once the target read some, it takes messages again
+    assert_eq!(delivered_ids(&e.trigger(TARGET, now + 1).unwrap()).len(), 5);
+    e.store.post_direct(more).unwrap();
+}
+
+/// `expire_direct` with nothing pending takes no write lock: it does not wait on another
+/// writer (busy_timeout is 5 s).
+#[test]
+fn expire_direct_without_pending_takes_no_write_lock() {
+    let e = env();
+    let other = rusqlite::Connection::open(e.state.join("notices.db")).unwrap();
+    other.execute_batch("BEGIN IMMEDIATE").unwrap();
+    let t0 = std::time::Instant::now();
+    let n = e.store.expire_direct(now_ms(), &|_| false).unwrap();
+    assert_eq!(n, 0);
+    assert!(
+        t0.elapsed() < std::time::Duration::from_secs(2),
+        "{:?}",
+        t0.elapsed()
+    );
+    other.execute_batch("ROLLBACK").unwrap();
+}

@@ -37,7 +37,7 @@ pub struct AskArgs {
 pub struct SendMessageArgs {
     /// Claude endpoint, exact loaded Codex thread address, OpenCode address, UUID/prefix or unambiguous name.
     pub target: String,
-    /// Peer message. Codex and OpenCode targets: at most 16000 characters, starts a normal target turn. Claude targets: at most 4000 characters, delivered once at the target's next prompt or tool call, no turn is started.
+    /// Peer message. Codex and OpenCode targets: at most 16000 characters, starts a normal target turn. Claude targets: at most 4000 characters, delivered once at the target's next prompt or tool call, no turn is started; refused while the target has 20 pending messages.
     pub message: String,
     /// Queue/observation budget in seconds (default 20, clamped to 1..=30).
     #[serde(default)]

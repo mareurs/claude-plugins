@@ -44,6 +44,8 @@ pub enum BridgeError {
     NoStateDir,
     #[error("{0}")]
     Invalid(&'static str),
+    #[error("the target session already has {0} pending direct messages, the limit; send again after it has read them")]
+    TooManyPending(usize),
 }
 
 pub type Result<T> = std::result::Result<T, BridgeError>;

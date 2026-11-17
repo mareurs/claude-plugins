@@ -16,6 +16,12 @@ pub const DIRECT_TTL_MS: i64 = 24 * 60 * 60 * 1000;
 pub const MAX_DIRECT_BODY: usize = MAX_BODY;
 /// Characters of a direct message sender label.
 pub const MAX_SENDER: usize = 512;
+/// `post_direct` refuses a message for a session that already has this many pending.
+pub const MAX_PENDING_DIRECT: usize = 20;
+/// `take_direct` delivers at most this many messages per trigger...
+pub const MAX_TAKE_DIRECT: usize = 5;
+/// ...and at most this many body characters in total; the rest stay pending, oldest first.
+pub const MAX_TAKE_DIRECT_CHARS: usize = 16_000;
 
 static NEXT_DIRECT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
 
@@ -402,7 +408,8 @@ impl Store {
     /// Stores a pending direct message for one exact Claude session and returns its id. The
     /// body must hold 1..=`MAX_DIRECT_BODY` characters (not only whitespace) and no NUL; the
     /// sender 1..=`MAX_SENDER`. It expires `DIRECT_TTL_MS` after `at_ms`. Messages older
-    /// than `RETENTION_MS` are deleted in the same transaction.
+    /// than `RETENTION_MS` are deleted in the same transaction. Refused when the target
+    /// session already has `MAX_PENDING_DIRECT` pending, unexpired messages.
     pub fn post_direct(&self, m: NewDirect) -> Result<String> {
         if m.body.trim().is_empty() || m.body.contains('\0') {
             return Err(BridgeError::Invalid(
@@ -425,6 +432,15 @@ impl Store {
             "DELETE FROM direct_messages WHERE at_ms < ?1",
             params![m.at_ms - RETENTION_MS],
         )?;
+        let pending: i64 = tx.query_row(
+            "SELECT COUNT(*) FROM direct_messages WHERE target_profile = ?1 AND target_pid = ?2
+                AND target_session = ?3 AND status = 'pending' AND expires_ms > ?4",
+            params![m.target_profile, m.target_pid, m.target_session, m.at_ms],
+            |r| r.get(0),
+        )?;
+        if usize::try_from(pending).unwrap_or(usize::MAX) >= MAX_PENDING_DIRECT {
+            return Err(BridgeError::TooManyPending(MAX_PENDING_DIRECT));
+        }
         tx.execute(
             "INSERT INTO direct_messages (id, at_ms, expires_ms, target_profile, target_pid,
                 target_session, sender, body, status, delivered_ms, target_start_ms,
@@ -447,8 +463,10 @@ impl Store {
         Ok(id)
     }
 
-    /// The pending, unexpired direct messages of `target` = (profile, pid, session id),
-    /// oldest first, marked `delivered` at `now_ms` in the same transaction: each is
+    /// The oldest pending, unexpired direct messages of `target` = (profile, pid, session id),
+    /// at most `MAX_TAKE_DIRECT` of them and at most `MAX_TAKE_DIRECT_CHARS` body characters
+    /// in total (the rest stay pending for the next trigger), oldest first, marked
+    /// `delivered` at `now_ms` in the same transaction: each is
     /// returned at most once (only a row this call's UPDATE actually moved from `pending` is
     /// returned, so that holds even without the immediate write lock). A plain read first
     /// keeps the common empty case free of the write lock (this runs on every tool call).
@@ -468,14 +486,24 @@ impl Store {
         }
         let tx = self.tx()?;
         let mut stmt = tx.prepare(&format!(
-            "SELECT {DIRECT_COLS} FROM direct_messages {WHERE} ORDER BY at_ms ASC, id ASC"
+            "SELECT {DIRECT_COLS} FROM direct_messages {WHERE} ORDER BY at_ms ASC, id ASC LIMIT ?5"
         ))?;
         let rows = stmt
-            .query_map(params![target.0, target.1, target.2, now_ms], row_to_direct)?
+            .query_map(
+                params![target.0, target.1, target.2, now_ms, MAX_TAKE_DIRECT as i64],
+                row_to_direct,
+            )?
             .collect::<rusqlite::Result<Vec<_>>>()?;
         drop(stmt);
         let mut taken = Vec::with_capacity(rows.len());
+        let mut chars = 0;
         for mut d in rows {
+            // Oldest first and in order: stop at the first message over the budget (one
+            // message, at most MAX_DIRECT_BODY characters, always fits).
+            chars += d.body.chars().count();
+            if chars > MAX_TAKE_DIRECT_CHARS {
+                break;
+            }
             let moved = tx.execute(
                 "UPDATE direct_messages SET status = 'delivered', delivered_ms = ?2
                  WHERE id = ?1 AND status = 'pending'",
@@ -495,6 +523,18 @@ impl Store {
     /// whose target `ended` says has ended. `ended` must answer true only on positive
     /// evidence: an unknown or unreadable target counts as live. Returns how many were marked.
     pub fn expire_direct(&self, now_ms: i64, ended: &dyn Fn(&Direct) -> bool) -> Result<usize> {
+        // A plain read first, as in `take_direct`: nothing pending takes no write lock.
+        let any: Option<i64> = self
+            .conn
+            .query_row(
+                "SELECT 1 FROM direct_messages WHERE status = 'pending' LIMIT 1",
+                [],
+                |r| r.get(0),
+            )
+            .optional()?;
+        if any.is_none() {
+            return Ok(0);
+        }
         let tx = self.tx()?;
         let mut stmt = tx.prepare(&format!(
             "SELECT {DIRECT_COLS} FROM direct_messages WHERE status = 'pending'"

@@ -81,12 +81,12 @@
   },
   {
     "name": "send_message",
-    "description": "Send a peer message into an original loaded Codex thread or a live OpenCode session, potentially starting a normal tool-using turn under its existing account/model/permissions. Does not fork, interrupt, steer a busy turn or resume dormant threads; OpenCode messages are queued behind any running turn. Returns queued, observed or unknown evidence; never retries a possibly enqueued message. A live Claude Code session target gets a stored message (at most 4000 characters) delivered once to that exact session at its next prompt or tool call, never to other sessions; an idle Claude session is not woken; it expires after 24 h or when the session ends; list_sessions shows your sent messages with status pending, delivered or expired.",
+    "description": "Send a peer message into an original loaded Codex thread or a live OpenCode session, potentially starting a normal tool-using turn under its existing account/model/permissions. Does not fork, interrupt, steer a busy turn or resume dormant threads; OpenCode messages are queued behind any running turn. Returns queued, observed or unknown evidence; never retries a possibly enqueued message. A live Claude Code session target gets a stored message (at most 4000 characters) delivered once to that exact session at its next prompt or tool call (at most 5 messages and 16000 characters per prompt or tool call, oldest first; the rest wait for the next), never to other sessions; a session with 20 pending messages refuses more; an idle Claude session is not woken; it expires after 24 h or when the session ends; list_sessions shows your sent messages with status pending, delivered or expired.",
     "inputSchema": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "properties": {
         "message": {
-          "description": "Peer message. Codex and OpenCode targets: at most 16000 characters, starts a normal target turn. Claude targets: at most 4000 characters, delivered once at the target's next prompt or tool call, no turn is started.",
+          "description": "Peer message. Codex and OpenCode targets: at most 16000 characters, starts a normal target turn. Claude targets: at most 4000 characters, delivered once at the target's next prompt or tool call, no turn is started; refused while the target has 20 pending messages.",
           "type": "string"
         },
         "target": {
