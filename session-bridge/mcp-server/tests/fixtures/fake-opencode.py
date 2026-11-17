@@ -20,7 +20,14 @@ if args[:1] == ["api"] and len(args) >= 3:
     script = json.loads((d / "script.json").read_text())
     entry = script.get(f"{args[1]} {args[2]}", {"out": "HTTP 404 Not Found", "exit": 1})
     if (d / "starts").exists() and "after_start" in entry:
-        entry = entry["after_start"]
+        after = entry["after_start"]
+        # "healthy_after": N -> the first N-1 probes after start still use the pre-start answer
+        n = after.get("healthy_after", 1)
+        counter = d / "post_probes"
+        seen = int(counter.read_text()) + 1 if counter.exists() else 1
+        counter.write_text(str(seen))
+        if seen >= n:
+            entry = after
     sys.stdout.write(entry.get("out", ""))
     sys.exit(entry.get("exit", 0))
 

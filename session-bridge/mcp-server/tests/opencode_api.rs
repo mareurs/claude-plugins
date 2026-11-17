@@ -1,5 +1,7 @@
 use serde_json::{json, Value};
-use session_bridge_mcp::opencode_api::{ensure_service, locate_opencode, CliApi, OcApi};
+use session_bridge_mcp::opencode_api::{
+    ensure_service, ensure_service_within, locate_opencode, CliApi, OcApi,
+};
 use std::{fs, os::unix::fs::PermissionsExt, path::Path, time::Duration};
 
 const BODY_EVIL: &str = "x'; rm -rf / #";
@@ -114,8 +116,22 @@ async fn ensure_service_never_starts_twice() {
         d.path(),
         liveness(json!({"out": "HTTP 503 Service Unavailable", "exit": 1})),
     );
-    assert!(ensure_service(&api(&bin), &bin).await.is_err());
+    let wait = Duration::from_millis(600);
+    let r = ensure_service_within(&api(&bin), &bin, wait, Duration::from_millis(50)).await;
+    assert!(r.is_err());
     assert_eq!(starts(d.path()), 1);
+}
+#[tokio::test]
+async fn ensure_service_polls_until_the_listener_is_up() {
+    let d = tempfile::tempdir().unwrap();
+    let bin = fake(
+        d.path(),
+        liveness(json!({"out": "{\"data\":{}}", "healthy_after": 3})),
+    );
+    ensure_service(&api(&bin), &bin).await.unwrap();
+    assert_eq!(starts(d.path()), 1);
+    let probes = argv_log(d.path()).iter().filter(|a| a[0] == "api").count();
+    assert_eq!(probes, 4, "1 pre-start probe + 3 after the start");
 }
 
 fn env_of(pairs: &[(&str, String)]) -> impl Fn(&str) -> Option<String> {

@@ -85,8 +85,13 @@ pub fn locate_opencode(env: &dyn Fn(&str) -> Option<String>) -> Result<PathBuf> 
     Err(anyhow!("opencode CLI not found on PATH"))
 }
 
-/// Probe the service; if it is down, start it once and probe once more.
-pub async fn ensure_service(api: &impl OcApi, bin: &Path) -> Result<()> {
+/// `ensure_service` with an explicit post-start wait budget and poll interval.
+pub async fn ensure_service_within(
+    api: &impl OcApi,
+    bin: &Path,
+    wait: Duration,
+    interval: Duration,
+) -> Result<()> {
     if api.call("GET", "/api/session/active", None).await.is_ok() {
         return Ok(());
     }
@@ -100,10 +105,28 @@ pub async fn ensure_service(api: &impl OcApi, bin: &Path) -> Result<()> {
         "opencode service start failed ({})",
         out.status
     );
-    api.call("GET", "/api/session/active", None)
-        .await
-        .context("OpenCode service did not come up after start")?;
-    Ok(())
+    // `service start` may return before the HTTP listener is up: poll, never start again.
+    let give_up = tokio::time::Instant::now() + wait;
+    loop {
+        match api.call("GET", "/api/session/active", None).await {
+            Ok(_) => return Ok(()),
+            Err(e) if tokio::time::Instant::now() + interval >= give_up => {
+                return Err(e.context("OpenCode service did not come up after start"));
+            }
+            Err(_) => tokio::time::sleep(interval).await,
+        }
+    }
+}
+
+/// Probe the service; if it is down, start it once and probe once more.
+pub async fn ensure_service(api: &impl OcApi, bin: &Path) -> Result<()> {
+    ensure_service_within(
+        api,
+        bin,
+        Duration::from_secs(10),
+        Duration::from_millis(250),
+    )
+    .await
 }
 
 /// `$XDG_DATA_HOME/opencode`, else `$HOME/.local/share/opencode`, canonicalized.
