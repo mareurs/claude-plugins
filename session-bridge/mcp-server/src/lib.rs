@@ -16,6 +16,7 @@ pub mod store;
 pub mod codex;
 pub mod codex_hook;
 pub mod codex_process;
+pub mod opencode;
 pub mod opencode_api;
 pub mod send;
 pub mod sessions;

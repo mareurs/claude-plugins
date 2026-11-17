@@ -202,12 +202,20 @@ async fn run() -> anyhow::Result<()> {
             Bridge::new().serve(stdio()).await?.waiting().await?;
         }
         Command::Sessions { json } => {
-            let sessions = session_bridge_mcp::sessions::discover_sessions(&Roots::system());
+            let (sessions, notes) =
+                session_bridge_mcp::sessions::discover_sessions_all(&Roots::system(), &|k| {
+                    std::env::var(k).ok()
+                })
+                .await;
+            for note in &notes {
+                eprintln!("note: {note}");
+            }
             if json {
                 let rows:Vec<_>=sessions.iter().map(|s|{
                     let (harness,pid,profile)=match s {
                         session_bridge_mcp::sessions::Session::Claude(e)=>("claude",e.pid,&e.config_dir),
-                        session_bridge_mcp::sessions::Session::Codex(e)=>("codex",e.pid,&e.config_dir)
+                        session_bridge_mcp::sessions::Session::Codex(e)=>("codex",e.pid,&e.config_dir),
+                        session_bridge_mcp::sessions::Session::OpenCode(e)=>("opencode",0,&e.data_dir)
                     };
                     serde_json::json!({"key":s.key(),"harness":harness,"pid":pid,"config_dir":profile,"session_id":s.session_id(),"cwd":s.cwd()})
                 }).collect();

@@ -2,6 +2,7 @@
 use crate::{
     codex::{discover_codex, is_thread_id, CodexEndpoint},
     endpoints::{claude_pid_of, discover, repo_of, Endpoint, Roots},
+    opencode::{discover_opencode_system, OpenCodeEndpoint},
     paths::profile_matches,
 };
 use anyhow::{anyhow, Result};
@@ -12,12 +13,14 @@ use std::path::{Path, PathBuf};
 pub enum Session {
     Claude(Endpoint),
     Codex(CodexEndpoint),
+    OpenCode(OpenCodeEndpoint),
 }
 impl Session {
     pub fn key(&self) -> String {
         match self {
             Self::Claude(e) => e.key(),
             Self::Codex(e) => e.key(),
+            Self::OpenCode(e) => e.key(),
         }
     }
     pub fn identity(&self) -> String {
@@ -29,6 +32,7 @@ impl Session {
                 e.session_id
             ),
             Self::Codex(e) => e.key(),
+            Self::OpenCode(e) => e.key(),
         }
     }
     /// Codex uses logical PID zero, since the hashed profile already identifies a complete
@@ -37,18 +41,21 @@ impl Session {
         match self {
             Self::Claude(e) => (e.profile.clone(), e.pid),
             Self::Codex(e) => (e.storage_profile(), 0),
+            Self::OpenCode(e) => (e.storage_profile(), 0),
         }
     }
     pub fn session_id(&self) -> &str {
         match self {
             Self::Claude(e) => &e.session_id,
             Self::Codex(e) => &e.session_id,
+            Self::OpenCode(e) => &e.session_id,
         }
     }
     pub fn cwd(&self) -> Option<&Path> {
         match self {
             Self::Claude(e) => Some(&e.launch_cwd),
             Self::Codex(e) => e.cwd.as_deref(),
+            Self::OpenCode(e) => e.directory.as_deref(),
         }
     }
     pub fn render(&self, you: bool) -> String {
@@ -59,7 +66,11 @@ impl Session {
             Self::Codex(e)=>format!("{}{} harness=codex session={} pid={} profile={} name={} status=loaded cwd={} repo={}",clean(&e.key()),if you{" (you)"}else{""},
                 e.session_id,e.pid,clean(&e.config_dir.to_string_lossy()),clean(e.name.as_deref().unwrap_or("-")),
                 e.cwd.as_ref().map(|p|clean(&p.to_string_lossy())).unwrap_or_else(||"-".into()),
-                e.cwd.as_ref().and_then(|p|repo_of(p)).map(|p|clean(&p.to_string_lossy())).unwrap_or_else(||"-".into()))
+                e.cwd.as_ref().and_then(|p|repo_of(p)).map(|p|clean(&p.to_string_lossy())).unwrap_or_else(||"-".into())),
+            Self::OpenCode(e)=>format!("{}{} harness=opencode session={} name={} status={} cwd={} repo={}",clean(&e.key()),if you{" (you)"}else{""},
+                e.session_id,clean(e.title.as_deref().unwrap_or("-")),if e.running{"running"}else{"idle"},
+                e.directory.as_ref().map(|p|clean(&p.to_string_lossy())).unwrap_or_else(||"-".into()),
+                e.directory.as_ref().and_then(|p|repo_of(p)).map(|p|clean(&p.to_string_lossy())).unwrap_or_else(||"-".into())),
         }
     }
 }
@@ -81,6 +92,21 @@ pub fn discover_sessions(roots: &Roots) -> Vec<Session> {
         .chain(discover_codex(roots).into_iter().map(Session::Codex))
         .collect()
 }
+/// Claude and Codex (synchronous) plus OpenCode (service API). An OpenCode failure is a
+/// discovery note, never an error: the other harnesses are still listed.
+pub async fn discover_sessions_all(
+    roots: &Roots,
+    env: &(dyn Fn(&str) -> Option<String> + Sync),
+) -> (Vec<Session>, Vec<String>) {
+    let mut sessions = discover_sessions(roots);
+    let mut notes = Vec::new();
+    match discover_opencode_system(env).await {
+        Ok(eps) => sessions.extend(eps.into_iter().map(Session::OpenCode)),
+        Err(e) => notes.push(format!("OpenCode sessions not listed: {e:#}")),
+    }
+    (sessions, notes)
+}
+
 pub fn resolve_session<'a>(
     sessions: &'a [Session],
     target: &str,
@@ -95,6 +121,7 @@ pub fn resolve_session<'a>(
     for session in sessions {
         let rank = match session {
             Session::Codex(e) => e.match_rank(target),
+            Session::OpenCode(e) => e.match_rank(target),
             Session::Claude(e) => {
                 let rest = match legacy_prefix {
                     Some((p, r)) if profile_matches(&e.profile, p) => r,

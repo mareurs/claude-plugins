@@ -6,7 +6,9 @@ use crate::endpoints::{repo_of, Roots};
 use crate::error::BridgeError;
 use crate::paths::{short_profile, state_root};
 use crate::send::send_codex;
-use crate::sessions::{caller_session, discover_sessions, resolve_session, Session};
+use crate::sessions::{
+    caller_session, discover_sessions, discover_sessions_all, resolve_session, Session,
+};
 use crate::state::{current_session, endpoint_path, update};
 use crate::store::{NewNotice, Origin, Store};
 use rmcp::{
@@ -173,9 +175,9 @@ impl Bridge {
     #[tool(
         description = "List live Claude Code sessions and loaded Codex threads on this Linux machine. Codex discovery covers open-rollout hosts; loaded does not establish UI attachment."
     )]
-    fn list_sessions(&self, ctx: RequestContext<RoleServer>) -> Result<String, ErrorData> {
+    async fn list_sessions(&self, ctx: RequestContext<RoleServer>) -> Result<String, ErrorData> {
         let roots = Roots::system();
-        let sessions = discover_sessions(&roots);
+        let (sessions, notes) = discover_sessions_all(&roots, &|k| std::env::var(k).ok()).await;
         let caller = caller_session(
             &sessions,
             &roots,
@@ -193,6 +195,9 @@ impl Bridge {
                 .push("No live Claude Code sessions or rollout-backed Codex threads found.".into());
         }
         lines.push("Scope: local Linux, Claude native/IPC session registrations and Codex open rollouts; saved-only threads and hosts without open rollouts are outside this listing.".into());
+        for note in notes {
+            lines.push(format!("Discovery note: {note}"));
+        }
         if let Err(e) = caller {
             lines.push(format!("Caller identity unavailable: {e}"));
         }
@@ -248,6 +253,9 @@ impl Bridge {
                 .map_err(internal)?;
                 serde_json::to_string_pretty(&result).map_err(internal)
             }
+            Session::OpenCode(_) => Err(internal(
+                "asking OpenCode sessions is not supported yet; OpenCode sessions are listed only",
+            )),
         }
     }
 
