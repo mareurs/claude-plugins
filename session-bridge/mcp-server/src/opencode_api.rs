@@ -46,6 +46,10 @@ impl OcApi for CliApi {
                 out.status,
                 first_line(if text.is_empty() { &out.stderr } else { text })
             );
+            // A 204 answer (switchAgent, wait, remove) prints nothing on success.
+            if text.is_empty() {
+                return Ok(Value::Null);
+            }
             // An HTTP error or the web UI's HTML is never a JSON body.
             serde_json::from_str(text)
                 .map_err(|_| anyhow!("opencode api returned non-JSON: {}", first_line(text)))

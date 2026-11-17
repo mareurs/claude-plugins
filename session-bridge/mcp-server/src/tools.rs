@@ -6,6 +6,7 @@ use crate::ask::{ask, clamp_timeout, locate_claude};
 use crate::codex_process::{ask_codex, locate_codex};
 use crate::endpoints::Roots;
 use crate::opencode_api::{locate_opencode, CliApi};
+use crate::opencode_ask::ask_opencode;
 use crate::opencode_send::send_opencode;
 use crate::paths::short_profile;
 use crate::send::send_codex;
@@ -114,9 +115,26 @@ pub async fn ask_session(
             .await?;
             Ok(serde_json::to_string_pretty(&result)?)
         }
-        Session::OpenCode(_) => Err(anyhow!(
-            "asking OpenCode sessions is not supported yet; OpenCode sessions are listed only"
-        )),
+        // Like Codex, outside the Claude USD meter: no budget check, no ask log, no charge.
+        Session::OpenCode(target) => {
+            let bin = locate_opencode(&|k| std::env::var(k).ok())?;
+            let timeout = std::time::Duration::from_secs(timeout);
+            // The CLI budget is longer than the ask's own deadline, so the blocking wait is cut
+            // by the ask's timeout (which then interrupts and removes the fork), never by it.
+            let api = CliApi {
+                bin,
+                timeout: timeout + std::time::Duration::from_secs(30),
+            };
+            let result = ask_opencode(
+                &api,
+                &target,
+                &args.question,
+                args.model.as_deref(),
+                timeout,
+            )
+            .await?;
+            Ok(serde_json::to_string_pretty(&result)?)
+        }
     }
 }
 

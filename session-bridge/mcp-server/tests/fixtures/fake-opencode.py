@@ -3,7 +3,9 @@
   script.json  {"METHOD path": {"out": "<stdout>", "exit": 0, "after_start": {"out": ..., "exit": ...}}}
   argv.log     one JSON array per invocation (full argv after the program name)
   starts       one line per `service start`
-An entry's "after_start" override applies once `service start` ran."""
+An entry's "after_start" override applies once `service start` ran.
+The `id` of the last `POST .../prompt` body is kept in `prompt_id` and replaces every
+`{{PROMPT_ID}}` in later outputs, like a service that stored the client message id."""
 import json, os, pathlib, sys
 
 # Invoked through a per-test symlink: state is the `state/` dir beside that symlink (argv[0] is
@@ -30,7 +32,12 @@ if args[:1] == ["api"] and len(args) >= 3:
         counter.write_text(str(seen))
         if seen >= n:
             entry = after
-    sys.stdout.write(entry.get("out", ""))
+    if args[1] == "POST" and args[2].endswith("/prompt") and args[3:4] == ["-d"]:
+        (d / "prompt_id").write_text(json.loads(args[4]).get("id", ""))
+    out = entry.get("out", "")
+    if (d / "prompt_id").exists():
+        out = out.replace("{{PROMPT_ID}}", (d / "prompt_id").read_text())
+    sys.stdout.write(out)
     sys.exit(entry.get("exit", 0))
 
 sys.stderr.write("unsupported argv\n")

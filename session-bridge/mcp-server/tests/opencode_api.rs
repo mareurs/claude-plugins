@@ -78,6 +78,19 @@ async fn cli_api_http_error_is_err() {
     }
 }
 
+#[tokio::test]
+async fn cli_api_empty_success_is_null() {
+    // 204 answers (switchAgent, wait, remove) print nothing and exit 0.
+    let d = tempfile::tempdir().unwrap();
+    let bin = fake(
+        d.path(),
+        json!({"POST /api/w": {"out": ""}, "POST /api/e": {"out": "", "exit": 1}}),
+    );
+    let v = api(&bin).call("POST", "/api/w", None).await.unwrap();
+    assert_eq!(v, Value::Null);
+    assert!(api(&bin).call("POST", "/api/e", None).await.is_err());
+}
+
 fn liveness(after: Value) -> Value {
     json!({"GET /api/session/active": {"out": "HTTP 503 Service Unavailable", "exit": 1, "after_start": after}})
 }

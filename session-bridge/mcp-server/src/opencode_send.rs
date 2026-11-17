@@ -12,7 +12,7 @@ use std::{
 static NEXT: AtomicU64 = AtomicU64::new(0);
 
 /// OpenCode message ids must match `^msg_`; a client-supplied prompt id is kept verbatim.
-fn new_message_id() -> String {
+pub(crate) fn new_message_id() -> String {
     format!(
         "msg_sb{:x}{:x}{:x}",
         chrono::Utc::now().timestamp_nanos_opt().unwrap_or_default(),
