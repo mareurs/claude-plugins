@@ -41,9 +41,10 @@ fi
 # below lands beside it. This names the problem and changes nothing: the committing session
 # can amend its own message.
 raw_n="$(grep -c "^${SBG_TRAILER}:" "$msg_file")"
+raw_ids="$(grep "^${SBG_TRAILER}:" "$msg_file" | sed "s/^${SBG_TRAILER}:[[:space:]]*//" | paste -sd, -)"
 parsed_n="$(git -c trailer.separators=: interpret-trailers --parse "$msg_file" | grep -c "^${SBG_TRAILER}:")"
 if [ "$raw_n" -gt "$parsed_n" ]; then
-    echo "session-bridge prepare-commit-msg: this message has $raw_n ${SBG_TRAILER} line(s) but only $parsed_n in its final paragraph, the only place git reads trailers from. A line above it is invisible to the push guard. Delete the hand-written line (git commit --amend): the hook writes it." >&2
+    echo "session-bridge prepare-commit-msg: this message has $raw_n ${SBG_TRAILER} line(s) ($raw_ids) but only $parsed_n in its final paragraph, the only place git reads trailers from; the rest is invisible to every query. A ${SBG_TRAILER} sits outside its final paragraph, and the push guard cannot see it. This hook is stamping $sid there. Delete the hand-written line (git commit --amend): the hook writes it for you." >&2
 fi
 
 # `-c trailer.separators=:` pins the separator, so a user setting cannot change the format.

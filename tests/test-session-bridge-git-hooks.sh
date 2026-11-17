@@ -112,7 +112,9 @@ has "stamp: the refusal names the cause" "identity command failed" "$out"
 git -C "$T/pcm" reset -q --hard
 echo hand >> "$T/pcm/f"; git -C "$T/pcm" add f
 out="$(CLAUDE_CODE_SESSION_ID=sess-a git -C "$T/pcm" commit -q -m "$(printf 'subject\n\nSession-Id: hand-written\n\nbody paragraph')" 2>&1)"
-has "stamp: a hand-written line above the final paragraph is named" "invisible to the push guard" "$out"
+has "stamp: a hand-written line above the final paragraph is named" "the push guard cannot see it" "$out"
+has "stamp: …and the warning says where the line sits" "outside its final paragraph" "$out"
+has "stamp: …and quotes its value, so the reader can find it" "(hand-written)" "$out"
 
 # ---- pre-push ----
 new_repo pp
