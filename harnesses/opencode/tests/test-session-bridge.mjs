@@ -1,7 +1,7 @@
 // session-bridge OpenCode plugin — unit tests. Run: node harnesses/opencode/tests/test-session-bridge.mjs
 // The Rust binary is replaced by the committed fixture fixtures/fake-bridge/session-bridge.
 import assert from 'node:assert/strict';
-import { mkdtempSync, rmSync, readFileSync, existsSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, rmSync, readFileSync, existsSync, symlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -135,9 +135,11 @@ await ok('a failing call (exit 2) throws with the binary stderr', async () => {
 });
 
 await ok('missing_binary_error_names_override: names SESSION_BRIDGE_BIN and PATH', async () => {
-  await withEnv(fake({ SESSION_BRIDGE_BIN: undefined, PATH: SANDBOX }), async () => {
+  const empty = join(SANDBOX, 'empty-home');
+  await withEnv(fake({ SESSION_BRIDGE_BIN: undefined, PATH: SANDBOX, HOME: empty, CARGO_HOME: undefined }), async () => {
     const { tools } = await setup();
-    await assert.rejects(tools.list_sessions.execute({}, { sessionID: 's' }), (e) => /SESSION_BRIDGE_BIN/.test(e.message) && /PATH/.test(e.message));
+    await assert.rejects(tools.list_sessions.execute({}, { sessionID: 's' }), (e) => /SESSION_BRIDGE_BIN/.test(e.message) && /PATH/.test(e.message)
+      && e.message.includes(join(empty, '.local/bin/session-bridge')) && e.message.includes(join(empty, '.cargo/bin/session-bridge')));
   });
   await withEnv(fake({ SESSION_BRIDGE_BIN: join(SANDBOX, 'nope') }), async () => {
     const { tools } = await setup();
@@ -145,10 +147,35 @@ await ok('missing_binary_error_names_override: names SESSION_BRIDGE_BIN and PATH
   });
 });
 
-await ok('bridgeBin: absolute override, PATH fallback, relative override rejected', () => {
+await ok('bridgeBin: absolute override, PATH lookup, relative override rejected', () => {
   assert.equal(bridgeBin({ SESSION_BRIDGE_BIN: '/x/sb' }), '/x/sb');
-  assert.equal(bridgeBin({}), 'session-bridge');
+  assert.equal(bridgeBin({ PATH: `${SANDBOX}:${FAKE_DIR}`, HOME: SANDBOX }), FAKE);
+  assert.throws(() => bridgeBin({ PATH: SANDBOX, HOME: join(SANDBOX, 'none') }), /not found/);
   assert.throws(() => bridgeBin({ SESSION_BRIDGE_BIN: 'rel/sb' }), /absolute/);
+});
+
+await ok('bridgeBin falls back to ~/.local/bin, then ${CARGO_HOME:-~/.cargo}/bin, after PATH', async () => {
+  const home = join(SANDBOX, 'fb-home');
+  const cargo = join(SANDBOX, 'fb-cargo');
+  mkdirSync(join(home, '.cargo', 'bin'), { recursive: true });
+  mkdirSync(join(cargo, 'bin'), { recursive: true });
+  // symlinks to the committed fixture, never a freshly written executable
+  symlinkSync(FAKE, join(home, '.cargo', 'bin', 'session-bridge'));
+  symlinkSync(FAKE, join(cargo, 'bin', 'session-bridge'));
+  assert.equal(bridgeBin({ PATH: SANDBOX, HOME: home }), join(home, '.cargo', 'bin', 'session-bridge'));
+  assert.equal(bridgeBin({ PATH: SANDBOX, HOME: home, CARGO_HOME: cargo }), join(cargo, 'bin', 'session-bridge'));
+  mkdirSync(join(home, '.local', 'bin'), { recursive: true });
+  symlinkSync(FAKE, join(home, '.local', 'bin', 'session-bridge'));
+  assert.equal(bridgeBin({ PATH: SANDBOX, HOME: home, CARGO_HOME: cargo }), join(home, '.local', 'bin', 'session-bridge'));
+  // PATH still wins over both
+  assert.equal(bridgeBin({ PATH: FAKE_DIR, HOME: home, CARGO_HOME: cargo }), FAKE);
+  // the fake bridge needs `node` on PATH (`#!/usr/bin/env node`); that dir has no session-bridge
+  const nodePath = `${SANDBOX}:${dirname(process.execPath)}`;
+  assert.equal(bridgeBin({ PATH: nodePath, HOME: home }), join(home, '.local', 'bin', 'session-bridge'));
+  await withEnv(fake({ SESSION_BRIDGE_BIN: undefined, PATH: nodePath, HOME: home, CARGO_HOME: undefined, FAKE_SB_OUT: 'via fallback' }), async () => {
+    const { tools } = await setup();
+    assert.equal((await tools.list_sessions.execute({}, { sessionID: 's' })).output, 'via fallback');
+  });
 });
 
 await ok('PATH lookup finds the binary when no override is set', async () => {
@@ -217,6 +244,16 @@ await ok('hard_bound: a bridge that ignores SIGTERM cannot hang a tool call', as
     const t0 = Date.now();
     await assert.rejects(exec({}, { sessionID: 'ses_x' }), /timed out/);
     assert.ok(Date.now() - t0 < 1500, `rejected after ${Date.now() - t0} ms`);
+  });
+});
+
+await ok('a SIGTERMed bridge gets more than 3 s to remove its ask fork before SIGKILL', async () => {
+  const log = join(SANDBOX, 'term.json');
+  await withEnv(fake({ FAKE_SB_LOG: log, FAKE_SB_TERM_MS: '3500' }), async () => {
+    const exec = makeToolExecute('ask_session', { timeoutMs: 200 });
+    await assert.rejects(exec({ target: 't', question: 'q' }, { sessionID: 'ses_x' }), /timed out/);
+    await new Promise((r) => setTimeout(r, 4200));
+    assert.equal(existsSync(`${log}.term`), true, 'the bridge was killed before its cleanup finished');
   });
 });
 

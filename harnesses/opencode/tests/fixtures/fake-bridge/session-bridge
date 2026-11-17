@@ -4,6 +4,13 @@
 const fs = require('fs');
 // FAKE_SB_HANG=1: ignore SIGTERM and stay alive 30 s (a misbehaving bridge).
 if (process.env.FAKE_SB_HANG) { process.on('SIGTERM', () => {}); setTimeout(() => process.exit(0), 30000); return; }
+// FAKE_SB_TERM_MS=N: on SIGTERM spend N ms cleaning up (like the bridge removing an ask fork),
+// then write $FAKE_SB_LOG.term and exit 2. Until signalled, stay alive 30 s.
+if (process.env.FAKE_SB_TERM_MS) {
+  process.on('SIGTERM', () => setTimeout(() => { fs.writeFileSync(process.env.FAKE_SB_LOG + '.term', 'cleaned'); process.exit(2); }, Number(process.env.FAKE_SB_TERM_MS)));
+  setTimeout(() => process.exit(0), 30000);
+  return;
+}
 let stdin = '';
 process.stdin.on('data', (d) => { stdin += d; });
 process.stdin.on('end', () => {

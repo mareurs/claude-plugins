@@ -120,10 +120,16 @@ if [ -x "$SB/bindir/session-bridge" ] && [ "$("$SB/bindir/session-bridge")" = "v
   pass "build.sh links the binary into SESSION_BRIDGE_BIN_DIR and prints the path"
 else fail "build.sh did not link/print the binary path: $out"; fi
 printf '#!/bin/sh\necho v2\n' > "$SB/cargo/bin/session-bridge"
-ln -sfn "$SB/stale" "$SB/bindir/session-bridge"   # a stale link from an older release
-run_build >/dev/null
-if [ "$("$SB/bindir/session-bridge" 2>/dev/null)" = "v2" ]; then pass "build.sh re-links a stale link (idempotent)"
-else fail "build.sh left a stale link in place"; fi
+out="$(run_build)"; rc=$?
+if [ "$rc" -eq 0 ] && [ "$(readlink "$SB/bindir/session-bridge")" = "$SB/cargo/bin/session-bridge" ] && [ "$("$SB/bindir/session-bridge" 2>/dev/null)" = "v2" ]; then
+  pass "build.sh keeps a link that already points at the cargo binary (idempotent)"
+else fail "build.sh failed to re-run over its own link (rc=$rc): $out"; fi
+# A symlink pointing anywhere else is not ours: build.sh must refuse, not repoint it.
+ln -sfn "$SB/elsewhere" "$SB/bindir/session-bridge"
+out="$(run_build)"; rc=$?
+if [ "$rc" -ne 0 ] && [ "$(readlink "$SB/bindir/session-bridge")" = "$SB/elsewhere" ] && printf '%s' "$out" | grep -q "refusing"; then
+  pass "build.sh refuses to replace a symlink that points somewhere else"
+else fail "build.sh repointed or ignored a foreign symlink (rc=$rc): $out"; fi
 # A foreign regular file at the link target is the user's own: build.sh must refuse, not replace.
 rm -f "$SB/bindir/session-bridge"
 echo 'user binary' > "$SB/bindir/session-bridge"

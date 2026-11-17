@@ -16,10 +16,14 @@
 // `session-bridge-reader` agent registered here (everything denied, then reading tools
 // allowed; OpenCode's built-in `plan` agent is NOT read-only on 2.1.3).
 //
-// NO RECURSION. The forked run loads this plugin too. It sees OPENCODE_SESSION_BRIDGE_CHILD
-// and registers the reader agent but not the tools or hooks.
+// NO RECURSION. The fork runs inside the OpenCode service under the reader agent, whose
+// leading `* deny` permission keeps every non-reading tool from it, these four tools included:
+// a fork cannot ask, message or notify another session. CHILD_ENV is a legacy, defensive
+// guard from the earlier `opencode run --fork` design: a process started with
+// OPENCODE_SESSION_BRIDGE_CHILD=1 still registers the reader agent but not the tools or hooks.
 import { spawn } from 'node:child_process';
-import { isAbsolute } from 'node:path';
+import { accessSync, statSync, constants as fsConstants } from 'node:fs';
+import { delimiter, isAbsolute, join } from 'node:path';
 import { resolveDir } from '../lib/host.mjs';
 
 export const READER = 'session-bridge-reader';
@@ -31,7 +35,9 @@ const TIMEOUTS = {
 };
 const OUTPUT_LIMIT = 1 << 20;
 const HOOK_TIMEOUT_MS = 3000;
-const KILL_GRACE_MS = 2000;
+// SIGTERM to SIGKILL. A signalled `session-bridge call` interrupts and removes its ask fork
+// (at most 3 s) before it exits; the grace must outlast that cleanup.
+export const KILL_GRACE_MS = 5000;
 const EXIT_GRACE_MS = 200;
 
 // Reading tools only. Native: read/grep/glob/list. codescout: its read-only tools (no
@@ -60,18 +66,36 @@ export function registerReader(T) {
   });
 }
 
-// The bridge binary: SESSION_BRIDGE_BIN (must be absolute) else `session-bridge` on PATH.
+const isExecutable = (p) => {
+  try {
+    accessSync(p, fsConstants.X_OK);
+    return statSync(p).isFile();
+  } catch {
+    return false;
+  }
+};
+
+// The bridge binary: SESSION_BRIDGE_BIN (must be absolute), else `session-bridge` on PATH,
+// else $HOME/.local/bin/session-bridge, else ${CARGO_HOME:-$HOME/.cargo}/bin/session-bridge
+// (the OpenCode service's PATH may lack ~/.local/bin). Throws, naming every place tried.
 export function bridgeBin(env = process.env) {
   const o = env.SESSION_BRIDGE_BIN;
   if (o) {
     if (!isAbsolute(o)) throw new Error(`SESSION_BRIDGE_BIN must be an absolute path, got '${o}'`);
     return o;
   }
-  return 'session-bridge';
+  const dirs = String(env.PATH || '').split(delimiter).filter((d) => d && isAbsolute(d));
+  const home = env.HOME || '';
+  const cargo = env.CARGO_HOME || (home ? join(home, '.cargo') : '');
+  const fallbacks = [home && join(home, '.local', 'bin', 'session-bridge'), cargo && join(cargo, 'bin', 'session-bridge')].filter(Boolean);
+  const found = [...dirs.map((d) => join(d, 'session-bridge')), ...fallbacks].find(isExecutable);
+  if (found) return found;
+  const tried = ['`session-bridge` on PATH', ...fallbacks.map((f) => `'${f}'`)].join(', ');
+  throw new Error(`session-bridge binary not found (tried ${tried}): set SESSION_BRIDGE_BIN to its absolute path or put \`session-bridge\` on PATH`);
 }
 
 const missingMsg = (bin) =>
-  `session-bridge binary not found (tried '${bin}'): set SESSION_BRIDGE_BIN to its absolute path or put \`session-bridge\` on PATH`;
+  `session-bridge binary not found (tried SESSION_BRIDGE_BIN '${bin}'): set SESSION_BRIDGE_BIN to its absolute path or put \`session-bridge\` on PATH`;
 
 const textOf = (r) => ({ output: r, content: [{ type: 'text', text: r }] });
 
