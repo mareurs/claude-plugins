@@ -7,7 +7,7 @@
 # frontmatter, headings summon projects, marker words the eval rubric scores, pointers,
 # citations) and claim nothing about agent behaviour — prompt-tdd measures that.
 #
-# Modeled on tests/test-peer-skill-split.sh: every check runs on the real file (must pass)
+# Modeled on tests/test-session-bridge-skill.sh: every check runs on the real file (must pass)
 # and on a mutated COPY under mktemp (must fail); each control also proves its mutation
 # changed the copy. The real files are never edited. HAMSA_SKILL_DIR points the suite at
 # another skill dir.

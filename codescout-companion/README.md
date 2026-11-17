@@ -32,7 +32,7 @@ Start a new Claude Code session — the plugin activates automatically.
 - **Drift warnings** — Surfaces high-drift files and flags stale docs/memories
 - **Worktree guard** — Blocks codescout write tools until `workspace` is called after `EnterWorktree`
 - **Tracker hygiene** — `/codescout-companion:tracker-hygiene` runs a human-gated tracker-corpus sweep (staleness, index drift, terminal-tracker archiving); SessionStart nudges when the project's ledger says a sweep is overdue
-- **Peer sessions** — `/codescout-companion:reaching-peer-sessions` enumerates the sessions actually live on this machine, Claude Code sessions and loaded Codex threads, across accounts. `ListAgents` reads a **per-account** registry while `SendMessage` delivers over a **per-user** socket dir, so on a multi-account machine it omits peers and reports the short count as complete; the skill branches on the real account count and gives each harness's address form (the `uds:` form for Claude peers, the thread uuid for Codex threads)
+- **Peer sessions** — moved to the `session-bridge` plugin: its skill `coordinating-sessions` covers posting a notice, reading one, asking a peer and the commit backup. The peer-session skill of this plugin was retired on 2026-11-17, because `session-bridge`'s `list_sessions` already lists the live sessions of every profile, Claude Code and Codex.
 
 ## Full Installation
 

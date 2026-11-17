@@ -244,8 +244,10 @@ out. It prints nothing and exits 0 when there is no store or no repository. `ser
 
 ## Skill
 
-`announcing-changes` tells an agent when to post a notice (before the commit that carries the
-change) and how to word it.
+`coordinating-sessions` tells an agent when to post a notice (before the commit that carries the
+change), how to word it, what to do with a notice it receives, when and how to ask a peer, and
+what to do when the bridge is silent. Its `references/commit-backup.md` holds the conditions of the
+commit backup.
 
 ## Known limits
 
@@ -302,7 +304,7 @@ session-bridge/
 ├── .claude-plugin/plugin.json
 ├── hooks/{hooks.json, run.sh}
 ├── mcp-server/{Cargo.toml, src/, tests/}
-├── skills/announcing-changes/SKILL.md
+├── skills/coordinating-sessions/{SKILL.md, references/commit-backup.md}
 ├── commands/sessions.md
 ├── scripts/build.sh
 ├── docs/claude-cli-probe.md        historical, see its banner

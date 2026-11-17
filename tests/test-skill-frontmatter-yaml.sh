@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # tests/test-skill-frontmatter-yaml.sh — every SKILL.md has frontmatter that parses as YAML
 #
-# WHY THIS EXISTS. session-bridge/skills/announcing-changes/SKILL.md shipped with a plain
+# WHY THIS EXISTS. The first session-bridge skill shipped with a plain
 # (unquoted) description that contains ": ". YAML reads that as a nested mapping key and the
 # frontmatter fails to parse (ScannerError), so the skill loses its name and description. No test
 # noticed: the other skill tests grep the body or run its tool calls and never parse the
