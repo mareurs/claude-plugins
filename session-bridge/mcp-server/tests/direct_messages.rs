@@ -1,6 +1,6 @@
 //! `send_message` to a Claude session: stored once in notices.db, delivered once through the
 //! Claude hook path (`on_trigger`) at the target's next turn, never to anyone else, never
-//! through the relevance filter, expiring after 24 h or when the target ends.
+//! through the relevance filter, expiring after 24 h or on proof that the target ended.
 //! `spawn` is a recorder in every test: no test starts a real process.
 
 use session_bridge_mcp::endpoints::{repo_of, Endpoint, Roots};
@@ -11,7 +11,7 @@ use session_bridge_mcp::state::{endpoint_path, load_or_default, update, Verdict}
 use session_bridge_mcp::store::{NewDirect, NewNotice, Origin, Store, DIRECT_TTL_MS};
 use session_bridge_mcp::tools::{list_sessions, send_message, SendMessageArgs};
 use std::cell::RefCell;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use tempfile::TempDir;
 
 const STEF: &str = ".claude-stef";
@@ -54,23 +54,30 @@ fn env() -> Env {
     let socks = tmp.path().join("socks");
     std::fs::create_dir_all(&proc_root).unwrap();
     std::fs::create_dir_all(&socks).unwrap();
+    std::fs::write(proc_root.join("stat"), "cpu 0\nbtime 1700000000\n").unwrap();
     let state = tmp.path().join("state");
     std::fs::create_dir_all(&state).unwrap();
     let store = Store::open(&state.join("notices.db")).unwrap();
-    Env {
+    let e = Env {
         roots: Roots { proc_root, socks },
         _tmp: tmp,
         state,
         repo,
         store,
         spawned: RefCell::new(vec![]),
+    };
+    // Every Claude session of the fixture is a live process with a known start time.
+    for who in [TARGET, SIBLING, SENDER] {
+        e.start(who.1, 1000);
     }
+    e
 }
 
-fn claude(who: (&str, u32, &str), repo: &std::path::Path) -> Session {
+/// A Claude session whose config dir is `<tmp>/<profile>`, where `Env::register` writes.
+fn claude(who: (&str, u32, &str), repo: &Path) -> Session {
     Session::Claude(Endpoint {
         profile: who.0.into(),
-        config_dir: format!("/home/u/{}", who.0).into(),
+        config_dir: repo.parent().unwrap().join(who.0),
         pid: who.1,
         session_id: who.2.into(),
         name: None,
@@ -81,7 +88,7 @@ fn claude(who: (&str, u32, &str), repo: &std::path::Path) -> Session {
     })
 }
 
-fn opencode(id: &str, repo: &std::path::Path) -> Session {
+fn opencode(id: &str, repo: &Path) -> Session {
     Session::OpenCode(OpenCodeEndpoint {
         data_dir: "/home/u/.local/share/opencode".into(),
         session_id: id.into(),
@@ -93,6 +100,41 @@ fn opencode(id: &str, repo: &std::path::Path) -> Session {
 }
 
 impl Env {
+    /// Process `pid` is alive and started `ticks` clock ticks after boot.
+    fn start(&self, pid: u32, ticks: u64) {
+        let dir = self.roots.proc_root.join(pid.to_string());
+        std::fs::create_dir_all(&dir).unwrap();
+        // `starttime` (field 22) is the 20th token after the comm field.
+        let zeros = vec!["0"; 18].join(" ");
+        std::fs::write(
+            dir.join("stat"),
+            format!("{pid} (claude) S {zeros} {ticks} 0 0\n"),
+        )
+        .unwrap();
+    }
+
+    /// Process `pid` is gone.
+    fn kill(&self, pid: u32) {
+        std::fs::remove_dir_all(self.roots.proc_root.join(pid.to_string())).unwrap();
+    }
+
+    /// `<tmp>/<profile>/sessions/<pid>.json` holds `content` verbatim.
+    fn register(&self, who: (&str, u32, &str), content: &str) {
+        let dir = self.repo.parent().unwrap().join(who.0).join("sessions");
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(dir.join(format!("{}.json", who.1)), content).unwrap();
+    }
+
+    /// The status `list_sessions` shows `sender` for message `id`, given `sessions`.
+    async fn status_of(&self, sender: &Session, sessions: &[Session], id: &str) -> String {
+        let out = list_sessions(Some(sender), sessions, &[], &self.roots, &self.state)
+            .await
+            .unwrap();
+        let line = out.lines().find(|l| l.contains(id)).expect("listed");
+        let status = line.split("status=").nth(1).unwrap();
+        status.split(' ').next().unwrap().to_string()
+    }
+
     fn sessions(&self) -> Vec<Session> {
         vec![
             claude(TARGET, &self.repo),
@@ -113,7 +155,7 @@ impl Env {
         }
     }
 
-    /// One trigger of endpoint `me` as session `session` at `now`.
+    /// One trigger of endpoint `me` with hook input `input` at `now`.
     fn trigger_as(&self, me: (&str, u32), input: &HookInput, now: i64) -> Option<String> {
         let spawn = |p: &str, pid: u32| {
             self.spawned.borrow_mut().push((p.to_string(), pid));
@@ -147,6 +189,14 @@ impl Env {
             &self.state,
         )
         .await
+    }
+
+    /// Send and return the message id.
+    async fn send_id(&self, caller: &Session, target: &str, message: &str) -> String {
+        parse(&self.send(caller, target, message).await.unwrap())["message_id"]
+            .as_str()
+            .unwrap()
+            .to_string()
     }
 
     fn sessions_with(&self, caller: &Session) -> Vec<Session> {
@@ -277,61 +327,84 @@ async fn direct_message_renders_before_notices_and_is_sanitized() {
 async fn direct_message_expires_and_is_reported() {
     let e = env();
     let sender = claude(SENDER, &e.repo);
-    // 24 h: not delivered after expiry, and a sweep reports it expired.
-    let id = parse(&e.send(&sender, "stef:20", "too late").await.unwrap())["message_id"]
-        .as_str()
-        .unwrap()
-        .to_string();
+    // 24 h: not delivered after expiry, and a sweep reports it expired even though the
+    // target is still live.
+    let id = e.send_id(&sender, "stef:20", "too late").await;
     let later = now_ms() + DIRECT_TTL_MS + 1;
     let text = e.trigger(TARGET, later).unwrap_or_default();
     assert!(!text.contains("too late"), "{text}");
-    assert_eq!(e.store.expire_direct(later, &|_, _, _| true).unwrap(), 1);
+    assert_eq!(e.store.expire_direct(later, &|_| false).unwrap(), 1);
     let sent = e.store.sent_by(&sender.identity(), 0).unwrap();
     assert_eq!(
         (sent[0].id.as_str(), sent[0].status.as_str()),
         (id.as_str(), "expired")
     );
 
-    // Dead target: a listing without the target expires it and shows it to the sender.
-    let id2 = parse(&e.send(&sender, "stef:21", "gone").await.unwrap())["message_id"]
-        .as_str()
-        .unwrap()
-        .to_string();
-    let without: Vec<Session> = vec![claude(TARGET, &e.repo), sender.clone()];
-    let out = list_sessions(Some(&sender), &without, &[], &e.state)
+    // Dead target: its pid is gone, so the next listing expires the message and shows it.
+    let id2 = e.send_id(&sender, "stef:21", "gone").await;
+    e.kill(SIBLING.1);
+    assert_eq!(e.status_of(&sender, &e.sessions(), &id2).await, "expired");
+    let out = list_sessions(Some(&sender), &e.sessions(), &[], &e.roots, &e.state)
         .await
         .unwrap();
     assert!(out.contains("Sent messages (24 h):"), "{out}");
-    let line = out.lines().find(|l| l.contains(&id2)).expect("listed");
-    assert!(line.contains("status=expired"), "{line}");
+    let line = out.lines().find(|l| l.contains(&id2)).unwrap();
     assert!(line.contains("stef:21"), "{line}");
     // An expired message is never delivered, even if the session shows up again.
+    e.start(SIBLING.1, 1000);
     let text = e.trigger(SIBLING, now_ms()).unwrap_or_default();
     assert!(!text.contains("gone"), "{text}");
+}
+
+#[tokio::test]
+async fn direct_message_survives_discovery_miss() {
+    let e = env();
+    let sender = claude(SENDER, &e.repo);
+    let id = e.send_id(&sender, "stef:20", "still here").await;
+    // The target's pid is alive with its start time unchanged, but discovery missed it
+    // (registration caught mid-rewrite: unreadable). That is no proof it ended.
+    e.register(TARGET, "{\"pid\": 20, \"sessionId\": \"S\", \"stat");
+    let without: Vec<Session> = vec![claude(SIBLING, &e.repo), sender.clone()];
+    assert_eq!(e.status_of(&sender, &without, &id).await, "pending");
+    // A send by anyone runs the sweep too.
+    e.send(&sender, "stef:21", "other").await.unwrap();
+    assert_eq!(e.status_of(&sender, &without, &id).await, "pending");
+    let text = e.trigger(TARGET, now_ms()).unwrap_or_default();
+    assert!(text.contains("still here"), "{text}");
+}
+
+#[tokio::test]
+async fn direct_message_expires_when_pid_is_reused() {
+    let e = env();
+    let sender = claude(SENDER, &e.repo);
+    let id = e.send_id(&sender, "stef:20", "for the old process").await;
+    // The pid is alive, but its process started 10 s later than the one addressed.
+    e.start(TARGET.1, 2000);
+    assert_eq!(e.status_of(&sender, &e.sessions(), &id).await, "expired");
+}
+
+#[tokio::test]
+async fn direct_message_expires_when_registration_names_another_session() {
+    let e = env();
+    let sender = claude(SENDER, &e.repo);
+    let id = e.send_id(&sender, "stef:20", "for S").await;
+    e.register(TARGET, "{\"pid\": 20, \"sessionId\": \"S\"}");
+    assert_eq!(e.status_of(&sender, &e.sessions(), &id).await, "pending");
+    e.register(TARGET, "{\"pid\": 20, \"sessionId\": \"S-new\"}");
+    assert_eq!(e.status_of(&sender, &e.sessions(), &id).await, "expired");
 }
 
 #[tokio::test]
 async fn list_sessions_shows_pending_then_delivered() {
     let e = env();
     let sender = claude(SENDER, &e.repo);
-    let id = parse(&e.send(&sender, "stef:20", "hello").await.unwrap())["message_id"]
-        .as_str()
-        .unwrap()
-        .to_string();
-    let out = list_sessions(Some(&sender), &e.sessions(), &[], &e.state)
-        .await
-        .unwrap();
-    let line = out.lines().find(|l| l.contains(&id)).expect("listed");
-    assert!(line.contains("status=pending"), "{line}");
+    let id = e.send_id(&sender, "stef:20", "hello").await;
+    assert_eq!(e.status_of(&sender, &e.sessions(), &id).await, "pending");
     e.trigger(TARGET, now_ms()).unwrap();
-    let out = list_sessions(Some(&sender), &e.sessions(), &[], &e.state)
-        .await
-        .unwrap();
-    let line = out.lines().find(|l| l.contains(&id)).expect("listed");
-    assert!(line.contains("status=delivered"), "{line}");
+    assert_eq!(e.status_of(&sender, &e.sessions(), &id).await, "delivered");
     // Another caller does not see the sender's messages.
     let sib = claude(SIBLING, &e.repo);
-    let out = list_sessions(Some(&sib), &e.sessions(), &[], &e.state)
+    let out = list_sessions(Some(&sib), &e.sessions(), &[], &e.roots, &e.state)
         .await
         .unwrap();
     assert!(!out.contains(&id), "{out}");
@@ -359,6 +432,8 @@ async fn opencode_style_endpoint_consumes_nothing() {
             target_profile: profile.into(),
             target_pid: 0,
             target_session: "ses_abc1".into(),
+            target_start_ms: None,
+            target_config_dir: None,
             sender: "claude:/home/u/.claude-kat:5:K".into(),
             body: "not for opencode".into(),
         })
@@ -444,6 +519,8 @@ fn legacy_db_migrates_additively() {
             target_profile: STEF.into(),
             target_pid: 20,
             target_session: "S".into(),
+            target_start_ms: None,
+            target_config_dir: None,
             sender: "me".into(),
             body: "hi".into(),
         })
@@ -454,4 +531,35 @@ fn legacy_db_migrates_additively() {
     // Reopening an already migrated store keeps both.
     let s = Store::open(&path).unwrap();
     assert_eq!(s.sent_by("me", 0).unwrap()[0].status, "delivered");
+}
+
+/// A direct_messages table from before the target-identity columns (this branch's first
+/// commit) gains them on open, keeping its rows.
+#[test]
+fn direct_table_without_target_identity_gains_columns() {
+    let d = TempDir::new().unwrap();
+    let path = d.path().join("notices.db");
+    {
+        let c = rusqlite::Connection::open(&path).unwrap();
+        c.execute_batch(
+            "CREATE TABLE direct_messages (id TEXT PRIMARY KEY, at_ms INTEGER NOT NULL,
+                expires_ms INTEGER NOT NULL, target_profile TEXT NOT NULL,
+                target_pid INTEGER NOT NULL, target_session TEXT NOT NULL,
+                sender TEXT NOT NULL, body TEXT NOT NULL, status TEXT NOT NULL,
+                delivered_ms INTEGER);
+             INSERT INTO direct_messages VALUES
+                ('dm-old', 1, 9999999999999, '.claude-stef', 20, 'S', 'me', 'old', 'pending', NULL);",
+        )
+        .unwrap();
+    }
+    let s = Store::open(&path).unwrap();
+    let old = s.sent_by("me", 0).unwrap();
+    assert_eq!(
+        (old[0].id.as_str(), old[0].target_start_ms),
+        ("dm-old", None)
+    );
+    let got = s.take_direct(TARGET, 2).unwrap();
+    assert_eq!(got[0].body, "old");
+    drop(s);
+    assert!(Store::open(&path).is_ok(), "a second open is a no-op");
 }

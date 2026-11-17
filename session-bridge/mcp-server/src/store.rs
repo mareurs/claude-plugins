@@ -85,6 +85,11 @@ pub struct NewDirect {
     pub target_profile: String,
     pub target_pid: u32,
     pub target_session: String,
+    /// The target process's start time at send time (`endpoints::process_start_ms`), so a
+    /// reused pid is recognised as the end of the target; `None` when unreadable.
+    pub target_start_ms: Option<i64>,
+    /// The target's Claude config dir, where its registration `sessions/<pid>.json` lives.
+    pub target_config_dir: Option<String>,
     /// The sender's session identity (`Session::identity`).
     pub sender: String,
     pub body: String,
@@ -103,9 +108,11 @@ pub struct Direct {
     pub body: String,
     pub status: String,
     pub delivered_ms: Option<i64>,
+    pub target_start_ms: Option<i64>,
+    pub target_config_dir: Option<String>,
 }
 
-const DIRECT_COLS: &str = "id, at_ms, expires_ms, target_profile, target_pid, target_session, sender, body, status, delivered_ms";
+const DIRECT_COLS: &str = "id, at_ms, expires_ms, target_profile, target_pid, target_session, sender, body, status, delivered_ms, target_start_ms, target_config_dir";
 
 fn row_to_direct(r: &Row) -> rusqlite::Result<Direct> {
     Ok(Direct {
@@ -119,6 +126,8 @@ fn row_to_direct(r: &Row) -> rusqlite::Result<Direct> {
         body: r.get(7)?,
         status: r.get(8)?,
         delivered_ms: r.get(9)?,
+        target_start_ms: r.get(10)?,
+        target_config_dir: r.get(11)?,
     })
 }
 
@@ -216,12 +225,36 @@ impl Store {
                 sender TEXT NOT NULL,
                 body TEXT NOT NULL,
                 status TEXT NOT NULL,
-                delivered_ms INTEGER
+                delivered_ms INTEGER,
+                target_start_ms INTEGER,
+                target_config_dir TEXT
             );
             CREATE INDEX IF NOT EXISTS direct_target
                 ON direct_messages(target_profile, target_pid, target_session, status);
             CREATE INDEX IF NOT EXISTS direct_sender ON direct_messages(sender, at_ms);",
-        )
+        )?;
+        // A direct_messages table from before the target-identity columns gains them. Two
+        // connections may race here; the loser's "duplicate column" is the same outcome.
+        let cols = conn
+            .prepare("PRAGMA table_info(direct_messages)")?
+            .query_map([], |r| r.get::<_, String>(1))?
+            .collect::<rusqlite::Result<Vec<_>>>()?;
+        for (col, ty) in [
+            ("target_start_ms", "INTEGER"),
+            ("target_config_dir", "TEXT"),
+        ] {
+            if cols.iter().any(|c| c == col) {
+                continue;
+            }
+            match conn.execute_batch(&format!(
+                "ALTER TABLE direct_messages ADD COLUMN {col} {ty}"
+            )) {
+                Err(rusqlite::Error::SqliteFailure(_, Some(msg)))
+                    if msg.contains("duplicate column") => {}
+                r => r?,
+            }
+        }
+        Ok(())
     }
 
     /// Validates limits before writing, prunes notices older than 14 days
@@ -394,8 +427,9 @@ impl Store {
         )?;
         tx.execute(
             "INSERT INTO direct_messages (id, at_ms, expires_ms, target_profile, target_pid,
-                target_session, sender, body, status, delivered_ms)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, 'pending', NULL)",
+                target_session, sender, body, status, delivered_ms, target_start_ms,
+                target_config_dir)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, 'pending', NULL, ?9, ?10)",
             params![
                 id,
                 m.at_ms,
@@ -404,7 +438,9 @@ impl Store {
                 m.target_pid,
                 m.target_session,
                 m.sender,
-                m.body
+                m.body,
+                m.target_start_ms,
+                m.target_config_dir
             ],
         )?;
         tx.commit()?;
@@ -413,8 +449,9 @@ impl Store {
 
     /// The pending, unexpired direct messages of `target` = (profile, pid, session id),
     /// oldest first, marked `delivered` at `now_ms` in the same transaction: each is
-    /// returned at most once. A plain read first keeps the common empty case free of the
-    /// write lock (this runs on every tool call).
+    /// returned at most once (only a row this call's UPDATE actually moved from `pending` is
+    /// returned, so that holds even without the immediate write lock). A plain read first
+    /// keeps the common empty case free of the write lock (this runs on every tool call).
     pub fn take_direct(&self, target: (&str, u32, &str), now_ms: i64) -> Result<Vec<Direct>> {
         const WHERE: &str = "WHERE target_profile = ?1 AND target_pid = ?2 AND target_session = ?3
              AND status = 'pending' AND expires_ms > ?4";
@@ -433,54 +470,46 @@ impl Store {
         let mut stmt = tx.prepare(&format!(
             "SELECT {DIRECT_COLS} FROM direct_messages {WHERE} ORDER BY at_ms ASC, id ASC"
         ))?;
-        let mut rows = stmt
+        let rows = stmt
             .query_map(params![target.0, target.1, target.2, now_ms], row_to_direct)?
             .collect::<rusqlite::Result<Vec<_>>>()?;
         drop(stmt);
-        for d in &mut rows {
-            tx.execute(
+        let mut taken = Vec::with_capacity(rows.len());
+        for mut d in rows {
+            let moved = tx.execute(
                 "UPDATE direct_messages SET status = 'delivered', delivered_ms = ?2
                  WHERE id = ?1 AND status = 'pending'",
                 params![d.id, now_ms],
             )?;
-            d.status = "delivered".into();
-            d.delivered_ms = Some(now_ms);
+            if moved == 1 {
+                d.status = "delivered".into();
+                d.delivered_ms = Some(now_ms);
+                taken.push(d);
+            }
         }
         tx.commit()?;
-        Ok(rows)
+        Ok(taken)
     }
 
-    /// Marks `expired` every pending direct message whose time is up at `now_ms` or whose
-    /// target (profile, pid, session id) is not `live`. Returns how many were marked.
-    pub fn expire_direct(
-        &self,
-        now_ms: i64,
-        live: &dyn Fn(&str, u32, &str) -> bool,
-    ) -> Result<usize> {
+    /// Marks `expired` every pending direct message whose time is up at `now_ms` (always) or
+    /// whose target `ended` says has ended. `ended` must answer true only on positive
+    /// evidence: an unknown or unreadable target counts as live. Returns how many were marked.
+    pub fn expire_direct(&self, now_ms: i64, ended: &dyn Fn(&Direct) -> bool) -> Result<usize> {
         let tx = self.tx()?;
-        let mut stmt = tx.prepare(
-            "SELECT id, expires_ms, target_profile, target_pid, target_session
-             FROM direct_messages WHERE status = 'pending'",
-        )?;
+        let mut stmt = tx.prepare(&format!(
+            "SELECT {DIRECT_COLS} FROM direct_messages WHERE status = 'pending'"
+        ))?;
         let rows = stmt
-            .query_map([], |r| {
-                Ok((
-                    r.get::<_, String>(0)?,
-                    r.get::<_, i64>(1)?,
-                    r.get::<_, String>(2)?,
-                    r.get::<_, u32>(3)?,
-                    r.get::<_, String>(4)?,
-                ))
-            })?
+            .query_map([], row_to_direct)?
             .collect::<rusqlite::Result<Vec<_>>>()?;
         drop(stmt);
         let mut n = 0;
-        for (id, expires_ms, profile, pid, session) in rows {
-            if expires_ms <= now_ms || !live(&profile, pid, &session) {
+        for d in rows {
+            if d.expires_ms <= now_ms || ended(&d) {
                 n += tx.execute(
                     "UPDATE direct_messages SET status = 'expired'
                      WHERE id = ?1 AND status = 'pending'",
-                    params![id],
+                    params![d.id],
                 )?;
             }
         }

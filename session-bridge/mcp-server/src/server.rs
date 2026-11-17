@@ -148,7 +148,7 @@ impl Bridge {
         );
         let state = state_dir(&|k| std::env::var(k).ok()).unwrap_or_default();
         let me = caller.as_ref().ok().copied().flatten();
-        let mut out = tools::list_sessions(me, &sessions, &notes, &state)
+        let mut out = tools::list_sessions(me, &sessions, &notes, &roots, &state)
             .await
             .map_err(internal)?;
         if let Err(e) = caller {

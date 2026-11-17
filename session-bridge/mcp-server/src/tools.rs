@@ -4,7 +4,7 @@
 
 use crate::ask::{ask, clamp_timeout, locate_claude};
 use crate::codex_process::{ask_codex, locate_codex};
-use crate::endpoints::{Endpoint, Roots};
+use crate::endpoints::{pid_alive, process_start_ms, registered_session, Endpoint, Roots};
 use crate::hook::now_ms;
 use crate::opencode_api::{locate_opencode, CliApi};
 use crate::opencode_ask::ask_opencode;
@@ -13,7 +13,7 @@ use crate::paths::short_profile;
 use crate::send::{send_codex, SendResult};
 use crate::server::post_notice_from;
 use crate::sessions::{resolve_session, Session};
-use crate::store::{NewDirect, Store, DIRECT_TTL_MS};
+use crate::store::{Direct, NewDirect, Store, DIRECT_TTL_MS};
 use anyhow::{anyhow, Result};
 use rmcp::schemars;
 use serde::Deserialize;
@@ -61,6 +61,7 @@ pub async fn list_sessions(
     caller: Option<&Session>,
     sessions: &[Session],
     notes: &[String],
+    roots: &Roots,
     state: &Path,
 ) -> Result<String> {
     let me = caller.map(Session::identity);
@@ -76,7 +77,7 @@ pub async fn list_sessions(
         lines.push(format!("Discovery note: {note}"));
     }
     if let Some(caller) = caller {
-        lines.extend(sent_lines(caller, sessions, state));
+        lines.extend(sent_lines(caller, roots, state));
     }
     Ok(lines.join("\n"))
 }
@@ -166,7 +167,7 @@ pub async fn send_message(
             return Ok(serde_json::to_string_pretty(&result)?);
         }
         Session::Claude(target) => {
-            let result = queue_for_claude(caller, sessions, target, &args.message, state)?;
+            let result = queue_for_claude(caller, target, &args.message, roots, state)?;
             return Ok(serde_json::to_string_pretty(&result)?);
         }
     };
@@ -183,24 +184,40 @@ pub async fn send_message(
     Ok(serde_json::to_string_pretty(&result)?)
 }
 
-/// Whether a Claude session (profile, pid, session id) is among the discovered `sessions`.
-fn claude_live(sessions: &[Session]) -> impl Fn(&str, u32, &str) -> bool + '_ {
-    move |profile, pid, sid| {
-        sessions.iter().any(|s| {
-            matches!(s, Session::Claude(e)
-                if e.profile == profile && e.pid == pid && e.session_id == sid)
-        })
+/// Two readings of one process's start time differ by less than this: `btime` in
+/// `/proc/stat` can move by a second when the wall clock is stepped.
+const START_SLACK_MS: i64 = 2_000;
+
+/// Whether the target of direct message `d` has ended, on POSITIVE evidence only: its pid is
+/// not alive, or that pid now belongs to a process that started at another time (a reused
+/// pid), or its registration is readable and names another session id. Absence from a
+/// discovery listing is not evidence (discovery skips anything it cannot read, such as a
+/// registration caught mid-rewrite), and an unreadable start time or registration for a
+/// live pid counts as live.
+fn target_ended(roots: &Roots, d: &Direct) -> bool {
+    if !pid_alive(roots, d.target_pid) {
+        return true;
     }
+    if let (Some(then), Some(now)) = (d.target_start_ms, process_start_ms(roots, d.target_pid)) {
+        if (now - then).abs() > START_SLACK_MS {
+            return true;
+        }
+    }
+    d.target_config_dir
+        .as_deref()
+        .and_then(|c| registered_session(Path::new(c), d.target_pid))
+        .is_some_and(|sid| sid != d.target_session)
 }
 
 /// A Claude target cannot take a turn from outside, so the message is stored for that exact
 /// session (profile, pid, session id) and its own hook delivers it once at its next prompt
-/// or tool call. Expiry (24 h, or a target no longer live) is swept here first.
+/// or tool call. Expiry (24 h, or proof the target ended) is swept here first. The target's
+/// process start time and config dir are stored with the message for that proof.
 fn queue_for_claude(
     caller: &Session,
-    sessions: &[Session],
     target: &Endpoint,
     message: &str,
+    roots: &Roots,
     state: &Path,
 ) -> Result<SendResult> {
     anyhow::ensure!(
@@ -210,12 +227,14 @@ fn queue_for_claude(
     std::fs::create_dir_all(state)?;
     let store = Store::open(&state.join("notices.db"))?;
     let now = now_ms();
-    store.expire_direct(now, &claude_live(sessions))?;
+    store.expire_direct(now, &|d| target_ended(roots, d))?;
     let id = store.post_direct(NewDirect {
         at_ms: now,
         target_profile: target.profile.clone(),
         target_pid: target.pid,
         target_session: target.session_id.clone(),
+        target_start_ms: process_start_ms(roots, target.pid),
+        target_config_dir: Some(target.config_dir.to_string_lossy().into_owned()),
         sender: caller.identity(),
         body: message.to_string(),
     })?;
@@ -233,14 +252,14 @@ fn queue_for_claude(
 /// The caller's direct messages to Claude sessions from the last 24 h, after an expiry
 /// sweep, as listing lines. Nothing when there are none or no store exists yet (a listing
 /// never creates one); a store error becomes one line instead of failing the listing.
-fn sent_lines(caller: &Session, sessions: &[Session], state: &Path) -> Vec<String> {
+fn sent_lines(caller: &Session, roots: &Roots, state: &Path) -> Vec<String> {
     let db = state.join("notices.db");
     if state.as_os_str().is_empty() || !db.exists() {
         return vec![];
     }
     let now = now_ms();
     let sent = Store::open(&db).and_then(|store| {
-        store.expire_direct(now, &claude_live(sessions))?;
+        store.expire_direct(now, &|d| target_ended(roots, d))?;
         store.sent_by(&caller.identity(), now - DIRECT_TTL_MS)
     });
     let sent = match sent {

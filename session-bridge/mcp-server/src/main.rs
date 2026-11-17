@@ -250,7 +250,7 @@ async fn call_output(tool: &str, opencode_caller: &str) -> anyhow::Result<String
         "list_sessions" => {
             let state = state_dir(&env).unwrap_or_default();
             let me = caller.as_ref().ok().copied();
-            let mut out = tools::list_sessions(me, &sessions, &notes, &state).await?;
+            let mut out = tools::list_sessions(me, &sessions, &notes, &roots, &state).await?;
             if let Err(e) = &caller {
                 out.push_str(&format!("\nCaller identity unavailable: {e:#}"));
             }
