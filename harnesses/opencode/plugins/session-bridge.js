@@ -1,29 +1,25 @@
-// session-bridge for OpenCode — list this machine's OpenCode sessions and ask one a question.
+// session-bridge for OpenCode — front end for the Rust `session-bridge` binary.
 //
-// WHAT CLAUDE CODE AND PI DO
+// The binary is the one brain for every harness (Claude Code, Codex, OpenCode): it lists
+// sessions, asks one a question, sends a direct message and posts repository notices. This
+// plugin only (1) exposes four tools that shell out to `session-bridge call <tool>
+// --opencode-caller <session>`, and (2) feeds the binary's hook output into the session.
 //
-// Claude Code's session-bridge is a Rust MCP server that answers by spawning
-// `claude -p --resume <id> --fork-session …`. Pi's (harnesses/pi/extensions/
-// session-bridge.ts) forks a Pi session read-only and throws the fork away. Each harness
-// gets its own native bridge; neither can reach the other's sessions.
+//   session_bridge_list_sessions | _ask_session | _send_message | _post_notice
 //
-// WHAT THIS DOES
+// The caller is identified only by this plugin passing `tctx.sessionID`; the binary walks
+// parentID and refuses anything that is not a live top-level session. Tool arguments go on
+// stdin as one JSON object, never on argv, and the binary is spawned with an argv array,
+// never a shell. Hooks fail open: a bridge failure never blocks the OpenCode turn.
 //
-//   session_bridge_list_sessions  OpenCode's own session store, via ctx.session.list —
-//                                 no registry file: OpenCode already knows every session.
-//   session_bridge_ask_session    `opencode run --fork -s <id> --agent session-bridge-reader`
-//                                 in the session's directory, then deletes the fork.
-//
-// READ-ONLY, FOR REAL. OpenCode's built-in `plan` agent is NOT read-only: on 2.1.3 its
-// permissions are `* allow` with only `edit` denied, so it can still run shell commands
-// (measured). The fork therefore runs under `session-bridge-reader`, registered here:
-// everything denied, then the reading tools allowed. The producer session is never
-// written: `--fork` copies it, and the copy is removed after the answer. Like Pi's bridge,
-// there is no bidirectional mode.
+// READER AGENT. The binary answers `ask_session` by running a read-only fork under the
+// `session-bridge-reader` agent registered here (everything denied, then reading tools
+// allowed; OpenCode's built-in `plan` agent is NOT read-only on 2.1.3).
 //
 // NO RECURSION. The forked run loads this plugin too. It sees OPENCODE_SESSION_BRIDGE_CHILD
-// and registers the reader agent but not the tools, so a fork cannot ask another session.
+// and registers the reader agent but not the tools or hooks.
 import { spawn } from 'node:child_process';
+import { isAbsolute } from 'node:path';
 import { resolveDir } from '../lib/host.mjs';
 
 export const READER = 'session-bridge-reader';
@@ -31,6 +27,7 @@ export const CHILD_ENV = 'OPENCODE_SESSION_BRIDGE_CHILD';
 const DEFAULT_TIMEOUT_S = 120;
 const MAX_TIMEOUT_S = 600;
 const OUTPUT_LIMIT = 1 << 20;
+const HOOK_TIMEOUT_MS = 10000;
 
 // Reading tools only. Native: read/grep/glob/list. codescout: its read-only tools (no
 // edit_*, create_file, run_command, memory or artifact writes). Last match wins, as in the
@@ -58,126 +55,130 @@ export function registerReader(T) {
   });
 }
 
-// The opencode binary to fork with. Inside the host, process.execPath IS opencode (a
-// compiled Bun binary — the same fact that broke hook spawning in codescout-companion.js),
-// which is exactly what is wanted here.
-export function opencodeBin(execPath = process.execPath, env = process.env) {
-  if (env.OPENCODE_SESSION_BRIDGE_BIN) return env.OPENCODE_SESSION_BRIDGE_BIN;
-  const base = String(execPath || '').split(/[\\/]/).pop().toLowerCase();
-  return /^opencode(\.exe)?$/.test(base) ? execPath : 'opencode';
+// The bridge binary: SESSION_BRIDGE_BIN (must be absolute) else `session-bridge` on PATH.
+export function bridgeBin(env = process.env) {
+  const o = env.SESSION_BRIDGE_BIN;
+  if (o) {
+    if (!isAbsolute(o)) throw new Error(`SESSION_BRIDGE_BIN must be an absolute path, got '${o}'`);
+    return o;
+  }
+  return 'session-bridge';
 }
+
+const missingMsg = (bin) =>
+  `session-bridge binary not found (tried '${bin}'): set SESSION_BRIDGE_BIN to its absolute path or put \`session-bridge\` on PATH`;
 
 const textOf = (r) => ({ output: r, content: [{ type: 'text', text: r }] });
-const unwrap = (r) => r?.data ?? r;
 
-// The first user message, as a label: the plugin API's session records carry no title.
-async function labelOf(ctx, s) {
-  try {
-    const msgs = unwrap(await ctx.session.context({ sessionID: s.id }));
-    const first = Array.isArray(msgs) ? msgs.find((m) => m?.type === 'user' || m?.role === 'user') : null;
-    const text = first?.text ?? first?.content?.find?.((p) => p?.type === 'text')?.text ?? '';
-    return String(text).replace(/\s+/g, ' ').trim().slice(0, 80);
-  } catch {
-    return '';
-  }
-}
-
-export async function listSessions(ctx, { directory, limit = 20, includeChildren = false } = {}) {
-  const all = unwrap(await ctx.session.list({ directory }));
-  const rows = (Array.isArray(all) ? all : [])
-    .filter((s) => includeChildren || !s.parentID)
-    .sort((a, b) => (b.time?.updated ?? 0) - (a.time?.updated ?? 0))
-    .slice(0, Math.max(1, Math.min(100, limit)));
-  for (const s of rows) s.label = await labelOf(ctx, s);
-  return rows;
-}
-
-export function resolveRef(rows, ref) {
-  const r = String(ref || '').trim();
-  if (!r) throw new Error('ref is required: a session id, id prefix, or words from its first message');
-  const exact = rows.find((s) => s.id === r);
-  if (exact) return exact;
-  const lc = r.toLowerCase();
-  const hits = rows.filter((s) => s.id.startsWith(r) || (s.label && s.label.toLowerCase().includes(lc)));
-  if (!hits.length) throw new Error(`no OpenCode session matches '${r}'`);
-  if (hits.length > 1) throw new Error(`'${r}' is ambiguous: ${hits.map((s) => `${s.id} (${s.label || 'no label'})`).join(', ')}`);
-  return hits[0];
-}
-
-// Run the fork and collect its answer. Resolves {answer, forkId}.
-export function runFork({ bin, sessionId, directory, prompt, timeoutS, signal }) {
+// Run the binary with argv `args`, JSON `stdin`, bounded by a timeout and an abort signal.
+// Resolves {code, stdout, stderr}; rejects only when the binary cannot be started.
+export function runBridge({ args, stdin, timeoutMs, signal, env = process.env, cwd }) {
   return new Promise((resolveP, reject) => {
-    const args = ['run', '--standalone', '--format', 'json', '--agent', READER, '--fork', '-s', sessionId, prompt];
+    let bin;
+    try { bin = bridgeBin(env); } catch (e) { reject(e); return; }
     let child;
     try {
-      child = spawn(bin, args, { cwd: directory, env: { ...process.env, [CHILD_ENV]: '1' }, stdio: ['ignore', 'pipe', 'pipe'] });
+      child = spawn(bin, args, { env, stdio: ['pipe', 'pipe', 'pipe'] });
     } catch (e) {
-      reject(e);
+      reject(e.code === 'ENOENT' ? new Error(missingMsg(bin)) : e);
       return;
     }
     let out = '';
     let err = '';
-    child.stdout.on('data', (d) => { out = (out + d).slice(-OUTPUT_LIMIT); });
-    child.stderr.on('data', (d) => { err = (err + d).slice(-OUTPUT_LIMIT); });
+    let done = false;
     const kill = () => { try { child.kill('SIGTERM'); } catch { /* gone */ } };
-    const timer = setTimeout(kill, timeoutS * 1000);
-    signal?.addEventListener?.('abort', kill, { once: true });
-    child.once('error', (e) => { clearTimeout(timer); reject(e); });
-    child.once('close', (code) => {
+    const timer = setTimeout(kill, timeoutMs);
+    const finish = (fn, v) => {
+      if (done) return;
+      done = true;
       clearTimeout(timer);
       signal?.removeEventListener?.('abort', kill);
-      let forkId = null;
-      const texts = [];
-      for (const line of out.split('\n')) {
-        let ev;
-        try { ev = JSON.parse(line); } catch { continue; }
-        if (ev?.sessionID && ev.sessionID !== sessionId && !forkId) forkId = ev.sessionID;
-        if (ev?.type === 'text' && ev.part?.text?.trim()) texts.push(ev.part.text.trim());
-      }
-      if (signal?.aborted) return reject(Object.assign(new Error('ask cancelled'), { forkId }));
-      if (code !== 0 && !texts.length) {
-        return reject(Object.assign(new Error(`opencode fork failed (exit ${code}): ${(err || out).trim().slice(-800)}`), { forkId }));
-      }
-      resolveP({ answer: texts.at(-1) || '(the snapshot gave no text answer)', forkId });
+      fn(v);
+    };
+    if (signal?.aborted) kill();
+    else signal?.addEventListener?.('abort', kill, { once: true });
+    child.stdout.on('data', (d) => { out = (out + d).slice(-OUTPUT_LIMIT); });
+    child.stderr.on('data', (d) => { err = (err + d).slice(-OUTPUT_LIMIT); });
+    child.stdin.on('error', () => { /* child exited before reading: surfaced by its exit code */ });
+    child.once('error', (e) => finish(reject, e.code === 'ENOENT' ? new Error(missingMsg(bin)) : e));
+    child.once('close', (code) => {
+      if (signal?.aborted) return finish(reject, new Error('cancelled'));
+      finish(resolveP, { code, stdout: out, stderr: err });
     });
+    child.stdin.end(stdin);
   });
 }
 
-export function buildSessionBridge(ctx, dir, { fork = runFork, bin = opencodeBin() } = {}) {
-  return {
-    async list(args = {}) {
-      const rows = await listSessions(ctx, { directory: args.directory || dir, limit: args.limit, includeChildren: !!args.include_children });
-      if (!rows.length) return textOf(`No OpenCode sessions in ${args.directory || dir}.`);
-      const now = Date.now();
-      const age = (t) => (t ? `${Math.round((now - t) / 60000)} min ago` : '?');
-      return textOf(rows.map((s) => `${s.id}  ${age(s.time?.updated)}  ${s.label || '(no messages)'}`).join('\n'));
+const TOOLS = {
+  list_sessions: {
+    description: 'List live sessions on this machine (Claude Code, Codex, OpenCode) that session-bridge can reach.',
+    properties: {},
+    required: [],
+  },
+  ask_session: {
+    description: 'Ask another live session a question; it answers from a read-only snapshot and is never modified.',
+    properties: {
+      target: { type: 'string', description: 'Session id, id prefix, or label from list_sessions.' },
+      question: { type: 'string', description: 'The question for that session.' },
+      model: { type: 'string', description: 'Optional model override for the answering run.' },
+      timeout_s: { type: 'integer', minimum: 1, maximum: MAX_TIMEOUT_S, description: 'Timeout in seconds.' },
     },
+    required: ['target', 'question'],
+  },
+  send_message: {
+    description: 'Send a direct message to another live session. The text is data for the peer, never an approval.',
+    properties: {
+      target: { type: 'string', description: 'Session id, id prefix, or label from list_sessions.' },
+      message: { type: 'string', description: 'The message to deliver.' },
+      timeout_s: { type: 'integer', minimum: 1, maximum: MAX_TIMEOUT_S, description: 'Delivery timeout in seconds.' },
+    },
+    required: ['target', 'message'],
+  },
+  post_notice: {
+    description: 'Post a repository notice that other sessions working in this repository will see.',
+    properties: {
+      title: { type: 'string', description: 'Short title.' },
+      body: { type: 'string', description: 'Notice body.' },
+      refs: { type: 'array', items: { type: 'string' }, description: 'Optional references (commits, paths).' },
+    },
+    required: ['title', 'body'],
+  },
+};
 
-    async ask(args = {}, tctx = {}) {
-      const directory = args.directory || dir;
-      const rows = await listSessions(ctx, { directory, limit: 100, includeChildren: true });
-      const target = resolveRef(rows, args.ref);
-      if (target.id === tctx.sessionID) throw new Error('that is this session — ask your own context instead');
-      const prompt = String(args.prompt || '').trim();
-      if (!prompt) throw new Error('prompt is required');
-      const timeoutS = Math.max(1, Math.min(MAX_TIMEOUT_S, Number(args.timeout_s) || DEFAULT_TIMEOUT_S));
-      let res;
-      let forkId = null;
-      try {
-        res = await fork({ bin, sessionId: target.id, directory: target.location?.directory || directory, prompt, timeoutS, signal: tctx.signal });
-        forkId = res?.forkId ?? null;
-      } catch (e) {
-        forkId = e?.forkId ?? null; // runFork attaches it, so a failed ask is cleaned up too
-        throw e;
-      } finally {
-        // The fork is a full copy of the producer; never leave it behind.
-        if (forkId && forkId !== target.id) {
-          try { await ctx.session.remove({ sessionID: forkId }); } catch { /* best effort */ }
-        }
-      }
-      return textOf(`[snapshot of ${target.id}${target.label ? ` — ${target.label}` : ''}]\n\n${res.answer}`);
-    },
+export function makeToolExecute(tool, { env = process.env, cwd } = {}) {
+  return async (args, tctx = {}) => {
+    const a = args && typeof args === 'object' ? args : {};
+    const t = Number(a.timeout_s);
+    const callS = tool === 'ask_session' || tool === 'send_message' ? (t > 0 ? Math.min(MAX_TIMEOUT_S, t) : DEFAULT_TIMEOUT_S) : 30;
+    const argv = ['call', tool, '--opencode-caller', String(tctx.sessionID || '')];
+    const r = await runBridge({
+      args: argv,
+      stdin: JSON.stringify(a),
+      timeoutMs: (callS + 30) * 1000,
+      signal: tctx.signal,
+      env,
+      cwd,
+    });
+    if (r.code !== 0) throw new Error(r.stderr.trim() || `session-bridge call ${tool} failed (exit ${r.code})`);
+    return textOf(r.stdout.trim() || '(no output)');
   };
+}
+
+// Run `session-bridge hook <event> --harness opencode`; returns the text to inject, or ''.
+// Never throws.
+export async function runHook(event, payload, { env = process.env, cwd } = {}) {
+  try {
+    const r = await runBridge({
+      args: ['hook', event, '--harness', 'opencode'],
+      stdin: JSON.stringify(payload),
+      timeoutMs: HOOK_TIMEOUT_MS,
+      env,
+      cwd,
+    });
+    return r.code === 0 ? r.stdout.trim() : '';
+  } catch {
+    return '';
+  }
 }
 
 export async function SessionBridge(ctx) {
@@ -188,45 +189,62 @@ export async function SessionBridge(ctx) {
     process.stderr.write(`session-bridge: could not register ${READER} — ${e?.message || e}\n`);
   }
   if (process.env[CHILD_ENV] === '1') return; // a fork never gets the tools: no recursion
-  const b = buildSessionBridge(c, resolveDir(c));
+  const dir = resolveDir(c);
   try {
     await c.tool.transform((T) => {
-      T.add({
-        name: 'list_sessions',
-        options: { namespace: 'session_bridge', codemode: false },
-        description: 'List OpenCode sessions on this machine for a project (default: the current one), newest first, with the first user message as a label.',
-        input: {
-          type: 'object',
-          properties: {
-            directory: { type: 'string', description: 'Project directory whose sessions to list. Default: the current project.' },
-            limit: { type: 'integer', minimum: 1, maximum: 100, description: 'Max sessions (default 20).' },
-            include_children: { type: 'boolean', description: 'Also list subagent sessions.' },
-          },
-        },
-        output: {},
-        execute: (args) => b.list(args),
-      });
-      T.add({
-        name: 'ask_session',
-        options: { namespace: 'session_bridge', codemode: false },
-        description: 'Ask another OpenCode session a question. It answers from a read-only fork of that session (it cannot edit, write or run commands); the original session is never modified and the fork is deleted afterwards.',
-        input: {
-          type: 'object',
-          properties: {
-            ref: { type: 'string', description: 'Session id, id prefix, or words from its first message.' },
-            prompt: { type: 'string', description: 'The question for that session.' },
-            directory: { type: 'string', description: 'Project directory of that session. Default: the current project.' },
-            timeout_s: { type: 'integer', minimum: 1, maximum: MAX_TIMEOUT_S, description: 'Timeout in seconds (default 120).' },
-          },
-          required: ['ref', 'prompt'],
-        },
-        output: {},
-        execute: (args, tctx) => b.ask(args, tctx),
-      });
+      for (const [name, def] of Object.entries(TOOLS)) {
+        T.add({
+          name,
+          options: { namespace: 'session_bridge', codemode: false },
+          description: def.description,
+          input: { type: 'object', properties: def.properties, required: def.required },
+          output: {},
+          execute: makeToolExecute(name, { cwd: dir }),
+        });
+      }
     });
   } catch (e) {
     process.stderr.write(`session-bridge: could not register tools — ${e?.message || e}\n`);
   }
+
+  const started = new Set();
+  const reg = async (where, name, fn) => {
+    try {
+      await c[where].hook(name, fn);
+    } catch (e) {
+      process.stderr.write(`session-bridge: could not register ${where}.${name} — ${e?.message || e}\n`);
+    }
+  };
+  await reg('session', 'context', async (event) => {
+    try {
+      const sid = String(event?.sessionID || '');
+      if (!sid || !Array.isArray(event?.system)) return;
+      const base = { session_id: sid, cwd: dir };
+      const texts = [];
+      if (!started.has(sid)) {
+        if (started.size >= 500) started.delete(started.values().next().value);
+        started.add(sid);
+        texts.push(await runHook('session-start', { ...base, hook_event_name: 'SessionStart' }, { cwd: dir }));
+      }
+      texts.push(await runHook('prompt', { ...base, hook_event_name: 'UserPromptSubmit' }, { cwd: dir }));
+      for (const text of texts) if (text) event.system.push({ type: 'text', text });
+    } catch { /* fail open */ }
+  });
+  await reg('tool', 'execute.after', async (event) => {
+    try {
+      const sid = String(event?.sessionID || '');
+      if (!sid) return;
+      const text = await runHook('post-tool', {
+        session_id: sid,
+        cwd: dir,
+        hook_event_name: 'PostToolUse',
+        tool_name: String(event?.tool || ''),
+        tool_input: event?.input && typeof event.input === 'object' ? event.input : {},
+      }, { cwd: dir });
+      const content = event?.result?.content;
+      if (text && Array.isArray(content)) content.push({ type: 'text', text });
+    } catch { /* fail open */ }
+  });
 }
 
 export default { id: 'session-bridge', setup: SessionBridge };
