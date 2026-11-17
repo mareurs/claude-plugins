@@ -332,3 +332,60 @@ async fn hook_resolves_session_with_exactly_one_lookup() {
     // 404 made one call; the two invalid ids made none.
     assert_eq!(api.calls.lock().unwrap().len(), 1);
 }
+
+#[test]
+fn hook_binary_resolves_with_one_api_call_and_never_starts_service() {
+    let d = tempfile::tempdir().unwrap();
+    let root = d.path();
+    let state = root.join("state");
+    fs::create_dir_all(&state).unwrap();
+    fs::write(
+        state.join("script.json"),
+        serde_json::json!({
+            "GET /api/session/ses_ok1": {"out": r#"{"data":{"id":"ses_ok1","title":"t","location":{"directory":"/tmp"}}}"#}
+        })
+        .to_string(),
+    )
+    .unwrap();
+    // A symlink to the committed fixture, never a freshly written executable (ETXTBSY).
+    let bin = root.join("opencode");
+    std::os::unix::fs::symlink(
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/fake-opencode.py"),
+        &bin,
+    )
+    .unwrap();
+    fs::create_dir_all(root.join("xdg-data/opencode")).unwrap();
+    for ev in ["session-start", "prompt", "post-tool"] {
+        let mut child = std::process::Command::new(env!("CARGO_BIN_EXE_session-bridge"))
+            .args(["hook", ev, "--harness", "opencode"])
+            .env("SESSION_BRIDGE_OPENCODE_BIN", &bin)
+            .env("XDG_DATA_HOME", root.join("xdg-data"))
+            .env("XDG_STATE_HOME", root.join("xdg-state"))
+            .stdin(std::process::Stdio::piped())
+            .stdout(std::process::Stdio::piped())
+            .stderr(std::process::Stdio::piped())
+            .spawn()
+            .unwrap();
+        use std::io::Write;
+        child
+            .stdin
+            .take()
+            .unwrap()
+            .write_all(br#"{"session_id":"ses_ok1","cwd":"/tmp"}"#)
+            .unwrap();
+        let out = child.wait_with_output().unwrap();
+        assert_eq!(out.status.code(), Some(0));
+        let log: Vec<Vec<String>> = fs::read_to_string(state.join("argv.log"))
+            .unwrap_or_default()
+            .lines()
+            .map(|l| serde_json::from_str(l).unwrap())
+            .collect();
+        let want: Vec<String> = ["api", "GET", "/api/session/ses_ok1"]
+            .map(String::from)
+            .into();
+        assert!(!log.is_empty(), "{ev}: the hook never reached the API");
+        assert!(log.iter().all(|c| *c == want), "{ev}: {log:?}");
+        assert!(!state.join("starts").exists(), "{ev}: service was started");
+        fs::remove_file(state.join("argv.log")).unwrap();
+    }
+}
