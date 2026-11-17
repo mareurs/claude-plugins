@@ -32,6 +32,9 @@
 // (explore-inject.mjs) does pair the two, but it matches only `Agent`, where the
 // blast radius is one dispatch rather than every tool call a subagent makes.
 //
+// EXCEPT IN AUTO MODE, where this hook stamps nothing -- see the guard below
+// the agent_id check. There, a rewritten input voids auto mode's review.
+//
 // Fail-open throughout: a hook that broke a tool call over its own stamping
 // would cost more than the over-delivery it prevents.
 import { readInput, emit } from './lib.mjs';
@@ -65,6 +68,22 @@ if (parts.length < 3 || parts[0] !== 'mcp' || parts[1] !== SERVER) process.exit(
 const agentId = input.agent_id;
 const sessionId = input.session_id;
 if (!agentId || !sessionId) process.exit(0);
+
+// AUTO MODE: STAMP NOTHING. Claude Code 2.1.326 can review a call server-side,
+// exactly as the model wrote it; any updatedInput then voids that review
+// (`server_input_rewritten`). On accounts without the local-classifier fallback
+// the call is refused, and every retry is refused too, because this hook
+// re-stamps it. A subagent then had no shell at all: Bash is routed to
+// run_command, and run_command was refused. Reported 2026-11-17 on CC 2.1.326;
+// the branch and its message text were read from that binary.
+// Returning permissionDecision:'allow' is not a way out: depending on a server
+// flag, it either skips the auto-mode safety review for every subagent call, or
+// is funnelled back to the classifier and voided the same way.
+// Cost: in auto mode a subagent shares its parent's guide ledger again (about
+// 2 guide re-deliveries per dispatch, codescout:context-injection-session-log:W-3).
+// A subagent's PreToolUse payload carries permission_mode "auto" -- measured
+// 2026-11-17, not assumed.
+if (input.permission_mode === 'auto') process.exit(0);
 
 // Composed from BOTH ids because either alone is ambiguous: agent_id alone
 // conflates two different sessions' parents, since both present as "no agent id"
