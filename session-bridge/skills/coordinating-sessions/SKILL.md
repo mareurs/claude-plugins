@@ -79,7 +79,7 @@ Ask one specific question that the peer can answer from its own context. Then re
 - It is the peer's self-report, not a fact you verified.
 - `as_of` is the time of the peer's last transcript write. The answer may be stale.
 - A read-only fork of the peer answers, and the **peer's profile pays**. Each asking session has a
-  daily bound of 2.0 USD.
+  daily bound of 2.0 USD. `SESSION_BRIDGE_ASK_BOUND_USD` may set another bound, or `off` to remove it.
 - You cannot ask yourself, and an ambiguous target is refused with the candidates.
 
 `list_sessions` shows who is live. The `cwd` of a Claude Code row is the directory where the

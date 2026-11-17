@@ -1,8 +1,8 @@
 use chrono::NaiveDate;
 use session_bridge_mcp::ask::{
-    ask, ask_with_bound, clamp_timeout, claude_json_candidates, daily_bound, fork_argv,
-    locate_claude, model_id, parse_fork_output, resolve_program, restored_cost, spent_today,
-    ASK_NOTE, DAILY_BOUND_USD, FAILED_ASK_CHARGE_USD, WRAPPER_PREFIX,
+    ask, ask_with_bound, clamp_timeout, daily_bound, fork_argv, locate_claude, model_id,
+    parse_fork_output, resolve_program, restored_cost, spent_today, ASK_NOTE, DAILY_BOUND_USD,
+    FAILED_ASK_CHARGE_USD, WRAPPER_PREFIX,
 };
 use session_bridge_mcp::endpoints::Endpoint;
 use session_bridge_mcp::error::BridgeError;
@@ -293,6 +293,25 @@ async fn ask_appends_to_the_log_and_reports_billed_profile() {
     assert_eq!(v["ok"], true);
 }
 
+/// `ask` with the default daily bound, whatever `SESSION_BRIDGE_ASK_BOUND_USD` the test run
+/// inherits: a person who set it to `off` in `settings.json` must still get a green suite.
+async fn ask_default_bound(
+    f: &Fx,
+    timeout_s: u64,
+) -> session_bridge_mcp::error::Result<session_bridge_mcp::ask::AskResult> {
+    ask_with_bound(
+        &fake_bin(),
+        &f.target,
+        "main:1",
+        "q",
+        "haiku",
+        timeout_s,
+        &f.state,
+        Some(DAILY_BOUND_USD),
+    )
+    .await
+}
+
 #[tokio::test]
 async fn ask_refuses_over_the_daily_bound() {
     assert_eq!(DAILY_BOUND_USD, 2.0);
@@ -303,9 +322,7 @@ async fn ask_refuses_over_the_daily_bound() {
         log_line("main:1", &now_rfc(), 2.0),
     )
     .unwrap();
-    let err = ask(&fake_bin(), &f.target, "main:1", "q", "haiku", 20, &f.state)
-        .await
-        .unwrap_err();
+    let err = ask_default_bound(&f, 20).await.unwrap_err();
     assert!(matches!(err, BridgeError::BudgetExceeded { .. }), "{err:?}");
     assert!(err.to_string().contains("2.00"), "{err}");
     assert!(!f.cfg.join("fake-out.txt").exists(), "must not spawn");
@@ -316,45 +333,63 @@ async fn ask_refuses_over_the_daily_bound() {
         log_line("main:1", &now_rfc(), 1.99),
     )
     .unwrap();
-    ask(&fake_bin(), &f.target, "main:1", "q", "haiku", 20, &f.state)
-        .await
-        .unwrap();
+    ask_default_bound(&f, 20).await.unwrap();
     // Yesterday's spend never counts; another asker's spend never counts.
     let f = fx();
     let yesterday = (chrono::Utc::now() - chrono::Duration::days(1)).to_rfc3339();
     let body = log_line("main:1", &yesterday, 50.0) + &log_line("main:2", &now_rfc(), 50.0);
     std::fs::write(f.state.join("asks.jsonl"), body).unwrap();
-    ask(&fake_bin(), &f.target, "main:1", "q", "haiku", 20, &f.state)
-        .await
-        .unwrap();
+    ask_default_bound(&f, 20).await.unwrap();
     assert_eq!(
         spent_today(&f.state.join("asks.jsonl"), "main:1", today()),
         0.02
     );
 }
 
-/// Write the target profile's `.claude.json` the way Claude Code keeps it: the project's last
-/// session and the cost it had accumulated.
-fn write_claude_json(f: &Fx, last_session: &str, last_cost: f64) {
-    let body = serde_json::json!({
-        "projects": {
-            f.cwd.to_string_lossy(): {"lastSessionId": last_session, "lastCost": last_cost}
-        }
-    });
-    std::fs::write(f.cfg.join(".claude.json"), body.to_string()).unwrap();
+/// Write a transcript of `session` under the target profile the way Claude Code keeps it: one
+/// JSON record per line, `cost-state` records among the others.
+fn write_transcript(f: &Fx, project: &str, session: &str, lines: &[String]) -> PathBuf {
+    let dir = f.cfg.join("projects").join(project);
+    std::fs::create_dir_all(&dir).unwrap();
+    let p = dir.join(format!("{session}.jsonl"));
+    std::fs::write(&p, lines.join("\n") + "\n").unwrap();
+    p
+}
+
+fn cost_state(session: &str, total: f64) -> String {
+    serde_json::json!({"type": "cost-state", "sessionId": session, "totalCostUSD": total,
+        "modelUsage": {"m": {"costUSD": total}}})
+    .to_string()
+}
+
+fn noise() -> String {
+    serde_json::json!({"type": "user", "message": {"content": "a \"cost-state\" mention"}})
+        .to_string()
 }
 
 fn near(a: f64, b: f64) -> bool {
     (a - b).abs() < 1e-6
 }
 
-// Measured 2026-11-17: `claude -p --resume <id>` restores the saved cost of the project's
-// `lastSessionId`, so `total_cost_usd` is the session's cumulative cost plus this turn, not this
-// turn alone (a "reply ok" fork reported 11.645 USD on a session with lastCost 11.403).
+// Measured 2026-11-17: `claude -p --resume <id>` starts the fork's `total_cost_usd` from the last
+// `cost-state` record of the session's transcript. A fork of a session that was NOT its project's
+// `lastSessionId` reported 22.835 for a turn of 0.30 on a transcript that held 22.535; so the
+// record, not `.claude.json`, is the source, and no `.claude.json` exists in these tests.
 #[tokio::test]
-async fn the_restored_cost_of_the_last_session_is_not_charged_to_the_ask() {
+async fn the_restored_cost_is_not_charged_to_the_ask() {
     let f = fx();
-    write_claude_json(&f, "sess-1", 560.5);
+    write_transcript(
+        &f,
+        "p1",
+        "sess-1",
+        &[
+            noise(),
+            cost_state("sess-1", 400.0),
+            noise(),
+            cost_state("sess-1", 560.5),
+            noise(),
+        ],
+    );
     std::fs::write(f.cfg.join("fake-total"), "560.52").unwrap();
     let r = ask_with_bound(
         &fake_bin(),
@@ -374,7 +409,7 @@ async fn the_restored_cost_of_the_last_session_is_not_charged_to_the_ask() {
         spent_today(&f.state.join("asks.jsonl"), "main:1", today()),
         0.02
     ));
-    // The ask that followed is not refused by the bound.
+    // The ask that follows is not refused by the bound.
     ask_with_bound(
         &fake_bin(),
         &f.target,
@@ -390,9 +425,14 @@ async fn the_restored_cost_of_the_last_session_is_not_charged_to_the_ask() {
 }
 
 #[tokio::test]
-async fn the_cost_is_whole_when_another_session_is_the_projects_last() {
+async fn the_cost_state_of_another_session_is_not_a_baseline() {
     let f = fx();
-    write_claude_json(&f, "some-other-session", 560.5);
+    write_transcript(
+        &f,
+        "p1",
+        "sess-1",
+        &[cost_state("some-other-session", 500.0), noise()],
+    );
     std::fs::write(f.cfg.join("fake-total"), "0.31").unwrap();
     let r = ask_with_bound(
         &fake_bin(),
@@ -410,10 +450,10 @@ async fn the_cost_is_whole_when_another_session_is_the_projects_last() {
 }
 
 #[tokio::test]
-async fn a_baseline_above_the_reported_cost_gives_zero_not_a_negative() {
-    // The target spent between our read of lastCost and the fork's: never a negative charge.
+async fn a_total_below_the_restored_cost_is_counted_whole_not_free() {
+    // The restore did not happen as measured. The ask must not become free without a trace.
     let f = fx();
-    write_claude_json(&f, "sess-1", 10.0);
+    write_transcript(&f, "p1", "sess-1", &[cost_state("sess-1", 10.0)]);
     std::fs::write(f.cfg.join("fake-total"), "0.02").unwrap();
     let r = ask_with_bound(
         &fake_bin(),
@@ -427,32 +467,60 @@ async fn a_baseline_above_the_reported_cost_gives_zero_not_a_negative() {
     )
     .await
     .unwrap();
-    assert_eq!(r.cost_usd, 0.0);
+    assert!(near(r.cost_usd, 0.02), "{}", r.cost_usd);
+    assert!(near(log_lines(&f)[0]["cost_usd"].as_f64().unwrap(), 0.02));
 }
 
 #[test]
-fn restored_cost_is_zero_unless_the_project_names_this_session() {
+fn restored_cost_reads_the_last_cost_state_of_this_session_only() {
     let f = fx();
-    // No file.
+    // No projects dir, then a transcript without the session.
     assert_eq!(restored_cost(&f.target), 0.0);
-    // Unreadable file, not an object, wrong project, missing or non-numeric lastCost.
-    let cwd = f.cwd.to_string_lossy().into_owned();
-    for body in [
-        "not json".to_string(),
-        "[]".to_string(),
-        serde_json::json!({"projects": {"/elsewhere": {"lastSessionId": "sess-1", "lastCost": 9.0}}})
-            .to_string(),
-        serde_json::json!({"projects": {cwd.clone(): {"lastSessionId": "sess-1"}}}).to_string(),
-        serde_json::json!({"projects": {cwd: {"lastSessionId": "sess-1", "lastCost": "9"}}})
-            .to_string(),
-    ] {
-        std::fs::write(f.cfg.join(".claude.json"), &body).unwrap();
-        assert_eq!(restored_cost(&f.target), 0.0, "{body}");
-    }
-    write_claude_json(&f, "sess-1", 4.25);
-    assert_eq!(restored_cost(&f.target), 4.25);
-    write_claude_json(&f, "sess-2", 4.25);
+    // Records that must not count: another session, another type that mentions the marker, a
+    // non-numeric or negative total, and a line cut off before its end.
+    let other_type = serde_json::json!({"type": "x", "sessionId": "sess-1", "totalCostUSD": 9.0,
+        "note": "cost-state"})
+    .to_string();
+    let text_total = r#"{"type":"cost-state","sessionId":"sess-1","totalCostUSD":"9"}"#.to_string();
+    let negative = r#"{"type":"cost-state","sessionId":"sess-1","totalCostUSD":-3}"#.to_string();
+    let cut = r#"{"type":"cost-state","sessionId":"sess-1","totalCostUSD":9"#.to_string();
+    let p = write_transcript(
+        &f,
+        "p1",
+        "sess-1",
+        &[
+            cost_state("sess-2", 9.0),
+            other_type,
+            text_total,
+            negative,
+            cut,
+            noise(),
+        ],
+    );
     assert_eq!(restored_cost(&f.target), 0.0);
+    // The last matching record wins, whatever sits between: invalid UTF-8, a 1 MB line, noise.
+    let mut bytes = std::fs::read(&p).unwrap();
+    bytes.extend(cost_state("sess-1", 4.25).bytes().chain(*b"\n"));
+    bytes.extend(*b"\xff\xfe \"cost-state\" not json\n");
+    bytes.extend(std::iter::repeat_n(b'x', 1_000_000).chain(*b"\n"));
+    bytes.extend(cost_state("sess-1", 7.5).bytes().chain(*b"\n"));
+    bytes.extend(noise().bytes());
+    std::fs::write(&p, bytes).unwrap();
+    assert_eq!(restored_cost(&f.target), 7.5);
+}
+
+#[test]
+fn restored_cost_comes_from_the_newest_transcript_of_the_session() {
+    let f = fx();
+    let old = write_transcript(&f, "p-old", "sess-1", &[cost_state("sess-1", 1.0)]);
+    write_transcript(&f, "p-new", "sess-1", &[cost_state("sess-1", 2.0)]);
+    std::fs::File::options()
+        .write(true)
+        .open(&old)
+        .unwrap()
+        .set_modified(std::time::SystemTime::now() - std::time::Duration::from_secs(3600))
+        .unwrap();
+    assert_eq!(restored_cost(&f.target), 2.0);
 }
 
 #[test]
@@ -497,31 +565,6 @@ async fn no_bound_means_no_refusal_and_the_ask_is_still_logged() {
     .await
     .unwrap();
     assert_eq!(log_lines(&f).len(), 2);
-}
-
-#[test]
-fn the_default_profile_also_reads_the_home_claude_json_and_no_other_profile_does() {
-    let cfg = Path::new("/h/.claude");
-    assert_eq!(
-        claude_json_candidates(cfg, ".claude", Some("/h")),
-        vec![
-            PathBuf::from("/h/.claude/.claude.json"),
-            PathBuf::from("/h/.claude.json")
-        ]
-    );
-    // Another profile's own file only: `$HOME/.claude.json` is not its.
-    assert_eq!(
-        claude_json_candidates(Path::new("/h/.claude-stef"), ".claude-stef", Some("/h")),
-        vec![PathBuf::from("/h/.claude-stef/.claude.json")]
-    );
-    // A missing or relative HOME is never searched.
-    for home in [None, Some(""), Some("rel")] {
-        assert_eq!(
-            claude_json_candidates(cfg, ".claude", home).len(),
-            1,
-            "{home:?}"
-        );
-    }
 }
 
 #[tokio::test]
@@ -631,18 +674,12 @@ async fn failed_asks_count_toward_the_bound() {
     )
     .unwrap();
     std::fs::write(f.cfg.join("fake-sleep"), "").unwrap();
-    let err = ask(&fake_bin(), &f.target, "main:1", "q", "haiku", 1, &f.state)
-        .await
-        .unwrap_err();
+    let err = ask_default_bound(&f, 1).await.unwrap_err();
     assert!(matches!(err, BridgeError::Timeout(1)), "{err:?}");
     // 1.85 + 0.10 = 1.95 is still under the bound, so a second failed ask is allowed to run.
-    let err = ask(&fake_bin(), &f.target, "main:1", "q", "haiku", 1, &f.state)
-        .await
-        .unwrap_err();
+    let err = ask_default_bound(&f, 1).await.unwrap_err();
     assert!(matches!(err, BridgeError::Timeout(1)), "{err:?}");
-    let err = ask(&fake_bin(), &f.target, "main:1", "q", "haiku", 20, &f.state)
-        .await
-        .unwrap_err();
+    let err = ask_default_bound(&f, 20).await.unwrap_err();
     assert!(matches!(err, BridgeError::BudgetExceeded { .. }), "{err:?}");
 }
 

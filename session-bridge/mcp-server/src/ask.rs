@@ -181,51 +181,61 @@ pub fn daily_bound(env: &dyn Fn(&str) -> Option<String>) -> Option<f64> {
     }
 }
 
-/// The files that may hold the target profile's project records, most specific first. Claude
-/// Code keeps `.claude.json` inside a profile's config dir; the default profile of a
-/// single-profile install keeps it at `$HOME/.claude.json`. Another profile never reads it:
-/// that file is not its own.
-pub fn claude_json_candidates(
-    config_dir: &Path,
-    profile: &str,
-    home: Option<&str>,
-) -> Vec<PathBuf> {
-    let mut v = vec![config_dir.join(".claude.json")];
-    if profile == ".claude" {
-        if let Some(h) = home.filter(|h| Path::new(h).is_absolute()) {
-            v.push(Path::new(h).join(".claude.json"));
+/// The last `cost-state` record of `session_id` in the transcript at `path`: its `totalCostUSD`.
+/// Lines of other sessions, lines of another type, and lines that do not parse are skipped.
+fn last_cost_state(path: &Path, session_id: &str) -> Option<f64> {
+    use std::io::BufRead;
+    const MARK: &[u8] = b"\"cost-state\"";
+    let mut reader = std::io::BufReader::new(std::fs::File::open(path).ok()?);
+    let mut line = Vec::new();
+    let mut last = None;
+    loop {
+        line.clear();
+        if reader.read_until(b'\n', &mut line).ok()? == 0 {
+            return last;
+        }
+        // A transcript is megabytes of other records: parse only the lines that can match.
+        if !line.windows(MARK.len()).any(|w| w == MARK) {
+            continue;
+        }
+        let Ok(v) = serde_json::from_slice::<serde_json::Value>(&line) else {
+            continue;
+        };
+        if v["type"] == "cost-state" && v["sessionId"].as_str() == Some(session_id) {
+            if let Some(c) = v["totalCostUSD"]
+                .as_f64()
+                .filter(|c| c.is_finite() && *c >= 0.0)
+            {
+                last = Some(c);
+            }
         }
     }
-    v
 }
 
 /// USD that `claude --resume` restores into the total of a fork of `target`'s session.
 ///
-/// Measured 2026-11-17: Claude Code restores the saved `lastCost` of a resumed session when the
-/// session is the one its project records as `lastSessionId`. The fork's `total_cost_usd` is then
-/// that cost plus the cost of the fork's own turn. This returns the part to take away: the
-/// project's `lastCost` when `lastSessionId` is the target session, else zero. A missing or
-/// unreadable file, or one of a shape this code does not know, gives zero: the ask then counts
-/// too much, never too little.
+/// Measured 2026-11-17: the fork reads the last `cost-state` record of the session's transcript
+/// (`<config_dir>/projects/*/<session_id>.jsonl`) and starts its `total_cost_usd` from that
+/// figure, so the total is that cost plus the cost of the fork's own turn. A fork of a session
+/// that is not its project's `lastSessionId` did it too (22.535 restored, 22.835 reported). This
+/// returns the figure to take away, from the newest transcript of the session. No transcript, no
+/// record, or an unreadable file gives zero: the ask then counts too much, never too little.
 pub fn restored_cost(target: &Endpoint) -> f64 {
-    let home = std::env::var("HOME").ok();
-    let cwd = target.launch_cwd.to_string_lossy();
-    for path in claude_json_candidates(&target.config_dir, &target.profile, home.as_deref()) {
-        let Ok(text) = std::fs::read_to_string(&path) else {
-            continue;
-        };
-        let Ok(v) = serde_json::from_str::<serde_json::Value>(&text) else {
-            continue;
-        };
-        let project = &v["projects"][cwd.as_ref()];
-        if project["lastSessionId"].as_str() == Some(target.session_id.as_str()) {
-            return project["lastCost"]
-                .as_f64()
-                .filter(|c| c.is_finite() && *c > 0.0)
-                .unwrap_or(0.0);
-        }
-    }
-    0.0
+    let file = format!("{}.jsonl", target.session_id);
+    let Ok(dirs) = std::fs::read_dir(target.config_dir.join("projects")) else {
+        return 0.0;
+    };
+    dirs.filter_map(|d| d.ok())
+        .filter_map(|d| {
+            let p = d.path().join(&file);
+            std::fs::metadata(&p)
+                .and_then(|m| m.modified())
+                .ok()
+                .map(|t| (t, p))
+        })
+        .max()
+        .and_then(|(_, p)| last_cost_state(&p, &target.session_id))
+        .unwrap_or(0.0)
 }
 
 /// mtime of the newest `<config_dir>/projects/*/<session_id>.jsonl`, RFC 3339 UTC.
@@ -430,9 +440,20 @@ pub async fn ask_with_bound(
             return Err(e);
         }
     };
-    // `total_cost_usd` carries the cost restored from the resumed session. This ask's own cost
-    // is what is left; never below zero, in case the target spent after we read `restored`.
-    let cost_usd = (out.cost_usd - restored).max(0.0);
+    // `total_cost_usd` starts from the cost restored from the resumed session's transcript, so
+    // this ask's own cost is what is left. A total below that figure means the restore did not
+    // happen as measured (the figure only grows while the target runs): say so, and count the
+    // whole total, so the ask is never free by accident.
+    let cost_usd = if out.cost_usd >= restored {
+        out.cost_usd - restored
+    } else {
+        crate::diag::note(&format!(
+            "ask cost {} is below the restored cost {restored} of {}: counting the whole total",
+            out.cost_usd,
+            target.key()
+        ));
+        out.cost_usd
+    };
     log_entry(
         state,
         asker,
