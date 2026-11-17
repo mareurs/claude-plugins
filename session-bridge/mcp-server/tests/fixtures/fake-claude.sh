@@ -29,4 +29,10 @@ if [ -e "$CLAUDE_CONFIG_DIR/fake-nocost" ]; then
   echo '{"type":"result","is_error":false,"result":"x","usage":{}}'
   exit 0
 fi
-echo '{"type":"result","is_error":false,"result":"canned answer","total_cost_usd":0.02,"usage":{"cache_read_input_tokens":1000,"cache_creation_input_tokens":50}}'
+# `fake-total` overrides total_cost_usd: a resumed session reports its restored (cumulative) cost,
+# not the cost of this turn alone.
+total=0.02
+if [ -e "$CLAUDE_CONFIG_DIR/fake-total" ]; then
+  total=$(cat "$CLAUDE_CONFIG_DIR/fake-total")
+fi
+echo '{"type":"result","is_error":false,"result":"canned answer","total_cost_usd":'"$total"',"usage":{"cache_read_input_tokens":1000,"cache_creation_input_tokens":50}}'

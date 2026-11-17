@@ -153,6 +153,80 @@ pub fn spent_today(log: &Path, asker: &str, today: NaiveDate) -> f64 {
         .filter_map(|v| v["cost_usd"].as_f64())
         .sum()
 }
+/// The environment variable that sets the daily ask bound in USD, or `off` to remove it.
+pub const BOUND_ENV: &str = "SESSION_BRIDGE_ASK_BOUND_USD";
+
+/// The daily ask bound in force: `Some(bound)`, or `None` when it is switched off.
+///
+/// `SESSION_BRIDGE_ASK_BOUND_USD` unset or empty gives `DAILY_BOUND_USD`; `off` (any case) gives
+/// `None`; a finite number above zero gives that number. Any other value is a typo, and a typo
+/// must not remove the bound: it gives `DAILY_BOUND_USD` and a note.
+pub fn daily_bound(env: &dyn Fn(&str) -> Option<String>) -> Option<f64> {
+    let raw = env(BOUND_ENV).unwrap_or_default();
+    let raw = raw.trim();
+    if raw.is_empty() {
+        return Some(DAILY_BOUND_USD);
+    }
+    if raw.eq_ignore_ascii_case("off") {
+        return None;
+    }
+    match raw.parse::<f64>() {
+        Ok(v) if v.is_finite() && v > 0.0 => Some(v),
+        _ => {
+            crate::diag::note(&format!(
+                "{BOUND_ENV}={raw:?} is not a positive number or `off`; using {DAILY_BOUND_USD} USD"
+            ));
+            Some(DAILY_BOUND_USD)
+        }
+    }
+}
+
+/// The files that may hold the target profile's project records, most specific first. Claude
+/// Code keeps `.claude.json` inside a profile's config dir; the default profile of a
+/// single-profile install keeps it at `$HOME/.claude.json`. Another profile never reads it:
+/// that file is not its own.
+pub fn claude_json_candidates(
+    config_dir: &Path,
+    profile: &str,
+    home: Option<&str>,
+) -> Vec<PathBuf> {
+    let mut v = vec![config_dir.join(".claude.json")];
+    if profile == ".claude" {
+        if let Some(h) = home.filter(|h| Path::new(h).is_absolute()) {
+            v.push(Path::new(h).join(".claude.json"));
+        }
+    }
+    v
+}
+
+/// USD that `claude --resume` restores into the total of a fork of `target`'s session.
+///
+/// Measured 2026-11-17: Claude Code restores the saved `lastCost` of a resumed session when the
+/// session is the one its project records as `lastSessionId`. The fork's `total_cost_usd` is then
+/// that cost plus the cost of the fork's own turn. This returns the part to take away: the
+/// project's `lastCost` when `lastSessionId` is the target session, else zero. A missing or
+/// unreadable file, or one of a shape this code does not know, gives zero: the ask then counts
+/// too much, never too little.
+pub fn restored_cost(target: &Endpoint) -> f64 {
+    let home = std::env::var("HOME").ok();
+    let cwd = target.launch_cwd.to_string_lossy();
+    for path in claude_json_candidates(&target.config_dir, &target.profile, home.as_deref()) {
+        let Ok(text) = std::fs::read_to_string(&path) else {
+            continue;
+        };
+        let Ok(v) = serde_json::from_str::<serde_json::Value>(&text) else {
+            continue;
+        };
+        let project = &v["projects"][cwd.as_ref()];
+        if project["lastSessionId"].as_str() == Some(target.session_id.as_str()) {
+            return project["lastCost"]
+                .as_f64()
+                .filter(|c| c.is_finite() && *c > 0.0)
+                .unwrap_or(0.0);
+        }
+    }
+    0.0
+}
 
 /// mtime of the newest `<config_dir>/projects/*/<session_id>.jsonl`, RFC 3339 UTC.
 fn as_of(target: &Endpoint) -> Option<String> {
@@ -258,8 +332,9 @@ fn log_entry(
 
 /// Fork `target`'s session, ask it `question`, return the answer with its cost.
 ///
-/// Refused before any spawn when `asker` has spent `DAILY_BOUND_USD` or more today. The child
-/// is killed on timeout and on drop.
+/// Refused before any spawn when `asker` has spent the daily bound or more today; the bound is
+/// `DAILY_BOUND_USD` unless `SESSION_BRIDGE_ASK_BOUND_USD` changes or switches it off
+/// (see `daily_bound`). The child is killed on timeout and on drop.
 pub async fn ask(
     bin: &str,
     target: &Endpoint,
@@ -269,19 +344,37 @@ pub async fn ask(
     timeout_s: u64,
     state: &Path,
 ) -> Result<AskResult> {
+    let bound = daily_bound(&|k| std::env::var(k).ok());
+    ask_with_bound(bin, target, asker, question, model, timeout_s, state, bound).await
+}
+
+/// `ask` with the daily bound given: `None` means no bound, and nothing is refused. The ask is
+/// logged either way, so the spend stays visible.
+#[allow(clippy::too_many_arguments)]
+pub async fn ask_with_bound(
+    bin: &str,
+    target: &Endpoint,
+    asker: &str,
+    question: &str,
+    model: &str,
+    timeout_s: u64,
+    state: &Path,
+    bound: Option<f64>,
+) -> Result<AskResult> {
     // The child runs in the target's repository with the target's credentials: never let a
     // relative program path resolve against it.
     if !bin.starts_with('/') {
         return Err(BridgeError::RelativeBinary(bin.to_string()));
     }
     let log = state.join(ASK_LOG);
-    let spent = spent_today(&log, asker, Utc::now().date_naive());
-    if spent >= DAILY_BOUND_USD {
-        return Err(BridgeError::BudgetExceeded {
-            spent,
-            bound: DAILY_BOUND_USD,
-        });
+    if let Some(bound) = bound {
+        let spent = spent_today(&log, asker, Utc::now().date_naive());
+        if spent >= bound {
+            return Err(BridgeError::BudgetExceeded { spent, bound });
+        }
     }
+    // Read before the spawn: the fork restores this cost into its own total.
+    let restored = restored_cost(target);
     let started = Instant::now();
     let mut cmd = Command::new(bin);
     cmd.args(fork_argv(&target.session_id, &model_id(model), question))
@@ -337,11 +430,14 @@ pub async fn ask(
             return Err(e);
         }
     };
+    // `total_cost_usd` carries the cost restored from the resumed session. This ask's own cost
+    // is what is left; never below zero, in case the target spent after we read `restored`.
+    let cost_usd = (out.cost_usd - restored).max(0.0);
     log_entry(
         state,
         asker,
         target,
-        out.cost_usd,
+        cost_usd,
         (out.cache_read_tokens, out.cache_write_tokens),
         secs,
         !out.is_error,
@@ -361,7 +457,7 @@ pub async fn ask(
         },
         billed_profile: target.profile.clone(),
         as_of: as_of(target),
-        cost_usd: out.cost_usd,
+        cost_usd,
         cache_read_tokens: out.cache_read_tokens,
         cache_write_tokens: out.cache_write_tokens,
         secs,

@@ -1,7 +1,8 @@
 use chrono::NaiveDate;
 use session_bridge_mcp::ask::{
-    ask, clamp_timeout, fork_argv, locate_claude, model_id, parse_fork_output, resolve_program,
-    spent_today, ASK_NOTE, DAILY_BOUND_USD, FAILED_ASK_CHARGE_USD, WRAPPER_PREFIX,
+    ask, ask_with_bound, clamp_timeout, claude_json_candidates, daily_bound, fork_argv,
+    locate_claude, model_id, parse_fork_output, resolve_program, restored_cost, spent_today,
+    ASK_NOTE, DAILY_BOUND_USD, FAILED_ASK_CHARGE_USD, WRAPPER_PREFIX,
 };
 use session_bridge_mcp::endpoints::Endpoint;
 use session_bridge_mcp::error::BridgeError;
@@ -330,6 +331,197 @@ async fn ask_refuses_over_the_daily_bound() {
         spent_today(&f.state.join("asks.jsonl"), "main:1", today()),
         0.02
     );
+}
+
+/// Write the target profile's `.claude.json` the way Claude Code keeps it: the project's last
+/// session and the cost it had accumulated.
+fn write_claude_json(f: &Fx, last_session: &str, last_cost: f64) {
+    let body = serde_json::json!({
+        "projects": {
+            f.cwd.to_string_lossy(): {"lastSessionId": last_session, "lastCost": last_cost}
+        }
+    });
+    std::fs::write(f.cfg.join(".claude.json"), body.to_string()).unwrap();
+}
+
+fn near(a: f64, b: f64) -> bool {
+    (a - b).abs() < 1e-6
+}
+
+// Measured 2026-11-17: `claude -p --resume <id>` restores the saved cost of the project's
+// `lastSessionId`, so `total_cost_usd` is the session's cumulative cost plus this turn, not this
+// turn alone (a "reply ok" fork reported 11.645 USD on a session with lastCost 11.403).
+#[tokio::test]
+async fn the_restored_cost_of_the_last_session_is_not_charged_to_the_ask() {
+    let f = fx();
+    write_claude_json(&f, "sess-1", 560.5);
+    std::fs::write(f.cfg.join("fake-total"), "560.52").unwrap();
+    let r = ask_with_bound(
+        &fake_bin(),
+        &f.target,
+        "main:1",
+        "q",
+        "haiku",
+        20,
+        &f.state,
+        Some(2.0),
+    )
+    .await
+    .unwrap();
+    assert!(near(r.cost_usd, 0.02), "{}", r.cost_usd);
+    assert!(near(log_lines(&f)[0]["cost_usd"].as_f64().unwrap(), 0.02));
+    assert!(near(
+        spent_today(&f.state.join("asks.jsonl"), "main:1", today()),
+        0.02
+    ));
+    // The ask that followed is not refused by the bound.
+    ask_with_bound(
+        &fake_bin(),
+        &f.target,
+        "main:1",
+        "q",
+        "haiku",
+        20,
+        &f.state,
+        Some(2.0),
+    )
+    .await
+    .unwrap();
+}
+
+#[tokio::test]
+async fn the_cost_is_whole_when_another_session_is_the_projects_last() {
+    let f = fx();
+    write_claude_json(&f, "some-other-session", 560.5);
+    std::fs::write(f.cfg.join("fake-total"), "0.31").unwrap();
+    let r = ask_with_bound(
+        &fake_bin(),
+        &f.target,
+        "main:1",
+        "q",
+        "haiku",
+        20,
+        &f.state,
+        None,
+    )
+    .await
+    .unwrap();
+    assert!(near(r.cost_usd, 0.31), "{}", r.cost_usd);
+}
+
+#[tokio::test]
+async fn a_baseline_above_the_reported_cost_gives_zero_not_a_negative() {
+    // The target spent between our read of lastCost and the fork's: never a negative charge.
+    let f = fx();
+    write_claude_json(&f, "sess-1", 10.0);
+    std::fs::write(f.cfg.join("fake-total"), "0.02").unwrap();
+    let r = ask_with_bound(
+        &fake_bin(),
+        &f.target,
+        "main:1",
+        "q",
+        "haiku",
+        20,
+        &f.state,
+        None,
+    )
+    .await
+    .unwrap();
+    assert_eq!(r.cost_usd, 0.0);
+}
+
+#[test]
+fn restored_cost_is_zero_unless_the_project_names_this_session() {
+    let f = fx();
+    // No file.
+    assert_eq!(restored_cost(&f.target), 0.0);
+    // Unreadable file, not an object, wrong project, missing or non-numeric lastCost.
+    let cwd = f.cwd.to_string_lossy().into_owned();
+    for body in [
+        "not json".to_string(),
+        "[]".to_string(),
+        serde_json::json!({"projects": {"/elsewhere": {"lastSessionId": "sess-1", "lastCost": 9.0}}})
+            .to_string(),
+        serde_json::json!({"projects": {cwd.clone(): {"lastSessionId": "sess-1"}}}).to_string(),
+        serde_json::json!({"projects": {cwd: {"lastSessionId": "sess-1", "lastCost": "9"}}})
+            .to_string(),
+    ] {
+        std::fs::write(f.cfg.join(".claude.json"), &body).unwrap();
+        assert_eq!(restored_cost(&f.target), 0.0, "{body}");
+    }
+    write_claude_json(&f, "sess-1", 4.25);
+    assert_eq!(restored_cost(&f.target), 4.25);
+    write_claude_json(&f, "sess-2", 4.25);
+    assert_eq!(restored_cost(&f.target), 0.0);
+}
+
+#[test]
+fn the_daily_bound_comes_from_the_environment() {
+    let with = |v: Option<&'static str>| {
+        daily_bound(&move |k| {
+            (k == "SESSION_BRIDGE_ASK_BOUND_USD")
+                .then(|| v.map(String::from))
+                .flatten()
+        })
+    };
+    assert_eq!(with(None), Some(DAILY_BOUND_USD));
+    assert_eq!(with(Some("")), Some(DAILY_BOUND_USD));
+    assert_eq!(with(Some("5")), Some(5.0));
+    assert_eq!(with(Some(" 0.5 ")), Some(0.5));
+    assert_eq!(with(Some("off")), None);
+    assert_eq!(with(Some("OFF")), None);
+    // An invalid value must not switch the gate off: it falls back to the default.
+    for bad in ["abc", "0", "-1", "NaN", "inf"] {
+        assert_eq!(with(Some(bad)), Some(DAILY_BOUND_USD), "{bad}");
+    }
+}
+
+#[tokio::test]
+async fn no_bound_means_no_refusal_and_the_ask_is_still_logged() {
+    let f = fx();
+    std::fs::write(
+        f.state.join("asks.jsonl"),
+        log_line("main:1", &now_rfc(), 560.0),
+    )
+    .unwrap();
+    ask_with_bound(
+        &fake_bin(),
+        &f.target,
+        "main:1",
+        "q",
+        "haiku",
+        20,
+        &f.state,
+        None,
+    )
+    .await
+    .unwrap();
+    assert_eq!(log_lines(&f).len(), 2);
+}
+
+#[test]
+fn the_default_profile_also_reads_the_home_claude_json_and_no_other_profile_does() {
+    let cfg = Path::new("/h/.claude");
+    assert_eq!(
+        claude_json_candidates(cfg, ".claude", Some("/h")),
+        vec![
+            PathBuf::from("/h/.claude/.claude.json"),
+            PathBuf::from("/h/.claude.json")
+        ]
+    );
+    // Another profile's own file only: `$HOME/.claude.json` is not its.
+    assert_eq!(
+        claude_json_candidates(Path::new("/h/.claude-stef"), ".claude-stef", Some("/h")),
+        vec![PathBuf::from("/h/.claude-stef/.claude.json")]
+    );
+    // A missing or relative HOME is never searched.
+    for home in [None, Some(""), Some("rel")] {
+        assert_eq!(
+            claude_json_candidates(cfg, ".claude", home).len(),
+            1,
+            "{home:?}"
+        );
+    }
 }
 
 #[tokio::test]

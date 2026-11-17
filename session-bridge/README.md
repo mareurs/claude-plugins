@@ -100,6 +100,19 @@ reached the bound, and the refusal names the spend (`daily ask bound reached: 2.
 today, bound 2.00 USD`). A timed-out ask or one with unreadable output has no cost to read, so it
 is metered at an estimated 0.10 USD.
 
+The cost of an ask is the cost of its own turn. `claude --resume` restores the saved cost of the
+session it resumes, when that session is the one its project records as `lastSessionId`, and then
+reports the sum as `total_cost_usd` (measured 2026-11-17: a "reply ok" fork reported 11.645 USD on
+a session whose `lastCost` was 11.403). Before it spawns the fork, the bridge reads that `lastCost`
+from the target profile's `.claude.json` and takes it away. A missing or unreadable file means no
+baseline, so the ask is counted too high and never too low. The result is never below zero.
+
+`SESSION_BRIDGE_ASK_BOUND_USD` changes the bound. A positive number replaces 2.0, and `off`
+removes the bound: no ask is refused, and every ask is still written to `asks.jsonl`. An empty
+value means the default. Any other value (`0`, `-1`, a typo) also means the default and writes a
+note: a typo must not switch the bound off. On a subscription the cost is a list-price figure and
+not a charge, so a person on one may set `off` in the `env` of `settings.json`.
+
 `asks.jsonl` records every ask that started a fork and ended: answered, a fork-reported error, a
 timeout, or unreadable output. A refusal (budget, self, no match, ambiguous target, relative
 `claude` path) and a fork that could not be spawned are not recorded.
