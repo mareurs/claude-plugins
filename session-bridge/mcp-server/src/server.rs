@@ -3,7 +3,9 @@
 use crate::endpoints::{repo_of, Roots};
 use crate::error::BridgeError;
 use crate::paths::state_root;
-use crate::sessions::{caller_session, discover_sessions, discover_sessions_all, Session};
+use crate::sessions::{
+    caller_session, discover_sessions, discover_sessions_all, sessions_for_target, Session,
+};
 use crate::state::{current_session, endpoint_path, update};
 use crate::store::{NewNotice, Origin, Store};
 use crate::tools;
@@ -173,10 +175,13 @@ impl Bridge {
         ctx: RequestContext<RoleServer>,
     ) -> Result<String, ErrorData> {
         let roots = Roots::system();
-        let (sessions, _) = discover_sessions_all(&roots, &|k| std::env::var(k).ok()).await;
+        // OpenCode is discovered (and its service possibly started) only for a target that
+        // needs it; a Claude or Codex target never depends on OpenCode.
+        let (sessions, notes) =
+            sessions_for_target(&roots, &|k| std::env::var(k).ok(), &args.target).await;
         let caller = required_caller(&sessions, &roots, &ctx)?;
         let state = state_dir(&|k| std::env::var(k).ok()).map_err(to_error)?;
-        tools::ask_session(caller, &sessions, args, &roots, &state)
+        tools::ask_session(caller, &sessions, &notes, args, &roots, &state)
             .await
             .map_err(internal)
     }
@@ -190,12 +195,13 @@ impl Bridge {
         ctx: RequestContext<RoleServer>,
     ) -> Result<String, ErrorData> {
         let roots = Roots::system();
-        let (sessions, _) = discover_sessions_all(&roots, &|k| std::env::var(k).ok()).await;
+        let (sessions, notes) =
+            sessions_for_target(&roots, &|k| std::env::var(k).ok(), &args.target).await;
         let caller = required_caller(&sessions, &roots, &ctx)?;
         // Only a Claude target stores state (and refuses without a state root); Codex and
         // OpenCode targets must not be refused for a missing one.
         let state = state_dir(&|k| std::env::var(k).ok()).unwrap_or_default();
-        tools::send_message(caller, &sessions, args, &roots, &state)
+        tools::send_message(caller, &sessions, &notes, args, &roots, &state)
             .await
             .map_err(internal)
     }

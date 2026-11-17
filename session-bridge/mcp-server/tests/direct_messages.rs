@@ -180,6 +180,7 @@ impl Env {
         send_message(
             caller,
             &self.sessions_with(caller),
+            &[],
             SendMessageArgs {
                 target: target.into(),
                 message: message.into(),

@@ -206,6 +206,36 @@ fn trigger_output(raw: &str, event: &str) -> Option<String> {
     Some(emit(event, &text))
 }
 
+/// Upper bound on the fork cleanup a signalled `session-bridge call` waits for before it
+/// exits. The OpenCode plugin's SIGTERM-to-SIGKILL grace is longer than this.
+const SIGNAL_CLEANUP: std::time::Duration = std::time::Duration::from_secs(3);
+
+/// `call_output`, raced against SIGTERM and SIGINT (the OpenCode plugin sends SIGTERM on Esc
+/// and on its own timeout). On a signal the tool future is dropped, which arms the OpenCode
+/// ask's fork cleanup (interrupt, then remove), and that cleanup is awaited, at most
+/// `SIGNAL_CLEANUP`, before the error return makes the process exit non-zero.
+async fn call_until_signal(tool: &str, opencode_caller: &str) -> anyhow::Result<String> {
+    use tokio::signal::unix::{signal, SignalKind};
+    let mut term = signal(SignalKind::terminate())?;
+    let mut int = signal(SignalKind::interrupt())?;
+    let mut work = Box::pin(call_output(tool, opencode_caller));
+    let name = tokio::select! {
+        r = &mut work => return r,
+        _ = term.recv() => "SIGTERM",
+        _ = int.recv() => "SIGINT",
+    };
+    drop(work);
+    let cleaned = session_bridge_mcp::opencode_ask::await_fork_cleanups(SIGNAL_CLEANUP).await;
+    Err(anyhow::anyhow!(
+        "stopped by {name}{}",
+        if cleaned {
+            ""
+        } else {
+            "; the OpenCode fork cleanup did not finish"
+        }
+    ))
+}
+
 /// `session-bridge call`: the OpenCode entry to the shared tool bodies. The caller is the
 /// `--opencode-caller` id only, validated against the discovered service; no environment or
 /// state file can name an OpenCode identity. Listing works without a valid caller (no
@@ -263,13 +293,13 @@ async fn call_output(tool: &str, opencode_caller: &str) -> anyhow::Result<String
             let args = serde_json::from_value(args).context("invalid ask_session arguments")?;
             let caller = caller?;
             let state = state_dir(&env)?;
-            tools::ask_session(caller, &sessions, args, &roots, &state).await
+            tools::ask_session(caller, &sessions, &notes, args, &roots, &state).await
         }
         "send_message" => {
             let args = serde_json::from_value(args).context("invalid send_message arguments")?;
             let caller = caller?;
             let state = state_dir(&env).unwrap_or_default();
-            tools::send_message(caller, &sessions, args, &roots, &state).await
+            tools::send_message(caller, &sessions, &notes, args, &roots, &state).await
         }
         _ => {
             let args = serde_json::from_value(args).context("invalid post_notice arguments")?;
@@ -320,7 +350,7 @@ async fn run() -> anyhow::Result<()> {
         Command::Call {
             tool,
             opencode_caller,
-        } => match call_output(&tool, &opencode_caller).await {
+        } => match call_until_signal(&tool, &opencode_caller).await {
             Ok(out) => println!("{out}"),
             Err(e) => {
                 eprintln!("session-bridge call: {e:#}");

@@ -84,7 +84,7 @@ pub fn settle_pending(state: &Path, profile: &str) {
 }
 
 /// The endpoint for one hook call: ONE `GET /api/session/{id}` (no service start, no
-/// listing; the plugin runs inside the service). Live means top-level, not a fork, not
+/// listing; the plugin runs inside the service). Live means top-level, not a bridge fork, not
 /// archived; no recency filter, the hook fires during the session's own turn.
 pub async fn resolve_endpoint(
     api: &impl crate::opencode_api::OcApi,
@@ -103,7 +103,7 @@ pub async fn resolve_endpoint(
     if row.get("id").and_then(|v| v.as_str()) != Some(ses_id)
         || present("/parentID")
         || present("/time/archived")
-        || crate::opencode::is_fork(row)
+        || crate::opencode::is_bridge_fork(row)
     {
         return None;
     }

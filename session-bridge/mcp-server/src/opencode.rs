@@ -1,6 +1,7 @@
 //! Discovery and addressing of OpenCode sessions, read through the background service API.
 //! A session is live when it is top-level, not a bridge fork, and either recently touched or
-//! currently active. Child sessions are never listed or targetable.
+//! currently active. Child sessions and the bridge's own ask forks are never listed or
+//! targetable; a fork the user made in OpenCode is an ordinary session.
 use crate::opencode_api::{data_dir, ensure_service, locate_opencode, CliApi, OcApi};
 use crate::sessions::Session;
 use anyhow::{anyhow, Result};
@@ -108,16 +109,21 @@ pub async fn opencode_caller<'a>(
         .ok_or_else(|| anyhow!(REFUSED))
 }
 
-/// A bridge fork carries a `fork` object and a title ending ` (fork #N)`.
-pub fn is_fork(row: &Value) -> bool {
-    if row.get("fork").is_some_and(|f| !f.is_null()) {
-        return true;
-    }
-    row.get("title")
-        .and_then(Value::as_str)
-        .and_then(|t| t.strip_suffix(')'))
-        .and_then(|t| t.rsplit_once(" (fork #"))
-        .is_some_and(|(_, n)| !n.is_empty() && n.chars().all(|c| c.is_ascii_digit()))
+/// A fork the bridge made for an ask: it carries the bridge's marker (metadata
+/// `session_bridge_fork: true` or the `session-bridge ask ` title prefix, both set right after
+/// the fork) or runs the bridge's `session-bridge-reader` agent. A fork the user made in
+/// OpenCode (a `fork` object, no marker, a normal agent) is an ordinary session.
+pub fn is_bridge_fork(row: &Value) -> bool {
+    use crate::opencode_ask::{BRIDGE_FORK_METADATA, BRIDGE_FORK_TITLE_PREFIX, READER_AGENT};
+    row.get("metadata")
+        .and_then(|m| m.get(BRIDGE_FORK_METADATA))
+        .and_then(Value::as_bool)
+        == Some(true)
+        || row.get("agent").and_then(Value::as_str) == Some(READER_AGENT)
+        || row
+            .get("title")
+            .and_then(Value::as_str)
+            .is_some_and(|t| t.starts_with(BRIDGE_FORK_TITLE_PREFIX))
 }
 
 /// Rows per `GET /api/session` page. The service default is 50 (newest-updated first).
@@ -128,10 +134,11 @@ pub const LIST_CAP: usize = 2000;
 pub const ACTIVE_LOOKUP_CAP: usize = 50;
 
 /// Bounded API calls: `GET /api/session?limit=100` pages (following `cursor.next`) until a
-/// page ends with a row older than the recency window by `time.updated` (the list order), the
-/// cursor ends, or 2000 rows were read (at most 20 calls); then `GET /api/session/active`; then
-/// `GET /api/session/{id}` for each active id no page held (at most 50). Every row, listed or
-/// looked up, passes the same top-level, fork and recency filters.
+/// page holds no row inside the recency window by max(`time.updated`, `time.viewed`) (the
+/// liveness measure), the cursor ends, or 2000 rows were read (at most 20 calls); then
+/// `GET /api/session/active`; then `GET /api/session/{id}` for each active id no page held
+/// (at most 50). Every row, listed or looked up, passes the same top-level, bridge-fork and
+/// recency filters.
 pub async fn discover_opencode(
     api: &impl OcApi,
     data_dir: &Path,
@@ -141,10 +148,14 @@ pub async fn discover_opencode(
     let window = i64::try_from(recent_hours)
         .unwrap_or(i64::MAX)
         .saturating_mul(3_600_000);
-    let updated = |row: &Value| {
-        row.pointer("/time/updated")
-            .and_then(Value::as_i64)
-            .unwrap_or(0)
+    // Liveness and the page cut-off use the same measure: max(updated, viewed).
+    let last_active = |row: &Value| {
+        let time = |k: &str| {
+            row.pointer(&format!("/time/{k}"))
+                .and_then(Value::as_i64)
+                .unwrap_or(0)
+        };
+        time("updated").max(time("viewed"))
     };
     let mut rows: Vec<Value> = Vec::new();
     let mut cursor: Option<String> = None;
@@ -158,9 +169,11 @@ pub async fn discover_opencode(
             Some(Value::Array(a)) => a,
             _ => return Err(anyhow!("OpenCode session list has no data array")),
         };
-        let past_window = page
-            .last()
-            .is_none_or(|r| now_ms.saturating_sub(updated(r)) > window);
+        // Paging goes on while any row of this page is inside the window by
+        // max(updated, viewed): a recently viewed row can sit behind newer-updated stale ones.
+        let past_window = !page
+            .iter()
+            .any(|r| now_ms.saturating_sub(last_active(r)) <= window);
         let full = page.len() >= LIST_PAGE;
         rows.extend(page);
         cursor = list
@@ -211,15 +224,10 @@ pub async fn discover_opencode(
         else {
             continue;
         };
-        if row.get("parentID").is_some_and(|p| !p.is_null()) || is_fork(row) {
+        if row.get("parentID").is_some_and(|p| !p.is_null()) || is_bridge_fork(row) {
             continue;
         }
-        let time = |k: &str| {
-            row.pointer(&format!("/time/{k}"))
-                .and_then(Value::as_i64)
-                .unwrap_or(0)
-        };
-        let last = time("updated").max(time("viewed"));
+        let last = last_active(row);
         let running = active.contains(id);
         if !running && now_ms.saturating_sub(last) > window {
             continue;
@@ -242,9 +250,12 @@ pub async fn discover_opencode(
     Ok(out)
 }
 
-/// Locate the CLI, make sure the service answers, then discover. Any failure is the caller's note.
+/// Locate the CLI, make sure the service answers, then discover. Any failure is the caller's
+/// note. With `start_service` false the service is never started: a service that does not
+/// answer is a failure (only listing and OpenCode-targeted calls may start it).
 pub async fn discover_opencode_system(
     env: &(dyn Fn(&str) -> Option<String> + Sync),
+    start_service: bool,
 ) -> Result<Vec<OpenCodeEndpoint>> {
     let bin = locate_opencode(env)?;
     let dir = data_dir(env).ok_or_else(|| anyhow!("OpenCode data directory not found"))?;
@@ -252,7 +263,9 @@ pub async fn discover_opencode_system(
         bin: bin.clone(),
         timeout: Duration::from_secs(10),
     };
-    ensure_service(&api, &bin).await?;
+    if start_service {
+        ensure_service(&api, &bin).await?;
+    }
     let hours = env("SESSION_BRIDGE_OPENCODE_RECENT_HOURS")
         .and_then(|s| s.trim().parse::<u64>().ok())
         .unwrap_or(24);

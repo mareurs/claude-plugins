@@ -11,6 +11,10 @@ use serde_json::{json, Value};
 use std::time::{Duration, Instant};
 
 pub const READER_AGENT: &str = "session-bridge-reader";
+/// Title the bridge gives each ask fork (followed by the source session id).
+pub const BRIDGE_FORK_TITLE_PREFIX: &str = "session-bridge ask ";
+/// Metadata key (value `true`) the bridge sets on each ask fork.
+pub const BRIDGE_FORK_METADATA: &str = "session_bridge_fork";
 pub const MISSING_READER: &str =
     "OpenCode ask needs the session-bridge OpenCode plugin (agent session-bridge-reader)";
 const MAX_ANSWER_CHARS: usize = 64_000;
@@ -94,7 +98,7 @@ where
     let remaining = timeout.saturating_sub(started.elapsed());
     let outcome = match tokio::time::timeout(
         remaining,
-        in_fork(api, &fork, question, model.as_ref()),
+        in_fork(api, &fork, source, question, model.as_ref()),
     )
     .await
     {
@@ -149,11 +153,32 @@ impl<A: OcApi + Clone + Send + Sync + 'static> Drop for ForkGuard<A> {
         };
         let api = self.api.clone();
         let fork = std::mem::take(&mut self.fork);
-        rt.spawn(async move {
+        let cleanup = rt.spawn(async move {
             interrupt(&api, &fork).await;
             let _ = remove(&api, &fork).await;
         });
+        let mut pending = CLEANUPS.lock().unwrap_or_else(|e| e.into_inner());
+        pending.retain(|h| !h.is_finished());
+        pending.push(cleanup);
     }
+}
+
+/// Cleanup tasks spawned by `ForkGuard::drop`. A short-lived process (`session-bridge call`
+/// stopped by a signal) must await them before its runtime shuts down, which aborts them.
+static CLEANUPS: std::sync::Mutex<Vec<tokio::task::JoinHandle<()>>> =
+    std::sync::Mutex::new(Vec::new());
+
+/// Await every fork cleanup handed to the runtime so far, for at most `within`. `true` when
+/// all of them finished in time.
+pub async fn await_fork_cleanups(within: Duration) -> bool {
+    let handles = std::mem::take(&mut *CLEANUPS.lock().unwrap_or_else(|e| e.into_inner()));
+    tokio::time::timeout(within, async {
+        for h in handles {
+            let _ = h.await;
+        }
+    })
+    .await
+    .is_ok()
 }
 
 async fn interrupt(api: &impl OcApi, fork: &str) {
@@ -174,10 +199,24 @@ async fn remove(api: &impl OcApi, fork: &str) -> Result<()> {
 async fn in_fork(
     api: &impl OcApi,
     fork: &str,
+    source: &str,
     question: &str,
     model: Option<&Value>,
 ) -> Result<(String, Option<f64>, Option<Value>)> {
     let base = format!("/api/session/{fork}");
+    // Mark the fork as the bridge's own, so discovery hides it while it exists (a fork the
+    // user made in OpenCode carries no marker and stays a normal session). Best effort: the
+    // reader agent confirmed below is a marker too (`opencode::is_bridge_fork`).
+    let _ = api
+        .call(
+            "PATCH",
+            &base,
+            Some(&json!({
+                "title": format!("{BRIDGE_FORK_TITLE_PREFIX}{source}"),
+                "metadata": {BRIDGE_FORK_METADATA: true},
+            })),
+        )
+        .await;
     let switched = api
         .call(
             "POST",

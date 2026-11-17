@@ -4,7 +4,9 @@ use session_bridge_mcp::{
     endpoints::Roots,
     opencode::{discover_opencode, is_session_id, opencode_caller, OpenCodeEndpoint},
     opencode_api::OcApi,
-    sessions::{discover_sessions_all, resolve_session, Session},
+    sessions::{
+        discover_sessions_all, resolve_noted, resolve_session, with_opencode_for_target, Session,
+    },
 };
 use std::{fs, path::Path, sync::Mutex};
 
@@ -96,25 +98,35 @@ async fn discover_filters_old_child_and_fork_sessions() {
         r["parentID"] = json!("ses_recent0");
         rows.push(r);
     }
+    // The bridge's own ask forks, each with one of its markers: hidden.
     for i in 0..66 {
         let mut r = row(&format!("ses_fork{i}"), NOW - HOUR);
-        if i % 2 == 0 {
-            r["fork"] = json!({"sessionID": "ses_recent0", "boundary": "x"});
-        } else {
-            r["title"] = json!(format!("Plan (fork #{i})"));
+        r["fork"] = json!({"sessionID": "ses_recent0", "boundary": "x"});
+        match i % 3 {
+            0 => r["metadata"] = json!({"session_bridge_fork": true}),
+            1 => r["title"] = json!("session-bridge ask ses_recent0"),
+            _ => r["agent"] = json!("session-bridge-reader"),
         }
         rows.push(r);
     }
+    // A fork the user made in OpenCode, and a session merely titled like a fork: listed.
+    let mut user_fork = row("ses_userfork", NOW - HOUR);
+    user_fork["fork"] = json!({"sessionID": "ses_recent0", "boundary": "x"});
+    user_fork["agent"] = json!("build");
+    rows.push(user_fork);
+    let mut fork_title = row("ses_forktitle", NOW - HOUR);
+    fork_title["title"] = json!("Plan (fork #2)");
+    rows.push(fork_title);
     // old `updated` but recently viewed: max(updated, viewed) keeps it live
     let mut viewed = row("ses_viewed", NOW - 90 * HOUR);
     viewed["time"]["viewed"] = json!(NOW - HOUR);
     rows.push(viewed);
     rows.push(row("ses_oldactive", NOW - 99 * HOUR));
-    for i in 0..150 {
+    for i in 0..248 {
         rows.push(row(&format!("ses_old{i}"), NOW - 99 * HOUR - i));
     }
-    assert_eq!(rows.len(), 300);
-    // Pages of 100: the second page ends past the window, so the third is never read.
+    assert_eq!(rows.len(), 400);
+    // Pages of 100: the third page holds no row inside the window, so the fourth is never read.
     let api = FakeApi::new(
         Ok(json!({"data": rows})),
         Ok(json!({"data": {"ses_oldactive": {"type": "running"}}})),
@@ -126,7 +138,14 @@ async fn discover_filters_old_child_and_fork_sessions() {
     ids.sort();
     assert_eq!(
         ids,
-        ["ses_oldactive", "ses_recent0", "ses_recent1", "ses_viewed"]
+        [
+            "ses_forktitle",
+            "ses_oldactive",
+            "ses_recent0",
+            "ses_recent1",
+            "ses_userfork",
+            "ses_viewed"
+        ]
     );
     let running: Vec<_> = eps.iter().filter(|e| e.running).collect();
     assert_eq!(running.len(), 1);
@@ -136,9 +155,39 @@ async fn discover_filters_old_child_and_fork_sessions() {
         [
             "GET /api/session?limit=100",
             "GET /api/session?limit=100&cursor=off100",
+            "GET /api/session?limit=100&cursor=off200",
             "GET /api/session/active"
         ]
     );
+    // The user fork is targetable and accepted as a caller; a bridge fork is neither.
+    let sessions: Vec<Session> = eps.into_iter().map(Session::OpenCode).collect();
+    assert!(resolve_session(&sessions, "ses_userfork", None).is_ok());
+    assert!(resolve_session(&sessions, "ses_fork0", None).is_err());
+    let me = opencode_caller(&sessions, &api, "ses_userfork")
+        .await
+        .unwrap();
+    assert_eq!(me.session_id(), "ses_userfork");
+    assert!(opencode_caller(&sessions, &api, "ses_fork1").await.is_err());
+}
+
+/// The page cut-off uses max(updated, viewed), like liveness: a page whose rows are all stale
+/// by `updated` but holds one recently viewed row is followed to the next page.
+#[tokio::test]
+async fn discover_pages_on_recently_viewed_rows() {
+    let mut rows: Vec<Value> = (0..100)
+        .map(|i| row(&format!("ses_a{i}"), NOW - 50 * HOUR - i))
+        .collect();
+    rows[40]["time"]["viewed"] = json!(NOW - HOUR);
+    let mut late = row("ses_late1", NOW - 60 * HOUR);
+    late["time"]["viewed"] = json!(NOW - 2 * HOUR);
+    rows.push(late);
+    let api = FakeApi::new(Ok(json!({"data": rows})), Ok(json!({"data": {}})));
+    let eps = discover_opencode(&api, Path::new("/d"), NOW, 24)
+        .await
+        .unwrap();
+    let mut ids: Vec<_> = eps.iter().map(|e| e.session_id.as_str()).collect();
+    ids.sort();
+    assert_eq!(ids, ["ses_a40", "ses_late1"]);
 }
 
 #[tokio::test]
@@ -168,7 +217,7 @@ async fn discover_pages_past_the_default_page_and_looks_up_active() {
         rows.push(r);
     }
     rows.push(row("ses_deep1", NOW - 2 * HOUR));
-    for i in 0..100 {
+    for i in 0..200 {
         rows.push(row(&format!("ses_stale{i}"), NOW - 30 * HOUR - i));
     }
     rows.push(row("ses_busy1", NOW - 500 * HOUR));
@@ -191,7 +240,9 @@ async fn discover_pages_past_the_default_page_and_looks_up_active() {
         [
             "GET /api/session?limit=100",
             "GET /api/session?limit=100&cursor=off100",
-            // page 2 ends with a stale row: ses_busy1 (row 221) comes from the active lookup
+            "GET /api/session?limit=100&cursor=off200",
+            // page 3 holds no row inside the window: ses_busy1 (row 321) comes from the
+            // active lookup
             "GET /api/session/active",
             "GET /api/session/ses_busy1",
             "GET /api/session/ses_busykid",
@@ -397,4 +448,86 @@ fn storage_profile_is_per_session() {
     );
     assert!(a.storage_profile().ends_with("-ses_aaaa1111"));
     assert_eq!(Session::OpenCode(a).storage_id().1, 0);
+}
+
+fn claude(id: &str) -> Session {
+    Session::Claude(session_bridge_mcp::endpoints::Endpoint {
+        profile: ".claude".into(),
+        config_dir: "/home/.claude".into(),
+        pid: 30,
+        session_id: id.into(),
+        name: Some("worker".into()),
+        kind: None,
+        status: None,
+        launch_cwd: "/repo".into(),
+        repo: None,
+    })
+}
+
+/// A fake `opencode` whose service probe fails until `service start` ran; the session list
+/// then holds `ses_live1`.
+fn down_service(root: &Path) -> impl Fn(&str) -> Option<String> + Sync {
+    fs::create_dir_all(root.join("xdg/opencode")).unwrap();
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_millis() as i64;
+    let up = |out: String| json!({"out": "HTTP 503", "exit": 1, "after_start": {"out": out}});
+    let bin = fake_bin(
+        root,
+        json!({
+            "GET /api/session/active": up("{\"data\":{}}".into()),
+            "GET /api/session?limit=100": up(json!({"data": [row("ses_live1", now)]}).to_string()),
+        }),
+    );
+    let xdg = root.join("xdg");
+    move |k: &str| match k {
+        "SESSION_BRIDGE_OPENCODE_BIN" => Some(bin.to_string_lossy().into_owned()),
+        "XDG_DATA_HOME" => Some(xdg.to_string_lossy().into_owned()),
+        _ => None,
+    }
+}
+
+/// A Claude-to-Claude ask or send never runs OpenCode (no call, no service start), and a
+/// target nothing matches probes OpenCode without starting it; the note reaches the error.
+#[tokio::test]
+async fn claude_target_never_depends_on_opencode() {
+    let d = tempfile::tempdir().unwrap();
+    let env = down_service(d.path());
+    let id = "11111111-1111-7111-8111-111111111111";
+    let (sessions, notes) = with_opencode_for_target(vec![claude(id)], &env, id).await;
+    assert_eq!(sessions.len(), 1);
+    assert!(notes.is_empty(), "{notes:?}");
+    assert!(
+        !d.path().join("state/argv.log").exists(),
+        "OpenCode was called for a Claude target"
+    );
+    let (_, notes) = with_opencode_for_target(vec![claude(id)], &env, "worker").await;
+    assert!(notes.is_empty(), "{notes:?}");
+    assert!(!d.path().join("state/argv.log").exists());
+    // an unknown name: OpenCode is probed (it may be an OpenCode title) but never started
+    let (sessions, notes) = with_opencode_for_target(vec![claude(id)], &env, "nobody").await;
+    assert!(
+        !d.path().join("state/starts").exists(),
+        "service start ran for a non-OpenCode target"
+    );
+    assert_eq!(notes.len(), 1, "{notes:?}");
+    let e = resolve_noted(&sessions, "nobody", None, &notes)
+        .unwrap_err()
+        .to_string();
+    assert!(e.contains("no live session matches"), "{e}");
+    assert!(e.contains("OpenCode sessions not listed"), "{e}");
+}
+
+/// An OpenCode address or id may start the service and then resolves.
+#[tokio::test]
+async fn opencode_target_may_start_the_service() {
+    let d = tempfile::tempdir().unwrap();
+    let env = down_service(d.path());
+    let id = "11111111-1111-7111-8111-111111111111";
+    let (sessions, notes) = with_opencode_for_target(vec![claude(id)], &env, "ses_live1").await;
+    assert!(notes.is_empty(), "{notes:?}");
+    assert!(d.path().join("state/starts").exists());
+    let got = resolve_noted(&sessions, "ses_live1", None, &notes).unwrap();
+    assert!(matches!(got, Session::OpenCode(e) if e.session_id == "ses_live1"));
 }

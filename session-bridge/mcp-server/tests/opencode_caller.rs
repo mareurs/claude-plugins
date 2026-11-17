@@ -375,3 +375,101 @@ fn call_args_with_shell_metachars_are_literal() {
     let (code, _, _) = env.call("post_notice", "ses_live1", "{\"title\":");
     assert_eq!(code, 2);
 }
+
+/// The OpenCode plugin SIGTERMs `session-bridge call` on Esc and on its own timeout. A
+/// signalled ask must still interrupt and remove its fork before the process exits.
+#[test]
+fn sigterm_during_ask_interrupts_and_removes_the_fork() {
+    let env = Env::new();
+    let state = env.root.join("state");
+    let mut script: Value =
+        serde_json::from_str(&fs::read_to_string(state.join("script.json")).unwrap()).unwrap();
+    let mut list: Value = serde_json::from_str(
+        script["GET /api/session?limit=100"]["out"]
+            .as_str()
+            .unwrap(),
+    )
+    .unwrap();
+    let mut peer = list["data"][0].clone();
+    peer["id"] = json!("ses_peer1");
+    peer["title"] = json!("t-ses_peer1");
+    list["data"].as_array_mut().unwrap().push(peer);
+    let fork = "ses_fk1";
+    let extra = json!({
+        "GET /api/session?limit=100": {"out": list.to_string()},
+        "POST /api/session/ses_peer1/fork": {"out": json!({"data": {"id": fork}}).to_string()},
+        "PATCH /api/session/ses_fk1": {"out": ""},
+        "POST /api/session/ses_fk1/agent": {"out": ""},
+        "GET /api/session/ses_fk1": {"out": json!({"data": {"id": fork, "agent": "session-bridge-reader"}}).to_string()},
+        "POST /api/session/ses_fk1/prompt": {"out": "{\"data\":{}}"},
+        "POST /api/experimental/session/ses_fk1/wait": {"out": "", "sleep": 60},
+        "POST /api/session/ses_fk1/interrupt": {"out": ""},
+        "DELETE /api/session/ses_fk1": {"out": ""},
+    });
+    for (k, v) in extra.as_object().unwrap() {
+        script[k] = v.clone();
+    }
+    fs::write(state.join("script.json"), script.to_string()).unwrap();
+
+    let mut child = Command::new(env!("CARGO_BIN_EXE_session-bridge"))
+        .args(["call", "ask_session", "--opencode-caller", "ses_live1"])
+        .env("SESSION_BRIDGE_OPENCODE_BIN", &env.bin)
+        .env("XDG_DATA_HOME", env.root.join("xdg"))
+        .env("XDG_STATE_HOME", &state)
+        .env("HOME", &env.root)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .unwrap();
+    child
+        .stdin
+        .take()
+        .unwrap()
+        .write_all(br#"{"target":"ses_peer1","question":"what branch?","timeout_s":120}"#)
+        .unwrap();
+    let argv = || fs::read_to_string(state.join("argv.log")).unwrap_or_default();
+    let wait = r#"["api", "POST", "/api/experimental/session/ses_fk1/wait"]"#;
+    let t0 = std::time::Instant::now();
+    while !argv().contains(wait) {
+        assert!(
+            t0.elapsed() < std::time::Duration::from_secs(20),
+            "the ask never reached wait: {}",
+            argv()
+        );
+        std::thread::sleep(std::time::Duration::from_millis(50));
+    }
+    nix::sys::signal::kill(
+        nix::unistd::Pid::from_raw(child.id() as i32),
+        nix::sys::signal::Signal::SIGTERM,
+    )
+    .unwrap();
+    let t1 = std::time::Instant::now();
+    let status = loop {
+        if let Some(s) = child.try_wait().unwrap() {
+            break s;
+        }
+        if t1.elapsed() > std::time::Duration::from_secs(10) {
+            let _ = child.kill();
+            panic!("session-bridge call did not exit after SIGTERM");
+        }
+        std::thread::sleep(std::time::Duration::from_millis(20));
+    };
+    let mut err = String::new();
+    std::io::Read::read_to_string(&mut child.stderr.take().unwrap(), &mut err).unwrap();
+    assert_eq!(status.code(), Some(2), "{status:?} {err}");
+    assert!(err.contains("SIGTERM"), "{err}");
+    let log = argv();
+    let interrupt = log
+        .find(r#"["api", "POST", "/api/session/ses_fk1/interrupt"]"#)
+        .unwrap_or_else(|| panic!("no interrupt: {log}"));
+    let delete = log
+        .find(r#"["api", "DELETE", "/api/session/ses_fk1"]"#)
+        .unwrap_or_else(|| panic!("no DELETE: {log}"));
+    assert!(interrupt < delete, "{log}");
+    // the original session is only ever forked
+    assert!(
+        !log.contains(r#""DELETE", "/api/session/ses_peer1""#),
+        "{log}"
+    );
+}

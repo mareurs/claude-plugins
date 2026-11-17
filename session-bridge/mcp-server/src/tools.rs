@@ -12,7 +12,7 @@ use crate::opencode_send::send_opencode;
 use crate::paths::short_profile;
 use crate::send::{send_codex, SendResult};
 use crate::server::post_notice_from;
-use crate::sessions::{resolve_session, Session};
+use crate::sessions::{resolve_noted, Session};
 use crate::store::{Direct, NewDirect, Store, DIRECT_TTL_MS};
 use anyhow::{anyhow, Result};
 use rmcp::schemars;
@@ -72,7 +72,7 @@ pub async fn list_sessions(
     if lines.is_empty() {
         lines.push("No live Claude Code sessions, rollout-backed Codex threads or OpenCode sessions found.".into());
     }
-    lines.push("Scope: local Linux, Claude native/IPC session registrations, Codex open rollouts and live OpenCode sessions (top-level, not forks, running or active within SESSION_BRIDGE_OPENCODE_RECENT_HOURS); saved-only Codex threads and hosts without open rollouts are outside this listing.".into());
+    lines.push("Scope: local Linux, Claude native/IPC session registrations, Codex open rollouts and live OpenCode sessions (top-level, not bridge ask forks, running or active within SESSION_BRIDGE_OPENCODE_RECENT_HOURS); saved-only Codex threads and hosts without open rollouts are outside this listing.".into());
     for note in notes {
         lines.push(format!("Discovery note: {note}"));
     }
@@ -85,11 +85,12 @@ pub async fn list_sessions(
 pub async fn ask_session(
     caller: &Session,
     sessions: &[Session],
+    notes: &[String],
     args: AskArgs,
     roots: &Roots,
     state: &Path,
 ) -> Result<String> {
-    let target = resolve_session(sessions, &args.target, Some(&caller.identity()))?.clone();
+    let target = resolve_noted(sessions, &args.target, Some(&caller.identity()), notes)?.clone();
     let timeout = clamp_timeout(args.timeout_s);
     match target {
         Session::Claude(target) => {
@@ -148,11 +149,12 @@ pub async fn ask_session(
 pub async fn send_message(
     caller: &Session,
     sessions: &[Session],
+    notes: &[String],
     args: SendMessageArgs,
     roots: &Roots,
     state: &Path,
 ) -> Result<String> {
-    let target = resolve_session(sessions, &args.target, Some(&caller.identity()))?;
+    let target = resolve_noted(sessions, &args.target, Some(&caller.identity()), notes)?;
     let target = match target {
         Session::Codex(target) => target,
         Session::OpenCode(target) => {

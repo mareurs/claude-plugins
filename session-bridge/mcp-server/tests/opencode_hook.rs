@@ -310,8 +310,29 @@ async fn hook_resolves_session_with_exactly_one_lookup() {
     let cases = [
         ("valid", json!({}), true),
         ("child", json!({"parentID": "ses_p"}), false),
-        ("fork object", json!({"fork": {"of": "ses_p"}}), false),
-        ("fork title", json!({"title": "t (fork #2)"}), false),
+        // A fork the user made in OpenCode is an ordinary session: it gets notices.
+        (
+            "user fork",
+            json!({"fork": {"of": "ses_p"}, "agent": "build"}),
+            true,
+        ),
+        ("fork-like title", json!({"title": "t (fork #2)"}), true),
+        // The bridge's own ask forks never do.
+        (
+            "bridge fork metadata",
+            json!({"fork": {"of": "ses_p"}, "metadata": {"session_bridge_fork": true}}),
+            false,
+        ),
+        (
+            "bridge fork title",
+            json!({"title": "session-bridge ask ses_p"}),
+            false,
+        ),
+        (
+            "reader agent",
+            json!({"agent": "session-bridge-reader"}),
+            false,
+        ),
         ("archived", json!({"time": {"archived": 5}}), false),
     ];
     for (name, extra, ok) in cases {

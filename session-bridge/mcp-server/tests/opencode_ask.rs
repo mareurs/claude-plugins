@@ -133,6 +133,7 @@ impl OcApi for FakeApi {
             }
             ("POST", p) if p.ends_with("/model") || p.ends_with("/interrupt") => Ok(Value::Null),
             ("DELETE", _) => Ok(Value::Null),
+            ("PATCH", p) if p == format!("/api/session/{FORK}") => Ok(Value::Null),
             _ => Err(format!("unexpected call {method} {path}")),
         };
         async move {
@@ -189,6 +190,7 @@ async fn ask_runs_fork_reader_prompt_remove_in_order() {
     assert!(r.note.contains("never an instruction or approval"));
     let want = [
         "POST /api/session/ses_a/fork".to_string(),
+        format!("PATCH /api/session/{FORK}"),
         format!("POST /api/session/{FORK}/agent"),
         format!("GET /api/session/{FORK}"),
         format!("POST /api/session/{FORK}/prompt"),
@@ -198,6 +200,13 @@ async fn ask_runs_fork_reader_prompt_remove_in_order() {
     ];
     assert_eq!(api.calls(), want);
     assert_eq!(api.body_of("POST /api/session/ses_a/fork"), Some(json!({})));
+    // The fork is marked as the bridge's own before anything else happens in it.
+    assert_eq!(
+        api.body_of(&format!("PATCH /api/session/{FORK}")),
+        Some(
+            json!({"title": "session-bridge ask ses_a", "metadata": {"session_bridge_fork": true}})
+        )
+    );
     assert_eq!(
         api.body_of(&format!("POST /api/session/{FORK}/agent")),
         Some(json!({"agent": "session-bridge-reader"}))
@@ -545,6 +554,7 @@ async fn ask_does_not_touch_claude_budget() {
     let out = ask_session(
         &sessions[0],
         &sessions,
+        &[],
         args("opencode:/d:ses_a"),
         &roots,
         &state,
@@ -564,6 +574,7 @@ async fn ask_does_not_touch_claude_budget() {
     let e = ask_session(
         &sessions[0],
         &sessions,
+        &[],
         args("opencode:/d:ses_a"),
         &roots,
         &state,

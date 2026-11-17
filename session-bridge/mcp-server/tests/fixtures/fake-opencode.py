@@ -3,10 +3,11 @@
   script.json  {"METHOD path": {"out": "<stdout>", "exit": 0, "after_start": {"out": ..., "exit": ...}}}
   argv.log     one JSON array per invocation (full argv after the program name)
   starts       one line per `service start`
-An entry's "after_start" override applies once `service start` ran.
+An entry's "after_start" override applies once `service start` ran; "sleep": N blocks N s
+before answering (a call that does not return, like a busy session's `wait`).
 The `id` of the last `POST .../prompt` body is kept in `prompt_id` and replaces every
 `{{PROMPT_ID}}` in later outputs, like a service that stored the client message id."""
-import json, os, pathlib, sys
+import json, os, pathlib, sys, time
 
 # Invoked through a per-test symlink: state is the `state/` dir beside that symlink (argv[0] is
 # the unresolved path). $FAKE_OC_DIR overrides it.
@@ -34,6 +35,8 @@ if args[:1] == ["api"] and len(args) >= 3:
             entry = after
     if args[1] == "POST" and args[2].endswith("/prompt") and args[3:4] == ["-d"]:
         (d / "prompt_id").write_text(json.loads(args[4]).get("id", ""))
+    if entry.get("sleep"):
+        time.sleep(entry["sleep"])
     out = entry.get("out", "")
     if (d / "prompt_id").exists():
         out = out.replace("{{PROMPT_ID}}", (d / "prompt_id").read_text())
