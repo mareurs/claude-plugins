@@ -40,7 +40,7 @@ async fn limited(mut stream: impl AsyncRead + Unpin, limit: usize) -> Result<Vec
         }
         anyhow::ensure!(
             buf.len() + n <= limit,
-            "Codex subprocess output exceeded its byte budget"
+            "subprocess output exceeded its byte budget"
         );
         buf.extend_from_slice(&chunk[..n]);
     }
@@ -53,7 +53,7 @@ pub async fn run_bounded(cmd: &mut Command, timeout: Duration) -> Result<Capture
         .stderr(Stdio::piped())
         .kill_on_drop(true)
         .process_group(0);
-    let mut child = cmd.spawn().context("could not start Codex subprocess")?;
+    let mut child = cmd.spawn().context("could not start subprocess")?;
     let _group = ProcessGroup(
         child
             .id()
@@ -81,7 +81,7 @@ pub async fn run_bounded(cmd: &mut Command, timeout: Duration) -> Result<Capture
     };
     tokio::time::timeout(timeout, run)
         .await
-        .map_err(|_| anyhow!("Codex subprocess timed out"))?
+        .map_err(|_| anyhow!("subprocess timed out"))?
 }
 pub fn locate_codex(env: &dyn Fn(&str) -> Option<String>) -> Result<PathBuf> {
     use std::os::unix::fs::PermissionsExt;
