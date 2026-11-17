@@ -42,6 +42,8 @@ pub enum BridgeError {
     NotInRepo,
     #[error("state directory not available: set HOME or XDG_STATE_HOME")]
     NoStateDir,
+    #[error("{0}")]
+    Invalid(&'static str),
 }
 
 pub type Result<T> = std::result::Result<T, BridgeError>;

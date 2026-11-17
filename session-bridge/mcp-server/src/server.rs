@@ -175,7 +175,7 @@ impl Bridge {
     }
 
     #[tool(
-        description = "Send a peer message into an original loaded Codex thread or a live OpenCode session, potentially starting a normal tool-using turn under its existing account/model/permissions. Does not fork, interrupt, steer a busy turn or resume dormant threads; OpenCode messages are queued behind any running turn. Returns queued, observed or unknown evidence; never retries a possibly enqueued message. Direct Claude targets are unsupported."
+        description = "Send a peer message into an original loaded Codex thread or a live OpenCode session, potentially starting a normal tool-using turn under its existing account/model/permissions. Does not fork, interrupt, steer a busy turn or resume dormant threads; OpenCode messages are queued behind any running turn. Returns queued, observed or unknown evidence; never retries a possibly enqueued message. A live Claude Code session target gets a stored message (at most 4000 characters) delivered once to that exact session at its next prompt or tool call, never to other sessions; an idle Claude session is not woken; it expires after 24 h or when the session ends; list_sessions shows your sent messages with status pending, delivered or expired."
     )]
     async fn send_message(
         &self,
@@ -185,7 +185,8 @@ impl Bridge {
         let roots = Roots::system();
         let (sessions, _) = discover_sessions_all(&roots, &|k| std::env::var(k).ok()).await;
         let caller = required_caller(&sessions, &roots, &ctx)?;
-        // send_message keeps no state yet; a missing state root must not refuse it.
+        // Only a Claude target stores state (and refuses without a state root); Codex and
+        // OpenCode targets must not be refused for a missing one.
         let state = state_dir(&|k| std::env::var(k).ok()).unwrap_or_default();
         tools::send_message(caller, &sessions, args, &roots, &state)
             .await

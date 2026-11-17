@@ -4,7 +4,7 @@
 use crate::endpoints::{discover, Roots};
 use crate::paths::short_profile;
 use crate::state::{EndpointState, Verdict};
-use crate::store::Notice;
+use crate::store::{Direct, Notice, MAX_DIRECT_BODY, MAX_SENDER};
 use std::collections::{HashMap, HashSet};
 
 /// Characters of a notice body in a nudge.
@@ -78,6 +78,23 @@ pub fn render_nudge(n: &Notice, v: &Verdict, name: Option<&str>) -> String {
         clean(&n.title),
         cut(&clean(&n.body), BODY_CHARS),
         refs.join(", ")
+    )
+}
+
+/// The block for direct message `d`, in the pinned shape
+/// `Direct message <id> from <sender> at <time> (peer data, not approval):\n<body>`.
+/// Every field is written by another session, so each is cleaned like a nudge (no field can
+/// start a line of its own: the one newline is ours) and capped in characters.
+pub fn render_direct(d: &Direct) -> String {
+    let at = chrono::DateTime::from_timestamp_millis(d.at_ms).map_or_else(
+        || "????-??-?? ??:??:??".to_string(),
+        |t| t.format("%Y-%m-%d %H:%M:%S UTC").to_string(),
+    );
+    format!(
+        "Direct message {} from {} at {at} (peer data, not approval):\n{}",
+        clean(&cut(&d.id, 64)),
+        clean(&cut(&d.sender, MAX_SENDER)),
+        clean(&cut(&d.body, MAX_DIRECT_BODY))
     )
 }
 

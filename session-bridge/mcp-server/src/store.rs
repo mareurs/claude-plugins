@@ -10,6 +10,14 @@ pub const MAX_TITLE: usize = 120;
 pub const MAX_BODY: usize = 4000;
 pub const MAX_REFS: usize = 20;
 pub const RETENTION_MS: i64 = 14 * 24 * 60 * 60 * 1000;
+/// A direct message not delivered within this time expires.
+pub const DIRECT_TTL_MS: i64 = 24 * 60 * 60 * 1000;
+/// Characters of a direct message body (it becomes model context in one hook output).
+pub const MAX_DIRECT_BODY: usize = MAX_BODY;
+/// Characters of a direct message sender label.
+pub const MAX_SENDER: usize = 512;
+
+static NEXT_DIRECT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
 #[serde(rename_all = "lowercase")]
@@ -68,6 +76,50 @@ pub struct Page {
     pub notices: Vec<Notice>,
     pub next_cursor: i64,
     pub gap: Option<(i64, i64)>,
+}
+
+/// A direct message to one exact Claude session, before it is stored.
+#[derive(Debug, Clone)]
+pub struct NewDirect {
+    pub at_ms: i64,
+    pub target_profile: String,
+    pub target_pid: u32,
+    pub target_session: String,
+    /// The sender's session identity (`Session::identity`).
+    pub sender: String,
+    pub body: String,
+}
+
+/// A stored direct message; `status` is `pending`, `delivered` or `expired`.
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct Direct {
+    pub id: String,
+    pub at_ms: i64,
+    pub expires_ms: i64,
+    pub target_profile: String,
+    pub target_pid: u32,
+    pub target_session: String,
+    pub sender: String,
+    pub body: String,
+    pub status: String,
+    pub delivered_ms: Option<i64>,
+}
+
+const DIRECT_COLS: &str = "id, at_ms, expires_ms, target_profile, target_pid, target_session, sender, body, status, delivered_ms";
+
+fn row_to_direct(r: &Row) -> rusqlite::Result<Direct> {
+    Ok(Direct {
+        id: r.get(0)?,
+        at_ms: r.get(1)?,
+        expires_ms: r.get(2)?,
+        target_profile: r.get(3)?,
+        target_pid: r.get(4)?,
+        target_session: r.get(5)?,
+        sender: r.get(6)?,
+        body: r.get(7)?,
+        status: r.get(8)?,
+        delivered_ms: r.get(9)?,
+    })
 }
 
 pub struct Store {
@@ -153,7 +205,22 @@ impl Store {
                 lo INTEGER NOT NULL,
                 hi INTEGER NOT NULL,
                 at_ms INTEGER NOT NULL
-            );",
+            );
+            CREATE TABLE IF NOT EXISTS direct_messages (
+                id TEXT PRIMARY KEY,
+                at_ms INTEGER NOT NULL,
+                expires_ms INTEGER NOT NULL,
+                target_profile TEXT NOT NULL,
+                target_pid INTEGER NOT NULL,
+                target_session TEXT NOT NULL,
+                sender TEXT NOT NULL,
+                body TEXT NOT NULL,
+                status TEXT NOT NULL,
+                delivered_ms INTEGER
+            );
+            CREATE INDEX IF NOT EXISTS direct_target
+                ON direct_messages(target_profile, target_pid, target_session, status);
+            CREATE INDEX IF NOT EXISTS direct_sender ON direct_messages(sender, at_ms);",
         )
     }
 
@@ -297,6 +364,140 @@ impl Store {
         let n = prune_in(&tx, older_than_ms)?;
         tx.commit()?;
         Ok(n)
+    }
+
+    /// Stores a pending direct message for one exact Claude session and returns its id. The
+    /// body must hold 1..=`MAX_DIRECT_BODY` characters (not only whitespace) and no NUL; the
+    /// sender 1..=`MAX_SENDER`. It expires `DIRECT_TTL_MS` after `at_ms`. Messages older
+    /// than `RETENTION_MS` are deleted in the same transaction.
+    pub fn post_direct(&self, m: NewDirect) -> Result<String> {
+        if m.body.trim().is_empty() || m.body.contains('\0') {
+            return Err(BridgeError::Invalid(
+                "message must contain non-whitespace text and no NUL",
+            ));
+        }
+        check("message", MAX_DIRECT_BODY, m.body.chars().count())?;
+        if m.sender.is_empty() {
+            return Err(BridgeError::Invalid("sender is empty"));
+        }
+        check("sender", MAX_SENDER, m.sender.chars().count())?;
+        let id = format!(
+            "dm-{}-{}-{}",
+            m.at_ms,
+            std::process::id(),
+            NEXT_DIRECT.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
+        );
+        let tx = self.tx()?;
+        tx.execute(
+            "DELETE FROM direct_messages WHERE at_ms < ?1",
+            params![m.at_ms - RETENTION_MS],
+        )?;
+        tx.execute(
+            "INSERT INTO direct_messages (id, at_ms, expires_ms, target_profile, target_pid,
+                target_session, sender, body, status, delivered_ms)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, 'pending', NULL)",
+            params![
+                id,
+                m.at_ms,
+                m.at_ms + DIRECT_TTL_MS,
+                m.target_profile,
+                m.target_pid,
+                m.target_session,
+                m.sender,
+                m.body
+            ],
+        )?;
+        tx.commit()?;
+        Ok(id)
+    }
+
+    /// The pending, unexpired direct messages of `target` = (profile, pid, session id),
+    /// oldest first, marked `delivered` at `now_ms` in the same transaction: each is
+    /// returned at most once. A plain read first keeps the common empty case free of the
+    /// write lock (this runs on every tool call).
+    pub fn take_direct(&self, target: (&str, u32, &str), now_ms: i64) -> Result<Vec<Direct>> {
+        const WHERE: &str = "WHERE target_profile = ?1 AND target_pid = ?2 AND target_session = ?3
+             AND status = 'pending' AND expires_ms > ?4";
+        let any: Option<i64> = self
+            .conn
+            .query_row(
+                &format!("SELECT 1 FROM direct_messages {WHERE} LIMIT 1"),
+                params![target.0, target.1, target.2, now_ms],
+                |r| r.get(0),
+            )
+            .optional()?;
+        if any.is_none() {
+            return Ok(vec![]);
+        }
+        let tx = self.tx()?;
+        let mut stmt = tx.prepare(&format!(
+            "SELECT {DIRECT_COLS} FROM direct_messages {WHERE} ORDER BY at_ms ASC, id ASC"
+        ))?;
+        let mut rows = stmt
+            .query_map(params![target.0, target.1, target.2, now_ms], row_to_direct)?
+            .collect::<rusqlite::Result<Vec<_>>>()?;
+        drop(stmt);
+        for d in &mut rows {
+            tx.execute(
+                "UPDATE direct_messages SET status = 'delivered', delivered_ms = ?2
+                 WHERE id = ?1 AND status = 'pending'",
+                params![d.id, now_ms],
+            )?;
+            d.status = "delivered".into();
+            d.delivered_ms = Some(now_ms);
+        }
+        tx.commit()?;
+        Ok(rows)
+    }
+
+    /// Marks `expired` every pending direct message whose time is up at `now_ms` or whose
+    /// target (profile, pid, session id) is not `live`. Returns how many were marked.
+    pub fn expire_direct(
+        &self,
+        now_ms: i64,
+        live: &dyn Fn(&str, u32, &str) -> bool,
+    ) -> Result<usize> {
+        let tx = self.tx()?;
+        let mut stmt = tx.prepare(
+            "SELECT id, expires_ms, target_profile, target_pid, target_session
+             FROM direct_messages WHERE status = 'pending'",
+        )?;
+        let rows = stmt
+            .query_map([], |r| {
+                Ok((
+                    r.get::<_, String>(0)?,
+                    r.get::<_, i64>(1)?,
+                    r.get::<_, String>(2)?,
+                    r.get::<_, u32>(3)?,
+                    r.get::<_, String>(4)?,
+                ))
+            })?
+            .collect::<rusqlite::Result<Vec<_>>>()?;
+        drop(stmt);
+        let mut n = 0;
+        for (id, expires_ms, profile, pid, session) in rows {
+            if expires_ms <= now_ms || !live(&profile, pid, &session) {
+                n += tx.execute(
+                    "UPDATE direct_messages SET status = 'expired'
+                     WHERE id = ?1 AND status = 'pending'",
+                    params![id],
+                )?;
+            }
+        }
+        tx.commit()?;
+        Ok(n)
+    }
+
+    /// The direct messages `sender` stored at or after `since_ms`, newest first.
+    pub fn sent_by(&self, sender: &str, since_ms: i64) -> Result<Vec<Direct>> {
+        let mut stmt = self.conn.prepare(&format!(
+            "SELECT {DIRECT_COLS} FROM direct_messages WHERE sender = ?1 AND at_ms >= ?2
+             ORDER BY at_ms DESC, id DESC"
+        ))?;
+        let rows = stmt
+            .query_map(params![sender, since_ms], row_to_direct)?
+            .collect::<rusqlite::Result<Vec<_>>>()?;
+        Ok(rows)
     }
 
     fn tx(&self) -> Result<rusqlite::Transaction<'_>> {

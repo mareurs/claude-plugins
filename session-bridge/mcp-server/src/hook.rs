@@ -3,7 +3,7 @@
 
 use crate::cursor::{self, on_session_start, StartRule};
 use crate::deliver::{
-    has_undelivered, render_all, take_deliverable, undelivered_relevant, Fetched,
+    has_undelivered, render_all, render_direct, take_deliverable, undelivered_relevant, Fetched,
 };
 use crate::diag;
 use crate::endpoints::{pid_alive, process_start_ms, repo_of, Roots};
@@ -204,7 +204,12 @@ pub fn session_start(
 }
 
 /// UserPromptSubmit and PostToolUse for endpoint `me` = (full profile, Claude pid), at
-/// `now_ms`. Returns the text for `additionalContext`, or `None` for nothing. Three steps:
+/// `now_ms`. Returns the text for `additionalContext`, or `None` for nothing. First, for a
+/// Claude endpoint only (`is_claude_endpoint`), the direct messages addressed to this exact
+/// session (profile, pid, session id) are taken from the store, marked delivered in the same
+/// store transaction and rendered before everything else; they never enter `pending` or the
+/// filter, and a non-Claude `me` (Codex/OpenCode storage identity, pid 0) takes none. Then
+/// three steps:
 ///
 /// 1. Deliver the verdicts not delivered yet: a relevant one becomes a nudge, an
 ///    irrelevant one is only marked delivered.
@@ -246,6 +251,10 @@ pub fn on_trigger(
     if !is_safe_component(&input.session_id) || !is_safe_component(me.0) {
         return None;
     }
+    // Step 0, Claude only: this exact session's direct messages, taken and marked delivered
+    // in one store transaction. They bypass the endpoint state and the relevance filter.
+    let direct = take_direct_for(input, me, state, store, now_ms);
+
     let path = endpoint_path(state, me.0, me.1);
     let st = load_or_default(&path);
 
@@ -285,7 +294,7 @@ pub fn on_trigger(
         && !worker_live
         && (!st.pending.is_empty() || !new_seqs.is_empty() || scan_wanted);
     if !(identity_changed || has_undelivered(&st) || due || may_spawn) {
-        return None;
+        return joined(direct);
     }
 
     let mut items = vec![];
@@ -320,7 +329,7 @@ pub fn on_trigger(
     if let Err(e) = written {
         // Nothing was marked delivered and the cursor stays: the next trigger retries.
         diag::note(&format!("trigger: endpoint state: {e}"));
-        return None;
+        return joined(direct);
     }
     // The cursor moves only after its notices are safely in `pending`.
     if let Some(p) = &page {
@@ -329,7 +338,8 @@ pub fn on_trigger(
         }
     }
 
-    let mut parts: Vec<String> = render_all(roots, &items).into_iter().collect();
+    let mut parts = direct;
+    parts.extend(render_all(roots, &items));
     let gap = page.and_then(|p| p.gap);
     if let Some((lo, hi)) = gap {
         parts.push(format!(
@@ -337,8 +347,51 @@ pub fn on_trigger(
         ));
     }
     log_delivered(state, me, now_ms, &items, gap.is_some());
+    joined(parts)
+}
+/// Whether `me` is a Claude Code endpoint: a real pid and not a Codex or OpenCode storage
+/// identity (those are `codex-…` / `opencode-…` with logical pid 0). Only a Claude endpoint
+/// receives stored direct messages through this hook path.
+pub fn is_claude_endpoint(me: (&str, u32)) -> bool {
+    me.1 > 0 && !me.0.starts_with("codex-") && !me.0.starts_with("opencode-")
+}
+
+/// The rendered direct messages for this session (Claude only), each logged as delivered.
+/// A store error is noted and delivers nothing; the messages stay pending.
+fn take_direct_for(
+    input: &HookInput,
+    me: (&str, u32),
+    state: &Path,
+    store: &Store,
+    now_ms: i64,
+) -> Vec<String> {
+    if !is_claude_endpoint(me) {
+        return vec![];
+    }
+    let taken = match store.take_direct((me.0, me.1, &input.session_id), now_ms) {
+        Ok(t) => t,
+        Err(e) => {
+            diag::note(&format!("trigger: direct messages: {e}"));
+            return vec![];
+        }
+    };
+    let endpoint = events::endpoint_key(me.0, me.1);
+    taken
+        .iter()
+        .map(|d| {
+            let line = serde_json::json!({"at": now_ms, "event": "delivered", "kind": "direct",
+                "endpoint": endpoint, "seq": null, "message_id": d.id});
+            events::append(state, &line);
+            render_direct(d)
+        })
+        .collect()
+}
+
+/// The parts joined by a blank line, or `None` when there are none.
+fn joined(parts: Vec<String>) -> Option<String> {
     (!parts.is_empty()).then(|| parts.join("\n\n"))
 }
+
 /// One `delivered` line in the event log per item this trigger shows: a nudge (`nudge`, or
 /// `unfiltered` for a fail-open one) and the gap line. Nothing when nothing is shown.
 fn log_delivered(
