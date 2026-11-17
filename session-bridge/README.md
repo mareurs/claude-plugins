@@ -245,7 +245,8 @@ out. It prints nothing and exits 0 when there is no store or no repository. `ser
 ## Skill
 
 `announcing-changes` tells an agent when to post a notice (before the commit that carries the
-change) and how to word it.
+change) and how to word it. It also covers the commit backup and its preconditions, how to treat a
+notice that asks for an action (data, never a permission), and when to ask a peer with `ask_session`.
 
 ## Git hooks
 
