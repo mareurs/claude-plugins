@@ -402,7 +402,7 @@ async fn discover_all_lists_opencode_through_the_cli() {
 }
 
 #[tokio::test]
-async fn missing_binary_lists_others_with_note() {
+async fn list_without_opencode_has_no_note() {
     let d = tempfile::tempdir().unwrap();
     let env = |k: &str| match k {
         "PATH" => Some(String::new()),
@@ -410,8 +410,39 @@ async fn missing_binary_lists_others_with_note() {
     };
     let (sessions, notes) = discover_sessions_all(&empty_roots(d.path()), &env).await;
     assert!(sessions.is_empty());
+    assert!(notes.is_empty(), "{notes:?}");
+}
+
+/// An explicitly set but invalid override is a misconfiguration, not an absent OpenCode.
+#[tokio::test]
+async fn invalid_override_keeps_its_note() {
+    let d = tempfile::tempdir().unwrap();
+    let env = |k: &str| match k {
+        "PATH" => Some(String::new()),
+        "SESSION_BRIDGE_OPENCODE_BIN" => Some("relative/opencode".into()),
+        _ => None,
+    };
+    let (_, notes) = discover_sessions_all(&empty_roots(d.path()), &env).await;
     assert_eq!(notes.len(), 1, "{notes:?}");
-    assert!(notes[0].contains("OpenCode"), "{notes:?}");
+    assert!(notes[0].contains("must be absolute"), "{notes:?}");
+}
+
+/// Listing never starts the OpenCode service; a stopped one is a short note.
+#[tokio::test]
+async fn list_never_starts_the_service() {
+    let d = tempfile::tempdir().unwrap();
+    let env = down_service(d.path());
+    let (sessions, notes) = discover_sessions_all(&empty_roots(d.path()), &env).await;
+    assert!(sessions.is_empty());
+    assert!(
+        !d.path().join("state/starts").exists(),
+        "listing started the service"
+    );
+    assert_eq!(notes.len(), 1, "{notes:?}");
+    assert!(
+        notes[0].contains("OpenCode service is not running"),
+        "{notes:?}"
+    );
 }
 
 #[tokio::test]
@@ -516,18 +547,23 @@ async fn claude_target_never_depends_on_opencode() {
         .unwrap_err()
         .to_string();
     assert!(e.contains("no live session matches"), "{e}");
-    assert!(e.contains("OpenCode sessions not listed"), "{e}");
+    assert!(e.contains("OpenCode service is not running"), "{e}");
 }
 
 /// An OpenCode address or id may start the service and then resolves.
 #[tokio::test]
-async fn opencode_target_may_start_the_service() {
+async fn opencode_target_send_may_start_the_service() {
     let d = tempfile::tempdir().unwrap();
     let env = down_service(d.path());
     let id = "11111111-1111-7111-8111-111111111111";
-    let (sessions, notes) = with_opencode_for_target(vec![claude(id)], &env, "ses_live1").await;
-    assert!(notes.is_empty(), "{notes:?}");
-    assert!(d.path().join("state/starts").exists());
-    let got = resolve_noted(&sessions, "ses_live1", None, &notes).unwrap();
-    assert!(matches!(got, Session::OpenCode(e) if e.session_id == "ses_live1"));
+    for target in ["ses_live1", "opencode:ses_live1"] {
+        let _ = fs::remove_file(d.path().join("state/starts"));
+        let (sessions, notes) = with_opencode_for_target(vec![claude(id)], &env, target).await;
+        assert!(notes.is_empty(), "{notes:?}");
+        let starts = fs::read_to_string(d.path().join("state/starts")).unwrap();
+        assert_eq!(starts.lines().count(), 1, "{target}: {starts:?}");
+        assert!(sessions
+            .iter()
+            .any(|s| matches!(s, Session::OpenCode(e) if e.session_id == "ses_live1")));
+    }
 }

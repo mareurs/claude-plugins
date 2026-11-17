@@ -2,7 +2,8 @@
 use crate::{
     codex::{discover_codex, is_thread_id, CodexEndpoint},
     endpoints::{claude_pid_of, discover, repo_of, Endpoint, Roots},
-    opencode::{discover_opencode_system, OpenCodeEndpoint},
+    opencode::{discover_opencode_system, OpenCodeEndpoint, ServiceNotRunning},
+    opencode_api::locate_opencode,
     paths::profile_matches,
 };
 use anyhow::{anyhow, Result};
@@ -92,7 +93,7 @@ pub fn discover_sessions(roots: &Roots) -> Vec<Session> {
         .chain(discover_codex(roots).into_iter().map(Session::Codex))
         .collect()
 }
-/// Claude and Codex (synchronous) plus OpenCode (service API, which may be started). An
+/// Claude and Codex (synchronous) plus OpenCode (service API; listing never starts it). An
 /// OpenCode failure is a discovery note, never an error: the other harnesses are still listed.
 pub async fn discover_sessions_all(
     roots: &Roots,
@@ -100,12 +101,18 @@ pub async fn discover_sessions_all(
 ) -> (Vec<Session>, Vec<String>) {
     let mut sessions = discover_sessions(roots);
     let mut notes = Vec::new();
-    add_opencode(&mut sessions, &mut notes, env, true).await;
+    add_opencode(&mut sessions, &mut notes, env, false).await;
     (sessions, notes)
 }
 
 /// Overall deadline for one OpenCode discovery (probe, optional start, listing, lookups).
 pub const OPENCODE_DISCOVERY_DEADLINE: std::time::Duration = std::time::Duration::from_secs(15);
+
+/// True when OpenCode is simply not installed: no explicit override is set and the binary is
+/// not on PATH. A set but invalid `SESSION_BRIDGE_OPENCODE_BIN` is not absence.
+fn opencode_absent(env: &(dyn Fn(&str) -> Option<String> + Sync)) -> bool {
+    env("SESSION_BRIDGE_OPENCODE_BIN").is_none_or(|s| s.is_empty()) && locate_opencode(env).is_err()
+}
 
 async fn add_opencode(
     sessions: &mut Vec<Session>,
@@ -126,6 +133,12 @@ async fn add_opencode(
     });
     match found {
         Ok(eps) => sessions.extend(eps.into_iter().map(Session::OpenCode)),
+        Err(e) if e.downcast_ref::<ServiceNotRunning>().is_some() => {
+            notes.push("OpenCode service is not running; its sessions are not listed".into());
+        }
+        // No OpenCode on this machine: say nothing. An explicit override that is invalid is a
+        // real misconfiguration and keeps its note.
+        Err(_) if opencode_absent(env) => {}
         Err(e) => notes.push(format!("OpenCode sessions not listed: {e:#}")),
     }
 }

@@ -250,9 +250,19 @@ pub async fn discover_opencode(
     Ok(out)
 }
 
+/// The OpenCode service did not answer and we were told not to start it.
+#[derive(Debug)]
+pub struct ServiceNotRunning;
+impl std::fmt::Display for ServiceNotRunning {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "OpenCode service is not running")
+    }
+}
+impl std::error::Error for ServiceNotRunning {}
+
 /// Locate the CLI, make sure the service answers, then discover. Any failure is the caller's
 /// note. With `start_service` false the service is never started: a service that does not
-/// answer is a failure (only listing and OpenCode-targeted calls may start it).
+/// answer is `ServiceNotRunning` (only an ask or send aimed at OpenCode may start it).
 pub async fn discover_opencode_system(
     env: &(dyn Fn(&str) -> Option<String> + Sync),
     start_service: bool,
@@ -265,6 +275,8 @@ pub async fn discover_opencode_system(
     };
     if start_service {
         ensure_service(&api, &bin).await?;
+    } else if api.call("GET", "/api/session/active", None).await.is_err() {
+        return Err(anyhow::Error::new(ServiceNotRunning));
     }
     let hours = env("SESSION_BRIDGE_OPENCODE_RECENT_HOURS")
         .and_then(|s| s.trim().parse::<u64>().ok())
