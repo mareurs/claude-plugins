@@ -2,7 +2,7 @@ use serde_json::{json, Value};
 use session_bridge_mcp::opencode_api::{
     ensure_service, ensure_service_within, locate_opencode, CliApi, OcApi,
 };
-use std::{fs, os::unix::fs::PermissionsExt, path::Path, time::Duration};
+use std::{fs, path::Path, time::Duration};
 
 const BODY_EVIL: &str = "x'; rm -rf / #";
 
@@ -12,17 +12,11 @@ fn fake(root: &Path, script: Value) -> std::path::PathBuf {
     fs::create_dir_all(&state).unwrap();
     fs::write(state.join("script.json"), script.to_string()).unwrap();
     let fixture = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/fake-opencode.py");
+    // A symlink to the committed fixture, never a freshly written executable: exec of a file
+    // that was just opened for writing races with other test threads forking (ETXTBSY). The
+    // fake finds its state dir next to the symlink it was invoked through.
     let bin = root.join("opencode");
-    fs::write(
-        &bin,
-        format!(
-            "#!/bin/sh\nFAKE_OC_DIR='{}' exec python3 '{}' \"$@\"\n",
-            state.display(),
-            fixture.display()
-        ),
-    )
-    .unwrap();
-    fs::set_permissions(&bin, fs::Permissions::from_mode(0o755)).unwrap();
+    std::os::unix::fs::symlink(&fixture, &bin).unwrap();
     bin
 }
 fn api(bin: &Path) -> CliApi {

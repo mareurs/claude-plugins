@@ -6,7 +6,9 @@
 An entry's "after_start" override applies once `service start` ran."""
 import json, os, pathlib, sys
 
-d = pathlib.Path(os.environ["FAKE_OC_DIR"])
+# Invoked through a per-test symlink: state is the `state/` dir beside that symlink (argv[0] is
+# the unresolved path). $FAKE_OC_DIR overrides it.
+d = pathlib.Path(os.environ.get("FAKE_OC_DIR") or pathlib.Path(sys.argv[0]).parent / "state")
 args = sys.argv[1:]
 with open(d / "argv.log", "a") as f:
     f.write(json.dumps(args) + "\n")

@@ -141,6 +141,16 @@ async fn send_after_post_failure_is_unknown_not_retried() {
 }
 
 #[tokio::test]
+async fn send_allows_archived_null() {
+    let mut api = FakeApi::new();
+    api.get = Ok(
+        json!({"data": {"id": "ses_a", "time": {"created": 1, "updated": 2, "archived": null}}}),
+    );
+    assert!(send_opencode(&api, &ep(), "me", "hi", 1).await.is_ok());
+    assert_eq!(api.count("POST"), 1);
+}
+
+#[tokio::test]
 async fn send_to_removed_session_errors_before_post() {
     let mut api = FakeApi::new();
     api.get = Err("HTTP 404".into());

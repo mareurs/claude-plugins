@@ -12,7 +12,6 @@ use std::{
     collections::HashMap,
     fs,
     io::Write,
-    os::unix::fs::PermissionsExt,
     path::{Path, PathBuf},
     process::{Command, Stdio},
     sync::Mutex,
@@ -192,21 +191,13 @@ impl Env {
             "GET /api/session/ses_live1": {"out": json!({"data": row("ses_live1")}).to_string()},
             "GET /api/session/ses_kid1": {"out": json!({"data": kid}).to_string()},
         });
-        let state = root.join("fake");
+        let state = root.join("state");
         fs::create_dir_all(&state).unwrap();
         fs::write(state.join("script.json"), script.to_string()).unwrap();
         let fixture = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/fake-opencode.py");
         let bin = root.join("opencode");
-        fs::write(
-            &bin,
-            format!(
-                "#!/bin/sh\nFAKE_OC_DIR='{}' exec python3 '{}' \"$@\"\n",
-                state.display(),
-                fixture.display()
-            ),
-        )
-        .unwrap();
-        fs::set_permissions(&bin, fs::Permissions::from_mode(0o755)).unwrap();
+        // Symlink to the committed fixture (no ETXTBSY race); state dir is `state/` beside it.
+        std::os::unix::fs::symlink(&fixture, &bin).unwrap();
         Env {
             _dir: dir,
             root,

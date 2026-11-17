@@ -6,7 +6,7 @@ use session_bridge_mcp::{
     opencode_api::OcApi,
     sessions::{discover_sessions_all, resolve_session, Session},
 };
-use std::{fs, os::unix::fs::PermissionsExt, path::Path, sync::Mutex};
+use std::{fs, path::Path, sync::Mutex};
 
 const NOW: i64 = 1_000_000_000_000;
 const HOUR: i64 = 3_600_000;
@@ -200,17 +200,9 @@ fn fake_bin(root: &Path, script: Value) -> std::path::PathBuf {
     fs::create_dir_all(&state).unwrap();
     fs::write(state.join("script.json"), script.to_string()).unwrap();
     let fixture = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/fake-opencode.py");
+    // Symlink to the committed fixture (no ETXTBSY race); state dir is `state/` beside it.
     let bin = root.join("opencode");
-    fs::write(
-        &bin,
-        format!(
-            "#!/bin/sh\nFAKE_OC_DIR='{}' exec python3 '{}' \"$@\"\n",
-            state.display(),
-            fixture.display()
-        ),
-    )
-    .unwrap();
-    fs::set_permissions(&bin, fs::Permissions::from_mode(0o755)).unwrap();
+    std::os::unix::fs::symlink(&fixture, &bin).unwrap();
     bin
 }
 

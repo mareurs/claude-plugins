@@ -42,7 +42,10 @@ pub async fn send_opencode(
         .await
         .map_err(|e| anyhow::anyhow!("OpenCode session is not available: {e}"))?;
     anyhow::ensure!(
-        unwrap_data(&info).pointer("/time/archived").is_none(),
+        unwrap_data(&info)
+            .pointer("/time/archived")
+            .filter(|v| !v.is_null())
+            .is_none(),
         "OpenCode session is archived"
     );
     let id = new_message_id();
