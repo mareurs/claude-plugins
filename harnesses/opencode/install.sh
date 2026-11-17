@@ -104,6 +104,17 @@ link() { # src dest
   ln -s "$1" "$2"
 }
 
+# The session-bridge plugin execs the Rust `session-bridge` binary: SESSION_BRIDGE_BIN (an
+# absolute path) else PATH. Prints the resolved path, or nothing when there is none.
+bridge_binary() {
+  if [ -n "${SESSION_BRIDGE_BIN:-}" ]; then
+    [ -x "$SESSION_BRIDGE_BIN" ] && echo "$SESSION_BRIDGE_BIN"
+  else
+    command -v session-bridge 2>/dev/null || true
+  fi
+}
+BRIDGE_FIX="build and link it: $REPO_DIR/session-bridge/scripts/build.sh  (links ~/.local/bin/session-bridge; set SESSION_BRIDGE_BIN_DIR to change the dir)"
+
 status_of() { # path → present | dangling | missing
   if [ -L "$1" ] && [ ! -e "$1" ]; then echo "DANGLING → $(readlink "$1")"
   elif [ -e "$1" ]; then echo "present"
@@ -134,6 +145,11 @@ if [ "$MODE" = "check" ]; then
       [ "$s" = "present" ] || info "command $name: $s"; case "$s" in DANGLING*|missing) bad=1 ;; esac
     done < <(commands_of "$p")
   done
+  case " $PLUGINS " in *" session-bridge "*)
+    b="$(bridge_binary)"
+    if [ -n "$b" ]; then info "session-bridge binary: $b"
+    else info "session-bridge binary: missing — $BRIDGE_FIX"; fi ;;
+  esac
   for f in "$PWD/opencode.json" "$CONFIG_DIR/opencode.json"; do
     [ -f "$f" ] || continue
     command -v jq >/dev/null 2>&1 || continue
@@ -178,6 +194,18 @@ for p in $PLUGINS; do
 done
 info "note: these are symlinks into $REPO_DIR — if you move the repo, re-run this installer."
 info "      sdd's rendered commands are copies: re-run after editing sdd/commands/."
+
+# ── session-bridge: the binary is a separate artifact, warn when it is not there ──
+case " $PLUGINS " in *" session-bridge "*)
+  b="$(bridge_binary)"
+  if [ -n "$b" ]; then info "session-bridge binary: $b"
+  else
+    echo
+    echo "WARNING: session-bridge binary not found (SESSION_BRIDGE_BIN unset or not executable, and none on PATH)."
+    echo "         The plugin is installed but its tools fail until you $BRIDGE_FIX"
+    echo "         OpenCode needs >= 2.3.0 and its background service (started automatically if absent)."
+  fi ;;
+esac
 
 # ── the manual step: MCP registration (codescout-companion only) ──────────
 case " $PLUGINS " in *" codescout-companion "*)

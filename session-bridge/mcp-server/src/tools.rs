@@ -25,7 +25,7 @@ pub struct AskArgs {
     pub target: String,
     /// The question to ask the target session.
     pub question: String,
-    /// Claude alias or Codex model id; defaults to haiku for Claude and the Codex default for Codex.
+    /// Claude alias, Codex model id or OpenCode `provider/model`; defaults to haiku for Claude and the target's own default for Codex and OpenCode.
     #[serde(default)]
     pub model: Option<String>,
     /// Seconds to wait for the answer (default 120, clamped to 1..=300).
@@ -35,9 +35,9 @@ pub struct AskArgs {
 
 #[derive(Debug, Deserialize, schemars::JsonSchema)]
 pub struct SendMessageArgs {
-    /// Exact loaded Codex thread address, UUID or unambiguous name.
+    /// Claude endpoint, exact loaded Codex thread address, OpenCode address, UUID/prefix or unambiguous name.
     pub target: String,
-    /// Peer message, at most 16000 characters. Starts a normal target turn.
+    /// Peer message. Codex and OpenCode targets: at most 16000 characters, starts a normal target turn. Claude targets: at most 4000 characters, delivered once at the target's next prompt or tool call, no turn is started.
     pub message: String,
     /// Queue/observation budget in seconds (default 20, clamped to 1..=30).
     #[serde(default)]
@@ -70,9 +70,9 @@ pub async fn list_sessions(
         .map(|s| s.render(me.as_deref() == Some(s.identity().as_str())))
         .collect();
     if lines.is_empty() {
-        lines.push("No live Claude Code sessions or rollout-backed Codex threads found.".into());
+        lines.push("No live Claude Code sessions, rollout-backed Codex threads or OpenCode sessions found.".into());
     }
-    lines.push("Scope: local Linux, Claude native/IPC session registrations and Codex open rollouts; saved-only threads and hosts without open rollouts are outside this listing.".into());
+    lines.push("Scope: local Linux, Claude native/IPC session registrations, Codex open rollouts and live OpenCode sessions (top-level, not forks, running or active within SESSION_BRIDGE_OPENCODE_RECENT_HOURS); saved-only Codex threads and hosts without open rollouts are outside this listing.".into());
     for note in notes {
         lines.push(format!("Discovery note: {note}"));
     }

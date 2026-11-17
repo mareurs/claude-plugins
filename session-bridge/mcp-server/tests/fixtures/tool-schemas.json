@@ -7,7 +7,7 @@
       "properties": {
         "model": {
           "default": null,
-          "description": "Claude alias or Codex model id; defaults to haiku for Claude and the Codex default for Codex.",
+          "description": "Claude alias, Codex model id or OpenCode `provider/model`; defaults to haiku for Claude and the target's own default for Codex and OpenCode.",
           "type": [
             "string",
             "null"
@@ -86,11 +86,11 @@
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "properties": {
         "message": {
-          "description": "Peer message, at most 16000 characters. Starts a normal target turn.",
+          "description": "Peer message. Codex and OpenCode targets: at most 16000 characters, starts a normal target turn. Claude targets: at most 4000 characters, delivered once at the target's next prompt or tool call, no turn is started.",
           "type": "string"
         },
         "target": {
-          "description": "Exact loaded Codex thread address, UUID or unambiguous name.",
+          "description": "Claude endpoint, exact loaded Codex thread address, OpenCode address, UUID/prefix or unambiguous name.",
           "type": "string"
         },
         "timeout_s": {
