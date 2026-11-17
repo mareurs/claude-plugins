@@ -26,8 +26,9 @@ Needs `cargo`, `git` and the `claude` CLI.
 ```
 
 The build script installs to `${CARGO_HOME:-$HOME/.cargo}/bin` and links the binary at
-`${SESSION_BRIDGE_BIN_DIR:-$HOME/.local/bin}/session-bridge`, the stable PATH location that OpenCode
-and Codex use (the link points at the cargo path, so a later release never leaves it stale, and
+`${SESSION_BRIDGE_BIN_DIR:-$HOME/.local/bin}/session-bridge`, the stable PATH location the OpenCode
+plugin uses (Codex does not read it: `install-codex.py` takes the executable as an explicit
+`--binary`, see the Codex section; the link points at the cargo path, so a later release never leaves it stale, and
 re-running the script replaces it; it prints both paths). Put that directory on `PATH`, or set
 `SESSION_BRIDGE_BIN` to the absolute path. The Claude plugin runs
 `${HOME}/.cargo/bin/session-bridge serve` and `hooks/run.sh` runs `$HOME/.cargo/bin/session-bridge`.
@@ -82,7 +83,7 @@ OpenCode is a full harness beside Claude Code and Codex: its live sessions are l
 
 ### Requirements
 
-- OpenCode 2.3.0 or later (the version measured). Earlier versions are refused with a message when the needed API is missing.
+- OpenCode 2.3.0, the only version measured. Older versions are unmeasured: session-bridge does not check the version, and an error from the OpenCode CLI (for example a missing API route) is passed through as it comes.
 - The OpenCode background service. It is started automatically when absent; a hook never starts it.
 - The OpenCode plugin installed with `harnesses/opencode/install.sh --plugins session-bridge` (see the two routes below; `--check` reports the wiring; add `--project` for a project-level install). It links `plugins/session-bridge.js` into OpenCode's config dir, keeps your other plugins and never edits `opencode.json`. It warns, and still exits 0, when the binary below is missing. Restart OpenCode (and any background `opencode serve --service`) to load the plugin.
 - The `session-bridge` binary on `PATH` or named by `SESSION_BRIDGE_BIN`, built by `session-bridge/scripts/build.sh` (see Install). OpenCode-only users need no Claude Code or Codex install. Without the binary the plugin's tools fail with an error that names `SESSION_BRIDGE_BIN` and `PATH`.
@@ -93,7 +94,7 @@ OpenCode is a full harness beside Claude Code and Codex: its live sessions are l
 Building needs `cargo`. Both routes run the same two commands, `build.sh` first (it builds, tests and links the binary), then `install.sh`:
 
 - **Claude Code marketplace users.** The marketplace clone is the `installLocation` that `known_marketplaces.json` records for `sdd-misc-plugins` in your profile (`${CLAUDE_CONFIG_DIR:-~/.claude}/plugins/`). For a github-source marketplace that is expected to be a full copy of this repository under `<profile>/plugins/marketplaces/sdd-misc-plugins/`, holding `session-bridge/` and `harnesses/`; this is inferred from how the other github marketplaces look on disk and is unmeasured for this repository. Then run `<marketplace clone>/session-bridge/scripts/build.sh` and `<marketplace clone>/harnesses/opencode/install.sh --plugins session-bridge`.
-- **OpenCode-only users.** `git clone https://github.com/mareurs/claude-plugins`, then run `session-bridge/scripts/build.sh` and `harnesses/opencode/install.sh --plugins session-bridge` from the clone.
+- **OpenCode-only users.** `git clone https://github.com/mareurs/claude-plugins`, then run `session-bridge/scripts/build.sh` and `harnesses/opencode/install.sh --plugins session-bridge` from the clone. This route is unmeasured as a fresh clone too: the two scripts are tested in this checkout and in sandboxes, not from a new clone on a clean machine.
 
 `build.sh` links `~/.local/bin/session-bridge` (or `$SESSION_BRIDGE_BIN_DIR/session-bridge`) and refuses to replace a regular file already there. `install.sh --help` and its missing-binary warning print the `build.sh` path of the checkout they run from. The plugin symlinks point into that clone: moving it means re-running `install.sh`.
 
@@ -103,12 +104,14 @@ The canonical address is `opencode:<OpenCode data dir>:<ses_id>`, so two OpenCod
 
 A session is live when it is top-level (not a fork or child) and is running, or was active within `SESSION_BRIDGE_OPENCODE_RECENT_HOURS` (default 24). Deleted or archived sessions are never listed.
 
+Discovery pages the session list (`GET /api/session?limit=100`, following `cursor.next`; the service default is only the newest 50 rows) until a page ends with a row older than the recency window, the cursor ends, or 2000 rows were read (at most 20 list calls). Each running session that no page held is then read with `GET /api/session/{id}` (at most 50) and passes the same top-level and fork rules. An ask reads the fork's answer back the same way, 20 messages per page and at most 10 pages, until it reaches its own prompt.
+
 ### What each tool does, by target
 
 | Tool | Claude target | Codex target | OpenCode target |
 |---|---|---|---|
 | `list_sessions` | live sessions | loaded threads | live OpenCode sessions (rule above); also lists your own sent Claude messages of the last 24 h as `pending`, `delivered` or `expired` |
-| `ask_session` | isolated read-only fork, target's profile pays | ephemeral read-only fork | read-only fork under the `session-bridge-reader` agent, deleted afterwards; needs the OpenCode plugin; outside the Claude USD meter; token usage returned, USD `cost` is `null` when unknown; `model` may be `provider/model` |
+| `ask_session` | isolated read-only fork, target's profile pays | ephemeral read-only fork | read-only fork under the `session-bridge-reader` agent, deleted afterwards; needs the OpenCode plugin; outside the Claude USD meter; token usage returned; `cost_usd` is what OpenCode reports: `null` means unknown, and `0.0` (what a local provider reports) means no charge was reported, not that the run was free; `model` may be `provider/model`, set with `POST /api/session/{fork}/model`, which is taken from the OpenAPI document and is unmeasured (never live-tested) |
 | `send_message` | direct message, see below | prompt into the original thread, may start a tool-using turn | queued prompt into the original session (`delivery: queue`: it does not interrupt a busy turn), status `queued`, `observed` or `unknown`; no model, agent or permission override; never resent |
 | `post_notice` | existing filter | existing filter | same channel; OpenCode sessions receive notices unfiltered |
 
