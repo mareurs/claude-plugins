@@ -27,7 +27,9 @@ export const CHILD_ENV = 'OPENCODE_SESSION_BRIDGE_CHILD';
 const DEFAULT_TIMEOUT_S = 120;
 const MAX_TIMEOUT_S = 600;
 const OUTPUT_LIMIT = 1 << 20;
-const HOOK_TIMEOUT_MS = 10000;
+const HOOK_TIMEOUT_MS = 3000;
+const KILL_GRACE_MS = 2000;
+const EXIT_GRACE_MS = 200;
 
 // Reading tools only. Native: read/grep/glob/list. codescout: its read-only tools (no
 // edit_*, create_file, run_command, memory or artifact writes). Last match wins, as in the
@@ -72,7 +74,7 @@ const textOf = (r) => ({ output: r, content: [{ type: 'text', text: r }] });
 
 // Run the binary with argv `args`, JSON `stdin`, bounded by a timeout and an abort signal.
 // Resolves {code, stdout, stderr}; rejects only when the binary cannot be started.
-export function runBridge({ args, stdin, timeoutMs, signal, env = process.env, cwd }) {
+export function runBridge({ args, stdin, timeoutMs, signal, env = process.env }) {
   return new Promise((resolveP, reject) => {
     let bin;
     try { bin = bridgeBin(env); } catch (e) { reject(e); return; }
@@ -86,12 +88,26 @@ export function runBridge({ args, stdin, timeoutMs, signal, env = process.env, c
     let out = '';
     let err = '';
     let done = false;
-    const kill = () => { try { child.kill('SIGTERM'); } catch { /* gone */ } };
-    const timer = setTimeout(kill, timeoutMs);
+    let killTimer = null;
+    let exitTimer = null;
+    const kill = () => {
+      try { child.kill('SIGTERM'); } catch { /* gone */ }
+      if (!killTimer) {
+        killTimer = setTimeout(() => { try { child.kill('SIGKILL'); } catch { /* gone */ } }, KILL_GRACE_MS);
+        killTimer.unref?.();
+      }
+    };
+    // Hard bound: on timeout settle NOW; the process may ignore SIGTERM or a grandchild
+    // may hold the pipes open, so 'close' is not guaranteed to ever come.
+    const timer = setTimeout(() => {
+      kill();
+      finish(reject, new Error(`session-bridge timed out after ${Math.round(timeoutMs / 1000)}s`));
+    }, timeoutMs);
     const finish = (fn, v) => {
       if (done) return;
       done = true;
       clearTimeout(timer);
+      clearTimeout(exitTimer);
       signal?.removeEventListener?.('abort', kill);
       fn(v);
     };
@@ -101,6 +117,10 @@ export function runBridge({ args, stdin, timeoutMs, signal, env = process.env, c
     child.stderr.on('data', (d) => { err = (err + d).slice(-OUTPUT_LIMIT); });
     child.stdin.on('error', () => { /* child exited before reading: surfaced by its exit code */ });
     child.once('error', (e) => finish(reject, e.code === 'ENOENT' ? new Error(missingMsg(bin)) : e));
+    child.once('exit', (code) => {
+      // 'close' waits for the pipes; settle shortly after exit even if one stays open.
+      exitTimer = setTimeout(() => finish(resolveP, { code, stdout: out, stderr: err }), EXIT_GRACE_MS);
+    });
     child.once('close', (code) => {
       if (signal?.aborted) return finish(reject, new Error('cancelled'));
       finish(resolveP, { code, stdout: out, stderr: err });
@@ -145,19 +165,19 @@ const TOOLS = {
   },
 };
 
-export function makeToolExecute(tool, { env = process.env, cwd } = {}) {
+export function makeToolExecute(tool, { env = process.env, timeoutMs } = {}) {
   return async (args, tctx = {}) => {
     const a = args && typeof args === 'object' ? args : {};
+    if (!tctx?.sessionID) throw new Error('session-bridge: no calling session id available; cannot identify the caller');
     const t = Number(a.timeout_s);
     const callS = tool === 'ask_session' || tool === 'send_message' ? (t > 0 ? Math.min(MAX_TIMEOUT_S, t) : DEFAULT_TIMEOUT_S) : 30;
-    const argv = ['call', tool, '--opencode-caller', String(tctx.sessionID || '')];
+    const argv = ['call', tool, '--opencode-caller', String(tctx.sessionID)];
     const r = await runBridge({
       args: argv,
       stdin: JSON.stringify(a),
-      timeoutMs: (callS + 30) * 1000,
+      timeoutMs: timeoutMs ?? (callS + 30) * 1000,
       signal: tctx.signal,
       env,
-      cwd,
     });
     if (r.code !== 0) throw new Error(r.stderr.trim() || `session-bridge call ${tool} failed (exit ${r.code})`);
     return textOf(r.stdout.trim() || '(no output)');
@@ -166,14 +186,13 @@ export function makeToolExecute(tool, { env = process.env, cwd } = {}) {
 
 // Run `session-bridge hook <event> --harness opencode`; returns the text to inject, or ''.
 // Never throws.
-export async function runHook(event, payload, { env = process.env, cwd } = {}) {
+export async function runHook(event, payload, { env = process.env } = {}) {
   try {
     const r = await runBridge({
       args: ['hook', event, '--harness', 'opencode'],
       stdin: JSON.stringify(payload),
       timeoutMs: HOOK_TIMEOUT_MS,
       env,
-      cwd,
     });
     return r.code === 0 ? r.stdout.trim() : '';
   } catch {
@@ -199,7 +218,7 @@ export async function SessionBridge(ctx) {
           description: def.description,
           input: { type: 'object', properties: def.properties, required: def.required },
           output: {},
-          execute: makeToolExecute(name, { cwd: dir }),
+          execute: makeToolExecute(name),
         });
       }
     });
@@ -220,13 +239,14 @@ export async function SessionBridge(ctx) {
       const sid = String(event?.sessionID || '');
       if (!sid || !Array.isArray(event?.system)) return;
       const base = { session_id: sid, cwd: dir };
-      const texts = [];
+      const jobs = [];
       if (!started.has(sid)) {
         if (started.size >= 500) started.delete(started.values().next().value);
         started.add(sid);
-        texts.push(await runHook('session-start', { ...base, hook_event_name: 'SessionStart' }, { cwd: dir }));
+        jobs.push(runHook('session-start', { ...base, hook_event_name: 'SessionStart' }));
       }
-      texts.push(await runHook('prompt', { ...base, hook_event_name: 'UserPromptSubmit' }, { cwd: dir }));
+      jobs.push(runHook('prompt', { ...base, hook_event_name: 'UserPromptSubmit' }));
+      const texts = await Promise.all(jobs); // one timeout bounds the whole event
       for (const text of texts) if (text) event.system.push({ type: 'text', text });
     } catch { /* fail open */ }
   });
@@ -240,7 +260,7 @@ export async function SessionBridge(ctx) {
         hook_event_name: 'PostToolUse',
         tool_name: String(event?.tool || ''),
         tool_input: event?.input && typeof event.input === 'object' ? event.input : {},
-      }, { cwd: dir });
+      });
       const content = event?.result?.content;
       if (text && Array.isArray(content)) content.push({ type: 'text', text });
     } catch { /* fail open */ }

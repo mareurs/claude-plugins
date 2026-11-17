@@ -1,11 +1,11 @@
 // session-bridge OpenCode plugin — unit tests. Run: node harnesses/opencode/tests/test-session-bridge.mjs
 // The Rust binary is replaced by the committed fixture fixtures/fake-bridge/session-bridge.
 import assert from 'node:assert/strict';
-import { mkdtempSync, rmSync, readFileSync } from 'node:fs';
+import { mkdtempSync, rmSync, readFileSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import DEF, { READER, CHILD_ENV, readerPermissions, registerReader, bridgeBin } from '../plugins/session-bridge.js';
+import DEF, { READER, CHILD_ENV, readerPermissions, registerReader, bridgeBin, makeToolExecute } from '../plugins/session-bridge.js';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const FAKE_DIR = join(HERE, 'fixtures', 'fake-bridge');
@@ -36,7 +36,7 @@ const withEnv = async (vars, fn) => {
   }
 };
 const fake = (extra = {}) => ({ SESSION_BRIDGE_BIN: FAKE, FAKE_SB_LOG: LOG, FAKE_SB_OUT: undefined, FAKE_SB_ERR: undefined, FAKE_SB_EXIT: undefined, ...extra });
-const logged = () => JSON.parse(readFileSync(LOG, 'utf8'));
+const logged = (which) => JSON.parse(readFileSync(which ? `${LOG}.${which}` : LOG, 'utf8'));
 
 // Set up the plugin against a recording ctx; returns the registered tools and hooks.
 const setup = async (opts = {}) => {
@@ -166,7 +166,7 @@ await ok('context_hook_injects_hook_output: session-start once, then prompt each
     await hooks['session.context'](e1);
     assert.deepEqual(e1.system, [{ type: 'text', text: 'NOTICE: hello' }, { type: 'text', text: 'NOTICE: hello' }]);
     // Last call was the prompt hook; check its argv and payload.
-    const l = logged();
+    const l = logged('hook.prompt');
     assert.deepEqual(l.argv, ['hook', 'prompt', '--harness', 'opencode']);
     assert.deepEqual(JSON.parse(l.stdin), { session_id: 'ses_h1', cwd: '/proj', hook_event_name: 'UserPromptSubmit' });
     const e2 = ev();
@@ -205,9 +205,51 @@ await ok('post-tool hook sends tool name and input, appends output to the result
     const { hooks } = await setup({ dir: '/proj' });
     const result = { content: [{ type: 'text', text: 'orig' }] };
     await hooks['tool.execute.after']({ sessionID: 'ses_p', tool: 'bash', input: { command: 'ls' }, result });
-    assert.deepEqual(logged().argv, ['hook', 'post-tool', '--harness', 'opencode']);
-    assert.deepEqual(JSON.parse(logged().stdin), { session_id: 'ses_p', cwd: '/proj', hook_event_name: 'PostToolUse', tool_name: 'bash', tool_input: { command: 'ls' } });
+    assert.deepEqual(logged('hook.post-tool').argv, ['hook', 'post-tool', '--harness', 'opencode']);
+    assert.deepEqual(JSON.parse(logged('hook.post-tool').stdin), { session_id: 'ses_p', cwd: '/proj', hook_event_name: 'PostToolUse', tool_name: 'bash', tool_input: { command: 'ls' } });
     assert.deepEqual(result.content[1], { type: 'text', text: '[sb] heads up' });
+  });
+});
+
+await ok('hard_bound: a bridge that ignores SIGTERM cannot hang a tool call', async () => {
+  await withEnv(fake({ FAKE_SB_HANG: '1' }), async () => {
+    const exec = makeToolExecute('list_sessions', { timeoutMs: 300 });
+    const t0 = Date.now();
+    await assert.rejects(exec({}, { sessionID: 'ses_x' }), /timed out/);
+    assert.ok(Date.now() - t0 < 1500, `rejected after ${Date.now() - t0} ms`);
+  });
+});
+
+await ok('hard_bound: a hanging bridge bounds one context event by ~one hook timeout, injecting nothing', async () => {
+  await withEnv(fake({ FAKE_SB_HANG: '1' }), async () => {
+    const { hooks } = await setup();
+    const e = { sessionID: 'ses_hang', system: [] };
+    const t0 = Date.now();
+    await hooks['session.context'](e); // session-start + prompt run in parallel
+    const dt = Date.now() - t0;
+    assert.deepEqual(e.system, []);
+    assert.ok(dt < 4500, `context event took ${dt} ms (sequential would be ~6000)`);
+    const t1 = Date.now();
+    await hooks['tool.execute.after']({ sessionID: 'ses_hang', tool: 'read', input: {}, result: { content: [] } });
+    assert.ok(Date.now() - t1 < 4500);
+  });
+});
+
+await ok('context hook emits session-start and prompt output on the first event', async () => {
+  await withEnv(fake({ FAKE_SB_OUT: 'X' }), async () => {
+    const { hooks } = await setup();
+    const e = { sessionID: 'ses_ord', system: [] };
+    await hooks['session.context'](e);
+    assert.equal(e.system.length, 2);
+  });
+});
+
+await ok('missing tctx.sessionID is a clear tool error and spawns nothing', async () => {
+  await withEnv(fake({ FAKE_SB_LOG: join(SANDBOX, 'never.json') }), async () => {
+    const { tools } = await setup();
+    await assert.rejects(tools.list_sessions.execute({}, {}), /no calling session id/);
+    await assert.rejects(tools.list_sessions.execute({}), /no calling session id/);
+    assert.equal(existsSync(join(SANDBOX, 'never.json')), false);
   });
 });
 

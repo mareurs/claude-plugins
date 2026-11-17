@@ -2,10 +2,12 @@
 // Test double for the Rust `session-bridge`. Records argv + stdin to $FAKE_SB_LOG (JSON),
 // prints $FAKE_SB_OUT, writes $FAKE_SB_ERR to stderr, exits with $FAKE_SB_EXIT.
 const fs = require('fs');
+// FAKE_SB_HANG=1: ignore SIGTERM and stay alive 30 s (a misbehaving bridge).
+if (process.env.FAKE_SB_HANG) { process.on('SIGTERM', () => {}); setTimeout(() => process.exit(0), 30000); return; }
 let stdin = '';
 process.stdin.on('data', (d) => { stdin += d; });
 process.stdin.on('end', () => {
-  if (process.env.FAKE_SB_LOG) fs.writeFileSync(process.env.FAKE_SB_LOG, JSON.stringify({ argv: process.argv.slice(2), stdin }));
+  if (process.env.FAKE_SB_LOG) { const rec = JSON.stringify({ argv: process.argv.slice(2), stdin }); const a = process.argv.slice(2); fs.writeFileSync(process.env.FAKE_SB_LOG, rec); fs.writeFileSync(process.env.FAKE_SB_LOG + '.' + a[0] + '.' + a[1], rec); }
   if (process.env.FAKE_SB_ERR) process.stderr.write(process.env.FAKE_SB_ERR);
   if (process.env.FAKE_SB_OUT) process.stdout.write(process.env.FAKE_SB_OUT);
   process.exit(Number(process.env.FAKE_SB_EXIT || 0));
