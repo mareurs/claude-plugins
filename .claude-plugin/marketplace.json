@@ -55,7 +55,7 @@
     {
       "name": "session-bridge",
       "source": "./session-bridge",
-      "description": "Cross-session MCP bridge: register every active Claude Code session locally and ask one session a question from another, answered in its loaded context via --resume + --fork-session.",
+      "description": "Channel between Claude Code sessions: ask a live session through a read-only fork, and post notices that reach the sessions they matter to.",
       "author": {
         "name": "Marius"
       },

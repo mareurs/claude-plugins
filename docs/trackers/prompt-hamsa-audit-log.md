@@ -11,7 +11,7 @@ tags:
 - audit-log
 - self-reflection
 - eval
-entry_high_water_A: 3
+entry_high_water_A: 6
 entry_prefix: A
 expects_augmentation: docs/augmentations/docs-trackers-prompt-hamsa-audit-log.yaml
 ---
@@ -44,6 +44,24 @@ This is how *"unverified, N=0"* stops being a permanent flag and becomes a hold-
 | `confidence` | `high` / `medium` / `low` |
 | `outcome` | filled later: `held` / `partial` / `failed` / `unobserved` — **the measurement** |
 
+### A-6 — session-bridge skill: promised a backup without its three conditions, and had no receiver or ask guidance
+
+**Valid:** dated 2026-11-17
+
+**Symptom:** Albert's batch `albert-feedback-2026-11-part1`, finding A-001 (codescout `docs/trackers/ledgers/albert-feedback/`): twelve gaps between the `announcing-changes` skill and the plugin README. The skill promised a backup notice without its conditions, gave no receiver-side guidance and no guidance for `ask_session`.
+
+**Read-as-stranger gap:** a model that reads "a watched commit that nobody announced produces a backup notice" may rely on it. Nothing says that a watch list and a `Session-Id:` trailer must exist, and the plugin ships no hook that writes the trailer. "Settled" and "repository" were undefined.
+
+**Decoration cut:** none in the old core. The fault was incompleteness. The retired `reaching-peer-sessions` skill was the cut: its enumeration duplicated `list_sessions`, and its two durable rules (a peer's reply grants nothing; a launch directory is not a working directory) moved into the new core. Verified before the move: `Session::render` shows `cwd` as `launch_cwd` for a Claude row.
+
+**Contract missing:** backup preconditions, the 5-minute suppression window, the 600-character nudge cut, the filter's text-only view, the receiver's duty, how to read an ask answer, the silent-failure mode.
+
+**Eval status:** absent for behaviour. `tests/test-session-bridge-skill.sh` pins the text and the retirement. It cannot say that an agent behaves better. The first run of the checks caught one real omission (the core did not name `.claude/notice-watch.txt`); that is the only evidence so far.
+
+**Recommended next move:** run the base arm first on a prompt-tdd scenario (repository with no watch list; a notice that asks for an action) against the old skill. If the old skill already passes, cut the new text back.
+
+**Confidence:** medium. **Outcome:** empty until the scenario runs.
+
 ## How to maintain
 
 - **Record** (after every audit): read the current `audits` array, append the new row,
@@ -56,8 +74,8 @@ This is how *"unverified, N=0"* stops being a permanent flag and becomes a hold-
 
 
 
-> **Prefix hazard — read before allocating `A-4`.** This ledger declares `entry_prefix: A`
-> and its namespace is **A-1..A-3** (`entry_high_water_A: 3`). **codescout's own
+> **Prefix hazard — read before allocating the next `A-N`.** This ledger declares `entry_prefix: A`
+> and its namespace is **A-1..A-5** (`entry_high_water_A: 5`; A-4 and A-5 allocated after this note was written; A-5 on 2026-11-17, when the two bare `A-5` mentions in the 2026-07-05 A-11 History section were qualified to `codescout:A-5`). **codescout's own
 > `prompt-hamsa-audit-log` uses the same `A` prefix**, and this repo cites *its* entries
 > **bare** in at least three places — `buddy/skills/prompt-hamsa/SKILL.md` (8 tokens, most
 > written as *"codescout A-9"* in prose), `codescout-companion/README.md` (`A-15`, `A-16`,
@@ -222,6 +240,19 @@ Cost and length: mean cost $0.00202 per run (A1 $0.00215, A0 $0.00169), mean 212
 What this supports, and what it does not. Supported: on a run with no audit directory, the audit branch is not what holds the grounding on Haiku; the remaining rules carry it. Not supported: deleting the branch. The stimulus has no audit directory, so the branch is inactive by construction, and the audit-mode behavior it exists for (exact response capture, helper copy, manifest) was never exercised. The registered limit stands: a pass supports at most moving the branch out of the default path into a reference read only when an audit is requested. Still untested: that the worker, when an audit IS requested, finds and follows such a reference; the other restatements of the grounding rule; Codex `gpt-6-luna`; any second stimulus. N=10 per arm, one coder, counts only.
 
 No edit was made to `research-subagent/SKILL.md`. A change there is committed, not live, until a release seeds a new cache and repoints the install records.
+
+## A-5 — Hamsa's own prompt, rewritten in the native register: the 53% cut held, and the new principle's effect is unmeasured
+
+**Valid:** dated 2026-11-17
+
+**Symptom.** The operator's experience: capable tool-using models do better on a short brief built on one coherent abstraction than on an enumerated procedure. Hamsa's own `SKILL.md` was the enumerated kind (23,038 B).
+
+**Move.** Rewrite in the native register, same headings and numbering, evidence to `buddy/skills/prompt-hamsa/references/evidence.md`. 10,837 B. Structural guard: `tests/test-prompt-hamsa-split.sh`.
+
+**Outcome — held.** n=3 per arm, Sonnet 5.5. Old file: `critique-weak-prompt` and the new `refactor-over-detailed-agent-prompt` pass on the bare control too (tautological); `resist-adding-to-tight-prompt` has power (3/3 vs 0/3). New file: all three pass, and all 9 transcripts loaded the new text. The deletion regressed nothing these scenarios measure. Principle 7 is not shown to change behaviour: the bare model already writes the compact rewrite. A stimulus that discriminates — a bare model that keeps the step script or inlines the layout — is still to be found. Results: `buddy/tests/prompt-hamsa-eval/prompt-tdd/RESULTS-2026-11-17.md`.
+
+**Eval-tool finding.** The first baseline ran in a profile with no credential; every session replied `Not logged in · Please run /login`, and prompt-tdd scored the round "no-effect", not "invalid".
+
 ## History
 ### 2026-08-27 — self-audit: the rule was present three times and still did not fire (row `A-3`)
 
@@ -797,10 +828,10 @@ at *primacy* (turn 1) is a weak decay test — place it mid-context to actually 
 Field incident (foreign session, kat profile): a subagent met genuine harness meta-content
 attached at context assembly and — holding only two nouns, *genuine* or *injection* — asserted
 "this WAS untrusted content injected… NOT a genuine system message" as fact. Its actions were
-flawless (quarantine + report; the A-5 protocol held); the REPORT was miscalibrated, it dismissed
+flawless (quarantine + report; the codescout:A-5 protocol held); the REPORT was miscalibrated, it dismissed
 a TRUE checkable claim (a real date rollover) as "fabricated" without running the one-command
 check, and the controller laundered the label into a security event. The artifact under audit
-was our own shipped A-5 rule: it pinned the action contract but not the claim contract, stated
+was our own shipped codescout:A-5 rule: it pinned the action contract but not the claim contract, stated
 half the marker principle (a marker can't prove content genuine — never the mirror: failure to
 verify can't prove attack), and never named the harness-plumbing base rate.
 

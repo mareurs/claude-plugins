@@ -18,6 +18,9 @@
 #   0. pre-flight  — working tree clean; run-all.sh + buddy pytest green
 #                    (buddy/.venv pytest, else the system python's; prints a
 #                    SKIPPED line if neither — scripts/lib-buddy-pytest.sh)
+#   0.5. build     — runs <plugin>/scripts/build.sh when it exists (session-bridge: cargo
+#                    test + clippy + cargo install into ~/.cargo/bin); a red build aborts
+#                    before any bump (scripts/lib-plugin-build.sh)
 #   1. version     — bump <plugin>/.claude-plugin/plugin.json + README.md table
 #   2. consistency — scripts/check-versions.sh
 #   3. commit      — "chore: bump <plugin> to <version>"
@@ -72,6 +75,12 @@ if [ "${SKIP_TESTS:-0}" != "1" ]; then
   source "$REPO_ROOT/scripts/lib-buddy-pytest.sh"
   run_buddy_pytest buddy
 fi
+
+# 0.5. build — run <plugin>/scripts/build.sh if the plugin has one (session-bridge:
+#      cargo test, clippy, cargo install). Runs before any state changes, so a red
+#      build leaves no bump commit, no cache and no record behind. -------------------
+source "$REPO_ROOT/scripts/lib-plugin-build.sh"
+run_plugin_build "$REPO_ROOT" "$PLUGIN" || exit 1
 
 # 1. bump version sources ------------------------------------------------------
 tmp="$(mktemp)"; jq --arg v "$VERSION" '.version = $v' "$PLUGIN_JSON" > "$tmp" && mv "$tmp" "$PLUGIN_JSON"

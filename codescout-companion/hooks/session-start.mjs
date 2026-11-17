@@ -2,6 +2,7 @@
 // Port of session-start.sh. No-op if codescout is not configured. Composes one
 // additionalContext message from: project-bootstrap nudge (startup only),
 // onboarding/memory hints, skills, tracker-hygiene nudge, auto-reindex (bg),
+// hot view (collections that declare hot_cap),
 // drift warnings (legacy sqlite; inert post-Qdrant), connectivity note,
 // post-compact flush, worktree reminder + symlink, Iron Laws, tool guide.
 // Also seeds/sweeps the codescout-active marker and writes cc_session_id.
@@ -12,8 +13,9 @@ import {
 import { join, dirname, isAbsolute } from 'node:path';
 import { homedir } from 'node:os';
 import { spawn, execFileSync } from 'node:child_process';
-import { readInput, detectFor, git, emit, isClaudeProcess, isCodexProcess, skillToolAbsentFromArgv, stampSlotIfStale } from './lib.mjs';
+import { readInput, detectFor, git, emit, isClaudeProcess, isCodexProcess, skillToolAbsentFromArgv, stampSlotIfStale, resolveCodescoutBinary } from './lib.mjs';
 import { fileURLToPath } from 'node:url';
+import { hotViewBlock } from './hot-view.mjs';
 
 const input = readInput();
 if (!input) process.exit(0);
@@ -262,11 +264,13 @@ if (sessionId && cwd) {
 // Auto-reindex config.
 let autoIndex = true;
 let driftWarnings = true;
+let hotView = true;
 if (d.ROUTING_CONFIG && existsSync(d.ROUTING_CONFIG)) {
   try {
     const rc = JSON.parse(readFileSync(d.ROUTING_CONFIG, 'utf8'));
     if (rc.auto_index === false) autoIndex = false;
     if (rc.drift_warnings === false) driftWarnings = false;
+    if (rc.hot_view === false) hotView = false;
   } catch {
     /* keep defaults */
   }
@@ -351,6 +355,17 @@ ${driftFiles.map((f) => `  ${f}`).join('\n')}
       }
     }
   }
+}
+
+// Hot view: live entries of lifecycle collections that declare hot_cap, rendered by
+// `codescout hot-view`. Not on resume (the transcript already holds the last view).
+// Fails open; the module never throws. The binary comes from resolveCodescoutBinary, not
+// d.CS_BINARY: CS_BINARY is the MCP *launch command*, which may be `bash`, `uvx` or `docker`
+// (review I-1). Spec:
+// docs/superpowers/specs/2026-11-15-session-start-hot-view-design.md
+if (hotView && source !== 'resume') {
+  const hvRoot = git(cwd, ['rev-parse', '--show-toplevel']);
+  if (hvRoot) msg += hotViewBlock({ root: hvRoot, binary: resolveCodescoutBinary(cwd) || '' });
 }
 
 // Connectivity note.

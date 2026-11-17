@@ -14,6 +14,24 @@ import sys
 import time
 
 
+# Runtime floor (issue #18). Python 3.12 is the oldest interpreter the whole background-wake suite
+# is measured on (3.12.12, 2026-11-17); 3.13 is what the engine was first built on and CI still
+# runs it. tests/test-wake-runtime-floor.sh pins this number against run-all.sh, the docs and CI.
+MIN_PYTHON = (3, 12)
+
+
+def runtime_supported(version_info=None):
+    """True when the interpreter meets MIN_PYTHON. (major, minor) are compared as numbers, so 3.9 < 3.12."""
+    version_info = sys.version_info if version_info is None else version_info
+    return tuple(version_info[:2]) >= MIN_PYTHON
+
+
+def check_runtime(version_info=None):
+    """Raise RuntimeError, naming the floor, when the interpreter is below it."""
+    if not runtime_supported(version_info):
+        raise RuntimeError(f'Python {MIN_PYTHON[0]}.{MIN_PYTHON[1]} or newer is required')
+
+
 def windows_private(path):
     """Apply a complete protected DACL, not a grant layered over unknown ACEs."""
     from ctypes import wintypes
@@ -310,8 +328,7 @@ def main():
     parser.add_argument('--state-dir', required=True)
     args = parser.parse_args()
     try:
-        if sys.version_info < (3, 13):
-            raise RuntimeError('Python 3.13 or newer is required')
+        check_runtime()
         command = json.loads(sys.stdin.read(2 * 1024 * 1024))
         print(json.dumps(transact(private_root(Path(args.state_dir)), command), ensure_ascii=False))
     except Exception as error:

@@ -92,6 +92,28 @@ check "native-tool-Bash" "" \
 check "bare-tool-name" "" \
     "$(run "$(jq -n '{tool_name:"grep", session_id:"s", agent_id:"a", tool_input:{}}')")"
 
+# --- Auto mode: no rewrite at all ---
+# Under auto mode, Claude Code 2.1.326 can review a call server-side as the model
+# wrote it; a hook's updatedInput then voids that review (`server_input_rewritten`)
+# and, on accounts without the local fallback, the call is refused -- every time,
+# since the hook re-stamps each retry. A subagent was left with no shell
+# (Bash routed to run_command, run_command refused). So: stamp nothing in auto mode.
+# Measured 2026-11-17: a subagent's PreToolUse payload carries permission_mode "auto".
+AUTO=$(jq -n '{
+  tool_name: "mcp__codescout__run_command",
+  session_id: "sess-1",
+  agent_id: "agent-a",
+  permission_mode: "auto",
+  tool_input: {command: "echo ok", effect: "read"}
+}')
+check "auto-mode-silent" "" "$(run "$AUTO")"
+# The skip is keyed on "auto" alone: every other mode keeps the stamp.
+for m in default acceptEdits plan bypassPermissions dontAsk; do
+    payload=$(jq -n --arg m "$m" '{tool_name:"mcp__codescout__grep", session_id:"s", agent_id:"a", permission_mode:$m, tool_input:{}}')
+    check "mode-$m-stamped" "s/a" \
+        "$(run "$payload" | jq -r '.hookSpecificOutput.updatedInput["dev.codescout.mcp/agentId"] // "none"')"
+done
+
 # --- Fail-open: never block a call over our own stamping ---
 check "empty-stdin" "" "$(run '')"
 check "malformed-json" "" "$(run 'not json at all')"

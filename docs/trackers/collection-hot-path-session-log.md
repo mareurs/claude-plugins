@@ -1,0 +1,397 @@
+---
+title: Session Log — collection hot path (hot-view hook, Plan L-E)
+tags:
+- session-log
+topic: collection-hot-path
+entry_prefix:
+- F
+- W
+entry_high_water_F: 6
+entry_high_water_W: 1
+---
+# Session Log — collection hot path (hot-view hook, Plan L-E)
+
+> **Work stream:** the session-start hook in `codescout-companion` that calls `codescout hot-view`, and Plan L-E (migration of existing trackers into lifecycle collections). Started 2026-11-15. The template text below is kept as reference.
+
+> **Purpose:** Two-sided observation log for a multi-session work stream.
+> Captures frictions (F-N) and wins (W-N) that the session producing it
+> wants to preserve so future sessions inherit the lesson.
+>
+> **How to use:** Copy this file to `docs/trackers/<topic>-session-log.md`
+> in the active project on first reconnaissance pass. Append F-N / W-N
+> entries with:
+>
+> ```
+> doc(action="append_entry", id="<artifact id>", id_prefix="F",
+>          anchor_heading="## Template for new entries",
+>          title="<one-line title>", body="**Observed:** ...",
+>          index_row="| {id} | <date> | <sev> | <cat> | open | **<title>** — … |",
+>          index_after_line="<the table line your row goes AFTER>")
+> ```
+>
+> One call, one write — **and the index row belongs in that same call.**
+> The server allocates the next id, formats the heading as `## F-N —
+> <title>` (the only shape `link_scan` accepts as a definition), records
+> the ledger's high-water mark, stamps `**Valid:** dated <today>` unless
+> your body declares a class, and writes `index_row` with `{id}` replaced
+> by the id it just allocated. The indexes are the eval surface, the
+> sections are the evidence.
+>
+> **A row needs an anchor from SOMEWHERE, and there are two sources.**
+> Best, once per ledger: declare `snapshot_anchor` in this file's own
+> frontmatter, naming the index table's header line verbatim —
+> `doc(action="update", id=…, patch={"extra": {"snapshot_anchor": "| ID |
+> Date | … |"}})`. After that, `index_row` **alone** places every row at
+> the block's **TAIL**, which is where a newest-last ledger wants it, and
+> nobody chooses an anchor again. Otherwise pass `index_after_line` per
+> call; it WINS when both are given. They are **not** symmetric —
+> `index_after_line` with no `index_row` is refused, and passing neither
+> anchor with a row is refused by name.
+>
+> **Choosing that per-call anchor fails silently in both directions, which
+> is the reason to prefer the declaration above.** It inserts after the
+> **first** line equal to what you pass: a non-unique line writes your row into the wrong
+> table, and a line that does not exist writes nothing at all and
+> allocates no id. Neither raises an error. **Prefer the target table's
+> last existing row** — unique by construction, because ids are — over
+> the `|---|---|` separator, which anchors to the table's **top** and is
+> repeated 9 times in one live ledger. Top is right for a newest-first
+> ledger like `bug-fix-session-log.md` and wrong for the oldest-first
+> ones; the corpus does not agree, so your ledger decides. A declared
+> `snapshot_anchor` sidesteps this whole paragraph.
+>
+> **Do not hand-allocate ids, and do not pre-write index rows.** A max-id
+> is a fact about an instant, and a peer session in the same checkout can
+> take the number between your scan and your write. Pre-written rows are
+> worse: the allocator counts an id claimed by an index row, so rows
+> written ahead of their sections consume the ids they name — which is why
+> codescout's `statement-validity-session-log` starts at `statement-validity-session-log:F-2`/`statement-validity-session-log:W-3`
+> rather than `statement-validity-session-log:F-1`/`statement-validity-session-log:W-1` (see `statement-validity-session-log:F-3` there).
+>
+> **`index_row` is not a pre-written row, and that warning does not reach
+> it.** The server substitutes `{id}` after allocating, in the same write
+> as the section, so no instant exists at which the row names an id the
+> section does not. The warning is about a row you type yourself ahead of
+> the append — that one still consumes the id it names.
+>
+> **A copy of this file is a ledger from its first moment.** The frontmatter
+> above declares `entry_prefix: [F, W]`, which is why the recipe at the top
+> is accepted on a fresh copy with nothing to declare first — and, because
+> a declared file is a ledger, the librarian guard refuses direct edits to
+> it from the start (`edit_file` says so by name). Retitle it and edit its
+> prose and index tables with `doc(action="update", id=<the copy's artifact
+> id>, patch={body_edits: [...]})` once the copy is catalogued; add entries
+> only with `append_entry`, never by hand.
+>
+> **Lifecycle:**
+> - Created at the start of a multi-session work stream.
+> - Appended-to across every session that touches the work.
+> - Entries with `Status: open` carry forward across sessions.
+> - Promotion to permanent surfaces (`docs/conventions/`, ADRs, formal bug
+>   trackers) happens when the entry's `Promote-when` / `Fix idea`
+>   criteria fire.
+> - File archived (moved to `docs/trackers/archive/`) when the work
+>   stream wraps.
+
+---
+
+## Index
+
+| ID | Date | Severity | Category | Status | Title |
+|----|------|---------:|----------|--------|-------|
+| F-1 | 2026-11-15 | med | substrate | open | **The installed codescout 0.15.0 has no `hot-view`** — the hook will be dormant until a release |
+| F-2 | 2026-11-15 | high | coupling | open | **No collection exists yet, and L-E must write `hot_cap`** — else the hook shows nothing after the migration too |
+| F-3 | 2026-11-15 | med | plan-drift | mitigated | **My discovery glob covered `ledgers/` only** — collections also live in `streams/` and `temp/` |
+| F-4 | 2026-11-15 | low | contract-gap | mitigated | **The contract does not say what to do with a view of 0 hot entries** — inject, drop, or summarise |
+| F-5 | 2026-11-15 | high | plan-drift | fixed-verified | **`CS_BINARY` is the MCP launch command, not the binary** — the hook ran `bash hot-view …`; now uses `resolveCodescoutBinary` |
+| F-6 | 2026-11-15 | med | contract-gap | open | **A "quiet" view can hide a problems line** — fixed in the hook; Plan L-E must check new collections load clean |
+
+## Wins Index
+
+| ID | Date | Impact | Pattern | Counterfactual | Status |
+|----|------|-------:|---------|----------------|--------|
+| W-1 | 2026-11-15 | med | measure process cost before choosing sync vs background | a background spawn plus a cache file, and a view one session late | validated |
+
+---
+
+## Promotion status
+
+**Audited:** <YYYY-MM-DD>, against the target surface itself — opened and read,
+not recalled.
+
+One line per `W-N` (and any `F-N` with a `Fix idea` bound for a permanent
+surface). Check the **target**, not the entry: a `Promote-when` that fired is
+invisible from inside the tracker, because `Status: validated` reads as healthy
+either way. Record one of:
+
+- **already promoted, no action** — quote the promoted text verbatim and name
+  where it landed, so the next reader verifies instead of re-deriving.
+- **UNFIRED, carried forward** — restate the criterion and the current datapoint
+  count.
+- **FIRED but not yet applied** — the one that leaks. Name the exact target
+  surface and the exact text to add. This is an action item, not a note; set the
+  entry's `Status:` to `promotion-due` so a query can find it.
+
+> ⚠️ **Name every instance of the target, not the target's type.** This machine
+> runs three Claude Code profiles (`~/.claude`, `~/.claude-sdd`,
+> `~/.claude-kat`), each with its own `CLAUDE.md`. An audit that concluded
+> *"not found in the user's global CLAUDE.md"* — singular — led to a promotion
+> that reached one file of three on 2026-08-18. The session that found the gap
+> was running on a profile **without** the rule, and applied it only because
+> another profile's copy happened to be injected as project instructions. Three
+> files that should be byte-identical have an md5; compare them.
+
+> ⚠️ **For an INSTALLED artifact the target is the SERVING copy — not the repo
+> source, and not the other copies.** Measured 2026-08-20: three rules promoted
+> into a plugin skill were byte-identical across all three profile caches *and*
+> stale against source, because the commit never bumped the version the cache is
+> keyed on. Comparing the copies to each other reads **green** there — only
+> comparing each copy to the claim catches it. And the session that made the edit
+> is the **least representative observer**: its own reload resolved the skill from
+> the repo source, so the confirming evidence sitting in front of it was evidence
+> about the wrong artifact.
+
+> ⚠️ **Anchor on a back-citation, not a verbatim quote.** A quote goes red when the
+> promoted rule is legitimately reworded — a false positive produced by the
+> promotion working as intended, observed 2026-08-20 when `codescout:R-89`'s bullet was
+> rewritten and the tracker's stored quote had to be edited to match. The durable
+> form is the promoted text citing its own entry id —
+> *"(codescout:R-1 + codescout:R-7 in codescout's `docs/trackers/reconnaissance-patterns.md`.)"* — so
+> verification is a `grep` for the id and survives every rewording. Keep the quote
+> as a reading aid; do not make it the predicate.
+
+Run this when the work stream wraps, **and** whenever a criterion fires
+mid-stream — an audit that only happens at archive time is one that happens
+after the lesson was needed. Prior art:
+`eduplanner-ui:docs/trackers/archive/calendar-insight-panel-session-log-2026-08-18.md`, whose
+audit correctly caught its own `calendar-insight-panel-session-log-2026-08-18:W-4` as fired-and-unapplied and named the exact
+text to promote.
+
+## Category conventions
+
+Use a short kebab-case category to group similar frictions. Prior
+sessions have used:
+
+| Category | When to use |
+|---|---|
+| `codescout-tool` | Friction in a codescout MCP tool (`grep`, `read_file`, `edit_markdown`, etc.) |
+| `subagent` | Subagent produced unexpected output or diverged from instructions |
+| `plan-prose` | Plan document had drift vs reality (wrong file paths, fictional code, mismatched counts) |
+| `architectural` | Discovered structural property of the system that the plan / docs didn't surface |
+| `self-friction` | Predicted a friction that turned out to be a false alarm — recorded for transparency |
+| `<language>-<library>` | Language- / library-specific footgun (`rust-serde`, `python-typing`) |
+| `release-pipeline` | Deployment-time gap (release binary missing, MCP reload needed, etc.) |
+
+Add a new category by writing it as a kebab-case string; no central registry needed.
+
+---
+
+## F-N entry template
+
+Pass this block as `append_entry`'s `body` (without the `## F-N — <title>`
+line — the server writes the heading from `title`). Put the matching Index
+row in the same call, as `index_row` (see *How to use* above); writing it
+afterwards is the second write that call exists to remove. Do not allocate the id
+yourself.
+
+```markdown
+## F-N — <one-line title>
+
+**Observed:** <date, session task>
+
+**When:** <what you were trying to do>
+
+**Expected:** <what plan / docs / prior session said>
+
+**Got:** <actual observed reality>
+
+**Probable cause:** <one sentence>
+
+**Workaround:** <what you did to proceed>
+
+**Severity:** low | med | high
+
+**Status:** open | wontfix-false-alarm | fixed-verified | mitigated | promoted-to-bug-tracker | pinned-as-eval-baseline
+
+**Valid:** invariant | dated YYYY-MM-DD | conditional — <the event that ends it>
+
+**Rests on:** <one durable sentence — an ADR, a decision, or the principle this
+instantiates>
+
+**Fix idea / Pointer:** <issue # in formal tracker, plan task ID, or "TBD">
+
+---
+```
+
+## W-N entry template
+
+Pass this block as `append_entry`'s `body`, with `id_prefix="W"` — F-N and
+W-N have separate counters. A win without a **Counterfactual** is marketing
+— name what would have happened without the pattern, with at least one
+piece of evidence.
+
+```markdown
+## W-N — <one-line title>
+
+**Observed:** <date, session task>
+
+**Pattern:** <the practice that worked>
+
+**Counterfactual:** <what would have happened without the pattern, with evidence>
+
+**Confirming data points:** <list of session moments validating the pattern; aim for ≥2>
+
+**Impact:** low | med | high
+
+**Promote-when:** <criterion for graduating into permanent docs (`docs/conventions/<topic>.md`, ADR, etc.)>
+
+**Promoted-to:** <surface + section, one per line, line-start — omit until it lands>
+
+**Status:** validated | promotion-due | promoted-to-permanent-docs | archived
+
+**Valid:** invariant | dated YYYY-MM-DD | conditional — <the event that ends it>
+
+**Rests on:** <one durable sentence — an ADR, a decision, or the principle this
+instantiates>
+
+---
+```
+
+---
+
+## Status vocabulary
+
+Codified so the Index column means the same thing across sessions.
+
+### Friction statuses
+
+| Status | Meaning |
+|---|---|
+| `open` | Observed, not yet resolved. Default for new entries. |
+| `wontfix-false-alarm` | Initial observation was wrong; documented for transparency rather than deleted. |
+| `mitigated` | Workaround in place; root cause not fully resolved. |
+| `fixed-verified` | Code / process fix landed AND empirically confirmed. (`fixed` alone is too weak — verification is part of the status.) |
+| `promoted-to-bug-tracker` | Moved to a formal tracker (`docs/issues/*`, `docs/TODO-*`, GitHub issue). The session log keeps the pointer; the formal tracker owns the lifecycle. |
+| `pinned-as-eval-baseline` | Kept verbatim as a reference point for measuring later improvements. Do NOT close — its job is to remain comparable. |
+
+### Win statuses
+
+| Status | Meaning |
+|---|---|
+| `validated` | Pattern confirmed by ≥1 counterfactual data point. Default for entries with evidence. |
+| `promotion-due` | `Promote-when` has **fired** and the text is not yet on the target surface. An action item, not a resting state. Exists because `validated` cannot distinguish "criterion not yet met" from "criterion met, nobody harvested it" — and both read as healthy, which is how a lesson sits unpromoted while the failure it describes recurs. |
+| `promoted-to-permanent-docs` | Moved into a `docs/conventions/` page, an ADR, a skill, or another permanent surface (a `CLAUDE.md` line only when it passes that file's residency test). Session log keeps the pointer — and, for a multi-instance target, names every instance it landed in. |
+| `archived` | Pattern no longer load-bearing — either the underlying system changed or the discipline became automatic. |
+
+---
+
+## F-1 — The installed codescout 0.15.0 has no `hot-view`, so the hook is dormant until a release
+
+**Valid:** conditional — until a codescout release that contains `hot-view` is installed at the path the MCP config names
+**Status:** open
+
+**Observed:** The hot-view plan (`docs/superpowers/plans/2026-11-15-collection-hot-view.md` § Contract for the hook) and the memory `collection-hot-view-state` treat a binary that lacks `hot-view` as possible version skew. On this machine today it is the actual state, not just a risk. `~/.claude-stef/.claude.json` names `/home/marius/.cargo/bin/codescout` as the server command. That binary and `codescout/target/release/codescout` both report `codescout 0.15.0`. Both exit 2 with empty stdout and `error: unrecognized subcommand 'hot-view'` on stderr (run 2026-11-15). The command exists only on `integration/identity-lifecycle-20261114` at `5d655bfef`. It is not on `experiments` and not in a release.
+
+**Cost:** A hook that is correct against the contract prints nothing on every session until a release ships. A manual check in a live session cannot tell "hook works, binary lacks the command" from "hook is broken".
+
+**Action:** Test the hook with a fake binary that covers each exit path: 0 with a view, 2 with `NOT SHOWN — `, 2 with empty stdout, and 101. Say in the hand-over that the hook stays dormant until the release.
+
+## F-2 — No collection exists yet, and Plan L-E must write `hot_cap` or the hook stays empty after migration
+
+**Valid:** conditional — until Plan L-E runs, or until someone creates a collection by hand
+**Status:** open
+
+**Observed:** No collection readme exists anywhere the hook would look. `find docs/trackers/ledgers -maxdepth 3 -name readme.md` returns nothing in `codescout` and nothing in `claude-plugins`. `git ls-tree` on `integration/identity-lifecycle-20261114` shows no readme under `docs/trackers/ledgers` (all checked 2026-11-15). So every hot view the hook could show depends on Plan L-E, which is not written.
+
+**Coupling found:** The contract tells a hook to show only collections that declare `hot_cap`. So a migration that creates readmes without `hot_cap` gives a hook that still shows nothing. The design note (§ Fit with the work in flight) already says "doing it before Plan L-E lets the migration write the key into every readme it creates". Plan L-E must decide `hot_cap` (and `stale_after`) for each collection it creates.
+
+**Cost:** If the plans are written separately, the hook ships, L-E ships, and the hook still shows nothing. No test fails, because both halves are correct alone.
+
+**Action:** Plan L-E carries an explicit step: choose `hot_cap` and `stale_after` for each migrated collection, or record why a collection has none.
+
+## F-3 — My first hook proposal searched only `ledgers/`, but collections also live in `streams/` and `temp/`
+
+**Valid:** dated 2026-11-15
+**Status:** mitigated
+
+**Observed:** My first design message for the hook proposed to find collections with `docs/trackers/ledgers/*/readme.md`. That covers one lifecycle folder of three. `load_collection` (`src/librarian/lifecycle/collection.rs`, integration branch) looks for a readme in `ledgers`, `streams` and `temp` under `docs/trackers/`, and does not look in `archive/`. Its `NotFound` text says so: "no collection {0:?} has a readme in docs/trackers/ledgers, streams or temp". A key that sits in two lifecycle folders gives `Ambiguous`, which the command turns into exit 2.
+
+**Cost:** A hook built from the first proposal would silently skip every stream and temp collection. Its silence would look like "no hot entries".
+
+**Mitigation:** The design names all three folders, `docs/trackers/{ledgers,streams,temp}/<key>/readme.md`, and skips `archive/`. A hook test puts one collection in each folder.
+
+**Rests on:** `load_collection` and `CollectionLoadError::NotFound` on `integration/identity-lifecycle-20261114` at `5d655bfef`.
+
+## F-4 — The hook contract does not say what to do with an exit-0 view that has 0 hot entries
+
+**Valid:** dated 2026-11-15
+**Status:** open
+
+**Observed:** `codescout hot-view` exits 0 for a collection with no hot entries. It prints a header such as `hot view: l (docs/trackers/ledgers/l): 0 of 0 hot, 0 live. Scope: …` (test `an_empty_collection_prints_zero_hot_and_exits_0` in `src/cli/hot_view.rs`, integration branch). The contract covers only "shown" and "not shown". It does not say whether a hook should inject a view that lists nothing.
+
+**Cost:** If the hook injects every exit-0 view, each session start carries one header line per quiet collection. That is context cost with no signal. If the hook drops them, the agent cannot tell "quiet" from "not checked". ADR `2026-08-27-negative-results-name-their-scope` rules against an unscoped zero.
+
+**Action:** The hook design must decide this. My proposal: drop a view whose header says `0 of`, but add one summary line that names the collections checked and says none had hot entries.
+
+## W-1 — Measuring the binary's start-up cost (15 ms) removed the case for a background spawn and a cache
+
+**Valid:** dated 2026-11-15
+**Status:** validated
+
+**Pattern:** Before choosing between one synchronous process per collection and a batched or background design, measure what one process costs.
+
+**Observed:** `codescout key-gate --help` and `codescout hot-view x` (the old binary's clap error path) each took 15 ms wall time on this machine (`date +%s%N` around the call, 2026-11-15). That is process start plus argument parsing only. It does not include the folder read that a real `hot-view` does. That read covers one collection folder (`load_collection`, never `load_docs`).
+
+**Counterfactual:** Without the number, the design would likely add a background spawn and a cache file, as the auto-reindex path does, to keep session start fast. That means a second state file, staleness rules for it, and a view that is one session late. With 15 ms per call, a synchronous `spawnSync` with a timeout is enough for a few collections.
+
+**Still to check:** the time of a real `hot-view` on a large collection. That needs a binary built from the integration branch.
+
+## F-5 — `CS_BINARY` is the MCP launch command, so the hook could run `bash hot-view …`
+
+**Valid:** dated 2026-11-15
+**Status:** fixed-verified
+
+**Observed:** The spec said to run `<CS_BINARY> hot-view …`. `CS_BINARY` comes from `detect.mjs`, which names a server when its `command` OR its `args` match `/codescout/` and returns only `command`. For `{"command":"bash","args":["-c","exec codescout start"]}` the hook ran `bash hot-view busy --project <root>`. The Opus whole-branch review measured it: bash executed a file named `hot-view` from the hook's cwd. With `uvx` or `npx` as the command, the call would fetch and run a package named `hot-view` (inferred from documented npm behaviour, not run).
+
+**Cost:** The hook ran the MCP launch command with arguments it was never meant to get. A bare `"command":"codescout"` also failed when the hook's PATH lacked `~/.cargo/bin`.
+
+**Fix:** `session-start.mjs` passes `resolveCodescoutBinary(cwd)`, as three sibling hooks already do (`constitution-guard.mjs`, `constitution-brief.mjs`, `goal-stop-hook.mjs`). Hook test "a wrapper launch command (bash -c exec codescout) still reaches the real codescout" went RED to GREEN.
+
+**Lesson:** A name that holds a launch command is not a binary path. Check what a field is before you hand it to `spawn`.
+
+**Rests on:** `codescout-companion/hooks/lib.mjs` `resolveCodescoutBinary`, and the spec § Design step 2, which named `<CS_BINARY>`.
+
+## F-6 — A quiet view can carry a problems line, so "quiet" must mean the header alone
+
+**Valid:** dated 2026-11-15
+**Status:** open
+
+**Observed:** F-4 asked what to do with a view of 0 hot entries. My answer (a "quiet" line) was wrong in one case. The real `render_markdown` prints the header, then entry lines, then `(N more hot entries hidden …)`, then `(N live entries cannot be judged …)`. The CLI adds `(N problems found while reading this folder; an entry file with a problem is not listed. Run the doctor for detail.)`. A collection whose entries all fail to parse has `0 of 0 hot` in the header AND a problems line. The first hook version kept only the header, so such a collection read as `quiet (0 hot)`. That is a bare zero, which the spec's Anti-goals and ADR `2026-08-27-negative-results-name-their-scope` forbid.
+
+**Fix in the hook:** a view is quiet only when it is the header line alone. Any other text is shown verbatim. Test `quiet_view_with_problems_is_shown_verbatim` went RED to GREEN.
+
+**Still open, for Plan L-E:** the contract itself does not say that `0 of 0 hot` with a problems line is a signal. A migration that writes many collections will meet unparseable entries. Plan L-E should decide whether the migration verifies that each new collection loads with zero problems, and say what the agent sees when it does not.
+
+**Rests on:** `src/cli/hot_view.rs` and `src/librarian/lifecycle/hot_view.rs::render_markdown` on `integration/identity-lifecycle-20261114` (read by the reviewer; the binary itself could not be run, see F-1).
+
+## Template for new entries
+
+<!-- New F-N / W-N entries land above this line. This heading is the anchor:
+
+     doc(action="append_entry", id="<artifact id>", id_prefix="F",
+              anchor_heading="## Template for new entries",
+              title="<one-line title>", body="**Observed:** ...",
+              index_row="| {id} | <date> | <sev> | <cat> | open | **<t>** — … |",
+              index_after_line="<the table line your row goes AFTER>")
+
+     The server allocates the id, writes `## F-N — <title>` at the ledger's
+     own level, records the high-water mark, stamps `**Valid:** dated
+     <today>` AND writes the index row with `{id}` filled in — one write.
+     A row needs an anchor from SOMEWHERE: `index_after_line` per call, or
+     a `snapshot_anchor` declared once in this file's frontmatter, after
+     which `index_row` alone lands the row at the block's TAIL. Passing
+     `index_after_line` with no `index_row` is refused; they are not
+     symmetric. A per-call anchor must be UNIQUE (first match wins,
+     silently) and decides top vs bottom — prefer the last existing row.
+     Do not hand-allocate ids; do not type the row yourself ahead of the
+     call. -->

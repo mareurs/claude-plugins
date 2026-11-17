@@ -464,6 +464,137 @@ else
   pass "skills block: N/A (the Claude argv is read from /proc)"
 fi
 
+# --- hot view: collections that declare hot_cap (docs/superpowers/specs/2026-11-15-session-start-hot-view-design.md) ---
+HV_REPO="$TMP/hv-repo"; HV_CFG="$TMP/hv-cfg"; HV_LOG="$TMP/hv-calls.log"
+mkdir -p "$HV_REPO/docs/trackers/ledgers/busy" "$HV_CFG"
+git -C "$HV_REPO" init -q
+printf -- '---\ntitle: T\nhot_cap: 5\n---\n# body\n' > "$HV_REPO/docs/trackers/ledgers/busy/readme.md"
+HV_FAKE="$TMP/hv-fake-codescout"
+cat > "$HV_FAKE" <<EOF
+#!/usr/bin/env bash
+echo "\$*" >> "$HV_LOG"
+# The call shape is part of the contract: hot-view <key> --project <root>.
+if [ "\$1" != "hot-view" ] || [ "\$3" != "--project" ] || [ "\$#" -ne 4 ]; then exit 101; fi
+printf 'hot view: busy (docs/trackers/ledgers/busy): 1 of 1 hot, 1 live. Scope: x.\n- [[e1]] t: open since 2026-11-01\n'
+EOF
+chmod +x "$HV_FAKE"
+hv_profile() { printf '{"mcpServers":{"codescout":{"command":"%s"}}}' "$1" > "$HV_CFG/.claude.json"; }
+# $PATH minus every directory that holds a `codescout`: the fixture must not see a host binary.
+hv_clean_path() {
+  local d out="" IFS=:
+  for d in $PATH; do
+    [ -n "$d" ] && [ ! -x "$d/codescout" ] && out="${out:+$out:}$d"
+  done
+  printf '%s' "$out"
+}
+hv_ctx() {  # <source>
+  printf '{"cwd":"%s","source":"%s","session_id":"hv-%s"}' "$HV_REPO" "$1" "$1" \
+    | PATH="$(hv_clean_path)" HOME="${HV_HOME:-$HOME}" CLAUDE_CONFIG_DIR="$HV_CFG" XDG_STATE_HOME="$TMP/state" node "$HOOK" 2>/dev/null \
+    | jq -r '.hookSpecificOutput.additionalContext // ""'
+}
+hv_profile "$HV_FAKE"
+
+# Host independence (issue #18, item 2). resolveCodescoutBinary searches PATH BEFORE the command
+# in the profile's mcpServers config, so a real `codescout` on the host PATH (typically in
+# ~/.cargo/bin) is called instead of the fake, and the block degrades to "not shown: busy
+# (hot-view unavailable)". hv_ctx must hide every host codescout. The decoy stands in for one:
+# it records the call and answers like a binary that does not know `hot-view`.
+HV_DECOY_BIN="$TMP/hv-decoy-bin"; HV_DECOY_LOG="$TMP/hv-decoy.log"; mkdir -p "$HV_DECOY_BIN"
+printf '#!/usr/bin/env bash\necho "$*" >> "%s"\nexit 2\n' "$HV_DECOY_LOG" > "$HV_DECOY_BIN/codescout"
+chmod +x "$HV_DECOY_BIN/codescout"
+: > "$HV_DECOY_LOG"; : > "$HV_LOG"
+HV_DECOYED=$(PATH="$HV_DECOY_BIN:$PATH" hv_ctx startup)
+if echo "$HV_DECOYED" | grep -q -F -- "- [[e1]] t: open since 2026-11-01" \
+   && [ ! -s "$HV_DECOY_LOG" ] && [ -s "$HV_LOG" ]; then
+  pass "hot view: a codescout on the host PATH is hidden from the fixture; the fake answers"
+else
+  fail "hot view: a host codescout on PATH was called instead of the fake (decoy log: $(tr '\n' ';' < "$HV_DECOY_LOG"))"
+fi
+
+# The MCP launch command is not necessarily the codescout binary (review I-1): with
+# {"command":"bash","args":["-c","exec codescout start"]} the hook must still call the real
+# `codescout` it finds on PATH, never `bash hot-view ...`.
+HV_BIN="$TMP/hv-bin"; mkdir -p "$HV_BIN"
+cp "$HV_FAKE" "$HV_BIN/codescout"
+printf '{"mcpServers":{"codescout":{"command":"bash","args":["-c","exec codescout start"]}}}' > "$HV_CFG/.claude.json"
+: > "$HV_LOG"
+HV_WRAP=$(printf '{"cwd":"%s","source":"startup","session_id":"hv-wrap"}' "$HV_REPO" \
+  | PATH="$HV_BIN:$PATH" CLAUDE_CONFIG_DIR="$HV_CFG" XDG_STATE_HOME="$TMP/state" node "$HOOK" 2>/dev/null \
+  | jq -r '.hookSpecificOutput.additionalContext // ""')
+if echo "$HV_WRAP" | grep -q -F -- "- [[e1]] t: open since 2026-11-01" \
+   && [ "$(cat "$HV_LOG")" = "hot-view busy --project $HV_REPO" ]; then
+  pass "hot view: a wrapper launch command (bash -c exec codescout) still reaches the real codescout"
+else
+  fail "hot view: wrapper launch command broke the call (log: $(tr '\n' ';' < "$HV_LOG"))"
+fi
+hv_profile "$HV_FAKE"
+
+HV_START=$(hv_ctx startup)
+echo "$HV_START" | grep -q "HOT VIEW (codescout hot-view;" \
+  && echo "$HV_START" | grep -q -F -- "- [[e1]] t: open since 2026-11-01" \
+  && pass "hot view: startup injects the view of a collection that declares hot_cap" \
+  || fail "hot view: startup context lacks the HOT VIEW block"
+HV_POS_VIEW=$(echo "$HV_START" | grep -n "HOT VIEW (codescout hot-view;" | head -1 | cut -d: -f1)
+HV_POS_CONN=$(echo "$HV_START" | grep -n "codescout: Detected in config" | head -1 | cut -d: -f1)
+{ [ -n "$HV_POS_VIEW" ] && [ -n "$HV_POS_CONN" ] && [ "$HV_POS_VIEW" -lt "$HV_POS_CONN" ]; } \
+  && pass "hot view: the block comes before the connectivity note" \
+  || fail "hot view: block is not before the connectivity note ($HV_POS_VIEW vs $HV_POS_CONN)"
+# The entry line, not the string `HOT VIEW`: the header carries that string even when the
+# collection is "not shown", so a header-only grep passes while the fake is never called.
+for s in compact clear; do
+  hv_ctx "$s" | grep -q -F -- "- [[e1]] t: open since 2026-11-01" \
+    && pass "hot view: source=$s injects it" \
+    || fail "hot view: source=$s lacks it"
+done
+if hv_ctx resume | grep -q "HOT VIEW"; then
+  fail "hot view: source=resume must not inject it"
+else
+  # Non-vacuity: the resume run must still emit the rest of the message.
+  hv_ctx resume | grep -q "CODESCOUT RULES" \
+    && pass "hot view: source=resume omits it" \
+    || fail "hot view: resume fixture precondition — the hook emitted nothing"
+fi
+
+# Opt-out: hot_view:false in the routing config, and the binary is never called.
+mkdir -p "$HV_REPO/.claude"
+printf '{"hot_view": false}' > "$HV_REPO/.claude/codescout-routing.json"
+: > "$HV_LOG"
+HV_OFF=$(hv_ctx startup)
+if echo "$HV_OFF" | grep -q "HOT VIEW"; then
+  fail "hot view: hot_view:false still injected the block"
+elif [ -s "$HV_LOG" ]; then
+  fail "hot view: hot_view:false still called the binary"
+else
+  echo "$HV_OFF" | grep -q "CODESCOUT RULES" \
+    && pass "hot view: hot_view:false injects nothing and never calls the binary" \
+    || fail "hot view: opt-out fixture precondition — the hook emitted nothing"
+fi
+rm -f "$HV_REPO/.claude/codescout-routing.json"
+
+# Missing binary: the rest of the message is unchanged, the collection is listed as not shown.
+# resolveCodescoutBinary also tries ~/.cargo/bin/codescout, which exists on a developer machine
+# and would turn "missing" into a real binary — so this call runs with an empty HOME.
+hv_profile "$TMP/missing-codescout"
+mkdir -p "$TMP/hv-empty-home"
+HV_MISSING=$(HV_HOME="$TMP/hv-empty-home" hv_ctx startup)
+echo "$HV_MISSING" | grep -q "not shown: busy (hot-view unavailable)" \
+  && echo "$HV_MISSING" | grep -q "codescout: Detected in config" \
+  && echo "$HV_MISSING" | grep -q "CODESCOUT RULES" \
+  && pass "hot view: a missing binary lists the collection as not shown and keeps the rest" \
+  || fail "hot view: missing-binary output wrong"
+hv_profile "$HV_FAKE"
+
+# No hot_cap anywhere: no block at all.
+printf -- '---\ntitle: T\n---\n# body\n' > "$HV_REPO/docs/trackers/ledgers/busy/readme.md"
+HV_NONE=$(hv_ctx startup)
+if echo "$HV_NONE" | grep -q "HOT VIEW"; then
+  fail "hot view: a repo with no hot_cap got a block"
+else
+  echo "$HV_NONE" | grep -q "CODESCOUT RULES" \
+    && pass "hot view: no hot_cap anywhere adds nothing" \
+    || fail "hot view: no-hot_cap fixture precondition — the hook emitted nothing"
+fi
+
 echo
 echo "Total: $((PASS+FAIL))  Pass: $PASS  Fail: $FAIL"
 [ "$FAIL" -eq 0 ]

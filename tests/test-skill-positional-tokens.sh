@@ -12,7 +12,7 @@
 # It shipped TWICE, in two different plugins, and neither instance announced
 # itself:
 #
-#   codescout-companion/skills/reaching-peer-sessions -- the self-identification
+#   a peer-session skill (retired 2026-11-17, see git history) -- the self-identification
 #   walk read `awk '/^PPid:/{print <dollar>2}'`. Two sessions minutes apart
 #   executed `{print garaj-96}` and `{print terrace}`, each the third word of
 #   its own args. A rewritten walk finds no socket, marks no `<-- you` row, and

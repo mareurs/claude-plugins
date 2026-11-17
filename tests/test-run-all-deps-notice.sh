@@ -16,6 +16,8 @@
 set -uo pipefail
 
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+# shellcheck source=lib/runtime-shims.sh
+. "$REPO/tests/lib/runtime-shims.sh"
 PASS=0
 FAIL=0
 ok()   { echo "  PASS: $1"; PASS=$((PASS + 1)); }
@@ -35,7 +37,12 @@ make_tree() {
 }
 
 # Clean env: the runner must not read the caller's CLAUDE_CONFIG_DIR or similar state.
-run_runner() { env -u CLAUDE_CONFIG_DIR bash "$1/tests/run-all.sh" 2>&1; }
+# Runtimes are pinned to the wake floor (issue #18, item 1): on a host below it the runner skips
+# the wake suites, and these cases need them to RUN. The pinned shims make the result independent
+# of the host's own Node and Python. The floor itself is used on purpose, so this test also
+# covers "the wake suites run on exactly Node 22 / Python 3.12".
+make_runtime_shims "$TMP/shims" 22.0.0 3.12.0
+run_runner() { env -u CLAUDE_CONFIG_DIR PATH="$TMP/shims:$PATH" bash "$1/tests/run-all.sh" 2>&1; }
 
 echo "── run-all.sh missing-dependency notice ──"
 

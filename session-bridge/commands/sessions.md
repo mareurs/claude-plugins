@@ -1,7 +1,7 @@
 ---
-description: List active Claude Code sessions registered by session-bridge.
+description: List live Claude Code sessions and loaded Codex threads through session-bridge.
 ---
 
-Call the `session-bridge.list_sessions` MCP tool and present the result as a compact table with columns: `instance`, `alias`, `session_id` (first 8 chars), `cwd`, `branch`, `age`.
+Call `session-bridge.list_sessions`. Present every session row in a compact table with `key`, `harness`, `status`, `name`, and `repo`; preserve `(you)`. Claude keys retain `<short profile>:<pid>`. Canonical Codex keys are `codex:<absolute CODEX_HOME>:<thread UUID>` and distinguish threads sharing a process. Preserve discovery-scope and caller-identity notes separately from the rows.
 
-If the tool returns an empty array, say so plainly: no other sessions are currently registered.
+Use `ask_session` for an isolated read-only answer. Use `send_message` when an original Codex thread should receive a direct message and potentially run tools. Preserve its queued/observed/unknown result instead of treating every accepted queue as delivery.

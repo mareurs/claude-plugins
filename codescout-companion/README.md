@@ -32,7 +32,7 @@ Start a new Claude Code session — the plugin activates automatically.
 - **Drift warnings** — Surfaces high-drift files and flags stale docs/memories
 - **Worktree guard** — Blocks codescout write tools until `workspace` is called after `EnterWorktree`
 - **Tracker hygiene** — `/codescout-companion:tracker-hygiene` runs a human-gated tracker-corpus sweep (staleness, index drift, terminal-tracker archiving); SessionStart nudges when the project's ledger says a sweep is overdue
-- **Peer sessions** — `/codescout-companion:reaching-peer-sessions` enumerates the sessions actually live on this machine, Claude Code sessions and loaded Codex threads, across accounts. `ListAgents` reads a **per-account** registry while `SendMessage` delivers over a **per-user** socket dir, so on a multi-account machine it omits peers and reports the short count as complete; the skill branches on the real account count and gives each harness's address form (the `uds:` form for Claude peers, the thread uuid for Codex threads)
+- **Peer sessions** — moved to the `session-bridge` plugin: its skill `coordinating-sessions` covers posting a notice, reading one, asking a peer and the commit backup. The peer-session skill of this plugin was retired on 2026-11-17, because `session-bridge`'s `list_sessions` already lists the live sessions of every profile, Claude Code and Codex.
 
 ## Full Installation
 
@@ -135,7 +135,7 @@ below is not thereby inactive.
 | `SessionStart` | `session-start.mjs` | Tool guide + memory hints + onboarding nudge |
 | `SubagentStart` | `subagent-guidance.mjs` | Compact guidance for all subagents |
 | `PreToolUse` (Grep/Glob/Read/Bash) | `pre-tool-guard.mjs` | Hard-block Read/Edit/Write/Grep/Glob/Bash on source files (path-agnostic), redirect to codescout. Native Bash escalation continues through host approval; binary images/PDF and skill payloads also have read exemptions. |
-| `PreToolUse` (`mcp__codescout__.*`) | `principal-stamp.mjs` | Stamp the calling principal (`session_id/agent_id`) into codescout tool arguments, so the server can tell a subagent's call from its parent's — the one thing the MCP wire cannot carry. Silent for parent calls, by design. Emits **no** `permissionDecision`. |
+| `PreToolUse` (`mcp__codescout__.*`) | `principal-stamp.mjs` | Stamp the calling principal (`session_id/agent_id`) into codescout tool arguments, so the server can tell a subagent's call from its parent's — the one thing the MCP wire cannot carry. Silent for parent calls, by design. Silent in auto mode too, because a rewritten input voids auto mode's review there and the call is refused. Emits **no** `permissionDecision`. |
 | `PostToolUse` (`mcp__codescout__.*`) | `cs-verified-relocate.mjs` | Move a server-verified `advice` out of a codescout result into `[cs-verified]` hook context. Fail-open, 5 s timeout. Released in 1.21.0; see the section below. |
 | `PostToolUse` (EnterWorktree) | `worktree-activate.mjs` | Symlink .codescout/ and inject workspace guidance |
 | `PreToolUse` (Edit/Write/edit_code/edit_file/create_file) | `constitution-guard.mjs` | Deny-once-per-epoch enforcement of path-scoped "constitution" tracker rules — shells into `codescout constitution-check --path` |
@@ -367,7 +367,9 @@ No `cd` and no workspace switch needed — `run_command` sandboxes cwd to the pr
 
 A native Bash call with `tool_input.sandbox_permissions: "require_escalated"` continues through the host's permission flow, because `run_command` cannot carry the host's sandbox approval request. The routing hook emits advisory context, never an approval decision. Ordinary calls and native source-file reads/edits retain their routing rules.
 
-The Codex shell adapter must preserve `sandbox_permissions` in its PreToolUse payload for this exception to work. Older adapters that send only `{command}` remain routed to Codescout; installing the companion change alone does not repair those hosts.
+The Codex shell adapter must preserve `sandbox_permissions` in its PreToolUse payload for this exception to work. Stock Codex does not, as far as we measured: its `exec_command` handler in upstream source of 2026-10-13 builds `tool_input` as `{"command": ...}` only, and [openai/codex#40996](https://github.com/openai/codex/issues/40996) reports a captured payload without the field. On such a host the hook cannot tell an escalation request from ordinary shell work, so it routes the call to Codescout and the native approval prompt never appears. Installing the companion alone does not repair that host. The exception works with a Codex build whose payload carries the field (this repo's `docs/issues/2026-10-09-companion-routing-blocks-codex-native-escalation.md` records the paired fix and its acceptance test).
+
+If you hit this on stock Codex, either ask the user to run the command with `!`, or opt the main agent out of the guard with `block_reads: false` in `.claude/codescout-companion.json` (a subagent stays guarded; that setting also lifts the Read, Grep and Edit routing for the main agent).
 
 ## Coupling to codescout
 
