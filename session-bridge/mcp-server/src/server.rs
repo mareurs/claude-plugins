@@ -175,7 +175,7 @@ impl Bridge {
     }
 
     #[tool(
-        description = "Send a peer message into an original loaded Codex thread, potentially starting a normal tool-using turn under its existing account/model/permissions. Does not fork, interrupt or resume dormant threads. Returns queued, observed or unknown evidence; never retries a possibly enqueued message. Direct Claude targets are unsupported."
+        description = "Send a peer message into an original loaded Codex thread or a live OpenCode session, potentially starting a normal tool-using turn under its existing account/model/permissions. Does not fork, interrupt, steer a busy turn or resume dormant threads; OpenCode messages are queued behind any running turn. Returns queued, observed or unknown evidence; never retries a possibly enqueued message. Direct Claude targets are unsupported."
     )]
     async fn send_message(
         &self,

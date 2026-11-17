@@ -19,5 +19,6 @@ pub mod codex_hook;
 pub mod codex_process;
 pub mod opencode;
 pub mod opencode_api;
+pub mod opencode_send;
 pub mod send;
 pub mod sessions;

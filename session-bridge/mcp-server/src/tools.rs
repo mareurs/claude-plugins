@@ -5,6 +5,8 @@
 use crate::ask::{ask, clamp_timeout, locate_claude};
 use crate::codex_process::{ask_codex, locate_codex};
 use crate::endpoints::Roots;
+use crate::opencode_api::{locate_opencode, CliApi};
+use crate::opencode_send::send_opencode;
 use crate::paths::short_profile;
 use crate::send::send_codex;
 use crate::server::post_notice_from;
@@ -128,14 +130,26 @@ pub async fn send_message(
     let target = resolve_session(sessions, &args.target, Some(&caller.identity()))?;
     let target = match target {
         Session::Codex(target) => target,
-        Session::OpenCode(_) => {
-            return Err(anyhow!(
-                "direct messages to OpenCode sessions are added in a later change; OpenCode sessions are listed only"
-            ))
+        Session::OpenCode(target) => {
+            let bin = locate_opencode(&|k| std::env::var(k).ok())?;
+            let timeout_s = args.timeout_s.unwrap_or(20);
+            let api = CliApi {
+                bin,
+                timeout: std::time::Duration::from_secs(10),
+            };
+            let result = send_opencode(
+                &api,
+                target,
+                &caller.identity(),
+                &args.message,
+                timeout_s,
+            )
+            .await?;
+            return Ok(serde_json::to_string_pretty(&result)?);
         }
         Session::Claude(_) => {
             return Err(anyhow!(
-                "direct messages currently support Codex targets only; use ask_session for Claude"
+                "direct messages currently support Codex and OpenCode targets only; use ask_session for Claude"
             ))
         }
     };
