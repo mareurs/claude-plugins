@@ -1,13 +1,14 @@
 ---
 id: '9b127b69a2d1b895'
 kind: bug
-status: open
+status: fixed
 title: session-bridge announcing-changes skill omits the README's conditions, the receiver side and ask_session guidance
 tags:
 - session-bridge
 - docs
 - skill
 opened: 2026-11-17
+closed: 2026-11-17
 owner: marius
 ---
 
@@ -71,16 +72,16 @@ None needed. All twelve gaps are visible by comparing the two documents.
 
 ## Fix
 
-Applied on branch `feat/session-bridge-git-hooks`, not merged yet. Status stays `open` until it is merged and released.
+Merged into `main` and released. Two parts:
 
-1. **Hooks (gap 1, and the note below the table).** `session-bridge/git-hooks/` ships `prepare-commit-msg` (writes the `Session-Id:` trailer), `pre-push` (refuses another session's commits and held commits) and `install.sh`. Settings are environment variables with defaults. Commit `43a97ba`.
-2. **Skill text (gaps 2 to 12).** `skills/announcing-changes/SKILL.md` now states: the 5-minute window and "after the gate" (2); that any notice suppresses any backup (3); that the filter reads message text only, so the title names the files (4); a receiver section, where a notice cannot give a permission (5); an `ask_session` section (6); the 600-character cut (7); the receiver's filter cost (8); the Linux-only limit and the empty `list_sessions` case (9); the main-work-tree key and the plugin-per-profile rule (10); what "settled" means (11); and `session-bridge notices` for older notices (12). Gap 1 is covered by a section on the backup's three preconditions.
+1. **Hooks (gap 1, and the note below the table).** `session-bridge/git-hooks/` ships `prepare-commit-msg` (writes the `Session-Id:` trailer), `pre-push` (refuses another session's commits and held commits) and `install.sh`. Settings are environment variables with defaults. Commit `43a97ba`, merged by `a745205`, released in 0.2.5.
+2. **Skill text (gaps 2 to 12).** First written into `skills/announcing-changes/SKILL.md` (`b1d2cbd`). Commit `496e592` then folded that skill into one `skills/coordinating-sessions/SKILL.md` with `references/commit-backup.md`, and retired `announcing-changes`, released in 0.2.4. Read against the folded text on 2026-11-17: gap 1 is `references/commit-backup.md` (the conditions); 2 and 3 the 5-minute rules there; 4 "A filter decides who sees a notice"; 5 "When a notice reaches you"; 6 "Asking a peer"; 7 the 600-character cut; 8 the receiver's filter cost under "When not to post"; 9 "When the bridge is silent"; 10 "Which sessions share a notice"; 11 "A change is settled when its gate is green" under "When not to post"; 12 `session-bridge notices --repo <dir> --after 0`.
 
-Not done: whether `post_notice` itself works without the messaging socket. The README does not say, and the skill now says to assume no notice reaches anyone when `list_sessions` is empty. A change that makes `post_notice` fail loudly is a decision for the maintainer.
+Not done, and not needed to close this bug: whether `post_notice` itself works without the messaging socket. The README does not say. The skill now says that without a registered session the calls fail and name the cause. A change that makes `post_notice` fail loudly is a decision for the maintainer.
 
 ## Tests added
 
-`tests/test-session-bridge-git-hooks.sh`: 51 assertions on the hooks, with three mutation controls. The skill text has no test that ties it to the README.
+`tests/test-session-bridge-git-hooks.sh`: 51 assertions on the hooks with three mutation controls when this was filed; 85 with six controls after `94fb03e` (the push guard's hold age and reason, prefix advice and non-branch text). `tests/test-session-bridge-skill.sh` was added on `main` with the skill fold. I did not read what it asserts, so I do not claim it ties the skill to the README.
 
 ## Workarounds
 
@@ -88,10 +89,15 @@ Read the README sections named above before relying on the skill.
 
 ## Resume
 
-2026-11-17: both parts are committed on `feat/session-bridge-git-hooks`. To close this bug: merge the branch, release session-bridge with `release.sh` (a skill edit is committed, not live, until a release), then set `status: fixed` with the fix SHA and patch-id. The second consumer of the hooks is codescout (adapter and vendored copy), planned as phase 2.
+Fixed 2026-11-17. Both parts are on `main` and live: session-bridge 0.2.4 and 0.2.5 are installed in all four profiles (checked in each `installed_plugins.json`).
+
+## Fix provenance
+
+- **SHA:** `43a97ba` (hooks) and `496e592` (skill text), both on `main`
+- **patch-id:** `5b7d63c9a019` (hooks) and `17333a7195d7` (skill text)
 
 ## References
 
 - codescout ledger entry `2026-11-17-session-bridge-text-leaves-the-receiver-the-backup-s` (`docs/trackers/ledgers/albert-feedback/`).
-- `session-bridge/README.md`, `session-bridge/skills/announcing-changes/SKILL.md`.
+- `session-bridge/README.md`, `session-bridge/skills/coordinating-sessions/SKILL.md` (this was `skills/announcing-changes/SKILL.md` until `496e592`).
 - codescout `docs/RELEASE.md` § *Concurrent-Work Rules*.
