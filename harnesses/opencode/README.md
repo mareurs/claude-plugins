@@ -129,7 +129,9 @@ tests (real hooks, throwaway git repos): `node harnesses/opencode/tests/test-sdd
 
 `session-bridge.js` is the OpenCode front end of the one Rust `session-bridge` binary that
 also serves Claude Code and Codex, so an OpenCode session reaches Claude Code sessions,
-Codex threads and other OpenCode sessions, and they reach it. The plugin only:
+Codex threads and other OpenCode sessions, and they reach it. `send_message` reaches Codex
+threads and OpenCode sessions only; a Claude Code session is reached through `ask_session`
+and `post_notice`. The plugin only:
 
 - **Exposes four direct tools** — `session_bridge_list_sessions`, `_ask_session`,
   `_send_message`, `_post_notice` — each running
@@ -138,7 +140,7 @@ Codex threads and other OpenCode sessions, and they reach it. The plugin only:
   OpenCode exposes a plugin tool only inside its code-mode `execute` tool (measured). Esc or
   the plugin's timeout sends SIGTERM, then SIGKILL after 5 s, so the bridge can still remove
   an ask fork.
-- **Feeds the binary's hook output** (repository notices, direct messages) into the session
+- **Feeds the binary's hook output** (repository notices) into the session
   on `session.context` and `tool.execute.after`. Hooks fail open.
 - **Registers the hidden `session-bridge-reader` agent** that an ask's fork runs under. It
   denies everything and then allows only reading tools (`read`, `grep`, `glob`, `list`,

@@ -69,7 +69,7 @@ The installer preserves other servers, hook groups and trust settings and refuse
 
 - `list_sessions()` includes canonical addresses `codex:<absolute CODEX_HOME>:<thread UUID>`. UUIDs, prefixes of at least four characters, and names work only when unambiguous. Every Codex thread has separate notice state, including threads sharing a PID.
 - `ask_session(target, question, model?, timeout_s?)` uses an ephemeral read-only Codex fork with hooks, plugins, user configuration and unsafe execution rules excluded. Omit the model to use Codex's default; Codex IDs are passed literally. Token usage is returned; unavailable USD cost is `null`, outside the Claude USD meter.
-- `send_message(target, message, timeout_s = 20)` sends to an **original loaded Codex thread** with its existing account, model and permissions. It may start a normal turn that uses tools. It neither forks nor resumes a dormant thread. A Claude Code target is a different path: see `send_message` to Claude in the OpenCode section below, which applies to every caller.
+- `send_message(target, message, timeout_s = 20)` sends to an **original loaded Codex thread** with its existing account, model and permissions. It may start a normal turn that uses tools. It neither forks nor resumes a dormant thread. A live OpenCode session is a target too (OpenCode section below). A Claude Code target is refused with `direct messages support Codex and OpenCode targets only; use ask_session for Claude`; reach a Claude session with `ask_session` or `post_notice`.
 - A send result is `queued` after CLI acceptance, `observed` only after the exact message appears in a new user transcript record, or `unknown` after uncertain enqueue. Observed does not imply an answer. Messages are never automatically resent.
 - Codex notice filters use the receiver's own Codex account. A failed filter delivers the notice with an explicit unfiltered reason and never bills an arbitrary Claude profile.
 
@@ -112,12 +112,12 @@ A Claude or Codex caller's `ask_session` and `send_message` discover OpenCode on
 
 | Tool | Claude target | Codex target | OpenCode target |
 |---|---|---|---|
-| `list_sessions` | live sessions | loaded threads | live OpenCode sessions (rule above); also lists your own sent Claude messages of the last 24 h as `pending`, `delivered` or `expired` |
+| `list_sessions` | live sessions | loaded threads | live OpenCode sessions (rule above) |
 | `ask_session` | isolated read-only fork, target's profile pays | ephemeral read-only fork | read-only fork under the `session-bridge-reader` agent, marked as the bridge's own, deleted afterwards (also when the OpenCode plugin stops `session-bridge call` with SIGTERM on Esc or timeout: the bridge interrupts and removes the fork, bounded at 3 s, before it exits); needs the OpenCode plugin; outside the Claude USD meter; token usage returned; `cost_usd` is what OpenCode reports: `null` means unknown, and `0.0` (what a local provider reports) means no charge was reported, not that the run was free; `model` may be `provider/model`, set with `POST /api/session/{fork}/model`, which is taken from the OpenAPI document and is unmeasured (never live-tested) |
-| `send_message` | direct message, see below | prompt into the original thread, may start a tool-using turn | queued prompt into the original session (`delivery: queue`: it does not interrupt a busy turn), status `queued`, `observed` or `unknown`; no model, agent or permission override; never resent |
+| `send_message` | unsupported: refused with an error that points to `ask_session` | prompt into the original thread, may start a tool-using turn | queued prompt into the original session (`delivery: queue`: it does not interrupt a busy turn), status `queued`, `observed` or `unknown`; no model, agent or permission override; never resent |
 | `post_notice` | existing filter | existing filter | same channel; OpenCode sessions receive notices unfiltered |
 
-`send_message` to Claude, from any harness: the message (at most 4000 characters) is stored for that exact session and delivered once, at its next prompt or tool call, labelled with sender, id and time as data from a peer and never as approval. An idle Claude session is not woken. A pending message expires after 24 h or when the target provably ended. It is not shown to other sessions and does not pass the notice filter. One prompt or tool call delivers at most 5 messages and at most 16000 characters, oldest first; the rest stay pending for the next one. A session that already has 20 pending messages refuses more until it has read some.
+An OpenCode session reaches a Claude Code session through `ask_session` (a read-only fork of the Claude session answers) and `post_notice` (delivered by Claude's notice hooks and filter), never through `send_message`: direct sending to Claude stays unsupported from every harness, as in the original design.
 
 ### Caller identity
 

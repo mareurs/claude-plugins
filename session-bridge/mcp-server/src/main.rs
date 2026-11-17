@@ -281,9 +281,8 @@ async fn call_output(tool: &str, opencode_caller: &str) -> anyhow::Result<String
     };
     match tool {
         "list_sessions" => {
-            let state = state_dir(&env).unwrap_or_default();
             let me = caller.as_ref().ok().copied();
-            let mut out = tools::list_sessions(me, &sessions, &notes, &roots, &state).await?;
+            let mut out = tools::list_sessions(me, &sessions, &notes).await?;
             if let Err(e) = &caller {
                 out.push_str(&format!("\nCaller identity unavailable: {e:#}"));
             }
@@ -298,8 +297,7 @@ async fn call_output(tool: &str, opencode_caller: &str) -> anyhow::Result<String
         "send_message" => {
             let args = serde_json::from_value(args).context("invalid send_message arguments")?;
             let caller = caller?;
-            let state = state_dir(&env).unwrap_or_default();
-            tools::send_message(caller, &sessions, &notes, args, &roots, &state).await
+            tools::send_message(caller, &sessions, &notes, args, &roots).await
         }
         _ => {
             let args = serde_json::from_value(args).context("invalid post_notice arguments")?;

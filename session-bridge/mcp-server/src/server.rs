@@ -155,9 +155,8 @@ impl Bridge {
             &serde_json::Value::Object(ctx.meta.0),
             &|k| std::env::var(k).ok(),
         );
-        let state = state_dir(&|k| std::env::var(k).ok()).unwrap_or_default();
         let me = caller.as_ref().ok().copied().flatten();
-        let mut out = tools::list_sessions(me, &sessions, &notes, &roots, &state)
+        let mut out = tools::list_sessions(me, &sessions, &notes)
             .await
             .map_err(internal)?;
         if let Err(e) = caller {
@@ -187,7 +186,7 @@ impl Bridge {
     }
 
     #[tool(
-        description = "Send a peer message into an original loaded Codex thread or a live OpenCode session, potentially starting a normal tool-using turn under its existing account/model/permissions. Does not fork, interrupt, steer a busy turn or resume dormant threads; OpenCode messages are queued behind any running turn. Returns queued, observed or unknown evidence; never retries a possibly enqueued message. A live Claude Code session target gets a stored message (at most 4000 characters) delivered once to that exact session at its next prompt or tool call (at most 5 messages and 16000 characters per prompt or tool call, oldest first; the rest wait for the next), never to other sessions; a session with 20 pending messages refuses more; an idle Claude session is not woken; it expires after 24 h or when the session ends; list_sessions shows your sent messages with status pending, delivered or expired."
+        description = "Send a peer message into an original loaded Codex thread or a live OpenCode session, potentially starting a normal tool-using turn under its existing account/model/permissions. Does not fork, interrupt, steer a busy turn or resume dormant threads; OpenCode messages are queued behind any running turn. Returns queued, observed or unknown evidence; never retries a possibly enqueued message. Direct Claude targets are unsupported; use ask_session for Claude."
     )]
     async fn send_message(
         &self,
@@ -198,10 +197,7 @@ impl Bridge {
         let (sessions, notes) =
             sessions_for_target(&roots, &|k| std::env::var(k).ok(), &args.target).await;
         let caller = required_caller(&sessions, &roots, &ctx)?;
-        // Only a Claude target stores state (and refuses without a state root); Codex and
-        // OpenCode targets must not be refused for a missing one.
-        let state = state_dir(&|k| std::env::var(k).ok()).unwrap_or_default();
-        tools::send_message(caller, &sessions, &notes, args, &roots, &state)
+        tools::send_message(caller, &sessions, &notes, args, &roots)
             .await
             .map_err(internal)
     }
@@ -231,7 +227,7 @@ impl ServerHandler for Bridge {
         ServerInfo::new(ServerCapabilities::builder().enable_tools().build()).with_instructions(
             "Use ask_session(target, question) to put a question to another live Claude Code session, \
              loaded Codex thread or live OpenCode session; a read-only fork of it answers, and the target's account pays. \
-             Use send_message(target, message) to message a Codex thread, an OpenCode session or a Claude Code session. \
+             Use send_message(target, message) to message a Codex thread or an OpenCode session (not a Claude Code session). \
              Use post_notice(title, body, refs) to tell the other sessions of this repository about a change they may depend on.",
         )
     }
