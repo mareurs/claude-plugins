@@ -40,14 +40,14 @@ has_headings() {
 # The words the prompt-tdd rubrics score, plus the new principle's name.
 markers_present() {
   local m
-  for m in 'stranger' 'escape hatch' 'unverified' 'cut' 'native register'; do
+  for m in 'stranger' 'escape hatch' 'unverified' 'adding before cutting' 'native register'; do
     grep -qiF -- "$m" "$1" || return 1
   done
 }
-# Every `§ Hn` / `§ Pn` pointer in the core has a `## Hn ` section in the evidence file.
+# Every `§ Hn` / `§ Pn` / `§ Harness` pointer in the core has a `## Hn ` section in the evidence file.
 pointers_resolve() {
   [ -f "$2" ] || return 1
-  local toks t; toks=$(grep -oE '§ [HP][0-9]+' "$1" | sort -u | cut -d' ' -f2)
+  local toks t; toks=$(grep -oE '§ ([HP][0-9]+|Harness)' "$1" | sort -u | cut -d' ' -f2)
   [ -n "$toks" ] || return 1
   for t in $toks; do grep -qE "^## $t( |$)" "$2" || return 1; done
 }
@@ -60,8 +60,32 @@ citations_kept() {
   done
 }
 
+# A summon payload inlines the body with no directory, so the core must say where the
+# evidence file lives, and must keep the routing target itself, not only a pointer to it.
+pointer_locatable() { grep -qF 'skills/prompt-hamsa/references/evidence.md' "$1"; }
+routes_playbook()   { grep -qF 'skill-eval-playbook' "$1"; }
+# Principle 7 applies to agents with tools, and is flagged unverified (its base arm showed no deficit).
+p7_line()           { grep -E '^7\. \*\*Write in the native register' "$1"; }
+p7_scoped()         { p7_line "$1" | grep -qF 'When the prompt drives an agent'; }
+p7_flagged()        { p7_line "$1" | grep -qiF 'unverified'; }
+# The critique and audit-log contract the spec keeps unchanged.
+contract_kept() {
+  [ "$(grep -oF 'spoken or written' "$1" | wc -l)" -ge 2 ] \
+    && grep -qF 'threshold you can defend' "$1" && grep -qF 'input shape' "$1" \
+    && grep -qF 'described in the abstract' "$1"
+}
+# Demonstrations dominate prose (H3): the heuristics keep their exemplars.
+exemplars_kept() { grep -qF '≤3 sentences' "$1" && grep -qF 'failing criterion' "$1" && grep -qF 'strict-JSON' "$1"; }
+# Every reaction is anchored to a principle or Method step, and there are 3–6 (skill-template.md).
+reactions_anchored() {
+  local sec n; sec=$(awk '/^## Reactions/{s=1; next} s && /^## /{exit} s{print}' "$1")
+  n=$(grep -cE '^[0-9]+\. ' <<<"$sec")
+  [ "$n" -ge 3 ] && [ "$n" -le 6 ] && ! grep -E '^[0-9]+\. ' <<<"$sec" | grep -qvF '_Applies:'
+}
+
 [ -f "$CORE" ] || { bad "core SKILL.md" "missing $CORE"; echo "── $PASS passed, $FAIL failed"; exit 1; }
-for fn in under_cap frontmatter_pinned has_headings markers_present pointers_resolve citations_kept; do
+for fn in under_cap frontmatter_pinned has_headings markers_present pointers_resolve citations_kept \
+          pointer_locatable routes_playbook p7_scoped p7_flagged contract_kept exemplars_kept reactions_anchored; do
   if "$fn" "$CORE" "$EVID"; then ok "$fn"; else bad "$fn" "failed on $CORE / $EVID"; fi
 done
 
@@ -83,6 +107,20 @@ control no_stranger   markers_present    core 'import re; t = re.sub("(?i)strang
 control no_native     markers_present    core 'import re; t = re.sub("(?i)native register", "plain style", t)'
 control dead_pointer  pointers_resolve   core 't += "\n(evidence: references/evidence.md § H99)\n"'
 control lost_a11      citations_kept     evid 't = t.replace("codescout:A-11", "A-eleven")'
+control no_hatch      markers_present    core 'import re; t = re.sub("(?i)escape hatch", "exit", t)'
+control no_unverified markers_present    core 'import re; t = re.sub("(?i)unverified", "unchecked", t)'
+control no_cut_first  markers_present    core 'import re; t = re.sub("(?i)adding before cutting", "adding", t)'
+control harness_ptr   pointers_resolve   evid 't = t.replace("## Harness ", "## Harnessing ")'
+control ptr_relative  pointer_locatable  core 't = t.replace("skills/prompt-hamsa/references/evidence.md", "references/evidence.md")'
+control no_playbook   routes_playbook    core 't = t.replace("skill-eval-playbook", "eval playbook")'
+control p7_unscoped   p7_scoped          core 't = t.replace("When the prompt drives an agent", "When a prompt runs")'
+control p7_unflagged  p7_flagged         core 't = t.replace("unverified — base arm showed no deficit", "base arm showed no deficit")'
+control no_threshold  contract_kept      core 't = t.replace("threshold you can defend", "threshold")'
+control one_spoken    contract_kept      core 't = t.replace("spoken or written", "spoken", 1)'
+control no_exemplar   exemplars_kept     core 't = t.replace("failing criterion", "result")'
+control unanchored    reactions_anchored core 't = t.replace("_Applies:", "Applies:", 1)'
+control seven_reacts  reactions_anchored core 'import re; t = re.sub(r"(?m)^(## Reactions\n(?:.*\n)*?)(## Self-Traps)", r"\\g<1>7. **Extra.** _Applies: P1._ x\n\n\\2", t, count=1)'
+
 
 echo "── $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]

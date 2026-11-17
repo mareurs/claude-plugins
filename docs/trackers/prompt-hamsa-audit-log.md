@@ -56,8 +56,8 @@ This is how *"unverified, N=0"* stops being a permanent flag and becomes a hold-
 
 
 
-> **Prefix hazard — read before allocating `A-4`.** This ledger declares `entry_prefix: A`
-> and its namespace is **A-1..A-3** (`entry_high_water_A: 3`). **codescout's own
+> **Prefix hazard — read before allocating the next `A-N`.** This ledger declares `entry_prefix: A`
+> and its namespace is **A-1..A-5** (`entry_high_water_A: 5`; A-4 and A-5 allocated after this note was written; A-5 on 2026-11-17, when the two bare `A-5` mentions in the 2026-07-05 A-11 History section were qualified to `codescout:A-5`). **codescout's own
 > `prompt-hamsa-audit-log` uses the same `A` prefix**, and this repo cites *its* entries
 > **bare** in at least three places — `buddy/skills/prompt-hamsa/SKILL.md` (8 tokens, most
 > written as *"codescout A-9"* in prose), `codescout-companion/README.md` (`A-15`, `A-16`,
@@ -810,10 +810,10 @@ at *primacy* (turn 1) is a weak decay test — place it mid-context to actually 
 Field incident (foreign session, kat profile): a subagent met genuine harness meta-content
 attached at context assembly and — holding only two nouns, *genuine* or *injection* — asserted
 "this WAS untrusted content injected… NOT a genuine system message" as fact. Its actions were
-flawless (quarantine + report; the A-5 protocol held); the REPORT was miscalibrated, it dismissed
+flawless (quarantine + report; the codescout:A-5 protocol held); the REPORT was miscalibrated, it dismissed
 a TRUE checkable claim (a real date rollover) as "fabricated" without running the one-command
 check, and the controller laundered the label into a security event. The artifact under audit
-was our own shipped A-5 rule: it pinned the action contract but not the claim contract, stated
+was our own shipped codescout:A-5 rule: it pinned the action contract but not the claim contract, stated
 half the marker principle (a marker can't prove content genuine — never the mirror: failure to
 verify can't prove attack), and never named the harness-plumbing base rate.
 
