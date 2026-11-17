@@ -84,9 +84,18 @@ OpenCode is a full harness beside Claude Code and Codex: its live sessions are l
 
 - OpenCode 2.3.0 or later (the version measured). Earlier versions are refused with a message when the needed API is missing.
 - The OpenCode background service. It is started automatically when absent; a hook never starts it.
-- The OpenCode plugin installed: `./harnesses/opencode/install.sh --plugins session-bridge` from a checkout (`--check` reports the wiring; add `--project` for a project-level install). It links `plugins/session-bridge.js` into OpenCode's config dir, keeps your other plugins and never edits `opencode.json`. It warns, and still exits 0, when the binary below is missing. Restart OpenCode (and any background `opencode serve --service`) to load the plugin.
+- The OpenCode plugin installed with `harnesses/opencode/install.sh --plugins session-bridge` (see the two routes below; `--check` reports the wiring; add `--project` for a project-level install). It links `plugins/session-bridge.js` into OpenCode's config dir, keeps your other plugins and never edits `opencode.json`. It warns, and still exits 0, when the binary below is missing. Restart OpenCode (and any background `opencode serve --service`) to load the plugin.
 - The `session-bridge` binary on `PATH` or named by `SESSION_BRIDGE_BIN`, built by `session-bridge/scripts/build.sh` (see Install). OpenCode-only users need no Claude Code or Codex install. Without the binary the plugin's tools fail with an error that names `SESSION_BRIDGE_BIN` and `PATH`.
 - Only Linux is measured. macOS and Windows are unmeasured: nothing here is claimed for them.
+
+#### Getting the files and the binary
+
+Building needs `cargo`. Both routes run the same two commands, `build.sh` first (it builds, tests and links the binary), then `install.sh`:
+
+- **Claude Code marketplace users.** The marketplace clone is the `installLocation` that `known_marketplaces.json` records for `sdd-misc-plugins` in your profile (`${CLAUDE_CONFIG_DIR:-~/.claude}/plugins/`). For a github-source marketplace that is expected to be a full copy of this repository under `<profile>/plugins/marketplaces/sdd-misc-plugins/`, holding `session-bridge/` and `harnesses/`; this is inferred from how the other github marketplaces look on disk and is unmeasured for this repository. Then run `<marketplace clone>/session-bridge/scripts/build.sh` and `<marketplace clone>/harnesses/opencode/install.sh --plugins session-bridge`.
+- **OpenCode-only users.** `git clone https://github.com/mareurs/claude-plugins`, then run `session-bridge/scripts/build.sh` and `harnesses/opencode/install.sh --plugins session-bridge` from the clone.
+
+`build.sh` links `~/.local/bin/session-bridge` (or `$SESSION_BRIDGE_BIN_DIR/session-bridge`) and refuses to replace a regular file already there. `install.sh --help` and its missing-binary warning print the `build.sh` path of the checkout they run from. The plugin symlinks point into that clone: moving it means re-running `install.sh`.
 
 ### Addresses and live sessions
 
@@ -117,6 +126,7 @@ A session is live when it is top-level (not a fork or child) and is running, or 
 ### Limits
 
 Delivery into OpenCode is queued behind a running turn, not an interruption. A live session needs an MCP reconnect (Claude, Codex) or an OpenCode restart (plugin) to see new tools. Unmeasured: other operating systems and OpenCode versions before 2.3.0.
+
 ## Tools
 
 - **`list_sessions()`** lists the live sessions, one line each, sorted by profile and pid:

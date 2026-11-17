@@ -35,7 +35,12 @@ PLUGINS="$ALL_PLUGINS"
 
 die()   { echo "error: $*" >&2; exit 1; }
 info()  { echo "  $*"; }
-usage() { sed -n '2,9p' "$0" | sed 's/^# \{0,1\}//'; }
+usage() {
+  sed -n '2,9p' "$0" | sed 's/^# \{0,1\}//'
+  echo
+  echo "session-bridge also needs its binary on PATH (or SESSION_BRIDGE_BIN); build and link it with:"
+  echo "  $REPO_DIR/session-bridge/scripts/build.sh   (needs cargo)"
+}
 
 while [ $# -gt 0 ]; do
   case "$1" in

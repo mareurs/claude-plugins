@@ -23,6 +23,10 @@ LINK="$DIR/session-bridge"
 if [ "$DIR/session-bridge" -ef "$SRC" ] && [ ! -L "$LINK" ]; then
   echo "on PATH: $LINK (same file, no link needed)"
 else
+  if [ -e "$LINK" ] && [ ! -L "$LINK" ] && ! [ "$LINK" -ef "$SRC" ]; then
+    echo "error: $LINK exists and is not a symlink; refusing to replace it. Move it away, or set SESSION_BRIDGE_BIN_DIR." >&2
+    exit 1
+  fi
   mkdir -p "$DIR"
   ln -sfn "$SRC" "$LINK"
   echo "linked: $LINK -> $SRC"

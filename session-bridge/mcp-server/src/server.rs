@@ -134,7 +134,7 @@ pub fn post_notice_from(
 #[tool_router(vis = "pub")]
 impl Bridge {
     #[tool(
-        description = "List live Claude Code sessions and loaded Codex threads on this Linux machine. Codex discovery covers open-rollout hosts; loaded does not establish UI attachment."
+        description = "List live Claude Code sessions, loaded Codex threads and live OpenCode sessions on this Linux machine. Codex discovery covers open-rollout hosts; loaded does not establish UI attachment."
     )]
     async fn list_sessions(&self, ctx: RequestContext<RoleServer>) -> Result<String, ErrorData> {
         let roots = Roots::system();
@@ -194,7 +194,7 @@ impl Bridge {
     }
 
     #[tool(
-        description = "Tell other sessions of this repository about a change they may depend on. Claude Code and Codex share this channel; author identity and repository come from the exact calling session."
+        description = "Tell other sessions of this repository about a change they may depend on. Claude Code, Codex and OpenCode share this channel; author identity and repository come from the exact calling session."
     )]
     async fn post_notice(
         &self,

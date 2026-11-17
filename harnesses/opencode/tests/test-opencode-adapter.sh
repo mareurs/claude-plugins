@@ -118,6 +118,15 @@ ln -sfn "$SB/stale" "$SB/bindir/session-bridge"   # a stale link from an older r
 run_build >/dev/null
 if [ "$("$SB/bindir/session-bridge" 2>/dev/null)" = "v2" ]; then pass "build.sh re-links a stale link (idempotent)"
 else fail "build.sh left a stale link in place"; fi
+# A foreign regular file at the link target is the user's own: build.sh must refuse, not replace.
+rm -f "$SB/bindir/session-bridge"
+echo 'user binary' > "$SB/bindir/session-bridge"
+out="$(run_build)"; rc=$?
+if [ "$rc" -ne 0 ] && [ "$(cat "$SB/bindir/session-bridge")" = "user binary" ] && printf '%s' "$out" | grep -q "$SB/bindir/session-bridge"; then
+  pass "build.sh refuses to overwrite a foreign regular file at the link target"
+else fail "build.sh clobbered or ignored a foreign file (rc=$rc): $out"; fi
+if bash "$INSTALLER" --help 2>&1 | grep -q "$ROOT/session-bridge/scripts/build.sh"; then pass "install.sh --help prints the resolved build.sh path"
+else fail "install.sh --help does not name build.sh"; fi
 rm -rf "$SB"
 
 # The behaviour suites, one per bridge. On failure, print the failing cases in full: a

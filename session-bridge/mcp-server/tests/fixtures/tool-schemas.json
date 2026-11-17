@@ -42,7 +42,7 @@
   },
   {
     "name": "list_sessions",
-    "description": "List live Claude Code sessions and loaded Codex threads on this Linux machine. Codex discovery covers open-rollout hosts; loaded does not establish UI attachment.",
+    "description": "List live Claude Code sessions, loaded Codex threads and live OpenCode sessions on this Linux machine. Codex discovery covers open-rollout hosts; loaded does not establish UI attachment.",
     "inputSchema": {
       "properties": {},
       "type": "object"
@@ -50,7 +50,7 @@
   },
   {
     "name": "post_notice",
-    "description": "Tell other sessions of this repository about a change they may depend on. Claude Code and Codex share this channel; author identity and repository come from the exact calling session.",
+    "description": "Tell other sessions of this repository about a change they may depend on. Claude Code, Codex and OpenCode share this channel; author identity and repository come from the exact calling session.",
     "inputSchema": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "properties": {
