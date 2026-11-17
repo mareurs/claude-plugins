@@ -10,22 +10,31 @@ use session_bridge_mcp::{
     sessions::Session,
     tools::{ask_session, AskArgs},
 };
-use std::{fs, path::Path, sync::Mutex, time::Duration};
+use std::{
+    fs,
+    path::Path,
+    sync::{Arc, Mutex},
+    time::Duration,
+};
 
 const FORK: &str = "ses_fork";
 const SECS: Duration = Duration::from_secs(5);
+/// (method, path, body)
+type Call = (String, String, Option<Value>);
 
 /// Scripted service. The message list is built around the prompt id the bridge sent:
 /// `assistants` (newest first) are newer than it, `older` are the source's copied history.
+#[derive(Clone)]
 struct FakeApi {
     fork: Result<Value, String>,
     agent: Result<Value, String>,
     info_agent: &'static str,
+    info_null: bool,
     prompt: Result<Value, String>,
     hang_wait: bool,
     assistants: Vec<Value>,
     older: Vec<Value>,
-    calls: Mutex<Vec<(String, String, Option<Value>)>>,
+    calls: Arc<Mutex<Vec<Call>>>,
 }
 impl FakeApi {
     fn new() -> Self {
@@ -34,11 +43,12 @@ impl FakeApi {
                 "fork": {"sessionID": "ses_a", "boundary": {"type": "through", "messageID": "msg_old"}}}})),
             agent: Ok(Value::Null),
             info_agent: "session-bridge-reader",
+            info_null: false,
             prompt: Ok(json!({"data": {"id": "msg_x"}})),
             hang_wait: false,
             assistants: vec![assistant("the answer", Some(0.25))],
             older: vec![assistant("an old source answer", Some(9.0))],
-            calls: Mutex::new(vec![]),
+            calls: Arc::new(Mutex::new(vec![])),
         }
     }
     fn calls(&self) -> Vec<String> {
@@ -103,6 +113,7 @@ impl OcApi for FakeApi {
                 all.extend(self.older.clone());
                 Ok(json!({"data": all, "cursor": {}}))
             }
+            ("GET", p) if p == format!("/api/session/{FORK}") && self.info_null => Ok(Value::Null),
             ("GET", p) if p == format!("/api/session/{FORK}") => {
                 Ok(json!({"data": {"id": FORK, "agent": self.info_agent}}))
             }
@@ -232,6 +243,52 @@ async fn ask_removes_fork_on_timeout() {
     );
 }
 
+/// The MCP server drops a cancelled request's future mid-`wait`: the fork is still
+/// interrupted and removed, by a task spawned from the guard's `Drop`.
+#[tokio::test]
+async fn ask_removes_fork_when_cancelled() {
+    let mut api = FakeApi::new();
+    api.hang_wait = true;
+    let target = ep();
+    let ask = ask_opencode(&api, &target, "q", None, Duration::from_secs(60));
+    assert!(tokio::time::timeout(Duration::from_millis(200), ask)
+        .await
+        .is_err());
+    for _ in 0..50 {
+        if removed(&api) {
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(10)).await;
+    }
+    assert!(removed(&api), "{:?}", api.calls());
+    assert!(
+        api.pos(&format!("POST /api/session/{FORK}/interrupt"))
+            < api.pos(&format!("DELETE /api/session/{FORK}"))
+    );
+    // a finished ask leaves nothing behind for the guard: exactly one DELETE
+    let api = FakeApi::new();
+    ask_opencode(&api, &ep(), "q", None, SECS).await.unwrap();
+    tokio::time::sleep(Duration::from_millis(50)).await;
+    let deletes = api
+        .calls()
+        .iter()
+        .filter(|c| c.starts_with("DELETE"))
+        .count();
+    assert_eq!(deletes, 1, "{:?}", api.calls());
+}
+
+#[tokio::test]
+async fn ask_rejects_an_empty_fork_reply() {
+    let mut api = FakeApi::new();
+    api.fork = Ok(Value::Null);
+    let e = ask_opencode(&api, &ep(), "q", None, SECS)
+        .await
+        .unwrap_err()
+        .to_string();
+    assert!(e.contains("empty reply"), "{e}");
+    assert_eq!(api.calls(), ["POST /api/session/ses_a/fork"]);
+}
+
 #[tokio::test]
 async fn ask_removes_fork_on_error() {
     // the prompt fails
@@ -295,11 +352,16 @@ async fn ask_never_prompts_fork_without_reader_agent() {
         a.agent = Ok(json!({"data": {"id": FORK, "agent": "build"}}));
         a
     };
-    for api in [refused(), ignored(), other()] {
+    let null_info = || {
+        let mut a = FakeApi::new();
+        a.info_null = true;
+        a
+    };
+    for api in [refused(), ignored(), other(), null_info()] {
         let e = ask_opencode(&api, &ep(), "q", None, SECS)
             .await
             .unwrap_err();
-        assert_eq!(e.to_string(), MISSING_READER);
+        assert!(e.to_string().contains("session-bridge-reader"), "{e}");
         assert!(!prompted(&api), "{:?}", api.calls());
         assert!(!api.calls().iter().any(|c| c.ends_with("/wait")));
         assert!(removed(&api));

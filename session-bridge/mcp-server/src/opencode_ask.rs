@@ -41,13 +41,16 @@ fn model_ref(model: &str) -> Result<Value> {
     Ok(json!({"providerID": provider, "id": id}))
 }
 
-pub async fn ask_opencode(
-    api: &impl OcApi,
+pub async fn ask_opencode<A>(
+    api: &A,
     target: &OpenCodeEndpoint,
     question: &str,
     model: Option<&str>,
     timeout: Duration,
-) -> Result<OcAskResult> {
+) -> Result<OcAskResult>
+where
+    A: OcApi + Clone + Send + Sync + 'static,
+{
     anyhow::ensure!(
         !question.trim().is_empty()
             && question.chars().count() <= 16000
@@ -73,6 +76,7 @@ pub async fn ask_opencode(
         )
     })?
     .context("could not fork the OpenCode session")?;
+    anyhow::ensure!(!forked.is_null(), "OpenCode fork returned an empty reply");
     let fork = data(&forked)["id"]
         .as_str()
         .filter(|id| id.starts_with("ses_"))
@@ -80,6 +84,13 @@ pub async fn ask_opencode(
         .to_owned();
     // Never prompt, and never remove, the original.
     anyhow::ensure!(fork != *source, "OpenCode did not create a separate fork");
+    // From here the fork exists: if this future is dropped (a cancelled request), the guard
+    // still interrupts and removes it.
+    let mut guard = ForkGuard {
+        api: api.clone(),
+        fork: fork.clone(),
+        armed: true,
+    };
     let remaining = timeout.saturating_sub(started.elapsed());
     let outcome = match tokio::time::timeout(
         remaining,
@@ -95,10 +106,10 @@ pub async fn ask_opencode(
     };
     // Cleanup runs on every returned path: stop a turn that may still run, then remove.
     if outcome.is_err() {
-        let interrupt = format!("/api/session/{fork}/interrupt");
-        let _ = tokio::time::timeout(CLEANUP_TIMEOUT, api.call("POST", &interrupt, None)).await;
+        interrupt(api, &fork).await;
     }
     let removed = remove(api, &fork).await;
+    guard.armed = false;
     match (outcome, removed) {
         (Ok((answer, cost_usd, usage)), Ok(())) => Ok(OcAskResult {
             answer,
@@ -117,6 +128,37 @@ pub async fn ask_opencode(
             "{e:#}; and the OpenCode fork {fork} could not be removed: {d:#}"
         )),
     }
+}
+
+/// Interrupts and removes the fork when the ask's future is dropped before its own cleanup
+/// ran (the MCP server drops a cancelled request's handler). Disarmed after that cleanup.
+struct ForkGuard<A: OcApi + Clone + Send + Sync + 'static> {
+    api: A,
+    fork: String,
+    armed: bool,
+}
+impl<A: OcApi + Clone + Send + Sync + 'static> Drop for ForkGuard<A> {
+    fn drop(&mut self) {
+        if !self.armed {
+            return;
+        }
+        // Drop cannot await: hand the cleanup to the runtime. Without a runtime (never the
+        // case inside the server) nothing can run, and the fork is left behind.
+        let Ok(rt) = tokio::runtime::Handle::try_current() else {
+            return;
+        };
+        let api = self.api.clone();
+        let fork = std::mem::take(&mut self.fork);
+        rt.spawn(async move {
+            interrupt(&api, &fork).await;
+            let _ = remove(&api, &fork).await;
+        });
+    }
+}
+
+async fn interrupt(api: &impl OcApi, fork: &str) {
+    let path = format!("/api/session/{fork}/interrupt");
+    let _ = tokio::time::timeout(CLEANUP_TIMEOUT, api.call("POST", &path, None)).await;
 }
 
 async fn remove(api: &impl OcApi, fork: &str) -> Result<()> {
@@ -151,6 +193,10 @@ async fn in_fork(
         .call("GET", &base, None)
         .await
         .context("could not read the OpenCode fork")?;
+    anyhow::ensure!(
+        !info.is_null(),
+        "could not confirm the session-bridge-reader agent on the OpenCode fork: empty reply"
+    );
     anyhow::ensure!(
         data(&info)["agent"].as_str() == Some(READER_AGENT),
         MISSING_READER

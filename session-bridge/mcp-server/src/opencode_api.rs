@@ -19,6 +19,7 @@ pub trait OcApi {
     ) -> impl Future<Output = Result<Value>> + Send;
 }
 
+#[derive(Clone)]
 pub struct CliApi {
     pub bin: PathBuf,
     pub timeout: Duration,

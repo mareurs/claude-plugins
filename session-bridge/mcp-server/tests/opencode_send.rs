@@ -163,6 +163,35 @@ async fn send_to_removed_session_errors_before_post() {
     assert_eq!(api.count("POST"), 0);
 }
 
+/// An empty 2xx reply is `Null` from the client: never proof that the session exists.
+#[tokio::test]
+async fn send_null_session_get_is_error_before_post() {
+    let mut api = FakeApi::new();
+    api.get = Ok(Value::Null);
+    let e = send_opencode(&api, &ep(), "me", "hi", 1)
+        .await
+        .unwrap_err()
+        .to_string();
+    assert!(e.contains("session not found"), "{e}");
+    assert_eq!(api.count("POST"), 0);
+}
+
+/// An empty prompt reply may or may not have enqueued: `unknown`, never retried.
+#[tokio::test]
+async fn send_null_prompt_response_is_unknown() {
+    let mut api = FakeApi::new();
+    api.post = Ok(Value::Null);
+    let r = send_opencode(&api, &ep(), "me", "hi", 1).await.unwrap();
+    assert_eq!(r.status, "unknown");
+    assert!(r.reason.contains("not retried"), "{}", r.reason);
+    assert_eq!(api.count("POST"), 1);
+    assert_eq!(
+        api.count("GET"),
+        1,
+        "no consumption polling after an empty reply"
+    );
+}
+
 #[tokio::test]
 async fn send_rejects_empty_and_oversized() {
     let api = FakeApi::new();

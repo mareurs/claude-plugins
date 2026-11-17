@@ -41,6 +41,11 @@ pub async fn send_opencode(
         .call("GET", &session, None)
         .await
         .map_err(|e| anyhow::anyhow!("OpenCode session is not available: {e}"))?;
+    // An empty 2xx reply is `Null` from the client: never proof the session exists.
+    anyhow::ensure!(
+        !info.is_null(),
+        "OpenCode session is not available: session not found (empty reply)"
+    );
     anyhow::ensure!(
         unwrap_data(&info)
             .pointer("/time/archived")
@@ -70,12 +75,19 @@ pub async fn send_opencode(
         "delivery": "queue",
         "metadata": {"session_bridge": id},
     });
-    if let Err(e) = api
+    match api
         .call("POST", &format!("{session}/prompt"), Some(&body))
         .await
     {
-        result.reason = format!("{e}; enqueue may have occurred; not retried");
-        return Ok(result);
+        Err(e) => {
+            result.reason = format!("{e}; enqueue may have occurred; not retried");
+            return Ok(result);
+        }
+        Ok(Value::Null) => {
+            result.reason = "empty prompt reply; enqueue may have occurred; not retried".into();
+            return Ok(result);
+        }
+        Ok(_) => {}
     }
     result.status = "queued";
     result.reason = "prompt accepted; exact message consumption not observed".into();
