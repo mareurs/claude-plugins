@@ -1,49 +1,21 @@
 //! The `Bridge` MCP server: `list_sessions`, `ask_session` and `post_notice`.
 
-use crate::ask::{ask, clamp_timeout, locate_claude};
-use crate::codex_process::{ask_codex, locate_codex};
 use crate::endpoints::{repo_of, Roots};
 use crate::error::BridgeError;
-use crate::paths::{short_profile, state_root};
-use crate::send::send_codex;
-use crate::sessions::{
-    caller_session, discover_sessions, discover_sessions_all, resolve_session, Session,
-};
+use crate::paths::state_root;
+use crate::sessions::{caller_session, discover_sessions_all, Session};
 use crate::state::{current_session, endpoint_path, update};
 use crate::store::{NewNotice, Origin, Store};
+use crate::tools;
+pub use crate::tools::{AskArgs, PostNoticeArgs, SendMessageArgs};
 use rmcp::{
     handler::server::{router::tool::ToolRouter, wrapper::Parameters},
     model::{ServerCapabilities, ServerInfo},
-    schemars, tool, tool_handler, tool_router, ErrorData, ServerHandler,
+    tool, tool_handler, tool_router, ErrorData, ServerHandler,
 };
 use rmcp::{service::RequestContext, RoleServer};
-use serde::Deserialize;
 use std::path::{Path, PathBuf};
 
-#[derive(Debug, Deserialize, schemars::JsonSchema)]
-pub struct AskArgs {
-    /// Claude endpoint, canonical Codex address, UUID/prefix or unambiguous session name.
-    pub target: String,
-    /// The question to ask the target session.
-    pub question: String,
-    /// Claude alias or Codex model id; defaults to haiku for Claude and the Codex default for Codex.
-    #[serde(default)]
-    pub model: Option<String>,
-    /// Seconds to wait for the answer (default 120, clamped to 1..=300).
-    #[serde(default)]
-    pub timeout_s: Option<u64>,
-}
-
-#[derive(Debug, Deserialize, schemars::JsonSchema)]
-pub struct SendMessageArgs {
-    /// Exact loaded Codex thread address, UUID or unambiguous name.
-    pub target: String,
-    /// Peer message, at most 16000 characters. Starts a normal target turn.
-    pub message: String,
-    /// Queue/observation budget in seconds (default 20, clamped to 1..=30).
-    #[serde(default)]
-    pub timeout_s: Option<u64>,
-}
 fn internal(error: impl std::fmt::Display) -> ErrorData {
     ErrorData::internal_error(error.to_string(), None)
 }
@@ -63,17 +35,6 @@ fn required_caller<'a>(
     .ok_or_else(|| {
         internal("calling session identity is unavailable; exact host thread metadata is required")
     })
-}
-
-#[derive(Debug, Deserialize, schemars::JsonSchema)]
-pub struct PostNoticeArgs {
-    /// Short title (at most 120 characters).
-    pub title: String,
-    /// Notice body (at most 4000 characters).
-    pub body: String,
-    /// References such as files, branches or commits (at most 20).
-    #[serde(default)]
-    pub refs: Vec<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -185,23 +146,15 @@ impl Bridge {
             &serde_json::Value::Object(ctx.meta.0),
             &|k| std::env::var(k).ok(),
         );
-        let me = caller.as_ref().ok().and_then(|c| c.map(Session::identity));
-        let mut lines: Vec<String> = sessions
-            .iter()
-            .map(|s| s.render(me.as_deref() == Some(s.identity().as_str())))
-            .collect();
-        if lines.is_empty() {
-            lines
-                .push("No live Claude Code sessions or rollout-backed Codex threads found.".into());
-        }
-        lines.push("Scope: local Linux, Claude native/IPC session registrations and Codex open rollouts; saved-only threads and hosts without open rollouts are outside this listing.".into());
-        for note in notes {
-            lines.push(format!("Discovery note: {note}"));
-        }
+        let state = state_dir(&|k| std::env::var(k).ok()).unwrap_or_default();
+        let me = caller.as_ref().ok().copied().flatten();
+        let mut out = tools::list_sessions(me, &sessions, &notes, &state)
+            .await
+            .map_err(internal)?;
         if let Err(e) = caller {
-            lines.push(format!("Caller identity unavailable: {e}"));
+            out.push_str(&format!("\nCaller identity unavailable: {e}"));
         }
-        Ok(lines.join("\n"))
+        Ok(out)
     }
 
     #[tool(
@@ -213,50 +166,12 @@ impl Bridge {
         ctx: RequestContext<RoleServer>,
     ) -> Result<String, ErrorData> {
         let roots = Roots::system();
-        let sessions = discover_sessions(&roots);
+        let (sessions, _) = discover_sessions_all(&roots, &|k| std::env::var(k).ok()).await;
         let caller = required_caller(&sessions, &roots, &ctx)?;
-        let target = resolve_session(&sessions, &args.target, Some(&caller.identity()))
-            .map_err(internal)?
-            .clone();
         let state = state_dir(&|k| std::env::var(k).ok()).map_err(to_error)?;
-        let timeout = clamp_timeout(args.timeout_s);
-        match target {
-            Session::Claude(target) => {
-                let bin = locate_claude(&|k| std::env::var(k).ok()).map_err(to_error)?;
-                let me = caller.storage_id();
-                let asker = format!("{}:{}", short_profile(&me.0), me.1);
-                let result = ask(
-                    &bin.to_string_lossy(),
-                    &target,
-                    &asker,
-                    &args.question,
-                    args.model.as_deref().unwrap_or("haiku"),
-                    timeout,
-                    &state,
-                )
-                .await
-                .map_err(to_error)?;
-                serde_json::to_string_pretty(&result).map_err(internal)
-            }
-            Session::Codex(target) => {
-                let bin = locate_codex(&|k| std::env::var(k).ok()).map_err(internal)?;
-                let result = ask_codex(
-                    &bin,
-                    &target,
-                    &roots,
-                    &args.question,
-                    args.model.as_deref(),
-                    timeout,
-                    &state,
-                )
-                .await
-                .map_err(internal)?;
-                serde_json::to_string_pretty(&result).map_err(internal)
-            }
-            Session::OpenCode(_) => Err(internal(
-                "asking OpenCode sessions is not supported yet; OpenCode sessions are listed only",
-            )),
-        }
+        tools::ask_session(caller, &sessions, args, &roots, &state)
+            .await
+            .map_err(internal)
     }
 
     #[tool(
@@ -268,48 +183,31 @@ impl Bridge {
         ctx: RequestContext<RoleServer>,
     ) -> Result<String, ErrorData> {
         let roots = Roots::system();
-        let sessions = discover_sessions(&roots);
+        let (sessions, _) = discover_sessions_all(&roots, &|k| std::env::var(k).ok()).await;
         let caller = required_caller(&sessions, &roots, &ctx)?;
-        let target =
-            resolve_session(&sessions, &args.target, Some(&caller.identity())).map_err(internal)?;
-        let Session::Codex(target) = target else {
-            return Err(internal(
-                "direct messages currently support Codex targets only; use ask_session for Claude",
-            ));
-        };
-        let bin = locate_codex(&|k| std::env::var(k).ok()).map_err(internal)?;
-        let result = send_codex(
-            &bin,
-            target,
-            &caller.identity(),
-            &args.message,
-            args.timeout_s.unwrap_or(20),
-            &roots,
-        )
-        .await
-        .map_err(internal)?;
-        serde_json::to_string_pretty(&result).map_err(internal)
+        // send_message keeps no state yet; a missing state root must not refuse it.
+        let state = state_dir(&|k| std::env::var(k).ok()).unwrap_or_default();
+        tools::send_message(caller, &sessions, args, &roots, &state)
+            .await
+            .map_err(internal)
     }
 
     #[tool(
         description = "Tell other sessions of this repository about a change they may depend on. Claude Code and Codex share this channel; author identity and repository come from the exact calling session."
     )]
-    fn post_notice(
+    async fn post_notice(
         &self,
         Parameters(args): Parameters<PostNoticeArgs>,
         ctx: RequestContext<RoleServer>,
     ) -> Result<String, ErrorData> {
         let roots = Roots::system();
-        let sessions = discover_sessions(&roots);
+        let (sessions, _) = discover_sessions_all(&roots, &|k| std::env::var(k).ok()).await;
         let caller = required_caller(&sessions, &roots, &ctx)?;
-        let cwd = caller
-            .cwd()
-            .ok_or_else(|| internal("calling thread cwd is unavailable"))?;
+        if caller.cwd().is_none() {
+            return Err(internal("calling thread cwd is unavailable"));
+        }
         let state = state_dir(&|k| std::env::var(k).ok()).map_err(to_error)?;
-        let me = caller.storage_id();
-        let seq = post_notice_from(&state, (&me.0, me.1), caller.session_id(), cwd, args)
-            .map_err(to_error)?;
-        Ok(format!("Posted notice {seq}."))
+        tools::post_notice(caller, args, &state).map_err(internal)
     }
 }
 

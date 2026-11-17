@@ -2,6 +2,7 @@
 //! A session is live when it is top-level, not a bridge fork, and either recently touched or
 //! currently active. Child sessions are never listed or targetable.
 use crate::opencode_api::{data_dir, ensure_service, locate_opencode, CliApi, OcApi};
+use crate::sessions::Session;
 use anyhow::{anyhow, Result};
 use serde_json::Value;
 use sha2::{Digest, Sha256};
@@ -61,6 +62,50 @@ impl OpenCodeEndpoint {
 pub fn is_session_id(s: &str) -> bool {
     s.strip_prefix("ses_")
         .is_some_and(|r| !r.is_empty() && r.chars().all(|c| c.is_ascii_alphanumeric()))
+}
+
+/// The calling OpenCode session for `session-bridge call`. `ses_id` is the plugin's
+/// `tctx.sessionID`, which may be a subagent child: its parent chain is followed through
+/// `GET /api/session/{id}` (at most 8 hops) to the top-level session, which must then be a
+/// live discovered `Session::OpenCode`. Nothing else ever names an OpenCode caller.
+pub async fn opencode_caller<'a>(
+    sessions: &'a [Session],
+    api: &impl OcApi,
+    ses_id: &str,
+) -> Result<&'a Session> {
+    const REFUSED: &str = "OpenCode caller is not a live top-level session";
+    anyhow::ensure!(
+        is_session_id(ses_id),
+        "invalid OpenCode caller session id {ses_id:?}"
+    );
+    let mut id = ses_id.to_owned();
+    let mut top = None;
+    // A top-level id needs one lookup; each parent hop one more, up to 8 hops.
+    for _ in 0..=8 {
+        let row = api
+            .call("GET", &format!("/api/session/{id}"), None)
+            .await
+            .map_err(|e| e.context(REFUSED))?;
+        let row = row.get("data").unwrap_or(&row);
+        match row.get("parentID").filter(|p| !p.is_null()) {
+            None => {
+                top = Some(id);
+                break;
+            }
+            Some(parent) => {
+                let parent = parent
+                    .as_str()
+                    .filter(|p| is_session_id(p))
+                    .ok_or_else(|| anyhow!("{REFUSED}: malformed parentID"))?;
+                id = parent.to_owned();
+            }
+        }
+    }
+    let top = top.ok_or_else(|| anyhow!("{REFUSED}: parent chain deeper than 8"))?;
+    sessions
+        .iter()
+        .find(|s| matches!(s, Session::OpenCode(e) if e.session_id == top))
+        .ok_or_else(|| anyhow!(REFUSED))
 }
 
 /// A bridge fork carries a `fork` object and a title ending ` (fork #N)`.

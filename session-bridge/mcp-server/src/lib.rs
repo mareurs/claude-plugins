@@ -12,6 +12,7 @@ pub mod paths;
 pub mod server;
 pub mod state;
 pub mod store;
+pub mod tools;
 
 pub mod codex;
 pub mod codex_hook;

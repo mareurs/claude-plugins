@@ -48,6 +48,14 @@ enum Command {
         #[arg(long)]
         profile: String,
     },
+    /// Run one bridge tool for an OpenCode session: JSON arguments on stdin, the tool's
+    /// output on stdout; an error goes to stderr with exit code 2.
+    Call {
+        tool: String,
+        /// The calling session's id, as OpenCode's plugin passes it (`tctx.sessionID`).
+        #[arg(long)]
+        opencode_caller: String,
+    },
     /// List notices for a repository.
     Notices {
         #[arg(long)]
@@ -195,6 +203,80 @@ fn trigger_output(raw: &str, event: &str) -> Option<String> {
     Some(emit(event, &text))
 }
 
+/// `session-bridge call`: the OpenCode entry to the shared tool bodies. The caller is the
+/// `--opencode-caller` id only, validated against the discovered service; no environment or
+/// state file can name an OpenCode identity. Listing works without a valid caller (no
+/// `(you)` mark); every other tool refuses before any effect.
+async fn call_output(tool: &str, opencode_caller: &str) -> anyhow::Result<String> {
+    use anyhow::Context;
+    use session_bridge_mcp::{
+        opencode, opencode_api, server::state_dir, sessions::discover_sessions_all, tools,
+    };
+    anyhow::ensure!(
+        [
+            "list_sessions",
+            "ask_session",
+            "send_message",
+            "post_notice"
+        ]
+        .contains(&tool),
+        "unknown tool {tool:?}"
+    );
+    let mut raw = String::new();
+    std::io::stdin()
+        .take(1024 * 1024 + 1)
+        .read_to_string(&mut raw)
+        .context("could not read tool arguments")?;
+    anyhow::ensure!(raw.len() <= 1024 * 1024, "tool arguments exceed 1 MiB");
+    let args: serde_json::Value = if raw.trim().is_empty() {
+        serde_json::json!({})
+    } else {
+        serde_json::from_str(&raw).context("tool arguments are not valid JSON")?
+    };
+    let env = |k: &str| std::env::var(k).ok();
+    let roots = Roots::system();
+    let (sessions, notes) = discover_sessions_all(&roots, &env).await;
+    let caller = match opencode_api::locate_opencode(&env) {
+        Ok(bin) => {
+            let api = opencode_api::CliApi {
+                bin,
+                timeout: std::time::Duration::from_secs(10),
+            };
+            opencode::opencode_caller(&sessions, &api, opencode_caller).await
+        }
+        Err(e) => Err(e.context("OpenCode caller cannot be validated")),
+    };
+    match tool {
+        "list_sessions" => {
+            let state = state_dir(&env).unwrap_or_default();
+            let me = caller.as_ref().ok().copied();
+            let mut out = tools::list_sessions(me, &sessions, &notes, &state).await?;
+            if let Err(e) = &caller {
+                out.push_str(&format!("\nCaller identity unavailable: {e:#}"));
+            }
+            Ok(out)
+        }
+        "ask_session" => {
+            let args = serde_json::from_value(args).context("invalid ask_session arguments")?;
+            let caller = caller?;
+            let state = state_dir(&env)?;
+            tools::ask_session(caller, &sessions, args, &roots, &state).await
+        }
+        "send_message" => {
+            let args = serde_json::from_value(args).context("invalid send_message arguments")?;
+            let caller = caller?;
+            let state = state_dir(&env).unwrap_or_default();
+            tools::send_message(caller, &sessions, args, &roots, &state).await
+        }
+        _ => {
+            let args = serde_json::from_value(args).context("invalid post_notice arguments")?;
+            let caller = caller?;
+            let state = state_dir(&env)?;
+            tools::post_notice(caller, args, &state)
+        }
+    }
+}
+
 #[tokio::main(flavor = "multi_thread")]
 async fn run() -> anyhow::Result<()> {
     match Cli::parse().command {
@@ -232,6 +314,16 @@ async fn run() -> anyhow::Result<()> {
             }
         }
         Command::Hook { .. } => {}
+        Command::Call {
+            tool,
+            opencode_caller,
+        } => match call_output(&tool, &opencode_caller).await {
+            Ok(out) => println!("{out}"),
+            Err(e) => {
+                eprintln!("session-bridge call: {e:#}");
+                std::process::exit(2);
+            }
+        },
         Command::Filter { profile, pid } => filter_cmd(&profile, pid).await,
         Command::CodexFilter { profile } => codex_filter_cmd(&profile).await,
     }
