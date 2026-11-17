@@ -2,7 +2,7 @@ use session_bridge_mcp::{
     endpoints::Roots,
     hook::{now_ms, HookInput},
     opencode::OpenCodeEndpoint,
-    opencode_hook::{handle, output_for, settle_pending, UNFILTERED_REASON},
+    opencode_hook::{handle, output_for, settle_pending, HOOK_API_TIMEOUT, UNFILTERED_REASON},
     server::{post_notice_from, PostNoticeArgs},
     state::{endpoint_path, load_or_default},
     store::Store,
@@ -14,6 +14,24 @@ const B: &str = "ses_bbbbbbbb2";
 const CHILD: &str = "ses_cccccccc3";
 /// Longer than the look interval, so every trigger looks at the store again.
 const T: i64 = 200_000;
+
+/// The hook's `opencode api` bound must end at least one second before the plugin kills the
+/// hook process (`HOOK_TIMEOUT_MS` in the plugin), or a slow service loses the delivery.
+#[test]
+fn hook_api_timeout_is_below_the_plugin_hook_bound() {
+    let js = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../harnesses/opencode/plugins/session-bridge.js");
+    let src = fs::read_to_string(js).unwrap();
+    let ms: u64 = src
+        .lines()
+        .find_map(|l| l.strip_prefix("const HOOK_TIMEOUT_MS = "))
+        .and_then(|r| r.trim_end_matches(';').trim().parse().ok())
+        .expect("HOOK_TIMEOUT_MS in the plugin");
+    assert!(
+        HOOK_API_TIMEOUT.as_millis() as u64 + 1000 <= ms,
+        "{HOOK_API_TIMEOUT:?} vs plugin {ms} ms"
+    );
+}
 
 fn endpoint(root: &Path, sid: &str) -> OpenCodeEndpoint {
     OpenCodeEndpoint {

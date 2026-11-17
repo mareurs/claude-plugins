@@ -12,6 +12,10 @@ use std::path::Path;
 
 /// Why OpenCode notices are delivered without a relevance verdict from a model.
 pub const UNFILTERED_REASON: &str = "OpenCode receiver: no isolated relevance filter";
+/// Bound on the one `opencode api` call of a hook. The plugin kills the hook process after
+/// `HOOK_TIMEOUT_MS` (3 s, harnesses/opencode/plugins/session-bridge.js): this stays below it
+/// so the binary finishes, or fails, before it is killed mid-delivery.
+pub const HOOK_API_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(2);
 
 /// The plugin payload, or `None` for anything that is not a plain top-level session call.
 pub fn normalize(raw: &str) -> Option<HookInput> {
@@ -150,7 +154,7 @@ pub fn output(
     let env = |k: &str| std::env::var(k).ok();
     let api = crate::opencode_api::CliApi {
         bin: crate::opencode_api::locate_opencode(&env).ok()?,
-        timeout: std::time::Duration::from_secs(10),
+        timeout: HOOK_API_TIMEOUT,
     };
     let dir = crate::opencode_api::data_dir(&env)?;
     let rt = tokio::runtime::Builder::new_current_thread()

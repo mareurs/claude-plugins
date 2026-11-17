@@ -130,6 +130,7 @@ status_of() { # path → present | dangling | missing
 if [ "$MODE" = "check" ]; then
   echo "OpenCode wiring (config: $CONFIG_DIR, project: $PWD/.opencode)"
   bad=0
+  nobin=0
   for p in $PLUGINS; do
     echo "• $p"
     for b in "$CONFIG_DIR" "$PWD/.opencode"; do
@@ -153,7 +154,7 @@ if [ "$MODE" = "check" ]; then
   case " $PLUGINS " in *" session-bridge "*)
     b="$(bridge_binary)"
     if [ -n "$b" ]; then info "session-bridge binary: $b"
-    else info "session-bridge binary: missing — $BRIDGE_FIX"; fi ;;
+    else info "session-bridge binary: missing — $BRIDGE_FIX"; nobin=1; fi ;;
   esac
   for f in "$PWD/opencode.json" "$CONFIG_DIR/opencode.json"; do
     [ -f "$f" ] || continue
@@ -164,7 +165,16 @@ if [ "$MODE" = "check" ]; then
       info "codescout MCP NOT registered in $f"
     fi
   done
-  [ "$bad" -eq 0 ] && echo "all requested components present" || echo "some components missing or broken — re-run ./install.sh"
+  # A missing bridge binary is built separately, not by this script: it is named in the
+  # summary but does not change the exit code.
+  if [ "$bad" -ne 0 ]; then
+    echo "some components missing or broken — re-run ./install.sh"
+    if [ "$nobin" -ne 0 ]; then echo "the session-bridge binary is missing too (see above)"; fi
+  elif [ "$nobin" -ne 0 ]; then
+    echo "all requested components present except the session-bridge binary (see above)"
+  else
+    echo "all requested components present"
+  fi
   exit "$bad"
 fi
 

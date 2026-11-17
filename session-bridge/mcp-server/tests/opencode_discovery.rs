@@ -2,7 +2,7 @@ use anyhow::{anyhow, Result};
 use serde_json::{json, Value};
 use session_bridge_mcp::{
     endpoints::Roots,
-    opencode::{discover_opencode, is_session_id, OpenCodeEndpoint},
+    opencode::{discover_opencode, is_session_id, opencode_caller, OpenCodeEndpoint},
     opencode_api::OcApi,
     sessions::{discover_sessions_all, resolve_session, Session},
 };
@@ -24,14 +24,53 @@ impl OcApi for FakeApi {
         _body: Option<&Value>,
     ) -> impl std::future::Future<Output = Result<Value>> + Send {
         self.calls.lock().unwrap().push(format!("{method} {path}"));
-        let r = match path {
-            "/api/session" => self.list.clone(),
-            "/api/session/active" => self.active.clone(),
-            _ => Err("unexpected".into()),
+        let r = if let Some(q) = path.strip_prefix("/api/session?") {
+            self.page(q)
+        } else if path == "/api/session/active" {
+            self.active.clone()
+        } else if let Some(id) = path.strip_prefix("/api/session/") {
+            self.lookup(id)
+        } else {
+            Err("unexpected".into())
         };
         async move { r.map_err(|e| anyhow!(e)) }
     }
 }
+impl FakeApi {
+    fn new(list: Result<Value, String>, active: Result<Value, String>) -> Self {
+        FakeApi {
+            list,
+            active,
+            calls: Mutex::new(vec![]),
+        }
+    }
+    /// Pages `list.data` like the service: `limit` rows from the offset in `cursor`.
+    fn page(&self, query: &str) -> Result<Value, String> {
+        let list = self.list.clone()?;
+        let Some(rows) = list["data"].as_array() else {
+            return Ok(list);
+        };
+        let (mut limit, mut from) = (50, 0);
+        for kv in query.split('&') {
+            match kv.split_once('=') {
+                Some(("limit", v)) => limit = v.parse().unwrap(),
+                Some(("cursor", v)) => from = v.strip_prefix("off").unwrap().parse().unwrap(),
+                _ => panic!("unexpected query {kv}"),
+            }
+        }
+        let to = (from + limit).min(rows.len());
+        let next = (to < rows.len()).then(|| format!("off{to}"));
+        Ok(json!({"data": rows[from..to], "cursor": {"previous": null, "next": next}}))
+    }
+    fn lookup(&self, id: &str) -> Result<Value, String> {
+        let list = self.list.clone()?;
+        list["data"]
+            .as_array()
+            .and_then(|a| a.iter().find(|r| r["id"] == id).cloned())
+            .ok_or_else(|| "HTTP 404".to_string())
+    }
+}
+
 fn row(id: &str, updated: i64) -> Value {
     json!({"id": id, "title": format!("t-{id}"), "location": {"directory": "/repo"},
            "time": {"created": 1, "updated": updated}})
@@ -52,14 +91,6 @@ async fn discover_filters_old_child_and_fork_sessions() {
     let mut rows = vec![];
     rows.push(row("ses_recent0", NOW - HOUR));
     rows.push(row("ses_recent1", NOW - 2 * HOUR));
-    // old `updated` but recently viewed: max(updated, viewed) keeps it live
-    let mut viewed = row("ses_viewed", NOW - 90 * HOUR);
-    viewed["time"]["viewed"] = json!(NOW - HOUR);
-    rows.push(viewed);
-    rows.push(row("ses_oldactive", NOW - 99 * HOUR));
-    for i in 0..150 {
-        rows.push(row(&format!("ses_old{i}"), NOW - 25 * HOUR - i));
-    }
     for i in 0..80 {
         let mut r = row(&format!("ses_child{i}"), NOW - HOUR);
         r["parentID"] = json!("ses_recent0");
@@ -74,12 +105,20 @@ async fn discover_filters_old_child_and_fork_sessions() {
         }
         rows.push(r);
     }
+    // old `updated` but recently viewed: max(updated, viewed) keeps it live
+    let mut viewed = row("ses_viewed", NOW - 90 * HOUR);
+    viewed["time"]["viewed"] = json!(NOW - HOUR);
+    rows.push(viewed);
+    rows.push(row("ses_oldactive", NOW - 99 * HOUR));
+    for i in 0..150 {
+        rows.push(row(&format!("ses_old{i}"), NOW - 99 * HOUR - i));
+    }
     assert_eq!(rows.len(), 300);
-    let api = FakeApi {
-        list: Ok(json!({"data": rows})),
-        active: Ok(json!({"data": {"ses_oldactive": {"type": "running"}}})),
-        calls: Mutex::new(vec![]),
-    };
+    // Pages of 100: the second page ends past the window, so the third is never read.
+    let api = FakeApi::new(
+        Ok(json!({"data": rows})),
+        Ok(json!({"data": {"ses_oldactive": {"type": "running"}}})),
+    );
     let eps = discover_opencode(&api, Path::new("/data/opencode"), NOW, 24)
         .await
         .unwrap();
@@ -92,22 +131,99 @@ async fn discover_filters_old_child_and_fork_sessions() {
     let running: Vec<_> = eps.iter().filter(|e| e.running).collect();
     assert_eq!(running.len(), 1);
     assert_eq!(running[0].session_id, "ses_oldactive");
+    assert_eq!(
+        *api.calls.lock().unwrap(),
+        [
+            "GET /api/session?limit=100",
+            "GET /api/session?limit=100&cursor=off100",
+            "GET /api/session/active"
+        ]
+    );
 }
 
 #[tokio::test]
 async fn discover_makes_two_api_calls() {
-    let api = FakeApi {
-        list: Ok(json!({"data": [row("ses_a1b2", NOW)]})),
-        active: Ok(json!({"data": {}})),
-        calls: Mutex::new(vec![]),
-    };
+    // A short list (no full page) costs one list call plus the active call.
+    let api = FakeApi::new(
+        Ok(json!({"data": [row("ses_a1b2", NOW)]})),
+        Ok(json!({"data": {}})),
+    );
     discover_opencode(&api, Path::new("/d"), NOW, 24)
         .await
         .unwrap();
     assert_eq!(
         *api.calls.lock().unwrap(),
-        ["GET /api/session", "GET /api/session/active"]
+        ["GET /api/session?limit=100", "GET /api/session/active"]
     );
+}
+
+/// The service returns only its newest 50 rows by default; a live top-level session at row 121
+/// and an active one past every read page must still be found, and be accepted as callers.
+#[tokio::test]
+async fn discover_pages_past_the_default_page_and_looks_up_active() {
+    let mut rows = vec![];
+    for i in 0..120 {
+        let mut r = row(&format!("ses_kid{i}"), NOW - HOUR);
+        r["parentID"] = json!("ses_deep1");
+        rows.push(r);
+    }
+    rows.push(row("ses_deep1", NOW - 2 * HOUR));
+    for i in 0..100 {
+        rows.push(row(&format!("ses_stale{i}"), NOW - 30 * HOUR - i));
+    }
+    rows.push(row("ses_busy1", NOW - 500 * HOUR));
+    let mut busy_kid = row("ses_busykid", NOW - 500 * HOUR);
+    busy_kid["parentID"] = json!("ses_busy1");
+    rows.push(busy_kid);
+    let api = FakeApi::new(
+        Ok(json!({"data": rows})),
+        Ok(json!({"data": {"ses_busy1": {}, "ses_busykid": {}, "ses_gone1": {}}})),
+    );
+    let eps = discover_opencode(&api, Path::new("/d"), NOW, 24)
+        .await
+        .unwrap();
+    let mut ids: Vec<_> = eps.iter().map(|e| e.session_id.as_str()).collect();
+    ids.sort();
+    assert_eq!(ids, ["ses_busy1", "ses_deep1"]);
+    let calls = api.calls.lock().unwrap().clone();
+    assert_eq!(
+        calls,
+        [
+            "GET /api/session?limit=100",
+            "GET /api/session?limit=100&cursor=off100",
+            // page 2 ends with a stale row: ses_busy1 (row 221) comes from the active lookup
+            "GET /api/session/active",
+            "GET /api/session/ses_busy1",
+            "GET /api/session/ses_busykid",
+            "GET /api/session/ses_gone1",
+        ]
+    );
+    let sessions: Vec<Session> = eps.into_iter().map(Session::OpenCode).collect();
+    for (caller, top) in [
+        ("ses_deep1", "ses_deep1"),
+        ("ses_kid119", "ses_deep1"),
+        ("ses_busy1", "ses_busy1"),
+        ("ses_busykid", "ses_busy1"),
+    ] {
+        let me = opencode_caller(&sessions, &api, caller).await.unwrap();
+        assert!(
+            matches!(me, Session::OpenCode(e) if e.session_id == top),
+            "{caller}"
+        );
+    }
+}
+
+#[tokio::test]
+async fn discover_stops_at_the_row_cap() {
+    let rows: Vec<_> = (0..2500)
+        .map(|i| row(&format!("ses_r{i}"), NOW - i))
+        .collect();
+    let api = FakeApi::new(Ok(json!({"data": rows})), Ok(json!({"data": {}})));
+    let eps = discover_opencode(&api, Path::new("/d"), NOW, 24)
+        .await
+        .unwrap();
+    assert_eq!(eps.len(), 2000);
+    assert_eq!(api.calls.lock().unwrap().len(), 21);
 }
 
 #[test]
@@ -218,7 +334,7 @@ async fn discover_all_lists_opencode_through_the_cli() {
     let bin = fake_bin(
         d.path(),
         json!({
-            "GET /api/session": {"out": json!({"data": [row("ses_live1", now)]}).to_string()},
+            "GET /api/session?limit=100": {"out": json!({"data": [row("ses_live1", now)]}).to_string()},
             "GET /api/session/active": {"out": "{\"data\":{}}"},
         }),
     );
@@ -254,7 +370,7 @@ async fn service_returning_html_becomes_note() {
     let bin = fake_bin(
         d.path(),
         json!({
-            "GET /api/session": {"out": "<html>web ui</html>"},
+            "GET /api/session?limit=100": {"out": "<html>web ui</html>"},
             "GET /api/session/active": {"out": "{\"data\":{}}"},
         }),
     );

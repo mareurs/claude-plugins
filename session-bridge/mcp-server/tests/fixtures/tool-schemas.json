@@ -18,7 +18,7 @@
           "type": "string"
         },
         "target": {
-          "description": "Claude endpoint, canonical Codex address, UUID/prefix or unambiguous session name.",
+          "description": "Claude endpoint, canonical Codex address, OpenCode address (`opencode:<data dir>:<ses_id>`), UUID/prefix or unambiguous session name.",
           "type": "string"
         },
         "timeout_s": {

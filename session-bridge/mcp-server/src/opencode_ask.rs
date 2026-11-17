@@ -223,11 +223,47 @@ async fn in_fork(
     )
     .await
     .context("waiting for the OpenCode fork failed")?;
-    let list = api
-        .call("GET", &format!("{base}/message?order=desc&limit=200"), None)
-        .await
-        .context("could not read the OpenCode fork's messages")?;
+    let list = messages_since(api, &base, &id).await?;
     answer_after(&list, &id)
+}
+
+/// Messages per page when reading the fork back. A fork copies the source's history, and one
+/// page of 200 heavy messages measured 507–778 KB against the 1 MiB stdout cap of `run_bounded`.
+pub const MESSAGE_PAGE: usize = 20;
+/// At most this many pages (200 messages) are read looking for the bridge's prompt.
+pub const MESSAGE_PAGES: usize = 10;
+
+/// Newest-first messages of `base` down to and including the bridge's prompt `prompt_id`:
+/// `GET {base}/message?order=desc&limit=20`, then `cursor.next` (older; measured on 2.3.0)
+/// until the prompt is seen, the cursor ends, or 10 pages were read. Returns `{"data": [...]}`.
+async fn messages_since(api: &impl OcApi, base: &str, prompt_id: &str) -> Result<Value> {
+    let mut all: Vec<Value> = Vec::new();
+    let mut path = format!("{base}/message?order=desc&limit={MESSAGE_PAGE}");
+    for _ in 0..MESSAGE_PAGES {
+        let mut page = api
+            .call("GET", &path, None)
+            .await
+            .context("could not read the OpenCode fork's messages")?;
+        let rows = match page.get_mut("data").map(Value::take) {
+            Some(Value::Array(a)) => a,
+            _ => return Err(anyhow!("unreadable OpenCode message list")),
+        };
+        let found = rows.iter().any(|m| m["id"].as_str() == Some(prompt_id));
+        all.extend(rows);
+        let next = page
+            .pointer("/cursor/next")
+            .and_then(Value::as_str)
+            .filter(|c| {
+                !c.is_empty()
+                    && c.chars()
+                        .all(|ch| ch.is_ascii_alphanumeric() || "-_=".contains(ch))
+            });
+        match next {
+            Some(c) if !found => path = format!("{base}/message?limit={MESSAGE_PAGE}&cursor={c}"),
+            _ => break,
+        }
+    }
+    Ok(json!({ "data": all }))
 }
 
 /// The assistant messages newer than the bridge's prompt are this ask's turn (the list is

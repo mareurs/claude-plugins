@@ -24,8 +24,11 @@ import { resolveDir } from '../lib/host.mjs';
 
 export const READER = 'session-bridge-reader';
 export const CHILD_ENV = 'OPENCODE_SESSION_BRIDGE_CHILD';
-const DEFAULT_TIMEOUT_S = 120;
-const MAX_TIMEOUT_S = 600;
+// Same defaults and clamps as the binary (src/tools.rs): ask 120 s in 1..=300, send 20 s in 1..=30.
+const TIMEOUTS = {
+  ask_session: { def: 120, max: 300 },
+  send_message: { def: 20, max: 30 },
+};
 const OUTPUT_LIMIT = 1 << 20;
 const HOOK_TIMEOUT_MS = 3000;
 const KILL_GRACE_MS = 2000;
@@ -141,7 +144,7 @@ const TOOLS = {
       target: { type: 'string', description: 'Session id, id prefix, or label from list_sessions.' },
       question: { type: 'string', description: 'The question for that session.' },
       model: { type: 'string', description: 'Optional model override for the answering run.' },
-      timeout_s: { type: 'integer', minimum: 1, maximum: MAX_TIMEOUT_S, description: 'Timeout in seconds.' },
+      timeout_s: { type: 'integer', minimum: 1, maximum: TIMEOUTS.ask_session.max, description: 'Seconds to wait for the answer (default 120, at most 300).' },
     },
     required: ['target', 'question'],
   },
@@ -150,7 +153,7 @@ const TOOLS = {
     properties: {
       target: { type: 'string', description: 'Session id, id prefix, or label from list_sessions.' },
       message: { type: 'string', description: 'The message to deliver.' },
-      timeout_s: { type: 'integer', minimum: 1, maximum: MAX_TIMEOUT_S, description: 'Delivery timeout in seconds.' },
+      timeout_s: { type: 'integer', minimum: 1, maximum: TIMEOUTS.send_message.max, description: 'Delivery timeout in seconds (default 20, at most 30).' },
     },
     required: ['target', 'message'],
   },
@@ -170,7 +173,8 @@ export function makeToolExecute(tool, { env = process.env, timeoutMs } = {}) {
     const a = args && typeof args === 'object' ? args : {};
     if (!tctx?.sessionID) throw new Error('session-bridge: no calling session id available; cannot identify the caller');
     const t = Number(a.timeout_s);
-    const callS = tool === 'ask_session' || tool === 'send_message' ? (t > 0 ? Math.min(MAX_TIMEOUT_S, t) : DEFAULT_TIMEOUT_S) : 30;
+    const lim = TIMEOUTS[tool];
+    const callS = lim ? (t > 0 ? Math.min(lim.max, t) : lim.def) : 30;
     const argv = ['call', tool, '--opencode-caller', String(tctx.sessionID)];
     const r = await runBridge({
       args: argv,
@@ -253,7 +257,9 @@ export async function SessionBridge(ctx) {
   await reg('tool', 'execute.after', async (event) => {
     try {
       const sid = String(event?.sessionID || '');
-      if (!sid) return;
+      // No content array to carry the text: do not run the hook, which would mark the
+      // notices delivered and then lose them.
+      if (!sid || !Array.isArray(event?.result?.content)) return;
       const text = await runHook('post-tool', {
         session_id: sid,
         cwd: dir,
@@ -261,8 +267,7 @@ export async function SessionBridge(ctx) {
         tool_name: String(event?.tool || ''),
         tool_input: event?.input && typeof event.input === 'object' ? event.input : {},
       });
-      const content = event?.result?.content;
-      if (text && Array.isArray(content)) content.push({ type: 'text', text });
+      if (text) event.result.content.push({ type: 'text', text });
     } catch { /* fail open */ }
   });
 }

@@ -186,7 +186,7 @@ impl Env {
         let mut kid = row("ses_kid1");
         kid["parentID"] = json!("ses_live1");
         let script = json!({
-            "GET /api/session": {"out": json!({"data": [row("ses_live1"), kid.clone()]}).to_string()},
+            "GET /api/session?limit=100": {"out": json!({"data": [row("ses_live1"), kid.clone()]}).to_string()},
             "GET /api/session/active": {"out": "{\"data\":{}}"},
             "GET /api/session/ses_live1": {"out": json!({"data": row("ses_live1")}).to_string()},
             "GET /api/session/ses_kid1": {"out": json!({"data": kid}).to_string()},

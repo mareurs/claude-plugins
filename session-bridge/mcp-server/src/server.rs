@@ -3,7 +3,7 @@
 use crate::endpoints::{repo_of, Roots};
 use crate::error::BridgeError;
 use crate::paths::state_root;
-use crate::sessions::{caller_session, discover_sessions_all, Session};
+use crate::sessions::{caller_session, discover_sessions, discover_sessions_all, Session};
 use crate::state::{current_session, endpoint_path, update};
 use crate::store::{NewNotice, Origin, Store};
 use crate::tools;
@@ -81,6 +81,13 @@ fn now_ms() -> i64 {
     std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map_or(0, |d| d.as_millis() as i64)
+}
+
+/// Sessions `post_notice` resolves its caller among. An MCP caller is always a Claude Code
+/// session or a Codex thread (an OpenCode caller posts through `session-bridge call`), so
+/// OpenCode discovery and its service start are skipped here.
+pub async fn post_notice_sessions(roots: &Roots) -> Vec<Session> {
+    discover_sessions(roots)
 }
 
 /// Post a manual notice from endpoint `me` (full profile, Claude pid) working in `cwd`.
@@ -202,7 +209,7 @@ impl Bridge {
         ctx: RequestContext<RoleServer>,
     ) -> Result<String, ErrorData> {
         let roots = Roots::system();
-        let (sessions, _) = discover_sessions_all(&roots, &|k| std::env::var(k).ok()).await;
+        let sessions = post_notice_sessions(&roots).await;
         let caller = required_caller(&sessions, &roots, &ctx)?;
         if caller.cwd().is_none() {
             return Err(internal("calling thread cwd is unavailable"));
@@ -216,8 +223,9 @@ impl Bridge {
 impl ServerHandler for Bridge {
     fn get_info(&self) -> ServerInfo {
         ServerInfo::new(ServerCapabilities::builder().enable_tools().build()).with_instructions(
-            "Use ask_session(target, question) to put a question to another live Claude Code session; \
-             a read-only fork of it answers, and the target's profile pays. \
+            "Use ask_session(target, question) to put a question to another live Claude Code session, \
+             loaded Codex thread or live OpenCode session; a read-only fork of it answers, and the target's account pays. \
+             Use send_message(target, message) to message a Codex thread, an OpenCode session or a Claude Code session. \
              Use post_notice(title, body, refs) to tell the other sessions of this repository about a change they may depend on.",
         )
     }

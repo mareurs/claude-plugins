@@ -111,7 +111,21 @@ impl OcApi for FakeApi {
                     all.push(json!({"id": id, "type": "user", "text": "q"}));
                 }
                 all.extend(self.older.clone());
-                Ok(json!({"data": all, "cursor": {}}))
+                // Pages like the service: `limit` rows from the first page or the offset
+                // carried in `cursor` (`c<offset>`), `cursor.next` while rows remain.
+                let query = p.split_once('?').map_or("", |q| q.1);
+                let (mut limit, mut from) = (all.len(), 0);
+                for kv in query.split('&').filter(|s| !s.is_empty()) {
+                    match kv.split_once('=') {
+                        Some(("limit", v)) => limit = v.parse().unwrap(),
+                        Some(("cursor", v)) => from = v[1..].parse().unwrap(),
+                        Some(("order", "desc")) => {}
+                        _ => panic!("unexpected query {kv}"),
+                    }
+                }
+                let to = (from + limit).min(all.len());
+                let next = (to < all.len()).then(|| format!("c{to}"));
+                Ok(json!({"data": all[from..to], "cursor": {"previous": null, "next": next}}))
             }
             ("GET", p) if p == format!("/api/session/{FORK}") && self.info_null => Ok(Value::Null),
             ("GET", p) if p == format!("/api/session/{FORK}") => {
@@ -179,7 +193,7 @@ async fn ask_runs_fork_reader_prompt_remove_in_order() {
         format!("GET /api/session/{FORK}"),
         format!("POST /api/session/{FORK}/prompt"),
         format!("POST /api/experimental/session/{FORK}/wait"),
-        format!("GET /api/session/{FORK}/message?order=desc&limit=200"),
+        format!("GET /api/session/{FORK}/message?order=desc&limit=20"),
         format!("DELETE /api/session/{FORK}"),
     ];
     assert_eq!(api.calls(), want);
@@ -201,6 +215,57 @@ async fn ask_runs_fork_reader_prompt_remove_in_order() {
         .filter(|c| c.contains("/ses_a"))
         .collect();
     assert_eq!(on_source, ["POST /api/session/ses_a/fork"]);
+}
+
+/// A heavy fork must not be read 200 messages at once (1 MiB stdout cap): small pages are
+/// followed backwards until the bridge's prompt shows up, here on the second page.
+#[tokio::test]
+async fn ask_pages_back_to_the_prompt() {
+    let mut api = FakeApi::new();
+    // 25 newer messages: 24 tool steps without text, then the answer as the oldest of the turn.
+    api.assistants = (0..24)
+        .map(|i| json!({"id": format!("msg_step{i}"), "type": "assistant", "content": [], "cost": 0.0}))
+        .collect();
+    api.assistants.push(assistant("paged answer", Some(0.5)));
+    api.older = (0..300)
+        .map(|i| json!({"id": format!("msg_old{i}"), "type": "assistant", "content": [{"type": "text", "text": "old"}]}))
+        .collect();
+    let r = ask_opencode(&api, &ep(), "q", None, SECS).await.unwrap();
+    assert_eq!(r.answer, "paged answer");
+    assert_eq!(r.cost_usd, Some(0.5));
+    let reads: Vec<String> = api
+        .calls()
+        .into_iter()
+        .filter(|c| c.contains("/message"))
+        .collect();
+    assert_eq!(
+        reads,
+        [
+            format!("GET /api/session/{FORK}/message?order=desc&limit=20"),
+            format!("GET /api/session/{FORK}/message?limit=20&cursor=c20"),
+        ]
+    );
+}
+
+/// The prompt never appears within 10 pages: the read stops there and the ask fails cleanly.
+#[tokio::test]
+async fn ask_message_paging_is_bounded() {
+    let mut api = FakeApi::new();
+    api.assistants = (0..400)
+        .map(|i| json!({"id": format!("msg_n{i}"), "type": "assistant", "content": []}))
+        .collect();
+    let e = ask_opencode(&api, &ep(), "q", None, SECS)
+        .await
+        .unwrap_err()
+        .to_string();
+    assert!(e.contains("prompt is not among"), "{e}");
+    let reads = api
+        .calls()
+        .iter()
+        .filter(|c| c.contains("/message"))
+        .count();
+    assert_eq!(reads, 10);
+    assert!(removed(&api));
 }
 
 #[tokio::test]
@@ -457,7 +522,7 @@ async fn ask_does_not_touch_claude_budget() {
         "GET /api/session/ses_fork": {"out": json!({"data": {"id": FORK, "agent": "session-bridge-reader"}}).to_string()},
         "POST /api/session/ses_fork/prompt": {"out": "{\"data\":{}}"},
         "POST /api/experimental/session/ses_fork/wait": {"out": ""},
-        "GET /api/session/ses_fork/message?order=desc&limit=200": {"out": messages},
+        "GET /api/session/ses_fork/message?order=desc&limit=20": {"out": messages},
         "DELETE /api/session/ses_fork": {"out": ""},
     });
     let bin = fake_bin(d.path(), ok.clone());

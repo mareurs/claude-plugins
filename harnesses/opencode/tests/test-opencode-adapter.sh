@@ -101,6 +101,12 @@ else pass "install.sh stays quiet when SESSION_BRIDGE_BIN names a binary"; fi
 if OPENCODE_CONFIG_DIR="$SB/cfg" PATH="$CLEAN_PATH" env -u SESSION_BRIDGE_BIN bash "$INSTALLER" --check --plugins session-bridge 2>&1 | grep -q 'session-bridge binary: missing'; then
   pass "install.sh --check reports a missing binary"
 else fail "install.sh --check did not report the missing binary"; fi
+# ...and its summary must not then claim everything is present; the exit code stays 0.
+chk="$(OPENCODE_CONFIG_DIR="$SB/cfg" PATH="$CLEAN_PATH" env -u SESSION_BRIDGE_BIN bash "$INSTALLER" --check --plugins session-bridge 2>&1)"; rc=$?
+last="$(printf '%s\n' "$chk" | tail -1)"
+if [ "$rc" -eq 0 ] && printf '%s' "$last" | grep -q 'except the session-bridge binary' && [ "$last" != "all requested components present" ]; then
+  pass "install.sh --check summary names the missing binary (exit 0)"
+else fail "install.sh --check summary hides the missing binary (rc=$rc): $last"; fi
 
 # build.sh's link step: the binary is linked at ${SESSION_BRIDGE_BIN_DIR:-~/.local/bin}, a path
 # no release changes. SB_BUILD_SKIP_CARGO=1 skips test/clippy/install (they are the crate's own

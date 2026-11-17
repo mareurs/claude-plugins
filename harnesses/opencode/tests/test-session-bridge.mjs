@@ -244,6 +244,25 @@ await ok('context hook emits session-start and prompt output on the first event'
   });
 });
 
+await ok('post-tool hook is not run when the result has no content array (notices would be lost)', async () => {
+  const log = join(SANDBOX, 'nocontent.json');
+  await withEnv(fake({ FAKE_SB_LOG: log, FAKE_SB_OUT: '[sb] notice' }), async () => {
+    const { hooks } = await setup();
+    await hooks['tool.execute.after']({ sessionID: 'ses_nc', tool: 'read', input: {}, result: { output: 'x' } });
+    await hooks['tool.execute.after']({ sessionID: 'ses_nc', tool: 'read', input: {} });
+    await hooks['tool.execute.after']({ sessionID: 'ses_nc', tool: 'read', input: {}, result: { content: 'text' } });
+    assert.equal(existsSync(`${log}.hook.post-tool`), false, 'the hook ran and marked notices delivered');
+  });
+});
+
+await ok('timeout_s limits match the binary: ask at most 300, send at most 30', async () => {
+  const { tools } = await withEnv(fake(), () => setup());
+  assert.equal(tools.ask_session.input.properties.timeout_s.maximum, 300);
+  assert.equal(tools.send_message.input.properties.timeout_s.maximum, 30);
+  assert.match(tools.ask_session.input.properties.timeout_s.description, /300/);
+  assert.match(tools.send_message.input.properties.timeout_s.description, /30/);
+});
+
 await ok('missing tctx.sessionID is a clear tool error and spawns nothing', async () => {
   await withEnv(fake({ FAKE_SB_LOG: join(SANDBOX, 'never.json') }), async () => {
     const { tools } = await setup();

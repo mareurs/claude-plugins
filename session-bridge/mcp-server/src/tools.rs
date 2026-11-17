@@ -21,7 +21,7 @@ use std::path::Path;
 
 #[derive(Debug, Deserialize, schemars::JsonSchema)]
 pub struct AskArgs {
-    /// Claude endpoint, canonical Codex address, UUID/prefix or unambiguous session name.
+    /// Claude endpoint, canonical Codex address, OpenCode address (`opencode:<data dir>:<ses_id>`), UUID/prefix or unambiguous session name.
     pub target: String,
     /// The question to ask the target session.
     pub question: String,

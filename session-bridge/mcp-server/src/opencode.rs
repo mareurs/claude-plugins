@@ -120,29 +120,90 @@ pub fn is_fork(row: &Value) -> bool {
         .is_some_and(|(_, n)| !n.is_empty() && n.chars().all(|c| c.is_ascii_digit()))
 }
 
-/// Exactly two API calls: `GET /api/session` and `GET /api/session/active`.
+/// Rows per `GET /api/session` page. The service default is 50 (newest-updated first).
+pub const LIST_PAGE: usize = 100;
+/// Hard cap on listed rows: at most `LIST_CAP / LIST_PAGE` = 20 list calls.
+pub const LIST_CAP: usize = 2000;
+/// Hard cap on active ids looked up one by one because no listed page held them.
+pub const ACTIVE_LOOKUP_CAP: usize = 50;
+
+/// Bounded API calls: `GET /api/session?limit=100` pages (following `cursor.next`) until a
+/// page ends with a row older than the recency window by `time.updated` (the list order), the
+/// cursor ends, or 2000 rows were read (at most 20 calls); then `GET /api/session/active`; then
+/// `GET /api/session/{id}` for each active id no page held (at most 50). Every row, listed or
+/// looked up, passes the same top-level, fork and recency filters.
 pub async fn discover_opencode(
     api: &impl OcApi,
     data_dir: &Path,
     now_ms: i64,
     recent_hours: u64,
 ) -> Result<Vec<OpenCodeEndpoint>> {
-    let list = api.call("GET", "/api/session", None).await?;
-    let rows = list
-        .get("data")
-        .and_then(Value::as_array)
-        .ok_or_else(|| anyhow!("OpenCode session list has no data array"))?;
-    let active = api.call("GET", "/api/session/active", None).await?;
-    let active: HashSet<&str> = active
-        .get("data")
-        .and_then(Value::as_object)
-        .map(|o| o.keys().map(String::as_str).collect())
-        .unwrap_or_default();
     let window = i64::try_from(recent_hours)
         .unwrap_or(i64::MAX)
         .saturating_mul(3_600_000);
+    let updated = |row: &Value| {
+        row.pointer("/time/updated")
+            .and_then(Value::as_i64)
+            .unwrap_or(0)
+    };
+    let mut rows: Vec<Value> = Vec::new();
+    let mut cursor: Option<String> = None;
+    loop {
+        let path = match &cursor {
+            None => format!("/api/session?limit={LIST_PAGE}"),
+            Some(c) => format!("/api/session?limit={LIST_PAGE}&cursor={c}"),
+        };
+        let mut list = api.call("GET", &path, None).await?;
+        let page = match list.get_mut("data").map(Value::take) {
+            Some(Value::Array(a)) => a,
+            _ => return Err(anyhow!("OpenCode session list has no data array")),
+        };
+        let past_window = page
+            .last()
+            .is_none_or(|r| now_ms.saturating_sub(updated(r)) > window);
+        let full = page.len() >= LIST_PAGE;
+        rows.extend(page);
+        cursor = list
+            .pointer("/cursor/next")
+            .and_then(Value::as_str)
+            // A cursor is base64url; anything else is not passed into a path.
+            .filter(|c| {
+                !c.is_empty()
+                    && c.chars()
+                        .all(|ch| ch.is_ascii_alphanumeric() || "-_=".contains(ch))
+            })
+            .map(str::to_owned);
+        if past_window || !full || cursor.is_none() || rows.len() >= LIST_CAP {
+            break;
+        }
+    }
+    let active = api.call("GET", "/api/session/active", None).await?;
+    let active: HashSet<String> = active
+        .get("data")
+        .and_then(Value::as_object)
+        .map(|o| o.keys().cloned().collect())
+        .unwrap_or_default();
+    let seen: HashSet<String> = rows
+        .iter()
+        .filter_map(|r| r.get("id").and_then(Value::as_str).map(str::to_owned))
+        .collect();
+    let mut missing: Vec<&String> = active
+        .iter()
+        .filter(|id| is_session_id(id) && !seen.contains(*id))
+        .collect();
+    missing.sort();
+    for id in missing.into_iter().take(ACTIVE_LOOKUP_CAP) {
+        // A vanished or unreadable active session is skipped, not a discovery failure.
+        if let Ok(row) = api.call("GET", &format!("/api/session/{id}"), None).await {
+            let row = row.get("data").cloned().unwrap_or(row);
+            if row.get("id").and_then(Value::as_str) == Some(id.as_str()) {
+                rows.push(row);
+            }
+        }
+    }
     let mut out = Vec::new();
-    for row in rows {
+    let mut pushed = HashSet::new();
+    for row in &rows {
         let Some(id) = row
             .get("id")
             .and_then(Value::as_str)
@@ -161,6 +222,9 @@ pub async fn discover_opencode(
         let last = time("updated").max(time("viewed"));
         let running = active.contains(id);
         if !running && now_ms.saturating_sub(last) > window {
+            continue;
+        }
+        if !pushed.insert(id.to_owned()) {
             continue;
         }
         out.push(OpenCodeEndpoint {
