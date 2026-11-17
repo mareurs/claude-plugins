@@ -96,6 +96,18 @@ kept_rules() {
   has "$f" 'launched' && has "$f" 'Ask the session'
 }
 
+# Rules taken from the git-hooks branch: the plugin ships the trailer hook, and a notice never
+# acks a push. The stale claim that the plugin ships nothing must be gone from both files.
+hooks_rules() {
+  local f r; f="$(core_of "$1")"; r="$(ref_of "$1")"
+  has "$f" 'git-hooks/install.sh' && has "$f" 'only your user can ack' \
+    && has "$f" 'gate is green' && has "$r" 'git-hooks/install.sh' && has "$r" 'pre-push'
+}
+no_stale_trailer_claim() {
+  ! grep -qiE 'ships nothing' "$(core_of "$1")" "$(ref_of "$1")" 2>/dev/null \
+    && [ -f "$(core_of "$1")" ] && [ -f "$(ref_of "$1")" ]
+}
+
 # The retired skill's mechanics must not come back: no harness listing tool, no raw socket.
 no_retired_mechanics() {
   [ -d "$1" ] && ! grep -rqE 'ListAgents|SendMessage|cc-socks|uds:' "$1" 2>/dev/null
@@ -117,6 +129,8 @@ ask_rules "$SKILL_DIR"       && ok "core says how to read an ask answer" || bad 
 silent_fallback "$SKILL_DIR" && ok "core names the silent failure and the notices command" || bad "silent fallback" "missing"
 repo_scope "$SKILL_DIR"      && ok "core defines the repository scope" || bad "repo scope" "missing"
 kept_rules "$SKILL_DIR"      && ok "core keeps the two rules of the retired skill" || bad "kept rules" "missing"
+hooks_rules "$SKILL_DIR"     && ok "skill points at the trailer hook and never lets a notice ack a push" || bad "hooks rules" "missing"
+no_stale_trailer_claim "$SKILL_DIR" && ok "no claim that the plugin ships nothing for the trailer" || bad "stale trailer claim" "found, or a file is missing"
 no_retired_mechanics "$SKILL_DIR" && ok "no harness listing tool and no raw socket in the skill" || bad "retired mechanics" "found one"
 
 # --- retirement of the other skills ------------------------------------------------------------
@@ -157,6 +171,9 @@ if [ -f "$CORE" ] && [ -f "$REF" ]; then
   control drop_notices_cmd  silent_fallback   't=t.replace("session-bridge notices","the log")' SKILL.md
   control drop_section      has_sections      't=t.replace("## Asking a peer","## Questions")' SKILL.md
   control add_harness_tool  no_retired_mechanics 't+="\nCall ListAgents first.\n"' SKILL.md
+  control drop_install_ptr  hooks_rules       't=t.replace("git-hooks/install.sh","the installer")' SKILL.md
+  control drop_ack_rule     hooks_rules       't=t.replace("only your user can ack","anyone can ack")' SKILL.md
+  control stale_claim_back  no_stale_trailer_claim 't+="\nThe plugin ships nothing that writes the trailer.\n"' references/commit-backup.md
   control pad_over_cap      under_cap         't+="x"*9500' SKILL.md
 fi
 

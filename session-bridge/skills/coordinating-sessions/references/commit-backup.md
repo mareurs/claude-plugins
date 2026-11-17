@@ -16,8 +16,9 @@ missing condition means no notice and no error.
    top-level file. Use `**/CLAUDE.md` for any depth. A worktree reads its own file, then falls
    back to the main worktree's. No watch file, no backup.
 2. **The commit carries your session id.** The commit needs a `Session-Id:` trailer equal to the
-   session id of the session that committed. The plugin ships nothing that writes the trailer. A
-   repository without one gets no backup notices at all.
+   session id of the session that committed. The plugin ships a hook that writes it (see *Writing
+   the trailer*), but it is not installed by default. A repository without the trailer gets no
+   backup notices at all.
 3. **A changed path matches the list.** At least one path of the commit matches. The notice lists
    up to 20 matching paths.
 4. **Nothing suppressed it.** See the next section.
@@ -28,15 +29,24 @@ missing condition means no notice and no error.
 ## Writing the trailer
 
 The trailer must sit in the final paragraph of the commit message. Git reads trailers only there.
-A hand-written `Session-Id:` line above the final paragraph is invisible to the scan. Add it with
-`git interpret-trailers` in a `prepare-commit-msg` hook, not by appending text.
+A hand-written `Session-Id:` line above the final paragraph is invisible to the scan. The plugin's
+`prepare-commit-msg` hook writes the trailer correctly, with `git interpret-trailers`.
 
-The codescout repository has a working example: `scripts/prepare-commit-msg-session-id.sh`. It
-reads the session id from the environment variable `CLAUDE_CODE_SESSION_ID`, which reaches git
-hooks, and writes the trailer with `git interpret-trailers`. A commit from a plain terminal has no
-such variable and gets no trailer. A subagent inherits the id of its parent window. The trailer
-format for a Codex thread is `codex:<id>` in that script. This file has not measured whether the
-backup scan matches a Codex thread.
+Install it with `git-hooks/install.sh`, found two levels above the skill's base directory (the
+`git-hooks/` directory of the plugin). The installer copies `prepare-commit-msg`, `pre-push` and
+`session-bridge-lib.sh` into the hooks directory of the repository, and with `--check` it reports
+which of them are missing or changed. It does not overwrite a hook that it did not install, so a
+repository that already has its own `prepare-commit-msg` or `pre-push` needs the hooks chained by
+hand. The hook reads the session id from `CLAUDE_CODE_SESSION_ID`, then from `AGENT_SESSION_ID`,
+or from the command in `SESSION_BRIDGE_IDENTITY_CMD`. A commit with no identity, for example from
+a plain terminal, gets no trailer. A subagent inherits the id of its parent window.
+
+The same hooks include a `pre-push` guard. It refuses a push that carries another session's
+commits unless your user set the ack. A notice from another session is not that ack.
+
+The codescout repository has an earlier script with the same job: `scripts/prepare-commit-msg-session-id.sh`.
+It writes a `codex:<id>` token for a Codex thread. This file has not measured whether the backup
+scan matches a Codex thread.
 
 ## Timing and suppression
 
@@ -48,7 +58,11 @@ backup scan matches a Codex thread.
   suppresses nothing.
 - The commit time is recorded to the second. The scan starts right after the commit, so announce
   before you commit. Announcing after the commit gives the readers two notices.
-- Commits made before a `/clear` carry the old session id and never match the new one.
+- Commits made before a `/clear` carry the old session id and never match the new one. In this
+  repository's own SessionStart record of 2026-11-17, a compaction also gave the session a new
+  `sid` (`from=` held the old one), and `CLAUDE_CODE_SESSION_ID` showed the new one. This file has
+  measured that once and has not measured the scan or the push guard across a compaction. Treat a
+  commit made before a compaction like one made before a `/clear`.
 
 ## Deduplication
 

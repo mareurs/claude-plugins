@@ -174,7 +174,7 @@ notice, posted for it from the commit.
   `**/CLAUDE.md` matches it at any depth, top level included. Each worktree reads its
   own file and falls back to the main worktree's. No file, no backup.
 - **Trailer**: a commit counts only when its `Session-Id:` trailer equals the endpoint's current
-  session id. A repository whose commits carry no such trailer gets no backup notices. The scan
+  session id. A repository whose commits carry no such trailer gets no backup notices. The hooks in `git-hooks/` write the trailer (see *Git hooks*). The scan
   runs `git -c trailer.separators=: log …`, so a `trailer.separators` setting of the user in any
   scope does not hide the trailer.
 - **Changed paths**: at least one path of the commit must match the watch list. The notice
@@ -249,6 +249,10 @@ change), how to word it, what to do with a notice it receives, when and how to a
 what to do when the bridge is silent. Its `references/commit-backup.md` holds the conditions of the
 commit backup.
 
+## Git hooks
+
+`git-hooks/` holds two git hooks for repositories in which several sessions share one checkout. `prepare-commit-msg` writes the `Session-Id:` trailer that the commit backup needs. `pre-push` refuses to publish another session's commits without an ack, and refuses a commit that its author holds back. Install them with `git-hooks/install.sh`, found in the plugin directory (two levels above the skill's base directory). Installing the plugin does not install them: they live in the git directory of each repository. `install.sh` does not overwrite a hook that it did not install, so a repository with its own `pre-push` needs the two hooks chained by hand. See `git-hooks/README.md`.
+
 ## Known limits
 
 - A notice that has been read into an endpoint's queue when its session dies, before delivery, is
@@ -305,6 +309,7 @@ session-bridge/
 ├── hooks/{hooks.json, run.sh}
 ├── mcp-server/{Cargo.toml, src/, tests/}
 ├── skills/coordinating-sessions/{SKILL.md, references/commit-backup.md}
+├── git-hooks/{prepare-commit-msg, pre-push, install.sh, session-bridge-lib.sh, README.md}
 ├── commands/sessions.md
 ├── scripts/build.sh
 ├── docs/claude-cli-probe.md        historical, see its banner
