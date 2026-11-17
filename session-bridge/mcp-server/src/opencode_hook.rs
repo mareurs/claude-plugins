@@ -66,13 +66,54 @@ pub fn spawn_filter(profile: &str, _pid: u32) -> Option<u32> {
 /// settles one batch per locked update, so loop until `pending` is empty.
 pub fn settle_pending(state: &Path, profile: &str) {
     let path = crate::state::endpoint_path(state, profile, 0);
-    for _ in 0..1000 {
-        if crate::state::read_locked(&path).pending.is_empty() {
+    let mut left = crate::state::read_locked(&path).pending.len();
+    while left > 0 {
+        crate::filter::drain_unfiltered(state, profile, 0, UNFILTERED_REASON);
+        let now = crate::state::read_locked(&path).pending.len();
+        // A failing update must not spin: stop when a round settled nothing.
+        if now >= left {
             break;
         }
-        crate::filter::drain_unfiltered(state, profile, 0, UNFILTERED_REASON);
+        left = now;
     }
     crate::filter::clear_worker_pid(state, profile, 0);
+}
+
+/// The endpoint for one hook call: ONE `GET /api/session/{id}` (no service start, no
+/// listing; the plugin runs inside the service). Live means top-level, not a fork, not
+/// archived; no recency filter, the hook fires during the session's own turn.
+pub async fn resolve_endpoint(
+    api: &impl crate::opencode_api::OcApi,
+    data_dir: &Path,
+    ses_id: &str,
+) -> Option<OpenCodeEndpoint> {
+    if !is_session_id(ses_id) {
+        return None;
+    }
+    let row = api
+        .call("GET", &format!("/api/session/{ses_id}"), None)
+        .await
+        .ok()?;
+    let row = row.get("data").unwrap_or(&row);
+    let present = |p: &str| row.pointer(p).is_some_and(|v| !v.is_null());
+    if row.get("id").and_then(|v| v.as_str()) != Some(ses_id)
+        || present("/parentID")
+        || present("/time/archived")
+        || crate::opencode::is_fork(row)
+    {
+        return None;
+    }
+    Some(OpenCodeEndpoint {
+        data_dir: data_dir.to_path_buf(),
+        session_id: ses_id.to_owned(),
+        title: row.get("title").and_then(|v| v.as_str()).map(str::to_owned),
+        directory: row
+            .pointer("/location/directory")
+            .and_then(|v| v.as_str())
+            .map(std::path::PathBuf::from),
+        running: true,
+        last_active_ms: 0,
+    })
 }
 
 /// Resolve the payload against `endpoints` (live top-level sessions) and handle it.
@@ -105,20 +146,22 @@ pub fn output(
     if std::env::var("SESSION_BRIDGE_CHILD").ok().as_deref() == Some("1") {
         return None;
     }
-    normalize(raw)?;
+    let input = normalize(raw)?;
+    let env = |k: &str| std::env::var(k).ok();
+    let api = crate::opencode_api::CliApi {
+        bin: crate::opencode_api::locate_opencode(&env).ok()?,
+        timeout: std::time::Duration::from_secs(10),
+    };
+    let dir = crate::opencode_api::data_dir(&env)?;
     let rt = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
         .ok()?;
-    let endpoints = rt
-        .block_on(crate::opencode::discover_opencode_system(&|k| {
-            std::env::var(k).ok()
-        }))
-        .ok()?;
+    let endpoint = rt.block_on(resolve_endpoint(&api, &dir, &input.session_id))?;
     output_for(
         raw,
         event,
-        &endpoints,
+        &[endpoint],
         roots,
         state,
         store,

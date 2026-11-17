@@ -258,3 +258,77 @@ fn hook_error_prints_nothing_exit_zero() {
         assert!(out.stdout.is_empty(), "{:?}", out.stdout);
     }
 }
+
+struct OneApi {
+    rows: std::collections::HashMap<String, serde_json::Value>,
+    calls: std::sync::Mutex<Vec<String>>,
+}
+impl session_bridge_mcp::opencode_api::OcApi for OneApi {
+    fn call(
+        &self,
+        method: &str,
+        path: &str,
+        _body: Option<&serde_json::Value>,
+    ) -> impl std::future::Future<Output = anyhow::Result<serde_json::Value>> + Send {
+        self.calls.lock().unwrap().push(format!("{method} {path}"));
+        let r = path
+            .strip_prefix("/api/session/")
+            .and_then(|id| self.rows.get(id).cloned())
+            .ok_or_else(|| anyhow::anyhow!("HTTP 404 Not Found"));
+        async move { r }
+    }
+}
+
+#[tokio::test]
+async fn hook_resolves_session_with_exactly_one_lookup() {
+    use serde_json::json;
+    let row = |extra: serde_json::Value| {
+        let mut v = json!({"id": "ses_ok1", "title": "t", "location": {"directory": "/repo"}});
+        for (k, x) in extra.as_object().unwrap() {
+            v[k] = x.clone();
+        }
+        json!({ "data": v })
+    };
+    let cases = [
+        ("valid", json!({}), true),
+        ("child", json!({"parentID": "ses_p"}), false),
+        ("fork object", json!({"fork": {"of": "ses_p"}}), false),
+        ("fork title", json!({"title": "t (fork #2)"}), false),
+        ("archived", json!({"time": {"archived": 5}}), false),
+    ];
+    for (name, extra, ok) in cases {
+        let api = OneApi {
+            rows: [("ses_ok1".to_string(), row(extra))].into(),
+            calls: Default::default(),
+        };
+        let got = session_bridge_mcp::opencode_hook::resolve_endpoint(
+            &api,
+            Path::new("/data"),
+            "ses_ok1",
+        )
+        .await;
+        assert_eq!(got.is_some(), ok, "{name}");
+        assert_eq!(
+            api.calls.lock().unwrap().as_slice(),
+            ["GET /api/session/ses_ok1"],
+            "{name}"
+        );
+        if ok {
+            let e = got.unwrap();
+            assert_eq!(e.directory.as_deref(), Some(Path::new("/repo")));
+        }
+    }
+    let api = OneApi {
+        rows: Default::default(),
+        calls: Default::default(),
+    };
+    for id in ["ses_ok1", "../x", ""] {
+        assert!(
+            session_bridge_mcp::opencode_hook::resolve_endpoint(&api, Path::new("/d"), id)
+                .await
+                .is_none()
+        );
+    }
+    // 404 made one call; the two invalid ids made none.
+    assert_eq!(api.calls.lock().unwrap().len(), 1);
+}

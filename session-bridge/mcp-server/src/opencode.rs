@@ -109,7 +109,7 @@ pub async fn opencode_caller<'a>(
 }
 
 /// A bridge fork carries a `fork` object and a title ending ` (fork #N)`.
-fn is_fork(row: &Value) -> bool {
+pub fn is_fork(row: &Value) -> bool {
     if row.get("fork").is_some_and(|f| !f.is_null()) {
         return true;
     }
