@@ -11,7 +11,7 @@ tags:
 - audit-log
 - self-reflection
 - eval
-entry_high_water_A: 3
+entry_high_water_A: 5
 entry_prefix: A
 expects_augmentation: docs/augmentations/docs-trackers-prompt-hamsa-audit-log.yaml
 ---
@@ -222,6 +222,19 @@ Cost and length: mean cost $0.00202 per run (A1 $0.00215, A0 $0.00169), mean 212
 What this supports, and what it does not. Supported: on a run with no audit directory, the audit branch is not what holds the grounding on Haiku; the remaining rules carry it. Not supported: deleting the branch. The stimulus has no audit directory, so the branch is inactive by construction, and the audit-mode behavior it exists for (exact response capture, helper copy, manifest) was never exercised. The registered limit stands: a pass supports at most moving the branch out of the default path into a reference read only when an audit is requested. Still untested: that the worker, when an audit IS requested, finds and follows such a reference; the other restatements of the grounding rule; Codex `gpt-6-luna`; any second stimulus. N=10 per arm, one coder, counts only.
 
 No edit was made to `research-subagent/SKILL.md`. A change there is committed, not live, until a release seeds a new cache and repoints the install records.
+
+## A-5 — Hamsa's own prompt, rewritten in the native register: the 53% cut held, and the new principle's effect is unmeasured
+
+**Valid:** dated 2026-11-17
+
+**Symptom.** The operator's experience: capable tool-using models do better on a short brief built on one coherent abstraction than on an enumerated procedure. Hamsa's own `SKILL.md` was the enumerated kind (23,038 B).
+
+**Move.** Rewrite in the native register, same headings and numbering, evidence to `buddy/skills/prompt-hamsa/references/evidence.md`. 10,837 B. Structural guard: `tests/test-prompt-hamsa-split.sh`.
+
+**Outcome — held.** n=3 per arm, Sonnet 5.5. Old file: `critique-weak-prompt` and the new `refactor-over-detailed-agent-prompt` pass on the bare control too (tautological); `resist-adding-to-tight-prompt` has power (3/3 vs 0/3). New file: all three pass, and all 9 transcripts loaded the new text. The deletion regressed nothing these scenarios measure. Principle 7 is not shown to change behaviour: the bare model already writes the compact rewrite. A stimulus that discriminates — a bare model that keeps the step script or inlines the layout — is still to be found. Results: `buddy/tests/prompt-hamsa-eval/prompt-tdd/RESULTS-2026-11-17.md`.
+
+**Eval-tool finding.** The first baseline ran in a profile with no credential; every session replied `Not logged in · Please run /login`, and prompt-tdd scored the round "no-effect", not "invalid".
+
 ## History
 ### 2026-08-27 — self-audit: the rule was present three times and still did not fire (row `A-3`)
 
