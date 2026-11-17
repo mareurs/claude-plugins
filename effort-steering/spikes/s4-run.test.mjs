@@ -1003,6 +1003,13 @@ await ta('R-PL6 (review 3, m3-m5, n2): the header names the known gaps: no trans
 // ---- C (I-2): the claude children get a whitelisted environment ---------------------------
 
 const withParentEnv = async (vars, fn) => {
+  // childEnv() keeps EVERY inherited LC_* variable, so the whitelist assertions are only
+  // host-independent if the host's own LC_* are out of the parent env. Overlaying `vars` on
+  // the real process.env is not enough: a host that sets LC_ADDRESS, LC_TIME, ... would put
+  // them in the child env and break the hard-coded key lists (issue #18, item 3). Clear
+  // every inherited LC_* that `vars` does not set; the finally block restores them.
+  const cleared = Object.keys(process.env).filter((k) => k.startsWith('LC_') && !(k in vars));
+  vars = { ...vars, ...Object.fromEntries(cleared.map((k) => [k, undefined])) };
   const saved = {};
   for (const k of Object.keys(vars)) saved[k] = process.env[k];
   for (const [k, v] of Object.entries(vars)) {
