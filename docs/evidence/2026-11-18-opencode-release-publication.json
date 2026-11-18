@@ -1,0 +1,453 @@
+{
+  "date": "2026-11-18",
+  "audited_source_head": "4b4dd5f9c6ef1db58f9f7df97b01db9396dade97",
+  "release_source_head": "ff583faec94f725894dca57a2a1084f689e15aec",
+  "release_commits": {
+    "buddy": "de076301af103af6ef1e5bd93675b920146aaf21",
+    "session-bridge": "ff583faec94f725894dca57a2a1084f689e15aec"
+  },
+  "versions": {
+    "buddy": "0.12.0",
+    "session-bridge": "0.3.0"
+  },
+  "release_method": "scripts/release.sh with tests enabled; NO_PUSH=1 for both; publish together after final profile verification",
+  "change_audit": "2026-11-18-release-change-audit.json",
+  "verification": {
+    "rust_passed": 390,
+    "rust_failed": 0,
+    "rust_result_records": 37,
+    "installed_binary_sha256": "44bc5c7e682f775795dfcd9e85b0b07592f0c956e963c3d1e8d7c4c0a2ea8389",
+    "installed_binary_matches_build": true,
+    "path_link": "/home/marius/.local/bin/session-bridge",
+    "path_link_target": "/home/marius/.cargo/bin/session-bridge",
+    "root_suite": "passed in both release preflights",
+    "buddy_pytest": {
+      "buddy_preflight_passed_counts": [
+        579,
+        579
+      ],
+      "bridge_preflight_passed_counts": [
+        579,
+        579
+      ]
+    },
+    "opencode_adapter": {
+      "buddy_preflight": {
+        "passed": 207,
+        "failed": 0,
+        "skipped": 0
+      },
+      "bridge_preflight": {
+        "passed": 207,
+        "failed": 0,
+        "skipped": 0
+      }
+    },
+    "final_profile_parity": "passed",
+    "version_consistency": "passed"
+  },
+  "profile_matrix": {
+    "rows": 27,
+    "install_records": 29,
+    "critical_cache_files_checked": 36,
+    "errors": [],
+    "params": {
+      "last_refresh_commit": "ff583fa",
+      "plugins": {
+        "buddy": {
+          "canonical": "0.12.0",
+          "readme": "0.12.0",
+          "marketplace_clean": true,
+          "profiles": {
+            ".claude": {
+              "installed": "0.12.0",
+              "all_versions": [
+                "0.12.0"
+              ],
+              "stale_sibling": false,
+              "cache_dir_exists": true,
+              "install_path_matches_profile": true
+            },
+            ".claude-sdd": {
+              "installed": "0.12.0",
+              "all_versions": [
+                "0.12.0"
+              ],
+              "stale_sibling": false,
+              "cache_dir_exists": true,
+              "install_path_matches_profile": true
+            },
+            ".claude-kat": {
+              "installed": "0.12.0",
+              "all_versions": [
+                "0.12.0"
+              ],
+              "stale_sibling": false,
+              "cache_dir_exists": true,
+              "install_path_matches_profile": true
+            },
+            ".claude-stef": {
+              "installed": "0.12.0",
+              "all_versions": [
+                "0.12.0"
+              ],
+              "stale_sibling": false,
+              "cache_dir_exists": true,
+              "install_path_matches_profile": true
+            }
+          }
+        },
+        "codescout-companion": {
+          "canonical": "1.22.4",
+          "readme": "1.22.4",
+          "marketplace_clean": true,
+          "profiles": {
+            ".claude": {
+              "installed": "1.22.4",
+              "all_versions": [
+                "1.22.4"
+              ],
+              "stale_sibling": false,
+              "cache_dir_exists": true,
+              "install_path_matches_profile": true
+            },
+            ".claude-sdd": {
+              "installed": "1.22.4",
+              "all_versions": [
+                "1.22.4"
+              ],
+              "stale_sibling": false,
+              "cache_dir_exists": true,
+              "install_path_matches_profile": true
+            },
+            ".claude-kat": {
+              "installed": "1.22.4",
+              "all_versions": [
+                "1.22.4"
+              ],
+              "stale_sibling": false,
+              "cache_dir_exists": true,
+              "install_path_matches_profile": true
+            },
+            ".claude-stef": {
+              "installed": "1.22.4",
+              "all_versions": [
+                "1.22.4"
+              ],
+              "stale_sibling": false,
+              "cache_dir_exists": true,
+              "install_path_matches_profile": true
+            }
+          }
+        },
+        "hint-echo": {
+          "canonical": "0.1.0",
+          "readme": "0.1.0",
+          "marketplace_clean": true,
+          "profiles": {
+            ".claude": {
+              "installed": "0.1.0",
+              "all_versions": [
+                "0.1.0"
+              ],
+              "stale_sibling": false,
+              "cache_dir_exists": true,
+              "install_path_matches_profile": true
+            },
+            ".claude-sdd": {
+              "installed": "0.1.0",
+              "all_versions": [
+                "0.1.0"
+              ],
+              "stale_sibling": false,
+              "cache_dir_exists": true,
+              "install_path_matches_profile": true
+            },
+            ".claude-kat": {
+              "installed": "0.1.0",
+              "all_versions": [
+                "0.1.0"
+              ],
+              "stale_sibling": false,
+              "cache_dir_exists": true,
+              "install_path_matches_profile": true
+            },
+            ".claude-stef": {
+              "installed": "0.1.0",
+              "all_versions": [
+                "0.1.0"
+              ],
+              "stale_sibling": false,
+              "cache_dir_exists": true,
+              "install_path_matches_profile": true
+            }
+          }
+        },
+        "legible": {
+          "canonical": "0.2.1",
+          "readme": "0.2.1",
+          "marketplace_clean": true,
+          "profiles": {
+            ".claude": {
+              "installed": "0.2.1",
+              "all_versions": [
+                "0.2.1"
+              ],
+              "stale_sibling": false,
+              "cache_dir_exists": true,
+              "install_path_matches_profile": true
+            },
+            ".claude-sdd": {
+              "installed": "0.2.1",
+              "all_versions": [
+                "0.2.1"
+              ],
+              "stale_sibling": false,
+              "cache_dir_exists": true,
+              "install_path_matches_profile": true
+            },
+            ".claude-kat": {
+              "installed": "0.2.1",
+              "all_versions": [
+                "0.2.1"
+              ],
+              "stale_sibling": false,
+              "cache_dir_exists": true,
+              "install_path_matches_profile": true
+            },
+            ".claude-stef": {
+              "installed": "0.2.1",
+              "all_versions": [
+                "0.2.1"
+              ],
+              "stale_sibling": false,
+              "cache_dir_exists": true,
+              "install_path_matches_profile": true
+            }
+          }
+        },
+        "sdd": {
+          "canonical": "3.0.1",
+          "readme": "3.0.1",
+          "marketplace_clean": true,
+          "profiles": {
+            ".claude": {
+              "installed": "3.0.1",
+              "all_versions": [
+                "3.0.1"
+              ],
+              "stale_sibling": false,
+              "cache_dir_exists": true,
+              "install_path_matches_profile": true
+            },
+            ".claude-sdd": {
+              "installed": "3.0.1",
+              "all_versions": [
+                "3.0.1"
+              ],
+              "stale_sibling": false,
+              "cache_dir_exists": true,
+              "install_path_matches_profile": true
+            },
+            ".claude-kat": {
+              "installed": "3.0.1",
+              "all_versions": [
+                "3.0.1",
+                "3.0.1"
+              ],
+              "stale_sibling": false,
+              "cache_dir_exists": true,
+              "install_path_matches_profile": true
+            },
+            ".claude-stef": {
+              "installed": "3.0.1",
+              "all_versions": [
+                "3.0.1",
+                "3.0.1"
+              ],
+              "stale_sibling": false,
+              "cache_dir_exists": true,
+              "install_path_matches_profile": true
+            }
+          }
+        },
+        "session-bridge": {
+          "canonical": "0.3.0",
+          "readme": "0.3.0",
+          "marketplace_clean": true,
+          "profiles": {
+            ".claude": {
+              "installed": "0.3.0",
+              "all_versions": [
+                "0.3.0"
+              ],
+              "stale_sibling": false,
+              "cache_dir_exists": true,
+              "install_path_matches_profile": true
+            },
+            ".claude-sdd": {
+              "installed": "0.3.0",
+              "all_versions": [
+                "0.3.0"
+              ],
+              "stale_sibling": false,
+              "cache_dir_exists": true,
+              "install_path_matches_profile": true
+            },
+            ".claude-kat": {
+              "installed": "0.3.0",
+              "all_versions": [
+                "0.3.0"
+              ],
+              "stale_sibling": false,
+              "cache_dir_exists": true,
+              "install_path_matches_profile": true
+            },
+            ".claude-stef": {
+              "installed": "0.3.0",
+              "all_versions": [
+                "0.3.0"
+              ],
+              "stale_sibling": false,
+              "cache_dir_exists": true,
+              "install_path_matches_profile": true
+            }
+          }
+        },
+        "statusline": {
+          "canonical": "1.2.1",
+          "readme": "1.2.1",
+          "marketplace_clean": true,
+          "profiles": {
+            ".claude": {
+              "installed": "1.2.1",
+              "all_versions": [
+                "1.2.1"
+              ],
+              "stale_sibling": false,
+              "cache_dir_exists": true,
+              "install_path_matches_profile": true
+            },
+            ".claude-sdd": {
+              "installed": "1.2.1",
+              "all_versions": [
+                "1.2.1"
+              ],
+              "stale_sibling": false,
+              "cache_dir_exists": true,
+              "install_path_matches_profile": true
+            },
+            ".claude-kat": {
+              "installed": "1.2.1",
+              "all_versions": [
+                "1.2.1"
+              ],
+              "stale_sibling": false,
+              "cache_dir_exists": true,
+              "install_path_matches_profile": true
+            }
+          }
+        }
+      }
+    }
+  },
+  "codex_installed": [
+    {
+      "pluginId": "codescout-companion@sdd-misc-plugins",
+      "name": "codescout-companion",
+      "marketplaceName": "sdd-misc-plugins",
+      "version": "1.22.4",
+      "installed": true,
+      "enabled": true,
+      "source": {
+        "source": "local",
+        "path": "/home/marius/work/claude/claude-plugins/codescout-companion"
+      },
+      "marketplaceSource": {
+        "sourceType": "local",
+        "source": "/home/marius/work/claude/claude-plugins"
+      },
+      "installPolicy": "AVAILABLE",
+      "authPolicy": "ON_INSTALL"
+    },
+    {
+      "pluginId": "buddy@sdd-misc-plugins",
+      "name": "buddy",
+      "marketplaceName": "sdd-misc-plugins",
+      "version": "0.12.0",
+      "installed": true,
+      "enabled": true,
+      "source": {
+        "source": "local",
+        "path": "/home/marius/work/claude/claude-plugins/buddy"
+      },
+      "marketplaceSource": {
+        "sourceType": "local",
+        "source": "/home/marius/work/claude/claude-plugins"
+      },
+      "installPolicy": "AVAILABLE",
+      "authPolicy": "ON_INSTALL"
+    },
+    {
+      "pluginId": "cs-hint-codex@sdd-misc-plugins",
+      "name": "cs-hint-codex",
+      "marketplaceName": "sdd-misc-plugins",
+      "version": "0.1.1",
+      "installed": true,
+      "enabled": true,
+      "source": {
+        "source": "local",
+        "path": "/home/marius/work/claude/claude-plugins/cs-hint-codex"
+      },
+      "marketplaceSource": {
+        "sourceType": "local",
+        "source": "/home/marius/work/claude/claude-plugins"
+      },
+      "installPolicy": "AVAILABLE",
+      "authPolicy": "ON_INSTALL"
+    }
+  ],
+  "opencode": {
+    "snapshot_commit": "ff583faec94f725894dca57a2a1084f689e15aec",
+    "snapshot_path": "/home/marius/.local/share/claude-plugins/releases/ff583faec94f725894dca57a2a1084f689e15aec",
+    "backup_path": "/home/marius/.local/state/claude-plugins-release-backups/20261118T203335Z",
+    "installed_plugins": [
+      "codescout-companion",
+      "legible",
+      "sdd",
+      "session-bridge"
+    ],
+    "check_exit_code": 0,
+    "provider_config_unchanged": true,
+    "links": [
+      {
+        "name": "codescout-companion",
+        "target": "/home/marius/.local/share/claude-plugins/releases/ff583faec94f725894dca57a2a1084f689e15aec/harnesses/opencode/plugins/codescout-companion.js",
+        "sha256": "bcc5435cc47ad1f4a75f3cfb00cc639dd7686e91510c50837407989fc40ace55"
+      },
+      {
+        "name": "legible",
+        "target": "/home/marius/.local/share/claude-plugins/releases/ff583faec94f725894dca57a2a1084f689e15aec/harnesses/opencode/plugins/legible.js",
+        "sha256": "627cd0d4b0a4b811d28c63f124c507ae50846d13a3572102b9882c9c2e32b7ea"
+      },
+      {
+        "name": "sdd",
+        "target": "/home/marius/.local/share/claude-plugins/releases/ff583faec94f725894dca57a2a1084f689e15aec/harnesses/opencode/plugins/sdd.js",
+        "sha256": "b5f6d041c79933c27ed10fefdfbd754fb85640a30c366cfe6ed8da547aa1cf3d"
+      },
+      {
+        "name": "session-bridge",
+        "target": "/home/marius/.local/share/claude-plugins/releases/ff583faec94f725894dca57a2a1084f689e15aec/harnesses/opencode/plugins/session-bridge.js",
+        "sha256": "2a15e543ae6092586ef9db93aaee94da1134777ab2fe9d147ccc5e7379bbc0dc"
+      }
+    ],
+    "service_restarted": false
+  },
+  "config_files_unchanged": {
+    "/home/marius/.config/opencode/opencode.json": true,
+    "/home/marius/.codex/config.toml": true,
+    "/home/marius/.codex/hooks.json": true
+  },
+  "runtime_reload": "Existing Claude/Codex sessions need plugin reload or new process; bridge MCP connections need reconnect; OpenCode service needs restart at an appropriate idle point. No shared service was interrupted.",
+  "concurrent_work": "Main checkout peer WIP excluded; releases made from clean published main in managed worktree ec87."
+}
