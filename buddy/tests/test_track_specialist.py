@@ -11,6 +11,7 @@ SCRIPT = Path(__file__).resolve().parent.parent / "scripts" / "track_specialist.
 def _run(args, *, cwd, env=None):
     e = os.environ.copy()
     e.pop("CLAUDE_PROJECT_DIR", None)
+    e.pop("OPENCODE_SESSION_ID", None)  # set when the suite itself runs inside OpenCode
     if env:
         e.update(env)
     return subprocess.run(
@@ -131,3 +132,21 @@ def test_status_returns_one_with_no_session(tmp_path):
 def test_status_requires_directory_arg(tmp_path):
     r = _run(["status"], cwd=tmp_path)
     assert r.returncode != 0
+
+
+def test_dismiss_acts_on_the_opencode_session_not_the_pointer(tmp_path):
+    """OpenCode: session A runs /buddy-dismiss after session B prompted (the pointer names B).
+
+    Both sessions have state dirs (SessionStart made them); the pointer names B.
+    """
+    _seed_session(tmp_path, "ses-b")
+    for sid in ("ses-a", "ses-b"):
+        (tmp_path / ".buddy" / sid).mkdir()
+        r = _run(["summon", "debugging-yeti"], cwd=tmp_path, env={"OPENCODE_SESSION_ID": sid})
+        assert r.returncode == 0, r.stderr
+    r = _run(["dismiss", "debugging-yeti"], cwd=tmp_path, env={"OPENCODE_SESSION_ID": "ses-a"})
+    assert r.returncode == 0, r.stderr
+    a = json.loads((tmp_path / ".buddy" / "ses-a" / "state.json").read_text())
+    b = json.loads((tmp_path / ".buddy" / "ses-b" / "state.json").read_text())
+    assert a["active_specialists"] == []
+    assert b["active_specialists"] == ["debugging-yeti"], "session B must be untouched"

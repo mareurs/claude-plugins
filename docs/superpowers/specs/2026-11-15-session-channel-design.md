@@ -73,7 +73,9 @@ its authority rule.
   `/run/user/<uid>/cc-socks/<pid>.sock`, but dead processes can leave sockets too: a socket counts
   only with a live `/proc/<pid>`. `/proc/<pid>/environ` names the profile; `/proc/<pid>/cwd` is the
   launch directory, not necessarily where the session works. The procedure is in
-  `codescout-companion/skills/reaching-peer-sessions/references/claude-code-linux.md` § Enumerate.
+  `codescout-companion/skills/reaching-peer-sessions/references/claude-code-linux.md` § Enumerate
+  (skill retired 2026-11-17; `session-bridge`'s `list_sessions` now lists the sessions; the
+  procedure stays in git history).
 - **A session id is not unique among live sessions.** Seen live: `4bbde027-…` runs as pid 3072333
   in `.claude-kat` (`interactive`) and as pid 2837414 in `.claude-stef` (`bg`), with different
   transcripts. A session id is unique only within one profile and one process.
@@ -135,7 +137,8 @@ No server opens a socket to another. A push to a session's inbox socket is not u
   when its mtime changes. Until the first stamp, the server uses Claude Code's registry entry
   `sessions/<ppid>.json`.
 - **Live sessions:** read from Claude Code's registry across all four profiles, by the procedure in
-  the `reaching-peer-sessions` reference, with its `/proc` liveness check.
+  the `reaching-peer-sessions` reference, with its `/proc` liveness check (that skill was retired
+  2026-11-17; the bridge's own discovery keeps the check).
 - The bridge's own registry, its `register.sh` / `unregister.sh` hooks and `set_alias` are removed.
 - **Repository** of an endpoint = the git common directory of its launch cwd. Known limit: a session
   that moved its work with `workspace(activate)` is counted under its launch repository.

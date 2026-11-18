@@ -178,6 +178,20 @@ await ok('when the session lookup fails, approvals fail CLOSED', async () => {
   assert.doesNotMatch(readFileSync(join(r, 'docs/superpowers/specs/2026-11-05-a-design.md'), 'utf8'), /status: approved/);
 });
 
+await ok('a failed lookup is not remembered: the next approval in that session goes through', async () => {
+  const r = repo();
+  const spec = 'docs/superpowers/specs/2026-11-05-a-design.md';
+  put(r, spec, '---\nstatus: draft\ntitle: T\n---\n\n# Spec\n');
+  let n = 0;
+  const b = buildSddBridge(r, { getSession: async () => { if (n++ === 0) throw new Error('transient'); return { parentID: null }; } });
+  const msg = (id) => ({ sessionID: 's5', system: [], messages: [{ id, role: 'user', content: [{ type: 'text', text: 'sdd approve spec a' }] }] });
+  const { readFileSync } = await import('node:fs');
+  await b.onContext(msg('m6'));
+  assert.doesNotMatch(readFileSync(join(r, spec), 'utf8'), /status: approved/, 'unknown parent: closed');
+  await b.onContext(msg('m7'));
+  assert.match(readFileSync(join(r, spec), 'utf8'), /status: approved/, 'one transient error must not block approvals for the life of the service');
+});
+
 await ok('an approval message is processed once, not on every request of the turn', async () => {
   const r = repo();
   let intake = 0;

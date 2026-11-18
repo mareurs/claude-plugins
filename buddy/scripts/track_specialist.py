@@ -21,6 +21,7 @@ if str(_HERE) not in sys.path:
 from scripts.state import (  # noqa: E402
     load_state,
     save_state,
+    session_id_from_env,
     session_state_path,
     resolve_session_id_for_command,
 )
@@ -36,6 +37,11 @@ def _project_root() -> Path:
 
 
 def _resolve_sid(project: Path) -> str | None:
+    # The host's own answer first (OpenCode's $OPENCODE_SESSION_ID, see state.py): the pointer
+    # names whichever session prompted last when one host runs several sessions.
+    sid = session_id_from_env(project)
+    if sid:
+        return sid
     pointer = project / ".buddy" / ".current_session_id"
     if pointer.is_file():
         try:

@@ -282,7 +282,8 @@ async fn call_output(tool: &str, opencode_caller: &str) -> anyhow::Result<String
     match tool {
         "list_sessions" => {
             let me = caller.as_ref().ok().copied();
-            let mut out = tools::list_sessions(me, &sessions, &notes).await?;
+            let args = serde_json::from_value(args).context("invalid list_sessions arguments")?;
+            let mut out = tools::list_sessions(me, &sessions, &notes, args).await?;
             if let Err(e) = &caller {
                 out.push_str(&format!("\nCaller identity unavailable: {e:#}"));
             }

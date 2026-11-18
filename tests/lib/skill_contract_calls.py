@@ -1,6 +1,6 @@
 """Discover concrete MCP examples and validate them against an isolated server."""
 
-def extract_calls(text):
+def extract_calls(text, bindings=None):
     """Return (tool, literal kwargs, original source, line) for action-bearing examples.
 
     Quoted strings are copied byte-for-byte. Only unquoted JSON booleans,
@@ -9,6 +9,12 @@ def extract_calls(text):
     """
     import ast
     import re
+
+    class BindInputs(ast.NodeTransformer):
+        def visit_Name(self, node):
+            if node.id in (bindings or {}):
+                return ast.parse(repr(bindings[node.id]), mode="eval").body
+            return node
 
     pattern = re.compile(r'\b(doc|librarian|index|memory|workspace)\s*\(')
     result, cursor = [], 0
@@ -81,7 +87,7 @@ def extract_calls(text):
             for kw in node.keywords:
                 if kw.arg in kwargs:
                     raise ValueError(f"duplicate keyword {kw.arg}")
-                kwargs[kw.arg] = ast.literal_eval(kw.value)
+                kwargs[kw.arg] = ast.literal_eval(BindInputs().visit(kw.value))
         except (SyntaxError, ValueError) as exc:
             raise ValueError(f"invalid {match.group(1)} example at line {text.count(chr(10), 0, start) + 1}: {exc}") from exc
         result.append((match.group(1), kwargs, raw, text.count("\n", 0, start) + 1))
@@ -121,7 +127,15 @@ def run_catalog_examples(cs, skills, ok, bad, info, covered):
         for path in sorted(skills.rglob("*.md")):
             rel = str(path.relative_to(skills))
             try:
-                calls = extract_calls(path.read_text())
+                bindings = None
+                if rel in ("reconnaissance/references/patterns-tracker.md",
+                           "reconnaissance/references/reconnaissance-patterns-template.md"):
+                    template = (skills / "reconnaissance/references/reconnaissance-patterns-template.md").read_text()
+                    bindings = {"prefix": "RCB" if rel.endswith("/patterns-tracker.md") else "RCA",
+                                "template_body": template.split('```yaml\n', 1)[1].split('```', 1)[1].lstrip(),
+                                "tracker_id": "<tracker>", "entry_title": "Contract entry",
+                                "entry_body": "**Observed:** contract fixture."}
+                calls = extract_calls(path.read_text(), bindings=bindings)
             except ValueError as exc:
                 bad(f"{rel}: examples parse", str(exc))
                 continue
@@ -150,6 +164,28 @@ def run_catalog_examples(cs, skills, ok, bad, info, covered):
                         tool == "workspace" and "path" not in call):
                     fragments += 1
                     info(f"{label}: incomplete illustration; signature checked, not executed")
+                    continue
+                if (tool == "doc" and action == "append_entry" and
+                        rel == "reconnaissance/references/reconnaissance-patterns-template.md"):
+                    fixture = cs.call("doc", action="create", kind="tracker", status="active",
+                                      title="Recon append fixture", rel_path="docs/contracts/recon-append.md",
+                                      extra={"entry_prefix": bindings["prefix"],
+                                             "snapshot_anchor": "| ID | Date | Verdict | Pattern | Evidence (session-log) |"},
+                                      body=bindings["template_body"])
+                    if not fixture.ok:
+                        raise ValueError(fixture.error or fixture.text[:200])
+                    made.append(fixture.payload["id"])
+                    reply = cs.call(tool, **dict(call, id=fixture.payload["id"]))
+                    if not reply.ok:
+                        bad(f"{label}: prescribed append accepted", reply.error or reply.text[:300])
+                        continue
+                    got = cs.call("doc", action="get", id=fixture.payload["id"], full=True).payload["body"]
+                    eid = reply.payload["id"]
+                    if f"## {eid} — {call['title']}" not in got or f"| {eid} |" not in got:
+                        bad(f"{label}: append writes both section and index", got[:300])
+                        continue
+                    executed += 1
+                    ok(f"{label}: signature and runtime accepted; section and index persisted")
                     continue
                 if tool == "doc" and (action == "append_entry" or
                         (action == "update" and "body_edits" in call.get("patch", {}))):
@@ -180,6 +216,12 @@ def run_catalog_examples(cs, skills, ok, bad, info, covered):
                     bad(f"{label}: prescribed call is accepted", reply.error or reply.text[:300])
                     continue
                 executed += 1
+                if tool == "doc" and action == "create":
+                    made.append(reply.payload["id"])
+                    got = cs.call("doc", action="get", id=reply.payload["id"], full=True).payload
+                    if got.get("extra", {}).get("entry_prefix") != call["extra"]["entry_prefix"]:
+                        bad(f"{label}: declared prefix persisted", str(got.get("extra")))
+                        continue
                 if tool == "doc" and action == "find":
                     expected = spec if real.get("kind") == "spec" else target
                     if expected not in reply.text:

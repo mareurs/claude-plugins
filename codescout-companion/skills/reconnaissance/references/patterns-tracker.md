@@ -17,17 +17,80 @@ Phase 3 — its scope is the **skill itself**, not any one task. Entries
 describe when recon helped (hit), when it missed (miss), and what
 should change in `SKILL.md` next (proposal).
 
-**Bootstrap (first use per project):**
+**Bootstrap (first use per project).** Search the catalog for an existing ledger
+before creating one. Run the namespace preflight below first. Set `prefix` to the
+unused prefix you selected (one to three uppercase letters, usually `R` or `RP`),
+and `template_body` to the Markdown below the fenced YAML example in
+`references/reconnaissance-patterns-template.md`. Then execute:
 
-```bash
-cp <skill-dir>/references/reconnaissance-patterns-template.md \
-   docs/trackers/reconnaissance-patterns.md
+```python
+created = doc(action="create", kind="tracker", status="active",
+              title="Reconnaissance patterns",
+              rel_path="docs/trackers/reconnaissance-patterns.md",
+              topic="reconnaissance", tags=["reconnaissance", "skill-meta", "scout"],
+              extra={"entry_prefix": prefix,
+                     "snapshot_anchor": "| ID | Date | Verdict | Pattern | Evidence (session-log) |"},
+              body=template_body)
+tracker_id = created["id"]
 ```
 
-Where `<skill-dir>` resolves to the cached skill location — typically
-`~/.claude/plugins/cache/.../codescout-companion/skills/reconnaissance/`.
-Verify the path with `claude plugin list` or read the skill's own
-`base directory` line.
+This registers the ledger with explicit metadata and reserves its prefix in the
+same call. A prefix already owned by another ledger is refused before the file is
+created; select a free prefix and retry. Use that prefix consistently for entries,
+append calls and the Index. The shared F/W session-log family uses qualified
+citations instead of exclusive ownership.
+
+A literal copy of the template has no leading YAML frontmatter, but current
+codescout can still classify it as an active tracker after `reindex` through its
+built-in `docs/trackers/**/*.md` rule. Explicit creation avoids waiting for reindex,
+sets the intended title/tags/topic, and declares namespace ownership. Copying the
+fenced YAML block does none of those explicitly.
+
+### Bootstrap wakes a whole namespace — scout the prefix first
+
+**Before reserving a prefix, inspect its existing uses across the project.** Set
+`prefix` to a candidate, then search Markdown outside `docs/` as well as inside it,
+including hidden memories:
+
+```python
+grep(pattern=rf"\b{prefix}-[0-9]+\b", path=".", glob="*.md", include_hidden=True)
+```
+
+Inspect the matches and any truncation or time-budget notice. Search roots or
+ignored Markdown omitted by the walk separately if they belong to the catalog.
+A zero from a filtered or incomplete search does not establish that a prefix is
+free. Existing prose and table rows matter even when they define no citable entry.
+Choose a different prefix when those uses describe a different namespace; record
+the choice at the top of the new ledger. Prefer yielding to an incumbent over
+renumbering a shipping document.
+
+**Take a baseline before creating the ledger.** Ensure the relevant Markdown is
+indexed (`librarian(action="reindex")` when needed), then save a read-only
+`librarian(action="link_scan", write=False)` result. Use the same scope and artifact
+limit for the post-bootstrap scan; a nested workspace may require `scope="repo"`.
+Check `counts.scan_truncated`, `counts.unreadable` and `counts.truncated`, and page
+findings before treating a comparison as complete.
+
+A prefix becomes known to `link_scan` through a defining heading **or an
+`entry_prefix` declaration**, including an empty ledger. Rows alone do not define
+entries. A wholly unknown prefix is suppressed as prose noise; once known, its
+unresolved tokens become dangling, and matching tokens may bind to a definer.
+Declaring ownership prevents a second declaration, but cannot establish that
+existing prose belongs to that owner. Undeclared headings and row-only ledgers
+still need inspection.
+
+**After bootstrap, inspect changed bindings before writing edges.** Compare the
+source/destination pairs in `edges_missing` and `edges_stale` with the baseline,
+as well as ambiguous and dangling findings. A drop in dangling can be a legitimate
+repair or a citation captured by an unrelated new definer; the count alone cannot
+tell which. Read the citing text and intended destination. Only after confirming
+those bindings, materialize/prune them with `librarian(action="link_scan", write=True)`.
+If a conflict appears, correct the prefix and every related append call and rerun
+the scans; the `doc` tool's `rekey_prefix` action supports a dry run for an existing ledger.
+
+The isolated integration tests in `tests/recon_bootstrap_test.py` reproduce both
+wrong-edge capture and legitimate repair, plus the ownership refusal. These are
+separate outcomes, not interchangeable changes in a summary counter.
 
 **When to append an R-N entry.** After a recon scout completes:
 

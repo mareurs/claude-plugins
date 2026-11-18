@@ -9,7 +9,7 @@ use crate::sessions::{
 use crate::state::{current_session, endpoint_path, update};
 use crate::store::{NewNotice, Origin, Store};
 use crate::tools;
-pub use crate::tools::{AskArgs, PostNoticeArgs, SendMessageArgs};
+pub use crate::tools::{AskArgs, ListSessionsArgs, PostNoticeArgs, SendMessageArgs};
 use rmcp::{
     handler::server::{router::tool::ToolRouter, wrapper::Parameters},
     model::{ServerCapabilities, ServerInfo},
@@ -143,9 +143,13 @@ pub fn post_notice_from(
 #[tool_router(vis = "pub")]
 impl Bridge {
     #[tool(
-        description = "List live Claude Code sessions, loaded Codex threads and live OpenCode sessions on this Linux machine. Codex discovery covers open-rollout hosts; loaded does not establish UI attachment."
+        description = "List live Claude Code sessions, loaded Codex threads and live OpenCode sessions on this Linux machine. By default only sessions in the caller's repository are listed; pass all=true for every repository. Codex discovery covers open-rollout hosts; loaded does not establish UI attachment."
     )]
-    async fn list_sessions(&self, ctx: RequestContext<RoleServer>) -> Result<String, ErrorData> {
+    async fn list_sessions(
+        &self,
+        Parameters(args): Parameters<ListSessionsArgs>,
+        ctx: RequestContext<RoleServer>,
+    ) -> Result<String, ErrorData> {
         let roots = Roots::system();
         let (sessions, notes) = discover_sessions_all(&roots, &|k| std::env::var(k).ok()).await;
         let caller = caller_session(
@@ -156,7 +160,7 @@ impl Bridge {
             &|k| std::env::var(k).ok(),
         );
         let me = caller.as_ref().ok().copied().flatten();
-        let mut out = tools::list_sessions(me, &sessions, &notes)
+        let mut out = tools::list_sessions(me, &sessions, &notes, args)
             .await
             .map_err(internal)?;
         if let Err(e) = caller {

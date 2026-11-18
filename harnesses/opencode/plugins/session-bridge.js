@@ -159,8 +159,8 @@ export function runBridge({ args, stdin, timeoutMs, signal, env = process.env })
 
 const TOOLS = {
   list_sessions: {
-    description: 'List live sessions on this machine (Claude Code, Codex, OpenCode) that session-bridge can reach.',
-    properties: {},
+    description: "List live sessions in the caller's repository (Claude Code, Codex, OpenCode); pass all=true for every repository.",
+    properties: { all: { type: 'boolean', default: false, description: "List sessions of every repository instead of only the caller's repository." } },
     required: [],
   },
   ask_session: {

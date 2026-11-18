@@ -36,4 +36,4 @@ baselines: .prompt-tdd/baselines/
 # loads regardless and every scenario is confounded.
 claude_code:
   session:
-    config_dir: ~/.claude-test
+    config_dir: ~/.prompt-tdd/profiles/plugin-free

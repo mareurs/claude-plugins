@@ -351,29 +351,72 @@ fn call_post_notice_uses_opencode_author() {
 fn call_args_with_shell_metachars_are_literal() {
     let env = Env::new();
     let marker = env.root.join("pwned");
-    let title = format!(
-        "$(touch {m}) `touch {m}`; touch {m} && echo | cat",
-        m = marker.display()
+    // Keep the title within its public limit regardless of the temp-directory prefix.
+    // The body carries the absolute side-effect marker, so shell execution is still observable.
+    let title = "literal '\"; $(id) `id` && echo | cat";
+    let body = format!(
+        "$(touch {}) `touch $HOME/pwned2`; echo 'quoted' | cat",
+        marker.display()
     );
-    let args =
-        json!({"title": title, "body": "'\"; touch $HOME/pwned2 #", "refs": ["a b", "$(id)"]});
+    let args = json!({"title": title, "body": body, "refs": ["a b", "$(id)"]});
     let (code, out, err) = env.call("post_notice", "ses_live1", &args.to_string());
     assert_eq!(code, 0, "{out} {err}");
     let rows = env.notices();
     assert_eq!(rows[0].title, title);
-    assert_eq!(rows[0].body, "'\"; touch $HOME/pwned2 #");
+    assert_eq!(rows[0].body, body);
     assert_eq!(rows[0].refs, vec!["a b".to_string(), "$(id)".to_string()]);
     assert!(!marker.exists());
     assert!(!env.root.join("pwned2").exists());
-    // a metachar-laden target is a lookup miss, never a command
+    // A metacharacter-laden target is a lookup miss, never a command.
     let send = json!({"target": format!("$(touch {})", marker.display()), "message": "hi"});
     let (code, _, err) = env.call("send_message", "ses_live1", &send.to_string());
     assert_eq!(code, 2);
     assert!(err.contains("no live session matches"), "{err}");
     assert!(!marker.exists());
-    // malformed JSON args are an error, not a partial call
     let (code, _, _) = env.call("post_notice", "ses_live1", "{\"title\":");
     assert_eq!(code, 2);
+}
+#[test]
+fn call_listing_preserves_repository_scope_and_all_override() {
+    let env = Env::new();
+    let other = env.root.join("other-repository");
+    fs::create_dir(&other).unwrap();
+    assert!(Command::new("git")
+        .args(["init", "-q"])
+        .arg(&other)
+        .status()
+        .unwrap()
+        .success());
+    let script_path = env.root.join("state/script.json");
+    let mut script: serde_json::Value =
+        serde_json::from_slice(&fs::read(&script_path).unwrap()).unwrap();
+    let key = "GET /api/session?limit=100";
+    let mut listed: serde_json::Value =
+        serde_json::from_str(script[key]["out"].as_str().unwrap()).unwrap();
+    let mut foreign = listed["data"][0].clone();
+    foreign["id"] = json!("ses_foreign");
+    foreign["title"] = json!("other repository");
+    foreign["location"]["directory"] = json!(other.to_string_lossy());
+    listed["data"].as_array_mut().unwrap().push(foreign);
+    script[key]["out"] = json!(listed.to_string());
+    fs::write(script_path, script.to_string()).unwrap();
+
+    let (code, out, err) = env.call("list_sessions", "ses_live1", "{}");
+    assert_eq!(code, 0, "{out} {err}");
+    assert!(out.contains("ses_live1") && out.contains("(you)"), "{out}");
+    assert!(!out.contains("ses_foreign"), "{out}");
+    assert!(
+        out.contains("more session(s) in other repositories") && out.contains("all=true"),
+        "{out}"
+    );
+
+    let (code, out, err) = env.call("list_sessions", "ses_live1", r#"{"all":true}"#);
+    assert_eq!(code, 0, "{out} {err}");
+    assert!(
+        out.contains("ses_live1") && out.contains("ses_foreign"),
+        "{out}"
+    );
+    assert!(!out.contains("more session(s)"), "{out}");
 }
 
 /// The OpenCode plugin SIGTERMs `session-bridge call` on Esc and on its own timeout. A

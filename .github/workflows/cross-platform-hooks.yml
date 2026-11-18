@@ -119,3 +119,35 @@ jobs:
         # basenames). It prints what it skipped and FAILS if a name matches no
         # discovered suite, so an exclusion cannot rot into silence.
         run: bash tests/run-all.sh
+
+  full-suite-floor:
+    name: full hook + skill suite (linux, runtime floor)
+    runs-on: ubuntu-latest
+    # The same suite as `full-suite`, on the OLDEST runtimes the background-wake engine supports:
+    # Node 22 and Python 3.12 (docs/background-wake.md). A floor that no CI run reaches is a claim
+    # nobody checks, and it is the host the issue #18 author ran on. `full-suite` above keeps
+    # Node 24 and Python 3.13, so the runtimes the engine was first built on stay covered too.
+    # tests/test-wake-runtime-floor.sh fails when the versions here and the engine's gates differ.
+    # A separate job, not a matrix on `full-suite`, so the existing check name does not change.
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Full history: same reason as `full-suite` (tests/test-pre-push-guard.sh walks git log).
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install PyYAML
+        run: pip install --quiet pyyaml
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install companion runtime dependencies
+        run: npm ci --prefix codescout-companion --ignore-scripts --omit=optional
+
+      - name: Full suite
+        run: bash tests/run-all.sh

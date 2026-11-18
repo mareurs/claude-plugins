@@ -1,0 +1,104 @@
+name: "hamsa refactors an over-detailed agent prompt into the native register"
+description: >
+  Probes the native-register principle. The user hands over a system prompt for a
+  test-fixing agent that runs on a current frontier model with bash and file tools.
+  The prompt is heavy in three ways a capable agent does not need: it inlines facts
+  the agent could read itself (the repo layout, a CONTRIBUTING excerpt), it scripts
+  a dozen steps the agent could plan itself, and it stacks ALWAYS/NEVER rules that
+  restate each other. Buried in it are two constraints the agent CANNOT discover:
+  never push to `main`, and a 30-tool-call budget with an explicit stop condition.
+  The correct rewrite is much shorter, leads with the goal and the done-condition
+  around one organising idea, points the agent at the files and commands instead of
+  pasting their content, and keeps both non-discoverable constraints. A rewrite
+  that keeps the step script, piles on more rules, or "simplifies" by dropping a
+  real constraint fails. Run the --ablate arm first (H12): if a bare model already
+  passes, this scenario is a guard, not evidence for the principle.
+
+input:
+  message: |
+    This system prompt drives our test-fixing agent. It runs on a current frontier
+    model with bash and file tools. It feels heavy. Refactor it.
+
+    --- prompt ---
+    You are TestFixer, an elite autonomous software engineer specialised in fixing
+    failing tests. You are meticulous, careful and thorough.
+
+    REPOSITORY LAYOUT (memorise this):
+    - src/ contains the application code
+    - src/api/ contains the HTTP handlers
+    - src/db/ contains the database layer
+    - tests/ contains the tests, mirroring src/
+    - scripts/ contains helper scripts
+    - pyproject.toml defines the project and the pytest settings
+
+    CONTRIBUTING GUIDELINES (from CONTRIBUTING.md):
+    "Use 4-space indentation. Keep functions under 50 lines. Add type hints to
+    public functions. Write docstrings in Google style. Do not add new
+    dependencies without approval. Run the linter with `ruff check .` before
+    committing."
+
+    PROCEDURE — follow these steps exactly, in order:
+    Step 1: Run `ls` to see the repository.
+    Step 2: Run `cat pyproject.toml` to see the configuration.
+    Step 3: Run `pytest -x` to find the first failing test.
+    Step 4: Read the failing test file with `cat`.
+    Step 5: Read the source file that the test imports with `cat`.
+    Step 6: Think carefully about why the test fails.
+    Step 7: Edit the source file to fix the bug.
+    Step 8: Run `pytest -x` again.
+    Step 9: If it still fails, go back to Step 4.
+    Step 10: Run `ruff check .`.
+    Step 11: Run the full suite with `pytest`.
+    Step 12: Commit with a descriptive message.
+
+    RULES:
+    - ALWAYS read a file before editing it.
+    - ALWAYS run the tests after every edit.
+    - ALWAYS make the smallest possible change.
+    - ALWAYS keep the change minimal.
+    - NEVER change a test to make it pass unless the test itself is wrong.
+    - NEVER delete tests.
+    - NEVER skip tests.
+    - NEVER make large changes.
+    - NEVER push to main.
+    - NEVER guess; always verify.
+    - ALWAYS be careful.
+    - ALWAYS double-check your work.
+    - Use at most 30 tool calls in total. Stop when the whole suite is green, or
+      after you report the first failure you cannot fix.
+    --- end prompt ---
+
+mode: judge
+
+setup:
+  skills:
+    - source: /home/marius/work/claude/claude-plugins/buddy/skills/prompt-hamsa
+
+assertions:
+  judge:
+    - type: rubric
+      rubric: >
+        The user asked for a refactor of an over-detailed system prompt for a
+        capable tool-using agent. Judge the REWRITTEN PROMPT the response proposes
+        (and any reasoning around it). Award a high score (>= 0.7) only if ALL four
+        hold:
+        (1) The rewrite is substantially shorter than the original (roughly half
+            or less), not a reformatted version of the same content.
+        (2) It replaces the numbered step script with the goal, a done-condition
+            and one organising idea (for example "find the cause of each failing
+            test and fix the code, smallest change that makes the suite green"),
+            leaving the agent to plan the steps itself.
+        (3) It points the agent at files or commands to read or run (for example
+            "follow CONTRIBUTING.md", "read pyproject.toml", "discover the layout
+            yourself") instead of pasting the repo layout and the CONTRIBUTING text
+            into the prompt.
+        (4) It keeps BOTH constraints the agent cannot discover on its own: never
+            push to `main`, and the 30-tool-call budget with its stop condition
+            (suite green, or report the first unfixable failure).
+        Score 0.0 if the rewrite keeps the step-by-step procedure, adds more rules
+        than it removes, keeps the inlined layout/CONTRIBUTING text, or drops either
+        non-discoverable constraint. Score around 0.4 if it satisfies some but not
+        all four conditions. If the response gives no rewritten prompt at all
+        (critique only), score at most 0.3.
+      threshold: 0.7
+      expected_pass: true

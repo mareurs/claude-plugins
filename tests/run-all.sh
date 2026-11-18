@@ -88,6 +88,46 @@ if [ "${#WAKE_SUITES[@]}" -ne 0 ] && [ ! -d "$SCRIPT_DIR/../codescout-companion/
   echo ""
 fi
 
+# Runtime-prerequisite SKIP, never a failure (issue #18, item 1). The wake engine refuses to run
+# below its floor, Node 22 (platform-node.mjs) or Python 3.12 (receipt_txn.py), and
+# docs/background-wake.md says so. Running its suites anyway on an older host printed about 80
+# `not ok` lines and 27 failed suites, which reads as a broken release and not as a missing
+# prerequisite. So the wake suites are skipped, once, with a notice that names each UNMET
+# requirement and what the host has. A skip is counted as SKIPPED, not passed, in the summary
+# below, and nothing else changes: other suites run, and a failing one still fails the run.
+# `--list` exits above this block, so discovery does not depend on the runtime.
+# The two numbers below are the engine's floor. tests/test-wake-runtime-floor.sh fails when they
+# differ from the engine's gates, the docs or CI: change all of them together.
+# Tests: tests/test-run-all-runtime-notice.sh (pins versions with tests/lib/runtime-shims.sh).
+WAKE_MIN_NODE=22
+WAKE_MIN_PY_MINOR=12
+RUNTIME_UNMET=()
+WAKE_RUNTIME_SKIPPED=0
+if [ "${#WAKE_SUITES[@]}" -ne 0 ]; then
+  node_v="$(node --version 2>/dev/null || true)"
+  py_v="$(python3 --version 2>&1 || true)"
+  if [[ "$node_v" =~ ^v([0-9]+) ]]; then
+    node_major="${BASH_REMATCH[1]}"
+    [ "$node_major" -ge "$WAKE_MIN_NODE" ] || RUNTIME_UNMET+=("Node $WAKE_MIN_NODE or newer (found ${node_v#v})")
+  else
+    RUNTIME_UNMET+=("Node $WAKE_MIN_NODE or newer (\`node --version\` gave no readable version)")
+  fi
+  if [[ "$py_v" =~ ^Python\ ([0-9]+)\.([0-9]+) ]]; then
+    py_major="${BASH_REMATCH[1]}"; py_minor="${BASH_REMATCH[2]}"
+    if [ "$py_major" -lt 3 ] || { [ "$py_major" -eq 3 ] && [ "$py_minor" -lt "$WAKE_MIN_PY_MINOR" ]; }; then
+      RUNTIME_UNMET+=("Python 3.$WAKE_MIN_PY_MINOR or newer (found ${py_v#Python })")
+    fi
+  else
+    RUNTIME_UNMET+=("Python 3.$WAKE_MIN_PY_MINOR or newer (\`python3 --version\` gave no readable version)")
+  fi
+  if [ "${#RUNTIME_UNMET[@]}" -ne 0 ]; then
+    echo "⚠ background-wake suites need a newer runtime on this host and are SKIPPED, not run:"
+    for unmet in "${RUNTIME_UNMET[@]}"; do echo "  - $unmet"; done
+    echo "  Fix: put a newer node and python3 first on PATH. docs/background-wake.md lists the requirements."
+    echo ""
+  fi
+fi
+
 # CS_TEST_SKIP — space-separated suite basenames to skip. A DENY-list on purpose:
 # discovery stays glob-driven, so a suite added tomorrow runs by default and only
 # the names written here are excluded. An allow-list would silently un-cover every
@@ -119,6 +159,15 @@ for f in "${SUITES[@]}"; do
     echo ""
     continue
   fi
+  if [ "${#RUNTIME_UNMET[@]}" -ne 0 ]; then
+    is_wake=""
+    for w in "${WAKE_SUITES[@]}"; do [ "$w" = "$f" ] && { is_wake=1; break; }; done
+    if [ -n "$is_wake" ]; then
+      # Silent on purpose: the notice at the top and the SKIPPED line below say it once.
+      WAKE_RUNTIME_SKIPPED=$((WAKE_RUNTIME_SKIPPED + 1))
+      continue
+    fi
+  fi
   echo "▶ $base"
   if case "$f" in
     *.mjs) node --experimental-strip-types "$f" ;;
@@ -136,6 +185,10 @@ done
 # indistinguishable from coverage.
 if [ "${#SKIPPED[@]}" -ne 0 ]; then
   echo "▷ ${#SKIPPED[@]} suite(s) SKIPPED, not passed: ${SKIPPED[*]}"
+  echo ""
+fi
+if [ "$WAKE_RUNTIME_SKIPPED" -ne 0 ]; then
+  echo "▷ $WAKE_RUNTIME_SKIPPED background-wake suite(s) SKIPPED, not passed: runtime too old (see the notice at the top)"
   echo ""
 fi
 

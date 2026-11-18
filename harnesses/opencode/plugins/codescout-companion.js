@@ -87,10 +87,10 @@ import { readFileSync, existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join, resolve } from 'node:path';
 import { homedir } from 'node:os';
-import { runHook, resolveRuntime, resolveDir, decisionOf } from '../lib/host.mjs';
+import { runHook, resolveRuntime, resolveDir, decisionOf, echoHint, codescoutBareTool } from '../lib/host.mjs';
 
 // Re-exported so existing callers and the test suite keep one import site.
-export { runHook, resolveRuntime, resolveDir };
+export { runHook, resolveRuntime, resolveDir, codescoutBareTool };
 
 // Self-locate. install.sh symlinks this file into the OpenCode plugin dir, and
 // import.meta.url resolves through the symlink to the real repo checkout — so the
@@ -159,12 +159,7 @@ const configArms = (directory) => {
 // `notcodescout_symbols` are not matches — asserted in the test suite), and a MISSED
 // match fails open, i.e. the session is simply not armed by proof-of-life and the circuit
 // breaker behaves as it would have.
-const CODESCOUT_BARE = /^(?:mcp[._]+)?codescout[._/]+([a-z][a-z0-9_]*)$/i;
-
-export function codescoutBareTool(name) {
-  const m = CODESCOUT_BARE.exec(String(name || ''));
-  return m ? m[1] : null;
-}
+// The function lives in lib/host.mjs, so buddy.js applies the same rule; re-exported above.
 
 // The guard's deny reason ends with an escape hatch written for Claude Code: it names
 // `/mcp` and the `! <command>` prompt prefix, neither of which is an OpenCode affordance
@@ -280,7 +275,7 @@ function systemBlock(directory) {
 // The behaviour, with the host's registration calls stripped out. Everything the test
 // suite exercises lives here: it takes the project directory and returns plain callbacks
 // that each accept ONE v2 event object.
-export function buildBridge(dir) {
+export function buildBridge(dir, { echo = echoHint } = {}) {
   // Which of the three arms holds for this project. 'project' forces the guard; 'user'
   // only asks it, so an unrelated checkout is decided by detect.mjs(cwd) exactly as it is
   // on Claude Code. Kept as a flag rather than a Map entry so a sessionID that happens to
@@ -394,7 +389,10 @@ export function buildBridge(dir) {
       // the result.
       try {
         const content = event.result?.content;
-        if (Array.isArray(content)) content.push({ type: 'text', text: advice });
+        if (Array.isArray(content)) {
+          content.push({ type: 'text', text: advice });
+          echo({ sessionID: sessionId, tool, source: 'codescout-companion', text: advice });
+        }
       } catch {
         // Unrecognised shape: losing an advisory is acceptable, corrupting a result is not.
       }

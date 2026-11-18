@@ -7,6 +7,16 @@ import {fileURLToPath} from 'node:url';
 const helper=fileURLToPath(new URL('./receipt_txn.py',import.meta.url));
 const networkFs=new Set([0x6969,0xff534d42,0xfe534d42]);
 
+// Runtime floor (issue #18). Node 22 is the oldest runtime the whole background-wake suite is
+// measured on (22.23.5, 2026-11-17); Node 24 is what the engine was first built on and CI still
+// runs it. tests/test-wake-runtime-floor.sh pins this number against run-all.sh, the docs and CI.
+export const MIN_NODE_MAJOR=22;
+// A version that cannot be read is NOT supported: `Number('')` is NaN and `NaN<22` is false, so a
+// comparison written the obvious way would let it through.
+export const nodeVersionSupported=(version)=>{const m=/^(\d+)(?:\.|$)/.exec(String(version??''));return m!==null&&Number(m[1])>=MIN_NODE_MAJOR;};
+export function assertSupportedNode(version=process.versions.node){if(!nodeVersionSupported(version))throw new Error(`Node ${MIN_NODE_MAJOR} or newer is required`);}
+
+
 export function createPlatform({profileRoot,stateDir,pythonArgv=[process.platform==='win32'?'python':'python3']}) {
   if(!isAbsolute(profileRoot)||!isAbsolute(stateDir)||!Array.isArray(pythonArgv)||!pythonArgv.length)throw new Error('explicit native profile/state and Python argv are required');
   const sandbox=process.env.CS_TEST_STATE_SANDBOX;
@@ -31,7 +41,7 @@ export function createPlatform({profileRoot,stateDir,pythonArgv=[process.platfor
   let ready;
   const privateStateRoot=async()=>{
     if(!ready)ready=(async()=>{
-      if(Number(process.versions.node.split('.')[0])<24)throw new Error('Node 24 or newer is required');
+      assertSupportedNode();
       const profile=await realpath(profileRoot);
       const result=await invoke({op:'probe'});
       if(!result.ok)throw new Error(result.reason);

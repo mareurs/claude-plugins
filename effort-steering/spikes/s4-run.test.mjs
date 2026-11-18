@@ -16,8 +16,16 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { stateDirFor } from '../core/log.mjs';
 import { t } from '../core/testkit.mjs';
-import { holdoutCountFor, main, measureHookLatency, planRuns, runExperiment, stopReasons } from './s4-run.mjs';
+import { holdoutCountFor, main as actualMain, measureHookLatency, planRuns, runExperiment as actualRunExperiment, stopReasons } from './s4-run.mjs';
 import { holdoutCountFor as loadedHoldoutCountFor } from './s4-prereg.mjs';
+
+// Semantic tests still run the real copied CLI. Its integration budget is
+// separate from the production hook deadline, which the slow-policy test pins.
+const TEST_PREFLIGHT_TIMEOUT_MS = 10000;
+const runExperiment = (file, opts = {}) =>
+  actualRunExperiment(file, {preflightTimeoutMs: TEST_PREFLIGHT_TIMEOUT_MS, ...opts});
+const main = (argv, deps = {}) =>
+  actualMain(argv, {preflightTimeoutMs: TEST_PREFLIGHT_TIMEOUT_MS, ...deps});
 
 const ROOT = realpathSync(mkdtempSync(path.join(os.tmpdir(), 's4-run-test-')));
 process.on('exit', () => rmSync(ROOT, { recursive: true, force: true }));
@@ -221,6 +229,63 @@ const run = (over, envOpts, extra = {}) => {
   const p = prereg(over);
   return runExperiment(put(p), { spawn: f.spawn, confirm: true, configDir, now: f.now, out: silent, esRoot: CLEAN_ES, ...extra }).then((result) => ({ result, f, p }));
 };
+await ta('semantic experiment and main fixtures tolerate a slow valid preflight', async () => {
+  const es = makeTree((copy, repo) => {
+    writeFileSync(path.join(copy, 'bin', 'effort-policy.mjs'), `
+import { readFileSync } from 'node:fs';
+if (JSON.stringify(process.argv.slice(2)) !== JSON.stringify(['decide', '--holdout-rate=0'])) process.exit(64);
+const delayMs = JSON.parse(readFileSync(0, 'utf8')).prompt === 'p one' ? 3500 : 0;
+setTimeout(() => console.log(JSON.stringify({level:'shallow', confidence:'high', reasons:['controlled-policy'], steer:'fixture-steer', arm:'treated'})), delayMs);
+`);
+    git(repo, 'add', '-A');
+    git(repo, 'commit', '-q', '-m', 'slow semantic policy');
+  });
+  const file = put(prereg());
+  const entries = [
+    ['experiment', (opts) => runExperiment(file, opts)],
+    ['main', (opts) => main(['--confirm'], {...opts, preregFile: file})],
+  ];
+  for (const [label, invoke] of entries) {
+    const configDir = tmp();
+    const f = fakeEnv({configDir});
+    const result = await invoke({spawn: f.spawn, confirm: true, configDir,
+      now: f.now, out: silent, esRoot: es});
+    assert.equal(f.calls.claude.length, 13, label + ': ' + JSON.stringify(result.stop));
+    assert.deepEqual(result.stop, [], label);
+  }
+});
+
+// The first prompt takes longer than the production 3000 ms ceiling; the others answer immediately.
+// This is a semantic integration fixture, not a CPU-speed assertion.
+await ta('preflight keeps its default deadline and accepts an explicit integration budget', async () => {
+  const es = makeTree((copy, repo) => {
+    writeFileSync(path.join(copy, 'bin', 'effort-policy.mjs'), `
+import { readFileSync } from 'node:fs';
+if (JSON.stringify(process.argv.slice(2)) !== JSON.stringify(['decide', '--holdout-rate=0'])) process.exit(64);
+const delayMs = JSON.parse(readFileSync(0, 'utf8')).prompt === 'p one' ? 3500 : 0;
+setTimeout(() => console.log(JSON.stringify({level:'shallow', confidence:'high', reasons:['controlled-policy'], steer:'fixture-steer', arm:'treated'})), delayMs);
+`);
+    git(repo, 'add', '-A');
+    git(repo, 'commit', '-q', '-m', 'controlled slow policy');
+  });
+  const file = put(prereg());
+  for (const preflightTimeoutMs of [undefined, 0]) {
+    const configDir = tmp();
+    const f = fakeEnv({configDir});
+    const result = await actualRunExperiment(file, {spawn: f.spawn, confirm: true, configDir,
+      now: f.now, out: silent, esRoot: es, preflightTimeoutMs});
+    assert.deepEqual(result.stop, ['prompt_not_steerable'], String(preflightTimeoutMs));
+    assert.equal(f.calls.claude.length, 0);
+    assert.equal(f.calls.hook.length, 0);
+  }
+  const configDir = tmp();
+  const f = fakeEnv({configDir});
+  const result = await actualRunExperiment(file, {spawn: f.spawn, confirm: true, configDir,
+    now: f.now, out: silent, esRoot: es, preflightTimeoutMs: 10000});
+  assert.equal(f.calls.claude.length, 13, JSON.stringify(result.stop));
+  assert.deepEqual(result.stop, []);
+});
+
 const total = (f) => f.calls.claude.length + f.calls.hook.length;
 // The planned arm of a call, as the hook would read it from the child env.
 const plannedOf = (c) => (c.opts.env.EFFORT_STEERING_HOLDOUT_RATE === '1' ? 'holdout' : 'treated');
@@ -1003,6 +1068,13 @@ await ta('R-PL6 (review 3, m3-m5, n2): the header names the known gaps: no trans
 // ---- C (I-2): the claude children get a whitelisted environment ---------------------------
 
 const withParentEnv = async (vars, fn) => {
+  // childEnv() keeps EVERY inherited LC_* variable, so the whitelist assertions are only
+  // host-independent if the host's own LC_* are out of the parent env. Overlaying `vars` on
+  // the real process.env is not enough: a host that sets LC_ADDRESS, LC_TIME, ... would put
+  // them in the child env and break the hard-coded key lists (issue #18, item 3). Clear
+  // every inherited LC_* that `vars` does not set; the finally block restores them.
+  const cleared = Object.keys(process.env).filter((k) => k.startsWith('LC_') && !(k in vars));
+  vars = { ...vars, ...Object.fromEntries(cleared.map((k) => [k, undefined])) };
   const saved = {};
   for (const k of Object.keys(vars)) saved[k] = process.env[k];
   for (const [k, v] of Object.entries(vars)) {

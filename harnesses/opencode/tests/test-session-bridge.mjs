@@ -115,6 +115,18 @@ await ok('tool_passes_tctx_session_id_as_caller', async () => {
   });
 });
 
+await ok('list_sessions exposes and forwards the all-repositories option', async () => {
+  await withEnv(fake({ FAKE_SB_OUT: 'sessions' }), async () => {
+    const { tools } = await setup();
+    const all = tools.list_sessions.input.properties.all;
+    assert.equal(all.type, 'boolean');
+    assert.equal(all.default, false);
+    await tools.list_sessions.execute({ all: true }, { sessionID: 'ses_c' });
+    assert.deepEqual(JSON.parse(logged().stdin), { all: true });
+    assert.deepEqual(logged().argv, ['call', 'list_sessions', '--opencode-caller', 'ses_c']);
+  });
+});
+
 await ok('args_go_on_stdin_not_argv', async () => {
   await withEnv(fake({ FAKE_SB_OUT: 'answer' }), async () => {
     const { tools } = await setup();

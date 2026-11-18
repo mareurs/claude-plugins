@@ -4,18 +4,25 @@
 
 use crate::ask::{ask, clamp_timeout, locate_claude};
 use crate::codex_process::{ask_codex, locate_codex};
-use crate::endpoints::Roots;
+use crate::endpoints::{repo_of, Roots};
 use crate::opencode_api::{locate_opencode, CliApi};
 use crate::opencode_ask::ask_opencode;
 use crate::opencode_send::send_opencode;
 use crate::paths::short_profile;
 use crate::send::send_codex;
 use crate::server::post_notice_from;
-use crate::sessions::{resolve_noted, Session};
+use crate::sessions::{resolve_noted, split_by_repo, Session};
 use anyhow::{anyhow, Result};
 use rmcp::schemars;
 use serde::Deserialize;
 use std::path::Path;
+
+#[derive(Debug, Default, Deserialize, schemars::JsonSchema)]
+pub struct ListSessionsArgs {
+    /// List sessions of every repository. Default false: only the caller's repository.
+    #[serde(default)]
+    pub all: bool,
+}
 
 #[derive(Debug, Deserialize, schemars::JsonSchema)]
 pub struct AskArgs {
@@ -58,14 +65,32 @@ pub async fn list_sessions(
     caller: Option<&Session>,
     sessions: &[Session],
     notes: &[String],
+    args: ListSessionsArgs,
 ) -> Result<String> {
     let me = caller.map(Session::identity);
-    let mut lines: Vec<String> = sessions
+    let my_repo = caller.and_then(Session::cwd).and_then(repo_of);
+    let (shown, hidden): (Vec<&Session>, Vec<&Session>) = match (&my_repo, args.all) {
+        (Some(repo), false) => split_by_repo(sessions, repo, &repo_of),
+        _ => (sessions.iter().collect(), Vec::new()),
+    };
+    let mut lines: Vec<String> = shown
         .iter()
         .map(|s| s.render(me.as_deref() == Some(s.identity().as_str())))
         .collect();
     if lines.is_empty() {
-        lines.push("No live Claude Code sessions, rollout-backed Codex threads or OpenCode sessions found.".into());
+        lines.push(match my_repo.as_ref().filter(|_| !args.all) {
+            Some(repo) => format!("No live sessions in this repository ({}).", repo.display()),
+            None => "No live Claude Code sessions, rollout-backed Codex threads or OpenCode sessions found.".into(),
+        });
+    }
+    if !hidden.is_empty() {
+        lines.push(format!(
+            "{} more session(s) in other repositories are not shown. Call list_sessions with all=true to list them.",
+            hidden.len()
+        ));
+    }
+    if my_repo.is_none() && !args.all {
+        lines.push("Repository filter not applied: the caller's repository is unknown, so every session is listed.".into());
     }
     lines.push("Scope: local Linux, Claude native/IPC session registrations, Codex open rollouts and live OpenCode sessions (top-level, not bridge ask forks, running or active within SESSION_BRIDGE_OPENCODE_RECENT_HOURS); saved-only Codex threads and hosts without open rollouts are outside this listing.".into());
     for note in notes {

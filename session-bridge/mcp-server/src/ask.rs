@@ -153,6 +153,90 @@ pub fn spent_today(log: &Path, asker: &str, today: NaiveDate) -> f64 {
         .filter_map(|v| v["cost_usd"].as_f64())
         .sum()
 }
+/// The environment variable that sets the daily ask bound in USD, or `off` to remove it.
+pub const BOUND_ENV: &str = "SESSION_BRIDGE_ASK_BOUND_USD";
+
+/// The daily ask bound in force: `Some(bound)`, or `None` when it is switched off.
+///
+/// `SESSION_BRIDGE_ASK_BOUND_USD` unset or empty gives `DAILY_BOUND_USD`; `off` (any case) gives
+/// `None`; a finite number above zero gives that number. Any other value is a typo, and a typo
+/// must not remove the bound: it gives `DAILY_BOUND_USD` and a note.
+pub fn daily_bound(env: &dyn Fn(&str) -> Option<String>) -> Option<f64> {
+    let raw = env(BOUND_ENV).unwrap_or_default();
+    let raw = raw.trim();
+    if raw.is_empty() {
+        return Some(DAILY_BOUND_USD);
+    }
+    if raw.eq_ignore_ascii_case("off") {
+        return None;
+    }
+    match raw.parse::<f64>() {
+        Ok(v) if v.is_finite() && v > 0.0 => Some(v),
+        _ => {
+            crate::diag::note(&format!(
+                "{BOUND_ENV}={raw:?} is not a positive number or `off`; using {DAILY_BOUND_USD} USD"
+            ));
+            Some(DAILY_BOUND_USD)
+        }
+    }
+}
+
+/// The last `cost-state` record of `session_id` in the transcript at `path`: its `totalCostUSD`.
+/// Lines of other sessions, lines of another type, and lines that do not parse are skipped.
+fn last_cost_state(path: &Path, session_id: &str) -> Option<f64> {
+    use std::io::BufRead;
+    const MARK: &[u8] = b"\"cost-state\"";
+    let mut reader = std::io::BufReader::new(std::fs::File::open(path).ok()?);
+    let mut line = Vec::new();
+    let mut last = None;
+    loop {
+        line.clear();
+        if reader.read_until(b'\n', &mut line).ok()? == 0 {
+            return last;
+        }
+        // A transcript is megabytes of other records: parse only the lines that can match.
+        if !line.windows(MARK.len()).any(|w| w == MARK) {
+            continue;
+        }
+        let Ok(v) = serde_json::from_slice::<serde_json::Value>(&line) else {
+            continue;
+        };
+        if v["type"] == "cost-state" && v["sessionId"].as_str() == Some(session_id) {
+            if let Some(c) = v["totalCostUSD"]
+                .as_f64()
+                .filter(|c| c.is_finite() && *c >= 0.0)
+            {
+                last = Some(c);
+            }
+        }
+    }
+}
+
+/// USD that `claude --resume` restores into the total of a fork of `target`'s session.
+///
+/// Measured 2026-11-17: the fork reads the last `cost-state` record of the session's transcript
+/// (`<config_dir>/projects/*/<session_id>.jsonl`) and starts its `total_cost_usd` from that
+/// figure, so the total is that cost plus the cost of the fork's own turn. A fork of a session
+/// that is not its project's `lastSessionId` did it too (22.535 restored, 22.835 reported). This
+/// returns the figure to take away, from the newest transcript of the session. No transcript, no
+/// record, or an unreadable file gives zero: the ask then counts too much, never too little.
+pub fn restored_cost(target: &Endpoint) -> f64 {
+    let file = format!("{}.jsonl", target.session_id);
+    let Ok(dirs) = std::fs::read_dir(target.config_dir.join("projects")) else {
+        return 0.0;
+    };
+    dirs.filter_map(|d| d.ok())
+        .filter_map(|d| {
+            let p = d.path().join(&file);
+            std::fs::metadata(&p)
+                .and_then(|m| m.modified())
+                .ok()
+                .map(|t| (t, p))
+        })
+        .max()
+        .and_then(|(_, p)| last_cost_state(&p, &target.session_id))
+        .unwrap_or(0.0)
+}
 
 /// mtime of the newest `<config_dir>/projects/*/<session_id>.jsonl`, RFC 3339 UTC.
 fn as_of(target: &Endpoint) -> Option<String> {
@@ -258,8 +342,9 @@ fn log_entry(
 
 /// Fork `target`'s session, ask it `question`, return the answer with its cost.
 ///
-/// Refused before any spawn when `asker` has spent `DAILY_BOUND_USD` or more today. The child
-/// is killed on timeout and on drop.
+/// Refused before any spawn when `asker` has spent the daily bound or more today; the bound is
+/// `DAILY_BOUND_USD` unless `SESSION_BRIDGE_ASK_BOUND_USD` changes or switches it off
+/// (see `daily_bound`). The child is killed on timeout and on drop.
 pub async fn ask(
     bin: &str,
     target: &Endpoint,
@@ -269,19 +354,37 @@ pub async fn ask(
     timeout_s: u64,
     state: &Path,
 ) -> Result<AskResult> {
+    let bound = daily_bound(&|k| std::env::var(k).ok());
+    ask_with_bound(bin, target, asker, question, model, timeout_s, state, bound).await
+}
+
+/// `ask` with the daily bound given: `None` means no bound, and nothing is refused. The ask is
+/// logged either way, so the spend stays visible.
+#[allow(clippy::too_many_arguments)]
+pub async fn ask_with_bound(
+    bin: &str,
+    target: &Endpoint,
+    asker: &str,
+    question: &str,
+    model: &str,
+    timeout_s: u64,
+    state: &Path,
+    bound: Option<f64>,
+) -> Result<AskResult> {
     // The child runs in the target's repository with the target's credentials: never let a
     // relative program path resolve against it.
     if !bin.starts_with('/') {
         return Err(BridgeError::RelativeBinary(bin.to_string()));
     }
     let log = state.join(ASK_LOG);
-    let spent = spent_today(&log, asker, Utc::now().date_naive());
-    if spent >= DAILY_BOUND_USD {
-        return Err(BridgeError::BudgetExceeded {
-            spent,
-            bound: DAILY_BOUND_USD,
-        });
+    if let Some(bound) = bound {
+        let spent = spent_today(&log, asker, Utc::now().date_naive());
+        if spent >= bound {
+            return Err(BridgeError::BudgetExceeded { spent, bound });
+        }
     }
+    // Read before the spawn: the fork restores this cost into its own total.
+    let restored = restored_cost(target);
     let started = Instant::now();
     let mut cmd = Command::new(bin);
     cmd.args(fork_argv(&target.session_id, &model_id(model), question))
@@ -337,11 +440,25 @@ pub async fn ask(
             return Err(e);
         }
     };
+    // `total_cost_usd` starts from the cost restored from the resumed session's transcript, so
+    // this ask's own cost is what is left. A total below that figure means the restore did not
+    // happen as measured (the figure only grows while the target runs): say so, and count the
+    // whole total, so the ask is never free by accident.
+    let cost_usd = if out.cost_usd >= restored {
+        out.cost_usd - restored
+    } else {
+        crate::diag::note(&format!(
+            "ask cost {} is below the restored cost {restored} of {}: counting the whole total",
+            out.cost_usd,
+            target.key()
+        ));
+        out.cost_usd
+    };
     log_entry(
         state,
         asker,
         target,
-        out.cost_usd,
+        cost_usd,
         (out.cache_read_tokens, out.cache_write_tokens),
         secs,
         !out.is_error,
@@ -361,7 +478,7 @@ pub async fn ask(
         },
         billed_profile: target.profile.clone(),
         as_of: as_of(target),
-        cost_usd: out.cost_usd,
+        cost_usd,
         cache_read_tokens: out.cache_read_tokens,
         cache_write_tokens: out.cache_write_tokens,
         secs,

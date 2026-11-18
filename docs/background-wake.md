@@ -18,7 +18,7 @@ The [dated capability report](research/2026-10-30-background-wake-capabilities.m
 
 ## Prepare the plugin
 
-The optional engine needs Node 24+, Python 3.13+, local private storage, and the exact dependency lock. The legacy Claude path retains its existing requirements. Before copying or activating this source:
+The optional engine needs Node 22+, Python 3.12+, local private storage, and the exact dependency lock. CI runs the whole test suite on Node 22 with Python 3.12 (the floor) and on Node 24 with Python 3.13 (the runtimes the engine was first built on). The floor is measured on Linux only; CI runs the portable wake tests on macOS and Windows with Node 24. The legacy Claude path retains its existing requirements. Before copying or activating this source:
 
 ```sh
 npm ci --prefix codescout-companion --ignore-scripts --omit=optional
@@ -147,7 +147,7 @@ node tools/probe-codex-wake-callbacks.mjs \
 node --test tools/probe-codex-wake*.test.mjs
 ```
 
-An absent permission callback, an early callback, a callback on the secondary, timeout, or failed attach is not a compatibility pass. The probe does not enable a profile or prove full automatic hook-to-wake delivery. A new daemon generation still requires explicit endpoint repinning. Use Node 24+ and Python 3.13+ for activation and the full wake test suite; installing `ws` alone does not provide those runtimes.
+An absent permission callback, an early callback, a callback on the secondary, timeout, or failed attach is not a compatibility pass. The probe does not enable a profile or prove full automatic hook-to-wake delivery. A new daemon generation still requires explicit endpoint repinning. Use Node 22+ and Python 3.12+ for activation and the full wake test suite; installing `ws` alone does not provide those runtimes.
 
 ## Verification and extension
 

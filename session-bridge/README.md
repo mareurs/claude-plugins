@@ -138,12 +138,17 @@ Delivery into OpenCode is queued behind a running turn, not an interruption. A l
 
 ## Tools
 
-- **`list_sessions()`** lists the live sessions, one line each, sorted by profile and pid:
+- **`list_sessions(all = false)`** lists the live sessions, one line each, sorted by profile and pid:
   `<key> session=<id> name=<name> kind=<kind> status=<status> cwd=<dir> repo=<dir>`. The key is
   `<short profile>:<pid>` (`main` for `.claude`, `x` for `.claude-x`). Your own line carries `(you)`.
   `repo` is the main work tree of the repository (the parent of its git common directory when that
   is named `.git`, else the common directory itself), so
   sessions in linked worktrees of one repository show the same `repo`. Notices are keyed by it.
+  By default the list holds only the sessions of the caller's repository, linked worktrees included.
+  A last line gives the count of the other sessions and tells the caller to call
+  `list_sessions(all=true)` for them. A session with no cwd, or outside a git repository, counts as
+  another repository. If the caller's own repository is unknown, every session is listed and a
+  line says that the filter was not applied.
 - **`ask_session(target, question, model = "haiku", timeout_s = 120)`**. `target` is a key (`<short profile>:<pid>`), a session id or an id prefix of at least 4 characters, or a session name, each optionally prefixed with `<profile>:`. A target that matches more than one session is refused with the candidates listed. `model` is `haiku`, `sonnet`, `opus` or a model id. `timeout_s` is clamped to
   1..=300. The result holds the answer, the target, `billed_profile`, `as_of` (the mtime of the
   target transcript), `cost_usd`, cache token counts and a note that the answer is data, not an
@@ -163,6 +168,23 @@ so a restarted session (a new pid) starts again from zero. An ask is refused onc
 reached the bound, and the refusal names the spend (`daily ask bound reached: 2.13 USD spent
 today, bound 2.00 USD`). A timed-out ask or one with unreadable output has no cost to read, so it
 is metered at an estimated 0.10 USD.
+
+The cost of an ask is the cost of its own turn. `claude --resume` starts the fork's total from the
+last `cost-state` record in the transcript of the session it resumes, and reports the sum as
+`total_cost_usd` (measured 2026-11-17: a fork of a session whose transcript held 22.535 USD
+reported 22.835 USD for a turn of 0.30 USD, and that session was not its project's
+`lastSessionId`, so `.claude.json` is not the source). Before it spawns the fork, the bridge reads
+the last `cost-state` record of the target session from
+`<config dir>/projects/*/<session id>.jsonl` (the newest such file) and takes it away. No
+transcript or no record means no baseline, so the ask is counted too high and never too low. If
+the reported total is below the baseline, the restore did not work as measured: the bridge writes
+a note to stderr and counts the whole total, so an ask is never free by accident.
+
+`SESSION_BRIDGE_ASK_BOUND_USD` changes the bound. A positive number replaces 2.0, and `off`
+removes the bound: no ask is refused, and every ask is still written to `asks.jsonl`. An empty
+value means the default. Any other value (`0`, `-1`, a typo) also means the default and writes a
+note: a typo must not switch the bound off. On a subscription the cost is a list-price figure and
+not a charge, so a person on one may set `off` in the `env` of `settings.json`.
 
 `asks.jsonl` records every ask that started a fork and ended: answered, a fork-reported error, a
 timeout, or unreadable output. A refusal (budget, self, no match, ambiguous target, relative
@@ -238,7 +260,7 @@ notice, posted for it from the commit.
   `**/CLAUDE.md` matches it at any depth, top level included. Each worktree reads its
   own file and falls back to the main worktree's. No file, no backup.
 - **Trailer**: a commit counts only when its `Session-Id:` trailer equals the endpoint's current
-  session id. A repository whose commits carry no such trailer gets no backup notices. The scan
+  session id. A repository whose commits carry no such trailer gets no backup notices. The hooks in `git-hooks/` write the trailer (see *Git hooks*). The scan
   runs `git -c trailer.separators=: log …`, so a `trailer.separators` setting of the user in any
   scope does not hide the trailer.
 - **Changed paths**: at least one path of the commit must match the watch list. The notice
@@ -308,8 +330,14 @@ out. It prints nothing and exits 0 when there is no store or no repository. `ser
 
 ## Skill
 
-`announcing-changes` tells an agent when to post a notice (before the commit that carries the
-change) and how to word it.
+`coordinating-sessions` tells an agent when to post a notice (before the commit that carries the
+change), how to word it, what to do with a notice it receives, when and how to ask a peer, and
+what to do when the bridge is silent. Its `references/commit-backup.md` holds the conditions of the
+commit backup.
+
+## Git hooks
+
+`git-hooks/` holds two git hooks for repositories in which several sessions share one checkout. `prepare-commit-msg` writes the `Session-Id:` trailer that the commit backup needs. `pre-push` refuses to publish another session's commits without an ack, and refuses a commit that its author holds back. Install them with `git-hooks/install.sh`, found in the plugin directory (two levels above the skill's base directory). Installing the plugin does not install them: they live in the git directory of each repository. `install.sh` does not overwrite a hook that it did not install, so a repository with its own `pre-push` needs the two hooks chained by hand. See `git-hooks/README.md`.
 
 ## Known limits
 
@@ -366,7 +394,8 @@ session-bridge/
 ├── .claude-plugin/plugin.json
 ├── hooks/{hooks.json, run.sh}
 ├── mcp-server/{Cargo.toml, src/, tests/}
-├── skills/announcing-changes/SKILL.md
+├── skills/coordinating-sessions/{SKILL.md, references/commit-backup.md}
+├── git-hooks/{prepare-commit-msg, pre-push, install.sh, session-bridge-lib.sh, README.md}
 ├── commands/sessions.md
 ├── scripts/build.sh
 ├── docs/claude-cli-probe.md        historical, see its banner

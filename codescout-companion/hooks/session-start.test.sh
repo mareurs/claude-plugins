@@ -479,12 +479,37 @@ printf 'hot view: busy (docs/trackers/ledgers/busy): 1 of 1 hot, 1 live. Scope: 
 EOF
 chmod +x "$HV_FAKE"
 hv_profile() { printf '{"mcpServers":{"codescout":{"command":"%s"}}}' "$1" > "$HV_CFG/.claude.json"; }
+# $PATH minus every directory that holds a `codescout`: the fixture must not see a host binary.
+hv_clean_path() {
+  local d out="" IFS=:
+  for d in $PATH; do
+    [ -n "$d" ] && [ ! -x "$d/codescout" ] && out="${out:+$out:}$d"
+  done
+  printf '%s' "$out"
+}
 hv_ctx() {  # <source>
   printf '{"cwd":"%s","source":"%s","session_id":"hv-%s"}' "$HV_REPO" "$1" "$1" \
-    | HOME="${HV_HOME:-$HOME}" CLAUDE_CONFIG_DIR="$HV_CFG" XDG_STATE_HOME="$TMP/state" node "$HOOK" 2>/dev/null \
+    | PATH="$(hv_clean_path)" HOME="${HV_HOME:-$HOME}" CLAUDE_CONFIG_DIR="$HV_CFG" XDG_STATE_HOME="$TMP/state" node "$HOOK" 2>/dev/null \
     | jq -r '.hookSpecificOutput.additionalContext // ""'
 }
 hv_profile "$HV_FAKE"
+
+# Host independence (issue #18, item 2). resolveCodescoutBinary searches PATH BEFORE the command
+# in the profile's mcpServers config, so a real `codescout` on the host PATH (typically in
+# ~/.cargo/bin) is called instead of the fake, and the block degrades to "not shown: busy
+# (hot-view unavailable)". hv_ctx must hide every host codescout. The decoy stands in for one:
+# it records the call and answers like a binary that does not know `hot-view`.
+HV_DECOY_BIN="$TMP/hv-decoy-bin"; HV_DECOY_LOG="$TMP/hv-decoy.log"; mkdir -p "$HV_DECOY_BIN"
+printf '#!/usr/bin/env bash\necho "$*" >> "%s"\nexit 2\n' "$HV_DECOY_LOG" > "$HV_DECOY_BIN/codescout"
+chmod +x "$HV_DECOY_BIN/codescout"
+: > "$HV_DECOY_LOG"; : > "$HV_LOG"
+HV_DECOYED=$(PATH="$HV_DECOY_BIN:$PATH" hv_ctx startup)
+if echo "$HV_DECOYED" | grep -q -F -- "- [[e1]] t: open since 2026-11-01" \
+   && [ ! -s "$HV_DECOY_LOG" ] && [ -s "$HV_LOG" ]; then
+  pass "hot view: a codescout on the host PATH is hidden from the fixture; the fake answers"
+else
+  fail "hot view: a host codescout on PATH was called instead of the fake (decoy log: $(tr '\n' ';' < "$HV_DECOY_LOG"))"
+fi
 
 # The MCP launch command is not necessarily the codescout binary (review I-1): with
 # {"command":"bash","args":["-c","exec codescout start"]} the hook must still call the real
@@ -514,8 +539,10 @@ HV_POS_CONN=$(echo "$HV_START" | grep -n "codescout: Detected in config" | head 
 { [ -n "$HV_POS_VIEW" ] && [ -n "$HV_POS_CONN" ] && [ "$HV_POS_VIEW" -lt "$HV_POS_CONN" ]; } \
   && pass "hot view: the block comes before the connectivity note" \
   || fail "hot view: block is not before the connectivity note ($HV_POS_VIEW vs $HV_POS_CONN)"
+# The entry line, not the string `HOT VIEW`: the header carries that string even when the
+# collection is "not shown", so a header-only grep passes while the fake is never called.
 for s in compact clear; do
-  hv_ctx "$s" | grep -q "HOT VIEW" \
+  hv_ctx "$s" | grep -q -F -- "- [[e1]] t: open since 2026-11-01" \
     && pass "hot view: source=$s injects it" \
     || fail "hot view: source=$s lacks it"
 done
