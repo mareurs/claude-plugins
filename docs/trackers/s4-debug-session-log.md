@@ -11,7 +11,7 @@ entry_prefix:
 - F
 - W
 snapshot_anchor: '| ID | Date | Severity | Status | Finding |'
-entry_high_water_F: 2
+entry_high_water_F: 3
 ---
 
 # S4 systematic debugging
@@ -25,7 +25,8 @@ Investigate the local S4 failures observed during PR #10 verification. The user 
 | ID | Date | Severity | Status | Finding |
 |----|------|----------|--------|---------|
 | F-1 | 2026-11-18 | med | fixed-verified | Real policy CLI timeout propagates as a prompt failure into unrelated S4 assertions. |
-| F-2 | 2026-11-18 | med | open | Runtime timeout is coupled to the archived S4 performance target; separate the runtime ceiling from the p95 gate. |
+| F-2 | 2026-11-18 | med | fixed-verified | Runtime timeout is coupled to the archived S4 performance target; separate the runtime ceiling from the p95 gate. |
+| F-3 | 2026-11-18 | med | fixed-verified | Empty .git markers in shared temporary roots caused unrelated test failures; empty markers removed and isolated controls passed. |
 
 ## F-1 — Real 500 ms preflight timeout makes unrelated S4 semantic tests see zero simulated calls
 
@@ -49,9 +50,23 @@ Investigate the local S4 failures observed during PR #10 verification. The user 
 
 **Decision:** The user authorized raising the runtime deadline. Set the production child-process ceiling to 3000 ms, preserve the registered 500 ms S4 p95 performance criterion, and replace the equality test with independent assertions plus delayed-response and bounded-timeout regressions. The two values represent distinct controls. Existing S4 wrapper/default deadline regressions must be adjusted to exceed the new ceiling. Do not rewrite preregistered historical data or claim the measured 1.1 s delay was caused by slow hardware.
 
-**Status:** open — implementation and verification pending.
+**Status:** fixed-verified on branch `fix/s4-preflight-test-budget`, source commit 0aaf656 (not merged). Before changing the runtime default, the adapter test exited 1: the valid 700 ms response timed out and the ceiling assertion observed 500 != 3000. After changing it, adapter, hook, prereg and S4 suites exited 0. Complete root verification exited 0 with isolated TMPDIR after the environment correction in F-3 (@bg_00000056). Independent adapter/S4 baselines exited 0; five separately applied mutations exited 1 (5 killed, 0 survived): default 3000→500; remove spawnSync timeout; invalid-zero→0; remove experiment fixture budget; remove main fixture budget. Parent read the raw status and failure records in /tmp/policy-deadline-review-logs. Review found no Critical/Important/Minor issues; clone restored clean, no post-restoration rerun. Branch CI is tracked separately on PR #20.
 
 **Rests on:** runPolicy, handle, effectiveTimeoutMs, measureHookLatency and the adapter registration equality test read on 2026-11-18; user request in this turn.
+
+**Valid:** dated 2026-11-18
+
+## F-3 — Empty Git markers in shared temporary roots invalidate unrelated test fixtures
+
+**Observed:** The first Task 2 complete root run (@bg_0000004f) exited 1 in Buddy/SDD/hint suites while the targeted adapter, hook, prereg and S4 suites passed. SDD's outside-repository assertion returned root=/home/marius/.cache/cc-tmp with gitDir/commonDir ending in .git. The same Buddy smoke test on the pre-change review clone also failed (@bg_00000055), so the 3000 ms policy change is not necessary to reproduce it.
+
+**Evidence:** Direct filesystem inspection found plain empty .git directories at both /home/marius/.cache/cc-tmp/.git and /tmp/.git. git rev-parse returned not-a-repository because these are empty markers, but mainCheckout deliberately recognises a .git directory by filesystem existence. Therefore a negative Git command was not evidence that the marker was absent. The marker creator has not been established; do not attribute it to any agent or test without evidence.
+
+**Correction:** Verified both exact paths were plain directories, not symlinks, and had no entries; os.rmdir then removed them (refuses nonempty directories). No repository files were removed. The exact four-group control with TMPDIR=/tmp/s4-runtime-verification.Qej1uK failed before this cleanup (@bg_00000052, first Buddy group), then passed after it (@bg_00000057): cross-platform hooks, skill-hints lib, suspicious-zero hint, and SDD lib. Source was unchanged. The original failed root log was preserved before rerunning the complete root command with that isolated TMPDIR.
+
+**Status:** fixed-verified — the four-group control passed after cleanup, and complete root rerun @bg_00000056 exited 0 with `All suites passed`. No product code change was made for this environment interference.
+
+**Rests on:** Same-code before/after control, direct empty-directory inspection/removal, and mainCheckout's explicit filesystem marker contract; original failed log task-2-temp-markers-failed.log in the owned plan workspace (ephemeral), plus this durable summary.
 
 **Valid:** dated 2026-11-18
 

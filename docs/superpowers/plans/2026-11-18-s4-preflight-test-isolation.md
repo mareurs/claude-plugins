@@ -1,17 +1,17 @@
 ---
 id: '49bd1e681dc60a95'
 kind: plan
-status: active
-title: S4 preflight test isolation
+status: done
+title: S4 preflight budgets and runtime deadline
 ---
 
 # S4 preflight test isolation implementation plan
 
 > **For agentic workers:** Execute inline with superpowers:executing-plans; use checkbox steps and an independent review with applied mutations.
 
-**Goal:** Remove the reproduced S4 semantic-test dependency on a 500 ms real process startup while preserving the production deadline and real CLI coverage.
+**Goal:** Remove the reproduced S4 semantic-test dependency on a tight real-process deadline and, under the user's Task 2 request, raise the runtime ceiling to 3000 ms while preserving real CLI coverage and the historical S4 performance criterion.
 
-**Architecture:** Thread an optional preflightTimeoutMs from runExperiment options into runPolicy's existing timeoutMs. The adapter continues to own validation/defaulting and defaults to 500 ms. Test wrappers supply 10000 ms for semantic CLI integration. A deliberately delayed CLI proves the omitted/invalid override still refuses before any model/hook call, and the explicit longer override permits the same response.
+**Architecture:** Thread an optional preflightTimeoutMs from runExperiment options into runPolicy's existing timeoutMs. The adapter owns validation/defaulting. Task 1 retained the original 500 ms default; Task 2 raises that runtime ceiling to 3000 ms independently of S4's registered 500 ms p95 target. Test wrappers supply 10000 ms for semantic CLI integration. A deliberately delayed CLI proves the omitted/invalid override still refuses before any model/hook call, and the explicit longer override permits the same response.
 
 **Tech Stack:** Dependency-free Node ESM, native child processes and temporary Git fixtures.
 
@@ -19,7 +19,7 @@ title: S4 preflight test isolation
 
 ## Approaches and scope
 
-Raising the adapter's global production deadline changes the hook contract. Replacing preflight with a fake would remove the real-copy, table and override coverage. Use an optional preflight-only budget instead; keep CLI decisions real. This is an implementation choice under the requested systematic debugging and correction, not a new user-facing setting. No retries, releases, installed configuration changes or unrelated refactors.
+Task 1 initially preserved the production deadline because changing it changes the hook contract. Task 2 explicitly expands scope at the user's request to raise that deadline to 3000 ms. Replacing preflight with a fake would remove the real-copy, table and override coverage. Use an optional preflight-only budget instead; keep CLI decisions real. This is an implementation choice under the requested systematic debugging and correction, not a new user-facing setting. No retries, releases, installed configuration changes or unrelated refactors. The Task 1 closeout below records the earlier verified stage; Task 2 is the current runtime-default scope.
 
 ## Task 2 — runtime deadline increase requested by the user
 
@@ -31,9 +31,21 @@ The user explicitly requested raising the production 500 ms limit for slower mac
 
 - [x] Write adapter delayed-success and bounded-default regressions, replace the obsolete equality assertion with independent ceiling/performance assertions, and observe a failure at the old runtime default before changing implementation.
 - [x] Set the runtime default to 3000 ms. Adjust S4 delayed fixtures beyond 3000 ms while preserving their explicit 10000 ms budget; clarify documentation and stale comments.
-- [ ] Run adapter, S4, prereg and hook suites, then complete root verification. Obtain independent review with applied mutations, record evidence and update PR #20; follow CI without merging automatically.
+- [x] Run adapter, S4, prereg and hook suites, then complete root verification. Obtain independent review with applied mutations, record evidence and update PR #20; follow CI without merging automatically.
 
 **Ruling:** A 3000 ms ceiling supplies headroom above the observed approximately 1.1 s startup, while bounding a stalled hook. It is a chosen operational margin, not a measured guarantee for every machine. Cost: a genuinely stuck policy can now hold the hook for up to three seconds before fail-open; very slow machines may still exceed that ceiling.
+
+## Task 2 verification and publication — 2026-11-18
+
+Source commit 0aaf656 implements the requested 3000 ms runtime ceiling. RED at the original default observed adapter_timeout for a valid 700 ms response and 500 != 3000. The adapter, hook, prereg and S4 suites then passed. Complete root command `env TMPDIR=/tmp/s4-runtime-verification.Qej1uK CODESCOUT_REPO=/home/marius/work/claude/codescout bash tests/run-all.sh` exited 0 with `All suites passed`.
+
+The first full root run failed because empty .git directories in both shared temporary roots made unrelated Buddy/SDD fixtures resolve the wrong project root. The pre-change Buddy clone reproduced it. Only verified empty directories were removed with rmdir; the same four-group control then passed unchanged. Full details and the limits of Git-based absence checks are in s4-debug-session-log:F-3. No product fix was made for that environment interference.
+
+Independent review found no Critical/Important/Minor findings. Adapter and S4 baselines exited 0. Five actual separate mutations each exited 1 (5 killed, 0 survived): runtime default 3000→500; remove spawnSync timeout; invalid-zero→0; remove experiment wrapper budget; remove main wrapper budget. Raw status/failure records in /tmp/policy-deadline-review-logs were read by the parent. Clone restored exactly, without claiming a post-restoration rerun.
+
+**Ruling:** Reviewer did not judge the full root suite or platforms; the parent uses the actual root and PR CI outcomes instead of extending that review's scope. Cost if wrong: platform behavior not exercised by those checks remains outside the claim.
+
+Implementation and local review are complete. Publish into existing draft PR #20; CI results are tracked there before any integration. No automatic merge, no deferred minors. Keep the managed worktree for PR iteration.
 
 ## Review focus
 
