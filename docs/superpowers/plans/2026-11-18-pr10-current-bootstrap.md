@@ -1,7 +1,7 @@
 ---
 id: bf85321bff73c6f1
 kind: plan
-status: active
+status: done
 title: PR 10 — current reconnaissance bootstrap and citation checks
 ---
 
@@ -34,3 +34,9 @@ title: PR 10 — current reconnaissance bootstrap and citation checks
 - Fix findings and repeat affected checks.
 - Commit and push the existing PR branch; rewrite its title/body for the final scope and measured validation.
 - Verify GitHub checks, merge the PR with the reviewed head, and confirm state=MERGED. Record the audit as addressed and preserve the investigation record.
+
+## Integration receipt — 2026-11-18
+
+Completed all three tasks. [PR #10](https://github.com/mareurs/claude-plugins/pull/10) is MERGED as bfefda19bcc31be4ba58dc17d541239d032d52e9, from approved head 4dc638f9aaf96e5148dbd5fe2f33ac7be5fd2af5. [All five CI jobs passed](https://github.com/mareurs/claude-plugins/actions/runs/44285240552), including both complete Linux suites and actual Windows/macOS smoke tests.
+
+Real local MCP coverage: reconnaissance 13/13 (seven integration cases); skill-call legality 80 passed, zero failed/skipped, with upstream template; parser 9/9. Independent reviewer repeated the baselines, found and closed a scan-guard coverage gap, applied the follow-up and portability mutations, and approved with no remaining findings. Baseline portability failures were confirmed against main and corrected only in tests. The full investigation, limits and mutation observations are preserved in docs/trackers/pr10-audit-session-log.md. No plugin version or installed configuration changed.
