@@ -144,18 +144,13 @@ if command -v node >/dev/null 2>&1; then
   #      spawn a probe (`python3 -c ''`) before the dispatcher; where `python3` is
   #      a pyenv shim each start costs ~55 ms of shim overhead (measured 78 ms vs
   #      23 ms for the real binary), paid on every PreToolUse/PostToolUse. Count
-  #      invocations with a wrapper that delegates to the real python3.
-  # The wrapper must exec the REAL binary (sys.executable), not `command -v python3`:
-  # that is a pyenv shim here, and pyenv resolves "system" python by searching PATH,
-  # which finds the wrapper itself — an infinite exec loop (measured: 291 calls).
-  real_py="$(python3 -c 'import sys; print(sys.executable)' 2>/dev/null || true)"
-  if [ -n "$real_py" ] && [ -x "$real_py" ]; then
+  #      successful interpreter starts at Node's spawn boundary. Native Windows
+  #      resolution bypasses an extensionless shell wrapper on PATH.
+  if command -v python3 >/dev/null 2>&1; then
     cnt="$(mktemp -d 2>/dev/null || mktemp -d -t cpcnt)"
-    printf '#!/bin/sh\necho x >> "%s/calls"\nexec "%s" "$@"\n' "$cnt" "$real_py" > "$cnt/python3"
-    chmod +x "$cnt/python3"
     t6="$(mktemp -d 2>/dev/null || mktemp -d -t cphooks)"
     printf '%s' '{"session_id":"cp-once","cwd":"'"$(winpath "$t6")"'"}' \
-      | PATH="$cnt:$PATH" node "$LAUNCH" session-start >/dev/null 2>&1
+      | CPH_COUNTER_PATH="$(winpath "$cnt/calls")" node --require "$(winpath "$ROOT/tests/lib/count-python-starts.cjs")" "$LAUNCH" session-start >/dev/null 2>&1
     calls="$(wc -l < "$cnt/calls" 2>/dev/null | tr -d ' ')"
     if [ "$calls" = "1" ] && [ "$(cat "$t6/.buddy/.current_session_id" 2>/dev/null)" = "cp-once" ]; then
       ok "launcher: starts python once per hook call (no probe spawn)"

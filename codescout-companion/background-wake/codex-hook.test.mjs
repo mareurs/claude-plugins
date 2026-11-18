@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {mkdtemp, mkdir, readFile, writeFile, rm, chmod, symlink, cp} from 'node:fs/promises';
+import {mkdtemp, mkdir, readFile, writeFile, rm, chmod, symlink, cp, realpath} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join, resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
@@ -9,8 +9,8 @@ import {spawnSync} from 'node:child_process';
 const source = fileURLToPath(new URL('./codex-hook.mjs', import.meta.url));
 const command = 'node "${CODEX_HOME:-$HOME/.codex}/hooks/codescout-wake.mjs"';
 
-async function fixture(t) {
-  const root = await mkdtemp(join(tmpdir(), 'codex wake hook '));
+async function fixture(t, parent = tmpdir()) {
+  const root = await realpath(await mkdtemp(join(parent, 'codex wake hook ')));
   t.after(() => rm(root, {recursive: true, force: true}));
   const profile = join(root, 'profile one');
   const bin = join(root, 'bin');
@@ -34,6 +34,26 @@ async function fixture(t) {
   }
   return {root, profile, env, installed, install, invoke};
 }
+test('fixture resolves a symlinked temporary parent before comparing profile paths', async (t) => {
+  const parent = await mkdtemp(join(tmpdir(), 'wake symlink parent '));
+  t.after(() => rm(parent, {recursive: true, force: true}));
+  const actual = join(parent, 'actual');
+  const alias = join(parent, 'alias');
+  await mkdir(actual);
+  await symlink(actual, alias, 'dir');
+  const f = await fixture(t, alias);
+  assert.equal(f.root, await realpath(f.root));
+});
+test('fixture resolves a symlinked temporary parent before comparing profile paths', async (t) => {
+  const parent = await mkdtemp(join(tmpdir(), 'wake symlink parent '));
+  t.after(() => rm(parent, {recursive: true, force: true}));
+  const actual = join(parent, 'actual');
+  const alias = join(parent, 'alias');
+  await mkdir(actual);
+  await symlink(actual, alias, 'dir');
+  const f = await fixture(t, alias);
+  assert.equal(f.root, await realpath(f.root));
+});
 
 function successful(result) {assert.equal(result.status, 0, result.stderr); assert.equal(result.stdout, ''); assert.equal(result.stderr, '');}
 
