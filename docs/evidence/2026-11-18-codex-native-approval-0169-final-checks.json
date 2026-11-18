@@ -1,0 +1,55 @@
+{
+  "state": "passed",
+  "results": [
+    {
+      "name": "fmt",
+      "command": [
+        "cargo",
+        "+1.95.0",
+        "fmt",
+        "-p",
+        "codex-core",
+        "--check"
+      ],
+      "log": "/tmp/issue15-fmt-lint-followup-0169.log",
+      "exit_code": 0,
+      "elapsed_seconds": 7.16
+    },
+    {
+      "name": "unified_exec24",
+      "command": [
+        "cargo",
+        "+1.95.0",
+        "test",
+        "-p",
+        "codex-core",
+        "--lib",
+        "tools::handlers::unified_exec::tests",
+        "--",
+        "--nocapture"
+      ],
+      "log": "/tmp/issue15-unified-exec-lint-followup-0169.log",
+      "exit_code": 0,
+      "elapsed_seconds": 79.05
+    },
+    {
+      "name": "clippy",
+      "command": [
+        "cargo",
+        "+1.95.0",
+        "clippy",
+        "-p",
+        "codex-core",
+        "--lib",
+        "--tests",
+        "--no-deps",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "log": "/tmp/issue15-clippy-lint-followup-0169.log",
+      "exit_code": 0,
+      "elapsed_seconds": 194.18
+    }
+  ]
+}

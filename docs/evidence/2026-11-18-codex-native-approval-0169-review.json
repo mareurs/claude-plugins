@@ -1,0 +1,282 @@
+{
+  "review": "Independent issue15 host repair review",
+  "date": "2026-11-18",
+  "source_root": "/home/marius/.cache/cc-tmp/codex-issue15-0169-20261118",
+  "source_head": "d32063f96c2dff1dc96af839b3952abb6acfeda4",
+  "reviewed_files": [
+    "codex-rs/core/src/tools/handlers/unified_exec/exec_command.rs",
+    "codex-rs/core/src/tools/handlers/unified_exec_tests.rs",
+    "codex-rs/core/tests/suite/hooks.rs",
+    "codex-rs/core/tests/suite/hooks_cwd_tests.rs"
+  ],
+  "requirements": {
+    "spec": "root doc3108db5ae41d3fc5",
+    "plan": "root doc91b0eda6be47e047"
+  },
+  "baseline": {
+    "log": "/tmp/issue15-review-baseline.log",
+    "exit_code": 0,
+    "passed": 24,
+    "failed": 0,
+    "ignored": 0
+  },
+  "command": {
+    "cwd": "/home/marius/.cache/cc-tmp/codex-issue15-0169-20261118/codex-rs",
+    "full": "env -u CODEX_SANDBOX_NETWORK_DISABLED RUST_MIN_STACK=8388608 CARGO_BIN_EXE_codex=/usr/bin/codex CARGO_BIN_EXE_codex_code_mode_host=/usr/lib/openai-codex/bin/codex-code-mode-host CARGO_BUILD_JOBS=2 CARGO_TARGET_DIR=/home/marius/.cache/cc-tmp/codex-issue15-target-0169 cargo +1.95.0 test -p codex-core --lib tools::handlers::unified_exec::tests -- --nocapture",
+    "stack_note": "8Mi stack is an explicit local workaround, not a claim about the core CI configuration.",
+    "timeout_secs": 240
+  },
+  "mutations": [
+    {
+      "key": "raw-trim",
+      "title": "Trim leading/trailing raw command whitespace",
+      "log": "/tmp/issue15-review-mutation-raw-trim.log",
+      "exit_code": 0,
+      "passed": 24,
+      "failed": 0,
+      "ignored": 0,
+      "observed_outcome": "survived",
+      "restored_sha256": "9a85c6e27ed72af0d0ec2d181d6c80ec41306b23737b012f2cdf0653dc6e5283",
+      "actual_applied_method": "    fn pre_tool_use_payload(&self, invocation: &ToolInvocation) -> Option<PreToolUsePayload> {\n        let ToolPayload::Function { arguments } = &invocation.payload else {\n            return None;\n        };\n\n        parse_arguments::<ExecCommandArgs>(arguments)\n            .ok()\n            .map(|args| {\n                let mut tool_input = serde_json::json!({ \"command\": args.cmd.trim().to_owned() });\n                // Hooks need the structured native approval request without changing\n                // the shape of legacy command-only payloads.\n                if let Some(permissions) = args.sandbox_permissions {\n                    tool_input[\"sandbox_permissions\"] = serde_json::json!(permissions);\n                }\n                if let Some(justification) = args.justification {\n                    tool_input[\"justification\"] = serde_json::json!(justification);\n                }\n                if let Some(prefix_rule) = args.prefix_rule {\n                    tool_input[\"prefix_rule\"] = serde_json::json!(prefix_rule);\n                }\n                PreToolUsePayload {\n                    tool_name: HookToolName::bash(),\n                    tool_input,\n                }\n            })\n    }"
+    },
+    {
+      "key": "drop-sandbox_permissions",
+      "title": "Drop supplied sandbox_permissions",
+      "log": "/tmp/issue15-review-mutation-drop-sandbox_permissions.log",
+      "exit_code": 101,
+      "passed": 23,
+      "failed": 1,
+      "ignored": 0,
+      "observed_outcome": "killed",
+      "assertion_evidence": "thread 'tools::handlers::unified_exec::tests::exec_command_pre_tool_use_payload_preserves_only_supplied_approval_metadata' (1119177) panicked at core/src/tools/handlers/unified_exec_tests.rs:576:9:\nfailures:\nfailures:\n    tools::handlers::unified_exec::tests::exec_command_pre_tool_use_payload_preserves_only_supplied_approval_metadata\ntest result: FAILED. 23 passed; 1 failed; 0 ignored; 0 measured; 2979 filtered out; finished in 0.17s\nerror: test failed, to rerun pass `-p codex-core --lib`\n",
+      "restored_sha256": "9a85c6e27ed72af0d0ec2d181d6c80ec41306b23737b012f2cdf0653dc6e5283",
+      "actual_applied_method": "    fn pre_tool_use_payload(&self, invocation: &ToolInvocation) -> Option<PreToolUsePayload> {\n        let ToolPayload::Function { arguments } = &invocation.payload else {\n            return None;\n        };\n\n        parse_arguments::<ExecCommandArgs>(arguments)\n            .ok()\n            .map(|args| {\n                let mut tool_input = serde_json::json!({ \"command\": args.cmd });\n                // Hooks need the structured native approval request without changing\n                // the shape of legacy command-only payloads.\n                if let Some(justification) = args.justification {\n                    tool_input[\"justification\"] = serde_json::json!(justification);\n                }\n                if let Some(prefix_rule) = args.prefix_rule {\n                    tool_input[\"prefix_rule\"] = serde_json::json!(prefix_rule);\n                }\n                PreToolUsePayload {\n                    tool_name: HookToolName::bash(),\n                    tool_input,\n                }\n            })\n    }"
+    },
+    {
+      "key": "drop-justification",
+      "title": "Drop supplied justification",
+      "log": "/tmp/issue15-review-mutation-drop-justification.log",
+      "exit_code": 101,
+      "passed": 23,
+      "failed": 1,
+      "ignored": 0,
+      "observed_outcome": "killed",
+      "assertion_evidence": "thread 'tools::handlers::unified_exec::tests::exec_command_pre_tool_use_payload_preserves_only_supplied_approval_metadata' (1299128) panicked at core/src/tools/handlers/unified_exec_tests.rs:576:9:\nfailures:\nfailures:\n    tools::handlers::unified_exec::tests::exec_command_pre_tool_use_payload_preserves_only_supplied_approval_metadata\ntest result: FAILED. 23 passed; 1 failed; 0 ignored; 0 measured; 2979 filtered out; finished in 0.15s\nerror: test failed, to rerun pass `-p codex-core --lib`\n",
+      "restored_sha256": "9a85c6e27ed72af0d0ec2d181d6c80ec41306b23737b012f2cdf0653dc6e5283",
+      "actual_applied_method": "    fn pre_tool_use_payload(&self, invocation: &ToolInvocation) -> Option<PreToolUsePayload> {\n        let ToolPayload::Function { arguments } = &invocation.payload else {\n            return None;\n        };\n\n        parse_arguments::<ExecCommandArgs>(arguments)\n            .ok()\n            .map(|args| {\n                let mut tool_input = serde_json::json!({ \"command\": args.cmd });\n                // Hooks need the structured native approval request without changing\n                // the shape of legacy command-only payloads.\n                if let Some(permissions) = args.sandbox_permissions {\n                    tool_input[\"sandbox_permissions\"] = serde_json::json!(permissions);\n                }\n                if let Some(prefix_rule) = args.prefix_rule {\n                    tool_input[\"prefix_rule\"] = serde_json::json!(prefix_rule);\n                }\n                PreToolUsePayload {\n                    tool_name: HookToolName::bash(),\n                    tool_input,\n                }\n            })\n    }"
+    },
+    {
+      "key": "drop-prefix_rule",
+      "title": "Drop supplied prefix_rule",
+      "log": "/tmp/issue15-review-mutation-drop-prefix_rule.log",
+      "exit_code": 101,
+      "passed": 23,
+      "failed": 1,
+      "ignored": 0,
+      "observed_outcome": "killed",
+      "assertion_evidence": "1415588) panicked at core/src/tools/handlers/unified_exec_tests.rs:576:9:\nfailures:\nfailures:\n    tools::handlers::unified_exec::tests::exec_command_pre_tool_use_payload_preserves_only_supplied_approval_metadata\ntest result: FAILED. 23 passed; 1 failed; 0 ignored; 0 measured; 2979 filtered out; finished in 0.23s\nerror: test failed, to rerun pass `-p codex-core --lib`\n",
+      "restored_sha256": "9a85c6e27ed72af0d0ec2d181d6c80ec41306b23737b012f2cdf0653dc6e5283",
+      "actual_applied_method": "    fn pre_tool_use_payload(&self, invocation: &ToolInvocation) -> Option<PreToolUsePayload> {\n        let ToolPayload::Function { arguments } = &invocation.payload else {\n            return None;\n        };\n\n        parse_arguments::<ExecCommandArgs>(arguments)\n            .ok()\n            .map(|args| {\n                let mut tool_input = serde_json::json!({ \"command\": args.cmd });\n                // Hooks need the structured native approval request without changing\n                // the shape of legacy command-only payloads.\n                if let Some(permissions) = args.sandbox_permissions {\n                    tool_input[\"sandbox_permissions\"] = serde_json::json!(permissions);\n                }\n                if let Some(justification) = args.justification {\n                    tool_input[\"justification\"] = serde_json::json!(justification);\n                }\n                PreToolUsePayload {\n                    tool_name: HookToolName::bash(),\n                    tool_input,\n                }\n            })\n    }"
+    },
+    {
+      "key": "emit-nulls",
+      "title": "Emit null metadata when omitted",
+      "log": "/tmp/issue15-review-mutation-emit-nulls.log",
+      "exit_code": 101,
+      "passed": 22,
+      "failed": 2,
+      "ignored": 0,
+      "observed_outcome": "killed",
+      "assertion_evidence": "thread 'tools::handlers::unified_exec::tests::exec_command_pre_tool_use_payload_preserves_only_supplied_approval_metadata' (1704965) panicked at core/src/tools/handlers/unified_exec_tests.rs:576:9:\nthread 'tools::handlers::unified_exec::tests::exec_command_pre_tool_use_payload_uses_raw_command' (1704967) panicked at core/src/tools/handlers/unified_exec_tests.rs:480:5:\nfailures:\nfailures:\n    tools::handlers::unified_exec::tests::exec_command_pre_tool_use_payload_preserves_only_supplied_approval_metadata\n    tools::handlers::unified_exec::tests::exec_command_pre_tool_use_payload_uses_raw_command\ntest result: FAILED. 22 passed; 2 failed; 0 ignored; 0 measured; 2979 filtered out; finished in 0.18s\nerror: test failed, to rerun pass `-p codex-core --lib`\n",
+      "restored_sha256": "9a85c6e27ed72af0d0ec2d181d6c80ec41306b23737b012f2cdf0653dc6e5283",
+      "actual_applied_method": "    fn pre_tool_use_payload(&self, invocation: &ToolInvocation) -> Option<PreToolUsePayload> {\n        let ToolPayload::Function { arguments } = &invocation.payload else {\n            return None;\n        };\n\n        parse_arguments::<ExecCommandArgs>(arguments)\n            .ok()\n            .map(|args| {\n                let mut tool_input = serde_json::json!({ \"command\": args.cmd });\n                // Hooks need the structured native approval request without changing\n                // the shape of legacy command-only payloads.\n                tool_input[\"sandbox_permissions\"] = serde_json::json!(args.sandbox_permissions);\n                tool_input[\"justification\"] = serde_json::json!(args.justification);\n                tool_input[\"prefix_rule\"] = serde_json::json!(args.prefix_rule);\n                PreToolUsePayload {\n                    tool_name: HookToolName::bash(),\n                    tool_input,\n                }\n            })\n    }"
+    },
+    {
+      "key": "infer-from-command",
+      "title": "Infer escalation metadata from command text",
+      "log": "/tmp/issue15-review-mutation-infer-from-command.log",
+      "exit_code": 101,
+      "passed": 23,
+      "failed": 1,
+      "ignored": 0,
+      "observed_outcome": "killed",
+      "assertion_evidence": "thread 'tools::handlers::unified_exec::tests::exec_command_pre_tool_use_payload_preserves_only_supplied_approval_metadata' (1858030) panicked at core/src/tools/handlers/unified_exec_tests.rs:576:9:\nfailures:\nfailures:\n    tools::handlers::unified_exec::tests::exec_command_pre_tool_use_payload_preserves_only_supplied_approval_metadata\ntest result: FAILED. 23 passed; 1 failed; 0 ignored; 0 measured; 2979 filtered out; finished in 0.37s\nerror: test failed, to rerun pass `-p codex-core --lib`\n",
+      "restored_sha256": "9a85c6e27ed72af0d0ec2d181d6c80ec41306b23737b012f2cdf0653dc6e5283",
+      "actual_applied_method": "    fn pre_tool_use_payload(&self, invocation: &ToolInvocation) -> Option<PreToolUsePayload> {\n        let ToolPayload::Function { arguments } = &invocation.payload else {\n            return None;\n        };\n\n        parse_arguments::<ExecCommandArgs>(arguments)\n            .ok()\n            .map(|args| {\n                let mut tool_input = serde_json::json!({ \"command\": args.cmd });\n                // Hooks need the structured native approval request without changing\n                // the shape of legacy command-only payloads.\n                if let Some(permissions) = args.sandbox_permissions {\n                    tool_input[\"sandbox_permissions\"] = serde_json::json!(permissions);\n                }\n                if tool_input.get(\"sandbox_permissions\").is_none()\n                    && tool_input[\"command\"].as_str().is_some_and(|command| command.contains(\"require_escalated\"))\n                {\n                    tool_input[\"sandbox_permissions\"] = serde_json::json!(\"require_escalated\");\n                }\n                if let Some(justification) = args.justification {\n                    tool_input[\"justification\"] = serde_json::json!(justification);\n                }\n                if let Some(prefix_rule) = args.prefix_rule {\n                    tool_input[\"prefix_rule\"] = serde_json::json!(prefix_rule);\n                }\n                PreToolUsePayload {\n                    tool_name: HookToolName::bash(),\n                    tool_input,\n                }\n            })\n    }"
+    }
+  ],
+  "measured_totals": {
+    "applied": 6,
+    "killed": 5,
+    "survived": 1
+  },
+  "findings": [
+    {
+      "severity": "Important test coverage gap",
+      "file": "codex-rs/core/src/tools/handlers/unified_exec_tests.rs",
+      "line": 472,
+      "also_line": 507,
+      "summary": "Raw-command contract has no leading/trailing whitespace fixture. Replacing args.cmd with args.cmd.trim().to_owned() actually survived all24 affected tests. Production implementation itself currently preserves raw bytes correctly.",
+      "fix": "Add outer whitespace to existing raw-command fixture, reapply this exact trim mutant and observe failing assertion, restore production handler and observe full24 GREEN.",
+      "status": "Closed by strengthened raw command fixture, observed exact trim RED then restored24 GREEN."
+    }
+  ],
+  "strengths": [
+    "Three optional parsed metadata fields copied independently, omitted/null fields omitted, empty/default supplied values preserved.",
+    "Native integration fixtures cover direct and actual nested code-mode requests with approve/deny, marker before-decision and after-decision checks, and exact captured hook input.",
+    "Cwd expectation update touches PreToolUse metadata only; PermissionRequest/PostToolUse contracts remain pinned."
+  ],
+  "restoration": {
+    "sha256_output": "9a85c6e27ed72af0d0ec2d181d6c80ec41306b23737b012f2cdf0653dc6e5283  codex-rs/core/src/tools/handlers/unified_exec/exec_command.rs\n1e186dc5e30123a8e281f924190368d1e28f636ec9abb09ddd82315887a748ff  codex-rs/core/src/tools/handlers/unified_exec_tests.rs\n2d163c3dccebfa2e2927400d750b45027f74c8816d04c3520cf19751e113316b  codex-rs/core/tests/suite/hooks.rs\n1a6d3c157cf2f1e5328bb6aa65421f65cf2d0022ebab009e0aed3ca1df5acbc7  codex-rs/core/tests/suite/hooks_cwd_tests.rs\n9a85c6e27ed72af0d0ec2d181d6c80ec41306b23737b012f2cdf0653dc6e5283  /tmp/issue15-review-original-exec-command.rs\n",
+    "diff_check_exit_code": 0,
+    "cargo_lock_fuser_exit_code": 1,
+    "cargo_lock_fuser_stdout": "",
+    "original_backup": "/tmp/issue15-review-original-exec-command.rs",
+    "all_four_hashes_match_freeze": true,
+    "live_reviewer_cargo_commands": false
+  },
+  "scope_notes": [
+    "No plugin guard, profiles, system binary, GitHub, index or branch changed by reviewer.",
+    "Cargo.lock normalization and .gitignore/.codescout bootstrap metadata are excluded from deliverable patch; controller/implementer owns cleanup.",
+    "Native97 and real guard candidate runs belong to implementer/controller; reviewer personally ran fresh24 baseline and six actual mutated24 suites.",
+    "No test fix was written before the trim survivor was observed."
+  ],
+  "declined_to_judge": [
+    {
+      "behavior": "Forward additional_permissions or change hook updatedInput approval semantics",
+      "reason": "Explicit repair contract forwards only supplied sandbox_permissions, justification and prefix_rule; these other contracts are unchanged."
+    },
+    {
+      "behavior": "Install the system package or alter profiles",
+      "reason": "User task requires isolated candidate before installation; controller owns delivery."
+    }
+  ],
+  "assessment": "Approved final implementation/test package at patch SHA256 70dfeff0a15391384d5be9c59d00bbcbad18692d731113ff32031d7bc9d09e9b. No remaining findings. Original mutation history and observed raw-command regression closure retained; final formatting,24-test GREEN and Clippy -D warnings evidence verified.",
+  "ledger_checked": [
+    "cd15dd2c76c1f7eb",
+    "4858a9179d30d447",
+    "2646bba03b528020",
+    "da6eaaa69498077b",
+    "33de9ea8980e85c9"
+  ],
+  "raw_command_gap_closure": {
+    "status": "closed",
+    "fixture": "codex-rs/core/src/tools/handlers/unified_exec_tests.rs:472",
+    "fixture_sha256": "5c71b66bd5a08101dd0a098120b7ee522265857323d1589b656e6489e0afb3cc",
+    "observed_before_fix": {
+      "suite": "24 affected unified_exec unit tests",
+      "passed": 24,
+      "failed": 0,
+      "mutation": "args.cmd.trim().to_owned()",
+      "log": "/tmp/issue15-review-mutation-raw-trim.log"
+    },
+    "observed_after_fix_red": {
+      "suite": "3 focused pre_tool_use_payload tests",
+      "passed": 2,
+      "failed": 1,
+      "failed_test": "exec_command_pre_tool_use_payload_uses_raw_command",
+      "assertion_line": 481,
+      "mutation": "args.cmd.trim().to_owned()",
+      "log": "/tmp/issue15-raw-trim-regression-red-0169.log",
+      "evidence": "Actual diff shows trimmed command against preserved leading/trailing space, newline and tab."
+    },
+    "observed_restored_green": {
+      "suite": "24 affected unified_exec unit tests",
+      "passed": 24,
+      "failed": 0,
+      "ignored": 0,
+      "log": "/tmp/issue15-unified-exec-final-green-0169.log"
+    },
+    "restored_production_handler_sha256": "9a85c6e27ed72af0d0ec2d181d6c80ec41306b23737b012f2cdf0653dc6e5283",
+    "reviewer_verification": "Reviewer read both actual RED and GREEN logs plus final fixture body and hashes. Implementer ran closure tests; reviewer started no Cargo after handback."
+  },
+  "final_packaged_patch_review": {
+    "status": "approved static package after Clippy follow-up",
+    "path": "/home/marius/work/claude/claude-plugins/docs/patches/2026-11-18-codex-0.169.0-native-approval-hook-payload.patch",
+    "patch_check_report": "docs/evidence/2026-11-18-codex-native-approval-0169-patch-check.json",
+    "reviewer_checks": {
+      "source_head": "d32063f96c2dff1dc96af839b3952abb6acfeda4",
+      "patch_sha256": "70dfeff0a15391384d5be9c59d00bbcbad18692d731113ff32031d7bc9d09e9b",
+      "matches_current_scoped_git_diff": true,
+      "numstat": "17\t3\tcodex-rs/core/src/tools/handlers/unified_exec/exec_command.rs\n82\t2\tcodex-rs/core/src/tools/handlers/unified_exec_tests.rs\n142\t0\tcodex-rs/core/tests/suite/hooks.rs\n5\t1\tcodex-rs/core/tests/suite/hooks_cwd_tests.rs\n",
+      "reverse_check_exit_code": 0,
+      "reverse_check_stderr": "",
+      "repaired_source_sha256": {
+        "codex-rs/core/src/tools/handlers/unified_exec/exec_command.rs": "9a85c6e27ed72af0d0ec2d181d6c80ec41306b23737b012f2cdf0653dc6e5283",
+        "codex-rs/core/src/tools/handlers/unified_exec_tests.rs": "025d7bc4c80afa64f92948f88d8ece7a5734d4c40c4404f5ec62cb50692db4be",
+        "codex-rs/core/tests/suite/hooks.rs": "2d163c3dccebfa2e2927400d750b45027f74c8816d04c3520cf19751e113316b",
+        "codex-rs/core/tests/suite/hooks_cwd_tests.rs": "1a6d3c157cf2f1e5328bb6aa65421f65cf2d0022ebab009e0aed3ca1df5acbc7"
+      },
+      "identity_conversion_removal_count": 1,
+      "reconstructed_prior_unit_sha256": "5c71b66bd5a08101dd0a098120b7ee522265857323d1589b656e6489e0afb3cc",
+      "prior_unit_sha256_matches_previous_review": true
+    },
+    "changed_path_count": 4,
+    "full_prior_patch_and_changed_current_block_read": true,
+    "no_cargo_started_after_handback": true,
+    "note": "Only source-byte delta from prior approved package is removal of one identity .into() conversion in new tabletest. Reinstating that exact conversion reconstructs prior approved unit SHA256. Other three reviewed files remain byte-identical. Current patch exactly matches scoped gitdiff and reverse-check passes."
+  },
+  "packaged_patch_review_history": [
+    {
+      "status": "approved static package",
+      "path": "/home/marius/work/claude/claude-plugins/docs/patches/2026-11-18-codex-0.169.0-native-approval-hook-payload.patch",
+      "patch_check_report": "docs/evidence/2026-11-18-codex-native-approval-0169-patch-check.json",
+      "reviewer_checks": {
+        "patch_sha256": "03d275bd089cbe71caf6a5c085e6a20497470fb10795e81bdea9fe4835adb72b",
+        "matches_current_scoped_git_diff": true,
+        "numstat": "17\t3\tcodex-rs/core/src/tools/handlers/unified_exec/exec_command.rs\n82\t2\tcodex-rs/core/src/tools/handlers/unified_exec_tests.rs\n142\t0\tcodex-rs/core/tests/suite/hooks.rs\n5\t1\tcodex-rs/core/tests/suite/hooks_cwd_tests.rs\n",
+        "reverse_check_exit_code": 0,
+        "reverse_check_stdout": "",
+        "reverse_check_stderr": "",
+        "repaired_source_sha256": {
+          "codex-rs/core/src/tools/handlers/unified_exec/exec_command.rs": "9a85c6e27ed72af0d0ec2d181d6c80ec41306b23737b012f2cdf0653dc6e5283",
+          "codex-rs/core/src/tools/handlers/unified_exec_tests.rs": "5c71b66bd5a08101dd0a098120b7ee522265857323d1589b656e6489e0afb3cc",
+          "codex-rs/core/tests/suite/hooks.rs": "2d163c3dccebfa2e2927400d750b45027f74c8816d04c3520cf19751e113316b",
+          "codex-rs/core/tests/suite/hooks_cwd_tests.rs": "1a6d3c157cf2f1e5328bb6aa65421f65cf2d0022ebab009e0aed3ca1df5acbc7"
+        }
+      },
+      "reviewer_baseline_checks": {
+        "source_head": "d32063f96c2dff1dc96af839b3952abb6acfeda4",
+        "all_baseline_hashes_match_report": true,
+        "baseline_hashes": {
+          "codex-rs/core/src/tools/handlers/unified_exec/exec_command.rs": "ee32477d7707300253ae33bf09e45680ef08b24ce576a6aac8be552a48cfd323",
+          "codex-rs/core/src/tools/handlers/unified_exec_tests.rs": "3ff999c50aaab62ca41c5f0da56de0bbfa93b76933af3c3eb87c4e4199d5321b",
+          "codex-rs/core/tests/suite/hooks.rs": "e748cab98d27b4378b329fc467063a1d638b03ae7484a4e0372fabcd7606c800",
+          "codex-rs/core/tests/suite/hooks_cwd_tests.rs": "e4eda9fddb4eb728bbc1d2ec6af7bf3ee6557128eb958d6e4bbaf7e69f079e1a"
+        }
+      },
+      "changed_path_count": 4,
+      "all_patch_lines_read": true,
+      "no_cargo_started_after_handback": true,
+      "note": "Controller performed clean-archive actual apply/reverse; reviewer independently verified report baseline hashes from exactHEAD bytes, final source hashes, byte identity with scoped gitdiff, exact4 parsed diffpaths and reverse-check0."
+    }
+  ],
+  "final_lint_followup": {
+    "status": "passed",
+    "status_file": "/tmp/issue15-final-lint-followup-0169-status.json",
+    "change": "Remove useless identity conversion from Arc::clone(&session) in new metadata table test; expected assertions and production logic unchanged.",
+    "identity_conversion_removed_count": 1,
+    "prior_unit_reconstructed_sha256": "5c71b66bd5a08101dd0a098120b7ee522265857323d1589b656e6489e0afb3cc",
+    "current_unit_sha256": "025d7bc4c80afa64f92948f88d8ece7a5734d4c40c4404f5ec62cb50692db4be",
+    "fmt": {
+      "command": "cargo +1.95.0 fmt -p codex-core --check",
+      "exit_code": 0,
+      "log": "/tmp/issue15-fmt-lint-followup-0169.log",
+      "note": "Stable rustfmt emitted existing imports_granularity nightly-option warnings; no formatting diff."
+    },
+    "affected_unit_tests": {
+      "command": "cargo +1.95.0 test -p codex-core --lib tools::handlers::unified_exec::tests -- --nocapture",
+      "exit_code": 0,
+      "passed": 24,
+      "failed": 0,
+      "ignored": 0,
+      "log": "/tmp/issue15-unified-exec-lint-followup-0169.log"
+    },
+    "clippy": {
+      "command": "cargo +1.95.0 clippy -p codex-core --lib --tests --no-deps -- -D warnings",
+      "exit_code": 0,
+      "log": "/tmp/issue15-clippy-lint-followup-0169.log"
+    },
+    "reviewer_verification": "Read actual final status plus complete fmt,24-test and Clippy logs. No additional Cargo or source writes by reviewer."
+  }
+}

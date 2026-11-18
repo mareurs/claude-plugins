@@ -1,7 +1,7 @@
 ---
 id: cd15dd2c76c1f7eb
 kind: bug
-status: fixed
+status: investigating
 title: Codescout Companion blocks Codex native escalation before the approval flow and redirects to a tool without that capability
 tags:
 - codescout-companion
@@ -9,16 +9,18 @@ tags:
 - hooks
 - permissions
 - tool-routing
+candidate_verified_on: 2026-11-18
+codex_0169_base_commit: d32063f96c2dff1dc96af839b3952abb6acfeda4
 codex_source_commit: 5eedcdc5439da3a57516196df386fc2db7ffa288
 fixed_on: 2026-10-11
-last_observed: 2026-10-11
-native_acceptance: passed; canonical protected Git write, ordinary routing, actual native RPC accept/decline with marker equality
+last_observed: 2026-11-18
+native_acceptance: Historical patched-host acceptance passed2026-10-11. Stock Linux CLI0.169.0 reproduced2026-11-18. Corrected isolated0.169.0 app-server now passes real nested companion-guard accept/decline acceptance; installed CLI and App unchanged.
 opened: 2026-10-09
 owner: marius
 plugin_feature_commit: 4ce5432
 plugin_release_delivery_commit: f8a73ee616414b2d83c7dde069dcb403c3321248
 severity: medium
-unverified: 'TRACKED 33de9ea8980e85c9 — None for native routing: installed paired host/guard acceptance and rejection observed. Remaining Codex automatic context/durable history and Kat authenticated acceptance are tracked in issue 33de9ea8980e85c9; observed Claude owned/child/fork-safe and explicit mixed-host refusal checks pass.'
+unverified: 'GitHub #15 stays open pending delivery to an installed host. Metadata forwarding and native accept/decline behavior are verified in the isolated exact-tag candidate; release/system installation have not been performed.'
 ---
 
 ## Summary
@@ -26,6 +28,14 @@ unverified: 'TRACKED 33de9ea8980e85c9 — None for native routing: installed pai
 Codescout Companion's tool-routing hook blocks Codex native shell calls that explicitly request host approval, then redirects them to an MCP command tool that has no equivalent native approval interface. The routing optimization prevents the user from reaching the permission decision.
 
 Observed 2026-10-09 in a resident-site session while installing a user-requested, narrowly scoped preference in `/home/marius/.codex/config.toml`. No config edit occurred. A subsequent harmless `true` call with native escalation reproduced the same rejection, so installer contents and filesystem errors are not necessary to trigger it.
+
+## Recurrence — 2026-11-18, stock Linux CLI 0.169.0
+
+[GitHub #15](https://github.com/mareurs/claude-plugins/issues/15) reproduces on the installed stock CLI. An isolated app-server's actual nested `functions.exec` input explicitly requested `sandbox_permissions: "require_escalated"`; the Bash hook received neither that field nor an escalation value. Both the escalation request and ordinary control were blocked before native approval, and the isolated marker remained absent. The current managed App daemon is a different build (0.160.0) and its explicit escalation control reached native execution. Historical patched-host acceptance below remains historical; it does not establish stock 0.169.0 compatibility.
+
+Sanitized baseline: [native approval 0.169.0 before repair](../evidence/2026-11-18-codex-native-approval-0169-before.json). Repair targets the exact `rust-v0.169.0` source commit `d32063f96c2dff1dc96af839b3952abb6acfeda4`; the companion's explicit-field routing exception remains in place.
+
+The isolated corrected host now passes real nested `functions.exec` acceptance through the unchanged companion guard: one native approval callback per decision, no marker before the decision, no marker after decline, and a marker after accept. The ordinary control remains guard-blocked. [After evidence](../evidence/2026-11-18-codex-native-approval-0169-after.json), [repair and review](../evidence/2026-11-18-codex-native-approval-0169-repair.md), and the [version-specific four-file patch](../patches/2026-11-18-codex-0.169.0-native-approval-hook-payload.patch) retain the concrete repair. The patch was applied and reversed against a clean exact baseline with byte comparisons. The installed system CLI and managed App were not replaced; GitHub #15 remains open pending delivery.
 
 ## Recurrence — 2026-10-10: authorised local daemon integration blocked
 

@@ -1,0 +1,40 @@
+{
+  "date": "2026-11-18",
+  "issue": 15,
+  "verdict": "KEEP OPEN",
+  "plugin_version": "1.22.3",
+  "guard_sha256": "c751c8db949c3b353b8860c63185a273d48d0ab91f41a3c6ddb63fc13f5f8eaf",
+  "native_0169": {
+    "version": "codex-cli 0.169.0 (isolated app-server, Linux)",
+    "approvals": [],
+    "hook_capture": [
+      {
+        "tool_name": "Bash",
+        "has_sandbox_permissions": false,
+        "sandbox_permissions": null
+      },
+      {
+        "tool_name": "Bash",
+        "has_sandbox_permissions": false,
+        "sandbox_permissions": null
+      }
+    ],
+    "marker_exists": false,
+    "turn_completed": true
+  },
+  "generated_calls": [
+    {
+      "name": "exec",
+      "input": "text(await tools.exec_command({cmd:\"/usr/bin/touch <isolated-root>/marker\",sandbox_permissions:\"require_escalated\",justification:\"Issue15 harmless approval diagnostic\"}))\n"
+    },
+    {
+      "name": "exec",
+      "input": "text(await tools.exec_command({cmd:\"/usr/bin/true\"}))\n"
+    }
+  ],
+  "observed_hook_statuses": [
+    "blocked",
+    "blocked"
+  ],
+  "app_0160_control": "Current managed App escalation reached native exec and exited 0; same command without sandbox_permissions was blocked by guard."
+}
