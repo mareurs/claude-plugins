@@ -1,7 +1,7 @@
 ---
-id: '0304dd60be9fd235'
+id: df79b4050afa39c9
 kind: tracker
-status: active
+status: archived
 title: PR16 OpenCode audit session log
 tags:
 - pr16
@@ -16,7 +16,7 @@ entry_high_water_F: 5
 ---
 
 ## Scope
-Audit PR #16 and reconcile current main in the native worktree. Original head: `3cee73cabc688442786839056c79d8a45b9c9a0c`. Plan: `980e2b4dd7f383e7`.
+Audit PR #16 and reconcile current main in the native worktree. Original head: `3cee73cabc688442786839056c79d8a45b9c9a0c`. Plan: `c00c42d403fe1bb2`.
 
 ## Index
 | ID | Date | Severity | Status | Finding |
@@ -97,6 +97,14 @@ Reviewer approved the reviewed follow-up changes with no outstanding correctness
 | timeout uses SIGTERM again | 28 / 1 |
 
 Raw logs remain under `/tmp/pr16-review/M*.log`. This review does not independently establish Windows taskkill behavior, live TUI visual behavior or real LLM judge operation. OpenCode 2.2.7 isolated loading was probed separately (F-2); no visual claim is made. The broader harness identity issue remains KNOWN (`33de9ea8980e85c9`).
+
+## Integration completed — 2026-11-18
+
+User authorized merge and owner notification. PR #16 squash-merged as `297e2055101476eb07c6e0ba91f52facbad7b44b`; merged and reviewed head `99da8f16b20725e51a3836b4898981a859dff6d6` share tree `7cd67ff3e47bc9d214e0e84cff37c109ad1d0539`.
+
+All five CI checks passed: https://github.com/mareurs/claude-plugins/actions/runs/44320248454. The final local full run's four affected suites subsequently passed after removing only verified empty temporary-root `.git` markers. Native worktree catalog rows were reseated to main; frontmatter IDs repaired for these two artifacts only.
+
+Author notified: https://github.com/mareurs/claude-plugins/pull/16#issuecomment-6981359840. Main checkout synchronized; pre/post unstaged patches and untracked path lists matched exactly. No plugin release or profile configuration changes were performed.
 
 ## Template for new entries
 Entries record observed evidence, impact and verification.

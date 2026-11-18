@@ -1,7 +1,7 @@
 ---
-id: '980e2b4dd7f383e7'
+id: c00c42d403fe1bb2
 kind: plan
-status: active
+status: done
 title: PR 16 OpenCode review and integration
 tags:
 - pr16
@@ -23,6 +23,8 @@ Original adapter run: 177 passed, 3 failed, all report tests resolving fixture p
 
 ## Current state
 
-Main reconciliation committed as `e012669467edc965103bab211ff208af4cf2fa63`. All conflicts resolved without losing current S4 and portability regressions.
+PR #16 merged by squash into main as `297e2055101476eb07c6e0ba91f52facbad7b44b` on 2026-11-18, after explicit user authorization. Reviewed head `99da8f16b20725e51a3836b4898981a859dff6d6` and merged commit have identical tree `7cd67ff3e47bc9d214e0e84cff37c109ad1d0539`.
 
-Follow-up fixes: resistant hook termination (SIGKILL at expired deadline); anchored report fixture; lifecycle setup/unload tests; corrected optional PyYAML warning. Adapter 184/0; whole Buddy Python suite 579/0 after removing empty temporary-root `.git` markers. Independent review approves: 12 actual distinct mutations killed by final suites, 0 survivors. Local full-suite runs exposed recreated empty `.git` markers in both temporary roots; verified empty ordinary directories and removed via rmdir only. Broad validation is being repeated; fresh remote CI pending.
+All five CI checks passed on that head: https://github.com/mareurs/claude-plugins/actions/runs/44320248454. Adapter 184/0; whole Buddy Python suite579/0. Independent final review killed all12 distinct applied mutations. Local full-run temporary-root contamination was isolated; the four affected final-run suites passed targeted reruns after empty-marker removal.
+
+Author @JaavLex notified at https://github.com/mareurs/claude-plugins/pull/16#issuecomment-6981359840. Main checkout fast-forwarded; pre/post unstaged patches and untracked path lists were identical, preserving concurrent work. The native host-owned worktree remains in place.
