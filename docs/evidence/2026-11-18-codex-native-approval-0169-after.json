@@ -1,0 +1,124 @@
+{
+  "measuredAt": "2026-11-18T12:18:18.430157+00:00",
+  "issue": 15,
+  "transport": "native app-server stdio with real companion guard and actual model-generated nested functions.exec calls",
+  "source_tag": "rust-v0.169.0",
+  "source_commit": "d32063f96c2dff1dc96af839b3952abb6acfeda4",
+  "candidate_version": "codex-app-server 0.169.0",
+  "candidate_sha256": "60c882a543340edce3812462bf06dd3e2d0732bc31f84312b023f77a69e6408c",
+  "unchanged_helper_sha256": "603cd958ebfd95b46a8aadf8058f0f76e6f3abdd11ac2dc9ca9d3e906f217e23",
+  "guard_sha256": "c751c8db949c3b353b8860c63185a273d48d0ab91f41a3c6ddb63fc13f5f8eaf",
+  "baseline": "2026-11-18-codex-native-approval-0169-before.json",
+  "project_boundary": "isolated Git repository; production project-root resolver confirmed this exact fixture root",
+  "decisions": [
+    {
+      "approval_decision": "decline",
+      "approval_callbacks": [
+        {
+          "method": "item/commandExecution/requestApproval",
+          "params_keys": [
+            "kind",
+            "threadId",
+            "turnId",
+            "itemId",
+            "startedAtMs",
+            "environmentId",
+            "reason",
+            "command",
+            "cwd",
+            "commandActions",
+            "proposedExecpolicyAmendment",
+            "availableDecisions"
+          ],
+          "decision": "decline",
+          "marker_exists_before_decision": false
+        }
+      ],
+      "hook_capture": [
+        {
+          "tool_name": "Bash",
+          "has_sandbox_permissions": true,
+          "sandbox_permissions": "require_escalated"
+        },
+        {
+          "tool_name": "Bash",
+          "has_sandbox_permissions": false,
+          "sandbox_permissions": null
+        }
+      ],
+      "marker_exists": false,
+      "turn_completed": true,
+      "control_blocked_by_guard": true,
+      "escalation_blocked_by_guard": false,
+      "generated_calls": [
+        {
+          "name": "exec",
+          "input": "text(await tools.exec_command({cmd:\"/usr/bin/touch <isolated-root>/marker\",sandbox_permissions:\"require_escalated\",justification:\"Issue15 harmless approval diagnostic\"}))\n"
+        },
+        {
+          "name": "exec",
+          "input": "text(await tools.exec_command({cmd:\"/usr/bin/true\"}))\n"
+        }
+      ]
+    },
+    {
+      "approval_decision": "accept",
+      "approval_callbacks": [
+        {
+          "method": "item/commandExecution/requestApproval",
+          "params_keys": [
+            "kind",
+            "threadId",
+            "turnId",
+            "itemId",
+            "startedAtMs",
+            "environmentId",
+            "reason",
+            "command",
+            "cwd",
+            "commandActions",
+            "proposedExecpolicyAmendment",
+            "availableDecisions"
+          ],
+          "decision": "accept",
+          "marker_exists_before_decision": false
+        }
+      ],
+      "hook_capture": [
+        {
+          "tool_name": "Bash",
+          "has_sandbox_permissions": true,
+          "sandbox_permissions": "require_escalated"
+        },
+        {
+          "tool_name": "Bash",
+          "has_sandbox_permissions": false,
+          "sandbox_permissions": null
+        }
+      ],
+      "marker_exists": true,
+      "turn_completed": true,
+      "control_blocked_by_guard": true,
+      "escalation_blocked_by_guard": false,
+      "generated_calls": [
+        {
+          "name": "exec",
+          "input": "text(await tools.exec_command({cmd:\"/usr/bin/touch <isolated-root>/marker\",sandbox_permissions:\"require_escalated\",justification:\"Issue15 harmless approval diagnostic\"}))\n"
+        },
+        {
+          "name": "exec",
+          "input": "text(await tools.exec_command({cmd:\"/usr/bin/true\"}))\n"
+        }
+      ]
+    }
+  ],
+  "cleanup": {
+    "isolated_servers_stopped": true,
+    "original_auth_is_still_symlink": true,
+    "isolated_home_removed": true
+  },
+  "limitations": [
+    "The candidate is an isolated patched app-server; the installed system CLI and managed App were not replaced.",
+    "This verifies the two native decisions and ordinary-call guard control for this Linux0.169.0 candidate, not every platform or future host version."
+  ]
+}

@@ -5,7 +5,7 @@ source "$(dirname "${BASH_SOURCE[0]}")/lib/fixtures.sh"
 echo "── suspicious-zero-hint ──"
 HOOK="$HOOK_DIR/suspicious-zero-hint.mjs"
 T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
-mkdir -p "$T/proj"
+mkdir -p "$T/proj/.git"
 
 # tool_response arrives as an object for Bash; some harness versions hand back a
 # bare string. Both shapes are exercised (tests 1 and 2 differ in shape).

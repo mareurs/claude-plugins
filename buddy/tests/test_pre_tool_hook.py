@@ -23,6 +23,7 @@ def _make_verdicts(tmp_path, session_id, verdicts, kind="verdicts"):
 
 
 def _run_hook(tmp_path, session_id="test-sess", cs_judge=False, judge=False, block=False):
+    (tmp_path / ".git").mkdir(exist_ok=True)
     event = json.dumps({"cwd": str(tmp_path), "session_id": session_id})
     env = {
         **os.environ,

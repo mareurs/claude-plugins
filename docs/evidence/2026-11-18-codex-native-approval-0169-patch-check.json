@@ -1,0 +1,30 @@
+{
+  "source_tag": "rust-v0.169.0",
+  "source_commit": "d32063f96c2dff1dc96af839b3952abb6acfeda4",
+  "patch": "docs/patches/2026-11-18-codex-0.169.0-native-approval-hook-payload.patch",
+  "patch_sha256": "70dfeff0a15391384d5be9c59d00bbcbad18692d731113ff32031d7bc9d09e9b",
+  "changed_paths": [
+    "codex-rs/core/src/tools/handlers/unified_exec/exec_command.rs",
+    "codex-rs/core/src/tools/handlers/unified_exec_tests.rs",
+    "codex-rs/core/tests/suite/hooks.rs",
+    "codex-rs/core/tests/suite/hooks_cwd_tests.rs"
+  ],
+  "clean_baseline_apply_check": true,
+  "actual_apply_matches_frozen_source": true,
+  "reverse_apply_restores_baseline": true,
+  "baseline_sha256": {
+    "codex-rs/core/src/tools/handlers/unified_exec/exec_command.rs": "ee32477d7707300253ae33bf09e45680ef08b24ce576a6aac8be552a48cfd323",
+    "codex-rs/core/src/tools/handlers/unified_exec_tests.rs": "3ff999c50aaab62ca41c5f0da56de0bbfa93b76933af3c3eb87c4e4199d5321b",
+    "codex-rs/core/tests/suite/hooks.rs": "e748cab98d27b4378b329fc467063a1d638b03ae7484a4e0372fabcd7606c800",
+    "codex-rs/core/tests/suite/hooks_cwd_tests.rs": "e4eda9fddb4eb728bbc1d2ec6af7bf3ee6557128eb958d6e4bbaf7e69f079e1a"
+  },
+  "repaired_sha256": {
+    "codex-rs/core/src/tools/handlers/unified_exec/exec_command.rs": "9a85c6e27ed72af0d0ec2d181d6c80ec41306b23737b012f2cdf0653dc6e5283",
+    "codex-rs/core/src/tools/handlers/unified_exec_tests.rs": "025d7bc4c80afa64f92948f88d8ece7a5734d4c40c4404f5ec62cb50692db4be",
+    "codex-rs/core/tests/suite/hooks.rs": "2d163c3dccebfa2e2927400d750b45027f74c8816d04c3520cf19751e113316b",
+    "codex-rs/core/tests/suite/hooks_cwd_tests.rs": "1a6d3c157cf2f1e5328bb6aa65421f65cf2d0022ebab009e0aed3ca1df5acbc7"
+  },
+  "clean_fixture_removed": true,
+  "prior_package_sha256": "03d275bd089cbe71caf6a5c085e6a20497470fb10795e81bdea9fe4835adb72b",
+  "final_followup": "Test-only removal of a Clippy-rejected identity conversion; production handler and native candidate unchanged."
+}

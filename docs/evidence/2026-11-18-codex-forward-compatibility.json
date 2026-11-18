@@ -1,0 +1,417 @@
+{
+  "policy": {
+    "minimum_cli": "0.165.0",
+    "minimum_daemon": "0.160.0",
+    "upper_ceiling": null
+  },
+  "initial_focused": {
+    "tests": 53,
+    "pass": 37,
+    "fail": 16
+  },
+  "final_focused": {
+    "tests": 64,
+    "pass": 64,
+    "fail": 0
+  },
+  "final_wake": {
+    "tests": 231,
+    "pass": 231,
+    "fail": 0
+  },
+  "repository": {
+    "command": "./tests/run-all.sh",
+    "exit_code": 1,
+    "failed_suites": [
+      "sdd/hooks/lib.test.mjs"
+    ],
+    "failed_case": "outside a repo returns null",
+    "default_tmp_rerun_exit_code": 1,
+    "slash_tmp_rerun_exit_code": 1,
+    "dev_shm_rerun": {
+      "tests": 37,
+      "pass": 37,
+      "fail": 0
+    },
+    "production_and_test_files_unchanged": true,
+    "limit": "Ancestor .git markers are found under both default TMPDIR and /tmp. Origin of markers was not established; no global state removed."
+  },
+  "review": {
+    "distinct_mutations": 17,
+    "initial_killed": 13,
+    "initial_survived": 4,
+    "raw_focused": [
+      {
+        "mutation": "numeric-length",
+        "exit": 1,
+        "pass": [
+          "52"
+        ],
+        "fail": [
+          "1"
+        ],
+        "failed_tests": [
+          "Codex feature floors have no upper ceiling and compare numeric components exactly"
+        ]
+      },
+      {
+        "mutation": "minimum-prerelease",
+        "exit": 1,
+        "pass": [
+          "51"
+        ],
+        "fail": [
+          "2"
+        ],
+        "failed_tests": [
+          "native intake 0.165.0-alpha, child=false: refuses",
+          "Codex feature floors have no upper ceiling and compare numeric components exactly"
+        ]
+      },
+      {
+        "mutation": "prerelease-leading-zero",
+        "exit": 1,
+        "pass": [
+          "51"
+        ],
+        "fail": [
+          "2"
+        ],
+        "failed_tests": [
+          "daemon version parser rejects malformed or non-leading versions",
+          "strict Codex SemVer validation rejects malformed and ambiguous versions"
+        ]
+      },
+      {
+        "mutation": "daemon-callsite-floor",
+        "exit": 1,
+        "pass": [
+          "52"
+        ],
+        "fail": [
+          "1"
+        ],
+        "failed_tests": [
+          "daemon declared 0.159.999, observed 0.159.999: refused"
+        ]
+      },
+      {
+        "mutation": "exact-observed-version",
+        "exit": 1,
+        "pass": [
+          "45"
+        ],
+        "fail": [
+          "8"
+        ],
+        "failed_tests": [
+          "daemon declared 0.167.0, observed 0.160.0: refused",
+          "daemon declared 0.160.0, observed 0.167.0: refused",
+          "daemon declared 0.160.0, observed 0.160.0evil: refused",
+          "adapter declared 0.167.0, userAgent \"custom/0.160.0 (fixture)\": supported=false",
+          "adapter declared 0.167.0, userAgent \"custom/0.167.0evil\": supported=false",
+          "adapter declared 0.167.0, userAgent \"custom/0.167.0.1\": supported=false",
+          "adapter declared 0.167.0, userAgent null: supported=false",
+          "adapter declared 0.169.0+build, userAgent \"custom/0.169.0 (fixture)\": supported=false"
+        ]
+      },
+      {
+        "mutation": "host-generation",
+        "exit": 1,
+        "pass": [
+          "52"
+        ],
+        "fail": [
+          "1"
+        ],
+        "failed_tests": [
+          "newer daemon retains host-generation guard"
+        ]
+      },
+      {
+        "mutation": "runtime-generation",
+        "exit": 1,
+        "pass": [
+          "51"
+        ],
+        "fail": [
+          "2"
+        ],
+        "failed_tests": [
+          "adapter refuses an independently mismatched runtime generation before initialize",
+          "newer daemon retains runtime-generation guard"
+        ]
+      },
+      {
+        "mutation": "canonical-profile",
+        "exit": 1,
+        "pass": [
+          "52"
+        ],
+        "fail": [
+          "1"
+        ],
+        "failed_tests": [
+          "newer daemon retains profile guard"
+        ]
+      },
+      {
+        "mutation": "callback-proof",
+        "exit": 1,
+        "pass": [
+          "52"
+        ],
+        "fail": [
+          "1"
+        ],
+        "failed_tests": [
+          "newer daemon retains false-callback guard"
+        ]
+      },
+      {
+        "mutation": "subscription-proof",
+        "exit": 1,
+        "pass": [
+          "52"
+        ],
+        "fail": [
+          "1"
+        ],
+        "failed_tests": [
+          "newer daemon retains wrong-subscription guard"
+        ]
+      },
+      {
+        "mutation": "adapter-enablement",
+        "exit": 0,
+        "pass": [
+          "53"
+        ],
+        "fail": [
+          "0"
+        ],
+        "failed_tests": []
+      },
+      {
+        "mutation": "intake-root",
+        "exit": 1,
+        "pass": [
+          "51"
+        ],
+        "fail": [
+          "2"
+        ],
+        "failed_tests": [
+          "native intake 0.167.0, child=true: refuses",
+          "native intake 0.169.0, child=true: refuses"
+        ]
+      },
+      {
+        "mutation": "intake-hook-context",
+        "exit": 0,
+        "pass": [
+          "53"
+        ],
+        "fail": [
+          "0"
+        ],
+        "failed_tests": []
+      },
+      {
+        "mutation": "intake-hook-callsite",
+        "exit": 1,
+        "pass": [
+          "50"
+        ],
+        "fail": [
+          "3"
+        ],
+        "failed_tests": [
+          "native intake 0.164.999, child=false: refuses",
+          "native intake 0.165.0-alpha, child=false: refuses",
+          "native intake 0.169.0evil, child=false: refuses"
+        ]
+      },
+      {
+        "mutation": "probe-exact-version",
+        "exit": 1,
+        "pass": [
+          "49"
+        ],
+        "fail": [
+          "4"
+        ],
+        "failed_tests": [
+          "callback probe refuses mismatched or malformed userAgent \"custom/0.160.0 (fixture)\" before thread creation",
+          "callback probe refuses mismatched or malformed userAgent \"custom/0.167.0evil\" before thread creation",
+          "callback probe refuses mismatched or malformed userAgent \"custom/0.167.0.1\" before thread creation",
+          "callback probe refuses mismatched or malformed userAgent null before thread creation"
+        ]
+      },
+      {
+        "mutation": "intake-enable",
+        "exit": 0,
+        "pass": [
+          "53"
+        ],
+        "fail": [
+          "0"
+        ],
+        "failed_tests": []
+      }
+    ],
+    "broader": {
+      "suite": [
+        "codescout-companion/background-wake/adapters/claude-code.test.mjs",
+        "codescout-companion/background-wake/adapters/claude-migration.test.mjs",
+        "codescout-companion/background-wake/adapters/claude-parity.test.mjs",
+        "codescout-companion/background-wake/adapters/codex-binding.test.mjs",
+        "codescout-companion/background-wake/adapters/codex-client.test.mjs",
+        "codescout-companion/background-wake/adapters/codex-compatibility.test.mjs",
+        "codescout-companion/background-wake/adapters/codex-hook-output.test.mjs",
+        "codescout-companion/background-wake/adapters/codex-launch.test.mjs",
+        "codescout-companion/background-wake/adapters/codex-negative.test.mjs",
+        "codescout-companion/background-wake/adapters/codex-probe.test.mjs",
+        "codescout-companion/background-wake/adapters/codex-version.test.mjs",
+        "codescout-companion/background-wake/adapters/codex.test.mjs",
+        "codescout-companion/background-wake/adapters/server-restart.test.mjs",
+        "codescout-companion/background-wake/config-binding.test.mjs",
+        "codescout-companion/background-wake/codex-hook.test.mjs",
+        "codescout-companion/background-wake/cli.test.mjs",
+        "codescout-companion/background-wake/cli-stdin.test.mjs",
+        "codescout-companion/background-wake/launch.test.mjs"
+      ],
+      "results": [
+        {
+          "mutation": "adapter-enablement",
+          "exit": 0,
+          "pass": [
+            "110"
+          ],
+          "fail": [
+            "0"
+          ],
+          "failed_tests": []
+        },
+        {
+          "mutation": "intake-hook-context",
+          "exit": 0,
+          "pass": [
+            "110"
+          ],
+          "fail": [
+            "0"
+          ],
+          "failed_tests": []
+        },
+        {
+          "mutation": "intake-enable",
+          "exit": 0,
+          "pass": [
+            "110"
+          ],
+          "fail": [
+            "0"
+          ],
+          "failed_tests": []
+        }
+      ]
+    },
+    "closure": {
+      "patch-component": {
+        "pass": 61,
+        "fail": 3
+      },
+      "hook-context": {
+        "pass": 62,
+        "fail": 2
+      },
+      "exact_enablement": [
+        {
+          "mutation": "adapter-enablement-exact",
+          "exit_code": 1,
+          "summary": [
+            "\u2139 tests 64",
+            "\u2139 pass 62",
+            "\u2139 fail 2"
+          ],
+          "failed_tests": [
+            "\u2716 newer daemon retains adapter-disabled guard (2.954168ms)",
+            "\u2716 newer daemon retains missing-enablement guard (2.795153ms)",
+            "\u2716 failing tests:",
+            "\u2716 newer daemon retains adapter-disabled guard (2.954168ms)",
+            "\u2716 newer daemon retains missing-enablement guard (2.795153ms)"
+          ]
+        },
+        {
+          "mutation": "intake-enablement-exact",
+          "exit_code": 1,
+          "summary": [
+            "\u2139 tests 64",
+            "\u2139 pass 62",
+            "\u2139 fail 2"
+          ],
+          "failed_tests": [
+            "\u2716 newer native intake retains adapter-disabled guard (252.161688ms)",
+            "\u2716 newer native intake retains missing-enablement guard (236.582737ms)",
+            "\u2716 failing tests:",
+            "\u2716 newer native intake retains adapter-disabled guard (252.161688ms)",
+            "\u2716 newer native intake retains missing-enablement guard (236.582737ms)"
+          ]
+        }
+      ],
+      "restored": true,
+      "final_focused_exit_code": 0
+    }
+  },
+  "native": {
+    "first": {
+      "synthetic": false,
+      "binary": "/usr/bin/codex",
+      "expectedVersion": "0.169.0",
+      "ownedProfile": "/tmp/codex-forward-native-m4wG5U/profile",
+      "existingProfilesChanged": false,
+      "adapter": {
+        "supported": true,
+        "reason": "matching configured per-profile callback proof; no bundled native measurement for this version",
+        "evidenceRef": null
+      },
+      "error": "attach secondary: failed to read thread: thread-store internal error: failed to read session metadata /tmp/codex-forward-native-m4wG5U/profile/sessions/2026/11/18/rollout-2026-11-18T15-58-06-<probe-thread-id>.jsonl: rollout at /tmp/codex-forward-native-m4wG5U/profile/sessions/2026/11/18/rollout-2026-11-18T15-58-06-<probe-thread-id>.jsonl is empty",
+      "ownedResourcesRemoved": true
+    },
+    "second": {
+      "synthetic": false,
+      "binary": "/usr/bin/codex",
+      "expectedVersion": "0.169.0",
+      "ownedProfile": "/tmp/codex-forward-native-wINLpm/profile",
+      "existingProfilesChanged": false,
+      "adapter": {
+        "supported": true,
+        "reason": "matching configured per-profile callback proof; no bundled native measurement for this version",
+        "evidenceRef": null
+      },
+      "error": "attach secondary: list_turns is not supported yet",
+      "ownedResourcesRemoved": true
+    },
+    "interpretation": "Both actual0.169 adapter checks accept with null evidenceRef; neither native callback probe passed. Errors occurred at secondary attach before callback assessment. No automatic wake claim. Owned resources removed."
+  },
+  "rollout": {
+    "source_only": true,
+    "committed": false,
+    "released": false,
+    "config_changed": false,
+    "installed_binary_changed": false
+  },
+  "integrity": {
+    "scoped_root_worktree_identical": 9,
+    "unrelated_changed_since_snapshot": [
+      "codescout-companion/hooks/wake-on-job-end.mjs"
+    ],
+    "handling": "Concurrent change preserved; this task never copied or edited that path."
+  },
+  "logs": {
+    "focused": "/tmp/codex-forward-compatibility-20261118/final-focused.log",
+    "wake": "/tmp/codex-forward-compatibility-20261118/final-wake.log",
+    "repository": "/tmp/codex-forward-compatibility-20261118/repository.log"
+  }
+}

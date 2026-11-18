@@ -17,6 +17,8 @@ chmod +x "$STUB_DIR/codescout"
 export PATH="$STUB_DIR:$PATH"
 
 PROJECT=$(mktemp -d)
+trap 'rm -rf "$STUB_DIR" "$PROJECT"' EXIT
+mkdir -p "$PROJECT/.git"
 
 assert() {
   local label="$1" input="$2" expected_decision="$3"

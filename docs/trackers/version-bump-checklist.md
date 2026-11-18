@@ -13,7 +13,76 @@ Release readiness across plugins × profiles. See
 `docs/superpowers/specs/2026-05-18-version-bump-checklist-tracker-design.md`.
 
 ## State
-### Release verification — buddy 0.11.18, codescout-companion 1.22.3, session-bridge 0.2.7
+### Current release verification — 2026-11-18
+
+_Measured at a8da3da. All installed entries were read; 27 profile rows cover 29 install records._
+
+**buddy** — canonical `0.11.18` · readme `0.11.18` ✅ · marketplace clean ✅
+
+| profile | installed | cache dir | install_path ok | all entries |
+|---|---|---|---|---|
+| `~/.claude` | 0.11.18 ✅ | ✅ | ✅ | `0.11.18` ✅ |
+| `~/.claude-sdd` | 0.11.18 ✅ | ✅ | ✅ | `0.11.18` ✅ |
+| `~/.claude-kat` | 0.11.18 ✅ | ✅ | ✅ | `0.11.18` ✅ |
+| `~/.claude-stef` | 0.11.18 ✅ | ✅ | ✅ | `0.11.18` ✅ |
+
+**codescout-companion** — canonical `1.22.4` · readme `1.22.4` ✅ · marketplace clean ✅
+
+| profile | installed | cache dir | install_path ok | all entries |
+|---|---|---|---|---|
+| `~/.claude` | 1.22.4 ✅ | ✅ | ✅ | `1.22.4` ✅ |
+| `~/.claude-sdd` | 1.22.4 ✅ | ✅ | ✅ | `1.22.4` ✅ |
+| `~/.claude-kat` | 1.22.4 ✅ | ✅ | ✅ | `1.22.4` ✅ |
+| `~/.claude-stef` | 1.22.4 ✅ | ✅ | ✅ | `1.22.4` ✅ |
+
+**hint-echo** — canonical `0.1.0` · readme `0.1.0` ✅ · marketplace clean ✅
+
+| profile | installed | cache dir | install_path ok | all entries |
+|---|---|---|---|---|
+| `~/.claude` | 0.1.0 ✅ | ✅ | ✅ | `0.1.0` ✅ |
+| `~/.claude-sdd` | 0.1.0 ✅ | ✅ | ✅ | `0.1.0` ✅ |
+| `~/.claude-kat` | 0.1.0 ✅ | ✅ | ✅ | `0.1.0` ✅ |
+| `~/.claude-stef` | 0.1.0 ✅ | ✅ | ✅ | `0.1.0` ✅ |
+
+**legible** — canonical `0.2.1` · readme `0.2.1` ✅ · marketplace clean ✅
+
+| profile | installed | cache dir | install_path ok | all entries |
+|---|---|---|---|---|
+| `~/.claude` | 0.2.1 ✅ | ✅ | ✅ | `0.2.1` ✅ |
+| `~/.claude-sdd` | 0.2.1 ✅ | ✅ | ✅ | `0.2.1` ✅ |
+| `~/.claude-kat` | 0.2.1 ✅ | ✅ | ✅ | `0.2.1` ✅ |
+| `~/.claude-stef` | 0.2.1 ✅ | ✅ | ✅ | `0.2.1` ✅ |
+
+**sdd** — canonical `3.0.1` · readme `3.0.1` ✅ · marketplace clean ✅
+
+| profile | installed | cache dir | install_path ok | all entries |
+|---|---|---|---|---|
+| `~/.claude` | 3.0.1 ✅ | ✅ | ✅ | `3.0.1` ✅ |
+| `~/.claude-sdd` | 3.0.1 ✅ | ✅ | ✅ | `3.0.1` ✅ |
+| `~/.claude-kat` | 3.0.1 ✅ | ✅ | ✅ | `3.0.1, 3.0.1` ✅ |
+| `~/.claude-stef` | 3.0.1 ✅ | ✅ | ✅ | `3.0.1, 3.0.1` ✅ |
+
+**session-bridge** — canonical `0.2.9` · readme `0.2.9` ✅ · marketplace clean ✅
+
+| profile | installed | cache dir | install_path ok | all entries |
+|---|---|---|---|---|
+| `~/.claude` | 0.2.9 ✅ | ✅ | ✅ | `0.2.9` ✅ |
+| `~/.claude-sdd` | 0.2.9 ✅ | ✅ | ✅ | `0.2.9` ✅ |
+| `~/.claude-kat` | 0.2.9 ✅ | ✅ | ✅ | `0.2.9` ✅ |
+| `~/.claude-stef` | 0.2.9 ✅ | ✅ | ✅ | `0.2.9` ✅ |
+
+**statusline** — canonical `1.2.1` · readme `1.2.1` ✅ · marketplace clean ✅
+
+| profile | installed | cache dir | install_path ok | all entries |
+|---|---|---|---|---|
+| `~/.claude` | 1.2.1 ✅ | ✅ | ✅ | `1.2.1` ✅ |
+| `~/.claude-sdd` | 1.2.1 ✅ | ✅ | ✅ | `1.2.1` ✅ |
+| `~/.claude-kat` | 1.2.1 ✅ | ✅ | ✅ | `1.2.1` ✅ |
+
+Not installed in any profile: cs-hint-codex.
+
+These rows verify recorded versions, cache presence and profile ownership. Existing processes must reload plugins/reconnect MCP to consume the refreshed runtime. No active-process or full cache-source hash claim is made.
+### Previous release verification — buddy 0.11.18, codescout-companion 1.22.3, session-bridge 0.2.7
 
 _Last refresh: `28bde40`, 2026-11-17 (sixth) — session-bridge 0.2.7→0.2.8 (`28bde40`) released with release.sh and pushed (ffb549b..28bde40). Content: `e5c6715`, `list_sessions` lists only the sessions of the caller's repository, linked worktrees included, and says how many sessions in other repositories were left out. The new argument `all=true` lists every repository. A session with no cwd, or outside git, counts as another repository; an unknown caller repository lists everything and says the filter was not applied. The tool schema changed (`tests/fixtures/tool-schemas.json`). Measured this refresh: `release.sh` exit 0 with `SKIP_TESTS` unset (the build step installed `~/.cargo/bin/session-bridge`, `check-versions.sh` OK, `check-profile-parity.sh` OK in 4 profiles with marketplace registrations clean); a script that reads every install-record element of session-bridge (0.2.8 in all 4 profiles, one element each, every installPath inside its own profile, every cache dir present); and a byte compare of every tracked session-bridge file outside `mcp-server/tests/` against each 0.2.8 cache dir: 0 differing in all 4 profiles. The rows of the other plugins did not change and were not re-measured. `runtime_matches_source` was not measured. No Claude session was restarted or reloaded: the running `session-bridge serve` processes still hold the old binary, so the new `all` argument reaches a session only after its restart._
 
@@ -301,6 +370,9 @@ measured on both candidate load paths rather than argued: the record points at k
 two actually serves, they carry the same bytes — so the question CLAUDE.md flags as
 unsettled does not need settling for this release.
 ## History
+### 2026-11-18 — Session Bridge and Codex compatibility release
+
+codescout-companion 1.22.3 → 1.22.4; session-bridge 0.2.8 → 0.2.9. Release scripts ran from the clean c682 worktree with local commits; no push. All four installed Claude profile records and caches verified. Codex native host replacement is separate.
 
 ### 2026-11-17 (fifth) — session-bridge 0.2.7
 

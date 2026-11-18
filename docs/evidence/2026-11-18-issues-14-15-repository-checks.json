@@ -1,0 +1,55 @@
+{
+  "date": "2026-11-18",
+  "whole_suite": {
+    "command": "./tests/run-all.sh",
+    "started_at": "2026-11-18T12:50:38.194850165+00:00",
+    "finished_at": "2026-11-18T12:59:59.083260070+00:00",
+    "exit_code": 1,
+    "failed_suites": [
+      "test-hook-permissions.sh",
+      "docker.test.mjs"
+    ],
+    "log": "/home/marius/.cache/cc-tmp/codescout-bg-ONzq9M.log"
+  },
+  "permission_followup": {
+    "file": "codescout-companion/hooks/wake-vs-agent-stop.test.sh",
+    "change": "mode0644 to0755 only; peer file content preserved",
+    "command": "bash tests/test-hook-permissions.sh",
+    "observed_exit_code": 0,
+    "passed": 23,
+    "failed": 0
+  },
+  "docker_followup": {
+    "command": "node effort-steering/spikes/s5/docker.test.mjs",
+    "exit_code": 0,
+    "log": "/tmp/issue14-15-docker-retest-20261118.log",
+    "original_failing_case_passed": true,
+    "production_or_test_source_changed": false,
+    "cause": "Not established; the full-run failure and standalone pass are both retained."
+  },
+  "fixture_regression": {
+    "suites": 7,
+    "checks": 21,
+    "controlled_runs": [
+      {
+        "passed": 21,
+        "failed": 0
+      },
+      {
+        "passed": 21,
+        "failed": 0
+      }
+    ],
+    "default_tmpdir_runs": [
+      {
+        "passed": 21,
+        "failed": 0
+      },
+      {
+        "passed": 21,
+        "failed": 0
+      }
+    ]
+  },
+  "limit": "The complete repository command exited1. Both failing suites subsequently passed in focused reruns; the complete command was not repeated after those reruns."
+}

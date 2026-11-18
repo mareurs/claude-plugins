@@ -1,6 +1,10 @@
+---
+id: '47af8b2093e00c9a'
+kind: spec
+---
 # Codex background wake support for 0.167.0
 
-Status: approved by the user on 2026-11-10; implementation and validation in progress.
+Status: implementation completed and merged on 2026-11-11 (PR #12). The dated validation results and remaining limits are recorded in the [implementation plan](../plans/2026-11-10-codex-wake-0167.md#verified-result-on-2026-11-10), [support documentation](../../background-wake.md#support-and-evidence) and [evidence manifest](../../../codescout-companion/contracts/fixtures/background-wake/manifest.json).
 
 ## Intent
 
@@ -18,7 +22,7 @@ The user selected bounded support for verified 0.167.0 plus a reusable compatibi
 
 Add a reusable, opt-in native compatibility probe using a dedicated temporary test thread and primary/secondary clients. Verify loaded-thread attachment, original tool callback ownership and original permission callback ownership after secondary close, and no callbacks delivered to the secondary. Capture only a sanitized evidence summary; do not commit credentials, transcripts, real thread IDs or socket identities. Bound execution and close probe-owned resources. Never attach to or send into existing user threads.
 
-When that probe succeeds for daemon 0.167.0, add this measured version to the daemon compatibility gate and add the verified native 0.167.0 hook envelope to intake compatibility. Match declared and observed daemon versions; do not accept a mismatched or unknown version. Preserve profile ownership, socket-generation pinning, explicit opt-in, root/child discrimination, duplicate suppression and legacy 0.160.0/CLI 0.165.0 behavior.
+The completed implementation adds the measured daemon 0.167.0 callback result to the compatibility gate and accepts CLI 0.167.0 intake using separately dated native root/child identity observations. Those observations came from the 2026-11-08 throwaway native-observability spike, whose proxy was not a production journal or authorization boundary; no equivalent standalone 0.167.0 wake root/spawn/read envelope set is committed. The older standalone wake-hook fixtures remain labeled 0.165.0. Match declared and observed daemon versions; do not accept a mismatched or unknown version. Preserve profile ownership, socket-generation pinning, explicit opt-in, root/child discrimination, duplicate suppression and legacy 0.160.0/CLI 0.165.0 behavior.
 
 ## Acceptance
 

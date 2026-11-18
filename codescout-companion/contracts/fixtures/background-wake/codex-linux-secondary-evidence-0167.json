@@ -1,5 +1,6 @@
 {
   "version": 1,
+  "id": "codex-linux-0.167.0-callback-probe",
   "measuredAt": "2026-11-10",
   "synthetic": false,
   "captureKind": "native-protocol-summary",
@@ -36,6 +37,12 @@
     "result": "not counted as callback preservation"
   },
   "nativeHookEvidence": "docs/evidence/2026-11-08-stock-codex-hooks-spike.json",
+  "nativeHookEvidenceClass": "native-observability-summary",
+  "nativeHookEvidenceLimitations": [
+    "Root/child identity observations are separate from the standalone 0.165.0 wake-hook envelope fixtures.",
+    "The passive proxy was a throwaway observer, not an authorization boundary or production journal; no spike changes were installed or integrated into production.",
+    "No equivalent standalone 0.167.0 wake root/spawn/read envelope set is committed here."
+  ],
   "automaticRegistration": {
     "measuredAt": "2026-11-10",
     "synthetic": false,

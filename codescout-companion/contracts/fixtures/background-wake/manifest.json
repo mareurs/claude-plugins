@@ -59,6 +59,28 @@
       "ready": false
     },
     {
+      "harness": "codex",
+      "hostVersion": "0.167.0",
+      "os": "linux",
+      "status": "documented",
+      "measuredAt": "2026-11-08",
+      "captureKind": "native-observability-summary",
+      "reason": "Root/child caller identity was observed in a throwaway native-observability spike. This is separate from the standalone 0.165.0 wake-hook envelopes and from daemon callback or complete-delivery evidence.",
+      "source": {
+        "file": "docs/evidence/2026-11-08-stock-codex-hooks-spike.json",
+        "relativeTo": "repository-root",
+        "sha256": "86954b80a66db7638ee6203d7626fe5dcb651767466d45af78d201fdaeb07293",
+        "synthetic": false
+      },
+      "limitations": [
+        "No equivalent standalone 0.167.0 wake root/spawn/read envelope set is committed here.",
+        "The passive proxy was a throwaway observer, not an authorization boundary or production journal; no spike changes were installed or integrated into production.",
+        "One native sample per scenario does not establish broad host/version coverage or full automatic wake delivery."
+      ],
+      "fixtures": [],
+      "ready": false
+    },
+    {
       "harness": "claude-code",
       "hostVersion": "unmeasured",
       "os": "win32",

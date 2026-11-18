@@ -2,7 +2,7 @@ import {realpath} from 'node:fs/promises';
 import {normalizeNativeWatch} from '../intake.mjs';
 import {formatDeliveryEvent} from '../model.mjs';
 import {connectCodex,endpointIdentity} from './codex-client.mjs';
-import {codexDaemonEvidence} from '../compatibility.mjs';
+import {codexDaemonEvidence,parseCodexDaemonVersion,supportsCodexDaemon} from '../compatibility.mjs';
 export const normalizeCodexWatch=(raw,config,platform)=>normalizeNativeWatch('codex',raw,config,platform);
 const denied=(reason)=>({supported:false,reason,evidenceRef:null});
 const allowed={supported:true,reason:'measured existing-thread secondary attach'};
@@ -16,14 +16,14 @@ export function createCodexAdapter(config,{completionTimeoutMs=15000}={}){
       if(config.engine!=='v1'||!config.adapters?.codex?.enabled)return denied('Codex wake is disabled for this profile');
       const proof=config.capabilities?.codex;
       const evidenceRef=codexDaemonEvidence(proof?.daemonVersion);
-      if(!evidenceRef||proof?.subscription!=='resume-loaded'||proof?.callbackPreserved!==true)return denied('Codex secondary callback preservation is unverified for this version/profile');
+      if(!supportsCodexDaemon(proof?.daemonVersion)||proof?.subscription!=='resume-loaded'||proof?.callbackPreserved!==true)return denied('Codex secondary callback preservation is unverified for this version/profile');
       const identity=await endpointIdentity(config.adapters.codex.endpoint),binding=config.bindings?.codex;
       if(binding?.hostInstanceId!==identity.generation||binding?.runtimeGeneration!==identity.generation)return denied('configured daemon generation differs from endpoint');
       client??=await connectCodex({endpoint:config.adapters.codex.endpoint,clientInfo:{name:'codescout_background_wake',version:'1'},maxPayload:config.adapters.codex.maxPayloadBytes});
       if(await realpath(client.server.codexHome)!==await realpath(config.profileRoot))return denied('endpoint belongs to another Codex profile');
-      const observedVersion=client.server.userAgent?.match(/^codex-tui\/(\d+\.\d+\.\d+)(?:\s|$)/)?.[1];
-      if(observedVersion!==proof.daemonVersion)return denied('observed daemon version differs from the measured configured version');
-      return {...allowed,evidenceRef};
+      const observedVersion=parseCodexDaemonVersion(client.server.userAgent);
+      if(observedVersion!==proof.daemonVersion)return denied('observed daemon version differs from the configured version');
+      return evidenceRef?{...allowed,evidenceRef}:{supported:true,reason:'matching configured per-profile callback proof; no bundled native measurement for this version',evidenceRef:null};
     }catch(e){return denied(e.message);}
   };
   const validateTarget=async(request)=>{

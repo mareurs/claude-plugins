@@ -1,0 +1,7 @@
+{
+  "configuredCodexBinaryUpdated": "session-bridge/mcp-server/target/release/session-bridge",
+  "previousSha256": "6d93c32d044a65648b0f67754acebddf1e4ba487e557cca516240e16930ccaec",
+  "installedSha256": "5aedd992dbde308a2bdb4d150d75905f6d1624de5777d08f6b77b709d2f0dab2",
+  "backup": "/home/marius/.cache/cc-tmp/session-bridge-release-backup-20261118/session-bridge-before-release",
+  "configFilesChanged": false
+}

@@ -265,4 +265,3 @@ If Step 4 cannot be made read-only, stop and report: Task 6 then ships the expli
 - [ ] **Step 2:** `cargo fmt --check`, `cargo clippy -- -D warnings`, `cargo test`, `./tests/run-all.sh` → all pass.
 - [ ] **Step 3:** Live smokes with disposable sessions only (rebuild, reconnect MCP, restart OpenCode service only if it was started for the test): Claude → OpenCode send observed; OpenCode → Claude send injected at next turn; OpenCode → Codex send; OpenCode ask on a Claude target and a Codex target; Claude ask on an OpenCode target with a write attempt denied and the original history unchanged; Claude notice received in an OpenCode session.
 - [ ] **Step 4:** Record results (pass/fail per smoke, any unsupported capability) in the spec and commit `docs(session-bridge): OpenCode acceptance results`.
-

@@ -14,6 +14,7 @@ DISPATCH = PLUGIN_ROOT / "hooks" / "hook_dispatch.py"
 
 
 def test_session_start_migrates_legacy_profile(tmp_path):
+    (tmp_path / ".git").mkdir()
     home = tmp_path / "home"
     legacy = home / ".claude-sdd" / "buddy" / "skills" / "codescout-pika"
     legacy.mkdir(parents=True)
@@ -38,6 +39,7 @@ def test_session_start_migrates_legacy_profile(tmp_path):
 
 
 def test_session_start_noop_when_no_legacy_state(tmp_path):
+    (tmp_path / ".git").mkdir()
     home = tmp_path / "home"
     home.mkdir()
     dest = tmp_path / "dest"

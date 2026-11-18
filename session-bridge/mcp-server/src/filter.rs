@@ -325,6 +325,8 @@ async fn call_model(
     for v in ENV_REMOVED {
         cmd.env_remove(v);
     }
+    crate::ask::configure_target_auth(&mut cmd, config_dir)
+        .map_err(|_| "filter auth settings unavailable")?;
     let mut child = cmd.spawn().map_err(|_| "filter failed")?;
     let (Some(mut stdin), Some(stdout), Some(stderr)) =
         (child.stdin.take(), child.stdout.take(), child.stderr.take())

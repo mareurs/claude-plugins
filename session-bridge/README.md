@@ -167,6 +167,14 @@ An ask is `claude -p --resume <target session> --fork-session --no-session-persi
 Read,Grep,Glob`, started with the **target's** `CLAUDE_CONFIG_DIR`. The fork reads and cannot
 write, and the **target's profile pays**, whichever profile asks.
 
+Child settings sources stay disabled so hooks, MCP servers and credential helper commands do
+not load. The bridge clears the caller's authentication environment, then carries only
+`ANTHROPIC_API_KEY`, `ANTHROPIC_AUTH_TOKEN`, `CLAUDE_CODE_OAUTH_TOKEN` and
+`ANTHROPIC_BASE_URL` from the **target's** `<CLAUDE_CONFIG_DIR>/settings.json` `env` map.
+The Claude CLI still reads the target's stored login. The notice filter uses the same boundary.
+Other settings and project-local auth values are not loaded; malformed target settings fail
+before a child starts (the filter delivers the notices unfiltered).
+
 Each asking endpoint may spend 2.0 USD per UTC day. The bound is keyed by `<short profile>:<pid>`,
 so a restarted session (a new pid) starts again from zero. An ask is refused once the spend has
 reached the bound, and the refusal names the spend (`daily ask bound reached: 2.13 USD spent

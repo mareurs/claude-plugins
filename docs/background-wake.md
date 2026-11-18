@@ -1,3 +1,7 @@
+---
+id: d22931a86102ccb4
+kind: unknown
+---
 # Background-job continuation
 
 The shared Node engine is opt in for each profile. Missing configuration keeps the existing Claude hook and disables Codex delivery. Preparing this source branch does not activate installed profiles.
@@ -9,12 +13,16 @@ The shared Node engine is opt in for each profile. Missing configuration keeps t
 | Claude legacy | Existing hook parity suite retained | Existing asyncRewake behavior |
 | Claude v1, 2.1.312 on Linux | Real native root/child envelopes; wrapper subprocess parity for exit 0/7, heartbeat/rearm, concurrent jobs | Complete new-engine native-host parity unverified: scratch authentication did not reach the model |
 | Codex CLI 0.165.0 + daemon 0.160.0 on Linux | Real native envelopes; secondary loaded-thread attach; original tool and permission callbacks after secondary close; real job receipt completed; duplicate suppressed; reconnect completed | Full automatic registration chain unverified. Same-turn control stayed accepted; completion was not observed |
-| Codex CLI + daemon 0.167.0 on Linux | Native root/child identity evidence from 2026-11-08; callback probe observed one original tool callback and one original permission callback after secondary close, zero secondary callbacks. A real 15-second root job triggered the installed hook and resumed the idle session automatically, with one send and receipt `continuation_observed` | Single root-job delivery observed; receipt `completed`, active-turn completion, repeated-job and platform parity remain unverified |
+| Codex CLI + daemon 0.167.0 on Linux | Root/child identity observed in the separate 2026-11-08 native-observability spike; callback probe observed one original tool callback and one original permission callback after secondary close, zero secondary callbacks. A real 15-second root job triggered the installed hook and resumed the idle session automatically, with one send and receipt `continuation_observed` | No equivalent standalone 0.167.0 wake-envelope set; spike observer was throwaway. Single root-job delivery observed; receipt `completed`, active-turn completion, repeated-job and platform parity remain unverified |
 | Native Windows / macOS host adapters | Unverified, disabled | Portable storage/engine/CLI tests are configured in CI; no local native Windows run was available |
 | WSL | Separate Linux execution environment | Never reuse a native Windows binding or endpoint |
 | Pi / Copilot | Future adapters | Copilot requires an extension-owned authenticated session; SDK feasibility is separate from VS Code integration |
 
-The [dated capability report](research/2026-10-30-background-wake-capabilities.md) and [native secondary-client summary](../codescout-companion/contracts/fixtures/background-wake/codex-linux-secondary-evidence.json) distinguish real host events, synthetic tool outcomes and real job records.
+Codex eligibility uses feature minimums: CLI 0.165.0 and daemon 0.160.0, with no upper version ceiling. Valid newer prereleases and build identifiers are accepted; a prerelease of the minimum itself is below that stable minimum. Eligibility still requires explicit per-profile callback proof and all runtime identity checks. The measured rows above remain historical evidence, not measurements of every eligible version.
+
+The [dated capability report](research/2026-10-30-background-wake-capabilities.md), [fixture manifest](../codescout-companion/contracts/fixtures/background-wake/manifest.json) and native secondary-client summaries distinguish real host events, synthetic tool outcomes and real job records.
+
+The manifest's measured 0.165.0 row contains standalone native wake root/spawn/read envelopes. Its documented 0.167.0 row links the separate [native-observability spike](evidence/2026-11-08-stock-codex-hooks-spike.json): root/child identity was observed, but no equivalent standalone wake-envelope set is committed. The spike's passive proxy was a throwaway observer, not an authorization boundary or production journal; no spike changes were installed or integrated into production. Those observations are distinct from the 0.167.0 callback probe and single root-job delivery recorded on 2026-11-10.
 
 ## Prepare the plugin
 
@@ -65,7 +73,7 @@ Create codescout-wake.json inside the explicitly selected profile. Its profileRo
 }
 ```
 
-The callback declaration refers to the measured Linux daemon version, not a promise about another version. A CLI version is not the daemon version. Other combinations are refused. Endpoint identity is a hash of its resolved socket path, device, inode and change time; a restarted/replaced daemon requires a new explicit pin. Obtain it locally from the prepared checkout:
+The callback declaration records proof for the exact configured daemon version and selected profile; set callbackPreserved=true only after verifying that combination. A CLI version is not the daemon version. Codex CLI versions from 0.165.0 and daemon versions from 0.160.0 are eligible without an upper ceiling. The observed daemon version must still match capabilities.codex.daemonVersion exactly, including prerelease/build identifiers. Endpoint identity is a hash of its resolved socket path, device, inode and change time; a restarted/replaced daemon requires a new explicit pin. Obtain it locally from the prepared checkout:
 
 ```sh
 node --input-type=module -e 'import {endpointIdentity} from "./codescout-companion/background-wake/adapters/codex-client.mjs"; console.log(await endpointIdentity(process.argv[1]))' unix:///absolute/selected/profile/app-server-control/app-server-control.sock
@@ -134,9 +142,11 @@ GC conservatively retains all stable identities, including completed and unconfi
 
 ## Recheck Codex callback compatibility
 
-The adapter accepts daemon 0.160.0 and 0.167.0 only, and requires the observed daemon version to match the configured `capabilities.codex.daemonVersion`. Native intake accepts CLI 0.165.0 and 0.167.0 only. These are exact measured versions, not a supported minimum or automatic approval of later releases. Keep the older [0.160.0 evidence](../codescout-companion/contracts/fixtures/background-wake/codex-linux-secondary-evidence.json) distinct from the [0.167.0 evidence](../codescout-companion/contracts/fixtures/background-wake/codex-linux-secondary-evidence-0167.json).
+The adapter accepts valid daemon versions from 0.160.0; native intake accepts valid CLI versions from 0.165.0. Neither has an upper ceiling. Newer prereleases are eligible, but a prerelease of a feature's stable minimum is below that minimum. Callback preservation must still be explicitly verified for the configured version/profile with subscription=resume-loaded and callbackPreserved=true. Exact observed version, canonical profile, both endpoint-generation fields, loaded-thread, root-only hook and correlated completion checks remain required. The CLI evidence classes differ as described above; eligibility alone does not establish measured callback or hook compatibility. Keep the older [0.160.0 evidence](../codescout-companion/contracts/fixtures/background-wake/codex-linux-secondary-evidence.json) distinct from the [0.167.0 evidence](../codescout-companion/contracts/fixtures/background-wake/codex-linux-secondary-evidence-0167.json).
 
-The opt-in native probe creates its own test thread, starts one bounded model turn to make its rollout resumable, attaches and closes a secondary client, and then requires an actual tool callback and an actual permission callback on the primary. It declines the escalated command. Its own thread-local hooks are disabled so installed routing hooks do not intercept the probe command. Existing user threads and profile configuration are not changed. The test thread is archived on cleanup. This consumes account usage; run it only with permission.
+Daemon version parsing uses the leading `<originator>/<major.minor.patch[-prerelease][+build]>` token from `initialize.userAgent`. The originator comes from the first client to initialize that server process and may differ from the current client. Both the adapter and probe compare the parsed version exactly with the configured or expected version; malformed tokens remain rejected. Historical callback `evidenceRef` values name a JSON file relative to the plugin root plus the summary's `id` fragment. Eligible versions without bundled measurements return evidenceRef=null and a diagnostic naming the configured per-profile callback proof; they do not acquire a historical evidence reference.
+
+The opt-in native probe creates its own test thread, starts one bounded model turn, waits for that exact thread/turn's turn/started notification, attaches and closes a secondary client, and then requires an actual tool callback and an actual permission callback on the primary. A turn/start response only acknowledges acceptance; attaching before actual start can race initial history persistence (observed on0.169.0 as empty rollout metadata or list_turns unsupported). Startup and completion share one deadline. Other threads/turns cannot unblock startup. It declines the escalated command. Its own thread-local hooks are disabled so installed routing hooks do not intercept the probe command. Existing user threads and profile configuration are not changed. The test thread is archived on cleanup. This consumes account usage; run it only with permission.
 
 ```sh
 node tools/probe-codex-wake-callbacks.mjs --help

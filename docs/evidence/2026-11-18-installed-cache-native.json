@@ -1,0 +1,38 @@
+{
+  "synthetic": false,
+  "cache": "/home/marius/.codex/plugins/cache/sdd-misc-plugins/codescout-companion/1.22.4",
+  "daemonVersion": "0.169.0",
+  "firstOriginator": "issue14_first_originator",
+  "existingProfilesChanged": false,
+  "userAgent": "issue14_first_originator/0.169.0 (Arch Linux Rolling Release; x86_64) xterm-256color (issue14_first_originator; 1)",
+  "callbackProof": {
+    "version": 1,
+    "synthetic": false,
+    "captureKind": "native-protocol-summary",
+    "daemonVersion": "0.169.0",
+    "subscription": "resume-loaded",
+    "callbacksAfterSecondaryClose": {
+      "attached": true,
+      "turnCompleted": true,
+      "originalTool": 1,
+      "originalPermission": 1,
+      "secondaryCallbacks": 0
+    },
+    "supported": true,
+    "reason": "original tool and permission callbacks preserved after secondary attach and close",
+    "limitations": [
+      "native root/child hook envelopes and automatic wake delivery are separate checks"
+    ]
+  },
+  "adapterCapability": {
+    "supported": true,
+    "reason": "matching configured per-profile callback proof; no bundled native measurement for this version",
+    "evidenceRef": null
+  },
+  "hookVersionEligible": true,
+  "limitations": [
+    "Hook version eligibility is not native root/child hook evidence",
+    "Automatic wake delivery and existing process activation are separate"
+  ],
+  "ownedResourcesRemoved": true
+}

@@ -76,10 +76,17 @@ def test_resolve_project_root_accepts_codescout_project_toml(tmp_path):
     assert resolve_project_root(sub) == proj.resolve()
 
 
-def test_resolve_project_root_falls_back_to_cwd_when_unmarked(tmp_path):
-    """Documented fallback: a non-repo cwd behaves exactly as it did before."""
+def test_resolve_project_root_falls_back_to_cwd_when_unmarked(tmp_path, monkeypatch):
+    """Exercise an unmarked filesystem regardless of the host's ancestor markers."""
     from scripts.buddy_paths import resolve_project_root
 
+    exists = Path.exists
+    is_file = Path.is_file
+    monkeypatch.setattr(Path, "exists", lambda path: False if path.name == ".git" else exists(path))
+    monkeypatch.setattr(
+        Path, "is_file",
+        lambda path: False if path.name == "project.toml" and path.parent.name == ".codescout" else is_file(path),
+    )
     bare = tmp_path / "nowhere" / "deep"
     bare.mkdir(parents=True)
     assert resolve_project_root(bare) == bare.resolve()

@@ -1,0 +1,47 @@
+{
+  "measured_at": "2026-11-18T13:33:23.491961+00:00",
+  "trigger": "User reported Codex restarted",
+  "tests": {
+    "codex_to_claude": {
+      "tool": "session_bridge.ask_session",
+      "target": "stef:575289",
+      "transport_ok": true,
+      "elapsed_seconds": 5.850313009,
+      "oauth_error": false,
+      "returned_answer": true,
+      "note": "Peer declined to emit a diagnostic-success token because its snapshot lacked restart evidence; successful transport/authentication is established by the returned answer, not that peer claim.",
+      "target_snapshot_as_of": "2026-11-18T12:40:25Z"
+    },
+    "codex_to_codex": {
+      "tool": "session_bridge.ask_session",
+      "target": "codex:/home/marius/.codex:01a1edce-4a05-7523-9848-42e65a235bd5",
+      "answer": "PONG",
+      "elapsed_seconds": 5.606614009,
+      "fork_thread_id": "01a1eeda-d910-7d61-bca1-8dd24ba625cf",
+      "cost_usd": null,
+      "usage_reported_raw": {
+        "cache_write_input_tokens": 0,
+        "cached_input_tokens": 73121280,
+        "input_tokens": 73973351,
+        "output_tokens": 235924,
+        "reasoning_output_tokens": 138433
+      },
+      "usage_limit": "These unusually large counters have not been verified as per-call usage. No token or USD cost is inferred from them."
+    },
+    "native_approval_path": {
+      "command": "/usr/bin/true",
+      "sandbox_permissions": "require_escalated",
+      "native_exec_exit_code": 0,
+      "ordinary_control": "Same command without sandbox_permissions blocked by PreToolUse hook",
+      "limit": "This validates the currently active App host, not stock CLI0.169.0."
+    }
+  },
+  "active_app_host": {
+    "pid": 210845,
+    "version": "codex-cli 0.160.0",
+    "process_started_local": "Wed Nov 11 09:25:35 2026",
+    "profile": "/home/marius/.codex",
+    "is_repaired_0169_candidate": false
+  },
+  "changes": "Diagnostic and evidence only; no binary replacement, config/profile change or issue closure."
+}

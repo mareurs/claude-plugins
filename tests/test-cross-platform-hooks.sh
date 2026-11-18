@@ -68,7 +68,9 @@ fi
 #    interpreter and PLUGIN_ROOT reaches Python's sys.path so the
 #    `from scripts...` imports resolve. Node is guaranteed wherever Claude Code
 #    runs; if absent here we skip rather than fail.
+# Fixture project boundaries keep state out of TMPDIR's ancestor projects.
 tmp="$(mktemp -d 2>/dev/null || mktemp -d -t cphooks)"
+mkdir -p "$tmp/.git"
 ev='{"session_id":"ci-smoke","cwd":"'"$(winpath "$tmp")"'","tool_name":"Read","tool_input":{},"prompt":"hi"}'
 if ! command -v node >/dev/null 2>&1; then
   skip "node absent — buddy launcher end-to-end check requires Node (Claude Code ships it)"
@@ -96,6 +98,7 @@ if command -v node >/dev/null 2>&1; then
 
   # (a) the dispatcher actually RAN (side effect written) — not a silent no-op.
   t2="$(mktemp -d 2>/dev/null || mktemp -d -t cphooks)"
+  mkdir -p "$t2/.git"
   printf '%s' '{"session_id":"cp-se","cwd":"'"$(winpath "$t2")"'"}' | node "$LAUNCH" session-start >/dev/null 2>&1
   if [ "$(cat "$t2/.buddy/.current_session_id" 2>/dev/null)" = "cp-se" ]; then
     ok "launcher: dispatcher ran (pointer written)"
@@ -106,6 +109,7 @@ if command -v node >/dev/null 2>&1; then
 
   # (b) an intentional pre-tool-use judge block (exit 2) is forwarded.
   t3="$(mktemp -d 2>/dev/null || mktemp -d -t cphooks)"
+  mkdir -p "$t3/.git"
   sd="$t3/.buddy/blk"; mkdir -p "$sd"
   now="$(date +%s)"  # verdict must be fresh — should_block filters by a TTL
   printf '{"session_id":"blk","last_updated":%s,"active_verdicts":[{"ts":%s,"verdict":"cs-misuse","severity":"blocking","evidence":"e","correction":"c","affected_tools":["read_file"],"acknowledged":false}]}' "$now" "$now" > "$sd/cs_verdicts.json"
@@ -116,11 +120,17 @@ if command -v node >/dev/null 2>&1; then
     || bad "launcher: intentional block not forwarded (rc=$rc)"
   rm -rf "$t3" 2>/dev/null || true
 
-  # (c) malformed stdin fails open (exit 0).
+  # (c) malformed stdin fails open (exit 0). Its fallback cwd is also isolated.
+  bad_stdin="$(mktemp -d 2>/dev/null || mktemp -d -t cphooks)"
+  mkdir -p "$bad_stdin/.git"
   rc=0
-  printf 'not json' | node "$LAUNCH" session-start >/dev/null 2>&1 || rc=$?
+  (
+    cd "$bad_stdin" || exit 1
+    printf 'not json' | HOME="$bad_stdin" node "$LAUNCH" session-start
+  ) >/dev/null 2>&1 || rc=$?
   [ "$rc" -eq 0 ] && ok "launcher: malformed stdin fails open (exit 0)" \
     || bad "launcher: malformed stdin rc=$rc"
+  rm -rf "$bad_stdin" 2>/dev/null || true
 
   # (d) a nonzero-exiting `python3` (Windows Store-alias-stub analogue) must NOT
   #     disable buddy — the probe skips it and falls through to a real python.
@@ -128,6 +138,7 @@ if command -v node >/dev/null 2>&1; then
     stub="$(mktemp -d 2>/dev/null || mktemp -d -t cpstub)"
     printf '#!/bin/sh\nexit 9009\n' > "$stub/python3"; chmod +x "$stub/python3"
     t4="$(mktemp -d 2>/dev/null || mktemp -d -t cphooks)"
+    mkdir -p "$t4/.git"
     printf '%s' '{"session_id":"cp-stub","cwd":"'"$(winpath "$t4")"'"}' \
       | PATH="$stub:$PATH" node "$LAUNCH" session-start >/dev/null 2>&1
     if [ "$(cat "$t4/.buddy/.current_session_id" 2>/dev/null)" = "cp-stub" ]; then
@@ -149,6 +160,7 @@ if command -v node >/dev/null 2>&1; then
   if command -v python3 >/dev/null 2>&1; then
     cnt="$(mktemp -d 2>/dev/null || mktemp -d -t cpcnt)"
     t6="$(mktemp -d 2>/dev/null || mktemp -d -t cphooks)"
+    mkdir -p "$t6/.git"
     printf '%s' '{"session_id":"cp-once","cwd":"'"$(winpath "$t6")"'"}' \
       | CPH_COUNTER_PATH="$(winpath "$cnt/calls")" node --require "$(winpath "$ROOT/tests/lib/count-python-starts.cjs")" "$LAUNCH" session-start >/dev/null 2>&1
     calls="$(wc -l < "$cnt/calls" 2>/dev/null | tr -d ' ')"
@@ -173,6 +185,7 @@ if command -v node >/dev/null 2>&1; then
   yaml_stub="$(mktemp -d 2>/dev/null || mktemp -d -t cpyaml)"
   printf 'raise ImportError("no module named yaml")\n' > "$yaml_stub/yaml.py"
   t5="$(mktemp -d 2>/dev/null || mktemp -d -t cphooks)"
+  mkdir -p "$t5/.git"
   printf '%s' '{"session_id":"cp-noyaml","cwd":"'"$(winpath "$t5")"'"}' \
     | PYTHONPATH="$yaml_stub" node "$LAUNCH" session-start >/dev/null 2>&1
   if [ "$(cat "$t5/.buddy/.current_session_id" 2>/dev/null)" = "cp-noyaml" ]; then

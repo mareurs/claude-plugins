@@ -12,7 +12,7 @@ entry_prefix:
 - F
 - W
 snapshot_anchor: '| ID | Date | Severity | Status | Finding |'
-entry_high_water_F: 8
+entry_high_water_F: 9
 ---
 
 ## Scope
@@ -29,6 +29,7 @@ Systematic review of PR #19. Original head: `28c93b458dc421f7ea892b683aae9b0de61
 | F-6 | 2026-11-18 | high | fixed-verified | Notice routing trusts payload cwd instead of verified session directory |
 | F-7 | 2026-11-18 | med | fixed-verified | MCP all-repository argument forwarding lacks a regression guard |
 | F-8 | 2026-11-18 | med | fixed-verified | Default OpenCode listing includes archived sessions |
+| F-9 | 2026-11-18 | med | open | Live OpenCode model turns blocked by local provider errors |
 
 ## F-1 — Shell-metacharacter fixture exceeds the notice title contract
 
@@ -131,6 +132,43 @@ At the user's request, Alexandre received detailed, constructive explanations of
 **Impact:** Archived sessions may be listed/targetable and count as live callers. Filter archived rows after merging paged and active-lookup results; do not rely on an API default.
 
 **Status:** fixed-verified — discovery and fresh-caller archived regressions observed red then green. Nonnull time.archived is excluded; null restored markers remain accepted. Independent review baseline31/0; removing either archive guard was actually applied and killed (2 attempted,2 killed,0 surviving,0 invalid). Evidence /tmp/pr19-archive-review-report.md and /tmp/pr19-review-archive/archive-mutations/.
+
+## F-9 — Live OpenCode model turns blocked by local provider errors
+
+**Valid:** dated 2026-11-18
+
+**Observed:** Local gateway localhost43000 returns200 for /models, but actual /chat/completions for qwen3-4b-q4_k_m-auto and qwen3.8-27b-ud-q4_k_xl-auto both return500. OpenCode recorded provider.internal/OpenAIException Connection error and retried until the disposable turn was interrupted. The second configured provider localhost43102 is unavailable. This is local test infrastructure, not an established bridge defect.
+
+**Impact:** Cannot certify successful model-driven OpenCode tool calls or the successful Claude-to-OpenCode ask/denial flow. User was asked asynchronously for a working backend/model while independent Claude/Codex and hook paths continued.
+
+**Status:** open — pending functioning local provider or alternate endpoint/model; no credentials or active profile config changed.
+
+## Live acceptance continuation — 2026-11-18
+
+Tested code head8dcdc4c1f0db9b5f2447b2c3f07f48e5404da34d with Claude2.1.327, Codex0.169.0 and a fresh private OpenCode2.2.7 service loading the current plugin from this worktree. Disposable root /tmp/pr19-live-acceptance-7btoc4mi; temporary config/data/state, provider config/auth copied privately, native Claude/Codex accounts used for short disposable turns. No shared service restarted.
+
+| Flow | Observed result | Scope of proof |
+| --- | --- | --- |
+| Claude MCP → OpenCode send | Exact bridge message recorded in original OpenCode user history, status observed | Actual Claude model tool call through MCP; OpenCode model reply blocked by provider500 |
+| OpenCode identity CLI → Codex send | observed, target model replied ACK-285 | Real managed daemon under disposable CODEX_HOME; explicit legacy-history thread, original thread, no remote/queue wrapper |
+| OpenCode identity CLI → Claude ask | Correct PR19-CLAUDE-SEED-963 marker | Real read-only Claude fork; stable before/after original transcript hashes equal |
+| OpenCode identity CLI → Codex ask | Correct PR19-CDX-SEED-852 marker | Real ephemeral fork, distinct fork id, original transcript bytes unchanged |
+| Claude MCP → notice → OpenCode context | Marker PR19-CLAUDE-NOTICE-396 present in the target's actual context.system event | Current plugin hook observed by a separate diagnostic plugin; does not claim an LLM answer |
+| Claude MCP → OpenCode ask, timeout | Explicit3s timeout, original message history unchanged,0 marked ask forks remaining | Real service fork/switch/prompt/interrupt/delete failure path; successful answer/write-denial model turn not established |
+
+The first Claude-history hash comparison overlapped a legitimate post_notice turn and is invalid as isolation evidence. The repeated measurement with no concurrent original turn had equal hashes. This avoids attributing ordinary original-session activity to the fork.
+
+Provider blocker is F-9. Direct OpenCode model-driven tool calls (including subagent caller shape) and successful Claude→OpenCode answer with model-attempted write/exec denial remain unverified. Existing permission-API denial evidence and unit/mutation checks do not replace those flows.
+
+Evidence: oc-send-codex.json, oc-ask-codex.json, codex-original-history-proof.json, oc-ask-claude-stable.json, claude-original-history-stable-proof.json, notice-context-proof.json, oc-timeout-proof.json and the disposable session event logs under the private root. Raw credentials/config are not publishing artifacts.
+
+While probes ran, origin/main advanced to69db24297dc5d30428e4d7f6a0adf2ba7b50d7d2 (released session-bridge0.2.9, companion1.22.4 and authentication/fixture/Codex fixes). Merged that published main into the review worktree without conflicts, preserving peer main-checkout WIP. Combined-tree checks pending at this note.
+
+### Cleanup and combined-tree verification
+
+OpenCode API list confirmed0 remaining disposable sessions before shutdown. Private OpenCode and Claude PIDs were then absent; private Codex daemon reported stopped, and no process retained the disposable CODEX_HOME. Removed the private Codex home and copied OpenCode auth/provider config. Native Claude source/fork transcripts remain in the profile for audit; no active probe session remains. cleanup-proof.json records the measured predicates.
+
+Combined-tree Rust390/0, fmt, Clippy all-targets -D warnings and OpenCode adapter207/0 completed exit0. Full root hook/skill suite with private TMPDIR completed exit0 (All suites passed). Version consistency passed. PR delta against origin/main is whitespace-clean; imported upstream patch context lines were preserved. Original CI run44337579933 passed all5 checks on8dcdc4c before current-main reconciliation; the reconciled head gets fresh CI.
 
 ## Template for new entries
 Record observed evidence, impact and verification.
