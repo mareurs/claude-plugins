@@ -1,0 +1,149 @@
+{
+  "scope": "complete packaged patched0.169 CLI preflight; shared daemon activation is conditional and tracked separately",
+  "build": {
+    "version": "codex-cli 0.169.0",
+    "sha256": "8fb179ffbdbf489d55baef03323ee09e97f032368c4271de475d9d8f1a64c173",
+    "command": "CARGO_TARGET_DIR=/home/marius/.cache/cc-tmp/codex-issue15-target-0169 cargo +1.95.0 build -p codex-cli --bin codex --locked --offline",
+    "exitCode": 0
+  },
+  "approval": {
+    "binary": "/home/marius/.cache/cc-tmp/codex-daemon-install-0169-20261118/package/bin/codex",
+    "guardUnmodified": true,
+    "cases": [
+      {
+        "approval_decision": "decline",
+        "version": "issue15_native_retest/0.169.0 (Arch Linux Rolling Release; x86_64) xterm-256color (issue15_native_retest; 1)",
+        "approvals": [
+          {
+            "method": "item/commandExecution/requestApproval",
+            "params_keys": [
+              "kind",
+              "threadId",
+              "turnId",
+              "itemId",
+              "startedAtMs",
+              "environmentId",
+              "reason",
+              "command",
+              "cwd",
+              "commandActions",
+              "proposedExecpolicyAmendment",
+              "availableDecisions"
+            ],
+            "decision": "decline",
+            "marker_exists_before_decision": false
+          }
+        ],
+        "hook_capture": [
+          {
+            "tool_name": "Bash",
+            "has_sandbox_permissions": true,
+            "sandbox_permissions": "require_escalated"
+          },
+          {
+            "tool_name": "Bash",
+            "has_sandbox_permissions": false,
+            "sandbox_permissions": null
+          }
+        ],
+        "marker_exists": false,
+        "turn_completed": true
+      },
+      {
+        "approval_decision": "accept",
+        "version": "issue15_native_retest/0.169.0 (Arch Linux Rolling Release; x86_64) xterm-256color (issue15_native_retest; 1)",
+        "approvals": [
+          {
+            "method": "item/commandExecution/requestApproval",
+            "params_keys": [
+              "kind",
+              "threadId",
+              "turnId",
+              "itemId",
+              "startedAtMs",
+              "environmentId",
+              "reason",
+              "command",
+              "cwd",
+              "commandActions",
+              "proposedExecpolicyAmendment",
+              "availableDecisions"
+            ],
+            "decision": "accept",
+            "marker_exists_before_decision": false
+          }
+        ],
+        "hook_capture": [
+          {
+            "tool_name": "Bash",
+            "has_sandbox_permissions": true,
+            "sandbox_permissions": "require_escalated"
+          },
+          {
+            "tool_name": "Bash",
+            "has_sandbox_permissions": false,
+            "sandbox_permissions": null
+          }
+        ],
+        "marker_exists": true,
+        "turn_completed": true
+      }
+    ],
+    "diagnosticHookTrustVerified": true,
+    "passed": true,
+    "ownedResourcesRemoved": true
+  },
+  "callback": {
+    "synthetic": false,
+    "cache": "/home/marius/.codex/plugins/cache/sdd-misc-plugins/codescout-companion/1.22.4",
+    "daemonVersion": "0.169.0",
+    "firstOriginator": "issue14_first_originator",
+    "existingProfilesChanged": false,
+    "userAgent": "issue14_first_originator/0.169.0 (Arch Linux Rolling Release; x86_64) xterm-256color (issue14_first_originator; 1)",
+    "callbackProof": {
+      "version": 1,
+      "synthetic": false,
+      "captureKind": "native-protocol-summary",
+      "daemonVersion": "0.169.0",
+      "subscription": "resume-loaded",
+      "callbacksAfterSecondaryClose": {
+        "attached": true,
+        "turnCompleted": true,
+        "originalTool": 1,
+        "originalPermission": 1,
+        "secondaryCallbacks": 0
+      },
+      "supported": true,
+      "reason": "original tool and permission callbacks preserved after secondary attach and close",
+      "limitations": [
+        "native root/child hook envelopes and automatic wake delivery are separate checks"
+      ]
+    },
+    "adapterCapability": {
+      "supported": true,
+      "reason": "matching configured per-profile callback proof; no bundled native measurement for this version",
+      "evidenceRef": null
+    },
+    "hookVersionEligible": true,
+    "limitations": [
+      "Hook version eligibility is not native root/child hook evidence",
+      "Automatic wake delivery and existing process activation are separate"
+    ],
+    "ownedResourcesRemoved": true
+  },
+  "activationPolicy": "User chose waiting until other turns become inactive",
+  "activationSnapshot": {
+    "state": "waiting-for-other-turns-inactive",
+    "otherActive": 4,
+    "unknownStatuses": 0,
+    "updatedAtUtc": "2026-11-18T17:29:54.433Z",
+    "workerPid": 3513271
+  },
+  "liveJournal": "/home/marius/.cache/cc-tmp/codex-daemon-install-0169-20261118/install-journal.json",
+  "rollbackPackage": "/home/marius/.cache/cc-tmp/codex-daemon-install-0169-20261118/previous-release",
+  "limits": [
+    "Do not infer actual managed daemon activation from these private preflight results",
+    "Stock /usr/bin/codex remains unmodified",
+    "Automatic wake delivery is separate from callback preservation"
+  ]
+}

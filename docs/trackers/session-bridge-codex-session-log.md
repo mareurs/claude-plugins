@@ -12,7 +12,7 @@ entry_prefix:
 - F
 - W
 snapshot_anchor: '| ID | Date | Severity | Category | Status | Title |'
-entry_high_water_F: 9
+entry_high_water_F: 10
 entry_high_water_W: 1
 ---
 
@@ -34,6 +34,7 @@ Verified observations for the Codex interoperation work stream. Entries use the 
 | F-7 | 2026-11-18 | med | test-environment | fixed-verified | **Linked dependencies invalidate cache independence** — use real production dependency files for release preflight. |
 | F-8 | 2026-11-18 | med | test-isolation | fixed-verified | **Buddy pytest can pass while writing ancestor state** — seven failing cases plus five passing writers isolated and pinned by the containment runner. |
 | F-9 | 2026-11-18 | med | test-classification | mitigated | **Co-located SDD test trips the content version guard** — inspected test-only delta; one-push documented exception retains parity/force protection. |
+| F-10 | 2026-11-18 | med | test-precondition | fixed-verified | **Full CLI approval preflight omitted exact hook trust** — untrusted fixture skipped the guard; require trusted status plus captured positive/negative controls. |
 
 ## Status vocabulary
 
@@ -200,6 +201,22 @@ The real interactive Claude 2.1.325 smoke then succeeded: list_sessions found th
 **Valid:** dated 2026-11-18
 
 **Rests on:** scripts/pre-push-guard.sh:75 and its documented exception; the exact measured push range, not a claim about other colocated files.
+
+## F-10 — Full CLI approval preflight omitted exact hook trust
+
+**Observed:** The complete patched0.169 CLI passed its native callback probe. The first approval preflight failed with empty hook_capture; hooks/list explicitly reported the owned diagnostic hook as untrusted. One approval still occurred, which alone would have falsely suggested that the guard path was verified.
+
+**Cause and repair:** The reused setup installed a disposable plugin but did not approve its exact declaration/content hashes. The orchestrator now reads those hashes, approves only that owned fixture and asserts trusted status before issuing model calls. The original failed report is retained as approval-preflight-first-untrusted.json.
+
+**Verification:** On the complete packaged CLI, both actual native model runs passed. Decline: exactly one approval, marker absent before and after decision. Accept: exactly one approval, marker absent before decision and present after. Each captured the explicit require_escalated field and then the omitted-field control, which remained guard-blocked. The guard bytes match installed companion1.22.4. Private profiles were removed. Callback routing also passed1primary tool+1primary permission,0secondary callbacks; adapter capability supported with fresh same-profile proof.
+
+**Status:** fixed-verified
+
+**Severity:** med — one failed verification run; positive approval alone did not verify the guard.
+
+**Valid:** dated 2026-11-18
+
+**Rests on:** Native hook trust gating and positive/negative controls in the issue15 repair evidence; complete-CLI installation preflight artifacts under codex-daemon-install-0169-20261118.
 
 ## Template for new entries
 
