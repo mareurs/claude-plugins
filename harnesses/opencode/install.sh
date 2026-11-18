@@ -37,7 +37,7 @@ ALL_PLUGINS="codescout-companion sdd legible session-bridge buddy statusline hin
 # The default set is the four bridges that came before buddy, statusline and hint-echo. Those
 # three are opt-in. buddy puts a node → Python run on the critical path of every tool call
 # (up to 5 s) and of each session's first request (up to 15 s), in every session the service
-# hosts, and needs Python with PyYAML. A user who re-runs a bare install.sh after a pull must
+# hosts, and needs Python (plus PyYAML for consolidation). Re-running a bare install must
 # not get that unasked, and a bare --check must keep passing on an existing 4-plugin install.
 DEFAULT_PLUGINS="codescout-companion sdd legible session-bridge"
 
@@ -73,8 +73,8 @@ esac
 
 command -v node >/dev/null 2>&1 || die "'node' not found — the bridges spawn hooks with it"
 # buddy's launcher (buddy/hooks/run.mjs) runs the first of python3, python that works. Without
-# PyYAML, buddy's SessionStart does nothing and says nothing (CLAUDE.md § buddy), so check it
-# here, where someone is reading.
+# PyYAML, memory-consolidation nudges are unavailable; core SessionStart still runs.
+# Report the optional dependency here, where someone is reading.
 case " $PLUGINS " in *" buddy "*)
   py=""
   for c in python3 python; do
@@ -83,7 +83,7 @@ case " $PLUGINS " in *" buddy "*)
   if [ -z "$py" ]; then
     echo "warning: no python3/python on PATH — buddy's hooks and statusline are Python and will do nothing" >&2
   elif ! "$py" -c 'import yaml' >/dev/null 2>&1; then
-    echo "warning: $py has no PyYAML — buddy's SessionStart will do nothing, silently (pip install pyyaml)" >&2
+    echo "warning: $py has no PyYAML — memory consolidation is unavailable; core buddy hooks still run (pip install pyyaml)" >&2
   fi ;;
 esac
 

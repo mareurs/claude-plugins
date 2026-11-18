@@ -111,11 +111,12 @@ const POSIX = process.platform !== 'win32';
 function killTree(child) {
   try {
     if (!child.pid) throw new Error('no pid');
-    if (POSIX) process.kill(-child.pid, 'SIGTERM');
+    // The deadline has expired: SIGTERM can be ignored and leave hooks running forever.
+    if (POSIX) process.kill(-child.pid, 'SIGKILL');
     else spawn('taskkill', ['/pid', String(child.pid), '/T', '/F'], { stdio: 'ignore', windowsHide: true }).on('error', () => child.kill());
   } catch {
     try {
-      child.kill();
+      child.kill('SIGKILL');
     } catch {
       /* already gone */
     }

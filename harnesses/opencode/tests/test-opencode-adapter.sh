@@ -133,12 +133,12 @@ if OPENCODE_CONFIG_DIR="$SANDBOX" bash "$INSTALLER" --plugins all >"$SANDBOX.log
 else
   fail "install.sh --plugins all failed in a sandbox:"; sed 's/^/      /' "$SANDBOX.log"
 fi
-# buddy's SessionStart does nothing, silently, without PyYAML: the installer must say so. A
-# stub python3 that cannot import anything stands in for an interpreter without it.
+# Missing PyYAML disables optional consolidation, not core SessionStart. The warning must
+# name the affected feature. A stub python3 makes the installer's import probe fail.
 mkdir -p "$SANDBOX/fakebin"
 printf '#!/bin/sh\nexit 1\n' > "$SANDBOX/fakebin/python3"
 chmod +x "$SANDBOX/fakebin/python3"
-if PATH="$SANDBOX/fakebin:$PATH" OPENCODE_CONFIG_DIR="$SANDBOX/nopyyaml" bash "$INSTALLER" --plugins buddy 2>&1 >/dev/null | grep -q 'no PyYAML'; then
+if PATH="$SANDBOX/fakebin:$PATH" OPENCODE_CONFIG_DIR="$SANDBOX/nopyyaml" bash "$INSTALLER" --plugins buddy 2>&1 >/dev/null | grep -q 'no PyYAML.*memory consolidation'; then
   pass "install.sh warns when buddy's Python has no PyYAML"
 else fail "install.sh did not warn about a Python without PyYAML"; fi
 if bash "$INSTALLER" --definitely-not-a-flag >/dev/null 2>&1; then fail "install.sh accepted an unknown flag (it would install)"

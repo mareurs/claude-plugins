@@ -666,4 +666,25 @@ await ok("runHook: a timeout ends the hook's whole process tree", async () => {
   assert.match(seen, /test-hook-tree: hook timeout/);
 });
 
+await ok("runHook: a timeout kills a hook that ignores SIGTERM", async () => {
+  if (process.platform === 'win32') return;
+  const pidFile = join(SANDBOX, 'term-resistant.pid');
+  const script = join(SANDBOX, 'term-resistant.cjs');
+  writeFileSync(script, [
+    "process.on('SIGTERM', () => {});",
+    `require('node:fs').writeFileSync(${JSON.stringify(pidFile)}, String(process.pid));`,
+    'setTimeout(() => {}, 20000);',
+  ].join('\n'));
+  let pid;
+  try {
+    const r = await runHook(script, { cwd: SANDBOX }, { runtime: process.execPath, timeoutMs: 1500, label: 'test-resistant-hook' });
+    assert.equal(r, null);
+    pid = Number(readFileSync(pidFile, 'utf8'));
+    await new Promise((done) => setTimeout(done, 400));
+    assert.throws(() => process.kill(pid, 0), /ESRCH/, 'a timed-out hook must not remain alive');
+  } finally {
+    try { if (pid) process.kill(pid, 'SIGKILL'); } catch {}
+  }
+});
+
 console.log(`\nResults: ${pass} passed, ${process.exitCode ? 'FAILURES above' : '0 failed'}`);

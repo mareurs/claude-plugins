@@ -394,6 +394,9 @@ if (havePython) {
 if (havePython) {
   const proj = mkdtempSync(join(tmpdir(), 'buddy-report-'));
   try {
+    // Pin this fixture even when an ancestor is a real codescout project.
+    mkdirSync(join(proj, '.codescout'));
+    writeFileSync(join(proj, '.codescout', 'project.toml'), '[project]\n');
     const sid = 'ses_report_test';
     mkdirSync(join(proj, '.buddy', sid), { recursive: true });
     // Built from buddy's own default_state(): load_state() discards a file whose `version`

@@ -234,7 +234,8 @@ callbacks, as `sdd.js` does for sdd. buddy's logic stays in Python.
   bridge hands only that first line to the hook (`hookPrompt`). Without that,
   `summon_bootstrap.parse_argument` read the whole template as the argument, declined, and
   the model did every load step by hand (measured).
-- **Requires** `python3` (or `python`) with PyYAML, as on Claude Code.
+- **Requires** `python3` (or `python`). PyYAML enables memory consolidation; without it,
+  core SessionStart and tool hooks still run.
 
 The spirit animal is the TUI part `tui/buddy/`. It runs buddy's own `statusline.py` with the
 same JSON shape Claude Code sends (`session_id`, `cwd`), translates its ANSI colours, and
@@ -357,8 +358,8 @@ Per plugin it links `<plugin>.js` into `plugins/`, the TUI part's directory as
 `plugins/<plugin>-tui/`, each skill into `skills/` and each command into `commands/`
 (sdd's and buddy's commands are rendered copies: re-run after editing them). For
 `hint-echo` it also creates the advisory channel directory (§hint-echo). `buddy` needs
-`python3` with PyYAML; the installer warns when no Python is on PATH, or when that Python
-cannot import `yaml` (without it buddy's SessionStart does nothing, silently). Skills go to OpenCode's own `skills/` dir, not `~/.claude/skills`:
+`python3` (or `python`); the installer warns when Python is missing or cannot import
+`yaml`. PyYAML is needed for memory consolidation; core hooks still work without it. Skills go to OpenCode's own `skills/` dir, not `~/.claude/skills`:
 OpenCode reads both, but Claude Code also reads `~/.claude/skills` and already loads these
 skills from the plugin, so linking them there would load each one twice in Claude Code.
 
