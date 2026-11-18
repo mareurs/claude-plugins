@@ -189,3 +189,40 @@ def test_resolve_skips_by_ppid_dirs_in_lone_dir_check(tmp_path, monkeypatch):
 
     sid = state_mod.resolve_session_id_for_command(tmp_path, 99999)
     assert sid == "real-sid"
+
+
+# OpenCode runs every session in one service, so by-ppid and the pointer name whichever
+# session prompted last; OPENCODE_SESSION_ID (set by OpenCode's shell tool) is the
+# per-session answer and comes first.
+def test_resolve_prefers_opencode_session_env_over_pointer(tmp_path, monkeypatch):
+    from scripts import state as state_mod
+    bdir = _setup_buddy_dir(tmp_path)
+    (bdir / "ses-a").mkdir()
+    (bdir / "ses-b").mkdir()
+    (bdir / ".current_session_id").write_text("ses-b")
+    monkeypatch.setattr(state_mod, "pid_started_at", lambda pid: None)
+    monkeypatch.setenv("OPENCODE_SESSION_ID", "ses-a")
+
+    assert state_mod.resolve_session_id_for_command(tmp_path, 99999) == "ses-a"
+
+
+def test_resolve_ignores_env_session_without_a_state_dir(tmp_path, monkeypatch):
+    """A subagent's shell carries the child's id; buddy keeps no state for it."""
+    from scripts import state as state_mod
+    bdir = _setup_buddy_dir(tmp_path)
+    (bdir / ".current_session_id").write_text("pointer-sid")
+    monkeypatch.setattr(state_mod, "pid_started_at", lambda pid: None)
+    monkeypatch.setenv("OPENCODE_SESSION_ID", "child-sid")
+
+    assert state_mod.resolve_session_id_for_command(tmp_path, 99999) == "pointer-sid"
+
+
+def test_resolve_ignores_env_session_that_is_not_one_path_component(tmp_path, monkeypatch):
+    from scripts import state as state_mod
+    bdir = _setup_buddy_dir(tmp_path)
+    (bdir / "ses-a" / "nested").mkdir(parents=True)
+    (bdir / ".current_session_id").write_text("pointer-sid")
+    monkeypatch.setattr(state_mod, "pid_started_at", lambda pid: None)
+    for bad in ("ses-a/nested", "..", "."):
+        monkeypatch.setenv("OPENCODE_SESSION_ID", bad)
+        assert state_mod.resolve_session_id_for_command(tmp_path, 99999) == "pointer-sid", bad

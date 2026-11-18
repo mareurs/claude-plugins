@@ -33,7 +33,10 @@
 import { existsSync, statSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join, resolve, isAbsolute } from 'node:path';
-import { runHook, decisionOf, resolveDir } from '../lib/host.mjs';
+import { runHook, decisionOf, resolveDir, ccInput, lastUserMessage, echoHint, sessionFamily } from '../lib/host.mjs';
+
+// Moved to lib/host.mjs (buddy.js needs both); re-exported so existing importers keep working.
+export { ccInput, lastUserMessage };
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO = resolve(HERE, '..', '..', '..');
@@ -107,22 +110,7 @@ export function patchCalls(input) {
   return calls;
 }
 
-// OpenCode spells tool arguments in camelCase (edit: filePath/oldString/newString/
-// replaceAll, measured from the tool descriptions); sdd's guards read Claude Code's
-// snake_case. Without the aliases, spec-guard's approval-field check never saw an edit's
-// new text, so an edit writing `status: approved` was NOT denied on OpenCode (caught by
-// this bridge's test suite). The original keys stay, so nothing a hook already reads moves.
-const CC_KEYS = { filePath: 'file_path', oldString: 'old_string', newString: 'new_string', replaceAll: 'replace_all' };
-export function ccInput(input) {
-  const out = { ...(input || {}) };
-  for (const [oc, cc] of Object.entries(CC_KEYS)) {
-    if (out[oc] !== undefined && out[cc] === undefined) out[cc] = out[oc];
-  }
-  if (Array.isArray(out.edits)) {
-    out.edits = out.edits.map((e) => (e && typeof e === 'object' ? ccInput(e) : e));
-  }
-  return out;
-}
+// ccInput (camelCase OpenCode args → the snake_case sdd's guards read) lives in lib/host.mjs.
 
 export function guardCalls(tool, input, dir) {
   const which = hooksFor(tool);
@@ -147,20 +135,6 @@ export function rehostSdd(text) {
     .replace(/(^|[\s`'"(])\/review\b/g, '$1/sdd-review');
 }
 
-// The context event's messages are `{id, role, content:[{type:"text", text}], …}` (measured).
-export function lastUserMessage(messages) {
-  if (!Array.isArray(messages)) return null;
-  for (let i = messages.length - 1; i >= 0; i--) {
-    const m = messages[i];
-    if (m?.role !== 'user') continue;
-    const text = Array.isArray(m.content)
-      ? m.content.filter((p) => p?.type === 'text').map((p) => p.text).join('\n')
-      : typeof m.content === 'string' ? m.content : '';
-    return { id: m.id ?? `idx-${i}`, text };
-  }
-  return null;
-}
-
 const APPROVE_PREFIX = /^\s*(?:\/sdd[-:]approve|\/approve|sdd approve)\b/;
 // OpenCode's agent ids → the Claude Code agent_type subagent-inject keys on.
 const AGENT_TYPE = { general: 'general-purpose', plan: 'Plan', build: 'general-purpose' };
@@ -173,28 +147,16 @@ const contextOf = (res) => {
 // --- the bridge ------------------------------------------------------------------------------
 // `getSession(id)` resolves a session's info ({parentID?}) or throws. All state is per bridge
 // instance: one long-lived `opencode serve` hosts many projects (code review, 2026-11-09).
-export function buildSddBridge(dir, { getSession = async () => ({}), run = runHook } = {}) {
+export function buildSddBridge(dir, { getSession = async () => ({}), run = runHook, echo = echoHint } = {}) {
   const pending = new Map(); // call id → advice for its result
   const banners = new Map(); // session id → session-start text ('' = nothing to say)
   const subagentText = new Map(); // child session id → subagent-inject text
   const approvals = new Map(); // user message id → approve-intake text ('' = not an approval)
-  const parentOf = new Map(); // session id → parentID | null | undefined (lookup failed)
+  // parentID | null | undefined (lookup failed: approvals fail closed, the rest fails open).
+  // A failed lookup is not remembered (lib/host.mjs sessionFamily), so it costs one request.
+  const sessionParent = sessionFamily(getSession).parent;
 
   const hook = (script, payload) => run(script, { cwd: dir, ...payload }, { label: LABEL });
-
-  async function sessionParent(sid) {
-    if (parentOf.has(sid)) return parentOf.get(sid);
-    let parent;
-    try {
-      const r = await getSession(sid);
-      const info = r?.data ?? r;
-      parent = info?.parentID ?? null;
-    } catch {
-      parent = undefined; // unknown: approvals fail closed, the rest fails open
-    }
-    parentOf.set(sid, parent);
-    return parent;
-  }
 
   async function banner(sid) {
     if (!banners.has(sid)) {
@@ -229,7 +191,10 @@ export function buildSddBridge(dir, { getSession = async () => ({}), run = runHo
       pending.delete(event.id);
       try {
         const content = event.result?.content; // what the model reads (measured)
-        if (Array.isArray(content)) content.push({ type: 'text', text: advice });
+        if (Array.isArray(content)) {
+          content.push({ type: 'text', text: advice });
+          echo({ sessionID: String(event?.sessionID || ''), tool: String(event?.tool || ''), source: LABEL, text: advice });
+        }
       } catch {
         /* unrecognised shape: drop the advice rather than corrupt the result */
       }
