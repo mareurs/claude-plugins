@@ -45,7 +45,7 @@ Independent review found no Critical/Important/Minor findings. Adapter and S4 ba
 
 **Ruling:** Reviewer did not judge the full root suite or platforms; the parent uses the actual root and PR CI outcomes instead of extending that review's scope. Cost if wrong: platform behavior not exercised by those checks remains outside the claim.
 
-Implementation and local review are complete. Publish into existing draft PR #20; CI results are tracked there before any integration. No automatic merge, no deferred minors. Keep the managed worktree for PR iteration.
+**Integrated on 2026-11-18:** The user explicitly requested integration. PR #20 was marked ready and squash-merged into main as 7d6a943f4293241504cf9ec73ad5abceeb258150, with --match-head-commit guarding reviewed head 52a731c9598a161c1dd2d7bd0401e20039064048. All five CI jobs passed before merge. The merge tree and reviewed-head tree are identical (02454e5e457f5284fa338ef34f9bd9285df9ec31). The local main checkout was fast-forwarded while preserving unrelated concurrent edits. No deferred minor findings. The host-managed worktree is retained because no native exit/remove capability is exposed.
 
 ## Review focus
 
@@ -76,4 +76,4 @@ Independent review found no Critical/Important/Minor issues. A separate clone ba
 
 **Ruling:** The reviewer did not exercise Windows or branch CI. Publish a draft PR with the observed Linux evidence and track CI separately; do not merge on an implied cross-platform verdict. Cost if wrong: a platform-specific process/timer issue may remain until CI exercises it.
 
-**Integration:** Reviewed code is committed on `fix/s4-preflight-test-budget`; main is unchanged by this task. No deferred minor findings. Preserve the managed worktree for PR iteration.
+**Integration:** Task 1 and the subsequent user-requested Task 2 are integrated through PR #20 at 7d6a943. This section records the earlier Task 1 verification; the Task 2 integration record above is the final state. No deferred minor findings.
