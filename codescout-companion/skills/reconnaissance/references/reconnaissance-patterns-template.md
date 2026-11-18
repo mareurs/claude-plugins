@@ -1,38 +1,24 @@
 # Reconnaissance patterns — template
 
-> **Bootstrap:** create `docs/trackers/reconnaissance-patterns.md` in the active
-> project on first recon use, using the body below. It becomes that project's R-N
-> ledger for the `codescout-companion:reconnaissance` skill. Sync mature proposals
-> back into `SKILL.md` (see § How to sync).
+> **Bootstrap:** follow the executable creation example and namespace preflight in
+> `patterns-tracker.md`. Use the body below the fenced YAML example; keep this
+> template's wrapper out of the new ledger. The creation call sets explicit
+> metadata and declares the chosen prefix. A copied file can still be classified
+> after reindex, but does not explicitly reserve a namespace.
 >
-> **Do not `cp` this file.** The frontmatter below is fenced so this template is
-> not itself classified as an artifact — a literal copy therefore produces a
-> ledger with *no* frontmatter: no `kind`, no `status`, and no librarian row.
-> Create it through the catalog instead, which registers it in the same call:
->
-> ```python
-> artifact(action="create", kind="tracker", title="Reconnaissance patterns",
->          rel_path="docs/trackers/reconnaissance-patterns.md",
->          topic="reconnaissance", tags=["reconnaissance", "skill-meta", "scout"],
->          body="<everything below the frontmatter block>")
-> ```
->
-> **Check the prefix is free before you claim it.** `grep -rnE '\bR-[0-9]+\b' docs/`.
-> If another artifact already writes `R-N` — even in table rows, which define no
-> citable token and are therefore *invisible* to `link_scan` until you make the
-> prefix live — take a free prefix (`RP-`) and say so at the top of the ledger.
-> See § *Bootstrap wakes a whole namespace* in `patterns-tracker.md`.
+> `R` is the example prefix below. If you selected another prefix, use it in
+> entries and append calls, and record it at the top of the ledger. Sync mature
+> proposals back into the skill (see § How to sync).
 
----
-
-The frontmatter for the new ledger — pass these as `artifact(action="create")`
-parameters rather than copying the block:
+The fenced metadata is an example, not leading frontmatter. The bootstrap call
+supplies these fields; do not copy the fence into the new artifact:
 
 ```yaml
 ---
 kind: tracker
 status: active
 title: Reconnaissance patterns
+entry_prefix: R
 owners: []
 tags:
   - reconnaissance
@@ -89,21 +75,27 @@ and a token separated by whitespace is prose, not a citation.
 
 ## How to append
 
-When Phase 3 of a recon scout produces evidence about the *skill itself*
-(not just the work stream), capture it here in addition to the
-work-stream session log:
+When Phase 3 of recon produces evidence about the skill itself, capture it here
+in addition to the work-stream session log. Set `tracker_id` from the bootstrap
+result (or the existing ledger's catalog id), `prefix` to its declared namespace,
+`entry_title` to a short title, and `entry_body` from the entry template below.
 
-Let the server allocate the id and write the section in the same call — do not hand-allocate by grepping the file, and do not pre-write the Index row (a pre-written row consumes the id it names):
+Let the server allocate the id, write its section, and add the Index row in one
+call. Do not reserve a row or allocate an id by hand. The bootstrap declares the
+Index header as `snapshot_anchor`, so this row lands at that table's tail:
 
 ```python
-# Cite session-log evidence; don't duplicate prose.
-doc(action="append_entry", id="<tracker artifact id>", id_prefix="R",
-         anchor_heading="## Template for new entries",
-         title="<title>", body="**Verdict:** hit | miss | proposal\n...")
-# Add a matching row to the Index table, using the id the call returned.
+entry = doc(action="append_entry", id=tracker_id, id_prefix=prefix,
+            anchor_heading="## Template for new entries",
+            title=entry_title, body=entry_body,
+            index_row="| {id} | YYYY-MM-DD | hit / miss / proposal | <one-line pattern> | <topic>-session-log:F-<n> |")
 ```
 
-`edit_file` is not the append path, though it works at first: this template ships without `entry_prefix`, so a fresh copy is directly editable — but once `entry_prefix` is declared to guard the ledger (`get_guide("tracker-conventions")` § *Make the tracker guarded*), the librarian guard refuses direct edits and only `append_entry` writes. Reach for `edit_file` for the prose sections and the Index table, never for allocating an entry.
+Fill the row's date, verdict, pattern and evidence for the observation. Keep the
+`{id}` placeholder: the server substitutes the allocated id atomically.
+Declaring `entry_prefix` guards the ledger against `edit_file`; use
+`doc(action="update", patch={"body_edits": [...]})` for prose or existing-row
+corrections. `append_entry` allocates ids; it is not the only writer.
 
 ## How to sync
 
@@ -152,10 +144,7 @@ shape; can be 1 if the proposal is cheap and clearly correct>.
 
 ## Template for new entries
 
-<!-- Insert new R-N entries above this line via:
-     doc(action="append_entry", id="<tracker artifact id>", id_prefix="R",
-              anchor_heading="## Template for new entries",
-              title="title", body="**Verdict:** ...\n...")
-     Also update the Index table row at the top, using the id the call
-     returned. `edit_file` is refused once entry_prefix guards the
-     ledger — it only works on an unguarded fresh copy. -->
+<!-- Insert new entries above this heading through the documented append call.
+     Use the ledger's declared prefix, not an assumed R. That call writes the
+     section and Index row together. Prose edits use doc(update, body_edits),
+     because the bootstrapped ledger is guarded from creation. -->
