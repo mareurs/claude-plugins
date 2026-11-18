@@ -1,0 +1,26 @@
+{
+  "_note": "R1 V2 leak repair (spec decision 5, Opus review 2026-10-13). hiddenFromP: the hidden copy of that file is replaced by the P version (the tests the fix commit added there are not graded: every graded name in the file exists at P). dropText: this exact text is removed once from the hidden copy (a doc comment that states the cause of the fix); no test body changes.",
+  "cs-p01": {
+    "hiddenFromP": [
+      "src/tools/file_summary/tests.rs"
+    ]
+  },
+  "cs-p06": {
+    "hiddenFromP": [
+      "src/tools/file_summary/tests.rs"
+    ]
+  },
+  "cs-p08": {
+    "hiddenFromP": [
+      "src/tools/run_command/tests.rs"
+    ]
+  },
+  "cs-p16": {
+    "dropText": [
+      {
+        "file": "src/tools/markdown/tests.rs",
+        "text": "/// The heading-shaped twin of the ranged-read case: a `@file_*` handle minted\n/// for an oversized SECTION is a derived subset, so a later change to the file\n/// must not widen it into the whole document. Bug\n/// `docs/issues/2026-08-25-file-slice-handle-refreshes-to-whole-file.md`.\n///\n/// This shape is why the fix snapshots rather than storing a line range to\n/// re-extract: a section's line range moves when text above it changes, so\n/// re-reading `start_ln..end_ln` after an edit is not \"the `# Root` section\".\n"
+      }
+    ]
+  }
+}

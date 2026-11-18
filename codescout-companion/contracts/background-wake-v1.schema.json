@@ -1,0 +1,34 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Codescout background watch v1",
+  "type": "object",
+  "required": ["version", "job", "target", "sourceEventId"],
+  "properties": {
+    "version": {"const": 1},
+    "sourceEventId": {"type": "string", "pattern": "\\S"},
+    "job": {
+      "type": "object",
+      "required": ["recordPath", "schema", "serverPid", "serverToken", "handle"],
+      "properties": {
+        "recordPath": {"type": "string", "pattern": "\\S", "description": "Absolute normalized native path; basename must match serverPid-serverToken-handle.json. Consumer checks the cross-field identity."},
+        "schema": {"const": 1},
+        "serverPid": {"type": "integer", "minimum": 1},
+        "serverToken": {"type": "string", "pattern": "^[a-f0-9]{8}$"},
+        "handle": {"type": "string", "pattern": "^@bg_[a-f0-9]{8}$"}
+      }
+    },
+    "target": {
+      "type": "object",
+      "required": ["harness", "profileRoot", "hostInstanceId", "environmentId", "sessionId", "runtimeGeneration", "origin"],
+      "properties": {
+        "harness": {"enum": ["claude-code", "codex"]},
+        "profileRoot": {"type": "string", "pattern": "\\S", "description": "Absolute normalized native profile root verified by the adapter."},
+        "hostInstanceId": {"type": "string", "pattern": "\\S"},
+        "environmentId": {"type": "string", "pattern": "\\S"},
+        "sessionId": {"type": "string", "pattern": "\\S"},
+        "runtimeGeneration": {"type": "string", "pattern": "\\S"},
+        "origin": {"const": "root"}
+      }
+    }
+  }
+}

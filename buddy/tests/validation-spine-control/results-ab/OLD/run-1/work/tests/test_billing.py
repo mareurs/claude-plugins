@@ -1,0 +1,147 @@
+"""Tests for src.billing.
+
+Contract under test, taken from the docstring of `is_in_grace_period`:
+it returns True exactly when `today` lies in the GRACE_DAYS-day window that
+opens on `due` -- i.e. `due <= today < due + GRACE_DAYS days` -- and False
+otherwise. An invoice that is not yet due is never in its grace period.
+
+Expected values are derived from that docstring, not from what the current
+implementation returns. The docstring does not pin the *value* of GRACE_DAYS,
+so the window tests are written relative to the constant; the one test that
+hardcodes calendar dates is skipped unless GRACE_DAYS == 5.
+"""
+
+from datetime import date, timedelta
+
+import pytest
+
+from src.billing import GRACE_DAYS, is_in_grace_period
+
+DUE = date(2026, 3, 10)
+
+
+# --- the lower bound: not yet due -------------------------------------------
+
+
+@pytest.mark.parametrize("days_early", [1, 2, 30, 365])
+def test_invoice_not_yet_due_is_not_in_grace(days_early):
+    """"An invoice that is not yet due is not in its grace period."
+
+    Red when: the lower bound is dropped, or loosened to
+    `due - timedelta(days=1) <= today`.
+    """
+    assert is_in_grace_period(DUE, DUE - timedelta(days=days_early)) is False
+
+
+def test_due_date_itself_is_in_grace():
+    """The window opens on the due date, so day zero counts.
+
+    Red when: `due <= today` is tightened to `due < today`.
+    """
+    assert is_in_grace_period(DUE, DUE) is True
+
+
+# --- the window itself -------------------------------------------------------
+
+
+@pytest.mark.parametrize("offset", range(GRACE_DAYS), ids=lambda n: f"due+{n}")
+def test_every_day_of_the_window_is_in_grace(offset):
+    """All GRACE_DAYS days starting at the due date are inside the window.
+
+    Red when: the window is shortened, e.g. `timedelta(days=GRACE_DAYS - 1)`.
+    """
+    assert is_in_grace_period(DUE, DUE + timedelta(days=offset)) is True
+
+
+def test_window_closes_after_exactly_grace_days():
+    """The first day outside a GRACE_DAYS-long window is due + GRACE_DAYS.
+
+    Red when: the upper bound becomes inclusive (`<=`), or the window is
+    lengthened to `timedelta(days=GRACE_DAYS + 1)`.
+    """
+    assert is_in_grace_period(DUE, DUE + timedelta(days=GRACE_DAYS)) is False
+
+
+@pytest.mark.parametrize("days_late", [1, 2, 30, 365])
+def test_well_past_the_window_is_not_in_grace(days_late):
+    """Red when: the upper bound is dropped entirely."""
+    today = DUE + timedelta(days=GRACE_DAYS + days_late)
+    assert is_in_grace_period(DUE, today) is False
+
+
+def test_grace_period_spans_exactly_grace_days_days():
+    """Counting the True days pins the window length from both ends at once.
+
+    Red when: either bound shifts by a day in either direction.
+    """
+    window = [
+        DUE + timedelta(days=n)
+        for n in range(-10, GRACE_DAYS + 10)
+        if is_in_grace_period(DUE, DUE + timedelta(days=n))
+    ]
+
+    assert len(window) == GRACE_DAYS
+    assert window[0] == DUE
+    assert window[-1] == DUE + timedelta(days=GRACE_DAYS - 1)
+
+
+# --- calendar arithmetic -----------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "due",
+    [
+        pytest.param(date(2025, 12, 29), id="across-new-year"),
+        pytest.param(date(2026, 1, 30), id="across-month-end"),
+        pytest.param(date(2024, 2, 27), id="across-leap-day"),
+        pytest.param(date(2026, 2, 26), id="across-non-leap-february"),
+    ],
+)
+def test_window_boundaries_hold_across_month_and_year_ends(due):
+    """Window edges are calendar days, not naive day-of-month arithmetic.
+
+    Red when: the bound is computed by replacing the day component (e.g.
+    `due.replace(day=due.day + GRACE_DAYS)`) instead of adding a timedelta.
+    """
+    assert is_in_grace_period(due, due + timedelta(days=GRACE_DAYS - 1)) is True
+    assert is_in_grace_period(due, due + timedelta(days=GRACE_DAYS)) is False
+
+
+@pytest.mark.skipif(
+    GRACE_DAYS != 5, reason=f"dates are hardcoded for GRACE_DAYS == 5, got {GRACE_DAYS}"
+)
+@pytest.mark.parametrize(
+    "today, expected",
+    [
+        (date(2026, 3, 9), False),
+        (date(2026, 3, 10), True),
+        (date(2026, 3, 11), True),
+        (date(2026, 3, 12), True),
+        (date(2026, 3, 13), True),
+        (date(2026, 3, 14), True),
+        (date(2026, 3, 15), False),
+        (date(2026, 3, 16), False),
+    ],
+)
+def test_known_calendar_dates(today, expected):
+    """A literal table, independent of any timedelta arithmetic in the test.
+
+    Red when: either bound moves. This is the backstop for the relative tests
+    above, which share their `due + timedelta(...)` idiom with the module.
+    """
+    assert is_in_grace_period(date(2026, 3, 10), today) is expected
+
+
+# --- return type -------------------------------------------------------------
+
+
+@pytest.mark.parametrize("offset", [-1, 0, GRACE_DAYS])
+def test_returns_a_real_bool(offset):
+    """The annotation is `-> bool`, so callers may rely on `is True` / `is False`.
+
+    Red when: the function returns a truthy non-bool, e.g. a timedelta or an
+    int from `due <= today and (due + timedelta(days=GRACE_DAYS) - today).days`.
+    """
+    result = is_in_grace_period(DUE, DUE + timedelta(days=offset))
+
+    assert type(result) is bool

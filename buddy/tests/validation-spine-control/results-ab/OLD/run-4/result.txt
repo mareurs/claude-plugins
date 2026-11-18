@@ -1,0 +1,32 @@
+Source restored unmodified, 31 passing.
+
+## What I wrote
+
+- `tests/test_billing.py` — 31 tests
+- `conftest.py` — puts `src/` on the path (there was no packaging config to hook into)
+
+Expected values come from the docstring, not from running the code. The groups: the two boundaries the docstring names explicitly, the window as a whole, calendar-crossing cases (month, year, leap and non-leap February), coupling to `GRACE_DAYS`, and return type.
+
+## Mutation results
+
+Every assertion is gated — I ran 11 one-line edits to `billing.py` and all 11 were caught:
+
+| Mutation | Tests failed |
+|---|---|
+| `<=` → `<` at start boundary | 6 |
+| drop the not-yet-due check | 10 |
+| `<` → `<=` at end boundary | 11 |
+| window one day short / one day long | 10 / 10 |
+| hardcode `5` instead of `GRACE_DAYS` | 4 |
+| `timedelta(weeks=)` instead of `days=` | 12 |
+| day-of-month arithmetic | 6 |
+| truthy non-`bool` return | 13 |
+| always `True` / always `False` | 20 / 15 |
+
+No survivors. The file is byte-identical to how it started.
+
+## Two things to know before you refactor
+
+**The hardcode-`5` mutant is killed by exactly 4 tests, all of them `test_window_length_follows_grace_days_constant`.** Nothing else pins the window length to the constant. That test monkeypatches the module global, so it assumes the refactored code still reads `GRACE_DAYS` at call time. If you move the constant to a config object or bind it as a default argument, that test will fail even though the behavior is fine — rewrite it to drive the new seam rather than deleting it, or the docstring's reference to `GRACE_DAYS` stops being enforced by anything.
+
+**I resolved one boundary from the docstring that you may read differently.** The docstring excludes only "not yet due", so I treat `today == due` as *in* grace, and a "GRACE_DAYS days long" period as covering 5 distinct days (`due` .. `due+4`), putting `due+5` out. Both match current behavior — but if your actual billing rule is that grace begins the day *after* the due date (`due+1` .. `due+5`), then the current implementation is off by one and my suite just froze the bug in place. Worth confirming against the invoicing spec before the refactor, since that's precisely the kind of thing tests-first locks down.

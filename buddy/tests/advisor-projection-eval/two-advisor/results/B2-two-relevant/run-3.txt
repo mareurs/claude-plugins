@@ -1,0 +1,52 @@
+*The snow leopard arrives, eyes already on the gaps.*
+
+Your one test passes. That does not mean `get_invoice` is correct. It pins one of four outcomes, and it pins that one weakly.
+
+**Contract:** Given an existing invoice, an admin gets it rendered. A non-admin gets it only if `invoice.org_id == user.org_id`. A missing invoice raises `NotFound`. A non-admin from another org raises `Forbidden`.
+
+## What the existing test pins
+
+It covers the admin happy path with a same-org invoice. The admin role is the only reason that branch is taken, but `org_id` also happens to match, so the test cannot tell which condition let the call through.
+
+**Mutation check:** I would delete the whole authorization line, `if request.user.role != "admin" and ...: raise Forbidden()`. The test stays green. So does flipping `!=` to `==`, because the org matches either way. The test therefore pins only `NotFound` plus the render path.
+
+## What is missing
+
+| # | Missing test | Mutation it catches |
+|---|---|---|
+| 1 | Nonexistent id raises `NotFound` | Removing the `None` check. Without it you get `AttributeError` on `None.render()`. |
+| 2 | Non-admin, same org, returns the invoice | `!=` flipped to `==`, or `and` flipped to `or` (locks out legitimate users). |
+| 3 | Non-admin, different org, raises `Forbidden` | Deleting the auth line entirely. This is the IDOR/BOLA case, the most important gap. |
+| 4 | Admin, different org, returns the invoice | Dropping the admin bypass, or `and` flipped to `or`. The existing test cannot catch this because its org matches. |
+| 5 | Nonexistent id as non-admin raises `NotFound`, not `Forbidden` | Reordering the checks. Tests ordering, which is an information-leak decision (see below). |
+
+Rows 2, 3 and 4 together cover the role × org-match truth table. The existing test covers only one cell. A three-row table via `parametrize` is enough, with the role and org pairs as parameters.
+
+## Boundaries not yet enumerated
+
+- **Role values other than `"admin"`**: `"Admin"`, `"administrator"`, `None`, `""`. The code treats anything but the exact string as non-admin. Pin this with at least `"Admin"` (case) and `None`.
+- **`org_id` of `None` on both sides**: a user with no org and an invoice with no org satisfy `None == None` and pass the check. That is probably a defect, or at least a contract question you should decide. I have not verified whether `Invoice.org_id` is nullable in your schema, so treat this as a question rather than a finding.
+- **`org_id` type mismatch**: `"1"` against `1`. Whether it matters depends on how `request.user.org_id` is populated, which I have not seen.
+- **`invoice_id` edge values**: `0`, negative, `None`, and a non-integer string. The test depends on what the ORM does, so decide whether `get_invoice` should reject them or just return `NotFound`.
+- **Query filters on `id` only**: the lookup runs before the permission check, which is why test 5 matters.
+
+## Design question the tests will force
+
+For a non-admin, "does not exist" returns `NotFound` and "exists in another org" returns `Forbidden`. That lets any authenticated user probe which invoice ids exist in other orgs. Whether to return `NotFound` for both is a product and security decision. Whichever you choose, test 3 should assert the specific outcome, so the decision is pinned. This is a referral to the security-ibex lens, since I would be guessing at your threat model.
+
+## Weak assertion in the existing test
+
+`assert get_invoice(req, 42) == inv.render()` compares against `inv.render()`, so a `render()` that returns `None` for everything would still pass. If `render()` has its own tests, this is acceptable at the unit level. Otherwise add one assertion on a concrete field of the output.
+
+## Format summary
+
+**Contract:** as stated above.
+**Boundaries covered today:** admin role, existing id, matching org. Nothing else.
+**Properties:** a metamorphic relation fits here. For any user and invoice, an admin's result must be a superset of a non-admin's, meaning if a non-admin gets the invoice then an admin gets the same one. A generator over roles and org ids would check that cheaply. Examples still carry the named cases above.
+**Mutation-survival of the current test:** it catches removal of the `None` check only incidentally, since the test never reaches that path. It catches essentially nothing in the auth line.
+**Isolation:** `FakeRequest`, `FakeUser` and `make_invoice` are used already. I have not seen how `make_invoice` registers with `db`, so I cannot say whether state is torn down between tests. Check that before adding five more tests that share it.
+**Pyramid level:** unit.
+**Confidence:** high on the gaps in rows 1 to 4, medium on the boundary list, since I read only the snippet you pasted and not the model or the `FakeUser` definition.
+**Open gaps:** the `None == None` org case, the existence-leak decision, and `invoice_id` validation.
+
+If you want, I can write these as a parametrized suite. To do it right I need to see `make_invoice` and the `Invoice` model, so I confirm the nullability and teardown assumptions instead of guessing at them.

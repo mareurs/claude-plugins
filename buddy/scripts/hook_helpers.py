@@ -535,7 +535,7 @@ def handle_cs_tool_use(
     Bash events take the fast path: heuristics only, no log/count/judge spawn.
     """
     try:
-        from scripts.cs_heuristics import check as cs_check
+        from scripts.cs_heuristics import check as cs_check, is_workspace_activate
 
         tool_name = event.get("tool_name", "")
 
@@ -607,15 +607,15 @@ def handle_cs_tool_use(
         # 3. Track cs_active_project.
         #    The authoritative project root comes from tool_response["project_root"],
         #    not event["cwd"] (which is the CC process CWD, often != project root).
-        #    On the first activate_project(".") call, capture and store root_cwd.
-        if tool_name == "mcp__codescout__activate_project":
+        #    On the first workspace(action="activate") call, capture and store root_cwd.
+        if is_workspace_activate(tool_name, tool_input):
             import os as _os
             path_arg = tool_input.get("path", "")
             resp_root = ""
             if isinstance(_response, dict):
                 resp_root = _response.get("project_root", "")
 
-            # Capture home project root from activate_project response.
+            # Capture home project root from the workspace(activate) response.
             # Two triggers:
             # 1. path="." always means home — update root_cwd unconditionally
             # 2. First activation in session (root_cwd empty) — per Iron Law 5,

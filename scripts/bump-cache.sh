@@ -1,8 +1,9 @@
 #!/bin/bash
 # scripts/bump-cache.sh <plugin> <version>
 #
-# Copies plugin source into the versioned cache directory for all three
-# Claude Code profiles (~/.claude, ~/.claude-sdd, ~/.claude-kat).
+# Copies plugin source into the versioned cache directory for every
+# Claude Code profile (the list is in lib-profiles.sh) whose install record already
+# carries the plugin; other profiles are skipped.
 #
 # Directory-source plugins read their files from cache/<marketplace>/<plugin>/<version>.
 # Bumping plugin.json + installed_plugins.json without seeding the cache leaves
@@ -17,8 +18,10 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=lib-copy-plugin.sh
 source "$SCRIPT_DIR/lib-copy-plugin.sh"
+# shellcheck source=lib-profiles.sh
+source "$SCRIPT_DIR/lib-profiles.sh"
 
-PLUGIN="${1:?plugin name required (buddy | codescout-companion | sdd | claude-statusline | session-bridge)}"
+PLUGIN="${1:?plugin name required (buddy | codescout-companion | sdd | statusline | session-bridge)}"
 VERSION="${2:?version required (e.g. 0.7.3)}"
 MARKETPLACE="sdd-misc-plugins"
 
@@ -37,7 +40,13 @@ if [ "$DECLARED_VERSION" != "$VERSION" ]; then
   exit 1
 fi
 
-for PROFILE in ~/.claude ~/.claude-sdd ~/.claude-kat; do
+SEEDED=0
+for PROFILE in "${PROFILES[@]}"; do
+  if ! profile_has_plugin "$PROFILE" "$PLUGIN" "$MARKETPLACE"; then
+    echo "  · skip $PROFILE ($PLUGIN not installed)"
+    continue
+  fi
+  SEEDED=$((SEEDED + 1))
   DEST="$PROFILE/plugins/cache/$MARKETPLACE/$PLUGIN/$VERSION"
   if [ -d "$DEST" ]; then
     echo "= $PROFILE: $PLUGIN $VERSION already cached, refreshing"
@@ -47,4 +56,4 @@ for PROFILE in ~/.claude ~/.claude-sdd ~/.claude-kat; do
   copy_plugin_tree "$SRC" "$DEST"
 done
 
-echo "✓ $PLUGIN $VERSION cached in 3 profiles"
+echo "✓ $PLUGIN $VERSION cached in $SEEDED of ${#PROFILES[@]} profiles"

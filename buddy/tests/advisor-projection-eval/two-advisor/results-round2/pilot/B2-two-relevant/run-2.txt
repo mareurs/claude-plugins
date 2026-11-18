@@ -1,0 +1,81 @@
+*The Testing Snow Leopard arrives, eyes in shadow, counting gaps.*
+
+Your one test pins almost nothing. I reviewed only the code you pasted. I haven't seen `db`, `mailer`, `audit_log`, `FakeRequest` or `seed_orders`, so findings that depend on them are marked as questions.
+
+## What the existing test pins
+
+`csv.writer` terminates rows with `\r\n`, so `body.count("\n") == 2` counts two rows. That is the whole assertion.
+
+| Mutation to production code | Test goes red? |
+|---|---|
+| Drop a row or add a header row | Yes |
+| Route `"csv"` to the JSON branch | Yes (JSON has no `\n`) |
+| **Delete the `WHERE org_id` clause** | **No** (only org 1 is seeded) |
+| **Swap or reorder columns, or change what is written** | **No** |
+| **Delete `mailer.send`** | **No** |
+| **Delete `audit_log.write`** | **No** |
+| Send the email to the wrong address | No |
+
+## What is missing, by risk
+
+**1. Tenant isolation (highest risk)**
+- Nothing seeds a second org, so the filter is unpinned.
+- The function never reads `request.user.org_id`. It trusts the `org_id` argument, so a user in org 1 can export org 2 and the test cannot notice. This is a probable IDOR. I haven't seen the caller or any route-level check, so I can't say whether it is blocked upstream. That is a question for security-ibex.
+- The `f"... {org_id}"` query is injectable if `org_id` is ever a string. The test passes a clean int. Add a case with `"1 OR 1=1"` that expects a rejection or an unchanged row count. Also a question for security-ibex.
+- Tests needed:
+  - Seed orgs 1 and 2, export org 1, and assert that only org-1 ids appear.
+  - Add a cross-org case where the user belongs to org 1 and requests org 2.
+
+**2. The JSON branch has zero tests (branch pairing gap)**
+- Needed: the `else` arm, with exact-value assertions.
+- `str(r.created_at)` on `None` yields the string `"None"`. The CSV branch writes `""` for the same row, so the two formats disagree.
+- `json.dumps` raises `TypeError` if `total` is a `Decimal`. I haven't verified the column type. Check it and add a case.
+
+**3. Side effects are completely unasserted**
+- Assert on a fake mailer outbox and a fake audit sink, not on call counts:
+  - the recipient is `a@x.io`
+  - the subject is `"Your export"`
+  - the emailed body equals the returned body
+  - the audit entry is `("export", 7, 1)`
+- Failure ordering is unpinned. If `mailer.send` raises, no audit entry is written. If `audit_log.write` raises, the data has already been emailed with no trail. Decide the intended contract and pin it.
+
+**4. Boundaries of the row set**
+- 0 rows: CSV gives `""` and JSON gives `"[]"`. Is an empty export still emailed and audited?
+- 1 row, and many rows. `fetchall()` has no size cap, so what is the limit?
+- `total` as `None`, `0`, a negative, or a large `Decimal`.
+- `created_at` as `None`.
+- There is no `ORDER BY`, so row order is nondeterministic. Any test that asserts order will flake until the contract defines one.
+
+**5. `fmt` handling**
+- Every value that is not exactly `"csv"` silently becomes JSON, including `"CSV"`, `""`, `None` and `"xml"`. Is that intended?
+- Table-drive the rows `"csv"`, `"json"`, `"CSV"`, `""`, `None` and `"xml"` once you decide.
+
+**6. Request edge cases:** a user with no email (`None`), or an anonymous user.
+
+## Properties to add beside the named cases
+
+- **Round-trip:** `csv.reader` over the CSV body, and `json.loads` over the JSON body, recover the seeded `(id, total, created_at)` tuples.
+- **Conservation:** the output row count equals the seeded row count for that org.
+- **Metamorphic:** adding orders to another org never changes the output for this org. This catches the missing `WHERE` clause for any generated data.
+
+## Plan for the first test to write
+
+```
+**Contract:** export_orders(req, org, fmt) returns and emails only that org's orders, as exact (id, total, created_at) values.
+**Boundaries covered:** org with 0, 1 and many rows; a second org present; total None/Decimal; created_at None.
+**Arrange / Act / Assert:** seed org 1 (2 rows) and org 2 (1 row) with distinct ids and totals; call export for org 1 as csv; assert the parsed rows equal exactly the two org-1 tuples.
+**Properties:** round-trip and cross-org metamorphic (hypothesis over seeded rows), plus named edge cases.
+**Mutation-survival:** deleting the WHERE clause leaves org 2's row in the output, so the test fails.
+**Isolation:** real in-memory DB, fake mailer outbox, fake audit sink, all reset per test.
+**Pyramid level:** unit with an in-memory DB, the lowest viable level.
+**Confidence:** high for the isolation and side-effect tests, medium for JSON/Decimal until I see the column type.
+**Open gaps:** the failure-ordering contract, the fmt contract, the row cap, and the ordering contract.
+```
+
+## Before I write the suite, I need answers on:
+1. Should an unknown `fmt` raise, or default to JSON?
+2. Should the function authorize `org_id` against `request.user.org_id` itself, or does a caller guarantee it?
+3. If the mailer or the audit write fails, what should happen to the other step?
+4. What are the types of `total` and `created_at` in `orders`, and is there an ordering guarantee?
+
+These answers decide whether the tests pin intended behavior or just freeze the current behavior.

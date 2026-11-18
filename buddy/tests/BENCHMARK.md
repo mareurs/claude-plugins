@@ -215,7 +215,7 @@ tools and plugin hooks the skill natively drives:
   `F-N` allocation, anchored entry shape. NOT exercised: cp-template bootstrap,
   `edit_markdown insert_before`, librarian artifact model, `recon_count.py` statusline bump.
 - **codescout-companion:explore-project** — the headline capability (auto-bootstrapping the
-  foreign repo's `CLAUDE.md` + codescout memories) is delivered by the `explore-inject.sh`
+  foreign repo's `CLAUDE.md` + codescout memories) is delivered by the `explore-inject.mjs`
   PreToolUse-on-Agent hook, which `setup.skills` does NOT copy and `~/.claude-test` does NOT
   contain — so NEITHER arm runs the hook. The eval scores only what `SKILL.md` prose drives:
   dispatch-template discipline and the fixed `## Exploration:` report skeleton. A live run with

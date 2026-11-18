@@ -14,7 +14,7 @@ The skill prescribes a specific METHOD, not generic "explore well":
    tools pinned with `workspace="<path>"`).
 2. **Don't hand-write the bootstrap.** The skill is explicit: do NOT write
    `workspace(action="activate", ...)` / a manual foreign-project bootstrap into
-   the subagent prompt — the `explore-inject.sh` hook owns it, and a hand-rolled
+   the subagent prompt — the `explore-inject.mjs` hook owns it, and a hand-rolled
    version trips the hook's idempotency guard and *suppresses* the richer
    auto-bootstrap (project memories).
 3. **Fixed report skeleton.** Results return as `## Exploration: <topic>` with
@@ -63,7 +63,7 @@ Two layers of fidelity loss, both honest lower bounds on the skill's real power:
 
 2. **The control is PARTIAL (L-7, MCP/subagent-coupled).** The skill's *headline*
    capability — auto-bootstrapping the foreign project's `CLAUDE.md` + codescout
-   memories — is delivered by the `explore-inject.sh` PreToolUse-on-`Agent` hook,
+   memories — is delivered by the `explore-inject.mjs` PreToolUse-on-`Agent` hook,
    a PLUGIN hook that is **not** carried by `setup.skills` and is **absent** from
    the isolated `~/.claude-test` profile. So *neither* arm exercises the hook, and
    the real subagent-dispatch + auto-bootstrap loop is not reproduced in the
@@ -83,7 +83,7 @@ Two layers of fidelity loss, both honest lower bounds on the skill's real power:
 The optimistic prediction above ("a skill-loaded model should still emit the
 template + report skeleton") was **wrong in practice.** In the isolated headless
 run the positive `foreign-explore` arm **FAILED**: with no real `/srv/legacy-billing`
-repo, no Agent/subagent available to `claude -p`, and no `explore-inject.sh` hook in
+repo, no Agent/subagent available to `claude -p`, and no `explore-inject.mjs` hook in
 `~/.claude-test`, the dispatch→bootstrap→report loop cannot execute, so the model
 never produced the `## Exploration:` skeleton. The present-FAIL is an **environment
 artifact, not a skill or rubric defect** — the L-7 pincer in full: the skill's value

@@ -1,3 +1,6 @@
+> **Historical.** This note describes the removed registry design and names the deleted
+> `mcp-server/src/claude_cli.rs`. It is kept for the measurements of the `claude` flags.
+
 # claude CLI flag probe — session-bridge
 
 ## RESOLVED FLAGS (used by mcp-server/src/claude_cli.rs)

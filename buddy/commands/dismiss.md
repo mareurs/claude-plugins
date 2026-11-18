@@ -1,10 +1,10 @@
-You are releasing one or all summoned specialists. The argument passed by the user is `$1`.
+You are releasing one or all summoned specialists. The argument passed by the user is `$ARGUMENTS`.
 
 ## Step 1 — Resolve the target
 
-If `$1` is empty or absent, target is `"ALL"` — skip to Step 2.
+If the argument is empty or absent, target is `"ALL"` — skip to Step 2.
 
-Otherwise, match `$1` to the best specialist using their descriptions below. Trust intent over exact words — "debug", "yeti", "debugging" all resolve to `debugging-yeti`.
+Otherwise, match the argument to the best specialist using their descriptions below. Trust intent over exact words — "debug", "yeti", "debugging" all resolve to `debugging-yeti`.
 
 | Directory | When to dismiss |
 |---|---|

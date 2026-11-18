@@ -1,0 +1,54 @@
+{
+  "version": 1,
+  "harness": "claude-code",
+  "hostVersion": "2.1.312",
+  "os": "linux",
+  "profileRoot": "/probe/claude-profile",
+  "captureKind": "native-hook",
+  "synthetic": false,
+  "syntheticToolOutcome": true,
+  "sanitized": true,
+  "nativeInputKeys": [
+    "session_id",
+    "transcript_path",
+    "cwd",
+    "prompt_id",
+    "permission_mode",
+    "effort",
+    "hook_event_name",
+    "tool_name",
+    "tool_input",
+    "tool_response",
+    "tool_use_id",
+    "duration_ms",
+    "mcp_server"
+  ],
+  "rootDiscriminator": {
+    "field": "agent_id",
+    "absentMeansRoot": true,
+    "measuredVersion": "2.1.312",
+    "evidenceRef": "claude-root-and-subagent-native"
+  },
+  "input": {
+    "session_id": "11111111-1111-4111-8111-111111111111",
+    "cwd": "/probe/project",
+    "prompt_id": "e9f9f64a-72fb-40fc-b85c-d09af76902f7",
+    "permission_mode": "default",
+    "effort": {
+      "level": "medium"
+    },
+    "hook_event_name": "PostToolUse",
+    "tool_name": "mcp__codescout__run_command",
+    "tool_input": {
+      "command": "tail -50 @bg_00000001"
+    },
+    "tool_response": [
+      {
+        "type": "text",
+        "text": "{\"output_id\":\"@bg_00000001\",\"exit_code\":0,\"stdout\":\"wake-probe\",\"jobs\":[{\"handle\":\"@bg_00000001\",\"state\":\"exited\",\"exit_code\":0}]}"
+      }
+    ],
+    "tool_use_id": "probe-tool-call-root-read",
+    "duration_ms": 2
+  }
+}

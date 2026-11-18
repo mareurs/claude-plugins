@@ -1,0 +1,26 @@
+Done. `tests/test_billing.py` (38 tests) plus a minimal `pytest.ini` for `pythonpath = src`. All pass; `src/billing.py` is untouched.
+
+**Behavior I pinned** — verified by probing the function, not inferred from reading it: the grace period is a half-open window `[due, due + 5)`. The due date itself is inside it, `due + 4` is the last day in it, and `due + 5` has already lapsed. Exactly 5 True days. Code and docstring agree, so there was no discrepancy to resolve.
+
+**The suite is in two deliberate layers**, because "tests before a refactor" pulls in two directions:
+
+- Tests deriving offsets from `GRACE_DAYS` (`TestBoundaries`, `TestWindowShape`) describe the *contract* — contiguous window, starts on the due date, upper edge exclusive. These keep passing if you deliberately retune the constant.
+- `TestLiteralDates` hardcodes real dates and asserts `GRACE_DAYS == 5`. This is the tripwire for an *accidental* change to the window during refactoring, which the relative tests would silently accept.
+
+`TestCalendarArithmetic` covers month-end, year-end, and leap-day rollovers. I verified each hardcoded date against the real function rather than doing the calendar math in my head.
+
+**I mutation-tested the suite rather than trusting a green run** — a passing suite says nothing about whether it would catch a regression. Six plausible refactor bugs, all caught:
+
+| Mutation | Result |
+|---|---|
+| Lower bound exclusive (`due < today`) | 5 failed |
+| Upper bound inclusive (`<=`) | 8 failed |
+| `GRACE_DAYS` → 6 / → 4 | 5 failed each |
+| Window off-by-one (`GRACE_DAYS - 1`) | 8 failed |
+| Lower bound dropped entirely | 9 failed |
+
+The two `GRACE_DAYS` mutations were caught *only* by the literal-date layer — direct confirmation the split is doing real work, not just duplicating coverage.
+
+Two things I intentionally left out, since both would lock in behavior that isn't part of the contract and would break legitimate refactorings: passing `datetime` instead of `date` (it happens to work via subclassing), and monkeypatching the `GRACE_DAYS` global (would fail if you move it to a default argument — a reasonable refactor). Say the word if you want either treated as contract.
+
+One caveat on scope: this is a single pure function with no I/O or dependencies, so the suite is thorough but narrow. If the refactor is going to widen `billing.py` — proration, multiple grace policies, timezone-aware dates — tell me what's coming and I'll extend the net before you start, which is cheaper than retrofitting after.

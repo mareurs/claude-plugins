@@ -15,17 +15,37 @@
 
 set -uo pipefail
 
-HOOK="$(cd "$(dirname "$0")" && pwd)/pre-tool-guard.mjs"
-ACTIVE_CWD="/home/marius/work/claude/codescout"
-SIBLING_CWD="/home/marius/work/claude/claude-plugins"
+HOOK="${PRE_TOOL_GUARD_HOOK:-$(cd "$(dirname "$0")" && pwd)/pre-tool-guard.mjs}"
+# Never delete another session's dedup/breaker markers while testing the guard.
+GUARD_TEST_TMP="$(mktemp -d "${TMPDIR:-/tmp}/cs-guard-test-XXXXXX")" || exit 1
+export TMPDIR="$GUARD_TEST_TMP"
+trap 'rm -rf "$GUARD_TEST_TMP"' EXIT
 
-# The two CWDs above are REAL repos, and either may carry a developer's
-# `.claude/codescout-companion.json` opt-out (`block_reads: false`). That makes
+# Synthetic fixture projects, NOT the author's real checkouts. The suite used to
+# hardcode /home/marius/work/claude/{codescout,claude-plugins}: on any other host
+# those dirs do not exist, so detect.mjs found no codescout server and every hook
+# exited at its HAS_CODESCOUT gate (37 of 59 assertions failed under an empty
+# HOME — see docs/issues/2026-08-05-test-run-all-pre-existing-failures-under-
+# fresh-wsl.md). Each fixture carries a `.mcp.json` whose command contains
+# "codescout" (detect.mjs SERVER_NAME_RE), so detection no longer depends on the
+# ambient ~/.claude* profile. The sibling keeps the name `claude-plugins` and sits
+# next to the active project so `cd ../claude-plugins` still means a sibling repo.
+FIXTURE_ROOT="$GUARD_TEST_TMP/work"
+ACTIVE_CWD="$FIXTURE_ROOT/codescout"
+SIBLING_CWD="$FIXTURE_ROOT/claude-plugins"
+OTHER_CWD="$FIXTURE_ROOT/backend-kotlin"
+for d in "$ACTIVE_CWD" "$SIBLING_CWD" "$OTHER_CWD"; do
+    mkdir -p "$d/src"
+    printf '{"mcpServers":{"codescout":{"command":"/usr/local/bin/codescout","args":["serve"]}}}\n' > "$d/.mcp.json"
+done
+
+# A fixture CWD may still pick up a project `.claude/codescout-companion.json`
+# opt-out (`block_reads: false`) if a developer's own config leaks in. That makes
 # pre-tool-guard.mjs:32 exit before any dispatch, turning every deny assertion
 # into a false allow — measured 2026-08-28 as 21/55, which also blocks
-# release.sh pre-flight. Make the suite hermetic; the hatch is honoured by
-# detect.mjs findRoutingConfig + its detect.py mirror, and is unset again by the
-# config cases at the bottom of this file. See `guard-hardening-session-log:F-3`.
+# release.sh pre-flight. Keep the hatch: it is honoured by detect.mjs
+# findRoutingConfig + its detect.py mirror, and is unset again by the config
+# cases at the bottom of this file. See `guard-hardening-session-log:F-3`.
 export CS_COMPANION_IGNORE_PROJECT_CONFIG=1
 
 PASS=0
@@ -41,11 +61,11 @@ verdict() {
 }
 
 # Clear the 3-second dedup window so each test runs with a fresh slate.
-clean_window() { /bin/rm -f /tmp/cs-block-* 2>/dev/null; }
+clean_window() { /bin/rm -f "$TMPDIR"/cs-block-* 2>/dev/null; }
 # Clear the redirect circuit-breaker strike counter (see lib.mjs breakerFile).
 # MUST be reset between tests: a leaked counter stands the guard down, which
 # turns every later "deny" assertion into a silent false PASS-as-allow.
-clean_breaker() { /bin/rm -f /tmp/cs-redirect-* 2>/dev/null; }
+clean_breaker() { /bin/rm -f "$TMPDIR"/cs-redirect-* 2>/dev/null; }
 clean() { clean_window; clean_breaker; }
 
 assert() {
@@ -94,7 +114,7 @@ assert_file() {  # <label> <tool_name> <file_path> <expected>
 
 # --- Cross-repo cd: hardened — no longer an escape (all Bash → run_command) ---
 assert "cd-sibling-abs"      "cd $SIBLING_CWD && git status"                        "deny"
-assert "cd-sibling-quoted"   "cd \"/home/marius/work/mirela/backend-kotlin\" && git status" "deny"
+assert "cd-sibling-quoted"   "cd \"$OTHER_CWD\" && git status"                      "deny"
 assert "cd-sibling-tilde"    "cd ~/work/claude/claude-plugins && git log -1"        "deny"
 assert "cd-sibling-relative" "cd ../claude-plugins && git status"                   "deny"
 assert "cd-tmp"              "cd /tmp && ls"                                        "deny"
@@ -226,6 +246,65 @@ echo "{\"session_id\":\"$SID\"}" | node "$LIVENESS"
 OUT=$(fire "$SID" "echo after-liveness")
 check "breaker-liveness-rearms" "$(verdict "$OUT")" "deny"
 
+# Proof of REACHABILITY, not proof of life (codescout:docs/issues/2026-09-07-the-source-
+# redirect-names-tools-a-partial-tool-set-does-not-have.md). A session can expose a
+# SUBSET of codescout's tools: `symbols`/`grep`/`doc`/`run_command` answer all day
+# while `read_file`/`edit_file`/`edit_code`/`create_file` are gone. Clearing the
+# strike counter on ANY codescout answer then resets it on every call, so the
+# stand-down is unreachable in exactly the state it exists for. A deny records the
+# tool(s) its redirect needs; only one of THOSE answering clears the counter.
+# Each direction is its own assertion because each is monotone the other way: a
+# breaker that never clears passes the first and fails the second.
+#
+# (1) A codescout tool that is NOT the redirect target answers between denies: the
+#     strikes must accumulate and the guard must stand down on the 4th. Native
+#     Edit's redirect names edit_code/edit_file -- two of the tools a partial
+#     exposure drops -- while `symbols` (which the same session still has) says
+#     nothing about them.
+fire_edit() {  # <session_id> -> raw hook stdout of a native Edit deny
+    clean_window
+    jq -n --arg s "$1" --arg cwd "$ACTIVE_CWD" --arg p "$ACTIVE_CWD/src/lib.rs" \
+        '{tool_name:"Edit", session_id:$s, cwd:$cwd, tool_input:{file_path:$p}}' | node "$HOOK"
+}
+answer() {  # <session_id> <short tool name> -- a PostToolUse payload for a codescout tool
+    echo "{\"session_id\":\"$1\",\"tool_name\":\"mcp__codescout__$2\"}" | node "$LIVENESS"
+}
+clean
+SID2="breaker-partial-$$"
+for i in 1 2 3; do
+    OUT=$(fire_edit "$SID2")
+    check "partial-set-strike-$i-deny" "$(verdict "$OUT")" "deny"
+    answer "$SID2" symbols
+done
+OUT=$(fire_edit "$SID2")
+check "partial-set-non-target-answers-do-not-reset-the-breaker" "$(verdict "$OUT")" "allow"
+case "$OUT" in
+    *"stood its guard down"*) check "partial-set-standdown-explains" "yes" "yes" ;;
+    *)                        check "partial-set-standdown-explains" "no"  "yes" ;;
+esac
+
+# (2) The redirect target itself answers: that IS reachability, so the counter
+#     clears and the guard stays armed however many times this repeats.
+clean
+SID3="breaker-target-$$"
+TARGET_OK=yes
+for i in 1 2 3 4 5 6; do
+    [[ "$(verdict "$(fire_edit "$SID3")")" == "deny" ]] || TARGET_OK=no
+    answer "$SID3" edit_file
+done
+check "redirect-target-answers-keep-the-guard-armed" "$TARGET_OK" "yes"
+
+# (3) A deny whose redirect names no tool a partial exposure drops (Bash ->
+#     run_command) keeps the original contract: any codescout answer clears it.
+clean
+SID4="breaker-bash-$$"
+BASH_OK=yes
+for i in 1 2 3 4 5 6; do
+    [[ "$(verdict "$(fire "$SID4" "echo bash-$i")")" == "deny" ]] || BASH_OK=no
+    answer "$SID4" symbols
+done
+check "bash-redirect-keeps-any-answer-clears" "$BASH_OK" "yes"
+
 # No session id → breaker disabled (a cwd-keyed counter would be shared by two
 # concurrent sessions in one repo). Must never stand down, however many strikes.
 clean
@@ -243,6 +322,29 @@ case "$OUT" in
     *"/mcp"*) check "escape-footer-names-mcp" "yes" "yes" ;;
     *)        check "escape-footer-names-mcp" "no"  "yes" ;;
 esac
+# The footer must not assert ONE cause. A session whose server is up but exposes a
+# subset of its tools gets the same deny, and "the MCP server has disconnected"
+# sends its reader to repair a healthy connection. It must name a route that works
+# when the tool list is partial (run_command answers there) and must not claim
+# disconnection as the only explanation. Not pinned: the footer's prose.
+case "$OUT" in
+    *"acknowledge_risk"*) check "escape-footer-names-a-partial-set-route" "yes" "yes" ;;
+    *)                    check "escape-footer-names-a-partial-set-route" "no"  "yes" ;;
+esac
+# ...but the route is for a tool that is MISSING. Opus, in a session that had every
+# tool, read a source file through run_command + acknowledge_risk because the footer
+# offered the route without that condition (Setup A/B audit,
+# docs/issues/2026-11-09-companion-hooks-advertise-tools-and-skills-the-session-does-not-have.md).
+# Pinned: the sentence that sends a session with the named tool back to that tool.
+case "$OUT" in
+    *"IS in your tool list, call it"*) check "escape-footer-route-is-for-a-missing-tool-only" "yes" "yes" ;;
+    *)                                  check "escape-footer-route-is-for-a-missing-tool-only" "no"  "yes" ;;
+esac
+case "$OUT" in
+    *"has disconnected and this redirect points at nothing"*)
+        check "escape-footer-does-not-assert-disconnection" "no" "yes" ;;
+    *)  check "escape-footer-does-not-assert-disconnection" "yes" "yes" ;;
+esac
 case "$OUT" in
     *"codescout-companion.json"*) check "escape-footer-avoids-unreachable-config" "no"  "yes" ;;
     *)                            check "escape-footer-avoids-unreachable-config" "yes" "yes" ;;
@@ -255,12 +357,18 @@ CFG_TMP="$(mktemp -d)"
 mkdir -p "$CFG_TMP/optout/.claude" "$CFG_TMP/plain/.claude"
 printf '{"block_reads": false}\n' > "$CFG_TMP/optout/.claude/codescout-companion.json"
 printf '{}\n'                     > "$CFG_TMP/plain/.claude/codescout-companion.json"
+# Both need their own codescout `.mcp.json`: without it these cases only pass on a
+# machine whose ambient ~/.claude* profile happens to register a codescout server.
+for d in optout plain; do
+    printf '{"mcpServers":{"codescout":{"command":"/usr/local/bin/codescout","args":["serve"]}}}\n' > "$CFG_TMP/$d/.mcp.json"
+done
 
-assert_cfg() {  # <label> <cwd> <expected> <hatch: on|off>
+assert_cfg() {  # <label> <cwd> <expected> <hatch: on|off> [sub]  ("sub" = the call comes from a subagent)
     clean
     local payload got
-    payload=$(jq -n --arg cwd "$2" \
-        '{tool_name:"Read", cwd:$cwd, tool_input:{file_path:($cwd+"/src/main.rs")}}')
+    payload=$(jq -n --arg cwd "$2" --arg sub "${5:-}" \
+        '{tool_name:"Read", cwd:$cwd, tool_input:{file_path:($cwd+"/src/main.rs")}}
+         + (if $sub == "sub" then {agent_id:"a1b2c3d4e5f6a7b8c", agent_type:"general-purpose"} else {} end)')
     if [[ "$4" == "off" ]]; then
         got=$(verdict "$(echo "$payload" | env -u CS_COMPANION_IGNORE_PROJECT_CONFIG node "$HOOK")")
     else
@@ -279,6 +387,98 @@ assert_cfg "cfg-hatch-off-plain-denies"  "$CFG_TMP/plain"  "deny"  "off"
 assert_cfg "cfg-hatch-off-optout-allows" "$CFG_TMP/optout" "allow" "off"
 # And the hatch does what it claims: same cwd, config ignored.
 assert_cfg "cfg-hatch-on-ignores-optout" "$CFG_TMP/optout" "deny"  "on"
+
+# --- block_reads=false opts out the MAIN agent only; a subagent stays guarded ---
+# Measured 2026-11-02 over 6,038 transcripts: with block_reads=false in the project's own checkout, 97% of the
+# native source reads that succeeded there (2,098 of 2,159 since 2026-09-23) came from subagents, and every one of
+# them was a call the guard would have refused anywhere else. A subagent call carries agent_id/agent_type in the
+# PreToolUse payload (a real `claude -p` run, 2.1.316, Read and Grep); the main thread's calls have neither.
+# Positive control first: the same opt-out cwd and call from the MAIN agent still allows (cfg-hatch-off-optout-allows).
+assert_cfg "cfg-optout-subagent-denies"        "$CFG_TMP/optout" "deny"  "off" "sub"
+assert_cfg "cfg-plain-subagent-denies"         "$CFG_TMP/plain"  "deny"  "off" "sub"
+assert_cfg "cfg-optout-main-still-allows"      "$CFG_TMP/optout" "allow" "off"
+
+# The exemptions a subagent legitimately needs are unchanged by this: a binary image, a skill payload and a
+# harness tool-results file read natively, in the opt-out cwd, as a subagent.
+assert_sub_file() {  # <label> <path> <expected>
+    clean
+    local payload got
+    payload=$(jq -n --arg cwd "$CFG_TMP/optout" --arg p "$2" \
+        '{tool_name:"Read", cwd:$cwd, agent_id:"a1b2c3d4e5f6a7b8c", agent_type:"general-purpose", tool_input:{file_path:$p}}')
+    got=$(verdict "$(echo "$payload" | env -u CS_COMPANION_IGNORE_PROJECT_CONFIG node "$HOOK")")
+    if [[ "$got" == "$3" ]]; then
+        echo "PASS [$1]"; PASS=$((PASS+1))
+    else
+        echo "FAIL [$1]: expected=$3 got=$got"; FAIL=$((FAIL+1))
+    fi
+}
+assert_sub_file "cfg-optout-subagent-image-allows"        "$CFG_TMP/optout/diagram.png"                     "allow"
+assert_sub_file "cfg-optout-subagent-skill-payload-allows" "$CFG_TMP/optout/skills/foo/SKILL.md"           "allow"
+assert_sub_file "cfg-optout-subagent-tool-results-allows"  "$CFG_TMP/optout/.codescout/tool-results/o.txt" "allow"
+# And a subagent's markdown read is refused like any other source-class read.
+assert_sub_file "cfg-optout-subagent-markdown-denies"      "$CFG_TMP/optout/docs/x.md"                      "deny"
+
+# VS Code/Copilot reports a lower-case read tool with a camelCase path key.
+# This must reach the same denial branch as Claude Code's Read/file_path form.
+assert_tool "copilot-read-file-path-deny" "read_file" \
+    "$(jq -nc --arg p "$ACTIVE_CWD/src/main.rs" '{filePath:$p}')" "deny"
+
+# --- Dedupe window: ONE full reason per CALLER, but ONE strike per burst ---
+# Measured 2026-11-02 over 6,038 transcripts: 855 of 2,225 subagent blocks (38%) got only the pointer
+# "BLOCKED (see previous message)", 48 of 239 for the main agent (20%). The window was keyed by
+# (tool, cwd), so a subagent whose first block fell inside another caller's 3 s window was pointed at a
+# message that sits in a DIFFERENT context. The reason is now claimed per (tool, cwd, session, agent).
+# The circuit breaker must NOT follow: it counts consecutive redirects that went unanswered, and a burst
+# of parallel subagents is ONE turn, so its strike marker stays keyed by (tool, cwd) alone.
+call_as() {  # <session> <agent_id or ""> -> raw hook stdout of a native Read of a source file
+    jq -n --arg cwd "$ACTIVE_CWD" --arg s "$1" --arg a "$2" \
+        '{session_id:$s, tool_name:"Read", cwd:$cwd, tool_input:{file_path:($cwd+"/src/main.rs")}}
+         + (if $a != "" then {agent_id:$a, agent_type:"general-purpose"} else {} end)' | node "$HOOK"
+}
+reason_of() { printf '%s' "$1" | jq -r '.hookSpecificOutput.permissionDecisionReason // "none"' 2>/dev/null; }
+is_full()    { [[ "$(reason_of "$1")" == *"faster path for source files"* ]]; }
+is_pointer() { [[ "$(reason_of "$1")" == "BLOCKED (see previous message)" ]]; }
+expect() {  # <label> <true|false> <detail>
+    if [[ "$2" == "true" ]]; then echo "PASS [$1]"; PASS=$((PASS+1)); else echo "FAIL [$1]: $3"; FAIL=$((FAIL+1)); fi
+}
+
+clean
+o1=$(call_as s1 "");       o2=$(call_as s1 agentA);  o3=$(call_as s1 agentA)
+o4=$(call_as s1 agentB);   o5=$(call_as s2 "");      o6=$(call_as s1 "")
+# Positive control: the very first call in a window is always the full reason.
+expect "dedupe-first-caller-gets-the-full-reason"            "$(is_full "$o1" && echo true || echo false)"    "got: $(reason_of "$o1" | head -c 80)"
+expect "dedupe-subagent-in-anothers-window-gets-its-own"     "$(is_full "$o2" && echo true || echo false)"    "got: $(reason_of "$o2" | head -c 80)"
+expect "dedupe-same-subagent-again-gets-the-pointer"         "$(is_pointer "$o3" && echo true || echo false)" "got: $(reason_of "$o3" | head -c 80)"
+expect "dedupe-another-subagent-gets-its-own-reason"         "$(is_full "$o4" && echo true || echo false)"    "got: $(reason_of "$o4" | head -c 80)"
+expect "dedupe-another-session-gets-its-own-reason"          "$(is_full "$o5" && echo true || echo false)"    "got: $(reason_of "$o5" | head -c 80)"
+expect "dedupe-same-main-agent-again-gets-the-pointer"       "$(is_pointer "$o6" && echo true || echo false)" "got: $(reason_of "$o6" | head -c 80)"
+
+# A burst of five parallel subagents of ONE session, no codescout answer in between: all five are denied and
+# the breaker has counted ONE strike. Counting one per caller would reach 4 strikes and stand the guard down
+# (an allow) while codescout is reachable.
+clean
+burst=""
+for a in b1 b2 b3 b4 b5; do burst="$burst $(verdict "$(call_as sB "$a")")"; done
+expect "dedupe-a-burst-of-subagents-is-one-strike-all-denied" "$([[ "$burst" == " deny deny deny deny deny" ]] && echo true || echo false)" "verdicts:$burst"
+strike_file=$(printf '%s' "sB" | sha256sum | cut -c1-12)
+n=$(cat "$TMPDIR/cs-redirect-$strike_file" 2>/dev/null | cut -f1)
+expect "dedupe-a-burst-counts-exactly-one-strike" "$([[ "$n" == "1" ]] && echo true || echo false)" "strikes recorded: '$n'"
+
+# The window EXPIRES: after 3 s the same caller is explained again, not pointed at a message long gone.
+clean
+call_as sE agentE >/dev/null
+touch -d '10 seconds ago' "$TMPDIR"/cs-block-*
+oE=$(call_as sE agentE)
+expect "dedupe-the-window-expires-after-3s-and-explains-again" "$(is_full "$oE" && echo true || echo false)" "got: $(reason_of "$oE" | head -c 80)"
+
+# A stand-down reached INSIDE a burst applies to the whole burst. The caller that counted the strike crosses the
+# threshold (3 -> 4) and the guard stands down; a second caller of the same burst did not count a strike but must
+# read the count that was reached, not 0: a guard that stood down for one parallel call and denied the next
+# would contradict its own message.
+clean
+printf '3' > "$TMPDIR/cs-redirect-$(printf '%s' sT | sha256sum | cut -c1-12)"
+t1=$(verdict "$(call_as sT t1)"); t2=$(verdict "$(call_as sT t2)")
+expect "dedupe-a-stand-down-inside-a-burst-covers-the-whole-burst" "$([[ "$t1 $t2" == "allow allow" ]] && echo true || echo false)" "verdicts: $t1 $t2"
 
 /bin/rm -rf "$CFG_TMP"
 

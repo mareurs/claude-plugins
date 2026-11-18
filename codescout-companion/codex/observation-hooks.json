@@ -1,0 +1,114 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "__CODESCOUT_OBSERVATION_COMMAND__ --event PreToolUse",
+            "timeout": 3
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "__CODESCOUT_OBSERVATION_COMMAND__ --event PostToolUse",
+            "timeout": 3
+          }
+        ]
+      }
+    ],
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "__CODESCOUT_OBSERVATION_COMMAND__ --event SessionStart",
+            "timeout": 3
+          }
+        ]
+      }
+    ],
+    "SessionEnd": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "__CODESCOUT_OBSERVATION_COMMAND__ --event SessionEnd",
+            "timeout": 3
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "__CODESCOUT_OBSERVATION_COMMAND__ --event Stop",
+            "timeout": 3
+          }
+        ]
+      }
+    ],
+    "SubagentStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "__CODESCOUT_OBSERVATION_COMMAND__ --event SubagentStart",
+            "timeout": 3
+          }
+        ]
+      }
+    ],
+    "SubagentStop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "__CODESCOUT_OBSERVATION_COMMAND__ --event SubagentStop",
+            "timeout": 3
+          }
+        ]
+      }
+    ],
+    "PreCompact": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "__CODESCOUT_OBSERVATION_COMMAND__ --event PreCompact",
+            "timeout": 3
+          }
+        ]
+      }
+    ],
+    "PostCompact": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "__CODESCOUT_OBSERVATION_COMMAND__ --event PostCompact",
+            "timeout": 3
+          }
+        ]
+      }
+    ],
+    "Interrupt": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "__CODESCOUT_OBSERVATION_COMMAND__ --event Interrupt",
+            "timeout": 3
+          }
+        ]
+      }
+    ]
+  }
+}

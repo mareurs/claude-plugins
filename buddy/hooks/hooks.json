@@ -1,9 +1,9 @@
 {
   "hooks": {
-    "PreToolUse": [{ "hooks": [{ "type": "command", "command": "node", "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/run.mjs", "pre-tool-use"] }] }],
-    "SessionStart": [{ "hooks": [{ "type": "command", "command": "node", "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/run.mjs", "session-start"] }] }],
-    "SessionEnd": [{ "hooks": [{ "type": "command", "command": "node", "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/run.mjs", "session-end"] }] }],
-    "PostToolUse": [{ "hooks": [{ "type": "command", "command": "node", "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/run.mjs", "post-tool-use"] }] }],
-    "UserPromptSubmit": [{ "hooks": [{ "type": "command", "command": "node", "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/run.mjs", "user-prompt-submit"] }] }]
+    "PreToolUse": [{ "hooks": [{ "type": "command", "command": "node ${CLAUDE_PLUGIN_ROOT}/hooks/run.mjs pre-tool-use" }] }],
+    "SessionStart": [{ "hooks": [{ "type": "command", "command": "node ${CLAUDE_PLUGIN_ROOT}/hooks/run.mjs session-start" }] }],
+    "SessionEnd": [{ "hooks": [{ "type": "command", "command": "node ${CLAUDE_PLUGIN_ROOT}/hooks/run.mjs session-end" }] }],
+    "PostToolUse": [{ "hooks": [{ "type": "command", "command": "node ${CLAUDE_PLUGIN_ROOT}/hooks/run.mjs post-tool-use" }] }],
+    "UserPromptSubmit": [{ "hooks": [{ "type": "command", "command": "node ${CLAUDE_PLUGIN_ROOT}/hooks/run.mjs user-prompt-submit" }] }]
   }
 }

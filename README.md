@@ -6,23 +6,38 @@ These plugins reflect specific workflows and tool choices -- they may not suit e
 
 ## Quick Start
 
+Claude Code. The marketplace is registered as `sdd-misc-plugins`, the `name` in `.claude-plugin/marketplace.json`:
+
 ```
 /plugin marketplace add mareurs/claude-plugins
-/plugin install sdd@claude-plugins
-/plugin install codescout-companion@claude-plugins
-/plugin install buddy@claude-plugins
+/plugin install sdd@sdd-misc-plugins
+/plugin install codescout-companion@sdd-misc-plugins
+/plugin install buddy@sdd-misc-plugins
 ```
+
+Codex, with `codescout` on your PATH. Install `cs-hint-codex` and not `buddy`: both emit the `[cs-hint]` advisories, and in Codex they would appear twice.
+
+```
+codex plugin marketplace add mareurs/claude-plugins
+codex plugin add cs-hint-codex@sdd-misc-plugins
+codex mcp add codescout -- codescout start
+```
+
+Codex never runs a plugin hook before you approve it, and installing the plugin does not approve it. The interactive `codex` asks at its next start ("Hooks need review"): choose "Review hooks" and press `t` to trust all, or choose "Trust all and continue". The same screen opens later with `/hooks` (Codex documents it; not tried here). Non-interactive runs (`codex exec`, an app-server client) show no prompt and run no unapproved hook. The advisories go to the model, not to your screen. The approval holds until the plugin's own files change, so a new version of the plugin asks for it again.
 
 ## Available Plugins
 
 | Plugin | Version | Description |
 |--------|---------|-------------|
-| **[sdd](./sdd/)** | 2.4.1 | Specification-Driven Development: governance, workflow commands, and enforcement hooks |
-| **[codescout-companion](./codescout-companion/)** | 1.20.0 | Companion plugin for [codescout](https://github.com/mareurs/codescout) MCP server: injects tool guidance, redirects Read/Grep/Glob/Edit/Write to symbol-aware tools, auto-reindex + drift warnings, worktree shared-asset symlinking |
-| **[claude-statusline](./claude-statusline/)** | 1.1.7 | Rich, color-coded terminal status line: model, context %, rate limits (incl. per-model weekly), git info, duration. Self-heals orphan `statusLine` settings when sibling plugins are uninstalled. |
-| **[buddy](./buddy/)** | 0.11.0 | Himalayan-aesthetic bodhisattva companion: 12 specialist masters on demand, AI judge, focus tracking, statusline integration |
-| **[pi companion](./pi/)** | 0.1.0 | Companion for [pi](https://github.com/earendil-works/pi-mono): skill-load tracker, recon badge, MCP status widget; codescout tools as first-class pi tools; all skills wired in |
-| **[session-bridge](./session-bridge/)** | 0.1.0 | Cross-session MCP bridge: ask one Claude Code session a question from another, answered in its loaded context. Rust MCP server, bash SessionStart/Stop hooks. |
+| **[sdd](./sdd/)** | 3.0.1 | Specification-Driven Development: governance, workflow commands, and enforcement hooks |
+| **[codescout-companion](./codescout-companion/)** | 1.22.3 | Companion plugin for [codescout](https://github.com/mareurs/codescout) MCP server: injects tool guidance, redirects Read/Grep/Glob/Edit/Write to symbol-aware tools, auto-reindex + drift warnings, worktree shared-asset symlinking |
+| **[statusline](./statusline/)** | 1.2.1 | Rich, color-coded terminal status line: model, context %, rate limits (incl. per-model weekly), git info, duration. Self-heals orphan `statusLine` settings when sibling plugins are uninstalled. |
+| **[buddy](./buddy/)** | 0.11.18 | Himalayan-aesthetic bodhisattva companion: 12 specialist masters on demand, AI judge, focus tracking, statusline integration |
+| **[Pi harness](./harnesses/pi/)** | 0.1.0 | Companion for [pi](https://github.com/earendil-works/pi-mono): Codescout routing, skill-load tracker, recon badge, MCP status widget, and local read-only session snapshots |
+| **[session-bridge](./session-bridge/)** | 0.2.8 | Channel between Claude Code sessions: ask a live session through a read-only fork, and post notices that reach the sessions they matter to. One Rust binary, `session-bridge`, with the subcommands `serve`, `hook`, `filter` and `notices`. |
+| **[legible](./legible/)** | 0.2.1 | Output style `legible:Explanatory STE`: the Explanatory style (★ Insight blocks) plus about 80% of the ASD-STE100 writing rules, so prose is easier to read and check. |
+| **[hint-echo](./hint-echo/)** | 0.1.0 | Mod that shows you the `additionalContext` tool hooks hand to the model (such as `[cs-hint]`) as a dim transcript row. Read-only: the model gets the same context. |
+| **[cs-hint-codex](./cs-hint-codex/)** | 0.1.1 | Codex only: the `[cs-hint]` advisories of buddy as one PostToolUse hook in a deliberately small plugin root (Codex hashes the whole root for hook trust), so one approval covers it and survives edits to docs, skills and tests. Design: `docs/superpowers/specs/2026-11-09-cs-hint-codex-bundle-design.md`. |
 ## Requirements
 
 - [Claude Code](https://claude.com/claude-code) CLI
@@ -32,31 +47,30 @@ These plugins reflect specific workflows and tool choices -- they may not suit e
 
 | Plugin | Additional Requirements |
 |--------|----------------------|
-| **sdd** | None (core workflow). [Serena MCP](https://github.com/oraios/serena) for `/drift` and `/document`. |
+| **sdd** | `codescout-companion` (the `spec-drift` skill), `superpowers`, and the codescout MCP server. |
 | **codescout-companion** | [codescout MCP](https://github.com/mareurs/codescout) server configured in `.mcp.json` or globally. |
 
 
 ## Pi
 
-For [pi](https://github.com/earendil-works/pi-mono) users, this repo ships a companion in [`pi/`](./pi/).
+For [pi](https://github.com/earendil-works/pi-mono) users, this repo ships a harness adapter in [`harnesses/pi/`](./harnesses/pi/). The `harnesses/` directory is the home for non-Claude-Code integrations; future Codex, GitHub Copilot, and other harness adapters belong alongside Pi there.
 
 **Full setup** involves three components that layer on top of each other:
 
 1. **pi-mcp-adapter** (pi package) — connects MCP servers to pi
-2. **claude-plugins/pi companion** — widget extension + skill dirs wired into pi
-3. **codescout/contrib/pi** (from the codescout repo) — `codescout-mode.ts` extension + `AGENTS.md` + `mcp.json.example`
+2. **claude-plugins Pi harness** — widget, session bridge, guards, and skill dirs wired into pi
+3. **codescout-companion Pi adapter** — routing extension + canonical skills, packaged with this repository
 
 Quick install (claude-plugins part):
 
 ```bash
 pi install npm:pi-mcp-adapter          # once — adds pi-mcp-adapter package
 git clone https://github.com/mareurs/claude-plugins
-cd claude-plugins/pi
+cd claude-plugins/harnesses/pi
 ./install.sh
 ```
 
-Then configure `~/.pi/agent/mcp.json` with your codescout binary path and any API keys.
-Run `/mcp reconnect codescout` once in pi to warm the directTools cache.
+Then configure `~/.pi/agent/mcp.json` with your codescout binary path and any API keys, and run `/mcp reconnect codescout` once in pi to warm the directTools cache.
 
 What you get:
 - Widget below the editor: `cs: reconnaissance  [recon F2/W1]`, `skills: debugging-yeti, pdf …`, `MCP: 2/2  codescout ●  researcher ●`
@@ -64,7 +78,7 @@ What you get:
 - codescout tools (`symbols`, `read_file`, `edit_code`, …) available as first-class pi tools (not proxied)
 - Research skills (`/skill:research-web`, `/skill:research-subagent`) ready with researcher-mcp
 
-See [pi/README.md](./pi/README.md) for the full step-by-step install, `mcp.json` examples, extension details, and skill reference.
+See [harnesses/pi/README.md](./harnesses/pi/README.md) for the full step-by-step install, `mcp.json` examples, extension details, and skill reference.
 
 
 ### Routing pi through a local LLM proxy
@@ -107,13 +121,15 @@ proxy implementation, local model providers, skill versioning, and the
 
 ### SDD (Specification-Driven Development)
 
-A methodology where code follows specifications. Every feature starts with a clear definition of *what* before diving into *how*.
+A strict layer over superpowers and codescout: code follows a spec and a plan that you approved, and a feature is reviewed before it reaches the base branch. You approve by typing `/sdd:approve ...`; the agent cannot.
 
-**Commands:** `/specify`, `/plan`, `/review`, `/drift`, `/document`, `/bootstrap-docs`, `/sdd-init`
+**Commands:** `/sdd-init`, `/review`, `/sdd:approve` (yours only)
 
-**Skills:** `sdd-flow` (full lifecycle orchestration)
+**Skills:** `sdd-flow` (the nine-step flow)
 
-**Hooks:** spec-guard, review-guard, subagent-inject, session-start
+**Hooks:** spec-guard, review-guard, approve-intake, session-start, subagent-inject
+
+Needs `codescout-companion`, `superpowers` and codescout. Guards are not a sandbox: shell writes are not detected, and your typed `/sdd:approve review` is the real gate.
 
 See [sdd/README.md](./sdd/) for full documentation.
 
@@ -131,19 +147,21 @@ Companion plugin for [codescout](https://github.com/mareurs/codescout) MCP serve
 
 See [codescout-companion/README.md](./codescout-companion/) for details and configuration.
 
-### Pi companion
+### Pi harness
 
-Companion for [pi](https://github.com/earendil-works/pi-mono). Two TypeScript extensions and an AGENTS.md routing guide integrate codescout as pi's primary code-intelligence layer.
+The [Pi harness](./harnesses/pi/) integrates Codescout as Pi's primary code-intelligence layer. It owns three TypeScript extensions, the local session bridge, and an AGENTS.md routing guide.
 
 **Extensions:**
-- `codescout-companion.ts` (this repo) — widget below editor: skill-load tracker, recon badge, MCP server status
-- `codescout-mode.ts` (codescout repo, `contrib/pi/`) — drops pi's native `edit`, activates codescout hot-set on session start, bash source-search nudge
+- `codescout-companion.ts` (`harnesses/pi/`) — widget below editor: skill-load tracker, recon badge, MCP server status
+- `secret-guard.ts` (`harnesses/pi/`) — fail-closed shell-egress guard
+- `session-bridge.ts` (`harnesses/pi/`) — local, read-only Pi session snapshots
+- `codescout-mode.ts` (`codescout-companion/.pi/`) — packaged routing adapter that routes Pi native read/edit/write and redundant source shell commands to Codescout when replacement tools are available
 
 **Skills wired into pi:** reconnaissance, explore-project, 12 buddy specialists, sdd-flow, researcher-mcp, research-web, research-subagent, tracker-hygiene
 
 **MCP:** codescout tools surface as first-class pi tools via `directTools` (no `mcp__codescout__` prefix). researcher-mcp optional.
 
-See [pi/README.md](./pi/README.md) for full install instructions.
+See [harnesses/pi/README.md](./harnesses/pi/README.md) for full install instructions.
 
 ## Team Setup
 

@@ -2,12 +2,12 @@ You are installing the buddy statusline into the user's Claude Code settings.
 
 ## Step 1 — Detect sibling plugins
 
-Use the `Bash` tool to detect whether the `claude-statusline` plugin is installed alongside buddy. The plugin root for buddy is `${CLAUDE_PLUGIN_ROOT}`; claude-statusline (if present) lives under the active CC config dir.
+Use the `Bash` tool to detect whether the `statusline` plugin is installed alongside buddy. The plugin root for buddy is `${CLAUDE_PLUGIN_ROOT}`; statusline (if present) lives under the active CC config dir.
 
 ```bash
 CFG="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
 PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$CFG/plugins/buddy}"
-if [ -d "$CFG/plugins/claude-statusline" ]; then
+if [ -d "$CFG/plugins/statusline" ]; then
   echo "MODE=composed"
 else
   echo "MODE=standalone"

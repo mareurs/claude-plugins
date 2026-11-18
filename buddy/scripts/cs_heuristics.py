@@ -21,18 +21,6 @@ _DEFINITION_KEYWORDS = (
     "trait ", "interface ", "func ", "function ",
 )
 
-# Codescout write tools, used by the parallel-write heuristic. Only codescout
-# MCP writes flow through handle_cs_tool_use and get logged, so native
-# Edit/Write can never reach this heuristic and are intentionally omitted.
-# edit_code (action=replace/insert/remove/rename) replaced the old
-# replace_symbol/insert_code/remove_symbol tools; edit_markdown handles .md.
-_WRITE_TOOLS = frozenset({
-    "mcp__codescout__edit_file",
-    "mcp__codescout__create_file",
-    "mcp__codescout__edit_code",
-    "mcp__codescout__edit_markdown",
-})
-
 # Source file extensions where Bash cat/head/tail/sed should be avoided.
 _SOURCE_EXTENSIONS = _LSP_EXTENSIONS | frozenset({
     ".json", ".toml", ".yaml", ".yml",
@@ -47,7 +35,6 @@ def check(event: dict, session_log: list[dict], root_cwd: str = "") -> str | Non
             lambda e, l: _check_forgot_restore(e, l, root_cwd),
             _check_ignored_buffer_ref,
             _check_native_bash_on_source,
-            _check_parallel_write,
             _check_grep_for_concept,
         ]
         for fn in checks:
@@ -88,7 +75,7 @@ def _check_structural_edit(event: dict, session_log: list[dict]) -> str | None:
             return (
                 "Use `edit_code` for structural edits — "
                 "`edit_file` on definition bodies risks LSP range "
-                "corruption (BUG-027)."
+                "corruption."
             )
 
     return None
@@ -114,18 +101,40 @@ def _args_look_like_home(args_summary: str, cwd: str) -> bool:
     return False
 
 
-def _check_forgot_restore(event: dict, session_log: list[dict], root_cwd: str = "") -> str | None:
-    """Detect a foreign activate_project when the previous one was also foreign.
+_WORKSPACE_TOOL = "mcp__codescout__workspace"
 
-    Pattern: warn only when the most recent prior activate_project was a foreign
+
+def is_workspace_activate(tool_name: str, tool_input) -> bool:
+    """True for a `workspace(action="activate")` call, the only call that moves
+    codescout's active project. `activate_project` was folded into it; other
+    `workspace` actions (`status`, `list_projects`) never change the project."""
+    return (
+        tool_name == _WORKSPACE_TOOL
+        and isinstance(tool_input, dict)
+        and tool_input.get("action") == "activate"
+    )
+
+
+def _log_entry_is_activate(entry: dict) -> bool:
+    """Same test for a cs_tool_log record, whose `args` is the summarize_args
+    string (`path=/x, action=activate`): compare whole comma-separated parts, so
+    a path that merely contains the text cannot match."""
+    if entry.get("tool") != _WORKSPACE_TOOL:
+        return False
+    return "action=activate" in str(entry.get("args", "")).split(", ")
+
+
+def _check_forgot_restore(event: dict, session_log: list[dict], root_cwd: str = "") -> str | None:
+    """Detect a foreign workspace(action="activate") when the previous one was also foreign.
+
+    Pattern: warn only when the most recent prior activation was a foreign
     path (meaning the user never restored home). First foreign activation and
     activations that follow a proper restore are both silent.
     """
-    tool = event.get("tool_name", "")
-    if tool != "mcp__codescout__activate_project":
+    tool_input = event.get("tool_input") or {}
+    if not is_workspace_activate(event.get("tool_name", ""), tool_input):
         return None
 
-    tool_input = event.get("tool_input") or {}
     path = tool_input.get("path", "")
 
     import os
@@ -133,19 +142,20 @@ def _check_forgot_restore(event: dict, session_log: list[dict], root_cwd: str = 
     if _is_home_path(path, cwd):
         return None  # this IS a restore — not a foreign activation
 
-    # Walk backwards to find the most recent activate_project before this one.
+    # Walk backwards to find the most recent activation before this one.
     for entry in reversed(session_log[:-1]):  # [:-1] excludes current entry
-        if entry.get("tool") == "mcp__codescout__activate_project":
+        if _log_entry_is_activate(entry):
             args = entry.get("args", "")
             if _args_look_like_home(args, cwd):
                 return None  # prior was a restore — user is cycling correctly
             # Prior was also foreign: user forgot to restore before switching again.
             return (
                 "You activated a foreign project without restoring home first. "
-                "Restore with `activate_project('.')` between projects — Iron Law 4."
+                "Restore with `workspace(action=\"activate\", path=\".\")` "
+                "between projects — Iron Law 4."
             )
 
-    # No prior activate_project in this session — first foreign activation, silent.
+    # No prior activation in this session — first foreign activation, silent.
     return None
 
 
@@ -205,36 +215,36 @@ def _check_native_bash_on_source(event: dict, session_log: list[dict]) -> str | 
     file_ref = match.group(2)
     if any(file_ref.endswith(ext) for ext in _SOURCE_EXTENSIONS):
         return (
-            "Use `read_file` or `find_symbol` — Bash on source files "
+            "Use `read_file` or `symbols` — Bash on source files "
             "bypasses codescout's LSP index."
         )
 
     return None
 
 
-def _check_parallel_write(event: dict, session_log: list[dict]) -> str | None:
-    """Detect parallel writes (same-second timestamps on write-class tools)."""
-    tool = event.get("tool_name", "")
-    if tool not in _WRITE_TOOLS:
-        return None
 
-    if len(session_log) < 2:
-        return None
 
-    prev = session_log[-2]
-    if prev.get("tool") not in _WRITE_TOOLS:
-        return None
+_DEFINITION_FIRST_WORDS = frozenset({
+    "function", "class", "fn", "def", "export", "const", "let", "var", "interface",
+    "struct", "enum", "type", "impl", "import", "pub", "async",
+})
 
-    # Same-second = parallel dispatch
-    current_ts = session_log[-1].get("ts", 0) if session_log else 0
-    prev_ts = prev.get("ts", 0)
-    if current_ts == prev_ts and current_ts > 0:
-        return (
-            "Parallel writes risk inconsistent state (BUG-021) — "
-            "serialize write tool calls."
-        )
+# A question opener marks a pattern as a question about code, whatever else it holds.
+_QUESTION_WORDS = frozenset({"how", "where", "what", "why", "which", "when", "who"})
 
-    return None
+# Prose words. A concept query is a keyword list ("retry logic backoff"); text the
+# agent copied from a message, a log line or a document carries these ("reference
+# index is not ready"), and grep is the right tool for it. Deliberately small and
+# conservative: it silences the hint on doubt, never fires on it.
+_FUNCTION_WORDS = frozenset({
+    "a", "an", "the", "is", "are", "was", "were", "be", "been", "am", "do", "does",
+    "did", "has", "have", "had", "not", "no", "only", "as", "at", "by", "for", "from",
+    "in", "into", "of", "on", "onto", "to", "with", "about", "against", "another",
+    "that", "this", "these", "those", "it", "its", "while", "when", "if", "or", "and",
+    "but", "than", "then", "so", "also", "which", "who", "whom", "whose", "can",
+    "could", "will", "would", "shall", "should", "may", "might", "must", "there",
+})
+
 
 
 def _check_grep_for_concept(event: dict, session_log: list[dict]) -> str | None:
@@ -247,6 +257,10 @@ def _check_grep_for_concept(event: dict, session_log: list[dict]) -> str | None:
     Decision table (from codescout manual):
       "A text fragment"        → grep  ✓
       "The concept, not name"  → semantic_search  ← this heuristic fires here
+
+    A concept query is a keyword list or a question. Quoted prose and identifiers
+    are text the agent already has, so they are left to grep (see the issue
+    2026-11-07-grep-for-concept-heuristic-fires-on-literal-phrase-searches).
     """
     import re as _re
 
@@ -267,13 +281,23 @@ def _check_grep_for_concept(event: dict, session_log: list[dict]) -> str | None:
     if any(tok in pattern for tok in ("::", "->", "=>", "__")):
         return None
 
-    # 2+ space-separated all-alpha words → natural-language concept phrase
+    # 2+ space-separated all-alpha words → candidate concept phrase
     words = pattern.split()
-    if len(words) >= 2 and all(_re.match(r"^[a-zA-Z]+$", w) for w in words):
-        return (
-            f'`grep("{pattern}")` matches text literally. '
-            f"For concept queries, `semantic_search` finds related code "
-            f"by meaning without requiring an exact text match."
-        )
+    if len(words) < 2 or not all(_re.match(r"^[a-zA-Z]+$", w) for w in words):
+        return None
 
-    return None
+    # An identifier (camelCase / PascalCase) or a definition keyword up front is a
+    # lookup by name: `symbols(name=...)` or grep, never a concept query.
+    first = words[0].lower()
+    if first in _DEFINITION_FIRST_WORDS or any(_re.search(r"[a-z][A-Z]", w) for w in words):
+        return None
+
+    # Prose words mean quoted text, unless the pattern opens as a question.
+    if first not in _QUESTION_WORDS and any(w.lower() in _FUNCTION_WORDS for w in words):
+        return None
+
+    return (
+        f'`grep("{pattern}")` matches text literally. '
+        f"For concept queries, `semantic_search` finds related code "
+        f"by meaning without requiring an exact text match."
+    )

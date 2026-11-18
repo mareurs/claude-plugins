@@ -7,4 +7,12 @@ hash = "f9ebc90adf9fe0ff38dd2e0a58ebb537cbae64b623276bc6e1ac6c86a66a7957"
 
 [[anchors]]
 path = "CLAUDE.md"
-hash = "c476110734df7fefb468cc42a4ae2e5f1327dee00ee203595c44c725e00b7b2a"
+hash = "9c327c1ed07d6160c4a6efaafd1afebf90d69cdb58ba437b5cfcfd6f97a876e2"
+
+[[anchors]]
+path = "docs/issues/archive/2026-08-27-guide-ledger-bracket-is-inert-within-its-own-session.md"
+hash = "46fdb384180e2525e57d714eb0a6d3b37da9ef8539ce83cd398237eaefbb888c"
+
+[[anchors]]
+path = "docs/issues/archive/2026-08-27-test-suite-rekeys-live-codescout-server.md"
+hash = "43321d8b24759b8e59a3890452106ff75f26fd21d87442f42251347782be04d0"

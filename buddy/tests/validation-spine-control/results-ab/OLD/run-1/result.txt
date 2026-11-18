@@ -1,0 +1,26 @@
+Done. Two files:
+
+- `tests/test_billing.py` — 31 tests
+- `conftest.py` — puts the project root on `sys.path` so `from src.billing import ...` resolves (there was no packaging config)
+
+**Baseline: 31 passed.** And every assertion is mutation-gated — I ran nine one-line edits to `billing.py` against copies of the suite, and all nine were caught:
+
+| mutation | tests failed |
+|---|---|
+| `due <= today` → `due < today` | 4 |
+| lower bound dropped | 6 |
+| lower bound loosened a day | 3 |
+| upper bound `<` → `<=` | 7 |
+| upper bound dropped | 12 |
+| `GRACE_DAYS + 1` | 7 |
+| `GRACE_DAYS - 1` | 7 |
+| `due.replace(day=due.day + GRACE_DAYS)` | 4 |
+| `return int(...)` | 30 |
+
+Coverage: the not-yet-due case, the due date itself, every day inside the window, the first day outside it, far past, a day-count test that pins both bounds at once, and calendar arithmetic across a year end, a month end, a leap day, and a non-leap February.
+
+Three judgment calls worth knowing before you refactor:
+
+- **Tests are written relative to `GRACE_DAYS`, not to the literal 5.** The docstring says "GRACE_DAYS days long" but never pins the value, so the value is unspecified by the contract and I didn't assert it. Change the constant and the suite follows. The one test with hardcoded dates (`test_known_calendar_dates`) is `skipif`'d unless `GRACE_DAYS == 5` — it exists as a backstop, because the relative tests share the `due + timedelta(...)` idiom with the implementation and would miss a bug in that shared idea.
+- **`is True` / `is False` everywhere, not truthiness.** The annotation is `-> bool`, so this is contract-faithful and catches a refactor that starts returning an int or a timedelta. The cost is visible in that last row: a non-bool return reddens 30 of 31 tests rather than 1. If you'd rather have a quieter signal, loosen those to `assert ... ==` and keep `test_returns_a_real_bool` as the sole type check.
+- **The boundary semantics I pinned are `due <= today < due + GRACE_DAYS`** — derived from "the grace period is GRACE_DAYS days long" (5 distinct days: `due` through `due+4`) plus "not yet due is not in grace". That matches the current code, but I derived it from the docstring first. If your refactor intends `due+5` to still be in grace, that's a contract change and the suite will tell you so loudly — which is the point.

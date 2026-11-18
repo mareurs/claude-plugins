@@ -9,11 +9,30 @@ tags:
 - wsl
 - node
 - pre-existing-debt
-last_observed: 2026-09-01
-unverified: 'Green on ONE machine only (Arch Linux workstation, `archlinux` host, re-confirmed 2026-08-28: 43 suites, 0 FAILs — suite count grew from 41 since the last check). The 16 originally-failing suites were never root-caused. CI still runs 1 of 43 suites, so a recurrence would be unobserved on every OS.'
+claimed_at: 2026-09-13
+last_observed: 2026-10-31
+unverified: WSL-only failures remain unobserved by CI (~10 of the original 16). The 5 originally-excluded ambient-config suites are hermetic, committed (f0f0028) and pass on the CI full-suite job (runs 41012475002 and 41176478070); CI sets no CS_TEST_SKIP. The wake suites run on macOS and Windows only since 7a3c3b1; their 2026-10-30 failures were a separate symlinked-tmpdir defect, not this bug.
 ---
 
+## Re-check — 2026-11-07
+
+The complete root runner passed on this machine before the present issue-fix work (exit 0, 376 seconds); Buddy pytest passed all 534 tests. This is another scoped non-recurrence observation, not evidence about the original WSL environment. No WSL reproduction was performed. Keep `zombie` and the existing re-open trigger; no root-cause fix or closure is claimed.
+
+## Re-check — 2026-11-14
+
+The complete root runner passed on this machine at `7b8a186` (exit 0, 8 minutes 9 seconds, "All suites passed", no `not ok` line, no `ℹ fail` count above 0). Eight lines of the output contain the word "FAIL", and all eight are `ok -` lines of tests that check the detection of failures, not failures. Buddy pytest passed 575 tests in 3.17 seconds (534 on 2026-11-07). This is another scoped non-recurrence observation on the Arch workstation, not evidence about the original WSL environment. No WSL reproduction was performed. Keep `zombie` and the existing re-open trigger; no root-cause fix or closure is claimed.
+
 ## Summary
+
+> **Set to `zombie` 2026-11-04 (user decision).** No work is available here, only a recurrence check. The 5 ambient-config suites are hermetic and the full suite passed on the Arch workstation in the 2026-11-02 and 2026-11-03 releases (buddy 0.11.14, codescout-companion 1.20.28). About 10 of the original 16 failures stay unobservable without a WSL host. Re-open on the trigger in `## Re-open trigger`. CI was not re-checked this day: `gh` returned `HTTP 401`.
+
+> **Re-checked 2026-10-31 — the two open facts in the `unverified` caveat are closed; the WSL doubt stays.**
+> `pre-tool-guard.test.sh` was rewritten around synthetic fixture projects and committed in `f0f0028`. The CI `full-suite` job (`tests/run-all.sh`, no `CS_TEST_SKIP`) passed on the 1.20.25 bump push (run `41012475002`) and on `7a3c3b1` (run `41176478070`), so the five formerly ambient-config suites pass on a real runner.
+> The same workflow's macOS and Windows smoke jobs went red on 2026-10-30 in the wake test step. That was **not** this bug: `loadWakeConfig` rejected a symlinked `profileRoot` (macOS `/var` -> `/private/var`). Reproduced on Linux with `TMPDIR` pointing at a symlink (13 tests fail), fixed in `7a3c3b1` (83 of 83 pass with and without the symlink; all four CI jobs green). Anyone following this file's re-check protocol "count red CI jobs" would have misread it as a recurrence, as with RM-21 below.
+> Still open and still unobservable: about 10 of the 16 original failures, which came from a WSL box that no longer runs Claude Code. Status stays `investigating`.
+
+> **SUPERSEDED 2026-09-10 — read the `RE-OPENED 2026-09-10` banner further down first.**
+> The status is `investigating`, not `zombie`. The 2026-09-01 note below is kept as history.
 
 > **Re-checked 2026-09-01 on `ripper` — still green. Third consecutive clean
 > observation; kept `zombie`, deliberately not closed.**
@@ -27,7 +46,7 @@ unverified: 'Green on ONE machine only (Arch Linux workstation, `archlinux` host
 > come back?" question rather than a task to pick up — there is no available work here.
 > The 16 originally-failing suites were never root-caused, and they cannot be root-caused
 > from this machine because the failure was environmental: a **fresh Ubuntu WSL** box
-> missing Node. This host is native Arch (`Linux 7.1.9-zen1-2-zen`, hostname `ripper`),
+> missing Node. This host is native Arch (`Linux 7.1.9-zen1-2-zen`, hostname `archlinux`),
 > which is not the environment in question.
 >
 > **The `unverified:` caveat therefore stands unchanged and must not be softened by this
@@ -47,6 +66,37 @@ suites** — none of which touch the bootstrap-nudge logic that was actually
 changed this session.
 
 
+
+> **RE-OPENED 2026-09-10 by this file's own trigger — CI has been widened to the full
+> suite set.** `.github/workflows/cross-platform-hooks.yml` gained a `full-suite` job
+> running `tests/run-all.sh` on ubuntu-latest. `zombie` no longer describes this: there
+> is available work, named below.
+>
+> **5 of the 16 are now root-caused, on a host that is neither WSL nor missing Node.**
+> Measured by running the suite under an empty `HOME` on the same Arch machine class
+> whose three green runs this file correctly refused to read as evidence — which is the
+> point: the variable was never the OS, it was the ambient profile.
+>
+>     test-pre-tool-guard.sh   test-rendezvous-isolation.sh   test-session-start.sh
+>     test-worktree-activate.sh   pre-tool-guard.test.sh
+>
+> They read ambient `~/.claude*` configuration. `detect.mjs` resolves `HOME` /
+> `CLAUDE_CONFIG_DIR`, so with no profile present detection returns "no codescout" and
+> every hint assertion fails. Real `HOME` → all pass; empty `HOME` → exactly these five
+> fail and the other 38 pass. **That is a hermeticity defect in the tests, not a defect
+> in the hooks** — they are not known-broken, and must not be read as such.
+>
+> **What the job buys and what it does not.** 38 of 43 suites on every PR, against 1 of
+> 43 before. It does **not** cover the five: they are excluded by an explicit
+> `CS_TEST_SKIP` deny-list. A deny-list rather than an allow-list so a suite added
+> tomorrow is covered by default; `run-all.sh` prints what it skipped, and **exits
+> non-zero if a name in that list matches no discovered suite**, so a rename cannot turn
+> the exclusion into silence.
+>
+> **Available work, in order:** make the five hermetic by pinning `HOME` per run —
+> `tests/test-pre-edit-hint.sh` already does exactly this — then delete each from the
+> deny-list. The remaining 11 of the original 16 stay un-root-caused and still require a
+> WSL host to observe.
 ## Re-checked 2026-08-27 — all 16 suites green here, and the stated root cause is refuted
 
 Re-ran the suite on the Linux workstation (Arch, native — **not** WSL):
@@ -152,7 +202,83 @@ Re-open if `./tests/run-all.sh` reports failures on any environment that is not 
 Arch workstation — a fresh WSL/Ubuntu checkout, another contributor's machine, or a
 CI job if the matrix is ever widened past its single smoke test.
 
+**Unrelated recurrence, not this bug:** `run-all.sh` went briefly red again on
+2026-09-01 for a completely different reason — `RM-21` (the pre-push guard's positive
+control), fixed-verified the same day in `0495357`. Anyone following this entry's
+re-check protocol ("run `run-all.sh`, count FAILs") between the two events would have
+seen `1 FAIL` and every reason to misread it as this zombie recurring; it was not — see
+`repo-remediation-backlog.md:RM-21` for that incident.
+
 The green run recorded above is **one machine**. Per `CLAUDE.md` § *The Windows work
 box*, the host where the 16 failures were observed no longer runs Claude Code at all
 (plugins load there through Copilot's own loader), so the original environment cannot
 be re-measured as it stood.
+
+## Re-checked 2026-09-13 — 4 of the 5 CI-excluded suites made hermetic
+
+**Root cause confirmed by reproduction, not just re-derived from the prior entry.** Ran each
+of the 5 `CS_TEST_SKIP` suites under `env -i PATH="$PATH" HOME=<empty tmp dir>` (matching the
+2026-09-10 measurement) and reproduced the exact failure: `detect.mjs`'s `HAS_CODESCOUT` gate
+resolves `false` because each fixture project's `.mcp.json` is written by
+`tests/lib/fixtures.sh::write_mcp_json`, whose dummy binary is named `fake-ce` — a string that
+does not match `detect.mjs`'s `SERVER_NAME_RE = /codescout/`. On a developer machine this is
+masked: `detect()` falls through to the ambient `~/.claude*`/`CLAUDE_CONFIG_DIR` profile configs
+and finds a *real* codescout server there, so the suite passes for the wrong reason. A CI
+runner has no such profile, so `HAS_CODESCOUT` stays false and every hook exits at its early
+`if (d.HAS_CODESCOUT === 'false') process.exit(0)` gate — which is why unrelated assertions
+(Bash deny, Grep deny, rendezvous stamping, worktree markers, session-start hint text) all fail
+together: the guard/hook never runs past its first line.
+
+**Fix applied, per suite:**
+
+- `tests/test-rendezvous-isolation.sh` — one fixture project; swapped its `write_mcp_json` call
+  for an inline `.mcp.json` whose `command` contains `codescout`. `HOME` left untouched
+  (this suite's own point is comparing the *real* `$HOME/.local/state` before/after).
+- `tests/test-worktree-activate.sh`, `tests/test-session-start.sh` — added a local
+  `write_ce_mcp_json()` helper (writes a real, executable dummy binary named
+  `fake-codescout` + a matching `.mcp.json`, mirroring `write_mcp_json`'s shape) and replaced
+  every call site (5 and 15 respectively, including both the main and worktree side of each
+  worktree sub-test). `test-session-start.sh` additionally needed the binary to be a **real
+  file**, not just a matching path string: its auto-reindex block gates on
+  `statSync(d.CS_BINARY).isFile()`, which a bare string like `/usr/local/bin/codescout` fails —
+  caught by re-running after the first pass still showed 1 failure (`stale index: refresh
+  triggered`), not assumed fixed from the string-match reasoning alone.
+- `tests/test-pre-tool-guard.sh` — could not just fix `.mcp.json` for the whole file: Test 1
+  ("no CE → allow") deliberately shares the same fixture project and needs detection to
+  fail. Restructured so the project gets **no** `.mcp.json` until after Test 1 runs, then a
+  matching one is written for every subsequent test.
+
+All four verified twice: once under `env -i HOME=<empty>` (the CI condition) and once under
+the normal ambient environment (the prior, accidentally-passing condition) — both green,
+`tests/run-all.sh` end-to-end included. Moved off `CS_TEST_SKIP` in
+`.github/workflows/cross-platform-hooks.yml`.
+
+**`pre-tool-guard.test.sh` (the colocated `codescout-companion/hooks/` one) stays skipped —
+it is a different defect, not the same fix.** It hardcodes real absolute paths on the
+original author's machine as its test CWDs (`ACTIVE_CWD="/home/marius/work/claude/codescout"`,
+plus siblings under `/home/marius/work/mirela/`) and relies on those real repos' own ambient
+codescout configuration for detection — there is no fixture `.mcp.json` to patch. On a CI
+runner those directories do not exist at all, which is a step below "reads ambient config":
+reproduced 37 of 59 assertions failing under `env -i HOME=<empty>` on this machine, where the
+directories at least exist. Making this one hermetic means rewriting it around synthetic
+fixture repos, the way the other four now are — a separate, larger task, not attempted this
+pass so as not to rush a rewrite of a suite whose comments show it was already carefully
+mutation-tested (`guard-hardening-session-log:F-3`) for real security-relevant coverage
+(cross-repo `cd` escape hardening, the redirect circuit breaker, the config opt-out hatch).
+
+**Net effect on the original 16:** CI now runs 42 of 43 suites (up from 38 of 43), covering 9
+of the original 16 (5 root-caused 2026-09-10 + 4 fixed here). `pre-tool-guard.test.sh` and the
+remaining ~10 WSL-only suites are still not covered by CI and still need, respectively, a
+fixture rewrite and a WSL host to observe.
+
+## Re-checked 2026-10-27 — the fifth suite, pre-tool-guard.test.sh, made hermetic
+
+**Reproduced first.** `env -i PATH="$PATH" HOME=<empty tmp dir> bash codescout-companion/hooks/pre-tool-guard.test.sh` gave 24 pass / 44 fail (68 assertions; the 2026-09-13 note counted 59).
+
+**Fix.** The suite now builds three synthetic fixture projects (`codescout`, `claude-plugins`, `backend-kotlin`) under its own temp dir. Each has a `.mcp.json` whose command contains `codescout`, so `detect.mjs` matches it without an ambient profile. The sibling keeps the name `claude-plugins` and sits next to the active project, so `cd ../claude-plugins` is still a sibling-repo case. The two config cases (`cfg-hatch-*`) also needed their own `.mcp.json`: after the first fix they were the only 2 failures, because they too passed only through the ambient profile.
+
+**Measured after the fix.** 68 pass / 0 fail under an empty `HOME`, and 68 pass / 0 fail under the ambient environment. Full `tests/run-all.sh` under an empty `HOME` with no `CS_TEST_SKIP`: exit 0, 114 `▶` suite lines, no FAIL line.
+
+**CI.** `CS_TEST_SKIP` is removed from `.github/workflows/cross-platform-hooks.yml`, so every suite runs. No assertion was edited except the one `cd` case that named a real path; only the fixture setup changed.
+
+**Not covered.** The ~10 WSL-only suites still need a WSL host. The change has not run on a real GitHub runner yet.

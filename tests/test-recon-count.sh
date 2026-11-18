@@ -9,6 +9,13 @@ bad()  { echo "  FAIL: $1 — $2"; FAIL=$((FAIL+1)); }
 
 echo "── recon-count ──"
 
+# Tests 1-6 exercise the `.current_session_id` FALLBACK path, so the
+# process-scoped source has to be absent for them. Without this unset they all
+# resolve to the ambient session instead and write under a different sid — and
+# test 5's premise ("missing SID") dissolves entirely. Test 7 pins the
+# precedence itself.
+unset CLAUDE_CODE_SESSION_ID
+
 # 1. bump F creates file with F=1 W=0
 T="$(mktemp -d)"; mkdir -p "$T/.buddy"; echo "sid1" > "$T/.buddy/.current_session_id"
 python3 "$SCRIPT" bump F --root "$T" 2>/dev/null
@@ -44,6 +51,19 @@ python3 "$SCRIPT" bump F --root "$T3" 2>/dev/null
 if [ "$(python3 -c "import json;print(json.load(open('$T3/.buddy/sid3/recon-counts.json'))['F'])")" = "1" ]; then
   ok "corrupt JSON → reset, bump F=1"; else bad "corrupt JSON" "got $(cat "$T3/.buddy/sid3/recon-counts.json")"; fi
 
-rm -rf "$T" "$T2" "$T3"
+# 7. $CLAUDE_CODE_SESSION_ID WINS over a conflicting .current_session_id pointer.
+# The pointer is a documented last-writer file; on a shared checkout it can name a
+# peer. buddy/scripts/statusline.py resolves the sid from the harness's own session
+# id (stdin JSON), so this writer must too — otherwise the marker and counts land
+# under a sid nothing reads and the badge silently never appears. Regression guard
+# for the 2026-09-02 measurement, where the pointer named a peer mid-recon.
+# Both directions are asserted: the env sid must be used AND the pointer sid must
+# not also be written, so a "write both" mutation fails too.
+T4="$(mktemp -d)"; mkdir -p "$T4/.buddy"; echo "peer-sid" > "$T4/.buddy/.current_session_id"
+CLAUDE_CODE_SESSION_ID="my-sid" python3 "$SCRIPT" bump F --root "$T4" 2>/dev/null
+if [ -f "$T4/.buddy/my-sid/recon-counts.json" ] && [ ! -e "$T4/.buddy/peer-sid" ]; then
+  ok "env sid wins over last-writer pointer"; else bad "env sid precedence" "files=$(find "$T4/.buddy" -mindepth 1)"; fi
+
+rm -rf "$T" "$T2" "$T3" "$T4"
 echo "── recon-count: $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]

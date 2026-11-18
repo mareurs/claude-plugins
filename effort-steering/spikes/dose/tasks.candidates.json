@@ -1,0 +1,152 @@
+{
+  "suffix": "End your reply with one final line of the form \"ANSWER: <value>\".",
+  "tasks": [
+    {
+      "id": "e1",
+      "stratum": "easy",
+      "prompt": "What is 17 times 24? End your reply with one final line of the form \"ANSWER: <value>\".",
+      "answer": "408",
+      "kind": "int"
+    },
+    {
+      "id": "e2",
+      "stratum": "easy",
+      "prompt": "Convert 3.5 hours to minutes. End your reply with one final line of the form \"ANSWER: <value>\".",
+      "answer": "210",
+      "kind": "int"
+    },
+    {
+      "id": "e3",
+      "stratum": "easy",
+      "prompt": "What is the capital city of Australia? End your reply with one final line of the form \"ANSWER: <value>\".",
+      "answer": "canberra",
+      "kind": "word"
+    },
+    {
+      "id": "e4",
+      "stratum": "easy",
+      "prompt": "What is the sum of the integers from 1 to 10? End your reply with one final line of the form \"ANSWER: <value>\".",
+      "answer": "55",
+      "kind": "int"
+    },
+    {
+      "id": "e5",
+      "stratum": "easy",
+      "prompt": "How many bytes are in 3 kibibytes? End your reply with one final line of the form \"ANSWER: <value>\".",
+      "answer": "3072",
+      "kind": "int"
+    },
+    {
+      "id": "e6",
+      "stratum": "easy",
+      "prompt": "What is the remainder when 1000 is divided by 7? End your reply with one final line of the form \"ANSWER: <value>\".",
+      "answer": "6",
+      "kind": "int"
+    },
+    {
+      "id": "m1",
+      "stratum": "medium",
+      "prompt": "A train leaves at 9:40 and arrives at 13:15 on the same day. It stood still for a 25-minute stop on the way. For how many minutes was it moving? End your reply with one final line of the form \"ANSWER: <value>\".",
+      "answer": "190",
+      "kind": "int"
+    },
+    {
+      "id": "m2",
+      "stratum": "medium",
+      "prompt": "How many integers from 1 to 500 are divisible by exactly one of 4 and 6 (by 4 or by 6, but not by both)? End your reply with one final line of the form \"ANSWER: <value>\".",
+      "answer": "126",
+      "kind": "int"
+    },
+    {
+      "id": "m3",
+      "stratum": "medium",
+      "prompt": "What is the remainder when 7 to the power 100 is divided by 13? End your reply with one final line of the form \"ANSWER: <value>\".",
+      "answer": "9",
+      "kind": "int"
+    },
+    {
+      "id": "m4",
+      "stratum": "medium",
+      "prompt": "The sequence 3, 7, 15, 31, 63, ... continues by the same rule. What is its 12th term? End your reply with one final line of the form \"ANSWER: <value>\".",
+      "answer": "8191",
+      "kind": "int"
+    },
+    {
+      "id": "m5",
+      "stratum": "medium",
+      "prompt": "A rectangle has perimeter 46 and area 120. What is the length of its diagonal? End your reply with one final line of the form \"ANSWER: <value>\".",
+      "answer": "17",
+      "kind": "int"
+    },
+    {
+      "id": "m6",
+      "stratum": "medium",
+      "prompt": "A shop raises a price by 20 percent and then lowers the new price by 20 percent. The final price is 96. What was the original price? End your reply with one final line of the form \"ANSWER: <value>\".",
+      "answer": "100",
+      "kind": "int"
+    },
+    {
+      "id": "m7",
+      "stratum": "medium",
+      "prompt": "How many positive divisors does 360 have? End your reply with one final line of the form \"ANSWER: <value>\".",
+      "answer": "24",
+      "kind": "int"
+    },
+    {
+      "id": "h1",
+      "stratum": "hard",
+      "prompt": "How many 8-bit binary strings have exactly three 1s and no two 1s next to each other? End your reply with one final line of the form \"ANSWER: <value>\".",
+      "answer": "20",
+      "kind": "int"
+    },
+    {
+      "id": "h2",
+      "stratum": "hard",
+      "prompt": "Five people A, B, C, D and E sit in a row of five seats. A does not sit next to B. C sits somewhere to the left of D. E does not sit in either end seat. How many seating arrangements are possible? End your reply with one final line of the form \"ANSWER: <value>\".",
+      "answer": "24",
+      "kind": "int"
+    },
+    {
+      "id": "h3",
+      "stratum": "hard",
+      "prompt": "A bag holds 4 red, 3 blue and 2 green balls. Three balls are drawn at random without replacement. What is the probability that exactly two of the three balls have the same colour? Give the answer as a reduced fraction a/b. End your reply with one final line of the form \"ANSWER: <value>\".",
+      "answer": "55/84",
+      "kind": "fraction"
+    },
+    {
+      "id": "h4",
+      "stratum": "hard",
+      "prompt": "What is the sum of all two-digit primes whose two digits are both prime digits (2, 3, 5 or 7)? End your reply with one final line of the form \"ANSWER: <value>\".",
+      "answer": "186",
+      "kind": "int"
+    },
+    {
+      "id": "h5",
+      "stratum": "hard",
+      "prompt": "How many integers n with 1 <= n <= 100 have both n and n+1 free of square factors greater than 1 (both squarefree)? End your reply with one final line of the form \"ANSWER: <value>\".",
+      "answer": "33",
+      "kind": "int"
+    },
+    {
+      "id": "h6",
+      "stratum": "hard",
+      "prompt": "How many ordered pairs (a, b) of positive integers satisfy a times b equals 360 and gcd(a, b) equals 1? End your reply with one final line of the form \"ANSWER: <value>\".",
+      "answer": "8",
+      "kind": "int"
+    },
+    {
+      "id": "h7",
+      "stratum": "hard",
+      "prompt": "What are the last two digits of 3 to the power 2026? End your reply with one final line of the form \"ANSWER: <value>\".",
+      "answer": "29",
+      "kind": "int2"
+    },
+    {
+      "id": "h8",
+      "stratum": "hard",
+      "prompt": "A frog starts on step 0 of a staircase. Each jump climbs exactly 1, 2 or 3 steps. In how many different sequences of jumps can it land exactly on step 10? End your reply with one final line of the form \"ANSWER: <value>\".",
+      "answer": "274",
+      "kind": "int"
+    }
+  ]
+}

@@ -1,0 +1,80 @@
+{
+  "version": 1,
+  "measuredAt": "2026-10-29T23:05:04.329847+00:00",
+  "rows": [
+    {
+      "harness": "claude-code",
+      "hostVersion": "2.1.312",
+      "os": "linux",
+      "status": "measured",
+      "reason": "Real native root/subagent and spawn/read hook envelopes, with synthetic MCP outcomes. Complete continuation and callback preservation are separate unverified gates.",
+      "fixtures": [
+        {
+          "file": "claude-root-spawn.json",
+          "sha256": "d18aad309d4c60458de31a1d656f501459ac19c7cf91191e009d297fc6cbe28a",
+          "synthetic": false,
+          "syntheticToolOutcome": true
+        },
+        {
+          "file": "claude-root-read.json",
+          "sha256": "6f92898de247eb46cae860b7acff7f99ddc64825e73977a01ff879b2fbec1cc2",
+          "synthetic": false,
+          "syntheticToolOutcome": true
+        },
+        {
+          "file": "claude-subagent.json",
+          "sha256": "a65e7326a72f1acf18924157e34073fdd97bdfdadafe5f7866c1cf398ce58c84",
+          "synthetic": false,
+          "syntheticToolOutcome": true
+        }
+      ],
+      "ready": false
+    },
+    {
+      "harness": "codex",
+      "hostVersion": "0.165.0",
+      "os": "linux",
+      "status": "measured",
+      "reason": "Real native root/subagent and spawn/read hook envelopes, with synthetic MCP outcomes. Complete continuation and callback preservation are separate unverified gates.",
+      "fixtures": [
+        {
+          "file": "codex-root-spawn.json",
+          "sha256": "f8c4dadbd4742c5b1a4fdf6844091b71bf16d8013c95575e15ae826df283e894",
+          "synthetic": false,
+          "syntheticToolOutcome": true
+        },
+        {
+          "file": "codex-root-read.json",
+          "sha256": "aa36b4b17d904ae6a524a1cdb1abb38606ffcf3ba2bbf15277a27dc64bbdfaca",
+          "synthetic": false,
+          "syntheticToolOutcome": true
+        },
+        {
+          "file": "codex-subagent.json",
+          "sha256": "0c837b6ad57c58738b0fe3e19d39388a6433315e8e1bd4a60a627d0ba58df427",
+          "synthetic": false,
+          "syntheticToolOutcome": true
+        }
+      ],
+      "ready": false
+    },
+    {
+      "harness": "claude-code",
+      "hostVersion": "unmeasured",
+      "os": "win32",
+      "status": "unverified",
+      "reason": "Native Windows host was not available; no endpoint or complete-delivery claim.",
+      "fixtures": [],
+      "ready": false
+    },
+    {
+      "harness": "codex",
+      "hostVersion": "unmeasured",
+      "os": "win32",
+      "status": "unverified",
+      "reason": "Native Windows host was not available; no endpoint or complete-delivery claim.",
+      "fixtures": [],
+      "ready": false
+    }
+  ]
+}

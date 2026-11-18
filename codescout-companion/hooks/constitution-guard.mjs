@@ -7,26 +7,29 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { execFileSync } from 'node:child_process';
-import { readInput, denyPreToolUse, resolveProjectRoot } from './lib.mjs';
+import { readInput, denyPreToolUse, inputPath, isWriteOperation, resolveProjectRoot, resolveCodescoutBinary } from './lib.mjs';
 
 const DEFAULT_STATE = { epoch: 0, seen_path_rules: [], global_surfaced_epoch: -1 };
 
 const input = readInput();
 if (!input) process.exit(0);
+if (!isWriteOperation(input)) process.exit(0);
 
 const sessionId = input.session_id || '';
 if (!sessionId) process.exit(0);
 
-const targetPath = (input.tool_input && (input.tool_input.path || input.tool_input.file_path)) || '';
+const targetPath = inputPath(input);
 if (!targetPath) process.exit(0);
 
 const cwd = input.cwd || process.cwd();
 
-// Resolve rules via the codescout binary on PATH (matches the original
-// `command -v codescout`). Absent/failed → no enforcement (fail-open).
+// Resolve rules via the codescout binary (PATH, then fallbacks — hook PATH is
+// often narrower than the shell's). Absent/failed → no enforcement (fail-open).
+const csBin = resolveCodescoutBinary(cwd);
+if (!csBin) process.exit(0);
 let raw;
 try {
-  raw = execFileSync('codescout', ['constitution-check', '--path', targetPath, '--project', cwd], {
+  raw = execFileSync(csBin, ['constitution-check', '--path', targetPath, '--project', cwd], {
     encoding: 'utf8',
     stdio: ['ignore', 'pipe', 'ignore'],
   });

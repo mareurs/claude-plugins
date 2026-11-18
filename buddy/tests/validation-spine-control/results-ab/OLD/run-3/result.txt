@@ -1,0 +1,31 @@
+Done. 36 tests, all passing.
+
+**Files:** `tests/test_billing.py`, plus a `pytest.ini` (sets `pythonpath = src` so `import billing` works in this bare repo — fold it into your `pyproject.toml` if you have one).
+
+**Contract I tested against** (from the docstring, not from the code): `is_in_grace_period(due, today)` is True exactly on the half-open interval `[due, due + GRACE_DAYS)`. The due date itself counts, since it isn't "not yet due"; a window "GRACE_DAYS days long" starting there closes before `due + GRACE_DAYS`.
+
+**The one judgment call, worth your eyes before you refactor:** whether `due + 5 days` is in or out. I read the docstring as excluding it, and the tests pin that. The competing reading — "5 days of grace *after* the due date", making the window 6 dates — is not crazy; if that's the real business rule, `test_first_day_after_grace_period` is the test to flip, and the implementation is currently wrong.
+
+**Mutation results.** I didn't eyeball these — I applied each one-line edit to `billing.py`, ran the suite, and restored (verified byte-identical afterwards). 12/12 killed:
+
+| mutant | failures |
+|---|---|
+| `due <= today` → `due < today` | 6 |
+| upper bound `<` → `<=` | 10 |
+| `GRACE_DAYS` 5 → 6 / 5 → 4 | 5 / 5 |
+| constant `True` / `False` | 20 / 20 |
+| swap `due`/`today` | 21 |
+| hardcode `5`, ignore `GRACE_DAYS` | 3 |
+| day-of-month arithmetic instead of `timedelta` | 10 |
+| drop lower bound | 7 |
+| `timedelta(days=)` → `weeks=` | 13 |
+| return `int` instead of `bool` | 35 |
+
+I deleted one test I'd written (`test_does_not_mutate_its_arguments`) — `date` has no writable attributes and no `__dict__`, so no change to `billing.py` could ever turn it red. An assertion that can't fail is noise.
+
+Two things to flag about how the suite constrains your refactor:
+
+- **`test_window_length_follows_grace_days`** monkeypatches `billing.GRACE_DAYS` and so depends on the constant being read at call time. If you refactor it into a default argument or a config object, that test needs updating — it's a real coupling, kept because it's the only thing pinning the window to the named constant rather than a magic `5`.
+- **`is True` / `is False`** assertions make the suite strict about returning an actual `bool`. That's backed by the `-> bool` annotation, but it means a refactor returning `1`/`0` or a NumPy bool fails loudly.
+
+One correction on my own work: my first run had 2 failures and my second had 1, all three from me miscounting February and December lengths when writing expected values by hand. Those were errors in my test data, not defects in `billing.py` — I recomputed the offsets with stdlib date arithmetic and fixed the table. No assertion was ever relaxed to match the code.

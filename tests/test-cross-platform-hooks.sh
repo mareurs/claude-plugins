@@ -69,7 +69,7 @@ fi
 #    `from scripts...` imports resolve. Node is guaranteed wherever Claude Code
 #    runs; if absent here we skip rather than fail.
 tmp="$(mktemp -d 2>/dev/null || mktemp -d -t cphooks)"
-ev='{"session_id":"ci-smoke","cwd":"'"$tmp"'","tool_name":"Read","tool_input":{},"prompt":"hi"}'
+ev='{"session_id":"ci-smoke","cwd":"'"$(winpath "$tmp")"'","tool_name":"Read","tool_input":{},"prompt":"hi"}'
 if ! command -v node >/dev/null 2>&1; then
   skip "node absent — buddy launcher end-to-end check requires Node (Claude Code ships it)"
 elif printf '%s' "$ev" | HOME="$tmp" node "$ROOT/buddy/hooks/run.mjs" post-tool-use >/dev/null 2>&1; then
@@ -80,12 +80,23 @@ fi
 rm -rf "$tmp" 2>/dev/null || true
 
 # 5b. launcher exit-code + interpreter-probe semantics (all require node).
+#     Every `cwd` below goes through `winpath()` before it's embedded in JSON —
+#     Claude Code itself hands hooks a native Windows path on Windows, never a
+#     raw Git-Bash `/tmp/...` one, so feeding the launcher a raw `mktemp -d`
+#     path was testing a shape that never occurs in production. Measured
+#     2026-09-06: a raw path silently fails to write `.buddy/.current_session_id`
+#     (buddy still creates the `.buddy` dir, just not the file inside it, at
+#     whatever location Windows-native Python resolves the un-translated path
+#     to); the same event with `cygpath -m` applied writes correctly. Bash-side
+#     reads (`cat "$t2/..."`) keep the untranslated var — bash understands its
+#     own mktemp path natively; only the JSON handed to node/python needs the
+#     translation.
 if command -v node >/dev/null 2>&1; then
   LAUNCH="$ROOT/buddy/hooks/run.mjs"
 
   # (a) the dispatcher actually RAN (side effect written) — not a silent no-op.
   t2="$(mktemp -d 2>/dev/null || mktemp -d -t cphooks)"
-  printf '%s' '{"session_id":"cp-se","cwd":"'"$t2"'"}' | node "$LAUNCH" session-start >/dev/null 2>&1
+  printf '%s' '{"session_id":"cp-se","cwd":"'"$(winpath "$t2")"'"}' | node "$LAUNCH" session-start >/dev/null 2>&1
   if [ "$(cat "$t2/.buddy/.current_session_id" 2>/dev/null)" = "cp-se" ]; then
     ok "launcher: dispatcher ran (pointer written)"
   else
@@ -99,7 +110,7 @@ if command -v node >/dev/null 2>&1; then
   now="$(date +%s)"  # verdict must be fresh — should_block filters by a TTL
   printf '{"session_id":"blk","last_updated":%s,"active_verdicts":[{"ts":%s,"verdict":"cs-misuse","severity":"blocking","evidence":"e","correction":"c","affected_tools":["read_file"],"acknowledged":false}]}' "$now" "$now" > "$sd/cs_verdicts.json"
   rc=0
-  printf '%s' '{"session_id":"blk","cwd":"'"$t3"'","tool_name":"Read"}' \
+  printf '%s' '{"session_id":"blk","cwd":"'"$(winpath "$t3")"'","tool_name":"Read"}' \
     | BUDDY_CS_JUDGE_ENABLED=true BUDDY_JUDGE_BLOCK=true node "$LAUNCH" pre-tool-use >/dev/null 2>&1 || rc=$?
   [ "$rc" -eq 2 ] && ok "launcher: forwards intentional block (exit 2)" \
     || bad "launcher: intentional block not forwarded (rc=$rc)"
@@ -117,7 +128,7 @@ if command -v node >/dev/null 2>&1; then
     stub="$(mktemp -d 2>/dev/null || mktemp -d -t cpstub)"
     printf '#!/bin/sh\nexit 9009\n' > "$stub/python3"; chmod +x "$stub/python3"
     t4="$(mktemp -d 2>/dev/null || mktemp -d -t cphooks)"
-    printf '%s' '{"session_id":"cp-stub","cwd":"'"$t4"'"}' \
+    printf '%s' '{"session_id":"cp-stub","cwd":"'"$(winpath "$t4")"'"}' \
       | PATH="$stub:$PATH" node "$LAUNCH" session-start >/dev/null 2>&1
     if [ "$(cat "$t4/.buddy/.current_session_id" 2>/dev/null)" = "cp-stub" ]; then
       ok "launcher: skips a nonzero-exiting python3 stub, uses real python"
@@ -128,8 +139,75 @@ if command -v node >/dev/null 2>&1; then
   else
     skip "no real \`python\` besides python3 — stub-fallthrough check skipped"
   fi
+
+  # (d2) the launcher must start the interpreter ONCE per hook call. It used to
+  #      spawn a probe (`python3 -c ''`) before the dispatcher; where `python3` is
+  #      a pyenv shim each start costs ~55 ms of shim overhead (measured 78 ms vs
+  #      23 ms for the real binary), paid on every PreToolUse/PostToolUse. Count
+  #      invocations with a wrapper that delegates to the real python3.
+  # The wrapper must exec the REAL binary (sys.executable), not `command -v python3`:
+  # that is a pyenv shim here, and pyenv resolves "system" python by searching PATH,
+  # which finds the wrapper itself — an infinite exec loop (measured: 291 calls).
+  real_py="$(python3 -c 'import sys; print(sys.executable)' 2>/dev/null || true)"
+  if [ -n "$real_py" ] && [ -x "$real_py" ]; then
+    cnt="$(mktemp -d 2>/dev/null || mktemp -d -t cpcnt)"
+    printf '#!/bin/sh\necho x >> "%s/calls"\nexec "%s" "$@"\n' "$cnt" "$real_py" > "$cnt/python3"
+    chmod +x "$cnt/python3"
+    t6="$(mktemp -d 2>/dev/null || mktemp -d -t cphooks)"
+    printf '%s' '{"session_id":"cp-once","cwd":"'"$(winpath "$t6")"'"}' \
+      | PATH="$cnt:$PATH" node "$LAUNCH" session-start >/dev/null 2>&1
+    calls="$(wc -l < "$cnt/calls" 2>/dev/null | tr -d ' ')"
+    if [ "$calls" = "1" ] && [ "$(cat "$t6/.buddy/.current_session_id" 2>/dev/null)" = "cp-once" ]; then
+      ok "launcher: starts python once per hook call (no probe spawn)"
+    else
+      bad "launcher: python started ${calls:-0} times per hook call (expected 1, probe regression)"
+    fi
+    rm -rf "$cnt" "$t6" 2>/dev/null || true
+  else
+    skip "no python3 on PATH — single-spawn check skipped"
+  fi
+
+  # (e) a missing PyYAML must NOT disable SessionStart. consolidate.py imports
+  #     yaml at module level; hook_entry.run_session_start now guards that
+  #     import separately from its other, unrelated setup (PPID index, core
+  #     state write) so an ImportError there costs only consolidation nudges.
+  #     Regression pin: for two months (2026-07-09 .. 2026-09-05) this guard
+  #     was absent, hook_dispatch.main()'s blanket except swallowed the
+  #     ImportError, and SessionStart silently wrote nothing on any CI runner
+  #     whose bare `setup-python` never installs PyYAML — no test failed.
+  yaml_stub="$(mktemp -d 2>/dev/null || mktemp -d -t cpyaml)"
+  printf 'raise ImportError("no module named yaml")\n' > "$yaml_stub/yaml.py"
+  t5="$(mktemp -d 2>/dev/null || mktemp -d -t cphooks)"
+  printf '%s' '{"session_id":"cp-noyaml","cwd":"'"$(winpath "$t5")"'"}' \
+    | PYTHONPATH="$yaml_stub" node "$LAUNCH" session-start >/dev/null 2>&1
+  if [ "$(cat "$t5/.buddy/.current_session_id" 2>/dev/null)" = "cp-noyaml" ]; then
+    ok "launcher: SessionStart survives a missing PyYAML"
+  else
+    bad "launcher: missing PyYAML silently disabled SessionStart"
+  fi
+  rm -rf "$yaml_stub" "$t5" 2>/dev/null || true
 else
   skip "node absent — launcher exit-code/probe checks require Node"
+fi
+
+# 5c. sdd spec-guard denies a source write in a strict project with no approved
+#     plan (the deny is the JSON permissionDecision on stdout, exit 0). The temp
+#     project carries a bare .git dir: the hook finds the main checkout by it.
+if ! command -v node >/dev/null 2>&1; then
+  skip "node absent — sdd spec-guard check requires Node"
+else
+  sp="$(mktemp -d 2>/dev/null || mktemp -d -t cpsdd)"
+  mkdir -p "$sp/.git" "$sp/.sdd" "$sp/src"
+  printf '%s' '{"enforcement":"strict"}' > "$sp/.sdd/config.json"
+  spayload='{"hook_event_name":"PreToolUse","tool_name":"Write","cwd":"'"$(winpath "$sp")"'","tool_input":{"file_path":"'"$(winpath "$sp")"'/src/a.ts","content":"x"}}'
+  sout="$(printf '%s' "$spayload" | node "$ROOT/sdd/hooks/spec-guard.mjs" 2>/dev/null || true)"
+  if printf '%s' "$sout" | grep -q '"hookEventName":"PreToolUse"' \
+    && printf '%s' "$sout" | grep -q '"permissionDecision":"deny"'; then
+    ok "sdd spec-guard denies a source write in a strict project with no approved plan"
+  else
+    bad "sdd spec-guard did not deny a source write (stdout: $sout)"
+  fi
+  rm -rf "$sp" 2>/dev/null || true
 fi
 
 # 6. .gitattributes guard: no CRLF in tracked shell/python scripts. On a Windows

@@ -13,17 +13,24 @@ TMPD=$(node -e 'process.stdout.write(require("os").tmpdir())')
 clear_dedup() { [ -n "$TMPD" ] && rm -f "$TMPD"/cs-block-* 2>/dev/null; return 0; }
 
 make_git_repo "$T/proj"
-write_mcp_json "$T/proj"
 
 # --- Helper ---
 guard_input() {
   printf '{"cwd":"%s","tool_name":"%s","tool_input":{%s}}' "$T/proj" "$1" "$2"
 }
 
-# Test 1: no CE → allow
+# Test 1: no CE → allow (project has no .mcp.json at all yet)
 OUT=$(guard_input "Read" '"file_path":"'"$T/proj/foo.ts"'"' | CLAUDE_CONFIG_DIR="$T/empty" node "$HOOK" 2>/dev/null)
 EC=$?
 if [ $EC -eq 0 ] && ! assert_denied "$OUT"; then pass "no CE: allow"; else fail "no CE: allow" "exit=$EC out=$OUT"; fi
+
+# From here on, $T/proj is codescout-enabled for every remaining test.
+# write_mcp_json fixture uses fake-ce which doesn't match detect.mjs's
+# /codescout/ regex; write directly with a matching command so HAS_CODESCOUT
+# resolves from the project alone, not from an ambient ~/.claude* profile.
+cat > "$T/proj/.mcp.json" <<'MCP'
+{"mcpServers":{"codescout":{"command":"/usr/local/bin/codescout","args":["serve"]}}}
+MCP
 
 # Test 2: Bash tool → deny with run_command
 clear_dedup
@@ -80,10 +87,10 @@ fi
 # Test 8b: Read on .md outside project → deny (path-agnostic)
 clear_dedup
 OUT=$(guard_input "Read" '"file_path":"/tmp/some-skill/SKILL.md"' | node "$HOOK" 2>/dev/null)
-if assert_denied "$OUT" && echo "$OUT" | grep -q "read_markdown"; then
-  pass "Read .md outside project: deny with read_markdown guidance"
+if assert_denied "$OUT" && assert_reason_contains "$OUT" 'read_file(path="/tmp/some-skill/SKILL.md")'; then
+  pass "Read .md outside project: deny, guidance keeps the absolute path"
 else
-  fail "Read .md outside project: deny with read_markdown guidance" "$OUT"
+  fail "Read .md outside project: deny, guidance keeps the absolute path" "$OUT"
 fi
 
 # Test 8c: Read on skill SKILL.md inside project → ALLOW (skill-payload exemption,
@@ -99,7 +106,7 @@ fi
 # Test 8d: Read on .md in skills/ subdir inside project → deny (no skills/ exemption)
 clear_dedup
 OUT=$(guard_input "Read" '"file_path":"'"$T/proj/myplugin/skills/foo/guide.md"'"' | node "$HOOK" 2>/dev/null)
-if assert_denied "$OUT" && echo "$OUT" | grep -q "read_markdown"; then
+if assert_denied "$OUT" && assert_reason_contains "$OUT" 'read_file(path="myplugin/skills/foo/guide.md")'; then
   pass "Read .md in skills/ dir: deny (no skills/ exemption)"
 else
   fail "Read .md in skills/ dir: deny (no skills/ exemption)" "$OUT"

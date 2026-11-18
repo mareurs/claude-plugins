@@ -26,3 +26,6 @@ __pycache__/
 .claude/codescout-companion.json
 .vscode/
 .codescout/private-memories/
+
+# Prepared runtime dependencies are installed from the committed lockfile.
+node_modules/

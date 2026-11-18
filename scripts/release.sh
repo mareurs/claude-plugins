@@ -16,16 +16,22 @@
 #
 # Steps (each gated; aborts on first failure):
 #   0. pre-flight  — working tree clean; run-all.sh + buddy pytest green
+#                    (buddy/.venv pytest, else the system python's; prints a
+#                    SKIPPED line if neither — scripts/lib-buddy-pytest.sh)
+#   0.5. build     — runs <plugin>/scripts/build.sh when it exists (session-bridge: cargo
+#                    test + clippy + cargo install into ~/.cargo/bin); a red build aborts
+#                    before any bump (scripts/lib-plugin-build.sh)
 #   1. version     — bump <plugin>/.claude-plugin/plugin.json + README.md table
 #   2. consistency — scripts/check-versions.sh
 #   3. commit      — "chore: bump <plugin> to <version>"
-#   4. cache       — scripts/bump-cache.sh (seed all 3 Claude Code profiles)
+#   4. cache       — scripts/bump-cache.sh (seed each profile in lib-profiles.sh that has the plugin)
 #   4.5. copilot    — scripts/sync-copilot.sh (separate app/marketplace; soft-skips
 #                     if this machine has no Copilot install or this plugin isn't
 #                     registered there)
-#   5. records     — repoint version + installPath in all 3 install records
+#   5. records     — repoint version + installPath in the install record of every profile
+#                    that has the plugin (scripts/repoint-install-records.sh)
 #   6. sanity      — recorded version's cache dir exists; installPath owns its profile
-#   6.5. parity    — scripts/check-profile-parity.sh: every ARRAY element across all 3
+#   6.5. parity    — scripts/check-profile-parity.sh: every ARRAY element across every profile
 #                    profiles is canonical, cached, and owns its profile (steps 5 and 6
 #                    only ever look at element [0])
 #   7. push        — unless NO_PUSH=1 (protected by the pre-push-guard hook if
@@ -39,8 +45,9 @@ cd "$REPO_ROOT"
 PLUGIN="${1:?usage: release.sh <plugin> [<version>|patch|minor|major]}"
 BUMP="${2:-patch}"
 MARKETPLACE="${MARKETPLACE:-sdd-misc-plugins}"
-PROFILES=("$HOME/.claude" "$HOME/.claude-sdd" "$HOME/.claude-kat")
+source "$REPO_ROOT/scripts/lib-profiles.sh"   # PROFILES
 PLUGIN_JSON="$PLUGIN/.claude-plugin/plugin.json"
+PACKAGE_JSON="$PLUGIN/package.json"
 
 [ -f "$PLUGIN_JSON" ] || { echo "✗ no $PLUGIN_JSON — unknown plugin '$PLUGIN'"; exit 1; }
 
@@ -65,13 +72,21 @@ if [ -n "$(git status --porcelain)" ]; then
 fi
 if [ "${SKIP_TESTS:-0}" != "1" ]; then
   echo "▶ tests: ./tests/run-all.sh"; ./tests/run-all.sh
-  if [ -x buddy/.venv/bin/pytest ]; then
-    echo "▶ tests: buddy pytest"; ( cd buddy && .venv/bin/pytest tests -q )
-  fi
+  source "$REPO_ROOT/scripts/lib-buddy-pytest.sh"
+  run_buddy_pytest buddy
 fi
+
+# 0.5. build — run <plugin>/scripts/build.sh if the plugin has one (session-bridge:
+#      cargo test, clippy, cargo install). Runs before any state changes, so a red
+#      build leaves no bump commit, no cache and no record behind. -------------------
+source "$REPO_ROOT/scripts/lib-plugin-build.sh"
+run_plugin_build "$REPO_ROOT" "$PLUGIN" || exit 1
 
 # 1. bump version sources ------------------------------------------------------
 tmp="$(mktemp)"; jq --arg v "$VERSION" '.version = $v' "$PLUGIN_JSON" > "$tmp" && mv "$tmp" "$PLUGIN_JSON"
+if [ -f "$PACKAGE_JSON" ]; then
+  tmp="$(mktemp)"; jq --arg v "$VERSION" '.version = $v' "$PACKAGE_JSON" > "$tmp" && mv "$tmp" "$PACKAGE_JSON"
+fi
 # README version-table row:  | **[<plugin>](./<plugin>/)** | <ver> | <desc> |
 sed -i -E "s#(\*\*\[$PLUGIN\]\(\./$PLUGIN/\)\*\* [|] )[^ |]+( [|])#\1$VERSION\2#" README.md
 
@@ -80,6 +95,7 @@ sed -i -E "s#(\*\*\[$PLUGIN\]\(\./$PLUGIN/\)\*\* [|] )[^ |]+( [|])#\1$VERSION\2#
 
 # 3. commit the bump -----------------------------------------------------------
 git add "$PLUGIN_JSON" README.md
+[ -f "$PACKAGE_JSON" ] && git add "$PACKAGE_JSON"
 git commit -m "chore: bump $PLUGIN to $VERSION" \
            -m "Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 
@@ -90,27 +106,10 @@ git commit -m "chore: bump $PLUGIN to $VERSION" \
 #      machine has no Copilot install, or this plugin isn't registered there) --
 ./scripts/sync-copilot.sh "$PLUGIN" "$VERSION"
 
-# 5. repoint version + installPath in all 3 install records --------------------
-for P in "${PROFILES[@]}"; do
-  rec="$P/plugins/installed_plugins.json"
-  [ -f "$rec" ] || { echo "  · skip $P (no install record)"; continue; }
-  t="$(mktemp)"
-  jq --arg v "$VERSION" --arg p "$P/plugins/cache/$MARKETPLACE/$PLUGIN/$VERSION" \
-     "(.plugins[\"$PLUGIN@$MARKETPLACE\"][0].version) = \$v
-      | (.plugins[\"$PLUGIN@$MARKETPLACE\"][0].installPath) = \$p" \
-     "$rec" > "$t" && mv "$t" "$rec"
-done
-
-# 6. sanity: cache dir for recorded version exists; installPath owns its profile
-fail=0
-for P in "${PROFILES[@]}"; do
-  rec="$P/plugins/installed_plugins.json"; [ -f "$rec" ] || continue
-  v="$(jq -r ".plugins[\"$PLUGIN@$MARKETPLACE\"][0].version" "$rec")"
-  ip="$(jq -r ".plugins[\"$PLUGIN@$MARKETPLACE\"][0].installPath" "$rec")"
-  if [ -d "$P/plugins/cache/$MARKETPLACE/$PLUGIN/$v" ]; then echo "  ✓ $P  $PLUGIN $v"; else echo "  ✗ $P  $PLUGIN $v cache MISSING"; fail=1; fi
-  case "$ip" in "$P"/*) ;; *) echo "  ✗ $P  installPath escapes profile: $ip"; fail=1 ;; esac
-done
-[ "$fail" = 0 ] || { echo "✗ sanity failed — NOT pushing. Fix records, re-run, or push manually."; exit 1; }
+# 5 + 6. repoint version + installPath in the install record of every profile that has
+#        the plugin, then sanity-check (cache dir exists; installPath owns its profile).
+#        Profiles without the plugin are skipped, never given it (F-15).
+MARKETPLACE="$MARKETPLACE" ./scripts/repoint-install-records.sh "$PLUGIN" "$VERSION"
 
 # 6.5. profile parity — EVERY array element, not just [0] ----------------------
 # Step 5 repoints [0] and step 6 validates what step 5 wrote, so both are blind to a
@@ -130,7 +129,7 @@ cat <<EOF
 
 Two steps remain — a bash script can't do them:
   1. codescout tracker — refresh version-bump-checklist (needs the MCP tool), then verify all ✅:
-       artifact(action="update", id="cc8cb9e23ab5cc67", commit_refresh=true)   # update params/body for $PLUGIN $VERSION
-  2. COLD-RESTART all three Claude Code instances — a resume is NOT enough (hooks
+       doc(action="update", id="cc8cb9e23ab5cc67", commit_refresh=true)   # update params/body for $PLUGIN $VERSION
+  2. COLD-RESTART every Claude Code instance — a resume is NOT enough (hooks
      resolve installPath at launch). Fully quit + relaunch, or run /reload-plugins.
 EOF

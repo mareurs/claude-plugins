@@ -9,7 +9,7 @@ tags:
 entry_prefix:
 - F
 - W
-entry_high_water_F: 14
+entry_high_water_F: 15
 entry_high_water_W: 5
 ---
 
@@ -68,8 +68,8 @@ entry_high_water_W: 5
 
 | ID | Date | Severity | Category | Status | Title |
 |----|------|---------:|----------|--------|-------|
-| F-1 | 2026-08-26 | med | tracker-drift | open | A drift finding re-measured its own title; the claim that number supported was falsified and went unfiled |
-| F-2 | 2026-08-26 | med | tracker-drift | open | `buddy-introspection` reports `specialists_scanned: 10/10` while the roster has grown to 12 |
+| F-1 | 2026-08-26 | med | tracker-drift | fixed-verified (re-verified 2026-10-27) | A drift finding re-measured its own title; the claim that number supported was falsified and went unfiled |
+| F-2 | 2026-08-26 | med | tracker-drift | fixed-verified (re-verified 2026-10-27) | `buddy-introspection` reports `specialists_scanned: 10/10` while the roster has grown to 12 |
 | F-3 | 2026-08-26 | med | codescout-tool | fixed-verified | The reconnaissance skill's own worked exemplars use a `**Valid:**` form that `append_entry` hard-rejects (`f53aaea`, shipped in codescout-companion 1.16.17) |
 | F-4 | 2026-08-26 | med | tracker-drift | fixed-verified | `T-N` is not a live namespace, so ~60 citations are silently inert — invisible to `link_scan` and to `doctor` (**corrected** same day; original claim was "dangles permanently") |
 | F-5 | 2026-08-26 | med | codescout-tool | open | codescout's session-log template cites its own ledger's ids bare, so every fresh copy injects cross-repo dangling (and one wrongly-resolving) citation |
@@ -82,6 +82,7 @@ entry_high_water_W: 5
 | F-13 | 2026-08-26 | high | eval-design | **The skill never loaded in three of four instrument scenarios**, so their "treatment" arms were controls. Adding the clause that activates it flips the *control* 0/3 → 3/3 — activation IS the treatment, and this harness cannot separate them. Corrects `F-11`, `F-12`, `W-3` |
 | F-12 | 2026-08-26 | high | eval-design | fixed-verified | **Second design also tautological — and the control arm probed unprompted.** All 3 no-skill runs built a known-answer probe. Two designs, six control runs: the behaviour `R-4` teaches is base competence, so this harness cannot measure it |
 | F-14 | 2026-08-27 | med | codescout-tool | open | `unfiltered_output_lines` counts the SOURCE, not the buffer (said `624`/`20000` over buffers holding ~231/238 lines). A grep past the cut returns 0, reading identically to "absent" — I concluded `run-all.sh` skips `hooks/*.test.sh`; it runs all 39. Upstream cause was mine: an IL-3 pipe-to-trimmer |
+| F-15 | 2026-11-05 | high | release-pipeline | fixed-verified | `release.sh` seeds caches and auto-vivifies an install record for a plugin in every profile, installed or not; parity then certifies it. Blocks a kat-only `sdd` release |
 ## Wins Index
 
 | ID | Date | Impact | Pattern | Counterfactual | Status |
@@ -277,9 +278,17 @@ Codified so the Index column means the same thing across sessions.
 
 **Severity:** med — as filed, `VG-8` closes by editing one integer, leaving an `Accept` disposition standing on arithmetic now wrong by a factor of two. The next reader inherits a live wrong conclusion from an entry marked resolved. Not high: nothing ships from `#20`, and the roster is not load-bearing code.
 
-**Status:** open — `VG-8` not yet widened; `#20` not yet re-opened.
+**Status:** fixed-verified — stale status field; the work itself landed same-day. `VG-8`
+was widened and closed 2026-08-26 (its own "Widened and closed" section), and `#20` in
+`buddy-introspection.md` carries a full `RE-OPENED 2026-08-26` section with the measured
+distribution. Re-verified 2026-09-07 (`RM-14`): `wc -l buddy/skills/*/SKILL.md` today
+still shows `codescout-pika` at 316 (highest) and `security-ibex` at 181 (second), median
+123 across the other 11 — the correction has held for 12 days. `codescout-pika`'s own
+audit (the "still owed" item both `VG-8` and `#20` name) remains a separate open item.
 
-**Valid:** dated 2026-08-26
+**Valid:** dated 2026-10-27
+
+**Re-measured 2026-10-27** (`wc -l` over `buddy/skills/*/SKILL.md`): `codescout-pika` 316 (highest), `security-ibex` 181 (second), minimum 118, and the median of the 11 files other than `codescout-pika` is 123. All as recorded on 2026-09-07, so the correction has held for 51 days; 181 / 123 = 1.47×. One sub-claim no longer reproduces: the `118–136` baseline of the ten scanned specialists. Without `security-ibex`, those nine are now 118–161 lines (`testing-snow-leopard` 148, `data-leakage-snow-pheasant` 160, `ml-training-takin` 161). I did not check what was added to them.
 
 True of `buddy/skills/` at plugin version 0.9.1; re-verify after any specialist rewrite.
 
@@ -303,9 +312,15 @@ True of `buddy/skills/` at plugin version 0.9.1; re-verify after any specialist 
 
 **Severity:** med — every `S-N` row's `Applies to (N/10)` count understates by an unknown amount, `VG-7` nominates the roster's largest file for a trim without noting it is also unaudited, and `active-plan.md` `T-35` (quarterly hamsa sweep, due 2026-08-15, eleven days overdue at time of writing) has no signal that its scope grew by two.
 
-**Status:** open
+**Status:** fixed-verified — same-day fix, stale status field. `buddy-introspection.md`
+line 16 now reads `specialists_scanned: 10/12  # roster grew to 12 AFTER this sweep`,
+with an explanatory line at 98 spelling out which two are unaudited. Re-verified
+2026-09-07 (`RM-14`): still reads `10/12` today, matching the 12 directories under
+`buddy/skills/`.
 
-**Valid:** dated 2026-08-26
+**Valid:** dated 2026-10-27
+
+**Re-verified 2026-10-27:** `buddy/skills/` still holds twelve specialist directories, and `buddy-introspection.md` line 16 still reads `specialists_scanned: 10/12`, with the ten named and `codescout-pika` and `prompt-hamsa` under `specialists_pending`. The tracker's own figure for `prompt-hamsa` is stale: it says 158 lines and the file is now 171 (corrected there the same day).
 
 True of `buddy/skills/` at plugin version 0.9.1 — twelve specialist directories, ten named in `specialists_scanned`.
 
@@ -513,7 +528,16 @@ Bare tokens resolve against the *copying* repo. Here `R-1` happens to hit this p
 
 **Severity:** med — one wrong-resolution (`R-1` binding to an unrelated local entry) plus three dangling and two ambiguous, per fresh copy, in every repo that follows the skill. The wrong resolution is the bad one: it produces a `cites` edge that is confidently incorrect rather than reported as broken.
 
-**Status:** open — needs a template-side fix.
+**Status:** fixed-verified 2026-09-07 (`RM-14`) — upstream, in codescout itself, not in
+this repo (this tracker only ever cited codescout's copy). Read
+`/home/marius/work/claude/codescout/docs/templates/session-log.md` directly today: all
+four citations this entry named are now qualified —
+`statement-validity-session-log:F-2`/`statement-validity-session-log:W-3` (line 29),
+`codescout:R-89` (line 105), `codescout:R-1 + codescout:R-7` (line 108), and
+`calendar-insight-panel-session-log-2026-08-18:W-4` (line 116). This tracker's own copy
+predates the fix and still carries the bare forms in its boilerplate — harmless, since
+those sit in prose quoted from the old template, not live citations from this repo's own
+work.
 
 **Valid:** dated 2026-08-26
 
@@ -550,7 +574,13 @@ The result is a namespace that reads healthy from every angle while carrying zer
 
 **Severity:** med — no silent data loss, but it produced two confidently wrong findings in one day on one namespace, and one of them was filed as an issue before correction. Not high: the fix is additive and nothing depends on the inert citations today.
 
-**Status:** open — filed upstream as a codescout issue; see Fix idea.
+**Status:** fixed-verified 2026-09-07 (`RM-14`) — both upstream fixes have landed. `doctor`'s
+`by_check` now includes `cited_prefix_with_no_definer` (ran it this session: `0` on this
+repo). `link_scan`'s envelope now leads with an explicit
+`"TRUNCATED: ambiguous[50 of 74], dangling[50 of 71], cross_repo[50 of 117] — absence from
+a cut list is not evidence"` summary line rather than the oblique `arrays: ambiguous[50]`
+vs `counts.ambiguous: 81` mismatch this entry described — the disclosure is now
+impossible to miss rather than merely present.
 
 **Valid:** dated 2026-08-26
 
@@ -1625,6 +1655,33 @@ reliable way to inspect it.
 buffer *without* an IL-3 violation upstream — i.e. from a bare `run_command` whose
 `output_id` was itself capped. That would separate "the tool's reporting is unsafe"
 from "I broke the law that protects me from it", which this instance cannot.
+
+## F-15 — release.sh writes an install record and cache for a plugin into every profile, even where it is not installed
+
+**Status:** open
+**Severity:** high — a release would write hidden state (install records + caches) into three profiles and the parity gate would certify it green.
+**Category:** release-pipeline
+
+**Valid:** dated 2026-11-05
+
+**Observed:** 2026-11-05, recon before the sdd refactor. The user wants `sdd` installed in `~/.claude-kat` only.
+
+**Expected:** `release.sh <plugin>` touches only the profiles where the plugin is installed.
+
+**Actual:** two steps act on every profile in `PROFILES`, installed or not.
+
+- Step 4, `scripts/bump-cache.sh:42-50`, copies the plugin into `<profile>/plugins/cache/sdd-misc-plugins/<plugin>/<ver>` for all four profiles, with no install check.
+- Step 5, `scripts/release.sh:99-107`, runs `jq '(.plugins["<plugin>@<mkt>"][0].version) = $v | (...installPath) = $p'`. On a record without that key, jq creates it. Measured on a synthetic record: `{"plugins":{"buddy@m":[...]}}` came out with `"sdd@m":[{"version":"2.4.3","installPath":"/x/cache/m/sdd/2.4.3"}]`, an entry with no `scope` and no `installedAt`.
+- Step 6.5 then runs `check-profile-parity.sh`. It sees the plugin "present" in all four profiles, so the release reports green.
+
+**Consequence:** the first `release.sh sdd` writes a partial install record for `sdd` into all four profiles, and the same happens to any plugin installed in a subset of profiles. `statusline` (installed in 3 of 4; not in `~/.claude-stef`) gets a record in `~/.claude-stef` on its next release. `enabledPlugins` is not touched, so nothing loads, but the records and caches are drift that the parity gate was built to catch and here certifies.
+
+**Not verified:** whether Claude Code accepts or rewrites a record entry without `scope`. No release was run; the jq behaviour was measured on a synthetic record only.
+
+**Fix idea:** in steps 4 and 5, skip a profile whose record lacks `.plugins["<plugin>@<mkt>"]` (`jq -e 'has(...)'`), and print the skip. Add a test in `tests/` with a three-profile tree where the plugin is installed in one profile; assert the other two records and caches stay byte-identical. Needed before the first sdd release.
+
+
+**Fixed-verified 2026-11-05.** Fix merged in `ae6a9d9` (branch commit `92121f6`): `scripts/lib-profiles.sh` `profile_has_plugin`, `bump-cache.sh` skips profiles without the plugin, and the new `scripts/repoint-install-records.sh` (called from `release.sh`) prints `· skip <profile> (<plugin> not installed)`. Regression test: `tests/test-release-installed-profiles.sh`. Verified for real by the `sdd` 3.0.0 release (push `5eea7ef..55344e9`): it printed the skip line for all four profiles, cached `sdd 3.0.0 in 0 of 4 profiles`, and parity reported `OK: sdd 3.0.0 — not installed in any profile`; no `sdd@` key was written into any install record.
 
 ## Template for new entries
 

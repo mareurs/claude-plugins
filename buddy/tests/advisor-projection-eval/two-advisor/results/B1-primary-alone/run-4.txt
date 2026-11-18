@@ -1,0 +1,87 @@
+*The Testing Snow Leopard pads in from the ridgeline, eyes on the unguarded paths.*
+
+Your one test passes. It also passes if you delete both guard clauses. I checked by hand-evaluating each mutation against that test's inputs (admin, org 1, invoice org 1, one invoice). I did not run a mutation tool. This is based only on the pasted code. I haven't seen `FakeRequest`, `make_invoice`, or how the db is seeded.
+
+**Contract:** `get_invoice` returns `invoice.render()` if the invoice exists and the user is an admin or shares its org. It raises `NotFound` if the invoice is absent, checked before authorization. It raises `Forbidden` if the invoice exists, the user is not an admin, and the orgs differ.
+
+## What the existing test kills and what survives
+
+| Mutation | Survives? | Why |
+|---|---|---|
+| Delete `NotFound` branch | yes | The invoice exists. |
+| Delete `Forbidden` branch | yes | Orgs match, and the user is an admin. |
+| `and` → `or` | yes | Both operands are False for this input. |
+| `!= "admin"` → `== "admin"` | yes | Orgs match, so the second operand is False anyway. |
+| `!=` → `==` on org_id | yes | The admin short-circuits first. |
+| Drop `.filter(...)` | yes, if only one row exists | `.first()` returns the only row. |
+| `return invoice` instead of `invoice.render()` | no | This is the only mutation caught. |
+
+Of seven mutations, one is caught. The admin bypass is never exercised, because the admin's org equals the invoice's org.
+
+## What is missing
+
+1. **Forbidden path.** A non-admin in another org is never tested. This is the security-critical branch.
+2. **NotFound path.** A missing id is never tested, and nothing pins the ordering (NotFound before authorization).
+3. **Non-admin allow path.** The only PASS in the suite is driven by an admin. Nothing shows a regular user can read their own org's invoice.
+4. **Admin cross-org bypass.** This is the only test that distinguishes "admin bypass works" from "everyone in the same org passes."
+5. **Correct row selected.** Seed two invoices with distinct renders and assert the requested one comes back.
+6. **Role boundaries.** Cover `"Admin"`, `"administrator"`, `""`, `None`, and other roles. `!= "admin"` is an exact match, so each should be Forbidden for another org.
+7. **org_id boundaries.** Cover `None == None` (user and invoice both without an org). That currently passes the check. Also cover `1` vs `"1"`.
+8. **id boundaries.** Cover `0`, negative, `None`, and `"42"` vs `42`. Whether this is tested here or at the route layer depends on who validates the type.
+
+## Sketch
+
+```python
+# Contract: see above. NotFound is checked before authorization.
+
+def test_admin_gets_invoice_from_other_org():
+    inv = make_invoice(id=42, org_id=2)
+    req = FakeRequest(user=FakeUser(role="admin", org_id=1))
+    assert get_invoice(req, 42) == inv.render()
+
+def test_member_gets_invoice_from_own_org():
+    inv = make_invoice(id=42, org_id=1)
+    req = FakeRequest(user=FakeUser(role="member", org_id=1))
+    assert get_invoice(req, 42) == inv.render()
+
+@pytest.mark.parametrize("role", ["member", "Admin", "administrator", "", None])
+def test_raises_forbidden_when_non_admin_requests_other_org_invoice(role):
+    make_invoice(id=42, org_id=2)
+    req = FakeRequest(user=FakeUser(role=role, org_id=1))
+    with pytest.raises(Forbidden):
+        get_invoice(req, 42)
+
+@pytest.mark.parametrize("role", ["admin", "member"])
+def test_raises_not_found_when_invoice_missing(role):
+    make_invoice(id=42, org_id=1)
+    req = FakeRequest(user=FakeUser(role=role, org_id=1))
+    with pytest.raises(NotFound):
+        get_invoice(req, 43)
+
+def test_returns_requested_invoice_not_a_neighbour():
+    a = make_invoice(id=41, org_id=1)
+    b = make_invoice(id=42, org_id=1)
+    assert a.render() != b.render()  # fixture guard: renders must differ
+    req = FakeRequest(user=FakeUser(role="member", org_id=1))
+    assert get_invoice(req, 42) == b.render()
+```
+
+A Hypothesis property sits beside these named edges and does not replace them. For any `(role, user_org, inv_org)` the outcome is `render()` exactly when `role == "admin" or user_org == inv_org`, otherwise `Forbidden`. Metamorphic relation: an admin's outcome never changes when `inv_org` changes.
+
+```
+**Boundaries covered:** role (admin/member/case variants/empty/None), org match/mismatch/None, id present/absent/neighbour
+**Properties:** access-decision property above; admin outcome independent of org
+**Mutation-survival:** the cross-org admin test catches `!= "admin"` → `== "admin"`; the Forbidden test catches deleting the Forbidden branch
+**Isolation:** the db is the seam. Use an in-memory or per-test transaction-rolled-back db. The existing test shows no teardown, so confirm none leaks between tests.
+**Pyramid level:** unit (a fake db is enough)
+**Confidence:** high on the branch gaps, medium on the boundary rows until the questions below are answered
+**Open gaps:** id type validation, a render() that raises
+```
+
+## Questions that change the tests
+
+- **Existence leak.** Non-admins get `Forbidden` for other orgs' invoices but `NotFound` for missing ones. That lets them enumerate valid ids. Is that intended, or should both return `NotFound`? The test for case 1 pins whichever you choose.
+- **`None` org.** Should two `None` org_ids match? If not, that is a production bug, not a test gap.
+- **Case sensitivity.** Is `"Admin"` meant to be a non-admin? I assumed yes.
+
+To verify the table above, run `mutmut` (or `cosmic-ray`) on the module before and after adding these tests. The first run should show the survivors listed here.

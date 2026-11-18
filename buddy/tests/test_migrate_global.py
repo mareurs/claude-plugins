@@ -21,6 +21,19 @@ def test_copies_absent_files(tmp_path):
     assert (dest / "skills" / "codescout-pika" / "SKILL.md").read_text() == "pika\n"
 
 
+def test_every_managed_profile_is_a_migration_source(tmp_path):
+    # PROFILES is a copy of scripts/lib-profiles.sh's list. It lacked .claude-stef, so a
+    # buddy/ dir there was never merged and never reported as pending.
+    home = tmp_path
+    dest = tmp_path / ".buddy"
+    p = _profile(home, ".claude-stef")
+    (p / "skills" / "x").mkdir(parents=True)
+    (p / "skills" / "x" / "SKILL.md").write_text("stef\n")
+    migrate.run(home=home, dest=dest, apply=True)
+    assert (dest / "skills" / "x" / "SKILL.md").read_text() == "stef\n"
+
+
+
 def test_identical_is_deduped_no_backup(tmp_path):
     home = tmp_path
     dest = tmp_path / ".buddy"

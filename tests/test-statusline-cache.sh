@@ -3,11 +3,18 @@
 source "$(dirname "${BASH_SOURCE[0]}")/lib/fixtures.sh"
 
 echo "── statusline-cache ──"
-COMPOSED="$(dirname "${BASH_SOURCE[0]}")/../buddy/scripts/statusline-composed.sh"
 
 # Isolated CLAUDE_CONFIG_DIR — no creds → no background fetch race
 export CLAUDE_CONFIG_DIR="$(mktemp -d)"
-trap 'rm -rf "$CLAUDE_CONFIG_DIR"' EXIT
+# Run a copy of the composed script from a sandbox with no statusline
+# beside it, so resolve_primary finds nothing and these tests exercise the
+# rate-limits fallback. Run from the repo, the sibling lookup would find the
+# real statusline and the fallback would be tested nowhere.
+SANDBOX="$(mktemp -d)"
+mkdir -p "$SANDBOX/buddy/scripts"
+cp "$(dirname "${BASH_SOURCE[0]}")/../buddy/scripts/statusline-composed.sh" "$SANDBOX/buddy/scripts/"
+COMPOSED="$SANDBOX/buddy/scripts/statusline-composed.sh"
+trap 'rm -rf "$CLAUDE_CONFIG_DIR" "$SANDBOX"' EXIT
 CACHE_FILE="$CLAUDE_CONFIG_DIR/statusline-usage-cache.json"
 LOCK_FILE="$CLAUDE_CONFIG_DIR/statusline-usage-cache.lock"
 
@@ -36,6 +43,32 @@ if echo "$OUT" | grep -q "5h"; then
   pass "fresh cache: rate limits displayed"
 else
   fail "fresh cache: rate limits displayed"
+fi
+# The values, not just the labels: _merge_cache renames utilization to
+# used_percentage, and a fallback reading the old key printed 100%/100%.
+PLAIN=$(echo "$OUT" | sed 's/\x1b\[[0-9;]*m//g')
+if echo "$PLAIN" | grep -qF "5h 42%/7d 17%"; then
+  pass "fresh cache: fallback shows cached percentages"
+else
+  fail "fresh cache: fallback shows cached percentages" "got: $PLAIN"
+fi
+
+# ── Test 1b: 0% utilization renders as 0%, not 100% ──
+cleanup
+cat > "$CACHE_FILE" <<EOF
+{
+  "five_hour":   {"utilization": 0.0, "resets_at": "2099-01-01T00:00:00.000000+00:00"},
+  "seven_day":   {"utilization": 49.0, "resets_at": "2099-01-01T00:00:00.000000+00:00"},
+  "fetched_at":  $FRESH_TS,
+  "stale":       false,
+  "retry_after": 0
+}
+EOF
+PLAIN=$(echo "$BASE_INPUT" | BUDDY_SKIP_SELF=1 bash "$COMPOSED" 2>/dev/null | sed 's/\x1b\[[0-9;]*m//g')
+if echo "$PLAIN" | grep -qF "5h 0%/7d 49%"; then
+  pass "zero utilization: fallback shows 0%"
+else
+  fail "zero utilization: fallback shows 0%" "got: $PLAIN"
 fi
 if echo "$OUT" | grep -qP "\x1b\[90m~"; then
   fail "fresh cache: no ~ prefix"
@@ -96,6 +129,47 @@ if [ "$NEW_TS" = "$STALE_TS" ]; then
 else
   fail "lock: fresh lock suppresses fetch" "fetched_at changed to $NEW_TS"
 fi
+
+# ── Tests 5-7: credentials file present but accessToken empty ──
+# A profile logged in with a long-lived CLAUDE_CODE_OAUTH_TOKEN has an empty
+# .credentials.json. _fetch_usage returns before it can mark the cache stale,
+# so an old cache kept showing as current. With no token the cache can never
+# refresh, so it must not be merged.
+CREDS_FILE="$CLAUDE_CONFIG_DIR/.credentials.json"
+OLD_CACHE_BODY='{"five_hour":{"utilization":46.0,"resets_at":"2099-01-01T00:00:00.000000+00:00"},"seven_day":{"utilization":78.0,"resets_at":"2099-01-01T00:00:00.000000+00:00"},"fetched_at":'"$FRESH_TS"',"stale":false,"retry_after":0}'
+
+# Test 5: empty accessToken + cache present → cached numbers hidden
+cleanup
+echo '{"claudeAiOauth":{"accessToken":"","refreshToken":"","expiresAt":0}}' > "$CREDS_FILE"
+echo "$OLD_CACHE_BODY" > "$CACHE_FILE"
+PLAIN=$(echo "$BASE_INPUT" | BUDDY_SKIP_SELF=1 bash "$COMPOSED" 2>/dev/null | sed 's/\x1b\[[0-9;]*m//g')
+if echo "$PLAIN" | grep -qE "5h|7d"; then
+  fail "empty token: cached usage hidden" "got: $PLAIN"
+else
+  pass "empty token: cached usage hidden"
+fi
+
+# Test 6: native rate_limits from CC stdin survive an empty token
+NATIVE_INPUT=$(echo "$BASE_INPUT" | jq -c '. + {rate_limits:{five_hour:{used_percentage:33,resets_at:4070908800},seven_day:{used_percentage:61,resets_at:4070908800}}}')
+PLAIN=$(echo "$NATIVE_INPUT" | BUDDY_SKIP_SELF=1 bash "$COMPOSED" 2>/dev/null | sed 's/\x1b\[[0-9;]*m//g')
+if echo "$PLAIN" | grep -qF "5h 33%/7d 61%"; then
+  pass "empty token: native rate_limits kept"
+else
+  fail "empty token: native rate_limits kept" "got: $PLAIN"
+fi
+
+# Test 7: non-empty accessToken → cache still merged (no over-hiding).
+# Cache is fresh (<5m), so no background fetch fires with the fake token.
+cleanup
+echo '{"claudeAiOauth":{"accessToken":"test-token","refreshToken":"x","expiresAt":4070908800000}}' > "$CREDS_FILE"
+echo "$OLD_CACHE_BODY" > "$CACHE_FILE"
+PLAIN=$(echo "$BASE_INPUT" | BUDDY_SKIP_SELF=1 bash "$COMPOSED" 2>/dev/null | sed 's/\x1b\[[0-9;]*m//g')
+if echo "$PLAIN" | grep -qF "5h 46%/7d 78%"; then
+  pass "valid token: cached usage still shown"
+else
+  fail "valid token: cached usage still shown" "got: $PLAIN"
+fi
+rm -f "$CREDS_FILE"
 
 cleanup
 print_summary "statusline-cache"

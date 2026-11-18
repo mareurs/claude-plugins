@@ -34,6 +34,25 @@ def identity_path() -> Path:
     return global_root() / "identity.json"
 
 
+def event_project_dir(data: "dict | None") -> "str | None":
+    """The directory Claude Code says this session is working in.
+
+    `workspace.current_dir` when present, else `cwd` — the one rule. The
+    statusline (reader) and the skill-ledger hook (writer) each used to pick
+    their own key (`workspace.current_dir or cwd` vs bare `cwd`), so for a
+    session whose worktree had been removed they addressed two different
+    `.buddy/<sid>/` directories. Returns None when neither is set. Never raises.
+
+    See docs/issues/2026-09-11-the-skill-ledger-writes-to-a-deleted-worktree-and-restamps-every-first-seen-as-now.md
+    (codescout repo).
+    """
+    if not isinstance(data, dict):
+        return None
+    workspace = data.get("workspace")
+    current = workspace.get("current_dir") if isinstance(workspace, dict) else None
+    return current or data.get("cwd") or None
+
+
 def resolve_project_root(cwd: "str | os.PathLike | None") -> Path:
     """Resolve a session cwd upward to the nearest enclosing project root.
 

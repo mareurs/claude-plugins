@@ -5,8 +5,15 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node",
-            "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/session-start.mjs"]
+            "command": "node ${CLAUDE_PLUGIN_ROOT}/hooks/session-start.mjs"
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node ${CLAUDE_PLUGIN_ROOT}/hooks/wake-missed-jobs.mjs"
           }
         ]
       }
@@ -16,8 +23,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node",
-            "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/subagent-guidance.mjs"]
+            "command": "node ${CLAUDE_PLUGIN_ROOT}/hooks/subagent-guidance.mjs"
           }
         ]
       },
@@ -25,8 +31,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node",
-            "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/agent-guide-snapshot.mjs"]
+            "command": "node ${CLAUDE_PLUGIN_ROOT}/hooks/agent-guide-snapshot.mjs"
           }
         ]
       }
@@ -36,8 +41,15 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node",
-            "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/constitution-brief.mjs"]
+            "command": "node ${CLAUDE_PLUGIN_ROOT}/hooks/constitution-brief.mjs"
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node ${CLAUDE_PLUGIN_ROOT}/hooks/wake-missed-jobs.mjs"
           }
         ]
       }
@@ -47,20 +59,18 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node",
-            "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/constitution-epoch-bump.mjs"]
+            "command": "node ${CLAUDE_PLUGIN_ROOT}/hooks/constitution-epoch-bump.mjs"
           }
         ]
       }
     ],
     "PreToolUse": [
       {
-        "matcher": "mcp__codescout__(edit_code|edit_file|edit_markdown|create_file)",
+        "matcher": "mcp__codescout__(edit_code|edit_file|create_file)",
         "hooks": [
           {
             "type": "command",
-            "command": "node",
-            "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/worktree-write-guard.mjs"]
+            "command": "node ${CLAUDE_PLUGIN_ROOT}/hooks/worktree-write-guard.mjs"
           }
         ]
       },
@@ -69,8 +79,16 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node",
-            "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/constitution-guard.mjs"]
+            "command": "node ${CLAUDE_PLUGIN_ROOT}/hooks/constitution-guard.mjs"
+          }
+        ]
+      },
+      {
+        "matcher": "Edit|Write|mcp__codescout__(edit_code|edit_file|create_file)",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node ${CLAUDE_PLUGIN_ROOT}/hooks/pre-edit-dirty-check.mjs"
           }
         ]
       },
@@ -79,8 +97,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node",
-            "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/pre-tool-guard.mjs"]
+            "command": "node ${CLAUDE_PLUGIN_ROOT}/hooks/pre-tool-guard.mjs"
           }
         ]
       },
@@ -89,18 +106,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node",
-            "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/git-worktree-guard.mjs"]
-          }
-        ]
-      },
-      {
-        "matcher": "mcp__.*__read_file",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "node",
-            "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/il4-deny-hook.mjs"]
+            "command": "node ${CLAUDE_PLUGIN_ROOT}/hooks/git-worktree-guard.mjs"
           }
         ]
       },
@@ -109,8 +115,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node",
-            "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/pre-task-hint.mjs"]
+            "command": "node ${CLAUDE_PLUGIN_ROOT}/hooks/pre-task-hint.mjs"
           }
         ]
       },
@@ -119,8 +124,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node",
-            "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/explore-inject.mjs"]
+            "command": "node ${CLAUDE_PLUGIN_ROOT}/hooks/explore-inject.mjs"
           }
         ]
       },
@@ -129,20 +133,47 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node",
-            "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/pre-edit-hint.mjs"]
+            "command": "node ${CLAUDE_PLUGIN_ROOT}/hooks/pre-edit-hint.mjs"
+          }
+        ]
+      },
+      {
+        "matcher": "mcp__codescout__.*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node ${CLAUDE_PLUGIN_ROOT}/hooks/principal-stamp.mjs"
           }
         ]
       }
     ],
     "PostToolUse": [
       {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node ${CLAUDE_PLUGIN_ROOT}/hooks/suspicious-zero-hint.mjs"
+          }
+        ]
+      },
+      {
+        "matcher": "mcp__codescout__run_command",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node ${CLAUDE_PLUGIN_ROOT}/hooks/wake-on-job-end.mjs",
+            "asyncRewake": true,
+            "timeout": 7200
+          }
+        ]
+      },
+      {
         "matcher": "EnterWorktree",
         "hooks": [
           {
             "type": "command",
-            "command": "node",
-            "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/worktree-activate.mjs"]
+            "command": "node ${CLAUDE_PLUGIN_ROOT}/hooks/worktree-activate.mjs"
           }
         ]
       },
@@ -151,18 +182,26 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node",
-            "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/cs-activate-project.mjs"]
+            "command": "node ${CLAUDE_PLUGIN_ROOT}/hooks/cs-activate-project.mjs"
           }
         ]
       },
       {
-        "matcher": "mcp__.*__(symbols|run_command|read_file|grep|semantic_search|edit_code|edit_file|edit_markdown|read_markdown|tree|references|call_graph|symbol_at|workspace|artifact|memory|index|onboarding|librarian)",
+        "matcher": "mcp__.*__(symbols|run_command|read_file|create_file|grep|semantic_search|edit_code|edit_file|tree|references|call_graph|symbol_at|workspace|doc|memory|index|onboarding|librarian)",
         "hooks": [
           {
             "type": "command",
-            "command": "node",
-            "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/cs-liveness.mjs"]
+            "command": "node ${CLAUDE_PLUGIN_ROOT}/hooks/cs-liveness.mjs"
+          }
+        ]
+      },
+      {
+        "matcher": "mcp__codescout__.*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node ${CLAUDE_PLUGIN_ROOT}/hooks/cs-verified-relocate.mjs",
+            "timeout": 5
           }
         ]
       }
@@ -172,8 +211,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node",
-            "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/goal-stop-hook.mjs"]
+            "command": "node ${CLAUDE_PLUGIN_ROOT}/hooks/goal-stop-hook.mjs"
           }
         ]
       }
@@ -183,8 +221,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node",
-            "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/agent-guide-restore.mjs"]
+            "command": "node ${CLAUDE_PLUGIN_ROOT}/hooks/agent-guide-restore.mjs"
           }
         ]
       }

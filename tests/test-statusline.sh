@@ -3,7 +3,7 @@
 source "$(dirname "${BASH_SOURCE[0]}")/lib/fixtures.sh"
 
 echo "── statusline ──"
-STATUSLINE="$(cd "$(dirname "${BASH_SOURCE[0]}")/../claude-statusline/bin" && pwd)/statusline.sh"
+STATUSLINE="$(cd "$(dirname "${BASH_SOURCE[0]}")/../statusline/bin" && pwd)/statusline.sh"
 
 # Base sample — uses v2.1.97+ field paths
 SAMPLE='{"model":{"display_name":"test-model"},"context_window":{"used_percentage":42,"context_window_size":200000,"current_usage":{"cache_creation_input_tokens":1500,"cache_read_input_tokens":3000}},"rate_limits":{"five_hour":{"used_percentage":10,"resets_at":9999999999},"seven_day":{"used_percentage":5,"resets_at":9999999999}},"rate_limits_stale":false,"cost":{"total_cost_usd":0.15,"total_duration_ms":30000,"total_lines_added":10,"total_lines_removed":3},"workspace":{"git_worktree":{"name":"my-feature","branch":"feat/my-feature"}}}'
@@ -73,7 +73,7 @@ fi
 rm -rf "$SOLO"
 
 # Test 10: profile badge — derived from CLAUDE_CONFIG_DIR
-for pair in ".claude-sdd|sdd" ".claude-kat|kat" ".claude|claude"; do
+for pair in ".claude-sdd|sdd" ".claude-kat|kat" ".claude-stef|claude-stef" ".claude|claude"; do
   IFS='|' read -r cfg label <<< "$pair"
   OUT=$(CLAUDE_CONFIG_DIR="/home/x/$cfg" echo '{"model":{"display_name":"m"}}' | CLAUDE_CONFIG_DIR="/home/x/$cfg" bash "$STATUSLINE" 2>/dev/null)
   if echo "$OUT" | grep -q " $label "; then
@@ -82,5 +82,49 @@ for pair in ".claude-sdd|sdd" ".claude-kat|kat" ".claude|claude"; do
     fail "profile badge: $cfg → $label" "$OUT"
   fi
 done
+
+# Test 11: effort level — drawn inside the model badge, right after the model name.
+# Escapes are stripped so the assertion is about order and text, not colour.
+strip_ansi() { sed -e 's/\x1b\[[0-9;]*m//g' -e 's/\\033\[[0-9;]*m//g'; }
+EFFORT_BASE='"model":{"display_name":"test-model"}'
+for lvl in low medium high xhigh max; do
+  OUT=$(echo "{$EFFORT_BASE,\"effort\":{\"level\":\"$lvl\"}}" | bash "$STATUSLINE" 2>/dev/null | strip_ansi)
+  if echo "$OUT" | grep -qE "^ ?test-model · $lvl( |$)"; then
+    pass "effort: $lvl shown right after the model name"
+  else
+    fail "effort: $lvl shown right after the model name" "$OUT"
+  fi
+done
+
+# Test 12: effort absent (model without an effort setting) — nothing extra, no placeholder
+for payload in "{$EFFORT_BASE}" "{$EFFORT_BASE,\"effort\":null}" "{$EFFORT_BASE,\"effort\":{\"level\":\"\"}}"; do
+  OUT=$(echo "$payload" | bash "$STATUSLINE" 2>/dev/null | strip_ansi)
+  if echo "$OUT" | grep -qE "^ ?test-model ·"; then
+    fail "effort absent: no effort text ($payload)" "$OUT"
+  else
+    pass "effort absent: no effort text"
+  fi
+  if echo "$OUT" | grep -q "test-model"; then
+    pass "effort absent: model name still shown"
+  else
+    fail "effort absent: model name still shown" "$OUT"
+  fi
+done
+
+# Test 13: with an agent badge, effort stays attached to the model, before the agent
+OUT=$(echo "{$EFFORT_BASE,\"effort\":{\"level\":\"high\"},\"agent\":{\"name\":\"reviewer\"}}" | bash "$STATUSLINE" 2>/dev/null | strip_ansi)
+if echo "$OUT" | grep -qE "test-model · high.*reviewer"; then
+  pass "effort: sits before the agent badge"
+else
+  fail "effort: sits before the agent badge" "$OUT"
+fi
+
+# Test 14: effort does not shift the later fields (field-count guard)
+OUT=$(echo "$SAMPLE" | jq -c '. + {effort:{level:"xhigh"}}' | bash "$STATUSLINE" 2>/dev/null | strip_ansi)
+if echo "$OUT" | grep -q "ctx 42%" && echo "$OUT" | grep -q "my-feature"; then
+  pass "effort: ctx and worktree fields still read correctly"
+else
+  fail "effort: ctx and worktree fields still read correctly" "$OUT"
+fi
 
 print_summary "statusline"

@@ -54,6 +54,32 @@ if assert_context_contains "$OUT" "CODESCOUT RULES"; then
   pass "emits the codescout rules"
 else fail "emits the codescout rules" "$OUT"; fi
 
+# --- Guides: a subagent must be told to FETCH them, never that it already has
+# --- them. Its parent's brief may say "already loaded" (true of the parent's
+# --- context, false of the subagent's), and the guide-hint ledger is shared
+# --- parent<->subagent so the auto-inject is suppressed for it too. This hook is
+# --- the only channel that can override both. Regression guard for that class.
+if assert_context_contains "$OUT" "CALL get_guide on it"; then
+  pass "guides: directs an explicit get_guide fetch"
+else fail "guides: directs an explicit get_guide fetch" "$OUT"; fi
+if assert_context_contains "$OUT" "already loaded"; then
+  pass "guides: overrides an 'already loaded' brief"
+else fail "guides: overrides an 'already loaded' brief" "$OUT"; fi
+if assert_context_contains "$OUT" "shared parent↔subagent unless the companion stamps your calls as your own principal"; then
+  pass "guides: states the shared-ledger fact conditionally on the principal stamp"
+else fail "guides: states the shared-ledger fact conditionally on the principal stamp" "$OUT"; fi
+
+# --- The topic list and the bug-ledger statuses must match the session opener
+# --- (codescout `project-activation-bootstrap`): a subagent that reads only this hook gets the
+# --- same contract. Two drifts seen on 2026-11-12: `untrusted-content` was missing from the
+# --- topic list, and `investigating` and `zombie` were filtered on but never explained.
+if assert_context_contains "$OUT" "tracker-conventions, untrusted-content)"; then
+  pass "guides: the topic list names untrusted-content"
+else fail "guides: the topic list names untrusted-content" "$OUT"; fi
+if assert_context_contains "$OUT" "\"investigating\" (no live owner)" && assert_context_contains "$OUT" "\"zombie\" (a recurrence check, not a task)"; then
+  pass "bug ledger: explains investigating and zombie"
+else fail "bug ledger: explains investigating and zombie" "$OUT"; fi
+
 # --- Gate CLOSED → silent, with the environment sealed (not ambient config). ---
 OUT=$(run_hook "$T/bare" "general-purpose")
 RC=$?
@@ -115,12 +141,33 @@ OUT=$(run_hook "$T/wt" "general-purpose")
 if assert_context_contains "$OUT" "PROJECT BOOTSTRAP:"; then
   pass "worktree: bootstrap fires"
 else fail "worktree: bootstrap fires" "$OUT"; fi
-if assert_context_contains "$OUT" "path=\"$WT_ROOT\""; then
-  pass "worktree: names the worktree root"
-else fail "worktree: names the worktree root" "$OUT"; fi
+if assert_context_contains "$OUT" "workspace=\"$WT_ROOT\""; then
+  pass "worktree: pins the worktree root"
+else fail "worktree: pins the worktree root" "$OUT"; fi
+# A worktree subagent must not be told to activate: activation is shared by every
+# session of the codescout server, so parallel subagents that each activate their
+# own worktree race each other (10 subagents, 10 worktrees, 3.9 s). The write guard
+# accepts a write pinned to its own worktree, so a pin is all it needs.
+if assert_context_contains "$OUT" "workspace(action=\"activate\", path="; then
+  fail "worktree: must NOT tell the subagent to activate" "$OUT"
+else pass "worktree: does not tell the subagent to activate"; fi
+if assert_context_contains "$OUT" "edit_code, edit_file, create_file"; then
+  pass "worktree: the pin covers the write tools"
+else fail "worktree: the pin covers the write tools" "$OUT"; fi
 if assert_context_contains "$OUT" "path=\"$PROJ_ROOT\""; then
   fail "worktree: must NOT name the main repo" "$OUT"
 else pass "worktree: does not name the main repo"; fi
+
+# --- A SUBDIRECTORY of the worktree pins the toplevel, never the raw cwd.
+mkdir -p "$T/wt/sub/dir"
+write_routing_config "$T/wt/sub/dir" '{"server_name":"codescout"}'
+OUT=$(run_hook "$T/wt/sub/dir" "general-purpose")
+if assert_context_contains "$OUT" "workspace=\"$WT_ROOT\""; then
+  pass "worktree subdir: pins the toplevel"
+else fail "worktree subdir: pins the toplevel" "$OUT"; fi
+if assert_context_contains "$OUT" "workspace=\"$T/wt/sub/dir\""; then
+  fail "worktree subdir: must NOT pin the raw cwd" "$OUT"
+else pass "worktree subdir: does not pin the raw cwd"; fi
 
 
 # --- Memories present → names inlined, no list round-trip. Assert on

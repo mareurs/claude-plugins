@@ -1,0 +1,4 @@
+running tests/hidden.sh
+PASS: the first check
+FAIL: expected 5, got -1
+1 of 2 checks failed

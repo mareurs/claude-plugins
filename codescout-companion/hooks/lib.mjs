@@ -6,8 +6,8 @@
 // through the JSON `permissionDecision` field (honored by Claude Code AND
 // Copilot). A non-zero exit is never used to deny — on Copilot CLI a non-zero
 // PreToolUse exit is itself a deny, so a crash would block the user's tool.
-import { readFileSync, existsSync, mkdirSync, writeFileSync, readdirSync, statSync, unlinkSync, renameSync } from 'node:fs';
-import { join, isAbsolute, dirname, resolve as resolvePath } from 'node:path';
+import { readFileSync, existsSync, mkdirSync, writeFileSync, readdirSync, statSync, unlinkSync, renameSync, accessSync, constants } from 'node:fs';
+import { join, isAbsolute, dirname, delimiter, resolve as resolvePath } from 'node:path';
 import { homedir, tmpdir } from 'node:os';
 import { createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
@@ -48,6 +48,18 @@ export function contextPreToolUse(context) {
   });
 }
 
+// PostToolUse advisory context injection. The call has already run, so this can
+// reason about the RESULT — the one thing a PreToolUse hook structurally cannot
+// see. There is no permissionDecision at this event: it informs, it cannot gate.
+export function contextPostToolUse(context) {
+  emit({
+    hookSpecificOutput: {
+      hookEventName: 'PostToolUse',
+      additionalContext: context,
+    },
+  });
+}
+
 // --- Redirect circuit breaker: shared state key -------------------------
 //
 // pre-tool-guard's whole contract is "don't use X, use codescout Y instead".
@@ -76,10 +88,27 @@ export function breakerFile(sessionId) {
 
 // Run codescout detection for a cwd, resolving home/config-dir from env
 // (cross-platform: HOME on POSIX, USERPROFILE/os.homedir() on Windows).
+//
+// CS_COMPANION_HOST_ARMED is set by a non-Claude host bridge (harnesses/opencode) after
+// IT has independently proven codescout is present in that session: opencode registers
+// MCP under `mcp.servers` in opencode.json, which detect.mjs never reads. Without this
+// signal a machine that runs opencode and has no Claude config would fail the guard's own
+// gate on every call, and the whole port would silently do nothing — the no-op class this
+// plugin keeps getting bitten by. The bridge is trusted for that one bit only: it forces
+// presence, never the block_reads opt-out, and the redirect circuit breaker
+// (breakerFile() / cs-liveness.mjs) still stands the guard down if the tools its redirect
+// names never actually answer.
 export function detectFor(cwd) {
   const home = process.env.HOME || process.env.USERPROFILE || homedir();
   try {
-    return detect(cwd || process.cwd(), home, process.env.CLAUDE_CONFIG_DIR || null);
+    const d = detect(cwd || process.cwd(), home, process.env.CLAUDE_CONFIG_DIR || null);
+    if (process.env.CS_COMPANION_HOST_ARMED === '1' && d.HAS_CODESCOUT !== 'true') {
+      // Presence only. BLOCK_READS stays whatever detect.mjs computed from the project's
+      // .claude/codescout-companion.json — it is resolved independently of detection, so a
+      // `block_reads: false` opt-out still holds under a host bridge.
+      return { ...d, HAS_CODESCOUT: 'true' };
+    }
+    return d;
   } catch {
     // Fail-open: any detection error → behave as if codescout is absent so the
     // hook exits 0 without denying. A crash must never block the user's tool
@@ -88,6 +117,40 @@ export function detectFor(cwd) {
     return { HAS_CODESCOUT: 'false', BLOCK_READS: 'false' };
   }
 }
+
+// Locate the codescout binary. A hook process often has a narrower PATH than the
+// user's shell (e.g. `~/.cargo/bin` is absent), so a bare `execFileSync('codescout')`
+// silently fails. Order: PATH dirs, detect().CS_BINARY, ~/.cargo/bin, <cwd>/target/release.
+// Returns an absolute path, or null when none is executable.
+export function resolveCodescoutBinary(cwd) {
+  const exe = process.platform === 'win32' ? 'codescout.exe' : 'codescout';
+  const executable = (p) => {
+    try {
+      accessSync(p, constants.X_OK);
+      return true;
+    } catch {
+      return false;
+    }
+  };
+  for (const dir of (process.env.PATH || '').split(delimiter)) {
+    if (!dir) continue;
+    const p = join(dir, exe);
+    if (executable(p)) return p;
+  }
+  const home = process.env.HOME || process.env.USERPROFILE || homedir();
+  const root = cwd || process.cwd();
+  let detected = '';
+  try {
+    detected = detect(root, home, process.env.CLAUDE_CONFIG_DIR || null).CS_BINARY || '';
+  } catch {
+    /* fall through to fixed fallbacks */
+  }
+  for (const cand of [detected, join(home, '.cargo', 'bin', 'codescout'), join(root, 'target', 'release', 'codescout')]) {
+    if (cand && executable(cand)) return cand;
+  }
+  return null;
+}
+
 // Resolve a session cwd UP to the nearest enclosing project root.
 //
 // A cwd is not a project root. Hooks that build state paths as `join(cwd, …)`
@@ -146,6 +209,8 @@ export function git(cwd, args) {
 // One-shot, session-scoped skill pointer. Emits the hint the first time for
 // <topic> this session (touching a marker); emits {} otherwise. Mirrors
 // skill-hints.sh: marker at <cwd>/.buddy/<sessionId>/hint-emitted-<topic>.
+// PreToolUse only: Claude Code rejects hook output without hookEventName, and
+// both callers (pre-task-hint, pre-edit-hint) are PreToolUse hooks.
 export function emitSkillHint(cwd, sessionId, topic, hint) {
   if (!sessionId || !cwd) {
     emit({});
@@ -163,7 +228,7 @@ export function emitSkillHint(cwd, sessionId, topic, hint) {
   } catch {
     /* best-effort */
   }
-  emit({ hookSpecificOutput: { additionalContext: hint } });
+  contextPreToolUse(hint);
 }
 
 // --- Guide-hints ledger path: mirrors codescout's own resolution --------
@@ -181,11 +246,91 @@ export function sanitizeSessionId(sessionId) {
 // mirrors src/util/fs.rs's state_dir_from() (see session-start.mjs's
 // identical rendezvous-dir resolution), so both sides agree on which
 // directory they mean rather than silently looking in different places.
+export function stateHome(home) {
+  const xdgStateHome = process.env.XDG_STATE_HOME;
+  return xdgStateHome && isAbsolute(xdgStateHome) ? xdgStateHome : join(home, '.local', 'state');
+}
+
 export function guideLedgerPath(sessionId, home) {
   if (!sessionId) return null;
+  return join(stateHome(home), 'codescout', 'guide_hints', `${sanitizeSessionId(sessionId)}.json`);
+}
+
+// True when this session has at least one PER-AGENT ledger beside the parent's —
+// `<session>_<agent>.json`, the codescout server's sanitize() of the principal
+// "<session>/<agent>" ('/' -> '_', exactly as sanitizeSessionId maps it). Such a
+// file exists only once the server has served one of this session's subagents as
+// its OWN principal (principal-stamp.mjs + a principal-aware server), and then no
+// subagent's marks reach the parent's file at all.
+// codescout:docs/adrs/2026-09-14-a-subagent-is-a-principal.md
+// Session-wide rather than per-agent on purpose: a subagent that never calls
+// codescout gets no file of its own, and keying on that alone let the restore
+// strip the parent's marks for exactly that subagent.
+export function sessionHasPrincipalLedgers(ledgerPath, sessionId) {
+  if (!ledgerPath || !sessionId) return false;
+  const prefix = `${sanitizeSessionId(sessionId)}_`;
+  try {
+    return readdirSync(dirname(ledgerPath)).some((n) => n.startsWith(prefix) && n.endsWith('.json'));
+  } catch {
+    return false;
+  }
+}
+
+// --- Live in-session guide re-arm ----------------------------------------
+//
+// The snapshot/restore bracket below only edits the ON-DISK ledger file, which
+// codescout:src/tools/guide_ledger.rs's own doc comment confirms the ALREADY
+// RUNNING server never re-reads (in-memory state is authoritative for the
+// process's life). So that bracket fixes only the NEXT reconnect — it is
+// inert for the live session, which is exactly where a fresh (non-`fork`)
+// subagent can be silently starved of a guide the parent already received.
+// codescout:docs/issues/archive/2026-08-31-subagents-receive-guides-their-parent-already-holds.md
+//
+// These helpers instead write a one-shot request file the running server
+// polls on its very next request (`CodeScoutServer::poll_guide_rearm`,
+// alongside `poll_rendezvous`), reaching the live ledger. One file per
+// `(server_pid, agent_id)` — not a shared per-pid slot — for the same reason
+// the snapshot files above are keyed by both ids: concurrent dispatches must
+// not clobber each other's request.
+function stateHomeDir(home) {
   const xdgStateHome = process.env.XDG_STATE_HOME;
-  const stateHome = xdgStateHome && isAbsolute(xdgStateHome) ? xdgStateHome : join(home, '.local', 'state');
-  return join(stateHome, 'codescout', 'guide_hints', `${sanitizeSessionId(sessionId)}.json`);
+  return xdgStateHome && isAbsolute(xdgStateHome) ? xdgStateHome : join(home, '.local', 'state');
+}
+
+export function serversDir(home) {
+  return join(stateHomeDir(home), 'codescout', 'servers');
+}
+
+export function guideRearmDir(home) {
+  return join(stateHomeDir(home), 'codescout', 'guide_rearm');
+}
+
+export function guideRearmFile(dir, pid, agentId) {
+  return join(dir, `${pid}-${shortHash(agentId)}.json`);
+}
+
+// Which server pid(s), among the ones this machine has published rendezvous
+// slots for, belong to OUR OWN process tree — i.e. were spawned by the same
+// Claude Code session this hook is running for. Mirrors
+// `refreshLivenessStamp`'s own ppid-in-ancestry match, which is the
+// established way this codebase already answers "which running server is
+// mine" without a dispatch-time identity the MCP protocol does not carry.
+export function resolveOwnServerPids(rvDir) {
+  const pids = [];
+  if (!existsSync(rvDir)) return pids;
+  const ancestry = ownAncestry();
+  for (const name of readdirSync(rvDir)) {
+    if (!name.endsWith('.json')) continue;
+    const pid = Number.parseInt(name.slice(0, -5), 10);
+    if (Number.isNaN(pid)) continue;
+    try {
+      const e = JSON.parse(readFileSync(join(rvDir, name), 'utf8'));
+      if (ancestry.has(e.ppid)) pids.push(pid);
+    } catch {
+      /* skip unreadable, unparseable, or concurrently-removed slots */
+    }
+  }
+  return pids;
 }
 
 // --- Agent-dispatch guide-ledger snapshot: shared state key -------------
@@ -230,7 +375,7 @@ const SNAP_PREFIX = 'cs-guide-snapshot-';
 // never have fired, so nothing else ever collects these.
 const SNAP_MAX_AGE_MS = 24 * 60 * 60 * 1000;
 
-function shortHash(s) {
+export function shortHash(s) {
   return createHash('sha256').update(String(s)).digest('hex').slice(0, 16);
 }
 
@@ -445,12 +590,23 @@ export function refreshLivenessStamp(now = Date.now()) {
 // Our own pid chain, capped at 10 hops: a corrupt or cyclic chain must not spin
 // inside a hook. Mirrors session-start.mjs's copy; kept separate so the
 // load-bearing SessionStart path is untouched by this instrumentation.
-function ownAncestry() {
+//
+// The walk ENDS at the nearest agent host, a Claude Code or a Codex process. That process
+// spawned our servers, so they are all its children. Every ancestor above it belongs to
+// another session, one that started ours from inside a tool call (`claude -p` via
+// run_command/Bash, or a Codex thread started the same way). Matching those stamped that
+// session's server with our id. The Codex stop matters in the other direction too: a hook
+// run by a Codex thread under a Claude session used to walk THROUGH the `codex` process to
+// the Claude one and stamp that Claude session's server with the thread id.
+// codescout:docs/issues/archive/2026-09-24-a-nested-claude-session-hijacks-its-ancestor-sessions-codescout-server.md
+// codescout:docs/issues/2026-11-09-shared-mcp-usage-misattributes-observation-work.md
+export function ownAncestry() {
   const seen = new Set();
   let pid = process.pid;
   for (let hop = 0; hop < 10; hop++) {
     if (pid <= 1 || seen.has(pid)) break;
     seen.add(pid);
+    if (isClaudeProcess(pid) || isCodexProcess(pid)) break;
     const parent = parentOf(pid);
     if (parent === null) break;
     pid = parent;
@@ -458,7 +614,98 @@ function ownAncestry() {
   return seen;
 }
 
-function parentOf(pid) {
+// Is `pid` a Claude Code process? Two signals, because each covers the other's gap:
+// - a registry row, `$CLAUDE_CONFIG_DIR/sessions/<pid>.json`. Claude Code writes
+//   one for interactive and `claude -p` sessions alike, on any platform. But it
+//   is written at startup, racing the hooks: measured once, 65 ms before the
+//   SessionStart stamp.
+// - comm `claude`, which is set at exec, so it wins that race. It is Linux-only,
+//   though, and only true of the native binary (an npm install runs as `node`).
+// Residual: a stale row, left by a Claude that died without cleanup, whose pid
+// was reused by a process in our chain, ends the walk early. That leaves our own
+// server unstamped, the pre-rendezvous state. The row's `procStart` equals
+// /proc/<pid>/stat field 22 (verified 2026-09-24), which could discriminate it.
+export function isClaudeProcess(pid) {
+  const home = process.env.HOME || process.env.USERPROFILE || homedir();
+  const configDir = process.env.CLAUDE_CONFIG_DIR || join(home, '.claude');
+  if (existsSync(join(configDir, 'sessions', `${pid}.json`))) return true;
+  if (process.platform !== 'linux') return false;
+  try {
+    return readFileSync(`/proc/${pid}/comm`, 'utf8').trim() === 'claude';
+  } catch {
+    return false;
+  }
+}
+// Is `pid` a Codex process? One signal: comm `codex`, set at exec. Measured 2026-11-12 for
+// both `codex exec` and the app-server daemon's release binary (the helper `codex-code-mode`
+// has a different comm and does not match). Linux-only, like the comm signal of
+// `isClaudeProcess`; elsewhere it answers false, which keeps the walk's old behaviour there.
+// codescout:docs/issues/2026-11-09-shared-mcp-usage-misattributes-observation-work.md
+export function isCodexProcess(pid) {
+  if (process.platform !== 'linux') return false;
+  try {
+    return readFileSync(`/proc/${pid}/comm`, 'utf8').trim() === 'codex';
+  } catch {
+    return false;
+  }
+}
+
+// Does a Claude Code command line prove the session has NO `Skill` tool?
+// `--tools <tools...>` sets the built-in tool list: comma- or space-separated names,
+// "" for none, "default" for the default set (`claude --help`). A session started with
+// a list that omits Skill cannot call it, so advice to call it only wastes a turn.
+// Answers true only on that proof; no flag, an unreadable value or anything else
+// answers false, so the caller keeps its old behaviour. `--disallowedTools` is NOT
+// read: that it removes the tool from the model's list rather than only denying the
+// call has not been checked.
+export function skillToolAbsentFromArgv(argv) {
+  let names = null;
+  for (let i = 0; i < argv.length; i++) {
+    const a = argv[i];
+    let values;
+    if (a.startsWith('--tools=')) {
+      values = [a.slice('--tools='.length)];
+    } else if (a === '--tools') {
+      values = [];
+      while (i + 1 < argv.length && !argv[i + 1].startsWith('-')) values.push(argv[++i]);
+      if (values.length === 0) continue; // a flag with no value says nothing
+    } else {
+      continue;
+    }
+    names = values.flatMap((v) => v.split(',')).map((s) => s.trim()).filter((s) => s !== '');
+  }
+  return names !== null && !names.includes('Skill') && !names.includes('default');
+}
+
+// Stamp one rendezvous slot with a SessionStart's session id and source, unless
+// it already carries them. Returns whether it wrote. Shared by session-start.mjs's
+// scan and by rendezvous-late-stamp.mjs, so a slot stamped late obeys the same
+// rules as one stamped on time.
+export function stampSlotIfStale(f, e, sessionId, source, stampedAt) {
+  // Already current: rewriting would bump mtime and cost the server a parse on
+  // its next call for no change. The SOURCE is part of "current": a compaction
+  // keeps the session id, and codescout's post_compact gate needs to see that
+  // the last SessionStart was one.
+  // codescout:docs/issues/archive/2026-08-31-post-compact-clears-the-ledger-with-no-compaction-check.md
+  if (e.session === sessionId && e.hook_at && (!source || e.hook_source === source)) return false;
+  e.session = sessionId;
+  e.hook_at = stampedAt;
+  if (source) {
+    e.hook_source = source;
+    e.hook_source_at = stampedAt;
+  }
+  // Atomic write: stage to a sibling tmp file in the SAME directory, then rename
+  // over the target — rename is only atomic within one filesystem. A bare
+  // writeFileSync let a poll on the server side land mid-write and see truncated
+  // JSON (see poll() in src/tools/rendezvous.rs, which now tolerates that too,
+  // but the torn write itself is fixed here, at the source).
+  const tmp = `${f}.tmp`;
+  writeFileSync(tmp, JSON.stringify(e));
+  renameSync(tmp, f);
+  return true;
+}
+
+export function parentOf(pid) {
   try {
     if (process.platform === 'linux') {
       const stat = readFileSync(`/proc/${pid}/stat`, 'utf8');
@@ -475,4 +722,49 @@ function parentOf(pid) {
   } catch {
     return null;
   }
+}
+
+
+// Normalize host-specific names and input keys at the hook boundary. Claude
+// Code uses PascalCase tools and snake_case paths; Copilot/VS Code use
+// lower-case tools and camelCase paths.
+// OpenCode names its built-in tools in bare lower case. Measured against the installed
+// opencode 2.1.3 binary: v2 RENAMED three of them — `shell` (was `bash`), `patch` (was
+// `apply_patch`), `subagent` (was `task`) — and a rename notice is compiled into the
+// binary, so both spellings of `shell` and `patch` map. `task`/`subagent` is not mapped:
+// no guard has a branch for subagent dispatch. Without these rows an OpenCode call falls through
+// unmatched, the guards below compare against 'Read'/'Bash'/… and see nothing, and the
+// redirect silently never fires: the silent-no-op class this plugin keeps hitting.
+export function normalizedToolName(input) {
+  const name = input && input.tool_name;
+  if (name === 'read_file' || name === 'readFile' || name === 'read') return 'Read';
+  if (name === 'search' || name === 'search_codebase' || name === 'grep') return 'Grep';
+  if (name === 'find_files' || name === 'glob') return 'Glob';
+  if (name === 'run_in_terminal' || name === 'run_command' || name === 'terminal' || name === 'bash' || name === 'shell') return 'Bash';
+  if (name === 'replace_string_in_file' || name === 'replace_file_content' || name === 'edit' || name === 'apply_patch' || name === 'patch') return 'Edit';
+  if (name === 'create_file' || name === 'write_file' || name === 'write') return 'Write';
+  return name || '';
+}
+
+export function inputPath(input) {
+  const toolInput = (input && input.tool_input) || {};
+  return toolInput.path || toolInput.file_path || toolInput.filePath || toolInput.uri || '';
+}
+
+
+export function isCodescoutTool(input, toolNames) {
+  const toolName = (input && input.tool_name) || '';
+  return toolNames.some((name) =>
+    toolName === name ||
+    toolName.endsWith(`__${name}`) ||
+    toolName === `codescout_${name}` ||
+    toolName === `codescout/${name}`,
+  );
+}
+
+export function isWriteOperation(input) {
+  const nativeTool = normalizedToolName(input);
+  return nativeTool === 'Edit' ||
+    nativeTool === 'Write' ||
+    isCodescoutTool(input, ['edit_code', 'edit_file', 'create_file']);
 }

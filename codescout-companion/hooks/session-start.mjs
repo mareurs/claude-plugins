@@ -2,17 +2,20 @@
 // Port of session-start.sh. No-op if codescout is not configured. Composes one
 // additionalContext message from: project-bootstrap nudge (startup only),
 // onboarding/memory hints, skills, tracker-hygiene nudge, auto-reindex (bg),
+// hot view (collections that declare hot_cap),
 // drift warnings (legacy sqlite; inert post-Qdrant), connectivity note,
 // post-compact flush, worktree reminder + symlink, Iron Laws, tool guide.
 // Also seeds/sweeps the codescout-active marker and writes cc_session_id.
 import {
-  existsSync, statSync, lstatSync, readFileSync, readdirSync,
+  existsSync, statSync, readFileSync, readdirSync,
   mkdirSync, writeFileSync, unlinkSync, symlinkSync, renameSync,
 } from 'node:fs';
 import { join, dirname, isAbsolute } from 'node:path';
 import { homedir } from 'node:os';
 import { spawn, execFileSync } from 'node:child_process';
-import { readInput, detectFor, git, emit } from './lib.mjs';
+import { readInput, detectFor, git, emit, isClaudeProcess, isCodexProcess, skillToolAbsentFromArgv, stampSlotIfStale, resolveCodescoutBinary } from './lib.mjs';
+import { fileURLToPath } from 'node:url';
+import { hotViewBlock } from './hot-view.mjs';
 
 const input = readInput();
 if (!input) process.exit(0);
@@ -48,8 +51,7 @@ const home = process.env.HOME || process.env.USERPROFILE || homedir();
 const csActiveDir = join(process.env.CLAUDE_CONFIG_DIR || join(home, '.claude'), 'codescout-active');
 
 // Stamp codescout rendezvous slots belonging to our own process ancestry.
-// The server publishes <pid>.json at construction (it cannot learn the session
-// id at startup: MCP initialize runs before SessionStart), and this writes the
+// The server publishes <pid>.json at construction and this writes the session
 // id into it. Matching on ppid-within-our-ancestry is what keeps two concurrent
 // windows on one repo from stamping each other's servers.
 if (sessionId) {
@@ -60,33 +62,36 @@ if (sessionId) {
     const xdgStateHome = process.env.XDG_STATE_HOME;
     const stateHome = xdgStateHome && isAbsolute(xdgStateHome) ? xdgStateHome : join(home, '.local', 'state');
     const rvDir = join(stateHome, 'codescout', 'servers');
+    const ancestry = ownAncestry();
+    const stampedAt = new Date().toISOString();
+    let ownSlots = 0;
     if (existsSync(rvDir)) {
-      const ancestry = ownAncestry();
-      const stampedAt = new Date().toISOString();
       for (const name of readdirSync(rvDir)) {
         if (!name.endsWith('.json')) continue;
         const f = join(rvDir, name);
         try {
           const e = JSON.parse(readFileSync(f, 'utf8'));
           if (!ancestry.has(e.ppid)) continue;
-          // Already current: rewriting would bump mtime and cost the server a
-          // parse on its next call for no change.
-          if (e.session === sessionId && e.hook_at) continue;
-          e.session = sessionId;
-          e.hook_at = stampedAt;
-          // Atomic write: stage to a sibling tmp file in the SAME directory,
-          // then rename over the target — rename is only atomic within one
-          // filesystem. A bare writeFileSync here let a poll on the server
-          // side land mid-write and see truncated JSON (see poll() in
-          // src/tools/rendezvous.rs, which now tolerates that too, but the
-          // torn write itself is fixed here, at the source).
-          const tmp = `${f}.tmp`;
-          writeFileSync(tmp, JSON.stringify(e));
-          renameSync(tmp, f);
+          ownSlots++;
+          stampSlotIfStale(f, e, sessionId, source, stampedAt);
         } catch {
           /* skip unreadable, unparseable, or concurrently-removed slots */
         }
       }
+    }
+    // None of ours yet is the NORMAL case in an interactive session: SessionStart
+    // fires before the MCP servers publish (measured 2026-09-24: hook at +763 ms,
+    // slot at +982 ms). Hand it to a detached stamper that waits for our Claude's
+    // server. It gets the Claude pid — the process the walk ended at — because a
+    // detached process is reparented and cannot walk our ancestry itself.
+    // codescout:docs/issues/archive/2026-09-24-sessionstart-can-run-before-the-resumed-servers-slot-exists.md
+    const claudePid = [...ancestry].pop();
+    if (ownSlots === 0 && claudePid !== undefined && isClaudeProcess(claudePid)) {
+      const stamper = fileURLToPath(new URL('./rendezvous-late-stamp.mjs', import.meta.url));
+      spawn(process.execPath, [stamper, String(claudePid), sessionId, source, rvDir, stampedAt], {
+        detached: true,
+        stdio: 'ignore',
+      }).unref();
     }
   } catch {
     /* best-effort — never let the rendezvous break the hook */
@@ -131,6 +136,14 @@ function ownAncestry() {
   for (let hop = 0; hop < 10; hop++) {
     if (pid <= 1 || seen.has(pid)) break;
     seen.add(pid);
+    // Stop at the NEAREST agent host, a Claude Code or a Codex process: our servers are its
+    // children, and every ancestor above it belongs to a session that started ours from a
+    // tool call. Without the Codex stop, a Codex thread under a Claude session walked through
+    // to the Claude process and stamped that session's server with the thread id.
+    // Why two signals identify a Claude process: `isClaudeProcess` in lib.mjs.
+    // codescout:docs/issues/archive/2026-09-24-a-nested-claude-session-hijacks-its-ancestor-sessions-codescout-server.md
+    // codescout:docs/issues/2026-11-09-shared-mcp-usage-misattributes-observation-work.md
+    if (isClaudeProcess(pid) || isCodexProcess(pid)) break;
     const parent = parentOf(pid);
     if (parent === null) break;
     pid = parent;
@@ -158,6 +171,21 @@ function parentOf(pid) {
     return null;
   }
 }
+// False only when our Claude's own command line proves this session has no `Skill` tool
+// (launched with `--tools` that omits it). Everything else — no Claude process found,
+// unreadable argv, a non-Linux host — answers true, so the skills block stays, as before.
+function sessionMayHaveSkillTool() {
+  try {
+    if (process.platform !== 'linux') return true;
+    const claudePid = [...ownAncestry()].pop();
+    if (claudePid === undefined || !isClaudeProcess(claudePid)) return true;
+    const argv = readFileSync(`/proc/${claudePid}/cmdline`, 'utf8').split('\0');
+    return !skillToolAbsentFromArgv(argv);
+  } catch {
+    return true;
+  }
+}
+
 
 let msg = '';
 
@@ -195,11 +223,13 @@ if (d.HAS_CS_MEMORIES === 'true') {
 `;
 }
 
-// Skills.
-msg += `SKILLS AVAILABLE:
+// Skills. Advice to call Skill(...) is noise in a session that has no Skill tool.
+if (sessionMayHaveSkillTool()) {
+  msg += `SKILLS AVAILABLE:
 - Reconnaissance — Skill('codescout-companion:reconnaissance'). Recommended before subagent dispatch or shape-changing edits.
 
 `;
+}
 
 // Tracker-hygiene overdue nudge (ISO date; due-today counts; local date to match `date +%F`).
 const hygieneLog = join(cwd, 'docs', 'trackers', 'tracker-hygiene-log.md');
@@ -234,11 +264,13 @@ if (sessionId && cwd) {
 // Auto-reindex config.
 let autoIndex = true;
 let driftWarnings = true;
+let hotView = true;
 if (d.ROUTING_CONFIG && existsSync(d.ROUTING_CONFIG)) {
   try {
     const rc = JSON.parse(readFileSync(d.ROUTING_CONFIG, 'utf8'));
     if (rc.auto_index === false) autoIndex = false;
     if (rc.drift_warnings === false) driftWarnings = false;
+    if (rc.hot_view === false) hotView = false;
   } catch {
     /* keep defaults */
   }
@@ -325,6 +357,17 @@ ${driftFiles.map((f) => `  ${f}`).join('\n')}
   }
 }
 
+// Hot view: live entries of lifecycle collections that declare hot_cap, rendered by
+// `codescout hot-view`. Not on resume (the transcript already holds the last view).
+// Fails open; the module never throws. The binary comes from resolveCodescoutBinary, not
+// d.CS_BINARY: CS_BINARY is the MCP *launch command*, which may be `bash`, `uvx` or `docker`
+// (review I-1). Spec:
+// docs/superpowers/specs/2026-11-15-session-start-hot-view-design.md
+if (hotView && source !== 'resume') {
+  const hvRoot = git(cwd, ['rev-parse', '--show-toplevel']);
+  if (hvRoot) msg += hotViewBlock({ root: hvRoot, binary: resolveCodescoutBinary(cwd) || '' });
+}
+
 // Connectivity note.
 msg += `codescout: Detected in config (${d.CS_SERVER_NAME}).
 Tools load automatically — no ToolSearch or setup step needed.
@@ -359,32 +402,7 @@ if (inWorktree) {
         /* best-effort */
       }
     }
-    let dstStat;
-    try {
-      dstStat = lstatSync(ceDest);
-    } catch {
-      /* absent */
-    }
-    if (dstStat && dstStat.isDirectory() && !dstStat.isSymbolicLink()) {
-      for (const asset of ['embeddings']) {
-        const src = join(mainRoot, '.codescout', asset);
-        const dst = join(ceDest, asset);
-        if (!existsSync(src)) continue;
-        let dstExists = false;
-        try {
-          lstatSync(dst);
-          dstExists = true;
-        } catch {
-          /* absent */
-        }
-        if (dstExists) continue;
-        try {
-          symlinkSync(src, dst, 'junction');
-        } catch {
-          /* best-effort */
-        }
-      }
-    }
+    // No `embeddings` link here: see the note in worktree-activate.mjs.
   }
   msg += `WORKTREE SESSION: You are inside a git worktree at: ${wtRoot}
 → Call workspace(action="activate", path="${wtRoot}") before using any codescout write tools.
@@ -398,7 +416,7 @@ msg += `CODESCOUT RULES (compression-resilient reminder):
 • Source code: symbols (list + find), NOT read_file/Read
 • Code edits: edit_code (LSP-aware; action=replace/insert/remove/rename), NOT edit_file/Edit for structural changes
 • Shell commands: run_command, NOT Bash — output buffers save tokens
-• Markdown: read_markdown/edit_markdown, NOT read_file/edit_file
+• Markdown: read_file returns the heading map (heading= for a section); edit_file edits by heading — managed trackers go through doc
 • Never pipe unbounded run_command output — run bare, query @cmd_* buffer (bounded LHS like ls, cat, awk, sed, find -maxdepth N is OK)
 
 `;

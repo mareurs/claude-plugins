@@ -12,7 +12,7 @@ tags:
 closed: 2026-08-26
 opened: 2026-08-26
 severity: med
-unverified: 'The exemplar half is verified (class-wide grep clean, regex checked against a known-positive; run-all.sh 16/16). The R-4 behavioural half is NOT measured — buddy/tests/reconnaissance-eval has cases pinned but no baseline (n=0), so the widened law''s effect on scout behaviour is unknown. Also NOT LIVE: no version bump yet, so all profile caches still serve the pre-fix copy. Still no automated check that a skill''s prescribed tool calls stay legal against the MCP server — the gap that produced this bug is unclosed.'
+unverified: 'TRACKED af3292c4ea2d4712 — The exemplar half is verified (class-wide grep clean, regex checked against a known-positive; run-all.sh 16/16). The R-4 behavioural half is NOT measured — buddy/tests/reconnaissance-eval has cases pinned but no baseline (n=0), so the widened law''s effect on scout behaviour is unknown. (Discharged 2026-10-27: the clause that stood here, ''NOT LIVE: no version bump yet'', no longer holds. The fix text, ''`dated` takes no trailing text'', is in codescout-companion/skills/reconnaissance/SKILL.md and in all three profile caches at 1.20.20.) Still no automated check that a skill''s prescribed tool calls stay legal against the MCP server — the gap that produced this bug is unclosed.'
 ---
 
 ## Summary

@@ -1,0 +1,57 @@
+{
+  "observed_on": "2026-11-07",
+  "harness": "codex",
+  "version": "0.167.0",
+  "surface": "exec",
+  "root": "01a1b668-4efb-7763-a6b5-a1fef3ce4671",
+  "resumed_root": "01a1b668-4efb-7763-a6b5-a1fef3ce4671",
+  "baseline": "6e9cffd2b7851156ac809068bb2efe16bfabff27",
+  "write": {
+    "name": "mcp__codescout__create_file",
+    "principal": "codex:01a1b668-4efb-7763-a6b5-a1fef3ce4671",
+    "agent_id": null,
+    "call_id": "exec-5e08c233-3395-4ffb-906a-a7f6038a576b",
+    "outcome": "possible-write",
+    "path": "src/main.rs",
+    "workspace": "/tmp/native-identity-20261107-bk9tesai"
+  },
+  "formatter": {
+    "call_id": "exec-62af841d-65d7-47dc-9b22-f152557ecb6c",
+    "command": "bash scripts/fmt-mine.sh",
+    "exit_code": 1,
+    "coverage": "UNKNOWN",
+    "known_owner_retained": true
+  },
+  "before_sha256": "76299fb39f2090cb6b6dd73984de0ef8e1e71842ef9732447f8e6f5374d2eb6a",
+  "after_sha256": "76299fb39f2090cb6b6dd73984de0ef8e1e71842ef9732447f8e6f5374d2eb6a",
+  "helpers_sha256": {
+    "fmt-mine.sh": "311d8499314339faf2beff974ae1c4c3db02c9a04d4016b6145da89b330d14a7",
+    "fmt_paths.py": "87a626f9884f10de814782e36bab116c5d446079ae6796d4a2412b5b4b9af581",
+    "file-provenance.py": "905a0b865ac3e7896995b640ac2d97aa1283db22fdcca919935c421385c7960f",
+    "session_context.py": "231f36eaf8a4212115c064eba9509c1a161f6e09d3c403e6136c0f86a0019cac",
+    "claude_history.py": "78599099fbf246beab350f6d5c0d901a23d8324f606d6e22e08c280330a55442",
+    "codex_history.py": "3b62bbb332551dcef60709ee5bcea47723899095fcb004ed49ee38a5f1c13585",
+    "provenance_records.py": "798e57934daeccff3de1cec2756d4a71e214b7f6d1260c52982efa27c093f88a",
+    "history_cache.py": "7f966c0d350389861cee6a190c7754f5906d778409fa20c647a4cce0c84d8d1e",
+    "write_targets.py": "db83a39edf0dcbb5cf49cdee3ddefb1739d2c164b0850444001ef89a96a8cf94"
+  },
+  "gaps_after_write": [
+    "opaque Codex custom-tool wrapper; inner execution is not recoverable",
+    "opaque Codex custom-tool wrapper; inner execution is not recoverable",
+    "opaque Codex custom-tool wrapper; inner execution is not recoverable"
+  ],
+  "gaps_after_resume": {
+    "opaque Codex custom-tool wrapper; inner execution is not recoverable": 5
+  },
+  "native_history_sha256": "4f2fb381c6a582f1e84c04b55dc0de720dad2218efa2bb4298f09a04aa88f77d",
+  "scope": "Completed native write and same-root resume; owned formatting refused. No child, fork or compaction acceptance claimed.",
+  "overrides": {
+    "credentials_copied": false,
+    "identity": false,
+    "context": false,
+    "history": false,
+    "exclusive_checkout": false,
+    "permission_or_trust_bypass": false,
+    "profile_changes": false
+  }
+}

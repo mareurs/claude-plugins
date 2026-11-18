@@ -31,8 +31,8 @@
       "category": "infrastructure"
     },
     {
-      "name": "claude-statusline",
-      "source": "./claude-statusline",
+      "name": "statusline",
+      "source": "./statusline",
       "description": "Rich, color-coded terminal status line showing model, context %, rate limits, git info, cost, and more.",
       "author": {
         "name": "Marius"
@@ -44,7 +44,7 @@
     {
       "name": "buddy",
       "source": "./buddy",
-      "description": "A Himalayan-aesthetic bodhisattva companion for Claude Code, with 9 specialist masters on demand. Standalone or composable with claude-statusline.",
+      "description": "A Himalayan-aesthetic bodhisattva companion for Claude Code, with 9 specialist masters on demand. Standalone or composable with statusline.",
       "author": {
         "name": "Marius"
       },
@@ -55,12 +55,45 @@
     {
       "name": "session-bridge",
       "source": "./session-bridge",
-      "description": "Cross-session MCP bridge: register every active Claude Code session locally and ask one session a question from another, answered in its loaded context via --resume + --fork-session.",
+      "description": "Channel between Claude Code sessions: ask a live session through a read-only fork, and post notices that reach the sessions they matter to.",
       "author": {
         "name": "Marius"
       },
       "license": "MIT",
       "keywords": ["mcp", "session", "rpc", "bridge", "rust"],
+      "category": "infrastructure"
+    },
+    {
+      "name": "legible",
+      "source": "./legible",
+      "description": "Make Claude's output easier for a person to read and check: the Explanatory output style plus about 80% of the ASD-STE100 writing rules.",
+      "author": {
+        "name": "Marius"
+      },
+      "license": "MIT",
+      "keywords": ["output-style", "ste100", "readability", "explanatory"],
+      "category": "ui"
+    },
+    {
+      "name": "hint-echo",
+      "source": "./hint-echo",
+      "description": "Shows the user the additionalContext that tool hooks hand to the model, such as [cs-hint], as a dim transcript row.",
+      "author": {
+        "name": "Marius"
+      },
+      "license": "MIT",
+      "keywords": ["hooks", "mod", "cs-hint", "transparency"],
+      "category": "ui"
+    },
+    {
+      "name": "cs-hint-codex",
+      "source": "./cs-hint-codex",
+      "description": "Codex only: the [cs-hint] advisories of the buddy plugin as one small hook, so a new Codex user approves one hook instead of 27.",
+      "author": {
+        "name": "Marius"
+      },
+      "license": "MIT",
+      "keywords": ["codex", "hooks", "cs-hint", "codescout"],
       "category": "infrastructure"
     }
   ]

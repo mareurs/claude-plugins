@@ -15,7 +15,7 @@ fix.
 |---|---|---|
 | **Convention** | The local dialect: status vocabularies, archive dir, index format | `CONVENTIONS.md`, `TAXONOMY.md`, archive policy docs, `get_guide("tracker-conventions")` defaults |
 | **Declared** | What the project *says* is true | index/README cluster maps, frontmatter `status:` |
-| **Observed** | What *is* true | `git log -1` per file, actual directory, librarian catalog, `artifact_refresh(list_stale)` |
+| **Observed** | What *is* true | `git log -1` per file, actual directory, librarian catalog, `doc(action="list_stale")` |
 
 **REQUIRED SUB-SKILL:** None. Composes with `reconnaissance` (per-task
 drift-catching; this skill is the corpus-wide periodic sweep).
@@ -65,7 +65,7 @@ start Phase 1.
 Two reasons, both measured on codescout 2026-08-28 after pulling 437 commits onto a
 laptop that had never built the project.
 
-**1. D9's signal is inverted, not merely noisy.** `artifact_refresh(list_stale)`
+**1. D9's signal is inverted, not merely noisy.** `doc(action="list_stale")`
 enumerates only artifacts that *have* an augmentation. Mid-repair, with 19 trackers
 carrying none at all, it returned exactly **two** — the two that had just been
 correctly restored, each with `last_refreshed_at: null`, `refresh_count: 0`,
@@ -93,7 +93,7 @@ indistinguishable from one whose row drifted.
 
 Ordered, because later steps read what earlier ones write:
 
-1. `librarian(action="reindex")` — rows first; every `artifact(find)` before this
+1. `librarian(action="reindex")` — rows first; every `doc(find)` before this
    returns a confidently wrong empty set.
 2. `index(action="verify")`, then repair memories server-side (for codescout:
    `codescout migrate-memories --in-place`). Check `skipped` in the result.
@@ -112,7 +112,7 @@ Ordered, because later steps read what earlier ones write:
   augmentation-shape store. On codescout this recovered an `entry_collection` name
   that prose would have gotten wrong, and a whole row field the body never mentions.
   Grep the artifact's id across `docs/issues/archive/` and read every hit showing an
-  `artifact_augment` / `append_entry` / `update_entry` call or a `changed_fields`
+  `doc(action="augment")` / `append_entry` / `update_entry` call or a `changed_fields`
   echo.
 - **A field whose values are unrecoverable goes in the schema with no row carrying
   it,** stated in your report and in the augmentation `prompt`. Never fabricate to
@@ -170,10 +170,10 @@ Build both states. All shell via `run_command`; never pipe unbounded output.
 
 - **Observed dates:** `for f in $(git -C <root> ls-files 'docs/trackers/*.md'); do echo "$(git -C <root> log -1 --format=%ad --date=short -- "$f")  $f"; done`
 - **Observed placement:** which files sit in the live dir vs the archive dir.
-- **Observed catalog:** `artifact(action="find", kind="tracker", include_archived=true)` — note rows whose `status` or `rel_path` disagree with disk. This query is project-wide: it returns trackers **anywhere** in the project, including outside `docs/trackers/` (e.g. a subproject's `*/docs/*_TRACKER.md`). The file inventory above only sees `docs/trackers/` — so the two halves disagree on scope. Treat `docs/trackers/` as the sweep's authoritative scope; a catalog tracker living elsewhere is a *separate observation*, not a D1 index-drift finding. (If you reach for `librarian(action="doctor")` to find orphans, note it scans the **whole catalog across all projects** — filter its `missing_file` violations to this project's path.) `kind=tracker` can also return mis-classified `docs/issues/` bug files (a bug file carrying `kind: tracker`) — exclude `docs/issues/` from the cross-check; bug-file lifecycle is D8/v2.
-- **Observed augmentation freshness:** `artifact_refresh(action="list_stale", threshold_hours=168)`.
+- **Observed catalog:** `doc(action="find", kind="tracker", include_archived=true)` — note rows whose `status` or `rel_path` disagree with disk. This query is project-wide: it returns trackers **anywhere** in the project, including outside `docs/trackers/` (e.g. a subproject's `*/docs/*_TRACKER.md`). The file inventory above only sees `docs/trackers/` — so the two halves disagree on scope. Treat `docs/trackers/` as the sweep's authoritative scope; a catalog tracker living elsewhere is a *separate observation*, not a D1 index-drift finding. (If you reach for `librarian(action="doctor")` to find orphans, note it scans the **whole catalog across all projects** — filter its `missing_file` violations to this project's path.) `kind=tracker` can also return mis-classified `docs/issues/` bug files (a bug file carrying `kind: tracker`) — exclude `docs/issues/` from the cross-check; bug-file lifecycle is D8/v2.
+- **Observed augmentation freshness:** `doc(action="list_stale", threshold_hours=168)`.
 - **Observed citation-graph drift:** `librarian(action="link_scan")` (report mode) — record `counts.edges_missing` and `counts.dangling` in the sweep entry; a jump vs the previous sweep is an observation worth an HY-N note (materializing with `write=true` is a Phase-5 fix, gated like any other).
-- **Declared:** parse the index file's rows (file links + claimed status); read each tracker's frontmatter `status:` via `read_markdown`.
+- **Declared:** parse the index file's rows (file links + claimed status); read each tracker's frontmatter `status:` via `read_file`.
 
 ### Phase 3 — Diff (the detectors)
 
@@ -184,11 +184,11 @@ observed Y"*.
 | ID | Name | Fires when | Proposed fix | Confidence |
 |---|---|---|---|---|
 | **D1** | index-drift | Live file absent from the index, or index row points at a missing/moved file | add or repoint the index row — *which* cluster/section is a per-file placement judgment, so gate the placement, not just the add | high |
-| **D2** | terminal-not-archived | Frontmatter `archived`/`superseded` but file in live dir; or file in archive dir with `status: active` | `artifact(update, patch={status:...})` + `artifact(move, new_rel_path=...)` per archive policy — **but a tracker superseded *by a successor* uses a `supersedes` edge, not a status patch (see note below)** | high |
+| **D2** | terminal-not-archived | Frontmatter `archived`/`superseded` but file in live dir; or file in archive dir with `status: active` | `doc(update, patch={status:...})` + `doc(move, new_rel_path=...)` per archive policy — **but a tracker superseded *by a successor* uses a `supersedes` edge, not a status patch (see note below)** | high |
 | **D3** | stale-active | `status: active` and no git touch in N days | **a question** — archive, or confirm still-live? Never presume archive | low, by design |
-| **D4** | frontmatter-catalog-mismatch | Catalog row disagrees with file frontmatter, or file has no catalog row / no `kind:` | reconcile via `artifact(update)`; `librarian(action="reindex")` for orphans | high |
+| **D4** | frontmatter-catalog-mismatch | Catalog row disagrees with file frontmatter, or file has no catalog row / no `kind:` | reconcile via `doc(update)`; `librarian(action="reindex")` for orphans | high |
 | **D5** | canonical-conflict | Two live trackers claim one topic (tag/topic overlap + index cluster), or a child restates its canonical's status | judgment call — merge, link, or bless the fork | low |
-| **D9** | augmentation-stale | `artifact_refresh(list_stale)` returns the artifact | refresh **only if mechanical**, else defer to owner (see the D9 rule below) — never fabricate | medium |
+| **D9** | augmentation-stale | `doc(action="list_stale")` returns the artifact | refresh **only if mechanical**, else defer to owner (see the D9 rule below) — never fabricate | medium |
 | **D10** | session-log-decay | File matches `*session-log*.md` in the live dir, frontmatter `status: active` or `draft`, AND no git touch in ≥21 days | propose **distill-then-archive** (procedure below) — never a bare archive; every sub-step is its own gate | low, by design |
 | **D11** | promotion-pointer drift | An **active** entry claims a promoted status and the claim does not hold at the target: no `Promoted-to:` named, a named destination whose heading is absent, or a destination whose current text no longer carries the promoted claim | one of three verdicts — **repoint** / **absorbed** / **retire** — never a blanket relink, and never a `Status:` downgrade | high for "heading absent" (syntactic); **low by design** for the other two |
 
@@ -207,11 +207,21 @@ staleness clock (it should re-surface next sweep). Fabricating into a domain
 registry is the worst outcome; deferring a mechanical one only costs a re-run.
 
 **`supersedes` is an edge, not a status (D2/D5).** When a tracker is terminal
-because a *successor* replaced it, do NOT `artifact(update,
-patch={status:"superseded"})`. Create the edge — `artifact(action="link",
-src_id=<old>, dst_id=<successor>, rel="supersedes")` — which flips the old
+because a *successor* replaced it, do NOT `doc(update,
+patch={status:"superseded"})`. Create the edge — `doc(action="link",
+src_id=<successor>, dst_id=<old>, rel="supersedes")` — which flips the old
 tracker's status to `superseded` **and** emits the event; a bare status patch
-leaves the graph and event log wrong. No successor → a plain `status: archived`
+leaves the graph and event log wrong.
+
+> **The direction is the trap, and this page had it backwards until 2026-09-14.**
+> Read the edge as a sentence: **src supersedes dst**, so the DST is the one that
+> gets marked `superseded`. `link.rs` takes `previous_status` from `dst` and its
+> test `supersedes_transitions_dst_status` asserts `dst` becomes `superseded`.
+> The earlier form here said `src_id=<old>, dst_id=<successor>` — which marks the
+> SUCCESSOR superseded, the exact inverse of the intent, and does it silently:
+> the call returns `ok` and reports the transition it caused, so the only way to
+> notice is to read that field. Measured live that day on two codescout bug
+> records, following this page verbatim. No successor → a plain `status: archived`
 patch. Genuinely forked with no clear canonical → a D5 judgment, not an archive.
 (`get_guide("tracker-conventions")` § Cross-linking.)
 
@@ -231,24 +241,47 @@ sequence — each mutation is its own Phase-4 gate:
    with one line of evidence.
 3. **Confirm with the owner** that the work stream is actually wrapped (D3-style
    question — an idle-but-planned stream gets `defer`, which resurfaces next sweep).
-4. **Compact.** Replace the body with an outcomes digest: the Index / Wins Index
-   tables (statuses updated), one paragraph per promoted/rehomed entry naming its
-   destination, and unfired Promote-when criteria. Full prose history stays in git.
-5. **Archive through the catalog, in three steps — not two.** Per
-   `archive-cadence-policy` § 3 (amended, ratified 2026-08-17):
-   a. `artifact(update, patch={status:"archived"})` — or a `supersedes` **edge**
+4. **Compact.** Never reduce an F-N / W-N entry to a bare row: every entry keeps
+   its `## <ID> — <title>` heading in the archived file, because `link_scan` binds
+   PREFIX-N to that heading and to nothing else — git history is not consulted, so
+   a citation whose heading is gone resolves Dangling. Prose beneath a heading may
+   be shortened. Add the outcomes digest as an ADDITIONAL reading surface at the
+   top: the Index / Wins Index tables (statuses updated), one paragraph per
+   promoted/rehomed entry naming its destination, and unfired Promote-when
+   criteria. Verify with `link_scan`: no new dangling citation for the stem's
+   tokens. (`get_guide("tracker-conventions")` § Compaction and archival.)
+5. **Archive through the catalog, in three steps — not two.** Use
+   `archive-cadence-policy` § 3 (amended, ratified 2026-08-17), with the
+   stem-citation exception below to its whole-file timestamp rule:
+   a. `doc(update, patch={status:"archived"})` — or a `supersedes` **edge**
       instead, when a successor replaced it (see the note above);
-   b. `artifact(move, new_rel_path="docs/trackers/archive/<name>-<YYYY-MM-DD>.md")`
-      — **timestamped**, the date being the day the stream was declared wrapped in
-      step 3. The timestamp is not decoration: `artifact(move)` fails if the
-      destination exists, so a stream that wraps, gets archived, is restarted at the
-      live path and wraps again could not be archived at all. It is also the only
-      surviving record of *when* it wrapped once the file leaves the live dir.
-      (A ledger's **entry-level** archive companion is the opposite case — stable
-      name, no timestamp, and check it exists before creating one, or the namespace
+   b. Choose the archive name, then `doc(move, new_rel_path=...)`:
+      - **Stem-cited log:** code or any `<stem>:TOKEN` entry citation in the corpus
+        (including archived documents) names the file stem. Keep the name:
+        `docs/trackers/archive/<name>.md`. Before moving, record the day the stream
+        was declared wrapped in step 3 with
+        `doc(update, patch={extra:{archived_on:"<YYYY-MM-DD>"}})`.
+        A timestamp rename breaks those citations; `link_scan` reports them as
+        `CrossRepoToken`, not `dangling`, so a zero dangling count misses the break.
+      - **Uncited log:** `docs/trackers/archive/<name>-<YYYY-MM-DD>.md`, the date
+        being the day the stream was declared wrapped in step 3. The timestamp
+        records when it wrapped and separates repeated wraps on different dates.
+        `doc(move)` fails if the destination exists; check it before moving.
+      - **Recheck after step 1 and immediately before the move.** Promotions can
+        write new `<stem>:TOKEN` citations after the initial dossier. Choose from
+        the current corpus, not the dossier's earlier naming decision.
+      - **If the stable destination already exists, stop and ask the owner.** Do
+        not invent a suffix: it changes the cited stem again. Do not overwrite the
+        existing archive or merge distinct entry namespaces to avoid the collision.
+      (A ledger's **entry-level** archive companion also keeps a stable name,
+      without a timestamp. Check it exists before creating one, or the namespace
       forks into ambiguous tokens.)
-   c. **Repoint citations of the old path AND the old 16-hex id, in the same commit**,
-      then verify with a scoped `audit_doc_refs` (0 high findings as the gate).
+   c. **Repoint citations of the old path AND the old 16-hex id — and, if the name
+      changed, the old file stem (`<old-stem>:TOKEN`) — in the same commit**.
+      Verify with a scoped `audit_doc_refs` (0 high findings as the gate), plus a
+      `link_scan` report with no `CrossRepoToken` whose qualifier is the old stem.
+      Read all relevant findings if the report is truncated; a cut list cannot
+      establish absence.
       `link_scan(write=true)` does not do this — markdown citations are not catalog
       edges. HY-5 § 1 measured the cost of skipping it: 24 moves broke 8 path
       references across 7 live surfaces, none caught by `link_scan`, one failing CI on
@@ -343,14 +376,15 @@ Nothing is edited before its verdict.
 
 ### Phase 5 — Apply + Log
 
-- Apply approved fixes **through the librarian** — `artifact(update)`,
-  `artifact(move)` — never bare `git mv`, which orphans the catalog row
+- Apply approved fixes **through the librarian** — `doc(update)`,
+  `doc(move)` — never bare `git mv`, which orphans the catalog row
   (`id = sha256(abs_path)`).
 - For a tracker superseded **by a successor**, archive via a `supersedes` edge —
-  `artifact(action="link", src_id=<old>, dst_id=<successor>, rel="supersedes")` —
+  `doc(action="link", src_id=<successor>, dst_id=<old>, rel="supersedes")` —
   never a `status:"superseded"` patch: the edge flips status and emits the event
-  (see the supersedes note in Phase 3).
-- After applying **any** `artifact(move)`, run `librarian(action="link_scan",
+  (see the supersedes note in Phase 3, including the direction warning — **src
+  supersedes dst**, so the DST is the one marked `superseded`).
+- After applying **any** `doc(move)`, run `librarian(action="link_scan",
   write=true)` once — a move churns the `id` and the reindex cascade-drops the
   artifact's `cites` edges; `link_scan` heals them (idempotent, scanner-owned,
   never touches manual/`supersedes` rels). Log `edges_added`/`edges_pruned` in
@@ -360,7 +394,7 @@ Nothing is edited before its verdict.
   so this goes through a plain body edit, not `append_entry`:
 
   ```python
-  artifact(action="update", id="<ledger artifact id>",
+  doc(action="update", id="<ledger artifact id>",
            patch={body_edits: [{heading: "## Template for new entries",
                                  action: "insert_before",
                                  content: "## Sweep YYYY-MM-DD\n..."}],
@@ -372,12 +406,12 @@ Nothing is edited before its verdict.
   ARE the index):
 
   ```python
-  artifact(action="append_entry", id="<ledger artifact id>", id_prefix="HY",
+  doc(action="append_entry", id="<ledger artifact id>", id_prefix="HY",
            anchor_heading="## Template for new entries",
            title="<one-line title>", body="**Verdict:** ...")
   ```
 
-  `edit_markdown` is refused once the ledger declares `entry_prefix` to
+  `edit_file` is refused once the ledger declares `entry_prefix` to
   guard it (the template instructs this on first sweep) — it only works on
   an unguarded fresh copy.
 - Update the Detector trust state table (zero-reject streaks, demotions).
@@ -401,13 +435,13 @@ Nothing is edited before its verdict.
 - **Interrupted sweep** → safe by construction: nothing applies ungated,
   the ledger writes at the end, findings recompute next sweep.
 - **Foreign-project sweep (target ≠ session home)** → the catalog detectors
-  (D4, D9) run via `artifact()` / `artifact_refresh()`, which query only the
+  (D4, D9) run via `doc()` / `doc(action="list_stale")`, which query only the
   ACTIVE project and take **no** `workspace=` param. So you MUST
   `workspace(action="activate", path=<target>, read_only=false)` before Phase 2,
   and confirm the response shows `read_only: false` — a read-only activation
   blocks Phase 5 apply and the ledger bootstrap. Restore the home project before
   the turn ends (`get_guide("workspace-state")`). Pinning `workspace=` reaches only
-  the file-based detectors (D1/D2/D3 via `run_command`/`read_markdown`), never the
+  the file-based detectors (D1/D2/D3 via `run_command`/`read_file`), never the
   catalog — so a pinned-not-activated sweep silently runs at most half the detectors.
 
 ## Stop conditions

@@ -1,0 +1,1 @@
+{ "name": "effort-observer", "version": "0.1.0", "description": "Throwaway read-only probe: logs each turn.step (index, effort, model, messageCount) and changes nothing." }

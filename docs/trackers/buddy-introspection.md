@@ -1,3 +1,9 @@
+---
+kind: tracker
+status: active
+title: Buddy Specialists — Hamsa Introspection Audit
+---
+
 # Buddy Specialists — Hamsa Introspection Audit
 
 > **Tracker schema:** audit_issues archetype (extended). Designed via `librarian(tracker_design)`.
@@ -20,7 +26,7 @@ specialists_scanned: 10/12          # roster grew to 12 AFTER this sweep
   - security-ibex
 specialists_pending:                 # never audited, never listed as pending
   - codescout-pika                   # 316 lines - the roster's real length outlier
-  - prompt-hamsa                     # 158 lines
+  - prompt-hamsa                     # 171 lines (158 at 2026-08-26; re-measured 2026-10-27)
 last_updated: 2026-08-26
 ```
 
@@ -30,12 +36,12 @@ These are the canonical rows. Per-specialist duplicates are not recorded; severi
 
 | #  | Issue | Sev | Status | Heur | Lit | Fix | Applies to (N/10) |
 |---:|-------|:---:|:------:|:----:|-----|-----|:-----------------:|
-| S-1 | Heavy biographical role-priming (animal metaphor + multi-sentence persona biography) | high | open | H2 | arxiv 2311.10054, 2507.16076 | cut bio; keep one-line tone cue | **9** (ibex is light, others heavy) |
+| S-1 | Heavy biographical role-priming (animal metaphor + multi-sentence persona biography) | high | open | H2 | arxiv 2311.10054, 2507.16076 | cut bio; keep one-line tone cue | **2 of 12** (was 9; re-measured 2026-10-27: `security-ibex` and `codescout-pika` still have a narrative Voice block, the other 10 are one short line) |
 | S-2 | No I/O contract (no input/output shape, no escape hatch) | high | open | step-5 | — | adopt ibex-style Finding Format and/or output schema block | **9** (ibex has Finding Format) |
-| S-3 | No soft scope rule for out-of-domain input | high | open | step-5 | arxiv 2505.18325 | adopt ibex-style "set scope, ask once" pattern | **8** (ibex + pheasant have explicit scope-ask) |
-| S-4 | Closed-set Reactions (~5 pairs) without trigger-rationale | high | open | H3 | arxiv 2403.16512 | add _Applies: <Method/Heuristic ref>_ per Reaction; mark non-exhaustive | **10** |
+| S-3 | No soft scope rule for out-of-domain input | high | open | step-5 | arxiv 2505.18325 | adopt ibex-style "set scope, ask once" pattern | **8** (ten-specialist figure; re-measured 2026-10-27 over 12, see § S-3: four files ask about scope, none hands off to a named specialist) |
+| S-4 | Closed-set Reactions (~5 pairs) without trigger-rationale | high | open | H3 | arxiv 2403.16512 | add _Applies: <Method/Heuristic ref>_ per Reaction; mark non-exhaustive | **2 of 12** (was 10; re-measured 2026-10-27: `security-ibex`, `codescout-pika`) |
 | S-5 | No eval set (zero graded examples per specialist) | high | **fixed** — falsified 2026-08-26 | H7 | DSPy/Promptfoo/LangSmith 2025 | **done**: `buddy/tests/<specialist>-eval/` exists for **12/12**, each with 2 prompt-tdd scenarios + a `prompt_tdd.yaml` (hamsa's sits at a nested `prompt-tdd/` path under an older bespoke harness) | **0** (was 10) |
-| S-6 | Declarative third-person framing vs interview-style | med | **wontfix-with-data** | H2 | arxiv 2507.16076 | T-33 dialogic draft + hamsa inspection on both variants: declarative wins on 6/7 dimensions; dialogic adds ~37% token cost without named benefit hypothesis. Forensic artifact at `buddy/skills/debugging-yeti/SKILL-dialogic.md`. See active-plan.md 2026-05-16 disposition entry. | **10** |
+| S-6 | Declarative third-person framing vs interview-style | med | **wontfix-with-data** | H2 | arxiv 2507.16076 | T-33 dialogic draft + hamsa inspection on both variants: declarative wins on 6/7 dimensions; dialogic adds ~37% token cost without named benefit hypothesis. Forensic artifact at `buddy/skills/debugging-yeti/SKILL-dialogic.md`. See active-plan.md 2026-05-16 disposition entry. | **10** (audited-roster figure; re-checked 2026-10-27: none of the 12 files uses interview-style framing) |
 
 **The `Applies to (N/10)` denominator is the audited ten, not the roster.** `codescout-pika`
 and `prompt-hamsa` joined afterwards and have never been assessed against `S-1`..`S-6`, so
@@ -149,7 +155,9 @@ Method/Reactions.
 same or better tone fidelity. Untested until S-5 is solved.
 
 
-**Valid:** dated 2026-05-15
+**Valid:** dated 2026-10-27
+
+**Re-measured 2026-10-27** over the 12 current `buddy/skills/*/SKILL.md` files. The `## Voice` block is one short line (a tone cue plus a quote) in 10 of them: 81 to 157 bytes each, 1,148 bytes in total, which is about 290 tokens at 4 bytes per token. Two are narrative: `security-ibex` (505 bytes, "The Ibex stands on a ledge two centimeters wide…") and `codescout-pika` (337 bytes). All 12 Voice blocks together are 1,990 bytes, about 500 tokens. The three example phrases this entry quotes ("palace gate", "still water", "thermals") appear in no file. So the symptom as described no longer holds for 10 of the 12, and the "ibex is light, others heavy" picture is reversed: ibex is now the heaviest. Not measured: biography elsewhere in Method and Reactions beyond those three phrases, and whether the byte-to-token ratio is right.
 
 Measured against the ten-specialist roster of that sweep (~900 tokens across 9 specialists,
 ibex excepted). The roster is now twelve, so the aggregate figure is a lower bound and the
@@ -183,7 +191,9 @@ a more apt specialist (e.g. `/buddy:summon <name>`)."*
 **Predicted impact:** Cleaner hand-offs, less off-domain hallucination.
 
 
-**Valid:** dated 2026-05-15
+**Valid:** dated 2026-10-27
+
+**Re-measured 2026-10-27** over the 12 current `buddy/skills/*/SKILL.md` files. Four contain an ask-about-scope principle: `security-ibex` ("Set scope… If scope is unclear, ask — once"), `data-leakage-snow-pheasant` ("Ask which lens before chasing the bug"), and `debugging-yeti` and `performance-lammergeier` ("Ask before chasing (scope)", about systems the user has not named). None contains the hand-off this entry asks for: no file says "more apt specialist" or points to `/buddy:summon`. `codescout-pika` and `prompt-hamsa`, the two added since the sweep, have neither. The original "8 of 10" is not directly comparable: I could not see how it defined a rule for out-of-domain input, and the `debugging-yeti` and `performance-lammergeier` principles are about unnamed systems inside the task, not off-domain questions. I did not read every file in full, only searched for these phrases.
 
 "8 of 10" is a count taken at that sweep. Two specialists have been added since, neither
 audited for a soft-scope rule, so the ratio is unknown today — not 8 of 12.
@@ -203,7 +213,9 @@ when no Reaction matches, derive response from Method + Heuristics."*
 **Predicted impact:** Less surface shoehorning on novel inputs. Token cost ~40/specialist.
 
 
-**Valid:** dated 2026-05-15
+**Valid:** dated 2026-10-27
+
+**Re-measured 2026-10-27** over the 12 current specialists (`buddy/skills/*/SKILL.md`). All 12 have a `## Reactions` section. 10 carry `_Applies:_` lines, 53 in total: 6 each in `data-leakage-snow-pheasant`, `ml-training-takin` and `prompt-hamsa`, and 5 each in the other seven. `security-ibex` and `codescout-pika` carry none; both keep the plain numbered `When the user says …: respond with —` form. The exact S-4 sentence "illustrative, not exhaustive" appears in no file; the one fixed file I read, `debugging-yeti`, words it "Non-exhaustive. Each pairs a user signal with a method/heuristic anchor…". So the symptom no longer holds for 10 of the 12 and still holds for `security-ibex` and `codescout-pika`. Not measured: whether every Reaction in the 10 carries its `_Applies:_` line, and whether the two were left out on purpose. This answers the shape question in the paragraph below.
 
 "Every specialist" meant the ten scanned. Whether the two later additions follow the same
 closed-set Reactions shape is unverified.
@@ -252,7 +264,9 @@ Per LLM-lens research, use a 3-judge PoLL panel.
 S-1, S-2, S-3, S-4, S-6 — is a guess. **This is the highest-leverage single action.**
 
 
-**Valid:** dated 2026-05-15
+**Valid:** dated 2026-10-27
+
+**Re-measured 2026-10-27:** the CLOSED note still holds. `buddy/tests/<specialist>-eval/` exists for all 12 specialists. Each has a `prompt_tdd.yaml` and exactly 2 `scenario.yaml` files (24 in total); `prompt-hamsa-eval` nests its prompt-tdd form under `prompt-tdd/`, as the note says. Five more `*-eval` directories exist for non-specialists (`advisor-projection`, `create-buddy`, `explore-project`, `legibility-dzo`, `reconnaissance`). This is existence only; pass results were not measured.
 
 Declared `dated` rather than left blank precisely because the claim is **falsified** — see the
 CLOSED note above. `dated` is the honest class for a statement that was true of an instant and
@@ -274,7 +288,9 @@ where eval shows measurable improvement.
 delta. Strictly gated on S-5.
 
 
-**Valid:** dated 2026-05-15
+**Valid:** dated 2026-10-27
+
+**Re-checked 2026-10-27:** none of the 12 current `buddy/skills/*/SKILL.md` files uses interview-style framing (no match for "In this exchange", "takes the role of" or "the assistant takes"), and the forensic artifact `buddy/skills/debugging-yeti/SKILL-dialogic.md` still exists next to its `SKILL.md`. The Voice blocks are now short tone cues in 10 files and a narrative paragraph in `security-ibex` and `codescout-pika` (see `S-1`), so "third-person declarative" fits those two better than the other ten. The disposition is unaffected.
 
 "All 10" was the roster then. The disposition is `wontfix-with-data`, so this entry is kept as
 a measured negative rather than as pending work — but the measurement itself is of ten

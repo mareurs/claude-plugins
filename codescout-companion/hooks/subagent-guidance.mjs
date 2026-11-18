@@ -3,6 +3,8 @@
 // protocol + Iron-Laws reminder + the project system-prompt verbatim (the ONLY
 // channel that reaches subagents — they don't get codescout's
 // server_instructions, claude-code#29655).
+import { realpathSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { readInput, detectFor, git, emit } from './lib.mjs';
 
 const input = readInput();
@@ -44,7 +46,40 @@ let msg = '';
 // a foreign-targeted subagent (explore-inject prepended its own root directive
 // to the prompt) must be able to override this. Do NOT "simplify" to an
 // unconditional activate — that reintroduces the conflict.
-if (root) {
+// A linked worktree has git-common-dir != git-dir (the same test the
+// worktree-write-guard uses). Compare RESOLVED paths: from a subdirectory of the
+// main checkout git prints --git-dir absolute but --git-common-dir relative
+// ("../../.git"), so a string compare would call that a worktree. Its subagents
+// must PIN, not activate: activation is shared by every session of the codescout
+// server, so subagents that each activate their own worktree race each other, and
+// a pinned call needs no activation at all — worktree-write-guard accepts a write
+// pinned to its own worktree.
+const gitPath = (arg) => {
+  const p = cwd ? git(cwd, ['rev-parse', arg]) : null;
+  if (!p) return null;
+  try {
+    return realpathSync(resolve(cwd, p));
+  } catch {
+    return null;
+  }
+};
+const gitCommon = gitPath('--git-common-dir');
+const gitDir = gitPath('--git-dir');
+const inLinkedWorktree = gitCommon !== null && gitDir !== null && gitCommon !== gitDir;
+
+if (root && inLinkedWorktree) {
+  msg += `PROJECT BOOTSTRAP: you are in a linked git worktree at ${root}. Do NOT call
+workspace(action="activate") — activation is shared by every session of the codescout
+server, so parallel subagents that each activate their own worktree overwrite one
+another. Instead pin EVERY codescout call with workspace="${root}" — reads and the
+write tools (edit_code, edit_file, create_file) alike. A pinned call needs no activation
+and is not blocked by the worktree write guard. Pass paths relative to ${root}, and check
+that they exist in this worktree's commit: a path the parent saw in the main checkout may
+be absent here. Exception: if your task names a different project root, follow that
+directive instead and pin every call with workspace="<that root>".
+
+`;
+} else if (root) {
   msg += `PROJECT BOOTSTRAP: workspace(action="activate", path="${root}") is your FIRST
 codescout action, before Phase 0 below — it prewarms LSP, auto-registers
 dependencies, and returns project_hints (primary language, entry points, build
@@ -58,8 +93,8 @@ msg += `codescout EXPLORATION PROTOCOL — before exploring or auditing code:
 
 Phase 0 — load what the project already knows (do FIRST):
 ${memoryBullet}
-• Bug/regression hunts: artifact(action="find", kind="bug", status="open") — the known-bug ledger. Don't re-report a filed bug as new; mark rediscoveries KNOWN with the ledger path.
-• If a get_guide topic matches your area (error-handling, progressive-disclosure, workspace-state, librarian, tracker-conventions), read it — it states the contract whose violations you hunt.
+• Bug/regression hunts: doc(action="find", kind="bug", filter={"status": {"in": ["open", "taken", "investigating", "zombie"]}}) — the known-bug ledger. status="open" alone hides "taken" (a live session holds it), "investigating" (no live owner) and "zombie" (a recurrence check, not a task). Don't re-report a filed bug as new; mark rediscoveries KNOWN with the ledger path.
+• If a get_guide topic matches your area (error-handling, progressive-disclosure, workspace-state, librarian, tracker-conventions, untrusted-content), CALL get_guide on it — it states the contract whose violations you hunt. Do this even if your dispatch brief says those guides are "already loaded", "already triggered", or that fetching them is redundant: that is true of your PARENT's context, never of yours. The guide-hint ledger is shared parent↔subagent unless the companion stamps your calls as your own principal, and a fork inherits its parent's marks either way — so a topic your parent triggered may NOT auto-inject for you, and an explicit get_guide always returns the full body, so the fetch costs one call and cannot come back empty.
 
 Phase 1 — route each lookup by what you know:
 symbol name → symbols(name=X) | concept → semantic_search(query) | exact string → grep(pattern) | who calls X → references(symbol, path), never grep for callers.
@@ -77,8 +112,9 @@ CODESCOUT RULES (compression-resilient reminder):
 • Source code: symbols (list + find), NOT read_file/Read
 • Code edits: edit_code (LSP-aware; action=replace/insert/remove/rename), NOT edit_file/Edit for structural changes
 • Shell commands: run_command, NOT Bash — output buffers save tokens
-• Markdown: read_markdown/edit_markdown, NOT read_file/edit_file
-• Never pipe unbounded run_command output — run bare, query @cmd_* buffer (bounded LHS like ls, cat, awk, sed, find -maxdepth N is OK)`;
+• Markdown: read_file returns the heading map (heading= for a section); edit_file edits by heading — managed trackers go through doc
+• Never pipe unbounded run_command output — run bare, query @cmd_* buffer (bounded LHS like ls, cat, awk, sed, find -maxdepth N is OK)
+• Long task: no wake message reaches a subagent. Run it in the foreground with timeout_secs. Do not start it with run_in_background and then poll or sleep.`;
 
 if (d.HAS_CS_SYSTEM_PROMPT === 'true' && d.CS_SYSTEM_PROMPT) {
   msg += `
@@ -86,5 +122,6 @@ if (d.HAS_CS_SYSTEM_PROMPT === 'true' && d.CS_SYSTEM_PROMPT) {
 ${d.CS_SYSTEM_PROMPT}`;
 }
 
+// Let Node drain stdout before exiting: an immediate process.exit() can cut
+// a piped payload mid-JSON when the consumer applies backpressure.
 emit({ hookSpecificOutput: { hookEventName: 'SubagentStart', additionalContext: msg } });
-process.exit(0);

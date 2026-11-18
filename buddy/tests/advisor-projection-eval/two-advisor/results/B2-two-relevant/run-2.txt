@@ -1,0 +1,59 @@
+*The snow leopard arrives: eyes in shadow, counting gaps.*
+
+Your tests pass. That does not mean your code is correct. Here there is one test, and it covers one of four paths.
+
+**Contract:** Given an invoice id, `get_invoice` returns `invoice.render()` if the invoice exists and the caller is an admin or belongs to the invoice's org. Otherwise it raises `NotFound` (no such invoice) or `Forbidden` (exists, but another org's).
+
+## What the existing test covers
+
+`test_get_invoice_returns_rendered_invoice` drives the **admin** path with `org_id` equal to the invoice's. Two weaknesses:
+
+- **The admin and same-org conditions are conflated.** The admin's `org_id=1` matches the invoice's `org_id=1`. If someone deleted the `role != "admin"` clause entirely, the test would still pass, because the org check would let it through. The test cannot tell which branch authorized the caller.
+- **`render()` is compared to itself.** `inv.render()` is probably deterministic, so this is fine, but the assertion proves only that the return value is the render output, not that it is the render of *invoice 42* rather than any invoice.
+
+## Missing tests
+
+| # | Contract line | Input | Expected | Mutation caught |
+|---|---|---|---|---|
+| 1 | Not found | id with no row | raises `NotFound` | removing the `is None` guard (would yield `AttributeError` on `None.org_id`) |
+| 2 | Cross-org denied | non-admin, `org_id=2`, invoice `org_id=1` | raises `Forbidden` | deleting the org check, or `!=` flipped to `==` |
+| 3 | Same-org allowed | non-admin, `org_id=1`, invoice `org_id=1` | returns render | `!=` flipped, or `and` changed to `or` |
+| 4 | Admin bypass | admin, `org_id=2`, invoice `org_id=1` | returns render | deleting the `role != "admin"` clause |
+| 5 | Wrong invoice selected | two invoices (ids 42, 43, different renders) | `get_invoice(req, 43)` returns 43's render | filter dropped, or `.first()` taken without filtering |
+
+Tests 3 and 4 together replace the current test's ambiguity: the cross-org admin is what actually proves the bypass.
+
+## Boundaries worth probing
+
+- **`invoice_id` edges:** `0`, negative, `None`, a string like `"42"`, and a very large integer. Whether these should return `NotFound` or raise a different error is *not stated by the code*. That is an open contract question; pin whatever you decide.
+- **Role edges:** `role=None`, `"Admin"` (case), `"admin "` (trailing space), `""`. The check is a string compare, so anything but exact `"admin"` is treated as non-admin. `"Admin"` getting denied may or may not be intended. Ask.
+- **Org id edges:** `request.user.org_id` is `None` and `invoice.org_id` is `None`. They compare equal, so a user with no org can read an invoice with no org. That is the sharpest edge here and likely unintended. I have not verified whether the model allows a null `org_id`; check the schema before deciding whether this is a real bug or an impossible state.
+- **Type edges:** `org_id` of `1` against `"1"` (the `!=` is strict, so this denies).
+
+## Ordering contract (often missed)
+
+`NotFound` is raised before `Forbidden`, so a non-admin probing a foreign invoice id gets `Forbidden` while a nonexistent id gets `NotFound`. That lets callers **enumerate which invoice ids exist**. If that matters to you, it is a security question, not a test gap, and one for the security-ibex. Whichever you choose, pin it with a test: non-admin on a foreign invoice raises `Forbidden`, not `NotFound`.
+
+## Test shape
+
+Table-drive tests 2 to 4 (role, user org, invoice org, expected outcome). Assert on the specific exception type: `pytest.raises(Forbidden)` and `pytest.raises(NotFound)` are distinct, so a bare `raises(Exception)` would be non-discriminating.
+
+```python
+@pytest.mark.parametrize("role,user_org,inv_org,expected", [
+    ("user",  1, 1, "ok"),         # same org
+    ("user",  2, 1, Forbidden),    # cross-org
+    ("admin", 2, 1, "ok"),         # admin bypass, the real one
+    ("user",  None, None, "ok"),   # pins current behavior; decide if intended
+])
+```
+
+## Format summary
+
+**Boundaries covered (currently):** none beyond the happy path.
+**Mutation-survival (currently):** the existing test catches removal of the `render()` call and little else. It would survive deleting the `Forbidden` check, deleting the `NotFound` check, and deleting the admin clause.
+**Isolation:** the existing test uses a `db` and `make_invoice`. I have not seen how those are wired (real DB, fake, or in-memory). Show me, because test 5 needs two rows to be meaningful and teardown between tests matters for it.
+**Pyramid level:** unit, using a fake or in-memory db.
+**Confidence:** high on tests 1 to 5 (derived directly from the code shown); medium on the boundary list, since it hinges on schema and intent I have not seen.
+**Open gaps:** the null-org behavior, role case-sensitivity, invalid `invoice_id` types, and the existence-enumeration question all need your decision before I can pin them.
+
+Want me to write the suite? If so, point me to the test file and the `FakeRequest`/`make_invoice` definitions so the tests match your fixtures.

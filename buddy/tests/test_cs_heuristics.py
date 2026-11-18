@@ -1,5 +1,11 @@
 """Tests for scripts/cs_heuristics.py — deterministic pattern checkers."""
+import re
+
+import pytest
+
+from scripts import cs_tool_log
 from scripts.cs_heuristics import check
+from scripts.cs_tool_log import append_entry, summarize_args
 
 
 def _make_event(tool_name="", tool_input=None, tool_error=None, cwd="/home/user/project"):
@@ -14,6 +20,22 @@ def _make_event(tool_name="", tool_input=None, tool_error=None, cwd="/home/user/
 
 def _make_log_entry(tool="", args="", outcome="ok", ts=1000):
     return {"ts": ts, "tool": tool, "args": args, "outcome": outcome}
+def _activate_event(path, cwd="/home/user/project"):
+    """A workspace(action="activate") call, as the PostToolUse hook receives it."""
+    return _make_event(
+        tool_name="mcp__codescout__workspace",
+        tool_input={"action": "activate", "path": path},
+        cwd=cwd,
+    )
+
+
+def _activate_entry(path):
+    """The cs_tool_log record for that call. `args` comes from the real
+    summarize_args, so the test cannot drift from the format the log writes."""
+    return _make_log_entry(
+        tool="mcp__codescout__workspace",
+        args=summarize_args({"action": "activate", "path": path}),
+    )
 
 
 # --- structural edit_file ---
@@ -29,7 +51,32 @@ def test_structural_edit_detected():
     result = check(event, [])
     assert result is not None
     assert "edit_code" in result
-    assert "BUG-027" in result
+    assert "BUG-" not in result  # an internal id the agent cannot look up
+
+
+@pytest.mark.parametrize("path,new_string", [
+    ("src/main.go", "func main() {\n    run()\n}\n"),
+    ("src/lib.rs", "trait Greeter {\n    // greets\n}\n"),
+    ("src/app.py", "def handler(event):\n    return event\n"),
+])
+def test_structural_edit_detected_for_every_definition_keyword(path, new_string):
+    """`func` (Go) and `trait` (Rust) are in the definition list, not only `fn`."""
+    event = _make_event(
+        tool_name="mcp__codescout__edit_file",
+        tool_input={"path": path, "new_string": new_string},
+    )
+    result = check(event, [])
+    assert result is not None
+    assert "edit_code" in result
+
+
+def test_structural_edit_keyword_must_be_a_whole_word():
+    """`default_value = 1` starts with the letters `def` but defines nothing."""
+    event = _make_event(
+        tool_name="mcp__codescout__edit_file",
+        tool_input={"path": "src/app.py", "new_string": "default_value = 1\nother = 2\n"},
+    )
+    assert check(event, []) is None
 
 
 def test_structural_edit_single_line_ok():
@@ -74,75 +121,63 @@ def test_structural_edit_comment_no_keyword():
 # --- forgot restore ---
 
 def test_forgot_restore_detected():
-    log = [
-        _make_log_entry(tool="mcp__codescout__activate_project", args="path=/other"),
-        _make_log_entry(tool="mcp__codescout__activate_project", args="path=/another"),
-    ]
-    event = _make_event(
-        tool_name="mcp__codescout__activate_project",
-        tool_input={"path": "/another"},
-    )
-    result = check(event, log)
+    log = [_activate_entry("/other"), _activate_entry("/another")]
+    result = check(_activate_event("/another"), log)
     assert result is not None
     assert "Iron Law 4" in result
+    assert "`workspace" in result
+
+
+def test_forgot_restore_ignores_workspace_calls_that_are_not_activations():
+    """A workspace(action="status") after a restore is not a foreign activation.
+
+    The log's latest ACTIVATION is the restore, so the next foreign activation is
+    fine. If the check counted the status call as a prior activation, it would see
+    a non-home entry and wrongly warn."""
+    log = [
+        _activate_entry("/other"),
+        _activate_entry("."),
+        _make_log_entry(
+            tool="mcp__codescout__workspace",
+            args=summarize_args({"action": "status"}),
+        ),
+        _activate_entry("/new"),
+    ]
+    assert check(_activate_event("/new"), log) is None
+
+
+def test_workspace_status_is_not_an_activation():
+    """The check keys on action="activate": other workspace actions never fire it."""
+    log = [_activate_entry("/other"), _activate_entry("/another")]
+    event = _make_event(
+        tool_name="mcp__codescout__workspace",
+        tool_input={"action": "status"},
+    )
+    assert check(event, log) is None
 
 
 def test_restore_after_foreign_ok():
-    log = [
-        _make_log_entry(tool="mcp__codescout__activate_project", args="path=/other"),
-        _make_log_entry(tool="mcp__codescout__activate_project", args="path=."),
-        _make_log_entry(tool="mcp__codescout__activate_project", args="path=/new"),
-    ]
-    event = _make_event(
-        tool_name="mcp__codescout__activate_project",
-        tool_input={"path": "/new"},
-    )
-    result = check(event, log)
-    assert result is None
+    log = [_activate_entry("/other"), _activate_entry("."), _activate_entry("/new")]
+    assert check(_activate_event("/new"), log) is None
 
 
 def test_first_foreign_activation_ok():
     """First foreign activation shouldn't trigger (no prior unrestored)."""
-    log = [
-        _make_log_entry(tool="mcp__codescout__activate_project", args="path=/first"),
-    ]
-    event = _make_event(
-        tool_name="mcp__codescout__activate_project",
-        tool_input={"path": "/first"},
-    )
-    result = check(event, log)
-    assert result is None
+    assert check(_activate_event("/first"), [_activate_entry("/first")]) is None
 
 
 def test_restore_by_absolute_path_ok():
     """Activating home by absolute path (== cwd) is a restore, not foreign."""
-    log = [
-        _make_log_entry(tool="mcp__codescout__activate_project", args="path=/other"),
-        _make_log_entry(tool="mcp__codescout__activate_project", args="path=/home/me/project"),
-    ]
-    event = _make_event(
-        tool_name="mcp__codescout__activate_project",
-        tool_input={"path": "/home/me/project"},
-    )
-    event["cwd"] = "/home/me/project"
-    result = check(event, log)
-    assert result is None
+    home = "/home/me/project"
+    log = [_activate_entry("/other"), _activate_entry(home)]
+    assert check(_activate_event(home, cwd=home), log) is None
 
 
 def test_restore_by_absolute_path_in_log_ok():
     """Prior log entry matching cwd counts as a restore."""
-    log = [
-        _make_log_entry(tool="mcp__codescout__activate_project", args="path=/foreign"),
-        _make_log_entry(tool="mcp__codescout__activate_project", args="path=/home/me/project"),
-        _make_log_entry(tool="mcp__codescout__activate_project", args="path=/another"),
-    ]
-    event = _make_event(
-        tool_name="mcp__codescout__activate_project",
-        tool_input={"path": "/another"},
-    )
-    event["cwd"] = "/home/me/project"
-    result = check(event, log)
-    assert result is None
+    home = "/home/me/project"
+    log = [_activate_entry("/foreign"), _activate_entry(home), _activate_entry("/another")]
+    assert check(_activate_event("/another", cwd=home), log) is None
 
 
 # --- ignored buffer ref ---
@@ -201,7 +236,7 @@ def test_native_bash_cat_detected():
     )
     result = check(event, [])
     assert result is not None
-    assert "read_file" in result or "find_symbol" in result
+    assert "`read_file`" in result and "`symbols`" in result
 
 
 def test_native_bash_non_source_ok():
@@ -213,27 +248,45 @@ def test_native_bash_non_source_ok():
     assert result is None
 
 
-# --- parallel write ---
+# --- writes are never flagged as parallel ---
 
-def test_parallel_write_detected():
+
+
+# Claude Code runs ONE agent's write calls one after the other, so two writes in the
+# same wall-clock second are two serial calls, not a race. Measured 2026-11-11 in
+# claude-plugins:docs/issues/archive/2026-11-11-buddy-parallel-write-hint-keys-on-a-same-
+# second-clock-and-a-session-wide-log.md: the old same-second rule fired 286 times
+# on Claude Code logs and 1 firing was a real overlap. The only real overlap there is
+# between two subagents, and a hint to one agent cannot serialize the other's call.
+_WRITE_TOOLS_UNDER_TEST = [
+    "mcp__codescout__edit_file",
+    "mcp__codescout__create_file",
+    "mcp__codescout__edit_code",
+    "mcp__codescout__edit_markdown",
+]
+
+
+@pytest.mark.parametrize("tool", _WRITE_TOOLS_UNDER_TEST)
+def test_two_writes_with_the_same_timestamp_get_no_hint(tool):
     log = [
         _make_log_entry(tool="mcp__codescout__edit_file", ts=1000),
-        _make_log_entry(tool="mcp__codescout__edit_code", ts=1000),
+        _make_log_entry(tool=tool, ts=1000),
     ]
-    event = _make_event(tool_name="mcp__codescout__edit_code")
-    result = check(event, log)
-    assert result is not None
-    assert "BUG-021" in result
+    assert check(_make_event(tool_name=tool), log) is None
 
 
-def test_sequential_writes_ok():
-    log = [
-        _make_log_entry(tool="mcp__codescout__edit_file", ts=1000),
-        _make_log_entry(tool="mcp__codescout__edit_code", ts=1002),
-    ]
-    event = _make_event(tool_name="mcp__codescout__edit_code")
-    result = check(event, log)
-    assert result is None
+def test_back_to_back_writes_through_the_real_log_get_no_hint(tmp_path, monkeypatch):
+    """Two real append_entry calls inside one second, then the hook's check().
+
+    The clock is fixed so the test cannot straddle a second boundary and pass by luck.
+    """
+    monkeypatch.setattr(cs_tool_log.time, "time", lambda: 1000.4)
+    path = tmp_path / "cs_tool_log.jsonl"
+    append_entry(path, "mcp__codescout__create_file", "path=a.txt", "ok")
+    log = append_entry(path, "mcp__codescout__create_file", "path=b.txt", "ok")
+    assert [e["ts"] for e in log] == [1000, 1000]  # the setup really is same-second
+    event = _make_event(tool_name="mcp__codescout__create_file")
+    assert check(event, log) is None
 
 
 # ── _check_grep_for_concept ────────────────────────────────────────────────
@@ -318,6 +371,73 @@ def test_grep_for_concept_wrong_tool_ok():
     result = check(event, [])
     assert result is None
 
+# The 17 patterns that fired this hint in the codescout transcripts modified after
+# 2026-11-05 (docs/issues/2026-11-07-grep-for-concept-heuristic-fires-on-literal-
+# phrase-searches.md, table "Evidence"). By that reading none was a concept query:
+# each is text the agent already had in front of it. Three of them
+# (`substrate fact`, `verify callers`, `matches text literally`) carry no function
+# word and no identifier, so no shape test can tell them from a concept; they are
+# not pinned here either way.
+_LITERAL_PHRASES_THAT_FIRED = [
+    # message or log text
+    "another session wrote",
+    "another mux instance holds the lock",
+    "reference index is not ready",
+    # phrase from a document
+    "Filed the silent partial result as",
+    "about a minute",
+    "a gate started while the command runs gets another slot",
+    "baselined against that layer",
+    "ledger is shared parent",
+    "only moves down",
+    # definition fragment
+    "function emitSkillHint",
+    "export function contextPostToolUse",
+    "class CrashSignalTests",
+]
+
+
+@pytest.mark.parametrize("pattern", _LITERAL_PHRASES_THAT_FIRED)
+def test_grep_for_concept_literal_phrase_ok(pattern):
+    """Quoted text and definition fragments are searched with grep on purpose."""
+    event = _make_event(
+        tool_name="mcp__codescout__grep",
+        tool_input={"pattern": pattern},
+    )
+    assert check(event, []) is None
+
+
+@pytest.mark.parametrize("pattern", [
+    "retry logic backoff",
+    "authentication middleware",
+    "error handling retries",
+    "how are retries scheduled",
+    "where is the session state stored",
+])
+def test_grep_for_concept_genuine_concept_still_fires(pattern):
+    """The negative cases above must not have switched the hint off."""
+    event = _make_event(
+        tool_name="mcp__codescout__grep",
+        tool_input={"pattern": pattern},
+    )
+    result = check(event, [])
+    assert result is not None
+    assert "semantic_search" in result
+
+
+@pytest.mark.parametrize("pattern", [
+    "emitSkillHint handler",   # camelCase identifier, no definition keyword
+    "struct session state",    # definition keyword, no identifier and no prose word
+])
+def test_grep_for_concept_each_identifier_rule_stands_alone(pattern):
+    """Every definition fragment in the recorded list trips BOTH identifier rules, so
+    removing either one would pass the list above. These trip one rule each."""
+    event = _make_event(
+        tool_name="mcp__codescout__grep",
+        tool_input={"pattern": pattern},
+    )
+    assert check(event, []) is None
+
 
 # --- check returns None on no issues ---
 
@@ -336,3 +456,66 @@ def test_check_exception_safe():
     """check() must return None on any exception, never raise."""
     result = check(None, None)
     assert result is None
+
+
+# --- every tool a hint names must exist ---
+#
+# A hint that names a tool the agent cannot call costs it a failed lookup or a
+# wrong guess (claude-plugins:docs/issues/2026-11-04-buddy-native-bash-hint-names-
+# find-symbol-which-no-longer-exists.md). The pinned list is the codescout
+# server's tool list as served on 2026-11-09; update it when the server's tools
+# change.
+
+CODESCOUT_TOOLS = frozenset({
+    "approve_write", "call_graph", "create_file", "doc", "edit_code",
+    "edit_file", "get_guide", "grep", "index", "librarian", "library",
+    "memory", "onboarding", "read_file", "references", "run_command",
+    "semantic_search", "symbol_at", "symbols", "tree", "workspace",
+})
+
+# One event per check, chosen so that check() returns that check's hint.
+_TRIGGERS = {
+    "structural_edit": (
+        _make_event(tool_name="mcp__codescout__edit_file",
+                    tool_input={"path": "src/main.rs",
+                                "new_string": "fn foo() {\n    bar()\n}\n"}),
+        [],
+    ),
+    "forgot_restore": (
+        _activate_event("/another"),
+        [_activate_entry("/other"), _activate_entry("/another")],
+    ),
+    "ignored_buffer_ref": (
+        _make_event(tool_name="mcp__codescout__symbols", tool_input={"path": "src/"}),
+        [_make_log_entry(tool="mcp__codescout__run_command", args="cargo test",
+                         outcome="buffered"),
+         _make_log_entry(tool="mcp__codescout__symbols", args="path=src/")],
+    ),
+    "native_bash_on_source": (
+        _make_event(tool_name="Bash", tool_input={"command": "cat src/main.rs"}),
+        [],
+    ),
+    "grep_for_concept": (
+        _make_event(tool_name="mcp__codescout__grep",
+                    tool_input={"pattern": "retry logic backoff"}),
+        [],
+    ),
+}
+
+def _named_tools(hint):
+    """The identifier right after each backtick: `edit_code`, `grep("x")` -> grep."""
+    return set(re.findall(r"`([A-Za-z_]+)", hint))
+
+
+@pytest.mark.parametrize("name", sorted(_TRIGGERS))
+def test_each_trigger_fires_a_hint(name):
+    # Guards the next test: a trigger that returns None would check nothing.
+    event, log = _TRIGGERS[name]
+    assert check(event, log) is not None
+
+
+@pytest.mark.parametrize("name", sorted(_TRIGGERS))
+def test_every_tool_a_hint_names_is_a_current_codescout_tool(name):
+    event, log = _TRIGGERS[name]
+    unknown = _named_tools(check(event, log)) - CODESCOUT_TOOLS
+    assert not unknown, f"{name} hint names tools codescout does not have: {sorted(unknown)}"

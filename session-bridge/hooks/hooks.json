@@ -1,18 +1,7 @@
 {
   "hooks": {
-    "SessionStart": [
-      {
-        "hooks": [
-          { "type": "command", "command": "${CLAUDE_PLUGIN_ROOT}/hooks/register.sh" }
-        ]
-      }
-    ],
-    "Stop": [
-      {
-        "hooks": [
-          { "type": "command", "command": "${CLAUDE_PLUGIN_ROOT}/hooks/unregister.sh" }
-        ]
-      }
-    ]
+    "SessionStart": [{ "hooks": [{ "type": "command", "command": "${CLAUDE_PLUGIN_ROOT}/hooks/run.sh session-start", "timeout": 5 }] }],
+    "UserPromptSubmit": [{ "hooks": [{ "type": "command", "command": "${CLAUDE_PLUGIN_ROOT}/hooks/run.sh prompt", "timeout": 5 }] }],
+    "PostToolUse": [{ "hooks": [{ "type": "command", "command": "${CLAUDE_PLUGIN_ROOT}/hooks/run.sh post-tool", "timeout": 5 }] }]
   }
 }

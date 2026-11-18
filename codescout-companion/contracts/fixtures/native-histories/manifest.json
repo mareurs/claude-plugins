@@ -1,0 +1,39 @@
+{
+  "captured_on": "2026-10-10",
+  "normalization": "Retain only event type, timestamp/ordinal, native identity, cwd, call identity, arguments and result. Consistent fixture root/child/call IDs and ${WORKSPACE} path replace native IDs/paths. Account metadata, prompt bodies, reasoning and unrelated messages are excluded.",
+  "hosts": [
+    {
+      "harness": "claude-code",
+      "version": "2.1.296",
+      "command": "claude -p '<single Read marker.txt>' --settings capture-settings.json --output-format json --max-budget-usd 2",
+      "observed": [
+        "PreToolUse root Read payload",
+        "durable tool-use/refusal records"
+      ],
+      "unavailable": [
+        "successful shell (Bash absent from tool list)",
+        "successful write",
+        "child payload",
+        "resume/compaction/fork"
+      ]
+    },
+    {
+      "harness": "codex",
+      "version": "0.160.0",
+      "command": "codex exec --json -C <scratch> '<single exec_command printf capture-ok>'",
+      "observed": [
+        "session_meta root identity",
+        "custom_tool_call exec wrapper",
+        "custom_tool_call_output hook rejection"
+      ],
+      "unavailable": [
+        "direct native hook payload",
+        "verified inner execution",
+        "successful write",
+        "child payload",
+        "resume/compaction/fork"
+      ]
+    }
+  ],
+  "capability": "limited captures; authored-support rollout pending. Capture process exit 0 is not successful tool execution."
+}

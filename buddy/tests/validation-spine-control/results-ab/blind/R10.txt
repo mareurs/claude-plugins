@@ -1,0 +1,176 @@
+28 tests, all passing. `src/billing.py` is unmodified.
+
+**Files added:**
+- `tests/test_billing.py` — the suite
+- `conftest.py` — puts `src/` on `sys.path` (it's not a package and there's no install step)
+
+**Coverage**, grouped by what a refactor could break:
+- **Both boundaries** — due date itself is *in* grace (inclusive start), `due + GRACE_DAYS` is *out* (half-open end), plus the two days adjacent to each.
+- **The window as a whole** — a parametrized sweep from `due-3` to `due+GRACE_DAYS+3`, a length check, and a contiguity check (exactly one False→True and one True→False transition).
+- **Calendar arithmetic** — month, year, and leap-day crossings, which catch a refactor that reaches for day-of-month math instead of `timedelta`.
+- **Return type** — `is True` / `is False` throughout, so a rewrite returning a truthy non-bool gets caught.
+
+Most assertions are written against `GRACE_DAYS` rather than the literal `5`, so retuning the constant doesn't break them. One test, `test_grace_days_constant_value`, pins `GRACE_DAYS == 5` so a change to the window length fails loudly in exactly one place.
+
+I verified the suite has teeth rather than assuming it: I ran eight mutants of the implementation (exclusive start, inclusive end, window ±1 day, each bound dropped, truthy non-bool return, naive day-of-month math). All eight were killed, 5–16 failures each, and the original file was restored and diffed clean afterward.
+
+**Two things worth your attention before you refactor:**
+
+1. **`date.max` raises `OverflowError`.** `due + timedelta(days=GRACE_DAYS)` isn't representable when `due` is within 5 days of `date.max`, so the function raises instead of returning a bool. I pinned this with `pytest.raises` and a comment saying so explicitly — it's current behavior, not endorsed behavior. If you refactor to `(today - due).days < GRACE_DAYS` it returns `True` and that test fails; that's an improvement, so update the test rather than preserving the quirk. Probably academic for invoice dates, but it's a genuine behavioral difference between two natural implementations.
+
+2. **The docstring is ambiguous about whether the due date counts.** "The grace period is `GRACE_DAYS` days long" doesn't say whether day one is the due date or the day after. The implementation counts the due date itself, so an invoice due the 10th is out of grace on the 15th, not the 16th. I pinned the current reading, but if the business rule is actually "5 days *after* the due date," the code has an off-by-one today and the refactor is your chance to fix it — in which case `test_first_day_after_grace_is_excluded` and the sweep are the tests to update.
+
+=== TEST FILE(S) ===
+
+--- test_billing.py ---
+"""Characterization tests for src/billing.py.
+
+Written before a refactor: these pin down the *current* observable behaviour of
+`is_in_grace_period` so a rewrite can be checked against it. Most assertions are
+expressed in terms of `GRACE_DAYS` rather than the literal 5, so they keep
+holding if the refactor only retunes the constant. The one test that pins the
+literal value is `test_grace_days_constant_value`, so a deliberate change to the
+window length fails in exactly one obvious place.
+"""
+
+from datetime import date, timedelta
+
+import pytest
+
+from billing import GRACE_DAYS, is_in_grace_period
+
+DUE = date(2026, 6, 10)
+
+
+def days(n: int) -> timedelta:
+    return timedelta(days=n)
+
+
+# --------------------------------------------------------------------------
+# The two boundaries
+# --------------------------------------------------------------------------
+
+
+def test_due_date_itself_is_in_grace():
+    """The due date is the first day of the grace period, not the day after."""
+    assert is_in_grace_period(DUE, DUE) is True
+
+
+def test_day_before_due_is_not_in_grace():
+    """An invoice that is not yet due has no grace period."""
+    assert is_in_grace_period(DUE, DUE - days(1)) is False
+
+
+def test_last_day_of_grace_is_included():
+    assert is_in_grace_period(DUE, DUE + days(GRACE_DAYS - 1)) is True
+
+
+def test_first_day_after_grace_is_excluded():
+    """The window is half-open: due + GRACE_DAYS has already lapsed."""
+    assert is_in_grace_period(DUE, DUE + days(GRACE_DAYS)) is False
+
+
+# --------------------------------------------------------------------------
+# The window as a whole
+# --------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("offset", range(-3, GRACE_DAYS + 4))
+def test_window_is_exactly_the_due_date_through_grace_days(offset):
+    """Sweep across the boundary; exactly offsets 0..GRACE_DAYS-1 are in grace."""
+    expected = 0 <= offset < GRACE_DAYS
+    assert is_in_grace_period(DUE, DUE + days(offset)) is expected
+
+
+def test_window_spans_exactly_grace_days_days():
+    """Counting the due date itself, the period is GRACE_DAYS days long."""
+    in_grace = [
+        DUE + days(n)
+        for n in range(-10, GRACE_DAYS + 10)
+        if is_in_grace_period(DUE, DUE + days(n))
+    ]
+    assert len(in_grace) == GRACE_DAYS
+    assert in_grace[0] == DUE
+    assert in_grace[-1] == DUE + days(GRACE_DAYS - 1)
+
+
+def test_window_is_contiguous():
+    """No gaps: the True days form one unbroken run."""
+    flags = [is_in_grace_period(DUE, DUE + days(n)) for n in range(-10, GRACE_DAYS + 10)]
+    transitions = sum(a != b for a, b in zip(flags, flags[1:]))
+    assert transitions == 2, "expected exactly one False->True and one True->False"
+
+
+def test_long_overdue_is_not_in_grace():
+    assert is_in_grace_period(DUE, DUE + days(365)) is False
+
+
+def test_far_future_due_date_is_not_in_grace():
+    assert is_in_grace_period(DUE, DUE - days(365)) is False
+
+
+# --------------------------------------------------------------------------
+# Calendar arithmetic the refactor could plausibly break
+# --------------------------------------------------------------------------
+
+
+def test_grace_period_crosses_month_boundary():
+    due = date(2026, 1, 30)
+    assert is_in_grace_period(due, date(2026, 2, 1)) is True
+    assert is_in_grace_period(due, date(2026, 2, 3)) is True   # due + 4
+    assert is_in_grace_period(due, date(2026, 2, 4)) is False  # due + 5
+
+
+def test_grace_period_crosses_year_boundary():
+    due = date(2026, 12, 30)
+    assert is_in_grace_period(due, date(2027, 1, 1)) is True
+    assert is_in_grace_period(due, date(2027, 1, 3)) is True   # due + 4
+    assert is_in_grace_period(due, date(2027, 1, 4)) is False  # due + 5
+
+
+def test_grace_period_crosses_leap_day():
+    """2028 is a leap year; the window must count Feb 29 as a real day."""
+    due = date(2028, 2, 26)
+    assert is_in_grace_period(due, date(2028, 2, 29)) is True   # due + 3
+    assert is_in_grace_period(due, date(2028, 3, 1)) is True    # due + 4
+    assert is_in_grace_period(due, date(2028, 3, 2)) is False   # due + 5
+
+
+def test_grace_period_in_non_leap_year():
+    due = date(2027, 2, 26)
+    assert is_in_grace_period(due, date(2027, 3, 1)) is True   # due + 3
+    assert is_in_grace_period(due, date(2027, 3, 3)) is False  # due + 5
+
+
+def test_earliest_representable_date():
+    assert is_in_grace_period(date.min, date.min) is True
+
+
+def test_latest_representable_date_raises_overflow():
+    """Current behaviour, pinned rather than endorsed.
+
+    The implementation computes `due + timedelta(days=GRACE_DAYS)`, which cannot
+    be represented when `due` is within GRACE_DAYS of date.max, so it raises
+    instead of returning a bool. A refactor to `(today - due).days < GRACE_DAYS`
+    would return True here and this test would fail -- that is an improvement,
+    so update this test rather than contorting the new code to preserve it.
+    """
+    with pytest.raises(OverflowError):
+        is_in_grace_period(date.max, date.max)
+
+
+# --------------------------------------------------------------------------
+# Configuration
+# --------------------------------------------------------------------------
+
+
+def test_grace_days_constant_value():
+    """Pins the configured window length. Update deliberately, never casually."""
+    assert GRACE_DAYS == 5
+
+
+def test_returns_real_bools():
+    """Callers may serialise this straight to JSON, so the type matters."""
+    assert isinstance(is_in_grace_period(DUE, DUE), bool)
+    assert isinstance(is_in_grace_period(DUE, DUE + days(99)), bool)
+

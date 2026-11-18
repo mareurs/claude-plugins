@@ -1,0 +1,108 @@
+{
+  "id": "cs-p12",
+  "repo": "codescout",
+  "repoPath": "/home/marius/work/claude/codescout",
+  "fix": "d2ef26e9b8a1762524c6222bf3b19a9d4444cefd",
+  "parent": "fac7abcef9d28185c9795d2d18d89d03e01b21f5",
+  "subsystem": "read_file",
+  "testRunner": "cargo",
+  "hidden": {
+    "files": ["tests/integration.rs"],
+    "extra": ["tests/read_file_one_handle.rs", "src/tools/file_summary/tests.rs"]
+  },
+  "buildCommand": ["cargo", "test", "--offline", "--no-default-features", "--no-run", "--lib", "--test", "integration"],
+  "f2p": {
+    "command": ["cargo", "test", "--offline", "--no-default-features", "--no-fail-fast", "--test", "read_file_one_handle"],
+    "names": [
+      "a_source_file_of_1500_small_functions_comes_back_inline_with_one_handle",
+      "a_file_of_a_dozen_very_wide_lines_comes_back_inline_with_one_handle",
+      "unparseable_json_on_one_enormous_line_comes_back_inline_with_one_handle",
+      "a_config_file_of_wide_lines_comes_back_inline_with_one_handle",
+      "a_yaml_file_of_wide_keys_comes_back_inline_with_one_handle",
+      "the_cut_is_made_only_where_needed_and_the_handle_reads_what_it_dropped"
+    ]
+  },
+  "p2p": {
+    "command": [
+      "cargo", "test", "--offline", "--no-default-features", "--no-fail-fast", "--lib", "--test", "integration", "--",
+      "tools::file_summary::tests::", "tools::read_file::tests::",
+      "workflow_read_search_replace", "integration_read_file_large_then_query_via_buffer"
+    ],
+    "names": [
+      "workflow_read_search_replace",
+      "integration_read_file_large_then_query_via_buffer",
+      "tools::file_summary::tests::detect_rust_as_source",
+      "tools::file_summary::tests::detect_unknown_as_generic",
+      "tools::file_summary::tests::markdown_summary_basic_structure",
+      "tools::file_summary::tests::markdown_summary_includes_line_ranges",
+      "tools::file_summary::tests::markdown_summary_includes_h3_headings",
+      "tools::file_summary::tests::markdown_summary_ignores_headings_in_code_blocks",
+      "tools::file_summary::tests::markdown_summary_signals_truncated_headings",
+      "tools::file_summary::tests::markdown_summary_no_truncation_flag_when_under_cap",
+      "tools::file_summary::tests::a_missing_heading_lists_both_ends_not_just_the_first_fifteen",
+      "tools::file_summary::tests::a_short_document_lists_every_heading_with_no_elision",
+      "tools::file_summary::tests::config_summary_returns_first_30_lines",
+      "tools::file_summary::tests::generic_summary_includes_head_and_tail",
+      "tools::file_summary::tests::json_summary_shows_top_level_keys",
+      "tools::file_summary::tests::json_summary_handles_root_array",
+      "tools::file_summary::tests::json_summary_handles_malformed_json",
+      "tools::file_summary::tests::json_summary_signals_truncated_keys",
+      "tools::file_summary::tests::toml_summary_shows_tables",
+      "tools::file_summary::tests::toml_summary_handles_nested_tables",
+      "tools::file_summary::tests::toml_summary_signals_truncated_flat_keys",
+      "tools::file_summary::tests::toml_summary_signals_truncated_sections",
+      "tools::file_summary::tests::toml_summary_handles_malformed",
+      "tools::file_summary::tests::yaml_summary_shows_top_level_keys",
+      "tools::file_summary::tests::yaml_summary_skips_comments_and_directives",
+      "tools::file_summary::tests::yaml_summary_handles_empty_file",
+      "tools::file_summary::tests::extract_markdown_section_beyond_30_headings",
+      "tools::file_summary::tests::extract_json_path_top_level_key",
+      "tools::file_summary::tests::extract_json_path_array_index",
+      "tools::file_summary::tests::extract_toml_key_table",
+      "tools::file_summary::tests::extract_yaml_key_section",
+      "tools::file_summary::tests::extract_toml_key_table_past_summary_cap",
+      "tools::file_summary::tests::extract_yaml_key_past_summary_cap",
+      "tools::read_file::tests::read_file_call_content_returns_line_numbered_text_not_json",
+      "tools::read_file::tests::outline_hint_says_force_did_not_apply_when_forced",
+      "tools::read_file::tests::outline_hint_stays_silent_about_force_when_not_forced",
+      "tools::read_file::tests::read_file_buffer_midpoint_returns_content",
+      "tools::read_file::tests::read_file_buffer_range_chunk_fits_the_threshold_it_is_measured_against",
+      "tools::read_file::tests::read_file_buffer_full_chunk_fits_the_threshold_it_is_measured_against",
+      "tools::read_file::tests::read_file_buffer_single_oversized_line_still_fits_the_threshold",
+      "tools::read_file::tests::read_file_oversized_range_next_continues_from_shown_lines",
+    "tools::file_summary::tests::detect_md_as_markdown",
+    "tools::file_summary::tests::detect_json_as_json",
+    "tools::file_summary::tests::detect_yaml_as_yaml",
+    "tools::file_summary::tests::detect_toml_as_toml",
+    "tools::file_summary::tests::detect_other_config_still_works",
+    "tools::file_summary::tests::extract_toml_key_top_level_scalar_in_mixed_file",
+    "tools::file_summary::tests::extract_toml_key_not_found",
+    "tools::file_summary::tests::extract_yaml_key_not_found",
+    "tools::file_summary::tests::extract_json_path_nested",
+    "tools::file_summary::tests::extract_json_path_not_found",
+    "tools::file_summary::tests::extract_json_path_root",
+    "tools::file_summary::tests::json_path_key_miss_hint_states_its_elision_and_keeps_the_tail"
+    ]
+  },
+  "testPatterns": ["cargo test"],
+  "scrub": {
+    "removePaths": [
+      "docs/adrs/2026-10-05-a-result-keeps-the-one-handle-its-tool-gave-it.md",
+      "docs/superpowers/specs/2026-10-04-effort-steering-design.md",
+      "docs/superpowers/plans/2026-10-04-effort-steering-core-and-spikes.md"
+    ],
+    "terms": [
+      "bound_summary",
+      "cut_array_middle",
+      "omitted_gap",
+      "symbols_omitted",
+      "cut_notes",
+      "file_summary.summary_bytes",
+      "pub(crate) const SUMMARY_BYTE_BUDGET",
+      "count has no size",
+      "a-result-keeps-the-one-handle",
+      "its bulk is the symbol array"
+    ]
+  },
+  "timeoutsSec": { "build": 1800, "test": 900 }
+}

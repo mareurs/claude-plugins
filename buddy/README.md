@@ -33,7 +33,7 @@ hook fires. Verify wiring:
 ```
 
 After installing, run `/buddy:install` to auto-wire the statusline into
-`~/.claude/settings.json`. It detects whether `claude-statusline` is also
+`~/.claude/settings.json`. It detects whether `statusline` is also
 installed and picks composed or standalone mode accordingly. If you prefer
 to wire it manually, see the three modes below.
 
@@ -58,7 +58,7 @@ Pick one mode by editing `statusLine.command` in `settings.json`:
 
 Multi-line ASCII art + mood label.
 
-**Mode 2 — composed with claude-statusline (recommended):**
+**Mode 2 — composed with statusline (recommended):**
 
 ```json
 "statusLine": {
@@ -67,7 +67,7 @@ Multi-line ASCII art + mood label.
 }
 ```
 
-Row 1 = primary statusline output (auto-detects `claude-statusline` in the
+Row 1 = primary statusline output (auto-detects `statusline` in the
 sdd-misc-plugins cache, or falls back to `~/.claude/statusline.sh`). Rows 2-6
 = bodhisattva. Override the primary with `BUDDY_PRIMARY_STATUSLINE=/path/to/cmd`,
 or suppress a row with `BUDDY_SKIP_PRIMARY=1` / `BUDDY_SKIP_SELF=1`.
@@ -78,7 +78,7 @@ Leave your existing `statusLine` alone. You still get hook-driven state
 tracking, `/buddy:check` reflections, and `/buddy:summon <alias>`. The
 bodhisattva just won't render in the bar.
 
-Each mode is orthogonal — `claude-statusline`, buddy's standalone render, and
+Each mode is orthogonal — `statusline`, buddy's standalone render, and
 the composed wrapper all work independently.
 
 ───────────────────────────────────────────────────────────────────
@@ -92,7 +92,7 @@ the composed wrapper all work independently.
 | `/buddy:check`                   | Quick soul-check — the companion speaks                                           |
 | `/buddy:summon <alias>`          | Summon a specialist master into the session                                        |
 | `/buddy:dismiss`                 | Dismiss the currently active specialist                                            |
-| `/buddy:install`                 | Auto-wire statusline into settings.json (detects claude-statusline, picks mode)   |
+| `/buddy:install`                 | Auto-wire statusline into settings.json (detects statusline, picks mode)   |
 | `/buddy:focus [path\|--clear]`   | Set or clear the current focus path (shown in statusline)                          |
 | `/buddy:legend`                  | Print the specialist reference card and mood table                                 |
 | `/buddy:remember <lesson>`       | Ask the active specialist to save a memory about the given lesson                  |

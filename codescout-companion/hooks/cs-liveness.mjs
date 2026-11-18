@@ -16,19 +16,40 @@
 // exists to break.
 //
 // See docs/issues/archive/2026-08-26-companion-blocks-bash-after-codescout-disconnect.md.
-import { unlinkSync } from 'node:fs';
+import { unlinkSync, readFileSync } from 'node:fs';
 import { readInput, breakerFile, refreshLivenessStamp } from './lib.mjs';
 
 const input = readInput();
 if (!input) process.exit(0);
 
+// PROOF OF REACHABILITY, not just of life. A session can expose only a SUBSET of
+// codescout's tools (observed 2026-09-07: read_file/edit_file/create_file/edit_code
+// gone while symbols/grep/doc/run_command answered). Clearing on ANY answer reset
+// the counter on every call there, so the stand-down was unreachable in exactly the
+// state it exists for. pre-tool-guard records, with each strike, the tools whose
+// answer proves ITS redirect reachable (`<n>\t<tool,tool>`); only one of those
+// answering clears it. No probes recorded (a Bash/Grep/Glob redirect, or an older
+// bare-number file) or no tool_name in the payload keeps the original behaviour:
+// any answer clears, i.e. the guard re-arms.
+// codescout:docs/issues/2026-09-07-the-source-redirect-names-tools-a-partial-tool-set-does-not-have.md
+const answered = String(input.tool_name || '').split('__').pop();
+
 const f = breakerFile(input.session_id || '');
 if (f) {
+  let keep = false;
   try {
-    unlinkSync(f);
+    const probes = readFileSync(f, 'utf8').split('\t')[1];
+    keep = Boolean(probes && answered && !probes.split(',').includes(answered));
   } catch {
-    // Already absent (the common case — no strikes outstanding), or unremovable.
-    // Either way there is nothing to reset and nothing worth reporting.
+    // No marker (the common case — no strikes outstanding): nothing to keep.
+  }
+  if (!keep) {
+    try {
+      unlinkSync(f);
+    } catch {
+      // Already absent, or unremovable. Either way there is nothing to reset and
+      // nothing worth reporting.
+    }
   }
 }
 

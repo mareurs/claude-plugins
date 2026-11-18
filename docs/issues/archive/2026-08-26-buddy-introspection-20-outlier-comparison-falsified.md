@@ -1,5 +1,5 @@
 ---
-id: 218fa3ca8f62b18a
+id: '218fa3ca8f62b18a'
 kind: bug
 status: fixed
 title: 'buddy-introspection #20''s "3× baseline / highest length" comparison is falsified, so its `Fix: Accept` disposition rests on arithmetic that no longer holds'
@@ -13,7 +13,7 @@ fix_patch_id: 893c9e35072b8b1480a0b7be44deeb3237b05724
 fix_sha: d334a50 (main)
 opened: 2026-08-26
 severity: med
-unverified: 'The VERDICT is not re-derived, only its evidence retracted — "is 181 lines justified?" is a question about rank, unanswerable until codescout-pika (316) is audited, and that specialist is outside audit scope. Also still no regression coverage: nothing re-derives a length comparison from source, so the same staleness recurs silently the next time the roster grows.'
+unverified: 'TRACKED 95e041b562ebd595 — The VERDICT is not re-derived, only its evidence retracted — "is 181 lines justified?" is a question about rank, unanswerable until codescout-pika (316) is audited, and that specialist is outside audit scope. Also still no regression coverage: nothing re-derives a length comparison from source, so the same staleness recurs silently the next time the roster grows. (Re-checked 2026-10-27: every figure in the entry still reproduces. Roster membership is now checked by tests/test-buddy-roster-denominator.sh; the length comparison itself is still not.)'
 ---
 
 ## Summary

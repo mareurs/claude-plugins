@@ -7,7 +7,7 @@ description: Use before subagent dispatch, before editing code that changes a st
 
 A **seam** is a place where your next action depends on the current shape of code you have not read this session: a struct's fields, a function's signature, an API's response, a tool's actual output. Scout the seam before you act. When plan and reality disagree, externalize the gap as a session-log entry with a monotonic ID — IDs make lessons portable across sessions; entries without IDs don't compound.
 
-**REQUIRED SUB-SKILL:** None. Composes with `subagent-driven-development`, `writing-plans`, and `verification-before-completion`.
+**REQUIRED SUB-SKILL:** None. See § *Composition with other skills*.
 
 ## When to Use
 
@@ -55,19 +55,19 @@ migration ordering, instruments that write into what they measure). Use native
 **Statusline marker (recommended).** Touch `.buddy/$SID/recon-active` once at scout start so the user's statusline shows `[recon]` for 30 minutes. The badge signals scout-in-progress; the user knows not to redirect mid-scout, which prevents abort-and-restart cost:
 
 ```bash
-SID=$(cat .buddy/.current_session_id 2>/dev/null) && \
+SID="${CLAUDE_CODE_SESSION_ID:-$(cat .buddy/.current_session_id 2>/dev/null)}" && \
   [ -n "$SID" ] && mkdir -p ".buddy/$SID" && touch ".buddy/$SID/recon-active"
 ```
 
-Skip silently if the marker dir is unavailable. The skill works without the badge; the badge does not work without the skill.
+**`$CLAUDE_CODE_SESSION_ID` first — the order is load-bearing**, because the statusline
+resolves the sid from the harness while `.current_session_id` is last-writer and can name a
+peer. Case law: `references/seam-classes.md`; guard: `tests/test-recon-count.sh` § 7.
+
+Skip silently if the marker dir is unavailable — the skill works without the badge.
 
 ### Phase 2 — Compare
 
-State what the plan / docs said vs. what reality holds. Three outcomes:
-
-- **Match** → scout passed; resume task. No entry.
-- **Gap** → continue to Phase 3 (F-N).
-- **Match, and the scout was non-trivial** (multiple files read, hidden contract surfaced, non-obvious shape) → Phase 3 (W-N). A pre-dispatch scout that prevented a subagent slip is a W-N event even though nothing broke.
+State what the plan / docs said vs. what reality holds. **Match** → resume, no entry. **Gap** → Phase 3 (F-N). **Match, but the scout was non-trivial** (multiple files read, hidden contract surfaced, non-obvious shape) → Phase 3 (W-N): a pre-dispatch scout that prevented a subagent slip is a win even though nothing broke.
 
 ### Phase 3 — Externalize
 
@@ -89,16 +89,20 @@ Resolve `<codescout-repo>` from `claude mcp list` (the codescout server's source
 **ID + append — one call.** Do not hand-allocate the ID by grepping the tracker, and do not pre-write the Index row before the section exists — both race a peer session, and a pre-written row consumes the id it names (this is why codescout's own `statement-validity-session-log` starts at `F-2`/`W-3`). Let the server allocate and write the section in the same call:
 
 ```python
-artifact(action="append_entry", id="<tracker artifact id>", id_prefix="F",
+doc(action="append_entry", id="<tracker artifact id>", id_prefix="F",
          anchor_heading="## Template for new entries",
-         title="<one-line title>", body="**Observed:** ...")
+         title="<one-line title>", body="**Observed:** ...",
+         index_row="| {id} | <date> | <sev> | <cat> | open | **<title>** — … |",
+         index_after_line="<the table line your row follows>")
 ```
 
-One write: the server allocates the next `F-N` / `W-N` id (separate counters), writes `## F-N — <title>` at the ledger's own level — the only heading shape `link_scan` accepts as a definition — records the high-water mark, and stamps `**Valid:** dated <today>` unless the body declares a class. **`dated` takes no trailing text.** Put any qualifier on a following line — `**Valid:** dated 2026-05-18` then a blank line then the prose. An em-dash tail after `dated` is rejected outright (`is not an ISO date`), and the two branches of the grammar differ here: only `conditional — <event>` carries one. **Then** add the Index / Wins Index row using the id the call returned.
+One write: the server allocates the next `F-N` / `W-N` id (separate counters), writes `## F-N — <title>` at the ledger's own level (`link_scan` defines on the `<ID> — <title>` shape as a heading's first inline text, at any depth), records the high-water mark, and stamps `**Valid:** dated <today>` unless the body declares a class. **`dated` takes no trailing text.** Put any qualifier on a following line — `**Valid:** dated 2026-05-18` then a blank line then the prose. An em-dash tail after `dated` is rejected outright (`is not an ISO date`), and the two branches of the grammar differ here: only `conditional — <event>` carries one. `index_row` rides the same `fs::write` with `{id}` replaced by the id just allocated, so section, high-water mark and Index row land together — **this is what "one call" means, and omitting the two parameters silently gives you the two-call form instead.**
 
-`edit_markdown` is not the append path, though it works at first: a fresh copy of the template ships without `entry_prefix`, so it's directly editable — but once `entry_prefix` is declared to guard the ledger (which `get_guide("tracker-conventions")` instructs), the librarian guard refuses direct edits and only `append_entry` writes. Reach for `edit_markdown` for prose sections and index-table touch-ups, never for allocating an entry.
+**The Index row needs a placement anchor, and one of its failure modes is silent.** A declared `snapshot_anchor` is the safer source — a duplicate is refused by name — while a per-call `index_after_line` wins when passed but takes the **first** trimmed match, so a non-unique line (never the `|---|---|` separator) files your row under the wrong table with no error. A line matching *nothing* is the loud case: refused by name, ledger byte-identical, no id consumed. The refusals, what `entry_prefix` actually locks, and the definition-heading shape are in `references/append-entry-anchoring.md` — read it once before your first entry in an unfamiliar ledger.
 
-Never reuse an ID. Never skip an ID. Entries without IDs cannot be cited in commits and do not compound.
+`edit_file` is not the append path: a copy of `docs/templates/session-log.md` declares `entry_prefix`, so it is a ledger from the start and `edit_file` refuses it. `append_entry` is the sole **id allocator** (not the sole writer: `doc(action="update", patch={body_edits: […]})` writes sections and prose). See the reference above.
+
+Never reuse an ID. Never skip an ID.
 
 **Severity rubric (F-N).**
 
@@ -135,7 +139,7 @@ With verified context, return to the original task. Announce the scout outcome t
 - F-N written: `Recon: gap captured as F-7 (plan cited .hint field; type has no such field). Proceeding with workaround.`
 - W-N written: `Recon: scout prevented Task 2 test-shape slip; captured as W-2.`
 
-Cite the ID in the next subagent dispatch prompt and in the commit message of any change that closes the gap. IDs persist; the lesson compounds.
+Cite the ID in the next subagent dispatch prompt and in the commit message of any change that closes the gap.
 
 ## Stop Conditions
 
@@ -145,16 +149,12 @@ Reconnaissance is done when **any one** of:
 - The gap is captured as an F-N entry with an ID.
 - The decision is made to revise the plan rather than the code (the plan owns the drift, not the substrate).
 
-Do NOT loop reconnaissance. One pass per seam per session. If the same seam needs scouting again later in the session, the substrate has moved — capture that as a separate F-N entry (`category: architectural` or similar) rather than re-running this flow.
+Do NOT loop. If the same seam needs scouting again later in the session, the substrate has moved — capture that as a separate F-N entry (`category: architectural` or similar) rather than re-running this flow.
 
 ## Common Mistakes
 
 - **Scouting after dispatching.** The subagent has already started; drift now lives in two contexts. Scout BEFORE dispatch.
-- **Externalizing without an ID.** Entries without F-N / W-N IDs can't be cited and don't compound. Always allocate the next ID.
 - **Skipping the counterfactual on W-N.** A win without a counterfactual reads as marketing. Name what would have happened without the pattern, with concrete evidence (round-trips saved, tests that would have failed, files that would have been wrongly edited).
-- **Treating reconnaissance as verification.** Verification gates completion claims; reconnaissance gates seam contact. Different skills, different timing.
-- **Re-scouting the same seam twice.** If the shape didn't change, re-reading is noise. If it did change, that's a new F-N entry.
-- **Pad-filling severity / status.** `med` / `open` as defaults are fine; `med` / `open` with no concrete cost statement is slop. The status enum is in the template — use the specific value that matches.
 
 ## Composition with other skills
 
@@ -174,6 +174,6 @@ read it when you are promoting or auditing, not to run recon.
 
 ## Skill maintenance
 
-Trigger-string scoring lives in `<codescout-repo>/docs/evals/reconnaissance-trigger.md`. Re-score before any future description change. **Behavioral eval** (do triggered scouts produce useful F-N entries?) lives at `<codescout-repo>/docs/evals/reconnaissance-output.md` — 14 cases drawn from the R-N ledger's hits and misses, with the six MISS cases (`codescout:R-2`, `codescout:R-4`, `codescout:R-8`, `codescout:R-10`, `codescout:R-19`, `codescout:R-23`) as a hard regression gate. **Bootstrap: cases pinned, baseline not yet run (n=0).** Re-score before any change that targets scout *behavior* (not just the trigger string); until the first empirical row lands in that eval's Iteration log, every claim about behavioral efficacy remains unverified.
+Trigger-string scoring lives in `<codescout-repo>/docs/evals/reconnaissance-trigger.md`. Re-score before any future description change. **Behavioral eval** (do triggered scouts produce useful F-N entries?) lives at `<codescout-repo>/docs/evals/reconnaissance-output.md` — 14 cases drawn from the R-N ledger's hits and misses, with the six MISS cases (`codescout:R-2`, `codescout:R-4`, `codescout:R-8`, `codescout:R-10`, `codescout:R-19`, `codescout:R-23`) as a hard regression gate. **Baseline RUN** — 2026-09-04, `--paired` n=3, 15 cases: power 1 · tautological 7 · no-effect 7, only C4 clears Δ≥0.5. **Ship gate NOT met** (C2/R-4 at −0.67; C5 has no scenario). Re-score before any change targeting scout *behavior*, measuring the **`--paired` rate delta, never a raw pass-count** (L-15).
 
 Version history is tracked via git on this file; see `git log -- codescout-companion/skills/reconnaissance/SKILL.md`.

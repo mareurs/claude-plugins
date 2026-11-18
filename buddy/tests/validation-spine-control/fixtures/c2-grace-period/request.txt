@@ -1,0 +1,1 @@
+Write a pytest suite for src/billing.py. I'm about to refactor this module and want tests in place first.

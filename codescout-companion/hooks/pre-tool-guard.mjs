@@ -12,6 +12,8 @@ import {
   denyPreToolUse,
   contextPreToolUse,
   breakerFile,
+  normalizedToolName,
+  inputPath,
 } from './lib.mjs';
 import { SOURCE_EXT_PATTERN } from './detect.mjs';
 
@@ -24,12 +26,18 @@ if (!input) process.exit(0);
 // and cwd-relative logic below (all written with `/`) match on Windows too.
 const norm = (p) => (p || '').replace(/\\/g, '/');
 
-const toolName = input.tool_name || '';
+const toolName = normalizedToolName(input);
 const cwd = norm(input.cwd || '');
 
 const d = detectFor(cwd);
 if (d.HAS_CODESCOUT === 'false') process.exit(0);
-if (d.BLOCK_READS === 'false') process.exit(0);
+// `block_reads: false` opts the MAIN agent out of this guard, not a subagent. A subagent call carries
+// `agent_id` in the PreToolUse payload (measured 2026-11-02 with a real `claude -p` run: Read and Grep
+// from a subagent have it, the main thread's calls do not). Measured over 6,038 transcripts: in the one
+// checkout that sets block_reads=false, 97% of the native source reads that succeeded (2,098 of 2,159
+// since 2026-09-23) were a subagent's, each a call this guard refuses in every other directory.
+// Every other exemption below (images, skill payloads, tool-results, config dirs) still applies to both.
+if (d.BLOCK_READS === 'false' && !input.agent_id) process.exit(0);
 
 // --- Exemption helpers ---
 const isBinaryImage = (p) => /\.(png|jpg|jpeg|gif|webp|bmp|ico|pdf)$/i.test(p);
@@ -55,25 +63,47 @@ const rel = (p) => (cwd && p.startsWith(`${cwd}/`) ? p.slice(cwd.length + 1) : p
 
 const sessionId = input.session_id || '';
 
-// After this many consecutive denies with no codescout tool answering in
+// After this many consecutive denies with no REACHABLE redirect target answering in
 // between, the redirect is demonstrably going nowhere and the guard stands down.
-// See breakerFile() in lib.mjs for why proof-of-life is the signal.
+// See breakerFile() in lib.mjs for the state, and cs-liveness.mjs for what clears it.
 const BREAKER_THRESHOLD = 3;
 
 // One sentence, on every deny: the redirect above is only good advice while the
-// codescout tools actually exist, and the caller is the one who can see whether
-// they do. Deliberately does NOT point at .claude/codescout-companion.json —
+// codescout tools it names actually exist, and the caller is the one who can see
+// whether they do. Deliberately does NOT point at .claude/codescout-companion.json —
 // measured 2026-08-26, this guard denies Write and Edit on that file too, so the
 // documented block_reads escape is unreachable by whoever is being blocked.
+//
+// It must NOT assert a single cause. Two states look identical from here and need
+// different remedies: the server is gone (every codescout tool missing; /mcp
+// helps), or it is up and this session exposes only a SUBSET of its tools —
+// observed 2026-09-07 in three sessions, where read_file/edit_file/create_file/
+// edit_code were absent while run_command, grep and symbols answered. Naming only
+// disconnection sent readers to repair a healthy connection. `run_command` with
+// acknowledge_risk reaches the file in the second state; the user's "! <command>"
+// covers the first.
+// docs/issues/2026-09-07-the-source-redirect-names-tools-a-partial-tool-set-does-not-have.md (codescout)
 const ESCAPE_FOOTER =
-  '\n\nIf these codescout tools are not in your tool list, the MCP server has ' +
-  'disconnected and this redirect points at nothing — ask the user to run /mcp, ' +
-  'or to run the command for you by typing "! <command>" at the prompt.';
+  '\n\nIf a tool named above is not in your tool list, do not assume the MCP ' +
+  'server is down: this session may expose only a subset of codescout\'s tools. ' +
+  'Call one that IS present to find out — if `run_command` answers, it reaches ' +
+  'the same file with `acknowledge_risk: true`, but only for a tool that is missing. ' +
+  'If the tool named above IS in your tool list, call it: do not reach the file ' +
+  'through `run_command` with `acknowledge_risk` instead. If no codescout tool is present ' +
+  'at all, the server has disconnected: ask the user to run /mcp, or to run the ' +
+  'command for you by typing "! <command>" at the prompt.';
 
 // Count one strike. Returns 0 when the breaker is disabled (no session id) or
 // when its state is unreadable — both fail SAFE, i.e. toward the guard staying
 // armed and behaving exactly as it did before this was added.
-function bumpBreaker() {
+//
+// The file holds `<strikes>` or `<strikes>\t<probe,probe>`. `probes` names the
+// tools whose answer would prove THIS redirect reachable; cs-liveness.mjs clears
+// the counter only when one of them answers. A deny whose redirect names no tool
+// a partial exposure drops passes `[]` and keeps the original contract: any
+// codescout answer clears it. `parseInt` reads the leading digits, so an old
+// bare-number file still parses.
+function bumpBreaker(probes) {
   const f = breakerFile(sessionId);
   if (!f) return 0;
   try {
@@ -84,7 +114,7 @@ function bumpBreaker() {
       n = 0; // absent marker = no strikes yet
     }
     n += 1;
-    writeFileSync(f, String(n));
+    writeFileSync(f, probes.length > 0 ? `${n}\t${probes.join(',')}` : String(n));
     return n;
   } catch {
     return 0;
@@ -95,39 +125,64 @@ function bumpBreaker() {
 // --- Hard block with reason. First block in a 3s window per (tool,cwd) gets the
 // full reason; parallel/repeat calls within the window get a short pointer.
 // Window tracked by a temp-file mtime (cross-platform; no backgrounded cleanup).
-function enforce(reason) {
-  const key = createHash('sha256').update(`${toolName}\t${cwd}`).digest('hex').slice(0, 8);
-  const dedupFile = join(tmpdir(), `cs-block-${key}`);
-  let firstInWindow = false;
+// --- Hard block with reason. A 3 s window is tracked by a temp-file mtime (cross-platform; no
+// backgrounded cleanup), and TWO questions use it, so TWO markers:
+//
+//   * Who gets the FULL reason? One marker per CALLER: (tool, cwd, session, agent). A caller's repeat or
+//     parallel call inside the window gets a short pointer to the message it already holds. A DIFFERENT
+//     caller gets its own full reason: measured 2026-11-02 over 6,038 transcripts, 855 of 2,225 subagent
+//     blocks (38%) were only the pointer "BLOCKED (see previous message)", because the marker was keyed by
+//     (tool, cwd) and a subagent's first block fell inside another caller's window, pointing it at a message
+//     that sits in a different context.
+//   * Who counts a STRIKE for the circuit breaker? One marker per (tool, cwd), as before: a burst of parallel
+//     calls, whatever their callers, is ONE turn and scores a single strike. Keyed per caller, five parallel
+//     subagents would reach the stand-down threshold while codescout is reachable.
+function claimWindow(file) {
   try {
-    // Atomic create-if-absent (O_EXCL): in a burst of parallel hook processes,
-    // exactly one wins the create and emits the full reason; the rest fall
-    // through to the short pointer. Fixes the check-then-write race that let
-    // every parallel call print the full multi-line block.
-    writeFileSync(dedupFile, '', { flag: 'wx' });
-    firstInWindow = true;
+    // Atomic create-if-absent (O_EXCL): in a burst of parallel hook processes, exactly one wins the
+    // create. Fixes the check-then-write race that let every parallel call print the full block.
+    writeFileSync(file, '', { flag: 'wx' });
+    return true;
   } catch {
-    // Marker exists (or the write failed). If the 3s window has elapsed, refresh
-    // it and treat this as a fresh first block, so a later unrelated block in
-    // the same session re-explains rather than staying terse forever.
+    // Marker exists (or the write failed). If the 3 s window has elapsed, refresh it and treat this as a
+    // fresh first block, so a later unrelated block re-explains rather than staying terse forever.
     try {
-      if (Date.now() - statSync(dedupFile).mtimeMs >= 3000) {
-        writeFileSync(dedupFile, '');
-        firstInWindow = true;
+      if (Date.now() - statSync(file).mtimeMs >= 3000) {
+        writeFileSync(file, '');
+        return true;
       }
     } catch {
       /* best-effort: treat as not-first */
     }
+    return false;
   }
-  if (!firstInWindow) {
+}
+
+// The strikes already counted, WITHOUT counting another: for a caller that gets its own full reason inside a
+// burst whose strike was counted by an earlier caller. 0 when the breaker is disabled or unreadable.
+function readBreaker() {
+  const f = breakerFile(sessionId);
+  if (!f) return 0;
+  try {
+    return parseInt(readFileSync(f, 'utf8'), 10) || 0;
+  } catch {
+    return 0;
+  }
+}
+
+function enforce(reason, probes = []) {
+  // `probes`: the tools whose answer proves this redirect reachable — see bumpBreaker.
+  const marker = (s) => join(tmpdir(), `cs-block-${createHash('sha256').update(s).digest('hex').slice(0, 8)}`);
+  const firstForCaller = claimWindow(marker(`${toolName}\t${cwd}\t${sessionId}\t${input.agent_id || ''}`));
+  if (!firstForCaller) {
     denyPreToolUse('BLOCKED (see previous message)');
     process.exit(0);
   }
 
-  // Only first-in-window denies count, so a burst of parallel calls the model
-  // issued in ONE turn scores a single strike rather than tripping the breaker
-  // on its own.
-  const strikes = bumpBreaker();
+  // Only the first call of a burst counts a strike, so a burst of parallel calls issued in ONE turn scores
+  // a single strike rather than tripping the breaker on its own.
+  const firstForStrike = claimWindow(marker(`${toolName}\t${cwd}`));
+  const strikes = firstForStrike ? bumpBreaker(probes) : readBreaker();
 
   if (strikes > BREAKER_THRESHOLD) {
     // Stand down: let the call through normal permissions (this is advisory
@@ -135,12 +190,15 @@ function enforce(reason) {
     // applies) and say why, so neither the model nor the user has to guess.
     contextPreToolUse(
       `codescout-companion stood its guard down for this call.\n\n` +
-        `${strikes} consecutive redirects to codescout tools went unanswered — no ` +
-        `codescout tool has responded in between. The usual cause is the MCP server ` +
-        `having disconnected, which strips every codescout tool from the tool list ` +
-        `while leaving this hook armed, so the redirect names tools you cannot call.\n\n` +
-        `Run /mcp to check the connection. The guard re-arms by itself the moment any ` +
-        `codescout tool answers again — nothing needs resetting by hand.`
+        `${strikes} consecutive redirects went unanswered — none of the tools they ` +
+        `name has responded in between. Either the MCP server has disconnected (which ` +
+        `strips every codescout tool while leaving this hook armed), or this session ` +
+        `exposes only a subset of codescout's tools and the redirect names ones you ` +
+        `cannot call.\n\n` +
+        `If a codescout tool such as run_command is present, the server is up: use it ` +
+        `(with acknowledge_risk: true for a source file). If none is, run /mcp. The ` +
+        `guard re-arms by itself the moment a tool its redirect names answers again — ` +
+        `nothing needs resetting by hand.`
     );
     process.exit(0);
   }
@@ -148,15 +206,25 @@ function enforce(reason) {
   let full = reason + ESCAPE_FOOTER;
   if (strikes === BREAKER_THRESHOLD) {
     full +=
-      `\n\n[!] ${strikes} redirects in a row and no codescout tool has answered. If ` +
-      `codescout is disconnected, this guard stands down on the next call rather ` +
-      `than leaving you with no way to run anything.`;
+      `\n\n[!] ${strikes} redirects in a row and none of the tools they name has ` +
+      `answered. If they are unavailable, this guard stands down on the next call ` +
+      `rather than leaving you with no way to run anything.`;
   }
   denyPreToolUse(full);
   process.exit(0);
 }
 
 if (toolName === 'Bash') {
+  // Codescout cannot express the host's native sandbox approval request. Leave
+  // that decision to the host without granting approval or rewriting the input.
+  if (input.tool_input?.sandbox_permissions === 'require_escalated') {
+    contextPreToolUse(
+      'Native sandbox escalation requested. Continue through the host approval flow; ' +
+        'codescout run_command cannot carry this permission request.'
+    );
+    process.exit(0);
+  }
+
   const cmd = (input.tool_input && input.tool_input.command) || '';
   let hint;
   if (/^(grep|rg) /.test(cmd)) {
@@ -232,7 +300,7 @@ codescout already knows every file in the project. Use the index directly:
 }
 
 if (toolName === 'Read') {
-  const filePath = norm((input.tool_input && input.tool_input.file_path) || '');
+  const filePath = norm(inputPath(input));
   if (isBinaryImage(filePath)) process.exit(0);
   if (isSkillPayload(filePath)) process.exit(0);
   if (isHarnessOutput(filePath)) process.exit(0);
@@ -245,14 +313,17 @@ if (toolName === 'Read') {
 
 File: ${filePath}
 
-Reading a full markdown file dumps everything into context. read_markdown is size-adaptive (full content for small files, heading map + slice recipe for large):
+Reading a full markdown file dumps everything into context. read_file is heading-aware and size-adaptive on markdown (full content for small files, heading map + slice recipe for large):
 
-  read_markdown(path="${relPath}")                            — adaptive output (start here)
-  read_markdown(path="${relPath}", heading="## Section")     — one section
-  read_markdown(path="${relPath}", headings=["## A", "## B"]) — multiple sections
-  grep(pattern="pattern", path="${relPath}")                 — content search
+  read_file(path="${relPath}")                            — adaptive output (start here)
+  read_file(path="${relPath}", heading="## Section")      — one section
+  read_file(path="${relPath}", headings=["## A", "## B"]) — multiple sections
+  read_file(path="${relPath}", force=true)                — raw, deliberate whole file
+  grep(pattern="pattern", path="${relPath}")              — content search
 
-read_markdown works on absolute cross-repo paths too. Native Read of markdown is blocked regardless of which repo the file lives in.`);
+For a librarian-managed artifact (docs/trackers, docs/issues) prefer doc(action="get", id=…, heading=…) — the raw file lacks the catalog metadata.
+
+read_file works on absolute cross-repo paths too. Native Read of markdown is blocked regardless of which repo the file lives in.`, ['read_file']);
   }
 
   if (SOURCE_RE.test(filePath)) {
@@ -281,7 +352,7 @@ Reading a full source file costs thousands of tokens. codescout returns just wha
   symbols(name=NAME, include_body=true)              — one symbol body, targeted
   read_file(path="${relPath}", start_line=N, end_line=M) — only when symbol tools cannot reach it
 
-Suggested flow: symbols first → symbols(name=NAME, include_body=true) for specific code → read_file with an explicit range only as last resort.`);
+Suggested flow: symbols first → symbols(name=NAME, include_body=true) for specific code → read_file with an explicit range only as last resort.`, ['read_file']);
   }
 
   let structHint = '';
@@ -298,11 +369,11 @@ File: ${filePath}
 
   read_file(path="${relPath}")                  — full content; large output stored as an @file_* buffer${structHint}
 
-read_file works on absolute cross-repo paths. Exempt from this block: binary images/PDF (codescout has no renderer), skill payloads (SKILL.md / lens addenda / references, plugin cache, .buddy trees — verbatim fidelity required), and CC harness persisted output (tool-results/ — over-cap hook/tool payloads read back).`);
+read_file works on absolute cross-repo paths. Exempt from this block: binary images/PDF (codescout has no renderer), skill payloads (SKILL.md / lens addenda / references, plugin cache, .buddy trees — verbatim fidelity required), and CC harness persisted output (tool-results/ — over-cap hook/tool payloads read back).`, ['read_file']);
 }
 
 if (toolName === 'Edit') {
-  const filePath = norm((input.tool_input && input.tool_input.file_path) || '');
+  const filePath = norm(inputPath(input));
   if (isBinaryImage(filePath)) process.exit(0);
   enforce(`This call is blocked because codescout's edit_code is the safer path for structural source edits.
 
@@ -317,11 +388,11 @@ codescout offers structural, LSP-backed editing via edit_code:
   edit_code(symbol=NAME, path=PATH, action="rename", new_name=...)                    — project-wide rename via LSP
   edit_file(path=PATH, old_string=OLD, new_string=NEW)                                 — imports, literals, comments, config (not structural code)
 
-Suggested flow: symbols(name=NAME, include_body=true) to inspect the current body → edit_code to change it.`);
+Suggested flow: symbols(name=NAME, include_body=true) to inspect the current body → edit_code to change it.`, ['edit_code', 'edit_file']);
 }
 
 if (toolName === 'Write') {
-  const filePath = norm((input.tool_input && input.tool_input.file_path) || '');
+  const filePath = norm(inputPath(input));
   if (isBinaryImage(filePath)) process.exit(0);
   enforce(`This call is blocked because codescout's create_file is the tracked path for new source files.
 
@@ -332,7 +403,7 @@ codescout alternatives:
 
   create_file(path=PATH, content=CONTENT)                                            — create or overwrite (tracked by codescout)
   edit_code(symbol=NAME, path=PATH, action="replace", body=...)                       — replace an existing symbol body via LSP
-  edit_code(symbol=NAME, path=PATH, action="insert", position=..., body=...)          — insert code near a symbol`);
+  edit_code(symbol=NAME, path=PATH, action="insert", position=..., body=...)          — insert code near a symbol`, ['create_file', 'edit_code']);
 }
 
 process.exit(0);

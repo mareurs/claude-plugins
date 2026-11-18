@@ -2,7 +2,7 @@
 # T2e — 9-branch decision matrix test for goal-stop-hook.sh.
 #
 # Mocks the `codescout` binary by prepending a stub directory to PATH that
-# answers `artifact find`, `artifact get`, and `artifact-event list` with
+# answers `doc find`, `doc get`, and `doc event list` with
 # canned JSON, then asserts the hook's stdout matches the expected verdict
 # for each branch.
 #
@@ -26,8 +26,13 @@ trap "rm -rf $WORK" EXIT
 mkdir -p "$WORK/bin"
 mkdir -p "$WORK/project/.claude"
 ORIG_PATH="$PATH"
+# Resolve node BEFORE the asserts narrow PATH to $WORK/bin:/usr/bin:/bin.
+# actions/setup-node installs it in the runner's tool cache, outside that PATH,
+# so a bare `node` is "command not found" on CI. The hook execs only the
+# codescout stub, never node, so the narrow PATH stays as hermetic as before.
+NODE=$(command -v node) || { echo "FAIL: node not on PATH"; exit 1; }
 
-# Helper: install a `codescout` stub whose body branches on the artifact subcommand
+# Helper: install a `codescout` stub whose body branches on the doc subcommand
 # ($1) — the function body to evaluate as bash inside the stub.
 install_stub_body() {
     local body="$1"
@@ -48,12 +53,21 @@ install_find_get_stub() {
     cat > "$WORK/bin/codescout" <<EOF
 #!/usr/bin/env bash
 set -e
-sub="\$1"; verb="\$2"
+sub="\$1"; verb="\$2"; obj="\${3:-}"
+# \`doc event list\` is a three-word subcommand; find/get are two.
+if [ "\$sub \$verb \$obj" = "doc event list" ]; then
+    echo '$event_json'
+    exit 0
+fi
 case "\$sub \$verb" in
-    "artifact find") echo '$find_json' ;;
-    "artifact get")  echo '$get_json' ;;
-    "artifact-event list") echo '$event_json' ;;
-    *) echo "{}" ;;
+    "doc find") echo '$find_json' ;;
+    "doc get")  echo '$get_json' ;;
+    # Mimic the real CLI (measured: \`codescout artifact find\` exits 2) rather
+    # than echoing "{}". A silent empty answer let the artifact->doc rename go
+    # unnoticed: every case degraded to the fail-open "no active goal" verdict,
+    # which is itself a valid expectation elsewhere in this matrix, so the
+    # suite stayed green-ish while testing nothing.
+    *) echo "error: unrecognized subcommand '\$sub \$verb'" >&2; exit 2 ;;
 esac
 EOF
     chmod +x "$WORK/bin/codescout"
@@ -66,7 +80,7 @@ assert_hook() {
 
     local input="{\"session_id\":\"t\",\"transcript_path\":\"/dev/null\",\"cwd\":\"$WORK/project\",\"last_assistant_message\":\"\"}"
     local output
-    output=$(echo "$input" | PATH="$WORK/bin:/usr/bin:/bin" HOME="$WORK/home" node "$HOOK")
+    output=$(echo "$input" | env -u CLAUDE_CONFIG_DIR PATH="$WORK/bin:/usr/bin:/bin" HOME="$WORK/home" "$NODE" "$HOOK")
 
     local got_continue
     got_continue=$(echo "$output" | jq -r '.continue' 2>/dev/null || echo "")
@@ -142,7 +156,7 @@ install_find_get_stub \
     '[]'
 assert_hook "done-no-gate" "false" "goal done: do X"
 # Defensive: also assert the gate substring is ABSENT in the fallback path.
-fallback_out=$(echo "{\"session_id\":\"t\",\"transcript_path\":\"/dev/null\",\"cwd\":\"$WORK/project\",\"last_assistant_message\":\"\"}" | PATH="$WORK/bin:/usr/bin:/bin" HOME="$WORK/home" node "$HOOK")
+fallback_out=$(echo "{\"session_id\":\"t\",\"transcript_path\":\"/dev/null\",\"cwd\":\"$WORK/project\",\"last_assistant_message\":\"\"}" | env -u CLAUDE_CONFIG_DIR PATH="$WORK/bin:/usr/bin:/bin" HOME="$WORK/home" "$NODE" "$HOOK")
 if [[ "$fallback_out" == *"auto-close gate passed"* ]]; then
     echo "FAIL [done-no-gate-no-leak]: fallback reason should NOT contain 'auto-close gate passed' substring"
     echo "  full output: $fallback_out"

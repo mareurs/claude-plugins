@@ -1,0 +1,28 @@
+Done. `src/billing.py` is untouched (verified by diff against a pre-mutation copy).
+
+**Files added**
+- `tests/test_billing.py` — 27 tests
+- `conftest.py` — puts `src/` on the import path
+
+**Result:** 27 passed. No failures, so the code and its docstring agree on everything the docstring actually settles.
+
+**Mutation check** — I ran 10 one-line changes to `billing.py`; all 10 turned the suite red:
+
+| Mutation | Caught by |
+|---|---|
+| `<=` → `<` on lower bound | 4 tests |
+| `<` → `<=` on upper bound | 8 tests |
+| `GRACE_DAYS` 5→4 and 5→6 | 2 tests each |
+| window anchored on `today` instead of `due` | 15 tests |
+| direction of time lost (`abs`) | 5 tests |
+| naive day-of-month arithmetic | 9 tests |
+| `timedelta(GRACE_DAYS - 1)` | 9 tests |
+| always `True` / always `False` | 18 / 16 tests |
+
+The first pass left two survivors: because I'd written every boundary as `GRACE_DAYS ± n`, the tests slid along with the constant and stayed green when I changed it. I added `test_grace_days_is_five` and `test_window_in_concrete_dates` (literal dates, no reference to the constant) to close that.
+
+**One thing to decide before you refactor.** The docstring fixes the start of the window (the "not yet due" clause) and the length ("GRACE_DAYS days long"), which together force the last day of grace to be `due + 4` — that's what I asserted, and what the code does. But the common business reading of "5 days' grace" is *pay by D+5 without penalty*, which would make `due + 5` still in grace. These differ by exactly one day at the boundary that matters for dunning. I went with the docstring; if the business rule is the other one, `test_day_after_grace_expires` and `test_window_in_concrete_dates` are the two tests to flip, and the current implementation is off by one.
+
+Two smaller notes:
+- `test_datetime_argument_raises` pins behaviour the docstring doesn't specify. Passing a `datetime` raises `TypeError` today (Python refuses to order `date` against `datetime`). I've marked it as recorded-not-required — if your refactor normalises inputs and starts accepting datetimes, that test fires so you can document what the time component means, rather than it silently changing the answer at midnight boundaries.
+- The calendar-boundary tests (month ends, new year, leap day) exist specifically because a refactor toward day-of-month arithmetic passes every other test in the file.

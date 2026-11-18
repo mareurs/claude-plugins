@@ -1,0 +1,174 @@
+#!/bin/bash
+# tests/test-pre-edit-dirty-check.sh
+source "$(dirname "${BASH_SOURCE[0]}")/lib/fixtures.sh"
+
+echo "── pre-edit-dirty-check ──"
+HOOK="$HOOK_DIR/pre-edit-dirty-check.mjs"
+T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
+
+FAKE_HOME="$T/_home"
+mkdir -p "$FAKE_HOME"
+
+make_git_repo "$T/proj"
+echo "original" > "$T/proj/shared.txt"
+echo "original" > "$T/proj/mine.txt"
+git -C "$T/proj" add . >/dev/null 2>&1
+git -C "$T/proj" commit -q -m "add files"
+
+hook_input() {
+  local sid="$1" path="$2"
+  printf '{"cwd":"%s","session_id":"%s","tool_name":"Edit","tool_input":{"file_path":"%s"}}' \
+    "$T/proj" "$sid" "$path"
+}
+
+run_hook() {
+  HOME="$FAKE_HOME" CLAUDE_CONFIG_DIR="" node "$HOOK" 2>/dev/null
+}
+
+# --- 1. A file dirtied by someone else, never touched by this session, warns.
+#        This is the whole point: at edit time, before the two diffs entangle.
+printf 'a peer wrote this\n' >> "$T/proj/shared.txt"
+OUT=$(hook_input "sid-1" "$T/proj/shared.txt" | run_hook)
+if assert_context_contains "$OUT" "shared.txt"; then
+  pass "dirty + unmarked: warns and names the path"
+else
+  fail "dirty + unmarked: warns and names the path" "$OUT"
+fi
+
+# --- 2. Claim only what is proven (ADR clause 3). The hook can observe two things:
+#        `git status` says the content is uncommitted, and the MARKER SET says no write
+#        through this hook was recorded. It cannot observe AUTHORSHIP at all, and
+#        naming an unchecked cause ends the search for the real one.
+#
+#        This assertion used to pin the phrase "this session did not", which was the old
+#        headline's way of disclaiming a peer. That phrasing was itself the defect: it
+#        asserted a negative authorship fact, and so fired on the session's OWN work
+#        whenever the write bypassed this hook -- an edit_code rename touching files the
+#        call never named, or a librarian `doc(...)` write, which happens server-side with
+#        no PreToolUse payload at all.
+#        codescout:docs/issues/2026-09-14-the-dirty-check-reports-any-write-it-did-not-mediate-as-another-sessions.md
+#
+#        So the assertion now tests the INTENT its own comment always stated -- no invented
+#        cause -- instead of the sentence that used to carry it. Both directions are
+#        checked, because each is monotone the other way: the absence half alone passes on
+#        an empty message, and the presence half alone passes on a message that scopes the
+#        claim and then asserts authorship anyway.
+if ! assert_context_contains "$OUT" "this session did not"; then
+  pass "message asserts no authorship fact (the claim the hook cannot observe)"
+else
+  fail "message asserts no authorship fact" "authorship claim is back: $OUT"
+fi
+if assert_context_contains "$OUT" "THIS HOOK'S RECORDS"; then
+  pass "message scopes its claim to what the hook actually holds"
+else
+  fail "message scopes its claim to what the hook actually holds" "$OUT"
+fi
+
+# --- 3. The remedy names an action its addressee can actually perform.
+#        A guard whose message sends you nowhere is decoration (CLAUDE.md).
+if assert_context_contains "$OUT" "file-provenance.py"; then
+  pass "message names a runnable next step"
+else
+  fail "message names a runnable next step" "$OUT"
+fi
+
+# --- 4. Bounded noise: the same path a second time is silent.
+OUT2=$(hook_input "sid-1" "$T/proj/shared.txt" | run_hook)
+CTX=$(echo "$OUT2" | jq -r '.hookSpecificOutput.additionalContext // empty')
+if [ -z "$CTX" ]; then
+  pass "same path twice: silent (one warning per path per session)"
+else
+  fail "same path twice: silent" "ctx=$CTX"
+fi
+
+# --- 5. DISCRIMINATOR. A clean file must be silent. A guard that warns always
+#        is a guard nobody reads — this is the test that fails if the hook
+#        degenerates into unconditional noise.
+OUT=$(hook_input "sid-2" "$T/proj/mine.txt" | run_hook)
+CTX=$(echo "$OUT" | jq -r '.hookSpecificOutput.additionalContext // empty')
+if [ -z "$CTX" ]; then
+  pass "clean file: silent"
+else
+  fail "clean file: silent" "ctx=$CTX"
+fi
+
+# --- 6. DISCRIMINATOR. Dirt this session created is not foreign. Sequence:
+#        edit a clean file (marker written), dirty it, edit again -> silent.
+hook_input "sid-3" "$T/proj/mine.txt" | run_hook >/dev/null
+printf 'i wrote this myself\n' >> "$T/proj/mine.txt"
+OUT=$(hook_input "sid-3" "$T/proj/mine.txt" | run_hook)
+CTX=$(echo "$OUT" | jq -r '.hookSpecificOutput.additionalContext // empty')
+if [ -z "$CTX" ]; then
+  pass "dirt this session made: silent"
+else
+  fail "dirt this session made: silent" "ctx=$CTX"
+fi
+
+# --- 7. A different session sees the same dirt as foreign. Confirms the marker
+#        is session-scoped and not a global "already warned" flag.
+OUT=$(hook_input "sid-4" "$T/proj/mine.txt" | run_hook)
+if assert_context_contains "$OUT" "mine.txt"; then
+  pass "another session sees the same dirt as foreign"
+else
+  fail "another session sees the same dirt as foreign" "$OUT"
+fi
+
+# --- 8. Not a git repo: git() returns null. Null is UNKNOWN, never CLEAN --
+#        but unknown must not warn either. Silent, exit 0.
+mkdir -p "$T/bare"
+OUT=$(printf '{"cwd":"%s","session_id":"s","tool_name":"Edit","tool_input":{"file_path":"%s"}}' \
+        "$T/bare" "$T/bare/x.txt" | run_hook)
+RC=$?
+if check_rc "$RC" && assert_no_output "$OUT"; then
+  pass "non-git dir: silent, exit 0"
+else
+  fail "non-git dir: silent, exit 0" "rc=$RC out=$OUT"
+fi
+
+# --- 9. Fail-open contract (lib.mjs:5-8): a non-zero PreToolUse exit is itself
+#        a deny on Copilot CLI. Garbage stdin must still exit 0.
+OUT=$(printf 'not json at all' | run_hook)
+RC=$?
+if check_rc "$RC"; then
+  pass "garbage stdin: exit 0 (fail-open)"
+else
+  fail "garbage stdin: exit 0 (fail-open)" "rc=$RC"
+fi
+
+# --- 10. It warns; it never denies. Escalation to deny needs the tracker's bar.
+OUT=$(hook_input "sid-9" "$T/proj/shared.txt" | run_hook)
+if assert_denied "$OUT"; then
+  fail "never denies" "hook returned a deny decision"
+else
+  pass "never denies (advisory only)"
+fi
+
+# --- 11. The advisory states no COUNT of captures. A count written into served
+#         prose decays silently and nothing here reads it: the sentence once said
+#         "Four such captures" against a corpus that had reached fourteen, and it
+#         was wrong on the day it was written (both strings arrived in one commit).
+#         codescout:docs/issues/2026-09-14-a-served-advisory-hardcodes-a-capture-count-that-has-decayed-by-ten.md
+#
+#         Both directions, because each alone is monotone the wrong way. The absence
+#         half is a floor, not a proof: any word or number directly before "such
+#         captures" is read as a quantifier (the sentence legitimately opens after a
+#         full stop), so "Four", "Fourteen" and "14" are all caught, but a rewording
+#         that hides the count ("a dozen of these") is not. The presence half pins the
+#         citation the sentence exists to carry, so deleting the count by deleting the
+#         sentence is caught too.
+OUT=$(hook_input "sid-11" "$T/proj/shared.txt" | run_hook)
+FLAT=$(echo "$OUT" | jq -r '.hookSpecificOutput.additionalContext // empty' 2>/dev/null | tr '\n' ' ')
+if [ -z "$FLAT" ]; then
+  fail "advisory states no capture count" "no advisory was produced: $OUT"
+elif grep -Eiq '[[:alnum:]-][[:space:]]+such[[:space:]]+captures?' <<<"$FLAT"; then
+  fail "advisory states no capture count" "a count precedes 'such captures': $FLAT"
+else
+  pass "advisory states no capture count"
+fi
+if grep -qF "Such captures are recorded in codescout's docs/issues/2026-08-31-peer-commit-captures-another-sessions-working-tree.md" <<<"$FLAT"; then
+  pass "advisory still cites the capture ledger it points at"
+else
+  fail "advisory still cites the capture ledger it points at" "$FLAT"
+fi
+
+print_summary "pre-edit-dirty-check"

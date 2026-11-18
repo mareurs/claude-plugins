@@ -113,6 +113,11 @@ run_stop() {  # <session_id> <agent_id>
       hook_event_name:"SubagentStop", stop_hook_active:false}' \
     | node "$RESTORE_HOOK" 2>"$STDERR_FILE"
 }
+run_start_typed() {  # <session_id> <agent_id> <agent_type>
+  jq -n --arg s "$1" --arg a "$2" --arg c "$PROJECT" --arg t "$3" \
+    '{session_id:$s, agent_id:$a, agent_type:$t, cwd:$c,
+      hook_event_name:"SubagentStart"}' | node "$SNAPSHOT_HOOK" 2>"$STDERR_FILE"
+}
 
 # --- Case 1: ledger pre-exists with a parent-delivered topic; a subagent's
 #     own fetch adds a new one; restore must bring back exactly the original,
@@ -282,12 +287,142 @@ GOT=$(cat "$LEDGER_FILE" | jq -S .)
 WANT=$(echo '{"parent":"2026-08-01T00:00:00Z","subagent":"2026-08-01T00:05:00Z"}' | jq -S .)
 check "tool-lifecycle payload leaves the ledger untouched" "$GOT" "$WANT"
 
+# --- Case 7: LIVE RE-ARM REQUEST — a fresh (non-fork) dispatch with a
+#     non-empty ledger must write a one-shot re-arm request file for each of
+#     THIS process's own running codescout server(s), so the ALREADY RUNNING
+#     server can re-arm those topics on its next request instead of only the
+#     dead-for-this-session on-disk ledger file the rest of this suite
+#     exercises. codescout:docs/issues/archive/2026-08-31-subagents-receive-guides-their-parent-already-holds.md
+REARM_DIR="$STATE_HOME/codescout/guide_rearm"
+SERVERS_DIR="$STATE_HOME/codescout/servers"
+mkdir -p "$REARM_DIR" "$SERVERS_DIR"
+
+# A server slot whose ppid is THIS TEST SCRIPT's own pid ($$) — one hop up
+# from the node hook process each `run_start*` call spawns via the pipeline
+# above, so `resolveOwnServerPids` matches it via `ownAncestry()` exactly the
+# way it would match a real codescout server spawned by the same Claude Code
+# process tree as the hook.
+FAKE_SERVER_PID=999001
+cat > "$SERVERS_DIR/$FAKE_SERVER_PID.json" <<EOF
+{"pid":$FAKE_SERVER_PID,"ppid":$$,"started_at":"2026-08-01T00:00:00Z","cwd":"$PROJECT","session":"$SESSION","hook_at":"2026-08-01T00:00:00Z"}
+EOF
+rearm_requests() { find "$REARM_DIR" -maxdepth 1 -name "${FAKE_SERVER_PID}-*.json" 2>/dev/null; }
+rearm_count() { rearm_requests | grep -c . || true; }
+
+echo '{"librarian":"2026-08-01T00:00:00Z"}' > "$LEDGER_FILE"
+run_start "$SESSION" "agent_rearm_a" > /dev/null
+check "non-fork dispatch with topics writes exactly one re-arm request" "$(rearm_count)" "1"
+GOT=$(cat $(rearm_requests) | jq -S '.topics')
+WANT=$(echo '["librarian"]' | jq -S .)
+check "re-arm request names the ledger's current topics" "$GOT" "$WANT"
+check "a fresh dispatch's request is NOT marked fork (it is a re-arm)" \
+  "$(jq -r '.fork // false' $(rearm_requests))" "false"
+rm -f $(rearm_requests)
+
+echo '{"librarian":"2026-08-01T00:00:00Z"}' > "$LEDGER_FILE"
+# The case-7 dispatches above left their snapshots behind (no run_stop here). A LIVE
+# snapshot means a subagent is running, and that changes what a fork's seed may be
+# -- see the nested-dispatch case below. Start the fork case from none.
+rm -f "$TMPDIR"/cs-guide-snapshot-* 2>/dev/null
+run_start_typed "$SESSION" "agent_rearm_fork" "fork" > /dev/null
+# A fork inherits the parent's conversation, so it must NOT be re-armed -- but the
+# server starts its (never-seen) principal ledger EMPTY and would re-serve every
+# inherited guide. The hook therefore writes the SAME request file with
+# `fork: true`, telling the server these topics are already held and to mark them
+# delivered (codescout RearmRequest.fork / GuideLedger::seed_inherited).
+# codescout:docs/issues/2026-09-24-a-fork-child-is-re-served-every-guide-it-inherited.md
+check "fork dispatch writes exactly one request (the inherited-topics seed)" "$(rearm_count)" "1"
+check "the fork request is marked fork:true" \
+  "$(jq -r '.fork' $(rearm_requests))" "true"
+check "the fork request names the parent's topics as of dispatch" \
+  "$(jq -S -c '.topics' $(rearm_requests))" '["librarian"]'
+rm -f $(rearm_requests)
+
+# A fork spawned by a SUBAGENT inherits that subagent's context, not the top-level
+# parent's. SubagentStart carries only the NEW agent's id/type (verified against the
+# shipped 2.1.301 payload schema), so the hook cannot name its dispatcher, and the
+# ledger it reads is the top-level parent's. Seeding that set would mark guides
+# delivered that the fork never saw: starvation, the unsafe direction. A live
+# sibling snapshot (a running subagent that could be the dispatcher) therefore
+# suppresses the seed; the fork is then served normally, i.e. over-delivered.
+# Each direction asserted: alone -> seeded (above); a live subagent -> not seeded;
+# only a FINISHED subagent (tombstone, done:true) -> seeded again.
+rm -f "$TMPDIR"/cs-guide-snapshot-* 2>/dev/null
+run_start "$SESSION" "agent_nest_outer" > /dev/null
+rm -f $(rearm_requests)   # the outer agent's own re-arm is not what is measured
+run_start_typed "$SESSION" "agent_nest_fork" "fork" > /dev/null
+check "a fork started while another subagent is live is not seeded (dispatcher unknown)" \
+  "$(rearm_count)" "0"
+run_stop "$SESSION" "agent_nest_outer" > /dev/null
+run_stop "$SESSION" "agent_nest_fork" > /dev/null   # every real dispatch gets a SubagentStop
+rm -f $(rearm_requests)
+run_start_typed "$SESSION" "agent_nest_fork2" "fork" > /dev/null
+check "a fork started once the other subagent has finished is seeded" \
+  "$(rearm_count)" "1"
+rm -f $(rearm_requests)
+rm -f "$TMPDIR"/cs-guide-snapshot-* 2>/dev/null
+
+rm -f "$LEDGER_FILE"
+run_start "$SESSION" "agent_rearm_empty" > /dev/null
+check "an empty ledger writes no re-arm request (nothing to re-arm)" "$(rearm_count)" "0"
+
+echo '{"librarian":"2026-08-01T00:00:00Z"}' > "$LEDGER_FILE"
+run_start "$SESSION" "agent_rearm_c1" > /dev/null
+run_start "$SESSION" "agent_rearm_c2" > /dev/null
+check "two concurrently-dispatched agents write two distinct re-arm requests, neither clobbering the other" \
+  "$(rearm_count)" "2"
+rm -f $(rearm_requests)
+# This block only ever calls run_start*, never run_stop, for 5 fresh agent_ids
+# above — clean up their TMPDIR snapshot files directly rather than pairing
+# each with a run_stop, so the hygiene check at the end of this suite (a
+# DIFFERENT mechanism, the snapshot files, not the re-arm requests above)
+# is not tripped by debris this block alone introduced.
+rm -f "$TMPDIR"/cs-guide-snapshot-* 2>/dev/null
+
+# --- Case 8: a subagent served as its OWN PRINCIPAL never writes the parent's
+#     file -- the server persists its marks to <session>_<agent>.json
+#     (codescout:docs/adrs/2026-09-14-a-subagent-is-a-principal.md). Every key
+#     that appears in the parent's file during its lifetime is therefore the
+#     PARENT's own, and subtracting it made the next /mcp re-deliver a guide the
+#     parent already held. A per-agent ledger for this session is the observable
+#     proof; with none (Case 1) the old subtraction still runs, as the fallback
+#     for an unstamped subagent.
+#     codescout:docs/issues/archive/2026-09-24-subagent-stop-restore-strips-the-parents-own-guide-marks.md
+# Load-bearing name: <session>_<agent> is the server's sanitize() of the
+# principal "<session>/<agent>" ('/' -> '_'). A name the server would never
+# write would pass this case while testing nothing real.
+AGENT_LEDGER="$LEDGER_DIR/${SESSION}_agent_principal.json"
+echo '{"librarian":"2026-08-01T00:00:00Z"}' > "$LEDGER_FILE"
+run_start "$SESSION" "agent_principal" > /dev/null
+echo '{"project-activation-bootstrap":"2026-08-01T00:20:00Z"}' > "$AGENT_LEDGER"
+echo '{"librarian":"2026-08-01T00:00:00Z","progressive-disclosure":"2026-08-01T00:21:00Z"}' > "$LEDGER_FILE"
+run_stop "$SESSION" "agent_principal" > /dev/null
+GOT=$(jq -S . "$LEDGER_FILE")
+WANT=$(echo '{"librarian":"2026-08-01T00:00:00Z","progressive-disclosure":"2026-08-01T00:21:00Z"}' | jq -S .)
+check "a subagent served as its own principal leaves the parent's own mark" "$GOT" "$WANT"
+
+# 8b: THIS agent made no codescout call, so no ledger of its own exists -- but a
+#     sibling's per-agent ledger proves the server serves this session's
+#     subagents as principals, so nothing this agent did can be in the parent's
+#     file. Keying on the agent's OWN file alone missed exactly this case.
+echo '{"librarian":"2026-08-01T00:00:00Z"}' > "$LEDGER_FILE"
+run_start "$SESSION" "agent_silent" > /dev/null
+echo '{"librarian":"2026-08-01T00:00:00Z","workspace-state":"2026-08-01T00:22:00Z"}' > "$LEDGER_FILE"
+run_stop "$SESSION" "agent_silent" > /dev/null
+GOT=$(jq -S . "$LEDGER_FILE")
+WANT=$(echo '{"librarian":"2026-08-01T00:00:00Z","workspace-state":"2026-08-01T00:22:00Z"}' | jq -S .)
+check "a call-less subagent in a principal-served session leaves the parent's own mark" "$GOT" "$WANT"
+rm -f "$AGENT_LEDGER"
+# Case 7's fake server slot is still present, so each run_start above wrote a
+# re-arm request; they are not what this case measures.
+rm -f $(rearm_requests)
+
 # --- Wiring: the bracket must sit on the AGENT lifecycle, both ends. ---
 hook_events() {  # <script basename> -> newline-separated event names
   jq -r --arg s "$1" '
     .hooks | to_entries[]
     | .key as $ev | .value[]
-    | select(any(.hooks[]?; ((.args // []) | join(" ")) | test($s)))
+    | select(any(.hooks[]?; .command | test($s)))
     | $ev' "$HOOKS_JSON" | sort -u
 }
 

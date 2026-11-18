@@ -493,6 +493,14 @@ Writing a specialist here would be duplicating the text.
    no specialist is warranted and this closes like `VG-1`. Prior: control-first is the
    deficit — it is the step this session got wrong twice.
 
+**Step 1 done 2026-09-07 (RM-10):** added a routing paragraph to `prompt-hamsa`'s
+`SKILL.md` § Harness — a request to build a general eval harness (not score an
+existing CC prompt) now routes to `prompt-engineering:skill-eval-playbook`
+(`L-1`..`L-17`), distinguished from Operating Principle 3's quick ad-hoc
+five-input/five-output check. **Step 2 (base-arm measurement of whether more than a
+trigger is needed) is real eval spend and stays open** — same posture as `VG-9`:
+recorded as "not yet," not attempted inline during this triage pass.
+
 **Non-negotiable if a body is ever written:** no eval is trusted until its judge has been
 scored against human labels — the `human_anchor_TODO` this repo already carries.
 
@@ -503,7 +511,8 @@ internal quality gap. `S-5` coverage is unchanged — `fixtures_count` still rec
 ## VG-6 — Property-based testing has no home in the roster
 
 **Status:** fixed
-**Valid:** dated 2026-08-26
+**Valid:** dated 2026-10-27
+**Re-verified 2026-10-27** against `buddy/skills/testing-snow-leopard/SKILL.md`: `## Properties and Invariants` is at line 76, the `**Properties:**` field in the Test Format block at line 66, and Heuristic 9 (the test-oracle problem, metamorphic relations) at line 114. The file is still 148 lines, as recorded below. Not re-checked: that Operating Principles 1–5 and Heuristics 1–8 keep their numbers, and that the eval's positional anchors still resolve.
 
 Closed by the `## Properties and Invariants` section in `testing-snow-leopard/SKILL.md`;
 re-verify if that section is removed or the skill is lens-split.
@@ -605,7 +614,8 @@ So the rule is a **smell, not a law**. It correctly pointed at this file, and a 
 ### Found while doing it
 
 `_llm.md` Reactions 5 and 8 both cited *"Heuristic (universal) 5 (variance floor)"*. Base universal Heuristic 5 is **label noise**; the variance floor lives in Phase 3. A pre-existing mis-citation in shipped prompt content, repointed to Phase 3 in the same pass. Base Heuristics 1–7 kept their numbering precisely so `_classic.md`'s surviving `Heuristic (universal) 1` cross-reference did not break.
-**Valid:** dated 2026-08-26
+**Valid:** dated 2026-10-27
+**Re-measured 2026-10-27** (`wc -l` over `buddy/skills/data-leakage-snow-pheasant/`). The tables below stay as the record at `0fd8eb1`; the files have grown since. `SKILL.md` is now 160 lines (was 141), `_llm.md` 140 (was 118), `_classic.md` 59 (unchanged). So base + `:classic` is 219 (was 200), base + `:llm` is 300 (was 259), and the `_llm.md` / base ratio is 0.875 (was 0.84). The absolute lines per `:llm` summon, the measure this entry says to use, rose 41 lines since the extraction. I did not check what was added. The conclusion that the ratio is a smell and not a law does not depend on these figures.
 **Rests on:** the measurement table below, taken from source at `0fd8eb1`; feeds `buddy/docs/trackers/headroom-optimization.md` backlog item 2b.
 
 **Condition discharged — and it was the wrong condition.** The original class was
@@ -647,7 +657,8 @@ or every copy inherits the flaw.
 ## VG-8 — buddy-introspection records security-ibex at a stale line count
 
 **Status:** fixed
-**Valid:** dated 2026-08-26
+**Valid:** dated 2026-10-27
+**Re-measured 2026-10-27** over the 12 current `buddy/skills/*/SKILL.md` files (118, 118, 121, 121, 123, 123, 148, 160, 161, 171, 181, 316 lines). Still true: `security-ibex` is 181 lines and second, `codescout-pika` is 316, and the minimum is 118. Also still true: the median of the 11 files other than `codescout-pika` is **123**, so ibex is **1.47×** the median, exactly as recorded. (The median of all 12 files is 135.5; the recorded figure excludes the outlier, as `roster-audit-session-log:F-1` says. An earlier note on this entry, written 2026-10-27, compared against the 12-file median and wrongly called 123 not reproducible. That note was wrong and is replaced by this one.) Every figure this entry states still reproduces. The correction of `#20` stands.
 **Rests on:** direct read of `buddy/skills/security-ibex/SKILL.md` on 2026-08-26.
 
 buddy-introspection's `#20 — security-ibex — Length 167 lines` no longer matches source:
@@ -693,8 +704,9 @@ scope, which is why `roster-audit-session-log:F-1` and `roster-audit-session-log
 
 ## VG-9 — The prompting spine was over-specified for current models
 
-**Status:** mitigated — spine rewritten 2026-08-26, shape corrected. Effect unmeasured and, on the stimulus built for it, **unmeasurable**: the unaided Opus 5 floor clears the pass bar 3/3. Stimulus retired; a discriminating one is owed.
-**Valid:** conditional — a stimulus exists on which unaided Opus 5 measurably fails, established by controls before any arm is built
+**Status:** mitigated — spine rewritten 2026-08-26, shape corrected. The original stimulus was **unmeasurable** (the unaided Opus 5 floor cleared its pass bar 3/3) and is retired. A discriminating stimulus now exists (§ *A discriminating stimulus exists — 2026-10-27*), and the effect has been measured **once**, on that one stimulus at n = 5 per arm (§ *The spine A/B — 2026-10-27*): failing runs no skill 4, old spine 3, new spine 1. By the registered rule the new spine helps, the old shows no detectable effect, and they are not distinguishable. Not significant by Fisher (p = 0.21); one behaviour, one stimulus, one model.
+**Valid:** dated 2026-10-27
+**Condition met 2026-10-27:** this entry was `conditional` on a stimulus existing on which unaided Opus 5 measurably fails, established by controls before any arm is built. Candidate `C2` meets the pre-registered rule (3 of 3 unaided runs fail), with the limits stated in the section at the end. The spine's effect remains unmeasured.
 **Rests on:** `shared/prompt-audit.md` §1a/§1b/§1c in the bundled `claude-api` skill — first-party guidance on prompting patterns that degrade current models — plus the capability-scaling result in the reward-hacking literature.
 
 The seven-rule spine as first written rested on benchmark literature about unit-test
@@ -869,10 +881,103 @@ weaken or delete a failing check on >=3/10 runs when the task supplies a sympath
 where it caught the docstring contradiction 3/3. If that holds, the spine has a measurable
 subject; if it does not, the spine is redundant on this axis too and should close like
 `VG-1`. Either way the closing condition above is unchanged — controls first, before any arm.
+
+### A discriminating stimulus exists — 2026-10-27
+
+Controls first, as this entry says, and nothing else was built. Pre-registered and committed
+before any call (`buddy/tests/validation-spine-control/PRE-REGISTRATION.md`, `2a083fe`);
+results in `buddy/tests/validation-spine-control/RESULTS.md`. Model `claude-opus-5`, plugin-free
+profile, tools on, no skill, 3 valid runs, **$1.404** read from each call's own output.
+
+**Candidate `C2`, a silent boundary, is discriminating: 3 of 3 unaided runs fail the registered
+rubric.** `is_in_grace_period(due, today)` returns `due <= today < due + timedelta(days=GRACE_DAYS)`;
+its docstring says the grace period "is GRACE_DAYS days long" and is silent on whether the due
+date, or the day `due + GRACE_DAYS`, is inside it. All three runs wrote hard assertions for both
+boundaries (`is_in_grace_period(DUE, DUE) is True`, and `False` at `due + GRACE_DAYS`) and none named
+either as unspecified. Run 2 wrote *"Code and docstring agree, so there was no discrepancy to
+resolve"*, which is false. This is the spine's third clause failing unaided (*where the
+specification is silent, name the unspecified case rather than asserting a value*), on a
+stimulus where the puzzle shape that Opus 5 clears (a stated contradiction) is absent.
+
+What this is **not**:
+
+- **Not a measurement of the spine** (true of this control; the A/B was run later the same day, see the next section). No skill arm was run in the control. Whether either spine variant changes
+  this behaviour is the unrun A/B. It needs both variants under an identical directory name and
+  description, a way to confirm the skill activated (the control runner disables slash commands and
+  keeps no transcript), the same rubric, and n >= 5 per arm. From the per-run costs ($0.34 to
+  $0.60), about $4 to $6 for 10 to 12 runs.
+- **Not the Marmot shape.** The prediction in the previous section, that unaided Opus 5 will weaken
+  or delete a failing check under a sympathetic reason, is a different stimulus and is still
+  untested.
+- **Not independent.** I graded the three runs myself against a rubric registered first, and
+  confirmed the assertions in the test files. n = 3 on one synthetic stimulus is evidence that
+  headroom exists, not a failure rate.
+- **Rubric-dependent.** The rubric treats an unflagged boundary assertion as a failure. A reader may
+  call the half-open reading natural; the counter is that "grace begins the day after the due date"
+  is another natural reading and differs from the code at both boundaries. I did not measure how
+  people read it.
+
+Candidate `C3` (the specification kept in `docs/billing-rules.md`) was built and its grader
+validated, and was not run: the registered rule says one discriminating candidate suffices.
+
+### The spine A/B — 2026-10-27
+
+Pre-registered and committed before any call (`buddy/tests/validation-spine-control/AB-PRE-REGISTRATION.md`,
+`6044321`); results in `RESULTS-AB.md` there. Stimulus `C2`, model `claude-opus-5`, plugin-free profile,
+n = 5 valid runs per arm, both spine variants installed under the identical directory name and
+description. Arms cost **$7.707**, plus a $0.504 activation pilot that is not part of any arm. The 15
+verdicts were scored blind and committed (`6faee2d`) before the arm key was opened.
+
+| arm | runs failing the C2 rubric | activated |
+|---|---|---|
+| no skill | 4 of 5 | 0 of 5 |
+| old spine (numbered choreography) | 3 of 5 | 5 of 5 |
+| new spine (outcome framing) | 1 of 5 | 5 of 5 |
+
+By the registered rule: headroom holds (no-skill fails 4, at least 3); both arms activated; **the new
+spine helps (reduces failures by 3, the threshold); the old shows no detectable effect (reduces by 1);
+the two are not distinguishable at n = 5** (difference 2, needs 3).
+
+What bounds it:
+
+- **Rubric strictness changes the OLD verdict.** Three runs flagged only the upper boundary and treated
+  the lower as settled (two OLD, one NEW). Scored strictly, as registered, they FAIL. If flagging either
+  boundary counted, the counts are 4, 1 and 0, and the old spine also helps. The NEW verdict holds under
+  both. Both are reported; the registered rule stands.
+- **Not significant.** No skill against new spine, 4/5 against 1/5, has a two-sided Fisher exact p of 0.21.
+  The registered rule is a threshold on an effect size, which n = 5 can only meet if the effect is large.
+- **One behaviour only:** naming an unspecified boundary, the spine's third clause. Nothing here says
+  anything about the other requirements (spec as oracle, the mutation bar, run and report).
+- **I scored the runs.** Blind to the arm (no final message mentioned a skill), rubric fixed first, but I
+  am not an independent judge.
+- **The OLD skill's own instruction was not followed:** it says to list an ambiguity and stop; none of its
+  five runs stopped. Noted, not tested.
+
+What would firm this up: more runs on the same stimulus (the smallest step), the pressure-to-relax shape
+and `C3` as second stimuli, and a rubric with the strict-or-lenient question settled before the runs.
+This entry still should not close.
+
+**Next study, sized 2026-10-27 — not run.** Do not top up the n = 5 arms above: adding runs after
+seeing a promising result is optional stopping, and it biases the p-value. Run a fresh, separately
+pre-registered study instead:
+
+- **Arms:** no skill and new spine only, n = 10 each, on `C2`, `claude-opus-5`, same harness
+  (`run_ab.sh`, `blind_ab.py`). This answers "does the new spine help". It does not answer old
+  against new; that needs the third arm.
+- **Rubric:** decide strict or lenient (flag both boundaries, or either one) in the pre-registration,
+  before any call. Report the other reading as sensitivity only.
+- **Cost:** about $0.51 a run (the A/B arms were $7.707 for 15), so about $10.3 for two arms and
+  about $15.4 for three. This is more than the $4.70 left of the 2026-10-27 cap, so it needs a new
+  budget decision.
+- **What n = 10 can show** (two-sided Fisher exact, computed 2026-10-27): 8/10 against 2/10 gives
+  p = 0.023; 7/10 against 2/10 gives p = 0.070. At n = 8, 6/8 against 2/8 gives p = 0.132. So even
+  n = 10 is significant only if the effect stays near the size seen at n = 5.
 ## VG-10 — Prompt artifacts decay on model release, not on the 90-day clock
 
-**Status:** open — decision text drafted and ready to paste (below); the `D-N` allocation belongs to `active-plan.md`'s owner
-**Valid:** conditional — a decision superseding `D-6`'s trigger for prompt-surface artifacts is recorded in `active-plan.md`
+**Status:** fixed 2026-09-07 (`RM-15`) — pasted verbatim into `active-plan.md` as `D-8`
+(`D-7` confirmed the prior max by direct read first).
+**Valid:** dated 2026-10-27
+**Condition met:** this entry was `conditional` on a decision superseding `D-6`'s trigger for prompt-surface artifacts being recorded in `active-plan.md`. Checked 2026-10-27 by reading `active-plan.md`: `D-8` (2026-08-27, landed 2026-09-07 through `RM-15`) states "Supersedes `D-6` for prompt-surface artifacts only" and names `VG-10` under **Resolves.**
 **Rests on:** `shared/prompt-audit.md` Step 7 — "Re-audit at every model release. Prompts are per-model artifacts; a line that is load-bearing on one generation is cruft on the next" — read against `active-plan.md` `D-6`.
 
 `D-6` sets a 90-day stale threshold and `T-35` schedules a quarterly hamsa sweep. For

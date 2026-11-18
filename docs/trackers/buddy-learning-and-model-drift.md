@@ -1,3 +1,9 @@
+---
+kind: tracker
+status: draft
+title: Buddy Specialists — Token Efficiency, Live Tracking & Model-Drift Sweep
+---
+
 # Buddy Specialists — Token Efficiency, Live Tracking & Model-Drift Sweep
 
 > **Relationship:** follow-on to [buddy-introspection.md](buddy-introspection.md) (token-efficiency audit,

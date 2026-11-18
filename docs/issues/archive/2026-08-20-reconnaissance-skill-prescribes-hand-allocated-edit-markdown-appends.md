@@ -1,5 +1,5 @@
 ---
-id: 440736f75f20112a
+id: '440736f75f20112a'
 kind: bug
 status: fixed
 title: reconnaissance SKILL.md prescribes hand-allocated edit_markdown appends, which race, teach nothing, and stop working once the ledger is guarded
@@ -10,7 +10,7 @@ tags:
 - session-log
 - librarian
 closed: 2026-08-20
-unverified: No automated check that a skill's prescribed tool calls remain legal against the MCP server it drives; regression relies on manual review + the full test-suite pass (run-all.sh + buddy pytest) only, not a pinned check.
+unverified: TRACKED af3292c4ea2d4712 — No automated check that a skill's prescribed tool calls remain legal against the MCP server it drives; regression relies on manual review + the full test-suite pass (run-all.sh + buddy pytest) only, not a pinned check.
 ---
 
 ## Summary

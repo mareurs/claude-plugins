@@ -1,0 +1,81 @@
+#!/usr/bin/env bash
+# install.sh — install pi companion extensions
+# Run from this directory (claude-plugins/harnesses/pi/).
+
+set -euo pipefail
+
+REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+PI_DIR="${PI_AGENT_DIR:-$HOME/.pi/agent}"
+SETTINGS="$PI_DIR/settings.json"
+
+die()  { echo "error: $*" >&2; exit 1; }
+info() { echo "  $*"; }
+
+command -v jq >/dev/null 2>&1 || die "'jq' not found — install it first"
+
+# ── extension ──────────────────────────────────────────────────────────────
+
+EXT_DIR="$PI_DIR/extensions"
+mkdir -p "$EXT_DIR"
+
+EXT_SRC="$REPO_DIR/harnesses/pi/extensions/codescout-companion.ts"
+EXT_DEST="$EXT_DIR/codescout-companion.ts"
+[ -e "$EXT_DEST" ] || [ -L "$EXT_DEST" ] && rm "$EXT_DEST"
+ln -s "$EXT_SRC" "$EXT_DEST"
+info "linked extension → $EXT_SRC"
+
+BRIDGE_SRC="$REPO_DIR/harnesses/pi/extensions/session-bridge.ts"
+BRIDGE_DEST="$EXT_DIR/session-bridge.ts"
+[ -e "$BRIDGE_DEST" ] || [ -L "$BRIDGE_DEST" ] && rm "$BRIDGE_DEST"
+ln -s "$BRIDGE_SRC" "$BRIDGE_DEST"
+info "linked extension → $BRIDGE_SRC"
+
+MODE_SRC="$REPO_DIR/codescout-companion/.pi/extensions/codescout-mode.ts"
+MODE_DEST="$EXT_DIR/codescout-mode.ts"
+[ -e "$MODE_DEST" ] || [ -L "$MODE_DEST" ] && rm "$MODE_DEST"
+ln -s "$MODE_SRC" "$MODE_DEST"
+info "linked extension → $MODE_SRC"
+
+GUARD_SRC="$REPO_DIR/harnesses/pi/extensions/secret-guard.ts"
+GUARD_DEST="$EXT_DIR/secret-guard.ts"
+[ -e "$GUARD_DEST" ] || [ -L "$GUARD_DEST" ] && rm "$GUARD_DEST"
+ln -s "$GUARD_SRC" "$GUARD_DEST"
+info "linked extension → $GUARD_SRC"
+
+# ── settings.json — skill dirs ─────────────────────────────────────────────
+
+[ -f "$SETTINGS" ] || echo '{}' > "$SETTINGS"
+
+add_skill_dir() {
+  local dir="$1"
+  if ! jq -e --arg d "$dir" '.skills // [] | map(. == $d) | any' "$SETTINGS" | grep -q true; then
+    local tmp; tmp=$(mktemp)
+    jq --arg d "$dir" '.skills = ((.skills // []) + [$d] | unique)' "$SETTINGS" > "$tmp"
+    mv "$tmp" "$SETTINGS"
+    info "added skill dir: $dir"
+  else
+    info "already present:  $dir"
+  fi
+}
+
+add_skill_dir "$REPO_DIR/codescout-companion/skills"   # reconnaissance, explore-project, researcher-*
+add_skill_dir "$REPO_DIR/buddy/skills"                  # 12 specialist skills
+add_skill_dir "$REPO_DIR/sdd/skills"                    # sdd-flow
+
+# ── MCP configuration ──────────────────────────────────────────────────────
+
+cat <<EOF
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+MANUAL STEP — configure ~/.pi/agent/mcp.json
+
+See $REPO_DIR/harnesses/pi/README.md, "Step 3 — MCP configuration", for a current
+minimal configuration and the verification steps. Keep credentials and personal
+server paths in ~/.pi/agent/mcp.json; do not commit that file.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+EOF
+
+echo "done — run /reload in pi to activate"

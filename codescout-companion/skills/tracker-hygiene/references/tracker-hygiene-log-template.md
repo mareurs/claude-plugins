@@ -134,7 +134,7 @@ canonical destination; per-project ledgers are the substrate.
 <!-- Insert a new Sweep entry above this line via a plain body edit
      (sweep entries are dated, not HY-N — no id to allocate):
 
-     artifact(action="update", id="<ledger artifact id>",
+     doc(action="update", id="<ledger artifact id>",
               patch={body_edits: [{heading: "## Template for new entries",
                                     action: "insert_before",
                                     content: "## Sweep YYYY-MM-DD\n..."}],
@@ -144,9 +144,9 @@ canonical destination; per-project ledgers are the substrate.
      the id and write the section in one call; do not hand-grep the
      highest HY-N:
 
-     artifact(action="append_entry", id="<ledger artifact id>", id_prefix="HY",
+     doc(action="append_entry", id="<ledger artifact id>", id_prefix="HY",
               anchor_heading="## Template for new entries",
               title="title", body="**Verdict:** ...")
 
-     `edit_markdown` is refused once entry_prefix guards the ledger —
+     `edit_file` is refused once entry_prefix guards the ledger —
      it only works on an unguarded fresh copy. -->

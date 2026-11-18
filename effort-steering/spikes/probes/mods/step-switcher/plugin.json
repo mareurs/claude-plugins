@@ -1,0 +1,1 @@
+{ "name": "step-switcher", "version": "0.1.0", "description": "Throwaway headless probe: switches the model of turn.step from a given index, per .model-probe in the working directory (index:model), and logs before and after." }

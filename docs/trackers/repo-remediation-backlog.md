@@ -9,7 +9,7 @@ tags:
 - doctor
 - remediation
 topic: repo-hygiene
-entry_high_water_RM: 25
+entry_high_water_RM: 29
 entry_prefix: RM
 ---
 
@@ -163,7 +163,7 @@ trigger does **not** fire and the record should stay `zombie`. But the next pers
 following the protocol sees `1 FAIL` and has every reason to read it as a recurrence.
 Name the other bug there so that reading is closed off before it happens.
 
-**Status:** open
+**Status:** fixed-verified 2026-09-07 — **not a rename, not a second machine: the original `ripper` mention was simply wrong.** Verified via `hostnamectl` + `last reboot`: this machine's hostname has been `archlinux` continuously since its last reboot (2026-08-29 18:16, stable `Machine ID`), spanning every check in the bug file including the 2026-09-01 one that named it `ripper`. Corrected both occurrences in `2646bba03b528020` to `archlinux`, matching the `unverified:` field, which was already correct — only the 2026-09-01 prose section was wrong. Also added the `RM-21` disambiguation note to `## Re-open trigger`, naming the unrelated same-day `run-all.sh` red as `RM-21`'s incident so a future reader following the re-check protocol doesn't misattribute it.
 
 **Valid:** dated 2026-09-01
 
@@ -278,7 +278,22 @@ Do not read that as `VG-5` being resolved. Nothing about its condition changed �
 
 A property of the instrument worth carrying: citation churn moves these counts in both directions, so a `by_check` delta across a session that archived or created trackers is not evidence of work done or undone.
 
-**Status:** open
+**Status:** mitigated 2026-09-07 — both adjudicated, neither resolved, and that's the
+legitimate outcome the entry itself allows.
+
+- **`VG-9`:** unchanged — stimulus still retired, a discriminating one still owed. No new
+  work landed since 2026-09-01; recorded as "not yet," not attempted (real API spend,
+  `--paired` and other traps explicitly off-limits per the archived validation-spine
+  passover).
+- **`VG-5`:** step 1 ("a trigger, not a body") DONE — `prompt-hamsa`'s `SKILL.md` § Harness
+  now routes general eval-harness-construction requests to
+  `prompt-engineering:skill-eval-playbook`, distinct from Operating Principle 3's ad-hoc
+  five-input check. Step 2 (base-arm measurement of whether more than the trigger is
+  needed) is real eval spend, same posture as `VG-9` — stays open.
+
+Both conditionals remain past-due in `doctor`'s eyes because their conditions are still
+unmet, not because they were misfiled — the fix that was cheap (routing) is done; the fix
+that costs real money (eval baselines) is correctly deferred, not silently dropped.
 
 **Valid:** dated 2026-09-01
 
@@ -351,7 +366,14 @@ the *entry*, then close the pointer.
 `edit_file` carrying a definition (22×), `grep` used where `semantic_search` was meant.
 `U-1` already carries a Hookify assessment concluding no client hook is warranted.
 
-**Status:** open
+**Status:** superseded — `RM-28` (2026-09-06) already did exactly this triage, against
+real post-collapse evidence rather than by inspection: U-1 re-measured and still open
+(1/72 since), U-2/U-3 marked `dead-tool, superseded` (both tools retired in the
+2026-09-02 collapse `bb24b7f`), U-4 downgraded to `open, re-check next audit` (0/54
+since), U-5 noted unenforced-by-rejection-count rather than re-measured. No further
+action here — see `RM-28` for the adjudication and
+`docs/trackers/codescout-usage-audit-session-log.md`'s `UPDATE 2026-09-06` banner for
+the full evidence.
 
 **Valid:** dated 2026-09-01
 
@@ -365,7 +387,31 @@ so every fresh copy injects cross-repo dangling citations — needs a template-s
 `roster-audit-session-log:F-6` (filed upstream as a codescout issue), and
 `roster-audit-session-log:W-4` addendum 2 (both promotion criteria unfired).
 
-**Status:** open
+**Status:** mitigated 2026-09-07 — all five adjudicated.
+
+- **`F-1`** (VG-8 not yet widened / #20 not yet re-opened): stale status field only —
+  both actions landed same-day, 2026-08-26, in `d334a50`. Re-verified today: `wc -l
+  buddy/skills/*/SKILL.md` still shows `codescout-pika` at 316 (highest) and
+  `security-ibex` at 181 (second). Flipped to fixed-verified.
+- **`F-2`** (`specialists_scanned: 10/10` stale denominator): same — already fixed
+  same-day, `buddy-introspection.md` line 16 reads `10/12` with an explanatory comment.
+  Flipped to fixed-verified.
+- **`F-5`** (template cites bare ids): upstream fix confirmed landed — read
+  `/home/marius/work/claude/codescout/docs/templates/session-log.md` directly today;
+  all four citations this entry named are now qualified
+  (`statement-validity-session-log:F-2`, `codescout:R-89`, `codescout:R-1 +
+  codescout:R-7`, `calendar-insight-panel-session-log-2026-08-18:W-4`). Flipped to
+  fixed-verified.
+- **`F-6`** (link_scan's unreported inert-citation state + silent array truncation):
+  both upstream fixes confirmed — `doctor`'s `by_check` now includes
+  `cited_prefix_with_no_definer` (0 on this repo, ran this session), and `link_scan`'s
+  envelope now leads with an explicit `"TRUNCATED: ambiguous[50 of 74], ..."` summary
+  line instead of the oblique array/counts mismatch. Flipped to fixed-verified.
+- **`W-4` addendum 2** (both promotion criteria unfired): genuinely still unfired, and
+  that's the honest answer, not a gap in this triage. No `W-4 addendum 4` exists in the
+  log (`addendum 3` at instance 8, dated 2026-08-27, is the latest) — no ninth instance
+  has been recorded since, so "an instance from an independent work stream" has not yet
+  happened. Left `open`, recorded as checked-and-not-yet rather than silently re-dated.
 
 **Valid:** dated 2026-09-01
 
@@ -378,7 +424,16 @@ hatch rests on a false premise so a `wontfix` has to be argued on merit), `VG-5`
 is a trigger, not a specialist), `VG-10` (decision text drafted; the `D-N` allocation
 belongs to `active-plan.md`'s owner).
 
-**Status:** open
+**Status:** mitigated 2026-09-07 — all four adjudicated.
+
+- **`VG-3`** (model-release-gating owner): correctly stays open — base arm owed before any
+  prose, and that base arm is real API spend, same posture as `VG-9`. Not attempted inline.
+- **`VG-4`** (EDA/feature-engineering owner): correctly stays open — its own text says this
+  is "a scope call for the roster owner, not a measurement question." Not mine to decide.
+- **`VG-5`**: adjudicated under `RM-10` (step 1 done — `prompt-hamsa` now routes
+  eval-construction requests to `skill-eval-playbook`; step 2 real-eval-spend, deferred).
+- **`VG-10`**: fixed — its ready-to-paste decision landed as `active-plan.md`'s `D-8`
+  (confirmed `D-7` was the prior max before writing).
 
 **Valid:** dated 2026-09-01
 
@@ -389,7 +444,12 @@ Index/Wins-Index row burns the id it displays, on the very first bootstrap. Rela
 `roster-audit-session-log:F-5`: both are defects in the *template*, so both ship into
 every fresh copy.
 
-**Status:** open
+**Status:** fixed-verified 2026-09-07 (`RM-16`) — upstream, confirmed by direct read of
+`/home/marius/work/claude/codescout/docs/templates/session-log.md` today. The Index /
+Wins Index example rows now use placeholder tokens (`F-<n>`, `W-<n>`), not concrete
+`F-1`/`W-1` — a fresh bootstrap copy no longer burns a real id on its first example row.
+Same fix as `roster-audit-session-log:F-5`'s citation-qualification, same template,
+confirmed together this session.
 
 **Valid:** dated 2026-09-01
 
@@ -458,9 +518,9 @@ as informational for this machine. Leaving it undecided means 10 of every `docto
 violations are permanent noise, which is how a real finding gets lost in the count. Use
 `limit`/`offset` to page the window rather than reading the elided rows as absent.
 
-**Status:** open
+**Status:** open — checked 2026-10-27, still the owner's decision. `doctor` run in this project's scope reports `abs_path_outside_managed_roots` = 0 (it did at the start of today's session as well), and the unrelated `catalog_health` counter reads `outside_roots_total` = 3,236, shown as informational. So the 10 rows named above are not in this scope's report today. Which other projects' roots to register (`avatar`, `terasa`, `PFA`, `pi`) is not a state I can measure; I did not register or prune anything.
 
-**Valid:** dated 2026-09-01
+**Valid:** dated 2026-10-27
 
 ## RM-21 — run-all.sh is RED — the pre-push guard's positive control cannot fire
 
@@ -531,9 +591,16 @@ cosmetic, since the fences are not functional for promptfoo. Checking *why* they
 functional is what surfaced this, which is the more interesting question. The scout was
 worth more than the repair it authorised.
 
-**Status:** open
+**Status:** open — checked 2026-09-07 (`RM-22`), correctly not attempted. The entry's own
+verification method is "run one case and read the rendered rubric the provider actually
+received" — explicitly not promptfoo's docs, not this entry. `OPENROUTER_API_KEY` is unset
+on this machine and `promptfoo` is not installed (`which promptfoo` → nothing), so a real
+run would fail on auth before answering the question. Same posture as `VG-3`/`VG-9`: real
+infra/API spend, deferred rather than guessed at.
 
-**Valid:** dated 2026-09-01
+**Checked 2026-10-27, still not run.** The spend for `RM-24` and `VG-9` was approved; this item was not part of it, and it needs `promptfoo`, which is not installed here. Its question is answered by running one case and reading the rendered rubric, so the cost is small once `promptfoo` and a provider key are in place. I did not test whether `promptfoo` can use the `ANTHROPIC_API_KEY` in `prompt-engineering/.env` instead of `OPENROUTER_API_KEY`.
+
+**Valid:** dated 2026-10-27
 
 ## RM-23 — Adjudicate the passover promote-when, whose counter its own failure mode made unincrementable
 
@@ -573,7 +640,13 @@ Option 2 is the one that addresses what actually went wrong, since the failure w
 instrument reporting emptiness rather than a human forgetting to look. But this is the
 user's call — the anti-goal is explicit and was written deliberately.
 
-**Status:** open
+**Status:** fixed 2026-09-07 — user chose option 2 (positive control) over the operator-fix-
+alone and SessionStart-hook options. `CLAUDE.md` § Session Passover's "Discover" step now
+requires re-running the same query shape against a known-existing tag
+(`{"tags":{"contains":"session-log"}}`) before trusting a zero on the passover query; if the
+control also returns zero, the mechanism itself is suspect rather than the corpus being
+empty. Dogfooded immediately: the control query returned 3 rows this session, confirming
+the query mechanism is currently healthy.
 
 **Valid:** conditional — a decision is recorded on options 1-3 above
 
@@ -615,9 +688,15 @@ front. Written up as `roster-audit-session-log:W-4` addendum 2.
 
 Prior results and the limits binding the claim: `buddy/tests/advisor-projection-eval/RESULTS.md`.
 
-**Status:** open
+**Status:** open — run 2026-10-27 with the owner's approval of the spend; the result is **not informative**, so the question is still unanswered. Results and data: `buddy/tests/advisor-projection-eval/two-advisor/RESULTS.md`.
 
-**Valid:** dated 2026-09-01
+- **Round 1** (pre-registered first, `1512d61`): 15 valid runs on `claude-sonnet-5-5`, **$0.495**. Instrument control passed (primary alone keeps its contract, RETAIN 5/5 after an openly recorded amendment; 4/5 under the original markers). The registered treatment-side control, advisor named in the response, failed: `security-ibex` 3/5 (all deferrals) and `architecture-snow-lion` 0/5. By the registered rule that is *not informative about crowding-out*, not "holds". My assumption that the stimulus tempts the architecture advisor was wrong.
+- **Round 2** pilot (one pilot, registered, `f8326a6`): the new stimulus gave `security-ibex` 3/3 and `architecture-snow-lion` 0/3, so the registered stop rule ended it ($0.160). No round 2 arms were run and the stimulus was not revised.
+- **What it adds:** naming an advisor measures *deferral*, not attention, and is only possible for an advisor whose domain is outside the primary's. A third round needs an observable that does not depend on citation (validated first, as `AMENDMENT-1` validated RETAIN), or advisors from domains the primary does not cover.
+- **Correction to the 2026-09-07 note above:** `OPENROUTER_API_KEY` was not needed. These runs use `claude -p`, billed to the `ANTHROPIC_API_KEY` in `prompt-engineering/.env`. The `~/.claude-test` login itself hit its weekly limit the same day (resets 08:00 Europe/Bucharest).
+- Spend on this item: $0.655 for 18 runs, plus two smoke calls of $0.025.
+
+**Valid:** dated 2026-10-27
 
 ## RM-25 — ~20 bare `A-N` tokens are codescout's ledger, and a local `A-4` would silently capture them
 
@@ -654,9 +733,138 @@ same session that found this.
 Scope: ~20 tokens, 3 files, one of them shipped plugin surface. Batch the skill edit with the
 next codescout-companion or buddy content release.
 
-**Status:** open
+**Status:** fixed 2026-09-07 (`RM-25`) — batched with this session's other shipped-surface
+content edit to the same file (`prompt-hamsa/SKILL.md`'s `VG-5` routing paragraph), so the
+next `buddy` release picks up both. Qualified every unambiguous bare `A-N` citing
+codescout's ledger (all already prose-adjacent to the word "codescout") to `codescout:A-N`
+across the three named files: `buddy/skills/prompt-hamsa/SKILL.md` (10 tokens),
+`codescout-companion/README.md` (2), and `prompt-hamsa-audit-log.md`'s own History section
+(remainder). Left the local ledger's own two rows (`A-2`, `A-3`, defined by this file's
+`entry_prefix: A`) untouched — correctly bare, they resolve locally. **Residual, deliberately
+not touched:** three ambiguous mentions in the `A-11` History section ("the A-5 protocol
+held", "our own shipped A-5 rule", "our own A-10 finding") lack the adjacent word
+"codescout" and could plausibly be citing a locally-promoted heuristic rather than
+codescout's ledger directly — guessing wrong here would misqualify a citation, so left for
+the file's own owner to disambiguate. Also left alone: the `A-11` heading itself
+(`### 2026-07-05 — A-11: ...`), which collides in form with codescout's `A-11` but carries
+no `(row A-N)` marker the other two local headings use — a naming-collision worth a
+separate look, not folded into this fix. Verified via `librarian(link_scan)`: dangling
+71→61, cross_repo 117→142, consistent with the qualified tokens now resolving as
+cross-repo citations instead of dangling. Did NOT raise `entry_high_water_A` (the fix this
+entry explicitly forbids).
 
 **Valid:** dated 2026-09-01
+
+## RM-26 — version-bump-checklist:1039 prescribes `refresh_prompt`, which would likely flatten the curated system-prompt hook map
+
+`docs/trackers/version-bump-checklist.md:1039` prescribes `onboarding(action="refresh_prompt")` as the fix for the stale hook map in the root `.codescout/system-prompt.md` — the file `codescout-companion/hooks/subagent-guidance.mjs` injects **verbatim into every subagent**, i.e. the always-on channel. The prescription is probably wrong, and following it could lose content rather than repair it.
+
+`refresh_prompt` regenerates the system prompt *from templates*. This file's content is project-curated, not template-derived: measured 2026-09-02, grepping codescout's own source for the file's distinctive prose — `"detection library sourced by every hook"` and `"SessionStart orchestrator (injection budget"` — returns **0 matches**, so no codescout template emits it. Running `refresh_prompt` would therefore likely replace a hand-written hook map with generic content instead of correcting eight filenames.
+
+The stale map itself was fixed surgically instead (`eee3d8c`): six `.sh` → `.mjs`, plus `il3-warn-hook.sh` → `il3-deny-hook.sh`, which is **not** a `.sh` → `.mjs` rename (see the sibling RM entry on the unregistered IL-3 hook). A blind sweep would have produced `il3-warn-hook.mjs`, a filename that has never existed.
+
+**Caveat on the measurement:** the grep skipped hidden directories in the codescout repo, so a template living under one is not excluded. Cheap way to settle it: run `refresh_prompt` against a *copy* of the file and diff, rather than against the live always-on channel.
+
+**Repair:** correct or annotate the advice at `version-bump-checklist.md:1039` so a future session does not run `refresh_prompt` expecting a repair and silently flatten the curated map.
+
+**Status:** mitigated 2026-10-27 — the repair this entry asks for is done: the prescription (now at `docs/trackers/version-bump-checklist.md:1554`, in the 1.16.2 → 1.16.3 history entry) carries a caution that names `RM-26` and says to diff against a copy first. The underlying question is NOT settled: whether `refresh_prompt` would flatten the curated file. I did not run it, because it writes the live always-on file that every subagent receives.
+
+**Valid:** dated 2026-10-27
+
+## RM-27 — `il3-deny-hook.sh` is registered in no hooks.json event — dead file or lost registration
+
+`codescout-companion/hooks/il3-deny-hook.sh` and its `il3-deny-hook.test.sh` exist on disk, but the hook is registered in **no** `hooks.json` event. Measured 2026-09-02: grepping `codescout-companion/hooks/hooks.json` for `il3|il4` returns exactly one line — the `il4-deny-hook.mjs` registration. So the IL-3 hook is inert.
+
+IL-3 *is* enforced, but server-side by codescout, not by this hook: a `run_command` naming a source file inside the project returns `"shell access to source files is blocked"` with an `acknowledge_risk` hint, which is the server's own gate (observed repeatedly this session), not hook output.
+
+This also made the root `.codescout/system-prompt.md` doubly wrong before `eee3d8c`: it named the file `il3-warn-hook.sh` (wrong basename — the real file says `deny`, not `warn`) **and** described it as an active `PreToolUse run_command` hook. That entry now reads "present but NOT registered".
+
+**Repair — a judgement call deliberately not made here.** Either:
+- delete the file and its test as superseded by server-side enforcement, or
+- restore the missing registration, if a hook-side *warning* was intended to complement the server's hard deny (the old system-prompt text said "IL3 **warn** for unbounded-LHS pipe", which suggests a warn-tier that the server's deny does not provide).
+
+Deciding needs to know whether the warn-tier behaviour is still wanted; the test file's expectations are the place to look first.
+
+**Status:** resolved 2026-10-27, no action — the file answers the question itself. Its header reads "STATUS: PARKED AND UNWIRED since companion 1.16.9. This file does NOT run" and says it is "kept in-repo deliberately for possible re-promotion". That header was added in `88f1e29` on 2026-08-27, before this entry was filed. The commits it names (`4923f62`, `50282a8`, `a989d73`) all exist. Checked today: `il3-deny-hook.sh` and its test still exist, no `hooks.json` registers an `il3` hook (and none an `il4` hook either, since IL-4 was retired), and IL-3 is enforced server-side, as this session's own `IL3 violation … BLOCKED` replies show. So "dead file or lost registration" was neither: it is parked on purpose. Deleting it remains the owner's call, and the test (`il3-deny-hook.test.sh`) still runs in `run-all.sh`.
+
+**Valid:** dated 2026-10-27
+
+## RM-28 — codescout-usage-audit-session-log's U-2/U-3 prescribe retired tools
+
+**Valid:** dated 2026-09-06
+
+**Status:** fixed
+
+`docs/trackers/codescout-usage-audit-session-log.md` U-2 and U-3 recommended routing
+markdown reads/edits to `read_markdown`/`edit_markdown`. The 2026-09-02 tool collapse
+(`bb24b7f`) retired both — `read_file`/`edit_file` handle markdown directly now.
+
+**Re-audited 2026-09-06 against `.codescout/usage.db`, scoped to calls since
+2026-09-03** (the day after the collapse, to avoid mixing regimes):
+
+- U-2/U-3: zero `read_markdown`/`edit_markdown` calls anywhere after 2026-09-02
+  19:17 — marked `dead-tool, superseded` in the U-N table rather than left `open`.
+  Recorded call counts (39×, 29×) kept as historical evidence.
+- U-1: still recurs, same Iron Law — 1 of 72 `read_file` calls since 09-03 hit the
+  server's symbol-overlap rejection. Window sizes aren't comparable to the original
+  month-long audit; kept `open` with the fresh count attached.
+- U-4: 0 occurrences in the same window (3 `recoverable_error`s since 09-03, none an
+  `edit_code` routing rejection) — downgraded to `open, re-check next audit` rather
+  than closed outright on a 3-day sample.
+- U-5: cannot be measured by rejection count at all — every `grep` call since 09-03
+  (28/28) succeeded; the server doesn't hard-block concept-style queries the way it
+  hard-blocks IL1/IL4/IL5. A real re-audit needs reading each call's query text, a
+  different method than the count query used for U-1–U-4. Left as its original
+  `low` severity, noted unenforced rather than re-measured.
+
+Full findings + the caveat banner are at the tracker's top (`UPDATE 2026-09-06`).
+
+Surfaced during the `codescout-companion:tracker-hygiene` sweep that migrated this
+tracker family from plain-markdown to librarian frontmatter — see
+`docs/trackers/tracker-hygiene-log.md` Sweep 2026-09-05.
+
+## RM-29 — Windows-only CI failures in `cross-platform hooks`, both test-harness bugs
+
+`.github/workflows/cross-platform-hooks.yml` had been red on `windows-latest` since
+~2026-08-30, while `ubuntu-latest`/`macos-latest` stayed green. Root-caused via a
+diagnostic CI run (branch `diag/windows-ci-traceback`, then `diag/secret-guard-windows-fix`)
+rather than guessed — two independent, unrelated test-harness bugs, no real product
+defect in either `buddy` or `pi`'s hook code:
+
+1. **`tests/test-cross-platform-hooks.sh`** — built `cwd` via bash's `mktemp -d`,
+   producing a Git-Bash/MSYS-style path (`/tmp/tmp.XXXXXX`) understood only by Git
+   Bash, then embedded it straight into JSON handed to the node launcher. Native
+   Windows Node/Python resolved that path differently than the bash test later
+   checked, so buddy's SessionStart writes silently landed nowhere the test could
+   see. The file already had a `winpath()` helper (`cygpath -m`) for exactly this,
+   used elsewhere in the same file — just never applied to the 5 `mktemp`-derived
+   `cwd` values. Fixed in `d0683bb`.
+2. **`harnesses/pi/tests/test-secret-guard.mjs`** — two bugs, found in sequence:
+   a. `loadGuard()` redirected `process.env.HOME` to a scratch dir so the guard would
+      read a test config instead of the real one, but `secret-guard.ts`'s `agentDir()`
+      reads via `os.homedir()`, which on Windows reads `USERPROFILE` and never `HOME`.
+      So on Windows the guard kept reading the real
+      `C:\Users\runneradmin\.pi\agent\secret-guard.json`, and the two "allow once
+      configured" cases (ssh/curl to a host after allowlisting it) saw none of the
+      test's added hosts and stayed blocked. Fixed by also setting/restoring
+      `USERPROFILE` in `loadGuard()`.
+   b. With (a) fixed, all 23 assertions passed but the process then crashed on exit:
+      `Assertion failed: !(handle->flags & UV_HANDLE_CLOSING), file src\win\async.c`.
+      The test dynamically `import()`s the same ES module ~9 times with cache-busting
+      query strings (to bust Node's module cache between config reloads); calling
+      `process.exit()` right after the last assertion raced Node's ESM loader
+      teardown, and only Windows's libuv hit the assertion. Fixed by setting
+      `process.exitCode` instead of forcing `process.exit()`.
+   Both fixed in `c69f016` + `2eb8ec6`.
+
+Verified via three separate live Windows CI runs (not just locally, where `winpath()`
+is a no-op and the libuv race doesn't reproduce): diagnostic branch runs
+`34030571173`/`34045068747`/`34045174452`, and the real push-triggered run on `main`
+(`34045266513`) — `cross-platform hooks`: **3/3 jobs green** (ubuntu/macos/windows).
+
+**Status:** fixed
+
+**Valid:** dated 2026-09-06
 
 ## Template for new entries
 

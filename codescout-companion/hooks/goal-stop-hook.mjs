@@ -1,13 +1,12 @@
 // Stop hook for codescout goal-trackers. Port of goal-stop-hook.sh.
-// Queries the active goal-tracker via `codescout artifact find/get` and emits
+// Queries the active goal-tracker via `codescout doc find/get` and emits
 // {continue: bool, reason|reason_to_continue}. Fail-open on every error path so
 // the hook never deadlocks the agent loop. Disable via
 // .claude/codescout-companion.json {"goal_stop_hook": false}.
-import { existsSync, readFileSync, accessSync, mkdirSync, appendFileSync, constants } from 'node:fs';
-import { join, delimiter } from 'node:path';
-import { homedir } from 'node:os';
+import { existsSync, readFileSync, mkdirSync, appendFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { execFileSync } from 'node:child_process';
-import { readInput, emit } from './lib.mjs';
+import { readInput, emit, resolveCodescoutBinary } from './lib.mjs';
 
 const input = readInput() || {};
 const cwd = input.cwd || '.';
@@ -36,32 +35,9 @@ if (existsSync(configFile)) {
   }
 }
 
-// 2. Locate codescout binary (PATH, then fallbacks).
-function resolveCodescout() {
-  const exe = process.platform === 'win32' ? 'codescout.exe' : 'codescout';
-  for (const dir of (process.env.PATH || '').split(delimiter)) {
-    if (!dir) continue;
-    try {
-      const p = join(dir, exe);
-      accessSync(p, constants.X_OK);
-      return p;
-    } catch {
-      /* not here */
-    }
-  }
-  const home = process.env.HOME || process.env.USERPROFILE || homedir();
-  for (const cand of [join(home, '.cargo', 'bin', 'codescout'), join(cwd, 'target', 'release', 'codescout')]) {
-    try {
-      accessSync(cand, constants.X_OK);
-      return cand;
-    } catch {
-      /* not here */
-    }
-  }
-  return null;
-}
 
-const cs = resolveCodescout();
+// 2. Locate codescout binary (PATH, then fallbacks) — shared resolver in lib.mjs.
+const cs = resolveCodescoutBinary(cwd);
 if (!cs) {
   log('codescout binary not found on PATH or in fallback locations');
   emit({ continue: true, reason: 'codescout binary not found — fail-open' });
@@ -85,9 +61,9 @@ function parseJson(s) {
 }
 
 // 3. Find active goal(s).
-const findRaw = run(['artifact', 'find', '--kind', 'tracker', '--tag', 'goal', '--status', 'active', '--project', cwd, '--limit', '5', '--json']);
+const findRaw = run(['doc', 'find', '--kind', 'tracker', '--tag', 'goal', '--status', 'active', '--project', cwd, '--limit', '5', '--json']);
 if (!findRaw) {
-  log('codescout artifact find failed or returned empty');
+  log('codescout doc find failed or returned empty');
   emit({ continue: true, reason: 'codescout query failed — fail-open' });
   process.exit(0);
 }
@@ -113,9 +89,9 @@ if (!goalId) {
   emit({ continue: true, reason: 'goal id missing — fail-open' });
   process.exit(0);
 }
-const getOut = parseJson(run(['artifact', 'get', goalId, '--full', '--project', cwd, '--json']));
+const getOut = parseJson(run(['doc', 'get', goalId, '--full', '--project', cwd, '--json']));
 if (!getOut) {
-  log(`codescout artifact get ${goalId} failed`);
+  log(`codescout doc get ${goalId} failed`);
   emit({ continue: true, reason: 'codescout get failed — fail-open' });
   process.exit(0);
 }
@@ -133,7 +109,7 @@ const lastRefreshed = (getOut.augmentation && getOut.augmentation.last_refreshed
 
 switch (status) {
   case 'done': {
-    const gateOut = parseJson(run(['artifact-event', 'list', '--artifact-id', goalId, '--kinds', 'note', '--limit', '20', '--project', cwd, '--json']));
+    const gateOut = parseJson(run(['doc', 'event', 'list', '--id', goalId, '--kinds', 'note', '--limit', '20', '--project', cwd, '--json']));
     let gateText = '';
     if (Array.isArray(gateOut)) {
       const ev = gateOut.find((e) => e && e.payload && e.payload.tag === 'gate_check' && e.payload.gate_passed === true);

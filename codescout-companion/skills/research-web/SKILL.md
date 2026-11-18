@@ -1,73 +1,53 @@
 ---
 name: research-web
-description: Use when the user runs /research-web or asks for web research on a topic, person, company, library, market, or jobs and wants results inline in the current conversation. Calls the researcher MCP directly; results land in main context. Prefer /research-subagent if context is precious or the user asked for a deep/report mode search.
+description: Use when the user runs /research-web or asks for web research and wants short results inline. Calls researcher MCP directly. Prefer research-subagent for deep research, reports, or keeping raw results out of the main context.
 ---
 
-# /research-web — Inline Research
+# Inline research
 
-Direct-call researcher MCP skill. Results land in the main context — keep the budget small.
+Use researcher MCP directly for a short lookup in the current conversation.
+Load the sibling researcher-mcp reference for target selection and parameters.
 
-**REQUIRED SUB-SKILL:** researcher-mcp — load it to pick the right tool and mode, and to use the shared research brief template.
+## Workflow
 
-## When to Use
+1. Infer a compact brief: the question, relevant context/version, questions to
+   answer, source/date constraints, and assumptions to test. Ask only for missing
+   information that prevents useful research. Existing authorization is enough;
+   do not require routine confirmation before the call.
+2. Discover the live tool and schema. Use the unified `research(query, target?, ...)`
+   dispatcher, normally `mcp__researcher__research` (pi: `researcher_research`).
+   Choose target: topic (default), person, company, market, code, or jobs.
+3. Default to `mode="summary"`. Honor explicit quick/report/deep requests; route
+   substantial reports to research-subagent. For topic/market use at most
+   `max_queries=3`, `max_sources=5`. These caps do not apply to other targets.
+   Pass intent, domains, or domain_profile when relevant. Leave summary_style
+   unset for the normal inline path.
+4. Present the returned findings without adding unsupported facts or URLs.
+   If the response includes a saved-report path, show summary and toc and link
+   the file. Read the full file before making claims beyond the envelope.
+   Preserve missing evidence and partial coverage. On a tool/server error,
+   report the failure and stop.
 
-- User ran `/research-web [query]` or asked for a quick lookup
-- The research output is short enough to live inline (summary/quick modes)
-- Main context is not tight
+## Examples
 
-## When NOT to Use
+For Tokio cancellation patterns:
 
-- User wants a deep report, or research will return multi-page output → use `/research-subagent`
-- Context window is already near capacity → use `/research-subagent`
+```text
+research(query="tokio", target="code", repo="tokio-rs/tokio", keywords="async cancellation patterns", aspects=["community","changelog"], mode="summary")
+```
 
-## Flow
+For a short official documentation lookup with bounded topic research:
 
-1. **Parse input.**
-   - If args provided on invocation, treat as the query.
-   - If no args, ask the user for the query.
+```text
+research(query="Tokio Receiver recv cancellation safety", domains=["docs.rs"], intent="developer-docs", mode="quick", max_queries=1, max_sources=2)
+```
 
-2. **Build the research brief** (see `researcher-mcp` skill for template).
-   - Infer Context and Prior knowledge from ambient conversation — do not ask.
-   - Draft "What to look for" and "What to invalidate" from project context.
-   - Ask the user for clarifications only if strictly needed (hard cap: 3 questions).
+For shopping in Romania:
 
-3. **Pick the MCP tool** using the matrix in `researcher-mcp`.
-   - If query maps unambiguously to one tool, skip asking.
-   - If ambiguous, ask with multiple choice.
+```text
+research(query="Compare laptop offers at eMAG and Altex", intent="product-research", domain_profile="shopping-ro", mode="summary", max_queries=3, max_sources=5)
+```
 
-4. **Confirm the brief.** Show the user the compact brief and ask "proceed?" before spending tokens on the search.
-
-5. **Call the MCP tool.** Defaults:
-   - `mode: "summary"` (override only if user explicitly asked for `quick`, `report`, or `deep`)
-   - `max_queries: 3`
-   - `max_sources: 5`
-   - Pass `intent` and `domain_profile` if relevant (see `researcher-mcp`)
-   - Do not pass `summary_style` — server default (`abstract`) is correct for inline
-
-6. **Present results.**
-   - **Inline response** (no `path` field): output goes straight to the user — do not re-synthesize.
-   - **Progressive envelope** (`path` field present): present the `summary` content, show the `toc` headings, then offer: "Full report saved at `<path>` — want me to read a specific section?"
-
-## Context Budget
-
-Hard caps are intentional. Do not raise `max_queries` or `max_sources` for an inline call. If the user needs more depth, route them to `/research-subagent`.
-
-## Example Invocation
-
-User: `/research-web rust async cancellation patterns`
-
-You:
-1. Infer context (Rust project, currently working on async code).
-2. Draft brief — What to look for: canonical patterns, tokio docs, recent (2024+). What to invalidate: pre-tokio-1.0 info.
-3. Pick tool: `mcp__researcher__research_code` (Claude Code) / `researcher_research_code` (pi) — framework-specific.
-4. Show compact brief, ask "proceed?"
-5. On confirm: call `research_code(framework="tokio", repo="tokio-rs/tokio", aspects=["community","changelog"], query="async cancellation patterns")`. (`research_code` takes no `mode` / `max_queries` / `max_sources` — those apply to `research`.)
-6. Present the MCP output.
-
-## Common Mistakes
-
-- **Asking too many clarifying questions.** Hard cap at 3. Infer aggressively from ambient context.
-- **Skipping the brief confirm step.** The confirm step is cheap insurance against a wasted search.
-- **Raising the context budget "just this once".** Don't. Route to `/research-subagent` instead.
-- **Re-synthesizing inline MCP output.** The user already sees the tool output; adding your own synthesis burns tokens for no gain.
-- **Dumping a progressive envelope JSON to the user.** If `path` is present, present the `summary` content and `toc` — not the raw JSON.
+For audits, retain the exact tool response before presenting findings. Follow
+research-subagent's evidence capture instructions, including its byte-copy helper
+for saved reports; inline evidence also needs capture from the raw tool result.

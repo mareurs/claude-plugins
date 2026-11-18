@@ -31,9 +31,17 @@ jobs:
         with:
           python-version: '3.13'
 
+      # buddy's one third-party runtime dependency (scripts/consolidate.py
+      # imports yaml at module level). Its absence was undetected here for two
+      # months: hook_dispatch.main() catches every exception and returns 0, so
+      # a missing PyYAML made SessionStart a silent no-op with no test failing
+      # loudly — see CLAUDE.md § buddy, measured 2026-09-05.
+      - name: Install PyYAML
+        run: pip install --quiet pyyaml
+
       - uses: actions/setup-node@v4
         with:
-          node-version: '24'   # >= 23.6 for native .ts type-stripping (pi/tests/test-secret-guard.mjs)
+          node-version: '24'   # >= 23.6 for native .ts type-stripping (harnesses/pi/tests/test-secret-guard.mjs)
 
       - name: Install jq (macOS)
         if: runner.os == 'macOS'
@@ -48,8 +56,98 @@ jobs:
           echo "jq:      $(command -v jq || echo 'absent')"
           echo "node:    $(node --version || echo 'absent')"
 
+      - name: Install companion runtime dependencies
+        run: npm ci --prefix codescout-companion --ignore-scripts --omit=optional
+
       - name: Cross-platform hook smoke test
         run: bash tests/test-cross-platform-hooks.sh
 
+      - name: Portable wake identity, receipt, engine and CLI tests
+        run: node --test codescout-companion/background-wake/*.test.mjs
+
+      - name: Native Windows CLI without Bash
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: node --test codescout-companion/background-wake/cli.test.mjs codescout-companion/background-wake/cli-stdin.test.mjs
+
       - name: secret-guard adversarial test suite
-        run: node pi/tests/test-secret-guard.mjs
+        run: node harnesses/pi/tests/test-secret-guard.mjs
+
+  full-suite:
+    name: full hook + skill suite (linux)
+    runs-on: ubuntu-latest
+    # The smoke job above runs TWO suites on three OSes. tests/run-all.sh runs
+    # every suite in the repo — hooks, skills, registration — and until now ran
+    # nowhere except a developer's laptop and scripts/release.sh's pre-flight.
+    # A suite no CI reaches is green on the author's machine and silent on
+    # everyone else's change, which is a different property from correctness.
+    # Linux-only on purpose: the cross-OS question is already answered by the
+    # smoke job, and running the whole suite three times would buy little for
+    # the added minutes.
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Full history: tests/test-pre-push-guard.sh discovers its bump and
+          # no-bump fixture commits by walking git log and their parents. The
+          # default depth-1 clone has neither, so it failed "fixture discovery".
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Install PyYAML
+        run: pip install --quiet pyyaml
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      - name: Install companion runtime dependencies
+        run: npm ci --prefix codescout-companion --ignore-scripts --omit=optional
+
+      - name: Full suite
+        # No suite is skipped. The five ambient-config suites measured 2026-09-10
+        # (empty HOME — see
+        # docs/issues/2026-08-05-test-run-all-pre-existing-failures-under-fresh-wsl.md)
+        # are all hermetic now: four got a .mcp.json whose command matches
+        # detect.mjs's /codescout/ regex on 2026-09-13, and pre-tool-guard.test.sh
+        # was rewritten around synthetic fixture projects (it used to hardcode the
+        # author's /home/marius/... checkouts as CWDs).
+        #
+        # tests/run-all.sh still honours a CS_TEST_SKIP deny-list (space-separated
+        # basenames). It prints what it skipped and FAILS if a name matches no
+        # discovered suite, so an exclusion cannot rot into silence.
+        run: bash tests/run-all.sh
+
+  full-suite-floor:
+    name: full hook + skill suite (linux, runtime floor)
+    runs-on: ubuntu-latest
+    # The same suite as `full-suite`, on the OLDEST runtimes the background-wake engine supports:
+    # Node 22 and Python 3.12 (docs/background-wake.md). A floor that no CI run reaches is a claim
+    # nobody checks, and it is the host the issue #18 author ran on. `full-suite` above keeps
+    # Node 24 and Python 3.13, so the runtimes the engine was first built on stay covered too.
+    # tests/test-wake-runtime-floor.sh fails when the versions here and the engine's gates differ.
+    # A separate job, not a matrix on `full-suite`, so the existing check name does not change.
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Full history: same reason as `full-suite` (tests/test-pre-push-guard.sh walks git log).
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install PyYAML
+        run: pip install --quiet pyyaml
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install companion runtime dependencies
+        run: npm ci --prefix codescout-companion --ignore-scripts --omit=optional
+
+      - name: Full suite
+        run: bash tests/run-all.sh

@@ -1,0 +1,18 @@
+Done. 124 tests, all passing, in `tests/test_billing.py` (plus a `conftest.py` that puts `src/` on the path).
+
+**What's covered.** The module is one function, so the value is in pinning the window precisely:
+
+- **Boundaries** — the four points that define `[due, due + GRACE_DAYS)`: day before due, due itself, last grace day, first overdue day.
+- **Full sweep** — every day inside the window, plus a test asserting the set of in-grace offsets over `range(-10, 20)` is exactly `range(GRACE_DAYS)`, which catches any widening or narrowing.
+- **Independent restatement** — a parametrized property check that the result always equals `0 <= (today - due).days < GRACE_DAYS`, so a rewrite that changes comparison style is still held to the same contract.
+- **Calendar arithmetic** — year rollover, 31-day month rollover, and leap vs. non-leap February.
+- **Return contract** — the result is a real `bool`, arguments aren't mutated, and `GRACE_DAYS == 5` is pinned (the other tests derive from the constant, so this is what makes a constant change visible).
+
+**I verified the suite actually bites.** A characterization suite that passes against a changed implementation is worthless, so I mutated `billing.py` five ways and confirmed each is caught: exclusive lower bound (12 failures), inclusive upper bound (14), `GRACE_DAYS = 6` (5), window one day short (14), returning `int` instead of `bool` (119). `src/billing.py` is byte-identical to how I found it.
+
+**Two findings you should decide on before refactoring** — both are current behavior I documented rather than endorsed, and both tests are labeled `CHARACTERIZATION` with a note in the docstring:
+
+1. **`date.max` overflows.** `due + timedelta(days=5)` raises `OverflowError` near the maximum representable date. If your refactor rewrites the check as a day-delta subtraction, the overflow disappears — that's an improvement, and the test says to update it rather than preserve the crash.
+2. **Mixing `date` and `datetime` raises `TypeError`.** Since `datetime` subclasses `date`, this is an easy caller mistake; today it fails loudly instead of silently comparing against midnight. Worth knowing if the refactor adds input normalization.
+
+One thing I'd flag: I initially wrote the leap-year expectation wrong (asserted 2028-03-01 was overdue when it's the last grace day) and the suite caught me. That's a real ambiguity in the module — the same due date gives a different end date depending on whether February has 29 days, because the grace period counts calendar days, not business days. If the refactor is meant to change that, these calendar tests are the ones to revisit.

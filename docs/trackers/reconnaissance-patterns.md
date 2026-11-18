@@ -135,7 +135,7 @@ shape; can be 1 if the proposal is cheap and clearly correct>.
 (`codescout-companion` hooks — adding the `PROJECT BOOTSTRAP` triad to
 `SubagentStart`).
 
-**Source session log:** `docs/trackers/subagent-bootstrap-session-log.md`,
+**Source session log:** `docs/trackers/archive/subagent-bootstrap-session-log.md`,
 citing `subagent-bootstrap-session-log:F-1`, `subagent-bootstrap-session-log:F-2`,
 `subagent-bootstrap-session-log:F-3` and `subagent-bootstrap-session-log:W-1`.
 

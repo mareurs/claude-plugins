@@ -1,0 +1,3651 @@
+diff --git a/CLAUDE.md b/CLAUDE.md
+index fa5979f9..2e29730a 100644
+--- a/CLAUDE.md
++++ b/CLAUDE.md
+@@ -12,7 +12,7 @@ A line earns residency here only if a session that never opens another doc would
+ 
+ ## Development Commands
+ 
+-**Run `./scripts/gate.sh`: Python tests, then `./scripts/fmt-mine.sh`, `cargo clippy --workspace --all-targets --features local-embed -- -D warnings`, `cargo test --workspace --no-default-features`, `cargo test --workspace` in a `target/` leased for that run from a pool, before completing any task.** For a targeted `cargo test`, use `scripts/with-slot.sh cargo test …`. Why those four in that order → [`docs/conventions/gate-ordering.md`](docs/conventions/gate-ordering.md); what they do not cover is printed by `gate.sh` on every run. Live-MCP release build: `./scripts/rb.sh`, then `/mcp` (more → memory `development-commands`).
++**Run `./scripts/gate.sh`: Python tests, then `./scripts/fmt-mine.sh`, `cargo clippy --workspace --all-targets --features local-embed -- -D warnings`, `cargo test --workspace --no-default-features`, `cargo test --workspace` in a `target/` leased for that run from a pool, before completing any task.** Use `--check` without identity; [context/modes](docs/conventions/harness-neutral-session-context.md). Targeted: `scripts/with-slot.sh cargo test …`. [Order and limits](docs/conventions/gate-ordering.md); the gate prints coverage limits. Release: `./scripts/rb.sh`, then `/mcp` (memory `development-commands`).
+ 
+ ## Testing Discipline — what a green suite is evidence for
+ 
+diff --git a/docs/conventions/gate-ordering.md b/docs/conventions/gate-ordering.md
+index 28bb3051..bc9675ec 100644
+--- a/docs/conventions/gate-ordering.md
++++ b/docs/conventions/gate-ordering.md
+@@ -12,6 +12,8 @@ tags:
+ 
+ # Gate ordering — why the four commands run in that order
+ 
++Read-only verification uses `./scripts/gate.sh --check` without identity. Authored mode resolves a harness-neutral root context; an unavailable context reports a blocked formatter and still runs all other lanes under the lease. Default remains last after earlier failures. Options, numeric outcomes and evidence limits are in [harness-neutral-session-context.md](harness-neutral-session-context.md).
++
+ **Audience:** anyone about to change the pre-commit gate, shorten it, reorder it, or argue that one
+ of its commands is redundant. The gate itself lives in [`CLAUDE.md`](../../CLAUDE.md) §
+ *Development Commands* and stays there deliberately — a 2026-08-30 ruling in
+@@ -29,7 +31,7 @@ which command they justify.
+ > 2026-09-09 and is deliberately not replaced with a fresh one: a symbol name survives every
+ > edit above it, and a line number is a positional reference that decays exactly like the
+ > commit SHAs and orphaned refs this corpus keeps tripping over.
+-> It scopes to the run beginning ``**Run `./scripts/fmt-mine.sh``` and ending `before completing any task.**`,
++> It scopes to the run beginning ``**Run `./scripts/gate.sh``` and ending `before completing any task.**`,
+ > then asserts the four backtick-delimited commands appear in ascending byte order *within that
+ > slice*. Its own panic message reads: *"if it moved, move this test with it — do not delete it."*
+ > Two traps it is shaped around: `cargo test --workspace` is a **prefix** of the lean form, so a
+diff --git a/docs/conventions/harness-neutral-session-context.md b/docs/conventions/harness-neutral-session-context.md
+new file mode 100644
+index 00000000..b2aa91cb
+--- /dev/null
++++ b/docs/conventions/harness-neutral-session-context.md
+@@ -0,0 +1,30 @@
++# Harness-neutral session context
++
++Codescout accepts version 1 context: `harness`, opaque root `session_id`, nullable `agent_id`, canonical absolute Git `workspace`, `source`, and nullable `harness_version`. Identity is `<harness>:<session_id>`; a child's thread ID is metadata and keeps its root principal.
++
++`CLAUDE_CODE_SESSION_ID` and `CODEX_SESSION_ID` are native roots. Simultaneous values conflict, even if equal. `CODEX_THREAD_ID` alone is insufficient. Use an absolute `--context` path or `CODESCOUT_CONTEXT_FILE` for explicit context. Conflicting CLI/environment files or disagreement with native identity fail closed. The invocation's Git root is authoritative; an inherited foreign `REPO_ROOT` cannot redirect formatter attribution.
++
++## Modes and outcomes
++
++```sh
++./scripts/gate.sh --check
++./scripts/gate.sh
++./scripts/gate.sh --context /absolute/context.json
++./scripts/gate.sh --exclusive-checkout /absolute/checkout
++```
++
++The same options apply to `fmt-mine.sh`. `--check` bypasses ownership resolution and writes nothing: 0 clean, 1 differences, 2 usage/tool failure. Normal standalone formatting exits cheaply on a clean tree; otherwise context is required. Own and git-clean paths may be formatted; peer/shared/unknown paths are refused with exit 1. Missing/conflicting context or an unsafe target exits 2 without formatting writes.
++
++An exclusive declaration requires an absolute matching Git root and established operator control. It permits formatting there without inventing a MINE label. Conflicting or unsupported context still blocks it. Literal path arguments preserve spaces; ambiguous/unrepresentable paths and symlink/module escapes are rejected before writes. A read-only stdout probe checks clean descendants too; fixed-point formatting remains bounded to three passes.
++
++The gate leases independently of identity and reports all five lanes. A context-blocked formatter has `FMT=2 FMT_STATE=context-blocked`; Python, clippy, lean and default tests still run. Default remains last after earlier failures. Other states are `passed`, `differences`, `ownership-refused`, and `tool-error`. Exit 1 aggregates a completed-lane failure; exit 2 is invalid entry or lease failure. A private snapshot is passed through `CODESCOUT_CONTEXT_FILE` and removed on normal or handled signal exits; SIGKILL cannot execute cleanup. Explicit `CARGO_TARGET_DIR` remains the caller's responsibility.
++
++## Evidence boundaries
++
++`file-provenance.py [--context /absolute/context.json] <literal paths...>` reads Claude and Codex history. `FILE_PROVENANCE_ROOTS` retains the Claude override; `FILE_PROVENANCE_CODEX_ROOTS_JSON` is a JSON array of absolute Codex history roots. Invalid configuration or unreadable/opaque history is an explicit coverage gap. Discovery includes native archived Codex sessions and canonical alias deduplication.
++
++Refused atomic calls do not claim ownership. Non-atomic shell errors or missing results can still represent writes. Root/child event identity and native ordinals govern child/fork replay boundaries. Unknown wrappers and external history bases are not guessed. Shell extraction remains heuristic and manual/editor writes remain uncovered.
++
++Coverage and peer contact are separate capabilities. Known Codex ownership remains known when contact/liveness are unavailable; only Claude owners consult the Claude registry. A not-live marker does not prove abandonment.
++
++Source tests cover both hosts, mixed ownership, same-ID host collisions, child boundaries, refusals, gaps, literal paths, lease concurrency and default-lane continuation. Native capture observations are limited to Claude Code 2.1.296 root hook/Read refusal and Codex 0.160.0 root metadata/opaque exec refusal. Successful write, child, resume, compaction and fork acceptance remains pending because native capture routing did not execute those requested tools. These are observed versions, not a supported version range. The coordinated plugin's capture manifest and smoke procedure record the evidence and deployment blockers.
+diff --git a/scripts/claude_history.py b/scripts/claude_history.py
+new file mode 100644
+index 00000000..0036d3a3
+--- /dev/null
++++ b/scripts/claude_history.py
+@@ -0,0 +1,145 @@
++"""Decode Claude records and discover every configured profile conservatively."""
++import json
++from pathlib import Path
++import re
++import subprocess
++from typing import Mapping
++
++from provenance_records import CoverageGap, HistoryBatch, Operation, result_refused
++from session_context import principal_key
++
++_NON_ATOMIC = {"Bash", "mcp__codescout__run_command"}
++
++
++def _slug(root: Path) -> str:
++    return re.sub(r"[^A-Za-z0-9]", "-", str(root))
++
++
++def _main_checkout(root: Path) -> Path | None:
++    out = subprocess.run(["git", "-C", str(root), "rev-parse", "--git-common-dir"],
++                         capture_output=True, text=True)
++    if out.returncode:
++        return None
++    common = Path(out.stdout.strip())
++    if not common.is_absolute():
++        common = root / common
++    common = common.resolve()
++    return common.parent if common.name == ".git" and common.parent != root.resolve() else None
++
++
++def _entries(path: Path, root: Path, gaps: list[CoverageGap]) -> list[Path]:
++    try:
++        return sorted(path.iterdir())
++    except FileNotFoundError:
++        return []
++    except OSError:
++        gaps.append(CoverageGap(str(path), "unreadable Claude history directory", root))
++        return []
++
++
++def discover_claude_histories(root: Path, environ: Mapping[str, str]) -> tuple[list[Path], list[CoverageGap]]:
++    gaps = []
++    override = environ.get("FILE_PROVENANCE_ROOTS")
++    if override:
++        directories = [Path(p) for p in re.split(r"[:,]", override) if p]
++    else:
++        home = Path(environ.get("HOME", str(Path.home())))
++        profiles = [p for p in _entries(home, root, gaps)
++                    if p.name == ".claude" or p.name.startswith(".claude-")]
++        custom = environ.get("CLAUDE_CONFIG_DIR")
++        if custom:
++            profiles.append(Path(custom))
++        checkouts = [root.resolve()]
++        main = _main_checkout(root)
++        if main is not None:
++            checkouts.append(main)
++        directories = []
++        for profile in dict.fromkeys(profiles):
++            # Probe the profile explicitly: glob/is_dir may silently swallow unreadability.
++            _entries(profile, root, gaps)
++            directories.extend(profile / "projects" / _slug(checkout) for checkout in checkouts)
++    paths, seen = [], set()
++    for directory in directories:
++        for entry in _entries(directory, root, gaps):
++            candidates = [entry] if entry.suffix == ".jsonl" else [
++                p for p in _entries(entry / "subagents", root, gaps) if p.suffix == ".jsonl"
++            ]
++            for path in candidates:
++                try:
++                    original = path.resolve(strict=True)
++                except OSError:
++                    gaps.append(CoverageGap(str(path), "unreadable Claude history source", root))
++                    continue
++                if original not in seen:
++                    seen.add(original)
++                    paths.append(original)
++    return paths, gaps
++
++
++def _session(path: Path, rec: dict) -> str:
++    fallback = path.parent.parent.name if path.parent.name == "subagents" else path.stem
++    value = rec.get("sessionId") or rec.get("session_id")
++    return value if isinstance(value, str) and value.strip() else fallback
++
++
++def read_claude_history(path: Path) -> HistoryBatch:
++    operations, gaps, calls, results = [], [], [], {}
++    is_child = path.parent.name == "subagents"
++    agent = path.stem.removeprefix("agent-") if is_child else None
++    try:
++        with path.open(encoding="utf-8") as stream:
++            for line_number, line in enumerate(stream, 1):
++                locator = f"{path.resolve()}:{line_number}"
++                try:
++                    rec = json.loads(line)
++                except (ValueError, TypeError):
++                    gaps.append(CoverageGap(locator, "malformed Claude history record", None))
++                    continue
++                if not isinstance(rec, dict):
++                    gaps.append(CoverageGap(locator, "unsupported Claude record", None))
++                    continue
++                content = (rec.get("message") or {}).get("content") if isinstance(rec.get("message"), dict) else None
++                if not isinstance(content, list):
++                    continue
++                cwd = Path(rec["cwd"]) if isinstance(rec.get("cwd"), str) and Path(rec["cwd"]).is_absolute() else None
++                for block_index, block in enumerate(content):
++                    if not isinstance(block, dict):
++                        continue
++                    if block.get("type") == "tool_result" and isinstance(block.get("tool_use_id"), str):
++                        results.setdefault(block["tool_use_id"], []).append(block)
++                    if block.get("type") != "tool_use":
++                        continue
++                    name, inp = block.get("name"), block.get("input")
++                    if not isinstance(name, str) or not isinstance(inp, dict):
++                        gaps.append(CoverageGap(locator, "unsupported Claude tool arguments", cwd))
++                        continue
++                    sid = _session(path, rec)
++                    call = block.get("id") if isinstance(block.get("id"), str) else None
++                    # Producer-scoped event IDs survive copied logs. A line locator is only the
++                    # fallback for old call-less fixtures, never an input-equality heuristic.
++                    event = call or rec.get("uuid")
++                    producer = agent or "root"
++                    source = f"claude-code:{sid}/{producer}/{event}" if isinstance(event, str) else f"{locator}:{block_index}"
++                    timestamp = rec.get("timestamp") if isinstance(rec.get("timestamp"), str) else None
++                    calls.append((source, call, principal_key("claude-code", sid), agent, timestamp, cwd, name, inp))
++    except (OSError, UnicodeError):
++        gaps.append(CoverageGap(str(path), "unreadable Claude history source", None))
++    seen = {}
++    for source, call, principal, agent_id, timestamp, cwd, name, inp in calls:
++        outputs = results.get(call, []) if call else []
++        atomic = name not in _NON_ATOMIC
++        refused = any(result_refused(output) for output in outputs)
++        outcome = ("no-write-refused" if atomic else "partial-error") if refused else (
++            "possible-write" if outputs else "missing-result")
++        if outputs and any(result_refused(output) != result_refused(outputs[0]) for output in outputs[1:]):
++            gaps.append(CoverageGap(source, "conflicting Claude result replay", cwd))
++            outcome = "missing-result"
++        op = Operation(source, call, principal, agent_id, timestamp, cwd, name, inp,
++                       outcome, atomic, is_child, None)
++        previous = seen.get(source)
++        if previous is None:
++            operations.append(op)
++            seen[source] = op
++        elif previous != op:
++            gaps.append(CoverageGap(source, "conflicting Claude call replay", cwd))
++    return HistoryBatch(operations, gaps)
+diff --git a/scripts/codex_history.py b/scripts/codex_history.py
+new file mode 100644
+index 00000000..e9b0d1bb
+--- /dev/null
++++ b/scripts/codex_history.py
+@@ -0,0 +1,273 @@
++"""Decode verified Codex rollout envelopes; never execute recorded orchestration."""
++from decimal import Decimal
++import json
++import os
++from pathlib import Path
++import re
++from typing import Mapping
++
++from provenance_records import CoverageGap, HistoryBatch, Operation, result_refused
++from session_context import principal_key
++
++
++def _entries(path: Path, root: Path, gaps: list[CoverageGap]) -> list[Path]:
++    try:
++        return sorted(path.iterdir())
++    except FileNotFoundError:
++        return []
++    except OSError:
++        gaps.append(CoverageGap(str(path), "unreadable Codex profile", root))
++        return []
++
++
++def discover_codex_histories(root: Path, environ: Mapping[str, str]) -> tuple[list[Path], list[CoverageGap]]:
++    gaps = []
++    override = environ.get("FILE_PROVENANCE_CODEX_ROOTS_JSON")
++    if override is not None:
++        try:
++            values = json.loads(override)
++            if not isinstance(values, list) or any(not isinstance(p, str) or not Path(p).is_absolute() for p in values):
++                raise ValueError("expected absolute history paths")
++            directories = [Path(p) for p in values]
++        except (ValueError, TypeError):
++            return [], [CoverageGap("FILE_PROVENANCE_CODEX_ROOTS_JSON", "malformed Codex history-root override", root)]
++    else:
++        home = Path(environ.get("HOME", str(Path.home())))
++        profiles = [p for p in _entries(home, root, gaps)
++                    if p.name.lower() == ".codex" or p.name.lower().startswith(".codex-")]
++        if environ.get("CODEX_HOME"):
++            profile = Path(environ["CODEX_HOME"])
++            if not profile.is_absolute():
++                return [], [CoverageGap("CODEX_HOME", "CODEX_HOME must be absolute", root)]
++            profiles.append(profile)
++        directories = []
++        for profile in dict.fromkeys(profiles):
++            _entries(profile, root, gaps)
++            directories.extend([profile / "sessions", profile / "archived_sessions"])
++    paths, seen = [], set()
++    for directory in directories:
++        # Walk explicitly with onerror: rglob can turn unreadability into an empty match.
++        def onerror(error):
++            if not isinstance(error, FileNotFoundError):
++                gaps.append(CoverageGap(str(error.filename), "unreadable Codex history directory", root))
++        if directory.suffix == ".jsonl":
++            candidates = [directory]
++        else:
++            candidates = [Path(parent) / name for parent, _, names in os.walk(directory, onerror=onerror)
++                          for name in sorted(names) if name.endswith(".jsonl")]
++        for path in candidates:
++            try:
++                original = path.resolve(strict=True)
++            except OSError:
++                gaps.append(CoverageGap(str(path), "unreadable Codex history source", root))
++                continue
++            if original not in seen:
++                seen.add(original)
++                paths.append(original)
++    # Every source is decoded independently; policy filters actual cwd/workspace/targets,
++    # including absolute writes into this checkout from a session created elsewhere.
++    return sorted(paths), gaps
++
++
++def _output_refused(output: object) -> bool:
++    if result_refused({"content": output}):
++        return True
++    if isinstance(output, str):
++        try:
++            body = json.loads(output)
++        except ValueError:
++            return False
++        if isinstance(body, dict):
++            return body.get("isError") is True or result_refused(body)
++    return False
++
++
++def _output_failed(output: object) -> bool:
++    if _output_refused(output):
++        return True
++    if isinstance(output, str):
++        try:
++            value = json.loads(output)
++        except ValueError:
++            value = None
++        if isinstance(value, dict) and type(value.get("exit_code")) is int:
++            return value["exit_code"] != 0
++        match = re.search(r"(?:Process exited with code|Exit code:)\s*(-?\d+)", output)
++        return bool(match and int(match.group(1)) != 0)
++    return False
++
++
++# Known current and legacy Codescout operations. Future/foreign MCP tools may write,
++# so accepting their envelope without a supported interpretation is a coverage gap.
++KNOWN_CODE_SCOUT_NAMES = frozenset("""
++    approve_write call_graph create_file doc edit_code edit_file get_guide grep index
++    librarian library memory onboarding read_file references run_command semantic_search
++    symbol_at symbols tree workspace
++    edit_markdown replace_symbol insert_code remove_symbol artifact artifact_augment
++""".split())
++
++def _decode_call(payload: dict, cwd: Path | None):
++    name = payload.get("name")
++    namespace = payload.get("namespace")
++    if namespace not in (None, "functions"):
++        return None, "unsupported Codex tool namespace"
++    if payload.get("type") == "custom_tool_call":
++        raw = payload.get("input")
++        if name == "apply_patch" and isinstance(raw, str):
++            return ("apply_patch", {"patch": raw}, cwd, False, raw), ""
++        return None, "opaque Codex custom-tool wrapper; inner execution is not recoverable"
++    raw = payload.get("arguments")
++    if not isinstance(raw, str):
++        return None, "unsupported Codex function arguments"
++    try:
++        inp = json.loads(raw, parse_float=Decimal)
++    except ValueError:
++        return None, "malformed Codex function arguments"
++    if not isinstance(inp, dict):
++        return None, "unsupported Codex function arguments"
++    if name == "exec_command":
++        command = inp.get("cmd")
++        workdir = inp.get("workdir")
++        if not isinstance(command, str) or (workdir is not None and not isinstance(workdir, str)):
++            return None, "unsupported Codex shell arguments"
++        if workdir is not None:
++            if not Path(workdir).is_absolute():
++                if cwd is None:
++                    return None, "unresolved Codex shell workdir"
++                cwd = cwd / workdir
++            else:
++                cwd = Path(workdir)
++        return ("Bash", {**inp, "command": command}, cwd, False, raw), ""
++    if isinstance(name, str) and re.fullmatch(r"mcp__[^\s]+__[^\s]+", name):
++        if not name.startswith("mcp__codescout__") or name.removeprefix("mcp__codescout__") not in KNOWN_CODE_SCOUT_NAMES:
++            return None, "unsupported Codex MCP tool; write effects are not recoverable"
++        atomic = name != "mcp__codescout__run_command"
++        return (name, inp, cwd, atomic, raw), ""
++    # Polling a running shell is read-only only with empty stdin. A nonempty write
++    # may drive a process that already owns output handles and unknown target paths.
++    if name == "write_stdin" and not inp.get("chars"):
++        return None, ""
++    return None, "unsupported Codex tool or orchestration wrapper"
++
++
++def read_codex_history(path: Path) -> HistoryBatch:
++    rows, gaps, operations = [], [], []
++    try:
++        with path.open(encoding="utf-8") as stream:
++            for number, line in enumerate(stream, 1):
++                try:
++                    value = json.loads(line, parse_float=Decimal)
++                    if not isinstance(value, dict):
++                        raise ValueError("record must be an object")
++                    rows.append((number, value))
++                except ValueError:
++                    gaps.append(CoverageGap(f"{path}:{number}", "malformed Codex history record", None))
++    except (OSError, UnicodeError):
++        return HistoryBatch([], [CoverageGap(str(path), "unreadable Codex history source", None)])
++    metas = [row.get("payload") for _, row in rows if row.get("type") == "session_meta"]
++    if not metas or not isinstance(metas[0], dict):
++        return HistoryBatch([], gaps + [CoverageGap(str(path), "missing Codex root metadata", None)])
++    meta = metas[0]
++    sid, thread, native_cwd = meta.get("session_id"), meta.get("id"), meta.get("cwd")
++    if (not isinstance(sid, str) or not sid.strip() or not isinstance(thread, str) or not thread.strip()
++            or not isinstance(native_cwd, str) or not Path(native_cwd).is_absolute()):
++        return HistoryBatch([], gaps + [CoverageGap(str(path), "unsupported Codex root identity or cwd", None)])
++    cwd = Path(native_cwd)
++    # Attach unattributed syntax gaps to the native workspace once it is known.
++    gaps = [CoverageGap(g.source_id, g.reason, cwd, g.paths) for g in gaps]
++    if meta.get("history_base") is not None:
++        gaps.append(CoverageGap(str(path), "external Codex history prefix is not independently verified", cwd))
++    source = meta.get("source")
++    child_source = source.get("subagent") if isinstance(source, dict) else None
++    spawn = child_source.get("thread_spawn") if isinstance(child_source, dict) else None
++    is_child = isinstance(spawn, dict)
++    if thread != sid and not is_child:
++        return HistoryBatch([], gaps + [CoverageGap(str(path), "unverified Codex child/root relationship", cwd)])
++    if is_child and (thread == sid or not isinstance(spawn.get("parent_thread_id"), str)
++                     or meta.get("parent_thread_id") not in (None, spawn.get("parent_thread_id"))):
++        return HistoryBatch([], gaps + [CoverageGap(str(path), "conflicting Codex child metadata", cwd)])
++    boundary = meta.get("subagent_history_start_ordinal") if is_child else None
++    paginated = meta.get("history_mode", "legacy") == "paginated"
++    if meta.get("history_mode", "legacy") not in ("legacy", "paginated"):
++        return HistoryBatch([], gaps + [CoverageGap(str(path), "unsupported Codex history_mode", cwd)])
++    if is_child and (type(boundary) is not int or boundary < 0 or not paginated):
++        return HistoryBatch([], gaps + [CoverageGap(str(path), "missing verified Codex child history boundary", cwd)])
++    ordinals = [row.get("ordinal") for _, row in rows]
++    if paginated and any(type(value) is not int or value < 0 for value in ordinals):
++        gaps.append(CoverageGap(str(path), "missing or unsupported required Codex ordinal", cwd))
++        if is_child:
++            return HistoryBatch([], gaps)
++    if is_child and max((n for n in ordinals if type(n) is int), default=-1) < boundary - 1:
++        return HistoryBatch([], gaps + [CoverageGap(str(path), "incomplete Codex inherited prefix", cwd)])
++    if meta.get("forked_from_id") is not None:
++        fork_boundary = meta.get("forked_from_ordinal_exclusive")
++        if (not isinstance(meta["forked_from_id"], str) or not meta["forked_from_id"]
++                or type(fork_boundary) is not int or fork_boundary < 0 or not paginated
++                or any(type(value) is not int or value < 0 for value in ordinals)
++                or max(ordinals, default=-1) < fork_boundary - 1):
++            return HistoryBatch([], gaps + [CoverageGap(str(path), "unverified Codex fork replay boundary", cwd)])
++        boundary = fork_boundary
++    principal = principal_key("codex", sid)
++    agent = thread if is_child else None
++    calls, results = [], {}
++    for number, row in rows:
++        locator = f"{path}:{number}"
++        ordinal = row.get("ordinal")
++        if boundary is not None and (type(ordinal) is not int or ordinal < boundary):
++            continue
++        kind, payload = row.get("type"), row.get("payload")
++        if kind == "session_meta":
++            if payload != meta:
++                gaps.append(CoverageGap(locator, "conflicting Codex session metadata replay", cwd))
++            continue
++        if kind == "turn_context":
++            if isinstance(payload, dict) and isinstance(payload.get("cwd"), str) and Path(payload["cwd"]).is_absolute():
++                cwd = Path(payload["cwd"])
++            else:
++                gaps.append(CoverageGap(locator, "unsupported Codex turn cwd", cwd))
++            continue
++        if kind in ("event_msg", "compacted", "world_state", "world_state_item"):
++            continue
++        if kind != "response_item" or not isinstance(payload, dict):
++            gaps.append(CoverageGap(locator, "unsupported Codex rollout envelope", cwd))
++            continue
++        item_type = payload.get("type")
++        if item_type in ("function_call_output", "custom_tool_call_output"):
++            call = payload.get("call_id")
++            if isinstance(call, str):
++                results.setdefault(call, []).append(payload.get("output"))
++            else:
++                gaps.append(CoverageGap(locator, "missing Codex result call_id", cwd))
++        elif item_type in ("function_call", "custom_tool_call"):
++            call = payload.get("call_id")
++            if not isinstance(call, str) or not call:
++                gaps.append(CoverageGap(locator, "missing Codex call_id", cwd))
++                continue
++            decoded, reason = _decode_call(payload, cwd)
++            if reason:
++                gaps.append(CoverageGap(locator, reason, cwd))
++            if decoded is not None:
++                timestamp = row.get("timestamp") if isinstance(row.get("timestamp"), str) else None
++                calls.append((call, timestamp, decoded))
++        elif item_type not in ("message", "reasoning", "agent_message", "additional_tools"):
++            gaps.append(CoverageGap(locator, "unsupported Codex response item", cwd))
++    seen = {}
++    for call, timestamp, (name, inp, call_cwd, atomic, raw) in calls:
++        outputs = results.get(call, [])
++        failed = any(_output_failed(out) for out in outputs)
++        refused = any(_output_refused(out) for out in outputs)
++        outcome = ("no-write-refused" if atomic else "partial-error") if refused else (
++            "partial-error" if failed else "possible-write" if outputs else "missing-result")
++        original = f"codex:{sid}/{thread}/{call}"
++        if outputs and any(out != outputs[0] for out in outputs[1:]):
++            gaps.append(CoverageGap(original, "conflicting Codex result replay", call_cwd))
++            outcome = "missing-result"
++        op = Operation(original, call, principal, agent, timestamp, call_cwd, name, inp,
++                       outcome, atomic, is_child, raw)
++        previous = seen.get(original)
++        if previous is None:
++            seen[original] = op
++            operations.append(op)
++        elif previous != op:
++            gaps.append(CoverageGap(original, "conflicting Codex call replay", call_cwd))
++    return HistoryBatch(operations, gaps)
+diff --git a/scripts/file-provenance.py b/scripts/file-provenance.py
+index b3217994..2437ac9b 100755
+--- a/scripts/file-provenance.py
++++ b/scripts/file-provenance.py
+@@ -87,6 +87,14 @@ import sys
+ from datetime import datetime, timedelta
+ from pathlib import Path
+ 
++# Standalone script also supports the established import-by-filename scan API.
++sys.path.insert(0, str(Path(__file__).resolve().parent))
++from claude_history import discover_claude_histories, read_claude_history
++from provenance_records import CoverageGap, HistoryBatch, Operation, ProvenanceScan
++from codex_history import discover_codex_histories, read_codex_history
++from typing import Iterable
++from session_context import principal_key, resolve_context
++
+ # Tool calls whose input names a write TARGET. Read tools are deliberately absent:
+ # including one would make every reader an author.
+ CS_WRITE_TOOLS = {
+@@ -512,6 +520,11 @@ def address_lines(sid: str, live: dict[str, list[dict]], indent: str) -> tuple[s
+                    f"profile {r['profile']}, cwd {r['cwd']}")
+         out.append(f'{indent}  ask it: SendMessage to="uds:{r["socket"]}"')
+     return ("  [LIVE]", out)
++def owner_contact(sid: str, live: dict[str, list[dict]], indent: str) -> tuple[str, list[str]]:
++    if not sid.startswith("claude-code:"):
++        return ("  [contact unknown; liveness unknown]", [])
++    return address_lines(sid, live, indent)
++
+ 
+ 
+ def normalize(p: str, root: Path, base: Path | None = None) -> str | None:
+@@ -535,11 +548,29 @@ def normalize(p: str, root: Path, base: Path | None = None) -> str | None:
+     return os.path.normpath(p)
+ 
+ 
++def patch_write_targets(patch: str) -> list[str]:
++    """Extract native patch headers, preserving literal filenames and move operands."""
++    if not isinstance(patch, str):
++        return []
++    lines = patch.splitlines()
++    if not lines or lines[0] != "*** Begin Patch" or lines[-1] != "*** End Patch":
++        return []
++    paths = []
++    for line in lines[1:-1]:
++        match = re.fullmatch(r"\*\*\* (?:Add|Update|Delete) File: (.+)", line)
++        move = re.fullmatch(r"\*\*\* Move to: (.+)", line)
++        if match or move:
++            paths.append((match or move).group(1))
++    return list(dict.fromkeys(paths))
++
++
+ def write_targets(name: str, inp: dict, root: Path):
+     """Paths this ONE tool call wrote. Empty for every read-only call."""
+     if not isinstance(inp, dict):
+         return
+-    if name in CS_WRITE_TOOLS:
++    if name == "apply_patch":
++        yield from patch_write_targets(inp.get("patch"))
++    elif name in CS_WRITE_TOOLS:
+         for key in ("path", "file_path"):
+             if isinstance(inp.get(key), str):
+                 yield inp[key]
+@@ -799,49 +830,35 @@ def record_session(rec: dict, fallback: str) -> str:
+     return rec.get("sessionId") or rec.get("session_id") or fallback
+ 
+ 
+-def session_activations(files: list[Path]) -> dict[str, dict]:
+-    """Per session: did its OWN transcript activate a tree other than its checkout root, and
+-    when did any of its SUBAGENTS first activate one (ISO timestamp; "" if a record carried
+-    none, which sorts first and so taints everything after the start)?
+-
+-    codescout's active project belongs to the MCP server, which a session SHARES with its
+-    subagents (docs/issues/archive/2026-09-01-workspace-activation-is-process-wide-and-a-
+-    subagent-can-flip-it.md). So an activation in one transcript moves the tree for the
+-    others, and no single file holds the whole timeline — `scan()` needs these facts first.
+-    """
++def operation_activations(operations: list[Operation]) -> dict[str, dict]:
++    """Track shared-server activation uncertainty using normalized operations."""
+     facts: dict[str, dict] = {}
+-    for f in files:
+-        is_sub = f.parent.name == "subagents"
+-        fallback = file_session_id(f)
+-        root_of: Path | None = None
+-        for rec, blocks in tool_records(f):
+-            if root_of is None and isinstance(rec.get("cwd"), str):
+-                root_of = checkout_root(rec["cwd"])
+-            for b in blocks:
+-                # `activated_tree` returns `None` for a call that is NOT an activation, but only
+-                # when it is given no active tree: handed one, it returns that tree unchanged,
+-                # which this loop would read as an activation of it. So ask once with None to
+-                # decide WHETHER this is an activation, then again with the checkout root to
+-                # decide WHERE it points: a relative PATH activation (`.`, `crates/x`) names a
+-                # tree under that root, and `target.resolve()` below would otherwise read it from
+-                # wherever this script is started. An id comes back as UNKNOWN_TREE, a path under
+-                # the script's cwd that never equals the root, so `resolve()` reads it as a move
+-                # without a special case: an explicit `is UNKNOWN_TREE` clause here was inert, no
+-                # input distinguishing it from the comparison, and was deleted.
+-                if activated_tree(b.get("name"), b.get("input"), None) is None:
+-                    continue
+-                target = activated_tree(b.get("name"), b.get("input"), root_of)
+-                fs = facts.setdefault(record_session(rec, fallback),
+-                                      {"parent_activated": False, "sub_activated_at": None})
+-                if is_sub:
+-                    ts = rec.get("timestamp") or ""
+-                    if fs["sub_activated_at"] is None or ts < fs["sub_activated_at"]:
+-                        fs["sub_activated_at"] = ts
+-                elif root_of is None or target.resolve() != root_of.resolve():
+-                    fs["parent_activated"] = True
++    roots: dict[tuple[str | None, str | None], Path | None] = {}
++    for op in operations:
++        stream = (op.principal, op.agent_id)
++        if roots.get(stream) is None and op.cwd is not None:
++            roots[stream] = checkout_root(str(op.cwd))
++        root_of = roots.get(stream)
++        if activated_tree(op.name, op.input, None) is None:
++            continue
++        target = activated_tree(op.name, op.input, root_of)
++        fs = facts.setdefault(op.principal,
++                              {"parent_activated": False, "sub_activated_at": None})
++        if op.is_child:
++            ts = op.timestamp or ""
++            if fs["sub_activated_at"] is None or ts < fs["sub_activated_at"]:
++                fs["sub_activated_at"] = ts
++        elif root_of is None or target.resolve() != root_of.resolve():
++            fs["parent_activated"] = True
+     return facts
+ 
+ 
++def session_activations(files: list[Path]) -> dict[str, dict]:
++    """Compatibility entry point for activation facts from Claude histories."""
++    return operation_activations([op for path in files
++                                  for op in read_claude_history(path).operations])
++
++
+ 
+ # The shortest text a write may carry and still be tested for "already committed" (see
+ # `absorbed_writes`). Below this a string is as likely to occur in a file by coincidence as by
+@@ -883,85 +900,98 @@ def write_texts(name: str, inp: dict) -> list[str] | None:
+         return None
+     return found
+ 
++def merge_history_batches(batches: Iterable[HistoryBatch]) -> HistoryBatch:
++    """Deduplicate original native events, retaining every incompatible replay as a gap."""
++    operations, gaps, seen = [], [], {}
++    for batch in batches:
++        gaps.extend(batch.gaps)
++        for op in batch.operations:
++            previous = seen.get(op.source_id)
++            if previous is None:
++                seen[op.source_id] = op
++                operations.append(op)
++            elif previous != op:
++                gaps.append(CoverageGap(op.source_id, "conflicting original-event replay", op.cwd))
++    return HistoryBatch(operations, gaps)
++
++
++def scan_provenance(root: Path, environ: dict[str, str]) -> ProvenanceScan:
++    """One policy consumes both hosts' normalized history and explicit coverage gaps."""
++    claude_files, claude_gaps = discover_claude_histories(root, environ)
++    codex_files, codex_gaps = discover_codex_histories(root, environ)
++    batch = merge_history_batches([
++        HistoryBatch([], claude_gaps + codex_gaps),
++        *(read_claude_history(path) for path in claude_files),
++        *(read_codex_history(path) for path in codex_files),
++    ])
++    owners, evidence, gaps = {}, {}, list(batch.gaps)
++    operations = sorted(batch.operations, key=lambda op: op.timestamp or "")
++    facts = operation_activations(operations)
++    no_facts = {"parent_activated": False, "sub_activated_at": None}
++    active_by_stream = {}
++    for op in operations:
++        who, when = op.principal, op.timestamp
++        stream = (who, op.agent_id)
++        active = active_by_stream.get(stream)
++        if active is None and op.cwd is not None:
++            active = checkout_root(str(op.cwd))
++        fs = facts.get(who, no_facts)
++        sub_at = fs["sub_activated_at"]
++        unknowable = (fs["parent_activated"] or sub_at is not None) if op.is_child else (
++            sub_at is not None and (when is None or when >= sub_at))
++        base = write_base(op.name, op.input, active, op.cwd)
++        relative_cs = op.name.startswith("mcp__codescout__")
++        pin = op.input.get("workspace")
++        pinned = isinstance(pin, str) and Path(pin).is_absolute()
++        targets = [] if op.atomic and op.outcome == "no-write-refused" else list(
++            write_targets(op.name, op.input, root))
++        capable = (op.name in CS_WRITE_TOOLS or op.name in NATIVE_WRITE_TOOLS
++                   or op.name == "apply_patch"
++                   or op.name in ("mcp__codescout__doc",
++                               "mcp__codescout__artifact",          # legacy -> doc
++                               "mcp__codescout__artifact_augment")  # legacy -> doc
++                   and (op.input.get("action") in ARTIFACT_WRITE_ACTIONS or op.name.endswith("_augment")))
++        if capable and not targets and op.outcome != "no-write-refused":
++            gaps.append(CoverageGap(op.source_id, "write target is not recoverable", base if base is not UNKNOWN_TREE else None))
++        texts = write_texts(op.name, op.input) if len(targets) == 1 else None
++        for raw in targets:
++            if ((unknowable and not pinned) or base is UNKNOWN_TREE) and relative_cs and not Path(raw).is_absolute():
++                gaps.append(CoverageGap(op.source_id, "relative write has ambiguous shared MCP workspace", None))
++                continue
++            rel = normalize(raw, root, base)
++            if rel:
++                if who is None:
++                    gaps.append(CoverageGap(op.source_id, "native writer identity is unresolved", root, (rel,)))
++                    continue
++                owners.setdefault(rel, []).append((who, when))
++                key = (rel, who, when)
++                if texts is None or evidence.get(key, []) is None:
++                    evidence[key] = None
++                else:
++                    evidence.setdefault(key, []).extend(texts)
++        active_by_stream[stream] = activated_tree(op.name, op.input, active)
++    return ProvenanceScan(owners, evidence, gaps)
++
++
++def relevant_gaps(scan: ProvenanceScan, rel: str, root: Path) -> list[CoverageGap]:
++    """Unknown workspace can affect any path; known unrelated workspaces cannot."""
++    result = []
++    for gap in scan.gaps:
++        if gap.paths is not None:
++            if not any(normalize(path, root, gap.workspace) == rel for path in gap.paths):
++                continue
++        elif gap.workspace is not None and checkout_root(str(gap.workspace)).resolve() != root.resolve():
++            continue
++        result.append(gap)
++    return result
++
++
+ def scan_with_evidence(root: Path) -> tuple[
+         dict[str, list[tuple[str, str | None]]],
+         dict[tuple[str, str, str | None], list[str] | None]]:
+-    """(owners, evidence). `owners`: path (repo-relative) -> [(session id, ISO timestamp or None), ...].
+-
+-    `evidence` maps (path, session id, timestamp) -> the text those writes put on disk, or None
+-    when ANY write behind that key has no knowable text (`write_texts`), or reaches several
+-    paths at once. None is sticky: one opaque write poisons the key, so it can only ever be
+-    counted, never discounted. Consumed by `absorbed_writes`.
+-
+-    Timestamps are kept rather than filtered here: a record with no timestamp
+-    cannot be placed in or out of any window, and dropping it would convert a
+-    substrate gap into a clean exoneration.
+-
+-    A RELATIVE codescout write names a file in whichever tree was active. That is known from
+-    the session's own transcript until a subagent could have moved it, so such a write is
+-    credited to NEITHER tree when (a) it comes from a subagent of a session that activated a
+-    non-root tree, or whose subagents activated one, or (b) it comes from the parent at or
+-    after its subagents' first activation. Crediting it to a guessed tree is the worse error:
+-    fmt-mine acts on this answer. Absolute paths and native tools are unaffected.
+-    """
+-    owners: dict[str, list[tuple[str, str | None]]] = {}
+-    evidence: dict[tuple[str, str, str | None], list[str] | None] = {}
+-    files = transcript_files(root)
+-    facts = session_activations(files)
+-    no_facts = {"parent_activated": False, "sub_activated_at": None}
+-    for f in files:
+-        is_sub = f.parent.name == "subagents"
+-        fallback = file_session_id(f)
+-        # Calls this transcript itself records as REFUSED. Their write targets are not writes:
+-        # a request and an accomplished act are the same token in a tool_use block, and only
+-        # the result tells them apart (docs/issues/archive/2026-09-13-file-provenance-conflates-touched-
+-        # once-with-bytes-at-risk.md). Narrows the FALSE-POSITIVE direction only -- a call with
+-        # no result on record, and every shell call, still counts.
+-        refused = refused_call_ids(f)
+-        # The tree a RELATIVE codescout path names: the checkout root of the session's cwd
+-        # until a `workspace(action="activate")` moves it. None until a record carries `cwd`,
+-        # which keeps cwd-less fixtures on the old "relative means this checkout" reading.
+-        # Blind spot: an MCP server restart silently resets the active project to the cwd,
+-        # and the transcript does not record it.
+-        active: Path | None = None
+-        for rec, blocks in tool_records(f):
+-            who = record_session(rec, fallback)
+-            when = rec.get("timestamp")
+-            cwd = Path(rec["cwd"]) if isinstance(rec.get("cwd"), str) else None
+-            if active is None and cwd is not None:
+-                active = checkout_root(str(cwd))
+-            fs = facts.get(who, no_facts)
+-            sub_at = fs["sub_activated_at"]
+-            if is_sub:
+-                unknowable = fs["parent_activated"] or sub_at is not None
+-            else:
+-                unknowable = sub_at is not None and (when is None or when >= sub_at)
+-            for b in blocks:
+-                name, inp = b.get("name"), b.get("input")
+-                base = write_base(name, inp, active, cwd)
+-                relative_cs = isinstance(name, str) and name.startswith("mcp__codescout__")
+-                # The base is UNKNOWN_TREE after an id activation, unless this call pins an
+-                # absolute `workspace=`, which write_base reads in preference to the active tree.
+-                tree_unknown = base is UNKNOWN_TREE
+-                # A refused all-or-nothing call wrote nothing. Activation tracking below is
+-                # deliberately unchanged: this narrows WRITES only.
+-                targets = [] if (b.get("id") in refused and name not in _NON_ATOMIC_NAMES) \
+-                    else list(write_targets(name, inp, root))
+-                # The text is only attributable to a path when the call reached exactly one.
+-                texts = write_texts(name, inp) if len(targets) == 1 else None
+-                for raw in targets:
+-                    if (unknowable or tree_unknown) and relative_cs and not Path(raw).is_absolute():
+-                        continue
+-                    rel = normalize(raw, root, base)
+-                    if rel:
+-                        owners.setdefault(rel, []).append((who, when))
+-                        key = (rel, who, when)
+-                        if texts is None or evidence.get(key, []) is None:
+-                            evidence[key] = None
+-                        else:
+-                            evidence.setdefault(key, []).extend(texts)
+-                active = activated_tree(name, inp, active)
+-    return owners, evidence
++    """Compatibility two-value API; use scan_provenance for coverage information."""
++    result = scan_provenance(root, os.environ)
++    return result.owners, result.evidence
+ 
+ 
+ def scan(root: Path) -> dict[str, list[tuple[str, str | None]]]:
+@@ -1095,13 +1125,25 @@ def absorbed_writes(rel: str, root: Path, floor: str | None,
+ 
+ 
+ 
++def short_principal(principal: str) -> str:
++    """Qualify the native id before abbreviating it; never abbreviate the host name."""
++    harness, _, native = principal.partition(":")
++    return f"{harness}:{native[:8]}"
++
++
+ def main(argv: list[str]) -> int:
+     since = None
+     unbounded = False
+     paths = []
++    context_path = None
+     i = 0
+     while i < len(argv):
+         a = argv[i]
++        if a == "--context":
++            if context_path is not None or i + 1 >= len(argv):
++                print("context usage: --context <absolute-json-path>", file=sys.stderr)
++                return 2
++            context_path = Path(argv[i + 1]); i += 2; continue
+         if a == "--since" and i + 1 < len(argv):
+             since = argv[i + 1]; i += 2; continue
+         if a == "--all":
+@@ -1115,17 +1157,24 @@ def main(argv: list[str]) -> int:
+         return 2
+ 
+     root = repo_root()
+-    me = os.environ.get("CLAUDE_CODE_SESSION_ID", "")
+-    owners, evidence = scan_with_evidence(root)
++    resolution = resolve_context(root, os.environ, context_path)
++    if resolution.state != "available":
++        print(f"context {resolution.state}: {json.dumps(resolution.reason)}", file=sys.stderr)
++        return 2
++    me = principal_key(resolution.context.harness, resolution.context.session_id)
++    scan_result = scan_provenance(root, os.environ)
++    owners, evidence = scan_result.owners, scan_result.evidence
+     # Resolved ONCE per invocation, deliberately: a snapshot the whole run shares is
+     # honest about being an instant, where a per-path re-read would silently mix two.
+-    live, unreadable = live_sessions()
++    native_live, unreadable = live_sessions()
++    live = {principal_key("claude-code", sid): rows for sid, rows in native_live.items()}
+     named_sids: set[str] = set()
+ 
+     unknown = 0
+     for arg in paths:
+         rel = normalize(arg, root) or arg
+         records = owners.get(rel, [])
++        gaps = relevant_gaps(scan_result, rel, root)
+ 
+         # The window. Default is "since this path was last committed", because the
+         # question is about the UNCOMMITTED delta -- a months-old file legitimately has
+@@ -1167,7 +1216,7 @@ def main(argv: list[str]) -> int:
+         who_set = set(in_window) | set(undated)
+         absorbed_note = (
+             f"          ({len(absorbed_sids)} session(s) "
+-            f"[{', '.join(sorted(s[:8] for s in absorbed_sids))}] wrote this path in the last "
++            f"[{', '.join(sorted(short_principal(s) for s in absorbed_sids))}] wrote this path in the last "
+             f"commit's own second, and the text they wrote is already in HEAD with no further "
+             f"copy in the worktree: they hold no uncommitted bytes here, so they are not named)"
+         ) if absorbed_sids else None
+@@ -1175,6 +1224,8 @@ def main(argv: list[str]) -> int:
+         if not who_set:
+             unknown += 1
+             print(f"UNKNOWN   {rel}")
++            for gap in gaps:
++                print(f"          coverage gap: {json.dumps(gap.reason)}")
+             # The window, printed here for the same reason `hidden` was lifted above the
+             # branch: this is the one verdict whose entire meaning IS the window, and the
+             # only one that was not naming it. `if floor` is the correct guard unchanged --
+@@ -1240,7 +1291,7 @@ def main(argv: list[str]) -> int:
+         # (see worktree_is_dirty): None -- untracked, or git cannot say -- never licenses
+         # anything, so it falls through to the transcript verdict unchanged.
+         dirty = (worktree_is_dirty(rel, root)
+-                 if hidden_peer or not (mine and not peers) else None)
++                 if gaps or hidden_peer or not (mine and not peers) else None)
+         if hidden_peer and dirty:
+             verdict = "SHARED"
+         else:
+@@ -1255,7 +1306,12 @@ def main(argv: list[str]) -> int:
+         # `CLEAN` is a NEW first-column token; scripts/fmt-mine.sh partitions on that column.
+         if verdict in ("SHARED", "PEER") and dirty is False:
+             verdict = "CLEAN"
++        if gaps and dirty is not False and verdict != "SHARED":
++            verdict = "UNKNOWN"
++            unknown += 1
+         print(f"{verdict:9} {rel}")
++        for gap in gaps:
++            print(f"          coverage gap: {json.dumps(gap.reason)}")
+         if floor:
+             print(f"          window: writes at or after {floor}")
+         if absorbed_note:
+@@ -1273,15 +1329,16 @@ def main(argv: list[str]) -> int:
+                   "co-ownership of the working tree — there is nobody to ask about it.")
+             writers = sorted(who_set)
+             print("          recorded writer(s), committed history: "
+-                  + ", ".join(w[:8] + (" (THIS session)" if w == me else "") for w in writers))
++                  + ", ".join(short_principal(w) + (" (THIS session)" if w == me else "") for w in writers))
+             continue
+         if mine:
+-            print(f"          written by THIS session ({me[:8]})")
++            print(f"          written by THIS session ({short_principal(me)})")
+         for w in peers:
+             mark = "  [undated — could not be placed in the window]" if (
+                 w in undated and w not in in_window) else ""
+-            named_sids.add(w)
+-            suffix, extra = address_lines(w, live, " " * 21)
++            if w.startswith("claude-code:"):
++                named_sids.add(w)
++            suffix, extra = owner_contact(w, live, " " * 21)
+             print(f"          written by {w}{mark}{suffix}")
+             for line in extra:
+                 print(line)
+diff --git a/scripts/fmt-mine.sh b/scripts/fmt-mine.sh
+index 4c9ca157..95b121be 100755
+--- a/scripts/fmt-mine.sh
++++ b/scripts/fmt-mine.sh
+@@ -1,335 +1,174 @@
+ #!/usr/bin/env bash
+-# fmt-mine.sh — format only the Rust this session wrote, and refuse the rest.
+-#
+-# WHY THIS EXISTS
+-#
+-# `CLAUDE.md` § *Development Commands* opened the four-command gate with bare
+-# `cargo fmt`. `cargo fmt` takes no pathspec, no `--staged` and no "only my files"
+-# mode: its blast radius is every `.rs` in the workspace, which on a shared
+-# checkout is strictly wider than the set of files the running session authored.
+-# So the documented gate, FOLLOWED EXACTLY, rewrites other sessions' uncommitted
+-# work every time anyone runs it, and there is nothing in the documented form to
+-# defeat.
+-#
+-# Measured 2026-09-09: 7 hunks rewritten in a peer's UNTRACKED
+-# `src/agent/build_check.rs`, where `git checkout` could not have restored it and
+-# the only copy of the pre-write bytes was the `--check` diff the same command
+-# happened to print. Cost that time was an interruption, not lost work. That is a
+-# property of the instance — the same write against a file with an editor buffer
+-# open is last-writer-wins with no git copy behind it.
+-# `docs/issues/archive/2026-09-09-the-documented-gates-first-command-rewrites-every-peers-uncommitted-rust.md`
+-#
+-# WHY THIS SHAPE RATHER THAN A CHECK YOU REMEMBER TO RUN
+-#
+-# The cheap fix is `cargo fmt -- --check && cargo fmt`, and it is genuinely
+-# better than nothing. It is also a policy: it works only when the person typing
+-# the gate remembers to type it that way, and the incident above happened to a
+-# session that HAD read the warning, HAD run `--check` first, and then chained
+-# the whole gate with `;` so the check gated nothing. `CLAUDE.md` § *Observer
+-# Blindness* position 3 asks for the correct path to end in a safe state instead.
+-# This is that: run it as gate step 1 and there is no wrong way to type it.
+-#
+-# THE TWO-STAGE COST, WHICH IS THE REASON IT IS AFFORDABLE
+-#
+-# Stage 1 is `cargo fmt -- --check`, which the gate pays for anyway. On a tree
+-# where nothing needs reformatting — the overwhelmingly common case — this script
+-# exits there, having spent nothing extra. Only when something WOULD be rewritten
+-# does it pay for stage 2, the transcript scan, which costs several seconds and
+-# does not cache. Same cheap-question-first design as `scripts/attribute-red.py`,
+-# for the same reason.
+-#
+-# WHAT IT REFUSES TO GUESS
+-#
+-# `UNKNOWN` from the provenance scan is never read as "safe to format". Absence
+-# is a statement about coverage — a Bash write the heuristics miss is
+-# indistinguishable from no write at all — and reading it as "nobody owns this"
+-# is the precise substitution the tool's own docstring forbids in the other
+-# direction. `SHARED` is refused too: a file this session AND a peer have written
+-# still carries the peer's bytes.
+-#
+-# Usage:
+-#   scripts/fmt-mine.sh            format my files, refuse on anyone else's
+-#   scripts/fmt-mine.sh --check    report only, write nothing
+-#
+-# Exit: 0 nothing to do, or my files formatted.
+-#       1 refused — files needing format belong to a peer, or are unattributable.
+-#       2 the scan itself could not run (no session id, `cargo fmt` failed).
+-
++# Format proven own/CLEAN paths; --check is read-only and needs no identity.
++# --exclusive-checkout authorizes a matching root by operator declaration.
++# Exit 0: clean/formatted; 1: differences/refusal; 2: context/tool/usage error.
+ set -euo pipefail
+ 
+-CHECK_ONLY=0
+-[ "${1:-}" = "--check" ] && CHECK_ONLY=1
+-
+-ROOT=$(git rev-parse --show-toplevel 2>/dev/null) || {
+-    echo "fmt-mine: not inside a git repository" >&2
+-    exit 2
+-}
+-cd "$ROOT"
+-
+-# Overridable so the test suite can stub attribution without a live transcript
+-# corpus. Same escape `file-provenance.py` gives its own tests via
+-# FILE_PROVENANCE_*_ROOTS, and for the same reason: a suite that can only run
+-# against this machine's real profiles is a suite that runs nowhere else.
+-PROVENANCE="${FMT_MINE_PROVENANCE:-$ROOT/scripts/file-provenance.py}"
+-
+-# ---------------------------------------------------------------- stage 1
+-# `cargo fmt -- --check` exits 0 when nothing would change and 1 when something
+-# would. Any other code is a real failure (unparseable file, missing toolchain)
+-# and must not be read as "clean" — that would hand back a green with no scan.
+-set +e
+-CHECK_OUT=$(cargo fmt -- --check 2>&1)
+-CHECK_RC=$?
+-set -e
+-
+-if [ "$CHECK_RC" -eq 0 ]; then
+-    exit 0
+-fi
+-if [ "$CHECK_RC" -ne 1 ]; then
+-    echo "fmt-mine: \`cargo fmt -- --check\` failed (exit $CHECK_RC), not a formatting diff:" >&2
+-    printf '%s\n' "$CHECK_OUT" >&2
+-    exit 2
+-fi
+-
+-# rustfmt prints `Diff in <absolute path>:<line>:` for every file it would touch.
+-WOULD_CHANGE=$(printf '%s\n' "$CHECK_OUT" \
+-    | sed -n 's|^Diff in \(.*\):[0-9][0-9]*:$|\1|p' \
+-    | sed "s|^$ROOT/||" \
+-    | sort -u)
+-
+-if [ -z "$WOULD_CHANGE" ]; then
+-    echo "fmt-mine: \`--check\` reported diffs but named no files — refusing to guess." >&2
+-    printf '%s\n' "$CHECK_OUT" >&2
+-    exit 2
+-fi
+-
+-# ---------------------------------------------------------------- stage 2
+-if [ -z "${CLAUDE_CODE_SESSION_ID:-}" ]; then
+-    # Fail CLOSED and say why. With no session id the provenance scan cannot
+-    # answer "is this mine", and its verdict for every attributable file
+-    # degrades to PEER — which would look like a confident refusal rather than
+-    # an unanswerable question.
+-    echo "fmt-mine: CLAUDE_CODE_SESSION_ID is not set, so 'mine' has no referent." >&2
+-    echo "  Files that need formatting:" >&2
+-    printf '    %s\n' $WOULD_CHANGE >&2
+-    echo "  If this checkout is yours alone, \`cargo fmt\` is safe and is what you want." >&2
+-    echo "  If it is shared, ask each owner — scripts/peer-sessions.sh lists them." >&2
+-    exit 2
+-fi
+-
+-# shellcheck disable=SC2086
+-set +e
+-PROV=$("$PROVENANCE" $WOULD_CHANGE 2>&1)
+-PROV_RC=$?
+-set -e
+-# `file-provenance.py` returns `1 if unknown == len(paths) else 0` — exit 1 means the
+-# scan RAN and attributed nothing, which is a verdict, not a failure. Only >1 (a usage
+-# error, a missing interpreter) is the scan itself failing. Treating any non-zero as
+-# failure was this script's third remedy-text defect: it refused correctly and told the
+-# reader "attribution failed", sending them to debug a scan that had worked perfectly and
+-# produced a careful UNKNOWN explanation the guard then threw away. Stage 1 already reads
+-# `cargo fmt --check`'s 0/1/other exactly this way; the discipline was applied to cargo
+-# and not to the tool right beside it.
+-if [ "$PROV_RC" -gt 1 ]; then
+-    echo "fmt-mine: attribution could not RUN (exit $PROV_RC); refusing rather than guess." >&2
+-    printf '%s\n' "$PROV" >&2
+-    exit 2
+-fi
++main() {
++    local CHECK_ONLY=0 CONTEXT="" EXCLUSIVE="" arg
++    while [ "$#" -gt 0 ]; do
++        arg="$1"; shift
++        case "$arg" in
++            --check) [ "$CHECK_ONLY" -eq 0 ] || { echo "fmt-mine: repeated --check" >&2; return 2; }; CHECK_ONLY=1 ;;
++            --context|--exclusive-checkout)
++                [ "$#" -gt 0 ] && [ -n "$1" ] || { echo "fmt-mine: $arg requires an absolute path" >&2; return 2; }
++                if [ "$arg" = "--context" ]; then
++                    [ -z "$CONTEXT" ] || return 2
++                    CONTEXT="$1"
++                else
++                    [ -z "$EXCLUSIVE" ] || return 2
++                    EXCLUSIVE="$1"
++                fi
++                shift ;;
++            *) echo "fmt-mine: unknown argument $arg" >&2; return 2 ;;
++        esac
++    done
++    [ "$CHECK_ONLY" -eq 0 ] || [ -z "$EXCLUSIVE" ] || {
++        echo "fmt-mine: --check conflicts with --exclusive-checkout" >&2; return 2;
++    }
++    local ROOT SCRIPT_DIR PATHS PROVENANCE
++    ROOT=$(git rev-parse --show-toplevel 2>/dev/null) || { echo "fmt-mine: not inside a git repository" >&2; return 2; }
++    cd "$ROOT"
++    ROOT=$(pwd -P)
++    SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)
++    PATHS="$SCRIPT_DIR/fmt_paths.py"
++    PROVENANCE="${FMT_MINE_PROVENANCE:-$ROOT/scripts/file-provenance.py}"
++    if [ -n "$EXCLUSIVE" ]; then
++        python3 -c 'import pathlib,sys; p=pathlib.Path(sys.argv[1]); raise SystemExit(0 if p.is_absolute() and p.resolve(strict=True)==pathlib.Path(sys.argv[2]) else 2)' "$EXCLUSIVE" "$ROOT" || {
++            echo "fmt-mine: exclusive declaration must match the actual Git root" >&2; return 2;
++        }
++    fi
+ 
+-# Partitioned with awk on the verdict column, NOT with a sed `s|...|` — the first
+-# draft used `s|^\(SHARED\|PEER\|UNKNOWN\)...|` where `|` was both the s/// delimiter
+-# and the intended alternation. sed reads an escaped delimiter as a LITERAL, so the
+-# pattern matched the string "SHARED|PEER|UNKNOWN" and never fired: NOT_MINE was
+-# always empty and every refusal fell through to the wrong branch, reporting "nothing
+-# attributable to this session" instead of naming the owner. The guard still failed
+-# CLOSED — nothing was written — which is exactly why it survived a passing test of
+-# the outcome. Caught by asserting on the MESSAGE, not on the exit code.
+-MINE=$(printf '%s\n' "$PROV" | awk '$1=="MINE"{ $1=""; sub(/^ +/,""); print }')
+-# `CLEAN` is the provenance scan's verdict for a path a peer wrote but git reports with NO
+-# uncommitted bytes: nothing of anyone's is at risk, so formatting it overwrites no one's work.
+-# It was SHARED/PEER before, and a hard stop with no --force over a file nobody holds bytes in.
+-# A token this partition does not name is silently in NEITHER list, which would leave the file
+-# unformatted and unexplained, so it is named here and formatted with this session's own.
+-CLEAN=$(printf '%s\n' "$PROV" | awk '$1=="CLEAN"{ $1=""; sub(/^ +/,""); print }')
+-if [ -n "$CLEAN" ]; then
+-    echo "fmt-mine: git reports these CLEAN (no uncommitted bytes from anyone), so they are formatted with this session's own:" >&2
+-    printf '  %s\n' $CLEAN >&2
+-    MINE=$(printf '%s\n%s\n' "$MINE" "$CLEAN" | sed '/^$/d')
+-fi
+-NOT_MINE=$(printf '%s\n' "$PROV" \
+-    | awk '$1=="SHARED"||$1=="PEER"||$1=="UNKNOWN"{ $1=""; sub(/^ +/,""); print }')
++    local CHECK_OUT CHECK_RC PATH_LIST
++    CHECK_RC=0
++    CHECK_OUT=$(cargo fmt -- --check 2>&1) || CHECK_RC=$?
++    [ "$CHECK_RC" -ne 0 ] || return 0
++    if [ "$CHECK_RC" -ne 1 ]; then
++        echo "fmt-mine: cargo formatting check failed (exit $CHECK_RC)" >&2
++        printf '%s\n' "$CHECK_OUT" >&2
++        return 2
++    fi
++    PATH_LIST=$(printf '%s\n' "$CHECK_OUT" | python3 "$PATHS" diff "$ROOT") || {
++        printf '%s\n' "$CHECK_OUT" >&2; return 2;
++    }
++    if [ "$CHECK_ONLY" -eq 1 ]; then
++        printf '%s\n' "$CHECK_OUT"
++        return 1
++    fi
++    local -a WOULD_CHANGE=() ALLOWED=() REFUSED=() FORMAT_ARGS=() CONTEXT_ARGS=()
++    mapfile -t WOULD_CHANGE <<< "$PATH_LIST"
++    [ -z "$CONTEXT" ] || CONTEXT_ARGS=(--context "$CONTEXT")
++    local RESOLUTION RESOLVE_RC=0 STATE PROV="" PROV_RC=0 ALLOW_LIST REFUSE_LIST NOT_MINE_ROWS=""
++    RESOLUTION=$(python3 "$SCRIPT_DIR/session_context.py" --workspace "$ROOT" "${CONTEXT_ARGS[@]}") || RESOLVE_RC=$?
++    STATE=$(printf '%s' "$RESOLUTION" | python3 -c 'import json,sys; print(json.load(sys.stdin)["state"])') || return 2
++    if [ "$RESOLVE_RC" -ne 0 ] && { [ -z "$EXCLUSIVE" ] || [ "$STATE" != "missing" ]; }; then
++        echo "fmt-mine: session context has no referent or is unusable ($STATE)." >&2
++        printf '%s\n' "$RESOLUTION" >&2
++        echo '  Use --context <absolute file>, or an operator-established --exclusive-checkout <absolute Git root>.' >&2
++        echo '  cargo fmt requires the same deliberate ownership decision on a shared checkout.' >&2
++        return 2
++    fi
++    if [ -n "$EXCLUSIVE" ]; then
++        ALLOWED=("${WOULD_CHANGE[@]}")
++        echo "fmt-mine: operator-declared exclusive authorization for $ROOT" >&2
++    else
++        CONTEXT_SNAPSHOT=$(mktemp "${TMPDIR:-/tmp}/codescout-context.XXXXXX") || return 2
++        trap 'rm -f -- "${CONTEXT_SNAPSHOT:-}"' EXIT
++        printf '%s' "$RESOLUTION" | python3 -c 'import json,sys; json.dump(json.load(sys.stdin)["context"],sys.stdout)' > "$CONTEXT_SNAPSHOT" || return 2
++        export CODESCOUT_CONTEXT_FILE="$CONTEXT_SNAPSHOT"
++        PROV=$(REPO_ROOT="$ROOT" "$PROVENANCE" "${WOULD_CHANGE[@]}" 2>&1) || PROV_RC=$?
++        if [ "$PROV_RC" -gt 1 ]; then
++            echo "fmt-mine: attribution could not RUN (exit $PROV_RC); nothing written." >&2
++            printf '%s\n' "$PROV" >&2
++            return 2
++        fi
++        ALLOW_LIST=$(printf '%s\n' "$PROV" | python3 "$PATHS" allow "$ROOT" "${WOULD_CHANGE[@]}") || return 2
++        REFUSE_LIST=$(printf '%s\n' "$PROV" | python3 "$PATHS" refuse "$ROOT" "${WOULD_CHANGE[@]}") || return 2
++        [ -z "$ALLOW_LIST" ] || mapfile -t ALLOWED <<< "$ALLOW_LIST"
++        [ -z "$REFUSE_LIST" ] || mapfile -t REFUSED <<< "$REFUSE_LIST"
++        NOT_MINE_ROWS=$(printf '%s\n' "$PROV" | awk '
++            $1=="MINE"||$1=="CLEAN" { drop=1; next }
++            $1=="SHARED"||$1=="PEER"||$1=="UNKNOWN" { drop=0 }
++            !drop')
++        if printf '%s\n' "$PROV" | awk '$1=="CLEAN"{found=1} END{exit !found}'; then
++            echo "fmt-mine: CLEAN paths have no uncommitted bytes and may be formatted." >&2
++        fi
++    fi
++    if [ "${#ALLOWED[@]}" -eq 0 ]; then
++        [ "${#REFUSED[@]}" -eq 0 ] || refuse_not_mine
++        return 1
++    fi
++    for arg in "${ALLOWED[@]}"; do FORMAT_ARGS+=("./$arg"); done
++
++    # Enumerate ALL descendants, including clean outside modules, before any write.
++    local EMIT_OUT EMIT_RC=0 REACH_OUT REACH_RC=0 REACH_LIST collateral="" path
++    EMIT_OUT=$(rustfmt --emit stdout --edition 2021 "${FORMAT_ARGS[@]}" 2>&1) || EMIT_RC=$?
++    if [ "$EMIT_RC" -ne 0 ]; then
++        echo "fmt-mine: could not enumerate formatter reach; nothing written." >&2
++        printf '%s\n' "$EMIT_OUT" >&2
++        return 2
++    fi
++    printf '%s\n' "$EMIT_OUT" | python3 "$PATHS" emit "$ROOT" "${ALLOWED[@]}" >/dev/null || return 2
++    if [ "${#REFUSED[@]}" -gt 0 ]; then
++        REACH_OUT=$(rustfmt --check --edition 2021 "${FORMAT_ARGS[@]}" 2>&1) || REACH_RC=$?
++        if [ "$REACH_RC" -ne 0 ] && [ "$REACH_RC" -ne 1 ]; then
++            echo "fmt-mine: could not determine descendant differences; nothing written." >&2
++            return 2
++        fi
++        if [ "$REACH_RC" -eq 1 ]; then
++            REACH_LIST=$(printf '%s\n' "$REACH_OUT" | python3 "$PATHS" diff "$ROOT") || return 2
++            while IFS= read -r path; do
++                for arg in "${REFUSED[@]}"; do
++                    [ "$path" != "$arg" ] || collateral+="$path"$'\n'
++                done
++            done <<< "$REACH_LIST"
++        fi
++        if [ -n "$collateral" ]; then
++            echo 'fmt-mine: REFUSED — rustfmt descends into every declared mod, including files this session does not own; nothing written.' >&2
++            printf '%s' "$collateral" >&2
++            refuse_not_mine
++            return 1
++        fi
++    fi
+ 
+-# The not-mine rows WITH their continuation lines, verdict column intact — unlike
+-# $NOT_MINE above, which is a bare path list for feeding a command. A continuation line
+-# never matches a verdict in $1, so it inherits the disposition of the row above it.
+-NOT_MINE_ROWS=$(printf '%s\n' "$PROV" | awk '
+-    $1=="MINE"||$1=="CLEAN" { drop=1; next }
+-    $1=="SHARED"||$1=="PEER"||$1=="UNKNOWN" { drop=0 }
+-    !drop')
++    local FMT_PASSES=0 FMT_DIRTY="" FMT_RC=0
++    while [ "$FMT_PASSES" -lt 3 ]; do
++        rustfmt --edition 2021 "${FORMAT_ARGS[@]}" || return 2
++        FMT_PASSES=$((FMT_PASSES + 1))
++        FMT_RC=0
++        FMT_DIRTY=$(rustfmt --check --edition 2021 "${FORMAT_ARGS[@]}" 2>&1) || FMT_RC=$?
++        [ "$FMT_RC" -ne 0 ] || break
++        [ "$FMT_RC" -eq 1 ] || { printf '%s\n' "$FMT_DIRTY" >&2; return 2; }
++        printf '%s\n' "$FMT_DIRTY" | python3 "$PATHS" diff "$ROOT" >/dev/null || return 2
++    done
++    if [ "$FMT_RC" -ne 0 ]; then
++        echo "fmt-mine: NOT a fixed point after $FMT_PASSES rustfmt pass(es)." >&2
++        printf '%s\n' "$FMT_DIRTY" >&2
++        return 1
++    fi
++    if [ -n "$EXCLUSIVE" ]; then
++        echo "fmt-mine: formatted ${#ALLOWED[@]} file(s) with operator-declared authorization (fixed point after $FMT_PASSES pass(es))."
++    else
++        echo "fmt-mine: formatted ${#ALLOWED[@]} file(s) written by this session (fixed point after $FMT_PASSES pass(es))."
++    fi
++    if [ "${#REFUSED[@]}" -gt 0 ]; then refuse_not_mine; return 1; fi
++}
+ 
+-# Called AFTER this session's own files have been dealt with, never instead of them.
+-# CLAUDE.md states this script's contract as "formats what scripts/file-provenance.py
+-# attributes to you AND refuses the rest" — two actions in one run, not a choice between
+-# them. Refusing wholesale on a mixed scan meant one peer holding one unformatted file
+-# blocked the gate's mandated step 1 for every other session in the checkout.
+ refuse_not_mine() {
+     echo "fmt-mine: REFUSED — these need formatting and are not this session's to write:" >&2
+-    # The not-mine rows verbatim: they carry the `uds:` socket and the [LIVE] / not-live
+-    # marker, which are what make the remedy below performable. MINE rows are filtered OUT
+-    # rather than printed and then contradicted — listing a file as `MINE` directly beneath
+-    # a header calling it "not this session's to write" was the second half of this
+-    # script's own bug file.
+     printf '%s\n' "$NOT_MINE_ROWS" >&2
+     cat >&2 <<'EOF'
+ 
+-  `cargo fmt` would rewrite them. On a shared checkout that is another session's
+-  uncommitted work, and for an UNTRACKED file git holds no copy to restore.
+-
+-  What to do, and which applies depends on what the scan said above:
+-
+-    [LIVE] peer      the scan printed the `uds:` socket to reach them — but a
+-                     row here does not guarantee they hold anything to format:
+-                     `git diff -- <path>` says whose bytes are dirty right now,
+-                     before you ask them to act on it.
+-    not live         nobody can be asked, and their uncommitted work is abandoned.
+-                     `cargo fmt` is then a judgement call a human should make, not
+-                     one this script should make for them.
+-    UNKNOWN          absence is a statement about COVERAGE, not ownership. A Bash
+-                     write this tool's heuristics miss looks identical to no write
+-                     at all, so this is "cannot tell", never "nobody owns it".
+-    SHARED           this session wrote it AND so did a peer. Their bytes are still
+-                     in there.
+-
+-  There is deliberately no --force. A flag that reformats a peer's file on your
+-  say-so re-admits the exact defect this script exists to prevent, under a
+-  spelling that reads as deliberate. If you have decided it is safe, run
+-  `cargo fmt` yourself — that is the same act, minus the false assurance that a
+-  guard sanctioned it.
++  A [LIVE] row includes the Claude contact socket. It does not guarantee they hold anything to format.
++  An unknown contact or a not-live marker does not establish that work is abandoned.
++  UNKNOWN describes COVERAGE: cannot tell who owns these bytes. SHARED retains a peer's writes.
++  There is no --force. An operator who has established exclusive control can use
++  --exclusive-checkout <absolute Git root>; that authorization is operator-declared.
+ EOF
+-    # Interpolated after the heredoc — which is quoted, so it cannot carry a variable — so
+-    # the reader gets a command to paste rather than a shape to derive. `cargo fmt` stays
+-    # named above because it is what CLAUDE.md prescribes and it remains available; but it
+-    # takes no pathspec and rewrites EVERY `.rs` in the workspace, including files no scan
+-    # here has looked at. This form touches only the rows printed above, and the script
+-    # already uses exactly it thirty lines below — offering the wide command while the
+-    # narrow one was in the file was the third half of this script's own bug file.
+-    # shellcheck disable=SC2086
+-    printf '\n  The narrow form, which touches only the files listed above:\n\n    rustfmt --edition 2021 %s\n' \
+-        "$(printf '%s ' $NOT_MINE)" >&2
++    printf '\n  The narrow form for the listed paths, after coordinating ownership:\n\n    rustfmt --edition 2021' >&2
++    printf ' %q' "${REFUSED[@]}" >&2
++    printf '\n' >&2
+ }
+ 
+-if [ -z "$MINE" ]; then
+-    if [ -n "$NOT_MINE" ]; then
+-        refuse_not_mine
+-    else
+-        # Both partitions empty against a non-empty $WOULD_CHANGE means the scan returned a
+-        # verdict this partition does not name. That is a coverage gap, not a clean tree,
+-        # and it gets its own message rather than falling through into the formatter.
+-        echo "fmt-mine: nothing attributable to this session needs formatting." >&2
+-    fi
+-    exit 1
+-fi
+-
+-# `rustfmt <file>` is NOT per-file. It parses the file and descends into every `mod` the
+-# file declares, so formatting a module root rewrites its children too. Verified at the
+-# bytes on rustfmt 1.9.0-stable: `rustfmt --edition 2021 src/lib.rs` rewrote `src/peer.rs`
+-# through a `pub mod peer;` line, and `--skip-children` is not available outside nightly.
+-#
+-# This was invisible while the guard refused every mixed scan, and the reason is worth
+-# stating because it makes the old wholesale refusal look arbitrary when it was not: a
+-# peer's child module can only be DAMAGED if it also needs formatting, and a file needing
+-# formatting is by construction a row in this same scan — so refusing every scan that had
+-# any not-mine row was accidentally sufficient. Doing only this session's half is safe only
+-# after asking what this session's half would REACH.
+-if [ -n "$NOT_MINE" ]; then
+-    set +e
+-    # shellcheck disable=SC2086
+-    REACH_OUT=$(rustfmt --check --edition 2021 $MINE 2>&1)
+-    REACH_RC=$?
+-    set -e
+-    if [ "$REACH_RC" -gt 1 ]; then
+-        # Same discipline as the provenance scan above: 0 and 1 are verdicts, >1 is the
+-        # tool failing. Cannot tell what it would reach means cannot write.
+-        echo "fmt-mine: could not determine what formatting this session's files would reach" >&2
+-        echo "  (\`rustfmt --check\` exited $REACH_RC). Refusing rather than guess; nothing written." >&2
+-        printf '%s\n' "$REACH_OUT" >&2
+-        exit 2
+-    fi
+-    REACH=$(printf '%s\n' "$REACH_OUT" \
+-        | sed -n 's@^Diff in \(.*\):[0-9][0-9]*:$@\1@p' \
+-        | sed "s@^$ROOT/@@" \
+-        | sort -u)
+-    # `-F -x` so a path is matched whole and literally — a substring or regex match here
+-    # would silently pair `src/a.rs` with `src/ab.rs`.
+-    COLLATERAL=$(printf '%s\n' "$REACH" \
+-        | grep -Fx -f <(printf '%s\n' "$NOT_MINE") || true)
+-    if [ -n "$COLLATERAL" ]; then
+-        echo "fmt-mine: REFUSED — formatting this session's own files would rewrite files it" >&2
+-        echo "  does not own, because \`rustfmt\` descends into every \`mod\` a file declares:" >&2
+-        printf '    %s\n' $COLLATERAL >&2
+-        echo >&2
+-        echo "  Nothing was written, this session's files included — there is no way to format" >&2
+-        echo "  a module root without its children. Ask the owner below to format theirs first," >&2
+-        echo "  then re-run; this session's half will go through on its own." >&2
+-        echo >&2
+-        refuse_not_mine
+-        exit 1
+-    fi
+-fi
+-
+-if [ "$CHECK_ONLY" -eq 1 ]; then
+-    # No longer "all attributed to this session" — on a mixed scan it is some of them.
+-    echo "fmt-mine: would format (attributed to this session):"
+-    printf '  %s\n' $MINE
+-    [ -n "$NOT_MINE" ] || exit 0
+-    refuse_not_mine
+-    exit 1
+-fi
+-
+-# `rustfmt` directly rather than `cargo fmt`, because cargo has no per-file mode
+-# and formatting the whole workspace is the thing being avoided. `--edition` is
+-# required: rustfmt defaults to 2015 and would silently mangle 2021 syntax.
+-# shellcheck disable=SC2086
+-#
+-# A bounded fixed-point loop, not one pass. rustfmt is NOT idempotent on every input:
+-# reproduced on rustfmt 1.9.0-stable, a match arm `Err(e) => { return Some(format!(<over-long
+-# literal>, ...)) }` inside a `mod` needs a SECOND pass before `rustfmt --check` is clean
+-# (`--check` is itself a formatting pass, which is what re-expands the arm the first pass
+-# collapsed). A single pass followed by "formatted" asserted a fixed point it never observed,
+-# and the pre-commit `rustfmt --check` hook was what caught it, on a hunk this script had
+-# just claimed to have formatted.
+-# docs/issues/archive/2026-09-27-fmt-mine-reports-formatted-after-one-rustfmt-pass-that-is-not-a-fixed-point.md
+-#
+-# The bound is small because a real fixed point arrives on pass 2; a construct still moving on
+-# pass 3 is an oscillation, and looping further only hides it. That case is REPORTED and
+-# exits non-zero rather than printing `formatted`.
+-FMT_MAX_PASSES=3
+-FMT_PASSES=0
+-FMT_DIRTY=""
+-while [ "$FMT_PASSES" -lt "$FMT_MAX_PASSES" ]; do
+-    rustfmt --edition 2021 $MINE
+-    FMT_PASSES=$((FMT_PASSES + 1))
+-    # `if`, so a `--check` diff (rc 1) is a verdict rather than a `set -e` abort. rc > 1 is
+-    # rustfmt failing outright, and reads as "still dirty" here, which is the safe direction:
+-    # it can only withhold the word `formatted`, never grant it.
+-    if FMT_DIRTY=$(rustfmt --check --edition 2021 $MINE 2>&1); then
+-        FMT_DIRTY=""
+-        break
+-    fi
+-done
+-if [ -n "$FMT_DIRTY" ]; then
+-    echo "fmt-mine: NOT a fixed point after $FMT_PASSES rustfmt pass(es) — refusing to report \"formatted\"." >&2
+-    echo "  \`rustfmt --check\` still wants to change:" >&2
+-    printf '%s\n' "$FMT_DIRTY" | sed -n 's@^Diff in \(.*\):[0-9][0-9]*:$@    \1@p' | sort -u >&2
+-    echo "  rustfmt is oscillating on a construct in the file(s) above; formatting again will not settle it." >&2
+-    exit 1
+-fi
+-echo "fmt-mine: formatted $(printf '%s\n' "$MINE" | wc -l) file(s) written by this session (fixed point after $FMT_PASSES pass(es))."
+ 
+-# The refusal comes AFTER the write, not instead of it. Exit stays 1: this session's half
+-# is done, the gate is still blocked, and the reader's remaining action is the one named
+-# above — ask the owner. Reporting 0 here would let a caller chaining on success proceed
+-# past unformatted files it does not own.
+-if [ -n "$NOT_MINE" ]; then
+-    refuse_not_mine
+-    exit 1
+-fi
++main "$@"
+diff --git a/scripts/fmt_paths.py b/scripts/fmt_paths.py
+new file mode 100644
+index 00000000..1e1ba8bc
+--- /dev/null
++++ b/scripts/fmt_paths.py
+@@ -0,0 +1,74 @@
++#!/usr/bin/env python3
++"""Parse rustfmt paths literally and reject targets outside the actual checkout."""
++from __future__ import annotations
++import re
++import subprocess
++import sys
++from pathlib import Path
++
++
++def confined_path(value: str, root: Path) -> str:
++    if not value or any(c in value for c in "\r\n\0"):
++        raise ValueError("unrepresentable formatter path")
++    path = Path(value)
++    if not path.is_absolute():
++        path = root / path
++    resolved = path.resolve(strict=True)
++    if not resolved.is_file():
++        raise ValueError("formatter target is not a file")
++    resolved.relative_to(root)
++    checkout = subprocess.run(["git", "-C", str(resolved.parent), "rev-parse", "--show-toplevel"],
++                              capture_output=True, text=True)
++    if checkout.returncode != 0 or Path(checkout.stdout.strip()).resolve(strict=True) != root:
++        raise ValueError("formatter target belongs to a different Git checkout")
++    # Preserve the spelling given to provenance, including spaces and symlinks.
++    return str(path.relative_to(root))
++
++
++def parse_paths(mode: str, text: str, root: Path, targets: list[str]) -> list[str]:
++    if mode in ("allow", "refuse"):
++        verdicts = {}
++        for line in text.splitlines():
++            match = re.match(r"^(MINE|CLEAN|PEER|SHARED|UNKNOWN)\s+(.+)$", line)
++            if not match:
++                continue
++            verdict, path = match.groups()
++            if path not in targets or path in verdicts:
++                raise ValueError("ambiguous or unexpected provenance target")
++            confined_path(path, root)
++            verdicts[path] = verdict
++        if set(verdicts) != set(targets):
++            raise ValueError("provenance did not return exactly one verdict per target")
++        return [p for p in targets if (verdicts[p] in ("MINE", "CLEAN")) == (mode == "allow")]
++    pattern = r"^Diff in (.*):[0-9]+:$" if mode == "diff" else r"^(/.*):$"
++    found = []
++    for line in text.splitlines():
++        match = re.match(pattern, line)
++        if match:
++            path = confined_path(match.group(1), root)
++            if path not in found:
++                found.append(path)
++    if mode == "emit" and any(confined_path(t, root) not in found for t in targets):
++        raise ValueError("rustfmt did not enumerate every permitted module root")
++    if mode == "diff" and not found:
++        raise ValueError("formatting check named no diff targets")
++    return found
++
++
++def main() -> int:
++    try:
++        mode, root_arg, *targets = sys.argv[1:]
++        if mode not in ("diff", "emit", "allow", "refuse"):
++            raise ValueError("unknown path parser mode")
++        root = Path(root_arg).resolve(strict=True)
++        paths = parse_paths(mode, sys.stdin.read(), root, targets)
++        for path in paths:
++            print(path)
++        return 0
++    except (ValueError, OSError, RuntimeError) as error:
++        print(f"fmt-mine: cannot safely resolve formatter targets: {error}", file=sys.stderr)
++        return 2
++
++
++if __name__ == "__main__":
++    raise SystemExit(main())
+diff --git a/scripts/gate.sh b/scripts/gate.sh
+index d349cccb..bd8bd025 100755
+--- a/scripts/gate.sh
++++ b/scripts/gate.sh
+@@ -43,25 +43,62 @@
+ 
+ set -u
+ 
+-if [ -z "${CLAUDE_CODE_SESSION_ID:-}" ]; then
+-    cat >&2 <<'EOF'
+-gate.sh: CLAUDE_CODE_SESSION_ID is unset. Step 1, `fmt-mine.sh`, needs it to tell your
+-files from a peer's, and outside a Claude session you are almost certainly the only writer
+-to this checkout, which is the case the shared `target/` is already correct for. Run the
+-light Python lane and four Rust commands directly:
+-
+-  python3 ./scripts/python-tests.py --lane light ; \
+-  ./scripts/fmt-mine.sh ; \
+-  cargo clippy --workspace --all-targets --features local-embed -- -D warnings ; \
+-  cargo test --workspace --no-default-features ; \
+-  cargo test --workspace
++CHECK_ONLY=0
++CONTEXT=""
++EXCLUSIVE=""
++while [ "$#" -gt 0 ]; do
++    arg="$1"; shift
++    case "$arg" in
++        --check) [ "$CHECK_ONLY" -eq 0 ] || { echo "gate.sh: repeated --check" >&2; exit 2; }; CHECK_ONLY=1 ;;
++        --context|--exclusive-checkout)
++            [ "$#" -gt 0 ] && [ -n "$1" ] || { echo "gate.sh: $arg requires an absolute path" >&2; exit 2; }
++            case "$1" in /*) ;; *) echo "gate.sh: $arg requires an absolute path" >&2; exit 2 ;; esac
++            if [ "$arg" = "--context" ]; then
++                [ -z "$CONTEXT" ] || exit 2; CONTEXT="$1"
++            else
++                [ -z "$EXCLUSIVE" ] || exit 2; EXCLUSIVE="$1"
++            fi
++            shift ;;
++        *) echo "gate.sh: unknown argument $arg" >&2; exit 2 ;;
++    esac
++done
++[ "$CHECK_ONLY" -eq 0 ] || [ -z "$EXCLUSIVE" ] || { echo "gate.sh: conflicting formatter modes" >&2; exit 2; }
++ROOT=$(git rev-parse --show-toplevel 2>/dev/null) || { echo "gate.sh: not inside a Git checkout" >&2; exit 2; }
++cd "$ROOT" || exit 2
++ROOT=$(pwd -P)
++SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)
++if [ -n "$EXCLUSIVE" ]; then
++    python3 -c 'import pathlib,sys; p=pathlib.Path(sys.argv[1]); raise SystemExit(0 if p.is_absolute() and p.resolve(strict=True)==pathlib.Path(sys.argv[2]) else 2)' "$EXCLUSIVE" "$ROOT" || {
++        echo "gate.sh: exclusive declaration must match the actual Git root" >&2; exit 2;
++    }
++fi
+ 
+-Install Python prerequisites with `python3 -m pip install -r requirements-python-light.txt`.
+-Chain them with `;` and read all five exit codes. Never `&&`: `cargo test` builds THEN
+-runs, so a failing lean lane has already overwritten target/debug/codescout by the time
+-anything can fail, and `&&` would then skip the default lane that repairs it.
+-EOF
+-    exit 2
++CONTEXT_SNAPSHOT=""
++trap 'rm -f -- "${CONTEXT_SNAPSHOT:-}"' EXIT
++trap 'exit 130' INT
++trap 'exit 143' TERM
++CONTEXT_BLOCKED=0
++FMT_ARGS=()
++if [ "$CHECK_ONLY" -eq 1 ]; then
++    FMT_ARGS=(--check)
++else
++    CONTEXT_ARGS=()
++    [ -z "$CONTEXT" ] || CONTEXT_ARGS=(--context "$CONTEXT")
++    RESOLVE_RC=0
++    RESOLUTION=$(python3 "$SCRIPT_DIR/session_context.py" --workspace "$ROOT" "${CONTEXT_ARGS[@]}") || RESOLVE_RC=$?
++    STATE=$(printf '%s' "$RESOLUTION" | python3 -c 'import json,sys; print(json.load(sys.stdin)["state"])') || STATE=unsupported
++    if [ "$RESOLVE_RC" -eq 0 ] && [ "$STATE" = available ]; then
++        CONTEXT_SNAPSHOT=$(mktemp /tmp/codescout-gate-context.XXXXXX) || exit 2
++        printf '%s' "$RESOLUTION" | python3 -c 'import json,sys; json.dump(json.load(sys.stdin)["context"],sys.stdout)' > "$CONTEXT_SNAPSHOT" || exit 2
++        export CODESCOUT_CONTEXT_FILE="$CONTEXT_SNAPSHOT"
++    elif [ -n "$EXCLUSIVE" ] && [ "$STATE" = missing ]; then
++        : # The formatter will report operator-declared exclusive authorization.
++    else
++        CONTEXT_BLOCKED=1
++        echo "gate.sh: formatting context blocked ($STATE); remaining verification lanes will run." >&2
++        printf '%s\n' "$RESOLUTION" >&2
++    fi
++    [ -z "$EXCLUSIVE" ] || FMT_ARGS=(--exclusive-checkout "$EXCLUSIVE")
+ fi
+ 
+ # The pool is outside the repo on purpose: nothing there needs gitignoring, a peer's
+@@ -110,8 +147,18 @@ PYTHON_LIGHT=$?
+ 
+ # `;` throughout, never `&&` — see the heredoc above. The default lane does two jobs,
+ # reporting AND rebuilding, and only the first should ever be short-circuited.
+-./scripts/fmt-mine.sh
+-FMT=$?
++if [ "$CONTEXT_BLOCKED" -eq 1 ]; then
++    FMT=2
++    FMT_STATE=context-blocked
++else
++    ./scripts/fmt-mine.sh "${FMT_ARGS[@]}"
++    FMT=$?
++    if [ "$FMT" -eq 0 ]; then FMT_STATE=passed
++    elif [ "$FMT" -eq 1 ] && [ "$CHECK_ONLY" -eq 1 ]; then FMT_STATE=differences
++    elif [ "$FMT" -eq 1 ]; then FMT_STATE=ownership-refused
++    else FMT_STATE=tool-error
++    fi
++fi
+ cargo clippy --workspace --all-targets --features local-embed -- -D warnings
+ CLIPPY=$?
+ cargo test --workspace --no-default-features
+@@ -123,7 +170,7 @@ echo
+ echo "gate.sh: tree size $(du -sh "$CARGO_TARGET_DIR" 2>/dev/null | cut -f1) at $CARGO_TARGET_DIR"
+ [ -n "${SLOT_FD:-}" ] && echo "gate.sh: pool total $(du -sh "$GATE_POOL" 2>/dev/null | cut -f1) at $GATE_POOL"
+ echo "PYTHON LIGHT EXIT -> PYTHON_LIGHT=$PYTHON_LIGHT"
+-echo "GATE EXITS -> FMT=$FMT CLIPPY=$CLIPPY LEAN=$LEAN DEFAULT=$DEFAULT"
++echo "GATE EXITS -> FMT=$FMT CLIPPY=$CLIPPY LEAN=$LEAN DEFAULT=$DEFAULT FMT_STATE=$FMT_STATE"
+ 
+ # What a green run here does NOT cover. Printed every time because this output is what a
+ # session reads when it decides "green". Pinned by gate_script_prints_what_green_does_not_cover
+@@ -136,21 +183,8 @@ if [ "$CODESCOUT_SKIP_ONNX_TESTS" = 1 ]; then
+     echo "  - the two local ONNX weight tests, which print 'ok' while skipped: CI's local-embed job runs them"
+ fi
+ 
+-# FMT is the one ambiguous code, and the ambiguity is routine rather than rare on a shared
+-# checkout — so it is named here rather than left for the reader to infer from a bare 1.
+ if [ "$FMT" -ne 0 ]; then
+-    cat >&2 <<'EOF'
+-
+-gate.sh: FMT is non-zero, which on a shared checkout is AMBIGUOUS and is usually not your
+-failure. `fmt-mine.sh` exits non-zero in two unrelated cases:
+-
+-  * your own Rust needed formatting — act on it; or
+-  * it REFUSED a peer's unformatted file, which is the guard working. There is no
+-    --force, and `cargo fmt` would rewrite their uncommitted work.
+-
+-Read its output above: it names the owner's sessionId and the socket to ask them on. The
+-other three codes are unaffected either way.
+-EOF
++    echo "gate.sh: formatting outcome $FMT_STATE (exit $FMT); read its diagnostics above. Other lanes still ran." >&2
+ fi
+ 
+ # Exit non-zero if ANY lane failed. The five codes above are the real report — this
+diff --git a/scripts/provenance_records.py b/scripts/provenance_records.py
+new file mode 100644
+index 00000000..ec8074db
+--- /dev/null
++++ b/scripts/provenance_records.py
+@@ -0,0 +1,60 @@
++"""Native history decoders emit these records; ownership policy stays host-neutral."""
++from dataclasses import dataclass
++import json
++from pathlib import Path
++
++
++@dataclass(frozen=True)
++class Operation:
++    source_id: str
++    call_id: str | None
++    principal: str | None
++    agent_id: str | None
++    timestamp: str | None
++    cwd: Path | None
++    name: str
++    input: dict[str, object]
++    outcome: str
++    atomic: bool
++    is_child: bool
++    raw_input: str | None
++
++
++@dataclass(frozen=True)
++class CoverageGap:
++    source_id: str
++    reason: str
++    workspace: Path | None
++    paths: tuple[str, ...] | None = None
++
++
++@dataclass
++class HistoryBatch:
++    operations: list[Operation]
++    gaps: list[CoverageGap]
++
++
++@dataclass
++class ProvenanceScan:
++    owners: dict[str, list[tuple[str, str | None]]]
++    evidence: dict[tuple[str, str, str | None], list[str] | None]
++    gaps: list[CoverageGap]
++
++
++def result_refused(block: dict) -> bool:
++    """Native is_error and Codescout's recoverable refusals both mean no atomic write."""
++    if block.get("is_error") is True:
++        return True
++    content = block.get("content")
++    if isinstance(content, list):
++        text = " ".join(p.get("text", "") for p in content
++                        if isinstance(p, dict) and isinstance(p.get("text"), str))
++    elif isinstance(content, str):
++        text = content
++    else:
++        return False
++    try:
++        body = json.loads(text.strip())
++    except (ValueError, TypeError):
++        return False
++    return isinstance(body, dict) and (body.get("ok") is False or "pending_ack" in body)
+diff --git a/scripts/session-context-v1.schema.json b/scripts/session-context-v1.schema.json
+new file mode 100644
+index 00000000..f7e9b761
+--- /dev/null
++++ b/scripts/session-context-v1.schema.json
+@@ -0,0 +1,57 @@
++{
++  "$schema": "https://json-schema.org/draft/2020-12/schema",
++  "title": "Codescout session context v1",
++  "type": "object",
++  "required": [
++    "schema_version",
++    "harness",
++    "session_id",
++    "agent_id",
++    "workspace",
++    "source",
++    "harness_version"
++  ],
++  "properties": {
++    "schema_version": {
++      "type": "integer",
++      "const": 1
++    },
++    "harness": {
++      "enum": [
++        "claude-code",
++        "codex",
++        "manual"
++      ]
++    },
++    "session_id": {
++      "type": "string",
++      "minLength": 1
++    },
++    "agent_id": {
++      "type": [
++        "string",
++        "null"
++      ],
++      "minLength": 1
++    },
++    "workspace": {
++      "type": "string",
++      "minLength": 1,
++      "description": "Absolute canonical checkout root; consumer verifies checkout equality."
++    },
++    "source": {
++      "enum": [
++        "native-hook",
++        "native-env",
++        "explicit"
++      ]
++    },
++    "harness_version": {
++      "type": [
++        "string",
++        "null"
++      ],
++      "minLength": 1
++    }
++  }
++}
+diff --git a/scripts/session_context.py b/scripts/session_context.py
+new file mode 100644
+index 00000000..06d3fadf
+--- /dev/null
++++ b/scripts/session_context.py
+@@ -0,0 +1,163 @@
++#!/usr/bin/env python3
++"""Resolve invocation identity without pointers, PID inference or host precedence."""
++from dataclasses import asdict, dataclass
++import json
++import os
++from pathlib import Path
++import subprocess
++import sys
++from typing import Mapping
++
++
++@dataclass(frozen=True)
++class SessionContext:
++    schema_version: int
++    harness: str
++    session_id: str
++    agent_id: str | None
++    workspace: Path
++    source: str
++    harness_version: str | None
++
++    def to_dict(self) -> dict:
++        value = asdict(self)
++        value["workspace"] = str(self.workspace)
++        return value
++
++
++@dataclass(frozen=True)
++class ContextResolution:
++    state: str
++    context: SessionContext | None
++    reason: str
++
++    def to_dict(self) -> dict:
++        return {"state": self.state,
++                "context": self.context.to_dict() if self.context else None,
++                "reason": self.reason}
++
++
++def principal_key(harness: str, session_id: str) -> str:
++    return harness + ":" + session_id
++
++
++def _failure(state: str, reason: str) -> ContextResolution:
++    return ContextResolution(state, None, reason)
++
++
++def _nonempty(value: object) -> bool:
++    return isinstance(value, str) and bool(value.strip())
++
++
++def validate_context(value: object, workspace: Path) -> ContextResolution:
++    if not isinstance(value, dict):
++        return _failure("unsupported", "context must be an object")
++    fields = ("schema_version", "harness", "session_id", "agent_id",
++              "workspace", "source", "harness_version")
++    for field in fields:
++        if field not in value:
++            return _failure("unsupported", f"missing context field {field}")
++    version = value["schema_version"]
++    if type(version) not in (int, float) or version != 1:
++        return _failure("unsupported", "unsupported schema_version")
++    if value["harness"] not in ("claude-code", "codex", "manual"):
++        return _failure("unsupported", "unsupported harness")
++    if value["source"] not in ("native-hook", "native-env", "explicit"):
++        return _failure("unsupported", "unsupported source")
++    if not _nonempty(value["session_id"]):
++        return _failure("unsupported", "session_id must be a nonempty string")
++    for field in ("agent_id", "harness_version"):
++        if value[field] is not None and not _nonempty(value[field]):
++            return _failure("unsupported", f"{field} must be null or a nonempty string")
++    if not _nonempty(value["workspace"]) or not Path(value["workspace"]).is_absolute():
++        return _failure("unsupported", "workspace must be absolute")
++    try:
++        actual = workspace.resolve(strict=True)
++        supplied = Path(value["workspace"]).resolve(strict=True)
++        if actual != supplied:
++            return _failure("conflicting", "context workspace differs from invocation checkout")
++    except (OSError, RuntimeError):
++        return _failure("unsupported", "workspace cannot be resolved")
++    return ContextResolution("available", SessionContext(
++        1, value["harness"], value["session_id"], value["agent_id"],
++        actual, value["source"], value["harness_version"]), "")
++
++
++def _native_context(workspace: Path, environ: Mapping[str, str]) -> ContextResolution:
++    claude = environ.get("CLAUDE_CODE_SESSION_ID")
++    codex = environ.get("CODEX_SESSION_ID")
++    if claude and codex:
++        return _failure("conflicting", "both CLAUDE_CODE_SESSION_ID and CODEX_SESSION_ID are present")
++    if not claude and not codex:
++        return _failure("missing", "no native root identity; use --context or --check")
++    harness, root = ("claude-code", claude) if claude else ("codex", codex)
++    thread = environ.get("CODEX_THREAD_ID") if codex else None
++    agent = thread if thread and thread != root else None
++    version = environ.get("CODEX_VERSION") if codex else None
++    return validate_context({
++        "schema_version": 1, "harness": harness, "session_id": root,
++        "agent_id": agent, "workspace": str(workspace), "source": "native-env",
++        "harness_version": version or None,
++    }, workspace)
++
++
++def resolve_context(workspace: Path, environ: Mapping[str, str],
++                    context_path: Path | None = None) -> ContextResolution:
++    native = _native_context(workspace, environ)
++    inherited = environ.get("CODESCOUT_CONTEXT_FILE")
++    paths = [Path(p) for p in (context_path, inherited) if p is not None and str(p)]
++    if not paths:
++        return native
++    if any(not p.is_absolute() for p in paths):
++        return _failure("unsupported", "context file path must be absolute")
++    try:
++        resolved = [p.resolve(strict=True) for p in paths]
++    except (OSError, RuntimeError):
++        return _failure("unsupported", "context file cannot be resolved")
++    if len(set(resolved)) > 1:
++        return _failure("conflicting", "CLI and CODESCOUT_CONTEXT_FILE identify different context files")
++    try:
++        explicit = validate_context(json.loads(resolved[0].read_text()), workspace)
++    except (OSError, UnicodeError, ValueError):
++        return _failure("unsupported", "context file is unreadable or malformed JSON")
++    if explicit.state != "available":
++        return explicit
++    if native.state in ("conflicting", "unsupported"):
++        return native
++    if native.context:
++        a, b = explicit.context, native.context
++        if (a.harness, a.session_id, a.workspace) != (b.harness, b.session_id, b.workspace):
++            return _failure("conflicting", "explicit context disagrees with native harness, root or workspace")
++        if a.agent_id is not None and b.agent_id is not None and a.agent_id != b.agent_id:
++            return _failure("conflicting", "explicit agent_id disagrees with native child identity")
++    return explicit
++
++
++def main(argv: list[str] | None = None) -> int:
++    try:
++        args = list(sys.argv[1:] if argv is None else argv)
++        options = {}
++        while args:
++            flag = args.pop(0)
++            if flag not in ("--workspace", "--context") or flag in options or not args:
++                raise ValueError("usage: --workspace <absolute-root> [--context <absolute-json-path>]")
++            options[flag] = args.pop(0)
++        root = Path(options.get("--workspace", ""))
++        if "--workspace" not in options or not root.is_absolute():
++            raise ValueError("absolute --workspace required")
++        git = subprocess.run(["git", "rev-parse", "--show-toplevel"], capture_output=True, text=True)
++        if git.returncode:
++            raise ValueError("invocation is not in a Git checkout")
++        if Path(git.stdout.strip()).resolve(strict=True) != root.resolve(strict=True):
++            result = _failure("conflicting", "supplied workspace differs from actual Git checkout")
++        else:
++            path = Path(options["--context"]) if "--context" in options else None
++            result = resolve_context(root, os.environ, path)
++    except (ValueError, OSError, RuntimeError) as error:
++        result = _failure("unsupported", str(error))
++    print(json.dumps(result.to_dict()))
++    return 0 if result.state == "available" else 2
++
++
++if __name__ == "__main__":
++    raise SystemExit(main())
+diff --git a/tests/file-provenance.sh b/tests/file-provenance.sh
+index 3eaee320..8a9086b2 100755
+--- a/tests/file-provenance.sh
++++ b/tests/file-provenance.sh
+@@ -27,6 +27,10 @@
+ # whatever this machine's real logs happen to contain today.
+ set -u
+ 
++# This legacy matrix supplies only Claude histories; never consult live Codex profiles.
++export FILE_PROVENANCE_CODEX_ROOTS_JSON='[]'
++unset CODEX_SESSION_ID CODEX_THREAD_ID CODESCOUT_CONTEXT_FILE
++
+ SRC="$(cd "$(dirname "$0")/../scripts" && pwd)"
+ TOOL="$SRC/file-provenance.py"
+ PASS=0
+@@ -395,6 +399,8 @@ c.execute("CREATE TABLE artifact (id TEXT PRIMARY KEY, abs_path TEXT)")
+ c.execute("INSERT INTO artifact VALUES (?,?)", ("deadbeef00000001", os.path.join(root, "docs/tracked.md")))
+ c.commit()
+ CATALOG_SEED
++# Keep the catalog fixture attached while the accumulating transcript refers to it.
++export FILE_PROVENANCE_CATALOG="$CAT"
+ runc() { REPO_ROOT="$T/repo" FILE_PROVENANCE_ROOTS="$ROOTS" FILE_PROVENANCE_CATALOG="$CAT"          CLAUDE_CODE_SESSION_ID="$ME" python3 "$TOOL" "$@" 2>&1; }
+ 
+ tool_use "$A" mcp__codescout__artifact '{"action":"update","id":"deadbeef00000001","patch":{"body":"x"}}'  # legacy: retired tool name, still present in older transcripts
+@@ -415,6 +421,18 @@ tool_use "$A" mcp__codescout__artifact '{"action":"update","id":"fffffffffffffff
+ out="$(runc --all docs/tracked.md)"
+ has "an unresolvable id does not break the run" "$out" "THIS session"
+ has "and the resolvable ones still answer" "$out" "SHARED"
++has "an unresolvable write target reports coverage uncertainty" "$out" "coverage gap"
++# This case deliberately introduced an unresolved write. Remove that fixture before
++# unrelated later cases: its workspace-wide uncertainty is real, not absent authorship.
++python3 - "$A" <<'REMOVE_GHOST_FIXTURE'
++import json, sys
++from pathlib import Path
++path = Path(sys.argv[1])
++rows = [json.loads(line) for line in path.read_text().splitlines()]
++rows = [r for r in rows if not any(b.get("input", {}).get("id") == "ffffffffffffffff"
++                                   for b in r.get("message", {}).get("content", []))]
++path.write_text("".join(json.dumps(r) + "\n" for r in rows))
++REMOVE_GHOST_FIXTURE
+ 
+ echo
+ echo "== doc() is that SAME tool renamed, and the rename made every librarian write invisible =="
+@@ -880,7 +898,7 @@ call_result "$A" mcp__codescout__edit_file "$(edit_in src/ab_filed.rs)" "$OK_CS"
+ dirty src/ab_filed.rs
+ out="$(run src/ab_filed.rs)"
+ eq    "a dirty path whose peer bytes are already committed is MINE, not SHARED" "$(verdict_of "$out")" "MINE"
+-hasnt "and the committed peer is not named as a writer" "$out" "written by $PEER"
++hasnt "and the committed peer is not named as a writer" "$out" "written by claude-code:$PEER"
+ has   "and the output says why it was set aside" "$out" "already in HEAD"
+ has   "while this session is still named" "$out" "THIS session"
+ 
+@@ -889,7 +907,7 @@ call_at "$B" mcp__codescout__create_file "$(create_in src/ab_only.rs "$LONG")" "
+ dirty src/ab_only.rs
+ out="$(run src/ab_only.rs)"
+ eq    "with only the committed peer on record, a dirty path is UNKNOWN, not PEER" "$(verdict_of "$out")" "UNKNOWN"
+-hasnt "and the committed peer is not named" "$out" "written by $PEER"
++hasnt "and the committed peer is not named" "$out" "written by claude-code:$PEER"
+ has   "and the output says why it was set aside" "$out" "already in HEAD"
+ has   "and does not read as 'nobody owns it'" "$out" "WHO holds the uncommitted bytes is not recorded"
+ 
+@@ -900,7 +918,7 @@ call_result "$A" mcp__codescout__edit_file "$(edit_in src/ab_live.rs)" "$OK_CS"
+ printf '%s\n' "$LONG2" >> "$T/repo/src/ab_live.rs"
+ out="$(run src/ab_live.rs)"
+ eq  "TWIN: a boundary write whose text is NOT in HEAD is still SHARED" "$(verdict_of "$out")" "SHARED"
+-has "TWIN: and the peer is named" "$out" "written by $PEER"
++has "TWIN: and the peer is named" "$out" "written by claude-code:$PEER"
+ 
+ # --- 3. TWIN: a shell write carries no text, so it cannot be shown to be committed ---------
+ seed_at src/ab_bash.rs "$LONG"
+@@ -909,7 +927,7 @@ call_result "$A" mcp__codescout__edit_file "$(edit_in src/ab_bash.rs)" "$OK_CS"
+ dirty src/ab_bash.rs
+ out="$(run src/ab_bash.rs)"
+ eq  "TWIN: a boundary Bash write is still SHARED" "$(verdict_of "$out")" "SHARED"
+-has "TWIN: and the peer is named" "$out" "written by $PEER"
++has "TWIN: and the peer is named" "$out" "written by claude-code:$PEER"
+ 
+ # --- 4. TWIN: a short string proves nothing by occurring in a file --------------------------
+ seed_at src/ab_short.rs "let value = compute();"
+@@ -946,13 +964,13 @@ has "TWIN: and still named" "$out" "THIS session"
+ # --- 8. TWIN: --all names its own floor, so there is no boundary to resolve -----------------
+ out="$(run --all src/ab_only.rs)"
+ eq  "TWIN: --all on the committed-peer path names the peer again (PEER)" "$(verdict_of "$out")" "PEER"
+-has "TWIN: and names it" "$out" "written by $PEER"
++has "TWIN: and names it" "$out" "written by claude-code:$PEER"
+ 
+ # --- 9. TWIN: --since is the caller's own floor, not git's second-resolution one -------------
+ out="$(run --since "$COMMIT_ISO" src/ab_only.rs)"
+ eq  "TWIN: --since at the commit's second names the peer (PEER); it is not git's floor" \
+     "$(verdict_of "$out")" "PEER"
+-has "TWIN: and names it" "$out" "written by $PEER"
++has "TWIN: and names it" "$out" "written by claude-code:$PEER"
+ 
+ echo
+ echo "== a sessionId is an ADDRESS, not just evidence -- the registry join =="
+@@ -1507,7 +1525,7 @@ spec = importlib.util.spec_from_file_location("fp", tool)
+ fp = importlib.util.module_from_spec(spec)
+ spec.loader.exec_module(fp)
+ print("\n".join(sorted(p for p, ws in fp.scan(Path(root)).items()
+-                       if any(w.startswith(prefix) for w, _ in ws))))
++                       if any(w.partition(":")[2].startswith(prefix) for w, _ in ws))))
+ PY
+ }
+ 
+diff --git a/tests/fixtures/native-histories/codex-root-refused-wrapper.jsonl b/tests/fixtures/native-histories/codex-root-refused-wrapper.jsonl
+new file mode 100644
+index 00000000..28b12c54
+--- /dev/null
++++ b/tests/fixtures/native-histories/codex-root-refused-wrapper.jsonl
+@@ -0,0 +1,3 @@
++{"timestamp": "2026-10-10T11:47:10.916Z", "ordinal": 0, "type": "session_meta", "payload": {"session_id": "codex-root", "id": "codex-root", "cwd": "${WORKSPACE}", "cli_version": "0.160.0", "source": "exec", "thread_source": "user", "history_mode": "paginated"}}
++{"timestamp": "2026-10-10T11:47:22.908Z", "ordinal": 15, "type": "response_item", "payload": {"type": "custom_tool_call", "status": "completed", "call_id": "codex-call", "name": "exec", "input": "const result = await tools.exec_command({cmd: \"printf capture-ok\", max_output_tokens: 100});\ntext(result.output);\n"}}
++{"timestamp": "2026-10-10T11:47:23.140Z", "ordinal": 17, "type": "response_item", "payload": {"type": "custom_tool_call_output", "call_id": "codex-call", "output": [{"type": "input_text", "text": "Script failed\nWall time 0.2 seconds\nOutput:\n"}, {"type": "input_text", "text": "Script error:\nCommand blocked by PreToolUse hook: This call is blocked because codescout offers a leaner path for shell work.\n\nCommand: printf capture-ok\n\nSuggested codescout tools:\n  run_command(command=\"printf capture-ok\")          \u2014 same command with smart summaries + @ref buffers\n\nFor any other shell command: run_command(command=\"COMMAND\") \u2014 same execution, with:\n- Large output stored in @cmd_* buffers (saves context tokens)\n- Buffers queryable: grep PATTERN @cmd_id, tail -20 @cmd_id\n- Smart summaries returned inline\n\nCross-repo: run_command sandboxes cwd to the project. For a sibling repo's git,\nuse run_command(command=\"git -C /abs/path <subcommand>\") from here \u2014 no cd needed.\n\nIf these codescout tools are not in your tool list, the MCP server has disconnected and this redirect points at nothing \u2014 ask the user to run /mcp, or to run the command for you by typing \"! <command>\" at the prompt.. Command: printf capture-ok"}]}}
+diff --git a/tests/fixtures/session-context-v1.json b/tests/fixtures/session-context-v1.json
+new file mode 100644
+index 00000000..5c6e7fc1
+--- /dev/null
++++ b/tests/fixtures/session-context-v1.json
+@@ -0,0 +1,96 @@
++{
++  "contract_version": 1,
++  "origin": "synthetic contract cases; native captures catalogued separately",
++  "cases": [
++    {
++      "name": "claude-code-root",
++      "harness": "claude-code",
++      "input": {
++        "session_id": "same:root",
++        "cwd": "${WORKSPACE}"
++      },
++      "harness_version": "fixture-version",
++      "expected": {
++        "state": "available",
++        "context": {
++          "schema_version": 1,
++          "harness": "claude-code",
++          "session_id": "same:root",
++          "agent_id": null,
++          "workspace": "${WORKSPACE}",
++          "source": "native-hook",
++          "harness_version": "fixture-version"
++        },
++        "reason": ""
++      }
++    },
++    {
++      "name": "claude-code-child:1",
++      "harness": "claude-code",
++      "input": {
++        "session_id": "same:root",
++        "cwd": "${WORKSPACE}",
++        "agent_id": "child:1"
++      },
++      "harness_version": "fixture-version",
++      "expected": {
++        "state": "available",
++        "context": {
++          "schema_version": 1,
++          "harness": "claude-code",
++          "session_id": "same:root",
++          "agent_id": "child:1",
++          "workspace": "${WORKSPACE}",
++          "source": "native-hook",
++          "harness_version": "fixture-version"
++        },
++        "reason": ""
++      }
++    },
++    {
++      "name": "codex-root",
++      "harness": "codex",
++      "input": {
++        "session_id": "same:root",
++        "cwd": "${WORKSPACE}"
++      },
++      "harness_version": "fixture-version",
++      "expected": {
++        "state": "available",
++        "context": {
++          "schema_version": 1,
++          "harness": "codex",
++          "session_id": "same:root",
++          "agent_id": null,
++          "workspace": "${WORKSPACE}",
++          "source": "native-hook",
++          "harness_version": "fixture-version"
++        },
++        "reason": ""
++      }
++    },
++    {
++      "name": "codex-child:1",
++      "harness": "codex",
++      "input": {
++        "session_id": "same:root",
++        "cwd": "${WORKSPACE}",
++        "agent_id": "child:1"
++      },
++      "harness_version": "fixture-version",
++      "expected": {
++        "state": "available",
++        "context": {
++          "schema_version": 1,
++          "harness": "codex",
++          "session_id": "same:root",
++          "agent_id": "child:1",
++          "workspace": "${WORKSPACE}",
++          "source": "native-hook",
++          "harness_version": "fixture-version"
++        },
++        "reason": ""
++      }
++    }
++  ]
++}
+diff --git a/tests/fmt-mine.sh b/tests/fmt-mine.sh
+index 2fb8133c..258d4e94 100755
+--- a/tests/fmt-mine.sh
++++ b/tests/fmt-mine.sh
+@@ -177,7 +177,7 @@ P=$(newproj); deformed "$P"
+ run "$P" "$MINE_STUB" -- --check
+ # NOTE: --check is passed through `run`'s trailing args; the script reads \$1.
+ OUT=$(cd "$P" && FMT_MINE_PROVENANCE="$MINE_STUB" CLAUDE_CODE_SESSION_ID=test-sid "$TOOL" --check 2>&1); RC=$?
+-eq "--check exits 0" "$RC" "0"
++eq "--check reports differences with exit 1" "$RC" "1"
+ has "--check names the file" "$OUT" "src/lib.rs"
+ eq "--check wrote NOTHING" "$(grep -c 'pub fn f(  )' "$P/src/lib.rs")" "1"
+ 
+@@ -328,6 +328,7 @@ cat > "$WORK/fakebin/rustfmt" <<FAKE
+ #!/usr/bin/env bash
+ for a in "\$@"; do
+     [ "\$a" = "--version" ] && exec "$REAL_RUSTFMT" --version
++    [ "\$a" = "--emit" ] && exec "$REAL_RUSTFMT" "\$@"
+ done
+ for a in "\$@"; do
+     if [ "\$a" = "--check" ]; then
+diff --git a/tests/gate-slot.sh b/tests/gate-slot.sh
+index f27a2a8c..45377d6e 100755
+--- a/tests/gate-slot.sh
++++ b/tests/gate-slot.sh
+@@ -55,6 +55,9 @@ trap cleanup EXIT
+ 
+ POOL="$WORK/pool"
+ mkdir -p "$WORK/repo/scripts" "$WORK/bin" "$WORK/home"
++git -C "$WORK/repo" init -q
++cp "$(dirname "$GATE")/session_context.py" "$(dirname "$GATE")/session-context-v1.schema.json" "$WORK/repo/scripts/"
++printf "# Fixture Python lane.\n" > "$WORK/repo/scripts/python-tests.py"
+ printf '#!/usr/bin/env bash\nexit 0\n' > "$WORK/repo/scripts/fmt-mine.sh"
+ chmod +x "$WORK/repo/scripts/fmt-mine.sh"
+ 
+@@ -64,7 +67,7 @@ cat > "$WORK/bin/cargo" <<'EOF'
+ #!/usr/bin/env bash
+ tag="${GATE_TEST_TAG:?}"; w="${GATE_TEST_WORK:?}"
+ echo "${CARGO_TARGET_DIR:-<unset>}" >> "$w/seen-$tag"
+-if [ -e "$w/hold-$tag" ] && [ ! -e "$w/started-$tag" ]; then
++if [ -e "$w/hold-$tag" ] && [ ! -e "$w/started-$tag" ] && { [ "${GATE_TEST_HOLD_DEFAULT:-0}" != 1 ] || [ "$*" = "test --workspace" ]; }; then
+     echo $$ > "$w/worker-$tag.pid"
+     # The stub's parent IS the gate's bash. `$!` in the suite is only a wrapper subshell.
+     echo "$PPID" > "$w/gate-$tag.pid"
+@@ -79,9 +82,15 @@ chmod +x "$WORK/bin/cargo"
+ # FUNCTION is a wrapper subshell, so case D kills the pid the stub records instead.
+ run_gate() {
+     local tag="$1" sid="$2"; shift 2
+-    ( echo "$BASHPID" > "$WORK/gatepid-$tag"; cd "$WORK/repo" && exec env -u CARGO_TARGET_DIR HOME="$WORK/home" \
+-        PATH="$WORK/bin:$PATH" CLAUDE_CODE_SESSION_ID="$sid" CODESCOUT_GATE_POOL="$POOL" \
+-        GATE_TEST_TAG="$tag" GATE_TEST_WORK="$WORK" "$@" bash "$GATE" ) \
++    local session_env=(CLAUDE_CODE_SESSION_ID="$sid") mode=()
++    case "$sid" in
++        codex:*) session_env=(CODEX_SESSION_ID="${sid#codex:}") ;;
++        "") session_env=(); mode=(--check) ;;
++    esac
++    ( echo "$BASHPID" > "$WORK/gatepid-$tag"; cd "$WORK/repo" && exec env -u CARGO_TARGET_DIR \
++        -u CLAUDE_CODE_SESSION_ID -u CODEX_SESSION_ID -u CODEX_THREAD_ID -u CODESCOUT_CONTEXT_FILE \
++        HOME="$WORK/home" PATH="$WORK/bin:$PATH" "${session_env[@]}" CODESCOUT_GATE_POOL="$POOL" \
++        GATE_TEST_TAG="$tag" GATE_TEST_WORK="$WORK" "$@" bash "$GATE" "${mode[@]}" ) \
+         > "$WORK/out-$tag" 2>&1
+ }
+ first_seen() { head -1 "$WORK/seen-$1" 2>/dev/null; }
+@@ -115,15 +124,25 @@ eq "two sessions left ONE tree behind, not two" "$(slot_dirs)" "1"
+ 
+ echo "C. a concurrent run never shares a held slot"
+ : > "$WORK/hold-c"
+-run_gate c sid-c & PC=$!; PIDS+=("$PC")
++run_gate c "" GATE_TEST_HOLD_DEFAULT=1 & PC=$!; PIDS+=("$PC")
+ if wait_for "$WORK/started-c"; then
+-    run_gate d sid-d
+-    eq "a run started while slot-0 is held leases slot-1" "$(first_seen d)" "$POOL/slot-1"
++    : > "$WORK/hold-d"
++    run_gate d codex:sid-d GATE_TEST_HOLD_DEFAULT=1 & PD=$!; PIDS+=("$PD")
++    if wait_for "$WORK/started-d"; then
++        eq "a Codex run started during a no-identity check leases slot-1" "$(first_seen d)" "$POOL/slot-1"
++        flock -n "$POOL/slot-0.lock" true; eq "check-only lease stays held during DEFAULT" "$?" "1"
++        flock -n "$POOL/slot-1.lock" true; eq "Codex lease stays held during DEFAULT" "$?" "1"
++    else
++        no "Codex holder reached DEFAULT" "$(cat "$WORK/out-d")"
++    fi
++    rm -f "$WORK/hold-d"; wait "$PD" 2>/dev/null
++    flock -n "$POOL/slot-1.lock" true; eq "Codex lease releases after DEFAULT" "$?" "0"
+ else
+     no "holder reached its lanes" "run c never started a cargo lane: $(cat "$WORK/out-c")"
+ fi
+ rm -f "$WORK/hold-c"; wait "$PC" 2>/dev/null
+ eq "the holder kept slot-0 throughout" "$(sort -u "$WORK/seen-c")" "$POOL/slot-0"
++flock -n "$POOL/slot-0.lock" true; eq "check-only lease releases after DEFAULT" "$?" "0"
+ 
+ echo "D. SIGKILLing a gate while its cargo still runs does NOT free the slot"
+ : > "$WORK/hold-e"
+diff --git a/tests/test_harness_formatter.py b/tests/test_harness_formatter.py
+new file mode 100644
+index 00000000..0dac12a6
+--- /dev/null
++++ b/tests/test_harness_formatter.py
+@@ -0,0 +1,242 @@
++"""Exercise real Rust formatting and compare files, including refused collateral."""
++import json
++import os
++from pathlib import Path
++import shutil
++import subprocess
++
++import pytest
++
++from test_harness_provenance import add_writes
++
++SCRIPTS = Path(__file__).resolve().parents[1] / "scripts"
++FMT = SCRIPTS / "fmt-mine.sh"
++
++
++@pytest.fixture
++def project(tmp_path):
++    root = tmp_path / "project with spaces"
++    (root / "src").mkdir(parents=True)
++    (root / "Cargo.toml").write_text('[package]\nname="context_fixture"\nversion="0.1.0"\nedition="2021"\n')
++    (root / "src/lib.rs").write_text("pub mod own;\npub mod peer;\n")
++    (root / "src/own.rs").write_text('pub fn own() {\n    let x = 1;\n    println!("{x}");\n}\n')
++    (root / "src/peer.rs").write_text('pub fn peer(){let y=2;println!("{y}");}\n')
++    subprocess.run(["git", "init", "-q", str(root)], check=True)
++    subprocess.run(["git", "-C", str(root), "add", "Cargo.toml", "src/lib.rs", "src/own.rs"], check=True)
++    home = tmp_path / "home"
++    home.mkdir()
++    env = dict(os.environ)
++    for key in ("CLAUDE_CODE_SESSION_ID", "CODEX_SESSION_ID", "CODEX_THREAD_ID", "CODESCOUT_CONTEXT_FILE",
++                "CLAUDE_CONFIG_DIR", "FMT_MINE_PROVENANCE", "REPO_ROOT"):
++        env.pop(key, None)
++    env.setdefault("RUSTUP_HOME", str(Path(os.environ["HOME"]) / ".rustup"))
++    env.setdefault("CARGO_HOME", str(Path(os.environ["HOME"]) / ".cargo"))
++    env.setdefault("RUSTUP_TOOLCHAIN", "1.97.1")
++    env.update(HOME=str(home), FILE_PROVENANCE_ROOTS=str(tmp_path / "claude"),
++               FILE_PROVENANCE_CODEX_ROOTS_JSON=json.dumps([str(tmp_path / "codex")]),
++               FILE_PROVENANCE_REGISTRY_ROOTS=str(tmp_path / "registry"),
++               FMT_MINE_PROVENANCE=str(SCRIPTS / "file-provenance.py"))
++    subprocess.run(["git", "-C", str(root), "-c", "user.name=Fixture", "-c", "user.email=x@example.invalid",
++                    "commit", "-q", "-m", "base"],
++                   env=env | {"GIT_AUTHOR_DATE": "2026-10-01T12:00:00+00:00", "GIT_COMMITTER_DATE": "2026-10-01T12:00:00+00:00"}, check=True)
++    (root / "src/own.rs").write_text('pub fn own(){let x=1;println!("{x}");}\n')
++    return root, env
++
++
++def run_fmt(root, env, *args):
++    return subprocess.run(["bash", str(FMT), *args], cwd=root, env=env, text=True, capture_output=True)
++
++
++def snapshot(root):
++    return {str(p.relative_to(root)): p.read_bytes() for p in (root / "src").glob("*.rs")}
++
++
++def identity(env, harness):
++    return env | {("CODEX_SESSION_ID" if harness == "codex" else "CLAUDE_CODE_SESSION_ID"): "me"}
++
++
++def test_check_without_identity_and_provenance_is_read_only(project, tmp_path):
++    root, env = project
++    stub = tmp_path / "must not call provenance"
++    marker = tmp_path / "called"
++    stub.write_text(f'#!/bin/sh\ntouch "{marker}"\nexit 2\n')
++    stub.chmod(0o755)
++    before = snapshot(root)
++    result = run_fmt(root, env | {"FMT_MINE_PROVENANCE": str(stub)}, "--check")
++    assert result.returncode == 1, result.stderr
++    assert snapshot(root) == before
++    assert not marker.exists()
++
++
++def test_clean_check_and_standalone_clean_need_no_identity(project):
++    root, env = project
++    subprocess.run(["cargo", "fmt"], cwd=root, env=env, check=True)
++    before = snapshot(root)
++    assert run_fmt(root, env, "--check").returncode == 0
++    assert run_fmt(root, env | {"CLAUDE_CODE_SESSION_ID": "a", "CODEX_SESSION_ID": "b"}).returncode == 0
++    assert snapshot(root) == before
++
++
++@pytest.mark.parametrize("harness", ["claude-code", "codex"])
++def test_mixed_own_format_keeps_untracked_peer_bytes(project, harness):
++    root, env = project
++    other = "codex" if harness == "claude-code" else "claude-code"
++    add_writes(root, env, harness, "me", ["src/own.rs"])
++    add_writes(root, env, other, "peer", ["src/peer.rs"])
++    before = snapshot(root)
++    result = run_fmt(root, identity(env, harness))
++    assert result.returncode == 1, result.stderr
++    assert (root / "src/own.rs").read_bytes() != before["src/own.rs"]
++    assert (root / "src/peer.rs").read_bytes() == before["src/peer.rs"]
++    assert "REFUSED" in result.stderr
++
++
++def test_missing_and_conflicting_context_write_nothing(project):
++    root, env = project
++    before = snapshot(root)
++    missing = run_fmt(root, env)
++    assert missing.returncode == 2
++    conflict = run_fmt(root, env | {"CLAUDE_CODE_SESSION_ID": "a", "CODEX_SESSION_ID": "b"})
++    assert conflict.returncode == 2
++    assert "conflicting" in conflict.stderr
++    assert snapshot(root) == before
++
++
++def test_unknown_coverage_refuses_known_own_without_writing(project):
++    from test_harness_history import codex_meta, codex_item, history
++    root, env = project
++    add_writes(root, env, "codex", "me", ["src/own.rs", "src/peer.rs"])
++    history(Path(json.loads(env["FILE_PROVENANCE_CODEX_ROOTS_JSON"])[0]) / "opaque.jsonl", [
++        codex_meta(root), codex_item({"type": "custom_tool_call", "name": "exec", "call_id": "opaque", "input": "unknown"})])
++    before = snapshot(root)
++    result = run_fmt(root, identity(env, "codex"))
++    assert result.returncode == 1
++    assert "UNKNOWN" in result.stderr
++    assert snapshot(root) == before
++
++
++def test_invalid_rust_is_tool_error_in_check_mode(project):
++    root, env = project
++    (root / "src/own.rs").write_text("pub fn invalid( {\n")
++    before = snapshot(root)
++    result = run_fmt(root, env, "--check")
++    assert result.returncode == 2
++    assert snapshot(root) == before
++
++
++def test_exclusive_checkout_requires_matching_root_and_is_operator_declared(project):
++    root, env = project
++    before = snapshot(root)
++    result = run_fmt(root, env, "--exclusive-checkout", str(root))
++    assert result.returncode == 0, result.stderr
++    assert snapshot(root) != before
++    assert "operator-declared" in result.stderr
++    assert "MINE" not in result.stdout
++
++
++@pytest.mark.parametrize("args", [
++    ["--check", "--check"], ["--unknown"], ["--context"], ["--exclusive-checkout", "relative"],
++    ["--check", "--exclusive-checkout", "ROOT"], ["--exclusive-checkout", "PARENT"],
++])
++def test_invalid_modes_write_nothing(project, args):
++    root, env = project
++    args = [str(root) if value == "ROOT" else str(root.parent) if value == "PARENT" else value for value in args]
++    before = snapshot(root)
++    assert run_fmt(root, env, *args).returncode == 2
++    assert snapshot(root) == before
++
++
++def test_exclusive_conflicting_context_is_refused(project):
++    root, env = project
++    before = snapshot(root)
++    result = run_fmt(root, env | {"CLAUDE_CODE_SESSION_ID": "a", "CODEX_SESSION_ID": "b"}, "--exclusive-checkout", str(root))
++    assert result.returncode == 2
++    assert snapshot(root) == before
++
++
++def test_context_path_spaces_native_codex_owned_files(project, tmp_path):
++    root, env = project
++    add_writes(root, env, "codex", "me", ["src/own.rs", "src/peer.rs"])
++    value = dict(schema_version=1, harness="codex", session_id="me", agent_id=None,
++                 workspace=str(root), source="explicit", harness_version=None)
++    path = tmp_path / "context with spaces.json"
++    path.write_text(json.dumps(value))
++    result = run_fmt(root, env, "--context", str(path))
++    assert result.returncode == 0, result.stderr
++    assert run_fmt(root, env, "--check").returncode == 0
++
++
++def test_paths_with_spaces_are_literal(project):
++    root, env = project
++    (root / "src/own.rs").rename(root / "src/own  file.rs")
++    (root / "src/peer.rs").rename(root / "src/peer  file.rs")
++    (root / "src/lib.rs").write_text('#[path = "own  file.rs"]\npub mod own;\n#[path = "peer  file.rs"]\npub mod peer;\n')
++    add_writes(root, env, "codex", "me", ["src/own  file.rs"])
++    add_writes(root, env, "claude-code", "peer", ["src/peer  file.rs"])
++    before = snapshot(root)
++    result = run_fmt(root, identity(env, "codex"))
++    assert result.returncode == 1, result.stderr
++    assert (root / "src/own  file.rs").read_bytes() != before["src/own  file.rs"]
++    assert (root / "src/peer  file.rs").read_bytes() == before["src/peer  file.rs"]
++
++
++def test_module_root_cannot_rewrite_refused_child(project):
++    root, env = project
++    (root / "src/lib.rs").write_text("pub mod peer;pub fn root(){let x=3;}\n")
++    add_writes(root, env, "codex", "me", ["src/lib.rs"])
++    add_writes(root, env, "claude-code", "peer", ["src/peer.rs"])
++    before = snapshot(root)
++    result = run_fmt(root, identity(env, "codex"))
++    assert result.returncode == 1, result.stderr
++    assert "descends" in result.stderr
++    assert snapshot(root) == before
++
++
++@pytest.mark.parametrize("via", ["module", "symlink", "clean-module"])
++def test_symlink_or_module_cannot_escape_authorized_checkout(project, tmp_path, via):
++    root, env = project
++    outside = tmp_path / "outside.rs"
++    outside.write_text("pub fn external() {}\n" if via == "clean-module" else "pub fn external(){let x=3;}\n")
++    if via == "symlink":
++        (root / "src/own.rs").unlink()
++        (root / "src/own.rs").symlink_to(outside)
++    else:
++        (root / "src/lib.rs").write_text(f'#[path = "{outside}"]pub mod external;pub fn root(){{let x=4;}}\n')
++    before = snapshot(root)
++    outside_before = outside.read_bytes()
++    result = run_fmt(root, env, "--exclusive-checkout", str(root))
++    assert result.returncode == 2, result.stderr
++    assert snapshot(root) == before
++    assert outside.read_bytes() == outside_before
++
++
++def test_inherited_foreign_repo_root_cannot_redirect_attribution(project, tmp_path):
++    root, env = project
++    foreign = tmp_path / "foreign"
++    (foreign / "src").mkdir(parents=True)
++    (foreign / "src/own.rs").write_text("fn other(){}\n")
++    subprocess.run(["git", "init", "-q", str(foreign)], check=True)
++    add_writes(root, env, "codex", "me", ["src/own.rs"])
++    add_writes(root, env, "claude-code", "peer", ["src/peer.rs"])
++    before = snapshot(root)
++    foreign_before = (foreign / "src/own.rs").read_bytes()
++    result = run_fmt(root, identity(env, "codex") | {"REPO_ROOT": str(foreign)})
++    assert result.returncode == 1, result.stderr
++    assert (root / "src/own.rs").read_bytes() != before["src/own.rs"]
++    assert (root / "src/peer.rs").read_bytes() == before["src/peer.rs"]
++    assert (foreign / "src/own.rs").read_bytes() == foreign_before
++@pytest.mark.parametrize("clean_child", [False, True])
++def test_nested_git_checkout_is_outside_exclusive_authorization(project, clean_child):
++    root, env = project
++    nested = root / "nested"
++    nested.mkdir()
++    subprocess.run(["git", "init", "-q", str(nested)], check=True)
++    child = nested / "child.rs"
++    child.write_text("pub fn child() {}\n" if clean_child else "pub fn child(){let x=3;}\n")
++    (root / "src/lib.rs").write_text('#[path = "../nested/child.rs"]pub mod child;pub fn root(){let x=4;}\n')
++    before = snapshot(root)
++    child_before = child.read_bytes()
++    result = run_fmt(root, env, "--exclusive-checkout", str(root))
++    assert result.returncode == 2, result.stderr
++    assert snapshot(root) == before
++    assert child.read_bytes() == child_before
+diff --git a/tests/test_harness_history.py b/tests/test_harness_history.py
+new file mode 100644
+index 00000000..581b5f16
+--- /dev/null
++++ b/tests/test_harness_history.py
+@@ -0,0 +1,461 @@
++"""Native readers preserve producer identity and uncertainty before policy runs."""
++import importlib
++import json
++from pathlib import Path
++import subprocess
++import sys
++
++import pytest
++
++SCRIPTS = Path(__file__).resolve().parents[1] / "scripts"
++sys.path.insert(0, str(SCRIPTS))
++
++
++def claude_call(name="Edit", inp=None, call="call-1", sid="root-1", cwd=None, timestamp="2026-10-10T12:00:00Z"):
++    rec = {"type": "assistant", "sessionId": sid, "message": {"content": [{
++        "type": "tool_use", "name": name, "input": inp or {"file_path": "own.rs"}, "id": call,
++    }]}}
++    if timestamp is not None:
++        rec["timestamp"] = timestamp
++    if cwd is not None:
++        rec["cwd"] = str(cwd)
++    return rec
++
++
++def claude_result(call="call-1", **patch):
++    return {"type": "user", "message": {"content": [{
++        "type": "tool_result", "tool_use_id": call, "content": "done", **patch,
++    }]}}
++
++
++def history(path, rows):
++    path.parent.mkdir(parents=True, exist_ok=True)
++    path.write_text("".join(json.dumps(row) + "\n" for row in rows))
++    return path
++
++
++@pytest.fixture
++def claude():
++    assert (SCRIPTS / "claude_history.py").is_file(), "Claude normalized reader is absent"
++    return importlib.import_module("claude_history")
++
++
++def test_claude_root_and_child_share_principal(claude, tmp_path):
++    parent = history(tmp_path / "root-1.jsonl", [claude_call(cwd=tmp_path)])
++    child = history(tmp_path / "root-1/subagents/agent-child.jsonl", [claude_call(cwd=tmp_path)])
++    root_op = claude.read_claude_history(parent).operations[0]
++    child_op = claude.read_claude_history(child).operations[0]
++    assert root_op.principal == child_op.principal == "claude-code:root-1"
++    assert root_op.agent_id is None
++    assert child_op.agent_id == "child"
++    assert not root_op.is_child and child_op.is_child
++    assert root_op.source_id != child_op.source_id
++
++
++@pytest.mark.parametrize("result", [
++    {"is_error": True},
++    {"content": '{"ok":false,"error":"old string missing"}'},
++    {"content": [{"type": "text", "text": '{"pending_ack":"@ack_fixture"}'}]},
++])
++def test_claude_confirmed_atomic_refusal(claude, tmp_path, result):
++    path = history(tmp_path / "root-1.jsonl", [claude_call(), claude_result(**result)])
++    op = claude.read_claude_history(path).operations[0]
++    assert op.outcome == "no-write-refused"
++    assert op.atomic
++
++
++def test_claude_failed_shell_remains_possible_write(claude, tmp_path):
++    path = history(tmp_path / "root-1.jsonl", [
++        claude_call("Bash", {"command": "printf changed > own.rs; false"}),
++        claude_result(is_error=True),
++    ])
++    op = claude.read_claude_history(path).operations[0]
++    assert op.outcome == "partial-error"
++    assert not op.atomic
++    assert op.input["command"] == "printf changed > own.rs; false"
++
++
++def test_claude_unpaired_and_undated_calls_survive(claude, tmp_path):
++    path = history(tmp_path / "root-1.jsonl", [claude_call(timestamp=None)])
++    op = claude.read_claude_history(path).operations[0]
++    assert op.outcome == "missing-result"
++    assert op.timestamp is None
++
++
++def test_claude_reordered_results_join_by_call_id(claude, tmp_path):
++    path = history(tmp_path / "root-1.jsonl", [
++        claude_call(call="first"), claude_call(call="second"),
++        claude_result(call="second", is_error=True), claude_result(call="first"),
++    ])
++    assert [(op.call_id, op.outcome) for op in claude.read_claude_history(path).operations] == [
++        ("first", "possible-write"), ("second", "no-write-refused"),
++    ]
++
++
++def test_claude_truncated_record_is_coverage_gap(claude, tmp_path):
++    path = history(tmp_path / "root-1.jsonl", [claude_call()])
++    with path.open("a") as out:
++        out.write('{"message":{"content":[{"type":"tool_use"')
++    batch = claude.read_claude_history(path)
++    assert len(batch.operations) == 1
++    assert batch.gaps
++    assert "malformed" in batch.gaps[0].reason
++
++
++def test_claude_unreadable_history_not_absent(claude, tmp_path, monkeypatch):
++    path = history(tmp_path / "root-1.jsonl", [claude_call()])
++    original = Path.open
++    def deny(self, *args, **kwargs):
++        if self == path:
++            raise PermissionError("fixture unreadable")
++        return original(self, *args, **kwargs)
++    monkeypatch.setattr(Path, "open", deny)
++    batch = claude.read_claude_history(path)
++    assert not batch.operations
++    assert batch.gaps
++    assert "unreadable" in batch.gaps[0].reason
++
++
++def test_claude_profiles_custom_dir_and_linked_main(claude, tmp_path):
++    root = tmp_path / "repo"
++    root.mkdir()
++    subprocess.run(["git", "init", "-q", str(root)], check=True)
++    subprocess.run(["git", "-C", str(root), "-c", "user.name=Fixture", "-c", "user.email=x@example.invalid",
++                    "commit", "-q", "--allow-empty", "-m", "base"], check=True)
++    linked = tmp_path / "linked"
++    subprocess.run(["git", "-C", str(root), "worktree", "add", "-q", "--detach", str(linked)], check=True)
++    home = tmp_path / "home"
++    slug = __import__("re").sub(r"[^A-Za-z0-9]", "-", str(root.resolve()))
++    a = history(home / ".claude/projects" / slug / "a.jsonl", [claude_call(sid="a")])
++    b = history(home / ".claude-sdd/projects" / slug / "b/subagents/agent-b.jsonl", [claude_call(sid="b")])
++    c = history(tmp_path / "custom-profile/projects" / slug / "c.jsonl", [claude_call(sid="c")])
++    paths, gaps = claude.discover_claude_histories(linked, {"HOME": str(home), "CLAUDE_CONFIG_DIR": str(c.parents[2])})
++    assert set(paths) == {a.resolve(), b.resolve(), c.resolve()}
++    assert not gaps
++
++
++def test_claude_unreadable_profile_not_absent(claude, tmp_path, monkeypatch):
++    home = tmp_path / "home"
++    profile = home / ".claude"
++    profile.mkdir(parents=True)
++    original = Path.iterdir
++    def deny(self):
++        if self == profile:
++            raise PermissionError("fixture unreadable profile")
++        return original(self)
++    monkeypatch.setattr(Path, "iterdir", deny)
++    paths, gaps = claude.discover_claude_histories(tmp_path / "repo", {"HOME": str(home)})
++    assert not paths
++    assert gaps
++    assert any("unreadable" in gap.reason for gap in gaps)
++
++
++def test_claude_alias_discovery_deduplicates_source_not_equal_inputs(claude, tmp_path):
++    records = tmp_path / "history"
++    path = history(records / "root-1.jsonl", [claude_call(call="a"), claude_call(call="b")])
++    alias = tmp_path / "alias"
++    alias.symlink_to(records, target_is_directory=True)
++    paths, gaps = claude.discover_claude_histories(tmp_path, {
++        "FILE_PROVENANCE_ROOTS": str(records) + ":" + str(alias),
++    })
++    assert paths == [path.resolve()]
++    assert not gaps
++    assert [op.call_id for op in claude.read_claude_history(path).operations] == ["a", "b"]
++
++
++def test_claude_same_call_id_in_two_children_is_not_same_producer(claude, tmp_path):
++    a = history(tmp_path / "root-1/subagents/agent-a.jsonl", [claude_call()])
++    b = history(tmp_path / "root-1/subagents/agent-b.jsonl", [claude_call()])
++    assert claude.read_claude_history(a).operations[0].source_id != claude.read_claude_history(b).operations[0].source_id
++
++def codex_meta(root, sid="root-1", thread="root-1", **patch):
++    return {"timestamp": "2026-10-10T12:00:00Z", "ordinal": 0, "type": "session_meta",
++            "payload": {"session_id": sid, "id": thread, "cwd": str(root),
++                        "source": "exec", "cli_version": "0.160.0",
++                        "history_mode": "paginated", **patch}}
++
++
++def codex_item(payload, ordinal=10, timestamp="2026-10-10T12:01:00Z"):
++    row = {"type": "response_item", "payload": payload, "ordinal": ordinal}
++    if timestamp is not None:
++        row["timestamp"] = timestamp
++    return row
++
++
++def codex_call(name="mcp__codescout__edit_file", inp=None, call="call-1", ordinal=10, **patch):
++    return codex_item({"type": "function_call", "name": name, "call_id": call,
++                       "arguments": json.dumps(inp or {"path": "own.rs", "new_string": "updated"}),
++                       **patch}, ordinal)
++
++
++def codex_result(call="call-1", output="done", ordinal=11, **patch):
++    return codex_item({"type": "function_call_output", "call_id": call,
++                       "output": output, **patch}, ordinal)
++
++
++@pytest.fixture
++def codex():
++    assert (SCRIPTS / "codex_history.py").is_file(), "Codex normalized reader is absent"
++    return importlib.import_module("codex_history")
++
++
++def test_codex_function_arguments_native_cwd_and_raw_precision(codex, tmp_path):
++    raw = '{"path":"own.rs","ratio":0.123456789123456789,"new_string":"updated"}'
++    path = history(tmp_path / "rollout.jsonl", [codex_meta(tmp_path),
++        codex_call(arguments=raw), codex_result()])
++    op = codex.read_codex_history(path).operations[0]
++    assert op.principal == "codex:root-1"
++    assert op.name == "mcp__codescout__edit_file"
++    assert op.cwd == tmp_path
++    assert op.raw_input == raw
++    assert str(op.input["ratio"]) == "0.123456789123456789"
++    assert op.outcome == "possible-write"
++
++
++@pytest.mark.parametrize("output", [
++    '{"ok":false,"error":"missing old string"}',
++    [{"type": "input_text", "text": '{"pending_ack":"@ack_fixture"}'}],
++])
++def test_codex_atomic_refusals_in_native_outputs(codex, tmp_path, output):
++    path = history(tmp_path / "rollout.jsonl", [
++        codex_meta(tmp_path), codex_call(), codex_result(output=output),
++    ])
++    assert codex.read_codex_history(path).operations[0].outcome == "no-write-refused"
++
++
++def test_codex_shell_failure_retains_authoritative_workdir(codex, tmp_path):
++    cwd = tmp_path / "subdir"
++    path = history(tmp_path / "rollout.jsonl", [
++        codex_meta(tmp_path),
++        codex_call("exec_command", {"cmd": "printf x > own.rs; false", "workdir": str(cwd)}),
++        codex_result(output='{"exit_code":1}'),
++    ])
++    op = codex.read_codex_history(path).operations[0]
++    assert op.name == "Bash"
++    assert op.input["command"] == "printf x > own.rs; false"
++    assert op.cwd == cwd
++    assert not op.atomic
++    assert op.outcome == "partial-error"
++
++
++def test_codex_child_inherited_prefix_uses_ordinals_not_line_count(codex, tmp_path):
++    source = {"subagent": {"thread_spawn": {"parent_thread_id": "root-1", "depth": 1}}}
++    path = history(tmp_path / "child.jsonl", [
++        codex_meta(tmp_path, thread="child-1", source=source, parent_thread_id="root-1",
++                   subagent_history_start_ordinal=100),
++        codex_call(call="parent-write", ordinal=90),
++        codex_item({"type": "message", "role": "assistant", "content": []}, ordinal=99),
++        codex_call(call="child-write", ordinal=100),
++        codex_result(call="child-write", ordinal=101),
++    ])
++    batch = codex.read_codex_history(path)
++    assert {op.call_id for op in batch.operations} == {"child-write"}
++    op = batch.operations[0]
++    assert op.principal == "codex:root-1" and op.agent_id == "child-1"
++    assert op.is_child
++    assert not batch.gaps
++
++
++@pytest.mark.parametrize("patch,rows", [
++    ({}, [codex_call(ordinal=90)]),
++    ({}, [dict(type="response_item", payload=codex_call()["payload"])]),
++    ({"subagent_history_start_ordinal": None}, [codex_call(ordinal=100)]),
++])
++def test_codex_incomplete_child_boundary_yields_gap(codex, tmp_path, patch, rows):
++    source = {"subagent": {"thread_spawn": {"parent_thread_id": "root-1", "depth": 1}}}
++    meta_fields = {"source": source, "parent_thread_id": "root-1",
++                   "subagent_history_start_ordinal": 100, **patch}
++    path = history(tmp_path / "child.jsonl", [
++        codex_meta(tmp_path, thread="child-1", **meta_fields), *rows,
++    ])
++    batch = codex.read_codex_history(path)
++    assert batch.gaps
++    assert not batch.operations
++
++
++def test_codex_different_thread_alone_does_not_manufacture_child(codex, tmp_path):
++    path = history(tmp_path / "fork.jsonl", [
++        codex_meta(tmp_path, thread="different"), codex_call(),
++    ])
++    batch = codex.read_codex_history(path)
++    assert batch.gaps
++    assert not batch.operations
++
++
++def test_codex_fork_copied_prefix_is_not_new_root_authorship(codex, tmp_path):
++    path = history(tmp_path / "fork.jsonl", [
++        codex_meta(tmp_path, sid="fork-root", thread="fork-root", forked_from_id="parent-root",
++                   forked_from_ordinal_exclusive=100),
++        codex_call(call="parent-write", ordinal=90),
++        codex_call(call="fork-write", ordinal=100),
++        codex_result(call="fork-write", ordinal=101),
++    ])
++    batch = codex.read_codex_history(path)
++    assert [(op.call_id, op.principal, op.is_child) for op in batch.operations] == [
++        ("fork-write", "codex:fork-root", False),
++    ]
++@pytest.mark.parametrize("case", ["legacy", "missing-ordinal", "incomplete-prefix"])
++def test_codex_unverified_fork_boundary_is_gap(codex, tmp_path, case):
++    meta = codex_meta(tmp_path, sid="fork", thread="fork", forked_from_id="parent",
++                      forked_from_ordinal_exclusive=10)
++    call = codex_call(call="new-write", ordinal=10)
++    if case == "legacy":
++        meta["payload"]["history_mode"] = "legacy"
++        meta.pop("ordinal")
++        call.pop("ordinal")
++    elif case == "missing-ordinal":
++        call.pop("ordinal")
++    else:
++        call["ordinal"] = 2
++    batch = codex.read_codex_history(history(tmp_path / "fork.jsonl", [meta, call]))
++    assert not batch.operations
++    assert batch.gaps
++    assert any("fork" in gap.reason for gap in batch.gaps)
++
++
++def test_codex_results_join_within_producer(codex, tmp_path):
++    source = {"subagent": {"thread_spawn": {"parent_thread_id": "root-1", "depth": 1}}}
++    def child(name, output):
++        return history(tmp_path / (name + ".jsonl"), [
++            codex_meta(tmp_path, thread=name, source=source, parent_thread_id="root-1",
++                       subagent_history_start_ordinal=0),
++            codex_call(call="same"), codex_result(call="same", output=output),
++        ])
++    a = codex.read_codex_history(child("a", "done")).operations[0]
++    b = codex.read_codex_history(child("b", '{"ok":false}')).operations[0]
++    assert a.source_id != b.source_id
++    assert a.outcome == "possible-write"
++    assert b.outcome == "no-write-refused"
++    reordered = history(tmp_path / "root.jsonl", [codex_meta(tmp_path),
++        codex_call(call="a", ordinal=10), codex_call(call="b", ordinal=11),
++        codex_result(call="b", output='{"ok":false}', ordinal=12),
++        codex_result(call="a", ordinal=13)])
++    assert [(op.call_id, op.outcome) for op in codex.read_codex_history(reordered).operations] == [
++        ("a", "possible-write"), ("b", "no-write-refused"),
++    ]
++
++
++def test_codex_conflicting_replay_is_unknown(codex, tmp_path):
++    path = history(tmp_path / "root.jsonl", [codex_meta(tmp_path),
++        codex_call(inp={"path": "a.rs"}), codex_call(inp={"path": "b.rs"}, ordinal=12)])
++    assert codex.read_codex_history(path).gaps
++
++
++def test_codex_unpaired_undated_call_survives(codex, tmp_path):
++    call = codex_call()
++    call.pop("timestamp")
++    path = history(tmp_path / "root.jsonl", [codex_meta(tmp_path), call])
++    op = codex.read_codex_history(path).operations[0]
++    assert op.outcome == "missing-result" and op.timestamp is None
++
++
++@pytest.mark.parametrize("patch", [{"session_id": None}, {"id": None}, {"cwd": "relative"}])
++def test_codex_missing_root_metadata_is_gap(codex, tmp_path, patch):
++    path = history(tmp_path / "root.jsonl", [codex_meta(tmp_path, **patch), codex_call()])
++    batch = codex.read_codex_history(path)
++    assert batch.gaps and not batch.operations
++
++
++def test_codex_bad_arguments_and_truncation_are_gaps(codex, tmp_path):
++    path = history(tmp_path / "root.jsonl", [codex_meta(tmp_path), codex_call(arguments="{broken")])
++    with path.open("a") as stream:
++        stream.write('{"type":"response_item"')
++    batch = codex.read_codex_history(path)
++    assert len(batch.gaps) >= 2
++    assert not batch.operations
++
++
++def test_codex_captured_opaque_wrapper_is_not_inferred_execution(codex, tmp_path):
++    fixture = Path(__file__).parent / "fixtures/native-histories/codex-root-refused-wrapper.jsonl"
++    path = tmp_path / "capture.jsonl"
++    path.write_text(fixture.read_text().replace("${WORKSPACE}", str(tmp_path)))
++    batch = codex.read_codex_history(path)
++    assert not batch.operations
++    assert any("wrapper" in gap.reason for gap in batch.gaps)
++
++
++def test_codex_patch_custom_call_and_read_message(codex, tmp_path):
++    patch = "*** Begin Patch\n*** Update File: old name.rs\n*** Move to: new name.rs\n@@\n-old\n+new\n*** Delete File: gone.rs\n*** Add File: added.rs\n+x\n*** End Patch"
++    path = history(tmp_path / "root.jsonl", [codex_meta(tmp_path),
++        codex_item({"type": "message", "role": "assistant", "content": [{"type": "output_text", "text": patch}]}),
++        codex_item({"type": "custom_tool_call", "call_id": "patch", "name": "apply_patch", "input": patch}, ordinal=11)])
++    batch = codex.read_codex_history(path)
++    assert len(batch.operations) == 1
++    assert batch.operations[0].name == "apply_patch"
++    assert batch.operations[0].input["patch"] == patch
++    assert not batch.operations[0].atomic
++
++
++def test_codex_discovery_profiles_override_and_alias(codex, tmp_path):
++    home = tmp_path / "home"
++    a = history(home / ".codex/sessions/date/a.jsonl", [codex_meta(tmp_path)])
++    b = history(home / ".Codex-sdd/sessions/date/b.jsonl", [codex_meta(tmp_path)])
++    c = history(home / ".Codex-kat/archived_sessions/c.jsonl", [codex_meta(tmp_path)])
++    custom = tmp_path / "custom"
++    d = history(custom / "sessions/date/d.jsonl", [codex_meta(tmp_path)])
++    paths, gaps = codex.discover_codex_histories(tmp_path, {"HOME": str(home), "CODEX_HOME": str(custom)})
++    assert set(paths) == {a.resolve(), b.resolve(), c.resolve(), d.resolve()}
++    assert not gaps
++    alias = tmp_path / "alias"
++    alias.symlink_to(custom / "sessions", target_is_directory=True)
++    paths, gaps = codex.discover_codex_histories(tmp_path, {
++        "FILE_PROVENANCE_CODEX_ROOTS_JSON": json.dumps([str(custom / "sessions"), str(alias)]),
++    })
++    assert paths == [d.resolve()] and not gaps
++    assert codex.discover_codex_histories(tmp_path, {"FILE_PROVENANCE_CODEX_ROOTS_JSON": "[]"}) == ([], [])
++
++
++@pytest.mark.parametrize("override", ["broken", "{}", '["relative"]'])
++def test_codex_bad_root_override_does_not_fall_back_to_live_profiles(codex, tmp_path, override):
++    paths, gaps = codex.discover_codex_histories(tmp_path, {"FILE_PROVENANCE_CODEX_ROOTS_JSON": override})
++    assert not paths and gaps
++
++def test_codex_patch_target_extraction_preserves_both_move_ends_and_spaces(tmp_path):
++    import importlib.util
++    spec = importlib.util.spec_from_file_location("patch_provenance", SCRIPTS / "file-provenance.py")
++    fp = importlib.util.module_from_spec(spec)
++    spec.loader.exec_module(fp)
++    assert hasattr(fp, "patch_write_targets"), "native patch targeting is not implemented"
++    patch = "*** Begin Patch\n*** Update File: old name.rs\n*** Move to: new name.rs\n@@\n-old\n+new\n*** Delete File: gone.rs\n*** Add File: added file.rs\n+x\n*** End Patch"
++    expected = ["old name.rs", "new name.rs", "gone.rs", "added file.rs"]
++    assert fp.patch_write_targets(patch) == expected
++    assert list(fp.write_targets("apply_patch", {"patch": patch}, tmp_path)) == expected
++    assert list(fp.write_targets("mcp__codescout__read_file", {"path": "note.md", "content": patch}, tmp_path)) == []
++    assert fp.patch_write_targets("merely mentions *** Update File: peer.rs") == []
++
++
++def test_codex_unreadable_profile_is_coverage_gap(codex, tmp_path, monkeypatch):
++    home = tmp_path / "home"
++    profile = home / ".Codex"
++    profile.mkdir(parents=True)
++    original = Path.iterdir
++    def deny(self):
++        if self == profile:
++            raise PermissionError("fixture unreadable")
++        return original(self)
++    monkeypatch.setattr(Path, "iterdir", deny)
++    paths, gaps = codex.discover_codex_histories(tmp_path, {"HOME": str(home)})
++    assert not paths
++    assert gaps and any("unreadable" in gap.reason for gap in gaps)
++
++
++def test_codex_unreadable_rollout_and_unknown_response_are_gaps(codex, tmp_path, monkeypatch):
++    path = history(tmp_path / "root.jsonl", [codex_meta(tmp_path),
++        codex_item({"type": "local_shell_call", "action": {"command": ["sh", "-c", "touch own.rs"]}})])
++    assert codex.read_codex_history(path).gaps
++    original = Path.open
++    def deny(self, *args, **kwargs):
++        if self == path:
++            raise PermissionError("fixture unreadable")
++        return original(self, *args, **kwargs)
++    monkeypatch.setattr(Path, "open", deny)
++    batch = codex.read_codex_history(path)
++    assert not batch.operations and batch.gaps
++
++def test_codex_unresolved_external_prefix_is_coverage_gap(codex, tmp_path):
++    path = history(tmp_path / "root.jsonl", [codex_meta(tmp_path, history_base={
++        "thread_id": "missing-prefix", "end_ordinal_exclusive": 90, "end_byte_offset": 500,
++    }), codex_call(ordinal=100)])
++    batch = codex.read_codex_history(path)
++    assert any("prefix" in gap.reason for gap in batch.gaps)
++    assert batch.operations[0].principal == "codex:root-1"
+diff --git a/tests/test_harness_provenance.py b/tests/test_harness_provenance.py
+new file mode 100644
+index 00000000..63eb90d5
+--- /dev/null
++++ b/tests/test_harness_provenance.py
+@@ -0,0 +1,252 @@
++"""CLI ownership tests use real dirty files, isolated histories and native namespaces."""
++import importlib.util
++import json
++import os
++from pathlib import Path
++import subprocess
++import sys
++
++import pytest
++
++from test_harness_history import claude_call, claude_result, codex_meta, codex_call, codex_result, codex_item, history
++
++SCRIPTS = Path(__file__).resolve().parents[1] / "scripts"
++
++
++@pytest.fixture
++def checkout(tmp_path):
++    root = tmp_path / "checkout"
++    root.mkdir()
++    env = dict(os.environ)
++    for key in ("CLAUDE_CODE_SESSION_ID", "CODEX_SESSION_ID", "CODEX_THREAD_ID", "CLAUDE_CONFIG_DIR",
++                "CODESCOUT_CONTEXT_FILE", "REPO_ROOT"):
++        env.pop(key, None)
++    home = tmp_path / "home"
++    home.mkdir()
++    env.update(HOME=str(home), FILE_PROVENANCE_ROOTS=str(tmp_path / "claude"),
++               FILE_PROVENANCE_CODEX_ROOTS_JSON=json.dumps([str(tmp_path / "codex")]),
++               FILE_PROVENANCE_REGISTRY_ROOTS=str(tmp_path / "registry"))
++    subprocess.run(["git", "init", "-q", str(root)], check=True)
++    names = ["own.rs", "peer.rs", "shared.rs", "unknown.rs", "partial.rs", "unpaired.rs"]
++    for name in names:
++        (root / name).write_text("fn base() {}\n")
++    subprocess.run(["git", "-C", str(root), "add", "."], check=True)
++    subprocess.run(["git", "-C", str(root), "-c", "user.name=Fixture", "-c", "user.email=x@example.invalid",
++                    "commit", "-q", "-m", "base"],
++                   env=env | {"GIT_AUTHOR_DATE": "2026-10-01T12:00:00+00:00", "GIT_COMMITTER_DATE": "2026-10-01T12:00:00+00:00"},
++                   check=True)
++    for name in names:
++        (root / name).write_text("fn modified(){}\n")
++    return root, env
++
++
++def add_writes(root, env, harness, sid, paths, **patch):
++    if harness == "claude-code":
++        rows = [claude_call(inp={"file_path": str(root / p)}, call=f"call-{i}", sid=sid, cwd=root, **patch)
++                for i, p in enumerate(paths)]
++        rows += [claude_result(call=f"call-{i}") for i, _ in enumerate(paths)]
++        path = Path(env["FILE_PROVENANCE_ROOTS"]) / (sid + ".jsonl")
++    else:
++        rows = [codex_meta(root, sid=sid, thread=sid)]
++        rows += [codex_call(inp={"path": str(root / p)}, call=f"call-{i}", ordinal=10+i) for i, p in enumerate(paths)]
++        rows += [codex_result(call=f"call-{i}", ordinal=20+i) for i, _ in enumerate(paths)]
++        path = Path(json.loads(env["FILE_PROVENANCE_CODEX_ROOTS_JSON"])[0]) / (sid + ".jsonl")
++    return history(path, rows)
++
++
++def invoke(root, env, *args):
++    return subprocess.run([sys.executable, str(SCRIPTS / "file-provenance.py"), *args],
++                          cwd=root, env=env, text=True, capture_output=True)
++
++
++def verdicts(result):
++    assert result.returncode in (0, 1), result.stderr
++    return {line.split(maxsplit=1)[1]: line.split()[0] for line in result.stdout.splitlines()
++            if line.split() and line.split()[0] in ("MINE", "PEER", "SHARED", "UNKNOWN", "CLEAN")}
++
++
++@pytest.mark.parametrize("harness,identity", [("claude-code", "CLAUDE_CODE_SESSION_ID"), ("codex", "CODEX_SESSION_ID")])
++def test_mixed_native_ownership_and_same_id_cross_host(checkout, harness, identity):
++    root, env = checkout
++    other = "codex" if harness == "claude-code" else "claude-code"
++    add_writes(root, env, harness, "same:root", ["own.rs", "shared.rs"])
++    add_writes(root, env, other, "same:root", ["peer.rs", "shared.rs"])
++    result = invoke(root, env | {identity: "same:root"}, "own.rs", "peer.rs", "shared.rs", "unknown.rs")
++    assert verdicts(result) == {"own.rs": "MINE", "peer.rs": "PEER", "shared.rs": "SHARED", "unknown.rs": "UNKNOWN"}
++    assert harness + ":same:roo" in result.stdout
++    assert other + ":same:root" in result.stdout
++    if other == "codex":
++        assert "contact unknown" in result.stdout
++        assert "not live" not in result.stdout
++
++
++def test_known_own_plus_gap_unknown_and_shared_plus_gap_retained(checkout):
++    root, env = checkout
++    add_writes(root, env, "claude-code", "me", ["own.rs", "shared.rs"])
++    add_writes(root, env, "codex", "peer", ["shared.rs"])
++    path = Path(json.loads(env["FILE_PROVENANCE_CODEX_ROOTS_JSON"])[0]) / "opaque.jsonl"
++    history(path, [codex_meta(root, sid="opaque", thread="opaque"),
++                  codex_item({"type": "custom_tool_call", "name": "exec", "call_id": "wrapper",
++                              "input": 'await tools.apply_patch("peer.rs")'})])
++    result = invoke(root, env | {"CLAUDE_CODE_SESSION_ID": "me"}, "own.rs", "shared.rs")
++    assert verdicts(result) == {"own.rs": "UNKNOWN", "shared.rs": "SHARED"}
++    assert "coverage" in result.stdout.lower()
++    assert "claude-code:me" in result.stdout
++    assert "codex:peer" in result.stdout
++
++
++def test_foreign_workspace_gap_does_not_taint_known_own(checkout, tmp_path):
++    root, env = checkout
++    add_writes(root, env, "claude-code", "me", ["own.rs"])
++    foreign = tmp_path / "foreign"
++    foreign.mkdir()
++    subprocess.run(["git", "init", "-q", str(foreign)], check=True)
++    path = Path(json.loads(env["FILE_PROVENANCE_CODEX_ROOTS_JSON"])[0]) / "foreign.jsonl"
++    history(path, [codex_meta(foreign), codex_item({"type": "custom_tool_call", "name": "exec", "call_id": "opaque", "input": "unknown"})])
++    assert verdicts(invoke(root, env | {"CLAUDE_CODE_SESSION_ID": "me"}, "own.rs")) == {"own.rs": "MINE"}
++
++
++def test_atomic_refusal_cannot_add_peer_but_shell_failure_and_unpaired_can(checkout):
++    root, env = checkout
++    add_writes(root, env, "claude-code", "me", ["own.rs"])
++    path = Path(json.loads(env["FILE_PROVENANCE_CODEX_ROOTS_JSON"])[0]) / "peer.jsonl"
++    history(path, [codex_meta(root, sid="peer", thread="peer"),
++        codex_call(inp={"path": str(root / "own.rs")}, call="refused", ordinal=10),
++        codex_result(call="refused", output='{"ok":false}', ordinal=11),
++        codex_call("exec_command", {"cmd": "printf x > partial.rs; false"}, call="partial", ordinal=12),
++        codex_result(call="partial", output='{"exit_code":1}', ordinal=13),
++        codex_call("exec_command", {"cmd": "printf x > unpaired.rs"}, call="unpaired", ordinal=14),
++    ])
++    result = invoke(root, env | {"CLAUDE_CODE_SESSION_ID": "me"}, "own.rs", "partial.rs", "unpaired.rs")
++    assert verdicts(result) == {"own.rs": "MINE", "partial.rs": "PEER", "unpaired.rs": "PEER"}
++
++
++def test_clean_peer_history_preserves_git_clearance(checkout):
++    root, env = checkout
++    add_writes(root, env, "codex", "peer", ["peer.rs"])
++    subprocess.run(["git", "-C", str(root), "restore", "--", "peer.rs"], check=True)
++    result = invoke(root, env | {"CLAUDE_CODE_SESSION_ID": "me"}, "peer.rs")
++    assert verdicts(result) == {"peer.rs": "CLEAN"}
++
++
++def test_explicit_context_and_native_conflict_are_actionable(checkout, tmp_path):
++    root, env = checkout
++    add_writes(root, env, "codex", "manual-root", ["own.rs"])
++    value = dict(schema_version=1, harness="codex", session_id="manual-root", agent_id=None,
++                 workspace=str(root), source="explicit", harness_version=None)
++    path = tmp_path / "context with spaces.json"
++    path.write_text(json.dumps(value))
++    assert verdicts(invoke(root, env, "--context", str(path), "own.rs")) == {"own.rs": "MINE"}
++    result = invoke(root, env | {"CLAUDE_CODE_SESSION_ID": "other"}, "--context", str(path), "own.rs")
++    assert result.returncode == 2
++    assert "conflicting" in result.stderr
++    missing = invoke(root, env, "own.rs")
++    assert missing.returncode == 2
++    assert "--context" in missing.stderr or "--check" in missing.stderr
++
++
++def test_duplicate_discovery_copied_original_event_and_gaps(checkout):
++    root, env = checkout
++    source = add_writes(root, env, "codex", "me", ["own.rs"])
++    history(source.parent / "copy.jsonl", [json.loads(line) for line in source.read_text().splitlines()])
++    spec = importlib.util.spec_from_file_location("fp_scan", SCRIPTS / "file-provenance.py")
++    fp = importlib.util.module_from_spec(spec)
++    spec.loader.exec_module(fp)
++    assert hasattr(fp, "scan_provenance"), "mixed-host scan is not implemented"
++    scan = fp.scan_provenance(root, env)
++    assert scan.owners["own.rs"] == [("codex:me", "2026-10-10T12:01:00Z")]
++    assert not scan.gaps
++    assert len(fp.scan_with_evidence(root)) == 2
++
++
++def test_unreadable_codex_source_cannot_hide_behind_claude_scan(checkout, monkeypatch):
++    root, env = checkout
++    add_writes(root, env, "claude-code", "me", ["own.rs"])
++    source = add_writes(root, env, "codex", "peer", ["own.rs"])
++    spec = importlib.util.spec_from_file_location("fp_unreadable", SCRIPTS / "file-provenance.py")
++    fp = importlib.util.module_from_spec(spec)
++    spec.loader.exec_module(fp)
++    assert hasattr(fp, "scan_provenance"), "coverage-aware scan is not implemented"
++    original = Path.open
++    def deny(self, *args, **kwargs):
++        if self == source:
++            raise PermissionError("fixture unreadable")
++        return original(self, *args, **kwargs)
++    monkeypatch.setattr(Path, "open", deny)
++    scan = fp.scan_provenance(root, env)
++    assert scan.owners["own.rs"][0][0] == "claude-code:me"
++    assert scan.gaps and any("unreadable" in gap.reason for gap in scan.gaps)
++
++def test_hidden_codex_peer_downgrades_claude_own_dirty_file(checkout):
++    root, env = checkout
++    add_writes(root, env, "claude-code", "me", ["own.rs"])
++    source = add_writes(root, env, "codex", "peer", ["own.rs"])
++    rows = [json.loads(line) for line in source.read_text().splitlines()]
++    rows[1]["timestamp"] = "2026-09-30T12:00:00Z"
++    history(source, rows)
++    result = invoke(root, env | {"CLAUDE_CODE_SESSION_ID": "me"}, "own.rs")
++    assert verdicts(result) == {"own.rs": "SHARED"}
++    assert "predate the window" in result.stdout
++
++
++def test_absorbed_codex_peer_text_preserves_claude_own_clearance(checkout):
++    root, env = checkout
++    committed = "pub fn committed_unique_statement_for_absorption() -> &'static str {\n    \"this is a meaningful committed block whose precise bytes distinguish its author\"\n}\n"
++    (root / "own.rs").write_text(committed)
++    subprocess.run(["git", "-C", str(root), "add", "own.rs"], check=True)
++    subprocess.run(["git", "-C", str(root), "-c", "user.name=Fixture", "-c", "user.email=x@example.invalid",
++                    "commit", "-q", "-m", "meaningful base"],
++                   env=env | {"GIT_AUTHOR_DATE": "2026-10-01T12:00:00+00:00", "GIT_COMMITTER_DATE": "2026-10-01T12:00:00+00:00"},
++                   check=True)
++    (root / "own.rs").write_text("fn modified(){}\n")
++    add_writes(root, env, "claude-code", "me", ["own.rs"])
++    source = Path(json.loads(env["FILE_PROVENANCE_CODEX_ROOTS_JSON"])[0]) / "peer.jsonl"
++    call = codex_call(inp={"path": str(root / "own.rs"), "new_string": committed})
++    call["timestamp"] = "2026-10-01T12:00:00Z"
++    history(source, [codex_meta(root, sid="peer", thread="peer"), call, codex_result()])
++    result = invoke(root, env | {"CLAUDE_CODE_SESSION_ID": "me"}, "own.rs")
++    assert verdicts(result) == {"own.rs": "MINE"}
++    assert "already in HEAD" in result.stdout
++
++
++def test_child_activation_uncertainty_can_be_resolved_by_absolute_workspace_pin(checkout):
++    root, env = checkout
++    parent = history(Path(env["FILE_PROVENANCE_ROOTS"]) / "me.jsonl", [
++        claude_call("mcp__codescout__create_file", {"path": "own.rs", "workspace": str(root)}, sid="me", cwd=root,
++                    timestamp="2026-10-10T12:10:00Z"),
++    ])
++    history(parent.parent / "me/subagents/agent-child.jsonl", [
++        claude_call("mcp__codescout__workspace", {"action": "activate", "path": "foreign-id"}, sid="me", cwd=root,
++                    timestamp="2026-10-10T12:00:00Z"),
++    ])
++    assert verdicts(invoke(root, env | {"CLAUDE_CODE_SESSION_ID": "me"}, "own.rs")) == {"own.rs": "MINE"}
++    rows = [json.loads(line) for line in parent.read_text().splitlines()]
++    del rows[0]["message"]["content"][0]["input"]["workspace"]
++    history(parent, rows)
++    result = invoke(root, env | {"CLAUDE_CODE_SESSION_ID": "me"}, "own.rs")
++    assert verdicts(result) == {"own.rs": "UNKNOWN"}
++    assert "ambiguous" in result.stdout
++def test_unverified_fork_peer_cannot_leave_sole_own_clearance(checkout):
++    root, env = checkout
++    add_writes(root, env, "claude-code", "me", ["own.rs"])
++    meta = codex_meta(root, sid="fork", thread="fork", forked_from_id="parent",
++                      forked_from_ordinal_exclusive=10)
++    meta["payload"]["history_mode"] = "legacy"
++    call = codex_call(inp={"path": str(root / "own.rs")}, call="new-write")
++    meta.pop("ordinal")
++    call.pop("ordinal")
++    path = Path(json.loads(env["FILE_PROVENANCE_CODEX_ROOTS_JSON"])[0]) / "fork.jsonl"
++    history(path, [meta, call])
++    result = invoke(root, env | {"CLAUDE_CODE_SESSION_ID": "me"}, "own.rs")
++    assert verdicts(result) == {"own.rs": "UNKNOWN"}, result.stdout
++
++
++@pytest.mark.parametrize("name", ["mcp__filesystem__write_file", "mcp__codescout__future_write"])
++def test_unsupported_mcp_writer_preserves_coverage_gap(checkout, name):
++    root, env = checkout
++    add_writes(root, env, "claude-code", "me", ["own.rs"])
++    path = Path(json.loads(env["FILE_PROVENANCE_CODEX_ROOTS_JSON"])[0]) / "peer-mcp.jsonl"
++    history(path, [codex_meta(root, sid="peer", thread="peer"),
++                   codex_call(name, {"path": str(root / "own.rs"), "content": "peer bytes"})])
++    result = invoke(root, env | {"CLAUDE_CODE_SESSION_ID": "me"}, "own.rs")
++    assert verdicts(result) == {"own.rs": "UNKNOWN"}, result.stdout
+diff --git a/tests/test_python_runner.py b/tests/test_python_runner.py
+index d25a7cda..bb3388cc 100644
+--- a/tests/test_python_runner.py
++++ b/tests/test_python_runner.py
+@@ -126,17 +126,24 @@ def test_missing_dependencies_fail_with_an_install_hint(project, lane, stub_pyte
+     assert not (project / "ran.txt").exists()
+ 
+ 
+-@pytest.mark.parametrize("failed_lane", ["none", "python", "fmt", "clippy", "lean", "default"])
+-def test_gate_runs_every_lane_and_keeps_default_cargo_last(tmp_path, failed_lane):
++def gate_fixture(tmp_path):
+     scripts = tmp_path / "scripts"
+     scripts.mkdir()
+-    shutil.copyfile(ROOT / "scripts/gate.sh", scripts / "gate.sh")
++    for name in ("gate.sh", "session_context.py"):
++        shutil.copyfile(ROOT / "scripts" / name, scripts / name)
++    shutil.copyfile(ROOT / "scripts/session-context-v1.schema.json", scripts / "session-context-v1.schema.json")
++    subprocess.run(["git", "init", "-q", str(tmp_path)], check=True)
+     (scripts / "slot-pool.sh").write_text("# Fixture supplies CARGO_TARGET_DIR.\n")
+     fmt = scripts / "fmt-mine.sh"
+     fmt.write_text(
+         "#!/usr/bin/env bash\n"
+-        "echo fmt >> \"$CALLS\"\n"
+-        "[ \"$FAILED_LANE\" != fmt ]\n"
++        "echo \"fmt $*\" >> \"$CALLS\"\n"
++        "touch \"$FORMAT_MARKER\"\n"
++        "if [ -n \"${CODESCOUT_CONTEXT_FILE:-}\" ]; then\n"
++        "  \"$REAL_PYTHON\" -c 'import json,os,pathlib; p=pathlib.Path(os.environ[\"CODESCOUT_CONTEXT_FILE\"]); value={\"path\":str(p),\"mode\":p.stat().st_mode & 511,\"context\":json.loads(p.read_text())}; pathlib.Path(os.environ[\"SNAPSHOT_RECORD\"]).write_text(json.dumps(value))'\n"
++        "  \"$REAL_PYTHON\" ./scripts/session_context.py --workspace \"$PWD\" >/dev/null || exit 2\n"
++        "fi\n"
++        "exit \"$FMT_EXIT\"\n"
+     )
+     fmt.chmod(0o755)
+     commands = tmp_path / "bin"
+@@ -145,38 +152,175 @@ def test_gate_runs_every_lane_and_keeps_default_cargo_last(tmp_path, failed_lane
+     cargo.write_text(
+         "#!/usr/bin/env bash\n"
+         "echo \"cargo $*\" >> \"$CALLS\"\n"
++        "echo \"$CARGO_TARGET_DIR\" >> \"$TARGETS\"\n"
+         "lane=default\n"
+         "[ \"$1\" = clippy ] && lane=clippy\n"
+         "case \"$*\" in *--no-default-features*) lane=lean ;; esac\n"
++        "if [ \"$lane\" = default ] && [ -n \"${HOLD_DEFAULT:-}\" ]; then\n"
++        "  touch \"$DEFAULT_STARTED\"\n"
++        "  while [ -e \"$HOLD_DEFAULT\" ]; do sleep 0.05; done\n"
++        "fi\n"
+         "[ \"$FAILED_LANE\" != \"$lane\" ]\n"
+     )
+     cargo.chmod(0o755)
+     python = commands / "python3"
+     python.write_text(
+         "#!/usr/bin/env bash\n"
++        "if [ \"${1:-}\" != ./scripts/python-tests.py ]; then exec \"$REAL_PYTHON\" \"$@\"; fi\n"
+         "echo \"python3 $*\" >> \"$CALLS\"\n"
+         "[ \"$FAILED_LANE\" != python ]\n"
+     )
+     python.chmod(0o755)
+     env = os.environ.copy()
++    for key in ("CLAUDE_CODE_SESSION_ID", "CODEX_SESSION_ID", "CODEX_THREAD_ID",
++                "CODESCOUT_CONTEXT_FILE", "SLOT_FD", "HOLD_DEFAULT"):
++        env.pop(key, None)
+     env.update(
+-        CLAUDE_CODE_SESSION_ID="runner-gate-fixture",
+-        CARGO_TARGET_DIR=str(tmp_path / "target"),
+-        SLOT_FD="",
+-        CALLS=str(tmp_path / "calls.txt"),
+-        FAILED_LANE=failed_lane,
++        CARGO_TARGET_DIR=str(tmp_path / "target"), SLOT_FD="",
++        CALLS=str(tmp_path / "calls.txt"), TARGETS=str(tmp_path / "targets.txt"),
++        FORMAT_MARKER=str(tmp_path / "format-called"), SNAPSHOT_RECORD=str(tmp_path / "snapshot.json"),
++        FMT_EXIT="0", FAILED_LANE="none", REAL_PYTHON=sys.executable,
+         PATH=str(commands) + os.pathsep + env["PATH"],
+     )
+-    result = subprocess.run(
+-        ["bash", str(scripts / "gate.sh")], cwd=tmp_path, env=env,
+-        text=True, capture_output=True, timeout=30,
+-    )
+-    assert (tmp_path / "calls.txt").read_text().splitlines() == [
+-        "python3 ./scripts/python-tests.py --lane light",
+-        "fmt",
++    return tmp_path, env
++
++
++def run_gate_fixture(fixture, *args, **changes):
++    root, env = fixture
++    return subprocess.run(["bash", str(root / "scripts/gate.sh"), *args], cwd=root,
++                          env=env | changes, text=True, capture_output=True, timeout=30)
++
++
++def assert_gate_calls(root, fmt_args=None):
++    expected = ["python3 ./scripts/python-tests.py --lane light"]
++    if fmt_args is not None:
++        expected.append("fmt " + fmt_args)
++    expected += [
+         "cargo clippy --workspace --all-targets --features local-embed -- -D warnings",
+         "cargo test --workspace --no-default-features",
+         "cargo test --workspace",
+     ]
+-    assert result.returncode == (0 if failed_lane == "none" else 1)
+-    assert f"PYTHON_LIGHT={1 if failed_lane == 'python' else 0}" in result.stdout
++    assert (root / "calls.txt").read_text().splitlines() == expected
++    assert (root / "targets.txt").read_text().splitlines() == [str(root / "target")] * 3
++
++
++@pytest.mark.parametrize("failed_lane", ["none", "python", "fmt", "clippy", "lean", "default"])
++@pytest.mark.parametrize("mode", ["claude-code", "codex", "check"])
++def test_gate_runs_every_lane_and_keeps_default_cargo_last(tmp_path, failed_lane, mode):
++    fixture = gate_fixture(tmp_path)
++    root, env = fixture
++    env["FAILED_LANE"] = failed_lane
++    env["FMT_EXIT"] = "1" if failed_lane == "fmt" else "0"
++    args = ("--check",) if mode == "check" else ()
++    if mode != "check":
++        env["CLAUDE_CODE_SESSION_ID" if mode == "claude-code" else "CODEX_SESSION_ID"] = "runner-gate-fixture"
++    result = run_gate_fixture(fixture, *args)
++    assert_gate_calls(root, "--check" if mode == "check" else "")
++    assert result.returncode == (0 if failed_lane == "none" else 1), result.stderr
++    fields = {"PYTHON_LIGHT": "python", "FMT": "fmt", "CLIPPY": "clippy", "LEAN": "lean", "DEFAULT": "default"}
++    for field, lane in fields.items():
++        assert f"{field}={1 if failed_lane == lane else 0}" in result.stdout
++    state = ("differences" if mode == "check" else "ownership-refused") if failed_lane == "fmt" else "passed"
++    assert f"FMT_STATE={state}" in result.stdout
++    if mode != "check":
++        import json
++        record = json.loads((root / "snapshot.json").read_text())
++        assert record["mode"] == 0o600
++        assert record["context"]["harness"] == mode
++        assert not Path(record["path"]).is_relative_to(root)
++        assert not Path(record["path"]).exists()
++
++
++@pytest.mark.parametrize("context", ["missing", "conflicting", "unsupported"])
++def test_gate_context_block_keeps_all_other_lanes(tmp_path, context):
++    fixture = gate_fixture(tmp_path)
++    root, env = fixture
++    if context == "conflicting":
++        env.update(CLAUDE_CODE_SESSION_ID="a", CODEX_SESSION_ID="b")
++    elif context == "unsupported":
++        env["CODESCOUT_CONTEXT_FILE"] = str(root / "missing-context.json")
++    result = run_gate_fixture(fixture)
++    assert_gate_calls(root)
++    assert result.returncode == 1
++    assert "FMT=2" in result.stdout and "FMT_STATE=context-blocked" in result.stdout
++    assert not (root / "format-called").exists()
++
++
++def test_explicit_context_gate_forwards_snapshot_only(tmp_path):
++    import json
++    fixture = gate_fixture(tmp_path)
++    root, _ = fixture
++    context = root / "explicit context.json"
++    context.write_text(json.dumps({"schema_version": 1, "harness": "codex", "source": "explicit",
++                                  "session_id": "native-id", "agent_id": None, "workspace": str(root),
++                                  "harness_version": None}))
++    result = run_gate_fixture(fixture, "--context", str(context))
++    assert result.returncode == 0, result.stderr
++    assert_gate_calls(root, "")
++    record = json.loads((root / "snapshot.json").read_text())
++    assert record["path"] != str(context)
++    assert not Path(record["path"]).exists()
++    assert context.exists()
++
++
++@pytest.mark.parametrize("conflict", [False, True])
++def test_gate_exclusive_authorization_with_missing_or_conflicting_identity(tmp_path, conflict):
++    fixture = gate_fixture(tmp_path)
++    root, env = fixture
++    if conflict:
++        env.update(CLAUDE_CODE_SESSION_ID="a", CODEX_SESSION_ID="b")
++    result = run_gate_fixture(fixture, "--exclusive-checkout", str(root))
++    assert_gate_calls(root, None if conflict else "--exclusive-checkout " + str(root))
++    assert result.returncode == (1 if conflict else 0)
++    assert f"FMT_STATE={'context-blocked' if conflict else 'passed'}" in result.stdout
++
++
++@pytest.mark.parametrize("mode", ["check", "authored"])
++def test_gate_formatter_tool_error_is_reported_without_skipping_default(tmp_path, mode):
++    fixture = gate_fixture(tmp_path)
++    result = run_gate_fixture(fixture, *(("--check",) if mode == "check" else ()),
++                              FMT_EXIT="2", **({"CODEX_SESSION_ID": "me"} if mode == "authored" else {}))
++    assert result.returncode == 1
++    assert "FMT=2" in result.stdout and "FMT_STATE=tool-error" in result.stdout
++    assert_gate_calls(tmp_path, "--check" if mode == "check" else "")
++
++
++@pytest.mark.parametrize("args", [("--check", "--check"), ("--bogus",), ("--context",),
++                                   ("--check", "--exclusive-checkout", "/tmp"),
++                                   ("--exclusive-checkout", "relative"), ("--exclusive-checkout", "/tmp")])
++def test_gate_invalid_entry_runs_no_lanes(tmp_path, args):
++    fixture = gate_fixture(tmp_path)
++    result = run_gate_fixture(fixture, *args)
++    assert result.returncode == 2
++    assert not (tmp_path / "calls.txt").exists()
++def test_interrupted_gate_cleans_private_context_snapshot(tmp_path):
++    import json
++    import signal
++    import time
++    fixture = gate_fixture(tmp_path)
++    root, env = fixture
++    hold = root / "hold-default"
++    started = root / "default-started"
++    hold.touch()
++    env.update(CODEX_SESSION_ID="me", HOLD_DEFAULT=str(hold), DEFAULT_STARTED=str(started))
++    process = subprocess.Popen(["bash", str(root / "scripts/gate.sh")], cwd=root, env=env,
++                               text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
++    try:
++        deadline = time.monotonic() + 10
++        while not started.exists() and process.poll() is None and time.monotonic() < deadline:
++            time.sleep(0.05)
++        assert started.exists()
++        record = json.loads((root / "snapshot.json").read_text())
++        snapshot = Path(record["path"])
++        assert snapshot.exists()
++        process.send_signal(signal.SIGTERM)
++        hold.unlink()
++        process.communicate(timeout=10)
++        assert process.returncode == 143
++        assert not snapshot.exists()
++        assert_gate_calls(root, "")
++    finally:
++        hold.unlink(missing_ok=True)
++        if process.poll() is None:
++            process.kill()
++            process.communicate(timeout=10)
+diff --git a/tests/test_session_context.py b/tests/test_session_context.py
+new file mode 100644
+index 00000000..a715ba20
+--- /dev/null
++++ b/tests/test_session_context.py
+@@ -0,0 +1,198 @@
++"""Contract tests: identity conflicts must never silently authorize another root."""
++import importlib.util
++import json
++import os
++from pathlib import Path
++import subprocess
++import sys
++
++import pytest
++
++SCRIPT = Path(__file__).resolve().parents[1] / "scripts" / "session_context.py"
++
++
++@pytest.fixture
++def ctx():
++    assert SCRIPT.is_file(), "invocation context resolver is not implemented"
++    spec = importlib.util.spec_from_file_location("session_context", SCRIPT)
++    module = importlib.util.module_from_spec(spec)
++    sys.modules[spec.name] = module
++    spec.loader.exec_module(module)
++    return module
++
++
++@pytest.fixture
++def root(tmp_path):
++    checkout = tmp_path / "repo with spaces"
++    checkout.mkdir()
++    subprocess.run(["git", "init", "-q", str(checkout)], check=True)
++    return checkout
++
++
++def context(root, **patch):
++    value = dict(schema_version=1, harness="codex", session_id="same:root",
++                 agent_id=None, workspace=str(root), source="explicit",
++                 harness_version=None)
++    return value | patch
++
++
++def write_context(root, name="context with spaces.json", **patch):
++    path = root.parent / name
++    path.write_text(json.dumps(context(root, **patch)))
++    return path
++
++
++def clean_env(**patch):
++    env = dict(os.environ)
++    for key in ("CLAUDE_CODE_SESSION_ID", "CODEX_SESSION_ID", "CODEX_THREAD_ID", "CODESCOUT_CONTEXT_FILE"):
++        env.pop(key, None)
++    return env | patch
++
++
++def test_principals_are_host_qualified_and_keep_opaque_colons(ctx):
++    assert ctx.principal_key("codex", "same:id") == "codex:same:id"
++    assert ctx.principal_key("claude-code", "same:id") == "claude-code:same:id"
++
++
++@pytest.mark.parametrize("env,state,harness,agent", [
++    ({}, "missing", None, None),
++    ({"CODEX_THREAD_ID": "child"}, "missing", None, None),
++    ({"CLAUDE_CODE_SESSION_ID": "root"}, "available", "claude-code", None),
++    ({"CODEX_SESSION_ID": "root"}, "available", "codex", None),
++    ({"CODEX_SESSION_ID": "root", "CODEX_THREAD_ID": "root"}, "available", "codex", None),
++    ({"CODEX_SESSION_ID": "root", "CODEX_THREAD_ID": "child"}, "available", "codex", "child"),
++    ({"CLAUDE_CODE_SESSION_ID": "root", "CODEX_SESSION_ID": "other"}, "conflicting", None, None),
++    ({"CLAUDE_CODE_SESSION_ID": "root", "CODEX_SESSION_ID": "root"}, "conflicting", None, None),
++])
++def test_native_resolution(ctx, root, env, state, harness, agent):
++    result = ctx.resolve_context(root, env)
++    assert result.state == state
++    if state == "available":
++        assert result.context.harness == harness
++        assert result.context.session_id == "root"
++        assert result.context.agent_id == agent
++        assert result.context.workspace == root.resolve()
++        assert result.context.source == "native-env"
++        assert result.context.harness_version is None
++    else:
++        assert result.context is None
++        assert result.reason
++
++
++def test_codex_native_version_and_opaque_identity(ctx, root):
++    result = ctx.resolve_context(root, {"CODEX_SESSION_ID": "opaque:id", "CODEX_VERSION": "0.160.0"})
++    assert result.context.session_id == "opaque:id"
++    assert result.context.harness_version == "0.160.0"
++
++
++@pytest.mark.parametrize("version", [2, 1.5, "1", True, None])
++def test_unsupported_schema(ctx, root, version):
++    result = ctx.validate_context(context(root, schema_version=version), root)
++    assert result.state == "unsupported"
++    assert "schema_version" in result.reason
++
++
++def test_integer_valued_json_version_normalizes_to_int(ctx, root):
++    result = ctx.validate_context(context(root, schema_version=1.0), root)
++    assert type(result.context.schema_version) is int
++    assert result.context.schema_version == 1
++
++
++@pytest.mark.parametrize("patch", [
++    {"harness": "other"}, {"source": "pointer"}, {"session_id": ""}, {"session_id": 9},
++    {"agent_id": ""}, {"agent_id": 9}, {"harness_version": False},
++    {"workspace": "relative"}, {"workspace": 9},
++])
++def test_bad_field(ctx, root, patch):
++    result = ctx.validate_context(context(root, **patch), root)
++    assert result.state == "unsupported"
++    assert next(iter(patch)) in result.reason
++
++
++@pytest.mark.parametrize("field", ["schema_version", "harness", "session_id", "agent_id", "workspace", "source", "harness_version"])
++def test_all_fields_required(ctx, root, field):
++    value = context(root)
++    del value[field]
++    assert ctx.validate_context(value, root).state == "unsupported"
++
++
++@pytest.mark.parametrize("native", [
++    {"CODEX_SESSION_ID": "other"},
++    {"CLAUDE_CODE_SESSION_ID": "same:root"},
++    {"CLAUDE_CODE_SESSION_ID": "same:root", "CODEX_SESSION_ID": "same:root"},
++])
++def test_explicit_context_cannot_override_native_conflict(ctx, root, native):
++    path = write_context(root)
++    assert ctx.resolve_context(root, native, path).state == "conflicting"
++
++
++def test_explicit_matching_context_and_path_aliases(ctx, root):
++    path = write_context(root)
++    alias = path.parent / "alias.json"
++    alias.symlink_to(path)
++    value = ctx.resolve_context(root, {"CODEX_SESSION_ID": "same:root", "CODESCOUT_CONTEXT_FILE": str(alias)}, path)
++    assert value.state == "available"
++    assert value.context.source == "explicit"
++    assert value.context.session_id == "same:root"
++    other = write_context(root, "other.json")
++    conflict = ctx.resolve_context(root, {"CODESCOUT_CONTEXT_FILE": str(other)}, path)
++    assert conflict.state == "conflicting"
++    assert "context" in conflict.reason
++
++
++def test_manual_explicit_context_requires_no_native_env(ctx, root):
++    path = write_context(root, harness="manual", session_id="operator")
++    result = ctx.resolve_context(root, {}, path)
++    assert result.state == "available"
++    assert result.context.harness == "manual"
++
++
++def test_bad_explicit_file_and_relative_path(ctx, root):
++    path = root.parent / "bad.json"
++    path.write_text("{broken")
++    assert ctx.resolve_context(root, {}, path).state == "unsupported"
++    assert ctx.resolve_context(root, {}, Path("relative.json")).state == "unsupported"
++    assert ctx.resolve_context(root, {}, root.parent / "absent.json").state == "unsupported"
++
++
++def test_canonical_checkout_not_string_prefix(ctx, root):
++    sibling = root.parent / (root.name + "-other")
++    sibling.mkdir()
++    assert ctx.validate_context(context(sibling), root).state == "conflicting"
++    nested = root / "nested"
++    nested.mkdir()
++    subprocess.run(["git", "init", "-q", str(nested)], check=True)
++    assert ctx.validate_context(context(nested), root).state == "conflicting"
++    alias = root.parent / "repo-alias"
++    alias.symlink_to(root, target_is_directory=True)
++    assert ctx.validate_context(context(alias), root).context.workspace == root.resolve()
++    subprocess.run(["git", "-C", str(root), "-c", "user.name=Fixture", "-c", "user.email=fixture@example.invalid",
++                    "commit", "-q", "--allow-empty", "-m", "base"], check=True)
++    worktree = root.parent / "linked tree"
++    subprocess.run(["git", "-C", str(root), "worktree", "add", "-q", "--detach", str(worktree)], check=True)
++    assert ctx.validate_context(context(worktree), root).state == "conflicting"
++    assert ctx.validate_context(context(worktree), worktree).state == "available"
++
++
++def test_cli_checks_actual_invocation_checkout(root):
++    path = write_context(root)
++    result = subprocess.run([sys.executable, str(SCRIPT), "--workspace", str(root), "--context", str(path)],
++                            cwd=root, env=clean_env(), text=True, capture_output=True)
++    assert result.returncode == 0, result.stderr
++    assert json.loads(result.stdout)["context"] == context(root)
++    nested = root / "nested"
++    nested.mkdir()
++    subprocess.run(["git", "init", "-q", str(nested)], check=True)
++    wrong = subprocess.run([sys.executable, str(SCRIPT), "--workspace", str(root), "--context", str(path)],
++                           cwd=nested, env=clean_env(), text=True, capture_output=True)
++    assert wrong.returncode == 2
++    assert json.loads(wrong.stdout)["state"] == "conflicting"
++
++
++def test_shared_expected_objects(ctx, root):
++    pack = json.loads((Path(__file__).parent / "fixtures/session-context-v1.json").read_text()
++                      .replace("${WORKSPACE}", str(root)))
++    for case in pack["cases"]:
++        result = ctx.validate_context(case["expected"]["context"], root)
++        assert result.state == case["expected"]["state"]
++        assert result.context.to_dict() == case["expected"]["context"]

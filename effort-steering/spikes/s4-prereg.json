@@ -1,0 +1,24 @@
+{
+  "direction": "down",
+  "effectSizeThinkingTokens": 400,
+  "latencyBudgetMs": 500,
+  "holdoutRate": 0.5,
+  "repeats": 4,
+  "minPerArm": 13,
+  "model": "claude-sonnet-5-5",
+  "effort": "xhigh",
+  "prompts": [
+    "Design a rate limiter that works across three application servers and survives a Redis failover. Compare two approaches and recommend one.",
+    "A Python service leaks memory only under high load. List the five most likely causes in order and name the check that separates each.",
+    "Write a function that finds the longest palindromic substring in linear time and explain why Manacher's algorithm works.",
+    "Count the ways to tile a 3 by 10 grid with 1 by 2 dominoes, and show the recurrence you used.",
+    "Build the minimal DFA that accepts binary strings representing multiples of 3, then derive a regular expression from it.",
+    "A Go service doubles its p99 latency after gzip is enabled on responses. List the five most likely causes in order and name the check that separates each.",
+    "Find every bug in this Python function and explain how each one fails: def bsearch(a, x): lo, hi = 0, len(a); while lo < hi: mid = (lo + hi) // 2; if a[mid] < x: lo = mid; else: hi = mid - 1; return lo if a and a[lo] == x else -1",
+    "Implement an LRU cache with O(1) get and put in Python without using OrderedDict, then explain how you would make it thread-safe."
+  ],
+  "steerLevel": "shallow",
+  "alpha": 0.01,
+  "permutations": 20000,
+  "seed": 20261008
+}

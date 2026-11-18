@@ -6,6 +6,15 @@ echo "── worktree-activate ──"
 HOOK="$HOOK_DIR/worktree-activate.mjs"
 T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
 
+# write_mcp_json fixture uses fake-ce which doesn't match detect.mjs's
+# /codescout/ regex; write directly with a matching command so HAS_CODESCOUT
+# resolves from the project alone, not from an ambient ~/.claude* profile.
+write_ce_mcp_json() {
+  cat > "$1/.mcp.json" <<'MCP'
+{"mcpServers":{"codescout":{"command":"/usr/local/bin/codescout","args":["serve"]}}}
+MCP
+}
+
 # Test 1: non-EnterWorktree tool → silent exit
 OUT=$(printf '{"cwd":"%s","tool_name":"Bash","tool_response":{}}' "$T" | node "$HOOK" 2>/dev/null)
 if assert_no_output "$OUT"; then pass "non-EnterWorktree: silent exit"; else fail "non-EnterWorktree: silent exit" "$OUT"; fi
@@ -19,7 +28,7 @@ if assert_no_output "$OUT"; then pass "no CE: silent exit"; else fail "no CE: si
 
 # Test 3: EnterWorktree with worktree_path → marker created, guidance injected, symlink exists
 make_git_repo "$T/t3main"
-write_mcp_json "$T/t3main"
+write_ce_mcp_json "$T/t3main"
 make_ce_dir "$T/t3main"
 make_worktree "$T/t3main" "$T/t3wt"
 OUT=$(printf '{"cwd":"%s","tool_name":"EnterWorktree","tool_response":{"worktree_path":"%s"}}' \
@@ -37,7 +46,7 @@ fi
 
 # Test 4: EnterWorktree without worktree_path → fallback detection
 make_git_repo "$T/t4main"
-write_mcp_json "$T/t4main"
+write_ce_mcp_json "$T/t4main"
 make_ce_dir "$T/t4main"
 make_worktree "$T/t4main" "$T/t4wt"
 OUT=$(printf '{"cwd":"%s","tool_name":"EnterWorktree","tool_response":{}}' \
@@ -49,9 +58,11 @@ else
     "marker=$(ls "$T/t4wt/.cs-worktree-pending" 2>/dev/null || echo missing) ctx=$(echo "$OUT" | jq -r '.hookSpecificOutput.additionalContext' 2>/dev/null | head -2)"
 fi
 
-# Test 5: EnterWorktree, worktree has real .codescout/ dir → embeddings symlink created
+# Test 5: EnterWorktree, worktree has real .codescout/ dir, main HAS embeddings → NO symlink
+# (the link is dead under the Qdrant backend and left an untracked entry that made
+#  `git worktree remove` refuse — docs/issues/archive/2026-11-12-worktree-hooks-link-the-legacy-embeddings-store-into-every-worktree.md)
 make_git_repo "$T/t5main"
-write_mcp_json "$T/t5main"
+write_ce_mcp_json "$T/t5main"
 make_codescout_dir "$T/t5main"
 make_embeddings_dir "$T/t5main"
 make_worktree "$T/t5main" "$T/t5wt"
@@ -59,16 +70,16 @@ mkdir -p "$T/t5wt/.codescout"
 echo '[project]' > "$T/t5wt/.codescout/project.toml"
 OUT=$(printf '{"cwd":"%s","tool_name":"EnterWorktree","tool_response":{"worktree_path":"%s"}}' \
   "$T/t5main" "$T/t5wt" | node "$HOOK" 2>/dev/null)
-if [ -L "$T/t5wt/.codescout/embeddings" ]; then
-  pass "EnterWorktree real .codescout/: embeddings symlink created"
+if [ ! -e "$T/t5wt/.codescout/embeddings" ] && [ ! -L "$T/t5wt/.codescout/embeddings" ]; then
+  pass "EnterWorktree real .codescout/, main has embeddings: no symlink created"
 else
-  fail "EnterWorktree real .codescout/: embeddings symlink created" \
+  fail "EnterWorktree real .codescout/, main has embeddings: no symlink created" \
     "$(ls -la "$T/t5wt/.codescout/" 2>/dev/null)"
 fi
 
 # Test 6: EnterWorktree, real .codescout/, embeddings missing from main → no symlink
 make_git_repo "$T/t6main"
-write_mcp_json "$T/t6main"
+write_ce_mcp_json "$T/t6main"
 make_codescout_dir "$T/t6main"
 # intentionally no make_embeddings_dir
 make_worktree "$T/t6main" "$T/t6wt"
@@ -90,7 +101,7 @@ fi
 # retired "Do NOT run index in worktrees" claim (true before that feature,
 # false after) is gone for good.
 make_git_repo "$T/t7main"
-write_mcp_json "$T/t7main"
+write_ce_mcp_json "$T/t7main"
 make_ce_dir "$T/t7main"
 make_worktree "$T/t7main" "$T/t7wt"
 OUT=$(printf '{"cwd":"%s","tool_name":"EnterWorktree","tool_response":{"worktree_path":"%s"}}' \

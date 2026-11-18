@@ -33,7 +33,7 @@ def test_session_start_resets_session_scoped_fields(tmp_path):
 
 
 def test_session_start_clears_root_cwd(tmp_path):
-    """Session start clears root_cwd — it's set by the first activate_project('.') response."""
+    """Session start clears root_cwd — it's set by the first workspace(action="activate") response."""
     from scripts.hook_helpers import handle_session_start
     from scripts.state import load_state, save_state, default_state
 
@@ -172,8 +172,8 @@ def test_cs_active_project_clears_on_absolute_home_path(tmp_path):
     # Activate a foreign project
     handle_cs_tool_use(
         event={
-            "tool_name": "mcp__codescout__activate_project",
-            "tool_input": {"path": "/tmp/foreign"},
+            "tool_name": "mcp__codescout__workspace",
+            "tool_input": {"action": "activate", "path": "/tmp/foreign"},
             "cwd": "/home/user/myproject",
         },
         session_dir=session_dir,
@@ -186,8 +186,8 @@ def test_cs_active_project_clears_on_absolute_home_path(tmp_path):
     # Restore home via absolute path (not ".")
     handle_cs_tool_use(
         event={
-            "tool_name": "mcp__codescout__activate_project",
-            "tool_input": {"path": "/home/user/myproject"},
+            "tool_name": "mcp__codescout__workspace",
+            "tool_input": {"action": "activate", "path": "/home/user/myproject"},
             "cwd": "/home/user/myproject",
         },
         session_dir=session_dir,
@@ -197,6 +197,58 @@ def test_cs_active_project_clears_on_absolute_home_path(tmp_path):
     state = load_state(state_path)
     assert state["signals"]["cs_active_project"] is None, \
         "absolute home path should clear cs_active_project"
+def test_first_workspace_activate_sets_root_cwd_from_response(tmp_path):
+    """The first workspace(action="activate") is the home project: root_cwd
+    comes from the response's project_root, not from event['cwd']."""
+    from scripts.hook_helpers import handle_session_start, handle_cs_tool_use
+    from scripts.state import load_state
+
+    state_path = tmp_path / "state.json"
+    session_dir = tmp_path / ".buddy" / "test-session"
+    session_dir.mkdir(parents=True)
+    handle_session_start({"timestamp": 100, "cwd": "/launch/dir"}, state_path)
+
+    handle_cs_tool_use(
+        event={
+            "tool_name": "mcp__codescout__workspace",
+            "tool_input": {"action": "activate", "path": "."},
+            "tool_response": {"project_root": "/real/home"},
+            "cwd": "/launch/dir",
+        },
+        session_dir=session_dir,
+        state_path=state_path,
+        session_id="test-session",
+    )
+    sig = load_state(state_path)["signals"]
+    assert sig["root_cwd"] == "/real/home"
+    assert sig["cs_active_project"] is None
+
+
+def test_workspace_status_does_not_touch_cs_active_project(tmp_path):
+    """Only action="activate" moves the active project. A status call that
+    carries a path must leave cs_active_project and root_cwd alone."""
+    from scripts.hook_helpers import handle_session_start, handle_cs_tool_use
+    from scripts.state import load_state
+
+    state_path = tmp_path / "state.json"
+    session_dir = tmp_path / ".buddy" / "test-session"
+    session_dir.mkdir(parents=True)
+    handle_session_start({"timestamp": 100, "cwd": "/home/user/myproject"}, state_path)
+
+    handle_cs_tool_use(
+        event={
+            "tool_name": "mcp__codescout__workspace",
+            "tool_input": {"action": "status", "path": "/tmp/foreign"},
+            "tool_response": {"project_root": "/tmp/foreign"},
+            "cwd": "/home/user/myproject",
+        },
+        session_dir=session_dir,
+        state_path=state_path,
+        session_id="test-session",
+    )
+    sig = load_state(state_path)["signals"]
+    assert sig["cs_active_project"] is None
+    assert not sig["root_cwd"]
 
 
 def test_post_tool_use_cs_path_uses_event_cwd_not_root_cwd(tmp_path):

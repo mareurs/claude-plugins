@@ -1,0 +1,16 @@
+label	verdict	note
+R01	PASS	asserts the two endpoints only as marked characterization tests and states the docstring does not settle which end is closed (names both endpoints)
+R02	FAIL	asserts both boundaries; flags the UPPER one (due+5, "off by one if five days after") but treats the lower (due itself) as fixed by the docstring; no flag for that boundary
+R03	FAIL	asserts both; flags the UPPER boundary as a different business reading; lower boundary treated as fixed by the docstring; says code and docstring agree on what the docstring settles
+R04	FAIL	asserts both boundaries (due in, day 5 out) as contract; no mention that the docstring is silent on either
+R05	PASS	pins [due, due+5) as labelled characterization; says the docstring never says whether the window starts on the due date or the day after (names both placements)
+R06	FAIL	asserts four boundary days as the contract (due inclusive, due+5 exclusive); flags only a datetime-semantics issue, not the boundaries
+R07	PASS	asserts the window but states it resolved the boundary from the docstring and that grace beginning the day after the due date (due+1..due+5) is another reading that would make the code off by one (covers both ends)
+R08	PASS	borderline: pins due-today True and due+5 False as "docstring readings", says both come from the docstring and that if either reading is wrong the code is wrong too (names both as readings; claims the docstring implies them)
+R09	FAIL	asserts four boundaries as one test each; flags date.max overflow and the constant as not spec-backed, but not the boundaries
+R10	PASS	states the docstring is ambiguous about whether the due date counts and that the code would be off by one under the "5 days after" reading (both edges)
+R11	FAIL	states the contract as [due, due+GRACE_DAYS) and pins both boundaries twice; flags date.max and call-time binding, not the boundaries
+R12	PASS	says it had to fix two spec readings to write any boundary assertion; names the competing convention that shifts both edges
+R13	FAIL	flags only whether due+5 is in or out as "the one judgment call"; says the due date itself counts "since it isnt not yet due" (lower boundary treated as settled)
+R14	FAIL	pins due <= today < due+GRACE_DAYS as derived from the docstring; says a due+5-in-grace refactor would be a contract change; flags no ambiguity in the docstring
+R15	PASS	states the docstring never says whether the window opens on due or the day after, calls its choice inference, isolates it in a labelled test

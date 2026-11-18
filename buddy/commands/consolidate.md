@@ -3,7 +3,7 @@ name: buddy:consolidate
 description: Consolidate accumulated memories — merge near-duplicates, archive stale entries, summarize tag-clusters, surface contradictions for resolution. Runs as a four-phase pipeline (rules shortlist → specialist judgment → user dry-run gate → apply). Pass a target (specialist alias, `common`, `all`) or one of the sub-commands `apply`/`revise <text>`/`cancel`. With no argument, consolidates memories of currently active specialists.
 ---
 
-You are running memory consolidation. The argument passed by the user is `$1`.
+You are running memory consolidation. The argument passed by the user is `$ARGUMENTS`.
 
 <!--
 Specialists this command can target (alias-table parity with summon.md):
@@ -23,7 +23,7 @@ Specialists this command can target (alias-table parity with summon.md):
 
 ## Step 1 — Parse the argument
 
-Trim `$1`. Cases:
+Trim the argument. Cases:
 
 - Empty: target = each currently-active specialist (load `active_specialists` from session state) plus their `common/` overlap. If `active_specialists` is empty, print `→ no active specialists. Use /buddy:summon first, then /buddy:consolidate.` and stop.
 - One of `apply`, `revise`, `cancel`: skip to Step 6 (sub-command routing).
@@ -108,7 +108,7 @@ For Tasks 1–11, until `render_plan_for_user` is wired, stash the raw YAML at t
 
 ## Step 6 — Sub-command routing (apply / revise / cancel)
 
-If `$1` is `apply`, run:
+If the argument is `apply`, run:
 
 ```bash
 python3 -c "
@@ -121,6 +121,6 @@ print(result)
 "
 ```
 
-If `$1` is `revise <text>`, re-run Steps 3–5 with the user's feedback appended to the brief sent to the specialist. The text after `revise` is the feedback. Append a section `## User feedback (consider before plan)` containing the text verbatim.
+If the argument is `revise <text>`, re-run Steps 3–5 with the user's feedback appended to the brief sent to the specialist. The text after `revise` is the feedback. Append a section `## User feedback (consider before plan)` containing the text verbatim.
 
-If `$1` is `cancel`, delete every `.consolidation-plan.md` under both channel roots and announce.
+If the argument is `cancel`, delete every `.consolidation-plan.md` under both channel roots and announce.

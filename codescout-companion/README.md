@@ -2,9 +2,11 @@
 
 Companion plugin for [codescout](https://github.com/mareurs/codescout) MCP server.
 
-Routes Claude Code agents to use codescout's symbol-aware tools instead of
-falling back to Read/Grep/Glob on source files. Auto-detects codescout from
-`.mcp.json`, `~/.claude/.claude.json`, or `~/.claude/settings.json`.
+Routes Claude Code, VS Code/Copilot, and Pi agents to use codescout's
+symbol-aware tools instead of falling back to native source inspection. The
+portable skills live in `skills/`; host-specific routing lives in the hook and
+Pi adapters. Auto-detects codescout from `.mcp.json`, `~/.claude/.claude.json`,
+or `~/.claude/settings.json`.
 
 ## Quick Install
 
@@ -30,7 +32,7 @@ Start a new Claude Code session — the plugin activates automatically.
 - **Drift warnings** — Surfaces high-drift files and flags stale docs/memories
 - **Worktree guard** — Blocks codescout write tools until `workspace` is called after `EnterWorktree`
 - **Tracker hygiene** — `/codescout-companion:tracker-hygiene` runs a human-gated tracker-corpus sweep (staleness, index drift, terminal-tracker archiving); SessionStart nudges when the project's ledger says a sweep is overdue
-- **Peer sessions** — `/codescout-companion:reaching-peer-sessions` enumerates the Claude Code sessions actually live on this machine. `ListAgents` reads a **per-profile** registry while `SendMessage` delivers over a **per-user** socket dir, so on a multi-profile machine it omits peers and reports the short count as complete; the skill branches on the real profile count and gives the `uds:` address form for peers it cannot name
+- **Peer sessions** — moved to the `session-bridge` plugin: its skill `coordinating-sessions` covers posting a notice, reading one, asking a peer and the commit backup. The peer-session skill of this plugin was retired on 2026-11-17, because `session-bridge`'s `list_sessions` already lists the live sessions of every profile, Claude Code and Codex.
 
 ## Full Installation
 
@@ -49,7 +51,37 @@ Or add to project `.claude/settings.json`:
 }
 ```
 
+### VS Code and GitHub Copilot
+
+VS Code recognizes this package's Claude plugin format directly, including its
+skills, commands, and hooks. Enable agent plugins and register a local checkout
+in user `settings.json`:
+
+```jsonc
+{
+  "chat.plugins.enabled": true,
+  "chat.pluginLocations": {
+    "/path/to/claude-plugins/codescout-companion": true
+  }
+}
+```
+
+Keep the `codescout` MCP server registered in VS Code `mcp.json`. VS Code
+currently ignores Claude hook matchers, so the hooks filter the host tool names
+and camelCase input paths themselves.
+
+### Pi
+
+Use the repository installer in `harnesses/pi/install.sh`, which links the Pi routing
+adapter and exposes this package's canonical `skills/` directory. Configure the
+codescout MCP server through `pi-mcp-adapter` with its codescout tools listed as
+`directTools`.
+
 ## Configuration
+
+### Background-job continuation
+
+The shared engine is opt in per profile; missing configuration keeps Claude legacy and disables Codex. See [preparation, measured support, migration and recovery](../docs/background-wake.md). Prepare the exact runtime dependency with `npm ci --prefix codescout-companion --ignore-scripts --omit=optional` before copying this source. Native Windows host delivery remains unverified and disabled.
 
 ### Auto-detection
 
@@ -88,15 +120,126 @@ Create `.claude/codescout-companion.json` (or `codescout-routing.json`) in your 
 
 ## Hooks
 
+**This table is a selection, not an inventory — 9 of the 22 registrations in
+`hooks/hooks.json`.** Derive the real figure rather than trusting this sentence:
+
+```bash
+jq '[.hooks[][].hooks[]] | length' codescout-companion/hooks/hooks.json
+```
+
+`hooks.json` is the only authority on what is wired. A hook absent from the rows
+below is not thereby inactive.
+
 | Event | Hook | Purpose |
 |---|---|---|
-| `SessionStart` | `session-start.sh` | Tool guide + memory hints + onboarding nudge |
-| `SubagentStart` | `subagent-guidance.sh` | Compact guidance for all subagents |
-| `PreToolUse` (Grep/Glob/Read/Bash) | `pre-tool-guard.sh` | Hard-block Read/Edit/Write/Grep/Glob/Bash on source files (path-agnostic), redirect to codescout. Native Read of binary images/PDF is the sole exemption. |
-| `PostToolUse` (EnterWorktree) | `worktree-activate.sh` | Symlink .codescout/ and inject workspace guidance |
-| `PreToolUse` (Edit/Write/edit_code/edit_file/create_file) | `constitution-guard.sh` | Deny-once-per-epoch enforcement of path-scoped "constitution" tracker rules — shells into `codescout constitution-check --path` |
-| `UserPromptSubmit` | `constitution-brief.sh` | Surface global (path-less) "constitution" tracker rules once per epoch via `additionalContext` |
-| `PreCompact` | `constitution-epoch-bump.sh` | Bump the per-session constitution "epoch" so rules re-surface after compaction |
+| `SessionStart` | `session-start.mjs` | Tool guide + memory hints + onboarding nudge |
+| `SubagentStart` | `subagent-guidance.mjs` | Compact guidance for all subagents |
+| `PreToolUse` (Grep/Glob/Read/Bash) | `pre-tool-guard.mjs` | Hard-block Read/Edit/Write/Grep/Glob/Bash on source files (path-agnostic), redirect to codescout. Native Bash escalation continues through host approval; binary images/PDF and skill payloads also have read exemptions. |
+| `PreToolUse` (`mcp__codescout__.*`) | `principal-stamp.mjs` | Stamp the calling principal (`session_id/agent_id`) into codescout tool arguments, so the server can tell a subagent's call from its parent's — the one thing the MCP wire cannot carry. Silent for parent calls, by design. Silent in auto mode too, because a rewritten input voids auto mode's review there and the call is refused. Emits **no** `permissionDecision`. |
+| `PostToolUse` (`mcp__codescout__.*`) | `cs-verified-relocate.mjs` | Move a server-verified `advice` out of a codescout result into `[cs-verified]` hook context. Fail-open, 5 s timeout. Released in 1.21.0; see the section below. |
+| `PostToolUse` (EnterWorktree) | `worktree-activate.mjs` | Symlink .codescout/ and inject workspace guidance |
+| `PreToolUse` (Edit/Write/edit_code/edit_file/create_file) | `constitution-guard.mjs` | Deny-once-per-epoch enforcement of path-scoped "constitution" tracker rules — shells into `codescout constitution-check --path` |
+| `UserPromptSubmit` | `constitution-brief.mjs` | Surface global (path-less) "constitution" tracker rules once per epoch via `additionalContext` |
+| `PreCompact` | `constitution-epoch-bump.mjs` | Bump the per-session constitution "epoch" so rules re-surface after compaction |
+
+### `cs-verified-relocate.mjs` (released in 1.21.0)
+
+A `PostToolUse` hook on `mcp__codescout__.*` (5 s timeout). When a codescout result
+carries a top-level `advice` object whose `verified` is the boolean `true`, the hook
+removes `advice` from that one content block and delivers its text as hook context,
+tagged `[cs-verified]`. It acts only when all of these hold:
+
+- the tool name starts with `mcp__codescout__`, and the hook input's `mcp_server.name`
+  is exactly `codescout` (the prefix alone also matches a server registered as
+  `codescout__x`; `mcp_server.source` is not checked). A hook input without an
+  `mcp_server` object makes the hook do nothing;
+- the Claude Code session-id gate passes: `session_id` in the hook input equals the
+  `CLAUDE_CODE_SESSION_ID` the CLI sets for the hook;
+- the advice text has no invisible or non-printing characters, no control characters,
+  and no `[cs-` or `system-reminder` marker. The marker check compares after NFKC
+  folding and lower-casing, which catches fullwidth and other compatibility forms but
+  not cross-script homoglyphs such as Cyrillic letters; any such text sits after the
+  CLI's own `PostToolUse:<tool> hook additional context:` prefix. The text can carry a
+  path or a symbol name from the user's code, so advice that fails these checks stays
+  in the result.
+
+It **never** moves an unverified advice, a protocol hint or a safety warning: `hint`
+is untouched. On every other path it prints nothing and exits 0 (fail-open; it never
+exits 2). The header comment of the script lists the remaining limits (size caps,
+round-trip refusals).
+
+The CLI behaviour it relies on (empty stdout accepted, `updatedToolOutput` with several
+blocks, `additionalContext` delivery, failure modes, subagent calls, the session-id
+gate) was measured with a probe hook on 2.1.318 and 2.1.311 in `-p` mode. The shipped
+script itself was then run on both versions (each mode once per version, one model,
+`claude-haiku-5-5`), registered as a throwaway plugin hook: `-p`, `-p --resume`,
+`-p --fork-session --resume`, an interactive pty session with `/clear` between two
+calls, and a subagent call; the relocation applied in all of them and the gate held (the
+hook's `CLAUDE_CODE_SESSION_ID` equalled its stdin `session_id`, including the new
+session after `/clear` and after a fork). A hook in `--settings` whose command contains
+`${CLAUDE_PLUGIN_ROOT}` is refused by the CLI with a non-blocking error (measured on
+both versions), so the shipped entry runs only as a plugin hook. Not measured:
+compaction persistence, `--continue`, interactive resume and fork, `claude --bg`,
+VS Code, Copilot and other hosts, other CLI versions and models, the real `buddy` hook,
+a cold start and a release install. In the `results.md` runs the hook was a throwaway
+plugin hook, not the real companion `hooks.json`; the real `hooks.json` load was
+exercised once, by the live run described below (n = 1). Measurements and decisions
+are in `contracts/fixtures/cs-verified/results.md` and the `README.md` beside it.
+
+**Measurement scope: stub server.** Every Claude Code run in `results.md` used a stub MCP
+server (`scripts/probe-cs-verified/stub_mcp.py`) that answers with single-line JSON. The
+real codescout server answers with pretty-printed JSON (2-space indent); the hook's unit
+tests cover that with a hand-built variant. On 2026-11-05, after the merge into `main`
+and a `/reload-plugins`, one real `edit_code replace` on a TypeScript file through the
+real codescout server was relocated by the live hook: the visible result had no `advice`,
+and a system-role message `PostToolUse:mcp__codescout__edit_code hook additional
+context: [cs-verified] ...` arrived. That is n = 1 and one model. It shows that the
+relocation works on the product path; it does not show that the model behaves
+differently. That live run happened before the `mcp_server.name` check existed (it ran on `main` at `2a1a7a8`). A second live run on 2026-11-05, after the check reached `main` (`6faf007`) and a `/reload-plugins`, repeated the same kind of edit (a TypeScript signature change with a caller in another file, through the real codescout server) and was relocated again: the real server's hook input passes the `mcp_server.name === "codescout"` check (n = 1, one model).
+
+**Not yet.** The hook relocates whenever the gates pass, with or without a consent
+statement in the user's `CLAUDE.md`. That statement is a future step and is not
+shipped; it will only change how the model treats the `[cs-verified]` context. Until
+it exists, the relocated text is ordinary hook context, and its effect on the model is
+not measured for this class of hint. The hook ships in `codescout-companion` 1.21.0 (bump commit `fac74c0`, which contains its
+`hooks.json` entry); on 2026-11-05 all four local profiles had 1.21.0 installed, and the cached
+hook was byte-identical to the one in `main`.
+
+Risks, measured or not:
+
+- **Silent fail-closed.** If the session-id gate failed, the hook would never act and
+  nothing would report it. The measurement reduces this risk; it does not remove it.
+  On 2.1.318 and 2.1.311 the gate held in `-p`, `-p --resume`, `-p --fork-session`, an
+  interactive session across `/clear` and a subagent call (stdin `session_id` equal to
+  the hook's `CLAUDE_CODE_SESSION_ID`), one run per mode and version, one model. Not
+  measured: compaction, `--continue`, interactive resume and fork, `claude --bg`, other
+  hosts, other versions. `/clear` through `--input-format stream-json` was not tried,
+  because the CLI help does not document slash commands there.
+- **Coexistence.** Measured thinly: one run per arrangement and version, with a
+  python STAND-IN for the `buddy` plugin's unmatched hook (own plugin, no matcher,
+  `[cs-hint]` `additionalContext` only), not the real hook. In those runs the CLI ran
+  both hooks, delivered both `additionalContext` strings in one system message under the
+  same prefix (`PostToolUse:<tool> hook additional context: `, so the model cannot tell
+  which hook spoke), and applied our `updatedToolOutput`. The order matched the order in
+  which the hooks finished in all 6 two-hook samples. Our hook is a node script (46 to
+  51 ms by the logging wrapper's own log in four of the six samples, 129 and 677 ms in
+  the other two) and the stand-in is near-instant, so where the stand-in finished first
+  it did so because our script takes longer, not because of the wrapper (the shipped
+  registration has the same runtime). The order is therefore a fit to those samples, not
+  a general property. Not measured: another hook that also prints `updatedToolOutput`.
+- **`asyncRewake` is not used, on purpose.** An async hook's `updatedToolOutput` would
+  probably not apply. This is not measured.
+
+Pairing with the server:
+
+- **New hook, old server** (no `advice` field) — safe. The hook never acts, by
+  construction; this was not measured against an old server binary.
+- **New server, old or absent hook** — safe. The advice stays in the result unchanged.
+  The server first emitted `advice` at codescout commit `08775f958` (`edit_code`
+  `replace`), and its `verified` claim rests on the tree-sitter declaration-header
+  reader, on the branch merged at `4214c5f77` (a merge commit): `310a20e86` added the
+  reader and `4414a44fb` wired it in and deleted the text scanner. Both are ancestors
+  of `4214c5f77` through its first parent and are on `experiments`.
 
 ## Ollama Setup
 
@@ -216,11 +359,18 @@ If `codescout-companion@sdd-misc-plugins` is absent, reinstall:
 
 ### Cross-repo git ops blocked
 
-All Bash routes to `run_command`. For sibling-repo git, run from this project's root:
+Ordinary Bash calls route to `run_command`. For sibling-repo git, run from this project's root:
 
     run_command("git -C /abs/path/to/sibling <subcommand>")
 
 No `cd` and no workspace switch needed — `run_command` sandboxes cwd to the project. (Pre-1.11.3 the hook recognised a leading `cd <dir>` to a sibling repo and let the command through to native Bash; that escape was removed because it silently bypassed Read/Edit guards too.)
+
+A native Bash call with `tool_input.sandbox_permissions: "require_escalated"` continues through the host's permission flow, because `run_command` cannot carry the host's sandbox approval request. The routing hook emits advisory context, never an approval decision. Ordinary calls and native source-file reads/edits retain their routing rules.
+
+The Codex shell adapter must preserve `sandbox_permissions` in its PreToolUse payload for this exception to work. Stock Codex does not, as far as we measured: its `exec_command` handler in upstream source of 2026-10-13 builds `tool_input` as `{"command": ...}` only, and [openai/codex#40996](https://github.com/openai/codex/issues/40996) reports a captured payload without the field. On such a host the hook cannot tell an escalation request from ordinary shell work, so it routes the call to Codescout and the native approval prompt never appears. Installing the companion alone does not repair that host. The exception works with a Codex build whose payload carries the field (this repo's `docs/issues/2026-10-09-companion-routing-blocks-codex-native-escalation.md` records the paired fix and its acceptance test).
+
+If you hit this on stock Codex, either ask the user to run the command with `!`, or opt the main agent out of the guard with `block_reads: false` in `.claude/codescout-companion.json` (a subagent stays guarded; that setting also lifts the Read, Grep and Edit routing for the main agent).
+
 ## Coupling to codescout
 
 This plugin is **intentionally tightly coupled** to codescout. It reads
@@ -228,10 +378,34 @@ codescout's SQLite DB, calls its CLI binary, and references its internal
 schema. It should be updated whenever codescout adds features that affect
 exploration workflows.
 
+### `principal-stamp.mjs` and the server version
+
+`principal-stamp.mjs` writes an argument key (`dev.codescout.mcp/agentId`) that
+only a codescout server carrying `session_key::principal_from_arguments` reads
+and strips. The two halves ship from different repos and update independently, so
+the pairing matters:
+
+- **New hook, old server** — safe. The key reaches the tool's argument parsing,
+  where it is ignored. Measured 2026-09-14 at the live tool surface; an earlier
+  draft of the server's own doc comment asserted the opposite (that
+  `deny_unknown_fields` would refuse it) and was corrected against the
+  measurement. Not exhaustively proven for every tool, so treat it as "no
+  observed rejection" rather than a guarantee — the cost of being wrong is one
+  failed call, not corruption.
+- **New server, old hook (or no plugin)** — safe and is the default everywhere
+  else. Absent key means "this session's own parent", which is exactly right for
+  a session that spawns no subagents.
+
+Neither half is load-bearing for correctness: without the stamp the server
+over-delivers guides it already sent, which costs context and nothing else.
+
+## Session context and verification
+
+The version 1 [session context contract](docs/session-context.md) separates root identity, history coverage, lifecycle support and peer contact across Claude Code and Codex. Codescout's gate.sh --check needs no identity; authored formatting requires validated context and refuses uncertain ownership. Missing context blocks formatting while the leased verification lanes still run. Actual Claude owned formatting passes. Codex native MCP context and known writer recovery pass; complete code-mode history remains limited, so its observed resumed formatter preserves bytes and reports UNKNOWN. See the linked guide for exact options, installed-load observations and remaining authentication/history limits.
 ## Changelog
 ### 1.13.1
 
-- `subagent-guidance.sh`: replace the vague nav directive with an **exploration protocol** (v1.1) for code subagents — Phase 0 loads project knowledge (memories + open-bug ledger via `artifact(find, kind="bug")` + matching `get_guide`), Phase 1 routes each lookup by what the agent knows, Phase 2 adds evidence discipline (a finding needs bytes actually read; for tool-behavior claims run the call and read real output; a doc/comment the code contradicts is itself a finding), plus a report contract requiring a `Ledger checked:` line. Folds in the `reconnaissance` skill's run-the-call and doc-vs-code ingredients. The `CODESCOUT RULES` compression-resilient block is unchanged. Provenance: codescout `docs/trackers/prompt-hamsa-audit-log.md` A-16 (3-arm bug-hunt A/B) + A-15 (memory-blind subagents).
+- `subagent-guidance.sh`: replace the vague nav directive with an **exploration protocol** (v1.1) for code subagents — Phase 0 loads project knowledge (memories + open-bug ledger via `artifact(find, kind="bug")` + matching `get_guide`), Phase 1 routes each lookup by what the agent knows, Phase 2 adds evidence discipline (a finding needs bytes actually read; for tool-behavior claims run the call and read real output; a doc/comment the code contradicts is itself a finding), plus a report contract requiring a `Ledger checked:` line. Folds in the `reconnaissance` skill's run-the-call and doc-vs-code ingredients. The `CODESCOUT RULES` compression-resilient block is unchanged. Provenance: codescout `docs/trackers/prompt-hamsa-audit-log.md` codescout:A-16 (3-arm bug-hunt A/B) + codescout:A-15 (memory-blind subagents).
 
 ### 1.13.0
 

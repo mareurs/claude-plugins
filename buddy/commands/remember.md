@@ -3,7 +3,7 @@ name: buddy:remember
 description: Ask the currently active specialist(s) to save a memory about the given lesson. Pass the lesson as the argument — e.g. `/buddy:remember in this repo, integration tests must hit a real database`. The specialist decides global vs project scope and the slug.
 ---
 
-You are processing an explicit memory request. The argument passed by the user is `$1`.
+You are processing an explicit memory request. The argument passed by the user is `$ARGUMENTS`.
 
 ## Step 1 — Resolve who saves it
 
@@ -27,11 +27,11 @@ print(','.join(s.get('active_specialists', [])) or 'NONE')
 
 - If output is `NONE` or empty: tell the user `No specialist is summoned. Run /buddy:summon <name> first, or pick which POV should hold this memory.` and stop.
 - If exactly one specialist: that one saves the memory.
-- If multiple specialists: pick the most relevant based on `$1` and the specialist descriptions in `commands/summon.md`. If genuinely tied, ask the user which POV.
+- If multiple specialists: pick the most relevant based on the argument and the specialist descriptions in `commands/summon.md`. If genuinely tied, ask the user which POV.
 
 ## Step 2 — Save the memory
 
-The chosen specialist (you, in their voice) follows the Memory Protocol from `${CLAUDE_PLUGIN_ROOT}/data/memory-protocol.md` to write `$1` as a memory:
+The chosen specialist (you, in their voice) follows the Memory Protocol from `${CLAUDE_PLUGIN_ROOT}/data/memory-protocol.md` to write the argument as a memory:
 
 1. Decide scope (global vs project).
 2. Propose a slug.

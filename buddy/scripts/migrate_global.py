@@ -22,7 +22,7 @@ import shutil
 import sys
 from pathlib import Path
 
-PROFILES = (".claude", ".claude-sdd", ".claude-kat")
+PROFILES = (".claude", ".claude-sdd", ".claude-kat", ".claude-stef")
 # Per-file config trees migrated with newest-wins semantics.
 CONFIG_TREES = ("skills", "memory")
 # Single config files at the buddy/ root migrated with newest-wins semantics.

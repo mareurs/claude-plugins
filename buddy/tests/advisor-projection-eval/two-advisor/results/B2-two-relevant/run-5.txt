@@ -1,0 +1,87 @@
+*The snow leopard settles onto the ledge, one eye on the single test, the other on everything it leaves in shadow.*
+
+Your one test passes, but it pins almost nothing. It covers one of three outcomes, and it sets the user's org and the invoice's org to the same value (`1`), so the authorization line never has to make a decision.
+
+## Contract
+
+Given an invoice id and a user:
+- unknown id → `NotFound`
+- non-admin whose `org_id` differs from the invoice's → `Forbidden`
+- admin (any org) or same-org user → `invoice.render()` of the invoice with that id
+
+## What the existing test would miss
+
+| Mutation in `get_invoice` | Existing test |
+|---|---|
+| Delete the `Forbidden` line entirely | stays green |
+| `!= "admin"` → `== "admin"` | stays green (orgs match, so the admin check never matters) |
+| `and` → `or` | stays green (admin and same org) |
+| Delete the `NotFound` check | stays green (the invoice exists) |
+| Filter on the wrong column, if the table holds only this row | stays green |
+
+The test only fails if `render()` is dropped or changed. All access control is unpinned.
+
+## Missing tests
+
+Ordered by the risk they cover:
+
+1. **Non-admin, other org → `Forbidden`.** Pins the core tenant isolation.
+2. **Admin, other org → returns the invoice.** This is the only test that discriminates the admin bypass. Without it, the existing test would pass even if the bypass were deleted.
+3. **Non-admin, same org → returns the invoice.** Guards against an over-tight check (`or` instead of `and`). Right now the happy path is only exercised as an admin.
+4. **Unknown id → `NotFound`.** Assert the specific type, not just "an exception".
+5. **Right row selected.** Seed at least two invoices with distinct ids, orgs and rendered content, then assert you got the one you asked for. With one row, a broken filter is invisible. Also make sure `render()` differs between the invoices, or the equality assertion is vacuous.
+6. **Role boundaries.** Non-`"admin"` roles (`"Admin"`, `"administrator"`, `""`, `"staff"`) get no bypass. This pins the exact string comparison.
+7. **Null org boundary.** If `org_id` is nullable, a user with `org_id=None` and an invoice with `org_id=None` satisfy `==` and pass the check. I haven't seen the model, so I can't say whether that state is reachable. Check it, then pin whichever behavior you want.
+8. **Check ordering.** A non-admin asking for a nonexistent id gets `NotFound`, but for another org's id gets `Forbidden`. That lets them probe which ids exist. Whether that matters is your call, since it's a contract decision. Either way, write a test that pins the order so a refactor can't change it silently.
+9. **Bad id inputs** (`0`, negative, `None`, a string). Expect `NotFound` or a type error, whichever you intend. The ORM parameterizes the query, so I'm not flagging injection here.
+
+I'd also ask where an unauthenticated request (`request.user is None`) is handled. Here it would raise `AttributeError`. If middleware guarantees a user, say so in a comment.
+
+## Suggested tests
+
+```python
+# Contract: unknown id -> NotFound; non-admin of another org -> Forbidden;
+# admin or same-org user -> the requested invoice's render().
+
+def _setup():
+    mine  = make_invoice(id=1, org_id=1)   # distinct render() per invoice
+    other = make_invoice(id=2, org_id=2)
+    return mine, other
+
+def test_raises_forbidden_when_non_admin_requests_other_orgs_invoice():
+    _, other = _setup()
+    req = FakeRequest(user=FakeUser(role="member", org_id=1))
+    with pytest.raises(Forbidden):
+        get_invoice(req, other.id)
+
+def test_admin_can_read_invoice_from_other_org():
+    _, other = _setup()
+    req = FakeRequest(user=FakeUser(role="admin", org_id=1))
+    assert get_invoice(req, other.id) == other.render()
+
+def test_non_admin_can_read_own_orgs_invoice():
+    mine, _ = _setup()
+    req = FakeRequest(user=FakeUser(role="member", org_id=1))
+    assert get_invoice(req, mine.id) == mine.render()
+
+def test_raises_not_found_for_unknown_id():
+    _setup()
+    req = FakeRequest(user=FakeUser(role="admin", org_id=1))
+    with pytest.raises(NotFound):
+        get_invoice(req, 999)
+
+@pytest.mark.parametrize("role", ["Admin", "ADMIN", "administrator", "staff", ""])
+def test_no_admin_bypass_for_non_exact_role(role):
+    _, other = _setup()
+    req = FakeRequest(user=FakeUser(role=role, org_id=1))
+    with pytest.raises(Forbidden):
+        get_invoice(req, other.id)
+```
+
+Mutation-survival for the set: test 1 catches deleting the Forbidden line or `and` → `or`. Test 2 catches `!= "admin"` → `== "admin"` or deleting the bypass. Test 3 catches an over-tight check. Test 4 catches deleting the NotFound branch. The two-invoice setup catches a wrong filter.
+
+**Pyramid level:** unit, with an in-memory or fake DB. The logic is three branches, so it doesn't need integration.
+**Confidence:** high on items 1–6, medium on 7–9 because they depend on the model and contract.
+**Open gaps:** I only saw the pasted snippets, not `FakeRequest`, `make_invoice`, or the DB fixture. I haven't confirmed that `make_invoice` persists to the DB that `get_invoice` queries. If it doesn't, even your current test isn't exercising the query. I also haven't confirmed whether `org_id` is nullable, or what `render()` does on failure, which no test covers either. Show me those and I can close the gaps.
+
+No memory saved. Nothing came up here that would change future judgment beyond what's already in my notes.

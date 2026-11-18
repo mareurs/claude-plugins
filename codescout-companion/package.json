@@ -1,0 +1,25 @@
+{
+  "name": "codescout-companion",
+  "version": "1.22.3",
+  "description": "Codescout workflows and harness adapters for coding agents",
+  "type": "module",
+  "keywords": [
+    "codescout",
+    "agent-skills",
+    "mcp",
+    "pi",
+    "copilot",
+    "claude-code"
+  ],
+  "pi": {
+    "extensions": [
+      "./.pi/extensions/codescout-mode.ts"
+    ],
+    "skills": [
+      "./skills"
+    ]
+  },
+  "dependencies": {
+    "ws": "8.22.0"
+  }
+}

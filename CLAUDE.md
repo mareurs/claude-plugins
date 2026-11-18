@@ -13,6 +13,8 @@ codescout-companion/               -- companion plugin for codescout MCP server
   .claude-plugin/plugin.json     -- version source of truth
   hooks/                         -- tool routing, guidance injection, auto-indexing
   docs/plans/                    -- design and implementation docs
+cs-hint-codex/                     -- Codex-only [cs-hint] hook; root must stay 5 files (§ cs-hint-codex)
+hint-echo/                         -- Claude Code mod: shows hook additionalContext to the user
 scripts/check-versions.sh       -- version consistency validator
 ```
 
@@ -29,21 +31,30 @@ For `.claude.json` (the file): single-profile users have it at `~/.claude.json`;
 
 ## This Machine — Linux workstation (verified 2026-08-26)
 
-**All three Claude Code profiles are live and in use here.** Measured 2026-08-26:
+**All four Claude Code profiles are live and in use here** — `~/.claude`, `~/.claude-sdd`,
+`~/.claude-kat`, `~/.claude-stef`. The list is `PROFILES` in `scripts/lib-profiles.sh`, and each
+profile has a `claude-*` alias in `~/.bashrc`. Measured 2026-08-26 (the first three) and
+2026-11-12 (all four):
 
 - `claude` is on PATH at `~/.local/bin/claude`. `uname -sr` → `Linux 7.1.9-zen1-2-zen`
   (Arch zen kernel — **not** WSL, which reports `*-microsoft-standard-WSL2`).
-- `~/.claude` (256 project dirs), `~/.claude-sdd` (49), `~/.claude-kat` (18) — all three
-  carry real session history, and `.claude-kat` is a routine working profile.
-- **`release.sh`'s Claude-Code-side steps are real here, not no-ops.** A release seeds
-  three versioned caches and repoints three install records; the 1.16.17 release did
-  exactly that.
-- **Enabled plugins** (`enabledPlugins` is what actually loads — `/reload-plugins`
-  reports 3): `superpowers`, `codescout-companion`, `buddy` in all three profiles.
-  `~/.claude-sdd` additionally enables `hookify` + `andrej-karpathy-skills` — that is
-  profile purpose, not drift. Other installed plugins are enabled nowhere and load nothing.
-- **The marketplace key is `sdd-misc-plugins`**, which is what every install record and
-  `release.sh` use — *not* the `claude-plugins` shown in § Installing below.
+- `~/.claude` (657 project dirs), `~/.claude-sdd` (183), `~/.claude-kat` (110),
+  `~/.claude-stef` (26) — all four carry real session history, and `.claude-kat` is a routine
+  working profile. (The 2026-08-26 counts for the first three were 256, 49 and 18.)
+- **`release.sh`'s Claude-Code-side steps are real here, not no-ops.** A release seeds a
+  versioned cache in every profile whose install record has the plugin, and repoints that
+  record; a profile without the plugin is skipped. The 1.16.17 release did exactly that, for
+  the three profiles the scripts covered then.
+- **Enabled plugins** (`enabledPlugins` is what actually loads), measured 2026-11-12:
+  `superpowers`, `codescout-companion`, `buddy`, `legible` and `hint-echo` in all four profiles.
+  `~/.claude-sdd` and `~/.claude-stef` additionally enable `hookify` + `andrej-karpathy-skills` —
+  that is profile purpose, not drift. `~/.claude`, `~/.claude-sdd` and `~/.claude-kat` also
+  enable `chrome-devtools-mcp`, `document-skills`, `frontend-design` and `claude-md-management`;
+  `~/.claude` adds `context7`. A project can enable a plugin too: this repo's
+  `.claude/settings.local.json` enables `sdd@sdd-misc-plugins`. Other installed plugins are
+  enabled nowhere and load nothing.
+- **The marketplace key is `sdd-misc-plugins`** (the `name` in `.claude-plugin/marketplace.json`),
+  which is what every install record, `release.sh` and the install lines in § Installing use.
 - **Native Linux git. The cross-shell CRLF advice in the Windows section below does not
   apply** — `core.autocrlf` is not in play and the working tree does not go pseudo-dirty.
 - **Cross-profile parity is checked, not assumed:** `./scripts/check-profile-parity.sh`
@@ -79,6 +90,13 @@ For `.claude.json` (the file): single-profile users have it at `~/.claude.json`;
   `91cb319` (2026-05-06) while the other two profiles ran `1ab7b8e` (2026-08-12), so
   repointing without refreshing first would have silently downgraded an enabled plugin by
   three months. **Refresh the local copy, then repoint — never the reverse.**
+
+## Codex on this machine (verified 2026-11-09)
+
+- Only `~/.codex` exists. Marketplace `sdd-misc-plugins` is the LOCAL path of this checkout (`[marketplaces.sdd-misc-plugins] source_type = "local"`), so `codex plugin marketplace upgrade` does nothing for it; `codex plugin add <plugin>@sdd-misc-plugins` re-copies a plugin into `~/.codex/plugins/cache/` byte-identical with the working tree.
+- Installed and approved: `cs-hint-codex`, `buddy`, `codescout-companion`. `buddy`'s PostToolUse hook is switched off there (`[hooks.state."buddy@sdd-misc-plugins:hooks/hooks.json:post_tool_use:0:0"] enabled = false`) because it would double the advisories.
+- Every `codex plugin add` that changes content cancels that plugin's approvals (`trustStatus: modified`, runs fail with `plugin contents changed; hook approval required`; in the one case measured a failing PostToolUse hook did not stop its tool call, PreToolUse guard hooks were not measured). The repair writes the content half of `currentHash` (`declaration/content`) from `hooks/list` into `trusted_content_hash` of each hook-state record. Record, method and backups: codescout memories `codex-hook-content-trust-20261107` and `research/hint-visibility-channels-20261109`, both stored in the sibling `codescout` repo (`/home/marius/work/claude/codescout/.codescout/memories/`), not in this one. Later Codex measurements (stamp hook failure and positional hook keys on 0.167.1, the wake daemon `userAgent` prefix) are in this repo: `research/codex-hook-measurements-20261111`.
+- Nothing writes into `~/.codex/plugins/cache/` from this repo's scripts: do not edit files there by hand.
 
 ## The Windows work box (verified 2026-08-05 — NOT the machine above)
 
@@ -165,9 +183,31 @@ Lives at `buddy/` in this repo. Provides mood-reactive statusline, 12 specialist
 - PreToolUse: reads judge verdicts, optionally hard-blocks (`exit 2`) when `BUDDY_JUDGE_BLOCK=true`
 - Statusline: mood-reactive ASCII spirit animal with specialist eye expressions
 
-**Dependencies:** `jq`, `python3` (3.13+), `requests` (lazy, for judge only)
+**Dependencies:** `jq`, `python3` (3.13+), `PyYAML` (hard dependency — `consolidate.py` imports it
+at module level and `hook_entry.run_session_start` imports from that module unguarded, so a missing
+`yaml` makes SessionStart a *silent* no-op: `hook_dispatch.main()` catches the ImportError and
+returns 0, so nothing crashes and nothing is logged), `requests` (lazy, for judge only)
+
+Measured 2026-09-05: this is why `.github/workflows/cross-platform-hooks.yml` has failed on every
+push since 2026-07-09 — its bare `actions/setup-python@v5` never installs PyYAML, so SessionStart's
+side effect (writing `.buddy/.current_session_id`) never happens on CI, while it passes locally on
+any machine whose system `python3` happens to have PyYAML already. Reproduced by forcing `import
+yaml` to fail via `PYTHONPATH` shadowing: pointer unwritten, no error surfaced. Fix is two-sided —
+guard the import in `run_session_start` (matching every other block there) AND add PyYAML to CI —
+neither alone closes the gap.
 
 **Judge config:** `buddy/hooks/judge.env` is the authoritative source — do NOT put judge config in settings.json.
+## cs-hint-codex (Codex only)
+
+Lives at `cs-hint-codex/`. The `[cs-hint]` advisories of buddy as one PostToolUse hook for Codex. Design and measurements: `docs/superpowers/specs/2026-11-09-cs-hint-codex-bundle-design.md`.
+
+- **Why it exists.** Codex runs a plugin hook only after the user approves it, installing the plugin does not approve it, and the approval is bound to a hash of the WHOLE plugin root (only `__pycache__`, `.venv`, `*.pyc`, `*.egg-info` are skipped). A new user who installs `buddy` or `codescout-companion` gets 5 or 27 hooks that do not run until approved: headless runs (`codex exec`, app-server) say nothing, the interactive TUI asks at its next start ("Hooks need review", measured 2026-11-10). Here one approval covers one hook.
+- **The root stays five files**: `.claude-plugin/plugin.json`, `hooks/hooks.json`, `hooks/cs_hint.py`, `scripts/cs_heuristics.py`, `scripts/cs_tool_log.py`. No README, tests or skills inside; any file added or edited there cancels every user's approval. `tests/test-cs-hint-codex.sh` pins the layout. Tests, docs and the sync script live outside the root.
+- **The two `scripts/` files are byte copies of `buddy/scripts/`** (a symlink in the root is an error for Codex). After a change to either buddy file run `scripts/sync-cs-hint-codex.sh`, bump the plugin version, and expect every Codex user to approve again. The test fails while a copy drifts.
+- **Stdlib only.** Unlike `buddy` (PyYAML is a hard dependency of its SessionStart), the hook needs only `python3`.
+- **Do not leave `buddy`'s PostToolUse hook active beside it in Codex**: both emit the same advisories. For new users: install `cs-hint-codex` and not `buddy` (README). On this machine `buddy` is installed too, with that one hook switched off (§ Codex on this machine). Claude Code keeps `buddy`; do not install `cs-hint-codex` there.
+- Fails silent (no output, exit 0). `CS_HINT_ENABLED=false` disables it. State: `$PLUGIN_DATA/<session>/cs_tool_log.jsonl`.
+
 ## Version Management
 
 **Single source of truth**: each plugin's `.claude-plugin/plugin.json` is the canonical version.
@@ -187,9 +227,10 @@ plugin.json at install time. Duplicating it in marketplace.json causes drift.
 
 Each step is gated (aborts on first failure): **pre-flight** (working tree clean +
 `./tests/run-all.sh` + buddy pytest green) → bump `plugin.json` + the README version
-table → `check-versions.sh` → commit `chore: bump …` → seed the versioned cache in all
-three profiles (`bump-cache.sh`) → repoint `version` + `installPath` in all three install
-records → **sanity loop** → `git push`. Toggles: `NO_PUSH=1` (commit locally, skip push —
+table → `check-versions.sh` → commit `chore: bump …` → seed the versioned cache in every
+profile that has the plugin (`bump-cache.sh`; four profiles on this machine) → repoint
+`version` + `installPath` in each install record → **sanity loop** → `git push`. Toggles:
+`NO_PUSH=1` (commit locally, skip push —
 use it to dry-run a release), `SKIP_TESTS=1`. **The script header is the authoritative
 step-by-step** — read/edit it there, not here.
 
@@ -203,13 +244,13 @@ whose `installPath` points at another profile's cache).
 1. **Refresh the codescout `version-bump-checklist` tracker** (needs the MCP tool, not bash),
    then verify every row is ✅ — any ❌ is real drift:
    ```
-   artifact(action="update", id="cc8cb9e23ab5cc67", commit_refresh=true)   # update params + body for the new version
-   artifact(action="get",    id="cc8cb9e23ab5cc67", full=true)
+   doc(action="update", id="cc8cb9e23ab5cc67", commit_refresh=true)   # update params + body for the new version
+   doc(action="get",    id="cc8cb9e23ab5cc67", full=true)
    ```
    It is the richer cross-check of the same two failure classes the bash sanity loop covers;
    design in `docs/superpowers/specs/2026-05-18-version-bump-checklist-tracker-design.md`.
 
-2. **Cold-restart all three Claude Code instances — a `resume` is NOT enough.** CC resolves
+2. **Cold-restart all four Claude Code instances — a `resume` is NOT enough.** CC resolves
    hook commands + `installPath` at process launch and caches them; re-attaching with
    `source=resume` reuses the *old* in-memory hook even after the records point at the new
    version, so the bumped code never runs. Fully quit + relaunch, or run `/reload-plugins`.
@@ -249,7 +290,7 @@ exactly the drift the release exists to repair.
 Git hooks live in `.git/hooks/` and are never cloned or synced, so this is opt-in per
 clone. It installs a `pre-push` shim carrying two guards: force-push protection on `main`,
 and version-bump parity (a bump that skipped `release.sh` cannot reach `main` while the
-three profiles disagree about it). `./tests/run-all.sh` prints a notice when they are
+profiles disagree about it). `./tests/run-all.sh` prints a notice when they are
 missing — a guard that is not installed is otherwise indistinguishable from a guard
 finding nothing wrong.
 
@@ -275,6 +316,17 @@ corrupted environment and produce false results. The pattern is: write config �
 remove config. If test N establishes this pattern, make sure test N+1 doesn't silently
 inherit leftover state.
 
+## Skill layout — core in `SKILL.md`, harness specifics in `references/`
+
+A skill whose mechanics differ by harness (Claude Code, Codex, OpenCode) or by operating system (Linux, macOS, Windows) keeps what holds everywhere in `SKILL.md`. Each measured pair of harness and operating system gets its own file, `references/<harness>-<os>.md`. This is progressive disclosure: a session loads the core, then reads only the file for its own pair. `reconnaissance` and `tracker-hygiene` already split their detail this way by topic, with a pointer that says when to read each file.
+
+- `SKILL.md` holds the rules, the decision steps, and how a session tells which harness and operating system it runs in. It holds one pointer per measured pair: "on Codex on Linux, read `references/codex-linux.md` before Step N". One last pointer sends every unmeasured pair to `references/unmeasured.md`.
+- A core rule never names one harness's tool or path, except inside a pointer. A pair file never repeats a core rule.
+- A session reads the file for its own pair only. Do not inline another pair's mechanics "for completeness".
+- **Add a pair file only after you measure that pair.** A guessed macOS or Windows block is worse than none: a block that finds nothing looks like a true zero. `references/unmeasured.md` says "stop and ask the operator" until a measured file exists.
+- **Split only when a skill has real harness or OS content.** Measured 2026-11-10 over 22 skills: the peer-session skill of this repository had the most (67 harness lines, 21 tool-name lines, `/proc` and `/run/user` paths). It was retired on 2026-11-17: `session-bridge`'s own tools list the live sessions, so its replacement, `coordinating-sessions`, holds no per-harness mechanics. `sdd-flow` already splits by harness: `references/opencode.md` holds the OpenCode command names. Every other skill has 5 or fewer such lines, and those name plugin paths such as `CLAUDE.md`, or one 2-row dispatch table in `research-subagent`. Re-measure before you split another skill, and measure after `git pull`: a first measurement here ran on a checkout that lacked the OpenCode work on `origin`.
+- No skill is split by operating system now. `sdd-flow` splits by harness only. `session-bridge/skills/coordinating-sessions` splits by topic: `references/commit-backup.md` holds the backup rules, and `tests/test-session-bridge-skill.sh` pins its facts.
+
 ## Session Passover
 
 Hand a live work thread to a fresh session (e.g. after compaction, or one of several
@@ -282,7 +334,7 @@ parallel threads on this repo). **Manual and selective** — write one only when
 worth resuming; a finished session needs none.
 
 **Author (outgoing session):** create it as a catalog artifact so the discovery query finds it —
-`artifact(action="create", kind="tracker", tags=["passover"], topic="<thread>", time_scope="dated:YYYY-MM-DD", extra={"origin_session_id":"<id>","branch":"<branch>"}, title=…, rel_path="docs/trackers/passover-<topic>-YYYY-MM-DD.md", body=…)`,
+`doc(action="create", kind="tracker", tags=["passover"], topic="<thread>", time_scope="dated:YYYY-MM-DD", extra={"origin_session_id":"<id>","branch":"<branch>"}, title=…, rel_path="docs/trackers/passover-<topic>-YYYY-MM-DD.md", body=…)`,
 filling State / Next actions / Working state / Anti-goals from the `docs/templates/passover-template.md`
 skeleton. Get the session id from `cat .codescout/cc_session_id` (or `.buddy/.current_session_id`);
 omit `extra`/`origin_session_id` if absent. (`time_scope` + the `extra` custom-frontmatter passthrough
@@ -291,8 +343,8 @@ body-level block.)
 
 **Discover (incoming session):** run, early in the session —
 
-    artifact(action="find", kind="tracker",
-             filter={"and":[{"tags":{"contains":"passover"}}, {"status":{"eq":"active"}}]})
+    doc(action="find", kind="tracker",
+        filter={"and":[{"tags":{"contains":"passover"}}, {"status":{"eq":"active"}}]})
 
 **`contains`, not `in` — `in` on a tag array silently matches nothing.** Measured 2026-08-27:
 `{"tags":{"in":["passover"]}}` returned 0 against 5 live tagged passovers; swapping the op to
@@ -302,12 +354,21 @@ librarian guide's own leaf example (`{"tags": {"in": ["foo","bar"]}}` — wrong 
 zero here reads exactly like "no handoffs", so the broken op hid every live thread instead of
 failing loudly.
 
-Zero results → proceed normally. One → resume it (auto-confirm if your own session id equals
+**Zero results → run a positive control before proceeding, not instead of it.** The `in`-vs-
+`contains` bug above is exactly the failure mode a zero result cannot distinguish from "no
+handoffs": a silently-broken query and a genuinely empty corpus read identically. Re-run the
+same query shape against a tag known to exist in this repo's trackers (e.g.
+`{"tags":{"contains":"session-log"}}` — this repo always has several) with no status filter.
+If THAT also returns zero, the query mechanism itself is broken — stop and investigate before
+trusting any "no handoffs" result. If it returns rows, the passover zero was a real zero;
+proceed normally. (`repo-remediation-backlog:RM-23`.)
+
+One → resume it (auto-confirm if your own session id equals
 `origin_session_id`, which holds on `--resume`). Multiple → pick by `topic`/`branch`.
 Always run Next-actions step 1 (verify state) before acting.
 
 **Consume:** when done, flip `status: archived`, append `## Consumed — YYYY-MM-DD`, and
-`artifact(action="move", …)` into `docs/trackers/archive/` (never bare `git mv`).
+`doc(action="move", …)` into `docs/trackers/archive/` (never bare `git mv`).
 
 ## Plugin Install Path (directory-source gotcha)
 
@@ -339,7 +400,7 @@ Always run Next-actions step 1 (verify state) before acting.
 > block serves the **new** copy of a skill while CC's Skill tool serves the **cached** one.
 >
 > Practical consequence: **a skill or command edit is `committed`, not `live`, until
-> `release.sh` seeds a new cache dir and repoints the three install records.** The editing
+> `release.sh` seeds a new cache dir and repoints the install records.** The editing
 > session is the least representative observer of this — it is the one most likely to
 > believe the edit shipped. Probe `plugin_root` in the trace log for hook freshness; probe
 > the served bytes against `installPath` for skill freshness.
@@ -355,11 +416,11 @@ install record to point at the new cache snapshot:**
 
 ```bash
 # Check the latest cache version
-ls ~/.claude/plugins/cache/claude-plugins/codescout-companion/
+ls ~/.claude/plugins/cache/sdd-misc-plugins/codescout-companion/
 
 # Edit installed_plugins.json: update installPath + version to the new cache entry
 ~/.claude/plugins/installed_plugins.json
-# → "installPath": "~/.claude/plugins/cache/claude-plugins/codescout-companion/<version>"
+# → "installPath": "~/.claude/plugins/cache/sdd-misc-plugins/codescout-companion/<version>"
 # → "version": "<version>"
 ```
 
@@ -369,21 +430,24 @@ Then restart Claude Code.
 
 ```
 /plugin marketplace add mareurs/claude-plugins
-/plugin install codescout-companion@claude-plugins
-/plugin install sdd@claude-plugins
+/plugin install codescout-companion@sdd-misc-plugins
+/plugin install sdd@sdd-misc-plugins
 ```
+
+Verified 2026-11-09 on a clean profile: `/plugin install buddy@claude-plugins` fails with
+`Plugin "buddy" not found in marketplace "claude-plugins"`; `@sdd-misc-plugins` installs.
 
 For project-level setup, add to `.claude/settings.json`:
 
 ```json
 {
   "extraKnownMarketplaces": {
-    "claude-plugins": {
+    "sdd-misc-plugins": {
       "source": { "source": "github", "repo": "mareurs/claude-plugins" }
     }
   },
   "enabledPlugins": {
-    "codescout-companion@claude-plugins": true
+    "codescout-companion@sdd-misc-plugins": true
   }
 }
 ```

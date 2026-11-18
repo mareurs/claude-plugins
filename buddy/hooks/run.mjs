@@ -28,33 +28,31 @@ const candidates = [
   ['py', ['-3']],
 ];
 
-// Resolve a REAL Python by probing each candidate with a trivial program. This
-// is deliberately NOT "run the dispatcher and try the next on failure": on
-// Windows `python3` is frequently the Microsoft Store app-execution-alias stub,
-// which spawns successfully but exits nonzero (not ENOENT) — probing rejects it
-// (its `-c ''` does not exit 0) so we fall through to the real `python`/`py`,
-// instead of mistaking the stub's nonzero exit for the dispatcher having run.
-function resolvePython() {
-  for (const [cmd, pre] of candidates) {
-    const probe = spawnSync(cmd, [...pre, '-c', ''], { stdio: 'ignore' });
-    if (!probe.error && probe.status === 0) return [cmd, pre];
-  }
-  return null;
-}
-
 function run() {
   if (!event || !existsSync(dispatch)) return 0;
-  const found = resolvePython();
-  if (!found) return 0; // no working interpreter — fail open
-  const [cmd, pre] = found;
-  const res = spawnSync(cmd, [...pre, dispatch, event], {
-    stdio: 'inherit',
-    env: { ...process.env, BUDDY_HOOK_PPID: String(process.ppid) },
-  });
-  if (res.error) return 0; // spawn failed after a good probe — fail open
-  // Forward only the intentional pre-tool-use block; a normal exit or a Python
-  // crash both fail open.
-  return res.status === 2 ? 2 : 0;
+  // Run the dispatcher DIRECTLY with each candidate in turn; there is no separate
+  // probe spawn. A probe costs one full interpreter start per hook call, and where
+  // `python3` is a version-manager shim (pyenv) that start is ~55 ms of pure shim
+  // overhead — measured 78 ms for `python3 -c ''` against 23 ms for the real binary,
+  // paid on every PreToolUse/PostToolUse.
+  //
+  // The probe's one job — rejecting an interpreter that is not really Python, such as
+  // the Windows Store app-execution-alias stub — is kept by reading the exit status.
+  // hook_dispatch.py returns 0, or 2 for the intentional pre-tool-use block, on every
+  // path (it catches its own exceptions), so any other status means the interpreter
+  // itself failed to run it: fall through to the next candidate. The stub exits
+  // without reading stdin, so the next candidate still receives the event JSON.
+  for (const [cmd, pre] of candidates) {
+    const res = spawnSync(cmd, [...pre, dispatch, event], {
+      stdio: 'inherit',
+      env: { ...process.env, BUDDY_HOOK_PPID: String(process.ppid) },
+    });
+    if (res.error) continue; // not found / not executable — next candidate
+    if (res.status === 2) return 2; // the intentional block — forward it
+    if (res.status === 0) return 0;
+    // Any other status (nonzero stub, interpreter crash, killed): next candidate.
+  }
+  return 0; // no working interpreter — fail open
 }
 
 process.exit(run());

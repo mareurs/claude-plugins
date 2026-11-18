@@ -130,3 +130,39 @@ measurement, check which file the server is actually writing —
   NOT a better skill description (reconnaissance control: well-described + surfaced, still
   ~2 invocations). Subagents already use codescout tools well (~13k codescout calls vs 78
   native Read), so the gap is bootstrap/context, not tool routing.
+
+## Auto mode voids a call whose input a hook rewrote (read from the CC 2.1.326 binary, 2026-11-17)
+
+Any PreToolUse hook that returns `updatedInput` is a hazard under auto mode. Read this before
+you design a hook that rewrites tool input.
+
+- **The mechanism.** Auto mode can review a tool call on Anthropic's servers, as the model
+  wrote it. If a hook then rewrites the input, Claude Code marks the call
+  `server_input_rewritten`, because the review no longer covers what would run. With the
+  server-controlled fallback setting at `"off"`, a local classifier judges the call instead.
+  Otherwise the call is refused, with "The server-side auto mode classifier gave no verdict
+  … a hook changed this call's input after auto mode reviewed it". The model is told to
+  re-issue the call, but a hook that rewrites every call gets refused every time.
+- **Account-dependent.** Four headless auto-mode runs on this account (with and without allow
+  rules, and with `CLAUDE_CODE_AUTO_MODE_SERVER=1`) all passed: here the call takes the
+  local fallback. Albert's account refused it. A green run here is NOT evidence that a
+  rewriting hook is safe in auto mode.
+- **A rule `allow` skips the classifier.** If the permission rules already allow the call,
+  the auto-mode code returns before any classifier runs (`if(Be.behavior==="allow")…return
+  Be`). Auto mode ignores Bash/PowerShell allow rules when `classifyAllShell` is on. Nothing
+  read says it ignores MCP rules, but that is not measured.
+- **A hook `permissionDecision:"allow"` is not a way out.** The flag `tengu_virtual_knuth`
+  decides what it does. With the flag off (cached value on all 4 profiles here), it skips the
+  auto-mode safety review completely, so it is a bypass. With the flag on, it is funnelled
+  back to the classifier ("auto mode requires classifier adjudication") and voided the same way.
+- **No side channel for third-party servers.** CC sends `claudecode/agentId` in the MCP
+  request `_meta`, but only to Anthropic's own HTTP servers (gate `pVe`). A stdio server such
+  as codescout gets nothing.
+- **Measured payload fact.** A subagent's PreToolUse payload carries `permission_mode: "auto"`
+  in auto mode (probe hook via `--settings`, 2026-11-17).
+- **What the companion does.** `principal-stamp.mjs` stamps nothing when `permission_mode`
+  is `"auto"` (1.22.3, `d32c1f6`). Cost: in auto mode a subagent shares its parent's guide
+  ledger again.
+- **Reading the binary.** Use `LC_ALL=C grep -a -o -b -F '<literal>'` for offsets, then a
+  small Python seek/read. A regex grep with `.{0,300}` context runs past 90 s on the
+  ~370 MB binary.

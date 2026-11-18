@@ -3,7 +3,7 @@ name: buddy:summon
 description: Summon a specialist bodhisattva to help with a specific craft. Describe who you need in plain language — e.g. "debug", "testing", "ML training", "architecture", "security", "refactor", "performance", "docs", "data leakage classic", "data leakage llm", "planning", "prompt". Some specialists have lenses; pass them as `<specialist>:<lens>` (e.g. `data-leakage:llm`). An ambiguous argument prints the specialist table and exits without loading anything.
 ---
 
-You are resolving a summon request. The argument passed by the user is `$1`.
+You are resolving a summon request. The argument passed by the user is `$ARGUMENTS`.
 
 ## Step 0 — Check for the hook-injected payload (fast path)
 
@@ -18,13 +18,15 @@ context:
 
 - `<!-- buddy:summon-payload specialist=<dir> … payload-file=<path> -->` —
   the full payload was spilled to `<path>` (under `.buddy/<sid>/`, which the
-  codescout guard exempts). **Read that one file first with native `Read`**
-  — it contains SKILL.md + lens + memories + protocol + gates verbatim. Use
-  native `Read`, not `read_markdown`: the `.buddy/` path is guard-exempt, and
-  `read_markdown` would fragment a persona-sized file into a heading map. Then
-  skip Steps 1–2.6 and 5–6 entirely and go straight to Step 3 (announce) and
-  Step 4 (adopt) — resolution, tracking, and logging are already done
-  hook-side.
+  codescout guard exempts). **Read that one file first** — it contains SKILL.md
+  + lens + memories + protocol + gates verbatim. In Codex, call
+  `mcp__codescout__read_file(path="<path>", start_line=1, end_line=200,
+  force=true)`, then follow its buffered-output or range continuation until EOF;
+  do not use a shell to load it. In Claude Code, use `Read`, not
+  `read_markdown`: the `.buddy/` path is guard-exempt, and `read_markdown`
+  would fragment a persona-sized file into a heading map. Then skip Steps
+  1–2.6 and 5–6 entirely and go straight to Step 3 (announce) and Step 4
+  (adopt) — resolution, tracking, and logging are already done hook-side.
 - `<!-- buddy:summon-payload specialist=<dir> … -->` *(no `payload-file`)* —
   a small payload was inlined directly; everything is already in context.
   Skip Steps 1–2.6 and 5–6 and go straight to Step 3 and Step 4. Do not

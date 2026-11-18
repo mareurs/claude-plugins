@@ -1,0 +1,103 @@
+{
+  "suffix": "End your reply with one final line of the form \"ANSWER: <value>\".",
+  "tasks": [
+    {
+      "id": "x1",
+      "stratum": "hard",
+      "prompt": "How many integers from 1 to 5000 have a digit sum equal to 20? End your reply with one final line of the form \"ANSWER: <value>\".",
+      "answer": "268",
+      "kind": "int"
+    },
+    {
+      "id": "x2",
+      "stratum": "hard",
+      "prompt": "How many prime numbers are there below 3000? End your reply with one final line of the form \"ANSWER: <value>\".",
+      "answer": "430",
+      "kind": "int"
+    },
+    {
+      "id": "x3",
+      "stratum": "hard",
+      "prompt": "What is the sum of the decimal digits of 2 to the power 300? End your reply with one final line of the form \"ANSWER: <value>\".",
+      "answer": "424",
+      "kind": "int"
+    },
+    {
+      "id": "x4",
+      "stratum": "hard",
+      "prompt": "Apply this rule repeatedly starting from 97: if the number is even, halve it; if it is odd, multiply it by 3 and add 1. How many applications of the rule does it take to reach 1? End your reply with one final line of the form \"ANSWER: <value>\".",
+      "answer": "118",
+      "kind": "int"
+    },
+    {
+      "id": "x5",
+      "stratum": "hard",
+      "prompt": "In how many ways can 40 cents be made from coins of 1, 5, 10 and 25 cents when the order of the coins does not matter? End your reply with one final line of the form \"ANSWER: <value>\".",
+      "answer": "31",
+      "kind": "int"
+    },
+    {
+      "id": "x6",
+      "stratum": "hard",
+      "prompt": "In how many ways can 35 be written as a sum of distinct positive integers when the order does not matter? End your reply with one final line of the form \"ANSWER: <value>\".",
+      "answer": "585",
+      "kind": "int"
+    },
+    {
+      "id": "x7",
+      "stratum": "hard",
+      "prompt": "Define a(1) = 1, a(2) = 1 and a(n) = a(n-1) + 2*a(n-2) for n >= 3. What is the remainder when a(40) is divided by 1000? End your reply with one final line of the form \"ANSWER: <value>\".",
+      "answer": "925",
+      "kind": "int"
+    },
+    {
+      "id": "x8",
+      "stratum": "hard",
+      "prompt": "How many lattice paths go from (0, 0) to (9, 9) using only steps right (+1, 0) and up (0, +1), without ever passing through the point (4, 4)? End your reply with one final line of the form \"ANSWER: <value>\".",
+      "answer": "30980",
+      "kind": "int"
+    },
+    {
+      "id": "x9",
+      "stratum": "hard",
+      "prompt": "How many 6-digit positive integers (the first digit is not 0) have six different digits and are divisible by 5? End your reply with one final line of the form \"ANSWER: <value>\".",
+      "answer": "28560",
+      "kind": "int"
+    },
+    {
+      "id": "x10",
+      "stratum": "hard",
+      "prompt": "What is the remainder when 1^5 + 2^5 + 3^5 + ... + 100^5 is divided by 97? End your reply with one final line of the form \"ANSWER: <value>\".",
+      "answer": "82",
+      "kind": "int"
+    },
+    {
+      "id": "x11",
+      "stratum": "hard",
+      "prompt": "How many pairs of integers (a, b) with 1 <= a < b <= 60 have a + b divisible by 7? End your reply with one final line of the form \"ANSWER: <value>\".",
+      "answer": "253",
+      "kind": "int"
+    },
+    {
+      "id": "x12",
+      "stratum": "hard",
+      "prompt": "For how many positive integers n <= 1000 is the number n^2 + n + 41 composite? End your reply with one final line of the form \"ANSWER: <value>\".",
+      "answer": "419",
+      "kind": "int"
+    },
+    {
+      "id": "x13",
+      "stratum": "hard",
+      "prompt": "What is 987654321 times 123456789? End your reply with one final line of the form \"ANSWER: <value>\".",
+      "answer": "121932631112635269",
+      "kind": "int"
+    },
+    {
+      "id": "x14",
+      "stratum": "hard",
+      "prompt": "What is the remainder when 7 to the power 77 is divided by 1000? End your reply with one final line of the form \"ANSWER: <value>\".",
+      "answer": "207",
+      "kind": "int"
+    }
+  ]
+}

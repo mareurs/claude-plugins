@@ -15,17 +15,27 @@ session start; see *Iron Laws* and *Workspace gate* there.
 At-a-glance cheat sheet (defense-in-depth for compaction / cross-specialist
 load — canonical wins on any disagreement):
 
-1. Source code reads → `symbols`, not `read_file` / `Read`.
-2. Markdown reads → `read_markdown`, not `read_file` / `Read`.
-3. Structural code edits → `edit_code` (`action=replace|insert|remove|rename`),
+1. Source code reads → `symbols` (`path` for an overview, `name=…,
+   include_body=true` for a body), not a full `read_file` / `Read`. A
+   line-range `read_file` is right for imports/glue; `force=true` overrides.
+2. Structural code edits → `edit_code` (`action=replace|insert|remove|rename`),
    not `edit_file` / `Edit`. `edit_file` is for imports, literals, comments,
    config only.
-4. Markdown edits → `edit_markdown` (heading-addressed; batchable via `edits[]`).
-5. `run_command` output → run bare, query the returned `@cmd_*` buffer in a
+3. `run_command` output → run bare, query the returned `@cmd_*` buffer in a
    follow-up. Bounded LHS (`ls`, `cat`, `awk`, `sed`, `find -maxdepth N`) is OK.
-6. After `workspace(action="activate", path=foreign)`, restore the home
-   project before the turn ends — the MCP server is shared state across the
-   session.
+   Shell on source files is blocked.
+4. Markdown reads → `read_file`, heading-addressed (`heading=` / `headings=`);
+   `force=true` for raw lines. (`read_markdown` was retired in the 2026-09-02
+   tool collapse — it no longer exists.)
+5. Markdown edits → `edit_file`, heading+action (batchable via `edits[]`); a
+   librarian-managed tracker goes through `doc` instead. (`edit_markdown` was
+   retired in the same collapse.)
+6. Subagents see only what you brief them with. Name the guides they must
+   fetch themselves, prior results, paths, symbols — at every spawn.
+
+Workspace gate: after `workspace(action="activate", path=foreign)`, restore
+the home project before the turn ends — the MCP server is shared state across
+the session.
 
 If codescout is not the MCP backend in this session, native equivalents
 apply, but the same intent holds: prefer structured navigation over raw

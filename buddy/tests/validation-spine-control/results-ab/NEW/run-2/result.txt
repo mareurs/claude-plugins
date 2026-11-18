@@ -1,0 +1,20 @@
+Done. **29 tests, all passing**, in `tests/test_billing.py` (plus a one-line `conftest.py` to put `src/` on the path — there's no packaging config in the repo).
+
+**Every assertion is mutation-checked.** I applied 8 one-line changes to `is_in_grace_period` and confirmed each turns the suite red, then restored the file byte-identical:
+
+| Mutation | Tests caught |
+|---|---|
+| `due <= today` → `due < today` | 4 |
+| upper bound `<` → `<=` | 10 |
+| `GRACE_DAYS` → `GRACE_DAYS - 1` | 10 |
+| `GRACE_DAYS` inlined as `5` | 3 |
+| lower bound dropped | 9 |
+| upper bound dropped | 13 |
+| returns `int` not `bool` | 24 |
+| naive `today.day < due.day + GRACE_DAYS` | 10 |
+
+**How the expectations were derived.** From the docstring, not the code. The docstring makes two claims: the window is `GRACE_DAYS` days long, and an invoice not yet due is excluded. `TestGraceWindowWidth` pins the *width* by counting True days over a ±365-day sweep and checking contiguity — these hold regardless of where the window starts, so they survive a refactor that moves the edge. It also monkeypatches `GRACE_DAYS` to 9, 1 and 0, since the docstring names the constant as the source of the width (that's what catches the inlined-`5` mutant).
+
+**One judgement call you should look at before refactoring.** The docstring never says outright whether the window opens on `due` or the day *after*. Both readings are 5 days long. I went with due-date-inclusive, matching the current code, because the "not yet due is not in grace" remark would be pointless under the day-after reading — under that reading the due date would be excluded too, and you'd have said so. But this is inference, not something the spec states. It's isolated in `TestGraceWindowStartEdge` with a docstring saying as much, so if your refactor flips it you get a deliberate signal rather than a mystery failure. Worth tightening the docstring while you're in there.
+
+Two smaller notes: `TestCalendarArithmetic` uses literal dates rather than `timedelta` maths, so it stays honest if you refactor to ordinal or epoch arithmetic — that's where the month/year/leap-day/DST cases live. And I didn't assert anything about passing a `datetime` instead of a `date`; the annotation says `date`, the docstring is silent on it, so it's left unspecified rather than pinned to whatever happens to work today.

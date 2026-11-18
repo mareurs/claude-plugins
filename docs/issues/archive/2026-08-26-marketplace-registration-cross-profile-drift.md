@@ -13,7 +13,7 @@ fix_patch_id: 176d0001c4f33b8d65f6978fa5a82d482a37a58b
 fix_sha: d8030bd (main)
 opened: 2026-08-26
 severity: med
-unverified: 'The refresh was a one-time rsync from ~/.claude, not an automated sync — nothing keeps the three profiles'' marketplace clones current, so HEAD skew will reappear whenever one profile auto-updates and another does not. The gate now DETECTS that (class 7) but never repairs it. Also: claude-plugins-official is not a git clone in any profile, so class 7 cannot see its staleness at all — kat''s copy was 180 plugins vs .claude''s 289 before the sync, and only a file count revealed it.'
+unverified: 'STANDING — The refresh was a one-time rsync from ~/.claude, not an automated sync — nothing keeps the three profiles'' marketplace clones current, so HEAD skew will reappear whenever one profile auto-updates and another does not. The gate now DETECTS that (class 7) but never repairs it. Also: claude-plugins-official is not a git clone in any profile, so class 7 cannot see its staleness at all — kat''s copy was 180 plugins vs .claude''s 289 before the sync, and only a file count revealed it. (Re-checked 2026-10-27: scripts/check-profile-parity.sh reports no marketplace HEAD skew today; the limit above is structural and stands.)'
 ---
 
 ## Summary

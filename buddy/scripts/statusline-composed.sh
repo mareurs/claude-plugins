@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Buddy composed statusline.
 #
-# Runs a "primary" statusline command (e.g. claude-statusline) on row 1,
+# Runs a "primary" statusline command (e.g. statusline) on row 1,
 # then the buddy bodhisattva on the following rows — both fed the same
 # stdin JSON from Claude Code.
 #
@@ -9,9 +9,10 @@
 #
 # Configuration (all optional):
 #   BUDDY_PRIMARY_STATUSLINE  Path to a primary statusline command. If unset,
-#                             the script tries to find claude-statusline from
-#                             the sdd-misc-plugins cache, then falls back to
-#                             $HOME/.claude/statusline.sh, then to nothing.
+#                             the script tries the sibling statusline in
+#                             the same checkout, then the sdd-misc-plugins
+#                             cache, then $CLAUDE_CONFIG_DIR/statusline.sh,
+#                             then nothing.
 #   BUDDY_SKIP_PRIMARY=1      Skip the primary entirely (buddy only).
 #   BUDDY_SKIP_SELF=1         Skip the buddy row (primary only — rarely useful).
 
@@ -120,9 +121,24 @@ _maybe_refresh_cache() {
   disown 2>/dev/null || true
 }
 
+_creds_token_missing() {
+  # True only when .credentials.json EXISTS but holds no accessToken — the state
+  # of a profile that logs in with a long-lived CLAUDE_CODE_OAUTH_TOKEN. Such a
+  # token has no user:profile scope, and with no stored token _fetch_usage
+  # returns before it can mark the cache stale. The cache can then never
+  # refresh, so merging it would show old numbers as current. An absent file is
+  # not this state (API-key users, fresh installs): the cache is left alone.
+  [[ -f "$_CREDS" ]] || return 1
+  command -v jq &>/dev/null || return 1
+  [[ -z "$(jq -r '.claudeAiOauth.accessToken // empty' "$_CREDS" 2>/dev/null)" ]]
+}
+
 _merge_cache() {
   command -v jq &>/dev/null || { echo "$INPUT"; return; }
   [[ -f "$_CACHE" ]] || { echo "$INPUT"; return; }
+  # No stored token → cache is unrefreshable. Keep CC's own stdin untouched,
+  # so native rate_limits (Pro/Max) still show and nothing stale is invented.
+  _creds_token_missing && { echo "$INPUT"; return; }
 
   local merged
   merged=$(jq -s '
@@ -162,8 +178,20 @@ resolve_primary() {
     return
   fi
 
+  # Sibling statusline in the same checkout (buddy/scripts/ → ../..).
+  # Tried before the plugin cache: statusline has no install record in
+  # any profile, so CC's orphan sweep deletes its cache dir — which silently
+  # dropped row 1 from ~/.claude-sdd. Absent for cache installs
+  # (cache/…/buddy/<ver>/), where the lookups below still apply.
+  local checkout
+  checkout="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." 2>/dev/null && pwd)"
+  if [[ -n "$checkout" ]] && [[ -x "$checkout/statusline/bin/statusline.sh" ]]; then
+    printf '%s' "$checkout/statusline/bin/statusline.sh"
+    return
+  fi
+
   local cfg="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
-  local base="$cfg/plugins/cache/sdd-misc-plugins/claude-statusline"
+  local base="$cfg/plugins/cache/sdd-misc-plugins/statusline"
   # Glob returns versions alphabetically; sort -V picks the newest semver.
   # Without -V we'd silently pin to the oldest cached version forever.
   local candidate
@@ -188,15 +216,16 @@ resolve_primary() {
 _render_rate_limits_fallback() {
   # Minimal rate-limits line for when no primary statusline is installed.
   # Emits "5h <pct>%/7d <pct>%" with a leading "~" (dim) prefix when stale.
-  # Schema accepts either {utilization, resets_at} or {remaining_pct, resets_at}.
+  # Reads used_percentage — the key both _merge_cache and CC's own stdin carry;
+  # {utilization} and {remaining_pct} are accepted as legacy shapes.
   local stale
   stale=$(printf '%s' "$INPUT" | jq -r '.rate_limits_stale // false' 2>/dev/null)
   printf '%s' "$INPUT" | jq -r '
     .rate_limits as $r |
     if ($r == null) then empty
     else
-      ($r.five_hour.utilization // (100 - ($r.five_hour.remaining_pct // 0))) as $h |
-      ($r.seven_day.utilization // (100 - ($r.seven_day.remaining_pct // 0))) as $w |
+      ($r.five_hour.used_percentage // $r.five_hour.utilization // (100 - ($r.five_hour.remaining_pct // 0))) as $h |
+      ($r.seven_day.used_percentage // $r.seven_day.utilization // (100 - ($r.seven_day.remaining_pct // 0))) as $w |
       [$h, $w] | @tsv
     end
   ' 2>/dev/null | while IFS=$'\t' read -r h w; do

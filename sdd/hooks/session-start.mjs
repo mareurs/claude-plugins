@@ -1,26 +1,32 @@
-// SDD SessionStart hook — announces SDD state when a constitution is present.
-// Port of session-start.sh (cross-platform: no grep/sed/jq/compgen/xargs).
-import { readInput, projectDir, hasConstitution, enforcement, specNames, emit } from './lib.mjs';
+// SDD SessionStart hook: one short banner with the enforcement mode, the active
+// feature(s) and the next gate. Silent when the project has no .sdd/config.json.
+import { readInput, contextEvent, mainCheckout, loadConfig, activePlans, featureFromSpecPath } from './lib.mjs';
+import { baseBranch } from './review-guard.mjs';
 
-const input = readInput();
-const dir = projectDir(input);
-if (!hasConstitution(dir)) process.exit(0);
+function main() {
+  const input = readInput();
+  if (!input) return;
+  const ctx = mainCheckout(input.cwd || process.cwd());
+  if (!ctx) return;
+  const cfg = loadConfig(ctx.root);
+  if (!cfg) return;
 
-const enf = enforcement(dir);
-const specs = specNames(dir);
-const activeSpecs = specs.length ? specs.join(' ') : 'none — run /specify <feature> to start';
+  const plans = activePlans(ctx.root);
+  const base = baseBranch(ctx.commonDir, cfg);
+  const features = plans.map((p) => p.fm.feature || featureFromSpecPath(p.specPath));
 
-const context = [
-  'SDD is active for this project.',
-  'Commands: /specify, /plan, /review, /drift, /document',
-  'Constitution: memory/constitution.md',
-  `Enforcement: ${enf}`,
-  `Active specs: ${activeSpecs}`,
-  'Plans: memory/plans/',
-  '',
-  'Run /specify <feature> to start a new feature.',
-  'Run /review before committing.',
-].join('\n');
+  const lines = [];
+  lines.push(cfg.error === 'unreadable'
+    ? 'SDD: .sdd/config.json is unreadable; enforcement is warn.'
+    : `SDD enforcement: ${cfg.enforcement}.`);
+  if (features.length === 0) {
+    lines.push('Active features: none. Approve a spec and plan with /sdd:approve before source edits.');
+  } else {
+    lines.push(`Active features: ${features.join(', ')}.`);
+    lines.push(`Integration into ${base} needs /sdd:approve review ${features.join(' | ')}.`);
+  }
+  contextEvent('SessionStart', lines.join('\n'));
+}
 
-emit({ hookSpecificOutput: { additionalContext: context } });
+try { main(); } catch { /* fail open */ }
 process.exit(0);

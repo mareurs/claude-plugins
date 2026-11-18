@@ -1,0 +1,16 @@
+{
+  "name": "hint-echo",
+  "description": "Shows the user the additionalContext that tool hooks hand to the model, such as [cs-hint], as a dim transcript row.",
+  "version": "0.1.0",
+  "author": {
+    "name": "Marius"
+  },
+  "license": "MIT",
+  "keywords": [
+    "hooks",
+    "mod",
+    "additionalContext",
+    "cs-hint",
+    "transparency"
+  ]
+}

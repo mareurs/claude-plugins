@@ -2,7 +2,7 @@
 // .cs-worktree-pending marker (blocks writes until workspace()), write the
 // codescout-active marker, and best-effort symlink .codescout/ into the worktree.
 // Port of worktree-activate.sh. No-op if codescout is not configured.
-import { existsSync, statSync, lstatSync, mkdirSync, writeFileSync, symlinkSync } from 'node:fs';
+import { existsSync, statSync, mkdirSync, writeFileSync, symlinkSync } from 'node:fs';
 import { join, dirname, basename } from 'node:path';
 import { homedir } from 'node:os';
 import { readInput, detectFor, git, emit } from './lib.mjs';
@@ -73,7 +73,7 @@ emit({
     hookEventName: 'PostToolUse',
     additionalContext: `WORKTREE DETECTED: codescout must switch to the worktree.
 Call workspace(action="activate", path="${worktreePath}") NOW as your next action.
-MCP write tools (edit_code, edit_file, edit_markdown, create_file) are BLOCKED
+MCP write tools (edit_code, edit_file, create_file) are BLOCKED
 until workspace is called — they would otherwise silently write to the wrong repo.
 After workspace() succeeds, call index(action="build") in the worktree to build
 its per-worktree delta index — only files that differ from main get embedded.
@@ -117,31 +117,7 @@ if (!existsSync(dest)) {
   }
 }
 
-// Fallback: worktree has a real .codescout dir (not a symlink) → link shared assets.
-let destStat;
-try {
-  destStat = lstatSync(dest);
-} catch {
-  /* dest absent */
-}
-if (destStat && destStat.isDirectory() && !destStat.isSymbolicLink()) {
-  for (const asset of ['embeddings']) {
-    const src = join(ceDir, asset);
-    const dst = join(dest, asset);
-    if (!existsSync(src)) continue;
-    let dstExists = false;
-    try {
-      lstatSync(dst);
-      dstExists = true;
-    } catch {
-      /* absent */
-    }
-    if (dstExists) continue;
-    try {
-      symlinkSync(src, dst, 'junction');
-    } catch {
-      /* best-effort */
-    }
-  }
-}
+// Note: this hook does NOT link `.codescout/embeddings` into the worktree. The link was
+// dead under the Qdrant backend and left an untracked entry that made `git worktree remove`
+// refuse. See docs/issues/archive/2026-11-12-worktree-hooks-link-the-legacy-embeddings-store-into-every-worktree.md
 process.exit(0);
