@@ -15,6 +15,7 @@ for(const permission of [true,false])test(`native protocol probe: approval obser
  if(m.method==='thread/start')return {result:{thread:{id:'session'}}};
  if(m.method==='turn/start'){
   primarySocket=socket;
+  socket.send(JSON.stringify({method:'turn/started',params:{threadId:'session',turn:{id:'probe-turn',status:'inProgress'}}}));
   return {result:{turn:{id:'probe-turn'}}};
  }
  if(m.method==='thread/resume')socket.once('close',()=>primarySocket.send(JSON.stringify({id:'tool',method:'item/tool/call',params:{threadId:'session',turnId:'probe-turn',tool:'wake_probe',arguments:{}}})));
@@ -38,7 +39,7 @@ test('callback routed to the secondary makes attach fail, never a successful pro
  await assert.rejects(probeCodexCallbacks({endpoint,profileRoot:root,expectedVersion:'0.160.0',allowModelCall:true,timeoutMs:1000}),/callback|closed/);
 },{reply:(m,socket)=>{
  if(m.method==='thread/start')return {result:{thread:{id:'session'}}};
- if(m.method==='turn/start')return {result:{turn:{id:'probe-turn'}}};
+ if(m.method==='turn/start'){socket.send(JSON.stringify({method:'turn/started',params:{threadId:'session',turn:{id:'probe-turn',status:'inProgress'}}}));return {result:{turn:{id:'probe-turn'}}};}
  if(m.method==='thread/resume'){
   socket.send(JSON.stringify({id:'misrouted',method:'item/tool/call',params:{threadId:'session',tool:'wake_probe'}}));return false;
  }

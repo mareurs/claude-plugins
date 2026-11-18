@@ -1,0 +1,358 @@
+{
+  "synthetic": false,
+  "scope": "actual native callback routing; automatic wake and installed profile rollout are separate",
+  "rootCause": "turn/start acceptance precedes matching turn/started; immediate secondary resume races persistence",
+  "before": {
+    "turnAcceptedMs": 597,
+    "resumeRequestedMs": 602,
+    "resumeErrorMs": 606,
+    "resumeError": "list_turns is not supported yet",
+    "turnStartedMs": 613
+  },
+  "controlledWait": {
+    "turnAcceptedMs": 866,
+    "resumeHeldMs": 870,
+    "turnStartedAndReleasedMs": 885,
+    "resumeSucceededMs": 888
+  },
+  "nativeDirect": [
+    {
+      "label": "stock-fixed",
+      "synthetic": false,
+      "binary": "/usr/bin/codex",
+      "expectedVersion": "0.169.0",
+      "transport": "direct private Unix socket, no proxy",
+      "preflightClient": "codescout_background_wake",
+      "existingProfilesChanged": false,
+      "userAgent": "codescout_background_wake/0.169.0 (Arch Linux Rolling Release; x86_64) xterm-256color (codescout_background_wake; 1)",
+      "probe": {
+        "version": 1,
+        "synthetic": false,
+        "captureKind": "native-protocol-summary",
+        "daemonVersion": "0.169.0",
+        "subscription": "resume-loaded",
+        "callbacksAfterSecondaryClose": {
+          "attached": true,
+          "turnCompleted": true,
+          "originalTool": 1,
+          "originalPermission": 1,
+          "secondaryCallbacks": 0
+        },
+        "supported": true,
+        "reason": "original tool and permission callbacks preserved after secondary attach and close",
+        "limitations": [
+          "native root/child hook envelopes and automatic wake delivery are separate checks"
+        ]
+      },
+      "ownedResourcesRemoved": true
+    },
+    {
+      "label": "candidate-fixed",
+      "synthetic": false,
+      "binary": "/home/marius/.cache/cc-tmp/issue15-candidate-0169-20261118/bin/codex-app-server",
+      "expectedVersion": "0.169.0",
+      "transport": "direct private Unix socket, no proxy",
+      "preflightClient": "codescout_background_wake",
+      "existingProfilesChanged": false,
+      "userAgent": "codescout_background_wake/0.169.0 (Arch Linux Rolling Release; x86_64) xterm-256color (codescout_background_wake; 1)",
+      "probe": {
+        "version": 1,
+        "synthetic": false,
+        "captureKind": "native-protocol-summary",
+        "daemonVersion": "0.169.0",
+        "subscription": "resume-loaded",
+        "callbacksAfterSecondaryClose": {
+          "attached": true,
+          "turnCompleted": true,
+          "originalTool": 1,
+          "originalPermission": 1,
+          "secondaryCallbacks": 0
+        },
+        "supported": true,
+        "reason": "original tool and permission callbacks preserved after secondary attach and close",
+        "limitations": [
+          "native root/child hook envelopes and automatic wake delivery are separate checks"
+        ]
+      },
+      "ownedResourcesRemoved": true
+    }
+  ],
+  "tests": {
+    "initialRed": {
+      "total": 9,
+      "passed": 5,
+      "failed": 4
+    },
+    "preReviewFocused": {
+      "passed": 32,
+      "failed": 0
+    },
+    "preReviewSequentialWake": {
+      "passed": 241,
+      "failed": 0
+    },
+    "finalFocused": {
+      "passed": 35,
+      "failed": 0
+    },
+    "finalSequentialWake": {
+      "passed": 244,
+      "failed": 0
+    }
+  },
+  "review": {
+    "initial": [
+      {
+        "name": "M01-remove-readiness-await",
+        "status": "test_failure",
+        "returncode": 1,
+        "duration_s": 1.334,
+        "mutated_from": "await Promise.race([turnStarted,deadline]);",
+        "mutated_to": "",
+        "failure_lines": [
+          "\u2716 probe waits for actual turn/started after the turn/start acceptance response (27.017897ms)",
+          "\u2716 missing start cannot open a secondary connection and times out with owned cleanup (6.864479ms)",
+          "\u2716 wrong-thread start cannot open a secondary connection and times out with owned cleanup (8.529353ms)",
+          "\u2716 wrong-turn start cannot open a secondary connection and times out with owned cleanup (14.091279ms)",
+          "\u2716 a premature completion cannot disable the shared startup deadline (7.762243ms)",
+          "\u2139 tests 32",
+          "\u2139 pass 27",
+          "\u2139 fail 5",
+          "\u2716 failing tests:",
+          "\u2716 probe waits for actual turn/started after the turn/start acceptance response (27.017897ms)",
+          "\u2716 missing start cannot open a secondary connection and times out with owned cleanup (6.864479ms)",
+          "\u2716 wrong-thread start cannot open a secondary connection and times out with owned cleanup (8.529353ms)",
+          "\u2716 wrong-turn start cannot open a secondary connection and times out with owned cleanup (14.091279ms)",
+          "\u2716 a premature completion cannot disable the shared startup deadline (7.762243ms)"
+        ]
+      },
+      {
+        "name": "M02-remove-start-thread-match",
+        "status": "test_failure",
+        "returncode": 1,
+        "duration_s": 4.427,
+        "mutated_from": "m.method==='turn/started'&&p.threadId===threadId&&",
+        "mutated_to": "m.method==='turn/started'&&",
+        "failure_lines": [
+          "\u2716 wrong-thread start cannot open a secondary connection and times out with owned cleanup (8.40872ms)",
+          "\u2139 tests 32",
+          "\u2139 pass 31",
+          "\u2139 fail 1",
+          "\u2716 failing tests:",
+          "\u2716 wrong-thread start cannot open a secondary connection and times out with owned cleanup (8.40872ms)"
+        ]
+      },
+      {
+        "name": "M03-remove-start-turn-match",
+        "status": "test_failure",
+        "returncode": 1,
+        "duration_s": 4.372,
+        "mutated_from": "if(turnId===p.turn.id)notifyStart?.();",
+        "mutated_to": "notifyStart?.();",
+        "failure_lines": [
+          "\u2716 wrong-turn start cannot open a secondary connection and times out with owned cleanup (6.687085ms)",
+          "\u2139 tests 32",
+          "\u2139 pass 31",
+          "\u2139 fail 1",
+          "\u2716 failing tests:",
+          "\u2716 wrong-turn start cannot open a secondary connection and times out with owned cleanup (6.687085ms)"
+        ]
+      },
+      {
+        "name": "M04-remove-pre-response-retention-check",
+        "status": "test_failure",
+        "returncode": 1,
+        "duration_s": 9.317,
+        "mutated_from": "if(startedTurnIds.has(turnId))notifyStart();",
+        "mutated_to": "",
+        "failure_lines": [
+          "\u2716 archive rejection cannot produce successful compatibility evidence (2011.713222ms)",
+          "\u2716 native protocol probe: approval observed=true (2013.744815ms)",
+          "\u2716 native protocol probe: approval observed=false (2004.178894ms)",
+          "\u2716 callback routed to the secondary makes attach fail, never a successful proof (1005.676466ms)",
+          "\u2716 callback probe accepts same-version daemon first initialized by codex-tui (2012.881232ms)",
+          "\u2716 callback probe accepts same-version daemon first initialized by issue14_first_originator (2005.241452ms)",
+          "\u2716 a matching turn/started before the turn/start response is retained (1005.42211ms)",
+          "\u2716 start readiness does not relax early callback rejection (1006.685873ms)",
+          "\u2716 a started turn with no completion keeps the shared timeout and owned cleanup (1004.487585ms)",
+          "\u2716 actual resume failure after start is not retried or converted to support (1002.203925ms)",
+          "\u2716 an unfinished native turn times out, is interrupted, and its own thread is archived (1011.611411ms)",
+          "\u2139 tests 32",
+          "\u2139 pass 21",
+          "\u2139 fail 11",
+          "\u2716 failing tests:",
+          "\u2716 archive rejection cannot produce successful compatibility evidence (2011.713222ms)",
+          "\u2716 native protocol probe: approval observed=true (2013.744815ms)",
+          "\u2716 native protocol probe: approval observed=false (2004.178894ms)",
+          "\u2716 callback routed to the secondary makes attach fail, never a successful proof (1005.676466ms)",
+          "\u2716 callback probe accepts same-version daemon first initialized by codex-tui (2012.881232ms)",
+          "\u2716 callback probe accepts same-version daemon first initialized by issue14_first_originator (2005.241452ms)",
+          "\u2716 a matching turn/started before the turn/start response is retained (1005.42211ms)",
+          "\u2716 start readiness does not relax early callback rejection (1006.685873ms)",
+          "\u2716 a started turn with no completion keeps the shared timeout and owned cleanup (1004.487585ms)",
+          "\u2716 actual resume failure after start is not retried or converted to support (1002.203925ms)",
+          "\u2716 an unfinished native turn times out, is interrupted, and its own thread is archived (1011.611411ms)"
+        ]
+      },
+      {
+        "name": "M05-readiness-without-deadline",
+        "status": "outer_process_timeout",
+        "returncode": null,
+        "duration_s": 14.019,
+        "mutated_from": "await Promise.race([turnStarted,deadline]);",
+        "mutated_to": "await turnStarted;",
+        "failure_lines": []
+      },
+      {
+        "name": "M06-premature-completion-disables-deadline",
+        "status": "outer_process_timeout",
+        "returncode": null,
+        "duration_s": 14.036,
+        "mutated_from": "observed.turnCompleted=p.turn?.status==='completed';notify?.();",
+        "mutated_to": "observed.turnCompleted=p.turn?.status==='completed';clearTimeout(completionTimer);notify?.();",
+        "failure_lines": []
+      },
+      {
+        "name": "M07-ignore-early-callback-failure",
+        "status": "test_failure",
+        "returncode": 1,
+        "duration_s": 5.468,
+        "mutated_from": "observed.failure=secondaryClosed?'unexpected primary callback':'callback arrived before secondary close';reject();",
+        "mutated_to": "reject();",
+        "failure_lines": [
+          "\u2716 start readiness does not relax early callback rejection (17.111328ms)",
+          "\u2139 tests 32",
+          "\u2139 pass 31",
+          "\u2139 fail 1",
+          "\u2716 failing tests:",
+          "\u2716 start readiness does not relax early callback rejection (17.111328ms)"
+        ]
+      },
+      {
+        "name": "M08-swallow-actual-attach-error",
+        "status": "test_failure",
+        "returncode": 1,
+        "duration_s": 6.323,
+        "mutated_from": "await secondary.subscribeThread(threadId,()=>{});observed.attached=true;",
+        "mutated_to": "await secondary.subscribeThread(threadId,()=>{}).catch(()=>{});observed.attached=true;",
+        "failure_lines": [
+          "\u2716 actual resume failure after start is not retried or converted to support (1002.410662ms)",
+          "\u2139 tests 32",
+          "\u2139 pass 31",
+          "\u2139 fail 1",
+          "\u2716 failing tests:",
+          "\u2716 actual resume failure after start is not retried or converted to support (1002.410662ms)"
+        ]
+      },
+      {
+        "name": "M09-swallow-archive-cleanup-error",
+        "status": "test_failure",
+        "returncode": 1,
+        "duration_s": 5.444,
+        "mutated_from": "observed.cleanupFailed=true;",
+        "mutated_to": "observed.cleanupFailed=false;",
+        "failure_lines": [
+          "\u2716 archive rejection cannot produce successful compatibility evidence (73.274397ms)",
+          "\u2716 archive failure remains a failed compatibility proof (6.551581ms)",
+          "\u2139 tests 32",
+          "\u2139 pass 30",
+          "\u2139 fail 2",
+          "\u2716 failing tests:",
+          "\u2716 archive rejection cannot produce successful compatibility evidence (73.274397ms)",
+          "\u2716 archive failure remains a failed compatibility proof (6.551581ms)"
+        ]
+      },
+      {
+        "name": "M10-live-start-only-requires-known-turn",
+        "status": "survived",
+        "returncode": 0,
+        "duration_s": 5.281,
+        "mutated_from": "if(turnId===p.turn.id)notifyStart?.();",
+        "mutated_to": "if(turnId)notifyStart?.();",
+        "failure_lines": [
+          "\u2139 tests 32",
+          "\u2139 pass 32",
+          "\u2139 fail 0"
+        ]
+      },
+      {
+        "name": "M11-leave-deadline-timer-after-cleanup",
+        "status": "survived",
+        "returncode": 0,
+        "duration_s": 5.278,
+        "mutated_from": "clearTimeout(completionTimer);",
+        "mutated_to": "",
+        "failure_lines": [
+          "\u2139 tests 32",
+          "\u2139 pass 32",
+          "\u2139 fail 0"
+        ]
+      },
+      {
+        "name": "M12-completion-gets-fresh-time-budget",
+        "status": "survived",
+        "returncode": 0,
+        "duration_s": 5.289,
+        "mutated_from": "await Promise.race([completion,deadline]);",
+        "mutated_to": "clearTimeout(completionTimer);const extraDeadline=new Promise((ok,no)=>{completionTimer=setTimeout(()=>no(new Error('probe turn timed out')),timeoutMs);});await Promise.race([completion,extraDeadline]);",
+        "failure_lines": [
+          "\u2139 tests 32",
+          "\u2139 pass 32",
+          "\u2139 fail 0"
+        ]
+      }
+    ],
+    "survivorRechecks": {
+      "mutations": [
+        {
+          "name": "M10-live-start-only-requires-known-turn",
+          "exit_code": 1,
+          "failure_lines": [
+            "\u2716 a wrong turn started after acceptance cannot unlock secondary attach (69.102493ms)",
+            "\u2139 tests 35",
+            "\u2139 pass 34",
+            "\u2139 fail 1",
+            "\u2716 failing tests:",
+            "\u2716 a wrong turn started after acceptance cannot unlock secondary attach (69.102493ms)"
+          ]
+        },
+        {
+          "name": "M11-leave-deadline-timer-after-cleanup",
+          "exit_code": 1,
+          "failure_lines": [
+            "\u2716 successful cleanup leaves no scheduled probe timeouts (8.919059ms)",
+            "\u2139 tests 35",
+            "\u2139 pass 34",
+            "\u2139 fail 1",
+            "\u2716 failing tests:",
+            "\u2716 successful cleanup leaves no scheduled probe timeouts (8.919059ms)"
+          ]
+        },
+        {
+          "name": "M12-completion-gets-fresh-time-budget",
+          "exit_code": 1,
+          "failure_lines": [
+            "\u2716 startup time consumes the same completion budget (1307.807366ms)",
+            "\u2139 tests 35",
+            "\u2139 pass 34",
+            "\u2139 fail 1",
+            "\u2716 failing tests:",
+            "\u2716 startup time consumes the same completion budget (1307.807366ms)"
+          ]
+        }
+      ],
+      "restored_exit": 0,
+      "restored_sha256": "cae498e795f727169a164e44dd32fd7eabc69323ad948ba2b1da6aa8bec023d3",
+      "restored_summary": [
+        "\u2139 tests 35",
+        "\u2139 pass 35",
+        "\u2139 fail 0"
+      ]
+    }
+  },
+  "sourceSha256": "cae498e795f727169a164e44dd32fd7eabc69323ad948ba2b1da6aa8bec023d3",
+  "limits": [
+    "Final whole repository/release preflight still pending",
+    "Native root/child hook envelopes and automatic delivery were not established by these callback probes"
+  ]
+}

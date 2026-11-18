@@ -20,7 +20,7 @@ for(const prefix of ['codex-tui','issue14_first_originator'])test(`callback prob
  },{reply:(m,socket)=>{
   if(m.method==='initialize')return {result:{codexHome:fixtureRoot,userAgent:prefix+'/0.167.0 (fixture)',platformOs:'linux'}};
   if(m.method==='thread/start')return {result:{thread:{id:'session'}}};
-  if(m.method==='turn/start'){primarySocket=socket;return {result:{turn:{id:'probe-turn'}}};}
+  if(m.method==='turn/start'){primarySocket=socket;socket.send(JSON.stringify({method:'turn/started',params:{threadId:'session',turn:{id:'probe-turn',status:'inProgress'}}}));return {result:{turn:{id:'probe-turn'}}};}
   if(m.method==='thread/resume')socket.once('close',()=>primarySocket.send(JSON.stringify({id:'tool',method:'item/tool/call',params:{threadId:'session',turnId:'probe-turn',tool:'wake_probe',arguments:{}}})));
   if(m.id==='tool'){
    assert.equal(m.result.success,true);

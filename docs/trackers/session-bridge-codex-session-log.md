@@ -12,7 +12,7 @@ entry_prefix:
 - F
 - W
 snapshot_anchor: '| ID | Date | Severity | Category | Status | Title |'
-entry_high_water_F: 4
+entry_high_water_F: 6
 entry_high_water_W: 1
 ---
 
@@ -29,6 +29,8 @@ Verified observations for the Codex interoperation work stream. Entries use the 
 | F-2 | 2026-11-16 | high | host-contract | fixed-verified | Official Claude caller has a host session ID but no legacy IPC socket |
 | F-3 | 2026-11-16 | high | attribution | fixed-verified | Inherited Codex variables can misattribute a nested Claude caller |
 | F-4 | 2026-11-16 | med | measurement | fixed-verified | **Notice smoke checked before the bridge's 120-second look interval** — corrected window; native context consumption passed. |
+| F-5 | 2026-11-18 | high | authentication | fixed-verified | Claude forks discard target settings auth and inherit caller credentials |
+| F-6 | 2026-11-18 | med | host-contract | fixed-verified | **Callback probe attaches before actual turn start** — native control and event-held intervention distinguish acceptance from readiness. |
 
 ## Status vocabulary
 
@@ -117,6 +119,42 @@ The real interactive Claude 2.1.325 smoke then succeeded: list_sessions found th
 **Rests on:** hook.rs LOOK_INTERVAL_MS = 120_000 and on_trigger's due predicate; task-workspace notice-no-tool-smoke.json, notice-posttool-smoke.json, and notice-short-window-smoke.json. The final live test now waits 125 seconds before triggering and then waits for its own filter verdict. Its notification subscription filters exact own thread IDs; unrelated broadcasts are excluded from retained evidence.
 
 **Cost:** Extra model probes came from a harness timing assumption. No product source change was justified by those early negative results. Temporary sender/receiver threads were archived and each test's notice was removed with an exact deletion tombstone.
+
+## F-5 — Claude forks discard target settings auth and inherit caller credentials
+
+**Observed:** 2026-11-18 live Codex ask_session calls to main:1951713 and stef:575289 succeeded; kat:1730572 returned `Failed to authenticate: OAuth session expired and could not be refreshed`. The kat profile has its OAuth token and ANTHROPIC_BASE_URL in user settings.env, while its credentials file contains no access/refresh token. Re-running the exact pinned Claude fork with those two target env values, keeping --setting-sources empty and strict MCP isolation, returned BRIDGE_KAT_WITH_PROFILE_ENV_OK. No token values were logged.
+
+**Cause:** ask::fork_argv disables all settings sources and ask_with_bound sets only CLAUDE_CONFIG_DIR; ENV_REMOVED omits caller authentication variables. filter::call_model has the same boundary. Thus target settings auth is lost and a Claude caller's OAuth/API key or API address may be inherited, violating the target-profile billing contract.
+
+**Scope:** restore only explicit target user-settings authentication values, scrub caller auth, keep hooks/MCP/project settings disabled. Verify actual child environment and live cross-harness calls.
+
+**Status:** fixed-verified
+
+**Verification:** Before the fix, the new subprocess-environment tests observed caller secrets in the child and accepted malformed settings. After the fix, `cargo test` and `cargo clippy --all-targets -- -D warnings` exit 0; formatting and diff whitespace checks pass. Live MCP tool results on the rebuilt release binary passed Codex→Claude (kat/main/stef), Codex→Codex, Claude stef→kat, Claude stef→Codex and Claude kat→main. These are real source/target calls, not simulated routing. The target kat settings token authenticated successfully without re-login. No active sdd target was available.
+
+**Independent applied mutations:** Removing the ask callsite, removing the filter callsite, omitting target OAuth restoration, and omitting caller auth scrubbing each failed the subprocess suite. A fifth mutation accepting non-string auth values initially survived the related suites; after adding the numeric-token regression it failed (4 passed/1 failed), and restored source passed (5/0). All five observed candidates are now killed. The review copy's full suite was not claimed green: unrelated install_codex tests require scripts outside the copied crate; the full main-checkout suite passed.
+
+**Deployment:** Rebuilt the release binary used by Codex. Installed the common cargo executable used by all four Claude profiles with `cargo install --path . --locked --force`; existing MCP processes retain the previous executable until reconnected. No credentials or profile settings were changed.
+
+**Valid:** dated 2026-11-18
+
+**Rests on:** session-bridge/mcp-server/src/ask.rs::fork_argv, ask_with_bound; src/filter.rs::call_model; live calls and controlled target-env reproduction above.
+
+## F-6 — Callback probe attaches before an accepted turn actually starts
+
+**Observed:** Installed stock0.169 control with preliminary codescout_background_wake initialization: turn/start response597ms, thread/resume error list_turns at606ms, turn/started613ms. Direct immediate-attach runner also failed with empty rollout metadata. Holding only the resume until own turn/started then passed native tool1/permission1/secondary0. Trace captures are sanitized under /tmp/codex-runtime-callbacks-20261118.
+
+**Cause:** Probe treated turn/start acceptance as actual start/readiness. The app-server can accept the turn before its processing/persistence path runs; loaded/list alone does not make that pending first turn resumable. Real callback ownership is preserved once attachment succeeds.
+
+**Scope:** Wait for the exact owned thread and returned turn's started notification, including notification-before-response order, with the same bounded timeout. Keep real attach errors and early callback failures. No blanket daemon-support or automatic-wake claim.
+
+**Status:** fixed-verified
+
+**Verification:** Integrated source passes focused35/35 and complete sequential wake244/244. Fresh reviewer actually applied12 mutations (7test failures,2outer timeouts,3survivors); each exact survivor was then caught by an added regression, and restored35/35 passed. Direct private-socket stock0.169 and repaired0.169 candidate probes each passed tool1/permission1/secondary0 with preliminary first-client initialization and owned cleanup. Evidence: docs/evidence/2026-11-18-codex-callback-start-order.{md,json}. Automatic wake and profile delivery remain separate.
+
+**Valid:** dated 2026-11-18
+
+**Rests on:** native baseline/first-client/wait-started sanitized traces; tools/probe-codex-wake-callbacks.mjs::probeCodexCallbacks; exact-tag thread_processor.rs::resume_running_thread and thread_lifecycle.rs::handle_pending_thread_resume_request.
 
 ## Template for new entries
 
