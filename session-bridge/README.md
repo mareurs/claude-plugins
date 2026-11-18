@@ -134,7 +134,11 @@ An OpenCode session reaches a Claude Code session through `ask_session` (a read-
 
 ### Limits
 
-Delivery into OpenCode is queued behind a running turn, not an interruption. A live session needs an MCP reconnect (Claude, Codex) or an OpenCode restart (plugin) to see new tools. Unmeasured: other operating systems and OpenCode versions before 2.3.0.
+Delivery into OpenCode is queued behind a running turn, not an interruption. A live session needs an MCP reconnect (Claude, Codex) or an OpenCode restart (plugin) to see new tools.
+
+Fork creation remains owned after request cancellation: a late response is cleaned up even if the request has gone away. Cleanup on process shutdown has a 3 s budget. A lost creation response, a service failure, or process termination before the fork ID is learned can leave an unidentified fork; cleanup is not guaranteed in those cases.
+
+OpenCode 2.2.7 was also probed with a fresh isolated service: the current plugin registered the reader, and the permission API denied shell/write/edit/patch, codescout command/edit and bridge-send actions while allowing read. This proves those permission decisions, not complete model-driven cross-harness flows. Other operating systems and the remaining live cross-harness acceptance flows are unverified.
 
 ## Tools
 

@@ -88,6 +88,83 @@ fn ep() -> OpenCodeEndpoint {
     }
 }
 
+struct HangingApi {
+    stage: &'static str,
+    calls: Mutex<Vec<String>>,
+}
+impl OcApi for HangingApi {
+    fn call(
+        &self,
+        method: &str,
+        path: &str,
+        _body: Option<&Value>,
+    ) -> impl std::future::Future<Output = Result<Value>> + Send {
+        let stage = if method == "POST" {
+            "enqueue"
+        } else if path.contains("/message?") {
+            "observation"
+        } else {
+            "preflight"
+        };
+        self.calls.lock().unwrap().push(stage.into());
+        async move {
+            if self.stage == stage {
+                std::future::pending::<()>().await;
+            }
+            Ok(if stage == "observation" {
+                json!({"data": []})
+            } else {
+                json!({"data": {"id": "ses_abcdef", "time": {}}})
+            })
+        }
+    }
+}
+async fn assert_send_deadline(stage: &'static str, status: Option<&str>) {
+    let api = HangingApi {
+        stage,
+        calls: Mutex::new(vec![]),
+    };
+    let result = tokio::time::timeout(
+        std::time::Duration::from_secs(3),
+        send_opencode(&api, &ep(), "sender", "message", 1),
+    )
+    .await
+    .expect("send must bound every API await by the total deadline");
+    if let Some(status) = status {
+        let result = result.unwrap();
+        assert_eq!(result.status, status);
+        if status == "unknown" {
+            assert!(result.reason.contains("not retried"), "{result:?}");
+        }
+    } else {
+        assert!(result.is_err(), "unconfirmed preflight must not enqueue");
+    }
+    let posts = api
+        .calls
+        .lock()
+        .unwrap()
+        .iter()
+        .filter(|s| s.as_str() == "enqueue")
+        .count();
+    assert_eq!(
+        posts,
+        usize::from(stage != "preflight"),
+        "enqueue must never be retried"
+    );
+}
+#[tokio::test]
+async fn send_deadline_bounds_preflight() {
+    assert_send_deadline("preflight", None).await;
+}
+#[tokio::test]
+async fn send_deadline_bounds_enqueue_and_preserves_unknown() {
+    assert_send_deadline("enqueue", Some("unknown")).await;
+}
+#[tokio::test]
+async fn send_deadline_bounds_observation_and_preserves_queued() {
+    assert_send_deadline("observation", Some("queued")).await;
+}
+
 #[tokio::test]
 async fn send_posts_queue_delivery_with_marker() {
     let api = FakeApi::new();

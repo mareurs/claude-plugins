@@ -88,6 +88,10 @@ pub async fn opencode_caller<'a>(
             .await
             .map_err(|e| e.context(REFUSED))?;
         let row = row.get("data").unwrap_or(&row);
+        anyhow::ensure!(
+            row.get("id").and_then(Value::as_str) == Some(id.as_str()),
+            "{REFUSED}: lookup did not confirm requested session id"
+        );
         match row.get("parentID").filter(|p| !p.is_null()) {
             None => {
                 top = Some(id);

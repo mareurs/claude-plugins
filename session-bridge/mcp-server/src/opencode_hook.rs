@@ -40,13 +40,12 @@ pub fn handle(
     if input.agent_id.is_some() || input.session_id != target.session_id {
         return None;
     }
-    let mut normalized = input.clone();
-    if normalized.cwd.is_empty() {
-        normalized.cwd = target.directory.as_ref()?.to_string_lossy().into_owned();
-    }
-    if !Path::new(&normalized.cwd).is_absolute() {
+    let directory = target.directory.as_ref()?;
+    if !directory.is_absolute() {
         return None;
     }
+    let mut normalized = input.clone();
+    normalized.cwd = directory.to_string_lossy().into_owned();
     let profile = target.storage_profile();
     match event {
         "session-start" => session_start(&normalized, (&profile, 0), roots, state, store),

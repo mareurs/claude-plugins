@@ -36,12 +36,16 @@ pub async fn send_opencode(
         !message.trim().is_empty() && message.chars().count() <= 16000 && !message.contains('\0'),
         "message must contain 1..=16000 characters and no NUL"
     );
+    let deadline = Instant::now() + Duration::from_secs(timeout_s.clamp(1, 30));
     let session = format!("/api/session/{}", target.session_id);
-    let info = api
-        .call("GET", &session, None)
-        .await
-        .map_err(|e| anyhow::anyhow!("OpenCode session is not available: {e}"))?;
-    // An empty 2xx reply is `Null` from the client: never proof the session exists.
+    let info = tokio::time::timeout(
+        deadline.saturating_duration_since(Instant::now()),
+        api.call("GET", &session, None),
+    )
+    .await
+    .map_err(|_| anyhow::anyhow!("OpenCode session lookup timed out; nothing enqueued"))?
+    .map_err(|e| anyhow::anyhow!("OpenCode session is not available: {e}"))?;
+    // An empty 2xx reply is Null from the client: never proof the session exists.
     anyhow::ensure!(
         !info.is_null(),
         "OpenCode session is not available: session not found (empty reply)"
@@ -52,6 +56,10 @@ pub async fn send_opencode(
             .filter(|v| !v.is_null())
             .is_none(),
         "OpenCode session is archived"
+    );
+    anyhow::ensure!(
+        Instant::now() < deadline,
+        "OpenCode send timed out; nothing enqueued"
     );
     let id = new_message_id();
     let at = chrono::Utc::now().to_rfc3339();
@@ -68,55 +76,59 @@ pub async fn send_opencode(
         at,
         reason: String::new(),
     };
-    let deadline = Instant::now() + Duration::from_secs(timeout_s.clamp(1, 30));
     let body = json!({
-        "text": text,
-        "id": id,
-        "delivery": "queue",
-        "metadata": {"session_bridge": id},
+        "text": text, "id": id, "delivery": "queue", "metadata": {"session_bridge": id},
     });
-    match api
-        .call("POST", &format!("{session}/prompt"), Some(&body))
-        .await
+    match tokio::time::timeout(
+        deadline.saturating_duration_since(Instant::now()),
+        api.call("POST", &format!("{session}/prompt"), Some(&body)),
+    )
+    .await
     {
-        Err(e) => {
+        Err(_) => {
+            result.reason = "enqueue timed out; enqueue may have occurred; not retried".into();
+            return Ok(result);
+        }
+        Ok(Err(e)) => {
             result.reason = format!("{e}; enqueue may have occurred; not retried");
             return Ok(result);
         }
-        Ok(Value::Null) => {
+        Ok(Ok(Value::Null)) => {
             result.reason = "empty prompt reply; enqueue may have occurred; not retried".into();
             return Ok(result);
         }
-        Ok(_) => {}
+        Ok(Ok(_)) => {}
     }
     result.status = "queued";
     result.reason = "prompt accepted; exact message consumption not observed".into();
     let list = format!("{session}/message?order=desc&limit=50");
-    loop {
-        match api.call("GET", &list, None).await {
-            Ok(v) => {
+    while Instant::now() < deadline {
+        match tokio::time::timeout(
+            deadline.saturating_duration_since(Instant::now()),
+            api.call("GET", &list, None),
+        )
+        .await
+        {
+            Ok(Ok(v)) => {
                 let seen = unwrap_data(&v)
                     .as_array()
                     .is_some_and(|ms| ms.iter().any(|m| m["id"].as_str() == Some(id.as_str())));
                 if seen {
                     result.status = "observed";
-                    result.reason =
-                        "exact bridge message id appeared in the session's messages; no answer is implied"
-                            .into();
+                    result.reason = "exact bridge message id appeared in the session's messages; no answer is implied".into();
                     return Ok(result);
                 }
             }
-            Err(e) => {
+            Ok(Err(e)) => {
                 result.reason = format!("prompt accepted; cannot confirm consumption: {e}");
                 return Ok(result);
             }
-        }
-        if Instant::now() >= deadline {
-            return Ok(result);
+            Err(_) => return Ok(result),
         }
         tokio::time::sleep(
             Duration::from_millis(100).min(deadline.saturating_duration_since(Instant::now())),
         )
         .await;
     }
+    Ok(result)
 }

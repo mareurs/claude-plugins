@@ -219,21 +219,25 @@ async fn call_until_signal(tool: &str, opencode_caller: &str) -> anyhow::Result<
     let mut term = signal(SignalKind::terminate())?;
     let mut int = signal(SignalKind::interrupt())?;
     let mut work = Box::pin(call_output(tool, opencode_caller));
-    let name = tokio::select! {
-        r = &mut work => return r,
-        _ = term.recv() => "SIGTERM",
-        _ = int.recv() => "SIGINT",
+    let outcome = tokio::select! {
+        r = &mut work => r,
+        _ = term.recv() => Err(anyhow::anyhow!("stopped by SIGTERM")),
+        _ = int.recv() => Err(anyhow::anyhow!("stopped by SIGINT")),
     };
     drop(work);
+    // Normal timeout/error exit must drain late creation too, before runtime shutdown.
     let cleaned = session_bridge_mcp::opencode_ask::await_fork_cleanups(SIGNAL_CLEANUP).await;
-    Err(anyhow::anyhow!(
-        "stopped by {name}{}",
-        if cleaned {
-            ""
-        } else {
-            "; the OpenCode fork cleanup did not finish"
-        }
-    ))
+    if cleaned {
+        outcome
+    } else {
+        Err(anyhow::anyhow!(
+            "{}; the OpenCode fork cleanup did not finish; a pending creation may remain",
+            outcome
+                .err()
+                .map(|e| format!("{e:#}"))
+                .unwrap_or_else(|| "tool completed".into())
+        ))
+    }
 }
 
 /// `session-bridge call`: the OpenCode entry to the shared tool bodies. The caller is the

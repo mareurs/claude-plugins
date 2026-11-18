@@ -109,6 +109,48 @@ fn run(f: &Fx, ev: &str, e: &OpenCodeEndpoint, now: i64) -> Option<String> {
 }
 
 #[test]
+fn hook_repository_comes_from_the_verified_session_directory() {
+    let f = fx();
+    let a = endpoint(&f.root, A);
+    let mut payload = input(&a);
+    payload.cwd = f
+        .root
+        .join("unrelated-service-directory")
+        .to_string_lossy()
+        .into_owned();
+    handle(
+        "session-start",
+        &payload,
+        &a,
+        &f.roots,
+        &f.state,
+        &f.store,
+        now_ms(),
+        &|_, _| None,
+    );
+    let saved = load_or_default(&endpoint_path(&f.state, &a.storage_profile(), 0));
+    assert_eq!(saved.cwd, Some(f.root.to_string_lossy().into_owned()));
+    for directory in [None, Some(std::path::PathBuf::from("relative"))] {
+        let mut invalid = endpoint(&f.root, B);
+        invalid.directory = directory;
+        let mut payload = input(&a);
+        payload.session_id = B.into();
+        assert!(handle(
+            "session-start",
+            &payload,
+            &invalid,
+            &f.roots,
+            &f.state,
+            &f.store,
+            now_ms(),
+            &|_, _| None
+        )
+        .is_none());
+        assert!(!endpoint_path(&f.state, &invalid.storage_profile(), 0).exists());
+    }
+}
+
+#[test]
 fn opencode_receives_notice_unfiltered_with_reason() {
     let f = fx();
     let a = endpoint(&f.root, A);

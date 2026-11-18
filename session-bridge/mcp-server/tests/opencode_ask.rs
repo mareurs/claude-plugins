@@ -171,6 +171,79 @@ fn ep() -> OpenCodeEndpoint {
     }
 }
 
+#[derive(Clone, Default)]
+struct DelayedForkApi {
+    allocated: Arc<tokio::sync::Notify>,
+    release: Arc<tokio::sync::Notify>,
+    delete_entered: Arc<tokio::sync::Notify>,
+    release_delete: Arc<tokio::sync::Notify>,
+    removed: Arc<tokio::sync::Notify>,
+}
+impl OcApi for DelayedForkApi {
+    async fn call(&self, method: &str, path: &str, _body: Option<&Value>) -> Result<Value> {
+        if method == "POST" && path.ends_with("/fork") {
+            self.allocated.notify_one();
+            self.release.notified().await;
+            return Ok(json!({"data": {"id": "ses_pendingfork"}}));
+        }
+        if method == "DELETE" {
+            self.delete_entered.notify_one();
+            self.release_delete.notified().await;
+            self.removed.notify_one();
+        }
+        Ok(Value::Null)
+    }
+}
+#[tokio::test]
+async fn ask_owns_fork_creation_before_timeout_or_cancellation() {
+    for cancel in [false, true] {
+        let api = DelayedForkApi::default();
+        let worker_api = api.clone();
+        let request = tokio::spawn(async move {
+            ask_opencode(
+                &worker_api,
+                &ep(),
+                "question",
+                None,
+                if cancel {
+                    Duration::from_secs(10)
+                } else {
+                    Duration::from_millis(50)
+                },
+            )
+            .await
+        });
+        tokio::time::timeout(Duration::from_secs(3), api.allocated.notified())
+            .await
+            .unwrap();
+        if cancel {
+            request.abort();
+            let _ = request.await;
+        } else {
+            assert!(request.await.unwrap().is_err());
+        }
+        // Start shutdown while creation is still pending: the DELETE belongs to wave two.
+        let drain = tokio::spawn(async {
+            session_bridge_mcp::opencode_ask::await_fork_cleanups(Duration::from_secs(3)).await
+        });
+        tokio::task::yield_now().await;
+        api.release.notify_one();
+        tokio::time::timeout(Duration::from_secs(3), api.delete_entered.notified())
+            .await
+            .expect("late fork response must start deletion");
+        tokio::task::yield_now().await;
+        assert!(
+            !drain.is_finished(),
+            "cleanup must await the new DELETE wave, not just creation"
+        );
+        api.release_delete.notify_one();
+        assert!(drain.await.unwrap());
+        tokio::time::timeout(Duration::from_secs(3), api.removed.notified())
+            .await
+            .expect("drained means DELETE actually finished");
+    }
+}
+
 fn removed(api: &FakeApi) -> bool {
     api.has(&format!("DELETE /api/session/{FORK}"))
 }

@@ -151,6 +151,33 @@ async fn malformed_ids_are_refused_before_any_api_call() {
     assert!(api.calls().is_empty(), "{:?}", api.calls());
 }
 
+#[tokio::test]
+async fn caller_requires_exact_live_row_at_every_parent_hop() {
+    for row in [
+        Value::Null,
+        json!({"data": null}),
+        json!({"data": {}}),
+        json!({"data": {"id": "ses_different"}}),
+        json!({"data": {"id": "ses_different", "parentID": "ses_parent"}}),
+    ] {
+        let mut api = FakeApi::new(&[("ses_caller", None)]);
+        api.rows.insert("ses_caller".into(), row.clone());
+        let sessions = vec![oc("ses_caller"), oc("ses_parent")];
+        assert!(
+            opencode_caller(&sessions, &api, "ses_caller")
+                .await
+                .is_err(),
+            "{row}"
+        );
+    }
+    let mut api = FakeApi::new(&[("ses_child", Some("ses_parent")), ("ses_parent", None)]);
+    api.rows
+        .insert("ses_parent".into(), json!({"data": {"id": "ses_other"}}));
+    assert!(opencode_caller(&[oc("ses_parent")], &api, "ses_child")
+        .await
+        .is_err());
+}
+
 // ---- the `session-bridge call` CLI, against the fake `opencode` binary ----
 
 struct Env {
@@ -417,6 +444,42 @@ fn call_listing_preserves_repository_scope_and_all_override() {
         "{out}"
     );
     assert!(!out.contains("more session(s)"), "{out}");
+}
+
+#[test]
+fn call_timeout_drains_late_fork_creation_before_process_exit() {
+    let env = Env::new();
+    let state = env.root.join("state");
+    let mut script: Value =
+        serde_json::from_str(&fs::read_to_string(state.join("script.json")).unwrap()).unwrap();
+    let mut list: Value = serde_json::from_str(
+        script["GET /api/session?limit=100"]["out"]
+            .as_str()
+            .unwrap(),
+    )
+    .unwrap();
+    let mut peer = list["data"][0].clone();
+    peer["id"] = json!("ses_peer1");
+    list["data"].as_array_mut().unwrap().push(peer);
+    script["GET /api/session?limit=100"]["out"] = json!(list.to_string());
+    script["POST /api/session/ses_peer1/fork"] =
+        json!({"out": "{\"data\":{\"id\":\"ses_latefork\"}}", "sleep": 2});
+    script["POST /api/session/ses_latefork/interrupt"] = json!({"out": ""});
+    script["DELETE /api/session/ses_latefork"] = json!({"out": ""});
+    fs::write(state.join("script.json"), script.to_string()).unwrap();
+    let (code, _, err) = env.call(
+        "ask_session",
+        "ses_live1",
+        r#"{"target":"ses_peer1","question":"question","timeout_s":1}"#,
+    );
+    assert_eq!(code, 2, "{err}");
+    assert!(err.contains("timed out"), "{err}");
+    let log = fs::read_to_string(state.join("argv.log")).unwrap();
+    assert!(
+        log.contains(r#"["api", "DELETE", "/api/session/ses_latefork"]"#),
+        "{log}"
+    );
+    assert!(!log.contains("/api/session/ses_peer1/prompt"), "{log}");
 }
 
 /// The OpenCode plugin SIGTERMs `session-bridge call` on Esc and on its own timeout. A
