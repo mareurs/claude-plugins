@@ -42,9 +42,17 @@
   },
   {
     "name": "list_sessions",
-    "description": "List live Claude Code sessions and loaded Codex threads on this Linux machine. Codex discovery covers open-rollout hosts; loaded does not establish UI attachment.",
+    "description": "List live Claude Code sessions and loaded Codex threads on this Linux machine. By default only sessions in the caller's repository are listed; pass all=true for every repository. Codex discovery covers open-rollout hosts; loaded does not establish UI attachment.",
     "inputSchema": {
-      "properties": {},
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "all": {
+          "default": false,
+          "description": "List sessions of every repository. Default false: only the caller's repository.",
+          "type": "boolean"
+        }
+      },
+      "title": "ListSessionsArgs",
       "type": "object"
     }
   },

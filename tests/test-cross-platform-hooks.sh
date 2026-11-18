@@ -143,19 +143,14 @@ if command -v node >/dev/null 2>&1; then
   # (d2) the launcher must start the interpreter ONCE per hook call. It used to
   #      spawn a probe (`python3 -c ''`) before the dispatcher; where `python3` is
   #      a pyenv shim each start costs ~55 ms of shim overhead (measured 78 ms vs
-  #      23 ms for the real binary), paid on every PreToolUse/PostToolUse.
-  # Count interpreter starts with a sitecustomize.py on PYTHONPATH: Python imports
-  # it at every start, whichever candidate the launcher picks (python3, python,
-  # `py -3`). This check used a `#!/bin/sh` python3 wrapper on PATH before. That
-  # cannot work on Windows: node's spawn runs only real executables there, so the
-  # launcher skipped the wrapper and the count read 0 (windows-latest CI,
-  # 2026-11-12). The wrapper also looped forever under pyenv (291 calls measured).
-  if "$PYTHON" -c 'import sys' 2>/dev/null; then
+  #      23 ms for the real binary), paid on every PreToolUse/PostToolUse. Count
+  #      successful interpreter starts at Node's spawn boundary. Native Windows
+  #      resolution bypasses an extensionless shell wrapper on PATH.
+  if command -v python3 >/dev/null 2>&1; then
     cnt="$(mktemp -d 2>/dev/null || mktemp -d -t cpcnt)"
-    printf 'with open("%s", "a") as f:\n    f.write("x\\n")\n' "$(winpath "$cnt")/calls" > "$cnt/sitecustomize.py"
     t6="$(mktemp -d 2>/dev/null || mktemp -d -t cphooks)"
     printf '%s' '{"session_id":"cp-once","cwd":"'"$(winpath "$t6")"'"}' \
-      | PYTHONPATH="$(winpath "$cnt")" node "$LAUNCH" session-start >/dev/null 2>&1
+      | CPH_COUNTER_PATH="$(winpath "$cnt/calls")" node --require "$(winpath "$ROOT/tests/lib/count-python-starts.cjs")" "$LAUNCH" session-start >/dev/null 2>&1
     calls="$(wc -l < "$cnt/calls" 2>/dev/null | tr -d ' ')"
     if [ "$calls" = "1" ] && [ "$(cat "$t6/.buddy/.current_session_id" 2>/dev/null)" = "cp-once" ]; then
       ok "launcher: starts python once per hook call (no probe spawn)"
@@ -164,7 +159,7 @@ if command -v node >/dev/null 2>&1; then
     fi
     rm -rf "$cnt" "$t6" 2>/dev/null || true
   else
-    skip "no runnable python — single-spawn check skipped"
+    skip "no python3 on PATH — single-spawn check skipped"
   fi
 
   # (e) a missing PyYAML must NOT disable SessionStart. consolidate.py imports

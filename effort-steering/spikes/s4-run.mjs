@@ -282,13 +282,13 @@ function preregCommitOf(file) {
 // CLI runs with the same whitelisted environment a claude child gets: runPolicy merges its
 // `env` over process.env, and an undefined value unsets a variable, so every other parent
 // variable is unset first.
-function unsteerablePrompts(prereg, cli, stateHome, tmpDir) {
+function unsteerablePrompts(prereg, cli, stateHome, tmpDir, timeoutMs) {
   const env = Object.fromEntries(Object.keys(process.env).map((k) => [k, undefined]));
   Object.assign(env, childEnv(process.env, { holdoutRate: RATE_FOR.treated, stateHome, tmpDir }));
   const bad = [];
   prereg.prompts.forEach((prompt, i) => {
     const ctx = buildContext({ session_id: randomUUID(), prompt_id: randomUUID(), prompt, hook_event_name: 'UserPromptSubmit' });
-    const res = runPolicy(ctx, { cliPath: cli, args: [`--holdout-rate=${RATE_FOR.treated}`], env });
+    const res = runPolicy(ctx, { cliPath: cli, args: [`--holdout-rate=${RATE_FOR.treated}`], env, timeoutMs });
     if (typeof res.steer !== 'string' || res.steer === '') bad.push(i);
   });
   return bad;
@@ -311,7 +311,8 @@ export function stopReasons(analysis, latency, excluded = 0) {
 
 const zeroReasons = () => Object.fromEntries(REASONS.map((r) => [r, 0]));
 
-// opts (tests): spawn, confirm, configDir, now, out, tmpDir, esRoot.
+// opts: spawn, confirm, configDir, now, out, tmpDir, esRoot, preflightTimeoutMs.
+// The optional preflight budget leaves runPolicy's production default intact.
 export async function runExperiment(preregFile, opts = {}) {
   // R21: the registration gate comes before planning, git, latency or any spawn.
   const prereg = loadPrereg(preregFile);
@@ -339,7 +340,7 @@ export async function runExperiment(preregFile, opts = {}) {
   try {
     const scratch = writeScratch(prereg, root, esRoot);
     const tmpDir = path.dirname(root);
-    const bad = unsteerablePrompts(prereg, scratch.cli, path.join(root, 'preflight-state'), tmpDir);
+    const bad = unsteerablePrompts(prereg, scratch.cli, path.join(root, 'preflight-state'), tmpDir, opts.preflightTimeoutMs);
     if (bad.length > 0) {
       out(`s4-run: refused: ${bad.length} registered prompt(s) do not steer (indexes ${bad.join(', ')})`);
       return notRun(['prompt_not_steerable'], { notSteerable: bad });

@@ -6,7 +6,7 @@ use crate::endpoints::{repo_of, Roots};
 use crate::error::BridgeError;
 use crate::paths::{short_profile, state_root};
 use crate::send::send_codex;
-use crate::sessions::{caller_session, discover_sessions, resolve_session, Session};
+use crate::sessions::{caller_session, discover_sessions, resolve_session, split_by_repo, Session};
 use crate::state::{current_session, endpoint_path, update};
 use crate::store::{NewNotice, Origin, Store};
 use rmcp::{
@@ -62,6 +62,14 @@ fn required_caller<'a>(
         internal("calling session identity is unavailable; exact host thread metadata is required")
     })
 }
+
+#[derive(Debug, Default, Deserialize, schemars::JsonSchema)]
+pub struct ListSessionsArgs {
+    /// List sessions of every repository. Default false: only the caller's repository.
+    #[serde(default)]
+    pub all: bool,
+}
+
 
 #[derive(Debug, Deserialize, schemars::JsonSchema)]
 pub struct PostNoticeArgs {
@@ -171,9 +179,13 @@ pub fn post_notice_from(
 #[tool_router(vis = "pub")]
 impl Bridge {
     #[tool(
-        description = "List live Claude Code sessions and loaded Codex threads on this Linux machine. Codex discovery covers open-rollout hosts; loaded does not establish UI attachment."
+        description = "List live Claude Code sessions and loaded Codex threads on this Linux machine. By default only sessions in the caller's repository are listed; pass all=true for every repository. Codex discovery covers open-rollout hosts; loaded does not establish UI attachment."
     )]
-    fn list_sessions(&self, ctx: RequestContext<RoleServer>) -> Result<String, ErrorData> {
+    fn list_sessions(
+        &self,
+        Parameters(args): Parameters<ListSessionsArgs>,
+        ctx: RequestContext<RoleServer>,
+    ) -> Result<String, ErrorData> {
         let roots = Roots::system();
         let sessions = discover_sessions(&roots);
         let caller = caller_session(
@@ -184,13 +196,40 @@ impl Bridge {
             &|k| std::env::var(k).ok(),
         );
         let me = caller.as_ref().ok().and_then(|c| c.map(Session::identity));
-        let mut lines: Vec<String> = sessions
+        // The caller's repository. `None` means the listing cannot be narrowed.
+        let my_repo = caller
+            .as_ref()
+            .ok()
+            .and_then(|c| *c)
+            .and_then(Session::cwd)
+            .and_then(repo_of);
+        let (shown, hidden): (Vec<&Session>, Vec<&Session>) = match (&my_repo, args.all) {
+            (Some(repo), false) => split_by_repo(&sessions, repo, &repo_of),
+            _ => (sessions.iter().collect(), Vec::new()),
+        };
+        let mut lines: Vec<String> = shown
             .iter()
             .map(|s| s.render(me.as_deref() == Some(s.identity().as_str())))
             .collect();
         if lines.is_empty() {
-            lines
-                .push("No live Claude Code sessions or rollout-backed Codex threads found.".into());
+            lines.push(match my_repo.as_ref().filter(|_| !args.all) {
+                Some(repo) => format!(
+                    "No live sessions in this repository ({}).",
+                    repo.display()
+                ),
+                None => {
+                    "No live Claude Code sessions or rollout-backed Codex threads found.".into()
+                }
+            });
+        }
+        if !hidden.is_empty() {
+            lines.push(format!(
+                "{} more session(s) in other repositories are not shown. Call list_sessions with all=true to list them.",
+                hidden.len()
+            ));
+        }
+        if my_repo.is_none() && !args.all {
+            lines.push("Repository filter not applied: the caller's repository is unknown, so every session is listed.".into());
         }
         lines.push("Scope: local Linux, Claude native/IPC session registrations and Codex open rollouts; saved-only threads and hosts without open rollouts are outside this listing.".into());
         if let Err(e) = caller {

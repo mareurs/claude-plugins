@@ -1,7 +1,7 @@
 use session_bridge_mcp::{
     codex::CodexEndpoint,
     endpoints::{Endpoint, Roots},
-    sessions::{caller_session, resolve_session, Session},
+    sessions::{caller_session, resolve_session, split_by_repo, Session},
 };
 use std::{
     collections::HashMap,
@@ -276,4 +276,94 @@ fn codex_storage_identity_is_thread_scoped_and_stable_across_host_pid_changes() 
     assert_eq!(one.storage_id(), before);
     let other = cx("/left/.codex", "22222222-2222-7222-8222-222222222222");
     assert_ne!(one.storage_id(), other.storage_id());
+}
+
+fn cx_at(id: &str, cwd: Option<&str>) -> Session {
+    match cx("/home/.codex", id) {
+        Session::Codex(mut e) => {
+            e.cwd = cwd.map(Into::into);
+            Session::Codex(e)
+        }
+        other => other,
+    }
+}
+
+/// Repo lookup stub: `/a/...` is repo `/a`, `/b/...` is repo `/b`, anything else is no repo.
+fn stub_repo(p: &Path) -> Option<PathBuf> {
+    ["/a", "/b"]
+        .iter()
+        .find(|r| p.starts_with(r))
+        .map(PathBuf::from)
+}
+
+#[test]
+fn split_by_repo_keeps_same_repo_and_moves_the_rest_aside() {
+    let sessions = vec![
+        cx_at("11111111-1111-1111-1111-111111111111", Some("/a/sub")),
+        cx_at("22222222-2222-2222-2222-222222222222", Some("/b")),
+        cx_at("33333333-3333-3333-3333-333333333333", Some("/a")),
+    ];
+    let (same, other) = split_by_repo(&sessions, Path::new("/a"), &stub_repo);
+    assert_eq!(same.len(), 2);
+    assert_eq!(other.len(), 1);
+    assert_eq!(other[0].session_id(), "22222222-2222-2222-2222-222222222222");
+}
+
+#[test]
+fn split_by_repo_treats_unknown_cwd_and_non_repo_as_elsewhere() {
+    let sessions = vec![
+        cx_at("11111111-1111-1111-1111-111111111111", None),
+        cx_at("22222222-2222-2222-2222-222222222222", Some("/tmp/x")),
+    ];
+    let (same, other) = split_by_repo(&sessions, Path::new("/a"), &stub_repo);
+    assert!(same.is_empty());
+    assert_eq!(other.len(), 2);
+}
+
+/// Real git, no stub: a session launched in a linked worktree counts as the same repository
+/// as one launched in the main work tree. A session in an unrelated repository does not.
+#[test]
+fn split_by_repo_counts_linked_worktrees_as_the_same_repo() {
+    use session_bridge_mcp::endpoints::repo_of;
+    let git = |dir: &Path, args: &[&str]| {
+        let out = std::process::Command::new("git")
+            .current_dir(dir)
+            .args(["-c", "commit.gpgsign=false", "-c", "core.hooksPath=/dev/null"])
+            .args(args)
+            .env("GIT_CONFIG_GLOBAL", "/dev/null")
+            .env("GIT_CONFIG_NOSYSTEM", "1")
+            .env("GIT_AUTHOR_NAME", "T")
+            .env("GIT_AUTHOR_EMAIL", "t@example.invalid")
+            .env("GIT_COMMITTER_NAME", "T")
+            .env("GIT_COMMITTER_EMAIL", "t@example.invalid")
+            .stdin(std::process::Stdio::null())
+            .output()
+            .unwrap();
+        assert!(out.status.success(), "git {args:?}: {}", String::from_utf8_lossy(&out.stderr));
+    };
+    let d = tempfile::Builder::new().prefix("sbs").tempdir_in("/tmp").unwrap();
+    let main = d.path().join("main");
+    let linked = d.path().join("linked");
+    let other = d.path().join("other");
+    for p in [&main, &other] {
+        std::fs::create_dir(p).unwrap();
+        git(p, &["init", "-q"]);
+        git(p, &["commit", "--allow-empty", "-q", "-m", "base"]);
+    }
+    git(&main, &["worktree", "add", "-q", "-b", "feat", linked.to_str().unwrap()]);
+    let sessions = vec![
+        cx_at("11111111-1111-1111-1111-111111111111", main.to_str()),
+        cx_at("22222222-2222-2222-2222-222222222222", linked.to_str()),
+        cx_at("33333333-3333-3333-3333-333333333333", other.to_str()),
+    ];
+    let repo = repo_of(&main).unwrap();
+    let (same, elsewhere) = split_by_repo(&sessions, &repo, &repo_of);
+    let ids: Vec<&str> = same.iter().map(|s| s.session_id()).collect();
+    assert_eq!(
+        ids,
+        ["11111111-1111-1111-1111-111111111111", "22222222-2222-2222-2222-222222222222"],
+        "main and linked worktree are listed together"
+    );
+    assert_eq!(elsewhere.len(), 1);
+    assert_eq!(elsewhere[0].session_id(), "33333333-3333-3333-3333-333333333333");
 }

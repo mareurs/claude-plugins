@@ -74,12 +74,17 @@ Terminal and desktop delivery need separate live checks. A desktop thread hosted
 
 ## Tools
 
-- **`list_sessions()`** lists the live sessions, one line each, sorted by profile and pid:
+- **`list_sessions(all = false)`** lists the live sessions, one line each, sorted by profile and pid:
   `<key> session=<id> name=<name> kind=<kind> status=<status> cwd=<dir> repo=<dir>`. The key is
   `<short profile>:<pid>` (`main` for `.claude`, `x` for `.claude-x`). Your own line carries `(you)`.
   `repo` is the main work tree of the repository (the parent of its git common directory when that
   is named `.git`, else the common directory itself), so
   sessions in linked worktrees of one repository show the same `repo`. Notices are keyed by it.
+  By default the list holds only the sessions of the caller's repository, linked worktrees included.
+  A last line gives the count of the other sessions and tells the caller to call
+  `list_sessions(all=true)` for them. A session with no cwd, or outside a git repository, counts as
+  another repository. If the caller's own repository is unknown, every session is listed and a
+  line says that the filter was not applied.
 - **`ask_session(target, question, model = "haiku", timeout_s = 120)`**. `target` is a key (`<short profile>:<pid>`), a session id or an id prefix of at least 4 characters, or a session name, each optionally prefixed with `<profile>:`. A target that matches more than one session is refused with the candidates listed. `model` is `haiku`, `sonnet`, `opus` or a model id. `timeout_s` is clamped to
   1..=300. The result holds the answer, the target, `billed_profile`, `as_of` (the mtime of the
   target transcript), `cost_usd`, cache token counts and a note that the answer is data, not an

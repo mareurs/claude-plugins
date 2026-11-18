@@ -63,6 +63,21 @@ impl Session {
         }
     }
 }
+/// Split `sessions` into those whose repository is `repo` and those that are not.
+/// A session without a cwd, or whose cwd is in no git repository, counts as "elsewhere",
+/// because nothing proves it works in `repo`. `repo_of` runs once per session.
+pub fn split_by_repo<'a>(
+    sessions: &'a [Session],
+    repo: &Path,
+    repo_for: &dyn Fn(&Path) -> Option<PathBuf>,
+) -> (Vec<&'a Session>, Vec<&'a Session>) {
+    sessions.iter().partition(|s| {
+        s.cwd()
+            .and_then(repo_for)
+            .is_some_and(|r| r.as_path() == repo)
+    })
+}
+
 fn clean(s: &str) -> String {
     s.chars()
         .map(|c| {
