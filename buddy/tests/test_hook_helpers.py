@@ -268,6 +268,8 @@ def test_post_tool_use_cs_path_uses_event_cwd_not_root_cwd(tmp_path):
     project_b = tmp_path / "project_b"
     project_a.mkdir()
     project_b.mkdir()
+    (project_a / ".git").mkdir()
+    (project_b / ".git").mkdir()
 
     # Simulate another session having stomped root_cwd with project_b
     state["signals"]["root_cwd"] = str(project_b)
@@ -405,6 +407,7 @@ def test_session_start_resume_carries_active_specialists_from_prev_sid(tmp_path)
     from scripts.state import load_state, save_state, default_state
 
     project = tmp_path
+    (project / ".git").mkdir()
     prev_sid = "prev-sid-aaa"
     new_sid = "new-sid-bbb"
 
@@ -438,6 +441,7 @@ def test_session_start_compact_releases_active_specialists(tmp_path):
     from scripts.state import load_state, save_state, default_state
 
     project = tmp_path
+    (project / ".git").mkdir()
     prev_sid = "prev-sid"
     new_sid = "new-sid"
 
@@ -477,6 +481,7 @@ def test_session_start_compact_from_subagent_leaves_parent_state_alone(tmp_path,
     from scripts.state import load_state, save_state, default_state
 
     project = tmp_path
+    (project / ".git").mkdir()
     sid = "parent-sid"
 
     parent = default_state()
@@ -597,6 +602,7 @@ def test_session_start_startup_does_not_carry_active_specialists(tmp_path):
     from scripts.state import load_state, save_state, default_state
 
     project = tmp_path
+    (project / ".git").mkdir()
     prev_sid = "prev-sid"
     new_sid = "new-sid"
 
@@ -624,6 +630,7 @@ def test_session_start_resume_no_prev_sid_is_noop_on_specialists(tmp_path):
     from scripts.hook_helpers import handle_session_start
     from scripts.state import load_state
 
+    (tmp_path / ".git").mkdir()
     new_path = tmp_path / ".buddy" / "sid" / "state.json"
     handle_session_start(
         {"timestamp": 1700000000, "session_id": "sid",

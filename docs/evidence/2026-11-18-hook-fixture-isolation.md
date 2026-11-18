@@ -27,6 +27,14 @@ The four additional fixtures now have their own boundaries; brief/guard also cle
 
 The subsequent complete check exposed the same assumption in `sdd/hooks/lib.test.mjs`: its temporary outside-repository directory inherited an ancestor `.git`, which `mainCheckout` deliberately discovers. Fresh unchanged suite: 36 passed / 1 failed. Production resolver code is unchanged. The negative fixture now creates an owned invalid `.git` pointer inside a known ancestor repository, verifies the parent is discoverable first, and then verifies the invalid boundary returns null. Restored suite: 37 passed / 0 failed with the machine's inherited TMPDIR. No global markers were removed.
 
+## Buddy fixture follow-up
+
+The clean release preflight at `ab6befc` completed `./tests/run-all.sh` successfully, then its separate buddy pytest gate failed7cases with572passing. A controlled enclosing `.git` reproduced the same seven failures and `.buddy` ancestor writes. Initial fixture corrections produced579passing tests, while a separate containment assertion still failed. Per-test filesystem snapshots identified five additional passing writers: three SessionStart helper tests and two migration subprocess cases. These were observed writes, not inferred coverage gaps.
+
+Four buddy test modules now declare owned project boundaries. The unmarked-filesystem fallback unit masks only `.git` and `.codescout/project.toml` predicates so that its negative world is independent of the actual host. Production resolver/hook code is unchanged. New `tests/test-buddy-fixture-isolation.sh` runs the complete579-test population beneath an owned enclosing project and asserts no state appears in that ancestor. Final result579passed and ancestor untouched, exit0. The runner cleans its owned scratch state on EXIT and skips explicitly if pytest is unavailable.
+
+The broad repository command passed before this fixture-only delta. The delta is covered by the complete buddy suite and new containment runner; subsequent release uses that composed verified preflight rather than repeating unchanged shell/Node suites. F-8 records the exact RED, incomplete GREEN, observed writers and final containment result.
+
 ## Cleanup and evidence
 
 The earlier failing runs created17 files under seven known synthetic home `.buddy` fixture IDs (`cp-se`, `cp-stub`, `cp-once`, `cp-noyaml`, `sid-1`, `sid-2`, `ci-smoke`). A narrowly scoped cleanup validated the exact filenames, backed them up to `/tmp/issue15-test-pollution-backup-20261118`, removed those files and the synthetic pointer, and left the home project configuration unchanged. The repository's malformed-input `unknown` pointer was restored to the active harness session. Cleanup targeted the validated synthetic fixture files and pointers.

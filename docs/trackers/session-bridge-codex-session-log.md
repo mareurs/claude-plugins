@@ -12,7 +12,7 @@ entry_prefix:
 - F
 - W
 snapshot_anchor: '| ID | Date | Severity | Category | Status | Title |'
-entry_high_water_F: 6
+entry_high_water_F: 8
 entry_high_water_W: 1
 ---
 
@@ -31,6 +31,8 @@ Verified observations for the Codex interoperation work stream. Entries use the 
 | F-4 | 2026-11-16 | med | measurement | fixed-verified | **Notice smoke checked before the bridge's 120-second look interval** — corrected window; native context consumption passed. |
 | F-5 | 2026-11-18 | high | authentication | fixed-verified | Claude forks discard target settings auth and inherit caller credentials |
 | F-6 | 2026-11-18 | med | host-contract | fixed-verified | **Callback probe attaches before actual turn start** — native control and event-held intervention distinguish acceptance from readiness. |
+| F-7 | 2026-11-18 | med | test-environment | fixed-verified | **Linked dependencies invalidate cache independence** — use real production dependency files for release preflight. |
+| F-8 | 2026-11-18 | med | test-isolation | fixed-verified | **Buddy pytest can pass while writing ancestor state** — seven failing cases plus five passing writers isolated and pinned by the containment runner. |
 
 ## Status vocabulary
 
@@ -155,6 +157,34 @@ The real interactive Claude 2.1.325 smoke then succeeded: list_sessions found th
 **Valid:** dated 2026-11-18
 
 **Rests on:** native baseline/first-client/wait-started sanitized traces; tools/probe-codex-wake-callbacks.mjs::probeCodexCallbacks; exact-tag thread_processor.rs::resume_running_thread and thread_lifecycle.rs::handle_pending_thread_resume_request.
+
+## F-7 — Linked worktree dependencies break the cache independence check
+
+**Observed:** The clean release worktree's complete preflight failed only `test-background-wake-package.sh`: copied cache `require.resolve('ws')` pointed outside the cache. The worktree dependency setup used a ws symlink to the main checkout; copy_plugin_tree deliberately preserves symlinks.
+
+**Cause:** The controller reused linked dependencies for a package-copy verification that requires independent real files. This was test setup, not a production resolver defect.
+
+**Correction:** Replaced only the owned ignored dependency links with a real copy. The exact package-independence suite then passed and git status stayed clean. The complete release preflight is being rerun; no bump/profile mutation occurred in the failed attempt.
+
+**Status:** fixed-verified
+
+**Valid:** dated 2026-11-18
+
+**Rests on:** release worktree c682 dependency lstat/realpath; scripts/lib-copy-plugin.sh; tests/test-background-wake-package.sh; failed background32 and focused package retest.
+
+## F-8 — Buddy fixtures inherit ancestor projects and leak state despite green assertions
+
+**Observed:** After the complete shell/Node repository command passed at ab6befc, release's separate buddy pytest gate reported7fail/572pass under an ancestor .git. An owned ancestor reproduced the same seven failures and detected .buddy writes. Initial fixture corrections made579/579 pass, while the ancestor-state assertion still failed.
+
+**Cause and measurement:** Per-test before/after filesystem snapshots then identified five additional passing tests that wrote ancestor state: three SessionStart helper tests and two migration subprocess tests. A green pytest result alone had not measured containment.
+
+**Correction:** Four buddy test modules now declare owned project boundaries; the negative unmarked-filesystem unit explicitly masks only project marker predicates. New tests/test-buddy-fixture-isolation.sh runs all579 tests beneath a controlled enclosing project and verifies no ancestor state exists. Final run:579passed, ancestor untouched, exit0. No production buddy code changed.
+
+**Status:** fixed-verified
+
+**Valid:** dated 2026-11-18
+
+**Rests on:** failed release background35; controlled RED37; assertion-only GREEN38 with containment failure; per-test trace39; full containment GREEN3a; /tmp/codex-runtime-callbacks-20261118/buddy-fixture-writes.json.
 
 ## Template for new entries
 
