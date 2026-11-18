@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {mkdtemp, mkdir, readFile, writeFile, rm, chmod, symlink, cp, realpath} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
-import {join, resolve} from 'node:path';
+import {join, resolve, delimiter} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {spawnSync} from 'node:child_process';
 
@@ -17,7 +17,15 @@ async function fixture(t, parent = tmpdir()) {
   await mkdir(profile); await mkdir(bin);
   await writeFile(join(bin, 'codex'), `#!/usr/bin/env node\nconst fs=require('node:fs');\nif(JSON.stringify(process.argv.slice(2))!==JSON.stringify(['plugin','list','--json']))process.exit(22);\nprocess.stdout.write(fs.readFileSync(process.env.CODEX_HOME+'/registry.json'));\n`);
   await chmod(join(bin, 'codex'), 0o700);
-  const env = {...process.env, PATH: bin + ':' + process.env.PATH, CODEX_HOME: profile};
+  const env = {...process.env, PATH: bin + delimiter + process.env.PATH, CODEX_HOME: profile};
+  if (process.platform === 'win32') {
+    // Native spawn does not execute the POSIX shebang fixture. Start Node as
+    // codex.exe and answer the plugin query before Node loads its script argv.
+    await symlink(process.execPath, join(bin, 'codex.exe'), 'file');
+    const preload = join(root, 'fake-codex.cjs');
+    await writeFile(preload, `const fs=require('node:fs');const path=require('node:path');\nif(path.basename(process.argv[1]||'')==='plugin'&&JSON.stringify(process.argv.slice(2))===JSON.stringify(['list','--json'])){process.stdout.write(fs.readFileSync(process.env.CODEX_HOME+'/registry.json'));process.exit(0);}\n`);
+    env.NODE_OPTIONS = `${process.env.NODE_OPTIONS || ''} --require ${JSON.stringify(preload)}`;
+  }
   await writeFile(join(profile, 'codescout-wake.json'), JSON.stringify({profileRoot: profile, environmentId: 'fixture-environment', adapters: {codex: {enabled: true}}}));
   async function installed(version, options = {}) {
     const directory = join(profile, 'plugins/cache/fixture-market/codescout-companion', version);
@@ -30,20 +38,10 @@ async function fixture(t, parent = tmpdir()) {
   }
   function install() {return spawnSync(process.execPath, [source, '--install', '--profile', profile], {env, encoding: 'utf8'});}
   function invoke(input = '{"tool_name":"mcp__codescout__run_command","tool_response":{"exit_code":0}}', extra = {}) {
-    return spawnSync('/bin/sh', ['-c', command], {env: {...env, ...extra}, input, encoding: 'utf8'});
+    return spawnSync('sh', ['-c', command], {env: {...env, ...extra}, input, encoding: 'utf8'});
   }
   return {root, profile, env, installed, install, invoke};
 }
-test('fixture resolves a symlinked temporary parent before comparing profile paths', async (t) => {
-  const parent = await mkdtemp(join(tmpdir(), 'wake symlink parent '));
-  t.after(() => rm(parent, {recursive: true, force: true}));
-  const actual = join(parent, 'actual');
-  const alias = join(parent, 'alias');
-  await mkdir(actual);
-  await symlink(actual, alias, 'dir');
-  const f = await fixture(t, alias);
-  assert.equal(f.root, await realpath(f.root));
-});
 test('fixture resolves a symlinked temporary parent before comparing profile paths', async (t) => {
   const parent = await mkdtemp(join(tmpdir(), 'wake symlink parent '));
   t.after(() => rm(parent, {recursive: true, force: true}));
