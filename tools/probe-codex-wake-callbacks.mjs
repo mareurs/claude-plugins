@@ -5,6 +5,7 @@ import {tmpdir} from 'node:os';
 import {join,resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {connectCodex,endpointIdentity} from '../codescout-companion/background-wake/adapters/codex-client.mjs';
+import {parseCodexDaemonVersion,isCodexVersion} from '../codescout-companion/background-wake/compatibility.mjs';
 
 const require=createRequire(new URL('../codescout-companion/package.json',import.meta.url));
 const WebSocket=require('ws');
@@ -44,7 +45,7 @@ async function primaryClient(endpoint,onMessage,timeoutMs){
 /** Opt-in native model call. Creates and archives only its own probe thread. */
 export async function probeCodexCallbacks({endpoint,profileRoot,expectedVersion,allowModelCall=false,model,timeoutMs=90000}){
  if(!allowModelCall)throw new Error('explicit --allow-model-call is required');
- if(!endpoint||!profileRoot||!/^\d+\.\d+\.\d+$/.test(expectedVersion||''))throw new Error('explicit endpoint, profile and expected version are required');
+ if(!endpoint||!profileRoot||!isCodexVersion(expectedVersion))throw new Error('explicit endpoint, profile and expected version are required');
  if(!Number.isSafeInteger(timeoutMs)||timeoutMs<1000||timeoutMs>120000)throw new Error('timeout must be between 1000 and 120000 ms');
  const observed={attached:false,turnCompleted:false,originalTool:0,originalPermission:0,secondaryCallbacks:0};
  let primary,secondary,threadId,turnId,notify,completionTimer,secondaryClosed=false,stage='connect primary';
@@ -62,7 +63,7 @@ export async function probeCodexCallbacks({endpoint,profileRoot,expectedVersion,
     if(!turnId||p.turn?.id===turnId){observed.turnCompleted=p.turn?.status==='completed';notify?.();}
    }
   },Math.min(timeoutMs,10000));
-  const actual=primary.server.userAgent?.match(/^codex-tui\/(\d+\.\d+\.\d+)(?:\s|$)/)?.[1];
+  const actual=parseCodexDaemonVersion(primary.server.userAgent);
   if(actual!==expectedVersion)throw new Error('observed daemon version differs from expected version');
   if(await realpath(primary.server.codexHome)!==await realpath(profileRoot))throw new Error('endpoint belongs to another profile');
   stage='create probe thread';

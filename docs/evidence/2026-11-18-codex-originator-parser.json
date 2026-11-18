@@ -1,0 +1,92 @@
+{
+  "measuredAt": "2026-11-18T11:26:27.747Z",
+  "sourceTree": "issue14-fix-under-test",
+  "reproductionWritesProductionCode": false,
+  "live": {
+    "executable": "/usr/bin/codex",
+    "version": "codex-cli 0.169.0",
+    "first": {
+      "clientName": "issue14_first_originator",
+      "userAgent": "issue14_first_originator/0.169.0 (Arch Linux Rolling Release; x86_64) unknown (issue14_first_originator; 1)",
+      "baselineRegexResult": null,
+      "parsedVersion": "0.169.0",
+      "profileMatches": true
+    },
+    "second": {
+      "clientName": "codex-tui",
+      "userAgent": "issue14_first_originator/0.169.0 (Arch Linux Rolling Release; x86_64) unknown (codex-tui; 1)",
+      "baselineRegexResult": null,
+      "parsedVersion": "0.169.0",
+      "profileMatches": true
+    },
+    "capability": {
+      "supported": false,
+      "reason": "Codex secondary callback preservation is unverified for this version/profile",
+      "evidenceRef": null
+    },
+    "calls": [
+      "initialize",
+      "initialized"
+    ],
+    "createdThreads": 0,
+    "modelTurns": 0
+  },
+  "cleanup": {
+    "isolatedServerStopped": true,
+    "isolatedHomeRemoved": true,
+    "stderrBytes": 0
+  },
+  "syntheticAdapter": [
+    {
+      "declaredVersion": "0.167.0",
+      "observedVersion": "0.167.0",
+      "prefix": "codex-tui",
+      "result": {
+        "supported": true,
+        "reason": "measured existing-thread secondary attach",
+        "evidenceRef": "contracts/fixtures/background-wake/codex-linux-secondary-evidence-0167.json#codex-linux-0.167.0-callback-probe"
+      }
+    },
+    {
+      "declaredVersion": "0.167.0",
+      "observedVersion": "0.167.0",
+      "prefix": "issue14_first_originator",
+      "result": {
+        "supported": true,
+        "reason": "measured existing-thread secondary attach",
+        "evidenceRef": "contracts/fixtures/background-wake/codex-linux-secondary-evidence-0167.json#codex-linux-0.167.0-callback-probe"
+      }
+    }
+  ],
+  "syntheticProbe": {
+    "declaredVersion": "0.167.0",
+    "observedVersion": "0.167.0",
+    "prefix": "issue14_first_originator",
+    "synthetic": true,
+    "result": {
+      "version": 1,
+      "synthetic": false,
+      "captureKind": "native-protocol-summary",
+      "daemonVersion": "0.167.0",
+      "subscription": "resume-loaded",
+      "callbacksAfterSecondaryClose": {
+        "attached": true,
+        "turnCompleted": true,
+        "originalTool": 1,
+        "originalPermission": 1,
+        "secondaryCallbacks": 0
+      },
+      "supported": true,
+      "reason": "original tool and permission callbacks preserved after secondary attach and close",
+      "limitations": [
+        "native root/child hook envelopes and automatic wake delivery are separate checks"
+      ]
+    },
+    "threadStartCalls": 1,
+    "modelTurnCalls": 1,
+    "transport": "synthetic-fixture"
+  },
+  "artifactLimitations": [
+    "syntheticProbe.result is raw shipping-probe output over a controlled synthetic protocol fixture. Its inner synthetic:false and native-protocol-summary labels do not represent native 0.167.0 callback evidence. Only live initialize.userAgent parsing was measured against the isolated 0.169.0 server; no live model turn or callback probe was run."
+  ]
+}

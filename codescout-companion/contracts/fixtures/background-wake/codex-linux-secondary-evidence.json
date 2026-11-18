@@ -1,5 +1,6 @@
 {
   "version": 1,
+  "id": "codex-linux-0.160.0-callback-probe",
   "measuredAt": "2026-10-30",
   "synthetic": false,
   "captureKind": "native-protocol-summary",

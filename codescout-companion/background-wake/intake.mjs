@@ -32,7 +32,7 @@ async function hasLegacyMapping(request,config){
   return false;
 }
 
-/** Only the version-measured native hook shape can register a root target. */
+/** Only a compatible native hook shape can register a root target. */
 export async function normalizeNativeWatch(harness,raw,config,platform){
   if(process.platform!=='linux')return null;
   const name=harness==='claude-code'?'claudeCode':'codex';
