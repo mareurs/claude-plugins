@@ -86,7 +86,7 @@ repair or a citation captured by an unrelated new definer; the count alone canno
 tell which. Read the citing text and intended destination. Only after confirming
 those bindings, materialize/prune them with `librarian(action="link_scan", write=True)`.
 If a conflict appears, correct the prefix and every related append call and rerun
-the scans; `doc(action="rekey_prefix")` supports a dry run for an existing ledger.
+the scans; the `doc` tool's `rekey_prefix` action supports a dry run for an existing ledger.
 
 The isolated integration tests in `tests/recon_bootstrap_test.py` reproduce both
 wrong-edge capture and legitimate repair, plus the ownership refusal. These are

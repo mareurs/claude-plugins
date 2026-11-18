@@ -58,10 +58,10 @@ produced them. Cross-project lessons graduate via the sync flow.
 | R-<n> | YYYY-MM-DD | hit / miss / proposal | <one-line pattern> | <topic>-session-log:F-<n>, <topic>-session-log:W-<n> |
 
 **Cite session-log entries in the qualified form** — `<file-stem>:F-<n>`, colon, no
-space, no `.md`. A bare `F-<n>` is resolved against the whole workspace, and F/W
-counters are per-work-stream, so every session log in the project defines the same
-low numbers: the citation comes back ambiguous and resolves to nothing. A filename
-and a token separated by whitespace is prose, not a citation.
+space, no `.md`. F/W counters are per work stream, so different logs can define the
+same token. Whitespace does not qualify the token: it is still scanned as a bare
+citation and can bind to a different log or become ambiguous when definers compete.
+The qualified form selects the intended source log explicitly.
 
 ## Status vocabulary
 
@@ -94,8 +94,8 @@ entry = doc(action="append_entry", id=tracker_id, id_prefix=prefix,
 Fill the row's date, verdict, pattern and evidence for the observation. Keep the
 `{id}` placeholder: the server substitutes the allocated id atomically.
 Declaring `entry_prefix` guards the ledger against `edit_file`; use
-`doc(action="update", patch={"body_edits": [...]})` for prose or existing-row
-corrections. `append_entry` allocates ids; it is not the only writer.
+the surgical `patch.body_edits` field of the `doc` update action for prose or
+existing-row corrections. `append_entry` allocates ids; it is not the only writer.
 
 ## How to sync
 
@@ -124,8 +124,8 @@ substrate that earns its way in.
 
 **Observed:** <date, work-stream name>
 
-**Source session log:** <topic>-session-log:F-<n> (qualified — a bare token is
-ambiguous across work streams).
+**Source session log:** <topic>-session-log:F-<n> (qualified to select the intended
+log when work streams reuse a counter).
 
 **Pattern (or pattern that failed):** <one paragraph — what the scout
 did / didn't do, and why the outcome happened>.

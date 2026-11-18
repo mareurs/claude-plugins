@@ -77,6 +77,21 @@ class Examples(unittest.TestCase):
         source = re.search(r'^\*\*Source session log:\*\* (.*)$', TEMPLATE.read_text(), re.M).group(1)
         self.assertIn('<topic>-session-log:F-<n>', source)
 
+    def test_inventory_binds_only_explicit_example_inputs(self):
+        import importlib.util
+        spec = importlib.util.spec_from_file_location('skill_contract_calls', ROOT / 'tests/lib/skill_contract_calls.py')
+        inventory = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(inventory)
+        bindings = {'prefix': 'RP', 'template_body': template_body()}
+        calls = inventory.extract_calls(example(PATTERNS.read_text(), 'action="create"'), bindings=bindings)
+        self.assertEqual(calls[0][1]['extra']['entry_prefix'], 'RP')
+        self.assertEqual(calls[0][1]['body'], template_body())
+        self.assertEqual(inventory.extract_calls('doc(action="get", id="prefix")', bindings=bindings)[0][1]['id'], 'prefix')
+        for invalid in ('doc(action="get", id=unknown)', 'doc(action="get", id=str(prefix))',
+                        'doc(action="get", id=prefix.value)', 'doc(action="get", id=prefix, id=prefix)'):
+            with self.subTest(invalid=invalid), self.assertRaises(ValueError):
+                inventory.extract_calls(invalid, bindings=bindings)
+
     def test_guidance_checks_bindings_and_current_contracts(self):
         text = PATTERNS.read_text()
         for field in ('edges_missing', 'edges_stale', 'scan_truncated', 'entry_prefix'):
@@ -85,6 +100,23 @@ class Examples(unittest.TestCase):
         self.assertNotIn('A **drop** anywhere is a captured', text)
         self.assertNotIn('no frontmatter at all', text)
         self.assertNotIn('artifact(action=', text)
+    def test_scan_rejects_each_incomplete_result_and_accepts_complete_control(self):
+        complete = {'scan_truncated': False, 'unreadable': 0,
+                    'truncated': {name: False for name in (
+                        'rests_on_unresolvable', 'ambiguous', 'dangling', 'cross_repo',
+                        'malformed_qualifier', 'cross_repo_file_qualified')}}
+        probe = object.__new__(MCP)
+        result = {'counts': complete}
+        probe.call = lambda *args, **kwargs: result
+        self.assertIs(probe.scan(), result)
+        invalid = [dict(complete, scan_truncated=True), dict(complete, unreadable=1)]
+        invalid.extend(dict(complete, truncated=dict(complete['truncated'], **{name: True}))
+                       for name in complete['truncated'])
+        for counts in invalid:
+            with self.subTest(counts=counts):
+                probe.call = lambda *args, **kwargs: {'counts': counts}
+                with self.assertRaisesRegex(AssertionError, 'incomplete fixture scan'):
+                    probe.scan()
 
 
 class MCP:
@@ -223,6 +255,20 @@ class Contracts(unittest.TestCase):
                 graph = self.client.doc(action='graph', id=citer, depth=1)
                 alpha = self.client.doc(action='find', filter={'rel_path': {'eq': 'docs/trackers/alpha-session-log.md'}})['items'][0]['id']
                 self.assertIn({'src': citer, 'dst': alpha, 'rel': 'cites'}, graph['edges'])
+    def test_whitespace_filename_does_not_qualify_bare_token(self):
+        alpha = self.client.create('alpha-session-log', '# Alpha\n\n## F-1 — Friction\n\nEvidence.\n')
+        beta = self.client.create('beta-session-log', '# Beta\n\nNo entries yet.\n')
+        citer = self.client.create('bare-citer', '# Citer\n\nbeta-session-log.md F-1\n')
+        unique = self.client.scan()
+        self.assertEqual(unique['counts']['ambiguous'], 0)
+        self.assertIn({'src': citer, 'dst': alpha, 'rel': 'cites'},
+                      self.client.doc(action='graph', id=citer, depth=1)['edges'])
+        self.client.doc(action='update', id=beta,
+                        patch={'body': '# Beta\n\n## F-1 — Another friction\n\nEvidence.\n'})
+        ambiguous = self.client.scan()
+        self.assertEqual(ambiguous['counts']['ambiguous'], 1)
+        self.assertEqual(ambiguous['counts']['edges_pruned'], 1)
+        self.assertEqual(self.client.doc(action='graph', id=citer, depth=1)['edges'], [])
 
     def test_prefix_capture_and_rename_change_actual_edges(self):
         owner = self.client.create('old-row-ledger', '# Old\n\n| R-1 | Old first item |\n| R-9 | Old ninth item |\n', rel_path='notes/old-row-ledger.md')
