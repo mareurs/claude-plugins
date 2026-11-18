@@ -27,6 +27,43 @@ const ENV_REMOVED: [&str; 4] = [
     "CLAUDE_CODE_MESSAGING_TOKEN",
     "CLAUDECODE",
 ];
+/// Settings sources stay disabled in children so hooks, helpers and MCP cannot load.
+/// Carry only the target user's explicit auth values; never the caller's credentials.
+pub(crate) fn configure_target_auth(cmd: &mut Command, config_dir: &Path) -> Result<()> {
+    const TARGET_ENV: [&str; 4] = [
+        "ANTHROPIC_API_KEY",
+        "ANTHROPIC_AUTH_TOKEN",
+        "CLAUDE_CODE_OAUTH_TOKEN",
+        "ANTHROPIC_BASE_URL",
+    ];
+    for key in TARGET_ENV.into_iter().chain([
+        "CLAUDE_CODE_OAUTH_TOKEN_FILE_DESCRIPTOR",
+        "CLAUDE_CODE_OAUTH_TOKEN_FD",
+        "CLAUDE_CODE_OAUTH_SCOPES",
+        "CLAUDE_CODE_SDK_HAS_OAUTH_REFRESH",
+        "ANTHROPIC_CUSTOM_HEADERS",
+    ]) {
+        cmd.env_remove(key);
+    }
+    let bytes = match std::fs::read(config_dir.join("settings.json")) {
+        Ok(bytes) => bytes,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(()),
+        Err(e) => return Err(e.into()),
+    };
+    let settings: serde_json::Value = serde_json::from_slice(&bytes)?;
+    for key in TARGET_ENV {
+        if let Some(value) = settings.get("env").and_then(|env| env.get(key)) {
+            let value = value.as_str().ok_or_else(|| {
+                std::io::Error::new(
+                    std::io::ErrorKind::InvalidData,
+                    "target authentication environment values must be strings",
+                )
+            })?;
+            cmd.env(key, value);
+        }
+    }
+    Ok(())
+}
 
 /// `haiku`, `sonnet` and `opus` name a model id; any other value passes through.
 pub fn model_id(alias: &str) -> String {
@@ -398,6 +435,7 @@ pub async fn ask_with_bound(
     for v in ENV_REMOVED {
         cmd.env_remove(v);
     }
+    configure_target_auth(&mut cmd, &target.config_dir)?;
     let mut child = cmd.spawn().map_err(|e| match e.kind() {
         std::io::ErrorKind::NotFound => BridgeError::ClaudeCliMissing,
         _ => BridgeError::Io(e),
