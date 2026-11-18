@@ -33,7 +33,7 @@ enum Command {
     /// Handle one host hook event (JSON on stdin), fail-open.
     Hook {
         event: String,
-        #[arg(long,default_value="claude",value_parser=["claude","codex"])]
+        #[arg(long,default_value="claude",value_parser=["claude","codex","opencode"])]
         harness: String,
     },
     /// Filter Claude notices against a session transcript.
@@ -43,10 +43,23 @@ enum Command {
         #[arg(long)]
         pid: u32,
     },
+    /// Settle one OpenCode session's pending notices as unfiltered verdicts.
+    OpencodeFilter {
+        #[arg(long)]
+        profile: String,
+    },
     /// Filter one Codex thread's pending notices under its own account.
     CodexFilter {
         #[arg(long)]
         profile: String,
+    },
+    /// Run one bridge tool for an OpenCode session: JSON arguments on stdin, the tool's
+    /// output on stdout; an error goes to stderr with exit code 2.
+    Call {
+        tool: String,
+        /// The calling session's id, as OpenCode's plugin passes it (`tctx.sessionID`).
+        #[arg(long)]
+        opencode_caller: String,
     },
     /// List notices for a repository.
     Notices {
@@ -131,7 +144,7 @@ fn hook_output() -> Option<String> {
     if raw.len() > 1024 * 1024 {
         return None;
     }
-    if harness == "codex" {
+    if harness == "codex" || harness == "opencode" {
         let state = state_root(&|k| std::env::var(k).ok())?;
         let db = state.join("notices.db");
         if event != "session-start" && !db.exists() {
@@ -139,13 +152,11 @@ fn hook_output() -> Option<String> {
         }
         std::fs::create_dir_all(&state).ok()?;
         let store = Store::open(&db).ok()?;
-        return session_bridge_mcp::codex_hook::output(
-            &raw,
-            &event,
-            &Roots::system(),
-            &state,
-            &store,
-        );
+        let roots = Roots::system();
+        if harness == "opencode" {
+            return session_bridge_mcp::opencode_hook::output(&raw, &event, &roots, &state, &store);
+        }
+        return session_bridge_mcp::codex_hook::output(&raw, &event, &roots, &state, &store);
     }
     match event.as_str() {
         "session-start" => session_start_output(&raw),
@@ -195,6 +206,113 @@ fn trigger_output(raw: &str, event: &str) -> Option<String> {
     Some(emit(event, &text))
 }
 
+/// Upper bound on the fork cleanup a signalled `session-bridge call` waits for before it
+/// exits. The OpenCode plugin's SIGTERM-to-SIGKILL grace is longer than this.
+const SIGNAL_CLEANUP: std::time::Duration = std::time::Duration::from_secs(3);
+
+/// `call_output`, raced against SIGTERM and SIGINT (the OpenCode plugin sends SIGTERM on Esc
+/// and on its own timeout). On a signal the tool future is dropped, which arms the OpenCode
+/// ask's fork cleanup (interrupt, then remove), and that cleanup is awaited, at most
+/// `SIGNAL_CLEANUP`, before the error return makes the process exit non-zero.
+async fn call_until_signal(tool: &str, opencode_caller: &str) -> anyhow::Result<String> {
+    use tokio::signal::unix::{signal, SignalKind};
+    let mut term = signal(SignalKind::terminate())?;
+    let mut int = signal(SignalKind::interrupt())?;
+    let mut work = Box::pin(call_output(tool, opencode_caller));
+    let outcome = tokio::select! {
+        r = &mut work => r,
+        _ = term.recv() => Err(anyhow::anyhow!("stopped by SIGTERM")),
+        _ = int.recv() => Err(anyhow::anyhow!("stopped by SIGINT")),
+    };
+    drop(work);
+    // Normal timeout/error exit must drain late creation too, before runtime shutdown.
+    let cleaned = session_bridge_mcp::opencode_ask::await_fork_cleanups(SIGNAL_CLEANUP).await;
+    if cleaned {
+        outcome
+    } else {
+        Err(anyhow::anyhow!(
+            "{}; the OpenCode fork cleanup did not finish; a pending creation may remain",
+            outcome
+                .err()
+                .map(|e| format!("{e:#}"))
+                .unwrap_or_else(|| "tool completed".into())
+        ))
+    }
+}
+
+/// `session-bridge call`: the OpenCode entry to the shared tool bodies. The caller is the
+/// `--opencode-caller` id only, validated against the discovered service; no environment or
+/// state file can name an OpenCode identity. Listing works without a valid caller (no
+/// `(you)` mark); every other tool refuses before any effect.
+async fn call_output(tool: &str, opencode_caller: &str) -> anyhow::Result<String> {
+    use anyhow::Context;
+    use session_bridge_mcp::{
+        opencode, opencode_api, server::state_dir, sessions::discover_sessions_all, tools,
+    };
+    anyhow::ensure!(
+        [
+            "list_sessions",
+            "ask_session",
+            "send_message",
+            "post_notice"
+        ]
+        .contains(&tool),
+        "unknown tool {tool:?}"
+    );
+    let mut raw = String::new();
+    std::io::stdin()
+        .take(1024 * 1024 + 1)
+        .read_to_string(&mut raw)
+        .context("could not read tool arguments")?;
+    anyhow::ensure!(raw.len() <= 1024 * 1024, "tool arguments exceed 1 MiB");
+    let args: serde_json::Value = if raw.trim().is_empty() {
+        serde_json::json!({})
+    } else {
+        serde_json::from_str(&raw).context("tool arguments are not valid JSON")?
+    };
+    let env = |k: &str| std::env::var(k).ok();
+    let roots = Roots::system();
+    let (sessions, notes) = discover_sessions_all(&roots, &env).await;
+    let caller = match opencode_api::locate_opencode(&env) {
+        Ok(bin) => {
+            let api = opencode_api::CliApi {
+                bin,
+                timeout: std::time::Duration::from_secs(10),
+            };
+            opencode::opencode_caller(&sessions, &api, opencode_caller).await
+        }
+        Err(e) => Err(e.context("OpenCode caller cannot be validated")),
+    };
+    match tool {
+        "list_sessions" => {
+            let me = caller.as_ref().ok().copied();
+            let args = serde_json::from_value(args).context("invalid list_sessions arguments")?;
+            let mut out = tools::list_sessions(me, &sessions, &notes, args).await?;
+            if let Err(e) = &caller {
+                out.push_str(&format!("\nCaller identity unavailable: {e:#}"));
+            }
+            Ok(out)
+        }
+        "ask_session" => {
+            let args = serde_json::from_value(args).context("invalid ask_session arguments")?;
+            let caller = caller?;
+            let state = state_dir(&env)?;
+            tools::ask_session(caller, &sessions, &notes, args, &roots, &state).await
+        }
+        "send_message" => {
+            let args = serde_json::from_value(args).context("invalid send_message arguments")?;
+            let caller = caller?;
+            tools::send_message(caller, &sessions, &notes, args, &roots).await
+        }
+        _ => {
+            let args = serde_json::from_value(args).context("invalid post_notice arguments")?;
+            let caller = caller?;
+            let state = state_dir(&env)?;
+            tools::post_notice(caller, args, &state)
+        }
+    }
+}
+
 #[tokio::main(flavor = "multi_thread")]
 async fn run() -> anyhow::Result<()> {
     match Cli::parse().command {
@@ -202,12 +320,20 @@ async fn run() -> anyhow::Result<()> {
             Bridge::new().serve(stdio()).await?.waiting().await?;
         }
         Command::Sessions { json } => {
-            let sessions = session_bridge_mcp::sessions::discover_sessions(&Roots::system());
+            let (sessions, notes) =
+                session_bridge_mcp::sessions::discover_sessions_all(&Roots::system(), &|k| {
+                    std::env::var(k).ok()
+                })
+                .await;
+            for note in &notes {
+                eprintln!("note: {note}");
+            }
             if json {
                 let rows:Vec<_>=sessions.iter().map(|s|{
                     let (harness,pid,profile)=match s {
                         session_bridge_mcp::sessions::Session::Claude(e)=>("claude",e.pid,&e.config_dir),
-                        session_bridge_mcp::sessions::Session::Codex(e)=>("codex",e.pid,&e.config_dir)
+                        session_bridge_mcp::sessions::Session::Codex(e)=>("codex",e.pid,&e.config_dir),
+                        session_bridge_mcp::sessions::Session::OpenCode(e)=>("opencode",0,&e.data_dir)
                     };
                     serde_json::json!({"key":s.key(),"harness":harness,"pid":pid,"config_dir":profile,"session_id":s.session_id(),"cwd":s.cwd()})
                 }).collect();
@@ -224,8 +350,25 @@ async fn run() -> anyhow::Result<()> {
             }
         }
         Command::Hook { .. } => {}
+        Command::Call {
+            tool,
+            opencode_caller,
+        } => match call_until_signal(&tool, &opencode_caller).await {
+            Ok(out) => println!("{out}"),
+            Err(e) => {
+                eprintln!("session-bridge call: {e:#}");
+                std::process::exit(2);
+            }
+        },
         Command::Filter { profile, pid } => filter_cmd(&profile, pid).await,
         Command::CodexFilter { profile } => codex_filter_cmd(&profile).await,
+        Command::OpencodeFilter { profile } => {
+            if is_safe_component(&profile) && profile.starts_with("opencode-") {
+                if let Some(state) = state_root(&|k| std::env::var(k).ok()) {
+                    session_bridge_mcp::opencode_hook::settle_pending(&state, &profile);
+                }
+            }
+        }
     }
     Ok(())
 }

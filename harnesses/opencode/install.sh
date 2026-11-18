@@ -47,7 +47,12 @@ PLUGINS="$DEFAULT_PLUGINS"
 
 die()   { echo "error: $*" >&2; exit 1; }
 info()  { echo "  $*"; }
-usage() { sed -n '2,10p' "$0" | sed 's/^# \{0,1\}//'; }
+usage() {
+  sed -n '2,10p' "$0" | sed 's/^# \{0,1\}//'
+  echo
+  echo "session-bridge also needs its binary on PATH (or SESSION_BRIDGE_BIN); build and link it with:"
+  echo "  $REPO_DIR/session-bridge/scripts/build.sh   (needs cargo)"
+}
 HINT_ECHO_DIR="${OPENCODE_HINT_ECHO_DIR:-${XDG_STATE_HOME:-$HOME/.local/state}/opencode-hint-echo}"
 
 while [ $# -gt 0 ]; do
@@ -162,6 +167,17 @@ link() { # src dest
   ln -s "$1" "$2"
 }
 
+# The session-bridge plugin execs the Rust `session-bridge` binary: SESSION_BRIDGE_BIN (an
+# absolute path) else PATH. Prints the resolved path, or nothing when there is none.
+bridge_binary() {
+  if [ -n "${SESSION_BRIDGE_BIN:-}" ]; then
+    [ -x "$SESSION_BRIDGE_BIN" ] && echo "$SESSION_BRIDGE_BIN"
+  else
+    command -v session-bridge 2>/dev/null || true
+  fi
+}
+BRIDGE_FIX="build and link it: $REPO_DIR/session-bridge/scripts/build.sh  (links ~/.local/bin/session-bridge; set SESSION_BRIDGE_BIN_DIR to change the dir)"
+
 status_of() { # path → present | dangling | missing
   if [ -L "$1" ] && [ ! -e "$1" ]; then echo "DANGLING → $(readlink "$1")"
   elif [ -e "$1" ]; then echo "present"
@@ -172,6 +188,7 @@ status_of() { # path → present | dangling | missing
 if [ "$MODE" = "check" ]; then
   echo "OpenCode wiring (config: $CONFIG_DIR, project: $PWD/.opencode)"
   bad=0
+  nobin=0
   for p in $PLUGINS; do
     echo "• $p"
     found_server=0; found_tui=0
@@ -198,6 +215,11 @@ if [ "$MODE" = "check" ]; then
       [ "$s" = "present" ] || info "command $name: $s"; case "$s" in DANGLING*|missing) bad=1 ;; esac
     done < <(commands_of "$p")
   done
+  case " $PLUGINS " in *" session-bridge "*)
+    b="$(bridge_binary)"
+    if [ -n "$b" ]; then info "session-bridge binary: $b"
+    else info "session-bridge binary: missing — $BRIDGE_FIX"; nobin=1; fi ;;
+  esac
   for f in "$PWD/opencode.json" "$CONFIG_DIR/opencode.json"; do
     [ -f "$f" ] || continue
     command -v jq >/dev/null 2>&1 || continue
@@ -207,7 +229,16 @@ if [ "$MODE" = "check" ]; then
       info "codescout MCP NOT registered in $f"
     fi
   done
-  [ "$bad" -eq 0 ] && echo "all requested components present" || echo "some components missing or broken — re-run ./install.sh"
+  # A missing bridge binary is built separately, not by this script: it is named in the
+  # summary but does not change the exit code.
+  if [ "$bad" -ne 0 ]; then
+    echo "some components missing or broken — re-run ./install.sh"
+    if [ "$nobin" -ne 0 ]; then echo "the session-bridge binary is missing too (see above)"; fi
+  elif [ "$nobin" -ne 0 ]; then
+    echo "all requested components present except the session-bridge binary (see above)"
+  else
+    echo "all requested components present"
+  fi
   exit "$bad"
 fi
 
@@ -264,6 +295,18 @@ for p in $PLUGINS; do
 done
 info "note: these are symlinks into $REPO_DIR — if you move the repo, re-run this installer."
 info "      sdd's and buddy's rendered commands are copies: re-run after editing their commands/."
+
+# ── session-bridge: the binary is a separate artifact, warn when it is not there ──
+case " $PLUGINS " in *" session-bridge "*)
+  b="$(bridge_binary)"
+  if [ -n "$b" ]; then info "session-bridge binary: $b"
+  else
+    echo
+    echo "WARNING: session-bridge binary not found (SESSION_BRIDGE_BIN unset or not executable, and none on PATH)."
+    echo "         The plugin is installed but its tools fail until you $BRIDGE_FIX"
+    echo "         OpenCode needs >= 2.3.0 and its background service (started automatically if absent)."
+  fi ;;
+esac
 
 # ── the manual step: MCP registration (codescout-companion only) ──────────
 case " $PLUGINS " in *" codescout-companion "*)

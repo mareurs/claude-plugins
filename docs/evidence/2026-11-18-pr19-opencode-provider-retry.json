@@ -1,0 +1,228 @@
+{
+  "date": "2026-11-18",
+  "tested_head": "8135318127807baa30c5de6ca4daa5d9acdf9a5f",
+  "model": "local/qwen3.8-27b-ud-q4_k_xl-auto",
+  "acceptance_item_6": "passed",
+  "provider_retry": {
+    "27b": "HTTP200 with final READY",
+    "4b": "still HTTP500; unused"
+  },
+  "flows": [
+    {
+      "id": "opencode_model_list",
+      "result": "passed",
+      "caller": "ses_e105e0cc6ffeV7a7s9EkLWgfBi",
+      "evidence": "Actual tool invocation and (you) line match; provider request contains four bridge tools"
+    },
+    {
+      "id": "opencode_child_caller",
+      "result": "passed",
+      "proof": [
+        {
+          "child": "ses_e1058a8a5ffenliV7dPaYvaqCX",
+          "parent": "ses_e1058e9c5ffeGJSjtAM6YEIOlz",
+          "child_outcome": "succeeded",
+          "calls": 1,
+          "returned_parent_as_you": true
+        }
+      ]
+    },
+    {
+      "id": "claude_mcp_send_opencode",
+      "result": "observed_and_answered",
+      "message_id": "msg_sb18e932ef89e209ff24b5681",
+      "answer": "ACK-852"
+    },
+    {
+      "id": "opencode_model_ask_claude",
+      "result": "passed",
+      "answer": "PR19-CLAUDE-SEED-963",
+      "original_history_unchanged": true,
+      "before_sha256": "920bae317cec93f925118d2238e11d3be4a6350a7dbd94e34c3ff05fe5cf2368",
+      "after_sha256": "920bae317cec93f925118d2238e11d3be4a6350a7dbd94e34c3ff05fe5cf2368"
+    },
+    {
+      "id": "opencode_model_ask_codex",
+      "result": "passed",
+      "answer": "PR19-CDX-SEED-852",
+      "original_history_unchanged": true,
+      "before_sha256": "52c4f7ae5744ee1999b47d85a5ebe892a8fb2efce5b8d96e47a2e293d2e864a9",
+      "after_sha256": "52c4f7ae5744ee1999b47d85a5ebe892a8fb2efce5b8d96e47a2e293d2e864a9"
+    },
+    {
+      "id": "opencode_model_send_codex",
+      "result": "observed_and_answered",
+      "message_id": "sb-1795022001026958376-3022409-0",
+      "answer": "ACK-741"
+    },
+    {
+      "id": "claude_mcp_ask_opencode",
+      "result": "passed",
+      "fork_session_id": "ses_e1056af47ffe0QsIpmlUp00UGO",
+      "answer_marker": "PR19-OC-SEED-927",
+      "proof": {
+        "original_messages_unchanged": true,
+        "write_probe_exists": false,
+        "exec_probe_exists": false,
+        "remaining_ask_forks": []
+      },
+      "reader_context": [
+        {
+          "sessionID": "ses_e1056af47ffe0QsIpmlUp00UGO",
+          "tools": [
+            "glob",
+            "grep",
+            "read",
+            "skill"
+          ]
+        }
+      ],
+      "denial_probe": [
+        {
+          "agent": "build",
+          "action": "write",
+          "response": {
+            "data": {
+              "id": "per_1efa2c6a9001Y2yjPvDzevKBtN",
+              "effect": "allow"
+            }
+          }
+        },
+        {
+          "agent": "build",
+          "action": "edit",
+          "response": {
+            "data": {
+              "id": "per_1efa2c6ab001McjhtcdLV50oBU",
+              "effect": "allow"
+            }
+          }
+        },
+        {
+          "agent": "build",
+          "action": "shell",
+          "response": {
+            "data": {
+              "id": "per_1efa2c6ac001B1MlP1Y0xnXGsN",
+              "effect": "allow"
+            }
+          }
+        },
+        {
+          "agent": "build",
+          "action": "session_bridge_post_notice",
+          "response": {
+            "data": {
+              "id": "per_1efa2c6b9001VlgiqTgeOCOVMx",
+              "effect": "allow"
+            }
+          }
+        },
+        {
+          "agent": "build",
+          "action": "read",
+          "response": {
+            "data": {
+              "id": "per_1efa2c6bc001LfUe94WvDOsed9",
+              "effect": "allow"
+            }
+          }
+        },
+        {
+          "agent": "session-bridge-reader",
+          "action": "write",
+          "response": {
+            "data": {
+              "id": "per_1efa2c6be0012Mn1Kwpqmbnb06",
+              "effect": "deny"
+            }
+          }
+        },
+        {
+          "agent": "session-bridge-reader",
+          "action": "edit",
+          "response": {
+            "data": {
+              "id": "per_1efa2c6c00018HD8Jaccjisycf",
+              "effect": "deny"
+            }
+          }
+        },
+        {
+          "agent": "session-bridge-reader",
+          "action": "shell",
+          "response": {
+            "data": {
+              "id": "per_1efa2c6c2001wErdLD5PCjkWd3",
+              "effect": "deny"
+            }
+          }
+        },
+        {
+          "agent": "session-bridge-reader",
+          "action": "session_bridge_post_notice",
+          "response": {
+            "data": {
+              "id": "per_1efa2c6c5001E2g6G1cIc8o2kM",
+              "effect": "deny"
+            }
+          }
+        },
+        {
+          "agent": "session-bridge-reader",
+          "action": "read",
+          "response": {
+            "data": {
+              "id": "per_1efa2c6c8001041yAuZhJm3dcf",
+              "effect": "allow"
+            }
+          }
+        }
+      ],
+      "enforcement_scope": "Fork context exposes only glob, grep, read, skill. Native permission API denies write/edit/shell/bridge-post-notice for this same registered reader agent and allows them for build. Model cannot issue unavailable tools; no model-issued forbidden tool call is claimed."
+    },
+    {
+      "id": "claude_notice_opencode",
+      "result": "received_by_model_provider",
+      "proof": {
+        "marker": "PR19-CLAUDE-NOTICE-461",
+        "provider_requests": [
+          {
+            "request_index": 6,
+            "tool_call_id": "OQQcrwes7bnWhK4loLMrpsvf2yb9saCj"
+          },
+          {
+            "request_index": 7,
+            "tool_call_id": "OQQcrwes7bnWhK4loLMrpsvf2yb9saCj"
+          },
+          {
+            "request_index": 11,
+            "tool_call_id": "OQQcrwes7bnWhK4loLMrpsvf2yb9saCj"
+          },
+          {
+            "request_index": 13,
+            "tool_call_id": "OQQcrwes7bnWhK4loLMrpsvf2yb9saCj"
+          }
+        ]
+      },
+      "scope": "Notice appended by live execute.after hook to bridge tool output, then present in subsequent provider request tool message."
+    }
+  ],
+  "instrumentation_limits": [
+    "Initial sender-model claim that bridge tools were missing was not accepted as evidence; fresh session called the tools successfully, and a loopback observer verified actual provider schemas. No product change was made.",
+    "First Codex model ask hash sample was taken after a legitimate send had modified the source. It was discarded and repeated with ask alone; stable hashes matched.",
+    "Read-only denial is tool exclusion plus measured native permission decisions, not a fabricated model tool execution."
+  ],
+  "cleanup": {
+    "opencode_sessions_remaining_before_shutdown": 0,
+    "sessions_listed_before_cleanup": 6,
+    "live_recorded_processes": [],
+    "stopped_proxy_pids": [
+      2822552
+    ],
+    "private_codex_home_removed": true,
+    "provider_config_removed": true,
+    "opencode_auth_removed": true
+  },
+  "raw_private_evidence_root": "/home/marius/.cache/cc-tmp/pr19-live-retry-dtcujln6"
+}

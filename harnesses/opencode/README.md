@@ -131,35 +131,31 @@ tests (real hooks, throwaway git repos): `node harnesses/opencode/tests/test-sdd
 
 ## session-bridge
 
-Claude Code's session-bridge is a Rust MCP server that answers through `claude -p --resume`;
-Pi's is a separate extension. Each harness has its own bridge, and none can reach another
-harness's sessions. `session-bridge.js` is the OpenCode one:
+`session-bridge.js` is the OpenCode front end of the one Rust `session-bridge` binary that
+also serves Claude Code and Codex, so an OpenCode session reaches Claude Code sessions,
+Codex threads and other OpenCode sessions, and they reach it. `send_message` reaches Codex
+threads and OpenCode sessions only; a Claude Code session is reached through `ask_session`
+and `post_notice`. The plugin only:
 
-- **`session_bridge_list_sessions`** lists a project's OpenCode sessions (default: the
-  current one), newest first, labelled with their first user message. It reads OpenCode's
-  own session store, so there is no registry file to keep in sync. Subagent sessions are
-  hidden unless `include_children` is set.
-- **`session_bridge_ask_session(ref, prompt)`** runs
-  `opencode run --fork -s <id> --agent session-bridge-reader` in that session's directory
-  and returns the answer. `ref` is an id, an id prefix, or words from the first message.
-  The producer session is never written, and the fork is deleted afterwards, also when the
-  ask fails.
-- **Read-only, for real.** OpenCode's `plan` agent is not read-only on 2.1.3: its
-  permissions are `* allow` with only `edit` denied, so it can run shell commands. The fork
-  runs under `session-bridge-reader`, which denies everything and then allows only
-  reading tools (`read`, `grep`, `glob`, `list`, codescout's read tools). There is no
-  two-way mode, the same as Pi.
-- **No recursion.** The fork loads the plugin with `OPENCODE_SESSION_BRIDGE_CHILD=1`, which
-  registers the reader agent but not the tools.
-- **Direct tools.** The tools set `codemode: false`. Without it, OpenCode exposes a plugin
-  tool only inside its code-mode `execute` tool (measured).
+- **Exposes four direct tools** — `session_bridge_list_sessions`, `_ask_session`,
+  `_send_message`, `_post_notice` — each running
+  `session-bridge call <tool> --opencode-caller <tctx.sessionID>` with the arguments as JSON
+  on stdin (argv array, never a shell). The tools set `codemode: false`; without it,
+  OpenCode exposes a plugin tool only inside its code-mode `execute` tool (measured). Esc or
+  the plugin's timeout sends SIGTERM, then SIGKILL after 5 s, so the bridge can still remove
+  an ask fork.
+- **Feeds the binary's hook output** (repository notices) into the session
+  on `session.context` and `tool.execute.after`. Hooks fail open.
+- **Registers the hidden `session-bridge-reader` agent** that an ask's fork runs under. It
+  denies everything and then allows only reading tools (`read`, `grep`, `glob`, `list`,
+  codescout's read tools); OpenCode's `plan` agent is not read-only on 2.1.3. The `* deny`
+  also keeps the bridge tools from the fork, so a fork cannot ask or message anyone.
 
-Verified live on 2.1.3, with only this plugin loaded: the list showed the producer session;
-the ask returned a fact that only the producer's conversation held; asked to run a shell
-command, the fork refused and no file appeared; the producer's history held none of the
-questions; no fork session was left behind. Unit tests (a fake `opencode` binary for the
-launcher): `node harnesses/opencode/tests/test-session-bridge.mjs`.
-
+The binary is `SESSION_BRIDGE_BIN`, else `session-bridge` on `PATH`, else
+`~/.local/bin/session-bridge`, else `${CARGO_HOME:-~/.cargo}/bin/session-bridge`. Discovery,
+addresses, the ask flow, limits and caller identity are documented in
+[`session-bridge/README.md` § OpenCode](../../session-bridge/README.md#opencode). Unit tests
+(a fake binary): `node harnesses/opencode/tests/test-session-bridge.mjs`.
 ## legible
 
 Claude Code selects legible's output style with `/output-style legible:Explanatory STE`.

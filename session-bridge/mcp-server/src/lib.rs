@@ -12,9 +12,15 @@ pub mod paths;
 pub mod server;
 pub mod state;
 pub mod store;
+pub mod tools;
 
 pub mod codex;
 pub mod codex_hook;
 pub mod codex_process;
+pub mod opencode;
+pub mod opencode_api;
+pub mod opencode_ask;
+pub mod opencode_hook;
+pub mod opencode_send;
 pub mod send;
 pub mod sessions;

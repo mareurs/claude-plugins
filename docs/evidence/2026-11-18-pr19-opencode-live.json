@@ -1,0 +1,91 @@
+{
+  "date": "2026-11-18",
+  "historical_attempt": true,
+  "follow_up_evidence": "2026-11-18-pr19-opencode-provider-retry.json",
+  "tested_head": "8dcdc4c1f0db9b5f2447b2c3f07f48e5404da34d",
+  "reconciled_main": "69db24297dc5d30428e4d7f6a0adf2ba7b50d7d2",
+  "versions": {
+    "claude": "2.1.327",
+    "codex": "0.169.0",
+    "opencode": "2.2.7"
+  },
+  "acceptance_item_6": "partial",
+  "flows": [
+    {
+      "id": "claude_mcp_send_opencode",
+      "result": "observed",
+      "invocation": "Actual Claude model MCP tool call",
+      "message_id": "msg_sb18e930cdaaf4ca8d15f9760",
+      "scope": "Exact user message in original OpenCode session; OpenCode model answer blocked by provider500"
+    },
+    {
+      "id": "opencode_cli_send_codex",
+      "result": "observed_and_answered",
+      "invocation": "Bridge CLI with validated OpenCode session identity",
+      "reply": "ACK-285",
+      "scope": "Disposable managed daemon; explicit legacy-history thread; native queue CLI, no remote wrapper"
+    },
+    {
+      "id": "opencode_cli_ask_claude",
+      "result": "passed",
+      "invocation": "Bridge CLI with validated OpenCode session identity",
+      "answer": "PR19-CLAUDE-SEED-963",
+      "original_history_unchanged": true,
+      "evidence": "Stable before/after transcript hashes; no concurrent original-session turn"
+    },
+    {
+      "id": "opencode_cli_ask_codex",
+      "result": "passed",
+      "invocation": "Bridge CLI with validated OpenCode session identity",
+      "answer": "PR19-CDX-SEED-852",
+      "original_history_unchanged": true,
+      "fork_thread_id": "01a1ef82-5826-77e0-8f92-df8cc9a61859"
+    },
+    {
+      "id": "claude_notice_opencode_context",
+      "result": "passed_for_context_injection",
+      "invocation": "Actual Claude MCP post_notice and current OpenCode context hook",
+      "marker": "PR19-CLAUDE-NOTICE-396",
+      "scope": "Observer plugin saw marker in target context.system; does not certify a model answer"
+    },
+    {
+      "id": "claude_mcp_ask_opencode_timeout",
+      "result": "passed_for_failure_cleanup",
+      "timeout_s": 3,
+      "original_history_unchanged": true,
+      "remaining_marked_ask_forks": 0,
+      "probe_file_absent": true,
+      "scope": "No successful model answer or model-attempted denial established"
+    }
+  ],
+  "blocked": [
+    "Successful OpenCode model-driven bridge tool calls, including subagent tctx.sessionID",
+    "Successful Claude-to-OpenCode ask with actual model write/exec attempts denied"
+  ],
+  "blocker": {
+    "type": "local_test_infrastructure",
+    "catalog_status": 200,
+    "completion_status": 500,
+    "models": [
+      "qwen3-4b-q4_k_m-auto",
+      "qwen3.8-27b-ud-q4_k_xl-auto"
+    ],
+    "error": "Provider connection error; model catalog availability did not establish inference availability",
+    "second_configured_provider": "unreachable",
+    "user_input_requested": true
+  },
+  "instrumentation_limits": [
+    "Initial Claude hash comparison overlapped an ordinary post_notice turn and was discarded; repeated stable comparison passed",
+    "Current plugin was loaded in the private service; OpenCode CLI calls are labeled separately from model-driven plugin calls",
+    "Runtime proofs apply to named tested_head; current-main reconciliation has separate automated checks"
+  ],
+  "cleanup": {
+    "opencode_sessions_remaining_before_shutdown": 0,
+    "private_opencode_and_claude_processes": "absent",
+    "private_codex_daemon": "stopped",
+    "private_codex_home": "removed",
+    "copied_opencode_auth_and_provider_config": "removed",
+    "native_claude_disposable_transcripts": "retained for audit"
+  },
+  "raw_private_evidence_root": "/tmp/pr19-live-acceptance-7btoc4mi"
+}

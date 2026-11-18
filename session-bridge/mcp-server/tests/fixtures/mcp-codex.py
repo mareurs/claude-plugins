@@ -2,6 +2,7 @@
 import json, os, pathlib, sqlite3, subprocess, sys, tempfile
 A = "f1111111-1111-7111-8111-111111111111"
 B = "f2222222-2222-7222-8222-222222222222"
+C = "f3333333-3333-7333-8333-333333333333"
 with tempfile.TemporaryDirectory(prefix="bridge-mcp-test-") as tmp:
     root = pathlib.Path(tmp)
     home = root / ".codex"
@@ -9,10 +10,12 @@ with tempfile.TemporaryDirectory(prefix="bridge-mcp-test-") as tmp:
     home.mkdir(); repo.mkdir()
     env = {k:v for k,v in os.environ.items() if not k.startswith("GIT_")}
     subprocess.run(["git","init","-q",str(repo)],env=env,check=True)
+    foreign_repo = root / "foreign-repo"
+    subprocess.run(["git","init","-q",str(foreign_repo)],env=env,check=True)
     paths = []
-    for sid in [A,B]:
+    for sid in [A,B,C]:
         path = home / ("rollout-2026-11-16T10-00-00-" + sid + ".jsonl")
-        path.write_text(json.dumps({"type":"session_meta","payload":{"id":sid,"cwd":str(repo)}})+"\n")
+        path.write_text(json.dumps({"type":"session_meta","payload":{"id":sid,"cwd":str(foreign_repo if sid == C else repo)}})+"\n")
         paths.append(path)
     host_env = dict(env, CODEX_HOME=str(home))
     host_env.pop("SESSION_BRIDGE_CHILD", None)
@@ -60,6 +63,11 @@ with tempfile.TemporaryDirectory(prefix="bridge-mcp-test-") as tmp:
         line_a=next(l for l in listing.splitlines() if A in l)
         line_b=next(l for l in listing.splitlines() if B in l)
         assert "(you)" in line_a and "(you)" not in line_b,listing
+        assert C not in listing, listing
+        assert "all=true" in listing, listing
+        all_listing=text(call("list_sessions",{"all":True}))
+        assert C in all_listing, all_listing
+        assert "from other repositories hidden" not in all_listing, all_listing
         post=call("post_notice",{"title":"fixture title","body":"fixture body"})
         assert "Posted notice" in text(post),post
         db=sqlite3.connect(root/"state/session-bridge/notices.db")
