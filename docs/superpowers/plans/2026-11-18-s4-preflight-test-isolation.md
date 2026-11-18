@@ -1,7 +1,7 @@
 ---
 id: '49bd1e681dc60a95'
 kind: plan
-status: active
+status: done
 title: S4 preflight test isolation
 ---
 
@@ -37,5 +37,17 @@ Raising the adapter's global production deadline changes the hook contract. Repl
 
 - [x] Add a controlled delayed-CLI test using actual runExperiment defaults and a committed temporary tree. Assert default/zero override stop before hooks/model calls; explicit 10000 ms completes all 13 simulated model calls with stop=[]. Run it red before adding forwarding.
 - [x] Thread the optional budget through the production preflight. Add test wrappers around runExperiment/main with 10000 ms; keep real policy output and all existing assertions. Both wrappers also have a controlled delayed-policy regression, so removing either fixture budget fails deterministically.
-- [ ] Run S4 suite and adapter timeout tests, then repeat the S4 suite. Run complete root suite and report every failure. No new dependency is needed for S4; install companion test dependencies only if required for the full suite.
-- [ ] Request independent review; apply/remove budget forwarding and mutate the production default deadline, observing killed/surviving outcomes. Correct findings, update this plan and the session log, and commit on the isolated branch.
+- [x] Run S4 suite and adapter timeout tests, then repeat the S4 suite. Run complete root suite and report every failure. No new dependency is needed for S4; install companion test dependencies only if required for the full suite.
+- [x] Request independent review; apply/remove budget forwarding and mutate the production default deadline, observing killed/surviving outcomes. Correct findings, update this plan and the session log, and commit on the isolated branch.
+
+## Verification and closeout — 2026-11-18
+
+The override regression failed before forwarding was added. At ca54ca4, the final S4 suite passed two consecutive runs, the adapter suite passed, and the complete root command `env CODESCOUT_REPO=/home/marius/work/claude/codescout bash tests/run-all.sh` exited 0 with `All suites passed`.
+
+Independent review found no Critical/Important/Minor issues. A separate clone baseline exited 0; five separately applied mutations each made the complete S4 command exit 1 (5 killed, 0 survived): remove runner forwarding, remove runPolicy forwarding, remove experiment fixture budget, remove main fixture budget, and change adapter default 500→1000. Clone restored exactly; no post-restoration rerun claimed. Raw mutation output remains in the reviewer's tool transcript.
+
+**Ruling:** Keep the production deadline and real CLI, with a generous semantic-test budget. Cost if wrong: semantic tests tolerate slow preflight, so timing remains guarded by separate default-deadline and hook-latency tests.
+
+**Ruling:** The reviewer did not exercise Windows or branch CI. Publish a draft PR with the observed Linux evidence and track CI separately; do not merge on an implied cross-platform verdict. Cost if wrong: a platform-specific process/timer issue may remain until CI exercises it.
+
+**Integration:** Reviewed code is committed on `fix/s4-preflight-test-budget`; main is unchanged by this task. No deferred minor findings. Preserve the managed worktree for PR iteration.

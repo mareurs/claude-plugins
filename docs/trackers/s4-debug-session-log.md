@@ -24,7 +24,7 @@ Investigate the local S4 failures observed during PR #10 verification. The user 
 
 | ID | Date | Severity | Status | Finding |
 |----|------|----------|--------|---------|
-| F-1 | 2026-11-18 | med | mitigated | Real policy CLI timeout propagates as a prompt failure into unrelated S4 assertions. |
+| F-1 | 2026-11-18 | med | fixed-verified | Real policy CLI timeout propagates as a prompt failure into unrelated S4 assertions. |
 
 ## F-1 — Real 500 ms preflight timeout makes unrelated S4 semantic tests see zero simulated calls
 
@@ -36,7 +36,7 @@ Investigate the local S4 failures observed during PR #10 verification. The user 
 
 **Fix direction:** Preserve the production default deadline. Expose a preflight-only timeout option for S4 and give semantic integration fixtures an explicit generous budget, while retaining real policy CLI coverage. Add a controlled slow-CLI regression proving default timeout still stops before model calls and an explicit longer budget permits the same valid response. No retries or global timeout increase.
 
-**Status:** mitigated — the controlled regression failed before forwarding was added (0 != 13 with prompt_not_steerable), then passed. The final S4 suite passed two consecutive runs and the adapter tests passed. Full root verification and independent applied-mutation review remain pending.
+**Status:** fixed-verified on branch `fix/s4-preflight-test-budget` (not yet merged) — the controlled regression failed before forwarding was added (0 != 13 with prompt_not_steerable), then passed. The final S4 suite passed two consecutive runs and the adapter tests passed. The complete root command `env CODESCOUT_REPO=/home/marius/work/claude/codescout bash tests/run-all.sh` also exited 0 with `All suites passed` at ca54ca4. Independent review of ca54ca4 found no Critical/Important/Minor issues. Its disposable-clone baseline exited 0. Five actual mutations were applied separately and each complete S4 command exited 1: remove runner forwarding; remove runPolicy forwarding; remove experiment fixture budget; remove main fixture budget; change adapter default 500→1000. Observed result: 5 killed, 0 survived. The first two failed both controlled slow-policy tests, the next two failed the semantic-fixtures regression, and the last failed the default-deadline regression. The clone was restored exactly; no post-restoration rerun was claimed. Raw review outputs exist only in the reviewer's tool transcript, not durable logs. Windows and branch CI were outside that review.
 
 **Rests on:** The captured same-case spawn/preflight/runner chain above and the controlled delayed-CLI regression; the test isolation choice and its default-deadline controls are documented in docs/superpowers/plans/2026-11-18-s4-preflight-test-isolation.md.
 
