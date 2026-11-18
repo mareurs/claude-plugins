@@ -8,8 +8,9 @@ PASS=0
 FAIL=0
 
 PROJECT=$(mktemp -d)
+trap 'rm -rf "$PROJECT"' EXIT
 STATE_DIR="$PROJECT/.codescout/constitution-seen"
-mkdir -p "$STATE_DIR"
+mkdir -p "$PROJECT/.git" "$STATE_DIR"
 
 assert_eq() {
   local label="$1" got="$2" expected="$3"

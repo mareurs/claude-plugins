@@ -53,14 +53,13 @@ describe('copy parity with codescout-companion', () => {
 });
 
 describe('mainCheckout / currentBranch', () => {
-  let main, wt, outside;
+  let main, wt;
   before(() => {
     main = tmp();
     git(main, 'init', '-q', '-b', 'main');
     git(main, 'commit', '-q', '--allow-empty', '-m', 'x');
     wt = join(main, 'wt-dir');
     git(main, 'worktree', 'add', '-q', '-b', 'feat/x', wt);
-    outside = tmp();
   });
 
   test('from a worktree returns the main root', () => {
@@ -98,7 +97,12 @@ describe('mainCheckout / currentBranch', () => {
     git(work, 'worktree', 'add', '-q', '-b', 'f2', wt2);
     assert.equal(lib.mainCheckout(wt2).root, wt2);
   });
-  test('outside a repo returns null', () => {
+  test('invalid .git boundary returns null instead of inheriting an ancestor checkout', () => {
+    const outside = join(main, 'not-a-checkout');
+    mkdirSync(outside);
+    assert.equal(lib.mainCheckout(outside).root, main);
+    // An owned invalid marker stops discovery regardless of TMPDIR's ancestors.
+    writeFileSync(join(outside, '.git'), 'fixture boundary: not a gitdir pointer\n');
     assert.equal(lib.mainCheckout(outside), null);
   });
   test('currentBranch on a branch', () => {

@@ -18,7 +18,8 @@ emit_hint() { # cwd sid topic hint
 
 ctx_of() { echo "$1" | jq -r '.hookSpecificOutput.additionalContext // empty'; }
 
-mkdir -p "$T/proj"
+# Distinct project roots prevent ancestor state and cross-project hint dedup.
+mkdir -p "$T/proj/.git"
 
 # Test 1: first call emits hint + writes marker
 OUT=$(emit_hint "$T/proj" "sid-1" "recon" "test hint message")
@@ -53,7 +54,7 @@ OUT=$(emit_hint "" "sid-1" "recon" "msg")
 if [ -z "$(ctx_of "$OUT")" ]; then pass "empty cwd: silent"; else fail "empty cwd: silent" "$OUT"; fi
 
 # Test 7: unwritable marker dir → still emits (marker is best-effort)
-mkdir -p "$T/ro/.buddy"
+mkdir -p "$T/ro/.git" "$T/ro/.buddy"
 chmod 555 "$T/ro/.buddy"
 OUT=$(emit_hint "$T/ro" "sid-1" "recon" "ro test")
 chmod 755 "$T/ro/.buddy"

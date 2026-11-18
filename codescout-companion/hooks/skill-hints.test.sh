@@ -16,7 +16,7 @@ trap 'rm -rf "$TMP"' EXIT
 
 # codescout-active cwd: .mcp.json declares a codescout server.
 CS="$TMP/proj"
-mkdir -p "$CS"
+mkdir -p "$CS/.git"
 cat > "$CS/.mcp.json" <<'JSON'
 { "mcpServers": { "codescout": { "command": "/x/codescout" } } }
 JSON
@@ -46,7 +46,7 @@ has "pre-edit hint names its hook event" "PreToolUse" \
 
 # non-codescout cwd (empty HOME, no CLAUDE_CONFIG_DIR, no .mcp.json) → silent
 BARE="$TMP/bare"
-mkdir -p "$BARE"
+mkdir -p "$BARE/.git"
 out="$(inp "$BARE" "sid2" "Agent" | env -u CLAUDE_CONFIG_DIR HOME="$TMP/emptyhome" node "$HERE/pre-task-hint.mjs")"
 empty "pre-task non-codescout → silent" "$out"
 
