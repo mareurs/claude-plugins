@@ -12,7 +12,7 @@ entry_prefix:
 - F
 - W
 snapshot_anchor: '| ID | Date | Severity | Category | Status | Title |'
-entry_high_water_F: 8
+entry_high_water_F: 9
 entry_high_water_W: 1
 ---
 
@@ -33,6 +33,7 @@ Verified observations for the Codex interoperation work stream. Entries use the 
 | F-6 | 2026-11-18 | med | host-contract | fixed-verified | **Callback probe attaches before actual turn start** — native control and event-held intervention distinguish acceptance from readiness. |
 | F-7 | 2026-11-18 | med | test-environment | fixed-verified | **Linked dependencies invalidate cache independence** — use real production dependency files for release preflight. |
 | F-8 | 2026-11-18 | med | test-isolation | fixed-verified | **Buddy pytest can pass while writing ancestor state** — seven failing cases plus five passing writers isolated and pinned by the containment runner. |
+| F-9 | 2026-11-18 | med | test-classification | mitigated | **Co-located SDD test trips the content version guard** — inspected test-only delta; one-push documented exception retains parity/force protection. |
 
 ## Status vocabulary
 
@@ -185,6 +186,20 @@ The real interactive Claude 2.1.325 smoke then succeeded: list_sessions found th
 **Valid:** dated 2026-11-18
 
 **Rests on:** failed release background35; controlled RED37; assertion-only GREEN38 with containment failure; per-test trace39; full containment GREEN3a; /tmp/codex-runtime-callbacks-20261118/buddy-fixture-writes.json.
+
+## F-9 — Co-located SDD test trips the content version guard
+
+**Observed:** The first publication of69db242 exited1: pre-push-guard classified sdd/hooks/lib.test.mjs as unversioned plugin content. Inspection of unbumped_plugins shows plugin/tests/ is excluded but a test colocated under hooks/ is not.
+
+**Evidence:** Actual origin/main..HEAD diff under buddy and sdd contains only four buddy test modules and sdd/hooks/lib.test.mjs; no runtime source or manifest changed. Companion and Session Bridge have already received proper release.sh version bumps and their parity checks passed. The documented SKIP_VERSION_BUMP_CHECK=1 exception is used for this push only; SKIP_PARITY_CHECK remains unset, so bumped-plugin parity and force-push guards still run.
+
+**Status:** mitigated
+
+**Severity:** med — one failed push, no remote mutation. The generic test-classification gap remains; this entry records the reason for the narrow release exception rather than claiming the guard was fixed.
+
+**Valid:** dated 2026-11-18
+
+**Rests on:** scripts/pre-push-guard.sh:75 and its documented exception; the exact measured push range, not a claim about other colocated files.
 
 ## Template for new entries
 

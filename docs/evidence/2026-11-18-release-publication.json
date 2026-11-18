@@ -1,0 +1,45 @@
+{
+  "publishedReleaseCommit": "69db24297dc5d30428e4d7f6a0adf2ba7b50d7d2",
+  "remote": "git@github.com:mareurs/claude-plugins.git",
+  "branch": "main",
+  "remoteHeadVerified": true,
+  "releases": {
+    "session-bridge": "0.2.9",
+    "codescout-companion": "1.22.4"
+  },
+  "issues": {
+    "14": {
+      "state": "CLOSED",
+      "reason": "completed",
+      "closedAt": "2026-11-18T16:34:57Z"
+    },
+    "15": {
+      "state": "OPEN",
+      "reason": "native0.169 repair candidate verified; stock host not replaced"
+    }
+  },
+  "prePushException": {
+    "variable": "SKIP_VERSION_BUMP_CHECK=1",
+    "scope": "one release push",
+    "cause": "colocated sdd/hooks/lib.test.mjs classified as runtime content",
+    "observedSddDelta": [
+      "sdd/hooks/lib.test.mjs"
+    ],
+    "buddyDelta": "four test modules only",
+    "parityCheckEnabled": true,
+    "forcePushGuardEnabled": true,
+    "guardUnchanged": true,
+    "tracker": "session-bridge-codex-session-log:F-9"
+  },
+  "evidence": [
+    "2026-11-18-session-bridge-release-matrix.json",
+    "2026-11-18-installed-cache-native.json",
+    "2026-11-18-release-readiness.json",
+    "2026-11-18-codex-callback-start-order-spec-drift.md"
+  ],
+  "limits": [
+    "Native automatic wake delivery not measured by these callback probes",
+    "Stock CLI0.169 issue15 remains; current shared managed daemon still0.160",
+    "Existing Claude processes must reload plugins/reconnect MCP to consume refreshed runtime"
+  ]
+}
