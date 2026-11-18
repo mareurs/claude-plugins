@@ -11,7 +11,7 @@ entry_prefix:
 - F
 - W
 snapshot_anchor: '| ID | Date | Severity | Status | Finding |'
-entry_high_water_F: 1
+entry_high_water_F: 2
 ---
 
 # S4 systematic debugging
@@ -25,6 +25,7 @@ Investigate the local S4 failures observed during PR #10 verification. The user 
 | ID | Date | Severity | Status | Finding |
 |----|------|----------|--------|---------|
 | F-1 | 2026-11-18 | med | fixed-verified | Real policy CLI timeout propagates as a prompt failure into unrelated S4 assertions. |
+| F-2 | 2026-11-18 | med | open | Runtime timeout is coupled to the archived S4 performance target; separate the runtime ceiling from the p95 gate. |
 
 ## F-1 — Real 500 ms preflight timeout makes unrelated S4 semantic tests see zero simulated calls
 
@@ -39,6 +40,18 @@ Investigate the local S4 failures observed during PR #10 verification. The user 
 **Status:** fixed-verified on branch `fix/s4-preflight-test-budget` (not yet merged) — the controlled regression failed before forwarding was added (0 != 13 with prompt_not_steerable), then passed. The final S4 suite passed two consecutive runs and the adapter tests passed. The complete root command `env CODESCOUT_REPO=/home/marius/work/claude/codescout bash tests/run-all.sh` also exited 0 with `All suites passed` at ca54ca4. Independent review of ca54ca4 found no Critical/Important/Minor issues. Its disposable-clone baseline exited 0. Five actual mutations were applied separately and each complete S4 command exited 1: remove runner forwarding; remove runPolicy forwarding; remove experiment fixture budget; remove main fixture budget; change adapter default 500→1000. Observed result: 5 killed, 0 survived. The first two failed both controlled slow-policy tests, the next two failed the semantic-fixtures regression, and the last failed the default-deadline regression. The clone was restored exactly; no post-restoration rerun was claimed. Raw review outputs exist only in the reviewer's tool transcript, not durable logs. Windows and branch CI were outside that review.
 
 **Rests on:** The captured same-case spawn/preflight/runner chain above and the controlled delayed-CLI regression; the test isolation choice and its default-deadline controls are documented in docs/superpowers/plans/2026-11-18-s4-preflight-test-isolation.md.
+
+**Valid:** dated 2026-11-18
+
+## F-2 — Runtime timeout is coupled to the archived S4 performance target
+
+**Observed:** While implementing the user's explicit request to raise the 500 ms runtime limit, run-policy.mjs defines POLICY_TIMEOUT_MS=500 and its adapter test equates that constant to s4-prereg.json latencyBudgetMs. measureHookLatency separately compares the measured p95 with prereg.latencyBudgetMs and gives the outer hook process 30000 ms. The adapter synchronously waits for the local policy CLI, kills it with SIGKILL on timeout, and returns adapter_timeout with no steer; UserPromptSubmit then emits no additionalContext.
+
+**Decision:** The user authorized raising the runtime deadline. Set the production child-process ceiling to 3000 ms, preserve the registered 500 ms S4 p95 performance criterion, and replace the equality test with independent assertions plus delayed-response and bounded-timeout regressions. The two values represent distinct controls. Existing S4 wrapper/default deadline regressions must be adjusted to exceed the new ceiling. Do not rewrite preregistered historical data or claim the measured 1.1 s delay was caused by slow hardware.
+
+**Status:** open — implementation and verification pending.
+
+**Rests on:** runPolicy, handle, effectiveTimeoutMs, measureHookLatency and the adapter registration equality test read on 2026-11-18; user request in this turn.
 
 **Valid:** dated 2026-11-18
 

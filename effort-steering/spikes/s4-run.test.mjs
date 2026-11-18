@@ -232,8 +232,10 @@ const run = (over, envOpts, extra = {}) => {
 await ta('semantic experiment and main fixtures tolerate a slow valid preflight', async () => {
   const es = makeTree((copy, repo) => {
     writeFileSync(path.join(copy, 'bin', 'effort-policy.mjs'), `
+import { readFileSync } from 'node:fs';
 if (JSON.stringify(process.argv.slice(2)) !== JSON.stringify(['decide', '--holdout-rate=0'])) process.exit(64);
-setTimeout(() => console.log(JSON.stringify({level:'shallow', confidence:'high', reasons:['controlled-policy'], steer:'fixture-steer', arm:'treated'})), 700);
+const delayMs = JSON.parse(readFileSync(0, 'utf8')).prompt === 'p one' ? 3500 : 0;
+setTimeout(() => console.log(JSON.stringify({level:'shallow', confidence:'high', reasons:['controlled-policy'], steer:'fixture-steer', arm:'treated'})), delayMs);
 `);
     git(repo, 'add', '-A');
     git(repo, 'commit', '-q', '-m', 'slow semantic policy');
@@ -253,13 +255,15 @@ setTimeout(() => console.log(JSON.stringify({level:'shallow', confidence:'high',
   }
 });
 
-// The policy deliberately takes longer than the production 500 ms deadline.
+// The first prompt takes longer than the production 3000 ms ceiling; the others answer immediately.
 // This is a semantic integration fixture, not a CPU-speed assertion.
 await ta('preflight keeps its default deadline and accepts an explicit integration budget', async () => {
   const es = makeTree((copy, repo) => {
     writeFileSync(path.join(copy, 'bin', 'effort-policy.mjs'), `
+import { readFileSync } from 'node:fs';
 if (JSON.stringify(process.argv.slice(2)) !== JSON.stringify(['decide', '--holdout-rate=0'])) process.exit(64);
-setTimeout(() => console.log(JSON.stringify({level:'shallow', confidence:'high', reasons:['controlled-policy'], steer:'fixture-steer', arm:'treated'})), 700);
+const delayMs = JSON.parse(readFileSync(0, 'utf8')).prompt === 'p one' ? 3500 : 0;
+setTimeout(() => console.log(JSON.stringify({level:'shallow', confidence:'high', reasons:['controlled-policy'], steer:'fixture-steer', arm:'treated'})), delayMs);
 `);
     git(repo, 'add', '-A');
     git(repo, 'commit', '-q', '-m', 'controlled slow policy');

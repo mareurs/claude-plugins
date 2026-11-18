@@ -30,10 +30,27 @@ const failOpen = (reason) => ({
   arm: 'treated',
 });
 
-t('POLICY_TIMEOUT_MS is the registered latency budget', () => {
-  // loadPrereg needs the file committed and equal to HEAD: green from the registration commit on.
+t('the default ceiling accepts a valid policy taking longer than 500 ms', () => {
+  const want = { level: 'shallow', confidence: 'high', reasons: ['slow-policy'], steer: 'slow-steer', arm: 'treated' };
+  const { cli } = copyTree(`setTimeout(() => console.log(${JSON.stringify(JSON.stringify(want))}), 700);\n`);
+  for (const timeoutMs of [undefined, 0]) {
+    assert.deepEqual(runPolicy({ prompt: 'x' }, { cliPath: cli, timeoutMs }), want, String(timeoutMs));
+  }
+});
+
+t('omitted and invalid-zero timeouts still kill a stalled policy and fail open', () => {
+  const { tree, cli } = copyTree("process.on('SIGTERM', () => {}); setTimeout(() => {}, 8000);\n");
+  for (const timeoutMs of [undefined, 0]) {
+    assert.deepEqual(runPolicy({ prompt: 'x' }, { cliPath: cli, timeoutMs }), failOpen('adapter_timeout'), String(timeoutMs));
+    const ps = spawnSync('pgrep', ['-f', tree], { encoding: 'utf8' });
+    assert.equal(ps.stdout.trim(), '', `orphan process: ${ps.stdout}`);
+  }
+});
+
+t('runtime ceiling is independent of the registered S4 performance target', () => {
   const prereg = loadPrereg(fileURLToPath(new URL('../../spikes/s4-prereg.json', import.meta.url)));
-  assert.equal(POLICY_TIMEOUT_MS, prereg.latencyBudgetMs);
+  assert.equal(prereg.latencyBudgetMs, 500);
+  assert.equal(POLICY_TIMEOUT_MS, 3000);
 });
 
 // I-3: 0 disables spawnSync's timeout, and -1, 150.5, '200', Infinity, NaN make it throw,

@@ -1,7 +1,7 @@
 ---
 id: '49bd1e681dc60a95'
 kind: plan
-status: done
+status: active
 title: S4 preflight test isolation
 ---
 
@@ -20,6 +20,20 @@ title: S4 preflight test isolation
 ## Approaches and scope
 
 Raising the adapter's global production deadline changes the hook contract. Replacing preflight with a fake would remove the real-copy, table and override coverage. Use an optional preflight-only budget instead; keep CLI decisions real. This is an implementation choice under the requested systematic debugging and correction, not a new user-facing setting. No retries, releases, installed configuration changes or unrelated refactors.
+
+## Task 2 — runtime deadline increase requested by the user
+
+The user explicitly requested raising the production 500 ms limit for slower machines and asked what it protects. This extends Task 1: use a 3000 ms runtime ceiling, retain the 10000 ms semantic-test budget, and preserve the historical registered 500 ms S4 p95 performance target. The timeout prevents the synchronous local policy process from hanging the hook; expiry kills it and continues without steering. Normal completion does not wait out the budget. An outer S4 hook deadline is 30000 ms.
+
+**Files:** adapter/claude-code/run-policy.mjs and its tests; spikes/s4-run.test.mjs; misleading timeout comments in spikes/s4-prereg.mjs; effort-steering/README.md. Do not modify s4-prereg.json or historical results.
+
+**Acceptance / review focus:** a valid response after 700 ms succeeds with omitted or invalid-zero timeout; the new default is exactly 3000 ms; a hanging policy is still killed and fails open; explicit shorter timeouts remain supported; S4 retains its 500 ms registered performance criterion independently of the runtime ceiling; wrapper and default-deadline regressions must still fail when their forwarding/budgets are removed. Delay only the first fixture prompt beyond 3000 ms to avoid multiplying test runtime across all four prompts.
+
+- [x] Write adapter delayed-success and bounded-default regressions, replace the obsolete equality assertion with independent ceiling/performance assertions, and observe a failure at the old runtime default before changing implementation.
+- [x] Set the runtime default to 3000 ms. Adjust S4 delayed fixtures beyond 3000 ms while preserving their explicit 10000 ms budget; clarify documentation and stale comments.
+- [ ] Run adapter, S4, prereg and hook suites, then complete root verification. Obtain independent review with applied mutations, record evidence and update PR #20; follow CI without merging automatically.
+
+**Ruling:** A 3000 ms ceiling supplies headroom above the observed approximately 1.1 s startup, while bounding a stalled hook. It is a chosen operational margin, not a measured guarantee for every machine. Cost: a genuinely stuck policy can now hold the hook for up to three seconds before fail-open; very slow machines may still exceed that ceiling.
 
 ## Review focus
 
