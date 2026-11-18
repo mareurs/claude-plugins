@@ -1,0 +1,365 @@
+{
+  "source": "/home/marius/work/claude/claude-plugins",
+  "params": {
+    "last_refresh_commit": "a8da3da",
+    "plugins": {
+      "buddy": {
+        "canonical": "0.11.18",
+        "readme": "0.11.18",
+        "marketplace_clean": true,
+        "profiles": {
+          ".claude": {
+            "installed": "0.11.18",
+            "all_versions": [
+              "0.11.18"
+            ],
+            "stale_sibling": false,
+            "cache_dir_exists": true,
+            "install_path_matches_profile": true,
+            "cache_matches_source": null,
+            "runtime_matches_source": null
+          },
+          ".claude-sdd": {
+            "installed": "0.11.18",
+            "all_versions": [
+              "0.11.18"
+            ],
+            "stale_sibling": false,
+            "cache_dir_exists": true,
+            "install_path_matches_profile": true,
+            "cache_matches_source": null,
+            "runtime_matches_source": null
+          },
+          ".claude-kat": {
+            "installed": "0.11.18",
+            "all_versions": [
+              "0.11.18"
+            ],
+            "stale_sibling": false,
+            "cache_dir_exists": true,
+            "install_path_matches_profile": true,
+            "cache_matches_source": null,
+            "runtime_matches_source": null
+          },
+          ".claude-stef": {
+            "installed": "0.11.18",
+            "all_versions": [
+              "0.11.18"
+            ],
+            "stale_sibling": false,
+            "cache_dir_exists": true,
+            "install_path_matches_profile": true,
+            "cache_matches_source": null,
+            "runtime_matches_source": null
+          }
+        }
+      },
+      "codescout-companion": {
+        "canonical": "1.22.4",
+        "readme": "1.22.4",
+        "marketplace_clean": true,
+        "profiles": {
+          ".claude": {
+            "installed": "1.22.4",
+            "all_versions": [
+              "1.22.4"
+            ],
+            "stale_sibling": false,
+            "cache_dir_exists": true,
+            "install_path_matches_profile": true,
+            "cache_matches_source": null,
+            "runtime_matches_source": null
+          },
+          ".claude-sdd": {
+            "installed": "1.22.4",
+            "all_versions": [
+              "1.22.4"
+            ],
+            "stale_sibling": false,
+            "cache_dir_exists": true,
+            "install_path_matches_profile": true,
+            "cache_matches_source": null,
+            "runtime_matches_source": null
+          },
+          ".claude-kat": {
+            "installed": "1.22.4",
+            "all_versions": [
+              "1.22.4"
+            ],
+            "stale_sibling": false,
+            "cache_dir_exists": true,
+            "install_path_matches_profile": true,
+            "cache_matches_source": null,
+            "runtime_matches_source": null
+          },
+          ".claude-stef": {
+            "installed": "1.22.4",
+            "all_versions": [
+              "1.22.4"
+            ],
+            "stale_sibling": false,
+            "cache_dir_exists": true,
+            "install_path_matches_profile": true,
+            "cache_matches_source": null,
+            "runtime_matches_source": null
+          }
+        }
+      },
+      "hint-echo": {
+        "canonical": "0.1.0",
+        "readme": "0.1.0",
+        "marketplace_clean": true,
+        "profiles": {
+          ".claude": {
+            "installed": "0.1.0",
+            "all_versions": [
+              "0.1.0"
+            ],
+            "stale_sibling": false,
+            "cache_dir_exists": true,
+            "install_path_matches_profile": true,
+            "cache_matches_source": null,
+            "runtime_matches_source": null
+          },
+          ".claude-sdd": {
+            "installed": "0.1.0",
+            "all_versions": [
+              "0.1.0"
+            ],
+            "stale_sibling": false,
+            "cache_dir_exists": true,
+            "install_path_matches_profile": true,
+            "cache_matches_source": null,
+            "runtime_matches_source": null
+          },
+          ".claude-kat": {
+            "installed": "0.1.0",
+            "all_versions": [
+              "0.1.0"
+            ],
+            "stale_sibling": false,
+            "cache_dir_exists": true,
+            "install_path_matches_profile": true,
+            "cache_matches_source": null,
+            "runtime_matches_source": null
+          },
+          ".claude-stef": {
+            "installed": "0.1.0",
+            "all_versions": [
+              "0.1.0"
+            ],
+            "stale_sibling": false,
+            "cache_dir_exists": true,
+            "install_path_matches_profile": true,
+            "cache_matches_source": null,
+            "runtime_matches_source": null
+          }
+        }
+      },
+      "legible": {
+        "canonical": "0.2.1",
+        "readme": "0.2.1",
+        "marketplace_clean": true,
+        "profiles": {
+          ".claude": {
+            "installed": "0.2.1",
+            "all_versions": [
+              "0.2.1"
+            ],
+            "stale_sibling": false,
+            "cache_dir_exists": true,
+            "install_path_matches_profile": true,
+            "cache_matches_source": null,
+            "runtime_matches_source": null
+          },
+          ".claude-sdd": {
+            "installed": "0.2.1",
+            "all_versions": [
+              "0.2.1"
+            ],
+            "stale_sibling": false,
+            "cache_dir_exists": true,
+            "install_path_matches_profile": true,
+            "cache_matches_source": null,
+            "runtime_matches_source": null
+          },
+          ".claude-kat": {
+            "installed": "0.2.1",
+            "all_versions": [
+              "0.2.1"
+            ],
+            "stale_sibling": false,
+            "cache_dir_exists": true,
+            "install_path_matches_profile": true,
+            "cache_matches_source": null,
+            "runtime_matches_source": null
+          },
+          ".claude-stef": {
+            "installed": "0.2.1",
+            "all_versions": [
+              "0.2.1"
+            ],
+            "stale_sibling": false,
+            "cache_dir_exists": true,
+            "install_path_matches_profile": true,
+            "cache_matches_source": null,
+            "runtime_matches_source": null
+          }
+        }
+      },
+      "sdd": {
+        "canonical": "3.0.1",
+        "readme": "3.0.1",
+        "marketplace_clean": true,
+        "profiles": {
+          ".claude": {
+            "installed": "3.0.1",
+            "all_versions": [
+              "3.0.1"
+            ],
+            "stale_sibling": false,
+            "cache_dir_exists": true,
+            "install_path_matches_profile": true,
+            "cache_matches_source": null,
+            "runtime_matches_source": null
+          },
+          ".claude-sdd": {
+            "installed": "3.0.1",
+            "all_versions": [
+              "3.0.1"
+            ],
+            "stale_sibling": false,
+            "cache_dir_exists": true,
+            "install_path_matches_profile": true,
+            "cache_matches_source": null,
+            "runtime_matches_source": null
+          },
+          ".claude-kat": {
+            "installed": "3.0.1",
+            "all_versions": [
+              "3.0.1",
+              "3.0.1"
+            ],
+            "stale_sibling": false,
+            "cache_dir_exists": true,
+            "install_path_matches_profile": true,
+            "cache_matches_source": null,
+            "runtime_matches_source": null
+          },
+          ".claude-stef": {
+            "installed": "3.0.1",
+            "all_versions": [
+              "3.0.1",
+              "3.0.1"
+            ],
+            "stale_sibling": false,
+            "cache_dir_exists": true,
+            "install_path_matches_profile": true,
+            "cache_matches_source": null,
+            "runtime_matches_source": null
+          }
+        }
+      },
+      "session-bridge": {
+        "canonical": "0.2.9",
+        "readme": "0.2.9",
+        "marketplace_clean": true,
+        "profiles": {
+          ".claude": {
+            "installed": "0.2.9",
+            "all_versions": [
+              "0.2.9"
+            ],
+            "stale_sibling": false,
+            "cache_dir_exists": true,
+            "install_path_matches_profile": true,
+            "cache_matches_source": null,
+            "runtime_matches_source": null
+          },
+          ".claude-sdd": {
+            "installed": "0.2.9",
+            "all_versions": [
+              "0.2.9"
+            ],
+            "stale_sibling": false,
+            "cache_dir_exists": true,
+            "install_path_matches_profile": true,
+            "cache_matches_source": null,
+            "runtime_matches_source": null
+          },
+          ".claude-kat": {
+            "installed": "0.2.9",
+            "all_versions": [
+              "0.2.9"
+            ],
+            "stale_sibling": false,
+            "cache_dir_exists": true,
+            "install_path_matches_profile": true,
+            "cache_matches_source": null,
+            "runtime_matches_source": null
+          },
+          ".claude-stef": {
+            "installed": "0.2.9",
+            "all_versions": [
+              "0.2.9"
+            ],
+            "stale_sibling": false,
+            "cache_dir_exists": true,
+            "install_path_matches_profile": true,
+            "cache_matches_source": null,
+            "runtime_matches_source": null
+          }
+        }
+      },
+      "statusline": {
+        "canonical": "1.2.1",
+        "readme": "1.2.1",
+        "marketplace_clean": true,
+        "profiles": {
+          ".claude": {
+            "installed": "1.2.1",
+            "all_versions": [
+              "1.2.1"
+            ],
+            "stale_sibling": false,
+            "cache_dir_exists": true,
+            "install_path_matches_profile": true,
+            "cache_matches_source": null,
+            "runtime_matches_source": null
+          },
+          ".claude-sdd": {
+            "installed": "1.2.1",
+            "all_versions": [
+              "1.2.1"
+            ],
+            "stale_sibling": false,
+            "cache_dir_exists": true,
+            "install_path_matches_profile": true,
+            "cache_matches_source": null,
+            "runtime_matches_source": null
+          },
+          ".claude-kat": {
+            "installed": "1.2.1",
+            "all_versions": [
+              "1.2.1"
+            ],
+            "stale_sibling": false,
+            "cache_dir_exists": true,
+            "install_path_matches_profile": true,
+            "cache_matches_source": null,
+            "runtime_matches_source": null
+          }
+        }
+      }
+    }
+  },
+  "not_installed": [
+    "cs-hint-codex"
+  ],
+  "profile_rows": 27,
+  "install_entries": 29,
+  "errors": [],
+  "limits": [
+    "Cache directory/version/profile ownership verified; active hook process reload and whole-source cache hashes are not inferred."
+  ]
+}

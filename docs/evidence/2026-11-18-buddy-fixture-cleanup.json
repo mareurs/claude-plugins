@@ -1,0 +1,9 @@
+{
+  "backedUpTo": "/home/marius/.cache/cc-tmp/bridge-delivery-20261118/buddy-fixture-cleanup-yuoi2trk",
+  "removedSyntheticStateFiles": 6,
+  "removedOwnedLogRows": 1,
+  "retainedEarlierLogRows": 1,
+  "removedOwnedDiagnosticArtifact": true,
+  "sharedTracePreserved": true,
+  "projectConfigurationChanged": false
+}

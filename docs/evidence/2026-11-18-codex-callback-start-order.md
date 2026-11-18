@@ -1,7 +1,7 @@
 ---
 id: '932f13a3d4986e30'
 kind: report
-status: active
+status: done
 title: Codex callback startup race evidence and review
 tags:
 - codex
@@ -21,6 +21,8 @@ Actual direct private-socket probes, without the diagnostic proxy and with preli
 
 ## Limits and integration
 
-These results establish callback routing after an actually started turn. Native root/child hook envelopes, automatic wake delivery, installed profile rollout and complete repository checks are separate. The final whole-repository release preflight is pending. The reviewer also declined to judge pre-existing RPC/completion handling outside this change.
+These results establish callback routing after an actually started turn. Native root/child hook envelopes and automatic wake delivery remain separate. The complete `./tests/run-all.sh` command passed in the clean release worktree at `ab6befc`. The following `8051c07` delta changed only buddy test fixtures, their containment runner and documentation; all579 buddy tests and the explicit ancestor-write assertion passed after that delta. Both local releases used that composed preflight; Session Bridge cargo tests, Clippy and installation also ran during its release. No claim is made that the entire repository command was rerun at `8051c07`.
+
+The actual installed Codex cache1.22.4 then passed a direct stock0.169 callback probe and adapter capability check after initialization as `issue14_first_originator`. It recorded one primary tool callback, one primary approval callback, zero secondary callbacks and completed the owned turn. [Installed-cache proof](2026-11-18-installed-cache-native.json). A fresh post-restart focused rerun passed35/35; canonical versions and all installed Claude profile paths/caches passed parity. The reviewer declined to judge pre-existing RPC/completion handling outside this change.
 
 The complete fixture inventory included native and cleanup callers omitted from the structural references result; successful fixtures now emit native-style start notifications. The cleanup fixture asserts actual tool success and approval decline before observing archive failure, preventing a startup failure from masquerading as cleanup coverage.

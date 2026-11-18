@@ -352,7 +352,8 @@
   },
   "sourceSha256": "cae498e795f727169a164e44dd32fd7eabc69323ad948ba2b1da6aa8bec023d3",
   "limits": [
-    "Final whole repository/release preflight still pending",
+    "Repository preflight passed at ab6befc; subsequent buddy test-only containment repair passed all 579 tests and the ancestor-write check at 8051c07; releases used this composed preflight",
+    "Installed Codex cache1.22.4 passed a fresh direct native0.169 first-originator callback and adapter proof; see 2026-11-18-installed-cache-native.json",
     "Native root/child hook envelopes and automatic delivery were not established by these callback probes"
   ]
 }

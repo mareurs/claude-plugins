@@ -1,7 +1,7 @@
 ---
 id: a9013e9c9ea4ea65
 kind: plan
-status: active
+status: done
 title: Codex callback start ordering implementation
 tags:
 - codex
@@ -45,4 +45,6 @@ Only the probe and its fixtures/docs change. One owned thread, one turn, explici
 ## Task 2 — review, integrate, verify
 
 - [x] Independent reviewer actually applies readiness/correlation/timeout/cleanup mutations, reports observed survivors and restores exact bytes; close confirmed coverage gaps RED/GREEN.
-- [ ] Run repository checks (known SDD fixture separately), spec-drift, whitespace and scoped integrity; integrate/commit only this repair, preserving unrelated work. Record findings and native limits.
+- [x] Run repository checks (known SDD fixture separately), spec-drift, whitespace and scoped integrity; integrate/commit only this repair, preserving unrelated work. Record findings and native limits.
+
+Repair integrated as fa093f6. The final sequential wake suite passed244/244. Full repository preflight passed at ab6befc; the subsequent buddy test-only containment delta at8051c07 passed579/579 and the ancestor-write assertion. Local releases installed Session Bridge0.2.9 and companion1.22.4, including the actual Codex cache. Fresh installed-cache stock0.169 callback/adapter proof and four-direction real Session Bridge matrix passed. Post-restart focused tests35/35 and version/profile parity passed. Spec drift:29/29 implemented, no missing/divergent criteria; verdict01M7QQT1DP0Q3B367N17S3E5KN. Native automatic wake remains unmeasured. Publication and GitHub issue disposition are tracked in the release audit/memory.

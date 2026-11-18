@@ -1,0 +1,44 @@
+{
+  "pluginVersion": "0.2.9",
+  "binary": "/home/marius/.cargo/bin/session-bridge",
+  "freshMcpProcesses": true,
+  "results": [
+    {
+      "caller": "codex",
+      "target": "claude-stef",
+      "ok": true,
+      "answer": "PONG",
+      "billed_profile": ".claude-stef",
+      "error": null
+    },
+    {
+      "caller": "codex",
+      "target": "codex-loaded-target",
+      "ok": true,
+      "answer": "PONG",
+      "billed_profile": "/home/marius/.codex",
+      "error": null
+    },
+    {
+      "caller": ".claude-kat",
+      "target": "claude-stef",
+      "ok": true,
+      "answer": "PONG",
+      "billed_profile": ".claude-stef",
+      "error": null
+    },
+    {
+      "caller": ".claude-kat",
+      "target": "codex-loaded-target",
+      "ok": true,
+      "answer": "PONG",
+      "billed_profile": "/home/marius/.codex",
+      "error": null
+    }
+  ],
+  "limitations": [
+    "Only stef was an active Claude target; kat was a fresh native Claude caller",
+    "No active sdd target was available",
+    "Existing long-lived MCP processes require reconnection"
+  ]
+}

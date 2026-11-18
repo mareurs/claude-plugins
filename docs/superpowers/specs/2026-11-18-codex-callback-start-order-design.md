@@ -1,7 +1,7 @@
 ---
 id: '1e4f8ea57dbb90e2'
 kind: spec
-status: active
+status: done
 title: Codex callback probe waits for actual turn start
 tags:
 - codex
