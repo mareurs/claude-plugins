@@ -1,7 +1,7 @@
 ---
 id: '6d792b7037080008'
 kind: plan
-status: active
+status: done
 title: PR 19 OpenCode session-bridge review
 tags:
 - pr19
@@ -24,8 +24,8 @@ Original adapter: 102 passed, 0 failed. Original cargo test stopped in `opencode
 
 ## Current state — 2026-11-18 live continuation
 
-Implementation findings F-1 through F-8 are fixed with regressions and applied mutation evidence. Live continuation established actual Claude-MCP→OpenCode message observation and notice injection into the current plugin context, plus OpenCode-identity CLI→Claude/Codex asks and CLI→Codex send/ACK on disposable native sessions. Successful OpenCode model inference/tool calls remain blocked by local provider500 (F-9); user was asked for a functional backend/model. Preserve that distinction when reporting acceptance.
+Review and live acceptance completed against runtime head `8135318` (published main `69db242` reconciled). F-1 through F-8 are fixed with regressions and applied mutation evidence; F-9 is mitigated by the functioning 27B provider. Actual model-driven OpenCode list/ask/send/notice calls, native child caller resolution, Claude-MCP send/ask, source-history isolation and read-only permission enforcement were observed. See the tracker provider-retry section and docs/evidence/2026-11-18-pr19-opencode-provider-retry.json for precise scope.
 
-Probe services and processes stopped; copied credentials removed. Raw noncredential evidence/scripts remain under /tmp/pr19-live-acceptance-7btoc4mi, while the tracker contains portable conclusions. Claude disposable transcripts remain in the native profile. Restarting probes requires fresh temporary config/auth; do not assume the old root is runnable as-is.
+Private probe sessions/services/processes stopped and credential copies removed. Combined-tree checks pass: 390 Rust tests, 207 adapter checks, fmt/Clippy, the full root suite and version consistency. All five CI jobs on `8135318` succeeded. The final continuation changes evidence/docs only.
 
-Published origin/main69db24297dc5d30428e4d7f6a0adf2ba7b50d7d2 reconciled without conflicts. Combined-tree Rust390/0, fmt, Clippy and adapter207/0 pass. Full root suite also passed with private TMPDIR, version consistency passed; review branch is ready for publication and fresh CI. Acceptance remains partial due to F-9. No PR19 merge authorization was inferred; PR16 is already merged. Alexandre received detailed learning-oriented feedback on both PRs; update the existing PR19 comment with subsequent live evidence rather than duplicating feedback.
+PR19 is ready for integration and remains open; no PR19 merge authorization was inferred from prior PR16 instructions. Alexandre's existing PR19 feedback comment should be updated with the successful retry and final evidence commit.

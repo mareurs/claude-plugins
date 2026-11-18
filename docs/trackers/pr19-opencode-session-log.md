@@ -29,7 +29,7 @@ Systematic review of PR #19. Original head: `28c93b458dc421f7ea892b683aae9b0de61
 | F-6 | 2026-11-18 | high | fixed-verified | Notice routing trusts payload cwd instead of verified session directory |
 | F-7 | 2026-11-18 | med | fixed-verified | MCP all-repository argument forwarding lacks a regression guard |
 | F-8 | 2026-11-18 | med | fixed-verified | Default OpenCode listing includes archived sessions |
-| F-9 | 2026-11-18 | med | open | Live OpenCode model turns blocked by local provider errors |
+| F-9 | 2026-11-18 | med | mitigated | Live OpenCode model turns blocked by local provider errors |
 
 ## F-1 — Shell-metacharacter fixture exceeds the notice title contract
 
@@ -137,11 +137,33 @@ At the user's request, Alexandre received detailed, constructive explanations of
 
 **Valid:** dated 2026-11-18
 
-**Observed:** Local gateway localhost43000 returns200 for /models, but actual /chat/completions for qwen3-4b-q4_k_m-auto and qwen3.8-27b-ud-q4_k_xl-auto both return500. OpenCode recorded provider.internal/OpenAIException Connection error and retried until the disposable turn was interrupted. The second configured provider localhost43102 is unavailable. This is local test infrastructure, not an established bridge defect.
+**Observed:** Initially both local completion models returned HTTP500. After the user's request to retry, qwen3.8-27b-ud-q4_k_xl-auto returned HTTP200 with final content READY. The 4B model still returned500. A private OpenCode config selected the functioning 27B model; no user provider settings were changed.
 
-**Impact:** Cannot certify successful model-driven OpenCode tool calls or the successful Claude-to-OpenCode ask/denial flow. User was asked asynchronously for a working backend/model while independent Claude/Codex and hook paths continued.
+**Resolution:** All required live bridge paths were exercised with actual model tool calls on runtime head `8135318`, including child caller resolution. See the provider-retry section and portable evidence JSON for the precise enforcement and delivery observations.
 
-**Status:** open — pending functioning local provider or alternate endpoint/model; no credentials or active profile config changed.
+**Status:** mitigated — inference works through 27B; the remaining 4B provider failure does not block bridge acceptance.
+
+## Provider retry — 2026-11-18, runtime head 8135318
+
+The user requested another attempt after restoring the backend. 27B returned final READY; the private OpenCode service then used that model. The four tools were observed in the actual provider request, not inferred from model prose. A fresh session successfully called list/ask/send/post_notice through the current plugin. No product code changed in this continuation.
+
+| Flow | Observed result |
+| --- | --- |
+| OpenCode model list | Real tool call; returned caller address marked `(you)` |
+| OpenCode child caller | Child ses_e1058a8a5ffenliV7dPaYvaqCX called list once and completed; hook saw the child ID; output marked its real parent ses_e1058e9c5ffeGJSjtAM6YEIOlz as `(you)` |
+| Claude MCP → OpenCode send | Exact message msg_sb18e932ef89e209ff24b5681 observed in original session; actual target model answered ACK-852 |
+| OpenCode model → Claude ask | Answer PR19-CLAUDE-SEED-963; source transcript SHA256 identical before/after |
+| OpenCode model → Codex ask/send | Ask returned PR19-CDX-SEED-852; stable ask-only source hashes identical; native queued send observed and target model answered ACK-741 |
+| Claude MCP → OpenCode ask | Answer recalled PR19-OC-SEED-927; original messages identical; no probe files; fork removed |
+| Claude notice → OpenCode | Live execute.after hook appended PR19-CLAUDE-NOTICE-461; following provider request contained it as tool-result data |
+
+Read-only enforcement was measured in two ways: the actual ask fork context exposed only glob/grep/read/skill, and native permission requests denied write/edit/shell/bridge-post-notice for the registered reader while allowing them for build. The model reported the forbidden tools absent, so it could not issue a forbidden call. This proves exclusion and permission enforcement; it does not claim a model-issued execution that never occurred.
+
+Measurement corrections: an initial sender-model claim of missing tools was not accepted as API evidence; a fresh session plus request observer established actual registration/calls. One Codex hash sample overlapped the deliberately queued send and was discarded; a separate ask-only run matched hashes. The earlier provider-failure JSON is retained as historical and points to the successful retry JSON.
+
+Cleanup: zero sessions remained in the private service before shutdown; private OpenCode/Claude processes exited, private Codex daemon stopped, private Codex home and copied auth/provider config removed, observer proxy stopped. Native disposable Claude transcripts remain for audit. Raw private proofs: /home/marius/.cache/cc-tmp/pr19-live-retry-dtcujln6. Portable evidence: docs/evidence/2026-11-18-pr19-opencode-provider-retry.json.
+
+Runtime head `8135318` has 390 passing Rust tests, 207 passing adapter checks, clean fmt/Clippy, passing root-suite/version checks and all five CI jobs successful (run `44351853249`). This continuation only adds evidence/docs. Review is ready for integration; PR19 remains open pending explicit integration authorization.
 
 ## Live acceptance continuation — 2026-11-18
 

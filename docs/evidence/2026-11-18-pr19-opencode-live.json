@@ -1,5 +1,7 @@
 {
   "date": "2026-11-18",
+  "historical_attempt": true,
+  "follow_up_evidence": "2026-11-18-pr19-opencode-provider-retry.json",
   "tested_head": "8dcdc4c1f0db9b5f2447b2c3f07f48e5404da34d",
   "reconciled_main": "69db24297dc5d30428e4d7f6a0adf2ba7b50d7d2",
   "versions": {
