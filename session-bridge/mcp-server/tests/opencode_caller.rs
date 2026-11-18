@@ -159,6 +159,7 @@ async fn caller_requires_exact_live_row_at_every_parent_hop() {
         json!({"data": {}}),
         json!({"data": {"id": "ses_different"}}),
         json!({"data": {"id": "ses_different", "parentID": "ses_parent"}}),
+        json!({"data": {"id": "ses_caller", "time": {"archived": 1}}}),
     ] {
         let mut api = FakeApi::new(&[("ses_caller", None)]);
         api.rows.insert("ses_caller".into(), row.clone());

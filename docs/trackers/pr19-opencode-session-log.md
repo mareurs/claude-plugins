@@ -12,7 +12,7 @@ entry_prefix:
 - F
 - W
 snapshot_anchor: '| ID | Date | Severity | Status | Finding |'
-entry_high_water_F: 7
+entry_high_water_F: 8
 ---
 
 ## Scope
@@ -28,6 +28,7 @@ Systematic review of PR #19. Original head: `28c93b458dc421f7ea892b683aae9b0de61
 | F-5 | 2026-11-18 | high | fixed-verified | Cancellation during fork creation drops cleanup ownership |
 | F-6 | 2026-11-18 | high | fixed-verified | Notice routing trusts payload cwd instead of verified session directory |
 | F-7 | 2026-11-18 | med | fixed-verified | MCP all-repository argument forwarding lacks a regression guard |
+| F-8 | 2026-11-18 | med | fixed-verified | Default OpenCode listing includes archived sessions |
 
 ## F-1 — Shell-metacharacter fixture exceeds the notice title contract
 
@@ -112,6 +113,24 @@ Fresh isolated OpenCode2.2.7 service loaded the current plugin and registered se
 Independent fix review applied10 distinct candidate behaviors. Initial cleanup-wave guard survived; after strengthening the blocked-DELETE test it was killed. Latest execution for each of the10 candidates was killed, including MCP forwarding, creator registration and normal CLI cleanup. Exact diffs/logs at /tmp/pr19-review-fixes/fix-mutations. No remaining blocking finding from that review.
 
 Root suite in inherited temporary environment reported failures in test-cross-platform-hooks.sh, test-skill-hints-lib.sh and constitution-epoch-bump.test.sh. Rerunning all three with a private TMPDIR under /tmp returned exit0 for each. Empty foreign /tmp/.git and cc-tmp/.git marker directories were removed only after checking plain-directory/empty status; nonempty markers were preserved. No unrelated fixture changes were imported from the concurrent main checkout. Whole root run still pending at this note.
+
+### Published review and final archive follow-up
+
+Review fixes published as9d3907a663edbda33a1b944e1dcfc1b0aaf08c8c; all5 fresh CI checks passed: https://github.com/mareurs/claude-plugins/actions/runs/44335457980. Local root run completed with exactly3 failed groups already listed; all3 passed in isolated TMPDIR reruns. Do not relabel that original full run green.
+
+The final archived-session follow-up passes the complete Rust suite385/0, fmt and Clippy all-targets -D warnings. Two archive-guard mutants were independently killed after a31-test focused baseline. No remaining blocking findings in reviewed code fixes; real cross-harness spec acceptance6 still open, so no merge recommendation yet.
+
+At the user's request, Alexandre received detailed, constructive explanations of the issues, fixes, observed surviving mutations and reusable agent prompts for inexpensive targeted mutation checks: PR16 https://github.com/mareurs/claude-plugins/pull/16#issuecomment-6983069234 and PR19 https://github.com/mareurs/claude-plugins/pull/19#issuecomment-6983069843. PR16 is merged; PR19 remains open. No owner blame or junior label was included.
+
+## F-8 — Default OpenCode listing includes archived sessions
+
+**Valid:** dated 2026-11-18
+
+**Observed:** Follow-up live API probe on an isolated OpenCode2.2.7 service created then archived a disposable session. GET /api/session?limit=100 included it; archived=true also included it; archived=false excluded it. discover_opencode has no archived-row filter, despite the documented exclusion. Evidence /tmp/pr19-live-w1ta9d7u/archive-evidence.json. Probe session deleted and private server stopped.
+
+**Impact:** Archived sessions may be listed/targetable and count as live callers. Filter archived rows after merging paged and active-lookup results; do not rely on an API default.
+
+**Status:** fixed-verified — discovery and fresh-caller archived regressions observed red then green. Nonnull time.archived is excluded; null restored markers remain accepted. Independent review baseline31/0; removing either archive guard was actually applied and killed (2 attempted,2 killed,0 surviving,0 invalid). Evidence /tmp/pr19-archive-review-report.md and /tmp/pr19-review-archive/archive-mutations/.
 
 ## Template for new entries
 Record observed evidence, impact and verification.

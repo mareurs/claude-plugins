@@ -170,6 +170,25 @@ async fn discover_filters_old_child_and_fork_sessions() {
     assert!(opencode_caller(&sessions, &api, "ses_fork1").await.is_err());
 }
 
+#[tokio::test]
+async fn discover_excludes_archived_even_if_recent_or_active() {
+    let mut archived = row("ses_archived", NOW - HOUR);
+    archived["time"]["archived"] = json!(NOW);
+    let mut active_archived = row("ses_activearchive", NOW - 99 * HOUR);
+    active_archived["time"]["archived"] = json!(NOW);
+    let mut restored = row("ses_restored", NOW - HOUR);
+    restored["time"]["archived"] = Value::Null;
+    let api = FakeApi::new(
+        Ok(json!({"data": [row("ses_live", NOW - HOUR), archived, active_archived, restored]})),
+        Ok(json!({"data": {"ses_activearchive": {"type": "running"}}})),
+    );
+    let eps = discover_opencode(&api, Path::new("/data/opencode"), NOW, 24)
+        .await
+        .unwrap();
+    let ids: Vec<_> = eps.iter().map(|e| e.session_id.as_str()).collect();
+    assert_eq!(ids, ["ses_live", "ses_restored"]);
+}
+
 /// The page cut-off uses max(updated, viewed), like liveness: a page whose rows are all stale
 /// by `updated` but holds one recently viewed row is followed to the next page.
 #[tokio::test]

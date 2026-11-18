@@ -92,6 +92,10 @@ pub async fn opencode_caller<'a>(
             row.get("id").and_then(Value::as_str) == Some(id.as_str()),
             "{REFUSED}: lookup did not confirm requested session id"
         );
+        anyhow::ensure!(
+            row.pointer("/time/archived").is_none_or(Value::is_null),
+            "{REFUSED}: session is archived"
+        );
         match row.get("parentID").filter(|p| !p.is_null()) {
             None => {
                 top = Some(id);
@@ -228,7 +232,10 @@ pub async fn discover_opencode(
         else {
             continue;
         };
-        if row.get("parentID").is_some_and(|p| !p.is_null()) || is_bridge_fork(row) {
+        if row.get("parentID").is_some_and(|p| !p.is_null())
+            || is_bridge_fork(row)
+            || row.pointer("/time/archived").is_some_and(|v| !v.is_null())
+        {
             continue;
         }
         let last = last_active(row);
