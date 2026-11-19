@@ -1,5 +1,10 @@
 """Discover concrete MCP examples and validate them against an isolated server."""
 
+import json
+import subprocess
+import tempfile
+
+
 def extract_calls(text, bindings=None):
     """Return (tool, literal kwargs, original source, line) for action-bearing examples.
 
@@ -102,6 +107,40 @@ def validate_signature(call, schema):
     actions = properties.get("action", {}).get("enum")
     if actions is not None and call.get("action") not in actions:
         raise ValueError(f"unknown action: {call.get('action')!r}")
+def callable_doc_schema(binary, env, run=subprocess.run):
+    """The `doc` schema the server accepts, from `codescout call doc --schema`.
+
+    `tools/list` advertises fewer `doc` actions than the server runs: a hidden action is
+    callable but absent from the advertised enum. A skill example is legal when the server
+    accepts it, so `doc` is judged against this schema. Returns None for a binary that has no
+    such door (non-zero exit, no JSON object, or an object without `properties`); the caller
+    must then say so, because a silent fallback hides a mismatch.
+    """
+    with tempfile.TemporaryDirectory() as empty:
+        try:
+            done = run([binary, "call", "doc", "--schema"], cwd=empty, env=env,
+                       capture_output=True, text=True, timeout=30)
+        except (OSError, subprocess.SubprocessError):
+            return None
+    if done.returncode != 0:
+        return None
+    try:
+        schema = json.loads(done.stdout)
+    except json.JSONDecodeError:
+        return None
+    if not isinstance(schema, dict) or not isinstance(schema.get("properties"), dict):
+        return None
+    return schema
+
+
+def action_is_hidden(action, advertised, callable_):
+    """True when `action` is in the callable `action` enum but not in the advertised one."""
+    def enum(schema):
+        return schema.get("properties", {}).get("action", {}).get("enum") or []
+    return action in enum(callable_) and action not in enum(advertised)
+
+
+
 def run_catalog_examples(cs, skills, ok, bad, info, covered):
     """Check every action-bearing example; execute complete auxiliary calls.
 
@@ -110,6 +149,15 @@ def run_catalog_examples(cs, skills, ok, bad, info, covered):
     """
     schemas = {tool["name"]: tool["inputSchema"]
                for tool in cs._rpc("tools/list", {})["result"]["tools"]}
+    # `doc` is judged by what the server accepts: nine of its actions are callable but no
+    # longer advertised. Every other tool keeps the advertised schema.
+    advertised_doc = schemas.get("doc")
+    callable_doc = callable_doc_schema(cs.binary, cs.env)
+    if callable_doc is None:
+        info("door schema unavailable: doc validated against tools/list")
+    else:
+        schemas["doc"] = callable_doc
+    hidden = 0
     made = []
     def create(slug, kind="tracker"):
         reply = cs.call("doc", action="create", kind=kind, title=f"Contract {slug}",
@@ -156,6 +204,9 @@ def run_catalog_examples(cs, skills, ok, bad, info, covered):
                     continue
                 checked += 1
                 action = call["action"]
+                if tool == "doc" and callable_doc is not None and advertised_doc is not None and \
+                        action_is_hidden(action, advertised_doc, callable_doc):
+                    hidden += 1
                 if tool == "doc" and (path, call) in covered:
                     delegated += 1
                     continue
@@ -260,6 +311,7 @@ def run_catalog_examples(cs, skills, ok, bad, info, covered):
         info(f"skill contract inventory: {checked} live signatures checked; {executed} auxiliary calls executed; "
              f"{delegated} calls delegated to ledger/verdict runtime cases; {fragments} incomplete illustrations; "
              f"{roadmap} explicit roadmap mention")
+        info(f"hidden-action examples: {hidden} examples name a doc action that is callable but not advertised")
     finally:
         for doc_id in reversed(made):
             reply = cs.call("doc", action="delete", id=doc_id, force=True)

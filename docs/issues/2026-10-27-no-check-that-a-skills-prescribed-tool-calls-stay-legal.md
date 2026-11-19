@@ -102,6 +102,12 @@ A first draft built the fixture heading from the call itself. That would have ad
 - The suite SKIPs where there is no codescout binary, which includes CI. It runs only where the binary exists, so a local `run-all.sh` and the `release.sh` preflight are the gates that see it.
 - A placeholder replaced by `id=` is the only substitution. A call that needs other real values would need its own case.
 
+## Callable `doc` schema — 2026-11-19
+
+Codescout removed nine `doc` actions from the `tools/list` enum (they stay callable). The suite then failed on nine skill examples: eight in `tracker-hygiene`, one in `spec-drift`. Measured with the unmodified suite against the `codescout` on `PATH`: 72 passed, 9 failed, each with `unknown action` or `unknown argument(s)`.
+
+Fix: for the tool `doc` only, `run_catalog_examples` takes its schema from `codescout call doc --schema` (`callable_doc_schema` in `tests/lib/skill_contract_calls.py`). Every other tool keeps the `tools/list` schema. A binary without that door gives `None`, and the suite says `door schema unavailable` instead of falling back in silence. An INFO line counts the examples that name a callable but not advertised action. After the fix: 78 passed, 0 failed, and that count reads 9. Design: `docs/superpowers/specs/2026-11-19-skill-call-legality-reads-the-callable-doc-schema-design.md`, part 1. The bug stays fixed.
+
 ## Why it matters
 
 Skills are served from a versioned cache, so a bad prescription reaches every profile at release and is found only when an agent follows it. Both archived cases were found that way.

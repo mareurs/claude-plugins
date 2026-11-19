@@ -1,4 +1,7 @@
+import json
+import types
 import unittest
+from unittest import mock
 from skill_contract_calls import extract_calls
 
 
@@ -10,6 +13,56 @@ class SignatureTest(unittest.TestCase):
             with self.subTest(call=call), self.assertRaises(ValueError):
                 validate_signature(call, schema)
         validate_signature({"action": "find", "kind": "spec"}, schema)
+class CallableSchemaTest(unittest.TestCase):
+    """`doc` is judged by what the server accepts, not by what tools/list advertises."""
+
+    ADVERTISED = {"properties": {"action": {"enum": ["find"]}, "kind": {}}}
+    CALLABLE = {"properties": {"action": {"enum": ["find", "list_stale"]}, "kind": {},
+                               "threshold_hours": {}}}
+
+    @staticmethod
+    def runner(returncode=0, stdout="", seen=None):
+        def run(cmd, **kwargs):
+            if seen is not None:
+                seen.append((cmd, kwargs))
+            return types.SimpleNamespace(returncode=returncode, stdout=stdout, stderr="")
+        return run
+
+    def test_a_hidden_action_is_legal_only_against_the_callable_schema(self):
+        from skill_contract_calls import validate_signature
+        call = {"action": "list_stale", "threshold_hours": 168}
+        validate_signature(call, self.CALLABLE)
+        with self.assertRaises(ValueError):
+            validate_signature(call, self.ADVERTISED)
+
+    def test_the_loader_runs_the_door_and_returns_the_schema_it_prints(self):
+        from skill_contract_calls import callable_doc_schema
+        seen = []
+        got = callable_doc_schema("/bin/cs", {"HOME": "/h"},
+                                  run=self.runner(stdout=json.dumps(self.CALLABLE), seen=seen))
+        self.assertEqual(got, self.CALLABLE)
+        (cmd, kwargs), = seen
+        self.assertEqual(cmd, ["/bin/cs", "call", "doc", "--schema"])
+        self.assertEqual(kwargs["env"], {"HOME": "/h"})
+
+    def test_the_loader_returns_none_when_the_door_gives_no_schema(self):
+        from skill_contract_calls import callable_doc_schema
+        for label, run in (("non-zero exit", self.runner(1, json.dumps(self.CALLABLE))),
+                           ("not json", self.runner(0, "usage: codescout call")),
+                           ("json without properties", self.runner(0, "{}")),
+                           ("json list", self.runner(0, "[]")),
+                           ("cannot start", mock.Mock(side_effect=OSError("no binary")))):
+            with self.subTest(label):
+                self.assertIsNone(callable_doc_schema("/bin/cs", {}, run=run))
+
+    def test_an_action_is_hidden_when_only_the_callable_enum_holds_it(self):
+        from skill_contract_calls import action_is_hidden
+        self.assertTrue(action_is_hidden("list_stale", self.ADVERTISED, self.CALLABLE))
+        self.assertFalse(action_is_hidden("find", self.ADVERTISED, self.CALLABLE))
+        self.assertFalse(action_is_hidden("nope", self.ADVERTISED, self.CALLABLE))
+        self.assertFalse(action_is_hidden("list_stale", self.CALLABLE, self.CALLABLE))
+
+
 
 
 class ExtractCallsTest(unittest.TestCase):

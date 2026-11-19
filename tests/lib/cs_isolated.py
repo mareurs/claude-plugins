@@ -72,6 +72,7 @@ class IsolatedCodescout:
         self._out: "queue.Queue[str]" = queue.Queue()
         self.stderr: list[str] = []
         self._proc: subprocess.Popen | None = None
+        self.env: dict = {}
 
     def __enter__(self) -> "IsolatedCodescout":
         home, sqlite = self.sandbox / "home", self.sandbox / "sqlite"
@@ -87,6 +88,7 @@ class IsolatedCodescout:
             "CODESCOUT_VECTOR_BACKEND": "sqlite-vec",
             "CODESCOUT_EMBEDDER_URL": "http://127.0.0.1:1",
         }
+        self.env = env
         self._proc = subprocess.Popen(
             [self.binary, "start", "-p", str(self.repo)],
             stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
