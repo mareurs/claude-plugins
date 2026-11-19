@@ -103,7 +103,7 @@ This part is certain and small. Do it before, or in the same session as, the cod
 
 The bug file `docs/issues/2026-10-27-no-check-that-a-skills-prescribed-tool-calls-stay-legal.md` (id `af3292c4ea2d4712`, status fixed) records how this suite was built. Add a short dated section there when part 1 lands; do not reopen the bug.
 
-## Design, part 2: how skills tell an agent to call the nine actions (undecided)
+## Design, part 2: how skills tell an agent to call the nine actions (decided: B, see below)
 
 Part 1 makes the tests honest. It does not decide what the skills should say. The options:
 
@@ -119,6 +119,12 @@ Part 1 makes the tests honest. It does not decide what the skills should say. Th
 
 - Wire check passes: choose B. Edit the two skill files, bump the plugin version per `docs/trackers/version-bump-checklist.md`, release.
 - Wire check fails on a client: choose C for that client's skills, extend the extractor to the door form in the same change, and tell the codescout session. Codescout's own fallback (revert `1d1ceccbb`) then comes up for decision on its side.
+
+## Decision, part 2: option B (2026-11-19)
+
+The wire check that the gate asks for was run for Claude Code on 2026-11-19. A fresh `claude -p --model haiku` with `--strict-mcp-config` and only the rebuilt codescout (nine `doc` actions advertised) read the nine-action enum and still called `doc(action="list_stale", limit=1)`. The client did not refuse; the server ran the call. The result is recorded in the codescout decision entry `b2c415aa6ed51f01`. Codex is not measured.
+
+Chosen: **B**. One sentence was added to `codescout-companion/skills/tracker-hygiene/SKILL.md` and to `codescout-companion/skills/spec-drift/SKILL.md`. It says that the action is missing from the MCP tool list, is called in the same form, and that `codescout call doc '<json>'` reaches it from a shell. The shell pointer is there because Codex is unmeasured. The two `sdd` files and `patterns-tracker.md` are unchanged: they are outside the checked population and name the same call form. If a Codex run shows a refusal, option C for that client comes back to this page.
 
 ## Not in scope
 
@@ -136,7 +142,7 @@ Part 1 makes the tests honest. It does not decide what the skills should say. Th
 
 ## Open: R7
 
-"R7" is the codescout plan's name for one unverified risk: an MCP client may refuse a call whose action is not in the advertised enum. The server validates nothing here (codescout `src/server.rs`, wire check 2026-09-11 covered required and undeclared parameters, **not** enums). Until the codescout session records the wire check, treat part 2 as undecided and part 1 as independent of it.
+"R7" is the codescout plan's name for one unverified risk: an MCP client may refuse a call whose action is not in the advertised enum. The server validates nothing here (codescout `src/server.rs`, wire check 2026-09-11 covered required and undeclared parameters, **not** enums). Part 2 was decided on 2026-11-19 after a Claude Code wire check (see "Decision, part 2"); Codex is not measured.
 
 ## References
 

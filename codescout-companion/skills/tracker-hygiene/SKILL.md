@@ -17,6 +17,8 @@ fix.
 | **Declared** | What the project *says* is true | index/README cluster maps, frontmatter `status:` |
 | **Observed** | What *is* true | `git log -1` per file, actual directory, librarian catalog, `doc(action="list_stale")` |
 
+Some `doc` actions named in this skill (`list_stale`, `link`, `augment`) are missing from the MCP tool list. They are still callable in the same form as the listed ones, and `codescout call doc '<json>'` reaches them from a shell.
+
 **REQUIRED SUB-SKILL:** None. Composes with `reconnaissance` (per-task
 drift-catching; this skill is the corpus-wide periodic sweep).
 
