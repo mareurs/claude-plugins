@@ -1,0 +1,172 @@
+{
+  "reviewed_head": "4b4dd5f9c6ef1db58f9f7df97b01db9396dade97",
+  "plugins": [
+    {
+      "name": "buddy",
+      "version": "0.11.18",
+      "last_version_change": "94b65e6a5a36d2012a001f7d0ebb9aa9e1520951",
+      "commits_since": [
+        "8051c07dc48f86b107d8ed8422bd82e14e154746 test(buddy): contain fixture state beneath enclosing projects",
+        "297e2055101476eb07c6e0ba91f52facbad7b44b feat(opencode): buddy, statusline and hint-echo for OpenCode (#16)"
+      ],
+      "net_files": [
+        "buddy/commands/focus.md",
+        "buddy/scripts/state.py",
+        "buddy/scripts/track_specialist.py",
+        "buddy/tests/test_buddy_paths.py",
+        "buddy/tests/test_hook_helpers.py",
+        "buddy/tests/test_pre_tool_hook.py",
+        "buddy/tests/test_session_start_migration.py",
+        "buddy/tests/test_state.py",
+        "buddy/tests/test_track_specialist.py"
+      ],
+      "decision": "minor release"
+    },
+    {
+      "name": "codescout-companion",
+      "version": "1.22.4",
+      "last_version_change": "a8da3da7d9b9be0948ee524bcf8e50772e263407",
+      "commits_since": [],
+      "net_files": [],
+      "decision": "no changes; no release"
+    },
+    {
+      "name": "cs-hint-codex",
+      "version": "0.1.1",
+      "last_version_change": "f0378e22cefdc45484ed3c2d5fbcc4889054ac60",
+      "commits_since": [],
+      "net_files": [],
+      "decision": "no changes; no release"
+    },
+    {
+      "name": "hint-echo",
+      "version": "0.1.0",
+      "last_version_change": "28f69e5eb3048c90bea593b5a5571fe1aa90871d",
+      "commits_since": [
+        "1dd025aeef359f48925d3b4d8585d59283ee359d test(hint-echo): five plugin tests; two single-line mutations of the mod are caught"
+      ],
+      "net_files": [
+        "hint-echo/tests/hint-echo.test.ts"
+      ],
+      "decision": "tests only; no release"
+    },
+    {
+      "name": "legible",
+      "version": "0.2.1",
+      "last_version_change": "caa4e666170739236581f629c259ebc67f01f569",
+      "commits_since": [],
+      "net_files": [],
+      "decision": "no changes; no release"
+    },
+    {
+      "name": "sdd",
+      "version": "3.0.1",
+      "last_version_change": "b52f02904aa5fcb9bd305a33bff7d32e5a8e6606",
+      "commits_since": [
+        "38f4754be86a52ae646f058b155ddc9caf353613 test: isolate hook and SDD fixtures from ancestor projects"
+      ],
+      "net_files": [
+        "sdd/hooks/lib.test.mjs"
+      ],
+      "decision": "tests only; no release"
+    },
+    {
+      "name": "session-bridge",
+      "version": "0.2.9",
+      "last_version_change": "4b95ea892342d3313c4f65095318119655d6bf35",
+      "commits_since": [
+        "8135318127807baa30c5de6ca4daa5d9acdf9a5f Merge current main and record PR19 live acceptance evidence",
+        "8dcdc4c1f0db9b5f2447b2c3f07f48e5404da34d fix(session-bridge): exclude archived OpenCode sessions (F-8)",
+        "9d3907a663edbda33a1b944e1dcfc1b0aaf08c8c fix(session-bridge): validate callers and own bounded OpenCode operations (F-3 through F-7)",
+        "e5bbc2504a4ed30cbece4b19716f52dd206a1e6c Merge main into PR19; preserve scoped listings and fix fixture (F-1, F-2)",
+        "28c93b458dc421f7ea892b683aae9b0de61610a2 refactor(session-bridge): drop Claude-targeted send_message (out of scope)",
+        "2fc1a15903e03b881fcd94bf4556c2e4d2c20535 fix(session-bridge): quiet listings without OpenCode; never start its service to list",
+        "7b9b13c881a8f35937e3f6290d86eb2d377faeb8 docs(session-bridge): bridge-fork marker, discovery scope, DM limits, caller identity",
+        "ec1655588385c49fa8ce6d1ed8ba66d6cd7c57f4 fix(opencode): session-bridge plugin kill grace, binary fallbacks, build.sh link guard",
+        "4a153c8e1e0beef667617f727bf408df1b3e649a fix(session-bridge): OpenCode fork cleanup on signal, bridge-fork marker, target-scoped discovery",
+        "42c9907c930aec4a4978774d3152b38eb83175ec fix(session-bridge): bound direct-message delivery and storage",
+        "0355e08ff665b22d6c73e8c5c35f7f64386f6fad docs(session-bridge): final-review README and spec corrections",
+        "6d5514a6b84ac2935c834e85eee08765900ac872 fix(session-bridge): page OpenCode discovery and ask reads; final-review fixes",
+        "deb91de006b93d1715dee11563a825f07ef7600d fix(session-bridge): marketplace install route; never clobber a foreign binary",
+        "a6c13f2bae75ab8c3bcfc4f4e0b1b83f6bddeab0 feat(session-bridge): install the bridge binary on PATH and document OpenCode",
+        "f99ba14117a2dde77a833ef6a3e8506cee1a6e7b test(session-bridge): pin that the OpenCode hook never starts the service",
+        "84b280ef96271a635bf8ae5e18b3f06e8781775e fix(session-bridge): resolve the OpenCode hook session with one lookup",
+        "6c58b5c7526bf4d2e126786d03c8acc559fc8b71 feat(session-bridge): deliver repository notices into OpenCode sessions",
+        "8ece230e3900aefe6364ebefd86ff201c94a38e0 fix(session-bridge): expire Claude direct messages only on proof the target ended",
+        "d745c1d2b282f19a64bddd1662003c3b8e03e947 feat(session-bridge): direct messages to Claude sessions via hook delivery",
+        "77732822675cc80f639f56e199e39e8f4dbb4066 fix(session-bridge): clean up OpenCode ask forks on cancellation; reject null replies",
+        "960459babcbd553621c8be2e8da496a7a7b83301 feat(session-bridge): read-only ask into OpenCode sessions",
+        "24762642c9232c0ad2776ebbe019f4d863ab8bc8 test(session-bridge): isolate OpenCode test fixtures; tolerate archived null",
+        "2be921d5c8fc0e30d67760162d2ac76789786f2d feat(session-bridge): send_message into OpenCode sessions",
+        "150ef136635e1c03dd9b79f7d84c6c2a41650c0f feat(session-bridge): OpenCode callers through session-bridge call",
+        "83078889c03f10163d8279e70d5438fad1f8c830 fix(session-bridge): per-session storage identity for OpenCode",
+        "939071b08532378927ab85e083abb7806eef7e41 feat(session-bridge): discover and address OpenCode sessions",
+        "e77b27d83252bc44924ac378d52c88e4fe8fb681 fix(session-bridge): poll for the OpenCode service after starting it",
+        "63afd633396d1e1bca0fb2500990dce70d708262 feat(session-bridge): OpenCode service client over the opencode api CLI"
+      ],
+      "net_files": [
+        "session-bridge/README.md",
+        "session-bridge/commands/sessions.md",
+        "session-bridge/mcp-server/Cargo.toml",
+        "session-bridge/mcp-server/src/codex_process.rs",
+        "session-bridge/mcp-server/src/lib.rs",
+        "session-bridge/mcp-server/src/main.rs",
+        "session-bridge/mcp-server/src/opencode.rs",
+        "session-bridge/mcp-server/src/opencode_api.rs",
+        "session-bridge/mcp-server/src/opencode_ask.rs",
+        "session-bridge/mcp-server/src/opencode_hook.rs",
+        "session-bridge/mcp-server/src/opencode_send.rs",
+        "session-bridge/mcp-server/src/server.rs",
+        "session-bridge/mcp-server/src/sessions.rs",
+        "session-bridge/mcp-server/src/tools.rs",
+        "session-bridge/mcp-server/tests/fixtures/fake-opencode.py",
+        "session-bridge/mcp-server/tests/fixtures/mcp-codex.py",
+        "session-bridge/mcp-server/tests/fixtures/tool-schemas.json",
+        "session-bridge/mcp-server/tests/opencode_api.rs",
+        "session-bridge/mcp-server/tests/opencode_ask.rs",
+        "session-bridge/mcp-server/tests/opencode_caller.rs",
+        "session-bridge/mcp-server/tests/opencode_discovery.rs",
+        "session-bridge/mcp-server/tests/opencode_hook.rs",
+        "session-bridge/mcp-server/tests/opencode_listing.rs",
+        "session-bridge/mcp-server/tests/opencode_send.rs",
+        "session-bridge/mcp-server/tests/post_notice_discovery.rs",
+        "session-bridge/mcp-server/tests/send_claude_unsupported.rs",
+        "session-bridge/mcp-server/tests/sessions.rs",
+        "session-bridge/scripts/build.sh"
+      ],
+      "decision": "minor release"
+    },
+    {
+      "name": "statusline",
+      "version": "1.2.1",
+      "last_version_change": "3340151bdfa7f19b9cc78080d93631d3547453ad",
+      "commits_since": [],
+      "net_files": [],
+      "decision": "no changes; no release"
+    }
+  ],
+  "shared_harness_changes": [
+    "harnesses/README.md",
+    "harnesses/opencode/README.md",
+    "harnesses/opencode/install.sh",
+    "harnesses/opencode/lib/host.mjs",
+    "harnesses/opencode/lib/tui.mjs",
+    "harnesses/opencode/plugins/buddy.js",
+    "harnesses/opencode/plugins/codescout-companion.js",
+    "harnesses/opencode/plugins/sdd.js",
+    "harnesses/opencode/plugins/session-bridge.js",
+    "harnesses/opencode/tests/fixtures/fake-bridge/session-bridge",
+    "harnesses/opencode/tests/test-buddy.mjs",
+    "harnesses/opencode/tests/test-codescout-companion.mjs",
+    "harnesses/opencode/tests/test-hint-echo.mjs",
+    "harnesses/opencode/tests/test-opencode-adapter.sh",
+    "harnesses/opencode/tests/test-sdd.mjs",
+    "harnesses/opencode/tests/test-session-bridge.mjs",
+    "harnesses/opencode/tests/test-tui-lifecycle.mjs",
+    "harnesses/opencode/tests/test-tui.mjs",
+    "harnesses/opencode/tui/buddy/report.py",
+    "harnesses/opencode/tui/buddy/tui.js",
+    "harnesses/opencode/tui/hint-echo/tui.js",
+    "harnesses/opencode/tui/statusline/tui.js"
+  ]
+}

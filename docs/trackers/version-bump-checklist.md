@@ -15,16 +15,16 @@ Release readiness across plugins × profiles. See
 ## State
 ### Current release verification — 2026-11-18
 
-_Measured at a8da3da. All installed entries were read; 27 profile rows cover 29 install records._
+_Measured at ff583fa. All installed entries were read; 27 profile rows cover 29 install records._
 
-**buddy** — canonical `0.11.18` · readme `0.11.18` ✅ · marketplace clean ✅
+**buddy** — canonical `0.12.0` · readme `0.12.0` ✅ · marketplace clean ✅
 
 | profile | installed | cache dir | install_path ok | all entries |
 |---|---|---|---|---|
-| `~/.claude` | 0.11.18 ✅ | ✅ | ✅ | `0.11.18` ✅ |
-| `~/.claude-sdd` | 0.11.18 ✅ | ✅ | ✅ | `0.11.18` ✅ |
-| `~/.claude-kat` | 0.11.18 ✅ | ✅ | ✅ | `0.11.18` ✅ |
-| `~/.claude-stef` | 0.11.18 ✅ | ✅ | ✅ | `0.11.18` ✅ |
+| `~/.claude` | 0.12.0 ✅ | ✅ | ✅ | `0.12.0` ✅ |
+| `~/.claude-sdd` | 0.12.0 ✅ | ✅ | ✅ | `0.12.0` ✅ |
+| `~/.claude-kat` | 0.12.0 ✅ | ✅ | ✅ | `0.12.0` ✅ |
+| `~/.claude-stef` | 0.12.0 ✅ | ✅ | ✅ | `0.12.0` ✅ |
 
 **codescout-companion** — canonical `1.22.4` · readme `1.22.4` ✅ · marketplace clean ✅
 
@@ -62,14 +62,14 @@ _Measured at a8da3da. All installed entries were read; 27 profile rows cover 29 
 | `~/.claude-kat` | 3.0.1 ✅ | ✅ | ✅ | `3.0.1, 3.0.1` ✅ |
 | `~/.claude-stef` | 3.0.1 ✅ | ✅ | ✅ | `3.0.1, 3.0.1` ✅ |
 
-**session-bridge** — canonical `0.2.9` · readme `0.2.9` ✅ · marketplace clean ✅
+**session-bridge** — canonical `0.3.0` · readme `0.3.0` ✅ · marketplace clean ✅
 
 | profile | installed | cache dir | install_path ok | all entries |
 |---|---|---|---|---|
-| `~/.claude` | 0.2.9 ✅ | ✅ | ✅ | `0.2.9` ✅ |
-| `~/.claude-sdd` | 0.2.9 ✅ | ✅ | ✅ | `0.2.9` ✅ |
-| `~/.claude-kat` | 0.2.9 ✅ | ✅ | ✅ | `0.2.9` ✅ |
-| `~/.claude-stef` | 0.2.9 ✅ | ✅ | ✅ | `0.2.9` ✅ |
+| `~/.claude` | 0.3.0 ✅ | ✅ | ✅ | `0.3.0` ✅ |
+| `~/.claude-sdd` | 0.3.0 ✅ | ✅ | ✅ | `0.3.0` ✅ |
+| `~/.claude-kat` | 0.3.0 ✅ | ✅ | ✅ | `0.3.0` ✅ |
+| `~/.claude-stef` | 0.3.0 ✅ | ✅ | ✅ | `0.3.0` ✅ |
 
 **statusline** — canonical `1.2.1` · readme `1.2.1` ✅ · marketplace clean ✅
 
@@ -79,9 +79,13 @@ _Measured at a8da3da. All installed entries were read; 27 profile rows cover 29 
 | `~/.claude-sdd` | 1.2.1 ✅ | ✅ | ✅ | `1.2.1` ✅ |
 | `~/.claude-kat` | 1.2.1 ✅ | ✅ | ✅ | `1.2.1` ✅ |
 
-Not installed in any profile: cs-hint-codex.
+Not installed in any Claude profile: cs-hint-codex.
 
-These rows verify recorded versions, cache presence and profile ownership. Existing processes must reload plugins/reconnect MCP to consume the refreshed runtime. No active-process or full cache-source hash claim is made.
+These rows establish recorded versions, cache presence and owning-profile paths. Critical changed source files were separately hash-compared in every released cache. Existing processes need plugin reload/MCP reconnect to consume the new runtime.
+
+Additional surfaces: native Codex reports buddy `0.12.0` installed/enabled; its changed files match the released source. Only `~/.codex` exists on this Linux host; the two other Codex profiles and uppercase profile paths are absent. All four Claude profiles were handled by `release.sh`.
+
+OpenCode's existing four-plugin installation was repaired from dangling links to a retained snapshot at `~/.local/share/claude-plugins/releases/ff583faec94f725894dca57a2a1084f689e15aec`; installer check passes and provider configuration is byte-identical. No opt-in plugins were added and no shared service was restarted. The installed bridge binary matches the release build by SHA256 and is linked on PATH.
 ### Previous release verification — buddy 0.11.18, codescout-companion 1.22.3, session-bridge 0.2.7
 
 _Last refresh: `28bde40`, 2026-11-17 (sixth) — session-bridge 0.2.7→0.2.8 (`28bde40`) released with release.sh and pushed (ffb549b..28bde40). Content: `e5c6715`, `list_sessions` lists only the sessions of the caller's repository, linked worktrees included, and says how many sessions in other repositories were left out. The new argument `all=true` lists every repository. A session with no cwd, or outside git, counts as another repository; an unknown caller repository lists everything and says the filter was not applied. The tool schema changed (`tests/fixtures/tool-schemas.json`). Measured this refresh: `release.sh` exit 0 with `SKIP_TESTS` unset (the build step installed `~/.cargo/bin/session-bridge`, `check-versions.sh` OK, `check-profile-parity.sh` OK in 4 profiles with marketplace registrations clean); a script that reads every install-record element of session-bridge (0.2.8 in all 4 profiles, one element each, every installPath inside its own profile, every cache dir present); and a byte compare of every tracked session-bridge file outside `mcp-server/tests/` against each 0.2.8 cache dir: 0 differing in all 4 profiles. The rows of the other plugins did not change and were not re-measured. `runtime_matches_source` was not measured. No Claude session was restarted or reloaded: the running `session-bridge serve` processes still hold the old binary, so the new `all` argument reaches a session only after its restart._
@@ -370,6 +374,11 @@ measured on both candidate load paths rather than argued: the record points at k
 two actually serves, they carry the same bytes — so the question CLAUDE.md flags as
 unsettled does not need settling for this release.
 ## History
+### 2026-11-18 — OpenCode releases after PR19
+
+Inspected all eight plugin manifests against each actual version-changing commit, including merged branch history and shared harness files. Runtime changes require buddy `0.11.18` → `0.12.0` and session-bridge `0.2.9` → `0.3.0`; both ran through `scripts/release.sh` with tests enabled. The other plugins have no runtime changes requiring a bump; SDD and hint-echo only have test changes. Release commits: `de07630` and `ff583fa`.
+
+Fresh gates: both full root-suite runs passed; each release also ran buddy pytest (579 passed). Bridge build: 390 Rust tests passed, zero failures, Clippy clean, binary installed. Both adapter runs: 207 passed, zero failed/skipped. Final parity and version consistency passed. Current matrix has 27 profile rows / 29 install records; 36 changed cache files were hash-checked without mismatch. Native Codex buddy installation and OpenCode wiring were separately verified. Existing processes require plugin reload/MCP reconnect; active sessions were preserved.
 ### 2026-11-18 — Session Bridge and Codex compatibility release
 
 codescout-companion 1.22.3 → 1.22.4; session-bridge 0.2.8 → 0.2.9. Release scripts ran from the clean c682 worktree with local commits; no push. All four installed Claude profile records and caches verified. Codex native host replacement is separate.

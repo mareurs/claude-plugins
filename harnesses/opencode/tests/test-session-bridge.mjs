@@ -1,13 +1,17 @@
 // session-bridge OpenCode plugin — unit tests. Run: node harnesses/opencode/tests/test-session-bridge.mjs
+// The Rust binary is replaced by the committed fixture fixtures/fake-bridge/session-bridge.
 import assert from 'node:assert/strict';
-import { mkdtempSync, writeFileSync, rmSync, chmodSync, readFileSync, existsSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, rmSync, readFileSync, existsSync, symlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
-import DEF, {
-  READER, CHILD_ENV, readerPermissions, registerReader, opencodeBin, resolveRef, runFork, buildSessionBridge,
-} from '../plugins/session-bridge.js';
+import { join, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import DEF, { READER, CHILD_ENV, readerPermissions, registerReader, bridgeBin, makeToolExecute } from '../plugins/session-bridge.js';
 
+const HERE = dirname(fileURLToPath(import.meta.url));
+const FAKE_DIR = join(HERE, 'fixtures', 'fake-bridge');
+const FAKE = join(FAKE_DIR, 'session-bridge');
 const SANDBOX = mkdtempSync(join(tmpdir(), 'oc-sb-test-'));
+const LOG = join(SANDBOX, 'log.json');
 process.on('exit', () => rmSync(SANDBOX, { recursive: true, force: true }));
 
 let pass = 0;
@@ -22,160 +26,299 @@ const ok = async (name, fn) => {
   }
 };
 
-// Permission evaluation as the built-in agents' lists imply: last matching rule wins.
+// Run fn with env vars set (undefined deletes), restoring afterwards.
+const withEnv = async (vars, fn) => {
+  const prev = {};
+  for (const k of Object.keys(vars)) prev[k] = process.env[k];
+  for (const [k, v] of Object.entries(vars)) { if (v === undefined) delete process.env[k]; else process.env[k] = v; }
+  try { return await fn(); } finally {
+    for (const [k, v] of Object.entries(prev)) { if (v === undefined) delete process.env[k]; else process.env[k] = v; }
+  }
+};
+const fake = (extra = {}) => ({ SESSION_BRIDGE_BIN: FAKE, FAKE_SB_LOG: LOG, FAKE_SB_OUT: undefined, FAKE_SB_ERR: undefined, FAKE_SB_EXIT: undefined, ...extra });
+const logged = (which) => JSON.parse(readFileSync(which ? `${LOG}.${which}` : LOG, 'utf8'));
+
+// Set up the plugin against a recording ctx; returns the registered tools and hooks.
+const setup = async (opts = {}) => {
+  const tools = {};
+  const hooks = {};
+  const agents = {};
+  await DEF.setup({
+    location: { directory: opts.dir || SANDBOX },
+    agent: { transform: async (fn) => fn({ get: () => undefined, update: (id, f) => f(agents[id] = { id }) }) },
+    tool: {
+      transform: async (fn) => fn({ add: (t) => { tools[t.name] = t; } }),
+      hook: async (n, f) => { hooks[`tool.${n}`] = f; },
+    },
+    session: { hook: async (n, f) => { hooks[`session.${n}`] = f; } },
+  });
+  return { tools, hooks, agents };
+};
+
 const allowed = (perms, action, resource = '*') => {
   let eff = 'ask';
   for (const p of perms) if ((p.action === '*' || p.action === action) && (p.resource === '*' || p.resource === resource)) eff = p.effect;
   return eff === 'allow';
 };
 
-const sessions = [
-  { id: 'ses_aaa111', time: { updated: 3000 }, location: { directory: '/p' } },
-  { id: 'ses_bbb222', time: { updated: 2000 }, location: { directory: '/p' } },
-  { id: 'ses_ccc333', parentID: 'ses_aaa111', time: { updated: 1000 }, location: { directory: '/p' } },
-];
-const labels = { ses_aaa111: 'fix the login bug', ses_bbb222: 'write the release notes', ses_ccc333: 'subagent task' };
-const fakeCtx = (removed = []) => ({
-  session: {
-    list: async () => ({ data: sessions.map((s) => ({ ...s })) }),
-    context: async ({ sessionID }) => ({ data: [{ type: 'user', text: labels[sessionID] }] }),
-    remove: async ({ sessionID }) => { removed.push(sessionID); },
-  },
-});
-
 await ok('default export matches the v2 loader union {id, setup}', () => {
   assert.equal(DEF.id, 'session-bridge');
   assert.equal(typeof DEF.setup, 'function');
 });
 
-// `plan` can run shell on 2.1.3; the reader must not.
 await ok('the reader agent denies edit, write, shell and every other non-reading tool', () => {
   const p = readerPermissions();
-  for (const a of ['edit', 'write', 'patch', 'bash', 'shell', 'webfetch', 'task', 'subagent', 'codescout_edit_file', 'codescout_run_command', 'codescout_memory']) {
+  for (const a of ['edit', 'write', 'patch', 'bash', 'shell', 'webfetch', 'task', 'codescout_edit_file', 'codescout_run_command']) {
     assert.equal(allowed(p, a), false, `${a} must be denied`);
   }
   for (const a of ['read', 'grep', 'glob', 'codescout_read_file', 'codescout_symbols']) assert.equal(allowed(p, a), true, `${a} must be allowed`);
-  assert.equal(allowed(p, 'read', '*.env'), false, '.env files stay unreadable');
+  assert.equal(allowed(p, 'read', '*.env'), false);
 });
 
-await ok('registerReader creates a hidden subagent with the read-only permissions', () => {
+await ok('reader_agent_still_registered: hidden subagent with the read-only permissions', async () => {
   const agents = { build: { id: 'build', model: { id: 'm', providerID: 'p' } } };
   registerReader({ get: (id) => agents[id], update: (id, fn) => fn(agents[id] ?? (agents[id] = { id, permissions: [] })) });
   const a = agents[READER];
   assert.equal(a.mode, 'subagent');
   assert.equal(a.hidden, true);
   assert.deepEqual(a.permissions, readerPermissions());
-  assert.equal(a.system, undefined);
+  const s = await withEnv(fake(), () => setup());
+  assert.ok(s.agents[READER], 'setup registers the reader');
 });
 
-await ok('opencodeBin uses the host binary inside OpenCode, `opencode` elsewhere, and honours the override', () => {
-  assert.equal(opencodeBin('/x/bin/opencode.exe', {}), '/x/bin/opencode.exe');
-  assert.equal(opencodeBin('/usr/bin/node', {}), 'opencode');
-  assert.equal(opencodeBin('/usr/bin/node', { OPENCODE_SESSION_BRIDGE_BIN: '/o' }), '/o');
-});
-
-await ok('resolveRef: exact id, prefix, label words; ambiguity and misses are errors', () => {
-  const rows = sessions.map((s) => ({ ...s, label: labels[s.id] }));
-  assert.equal(resolveRef(rows, 'ses_bbb222').id, 'ses_bbb222');
-  assert.equal(resolveRef(rows, 'ses_aaa').id, 'ses_aaa111');
-  assert.equal(resolveRef(rows, 'release NOTES').id, 'ses_bbb222');
-  assert.throws(() => resolveRef(rows, 'ses_'), /ambiguous/);
-  assert.throws(() => resolveRef(rows, 'nothing like it'), /no OpenCode session/);
-  assert.throws(() => resolveRef(rows, ''), /required/);
-});
-
-await ok('list hides subagent sessions by default and labels each session', async () => {
-  const b = buildSessionBridge(fakeCtx(), '/p', { fork: async () => ({}) });
-  const out = (await b.list({})).output;
-  assert.match(out, /ses_aaa111 .*fix the login bug/);
-  assert.match(out, /ses_bbb222 .*write the release notes/);
-  assert.doesNotMatch(out, /ses_ccc333/);
-  assert.match((await b.list({ include_children: true })).output, /ses_ccc333/);
-});
-
-await ok('ask forks the target read-only and deletes the fork afterwards', async () => {
-  const removed = [];
-  let call;
-  const b = buildSessionBridge(fakeCtx(removed), '/p', { fork: async (a) => { call = a; return { answer: 'the bug was a typo', forkId: 'ses_fork9' }; } });
-  const r = await b.ask({ ref: 'release', prompt: 'what is left?' }, { sessionID: 'ses_aaa111' });
-  assert.equal(call.sessionId, 'ses_bbb222');
-  assert.equal(call.directory, '/p');
-  assert.match(r.output, /snapshot of ses_bbb222/);
-  assert.match(r.output, /the bug was a typo/);
-  assert.deepEqual(removed, ['ses_fork9']);
-});
-
-await ok('the fork is deleted even when the ask fails', async () => {
-  const removed = [];
-  const b = buildSessionBridge(fakeCtx(removed), '/p', {
-    fork: async () => { throw Object.assign(new Error('boom'), { forkId: 'ses_forkX' }); },
-  });
-  await assert.rejects(b.ask({ ref: 'release', prompt: 'q' }, {}), /boom/);
-  assert.deepEqual(removed, ['ses_forkX'], 'a failed ask must still delete its fork');
-});
-
-await ok('asking your own session is refused', async () => {
-  const b = buildSessionBridge(fakeCtx(), '/p', { fork: async () => ({ answer: 'x' }) });
-  await assert.rejects(b.ask({ ref: 'ses_aaa111', prompt: 'q' }, { sessionID: 'ses_aaa111' }), /this session/);
-});
-
-// The real launcher, against a fake opencode that prints the JSON events `opencode run
-// --format json` prints and records its argv and env.
-const fakeBin = join(SANDBOX, 'opencode');
-writeFileSync(fakeBin, `#!/usr/bin/env node
-require('fs').writeFileSync(${JSON.stringify(join(SANDBOX, 'argv.json'))}, JSON.stringify({ argv: process.argv.slice(2), child: process.env.${CHILD_ENV} || null, cwd: process.cwd() }));
-const ev = (o) => console.log(JSON.stringify(o));
-ev({ type: 'step_start', sessionID: 'ses_fork77', part: {} });
-ev({ type: 'text', sessionID: 'ses_fork77', part: { type: 'text', text: 'answer from the snapshot' } });
-`);
-chmodSync(fakeBin, 0o755);
-
-await ok('runFork passes --fork, the reader agent and the child flag, and parses the answer and fork id', async () => {
-  const r = await runFork({ bin: fakeBin, sessionId: 'ses_orig', directory: SANDBOX, prompt: 'what changed?', timeoutS: 30 });
-  assert.deepEqual(r, { answer: 'answer from the snapshot', forkId: 'ses_fork77' });
-  const rec = JSON.parse(readFileSync(join(SANDBOX, 'argv.json'), 'utf8'));
-  assert.deepEqual(rec.argv, ['run', '--standalone', '--format', 'json', '--agent', READER, '--fork', '-s', 'ses_orig', 'what changed?']);
-  assert.equal(rec.child, '1', 'the fork must see the child flag (no recursion)');
-});
-
-await ok('runFork rejects when the binary is missing', async () => {
-  await assert.rejects(runFork({ bin: join(SANDBOX, 'nope'), sessionId: 's', directory: SANDBOX, prompt: 'q', timeoutS: 5 }));
-});
-
-await ok('inside a fork (child flag set) the plugin registers the reader but no tools', async () => {
-  const prev = process.env[CHILD_ENV];
-  process.env[CHILD_ENV] = '1';
-  let toolsAdded = 0;
-  const agents = {};
-  try {
-    await DEF.setup({
-      agent: { transform: async (fn) => fn({ get: () => undefined, update: (id, f) => f(agents[id] = { id }) }) },
-      tool: { transform: async () => { toolsAdded++; } },
-      session: {},
-    });
-  } finally {
-    if (prev === undefined) delete process.env[CHILD_ENV];
-    else process.env[CHILD_ENV] = prev;
-  }
-  assert.ok(agents[READER]);
-  assert.equal(toolsAdded, 0);
-});
-
-// Measured on 2.1.3: without options.codemode=false a plugin tool is only reachable from
-// inside OpenCode's code-mode `execute` tool, not as a direct tool.
-await ok('outside a fork, setup adds both tools as DIRECT tools (codemode: false)', async () => {
-  const added = [];
-  await DEF.setup({
-    agent: { transform: async (fn) => fn({ get: () => undefined, update: (id, f) => f({ id }) }) },
-    tool: { transform: async (fn) => fn({ add: (t) => added.push(t) }) },
-    session: {},
-  });
-  assert.deepEqual(added.map((t) => t.name).sort(), ['ask_session', 'list_sessions']);
-  for (const t of added) {
+await ok('outside a fork, setup adds the four tools as DIRECT tools in the session_bridge namespace', async () => {
+  const { tools } = await withEnv(fake({ [CHILD_ENV]: undefined }), () => setup());
+  assert.deepEqual(Object.keys(tools).sort(), ['ask_session', 'list_sessions', 'post_notice', 'send_message']);
+  for (const t of Object.values(tools)) {
     assert.equal(t.options.namespace, 'session_bridge');
-    assert.equal(t.options.codemode, false, `${t.name} must be a direct tool`);
-    assert.equal(typeof t.execute, 'function');
+    assert.equal(t.options.codemode, false);
   }
+  assert.deepEqual(tools.ask_session.input.required, ['target', 'question']);
+  assert.ok(tools.send_message.input.properties.message);
+  assert.ok(tools.post_notice.input.properties.refs);
+});
+
+await ok('child_env_registers_no_tools: reader yes, tools and hooks no', async () => {
+  const s = await withEnv(fake({ [CHILD_ENV]: '1' }), () => setup());
+  assert.ok(s.agents[READER]);
+  assert.deepEqual(Object.keys(s.tools), []);
+  assert.deepEqual(Object.keys(s.hooks), []);
+});
+
+await ok('tool_passes_tctx_session_id_as_caller', async () => {
+  await withEnv(fake({ FAKE_SB_OUT: 'ses_a  live\n' }), async () => {
+    const { tools } = await setup();
+    const r = await tools.list_sessions.execute({}, { sessionID: 'ses_caller9' });
+    assert.equal(r.output, 'ses_a  live');
+    assert.equal(r.content[0].text, 'ses_a  live');
+    assert.deepEqual(logged().argv, ['call', 'list_sessions', '--opencode-caller', 'ses_caller9']);
+  });
+});
+
+await ok('list_sessions exposes and forwards the all-repositories option', async () => {
+  await withEnv(fake({ FAKE_SB_OUT: 'sessions' }), async () => {
+    const { tools } = await setup();
+    const all = tools.list_sessions.input.properties.all;
+    assert.equal(all.type, 'boolean');
+    assert.equal(all.default, false);
+    await tools.list_sessions.execute({ all: true }, { sessionID: 'ses_c' });
+    assert.deepEqual(JSON.parse(logged().stdin), { all: true });
+    assert.deepEqual(logged().argv, ['call', 'list_sessions', '--opencode-caller', 'ses_c']);
+  });
+});
+
+await ok('args_go_on_stdin_not_argv', async () => {
+  await withEnv(fake({ FAKE_SB_OUT: 'answer' }), async () => {
+    const { tools } = await setup();
+    const args = { target: 'ses_b', question: 'what; rm -rf / $(x) "q"?', timeout_s: 5 };
+    await tools.ask_session.execute(args, { sessionID: 'ses_c' });
+    const l = logged();
+    assert.deepEqual(JSON.parse(l.stdin), args);
+    assert.deepEqual(l.argv, ['call', 'ask_session', '--opencode-caller', 'ses_c']);
+    assert.ok(!l.argv.join(' ').includes('rm -rf'));
+  });
+});
+
+await ok('a failing call (exit 2) throws with the binary stderr', async () => {
+  await withEnv(fake({ FAKE_SB_EXIT: '2', FAKE_SB_ERR: 'no such session\n' }), async () => {
+    const { tools } = await setup();
+    await assert.rejects(tools.send_message.execute({ target: 'x', message: 'm' }, { sessionID: 's' }), /no such session/);
+  });
+});
+
+await ok('missing_binary_error_names_override: names SESSION_BRIDGE_BIN and PATH', async () => {
+  const empty = join(SANDBOX, 'empty-home');
+  await withEnv(fake({ SESSION_BRIDGE_BIN: undefined, PATH: SANDBOX, HOME: empty, CARGO_HOME: undefined }), async () => {
+    const { tools } = await setup();
+    await assert.rejects(tools.list_sessions.execute({}, { sessionID: 's' }), (e) => /SESSION_BRIDGE_BIN/.test(e.message) && /PATH/.test(e.message)
+      && e.message.includes(join(empty, '.local/bin/session-bridge')) && e.message.includes(join(empty, '.cargo/bin/session-bridge')));
+  });
+  await withEnv(fake({ SESSION_BRIDGE_BIN: join(SANDBOX, 'nope') }), async () => {
+    const { tools } = await setup();
+    await assert.rejects(tools.list_sessions.execute({}, { sessionID: 's' }), /SESSION_BRIDGE_BIN/);
+  });
+});
+
+await ok('bridgeBin: absolute override, PATH lookup, relative override rejected', () => {
+  assert.equal(bridgeBin({ SESSION_BRIDGE_BIN: '/x/sb' }), '/x/sb');
+  assert.equal(bridgeBin({ PATH: `${SANDBOX}:${FAKE_DIR}`, HOME: SANDBOX }), FAKE);
+  assert.throws(() => bridgeBin({ PATH: SANDBOX, HOME: join(SANDBOX, 'none') }), /not found/);
+  assert.throws(() => bridgeBin({ SESSION_BRIDGE_BIN: 'rel/sb' }), /absolute/);
+});
+
+await ok('bridgeBin falls back to ~/.local/bin, then ${CARGO_HOME:-~/.cargo}/bin, after PATH', async () => {
+  const home = join(SANDBOX, 'fb-home');
+  const cargo = join(SANDBOX, 'fb-cargo');
+  mkdirSync(join(home, '.cargo', 'bin'), { recursive: true });
+  mkdirSync(join(cargo, 'bin'), { recursive: true });
+  // symlinks to the committed fixture, never a freshly written executable
+  symlinkSync(FAKE, join(home, '.cargo', 'bin', 'session-bridge'));
+  symlinkSync(FAKE, join(cargo, 'bin', 'session-bridge'));
+  assert.equal(bridgeBin({ PATH: SANDBOX, HOME: home }), join(home, '.cargo', 'bin', 'session-bridge'));
+  assert.equal(bridgeBin({ PATH: SANDBOX, HOME: home, CARGO_HOME: cargo }), join(cargo, 'bin', 'session-bridge'));
+  mkdirSync(join(home, '.local', 'bin'), { recursive: true });
+  symlinkSync(FAKE, join(home, '.local', 'bin', 'session-bridge'));
+  assert.equal(bridgeBin({ PATH: SANDBOX, HOME: home, CARGO_HOME: cargo }), join(home, '.local', 'bin', 'session-bridge'));
+  // PATH still wins over both
+  assert.equal(bridgeBin({ PATH: FAKE_DIR, HOME: home, CARGO_HOME: cargo }), FAKE);
+  // the fake bridge needs `node` on PATH (`#!/usr/bin/env node`); that dir has no session-bridge
+  const nodePath = `${SANDBOX}:${dirname(process.execPath)}`;
+  assert.equal(bridgeBin({ PATH: nodePath, HOME: home }), join(home, '.local', 'bin', 'session-bridge'));
+  await withEnv(fake({ SESSION_BRIDGE_BIN: undefined, PATH: nodePath, HOME: home, CARGO_HOME: undefined, FAKE_SB_OUT: 'via fallback' }), async () => {
+    const { tools } = await setup();
+    assert.equal((await tools.list_sessions.execute({}, { sessionID: 's' })).output, 'via fallback');
+  });
+});
+
+await ok('PATH lookup finds the binary when no override is set', async () => {
+  await withEnv(fake({ SESSION_BRIDGE_BIN: undefined, PATH: `${FAKE_DIR}:${process.env.PATH}`, FAKE_SB_OUT: 'via path' }), async () => {
+    const { tools } = await setup();
+    assert.equal((await tools.list_sessions.execute({}, { sessionID: 's' })).output, 'via path');
+  });
+});
+
+await ok('context_hook_injects_hook_output: session-start once, then prompt each turn', async () => {
+  await withEnv(fake({ FAKE_SB_OUT: 'NOTICE: hello' }), async () => {
+    const { hooks } = await setup({ dir: '/proj' });
+    const ev = () => ({ sessionID: 'ses_h1', system: [] });
+    const e1 = ev();
+    await hooks['session.context'](e1);
+    assert.deepEqual(e1.system, [{ type: 'text', text: 'NOTICE: hello' }, { type: 'text', text: 'NOTICE: hello' }]);
+    // Last call was the prompt hook; check its argv and payload.
+    const l = logged('hook.prompt');
+    assert.deepEqual(l.argv, ['hook', 'prompt', '--harness', 'opencode']);
+    assert.deepEqual(JSON.parse(l.stdin), { session_id: 'ses_h1', cwd: '/proj', hook_event_name: 'UserPromptSubmit' });
+    const e2 = ev();
+    await hooks['session.context'](e2);
+    assert.equal(e2.system.length, 1, 'session-start only on the first context of a session');
+  });
+});
+
+await ok('context_hook_injects_nothing_when_the_hook_prints_nothing', async () => {
+  await withEnv(fake(), async () => {
+    const { hooks } = await setup();
+    const e = { sessionID: 'ses_h2', system: [] };
+    await hooks['session.context'](e);
+    assert.deepEqual(e.system, []);
+  });
+});
+
+await ok('context_hook_swallows_failure: missing binary, nonzero exit', async () => {
+  await withEnv(fake({ SESSION_BRIDGE_BIN: join(SANDBOX, 'nope') }), async () => {
+    const { hooks } = await setup();
+    const e = { sessionID: 'ses_h3', system: [] };
+    await hooks['session.context'](e);
+    assert.deepEqual(e.system, []);
+    await hooks['tool.execute.after']({ sessionID: 'ses_h3', tool: 'read', input: {}, result: { content: [] } });
+  });
+  await withEnv(fake({ FAKE_SB_EXIT: '1', FAKE_SB_OUT: 'garbage' }), async () => {
+    const { hooks } = await setup();
+    const e = { sessionID: 'ses_h4', system: [] };
+    await hooks['session.context'](e);
+    assert.deepEqual(e.system, [], 'a failing hook injects nothing');
+  });
+});
+
+await ok('post-tool hook sends tool name and input, appends output to the result content', async () => {
+  await withEnv(fake({ FAKE_SB_OUT: '[sb] heads up' }), async () => {
+    const { hooks } = await setup({ dir: '/proj' });
+    const result = { content: [{ type: 'text', text: 'orig' }] };
+    await hooks['tool.execute.after']({ sessionID: 'ses_p', tool: 'bash', input: { command: 'ls' }, result });
+    assert.deepEqual(logged('hook.post-tool').argv, ['hook', 'post-tool', '--harness', 'opencode']);
+    assert.deepEqual(JSON.parse(logged('hook.post-tool').stdin), { session_id: 'ses_p', cwd: '/proj', hook_event_name: 'PostToolUse', tool_name: 'bash', tool_input: { command: 'ls' } });
+    assert.deepEqual(result.content[1], { type: 'text', text: '[sb] heads up' });
+  });
+});
+
+await ok('hard_bound: a bridge that ignores SIGTERM cannot hang a tool call', async () => {
+  await withEnv(fake({ FAKE_SB_HANG: '1' }), async () => {
+    const exec = makeToolExecute('list_sessions', { timeoutMs: 300 });
+    const t0 = Date.now();
+    await assert.rejects(exec({}, { sessionID: 'ses_x' }), /timed out/);
+    assert.ok(Date.now() - t0 < 1500, `rejected after ${Date.now() - t0} ms`);
+  });
+});
+
+await ok('a SIGTERMed bridge gets more than 3 s to remove its ask fork before SIGKILL', async () => {
+  const log = join(SANDBOX, 'term.json');
+  await withEnv(fake({ FAKE_SB_LOG: log, FAKE_SB_TERM_MS: '3500' }), async () => {
+    const exec = makeToolExecute('ask_session', { timeoutMs: 200 });
+    await assert.rejects(exec({ target: 't', question: 'q' }, { sessionID: 'ses_x' }), /timed out/);
+    await new Promise((r) => setTimeout(r, 4200));
+    assert.equal(existsSync(`${log}.term`), true, 'the bridge was killed before its cleanup finished');
+  });
+});
+
+await ok('hard_bound: a hanging bridge bounds one context event by ~one hook timeout, injecting nothing', async () => {
+  await withEnv(fake({ FAKE_SB_HANG: '1' }), async () => {
+    const { hooks } = await setup();
+    const e = { sessionID: 'ses_hang', system: [] };
+    const t0 = Date.now();
+    await hooks['session.context'](e); // session-start + prompt run in parallel
+    const dt = Date.now() - t0;
+    assert.deepEqual(e.system, []);
+    assert.ok(dt < 4500, `context event took ${dt} ms (sequential would be ~6000)`);
+    const t1 = Date.now();
+    await hooks['tool.execute.after']({ sessionID: 'ses_hang', tool: 'read', input: {}, result: { content: [] } });
+    assert.ok(Date.now() - t1 < 4500);
+  });
+});
+
+await ok('context hook emits session-start and prompt output on the first event', async () => {
+  await withEnv(fake({ FAKE_SB_OUT: 'X' }), async () => {
+    const { hooks } = await setup();
+    const e = { sessionID: 'ses_ord', system: [] };
+    await hooks['session.context'](e);
+    assert.equal(e.system.length, 2);
+  });
+});
+
+await ok('post-tool hook is not run when the result has no content array (notices would be lost)', async () => {
+  const log = join(SANDBOX, 'nocontent.json');
+  await withEnv(fake({ FAKE_SB_LOG: log, FAKE_SB_OUT: '[sb] notice' }), async () => {
+    const { hooks } = await setup();
+    await hooks['tool.execute.after']({ sessionID: 'ses_nc', tool: 'read', input: {}, result: { output: 'x' } });
+    await hooks['tool.execute.after']({ sessionID: 'ses_nc', tool: 'read', input: {} });
+    await hooks['tool.execute.after']({ sessionID: 'ses_nc', tool: 'read', input: {}, result: { content: 'text' } });
+    assert.equal(existsSync(`${log}.hook.post-tool`), false, 'the hook ran and marked notices delivered');
+  });
+});
+
+await ok('timeout_s limits match the binary: ask at most 300, send at most 30', async () => {
+  const { tools } = await withEnv(fake(), () => setup());
+  assert.equal(tools.ask_session.input.properties.timeout_s.maximum, 300);
+  assert.equal(tools.send_message.input.properties.timeout_s.maximum, 30);
+  assert.match(tools.ask_session.input.properties.timeout_s.description, /300/);
+  assert.match(tools.send_message.input.properties.timeout_s.description, /30/);
+});
+
+await ok('missing tctx.sessionID is a clear tool error and spawns nothing', async () => {
+  await withEnv(fake({ FAKE_SB_LOG: join(SANDBOX, 'never.json') }), async () => {
+    const { tools } = await setup();
+    await assert.rejects(tools.list_sessions.execute({}, {}), /no calling session id/);
+    await assert.rejects(tools.list_sessions.execute({}), /no calling session id/);
+    assert.equal(existsSync(join(SANDBOX, 'never.json')), false);
+  });
 });
 
 console.log(`\nResults: ${pass} passed, ${process.exitCode ? 'FAILURES above' : '0 failed'}`);

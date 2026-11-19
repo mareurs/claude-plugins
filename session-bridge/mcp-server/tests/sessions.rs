@@ -306,7 +306,10 @@ fn split_by_repo_keeps_same_repo_and_moves_the_rest_aside() {
     let (same, other) = split_by_repo(&sessions, Path::new("/a"), &stub_repo);
     assert_eq!(same.len(), 2);
     assert_eq!(other.len(), 1);
-    assert_eq!(other[0].session_id(), "22222222-2222-2222-2222-222222222222");
+    assert_eq!(
+        other[0].session_id(),
+        "22222222-2222-2222-2222-222222222222"
+    );
 }
 
 #[test]
@@ -328,7 +331,12 @@ fn split_by_repo_counts_linked_worktrees_as_the_same_repo() {
     let git = |dir: &Path, args: &[&str]| {
         let out = std::process::Command::new("git")
             .current_dir(dir)
-            .args(["-c", "commit.gpgsign=false", "-c", "core.hooksPath=/dev/null"])
+            .args([
+                "-c",
+                "commit.gpgsign=false",
+                "-c",
+                "core.hooksPath=/dev/null",
+            ])
             .args(args)
             .env("GIT_CONFIG_GLOBAL", "/dev/null")
             .env("GIT_CONFIG_NOSYSTEM", "1")
@@ -339,9 +347,16 @@ fn split_by_repo_counts_linked_worktrees_as_the_same_repo() {
             .stdin(std::process::Stdio::null())
             .output()
             .unwrap();
-        assert!(out.status.success(), "git {args:?}: {}", String::from_utf8_lossy(&out.stderr));
+        assert!(
+            out.status.success(),
+            "git {args:?}: {}",
+            String::from_utf8_lossy(&out.stderr)
+        );
     };
-    let d = tempfile::Builder::new().prefix("sbs").tempdir_in("/tmp").unwrap();
+    let d = tempfile::Builder::new()
+        .prefix("sbs")
+        .tempdir_in("/tmp")
+        .unwrap();
     let main = d.path().join("main");
     let linked = d.path().join("linked");
     let other = d.path().join("other");
@@ -350,7 +365,17 @@ fn split_by_repo_counts_linked_worktrees_as_the_same_repo() {
         git(p, &["init", "-q"]);
         git(p, &["commit", "--allow-empty", "-q", "-m", "base"]);
     }
-    git(&main, &["worktree", "add", "-q", "-b", "feat", linked.to_str().unwrap()]);
+    git(
+        &main,
+        &[
+            "worktree",
+            "add",
+            "-q",
+            "-b",
+            "feat",
+            linked.to_str().unwrap(),
+        ],
+    );
     let sessions = vec![
         cx_at("11111111-1111-1111-1111-111111111111", main.to_str()),
         cx_at("22222222-2222-2222-2222-222222222222", linked.to_str()),
@@ -361,9 +386,15 @@ fn split_by_repo_counts_linked_worktrees_as_the_same_repo() {
     let ids: Vec<&str> = same.iter().map(|s| s.session_id()).collect();
     assert_eq!(
         ids,
-        ["11111111-1111-1111-1111-111111111111", "22222222-2222-2222-2222-222222222222"],
+        [
+            "11111111-1111-1111-1111-111111111111",
+            "22222222-2222-2222-2222-222222222222"
+        ],
         "main and linked worktree are listed together"
     );
     assert_eq!(elsewhere.len(), 1);
-    assert_eq!(elsewhere[0].session_id(), "33333333-3333-3333-3333-333333333333");
+    assert_eq!(
+        elsewhere[0].session_id(),
+        "33333333-3333-3333-3333-333333333333"
+    );
 }

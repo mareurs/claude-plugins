@@ -2,6 +2,8 @@
 use crate::{
     codex::{discover_codex, is_thread_id, CodexEndpoint},
     endpoints::{claude_pid_of, discover, repo_of, Endpoint, Roots},
+    opencode::{discover_opencode_system, OpenCodeEndpoint, ServiceNotRunning},
+    opencode_api::locate_opencode,
     paths::profile_matches,
 };
 use anyhow::{anyhow, Result};
@@ -12,12 +14,14 @@ use std::path::{Path, PathBuf};
 pub enum Session {
     Claude(Endpoint),
     Codex(CodexEndpoint),
+    OpenCode(OpenCodeEndpoint),
 }
 impl Session {
     pub fn key(&self) -> String {
         match self {
             Self::Claude(e) => e.key(),
             Self::Codex(e) => e.key(),
+            Self::OpenCode(e) => e.key(),
         }
     }
     pub fn identity(&self) -> String {
@@ -29,6 +33,7 @@ impl Session {
                 e.session_id
             ),
             Self::Codex(e) => e.key(),
+            Self::OpenCode(e) => e.key(),
         }
     }
     /// Codex uses logical PID zero, since the hashed profile already identifies a complete
@@ -37,18 +42,21 @@ impl Session {
         match self {
             Self::Claude(e) => (e.profile.clone(), e.pid),
             Self::Codex(e) => (e.storage_profile(), 0),
+            Self::OpenCode(e) => (e.storage_profile(), 0),
         }
     }
     pub fn session_id(&self) -> &str {
         match self {
             Self::Claude(e) => &e.session_id,
             Self::Codex(e) => &e.session_id,
+            Self::OpenCode(e) => &e.session_id,
         }
     }
     pub fn cwd(&self) -> Option<&Path> {
         match self {
             Self::Claude(e) => Some(&e.launch_cwd),
             Self::Codex(e) => e.cwd.as_deref(),
+            Self::OpenCode(e) => e.directory.as_deref(),
         }
     }
     pub fn render(&self, you: bool) -> String {
@@ -59,7 +67,11 @@ impl Session {
             Self::Codex(e)=>format!("{}{} harness=codex session={} pid={} profile={} name={} status=loaded cwd={} repo={}",clean(&e.key()),if you{" (you)"}else{""},
                 e.session_id,e.pid,clean(&e.config_dir.to_string_lossy()),clean(e.name.as_deref().unwrap_or("-")),
                 e.cwd.as_ref().map(|p|clean(&p.to_string_lossy())).unwrap_or_else(||"-".into()),
-                e.cwd.as_ref().and_then(|p|repo_of(p)).map(|p|clean(&p.to_string_lossy())).unwrap_or_else(||"-".into()))
+                e.cwd.as_ref().and_then(|p|repo_of(p)).map(|p|clean(&p.to_string_lossy())).unwrap_or_else(||"-".into())),
+            Self::OpenCode(e)=>format!("{}{} harness=opencode session={} name={} status={} cwd={} repo={}",clean(&e.key()),if you{" (you)"}else{""},
+                e.session_id,clean(e.title.as_deref().unwrap_or("-")),if e.running{"running"}else{"idle"},
+                e.directory.as_ref().map(|p|clean(&p.to_string_lossy())).unwrap_or_else(||"-".into()),
+                e.directory.as_ref().and_then(|p|repo_of(p)).map(|p|clean(&p.to_string_lossy())).unwrap_or_else(||"-".into())),
         }
     }
 }
@@ -96,11 +108,108 @@ pub fn discover_sessions(roots: &Roots) -> Vec<Session> {
         .chain(discover_codex(roots).into_iter().map(Session::Codex))
         .collect()
 }
-pub fn resolve_session<'a>(
+/// Claude and Codex (synchronous) plus OpenCode (service API; listing never starts it). An
+/// OpenCode failure is a discovery note, never an error: the other harnesses are still listed.
+pub async fn discover_sessions_all(
+    roots: &Roots,
+    env: &(dyn Fn(&str) -> Option<String> + Sync),
+) -> (Vec<Session>, Vec<String>) {
+    let mut sessions = discover_sessions(roots);
+    let mut notes = Vec::new();
+    add_opencode(&mut sessions, &mut notes, env, false).await;
+    (sessions, notes)
+}
+
+/// Overall deadline for one OpenCode discovery (probe, optional start, listing, lookups).
+pub const OPENCODE_DISCOVERY_DEADLINE: std::time::Duration = std::time::Duration::from_secs(15);
+
+/// True when OpenCode is simply not installed: no explicit override is set and the binary is
+/// not on PATH. A set but invalid `SESSION_BRIDGE_OPENCODE_BIN` is not absence.
+fn opencode_absent(env: &(dyn Fn(&str) -> Option<String> + Sync)) -> bool {
+    env("SESSION_BRIDGE_OPENCODE_BIN").is_none_or(|s| s.is_empty()) && locate_opencode(env).is_err()
+}
+
+async fn add_opencode(
+    sessions: &mut Vec<Session>,
+    notes: &mut Vec<String>,
+    env: &(dyn Fn(&str) -> Option<String> + Sync),
+    start_service: bool,
+) {
+    let found = tokio::time::timeout(
+        OPENCODE_DISCOVERY_DEADLINE,
+        discover_opencode_system(env, start_service),
+    )
+    .await
+    .unwrap_or_else(|_| {
+        Err(anyhow!(
+            "OpenCode discovery did not finish within {}s",
+            OPENCODE_DISCOVERY_DEADLINE.as_secs()
+        ))
+    });
+    match found {
+        Ok(eps) => sessions.extend(eps.into_iter().map(Session::OpenCode)),
+        Err(e) if e.downcast_ref::<ServiceNotRunning>().is_some() => {
+            notes.push("OpenCode service is not running; its sessions are not listed".into());
+        }
+        // No OpenCode on this machine: say nothing. An explicit override that is invalid is a
+        // real misconfiguration and keeps its note.
+        Err(_) if opencode_absent(env) => {}
+        Err(e) => notes.push(format!("OpenCode sessions not listed: {e:#}")),
+    }
+}
+
+/// Whether `target` names an OpenCode session by its form: an `opencode:` address or a `ses_`
+/// id (or id prefix).
+pub fn looks_like_opencode(target: &str) -> bool {
+    target.starts_with("opencode:") || target.starts_with("ses_")
+}
+
+/// The sessions an `ask_session` / `send_message` from a Claude or Codex caller resolves
+/// `target` among. Claude and Codex come first; OpenCode is discovered only when the target
+/// looks like an OpenCode address or id (then the service may be started), or when nothing
+/// among `base` matches it (then the service is only probed, never started). A Claude or
+/// Codex target therefore never depends on OpenCode.
+pub async fn with_opencode_for_target(
+    mut base: Vec<Session>,
+    env: &(dyn Fn(&str) -> Option<String> + Sync),
+    target: &str,
+) -> (Vec<Session>, Vec<String>) {
+    let mut notes = Vec::new();
+    let opencode = looks_like_opencode(target);
+    if opencode || matching(&base, target).is_empty() {
+        add_opencode(&mut base, &mut notes, env, opencode).await;
+    }
+    (base, notes)
+}
+
+/// `with_opencode_for_target` over the discovered Claude and Codex sessions.
+pub async fn sessions_for_target(
+    roots: &Roots,
+    env: &(dyn Fn(&str) -> Option<String> + Sync),
+    target: &str,
+) -> (Vec<Session>, Vec<String>) {
+    with_opencode_for_target(discover_sessions(roots), env, target).await
+}
+
+/// `resolve_session`, with the discovery notes appended to a resolution error (a failed
+/// OpenCode discovery otherwise reads as a plain "no match").
+pub fn resolve_noted<'a>(
     sessions: &'a [Session],
     target: &str,
     me: Option<&str>,
+    notes: &[String],
 ) -> Result<&'a Session> {
+    resolve_session(sessions, target, me).map_err(|e| {
+        if notes.is_empty() {
+            e
+        } else {
+            anyhow!("{e:#}; discovery notes: {}", notes.join("; "))
+        }
+    })
+}
+
+/// The best-ranked sessions `target` names (empty when none matches).
+fn matching<'a>(sessions: &'a [Session], target: &str) -> Vec<&'a Session> {
     let legacy_prefix = target.split_once(':').filter(|(p, _)| {
         sessions
             .iter()
@@ -110,6 +219,7 @@ pub fn resolve_session<'a>(
     for session in sessions {
         let rank = match session {
             Session::Codex(e) => e.match_rank(target),
+            Session::OpenCode(e) => e.match_rank(target),
             Session::Claude(e) => {
                 let rest = match legacy_prefix {
                     Some((p, r)) if profile_matches(&e.profile, p) => r,
@@ -133,11 +243,19 @@ pub fn resolve_session<'a>(
         }
     }
     let tier = found.iter().map(|p| p.0).min();
-    let hits: Vec<_> = found
+    found
         .iter()
         .filter(|p| Some(p.0) == tier)
         .map(|p| p.1)
-        .collect();
+        .collect()
+}
+
+pub fn resolve_session<'a>(
+    sessions: &'a [Session],
+    target: &str,
+    me: Option<&str>,
+) -> Result<&'a Session> {
+    let hits = matching(sessions, target);
     match hits.as_slice() {
         [] => Err(anyhow!(
             "no live session matches {target:?}; live sessions: {}",
@@ -150,7 +268,7 @@ pub fn resolve_session<'a>(
         [one] if me == Some(one.identity().as_str()) => {
             Err(anyhow!("the target is the calling session itself"))
         }
-        [one] => Ok(one),
+        [one] => Ok(*one),
         many => Err(anyhow!(
             "{target:?} matches more than one session: {}",
             many.iter().map(|s| s.key()).collect::<Vec<_>>().join("; ")
