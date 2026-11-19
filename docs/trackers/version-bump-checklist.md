@@ -13,9 +13,77 @@ Release readiness across plugins × profiles. See
 `docs/superpowers/specs/2026-05-18-version-bump-checklist-tracker-design.md`.
 
 ## State
+### Current release verification — 2026-11-19
+
+_Measured at 2e7eb5f. Every element of every install record was read. 27 profile rows._
+
+**buddy** — canonical `0.12.0` · readme `0.12.0` ✅ · marketplace clean ✅
+
+| profile | installed | cache dir | install_path ok | all entries |
+|---|---|---|---|---|
+| `~/.claude` | 0.11.18 ❌ | ✅ | ✅ | `0.11.18` ❌ STALE SIBLING |
+| `~/.claude-sdd` | 0.12.0 ✅ | ✅ | ✅ | `0.12.0` ✅ |
+| `~/.claude-kat` | 0.11.18 ❌ | ✅ | ✅ | `0.11.18` ❌ STALE SIBLING |
+| `~/.claude-stef` | 0.11.18 ❌ | ✅ | ✅ | `0.11.18` ❌ STALE SIBLING |
+
+**codescout-companion** — canonical `1.22.5` · readme `1.22.5` ✅ · marketplace clean ✅
+
+| profile | installed | cache dir | install_path ok | all entries |
+|---|---|---|---|---|
+| `~/.claude` | 1.22.5 ✅ | ✅ | ✅ | `1.22.5` ✅ |
+| `~/.claude-sdd` | 1.22.5 ✅ | ✅ | ✅ | `1.22.5` ✅ |
+| `~/.claude-kat` | 1.22.5 ✅ | ✅ | ✅ | `1.22.5` ✅ |
+| `~/.claude-stef` | 1.22.5 ✅ | ✅ | ✅ | `1.22.5` ✅ |
+
+**hint-echo** — canonical `0.1.0` · readme `0.1.0` ✅ · marketplace clean ✅
+
+| profile | installed | cache dir | install_path ok | all entries |
+|---|---|---|---|---|
+| `~/.claude` | 0.1.0 ✅ | ✅ | ✅ | `0.1.0` ✅ |
+| `~/.claude-sdd` | 0.1.0 ✅ | ✅ | ✅ | `0.1.0` ✅ |
+| `~/.claude-kat` | 0.1.0 ✅ | ✅ | ✅ | `0.1.0` ✅ |
+| `~/.claude-stef` | 0.1.0 ✅ | ✅ | ✅ | `0.1.0` ✅ |
+
+**legible** — canonical `0.2.1` · readme `0.2.1` ✅ · marketplace clean ✅
+
+| profile | installed | cache dir | install_path ok | all entries |
+|---|---|---|---|---|
+| `~/.claude` | 0.2.1 ✅ | ✅ | ✅ | `0.2.1` ✅ |
+| `~/.claude-sdd` | 0.2.1 ✅ | ✅ | ✅ | `0.2.1` ✅ |
+| `~/.claude-kat` | 0.2.1 ✅ | ✅ | ✅ | `0.2.1` ✅ |
+| `~/.claude-stef` | 0.2.1 ✅ | ✅ | ✅ | `0.2.1` ✅ |
+
+**sdd** — canonical `3.0.1` · readme `3.0.1` ✅ · marketplace clean ✅
+
+| profile | installed | cache dir | install_path ok | all entries |
+|---|---|---|---|---|
+| `~/.claude` | 3.0.1 ✅ | ✅ | ✅ | `3.0.1` ✅ |
+| `~/.claude-sdd` | 3.0.1 ✅ | ✅ | ✅ | `3.0.1` ✅ |
+| `~/.claude-kat` | 3.0.1 ✅ | ✅ | ✅ | `3.0.1, 3.0.1` ✅ |
+| `~/.claude-stef` | 3.0.1 ✅ | ✅ | ✅ | `3.0.1, 3.0.1` ✅ |
+
+**session-bridge** — canonical `0.3.1` · readme `0.3.1` ✅ · marketplace clean ✅
+
+| profile | installed | cache dir | install_path ok | all entries |
+|---|---|---|---|---|
+| `~/.claude` | 0.3.1 ✅ | ✅ | ✅ | `0.3.1` ✅ |
+| `~/.claude-sdd` | 0.3.1 ✅ | ✅ | ✅ | `0.3.1` ✅ |
+| `~/.claude-kat` | 0.3.1 ✅ | ✅ | ✅ | `0.3.1` ✅ |
+| `~/.claude-stef` | 0.3.1 ✅ | ✅ | ✅ | `0.3.1` ✅ |
+
+**statusline** — canonical `1.2.1` · readme `1.2.1` ✅ · marketplace clean ✅
+
+| profile | installed | cache dir | install_path ok | all entries |
+|---|---|---|---|---|
+| `~/.claude` | 1.2.1 ✅ | ✅ | ✅ | `1.2.1` ✅ |
+| `~/.claude-sdd` | 1.2.1 ✅ | ✅ | ✅ | `1.2.1` ✅ |
+| `~/.claude-kat` | 1.2.1 ✅ | ✅ | ✅ | `1.2.1` ✅ |
+
+**cs-hint-codex** — not installed in any profile.
+
 ### Current release verification — 2026-11-18
 
-_Measured at ff583fa. All installed entries were read; 27 profile rows cover 29 install records._
+_Superseded on 2026-11-19 by the section above; kept as the previous verification. Measured at ff583fa. All installed entries were read; 27 profile rows cover 29 install records._
 
 **buddy** — canonical `0.12.0` · readme `0.12.0` ✅ · marketplace clean ✅
 
@@ -374,6 +442,12 @@ measured on both candidate load paths rather than argued: the record points at k
 two actually serves, they carry the same bytes — so the question CLAUDE.md flags as
 unsettled does not need settling for this release.
 ## History
+
+### 2026-11-19 — session-bridge 0.3.1 and codescout-companion 1.22.5; buddy drift found
+
+session-bridge `0.3.0` → `0.3.1` (addressed notices: `post_notice(to=…)`, merged on top of the OpenCode `0.3.0` line) and codescout-companion `1.22.4` → `1.22.5` (skill sentences for hidden `doc` actions, test that judges `doc` by the callable schema). Both released with `NO_PUSH=1`: commits are local on `main`, not pushed. Parity checks passed for each plugin at release time.
+
+**Delta found by this refresh:** buddy is canonical `0.12.0` but three profiles record `0.11.18` (`~/.claude`, `~/.claude-kat`, `~/.claude-stef`); `~/.claude-sdd` records `0.12.0`. The records carry `lastUpdated` 2026-11-19 07:02 to 10:06 and `gitCommitSha` `adba411`, the old local `main` that still had buddy `0.11.18`. Claude Code re-synced them to that checkout. Cache dirs for `0.12.0` exist in all four profiles. This release did not touch buddy. Not repaired yet: `repoint-install-records.sh` for buddy awaits the operator.
 ### 2026-11-18 — OpenCode releases after PR19
 
 Inspected all eight plugin manifests against each actual version-changing commit, including merged branch history and shared harness files. Runtime changes require buddy `0.11.18` → `0.12.0` and session-bridge `0.2.9` → `0.3.0`; both ran through `scripts/release.sh` with tests enabled. The other plugins have no runtime changes requiring a bump; SDD and hint-echo only have test changes. Release commits: `de07630` and `ff583fa`.
