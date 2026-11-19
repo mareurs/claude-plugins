@@ -122,9 +122,9 @@ Part 1 makes the tests honest. It does not decide what the skills should say. Th
 
 ## Decision, part 2: option B (2026-11-19)
 
-The wire check that the gate asks for was run for Claude Code on 2026-11-19. A fresh `claude -p --model haiku` with `--strict-mcp-config` and only the rebuilt codescout (nine `doc` actions advertised) read the nine-action enum and still called `doc(action="list_stale", limit=1)`. The client did not refuse; the server ran the call. The result is recorded in the codescout decision entry `b2c415aa6ed51f01`. Codex is not measured.
+The wire check that the gate asks for was run for Claude Code on 2026-11-19. A fresh `claude -p --model haiku` with `--strict-mcp-config` and only the rebuilt codescout (nine `doc` actions advertised) read the nine-action enum and still called `doc(action="list_stale", limit=1)`. The client did not refuse; the server ran the call. The result is recorded in the codescout decision entry `b2c415aa6ed51f01`. Codex was measured the same day from the codescout repository: `codex exec --ignore-user-config` (Codex 0.170.0) with only the rebuilt server and `default_tools_approval_mode="approve"` read the nine-action list, ran a control `doc(action="find", limit=1)`, then ran `doc(action="list_stale", limit=1)`. The server returned a result and `isError` was false. A first run without the approval setting failed with `MCP tool call requires approval, but approval policy is never`; that is the approval policy and not the enum.
 
-Chosen: **B**. One sentence was added to `codescout-companion/skills/tracker-hygiene/SKILL.md` and to `codescout-companion/skills/spec-drift/SKILL.md`. It says that the action is missing from the MCP tool list, is called in the same form, and that `codescout call doc '<json>'` reaches it from a shell. The shell pointer is there because Codex is unmeasured. The two `sdd` files and `patterns-tracker.md` are unchanged: they are outside the checked population and name the same call form. If a Codex run shows a refusal, option C for that client comes back to this page.
+Chosen: **B**. One sentence was added to `codescout-companion/skills/tracker-hygiene/SKILL.md` and to `codescout-companion/skills/spec-drift/SKILL.md`. It says that the action is missing from the MCP tool list, is called in the same form, and that `codescout call doc '<json>'` reaches it from a shell. The shell pointer stays as a fallback for a client or version that refuses. The two `sdd` files and `patterns-tracker.md` are unchanged: they are outside the checked population and name the same call form. If a later client or version shows a refusal, option C for that client comes back to this page.
 
 ## Not in scope
 
@@ -140,9 +140,9 @@ Chosen: **B**. One sentence was added to `codescout-companion/skills/tracker-hyg
 4. `tests/run-all.sh` is green with the new binary on `PATH`.
 5. Part 2 is recorded: the option chosen, the wire-check result it rests on, and the date.
 
-## Open: R7
+## R7: closed 2026-11-19
 
-"R7" is the codescout plan's name for one unverified risk: an MCP client may refuse a call whose action is not in the advertised enum. The server validates nothing here (codescout `src/server.rs`, wire check 2026-09-11 covered required and undeclared parameters, **not** enums). Part 2 was decided on 2026-11-19 after a Claude Code wire check (see "Decision, part 2"); Codex is not measured.
+"R7" is the codescout plan's name for one risk: an MCP client may refuse a call whose action is not in the advertised enum. The server validates nothing here (codescout `src/server.rs`; the wire check of 2026-09-11 covered required and undeclared parameters, **not** enums). Part 2 was decided on 2026-11-19 after a Claude Code wire check, and the same check on Codex 0.170.0 passed the same day (see "Decision, part 2"). A later client or version may behave differently.
 
 ## References
 
