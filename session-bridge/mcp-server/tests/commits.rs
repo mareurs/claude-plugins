@@ -441,6 +441,7 @@ async fn announcing_through_post_notice_before_the_commit_suppresses_the_backup(
         title: "bumping deps".into(),
         body: "next commit".into(),
         refs: vec![],
+        to: None,
     };
     post_notice_impl(&w.state, (PROFILE, PID), &w.repo, args).unwrap();
     let posted_at = w.st().last_post_ms;

@@ -7,7 +7,7 @@ use crate::error::BridgeError;
 use crate::paths::{short_profile, state_root};
 use crate::send::send_codex;
 use crate::sessions::{caller_session, discover_sessions, resolve_session, split_by_repo, Session};
-use crate::state::{current_session, endpoint_path, update};
+use crate::state::{current_session, endpoint_path, load_or_default, update, EndpointState};
 use crate::store::{NewNotice, Origin, Store};
 use rmcp::{
     handler::server::{router::tool::ToolRouter, wrapper::Parameters},
@@ -70,7 +70,6 @@ pub struct ListSessionsArgs {
     pub all: bool,
 }
 
-
 #[derive(Debug, Deserialize, schemars::JsonSchema)]
 pub struct PostNoticeArgs {
     /// Short title (at most 120 characters).
@@ -80,6 +79,9 @@ pub struct PostNoticeArgs {
     /// References such as files, branches or commits (at most 20).
     #[serde(default)]
     pub refs: Vec<String>,
+    /// Optional target: a session key, session id, id prefix of 4 or more characters, or name; without it the notice goes to the repository.
+    #[serde(default)]
+    pub to: Option<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -137,7 +139,7 @@ pub fn post_notice_impl(
     args: PostNoticeArgs,
 ) -> Result<i64, BridgeError> {
     let session = current_session(state, &own_config_dir(), me.0, me.1).unwrap_or_default();
-    post_notice_from(state, me, &session, cwd, args)
+    post_notice_from(state, me, &session, cwd, args, None)
 }
 
 /// Explicit author identity for hosts whose process can contain multiple threads.
@@ -147,7 +149,13 @@ pub fn post_notice_from(
     session: &str,
     cwd: &Path,
     args: PostNoticeArgs,
+    to_session: Option<String>,
 ) -> Result<i64, BridgeError> {
+    // A private message must never become a broadcast: `to` without a resolved target is an
+    // error, and nothing is written.
+    if args.to.is_some() && to_session.is_none() {
+        return Err(BridgeError::UnresolvedTarget);
+    }
     let repo = repo_of(cwd).ok_or(BridgeError::NotInRepo)?;
     std::fs::create_dir_all(state)?;
     let store = Store::open(&state.join("notices.db"))?;
@@ -163,7 +171,7 @@ pub fn post_notice_from(
         title: args.title,
         body: args.body,
         refs: args.refs,
-        to_session: None,
+        to_session,
     })?;
     if let Err(e) = update(&endpoint_path(state, me.0, me.1), |s| {
         s.last_post_ms = at_ms;
@@ -174,6 +182,25 @@ pub fn post_notice_from(
         crate::diag::note(&format!("could not record last_post_ms: {e}"));
     }
     Ok(seq)
+}
+
+/// The tool result for an addressed notice `seq` posted to the session `key`. `target` is the
+/// receiver's endpoint state. Without a session id in it no hook has ever run there, so the notice
+/// may never arrive: the text says so. Otherwise it gives the age of the receiver's last look.
+pub fn addressed_result(seq: i64, key: &str, target: &EndpointState, now_ms: i64) -> String {
+    let mut text = format!(
+        "Posted notice {seq} to {key} (queued: it shows at that session's next prompt or tool call)."
+    );
+    if target.session_id.is_empty() {
+        text.push_str(
+            " Warning: no hook has run for that session, so it may never receive this. \
+             Check that session-bridge is enabled in its profile.",
+        );
+    } else if target.last_look_ms > 0 {
+        let age_s = (now_ms - target.last_look_ms).max(0) / 1000;
+        text.push_str(&format!(" Its hooks last looked {age_s}s ago."));
+    }
+    text
 }
 
 // `pub`: tests/server.rs pins the served tool schemas through `Bridge::tool_router()`.
@@ -214,10 +241,7 @@ impl Bridge {
             .collect();
         if lines.is_empty() {
             lines.push(match my_repo.as_ref().filter(|_| !args.all) {
-                Some(repo) => format!(
-                    "No live sessions in this repository ({}).",
-                    repo.display()
-                ),
+                Some(repo) => format!("No live sessions in this repository ({}).", repo.display()),
                 None => {
                     "No live Claude Code sessions or rollout-backed Codex threads found.".into()
                 }
@@ -338,10 +362,32 @@ impl Bridge {
             .cwd()
             .ok_or_else(|| internal("calling thread cwd is unavailable"))?;
         let state = state_dir(&|k| std::env::var(k).ok()).map_err(to_error)?;
+        // An addressed notice resolves its target first: a failure posts nothing.
+        let target = match args.to.as_deref() {
+            Some(to) => {
+                Some(resolve_session(&sessions, to, Some(&caller.identity())).map_err(internal)?)
+            }
+            None => None,
+        };
+        let to_session = target.map(|t| t.session_id().to_string());
         let me = caller.storage_id();
-        let seq = post_notice_from(&state, (&me.0, me.1), caller.session_id(), cwd, args)
-            .map_err(to_error)?;
-        Ok(format!("Posted notice {seq}."))
+        let seq = post_notice_from(
+            &state,
+            (&me.0, me.1),
+            caller.session_id(),
+            cwd,
+            args,
+            to_session,
+        )
+        .map_err(to_error)?;
+        Ok(match target {
+            None => format!("Posted notice {seq}."),
+            Some(t) => {
+                let (profile, pid) = t.storage_id();
+                let st = load_or_default(&endpoint_path(&state, &profile, pid));
+                addressed_result(seq, &t.key(), &st, now_ms())
+            }
+        })
     }
 }
 

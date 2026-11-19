@@ -1,6 +1,8 @@
 use session_bridge_mcp::error::BridgeError;
-use session_bridge_mcp::server::{post_notice_impl, PostNoticeArgs};
-use session_bridge_mcp::state::{endpoint_path, load_or_default, update};
+use session_bridge_mcp::server::{
+    addressed_result, post_notice_from, post_notice_impl, PostNoticeArgs,
+};
+use session_bridge_mcp::state::{endpoint_path, load_or_default, update, EndpointState};
 use session_bridge_mcp::store::{NewNotice, Origin, Store};
 use std::sync::Arc;
 use tempfile::TempDir;
@@ -299,6 +301,7 @@ fn args(title: &str) -> PostNoticeArgs {
         title: title.to_string(),
         body: "body".to_string(),
         refs: vec!["a.rs".to_string()],
+        to: None,
     }
 }
 
@@ -539,4 +542,70 @@ fn old_database_without_to_session_opens_and_keeps_rows() {
     assert_eq!(page.notices.len(), 1);
     assert_eq!(page.notices[0].title, "old");
     assert_eq!(page.notices[0].to_session, None);
+}
+
+#[test]
+fn post_notice_from_stores_the_resolved_target() {
+    let state = TempDir::new().unwrap();
+    let repo = git_repo();
+    let mut a = args("for t");
+    a.to = Some("t".into());
+    let seq = post_notice_from(
+        state.path(),
+        (".claude-stef", 7),
+        "AUTHOR",
+        repo.path(),
+        a,
+        Some("sess-t".into()),
+    )
+    .unwrap();
+    let s = Store::open(&state.path().join("notices.db")).unwrap();
+    let got = s.direct_after("sess-t", 0, 8).unwrap();
+    assert_eq!(got.len(), 1);
+    assert_eq!(got[0].seq, seq);
+    let want = session_bridge_mcp::endpoints::repo_of(repo.path()).unwrap();
+    let broadcast = s.after(&want.to_string_lossy(), 0, ("x", 1)).unwrap();
+    assert!(
+        broadcast.notices.is_empty(),
+        "an addressed notice never broadcasts"
+    );
+}
+
+#[test]
+fn post_notice_from_refuses_an_unresolved_target_instead_of_broadcasting() {
+    let state = TempDir::new().unwrap();
+    let repo = git_repo();
+    let mut a = args("secret");
+    a.to = Some("t".into());
+    let err = post_notice_from(
+        state.path(),
+        (".claude-stef", 7),
+        "AUTHOR",
+        repo.path(),
+        a,
+        None,
+    )
+    .unwrap_err();
+    assert!(matches!(err, BridgeError::UnresolvedTarget), "{err}");
+    let s = Store::open(&state.path().join("notices.db")).unwrap();
+    assert_eq!(s.head().unwrap(), 0, "nothing was written");
+}
+
+#[test]
+fn addressed_result_warns_when_the_target_never_ran_a_hook() {
+    let text = addressed_result(3, "kat:5", &EndpointState::default(), 1_000_000);
+    assert!(text.contains("Posted notice 3 to kat:5"), "{text}");
+    assert!(text.contains("Warning"), "{text}");
+}
+
+#[test]
+fn addressed_result_reports_the_age_of_the_last_look() {
+    let st = EndpointState {
+        session_id: "S".into(),
+        last_look_ms: 1_000_000 - 42_000,
+        ..EndpointState::default()
+    };
+    let text = addressed_result(3, "kat:5", &st, 1_000_000);
+    assert!(text.contains("42s"), "{text}");
+    assert!(!text.contains("Warning"), "{text}");
 }

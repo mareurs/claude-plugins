@@ -77,6 +77,14 @@
         "title": {
           "description": "Short title (at most 120 characters).",
           "type": "string"
+        },
+        "to": {
+          "default": null,
+          "description": "Optional target: a session key, session id, id prefix of 4 or more characters, or name; without it the notice goes to the repository.",
+          "type": [
+            "string",
+            "null"
+          ]
         }
       },
       "required": [

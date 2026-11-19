@@ -40,6 +40,8 @@ pub enum BridgeError {
     Store(#[from] rusqlite::Error),
     #[error("not in a git repository")]
     NotInRepo,
+    #[error("`to` was given but no target session was resolved; nothing was posted")]
+    UnresolvedTarget,
     #[error("state directory not available: set HOME or XDG_STATE_HOME")]
     NoStateDir,
 }

@@ -39,6 +39,7 @@ fn notices_prints_text_and_json_and_stays_silent_on_errors() {
         title: "moved main".into(),
         body: "b".into(),
         refs: vec![],
+        to: None,
     };
     post_notice_impl(&state, (".claude-stef", 77), repo.path(), a).unwrap();
 

@@ -92,7 +92,9 @@ fn notices_reach_sibling_threads_but_never_self_even_after_host_restart() {
                 title: title.into(),
                 body: "change".into(),
                 refs: vec![],
+                to: None,
             },
+            None,
         )
         .unwrap()
     };
