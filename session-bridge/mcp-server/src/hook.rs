@@ -6,6 +6,7 @@ use crate::deliver::{
     has_undelivered, render_all, take_deliverable, undelivered_relevant, Fetched,
 };
 use crate::diag;
+use crate::direct::take as take_direct;
 use crate::endpoints::{pid_alive, process_start_ms, repo_of, Roots};
 use crate::events;
 use crate::paths::{is_safe_component, short_profile};
@@ -144,6 +145,9 @@ pub fn session_start(
     // A dead endpoint's state under a reused pid must not reach this process: its session
     // id would feed rule 3, its queue and verdicts would be delivered here.
     reset_if_recycled(roots, &endpoint_path(state, me.0, me.1), me.1);
+    // The id this endpoint held before this start: after a /clear, notices may still be
+    // addressed to it.
+    let prev = load_or_default(&endpoint_path(state, me.0, me.1)).session_id;
     // The cursor step reads this pid's PREVIOUS session id from the endpoint state (rule 3),
     // so the state is written after it, but on every path, success or failure.
     let rule = store
@@ -177,10 +181,17 @@ pub fn session_start(
     if let Err(e) = recorded {
         diag::note(&format!("session-start: endpoint state: {e}"));
     }
-    if rule != Some(StartRule::Fresh) || input.source.as_deref() == Some("resume") {
-        return None;
+    let mut ids = vec![input.session_id.as_str()];
+    if !prev.is_empty() && prev != input.session_id {
+        ids.push(prev.as_str());
     }
-    let repo = repo_of(Path::new(&input.cwd))?;
+    let direct = take_direct(&ids, me, roots, state, store);
+    if rule != Some(StartRule::Fresh) || input.source.as_deref() == Some("resume") {
+        return direct;
+    }
+    let Some(repo) = repo_of(Path::new(&input.cwd)) else {
+        return direct;
+    };
     match store.recent(
         &repo.to_string_lossy(),
         now - VIEW_WINDOW_MS,
@@ -188,17 +199,25 @@ pub fn session_start(
         me,
     ) {
         Ok(notices) => {
-            let view = render_start_view(&notices)?;
+            let Some(view) = render_start_view(&notices) else {
+                return direct;
+            };
             let line = serde_json::json!({
                 "at": now, "event": "delivered", "kind": "start_view",
                 "endpoint": events::endpoint_key(me.0, me.1), "seq": null,
             });
             events::append(state, &line);
-            Some(view)
+            Some(
+                direct
+                    .into_iter()
+                    .chain([view])
+                    .collect::<Vec<_>>()
+                    .join("\n\n"),
+            )
         }
         Err(e) => {
             diag::note(&format!("session-start: recent: {e}"));
-            None
+            direct
         }
     }
 }
@@ -249,6 +268,14 @@ pub fn on_trigger(
     let path = endpoint_path(state, me.0, me.1);
     let st = load_or_default(&path);
 
+    // Addressed notices come first and skip the look gate and the filter: they are for this
+    // session alone. After a /clear the endpoint state still names the previous id.
+    let mut ids = vec![input.session_id.as_str()];
+    if !st.session_id.is_empty() && st.session_id != input.session_id {
+        ids.push(st.session_id.as_str());
+    }
+    let direct = take_direct(&ids, me, roots, state, store);
+
     // Step 1, read side: the notices of the relevant verdicts to deliver. A failed read
     // marks nothing, so those verdicts wait for the next trigger.
     let mut fetched = Fetched::default();
@@ -285,7 +312,7 @@ pub fn on_trigger(
         && !worker_live
         && (!st.pending.is_empty() || !new_seqs.is_empty() || scan_wanted);
     if !(identity_changed || has_undelivered(&st) || due || may_spawn) {
-        return None;
+        return direct;
     }
 
     let mut items = vec![];
@@ -320,7 +347,7 @@ pub fn on_trigger(
     if let Err(e) = written {
         // Nothing was marked delivered and the cursor stays: the next trigger retries.
         diag::note(&format!("trigger: endpoint state: {e}"));
-        return None;
+        return direct;
     }
     // The cursor moves only after its notices are safely in `pending`.
     if let Some(p) = &page {
@@ -329,7 +356,10 @@ pub fn on_trigger(
         }
     }
 
-    let mut parts: Vec<String> = render_all(roots, &items).into_iter().collect();
+    let mut parts: Vec<String> = direct
+        .into_iter()
+        .chain(render_all(roots, &items))
+        .collect();
     let gap = page.and_then(|p| p.gap);
     if let Some((lo, hi)) = gap {
         parts.push(format!(

@@ -5,7 +5,7 @@ use session_bridge_mcp::{
     filter::{drain_unfiltered, transcript_tail},
     hook::{now_ms, HookInput},
     server::{post_notice_from, PostNoticeArgs},
-    store::Store,
+    store::{NewNotice, Origin, Store},
 };
 use std::{fs, path::Path};
 fn endpoint(root: &Path, sid: &str) -> CodexEndpoint {
@@ -191,4 +191,50 @@ fn codex_tail_uses_response_speech_once_without_tool_or_developer_data() {
     for forbidden in ["duplicate", "secret instructions", "tool result"] {
         assert!(!got.contains(forbidden), "{got}");
     }
+}
+#[test]
+fn a_codex_thread_receives_a_direct_notice_on_prompt() {
+    let d = tempfile::tempdir().unwrap();
+    let root = d.path();
+    assert!(std::process::Command::new("git")
+        .args(["init", "-q"])
+        .arg(root)
+        .status()
+        .unwrap()
+        .success());
+    let state = root.join("state");
+    fs::create_dir(&state).unwrap();
+    let store = Store::open(&state.join("notices.db")).unwrap();
+    let b = endpoint(root, "22222222-2222-7222-8222-222222222222");
+    let roots = Roots {
+        proc_root: root.join("proc"),
+        socks: root.join("socks"),
+    };
+    store
+        .post(NewNotice {
+            at_ms: now_ms(),
+            repo: "/work/elsewhere".into(),
+            author_profile: ".claude-kat".into(),
+            author_pid: 5,
+            author_session: "AUTHORSESSION".into(),
+            origin: Origin::Manual,
+            patch_id: None,
+            title: "direct hello".into(),
+            body: "b".into(),
+            refs: vec![],
+            to_session: Some(b.session_id.clone()),
+        })
+        .unwrap();
+    let out = handle(
+        "prompt",
+        &input(&b),
+        &b,
+        &roots,
+        &state,
+        &store,
+        now_ms(),
+        &|_, _| None,
+    )
+    .expect("delivered");
+    assert!(out.contains("direct hello"), "{out}");
 }

@@ -96,6 +96,24 @@ impl Env {
             })
             .unwrap()
     }
+    /// An addressed notice for session id `to`, written by a peer in another profile.
+    fn post_to(&self, at_ms: i64, to: &str, title: &str, body: &str) -> i64 {
+        self.store
+            .post(NewNotice {
+                at_ms,
+                repo: self.key.clone(),
+                author_profile: KAT.into(),
+                author_pid: 5,
+                author_session: AUTHOR_SESSION.into(),
+                origin: Origin::Manual,
+                patch_id: None,
+                title: title.into(),
+                body: body.into(),
+                refs: vec![],
+                to_session: Some(to.into()),
+            })
+            .unwrap()
+    }
 
     fn input(&self, tool_input: serde_json::Value) -> HookInput {
         HookInput {
@@ -873,4 +891,68 @@ fn a_plain_trigger_with_nothing_pending_starts_nothing_and_writes_nothing() {
         before,
         "the state file is unchanged"
     );
+}
+
+#[test]
+fn a_direct_notice_is_delivered_without_a_worker_or_the_look_gate() {
+    let e = env();
+    let now = now_ms();
+    // a look is not due, so the broadcast gate cannot be what delivers this
+    e.set_state(|s| s.last_look_ms = now);
+    e.post_to(now, "S", "ping from a peer", "please read");
+    let out = e.trigger_at(&e.plain(), now + 1).expect("delivered");
+    assert!(out.contains("ping from a peer"), "{out}");
+    assert!(out.contains("not an instruction"), "{out}");
+    assert_eq!(e.spawns(), 0, "no filter worker");
+    assert!(
+        e.st().pending.is_empty(),
+        "it never entered the filter queue"
+    );
+}
+
+#[test]
+fn a_direct_notice_survives_a_new_pid_without_redelivery() {
+    let e = env();
+    let now = now_ms();
+    e.post_to(now, "S", "once only", "b");
+    assert!(e.trigger_at(&e.plain(), now + 1).is_some());
+    // the same session id under another pid (a resume): the direct cursor is per session id
+    let again = on_trigger(
+        &e.plain(),
+        (STEF, 21),
+        &e.roots,
+        &e.state,
+        &e.store,
+        now + 2,
+        &|_, _| None,
+    );
+    assert!(
+        !again.unwrap_or_default().contains("once only"),
+        "delivered twice"
+    );
+}
+
+#[test]
+fn a_subagent_never_consumes_a_direct_notice() {
+    let e = env();
+    let now = now_ms();
+    e.post_to(now, "S", "for the main session", "b");
+    let mut sub = e.plain();
+    sub.agent_id = Some("agent-1".into());
+    assert_eq!(e.trigger_at(&sub, now + 1), None);
+    let out = e
+        .trigger_at(&e.plain(), now + 2)
+        .expect("the main session still gets it");
+    assert!(out.contains("for the main session"), "{out}");
+}
+
+#[test]
+fn a_direct_notice_is_delivered_even_when_the_endpoint_state_cannot_be_written() {
+    let e = env();
+    let now = now_ms();
+    // `<state>/endpoints` is a regular file, so the trigger's state update fails
+    std::fs::write(e.state.join("endpoints"), "x").unwrap();
+    e.post_to(now, "S", "still arrives", "b");
+    let out = e.trigger_at(&e.plain(), now + 1).expect("delivered");
+    assert!(out.contains("still arrives"), "{out}");
 }

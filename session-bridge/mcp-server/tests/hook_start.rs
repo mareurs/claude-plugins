@@ -71,6 +71,24 @@ fn post(e: &Env, repo: &str, at_ms: i64, profile: &str, pid: u32, session: &str,
         })
         .unwrap();
 }
+/// An addressed notice for session id `to`.
+fn post_to(e: &Env, to: &str, title: &str) {
+    e.store
+        .post(NewNotice {
+            at_ms: now_ms(),
+            repo: "/work/elsewhere".into(),
+            author_profile: ".claude-kat".into(),
+            author_pid: 5,
+            author_session: "AUTHORSESSION".into(),
+            origin: Origin::Manual,
+            patch_id: None,
+            title: title.into(),
+            body: "b".into(),
+            refs: vec![],
+            to_session: Some(to.into()),
+        })
+        .unwrap();
+}
 
 fn input(cwd: &Path, session: &str, source: &str) -> HookInput {
     HookInput {
@@ -700,4 +718,42 @@ fn process_start_ms_of_this_test_process_is_recent() {
         start <= now + 1_000 && start > now - 3_600_000,
         "start {start}, now {now}"
     );
+}
+
+#[test]
+fn session_start_delivers_a_direct_notice_that_arrived_while_down() {
+    let e = env();
+    post_to(&e, "S", "while you were away");
+    // a resume prints no start view, but an addressed notice is still owed
+    let out = session_start(
+        &input(&e.repo, "S", "resume"),
+        (STEF, 20),
+        &e.roots,
+        &e.state,
+        &e.store,
+    )
+    .expect("delivered");
+    assert!(out.contains("while you were away"), "{out}");
+}
+
+#[test]
+fn clear_delivers_a_notice_addressed_to_the_old_id() {
+    let e = env();
+    session_start(
+        &input(&e.repo, "S", "startup"),
+        (STEF, 20),
+        &e.roots,
+        &e.state,
+        &e.store,
+    );
+    post_to(&e, "S", "in flight during the clear");
+    let out = session_start(
+        &input(&e.repo, "S2", "clear"),
+        (STEF, 20),
+        &e.roots,
+        &e.state,
+        &e.store,
+    )
+    .expect("delivered");
+    assert!(out.contains("in flight during the clear"), "{out}");
 }
