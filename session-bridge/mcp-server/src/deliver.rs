@@ -1,7 +1,7 @@
 //! Delivery of filter verdicts: which verdicts are new, how a nudge reads, and how much of
 //! the delivery history an endpoint keeps.
 
-use crate::endpoints::{discover, Roots};
+use crate::endpoints::{discover, Endpoint, Roots};
 use crate::paths::short_profile;
 use crate::state::{EndpointState, Verdict};
 use crate::store::Notice;
@@ -52,19 +52,8 @@ fn author_key(n: &Notice) -> String {
 /// author's registry name; without it the author's key stands in. An author whose session
 /// is unknown (empty id) shows its pid instead of the id prefix.
 pub fn render_nudge(n: &Notice, v: &Verdict, name: Option<&str>) -> String {
-    let key = author_key(n);
-    let id = if n.author_session.is_empty() {
-        key.clone()
-    } else {
-        format!(
-            "{}:{}",
-            clean(&short_profile(&n.author_profile)),
-            clean(&cut(&n.author_session, 8))
-        )
-    };
-    let name = name.map_or(key, clean);
-    let at = chrono::DateTime::from_timestamp_millis(n.at_ms)
-        .map_or_else(|| "??:??".to_string(), |t| t.format("%H:%M").to_string());
+    let (name, id) = author_name_and_id(n, name);
+    let at = utc_clock(n.at_ms);
     let why = match &v.unfiltered_reason {
         Some(reason) => format!("(not filtered: {})", clean(reason)),
         None => format!(
@@ -79,6 +68,72 @@ pub fn render_nudge(n: &Notice, v: &Verdict, name: Option<&str>) -> String {
         cut(&clean(&n.body), BODY_CHARS),
         refs.join(", ")
     )
+}
+
+/// The author's display name and id label: the registry `name` (or the endpoint key without
+/// it), and `<short profile>:<first 8 characters of the session id>` (the pid when the session
+/// is unknown).
+fn author_name_and_id(n: &Notice, name: Option<&str>) -> (String, String) {
+    let key = author_key(n);
+    let id = if n.author_session.is_empty() {
+        key.clone()
+    } else {
+        format!(
+            "{}:{}",
+            clean(&short_profile(&n.author_profile)),
+            clean(&cut(&n.author_session, 8))
+        )
+    };
+    (name.map_or(key, clean), id)
+}
+
+/// `HH:MM` in UTC, or `??:??` for a time that does not exist.
+fn utc_clock(at_ms: i64) -> String {
+    chrono::DateTime::from_timestamp_millis(at_ms)
+        .map_or_else(|| "??:??".to_string(), |t| t.format("%H:%M").to_string())
+}
+
+/// The registry name of the live endpoint that wrote `n`, if there is one.
+fn author_name<'a>(live: &'a [Endpoint], n: &Notice) -> Option<&'a str> {
+    live.iter()
+        .find(|e| e.profile == n.author_profile && e.pid == n.author_pid)
+        .and_then(|e| e.name.as_deref())
+}
+
+/// The text for an addressed notice. The body is not cut: it is at most `MAX_BODY` characters,
+/// and the sender chose to write it for this one session. It stays untrusted, so every field goes
+/// through `clean` and the text ends with `AUTHORITY`. The reply hint names the author's session.
+pub fn render_direct(n: &Notice, name: Option<&str>) -> String {
+    let (name, id) = author_name_and_id(n, name);
+    let at = utc_clock(n.at_ms);
+    let refs: Vec<String> = n.refs.iter().map(|r| clean(r)).collect();
+    let reply = if n.author_session.is_empty() {
+        String::new()
+    } else {
+        format!(
+            " To reply: post_notice(to=\"{}\").",
+            clean(&n.author_session)
+        )
+    };
+    format!(
+        "Message to you from session {name} ({id}), {at} UTC: {}. {} Refs: {}.{reply} {AUTHORITY}",
+        clean(&n.title),
+        clean(&n.body),
+        refs.join(", ")
+    )
+}
+
+/// The addressed notices in `items`, joined by a blank line; `None` for no items.
+pub fn render_direct_all(roots: &Roots, items: &[Notice]) -> Option<String> {
+    if items.is_empty() {
+        return None;
+    }
+    let live = discover(roots);
+    let texts: Vec<String> = items
+        .iter()
+        .map(|n| render_direct(n, author_name(&live, n)))
+        .collect();
+    Some(texts.join("\n\n"))
 }
 
 /// The seqs of the relevant verdicts in `s` that are not delivered yet: the notices a
@@ -169,13 +224,7 @@ pub fn render_all(roots: &Roots, items: &[(Notice, Verdict)]) -> Option<String> 
     let live = discover(roots);
     let nudges: Vec<String> = items
         .iter()
-        .map(|(n, v)| {
-            let name = live
-                .iter()
-                .find(|e| e.profile == n.author_profile && e.pid == n.author_pid)
-                .and_then(|e| e.name.as_deref());
-            render_nudge(n, v, name)
-        })
+        .map(|(n, v)| render_nudge(n, v, author_name(&live, n)))
         .collect();
     Some(nudges.join("\n\n"))
 }

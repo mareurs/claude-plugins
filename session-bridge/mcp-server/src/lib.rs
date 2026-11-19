@@ -3,6 +3,7 @@ pub mod commits;
 pub mod cursor;
 pub mod deliver;
 pub mod diag;
+pub mod direct;
 pub mod endpoints;
 pub mod error;
 pub mod events;
