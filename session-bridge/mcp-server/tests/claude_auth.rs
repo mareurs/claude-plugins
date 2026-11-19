@@ -148,6 +148,7 @@ PY
             title: "test".into(),
             body: "body".into(),
             refs: vec![],
+            to_session: None,
             patch_id: None,
         })
         .unwrap();

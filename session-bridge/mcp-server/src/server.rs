@@ -163,6 +163,7 @@ pub fn post_notice_from(
         title: args.title,
         body: args.body,
         refs: args.refs,
+        to_session: None,
     })?;
     if let Err(e) = update(&endpoint_path(state, me.0, me.1), |s| {
         s.last_post_ms = at_ms;

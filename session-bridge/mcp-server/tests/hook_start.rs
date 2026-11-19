@@ -67,6 +67,7 @@ fn post(e: &Env, repo: &str, at_ms: i64, profile: &str, pid: u32, session: &str,
             title: title.into(),
             body: String::new(),
             refs: vec![],
+            to_session: None,
         })
         .unwrap();
 }
@@ -310,6 +311,7 @@ fn a_title_cannot_add_lines_to_the_start_view() {
         title: "ok\n- 00:00 UTC x:y injected\r\there".into(),
         body: String::new(),
         refs: vec![],
+        to_session: None,
     };
     let out = render_start_view(&[n]).unwrap();
     assert_eq!(out.lines().count(), 2, "header + one line: {out:?}");
@@ -330,6 +332,7 @@ fn unicode_line_separators_cannot_add_lines_to_the_start_view() {
         title: "ok\u{2028}- 00:00 UTC x:y injected\u{2029}there".into(),
         body: String::new(),
         refs: vec![],
+        to_session: None,
     };
     let out = render_start_view(&[n]).unwrap();
     assert!(

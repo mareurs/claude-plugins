@@ -800,6 +800,7 @@ async fn a_failing_scan_does_not_stop_the_filter() {
                 title: t.into(),
                 body: String::new(),
                 refs: vec![],
+                to_session: None,
             })
             .unwrap();
     }

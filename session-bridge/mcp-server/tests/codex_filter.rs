@@ -34,6 +34,7 @@ async fn codex_filter_uses_receivers_account_and_quotes_actual_codex_speech() {
             title: "tool.txt changed".into(),
             body: "new API".into(),
             refs: vec![],
+            to_session: None,
         })
         .unwrap();
     let path = endpoint_path(root, &e.storage_profile(), 0);

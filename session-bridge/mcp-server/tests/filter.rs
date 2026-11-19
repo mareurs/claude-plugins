@@ -30,6 +30,7 @@ fn new_notice(title: &str, body: &str) -> NewNotice {
         title: title.to_string(),
         body: body.to_string(),
         refs: vec![],
+        to_session: None,
     }
 }
 
@@ -137,6 +138,7 @@ fn notice(seq: i64, title: &str, body: &str) -> Notice {
         title: title.into(),
         body: body.into(),
         refs: vec![],
+        to_session: None,
     }
 }
 

@@ -92,6 +92,7 @@ impl Env {
                 title: title.into(),
                 body: body.into(),
                 refs: refs.iter().map(|s| s.to_string()).collect(),
+                to_session: None,
             })
             .unwrap()
     }
@@ -206,6 +207,7 @@ fn notice(title: &str, body: &str, refs: &[&str], session: &str) -> Notice {
         title: title.into(),
         body: body.into(),
         refs: refs.iter().map(|s| s.to_string()).collect(),
+        to_session: None,
     }
 }
 
@@ -594,6 +596,7 @@ fn a_notice_crosses_worktrees(post_from_linked: bool) {
             title: "from the other worktree".into(),
             body: "b".into(),
             refs: vec![],
+            to_session: None,
         })
         .unwrap();
     set(&e.state, STEF, "S", 20, 0).unwrap();

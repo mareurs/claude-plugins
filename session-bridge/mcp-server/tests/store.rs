@@ -22,7 +22,14 @@ fn notice(repo: &str, profile: &str, pid: u32, at_ms: i64) -> NewNotice {
         title: "t".to_string(),
         body: "b".to_string(),
         refs: vec![],
+        to_session: None,
     }
+}
+fn addressed(repo: &str, to: &str, at_ms: i64, title: &str) -> NewNotice {
+    let mut n = notice(repo, ".claude-kat", 2, at_ms);
+    n.to_session = Some(to.to_string());
+    n.title = title.to_string();
+    n
 }
 
 fn open() -> (TempDir, Store) {
@@ -459,4 +466,77 @@ fn post_commit_once_posts_one_row_per_repo_and_patch_even_when_racing() {
     let mut other = mk("patch-0");
     other.repo = Q.to_string();
     assert!(reader.post_commit_once(other).unwrap().is_some());
+}
+
+#[test]
+fn addressed_notice_is_invisible_to_after_and_recent() {
+    let (_d, s) = open();
+    s.post(notice(R, ".claude-kat", 2, 1000)).unwrap();
+    s.post(addressed(R, "s1", 1001, "private")).unwrap();
+    let page = s.after(R, 0, STEF).unwrap();
+    assert_eq!(page.notices.len(), 1);
+    assert_eq!(page.notices[0].title, "t");
+    let recent = s.recent(R, 0, 10, STEF).unwrap();
+    assert_eq!(recent.len(), 1);
+    assert!(recent.iter().all(|n| n.to_session.is_none()));
+}
+
+#[test]
+fn direct_after_returns_only_the_addressee_oldest_first_and_limited() {
+    let (_d, s) = open();
+    let a = s.post(addressed(R, "s1", 1000, "a")).unwrap();
+    let b = s.post(addressed(R, "s1", 1001, "b")).unwrap();
+    let c = s.post(addressed(Q, "s1", 1002, "c")).unwrap();
+    s.post(addressed(R, "s2", 1003, "other")).unwrap();
+    s.post(notice(R, ".claude-kat", 2, 1004)).unwrap();
+    let first: Vec<i64> = s
+        .direct_after("s1", 0, 2)
+        .unwrap()
+        .iter()
+        .map(|n| n.seq)
+        .collect();
+    assert_eq!(first, vec![a, b]);
+    let rest: Vec<i64> = s
+        .direct_after("s1", b, 8)
+        .unwrap()
+        .iter()
+        .map(|n| n.seq)
+        .collect();
+    assert_eq!(rest, vec![c], "the repository plays no part");
+    assert_eq!(s.direct_after("s2", 0, 8).unwrap().len(), 1);
+    assert!(s.direct_after("nobody", 0, 8).unwrap().is_empty());
+}
+
+#[test]
+fn to_session_round_trips() {
+    let (_d, s) = open();
+    s.post(addressed(R, "s1", 1000, "x")).unwrap();
+    let got = s.direct_after("s1", 0, 8).unwrap();
+    assert_eq!(got[0].to_session.as_deref(), Some("s1"));
+}
+
+#[test]
+fn old_database_without_to_session_opens_and_keeps_rows() {
+    let d = TempDir::new().unwrap();
+    let path = d.path().join("n.db");
+    {
+        let c = rusqlite::Connection::open(&path).unwrap();
+        c.execute_batch(
+            "CREATE TABLE notice (
+                seq INTEGER PRIMARY KEY AUTOINCREMENT, at_ms INTEGER NOT NULL,
+                repo TEXT NOT NULL, author_profile TEXT NOT NULL, author_pid INTEGER NOT NULL,
+                author_session TEXT NOT NULL, origin TEXT NOT NULL, patch_id TEXT,
+                title TEXT NOT NULL, body TEXT NOT NULL, refs TEXT NOT NULL);
+             CREATE TABLE deletion (lo INTEGER NOT NULL, hi INTEGER NOT NULL, at_ms INTEGER NOT NULL);
+             INSERT INTO notice (at_ms, repo, author_profile, author_pid, author_session, origin, title, body, refs)
+             VALUES (1000, '/work/r', '.claude-kat', 2, 's', 'manual', 'old', 'b', '[]');",
+        )
+        .unwrap();
+    }
+    drop(Store::open(&path).unwrap());
+    let s = Store::open(&path).unwrap(); // the migration is idempotent
+    let page = s.after(R, 0, STEF).unwrap();
+    assert_eq!(page.notices.len(), 1);
+    assert_eq!(page.notices[0].title, "old");
+    assert_eq!(page.notices[0].to_session, None);
 }

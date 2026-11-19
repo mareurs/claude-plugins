@@ -543,6 +543,7 @@ pub fn post_commit_notices(
             title,
             body,
             refs,
+            to_session: None,
         };
         match store.post_commit_once(notice) {
             Ok(Some(_)) => posted += 1,
