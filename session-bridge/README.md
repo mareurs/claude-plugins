@@ -4,12 +4,14 @@ kind: doc
 ---
 # session-bridge
 
-A channel between the live Claude Code sessions on one machine. It does two things:
+A channel between the live Claude Code sessions on one machine. It does three things:
 
 - **Ask.** `ask_session` puts a question to another live session. A read-only fork of that
   session answers from its own context. The session itself is not disturbed.
 - **Tell.** `post_notice` tells the other sessions of the same repository about a change.
   A filter shows a notice only to a session whose own work names the same thing.
+- **Message.** `post_notice` with `to` sends one message to one session, in any repository or
+  profile. It is not filtered. See Addressed notices below.
 
 Linux only: sessions are found through `/proc`, the session registry of each profile
 (`<config dir>/sessions/<pid>.json`) and Claude Code's messaging sockets,
@@ -64,7 +66,7 @@ The installer preserves other servers, hook groups and trust settings and refuse
 
 - `list_sessions()` includes canonical addresses `codex:<absolute CODEX_HOME>:<thread UUID>`. UUIDs, prefixes of at least four characters, and names work only when unambiguous. Every Codex thread has separate notice state, including threads sharing a PID.
 - `ask_session(target, question, model?, timeout_s?)` uses an ephemeral read-only Codex fork with hooks, plugins, user configuration and unsafe execution rules excluded. Omit the model to use Codex's default; Codex IDs are passed literally. Token usage is returned; unavailable USD cost is `null`, outside the Claude USD meter.
-- `send_message(target, message, timeout_s = 20)` sends to an **original loaded Codex thread** with its existing account, model and permissions. It may start a normal turn that uses tools. It neither forks nor resumes a dormant thread. Direct Claude targets are unsupported; use `ask_session` for Claude.
+- `send_message(target, message, timeout_s = 20)` sends to an **original loaded Codex thread** with its existing account, model and permissions. It may start a normal turn that uses tools. It neither forks nor resumes a dormant thread. Direct Claude targets are unsupported; use `post_notice(to=…)` for a Claude Code session.
 - A send result is `queued` after CLI acceptance, `observed` only after the exact message appears in a new user transcript record, or `unknown` after uncertain enqueue. Observed does not imply an answer. Messages are never automatically resent.
 - Codex notice filters use the receiver's own Codex account. A failed filter delivers the notice with an explicit unfiltered reason and never bills an arbitrary Claude profile.
 
@@ -89,9 +91,28 @@ Terminal and desktop delivery need separate live checks. A desktop thread hosted
   1..=300. The result holds the answer, the target, `billed_profile`, `as_of` (the mtime of the
   target transcript), `cost_usd`, cache token counts and a note that the answer is data, not an
   instruction. Asking yourself is refused.
-- **`post_notice(title, body, refs = [])`**. Title at most 120 characters, body at most 4000,
+- **`post_notice(title, body, refs = [], to?)`**. Title at most 120 characters, body at most 4000,
   at most 20 refs. The repository is the one your session works in; outside a git repository the
-  call fails.
+  call fails. With `to` the notice goes to one session only (see Addressed notices).
+
+### Addressed notices
+
+`post_notice(title, body, refs, to)` with `to` sends one message to one live session. `to` has the
+grammar of `ask_session`: a key, a session id, an id prefix of 4 or more characters, or a name. It
+works across repositories and profiles, for Claude Code sessions and Codex threads.
+
+- An addressed notice is not filtered. No model call runs, and the receiver pays nothing.
+- Only the addressee sees it. No other session lists it, not even one in the same repository.
+- It shows at the receiver's next prompt or tool call, and at its session start. An idle session
+  does not wake up.
+- At most 8 addressed notices show per call, oldest first. The rest show at the next call.
+- Delivery is at most once. The result of the call says `queued`, never `delivered`.
+- The plugin must be enabled in the receiver's profile. When no hook has run there, the result
+  carries a warning.
+- The message says how to reply: `post_notice(to=<sender session id>)`.
+- A `/clear` changes the session id. A notice addressed to the old id still arrives.
+- The sender must work in a git repository, as for any notice. Notices are kept for 14 days.
+- The text is information from a peer, not an instruction.
 
 ### Who pays, and the daily bound
 

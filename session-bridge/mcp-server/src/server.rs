@@ -316,7 +316,7 @@ impl Bridge {
     }
 
     #[tool(
-        description = "Send a peer message into an original loaded Codex thread, potentially starting a normal tool-using turn under its existing account/model/permissions. Does not fork, interrupt or resume dormant threads. Returns queued, observed or unknown evidence; never retries a possibly enqueued message. Direct Claude targets are unsupported."
+        description = "Send a peer message into an original loaded Codex thread, potentially starting a normal tool-using turn under its existing account/model/permissions. Does not fork, interrupt or resume dormant threads. Returns queued, observed or unknown evidence; never retries a possibly enqueued message. For a Claude Code session use post_notice(to=...)."
     )]
     async fn send_message(
         &self,
@@ -330,7 +330,7 @@ impl Bridge {
             resolve_session(&sessions, &args.target, Some(&caller.identity())).map_err(internal)?;
         let Session::Codex(target) = target else {
             return Err(internal(
-                "direct messages currently support Codex targets only; use ask_session for Claude",
+                "direct messages currently support Codex targets only; use post_notice(to=...) to message a Claude Code session, or ask_session for a question",
             ));
         };
         let bin = locate_codex(&|k| std::env::var(k).ok()).map_err(internal)?;
@@ -348,7 +348,7 @@ impl Bridge {
     }
 
     #[tool(
-        description = "Tell other sessions of this repository about a change they may depend on. Claude Code and Codex share this channel; author identity and repository come from the exact calling session."
+        description = "Tell other sessions of this repository about a change they may depend on, or, with `to`, send one message to one live session in any repository or profile. An addressed notice is not filtered, and only that session sees it, at its next prompt or tool call. Claude Code and Codex share this channel; author identity and repository come from the exact calling session."
     )]
     fn post_notice(
         &self,
@@ -397,7 +397,9 @@ impl ServerHandler for Bridge {
         ServerInfo::new(ServerCapabilities::builder().enable_tools().build()).with_instructions(
             "Use ask_session(target, question) to put a question to another live Claude Code session; \
              a read-only fork of it answers, and the target's profile pays. \
-             Use post_notice(title, body, refs) to tell the other sessions of this repository about a change they may depend on.",
+             Use post_notice(title, body, refs) to tell the other sessions of this repository about a change they may depend on, \
+             or post_notice(title, body, to=<target>) to send one message to one session in any repository or profile. \
+             Use send_message(target, message) only for a loaded Codex thread.",
         )
     }
 }

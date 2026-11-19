@@ -58,7 +58,7 @@
   },
   {
     "name": "post_notice",
-    "description": "Tell other sessions of this repository about a change they may depend on. Claude Code and Codex share this channel; author identity and repository come from the exact calling session.",
+    "description": "Tell other sessions of this repository about a change they may depend on, or, with `to`, send one message to one live session in any repository or profile. An addressed notice is not filtered, and only that session sees it, at its next prompt or tool call. Claude Code and Codex share this channel; author identity and repository come from the exact calling session.",
     "inputSchema": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "properties": {
@@ -97,7 +97,7 @@
   },
   {
     "name": "send_message",
-    "description": "Send a peer message into an original loaded Codex thread, potentially starting a normal tool-using turn under its existing account/model/permissions. Does not fork, interrupt or resume dormant threads. Returns queued, observed or unknown evidence; never retries a possibly enqueued message. Direct Claude targets are unsupported.",
+    "description": "Send a peer message into an original loaded Codex thread, potentially starting a normal tool-using turn under its existing account/model/permissions. Does not fork, interrupt or resume dormant threads. Returns queued, observed or unknown evidence; never retries a possibly enqueued message. For a Claude Code session use post_notice(to=...).",
     "inputSchema": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "properties": {
