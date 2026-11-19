@@ -224,3 +224,24 @@ fn unsafe_ids_never_build_a_direct_path() {
     }
     assert!(!root.exists(), "nothing was created");
 }
+
+#[test]
+fn direct_cursor_never_moves_backward_under_a_race() {
+    let d = TempDir::new().unwrap();
+    let root = d.path().to_path_buf();
+    // eight writers raise one cursor through values of their own; the last value is the maximum
+    let handles: Vec<_> = (0..8i64)
+        .map(|t| {
+            let root = root.clone();
+            std::thread::spawn(move || {
+                for i in 0..25 {
+                    set_direct(&root, STEF, "S", t * 1000 + i).unwrap();
+                }
+            })
+        })
+        .collect();
+    for h in handles {
+        h.join().unwrap();
+    }
+    assert_eq!(get_direct(&root, STEF, "S"), 7 * 1000 + 24);
+}

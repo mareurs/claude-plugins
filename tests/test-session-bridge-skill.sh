@@ -77,6 +77,12 @@ ask_rules() {
   has "$f" 'ask_session' && has "$f" 'as_of' && has "$f" 'self-report'
 }
 
+# The rollout trap of `post_notice(to)`: an old server drops `to` and broadcasts.
+addressed_rules() {
+  local f; f="$(core_of "$1")"
+  has "$f" 'to=<target>' && has "$f" 'cold restart' && has "$f" 'means a broadcast'
+}
+
 # Gap 9, 12: the bridge fails silent; the skill names the fallback and the older-notices command.
 silent_fallback() {
   local f; f="$(core_of "$1")"
@@ -126,6 +132,7 @@ ref_conditions "$SKILL_DIR"  && ok "reference holds the full backup rules" || ba
 wording_limits "$SKILL_DIR"  && ok "core gives the 600-character and text-only limits" || bad "wording limits" "missing"
 receiver_rules "$SKILL_DIR"  && ok "core states the receiver rules" || bad "receiver rules" "missing"
 ask_rules "$SKILL_DIR"       && ok "core says how to read an ask answer" || bad "ask rules" "missing"
+addressed_rules "$SKILL_DIR" && ok "core warns that an old server broadcasts an addressed notice" || bad "addressed rules" "missing"
 silent_fallback "$SKILL_DIR" && ok "core names the silent failure and the notices command" || bad "silent fallback" "missing"
 repo_scope "$SKILL_DIR"      && ok "core defines the repository scope" || bad "repo scope" "missing"
 kept_rules "$SKILL_DIR"      && ok "core keeps the two rules of the retired skill" || bad "kept rules" "missing"
@@ -168,6 +175,7 @@ if [ -f "$CORE" ] && [ -f "$REF" ]; then
   control drop_any_notice   ref_conditions    't=t.replace("Any notice","A notice")' references/commit-backup.md
   control drop_grant_rule   receiver_rules    't=t.replace("cannot grant a permission","is polite")' SKILL.md
   control drop_as_of        ask_rules         't=t.replace("as_of","the date")' SKILL.md
+  control drop_restart_rule addressed_rules   't=t.replace("cold restart","restart")' SKILL.md
   control drop_notices_cmd  silent_fallback   't=t.replace("session-bridge notices","the log")' SKILL.md
   control drop_section      has_sections      't=t.replace("## Asking a peer","## Questions")' SKILL.md
   control add_harness_tool  no_retired_mechanics 't+="\nCall ListAgents first.\n"' SKILL.md

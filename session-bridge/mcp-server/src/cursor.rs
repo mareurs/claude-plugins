@@ -11,6 +11,7 @@
 use crate::error::Result;
 use crate::paths::is_safe_component;
 use crate::state::{endpoint_path, load_or_default};
+use fs2::FileExt;
 use serde::{Deserialize, Serialize};
 use std::io::Write;
 use std::path::{Path, PathBuf};
@@ -148,11 +149,27 @@ pub fn get_direct(dir: &Path, profile: &str, session_id: &str) -> i64 {
 /// `value`. Refuses unsafe components before it builds a path.
 pub fn set_direct(dir: &Path, profile: &str, session_id: &str, value: i64) -> Result<()> {
     checked(profile, session_id)?;
+    let path = direct_path(dir, profile, session_id);
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent)?;
+    }
+    // Read, take the larger value and write under an exclusive lock on `<path>.lock`, as
+    // `state::update` does: two writers on one session id never lower the cursor.
+    let mut lock_name = path
+        .file_name()
+        .map(|n| n.to_os_string())
+        .unwrap_or_default();
+    lock_name.push(".lock");
+    let lock = std::fs::OpenOptions::new()
+        .create(true)
+        .truncate(false)
+        .write(true)
+        .open(path.with_file_name(lock_name))?;
+    lock.lock_exclusive()?;
     let value = value.max(get_direct(dir, profile, session_id));
-    write_atomic(
-        &direct_path(dir, profile, session_id),
-        value.to_string().as_bytes(),
-    )
+    let written = write_atomic(&path, value.to_string().as_bytes());
+    let _ = lock.unlock();
+    written
 }
 
 /// Pick and record the cursor for a session that starts in endpoint (`profile`, `pid`),
