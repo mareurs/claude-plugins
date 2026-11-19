@@ -1,4 +1,4 @@
-use session_bridge_mcp::cursor::{get, on_session_start, set, StartRule};
+use session_bridge_mcp::cursor::{get, get_direct, on_session_start, set, set_direct, StartRule};
 use session_bridge_mcp::paths::is_safe_component;
 use session_bridge_mcp::state::{endpoint_path, update};
 use tempfile::TempDir;
@@ -164,4 +164,63 @@ fn is_safe_component_table() {
     }
     assert!(is_safe_component(&"a".repeat(128)));
     assert!(!is_safe_component(&"a".repeat(129)));
+}
+
+#[test]
+fn direct_cursor_defaults_to_zero_and_round_trips() {
+    let d = TempDir::new().unwrap();
+    assert_eq!(get_direct(d.path(), STEF, "S"), 0);
+    set_direct(d.path(), STEF, "S", 7).unwrap();
+    assert_eq!(get_direct(d.path(), STEF, "S"), 7);
+}
+
+#[test]
+fn direct_cursor_is_per_profile_and_session_id() {
+    let d = TempDir::new().unwrap();
+    set_direct(d.path(), ".claude-a", "S", 1).unwrap();
+    set_direct(d.path(), ".claude-b", "S", 2).unwrap();
+    set_direct(d.path(), ".claude-a", "T", 3).unwrap();
+    assert_eq!(get_direct(d.path(), ".claude-a", "S"), 1);
+    assert_eq!(get_direct(d.path(), ".claude-b", "S"), 2);
+    assert_eq!(get_direct(d.path(), ".claude-a", "T"), 3);
+}
+
+#[test]
+fn direct_cursor_never_moves_backward() {
+    let d = TempDir::new().unwrap();
+    set_direct(d.path(), STEF, "S", 5).unwrap();
+    set_direct(d.path(), STEF, "S", 3).unwrap();
+    assert_eq!(get_direct(d.path(), STEF, "S"), 5);
+}
+
+#[test]
+fn start_rules_do_not_touch_the_direct_cursor() {
+    let d = TempDir::new().unwrap();
+    update(&endpoint_path(d.path(), STEF, 20), |s| {
+        s.session_id = "old".into()
+    })
+    .unwrap();
+    set(d.path(), STEF, "old", 20, 7).unwrap();
+    set_direct(d.path(), STEF, "old", 5).unwrap();
+    // /clear: same pid, a new id (rule 3)
+    let (rule, _) = on_session_start(d.path(), STEF, 20, "new", &|_| true, 99).unwrap();
+    assert_eq!(rule, StartRule::MoveAfterClear);
+    assert_eq!(get_direct(d.path(), STEF, "old"), 5);
+    assert_eq!(get_direct(d.path(), STEF, "new"), 0);
+    // a fresh start under another id (rule 4)
+    let (rule, _) = on_session_start(d.path(), STEF, 21, "other", &|_| false, 99).unwrap();
+    assert_eq!(rule, StartRule::Fresh);
+    assert_eq!(get_direct(d.path(), STEF, "old"), 5);
+}
+
+#[test]
+fn unsafe_ids_never_build_a_direct_path() {
+    let d = TempDir::new().unwrap();
+    let root = d.path().join("state");
+    for bad in ["../../etc/x", "a/b", "", "..", ".", "a..b", "x y"] {
+        assert!(set_direct(&root, STEF, bad, 1).is_err(), "{bad:?}");
+        assert_eq!(get_direct(&root, STEF, bad), 0, "{bad:?}");
+        assert!(set_direct(&root, bad, "S", 1).is_err(), "{bad:?}");
+    }
+    assert!(!root.exists(), "nothing was created");
 }

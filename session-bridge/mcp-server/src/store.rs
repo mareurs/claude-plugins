@@ -132,12 +132,12 @@ impl Store {
     }
 
     fn init(conn: &Connection) -> rusqlite::Result<()> {
-            let mode: String = conn.query_row("PRAGMA journal_mode", [], |r| r.get(0))?;
-            if !mode.eq_ignore_ascii_case("wal") {
-                conn.query_row("PRAGMA journal_mode=WAL", [], |r| r.get::<_, String>(0))?;
-            }
-            conn.execute_batch(
-                "CREATE TABLE IF NOT EXISTS notice (
+        let mode: String = conn.query_row("PRAGMA journal_mode", [], |r| r.get(0))?;
+        if !mode.eq_ignore_ascii_case("wal") {
+            conn.query_row("PRAGMA journal_mode=WAL", [], |r| r.get::<_, String>(0))?;
+        }
+        conn.execute_batch(
+            "CREATE TABLE IF NOT EXISTS notice (
                 seq INTEGER PRIMARY KEY AUTOINCREMENT,
                 at_ms INTEGER NOT NULL,
                 repo TEXT NOT NULL,
@@ -157,32 +157,32 @@ impl Store {
                 hi INTEGER NOT NULL,
                 at_ms INTEGER NOT NULL
             );",
-            )?;
-            Self::add_to_session(conn)
-        }
+        )?;
+        Self::add_to_session(conn)
+    }
 
-        /// Adds `to_session` to a database written before addressed notices existed, and its index.
-        fn add_to_session(conn: &Connection) -> rusqlite::Result<()> {
-            let present: i64 = conn.query_row(
-                "SELECT COUNT(*) FROM pragma_table_info('notice') WHERE name = 'to_session'",
-                [],
-                |r| r.get(0),
-            )?;
-            if present == 0 {
-                match conn.execute("ALTER TABLE notice ADD COLUMN to_session TEXT", []) {
-                    Ok(_) => {}
-                    // Another process migrated between the check and the ALTER.
-                    Err(rusqlite::Error::SqliteFailure(_, Some(m)))
-                        if m.contains("duplicate column name") => {}
-                    Err(e) => return Err(e),
-                }
+    /// Adds `to_session` to a database written before addressed notices existed, and its index.
+    fn add_to_session(conn: &Connection) -> rusqlite::Result<()> {
+        let present: i64 = conn.query_row(
+            "SELECT COUNT(*) FROM pragma_table_info('notice') WHERE name = 'to_session'",
+            [],
+            |r| r.get(0),
+        )?;
+        if present == 0 {
+            match conn.execute("ALTER TABLE notice ADD COLUMN to_session TEXT", []) {
+                Ok(_) => {}
+                // Another process migrated between the check and the ALTER.
+                Err(rusqlite::Error::SqliteFailure(_, Some(m)))
+                    if m.contains("duplicate column name") => {}
+                Err(e) => return Err(e),
             }
-            conn.execute(
-                "CREATE INDEX IF NOT EXISTS notice_to_seq ON notice(to_session, seq)",
-                [],
-            )?;
-            Ok(())
         }
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS notice_to_seq ON notice(to_session, seq)",
+            [],
+        )?;
+        Ok(())
+    }
 
     /// Validates limits before writing, prunes notices older than 14 days
     /// (measured from the new notice's `at_ms`), then inserts, all in one transaction.
@@ -303,18 +303,18 @@ impl Store {
         Ok(rows)
     }
     /// Notices addressed to `to_session` with `seq > after`, oldest first, at most `limit`.
-        /// It takes no repository: an addressed notice crosses repositories and profiles.
-        pub fn direct_after(&self, to_session: &str, after: i64, limit: usize) -> Result<Vec<Notice>> {
-            let mut stmt = self.conn.prepare(&format!(
-                "SELECT {COLS} FROM notice
+    /// It takes no repository: an addressed notice crosses repositories and profiles.
+    pub fn direct_after(&self, to_session: &str, after: i64, limit: usize) -> Result<Vec<Notice>> {
+        let mut stmt = self.conn.prepare(&format!(
+            "SELECT {COLS} FROM notice
              WHERE to_session = ?1 AND seq > ?2
              ORDER BY seq ASC LIMIT ?3"
-            ))?;
-            let rows = stmt
-                .query_map(params![to_session, after, limit as i64], row_to_notice)?
-                .collect::<rusqlite::Result<Vec<_>>>()?;
-            Ok(rows)
-        }
+        ))?;
+        let rows = stmt
+            .query_map(params![to_session, after, limit as i64], row_to_notice)?
+            .collect::<rusqlite::Result<Vec<_>>>()?;
+        Ok(rows)
+    }
 
     /// The notices with these seqs, oldest first. A seq that no longer exists (retention
     /// deleted it) is simply absent from the result.

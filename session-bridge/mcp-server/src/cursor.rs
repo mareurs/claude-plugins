@@ -4,6 +4,9 @@
 //! used it. A same-profile twin (two live processes on one session id, e.g. two `--resume`
 //! of the same id) gets its own file `<profile>__<session>__<pid>.json`, so neither steals
 //! the other's position. `dir` is always the state root, never the `cursors/` directory.
+//!
+//! Addressed notices have their own cursor, `<profile>__<session>.direct`, with no pid and no
+//! twins: see `get_direct` and `set_direct`.
 
 use crate::error::Result;
 use crate::paths::is_safe_component;
@@ -66,6 +69,19 @@ fn read(path: &Path) -> Option<CursorFile> {
 }
 
 fn write(path: &Path, pid: u32, cursor: i64) -> Result<()> {
+    write_atomic(
+        path,
+        &serde_json::to_vec(&CursorFile {
+            schema: 1,
+            pid,
+            cursor,
+        })?,
+    )
+}
+
+/// Writes `bytes` to `path` through a temporary file in the same directory: the file is
+/// synced, then renamed over `path`, so a reader never sees a half-written cursor.
+fn write_atomic(path: &Path, bytes: &[u8]) -> Result<()> {
     if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent)?;
     }
@@ -77,11 +93,7 @@ fn write(path: &Path, pid: u32, cursor: i64) -> Result<()> {
     let tmp = path.with_file_name(tmp_name);
     let written = (|| -> Result<()> {
         let mut f = std::fs::File::create(&tmp)?;
-        f.write_all(&serde_json::to_vec(&CursorFile {
-            schema: 1,
-            pid,
-            cursor,
-        })?)?;
+        f.write_all(bytes)?;
         f.sync_all()?;
         std::fs::rename(&tmp, path)?;
         Ok(())
@@ -111,6 +123,36 @@ pub fn set(dir: &Path, profile: &str, session_id: &str, pid: u32, cursor: i64) -
     } else {
         write(&plain_path(dir, profile, session_id), pid, cursor)
     }
+}
+/// `<state>/cursors/<profile>__<session id>.direct`: how far into the addressed notices of one
+/// session id its sessions have been told. It holds one decimal integer and has no pid: every
+/// process on that id shares it, and the start rules of `on_session_start` never touch it.
+fn direct_path(dir: &Path, profile: &str, session_id: &str) -> PathBuf {
+    dir.join("cursors")
+        .join(format!("{profile}__{session_id}.direct"))
+}
+
+/// The direct cursor of (`profile`, `session_id`): 0 when it is missing, unreadable or the
+/// components are unsafe.
+pub fn get_direct(dir: &Path, profile: &str, session_id: &str) -> i64 {
+    if checked(profile, session_id).is_err() {
+        return 0;
+    }
+    std::fs::read_to_string(direct_path(dir, profile, session_id))
+        .ok()
+        .and_then(|s| s.trim().parse().ok())
+        .unwrap_or(0)
+}
+
+/// Moves the direct cursor to `value`, never backward: it stores the larger of the old value and
+/// `value`. Refuses unsafe components before it builds a path.
+pub fn set_direct(dir: &Path, profile: &str, session_id: &str, value: i64) -> Result<()> {
+    checked(profile, session_id)?;
+    let value = value.max(get_direct(dir, profile, session_id));
+    write_atomic(
+        &direct_path(dir, profile, session_id),
+        value.to_string().as_bytes(),
+    )
 }
 
 /// Pick and record the cursor for a session that starts in endpoint (`profile`, `pid`),
