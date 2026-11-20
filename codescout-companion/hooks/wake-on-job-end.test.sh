@@ -171,6 +171,28 @@ run_hook c12 "$(mkinput spawn "$R")" "$PD"
 expect "server dead, job dead" 2 "state is unknown"
 case "$ERR" in *"tail -50"*) fail "server dead, job dead" "stderr offers tail -50: $ERR" ;; *) pass "server dead, job dead: no tail -50" ;; esac
 
+# 12a. VS Code/Copilot receives a string tool_response and arms a map, but it does not
+# block PostToolUse. AgentStop/Stop is the continuation channel.
+R="$TMP/r-vscode.json"; mkrec "$R" running "$$" null
+VSINP=$(node -e '
+  const inner={output_id:"@bg_00000001",record:process.argv[1]};
+  const response=JSON.stringify(inner)+"\\n\\n<!-- auto-injected get_guide(\\\"progressive-disclosure\\\") -->\\n## Output budgets";
+  process.stdout.write(JSON.stringify({
+    hook_event_name:"PostToolUse",
+    tool_name:"mcp_rmcp_run_command",
+    tool_use_id:"vscode-call-1",
+    session_id:"sess-vscode",
+    cwd:"/home/marius/work/claude/codescout",
+    tool_input:{command:"sleep 1"},
+    tool_response:response
+  }));
+' "$R")
+run_hook c-vscode "$VSINP" -u CLAUDE_PROJECT_DIR -u CLAUDE_CONFIG_DIR -u CODESCOUT_WAKE_ENVIRONMENT_ID "XDG_STATE_HOME=$TMP/vscode-state"
+expect "VS Code PostToolUse maps only" 0 ""
+VMAP="$TMP/vscode-state/codescout-companion/wake/map-sess-vscode-@bg_00000001"
+[ "$(cat "$VMAP" 2>/dev/null)" = "$R" ] && pass "VS Code map: record path stored" || fail "VS Code map" "missing or wrong $VMAP"
+[ ! -e "$R.watch" ] && pass "VS Code PostToolUse: no in-band watcher" || fail "VS Code PostToolUse watcher" "$R.watch exists"
+
 # mkmap RECORD -> write the session-to-record map the way a spawn would
 mkmap() { mkdir -p "$(dirname "$MAP")"; printf '%s' "$1" >"$MAP"; }
 

@@ -38,20 +38,41 @@ export function pidAlive(pid) {
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-// Parse the spawn response. Returns { handle, record } or null.
-export function spawnOf(input) {
+// Parse the host response. Claude uses tool_response[0].text; VS Code/Copilot
+// exposes the MCP tool response as a JSON string (and may also use an array).
+export const toolResponseOf = input => {
   try {
-    const text = input && input.tool_response && input.tool_response[0] && input.tool_response[0].text;
+    const tr = input && (input.tool_response ?? input.tool_result?.text_result_for_llm ?? input.toolResult?.textResultForLlm);
+    let text;
+    if (typeof tr === 'string') text = tr;
+    else if (Array.isArray(tr)) {
+      const block = tr.find(c => c && (typeof c.text === 'string' || typeof c.content === 'string'));
+      text = block && (typeof block.text === 'string' ? block.text : block.content);
+    } else if (tr && typeof tr === 'object') {
+      if (typeof tr.text === 'string') text = tr.text;
+      else if (Array.isArray(tr.content)) {
+        const block = tr.content.find(c => c && typeof c.text === 'string');
+        text = block && block.text;
+      }
+    }
     if (typeof text !== 'string') return null;
-    const r = JSON.parse(text); // the response text is itself a JSON string
-    if (!r || typeof r !== 'object') return null;
-    if (typeof r.output_id !== 'string' || !r.output_id.startsWith('@bg_')) return null;
-    if ('exit_code' in r) return null; // a read of a job, not a spawn
-    if (typeof r.record !== 'string') return null;
-    return { handle: r.output_id, record: r.record };
+    const marker=text.indexOf('<!-- auto-injected');
+    if(marker>=0) text=text.slice(0,marker);
+    text=text.replace(/(?:\\n)+\s*$/, '').trim();
+    return JSON.parse(text);
   } catch {
     return null;
   }
+};
+
+// Parse the spawn response. Returns { handle, record } or null.
+export function spawnOf(input) {
+  const r = toolResponseOf(input);
+  if (!r || typeof r !== 'object') return null;
+  if (typeof r.output_id !== 'string' || !r.output_id.startsWith('@bg_')) return null;
+  if ('exit_code' in r) return null; // a read of a job, not a spawn
+  if (typeof r.record !== 'string') return null;
+  return { handle: r.output_id, record: r.record };
 }
 
 function fmtDuration(ms) {
@@ -217,9 +238,7 @@ function writeMap(sessionId, handle, record) {
 // (heartbeat) while the job still runs. Returns { handle, record } or null.
 export function rearmTarget(input) {
   try {
-    const text = input && input.tool_response && input.tool_response[0] && input.tool_response[0].text;
-    if (typeof text !== 'string') return null;
-    const r = JSON.parse(text);
+    const r = toolResponseOf(input);
     if (!r || typeof r !== 'object' || !('exit_code' in r)) return null; // not a read
     const command = input.tool_input && input.tool_input.command;
     const m = typeof command === 'string' ? command.match(/@bg_[0-9a-f]{8}/) : null;
@@ -250,12 +269,20 @@ export function rearmTarget(input) {
 
 
 async function main() {
-  if (!process.env.CLAUDE_PROJECT_DIR) process.exit(0);
   const input=readInput();
   if(!input||input.agent_id)process.exit(0);
+  const toolName=input.tool_name||'';
+  const supportedTool=toolName==='mcp__codescout__run_command'||/(^|[_.-])run_command$/.test(toolName);
+  if(!supportedTool)process.exit(0);
+  if(toolName==='mcp__codescout__run_command'&&!process.env.CLAUDE_PROJECT_DIR)process.exit(0);
+  if(toolName!=='mcp__codescout__run_command'){
+    const spawn=spawnOf(input);
+    if(spawn)writeMap(input.session_id,spawn.handle,spawn.record);
+    process.exit(0);
+  }
   const profileRoot=resolve(process.env.CLAUDE_CONFIG_DIR||join(homedir(),'.claude'));
   const environmentId=process.env.CODESCOUT_WAKE_ENVIRONMENT_ID||process.platform;
-  if(existsSync(join(profileRoot,'codescout-wake.json'))){
+  if(toolName==='mcp__codescout__run_command'&&existsSync(join(profileRoot,'codescout-wake.json'))){
     const config=await loadWakeConfig({profileRoot,environmentId});
     if(config.engine==='v1'){
       const platform=createPlatform(config);
