@@ -15,7 +15,7 @@ Release readiness across plugins × profiles. See
 ## State
 ### Current release verification — 2026-11-19
 
-_Measured at 2e7eb5f. Every element of every install record was read. 27 profile rows._
+_Measured at 116d53a (the session-bridge rows after release 0.3.2; the other rows were measured at 2e7eb5f). Every element of every install record was read. 27 profile rows._
 
 **buddy** — canonical `0.12.0` · readme `0.12.0` ✅ · marketplace clean ✅
 
@@ -62,14 +62,14 @@ _Measured at 2e7eb5f. Every element of every install record was read. 27 profile
 | `~/.claude-kat` | 3.0.1 ✅ | ✅ | ✅ | `3.0.1, 3.0.1` ✅ |
 | `~/.claude-stef` | 3.0.1 ✅ | ✅ | ✅ | `3.0.1, 3.0.1` ✅ |
 
-**session-bridge** — canonical `0.3.1` · readme `0.3.1` ✅ · marketplace clean ✅
+**session-bridge** — canonical `0.3.2` · readme `0.3.2` ✅ · marketplace clean ✅
 
 | profile | installed | cache dir | install_path ok | all entries |
 |---|---|---|---|---|
-| `~/.claude` | 0.3.1 ✅ | ✅ | ✅ | `0.3.1` ✅ |
-| `~/.claude-sdd` | 0.3.1 ✅ | ✅ | ✅ | `0.3.1` ✅ |
-| `~/.claude-kat` | 0.3.1 ✅ | ✅ | ✅ | `0.3.1` ✅ |
-| `~/.claude-stef` | 0.3.1 ✅ | ✅ | ✅ | `0.3.1` ✅ |
+| `~/.claude` | 0.3.2 ✅ | ✅ | ✅ | `0.3.2` ✅ |
+| `~/.claude-sdd` | 0.3.2 ✅ | ✅ | ✅ | `0.3.2` ✅ |
+| `~/.claude-kat` | 0.3.2 ✅ | ✅ | ✅ | `0.3.2` ✅ |
+| `~/.claude-stef` | 0.3.2 ✅ | ✅ | ✅ | `0.3.2` ✅ |
 
 **statusline** — canonical `1.2.1` · readme `1.2.1` ✅ · marketplace clean ✅
 
