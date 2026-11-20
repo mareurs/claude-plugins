@@ -1,7 +1,7 @@
 {
   "name": "session-bridge",
   "description": "Channel between Claude Code and Codex sessions: ask read-only forks, post repository notices, and send messages to original loaded Codex threads.",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "author": {
     "name": "Marius"
   },
